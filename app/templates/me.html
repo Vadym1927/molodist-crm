@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Мій кабінет</h1>
+<p class="muted">{{ user.name }} · {{ user.role_label }}{{ (' · лікар ' ~ user.doctor.name) if user.doctor }} · логін <b>{{ user.login }}</b></p>
+{% if msg %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ msg }}</div>{% endif %}
+<div class="card" style="max-width:520px">
+  <form method="post" class="grid" style="gap:10px">
+    <label class="small muted">Telegram chat ID (для особистих сповіщень; дізнатися — команда /id у боті)</label>
+    <input name="telegram_chat_id" value="{{ user.telegram_chat_id or '' }}">
+    <h2 style="margin-top:12px">Змінити пароль</h2>
+    <input type="password" name="current" placeholder="Поточний пароль" autocomplete="current-password">
+    <input type="password" name="new" placeholder="Новий пароль (мін. 8 символів)" autocomplete="new-password">
+    <button class="btn">Зберегти</button>
+  </form>
+</div>
+<div class="card" style="max-width:520px"><h2>Що мені доступно</h2>
+  <ul class="small">
+    {% if can(user,'finance') %}<li>Фінанси клініки: прогноз, KPI всіх лікарів</li>{% endif %}
+    {% if can(user,'patients_all') %}<li>Усі пацієнти та бюті-плани</li>{% else %}<li>Лише мої пацієнти (де я лікар у плані)</li>{% endif %}
+    {% if can(user,'medical') %}<li>Медичні нотатки лікаря</li>{% endif %}
+    {% if can(user,'reminders') %}<li>Нагадування «не записані» / «закінчується догляд»</li>{% endif %}
+    {% if can(user,'mapping') %}<li>Зіставлення послуг з CleverBox, синхронізація</li>{% endif %}
+    {% if can(user,'plan_delete') %}<li>Видалення планів</li>{% endif %}
+    {% if can(user,'users') %}<li>Користувачі, API-ключі, вебхуки, журнал дій</li>{% endif %}
+  </ul></div>
+{% endblock %}

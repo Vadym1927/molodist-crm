@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Нерозібрані файли</h1><p class="muted">Фото та PDF з ТГ-чатів, для яких не вдалося визначити пацієнта.</p>
+<div class="grid g2">
+{% for f in files %}
+  <div class="card row" style="align-items:flex-start">
+    {% if f.kind=='photo' %}<a href="/files/{{ f.id }}" target="_blank"><img src="/files/{{ f.id }}" style="width:110px;border-radius:10px"></a>{% else %}<a href="/files/{{ f.id }}" target="_blank">📄 {{ f.caption }}</a>{% endif %}
+    <form method="post" action="/files/{{ f.id }}/assign" class="grid" style="gap:8px;flex:1">
+      <div class="small muted">{{ f.created_at|dt('%d.%m.%Y %H:%M') }} · {{ f.caption or 'без підпису' }}</div>
+      <select name="patient_id" required><option value="">— пацієнт —</option>{% for p in patients %}<option value="{{ p.id }}">{{ p.full_name }}{{ (' · ' ~ p.phone) if p.phone }}</option>{% endfor %}</select>
+      <button class="btn ghost">Привʼязати</button></form>
+  </div>
+{% else %}<div class="card muted">Усе розібрано 👌</div>{% endfor %}
+</div>
+{% endblock %}

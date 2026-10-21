@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="card" style="max-width:560px;margin:8vh auto;text-align:center">
+  <h1>{{ 'Немає доступу' if code==403 else ('Не знайдено' if code==404 else 'Помилка') }}</h1>
+  <p class="muted">{{ detail }}</p>
+  <a class="btn ghost" href="javascript:history.back()">Назад</a> <a class="btn" href="/">На дашборд</a>
+</div>
+{% endblock %}

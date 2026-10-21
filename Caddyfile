@@ -1,0 +1,31 @@
+# HTTPS для MOLODIST CRM. Сертифікат Let's Encrypt Caddy отримує і продовжує сам —
+# потрібно лише, щоб DNS-запис DOMAIN вказував на IP цього сервера і порти 80/443 були відкриті.
+{$DOMAIN} {
+	encode zstd gzip
+
+	# великі файли: ZIP з PDF бюті-планів, відновлення резервної копії
+	request_body {
+		max_size 2GB
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	reverse_proxy app:8000 {
+		# довгі операції (перенос, бекап, імпорт) не обриваються проксі
+		transport http {
+			read_timeout 15m
+			write_timeout 15m
+		}
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

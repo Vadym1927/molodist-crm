@@ -1,0 +1,35 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: crm
+      POSTGRES_USER: crm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?задайте POSTGRES_PASSWORD у .env}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crm -d crm"]
+      interval: 10s
+      retries: 5
+
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://crm:${POSTGRES_PASSWORD}@db/crm
+      BACKUP_DIR: /app/backups
+    depends_on:
+      db: {condition: service_healthy}
+    ports: ["127.0.0.1:8010:8000"]
+    volumes:
+      - ./data:/app/data                # фото, PDF
+      - ${BACKUP_HOST_DIR:-./backups}:/app/backups      # бекапи: краще окремий диск, напр. /mnt/backup-disk/crm
+      - ${BACKUP_COPY_HOST_DIR:-./backups-copy}:/app/backups-copy   # друга копія (інший диск / rclone-хмара)
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 30s
+      retries: 3
+
+volumes:
+  pgdata:

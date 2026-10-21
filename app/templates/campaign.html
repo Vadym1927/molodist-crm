@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block body %}
+<a href="/campaigns" class="muted small" style="text-decoration:none">← Розсилки</a>
+<div class="row between"><h1>{{ c.name }}</h1>
+  <div class="row">
+    {% set m = {'draft':('чернетка','warn'),'scheduled':('заплановано','warn'),'sending':('надсилається','ok'),'done':('надіслано','done'),'cancelled':('скасовано','bad')}[c.status] %}
+    <span class="pill {{ m[1] }}">{{ m[0] }}{{ (' на ' ~ c.scheduled_at.strftime('%d.%m %H:%M')) if c.status=='scheduled' and c.scheduled_at }}</span>
+    <form method="post" action="/campaigns/{{ c.id }}/copy"><button class="btn ghost">Копіювати</button></form>
+    {% if c.status in ('draft','scheduled','sending') and can(user,'campaigns_send') %}<form method="post" action="/campaigns/{{ c.id }}/cancel" onsubmit="return confirm('Скасувати розсилку?')"><button class="btn danger">Скасувати</button></form>{% endif %}
+  </div></div>
+
+{% if c.status == 'draft' %}
+<div class="grid g2" style="align-items:start">
+  <div class="card"><h2>Текст і аудиторія</h2>
+    <form method="post" action="/campaigns/{{ c.id }}" class="grid" style="gap:8px">
+      <input name="name" value="{{ c.name }}" required>
+      <select name="segment">{% for k,l in SEGMENTS.items() %}<option value="{{ k }}" {{ 'selected' if c.segment==k }}>{{ l }}</option>{% endfor %}</select>
+      <textarea name="text" rows="7" required>{{ c.text }}</textarea>
+      <div class="small muted">{{ c.text|length }} симв. · SMS: {{ parts }} сегм. разом із рядком «{{ settings.marketing_footer }}» · підстановки {імʼя}, {лікар}, {клініка}</div>
+      <div class="row small"><b>Канали:</b>
+        <label><input type="checkbox" name="ch_telegram" value="1" {{ 'checked' if 'telegram' in c.channels }}> Telegram-бот{{ '' if tg_on else ' (не підключено)' }}</label>
+        <label><input type="checkbox" name="ch_viber" value="1" {{ 'checked' if 'viber' in c.channels }}> Viber{{ '' if viber_on else ' (не підключено)' }}</label>
+        <label><input type="checkbox" name="ch_sms" value="1" {{ 'checked' if 'sms' in c.channels }}> SMS{{ '' if sms_on else ' (не підключено)' }}</label></div>
+      {% set fl = c.filters or {} %}
+      <details class="small" {{ 'open' if fl }}><summary>Фільтри</summary><div class="grid" style="gap:6px;margin-top:6px">
+        <select name="doctor_id"><option value="">Усі лікарі</option>{% for d in doctors %}<option value="{{ d.id }}" {{ 'selected' if fl.get('doctor_id')|string == d.id|string }}>{{ d.name }}</option>{% endfor %}</select>
+        <input name="source" value="{{ fl.get('source','') }}" placeholder="Джерело клієнта">
+        <div class="row"><input name="min_ltv" value="{{ fl.get('min_ltv','') }}" placeholder="Виручка від, ₴" style="flex:1"><input name="max_ltv" value="{{ fl.get('max_ltv','') }}" placeholder="до, ₴" style="flex:1"></div>
+        <label>Вікно атрибуції, днів <input name="attribution_days" value="{{ c.attribution_days }}" style="width:60px"></label></div></details>
+      <button class="btn ghost">Зберегти і перерахувати</button>
+    </form></div>
+
+  <div>
+    <div class="card"><h2>Хто отримає</h2>
+      <div class="grid g5" style="grid-template-columns:repeat(3,1fr)">
+        <div class="tile"><span>Отримають</span><b>{{ aud.rows|length }}</b></div>
+        {% for ch,n in aud.by_channel.items() %}<div class="tile"><span>{{ {'telegram':'Telegram','viber':'Viber→SMS','sms':'SMS'}[ch] }}</span><b>{{ n }}</b></div>{% endfor %}
+        <div class="tile"><span>Вартість (оцінка)</span><b>{{ aud.cost|uah }}</b><div class="small muted">Telegram — безкоштовно</div></div>
+      </div>
+      {% if aud.skipped %}<div class="small" style="margin-top:10px"><b>Відсіяно:</b>
+        {% for r,n in aud.skipped.items() %}<div class="muted">• {{ r }} — {{ n }}</div>{% endfor %}</div>{% endif %}
+      {% if samples %}<h3 style="margin:14px 0 6px">Як виглядатиме (перші {{ samples|length }})</h3>
+        {% for p, ch, text in samples %}<div class="rem small" style="margin-bottom:6px"><b>{{ p.full_name }}</b> · {{ {'telegram':'Telegram','viber':'Viber→SMS','sms':'SMS'}[ch] }}<div style="white-space:pre-line;margin-top:4px">{{ text }}{% if ch != 'telegram' and settings.marketing_footer %}<br><span class="muted">{{ settings.marketing_footer }}</span>{% endif %}</div></div>{% endfor %}{% endif %}
+    </div>
+    <div class="card"><h2>Тест собі</h2>
+      <form method="post" action="/campaigns/{{ c.id }}/test" class="row">
+        <input name="to" placeholder="Свій телефон (Viber/SMS) або Telegram chat ID" required style="flex:1">
+        <button class="btn ghost">Надіслати тест</button></form></div>
+    {% if can(user,'campaigns_send') %}
+    <div class="card" style="border-color:var(--accent)"><h2>Запуск</h2>
+      {% if quiet %}<div class="alert" style="background:var(--warn-bg);color:var(--warn)">Зараз тихі години ({{ settings.quiet_hours_start }}:00–{{ settings.quiet_hours_end }}:00) — при запуску «зараз» відправка почнеться о {{ settings.quiet_hours_end }}:00.</div>{% endif %}
+      <form method="post" action="/campaigns/{{ c.id }}/launch" class="grid" style="gap:8px">
+        <label class="small">Коли: <input type="datetime-local" name="when"> <span class="muted">(порожньо — зараз)</span></label>
+        <label class="small"><input type="checkbox" name="confirm" value="1" required> Перевірив(-ла) текст і аудиторію: {{ aud.rows|length }} отримувачів, ≈ {{ aud.cost|uah }}</label>
+        <button class="btn" {{ 'disabled' if not aud.rows }}>Запустити розсилку</button></form></div>
+    {% else %}<div class="card small muted">Запускає розсилки власник — чернетка збережена.</div>{% endif %}
+  </div>
+</div>
+
+{% else %}
+<div class="grid g5" style="margin:14px 0">
+  <div class="tile"><span>Надіслано</span><b>{{ st.sent }}</b><div class="small muted">з {{ st.total }} · помилок {{ st.failed }}</div></div>
+  <div class="tile"><span>Доставлено</span><b>{{ st.delivered }}</b><div class="small muted">Viber/SMS (Telegram — одразу)</div></div>
+  <div class="tile"><span>Записались / прийшли</span><b>{{ st.booked }}</b><div class="small muted">{{ st.conversion }}% · прийшли {{ st.visited }} · за {{ c.attribution_days }} дн.</div></div>
+  <div class="tile"><span>Виручка після розсилки</span><b>{{ st.revenue|uah }}</b><div class="small muted">чеки отримувачів у вікні</div></div>
+  <div class="tile"><span>Відписались</span><b style="{{ 'color:var(--bad)' if st.opted_out }}">{{ st.opted_out }}</b></div>
+</div>
+<div class="card"><h2>Текст</h2><div style="white-space:pre-line" class="small">{{ c.text }}</div>
+  <div class="small muted" style="margin-top:6px">{{ SEGMENTS.get(c.segment) }} · {{ c.channels|join(' → ')|replace('telegram','Telegram')|replace('viber','Viber')|replace('sms','SMS') }} · запущено {{ c.sent_at|dt('%d.%m.%Y %H:%M') }}</div></div>
+<div class="card" style="padding:6px 8px;overflow:auto"><table class="small">
+  <thead><tr><th>Клієнт</th><th>Канал</th><th>Статус</th><th>Надіслано</th><th>Помилка</th></tr></thead><tbody>
+  {% for r in recips %}<tr><td><a href="/patients/{{ r.patient_id }}">{{ r.patient.full_name }}</a></td>
+    <td>{{ {'telegram':'Telegram','viber':'Viber','sms':'SMS'}.get(r.channel, r.channel) }}</td>
+    <td>{% set sm = {'queued':('у черзі','warn'),'sent':('надіслано','ok'),'delivered':('доставлено','ok'),'read':('прочитано','done'),'failed':('помилка','bad'),'skipped':('пропущено','warn')}[r.status] %}<span class="pill {{ sm[1] }}">{{ sm[0] }}</span></td>
+    <td>{{ r.sent_at|dt('%d.%m %H:%M') }}</td><td class="muted">{{ r.error or r.skip_reason or '' }}</td></tr>
+  {% else %}<tr><td colspan="5" class="muted">{{ 'Аудиторію буде зафіксовано в момент старту' if c.status=='scheduled' else 'Отримувачів немає' }}</td></tr>{% endfor %}
+  </tbody></table></div>
+{% if c.status == 'sending' %}<script>setTimeout(()=>location.reload(), 5000)</script>{% endif %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Доступи та API</h1>
+<nav class="row" style="margin:10px 0 18px">
+  <a class="btn {{ '' if tab=='users' else 'ghost' }}" href="/access">Користувачі</a>
+  <a class="btn {{ '' if tab=='api' else 'ghost' }}" href="/access/api">API-ключі та вебхуки</a>
+  <a class="btn {{ '' if tab=='audit' else 'ghost' }}" href="/access/audit">Журнал дій</a>
+</nav>
+
+{% if tab=='users' %}
+<div class="card" style="overflow:auto">
+  <table><thead><tr><th>Користувач</th><th>Логін</th><th>Роль</th><th>Лікар у CRM</th><th>Останній вхід</th><th>Статус</th><th></th></tr></thead><tbody>
+  {% for u in users %}
+    <tr><td><b>{{ u.name }}</b></td><td class="muted">{{ u.login }}</td>
+      <td><span class="pill {{ 'done' if u.role=='owner' else ('ok' if u.role=='admin' else 'warn') }}">{{ u.role_label }}</span></td>
+      <td>{{ u.doctor.name if u.doctor else '—' }}</td><td class="small">{{ u.last_login|dt('%d.%m.%y %H:%M') }}</td>
+      <td>{{ 'активний' if u.active else 'вимкнено' }}</td>
+      <td><details><summary class="small">Змінити</summary>
+        <form method="post" action="/access/users" class="grid" style="gap:6px;margin-top:6px;min-width:260px">
+          <input type="hidden" name="uid" value="{{ u.id }}">
+          <input name="name" value="{{ u.name }}" required><input name="login" value="{{ u.login }}" required>
+          <select name="role">{% for k,l in ROLES.items() %}<option value="{{ k }}" {{ 'selected' if u.role==k }}>{{ l }}</option>{% endfor %}</select>
+          <select name="doctor_id"><option value="">— привʼязка до лікаря (для ролі «Лікар») —</option>{% for d in doctors %}<option value="{{ d.id }}" {{ 'selected' if u.doctor_id==d.id }}>{{ d.name }}</option>{% endfor %}</select>
+          <input type="password" name="password" placeholder="Новий пароль (залиште порожнім)" autocomplete="new-password">
+          <label class="small"><input type="checkbox" name="active" value="1" {{ 'checked' if u.active }}> активний</label>
+          <button class="btn ghost">Зберегти</button></form></details></td></tr>
+  {% endfor %}
+  </tbody></table>
+</div>
+<div class="grid g2">
+  <div class="card"><h2>Новий користувач</h2>
+    <form method="post" action="/access/users" class="grid" style="gap:8px">
+      <input name="name" placeholder="Імʼя та прізвище" required>
+      <input name="login" placeholder="Логін (латиницею)" required autocomplete="off">
+      <select name="role">{% for k,l in ROLES.items() %}<option value="{{ k }}" {{ 'selected' if k=='admin' }}>{{ l }}</option>{% endfor %}</select>
+      <select name="doctor_id"><option value="">— привʼязка до лікаря (для ролі «Лікар») —</option>{% for d in doctors %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}</select>
+      <input type="password" name="password" placeholder="Пароль (мін. 8 символів)" required autocomplete="new-password">
+      <input type="hidden" name="active" value="1">
+      <button class="btn">Створити</button></form></div>
+  <div class="card"><h2>Що бачить кожна роль</h2>
+    <table class="small"><thead><tr><th></th><th>Власник</th><th>Адмін</th><th>Лікар</th></tr></thead><tbody>
+      <tr><td>Пацієнти й плани</td><td>усі</td><td>усі</td><td>лише свої</td></tr>
+      <tr><td>Редагування плану, ручні відмітки</td><td>✔</td><td>✔</td><td>свої</td></tr>
+      <tr><td>Медичні нотатки</td><td>✔</td><td>—</td><td>свої</td></tr>
+      <tr><td>Нагадування, нерозібрані файли</td><td>✔</td><td>✔</td><td>свої нагадування</td></tr>
+      <tr><td>KPI</td><td>усі лікарі</td><td>операційні</td><td>свій</td></tr>
+      <tr><td>Фінпрогноз, Google Sheets</td><td>✔</td><td>—</td><td>—</td></tr>
+      <tr><td>Синк CleverBox, зіставлення</td><td>✔</td><td>✔</td><td>—</td></tr>
+      <tr><td>Видалення планів</td><td>✔</td><td>—</td><td>—</td></tr>
+      <tr><td>Користувачі, API, журнал</td><td>✔</td><td>—</td><td>—</td></tr>
+    </tbody></table></div>
+</div>
+
+{% elif tab=='api' %}
+{% if new_key %}<div class="card" style="border-color:var(--accent)"><b>Новий API-ключ — скопіюйте зараз, повторно він не показується:</b>
+  <pre style="background:var(--accent-soft);padding:10px;border-radius:8px;overflow:auto;user-select:all">{{ new_key }}</pre></div>{% endif %}
+{% if new_secret %}<div class="card" style="border-color:var(--accent)"><b>Секрет вебхука (для перевірки підпису X-CRM-Signature) — скопіюйте зараз:</b>
+  <pre style="background:var(--accent-soft);padding:10px;border-radius:8px;overflow:auto;user-select:all">{{ new_secret }}</pre></div>{% endif %}
+<div class="grid g2">
+  <div class="card"><div class="row between"><h2>API-ключі</h2><a class="btn ghost" href="/api/docs" target="_blank">Документація API ↗</a></div>
+    <table class="small"><thead><tr><th>Назва</th><th>Ключ</th><th>Дозволи</th><th>Використано</th><th></th></tr></thead><tbody>
+    {% for k in keys %}<tr style="{{ '' if k.active else 'opacity:.45' }}"><td>{{ k.name }}</td><td><code>{{ k.prefix }}…</code></td><td>{{ k.scopes|join(', ') }}</td>
+      <td>{{ k.last_used|dt('%d.%m %H:%M') }}</td>
+      <td>{% if k.active %}<form method="post" action="/access/api/keys/{{ k.id }}/revoke" onsubmit="return confirm('Відкликати ключ «{{ k.name }}»?')"><button class="btn danger" style="padding:3px 8px">Відкликати</button></form>{% else %}відкликано{% endif %}</td></tr>
+    {% else %}<tr><td colspan="5" class="muted">Ключів ще немає</td></tr>{% endfor %}</tbody></table>
+    <form method="post" action="/access/api/keys" class="grid" style="gap:8px;margin-top:14px">
+      <input name="name" placeholder="Для чого ключ (напр. n8n, сайт)" required>
+      <div class="row small"><label><input type="checkbox" name="scopes" value="read" checked> read — читання</label>
+        <label><input type="checkbox" name="scopes" value="write"> write — створення/зміни</label>
+        <label><input type="checkbox" name="scopes" value="medical"> medical — медичні нотатки</label>
+        <label><input type="checkbox" name="scopes" value="bot"> bot — для бота пацієнтів (привʼязка, відписка, «мій план»)</label></div>
+      <button class="btn">Створити ключ</button></form></div>
+
+  <div class="card"><h2>Вебхуки (CRM → ваші системи)</h2>
+    <table class="small"><thead><tr><th>URL</th><th>Події</th><th>Остання доставка</th><th></th></tr></thead><tbody>
+    {% for h in hooks %}<tr style="{{ '' if h.active else 'opacity:.45' }}"><td style="word-break:break-all">{{ h.url }}</td><td>{{ h.events|join(', ') }}</td><td>{{ h.last_status or '—' }}</td>
+      <td class="row" style="gap:4px"><form method="post" action="/access/api/hooks/{{ h.id }}/test"><button class="btn ghost" style="padding:3px 8px">Тест</button></form>
+        <form method="post" action="/access/api/hooks/{{ h.id }}/toggle"><button class="btn ghost" style="padding:3px 8px">{{ 'Вимкнути' if h.active else 'Увімкнути' }}</button></form></td></tr>
+    {% else %}<tr><td colspan="4" class="muted">Вебхуків ще немає</td></tr>{% endfor %}</tbody></table>
+    <form method="post" action="/access/api/hooks" class="grid" style="gap:8px;margin-top:14px">
+      <input name="url" type="url" placeholder="https://bondar88.app.n8n.cloud/webhook/..." required>
+      <div class="row small">{% for e,l in EVENTS.items() %}<label><input type="checkbox" name="events" value="{{ e }}" checked> {{ l }}</label>{% endfor %}</div>
+      <button class="btn">Додати вебхук</button></form></div>
+</div>
+<div class="card small"><h2>Швидкий старт API</h2>
+<pre style="white-space:pre-wrap;background:#faf7f2;padding:12px;border-radius:8px">curl -H "X-API-Key: mcrm_…" {{ request.base_url }}api/v1/patients?flag=red
+curl -H "X-API-Key: mcrm_…" {{ request.base_url }}api/v1/kpi?date_from=2026-10-01
+curl -H "X-API-Key: mcrm_…" -F file=@plan.pdf {{ request.base_url }}api/v1/plans/upload
+curl -H "X-API-Key: mcrm_…" -H "Content-Type: application/json" -X POST {{ request.base_url }}api/v1/plans \
+  -d '{"patient":{"full_name":"Олена Даниленко","phone":"0671112233"},"doctor":"Дарʼя Колган",
+       "items":[{"kind":"procedure","name":"IPL-терапія обличчя","qty":4,"unit_price":3900}]}'</pre></div>
+
+{% elif tab=='audit' %}
+<div class="card" style="overflow:auto"><table class="small">
+  <thead><tr><th>Коли</th><th>Хто</th><th>Дія</th><th>Обʼєкт</th><th>Деталі</th></tr></thead><tbody>
+  {% for e in log %}<tr><td>{{ e.at|dt('%d.%m.%y %H:%M') }}</td>
+    <td>{{ e.user.name if e.user else ('API: ' ~ e.api_key.name if e.api_key else 'система') }}</td>
+    <td><code>{{ e.action }}</code></td>
+    <td>{% if e.entity=='plan' or e.entity=='patient' %}{{ e.entity }} #{{ e.entity_id }}{% else %}{{ e.entity or '' }}{% endif %}</td>
+    <td class="muted" style="max-width:420px;word-break:break-word">{{ e.details|tojson if e.details else '' }}</td></tr>
+  {% else %}<tr><td colspan="5" class="muted">Порожньо</td></tr>{% endfor %}</tbody></table></div>
+{% endif %}
+{% endblock %}

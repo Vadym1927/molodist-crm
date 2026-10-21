@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block body %}
+{% set pat = item.plan.patient %}
+<a href="/patients/{{ pat.id }}#plan{{ item.plan_id }}" class="muted small" style="text-decoration:none">← {{ pat.full_name }}</a>
+<h1>Запис: {{ item.name }}</h1>
+<p class="muted">{{ pat.full_name }}{{ (' · ' ~ pat.phone) if pat.phone }} · виконано {{ (ps.items|selectattr('item.id','equalto',item.id)|first).done }} з {{ item.qty }}
+  {% if item.plan.doctor %} · лікар плану {{ item.plan.doctor.name }}{% endif %}{% if svc %} · послуга CleverBox: <b>{{ svc.name }}</b>{{ (' (' ~ svc.time_min ~ ' хв)') if svc.time_min }}{% endif %}</p>
+<div class="card">
+  <div class="row between">
+    <div class="row"><a class="btn ghost" href="?day={{ prev.isoformat() }}">←</a>
+      <form method="get" class="row"><input type="date" name="day" value="{{ day.isoformat() }}" onchange="this.form.submit()"></form>
+      <a class="btn ghost" href="?day={{ next.isoformat() }}">→</a></div>
+    {% if ps.due_date %}<span class="muted small">за планом — до {{ ps.due_date|dt }}</span>{% endif %}
+  </div>
+  {% if error %}<div class="alert" style="margin-top:14px">{{ error }}</div>
+  {% elif not slots %}<p class="muted" style="margin-top:14px">На {{ day|dt }} вільних слотів немає — оберіть іншу дату.</p>
+  {% else %}
+  <form method="post" style="margin-top:14px">
+    <input type="hidden" name="day" value="{{ day.isoformat() }}">
+    <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px">
+      {% for s in slots %}{% set first_slot = loop.first %}{% for mid, mname in s.masters %}
+        <label class="rem" style="cursor:pointer;display:flex;gap:8px;align-items:center">
+          <input type="radio" name="slot" value="{{ s.time }}|{{ mid }}" required {{ 'checked' if loop.first and first_slot }}>
+          <span><b>{{ s.time }}</b><br><span class="small muted">{{ mname }}</span></span></label>
+      {% endfor %}{% endfor %}
+    </div>
+    <div class="row" style="margin-top:14px"><input name="comment" placeholder="Коментар до запису (необовʼязково)" style="flex:1">
+      <button class="btn" onclick="return confirm('Створити запис у CleverBox?')">Записати в CleverBox</button></div>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

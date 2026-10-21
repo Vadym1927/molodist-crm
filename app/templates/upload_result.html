@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Результат завантаження</h1>
+<div class="card"><table><tbody>
+{% for name, plan, err in results %}<tr><td>{{ name }}</td>
+  <td>{% if plan %}<a href="/patients/{{ plan.patient_id }}">✅ {{ plan.patient.full_name }} — {{ plan.total_planned|uah }}</a>{% else %}<span class="pill warn">{{ err or 'збережено' }}</span>{% endif %}</td></tr>{% endfor %}
+</tbody></table></div>
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="row between" style="margin-bottom:6px"><h1>Задачі</h1>
+  {% if can(user,'reminders') %}<form method="post" action="/tasks-generate"><button class="btn ghost" title="Створити задачі з бюті-планів і складу зараз">↻ Оновити автозадачі</button></form>{% endif %}</div>
+<p class="muted small">Автозадачі створюються з бюті-планів (не записаний на процедуру, закінчується догляд) і складу (дефіцит) та закриваються самі, коли пацієнт записався чи купив.</p>
+<div class="tabs">
+  {% for k,l in [('open','Відкриті'),('mine','Мої'),('overdue','Прострочені'),('done','Закриті'),('all','Усі')] %}<a href="?f={{ k }}" class="{{ 'on' if f==k }}">{{ l }}{% if k=='overdue' and task_counts.overdue %}<em>{{ task_counts.overdue }}</em>{% elif k=='open' %}<em>{{ task_counts.open }}</em>{% elif k=='mine' %}<em>{{ task_counts.mine }}</em>{% endif %}</a>{% endfor %}
+</div>
+<div class="grid" style="grid-template-columns:minmax(0,1fr) 340px;align-items:start">
+<div class="card" style="padding:6px 8px;overflow:auto"><table>
+  <thead><tr><th>Задача</th><th>Клієнт</th><th>Виконавець</th><th>Термін</th><th></th></tr></thead><tbody>
+  {% for t in tasks %}
+    <tr style="{{ 'opacity:.55' if t.status!='open' }}">
+      <td><b>{{ t.title }}</b>{% if t.priority=='high' %} <span class="pill bad">терміново</span>{% endif %}
+        <div class="small muted" style="white-space:pre-line">{{ KINDS.get(t.kind, t.kind) }}{% if t.kind=='stock' %} · <a href="/stock?only=deficit">Склад</a>{% endif %}{{ (' · ' ~ t.description) if t.description }}</div>
+        {% if t.result %}<div class="small" style="color:var(--ok);white-space:pre-line">✔ {{ t.result }}</div>{% endif %}
+        {% if scripts.get(t.id) %}<details class="script"><summary class="small">📞 Скрипт і повідомлення</summary>
+          {% for sc in scripts[t.id] %}
+            <div class="script-box">
+              <div class="row between"><b class="small">{{ sc.title }}</b>
+                <button type="button" class="btn ghost copy" style="padding:2px 8px;font-size:12px" data-copy="sc{{ t.id }}_{{ loop.index }}">Копіювати</button></div>
+              {% if sc.channel == 'call' %}
+                <div id="sc{{ t.id }}_{{ loop.index }}" class="small" style="white-space:pre-line;margin-top:4px">{{ sc.text }}</div>
+              {% else %}
+                <form method="post" action="/tasks/{{ t.id }}/send" class="grid" style="gap:6px;margin-top:4px">
+                  <textarea id="sc{{ t.id }}_{{ loop.index }}" name="text" rows="5" class="small">{{ sc.text }}</textarea>
+                  {% set av = avail.get(t.id, []) %}
+                  {% if av %}<div class="row small" style="gap:6px">
+                    <select name="channel" style="padding:4px 6px">
+                      <option value="auto">Авто: {{ av|join(' → ')|replace('telegram','Telegram')|replace('viber','Viber')|replace('sms','SMS') }}</option>
+                      {% if 'telegram' in av %}<option value="telegram">Telegram (бот)</option>{% endif %}
+                      {% if 'viber' in av %}<option value="viber">Viber → SMS</option>{% endif %}
+                      {% if 'sms' in av %}<option value="sms">SMS</option>{% endif %}</select>
+                    <label><input type="checkbox" name="close" value="1"> закрити задачу</label>
+                    <button class="btn" style="padding:3px 10px" onclick="return confirm('Надіслати пацієнтці?')">Надіслати</button></div>
+                  {% else %}<div class="small muted">Пацієнтка не привʼязана до бота і {{ 'немає телефону' if not t.patient.phone else 'TurboSMS не підключено' }} — скопіюйте текст у месенджер.</div>{% endif %}
+                </form>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </details>{% endif %}</td>
+      <td class="small">{% if t.patient %}<a href="/patients/{{ t.patient_id }}">{{ t.patient.full_name }}</a>{% if t.patient.phone %}<div class="muted">{{ t.patient.phone }}</div>{% endif %}{% else %}—{% endif %}</td>
+      <td class="small">{{ t.assignee.name if t.assignee else ({'admin':'Адміністратори','owner':'Власник'}.get(t.assignee_role, '—')) }}</td>
+      <td class="small">{% if t.due_date %}<span class="{{ 'pill bad' if t.status=='open' and t.due_date < today else '' }}">{{ t.due_date|dt('%d.%m') }}</span>{% else %}—{% endif %}</td>
+      <td>{% if t.status=='open' %}
+        <form method="post" action="/tasks/{{ t.id }}" class="row" style="gap:4px;flex-wrap:nowrap"><input type="hidden" name="back" value="/tasks?f={{ f }}">
+          {% if not t.assignee_id %}<button class="btn ghost" name="status" value="take" style="padding:3px 8px">Взяти</button>{% endif %}
+          <input name="result" placeholder="Результат" style="width:120px;padding:4px 6px">
+          <button class="btn" name="status" value="done" style="padding:3px 8px">✔</button>
+          <button class="btn ghost" name="status" value="cancelled" style="padding:3px 8px" title="Скасувати">✕</button></form>
+        {% else %}<form method="post" action="/tasks/{{ t.id }}"><input type="hidden" name="back" value="/tasks?f={{ f }}"><button class="btn ghost" name="status" value="open" style="padding:3px 8px">Відкрити</button></form>{% endif %}</td>
+    </tr>
+  {% else %}<tr><td colspan="5" class="muted">Задач немає 👌</td></tr>{% endfor %}
+  </tbody></table></div>
+<div class="card"><h2>Нова задача</h2>
+  <form method="post" action="/tasks" class="grid" style="gap:8px">
+    <input name="title" placeholder="Що зробити" required>
+    <textarea name="description" rows="2" placeholder="Деталі (необовʼязково)"></textarea>
+    <select name="patient_id"><option value="">— клієнт (необовʼязково) —</option>{% for p in patients %}<option value="{{ p.id }}">{{ p.full_name }}{{ (' · ' ~ p.phone) if p.phone }}</option>{% endfor %}</select>
+    <select name="assignee"><option value="">Мені</option><option value="admin">Черга адміністраторів</option>{% for u in users %}<option value="{{ u.id }}">{{ u.name }} ({{ u.role_label }})</option>{% endfor %}</select>
+    <div class="row"><input type="date" name="due_date" style="flex:1"><select name="priority">{% for k,l in PRIORITY.items() %}<option value="{{ k }}" {{ 'selected' if k=='normal' }}>{{ l }}</option>{% endfor %}</select></div>
+    <button class="btn">Створити</button></form></div>
+</div>
+<style>.script-box{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:8px;background:#fdfbf8}
+details.script summary{margin-top:6px;color:var(--accent);cursor:pointer}</style>
+<script>
+document.querySelectorAll('button.copy').forEach(b=>b.addEventListener('click',()=>{
+  const el=document.getElementById(b.dataset.copy); const txt=el.value!==undefined?el.value:el.innerText;
+  navigator.clipboard.writeText(txt).then(()=>{b.textContent='Скопійовано ✓'; setTimeout(()=>b.textContent='Копіювати',1500)});
+}));
+</script>
+{% endblock %}

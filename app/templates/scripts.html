@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Скрипти для адміністраторів</h1>
+<p class="muted small">Шаблони підставляються в задачі «Записати на процедуру», «Повторний догляд» і в картку пацієнтки — з її реальним планом:
+  що зроблено, що наступне, чому важливо не пропускати інтервал. Медичні нотатки лікаря в скрипти не потрапляють.</p>
+
+<div class="grid" style="grid-template-columns:minmax(0,1fr) 340px;align-items:start">
+<div>
+  {% for t in tpls %}
+  <div class="card">
+    <form method="post" action="/scripts/templates" class="grid" style="gap:8px">
+      <input type="hidden" name="id" value="{{ t.id }}">
+      <div class="row between"><input name="title" value="{{ t.title }}" style="flex:1;font-weight:600">
+        <select name="kind">{% for k in ['not_booked','care_ending','follow_up'] %}<option value="{{ k }}" {{ 'selected' if t.kind==k }}>{{ KINDS.get(k, k) }}</option>{% endfor %}</select>
+        <select name="channel"><option value="call" {{ 'selected' if t.channel=='call' }}>Дзвінок</option><option value="message" {{ 'selected' if t.channel=='message' }}>Повідомлення</option></select>
+        <label class="small"><input type="checkbox" name="active" value="1" {{ 'checked' if t.active }}> активний</label></div>
+      <textarea name="text" rows="{{ [t.text.count('\n') + 3, 12]|min }}" class="small">{{ t.text }}</textarea>
+      {% if previews.get(t.title) %}<details class="small"><summary>Як це бачить адмін{{ (' (на прикладі: ' ~ sample.full_name ~ ')') if sample }}</summary>
+        <div class="rem" style="white-space:pre-line;margin-top:6px">{{ previews[t.title] }}</div></details>{% endif %}
+      <div><button class="btn ghost">Зберегти</button></div>
+    </form></div>
+  {% endfor %}
+  <div class="card"><h2>Новий шаблон</h2>
+    <form method="post" action="/scripts/templates" class="grid" style="gap:8px">
+      <div class="row"><input name="title" placeholder="Назва" required style="flex:1">
+        <select name="kind">{% for k in ['not_booked','care_ending','follow_up'] %}<option value="{{ k }}">{{ KINDS.get(k, k) }}</option>{% endfor %}</select>
+        <select name="channel"><option value="call">Дзвінок</option><option value="message">Повідомлення</option></select>
+        <input type="hidden" name="active" value="1"></div>
+      <textarea name="text" rows="5" required placeholder="Добрий день, {імʼя}! …"></textarea>
+      <div><button class="btn">Додати</button></div></form></div>
+
+  <div class="card" id="notes"><h2>Довідник процедур: «чому важливо» і «що дасть»</h2>
+    <p class="small muted">Ключові слова через «|» — шукаються в назві процедури з плану. Перший збіг підставляється у {чому_важливо} та {результат}.</p>
+    {% for n in notes %}
+    <form method="post" action="/scripts/notes" class="grid rem" style="gap:6px;margin-bottom:8px">
+      <input type="hidden" name="id" value="{{ n.id }}">
+      <input name="keyword" value="{{ n.keyword }}" class="small" style="font-weight:600">
+      <textarea name="why" rows="3" class="small">{{ n.why }}</textarea>
+      <input name="benefit" value="{{ n.benefit or '' }}" class="small" placeholder="Що дасть курс">
+      <div class="row"><button class="btn ghost" style="padding:3px 10px">Зберегти</button>
+        <button class="btn danger" name="delete" value="1" style="padding:3px 10px" onclick="return confirm('Видалити?')">Видалити</button></div></form>
+    {% endfor %}
+    <form method="post" action="/scripts/notes" class="grid" style="gap:6px;margin-top:10px">
+      <input name="keyword" placeholder="Ключові слова: напр. «плазмоліфтинг|prp»" required>
+      <textarea name="why" rows="3" placeholder="Чому важливо не пропускати інтервал" required></textarea>
+      <input name="benefit" placeholder="Що дасть курс">
+      <div><button class="btn">Додати процедуру</button></div></form>
+  </div>
+</div>
+
+<div class="card" style="position:sticky;top:16px"><h2>Підстановки</h2>
+  <table class="small"><tbody>{% for k, d in PLACEHOLDERS.items() %}<tr><td><code>{{ '{' ~ k ~ '}' }}</code></td><td class="muted">{{ d }}</td></tr>{% endfor %}</tbody></table>
+</div>
+</div>
+{% endblock %}

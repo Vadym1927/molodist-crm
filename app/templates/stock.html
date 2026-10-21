@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="row between"><div><h1>Склад</h1>
+  <div class="muted small">{% if updated %}Залишки CleverBox на {{ updated|dt('%d.%m.%Y %H:%M') }}{% elif cb %}Залишки ще не синхронізовані{% else %}CleverBox не підключено — залишків немає, показано лише потребу{% endif %}</div></div>
+  <div class="tabs" style="margin:0"><a href="?" class="{{ 'on' if not only }}">Усі засоби з планів</a><a href="?only=deficit" class="{{ 'on' if only=='deficit' }}">Що дозамовити</a></div></div>
+<p class="muted small">Потреба на 30 днів = призначено в активних планах і ще не куплено + повторні покупки, що настають (за тривалістю засобу). Дефіцит = потреба + мін. залишок − залишок на складі.</p>
+<div class="card" style="padding:6px 8px;overflow:auto"><table>
+  <thead><tr><th>Засіб</th><th class="r">Залишок</th><th class="r">Не куплено з планів</th><th class="r">Повторні 30 дн.</th><th class="r">Потреба</th><th class="r">Мін.</th><th class="r">Дозамовити</th><th class="r hide-m">Собівартість</th></tr></thead><tbody>
+  {% for r in rows %}{% set p = r.product %}
+    <tr><td>{{ p.name }}<div class="small muted">{{ p.category or '' }}</div></td>
+      <td class="r">{{ ('%g'|format(r.stock)) if r.stock is not none else '—' }}</td><td class="r">{{ r.demand_open or '—' }}</td><td class="r">{{ r.rebuy_30 or '—' }}</td>
+      <td class="r"><b>{{ r.need_30 }}</b></td><td class="r">{{ p.min_stock or '—' }}</td>
+      <td class="r">{% if r.deficit %}<span class="pill bad">{{ r.deficit }} шт</span>{% elif r.deficit == 0 %}<span class="pill ok">ок</span>{% else %}—{% endif %}</td>
+      <td class="r hide-m">{{ (p.cost * r.deficit)|uah if p.cost and r.deficit else '—' }}</td></tr>
+  {% else %}<tr><td colspan="8" class="muted">Немає даних.</td></tr>{% endfor %}
+  </tbody></table></div>
+{% if others %}<details class="card"><summary>Інші товари на складі CleverBox, яких немає в бюті-планах ({{ others|length }})</summary>
+  <table class="small" style="margin-top:8px"><tbody>{% for o in others %}<tr><td>{{ o.name }}</td><td class="r">{{ '%g'|format(o.qty) }} {{ o.unit or '' }}</td><td class="muted">{{ o.storage or '' }}</td></tr>{% endfor %}</tbody></table></details>{% endif %}
+{% endblock %}

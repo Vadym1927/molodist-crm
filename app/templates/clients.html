@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="row between" style="margin-bottom:6px"><div><h1>{{ 'Мої клієнти' if user.role=='doctor' else 'Клієнти' }}</h1>
+  <div class="muted small">Знайдено {{ total }}{% if unassigned %} · <a href="/unassigned">нерозібраних файлів: {{ unassigned }}</a>{% endif %}</div></div>
+  <div class="row" style="justify-content:flex-end">
+    {% if can(user, 'patient_edit') %}
+    <details><summary class="btn">+ Пацієнт</summary>
+      <form method="post" action="/patients" class="card grid" style="gap:8px;margin-top:8px;min-width:280px">
+        <b>Ручне введення пацієнта</b>
+        <input name="full_name" placeholder="ПІБ пацієнта" required autofocus>
+        <input name="phone" placeholder="Телефон">
+        {% if user.role != 'doctor' %}<select name="doctor_id"><option value="">— лікар —</option>{% for d in doctors %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}</select>{% endif %}
+        <textarea name="notes" rows="3" placeholder="Нотатка адміністратора"></textarea>
+        <div class="row"><button class="btn">Створити картку</button><span class="muted small">CleverBox не змінюється</span></div>
+      </form>
+    </details>
+    <form method="post" action="/patients/test" onsubmit="return confirm('Створити або відкрити тестову картку?')"><button class="btn ghost">Тестова картка</button></form>
+    {% endif %}
+    <form class="row" method="get"><input type="hidden" name="seg" value="{{ seg }}">
+      <input name="q" value="{{ q }}" placeholder="ПІБ або телефон">
+      {% if user.role != 'doctor' %}<select name="doctor"><option value="">Усі лікарі</option>{% for d in doctors %}<option value="{{ d.id }}" {{ 'selected' if doctor==d.id }}>{{ d.name }}</option>{% endfor %}</select>{% endif %}
+      <button class="btn ghost">Знайти</button></form>
+  </div></div>
+<div class="tabs">{% for k,l in SEGMENTS.items() %}<a href="?seg={{ k }}&q={{ q }}&doctor={{ doctor or '' }}" class="{{ 'on' if seg==k }}">{{ l }}<em>{{ counts.get(k,0) }}</em></a>{% endfor %}</div>
+{% if seg=='no_plan' %}<p class="small muted">Клієнти з візитами, але без бюті-плану — кандидати на консультацію з аналізом шкіри.</p>{% endif %}
+{% if seg=='sleeping' %}<p class="small muted">Останній візит понад 90 днів тому і немає майбутнього запису — повернути розсилкою/дзвінком (можна створити задачу в картці).</p>{% endif %}
+<div class="card" style="padding:6px 8px;overflow:auto"><table>
+  <thead><tr><th>Клієнт</th><th class="hide-m">Телефон</th><th>Бюті-план</th><th>Реалізація</th><th class="hide-m">Візитів</th><th>Останній</th><th>Наступний</th>{% if user.role!='doctor' %}<th class="r hide-m">Покупки</th>{% endif %}<th>Статус</th></tr></thead>
+  <tbody>
+  {% for r in rows %}{% set ps = r.plan_status %}
+    <tr onclick="location='/patients/{{ r.patient.id }}'" style="cursor:pointer">
+      <td><a href="/patients/{{ r.patient.id }}" style="font-weight:500;text-decoration:none">{{ r.patient.full_name }}</a>{% if not r.patient.cleverbox_id %} <span class="pill warn small" title="Не привʼязано до CleverBox">CB?</span>{% endif %}</td>
+      <td class="hide-m muted">{{ r.patient.phone or '—' }}</td>
+      <td class="small">{% if ps %}{{ ps.plan.session_at|dt }} · {{ ps.planned_sum|uah }}{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td>{% if ps %}<div class="row" style="gap:8px;flex-wrap:nowrap"><div class="bar" style="flex:1"><i style="width:{{ [ps.realization_pct,100]|min }}%"></i></div><span class="small">{{ ps.realization_pct }}%</span></div>{% endif %}</td>
+      <td class="hide-m">{{ r.visits or '—' }}</td>
+      <td class="small">{{ r.last_visit|dt('%d.%m.%y') }}</td>
+      <td class="small">{{ r.next_visit|dt('%d.%m %H:%M') }}</td>
+      {% if user.role!='doctor' %}<td class="r hide-m">{{ r.revenue|uah if r.revenue else '—' }}</td>{% endif %}
+      <td>{% if ps %}{% set f = FLAG[ps.flag] %}<span class="pill {{ f[1] }}">{{ f[0] }}</span>{% elif 'sleeping' in r.segment_flags %}<span class="pill warn">сплячий</span>{% endif %}</td>
+    </tr>
+  {% else %}<tr><td colspan="9" class="muted">Нікого в цьому сегменті.</td></tr>{% endfor %}
+  </tbody></table></div>
+{% if pages > 1 %}<div class="row">{% for pg in range(1, pages+1) %}<a class="btn {{ '' if pg==page else 'ghost' }}" style="padding:4px 10px" href="?seg={{ seg }}&q={{ q }}&doctor={{ doctor or '' }}&page={{ pg }}">{{ pg }}</a>{% endfor %}</div>{% endif %}
+{% endblock %}

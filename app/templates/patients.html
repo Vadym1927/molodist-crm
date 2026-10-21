@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="row between" style="margin-bottom:16px"><h1>Пацієнти</h1>
+  <form class="row" method="get">
+    <input name="q" value="{{ q }}" placeholder="ПІБ або телефон">
+    <select name="doctor"><option value="">Усі лікарі</option>{% for d in doctors %}<option value="{{ d.id }}" {{ 'selected' if doctor==d.id }}>{{ d.name }}</option>{% endfor %}</select>
+    <select name="flag"><option value="">Усі статуси</option>{% for k,(l,c) in FLAG.items() %}<option value="{{ k }}" {{ 'selected' if flag==k }}>{{ l }}</option>{% endfor %}</select>
+    <button class="btn ghost">Фільтр</button></form></div>
+<div class="card" style="padding:6px 8px;overflow:auto"><table>
+  <thead><tr><th>Пацієнт</th><th class="hide-m">Телефон</th><th class="hide-m">Лікар</th><th>План</th><th class="r">Сума</th><th>Реалізація</th><th>Процедури</th><th>Запис</th><th>Статус</th></tr></thead>
+  <tbody>
+  {% for p, plan, ps in rows %}
+    <tr onclick="location='/patients/{{ p.id }}'" style="cursor:pointer">
+      <td><a href="/patients/{{ p.id }}" style="font-weight:500;text-decoration:none">{{ p.full_name }}</a>{% if not p.cleverbox_id %} <span class="pill warn small" title="Не привʼязано до CleverBox">CB?</span>{% endif %}</td>
+      <td class="hide-m muted">{{ p.phone or '—' }}</td><td class="hide-m">{{ plan.doctor.name if plan and plan.doctor else '—' }}</td>
+      <td>{{ plan.session_at|dt if plan else '—' }}</td>
+      <td class="r">{{ ps.planned_sum|uah if ps else '—' }}</td>
+      <td>{% if ps %}<div class="row" style="gap:8px;flex-wrap:nowrap"><div class="bar" style="flex:1"><i style="width:{{ [ps.realization_pct,100]|min }}%"></i></div><span class="small">{{ ps.realization_pct }}%</span></div>{% endif %}</td>
+      <td>{{ (ps.proc_done ~ ' / ' ~ ps.proc_planned) if ps else '' }}</td>
+      <td class="small">{{ ps.next_booking|dt('%d.%m %H:%M') if ps and ps.next_booking else '—' }}</td>
+      <td>{% if ps %}{% set f = FLAG[ps.flag] %}<span class="pill {{ f[1] }}">{{ f[0] }}</span>{% endif %}</td>
+    </tr>
+  {% else %}<tr><td colspan="9" class="muted">Нікого не знайдено.</td></tr>{% endfor %}
+  </tbody></table></div>
+{% endblock %}

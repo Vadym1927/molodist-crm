@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}MOLODIST CRM{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f7f4ef;--card:#fff;--ink:#1d1b19;--muted:#7a736b;--line:#e8e2d9;--accent:#9c7b5b;--accent-soft:#f1e8de;
+--ok:#3f7d5a;--ok-bg:#e6f2ea;--warn:#a86b12;--warn-bg:#fbf0dc;--bad:#b23b3b;--bad-bg:#f8e3e1;--done:#5d5a87;--done-bg:#ebeaf6}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 Inter,system-ui,sans-serif}
+a{color:inherit}header{display:flex;align-items:center;gap:28px;padding:14px 28px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5;flex-wrap:wrap}
+.logo{font:600 22px/1 "Cormorant Garamond",serif;letter-spacing:.12em;text-decoration:none}.logo small{font:500 10px Inter;letter-spacing:.1em;color:var(--muted);margin-left:8px}
+nav{display:flex;gap:4px;flex-wrap:wrap}nav a{padding:7px 12px;border-radius:8px;text-decoration:none;color:var(--muted);font-weight:500}nav a.on,nav a:hover{background:var(--accent-soft);color:var(--ink)}
+.sp{flex:1}main{max-width:1320px;margin:0 auto;padding:26px 28px 60px}
+body.app{padding-left:232px}
+.side{position:fixed;inset:0 auto 0 0;width:232px;background:#1d1b19;color:#e9e3da;display:flex;flex-direction:column;gap:6px;padding:18px 12px;z-index:10;overflow:auto}
+.side .logo{color:#fff;padding:4px 10px 16px;display:block}.side .logo small{display:block;margin:6px 0 0;color:#a39a8f}
+.snav{display:flex;flex-direction:column;gap:2px}.snav a{display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:10px;color:#cfc6ba;text-decoration:none;font-weight:500;position:relative}
+.snav a:hover{background:#2b2825;color:#fff}.snav a.on{background:#3a342e;color:#fff}.snav a.on svg{color:#d9b48f}
+.badge{margin-left:auto;font-style:normal;font-size:11px;background:var(--bad);color:#fff;border-radius:99px;padding:1px 7px}.badge.soft{background:#4a433c;color:#e9e3da}
+.side .btn.upl{width:100%;justify-content:center;color:#fff;border-color:#4a433c;background:transparent}.side .btn.upl:hover{border-color:#d9b48f}
+.side .me{display:flex;flex-direction:column;padding:10px 12px;text-decoration:none;color:#fff;line-height:1.3}.side .me .muted{color:#a39a8f;font-size:12px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 16px}.tabs a{padding:7px 12px;border-radius:9px;text-decoration:none;color:var(--muted);border:1px solid var(--line);background:#fff;font-weight:500}
+.tabs a.on{background:var(--ink);color:#fff;border-color:var(--ink)}.tabs a em{font-style:normal;opacity:.7;margin-left:4px}
+h1{font:600 30px/1.2 "Cormorant Garamond",serif;margin:0 0 4px}h2{font:600 22px/1.2 "Cormorant Garamond",serif;margin:0 0 12px}
+.muted{color:var(--muted)}.small{font-size:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:18px}
+.grid{display:grid;gap:14px}.g5{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}.g2{grid-template-columns:repeat(auto-fit,minmax(420px,1fr))}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px}.tile b{display:block;font:600 26px/1.2 Inter;margin-top:4px}.tile span{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+td.r,th.r{text-align:right;white-space:nowrap}tr:last-child td{border-bottom:0}tbody tr:hover{background:#fbf9f6}
+.pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:500;white-space:nowrap}
+.ok{background:var(--ok-bg);color:var(--ok)}.warn{background:var(--warn-bg);color:var(--warn)}.bad{background:var(--bad-bg);color:var(--bad)}.done{background:var(--done-bg);color:var(--done)}
+.bar{height:7px;background:var(--line);border-radius:9px;overflow:hidden;min-width:90px}.bar i{display:block;height:100%;background:var(--accent);border-radius:9px}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--ink);background:var(--ink);color:#fff;padding:8px 14px;border-radius:9px;font:500 13px Inter;cursor:pointer;text-decoration:none}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}.btn.ghost:hover{border-color:var(--ink)}.btn.danger{background:transparent;color:var(--bad);border-color:var(--bad-bg)}
+input,select,textarea{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink)}input:focus,select:focus,textarea:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+input.num{width:64px;text-align:right;padding:5px 7px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.between{justify-content:space-between}
+.list{display:flex;flex-direction:column;gap:10px;max-height:460px;overflow:auto}.rem{border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13px}
+.rem a{color:var(--accent)}.alert{padding:10px 14px;border-radius:10px;background:var(--bad-bg);color:var(--bad);margin-bottom:14px}
+.fc{display:flex;gap:14px;align-items:flex-end;height:190px;padding-top:10px}.fc .col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}
+.fc .stack{width:100%;max-width:64px;display:flex;flex-direction:column-reverse;border-radius:8px 8px 3px 3px;overflow:hidden}
+.c1{background:var(--ink)}.c2{background:var(--accent)}.c3{background:#d9c7b3}.legend{display:flex;gap:14px;font-size:12px;color:var(--muted)}.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}.photos img{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
+details summary{cursor:pointer;color:var(--muted)}.drop{border:1.5px dashed var(--line);border-radius:12px;padding:14px;text-align:center}
+@media (max-width:900px){body.app{padding-left:0;padding-bottom:64px}.side{inset:auto 0 0 0;width:auto;height:60px;flex-direction:row;padding:6px;overflow-x:auto}
+.side .logo,.side .sp,.side form,.side .me,.side>a.small{display:none}.snav{flex-direction:row}.snav a{flex-direction:column;gap:2px;font-size:10px;padding:5px 8px}.badge{position:absolute;top:0;right:0}}
+@media (max-width:720px){.g2{grid-template-columns:1fr}header{padding:12px 16px;gap:12px}main{padding:16px}.hide-m{display:none}table{font-size:13px}th,td{padding:7px 6px}}
+</style>
+</head>
+<body class="{{ 'app' if nav not in ('login','print') and user }}">
+{% if nav != 'login' and user %}
+<aside class="side">
+  <a class="logo" href="/">MOLODIST<small>BEAUTY PLAN CRM</small></a>
+  <nav class="snav">
+    <a href="/" class="{{ 'on' if nav=='dashboard' }}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z"/></svg><span>Дашборд</span></a>
+    <a href="/clients" class="{{ 'on' if nav in ('clients','patient','patients','unassigned') }}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="11" r="2.5"/><path d="M5.5 17c.8-1.8 2-2.6 3.5-2.6s2.7.8 3.5 2.6M15 9h3M15 13h3"/></svg><span>{{ 'Мої клієнти' if user.role=='doctor' else 'Клієнти' }}</span></a>
+    <a href="/calendar" class="{{ 'on' if nav=='calendar' }}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span>Календар</span></a>
+    <a href="/tasks" class="{{ 'on' if nav=='tasks' }}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg><span>Задачі</span>{% if task_counts and task_counts.overdue %}<em class="badge">{{ task_counts.overdue }}</em>{% elif task_counts and task_counts.open %}<em class="badge soft">{{ task_counts.open }}</em>{% endif %}</a>
+    {% if can(user,'products') %}<a href="/products" class="{{ 'on' if nav in ('products','mapping') }}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6v4l2 2v11a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V9l2-2z"/><path d="M7 13h10"/></svg><span>Продукти</span></a>{% endif %}
+    {% if can(user,'stock') %}<a href="/stock" class="{{ 'on' if nav=='stock' }}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-5 9 5v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M7 20v-7h10v7M7 16h10"/></svg><span>Склад</span></a>{% endif %}
+    {% if can(user,'finance') %}<a href="/finance" class="{{ 'on' if nav=='finance' }}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg><span>Фінанси</span></a>{% endif %}
+    {% if can(user,'campaigns') %}<a href="/campaigns" class="{{ 'on' if nav in ('campaigns','campaign') }}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1zM16 8a5 5 0 0 1 0 8M19 5a9 9 0 0 1 0 14"/></svg><span>Розсилки</span></a>{% endif %}
+    {% if can(user,'scripts_edit') %}<a href="/scripts" class="{{ 'on' if nav=='scripts' }}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 8h9M8 12h6"/></svg><span>Скрипти</span></a>{% endif %}
+    {% if can(user,'export_reports') %}<a href="/data" class="{{ 'on' if nav=='data' }}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>Дані</span></a>{% endif %}
+    {% if can(user,'users') %}<a href="/access" class="{{ 'on' if nav=='access' }}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M15 8l2 2"/></svg><span>Доступи й API</span></a>{% endif %}
+  </nav>
+  <div class="sp"></div>
+  {% if can(user,'upload') %}
+  <form action="/upload" method="post" enctype="multipart/form-data">
+    <label class="btn ghost upl" style="cursor:pointer">＋ <span>Бюті-план (PDF)</span>
+      <input type="file" name="files" accept=".pdf,image/*" multiple hidden onchange="this.form.submit()"></label>
+  </form>{% endif %}
+  <a href="/me" class="me"><b>{{ user.name }}</b><span class="muted">{{ user.role_label }}</span></a>
+  <a href="/logout" class="muted small" style="padding:0 12px">Вийти</a>
+</aside>
+{% endif %}
+<main>{% block body %}{% endblock %}</main>
+</body>
+</html>

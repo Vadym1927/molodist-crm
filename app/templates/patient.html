@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="row between" style="margin-bottom:16px">
+  <div><a href="/clients" class="muted small" style="text-decoration:none">← Клієнти</a>
+    <h1>{{ p.full_name }}</h1>
+    <div class="muted">{{ p.phone or 'телефон не вказано' }} · {{ p.doctor.name if p.doctor else 'лікар не вказаний' }} ·
+      {% if p.cleverbox_id %}CleverBox #{{ p.cleverbox_id }}{% else %}<span class="pill warn">не привʼязано до CleverBox</span>{% endif %}</div></div>
+  <div class="row" style="align-items:flex-start">
+  <a class="btn ghost" href="/patients/{{ p.id }}/print" target="_blank">Друк / PDF</a>
+  {% if p.files %}<a class="btn ghost" href="/patients/{{ p.id }}/files.zip">Файли ZIP</a>{% endif %}
+  <details><summary class="btn ghost">Редагувати картку</summary>
+    <form method="post" action="/patients/{{ p.id }}" class="card grid" style="gap:8px;margin-top:8px;min-width:300px">
+      <input name="full_name" value="{{ p.full_name }}" required>
+      <input name="phone" value="{{ p.phone or '' }}" placeholder="Телефон (для привʼязки до CleverBox)">
+      <input name="email" type="email" value="{{ p.email or '' }}" placeholder="Email">
+      <input name="cleverbox_id" value="{{ p.cleverbox_id or '' }}" placeholder="ID клієнта в CleverBox">
+      <select name="gender"><option value="">— стать —</option><option value="жіноча" {{ 'selected' if p.gender=='жіноча' }}>Жіноча</option><option value="чоловіча" {{ 'selected' if p.gender=='чоловіча' }}>Чоловіча</option></select>
+      <input name="address" value="{{ p.address or '' }}" placeholder="Місто / адреса">
+      <input name="source" value="{{ p.source or '' }}" placeholder="Джерело звернення">
+      <select name="communication_channel"><option value="">— канал звʼязку —</option>{% for ch in ['Телефон','Telegram','Viber','SMS','Email','Instagram'] %}<option value="{{ ch }}" {{ 'selected' if p.communication_channel==ch }}>{{ ch }}</option>{% endfor %}</select>
+      <input name="client_groups" value="{{ (p.client_groups or [])|join(', ') }}" placeholder="Групи / теги через кому">
+      <div class="row"><input name="cb_balance" value="{{ p.cb_balance if p.cb_balance is not none else '' }}" placeholder="Баланс, ₴"><input name="cb_bonus" value="{{ p.cb_bonus if p.cb_bonus is not none else '' }}" placeholder="Бонуси, ₴"></div>
+      {% if user.role != 'doctor' %}<select name="doctor_id"><option value="">— лікар —</option>{% for d in doctors %}<option value="{{ d.id }}" {{ 'selected' if p.doctor_id==d.id }}>{{ d.name }}</option>{% endfor %}</select>{% endif %}
+      <textarea name="notes" rows="3" placeholder="Нотатки адміністратора">{{ p.notes or '' }}</textarea>
+      <button class="btn">Зберегти</button></form></details>
+  </div>
+</div>
+
+<div class="tabs patient-tabs">
+  <a class="on" href="#info">Info</a><a href="#kpi">KPI</a><a href="#visits">Візити <em>{{ patient_kpi.done + patient_kpi.planned }}</em></a>
+  <a href="#contact">Дзвінки й повідомлення</a><a href="#files">Документи й фото</a><a href="#plans">План</a><a href="#sales">Продажі</a><a href="#history">Історія</a>
+</div>
+
+<div class="card" id="info">
+  <div class="row between"><h2 style="margin:0">Профіль пацієнта</h2>
+    <div class="row">{% if p.cb_mark=='vip' %}<span class="pill ok">VIP</span>{% endif %}{% if p.cb_status %}<span class="pill done">{{ p.cb_status }}</span>{% endif %}</div></div>
+  <div class="profile-grid" style="margin-top:14px">
+    <div><span>Контакти</span><b>{{ p.phone or '—' }}</b><div class="muted small">{{ p.email or 'Email не вказано' }}</div></div>
+    <div><span>Дата народження</span><b>{{ p.birthday|dt('%d.%m.%Y') if p.birthday else '—' }}</b><div class="muted small">{{ p.gender or 'Стать не вказана' }}</div></div>
+    <div><span>Лікар</span><b>{{ p.doctor.name if p.doctor else '—' }}</b><div class="muted small">{{ p.communication_channel or 'Канал не обрано' }}</div></div>
+    <div><span>Джерело</span><b>{{ p.source or '—' }}</b><div class="muted small">{{ p.address or 'Адресу не вказано' }}</div></div>
+  </div>
+  {% if p.client_groups %}<div class="row" style="margin-top:12px">{% for group in p.client_groups %}<span class="pill done">{{ group }}</span>{% endfor %}</div>{% endif %}
+</div>
+
+<div class="card" id="kpi"><h2>Показники пацієнта</h2>
+  <div class="grid g5">
+    <div class="tile"><span>Завершені візити</span><b>{{ patient_kpi.done or p.cb_visits or 0 }}</b><div class="muted small">перший: {{ patient_kpi.first|dt('%d.%m.%Y') if patient_kpi.first else '—' }}</div></div>
+    <div class="tile"><span>Найближчий візит</span><b style="font-size:18px">{{ patient_kpi.next|dt('%d.%m.%Y %H:%M') if patient_kpi.next else '—' }}</b><div class="muted small">заплановано: {{ patient_kpi.planned }}</div></div>
+    <div class="tile"><span>Надано послуг</span><b>{{ patient_kpi.service_revenue|uah }}</b><div class="muted small">середній чек {{ p.cb_average|uah if p.cb_average is not none else '—' }}</div></div>
+    <div class="tile"><span>Продажі товарів</span><b>{{ patient_kpi.product_revenue|uah }}</b><div class="muted small">всього {{ p.sales|length }} позицій</div></div>
+    <div class="tile"><span>Баланс / бонуси</span><b>{{ p.cb_balance|uah if p.cb_balance is not none else '—' }}</b><div class="muted small">бонуси: {{ p.cb_bonus|uah if p.cb_bonus is not none else '—' }}</div></div>
+  </div>
+</div>
+
+<div id="plans">
+{% for ps in statuses %}{% set pl = ps.plan %}{% set f = FLAG[ps.flag] %}
+<div class="card" id="plan{{ pl.id }}">
+  <div class="row between">
+    <div><h2 style="margin:0">{{ pl.title or 'Бюті-план' }} · {{ pl.session_at|dt }}</h2>
+      <div class="muted small">{{ pl.complaints or '' }}</div></div>
+    <div class="row"><span class="pill {{ f[1] }}">{{ f[0] }}</span>
+      {% if ps.is_booked %}<span class="pill ok">запис {{ ps.next_booking|dt('%d.%m %H:%M') }}</span>
+      {% elif ps.due_date %}<span class="muted small">наступна процедура до {{ ps.due_date|dt }}</span>{% endif %}</div>
+  </div>
+  <div class="grid g5" style="margin:14px 0">
+    <div class="tile"><span>Сума плану</span><b>{{ ps.planned_sum|uah }}</b></div>
+    <div class="tile"><span>Реалізовано</span><b>{{ ps.realized_sum|uah }}</b><div class="bar" style="margin-top:6px"><i style="width:{{ [ps.realization_pct,100]|min }}%"></i></div><div class="muted small">{{ ps.realization_pct }}%</div></div>
+    <div class="tile"><span>Залишок</span><b>{{ ps.remaining_sum|uah }}</b><div class="muted small">з них записано {{ ps.booked_sum|uah }}</div></div>
+    <div class="tile"><span>Процедури</span><b>{{ ps.proc_done }} / {{ ps.proc_planned }}</b><div class="muted small">записано ще {{ ps.proc_booked }}</div></div>
+    <div class="tile"><span>Догляд</span><b>{{ ps.prod_bought }} / {{ ps.prod_planned }}</b><div class="muted small">засобів куплено</div></div>
+  </div>
+  <form method="post" action="/plans/{{ pl.id }}/items">
+  <div style="overflow:auto"><table>
+    <thead><tr><th>Позиція</th><th class="r">Ціна</th><th class="r">К-сть</th><th>Виконано</th><th class="r">Ручна відмітка</th><th class="r" title="для процедур — інтервал між процедурами, для засобів — на скільки днів вистачає">Днів</th><th>Події з CleverBox</th></tr></thead>
+    <tbody>
+    {% for st in ps.items %}{% set it = st.item %}
+      <tr>
+        <td>{{ '💉' if it.kind=='procedure' else '🧴' }} {% if it.url %}<a href="{{ it.url }}" target="_blank">{{ it.name }}</a>{% else %}{{ it.name }}{% endif %}
+          {% if it.kind=='product' %}<div class="muted small">{{ it.volume or '' }} {{ ('· ' ~ ((it.usage or [])|join(' / ')|replace('morning','ранок')|replace('evening','вечір'))) if it.usage }}</div>{% endif %}</td>
+        <td class="r">{{ it.unit_price|uah }}</td>
+        <td class="r"><input class="num" name="qty_{{ it.id }}" value="{{ it.qty }}"></td>
+        <td><div class="row" style="gap:8px;flex-wrap:nowrap"><div class="bar" style="width:80px"><i style="width:{{ (100 * [st.done, it.qty]|min / it.qty)|round(0) if it.qty else 0 }}%"></i></div><span class="small">{{ st.done }}/{{ it.qty }}{% if st.booked %} <span class="pill ok">+{{ st.booked }} запис</span>{% endif %}</span>
+          {% if it.kind=='procedure' and st.unbooked and can(user,'book') %}<a class="btn ghost" style="padding:2px 8px;font-size:12px" href="/book/{{ it.id }}">Записати</a>{% endif %}</div></td>
+        <td class="r"><input class="num" name="manual_done_{{ it.id }}" value="{{ it.manual_done }}" title="Якщо CleverBox не зіставив — вкажіть, скільки виконано/куплено"></td>
+        <td class="r">{% if it.kind=='procedure' %}<input class="num" name="interval_days_{{ it.id }}" value="{{ it.interval_days or '' }}">{% else %}<input class="num" name="supply_days_{{ it.id }}" value="{{ it.supply_days or '' }}">{% endif %}</td>
+        <td class="small">{% for kind, when, name, master in st.events %}<div>{{ {'done':'✔','booked':'📅','bought':'🛍'}[kind] }} {{ when|dt('%d.%m.%y') }}{{ (' · ' ~ master) if master }}</div>{% else %}<span class="muted">—</span>{% endfor %}</td>
+      </tr>
+    {% endfor %}
+    </tbody></table></div>
+    <div class="row between" style="margin-top:12px">
+      <div class="row small"><span class="muted">Статус плану</span>
+        <select name="status">{% for s,l in [('active','активний'),('completed','завершений'),('cancelled','скасований')] %}<option value="{{ s }}" {{ 'selected' if pl.status==s }}>{{ l }}</option>{% endfor %}</select>
+        {% if user.role != 'doctor' %}<span class="muted">Лікар</span><select name="doctor_id">{% for d in doctors %}<option value="{{ d.id }}" {{ 'selected' if pl.doctor_id==d.id }}>{{ d.name }}</option>{% endfor %}</select>{% endif %}</div>
+      <div class="row"><button class="btn">Зберегти зміни</button></div>
+    </div>
+  </form>
+  {% if pl.routine_comment %}<p class="small"><b>Коментар до догляду:</b> {{ pl.routine_comment }}</p>{% endif %}
+  {% if pl.medical_notes and can(user,'medical') %}<details class="small" style="margin-top:8px"><summary>Медичні нотатки лікаря</summary><p style="white-space:pre-line">{{ pl.medical_notes }}</p></details>{% endif %}
+  <div class="row small" style="margin-top:10px">
+    {% if pl.source_file %}<span class="muted">Джерело: PDF Observ</span>{% endif %}
+    {% if can(user,'plan_delete') %}<form method="post" action="/plans/{{ pl.id }}/delete" onsubmit="return confirm('Видалити цей бюті-план з CRM?')"><button class="btn danger" style="padding:4px 10px">Видалити план</button></form>{% endif %}
+  </div>
+</div>
+{% else %}
+<div class="card muted">Бюті-плану ще немає. Завантажте PDF з Observ кнопкою вгорі або надішліть боту.</div>
+{% endfor %}
+</div>
+
+<div class="card" id="tasks"><div class="row between"><h2 style="margin:0">Задачі</h2></div>
+  <table class="small" style="margin-top:8px"><tbody>
+  {% for t in ptasks %}<tr style="{{ 'opacity:.55' if t.status!='open' }}"><td><b>{{ t.title }}</b>{% if t.result %}<div style="color:var(--ok)">✔ {{ t.result }}</div>{% endif %}</td>
+    <td>{{ t.assignee.name if t.assignee else ({'admin':'Адміністратори','owner':'Власник'}.get(t.assignee_role,'—')) }}</td><td>{{ t.due_date|dt('%d.%m') if t.due_date else '' }}</td>
+    <td>{% if t.status=='open' %}<form method="post" action="/tasks/{{ t.id }}" class="row" style="gap:4px;flex-wrap:nowrap"><input type="hidden" name="back" value="/patients/{{ p.id }}#tasks">
+      <input name="result" placeholder="Результат" style="width:140px;padding:4px 6px"><button class="btn" name="status" value="done" style="padding:3px 8px">✔</button></form>{% else %}{{ 'виконано' if t.status=='done' else 'скасовано' }}{% endif %}</td></tr>
+  {% else %}<tr><td class="muted">Задач немає</td></tr>{% endfor %}</tbody></table>
+  <form method="post" action="/tasks" class="row" style="margin-top:10px">
+    <input type="hidden" name="patient_id" value="{{ p.id }}"><input type="hidden" name="back" value="/patients/{{ p.id }}#tasks">
+    <input name="title" placeholder="Нова задача: напр. «Передзвонити щодо IPL»" required style="flex:1;min-width:220px">
+    <select name="assignee"><option value="">Мені</option><option value="admin">Адміністраторам</option>{% for u in users %}<option value="{{ u.id }}">{{ u.name }}</option>{% endfor %}</select>
+    <input type="date" name="due_date"><button class="btn ghost">Додати</button></form>
+</div>
+
+<div class="card" id="contact">
+  <div class="row between"><h2 style="margin:0">Звʼязок з пацієнткою</h2>
+    <div class="row small">
+      {% if p.telegram_chat_id %}<span class="pill ok">Telegram-бот ✓{{ (' @' ~ p.telegram_username) if p.telegram_username }}</span>{% else %}<span class="pill warn">не в боті</span>{% endif %}
+      {% if p.marketing_opt_out %}<span class="pill bad">відписана від розсилок</span>{% endif %}
+      {% if can(user,'patient_edit') %}<form method="post" action="/patients/{{ p.id }}/optout">
+        <input type="hidden" name="value" value="{{ '0' if p.marketing_opt_out else '1' }}">
+        <button class="btn ghost" style="padding:3px 10px">{{ 'Повернути згоду на розсилки' if p.marketing_opt_out else 'Відписати від розсилок' }}</button></form>{% endif %}
+    </div></div>
+  {% if pscripts %}
+  <div class="grid g2" style="margin-top:12px">
+    {% for sc in pscripts %}<div class="script-box">
+      <div class="row between"><b class="small">{{ sc.title }}</b>
+        <button type="button" class="btn ghost copy" style="padding:2px 8px;font-size:12px" data-copy="ps{{ loop.index }}">Копіювати</button></div>
+      {% if sc.channel == 'call' %}<div id="ps{{ loop.index }}" class="small" style="white-space:pre-line;margin-top:4px">{{ sc.text }}</div>
+      {% else %}<form method="post" action="/patients/{{ p.id }}/message" class="grid" style="gap:6px;margin-top:4px">
+        <textarea id="ps{{ loop.index }}" name="text" rows="5" class="small">{{ sc.text }}</textarea>
+        {% if avail %}<div class="row small"><select name="channel" style="padding:4px 6px"><option value="auto">Авто: {{ avail|join(' → ')|replace('telegram','Telegram')|replace('viber','Viber')|replace('sms','SMS') }}</option>
+          {% if 'telegram' in avail %}<option value="telegram">Telegram</option>{% endif %}{% if 'viber' in avail %}<option value="viber">Viber → SMS</option>{% endif %}{% if 'sms' in avail %}<option value="sms">SMS</option>{% endif %}</select>
+          <button class="btn" style="padding:3px 10px" onclick="return confirm('Надіслати пацієнтці?')">Надіслати</button></div>
+        {% else %}<div class="small muted">Немає каналу: пацієнтка не в боті{{ ', немає телефону' if not p.phone }}{{ ', TurboSMS не підключено' if p.phone }}. Скопіюйте текст.</div>{% endif %}
+      </form>{% endif %}
+    </div>{% endfor %}
+  </div>{% endif %}
+  {% if msgs %}<details style="margin-top:12px"><summary class="small">Історія повідомлень ({{ msgs|length }})</summary>
+    <table class="small"><tbody>{% for m in msgs %}<tr><td style="white-space:nowrap">{{ m.at|dt('%d.%m.%y %H:%M') }}</td>
+      <td>{{ {'telegram':'Telegram','viber':'Viber','sms':'SMS'}.get(m.channel, m.channel) }}{{ ' · розсилка' if m.marketing }}</td>
+      <td><span class="pill {{ 'ok' if m.status=='sent' else 'bad' }}">{{ 'надіслано' if m.status=='sent' else 'помилка' }}</span></td>
+      <td class="muted">{{ m.text[:120] }}{{ '…' if m.text|length > 120 }}{{ (' — ' ~ m.error) if m.error }}</td><td>{{ m.user.name if m.user else '' }}</td></tr>{% endfor %}</tbody></table></details>{% endif %}
+</div>
+
+<div class="grid g2" id="visits">
+  <div class="card" id="history"><span id="sales"></span><h2>Візити, продажі та історія з CleverBox</h2>
+    <table class="small"><thead><tr><th>Дата</th><th>Послуга</th><th>Спеціаліст</th><th class="r">Сума</th><th>Статус</th></tr></thead><tbody>
+    {% for v in p.visits|reverse %}<tr><td>{{ v.starts_at|dt('%d.%m.%y %H:%M') }}</td><td>{{ v.service_name or ('послуга #' ~ v.service_id) }}</td><td>{{ v.master_name or '' }}</td>
+      <td class="r">{{ v.amount|uah if v.amount is not none else '—' }}</td><td><span class="pill {{ 'ok' if v.status=='done' else 'warn' }}">{{ 'виконано' if v.status=='done' else 'запис' }}</span></td></tr>
+    {% else %}<tr><td colspan="5" class="muted">{{ 'Немає візитів' if p.cleverbox_id else 'Пацієнт не привʼязаний до CleverBox — вкажіть телефон або ID у картці' }}</td></tr>{% endfor %}
+    {% for s in p.sales|reverse %}<tr><td>{{ s.sold_at|dt('%d.%m.%y') }}</td><td>🛍 {{ s.product_name }}</td><td></td><td class="r">{{ s.amount|uah }}</td><td>продаж</td></tr>{% endfor %}
+    </tbody></table></div>
+  <div class="card" id="files"><h2>Документи та фото</h2>
+    <div class="photos">{% for f in photos %}<a href="/files/{{ f.id }}" target="_blank" title="{{ f.caption or '' }}"><img src="/files/{{ f.id }}" loading="lazy" alt=""><div class="muted small">{{ f.created_at|dt }}</div></a>{% endfor %}</div>
+    {% for f in docs %}<div class="small"><a href="/files/{{ f.id }}" target="_blank">📄 {{ f.caption or 'файл' }}</a> <span class="muted">{{ f.created_at|dt }}</span></div>{% endfor %}
+    <form method="post" action="/patients/{{ p.id }}/photos" enctype="multipart/form-data" class="drop row" style="margin-top:12px;justify-content:center">
+      <input type="file" name="files" accept="image/*" multiple required><input name="caption" placeholder="Підпис (до/після, дата)"><button class="btn ghost">Додати фото</button></form>
+  </div>
+</div>
+<style>.script-box{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fdfbf8}.profile-grid{display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:14px}.profile-grid>div{padding:12px;border-radius:10px;background:#fdfbf8}.profile-grid span{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em}.profile-grid b{display:block;margin-top:3px}.patient-tabs{position:sticky;top:0;z-index:4;padding:8px 0;background:var(--bg)}@media(max-width:720px){.profile-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.patient-tabs{top:0}}</style>
+<script>document.querySelectorAll('button.copy').forEach(b=>b.addEventListener('click',()=>{const el=document.getElementById(b.dataset.copy);
+navigator.clipboard.writeText(el.value!==undefined?el.value:el.innerText).then(()=>{b.textContent='Скопійовано ✓';setTimeout(()=>b.textContent='Копіювати',1500)})}));</script>
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Продукти</h1>
+<div class="tabs"><a href="?tab=care" class="{{ 'on' if tab=='care' }}">Засоби домашнього догляду</a><a href="?tab=procedures" class="{{ 'on' if tab=='procedures' }}">Процедури</a><a href="/mapping" class="{{ 'on' if nav=='mapping' }}">Зіставлення з CleverBox</a></div>
+{% if tab=='care' %}
+<p class="muted small">Каталог формується з товарів CleverBox і засобів із бюті-планів. «Днів» — на скільки вистачає засобу (від цього рахуються нагадування про повторну покупку); «Мін. залишок» — для замовлень на складі.</p>
+<div class="card" style="padding:6px 8px;overflow:auto"><table>
+  <thead><tr><th>Засіб</th><th class="r">Ціна</th><th class="r">Призн.</th><th class="r">Куплено</th><th>Конверсія</th><th class="r">Виручка</th><th class="r" title="Потреба на 30 днів">Потреба 30д</th><th class="r">Залишок</th><th></th></tr></thead><tbody>
+  {% for r in products %}{% set p = r.product %}
+    <tr id="p{{ p.id }}"><td style="min-width:260px">{% if p.url %}<a href="{{ p.url }}" target="_blank">{{ p.name }}</a>{% else %}{{ p.name }}{% endif %}
+        <div class="small muted">{{ p.category or '' }}{{ (' · ' ~ p.volume) if p.volume }}{% if not p.cb_product_id %} · <span style="color:var(--warn)">немає в CleverBox</span>{% endif %} · пацієнтів {{ r.patients|length }}</div></td>
+      <td class="r">{{ p.price|uah if p.price else '—' }}</td><td class="r">{{ r.prescribed or '—' }}</td><td class="r">{{ r.bought or '—' }}</td>
+      <td>{% if r.prescribed %}<div class="row" style="gap:6px;flex-wrap:nowrap"><div class="bar" style="width:70px"><i style="width:{{ [r.conversion,100]|min }}%"></i></div><span class="small">{{ r.conversion }}%</span></div>{% endif %}</td>
+      <td class="r">{{ r.revenue|uah if r.revenue else '—' }}</td><td class="r">{{ r.need_30 or '—' }}</td>
+      <td class="r">{{ ('%g'|format(r.stock)) if r.stock is not none else '—' }}</td>
+      <td><div class="small muted" style="white-space:nowrap">{{ (p.supply_days ~ ' дн') if p.supply_days else 'дн —' }} · мін {{ p.min_stock or '—' }}</div>
+        <details><summary class="small">змінити</summary>
+        <form method="post" action="/products/{{ p.id }}" class="grid" style="gap:6px;margin-top:6px;min-width:220px">
+        <label class="small muted">На скільки днів вистачає<input name="supply_days" value="{{ p.supply_days or '' }}" style="width:100%"></label>
+        <label class="small muted">Мінімальний залишок, шт<input name="min_stock" value="{{ p.min_stock or '' }}" style="width:100%"></label>
+        <label class="small muted">Посилання на molodist.store<input name="url" value="{{ p.url or '' }}" style="width:100%"></label>
+        <label class="small"><input type="checkbox" name="apply" value="1"> застосувати тривалість до активних планів</label>
+        <button class="btn ghost">Зберегти</button></form></details></td></tr>
+  {% else %}<tr><td colspan="9" class="muted">Каталог порожній — завантажте бюті-план або синхронізуйте CleverBox.</td></tr>{% endfor %}
+  </tbody></table></div>
+{% else %}
+<p class="muted small">Процедури з усіх бюті-планів: скільки призначено, скільки реально виконано, скільки записано наперед.</p>
+<div class="card" style="padding:6px 8px;overflow:auto"><table>
+  <thead><tr><th>Процедура</th><th class="r">Планів</th><th class="r">Призначено</th><th class="r">Виконано</th><th class="r">Записано</th><th>Конверсія</th><th class="r">Сер. ціна</th><th class="r">Сума в планах</th><th class="r">Реалізовано</th></tr></thead><tbody>
+  {% for r in procedures %}<tr><td>{{ r.name }}</td><td class="r">{{ r.plans }}</td><td class="r">{{ r.planned }}</td><td class="r">{{ r.done }}</td><td class="r">{{ r.booked or '—' }}</td>
+    <td><div class="row" style="gap:6px;flex-wrap:nowrap"><div class="bar" style="width:70px"><i style="width:{{ [r.conversion,100]|min }}%"></i></div><span class="small">{{ r.conversion }}%</span></div></td>
+    <td class="r">{{ r.avg_price|uah }}</td><td class="r">{{ r.planned_sum|uah }}</td><td class="r">{{ r.realized_sum|uah }}</td></tr>
+  {% else %}<tr><td colspan="9" class="muted">Ще немає процедур у планах.</td></tr>{% endfor %}
+  </tbody></table></div>
+{% endif %}
+{% endblock %}

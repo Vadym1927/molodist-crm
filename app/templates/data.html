@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Дані: експорт, імпорт, перенос</h1>
+<p class="muted">Вивантаження звітів і файлів, завантаження таблиць з інших систем, повний перенос з CleverBox та резервна копія для переїзду на інший сервер.</p>
+
+{% if reports %}
+<div class="card" id="import" style="border-color:var(--accent)"><h2>Результат імпорту</h2>
+  <table class="small"><thead><tr><th>Аркуш / файл</th><th>Тип</th><th class="r">Рядків</th><th class="r">Нових пацієнтів</th><th class="r">Планів</th><th class="r">Візитів</th><th class="r">Покупок</th><th class="r">Пропущено</th><th>Колонки / помилки</th></tr></thead><tbody>
+  {% for r in reports %}<tr>
+    <td>{{ r.sheet }}</td><td>{{ {'patients':'пацієнти','plans':'бюті-плани','history':'історія візитів'}.get(r.type, r.type) }}</td>
+    <td class="r">{{ r.rows or r.pdf or '' }}</td><td class="r">{{ r.patients_created or 0 }}</td><td class="r">{{ r.plans or 0 }}</td>
+    <td class="r">{{ r.visits or 0 }}</td><td class="r">{{ r.sales or 0 }}</td><td class="r">{{ r.skipped or 0 }}</td>
+    <td>{% if r.error %}<span class="pill bad">{{ r.error }}</span>{% endif %}
+      {% if r.columns %}<div class="muted">{% for f, h in r.columns.items() %}{{ h }} → {{ f }}{{ ', ' if not loop.last }}{% endfor %}</div>{% endif %}
+      {% for e in (r.errors or [])[:8] %}<div class="muted">{{ e }}</div>{% endfor %}</td></tr>{% endfor %}
+  </tbody></table></div>
+{% endif %}
+
+<div class="grid g2">
+  <div class="card" id="export"><h2>Експорт звітів</h2>
+    <p class="small muted">Плани, позиції з реалізацією{{ ', KPI лікарів' if can(user,'finance') or can(user,'kpi_own') }}{{ ', фінпрогноз' if can(user,'finance') }}.
+      {% if user.role=='doctor' %}Лише ваші пацієнти.{% endif %}</p>
+    <form method="get" class="grid" style="gap:10px">
+      <div class="row small"><span class="muted">Плани з</span><input type="date" name="df"><span class="muted">по</span><input type="date" name="dt_"></div>
+      <div class="row">
+        <button class="btn" formaction="/export/report.xlsx">Excel (.xlsx)</button>
+        <button class="btn ghost" formaction="/export/report.csv.zip">CSV (zip)</button>
+        {% if can(user,'sheets') %}<button class="btn ghost" formaction="/actions/sheets" formmethod="post">У Google Sheets</button>{% endif %}
+      </div></form>
+    {% if can(user,'export_files') %}
+    <h2 style="margin-top:22px">Експорт файлів</h2>
+    <p class="small muted">Усі фото та PDF бюті-планів, розкладені по папках пацієнтів. Файли одного пацієнта — кнопка «Файли ZIP» у його картці.</p>
+    <a class="btn ghost" href="/export/files.zip">Завантажити всі файли (zip)</a>
+    {% endif %}
+  </div>
+
+  {% if can(user,'import') %}
+  <div class="card" id="import-form"><h2>Імпорт</h2>
+    <p class="small muted">Excel або CSV з будь-якої системи. Колонки розпізнаються автоматично (Пацієнт / Телефон / Дата / Послуга / Кількість / Ціна / Статус…).
+      Аркуші з назвами «Пацієнти», «Плани», «Історія» імпортуються кожен за своїм типом. Повторний імпорт не дублює дані.</p>
+    <form method="post" action="/import/table" enctype="multipart/form-data" class="grid" style="gap:8px">
+      <input type="file" name="file" accept=".xlsx,.xlsm,.csv" required>
+      <select name="kind"><option value="">Тип — визначити автоматично</option><option value="patients">Пацієнти</option>
+        <option value="plans">Бюті-плани (позиції)</option><option value="history">Історія візитів і покупок</option></select>
+      <div class="row"><button class="btn">Імпортувати таблицю</button><a class="btn ghost" href="/import/template.xlsx">Шаблон Excel</a></div>
+    </form>
+    <h2 style="margin-top:22px">Пакет PDF бюті-планів</h2>
+    <p class="small muted">ZIP-архів з PDF Observ — усі плани розпізнаються за раз.</p>
+    <form method="post" action="/import/pdf-zip" enctype="multipart/form-data" class="row">
+      <input type="file" name="file" accept=".zip" required><button class="btn ghost">Завантажити ZIP</button></form>
+  </div>
+  {% endif %}
+</div>
+
+{% if can(user,'migrate') %}
+<div class="card" id="migrate"><h2>Перенос з поточної CRM</h2>
+  <div class="grid g2">
+    <div>
+      <h3 style="margin:0 0 6px">З CleverBox — автоматично</h3>
+      <p class="small muted">Переносить довідники послуг і лікарів, клієнтів (з телефонами), усі надані послуги та продажі товарів за обраний період, майбутні записи.
+        Після переносу будь-який завантажений бюті-план одразу бачить історію пацієнта. Через ліміт CleverBox (1 запит/сек) велика база переноситься від кількох хвилин до години — можна закрити сторінку.</p>
+      {% if cb_notice %}<div class="alert" style="background:var(--warn-bg);color:var(--warn)">{{ cb_notice }}</div>{% endif %}
+      <form method="post" action="/settings/cleverbox-token" class="grid" style="gap:8px;margin:12px 0">
+        <label class="small"><b>CleverBox REST token</b>
+          <input type="password" name="token" placeholder="Вставте токен" autocomplete="off" required></label>
+        <p class="small muted" style="margin:0">Токен перевіряється перед збереженням, шифрується у CRM і після збереження не показується.</p>
+        <button class="btn ghost">Зберегти токен</button>
+      </form>
+      <div class="small" style="margin:12px 0">
+        <b>Автооновлення:</b>
+        {% if cb and cb_auto_sync %}<span class="pill ok">увімкнено</span> кожні 2 години, цілодобово{% elif cb %}<span class="pill warn">вимкнено</span>{% else %}<span class="pill bad">вимкнено — потрібен токен</span>{% endif %}
+        <form method="post" action="/settings/cleverbox-auto-sync" style="display:inline">
+          <input type="hidden" name="enabled" value="{{ '0' if cb_auto_sync else '1' }}">
+          <button class="btn ghost" style="padding:3px 10px" {% if not cb %}disabled title="Спершу збережіть токен"{% endif %}>{{ 'Виключити оновлення' if cb_auto_sync else 'Включити оновлення' }}</button>
+        </form>
+        {% if cb_last_success %}<br><span class="muted">Останнє успішне: {{ cb_last_success.replace('T',' ') }}</span>{% endif %}
+        {% if cb_next_sync %}<br><span class="muted">Наступне: {{ cb_next_sync|dt('%d.%m.%Y %H:%M') }}</span>{% endif %}
+        {% if cb_last_error %}<br><span style="color:var(--bad)">Остання помилка: {{ cb_last_error }}</span>{% endif %}
+      </div>
+      {% if cb %}<form method="post" action="/actions/cleverbox-sync" style="margin:10px 0"><button class="btn">Оновити зараз</button></form>{% endif %}
+      {% if cb %}
+      <form method="post" action="/migrate/cleverbox" class="grid" style="gap:8px">
+        <div class="row small"><span>Історія за</span><select name="months">{% for m in [6,12,24,36,60] %}<option value="{{ m }}" {{ 'selected' if m==24 }}>{{ m }} міс.</option>{% endfor %}</select></div>
+        <label class="small"><input type="checkbox" name="all_history" value="1"> за весь доступний час у CleverBox</label>
+        <label class="small"><input type="checkbox" name="all_clients" value="1" checked> створити картки для всіх клієнтів CleverBox (інакше — лише привʼязати наявних)</label>
+        <button class="btn" onclick="return confirm('Запустити перенос з CleverBox?')">Запустити перенос</button></form>
+      {% else %}<div class="alert" style="background:var(--warn-bg);color:var(--warn)">Додайте CLEVERBOX_TOKEN у .env</div>{% endif %}
+      {% if last_migration %}<p class="small muted">Останній перенос: {{ last_migration.replace('T',' ') }}</p>{% endif %}
+    </div>
+    <div>
+      <h3 style="margin:0 0 6px">З іншої CRM / таблиць — через Excel</h3>
+      <ol class="small">
+        <li>Вивантажте зі старої системи клієнтів, візити/продажі (і плани, якщо вони там є) в Excel або CSV.</li>
+        <li>Імпортуйте спершу <b>пацієнтів</b>, потім <b>історію</b>, потім <b>плани</b> (блок «Імпорт» вище). Можна одним файлом з трьома аркушами — як у шаблоні.</li>
+        <li>Перевірте «Зіставлення» — назви послуг старої системи мають зіставитися з процедурами планів.</li>
+      </ol>
+    </div>
+  </div>
+  {% if jobs %}
+  <h3>Фонові задачі</h3>
+  {% for j in jobs %}<div class="rem" style="margin-bottom:8px" data-job="{{ j.id }}" data-status="{{ j.status }}">
+    <div class="row between"><b>{{ j.title }}</b><span class="pill {{ {'running':'warn','done':'ok','error':'bad'}[j.status] }}">{{ {'running':'виконується','done':'готово','error':'помилка'}[j.status] }}</span></div>
+    <div class="small muted">старт {{ j.started|dt('%d.%m %H:%M') }}{{ (' · завершено ' ~ j.finished.strftime('%H:%M')) if j.finished }}</div>
+    <pre class="small" style="white-space:pre-wrap;max-height:180px;overflow:auto;margin:6px 0 0">{{ j.progress[-12:]|join('\n') }}</pre></div>{% endfor %}
+  {% if jobs|selectattr('status','equalto','running')|list %}<script>setTimeout(()=>location.reload(), 5000)</script>{% endif %}
+  {% endif %}
+</div>
+{% endif %}
+
+{% if can(user,'backup') %}
+<div class="card" id="backup"><h2>Резервні копії та переїзд на інший сервер</h2>
+  <div class="grid g2">
+    <div>
+      <p class="small muted">Автоматично щодня о {{ settings.backup_hour }}:30 — база{{ ' + фото і PDF' if settings.backup_with_files }}, зберігаються {{ settings.backup_keep }} останніх.
+        {% if settings.backup_copy_dir %}Друга копія: <code>{{ settings.backup_copy_dir }}</code>.{% else %}<span style="color:var(--warn)">Друга копія (інший диск/хмара) не налаштована — BACKUP_COPY_DIR.</span>{% endif %}
+        {% if settings.backup_password and settings.backup_telegram %}Зашифрована копія надсилається власнику в Telegram.{% else %}<span style="color:var(--warn)">Копія в Telegram вимкнена — задайте BACKUP_PASSWORD.</span>{% endif %}</p>
+      <div class="row"><form method="post" action="/backup/now"><button class="btn">Зробити копію зараз</button></form>
+        <a class="btn ghost" href="/backup/download?with_files=0">Скачати лише базу</a></div>
+      <table class="small" style="margin-top:12px"><thead><tr><th>Копія</th><th class="r">Розмір</th><th></th></tr></thead><tbody>
+      {% for b in backups %}<tr><td>{{ b.created|dt('%d.%m.%Y %H:%M') }}</td><td class="r">{{ b.size_mb }} МБ</td>
+        <td class="r"><a href="/backup/file/{{ b.name }}">скачати</a></td></tr>
+      {% else %}<tr><td colspan="3" class="muted">Копій ще немає — перша буде вночі або натисніть «Зробити копію зараз».</td></tr>{% endfor %}
+      </tbody></table>
+    </div>
+    <div><p class="small muted"><b>Відновлення повністю замінює</b> поточні дані вмістом копії (переїзд: розгорніть CRM на новому сервері → увійдіть → відновіть копію). Підходять і копії з сервера (.zip), і зашифровані з Telegram (.zip.enc — потрібен пароль). Після відновлення вхід — з користувачами з копії.</p>
+      <form method="post" action="/backup/restore" enctype="multipart/form-data" class="grid" style="gap:8px">
+        <input type="file" name="file" accept=".zip,.enc" required>
+        <input type="password" name="password" placeholder="Пароль (лише для зашифрованої копії з Telegram)" autocomplete="off">
+        <input name="confirm" placeholder="Введіть ВІДНОВИТИ для підтвердження" required>
+        <button class="btn danger" onclick="return confirm('Усі поточні дані буде замінено. Продовжити?')">Відновити з копії</button></form></div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

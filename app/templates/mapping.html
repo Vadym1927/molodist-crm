@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Зіставлення процедур з CleverBox</h1>
+<p class="muted">Назви в бюті-плані (Observ) і в CleverBox можуть відрізнятися. Автоматично процедура зараховується, якщо назви збігаються на ≥60% слів.
+Якщо ні — оберіть відповідні послуги CleverBox вручну (можна кілька, напр. «IPL обличчя» і «IPL обличчя + шия»).</p>
+{% if not services %}<div class="alert" style="background:var(--warn-bg);color:var(--warn)">Довідник послуг CleverBox ще не завантажено — запустіть синхронізацію на дашборді.</div>{% endif %}
+<div class="card" style="overflow:auto"><table>
+  <thead><tr><th>Процедура з бюті-плану</th><th>Автозбіг з назвами з CleverBox</th><th>Ручне зіставлення</th></tr></thead><tbody>
+  {% for key, name, al, auto in rows %}
+    <tr><td style="font-weight:500">{{ name }}</td>
+      <td class="small">{% for a in auto %}<div>✔ {{ a }}</div>{% else %}<span class="muted">немає</span>{% endfor %}</td>
+      <td><form method="post" action="/mapping" class="row" style="align-items:flex-start">
+        <input type="hidden" name="kind" value="{{ key[0] }}"><input type="hidden" name="key" value="{{ key[1] }}">
+        <select name="cb_ids" multiple size="4" style="min-width:320px">
+          {% for s in services %}<option value="{{ s.id }}" {{ 'selected' if al and s.id in al.cb_ids }}>{{ (s.category ~ ' · ') if s.category }}{{ s.name }}</option>{% endfor %}</select>
+        <button class="btn ghost">Зберегти</button></form>
+        {% if al %}<div class="small muted">Зараз: {{ al.cb_names|join(', ') }}</div>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="3" class="muted">Ще немає процедур у планах.</td></tr>{% endfor %}
+  </tbody></table></div>
+{% endblock %}

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="row between" style="margin-bottom:6px"><h1>Розсилки</h1>
+  <div class="row small muted">
+    Telegram-бот: {% if tg_on %}<span class="pill ok">підключено</span>{% else %}<span class="pill warn">PATIENT_BOT_TOKEN</span>{% endif %}
+    · TurboSMS: {% if ts_on %}<span class="pill ok">{{ ('баланс ' ~ '%.0f'|format(balance) ~ ' ₴') if balance is not none else 'підключено' }}</span>{% else %}<span class="pill warn">не підключено</span>{% endif %}
+  </div></div>
+<p class="muted small">Розсилки за сегментами клієнтів: спершу через бот пацієнтів у Telegram, для решти — Viber з резервом SMS. Відписані не отримують нічого,
+  одному клієнту — не частіше ніж раз на {{ settings.marketing_frequency_days }} днів, у тихі години (20:00–09:00) відправка чекає ранку.
+  Після розсилки CRM рахує, хто записався, прийшов і скільки приніс.</p>
+<div class="grid" style="grid-template-columns:minmax(0,1fr) 380px;align-items:start">
+<div class="card" style="padding:6px 8px;overflow:auto"><table>
+  <thead><tr><th>Розсилка</th><th>Сегмент</th><th>Статус</th><th class="r">Надіслано</th><th class="r">Записались</th><th class="r">Виручка</th></tr></thead><tbody>
+  {% for c in cs %}{% set s = st.get(c.id) %}
+    <tr onclick="location='/campaigns/{{ c.id }}'" style="cursor:pointer">
+      <td><a href="/campaigns/{{ c.id }}" style="font-weight:500;text-decoration:none">{{ c.name }}</a><div class="small muted">{{ c.created_at|dt('%d.%m.%y') }} · {{ c.channels|join(' → ')|replace('telegram','Telegram')|replace('viber','Viber')|replace('sms','SMS') }}</div></td>
+      <td class="small">{{ SEGMENTS.get(c.segment, c.segment) }}</td>
+      <td>{% set m = {'draft':('чернетка','warn'),'scheduled':('заплановано','warn'),'sending':('надсилається','ok'),'done':('надіслано','done'),'cancelled':('скасовано','bad')}[c.status] %}<span class="pill {{ m[1] }}">{{ m[0] }}</span>
+        {% if c.status=='scheduled' and c.scheduled_at %}<div class="small muted">{{ c.scheduled_at|dt('%d.%m %H:%M') }}</div>{% endif %}</td>
+      <td class="r">{{ s.sent if s else '—' }}</td><td class="r">{{ (s.booked ~ ' · ' ~ s.conversion ~ '%') if s else '—' }}</td><td class="r">{{ s.revenue|uah if s else '—' }}</td></tr>
+  {% else %}<tr><td colspan="6" class="muted">Розсилок ще немає — створіть першу праворуч.</td></tr>{% endfor %}
+  </tbody></table></div>
+
+<div class="card"><h2>Нова розсилка</h2>
+  <form method="post" action="/campaigns" class="grid" style="gap:8px" id="newc">
+    <input name="name" placeholder="Назва (для себе): напр. «Сплячі — жовтень»" required>
+    <select name="segment" id="seg">{% for k,l in SEGMENTS.items() if k!='all' %}<option value="{{ k }}" {{ 'selected' if k=='sleeping' }}>{{ l }}</option>{% endfor %}<option value="all">Усі клієнти</option></select>
+    <textarea name="text" id="txt" rows="6" required placeholder="Текст. Підстановки: {імʼя}, {лікар}, {клініка}"></textarea>
+    <div class="small muted" id="cnt"></div>
+    <div class="row small"><b>Канали за пріоритетом:</b>
+      <label><input type="checkbox" name="ch_telegram" value="1" checked> Telegram-бот</label>
+      <label><input type="checkbox" name="ch_viber" value="1" checked> Viber</label>
+      <label><input type="checkbox" name="ch_sms" value="1"> SMS</label></div>
+    <details class="small"><summary>Фільтри</summary>
+      <div class="grid" style="gap:6px;margin-top:6px">
+        <select name="doctor_id"><option value="">Усі лікарі</option>{% for d in doctors %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}</select>
+        <input name="source" placeholder="Джерело клієнта (напр. Instagram)">
+        <div class="row"><input name="min_ltv" placeholder="Виручка від, ₴" style="flex:1"><input name="max_ltv" placeholder="до, ₴" style="flex:1"></div>
+        <label>Вікно атрибуції, днів <input name="attribution_days" value="14" style="width:60px"></label></div></details>
+    <button class="btn">Створити чернетку → превʼю</button>
+  </form></div>
+</div>
+<script>
+const IDEAS = {{ IDEAS|tojson }};
+const seg = document.getElementById('seg'), txt = document.getElementById('txt'), cnt = document.getElementById('cnt');
+function idea(){ if(!txt.value || Object.values(IDEAS).includes(txt.value)) txt.value = IDEAS[seg.value] || ''; count(); }
+function count(){ const n = txt.value.length; const cyr=/[^\x00-\x7F]/.test(txt.value); const one=cyr?70:160, many=cyr?67:153;
+  const parts = n<=one?1:Math.ceil(n/many); cnt.textContent = `${n} симв. · SMS: ${parts} сегм. (+ рядок відписки) · Viber до 1000, Telegram до 4096`; }
+seg.addEventListener('change', idea); txt.addEventListener('input', count); idea();
+</script>
+{% endblock %}

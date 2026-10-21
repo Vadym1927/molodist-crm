@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block body %}
+<style>
+.cal{display:grid;grid-template-columns:repeat({{ days }},minmax(0,1fr));gap:10px}
+.day{background:#fff;border:1px solid var(--line);border-radius:12px;min-height:420px;display:flex;flex-direction:column}
+.day h3{margin:0;padding:10px 12px;border-bottom:1px solid var(--line);font:600 13px Inter;display:flex;justify-content:space-between}
+.day.today{border-color:var(--accent)}.day.today h3{background:var(--accent-soft)}
+.ev{margin:6px 8px 0;padding:6px 8px;border-radius:8px;font-size:12px;line-height:1.35;text-decoration:none;display:block;border-left:3px solid}
+.ev b{font-weight:600;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.ev .t{color:var(--muted);font-size:11px}
+.ev.visit{background:#f3efe9;border-color:var(--ink)}.ev.visit.plan{background:var(--ok-bg);border-color:var(--ok)}
+.ev.attended{background:#f6f6f6;border-color:#bbb;color:#666}.ev.expected{background:var(--warn-bg);border-color:var(--warn)}
+.ev.task{background:var(--done-bg);border-color:var(--done)}
+@media (max-width:900px){.cal{grid-template-columns:1fr}.day{min-height:0}}
+</style>
+<div class="row between" style="margin-bottom:12px">
+  <div><h1>Календар</h1><div class="muted small">{{ start|dt }}{{ (' — ' ~ end.strftime('%d.%m.%Y')) if days > 1 }}</div></div>
+  <div class="row">
+    <a class="btn ghost" href="?start={{ prev }}&view={{ view }}&master={{ master }}">←</a>
+    <a class="btn ghost" href="?view={{ view }}&master={{ master }}">Сьогодні</a>
+    <a class="btn ghost" href="?start={{ next }}&view={{ view }}&master={{ master }}">→</a>
+    <a class="btn {{ '' if view=='week' else 'ghost' }}" href="?start={{ start }}&view=week&master={{ master }}">Тиждень</a>
+    <a class="btn {{ '' if view=='day' else 'ghost' }}" href="?start={{ today if view=='week' else start }}&view=day&master={{ master }}">День</a>
+    {% if user.role!='doctor' %}<form class="row"><input type="hidden" name="start" value="{{ start }}"><input type="hidden" name="view" value="{{ view }}">
+      <select name="master" onchange="this.form.submit()"><option value="">Усі спеціалісти</option>{% for m in masters %}<option {{ 'selected' if m==master }}>{{ m }}</option>{% endfor %}</select></form>{% endif %}
+  </div>
+</div>
+<div class="legend" style="margin-bottom:10px"><span><i style="background:var(--ok)"></i>запис пацієнта з бюті-планом</span><span><i style="background:var(--ink)"></i>інший запис</span>
+  <span><i style="background:var(--warn)"></i>очікується за планом (без запису)</span><span><i style="background:var(--done)"></i>задача</span><span><i style="background:#bbb"></i>відбувся</span></div>
+<div class="cal">
+{% for d, items in ev.items() %}
+  <div class="day {{ 'today' if d==today }}"><h3><span>{{ ['Пн','Вт','Ср','Чт','Пт','Сб','Нд'][d.weekday()] }} {{ d|dt('%d.%m') }}</span><span class="muted">{{ items|selectattr('kind','in',['visit','attended'])|list|length or '' }}</span></h3>
+    {% for e in items %}
+      <a class="ev {{ e.kind }} {{ 'plan' if e.in_plan }}" href="{{ ('/patients/' ~ e.patient_id) if e.patient_id else '/tasks' }}">
+        {% if not e.all_day %}<div class="t">{{ e.when|dt('%H:%M') }}</div>{% endif %}
+        <b>{{ e.title }}</b>{% if e.subtitle %}<div class="t">{{ e.subtitle }}</div>{% endif %}</a>
+    {% else %}<div class="muted small" style="padding:10px 12px">—</div>{% endfor %}
+    <div style="height:8px"></div>
+  </div>
+{% endfor %}
+</div>
+{% if not masters %}<p class="muted small" style="margin-top:12px">Записи підтягуються з CleverBox на 14 днів уперед під час синхронізації.</p>{% endif %}
+{% endblock %}

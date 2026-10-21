@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="card" style="max-width:380px;margin:12vh auto;text-align:center">
+  <div class="logo" style="font-size:30px">MOLODIST</div>
+  <p class="muted small" style="letter-spacing:.1em">BEAUTY PLAN CRM</p>
+  {% if error %}<div class="alert">{{ error }}</div>{% endif %}
+  <form method="post" class="grid" style="gap:10px;margin-top:18px">
+    <input name="login" placeholder="Логін" value="{{ login or '' }}" autocomplete="username" autofocus required>
+    <input type="password" name="password" placeholder="Пароль" autocomplete="current-password" required>
+    <button class="btn" style="justify-content:center">Увійти</button>
+  </form>
+</div>
+{% endblock %}

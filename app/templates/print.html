@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="uk"><head><meta charset="utf-8"><title>{{ p.full_name }} — бюті-план</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<style>
+body{font:12px/1.45 Inter,system-ui,sans-serif;color:#1d1b19;margin:0;padding:28px 34px;background:#fff}
+h1{font:600 26px "Cormorant Garamond",serif;margin:0}h2{font:600 18px "Cormorant Garamond",serif;margin:18px 0 6px}
+.logo{font:600 16px "Cormorant Garamond",serif;letter-spacing:.14em}.muted{color:#7a736b}
+table{width:100%;border-collapse:collapse;margin-top:6px}th,td{text-align:left;padding:6px 6px;border-bottom:1px solid #e8e2d9}
+th{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#7a736b}td.r,th.r{text-align:right;white-space:nowrap}
+.tiles{display:flex;gap:10px;margin:10px 0}.tile{flex:1;border:1px solid #e8e2d9;border-radius:8px;padding:8px 10px}.tile b{display:block;font-size:16px}
+.head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1d1b19;padding-bottom:10px;margin-bottom:12px}
+.noprint{position:fixed;top:12px;right:12px}.noprint button{font:600 13px Inter;padding:8px 14px;border-radius:8px;border:0;background:#1d1b19;color:#fff;cursor:pointer}
+@media print{.noprint{display:none}body{padding:0}@page{margin:14mm}}
+</style></head>
+<body>
+<div class="noprint"><button onclick="print()">Друк / Зберегти PDF</button></div>
+<div class="head"><div><div class="logo">MOLODIST</div><h1>{{ p.full_name }}</h1>
+  <div class="muted">{{ [p.phone, ('лікар ' ~ p.doctor.name) if p.doctor else None]|select|join(' · ') }}</div></div>
+  <div class="muted">Сформовано {{ now|dt('%d.%m.%Y %H:%M') }}</div></div>
+{% for ps in statuses %}{% set pl = ps.plan %}
+<h2>{{ pl.title or 'Бюті-план' }} від {{ pl.session_at|dt }}</h2>
+{% if pl.complaints %}<div class="muted">{{ pl.complaints }}</div>{% endif %}
+<div class="tiles">
+  <div class="tile"><span class="muted">Сума плану</span><b>{{ ps.planned_sum|uah }}</b></div>
+  <div class="tile"><span class="muted">Реалізовано</span><b>{{ ps.realized_sum|uah }} · {{ ps.realization_pct }}%</b></div>
+  <div class="tile"><span class="muted">Процедури</span><b>{{ ps.proc_done }} / {{ ps.proc_planned }}</b></div>
+  <div class="tile"><span class="muted">Наступний запис</span><b>{{ ps.next_booking|dt('%d.%m.%Y %H:%M') if ps.next_booking else '—' }}</b></div>
+</div>
+<table><thead><tr><th>Позиція</th><th class="r">Ціна</th><th class="r">К-сть</th><th class="r">Сума</th><th class="r">Виконано</th><th>Використання</th></tr></thead><tbody>
+{% for st in ps.items %}{% set it = st.item %}<tr><td>{{ it.name }}</td><td class="r">{{ it.unit_price|uah }}</td><td class="r">{{ it.qty }}</td>
+  <td class="r">{{ it.total|uah }}</td><td class="r">{{ st.done }}/{{ it.qty }}{{ (' (+' ~ st.booked ~ ' запис)') if st.booked }}</td>
+  <td class="muted">{{ ((it.usage or [])|join(' / ')|replace('morning','ранок')|replace('evening','вечір')) if it.kind=='product' else ((('кожні ' ~ it.interval_days ~ ' дн.') if it.interval_days else '')) }}</td></tr>{% endfor %}
+</tbody></table>
+{% if pl.routine_comment %}<p><b>Коментар до догляду:</b> {{ pl.routine_comment }}</p>{% endif %}
+{% if pl.medical_notes and can(user,'medical') %}<p><b>Нотатки лікаря:</b><br><span style="white-space:pre-line">{{ pl.medical_notes }}</span></p>{% endif %}
+{% else %}<p class="muted">Бюті-плану немає.</p>{% endfor %}
+</body></html>

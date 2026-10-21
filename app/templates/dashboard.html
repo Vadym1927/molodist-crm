@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="row between" style="margin-bottom:18px">
+  <div><h1>Реалізація бюті-планів</h1>
+    <div class="muted small">CleverBox: {{ ('синхронізовано ' ~ last_sync.replace('T',' ')) if last_sync else ('не підключено — додайте токен у .env' if not cb else 'ще не синхронізовано') }}</div></div>
+  <div class="row">
+    <form method="get" class="row small"><span class="muted">Плани з</span><input type="date" name="df" value="{{ df or '' }}">
+      <span class="muted">по</span><input type="date" name="dt_" value="{{ dt_ or '' }}"><button class="btn ghost">OK</button></form>
+    {% if cb and can(user,'sync') %}<form method="post" action="/actions/sync"><button class="btn ghost">↻ Синхронізувати</button></form>{% endif %}
+    {% if sheets and can(user,'sheets') %}<form method="post" action="/actions/sheets"><button class="btn ghost">Google Sheets</button></form>{% endif %}
+    {% if can(user,'send_digest') %}<form method="post" action="/actions/digest"><button class="btn">Надіслати нагадування</button></form>{% endif %}
+  </div>
+</div>
+{% if last_error %}<div class="alert">Помилка: {{ last_error }}</div>{% endif %}
+{% if unassigned %}<div class="alert" style="background:var(--warn-bg);color:var(--warn)"><a href="/unassigned">Нерозібраних файлів: {{ unassigned }}</a> — привʼяжіть до пацієнтів.</div>{% endif %}
+
+{% set money = can(user,'finance') or can(user,'kpi_own') %}
+<div class="grid g5" style="margin-bottom:18px">
+  {% if money %}
+  <div class="tile"><span>Сума планів</span><b>{{ total.planned_sum|uah }}</b><div class="muted small">{{ total.plans }} планів · середній {{ total.avg_plan|uah }}</div></div>
+  <div class="tile"><span>Реалізовано</span><b>{{ total.realized_sum|uah }}</b><div class="bar" style="margin-top:8px"><i style="width:{{ [total.realization_pct,100]|min }}%"></i></div><div class="muted small">{{ total.realization_pct }}% від планів</div></div>
+  <div class="tile"><span>Записано наперед</span><b>{{ total.booked_sum|uah }}</b><div class="muted small">{{ total.booked_pct }}% активних мають запис</div></div>
+  {% else %}
+  <div class="tile"><span>Активні плани</span><b>{{ total.active }}</b><div class="muted small">усього {{ total.plans }} · завершено {{ total.completed }}</div></div>
+  <div class="tile"><span>Мають запис</span><b>{{ total.booked_pct }}%</b><div class="muted small">{{ total.booked_plans }} з {{ total.active }} активних</div></div>
+  {% endif %}
+  <div class="tile"><span>Процедури</span><b>{{ total.proc_done }} / {{ total.proc_planned }}</b><div class="muted small">конверсія в старт {{ total.conversion_pct }}%</div></div>
+  <div class="tile"><span>Потребують уваги</span><b style="color:var(--bad)">{{ total.red }}</b><div class="muted small">прострочені без запису · активних {{ total.active }}</div></div>
+</div>
+
+{% if money %}
+<div class="card">
+  <h2>{{ 'Мій KPI' if user.role=='doctor' else 'KPI по лікарях' }}</h2>
+  <div style="overflow:auto"><table>
+    <thead><tr><th>Лікар</th><th class="r">Планів</th><th class="r">Сума планів</th><th class="r">Реалізовано</th><th>%</th><th class="r hide-m">Записано</th><th class="r hide-m">З записом</th><th class="r hide-m">Старт</th><th class="r">Прострочено</th></tr></thead>
+    <tbody>
+    {% for r in by_doc + [total] %}
+      <tr {% if loop.last %}style="font-weight:600;background:#fbf9f6"{% endif %}>
+        <td>{% if not loop.last %}<a href="/patients?doctor={{ r.doctor_id or '' }}" style="text-decoration:none">{{ r.label }}</a>{% else %}{{ r.label }}{% endif %}</td>
+        <td class="r">{{ r.plans }}</td><td class="r">{{ r.planned_sum|uah }}</td><td class="r">{{ r.realized_sum|uah }}</td>
+        <td><div class="row" style="gap:8px;flex-wrap:nowrap"><div class="bar" style="flex:1"><i style="width:{{ [r.realization_pct,100]|min }}%"></i></div><span class="small">{{ r.realization_pct }}%</span></div></td>
+        <td class="r hide-m">{{ r.booked_sum|uah }}</td><td class="r hide-m">{{ r.booked_pct }}%</td><td class="r hide-m">{{ r.conversion_pct }}%</td>
+        <td class="r">{% if r.red %}<span class="pill bad">{{ r.red }}</span>{% else %}0{% endif %}</td>
+      </tr>
+    {% else %}<tr><td colspan="9" class="muted">Ще немає планів — завантажте PDF бюті-плану (кнопка вгорі) або надішліть його боту.</td></tr>{% endfor %}
+    </tbody></table></div>
+</div>
+
+{% endif %}
+{% if fc is defined %}
+<div class="card">
+  <div class="row between"><h2>Фінансовий прогноз за бюті-планами</h2>
+    <div class="legend"><span><i class="c1"></i>Підтверджено записами</span><span><i class="c2"></i>Очікується за планами</span><span><i class="c3"></i>Повторний догляд</span></div></div>
+  <div class="fc">
+    {% for m in fc %}<div class="col">
+      <div class="small" style="font-weight:600">{{ m.total|uah }}</div>
+      <div class="stack" style="height:{{ (m.total / fc_max * 130)|round(0) }}px">
+        <div class="c1" style="flex:{{ m.confirmed }}"></div><div class="c2" style="flex:{{ m.expected }}"></div><div class="c3" style="flex:{{ m.care }}"></div></div>
+      <div class="muted small">{{ m.month[5:] }}.{{ m.month[2:4] }}</div></div>{% endfor %}
+  </div>
+  <table class="small" style="margin-top:12px"><thead><tr><th>Місяць</th>{% for m in fc %}<th class="r">{{ m.month[5:] }}.{{ m.month[2:4] }}</th>{% endfor %}</tr></thead>
+  <tbody>
+    <tr><td>Підтверджено</td>{% for m in fc %}<td class="r">{{ m.confirmed|uah }}</td>{% endfor %}</tr>
+    <tr><td>Очікується</td>{% for m in fc %}<td class="r">{{ m.expected|uah }}</td>{% endfor %}</tr>
+    <tr><td>Повторний догляд</td>{% for m in fc %}<td class="r">{{ m.care|uah }}</td>{% endfor %}</tr>
+  </tbody></table>
+</div>
+
+{% endif %}
+{% if not_booked is defined %}
+<div class="grid g2">
+  <div class="card"><h2>Не записані ({{ not_booked|length }})</h2>
+    <div class="list">{% for r in not_booked %}<div class="rem">{{ r.text|replace('\n','<br>')|safe }}</div>{% else %}<div class="muted">Усі пацієнти з активними планами записані 👌</div>{% endfor %}</div></div>
+  <div class="card"><h2>Закінчується догляд ({{ care|length }})</h2>
+    <div class="list">{% for r in care %}<div class="rem">{{ r.text|replace('\n','<br>')|safe }}</div>{% else %}<div class="muted">Найближчим часом нічого не закінчується.</div>{% endfor %}</div></div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,15 @@
+.env
+data/
+__pycache__/
+*.pyc
+.pytest_cache/
+tests/sample_plan.pdf
+backups/
+backups-copy/
+app/VERSION
+.autodeploy-*
+*.tgz
+*.zip
+*.sql
+*.dump
+*.bak
