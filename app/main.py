@@ -1512,6 +1512,21 @@ def specialist_save(did: int, name: str = Form(...), position: str = Form(""), p
     return RedirectResponse(f"/specialists/{did}?saved=1", 303)
 
 
+@app.post("/specialists/sync")
+async def specialists_sync(user: User = Depends(require("sync")), db: Session = Depends(db_dep)):
+    """Оновити спеціалістів з CleverBox зараз (не чекаючи щоденного синку)."""
+    if not settings.cleverbox_token:
+        return RedirectResponse("/specialists?msg=Спершу+збережіть+токен+CleverBox+у+розділі+Дані", 303)
+    from .integrations.cleverbox import CleverBox, sync_staff
+    try:
+        n = await asyncio.to_thread(lambda: sync_staff(db, CleverBox()))
+        audit(db, "specialists.sync", user=user, linked=n)
+        return RedirectResponse(f"/specialists?msg=Оновлено+з+CleverBox", 303)
+    except Exception as e:  # noqa: BLE001
+        log.warning("specialists sync: %s", type(e).__name__)
+        return RedirectResponse("/specialists?msg=CleverBox+не+відповів,+спробуйте+пізніше", 303)
+
+
 @app.post("/specialists/{did:int}/unlock")
 def specialist_unlock(did: int, user: User = Depends(require("specialists_edit")), db: Session = Depends(db_dep)):
     d = db.get(Doctor, did)

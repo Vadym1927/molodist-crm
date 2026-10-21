@@ -16,7 +16,7 @@ from typing import Iterator
 
 import httpx
 from cryptography.fernet import Fernet, InvalidToken
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 from sqlalchemy.orm import Session
 
 from ..config import settings
@@ -315,7 +315,11 @@ def sync_staff(db: Session, cb: CleverBox) -> int:
     """Спеціалісти з CleverBox: привʼязка до наявних карток, нові картки, статус «працює / звільнений».
     Хто є у /staff і не позначений звільненим — працює. Майстри з історії візитів, яких уже немає
     у /staff, — звільнені. Ручно змінений статус (status_locked) синк не перезаписує."""
-    staff = cb.staff()
+    try:
+        staff = cb.staff()
+    except CleverBoxError as e:              # модуль співробітників може бути недоступний — працюємо з історії візитів
+        log.warning("CleverBox /staff: %s", e)
+        staff = []
     keys = set()
     for s in staff:
         keys.update(s.keys())
@@ -366,21 +370,34 @@ def sync_staff(db: Session, cb: CleverBox) -> int:
             doc.active = not fired
             if not fired:
                 doc.fired_at = None
-    # майстри з історії, яких немає серед співробітників CleverBox, — звільнені
+    # Майстри з історії візитів. Якщо CleverBox віддав список співробітників — кого в ньому немає,
+    # той звільнений. Якщо списку немає — працює той, хто мав візити за 60 днів або має записи наперед.
     if staff:
         for d in doctors:
             if d.cleverbox_id and d.cleverbox_id not in seen and d.active and not d.status_locked:
                 d.active, d.fired_at = False, date.today()
-        masters = {m for (m,) in db.execute(select(Visit.master_name).where(Visit.master_name.is_not(None)).distinct())}
-        for m in sorted(masters):
-            m = (m or "").strip()
-            if not m or "," in m or match_doctor(m, doctors):
-                continue
-            if db.scalar(select(Doctor).where(Doctor.name == m)):
-                continue
-            d = Doctor(name=m[:200], source="cleverbox", active=False, in_calendar=True)
-            db.add(d)
-            doctors.append(d)
+    recent_from = datetime.now() - timedelta(days=60)
+    last_seen: dict[str, datetime] = {}
+    for m, mx in db.execute(select(Visit.master_name, func.max(Visit.starts_at))
+                            .where(Visit.master_name.is_not(None)).group_by(Visit.master_name)):
+        m = (m or "").strip()
+        if m and "," not in m:
+            last_seen[m] = max(filter(None, [last_seen.get(m), mx]), default=None)
+    for m, mx in sorted(last_seen.items()):
+        recent = bool(mx and mx >= recent_from)
+        d = match_doctor(m, doctors)
+        if d:
+            if not staff and not d.cleverbox_id and not d.status_locked and recent and not d.active:
+                d.active, d.fired_at = True, None
+            continue
+        if db.scalar(select(Doctor).where(Doctor.name == m[:200])):
+            continue
+        active = recent and not staff
+        d = Doctor(name=m[:200], source="cleverbox", active=active, in_calendar=True,
+                   fired_at=None if active else date.today())
+        db.add(d)
+        doctors.append(d)
+        n += 1
     db.commit()
     return n
 
@@ -656,7 +673,11 @@ def full_sync(db: Session, initial: bool | None = None) -> dict:
     if initial or not db.scalar(select(CbService).limit(1)) or not last_staff \
             or datetime.fromisoformat(last_staff) < datetime.now() - timedelta(hours=20):
         report["services"] = sync_services(db, cb)
-        report["staff"] = sync_staff(db, cb)
+        try:
+            report["staff"] = sync_staff(db, cb)
+        except Exception as e:              # noqa: BLE001 — спеціалісти не мають зупиняти синк візитів
+            log.exception("sync_staff")
+            report["staff"] = f"помилка: {e}"
         _state(db, "last_staff_sync", datetime.now().isoformat(timespec="seconds"))
     report["patients"] = link_patients(db, cb)
     report["done_services"] = sync_done_services(db, cb, start, end)

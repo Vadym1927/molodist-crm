@@ -66,3 +66,22 @@ def test_staff_sync_and_pages():
         assert "Дарʼя" in cal and "Тест Пацієнтка" in cal
         assert c.post("/specialists", data={"name": "Нова Майстриня", "position": "масажист"},
                       follow_redirects=False).status_code == 303
+
+
+class NoStaffCB:
+    def staff(self):
+        return []
+
+
+def test_specialists_from_visits_without_staff():
+    with SessionLocal() as db:
+        p = Patient(full_name="Візит Пацієнтка", cleverbox_id=5151)
+        db.add(p); db.flush()
+        db.add_all([Visit(source="cb_service_sale", external_id="n1", patient_id=p.id, master_name="Свіжа Майстриня",
+                          starts_at=datetime.now() - timedelta(days=5), status="done"),
+                    Visit(source="cb_service_sale", external_id="n2", patient_id=p.id, master_name="Давня Майстриня",
+                          starts_at=datetime.now() - timedelta(days=400), status="done")])
+        db.commit()
+        cbm.sync_staff(db, NoStaffCB())
+        docs = {d.name: d for d in db.query(Doctor).all()}
+        assert docs["Свіжа Майстриня"].active and not docs["Давня Майстриня"].active

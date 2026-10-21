@@ -20,7 +20,9 @@
 <div class="row between" style="align-items:flex-end;margin-bottom:6px">
   <div><div class="eyebrow">Клініка</div><h1>Спеціалісти</h1>
     <div class="muted">Дані з CleverBox (імʼя, фото, пошта, статус) оновлюються щодня; посаду, графік, опис і колір ведете тут.</div></div>
+  {% if can(user,'sync') %}<form method="post" action="/specialists/sync"><button class="btn ghost">↻ Оновити з CleverBox</button></form>{% endif %}
 </div>
+{% if request.query_params.get('msg') %}<div class="alert" style="background:var(--accent-soft);color:var(--accent-ink)">{{ request.query_params.get('msg') }}</div>{% endif %}
 <div class="tabs">
   <a href="?show=active" class="{{ 'on' if show!='fired' }}">Працюють<em>{{ n_active }}</em></a>
   <a href="?show=fired" class="{{ 'on' if show=='fired' }}">Звільнені<em>{{ n_fired }}</em></a>
