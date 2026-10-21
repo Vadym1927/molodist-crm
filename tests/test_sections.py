@@ -46,7 +46,8 @@ def test_sections(monkeypatch, tmp_path):
         assert "Нова Клієнтка" in c.get("/clients?seg=new").text
         assert "Даниленко" in c.get("/clients?seg=plan").text and "Нова Клієнтка" not in c.get("/clients?seg=plan").text
 
-        cal = c.get("/calendar").text
+        from datetime import date, timedelta
+        cal = c.get(f"/calendar?start={(date.today() + timedelta(days=5)).isoformat()}").text   # тиждень із записами
         assert "Даниленко" in cal and "Нова Клієнтка" in cal and "ev visit plan" in cal
 
         # склад: залишок Azelorosa 2, інші засоби з плану не куплені і їх немає на складі -> дефіцит
@@ -91,7 +92,7 @@ def test_sections(monkeypatch, tmp_path):
         assert "Фінанси" not in c.get("/").text.split("<main>")[0]
         c.get("/logout"); login(c, "doc9", "password-123")
         assert c.get("/products").status_code == 403 and c.get("/stock").status_code == 403
-        cal = c.get("/calendar").text
+        cal = c.get(f"/calendar?start={(date.today() + timedelta(days=5)).isoformat()}").text
         assert "Даниленко" in cal and "Нова Клієнтка" not in cal
         assert "Нова Клієнтка" not in c.get("/clients").text
 

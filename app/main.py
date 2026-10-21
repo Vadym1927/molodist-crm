@@ -379,7 +379,7 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
                                    revenue=service_revenue + product_revenue))
 
 
-@app.post("/patients/{pid}")
+@app.post("/patients/{pid:int}")
 def patient_update(pid: int, full_name: str = Form(...), phone: str = Form(""), cleverbox_id: str = Form(""),
                    doctor_id: str = Form(""), notes: str = Form(""), email: str = Form(""),
                    gender: str = Form(""), address: str = Form(""), source: str = Form(""),
@@ -1415,6 +1415,10 @@ def patients_redirect(request: Request):
     return RedirectResponse("/clients" + (("?" + request.url.query) if request.url.query else ""), 303)
 
 
+_VERSION_FILE = Path(__file__).with_name("VERSION")
+APP_VERSION = _VERSION_FILE.read_text().strip() if _VERSION_FILE.exists() else "dev"
+
+
 @app.get("/health")
 def health():
-    return {"ok": True, "last_sync": str(state["last_sync"][0]) if state["last_sync"] else None}
+    return {"ok": True, "version": APP_VERSION, "last_sync": str(state["last_sync"][0]) if state["last_sync"] else None}

@@ -69,9 +69,10 @@ def d(dt: date) -> str:
 
 
 def parse_dt(s: str | None) -> datetime | None:
-    if not s:
+    if not s or not isinstance(s, str):
         return None
-    for fmt in ("%d.%m.%Y %H:%M:%S", "%d.%m.%Y %H:%M", "%d.%m.%Y"):
+    for fmt in ("%d.%m.%Y %H:%M:%S", "%d.%m.%Y %H:%M", "%d.%m.%Y",
+                "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
         try:
             return datetime.strptime(s.strip(), fmt)
         except ValueError:
@@ -180,6 +181,62 @@ class CleverBox:
 
 
 # ---------------- Синхронізація ----------------
+
+# ---------------- Атрибути клієнта з /clients ----------------
+# Назви полів у різних версіях API CleverBox відрізняються — беремо перше наявне.
+REGISTERED_KEYS = ("date_add", "date_added", "add_date", "created", "created_at", "date_create",
+                   "date_created", "date_reg", "registration_date", "reg_date")
+BIRTHDAY_KEYS = ("birthday", "birth_date", "date_birth", "birthdate", "bday")
+
+
+def _first_val(c: dict, keys) -> str | None:
+    for k in keys:
+        v = c.get(k)
+        if v not in (None, "", "0000-00-00", "00.00.0000"):
+            return v
+    return None
+
+
+def apply_client_fields(p: Patient, c: dict) -> None:
+    """Дата додавання в CleverBox і день народження — лише якщо API їх віддає; ручні правки не затираємо."""
+    reg = parse_dt(_first_val(c, REGISTERED_KEYS))
+    if reg and reg.year > 2000:
+        p.cb_registered_at = reg
+    if not p.birthday:
+        b = parse_dt(_first_val(c, BIRTHDAY_KEYS))
+        if b and 1920 < b.year <= date.today().year:
+            p.birthday = b.date()
+    if not p.email and isinstance(c.get("email"), str) and "@" in c["email"]:
+        p.email = c["email"].strip()[:200]
+
+
+def backfill_visit_amounts(db: Session) -> int:
+    """Надані послуги без суми (перенесені до появи цін) — ціна з довідника послуг."""
+    prices = {i: pr for i, pr in db.execute(select(CbService.id, CbService.price)) if pr}
+    n = 0
+    for v in db.scalars(select(Visit).where(Visit.status == "done", Visit.amount.is_(None),
+                                            Visit.service_id.is_not(None))):
+        if prices.get(v.service_id):
+            v.amount = prices[v.service_id]
+            n += 1
+    db.commit()
+    return n
+
+
+def sync_clients(db: Session, cb: CleverBox) -> int:
+    """Оновлює атрибути вже привʼязаних пацієнтів (дата додавання, ДН). Нових пацієнтів не створює."""
+    by_cb = {p.cleverbox_id: p for p in db.scalars(select(Patient).where(Patient.cleverbox_id.is_not(None)))}
+    n, keys = 0, set()
+    for c in cb.clients():
+        keys.update(c.keys())
+        p = by_cb.get(int(c.get("id") or 0))
+        if p:
+            apply_client_fields(p, c)
+            n += 1
+    _state(db, "cleverbox_client_fields", ",".join(sorted(keys))[:1000])   # лише назви полів, без значень
+    db.commit()
+    return n
+
 
 CANCEL_RE = re.compile(r"скас|відмін|отмен|не\s*прийш|не\s*з.явив|перенес|cancel", re.I)
 DONE_RE = re.compile(r"викон|заверш|оплач|прийш|done", re.I)
@@ -304,6 +361,7 @@ def sync_future_visits(db: Session, cb: CleverBox) -> int:
 def sync_done_services(db: Session, cb: CleverBox, start: date, end: date,
                        client_id: int | None = None) -> int:
     pmap = {p.cleverbox_id: p.id for p in db.scalars(select(Patient).where(Patient.cleverbox_id.is_not(None)))}
+    prices = {i: pr for i, pr in db.execute(select(CbService.id, CbService.price)) if pr}
     n = 0
     for s in cb.services_sales(start, end, client_id=client_id):
         pid = pmap.get(int(s.get("client_id") or 0))
@@ -320,18 +378,23 @@ def sync_done_services(db: Session, cb: CleverBox, start: date, end: date,
         obj.master_name = s.get("user_name")
         obj.starts_at, obj.status, obj.status_label = dt, "done", "Надано"
         # CleverBox returns the unit price; visits are kept one service per row.
+        # Якщо ціни в рядку немає — ціна послуги з довідника (оцінка).
         qty = max(1, int(s.get("quantity") or 1))
         try:
-            total = max(0.0, float(s.get("price") or 0) * qty - float(s.get("discount") or 0))
-            obj.amount = round(total / qty, 2)
+            unit = float(s.get("price") or 0) or float(prices.get(obj.service_id) or 0)
+            total = max(0.0, unit * qty - float(s.get("discount") or 0))
+            obj.amount = round(total / qty, 2) if unit else None
         except (TypeError, ValueError):
-            obj.amount = None
+            obj.amount = prices.get(obj.service_id)
         obj.synced_at = datetime.utcnow()
         n += 1
         # кількість >1 в одному рядку — розгортаємо в окремі «візити»
         for k in range(2, qty + 1):
             ext_k = f"{ext}#{k}"
-            if not db.scalar(select(Visit).where(Visit.source == "cb_service_sale", Visit.external_id == ext_k)):
+            vk = db.scalar(select(Visit).where(Visit.source == "cb_service_sale", Visit.external_id == ext_k))
+            if vk:
+                vk.amount = obj.amount
+            else:
                 db.add(Visit(source="cb_service_sale", external_id=ext_k, patient_id=pid,
                              service_id=obj.service_id, service_name=obj.service_name,
                              master_name=obj.master_name, starts_at=dt, status="done", status_label="Надано",
@@ -514,6 +577,14 @@ def full_sync(db: Session, initial: bool | None = None) -> dict:
             _state(db, "last_products_sync", datetime.now().isoformat(timespec="seconds"))
         except CleverBoxError as e:
             report["products"] = f"помилка: {e}"
+    report["amounts_filled"] = backfill_visit_amounts(db)
+    last_cl = _state(db, "last_clients_sync")
+    if initial or not last_cl or datetime.fromisoformat(last_cl) < datetime.now() - timedelta(hours=20):
+        try:
+            report["clients"] = sync_clients(db, cb)
+            _state(db, "last_clients_sync", datetime.now().isoformat(timespec="seconds"))
+        except CleverBoxError as e:
+            report["clients"] = f"помилка: {e}"
     _state(db, "last_sales_sync", datetime.now().isoformat(timespec="seconds"))
     db.commit()
     return report
@@ -548,7 +619,10 @@ def migrate(job, months: int = 24, all_clients: bool = True, start_date: date | 
         for c in cb.clients():
             n += 1
             cid = int(c["id"])
+            if n == 1:
+                job.log("Поля клієнта в CleverBox: " + ", ".join(sorted(c.keys())))
             if cid in by_cb:
+                apply_client_fields(by_cb[cid], c)
                 continue
             phone = (c.get("phone") or "").split(",")[0].strip() or None
             p = (by_phone.get(phone_key(phone)) if phone and len(phone_key(phone)) >= 9 else None) \
@@ -562,6 +636,7 @@ def migrate(job, months: int = 24, all_clients: bool = True, start_date: date | 
                 db.add(p)
                 created += 1
             if p:
+                apply_client_fields(p, c)
                 by_cb[cid] = p
             if n % 500 == 0:
                 db.commit()
