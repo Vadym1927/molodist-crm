@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Бюті-плани · MOLODIST CRM{% endblock %}
+{% block body %}
+<style>
+.ph{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+.ph .cnt{font-size:22px;font-weight:700;color:var(--muted)}
+.ph form{display:flex;gap:10px;flex-wrap:wrap}
+.ph select,.ph input{height:46px;font-weight:600}
+.board{display:grid;grid-template-columns:repeat(4,minmax(250px,1fr));gap:14px;align-items:start}
+
+.bcol{border-radius:18px;padding:14px 12px 12px;min-height:420px}
+.bcol.new{background:#f1eff6}.bcol.need{background:#fdf3e6}.bcol.booked{background:#eaf5ee}.bcol.done{background:#eef1f5}
+.bcol h2{display:flex;align-items:center;gap:10px;font-size:19px;margin:2px 4px 2px}
+.bcol h2 em{font-style:normal;font-size:13px;font-weight:800;background:rgba(0,0,0,.07);border-radius:99px;padding:2px 9px}
+.bcol .hint{font-size:12.5px;color:var(--muted);margin:0 4px 12px;font-weight:600}
+.pc{display:block;background:#fff;border:1.5px solid transparent;border-radius:14px;padding:13px 14px;margin-bottom:10px;text-decoration:none;box-shadow:0 1px 3px rgba(30,20,50,.06)}
+.pc:hover{border-color:var(--brand-line)}.pc.sel{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
+.pc .top1{display:flex;gap:10px;align-items:center}
+.pc .av{width:40px;height:40px;border-radius:50%;background:#ece9f3;color:var(--brand-ink);display:grid;place-items:center;font-weight:800;font-size:13px;flex:none}
+.pc b{display:block;font-size:15.5px;line-height:1.2}.pc .pt{color:var(--muted);font-size:13px}
+.pc .ln{display:flex;align-items:center;gap:8px;font-size:13px;color:#4a4556;margin-top:7px;font-weight:600}
+.pc .ln svg{flex:none;color:var(--faint)}
+.pc .ln.red{color:var(--bad)}.pc .ln.red svg{color:var(--bad)}
+.pc .pr{display:flex;align-items:center;gap:8px;margin-top:9px;font-size:12.5px;font-weight:700;color:var(--muted)}
+.pc .pr .bar{flex:1;min-width:0}
+.pc .tag{display:inline-block;margin-top:8px;font-size:11.5px;font-weight:800;padding:2px 9px;border-radius:99px}
+.side-panel{position:fixed;top:72px;right:0;bottom:0;width:440px;max-width:100vw;background:#fff;border-left:1px solid var(--line);box-shadow:-20px 0 50px -20px rgba(30,20,50,.3);padding:24px;overflow:auto;z-index:12}
+.side-panel .x{float:right;text-decoration:none;font-size:22px;color:var(--muted);line-height:1}
+.side-panel h2{font-size:22px;margin:0 0 4px}
+.pp{display:flex;gap:12px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line);margin-bottom:12px}
+.pp .av{width:52px;height:52px;border-radius:50%;background:#ece9f3;color:var(--brand-ink);display:grid;place-items:center;font-weight:800;font-size:17px}
+.pp b{font-size:18px;display:block}
+.steps{list-style:none;padding:0;margin:0}
+.steps li{display:grid;grid-template-columns:34px 1fr;gap:10px;position:relative;padding-bottom:10px}
+.steps li:not(:last-child):before{content:"";position:absolute;left:16px;top:34px;bottom:0;border-left:2px dotted #d3cee0}
+.steps .n{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:800;background:#ece9f3;color:var(--brand-ink)}
+.steps .done .n{background:var(--ok);color:#fff}.steps .booked .n{background:var(--brand);color:#fff}
+.steps .box{border:1.5px solid var(--line);border-radius:12px;padding:9px 12px}
+.steps .booked .box{border-color:var(--brand);background:var(--brand-soft)}
+.steps .box b{font-size:14.5px;display:block}.steps .box span{font-size:13px;color:var(--muted)}
+.steps .st{float:right;font-size:11.5px;font-weight:800;padding:2px 8px;border-radius:99px;margin-left:6px}
+.sumrow{display:flex;justify-content:space-between;font-weight:700;margin:10px 0 14px;font-size:14px}
+@media (max-width:1300px){.board{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:720px){.board{grid-template-columns:1fr}.bcol{min-height:0}.side-panel{top:62px;bottom:70px;width:100vw}}
+</style>
+{% set I_DOC %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>{% endset %}
+{% set I_CAL %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>{% endset %}
+<div class="ph">
+  <div><h1>Бʼюті-плани</h1><div class="cnt">{{ total }} {{ 'план' if total % 10 == 1 and total % 100 != 11 else ('плани' if total % 10 in [2,3,4] and total % 100 not in [12,13,14] else 'планів') }}</div></div>
+  <form>
+    <input name="q" value="{{ q }}" placeholder="Пошук пацієнтки">
+    {% if user.role != 'doctor' %}<select name="doc" onchange="this.form.submit()"><option value="">Усі фахівці</option>
+      {% for d in doctors %}<option value="{{ d.id }}" {{ 'selected' if doc==d.id }}>{{ d.name }}</option>{% endfor %}</select>{% endif %}
+    <a class="btn ghost" style="height:46px" href="/">Звіт / список</a>
+  </form>
+</div>
+
+<div class="board">
+{% for key, title, hint in COLS %}
+  <section class="bcol {{ key }}">
+    <h2>{{ title }} <em>{{ cols[key]|length }}</em></h2>
+    <div class="hint">{{ hint }}{% if sums[key] %} · {{ sums[key]|uah }}{% endif %}</div>
+    {% for ps in cols[key][:60] %}{% set p = ps.plan.patient %}
+    <a class="pc {{ 'sel' if sel and sel.plan.id == ps.plan.id }}" href="?plan={{ ps.plan.id }}{{ ('&doc=' ~ doc) if doc }}{{ ('&q=' ~ q) if q }}">
+      <div class="top1"><span class="av">{{ initials(p.full_name) }}</span>
+        <div style="min-width:0"><b>{{ p.full_name }}</b><span class="pt" style="display:block">{{ ps.plan.title or 'Бюті-план' }}{{ (' · ' ~ ps.plan.session_at.strftime('%d.%m.%Y')) if ps.plan.session_at }}</span></div></div>
+      {% if ps.plan.doctor %}<div class="ln">{{ I_DOC }}{{ ps.plan.doctor.name }}</div>{% endif %}
+      {% if key=='booked' %}<div class="ln">{{ I_CAL }}Наступний запис · {{ ps.next_booking|dt('%d.%m о %H:%M') }}</div>
+      {% elif key in ('new','need') and ps.next_procedure %}<div class="ln {{ 'red' if ps.flag=='red' }}">{{ I_CAL }}{{ ps.next_procedure.item.name[:38] }}{{ (' · з ' ~ ps.due_date.strftime('%d.%m')) if ps.due_date }}</div>
+      {% elif key=='done' and ps.last_activity %}<div class="ln">{{ I_CAL }}Остання процедура · {{ ps.last_activity|dt('%d.%m.%Y') }}</div>{% endif %}
+      {% if key=='need' and ps.flag=='red' %}<span class="tag bad">прострочено</span>{% endif %}
+      <div class="pr"><div class="bar"><i style="width:{{ [ps.realization_pct, 100]|min }}%"></i></div>{{ ps.realization_pct|round|int }}% · {{ ps.planned_sum|uah }}</div>
+    </a>
+    {% else %}<div class="muted small" style="padding:8px 4px">Немає</div>{% endfor %}
+    {% if cols[key]|length > 60 %}<div class="muted small">… ще {{ cols[key]|length - 60 }}</div>{% endif %}
+  </section>
+{% endfor %}
+
+{% if sel %}{% set p = sel.plan.patient %}
+  <aside class="side-panel">
+    <a class="x" href="?{{ ('doc=' ~ doc) if doc }}{{ ('&q=' ~ q) if q }}" title="Закрити">×</a>
+    <h2>{{ sel.plan.title or 'Бюті-план' }}</h2>
+    <span class="pill done">консультація {{ sel.plan.session_at|dt('%d.%m.%Y') }}</span>
+    <div class="pp"><span class="av">{{ initials(p.full_name) }}</span><div><b>{{ p.full_name }}</b>
+      <span class="muted small">{{ sel.plan.doctor.name if sel.plan.doctor else 'Без лікаря' }}{{ (' · ' ~ p.phone) if p.phone }}</span></div></div>
+    <div class="sumrow"><span>Реалізовано {{ sel.realized_sum|uah }}</span><span class="muted">з {{ sel.planned_sum|uah }}</span></div>
+    <div class="small" style="font-weight:800;margin-bottom:8px">Етапи плану</div>
+    <ol class="steps">
+    {% for it in sel.items if it.item.kind == 'procedure' %}
+      {% set state = 'done' if it.remaining == 0 else ('booked' if it.next_booked else 'todo') %}
+      <li class="{{ state }}"><span class="n">{{ '✓' if state=='done' else loop.index }}</span>
+        <div class="box">
+          {% if state=='done' %}<span class="st ok">виконано</span>{% elif state=='booked' %}<span class="st" style="background:#fff;color:var(--brand-ink)">записано</span>{% endif %}
+          <b>{{ it.item.name }}</b>
+          <span>{{ it.done }} з {{ it.item.qty }}{% if it.item.unit_price %} · {{ it.item.unit_price|uah }}{% endif %}
+            {% if it.next_booked %} · {{ it.next_booked|dt('%d.%m о %H:%M') }}{% elif state=='todo' and it.last_done %} · остання {{ it.last_done|dt('%d.%m') }}{% endif %}</span>
+          {% if state=='todo' and can(user,'book') %}<div style="margin-top:6px"><a class="small" style="color:var(--brand-ink);font-weight:800" href="/book/{{ it.item.id }}">＋ Записати</a></div>{% endif %}
+        </div></li>
+    {% endfor %}
+    </ol>
+    {% set prods = sel.items|selectattr('item.kind','equalto','product')|list %}
+    {% if prods %}<div class="small" style="font-weight:800;margin:12px 0 6px">Домашній догляд</div>
+      {% for it in prods %}<div class="small row between" style="padding:4px 0;border-bottom:1px solid var(--line)"><span>{{ it.item.name[:44] }}</span>
+        <span class="{{ 'pill ok' if it.done else 'muted' }}">{{ 'куплено' if it.done else 'не куплено' }}</span></div>{% endfor %}{% endif %}
+    <a class="btn" style="width:100%;justify-content:center;margin-top:16px;height:46px" href="/patients/{{ p.id }}">Відкрити картку пацієнтки →</a>
+  </aside>
+{% endif %}
+</div>
+{% endblock %}

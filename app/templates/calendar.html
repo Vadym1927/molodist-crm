@@ -40,34 +40,113 @@
 .legend2{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin-top:12px;font-weight:600}
 .legend2 i{display:inline-block;width:14px;height:14px;border-radius:4px;margin-right:6px;vertical-align:-3px}
 @media (max-width:720px){.dcol{min-width:calc(var(--n) * 160px)}}
+
+.ph{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+.ph .date{font-size:24px;font-weight:700;color:var(--muted)}
+.filters{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.filters select{min-width:260px;height:46px;font-weight:600}
+.filters .meta{color:var(--muted);font-weight:600}
+.tg{background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);overflow:auto;max-height:calc(100vh - 230px)}
+.tg-head{display:grid;position:sticky;top:0;background:var(--card);z-index:4;border-bottom:1px solid var(--line)}
+.tg-head>div{display:flex;align-items:center;justify-content:center;gap:12px;padding:14px 10px;border-left:1px solid var(--line);min-width:0}
+.tg-head>div:first-child{border-left:0;font-weight:800}
+.tg-head .av{width:44px;height:44px;font-size:14px;background-color:#ece9f3;color:var(--brand-ink)}
+.tg-head b{display:block;font-size:16px}.tg-head span{color:var(--muted);font-size:13px;font-weight:600}
+.tg-body{display:grid;position:relative}
+.tg-hours{position:relative}
+.tg-hours div{position:absolute;right:12px;transform:translateY(-50%);color:var(--muted);font-weight:700;font-size:13px}
+.tg-col{position:relative;border-left:1px solid var(--line);min-width:0}
+.tg-line{position:absolute;left:0;right:0;border-top:1px dashed #ebe8f0}.tg-line.h{border-top:1px solid #e6e3ec}
+.tg-allday{display:flex;flex-wrap:wrap;gap:6px;background:var(--soft)}
+.tg-allday a{font-size:12.5px;font-weight:700;padding:4px 9px;border-radius:8px;text-decoration:none;background:var(--warn-bg);color:var(--warn)}
+.tg-allday a.task{background:var(--done-bg);color:var(--done)}
+.blk{position:absolute;border-radius:12px;padding:9px 12px;text-decoration:none;overflow:hidden;color:var(--ink);
+  background:color-mix(in srgb,var(--c) 12%,#fff);border-left:4px solid var(--c);box-shadow:0 1px 2px rgba(0,0,0,.04);z-index:1}
+.blk:hover{background:color-mix(in srgb,var(--c) 20%,#fff);z-index:3}
+.blk b{display:block;font-size:16px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:4px}
+.blk .sv{font-size:13.5px;color:#3f3a49;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.blk .tm{font-size:13px;color:#5d5869;font-weight:600;margin-top:2px}
+.blk .st{float:right;margin:0 0 4px 8px;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:99px;background:#fff;color:var(--muted);border:1px solid var(--line)}
+.blk .st.plan{background:var(--ok-bg);color:var(--ok);border-color:transparent}
+.blk.attended{background:#f2f1f5;border-left-color:#c3bfcc;color:#7d788a}.blk.attended .sv,.blk.attended .tm{color:#8d889a}
+.blk.short{padding:5px 10px}.blk.short b{font-size:14px}.blk.short .tm,.blk.short .st{display:none}
+.fre{position:absolute;left:10px;right:10px;border:1.5px dashed #d6d1e0;border-radius:12px;padding:10px 14px;color:var(--muted)}
+.fre b{color:var(--ink);display:block;font-size:14.5px}.fre span{font-size:13px}
+.nowline{position:absolute;left:0;right:0;height:2px;background:var(--bad);z-index:2}.nowline:before{content:"";position:absolute;left:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--bad)}
+.mon{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:var(--shadow)}
+.mon .wd{padding:10px 12px;font-weight:800;font-size:13px;color:var(--muted);text-transform:uppercase;background:var(--soft);border-bottom:1px solid var(--line)}
+.mon a.cell{min-height:118px;padding:10px 12px;border-top:1px solid var(--line);border-left:1px solid var(--line);text-decoration:none;display:flex;flex-direction:column;gap:6px}
+.mon a.cell:nth-child(7n+1){border-left:0}.mon a.cell:hover{background:var(--brand-soft)}
+.mon .num{font-weight:800;font-size:16px}.mon .num.out{opacity:.4}.mon .today .num{background:var(--brand);color:#fff;border-radius:99px;padding:2px 9px;align-self:flex-start}
+.mon .tot{font-size:13px;font-weight:700;color:var(--muted)}
+.mon .dl{display:flex;flex-wrap:wrap;gap:4px}.mon .dl i{font-style:normal;font-size:12px;font-weight:800;color:#fff;padding:2px 7px;border-radius:99px}
+@media (max-width:720px){.blk .st{display:none}.ph .date{font-size:18px}.filters form{width:100%}.filters select{min-width:0;flex:1}.mon a.cell{min-height:70px;padding:6px}.mon .dl i{font-size:10px;padding:1px 5px}.mon .tot{display:none}
+.tg{max-height:none}}
 </style>
 
-<div class="cal-top">
-  <div>
-    <div class="eyebrow">{{ 'День' if view=='day' else 'Тиждень' }}</div>
-    <h1>Календар</h1>
-    <div class="muted">{% if view=='day' %}{{ ['понеділок','вівторок','середа','четвер','пʼятниця','субота','неділя'][start.weekday()] }}, {{ start|dt('%d.%m.%Y') }}{% else %}{{ start|dt('%d.%m') }} — {{ end.strftime('%d.%m.%Y') }}{% endif %}</div>
-  </div>
+{% set WD = ['понеділок','вівторок','середа','четвер','пʼятниця','субота','неділя'] %}
+{% set MON = ['січня','лютого','березня','квітня','травня','червня','липня','серпня','вересня','жовтня','листопада','грудня'] %}
+{% set MON1 = ['Січень','Лютий','Березень','Квітень','Травень','Червень','Липень','Серпень','Вересень','Жовтень','Листопад','Грудень'] %}
+<div class="ph">
+  <div><h1>Календар</h1>
+    <div class="date">{% if view=='day' %}{{ WD[start.weekday()]|capitalize }}, {{ start.day }} {{ MON[start.month-1] }} {{ start.year }}{% elif view=='week' %}{{ start.day }} {{ MON[start.month-1] }} — {{ end.day }} {{ MON[end.month-1] }} {{ end.year }}{% else %}{{ MON1[start.month-1] }} {{ start.year }}{% endif %}</div></div>
   <div class="cal-ctl">
-    <div class="seg"><a class="{{ 'on' if view=='day' }}" href="?start={{ (today if start <= today <= end else start) if view=='week' else start }}&view=day&doc={{ doc or '' }}">День</a><a class="{{ 'on' if view=='week' }}" href="?start={{ start }}&view=week&doc={{ doc or '' }}">Тиждень</a></div>
     <a class="icon-btn" title="Назад" href="?start={{ prev }}&view={{ view }}&doc={{ doc or '' }}">‹</a>
-    <a class="btn ghost" href="?view={{ view }}&doc={{ doc or '' }}">Сьогодні</a>
+    <a class="btn ghost" style="height:40px" href="?view={{ view }}&doc={{ doc or '' }}">Сьогодні</a>
     <a class="icon-btn" title="Вперед" href="?start={{ next }}&view={{ view }}&doc={{ doc or '' }}">›</a>
-    <form><input type="hidden" name="view" value="{{ view }}"><input type="hidden" name="doc" value="{{ doc or '' }}">
-      <input class="cal-date" type="date" name="start" value="{{ start }}" onchange="this.form.submit()"></form>
+    <div class="seg" style="margin-left:8px">
+      <a class="{{ 'on' if view=='day' }}" href="?start={{ today if (view!='day' and start <= today <= end) else start }}&view=day&doc={{ doc or '' }}">День</a>
+      <a class="{{ 'on' if view=='week' }}" href="?start={{ today if (view=='month' and start <= today <= end) else start }}&view=week&doc={{ doc or '' }}">Тиждень</a>
+      <a class="{{ 'on' if view=='month' }}" href="?start={{ start }}&view=month&doc={{ doc or '' }}">Місяць</a></div>
   </div>
 </div>
-
-{% if user.role != 'doctor' and specialists %}
-<div class="chips">
-  <a class="chip all {{ 'on' if not doc }}" href="?start={{ start }}&view={{ view }}">Усі спеціалісти</a>
-  {% for d in specialists %}
-  <a class="chip {{ 'on' if doc==d.id }}" href="?start={{ start }}&view={{ view }}&doc={{ d.id }}">
-    <i class="av" style="background-color:{{ color(d) }}{% if d.photo_url %};background-image:url('{{ d.photo_url }}'){% endif %}">{{ '' if d.photo_url else initials(d.name) }}</i>{{ d.name }}</a>
-  {% endfor %}
+<div class="filters">
+  <form class="row">
+    <input type="hidden" name="view" value="{{ view }}">
+    {% if user.role != 'doctor' %}<select name="doc" onchange="this.form.submit()"><option value="">Усі фахівці</option>
+      {% for d in specialists %}<option value="{{ d.id }}" {{ 'selected' if doc==d.id }}>{{ d.name }}{{ (' — ' ~ d.position) if d.position }}</option>{% endfor %}</select>{% endif %}
+    <input type="date" name="start" value="{{ start }}" onchange="this.form.submit()" style="height:46px">
+  </form>
+  {% if view=='day' %}{% set nd = grid.cols|selectattr('col.doctor')|list|length %}<div class="meta">{{ n_ev }} {{ 'запис' if n_ev % 10 == 1 and n_ev % 100 != 11 else ('записи' if n_ev % 10 in [2,3,4] and n_ev % 100 not in [12,13,14] else 'записів') }} · {{ nd }} {{ 'фахівець' if nd == 1 else ('фахівці' if nd in [2,3,4] else 'фахівців') }}</div>{% endif %}
 </div>
-{% endif %}
 
+{% if view=='day' %}
+{% set PX = 1.6 %}{% set H = (grid.h1 - grid.h0) * 60 * PX %}{% set n = grid.cols|length %}
+{% set GC = 'grid-template-columns:76px repeat(' ~ n ~ ',minmax(220px,1fr))' %}
+<div class="tg">
+  <div class="tg-head" style="{{ GC }}">
+    <div>Час</div>
+    {% for g in grid.cols %}{% set d = g.col.doctor %}
+    <div>{% if d %}<i class="av" style="{% if d.photo_url %}background-image:url('{{ d.photo_url }}');{% endif %}box-shadow:inset 0 0 0 2px {{ color(d) }}">{{ '' if d.photo_url else initials(d.name) }}</i>
+      <div style="min-width:0"><b>{{ d.name.split()[0] }}{{ (' ' ~ d.name.split()[1][:1] ~ '.') if d.name.split()|length > 1 }}</b><span>{{ d.position or ('звільнений' if not d.active else 'Спеціаліст') }}</span></div>
+      {% else %}<div><b>Без фахівця</b><span>задачі, очікувані за планом</span></div>{% endif %}</div>
+    {% endfor %}
+  </div>
+  {% if grid.cols|selectattr('allday')|list %}
+  <div class="tg-head" style="position:static;{{ GC }}">
+    <div style="font-size:12px;color:var(--muted)">Без часу</div>
+    {% for g in grid.cols %}<div class="tg-allday" style="justify-content:flex-start">{% for e in g.allday %}
+      <a class="{{ e.kind }}" href="{{ ('/patients/' ~ e.patient_id) if e.patient_id else '/tasks' }}" title="{{ e.subtitle or '' }}">{{ '⏳' if e.kind=='expected' else '☑' }} {{ e.title }}</a>{% endfor %}</div>{% endfor %}
+  </div>{% endif %}
+  <div class="tg-body" style="{{ GC }};height:{{ H + 16 }}px">
+    <div class="tg-hours">{% for h in range(grid.h0, grid.h1 + 1) %}<div style="top:{{ (h - grid.h0) * 60 * PX + 8 }}px">{{ '%02d' % h }}:00</div>{% if h < grid.h1 %}<div style="top:{{ ((h - grid.h0) * 60 + 30) * PX + 8 }}px;opacity:.6;font-size:12px">{{ '%02d' % h }}:30</div>{% endif %}{% endfor %}</div>
+    {% for g in grid.cols %}
+    <div class="tg-col" style="--c:{{ color(g.col.doctor) if g.col.doctor else '#9a93a6' }}">
+      {% for h in range(grid.h0, grid.h1 + 1) %}<div class="tg-line h" style="top:{{ (h - grid.h0) * 60 * PX + 8 }}px"></div>{% if h < grid.h1 %}<div class="tg-line" style="top:{{ ((h - grid.h0) * 60 + 30) * PX + 8 }}px"></div>{% endif %}{% endfor %}
+      {% for f in g.free %}<div class="fre" style="top:{{ f.top * PX + 12 }}px;height:{{ f.height * PX - 8 }}px"><b>Вільний час</b><span>{{ f.start|dt('%H:%M') }} – {{ f.end|dt('%H:%M') }} · {{ f.hours }}</span></div>{% endfor %}
+      {% for b in g.blocks %}{% set e = b.ev %}
+      <a class="blk {{ e.kind }} {{ 'short' if b.height * PX < 70 }}" href="{{ ('/patients/' ~ e.patient_id) if e.patient_id else '/tasks' }}" title="{{ e.title }} · {{ e.service or '' }}"
+         style="top:{{ b.top * PX + 10 }}px;height:{{ [b.height * PX - 4, 30]|max }}px;left:calc({{ 100 * b.lane / b.lanes }}% + 8px);width:calc({{ 100 / b.lanes }}% - 16px)">
+        {% if e.in_plan and e.kind=='visit' and b.lanes == 1 %}<span class="st plan">бюті-план</span>{% elif e.kind=='attended' and b.lanes == 1 %}<span class="st">відбувся</span>{% endif %}
+        <b>{{ e.title }}</b>{% if e.service %}<div class="sv">{{ e.service }}</div>{% endif %}
+        <div class="tm">{{ e.when|dt('%H:%M') }} – {{ (e.ends or e.when)|dt('%H:%M') }} · {{ e.minutes }} хв</div></a>
+      {% endfor %}
+      {% if grid.now_top is not none %}<div class="nowline" style="top:{{ grid.now_top * PX + 8 }}px"></div>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% elif view=='week' %}
 <div class="wk" id="wk" style="--cw:{{ '240px' if view=='day' else '140px' }}">
 {% for d, cs in cols.items() %}
   {% set total = ev[d]|selectattr('kind','in',['visit','attended'])|list|length %}
@@ -101,5 +180,16 @@
 </div>
 <script>(function(){var w=document.getElementById('wk'),t=w&&w.querySelector('.dcol.today');
 if(t&&w.scrollWidth>w.clientWidth){w.scrollLeft=Math.max(0,t.offsetLeft-w.offsetLeft-12)}})();</script>
+{% else %}
+<div class="mon">
+  {% for w in ['Пн','Вт','Ср','Чт','Пт','Сб','Нд'] %}<div class="wd">{{ w }}</div>{% endfor %}
+  {% for d, cell in month.days.items() %}
+  <a class="cell {{ 'today' if d==today }}" href="?start={{ d }}&view=day&doc={{ doc or '' }}">
+    <span class="num {{ 'out' if d.month != start.month }}">{{ d.day }}</span>
+    {% if cell.total %}<span class="tot">{{ cell.total }} зап.</span>
+    <span class="dl">{% for k, cnt in cell.docs.items() %}{% set dd = month.by_id.get(k) %}<i style="background:{{ color(dd) if dd else '#9a93a6' }}" title="{{ dd.name if dd else 'Без фахівця' }}">{{ initials(dd.name) if dd else '—' }} {{ cnt }}</i>{% endfor %}</span>{% endif %}
+  </a>{% endfor %}
+</div>
+{% endif %}
 {% if not specialists %}<p class="muted small" style="margin-top:12px">Спеціалісти і записи підтягуються з CleverBox під час синхронізації (записи — на 14 днів уперед).</p>{% endif %}
 {% endblock %}

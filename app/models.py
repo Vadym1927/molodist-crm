@@ -149,6 +149,7 @@ class Visit(Base):
     service_name: Mapped[str | None] = mapped_column(String(300))
     master_name: Mapped[str | None] = mapped_column(String(200))
     starts_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime)      # кінець запису (з CleverBox), якщо відомий
     status: Mapped[str] = mapped_column(String(20))
     status_label: Mapped[str | None] = mapped_column(String(100))
     amount: Mapped[float | None] = mapped_column(Float)

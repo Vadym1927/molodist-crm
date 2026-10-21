@@ -1002,7 +1002,7 @@ def clients_page(request: Request, seg: str = "all", q: str = "", doctor: int | 
 
 
 @app.get("/calendar", response_class=HTMLResponse)
-def calendar_page(request: Request, start: str | None = None, doc: str = "", view: str = "week",
+def calendar_page(request: Request, start: str | None = None, doc: str = "", view: str = "day",
                   user: User = Depends(current_user), db: Session = Depends(db_dep)):
     from .services import specialists as spec_svc
     today = date.today()
@@ -1010,20 +1010,29 @@ def calendar_page(request: Request, start: str | None = None, doc: str = "", vie
         s = date.fromisoformat(start) if start else today
     except ValueError:
         s = today
-    view = "day" if view == "day" else "week"
+    view = view if view in ("day", "week", "month") else "day"
+    doc_id = int(doc) if doc.isdigit() else None
+    ctx = dict(view=view, today=today, doc=doc_id, specialists=spec_svc.calendar_doctors(db),
+               color=spec_svc.color, initials=spec_svc.initials)
+    if view == "month":
+        first = s.replace(day=1)
+        nxt = (first + timedelta(days=32)).replace(day=1)
+        prv = (first - timedelta(days=1)).replace(day=1)
+        return render(request, "calendar.html", start=first, end=nxt - timedelta(days=1), prev=prv, next=nxt,
+                      month=cal_svc.month_summary(db, user, first, doc_id), ev={}, cols={}, days=0, **ctx)
     days = 1 if view == "day" else 7
     if view == "week":
         s = s - timedelta(days=s.weekday())
-    doc_id = int(doc) if doc.isdigit() else None
     ev = cal_svc.events(db, user, s, days, doc_id)
     cols = cal_svc.columns(db, ev, fixed=(view == "day" and not doc_id))
     if doc_id:                                   # фільтр по спеціалісту — лише його колонка
         cols = {d: [c for c in cs if c.doctor and c.doctor.id == doc_id] or
                    [cal_svc.Column(str(doc_id), db.get(Doctor, doc_id), [])] for d, cs in cols.items()}
-    return render(request, "calendar.html", ev=ev, cols=cols, start=s, days=days, view=view, today=today,
-                  doc=doc_id, specialists=spec_svc.calendar_doctors(db), color=spec_svc.color,
-                  initials=spec_svc.initials, prev=s - timedelta(days=days), next=s + timedelta(days=days),
-                  end=s + timedelta(days=days - 1))
+    grid = cal_svc.time_grid(s, cols[s], settings.work_hour_from, settings.work_hour_to) if view == "day" else None
+    n_ev = sum(1 for e in ev.get(s, []) if e.kind in ("visit", "attended")) if view == "day" else 0
+    return render(request, "calendar.html", ev=ev, cols=cols, grid=grid, start=s, days=days, n_ev=n_ev,
+                  prev=s - timedelta(days=days), next=s + timedelta(days=days), end=s + timedelta(days=days - 1),
+                  month=None, **ctx)
 
 
 @app.get("/tasks", response_class=HTMLResponse)
@@ -1579,3 +1588,48 @@ async def cleverbox_webhooks_subscribe(user: User = Depends(require("migrate")),
     ok = all(r["ok"] for r in res)
     msg = "Вебхуки+CleverBox+підключено" if ok else "CleverBox+відхилив+підписку+—+деталі+нижче"
     return RedirectResponse(f"/data?cb_notice={msg}#webhooks", 303)
+
+
+# ---------------- Бюті-плани: дошка ----------------
+PLAN_COLUMNS = [("new", "Нові", "ще не стартували, без запису"),
+                ("need", "Потребують запису", "почали, але наступна процедура не записана"),
+                ("booked", "Записані", "є запис наперед"),
+                ("done", "Завершені", "усі процедури виконано")]
+
+
+def plan_column(ps) -> str:
+    if ps.plan.status == "completed" or ps.is_complete:
+        return "done"
+    if ps.is_booked:
+        return "booked"
+    if ps.realized_sum > 0 or ps.proc_done > 0:
+        return "need"
+    return "new"
+
+
+@app.get("/plans", response_class=HTMLResponse)
+def plans_board(request: Request, doc: str = "", q: str = "", plan: int | None = None,
+                user: User = Depends(current_user), db: Session = Depends(db_dep)):
+    from .services import specialists as spec_svc
+    from .services.kpi import all_statuses
+    doc_id = int(doc) if doc.isdigit() else None
+    statuses = [ps for ps in all_statuses(db, doctor_id=doctor_scope(user)) if ps.plan.status != "cancelled"]
+    if doc_id:
+        statuses = [ps for ps in statuses if ps.plan.doctor_id == doc_id]
+    if q:
+        words = set(norm(q).split())
+        statuses = [ps for ps in statuses if words <= set(norm(ps.plan.patient.full_name + " " + (ps.plan.patient.phone or "")).split())
+                    or (ps.plan.patient.phone and q.strip() in ps.plan.patient.phone)]
+    cols = {k: [] for k, *_ in PLAN_COLUMNS}
+    for ps in statuses:
+        cols[plan_column(ps)].append(ps)
+    far = datetime(2100, 1, 1)
+    cols["new"].sort(key=lambda ps: ps.plan.session_at or far, reverse=True)
+    cols["need"].sort(key=lambda ps: ({"red": 0, "yellow": 1}.get(ps.flag, 2), ps.due_date or far))
+    cols["booked"].sort(key=lambda ps: ps.next_booking or far)
+    cols["done"].sort(key=lambda ps: ps.last_activity or datetime.min, reverse=True)
+    sel = next((ps for ps in statuses if ps.plan.id == plan), None) if plan else None
+    doctors = [d for d in spec_svc.all_doctors(db) if any(ps.plan.doctor_id == d.id for ps in statuses) or d.active]
+    return render(request, "plans.html", cols=cols, COLS=PLAN_COLUMNS, sel=sel, doc=doc_id, q=q, total=len(statuses),
+                  doctors=doctors, color=spec_svc.color, initials=spec_svc.initials, now=datetime.now(),
+                  sums={k: sum(ps.planned_sum for ps in v) for k, v in cols.items()})

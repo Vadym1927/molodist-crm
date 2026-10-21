@@ -238,6 +238,20 @@ def sync_clients(db: Session, cb: CleverBox) -> int:
     return n
 
 
+def visit_end(v: dict, start: datetime) -> datetime | None:
+    """Кінець запису: date_end / тривалість у хвилинах; неправдоподібне відкидаємо."""
+    end = parse_dt(v.get("date_end") or v.get("date_finish") or v.get("date_stop") or v.get("end"))
+    if not end:
+        try:
+            mins = int(v.get("duration") or v.get("time") or 0)
+        except (TypeError, ValueError):
+            mins = 0
+        end = start + timedelta(minutes=mins) if 0 < mins < 600 else None
+    if end and not (start < end <= start + timedelta(hours=10)):
+        end = None
+    return end
+
+
 CANCEL_RE = re.compile(r"скас|відмін|отмен|не\s*прийш|не\s*з.явив|перенес|cancel", re.I)
 DONE_RE = re.compile(r"викон|заверш|оплач|прийш|done", re.I)
 
@@ -457,6 +471,7 @@ def sync_future_visits(db: Session, cb: CleverBox) -> int:
             start = parse_dt(v.get("date_start"))
             if not start:
                 continue
+            end = visit_end(v, start)
             for i, s in enumerate(v.get("services") or [{}]):
                 sid = int(s["id"]) if s.get("id") else None
                 ext = f"{v['id']}-{sid or i}"
@@ -468,6 +483,7 @@ def sync_future_visits(db: Session, cb: CleverBox) -> int:
                 obj.service_id, obj.service_name = sid, names.get(sid) if sid else None
                 obj.master_name = s.get("master")
                 obj.starts_at, obj.status, obj.status_label = start, "booked", label
+                obj.ends_at = end
                 obj.amount = float(v["total"]) if v.get("total") and len(v.get("services") or []) <= 1 else None
                 obj.synced_at = datetime.utcnow()
                 n += 1
@@ -638,6 +654,7 @@ def sync_calendar(db: Session, cb: CleverBox, days: int = 14) -> int:
             start = parse_dt(v.get("date_start"))
             if not start:
                 continue
+            end = visit_end(v, start)
             status = "attended" if DONE_RE.search(label) else "booked"   # «attended» не рахується в реалізацію —
             for j, s in enumerate(v.get("services") or [{}]):           # факт послуги береться з /services/sales
                 sid = int(s["id"]) if s.get("id") else None
@@ -650,6 +667,7 @@ def sync_calendar(db: Session, cb: CleverBox, days: int = 14) -> int:
                 obj.service_id, obj.service_name = sid, names.get(sid) if sid else obj.service_name
                 obj.master_name = s.get("master") or obj.master_name
                 obj.starts_at, obj.status, obj.status_label = start, status, label
+                obj.ends_at = end
                 obj.amount = float(v["total"]) if v.get("total") and len(v.get("services") or []) <= 1 else obj.amount
                 obj.synced_at = datetime.utcnow()
                 n += 1

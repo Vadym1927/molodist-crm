@@ -24,6 +24,12 @@ class Event:
     all_day: bool = False
     doctor_id: int | None = None
     service: str | None = None
+    ends: datetime | None = None
+    status_label: str | None = None
+
+    @property
+    def minutes(self) -> int:
+        return max(15, int((self.ends - self.when).total_seconds() // 60)) if self.ends else 60
 
 
 def events(db: Session, user: User, start: date, days: int = 7, doctor_id: int | None = None) -> dict[date, list[Event]]:
@@ -40,7 +46,10 @@ def events(db: Session, user: User, start: date, days: int = 7, doctor_id: int |
     plan_patients = {ps.plan.patient_id for ps in statuses if ps.plan.status == "active"}
 
     from .specialists import DoctorIndex, all_doctors
+    from ..models import CbService
     idx = DoctorIndex(all_doctors(db))
+    durations = {i: m for i, m in db.execute(select(CbService.id, CbService.time_min)) if m and 5 <= m <= 480}
+    merged: dict = {}
 
     rows = db.scalars(select(Visit).where(Visit.starts_at >= s_dt, Visit.starts_at < e_dt,
                                           Visit.status.in_(("booked", "attended", "done")))
@@ -56,12 +65,25 @@ def events(db: Session, user: User, start: date, days: int = 7, doctor_id: int |
         if doctor_id and (not doc or doc.id != doctor_id):
             continue
         d = v.starts_at.date()
+        dur = durations.get(v.service_id) or 60
+        ends = v.ends_at or v.starts_at + timedelta(minutes=dur)
+        key = (v.patient_id, v.starts_at, doc.id if doc else v.master_name)
+        if key in merged:                    # кілька послуг в одному візиті — один блок
+            e = merged[key]
+            if v.service_name and v.service_name not in (e.service or ""):
+                e.service = ", ".join(filter(None, [e.service, v.service_name]))
+                e.subtitle = e.service if doc else " · ".join(filter(None, [e.service, v.master_name]))
+            if not v.ends_at:
+                e.ends = max(e.ends, ends) if e.ends else ends
+            continue
         if d in out:
             out[d].append(Event("attended" if v.status != "booked" else "visit", v.starts_at,
                                 v.patient.full_name,
                                 v.service_name if doc else " · ".join(filter(None, [v.service_name, v.master_name])),
                                 v.patient_id, in_plan=v.patient_id in plan_patients,
-                                doctor_id=doc.id if doc else None, service=v.service_name))
+                                doctor_id=doc.id if doc else None, service=v.service_name, ends=ends,
+                                status_label=v.status_label))
+            merged[key] = out[d][-1]
 
     if True:
         for ps in statuses:
@@ -114,3 +136,117 @@ def columns(db: Session, ev: dict[date, list[Event]], fixed: bool) -> dict[date,
             cols.append(Column("none", None, groups[None]))
         out[d] = cols or [Column("none", None, [])]
     return out
+
+
+# ---------------- Сітка часу (вигляд «День») ----------------
+
+@dataclass
+class Block:
+    ev: Event
+    top: float          # у хвилинах від початку сітки
+    height: float
+    lane: int = 0
+    lanes: int = 1
+
+
+@dataclass
+class Free:
+    start: datetime
+    end: datetime
+    top: float
+    height: float
+
+    @property
+    def hours(self) -> str:
+        m = int((self.end - self.start).total_seconds() // 60)
+        return (f"{m // 60} год" + (f" {m % 60} хв" if m % 60 else "")) if m >= 60 else f"{m} хв"
+
+
+def time_grid(day: date, cols: list[Column], work_from: int = 10, work_to: int = 19) -> dict:
+    """Розкладка блоків по часу: межі сітки, блоки з доріжками для накладок, вільні вікна ≥ 1 год."""
+    timed = [e for c in cols for e in c.events if not e.all_day]
+    h0 = min([work_from - 1] + [e.when.hour for e in timed])
+    h1 = max([work_to + 1] + [min(23, (e.ends or e.when).hour + (1 if (e.ends or e.when).minute else 0)) for e in timed])
+    origin = datetime.combine(day, datetime.min.time()).replace(hour=h0)
+    now = datetime.now()
+    out = []
+    for c in cols:
+        evs = sorted((e for e in c.events if not e.all_day), key=lambda e: e.when)
+        blocks, cluster, cluster_end = [], [], None
+        def flush():
+            lanes_end: list[datetime] = []
+            for b in cluster:
+                for i, le in enumerate(lanes_end):
+                    if le <= b.ev.when:
+                        b.lane, lanes_end[i] = i, b.ev.when + timedelta(minutes=b.ev.minutes)
+                        break
+                else:
+                    b.lane = len(lanes_end)
+                    lanes_end.append(b.ev.when + timedelta(minutes=b.ev.minutes))
+            for b in cluster:
+                b.lanes = max(1, len(lanes_end))
+        for e in evs:
+            end = e.when + timedelta(minutes=e.minutes)
+            b = Block(e, (e.when - origin).total_seconds() / 60, e.minutes)
+            if cluster and cluster_end and e.when >= cluster_end:
+                flush(); cluster = []
+                cluster_end = None
+            cluster.append(b)
+            cluster_end = max(cluster_end, end) if cluster_end else end
+            blocks.append(b)
+        if cluster:
+            flush()
+        free = []
+        if c.doctor is not None and day >= now.date():
+            cur = datetime.combine(day, datetime.min.time()).replace(hour=work_from)
+            if day == now.date():
+                cur = max(cur, now.replace(minute=(0 if now.minute < 30 else 30), second=0, microsecond=0)
+                          + timedelta(minutes=30))
+            stop = datetime.combine(day, datetime.min.time()).replace(hour=work_to)
+            for e in evs + [None]:
+                s_ = e.when if e else stop
+                if s_ > stop:
+                    s_ = stop
+                if (s_ - cur).total_seconds() >= 3600:
+                    free.append(Free(cur, s_, (cur - origin).total_seconds() / 60, (s_ - cur).total_seconds() / 60))
+                if e:
+                    cur = max(cur, e.when + timedelta(minutes=e.minutes))
+        out.append({"col": c, "blocks": blocks, "free": free,
+                    "allday": [e for e in c.events if e.all_day]})
+    return {"h0": h0, "h1": h1, "cols": out, "now_top": (now - origin).total_seconds() / 60
+            if now.date() == day and h0 <= now.hour < h1 else None}
+
+
+def month_summary(db: Session, user: User, first: date, doctor_id: int | None = None) -> dict:
+    """Місяць: по кожному дню — скільки записів у кожного спеціаліста."""
+    from .specialists import DoctorIndex, all_doctors
+    idx = DoctorIndex(all_doctors(db))
+    start = first - timedelta(days=first.weekday())
+    last = (first.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+    end = last + timedelta(days=6 - last.weekday())
+    days: dict[date, dict] = {start + timedelta(days=i): {"total": 0, "docs": {}} for i in range((end - start).days + 1)}
+    q = select(Visit.starts_at, Visit.master_name, Visit.patient_id).where(
+        Visit.starts_at >= datetime.combine(start, datetime.min.time()),
+        Visit.starts_at < datetime.combine(end + timedelta(days=1), datetime.min.time()),
+        Visit.status.in_(("booked", "attended")), Visit.source != "cb_service_sale")
+    doc_pids = None
+    if user.role == "doctor" and user.doctor_id:
+        doc_pids = {p.id for p in db.scalars(select(Patient).where(Patient.doctor_id == user.doctor_id))}
+    seen = set()
+    for at, master, pid in db.execute(q):
+        d = idx.find(master)
+        if doctor_id and (not d or d.id != doctor_id):
+            continue
+        if doc_pids is not None and pid not in doc_pids and not (d and d.id == user.doctor_id):
+            continue
+        key = (pid, at)
+        if key in seen:
+            continue
+        seen.add(key)
+        cell = days.get(at.date())
+        if cell is None:
+            continue
+        cell["total"] += 1
+        k = d.id if d else 0
+        cell["docs"][k] = cell["docs"].get(k, 0) + 1
+    return {"start": start, "end": end, "days": days, "by_id": idx.by_id}

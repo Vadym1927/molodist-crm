@@ -8,7 +8,7 @@
 <style>
 /* Тема: кольори бренду задаються лише тут (--brand*). Решта — нейтральні, з високим контрастом. */
 :root{--brand:#5a4a7e;--brand-ink:#463966;--brand-2:#8270ac;--brand-soft:#efebf6;--brand-line:#d9d1ea;
---sans:Manrope,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--serif:var(--sans);
+--rail:#211b31;--sans:Manrope,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--serif:var(--sans);
 --bg:#f5f4f8;--card:#ffffff;--soft:#f7f6fa;--ink:#1d1a24;--muted:#5d5869;--faint:#8b8597;--line:#e3e0ea;
 --accent:var(--brand);--accent-ink:var(--brand-ink);--accent-soft:var(--brand-soft);
 --shadow:0 1px 2px rgba(28,25,23,.05),0 2px 8px rgba(28,25,23,.04);
@@ -19,32 +19,42 @@ a{color:inherit}::selection{background:var(--brand-soft)}
 header{display:flex;align-items:center;gap:28px;padding:14px 28px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5;flex-wrap:wrap}
 .logo{font:800 22px/1 var(--sans);letter-spacing:.16em;text-decoration:none;color:var(--brand)}.logo small{font:700 10px var(--sans);letter-spacing:.14em;color:var(--brand);margin-left:8px}
 nav{display:flex;gap:4px;flex-wrap:wrap}nav a{padding:7px 12px;border-radius:8px;text-decoration:none;color:var(--muted);font-weight:600}nav a.on,nav a:hover{background:var(--brand-soft);color:var(--ink)}
-.sp{flex:1}main{max-width:1440px;margin:0 auto;padding:28px 32px 70px}
-body.app{padding-left:250px}
-/* ---- бічне меню: світле, крупне, контрастне ---- */
-.side{position:fixed;inset:0 auto 0 0;width:250px;background:var(--card);color:var(--ink);display:flex;flex-direction:column;gap:2px;padding:22px 14px 16px;z-index:10;overflow:auto;border-right:1px solid var(--line)}
-.side .logo{padding:0 12px 20px;display:block;font-size:22px}
-.side .logo small{display:block;margin:7px 0 0;font-size:10px;letter-spacing:.2em}
-.ngroup{font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);padding:16px 12px 6px}
-.snav{display:flex;flex-direction:column;gap:2px}
-.snav a{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;color:#3a342f;text-decoration:none;font-weight:600;font-size:15px;position:relative}
-.snav a svg{flex:none;color:var(--faint)}
-.snav a:hover{background:var(--soft);color:var(--ink)}.snav a:hover svg{color:var(--ink)}
-.snav a.on{background:var(--brand);color:#fff}.snav a.on svg{color:#fff}
-.badge{margin-left:auto;font-style:normal;font-size:12px;font-weight:800;background:var(--bad);color:#fff;border-radius:99px;padding:1px 8px}
-.badge.soft{background:var(--soft);color:var(--muted)}.snav a.on .badge.soft{background:rgba(255,255,255,.25);color:#fff}
-.side .btn.upl{width:100%;justify-content:center;color:var(--brand-ink);border:1.5px dashed var(--brand-line);background:var(--brand-soft);padding:11px 14px;font-weight:700}
-.side .btn.upl:hover{border-color:var(--brand)}
-.side .me{display:flex;align-items:center;gap:10px;padding:12px;margin-top:10px;text-decoration:none;color:var(--ink);line-height:1.25;border-top:1px solid var(--line)}
-.side .me i{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--brand);color:#fff;font:800 13px var(--sans);font-style:normal;flex:none}
-.side .me .muted{font-size:13px}
-.side .out{color:var(--muted);font-size:13px;padding:0 12px;text-decoration:none;font-weight:600}.side .out:hover{color:var(--bad)}
+.sp{flex:1}main{max-width:1480px;margin:0 auto;padding:26px 32px 70px}
+body.app{padding-left:96px}
+/* ---- вузька панель з іконками ---- */
+.rail{position:fixed;inset:0 auto 0 0;width:96px;background:var(--rail);display:flex;flex-direction:column;align-items:center;gap:4px;padding:16px 8px 14px;z-index:20}
+.rail .mark{width:52px;height:52px;border-radius:14px;background:var(--brand-2);color:#fff;display:grid;place-items:center;font:800 26px/1 var(--sans);text-decoration:none;margin-bottom:14px;letter-spacing:0}
+.rail a.it,.rail summary.it{width:80px;display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 2px 9px;border-radius:14px;color:#c9c3d8;text-decoration:none;font-size:12px;font-weight:700;position:relative;cursor:pointer;list-style:none;text-align:center;line-height:1.15}
+.rail summary.it::-webkit-details-marker{display:none}
+.rail a.it svg,.rail summary.it svg{width:26px;height:26px}
+.rail a.it:hover,.rail summary.it:hover{background:rgba(255,255,255,.07);color:#fff}
+.rail a.it.on{background:var(--brand-2);color:#fff;box-shadow:0 6px 16px -6px rgba(130,112,172,.8)}
+.rail .dot{position:absolute;top:6px;right:16px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--bad);color:#fff;font:800 11px/18px var(--sans);font-style:normal}
+.rail .grow{flex:1}
+.rail .ava{width:42px;height:42px;border-radius:50%;background:#e7e2f1;color:var(--brand-ink);display:grid;place-items:center;font:800 14px var(--sans);text-decoration:none;margin-top:6px}
+.rail .role{font-size:11px;color:#a59fb5;font-weight:600;text-align:center;margin-top:3px}
+.more{position:relative}
+.more[open] .menu{display:block}
+.more .menu{display:none;position:fixed;left:104px;bottom:120px;width:250px;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 40px -12px rgba(30,20,50,.35);padding:8px;z-index:30}
+.more .menu a{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;text-decoration:none;color:var(--ink);font-weight:600}
+.more .menu a:hover{background:var(--brand-soft)}.more .menu a.on{background:var(--brand-soft);color:var(--brand-ink)}
+.more .menu svg{width:20px;height:20px;color:var(--faint)}.more .menu hr{border:0;border-top:1px solid var(--line);margin:6px 4px}
+/* ---- верхня панель ---- */
+.top{position:sticky;top:0;z-index:15;height:72px;display:flex;align-items:center;gap:20px;padding:0 32px;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.top .brand{font:800 20px/1 var(--sans);letter-spacing:.08em;text-decoration:none;color:var(--ink);white-space:nowrap}
+.top .sub{color:var(--muted);font-weight:600;padding-left:16px;border-left:1.5px solid var(--line);white-space:nowrap}
+.top .search{flex:1;max-width:600px;margin:0 auto;position:relative}
+.top .search input{width:100%;height:46px;padding:0 16px 0 46px;border-radius:14px;background:var(--soft);border-color:var(--line)}
+.top .search svg{position:absolute;left:15px;top:13px;color:var(--faint)}
+.top .bell{position:relative;width:44px;height:44px;display:grid;place-items:center;border-radius:12px;color:var(--ink);text-decoration:none}
+.top .bell:hover{background:var(--soft)}.top .bell i{position:absolute;top:8px;right:9px;width:9px;height:9px;border-radius:50%;background:var(--bad);border:2px solid #fff}
+.top .cta{height:46px;padding:0 20px;font-size:15px;border-radius:14px}
 /* ---- вміст ---- */
 .eyebrow{font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--brand);margin-bottom:2px}
 .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 18px}
 .tabs a{padding:8px 14px;border-radius:99px;text-decoration:none;color:#3a342f;border:1.5px solid var(--line);background:var(--card);font-weight:700;font-size:14px}
 .tabs a:hover{border-color:var(--brand)}.tabs a.on{background:var(--brand);color:#fff;border-color:var(--brand)}.tabs a em{font-style:normal;opacity:.75;margin-left:5px}
-h1{font:800 30px/1.15 var(--sans);margin:0 0 6px;letter-spacing:-.01em}h2{font:800 19px/1.25 var(--sans);margin:0 0 14px}h3{font-weight:800}
+h1{font:800 40px/1.1 var(--sans);margin:0 0 6px;letter-spacing:-.02em}h2{font:800 19px/1.25 var(--sans);margin:0 0 14px}h3{font-weight:800}
 .muted{color:var(--muted)}.small{font-size:13px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px 22px;margin-bottom:18px;box-shadow:var(--shadow)}
 .grid{display:grid;gap:14px}.g5{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}.g2{grid-template-columns:repeat(auto-fit,minmax(420px,1fr))}
@@ -71,51 +81,56 @@ input.num{width:64px;text-align:right;padding:5px 7px}
 .c1{background:var(--brand)}.c2{background:var(--brand-2)}.c3{background:var(--brand-line)}.legend{display:flex;gap:14px;font-size:13px;color:var(--muted)}.legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 .photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}.photos img{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:12px;border:1px solid var(--line)}
 details summary{cursor:pointer;color:var(--muted);font-weight:600}.drop{border:1.5px dashed var(--line);border-radius:14px;padding:14px;text-align:center}
-@media (max-width:900px){body.app{padding-left:0;padding-bottom:72px}
-.side{inset:auto 0 0 0;width:auto;height:66px;flex-direction:row;padding:6px;overflow-x:auto;border-right:0;border-top:1px solid var(--line);box-shadow:0 -4px 16px rgba(0,0,0,.05)}
-.side .logo,.side .sp,.side form,.side .me,.side .out,.ngroup{display:none}.snav{flex-direction:row;flex:0 0 auto;gap:0}
-.snav a{flex-direction:column;gap:2px;font-size:11px;padding:6px 10px}.badge{position:absolute;top:0;right:0}}
+@media (max-width:900px){body.app{padding-left:0;padding-bottom:78px}
+.rail{inset:auto 0 0 0;width:auto;height:70px;flex-direction:row;justify-content:space-around;padding:6px 4px}
+.rail .mark,.rail .grow,.rail .ava,.rail .role,.rail .desk{display:none}
+.rail a.it,.rail summary.it{width:auto;flex:1;padding:7px 2px;font-size:11px}.rail a.it svg,.rail summary.it svg{width:23px;height:23px}
+.rail .dot{right:18%}.more{flex:1;display:flex}.more summary.it{flex:1}
+.more .menu{left:auto;right:8px;bottom:80px}
+.top{padding:0 16px;gap:10px;height:62px}.top .sub,.top .cta span{display:none}.top .cta{padding:0 14px}
+.top .search input{height:42px}}
 @media (max-width:720px){.g2{grid-template-columns:1fr}header{padding:12px 16px;gap:12px}main{padding:18px 16px 30px}.hide-m{display:none}table{font-size:14px}th,td{padding:8px 6px}h1{font-size:26px}}
 </style>
 </head>
 <body class="{{ 'app' if nav not in ('login','print') and user }}">
 {% if nav != 'login' and user %}
-<aside class="side">
-  <a class="logo" href="/">MOLODIST<small>BEAUTY PLAN CRM</small></a>
-  <div class="ngroup">Робота</div>
-  <nav class="snav">
-    <a href="/" class="{{ 'on' if nav=='dashboard' }}"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z"/></svg><span>Дашборд</span></a>
-    <a href="/clients" class="{{ 'on' if nav in ('clients','patient','patients','unassigned') }}"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="11" r="2.5"/><path d="M5.5 17c.8-1.8 2-2.6 3.5-2.6s2.7.8 3.5 2.6M15 9h3M15 13h3"/></svg><span>{{ 'Мої клієнти' if user.role=='doctor' else 'Клієнти' }}</span></a>
-    <a href="/calendar" class="{{ 'on' if nav=='calendar' }}"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span>Календар</span></a>
-    <a href="/tasks" class="{{ 'on' if nav=='tasks' }}"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg><span>Задачі</span>{% if task_counts and task_counts.overdue %}<em class="badge">{{ task_counts.overdue }}</em>{% elif task_counts and task_counts.open %}<em class="badge soft">{{ task_counts.open }}</em>{% endif %}</a>
-  </nav>
-  {% if can(user,'specialists') or can(user,'products') or can(user,'stock') or can(user,'finance') %}<div class="ngroup">Клініка</div>{% endif %}
-  <nav class="snav">
-    {% if can(user,'specialists') %}<a href="/specialists" class="{{ 'on' if nav in ('specialists','specialist') }}"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7.5" r="3.5"/><path d="M5 20c.9-3.8 3.6-6 7-6s6.1 2.2 7 6"/><path d="M15.5 16.5l1.5 1.5 3-3"/></svg><span>Спеціалісти</span></a>{% endif %}
-    {% if can(user,'products') %}<a href="/products" class="{{ 'on' if nav in ('products','mapping') }}"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6v4l2 2v11a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V9l2-2z"/><path d="M7 13h10"/></svg><span>Продукти</span></a>{% endif %}
-    {% if can(user,'stock') %}<a href="/stock" class="{{ 'on' if nav=='stock' }}"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-5 9 5v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M7 20v-7h10v7M7 16h10"/></svg><span>Склад</span></a>{% endif %}
-    {% if can(user,'finance') %}<a href="/finance" class="{{ 'on' if nav=='finance' }}"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg><span>Фінанси</span></a>{% endif %}
-  </nav>
-  {% if can(user,'campaigns') or can(user,'scripts_edit') %}<div class="ngroup">Комунікації</div>{% endif %}
-  <nav class="snav">
-    {% if can(user,'campaigns') %}<a href="/campaigns" class="{{ 'on' if nav in ('campaigns','campaign') }}"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1zM16 8a5 5 0 0 1 0 8M19 5a9 9 0 0 1 0 14"/></svg><span>Розсилки</span></a>{% endif %}
-    {% if can(user,'scripts_edit') %}<a href="/scripts" class="{{ 'on' if nav=='scripts' }}"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 8h9M8 12h6"/></svg><span>Скрипти</span></a>{% endif %}
-  </nav>
-  {% if can(user,'export_reports') or can(user,'users') %}<div class="ngroup">Система</div>{% endif %}
-  <nav class="snav">
-    {% if can(user,'export_reports') %}<a href="/data" class="{{ 'on' if nav=='data' }}"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>Дані</span></a>{% endif %}
-    {% if can(user,'users') %}<a href="/access" class="{{ 'on' if nav=='access' }}"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M15 8l2 2"/></svg><span>Доступи й API</span></a>{% endif %}
-  </nav>
-  <div class="sp"></div>
-  {% if can(user,'upload') %}
-  <form action="/upload" method="post" enctype="multipart/form-data" style="margin-top:14px">
-    <label class="btn ghost upl" style="cursor:pointer">＋ <span>Бюті-план (PDF)</span>
-      <input type="file" name="files" accept=".pdf,image/*" multiple hidden onchange="this.form.submit()"></label>
-  </form>{% endif %}
-  <a href="/me" class="me"><i>{{ (user.name.split()|map('first')|join)[:2]|upper }}</i><span><b>{{ user.name }}</b><br><span class="muted">{{ user.role_label }}</span></span></a>
-  <a href="/logout" class="out">Вийти</a>
+<aside class="rail">
+  <a class="mark" href="/" title="MOLODIST">m</a>
+  <a class="it {{ 'on' if nav=='dashboard' }}" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z"/></svg><span>Дашборд</span></a>
+  <a class="it {{ 'on' if nav=='calendar' }}" href="/calendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M8 14h3"/></svg><span>Записи</span></a>
+  <a class="it {{ 'on' if nav in ('clients','patient','patients','unassigned') }}" href="/clients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.3-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14.8c1.7.8 2.7 2.5 3 5.2"/></svg><span>Клієнти</span></a>
+  <a class="it {{ 'on' if nav=='plans' }}" href="/plans"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg><span>Плани</span></a>
+  <a class="it desk {{ 'on' if nav=='tasks' }}" href="/tasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg><span>Задачі</span>{% if task_counts and task_counts.overdue %}<em class="dot">{{ task_counts.overdue }}</em>{% endif %}</a>
+  {% if can(user,'specialists') %}<a class="it desk {{ 'on' if nav in ('specialists','specialist') }}" href="/specialists"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7.5" r="3.5"/><path d="M5 20c.9-3.8 3.6-6 7-6s6.1 2.2 7 6"/><path d="M15.5 16.5l1.5 1.5 3-3"/></svg><span>Команда</span></a>{% endif %}
+  <details class="more">
+    <summary class="it"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="19" cy="12" r="1.3" fill="currentColor"/></svg><span>Ще</span></summary>
+    <div class="menu">
+      <a href="/tasks" class="{{ 'on' if nav=='tasks' }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg>Задачі</a>
+      {% if can(user,'specialists') %}<a href="/specialists" class="{{ 'on' if nav in ('specialists','specialist') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7.5" r="3.5"/><path d="M5 20c.9-3.8 3.6-6 7-6s6.1 2.2 7 6"/><path d="M15.5 16.5l1.5 1.5 3-3"/></svg>Команда</a>{% endif %}
+      {% if can(user,'products') %}<a href="/products" class="{{ 'on' if nav in ('products','mapping') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6v4l2 2v11a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V9l2-2z"/><path d="M7 13h10"/></svg>Продукти</a>{% endif %}
+      {% if can(user,'stock') %}<a href="/stock" class="{{ 'on' if nav=='stock' }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-5 9 5v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M7 20v-7h10v7M7 16h10"/></svg>Склад</a>{% endif %}
+      {% if can(user,'finance') %}<a href="/finance" class="{{ 'on' if nav=='finance' }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>Фінанси</a>{% endif %}
+      {% if can(user,'campaigns') %}<a href="/campaigns" class="{{ 'on' if nav in ('campaigns','campaign') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1zM16 8a5 5 0 0 1 0 8M19 5a9 9 0 0 1 0 14"/></svg>Розсилки</a>{% endif %}
+      {% if can(user,'scripts_edit') %}<a href="/scripts" class="{{ 'on' if nav=='scripts' }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 8h9M8 12h6"/></svg>Скрипти</a>{% endif %}
+      {% if can(user,'export_reports') %}<a href="/data" class="{{ 'on' if nav=='data' }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Дані й синхронізація</a>{% endif %}
+      {% if can(user,'users') %}<a href="/access" class="{{ 'on' if nav=='access' }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M15 8l2 2"/></svg>Доступи й API</a>{% endif %}
+      <hr><a href="/me"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>Мій кабінет</a><a href="/logout"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l5-5-5-5M15 12H3"/></svg>Вийти</a>
+    </div>
+  </details>
+  <div class="grow"></div>
+  <a class="ava" href="/me" title="{{ user.name }}">{{ (user.name.split()|map('first')|join)[:2]|upper }}</a>
+  <div class="role">{{ user.role_label }}</div>
 </aside>
+<div class="top">
+  <a class="brand" href="/">MOLODIST</a><span class="sub">Простір клініки</span>
+  <form class="search" action="/clients" method="get"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input name="q" placeholder="Знайти клієнта за імʼям або телефоном" value="{{ request.query_params.get('q','') if nav=='clients' else '' }}"></form>
+  <a class="bell" href="/tasks" title="Задачі"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8M10 21a2 2 0 0 0 4 0"/></svg>{% if task_counts and (task_counts.overdue or task_counts.open) %}<i></i>{% endif %}</a>
+  {% if can(user,'upload') %}<form action="/upload" method="post" enctype="multipart/form-data" style="margin:0">
+    <label class="btn cta" style="cursor:pointer"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span>Бюті-план</span>
+      <input type="file" name="files" accept=".pdf,image/*" multiple hidden onchange="this.form.submit()"></label></form>{% endif %}
+</div>
 {% endif %}
 <main>{% block body %}{% endblock %}</main>
+<script>document.addEventListener('click',function(e){document.querySelectorAll('details.more[open]').forEach(function(d){if(!d.contains(e.target))d.removeAttribute('open')})});</script>
 </body>
 </html>

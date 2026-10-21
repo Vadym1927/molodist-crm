@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     admin_password: str = "change-me"              # пароль власника при першому запуску
     owner_login: str = "vadim"                     # логін власника при першому запуску
     owner_name: str = "Вадим Бондар"
+    work_hour_from: int = 10                       # робочі години клініки (вільні вікна в календарі)
+    work_hour_to: int = 20
     public_url: str = "http://localhost:8000"      # для посилань у ТГ-нагадуваннях
     files_dir: str = "./data/files"
     timezone: str = "Europe/Kyiv"

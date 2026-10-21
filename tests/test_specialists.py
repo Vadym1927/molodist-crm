@@ -85,3 +85,47 @@ def test_specialists_from_visits_without_staff():
         cbm.sync_staff(db, NoStaffCB())
         docs = {d.name: d for d in db.query(Doctor).all()}
         assert docs["Свіжа Майстриня"].active and not docs["Давня Майстриня"].active
+
+
+def test_time_grid_layout():
+    from app.services.calendar import time_grid, Column
+    day = date.today() + timedelta(days=1)
+    at = lambda h, m=0: datetime.combine(day, datetime.min.time()).replace(hour=h, minute=m)
+    d = Doctor(id=999, name="Тест Лікар", active=True)
+    evs = [Event("visit", at(10, 30), "А", None, 1, doctor_id=999, ends=at(11, 15)),
+           Event("visit", at(11), "Б", None, 2, doctor_id=999, ends=at(12)),          # накладка → 2 доріжки
+           Event("visit", at(15), "В", None, 3, doctor_id=999, ends=at(15, 45))]
+    g = time_grid(day, [Column("999", d, evs)], 10, 19)
+    blocks = g["cols"][0]["blocks"]
+    assert [b.lanes for b in blocks] == [2, 2, 1] and blocks[0].lane != blocks[1].lane
+    free = g["cols"][0]["free"]
+    assert [(f.start.hour, f.end.hour) for f in free] == [(12, 15), (15, 19)]
+    assert g["h0"] == 9 and g["h1"] >= 20
+
+
+def test_calendar_views_render():
+    settings.admin_password = "owner-pass-1"
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        for v in ("day", "week", "month"):
+            r = c.get(f"/calendar?view={v}")
+            assert r.status_code == 200 and "Календар" in r.text
+        assert 'class="mon"' in c.get("/calendar?view=month").text
+
+
+def test_plans_board():
+    from pathlib import Path
+    pdf = Path(__file__).parent / "sample_plan.pdf"
+    settings.admin_password = "owner-pass-1"
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        if pdf.exists():
+            c.post("/upload", files={"files": ("plan.pdf", pdf.read_bytes(), "application/pdf")})
+        r = c.get("/plans")
+        assert r.status_code == 200 and "Потребують запису" in r.text and "Записані" in r.text
+        if pdf.exists():
+            from app.models import BeautyPlan
+            with SessionLocal() as db:
+                pid = db.query(BeautyPlan).first().id
+            panel = c.get(f"/plans?plan={pid}").text
+            assert "Етапи плану" in panel and "Відкрити картку" in panel
