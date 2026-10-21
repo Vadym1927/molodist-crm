@@ -13,7 +13,7 @@ from ..models import Doctor, Visit, Patient, SyncState
 from .kpi import all_statuses, KpiRow
 
 # чіткі, добре розрізнювані кольори спеціалістів (календар, аватари)
-PALETTE = ["#2f80c9", "#d0548a", "#2e9d6a", "#e08a1e", "#7a5bd0", "#d4473b", "#1aa3a3", "#8a6d3b"]
+PALETTE = ["#2f80c9", "#d0548a", "#2e9d6a", "#e08a1e", "#1aa3a3", "#d4473b", "#8270ac", "#8a6d3b"]
 
 
 def color(d: Doctor | None) -> str:

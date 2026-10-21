@@ -7,9 +7,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 /* Тема: кольори бренду задаються лише тут (--brand*). Решта — нейтральні, з високим контрастом. */
-:root{--brand:#9b6b52;--brand-ink:#7a5140;--brand-soft:#f6ece6;--brand-line:#e9d6ca;
+:root{--brand:#5a4a7e;--brand-ink:#463966;--brand-2:#8270ac;--brand-soft:#efebf6;--brand-line:#d9d1ea;
 --sans:Manrope,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--serif:var(--sans);
---bg:#f5f4f2;--card:#ffffff;--soft:#f7f5f3;--ink:#1c1917;--muted:#5f5852;--faint:#8c847d;--line:#e4e0db;
+--bg:#f5f4f8;--card:#ffffff;--soft:#f7f6fa;--ink:#1d1a24;--muted:#5d5869;--faint:#8b8597;--line:#e3e0ea;
 --accent:var(--brand);--accent-ink:var(--brand-ink);--accent-soft:var(--brand-soft);
 --shadow:0 1px 2px rgba(28,25,23,.05),0 2px 8px rgba(28,25,23,.04);
 --ok:#1f7a4d;--ok-bg:#e3f4ea;--warn:#a15c00;--warn-bg:#fff1dc;--bad:#c0362c;--bad-bg:#fde7e5;--done:#4f46a5;--done-bg:#ecebfb}
@@ -17,7 +17,7 @@
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 var(--sans);-webkit-font-smoothing:antialiased}
 a{color:inherit}::selection{background:var(--brand-soft)}
 header{display:flex;align-items:center;gap:28px;padding:14px 28px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5;flex-wrap:wrap}
-.logo{font:800 22px/1 var(--sans);letter-spacing:.16em;text-decoration:none;color:var(--ink)}.logo small{font:700 10px var(--sans);letter-spacing:.14em;color:var(--brand);margin-left:8px}
+.logo{font:800 22px/1 var(--sans);letter-spacing:.16em;text-decoration:none;color:var(--brand)}.logo small{font:700 10px var(--sans);letter-spacing:.14em;color:var(--brand);margin-left:8px}
 nav{display:flex;gap:4px;flex-wrap:wrap}nav a{padding:7px 12px;border-radius:8px;text-decoration:none;color:var(--muted);font-weight:600}nav a.on,nav a:hover{background:var(--brand-soft);color:var(--ink)}
 .sp{flex:1}main{max-width:1440px;margin:0 auto;padding:28px 32px 70px}
 body.app{padding-left:250px}
@@ -55,7 +55,7 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--mute
 td.r,th.r{text-align:right;white-space:nowrap}tr:last-child td{border-bottom:0}tbody tr:hover{background:var(--brand-soft)}
 .pill{display:inline-block;padding:3px 10px;border-radius:99px;font-size:13px;font-weight:700;white-space:nowrap}
 .ok{background:var(--ok-bg);color:var(--ok)}.warn{background:var(--warn-bg);color:var(--warn)}.bad{background:var(--bad-bg);color:var(--bad)}.done{background:var(--done-bg);color:var(--done)}
-.bar{height:8px;background:#ebe7e3;border-radius:9px;overflow:hidden;min-width:90px}.bar i{display:block;height:100%;background:var(--brand);border-radius:9px}
+.bar{height:8px;background:#e8e5ef;border-radius:9px;overflow:hidden;min-width:90px}.bar i{display:block;height:100%;background:var(--brand);border-radius:9px}
 .btn{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--brand);background:var(--brand);color:#fff;padding:9px 16px;border-radius:12px;font:700 14px var(--sans);cursor:pointer;text-decoration:none}
 .btn:hover{background:var(--brand-ink);border-color:var(--brand-ink)}
 .btn.ghost{background:var(--card);color:var(--ink);border-color:var(--line)}.btn.ghost:hover{border-color:var(--brand);color:var(--brand-ink);background:var(--card)}
@@ -68,7 +68,7 @@ input.num{width:64px;text-align:right;padding:5px 7px}
 .rem a{color:var(--brand-ink);font-weight:700}.alert{padding:12px 16px;border-radius:12px;background:var(--bad-bg);color:var(--bad);margin-bottom:14px;font-weight:600}
 .fc{display:flex;gap:14px;align-items:flex-end;height:190px;padding-top:10px}.fc .col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}
 .fc .stack{width:100%;max-width:64px;display:flex;flex-direction:column-reverse;border-radius:8px 8px 3px 3px;overflow:hidden}
-.c1{background:var(--brand-ink)}.c2{background:var(--brand)}.c3{background:var(--brand-line)}.legend{display:flex;gap:14px;font-size:13px;color:var(--muted)}.legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.c1{background:var(--brand)}.c2{background:var(--brand-2)}.c3{background:var(--brand-line)}.legend{display:flex;gap:14px;font-size:13px;color:var(--muted)}.legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 .photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}.photos img{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:12px;border:1px solid var(--line)}
 details summary{cursor:pointer;color:var(--muted);font-weight:600}.drop{border:1.5px dashed var(--line);border-radius:14px;padding:14px;text-align:center}
 @media (max-width:900px){body.app{padding-left:0;padding-bottom:72px}
