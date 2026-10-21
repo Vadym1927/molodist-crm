@@ -78,6 +78,29 @@
         {% if cb_last_error %}<br><span style="color:var(--bad)">Остання помилка: {{ cb_last_error }}</span>{% endif %}
       </div>
       {% if cb %}<form method="post" action="/actions/cleverbox-sync" style="margin:10px 0"><button class="btn">Оновити зараз</button></form>{% endif %}
+      {% if wh is not none %}
+      <div class="rem" id="webhooks" style="margin:12px 0">
+        <b>Миттєве оновлення (вебхуки CleverBox)</b>
+        <div class="small muted">Новий запис, перенесення, зміна статусу візиту і новий клієнт у CleverBox потрапляють у CRM приблизно за хвилину,
+          а не раз на 2 години. Плановий синк лишається як підстраховка.</div>
+        <div class="small" style="margin:6px 0">
+          {% if wh.count %}<span class="pill ok">працює</span> отримано подій: {{ wh.count }}{% if wh.last %}, остання {{ wh.last.at.replace('T',' ') }} ({{ wh.last.event or 'тип не вказано' }}){% endif %}
+          {% elif wh.subscribe %}<span class="pill warn">підписку надіслано, подій ще не було</span>
+          {% else %}<span class="pill bad">не підключено</span>{% endif %}
+          {% if wh.last_sync %}<br><span class="muted">Останнє оновлення за подією: {{ wh.last_sync.replace('T',' ') }}</span>{% endif %}
+        </div>
+        {% if cb %}<div class="row"><form method="post" action="/settings/cleverbox-webhooks"><button class="btn ghost" style="padding:4px 12px">{{ 'Оновити підписку' if wh.subscribe else 'Підключити вебхуки' }}</button></form>
+          <a class="btn ghost" style="padding:4px 12px" href="/data?wh=1#webhooks">Перевірити підписки в CleverBox</a></div>{% endif %}
+        {% if wh.subscribe %}<details class="small" style="margin-top:6px" {{ 'open' if wh.subscribe|selectattr('ok','false')|list }}><summary>Відповідь CleverBox на підписку</summary>
+          {% for r in wh.subscribe %}<div>{{ r.event }}: {% if r.ok %}<span style="color:var(--ok)">ок</span>{% else %}<span style="color:var(--bad)">{{ r.error }}</span>{% endif %}</div>{% endfor %}</details>{% endif %}
+        {% if wh_subs is not none %}<div class="small" style="margin-top:6px"><b>Підписки в CleverBox:</b>
+          {% if wh_subs is string %}<span style="color:var(--bad)">{{ wh_subs }}</span>{% else %}
+          {% for w in wh_subs %}<div>{{ w.event }} → {{ w.url }}{{ ' ✓' if w.ours }}</div>{% else %}<div class="muted">немає</div>{% endfor %}{% endif %}</div>{% endif %}
+        {% if wh.last and wh.last.shape %}<details class="small"><summary>Формат останньої події (без даних)</summary><code style="white-space:pre-wrap;font-size:11px">{{ wh.last.shape|tojson }}</code></details>{% endif %}
+        <details class="small"><summary>Адреса для ручного налаштування в CleverBox</summary><code style="word-break:break-all">{{ wh_url }}</code>
+          <div class="muted">Адреса секретна — не пересилайте її стороннім.</div></details>
+      </div>
+      {% endif %}
       {% if cb %}
       <form method="post" action="/migrate/cleverbox" class="grid" style="gap:8px">
         <div class="row small"><span>Історія за</span><select name="months">{% for m in [6,12,24,36,60] %}<option value="{{ m }}" {{ 'selected' if m==24 }}>{{ m }} міс.</option>{% endfor %}</select></div>

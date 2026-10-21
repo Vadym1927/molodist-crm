@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import mimetypes
 import secrets
@@ -74,7 +75,8 @@ def ensure_sync_schedule() -> None:
 
 def run_sync() -> dict:
     from .integrations.cleverbox import full_sync
-    with SessionLocal() as db:
+    from .integrations.cb_webhooks import SYNC_LOCK
+    with SYNC_LOCK, SessionLocal() as db:
         rep = full_sync(db)
     state["last_sync"] = (datetime.now(), rep)
     from .services.tasks import generate_auto
@@ -748,7 +750,11 @@ def data_page(request: Request, user: User = Depends(require("export_reports")),
                   cb_last_error=cb_error.value if cb_error else None,
                   cb_next_sync=job.next_run_time if job else None,
                   cb_auto_sync=auto_sync_enabled(),
-                  cb_notice=request.query_params.get("cb_notice"))
+                  cb_notice=request.query_params.get("cb_notice"),
+                  wh=cb_webhooks.status(db) if user.role == "owner" else None,
+                  wh_url=cb_webhooks.hook_url(db) if user.role == "owner" else None,
+                  wh_subs=cb_webhooks.subscriptions(db) if user.role == "owner" and settings.cleverbox_token
+                  and request.query_params.get("wh") else None)
 
 
 @app.get("/export/report.xlsx")
@@ -1535,3 +1541,41 @@ def specialist_unlock(did: int, user: User = Depends(require("specialists_edit")
         db.commit()
         audit(db, "specialist.status_auto", "doctor", d.id, user=user)
     return RedirectResponse(f"/specialists/{did}", 303)
+
+
+# ---------------- Вебхуки CleverBox (події в реальному часі) ----------------
+from .integrations import cb_webhooks   # noqa: E402
+
+
+@app.post("/hooks/cleverbox/{secret}")
+async def cleverbox_hook(secret: str, request: Request, db: Session = Depends(db_dep)):
+    if not cb_webhooks.check_secret(db, secret):
+        raise HTTPException(404)
+    raw = await request.body()
+    if len(raw) > 512_000:
+        raise HTTPException(413)
+    try:
+        payload = json.loads(raw or b"{}")
+    except ValueError:
+        form = await request.form()
+        payload = {k: v for k, v in form.items()}
+        if "data" in payload and isinstance(payload["data"], str):
+            try:
+                payload["data"] = json.loads(payload["data"])
+            except ValueError:
+                pass
+    ev = await asyncio.to_thread(cb_webhooks.handle, payload)
+    return {"ok": True, "event": ev["event"]}
+
+
+@app.post("/settings/cleverbox-webhooks")
+async def cleverbox_webhooks_subscribe(user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
+    if not settings.cleverbox_token:
+        return RedirectResponse("/data?cb_notice=Спершу+збережіть+токен#migrate", 303)
+    if not settings.public_url.startswith("https://"):
+        return RedirectResponse("/data?cb_notice=PUBLIC_URL+у+.env+має+бути+https://crm.molodist.com.ua#migrate", 303)
+    res = await asyncio.to_thread(cb_webhooks.subscribe, db)
+    audit(db, "cleverbox.webhooks.subscribe", user=user, ok=sum(r["ok"] for r in res))
+    ok = all(r["ok"] for r in res)
+    msg = "Вебхуки+CleverBox+підключено" if ok else "CleverBox+відхилив+підписку+—+деталі+нижче"
+    return RedirectResponse(f"/data?cb_notice={msg}#webhooks", 303)
