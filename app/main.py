@@ -996,17 +996,27 @@ def clients_page(request: Request, seg: str = "all", q: str = "", doctor: int | 
 
 
 @app.get("/calendar", response_class=HTMLResponse)
-def calendar_page(request: Request, start: str | None = None, master: str = "", view: str = "week",
+def calendar_page(request: Request, start: str | None = None, doc: str = "", view: str = "week",
                   user: User = Depends(current_user), db: Session = Depends(db_dep)):
+    from .services import specialists as spec_svc
     today = date.today()
-    s = date.fromisoformat(start) if start else today
+    try:
+        s = date.fromisoformat(start) if start else today
+    except ValueError:
+        s = today
+    view = "day" if view == "day" else "week"
     days = 1 if view == "day" else 7
     if view == "week":
         s = s - timedelta(days=s.weekday())
-    ev = cal_svc.events(db, user, s, days, master or None)
-    masters = sorted({v for (v,) in db.execute(select(Visit.master_name).where(Visit.master_name.is_not(None)).distinct())})
-    return render(request, "calendar.html", ev=ev, start=s, days=days, view=view, today=today, master=master,
-                  masters=masters, prev=s - timedelta(days=days), next=s + timedelta(days=days),
+    doc_id = int(doc) if doc.isdigit() else None
+    ev = cal_svc.events(db, user, s, days, doc_id)
+    cols = cal_svc.columns(db, ev, fixed=(view == "day" and not doc_id))
+    if doc_id:                                   # фільтр по спеціалісту — лише його колонка
+        cols = {d: [c for c in cs if c.doctor and c.doctor.id == doc_id] or
+                   [cal_svc.Column(str(doc_id), db.get(Doctor, doc_id), [])] for d, cs in cols.items()}
+    return render(request, "calendar.html", ev=ev, cols=cols, start=s, days=days, view=view, today=today,
+                  doc=doc_id, specialists=spec_svc.calendar_doctors(db), color=spec_svc.color,
+                  initials=spec_svc.initials, prev=s - timedelta(days=days), next=s + timedelta(days=days),
                   end=s + timedelta(days=days - 1))
 
 
@@ -1422,3 +1432,91 @@ APP_VERSION = _VERSION_FILE.read_text().strip() if _VERSION_FILE.exists() else "
 @app.get("/health")
 def health():
     return {"ok": True, "version": APP_VERSION, "last_sync": str(state["last_sync"][0]) if state["last_sync"] else None}
+
+
+# ---------------- Спеціалісти ----------------
+from .services import specialists as spec_svc   # noqa: E402
+
+COLOR_RE = __import__("re").compile(r"^#[0-9a-fA-F]{6}$")
+
+
+@app.get("/specialists", response_class=HTMLResponse)
+def specialists_page(request: Request, show: str = "active", user: User = Depends(require("specialists")),
+                     db: Session = Depends(db_dep)):
+    cs = spec_svc.cards(db)
+    active = [c for c in cs if c.doctor.active]
+    fired = [c for c in cs if not c.doctor.active]
+    return render(request, "specialists.html", cards=fired if show == "fired" else active, show=show,
+                  n_active=len(active), n_fired=len(fired), staff_fields=spec_svc.cb_staff_fields(db),
+                  palette=spec_svc.PALETTE)
+
+
+@app.post("/specialists")
+def specialist_create(name: str = Form(...), position: str = Form(""), user: User = Depends(require("specialists_edit")),
+                      db: Session = Depends(db_dep)):
+    name = name.strip()
+    if not name:
+        raise HTTPException(400, "Вкажіть імʼя")
+    if db.scalar(select(Doctor).where(Doctor.name == name)):
+        raise HTTPException(400, "Спеціаліст з таким імʼям уже є")
+    d = Doctor(name=name, position=position.strip() or None, source="manual", active=True, in_calendar=True)
+    db.add(d)
+    db.commit()
+    audit(db, "specialist.create", "doctor", d.id, user=user)
+    return RedirectResponse(f"/specialists/{d.id}", 303)
+
+
+@app.get("/specialists/{did:int}", response_class=HTMLResponse)
+def specialist_page(did: int, request: Request, user: User = Depends(require("specialists")),
+                    db: Session = Depends(db_dep)):
+    d = db.get(Doctor, did)
+    if not d:
+        raise HTTPException(404)
+    card = spec_svc.cards(db, [did])[0]
+    now = datetime.now()
+    idx = spec_svc.DoctorIndex(spec_svc.all_doctors(db))
+    upcoming = [v for v in db.scalars(select(Visit).where(Visit.status == "booked", Visit.starts_at > now,
+                                                          Visit.starts_at <= now + timedelta(days=14),
+                                                          Visit.master_name.is_not(None)).order_by(Visit.starts_at))
+                if (m := idx.find(v.master_name)) and m.id == did][:30]
+    patients = db.scalars(select(Patient).where(Patient.doctor_id == did).order_by(Patient.full_name).limit(200)).all()
+    return render(request, "specialist.html", d=d, c=card, upcoming=upcoming, patients=patients,
+                  palette=spec_svc.PALETTE)
+
+
+@app.post("/specialists/{did:int}")
+def specialist_save(did: int, name: str = Form(...), position: str = Form(""), phone: str = Form(""),
+                    email: str = Form(""), color: str = Form(""), bio: str = Form(""), work_days: str = Form(""),
+                    telegram_chat_id: str = Form(""), photo_url: str = Form(""), status: str = Form("active"),
+                    in_calendar: str = Form(""), user: User = Depends(require("specialists_edit")),
+                    db: Session = Depends(db_dep)):
+    d = db.get(Doctor, did)
+    if not d:
+        raise HTTPException(404)
+    name = name.strip()
+    if name and name != d.name and not db.scalar(select(Doctor).where(Doctor.name == name)):
+        d.name = name
+    d.position, d.phone, d.email = position.strip() or None, phone.strip() or None, email.strip() or None
+    d.bio, d.work_days = bio.strip() or None, work_days.strip() or None
+    d.telegram_chat_id = telegram_chat_id.strip() or None
+    photo_url = photo_url.strip()
+    d.photo_url = photo_url if photo_url.startswith("https://") else (None if not photo_url else d.photo_url)
+    d.color = color if COLOR_RE.match(color or "") else None
+    want_active = status != "fired"
+    if want_active != bool(d.active):
+        d.active, d.status_locked = want_active, True
+        d.fired_at = None if want_active else date.today()
+    d.in_calendar = in_calendar == "1"
+    db.commit()
+    audit(db, "specialist.update", "doctor", d.id, user=user)
+    return RedirectResponse(f"/specialists/{did}?saved=1", 303)
+
+
+@app.post("/specialists/{did:int}/unlock")
+def specialist_unlock(did: int, user: User = Depends(require("specialists_edit")), db: Session = Depends(db_dep)):
+    d = db.get(Doctor, did)
+    if d:
+        d.status_locked = False
+        db.commit()
+        audit(db, "specialist.status_auto", "doctor", d.id, user=user)
+    return RedirectResponse(f"/specialists/{did}", 303)

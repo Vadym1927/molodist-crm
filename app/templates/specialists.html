@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Спеціалісти · MOLODIST CRM{% endblock %}
+{% block body %}
+<style>
+.sp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.sp-card{background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);text-decoration:none;display:flex;flex-direction:column;overflow:hidden;transition:transform .12s,box-shadow .12s}
+.sp-card:hover{transform:translateY(-2px);box-shadow:0 12px 30px -16px rgba(60,40,25,.35)}
+.sp-top{display:flex;gap:14px;align-items:center;padding:18px 18px 14px;border-top:4px solid var(--c)}
+.sp-av{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;color:#fff;font:600 20px/1 var(--serif);background:var(--c) center/cover no-repeat;flex:none;box-shadow:0 0 0 3px var(--card),0 0 0 4px var(--line)}
+.sp-top h3{margin:0;font:600 21px/1.15 var(--serif)}
+.sp-top .pos{color:var(--muted);font-size:12.5px;margin-top:3px}
+.sp-stats{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--line)}
+.sp-stats div{padding:11px 14px;border-left:1px solid var(--line)}.sp-stats div:first-child{border-left:0}
+.sp-stats b{display:block;font:600 20px/1.1 var(--serif)}.sp-stats span{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700}
+.sp-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 16px;background:var(--soft);font-size:12px;color:var(--muted)}
+.src{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:6px;background:var(--accent-soft);color:var(--accent-ink)}
+.src.manual{background:var(--done-bg);color:var(--done)}
+.newsp{border:1.5px dashed var(--line);border-radius:20px;padding:18px;display:flex;flex-direction:column;gap:10px;justify-content:center;background:transparent}
+</style>
+<div class="row between" style="align-items:flex-end;margin-bottom:6px">
+  <div><div class="eyebrow">Клініка</div><h1>Спеціалісти</h1>
+    <div class="muted">Дані з CleverBox (імʼя, фото, пошта, статус) оновлюються щодня; посаду, графік, опис і колір ведете тут.</div></div>
+</div>
+<div class="tabs">
+  <a href="?show=active" class="{{ 'on' if show!='fired' }}">Працюють<em>{{ n_active }}</em></a>
+  <a href="?show=fired" class="{{ 'on' if show=='fired' }}">Звільнені<em>{{ n_fired }}</em></a>
+</div>
+
+<div class="sp-grid">
+{% for c in cards %}{% set d = c.doctor %}
+  <a class="sp-card" href="/specialists/{{ d.id }}" style="--c:{{ c.color }}">
+    <div class="sp-top">
+      <div class="sp-av" {% if d.photo_url %}style="background-image:url('{{ d.photo_url }}')"{% endif %}>{{ '' if d.photo_url else c.initials }}</div>
+      <div style="min-width:0"><h3>{{ d.name }}</h3>
+        <div class="pos">{{ d.position or ('Звільнений' if not d.active else 'Посаду не вказано') }}</div></div>
+    </div>
+    <div class="sp-stats">
+      <div><b>{{ c.month_visits }}</b><span>послуг / міс</span></div>
+      <div><b>{{ c.upcoming }}</b><span>записів 14 дн</span></div>
+      <div><b>{{ c.kpi.active if c.kpi else 0 }}</b><span>бюті-планів</span></div>
+    </div>
+    <div class="sp-foot">
+      <span>{% if c.next_visit %}найближчий запис {{ c.next_visit|dt('%d.%m %H:%M') }}{% elif c.last_visit %}останній візит {{ c.last_visit|dt('%d.%m.%Y') }}{% else %}ще немає візитів{% endif %}</span>
+      <span class="src {{ 'manual' if d.source=='manual' }}">{{ 'CleverBox' if d.cleverbox_id else ('вручну' if d.source=='manual' else 'з плану') }}</span>
+    </div>
+  </a>
+{% else %}
+  <div class="card muted">{{ 'Звільнених немає.' if show=='fired' else 'Спеціалісти зʼявляться після синхронізації з CleverBox або додайте вручну.' }}</div>
+{% endfor %}
+{% if can(user,'specialists_edit') and show!='fired' %}
+  <form class="newsp" method="post" action="/specialists">
+    <b style="font:600 20px var(--serif)">Новий спеціаліст</b>
+    <span class="muted small">Якщо його немає в CleverBox — картка ведеться лише тут.</span>
+    <input name="name" placeholder="Імʼя та прізвище" required>
+    <input name="position" placeholder="Посада, напр. лікар-косметолог">
+    <div><button class="btn">Додати</button></div>
+  </form>
+{% endif %}
+</div>
+{% if staff_fields and user.role=='owner' %}<details class="small" style="margin-top:22px"><summary>Які поля віддає CleverBox по співробітниках</summary>
+  <p class="muted">{{ staff_fields }}</p></details>{% endif %}
+{% endblock %}

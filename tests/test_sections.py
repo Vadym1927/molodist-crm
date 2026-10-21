@@ -48,7 +48,7 @@ def test_sections(monkeypatch, tmp_path):
 
         from datetime import date, timedelta
         cal = c.get(f"/calendar?start={(date.today() + timedelta(days=5)).isoformat()}").text   # тиждень із записами
-        assert "Даниленко" in cal and "Нова Клієнтка" in cal and "ev visit plan" in cal
+        assert "Даниленко" in cal and "Нова Клієнтка" in cal and "class=\"tag\">план" in cal
 
         # склад: залишок Azelorosa 2, інші засоби з плану не куплені і їх немає на складі -> дефіцит
         st = c.get("/stock?only=deficit").text

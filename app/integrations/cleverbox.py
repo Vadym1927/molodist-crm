@@ -267,16 +267,120 @@ def sync_services(db: Session, cb: CleverBox) -> int:
     return n
 
 
+STAFF_FIRED_KEYS = ("fired", "is_fired", "dismissed", "is_dismissed", "deleted", "is_deleted", "archive",
+                    "archived", "is_archive", "blocked", "is_blocked")
+STAFF_ACTIVE_KEYS = ("active", "is_active", "enabled", "works", "is_work", "visible")
+STAFF_POSITION_KEYS = ("position", "post", "speciality", "specialty", "specialization", "job", "role_name", "role")
+
+
+def _truthy(v) -> bool:
+    return str(v).strip().lower() in ("1", "true", "yes", "y", "так")
+
+
+def _falsy(v) -> bool:
+    return str(v).strip().lower() in ("0", "false", "no", "n", "ні")
+
+
+def staff_is_fired(s: dict) -> bool:
+    if any(_truthy(s.get(k)) for k in STAFF_FIRED_KEYS if s.get(k) not in (None, "")):
+        return True
+    if any(_falsy(s.get(k)) for k in STAFF_ACTIVE_KEYS if s.get(k) not in (None, "")):
+        return True
+    st = str(s.get("status") or s.get("_status") or "").lower()
+    return bool(re.search(r"звільн|уволен|fired|dismiss|архів|архив", st))
+
+
+def staff_name(s: dict) -> str:
+    return " ".join(filter(None, [str(s.get("name") or "").strip(), str(s.get("lname") or "").strip()])).strip()
+
+
+def same_person(a: str | None, b: str | None) -> bool:
+    """«Дарʼя Колган» ≈ «Колган Дарʼя» ≈ «Дарʼя Колган (косметолог)»."""
+    ta, tb = set(norm(a or "").split()), set(norm(b or "").split())
+    if not ta or not tb:
+        return False
+    return ta == tb or (len(ta) >= 2 and ta <= tb) or (len(tb) >= 2 and tb <= ta)
+
+
+def match_doctor(name: str | None, doctors) -> "Doctor | None":
+    if not name:
+        return None
+    for d in doctors:
+        if same_person(d.name, name):
+            return d
+    return None
+
+
 def sync_staff(db: Session, cb: CleverBox) -> int:
+    """Спеціалісти з CleverBox: привʼязка до наявних карток, нові картки, статус «працює / звільнений».
+    Хто є у /staff і не позначений звільненим — працює. Майстри з історії візитів, яких уже немає
+    у /staff, — звільнені. Ручно змінений статус (status_locked) синк не перезаписує."""
     staff = cb.staff()
+    keys = set()
+    for s in staff:
+        keys.update(s.keys())
+    _state(db, "cleverbox_staff_fields", ",".join(sorted(keys))[:1000])      # лише назви полів
+    doctors = db.scalars(select(Doctor)).all()
+    by_cb = {d.cleverbox_id: d for d in doctors if d.cleverbox_id}
+    now = datetime.utcnow()
     n = 0
-    for doc in db.scalars(select(Doctor).where(Doctor.cleverbox_id.is_(None))):
-        dn = set(norm(doc.name).split())
-        for s in staff:
-            sn = set(norm(f"{s.get('name', '')} {s.get('lname', '')}").split())
-            if dn and dn == sn:
-                doc.cleverbox_id = int(s["id"]); n += 1
-                break
+    seen = set()
+    for s in staff:
+        try:
+            sid = int(s["id"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        name = staff_name(s)
+        if not name:
+            continue
+        doc = by_cb.get(sid) or next((d for d in doctors if not d.cleverbox_id and same_person(d.name, name)), None)
+        if not doc:
+            if db.scalar(select(Doctor).where(Doctor.name == name)):
+                name = f"{name} #{sid}"
+            doc = Doctor(name=name, source="cleverbox", active=True, in_calendar=True)
+            db.add(doc)
+            doctors.append(doc)
+            n += 1
+        elif not doc.cleverbox_id:
+            n += 1
+        doc.cleverbox_id = sid
+        by_cb[sid] = doc
+        seen.add(sid)
+        doc.source = doc.source or "cleverbox"
+        doc.cb_seen_at = now
+        if s.get("email") and not doc.email:
+            doc.email = str(s["email"]).strip()[:200]
+        phone = s.get("phone") or s.get("mobile")
+        if phone and not doc.phone:
+            doc.phone = str(phone).strip()[:64]
+        img = s.get("img") or s.get("photo") or s.get("avatar")
+        if isinstance(img, str) and img.startswith("http"):
+            doc.photo_url = img[:500]
+        pos = next((s.get(k) for k in STAFF_POSITION_KEYS if isinstance(s.get(k), str) and s.get(k).strip()), None)
+        if pos and not doc.position:
+            doc.position = pos.strip()[:200]
+        if not doc.status_locked:
+            fired = staff_is_fired(s)
+            if fired and doc.active:
+                doc.fired_at = date.today()
+            doc.active = not fired
+            if not fired:
+                doc.fired_at = None
+    # майстри з історії, яких немає серед співробітників CleverBox, — звільнені
+    if staff:
+        for d in doctors:
+            if d.cleverbox_id and d.cleverbox_id not in seen and d.active and not d.status_locked:
+                d.active, d.fired_at = False, date.today()
+        masters = {m for (m,) in db.execute(select(Visit.master_name).where(Visit.master_name.is_not(None)).distinct())}
+        for m in sorted(masters):
+            m = (m or "").strip()
+            if not m or "," in m or match_doctor(m, doctors):
+                continue
+            if db.scalar(select(Doctor).where(Doctor.name == m)):
+                continue
+            d = Doctor(name=m[:200], source="cleverbox", active=False, in_calendar=True)
+            db.add(d)
+            doctors.append(d)
     db.commit()
     return n
 
@@ -548,9 +652,12 @@ def full_sync(db: Session, initial: bool | None = None) -> dict:
     end = date.today()
     start = end - timedelta(days=settings.sync_lookback_days if initial else 3)
     report = {}
-    if initial or not db.scalar(select(CbService).limit(1)):
+    last_staff = _state(db, "last_staff_sync")
+    if initial or not db.scalar(select(CbService).limit(1)) or not last_staff \
+            or datetime.fromisoformat(last_staff) < datetime.now() - timedelta(hours=20):
         report["services"] = sync_services(db, cb)
         report["staff"] = sync_staff(db, cb)
+        _state(db, "last_staff_sync", datetime.now().isoformat(timespec="seconds"))
     report["patients"] = link_patients(db, cb)
     report["done_services"] = sync_done_services(db, cb, start, end)
     report["product_sales"] = sync_product_sales(db, cb, start, end)

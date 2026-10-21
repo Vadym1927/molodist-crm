@@ -18,7 +18,20 @@ class Doctor(Base):
     name: Mapped[str] = mapped_column(String(200), unique=True)
     cleverbox_id: Mapped[int | None] = mapped_column(Integer, index=True)
     telegram_chat_id: Mapped[str | None] = mapped_column(String(64))
-    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)          # працює (False = звільнений)
+    # картка спеціаліста: частина синхронізується з CleverBox (/staff), решта ведеться вручну
+    position: Mapped[str | None] = mapped_column(String(200))           # посада / спеціалізація
+    phone: Mapped[str | None] = mapped_column(String(64))
+    email: Mapped[str | None] = mapped_column(String(200))
+    photo_url: Mapped[str | None] = mapped_column(String(500))
+    color: Mapped[str | None] = mapped_column(String(16))               # колір у календарі
+    bio: Mapped[str | None] = mapped_column(Text)                       # досвід, сертифікати, процедури
+    work_days: Mapped[str | None] = mapped_column(String(100))          # графік, напр. «Пн–Пт 10–19»
+    source: Mapped[str | None] = mapped_column(String(20))              # cleverbox | manual | plan
+    in_calendar: Mapped[bool | None] = mapped_column(Boolean, default=True)
+    status_locked: Mapped[bool | None] = mapped_column(Boolean, default=False)   # статус змінено вручну — синк не чіпає
+    cb_seen_at: Mapped[datetime | None] = mapped_column(DateTime)       # востаннє був у списку /staff
+    fired_at: Mapped[date | None] = mapped_column(Date)
 
 
 class Patient(Base):

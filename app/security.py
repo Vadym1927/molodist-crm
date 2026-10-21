@@ -52,6 +52,8 @@ PERMS: dict[str, set[str]] = {
     "campaigns":      {"owner", "admin"},            # готувати розсилки, превʼю, тест
     "campaigns_send": {"owner"},                     # запускати розсилку на базу
     "scripts_edit":   {"owner"},
+    "specialists":    {"owner", "admin"},            # картки спеціалістів, їх статистика
+    "specialists_edit": {"owner"},
 }
 
 

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}{{ d.name }} · Спеціалісти{% endblock %}
+{% block body %}
+<style>
+.hero{display:flex;gap:22px;align-items:center;margin-bottom:22px;flex-wrap:wrap}
+.hero .av{width:96px;height:96px;border-radius:50%;display:grid;place-items:center;color:#fff;font:600 34px/1 var(--serif);background:var(--c) center/cover no-repeat;box-shadow:0 0 0 4px var(--card),0 0 0 5px var(--line);flex:none}
+.hero h1{margin:0}
+.lay{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:18px;align-items:start}
+.form{display:grid;gap:10px}.form>label,.form .two>label{display:grid;gap:4px;font-size:12px;color:var(--muted);font-weight:600}
+.form input,.form select,.form textarea{width:100%;min-width:0}.form .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sw{display:flex;gap:6px;flex-wrap:wrap}.sw label{display:block;cursor:pointer}.sw input{display:none}
+.sw span{display:block;width:26px;height:26px;border-radius:50%;box-shadow:inset 0 0 0 2px rgba(255,255,255,.6)}
+.sw input:checked+span{box-shadow:0 0 0 2px var(--card),0 0 0 4px var(--ink)}
+.ulist{display:flex;flex-direction:column}.ulist a{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);text-decoration:none}
+.ulist a:last-child{border-bottom:0}
+@media (max-width:1000px){.lay{grid-template-columns:1fr}}
+</style>
+<a href="/specialists" class="muted small" style="text-decoration:none">← Спеціалісти</a>
+<div class="hero" style="--c:{{ c.color }};margin-top:10px">
+  <div class="av" {% if d.photo_url %}style="background-image:url('{{ d.photo_url }}')"{% endif %}>{{ '' if d.photo_url else c.initials }}</div>
+  <div>
+    <div class="eyebrow">{{ d.position or 'Спеціаліст' }}</div>
+    <h1>{{ d.name }}</h1>
+    <div class="row small">
+      {% if d.active %}<span class="pill ok">працює</span>{% else %}<span class="pill bad">звільнений{{ (' з ' ~ d.fired_at.strftime('%d.%m.%Y')) if d.fired_at }}</span>{% endif %}
+      {% if d.cleverbox_id %}<span class="pill done">CleverBox #{{ d.cleverbox_id }}</span>{% else %}<span class="pill warn">немає в CleverBox</span>{% endif %}
+      {% if d.work_days %}<span class="muted">{{ d.work_days }}</span>{% endif %}
+    </div>
+  </div>
+</div>
+{% if request.query_params.get('saved') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">Збережено</div>{% endif %}
+
+<div class="grid g5" style="margin-bottom:18px">
+  <div class="tile"><span>Послуг цього місяця</span><b>{{ c.month_visits }}</b><div class="muted small">минулого: {{ c.prev_month_visits }}</div></div>
+  <div class="tile"><span>Надано на суму</span><b>{{ c.month_revenue|uah }}</b><div class="muted small">цей місяць</div></div>
+  <div class="tile"><span>Записів на 14 днів</span><b>{{ c.upcoming }}</b><div class="muted small">{{ ('найближчий ' ~ c.next_visit.strftime('%d.%m %H:%M')) if c.next_visit else '—' }}</div></div>
+  <div class="tile"><span>Бюті-плани</span><b>{{ c.kpi.active if c.kpi else 0 }}</b><div class="muted small">реалізація {{ c.kpi.realization_pct if c.kpi else 0 }}%</div></div>
+  <div class="tile"><span>Пацієнтів закріплено</span><b>{{ c.patients }}</b><div class="muted small">&nbsp;</div></div>
+</div>
+
+<div class="lay">
+<div>
+  {% if d.bio %}<div class="card"><h2>Про спеціаліста</h2><div style="white-space:pre-line">{{ d.bio }}</div></div>{% endif %}
+  <div class="card"><h2>Записи на 14 днів</h2>
+    <div class="ulist">{% for v in upcoming %}<a href="/patients/{{ v.patient_id }}"><span><b>{{ v.starts_at|dt('%d.%m %H:%M') }}</b> · {{ v.patient.full_name }}</span><span class="muted small">{{ v.service_name or '' }}</span></a>
+    {% else %}<span class="muted">Записів немає.</span>{% endfor %}</div></div>
+  {% if c.top_services %}<div class="card"><h2>Найчастіші послуги цього місяця</h2>
+    <table><tbody>{% for s, n in c.top_services %}<tr><td>{{ s }}</td><td class="r">{{ n }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+  {% if patients %}<div class="card"><h2>Закріплені пацієнти</h2>
+    <div class="ulist">{% for p in patients %}<a href="/patients/{{ p.id }}"><span>{{ p.full_name }}</span><span class="muted small">{{ p.phone or '' }}</span></a>{% endfor %}</div></div>{% endif %}
+</div>
+
+<div class="card" style="position:sticky;top:16px">
+  <h2>Картка</h2>
+  {% if can(user,'specialists_edit') %}
+  <form class="form" method="post">
+    <label>Імʼя та прізвище<input name="name" value="{{ d.name }}" required></label>
+    <label>Посада / спеціалізація<input name="position" value="{{ d.position or '' }}" placeholder="лікар-косметолог, дерматолог…"></label>
+    <div class="two"><label>Телефон<input name="phone" value="{{ d.phone or '' }}"></label>
+      <label>Email<input name="email" value="{{ d.email or '' }}"></label></div>
+    <label>Графік роботи<input name="work_days" value="{{ d.work_days or '' }}" placeholder="Пн–Пт 10:00–19:00"></label>
+    <label>Про спеціаліста (досвід, процедури, сертифікати)<textarea name="bio" rows="5">{{ d.bio or '' }}</textarea></label>
+    <label>Фото (посилання https://…)<input name="photo_url" value="{{ d.photo_url or '' }}" placeholder="підтягується з CleverBox, якщо є"></label>
+    <label>Telegram chat ID (для нагадувань лікарю)<input name="telegram_chat_id" value="{{ d.telegram_chat_id or '' }}"></label>
+    <div style="display:grid;gap:4px;font-size:12px;color:var(--muted);font-weight:600">Колір у календарі
+      <div class="sw">{% for col in palette %}<label><input type="radio" name="color" value="{{ col }}" {{ 'checked' if c.color==col }}><span style="background:{{ col }}"></span></label>{% endfor %}</div></div>
+    <div class="two">
+      <label>Статус<select name="status"><option value="active" {{ 'selected' if d.active }}>Працює</option><option value="fired" {{ 'selected' if not d.active }}>Звільнений</option></select></label>
+      <label>Календар<select name="in_calendar"><option value="1" {{ 'selected' if d.in_calendar is not false }}>Показувати колонку</option><option value="" {{ 'selected' if d.in_calendar is false }}>Не показувати</option></select></label>
+    </div>
+    {% if d.status_locked %}<div class="muted small">Статус змінено вручну — синхронізація з CleverBox його не перезаписує.</div>{% endif %}
+    <div class="row"><button class="btn">Зберегти</button></div>
+  </form>
+  {% if d.status_locked and d.cleverbox_id %}<form method="post" action="/specialists/{{ d.id }}/unlock" style="margin-top:8px"><button class="btn ghost small">Брати статус з CleverBox</button></form>{% endif %}
+  {% else %}
+  <div class="ulist small">
+    <span>Телефон: {{ d.phone or '—' }}</span><span>Email: {{ d.email or '—' }}</span><span>Графік: {{ d.work_days or '—' }}</span>
+  </div>
+  {% endif %}
+</div>
+</div>
+{% endblock %}
