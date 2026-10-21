@@ -12,8 +12,8 @@ from ..integrations.cleverbox import same_person
 from ..models import Doctor, Visit, Patient, SyncState
 from .kpi import all_statuses, KpiRow
 
-# тони під стиль клініки: теплі, приглушені, добре читаються на світлому фоні
-PALETTE = ["#b0855f", "#6f8a7a", "#8a6f9e", "#c07a6b", "#5f7f9e", "#a39257", "#7c6a5c", "#9e6f86"]
+# чіткі, добре розрізнювані кольори спеціалістів (календар, аватари)
+PALETTE = ["#2f80c9", "#d0548a", "#2e9d6a", "#e08a1e", "#7a5bd0", "#d4473b", "#1aa3a3", "#8a6d3b"]
 
 
 def color(d: Doctor | None) -> str:

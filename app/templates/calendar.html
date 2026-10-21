@@ -2,43 +2,44 @@
 {% block title %}Календар · MOLODIST CRM{% endblock %}
 {% block body %}
 <style>
-.cal-top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+.cal-top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:16px}
 .cal-ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.seg{display:inline-flex;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:3px}
-.seg a{padding:6px 14px;border-radius:9px;text-decoration:none;color:var(--muted);font-weight:600;font-size:13px}
-.seg a.on{background:var(--ink);color:#fff}
-.icon-btn{width:36px;height:36px;display:inline-grid;place-items:center;border:1px solid var(--line);border-radius:10px;background:var(--card);text-decoration:none;color:var(--ink)}
-.icon-btn:hover{border-color:var(--accent)}
-.cal-date{padding:7px 10px;border-radius:10px}
-.chips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px}
-.chip{display:inline-flex;align-items:center;gap:8px;padding:5px 12px 5px 6px;border:1px solid var(--line);border-radius:99px;background:var(--card);text-decoration:none;font-size:13px;font-weight:500;color:var(--ink)}
-.chip.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
-.chip.all{padding-left:12px}
-.av{width:24px;height:24px;border-radius:50%;display:inline-grid;place-items:center;color:#fff;font:600 10px/1 var(--sans);flex:none;background-size:cover;background-position:center}
-.wk{display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;align-items:stretch}
-.dcol{flex:var(--n) 1 0;min-width:calc(var(--n) * var(--cw));background:var(--card);border:1px solid var(--line);border-radius:16px;display:flex;flex-direction:column;box-shadow:var(--shadow)}
-.dcol.today{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),var(--shadow)}
-.dhead{display:flex;justify-content:space-between;align-items:baseline;padding:10px 12px 8px}
-.dhead b{font:600 18px/1 var(--serif)}.dhead .wd{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-right:6px}
-.dcol.today .dhead b{color:var(--accent-ink)}
-.dcol.off{opacity:.75}
-.scols{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));flex:1;border-top:1px solid var(--line)}
+.seg{display:inline-flex;background:var(--card);border:1.5px solid var(--line);border-radius:12px;padding:3px}
+.seg a{padding:7px 16px;border-radius:9px;text-decoration:none;color:var(--muted);font-weight:700;font-size:14px}
+.seg a.on{background:var(--brand);color:#fff}
+.icon-btn{width:40px;height:40px;display:inline-grid;place-items:center;border:1.5px solid var(--line);border-radius:12px;background:var(--card);text-decoration:none;color:var(--ink);font-size:20px;font-weight:700}
+.icon-btn:hover{border-color:var(--brand)}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}
+.chip{display:inline-flex;align-items:center;gap:8px;padding:5px 14px 5px 5px;border:1.5px solid var(--line);border-radius:99px;background:var(--card);text-decoration:none;font-size:14px;font-weight:700;color:var(--ink)}
+.chip:hover{border-color:var(--brand)}.chip.on{border-color:var(--brand);background:var(--brand-soft)}
+.chip.all{padding-left:14px}
+.av{width:28px;height:28px;border-radius:50%;display:inline-grid;place-items:center;color:#fff;font:800 11px/1 var(--sans);flex:none;background-size:cover;background-position:center}
+.wk{display:flex;gap:12px;overflow-x:auto;padding-bottom:10px;align-items:stretch}
+.dcol{flex:var(--n) 1 0;min-width:calc(var(--n) * var(--cw));background:var(--card);border:1px solid var(--line);border-radius:16px;display:flex;flex-direction:column;box-shadow:var(--shadow);overflow:hidden}
+.dhead{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--soft);border-bottom:1px solid var(--line)}
+.dhead b{font:800 17px/1 var(--sans)}.dhead .wd{font-size:13px;font-weight:800;text-transform:uppercase;color:var(--muted);margin-right:6px}
+.dhead .cnt{font-size:13px;font-weight:700;color:var(--muted)}
+.dcol.today{border:2px solid var(--brand)}.dcol.today .dhead{background:var(--brand);color:#fff;border-color:var(--brand)}
+.dcol.today .dhead .wd,.dcol.today .dhead .cnt{color:rgba(255,255,255,.85)}
+.scols{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));flex:1}
 .scol{display:flex;flex-direction:column;min-width:0;border-left:1px solid var(--line);padding-bottom:8px}.scol:first-child{border-left:0}
-.shead{display:flex;align-items:center;gap:6px;padding:7px 8px;font-size:12px;font-weight:600;border-bottom:1px dashed var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:37px}
-.shead .av{width:20px;height:20px;font-size:9px}.shead span{overflow:hidden;text-overflow:ellipsis}
-.ev{margin:6px 6px 0;padding:6px 8px 7px;border-radius:9px;font-size:12px;line-height:1.35;text-decoration:none;display:block;background:var(--soft);border-left:3px solid var(--c,var(--ink));transition:transform .08s}
-.ev:hover{transform:translateY(-1px);box-shadow:var(--shadow)}
-.ev .t{font-weight:700;font-size:11px;color:var(--c,var(--ink));display:flex;gap:6px;align-items:center}
-.ev b{font-weight:600;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ev .s{color:var(--muted);font-size:11px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.ev .tag{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;background:var(--ok-bg);color:var(--ok);padding:1px 5px;border-radius:5px}
-.ev.attended{opacity:.55}.ev.attended .t::after{content:"✓";color:var(--ok)}
-.ev.expected{background:transparent;border:1px dashed var(--warn);border-left:3px solid var(--warn)}.ev.expected .t{color:var(--warn)}
+.shead{display:flex;align-items:center;gap:7px;padding:8px 10px;font-size:13.5px;font-weight:800;border-bottom:3px solid var(--c,var(--line));white-space:nowrap;overflow:hidden;min-height:44px}
+.shead .av{width:24px;height:24px;font-size:10px}.shead span{overflow:hidden;text-overflow:ellipsis}
+.ev{margin:8px 8px 0;padding:8px 10px 9px;border-radius:10px;line-height:1.35;text-decoration:none;display:block;color:var(--ink);
+  background:color-mix(in srgb,var(--c,#888) 13%,#fff);border-left:4px solid var(--c,var(--ink))}
+.ev:hover{background:color-mix(in srgb,var(--c,#888) 22%,#fff)}
+.ev .t{font-weight:800;font-size:13px;color:color-mix(in srgb,var(--c,#333) 75%,#000);display:flex;gap:6px;align-items:center}
+.ev b{font-weight:700;font-size:14px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ev .s{color:#4a433d;font-size:12.5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ev .tag{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;background:var(--ok);color:#fff;padding:1px 6px;border-radius:6px}
+.ev.attended{background:#f3f2f0;border-left-color:#bdb6af;color:#8a827b}.ev.attended .t{color:#8a827b}.ev.attended .s{color:#9a928b}
+.ev.attended .t::after{content:"✓ був";font-weight:700;color:var(--ok)}
+.ev.expected{background:var(--warn-bg);border:1.5px dashed var(--warn);border-left:4px solid var(--warn)}.ev.expected .t{color:var(--warn)}
 .ev.task{background:var(--done-bg);border-left-color:var(--done)}.ev.task .t{color:var(--done)}
-.empty{color:var(--muted);font-size:12px;padding:10px;text-align:center}
-.legend2{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:12px}
-.legend2 i{display:inline-block;width:14px;height:14px;border-radius:4px;margin-right:6px;vertical-align:-3px;border:1px solid var(--line)}
-@media (max-width:720px){.dcol{min-width:calc(var(--n) * 150px)}}
+.empty{color:var(--faint);font-size:13px;padding:12px;text-align:center}
+.legend2{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin-top:12px;font-weight:600}
+.legend2 i{display:inline-block;width:14px;height:14px;border-radius:4px;margin-right:6px;vertical-align:-3px}
+@media (max-width:720px){.dcol{min-width:calc(var(--n) * 160px)}}
 </style>
 
 <div class="cal-top">
@@ -67,15 +68,15 @@
 </div>
 {% endif %}
 
-<div class="wk" id="wk" style="--cw:{{ '230px' if view=='day' else '118px' }}">
+<div class="wk" id="wk" style="--cw:{{ '240px' if view=='day' else '140px' }}">
 {% for d, cs in cols.items() %}
   {% set total = ev[d]|selectattr('kind','in',['visit','attended'])|list|length %}
   <section class="dcol {{ 'today' if d==today }} {{ 'off' if not total and d.weekday() >= 5 }}" style="--n:{{ cs|length }}">
     <div class="dhead"><div><span class="wd">{{ ['Пн','Вт','Ср','Чт','Пт','Сб','Нд'][d.weekday()] }}</span><b>{{ d|dt('%d.%m') }}</b></div>
-      <span class="muted small">{{ (total ~ ' зап.') if total else '' }}</span></div>
+      <span class="cnt">{{ (total ~ ' зап.') if total else '' }}</span></div>
     <div class="scols">
     {% for c in cs %}
-      <div class="scol">
+      <div class="scol" style="--c:{{ color(c.doctor) if c.doctor else '#b8b0a8' }}">
         <div class="shead">{% if c.doctor %}<i class="av" style="background-color:{{ color(c.doctor) }}{% if c.doctor.photo_url %};background-image:url('{{ c.doctor.photo_url }}'){% endif %}">{{ '' if c.doctor.photo_url else initials(c.doctor.name) }}</i>
           <span title="{{ c.doctor.name }}">{{ c.doctor.name.split()[0] }}{{ (' ' ~ c.doctor.name.split()[1][:1] ~ '.') if c.doctor.name.split()|length > 1 }}</span>{% if not c.doctor.active %}<span class="muted" title="звільнений">·зв.</span>{% endif %}
           {% elif cs|length > 1 or c.events %}<span class="muted">Без спеціаліста</span>{% endif %}</div>
@@ -92,11 +93,11 @@
 </div>
 
 <div class="legend2">
-  <span><i style="background:var(--soft);border-left:3px solid var(--accent)"></i>запис (колір — спеціаліст)</span>
-  <span><i style="background:var(--ok-bg)"></i>«план» — пацієнтка з бюті-планом</span>
-  <span><i style="border:1px dashed var(--warn)"></i>очікується за планом, без запису</span>
-  <span><i style="background:var(--done-bg)"></i>задача</span>
-  <span><i style="background:var(--soft);opacity:.5"></i>відбувся</span>
+  <span><i style="background:#e9dfd8;border-left:4px solid var(--brand)"></i>запис (колір — спеціаліст)</span>
+  <span><i style="background:var(--ok)"></i>«план» — пацієнтка з бюті-планом</span>
+  <span><i style="background:var(--warn-bg);border:1.5px dashed var(--warn)"></i>очікується за планом, без запису</span>
+  <span><i style="background:var(--done)"></i>задача</span>
+  <span><i style="background:#d8d2cc"></i>відбувся</span>
 </div>
 <script>(function(){var w=document.getElementById('wk'),t=w&&w.querySelector('.dcol.today');
 if(t&&w.scrollWidth>w.clientWidth){w.scrollLeft=Math.max(0,t.offsetLeft-w.offsetLeft-12)}})();</script>
