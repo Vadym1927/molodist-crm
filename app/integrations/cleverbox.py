@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import re
+import threading
 import time
 import base64
 import hashlib
@@ -84,6 +85,15 @@ def phone_key(p: str | None) -> str:
     return re.sub(r"\D", "", p or "")[-9:]
 
 
+_RATE_LOCK = threading.Lock()
+_RATE = {"last": 0.0}
+
+
+def _is_rate_limited(err) -> bool:
+    e = str(err or "").lower()
+    return err == 429 or "per second" in e or "too many" in e or "limit" in e and "request" in e
+
+
 class CleverBox:
     def __init__(self, token: str | None = None, base_url: str | None = None):
         self.token = token or settings.cleverbox_token
@@ -94,24 +104,34 @@ class CleverBox:
         self.http = httpx.Client(timeout=30, headers={"token": self.token, "Content-Type": "application/json"})
 
     def call(self, method: str, body: dict | None = None) -> dict:
-        wait = settings.cleverbox_min_interval_sec - (time.monotonic() - self._last)
-        if wait > 0:
-            time.sleep(wait)
-        for attempt in range(3):
-            self._last = time.monotonic()
-            r = self.http.post(f"{self.base}/{method.lstrip('/')}", json=body or {})
+        """Один запит до CleverBox. Ліміт 1 запит/сек спільний для ВСІХ клієнтів у процесі
+        (плановий синк, вебхуки, кнопки, запис), а при «no more than 1 request per second»
+        запит повторюється з паузою — помилка не доходить до синку."""
+        url = f"{self.base}/{method.lstrip('/')}"
+        for attempt in range(6):
+            with _RATE_LOCK:
+                wait = settings.cleverbox_min_interval_sec - (time.monotonic() - _RATE["last"])
+                if wait > 0:
+                    time.sleep(wait)
+                try:
+                    r = self.http.post(url, json=body or {})
+                finally:
+                    _RATE["last"] = time.monotonic()
             if r.status_code == 429 or r.status_code >= 500:
-                time.sleep(2 * (attempt + 1))
+                time.sleep(1.5 * (attempt + 1))
                 continue
-            break
-        if r.status_code in ERRORS:
-            raise CleverBoxError(f"{method}: {ERRORS[r.status_code]}")
-        r.raise_for_status()
-        data = r.json()
-        if isinstance(data, dict) and data.get("ok") is False:
-            err = data.get("error")
-            raise CleverBoxError(f"{method}: {ERRORS.get(err, err) if isinstance(err, int) else err}")
-        return data
+            if r.status_code in ERRORS:
+                raise CleverBoxError(f"{method}: {ERRORS[r.status_code]}")
+            r.raise_for_status()
+            data = r.json()
+            if isinstance(data, dict) and data.get("ok") is False:
+                err = data.get("error")
+                if _is_rate_limited(err) and attempt < 5:
+                    time.sleep(1.5 * (attempt + 1))
+                    continue
+                raise CleverBoxError(f"{method}: {ERRORS.get(err, err) if isinstance(err, int) else err}")
+            return data
+        raise CleverBoxError(f"{method}: CleverBox перевантажений (ліміт запитів), спробуйте пізніше")
 
     def paged(self, method: str, body: dict | None = None, page: int = 100) -> Iterator[dict]:
         offset = 0

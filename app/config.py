@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     cleverbox_token: str = ""
     cleverbox_base_url: str = "https://cbox.mobi/api/v3/rest"
     cleverbox_filial_id: int | None = None
-    cleverbox_min_interval_sec: float = 1.05       # ліміт API: не більше 1 запиту/сек
+    cleverbox_min_interval_sec: float = 1.2        # ліміт API: не більше 1 запиту/сек
 
     # Telegram
     telegram_bot_token: str = ""

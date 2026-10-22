@@ -100,3 +100,21 @@ def test_full_sync(monkeypatch):
     azel = next(i for i in plan.items if "Azelorosa" in i.name)
     assert azel.product_id == prod.id and db.query(Product).count() == 5      # 4 засоби з плану + 1 з CleverBox (злиття)
     assert db.query(Patient).filter(Patient.cleverbox_id == 888).count() == 1   # клієнт із календаря
+
+
+def test_rate_limit_retry(monkeypatch):
+    """«no more than 1 request per second» → пауза і повтор, а не помилка синку."""
+    import app.integrations.cleverbox as cbm
+    from app.config import settings
+    monkeypatch.setattr(settings, "cleverbox_min_interval_sec", 0)
+    monkeypatch.setattr(cbm.time, "sleep", lambda s: None)
+    calls = {"n": 0}
+
+    def h(req):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            return httpx.Response(200, json={"ok": False, "error": "no more than 1 request per second"})
+        return httpx.Response(200, json={"ok": True, "data": [{"id": 1}]})
+    cb = cbm.CleverBox(token="test")
+    cb.http = httpx.Client(transport=httpx.MockTransport(h))
+    assert cb.filials() == [{"id": 1}] and calls["n"] == 3
