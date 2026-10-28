@@ -1,28 +1,106 @@
 {% extends "base.html" %}
+{% block title %}Продукти · MOLODIST CRM{% endblock %}
 {% block body %}
-<h1>Продукти</h1>
-<div class="tabs"><a href="?tab=care" class="{{ 'on' if tab=='care' }}">Засоби домашнього догляду</a><a href="?tab=procedures" class="{{ 'on' if tab=='procedures' }}">Процедури</a><a href="/mapping" class="{{ 'on' if nav=='mapping' }}">Зіставлення з CleverBox</a></div>
+<style>
+.fl{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.fl input[name=q]{flex:1;min-width:220px;height:44px}.fl select{height:44px;font-weight:600;max-width:240px}
+.kf{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}
+.kf a{display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:99px;border:1.5px solid var(--line);background:var(--card);text-decoration:none;font-size:13.5px;font-weight:600;color:var(--ink)}
+.kf a:hover{border-color:var(--classic)}.kf a.on{background:var(--deep);border-color:var(--deep);color:#fff}
+.kf a em{font-style:normal;font-weight:700;font-size:12px;padding:0 7px;border-radius:99px;background:var(--soft);color:var(--muted)}
+.kf a.on em{background:rgba(255,255,255,.18);color:#fff}
+.kf a.alert-f em{background:var(--bad-bg);color:var(--bad)}.kf a.warn-f em{background:var(--warn-bg);color:var(--warn)}
+.sum{display:flex;gap:22px;flex-wrap:wrap;color:var(--muted);font-weight:600;font-size:13.5px;margin-bottom:10px}.sum b{color:var(--ink)}
+.bgrp{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);margin-bottom:16px;overflow:auto}
+.bgrp h2{display:flex;align-items:center;gap:12px;margin:0;padding:14px 18px;border-bottom:1px solid var(--line);background:var(--soft)}
+.bgrp h2 em{font:600 12.5px var(--sans);text-transform:none;letter-spacing:0;color:var(--muted);font-style:normal}
+.pt td{vertical-align:middle}.pt td.nm{min-width:280px}
+.pt a.pn{font-weight:600;text-decoration:none;color:var(--ink)}.pt a.pn:hover{color:var(--classic);text-decoration:underline}
+.pt .meta{font-size:12.5px;color:var(--muted);margin-top:2px}
+.pt .cb{width:34px}.pt th{white-space:nowrap}
+.exp{font-weight:700;font-size:13px;white-space:nowrap}.exp.bad{color:var(--bad)}.exp.warn{color:var(--warn)}
+.stk{font-weight:700}.stk.zero{color:var(--bad)}.stk.low{color:var(--warn)}
+.mg{font-weight:700}.mg.low{color:var(--warn)}
+.bulk{position:sticky;bottom:12px;z-index:5;display:none;gap:10px;align-items:center;background:var(--graphite);color:#fff;border-radius:14px;padding:10px 14px;box-shadow:0 10px 30px -10px rgba(0,0,0,.4);margin-top:10px}
+.bulk.show{display:flex}.bulk input,.bulk select{height:38px}
+</style>
+<div class="row between" style="align-items:flex-end">
+  <div><div class="eyebrow">Склад і продажі</div><h1>Продукти</h1></div>
+</div>
+<div class="tabs">
+  <a href="?tab=care" class="{{ 'on' if tab=='care' }}">Засоби домашнього догляду</a>
+  <a href="?tab=suppliers" class="{{ 'on' if tab=='suppliers' }}">Постачальники</a>
+  <a href="?tab=procedures" class="{{ 'on' if tab=='procedures' }}">Процедури</a>
+  <a href="/mapping" class="{{ 'on' if nav=='mapping' }}">Зіставлення з CleverBox</a></div>
+
 {% if tab=='care' %}
-<p class="muted small">Каталог формується з товарів CleverBox і засобів із бюті-планів. «Днів» — на скільки вистачає засобу (від цього рахуються нагадування про повторну покупку); «Мін. залишок» — для замовлень на складі.</p>
+<form class="fl" method="get">
+  <input type="hidden" name="tab" value="care"><input type="hidden" name="f" value="{{ f }}">
+  <input name="q" value="{{ q }}" placeholder="Назва, бренд або артикул">
+  <select name="brand" onchange="this.form.submit()"><option value="">Усі бренди</option>
+    {% for b in brands %}<option {{ 'selected' if brand==b }}>{{ b }}</option>{% endfor %}<option value="—" {{ 'selected' if brand=='—' }}>Без бренду</option></select>
+  <select name="supplier" onchange="this.form.submit()"><option value="">Усі постачальники</option>
+    {% for x in suppliers %}<option {{ 'selected' if supplier==x }}>{{ x }}</option>{% endfor %}</select>
+  <select name="sort" onchange="this.form.submit()">{% for k, v in SORTS.items() %}<option value="{{ k }}" {{ 'selected' if sort==k }}>{{ v }}</option>{% endfor %}</select>
+  <button class="btn ghost" style="height:44px">Знайти</button>
+</form>
+<div class="kf">
+  {% set base = '?tab=care&q=' ~ q ~ '&brand=' ~ brand ~ '&supplier=' ~ supplier ~ '&sort=' ~ sort %}
+  <a href="{{ base }}" class="{{ 'on' if not f }}">Усі</a>
+  {% for k, v in FILTERS.items() %}<a href="{{ base }}&f={{ k }}" class="{{ 'on' if f==k }} {{ 'alert-f' if k in ('out','expired') else ('warn-f' if k in ('low','expiring','lowmargin') else '') }}">{{ v }} <em>{{ counts[k] }}</em></a>{% endfor %}
+</div>
+<div class="sum"><span>Позицій: <b>{{ tot.n }}</b></span><span>Залишок: <b>{{ '%g'|format(tot.stock) }} шт</b></span>
+  <span>Вартість залишку (за закупівлею): <b>{{ tot.value|uah }}</b></span><span>Продано за 90 дн: <b>{{ tot.sold|uah }}</b></span></div>
+
+<form method="post" action="/products/bulk" id="bulkf">
+<input type="hidden" name="back" value="{{ request.url.path }}?{{ request.url.query }}">
+{% for bname, rows in groups %}
+<section class="bgrp">
+  {% if sort=='brand' %}<h2>{{ bname or 'Без бренду' }} <em>{{ rows|length }} поз. · залишок {{ '%g'|format(rows|map(attribute='stock')|select|sum) }} шт · {{ rows|sum(attribute='stock_value')|uah }}</em></h2>{% endif %}
+  <table class="pt"><thead><tr>
+    {% if can(user,'products') %}<th class="cb"><input type="checkbox" onclick="for(const c of this.closest('table').querySelectorAll('tbody input[type=checkbox]')){c.checked=this.checked};bulkUi()"></th>{% endif %}
+    <th>Засіб</th><th>Постачальник</th><th class="r">Закупівля сер.</th><th class="r">Остання закупівля</th><th class="r">Продаж</th><th class="r">Націнка</th>
+    <th class="r">Залишок</th><th class="r" title="На скільки днів вистачить за темпом продажів 90 днів">Вистачить</th><th>Термін придатності</th><th class="r" title="Продано за 90 днів">Продано 90д</th></tr></thead><tbody>
+  {% for r in rows %}{% set p = r.product %}{% set fl = flags[p.id] %}
+    <tr>
+      {% if can(user,'products') %}<td class="cb"><input type="checkbox" name="ids" value="{{ p.id }}" onchange="bulkUi()"></td>{% endif %}
+      <td class="nm"><a class="pn" href="/products/{{ p.id }}">{{ p.name }}</a>
+        <div class="meta">{{ ('арт. ' ~ p.sku) if p.sku else 'артикул —' }}{% if sort!='brand' and p.brand %} · {{ p.brand }}{% endif %}{{ (' · ' ~ p.volume) if p.volume }}{% if r.prescribed %} · у планах {{ r.prescribed }}{% endif %}{% if not p.cb_product_id %} · <span style="color:var(--warn)">немає в CleverBox</span>{% endif %}</div></td>
+      <td class="small">{{ p.supplier or r.last_supplier or '—' }}</td>
+      <td class="r">{{ r.cost_avg|uah if r.cost_avg else '—' }}</td>
+      <td class="r">{% if r.cost_last %}{{ r.cost_last|uah }}<div class="meta">{{ r.last_bought|dt('%d.%m.%y') }}</div>{% else %}—{% endif %}</td>
+      <td class="r">{{ r.sale_price|uah if r.sale_price else '—' }}</td>
+      <td class="r"><span class="mg {{ 'low' if 'lowmargin' in fl }}">{{ (r.margin ~ '%') if r.margin is not none else '—' }}</span></td>
+      <td class="r"><span class="stk {{ 'zero' if 'out' in fl else ('low' if 'low' in fl) }}">{{ ('%g'|format(r.stock)) if r.stock is not none else '—' }}</span>{% if p.min_stock %}<div class="meta">мін {{ p.min_stock }}</div>{% endif %}</td>
+      <td class="r small">{{ (r.days_left ~ ' дн') if r.days_left is not none else '—' }}</td>
+      <td>{% if r.expiry %}<span class="exp {{ 'bad' if 'expired' in fl else ('warn' if 'expiring' in fl) }}">{{ r.expiry|dt('%d.%m.%Y') }}</span>
+          <div class="meta">{% if r.days_to_expiry < 0 %}прострочено{% else %}через {{ r.days_to_expiry }} дн{% endif %}</div>{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td class="r">{{ ('%g'|format(r.sold_90)) if r.sold_90 else '—' }}</td>
+    </tr>
+  {% endfor %}
+  </tbody></table>
+</section>
+{% else %}<div class="card muted">Нічого не знайдено за цими фільтрами.</div>{% endfor %}
+{% if can(user,'products') %}
+<div class="bulk" id="bulkbar"><b id="bulkn">0</b> обрано ·
+  <select name="field"><option value="brand">Призначити бренд</option><option value="supplier">Призначити постачальника</option></select>
+  <input name="value" list="bulkvals" placeholder="Назва" required style="min-width:220px">
+  <datalist id="bulkvals">{% for b in brands %}<option value="{{ b }}">{% endfor %}{% for x in suppliers %}<option value="{{ x }}">{% endfor %}</datalist>
+  <button class="btn">Застосувати</button></div>
+{% endif %}
+</form>
+<script>function bulkUi(){var n=document.querySelectorAll('#bulkf tbody input[type=checkbox]:checked').length;var b=document.getElementById('bulkbar');if(!b)return;b.classList.toggle('show',n>0);document.getElementById('bulkn').textContent=n}</script>
+
+{% elif tab=='suppliers' %}
+<p class="muted small">Постачальники — з закупівель і карток засобів. Закупівлю вносять у картці засобу (блок «Закупівлі»).</p>
 <div class="card" style="padding:6px 8px;overflow:auto"><table>
-  <thead><tr><th>Засіб</th><th class="r">Ціна</th><th class="r">Призн.</th><th class="r">Куплено</th><th>Конверсія</th><th class="r">Виручка</th><th class="r" title="Потреба на 30 днів">Потреба 30д</th><th class="r">Залишок</th><th></th></tr></thead><tbody>
-  {% for r in products %}{% set p = r.product %}
-    <tr id="p{{ p.id }}"><td style="min-width:260px">{% if p.url %}<a href="{{ p.url }}" target="_blank">{{ p.name }}</a>{% else %}{{ p.name }}{% endif %}
-        <div class="small muted">{{ p.category or '' }}{{ (' · ' ~ p.volume) if p.volume }}{% if not p.cb_product_id %} · <span style="color:var(--warn)">немає в CleverBox</span>{% endif %} · пацієнтів {{ r.patients|length }}</div></td>
-      <td class="r">{{ p.price|uah if p.price else '—' }}</td><td class="r">{{ r.prescribed or '—' }}</td><td class="r">{{ r.bought or '—' }}</td>
-      <td>{% if r.prescribed %}<div class="row" style="gap:6px;flex-wrap:nowrap"><div class="bar" style="width:70px"><i style="width:{{ [r.conversion,100]|min }}%"></i></div><span class="small">{{ r.conversion }}%</span></div>{% endif %}</td>
-      <td class="r">{{ r.revenue|uah if r.revenue else '—' }}</td><td class="r">{{ r.need_30 or '—' }}</td>
-      <td class="r">{{ ('%g'|format(r.stock)) if r.stock is not none else '—' }}</td>
-      <td><div class="small muted" style="white-space:nowrap">{{ (p.supply_days ~ ' дн') if p.supply_days else 'дн —' }} · мін {{ p.min_stock or '—' }}</div>
-        <details><summary class="small">змінити</summary>
-        <form method="post" action="/products/{{ p.id }}" class="grid" style="gap:6px;margin-top:6px;min-width:220px">
-        <label class="small muted">На скільки днів вистачає<input name="supply_days" value="{{ p.supply_days or '' }}" style="width:100%"></label>
-        <label class="small muted">Мінімальний залишок, шт<input name="min_stock" value="{{ p.min_stock or '' }}" style="width:100%"></label>
-        <label class="small muted">Посилання на molodist.store<input name="url" value="{{ p.url or '' }}" style="width:100%"></label>
-        <label class="small"><input type="checkbox" name="apply" value="1"> застосувати тривалість до активних планів</label>
-        <button class="btn ghost">Зберегти</button></form></details></td></tr>
-  {% else %}<tr><td colspan="9" class="muted">Каталог порожній — завантажте бюті-план або синхронізуйте CleverBox.</td></tr>{% endfor %}
+  <thead><tr><th>Постачальник</th><th class="r">Засобів</th><th class="r">Закупівель</th><th class="r">Сума закупівель</th><th>Остання закупівля</th><th></th></tr></thead><tbody>
+  {% for name, a in supplier_rows %}<tr><td><b>{{ name }}</b></td><td class="r">{{ a.products|length }}</td><td class="r">{{ a.n or '—' }}</td>
+    <td class="r">{{ a.sum|uah if a.sum else '—' }}</td><td>{{ a.last|dt('%d.%m.%Y') if a.last else '—' }}</td>
+    <td><a class="small" href="?tab=care&supplier={{ name|urlencode }}">засоби →</a></td></tr>
+  {% else %}<tr><td colspan="6" class="muted">Ще немає постачальників. Додайте постачальника в картці засобу або внесіть закупівлю.</td></tr>{% endfor %}
   </tbody></table></div>
+
 {% else %}
 <p class="muted small">Процедури з усіх бюті-планів: скільки призначено, скільки реально виконано, скільки записано наперед.</p>
 <div class="card" style="padding:6px 8px;overflow:auto"><table>

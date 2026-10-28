@@ -74,7 +74,7 @@ def test_sections(monkeypatch, tmp_path):
             assert db.get(Task, tid).status == "done"
 
         pr = c.get("/products").text
-        assert "Azelorosa" in pr and "Конверсія" in pr
+        assert "Azelorosa" in pr and "Термін придатності" in pr
         assert "IPL" in c.get("/products?tab=procedures").text
         c.post("/products/2", data={"supply_days": "45", "min_stock": "3", "url": "", "apply": "1"})
 

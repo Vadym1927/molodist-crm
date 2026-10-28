@@ -323,6 +323,28 @@ class Product(Base):
     url: Mapped[str | None] = mapped_column(String(500))
     min_stock: Mapped[int | None] = mapped_column(Integer)        # мінімальний залишок (для замовлення)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+    brand: Mapped[str | None] = mapped_column(String(120), index=True)
+    supplier: Mapped[str | None] = mapped_column(String(200), index=True)   # основний постачальник
+    sku: Mapped[str | None] = mapped_column(String(100), index=True)        # артикул
+    expiry_date: Mapped[date | None] = mapped_column(Date)                  # термін придатності (найближчий, вручну)
+    price_manual: Mapped[float | None] = mapped_column(Float)               # ціна продажу, якщо немає в CleverBox
+
+
+class ProductPurchase(Base):
+    """Закупівля партії засобу: від неї — середня й остання ціна закупівлі та термін придатності."""
+    __tablename__ = "product_purchases"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), index=True)
+    bought_on: Mapped[date] = mapped_column(Date, index=True)          # дата закупівлі
+    supplier: Mapped[str | None] = mapped_column(String(200))
+    qty: Mapped[float] = mapped_column(Float, default=1)
+    unit_cost: Mapped[float] = mapped_column(Float, default=0)
+    expiry_date: Mapped[date | None] = mapped_column(Date)
+    doc_no: Mapped[str | None] = mapped_column(String(100))                 # № накладної
+    note: Mapped[str | None] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    product: Mapped["Product"] = relationship()
 
 
 class StockLevel(Base):

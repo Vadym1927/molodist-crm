@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}{{ p.name }} · Продукти{% endblock %}
+{% block body %}
+<style>
+.ph2{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;flex-wrap:wrap;margin:8px 0 18px}
+.ph2 h1{font-size:28px;line-height:1.2;max-width:900px}
+.chips2{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.chips2 span{font-size:13px;font-weight:600;padding:4px 11px;border-radius:99px;background:var(--card);border:1px solid var(--line)}
+.chips2 .b{background:var(--deep);color:#fff;border-color:var(--deep)}
+.lay{display:grid;grid-template-columns:minmax(0,1fr) 390px;gap:18px;align-items:start}
+.tile small{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}
+.tile b.bad{color:var(--bad)}.tile b.warn{color:var(--warn)}
+.mchart{display:flex;gap:14px;align-items:flex-end;height:150px;padding-top:6px}
+.mchart div{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;justify-content:flex-end;height:100%}
+.mchart i{display:block;width:100%;max-width:46px;background:var(--classic);border-radius:8px 8px 3px 3px;min-height:2px}
+.mchart span{font-size:12px;color:var(--muted);font-weight:600}.mchart em{font-style:normal;font-size:12.5px;font-weight:700}
+.form{display:grid;gap:10px}.form label{display:grid;gap:4px;font-size:12.5px;color:var(--muted);font-weight:600}
+.form input,.form select{width:100%;min-width:0}.form .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.side{position:sticky;top:90px}
+@media (max-width:1100px){.lay{grid-template-columns:1fr}.side{position:static}}
+</style>
+<a href="/products" class="muted small" style="text-decoration:none">← Продукти</a>
+<div class="ph2">
+  <div><div class="eyebrow">{{ p.brand or 'Бренд не вказано' }}</div><h1>{{ p.name }}</h1>
+    <div class="chips2">
+      {% if p.brand %}<span class="b">{{ p.brand }}</span>{% endif %}
+      <span>арт. {{ p.sku or '—' }}</span><span>{{ p.supplier or r.last_supplier or 'постачальник —' }}</span>
+      {% if p.volume %}<span>{{ p.volume }}</span>{% endif %}
+      <span>{{ ('CleverBox #' ~ p.cb_product_id) if p.cb_product_id else 'немає в CleverBox' }}</span>
+      {% if p.url %}<a href="{{ p.url }}" target="_blank" class="small" style="align-self:center">molodist.store ↗</a>{% endif %}
+    </div></div>
+</div>
+{% if request.query_params.get('saved') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">Збережено</div>{% endif %}
+{% if request.query_params.get('err') %}<div class="alert">{{ request.query_params.get('err') }}</div>{% endif %}
+
+<div class="grid g5" style="margin-bottom:18px">
+  <div class="tile"><span>Ціна продажу</span><b>{{ r.sale_price|uah if r.sale_price else '—' }}</b><small>{{ 'з CleverBox' if p.price else ('вручну' if p.price_manual else 'не задано') }}</small></div>
+  <div class="tile"><span>Закупівля середня</span><b>{{ r.cost_avg|uah if r.cost_avg else '—' }}</b><small>остання {{ r.cost_last|uah if r.cost_last else '—' }}{{ (' · ' ~ r.last_bought.strftime('%d.%m.%y')) if r.last_bought }}</small></div>
+  <div class="tile"><span>Націнка</span><b class="{{ 'warn' if r.margin is not none and r.margin < 40 }}">{{ (r.margin ~ '%') if r.margin is not none else '—' }}</b><small>{{ ('маржа ' ~ ((r.sale_price - (r.cost_avg or r.cost_last))|uah) ~ ' / шт') if r.margin is not none else 'внесіть закупівлю' }}</small></div>
+  <div class="tile"><span>У наявності</span><b class="{{ 'bad' if r.stock is not none and r.stock <= 0 else ('warn' if p.min_stock and r.stock is not none and r.stock <= p.min_stock) }}">{{ ('%g'|format(r.stock) ~ ' шт') if r.stock is not none else '—' }}</b><small>{{ ('вистачить на ' ~ r.days_left ~ ' дн') if r.days_left is not none else ('мін. ' ~ p.min_stock ~ ' шт' if p.min_stock else 'на ' ~ (r.stock_value|uah)) }}</small></div>
+  <div class="tile"><span>Термін придатності</span><b class="{{ 'bad' if r.days_to_expiry is not none and r.days_to_expiry < 0 else ('warn' if r.days_to_expiry is not none and r.days_to_expiry <= 90) }}">{{ r.expiry|dt('%d.%m.%Y') if r.expiry else '—' }}</b><small>{% if r.days_to_expiry is not none %}{{ 'прострочено' if r.days_to_expiry < 0 else 'через ' ~ r.days_to_expiry ~ ' дн' }}{% else %}не вказано{% endif %}</small></div>
+</div>
+
+<div class="lay">
+<div>
+  <div class="card"><h2>Продажі за 6 місяців</h2>
+    <div class="mchart">{% for m, q in months %}<div><em>{{ '%g'|format(q) if q else '' }}</em><i style="height:{{ (100 * q / m_max)|round }}%"></i><span>{{ m.strftime('%m.%y') }}</span></div>{% endfor %}</div>
+    <div class="row small muted" style="margin-top:10px;gap:20px"><span>За 90 днів: <b style="color:var(--ink)">{{ '%g'|format(r.sold_90) }} шт · {{ r.sold_90_sum|uah }}</b></span>
+      <span>У бюті-планах: призначено <b style="color:var(--ink)">{{ r.prescribed }}</b>, куплено <b style="color:var(--ink)">{{ r.bought }}</b> ({{ r.conversion }}%)</span>
+      <span>Потреба на 30 дн: <b style="color:var(--ink)">{{ r.need_30 }}</b></span></div></div>
+
+  <div class="card" id="buy"><h2>Закупівлі</h2>
+    <table><thead><tr><th>Дата</th><th>Постачальник</th><th class="r">К-сть</th><th class="r">Ціна закупівлі</th><th class="r">Сума</th><th>Термін придатності</th><th>Накладна</th><th></th></tr></thead><tbody>
+    {% for pp in purchases %}<tr><td>{{ pp.bought_on|dt('%d.%m.%Y') }}</td><td>{{ pp.supplier or '—' }}</td><td class="r">{{ '%g'|format(pp.qty) }}</td>
+      <td class="r">{{ pp.unit_cost|uah }}</td><td class="r">{{ (pp.qty * pp.unit_cost)|uah }}</td>
+      <td>{% if pp.expiry_date %}<span class="{{ 'exp bad' if pp.expiry_date < today else '' }}">{{ pp.expiry_date|dt('%d.%m.%Y') }}</span>{% else %}—{% endif %}</td><td class="small">{{ pp.doc_no or '' }}</td>
+      <td>{% if can(user,'products') %}<form method="post" action="/products/{{ p.id }}/purchases/{{ pp.id }}/delete" onsubmit="return confirm('Видалити закупівлю?')"><button class="btn danger" style="padding:2px 9px">×</button></form>{% endif %}</td></tr>
+    {% else %}<tr><td colspan="8" class="muted">Закупівель ще не внесено — середня й остання ціна, термін придатності рахуються з них.</td></tr>{% endfor %}
+    </tbody></table>
+    {% if can(user,'products') %}
+    <form method="post" action="/products/{{ p.id }}/purchases" class="row" style="margin-top:14px;align-items:flex-end;gap:8px">
+      <label class="small muted" style="display:grid;gap:3px">Дата<input type="date" name="bought_on" value="{{ today }}"></label>
+      <label class="small muted" style="display:grid;gap:3px">Постачальник<input name="supplier" list="suppl" value="{{ p.supplier or '' }}" style="width:180px"></label>
+      <label class="small muted" style="display:grid;gap:3px">К-сть<input name="qty" value="1" style="width:70px"></label>
+      <label class="small muted" style="display:grid;gap:3px">Ціна за шт, ₴<input name="unit_cost" required style="width:110px"></label>
+      <label class="small muted" style="display:grid;gap:3px">Придатний до<input type="date" name="expiry_date"></label>
+      <label class="small muted" style="display:grid;gap:3px">№ накладної<input name="doc_no" style="width:110px"></label>
+      <button class="btn">＋ Закупівля</button></form>{% endif %}
+  </div>
+
+  <div class="card"><h2>Останні продажі пацієнтам</h2>
+    <table><thead><tr><th>Дата</th><th>Пацієнт</th><th class="r">К-сть</th><th class="r">Сума</th></tr></thead><tbody>
+    {% for s in sales %}<tr><td>{{ s.sold_at|dt('%d.%m.%Y') }}</td><td><a href="/patients/{{ s.patient_id }}">{{ s.patient.full_name }}</a></td><td class="r">{{ s.quantity }}</td><td class="r">{{ s.amount|uah }}</td></tr>
+    {% else %}<tr><td colspan="4" class="muted">Продажів у CleverBox не знайдено.</td></tr>{% endfor %}</tbody></table></div>
+
+  {% if plans %}<div class="card"><h2>У бюті-планах</h2>
+    <table><thead><tr><th>Пацієнт</th><th>План</th><th>Лікар</th><th class="r">К-сть</th><th class="r">Вистачає, дн</th></tr></thead><tbody>
+    {% for it, pl in plans %}<tr><td><a href="/patients/{{ pl.patient_id }}">{{ pl.patient.full_name }}</a></td><td class="small">{{ pl.title or 'Бюті-план' }} · {{ pl.session_at|dt('%d.%m.%Y') }}</td>
+      <td class="small">{{ pl.doctor.name if pl.doctor else '—' }}</td><td class="r">{{ it.qty }}</td><td class="r">{{ it.supply_days or '—' }}</td></tr>{% endfor %}
+    </tbody></table></div>{% endif %}
+</div>
+
+<div class="card side"><h2>Картка засобу</h2>
+  {% if can(user,'products') %}
+  <form class="form" method="post" action="/products/{{ p.id }}">
+    <div class="two"><label>Бренд<input name="brand" list="brandl" value="{{ p.brand or '' }}"></label>
+      <label>Артикул<input name="sku" value="{{ p.sku or '' }}"></label></div>
+    <label>Основний постачальник<input name="supplier" list="suppl" value="{{ p.supplier or '' }}"></label>
+    <div class="two"><label>Ціна продажу, ₴{% if p.price %} <span style="font-weight:400">(CleverBox: {{ p.price|uah }})</span>{% endif %}<input name="price_manual" value="{{ p.price_manual or '' }}" placeholder="{{ 'з CleverBox' if p.price else '' }}" {{ 'disabled' if p.price }}></label>
+      <label>Придатний до (вручну)<input type="date" name="expiry_date" value="{{ p.expiry_date or '' }}"></label></div>
+    <div class="two"><label>Мін. залишок, шт<input name="min_stock" value="{{ p.min_stock or '' }}"></label>
+      <label>Вистачає на, днів<input name="supply_days" value="{{ p.supply_days or '' }}"></label></div>
+    <label>Посилання на molodist.store<input name="url" value="{{ p.url or '' }}"></label>
+    <label style="display:flex;gap:8px;align-items:center;font-weight:400"><input type="checkbox" name="apply" value="1" style="width:auto"> застосувати «вистачає на» до активних планів</label>
+    <button class="btn">Зберегти</button>
+  </form>
+  <datalist id="brandl">{% for b in brands %}<option value="{{ b }}">{% endfor %}</datalist>
+  <datalist id="suppl">{% for x in suppliers %}<option value="{{ x }}">{% endfor %}</datalist>
+  {% endif %}
+  {% if stock_rows %}<div class="small" style="margin-top:14px"><b>Залишки по складах (CleverBox)</b>
+    {% for s in stock_rows %}<div class="row between" style="padding:4px 0;border-bottom:1px solid var(--line)"><span>{{ s.storage or 'склад' }}</span><b>{{ '%g'|format(s.qty) }} {{ s.unit or 'шт' }}</b></div>{% endfor %}</div>{% endif %}
+</div>
+</div>
+{% endblock %}

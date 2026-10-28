@@ -1128,22 +1128,158 @@ def tasks_generate(user: User = Depends(require("reminders")), db: Session = Dep
     return RedirectResponse("/tasks", 303)
 
 
+PRODUCT_FILTERS = {
+    "low": "Закінчуються", "out": "Немає в наявності", "expiring": "Термін ≤ 90 дн", "expired": "Прострочені",
+    "prescribed": "Призначені в планах", "selling": "Продаються (90 дн)", "nosales": "Без продажів 90 дн",
+    "lowmargin": "Націнка < 40%", "nocost": "Без ціни закупівлі", "nobrand": "Без бренду",
+}
+PRODUCT_SORTS = {"brand": "Бренд, назва", "stock": "Залишок ↑", "expiry": "Термін ↑", "margin": "Націнка ↓",
+                 "sold": "Продажі 90 дн ↓", "revenue": "Виручка з планів ↓", "value": "Вартість залишку ↓"}
+
+
+def _product_flags(r) -> set[str]:
+    f = set()
+    if r.stock is not None and r.stock <= 0:
+        f.add("out")
+    if r.stock is not None and (r.deficit or (r.product.min_stock and 0 < r.stock <= r.product.min_stock)):
+        f.add("low")
+    d = r.days_to_expiry
+    if d is not None and d < 0:
+        f.add("expired")
+    elif d is not None and d <= 90:
+        f.add("expiring")
+    if r.prescribed:
+        f.add("prescribed")
+    f.add("selling" if r.sold_90 else "nosales")
+    if r.margin is not None and r.margin < 40:
+        f.add("lowmargin")
+    if not (r.cost_avg or r.cost_last):
+        f.add("nocost")
+    if not r.product.brand:
+        f.add("nobrand")
+    return f
+
+
 @app.get("/products", response_class=HTMLResponse)
-def products_page(request: Request, tab: str = "care", user: User = Depends(require("products")),
+def products_page(request: Request, tab: str = "care", q: str = "", brand: str = "", supplier: str = "",
+                  f: str = "", sort: str = "brand", user: User = Depends(require("products")),
                   db: Session = Depends(db_dep)):
     sts = all_statuses(db)
-    return render(request, "products.html", tab=tab,
-                  products=catalog.product_rows(db, sts) if tab == "care" else None,
-                  procedures=catalog.procedure_rows(sts) if tab == "procedures" else None)
+    if tab == "procedures":
+        return render(request, "products.html", tab=tab, procedures=catalog.procedure_rows(sts))
+    from .models import ProductPurchase
+    rows = [r for r in catalog.product_rows(db, sts) if r.product.active is not False]
+    all_rows = rows
+    counts = {k: 0 for k in PRODUCT_FILTERS}
+    flags = {}
+    for r in rows:
+        flags[r.product.id] = _product_flags(r)
+        for k in flags[r.product.id]:
+            if k in counts:
+                counts[k] += 1
+    if q:
+        words = set(norm(q).split())
+        rows = [r for r in rows if words <= set(norm(" ".join(filter(None, [r.product.name, r.product.sku, r.product.brand]))).split())
+                or (r.product.sku and q.strip().lower() == r.product.sku.lower())]
+    if brand:
+        rows = [r for r in rows if (r.product.brand or "") == ("" if brand == "—" else brand)]
+    if supplier:
+        rows = [r for r in rows if (r.product.supplier or r.last_supplier or "") == supplier]
+    if f in PRODUCT_FILTERS:
+        rows = [r for r in rows if f in flags[r.product.id]]
+    keyf = {"stock": lambda r: (r.stock if r.stock is not None else 1e9),
+            "expiry": lambda r: (r.expiry or date(2999, 1, 1)),
+            "margin": lambda r: -(r.margin or -1e9), "sold": lambda r: -r.sold_90,
+            "revenue": lambda r: -r.revenue, "value": lambda r: -r.stock_value}.get(sort)
+    if keyf:
+        rows = sorted(rows, key=keyf)
+    groups = catalog.brand_groups(rows) if sort == "brand" else [("", rows)]
+    brands = sorted({r.product.brand for r in all_rows if r.product.brand}, key=str.lower)
+    suppliers = sorted({x for r in all_rows for x in (r.product.supplier, r.last_supplier) if x}, key=str.lower)
+    tot = dict(n=len(rows), stock=sum(r.stock or 0 for r in rows), value=sum(r.stock_value for r in rows),
+               sold=sum(r.sold_90_sum for r in rows))
+    supplier_rows = None
+    if tab == "suppliers":
+        agg: dict[str, dict] = {}
+        for pp in db.scalars(select(ProductPurchase).order_by(ProductPurchase.bought_on)):
+            a = agg.setdefault(pp.supplier or "Без постачальника", {"n": 0, "sum": 0.0, "last": None, "products": set()})
+            a["n"] += 1; a["sum"] += (pp.qty or 0) * (pp.unit_cost or 0); a["last"] = pp.bought_on; a["products"].add(pp.product_id)
+        for r in all_rows:
+            if r.product.supplier:
+                agg.setdefault(r.product.supplier, {"n": 0, "sum": 0.0, "last": None, "products": set()})["products"].add(r.product.id)
+        supplier_rows = sorted(agg.items(), key=lambda x: x[0].lower())
+    return render(request, "products.html", tab=tab, groups=groups, flags=flags, counts=counts, FILTERS=PRODUCT_FILTERS,
+                  SORTS=PRODUCT_SORTS, q=q, brand=brand, supplier=supplier, f=f, sort=sort, brands=brands,
+                  suppliers=suppliers, tot=tot, supplier_rows=supplier_rows, today=date.today())
 
 
-@app.post("/products/{pid}")
+def _num(v: str):
+    try:
+        return float(v.replace(" ", "").replace(",", ".")) if v and v.strip() else None
+    except ValueError:
+        return None
+
+
+def _day(v: str):
+    try:
+        return date.fromisoformat(v) if v else None
+    except ValueError:
+        return None
+
+
+@app.get("/products/{pid:int}", response_class=HTMLResponse)
+def product_card(pid: int, request: Request, user: User = Depends(require("products")), db: Session = Depends(db_dep)):
+    from .models import ProductPurchase, ProductSale
+    prod = db.get(Product, pid)
+    if not prod:
+        raise HTTPException(404)
+    row = next(r for r in catalog.product_rows(db) if r.product.id == pid)
+    purchases = db.scalars(select(ProductPurchase).where(ProductPurchase.product_id == pid)
+                           .order_by(ProductPurchase.bought_on.desc(), ProductPurchase.id.desc())).all()
+    sales = []
+    if prod.cb_product_id:
+        sales = db.scalars(select(ProductSale).where(ProductSale.product_id == prod.cb_product_id)
+                           .order_by(ProductSale.sold_at.desc()).limit(50)).all()
+    items = db.scalars(select(PlanItem).where(PlanItem.product_id == pid)).all()
+    plans = [(it, it.plan) for it in items if it.plan and it.plan.status != "cancelled"]
+    # продажі по місяцях (6 міс) для міні-графіка
+    months = []
+    today = date.today()
+    for k in range(5, -1, -1):
+        m0 = (today.replace(day=1) - timedelta(days=31 * k)).replace(day=1)
+        months.append([m0, 0])
+    if prod.cb_product_id:
+        for (q, at) in db.execute(select(ProductSale.quantity, ProductSale.sold_at).where(
+                ProductSale.product_id == prod.cb_product_id, ProductSale.sold_at >= datetime.combine(months[0][0], datetime.min.time()))):
+            for mm in months:
+                if (at.year, at.month) == (mm[0].year, mm[0].month):
+                    mm[1] += q or 0
+    stock_rows = db.scalars(select(StockLevel).where(StockLevel.cb_product_id == prod.cb_product_id)).all() if prod.cb_product_id else []
+    return render(request, "product.html", p=prod, r=row, purchases=purchases, sales=sales, plans=plans, months=months,
+                  m_max=max([m[1] for m in months] + [1]), stock_rows=stock_rows, today=today,
+                  brands=sorted({x for (x,) in db.execute(select(Product.brand).where(Product.brand.is_not(None)).distinct())}),
+                  suppliers=sorted({x for (x,) in db.execute(select(Product.supplier).where(Product.supplier.is_not(None)).distinct())}))
+
+
+@app.post("/products/{pid:int}")
 def product_update(pid: int, supply_days: str = Form(""), min_stock: str = Form(""), url: str = Form(""),
-                   apply: str = Form(""), user: User = Depends(require("products")), db: Session = Depends(db_dep)):
+                   apply: str = Form(""), brand: str = Form(None), supplier: str = Form(None), sku: str = Form(None),
+                   expiry_date: str = Form(None), price_manual: str = Form(None), back: str = Form(""),
+                   user: User = Depends(require("products")), db: Session = Depends(db_dep)):
     prod = db.get(Product, pid) or (_ for _ in ()).throw(HTTPException(404))
     prod.supply_days = int(supply_days) if supply_days.strip().isdigit() else None
     prod.min_stock = int(min_stock) if min_stock.strip().isdigit() else None
     prod.url = url.strip() or None
+    if brand is not None:
+        prod.brand = brand.strip()[:120] or None
+    if supplier is not None:
+        prod.supplier = supplier.strip()[:200] or None
+    if sku is not None:
+        prod.sku = sku.strip()[:100] or None
+    if expiry_date is not None:
+        prod.expiry_date = _day(expiry_date)
+    if price_manual is not None:
+        prod.price_manual = _num(price_manual)
     n = 0
     if apply and prod.supply_days:
         for it in db.scalars(select(PlanItem).where(PlanItem.product_id == prod.id)):
@@ -1153,7 +1289,52 @@ def product_update(pid: int, supply_days: str = Form(""), min_stock: str = Form(
     db.commit()
     audit(db, "product.update", "product", prod.id, user=user, supply_days=prod.supply_days,
           min_stock=prod.min_stock, applied_to_items=n)
-    return RedirectResponse("/products#p" + str(pid), 303)
+    return RedirectResponse(back if back.startswith("/products") else f"/products/{pid}?saved=1", 303)
+
+
+@app.post("/products/{pid:int}/purchases")
+def product_purchase_add(pid: int, bought_on: str = Form(""), qty: str = Form("1"), unit_cost: str = Form(""),
+                         supplier: str = Form(""), expiry_date: str = Form(""), doc_no: str = Form(""),
+                         user: User = Depends(require("products")), db: Session = Depends(db_dep)):
+    from .models import ProductPurchase
+    prod = db.get(Product, pid) or (_ for _ in ()).throw(HTTPException(404))
+    q, c = _num(qty), _num(unit_cost)
+    if not q or q <= 0 or c is None or c < 0:
+        return RedirectResponse(f"/products/{pid}?err=Вкажіть+кількість+і+ціну+закупівлі#buy", 303)
+    pp = ProductPurchase(product_id=pid, bought_on=_day(bought_on) or date.today(), qty=q, unit_cost=c,
+                         supplier=supplier.strip()[:200] or prod.supplier, expiry_date=_day(expiry_date),
+                         doc_no=doc_no.strip()[:100] or None)
+    db.add(pp)
+    if pp.supplier and not prod.supplier:
+        prod.supplier = pp.supplier
+    db.commit()
+    audit(db, "product.purchase", "product", pid, user=user, qty=q, unit_cost=c)
+    return RedirectResponse(f"/products/{pid}?saved=1#buy", 303)
+
+
+@app.post("/products/{pid:int}/purchases/{ppid:int}/delete")
+def product_purchase_delete(pid: int, ppid: int, user: User = Depends(require("products")), db: Session = Depends(db_dep)):
+    from .models import ProductPurchase
+    pp = db.get(ProductPurchase, ppid)
+    if pp and pp.product_id == pid:
+        db.delete(pp)
+        db.commit()
+        audit(db, "product.purchase_delete", "product", pid, user=user, purchase=ppid)
+    return RedirectResponse(f"/products/{pid}#buy", 303)
+
+
+@app.post("/products/bulk")
+async def products_bulk(request: Request, user: User = Depends(require("products")), db: Session = Depends(db_dep)):
+    form = await request.form()
+    ids = [int(x) for x in form.getlist("ids") if str(x).isdigit()]
+    field_, value = form.get("field"), (form.get("value") or "").strip()
+    if field_ in ("brand", "supplier") and ids:
+        for p_ in db.scalars(select(Product).where(Product.id.in_(ids))):
+            setattr(p_, field_, value[:200] or None)
+        db.commit()
+        audit(db, "product.bulk", user=user, field=field_, n=len(ids))
+    back = str(form.get("back") or "/products")
+    return RedirectResponse(back if back.startswith("/products") else "/products", 303)
 
 
 @app.get("/stock", response_class=HTMLResponse)

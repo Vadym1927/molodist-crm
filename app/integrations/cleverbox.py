@@ -592,7 +592,7 @@ def _first(d: dict, *keys, default=None):
 def sync_products(db: Session, cb: CleverBox) -> int:
     """Каталог товарів CleverBox -> Product (ціна, собівартість, категорія)."""
     from ..services.catalog import link_all_items
-    n = 0
+    n, keys = 0, set()
     for it in cb.products_list():
         if it.get("for_sale") is False and it.get("for_shop") is False:
             continue                                   # витратні матеріали «для роботи» — не догляд
@@ -606,7 +606,19 @@ def sync_products(db: Session, cb: CleverBox) -> int:
         prod.category = it.get("category_name")
         prod.price = float(_first(it, "sale_price", "base_price", default=0) or 0) or prod.price
         prod.cost = float(it["cost"]) if it.get("cost") not in (None, "") else prod.cost
+        # бренд / артикул / постачальник — якщо CleverBox їх віддає (ручні значення не затираємо)
+        brand = _first(it, "brand", "brand_name", "manufacturer", "manufacturer_name", "producer", "vendor")
+        sku = _first(it, "article", "sku", "vendor_code", "code", "articul", "barcode")
+        supplier = _first(it, "supplier", "supplier_name", "provider", "provider_name")
+        if isinstance(brand, str) and brand.strip() and not prod.brand:
+            prod.brand = brand.strip()[:120]
+        if sku not in (None, "") and not prod.sku:
+            prod.sku = str(sku).strip()[:100]
+        if isinstance(supplier, str) and supplier.strip() and not prod.supplier:
+            prod.supplier = supplier.strip()[:200]
+        keys.update(it.keys())
         n += 1
+    _state(db, "cleverbox_product_fields", ",".join(sorted(keys))[:1000])   # лише назви полів
     db.commit()
     link_all_items(db)
     return n

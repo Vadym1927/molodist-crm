@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -78,6 +78,40 @@ class ProductRow:
     rebuy_30: int = 0             # повторні покупки, що «настають» у найближчі 30 днів
     patients: set = field(default_factory=set)
     stock: float | None = None
+    cost_avg: float | None = None      # середня ціна закупівлі (зважена за кількістю)
+    cost_last: float | None = None     # ціна останньої закупівлі
+    last_bought: date | None = None
+    last_supplier: str | None = None
+    expiry: date | None = None         # найближчий термін придатності
+    purchases: int = 0
+    sold_90: float = 0.0               # продано за 90 днів (усім пацієнтам, з CleverBox)
+    sold_90_sum: float = 0.0
+
+    @property
+    def days_left(self):
+        """На скільки днів вистачить залишку за темпом продажів останніх 90 днів."""
+        if self.stock is None or not self.sold_90:
+            return None
+        return int(self.stock / (self.sold_90 / 90))
+
+    @property
+    def sale_price(self):
+        return self.product.price or self.product.price_manual
+
+    @property
+    def margin(self):
+        """Націнка, % від середньої закупівлі."""
+        c = self.cost_avg or self.cost_last
+        return round(100 * (self.sale_price - c) / c) if c and self.sale_price else None
+
+    @property
+    def days_to_expiry(self):
+        return (self.expiry - date.today()).days if self.expiry else None
+
+    @property
+    def stock_value(self):
+        c = self.cost_avg or self.cost_last
+        return (self.stock or 0) * c if c and self.stock else 0.0
 
     @property
     def conversion(self):
@@ -136,7 +170,68 @@ def product_rows(db: Session, statuses: list[PlanStatus] | None = None, now: dat
         stock = stock_by_product(db, products)
         for pid, r in rows.items():
             r.stock = stock.get(pid, 0.0)
+    apply_purchases(db, rows)
+    apply_sales(db, rows, now)
     return sorted(rows.values(), key=lambda r: (-r.prescribed, r.product.name))
+
+
+def apply_purchases(db: Session, rows: dict) -> None:
+    """Середня/остання ціна закупівлі і найближчий термін придатності з партій."""
+    from ..models import ProductPurchase
+    today = date.today()
+    agg: dict[int, dict] = {}
+    for pp in db.scalars(select(ProductPurchase).order_by(ProductPurchase.bought_on, ProductPurchase.id)):
+        a = agg.setdefault(pp.product_id, {"q": 0.0, "sum": 0.0, "n": 0, "last": None, "batches": []})
+        if pp.unit_cost and pp.qty:
+            a["q"] += pp.qty
+            a["sum"] += pp.qty * pp.unit_cost
+        a["n"] += 1
+        a["last"] = pp
+        a["batches"].append(pp)
+    for pid, r in rows.items():
+        p = r.product
+        a = agg.get(pid)
+        exp = []
+        if a:
+            r.purchases = a["n"]
+            r.cost_avg = round(a["sum"] / a["q"], 2) if a["q"] else None
+            last = a["last"]
+            r.cost_last, r.last_bought, r.last_supplier = last.unit_cost or None, last.bought_on, last.supplier
+            # FIFO: на складі лежать найсвіжіші партії — термін беремо лише з них
+            if r.stock is None:
+                live = [b for b in a["batches"] if b.bought_on >= today - timedelta(days=730)]
+            else:
+                live, left = [], r.stock
+                for b in reversed(a["batches"]):
+                    if left <= 0:
+                        break
+                    live.append(b)
+                    left -= b.qty or 0
+            exp = [b.expiry_date for b in live if b.expiry_date]
+        if not r.cost_avg and p.cost:
+            r.cost_avg = p.cost                      # собівартість з CleverBox, якщо закупівель не внесено
+        if p.expiry_date:
+            exp.append(p.expiry_date)
+        r.expiry = min(exp) if exp else None
+
+
+def apply_sales(db: Session, rows: dict, now: datetime) -> None:
+    from sqlalchemy import func
+    from ..models import ProductSale
+    by_cb = {r.product.cb_product_id: r for r in rows.values() if r.product.cb_product_id}
+    for pid, q, sm in db.execute(select(ProductSale.product_id, func.sum(ProductSale.quantity), func.sum(ProductSale.amount))
+                                 .where(ProductSale.sold_at >= now - timedelta(days=90), ProductSale.product_id.is_not(None))
+                                 .group_by(ProductSale.product_id)):
+        r = by_cb.get(pid)
+        if r:
+            r.sold_90, r.sold_90_sum = float(q or 0), float(sm or 0)
+
+
+def brand_groups(rows: list) -> list[tuple[str, list]]:
+    groups: dict[str, list] = defaultdict(list)
+    for r in rows:
+        groups[r.product.brand or ""].append(r)
+    return sorted(groups.items(), key=lambda g: (g[0] == "", g[0].lower()))
 
 
 @dataclass
