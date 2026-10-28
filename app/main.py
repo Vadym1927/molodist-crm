@@ -1544,6 +1544,21 @@ async def specialists_sync(user: User = Depends(require("sync")), db: Session = 
         return RedirectResponse("/specialists?msg=CleverBox+не+відповів,+спробуйте+пізніше", 303)
 
 
+@app.post("/specialists/{did:int}/calendar")
+def specialist_calendar_toggle(did: int, request: Request, enabled: str = Form(""),
+                               user: User = Depends(require("specialists_edit")), db: Session = Depends(db_dep)):
+    """Галочка «Показувати в календарі» на картці спеціаліста."""
+    d = db.get(Doctor, did)
+    if not d:
+        raise HTTPException(404)
+    d.in_calendar = enabled == "1"
+    db.commit()
+    audit(db, "specialist.calendar", "doctor", d.id, user=user, in_calendar=d.in_calendar)
+    if "application/json" in request.headers.get("accept", ""):
+        return {"ok": True, "in_calendar": d.in_calendar}
+    return RedirectResponse("/specialists", 303)
+
+
 @app.post("/specialists/{did:int}/unlock")
 def specialist_unlock(did: int, user: User = Depends(require("specialists_edit")), db: Session = Depends(db_dep)):
     d = db.get(Doctor, did)

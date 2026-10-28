@@ -3,7 +3,9 @@
 {% block body %}
 <style>
 .sp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
-.sp-card{background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);text-decoration:none;display:flex;flex-direction:column;overflow:hidden;transition:transform .12s,box-shadow .12s}
+.sp-card{background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);display:flex;flex-direction:column;overflow:hidden;transition:transform .12s,box-shadow .12s}
+.sp-card>a{text-decoration:none;display:flex;flex-direction:column;flex:1}
+.sp-card.off{opacity:.72}
 .sp-card:hover{transform:translateY(-2px);box-shadow:0 12px 30px -16px rgba(60,40,25,.35)}
 .sp-top{display:flex;gap:14px;align-items:center;padding:18px 18px 14px;border-top:4px solid var(--c)}
 .sp-av{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;color:#fff;font:600 20px/1 var(--serif);background:var(--c) center/cover no-repeat;flex:none;box-shadow:0 0 0 3px var(--card),0 0 0 4px var(--line)}
@@ -11,10 +13,17 @@
 .sp-top .pos{color:var(--muted);font-size:12.5px;margin-top:3px}
 .sp-stats{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--line)}
 .sp-stats div{padding:11px 14px;border-left:1px solid var(--line)}.sp-stats div:first-child{border-left:0}
-.sp-stats b{display:block;font:600 20px/1.1 var(--serif)}.sp-stats span{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-weight:700}
+.sp-stats b{display:block;font:600 22px/1.1 var(--head)}.sp-stats span{display:block;font-size:12px;color:var(--muted);font-weight:600;margin-top:3px;white-space:nowrap}
 .sp-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 16px;background:var(--soft);font-size:12px;color:var(--muted)}
 .src{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:6px;background:var(--accent-soft);color:var(--accent-ink)}
 .src.manual{background:var(--done-bg);color:var(--done)}
+.cal-tg{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 16px;border-top:1px solid var(--line);font-size:13.5px;font-weight:600;cursor:pointer;user-select:none}
+.cal-tg small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+.sw{position:relative;width:46px;height:26px;flex:none}.sw input{opacity:0;width:0;height:0;position:absolute}
+.sw i{position:absolute;inset:0;border-radius:99px;background:#d6d1cb;transition:.15s}
+.sw i:before{content:"";position:absolute;width:20px;height:20px;left:3px;top:3px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:.15s}
+.sw input:checked+i{background:var(--classic)}.sw input:checked+i:before{transform:translateX(20px)}
+.sw input:disabled+i{opacity:.5}
 .newsp{border:1.5px dashed var(--line);border-radius:20px;padding:18px;display:flex;flex-direction:column;gap:10px;justify-content:center;background:transparent}
 </style>
 <div class="row between" style="align-items:flex-end;margin-bottom:6px">
@@ -30,7 +39,8 @@
 
 <div class="sp-grid">
 {% for c in cards %}{% set d = c.doctor %}
-  <a class="sp-card" href="/specialists/{{ d.id }}" style="--c:{{ c.color }}">
+  <div class="sp-card {{ 'off' if d.in_calendar is false }}" style="--c:{{ c.color }}">
+   <a href="/specialists/{{ d.id }}">
     <div class="sp-top">
       <div class="sp-av" {% if d.photo_url %}style="background-image:url('{{ d.photo_url }}')"{% endif %}>{{ '' if d.photo_url else c.initials }}</div>
       <div style="min-width:0"><h3>{{ d.name }}</h3>
@@ -45,7 +55,16 @@
       <span>{% if c.next_visit %}найближчий запис {{ c.next_visit|dt('%d.%m %H:%M') }}{% elif c.last_visit %}останній візит {{ c.last_visit|dt('%d.%m.%Y') }}{% else %}ще немає візитів{% endif %}</span>
       <span class="src {{ 'manual' if d.source=='manual' }}">{{ 'CleverBox' if d.cleverbox_id else ('вручну' if d.source=='manual' else 'з плану') }}</span>
     </div>
-  </a>
+   </a>
+   {% if d.active %}
+   <form method="post" action="/specialists/{{ d.id }}/calendar" class="cal-tg-form">
+    <label class="cal-tg">
+      <span>Показувати в календарі<small>{{ 'окрема колонка в розкладі' if d.in_calendar is not false else 'приховано з календаря' }}</small></span>
+      <span class="sw"><input type="checkbox" name="enabled" value="1" {{ 'checked' if d.in_calendar is not false }} {{ '' if can(user,'specialists_edit') else 'disabled' }}
+        onchange="calToggle(this)"><i></i></span>
+    </label></form>
+   {% endif %}
+  </div>
 {% else %}
   <div class="card muted">{{ 'Звільнених немає.' if show=='fired' else 'Спеціалісти зʼявляться після синхронізації з CleverBox або додайте вручну.' }}</div>
 {% endfor %}
@@ -59,6 +78,18 @@
   </form>
 {% endif %}
 </div>
+<script>
+function calToggle(cb){
+  var f=cb.form, card=cb.closest('.sp-card'), hint=f.querySelector('small'), fd=new FormData(f);
+  if(!cb.checked) fd.delete('enabled');
+  cb.disabled=true;
+  fetch(f.action,{method:'POST',body:fd,headers:{'Accept':'application/json'}})
+    .then(function(r){if(!r.ok) throw 0; return r.json()})
+    .then(function(j){card.classList.toggle('off',!j.in_calendar);hint.textContent=j.in_calendar?'окрема колонка в розкладі':'приховано з календаря'})
+    .catch(function(){cb.checked=!cb.checked;alert('Не вдалося зберегти. Оновіть сторінку.')})
+    .finally(function(){cb.disabled=false});
+}
+</script>
 {% if staff_fields and user.role=='owner' %}<details class="small" style="margin-top:22px"><summary>Які поля віддає CleverBox по співробітниках</summary>
   <p class="muted">{{ staff_fields }}</p></details>{% endif %}
 {% endblock %}

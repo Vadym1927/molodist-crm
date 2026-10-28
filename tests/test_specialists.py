@@ -129,3 +129,20 @@ def test_plans_board():
                 pid = db.query(BeautyPlan).first().id
             panel = c.get(f"/plans?plan={pid}").text
             assert "Етапи плану" in panel and "Відкрити картку" in panel
+
+
+def test_calendar_toggle_from_list():
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        d = Doctor(name="Перемикач Календаря", active=True, in_calendar=True, source="manual")
+        db.add(d); db.commit(); did = d.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        assert "Показувати в календарі" in c.get("/specialists").text
+        r = c.post(f"/specialists/{did}/calendar", data={}, headers={"Accept": "application/json"})
+        assert r.json() == {"ok": True, "in_calendar": False}
+        from app.services.specialists import calendar_doctors
+        with SessionLocal() as db:
+            assert did not in [x.id for x in calendar_doctors(db)]
+        r = c.post(f"/specialists/{did}/calendar", data={"enabled": "1"}, headers={"Accept": "application/json"})
+        assert r.json()["in_calendar"] is True
