@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}{{ rep.title }} · Звіти{% endblock %}
+{% macro fmtv(v, kind) -%}
+{%- if v is none or v == '' -%}—
+{%- elif kind == 'uah' -%}{{ v|uah }}
+{%- elif kind == 'int' -%}{{ '{:,}'.format(v|int).replace(',', ' ') }}
+{%- elif kind == 'num' -%}{{ '%g'|format(v|round(2)) }}
+{%- elif kind == 'pct' -%}{{ v }}%
+{%- elif kind == 'date' -%}{{ v|dt('%d.%m.%Y') }}
+{%- else -%}{{ v }}{%- endif -%}
+{%- endmacro %}
+{% block body %}
+<style>
+.rp-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 16px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.rp-tabs a{padding:8px 14px;border-radius:10px;text-decoration:none;color:#3a342f;font-weight:600;font-size:14px}
+.rp-tabs a:hover{background:var(--card)}.rp-tabs a.on{background:var(--deep);color:#fff}
+.rp-per{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.rp-per a{padding:6px 12px;border-radius:99px;border:1px solid var(--line);background:var(--card);text-decoration:none;font-size:13px;font-weight:600;color:var(--ink)}
+.rp-per a.on{background:var(--lavender);border-color:var(--lavender-2);color:var(--classic)}
+.rp-per form{display:flex;gap:6px;align-items:center;margin-left:auto}.rp-per input{height:38px}
+.rp-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:16px}
+.rp-tiles .tile b{display:block;margin-top:4px}
+.dl{font-size:12.5px;font-weight:700;margin-top:4px}.dl.up{color:var(--ok)}.dl.down{color:var(--bad)}.dl i{font-style:normal;color:var(--muted);font-weight:500}
+.rp-chart{display:flex;gap:6px;align-items:flex-end;height:150px;padding-top:4px}
+.rp-chart div{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;justify-content:flex-end;height:100%;min-width:0}
+.rp-chart i{display:block;width:100%;max-width:44px;background:#C9BFE6;border-radius:6px 6px 2px 2px;min-height:2px}
+.rp-chart div:hover i{background:var(--deep)}
+.rp-chart span{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.rp-chart em{font-style:normal;font-size:10.5px;font-weight:700;white-space:nowrap}
+.rp-tb th{cursor:pointer;white-space:nowrap}.rp-tb th:hover{color:var(--classic)}
+.rp-tb tfoot td{font-weight:700;border-top:2px solid var(--line);background:var(--cream,#F7F4F0)}
+.rp-tb td.n,.rp-tb th.n{text-align:right;white-space:nowrap}
+</style>
+<div class="row between" style="align-items:flex-end;flex-wrap:wrap;gap:10px">
+  <div><div class="eyebrow">Аналітика клініки</div><h1>Звіти</h1>
+    <div class="muted small">{{ d_from|dt('%d.%m.%Y') }} — {{ d_to|dt('%d.%m.%Y') }} · порівняння з {{ p_from|dt('%d.%m.%Y') }} — {{ p_to|dt('%d.%m.%Y') }}</div></div>
+  <a class="btn ghost" href="?r={{ key }}&df={{ d_from }}&dt_={{ d_to }}&fmt=xlsx">⤓ Excel</a>
+</div>
+<nav class="rp-tabs">{% for k, v in REPORTS.items() %}<a href="?r={{ k }}&period={{ period if period != 'custom' else 'month' }}{% if period == 'custom' %}&df={{ d_from }}&dt_={{ d_to }}{% endif %}" class="{{ 'on' if key==k }}">{{ v }}</a>{% endfor %}</nav>
+<div class="rp-per">
+  {% for k, v in PERIODS.items() %}<a href="?r={{ key }}&period={{ k }}" class="{{ 'on' if period==k }}">{{ v }}</a>{% endfor %}
+  <form><input type="hidden" name="r" value="{{ key }}"><input type="date" name="df" value="{{ d_from }}"><span class="muted">—</span><input type="date" name="dt_" value="{{ d_to }}"><button class="btn ghost" style="height:38px">OK</button></form>
+</div>
+
+{% if rep.tiles %}<div class="rp-tiles">{% for label, v, prev, kind, sub in rep.tiles %}
+  <div class="tile"><span>{{ label }}</span><b>{{ fmtv(v, kind) }}</b>
+    {% if prev is not none %}{% set d = ((100 * (v - prev) / prev)|round(1)) if prev else none %}
+      <div class="dl {{ 'up' if d and d > 0 else ('down' if d and d < 0) }}">{% if d is not none %}{{ '▲ +' if d > 0 else ('▼ ' if d < 0 else '') }}{{ d }}%{% else %}—{% endif %} <i>було {{ fmtv(prev, kind) }}</i></div>{% endif %}
+    {% if sub %}<div class="muted small">{{ sub }}</div>{% endif %}</div>{% endfor %}</div>{% endif %}
+
+{% if rep.chart and rep.chart|length > 1 and c_max > 1 %}<div class="card"><h2>{{ rep.chart_title }}</h2>
+  <div class="rp-chart">{% for label, v in rep.chart %}<div title="{{ label }}: {{ v|uah }}"><em>{{ ((v/1000)|round(0)|int ~ 'k') if v >= 1000 else ((v|int) if v else '') }}</em><i style="height:{{ (100 * v / c_max)|round }}%"></i><span>{{ label }}</span></div>{% endfor %}</div></div>{% endif %}
+
+<div class="card" style="padding:6px 8px">
+  {% if rep.hint %}<p class="muted small" style="margin:8px 8px 10px">{{ rep.hint }}</p>{% endif %}
+  <div style="overflow-x:auto"><table class="rp-tb" id="rpt"><thead><tr>{% for c in rep.cols %}<th class="{{ 'n' if c.kind != 'text' }}" data-k="{{ c.kind }}">{{ c.label }}</th>{% endfor %}</tr></thead>
+  <tbody>{% for row in rep.rows[:1000] %}<tr>{% for c in rep.cols %}{% set v = row.get(c.key) %}
+    <td class="{{ 'n' if c.kind != 'text' }}" data-v="{{ v if v is not none and c.kind not in ('text','date') else (v|dt('%Y%m%d') if c.kind == 'date' and v else (v or '')) }}">{% if loop.first and row._href %}<a href="{{ row._href }}" style="font-weight:600;text-decoration:none">{{ fmtv(v, c.kind) }}</a>{% else %}{{ fmtv(v, c.kind) }}{% endif %}</td>{% endfor %}</tr>
+  {% else %}<tr><td colspan="{{ rep.cols|length }}" class="muted">{{ rep.empty }}</td></tr>{% endfor %}</tbody>
+  {% if rep.total and rep.rows %}<tfoot><tr>{% for c in rep.cols %}<td class="{{ 'n' if c.kind != 'text' }}">{% if loop.first %}Разом{% elif c.key in rep.total %}{{ fmtv(rep.total[c.key], c.kind) }}{% endif %}</td>{% endfor %}</tr></tfoot>{% endif %}
+  </table></div>
+  {% if rep.rows|length > 1000 %}<p class="muted small">Показано 1000 з {{ rep.rows|length }} — повний список в Excel.</p>{% endif %}
+</div>
+<script>
+document.querySelectorAll('#rpt th').forEach((th, i) => th.addEventListener('click', () => {
+  const tb = th.closest('table').tBodies[0], rows = [...tb.rows], txt = th.dataset.k === 'text';
+  const dir = th.dataset.dir = th.dataset.dir === 'desc' ? 'asc' : 'desc';
+  rows.sort((a, b) => { const x = a.cells[i]?.dataset.v ?? '', y = b.cells[i]?.dataset.v ?? '';
+    const r = txt ? x.localeCompare(y, 'uk') : (parseFloat(x) || 0) - (parseFloat(y) || 0); return dir === 'asc' ? r : -r; });
+  rows.forEach(r => tb.appendChild(r));
+}));
+</script>
+{% endblock %}

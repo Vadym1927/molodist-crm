@@ -13,7 +13,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request, Form, UploadFile, File, HTTPException, Depends
 from fastapi.openapi.docs import get_swagger_ui_html
-from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, Response, RedirectResponse, FileResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
@@ -1830,6 +1830,52 @@ def finance_page(request: Request, df: str | None = None, dt_: str | None = None
     total, _ = kpi_summary(sts)
     m_max = max([m["revenue"] for m in fs.months] + [r["total"] for r in fc] + [1])
     return render(request, "finance.html", fs=fs, fc=fc, total=total, d_from=d_from, d_to=d_to, m_max=m_max)
+
+
+# ---------------- Звіти ----------------
+def _report_period(period: str, df: str | None, dt_: str | None) -> tuple[date, date, str]:
+    today = date.today()
+    m0 = today.replace(day=1)
+    if df or dt_:
+        a = _day(df) or m0
+        b = _day(dt_) or today
+        return (a, b, "custom") if a <= b else (b, a, "custom")
+    if period == "prev_month":
+        b = m0 - timedelta(days=1)
+        return b.replace(day=1), b, period
+    if period == "quarter":
+        q0 = date(today.year, 3 * ((today.month - 1) // 3) + 1, 1)
+        return q0, today, period
+    if period == "year":
+        return date(today.year, 1, 1), today, period
+    if period == "30d":
+        return today - timedelta(days=29), today, period
+    if period == "12m":
+        y, m = (today.year - 1, today.month + 1) if today.month < 12 else (today.year, 1)
+        return date(y, m, 1), today, period
+    return m0, today, "month"
+
+
+REPORT_PERIODS = {"month": "Цей місяць", "prev_month": "Минулий місяць", "30d": "30 днів", "quarter": "Квартал",
+                  "year": "З початку року", "12m": "12 місяців"}
+
+
+@app.get("/reports", response_class=HTMLResponse)
+def reports_page(request: Request, r: str = "revenue", period: str = "month", df: str | None = None, dt_: str | None = None,
+                 fmt: str = "", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import reports as rp
+    key = r if r in rp.REPORTS else "revenue"
+    d_from, d_to, period = _report_period(period, df, dt_)
+    rep = rp.build(db, key, d_from, d_to)
+    if fmt == "xlsx":
+        audit(db, "reports.export", user=user, report=key, d_from=str(d_from), d_to=str(d_to))
+        return Response(rp.to_xlsx(rep, d_from, d_to),
+                        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        headers={"Content-Disposition": f'attachment; filename="report-{key}-{d_from}-{d_to}.xlsx"'})
+    p_from, p_to = rp.prev_period(d_from, d_to)
+    return render(request, "reports.html", rep=rep, REPORTS=rp.REPORTS, PERIODS=REPORT_PERIODS, key=key, period=period,
+                  d_from=d_from, d_to=d_to, p_from=p_from, p_to=p_to,
+                  c_max=max([v for _, v in rep.chart] + [1]))
 
 
 # ---------------- Фінанси → Планування ціни реалізації ----------------
