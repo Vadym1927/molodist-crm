@@ -107,7 +107,8 @@ def run_backup(trigger: str = "auto") -> dict:
             _rotate(copy_dir, settings.backup_keep)
             rep["copy"] = str(copy_dir)
 
-        rep["telegram"] = _offsite_telegram(dst)
+        # у Telegram — лише нічна копія (не перед кожним оновленням CRM і не ручні)
+        rep["telegram"] = _offsite_telegram(dst) if trigger == "auto" else "лише для нічної копії"
         alerts.success("backup", f"Остання копія: {name}, {rep['size_mb']} МБ")
         log.info("backup done: %s", rep)
         return rep

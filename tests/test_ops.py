@@ -92,7 +92,7 @@ def test_auto_backup_rotation_offsite_and_encrypted_restore(client, sent, tmp_pa
     monkeypatch.setattr(alerts, "send_document", lambda path, caption, chat=None: docs.append(Path(path).read_bytes()) or True)
     names = []
     for i in range(3):
-        rep = backups.run_backup("test")
+        rep = backups.run_backup("auto")
         names.append(rep["file"])
         assert rep["telegram"] == "надіслано"
         time.sleep(1.1)                                       # різні мітки часу в назві
