@@ -175,3 +175,29 @@ def test_balances_report_start_and_reconcile(tmp_path):
         ln = next(x for x in inv["vitrina"].lines if x.product_id == cream.id)
         assert ln.qty == 1 and ln.sys_qty == 2 and all(d.status == "draft" for d in docs)
         db.query(SyncState).filter(SyncState.key == "stock_ledger_start").delete(); db.commit()
+
+
+def test_services_export_and_techcard_norms():
+    """Довідник «Послуги» CleverBox: напрямок і техкартка; норма на техкартку → на всі її послуги."""
+    from app.models import CbService, ProcedureNorm
+    from app.services import cb_services_import as cbs
+    head = ["Назва", "Назва для SMS", "Назва у чеку", "Категорія", "Направленість", "техкартка", "Тривалість", "Повтор", "Molodist_"]
+    rows = [["Лазер Тест Губа", "", "Лазерна Епіляція Тест Губа", "Лазерна", "Лазерна епіляція", "Лазер тест мала", "10", "", "250"],
+            ["Лазер Тест Пахви", "", "Лазерна Епіляція Тест Пахви", "Лазерна", "Лазерна епіляція", "Лазер тест мала", "10", "", "350"],
+            ["Неіснуюча послуга", "", "", "", "", "x", "10", "", "1"]]
+    assert cbs.is_services_export(head)
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        db.add_all([CbService(id=990001, name="Лазер Тест Губа"), CbService(id=990002, name="Лазерна Епіляція Тест Пахви")])
+        gel = Product(name="Гель для лазера тест", name_norm="гель для лазера тест", unit="мл")
+        db.add(gel); db.commit()
+        rep = cbs.import_services(db, rows, head)
+        assert rep["updated"] == 2 and rep["skipped"] == 1
+        assert db.get(CbService, 990002).techcard == "Лазер тест мала" and db.get(CbService, 990001).direction == "Лазерна епіляція"
+        gid = gel.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        c.post("/stock/norms", data={"service_id": 990001, "product": f"[#{gid}]", "qty": "5", "techcard": "Лазер тест мала"})
+        assert "Лазер тест мала" in c.get("/stock?tab=norms&q=лазер тест").text
+    with SessionLocal() as db:
+        assert {n.service_id for n in db.query(ProcedureNorm).filter_by(product_id=gid)} == {990001, 990002}

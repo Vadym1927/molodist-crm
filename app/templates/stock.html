@@ -167,18 +167,22 @@
 </div>
 
 {% elif tab=='norms' %}
-<p class="muted small">Що списується зі складу після кожної наданої послуги (за даними CleverBox). Напр. «Гігієна обличчя» → рукавички 2 шт, гель 10 мл. Списання — лише для послуг після старту обліку.</p>
+<p class="muted small">Що списується зі складу після кожної наданої послуги (за даними CleverBox). Напр. «Гігієна обличчя» → рукавички 2 шт, гель 10 мл. Списання — лише для послуг після старту обліку. Якщо завантажено довідник «Послуги» з CleverBox (Дані → Імпорт), послуги згруповано за техкартками: норма вводиться один раз на техкартку.</p>
 <form class="row" style="margin-bottom:12px"><input type="hidden" name="tab" value="norms"><input name="q" value="{{ q }}" placeholder="Знайти послугу" style="flex:1;height:44px">
   <button class="btn ghost" style="height:44px">Знайти</button><a class="btn ghost" style="height:44px" href="?tab=norms&only=all">Усі послуги</a></form>
 <datalist id="prods">{% for pid, label, w in products %}<option value="{{ label }}">{% endfor %}</datalist>
-{% for x in services %}
-<div class="norm" id="s{{ x.id }}"><h3>{{ x.name }} <span class="muted small" style="font-weight:400">{{ x.category or '' }}{{ (' · ' ~ x.time_min ~ ' хв') if x.time_min }}</span></h3>
-  <div class="nl">{% for n in norms.get(x.id, []) %}<span>{{ n.product.name[:50] }} — <b>{{ '%g'|format(n.qty) }} {{ n.product.unit or 'шт' }}</b>{% if n.warehouse %} · {{ WAREHOUSES.get(n.warehouse) }}{% endif %}
-    <form method="post" action="/stock/norms/{{ n.id }}/delete" style="display:inline"><button title="Прибрати">×</button></form></span>{% else %}<span class="muted" style="background:transparent;padding-left:0">норм ще немає</span>{% endfor %}</div>
-  <form method="post" action="/stock/norms" class="row" style="gap:6px"><input type="hidden" name="service_id" value="{{ x.id }}">
+{% for g in groups %}{% set x = g.services[0] %}
+<div class="norm" id="s{{ x.id }}">
+  <h3>{% if g.techcard %}<span class="pill" style="background:var(--lavender);color:var(--classic);font-size:11.5px">техкартка</span> {% endif %}{{ g.title }}
+    <span class="muted small" style="font-weight:400">{{ g.direction or x.category or '' }}{% if not g.techcard and x.time_min %} · {{ x.time_min }} хв{% endif %}</span></h3>
+  {% if g.techcard %}<details class="small muted" style="margin:-2px 0 6px"><summary style="cursor:pointer">{{ g.services|length }} послуг{{ '' if g.services|length != 1 else 'а' }} — норма застосовується до всіх</summary>
+    <div style="columns:2;margin-top:4px">{% for s in g.services %}<div>{{ s.name }}{{ (' · ' ~ s.time_min ~ ' хв') if s.time_min }}</div>{% endfor %}</div></details>{% endif %}
+  <div class="nl">{% for it in g.norms %}{% set n = it.n %}<span>{{ n.product.name[:50] }} — <b>{{ '%g'|format(n.qty) }} {{ n.product.unit or 'шт' }}</b>{% if n.warehouse %} · {{ WAREHOUSES.get(n.warehouse) }}{% endif %}{% if it.count < it.total %} <em class="muted" style="font-style:normal">({{ it.count }} з {{ it.total }})</em>{% endif %}
+    <form method="post" action="/stock/norms/{{ n.id }}/delete" style="display:inline"><input type="hidden" name="techcard" value="{{ g.techcard or '' }}"><button title="Прибрати">×</button></form></span>{% else %}<span class="muted" style="background:transparent;padding-left:0">норм ще немає</span>{% endfor %}</div>
+  <form method="post" action="/stock/norms" class="row" style="gap:6px"><input type="hidden" name="service_id" value="{{ x.id }}"><input type="hidden" name="techcard" value="{{ g.techcard or '' }}">
     <input name="product" list="prods" placeholder="Матеріал (почніть вводити назву)" required style="flex:1;min-width:240px">
     <input name="qty" value="1" style="width:80px"><select name="warehouse"><option value="">склад товару</option>{% for k, v in WAREHOUSES.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select>
-    <button class="btn ghost">＋ Додати</button></form></div>
+    <button class="btn ghost">＋ Додати{{ ' до техкартки' if g.techcard }}</button></form></div>
 {% else %}<div class="card muted">Послуг ще немає — вони підтягуються з CleverBox під час синхронізації.</div>{% endfor %}
 
 {% elif tab=='moves' %}

@@ -839,6 +839,11 @@ def import_template(user: User = Depends(require("import"))):
     return Response(importer.template_xlsx(), media_type=XLSX, headers=_attach("MOLODIST_шаблон_імпорту.xlsx"))
 
 
+def _svc_imp():
+    from .services import cb_services_import
+    return cb_services_import
+
+
 @app.post("/import/table")
 async def import_table(request: Request, file: UploadFile = File(...), kind: str = Form(""),
                        user: User = Depends(require("import")), db: Session = Depends(db_dep)):
@@ -848,6 +853,10 @@ async def import_table(request: Request, file: UploadFile = File(...), kind: str
         sheets = importer.read_sheets(data, file.filename or "data.xlsx")
         if sheets and sheets[0][1] and cbc.is_clients_export(sheets[0][1][0]):     # вивантаження «Клієнти» CleverBox
             rep = await asyncio.to_thread(cbc.import_clients, db, sheets[0][1][1:], sheets[0][1][0])
+            rep["sheet"] = file.filename
+            reports = [rep]
+        elif sheets and sheets[0][1] and _svc_imp().is_services_export(sheets[0][1][0]):   # «Послуги» CleverBox
+            rep = await asyncio.to_thread(_svc_imp().import_services, db, sheets[0][1][1:], sheets[0][1][0])
             rep["sheet"] = file.filename
             reports = [rep]
         else:
@@ -1542,10 +1551,33 @@ def stock_page(request: Request, tab: str = "balances", only: str = "", wh: str 
             norms[n.service_id].append(n)
         if q:
             words = set(norm(q).split())
-            services = [x for x in services if words <= set(norm((x.name or "") + " " + (x.category or "")).split())]
+            services = [x for x in services if words <= set(norm(" ".join(filter(None, (
+                x.name, x.category, x.techcard, x.direction)))).split())]
         elif request.query_params.get("only") != "all":
             services = [x for x in services if x.id in norms] or services[:60]
-        ctx.update(services=services, norms=norms, products=_product_options(db, consumables=True))
+        # групи: одна техкартка = одна норма на всі її послуги; послуги без техкартки — окремо
+        groups: dict[str, dict] = {}
+        for x in services:
+            key = f"t:{x.techcard}" if x.techcard else f"s:{x.id}"
+            g_ = groups.setdefault(key, {"key": key, "title": x.techcard or x.name, "techcard": x.techcard,
+                                         "services": [], "norms": {}, "direction": x.direction})
+            g_["services"].append(x)
+        all_by_card = defaultdict(list)
+        if any(g_["techcard"] for g_ in groups.values()):
+            for x in db.scalars(select(CbService).where(CbService.techcard.is_not(None))):
+                all_by_card[x.techcard].append(x)
+        for g_ in groups.values():
+            if g_["techcard"]:
+                g_["services"] = all_by_card.get(g_["techcard"], g_["services"])
+            n_svc = len(g_["services"])
+            for x in g_["services"]:
+                for n_ in norms.get(x.id, []):
+                    k_ = (n_.product_id, n_.qty, n_.warehouse)
+                    item = g_["norms"].setdefault(k_, {"n": n_, "count": 0})
+                    item["count"] += 1
+            g_["norms"] = [dict(v, total=n_svc) for v in g_["norms"].values()]
+        glist = sorted(groups.values(), key=lambda g_: ((g_["direction"] or "яяя"), g_["title"].lower()))
+        ctx.update(services=services, groups=glist, norms=norms, products=_product_options(db, consumables=True))
     elif tab == "moves":
         mq = select(StockMove).order_by(StockMove.at.desc(), StockMove.id.desc()).limit(300)
         if wh in catalog.WAREHOUSES:
@@ -1830,25 +1862,40 @@ def stock_invoice_paid(iid: int, back: str = Form("/stock?tab=suppliers"), note:
 
 @app.post("/stock/norms")
 def stock_norm_add(service_id: int = Form(...), product: str = Form(...), qty: str = Form("1"), warehouse: str = Form(""),
-                   user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
-    from .models import ProcedureNorm
+                   techcard: str = Form(""), user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    """Норма на послугу; якщо передано техкартку — на всі послуги цієї техкартки (без дублів)."""
+    from .models import ProcedureNorm, CbService
     pr = _pick_product(db, product)
     if not pr:
         return RedirectResponse(f"/stock?tab=norms&msg=Товар+не+знайдено#s{service_id}", 303)
-    db.add(ProcedureNorm(service_id=service_id, product_id=pr.id, qty=_num(qty) or 1,
-                         warehouse=warehouse if warehouse in catalog.WAREHOUSES else None))
+    ids = [service_id]
+    if techcard:
+        ids = [x for (x,) in db.execute(select(CbService.id).where(CbService.techcard == techcard))] or ids
+    have = {sid for (sid,) in db.execute(select(ProcedureNorm.service_id).where(
+        ProcedureNorm.product_id == pr.id, ProcedureNorm.service_id.in_(ids)))}
+    for sid in ids:
+        if sid not in have:
+            db.add(ProcedureNorm(service_id=sid, product_id=pr.id, qty=_num(qty) or 1,
+                                 warehouse=warehouse if warehouse in catalog.WAREHOUSES else None))
     db.commit()
-    audit(db, "stock.norm_add", user=user, service=service_id, product=pr.id)
+    audit(db, "stock.norm_add", user=user, service=service_id, techcard=techcard or None, services=len(ids), product=pr.id)
     return RedirectResponse(f"/stock?tab=norms#s{service_id}", 303)
 
 
 @app.post("/stock/norms/{nid:int}/delete")
-def stock_norm_delete(nid: int, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
-    from .models import ProcedureNorm
+def stock_norm_delete(nid: int, techcard: str = Form(""), user: User = Depends(require("stock")),
+                      db: Session = Depends(db_dep)):
+    from .models import ProcedureNorm, CbService
     n = db.get(ProcedureNorm, nid)
     sid = n.service_id if n else ""
     if n:
-        db.delete(n)
+        if techcard:      # прибрати матеріал з усієї техкартки
+            ids = [x for (x,) in db.execute(select(CbService.id).where(CbService.techcard == techcard))]
+            for m in db.scalars(select(ProcedureNorm).where(ProcedureNorm.product_id == n.product_id,
+                                                            ProcedureNorm.service_id.in_(ids or [sid]))):
+                db.delete(m)
+        else:
+            db.delete(n)
         db.commit()
     return RedirectResponse(f"/stock?tab=norms#s{sid}", 303)
 

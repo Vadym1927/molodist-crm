@@ -218,18 +218,29 @@ def services(db: Session, d_from: date, d_to: date) -> Report:
     agg = _positions(db, d_from, d_to, "service")
     prev = _positions(db, *prev_period(d_from, d_to), "service")
     total = sum(x["sum"] for x in agg.values()) or 1
-    r = Report("services", "Послуги", "Надані й оплачені послуги за чеками CleverBox.")
-    r.cols = [Col("name", "Послуга"), Col("qty", "Кількість", "num", True), Col("sum", "Виручка", "uah", True),
+    from .cb_services_import import service_index
+    idx = service_index(db)
+    r = Report("services", "Послуги", "Надані й оплачені послуги за чеками CleverBox. Напрямок — з довідника "
+               "«Послуги» CleverBox (Дані → Імпорт).")
+    r.cols = [Col("name", "Послуга"), Col("direction", "Напрямок"), Col("qty", "Кількість", "num", True), Col("sum", "Виручка", "uah", True),
               Col("avg", "Сер. ціна", "uah"), Col("share", "Частка", "pct"), Col("patients", "Пацієнтів", "int"),
               Col("prev", "Попередній період", "uah", True), Col("staff", "Хто виконував")]
     for name, x in agg.items():
-        r.rows.append({"name": name, "qty": x["qty"], "sum": x["sum"], "avg": round(x["sum"] / x["qty"]) if x["qty"] else 0,
+        sv = idx.get(norm(name))
+        r.rows.append({"name": name, "direction": (sv.direction if sv else None) or "", "qty": x["qty"], "sum": x["sum"], "avg": round(x["sum"] / x["qty"]) if x["qty"] else 0,
                        "share": round(100 * x["sum"] / total, 1), "patients": len(x["patients"]),
                        "prev": prev[name]["sum"] if name in prev else 0,
                        "staff": ", ".join(s for s, _ in sorted(x["staff"].items(), key=lambda kv: -kv[1])[:3])})
     r.rows.sort(key=lambda z: -z["sum"])
-    r.chart = [(z["name"][:18], z["sum"]) for z in r.rows[:10]]
-    r.chart_title = "Топ-10 послуг за виручкою"
+    by_dir = defaultdict(float)
+    for z in r.rows:
+        by_dir[z["direction"] or "Без напрямку"] += z["sum"]
+    if len(by_dir) > 1:
+        r.chart = sorted(by_dir.items(), key=lambda kv: -kv[1])[:12]
+        r.chart_title = "Виручка за напрямками"
+    else:
+        r.chart = [(z["name"][:18], z["sum"]) for z in r.rows[:10]]
+        r.chart_title = "Топ-10 послуг за виручкою"
     r.finish()
     pt = sum(x["sum"] for x in prev.values())
     r.tiles = [("Виручка послуг", total if agg else 0, pt, "uah", ""),

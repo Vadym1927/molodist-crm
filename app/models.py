@@ -148,6 +148,10 @@ class CbService(Base):
     category: Mapped[str | None] = mapped_column(String(200))
     price: Mapped[float | None] = mapped_column(Float)
     time_min: Mapped[int | None] = mapped_column(Integer)
+    check_name: Mapped[str | None] = mapped_column(String(300))     # з Excel «Послуги» CleverBox
+    sms_name: Mapped[str | None] = mapped_column(String(300))
+    direction: Mapped[str | None] = mapped_column(String(200))      # «Направленість»: Ін'єкційна, Лазерна епіляція…
+    techcard: Mapped[str | None] = mapped_column(String(200))       # техкартка — спільні норми списання
 
 
 class Visit(Base):
