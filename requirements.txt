@@ -13,3 +13,4 @@ apscheduler>=3.10,<4
 gspread>=6.1
 pytest>=8
 cryptography>=42
+xlrd==2.0.1

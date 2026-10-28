@@ -21,6 +21,12 @@
 .exp{font-weight:700;font-size:13px;white-space:nowrap}.exp.bad{color:var(--bad)}.exp.warn{color:var(--warn)}
 .stk{font-weight:700}.stk.zero{color:var(--bad)}.stk.low{color:var(--warn)}
 .mg{font-weight:700}.mg.low{color:var(--warn)}
+.whs{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:0 0 16px}
+.whs a{background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:12px 14px;text-decoration:none;display:flex;flex-direction:column;gap:2px}
+.whs a:hover{border-color:var(--classic)}.whs a.on{background:var(--deep);border-color:var(--deep);color:#fff}
+.whs b{font:600 15px var(--head);text-transform:uppercase;letter-spacing:.04em}.whs em{font-style:normal;font-size:12.5px;color:var(--muted)}.whs a.on em{color:var(--lavender-2)}
+.imp{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--muted);margin:18px 0 0}
+@media (max-width:900px){.whs{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .bulk{position:sticky;bottom:12px;z-index:5;display:none;gap:10px;align-items:center;background:var(--graphite);color:#fff;border-radius:14px;padding:10px 14px;box-shadow:0 10px 30px -10px rgba(0,0,0,.4);margin-top:10px}
 .bulk.show{display:flex}.bulk input,.bulk select{height:38px}
 </style>
@@ -28,14 +34,21 @@
   <div><div class="eyebrow">Склад і продажі</div><h1>Продукти</h1></div>
 </div>
 <div class="tabs">
-  <a href="?tab=care" class="{{ 'on' if tab=='care' }}">Засоби домашнього догляду</a>
+  <a href="?tab=care" class="{{ 'on' if tab=='care' }}">Товари за складами</a>
   <a href="?tab=suppliers" class="{{ 'on' if tab=='suppliers' }}">Постачальники</a>
   <a href="?tab=procedures" class="{{ 'on' if tab=='procedures' }}">Процедури</a>
   <a href="/mapping" class="{{ 'on' if nav=='mapping' }}">Зіставлення з CleverBox</a></div>
 
 {% if tab=='care' %}
+<div class="whs">
+  {% for k, v in WAREHOUSES.items() %}<a href="?tab=care&wh={{ k }}" class="{{ 'on' if wh==k }}"><b>{{ v }}</b><em>{{ wh_counts.get(k, 0) }} поз.</em></a>{% endfor %}
+  <a href="?tab=care&wh=all" class="{{ 'on' if wh=='all' }}"><b>Усі склади</b><em>{{ total_all }} поз.</em></a>
+</div>
+{% if imported %}<div class="alert" style="{{ '' if imported.error else 'background:var(--ok-bg);color:var(--ok)' }}">
+  {% if imported.error %}{{ imported.error }}{% else %}Імпортовано {{ imported.rows }} рядків: нових {{ imported.created }}, оновлено {{ imported.updated }}, залишків {{ imported.stock }}, брендів {{ imported.brands }}.
+  {% for k, n in imported.by_warehouse.items() %}{{ WAREHOUSES.get(k, 'без складу') }} — {{ n }}{{ '' if loop.last else ', ' }}{% endfor %}{% endif %}</div>{% endif %}
 <form class="fl" method="get">
-  <input type="hidden" name="tab" value="care"><input type="hidden" name="f" value="{{ f }}">
+  <input type="hidden" name="tab" value="care"><input type="hidden" name="f" value="{{ f }}"><input type="hidden" name="wh" value="{{ wh }}">
   <input name="q" value="{{ q }}" placeholder="Назва, бренд або артикул">
   <select name="brand" onchange="this.form.submit()"><option value="">Усі бренди</option>
     {% for b in brands %}<option {{ 'selected' if brand==b }}>{{ b }}</option>{% endfor %}<option value="—" {{ 'selected' if brand=='—' }}>Без бренду</option></select>
@@ -45,18 +58,18 @@
   <button class="btn ghost" style="height:44px">Знайти</button>
 </form>
 <div class="kf">
-  {% set base = '?tab=care&q=' ~ q ~ '&brand=' ~ brand ~ '&supplier=' ~ supplier ~ '&sort=' ~ sort %}
+  {% set base = '?tab=care&wh=' ~ wh ~ '&q=' ~ q ~ '&brand=' ~ brand ~ '&supplier=' ~ supplier ~ '&sort=' ~ sort %}
   <a href="{{ base }}" class="{{ 'on' if not f }}">Усі</a>
   {% for k, v in FILTERS.items() %}<a href="{{ base }}&f={{ k }}" class="{{ 'on' if f==k }} {{ 'alert-f' if k in ('out','expired') else ('warn-f' if k in ('low','expiring','lowmargin') else '') }}">{{ v }} <em>{{ counts[k] }}</em></a>{% endfor %}
 </div>
-<div class="sum"><span>Позицій: <b>{{ tot.n }}</b></span><span>Залишок: <b>{{ '%g'|format(tot.stock) }} шт</b></span>
+<div class="sum"><span>Позицій: <b>{{ tot.n }}</b></span><span>Залишок: <b>{{ '%g'|format(tot.stock|round(1)) }} {{ 'шт' if wh=='vitrina' else 'од.' }}</b></span>
   <span>Вартість залишку (за закупівлею): <b>{{ tot.value|uah }}</b></span><span>Продано за 90 дн: <b>{{ tot.sold|uah }}</b></span></div>
 
 <form method="post" action="/products/bulk" id="bulkf">
 <input type="hidden" name="back" value="{{ request.url.path }}?{{ request.url.query }}">
 {% for bname, rows in groups %}
 <section class="bgrp">
-  {% if sort=='brand' %}<h2>{{ bname or 'Без бренду' }} <em>{{ rows|length }} поз. · залишок {{ '%g'|format(rows|map(attribute='stock')|select|sum) }} шт · {{ rows|sum(attribute='stock_value')|uah }}</em></h2>{% endif %}
+  {% if sort=='brand' %}<h2>{{ bname or 'Без бренду' }} <em>{{ rows|length }} поз. · залишок {{ '%g'|format((rows|map(attribute='stock')|select|sum)|round(1)) }} {{ 'шт' if wh=='vitrina' else 'од.' }} · {{ rows|sum(attribute='stock_value')|uah }}</em></h2>{% endif %}
   <table class="pt"><thead><tr>
     {% if can(user,'products') %}<th class="cb"><input type="checkbox" onclick="for(const c of this.closest('table').querySelectorAll('tbody input[type=checkbox]')){c.checked=this.checked};bulkUi()"></th>{% endif %}
     <th>Засіб</th><th>Постачальник</th><th class="r">Закупівля сер.</th><th class="r">Остання закупівля</th><th class="r">Продаж</th><th class="r">Націнка</th>
@@ -65,13 +78,13 @@
     <tr>
       {% if can(user,'products') %}<td class="cb"><input type="checkbox" name="ids" value="{{ p.id }}" onchange="bulkUi()"></td>{% endif %}
       <td class="nm"><a class="pn" href="/products/{{ p.id }}">{{ p.name }}</a>
-        <div class="meta">{{ ('арт. ' ~ p.sku) if p.sku else 'артикул —' }}{% if sort!='brand' and p.brand %} · {{ p.brand }}{% endif %}{{ (' · ' ~ p.volume) if p.volume }}{% if r.prescribed %} · у планах {{ r.prescribed }}{% endif %}{% if not p.cb_product_id %} · <span style="color:var(--warn)">немає в CleverBox</span>{% endif %}</div></td>
+        <div class="meta">{{ ('арт. ' ~ p.sku) if p.sku else 'артикул —' }}{% if sort!='brand' and p.brand %} · {{ p.brand }}{% endif %}{% if wh=='all' and p.warehouse %} · {{ WAREHOUSES.get(p.warehouse) }}{% endif %}{{ (' · ' ~ p.volume) if p.volume }}{% if r.prescribed %} · у планах {{ r.prescribed }}{% endif %}{% if not p.cb_product_id %} · <span style="color:var(--warn)">немає в CleverBox</span>{% endif %}</div></td>
       <td class="small">{{ p.supplier or r.last_supplier or '—' }}</td>
       <td class="r">{{ r.cost_avg|uah if r.cost_avg else '—' }}</td>
       <td class="r">{% if r.cost_last %}{{ r.cost_last|uah }}<div class="meta">{{ r.last_bought|dt('%d.%m.%y') }}</div>{% else %}—{% endif %}</td>
       <td class="r">{{ r.sale_price|uah if r.sale_price else '—' }}</td>
       <td class="r"><span class="mg {{ 'low' if 'lowmargin' in fl }}">{{ (r.margin ~ '%') if r.margin is not none else '—' }}</span></td>
-      <td class="r"><span class="stk {{ 'zero' if 'out' in fl else ('low' if 'low' in fl) }}">{{ ('%g'|format(r.stock)) if r.stock is not none else '—' }}</span>{% if p.min_stock %}<div class="meta">мін {{ p.min_stock }}</div>{% endif %}</td>
+      <td class="r"><span class="stk {{ 'zero' if 'out' in fl else ('low' if 'low' in fl) }}">{{ ('%g'|format(r.stock)) if r.stock is not none else '—' }}{{ (' ' ~ p.unit) if p.unit and p.unit != 'шт' and r.stock is not none }}</span>{% if p.min_stock %}<div class="meta">мін {{ p.min_stock }}</div>{% endif %}</td>
       <td class="r small">{{ (r.days_left ~ ' дн') if r.days_left is not none else '—' }}</td>
       <td>{% if r.expiry %}<span class="exp {{ 'bad' if 'expired' in fl else ('warn' if 'expiring' in fl) }}">{{ r.expiry|dt('%d.%m.%Y') }}</span>
           <div class="meta">{% if r.days_to_expiry < 0 %}прострочено{% else %}через {{ r.days_to_expiry }} дн{% endif %}</div>{% else %}<span class="muted">—</span>{% endif %}</td>
@@ -83,12 +96,18 @@
 {% else %}<div class="card muted">Нічого не знайдено за цими фільтрами.</div>{% endfor %}
 {% if can(user,'products') %}
 <div class="bulk" id="bulkbar"><b id="bulkn">0</b> обрано ·
-  <select name="field"><option value="brand">Призначити бренд</option><option value="supplier">Призначити постачальника</option></select>
-  <input name="value" list="bulkvals" placeholder="Назва" required style="min-width:220px">
+  <select name="field" onchange="document.getElementById('bv').style.display=this.value=='warehouse'?'none':'';document.getElementById('bw').style.display=this.value=='warehouse'?'':'none';document.getElementById('bv').required=this.value!='warehouse'">
+    <option value="brand">Призначити бренд</option><option value="supplier">Призначити постачальника</option><option value="warehouse">Перемістити на склад</option></select>
+  <input name="value" id="bv" list="bulkvals" placeholder="Назва" required style="min-width:220px">
+  <select name="value" id="bw" style="display:none">{% for k, v in WAREHOUSES.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select>
   <datalist id="bulkvals">{% for b in brands %}<option value="{{ b }}">{% endfor %}{% for x in suppliers %}<option value="{{ x }}">{% endfor %}</datalist>
   <button class="btn">Застосувати</button></div>
 {% endif %}
 </form>
+{% if can(user,'import') %}
+<form class="imp" method="post" action="/products/import" enctype="multipart/form-data">
+  <b style="color:var(--ink)">Імпорт товарів з CleverBox (Excel)</b> — склади, бренди, постачальники, артикули, ціни закупівлі й продажу, крит. залишок, кількість.
+  <input type="file" name="file" accept=".xls,.xlsx" required><button class="btn ghost">Імпортувати</button></form>{% endif %}
 <script>function bulkUi(){var n=document.querySelectorAll('#bulkf tbody input[type=checkbox]:checked').length;var b=document.getElementById('bulkbar');if(!b)return;b.classList.toggle('show',n>0);document.getElementById('bulkn').textContent=n}</script>
 
 {% elif tab=='suppliers' %}

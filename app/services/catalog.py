@@ -13,6 +13,33 @@ from ..parsers.observ import norm
 from .kpi import name_match, all_statuses, PlanStatus
 
 
+# Склади (розділи) товарів. Ключі стабільні, назви — для інтерфейсу.
+WAREHOUSES = {"vitrina": "Вітрина", "inject": "Ін'єкційна", "classic": "Класична", "single": "Одноразка", "equip": "Обладнання"}
+
+
+def warehouse_of(category: str | None) -> str | None:
+    """Категорія / напрямок CleverBox → склад CRM."""
+    c = (category or "").lower()
+    if not c:
+        return None
+    if "вітрин" in c or "витрин" in c or "магазин" in c:
+        return "vitrina"
+    if "ін'єкц" in c or "інєкц" in c or "ін’єкц" in c or "инъек" in c or "inject" in c:
+        return "inject"
+    if "класич" in c or "классич" in c:
+        return "classic"
+    if "однораз" in c or "расход" in c or "витрат" in c:
+        return "single"
+    if "обладн" in c or "апарат" in c or "оборуд" in c:
+        return "equip"
+    return None
+
+
+def home_care(products):
+    """Лише засоби для продажу (вітрина) — з ними зіставляються засоби з бюті-планів."""
+    return [p for p in products if p.warehouse in (None, "vitrina") and p.for_sale is not False]
+
+
 def match_product(db: Session, name: str, products: list[Product] | None = None) -> Product | None:
     products = products if products is not None else db.scalars(select(Product)).all()
     key = norm(name)
@@ -27,7 +54,7 @@ def match_product(db: Session, name: str, products: list[Product] | None = None)
 
 
 def link_item(db: Session, it: PlanItem, products: list[Product]) -> Product:
-    prod = match_product(db, it.name, products)
+    prod = match_product(db, it.name, home_care(products))
     if not prod:                                        # засіб є в плані, але ще немає в каталозі
         prod = Product(name=it.name, name_norm=norm(it.name), volume=it.volume, price=it.unit_price, url=it.url)
         db.add(prod)
@@ -55,7 +82,7 @@ def link_all_items(db: Session):
     for it in db.scalars(select(PlanItem).where(PlanItem.kind == "product", PlanItem.product_id.is_(None))):
         link_item(db, it, products)
     # засоби, створені з плану, які тепер зіставились з товаром CleverBox — зливаємо
-    cb = [p for p in products if p.cb_product_id]
+    cb = [p for p in home_care(products) if p.cb_product_id]
     for p in [p for p in products if not p.cb_product_id]:
         twin = match_product(db, p.name, cb)
         if twin:
@@ -272,3 +299,117 @@ def procedure_rows(statuses: list[PlanStatus]) -> list[ProcedureRow]:
             r.plans += 1
             r.prices.append(it.unit_price)
     return sorted(rows.values(), key=lambda r: -r.planned_sum)
+
+
+# ---------------- Імпорт товарів з Excel-вивантаження CleverBox ----------------
+IMPORT_COLS = {"id": ("id",), "name": ("назва",), "sku": ("артикул",), "barcode": ("штрихкод",),
+               "unit": ("од. списання", "од списання", "одиниця"), "category": ("категорія",), "direction": ("напрямок",),
+               "brand": ("бренд",), "supplier": ("постачальник",), "min_stock": ("крит. залишок", "критичний залишок"),
+               "for_sale": ("для продажу",), "cost": ("ціна закупівлі", "собівартість"), "price": ("ціна продажу",),
+               "qty": ("кількість", "залишок")}
+
+
+def _cell_num(v):
+    if v in (None, ""):
+        return None
+    try:
+        return float(str(v).replace("\xa0", "").replace(" ", "").replace(",", "."))
+    except ValueError:
+        return None
+
+
+def read_table(path: str) -> list[dict]:
+    """XLS (CleverBox) або XLSX → список рядків {назва колонки: значення}."""
+    if path.lower().endswith(".xls"):
+        import xlrd
+        sh = xlrd.open_workbook(path, ignore_workbook_corruption=True).sheet_by_index(0)
+        rows = [sh.row_values(i) for i in range(sh.nrows)]
+    else:
+        from openpyxl import load_workbook
+        ws = load_workbook(path, read_only=True, data_only=True).worksheets[0]
+        rows = [list(r) for r in ws.iter_rows(values_only=True)]
+    if not rows:
+        return []
+    head = [str(h or "").strip().lower() for h in rows[0]]
+    return [dict(zip(head, r)) for r in rows[1:] if any(x not in (None, "") for x in r)]
+
+
+def import_products(db: Session, path: str) -> dict:
+    """Оновлює каталог з файлу: склад, бренд, постачальник, артикул, штрихкод, одиниця, ціни, крит. залишок, кількість.
+    Зіставлення — за ID CleverBox, потім за назвою. Нові товари створюються."""
+    data = read_table(path)
+    if not data:
+        return {"error": "Файл порожній або не розпізнано"}
+    head = list(data[0].keys())
+
+    def col(key):
+        for h in head:
+            if any(h == a or h.startswith(a) for a in IMPORT_COLS[key]):
+                return h
+        return None
+    cmap = {k: col(k) for k in IMPORT_COLS}
+    if not cmap["name"]:
+        return {"error": "Немає колонки «Назва»"}
+    products = db.scalars(select(Product)).all()
+    by_cb = {p.cb_product_id: p for p in products if p.cb_product_id}
+    by_name = {p.name_norm: p for p in products}
+    brand_case: dict[str, str] = {}
+    rep = {"rows": len(data), "created": 0, "updated": 0, "by_warehouse": defaultdict(int), "stock": 0}
+    stock_rows = []
+    for r in data:
+        g = lambda k: (r.get(cmap[k]) if cmap[k] else None)
+        name = str(g("name") or "").strip()
+        if not name:
+            continue
+        cid = _cell_num(g("id"))
+        cid = int(cid) if cid else None
+        p = by_cb.get(cid) if cid else None
+        p = p or by_name.get(norm(name))
+        if not p:
+            p = Product(name=name, name_norm=norm(name), cb_product_id=cid)
+            db.add(p)
+            rep["created"] += 1
+        else:
+            rep["updated"] += 1
+        if cid and not p.cb_product_id:
+            p.cb_product_id = cid
+        wh = warehouse_of(str(g("category") or "")) or warehouse_of(str(g("direction") or ""))
+        if wh:
+            p.warehouse = wh
+        rep["by_warehouse"][p.warehouse or "none"] += 1
+        brand = str(g("brand") or "").strip()
+        if brand:
+            p.brand = brand_case.setdefault(brand.lower(), brand)[:120]
+        sup = str(g("supplier") or "").strip()
+        if sup:
+            p.supplier = sup[:200]
+        for k, attr in (("sku", "sku"), ("barcode", "barcode"), ("unit", "unit")):
+            v = g(k)
+            if v not in (None, "") and str(v).strip() not in ("0", "0.0"):
+                setattr(p, attr, str(v).strip().rstrip(".")[:100] if k == "unit" else str(v).strip()[:100])
+        if g("for_sale") is not None and cmap["for_sale"]:
+            p.for_sale = str(g("for_sale")).strip() in ("1", "1.0", "так", "true", "True")
+        price, cost, ms = _cell_num(g("price")), _cell_num(g("cost")), _cell_num(g("min_stock"))
+        if price:
+            p.price = price
+        if cost:
+            p.cost = cost
+        if ms is not None and ms > 0:
+            p.min_stock = int(ms)
+        q = _cell_num(g("qty"))
+        if q is not None and cmap["qty"]:
+            stock_rows.append((p, name, max(q, 0.0)))
+    db.flush()
+    if stock_rows:
+        ids = [p.cb_product_id for p, _, _ in stock_rows if p.cb_product_id]
+        if ids:
+            db.execute(StockLevel.__table__.delete().where(StockLevel.cb_product_id.in_(ids)))
+        for p, name, q in stock_rows:
+            if p.cb_product_id:
+                db.add(StockLevel(cb_product_id=p.cb_product_id, name=name, qty=q,
+                                  storage=WAREHOUSES.get(p.warehouse or "", None), unit=p.unit))
+                rep["stock"] += 1
+    db.commit()
+    rep["by_warehouse"] = dict(rep["by_warehouse"])
+    rep["brands"] = len({p.brand for p in db.scalars(select(Product)) if p.brand})
+    return rep

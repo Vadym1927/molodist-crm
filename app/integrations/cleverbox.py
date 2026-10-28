@@ -593,9 +593,8 @@ def sync_products(db: Session, cb: CleverBox) -> int:
     """Каталог товарів CleverBox -> Product (ціна, собівартість, категорія)."""
     from ..services.catalog import link_all_items
     n, keys = 0, set()
+    from ..services.catalog import warehouse_of
     for it in cb.products_list():
-        if it.get("for_sale") is False and it.get("for_shop") is False:
-            continue                                   # витратні матеріали «для роботи» — не догляд
         pid = int(it["item_id"])
         prod = db.scalar(select(Product).where(Product.cb_product_id == pid))
         if not prod:
@@ -604,6 +603,16 @@ def sync_products(db: Session, cb: CleverBox) -> int:
         prod.name = it.get("name") or prod.name
         prod.name_norm = norm(prod.name)
         prod.category = it.get("category_name")
+        wh = warehouse_of(prod.category) or warehouse_of(_first(it, "direction_name", "direction"))
+        if wh and not prod.warehouse:
+            prod.warehouse = wh
+        if it.get("for_sale") is not None:
+            prod.for_sale = bool(it.get("for_sale")) or bool(it.get("for_shop"))
+        if not prod.warehouse and prod.for_sale is False:
+            prod.warehouse = "single"                   # матеріал «для роботи» без категорії — до одноразки
+        unit = _first(it, "unit", "unit_name", "unit_write_off")
+        if isinstance(unit, str) and unit.strip() and not prod.unit:
+            prod.unit = unit.strip().rstrip(".")[:20]
         prod.price = float(_first(it, "sale_price", "base_price", default=0) or 0) or prod.price
         prod.cost = float(it["cost"]) if it.get("cost") not in (None, "") else prod.cost
         # бренд / артикул / постачальник — якщо CleverBox їх віддає (ручні значення не затираємо)

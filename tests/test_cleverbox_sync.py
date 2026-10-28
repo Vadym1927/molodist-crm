@@ -98,7 +98,9 @@ def test_full_sync(monkeypatch):
     assert db.query(Check).count() == 2 and db.query(StockLevel).count() == 1
     prod = db.query(Product).filter(Product.cb_product_id == 3).one()
     azel = next(i for i in plan.items if "Azelorosa" in i.name)
-    assert azel.product_id == prod.id and db.query(Product).count() == 5      # 4 засоби з плану + 1 з CleverBox (злиття)
+    assert azel.product_id == prod.id and db.query(Product).count() == 6      # 4 з плану + Azelorosa (злиття) + голки
+    needles = db.query(Product).filter_by(cb_product_id=4).one()
+    assert needles.for_sale is False and needles.warehouse == "single"        # витратний матеріал — не догляд
     assert db.query(Patient).filter(Patient.cleverbox_id == 888).count() == 1   # клієнт із календаря
 
 

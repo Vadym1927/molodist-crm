@@ -328,6 +328,10 @@ class Product(Base):
     sku: Mapped[str | None] = mapped_column(String(100), index=True)        # артикул
     expiry_date: Mapped[date | None] = mapped_column(Date)                  # термін придатності (найближчий, вручну)
     price_manual: Mapped[float | None] = mapped_column(Float)               # ціна продажу, якщо немає в CleverBox
+    warehouse: Mapped[str | None] = mapped_column(String(20), index=True)   # склад: vitrina|inject|classic|single|equip
+    unit: Mapped[str | None] = mapped_column(String(20))                    # од. списання: шт., мл. …
+    barcode: Mapped[str | None] = mapped_column(String(64))
+    for_sale: Mapped[bool | None] = mapped_column(Boolean)                  # для продажу (інакше — витратний матеріал)
 
 
 class ProductPurchase(Base):

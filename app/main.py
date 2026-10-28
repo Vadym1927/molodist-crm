@@ -1162,13 +1162,18 @@ def _product_flags(r) -> set[str]:
 
 @app.get("/products", response_class=HTMLResponse)
 def products_page(request: Request, tab: str = "care", q: str = "", brand: str = "", supplier: str = "",
-                  f: str = "", sort: str = "brand", user: User = Depends(require("products")),
+                  f: str = "", sort: str = "brand", wh: str = "vitrina", user: User = Depends(require("products")),
                   db: Session = Depends(db_dep)):
     sts = all_statuses(db)
     if tab == "procedures":
         return render(request, "products.html", tab=tab, procedures=catalog.procedure_rows(sts))
     from .models import ProductPurchase
-    rows = [r for r in catalog.product_rows(db, sts) if r.product.active is not False]
+    every = [r for r in catalog.product_rows(db, sts) if r.product.active is not False]
+    wh = wh if wh in catalog.WAREHOUSES or wh == "all" else "vitrina"
+    wh_counts = {k: 0 for k in catalog.WAREHOUSES}
+    for r in every:
+        wh_counts[r.product.warehouse or "vitrina"] = wh_counts.get(r.product.warehouse or "vitrina", 0) + 1
+    rows = every if wh == "all" else [r for r in every if (r.product.warehouse or "vitrina") == wh]
     all_rows = rows
     counts = {k: 0 for k in PRODUCT_FILTERS}
     flags = {}
@@ -1204,13 +1209,15 @@ def products_page(request: Request, tab: str = "care", q: str = "", brand: str =
         for pp in db.scalars(select(ProductPurchase).order_by(ProductPurchase.bought_on)):
             a = agg.setdefault(pp.supplier or "Без постачальника", {"n": 0, "sum": 0.0, "last": None, "products": set()})
             a["n"] += 1; a["sum"] += (pp.qty or 0) * (pp.unit_cost or 0); a["last"] = pp.bought_on; a["products"].add(pp.product_id)
-        for r in all_rows:
+        for r in every:
             if r.product.supplier:
                 agg.setdefault(r.product.supplier, {"n": 0, "sum": 0.0, "last": None, "products": set()})["products"].add(r.product.id)
         supplier_rows = sorted(agg.items(), key=lambda x: x[0].lower())
     return render(request, "products.html", tab=tab, groups=groups, flags=flags, counts=counts, FILTERS=PRODUCT_FILTERS,
                   SORTS=PRODUCT_SORTS, q=q, brand=brand, supplier=supplier, f=f, sort=sort, brands=brands,
-                  suppliers=suppliers, tot=tot, supplier_rows=supplier_rows, today=date.today())
+                  suppliers=suppliers, tot=tot, supplier_rows=supplier_rows, today=date.today(), wh=wh,
+                  WAREHOUSES=catalog.WAREHOUSES, wh_counts=wh_counts, total_all=len(every),
+                  imported=LAST_IMPORT.pop(f"products-{user.id}", None))
 
 
 def _num(v: str):
@@ -1255,7 +1262,7 @@ def product_card(pid: int, request: Request, user: User = Depends(require("produ
                 if (at.year, at.month) == (mm[0].year, mm[0].month):
                     mm[1] += q or 0
     stock_rows = db.scalars(select(StockLevel).where(StockLevel.cb_product_id == prod.cb_product_id)).all() if prod.cb_product_id else []
-    return render(request, "product.html", p=prod, r=row, purchases=purchases, sales=sales, plans=plans, months=months,
+    return render(request, "product.html", WAREHOUSES=catalog.WAREHOUSES, p=prod, r=row, purchases=purchases, sales=sales, plans=plans, months=months,
                   m_max=max([m[1] for m in months] + [1]), stock_rows=stock_rows, today=today,
                   brands=sorted({x for (x,) in db.execute(select(Product.brand).where(Product.brand.is_not(None)).distinct())}),
                   suppliers=sorted({x for (x,) in db.execute(select(Product.supplier).where(Product.supplier.is_not(None)).distinct())}))
@@ -1265,6 +1272,7 @@ def product_card(pid: int, request: Request, user: User = Depends(require("produ
 def product_update(pid: int, supply_days: str = Form(""), min_stock: str = Form(""), url: str = Form(""),
                    apply: str = Form(""), brand: str = Form(None), supplier: str = Form(None), sku: str = Form(None),
                    expiry_date: str = Form(None), price_manual: str = Form(None), back: str = Form(""),
+                   warehouse: str = Form(None),
                    user: User = Depends(require("products")), db: Session = Depends(db_dep)):
     prod = db.get(Product, pid) or (_ for _ in ()).throw(HTTPException(404))
     prod.supply_days = int(supply_days) if supply_days.strip().isdigit() else None
@@ -1280,6 +1288,8 @@ def product_update(pid: int, supply_days: str = Form(""), min_stock: str = Form(
         prod.expiry_date = _day(expiry_date)
     if price_manual is not None:
         prod.price_manual = _num(price_manual)
+    if warehouse is not None and warehouse in catalog.WAREHOUSES:
+        prod.warehouse = warehouse
     n = 0
     if apply and prod.supply_days:
         for it in db.scalars(select(PlanItem).where(PlanItem.product_id == prod.id)):
@@ -1323,12 +1333,32 @@ def product_purchase_delete(pid: int, ppid: int, user: User = Depends(require("p
     return RedirectResponse(f"/products/{pid}#buy", 303)
 
 
+@app.post("/products/import")
+async def products_import(file: UploadFile = File(...), user: User = Depends(require("import")), db: Session = Depends(db_dep)):
+    """Excel-вивантаження товарів з CleverBox (Склад → Товари → Експорт): склади, бренди, постачальники, ціни, залишки."""
+    import tempfile
+    suffix = ".xls" if (file.filename or "").lower().endswith(".xls") else ".xlsx"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(await file.read())
+    try:
+        rep = await asyncio.to_thread(catalog.import_products, db, tmp.name)
+    except Exception as e:  # noqa: BLE001
+        rep = {"error": f"Не вдалося прочитати файл: {type(e).__name__}"}
+    finally:
+        os.unlink(tmp.name)
+    audit(db, "products.import", user=user, **{k: v for k, v in rep.items() if k != "by_warehouse"})
+    LAST_IMPORT[f"products-{user.id}"] = rep
+    return RedirectResponse("/products?wh=all", 303)
+
+
 @app.post("/products/bulk")
 async def products_bulk(request: Request, user: User = Depends(require("products")), db: Session = Depends(db_dep)):
     form = await request.form()
     ids = [int(x) for x in form.getlist("ids") if str(x).isdigit()]
     field_, value = form.get("field"), (form.get("value") or "").strip()
-    if field_ in ("brand", "supplier") and ids:
+    if field_ == "warehouse" and value not in catalog.WAREHOUSES:
+        field_ = None
+    if field_ in ("brand", "supplier", "warehouse") and ids:
         for p_ in db.scalars(select(Product).where(Product.id.in_(ids))):
             setattr(p_, field_, value[:200] or None)
         db.commit()

@@ -19,12 +19,12 @@
 .side{position:sticky;top:90px}
 @media (max-width:1100px){.lay{grid-template-columns:1fr}.side{position:static}}
 </style>
-<a href="/products" class="muted small" style="text-decoration:none">← Продукти</a>
+<a href="/products?wh={{ p.warehouse or 'vitrina' }}" class="muted small" style="text-decoration:none">← {{ WAREHOUSES.get(p.warehouse or 'vitrina') }}</a>
 <div class="ph2">
   <div><div class="eyebrow">{{ p.brand or 'Бренд не вказано' }}</div><h1>{{ p.name }}</h1>
     <div class="chips2">
       {% if p.brand %}<span class="b">{{ p.brand }}</span>{% endif %}
-      <span>арт. {{ p.sku or '—' }}</span><span>{{ p.supplier or r.last_supplier or 'постачальник —' }}</span>
+      <span>{{ WAREHOUSES.get(p.warehouse or 'vitrina') }}</span><span>арт. {{ p.sku or '—' }}</span>{% if p.barcode %}<span>ШК {{ p.barcode }}</span>{% endif %}<span>{{ p.supplier or r.last_supplier or 'постачальник —' }}</span>
       {% if p.volume %}<span>{{ p.volume }}</span>{% endif %}
       <span>{{ ('CleverBox #' ~ p.cb_product_id) if p.cb_product_id else 'немає в CleverBox' }}</span>
       {% if p.url %}<a href="{{ p.url }}" target="_blank" class="small" style="align-self:center">molodist.store ↗</a>{% endif %}
@@ -85,7 +85,8 @@
   <form class="form" method="post" action="/products/{{ p.id }}">
     <div class="two"><label>Бренд<input name="brand" list="brandl" value="{{ p.brand or '' }}"></label>
       <label>Артикул<input name="sku" value="{{ p.sku or '' }}"></label></div>
-    <label>Основний постачальник<input name="supplier" list="suppl" value="{{ p.supplier or '' }}"></label>
+    <div class="two"><label>Основний постачальник<input name="supplier" list="suppl" value="{{ p.supplier or '' }}"></label>
+      <label>Склад<select name="warehouse">{% for k, v in WAREHOUSES.items() %}<option value="{{ k }}" {{ 'selected' if (p.warehouse or 'vitrina')==k }}>{{ v }}</option>{% endfor %}</select></label></div>
     <div class="two"><label>Ціна продажу, ₴{% if p.price %} <span style="font-weight:400">(CleverBox: {{ p.price|uah }})</span>{% endif %}<input name="price_manual" value="{{ p.price_manual or '' }}" placeholder="{{ 'з CleverBox' if p.price else '' }}" {{ 'disabled' if p.price }}></label>
       <label>Придатний до (вручну)<input type="date" name="expiry_date" value="{{ p.expiry_date or '' }}"></label></div>
     <div class="two"><label>Мін. залишок, шт<input name="min_stock" value="{{ p.min_stock or '' }}"></label>
