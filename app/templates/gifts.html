@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Сертифікати й абонементи · MOLODIST CRM{% endblock %}
+{% block body %}
+<style>
+.g-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 16px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.g-tabs a{padding:8px 14px;border-radius:10px;text-decoration:none;color:#3a342f;font-weight:600;font-size:14px}
+.g-tabs a:hover{background:var(--card)}.g-tabs a.on{background:var(--deep);color:#fff}.g-tabs em{font-style:normal;opacity:.7;margin-left:4px}
+.g-st{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.g-st a{background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:12px 14px;text-decoration:none;display:flex;flex-direction:column;gap:2px;color:var(--ink)}
+.g-st a:hover{border-color:var(--classic)}.g-st a.on{background:var(--deep);border-color:var(--deep);color:#fff}
+.g-st span{font:600 12.5px var(--head);text-transform:uppercase;letter-spacing:.04em}.g-st b{font-size:20px}.g-st em{font-style:normal;font-size:12.5px;color:var(--muted)}.g-st a.on em{color:var(--lavender-2)}
+.g-st a.warn b{color:var(--warn)}.g-st a.bad b{color:var(--bad)}.g-st a.on b{color:#fff}
+.tb td{vertical-align:middle}.meta{font-size:12.5px;color:var(--muted)}
+.bar2{height:6px;background:var(--soft);border-radius:99px;overflow:hidden;min-width:70px}.bar2 i{display:block;height:100%;background:var(--classic)}
+@media (max-width:900px){.g-st{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+<div class="row between" style="align-items:flex-end;flex-wrap:wrap;gap:10px">
+  <div><div class="eyebrow">Передоплати пацієнтів</div><h1>Сертифікати й абонементи</h1>
+    <div class="muted small">Гроші, які пацієнти вже заплатили, а клініка ще винна послугами. Нагадування адмінам — за 14 днів до кінця терміну.</div></div>
+  {% if can(user,'import') %}<form method="post" action="/gifts/import" enctype="multipart/form-data" class="row" style="gap:8px">
+    <input type="file" name="file" accept=".xls,.xlsx" required><button class="btn">Імпорт з CleverBox</button></form>{% endif %}
+</div>
+{% if last %}<div class="alert" style="margin-top:12px;{{ '' if last.error else 'background:var(--ok-bg);color:var(--ok)' }}">
+  {% if last.error %}{{ last.error }}{% else %}{{ last.type }}: {{ last.rows }} рядків, оновлено {{ last.updated }}{% if last.skipped %}, пропущено {{ last.skipped }}{% endif %}.
+  {% for e in (last.errors or [])[:5] %}<div class="small">{{ e }}</div>{% endfor %}{% if (last.errors or [])|length > 5 %}<div class="small">…ще {{ last.errors|length - 5 }}</div>{% endif %}{% endif %}</div>{% endif %}
+
+<nav class="g-tabs"><a href="?tab=certs" class="{{ 'on' if tab=='certs' }}">Подарункові сертифікати{% if tab!='certs' %}<em>{{ other_n }}</em>{% endif %}</a>
+  <a href="?tab=subs" class="{{ 'on' if tab=='subs' }}">Абонементи{% if tab!='subs' %}<em>{{ other_n }}</em>{% endif %}</a></nav>
+
+<div class="g-st">{% for k, label in states.items() %}{% set c = counts.get(k, {'n':0,'sum':0}) %}
+  <a href="?tab={{ tab }}&st={{ k }}" class="{{ 'on' if st==k }} {{ 'warn' if k=='expiring' and c.n }} {{ 'bad' if k=='expired' and c.n }}"><span>{{ label }}</span><b>{{ c.n }}</b>
+    <em>{% if k in ('active','expiring','expired','unpaid') %}{{ c.sum|uah }} {{ 'залишок' if k != 'unpaid' else '' }}{% else %}&nbsp;{% endif %}</em></a>{% endfor %}</div>
+
+<form class="row" style="margin-bottom:12px"><input type="hidden" name="tab" value="{{ tab }}"><input type="hidden" name="st" value="{{ st }}">
+  <input name="q" value="{{ q }}" placeholder="Пацієнт, № або тип" style="flex:1;height:44px">
+  <select name="seller" onchange="this.form.submit()" style="height:44px"><option value="">Усі адміністратори</option>{% for x in sellers %}<option {{ 'selected' if seller==x }}>{{ x }}</option>{% endfor %}</select>
+  <button class="btn ghost" style="height:44px">Знайти</button>{% if st or q or seller %}<a class="btn ghost" style="height:44px" href="?tab={{ tab }}">Скинути</a>{% endif %}</form>
+{% if not st and not q and not seller %}<p class="muted small" style="margin:-4px 0 10px">Показано чинні (активні, що закінчуються, неоплачені). Інші — кліком на картку стану вгорі.</p>{% endif %}
+
+<div class="card" style="padding:6px 8px;overflow-x:auto"><table class="tb">
+{% if tab == 'certs' %}
+  <thead><tr><th>№</th><th>Пацієнт</th><th>Сертифікат</th><th>Продано</th><th class="r">Номінал</th><th class="r">Залишок</th><th>Використано</th><th>Діє до</th><th>Стан</th></tr></thead><tbody>
+  {% for c in items %}{% set s_ = c.state(today) %}<tr>
+    <td><b>{{ c.code or c.id }}</b></td>
+    <td>{% if c.patient_id %}<a href="/patients/{{ c.patient_id }}#certs" style="font-weight:600;text-decoration:none">{{ c.client_name or c.patient.full_name }}</a>{% else %}{{ c.client_name or '— без клієнта' }}{% endif %}{% if c.comment %}<div class="meta">{{ c.comment }}</div>{% endif %}</td>
+    <td class="small">{{ c.type_name or '—' }}</td>
+    <td class="small">{{ c.sold_at|dt('%d.%m.%Y') if c.sold_at else '—' }}<div class="meta">{{ c.seller or '' }}</div></td>
+    <td class="r">{{ c.nominal|uah }}</td><td class="r"><b>{{ c.balance|uah }}</b></td>
+    <td>{% set u = ((100 * (c.nominal - c.balance) / c.nominal) if c.nominal else 0)|round|int %}<div class="bar2"><i style="width:{{ u }}%"></i></div><div class="meta">{{ u }}%</div></td>
+    <td class="small">{{ c.valid_to|dt('%d.%m.%Y') if c.valid_to else 'безстроково' }}{% if c.valid_to and s_ in ('active','expiring') %}<div class="meta">через {{ (c.valid_to - today).days }} дн</div>{% endif %}</td>
+    <td><span class="pill {{ {'active':'ok','expiring':'warn','expired':'bad','used':'done','unpaid':'warn'}[s_] }}">{{ states[s_] }}</span></td></tr>
+  {% else %}<tr><td colspan="9" class="muted">Немає сертифікатів. Завантажте вивантаження CleverBox «Сертифікати» кнопкою вгорі.</td></tr>{% endfor %}</tbody>
+{% else %}
+  <thead><tr><th>№</th><th>Пацієнт</th><th>Абонемент</th><th>Продано</th><th class="r">Сплачено</th><th>Візити</th><th class="r">Невикористано</th><th>Діє до</th><th>Стан</th></tr></thead><tbody>
+  {% for x in items %}{% set s_ = x.state(today) %}<tr>
+    <td><b>{{ x.code or x.id }}</b></td>
+    <td>{% if x.patient_id %}<a href="/patients/{{ x.patient_id }}#subs" style="font-weight:600;text-decoration:none">{{ x.client_name or x.patient.full_name }}</a>{% else %}{{ x.client_name or '— без клієнта' }}{% endif %}{% if x.comment %}<div class="meta">{{ x.comment }}</div>{% endif %}</td>
+    <td class="small">{{ x.type_name or '—' }}{% if x.services %}<div class="meta">{{ x.services[:120] }}</div>{% endif %}</td>
+    <td class="small">{{ x.sold_at|dt('%d.%m.%Y') if x.sold_at else '—' }}<div class="meta">{{ x.seller or '' }}</div></td>
+    <td class="r">{{ x.paid|uah }}</td>
+    <td>{% if x.visits_total %}{% set u = (100 * (x.visits_used or 0) / x.visits_total)|round|int %}<div class="bar2"><i style="width:{{ u }}%"></i></div><div class="meta">{{ '%g'|format(x.visits_used or 0) }} з {{ '%g'|format(x.visits_total) }} · лишилось <b>{{ '%g'|format(x.visits_left) }}</b></div>{% else %}—{% endif %}</td>
+    <td class="r"><b>{{ x.value_left|uah }}</b></td>
+    <td class="small">{{ x.valid_to|dt('%d.%m.%Y') if x.valid_to else 'безстроково' }}{% if x.valid_to and s_ in ('active','expiring') %}<div class="meta">через {{ (x.valid_to - today).days }} дн</div>{% endif %}</td>
+    <td><span class="pill {{ {'active':'ok','expiring':'warn','expired':'bad','used':'done','unpaid':'warn'}[s_] }}">{{ states[s_] }}</span></td></tr>
+  {% else %}<tr><td colspan="9" class="muted">Абонементів ще немає. У CleverBox відкрийте розділ абонементів (продані абонементи), зробіть «Експорт» в Excel і завантажте файл кнопкою вгорі — CRM сама розпізнає колонки.</td></tr>{% endfor %}</tbody>
+{% endif %}
+</table>{% if total > 500 %}<p class="muted small">Показано 500 з {{ total }}.</p>{% endif %}</div>
+{% endblock %}

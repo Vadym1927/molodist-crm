@@ -529,6 +529,62 @@ class GiftCertificate(Base):
         return "active"
 
 
+class Subscription(Base):
+    """Абонемент CleverBox (вивантаження «Абонементи»): N візитів / послуг до дати."""
+    __tablename__ = "subscriptions"
+    id: Mapped[int] = mapped_column(primary_key=True)                  # = ID CleverBox
+    code: Mapped[str | None] = mapped_column(String(40))
+    type_name: Mapped[str | None] = mapped_column(String(300))
+    services: Mapped[str | None] = mapped_column(Text)                 # на які послуги діє
+    cb_client_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    patient_id: Mapped[int | None] = mapped_column(ForeignKey("patients.id"), index=True)
+    client_name: Mapped[str | None] = mapped_column(String(200))
+    seller: Mapped[str | None] = mapped_column(String(200))
+    sold_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+    price: Mapped[float] = mapped_column(Float, default=0)
+    paid: Mapped[float] = mapped_column(Float, default=0)
+    visits_total: Mapped[float | None] = mapped_column(Float)
+    visits_used: Mapped[float | None] = mapped_column(Float)
+    balance: Mapped[float | None] = mapped_column(Float)              # грошовий залишок, якщо абонемент у гривнях
+    valid_to: Mapped[date | None] = mapped_column(Date, index=True)
+    comment: Mapped[str | None] = mapped_column(String(500))
+    cb_status: Mapped[str | None] = mapped_column(String(50))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    patient: Mapped[Patient | None] = relationship()
+
+    @property
+    def visits_left(self) -> float | None:
+        if self.visits_total is None:
+            return None
+        return max((self.visits_total or 0) - (self.visits_used or 0), 0)
+
+    @property
+    def unit_price(self) -> float:
+        return round(self.paid / self.visits_total, 2) if self.visits_total else 0.0
+
+    @property
+    def value_left(self) -> float:
+        """Неспожита вартість: залишок візитів × ціна візиту (або грошовий залишок)."""
+        if self.visits_left is not None:
+            return round(self.visits_left * self.unit_price, 2)
+        return self.balance or 0.0
+
+    def state(self, today: date | None = None) -> str:
+        today = today or date.today()
+        st = (self.cb_status or "").lower()
+        if st.startswith("не оплач"):
+            return "unpaid"
+        left = self.visits_left if self.visits_left is not None else (self.balance or 0)
+        if left <= 0 or "закрит" in st or "використ" in st:
+            return "used"
+        if self.valid_to and self.valid_to < today:
+            return "expired"
+        if self.valid_to and (self.valid_to - today).days <= 14:
+            return "expiring"
+        return "active"
+
+
 class Check(Base):
     """Чек CleverBox (/sales/checks) — джерело фактичної виручки."""
     __tablename__ = "checks"

@@ -380,6 +380,7 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
     from .services import certificates as _cert
     return render(request, "patient.html", p=p, statuses=statuses, ptasks=ptasks, msgs=msgs, dupes=dupes,
                   certs=_cert.for_patient(db, p.id), CERT_STATES=_cert.STATES, today=date.today(),
+                  subs=_cert.subs_for_patient(db, p.id), SUB_STATES=_cert.SUB_STATES,
                   CB_LABELS=CB_LABELS,
                   pscripts=_sc.for_patient(db, p, kind, user.name) if can(user, "message") else [],
                   avail=_msg.available_channels(p),
@@ -864,6 +865,10 @@ async def import_table(request: Request, file: UploadFile = File(...), kind: str
             reports = [rep]
         elif sheets and sheets[0][1] and _cert_imp().is_certificates_export(sheets[0][1][0]):   # «Сертифікати»
             rep = await asyncio.to_thread(_cert_imp().import_certificates, db, sheets[0][1][1:], sheets[0][1][0])
+            rep["sheet"] = file.filename
+            reports = [rep]
+        elif sheets and sheets[0][1] and _cert_imp().is_subscriptions_export(sheets[0][1][0]):   # «Абонементи»
+            rep = await asyncio.to_thread(_cert_imp().import_subscriptions, db, sheets[0][1][1:], sheets[0][1][0])
             rep["sheet"] = file.filename
             reports = [rep]
         elif sheets and sheets[0][1] and _svc_imp().is_services_export(sheets[0][1][0]):   # «Послуги» CleverBox
@@ -1923,6 +1928,63 @@ def finance_page(request: Request, df: str | None = None, dt_: str | None = None
     total, _ = kpi_summary(sts)
     m_max = max([m["revenue"] for m in fs.months] + [r["total"] for r in fc] + [1])
     return render(request, "finance.html", fs=fs, fc=fc, total=total, d_from=d_from, d_to=d_to, m_max=m_max)
+
+
+# ---------------- Сертифікати й абонементи ----------------
+@app.get("/gifts", response_class=HTMLResponse)
+def gifts_page(request: Request, tab: str = "certs", st: str = "", q: str = "", seller: str = "",
+               user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+    from .models import GiftCertificate, Subscription
+    from .services import certificates as cs
+    tab = tab if tab in ("certs", "subs") else "certs"
+    today = date.today()
+    model, states = (GiftCertificate, cs.STATES) if tab == "certs" else (Subscription, cs.SUB_STATES)
+    items = db.scalars(select(model).order_by(model.sold_at.desc())).all()
+    counts = defaultdict(lambda: {"n": 0, "sum": 0.0})
+    for x in items:
+        k = x.state(today)
+        counts[k]["n"] += 1
+        counts[k]["sum"] += (x.balance or 0) if tab == "certs" else x.value_left
+    sellers = sorted({x.seller for x in items if x.seller})
+    if st in states:
+        items = [x for x in items if x.state(today) == st]
+    elif not q and not seller:
+        items = [x for x in items if x.state(today) in ("active", "expiring", "unpaid")] or items[:100]
+    if seller:
+        items = [x for x in items if x.seller == seller]
+    if q:
+        words = set(norm(q).split())
+        items = [x for x in items if words <= set(norm(" ".join(filter(None, (
+            x.client_name, x.code, str(x.id), x.type_name, x.seller)))).split())]
+    if st == "expiring" or not st:
+        items.sort(key=lambda x: (x.state(today) not in ("expiring",), x.valid_to or date.max))
+    other = Subscription if tab == "certs" else GiftCertificate
+    return render(request, "gifts.html", nav="gifts", tab=tab, items=items[:500], total=len(items), states=states,
+                  counts=dict(counts), st=st, q=q, seller=seller, sellers=sellers, today=today,
+                  other_n=db.scalar(select(func.count()).select_from(other)) or 0, last=LAST_IMPORT.pop(f"gifts-{user.id}", None))
+
+
+@app.post("/gifts/import")
+async def gifts_import(file: UploadFile = File(...), user: User = Depends(require("import")), db: Session = Depends(db_dep)):
+    """Excel CleverBox «Сертифікати» або «Абонементи» — тип визначається за колонками."""
+    from .services import certificates as cs
+    tab = "certs"
+    try:
+        sheets = importer.read_sheets(await file.read(), file.filename or "data.xls")
+        head, rows = (sheets[0][1][0], sheets[0][1][1:]) if sheets and sheets[0][1] else ([], [])
+        if cs.is_certificates_export(head):
+            rep = await asyncio.to_thread(cs.import_certificates, db, rows, head)
+        elif cs.is_subscriptions_export(head):
+            rep, tab = await asyncio.to_thread(cs.import_subscriptions, db, rows, head), "subs"
+        else:
+            rep = {"error": "Це не вивантаження CleverBox «Сертифікати» чи «Абонементи». Колонки: "
+                            + ", ".join(str(h) for h in head[:12])}
+    except Exception as e:  # noqa: BLE001
+        rep = {"error": f"Не вдалося прочитати файл: {type(e).__name__}"}
+    rep["sheet"] = file.filename
+    audit(db, "gifts.import", user=user, **{k: v for k, v in rep.items() if k in ("type", "rows", "updated", "error", "sheet")})
+    LAST_IMPORT[f"gifts-{user.id}"] = rep
+    return RedirectResponse(f"/gifts?tab={tab}", 303)
 
 
 # ---------------- Звіти ----------------

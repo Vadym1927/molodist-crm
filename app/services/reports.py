@@ -16,7 +16,7 @@ from ..models import Check, Visit, BeautyPlan, Patient, Product, SupplierInvoice
 from ..parsers.observ import norm
 
 REPORTS = {"revenue": "Виручка", "doctors": "Лікарі", "services": "Послуги", "products": "Товари",
-           "patients": "Пацієнти", "plans": "Бюті-плани", "certificates": "Сертифікати", "supply": "Поставки"}
+           "patients": "Пацієнти", "plans": "Бюті-плани", "certificates": "Сертифікати й абонементи", "supply": "Поставки"}
 
 
 @dataclass
@@ -417,6 +417,11 @@ def certificates(db: Session, d_from: date, d_to: date) -> Report:
                ("Згорають за 14 дн", sum(c.balance for c in live if c.state(today) == "expiring"), None, "uah",
                 f"{sum(1 for c in live if c.state(today) == 'expiring')} шт — задачі адмінам створено"),
                ("Згоріло з залишком", sum(c.balance for c in burned), None, "uah", f"{len(burned)} шт у періоді")]
+    from ..models import Subscription
+    subs = [x for x in db.scalars(select(Subscription)) if x.state(today) in ("active", "expiring")]
+    if subs:
+        r.tiles.append(("Абонементи: невикористано", sum(x.value_left for x in subs), None, "uah",
+                        f"{len(subs)} активних абонементів"))
     r.cols = [Col("code", "№"), Col("type", "Сертифікат"), Col("client", "Пацієнт"), Col("seller", "Продав(ла)"),
               Col("sold", "Продано", "date"), Col("nominal", "Номінал", "uah", True), Col("balance", "Залишок", "uah", True),
               Col("used", "Використано", "uah", True), Col("valid", "Діє до", "date"), Col("state", "Стан")]

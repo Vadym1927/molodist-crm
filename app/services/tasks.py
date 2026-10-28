@@ -12,7 +12,7 @@ from .catalog import product_rows
 
 KINDS = {"manual": "Ручна", "not_booked": "Записати на процедуру", "care_ending": "Повторний догляд",
          "stock": "Дозамовити товар", "follow_up": "Звʼязатися з пацієнтом",
-         "certificate": "Сертифікат згорає"}
+         "certificate": "Сертифікат / абонемент згорає"}
 PRIORITY = {"high": "високий", "normal": "звичайний", "low": "низький"}
 
 
@@ -90,6 +90,17 @@ def generate_auto(db: Session, now: datetime | None = None) -> dict:
                title=f"Сертифікат №{c.code or c.id} згорає {c.valid_to:%d.%m} — запросити {who}",
                description=f"{c.type_name or 'Сертифікат'}: залишок {c.balance:,.0f} ₴ з {c.nominal:,.0f} ₴, "
                            f"діє до {c.valid_to:%d.%m.%Y} (≈ {days} дн). Продав(ла): {c.seller or '—'}.".replace(",", " "),
+               assignee_role="admin", due_date=now.date(), priority="high" if days <= 3 else "normal")
+
+    from .certificates import subs_expiring
+    for sb in subs_expiring(db, now.date()):
+        days = (sb.valid_to - now.date()).days
+        who = sb.patient.full_name if sb.patient else (sb.client_name or "власника абонемента")
+        left = f"{sb.visits_left:g} візит(ів)" if sb.visits_left is not None else f"{(sb.balance or 0):,.0f} ₴".replace(",", " ")
+        ensure(f"sub:{sb.id}:", f"sub:{sb.id}:{sb.valid_to:%Y%m%d}", kind="certificate", patient_id=sb.patient_id,
+               title=f"Абонемент закінчується {sb.valid_to:%d.%m} — записати {who} (лишилось {left})",
+               description=f"{sb.type_name or 'Абонемент'}; діє до {sb.valid_to:%d.%m.%Y} (≈ {days} дн)."
+                           + (f" Послуги: {sb.services[:200]}" if sb.services else ""),
                assignee_role="admin", due_date=now.date(), priority="high" if days <= 3 else "normal")
 
     # автозакриття: умова зникла (пацієнт записався, купив, склад поповнено)

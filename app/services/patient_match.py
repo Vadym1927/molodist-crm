@@ -13,7 +13,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from ..models import (Patient, BeautyPlan, Visit, ProductSale, PatientFile, StockDoc, Check, Task,
-                      CampaignRecipient, MessageLog, StockMove, GiftCertificate)
+                      CampaignRecipient, MessageLog, StockMove, GiftCertificate, Subscription)
 from ..parsers.observ import norm
 
 AUTO = 90
@@ -82,7 +82,7 @@ def merge(db: Session, src: Patient, dst: Patient) -> dict:
     if src.id == dst.id:
         raise ValueError("Це та сама картка")
     moved = {}
-    for model in (BeautyPlan, Visit, ProductSale, PatientFile, StockDoc, Check, Task, CampaignRecipient, MessageLog, StockMove, GiftCertificate):
+    for model in (BeautyPlan, Visit, ProductSale, PatientFile, StockDoc, Check, Task, CampaignRecipient, MessageLog, StockMove, GiftCertificate, Subscription):
         r = db.execute(update(model).where(model.patient_id == src.id).values(patient_id=dst.id))
         if r.rowcount:
             moved[model.__tablename__] = r.rowcount

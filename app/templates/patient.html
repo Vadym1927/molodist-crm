@@ -81,6 +81,15 @@
     <td><span class="pill {{ {'active':'ok','expiring':'warn','expired':'bad','used':'done','unpaid':'warn'}[st] }}">{{ CERT_STATES[st] }}</span></td></tr>{% endfor %}
   </tbody></table></div>{% endif %}
 
+{% if subs %}<div class="card" id="subs"><h2>Абонементи</h2>
+  <table class="small"><thead><tr><th>№</th><th>Абонемент</th><th>Продано</th><th class="r">Сплачено</th><th>Візити</th><th>Діє до</th><th>Стан</th></tr></thead><tbody>
+  {% for x in subs %}{% set st = x.state(today) %}<tr><td>{{ x.code or x.id }}</td><td>{{ x.type_name or '—' }}{% if x.services %}<div class="muted">{{ x.services[:120] }}</div>{% endif %}</td>
+    <td>{{ x.sold_at|dt('%d.%m.%Y') if x.sold_at else '—' }}</td><td class="r">{{ x.paid|uah }}</td>
+    <td>{% if x.visits_total %}{{ '%g'|format(x.visits_used or 0) }} з {{ '%g'|format(x.visits_total) }} · лишилось <b>{{ '%g'|format(x.visits_left) }}</b>{% else %}—{% endif %}</td>
+    <td>{{ x.valid_to|dt('%d.%m.%Y') if x.valid_to else 'безстроково' }}</td>
+    <td><span class="pill {{ {'active':'ok','expiring':'warn','expired':'bad','used':'done','unpaid':'warn'}[st] }}">{{ SUB_STATES[st] }}</span></td></tr>{% endfor %}
+  </tbody></table></div>{% endif %}
+
 <div class="card" id="kpi"><h2>Показники пацієнта</h2>
   <div class="grid g5">
     <div class="tile"><span>Завершені візити</span><b>{{ patient_kpi.done or p.cb_visits or 0 }}</b><div class="muted small">перший: {{ patient_kpi.first|dt('%d.%m.%Y') if patient_kpi.first else (p.cb_first_visit|dt('%d.%m.%Y') if p.cb_first_visit else '—') }}</div></div>

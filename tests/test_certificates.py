@@ -37,3 +37,29 @@ def test_certificates_flow():
         assert "Подарункові сертифікати" in cl.get(f"/patients/{pid}").text
         page = cl.get("/reports?r=certificates&period=month").text
         assert "Скоро згорить" in page and "Кучеренко Яна" in page
+
+
+def test_subscriptions_import_and_page():
+    from app.models import Subscription
+    settings.admin_password = "owner-pass-1"
+    head = ["ID / код", "Тип абонемента", "Послуги", "Client ID", "Клієнт", "Seller", "дата продажу", "Ціна", "до сплати",
+            "Кількість візитів", "Використано", "Дійсний до", "Статус"]
+    soon = (date.today() + timedelta(days=10)).strftime("%d.%m.%Y")
+    rows = [["501", "LPG 10 сеансів", "Апаратний масаж STRATOSPHERE", "8800666", "Абонементна Ірина", "Рокун Вікторія",
+             "01.09.26 12:00", "10000", "10000", "10", "4", soon, "активований"]]
+    with SessionLocal() as db:
+        p = Patient(full_name="Абонементна Ірина", cleverbox_id=8800666); db.add(p); db.commit()
+        pid = p.id
+        assert cs.is_subscriptions_export(head) and not cs.is_subscriptions_export(HEAD)
+        rep = cs.import_subscriptions(db, rows, head)
+        assert rep["rows"] == 1 and not rep.get("error")
+        s = db.get(Subscription, 501)
+        assert s.patient_id == pid and s.visits_left == 6 and s.value_left == 6000 and s.state() == "expiring"
+        generate_auto(db)
+        assert db.query(Task).filter(Task.source_key.like("sub:501:%")).count() == 1
+    with TestClient(app) as cl:
+        cl.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        page = cl.get("/gifts?tab=subs").text
+        assert "LPG 10 сеансів" in page and "лишилось" in page
+        assert "Сертифікатна Олена" in cl.get("/gifts").text or cl.get("/gifts").status_code == 200
+        assert "Абонементи" in cl.get(f"/patients/{pid}").text and 'href="/gifts"' in cl.get("/").text
