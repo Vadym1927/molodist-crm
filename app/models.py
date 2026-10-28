@@ -381,6 +381,29 @@ class Supplier(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class SupplierInvoice(Base):
+    """Поставка з CleverBox (шапка документа): для обороту й боргу по постачальниках. На залишки не впливає."""
+    __tablename__ = "supplier_invoices"
+    __table_args__ = (UniqueConstraint("cb_number"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    cb_number: Mapped[str] = mapped_column(String(40))
+    inv_date: Mapped[datetime] = mapped_column(DateTime, index=True)
+    supplier: Mapped[str | None] = mapped_column(String(200), index=True)
+    warehouse: Mapped[str | None] = mapped_column(String(20))
+    warehouse_name: Mapped[str | None] = mapped_column(String(200))
+    amount: Mapped[float] = mapped_column(Float, default=0)
+    paid: Mapped[float] = mapped_column(Float, default=0)
+    status: Mapped[str | None] = mapped_column(String(40))
+    author: Mapped[str | None] = mapped_column(String(200))
+    comment: Mapped[str | None] = mapped_column(String(500))
+    paid_note: Mapped[str | None] = mapped_column(String(300))       # відмітка в CRM: «оплачено готівкою 12.10» тощо
+    imported_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    @property
+    def debt(self) -> float:
+        return round(max(0.0, (self.amount or 0) - (self.paid or 0)), 2)
+
+
 class StockDoc(Base):
     """Складський документ: supply (поставка) | order (замовлення постачальнику) | transfer (переміщення) |
     writeoff (списання) | return (повернення) | inventory (інвентаризація) | opening (стартові залишки).

@@ -1431,7 +1431,18 @@ def stock_page(request: Request, tab: str = "balances", only: str = "", wh: str 
     elif tab in st.DOC_KINDS:
         ctx["docs"] = st.doc_rows(db, tab)
     elif tab == "suppliers":
+        from .models import SupplierInvoice
         st.ensure_suppliers(db)
+        per = request.query_params.get("per", "365")
+        d_from = None if per == "all" else datetime.now() - timedelta(days=int(per) if per.isdigit() else 365)
+        ctx.update(sstats=st.supplier_stats(db, d_from), per=per, sel=request.query_params.get("s", ""),
+                   debt_only=bool(request.query_params.get("debt")), imported=LAST_IMPORT.pop(f"inv-{user.id}", None))
+        if ctx["sel"]:
+            ctx["invoices"] = db.scalars(select(SupplierInvoice).where(SupplierInvoice.supplier == ctx["sel"])
+                                         .order_by(SupplierInvoice.inv_date.desc()).limit(300)).all()
+        elif ctx["debt_only"]:
+            ctx["invoices"] = [x for x in db.scalars(select(SupplierInvoice).where(SupplierInvoice.status != "Чернетка")
+                                                     .order_by(SupplierInvoice.inv_date.desc())) if x.debt > 1]
         agg = defaultdict(lambda: {"products": 0, "orders": 0, "supplies": 0, "sum": 0.0, "last": None})
         for p_ in db.scalars(select(Product).where(Product.supplier.is_not(None))):
             agg[p_.supplier.lower()]["products"] += 1
@@ -1617,6 +1628,39 @@ def stock_supplier_save(sid: str = Form(""), name: str = Form(...), contact: str
             p_.supplier = x.name
     db.commit()
     return RedirectResponse("/stock?tab=suppliers", 303)
+
+
+@app.post("/stock/suppliers/import")
+async def stock_invoices_import(file: UploadFile = File(...), user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    """Excel «Склад → Поставки» з CleverBox → оборот і борг по постачальниках."""
+    import tempfile
+    from .services import stock as st
+    suffix = ".xls" if (file.filename or "").lower().endswith(".xls") else ".xlsx"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(await file.read())
+    try:
+        rep = await asyncio.to_thread(st.import_supplier_invoices, db, tmp.name)
+    except Exception as e:  # noqa: BLE001
+        rep = {"error": f"Не вдалося прочитати файл: {type(e).__name__}"}
+    finally:
+        os.unlink(tmp.name)
+    audit(db, "stock.invoices_import", user=user, **rep)
+    LAST_IMPORT[f"inv-{user.id}"] = rep
+    return RedirectResponse("/stock?tab=suppliers", 303)
+
+
+@app.post("/stock/invoices/{iid:int}/paid")
+def stock_invoice_paid(iid: int, back: str = Form("/stock?tab=suppliers"), note: str = Form(""),
+                       user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Власник відмічає поставку оплаченою (якщо в CleverBox оплату не провели)."""
+    from .models import SupplierInvoice
+    x = db.get(SupplierInvoice, iid)
+    if x:
+        x.paid = x.amount
+        x.paid_note = (note.strip() or f"оплачено, відмітив {user.name} {date.today():%d.%m.%Y}")[:300]
+        db.commit()
+        audit(db, "stock.invoice_paid", user=user, invoice=x.cb_number, amount=x.amount)
+    return RedirectResponse(back if back.startswith("/stock") else "/stock?tab=suppliers", 303)
 
 
 @app.post("/stock/norms")

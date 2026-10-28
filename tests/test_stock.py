@@ -107,3 +107,32 @@ def test_stock_ledger_flow():
         with SessionLocal() as db:
             rows = {r.product.id: r for r in catalog.product_rows(db, [])}
             assert rows[cid].stock == 0       # -2 у вітрині + 2 у класичній
+
+
+def test_supplier_invoices_import(tmp_path):
+    from openpyxl import Workbook
+    from app.models import SupplierInvoice
+    wb = Workbook(); ws = wb.active
+    ws.append(["Дата", "time", "N", "статус", "тип", "постачальник", "склад", "Сума", "оплата", "Автор", "Коментар"])
+    ws.append(["27.10.2026", "10:10", "20790", "Проведено", "Постачання", "Regenera", "Вітрина", 2000.0, 2000.0, "Адмін", ""])
+    ws.append(["21.10.2026", "17:33", "20707", "Проведено", "Постачання", "TEBISKIN", "Вітрина", 5044.0, 0.0, "Адмін", ""])
+    ws.append(["22.10.2026", "17:45", "20733", "Проведено", "Постачання", "INNOVA", "Препарати ін'єкційна косметологія ", 16952.0, 10000.0, "Адмін", ""])
+    ws.append(["15.10.2026", "17:00", "20600", "Проведено", "Постачання", "-", "Одноразка", 3325.41, 0.0, "Адмін", "Inventory 20595"])
+    f = tmp_path / "supply.xlsx"; wb.save(f)
+    settings.admin_password = "owner-pass-1"
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        c.post("/stock/suppliers/import", files={"file": ("supply.xlsx", f.read_bytes(), "application/octet-stream")})
+        page = c.get("/stock?tab=suppliers&per=all").text
+        assert "Імпортовано поставок: 4" in page or "TEBISKIN" in page
+        assert "11 996" in page                                 # борг 5044 + 6952
+        with SessionLocal() as db:
+            inv = db.query(SupplierInvoice).filter_by(cb_number="20733").one()
+            assert inv.warehouse == "inject" and inv.debt == 6952
+            iid = inv.id
+            assert db.query(SupplierInvoice).count() == 3      # інвентаризаційний рядок без постачальника пропущено
+        assert "INNOVA" in c.get("/stock?tab=suppliers&debt=1").text
+        c.post(f"/stock/invoices/{iid}/paid", data={"back": "/stock?tab=suppliers"})
+        c.post("/stock/suppliers/import", files={"file": ("supply.xlsx", f.read_bytes(), "application/octet-stream")})
+        with SessionLocal() as db:
+            assert db.get(SupplierInvoice, iid).debt == 0           # повторний імпорт не затер відмітку

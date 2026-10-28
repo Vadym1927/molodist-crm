@@ -92,20 +92,54 @@
   </tbody></table></div>
 
 {% elif tab=='suppliers' %}
+{% set tot_debt = namespace(v=0, n=0, t=0) %}{% for k, a in sstats.items() %}{% set tot_debt.v = tot_debt.v + a.debt %}{% set tot_debt.n = tot_debt.n + a.debt_n %}{% set tot_debt.t = tot_debt.t + a.turnover %}{% endfor %}
+{% if imported %}<div class="alert" style="{{ '' if imported.error else 'background:var(--ok-bg);color:var(--ok)' }}">{% if imported.error %}{{ imported.error }}{% else %}Імпортовано поставок: {{ imported.rows }} (нових {{ imported.created }}, оновлено {{ imported.updated }}, без постачальника пропущено {{ imported.skipped }}).{% endif %}</div>{% endif %}
+<div class="grid g5" style="margin-bottom:14px">
+  <div class="tile"><span>Закупівлі за період</span><b>{{ tot_debt.t|uah }}</b><div class="muted small">{{ {'90':'90 днів','365':'12 місяців','all':'весь час'}.get(per, per) }}</div></div>
+  <div class="tile"><span>Борг постачальникам</span><b style="color:{{ 'var(--bad)' if tot_debt.v > 1 else 'inherit' }}">{{ tot_debt.v|uah }}</b><div class="muted small">{{ tot_debt.n }} неоплачених поставок · <a href="?tab=suppliers&debt=1&per={{ per }}">показати</a></div></div>
+</div>
+<form class="row" style="margin-bottom:12px"><input type="hidden" name="tab" value="suppliers">
+  <select name="per" onchange="this.form.submit()" style="height:44px">{% for k, t in [('90','За 90 днів'),('365','За 12 місяців'),('all','За весь час')] %}<option value="{{ k }}" {{ 'selected' if per==k }}>{{ t }}</option>{% endfor %}</select>
+  <label class="small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="debt" value="1" {{ 'checked' if debt_only }} onchange="this.form.submit()"> лише неоплачені поставки</label></form>
 <div class="card" style="padding:6px 8px;overflow:auto"><table class="tb">
-  <thead><tr><th>Постачальник</th><th>Контакт</th><th>Умови</th><th class="r">Товарів</th><th class="r">Поставок</th><th class="r">Сума поставок</th><th>Остання</th><th></th></tr></thead><tbody>
-  {% for x in suppliers %}{% set a = agg[x.name.lower()] %}
-    <tr><td><b>{{ x.name }}</b></td><td class="small">{{ x.contact or '' }}{{ (' · ' ~ x.phone) if x.phone }}{{ (' · ' ~ x.email) if x.email }}</td><td class="small">{{ x.terms or '' }}</td>
-      <td class="r">{{ a.products or '—' }}</td><td class="r">{{ a.supplies or '—' }}</td><td class="r">{{ a.sum|uah if a.sum else '—' }}</td><td class="small">{{ a.last|dt('%d.%m.%Y') if a.last else '—' }}</td>
+  <thead><tr><th>Постачальник</th><th>Контакт</th><th class="r">Товарів</th><th class="r">Поставок</th><th class="r">Оборот</th><th class="r">Борг</th><th>Остання поставка</th><th>Склади</th><th></th></tr></thead><tbody>
+  {% for x in suppliers|sort(attribute='name') %}{% set a = agg[x.name.lower()] %}{% set ss = sstats.get(x.name.lower()) %}
+    {% if not debt_only or (ss and ss.debt > 1) %}
+    <tr style="{{ 'background:var(--lavender)' if sel==x.name }}"><td><a href="?tab=suppliers&s={{ x.name|urlencode }}&per={{ per }}" style="font-weight:700;text-decoration:none">{{ x.name }}</a>{% if x.terms %}<div class="meta">{{ x.terms }}</div>{% endif %}</td>
+      <td class="small">{{ x.contact or '' }}{{ (' · ' ~ x.phone) if x.phone }}{{ (' · ' ~ x.email) if x.email }}</td>
+      <td class="r">{{ a.products or '—' }}</td><td class="r">{{ ss.n if ss and ss.n else '—' }}</td>
+      <td class="r">{{ ss.turnover|uah if ss and ss.turnover else '—' }}</td>
+      <td class="r">{% if ss and ss.debt > 1 %}<b style="color:var(--bad)">{{ ss.debt|uah }}</b><div class="meta">{{ ss.debt_n }} пост.</div>{% else %}—{% endif %}</td>
+      <td class="small">{{ ss.last|dt('%d.%m.%Y') if ss and ss.last else (a.last|dt('%d.%m.%Y') if a.last else '—') }}</td>
+      <td class="small">{% if ss %}{% for w, v in ss.wh.items() %}{{ WAREHOUSES.get(w, 'інше') }}{{ ', ' if not loop.last }}{% endfor %}{% endif %}</td>
       <td><details><summary class="small">змінити</summary><form method="post" action="/stock/suppliers" class="grid" style="gap:6px;min-width:260px;margin-top:6px">
         <input type="hidden" name="sid" value="{{ x.id }}"><input name="name" value="{{ x.name }}" required><input name="contact" value="{{ x.contact or '' }}" placeholder="Контактна особа">
         <input name="phone" value="{{ x.phone or '' }}" placeholder="Телефон"><input name="email" value="{{ x.email or '' }}" placeholder="Email">
         <input name="terms" value="{{ x.terms or '' }}" placeholder="Умови: доставка, мін. замовлення, оплата"><button class="btn ghost">Зберегти</button></form></details></td></tr>
-  {% else %}<tr><td colspan="8" class="muted">Постачальників ще немає.</td></tr>{% endfor %}
+    {% endif %}
+  {% else %}<tr><td colspan="9" class="muted">Постачальників ще немає.</td></tr>{% endfor %}
   </tbody></table></div>
-<form method="post" action="/stock/suppliers" class="row card" style="gap:8px">
+
+{% if invoices is defined and invoices is not none %}
+<div class="card" id="inv"><h2>{{ ('Поставки: ' ~ sel) if sel else 'Неоплачені поставки' }}</h2>
+  <div style="overflow:auto"><table class="tb"><thead><tr><th>Дата</th><th>№ CleverBox</th>{% if not sel %}<th>Постачальник</th>{% endif %}<th>Склад</th><th class="r">Сума</th><th class="r">Оплачено</th><th class="r">Борг</th><th>Автор</th><th>Коментар</th><th></th></tr></thead><tbody>
+  {% for x in invoices %}<tr><td class="small">{{ x.inv_date|dt('%d.%m.%Y %H:%M') }}</td><td>{{ x.cb_number }}</td>{% if not sel %}<td><a href="?tab=suppliers&s={{ x.supplier|urlencode }}">{{ x.supplier }}</a></td>{% endif %}
+    <td class="small">{{ WAREHOUSES.get(x.warehouse) or x.warehouse_name or '—' }}</td><td class="r">{{ x.amount|uah }}</td><td class="r">{{ x.paid|uah if x.paid else '—' }}</td>
+    <td class="r">{% if x.debt > 1 %}<b style="color:var(--bad)">{{ x.debt|uah }}</b>{% else %}<span style="color:var(--ok)">✓</span>{% endif %}</td>
+    <td class="small">{{ x.author or '' }}</td><td class="small">{{ x.paid_note or x.comment or '' }}{% if x.status == 'Чернетка' %} <span class="pill draft">чернетка</span>{% endif %}</td>
+    <td>{% if x.debt > 1 and can(user,'finance') %}<form method="post" action="/stock/invoices/{{ x.id }}/paid" onsubmit="return confirm('Відмітити поставку {{ x.cb_number }} як оплачену?')">
+      <input type="hidden" name="back" value="{{ request.url.path }}?{{ request.url.query }}#inv"><button class="btn ghost" style="padding:3px 10px">Оплачено</button></form>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="10" class="muted">Поставок немає.</td></tr>{% endfor %}</tbody></table></div></div>
+{% endif %}
+
+<div class="grid g2">
+<form method="post" action="/stock/suppliers/import" enctype="multipart/form-data" class="card" style="margin:0">
+  <b>Імпорт поставок з CleverBox</b><p class="muted small" style="margin:4px 0 10px">CleverBox → Склад → Поставки → експорт у Excel. Повторний імпорт оновлює наявні (за №); оплату, відмічену тут, не затирає. На залишки не впливає.</p>
+  <div class="row"><input type="file" name="file" accept=".xls,.xlsx" required><button class="btn ghost">Імпортувати</button></div></form>
+<form method="post" action="/stock/suppliers" class="row card" style="gap:8px;margin:0">
   <b style="width:100%">Новий постачальник</b><input name="name" placeholder="Назва" required><input name="contact" placeholder="Контактна особа">
   <input name="phone" placeholder="Телефон"><input name="email" placeholder="Email"><input name="terms" placeholder="Умови" style="flex:1"><button class="btn">Додати</button></form>
+</div>
 
 {% elif tab=='norms' %}
 <p class="muted small">Що списується зі складу після кожної наданої послуги (за даними CleverBox). Напр. «Гігієна обличчя» → рукавички 2 шт, гель 10 мл. Списання — лише для послуг після старту обліку.</p>

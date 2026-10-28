@@ -14,7 +14,7 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
 from ..models import (Product, StockLevel, StockDoc, StockDocLine, StockMove, ProductPurchase, ProductSale, Visit,
-                      ProcedureNorm, SyncState, Supplier)
+                      ProcedureNorm, SyncState, Supplier, SupplierInvoice)
 from .catalog import WAREHOUSES
 
 DOC_KINDS = {"supply": "Поставка", "order": "Замовлення", "transfer": "Переміщення", "writeoff": "Списання",
@@ -284,6 +284,7 @@ def ensure_suppliers(db: Session) -> None:
     have = {s.name.lower() for s in db.scalars(select(Supplier))}
     names = {x for (x,) in db.execute(select(Product.supplier).where(Product.supplier.is_not(None)).distinct())}
     names |= {x for (x,) in db.execute(select(ProductPurchase.supplier).where(ProductPurchase.supplier.is_not(None)).distinct())}
+    names |= {x for (x,) in db.execute(select(SupplierInvoice.supplier).where(SupplierInvoice.supplier.is_not(None)).distinct())}
     for nm in sorted(names):
         if nm and nm.strip().lower() not in have:
             db.add(Supplier(name=nm.strip()[:200]))
@@ -313,3 +314,66 @@ def doc_rows(db: Session, kind: str, limit: int = 200) -> list[DocRow]:
 def product_moves(db: Session, product_id: int, limit: int = 100):
     return db.scalars(select(StockMove).where(StockMove.product_id == product_id)
                       .order_by(StockMove.at.desc(), StockMove.id.desc()).limit(limit)).all()
+
+
+# ---------------- поставки CleverBox (шапки) → оборот і борг постачальникам ----------------
+
+def import_supplier_invoices(db: Session, path: str) -> dict:
+    """Excel «Склад → Поставки» з CleverBox: Дата, time, N, статус, тип, постачальник, склад, Сума, оплата, Автор, Коментар.
+    Оновлює за №; рядки без постачальника (інвентаризаційні надлишки) пропускає."""
+    from .catalog import read_table, warehouse_of, _cell_num
+    data = read_table(path)
+    if not data or "n" not in data[0] or "постачальник" not in data[0]:
+        return {"error": "Це не вивантаження «Поставки» з CleverBox (немає колонок N / постачальник)"}
+    have = {x.cb_number: x for x in db.scalars(select(SupplierInvoice))}
+    rep = {"rows": 0, "created": 0, "updated": 0, "skipped": 0}
+    for r in data:
+        num = str(r.get("n") or "").strip().removesuffix(".0")
+        sup = str(r.get("постачальник") or "").strip()
+        if not num:
+            continue
+        rep["rows"] += 1
+        if sup in ("", "-"):
+            rep["skipped"] += 1
+            continue
+        try:
+            dt = datetime.strptime(f"{str(r.get('дата') or '').strip()} {str(r.get('time') or '00:00').strip()}", "%d.%m.%Y %H:%M")
+        except ValueError:
+            rep["skipped"] += 1
+            continue
+        x = have.get(num)
+        if not x:
+            x = SupplierInvoice(cb_number=num)
+            db.add(x)
+            have[num] = x
+            rep["created"] += 1
+        else:
+            rep["updated"] += 1
+        wname = str(r.get("склад") or "").strip()
+        x.inv_date, x.supplier, x.warehouse_name, x.warehouse = dt, sup[:200], wname[:200] or None, warehouse_of(wname)
+        x.amount = _cell_num(r.get("сума")) or 0.0
+        if not x.paid_note:                       # оплату, відмічену в CRM, імпорт не затирає
+            x.paid = _cell_num(r.get("оплата")) or 0.0
+        x.status = str(r.get("статус") or "").strip()[:40] or None
+        x.author = str(r.get("автор") or "").strip()[:200] or None
+        x.comment = str(r.get("коментар") or "").strip()[:500] or None
+    db.commit()
+    ensure_suppliers(db)
+    return rep
+
+
+def supplier_stats(db: Session, d_from: datetime | None = None) -> dict[str, dict]:
+    """Оборот за період, борг (за весь час), остання поставка, склади — по постачальниках (ключ — назва в нижньому регістрі)."""
+    out: dict[str, dict] = defaultdict(lambda: {"turnover": 0.0, "n": 0, "debt": 0.0, "debt_n": 0, "last": None,
+                                                "wh": defaultdict(float)})
+    for x in db.scalars(select(SupplierInvoice).where(SupplierInvoice.status != "Чернетка")):
+        a = out[(x.supplier or "").lower()]
+        if x.debt > 1:
+            a["debt"] += x.debt
+            a["debt_n"] += 1
+        a["last"] = max(filter(None, [a["last"], x.inv_date]))
+        if d_from is None or x.inv_date >= d_from:
+            a["turnover"] += x.amount or 0
+            a["n"] += 1
+            a["wh"][x.warehouse or "other"] += x.amount or 0
+    return out
