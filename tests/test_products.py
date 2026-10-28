@@ -85,3 +85,36 @@ def test_import_cleverbox_excel(tmp_path):
         assert db.query(Product).filter_by(cb_product_id=7004).one().brand == "MediK8"     # регістр бренду об'єднано
         assert db.query(Product).filter_by(cb_product_id=7002).one().min_stock == 3
         assert db.query(StockLevel).filter_by(cb_product_id=7004).one().qty == 551.5
+
+
+def test_import_turnover_report(tmp_path):
+    """Звіт «Рух товарів» за період → закупівлі; коефіцієнт одиниць; поточна собівартість CleverBox як остання ціна."""
+    from openpyxl import Workbook
+    wb = Workbook(); ws = wb.active
+    ws.append(["Товар", "артикул", "штрихкод", "коеф.", "Одиниця обліку", "Одиниця постачання", "Початковий залишок",
+               "Сума залишку", "надходження к-ть одиниць обліку", "надходження к-ть одиниць продажу", "Прихід, сума",
+               "витрата к-ть одиниць обліку", "витрата к-ть одиниць проджажу", "Витрата, сума",
+               "залишок к-ть одиниць обліку", "залишок к-ть одиниць проджажу", "Сума залишку"])
+    ws.append(["Гель Тест Кабінет 500мл", "G-500", "0", "500.00", "Мілілітр", "шт.", "", "0", "1000", "2", "1730.00",
+               "561", "1.12", "-970.53", "439", "0.88", ""])
+    ws.append(["Крем Тест Старий", "", "0", "1.00", "шт.", "шт.", "", "0", "2", "2", "2849.00", "0", "0", "0", "2", "2", ""])
+    ws.append(["Без надходження", "", "0", "1.00", "шт.", "шт.", "", "0", "0", "0", "0", "1", "1", "-10", "0", "0", ""])
+    f = tmp_path / "turn.xlsx"; wb.save(f)
+    with SessionLocal() as db:
+        db.add_all([Product(name="Гель Тест Кабінет 500мл", name_norm="гель тест кабінет 500мл", sku="G-500", warehouse="classic"),
+                    Product(name="Крем Тест Старий", name_norm="крем тест старий", warehouse="vitrina", cost=1600, price=3000)])
+        db.commit()
+    settings.admin_password = "owner-pass-1"
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        for _ in range(2):                     # повторний імпорт того самого періоду не дублює
+            c.post("/products/import-turnover", data={"d_from": "2022-01-01", "d_to": "2022-12-31"},
+                   files={"file": ("turn.xlsx", f.read_bytes(), "application/octet-stream")})
+    with SessionLocal() as db:
+        gel = db.query(Product).filter_by(sku="G-500").one()
+        cream = db.query(Product).filter_by(name="Крем Тест Старий").one()
+        assert db.query(ProductPurchase).filter_by(product_id=gel.id).count() == 1 and gel.coef == 500
+        rows = {r.product.id: r for r in catalog.product_rows(db, [])}
+        assert rows[gel.id].cost_avg == 865.0                       # 1730 / 1000 мл × 500 = за флакон
+        assert rows[cream.id].cost_avg == 1424.5 and rows[cream.id].cost_last == 1600   # остання — поточна з CleverBox
+        assert rows[cream.id].last_source == "CleverBox"

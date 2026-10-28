@@ -1360,6 +1360,31 @@ async def products_import(file: UploadFile = File(...), user: User = Depends(req
     return RedirectResponse("/products?wh=all", 303)
 
 
+@app.post("/products/import-turnover")
+async def products_import_turnover(file: UploadFile = File(...), d_from: str = Form(...), d_to: str = Form(...),
+                                   user: User = Depends(require("import")), db: Session = Depends(db_dep)):
+    """Звіт «Рух товарів» CleverBox за період → ціни закупівлі (середня за період, остання — з найсвіжішого періоду)."""
+    import tempfile
+    a, b = _day(d_from), _day(d_to)
+    if not a or not b or a > b:
+        LAST_IMPORT[f"products-{user.id}"] = {"error": "Вкажіть період звіту (з … по …)"}
+        return RedirectResponse("/products?wh=all", 303)
+    suffix = ".xls" if (file.filename or "").lower().endswith(".xls") else ".xlsx"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(await file.read())
+    try:
+        rep = await asyncio.to_thread(catalog.import_turnover, db, tmp.name, a, b)
+    except Exception as e:  # noqa: BLE001
+        rep = {"error": f"Не вдалося прочитати файл: {type(e).__name__}"}
+    finally:
+        os.unlink(tmp.name)
+    rep["kind"] = "turnover"
+    rep["period"] = f"{a:%d.%m.%Y}–{b:%d.%m.%Y}"
+    audit(db, "products.import_turnover", user=user, period=rep["period"], matched=rep.get("matched"))
+    LAST_IMPORT[f"products-{user.id}"] = rep
+    return RedirectResponse("/products?wh=all", 303)
+
+
 @app.post("/products/bulk")
 async def products_bulk(request: Request, user: User = Depends(require("products")), db: Session = Depends(db_dep)):
     form = await request.form()
@@ -1718,7 +1743,7 @@ def _pricing_rows(db: Session, wh: str, brand: str, q: str, only: str):
     for r in rows:
         p_ = r.product
         cur = p_.cost_currency or "UAH"
-        pr = pr_svc.PriceRow(p_, r.cost_avg or r.cost_last, rt.get(cur, 1.0))
+        pr = pr_svc.PriceRow(p_, r.cost_last or r.cost_avg, rt.get(cur, 1.0))   # для ціноутворення — остання закупівля
         out.append(pr)
     if only == "nofx":
         out = [x for x in out if not x.product.cost_fx]

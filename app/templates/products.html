@@ -45,7 +45,8 @@
   <a href="?tab=care&wh=all" class="{{ 'on' if wh=='all' }}"><b>Усі склади</b><em>{{ total_all }} поз.</em></a>
 </div>
 {% if imported %}<div class="alert" style="{{ '' if imported.error else 'background:var(--ok-bg);color:var(--ok)' }}">
-  {% if imported.error %}{{ imported.error }}{% else %}Імпортовано {{ imported.rows }} рядків: нових {{ imported.created }}, оновлено {{ imported.updated }}, залишків {{ imported.stock }}, брендів {{ imported.brands }}.
+  {% if imported.error %}{{ imported.error }}{% elif imported.kind == 'turnover' %}Рух товарів за {{ imported.period }}: товарів з надходженням {{ imported.with_income }}, зіставлено {{ imported.matched }}, нових {{ imported.created }} — ціни закупівлі оновлено.
+  {% if imported.not_found %}<details><summary>Не знайдено в каталозі (створено нові)</summary>{{ imported.not_found|join(' · ') }}</details>{% endif %}{% else %}Імпортовано {{ imported.rows }} рядків: нових {{ imported.created }}, оновлено {{ imported.updated }}, залишків {{ imported.stock }}, брендів {{ imported.brands }}.
   {% for k, n in imported.by_warehouse.items() %}{{ WAREHOUSES.get(k, 'без складу') }} — {{ n }}{{ '' if loop.last else ', ' }}{% endfor %}{% endif %}</div>{% endif %}
 <form class="fl" method="get">
   <input type="hidden" name="tab" value="care"><input type="hidden" name="f" value="{{ f }}"><input type="hidden" name="wh" value="{{ wh }}">
@@ -81,7 +82,7 @@
         <div class="meta">{{ ('арт. ' ~ p.sku) if p.sku else 'артикул —' }}{% if sort!='brand' and p.brand %} · {{ p.brand }}{% endif %}{% if wh=='all' and p.warehouse %} · {{ WAREHOUSES.get(p.warehouse) }}{% endif %}{{ (' · ' ~ p.volume) if p.volume }}{% if r.prescribed %} · у планах {{ r.prescribed }}{% endif %}{% if not p.cb_product_id %} · <span style="color:var(--warn)">немає в CleverBox</span>{% endif %}</div></td>
       <td class="small">{{ p.supplier or r.last_supplier or '—' }}</td>
       <td class="r">{{ r.cost_avg|uah if r.cost_avg else '—' }}</td>
-      <td class="r">{% if r.cost_last %}{{ r.cost_last|uah }}<div class="meta">{{ r.last_bought|dt('%d.%m.%y') }}</div>{% else %}—{% endif %}</td>
+      <td class="r">{% if r.cost_last %}{{ r.cost_last|uah }}<div class="meta">{{ r.last_bought|dt('%d.%m.%y') if r.last_bought else (r.last_source or '') }}</div>{% else %}—{% endif %}</td>
       <td class="r">{{ r.sale_price|uah if r.sale_price else '—' }}</td>
       <td class="r"><span class="mg {{ 'low' if 'lowmargin' in fl }}">{{ (r.margin ~ '%') if r.margin is not none else '—' }}</span></td>
       <td class="r"><span class="stk {{ 'zero' if 'out' in fl else ('low' if 'low' in fl) }}">{{ ('%g'|format(r.stock)) if r.stock is not none else '—' }}{{ (' ' ~ p.unit) if p.unit and p.unit != 'шт' and r.stock is not none }}</span>{% if p.min_stock %}<div class="meta">мін {{ p.min_stock }}</div>{% endif %}</td>
@@ -107,6 +108,10 @@
 {% if can(user,'import') %}
 <form class="imp" method="post" action="/products/import" enctype="multipart/form-data">
   <b style="color:var(--ink)">Імпорт товарів з CleverBox (Excel)</b> — склади, бренди, постачальники, артикули, ціни закупівлі й продажу, крит. залишок, кількість.
+  <input type="file" name="file" accept=".xls,.xlsx" required><button class="btn ghost">Імпортувати</button></form>
+<form class="imp" method="post" action="/products/import-turnover" enctype="multipart/form-data">
+  <b style="color:var(--ink)">Ціни закупівлі з руху товарів CleverBox</b> — звіт «Рух товарів» за період: ціна = сума приходу / к-сть. Вивантажуйте помісячно — остання ціна береться з найсвіжішого періоду.
+  <label>з <input type="date" name="d_from" required></label><label>по <input type="date" name="d_to" required></label>
   <input type="file" name="file" accept=".xls,.xlsx" required><button class="btn ghost">Імпортувати</button></form>{% endif %}
 <script>function bulkUi(){var n=document.querySelectorAll('#bulkf tbody input[type=checkbox]:checked').length;var b=document.getElementById('bulkbar');if(!b)return;b.classList.toggle('show',n>0);document.getElementById('bulkn').textContent=n}</script>
 

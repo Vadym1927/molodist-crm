@@ -332,6 +332,7 @@ class Product(Base):
     unit: Mapped[str | None] = mapped_column(String(20))                    # од. списання: шт., мл. …
     barcode: Mapped[str | None] = mapped_column(String(64))
     for_sale: Mapped[bool | None] = mapped_column(Boolean)                  # для продажу (інакше — витратний матеріал)
+    coef: Mapped[float | None] = mapped_column(Float)                       # одиниць обліку в одиниці приходу (500 мл у флаконі)
     # планування ціни реалізації
     cost_currency: Mapped[str | None] = mapped_column(String(3))           # USD | EUR | UAH
     cost_fx: Mapped[float | None] = mapped_column(Float)                    # ціна закупівлі у валюті

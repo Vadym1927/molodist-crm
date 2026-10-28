@@ -136,10 +136,14 @@ class ProductRow:
     def days_to_expiry(self):
         return (self.expiry - date.today()).days if self.expiry else None
 
+    last_source: str | None = None     # «CleverBox», якщо остання ціна — поточна собівартість з CleverBox
+
     @property
     def stock_value(self):
+        """Залишок — в одиницях обліку (мл, шт), ціна закупівлі — за одиницю приходу (флакон)."""
         c = self.cost_avg or self.cost_last
-        return (self.stock or 0) * c if c and self.stock else 0.0
+        k = self.product.coef if self.product.coef and self.product.coef > 0 else 1
+        return (self.stock or 0) * c / k if c and self.stock else 0.0
 
     @property
     def conversion(self):
@@ -224,11 +228,13 @@ def apply_purchases(db: Session, rows: dict) -> None:
         p = r.product
         a = agg.get(pid)
         exp = []
+        k = p.coef if p.coef and p.coef > 0 else 1     # закупівлі зберігаються за одиницю обліку → показуємо за одиницю приходу
         if a:
             r.purchases = a["n"]
-            r.cost_avg = round(a["sum"] / a["q"], 2) if a["q"] else None
+            r.cost_avg = round(a["sum"] / a["q"] * k, 2) if a["q"] else None
             last = a["last"]
-            r.cost_last, r.last_bought, r.last_supplier = last.unit_cost or None, last.bought_on, last.supplier
+            r.cost_last = round(last.unit_cost * k, 2) if last.unit_cost else None
+            r.last_bought, r.last_supplier = last.bought_on, last.supplier
             # FIFO: на складі лежать найсвіжіші партії — термін беремо лише з них
             if r.stock is None:
                 live = [b for b in a["batches"] if b.bought_on >= today - timedelta(days=730)]
@@ -242,6 +248,9 @@ def apply_purchases(db: Session, rows: dict) -> None:
             exp = [b.expiry_date for b in live if b.expiry_date]
         if not r.cost_avg and p.cost:
             r.cost_avg = p.cost                      # собівартість з CleverBox, якщо закупівель не внесено
+        # поточна собівартість CleverBox свіжіша за давні закупівлі (напр. імпорт руху за 2022)
+        if p.cost and (not r.last_bought or r.last_bought < today - timedelta(days=180)):
+            r.cost_last, r.last_bought, r.last_source = p.cost, None, "CleverBox"
         if p.expiry_date:
             exp.append(p.expiry_date)
         r.expiry = min(exp) if exp else None
@@ -311,7 +320,7 @@ IMPORT_COLS = {"id": ("id",), "name": ("назва",), "sku": ("артикул",
                "unit": ("од. списання", "од списання", "одиниця"), "category": ("категорія",), "direction": ("напрямок",),
                "brand": ("бренд",), "supplier": ("постачальник",), "min_stock": ("крит. залишок", "критичний залишок"),
                "for_sale": ("для продажу",), "cost": ("ціна закупівлі", "собівартість"), "price": ("ціна продажу",),
-               "qty": ("кількість", "залишок")}
+               "qty": ("кількість", "залишок"), "coef": ("коефiцiєнт", "коефіцієнт", "коеф")}
 
 
 def _cell_num(v):
@@ -394,6 +403,9 @@ def import_products(db: Session, path: str) -> dict:
                 setattr(p, attr, str(v).strip().rstrip(".")[:100] if k == "unit" else str(v).strip()[:100])
         if g("for_sale") is not None and cmap["for_sale"]:
             p.for_sale = str(g("for_sale")).strip() in ("1", "1.0", "так", "true", "True")
+        kf = _cell_num(g("coef"))
+        if kf and kf > 0:
+            p.coef = kf
         price, cost, ms = _cell_num(g("price")), _cell_num(g("cost")), _cell_num(g("min_stock"))
         if price:
             p.price = price
@@ -417,4 +429,57 @@ def import_products(db: Session, path: str) -> dict:
     db.commit()
     rep["by_warehouse"] = dict(rep["by_warehouse"])
     rep["brands"] = len({p.brand for p in db.scalars(select(Product)) if p.brand})
+    return rep
+
+
+# ---------------- Оборотна відомість CleverBox (рух товарів за період) → закупівлі ----------------
+
+def import_turnover(db: Session, path: str, d_from: date, d_to: date) -> dict:
+    """Звіт «Рух товарів» (Товар, артикул, …, надходження к-ть, Прихід сума, витрата…, залишок) за період.
+    По кожному товару з надходженням створює закупівлю «за період» (дата = кінець періоду) з ціною за одиницю обліку
+    = сума приходу / к-ть надходження. Повторний імпорт того самого періоду замінює попередній."""
+    from ..models import ProductPurchase
+    data = read_table(path)
+    if not data or "товар" not in data[0] or not any(k.startswith("надходження") for k in data[0]):
+        return {"error": "Це не звіт «Рух товарів» з CleverBox (немає колонок Товар / надходження)"}
+    head = list(data[0].keys())
+    k_qty = next((h for h in head if h.startswith("надходження") and "обліку" in h), None) or \
+        next(h for h in head if h.startswith("надходження"))
+    k_sum = next((h for h in head if h.startswith("прихід")), None)
+    k_out = next((h for h in head if h.startswith("витрата") and "обліку" in h), None)
+    tag = f"turnover:{d_from.isoformat()}:{d_to.isoformat()}"
+    db.execute(ProductPurchase.__table__.delete().where(ProductPurchase.note == tag))
+    products = db.scalars(select(Product)).all()
+    by_sku = {p.sku.strip().lower(): p for p in products if p.sku}
+    by_name = {p.name_norm: p for p in products}
+    rep = {"rows": 0, "with_income": 0, "matched": 0, "created": 0, "not_found": []}
+    for r in data:
+        name = str(r.get("товар") or "").strip()
+        if not name:
+            continue
+        rep["rows"] += 1
+        q, sm = _cell_num(r.get(k_qty)), abs(_cell_num(r.get(k_sum)) or 0) if k_sum else 0
+        if not q or q <= 0 or not sm:
+            continue
+        rep["with_income"] += 1
+        sku = str(r.get("артикул") or "").strip().lower()
+        p = (by_sku.get(sku) if sku and sku not in ("0", "0.0") else None) or by_name.get(norm(name)) or match_product(db, name, products)
+        if not p:
+            p = Product(name=name, name_norm=norm(name), sku=(str(r.get("артикул")).strip() or None) if sku else None,
+                        unit=str(r.get("одиниця обліку") or "").strip().rstrip(".")[:20] or None)
+            db.add(p)
+            db.flush()
+            products.append(p)
+            by_name[p.name_norm] = p
+            rep["created"] += 1
+            rep["not_found"].append(name[:80])
+        else:
+            rep["matched"] += 1
+        kf = _cell_num(r.get("коеф."))
+        if kf and kf > 0 and not p.coef:
+            p.coef = kf
+        db.add(ProductPurchase(product_id=p.id, bought_on=d_to, qty=q, unit_cost=round(sm / q, 4),
+                               note=tag, doc_no=f"рух {d_from:%d.%m.%Y}–{d_to:%d.%m.%Y}"))
+    db.commit()
+    rep["not_found"] = rep["not_found"][:20]
     return rep
