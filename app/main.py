@@ -377,7 +377,9 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
     kind = "not_booked" if statuses and statuses[0].next_procedure else "follow_up"
     from .services import patient_match as _pm
     dupes = _pm.suggestions(db, p) if not p.cleverbox_id and can(user, "patients_all") else []
+    from .services import certificates as _cert
     return render(request, "patient.html", p=p, statuses=statuses, ptasks=ptasks, msgs=msgs, dupes=dupes,
+                  certs=_cert.for_patient(db, p.id), CERT_STATES=_cert.STATES, today=date.today(),
                   CB_LABELS=CB_LABELS,
                   pscripts=_sc.for_patient(db, p, kind, user.name) if can(user, "message") else [],
                   avail=_msg.available_channels(p),
@@ -839,6 +841,11 @@ def import_template(user: User = Depends(require("import"))):
     return Response(importer.template_xlsx(), media_type=XLSX, headers=_attach("MOLODIST_шаблон_імпорту.xlsx"))
 
 
+def _cert_imp():
+    from .services import certificates
+    return certificates
+
+
 def _svc_imp():
     from .services import cb_services_import
     return cb_services_import
@@ -853,6 +860,10 @@ async def import_table(request: Request, file: UploadFile = File(...), kind: str
         sheets = importer.read_sheets(data, file.filename or "data.xlsx")
         if sheets and sheets[0][1] and cbc.is_clients_export(sheets[0][1][0]):     # вивантаження «Клієнти» CleverBox
             rep = await asyncio.to_thread(cbc.import_clients, db, sheets[0][1][1:], sheets[0][1][0])
+            rep["sheet"] = file.filename
+            reports = [rep]
+        elif sheets and sheets[0][1] and _cert_imp().is_certificates_export(sheets[0][1][0]):   # «Сертифікати»
+            rep = await asyncio.to_thread(_cert_imp().import_certificates, db, sheets[0][1][1:], sheets[0][1][0])
             rep["sheet"] = file.filename
             reports = [rep]
         elif sheets and sheets[0][1] and _svc_imp().is_services_export(sheets[0][1][0]):   # «Послуги» CleverBox

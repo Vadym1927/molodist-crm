@@ -493,6 +493,42 @@ class ProcedureNorm(Base):
     product: Mapped["Product"] = relationship()
 
 
+class GiftCertificate(Base):
+    """Подарунковий сертифікат CleverBox (вивантаження «Сертифікати»)."""
+    __tablename__ = "gift_certificates"
+    id: Mapped[int] = mapped_column(primary_key=True)                  # = ID CleverBox
+    code: Mapped[str | None] = mapped_column(String(40), index=True)
+    type_name: Mapped[str | None] = mapped_column(String(200))
+    cb_client_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    patient_id: Mapped[int | None] = mapped_column(ForeignKey("patients.id"), index=True)
+    client_name: Mapped[str | None] = mapped_column(String(200))
+    seller: Mapped[str | None] = mapped_column(String(200))
+    sold_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+    price: Mapped[float] = mapped_column(Float, default=0)
+    paid: Mapped[float] = mapped_column(Float, default=0)
+    nominal: Mapped[float] = mapped_column(Float, default=0)
+    balance: Mapped[float] = mapped_column(Float, default=0)
+    valid_to: Mapped[date | None] = mapped_column(Date, index=True)
+    comment: Mapped[str | None] = mapped_column(String(500))
+    cb_status: Mapped[str | None] = mapped_column(String(50))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    patient: Mapped[Patient | None] = relationship()
+
+    def state(self, today: date | None = None) -> str:
+        """active | expiring | expired (згорів із залишком) | used | unpaid"""
+        today = today or date.today()
+        if (self.cb_status or "").lower().startswith("не оплач"):
+            return "unpaid"
+        if (self.balance or 0) <= 0:
+            return "used"
+        if self.valid_to and self.valid_to < today:
+            return "expired"
+        if self.valid_to and (self.valid_to - today).days <= 14:
+            return "expiring"
+        return "active"
+
+
 class Check(Base):
     """Чек CleverBox (/sales/checks) — джерело фактичної виручки."""
     __tablename__ = "checks"

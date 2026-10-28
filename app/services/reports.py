@@ -16,7 +16,7 @@ from ..models import Check, Visit, BeautyPlan, Patient, Product, SupplierInvoice
 from ..parsers.observ import norm
 
 REPORTS = {"revenue": "Виручка", "doctors": "Лікарі", "services": "Послуги", "products": "Товари",
-           "patients": "Пацієнти", "plans": "Бюті-плани", "supply": "Поставки"}
+           "patients": "Пацієнти", "plans": "Бюті-плани", "certificates": "Сертифікати", "supply": "Поставки"}
 
 
 @dataclass
@@ -395,8 +395,50 @@ def supply(db: Session, d_from: date, d_to: date) -> Report:
     return r
 
 
+# ---------------- Сертифікати ----------------
+
+def certificates(db: Session, d_from: date, d_to: date) -> Report:
+    from ..models import GiftCertificate
+    from .certificates import STATES
+    today = date.today()
+    allc = db.scalars(select(GiftCertificate)).all()
+    a, b = _rng(d_from, d_to)
+    pa, pb = _rng(*prev_period(d_from, d_to))
+    sold = [c for c in allc if c.sold_at and a <= c.sold_at <= b and c.state(today) != "unpaid"]
+    sold_prev = [c for c in allc if c.sold_at and pa <= c.sold_at <= pb and c.state(today) != "unpaid"]
+    live = [c for c in allc if c.state(today) in ("active", "expiring")]
+    burned = [c for c in allc if c.state(today) == "expired" and c.valid_to and d_from <= c.valid_to <= d_to]
+    r = Report("certificates", "Сертифікати", "З вивантаження CleverBox «Сертифікати» (Дані → Імпорт). Таблиця — "
+               "сертифікати, продані за період, плюс усі активні зараз. «Згоріло» — залишок на сертифікатах, "
+               "термін яких минув у періоді.", empty="Сертифікатів ще немає — завантажте вивантаження «Сертифікати» з CleverBox.")
+    r.tiles = [("Продано", sum(c.paid for c in sold), sum(c.paid for c in sold_prev), "uah", f"{len(sold)} шт"),
+               ("Активні зараз", sum(c.balance for c in live), None, "uah",
+                f"{len(live)} шт — зобов'язання клініки"),
+               ("Згорають за 14 дн", sum(c.balance for c in live if c.state(today) == "expiring"), None, "uah",
+                f"{sum(1 for c in live if c.state(today) == 'expiring')} шт — задачі адмінам створено"),
+               ("Згоріло з залишком", sum(c.balance for c in burned), None, "uah", f"{len(burned)} шт у періоді")]
+    r.cols = [Col("code", "№"), Col("type", "Сертифікат"), Col("client", "Пацієнт"), Col("seller", "Продав(ла)"),
+              Col("sold", "Продано", "date"), Col("nominal", "Номінал", "uah", True), Col("balance", "Залишок", "uah", True),
+              Col("used", "Використано", "uah", True), Col("valid", "Діє до", "date"), Col("state", "Стан")]
+    seen = set()
+    for c in sorted(sold + live, key=lambda c: c.sold_at or datetime.min, reverse=True):
+        if c.id in seen:
+            continue
+        seen.add(c.id)
+        r.rows.append({"code": c.code or str(c.id), "type": c.type_name or "", "client": c.client_name or "—",
+                       "seller": c.seller or "", "sold": c.sold_at, "nominal": c.nominal, "balance": c.balance,
+                       "used": max(c.nominal - c.balance, 0), "valid": c.valid_to, "state": STATES[c.state(today)],
+                       "_href": f"/patients/{c.patient_id}" if c.patient_id else None})
+    by_seller = defaultdict(float)
+    for c in sold:
+        by_seller[c.seller or "—"] += c.paid
+    r.chart = sorted(by_seller.items(), key=lambda kv: -kv[1])
+    r.chart_title = "Продажі сертифікатів за адміністраторами"
+    return r.finish()
+
+
 BUILDERS = {"revenue": revenue, "doctors": doctors, "services": services, "products": products,
-            "patients": patients, "plans": plans, "supply": supply}
+            "patients": patients, "plans": plans, "certificates": certificates, "supply": supply}
 
 
 def build(db: Session, key: str, d_from: date, d_to: date) -> Report:

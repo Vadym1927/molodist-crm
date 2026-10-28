@@ -11,7 +11,8 @@ from .kpi import all_statuses
 from .catalog import product_rows
 
 KINDS = {"manual": "Ручна", "not_booked": "Записати на процедуру", "care_ending": "Повторний догляд",
-         "stock": "Дозамовити товар", "follow_up": "Звʼязатися з пацієнтом"}
+         "stock": "Дозамовити товар", "follow_up": "Звʼязатися з пацієнтом",
+         "certificate": "Сертифікат згорає"}
 PRIORITY = {"high": "високий", "normal": "звичайний", "low": "низький"}
 
 
@@ -79,6 +80,17 @@ def generate_auto(db: Session, now: datetime | None = None) -> dict:
         ensure("stock:", f"stock:{week}", kind="stock",
                title=f"Дозамовити товари для бюті-планів: {len(deficits)} поз.",
                description="\n".join(lines[:25]), assignee_role="owner", due_date=now.date())
+
+    # сертифікати з залишком, що згорають за ≤ 14 днів — нагадати пацієнтці записатися
+    from .certificates import expiring
+    for c in expiring(db, now.date()):
+        days = (c.valid_to - now.date()).days
+        who = c.patient.full_name if c.patient else (c.client_name or "власник сертифіката")
+        ensure(f"cert:{c.id}:", f"cert:{c.id}:{c.valid_to:%Y%m%d}", kind="certificate", patient_id=c.patient_id,
+               title=f"Сертифікат №{c.code or c.id} згорає {c.valid_to:%d.%m} — запросити {who}",
+               description=f"{c.type_name or 'Сертифікат'}: залишок {c.balance:,.0f} ₴ з {c.nominal:,.0f} ₴, "
+                           f"діє до {c.valid_to:%d.%m.%Y} (≈ {days} дн). Продав(ла): {c.seller or '—'}.".replace(",", " "),
+               assignee_role="admin", due_date=now.date(), priority="high" if days <= 3 else "normal")
 
     # автозакриття: умова зникла (пацієнт записався, купив, склад поповнено)
     for key, t in open_auto.items():

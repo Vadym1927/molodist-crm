@@ -73,6 +73,14 @@
     <table class="small" style="margin-top:8px">{% for k, v in p.cb_extra.items() %}<tr><td class="muted" style="width:220px">{{ CB_LABELS.get(k, k) }}</td><td>{{ v }}</td></tr>{% endfor %}</table></details>{% endif %}
 </div>
 
+{% if certs %}<div class="card" id="certs"><h2>Подарункові сертифікати</h2>
+  <table class="small"><thead><tr><th>№</th><th>Сертифікат</th><th>Продано</th><th class="r">Номінал</th><th class="r">Залишок</th><th>Діє до</th><th>Стан</th></tr></thead><tbody>
+  {% for c in certs %}{% set st = c.state(today) %}<tr><td>{{ c.code or c.id }}</td><td>{{ c.type_name or '—' }}{% if c.comment %}<div class="muted">{{ c.comment }}</div>{% endif %}</td>
+    <td>{{ c.sold_at|dt('%d.%m.%Y') if c.sold_at else '—' }}<div class="muted">{{ c.seller or '' }}</div></td><td class="r">{{ c.nominal|uah }}</td><td class="r"><b>{{ c.balance|uah }}</b></td>
+    <td>{{ c.valid_to|dt('%d.%m.%Y') if c.valid_to else 'безстроково' }}</td>
+    <td><span class="pill {{ {'active':'ok','expiring':'warn','expired':'bad','used':'done','unpaid':'warn'}[st] }}">{{ CERT_STATES[st] }}</span></td></tr>{% endfor %}
+  </tbody></table></div>{% endif %}
+
 <div class="card" id="kpi"><h2>Показники пацієнта</h2>
   <div class="grid g5">
     <div class="tile"><span>Завершені візити</span><b>{{ patient_kpi.done or p.cb_visits or 0 }}</b><div class="muted small">перший: {{ patient_kpi.first|dt('%d.%m.%Y') if patient_kpi.first else (p.cb_first_visit|dt('%d.%m.%Y') if p.cb_first_visit else '—') }}</div></div>
