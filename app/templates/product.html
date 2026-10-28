@@ -18,6 +18,16 @@
 .form input,.form select{width:100%;min-width:0}.form .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .side{position:sticky;top:90px}
 @media (max-width:1100px){.lay{grid-template-columns:1fr}.side{position:static}}
+.bstats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:14px 0}
+.bstats div{background:var(--cream,#F7F4F0);border-radius:12px;padding:10px 12px}
+.bstats span{display:block;font-size:12px;color:var(--muted);font-weight:600}.bstats b{font-size:18px}.bstats small{display:block;font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.up{color:var(--bad)}.down{color:var(--ok)}
+.pchart{display:flex;gap:8px;align-items:flex-end;height:120px;margin:4px 0 14px}
+.pchart div{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;justify-content:flex-end;height:100%;min-width:0}
+.pchart i{display:block;width:100%;max-width:40px;background:#C9BFE6;border-radius:6px 6px 2px 2px;min-height:2px}
+.pchart div:last-child i{background:var(--deep)}
+.pchart span,.pchart em{font-size:11px;color:var(--muted);font-style:normal}.pchart em{color:var(--ink);font-weight:700}
+@media (max-width:700px){.bstats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 <a href="/products?wh={{ p.warehouse or 'vitrina' }}" class="muted small" style="text-decoration:none">← {{ WAREHOUSES.get(p.warehouse or 'vitrina') }}</a>
 <div class="ph2">
@@ -43,30 +53,46 @@
 
 <div class="lay">
 <div>
+  <div class="card" id="buy">
+    <div class="row between" style="align-items:baseline;gap:12px;flex-wrap:wrap"><h2 style="margin:0">Поставки: коли і за якою ціною</h2>
+      {% if buy_stats %}<span class="small muted">{{ buy_stats.n }} поставок · {{ '%g'|format(buy_stats.qty) }} шт · {{ buy_stats.sum|uah }}</span>{% endif %}</div>
+    {% if buy_stats %}
+    <div class="bstats">
+      <div><span>Остання</span><b>{{ buy_stats.last.price|uah }}</b><small>{{ buy_stats.last.date|dt('%d.%m.%Y') }}{{ (' · ' ~ buy_stats.last.supplier) if buy_stats.last.supplier }}</small></div>
+      <div><span>Середня</span><b>{{ buy_stats.avg|uah if buy_stats.avg else '—' }}</b><small>зважена за кількістю</small></div>
+      <div><span>Мінімальна</span><b>{{ buy_stats.min.price|uah }}</b><small>{{ buy_stats.min.date|dt('%d.%m.%Y') }}</small></div>
+      <div><span>Максимальна</span><b>{{ buy_stats.max.price|uah }}</b><small>{{ buy_stats.max.date|dt('%d.%m.%Y') }}</small></div>
+      <div><span>Зміна ціни</span><b class="{{ 'up' if buy_stats.change and buy_stats.change > 0 else ('down' if buy_stats.change and buy_stats.change < 0) }}">{{ (('+' if buy_stats.change > 0 else '') ~ buy_stats.change ~ '%') if buy_stats.change is not none else '—' }}</b><small>з {{ buy_stats.first.date|dt('%m.%Y') }}</small></div>
+    </div>
+    {% if buy_stats.chart|length > 1 %}<div class="pchart" title="Ціна закупівлі по поставках">{% for x in buy_stats.chart %}<div><em>{{ x.price|round|int }}</em><i style="height:{{ (100 * x.price / buy_stats.top)|round }}%"></i><span>{{ x.date|dt('%m.%y') }}</span></div>{% endfor %}</div>{% endif %}
+    {% endif %}
+    <div style="overflow-x:auto"><table><thead><tr><th>Дата</th><th>Постачальник</th><th class="r">К-сть</th><th class="r">Ціна за шт</th><th class="r">Зміна</th><th class="r">Сума</th><th>Придатний до</th><th>Документ</th><th></th></tr></thead><tbody>
+    {% for x in buys %}<tr><td>{{ x.date|dt('%d.%m.%Y') }}{% if x.period %}<div class="small muted">за {{ x.period }}</div>{% endif %}</td><td>{{ x.supplier or '—' }}</td><td class="r">{{ '%g'|format(x.qty) }}</td>
+      <td class="r"><b>{{ x.price|uah }}</b></td>
+      <td class="r small">{% if x.delta %}<span class="{{ 'up' if x.delta > 0 else 'down' }}">{{ '▲ +' if x.delta > 0 else '▼ ' }}{{ x.delta }}%</span>{% elif x.delta == 0 %}<span class="muted">=</span>{% endif %}</td>
+      <td class="r">{{ x.sum|uah }}</td>
+      <td>{% if x.expiry %}<span class="{{ 'exp bad' if x.expiry < today else '' }}">{{ x.expiry|dt('%d.%m.%Y') }}</span>{% else %}—{% endif %}</td>
+      <td class="small">{% if x.link %}<a href="{{ x.link }}">{{ x.doc_no or x.src }}</a>{% else %}<span class="muted">{{ x.src }}</span>{% if x.doc_no and not x.period %} · {{ x.doc_no }}{% endif %}{% endif %}</td>
+      <td>{% if can(user,'products') and x.deletable %}<form method="post" action="/products/{{ p.id }}/purchases/{{ x.id }}/delete" onsubmit="return confirm('Видалити закупівлю?')"><button class="btn danger" style="padding:2px 9px">×</button></form>{% endif %}</td></tr>
+    {% else %}<tr><td colspan="9" class="muted">Поставок ще немає. Вони з'являються з документів «Склад → Поставка», з імпорту «Руху товарів» CleverBox або вносяться вручну нижче.{% if p.cost %} Зараз ціна закупівлі береться з CleverBox: {{ ((p.cost or 0))|uah }}.{% endif %}</td></tr>{% endfor %}
+    </tbody></table></div>
+    {% if p.coef and p.coef != 1 %}<p class="small muted" style="margin:8px 0 0">Ціна й кількість — за одиницю приходу (1 шт = {{ '%g'|format(p.coef) }} {{ p.unit or 'од. обліку' }}).</p>{% endif %}
+    {% if can(user,'products') %}
+    <form method="post" action="/products/{{ p.id }}/purchases" class="row" style="margin-top:14px;align-items:flex-end;gap:8px;flex-wrap:wrap">
+      <label class="small muted" style="display:grid;gap:3px">Дата<input type="date" name="bought_on" value="{{ today }}"></label>
+      <label class="small muted" style="display:grid;gap:3px">Постачальник<input name="supplier" list="suppl" value="{{ p.supplier or '' }}" style="width:180px"></label>
+      <label class="small muted" style="display:grid;gap:3px">К-сть, шт<input name="qty" value="1" style="width:70px"></label>
+      <label class="small muted" style="display:grid;gap:3px">Ціна за шт, ₴<input name="unit_cost" required style="width:110px"></label>
+      <label class="small muted" style="display:grid;gap:3px">Придатний до<input type="date" name="expiry_date"></label>
+      <label class="small muted" style="display:grid;gap:3px">№ накладної<input name="doc_no" style="width:110px"></label>
+      <button class="btn">＋ Поставка вручну</button></form>{% endif %}
+  </div>
+
   <div class="card"><h2>Продажі за 6 місяців</h2>
     <div class="mchart">{% for m, q in months %}<div><em>{{ '%g'|format(q) if q else '' }}</em><i style="height:{{ (100 * q / m_max)|round }}%"></i><span>{{ m.strftime('%m.%y') }}</span></div>{% endfor %}</div>
     <div class="row small muted" style="margin-top:10px;gap:20px"><span>За 90 днів: <b style="color:var(--ink)">{{ '%g'|format(r.sold_90) }} шт · {{ r.sold_90_sum|uah }}</b></span>
       <span>У бюті-планах: призначено <b style="color:var(--ink)">{{ r.prescribed }}</b>, куплено <b style="color:var(--ink)">{{ r.bought }}</b> ({{ r.conversion }}%)</span>
       <span>Потреба на 30 дн: <b style="color:var(--ink)">{{ r.need_30 }}</b></span></div></div>
-
-  <div class="card" id="buy"><h2>Закупівлі</h2>
-    <table><thead><tr><th>Дата</th><th>Постачальник</th><th class="r">К-сть</th><th class="r">Ціна закупівлі</th><th class="r">Сума</th><th>Термін придатності</th><th>Накладна</th><th></th></tr></thead><tbody>
-    {% for pp in purchases %}<tr><td>{{ pp.bought_on|dt('%d.%m.%Y') }}</td><td>{{ pp.supplier or '—' }}</td><td class="r">{{ '%g'|format(pp.qty) }}</td>
-      <td class="r">{{ pp.unit_cost|uah }}</td><td class="r">{{ (pp.qty * pp.unit_cost)|uah }}</td>
-      <td>{% if pp.expiry_date %}<span class="{{ 'exp bad' if pp.expiry_date < today else '' }}">{{ pp.expiry_date|dt('%d.%m.%Y') }}</span>{% else %}—{% endif %}</td><td class="small">{{ pp.doc_no or '' }}</td>
-      <td>{% if can(user,'products') %}<form method="post" action="/products/{{ p.id }}/purchases/{{ pp.id }}/delete" onsubmit="return confirm('Видалити закупівлю?')"><button class="btn danger" style="padding:2px 9px">×</button></form>{% endif %}</td></tr>
-    {% else %}<tr><td colspan="8" class="muted">Закупівель ще не внесено — середня й остання ціна, термін придатності рахуються з них.</td></tr>{% endfor %}
-    </tbody></table>
-    {% if can(user,'products') %}
-    <form method="post" action="/products/{{ p.id }}/purchases" class="row" style="margin-top:14px;align-items:flex-end;gap:8px">
-      <label class="small muted" style="display:grid;gap:3px">Дата<input type="date" name="bought_on" value="{{ today }}"></label>
-      <label class="small muted" style="display:grid;gap:3px">Постачальник<input name="supplier" list="suppl" value="{{ p.supplier or '' }}" style="width:180px"></label>
-      <label class="small muted" style="display:grid;gap:3px">К-сть<input name="qty" value="1" style="width:70px"></label>
-      <label class="small muted" style="display:grid;gap:3px">Ціна за шт, ₴<input name="unit_cost" required style="width:110px"></label>
-      <label class="small muted" style="display:grid;gap:3px">Придатний до<input type="date" name="expiry_date"></label>
-      <label class="small muted" style="display:grid;gap:3px">№ накладної<input name="doc_no" style="width:110px"></label>
-      <button class="btn">＋ Закупівля</button></form>{% endif %}
-  </div>
 
   <div class="card"><h2>Останні продажі пацієнтам</h2>
     <table><thead><tr><th>Дата</th><th>Пацієнт</th><th class="r">К-сть</th><th class="r">Сума</th></tr></thead><tbody>

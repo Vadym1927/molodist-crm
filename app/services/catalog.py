@@ -506,3 +506,48 @@ def import_turnover(db: Session, path: str, d_from: date, d_to: date) -> dict:
     db.commit()
     rep["not_found"] = rep["not_found"][:20]
     return rep
+
+
+def purchase_history(p, purchases):
+    """Історія поставок товару для картки: ціна й кількість — в одиницях приходу (флакон), а не обліку (мл).
+    purchases — від найновіших до найстаріших. Повертає (рядки, підсумки)."""
+    k = p.coef if p.coef and p.coef > 0 else 1
+    rows = []
+    for pp in purchases:
+        note = pp.note or ""
+        if note.startswith("stockdoc:"):
+            src, link = "Поставка", "/stock/docs/" + note.split(":", 1)[1]
+        elif note.startswith("turnover:"):
+            src, link = "Рух CleverBox", None
+        else:
+            src, link = "Вручну", None
+        period = None
+        if note.startswith("turnover:"):
+            try:
+                a, b = note.split(":")[1:3]
+                period = f"{date.fromisoformat(a):%d.%m.%y}–{date.fromisoformat(b):%d.%m.%y}"
+            except (ValueError, IndexError):
+                period = None
+        rows.append({"id": pp.id, "date": pp.bought_on, "period": period, "supplier": pp.supplier,
+                     "qty": round((pp.qty or 0) / k, 3), "price": round((pp.unit_cost or 0) * k, 2),
+                     "sum": round((pp.qty or 0) * (pp.unit_cost or 0), 2), "expiry": pp.expiry_date,
+                     "doc_no": pp.doc_no, "src": src, "link": link, "delta": None,
+                     "deletable": not note.startswith("stockdoc:")})
+    for i, r in enumerate(rows):                      # зміна ціни до попередньої (старшої) поставки
+        prev = next((x for x in rows[i + 1:] if x["price"]), None)
+        if prev and r["price"]:
+            r["delta"] = round(100 * (r["price"] - prev["price"]) / prev["price"], 1)
+    priced = [r for r in rows if r["price"]]
+    stats = None
+    if priced:
+        tq = sum(r["qty"] for r in rows)
+        ts = sum(r["sum"] for r in rows)
+        first, last = priced[-1], priced[0]
+        stats = {"n": len(rows), "qty": round(tq, 3), "sum": round(ts, 2),
+                 "avg": round(ts / tq, 2) if tq else None,
+                 "min": min(priced, key=lambda r: r["price"]), "max": max(priced, key=lambda r: r["price"]),
+                 "first": first, "last": last,
+                 "change": round(100 * (last["price"] - first["price"]) / first["price"], 1) if len(priced) > 1 else None,
+                 "chart": list(reversed(priced))[-24:]}
+        stats["top"] = max(r["price"] for r in stats["chart"])
+    return rows, stats

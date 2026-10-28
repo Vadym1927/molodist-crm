@@ -1268,7 +1268,8 @@ def product_card(pid: int, request: Request, user: User = Depends(require("produ
                 if (at.year, at.month) == (mm[0].year, mm[0].month):
                     mm[1] += q or 0
     stock_rows = db.scalars(select(StockLevel).where(StockLevel.cb_product_id == prod.cb_product_id)).all() if prod.cb_product_id else []
-    return render(request, "product.html", WAREHOUSES=catalog.WAREHOUSES, p=prod, r=row, purchases=purchases, sales=sales, plans=plans, months=months,
+    buys, buy_stats = catalog.purchase_history(prod, purchases)
+    return render(request, "product.html", WAREHOUSES=catalog.WAREHOUSES, p=prod, r=row, purchases=purchases, buys=buys, buy_stats=buy_stats, sales=sales, plans=plans, months=months,
                   m_max=max([m[1] for m in months] + [1]), stock_rows=stock_rows, today=today,
                   brands=sorted({x for (x,) in db.execute(select(Product.brand).where(Product.brand.is_not(None)).distinct())}),
                   suppliers=sorted({x for (x,) in db.execute(select(Product.supplier).where(Product.supplier.is_not(None)).distinct())}))
@@ -1320,7 +1321,8 @@ def product_purchase_add(pid: int, bought_on: str = Form(""), qty: str = Form("1
     q, c = _num(qty), _num(unit_cost)
     if not q or q <= 0 or c is None or c < 0:
         return RedirectResponse(f"/products/{pid}?err=Вкажіть+кількість+і+ціну+закупівлі#buy", 303)
-    pp = ProductPurchase(product_id=pid, bought_on=_day(bought_on) or date.today(), qty=q, unit_cost=c,
+    k = prod.coef if prod.coef and prod.coef > 0 else 1   # у формі — одиниці приходу, зберігаємо за одиницю обліку
+    pp = ProductPurchase(product_id=pid, bought_on=_day(bought_on) or date.today(), qty=q * k, unit_cost=c / k,
                          supplier=supplier.strip()[:200] or prod.supplier, expiry_date=_day(expiry_date),
                          doc_no=doc_no.strip()[:100] or None)
     db.add(pp)

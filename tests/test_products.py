@@ -132,3 +132,32 @@ def test_wrong_file_in_import_form(tmp_path):
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
         c.post("/stock/suppliers/import", files={"file": ("t.xlsx", f.read_bytes(), "application/octet-stream")})
         assert "Рух товарів" in c.get("/stock?tab=suppliers").text
+
+
+def test_purchase_history_in_card():
+    """Картка товару: поставки — коли, за якою ціною, зміна ціни; ціни в одиницях приходу (коефіцієнт)."""
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        p = Product(name="Сироватка 30 мл історія", name_norm="сироватка історія", price=3000, coef=30, unit="мл")
+        db.add(p); db.flush()
+        # зберігається за мл: 60 мл по 40 ₴ = 2 фл по 1200; 30 мл по 50 ₴ = 1 фл по 1500
+        db.add_all([ProductPurchase(product_id=p.id, bought_on=date(2026, 3, 1), qty=60, unit_cost=40, supplier="Постачальник А"),
+                    ProductPurchase(product_id=p.id, bought_on=date(2026, 9, 1), qty=30, unit_cost=50, supplier="Постачальник Б",
+                                    note="turnover:2026-09-01:2026-09-30", doc_no="рух")])
+        db.commit()
+        pid = p.id
+        rows, st = catalog.purchase_history(p, sorted(p.purchases if hasattr(p, "purchases") else
+                                            db.query(ProductPurchase).filter_by(product_id=pid).all(),
+                                            key=lambda x: x.bought_on, reverse=True))
+        assert [r["price"] for r in rows] == [1500, 1200] and [r["qty"] for r in rows] == [1, 2]
+        assert rows[0]["delta"] == 25.0 and rows[0]["src"] == "Рух CleverBox" and rows[0]["period"] == "01.09.26–30.09.26"
+        assert st["avg"] == 1300 and st["change"] == 25.0 and st["min"]["price"] == 1200
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        page = c.get(f"/products/{pid}").text
+        assert "Поставки: коли і за якою ціною" in page and "Постачальник Б" in page and "+25.0%" in page
+        # вручну вводиться за флакон, зберігається за мл
+        c.post(f"/products/{pid}/purchases", data={"bought_on": "2026-10-01", "qty": "2", "unit_cost": "1800"})
+    with SessionLocal() as db:
+        last = db.query(ProductPurchase).filter_by(product_id=pid, bought_on=date(2026, 10, 1)).one()
+        assert last.qty == 60 and last.unit_cost == 60
