@@ -26,6 +26,19 @@
   </div>
 </div>
 
+{% if request.query_params.get('merged') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">Картки об'єднано — план і файли перенесено сюди.</div>{% endif %}
+{% if dupes %}<div class="card" style="background:var(--lavender);border-color:var(--lavender-2)">
+  <h2 style="margin:0 0 4px">Схоже, ця пацієнтка вже є в базі CleverBox</h2>
+  <div class="small muted" style="margin-bottom:10px">Картку створено з PDF без телефону. Оберіть правильну — план, файли й задачі перейдуть туди, а ця картка-дубль зникне.</div>
+  {% for sc, d in dupes %}<form method="post" action="/patients/{{ p.id }}/merge" class="row between" style="padding:8px 0;border-top:1px solid var(--lavender-2);gap:10px;flex-wrap:wrap"
+      onsubmit="return confirm('Об\'єднати з «{{ d.full_name|replace("'", "’") }}»? Ця картка буде видалена, усе перейде туди.')">
+    <input type="hidden" name="target" value="{{ d.id }}">
+    <div><a href="/patients/{{ d.id }}" target="_blank" style="font-weight:600;text-decoration:none">{{ d.full_name }}</a>
+      <span class="small muted">· {{ d.phone or 'без телефону' }}{{ (' · CleverBox #' ~ d.cleverbox_id) if d.cleverbox_id }}{{ (' · візитів ' ~ d.cb_visits) if d.cb_visits }}{{ (' · ост. ' ~ d.cb_last_visit.strftime('%d.%m.%y')) if d.cb_last_visit }}</span>
+      <span class="pill {{ 'ok' if sc >= 90 else 'warn' }} small">{{ 'збіг ПІБ' if sc >= 90 else 'схоже' }}</span></div>
+    <button class="btn" style="padding:6px 14px">Це вона — об'єднати</button></form>{% endfor %}
+</div>{% endif %}
+
 <div class="tabs patient-tabs">
   <a class="on" href="#info">Info</a><a href="#kpi">KPI</a><a href="#visits">Візити <em>{{ patient_kpi.done + patient_kpi.planned }}</em></a>
   <a href="#contact">Дзвінки й повідомлення</a><a href="#files">Документи й фото</a><a href="#plans">План</a><a href="#sales">Продажі</a><a href="#history">Історія</a>
@@ -41,6 +54,8 @@
     <div><span>Джерело</span><b>{{ p.source or '—' }}</b><div class="muted small">{{ p.address or 'Адресу не вказано' }}</div></div>
   </div>
   {% if p.client_groups %}<div class="row" style="margin-top:12px">{% for group in p.client_groups %}<span class="pill done">{{ group }}</span>{% endfor %}</div>{% endif %}
+  {% if p.cb_extra %}<details style="margin-top:14px"><summary class="small" style="cursor:pointer;font-weight:600">Усі дані з картки CleverBox ({{ p.cb_extra|length }}){% if p.cb_synced_at %} · оновлено {{ p.cb_synced_at|dt('%d.%m %H:%M') }}{% endif %}</summary>
+    <table class="small" style="margin-top:8px">{% for k, v in p.cb_extra.items() %}<tr><td class="muted" style="width:220px">{{ CB_LABELS.get(k, k) }}</td><td>{{ v }}</td></tr>{% endfor %}</table></details>{% endif %}
 </div>
 
 <div class="card" id="kpi"><h2>Показники пацієнта</h2>

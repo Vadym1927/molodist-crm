@@ -217,8 +217,44 @@ def _first_val(c: dict, keys) -> str | None:
     return None
 
 
+def _num_val(c: dict, keys) -> float | None:
+    v = _first_val(c, keys)
+    try:
+        return float(str(v).replace(",", ".").replace(" ", "")) if v is not None else None
+    except ValueError:
+        return None
+
+
+def _flat(v):
+    """Значення картки для показу: список/словник → рядок."""
+    if isinstance(v, dict):
+        if "name" in v or "value" in v:
+            return v.get("value") if v.get("value") not in (None, "") else v.get("name")
+        return ", ".join(f"{k}: {x}" for k, x in v.items() if x not in (None, "", [], {}))
+    if isinstance(v, list):
+        return ", ".join(str(_flat(x)) for x in v if x not in (None, "", [], {}))
+    return v
+
+
+GENDER_KEYS = ("sex", "gender")
+ADDRESS_KEYS = ("address", "city", "addr")
+SOURCE_KEYS = ("source", "source_name", "ad_source", "advert", "advertising", "where_from", "referral", "how_found")
+GROUP_KEYS = ("groups", "group", "categories", "category", "category_name", "tags", "client_groups")
+BALANCE_KEYS = ("balance", "deposit")
+BONUS_KEYS = ("bonus", "bonuses", "bonus_balance")
+TOTAL_KEYS = ("ltv", "total_paid", "total_payd", "total_sum")
+VISITS_KEYS = ("visits", "visits_count", "count_visits", "visit_count")
+AVERAGE_KEYS = ("average_check", "avg_check")
+LAST_VISIT_KEYS = ("last_visit", "date_last_visit", "last_visit_date", "last_date")
+# що вже лягає в окремі поля CRM — у «інші поля» не дублюємо
+_KNOWN = {"id", "name", "lname", "fname", "sname", "full_name", "phone", "phones", "email",
+          *REGISTERED_KEYS, *BIRTHDAY_KEYS}
+
+
 def apply_client_fields(p: Patient, c: dict) -> None:
-    """Дата додавання в CleverBox і день народження — лише якщо API їх віддає; ручні правки не затираємо."""
+    """Поля картки CleverBox → картка CRM. Числа CleverBox (баланс, бонуси, LTV) оновлюються завжди;
+    текстові поля (стать, адреса, джерело, групи) — лише якщо в CRM порожньо, щоб не затерти ручні правки.
+    Усе інше, що віддає API, зберігається як є в cb_extra і видно в картці пацієнта."""
     reg = parse_dt(_first_val(c, REGISTERED_KEYS))
     if reg and reg.year > 2000:
         p.cb_registered_at = reg
@@ -228,6 +264,43 @@ def apply_client_fields(p: Patient, c: dict) -> None:
             p.birthday = b.date()
     if not p.email and isinstance(c.get("email"), str) and "@" in c["email"]:
         p.email = c["email"].strip()[:200]
+    ph = c.get("phone") or _flat(c.get("phones"))
+    if not p.phone and ph and len(re.sub(r"\D", "", str(ph))) >= 9:
+        p.phone = str(ph).strip()[:64]
+    g = str(_first_val(c, GENDER_KEYS) or "").strip().lower()
+    if not p.gender and g:
+        p.gender = "жіноча" if g in ("f", "w", "female", "woman", "ж", "жін", "жіноча", "жiноча") else \
+            "чоловіча" if g in ("m", "male", "man", "ч", "чол", "чоловіча") else None
+    if not p.address and _first_val(c, ADDRESS_KEYS):
+        p.address = str(_flat(_first_val(c, ADDRESS_KEYS)))[:300]
+    if not p.source and _first_val(c, SOURCE_KEYS):
+        p.source = str(_flat(_first_val(c, SOURCE_KEYS)))[:100]
+    grp = _first_val(c, GROUP_KEYS)
+    if not p.client_groups and grp:
+        items = grp if isinstance(grp, list) else str(_flat(grp)).split(",")
+        p.client_groups = [str(_flat(x)).strip() for x in items if str(_flat(x)).strip()][:20] or None
+    for attr, keys in (("cb_balance", BALANCE_KEYS), ("cb_bonus", BONUS_KEYS), ("cb_total", TOTAL_KEYS),
+                       ("cb_average", AVERAGE_KEYS)):
+        v = _num_val(c, keys)
+        if v is not None:
+            setattr(p, attr, v)
+    v = _num_val(c, VISITS_KEYS)
+    if v is not None:
+        p.cb_visits = int(v)
+    lv = parse_dt(_first_val(c, LAST_VISIT_KEYS))
+    if lv and lv.year > 2000:
+        p.cb_last_visit = lv
+    if str(c.get("vip") or c.get("is_vip") or "").lower() in ("1", "true", "yes"):
+        p.cb_mark = "vip"
+    extra = {}
+    for k, v in c.items():
+        if k in _KNOWN or v in (None, "", [], {}, "0000-00-00", "00.00.0000"):
+            continue
+        fv = _flat(v)
+        if fv not in (None, ""):
+            extra[k] = fv if isinstance(fv, (int, float, bool)) else str(fv)[:500]
+    p.cb_extra = extra or None
+    p.cb_synced_at = datetime.now()
 
 
 def backfill_visit_amounts(db: Session) -> int:
@@ -245,14 +318,41 @@ def backfill_visit_amounts(db: Session) -> int:
 
 def sync_clients(db: Session, cb: CleverBox) -> int:
     """Оновлює атрибути вже привʼязаних пацієнтів (дата додавання, ДН). Нових пацієнтів не створює."""
+    from ..services.patient_match import score, digits, AUTO
     by_cb = {p.cleverbox_id: p for p in db.scalars(select(Patient).where(Patient.cleverbox_id.is_not(None)))}
     n, keys = 0, set()
+    unlinked = []
     for c in cb.clients():
         keys.update(c.keys())
         p = by_cb.get(int(c.get("id") or 0))
         if p:
             apply_client_fields(p, c)
             n += 1
+        else:
+            unlinked.append(c)
+    # картки CRM без CleverBox (напр. створені з PDF плану): привʼязуємо за телефоном або однозначним ПІБ,
+    # якщо цього клієнта CleverBox ще немає в CRM (інакше це дубль — об'єднання кнопкою в картці)
+    orphans = db.scalars(select(Patient).where(Patient.cleverbox_id.is_(None))).all()
+    if orphans and unlinked:
+        by_phone = {}
+        for c in unlinked:
+            d = digits(str(c.get("phone") or ""))
+            if len(d) == 9:
+                by_phone.setdefault(d, []).append(c)
+        for p in orphans:
+            cands = by_phone.get(digits(p.phone), []) if p.phone and len(digits(p.phone)) == 9 else []
+            if not cands:
+                full = lambda c: " ".join(str(c.get(k) or "") for k in ("name", "lname", "fname", "sname")).strip() or str(c.get("full_name") or "")  # noqa: E731
+                hits = [(score(p.full_name, full(c)), c) for c in unlinked]
+                best = max((h for h, _ in hits), default=0)
+                cands = [c for h, c in hits if h >= AUTO and h == best]
+            if len(cands) == 1:
+                cid = int(cands[0].get("id") or 0)
+                if cid and cid not in by_cb:
+                    p.cleverbox_id = cid
+                    by_cb[cid] = p
+                    apply_client_fields(p, cands[0])
+                    n += 1
     _state(db, "cleverbox_client_fields", ",".join(sorted(keys))[:1000])   # лише назви полів, без значень
     db.commit()
     return n

@@ -375,7 +375,10 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
     from .models import MessageLog as _ML
     msgs = db.scalars(select(_ML).where(_ML.patient_id == p.id).order_by(_ML.at.desc()).limit(30)).all()
     kind = "not_booked" if statuses and statuses[0].next_procedure else "follow_up"
-    return render(request, "patient.html", p=p, statuses=statuses, ptasks=ptasks, msgs=msgs,
+    from .services import patient_match as _pm
+    dupes = _pm.suggestions(db, p) if not p.cleverbox_id and can(user, "patients_all") else []
+    return render(request, "patient.html", p=p, statuses=statuses, ptasks=ptasks, msgs=msgs, dupes=dupes,
+                  CB_LABELS=CB_LABELS,
                   pscripts=_sc.for_patient(db, p, kind, user.name) if can(user, "message") else [],
                   avail=_msg.available_channels(p),
                   users=db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all(),
@@ -387,6 +390,31 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
                                    next=min((v.starts_at for v in planned_visits), default=None),
                                    service_revenue=service_revenue, product_revenue=product_revenue,
                                    revenue=service_revenue + product_revenue))
+
+
+CB_LABELS = {"sex": "Стать", "gender": "Стать", "address": "Адреса", "city": "Місто", "source": "Джерело",
+             "source_name": "Джерело", "groups": "Групи", "categories": "Категорії", "category_name": "Категорія",
+             "tags": "Теги", "balance": "Баланс", "deposit": "Депозит", "bonus": "Бонуси", "discount": "Знижка, %",
+             "card": "Картка лояльності", "card_number": "Картка лояльності", "comment": "Коментар", "note": "Нотатка",
+             "notes": "Нотатки", "instagram": "Instagram", "telegram": "Telegram", "viber": "Viber",
+             "status": "Статус", "vip": "VIP", "visits": "Візитів", "last_visit": "Останній візит", "ltv": "LTV",
+             "total_paid": "Сплачено всього", "average_check": "Середній чек", "master": "Майстер", "master_name": "Майстер",
+             "filial": "Філія", "filial_name": "Філія", "blacklist": "Чорний список", "sms": "SMS-розсилка",
+             "notification": "Сповіщення", "fields": "Додаткові поля", "custom_fields": "Додаткові поля"}
+
+
+@app.post("/patients/{pid:int}/merge")
+def patient_merge(pid: int, target: int = Form(...), user: User = Depends(require("patients_all")),
+                  db: Session = Depends(db_dep)):
+    """Картка-дубль (напр. створена з PDF без CleverBox) → у картку CleverBox; дубль видаляється."""
+    from .services import patient_match as _pm
+    src, dst = db.get(Patient, pid), db.get(Patient, target)
+    if not src or not dst:
+        raise HTTPException(404)
+    name = src.full_name
+    moved = _pm.merge(db, src, dst)
+    audit(db, "patient.merge", "patient", dst.id, user=user, merged_from=pid, merged_name=name, moved=moved)
+    return RedirectResponse(f"/patients/{dst.id}?merged=1", 303)
 
 
 @app.post("/patients/{pid:int}")

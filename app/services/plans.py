@@ -71,16 +71,9 @@ def get_or_create_doctor(db: Session, name: str | None) -> Doctor | None:
 
 
 def find_patient(db: Session, name: str, phone: str | None = None) -> Patient | None:
-    if phone:
-        digits = re.sub(r"\D", "", phone)[-9:]
-        for p in db.scalars(select(Patient).where(Patient.phone.is_not(None))):
-            if re.sub(r"\D", "", p.phone or "")[-9:] == digits:
-                return p
-    target = set(norm(name).split())
-    for p in db.scalars(select(Patient)):
-        if set(norm(p.full_name).split()) == target:   # «Олена Даниленко» == «Даниленко Олена»
-            return p
-    return None
+    """Телефон → ПІБ у будь-якому порядку → ПІБ з PDF без по батькові (якщо такий пацієнт один)."""
+    from .patient_match import best_match
+    return best_match(db, name, phone)
 
 
 def import_plan(db: Session, parsed: ParsedPlan, source_file: str | None = None,

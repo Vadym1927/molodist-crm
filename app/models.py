@@ -53,6 +53,8 @@ class Patient(Base):
     cb_mark: Mapped[str | None] = mapped_column(String(20))         # vip | bad
     source: Mapped[str | None] = mapped_column(String(100))         # джерело залучення
     cb_registered_at: Mapped[datetime | None] = mapped_column(DateTime)   # дата додавання клієнта в CleverBox
+    cb_extra: Mapped[dict | None] = mapped_column(JSON)              # усі інші поля картки CleverBox (як є)
+    cb_synced_at: Mapped[datetime | None] = mapped_column(DateTime)
     # розширений профіль клієнта (ручне ведення або імпорт з CRM)
     email: Mapped[str | None] = mapped_column(String(200))
     gender: Mapped[str | None] = mapped_column(String(20))
