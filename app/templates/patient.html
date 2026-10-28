@@ -54,13 +54,28 @@
     <div><span>Джерело</span><b>{{ p.source or '—' }}</b><div class="muted small">{{ p.address or 'Адресу не вказано' }}</div></div>
   </div>
   {% if p.client_groups %}<div class="row" style="margin-top:12px">{% for group in p.client_groups %}<span class="pill done">{{ group }}</span>{% endfor %}</div>{% endif %}
+  {% if p.instagram or p.viber or p.telegram_contact or p.preferred_doctor or p.drink or p.directions or p.cb_note or p.cb_first_visit or p.delivery or p.no_repeat_call %}
+  <div class="profile-grid" style="margin-top:14px">
+    {% if p.directions %}<div><span>Напрямки</span><div class="row" style="gap:4px;margin-top:4px">{% for d in p.directions %}<span class="pill" style="background:var(--lavender);color:var(--classic)">{{ d }}</span>{% endfor %}</div></div>{% endif %}
+    {% if p.preferred_doctor %}<div><span>Надає перевагу спеціалісту</span><b>{{ p.preferred_doctor }}</b></div>{% endif %}
+    {% if p.drink %}<div><span>Напій</span><b>☕ {{ p.drink }}</b></div>{% endif %}
+    {% if p.instagram or p.viber or p.telegram_contact %}<div><span>Месенджери</span><div class="small" style="margin-top:4px">
+      {% if p.instagram %}<div>Instagram: <a href="https://instagram.com/{{ p.instagram|replace('@','') }}" target="_blank">{{ p.instagram }}</a></div>{% endif %}
+      {% if p.viber %}<div>Viber: {{ p.viber }}</div>{% endif %}{% if p.telegram_contact %}<div>Telegram: {{ p.telegram_contact }}</div>{% endif %}</div></div>{% endif %}
+    {% if p.cb_first_visit %}<div><span>Перший візит</span><b>{{ p.cb_first_visit|dt('%d.%m.%Y') }}</b><div class="muted small">{{ ('у CleverBox з ' ~ p.cb_registered_at.strftime('%d.%m.%Y')) if p.cb_registered_at }}</div></div>{% endif %}
+    {% if p.delivery %}<div><span>Доставка НП</span><div class="small">{{ p.delivery }}</div></div>{% endif %}
+  </div>
+  {% if p.no_repeat_call %}<div class="pill warn" style="margin-top:10px">Не дзвонити при повторному візиті</div>{% endif %}
+  {% if p.cb_note %}<div class="small" style="margin-top:12px;padding:10px 12px;background:var(--cream,#F7F4F0);border-radius:10px"><b>Замітка CleverBox:</b> {{ p.cb_note }}</div>{% endif %}
+  {% endif %}
+  {% if p.cb_anamnesis and can(user,'medical') %}<div class="small" style="margin-top:10px;padding:10px 12px;background:var(--bad-bg);border-radius:10px"><b>Медичний анамнез (CleverBox):</b> {{ p.cb_anamnesis }} <span class="muted">· бачать лише лікарі й власник</span></div>{% endif %}
   {% if p.cb_extra %}<details style="margin-top:14px"><summary class="small" style="cursor:pointer;font-weight:600">Усі дані з картки CleverBox ({{ p.cb_extra|length }}){% if p.cb_synced_at %} · оновлено {{ p.cb_synced_at|dt('%d.%m %H:%M') }}{% endif %}</summary>
     <table class="small" style="margin-top:8px">{% for k, v in p.cb_extra.items() %}<tr><td class="muted" style="width:220px">{{ CB_LABELS.get(k, k) }}</td><td>{{ v }}</td></tr>{% endfor %}</table></details>{% endif %}
 </div>
 
 <div class="card" id="kpi"><h2>Показники пацієнта</h2>
   <div class="grid g5">
-    <div class="tile"><span>Завершені візити</span><b>{{ patient_kpi.done or p.cb_visits or 0 }}</b><div class="muted small">перший: {{ patient_kpi.first|dt('%d.%m.%Y') if patient_kpi.first else '—' }}</div></div>
+    <div class="tile"><span>Завершені візити</span><b>{{ patient_kpi.done or p.cb_visits or 0 }}</b><div class="muted small">перший: {{ patient_kpi.first|dt('%d.%m.%Y') if patient_kpi.first else (p.cb_first_visit|dt('%d.%m.%Y') if p.cb_first_visit else '—') }}</div></div>
     <div class="tile"><span>Найближчий візит</span><b style="font-size:18px">{{ patient_kpi.next|dt('%d.%m.%Y %H:%M') if patient_kpi.next else '—' }}</b><div class="muted small">заплановано: {{ patient_kpi.planned }}</div></div>
     <div class="tile"><span>Надано послуг</span><b>{{ patient_kpi.service_revenue|uah }}</b><div class="muted small">середній чек {{ p.cb_average|uah if p.cb_average is not none else '—' }}</div></div>
     <div class="tile"><span>Продажі товарів</span><b>{{ patient_kpi.product_revenue|uah }}</b><div class="muted small">всього {{ p.sales|length }} позицій</div></div>

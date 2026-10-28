@@ -74,6 +74,16 @@ def read_sheets(data: bytes, filename: str) -> list[tuple[str, list[list]]]:
             if len(rows) >= 2:
                 out.append((ws.title, rows))
         return out
+    if name.endswith(".xls"):                            # старий Excel — вивантаження CleverBox
+        import xlrd
+        wb = xlrd.open_workbook(file_contents=data, ignore_workbook_corruption=True)
+        out = []
+        for sh in wb.sheets():
+            rows = [sh.row_values(i) for i in range(sh.nrows)]
+            rows = [r for r in rows if any(c not in (None, "") for c in r)]
+            if len(rows) >= 2:
+                out.append((sh.name, rows))
+        return out
     text = None
     for enc in ("utf-8-sig", "cp1251"):
         try:

@@ -844,7 +844,14 @@ async def import_table(request: Request, file: UploadFile = File(...), kind: str
                        user: User = Depends(require("import")), db: Session = Depends(db_dep)):
     data = await file.read()
     try:
-        reports = importer.import_file(db, data, file.filename or "data.xlsx", kind or None)
+        from .services import cb_clients_import as cbc
+        sheets = importer.read_sheets(data, file.filename or "data.xlsx")
+        if sheets and sheets[0][1] and cbc.is_clients_export(sheets[0][1][0]):     # вивантаження «Клієнти» CleverBox
+            rep = await asyncio.to_thread(cbc.import_clients, db, sheets[0][1][1:], sheets[0][1][0])
+            rep["sheet"] = file.filename
+            reports = [rep]
+        else:
+            reports = importer.import_file(db, data, file.filename or "data.xlsx", kind or None)
     except Exception as e:          # noqa: BLE001
         reports = [{"sheet": file.filename, "error": str(e)}]
     audit(db, "import.table", user=user, file=file.filename,

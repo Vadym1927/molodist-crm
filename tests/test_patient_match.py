@@ -69,3 +69,24 @@ def test_sync_links_orphan_card():
         sync_clients(db, FakeCB())
         db.refresh(o)
         assert o.cleverbox_id == 8800333 and o.phone == "380639998877" and o.source == "Google"
+
+
+def test_import_cleverbox_clients_export():
+    from app.services import cb_clients_import as cbc
+    head = ["id", "Ім'я клієнта", "Телефон", "Email", "Дата створення клієнта", "Дата народження", "Завершених візитів",
+            "Останній візит", "Перший візит", "Середній чек", "Заплачено грошей", "Баланс", "Бонус", "Статус", "Групи",
+            "Замітка", "Медичний анамнез", "Основний канал комунікації", "Інстаграм", "ЛЕ", "Косметолог", "Стать",
+            "Надає перевагу спеціалісту", "Напій якому надає перевагу", "Джерело звернення", "e-mail"]
+    row = ["8800444", "Імпортна Марія Іванівна", "380501230099", "", "13.09.2022", "07.06.1989", "22", "17.10.2026",
+           "22.09.2022", "2169", "57809", "100.00", "89.00", "ФАНАТ", "Медкарта, ЗГОДА2026", "Інст: @x", "акне", "вайбер",
+           "maria.x", "так", "", "жінка", "Сирова Софія", "кава з молоком", "Рекомендації", "info.molodostua@gmail.com"]
+    assert cbc.is_clients_export(head)
+    with SessionLocal() as db:
+        rep = cbc.import_clients(db, [row], head)
+        assert rep["patients_created"] == 1
+        rep = cbc.import_clients(db, [row], head)
+        assert rep["updated"] == 1 and rep["patients_created"] == 0
+        p = db.query(Patient).filter_by(cleverbox_id=8800444).one()
+        assert p.cb_status == "ФАНАТ" and p.client_groups == ["Медкарта", "ЗГОДА2026"] and p.directions == ["ЛЕ"]
+        assert p.communication_channel == "Viber" and p.gender == "жіноча" and p.cb_total == 57809 and p.cb_visits == 22
+        assert p.drink == "кава з молоком" and p.cb_anamnesis == "акне" and p.email is None   # пошта клініки — не пацієнтки

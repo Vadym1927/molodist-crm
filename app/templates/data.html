@@ -7,7 +7,7 @@
 <div class="card" id="import" style="border-color:var(--accent)"><h2>Результат імпорту</h2>
   <table class="small"><thead><tr><th>Аркуш / файл</th><th>Тип</th><th class="r">Рядків</th><th class="r">Нових пацієнтів</th><th class="r">Планів</th><th class="r">Візитів</th><th class="r">Покупок</th><th class="r">Пропущено</th><th>Колонки / помилки</th></tr></thead><tbody>
   {% for r in reports %}<tr>
-    <td>{{ r.sheet }}</td><td>{{ {'patients':'пацієнти','plans':'бюті-плани','history':'історія візитів'}.get(r.type, r.type) }}</td>
+    <td>{{ r.sheet }}</td><td>{{ {'patients':'пацієнти','plans':'бюті-плани','history':'історія візитів'}.get(r.type, r.type) }}{% if r.updated is defined %}<div class="muted">оновлено {{ r.updated }}{{ (', привʼязано за телефоном ' ~ r.linked_by_phone) if r.linked_by_phone }}</div>{% endif %}</td>
     <td class="r">{{ r.rows or r.pdf or '' }}</td><td class="r">{{ r.patients_created or 0 }}</td><td class="r">{{ r.plans or 0 }}</td>
     <td class="r">{{ r.visits or 0 }}</td><td class="r">{{ r.sales or 0 }}</td><td class="r">{{ r.skipped or 0 }}</td>
     <td>{% if r.error %}<span class="pill bad">{{ r.error }}</span>{% endif %}
@@ -37,9 +37,9 @@
   {% if can(user,'import') %}
   <div class="card" id="import-form"><h2>Імпорт</h2>
     <p class="small muted">Excel або CSV з будь-якої системи. Колонки розпізнаються автоматично (Пацієнт / Телефон / Дата / Послуга / Кількість / Ціна / Статус…).
-      Аркуші з назвами «Пацієнти», «Плани», «Історія» імпортуються кожен за своїм типом. Повторний імпорт не дублює дані.</p>
+      Аркуші з назвами «Пацієнти», «Плани», «Історія» імпортуються кожен за своїм типом. Повторний імпорт не дублює дані.<br><b>Вивантаження CleverBox «Клієнти» (.xls)</b> розпізнається саме й оновлює картки пацієнтів: статус, групи, замітка, джерело, контакти, напрямки, улюблений спеціаліст, напій.</p>
     <form method="post" action="/import/table" enctype="multipart/form-data" class="grid" style="gap:8px">
-      <input type="file" name="file" accept=".xlsx,.xlsm,.csv" required>
+      <input type="file" name="file" accept=".xlsx,.xlsm,.xls,.csv" required>
       <select name="kind"><option value="">Тип — визначити автоматично</option><option value="patients">Пацієнти</option>
         <option value="plans">Бюті-плани (позиції)</option><option value="history">Історія візитів і покупок</option></select>
       <div class="row"><button class="btn">Імпортувати таблицю</button><a class="btn ghost" href="/import/template.xlsx">Шаблон Excel</a></div>

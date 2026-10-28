@@ -55,6 +55,17 @@ class Patient(Base):
     cb_registered_at: Mapped[datetime | None] = mapped_column(DateTime)   # дата додавання клієнта в CleverBox
     cb_extra: Mapped[dict | None] = mapped_column(JSON)              # усі інші поля картки CleverBox (як є)
     cb_synced_at: Mapped[datetime | None] = mapped_column(DateTime)
+    cb_first_visit: Mapped[datetime | None] = mapped_column(DateTime)
+    cb_note: Mapped[str | None] = mapped_column(Text)                # «Замітка» з CleverBox
+    cb_anamnesis: Mapped[str | None] = mapped_column(Text)           # «Медичний анамнез» — лише для ролей з medical
+    instagram: Mapped[str | None] = mapped_column(String(100))
+    viber: Mapped[str | None] = mapped_column(String(64))
+    telegram_contact: Mapped[str | None] = mapped_column(String(100))
+    preferred_doctor: Mapped[str | None] = mapped_column(String(200))
+    drink: Mapped[str | None] = mapped_column(String(200))           # напій, якому надає перевагу
+    directions: Mapped[list | None] = mapped_column(JSON)            # напрямки: ЛЕ, Косметолог, Трихолог…
+    no_repeat_call: Mapped[bool | None] = mapped_column(Boolean)     # не дзвонити при повторному візиті
+    delivery: Mapped[str | None] = mapped_column(String(300))        # дані для відправки НП
     # розширений профіль клієнта (ручне ведення або імпорт з CRM)
     email: Mapped[str | None] = mapped_column(String(200))
     gender: Mapped[str | None] = mapped_column(String(20))
