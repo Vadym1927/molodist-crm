@@ -136,3 +136,42 @@ def test_supplier_invoices_import(tmp_path):
         c.post("/stock/suppliers/import", files={"file": ("supply.xlsx", f.read_bytes(), "application/octet-stream")})
         with SessionLocal() as db:
             assert db.get(SupplierInvoice, iid).debt == 0           # повторний імпорт не затер відмітку
+
+
+def _balances_xlsx(path):
+    from openpyxl import Workbook
+    wb = Workbook(); ws = wb.active
+    ws.append(["Назва", "Категорія", "Бренд", "Напрямок", "Штрихкод", "Артикул", "Собівартість", "Залишок од. обліку",
+               "Залишок од. прих", "Сума ПРОДАЖУ", "од. обліку", "од. продажу"])
+    ws.append(["Вітрина", None, None, None, None, None, None, None, None, None, None, None])
+    ws.append(["Крем залишки тест 50 мл", "Вітрина", "TestBrand", "Вітрина", "0", "BAL-1", 3000, 2, 2, 5000, "шт.", "шт."])
+    ws.append(["Мінусовий товар", "Вітрина", "TestBrand", "Вітрина", "0", "BAL-2", 0, -1, -1, 0, "шт.", "шт."])
+    ws.append(["Одноразка", None, None, None, None, None, None, None, None, None, None, None])
+    ws.append(["Рукавички залишки тест", "Одноразка", None, "", "", "BAL-3", 500, 100, 1, 0, "шт.", "уп."])
+    ws.append(["Total:", None, None, None, None, None, 3500, 101, 2, 5000, None, None])
+    wb.save(path)
+
+
+def test_balances_report_start_and_reconcile(tmp_path):
+    """Звіт «Залишки по складах»: собівартість, старт обліку по складах, звірка інвентаризацією."""
+    from app.services import catalog, stock as st
+    from app.models import SyncState
+    f = str(tmp_path / "wh.xlsx"); _balances_xlsx(f)
+    assert catalog.detect_export(f) == "balances"
+    with SessionLocal() as db:
+        db.query(SyncState).filter(SyncState.key == "stock_ledger_start").delete(); db.commit()
+        rep = catalog.parse_balances(db, f)
+        assert rep["rows"] == 3 and len(rep["negative"]) == 1 and rep["by_wh"]["single"]["n"] == 1
+        cream = db.query(Product).filter_by(sku="BAL-1").one()
+        assert cream.stock_cost == 1500 and cream.warehouse == "vitrina"
+        st.start_ledger(db, snapshot=rep)
+        bal = st.balances(db)
+        gl = db.query(Product).filter_by(sku="BAL-3").one()
+        assert bal[(cream.id, "vitrina")] == 2 and bal[(gl.id, "single")] == 100
+        # облік уже йде: звірка створює чернетки інвентаризації з різницею
+        rep["items"] = [[cream.id, "vitrina", 1, 1500], [gl.id, "single", 100, 500]]
+        docs = st.reconcile_from_snapshot(db, rep)
+        inv = {d.wh_from: d for d in docs}
+        ln = next(x for x in inv["vitrina"].lines if x.product_id == cream.id)
+        assert ln.qty == 1 and ln.sys_qty == 2 and all(d.status == "draft" for d in docs)
+        db.query(SyncState).filter(SyncState.key == "stock_ledger_start").delete(); db.commit()

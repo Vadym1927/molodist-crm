@@ -1358,6 +1358,10 @@ async def products_import(file: UploadFile = File(...), user: User = Depends(req
             rep = await asyncio.to_thread(st_.import_supplier_invoices, db, tmp.name)
             if not rep.get("error"):
                 rep = {"error": f"Це був файл «Поставки» — імпортовано в Склад → Постачальники ({rep['rows']} поставок)."}
+        elif kind == "balances":                     # «Залишки по складах» — теж приймаємо
+            b = await _import_balances_file(db, tmp.name)
+            rep = {"error": f"Це був звіт «Залишки по складах» — {b['rows']} позицій завантажено, собівартість оновлено. "
+                            "Далі: Склад → Залишки (старт обліку або звірка)."}
         elif kind != "products":
             rep = {"error": catalog.WRONG_FILE[kind]}
         else:
@@ -1469,6 +1473,7 @@ def stock_page(request: Request, tab: str = "balances", only: str = "", wh: str 
                    suppliers=sorted({r.product.supplier or r.last_supplier for r in rows if (r.product.supplier or r.last_supplier)}))
         lv = db.scalar(select(StockLevel).limit(1))
         ctx["cb_updated"] = lv.updated_at if lv else None
+        ctx["snap"] = _balances_snapshot(db)
     elif tab in st.DOC_KINDS:
         ctx["docs"] = st.doc_rows(db, tab)
     elif tab == "suppliers":
@@ -1532,14 +1537,89 @@ def _pick_product(db: Session, ref: str) -> Product | None:
 
 
 @app.post("/stock/start")
-def stock_start(user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+def stock_start(from_file: str = Form(""), user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
     from .services import stock as st
+    snap = _balances_snapshot(db) if from_file else None
+    if from_file and not snap:
+        return RedirectResponse("/stock?msg=Спершу+завантажте+звіт+«Залишки+по+складах»", 303)
     try:
-        doc = st.start_ledger(db, user.id)
+        doc = st.start_ledger(db, user.id, snapshot=snap)
     except st.StockError as e:
         return RedirectResponse(f"/stock?msg={e}", 303)
-    audit(db, "stock.start", "stock_doc", doc.id, user=user, lines=len(doc.lines))
+    audit(db, "stock.start", "stock_doc", doc.id, user=user, lines=len(doc.lines), from_file=bool(snap))
+    if snap:
+        _balances_snapshot(db, clear=True)
     return RedirectResponse("/stock?msg=Облік+у+CRM+розпочато", 303)
+
+
+def _balances_snapshot(db: Session, rep: dict | None = None, clear: bool = False) -> dict | None:
+    """Знімок останнього імпортованого звіту «Залишки по складах» (SyncState wh_snapshot)."""
+    import json
+    stt = db.get(SyncState, "wh_snapshot")
+    if clear:
+        if stt:
+            db.delete(stt)
+            db.commit()
+        return None
+    if rep is not None:
+        stt = stt or SyncState(key="wh_snapshot")
+        stt.value, stt.updated_at = json.dumps(rep, ensure_ascii=False), datetime.utcnow()
+        db.merge(stt)
+        db.commit()
+        return rep
+    try:
+        return json.loads(stt.value) if stt and stt.value else None
+    except ValueError:
+        return None
+
+
+async def _import_balances_file(db: Session, path: str) -> dict:
+    rep = await asyncio.to_thread(catalog.parse_balances, db, path)
+    return _balances_snapshot(db, rep)
+
+
+@app.post("/stock/balances/import")
+async def stock_balances_import(file: UploadFile = File(...), user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    """Звіт CleverBox «Залишки по складах» → собівартість залишку + знімок для старту обліку / звірки."""
+    import tempfile
+    suffix = ".xls" if (file.filename or "").lower().endswith(".xls") else ".xlsx"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(await file.read())
+    msg = ""
+    try:
+        kind = await asyncio.to_thread(catalog.detect_export, tmp.name)
+        if kind != "balances":
+            raise ValueError(catalog.WRONG_FILE[kind])
+        rep = await _import_balances_file(db, tmp.name)
+        audit(db, "stock.balances_import", user=user, rows=rep["rows"], created=rep["created"], value=rep["value"])
+    except ValueError as e:
+        msg = str(e)
+    except Exception as e:  # noqa: BLE001
+        msg = f"Не вдалося прочитати файл: {type(e).__name__}"
+    finally:
+        os.unlink(tmp.name)
+    return RedirectResponse("/stock?tab=balances" + (f"&msg={msg}" if msg else "#snap"), 303)
+
+
+@app.post("/stock/balances/reconcile")
+def stock_balances_reconcile(user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .services import stock as st
+    snap = _balances_snapshot(db)
+    if not snap:
+        return RedirectResponse("/stock?msg=Спершу+завантажте+звіт+«Залишки+по+складах»", 303)
+    try:
+        docs = st.reconcile_from_snapshot(db, snap, user.id)
+    except st.StockError as e:
+        return RedirectResponse(f"/stock?msg={e}", 303)
+    audit(db, "stock.balances_reconcile", user=user, docs=[d.id for d in docs])
+    _balances_snapshot(db, clear=True)
+    return RedirectResponse(f"/stock?tab=inventory&msg=Створено+{len(docs)}+чернеток+інвентаризації+—+перевірте+різницю+і+проведіть", 303)
+
+
+@app.post("/stock/balances/dismiss")
+def stock_balances_dismiss(user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    _balances_snapshot(db, clear=True)
+    return RedirectResponse("/stock", 303)
 
 
 @app.post("/stock/docs")

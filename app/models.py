@@ -339,6 +339,8 @@ class Product(Base):
     rrp_fx: Mapped[float | None] = mapped_column(Float)                     # рекомендована ціна постачальника у валюті
     planned_price: Mapped[float | None] = mapped_column(Float)              # рекомендована ціна продажу (наше рішення)
     planned_at: Mapped[datetime | None] = mapped_column(DateTime)
+    stock_cost: Mapped[float | None] = mapped_column(Float)                 # собівартість залишку CleverBox за од. приходу
+    stock_cost_at: Mapped[date | None] = mapped_column(Date)
 
 
 class ProductPurchase(Base):

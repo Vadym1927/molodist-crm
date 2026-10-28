@@ -246,6 +246,8 @@ def apply_purchases(db: Session, rows: dict) -> None:
                     live.append(b)
                     left -= b.qty or 0
             exp = [b.expiry_date for b in live if b.expiry_date]
+        if not r.cost_avg and not p.cost and p.stock_cost:
+            r.cost_avg = p.stock_cost                # собівартість залишку зі звіту «Залишки по складах»
         if not r.cost_avg and p.cost:
             r.cost_avg = p.cost                      # собівартість з CleverBox, якщо закупівель не внесено
         # поточна собівартість CleverBox свіжіша за давні закупівлі (напр. імпорт руху за 2022)
@@ -349,13 +351,16 @@ def read_table(path: str) -> list[dict]:
 
 
 def detect_export(path: str) -> str:
-    """Який це файл CleverBox: products (Склад → Товари) | supply (Склад → Поставки) | turnover (Рух товарів) | unknown."""
+    """Який це файл CleverBox: products (Склад → Товари) | supply (Склад → Поставки) | turnover (Рух товарів) |
+    balances (Залишки по складах) | unknown."""
     data = read_table(path)
     if not data:
         return "unknown"
     h = set(data[0].keys())
     if "n" in h and "постачальник" in h:
         return "supply"
+    if any(k.startswith("залишок од") for k in h) and "назва" in h:
+        return "balances"
     if "товар" in h and any(k.startswith("надходження") for k in h):
         return "turnover"
     if "назва" in h and any(k.startswith("категорія") or k.startswith("ціна") for k in h):
@@ -367,6 +372,7 @@ WRONG_FILE = {
     "products": "Це вивантаження «Товари» — його імпорт: Продукти → «Імпорт товарів з CleverBox (Excel)».",
     "supply": "Це вивантаження «Поставки» — його імпорт: Склад → Постачальники → «Імпорт поставок з CleverBox».",
     "turnover": "Це звіт «Рух товарів» — його імпорт: Продукти → «Ціни закупівлі з руху товарів CleverBox» (вкажіть період).",
+    "balances": "Це звіт «Залишки по складах» — його імпорт: Склад → Залишки → «Імпорт залишків з CleverBox».",
     "unknown": "Не вдалося розпізнати файл. Потрібне вивантаження CleverBox у форматі Excel (.xls/.xlsx).",
 }
 
@@ -551,3 +557,79 @@ def purchase_history(p, purchases):
                  "chart": list(reversed(priced))[-24:]}
         stats["top"] = max(r["price"] for r in stats["chart"])
     return rows, stats
+
+
+def parse_balances(db: Session, path: str) -> dict:
+    """Звіт CleverBox «Залишки по складах»: рядки-заголовки складів (лише назва), далі товари з
+    «Собівартість» (вартість усього залишку), «Залишок од. обліку». Зіставляє товари (артикул → назва),
+    відсутні створює, оновлює собівартість залишку. Повертає знімок {date, items:[[pid, wh, qty, cost_total]], …}."""
+    data = read_table(path)
+    if not data or not any(k.startswith("залишок од") for k in data[0]):
+        raise ValueError("Це не звіт «Залишки по складах» з CleverBox (немає колонки «Залишок од. обліку»)")
+    head = list(data[0].keys())
+    k_qty = next(h for h in head if h.startswith("залишок од") and "обл" in h) if any(
+        h.startswith("залишок од") and "обл" in h for h in head) else next(h for h in head if h.startswith("залишок од"))
+    k_cost = next((h for h in head if h.startswith("собівартість")), None)
+    products = db.scalars(select(Product)).all()
+    by_sku = {p.sku.strip().lower(): p for p in products if p.sku}
+    by_name = {p.name_norm: p for p in products}
+    group = None
+    items: dict[tuple[int, str], list] = {}
+    rep = {"rows": 0, "matched": 0, "created": 0, "negative": [], "unknown_wh": 0, "by_wh": {}}
+    for r in data:
+        name = str(r.get("назва") or "").strip()
+        if not name or name.lower().startswith("total"):
+            continue
+        if r.get(k_qty) in (None, "") and not str(r.get("категорія") or "").strip():
+            group = name                                  # заголовок складу
+            continue
+        rep["rows"] += 1
+        wh = warehouse_of(group) or warehouse_of(r.get("категорія")) or warehouse_of(r.get("напрямок"))
+        if not wh:
+            rep["unknown_wh"] += 1
+            wh = "vitrina"
+        q = _cell_num(r.get(k_qty)) or 0.0
+        cost = _cell_num(r.get(k_cost)) if k_cost else None
+        sku_raw = str(r.get("артикул") or "").strip()
+        sku = sku_raw.lower() if sku_raw not in ("", "0", "0.0") else ""
+        p = (by_sku.get(sku) if sku else None) or by_name.get(norm(name)) or match_product(db, name, products)
+        if not p:
+            p = Product(name=name, name_norm=norm(name), sku=sku_raw or None, warehouse=wh,
+                        brand=str(r.get("бренд") or "").strip() or None,
+                        unit=str(r.get("од. обліку") or "").strip().rstrip(".")[:20] or None)
+            db.add(p)
+            db.flush()
+            products.append(p)
+            by_name[p.name_norm] = p
+            rep["created"] += 1
+        else:
+            rep["matched"] += 1
+        if not p.brand and str(r.get("бренд") or "").strip():
+            p.brand = str(r.get("бренд")).strip()
+        if q < 0:
+            rep["negative"].append(f"{name[:70]} ({WAREHOUSES[wh]}: {q:g})")
+        it = items.setdefault((p.id, wh), [p.id, wh, 0.0, 0.0])
+        it[2] += q
+        it[3] += cost or 0.0
+    # собівартість залишку за одиницю приходу (усі склади разом, лише додатні залишки)
+    tot: dict[int, list] = {}
+    for pid, wh, q, c in items.values():
+        if q > 0 and c > 0:
+            t = tot.setdefault(pid, [0.0, 0.0])
+            t[0] += q
+            t[1] += c
+        b = rep["by_wh"].setdefault(wh, {"n": 0, "qty_pos": 0, "value": 0.0})
+        if q > 0:
+            b["n"] += 1
+            b["value"] = round(b["value"] + (c or 0), 2)
+    pmap = {p.id: p for p in products}
+    today = date.today()
+    for pid, (q, c) in tot.items():
+        p = pmap[pid]
+        k = p.coef if p.coef and p.coef > 0 else 1
+        p.stock_cost, p.stock_cost_at = round(c / q * k, 2), today
+    db.commit()
+    rep["items"] = [[pid, wh, round(q, 4), round(c, 2)] for pid, wh, q, c in items.values()]
+    rep["date"] = today.isoformat()
+    rep["value"] = round(sum(b["value"] for b in rep["by_wh"].values()), 2)
+    return rep

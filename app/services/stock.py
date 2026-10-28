@@ -42,10 +42,13 @@ def ledger_active(db: Session) -> bool:
     return ledger_start(db) is not None
 
 
-def start_ledger(db: Session, user_id: int | None = None) -> StockDoc:
-    """Документ «Стартові залишки» з поточних залишків (CleverBox / Excel) і дата старту обліку."""
+def start_ledger(db: Session, user_id: int | None = None, snapshot: dict | None = None) -> StockDoc:
+    """Документ «Стартові залишки» з поточних залишків (CleverBox / Excel) і дата старту обліку.
+    snapshot — знімок звіту «Залишки по складах» (catalog.parse_balances): тоді окремий документ на кожен склад."""
     if ledger_active(db):
         raise StockError("Облік уже розпочато")
+    if snapshot:
+        return _start_from_snapshot(db, user_id, snapshot)
     products = db.scalars(select(Product)).all()
     by_cb = {p.cb_product_id: p for p in products if p.cb_product_id}
     qty: dict[int, float] = defaultdict(float)
@@ -69,6 +72,58 @@ def start_ledger(db: Session, user_id: int | None = None) -> StockDoc:
     db.merge(st)
     db.commit()
     return doc
+
+
+def _start_from_snapshot(db: Session, user_id: int | None, snap: dict) -> StockDoc:
+    now = datetime.now()
+    per_wh: dict[str, list] = defaultdict(list)
+    for pid, wh, q, cost in snap.get("items", []):
+        if q and q > 0 and db.get(Product, pid):
+            per_wh[wh].append((pid, q, round(cost / q, 4) if cost else None))
+    if not per_wh:
+        raise StockError("У файлі немає додатних залишків")
+    first = None
+    for wh in [w for w in WAREHOUSES if w in per_wh]:
+        doc = new_doc(db, "opening", user_id=user_id, wh_to=wh,
+                      note=f"Залишки зі звіту CleverBox «Залишки по складах» на {snap.get('date', '')}")
+        for pid, q, c in per_wh[wh]:
+            doc.lines.append(StockDocLine(product_id=pid, qty=q, unit_cost=c))
+        db.flush()
+        for ln in doc.lines:
+            db.add(StockMove(product_id=ln.product_id, warehouse=wh, qty=ln.qty, kind="opening", at=now,
+                             doc_id=doc.id, unit_cost=ln.unit_cost))
+        doc.status, doc.posted_at = "posted", now
+        first = first or doc
+    st = db.get(SyncState, "stock_ledger_start") or SyncState(key="stock_ledger_start")
+    st.value = now.isoformat(timespec="seconds")
+    db.merge(st)
+    db.commit()
+    return first
+
+
+def reconcile_from_snapshot(db: Session, snap: dict, user_id: int | None = None) -> list[StockDoc]:
+    """Облік уже ведеться: чернетки інвентаризацій по складах — факт = залишок CleverBox (від'ємне → 0),
+    облікова к-сть — з журналу CRM. Товари, яких немає у файлі, але є в CRM, — з фактом 0.
+    Нічого не проводиться: власник переглядає різницю і проводить сам."""
+    if not ledger_active(db):
+        raise StockError("Облік ще не розпочато — почніть його з цього файлу")
+    bal = balances(db)
+    fact: dict[str, dict[int, float]] = defaultdict(dict)
+    for pid, wh, q, _ in snap.get("items", []):
+        if db.get(Product, pid):
+            fact[wh][pid] = fact[wh].get(pid, 0.0) + max(q or 0.0, 0.0)
+    for (pid, wh), q in bal.items():
+        if q and pid not in fact[wh]:
+            fact[wh][pid] = 0.0
+    docs = []
+    for wh in [w for w in WAREHOUSES if fact.get(w)]:
+        doc = new_doc(db, "inventory", user_id=user_id, wh_from=wh,
+                      note=f"Звірка з CleverBox «Залишки по складах» на {snap.get('date', '')}")
+        for pid, q in sorted(fact[wh].items()):
+            doc.lines.append(StockDocLine(product_id=pid, qty=q, sys_qty=bal.get((pid, wh), 0.0)))
+        docs.append(doc)
+    db.commit()
+    return docs
 
 
 # ---------------- документи ----------------

@@ -29,11 +29,36 @@
 {% if request.query_params.get('msg') %}<div class="alert" style="background:var(--lavender);color:var(--classic);margin-top:12px">{{ request.query_params.get('msg') }}</div>{% endif %}
 <nav class="st-tabs">{% for k, v in TABS.items() %}<a href="?tab={{ k }}" class="{{ 'on' if tab==k }}">{{ v }}</a>{% endfor %}</nav>
 
-{% if not active and tab in ('balances','critical') %}
+{% if tab == 'balances' and snap %}
+<div class="startbox" id="snap" style="display:block">
+  <div class="row between" style="align-items:flex-start;gap:12px;flex-wrap:wrap">
+    <div><b>Звіт CleverBox «Залишки по складах» на {{ snap.date[8:10] ~ '.' ~ snap.date[5:7] ~ '.' ~ snap.date[:4] }}</b>
+      <div class="small" style="margin-top:4px">{{ snap.rows }} позицій · зіставлено {{ snap.matched }}{% if snap.created %}, нових товарів {{ snap.created }}{% endif %} · собівартість залишку {{ snap.value|uah }} · собівартість товарів оновлено</div></div>
+    <form method="post" action="/stock/balances/dismiss"><button class="btn ghost" style="padding:4px 12px">Закрити</button></form>
+  </div>
+  <div class="whs" style="margin:12px 0 8px">{% for k, v in WAREHOUSES.items() %}{% set w = snap.by_wh.get(k) %}<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 12px"><b style="font:600 13px var(--head);text-transform:uppercase">{{ v }}</b><div class="small muted">{% if w %}{{ w.n }} поз. · {{ w.value|uah }}{% else %}—{% endif %}</div></div>{% endfor %}</div>
+  {% if snap.negative %}<details class="small" style="margin-bottom:8px"><summary><b style="font:inherit;text-transform:none;color:var(--bad)">Від'ємні залишки в CleverBox: {{ snap.negative|length }}</b> — у CRM вони стануть 0</summary>
+    <div style="columns:2;margin-top:6px">{% for x in snap.negative %}<div>{{ x }}</div>{% endfor %}</div></details>{% endif %}
+  {% if not active %}
+  <form method="post" action="/stock/start" onsubmit="return confirm('Почати облік у CRM із залишків цього звіту по кожному складу? Стартові залишки потім не скасовуються — лише інвентаризацією.')" class="row" style="gap:12px;align-items:center">
+    <input type="hidden" name="from_file" value="1"><button class="btn">Почати облік з цих залишків</button>
+    <span class="small">Кожен склад отримає точні залишки з файлу. Далі продажі й процедури списуються автоматично.</span></form>
+  {% else %}
+  <form method="post" action="/stock/balances/reconcile" class="row" style="gap:12px;align-items:center">
+    <button class="btn">Звірити з CRM → інвентаризації</button>
+    <span class="small">Створю чернетки інвентаризації по складах: факт — з файлу, облік — з CRM. Ви бачите різницю і проводите самі.</span></form>
+  {% endif %}
+</div>
+{% elif not active and tab in ('balances','critical') %}
 <div class="startbox">
-  <div><b>Почати облік складу в CRM</b><div class="small" style="margin-top:4px">Поточні залишки (з CleverBox або імпорту Excel у «Продукти») стануть стартовими. Далі: поставки, переміщення, списання, інвентаризація — тут; продажі й процедури списуються самі.</div></div>
-  <form method="post" action="/stock/start" onsubmit="return confirm('Почати облік у CRM з поточних залишків?')"><button class="btn">Почати облік</button></form>
+  <div><b>Почати облік складу в CRM</b><div class="small" style="margin-top:4px">Найточніше — завантажте звіт CleverBox «Залишки по складах» нижче: кожен склад отримає свої залишки. Або почніть з поточних залишків CleverBox (тоді все піде на основний склад товару).</div></div>
+  <form method="post" action="/stock/start" onsubmit="return confirm('Почати облік у CRM з поточних залишків?')"><button class="btn ghost">Почати з поточних</button></form>
 </div>{% endif %}
+{% if tab == 'balances' %}
+<form method="post" action="/stock/balances/import" enctype="multipart/form-data" class="row" style="gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+  <span class="small"><b>Імпорт залишків з CleverBox</b> (звіт «Залишки по складах», .xls)</span>
+  <input type="file" name="file" accept=".xls,.xlsx" required><button class="btn ghost">Завантажити</button></form>
+{% endif %}
 
 {% if tab in ('balances','critical') %}
 <div class="whs">
