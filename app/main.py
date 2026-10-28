@@ -1290,6 +1290,9 @@ def product_update(pid: int, supply_days: str = Form(""), min_stock: str = Form(
         prod.price_manual = _num(price_manual)
     if warehouse is not None and warehouse in catalog.WAREHOUSES:
         prod.warehouse = warehouse
+    if prod.url:                                         # посилання потрапляє в засоби бюті-планів без власного
+        for it in db.scalars(select(PlanItem).where(PlanItem.product_id == prod.id, PlanItem.url.is_(None))):
+            it.url = prod.url
     n = 0
     if apply and prod.supply_days:
         for it in db.scalars(select(PlanItem).where(PlanItem.product_id == prod.id)):

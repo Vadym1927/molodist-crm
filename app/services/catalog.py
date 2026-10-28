@@ -62,6 +62,7 @@ def link_item(db: Session, it: PlanItem, products: list[Product]) -> Product:
         products.append(prod)
     prod.volume = prod.volume or it.volume
     prod.url = prod.url or it.url
+    it.url = it.url or prod.url                          # посилання з каталогу — у нагадування і скрипти
     if not prod.price:
         prod.price = it.unit_price
     it.product_id = prod.id

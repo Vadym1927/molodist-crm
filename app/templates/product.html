@@ -91,7 +91,8 @@
       <label>Придатний до (вручну)<input type="date" name="expiry_date" value="{{ p.expiry_date or '' }}"></label></div>
     <div class="two"><label>Мін. залишок, шт<input name="min_stock" value="{{ p.min_stock or '' }}"></label>
       <label>Вистачає на, днів<input name="supply_days" value="{{ p.supply_days or '' }}"></label></div>
-    <label>Посилання на molodist.store<input name="url" value="{{ p.url or '' }}"></label>
+    <label>Посилання на товар у molodist.store<input name="url" value="{{ p.url or '' }}" placeholder="https://molodist.store/…">
+      <span style="font-weight:400">Йде пацієнтці в нагадуванні «догляд закінчується» і в скрипті адміна — щоб могла замовити з доставкою.</span></label>
     <label style="display:flex;gap:8px;align-items:center;font-weight:400"><input type="checkbox" name="apply" value="1" style="width:auto"> застосувати «вистачає на» до активних планів</label>
     <button class="btn">Зберегти</button>
   </form>
