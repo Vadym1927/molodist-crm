@@ -118,3 +118,17 @@ def test_import_turnover_report(tmp_path):
         assert rows[gel.id].cost_avg == 865.0                       # 1730 / 1000 мл × 500 = за флакон
         assert rows[cream.id].cost_avg == 1424.5 and rows[cream.id].cost_last == 1600   # остання — поточна з CleverBox
         assert rows[cream.id].last_source == "CleverBox"
+
+
+def test_wrong_file_in_import_form(tmp_path):
+    """Файл не в ту форму — зрозуміла підказка, куди його завантажити."""
+    from openpyxl import Workbook
+    wb = Workbook(); ws = wb.active
+    ws.append(["Товар", "артикул", "коеф.", "надходження к-ть одиниць обліку", "Прихід, сума"])
+    ws.append(["Щось", "", "1", "2", "100"])
+    f = tmp_path / "t.xlsx"; wb.save(f)
+    settings.admin_password = "owner-pass-1"
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        c.post("/stock/suppliers/import", files={"file": ("t.xlsx", f.read_bytes(), "application/octet-stream")})
+        assert "Рух товарів" in c.get("/stock?tab=suppliers").text

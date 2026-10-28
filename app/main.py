@@ -1350,7 +1350,16 @@ async def products_import(file: UploadFile = File(...), user: User = Depends(req
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         tmp.write(await file.read())
     try:
-        rep = await asyncio.to_thread(catalog.import_products, db, tmp.name)
+        kind = await asyncio.to_thread(catalog.detect_export, tmp.name)
+        if kind == "supply":                         # переплутали форму — поставки теж приймаємо
+            from .services import stock as st_
+            rep = await asyncio.to_thread(st_.import_supplier_invoices, db, tmp.name)
+            if not rep.get("error"):
+                rep = {"error": f"Це був файл «Поставки» — імпортовано в Склад → Постачальники ({rep['rows']} поставок)."}
+        elif kind != "products":
+            rep = {"error": catalog.WRONG_FILE[kind]}
+        else:
+            rep = await asyncio.to_thread(catalog.import_products, db, tmp.name)
     except Exception as e:  # noqa: BLE001
         rep = {"error": f"Не вдалося прочитати файл: {type(e).__name__}"}
     finally:
@@ -1373,7 +1382,12 @@ async def products_import_turnover(file: UploadFile = File(...), d_from: str = F
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         tmp.write(await file.read())
     try:
+        kind = await asyncio.to_thread(catalog.detect_export, tmp.name)
+        if kind != "turnover":
+            raise ValueError(catalog.WRONG_FILE[kind])
         rep = await asyncio.to_thread(catalog.import_turnover, db, tmp.name, a, b)
+    except ValueError as e:
+        rep = {"error": str(e)}
     except Exception as e:  # noqa: BLE001
         rep = {"error": f"Не вдалося прочитати файл: {type(e).__name__}"}
     finally:
@@ -1664,7 +1678,16 @@ async def stock_invoices_import(file: UploadFile = File(...), user: User = Depen
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         tmp.write(await file.read())
     try:
-        rep = await asyncio.to_thread(st.import_supplier_invoices, db, tmp.name)
+        kind = await asyncio.to_thread(catalog.detect_export, tmp.name)
+        if kind == "products":                       # переплутали форму — товари теж приймаємо
+            rep = await asyncio.to_thread(catalog.import_products, db, tmp.name)
+            rep = {"error": f"Це був файл «Товари» — імпортовано в Продукти ({rep.get('rows', 0)} товарів)."}
+        elif kind != "supply":
+            raise ValueError(catalog.WRONG_FILE[kind])
+        else:
+            rep = await asyncio.to_thread(st.import_supplier_invoices, db, tmp.name)
+    except ValueError as e:
+        rep = {"error": str(e)}
     except Exception as e:  # noqa: BLE001
         rep = {"error": f"Не вдалося прочитати файл: {type(e).__name__}"}
     finally:

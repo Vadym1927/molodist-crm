@@ -348,6 +348,29 @@ def read_table(path: str) -> list[dict]:
     return [dict(zip(head, r)) for r in rows[1:] if any(x not in (None, "") for x in r)]
 
 
+def detect_export(path: str) -> str:
+    """Який це файл CleverBox: products (Склад → Товари) | supply (Склад → Поставки) | turnover (Рух товарів) | unknown."""
+    data = read_table(path)
+    if not data:
+        return "unknown"
+    h = set(data[0].keys())
+    if "n" in h and "постачальник" in h:
+        return "supply"
+    if "товар" in h and any(k.startswith("надходження") for k in h):
+        return "turnover"
+    if "назва" in h and any(k.startswith("категорія") or k.startswith("ціна") for k in h):
+        return "products"
+    return "unknown"
+
+
+WRONG_FILE = {
+    "products": "Це вивантаження «Товари» — його імпорт: Продукти → «Імпорт товарів з CleverBox (Excel)».",
+    "supply": "Це вивантаження «Поставки» — його імпорт: Склад → Постачальники → «Імпорт поставок з CleverBox».",
+    "turnover": "Це звіт «Рух товарів» — його імпорт: Продукти → «Ціни закупівлі з руху товарів CleverBox» (вкажіть період).",
+    "unknown": "Не вдалося розпізнати файл. Потрібне вивантаження CleverBox у форматі Excel (.xls/.xlsx).",
+}
+
+
 def import_products(db: Session, path: str) -> dict:
     """Оновлює каталог з файлу: склад, бренд, постачальник, артикул, штрихкод, одиниця, ціни, крит. залишок, кількість.
     Зіставлення — за ID CleverBox, потім за назвою. Нові товари створюються."""
