@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Планування цін · Фінанси{% endblock %}
+{% block body %}
+<style>
+.rates{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px;margin-bottom:14px;box-shadow:var(--shadow)}
+.rates label{display:grid;gap:3px;font-size:12.5px;color:var(--muted);font-weight:600}.rates input,.rates select{height:42px;width:120px}
+.rates .src{font-size:12.5px;color:var(--muted);margin-left:auto}
+.fl{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}.fl input[name=q]{flex:1;min-width:220px;height:44px}.fl select{height:44px;font-weight:600}
+.fill{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:13px;color:var(--muted);margin-bottom:10px}
+.fill button{border:1.5px solid var(--line);background:var(--card);border-radius:99px;padding:6px 12px;font:600 13px var(--sans);cursor:pointer}
+.fill button:hover{border-color:var(--classic)}
+.pwrap{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:auto;max-height:calc(100vh - 330px)}
+table.pt{border-collapse:separate;border-spacing:0;font-size:13px;min-width:1900px}
+.pt th{position:sticky;top:0;z-index:2;background:var(--soft);white-space:normal;line-height:1.2;vertical-align:bottom;font-size:10.5px;min-width:84px}
+.pt th.g{background:var(--lavender);color:var(--deep)}
+.pt td,.pt th{padding:7px 8px;border-bottom:1px solid var(--line)}
+.pt td.nm,.pt th.nm{position:sticky;left:0;background:var(--card);z-index:1;min-width:280px;max-width:320px;box-shadow:1px 0 0 var(--line)}
+.pt th.nm{z-index:3;background:var(--soft)}
+.pt td.r{text-align:right;white-space:nowrap}
+.pt input{height:32px;padding:4px 6px;font-size:13px;text-align:right;width:88px;border-radius:8px}
+.pt select{height:32px;padding:2px 4px;font-size:12.5px;border-radius:8px}
+.pt input.plan{width:96px;border-color:var(--lavender-2);background:#fbfaff;font-weight:700}
+.pt .meta{font-size:11.5px;color:var(--muted)}
+.pt .m-bad{color:var(--bad);font-weight:700}.pt .m-warn{color:var(--warn);font-weight:700}.pt .m-ok{color:var(--ok);font-weight:700}
+.pt .neg{color:var(--bad)}.pt .pos{color:var(--ok)}
+.pt tr.dirty td.nm{box-shadow:inset 4px 0 0 var(--classic),1px 0 0 var(--line)}
+.savebar{position:sticky;bottom:10px;z-index:6;display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--graphite);color:#fff;border-radius:14px;padding:10px 14px;margin-top:12px;box-shadow:0 10px 30px -10px rgba(0,0,0,.4)}
+.savebar .btn{background:#fff;color:var(--graphite);border-color:#fff}
+</style>
+<div class="tabs" style="margin-top:0"><a href="/finance">Огляд</a><a href="/finance/pricing" class="on">Планування ціни реалізації</a></div>
+<div class="row between" style="align-items:flex-end"><div><div class="eyebrow">Фінанси</div><h1>Планування ціни реалізації</h1></div>
+  <a class="btn ghost" href="/finance/pricing.xlsx?wh={{ wh }}&brand={{ brand|urlencode }}&q={{ q|urlencode }}&only={{ only }}">Excel</a></div>
+{% if request.query_params.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok);margin-top:10px">{{ request.query_params.get('msg') }}</div>{% endif %}
+
+<form class="rates" method="post" action="/finance/rates">
+  <input type="hidden" name="back" value="{{ request.url.path }}?{{ request.url.query }}">
+  <label>Курс USD, ₴<input name="usd" id="r_USD" value="{{ rt.USD }}" inputmode="decimal" oninput="recalcAll()"></label>
+  <label>Курс EUR, ₴<input name="eur" id="r_EUR" value="{{ rt.EUR }}" inputmode="decimal" oninput="recalcAll()"></label>
+  <label>Округлення цін<select name="round" id="r_round" onchange="recalcAll()">{% for v, t in [(1,'до копійок'),(10,'до 10 ₴'),(50,'до 50 ₴'),(100,'до 100 ₴')] %}<option value="{{ v }}" {{ 'selected' if rt.round==v }}>{{ t }}</option>{% endfor %}</select></label>
+  <button class="btn">Зберегти курс</button><button class="btn ghost" name="nbu" value="1">Курс НБУ сьогодні</button>
+  <span class="src">{{ rt.source }}{{ (' · ' ~ rt.updated.replace('T',' ')) if rt.updated }}</span>
+</form>
+
+<form class="fl" method="get">
+  <select name="wh" onchange="this.form.submit()">{% for k, v in WAREHOUSES.items() %}<option value="{{ k }}" {{ 'selected' if wh==k }}>{{ v }}</option>{% endfor %}<option value="all" {{ 'selected' if wh=='all' }}>Усі склади</option></select>
+  <select name="brand" onchange="this.form.submit()"><option value="">Усі бренди</option>{% for b in brands %}<option {{ 'selected' if brand==b }}>{{ b }}</option>{% endfor %}<option value="—" {{ 'selected' if brand=='—' }}>Без бренду</option></select>
+  <input name="q" value="{{ q }}" placeholder="Товар, артикул">
+  <select name="only" onchange="this.form.submit()">{% for k, t in [('','Усі товари'),('nofx','Без валютної закупівлі'),('noplan','Без рекомендованої ціни'),('diff','Рекомендована ≠ поточна'),('lowmargin','Маржа зараз < 40%')] %}<option value="{{ k }}" {{ 'selected' if only==k }}>{{ t }}</option>{% endfor %}</select>
+  <button class="btn ghost" style="height:44px">Знайти</button>
+</form>
+
+<div class="fill">Заповнити «Рекомендовану ціну»:
+  <button type="button" onclick="fill('rate')">= ціна при курсі (РРЦ)</button>
+  {% for m in MARGINS %}<button type="button" onclick="fill({{ m }})">= маржа {{ m }}%</button>{% endfor %}
+  <button type="button" onclick="fill('now')">= поточна</button>
+  <label style="display:flex;gap:5px;align-items:center"><input type="checkbox" id="ovw"> перезаписати заповнені</label>
+  <span style="margin-left:auto">{{ total }} товарів{{ ' (показано 600)' if total > 600 }}</span>
+</div>
+
+<form method="post" action="/finance/pricing" id="pf">
+<input type="hidden" name="back" value="{{ request.url.path }}?{{ request.url.query }}">
+<div class="pwrap"><table class="pt"><thead><tr>
+  <th class="nm">Товар</th><th>Валюта</th><th>Закупівля у валюті</th><th>Закупівля, грн</th><th>РРЦ постачальника (вал.)</th>
+  <th>Ціна в програмі зараз</th><th>Валовий прибуток, грн</th><th>Маржа, %</th>
+  <th class="g">Ціна продажу при курсі</th><th class="g">Маржа при курсі</th>
+  {% for m in MARGINS %}<th>Ціна при маржі {{ m }}%</th>{% endfor %}
+  <th class="g">Рекомендована ціна продажу</th><th class="g">Різниця з поточною</th><th class="g">Націнка, %</th><th class="g">Маржа, %</th></tr></thead><tbody>
+{% for x in rows %}{% set p = x.product %}
+  <tr data-crm="{{ x.cost_uah_crm or '' }}" data-now="{{ x.price_now or '' }}">
+    <td class="nm"><input type="hidden" name="pid" value="{{ p.id }}"><a href="/products/{{ p.id }}" style="font-weight:600;text-decoration:none">{{ p.name }}</a>
+      <div class="meta">{{ p.brand or '—' }}{{ (' · арт. ' ~ p.sku) if p.sku }}</div></td>
+    <td><select name="cur_{{ p.id }}" class="cur">{% for c in CURRENCIES %}<option {{ 'selected' if (p.cost_currency or 'UAH')==c }}>{{ c }}</option>{% endfor %}</select></td>
+    <td class="r"><input name="cfx_{{ p.id }}" class="cfx" value="{{ '%g'|format(p.cost_fx) if p.cost_fx else '' }}" inputmode="decimal" placeholder="—"></td>
+    <td class="r c-cost"></td>
+    <td class="r"><input name="rrp_{{ p.id }}" class="rrp" value="{{ '%g'|format(p.rrp_fx) if p.rrp_fx else '' }}" inputmode="decimal" placeholder="—"></td>
+    <td class="r">{{ x.price_now|uah if x.price_now else '—' }}</td>
+    <td class="r c-gp"></td><td class="r c-m"></td>
+    <td class="r c-at"></td><td class="r c-mat"></td>
+    {% for m in MARGINS %}<td class="r c-pm" data-m="{{ m }}"></td>{% endfor %}
+    <td class="r"><input name="plan_{{ p.id }}" class="plan" value="{{ '%g'|format(p.planned_price) if p.planned_price else '' }}" inputmode="decimal" placeholder="—"></td>
+    <td class="r c-diff"></td><td class="r c-mu"></td><td class="r c-mp"></td>
+  </tr>
+{% else %}<tr><td class="nm muted" colspan="20">Немає товарів за цими фільтрами.</td></tr>{% endfor %}
+</tbody></table></div>
+<div class="savebar"><span id="dirtyn">Змін немає</span><button class="btn">Зберегти зміни</button></div>
+</form>
+<p class="muted small" style="margin-top:12px">Закупівля, грн = закупівля у валюті × курс (якщо валютної ціни немає — середня закупівля з CRM). Маржа = (ціна − закупівля) / ціна. Націнка = (ціна − закупівля) / закупівля.
+  «Ціна при маржі X%» = закупівля / (1 − X%). Рекомендована ціна — ваше рішення; ціну в CleverBox змінюєте за вивантаженням Excel.</p>
+
+<script>
+const UAH = new Intl.NumberFormat('uk-UA', {maximumFractionDigits: 0});
+function num(v){ if(v===null||v===undefined) return null; v=String(v).replace(/\s/g,'').replace(',','.'); const n=parseFloat(v); return isNaN(n)?null:n; }
+function rate(cur){ return cur==='UAH'?1:(num(document.getElementById('r_'+cur).value)||0); }
+function rnd(v){ const s=parseInt(document.getElementById('r_round').value)||1; return v==null?null:(s>1?Math.round(v/s)*s:Math.round(v*100)/100); }
+function money(v){ return v==null?'—':UAH.format(v)+' ₴'; }
+function pct(v, cls){ if(v==null) return '—'; const c = cls===false?'':(v<30?'m-bad':(v<40?'m-warn':'m-ok')); return '<span class="'+c+'">'+v.toFixed(1)+'%</span>'; }
+function margin(p,c){ return (p&&c!=null)?100*(p-c)/p:null; }
+function markup(p,c){ return (p&&c)?100*(p-c)/c:null; }
+function calc(tr){
+  const cur=tr.querySelector('.cur').value, r=rate(cur), cfx=num(tr.querySelector('.cfx').value), rrp=num(tr.querySelector('.rrp').value);
+  const cost = cfx!=null ? cfx*r : num(tr.dataset.crm);
+  const now = num(tr.dataset.now), at = rrp!=null ? rnd(rrp*r) : null, plan = num(tr.querySelector('.plan').value);
+  tr._cost=cost; tr._at=at; tr._now=now;
+  tr.querySelector('.c-cost').innerHTML = cost==null?'—':money(cost)+(cfx==null&&cost!=null?'<div class="meta">з CRM</div>':'');
+  tr.querySelector('.c-gp').innerHTML = (now&&cost!=null)?money(now-cost):'—';
+  tr.querySelector('.c-m').innerHTML = pct(margin(now,cost));
+  tr.querySelector('.c-at').innerHTML = money(at);
+  tr.querySelector('.c-mat').innerHTML = pct(margin(at,cost));
+  tr.querySelectorAll('.c-pm').forEach(td=>{ const m=+td.dataset.m; td.textContent = cost?money(rnd(cost/(1-m/100))):'—'; });
+  const d = (plan&&now)?plan-now:null;
+  tr.querySelector('.c-diff').innerHTML = d==null?'—':'<span class="'+(d<0?'neg':(d>0?'pos':''))+'">'+(d>0?'+':'')+money(d)+'</span>';
+  tr.querySelector('.c-mu').innerHTML = pct(markup(plan,cost), false);
+  tr.querySelector('.c-mp').innerHTML = pct(margin(plan,cost));
+}
+function recalcAll(){ document.querySelectorAll('.pt tbody tr[data-now]').forEach(calc); }
+let dirty=new Set();
+function markDirty(tr){ dirty.add(tr); tr.classList.add('dirty'); document.getElementById('dirtyn').textContent='Змінено товарів: '+dirty.size; }
+document.querySelectorAll('.pt tbody tr[data-now]').forEach(tr=>{
+  tr.querySelectorAll('input,select').forEach(el=>el.addEventListener('input',()=>{calc(tr);markDirty(tr);}));
+});
+function fill(mode){
+  const ov=document.getElementById('ovw').checked;
+  document.querySelectorAll('.pt tbody tr[data-now]').forEach(tr=>{
+    const inp=tr.querySelector('.plan'); if(inp.value && !ov) return;
+    let v=null;
+    if(mode==='rate') v=tr._at; else if(mode==='now') v=tr._now; else if(tr._cost) v=rnd(tr._cost/(1-mode/100));
+    if(v!=null){ inp.value=v; calc(tr); markDirty(tr); }
+  });
+}
+recalcAll();
+window.addEventListener('beforeunload', e=>{ if(dirty.size && !window._saving){ e.preventDefault(); e.returnValue=''; } });
+document.getElementById('pf').addEventListener('submit', ()=>{ window._saving=true; });
+</script>
+{% endblock %}

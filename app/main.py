@@ -1658,6 +1658,122 @@ def finance_page(request: Request, df: str | None = None, dt_: str | None = None
     return render(request, "finance.html", fs=fs, fc=fc, total=total, d_from=d_from, d_to=d_to, m_max=m_max)
 
 
+# ---------------- Фінанси → Планування ціни реалізації ----------------
+def _pricing_rows(db: Session, wh: str, brand: str, q: str, only: str):
+    from .services import pricing as pr_svc
+    rt = pr_svc.rates(db)
+    rows = [r for r in catalog.product_rows(db, []) if r.product.active is not False]
+    if wh in catalog.WAREHOUSES:
+        rows = [r for r in rows if (r.product.warehouse or "vitrina") == wh]
+    if brand:
+        rows = [r for r in rows if (r.product.brand or "") == ("" if brand == "—" else brand)]
+    if q:
+        words = set(norm(q).split())
+        rows = [r for r in rows if words <= set(norm(" ".join(filter(None, [r.product.name, r.product.sku, r.product.brand]))).split())]
+    out = []
+    for r in rows:
+        p_ = r.product
+        cur = p_.cost_currency or "UAH"
+        pr = pr_svc.PriceRow(p_, r.cost_avg or r.cost_last, rt.get(cur, 1.0))
+        out.append(pr)
+    if only == "nofx":
+        out = [x for x in out if not x.product.cost_fx]
+    elif only == "noplan":
+        out = [x for x in out if not x.product.planned_price]
+    elif only == "diff":
+        out = [x for x in out if x.product.planned_price and x.price_now and abs(x.product.planned_price - x.price_now) >= 1]
+    elif only == "lowmargin":
+        out = [x for x in out if (pr_svc.margin(x.price_now, x.cost_uah) or 100) < 40]
+    out.sort(key=lambda x: ((x.product.brand or "яяя").lower(), x.product.name))
+    return out, rt
+
+
+@app.get("/finance/pricing", response_class=HTMLResponse)
+def finance_pricing(request: Request, wh: str = "vitrina", brand: str = "", q: str = "", only: str = "",
+                    user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import pricing as pr_svc
+    rows, rt = _pricing_rows(db, wh, brand, q, only)
+    brands = sorted({x for (x,) in db.execute(select(Product.brand).where(Product.brand.is_not(None)).distinct())}, key=str.lower)
+    return render(request, "pricing.html", nav="finance", rows=rows[:600], total=len(rows), rt=rt, wh=wh, brand=brand, q=q,
+                  only=only, brands=brands, WAREHOUSES=catalog.WAREHOUSES, CURRENCIES=pr_svc.CURRENCIES, MARGINS=pr_svc.MARGINS)
+
+
+@app.post("/finance/rates")
+async def finance_rates(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import pricing as pr_svc
+    f = await request.form()
+    back = str(f.get("back") or "/finance/pricing")
+    if f.get("nbu"):
+        try:
+            nb = await asyncio.to_thread(pr_svc.nbu_rates)
+            pr_svc.save_rates(db, nb.get("USD"), nb.get("EUR"), None, "НБУ")
+        except Exception as e:  # noqa: BLE001
+            log.warning("NBU rates: %s", e)
+            return RedirectResponse(back + ("&" if "?" in back else "?") + "msg=Не+вдалося+отримати+курс+НБУ", 303)
+    else:
+        rnd = f.get("round")
+        pr_svc.save_rates(db, _num(f.get("usd") or ""), _num(f.get("eur") or ""), int(rnd) if str(rnd).isdigit() else None)
+    audit(db, "pricing.rates", user=user)
+    return RedirectResponse(back if back.startswith("/finance") else "/finance/pricing", 303)
+
+
+@app.post("/finance/pricing")
+async def finance_pricing_save(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import pricing as pr_svc
+    f = await request.form()
+    ids = [int(x) for x in f.getlist("pid") if str(x).isdigit()]
+    n = 0
+    now = datetime.now()
+    for p_ in db.scalars(select(Product).where(Product.id.in_(ids))):
+        cur = f.get(f"cur_{p_.id}")
+        cfx, rrp, plan = _num(f.get(f"cfx_{p_.id}") or ""), _num(f.get(f"rrp_{p_.id}") or ""), _num(f.get(f"plan_{p_.id}") or "")
+        new = (cur if cur in pr_svc.CURRENCIES else p_.cost_currency, cfx, rrp, plan)
+        if new != (p_.cost_currency, p_.cost_fx, p_.rrp_fx, p_.planned_price):
+            if plan != p_.planned_price:
+                p_.planned_at = now if plan else None
+            p_.cost_currency, p_.cost_fx, p_.rrp_fx, p_.planned_price = new
+            n += 1
+    db.commit()
+    audit(db, "pricing.save", user=user, changed=n)
+    back = str(f.get("back") or "/finance/pricing")
+    sep = "&" if "?" in back else "?"
+    return RedirectResponse((back if back.startswith("/finance") else "/finance/pricing") + f"{sep}msg=Збережено:+{n}", 303)
+
+
+@app.get("/finance/pricing.xlsx")
+def finance_pricing_xlsx(wh: str = "vitrina", brand: str = "", q: str = "", only: str = "",
+                         user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    import io
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from fastapi.responses import StreamingResponse
+    from .services import pricing as pr_svc
+    rows, rt = _pricing_rows(db, wh, brand, q, only)
+    wb = Workbook(); ws = wb.active; ws.title = "Планування цін"
+    ws.append([f"Курс USD {rt['USD']}  ·  EUR {rt['EUR']}  ·  {rt['source']} {rt['updated'] or ''}"])
+    head = ["Бренд", "Товар", "Артикул", "Склад", "Валюта", "Закупівля (вал.)", "Закупівля, грн", "РРЦ постачальника (вал.)",
+            "Ціна в програмі", "Валовий прибуток, грн", "Маржа, %", "Ціна при курсі", "Маржа при курсі, %"] + \
+           [f"Ціна при маржі {m}%" for m in pr_svc.MARGINS] + ["Рекомендована ціна", "Різниця з поточною", "Націнка, %", "Маржа, %"]
+    ws.append(head)
+    for c in ws[2]:
+        c.font = Font(bold=True, color="FFFFFF"); c.fill = PatternFill("solid", fgColor="3B3050")
+        c.alignment = Alignment(wrap_text=True, vertical="center")
+    rnd = rt["round"]
+    for x in rows:
+        p_ = x.product; cost = x.cost_uah; now_ = x.price_now; at = x.price_at_rate; plan = p_.planned_price
+        ws.append([p_.brand, p_.name, p_.sku, catalog.WAREHOUSES.get(p_.warehouse or "vitrina"), x.cur if p_.cost_fx else "UAH",
+                   p_.cost_fx, cost, p_.rrp_fx, now_, (now_ - cost) if now_ and cost is not None else None,
+                   pr_svc.margin(now_, cost), pr_svc.round_price(at, rnd), pr_svc.margin(at, cost)] +
+                  [pr_svc.round_price(pr_svc.price_for_margin(cost, m), rnd) for m in pr_svc.MARGINS] +
+                  [plan, (plan - now_) if plan and now_ else None, pr_svc.markup(plan, cost), pr_svc.margin(plan, cost)])
+    for col, w in zip("ABCDEFGHIJKLMNOPQRSTU", [14, 46, 12, 12, 8] + [13] * 16):
+        ws.column_dimensions[col].width = w
+    ws.freeze_panes = "C3"
+    buf = io.BytesIO(); wb.save(buf); buf.seek(0)
+    return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                             headers={"Content-Disposition": f"attachment; filename=pricing-{date.today()}.xlsx"})
+
+
 @app.get("/book/{item_id}", response_class=HTMLResponse)
 def book_page(request: Request, item_id: int, day: str | None = None, user: User = Depends(require("book")),
               db: Session = Depends(db_dep)):

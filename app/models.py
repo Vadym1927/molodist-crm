@@ -332,6 +332,12 @@ class Product(Base):
     unit: Mapped[str | None] = mapped_column(String(20))                    # од. списання: шт., мл. …
     barcode: Mapped[str | None] = mapped_column(String(64))
     for_sale: Mapped[bool | None] = mapped_column(Boolean)                  # для продажу (інакше — витратний матеріал)
+    # планування ціни реалізації
+    cost_currency: Mapped[str | None] = mapped_column(String(3))           # USD | EUR | UAH
+    cost_fx: Mapped[float | None] = mapped_column(Float)                    # ціна закупівлі у валюті
+    rrp_fx: Mapped[float | None] = mapped_column(Float)                     # рекомендована ціна постачальника у валюті
+    planned_price: Mapped[float | None] = mapped_column(Float)              # рекомендована ціна продажу (наше рішення)
+    planned_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 class ProductPurchase(Base):
