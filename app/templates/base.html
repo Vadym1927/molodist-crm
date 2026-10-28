@@ -3,32 +3,36 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{% block title %}MOLODIST CRM{% endblock %}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/fonts/fonts.css">
 <style>
 /* Тема: кольори бренду задаються лише тут (--brand*). Решта — нейтральні, з високим контрастом. */
-:root{--brand:#5a4a7e;--brand-ink:#463966;--brand-2:#8270ac;--brand-soft:#efebf6;--brand-line:#d9d1ea;
---rail:#211b31;--sans:Manrope,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--serif:var(--sans);
---bg:#f5f4f8;--card:#ffffff;--soft:#f7f6fa;--ink:#1d1a24;--muted:#5d5869;--faint:#8b8597;--line:#e3e0ea;
+:root{
+/* Брендбук MOLODIST 2026: білий і графіт — основа, глибокий фіолетовий — акцент (60 / 30 / 10).
+   Класичний фіолетовий #5C4B82 — лише кнопки й посилання. */
+--white:#ffffff;--cream:#f7f4f0;--greige:#e9e5df;--graphite:#2a2430;--deep:#3b3050;--lavender:#e4deef;--lavender-2:#c9bfe6;--classic:#5c4b82;
+--brand:var(--deep);--brand-ink:var(--graphite);--brand-2:var(--classic);--brand-soft:var(--lavender);--brand-line:var(--lavender-2);
+--rail:var(--graphite);--sans:"Open Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--head:Montserrat,"Open Sans",sans-serif;
+--word:Belleza,"Cormorant Garamond",Georgia,serif;--serif:var(--head);
+--bg:var(--cream);--card:var(--white);--soft:#f3f0eb;--ink:var(--graphite);--muted:#5f5866;--faint:#8e8794;--line:var(--greige);
 --accent:var(--brand);--accent-ink:var(--brand-ink);--accent-soft:var(--brand-soft);
---shadow:0 1px 2px rgba(28,25,23,.05),0 2px 8px rgba(28,25,23,.04);
---ok:#1f7a4d;--ok-bg:#e3f4ea;--warn:#a15c00;--warn-bg:#fff1dc;--bad:#c0362c;--bad-bg:#fde7e5;--done:#4f46a5;--done-bg:#ecebfb}
+--shadow:0 1px 2px rgba(42,36,48,.05),0 3px 10px rgba(42,36,48,.04);
+--ok:#2f7a55;--ok-bg:#e4f2ea;--warn:#a1621a;--warn-bg:#fbefdc;--bad:#b23a32;--bad-bg:#f9e5e2;--done:var(--classic);--done-bg:var(--lavender)}
 *{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 var(--sans);-webkit-font-smoothing:antialiased}
 a{color:inherit}::selection{background:var(--brand-soft)}
 header{display:flex;align-items:center;gap:28px;padding:14px 28px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5;flex-wrap:wrap}
-.logo{font:800 22px/1 var(--sans);letter-spacing:.16em;text-decoration:none;color:var(--brand)}.logo small{font:700 10px var(--sans);letter-spacing:.14em;color:var(--brand);margin-left:8px}
+.logo{font:400 24px/1 var(--word);letter-spacing:.16em;text-decoration:none;color:var(--brand)}.logo small{font:700 10px var(--sans);letter-spacing:.14em;color:var(--brand);margin-left:8px}
 nav{display:flex;gap:4px;flex-wrap:wrap}nav a{padding:7px 12px;border-radius:8px;text-decoration:none;color:var(--muted);font-weight:600}nav a.on,nav a:hover{background:var(--brand-soft);color:var(--ink)}
 .sp{flex:1}main{max-width:1480px;margin:0 auto;padding:26px 32px 70px}
 body.app{padding-left:96px}
 /* ---- вузька панель з іконками ---- */
 .rail{position:fixed;inset:0 auto 0 0;width:96px;background:var(--rail);display:flex;flex-direction:column;align-items:center;gap:4px;padding:16px 8px 14px;z-index:20}
-.rail .mark{width:52px;height:52px;border-radius:14px;background:var(--brand-2);color:#fff;display:grid;place-items:center;font:800 26px/1 var(--sans);text-decoration:none;margin-bottom:14px;letter-spacing:0}
+.rail .mark{width:54px;height:54px;border-radius:50%;background:var(--deep);color:#fff;display:grid;place-items:center;font:400 28px/1 var(--word);text-decoration:none;margin-bottom:14px;box-shadow:0 0 0 1px rgba(255,255,255,.12)}
 .rail a.it,.rail summary.it{width:80px;display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 2px 9px;border-radius:14px;color:#c9c3d8;text-decoration:none;font-size:12px;font-weight:700;position:relative;cursor:pointer;list-style:none;text-align:center;line-height:1.15}
 .rail summary.it::-webkit-details-marker{display:none}
 .rail a.it svg,.rail summary.it svg{width:26px;height:26px}
 .rail a.it:hover,.rail summary.it:hover{background:rgba(255,255,255,.07);color:#fff}
-.rail a.it.on{background:var(--brand-2);color:#fff;box-shadow:0 6px 16px -6px rgba(130,112,172,.8)}
+.rail a.it.on{background:var(--deep);color:#fff;box-shadow:inset 0 0 0 1px rgba(201,191,230,.35)}.rail a.it.on svg{color:var(--lavender-2)}
 .rail .dot{position:absolute;top:6px;right:16px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--bad);color:#fff;font:800 11px/18px var(--sans);font-style:normal}
 .rail .grow{flex:1}
 .rail .ava{width:42px;height:42px;border-radius:50%;background:#e7e2f1;color:var(--brand-ink);display:grid;place-items:center;font:800 14px var(--sans);text-decoration:none;margin-top:6px}
@@ -41,7 +45,7 @@ body.app{padding-left:96px}
 .more .menu svg{width:20px;height:20px;color:var(--faint)}.more .menu hr{border:0;border-top:1px solid var(--line);margin:6px 4px}
 /* ---- верхня панель ---- */
 .top{position:sticky;top:0;z-index:15;height:72px;display:flex;align-items:center;gap:20px;padding:0 32px;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
-.top .brand{font:800 20px/1 var(--sans);letter-spacing:.08em;text-decoration:none;color:var(--ink);white-space:nowrap}
+.top .brand{font:400 24px/1 var(--word);letter-spacing:.16em;text-decoration:none;color:var(--deep);white-space:nowrap}
 .top .sub{color:var(--muted);font-weight:600;padding-left:16px;border-left:1.5px solid var(--line);white-space:nowrap}
 .top .search{flex:1;max-width:600px;margin:0 auto;position:relative}
 .top .search input{width:100%;height:46px;padding:0 16px 0 46px;border-radius:14px;background:var(--soft);border-color:var(--line)}
@@ -50,24 +54,24 @@ body.app{padding-left:96px}
 .top .bell:hover{background:var(--soft)}.top .bell i{position:absolute;top:8px;right:9px;width:9px;height:9px;border-radius:50%;background:var(--bad);border:2px solid #fff}
 .top .cta{height:46px;padding:0 20px;font-size:15px;border-radius:14px}
 /* ---- вміст ---- */
-.eyebrow{font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--brand);margin-bottom:2px}
+.eyebrow{font:500 12px var(--head);letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
 .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 18px}
 .tabs a{padding:8px 14px;border-radius:99px;text-decoration:none;color:#3a342f;border:1.5px solid var(--line);background:var(--card);font-weight:700;font-size:14px}
 .tabs a:hover{border-color:var(--brand)}.tabs a.on{background:var(--brand);color:#fff;border-color:var(--brand)}.tabs a em{font-style:normal;opacity:.75;margin-left:5px}
-h1{font:800 40px/1.1 var(--sans);margin:0 0 6px;letter-spacing:-.02em}h2{font:800 19px/1.25 var(--sans);margin:0 0 14px}h3{font-weight:800}
+h1{font:400 36px/1.12 var(--head);text-transform:uppercase;margin:0 0 6px;letter-spacing:.01em}h1 b,h1 strong{font-weight:700}h2{font:600 16px/1.3 var(--head);text-transform:uppercase;letter-spacing:.06em;margin:0 0 14px}h3{font-family:var(--head);font-weight:600}
 .muted{color:var(--muted)}.small{font-size:13px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px 22px;margin-bottom:18px;box-shadow:var(--shadow)}
 .grid{display:grid;gap:14px}.g5{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}.g2{grid-template-columns:repeat(auto-fit,minmax(420px,1fr))}
 .tile{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 18px;box-shadow:var(--shadow);border-top:4px solid var(--brand)}
-.tile b{display:block;font:800 28px/1.2 var(--sans);margin-top:4px;letter-spacing:-.01em}.tile span{color:var(--muted);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
+.tile b{display:block;font:600 28px/1.2 var(--head);margin-top:4px;letter-spacing:-.01em}.tile span{color:var(--muted);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
 table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:11px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
 th{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:800;background:var(--soft)}
 td.r,th.r{text-align:right;white-space:nowrap}tr:last-child td{border-bottom:0}tbody tr:hover{background:var(--brand-soft)}
 .pill{display:inline-block;padding:3px 10px;border-radius:99px;font-size:13px;font-weight:700;white-space:nowrap}
 .ok{background:var(--ok-bg);color:var(--ok)}.warn{background:var(--warn-bg);color:var(--warn)}.bad{background:var(--bad-bg);color:var(--bad)}.done{background:var(--done-bg);color:var(--done)}
 .bar{height:8px;background:#e8e5ef;border-radius:9px;overflow:hidden;min-width:90px}.bar i{display:block;height:100%;background:var(--brand);border-radius:9px}
-.btn{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--brand);background:var(--brand);color:#fff;padding:9px 16px;border-radius:12px;font:700 14px var(--sans);cursor:pointer;text-decoration:none}
-.btn:hover{background:var(--brand-ink);border-color:var(--brand-ink)}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--classic);background:var(--classic);color:#fff;padding:9px 16px;border-radius:12px;font:700 14px var(--sans);cursor:pointer;text-decoration:none}
+.btn:hover{background:var(--deep);border-color:var(--deep)}
 .btn.ghost{background:var(--card);color:var(--ink);border-color:var(--line)}.btn.ghost:hover{border-color:var(--brand);color:var(--brand-ink);background:var(--card)}
 .btn.danger{background:transparent;color:var(--bad);border-color:var(--bad-bg)}
 input,select,textarea{font:inherit;font-size:15px;padding:9px 12px;border:1.5px solid var(--line);border-radius:12px;background:#fff;color:var(--ink)}
@@ -95,10 +99,10 @@ details summary{cursor:pointer;color:var(--muted);font-weight:600}.drop{border:1
 <body class="{{ 'app' if nav not in ('login','print') and user }}">
 {% if nav != 'login' and user %}
 <aside class="rail">
-  <a class="mark" href="/" title="MOLODIST">m</a>
+  <a class="mark" href="/" title="MOLODIST">M</a>
   <a class="it {{ 'on' if nav=='dashboard' }}" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z"/></svg><span>Дашборд</span></a>
   <a class="it {{ 'on' if nav=='calendar' }}" href="/calendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M8 14h3"/></svg><span>Записи</span></a>
-  <a class="it {{ 'on' if nav in ('clients','patient','patients','unassigned') }}" href="/clients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.3-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14.8c1.7.8 2.7 2.5 3 5.2"/></svg><span>Клієнти</span></a>
+  <a class="it {{ 'on' if nav in ('clients','patient','patients','unassigned') }}" href="/clients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.3-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14.8c1.7.8 2.7 2.5 3 5.2"/></svg><span>Пацієнти</span></a>
   <a class="it {{ 'on' if nav=='plans' }}" href="/plans"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg><span>Плани</span></a>
   <a class="it desk {{ 'on' if nav=='tasks' }}" href="/tasks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg><span>Задачі</span>{% if task_counts and task_counts.overdue %}<em class="dot">{{ task_counts.overdue }}</em>{% endif %}</a>
   {% if can(user,'specialists') %}<a class="it desk {{ 'on' if nav in ('specialists','specialist') }}" href="/specialists"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7.5" r="3.5"/><path d="M5 20c.9-3.8 3.6-6 7-6s6.1 2.2 7 6"/><path d="M15.5 16.5l1.5 1.5 3-3"/></svg><span>Команда</span></a>{% endif %}
@@ -122,8 +126,8 @@ details summary{cursor:pointer;color:var(--muted);font-weight:600}.drop{border:1
   <div class="role">{{ user.role_label }}</div>
 </aside>
 <div class="top">
-  <a class="brand" href="/">MOLODIST</a><span class="sub">Простір клініки</span>
-  <form class="search" action="/clients" method="get"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input name="q" placeholder="Знайти клієнта за імʼям або телефоном" value="{{ request.query_params.get('q','') if nav=='clients' else '' }}"></form>
+  <a class="brand" href="/">MOLODIST</a><span class="sub">Медичний простір</span>
+  <form class="search" action="/clients" method="get"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input name="q" placeholder="Знайти пацієнта за імʼям або телефоном" value="{{ request.query_params.get('q','') if nav=='clients' else '' }}"></form>
   <a class="bell" href="/tasks" title="Задачі"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8M10 21a2 2 0 0 0 4 0"/></svg>{% if task_counts and (task_counts.overdue or task_counts.open) %}<i></i>{% endif %}</a>
   {% if can(user,'upload') %}<form action="/upload" method="post" enctype="multipart/form-data" style="margin:0">
     <label class="btn cta" style="cursor:pointer"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg><span>Бюті-план</span>

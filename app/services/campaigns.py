@@ -24,7 +24,7 @@ from .scripts import first_name, render
 
 log = logging.getLogger("campaigns")
 
-CAMPAIGN_PLACEHOLDERS = {"імʼя": "Імʼя клієнта", "лікар": "Лікар клієнта", "клініка": "MOLODIST"}
+CAMPAIGN_PLACEHOLDERS = {"імʼя": "Імʼя пацієнта", "лікар": "Лікар пацієнта", "клініка": "MOLODIST"}
 SEGMENT_IDEAS = {
     "sleeping": "{імʼя}, ми скучили! 🌿 Давно не бачились у MOLODIST — запрошуємо на безкоштовну діагностику шкіри "
                 "на апараті OBSERV і оновлений план догляду. Записатися: відповідайте на це повідомлення.",

@@ -57,7 +57,7 @@
   <div class="grid g2">
     <div>
       <h3 style="margin:0 0 6px">З CleverBox — автоматично</h3>
-      <p class="small muted">Переносить довідники послуг і лікарів, клієнтів (з телефонами), усі надані послуги та продажі товарів за обраний період, майбутні записи.
+      <p class="small muted">Переносить довідники послуг і лікарів, пацієнтів (з телефонами), усі надані послуги та продажі товарів за обраний період, майбутні записи.
         Після переносу будь-який завантажений бюті-план одразу бачить історію пацієнта. Через ліміт CleverBox (1 запит/сек) велика база переноситься від кількох хвилин до години — можна закрити сторінку.</p>
       {% if cb_notice %}<div class="alert" style="background:var(--warn-bg);color:var(--warn)">{{ cb_notice }}</div>{% endif %}
       <form method="post" action="/settings/cleverbox-token" class="grid" style="gap:8px;margin:12px 0">
@@ -81,7 +81,7 @@
       {% if wh is not none %}
       <div class="rem" id="webhooks" style="margin:12px 0">
         <b>Миттєве оновлення (вебхуки CleverBox)</b>
-        <div class="small muted">Новий запис, перенесення, зміна статусу візиту і новий клієнт у CleverBox потрапляють у CRM приблизно за хвилину,
+        <div class="small muted">Новий запис, перенесення, зміна статусу візиту і новий пацієнт у CleverBox потрапляють у CRM приблизно за хвилину,
           а не раз на 2 години. Плановий синк лишається як підстраховка.</div>
         <div class="small" style="margin:6px 0">
           {% if wh.count %}<span class="pill ok">працює</span> отримано подій: {{ wh.count }}{% if wh.last %}, остання {{ wh.last.at.replace('T',' ') }} ({{ wh.last.event or 'тип не вказано' }}){% endif %}
@@ -105,7 +105,7 @@
       <form method="post" action="/migrate/cleverbox" class="grid" style="gap:8px">
         <div class="row small"><span>Історія за</span><select name="months">{% for m in [6,12,24,36,60] %}<option value="{{ m }}" {{ 'selected' if m==24 }}>{{ m }} міс.</option>{% endfor %}</select></div>
         <label class="small"><input type="checkbox" name="all_history" value="1"> за весь доступний час у CleverBox</label>
-        <label class="small"><input type="checkbox" name="all_clients" value="1" checked> створити картки для всіх клієнтів CleverBox (інакше — лише привʼязати наявних)</label>
+        <label class="small"><input type="checkbox" name="all_clients" value="1" checked> створити картки для всіх пацієнтів CleverBox (інакше — лише привʼязати наявних)</label>
         <button class="btn" onclick="return confirm('Запустити перенос з CleverBox?')">Запустити перенос</button></form>
       {% else %}<div class="alert" style="background:var(--warn-bg);color:var(--warn)">Додайте CLEVERBOX_TOKEN у .env</div>{% endif %}
       {% if last_migration %}<p class="small muted">Останній перенос: {{ last_migration.replace('T',' ') }}</p>{% endif %}
@@ -113,7 +113,7 @@
     <div>
       <h3 style="margin:0 0 6px">З іншої CRM / таблиць — через Excel</h3>
       <ol class="small">
-        <li>Вивантажте зі старої системи клієнтів, візити/продажі (і плани, якщо вони там є) в Excel або CSV.</li>
+        <li>Вивантажте зі старої системи пацієнтів, візити/продажі (і плани, якщо вони там є) в Excel або CSV.</li>
         <li>Імпортуйте спершу <b>пацієнтів</b>, потім <b>історію</b>, потім <b>плани</b> (блок «Імпорт» вище). Можна одним файлом з трьома аркушами — як у шаблоні.</li>
         <li>Перевірте «Зіставлення» — назви послуг старої системи мають зіставитися з процедурами планів.</li>
       </ol>

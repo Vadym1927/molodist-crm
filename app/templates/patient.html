@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block body %}
 <div class="row between" style="margin-bottom:16px">
-  <div><a href="/clients" class="muted small" style="text-decoration:none">← Клієнти</a>
+  <div><a href="/clients" class="muted small" style="text-decoration:none">← Пацієнти</a>
     <h1>{{ p.full_name }}</h1>
     <div class="muted">{{ p.phone or 'телефон не вказано' }} · {{ p.doctor.name if p.doctor else 'лікар не вказаний' }} ·
       {% if p.cleverbox_id %}CleverBox #{{ p.cleverbox_id }}{% else %}<span class="pill warn">не привʼязано до CleverBox</span>{% endif %}</div></div>
@@ -13,7 +13,7 @@
       <input name="full_name" value="{{ p.full_name }}" required>
       <input name="phone" value="{{ p.phone or '' }}" placeholder="Телефон (для привʼязки до CleverBox)">
       <input name="email" type="email" value="{{ p.email or '' }}" placeholder="Email">
-      <input name="cleverbox_id" value="{{ p.cleverbox_id or '' }}" placeholder="ID клієнта в CleverBox">
+      <input name="cleverbox_id" value="{{ p.cleverbox_id or '' }}" placeholder="ID пацієнта в CleverBox">
       <select name="gender"><option value="">— стать —</option><option value="жіноча" {{ 'selected' if p.gender=='жіноча' }}>Жіноча</option><option value="чоловіча" {{ 'selected' if p.gender=='чоловіча' }}>Чоловіча</option></select>
       <input name="address" value="{{ p.address or '' }}" placeholder="Місто / адреса">
       <input name="source" value="{{ p.source or '' }}" placeholder="Джерело звернення">

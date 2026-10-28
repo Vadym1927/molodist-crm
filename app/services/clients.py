@@ -1,4 +1,4 @@
-"""Розділ «Клієнти»: сегменти під бюті-плани."""
+"""Розділ «Пацієнти»: сегменти під бюті-плани."""
 from __future__ import annotations
 
 from collections import defaultdict

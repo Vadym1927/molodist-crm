@@ -8,7 +8,7 @@
 </div>
 <div class="grid" style="grid-template-columns:minmax(0,1fr) 340px;align-items:start">
 <div class="card" style="padding:6px 8px;overflow:auto"><table>
-  <thead><tr><th>Задача</th><th>Клієнт</th><th>Виконавець</th><th>Термін</th><th></th></tr></thead><tbody>
+  <thead><tr><th>Задача</th><th>Пацієнт</th><th>Виконавець</th><th>Термін</th><th></th></tr></thead><tbody>
   {% for t in tasks %}
     <tr style="{{ 'opacity:.55' if t.status!='open' }}">
       <td><b>{{ t.title }}</b>{% if t.priority=='high' %} <span class="pill bad">терміново</span>{% endif %}
@@ -56,7 +56,7 @@
   <form method="post" action="/tasks" class="grid" style="gap:8px">
     <input name="title" placeholder="Що зробити" required>
     <textarea name="description" rows="2" placeholder="Деталі (необовʼязково)"></textarea>
-    <select name="patient_id"><option value="">— клієнт (необовʼязково) —</option>{% for p in patients %}<option value="{{ p.id }}">{{ p.full_name }}{{ (' · ' ~ p.phone) if p.phone }}</option>{% endfor %}</select>
+    <select name="patient_id"><option value="">— пацієнт (необовʼязково) —</option>{% for p in patients %}<option value="{{ p.id }}">{{ p.full_name }}{{ (' · ' ~ p.phone) if p.phone }}</option>{% endfor %}</select>
     <select name="assignee"><option value="">Мені</option><option value="admin">Черга адміністраторів</option>{% for u in users %}<option value="{{ u.id }}">{{ u.name }} ({{ u.role_label }})</option>{% endfor %}</select>
     <div class="row"><input type="date" name="due_date" style="flex:1"><select name="priority">{% for k,l in PRIORITY.items() %}<option value="{{ k }}" {{ 'selected' if k=='normal' }}>{{ l }}</option>{% endfor %}</select></div>
     <button class="btn">Створити</button></form></div>

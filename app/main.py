@@ -211,6 +211,8 @@ app = FastAPI(title="MOLODIST Beauty Plan CRM API", version="1.0", lifespan=life
 app.add_middleware(SessionMiddleware, secret_key=settings.secret_key, max_age=60 * 60 * 24 * 14,
                    https_only=settings.public_url.startswith("https"))
 app.include_router(api_module.router)
+from fastapi.staticfiles import StaticFiles   # noqa: E402
+app.mount("/static", StaticFiles(directory=str(BASE / "static")), name="static")
 
 
 @app.exception_handler(HTTPException)

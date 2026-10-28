@@ -24,7 +24,7 @@
       {% set fl = c.filters or {} %}
       <details class="small" {{ 'open' if fl }}><summary>Фільтри</summary><div class="grid" style="gap:6px;margin-top:6px">
         <select name="doctor_id"><option value="">Усі лікарі</option>{% for d in doctors %}<option value="{{ d.id }}" {{ 'selected' if fl.get('doctor_id')|string == d.id|string }}>{{ d.name }}</option>{% endfor %}</select>
-        <input name="source" value="{{ fl.get('source','') }}" placeholder="Джерело клієнта">
+        <input name="source" value="{{ fl.get('source','') }}" placeholder="Джерело пацієнта">
         <div class="row"><input name="min_ltv" value="{{ fl.get('min_ltv','') }}" placeholder="Виручка від, ₴" style="flex:1"><input name="max_ltv" value="{{ fl.get('max_ltv','') }}" placeholder="до, ₴" style="flex:1"></div>
         <label>Вікно атрибуції, днів <input name="attribution_days" value="{{ c.attribution_days }}" style="width:60px"></label></div></details>
       <button class="btn ghost">Зберегти і перерахувати</button>
@@ -68,7 +68,7 @@
 <div class="card"><h2>Текст</h2><div style="white-space:pre-line" class="small">{{ c.text }}</div>
   <div class="small muted" style="margin-top:6px">{{ SEGMENTS.get(c.segment) }} · {{ c.channels|join(' → ')|replace('telegram','Telegram')|replace('viber','Viber')|replace('sms','SMS') }} · запущено {{ c.sent_at|dt('%d.%m.%Y %H:%M') }}</div></div>
 <div class="card" style="padding:6px 8px;overflow:auto"><table class="small">
-  <thead><tr><th>Клієнт</th><th>Канал</th><th>Статус</th><th>Надіслано</th><th>Помилка</th></tr></thead><tbody>
+  <thead><tr><th>Пацієнт</th><th>Канал</th><th>Статус</th><th>Надіслано</th><th>Помилка</th></tr></thead><tbody>
   {% for r in recips %}<tr><td><a href="/patients/{{ r.patient_id }}">{{ r.patient.full_name }}</a></td>
     <td>{{ {'telegram':'Telegram','viber':'Viber','sms':'SMS'}.get(r.channel, r.channel) }}</td>
     <td>{% set sm = {'queued':('у черзі','warn'),'sent':('надіслано','ok'),'delivered':('доставлено','ok'),'read':('прочитано','done'),'failed':('помилка','bad'),'skipped':('пропущено','warn')}[r.status] %}<span class="pill {{ sm[1] }}">{{ sm[0] }}</span></td>

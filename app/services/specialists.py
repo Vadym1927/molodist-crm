@@ -12,8 +12,8 @@ from ..integrations.cleverbox import same_person
 from ..models import Doctor, Visit, Patient, SyncState
 from .kpi import all_statuses, KpiRow
 
-# чіткі, добре розрізнювані кольори спеціалістів (календар, аватари)
-PALETTE = ["#2f80c9", "#d0548a", "#2e9d6a", "#e08a1e", "#1aa3a3", "#d4473b", "#8270ac", "#8a6d3b"]
+# кольори фахівців у календарі: приглушені, у гамі брендбуку, але добре розрізнювані
+PALETTE = ["#5c4b82", "#2f7a8a", "#a05a7c", "#b07a3e", "#4a6fa5", "#5f8a5a", "#8e7cc3", "#7a6a5c"]
 
 
 def color(d: Doctor | None) -> str:
