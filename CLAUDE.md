@@ -37,6 +37,12 @@ CRM естетичної клініки MOLODIST (Київ) під бюті-пл
   (`deploy/autodeploy.sh`, systemd-таймер): бекап → оновлення → /health → відкат при збої, звіт у Telegram.
 - Руками на сервері код не правити — автооновлення зупиниться. `/health` показує версію (короткий хеш коміту).
 
+## Склад (облік у CRM)
+- Правда — журнал `StockMove` (залишок = сума рухів по товару і складу); 5 складів: vitrina, inject, classic, single, equip.
+- Старт — документ «Стартові залишки» з поточних залишків CleverBox/Excel (`stock.start_ledger`), дата в SyncState `stock_ledger_start`.
+- Документи `StockDoc`: supply, order, transfer, writeoff, return, inventory; draft → posted (рухи) → можна скасувати.
+- Після кожного синку `stock.auto_moves`: продажі CleverBox (ref sale:…) і процедури за нормами `ProcedureNorm` (ref proc:…).
+
 ## Відкриті питання
 - Перевірити можливі дублі продажів товарів після переносу частинами (external_id = check_id-product_id-date).
 - Поля CleverBox /clients і /staff звіряються автоматично (назви полів пишуться в SyncState

@@ -193,8 +193,12 @@ def product_rows(db: Session, statuses: list[PlanStatus] | None = None, now: dat
                 due = st.last_done + timedelta(days=it.supply_days)
                 if now - timedelta(days=30) <= due <= now + timedelta(days=30):
                     r.rebuy_30 += 1
-    have_stock = db.scalar(select(StockLevel).limit(1)) is not None
-    if have_stock:
+    from .stock import ledger_active, balance_by_product
+    if ledger_active(db):                        # облік у CRM — залишок із журналу рухів
+        stock = balance_by_product(db)
+        for pid, r in rows.items():
+            r.stock = round(stock.get(pid, 0.0), 3)
+    elif db.scalar(select(StockLevel).limit(1)) is not None:
         stock = stock_by_product(db, products)
         for pid, r in rows.items():
             r.stock = stock.get(pid, 0.0)

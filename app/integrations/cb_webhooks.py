@@ -179,6 +179,8 @@ def quick_sync(client_ids: set[int]) -> dict:
                               for c in list(client_ids)[:20])
             _set(db, "cb_webhook_last_sync", datetime.now().isoformat(timespec="seconds"))
             db.commit()
+            from ..services.stock import auto_moves
+            rep["stock"] = auto_moves(db)
         return rep
     finally:
         SYNC_LOCK.release()

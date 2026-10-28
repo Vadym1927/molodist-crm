@@ -363,6 +363,87 @@ class StockLevel(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class Supplier(Base):
+    __tablename__ = "suppliers"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200), unique=True)
+    contact: Mapped[str | None] = mapped_column(String(200))       # контактна особа / менеджер
+    phone: Mapped[str | None] = mapped_column(String(64))
+    email: Mapped[str | None] = mapped_column(String(200))
+    terms: Mapped[str | None] = mapped_column(String(300))         # умови: доставка, мін. замовлення, оплата
+    note: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class StockDoc(Base):
+    """Складський документ: supply (поставка) | order (замовлення постачальнику) | transfer (переміщення) |
+    writeoff (списання) | return (повернення) | inventory (інвентаризація) | opening (стартові залишки).
+    status: draft → posted (рухи створено) | cancelled; для order: draft → sent → received | cancelled."""
+    __tablename__ = "stock_docs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String(20), index=True)
+    number: Mapped[str] = mapped_column(String(30), index=True)
+    doc_date: Mapped[date] = mapped_column(Date, index=True)
+    status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
+    supplier: Mapped[str | None] = mapped_column(String(200))
+    wh_from: Mapped[str | None] = mapped_column(String(20))
+    wh_to: Mapped[str | None] = mapped_column(String(20))
+    reason: Mapped[str | None] = mapped_column(String(100))         # списання: причина; повернення: supplier|patient
+    ext_no: Mapped[str | None] = mapped_column(String(100))         # № накладної постачальника
+    patient_id: Mapped[int | None] = mapped_column(ForeignKey("patients.id"))
+    source_id: Mapped[int | None] = mapped_column(Integer)          # поставка, створена з замовлення
+    note: Mapped[str | None] = mapped_column(Text)
+    created_by: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    lines: Mapped[list["StockDocLine"]] = relationship(back_populates="doc", cascade="all, delete-orphan",
+                                                       order_by="StockDocLine.id")
+
+
+class StockDocLine(Base):
+    __tablename__ = "stock_doc_lines"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    doc_id: Mapped[int] = mapped_column(ForeignKey("stock_docs.id"), index=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), index=True)
+    qty: Mapped[float] = mapped_column(Float, default=0)            # інвентаризація: фактично пораховано
+    unit_cost: Mapped[float | None] = mapped_column(Float)
+    expiry_date: Mapped[date | None] = mapped_column(Date)
+    sys_qty: Mapped[float | None] = mapped_column(Float)            # інвентаризація: облікова к-сть на момент проведення
+
+    doc: Mapped[StockDoc] = relationship(back_populates="lines")
+    product: Mapped["Product"] = relationship()
+
+
+class StockMove(Base):
+    """Рух товару (журнал). Залишок = сума qty по товару і складу. ref — захист від дублів автосписань."""
+    __tablename__ = "stock_moves"
+    __table_args__ = (UniqueConstraint("ref"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), index=True)
+    warehouse: Mapped[str] = mapped_column(String(20), index=True)
+    qty: Mapped[float] = mapped_column(Float)
+    kind: Mapped[str] = mapped_column(String(20), index=True)       # supply|sale|procedure|writeoff|transfer|return|inventory|opening
+    at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    doc_id: Mapped[int | None] = mapped_column(ForeignKey("stock_docs.id"), index=True)
+    unit_cost: Mapped[float | None] = mapped_column(Float)
+    ref: Mapped[str | None] = mapped_column(String(80))
+    note: Mapped[str | None] = mapped_column(String(300))
+    patient_id: Mapped[int | None] = mapped_column(Integer)
+
+
+class ProcedureNorm(Base):
+    """Норма списання матеріалів на одну послугу CleverBox."""
+    __tablename__ = "procedure_norms"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    service_id: Mapped[int] = mapped_column(Integer, index=True)    # CbService.id
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), index=True)
+    qty: Mapped[float] = mapped_column(Float, default=1)
+    warehouse: Mapped[str | None] = mapped_column(String(20))       # звідки списувати (за замовчуванням — склад товару)
+
+    product: Mapped["Product"] = relationship()
+
+
 class Check(Base):
     """Чек CleverBox (/sales/checks) — джерело фактичної виручки."""
     __tablename__ = "checks"

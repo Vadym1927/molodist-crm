@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}{{ KINDS[d.kind] }} {{ d.number }} · Склад{% endblock %}
+{% block body %}
+<style>
+.dh{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin:8px 0 16px}
+.hdr{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.hdr label{display:grid;gap:4px;font-size:12.5px;color:var(--muted);font-weight:600}.hdr input,.hdr select{width:100%;height:44px}
+.ln td{vertical-align:middle}.ln input{height:38px}
+.ln input.q{width:90px;text-align:right}.ln input.c{width:110px;text-align:right}
+.ln .meta{font-size:12px;color:var(--muted)}
+.add{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;background:var(--soft);border-radius:14px;padding:12px;margin-top:12px}
+.add label{display:grid;gap:3px;font-size:12px;color:var(--muted);font-weight:600}.add input{height:42px}
+.acts{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;margin-top:16px}
+.diff-p{color:var(--ok);font-weight:700}.diff-m{color:var(--bad);font-weight:700}
+.pill.draft{background:var(--soft);color:var(--muted)}.pill.posted,.pill.received{background:var(--ok-bg);color:var(--ok)}
+.pill.sent{background:var(--lavender);color:var(--classic)}.pill.cancelled{background:var(--bad-bg);color:var(--bad)}
+</style>
+<a href="/stock?tab={{ 'balances' if d.kind=='opening' else d.kind }}" class="muted small" style="text-decoration:none">← {{ KINDS[d.kind] }}</a>
+<div class="dh"><div><div class="eyebrow">{{ KINDS[d.kind] }}</div><h1>№ {{ d.number }}</h1>
+  <span class="pill {{ d.status }}">{{ STATUS[d.status] }}</span>{% if d.posted_at %} <span class="muted small">проведено {{ d.posted_at|dt('%d.%m.%Y %H:%M') }}</span>{% endif %}</div></div>
+{% if request.query_params.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ request.query_params.get('msg') }}</div>{% endif %}
+{% if request.query_params.get('err') %}<div class="alert">{{ request.query_params.get('err') }}</div>{% endif %}
+
+<form method="post" id="docf">
+<div class="card">
+  <div class="hdr">
+    <label>Дата<input type="date" name="doc_date" value="{{ d.doc_date }}" {{ '' if editable else 'disabled' }}></label>
+    {% if d.kind in ('supply','order','return') %}<label>Постачальник<input name="supplier" list="supl" value="{{ d.supplier or '' }}" {{ '' if editable else 'disabled' }}></label>
+      <datalist id="supl">{% for x in suppliers %}<option value="{{ x }}">{% endfor %}</datalist>{% endif %}
+    {% if d.kind=='supply' %}<label>№ накладної постачальника<input name="ext_no" value="{{ d.ext_no or '' }}" {{ '' if editable else 'disabled' }}></label>{% endif %}
+    {% if d.kind=='return' %}<label>Тип повернення<select name="reason" {{ '' if editable else 'disabled' }}><option value="supplier" {{ 'selected' if d.reason!='patient' }}>Постачальнику (списати зі складу)</option><option value="patient" {{ 'selected' if d.reason=='patient' }}>Від пацієнта (повернути на склад)</option></select></label>{% endif %}
+    {% if d.kind=='writeoff' %}<label>Причина<select name="reason" {{ '' if editable else 'disabled' }}>{% for r in REASONS %}<option {{ 'selected' if d.reason==r }}>{{ r }}</option>{% endfor %}</select></label>{% endif %}
+    {% if d.kind in ('transfer','writeoff','inventory','return') %}<label>{{ 'Склад' if d.kind in ('inventory','writeoff','return') else 'Зі складу' }}<select name="wh_from" {{ '' if editable else 'disabled' }}>{% for k, v in WAREHOUSES.items() %}<option value="{{ k }}" {{ 'selected' if d.wh_from==k }}>{{ v }}</option>{% endfor %}</select></label>{% endif %}
+    {% if d.kind in ('supply','order','transfer') %}<label>{{ 'На склад' }}<select name="wh_to" {{ '' if editable else 'disabled' }}>{% for k, v in WAREHOUSES.items() %}<option value="{{ k }}" {{ 'selected' if d.wh_to==k }}>{{ v }}</option>{% endfor %}</select></label>{% endif %}
+    <label style="grid-column:1/-1">Примітка<input name="note" value="{{ d.note or '' }}" {{ '' if editable else 'disabled' }}></label>
+  </div>
+</div>
+
+<div class="card" style="padding:6px 8px;overflow:auto">
+  <table class="ln"><thead><tr><th>Товар</th>
+    {% if d.kind=='inventory' %}<th class="r">Облік</th><th class="r">Фактично</th><th class="r">Різниця</th>
+    {% else %}{% if active and d.kind in ('transfer','writeoff','return') %}<th class="r">На складі</th>{% endif %}<th class="r">К-сть</th>{% endif %}
+    {% if d.kind in ('supply','order','opening','return') %}<th class="r">Ціна закупівлі</th><th class="r">Сума</th>{% endif %}
+    {% if d.kind=='supply' %}<th>Придатний до</th>{% endif %}{% if editable %}<th></th>{% endif %}</tr></thead><tbody>
+  {% set ns = namespace(total=0, qty=0) %}
+  {% for ln in d.lines %}{% set p = ln.product %}{% set ns.total = ns.total + (ln.qty or 0) * (ln.unit_cost or 0) %}{% set ns.qty = ns.qty + (ln.qty or 0) %}
+    <tr><td><a href="/products/{{ p.id }}" style="font-weight:600;text-decoration:none">{{ p.name }}</a><div class="meta">{{ p.brand or '' }}{{ (' · арт. ' ~ p.sku) if p.sku }} · {{ p.unit or 'шт' }}</div></td>
+      {% if d.kind=='inventory' %}{% set sysq = ln.sys_qty if d.status=='posted' else bal.get((p.id, d.wh_from), 0) %}
+        <td class="r">{{ '%g'|format((sysq or 0)|round(3)) }}</td>
+        <td class="r">{% if editable %}<input class="q" name="qty_{{ ln.id }}" value="{{ '%g'|format(ln.qty or 0) }}" inputmode="decimal">{% else %}{{ '%g'|format(ln.qty or 0) }}{% endif %}</td>
+        <td class="r">{% set df = (ln.qty or 0) - (sysq or 0) %}<span class="{{ 'diff-p' if df > 0 else ('diff-m' if df < 0) }}">{{ ('+' if df > 0) ~ ('%g'|format(df|round(3))) if df else '—' }}</span></td>
+      {% else %}
+        {% if active and d.kind in ('transfer','writeoff','return') %}<td class="r small">{{ '%g'|format(bal.get((p.id, d.wh_from), 0)|round(3)) }}</td>{% endif %}
+        <td class="r">{% if editable %}<input class="q" name="qty_{{ ln.id }}" value="{{ '%g'|format(ln.qty or 0) }}" inputmode="decimal">{% else %}{{ '%g'|format(ln.qty or 0) }}{% endif %}</td>
+      {% endif %}
+      {% if d.kind in ('supply','order','opening','return') %}<td class="r">{% if editable %}<input class="c" name="cost_{{ ln.id }}" value="{{ '%g'|format(ln.unit_cost) if ln.unit_cost is not none else '' }}" inputmode="decimal">{% else %}{{ ln.unit_cost|uah if ln.unit_cost else '—' }}{% endif %}</td>
+        <td class="r">{{ ((ln.qty or 0) * (ln.unit_cost or 0))|uah if ln.unit_cost else '—' }}</td>{% endif %}
+      {% if d.kind=='supply' %}<td>{% if editable %}<input type="date" name="exp_{{ ln.id }}" value="{{ ln.expiry_date or '' }}">{% else %}{{ ln.expiry_date|dt('%d.%m.%Y') if ln.expiry_date else '—' }}{% endif %}</td>{% endif %}
+      {% if editable %}<td><label class="small" title="Прибрати рядок" style="cursor:pointer;color:var(--bad)"><input type="checkbox" name="del_{{ ln.id }}" value="1" onchange="this.form.submit()" style="display:none">✕</label></td>{% endif %}
+    </tr>
+  {% else %}<tr><td colspan="8" class="muted">Товарів ще немає — додайте нижче.</td></tr>{% endfor %}
+  {% if d.lines %}<tr style="background:var(--soft)"><td><b>Разом: {{ d.lines|length }} поз.</b></td>{% if d.kind=='inventory' %}<td></td>{% elif active and d.kind in ('transfer','writeoff','return') %}<td></td>{% endif %}
+    <td class="r"><b>{{ '%g'|format(ns.qty|round(3)) }}</b></td>{% if d.kind=='inventory' %}<td></td>{% endif %}{% if d.kind in ('supply','order','opening','return') %}<td></td><td class="r"><b>{{ ns.total|uah }}</b></td>{% endif %}{% if d.kind=='supply' %}<td></td>{% endif %}{% if editable %}<td></td>{% endif %}</tr>{% endif %}
+  </tbody></table>
+
+  {% if editable %}
+  <div class="add" id="add">
+    <label style="flex:1;min-width:280px">Товар (назва, артикул або штрихкод)<input name="new_product" list="prods" placeholder="Почніть вводити…" autofocus></label>
+    <label>{{ 'Фактично' if d.kind=='inventory' else 'К-сть' }}<input name="new_qty" value="1" style="width:90px" inputmode="decimal"></label>
+    {% if d.kind in ('supply','order','return') %}<label>Ціна закупівлі<input name="new_cost" style="width:110px" placeholder="авто" inputmode="decimal"></label>{% endif %}
+    {% if d.kind=='supply' %}<label>Придатний до<input type="date" name="new_exp"></label>{% endif %}
+    <button class="btn ghost" name="action" value="save">＋ Додати</button>
+    <datalist id="prods">{% for pid, label, w in products %}<option value="{{ label }}">{% endfor %}</datalist>
+  </div>{% endif %}
+</div>
+
+<div class="acts">
+  {% if editable %}<button class="btn ghost" name="action" value="save">Зберегти чернетку</button>{% endif %}
+  {% if d.kind=='inventory' and editable %}<button class="btn ghost" name="action" value="prefill">Додати всі товари складу</button>{% endif %}
+  {% if d.kind=='order' %}
+    {% if d.status=='draft' %}<button class="btn ghost" name="action" value="send">Позначити відправленим</button>{% endif %}
+    {% if d.status in ('draft','sent') %}<button class="btn" name="action" value="receive" onclick="return confirm('Створити поставку з цього замовлення?')">Отримано → створити поставку</button>{% endif %}
+  {% elif editable and d.kind != 'opening' %}
+    <button class="btn" name="action" value="post" onclick="return confirm('Провести документ? Залишки зміняться.')">Провести</button>
+  {% endif %}
+  {% if d.status in ('posted','draft','sent') and d.kind != 'opening' %}<button class="btn danger" name="action" value="cancel" onclick="return confirm('Скасувати документ?{{ ' Рухи по складу буде прибрано.' if d.status=='posted' }}')">Скасувати</button>{% endif %}
+</div>
+</form>
+{% endblock %}

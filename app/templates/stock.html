@@ -1,19 +1,136 @@
 {% extends "base.html" %}
+{% block title %}Склад · MOLODIST CRM{% endblock %}
 {% block body %}
-<div class="row between"><div><h1>Склад</h1>
-  <div class="muted small">{% if updated %}Залишки CleverBox на {{ updated|dt('%d.%m.%Y %H:%M') }}{% elif cb %}Залишки ще не синхронізовані{% else %}CleverBox не підключено — залишків немає, показано лише потребу{% endif %}</div></div>
-  <div class="tabs" style="margin:0"><a href="?" class="{{ 'on' if not only }}">Усі засоби з планів</a><a href="?only=deficit" class="{{ 'on' if only=='deficit' }}">Що дозамовити</a></div></div>
-<p class="muted small">Потреба на 30 днів = призначено в активних планах і ще не куплено + повторні покупки, що настають (за тривалістю засобу). Дефіцит = потреба + мін. залишок − залишок на складі.</p>
-<div class="card" style="padding:6px 8px;overflow:auto"><table>
-  <thead><tr><th>Засіб</th><th class="r">Залишок</th><th class="r">Не куплено з планів</th><th class="r">Повторні 30 дн.</th><th class="r">Потреба</th><th class="r">Мін.</th><th class="r">Дозамовити</th><th class="r hide-m">Собівартість</th></tr></thead><tbody>
-  {% for r in rows %}{% set p = r.product %}
-    <tr><td>{{ p.name }}<div class="small muted">{{ p.category or '' }}</div></td>
-      <td class="r">{{ ('%g'|format(r.stock)) if r.stock is not none else '—' }}</td><td class="r">{{ r.demand_open or '—' }}</td><td class="r">{{ r.rebuy_30 or '—' }}</td>
-      <td class="r"><b>{{ r.need_30 }}</b></td><td class="r">{{ p.min_stock or '—' }}</td>
-      <td class="r">{% if r.deficit %}<span class="pill bad">{{ r.deficit }} шт</span>{% elif r.deficit == 0 %}<span class="pill ok">ок</span>{% else %}—{% endif %}</td>
-      <td class="r hide-m">{{ (p.cost * r.deficit)|uah if p.cost and r.deficit else '—' }}</td></tr>
-  {% else %}<tr><td colspan="8" class="muted">Немає даних.</td></tr>{% endfor %}
+<style>
+.st-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 18px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.st-tabs a{padding:8px 14px;border-radius:10px;text-decoration:none;color:#3a342f;font-weight:600;font-size:14px}
+.st-tabs a:hover{background:var(--card)}.st-tabs a.on{background:var(--deep);color:#fff}
+.whs{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:0 0 14px}
+.whs a{background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:12px 14px;text-decoration:none;display:flex;flex-direction:column;gap:2px}
+.whs a:hover{border-color:var(--classic)}.whs a.on{background:var(--deep);border-color:var(--deep);color:#fff}
+.whs b{font:600 14px var(--head);text-transform:uppercase;letter-spacing:.04em}.whs em{font-style:normal;font-size:12.5px;color:var(--muted)}.whs a.on em{color:var(--lavender-2)}
+.startbox{display:flex;gap:18px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:var(--lavender);border:1px solid var(--lavender-2);border-radius:16px;padding:16px 20px;margin-bottom:16px}
+.startbox b{font:600 16px var(--head);text-transform:uppercase}
+.tb td{vertical-align:middle}.tb .meta{font-size:12.5px;color:var(--muted)}
+.q-neg{color:var(--bad);font-weight:700}.q-low{color:var(--warn);font-weight:700}
+.pill.draft{background:var(--soft);color:var(--muted)}.pill.posted,.pill.received{background:var(--ok-bg);color:var(--ok)}
+.pill.sent{background:var(--lavender);color:var(--classic)}.pill.cancelled{background:var(--bad-bg);color:var(--bad)}
+.newdoc{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}.newdoc select,.newdoc input{height:44px}
+.norm{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:12px 16px;margin-bottom:10px}
+.norm h3{margin:0 0 6px;font-size:15px}.norm .nl{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.norm .nl span{background:var(--soft);border-radius:99px;padding:3px 6px 3px 12px;font-size:13px;display:inline-flex;gap:6px;align-items:center}
+.norm .nl button{border:0;background:#fff;border-radius:50%;width:20px;height:20px;cursor:pointer;color:var(--bad)}
+@media (max-width:900px){.whs{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+<div class="row between" style="align-items:flex-end">
+  <div><div class="eyebrow">Облік у CRM</div><h1>Склад</h1>
+    <div class="muted small">{% if active %}Облік ведеться в CRM з {{ start|dt('%d.%m.%Y %H:%M') }} · продажі з CleverBox і процедури за нормами списуються автоматично{% else %}Облік ще не розпочато — зараз показано залишки з CleverBox{% endif %}</div></div>
+</div>
+{% if request.query_params.get('msg') %}<div class="alert" style="background:var(--lavender);color:var(--classic);margin-top:12px">{{ request.query_params.get('msg') }}</div>{% endif %}
+<nav class="st-tabs">{% for k, v in TABS.items() %}<a href="?tab={{ k }}" class="{{ 'on' if tab==k }}">{{ v }}</a>{% endfor %}</nav>
+
+{% if not active and tab in ('balances','critical') %}
+<div class="startbox">
+  <div><b>Почати облік складу в CRM</b><div class="small" style="margin-top:4px">Поточні залишки (з CleverBox або імпорту Excel у «Продукти») стануть стартовими. Далі: поставки, переміщення, списання, інвентаризація — тут; продажі й процедури списуються самі.</div></div>
+  <form method="post" action="/stock/start" onsubmit="return confirm('Почати облік у CRM з поточних залишків?')"><button class="btn">Почати облік</button></form>
+</div>{% endif %}
+
+{% if tab in ('balances','critical') %}
+<div class="whs">
+  <a href="?tab={{ tab }}" class="{{ 'on' if not wh }}"><b>Усі склади</b><em>{{ rows|length if not wh else '' }}</em></a>
+  {% for k, v in WAREHOUSES.items() %}<a href="?tab={{ tab }}&wh={{ k }}" class="{{ 'on' if wh==k }}"><b>{{ v }}</b><em>{% if wh_tot.get(k) %}{{ wh_tot[k].n }} поз. · {{ wh_tot[k].value|uah }}{% else %}&nbsp;{% endif %}</em></a>{% endfor %}
+</div>
+<form class="row" style="margin-bottom:12px"><input type="hidden" name="tab" value="{{ tab }}"><input type="hidden" name="wh" value="{{ wh }}">
+  <input name="q" value="{{ q }}" placeholder="Назва, бренд або артикул" style="flex:1;height:44px">
+  {% if tab=='critical' %}<select name="sup" onchange="this.form.submit()" style="height:44px"><option value="">Усі постачальники</option>{% for x in suppliers %}<option {{ 'selected' if sup==x }}>{{ x }}</option>{% endfor %}</select>{% endif %}
+  {% if tab=='balances' %}<label class="small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="all" value="1" {{ 'checked' if request.query_params.get('all') }} onchange="this.form.submit()"> показати з нульовим залишком</label>{% endif %}
+  <button class="btn ghost" style="height:44px">Знайти</button></form>
+
+{% if tab=='critical' %}
+<div class="row between" style="margin-bottom:10px"><div class="muted small">Критичні — залишок ≤ мін. залишку (або закінчився товар, що продається / є в планах). «Дозамовити» = мін. залишок + потреба з планів на 30 дн + місячний темп продажів − залишок.</div>
+  <form method="post" action="/stock/order-from-critical" class="row"><input type="hidden" name="supplier" value="{{ sup }}">
+    <button class="btn">＋ Замовлення {{ ('для ' ~ sup) if sup else 'з усіх критичних' }}</button></form></div>
+{% endif %}
+
+<div class="card" style="padding:6px 8px;overflow:auto"><table class="tb">
+  <thead><tr><th>Товар</th><th>Склад</th><th class="r">Залишок</th>{% if active and not wh %}<th>По складах</th>{% endif %}<th class="r">Мін.</th>
+    {% if tab=='critical' %}<th class="r">Потреба 30д</th><th class="r">Продано 90д</th><th class="r">Дозамовити</th><th>Постачальник</th>{% else %}<th class="r">Закупівля сер.</th><th class="r">Вартість</th><th>Термін</th>{% endif %}</tr></thead><tbody>
+  {% for r in rows[:500] %}{% set p = r.product %}
+    <tr><td><a href="/products/{{ p.id }}" style="font-weight:600;text-decoration:none">{{ p.name }}</a><div class="meta">{{ p.brand or '' }}{{ (' · арт. ' ~ p.sku) if p.sku }}</div></td>
+      <td class="small">{{ WAREHOUSES.get(p.warehouse or 'vitrina') }}</td>
+      <td class="r"><span class="{{ 'q-neg' if r.stock is not none and r.stock < 0 else ('q-low' if p.min_stock and r.stock is not none and r.stock <= p.min_stock) }}">{{ ('%g'|format(r.stock|round(2))) if r.stock is not none else '—' }}</span> <span class="meta">{{ p.unit or 'шт' }}</span></td>
+      {% if active and not wh %}<td class="small">{% for k, v in WAREHOUSES.items() %}{% set qq = per.get((p.id, k)) %}{% if qq %}<span style="white-space:nowrap">{{ v }}: <b>{{ '%g'|format(qq|round(2)) }}</b></span>&nbsp; {% endif %}{% endfor %}</td>{% endif %}
+      <td class="r">{{ p.min_stock or '—' }}</td>
+      {% if tab=='critical' %}<td class="r">{{ r.need_30 or '—' }}</td><td class="r">{{ ('%g'|format(r.sold_90)) if r.sold_90 else '—' }}</td>
+        <td class="r"><b>{{ suggested(r) or '—' }}</b></td><td class="small">{{ p.supplier or r.last_supplier or '—' }}</td>
+      {% else %}<td class="r">{{ r.cost_avg|uah if r.cost_avg else '—' }}</td><td class="r">{{ r.stock_value|uah if r.stock_value else '—' }}</td>
+        <td class="small">{% if r.expiry %}<span class="{{ 'q-neg' if r.days_to_expiry < 0 else ('q-low' if r.days_to_expiry <= 90) }}">{{ r.expiry|dt('%d.%m.%Y') }}</span>{% else %}—{% endif %}</td>{% endif %}
+    </tr>
+  {% else %}<tr><td colspan="9" class="muted">{{ 'Критичних залишків немає — Дозамовити нічого.' if tab=='critical' else 'Немає товарів.' }}</td></tr>{% endfor %}
+  </tbody></table>{% if rows|length > 500 %}<p class="muted small">Показано 500 з {{ rows|length }} — уточніть пошук або склад.</p>{% endif %}</div>
+{% if not active and cb_updated %}<p class="muted small">Залишки CleverBox на {{ cb_updated|dt('%d.%m.%Y %H:%M') }}</p>{% endif %}
+
+{% elif tab in KINDS %}
+<form class="newdoc" method="post" action="/stock/docs">
+  <input type="hidden" name="kind" value="{{ tab }}">
+  {% if tab in ('supply','order') %}<select name="wh">{% for k, v in WAREHOUSES.items() %}<option value="{{ k }}">на склад: {{ v }}</option>{% endfor %}</select>
+    <input name="supplier" list="supl" placeholder="Постачальник"><datalist id="supl"></datalist>
+  {% elif tab in ('transfer','writeoff','inventory') %}<select name="wh">{% for k, v in WAREHOUSES.items() %}<option value="{{ k }}">{{ 'зі складу' if tab!='inventory' else 'склад' }}: {{ v }}</option>{% endfor %}</select>{% endif %}
+  {% if tab != 'opening' %}<button class="btn" {% if not active and tab != 'order' %}disabled{% endif %}>＋ {{ {'supply':'Нова поставка','order':'Нове замовлення','transfer':'Нове переміщення','writeoff':'Нове списання','return':'Нове повернення','inventory':'Нова інвентаризація'}[tab] }}</button>{% endif %}
+  {% if not active and tab not in ('order',) %}<span class="muted small">Спершу почніть облік на вкладці «Залишки».</span>{% endif %}
+</form>
+<div class="card" style="padding:6px 8px;overflow:auto"><table class="tb">
+  <thead><tr><th>№</th><th>Дата</th><th>Статус</th>{% if tab in ('supply','order','return') %}<th>Постачальник</th>{% endif %}<th>Склад</th>{% if tab=='writeoff' %}<th>Причина</th>{% endif %}<th class="r">Позицій</th><th class="r">К-сть</th><th class="r">Сума</th></tr></thead><tbody>
+  {% for r in docs %}{% set d = r.doc %}
+    <tr><td><a href="/stock/docs/{{ d.id }}" style="font-weight:700">{{ d.number }}</a></td><td>{{ d.doc_date|dt('%d.%m.%Y') }}</td>
+      <td><span class="pill {{ d.status }}">{{ STATUS[d.status] }}</span></td>
+      {% if tab in ('supply','order','return') %}<td>{{ d.supplier or '—' }}</td>{% endif %}
+      <td class="small">{% if d.wh_from %}{{ WAREHOUSES.get(d.wh_from) }}{% endif %}{% if d.wh_from and d.wh_to %} → {% endif %}{% if d.wh_to %}{{ WAREHOUSES.get(d.wh_to) }}{% endif %}</td>
+      {% if tab=='writeoff' %}<td class="small">{{ d.reason or '' }}</td>{% endif %}
+      <td class="r">{{ r.items }}</td><td class="r">{{ '%g'|format(r.qty|round(2)) }}</td><td class="r">{{ r.total|uah if r.total else '—' }}</td></tr>
+  {% else %}<tr><td colspan="9" class="muted">Документів ще немає.</td></tr>{% endfor %}
   </tbody></table></div>
-{% if others %}<details class="card"><summary>Інші товари на складі CleverBox, яких немає в бюті-планах ({{ others|length }})</summary>
-  <table class="small" style="margin-top:8px"><tbody>{% for o in others %}<tr><td>{{ o.name }}</td><td class="r">{{ '%g'|format(o.qty) }} {{ o.unit or '' }}</td><td class="muted">{{ o.storage or '' }}</td></tr>{% endfor %}</tbody></table></details>{% endif %}
+
+{% elif tab=='suppliers' %}
+<div class="card" style="padding:6px 8px;overflow:auto"><table class="tb">
+  <thead><tr><th>Постачальник</th><th>Контакт</th><th>Умови</th><th class="r">Товарів</th><th class="r">Поставок</th><th class="r">Сума поставок</th><th>Остання</th><th></th></tr></thead><tbody>
+  {% for x in suppliers %}{% set a = agg[x.name.lower()] %}
+    <tr><td><b>{{ x.name }}</b></td><td class="small">{{ x.contact or '' }}{{ (' · ' ~ x.phone) if x.phone }}{{ (' · ' ~ x.email) if x.email }}</td><td class="small">{{ x.terms or '' }}</td>
+      <td class="r">{{ a.products or '—' }}</td><td class="r">{{ a.supplies or '—' }}</td><td class="r">{{ a.sum|uah if a.sum else '—' }}</td><td class="small">{{ a.last|dt('%d.%m.%Y') if a.last else '—' }}</td>
+      <td><details><summary class="small">змінити</summary><form method="post" action="/stock/suppliers" class="grid" style="gap:6px;min-width:260px;margin-top:6px">
+        <input type="hidden" name="sid" value="{{ x.id }}"><input name="name" value="{{ x.name }}" required><input name="contact" value="{{ x.contact or '' }}" placeholder="Контактна особа">
+        <input name="phone" value="{{ x.phone or '' }}" placeholder="Телефон"><input name="email" value="{{ x.email or '' }}" placeholder="Email">
+        <input name="terms" value="{{ x.terms or '' }}" placeholder="Умови: доставка, мін. замовлення, оплата"><button class="btn ghost">Зберегти</button></form></details></td></tr>
+  {% else %}<tr><td colspan="8" class="muted">Постачальників ще немає.</td></tr>{% endfor %}
+  </tbody></table></div>
+<form method="post" action="/stock/suppliers" class="row card" style="gap:8px">
+  <b style="width:100%">Новий постачальник</b><input name="name" placeholder="Назва" required><input name="contact" placeholder="Контактна особа">
+  <input name="phone" placeholder="Телефон"><input name="email" placeholder="Email"><input name="terms" placeholder="Умови" style="flex:1"><button class="btn">Додати</button></form>
+
+{% elif tab=='norms' %}
+<p class="muted small">Що списується зі складу після кожної наданої послуги (за даними CleverBox). Напр. «Гігієна обличчя» → рукавички 2 шт, гель 10 мл. Списання — лише для послуг після старту обліку.</p>
+<form class="row" style="margin-bottom:12px"><input type="hidden" name="tab" value="norms"><input name="q" value="{{ q }}" placeholder="Знайти послугу" style="flex:1;height:44px">
+  <button class="btn ghost" style="height:44px">Знайти</button><a class="btn ghost" style="height:44px" href="?tab=norms&only=all">Усі послуги</a></form>
+<datalist id="prods">{% for pid, label, w in products %}<option value="{{ label }}">{% endfor %}</datalist>
+{% for x in services %}
+<div class="norm" id="s{{ x.id }}"><h3>{{ x.name }} <span class="muted small" style="font-weight:400">{{ x.category or '' }}{{ (' · ' ~ x.time_min ~ ' хв') if x.time_min }}</span></h3>
+  <div class="nl">{% for n in norms.get(x.id, []) %}<span>{{ n.product.name[:50] }} — <b>{{ '%g'|format(n.qty) }} {{ n.product.unit or 'шт' }}</b>{% if n.warehouse %} · {{ WAREHOUSES.get(n.warehouse) }}{% endif %}
+    <form method="post" action="/stock/norms/{{ n.id }}/delete" style="display:inline"><button title="Прибрати">×</button></form></span>{% else %}<span class="muted" style="background:transparent;padding-left:0">норм ще немає</span>{% endfor %}</div>
+  <form method="post" action="/stock/norms" class="row" style="gap:6px"><input type="hidden" name="service_id" value="{{ x.id }}">
+    <input name="product" list="prods" placeholder="Матеріал (почніть вводити назву)" required style="flex:1;min-width:240px">
+    <input name="qty" value="1" style="width:80px"><select name="warehouse"><option value="">склад товару</option>{% for k, v in WAREHOUSES.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select>
+    <button class="btn ghost">＋ Додати</button></form></div>
+{% else %}<div class="card muted">Послуг ще немає — вони підтягуються з CleverBox під час синхронізації.</div>{% endfor %}
+
+{% elif tab=='moves' %}
+<div class="whs"><a href="?tab=moves" class="{{ 'on' if not wh }}"><b>Усі склади</b></a>{% for k, v in WAREHOUSES.items() %}<a href="?tab=moves&wh={{ k }}" class="{{ 'on' if wh==k }}"><b>{{ v }}</b></a>{% endfor %}</div>
+<div class="card" style="padding:6px 8px;overflow:auto"><table class="tb">
+  <thead><tr><th>Дата</th><th>Операція</th><th>Товар</th><th>Склад</th><th class="r">К-сть</th><th>Документ / примітка</th></tr></thead><tbody>
+  {% for m in moves %}{% set p = pnames.get(m.product_id) %}<tr><td class="small">{{ m.at|dt('%d.%m.%Y %H:%M') }}</td><td>{{ MOVE_KINDS.get(m.kind, m.kind) }}</td>
+    <td>{% if p %}<a href="/products/{{ p.id }}">{{ p.name[:60] }}</a>{% endif %}</td><td class="small">{{ WAREHOUSES.get(m.warehouse) }}</td>
+    <td class="r"><b style="color:{{ 'var(--ok)' if m.qty > 0 else 'var(--bad)' }}">{{ '+' if m.qty > 0 }}{{ '%g'|format(m.qty|round(3)) }}</b></td>
+    <td class="small">{% if m.doc_id %}<a href="/stock/docs/{{ m.doc_id }}">документ</a> {% endif %}{{ m.note or '' }}{% if m.patient_id %} · <a href="/patients/{{ m.patient_id }}">пацієнт</a>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="6" class="muted">Рухів ще немає.</td></tr>{% endfor %}
+  </tbody></table></div>
+{% endif %}
 {% endblock %}

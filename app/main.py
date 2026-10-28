@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections import defaultdict
 import json
 import logging
 import mimetypes
@@ -80,8 +81,13 @@ def run_sync() -> dict:
         rep = full_sync(db)
     state["last_sync"] = (datetime.now(), rep)
     from .services.tasks import generate_auto
+    from .services import stock as stock_svc
     with SessionLocal() as db:
         rep["tasks"] = generate_auto(db)
+        try:
+            rep["stock_auto"] = stock_svc.auto_moves(db)      # продажі й процедури списують склад
+        except Exception as e:      # noqa: BLE001
+            log.warning("stock auto moves failed: %s", e)
     webhooks.fire("sync.done", {"report": {k: v for k, v in rep.items() if k != "patients"},
                                 "patients_linked": rep.get("patients", {}).get("linked")})
     if settings.google_sheet_id and settings.google_service_account_file:
@@ -967,7 +973,7 @@ async def backup_restore(request: Request, file: UploadFile = File(...), confirm
 # ---------------- Клієнти / Календар / Задачі / Продукти / Склад / Фінанси ----------------
 
 from datetime import timedelta
-from .models import Task, Product, StockLevel, Check
+from .models import Task, Product, StockLevel, Check, StockDoc
 from .services import clients as clients_svc, tasks as tasks_svc, calendar as cal_svc, catalog, finance as fin_svc
 
 
@@ -1370,18 +1376,272 @@ async def products_bulk(request: Request, user: User = Depends(require("products
     return RedirectResponse(back if back.startswith("/products") else "/products", 303)
 
 
+STOCK_TABS = {"balances": "Залишки", "critical": "Критичні залишки", "supply": "Поставки", "order": "Замовлення",
+              "transfer": "Переміщення", "writeoff": "Списання", "return": "Повернення", "inventory": "Інвентаризація",
+              "suppliers": "Постачальники", "norms": "Норми списання", "moves": "Рух товарів"}
+
+
+def _critical_rows(rows):
+    from .services import stock as st
+    return [r for r in rows if st.is_critical(r) or (r.deficit or 0) > 0]
+
+
 @app.get("/stock", response_class=HTMLResponse)
-def stock_page(request: Request, only: str = "", user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
-    rows = catalog.product_rows(db)
-    rows = [r for r in rows if r.prescribed or (r.stock or 0) > 0]
+def stock_page(request: Request, tab: str = "balances", only: str = "", wh: str = "", q: str = "", sup: str = "",
+               user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .services import stock as st
+    from .models import Supplier, ProcedureNorm, StockMove
     if only == "deficit":
-        rows = [r for r in rows if r.deficit]
-    rows.sort(key=lambda r: (-(r.deficit or 0), -r.need_30))
-    lv = db.scalar(select(StockLevel).limit(1))
-    others = db.scalars(select(StockLevel).order_by(StockLevel.name)).all()
-    linked = {r.product.cb_product_id for r in rows if r.product.cb_product_id}
-    return render(request, "stock.html", rows=rows, only=only, updated=lv.updated_at if lv else None,
-                  others=[o for o in others if o.cb_product_id not in linked][:300], cb=bool(settings.cleverbox_token))
+        tab = "critical"
+    tab = tab if tab in STOCK_TABS else "balances"
+    ctx = dict(tab=tab, TABS=STOCK_TABS, WAREHOUSES=catalog.WAREHOUSES, STATUS=st.STATUS, KINDS=st.DOC_KINDS,
+               MOVE_KINDS=st.MOVE_KINDS, active=st.ledger_active(db), start=st.ledger_start(db), wh=wh, q=q, sup=sup)
+    if tab in ("balances", "critical"):
+        rows = [r for r in catalog.product_rows(db) if r.product.active is not False]
+        per = st.balances(db) if ctx["active"] else {}
+        if wh in catalog.WAREHOUSES:
+            if ctx["active"]:
+                rows = [r for r in rows if per.get((r.product.id, wh)) or (r.product.warehouse or "vitrina") == wh]
+            else:
+                rows = [r for r in rows if (r.product.warehouse or "vitrina") == wh]
+        if q:
+            words = set(norm(q).split())
+            rows = [r for r in rows if words <= set(norm(" ".join(filter(None, [r.product.name, r.product.sku, r.product.brand]))).split())]
+        if tab == "critical":
+            rows = _critical_rows(rows)
+            if sup:
+                rows = [r for r in rows if (r.product.supplier or r.last_supplier or "") == sup]
+            rows.sort(key=lambda r: ((r.product.supplier or r.last_supplier or "яяя").lower(), r.product.name))
+        else:
+            order = {k: i for i, k in enumerate(catalog.WAREHOUSES)}
+            if not request.query_params.get("all"):                 # за замовчуванням — лише те, що є в наявності
+                rows = [r for r in rows if (r.stock or 0) != 0]
+            rows.sort(key=lambda r: (order.get(r.product.warehouse or "vitrina", 9), (r.product.brand or "яяя").lower(), r.product.name))
+        wh_tot = defaultdict(lambda: {"n": 0, "value": 0.0})
+        costs = {r.product.id: (r.cost_avg or r.cost_last or 0) for r in rows}
+        if ctx["active"]:
+            for (pid, w), qty in per.items():
+                if qty and pid in costs:
+                    wh_tot[w]["n"] += 1
+                    wh_tot[w]["value"] += qty * costs[pid]
+        ctx.update(rows=rows, per=per, wh_tot=dict(wh_tot), suggested=st.suggested_qty,
+                   suppliers=sorted({r.product.supplier or r.last_supplier for r in rows if (r.product.supplier or r.last_supplier)}))
+        lv = db.scalar(select(StockLevel).limit(1))
+        ctx["cb_updated"] = lv.updated_at if lv else None
+    elif tab in st.DOC_KINDS:
+        ctx["docs"] = st.doc_rows(db, tab)
+    elif tab == "suppliers":
+        st.ensure_suppliers(db)
+        agg = defaultdict(lambda: {"products": 0, "orders": 0, "supplies": 0, "sum": 0.0, "last": None})
+        for p_ in db.scalars(select(Product).where(Product.supplier.is_not(None))):
+            agg[p_.supplier.lower()]["products"] += 1
+        for d in db.scalars(select(StockDoc).where(StockDoc.kind.in_(("supply", "order")), StockDoc.status != "cancelled")):
+            a = agg[(d.supplier or "").lower()]
+            a["orders" if d.kind == "order" else "supplies"] += 1
+            if d.kind == "supply" and d.status == "posted":
+                a["sum"] += sum((ln.qty or 0) * (ln.unit_cost or 0) for ln in d.lines)
+                a["last"] = max(filter(None, [a["last"], d.doc_date]))
+        ctx.update(suppliers=db.scalars(select(Supplier).order_by(Supplier.name)).all(), agg=agg)
+    elif tab == "norms":
+        from .models import CbService
+        services = db.scalars(select(CbService).order_by(CbService.category, CbService.name)).all()
+        norms = defaultdict(list)
+        for n in db.scalars(select(ProcedureNorm)):
+            norms[n.service_id].append(n)
+        if q:
+            words = set(norm(q).split())
+            services = [x for x in services if words <= set(norm((x.name or "") + " " + (x.category or "")).split())]
+        elif request.query_params.get("only") != "all":
+            services = [x for x in services if x.id in norms] or services[:60]
+        ctx.update(services=services, norms=norms, products=_product_options(db, consumables=True))
+    elif tab == "moves":
+        mq = select(StockMove).order_by(StockMove.at.desc(), StockMove.id.desc()).limit(300)
+        if wh in catalog.WAREHOUSES:
+            mq = mq.where(StockMove.warehouse == wh)
+        ctx["moves"] = db.scalars(mq).all()
+        ctx["pnames"] = {p_.id: p_ for p_ in db.scalars(select(Product))}
+    return render(request, "stock.html", **ctx)
+
+
+def _product_options(db: Session, consumables: bool = False):
+    q = select(Product).where(Product.active.is_not(False)).order_by(Product.name)
+    return [(p_.id, f"{p_.name}{(' · арт. ' + p_.sku) if p_.sku else ''} [#{p_.id}]", p_.warehouse) for p_ in db.scalars(q)]
+
+
+def _pick_product(db: Session, ref: str) -> Product | None:
+    import re as _re
+    m = _re.search(r"\[#(\d+)\]\s*$", ref or "")
+    if m:
+        return db.get(Product, int(m.group(1)))
+    ref = (ref or "").strip()
+    if not ref:
+        return None
+    return db.scalar(select(Product).where((Product.sku == ref) | (Product.barcode == ref))) or catalog.match_product(db, ref)
+
+
+@app.post("/stock/start")
+def stock_start(user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .services import stock as st
+    try:
+        doc = st.start_ledger(db, user.id)
+    except st.StockError as e:
+        return RedirectResponse(f"/stock?msg={e}", 303)
+    audit(db, "stock.start", "stock_doc", doc.id, user=user, lines=len(doc.lines))
+    return RedirectResponse("/stock?msg=Облік+у+CRM+розпочато", 303)
+
+
+@app.post("/stock/docs")
+def stock_doc_create(kind: str = Form(...), wh: str = Form(""), supplier: str = Form(""),
+                     user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .services import stock as st
+    kw = {}
+    if kind in ("transfer", "writeoff", "inventory"):
+        kw["wh_from"] = wh if wh in catalog.WAREHOUSES else "vitrina"
+    if kind in ("supply", "order"):
+        kw["wh_to"] = wh if wh in catalog.WAREHOUSES else "vitrina"
+        kw["supplier"] = supplier.strip() or None
+    if kind == "return":
+        kw.update(reason="supplier", wh_from="vitrina")
+    if kind == "writeoff":
+        kw["reason"] = st.WRITEOFF_REASONS[0]
+    doc = st.new_doc(db, kind, user_id=user.id, **kw)
+    if kind == "inventory":
+        st.inventory_prefill(db, doc)
+    db.commit()
+    return RedirectResponse(f"/stock/docs/{doc.id}", 303)
+
+
+@app.post("/stock/order-from-critical")
+def stock_order_from_critical(supplier: str = Form(""), user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .services import stock as st
+    rows = _critical_rows(catalog.product_rows(db))
+    doc = st.order_from_critical(db, rows, supplier.strip() or None, user.id)
+    if not doc:
+        return RedirectResponse("/stock?tab=critical&msg=Немає+що+замовляти", 303)
+    return RedirectResponse(f"/stock/docs/{doc.id}", 303)
+
+
+@app.get("/stock/docs/{did:int}", response_class=HTMLResponse)
+def stock_doc_page(did: int, request: Request, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .services import stock as st
+    from .models import Supplier
+    doc = db.get(StockDoc, did) or (_ for _ in ()).throw(HTTPException(404))
+    bal = st.balances(db) if st.ledger_active(db) else {}
+    return render(request, "stock_doc.html", d=doc, KINDS=st.DOC_KINDS, STATUS=st.STATUS, WAREHOUSES=catalog.WAREHOUSES,
+                  REASONS=st.WRITEOFF_REASONS, products=_product_options(db), bal=bal, active=st.ledger_active(db),
+                  suppliers=[x.name for x in db.scalars(select(Supplier).order_by(Supplier.name))],
+                  editable=doc.status in ("draft", "sent"))
+
+
+@app.post("/stock/docs/{did:int}")
+async def stock_doc_save(did: int, request: Request, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    """Шапка + усі рядки однією формою; action: save | post | add."""
+    from .services import stock as st
+    from .models import StockDocLine
+    doc = db.get(StockDoc, did) or (_ for _ in ()).throw(HTTPException(404))
+    f = await request.form()
+    action = f.get("action", "save")
+    if doc.status in ("draft", "sent"):
+        doc.doc_date = _day(f.get("doc_date", "")) or doc.doc_date
+        for k in ("supplier", "ext_no", "note", "reason"):
+            if k in f:
+                setattr(doc, k, (f.get(k) or "").strip()[:300] or None)
+        for k in ("wh_from", "wh_to"):
+            if k in f:
+                setattr(doc, k, f.get(k) if f.get(k) in catalog.WAREHOUSES else None)
+        for ln in list(doc.lines):
+            if f.get(f"del_{ln.id}"):
+                db.delete(ln)
+                continue
+            if f"qty_{ln.id}" in f:
+                ln.qty = _num(f.get(f"qty_{ln.id}")) or 0
+            if f"cost_{ln.id}" in f:
+                ln.unit_cost = _num(f.get(f"cost_{ln.id}"))
+            if f"exp_{ln.id}" in f:
+                ln.expiry_date = _day(f.get(f"exp_{ln.id}"))
+        new_ref = (f.get("new_product") or "").strip()
+        if new_ref:
+            pr = _pick_product(db, new_ref)
+            if not pr:
+                db.commit()
+                return RedirectResponse(f"/stock/docs/{did}?err=Товар+не+знайдено:+{new_ref[:60]}#add", 303)
+            line = next((ln for ln in doc.lines if ln.product_id == pr.id), None)
+            if line and doc.kind != "inventory":
+                line.qty = (line.qty or 0) + (_num(f.get("new_qty")) or 1)
+            elif not line:
+                cost = _num(f.get("new_cost"))
+                if cost is None and doc.kind in ("supply", "order"):
+                    rr = next((r for r in catalog.product_rows(db, []) if r.product.id == pr.id), None)
+                    cost = (rr.cost_last or rr.cost_avg) if rr else pr.cost
+                doc.lines.append(StockDocLine(product_id=pr.id, qty=_num(f.get("new_qty")) or 1, unit_cost=cost,
+                                              expiry_date=_day(f.get("new_exp"))))
+        db.commit()
+    try:
+        if action == "post":
+            st.post(db, doc)
+            audit(db, "stock.post", "stock_doc", doc.id, user=user, kind=doc.kind)
+            return RedirectResponse(f"/stock/docs/{did}?msg=Проведено", 303)
+        if action == "send" and doc.kind == "order":
+            doc.status = "sent"
+            db.commit()
+            return RedirectResponse(f"/stock/docs/{did}?msg=Позначено+як+відправлене", 303)
+        if action == "receive":
+            sup = st.receive_order(db, doc, user.id)
+            return RedirectResponse(f"/stock/docs/{sup.id}?msg=Перевірте+кількості+й+ціни+та+проведіть+поставку", 303)
+        if action == "cancel":
+            st.cancel(db, doc)
+            audit(db, "stock.cancel", "stock_doc", doc.id, user=user, kind=doc.kind)
+            return RedirectResponse(f"/stock/docs/{did}?msg=Скасовано", 303)
+        if action == "prefill" and doc.kind == "inventory":
+            n = st.inventory_prefill(db, doc)
+            return RedirectResponse(f"/stock/docs/{did}?msg=Додано+{n}+товарів", 303)
+    except st.StockError as e:
+        return RedirectResponse(f"/stock/docs/{did}?err={e}", 303)
+    return RedirectResponse(f"/stock/docs/{did}" + ("#add" if f.get("new_product") else ""), 303)
+
+
+@app.post("/stock/suppliers")
+def stock_supplier_save(sid: str = Form(""), name: str = Form(...), contact: str = Form(""), phone: str = Form(""),
+                        email: str = Form(""), terms: str = Form(""), note: str = Form(""),
+                        user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .models import Supplier
+    x = db.get(Supplier, int(sid)) if sid.isdigit() else None
+    if not x:
+        x = db.scalar(select(Supplier).where(Supplier.name == name.strip())) or Supplier(name=name.strip()[:200])
+        db.add(x)
+    old = x.name
+    x.name, x.contact, x.phone, x.email = name.strip()[:200], contact.strip() or None, phone.strip() or None, email.strip() or None
+    x.terms, x.note = terms.strip()[:300] or None, note.strip() or None
+    if old and old != x.name:                              # перейменування — і в товарах
+        for p_ in db.scalars(select(Product).where(Product.supplier == old)):
+            p_.supplier = x.name
+    db.commit()
+    return RedirectResponse("/stock?tab=suppliers", 303)
+
+
+@app.post("/stock/norms")
+def stock_norm_add(service_id: int = Form(...), product: str = Form(...), qty: str = Form("1"), warehouse: str = Form(""),
+                   user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .models import ProcedureNorm
+    pr = _pick_product(db, product)
+    if not pr:
+        return RedirectResponse(f"/stock?tab=norms&msg=Товар+не+знайдено#s{service_id}", 303)
+    db.add(ProcedureNorm(service_id=service_id, product_id=pr.id, qty=_num(qty) or 1,
+                         warehouse=warehouse if warehouse in catalog.WAREHOUSES else None))
+    db.commit()
+    audit(db, "stock.norm_add", user=user, service=service_id, product=pr.id)
+    return RedirectResponse(f"/stock?tab=norms#s{service_id}", 303)
+
+
+@app.post("/stock/norms/{nid:int}/delete")
+def stock_norm_delete(nid: int, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .models import ProcedureNorm
+    n = db.get(ProcedureNorm, nid)
+    sid = n.service_id if n else ""
+    if n:
+        db.delete(n)
+        db.commit()
+    return RedirectResponse(f"/stock?tab=norms#s{sid}", 303)
 
 
 @app.get("/finance", response_class=HTMLResponse)
