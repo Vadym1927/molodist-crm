@@ -156,6 +156,19 @@ async def job_message_statuses():
 
 
 
+async def job_shop():
+    """molodist.store (Shop-Express): щоранку — посилання, фото й ціни товарів у картки CRM."""
+    from .integrations import shop_express as sx
+    def run():
+        with SessionLocal() as db:
+            if sx.creds(db).get("login"):
+                return sx.sync(db)
+    try:
+        await asyncio.to_thread(run)
+    except Exception as e:  # noqa: BLE001
+        log.warning("shop-express sync: %s", e)
+
+
 async def job_expiry():
     """Терміни придатності: щодня — нові межі 30/7/0 днів, у вибраний день — підсумок по складах."""
     from .services import expiry as ex
@@ -242,6 +255,7 @@ async def lifespan(app: FastAPI):
         sched.add_job(job_checkbox, "cron", hour="8,14,23", minute=50)
         sched.add_job(job_mono, "cron", minute=20)
         sched.add_job(job_expiry, "cron", hour=9, minute=15)
+        sched.add_job(job_shop, "cron", hour=6, minute=40)
         sched.start()
     except Exception as e:          # noqa: BLE001
         log.warning("scheduler not started: %s", e)
@@ -2189,7 +2203,39 @@ def settings_keys(request: Request, user: User = Depends(require("finance")), db
     return render(request, "keys.html", nav="keys", fops=fops, mono=mono, cnt=cnt,
                   cb=[{"name": a["name"], "configured": a["configured"]} for a in chb.accounts(db)], cb_status=chb.statuses(db),
                   cleverbox=bool(settings.cleverbox_token), job=jobs.JOBS.get(jid) if jid else None,
-                  ai_key=bool(__import__("app.services.invoice_ai", fromlist=["x"]).api_key(db)))
+                  ai_key=bool(__import__("app.services.invoice_ai", fromlist=["x"]).api_key(db)),
+                  shop=__import__("app.integrations.shop_express", fromlist=["x"]).creds(db),
+                  shop_rep=__import__("app.integrations.shop_express", fromlist=["x"]).last_report(db))
+
+
+def _shop_job(job):
+    from .integrations import shop_express as sx
+    with SessionLocal() as db:
+        job.log("Завантажую каталог molodist.store…")
+        rep = sx.sync(db)
+        return {k: rep[k] for k in ("rows", "matched", "urls", "photos")}
+
+
+@app.post("/settings/keys/shop")
+def settings_keys_shop(site: str = Form(""), login: str = Form(""), password: str = Form(""), action: str = Form("save"),
+                       user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Shop-Express: API-користувач магазину → перевірка входу → синхронізація посилань і фото."""
+    from .integrations import shop_express as sx
+    if action == "clear":
+        sx.clear(db)
+        audit(db, "keys.shop", user=user, op="clear")
+        return RedirectResponse("/settings/keys#shop", 303)
+    if action == "save":
+        sx.save_creds(db, site, login, password)
+        c = sx.creds(db)
+        try:
+            sx.ShopExpress(c["site"], c["login"], c["password"])
+        except Exception as e:  # noqa: BLE001
+            audit(db, "keys.shop", user=user, op="save", ok=False)
+            return RedirectResponse(f"/settings/keys?shoperr={_q(str(e)[:200])}#shop", 303)
+        audit(db, "keys.shop", user=user, op="save", ok=True)
+    job = jobs.start("Синхронізація molodist.store", _shop_job)
+    return RedirectResponse(f"/settings/keys?job={job.id}#shop", 303)
 
 
 @app.post("/settings/keys/ai")

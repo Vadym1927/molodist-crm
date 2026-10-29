@@ -2,7 +2,7 @@
 {% block title %}{{ p.name }} · Продукти{% endblock %}
 {% block body %}
 <style>
-.ph2{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;flex-wrap:wrap;margin:8px 0 18px}
+.ph2{display:flex;justify-content:flex-start;gap:20px;align-items:flex-start;flex-wrap:wrap;margin:8px 0 18px}
 .ph2 h1{font-size:28px;line-height:1.2;max-width:900px}
 .chips2{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 .chips2 span{font-size:13px;font-weight:600;padding:4px 11px;border-radius:99px;background:var(--card);border:1px solid var(--line)}
@@ -31,13 +31,15 @@
 </style>
 <a href="/products?wh={{ p.warehouse or 'vitrina' }}" class="muted small" style="text-decoration:none">← {{ WAREHOUSES.get(p.warehouse or 'vitrina') }}</a>
 <div class="ph2">
-  <div><div class="eyebrow">{{ p.brand or 'Бренд не вказано' }}</div><h1>{{ p.name }}</h1>
+  {% if p.photo_url %}<a href="{{ p.url or p.photo_url }}" target="_blank" rel="noopener" style="flex:none"><img src="{{ p.photo_url }}" alt="{{ p.name }}" loading="lazy"
+    style="width:120px;height:120px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:16px;padding:6px"></a>{% endif %}
+  <div style="flex:1;min-width:0"><div class="eyebrow">{{ p.brand or 'Бренд не вказано' }}</div><h1>{{ p.name }}</h1>
     <div class="chips2">
       {% if p.brand %}<span class="b">{{ p.brand }}</span>{% endif %}
       <span>{{ WAREHOUSES.get(p.warehouse or 'vitrina') }}</span><span>арт. {{ p.sku or '—' }}</span>{% if p.barcode %}<span>ШК {{ p.barcode }}</span>{% endif %}<span>{{ p.supplier or r.last_supplier or 'постачальник —' }}</span>
       {% if p.volume %}<span>{{ p.volume }}</span>{% endif %}
       <span>{{ ('CleverBox #' ~ p.cb_product_id) if p.cb_product_id else 'немає в CleverBox' }}</span>
-      {% if p.url %}<a href="{{ p.url }}" target="_blank" class="small" style="align-self:center">molodist.store ↗</a>{% endif %}
+      {% if p.url %}<a href="{{ p.url }}" target="_blank" class="small" style="align-self:center">molodist.store ↗</a>{% endif %}{% if p.shop_price %}<span>на сайті {{ p.shop_price|uah }}</span>{% endif %}
     </div></div>
 </div>
 {% if request.query_params.get('saved') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">Збережено</div>{% endif %}

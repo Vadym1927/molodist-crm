@@ -338,6 +338,10 @@ class Product(Base):
     cost: Mapped[float | None] = mapped_column(Float)
     supply_days: Mapped[int | None] = mapped_column(Integer)      # тривалість за замовчуванням для нових планів
     url: Mapped[str | None] = mapped_column(String(500))
+    photo_url: Mapped[str | None] = mapped_column(String(500))            # фото з molodist.store (Shop-Express)
+    shop_id: Mapped[str | None] = mapped_column(String(64), index=True)   # id товару в Shop-Express
+    shop_price: Mapped[float | None] = mapped_column(Float)                # ціна на сайті
+    shop_synced_at: Mapped[datetime | None] = mapped_column(DateTime)
     min_stock: Mapped[int | None] = mapped_column(Integer)        # мінімальний залишок (для замовлення)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     brand: Mapped[str | None] = mapped_column(String(120), index=True)
