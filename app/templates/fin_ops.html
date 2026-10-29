@@ -39,6 +39,10 @@
     <button class="jb inc" onclick="jmOpen('income')">＋ ДОХІД</button><button class="jb st" onclick="jmOpen('storno')">＋ СТОРНО</button></div>{% endif %}</div>
 {% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
 {% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+{% if job %}<div class="alert" style="background:var(--lavender);color:var(--classic)">
+  {% if job.status == 'running' %}<meta http-equiv="refresh" content="3">⏳ Імпорт журналу CleverBox: {{ (job.progress[-1] or '')[9:] if job.progress else 'починаю…' }} — сторінка оновиться сама.
+  {% elif job.status == 'done' %}✅ Журнал CleverBox імпортовано: нових {{ job.result.created }}, оновлено {{ job.result.updated }}{{ (', пропущено ' ~ job.result.skipped) if job.result.skipped }}.
+  {% else %}❌ Імпорт не вдався: {{ job.error }}{% endif %}</div>{% endif %}
 {% if cb_imported %}<div class="alert" style="{{ '' if cb_imported.error else 'background:var(--ok-bg);color:var(--ok)' }}">{{ cb_imported.error or ('Журнал CleverBox: нових ' ~ cb_imported.created ~ ', оновлено ' ~ cb_imported.updated ~ (', пропущено ' ~ cb_imported.skipped if cb_imported.skipped else '')) }}</div>{% endif %}
 <div class="jr">
 <form class="jr-f" method="get">{% if archive %}<input type="hidden" name="archive" value="1">{% endif %}

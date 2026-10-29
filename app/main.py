@@ -3162,6 +3162,7 @@ def finance_ops(request: Request, df: str = "", dt_: str = "", user: User = Depe
                   d_from=d_from, d_to=d_to, f=f, opts=opts, archive=bool(request.query_params.get("archive")),
                   EXP=fo.EXPENSE_CATS, INC=fo.INCOME_CATS, KL=fo.KIND_LABELS, boxes=_cashboxes(db), last_cb=last_cb,
                   cb_imported=LAST_IMPORT.pop(f"cbfin-{user.id}", None),
+                  job=jobs.JOBS.get(request.query_params.get("job") or ""),
                   doctors=db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)).all(),
                   today=date.today(), this_month=fo_month_key(date.today()))
 
@@ -3194,18 +3195,28 @@ def finance_ops_export(request: Request, df: str = "", dt_: str = "", user: User
 @app.post("/finance/ops/import")
 async def finance_ops_import(file: UploadFile = File(...), back: str = Form("/finance/ops"), user: User = Depends(require("finance")),
                              db: Session = Depends(db_dep)):
+    """Великий файл (десятки тисяч операцій) — у фоні, сторінка показує хід."""
     import tempfile
     from .services import cb_finops_import as cfi
     suffix = ".xls" if (file.filename or "").lower().endswith(".xls") else ".xlsx"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         tmp.write(await file.read())
-    try:
-        rep = await asyncio.to_thread(cfi.import_file, db, tmp.name)
-    except Exception as e:  # noqa: BLE001
-        rep = {"error": str(e)[:300]}
-    LAST_IMPORT[f"cbfin-{user.id}"] = rep
-    audit(db, "fin.cb_import", user=user, file=file.filename, **{k: v for k, v in rep.items() if k != "error"})
-    return RedirectResponse(back if back.startswith("/finance") else "/finance/ops", 303)
+    if not await asyncio.to_thread(cfi.is_journal, tmp.name):
+        LAST_IMPORT[f"cbfin-{user.id}"] = {"error": "Це не журнал фіноперацій CleverBox: потрібні колонки «Стаття» і «Сума»."}
+        return RedirectResponse(back if back.startswith("/finance") else "/finance/ops", 303)
+    uid, fname = user.id, file.filename
+
+    def _run(job, path):
+        with SessionLocal() as s_:
+            rep = cfi.import_file(s_, path, job)
+            u_ = s_.get(User, uid)
+            audit(s_, "fin.cb_import", user=u_, file=fname, **rep)
+            return rep
+    job = jobs.start("Імпорт журналу фіноперацій CleverBox", _run, tmp.name)
+    from urllib.parse import urlsplit, parse_qsl, urlencode
+    u = urlsplit(back if back.startswith("/finance") else "/finance/ops")
+    qs = [(k, v) for k, v in parse_qsl(u.query) if k not in ("msg", "err", "job")] + [("job", job.id)]
+    return RedirectResponse(f"{u.path}?{urlencode(qs)}", 303)
 
 
 @app.post("/finance/ops")

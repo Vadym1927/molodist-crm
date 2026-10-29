@@ -59,10 +59,18 @@ def test_journal_transfer_storno_and_cb_import(tmp_path):
     p = tmp_path / "fin.xlsx"; wb.save(p)
     with TestClient(app) as c:
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
-        with open(p, "rb") as fh:
-            c.post("/finance/ops/import", files={"file": ("fin.xlsx", fh, "application/octet-stream")})
-        with open(p, "rb") as fh:                                             # повторно — без дублів
-            c.post("/finance/ops/import", files={"file": ("fin.xlsx", fh, "application/octet-stream")})
+        import time
+        from app.services import jobs
+        for _ in range(2):                                                      # двічі — без дублів
+            with open(p, "rb") as fh:
+                r = c.post("/finance/ops/import", files={"file": ("fin.xlsx", fh, "application/octet-stream")}, follow_redirects=False)
+            jid = r.headers["location"].split("job=")[1]
+            for _ in range(100):
+                if jobs.JOBS[jid].status != "running":
+                    break
+                time.sleep(0.05)
+            assert jobs.JOBS[jid].status == "done", jobs.JOBS[jid].error
+        assert "імпортовано" in c.get(f"/finance/ops?job={jid}").text
         with SessionLocal() as db:
             x = db.get(CbFinOp, 32263); y = db.get(CbFinOp, 32261)
             assert x.kind == "expense" and x.amount == 6240 and y.kind == "income" and y.basis.strip() == "Продаж #12067"

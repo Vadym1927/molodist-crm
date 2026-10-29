@@ -98,25 +98,18 @@ def kind_of(text: str, amount: float | None = None) -> str:
 
 
 def upsert(db: Session, rec: dict, source: str) -> bool:
-    """rec: at, kind, amount, num?, who, basis, article, filial, account, vid, author, comment. True — новий."""
-    num = rec.get("num")
-    if not num:
-        key = f"{rec['at']:%Y%m%d%H%M%S}|{rec.get('amount')}|{rec.get('account')}|{rec.get('article')}|{rec.get('who')}"
-        num = -(zlib.crc32(key.encode()) & 0x7FFFFFFF)          # без № — стабільний «технічний» ключ
-    x = db.get(CbFinOp, int(num))
+    """Одна операція (з API). True — нова."""
+    oid = _key(rec)
+    x = db.get(CbFinOp, oid)
     new = x is None
-    x = x or CbFinOp(id=int(num))
-    x.at, x.kind, x.amount = rec["at"], rec["kind"], round(abs(rec.get("amount") or 0), 2)
-    for k, attr in (("who", "counterparty"), ("basis", "basis"), ("article", "article"), ("filial", "filial"),
-                    ("account", "account"), ("vid", "vid"), ("author", "author"), ("comment", "comment")):
-        v = rec.get(k)
-        setattr(x, attr, (str(v).strip()[:300] if v not in (None, "") else None))
-    x.source, x.updated_at = source, datetime.utcnow()
-    db.merge(x)
+    if new:
+        x = CbFinOp(id=oid)
+        db.add(x)
+    _fill(x, rec, source)
     return new
 
 
-def import_file(db: Session, path: str) -> dict:
+def parse_file(path: str) -> tuple[list[dict], int]:
     rows = _read(path)
     hi = next((i for i, r in enumerate(rows[:12]) if {"сума", "стаття"} <= {_norm(x) for x in r}
                or {"сумма", "статья"} <= {_norm(x) for x in r}), None)
@@ -130,7 +123,7 @@ def import_file(db: Session, path: str) -> dict:
                 idx[key] = head.index(n)
                 break
     get = lambda r, k: r[idx[k]] if k in idx and idx[k] < len(r) else None   # noqa: E731
-    created = updated = skipped = 0
+    out, skipped = [], 0
     for r in rows[hi + 1:]:
         if not any(v not in (None, "") for v in r):
             continue
@@ -147,15 +140,57 @@ def import_file(db: Session, path: str) -> dict:
         if not basis and "підстава" in who.lower():
             parts = re.split(r"(?i)підстава:?", who, maxsplit=1)
             who, basis = parts[0], parts[1]
-        rec = {"at": at, "kind": kind_of(ttxt, amt), "amount": amt, "num": int(m[1]) if m else None, "who": who.strip(),
-               "basis": (str(basis).strip() if basis else None), "article": get(r, "article"), "filial": get(r, "filial"),
-               "account": get(r, "account"), "vid": get(r, "vid"), "author": get(r, "author"), "comment": get(r, "comment")}
-        if upsert(db, rec, "import"):
-            created += 1
-        else:
-            updated += 1
-    db.commit()
-    return {"created": created, "updated": updated, "skipped": skipped}
+        out.append({"at": at, "kind": kind_of(ttxt, amt), "amount": amt, "num": int(m[1]) if m else None, "who": who.strip(),
+                    "basis": (str(basis).strip() if basis else None), "article": get(r, "article"), "filial": get(r, "filial"),
+                    "account": get(r, "account"), "vid": get(r, "vid"), "author": get(r, "author"), "comment": get(r, "comment")})
+    return out, skipped
+
+
+FIELDS = (("who", "counterparty"), ("basis", "basis"), ("article", "article"), ("filial", "filial"),
+          ("account", "account"), ("vid", "vid"), ("author", "author"), ("comment", "comment"))
+
+
+def _key(rec: dict) -> int:
+    if rec.get("num"):
+        return int(rec["num"])
+    key = f"{rec['at']:%Y%m%d%H%M%S}|{rec.get('amount')}|{rec.get('account')}|{rec.get('article')}|{rec.get('who')}"
+    return -(zlib.crc32(key.encode()) & 0x7FFFFFFF)
+
+
+def _fill(x: CbFinOp, rec: dict, source: str) -> None:
+    x.at, x.kind, x.amount = rec["at"], rec["kind"], round(abs(rec.get("amount") or 0), 2)
+    for k, attr in FIELDS:
+        v = rec.get(k)
+        setattr(x, attr, (str(v).strip()[:300] if v not in (None, "") else None))
+    x.source, x.updated_at = source, datetime.utcnow()
+
+
+def import_file(db: Session, path: str, job=None) -> dict:
+    """Швидкий імпорт: існуючі операції вантажаться пачками, нові додаються пачками по 2000."""
+    from sqlalchemy import select
+    log = job.log if job else (lambda m: None)
+    recs, skipped = parse_file(path)
+    log(f"Прочитано {len(recs)} операцій, обробляю…")
+    by_id: dict[int, dict] = {}
+    for r in recs:
+        by_id[_key(r)] = r                                   # дублікати в самому файлі — останній рядок
+    ids = list(by_id)
+    created = updated = 0
+    for i in range(0, len(ids), 2000):
+        chunk = ids[i:i + 2000]
+        have = {x.id: x for x in db.scalars(select(CbFinOp).where(CbFinOp.id.in_(chunk)))}
+        for oid in chunk:
+            x = have.get(oid)
+            if x is None:
+                x = CbFinOp(id=oid)
+                db.add(x)
+                created += 1
+            else:
+                updated += 1
+            _fill(x, by_id[oid], "import")
+        db.commit()
+        log(f"Збережено {min(i + 2000, len(ids))} з {len(ids)}")
+    return {"created": created, "updated": updated, "skipped": skipped, "rows": len(recs)}
 
 
 def from_api_row(r: dict) -> dict | None:
