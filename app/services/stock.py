@@ -278,6 +278,33 @@ def cancel(db: Session, doc: StockDoc) -> None:
     db.commit()
 
 
+def archive(db: Session, doc: StockDoc, user_id: int | None = None, note: str | None = None) -> None:
+    """«Видалити» документ: проведений спершу скасовується (рухи прибираються), потім іде в архів.
+    Документ із оплатою (рознесені платежі) не видаляється — спершу скасуйте рознесення."""
+    from ..models import PaymentAlloc
+    if doc.archived_at:
+        return
+    if doc.kind == "opening":
+        raise StockError("Стартові залишки не видаляються — зробіть інвентаризацію")
+    if db.scalar(select(PaymentAlloc.id).where(PaymentAlloc.doc_id == doc.id).limit(1)):
+        raise StockError("На документ рознесено оплату — спершу скасуйте рознесення платежу")
+    prev = doc.status
+    if doc.status != "cancelled":
+        cancel(db, doc)
+    doc.archived_at, doc.archived_by, doc.archived_from = datetime.utcnow(), user_id, prev
+    doc.archive_note = (note or "").strip()[:300] or None
+    db.commit()
+
+
+def restore(db: Session, doc: StockDoc) -> None:
+    """З архіву: чернетка (проведений — знову чернеткою, провести ще раз) або скасований."""
+    if not doc.archived_at:
+        return
+    doc.status = "cancelled" if doc.archived_from == "cancelled" else "draft"
+    doc.archived_at = doc.archived_by = doc.archived_from = doc.archive_note = None
+    db.commit()
+
+
 def receive_order(db: Session, order: StockDoc, user_id: int | None = None) -> StockDoc:
     """Замовлення → чернетка поставки з тими самими товарами."""
     if order.kind != "order" or order.status in ("received", "cancelled"):
@@ -406,9 +433,10 @@ class DocRow:
     total: float = 0
 
 
-def doc_rows(db: Session, kind: str, limit: int = 200) -> list[DocRow]:
-    docs = db.scalars(select(StockDoc).where(StockDoc.kind == kind).order_by(StockDoc.doc_date.desc(), StockDoc.id.desc())
-                      .limit(limit)).all()
+def doc_rows(db: Session, kind: str, limit: int = 200, archived: bool = False) -> list[DocRow]:
+    q = select(StockDoc).where(StockDoc.kind == kind,
+                               StockDoc.archived_at.is_not(None) if archived else StockDoc.archived_at.is_(None))
+    docs = db.scalars(q.order_by(StockDoc.doc_date.desc(), StockDoc.id.desc()).limit(limit)).all()
     out = []
     for d in docs:
         r = DocRow(d, len(d.lines), sum(abs(ln.qty or 0) for ln in d.lines),

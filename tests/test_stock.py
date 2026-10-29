@@ -300,3 +300,44 @@ def test_manual_batches_on_product_card():
         assert "Внести терміни вручну" in c.get(f"/products/{pid}").text
         with SessionLocal() as db:
             db.query(SyncState).filter(SyncState.key == "stock_ledger_start").delete(); db.commit()
+
+
+def test_doc_archive_with_password():
+    from fastapi.testclient import TestClient
+    from app.config import settings
+    from app.main import app
+    from app.models import SessionLocal, Product, StockMove, SyncState
+    from app.services import stock as st
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        db.query(SyncState).filter(SyncState.key == "stock_ledger_start").delete(); db.commit()
+        p = Product(name="Архівний крем", name_norm="архівний крем", warehouse="vitrina")
+        db.add(p); db.commit()
+        st.start_ledger(db)
+        doc = st.new_doc(db, "supply", wh_to="vitrina", supplier="Архів Тест")
+        doc.lines.append(st.StockDocLine(product_id=p.id, qty=3, unit_cost=10))
+        db.commit(); st.post(db, doc)
+        did, num = doc.id, doc.number
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        assert "ddOpen(" in c.get("/stock?tab=supply").text
+        r = c.post(f"/stock/docs/{did}/archive", data={"password": "wrong", "back": "/stock?tab=supply"}, follow_redirects=False)
+        assert "err=" in r.headers["location"]
+        with SessionLocal() as db:
+            assert db.get(st.StockDoc, did).archived_at is None
+        r = c.post(f"/stock/docs/{did}/archive", data={"password": "owner-pass-1", "note": "дубль", "back": "/stock?tab=supply"},
+                   follow_redirects=False)
+        assert "msg=" in r.headers["location"]
+        page = c.get("/stock?tab=supply").text
+        assert f">{num}<" not in page and "Архів · 1" in page
+        arch = c.get("/stock?tab=supply&archive=1").text
+        assert f">{num}<" in arch and "дубль" in arch and "Відновити" in arch
+        with SessionLocal() as db:
+            d = db.get(st.StockDoc, did)
+            assert d.status == "cancelled" and d.archived_from == "posted"
+            assert not db.query(StockMove).filter(StockMove.doc_id == did).count()
+        c.post(f"/stock/docs/{did}/restore")
+        with SessionLocal() as db:
+            d = db.get(st.StockDoc, did)
+            assert d.archived_at is None and d.status == "draft"
+            db.query(SyncState).filter(SyncState.key == "stock_ledger_start").delete(); db.commit()

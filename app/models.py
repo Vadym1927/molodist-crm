@@ -483,6 +483,10 @@ class StockDoc(Base):
     posted_at: Mapped[datetime | None] = mapped_column(DateTime)
     paid_by: Mapped[str | None] = mapped_column(String(100))        # яким ФОП оплачено
     pay_group: Mapped[str | None] = mapped_column(String(60), index=True)   # одна накладна → кілька складів
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)   # видалено в архів (за паролем)
+    archived_by: Mapped[int | None] = mapped_column(Integer)
+    archived_from: Mapped[str | None] = mapped_column(String(20))   # статус до видалення
+    archive_note: Mapped[str | None] = mapped_column(String(300))
 
     lines: Mapped[list["StockDocLine"]] = relationship(back_populates="doc", cascade="all, delete-orphan",
                                                        order_by="StockDocLine.id")

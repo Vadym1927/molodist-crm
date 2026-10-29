@@ -1,0 +1,31 @@
+{# Вікно «Видалити документ» — з паролем поточного користувача; документ іде в архів #}
+<style>
+.dd-bg{position:fixed;inset:0;background:rgba(42,36,48,.45);z-index:95;display:none;align-items:center;justify-content:center;padding:16px}
+.dd-bg.on{display:flex}
+.dd{background:#fff;border-radius:18px;width:min(440px,100%);padding:20px 22px;box-shadow:0 30px 80px rgba(42,36,48,.35)}
+.dd h3{margin:0 0 6px;font-size:18px}.dd form{display:grid;gap:10px;margin-top:12px}
+.dd label{display:grid;gap:4px;font-size:12px;font-weight:600;color:var(--muted)}
+.del-ic{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:4px 6px;border-radius:8px;line-height:0}
+.del-ic:hover{background:var(--bad-bg);color:var(--bad)}
+</style>
+<div class="dd-bg" id="dd-bg" onclick="if(event.target===this)ddClose()"><div class="dd" role="dialog" aria-modal="true">
+  <h3>Видалити <span id="dd-num"></span>?</h3>
+  <div class="small muted" id="dd-info"></div>
+  <form method="post" id="dd-form" autocomplete="off">
+    <input type="hidden" name="back" id="dd-back">
+    <label>Причина (необовʼязково)<input name="note" maxlength="300" placeholder="напр. дубль, помилка в поставці"></label>
+    <label>Ваш пароль для підтвердження<input name="password" type="password" required autocomplete="current-password" id="dd-pw"></label>
+    <div class="row" style="gap:8px;justify-content:flex-end"><button type="button" class="btn ghost" onclick="ddClose()">Скасувати</button><button class="btn danger">Видалити в архів</button></div>
+  </form></div></div>
+<script>
+window.ddOpen=function(id,num,status){
+  document.getElementById('dd-num').textContent=num;
+  document.getElementById('dd-info').textContent=(status==='posted'?'Документ проведено: його рухи по складу буде прибрано (залишки зміняться). ':'')+
+    'Документ зникне зі списку й перейде в архів — звідти його можна відновити.';
+  var f=document.getElementById('dd-form');f.action='/stock/docs/'+id+'/archive';
+  document.getElementById('dd-back').value=location.pathname+location.search.replace(/([?&])(msg|err)=[^&]*/g,'$1').replace(/[?&]+$/,'');
+  document.getElementById('dd-bg').classList.add('on');setTimeout(function(){document.getElementById('dd-pw').focus()},50);
+};
+window.ddClose=function(){document.getElementById('dd-bg').classList.remove('on');document.getElementById('dd-pw').value=''};
+document.addEventListener('keydown',function(e){if(e.key==='Escape')ddClose()});
+</script>

@@ -1665,7 +1665,11 @@ def stock_page(request: Request, tab: str = "balances", only: str = "", wh: str 
         ctx["cb_updated"] = lv.updated_at if lv else None
         ctx["snap"] = _balances_snapshot(db)
     elif tab in st.DOC_KINDS:
-        ctx["docs"] = st.doc_rows(db, tab)
+        arch = bool(request.query_params.get("archive"))
+        ctx["docs"] = st.doc_rows(db, tab, archived=arch)
+        ctx["archive"] = arch
+        ctx["archive_n"] = db.scalar(select(func.count(StockDoc.id)).where(StockDoc.kind == tab, StockDoc.archived_at.is_not(None))) or 0
+        ctx["user_names"] = {u_.id: u_.name for u_ in db.scalars(select(User))} if arch else {}
     elif tab == "suppliers":
         from .models import SupplierInvoice
         st.ensure_suppliers(db)
@@ -2266,6 +2270,42 @@ def stock_supplier_entity_delete(sid: int, eid: int, back: str = Form(""), user:
         sp.delete_entity(db, x, eid)
         audit(db, "supplier.entity_delete", "supplier", sid, user=user, entity_id_=eid)
     return RedirectResponse(_card_back(back, sid), 303)
+
+
+@app.post("/stock/docs/{did}/archive")
+def stock_doc_archive(did: int, password: str = Form(""), note: str = Form(""), back: str = Form(""),
+                      user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    """Видалення документа в архів — лише з паролем поточного користувача."""
+    from .services import stock as st
+    from .security import verify_password
+    doc = db.get(StockDoc, did)
+    back = back if back.startswith("/") and not back.startswith("//") else (f"/stock?tab={doc.kind}" if doc else "/stock")
+    sep = "&" if "?" in back else "?"
+    if not doc:
+        return RedirectResponse(back, 303)
+    if not password or not verify_password(password, user.password_hash):
+        audit(db, "stock.archive_denied", "stock_doc", did, user=user)
+        return RedirectResponse(f"{back}{sep}err={_q('Невірний пароль — документ не видалено')}", 303)
+    try:
+        num, prev = doc.number, doc.status
+        st.archive(db, doc, user.id, note)
+    except st.StockError as e:
+        return RedirectResponse(f"{back}{sep}err={_q(str(e))}", 303)
+    audit(db, "stock.archive", "stock_doc", did, user=user, kind=doc.kind, number=num, was=prev, note=note[:300])
+    if back.startswith(f"/stock/docs/{did}"):
+        back, sep = f"/stock?tab={doc.kind}", "&"
+    return RedirectResponse(f"{back}{sep}msg={_q(f'Документ {num} видалено в архів')}", 303)
+
+
+@app.post("/stock/docs/{did}/restore")
+def stock_doc_restore(did: int, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .services import stock as st
+    doc = db.get(StockDoc, did)
+    if not doc:
+        return RedirectResponse("/stock", 303)
+    st.restore(db, doc)
+    audit(db, "stock.restore", "stock_doc", did, user=user, kind=doc.kind, number=doc.number)
+    return RedirectResponse(f"/stock/docs/{did}?msg={_q('Відновлено з архіву' + (' як чернетку — перевірте й проведіть' if doc.status == 'draft' else ''))}", 303)
 
 
 def _q(v: str) -> str:
