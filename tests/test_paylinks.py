@@ -95,3 +95,32 @@ def test_two_accounts_parallel():
         pls.check_status(db, pl, http)                      # токен саме цього ФОП (MTOK), інакше мок впаде
         assert pl.status == "paid"
         assert pls.account(pls._raw(db), a2["id"])["cashbox"] == "Готівка"
+
+
+def test_sale_paid_by_link():
+    from app.models import Sale, SaleItem, SalePayment, FinOp
+    from app.services import sales as sl, cashboxes as cbx
+    with SessionLocal() as db:
+        cbx.apply_seed(db)
+        a = pls.save_account(db, None, "mono", "monobank ФОП Колган", {"token": "MTOK"}, "Термінал ФОП Колган", True)
+        m = sl.paylink_method("monobank ФОП Колган")
+        assert m in sl.methods(db) and "Готівка ФОП Колган" in sl.methods(db) and sl.method_kind(m) == "link"
+        p = Patient(full_name="Лінк Пацієнтка", phone="+380671234500"); db.add(p); db.commit()
+        s = sl.create(db, {"patient_id": p.id, "items": [{"kind": "other", "name": "X", "qty": 1, "price": 1500.5}],
+                           "payments": [{"method": m, "amount": 1500.5}]})
+        assert s.status == "awaiting"
+        http, st = _mono()
+        pl = pls.create(db, 1500.5, f"Чек Ч-{s.id}", "https://crm.molodist.com.ua", p.id, http=http, account_id=a["id"])
+        pl.sale_id = s.id; db.commit()
+        box = next(x for x in cbx.items(db) if x["name"] == "Термінал ФОП Колган")
+        before = cbx.balance(db, box)
+        st["status"] = "success"
+        pls.check_status(db, pl, http)
+        db.refresh(s)
+        assert s.status == "paid" and db.query(FinOp).filter(FinOp.category == "Онлайн-оплата").count() == 0
+        assert round(cbx.balance(db, box) - before, 2) == 1500.5          # гроші — у касі цього ФОП
+        try:
+            sl.create(db, {"items": [{"kind": "other", "name": "Y", "qty": 1, "price": 10}], "payments": [{"method": m, "amount": 10}]})
+            assert False
+        except sl.SaleError:
+            pass

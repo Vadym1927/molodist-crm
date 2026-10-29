@@ -205,7 +205,9 @@ def mode_of(c: dict, method: str) -> str:
         return m
     if method in NON_FISCAL_DISCOUNT:
         return "discount"
-    return "skip"
+    from .sales import method_kind                          # каса «Готівка …» → готівка, «Термінал …» → картка
+    k = method_kind(method)
+    return k if k in ("cash", "card") and not method.lower().startswith("фоп") else "skip"
 
 
 def build(db: Session, sale: Sale, is_return: bool = False) -> dict:
@@ -283,16 +285,16 @@ def send_receipt(db: Session, sale: Sale) -> str | None:
     return None if res.ok else (res.error or "не надіслано")
 
 
-def auto(sale_id: int) -> None:
-    """Після продажу (у фоні): якщо ввімкнено автофіскалізацію — чек у Checkbox і відправлення пацієнту."""
+def auto(sale_id: int, rid: int | None = None) -> None:
+    """Після продажу (у фоні): автофіскалізація або каса, вибрана в POS (rid) — чек у Checkbox і відправлення пацієнту."""
     from ..models import SessionLocal
     with SessionLocal() as db:
         c = cfg(db)
         s = db.get(Sale, sale_id)
-        if not (c.get("auto") and s and s.status == "paid"):
+        if not (s and s.status == "paid" and (rid or c.get("auto"))):
             return
         try:
-            fiscalize(db, s)
+            fiscalize(db, s, rid)
         except FiscalError as e:
             f = dict(s.fiscal or {})
             f["error"] = str(e)[:200]

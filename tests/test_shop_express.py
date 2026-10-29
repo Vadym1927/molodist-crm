@@ -32,9 +32,9 @@ def test_shop_express_sync():
         assert rep["rows"] == 2 and rep["matched"] == 1 and rep["unmatched"] == ["— · Невідомий на сайті"]
         assert p.url == "https://molodist.store/ua/catalog/serum-sx1/" and p.photo_url == "https://molodist.store/content/images/sx1.jpg"
         assert p.shop_price == 1990 and p.shop_id == "501"
-        sx.save_creds(db, "https://molodist.store/eco/ukr/api/users", "api@molodist", "pw")
+        sx.save_creds(db, "https://molodist.store/eco/ukr/api/users", "api@molodist", "secret-Пароль-42")
         raw = db.get(__import__("app.models", fromlist=["x"]).SyncState, "shop_express_enc").value
-        assert "pw" not in raw and sx.creds(db)["login"] == "api@molodist"
+        assert "secret-Пароль-42" not in raw and "api@molodist" not in raw and sx.creds(db)["login"] == "api@molodist"
         pid = p.id
     settings.admin_password = "owner-pass-1"
     with TestClient(app) as c:

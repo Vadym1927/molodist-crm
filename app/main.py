@@ -1122,7 +1122,11 @@ def sale_new(request: Request, appt: int = 0, patient: int = 0, user: User = Dep
         items = [{"kind": "service", "ref_id": s_.get("id"), "name": s_.get("name"), "category": s_.get("category") or "", "qty": 1,
                   "price": float(s_.get("price") or 0), "doctor_id": a_.doctor_id} for s_ in a_.services or []]
     certs = db.scalars(select(GiftCertificate).where(GiftCertificate.balance > 0)).all()
+    from .services import fiscal as _fis
+    _fc = _fis.cfg(db)
     return render(request, "sale_new.html", nav="finance", appt=a_, pt=pt, items=items, methods=sl.methods(db),
+                  mkinds={m_: sl.method_kind(m_) for m_ in sl.methods(db)}, rros=[r_ for r_ in _fis.rros(db) if r_["on"]],
+                  fauto=bool(_fc.get("auto")), fdef=_fc.get("default_rro"),
                   doctors=spec_svc.calendar_doctors(db), rules=db.scalars(select(DiscountRule).where(DiscountRule.active.is_(True),
                                                                                                       DiscountRule.auto.is_(False))).all(),
                   certs=[{"id": c_.id, "code": c_.code or str(c_.id), "balance": c_.balance, "patient_id": c_.patient_id,
@@ -1146,6 +1150,7 @@ def _sale_payload(f: dict) -> dict:
             "appointment_id": int(f["appointment_id"]) if str(f.get("appointment_id") or "").isdigit() else None,
             "items": items, "rule_ids": [int(x) for x in f.get("rule_ids") or [] if str(x).isdigit()],
             "manual_discount": float(f.get("manual_discount") or 0), "bonus_pay": float(f.get("bonus_pay") or 0),
+            "fiscal_rro": (int(f["fiscal_rro"]) if str(f.get("fiscal_rro")).isdigit() else None) if "fiscal_rro" in f else None,
             "payments": f.get("payments") or [], "comment": str(f.get("comment") or "")}
 
 
@@ -1169,11 +1174,36 @@ async def sale_create(request: Request, user: User = Depends(require("sales")), 
         db.rollback()
         return JSONResponse({"error": str(e)}, status_code=400)
     audit(db, "sale.create", "sale", s_.id, user=user, total=s_.total, patient=s_.patient_id, appt=s_.appointment_id)
+    link_msgs = []
+    if s_.status == "awaiting":                                   # оплата посиланням: створюємо й надсилаємо пацієнту
+        from .services import paylinks as _pls
+        from .integrations.messaging import send_to_patient
+        base = str(request.base_url).rstrip("/").replace("http://", "https://")
+        for p_ in s_.payments:
+            if not p_.method.startswith(sl.PAYLINK):
+                continue
+            acc = _pls.account_by_name(_pls._raw(db), p_.method.split(" · ", 1)[-1])
+            try:
+                pl = await asyncio.to_thread(_pls.create, db, p_.amount, f"Чек Ч-{s_.id}", base, s_.patient_id, s_.appointment_id, user.id,
+                                             None, acc["id"] if acc else None)
+            except _pls.PayError as e:
+                link_msgs.append(f"посилання не створено: {e}")
+                continue
+            pl.sale_id = s_.id
+            db.commit()
+            res = await asyncio.to_thread(send_to_patient, s_.patient, _pls.message(db, pl))
+            pl.info = {**(pl.info or {}), "sent": {"ok": res.ok, "channel": res.channel, "at": datetime.now().strftime("%d.%m.%Y %H:%M")}}
+            db.commit()
+            link_msgs.append(f"посилання на {pl.amount:.2f} ₴ " + (f"надіслано ({res.channel})" if res.ok else f"створено, не надіслано: {res.error}"))
     from .services import fiscal as _fis
-    if _fis.cfg(db).get("auto"):
+    rro_ = d_.get("fiscal_rro")
+    if rro_ and s_.status == "paid":                              # вибрана фіскальна каса в POS
+        import threading
+        threading.Thread(target=_fis.auto, args=(s_.id, rro_), daemon=True).start()
+    elif _fis.cfg(db).get("auto") and rro_ != 0:
         import threading
         threading.Thread(target=_fis.auto, args=(s_.id,), daemon=True).start()
-    return JSONResponse({"ok": True, "id": s_.id})
+    return JSONResponse({"ok": True, "id": s_.id, "msg": "; ".join(link_msgs)})
 
 
 @app.get("/sales/{sid:int}", response_class=HTMLResponse)
@@ -1183,7 +1213,9 @@ def sale_view(request: Request, sid: int, user: User = Depends(require("sales"))
     docs = {d_.id: d_.name for d_ in db.scalars(select(Doctor))}
     from .services import fiscal as _fis
     return render(request, "sale_view.html", nav="finance", s=s_, docs=docs, author=db.get(User, s_.created_by) if s_.created_by else None,
-                  print_=bool(request.query_params.get("print")), rros=[r for r in _fis.rros(db) if r["on"]], fcfg=_fis.cfg(db))
+                  print_=bool(request.query_params.get("print")), rros=[r for r in _fis.rros(db) if r["on"]], fcfg=_fis.cfg(db),
+                  links=db.scalars(select(__import__("app.models", fromlist=["PayLink"]).PayLink).where(
+                      __import__("app.models", fromlist=["PayLink"]).PayLink.sale_id == s_.id)).all())
 
 
 @app.post("/sales/{sid:int}/fiscalize")

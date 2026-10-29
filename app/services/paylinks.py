@@ -84,6 +84,10 @@ def public(db: Session) -> dict:
     return out
 
 
+def account_by_name(d: dict, name: str) -> dict | None:
+    return next((a for a in d["accounts"] if a.get("name") == name), None)
+
+
 def account(d: dict, aid: int | None) -> dict | None:
     acc = [a for a in d["accounts"] if a.get("active")]
     if aid:
@@ -238,8 +242,21 @@ def _mark(db: Session, pl: PayLink, status: str, paid_amount: float | None = Non
 
 
 def _book(db: Session, pl: PayLink) -> None:
-    """Оплачене посилання → надходження в журналі фіноперацій CRM (каса «Онлайн-оплати») + сповіщення власнику."""
-    from ..models import FinOp, Patient
+    """Оплачене посилання → надходження в журналі фіноперацій CRM (каса «Онлайн-оплати») + сповіщення власнику.
+    Посилання з чека каси CRM — чек стає «оплачено» (гроші вже враховані оплатою чека, фіноперацію не дублюємо)."""
+    from ..models import FinOp, Patient, Sale
+    if pl.sale_id:
+        s = db.get(Sale, pl.sale_id)
+        if s and s.status == "awaiting":
+            others = db.query(PayLink).filter(PayLink.sale_id == s.id, PayLink.id != pl.id, PayLink.status != "paid").count()
+            if not others:
+                s.status = "paid"
+        try:
+            from . import alerts
+            alerts.send(f"💳 Онлайн-оплата {pl.paid_amount or pl.amount:.2f} ₴ · чек Ч-{pl.sale_id} · {pl.purpose}")
+        except Exception:  # noqa: BLE001
+            pass
+        return
     d = _raw(db)
     a = _acc_of(d, pl)
     who = db.get(Patient, pl.patient_id).full_name if pl.patient_id and db.get(Patient, pl.patient_id) else None

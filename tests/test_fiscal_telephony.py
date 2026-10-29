@@ -78,7 +78,7 @@ def test_checkbox_and_telephony_pages_and_hook():
         assert r.status_code == 303
         with SessionLocal() as db:
             cf = fis.cfg(db)
-            assert cf["auto"] and cf["method_modes"]["Готівка"] == "cash"
+            assert cf["auto"] and list(cf["method_modes"].values())[:2] == ["cash", "card"]
             cf["auto"] = False
             fis.save_cfg(db, cf)
         hub = c.get("/settings").text

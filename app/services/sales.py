@@ -20,11 +20,28 @@ class SaleError(ValueError):
     pass
 
 
+PAYLINK = "Посилання на оплату"
+
+
 def methods(db: Session) -> list[str]:
-    from ..integrations.checkbox import accounts
-    out = ["Готівка", "Картка (термінал)"]
-    out += [f"ФОП {a['name']} — рахунок" for a in accounts(db)]
-    return out + ["Інше"]
+    """Способи оплати каси = активні каси / рахунки (як у CleverBox) + посилання на оплату по кожному ФОП."""
+    from . import cashboxes as cbx, paylinks as pls
+    out = [x["name"] for x in cbx.items(db) if x.get("active") and not x.get("deleted") and x.get("type") in ("cash", "card", "other")]
+    out += [paylink_method(a["name"]) for a in pls.public(db)["accounts"] if a["ready"]]
+    return out or ["Готівка", "Картка (термінал)", "Інше"]
+
+
+def paylink_method(account_name: str) -> str:
+    return f"{PAYLINK} · {account_name}"
+
+
+def method_kind(m: str) -> str:
+    if m.startswith(PAYLINK):
+        return "link"
+    if m in (BONUS, CERT):
+        return "nonmoney"
+    n = m.lower()
+    return "cash" if ("готів" in n or "сейф" in n) else "card"
 
 
 def quote(db: Session, items: list[dict], patient: Patient | None, rule_ids: list[int] | None = None,
@@ -71,7 +88,10 @@ def create(db: Session, data: dict, user_id: int | None = None) -> Sale:
             c = db.get(GiftCertificate, int(p.get("cert_id") or 0))
             if not c or (c.balance or 0) + TOL < float(p["amount"]):
                 raise SaleError("Недостатньо коштів на сертифікаті")
+    if any(str(p.get("method") or "").startswith(PAYLINK) for p in pays) and not patient:
+        raise SaleError("Посилання на оплату можна надіслати лише пацієнту — оберіть пацієнта")
     sale = Sale(patient_id=patient.id if patient else None, appointment_id=data.get("appointment_id"), created_by=user_id,
+                status="awaiting" if any(str(p.get("method") or "").startswith(PAYLINK) for p in pays) else "paid",
                 subtotal=q["subtotal"], discount=q["discount"], total=q["total"], bonus_spent=q["bonus_pay"],
                 bonus_accrued=q["bonus_accrual"], rules=q["rules"] or None, comment=(data.get("comment") or "")[:500] or None,
                 at=datetime.now())
@@ -130,7 +150,7 @@ def create(db: Session, data: dict, user_id: int | None = None) -> Sale:
 
 def refund(db: Session, sale: Sale, reason: str, user_id: int | None = None) -> None:
     from ..models import BonusTxn
-    if sale.status != "paid":
+    if sale.status not in ("paid", "awaiting"):
         raise SaleError("Чек уже повернено")
     db.execute(StockMove.__table__.delete().where(StockMove.ref.like(f"crmsale:{sale.id}:%")))
     db.execute(Visit.__table__.delete().where(Visit.external_id.like(f"crm:{sale.id}:%")))

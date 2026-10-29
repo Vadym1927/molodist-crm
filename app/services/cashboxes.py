@@ -186,7 +186,7 @@ def moves(db: Session, x: dict, limit: int | None = None) -> list[Move]:
                 out.append(Move(op.at, "in", op.amount, what + f" ← {op.account}", None))
         elif op.account == x["name"]:
             out.append(Move(op.at, "in" if op.kind == "income" else "out", op.amount, what, None))
-    meth = x.get("methods") or []
+    meth = list(set(x.get("methods") or []) | {x["name"]} | _link_methods(db, x["name"]))
     if meth:
         q = select(SalePayment, Sale).join(Sale, Sale.id == SalePayment.sale_id).where(SalePayment.method.in_(meth), Sale.status == "paid")
         if since:
@@ -195,6 +195,15 @@ def moves(db: Session, x: dict, limit: int | None = None) -> list[Move]:
             out.append(Move(s.at, "in", p.amount, f"Чек Ч-{s.id} · {p.method}", f"/sales/{s.id}"))
     out.sort(key=lambda m: m.at, reverse=True)
     return out[:limit] if limit else out
+
+
+def _link_methods(db: Session, box: str) -> set[str]:
+    """Способи «Посилання на оплату · ФОП», чия каса надходжень — ця."""
+    try:
+        from . import paylinks as pls
+        return {f"Посилання на оплату · {a['name']}" for a in pls.public(db)["accounts"] if a.get("cashbox") == box}
+    except Exception:  # noqa: BLE001
+        return set()
 
 
 def balance_at(db: Session, x: dict, moment: datetime, mv: list[Move] | None = None) -> float | None:

@@ -56,7 +56,7 @@ def day(db: Session, d: date) -> dict:
         rows.append({"at": s.at, "num": f"Ч-{s.id}", "link": f"/sales/{s.id}", "src": "CRM", "basis": "Продаж CRM" + (f" · запис №{s.appointment_id}" if s.appointment_id else ""),
                      "patient": pats.get(s.patient_id), "staff": ", ".join(sorted({docs.get(i.doctor_id) for i in s.items if i.doctor_id and docs.get(i.doctor_id)})) or users.get(s.created_by, ""),
                      "lines": [f"{i.name}" + (f" × {i.qty:g}" if i.qty != 1 else "") for i in s.items], "cost": s.subtotal, "discount": s.discount,
-                     "to_pay": s.total, "status": "Повернено" if s.status == "refunded" else "Оплачено",
+                     "to_pay": s.total, "status": {"refunded": "Повернено", "awaiting": "Очікує оплати"}.get(s.status, "Оплачено"),
                      "fiscal": bool(s.fiscal and s.fiscal.get("fiscal_code"))})
     for c in cb_checks:
         its = c.items or []

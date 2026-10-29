@@ -112,7 +112,7 @@ def journal(db: Session, d_from: date, d_to: date, users: dict | None = None, ar
                              money=is_money(name)))
     if not archive:                                     # продажі в CRM (каса)
         from ..models import Sale
-        for s in db.scalars(select(Sale).where(Sale.at >= a, Sale.at <= b)):
+        for s in db.scalars(select(Sale).where(Sale.at >= a, Sale.at <= b, Sale.status != "awaiting")):
             who = s.patient.full_name if s.patient else "—"
             link = f"/patients/{s.patient_id}" if s.patient_id else None
             for p in s.payments:
