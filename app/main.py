@@ -1529,7 +1529,14 @@ def stock_page(request: Request, tab: str = "balances", only: str = "", wh: str 
     if only == "deficit":
         tab = "critical"
     tab = tab if tab in STOCK_TABS else "balances"
-    ctx = dict(tab=tab, TABS=STOCK_TABS, WAREHOUSES=catalog.WAREHOUSES, STATUS=st.STATUS, KINDS=st.DOC_KINDS,
+    if tab in ("supply", "order"):
+        st.ensure_suppliers(db)
+        _sup_names = sorted({x for (x,) in db.execute(select(Supplier.name))} |
+                            {x for (x,) in db.execute(select(Product.supplier).where(Product.supplier.is_not(None)).distinct())},
+                            key=str.lower)
+    else:
+        _sup_names = []
+    ctx = dict(tab=tab, TABS=STOCK_TABS, WAREHOUSES=catalog.WAREHOUSES, STATUS=st.STATUS, KINDS=st.DOC_KINDS, sup_names=_sup_names,
                MOVE_KINDS=st.MOVE_KINDS, active=st.ledger_active(db), start=st.ledger_start(db), wh=wh, q=q, sup=sup)
     if tab in ("balances", "critical"):
         rows = [r for r in catalog.product_rows(db) if r.product.active is not False]
@@ -1754,6 +1761,74 @@ def stock_doc_create(kind: str = Form(...), wh: str = Form(""), supplier: str = 
         st.inventory_prefill(db, doc)
     db.commit()
     return RedirectResponse(f"/stock/docs/{doc.id}", 303)
+
+
+@app.get("/stock/lookup/products")
+def stock_lookup_products(q: str = "", wh: str = "", user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    """Пошук товару для вікна «Нова поставка»: назва / артикул / штрихкод. Ціна й к-сть — в одиницях приходу."""
+    q = (q or "").strip()
+    if len(q) < 2:
+        return JSONResponse([])
+    words = set(norm(q).split())
+    ql = q.lower()
+    rows = []
+    for r in catalog.product_rows(db, []):
+        p_ = r.product
+        if p_.active is False:
+            continue
+        exact = ql in ((p_.sku or "").lower(), (p_.barcode or "").lower())
+        if not exact and not words <= set(norm(" ".join(filter(None, [p_.name, p_.sku, p_.brand, p_.barcode]))).split()):
+            continue
+        k = p_.coef if p_.coef and p_.coef > 0 else 1
+        rows.append((0 if exact else (1 if (p_.warehouse or "vitrina") == wh else 2), {
+            "id": p_.id, "name": p_.name, "sku": p_.sku or "", "barcode": p_.barcode or "", "brand": p_.brand or "",
+            "unit": "шт" if k == 1 else f"уп. ({k:g} {p_.unit or 'од.'})", "coef": k,
+            "price": r.cost_last or r.cost_avg or p_.cost or 0, "stock": r.stock,
+            "wh": catalog.WAREHOUSES.get(p_.warehouse or "vitrina"), "supplier": p_.supplier or r.last_supplier or ""}))
+    rows.sort(key=lambda x: (x[0], x[1]["name"].lower()))
+    return JSONResponse([x[1] for x in rows[:25]])
+
+
+@app.post("/stock/docs/quick")
+async def stock_doc_quick(request: Request, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    """Вікно «Нова поставка / замовлення»: шапка + рядки одним JSON; post=true — одразу провести."""
+    from .services import stock as st
+    from .models import StockDocLine
+    data = await request.json()
+    kind = data.get("kind") if data.get("kind") in ("supply", "order") else "supply"
+    wh = data.get("wh") if data.get("wh") in catalog.WAREHOUSES else "vitrina"
+    lines = [x for x in (data.get("lines") or []) if x.get("product_id") and (_num(str(x.get("qty"))) or 0) > 0]
+    if not lines:
+        return JSONResponse({"error": "Додайте хоча б один товар з кількістю"}, status_code=400)
+    d = _day(str(data.get("date") or "")) or date.today()
+    doc = st.new_doc(db, kind, user_id=user.id, wh_to=wh, supplier=(data.get("supplier") or "").strip()[:200] or None,
+                     doc_date=d, ext_no=(data.get("ext_no") or "").strip()[:100] or None,
+                     note=(data.get("note") or "").strip()[:2000] or None)
+    for x in lines:
+        p_ = db.get(Product, int(x["product_id"]))
+        if not p_:
+            continue
+        k = p_.coef if p_.coef and p_.coef > 0 else 1        # у вікні — одиниці приходу; в обліку — одиниці обліку
+        qty, price = _num(str(x.get("qty"))) or 0, _num(str(x.get("price") or ""))
+        doc.lines.append(StockDocLine(product_id=p_.id, qty=round(qty * k, 4),
+                                      unit_cost=round(price / k, 4) if price is not None else None,
+                                      expiry_date=_day(str(x.get("expiry") or ""))))
+    if doc.supplier:
+        from .models import Supplier
+        if not db.scalar(select(Supplier).where(func.lower(Supplier.name) == doc.supplier.lower())):
+            db.add(Supplier(name=doc.supplier))
+    db.commit()
+    audit(db, "stock.quick_doc", "stock_doc", doc.id, user=user, kind=kind, lines=len(doc.lines))
+    if data.get("post") and kind == "supply":
+        try:
+            if not st.ledger_active(db):
+                return JSONResponse({"id": doc.id, "url": f"/stock/docs/{doc.id}",
+                                     "warning": "Збережено чернеткою: облік складу ще не розпочато"})
+            st.post(db, doc)
+            audit(db, "stock.post", "stock_doc", doc.id, user=user, kind=kind)
+        except st.StockError as e:
+            return JSONResponse({"id": doc.id, "url": f"/stock/docs/{doc.id}", "warning": f"Збережено чернеткою: {e}"})
+    return JSONResponse({"id": doc.id, "url": f"/stock/docs/{doc.id}", "number": doc.number, "status": doc.status})
 
 
 @app.post("/stock/order-from-critical")

@@ -1,0 +1,144 @@
+{# Вікно «Нова поставка / замовлення» поверх екрану — як «Прихід на склад» у CleverBox, з даними CRM #}
+<style>
+.sd-back{position:fixed;inset:0;background:rgba(42,36,48,.45);z-index:80;display:none}
+.sd-back.on{display:block}
+.sd{position:fixed;top:0;right:0;bottom:0;width:min(1180px,100%);background:var(--bg,#F7F4F0);z-index:81;box-shadow:-20px 0 60px rgba(42,36,48,.25);
+  display:flex;flex-direction:column;transform:translateX(102%);transition:transform .22s ease}
+.sd.on{transform:none}
+.sd-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 22px;background:#fff;border-bottom:1px solid var(--line)}
+.sd-h h2{margin:0;font-size:20px}
+.sd-x{border:0;background:var(--soft);width:38px;height:38px;border-radius:10px;font-size:20px;cursor:pointer;color:var(--ink)}
+.sd-b{flex:1;overflow:auto;padding:18px 22px 120px}
+.sd-g{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;margin-bottom:16px}
+.sd-g label{display:grid;gap:4px;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.sd-g input,.sd-g select,.sd-g textarea{height:44px;font-size:15px;text-transform:none;letter-spacing:0;font-weight:400;color:var(--ink)}
+.sd-g textarea{height:64px;resize:vertical}.sd-g .wide{grid-column:1/-1}
+.sd-t{background:#fff;border:1px solid var(--line);border-radius:16px;padding:6px 8px}
+.sd-t table{width:100%}.sd-t th{font-size:11.5px;white-space:nowrap}.sd-t td{vertical-align:middle;padding:6px 8px}
+.sd-t td input{height:38px;width:100%;min-width:0;text-align:right;font-size:14px}.sd-t td input[type=date]{text-align:left}
+.sd-t .nm b{display:block;font-size:14px;line-height:1.25}.sd-t .nm span{font-size:12px;color:var(--muted)}
+.sd-t .del{border:0;background:var(--bad-bg);color:var(--bad);width:30px;height:30px;border-radius:8px;cursor:pointer}
+.sd-t tfoot td{font-weight:700;border-top:2px solid var(--line);font-size:15px}
+.sd-add{position:relative;margin:12px 4px 6px;max-width:620px}
+.sd-add input{width:100%;height:46px;padding-left:40px;font-size:15px}
+.sd-add:before{content:"⌕";position:absolute;left:14px;top:9px;font-size:20px;color:var(--muted)}
+.sd-res{position:absolute;left:0;right:0;top:50px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 30px rgba(42,36,48,.15);max-height:340px;overflow:auto;z-index:5;display:none}
+.sd-res div{padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--line)}.sd-res div:last-child{border:0}
+.sd-res div.on,.sd-res div:hover{background:var(--lavender)}
+.sd-res b{display:block;font-size:14px}.sd-res span{font-size:12px;color:var(--muted)}
+.sd-f{position:absolute;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:14px 22px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.sd-f .tot{font-size:18px;font-weight:700}.sd-err{color:var(--bad);font-size:13px;font-weight:600}
+@media (max-width:760px){.sd-g{grid-template-columns:1fr}.sd-t th.hm,.sd-t td.hm{display:none}}
+</style>
+<div class="sd-back" id="sdBack" onclick="sdClose()"></div>
+<aside class="sd" id="sd" role="dialog" aria-modal="true" aria-label="{{ 'Нова поставка' if tab=='supply' else 'Нове замовлення' }}">
+  <div class="sd-h"><h2>🚚 {{ 'Прихід на склад' if tab=='supply' else 'Замовлення постачальнику' }} · новий</h2><button class="sd-x" type="button" onclick="sdClose()" title="Закрити (Esc)">×</button></div>
+  <div class="sd-b">
+    <div class="sd-g">
+      <label>Дата<input type="date" id="sdDate" value="{{ today if today is defined else '' }}"></label>
+      <label>Постачальник<input id="sdSup" list="sdSupList" placeholder="Почніть вводити — список з пошуком" autocomplete="off">
+        <datalist id="sdSupList">{% for x in sup_names %}<option value="{{ x }}">{% endfor %}</datalist></label>
+      <label>Склад<select id="sdWh">{% for k, v in WAREHOUSES.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+      <label>№ накладної постачальника<input id="sdExt" placeholder="напр. ПН-0412"></label>
+      <label class="wide">Коментар<textarea id="sdNote" placeholder="необов'язково"></textarea></label>
+    </div>
+    <div class="sd-t"><table>
+      <thead><tr><th>№</th><th class="hm">Артикул</th><th>Найменування</th><th class="hm">Одиниці</th><th class="r" style="width:90px">К-сть</th><th class="r" style="width:120px">Ціна за од., ₴</th><th class="r" style="width:120px">Сума, ₴</th>{% if tab=='supply' %}<th class="hm" style="width:150px">Придатний до</th>{% endif %}<th></th></tr></thead>
+      <tbody id="sdRows"><tr class="empty"><td colspan="9" class="muted" style="padding:14px">Додайте товари пошуком нижче — за назвою, брендом, артикулом або штрихкодом.</td></tr></tbody>
+      <tfoot><tr><td colspan="4" class="hm"></td><td colspan="2" class="r">Разом:</td><td class="r" id="sdTot">0</td><td colspan="2"></td></tr></tfoot>
+    </table>
+      <div class="sd-add"><input id="sdQ" placeholder="Додати товар" autocomplete="off"><div class="sd-res" id="sdRes"></div></div>
+    </div>
+  </div>
+  <div class="sd-f"><div><span class="muted small">Позицій: <b id="sdN">0</b></span> &nbsp; <span class="tot" id="sdTot2">0 ₴</span> <span class="sd-err" id="sdErr"></span></div>
+    <div class="row" style="gap:8px"><button class="btn ghost" type="button" onclick="sdSave(false)">Зберегти чернетку</button>
+      {% if tab=='supply' %}<button class="btn" type="button" onclick="sdSave(true)" {{ '' if active else 'title="Облік не розпочато — збережеться чернеткою"' }}>Провести поставку</button>{% else %}<button class="btn" type="button" onclick="sdSave(false)">Створити замовлення</button>{% endif %}</div></div>
+</aside>
+<script>
+(function(){
+  const KIND = {{ tab|tojson }}, WITH_EXP = KIND === 'supply';
+  const $ = id => document.getElementById(id);
+  let lines = [], res = [], sel = -1, timer = null;
+  const fmt = v => (Math.round((v || 0) * 100) / 100).toLocaleString('uk-UA', {maximumFractionDigits: 2});
+  const today = new Date().toISOString().slice(0, 10);
+  window.sdOpen = () => { if (!$('sdDate').value) $('sdDate').value = today; $('sd').classList.add('on'); $('sdBack').classList.add('on'); setTimeout(() => $('sdSup').focus(), 150); };
+  window.sdClose = () => { if (lines.length && !confirm('Закрити без збереження?')) return; $('sd').classList.remove('on'); $('sdBack').classList.remove('on'); };
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('sd').classList.contains('on') && !$('sdRes').style.display.includes('block')) sdClose(); });
+  if (location.hash === '#new') setTimeout(sdOpen, 100);
+
+  function render() {
+    const tb = $('sdRows');
+    if (!lines.length) { tb.innerHTML = '<tr><td colspan="9" class="muted" style="padding:14px">Додайте товари пошуком нижче — за назвою, брендом, артикулом або штрихкодом.</td></tr>'; }
+    else tb.innerHTML = lines.map((l, i) => `<tr>
+      <td>${i + 1}</td><td class="hm small">${esc(l.sku)}</td>
+      <td class="nm"><b>${esc(l.name)}</b><span>${esc([l.brand, l.wh, l.stock != null ? 'залишок ' + fmt(l.stock) : ''].filter(Boolean).join(' · '))}</span></td>
+      <td class="hm small">${esc(l.unit)}</td>
+      <td><input inputmode="decimal" value="${l.qty}" data-i="${i}" data-k="qty"></td>
+      <td><input inputmode="decimal" value="${l.price || ''}" data-i="${i}" data-k="price" placeholder="0"></td>
+      <td class="r"><b>${fmt(l.qty * (l.price || 0))}</b></td>
+      ${WITH_EXP ? `<td class="hm"><input type="date" value="${l.expiry || ''}" data-i="${i}" data-k="expiry"></td>` : ''}
+      <td><button class="del" type="button" data-del="${i}" title="Прибрати">×</button></td></tr>`).join('');
+    const tot = lines.reduce((s, l) => s + l.qty * (l.price || 0), 0);
+    $('sdTot').textContent = fmt(tot); $('sdTot2').textContent = fmt(tot) + ' ₴'; $('sdN').textContent = lines.length;
+  }
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  const num = v => parseFloat(String(v).replace(/\s/g, '').replace(',', '.')) || 0;
+  $('sdRows').addEventListener('input', e => {
+    const t = e.target, i = +t.dataset.i, k = t.dataset.k; if (k == null) return;
+    lines[i][k] = k === 'expiry' ? t.value : num(t.value);
+    const row = t.closest('tr'); row.children[6].innerHTML = '<b>' + fmt(lines[i].qty * (lines[i].price || 0)) + '</b>';
+    const tot = lines.reduce((s, l) => s + l.qty * (l.price || 0), 0); $('sdTot').textContent = fmt(tot); $('sdTot2').textContent = fmt(tot) + ' ₴';
+  });
+  $('sdRows').addEventListener('click', e => { const d = e.target.dataset.del; if (d != null) { lines.splice(+d, 1); render(); } });
+
+  function add(p) {
+    const ex = lines.find(l => l.product_id === p.id);
+    if (ex) ex.qty += 1; else lines.push({product_id: p.id, name: p.name, sku: p.sku, brand: p.brand, unit: p.unit, wh: p.wh, stock: p.stock,
+                                          qty: 1, price: Math.round((p.price || 0) * 100) / 100, expiry: ''});
+    if (!$('sdSup').value && p.supplier) $('sdSup').value = p.supplier;
+    $('sdQ').value = ''; hide(); render();
+    const inp = $('sdRows').querySelectorAll(`input[data-k="qty"]`); const idx = lines.findIndex(l => l.product_id === p.id);
+    if (inp[idx]) { inp[idx].focus(); inp[idx].select(); }
+  }
+  const hide = () => { $('sdRes').style.display = 'none'; sel = -1; };
+  function show() {
+    const box = $('sdRes');
+    if (!res.length) { box.innerHTML = '<div class="muted" style="cursor:default">Нічого не знайдено</div>'; box.style.display = 'block'; return; }
+    box.innerHTML = res.map((p, i) => `<div data-i="${i}" class="${i === sel ? 'on' : ''}"><b>${esc(p.name)}</b>
+      <span>${esc([p.brand, p.sku && 'арт. ' + p.sku, p.wh, p.stock != null ? 'залишок ' + fmt(p.stock) : '', p.price ? 'остання ціна ' + fmt(p.price) + ' ₴' : ''].filter(Boolean).join(' · '))}</span></div>`).join('');
+    box.style.display = 'block';
+  }
+  $('sdRes').addEventListener('mousedown', e => { const d = e.target.closest('[data-i]'); if (d) { e.preventDefault(); add(res[+d.dataset.i]); } });
+  $('sdQ').addEventListener('input', () => {
+    clearTimeout(timer); const q = $('sdQ').value.trim();
+    if (q.length < 2) { hide(); return; }
+    timer = setTimeout(async () => {
+      try { const r = await fetch('/stock/lookup/products?q=' + encodeURIComponent(q) + '&wh=' + $('sdWh').value); res = await r.json(); sel = res.length ? 0 : -1; show(); }
+      catch (e) { res = []; show(); }
+    }, 200);
+  });
+  $('sdQ').addEventListener('keydown', e => {
+    if ($('sdRes').style.display !== 'block') return;
+    if (e.key === 'ArrowDown') { sel = Math.min(sel + 1, res.length - 1); show(); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { sel = Math.max(sel - 1, 0); show(); e.preventDefault(); }
+    else if (e.key === 'Enter') { if (res[sel]) add(res[sel]); e.preventDefault(); }
+    else if (e.key === 'Escape') { hide(); e.stopPropagation(); }
+  });
+  $('sdQ').addEventListener('blur', () => setTimeout(hide, 150));
+
+  window.sdSave = async (post) => {
+    $('sdErr').textContent = '';
+    if (!lines.length) { $('sdErr').textContent = 'Додайте хоча б один товар'; return; }
+    if (lines.some(l => !(l.qty > 0))) { $('sdErr').textContent = 'Вкажіть кількість у кожному рядку'; return; }
+    const body = {kind: KIND, post, date: $('sdDate').value, supplier: $('sdSup').value, wh: $('sdWh').value, ext_no: $('sdExt').value,
+                  note: $('sdNote').value, lines: lines.map(l => ({product_id: l.product_id, qty: l.qty, price: l.price, expiry: l.expiry}))};
+    try {
+      const r = await fetch('/stock/docs/quick', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+      const j = await r.json();
+      if (!r.ok || j.error) { $('sdErr').textContent = j.error || 'Не вдалося зберегти'; return; }
+      lines = [];
+      location.href = j.url + (j.warning ? '?msg=' + encodeURIComponent(j.warning) : (post ? '?msg=Поставку+проведено' : '?msg=Збережено'));
+    } catch (e) { $('sdErr').textContent = 'Немає зв’язку із сервером — спробуйте ще раз'; }
+  };
+})();
+</script>

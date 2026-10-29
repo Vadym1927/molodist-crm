@@ -96,14 +96,18 @@
 {% if not active and cb_updated %}<p class="muted small">Залишки CleverBox на {{ cb_updated|dt('%d.%m.%Y %H:%M') }}</p>{% endif %}
 
 {% elif tab in KINDS %}
+{% if tab in ('supply','order') %}
+<div class="newdoc"><button type="button" class="btn" onclick="sdOpen()">＋ {{ 'Нова поставка' if tab=='supply' else 'Нове замовлення' }}</button>
+  {% if not active and tab == 'supply' %}<span class="muted small">Облік ще не розпочато — поставку можна зберегти чернеткою, провести після старту обліку.</span>{% endif %}</div>
+{% include "_supply_modal.html" %}
+{% else %}
 <form class="newdoc" method="post" action="/stock/docs">
   <input type="hidden" name="kind" value="{{ tab }}">
-  {% if tab in ('supply','order') %}<select name="wh">{% for k, v in WAREHOUSES.items() %}<option value="{{ k }}">на склад: {{ v }}</option>{% endfor %}</select>
-    <input name="supplier" list="supl" placeholder="Постачальник"><datalist id="supl"></datalist>
-  {% elif tab in ('transfer','writeoff','inventory') %}<select name="wh">{% for k, v in WAREHOUSES.items() %}<option value="{{ k }}">{{ 'зі складу' if tab!='inventory' else 'склад' }}: {{ v }}</option>{% endfor %}</select>{% endif %}
-  {% if tab != 'opening' %}<button class="btn" {% if not active and tab != 'order' %}disabled{% endif %}>＋ {{ {'supply':'Нова поставка','order':'Нове замовлення','transfer':'Нове переміщення','writeoff':'Нове списання','return':'Нове повернення','inventory':'Нова інвентаризація'}[tab] }}</button>{% endif %}
-  {% if not active and tab not in ('order',) %}<span class="muted small">Спершу почніть облік на вкладці «Залишки».</span>{% endif %}
+  {% if tab in ('transfer','writeoff','inventory') %}<select name="wh">{% for k, v in WAREHOUSES.items() %}<option value="{{ k }}">{{ 'зі складу' if tab!='inventory' else 'склад' }}: {{ v }}</option>{% endfor %}</select>{% endif %}
+  {% if tab != 'opening' %}<button class="btn" {% if not active %}disabled{% endif %}>＋ {{ {'transfer':'Нове переміщення','writeoff':'Нове списання','return':'Нове повернення','inventory':'Нова інвентаризація'}[tab] }}</button>{% endif %}
+  {% if not active %}<span class="muted small">Спершу почніть облік на вкладці «Залишки».</span>{% endif %}
 </form>
+{% endif %}
 <div class="card" style="padding:6px 8px;overflow:auto"><table class="tb">
   <thead><tr><th>№</th><th>Дата</th><th>Статус</th>{% if tab in ('supply','order','return') %}<th>Постачальник</th>{% endif %}<th>Склад</th>{% if tab=='writeoff' %}<th>Причина</th>{% endif %}<th class="r">Позицій</th><th class="r">К-сть</th><th class="r">Сума</th></tr></thead><tbody>
   {% for r in docs %}{% set d = r.doc %}

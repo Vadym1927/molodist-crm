@@ -201,3 +201,32 @@ def test_services_export_and_techcard_norms():
         assert "Лазер тест мала" in c.get("/stock?tab=norms&q=лазер тест").text
     with SessionLocal() as db:
         assert {n.service_id for n in db.query(ProcedureNorm).filter_by(product_id=gid)} == {990001, 990002}
+
+
+def test_supply_modal_quick_doc():
+    """Вікно «Нова поставка»: пошук товару, збереження й проведення одним запитом; упаковки → одиниці обліку."""
+    from app.models import ProductPurchase, Supplier
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        p1 = Product(name="Модальна сироватка 30 мл", name_norm="модальна сироватка 30 мл", sku="MOD-30", brand="ModBrand")
+        p2 = Product(name="Модальний гель 250 мл", name_norm="модальний гель 250 мл", coef=250, unit="мл", warehouse="single")
+        db.add_all([p1, p2]); db.commit()
+        id1, id2 = p1.id, p2.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        assert "Прихід на склад" in c.get("/stock?tab=supply").text
+        found = c.get("/stock/lookup/products?q=MOD-30").json()
+        assert found and found[0]["id"] == id1
+        assert c.get("/stock/lookup/products?q=модальний гель").json()[0]["unit"].startswith("уп. (250")
+        r = c.post("/stock/docs/quick", json={"kind": "supply", "post": False, "date": "2026-10-29", "supplier": "Модальний Дистриб'ютор",
+                                               "wh": "vitrina", "ext_no": "ПН-1", "lines": [
+            {"product_id": id1, "qty": 3, "price": 900, "expiry": "2027-12-31"},
+            {"product_id": id2, "qty": 2, "price": 500}]}).json()
+        assert r["url"].startswith("/stock/docs/")
+        assert c.post("/stock/docs/quick", json={"kind": "supply", "lines": []}).status_code == 400
+    with SessionLocal() as db:
+        d = db.get(StockDoc, r["id"])
+        ln2 = next(x for x in d.lines if x.product_id == id2)
+        assert d.supplier == "Модальний Дистриб'ютор" and d.ext_no == "ПН-1" and d.status == "draft"
+        assert ln2.qty == 500 and ln2.unit_cost == 2                                  # 2 уп × 250 мл, 500 ₴ / 250
+        assert db.query(Supplier).filter_by(name="Модальний Дистриб'ютор").count() == 1
