@@ -129,3 +129,16 @@ app/integrations/telegram_bot.py
 app/integrations/sheets.py
 app/main.py                    веб-інтерфейс + планувальник + бот
 ```
+
+## Checkbox (оборот ФОП → «Звіти → Ліміти ФОП»)
+CRM лише **читає** Z-звіти змін (готівка / безготівка) і нічого не фіскалізує.
+1. У кабінеті Checkbox кожного ФОП: «Касири» → взяти (або створити окремого) касира, записати його логін і пароль.
+2. На сервері внести їх у `.env` **захищено** (значення не видно на екрані й в історії):
+   ```bash
+   cd /opt/molodist-crm
+   for k in CHECKBOX_1_LOGIN CHECKBOX_1_PASSWORD CHECKBOX_2_LOGIN CHECKBOX_2_PASSWORD; do
+     read -rsp "$k: " v; echo; sudo sed -i "/^$k=/d" .env; echo "$k=$v" | sudo tee -a .env >/dev/null; done
+   sudo docker compose up -d
+   ```
+   `CHECKBOX_1_NAME=Колган`, `CHECKBOX_2_NAME=Бондар` — за замовчуванням.
+3. «Звіти → Ліміти ФОП» → «Завантажити з Checkbox» з 01.01. Далі — автоматично о 8:50, 14:50, 23:50.

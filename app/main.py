@@ -155,6 +155,20 @@ async def job_message_statuses():
         log.exception("statuses refresh failed")
 
 
+
+async def job_checkbox():
+    """Оборот ФОП з Checkbox (Z-звіти) — поточний і попередній місяць."""
+    from .integrations import checkbox as chb
+    if not any(a["configured"] for a in chb.accounts()):
+        return
+    def run():
+        with SessionLocal() as db:
+            return chb.sync(db)
+    try:
+        await asyncio.to_thread(run)
+    except Exception as e:  # noqa: BLE001
+        log.warning("checkbox sync: %s", e)
+
 async def job_backup():
     from .services import backups
     try:
@@ -200,6 +214,7 @@ async def lifespan(app: FastAPI):
         sched.add_job(job_backup, "cron", hour=settings.backup_hour, minute=30)
         sched.add_job(job_campaigns, "interval", minutes=5)
         sched.add_job(job_message_statuses, "interval", minutes=30)
+        sched.add_job(job_checkbox, "cron", hour="8,14,23", minute=50)
         sched.start()
     except Exception as e:          # noqa: BLE001
         log.warning("scheduler not started: %s", e)
@@ -2026,6 +2041,68 @@ def _report_period(period: str, df: str | None, dt_: str | None) -> tuple[date, 
     return m0, today, "month"
 
 
+def _fop_page(request: Request, db: Session):
+    from .services import fop as fop_svc
+    from .services import reports as rp
+    from .integrations.checkbox import accounts
+    from .models import FopMonth
+    years = sorted({y for (y,) in db.execute(select(FopMonth.year).distinct())} | {date.today().year}, reverse=True)
+    try:
+        year = int(request.query_params.get("year") or date.today().year)
+    except ValueError:
+        year = date.today().year
+    st_ = db.get(SyncState, "checkbox_last")
+    jid = request.query_params.get("job")
+    return render(request, "fop.html", nav="reports", REPORTS=rp.REPORTS, key="fop", f=fop_svc.build(db, year),
+                  years=years, year=year, accs=[{"name": a["name"], "configured": a["configured"]} for a in accounts()],
+                  cb_last=st_.value if st_ else None, job=jobs.JOBS.get(jid) if jid else None,
+                  last=LAST_IMPORT.pop(f"fop-{request.state.user.id}", None))
+
+
+def _fop_job(job, start: str | None = None):
+    from .integrations import checkbox as chb
+    with SessionLocal() as db:
+        s0 = date.fromisoformat(start) if start else None
+        job.log("Завантажую Z-звіти з Checkbox…")
+        return chb.sync(db, s0, date.today())
+
+
+@app.post("/reports/fop/sync")
+def fop_sync(start: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    job = jobs.start("Оборот ФОП з Checkbox", _fop_job, start or None)
+    audit(db, "fop.sync", user=user, start=start or None, job=job.id)
+    return RedirectResponse(f"/reports?r=fop&job={job.id}", 303)
+
+
+@app.post("/reports/fop/import")
+async def fop_import(file: UploadFile = File(...), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Google-таблиця «Ліміти ФОП» (Файл → Завантажити → .xlsx) — аркуші «<ФОП> <рік>»."""
+    from .services import fop as fop_svc
+    try:
+        sheets = importer.read_sheets(await file.read(), file.filename or "fop.xlsx")
+        if not fop_svc.is_fop_workbook(sheets):
+            raise ValueError("Не знайдено аркушів «<ФОП> <рік>» з рядками «Готівка» / «Безготівка»")
+        rep = fop_svc.import_workbook(db, sheets)
+    except ValueError as e:
+        rep = {"error": str(e)}
+    except Exception as e:  # noqa: BLE001
+        rep = {"error": f"Не вдалося прочитати файл: {type(e).__name__}"}
+    audit(db, "fop.import", user=user, rows=rep.get("rows"), error=rep.get("error"))
+    LAST_IMPORT[f"fop-{user.id}"] = rep
+    return RedirectResponse("/reports?r=fop", 303)
+
+
+@app.post("/reports/fop/limit")
+def fop_limit(year: int = Form(...), amount: str = Form(...), user: User = Depends(require("finance")),
+              db: Session = Depends(db_dep)):
+    from .services import fop as fop_svc
+    v = _num(amount)
+    if v:
+        fop_svc.set_limit(db, year, v)
+        audit(db, "fop.limit", user=user, year=year, amount=v)
+    return RedirectResponse(f"/reports?r=fop&year={year}", 303)
+
+
 def _cashflow_page(request: Request, db: Session, period: str, df: str | None):
     from .services import cashflow as cf
     from .services import reports as rp
@@ -2122,6 +2199,8 @@ def reports_page(request: Request, r: str = "revenue", period: str = "month", df
     key = r if r in rp.REPORTS else "revenue"
     if key == "cashflow":
         return _cashflow_page(request, db, period, df)
+    if key == "fop":
+        return _fop_page(request, db)
     d_from, d_to, period = _report_period(period, df, dt_)
     rep = rp.build(db, key, d_from, d_to)
     if fmt == "xlsx":

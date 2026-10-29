@@ -601,6 +601,24 @@ class CashDay(Base):
         return round((self.income or 0) - (self.expense or 0), 2)
 
 
+class FopMonth(Base):
+    """Оборот ФОП за місяць: готівка / безготівка. source: checkbox (Z-звіти ПРРО) | manual (таблиця / вручну)."""
+    __tablename__ = "fop_months"
+    __table_args__ = (UniqueConstraint("fop", "year", "month"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    fop: Mapped[str] = mapped_column(String(100), index=True)
+    year: Mapped[int] = mapped_column(Integer, index=True)
+    month: Mapped[int] = mapped_column(Integer)
+    cash: Mapped[float] = mapped_column(Float, default=0)
+    cashless: Mapped[float] = mapped_column(Float, default=0)
+    source: Mapped[str] = mapped_column(String(20), default="manual")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    @property
+    def total(self) -> float:
+        return round((self.cash or 0) + (self.cashless or 0), 2)
+
+
 class Check(Base):
     """Чек CleverBox (/sales/checks) — джерело фактичної виручки."""
     __tablename__ = "checks"

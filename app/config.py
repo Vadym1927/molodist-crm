@@ -21,6 +21,16 @@ class Settings(BaseSettings):
     cleverbox_filial_id: int | None = None
     cleverbox_min_interval_sec: float = 1.2        # ліміт API: не більше 1 запиту/сек
 
+    # Checkbox (ПРРО) — оборот ФОП для «Звіти → Ліміти ФОП». Кабінет на кожен ФОП: логін/пароль касира
+    # (Checkbox → Касири), лише читання Z-звітів. Секрети — тільки в .env.
+    checkbox_base_url: str = "https://api.checkbox.in.ua/api/v1"
+    checkbox_1_name: str = "Колган"
+    checkbox_1_login: str = ""
+    checkbox_1_password: str = ""
+    checkbox_2_name: str = "Бондар"
+    checkbox_2_login: str = ""
+    checkbox_2_password: str = ""
+
     # Telegram
     telegram_bot_token: str = ""
     telegram_admin_chat_id: str = ""               # чат/група адмінів для нагадувань

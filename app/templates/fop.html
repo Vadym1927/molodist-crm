@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Ліміти ФОП · Звіти{% endblock %}
+{% block body %}
+<style>
+.rp-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 16px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.rp-tabs a{padding:8px 14px;border-radius:10px;text-decoration:none;color:#3a342f;font-weight:600;font-size:14px}
+.rp-tabs a:hover{background:var(--card)}.rp-tabs a.on{background:var(--deep);color:#fff}
+.f-tiles{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:12px;margin-bottom:16px}
+.f-tiles .tile b{display:block;margin-top:4px}.ok-t{color:var(--ok)}
+.pbar{height:8px;background:var(--soft);border-radius:99px;overflow:hidden;margin-top:10px}.pbar i{display:block;height:100%;background:linear-gradient(90deg,#C9BFE6,var(--deep))}
+.pbar i.warn{background:linear-gradient(90deg,#E9C46A,#D08C2E)}.pbar i.bad{background:linear-gradient(90deg,#E38B8B,#B33)}
+.f-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px;margin-bottom:16px}
+.f-card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px 20px}
+.f-card h3{margin:0;font:600 15px var(--head);text-transform:uppercase;letter-spacing:.04em}
+.f-card .big{font-size:30px;font-weight:700;margin:8px 0 2px}
+.f-two{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}.f-two div{background:var(--cream,#F7F4F0);border-radius:12px;padding:10px 12px}
+.f-two span{display:block;font-size:12px;color:var(--muted);font-weight:600}.f-two b{font-size:18px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}
+.f-lay{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+.tb td.n,.tb th.n{text-align:right;white-space:nowrap}
+@media (max-width:1100px){.f-lay{grid-template-columns:1fr}.f-tiles{grid-template-columns:1fr 1fr}}
+</style>
+{% set COLORS = ['#5C4B82', '#7FB3C8', '#C99A6B', '#7FC8A0'] %}
+<div class="row between" style="align-items:flex-end;flex-wrap:wrap;gap:10px">
+  <div><div class="eyebrow">Аналітика клініки · податковий контроль</div><h1>Звіти</h1>
+    <div class="muted small">Оборот ФОП: помісячний факт, структура оплат і запас до річного ліміту єдиного податку.</div></div>
+  <div class="row" style="gap:6px">{% if f.period %}<span class="pill" style="background:var(--lavender);color:var(--classic)">{{ f.period }}</span>{% endif %}
+    {% for y in years %}<a class="btn {{ '' if y == year else 'ghost' }}" style="padding:6px 14px" href="?r=fop&year={{ y }}">{{ y }}</a>{% endfor %}</div>
+</div>
+<nav class="rp-tabs">{% for k, v in REPORTS.items() %}<a href="?r={{ k }}" class="{{ 'on' if key==k }}">{{ v }}</a>{% endfor %}</nav>
+{% if last %}<div class="alert" style="{{ '' if last.error else 'background:var(--ok-bg);color:var(--ok)' }}">{% if last.error %}{{ last.error }}{% else %}Таблицю імпортовано: {{ last.rows }} місяців{% if last.skipped %}, {{ last.skipped }} пропущено (вже є з Checkbox){% endif %}. {{ (last.errors or [])|join(' · ') }}{% endif %}</div>{% endif %}
+{% if job %}<div class="alert" style="background:var(--lavender);color:var(--classic)">{{ job.title }}: {{ 'виконується…' if job.status == 'running' else ('готово: ' ~ (job.result or {})|tojson if job.status == 'done' else 'помилка: ' ~ job.error) }} {% if job.status == 'running' %}<a href="?r=fop&job={{ job.id }}">оновити</a>{% endif %}</div>{% endif %}
+
+<div class="f-tiles">
+  <div class="tile"><span>Оборот {{ f.fops|length }} ФОП за {{ year }}</span><b style="font-size:30px">{{ f.total|uah }}</b>
+    <div class="muted small">{{ ((100 * f.total / f.total_limit)|round(1)) if f.total_limit else 0 }}% від сукупного річного ліміту</div>
+    <div class="pbar"><i style="width:{{ [((100 * f.total / f.total_limit) if f.total_limit else 0), 100]|min }}%"></i></div></div>
+  <div class="tile"><span>Сукупний річний ліміт</span><b>{{ f.total_limit|uah }}</b><div class="muted small">{{ f.fops|length }} × {{ f.limit|uah }}</div></div>
+  <div class="tile"><span>Сумарний запас</span><b class="ok-t">{{ f.total_left|uah }}</b><div class="muted small">до річних лімітів</div></div>
+  <div class="tile"><span>Найбільший місяць</span><b>{{ f.best[0] if f.best else '—' }}</b><div class="muted small">{{ f.best[1]|uah if f.best else '' }}</div></div>
+</div>
+
+<div class="row between" style="margin:0 0 8px"><h2 style="margin:0">Статус за кожним ФОП</h2><span class="muted small">Ліміт {{ year }}: {{ f.limit|uah }} на ФОП</span></div>
+<div class="f-cards">{% for x in f.fops %}{% set pct = x.pct or 0 %}
+  <div class="f-card"><div class="row between"><h3><span class="dot" style="background:{{ COLORS[loop.index0 % 4] }}"></span>ФОП {{ x.name }}</h3>
+    <span class="pill {{ 'bad' if pct >= 90 else ('warn' if pct >= 75 else 'ok') }}">{{ pct }}% ліміту</span></div>
+    <div class="big">{{ x.total|uah }}</div>
+    <div class="muted small">{% if 'checkbox' in x.sources %}Checkbox{% endif %}{% if 'checkbox' in x.sources and 'manual' in x.sources %} + {% endif %}{% if 'manual' in x.sources %}таблиця{% endif %}{% if not x.sources %}даних ще немає{% endif %}</div>
+    <div class="pbar"><i class="{{ 'bad' if pct >= 90 else ('warn' if pct >= 75) }}" style="width:{{ [pct, 100]|min }}%"></i></div>
+    <div class="f-two"><div><span>Залишок до ліміту</span><b>{{ x.left|uah if x.left is not none else '—' }}</b></div>
+      <div><span>Доступно / міс · {{ f.months_left }} міс</span><b>{{ x.per_month|uah if x.per_month is not none else '—' }}</b></div></div>
+    <div class="row small" style="gap:18px;margin-top:12px"><span><span class="dot" style="background:#E9C46A"></span>Готівка <b>{{ x.cash|uah }}</b></span>
+      <span><span class="dot" style="background:#7FC8A0"></span>Безготівка <b>{{ x.cashless|uah }}</b></span></div>
+  </div>{% endfor %}</div>
+
+{% set W, H, P = 900, 230, 40 %}
+<div class="card"><div class="row between"><h2 style="margin:0">Динаміка обороту</h2>
+  <div class="row small" style="gap:14px">{% for x in f.fops %}<span><span class="dot" style="background:{{ COLORS[loop.index0 % 4] }}"></span>{{ x.name }}</span>{% endfor %}</div></div>
+  {% if f.last_month %}<svg viewBox="0 0 {{ W }} {{ H }}" style="width:100%;height:auto;margin-top:10px" role="img" aria-label="Оборот ФОП по місяцях">
+    {% for t in range(0, 5) %}{% set yv = P + (H - 2*P) * t / 4 %}<line x1="{{ P }}" x2="{{ W - 10 }}" y1="{{ yv }}" y2="{{ yv }}" stroke="#E9E5DF"/>
+      <text x="{{ P - 6 }}" y="{{ yv + 4 }}" font-size="11" text-anchor="end" fill="#8a8290">{{ ((f.max * (4 - t) / 4 / 1000)|round|int) }}k</text>{% endfor %}
+    {% for mi in range(1, 13) %}{% set xv = P + (W - P - 30) * (mi - 1) / 11 %}<text x="{{ xv }}" y="{{ H - 10 }}" font-size="11.5" text-anchor="middle" fill="#8a8290">{{ f.MONTHS[mi-1] }}</text>{% endfor %}
+    {% for x in f.fops %}{% set c = COLORS[loop.index0 % 4] %}{% set pts = [] %}
+      {% for mi in range(1, 13) %}{% if x.months.get(mi) %}{% set _ = pts.append(((P + (W - P - 30) * (mi - 1) / 11)|round(1)|string) ~ ',' ~ ((P + (H - 2*P) * (1 - x.months[mi].total / f.max))|round(1)|string)) %}{% endif %}{% endfor %}
+      <polyline points="{{ pts|join(' ') }}" fill="none" stroke="{{ c }}" stroke-width="3" stroke-linejoin="round"/>
+      {% for p in pts %}<circle cx="{{ p.split(',')[0] }}" cy="{{ p.split(',')[1] }}" r="4.5" fill="{{ c }}"/>{% endfor %}{% endfor %}
+  </svg>{% else %}<p class="muted">Даних за {{ year }} ще немає.</p>{% endif %}
+</div>
+
+<div class="f-lay">
+<div class="card" style="padding:6px 8px"><div class="row between" style="padding:10px 8px 4px"><h2 style="margin:0">Помісячна структура оплат</h2><span class="muted small">готівка / безготівка / разом</span></div>
+  <div style="overflow-x:auto"><table class="tb"><thead><tr><th>Місяць</th><th>ФОП</th><th class="n">Готівка</th><th class="n">Безготівка</th><th class="n">Разом</th><th>Джерело</th></tr></thead><tbody>
+  {% for mi in range(1, 13) %}{% for x in f.fops %}{% set r = x.months.get(mi) %}{% if r %}<tr><td>{{ f.MONTHS[mi-1] }}</td><td>ФОП {{ x.name }}</td><td class="n">{{ r.cash|uah }}</td><td class="n">{{ r.cashless|uah }}</td><td class="n"><b>{{ r.total|uah }}</b></td>
+    <td class="small muted">{{ 'Checkbox' if r.source == 'checkbox' else 'таблиця' }}</td></tr>{% endif %}{% endfor %}{% endfor %}
+  {% if not f.last_month %}<tr><td colspan="6" class="muted">Немає даних — імпортуйте таблицю або налаштуйте Checkbox.</td></tr>{% endif %}
+  </tbody>{% if f.last_month %}<tfoot><tr><td colspan="2"><b>Разом {{ year }}</b></td><td class="n"><b>{{ (f.fops|sum(attribute='cash'))|uah }}</b></td><td class="n"><b>{{ (f.fops|sum(attribute='cashless'))|uah }}</b></td><td class="n"><b>{{ f.total|uah }}</b></td><td></td></tr></tfoot>{% endif %}</table></div></div>
+
+<div>
+  <div class="card"><h2>Автоматично з Checkbox</h2>
+    {% for a in accs %}<div class="row between small" style="padding:6px 0;border-bottom:1px solid var(--line)"><span>ФОП {{ a.name }}</span>
+      {% if a.configured %}<span class="pill ok">підключено</span>{% else %}<span class="pill warn">не налаштовано</span>{% endif %}</div>{% endfor %}
+    {% if cb_last %}<div class="small muted" style="margin-top:8px">Останнє оновлення: {{ cb_last[8:10] }}.{{ cb_last[5:7] }} {{ cb_last[11:16] }} · {{ cb_last[19:] }}</div>{% endif %}
+    {% if accs|selectattr('configured')|list %}<div class="small muted" style="margin-top:8px">Оновлюється сам о 8:50, 14:50 і 23:50 (поточний і попередній місяць).</div>
+    <form method="post" action="/reports/fop/sync" class="row" style="gap:6px;margin-top:10px"><input type="date" name="start" value="{{ year }}-01-01"><button class="btn">Завантажити з Checkbox</button></form>
+    {% else %}<div class="small" style="margin-top:10px">Потрібні логін і пароль <b>касира</b> кожного ФОП з кабінету Checkbox. Їх вносять у файл налаштувань сервера (не в чат) — інструкція в README, розділ «Checkbox».</div>{% endif %}
+  </div>
+  <div class="card"><h2>Дані</h2>
+    <form method="post" action="/reports/fop/import" enctype="multipart/form-data" class="grid" style="gap:8px">
+      <div class="small muted">Google-таблиця «Ліміти ФОП»: Файл → Завантажити → Microsoft Excel (.xlsx). Аркуші «Колган 2026», «Бондар 2025»… Місяці з Checkbox не перезаписуються.</div>
+      <input type="file" name="file" accept=".xlsx,.xls" required><button class="btn ghost">Імпорт таблиці</button></form>
+    <form method="post" action="/reports/fop/limit" class="grid" style="gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
+      <div class="small muted">Річний ліміт на один ФОП (3 група ЄП)</div>
+      <div class="row" style="gap:6px"><input type="hidden" name="year" value="{{ year }}"><input name="amount" value="{{ '%g'|format(f.limit) }}" style="width:150px"><button class="btn ghost">Зберегти {{ year }}</button></div></form>
+  </div>
+</div>
+</div>
+{% endblock %}
