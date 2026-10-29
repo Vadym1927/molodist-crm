@@ -40,10 +40,13 @@
         <datalist id="sdSupList">{% for x in sup_names %}<option value="{{ x }}">{% endfor %}</datalist></label>
       <label>Склад<select id="sdWh">{% for k, v in WAREHOUSES.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
       <label>№ накладної постачальника<input id="sdExt" placeholder="напр. ПН-0412"></label>
+      {% if tab=='supply' %}<label>Оплата<select id="sdPaidBy"><option value="">— ще не оплачено —</option>{% for n in fops %}<option value="{{ n }}">оплачено ФОП {{ n }}</option>{% endfor %}<option value="Готівка / інше">оплачено готівкою / інше</option></select></label>
+      <label>Файли й фото накладної<input type="file" id="sdFiles" multiple accept="image/*,application/pdf" style="padding-top:9px"></label>{% endif %}
       <label class="wide">Коментар<textarea id="sdNote" placeholder="необов'язково"></textarea></label>
     </div>
+    {% if tab=='supply' %}<p class="small muted" style="margin:-6px 0 12px">Склад можна змінити в кожному рядку: якщо одна накладна йде на кілька складів, CRM збереже окремі поставки з тим самим № і розділить оплату пропорційно.</p>{% endif %}
     <div class="sd-t"><table>
-      <thead><tr><th>№</th><th class="hm">Артикул</th><th>Найменування</th><th class="hm">Одиниці</th><th class="r" style="width:90px">К-сть</th><th class="r" style="width:120px">Ціна за од., ₴</th><th class="r" style="width:120px">Сума, ₴</th>{% if tab=='supply' %}<th class="hm" style="width:150px">Придатний до</th>{% endif %}<th></th></tr></thead>
+      <thead><tr><th>№</th><th class="hm">Артикул</th><th>Найменування</th><th class="hm">Одиниці</th>{% if tab=='supply' %}<th style="width:130px">Склад</th>{% endif %}<th class="r" style="width:90px">К-сть</th><th class="r" style="width:120px">Ціна за од., ₴</th><th class="r" style="width:120px">Сума, ₴</th>{% if tab=='supply' %}<th class="hm" style="width:150px">Придатний до</th>{% endif %}<th></th></tr></thead>
       <tbody id="sdRows"><tr class="empty"><td colspan="9" class="muted" style="padding:14px">Додайте товари пошуком нижче — за назвою, брендом, артикулом або штрихкодом.</td></tr></tbody>
       <tfoot><tr><td colspan="4" class="hm"></td><td colspan="2" class="r">Разом:</td><td class="r" id="sdTot">0</td><td colspan="2"></td></tr></tfoot>
     </table>
@@ -57,6 +60,7 @@
 <script>
 (function(){
   const KIND = {{ tab|tojson }}, WITH_EXP = KIND === 'supply';
+  const WHS = {{ WAREHOUSES.items()|list|tojson }};
   const $ = id => document.getElementById(id);
   let lines = [], res = [], sel = -1, timer = null;
   const fmt = v => (Math.round((v || 0) * 100) / 100).toLocaleString('uk-UA', {maximumFractionDigits: 2});
@@ -65,6 +69,8 @@
   window.sdClose = () => { if (lines.length && !confirm('Закрити без збереження?')) return; $('sd').classList.remove('on'); $('sdBack').classList.remove('on'); };
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('sd').classList.contains('on') && !$('sdRes').style.display.includes('block')) sdClose(); });
   if (location.hash === '#new') setTimeout(sdOpen, 100);
+  document.getElementById('sdWh').addEventListener('change', e => { const old = e.target.dataset.prev || 'vitrina';
+    lines.forEach(l => { if (!l.wh_key || l.wh_key === old) l.wh_key = e.target.value; }); e.target.dataset.prev = e.target.value; render(); });
 
   function render() {
     const tb = $('sdRows');
@@ -73,9 +79,10 @@
       <td>${i + 1}</td><td class="hm small">${esc(l.sku)}</td>
       <td class="nm"><b>${esc(l.name)}</b><span>${esc([l.brand, l.wh, l.stock != null ? 'залишок ' + fmt(l.stock) : ''].filter(Boolean).join(' · '))}</span></td>
       <td class="hm small">${esc(l.unit)}</td>
+      ${WITH_EXP ? `<td><select data-i="${i}" data-k="wh" style="height:38px;width:100%">${WHS.map(([k, v]) => `<option value="${k}" ${k === l.wh_key ? 'selected' : ''}>${v}</option>`).join('')}</select></td>` : ''}
       <td><input inputmode="decimal" value="${l.qty}" data-i="${i}" data-k="qty"></td>
       <td><input inputmode="decimal" value="${l.price || ''}" data-i="${i}" data-k="price" placeholder="0"></td>
-      <td class="r"><b>${fmt(l.qty * (l.price || 0))}</b></td>
+      <td class="r sum"><b>${fmt(l.qty * (l.price || 0))}</b></td>
       ${WITH_EXP ? `<td class="hm"><input type="date" value="${l.expiry || ''}" data-i="${i}" data-k="expiry"></td>` : ''}
       <td><button class="del" type="button" data-del="${i}" title="Прибрати">×</button></td></tr>`).join('');
     const tot = lines.reduce((s, l) => s + l.qty * (l.price || 0), 0);
@@ -83,10 +90,12 @@
   }
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
   const num = v => parseFloat(String(v).replace(/\s/g, '').replace(',', '.')) || 0;
+  $('sdRows').addEventListener('change', e => { if (e.target.dataset.k === 'wh') { lines[+e.target.dataset.i].wh_key = e.target.value; } });
   $('sdRows').addEventListener('input', e => {
     const t = e.target, i = +t.dataset.i, k = t.dataset.k; if (k == null) return;
-    lines[i][k] = k === 'expiry' ? t.value : num(t.value);
-    const row = t.closest('tr'); row.children[6].innerHTML = '<b>' + fmt(lines[i].qty * (lines[i].price || 0)) + '</b>';
+    lines[i][k] = (k === 'expiry' || k === 'wh') ? t.value : num(t.value);
+    if (k === 'wh') { lines[i].wh_key = t.value; return; }
+    const row = t.closest('tr'); row.querySelector('.sum').innerHTML = '<b>' + fmt(lines[i].qty * (lines[i].price || 0)) + '</b>';
     const tot = lines.reduce((s, l) => s + l.qty * (l.price || 0), 0); $('sdTot').textContent = fmt(tot); $('sdTot2').textContent = fmt(tot) + ' ₴';
   });
   $('sdRows').addEventListener('click', e => { const d = e.target.dataset.del; if (d != null) { lines.splice(+d, 1); render(); } });
@@ -94,7 +103,7 @@
   function add(p) {
     const ex = lines.find(l => l.product_id === p.id);
     if (ex) ex.qty += 1; else lines.push({product_id: p.id, name: p.name, sku: p.sku, brand: p.brand, unit: p.unit, wh: p.wh, stock: p.stock,
-                                          qty: 1, price: Math.round((p.price || 0) * 100) / 100, expiry: ''});
+                                          qty: 1, price: Math.round((p.price || 0) * 100) / 100, expiry: '', wh_key: $('sdWh').value});
     if (!$('sdSup').value && p.supplier) $('sdSup').value = p.supplier;
     $('sdQ').value = ''; hide(); render();
     const inp = $('sdRows').querySelectorAll(`input[data-k="qty"]`); const idx = lines.findIndex(l => l.product_id === p.id);
@@ -131,11 +140,18 @@
     if (!lines.length) { $('sdErr').textContent = 'Додайте хоча б один товар'; return; }
     if (lines.some(l => !(l.qty > 0))) { $('sdErr').textContent = 'Вкажіть кількість у кожному рядку'; return; }
     const body = {kind: KIND, post, date: $('sdDate').value, supplier: $('sdSup').value, wh: $('sdWh').value, ext_no: $('sdExt').value,
-                  note: $('sdNote').value, lines: lines.map(l => ({product_id: l.product_id, qty: l.qty, price: l.price, expiry: l.expiry}))};
+                  note: $('sdNote').value, lines: lines.map(l => ({product_id: l.product_id, qty: l.qty, price: l.price, expiry: l.expiry, wh: l.wh_key || $('sdWh').value})),
+                  paid_by: $('sdPaidBy') ? $('sdPaidBy').value : '', paid: !!($('sdPaidBy') && $('sdPaidBy').value)};
     try {
       const r = await fetch('/stock/docs/quick', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
       const j = await r.json();
       if (!r.ok || j.error) { $('sdErr').textContent = j.error || 'Не вдалося зберегти'; return; }
+      const fl = $('sdFiles');
+      if (fl && fl.files.length) {
+        $('sdErr').textContent = 'Завантажую файли…';
+        const fd = new FormData(); for (const f of fl.files) fd.append('files', f);
+        try { await fetch('/stock/docs/' + j.id + '/files', {method: 'POST', body: fd}); } catch (e) {}
+      }
       lines = [];
       location.href = j.url + (j.warning ? '?msg=' + encodeURIComponent(j.warning) : (post ? '?msg=Поставку+проведено' : '?msg=Збережено'));
     } catch (e) { $('sdErr').textContent = 'Немає зв’язку із сервером — спробуйте ще раз'; }

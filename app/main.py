@@ -156,6 +156,19 @@ async def job_message_statuses():
 
 
 
+async def job_mono():
+    """monobank: щогодини — списання за 2 доби, рознесення оплат постачальникам."""
+    from .integrations import monobank
+    def run():
+        with SessionLocal() as db:
+            if monobank.saved(db):
+                return monobank.sync(db, days=2)
+    try:
+        await asyncio.to_thread(run)
+    except Exception as e:  # noqa: BLE001
+        log.warning("monobank sync: %s", e)
+
+
 async def job_checkbox():
     """Оборот ФОП з Checkbox (Z-звіти) — поточний і попередній місяць."""
     from .integrations import checkbox as chb
@@ -215,6 +228,7 @@ async def lifespan(app: FastAPI):
         sched.add_job(job_campaigns, "interval", minutes=5)
         sched.add_job(job_message_statuses, "interval", minutes=30)
         sched.add_job(job_checkbox, "cron", hour="8,14,23", minute=50)
+        sched.add_job(job_mono, "cron", minute=20)
         sched.start()
     except Exception as e:          # noqa: BLE001
         log.warning("scheduler not started: %s", e)
@@ -1536,7 +1550,9 @@ def stock_page(request: Request, tab: str = "balances", only: str = "", wh: str 
                             key=str.lower)
     else:
         _sup_names = []
+    from .integrations.checkbox import accounts as _cb_acc
     ctx = dict(tab=tab, TABS=STOCK_TABS, WAREHOUSES=catalog.WAREHOUSES, STATUS=st.STATUS, KINDS=st.DOC_KINDS, sup_names=_sup_names,
+               fops=[a["name"] for a in _cb_acc(db)] if tab in ("supply", "order", "suppliers") else [],
                MOVE_KINDS=st.MOVE_KINDS, active=st.ledger_active(db), start=st.ledger_start(db), wh=wh, q=q, sup=sup)
     if tab in ("balances", "critical"):
         rows = [r for r in catalog.product_rows(db) if r.product.active is not False]
@@ -1596,6 +1612,19 @@ def stock_page(request: Request, tab: str = "balances", only: str = "", wh: str 
                 a["sum"] += sum((ln.qty or 0) * (ln.unit_cost or 0) for ln in d.lines)
                 a["last"] = max(filter(None, [a["last"], d.doc_date]))
         ctx.update(suppliers=db.scalars(select(Supplier).order_by(Supplier.name)).all(), agg=agg)
+        # оплати: monobank + накладні CRM
+        from .models import BankTxn
+        from .services import payments as pay
+        from .integrations import monobank
+        from .integrations.checkbox import accounts as _cb_acc
+        sel_sup = next((x for x in ctx["suppliers"] if x.name == ctx["sel"]), None)
+        ctx.update(sel_sup=sel_sup, mono=monobank.public(db), fops=[a["name"] for a in _cb_acc(db)],
+                   txns=db.scalars(select(BankTxn).where(BankTxn.at >= datetime.now() - timedelta(days=60))
+                                   .order_by(BankTxn.at.desc()).limit(200)).all(),
+                   open_groups=pay.groups(db, only_open=True), PAY=pay.PAY_LABELS,
+                   crm_groups=pay.groups(db, ctx["sel"]) if ctx["sel"] else [],
+                   sup_by_id={x.id: x for x in ctx["suppliers"]},
+                   job=jobs.JOBS.get(request.query_params.get("job") or "") if request.query_params.get("job") else None)
     elif tab == "norms":
         from .models import CbService
         services = db.scalars(select(CbService).order_by(CbService.category, CbService.name)).all()
@@ -1791,44 +1820,131 @@ def stock_lookup_products(q: str = "", wh: str = "", user: User = Depends(requir
 
 @app.post("/stock/docs/quick")
 async def stock_doc_quick(request: Request, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
-    """Вікно «Нова поставка / замовлення»: шапка + рядки одним JSON; post=true — одразу провести."""
-    from .services import stock as st
-    from .models import StockDocLine
+    """Вікно «Нова поставка / замовлення»: шапка + рядки одним JSON. Рядки на різні склади → окремі документи
+    з однією групою оплати (одна накладна). paid_by + paid=true — відмітити оплаченим цим ФОП. post=true — провести."""
+    import uuid
+    from .services import stock as st, payments as pay
+    from .models import StockDocLine, Supplier
     data = await request.json()
     kind = data.get("kind") if data.get("kind") in ("supply", "order") else "supply"
-    wh = data.get("wh") if data.get("wh") in catalog.WAREHOUSES else "vitrina"
+    wh0 = data.get("wh") if data.get("wh") in catalog.WAREHOUSES else "vitrina"
     lines = [x for x in (data.get("lines") or []) if x.get("product_id") and (_num(str(x.get("qty"))) or 0) > 0]
     if not lines:
         return JSONResponse({"error": "Додайте хоча б один товар з кількістю"}, status_code=400)
-    d = _day(str(data.get("date") or "")) or date.today()
-    doc = st.new_doc(db, kind, user_id=user.id, wh_to=wh, supplier=(data.get("supplier") or "").strip()[:200] or None,
-                     doc_date=d, ext_no=(data.get("ext_no") or "").strip()[:100] or None,
-                     note=(data.get("note") or "").strip()[:2000] or None)
+    by_wh: dict[str, list] = {}
     for x in lines:
-        p_ = db.get(Product, int(x["product_id"]))
-        if not p_:
-            continue
-        k = p_.coef if p_.coef and p_.coef > 0 else 1        # у вікні — одиниці приходу; в обліку — одиниці обліку
-        qty, price = _num(str(x.get("qty"))) or 0, _num(str(x.get("price") or ""))
-        doc.lines.append(StockDocLine(product_id=p_.id, qty=round(qty * k, 4),
-                                      unit_cost=round(price / k, 4) if price is not None else None,
-                                      expiry_date=_day(str(x.get("expiry") or ""))))
-    if doc.supplier:
-        from .models import Supplier
-        if not db.scalar(select(Supplier).where(func.lower(Supplier.name) == doc.supplier.lower())):
-            db.add(Supplier(name=doc.supplier))
+        by_wh.setdefault(x.get("wh") if x.get("wh") in catalog.WAREHOUSES else wh0, []).append(x)
+    d = _day(str(data.get("date") or "")) or date.today()
+    supplier = (data.get("supplier") or "").strip()[:200] or None
+    paid_by = (data.get("paid_by") or "").strip()[:100] or None
+    group = uuid.uuid4().hex[:12] if len(by_wh) > 1 else None
+    docs = []
+    for wh, ls in by_wh.items():
+        doc = st.new_doc(db, kind, user_id=user.id, wh_to=wh, supplier=supplier, doc_date=d,
+                         ext_no=(data.get("ext_no") or "").strip()[:100] or None,
+                         note=(data.get("note") or "").strip()[:2000] or None)
+        doc.pay_group, doc.paid_by = group, paid_by
+        for x in ls:
+            p_ = db.get(Product, int(x["product_id"]))
+            if not p_:
+                continue
+            k = p_.coef if p_.coef and p_.coef > 0 else 1        # у вікні — одиниці приходу; в обліку — одиниці обліку
+            qty, price = _num(str(x.get("qty"))) or 0, _num(str(x.get("price") or ""))
+            doc.lines.append(StockDocLine(product_id=p_.id, qty=round(qty * k, 4),
+                                          unit_cost=round(price / k, 4) if price is not None else None,
+                                          expiry_date=_day(str(x.get("expiry") or ""))))
+        db.flush()
+        docs.append(doc)
+    if supplier and not any(n.lower() == supplier.lower() for (n,) in db.execute(select(Supplier.name))):
+        db.add(Supplier(name=supplier))
     db.commit()
-    audit(db, "stock.quick_doc", "stock_doc", doc.id, user=user, kind=kind, lines=len(doc.lines))
+    if kind == "supply" and data.get("paid") and paid_by:          # оплачено вже зараз (готівка / інший банк)
+        g = pay.find_group(db, pay.group_key(docs[0]))
+        if g:
+            pay.allocate(db, g, g.left, fop=paid_by)
+            db.commit()
+    audit(db, "stock.quick_doc", "stock_doc", docs[0].id, user=user, kind=kind, docs=[x.id for x in docs],
+          lines=sum(len(x.lines) for x in docs))
+    warn = None
     if data.get("post") and kind == "supply":
-        try:
-            if not st.ledger_active(db):
-                return JSONResponse({"id": doc.id, "url": f"/stock/docs/{doc.id}",
-                                     "warning": "Збережено чернеткою: облік складу ще не розпочато"})
-            st.post(db, doc)
-            audit(db, "stock.post", "stock_doc", doc.id, user=user, kind=kind)
-        except st.StockError as e:
-            return JSONResponse({"id": doc.id, "url": f"/stock/docs/{doc.id}", "warning": f"Збережено чернеткою: {e}"})
-    return JSONResponse({"id": doc.id, "url": f"/stock/docs/{doc.id}", "number": doc.number, "status": doc.status})
+        if not st.ledger_active(db):
+            warn = "Збережено чернеткою: облік складу ще не розпочато"
+        else:
+            for doc in docs:
+                try:
+                    st.post(db, doc)
+                    audit(db, "stock.post", "stock_doc", doc.id, user=user, kind=kind)
+                except st.StockError as e:
+                    warn = f"Збережено чернеткою: {e}"
+    if len(docs) > 1:
+        warn = (warn + ". " if warn else "") + f"Накладну розділено на {len(docs)} склади: " + \
+            ", ".join(f"{x.number} ({catalog.WAREHOUSES[x.wh_to]})" for x in docs)
+    return JSONResponse({"id": docs[0].id, "ids": [x.id for x in docs], "url": f"/stock/docs/{docs[0].id}",
+                         "number": docs[0].number, "warning": warn})
+
+
+@app.post("/stock/docs/{did:int}/files")
+async def stock_doc_files(did: int, files: list[UploadFile] = File(...), user: User = Depends(require("stock")),
+                          db: Session = Depends(db_dep)):
+    """Фото / скани накладної. Документи однієї накладної (кілька складів) отримують ті самі файли."""
+    from .services import ingest
+    from .models import StockDocFile
+    doc = db.get(StockDoc, did) or (_ for _ in ()).throw(HTTPException(404))
+    targets = db.scalars(select(StockDoc).where(StockDoc.pay_group == doc.pay_group)).all() if doc.pay_group else [doc]
+    n = 0
+    for f in files:
+        data = await f.read()
+        if not data or len(data) > 25 * 1024 * 1024:
+            continue
+        mime = f.content_type or ""
+        if not (mime.startswith("image/") or mime == "application/pdf" or (f.filename or "").lower().endswith((".pdf", ".jpg", ".jpeg", ".png", ".heic", ".webp"))):
+            continue
+        path = ingest.store(data, f.filename or "file")
+        for t in targets:
+            db.add(StockDocFile(doc_id=t.id, path=path, name=(f.filename or "файл")[:200], mime=mime[:100] or None))
+        n += 1
+    db.commit()
+    audit(db, "stock.files", "stock_doc", did, user=user, files=n)
+    return JSONResponse({"ok": True, "files": n})
+
+
+@app.get("/stock/files/{fid:int}")
+def stock_file(fid: int, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .models import StockDocFile
+    f = db.get(StockDocFile, fid) or (_ for _ in ()).throw(HTTPException(404))
+    return FileResponse(f.path, media_type=f.mime or None, filename=f.name,
+                        content_disposition_type="inline" if (f.mime or "").startswith(("image/", "application/pdf")) else "attachment")
+
+
+@app.post("/stock/files/{fid:int}/delete")
+def stock_file_delete(fid: int, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .models import StockDocFile
+    f = db.get(StockDocFile, fid)
+    did = f.doc_id if f else 0
+    if f:
+        db.delete(f)
+        db.commit()
+    return RedirectResponse(f"/stock/docs/{did}#files", 303)
+
+
+@app.post("/stock/docs/{did:int}/pay")
+def stock_doc_pay(did: int, action: str = Form("paid"), fop: str = Form(""), amount: str = Form(""),
+                  user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    """Оплата накладної вручну (усі склади групи): action=paid — оплатити залишок / суму; clear — зняти ручні відмітки."""
+    from .services import payments as pay
+    doc = db.get(StockDoc, did) or (_ for _ in ()).throw(HTTPException(404))
+    g = pay.find_group(db, pay.group_key(doc))
+    if g:
+        if action == "clear":
+            pay.clear_manual(db, g)
+        else:
+            amt = _num(amount) or g.left
+            pay.allocate(db, g, amt, fop=fop.strip() or None)
+            for d_ in g.docs:
+                d_.paid_by = fop.strip() or d_.paid_by
+            db.commit()
+        audit(db, "stock.pay", "stock_doc", did, user=user, op=action, fop=fop or None)
+    return RedirectResponse(f"/stock/docs/{did}#pay", 303)
 
 
 @app.post("/stock/order-from-critical")
@@ -1847,7 +1963,18 @@ def stock_doc_page(did: int, request: Request, user: User = Depends(require("sto
     from .models import Supplier
     doc = db.get(StockDoc, did) or (_ for _ in ()).throw(HTTPException(404))
     bal = st.balances(db) if st.ledger_active(db) else {}
+    from .services import payments as pay
+    from .models import StockDocFile, PaymentAlloc, BankTxn
+    from .integrations.checkbox import accounts as _cb_acc
+    grp = pay.find_group(db, pay.group_key(doc)) if doc.kind == "supply" else None
+    allocs = db.scalars(select(PaymentAlloc).where(PaymentAlloc.doc_id == doc.id).order_by(PaymentAlloc.at)).all()
+    txns = {t.id: t for t in db.scalars(select(BankTxn).where(BankTxn.id.in_([a.txn_id for a in allocs if a.txn_id] or [""])))}
+    sup = next((x for x in db.scalars(select(Supplier)) if x.name.lower() == (doc.supplier or "").lower()), None) if doc.supplier else None
     return render(request, "stock_doc.html", d=doc, KINDS=st.DOC_KINDS, STATUS=st.STATUS, WAREHOUSES=catalog.WAREHOUSES,
+                  files=db.scalars(select(StockDocFile).where(StockDocFile.doc_id == doc.id).order_by(StockDocFile.id)).all(),
+                  grp=grp, allocs=allocs, txns=txns, PAY=pay.PAY_LABELS, line_paid=pay.by_product(db, [doc.id]),
+                  fops=[a["name"] for a in _cb_acc(db)], sup=sup,
+                  group_docs=[x for x in (grp.docs if grp else []) if x.id != doc.id],
                   REASONS=st.WRITEOFF_REASONS, products=_product_options(db), bal=bal, active=st.ledger_active(db),
                   suppliers=[x.name for x in db.scalars(select(Supplier).order_by(Supplier.name))],
                   editable=doc.status in ("draft", "sent"))
@@ -1923,6 +2050,8 @@ async def stock_doc_save(did: int, request: Request, user: User = Depends(requir
 @app.post("/stock/suppliers")
 def stock_supplier_save(sid: str = Form(""), name: str = Form(...), contact: str = Form(""), phone: str = Form(""),
                         email: str = Form(""), terms: str = Form(""), note: str = Form(""),
+                        legal_name: str = Form(""), edrpou: str = Form(""), iban: str = Form(""), bank: str = Form(""),
+                        pay_purpose: str = Form(""), address: str = Form(""), contract: str = Form(""), vat: str = Form(""),
                         user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
     from .models import Supplier
     x = db.get(Supplier, int(sid)) if sid.isdigit() else None
@@ -1932,11 +2061,89 @@ def stock_supplier_save(sid: str = Form(""), name: str = Form(...), contact: str
     old = x.name
     x.name, x.contact, x.phone, x.email = name.strip()[:200], contact.strip() or None, phone.strip() or None, email.strip() or None
     x.terms, x.note = terms.strip()[:300] or None, note.strip() or None
+    import re as _re
+    x.legal_name, x.bank = legal_name.strip()[:300] or None, bank.strip()[:200] or None
+    x.edrpou = _re.sub(r"\D", "", edrpou)[:20] or None
+    x.iban = _re.sub(r"\s", "", iban).upper()[:40] or None
+    x.pay_purpose, x.address = pay_purpose.strip()[:300] or None, address.strip()[:300] or None
+    x.contract, x.vat = contract.strip()[:200] or None, bool(vat) or None
+    if x.iban and not _re.fullmatch(r"UA\d{27}", x.iban):
+        db.commit()
+        return RedirectResponse(f"/stock?tab=suppliers&s={_q(x.name)}&msg=IBAN+має+формат+UA+і+27+цифр+—+перевірте#sup", 303)
     if old and old != x.name:                              # перейменування — і в товарах
         for p_ in db.scalars(select(Product).where(Product.supplier == old)):
             p_.supplier = x.name
     db.commit()
-    return RedirectResponse("/stock?tab=suppliers", 303)
+    return RedirectResponse(f"/stock?tab=suppliers&s={_q(x.name)}#sup", 303)
+
+
+def _q(v: str) -> str:
+    from urllib.parse import quote
+    return quote(v or "")
+
+
+# ---------------- monobank: оплати постачальникам ----------------
+def _mono_job(job, days: int = 2):
+    from .integrations import monobank
+    with SessionLocal() as db:
+        job.log("Завантажую виписку monobank…")
+        return monobank.sync(db, days=days)
+
+
+@app.post("/stock/mono/connect")
+def stock_mono_connect(fop: str = Form(...), token: str = Form(""), user: User = Depends(require("finance")),
+                       db: Session = Depends(db_dep)):
+    from .integrations import monobank
+    err = monobank.connect(db, fop.strip()[:100], token)
+    audit(db, "mono.connect", user=user, fop=fop, ok=err is None)            # токен у журнал не пишемо
+    return RedirectResponse(f"/stock?tab=suppliers&mono={'err' if err else 'ok'}#mono", 303)
+
+
+@app.post("/stock/mono/watch")
+async def stock_mono_watch(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .integrations import monobank
+    f = await request.form()
+    monobank.set_watch(db, f.get("fop", ""), f.getlist("acc"))
+    return RedirectResponse("/stock?tab=suppliers#mono", 303)
+
+
+@app.post("/stock/mono/disconnect")
+def stock_mono_disconnect(fop: str = Form(...), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .integrations import monobank
+    monobank.disconnect(db, fop)
+    audit(db, "mono.disconnect", user=user, fop=fop)
+    return RedirectResponse("/stock?tab=suppliers#mono", 303)
+
+
+@app.post("/stock/mono/sync")
+def stock_mono_sync(days: int = Form(2), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    job = jobs.start("Виписка monobank", _mono_job, max(1, min(days, 31)))
+    return RedirectResponse(f"/stock?tab=suppliers&job={job.id}#mono", 303)
+
+
+@app.post("/stock/mono/txn/{tid}")
+def stock_mono_txn(tid: str, action: str = Form(...), group: str = Form(""), supplier_id: str = Form(""),
+                   user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    """Ручне рознесення платежу: assign (на накладну) · unassign · ignore · auto (спробувати ще раз)."""
+    from .models import BankTxn
+    from .services import payments as pay
+    t = db.get(BankTxn, tid) or (_ for _ in ()).throw(HTTPException(404))
+    if supplier_id.isdigit():
+        t.supplier_id = int(supplier_id)
+    if action == "assign" and group:
+        g = pay.find_group(db, group)
+        if g:
+            done = pay.allocate(db, g, -t.amount, txn=t, fop=t.fop)
+            t.status, t.note = ("matched" if done >= -t.amount - pay.TOL else "partial"), f"→ {g.label}"
+    elif action == "unassign":
+        pay.unallocate_txn(db, t)
+    elif action == "ignore":
+        t.status = "ignored"
+    elif action == "auto":
+        pay.match_txn(db, t)
+    db.commit()
+    audit(db, "mono.txn", user=user, txn=tid, op=action)
+    return RedirectResponse("/stock?tab=suppliers#mono", 303)
 
 
 @app.post("/stock/suppliers/import")
@@ -2280,7 +2487,7 @@ def cashflow_cleverbox(action: str = Form("probe"), start: str = Form(""), user:
         action = "probe"
     job = jobs.start("Cashflow з CleverBox" if action != "probe" else "Пошук фінансових методів CleverBox",
                      _cf_job, action, start or None)
-    audit(db, "cashflow.cleverbox", user=user, action=action, job=job.id)
+    audit(db, "cashflow.cleverbox", user=user, op=action, job=job.id)
     return RedirectResponse(f"/reports?r=cashflow&job={job.id}", 303)
 
 

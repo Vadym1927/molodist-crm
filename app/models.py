@@ -397,6 +397,14 @@ class Supplier(Base):
     phone: Mapped[str | None] = mapped_column(String(64))
     email: Mapped[str | None] = mapped_column(String(200))
     terms: Mapped[str | None] = mapped_column(String(300))         # умови: доставка, мін. замовлення, оплата
+    legal_name: Mapped[str | None] = mapped_column(String(300))    # отримувач платежу (ТОВ / ФОП …)
+    edrpou: Mapped[str | None] = mapped_column(String(20), index=True)   # ЄДРПОУ / РНОКПП
+    iban: Mapped[str | None] = mapped_column(String(40), index=True)
+    bank: Mapped[str | None] = mapped_column(String(200))
+    pay_purpose: Mapped[str | None] = mapped_column(String(300))   # шаблон призначення платежу
+    address: Mapped[str | None] = mapped_column(String(300))
+    contract: Mapped[str | None] = mapped_column(String(200))      # № і дата договору
+    vat: Mapped[bool | None] = mapped_column(Boolean)              # платник ПДВ
     note: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
@@ -445,6 +453,8 @@ class StockDoc(Base):
     created_by: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     posted_at: Mapped[datetime | None] = mapped_column(DateTime)
+    paid_by: Mapped[str | None] = mapped_column(String(100))        # яким ФОП оплачено
+    pay_group: Mapped[str | None] = mapped_column(String(60), index=True)   # одна накладна → кілька складів
 
     lines: Mapped[list["StockDocLine"]] = relationship(back_populates="doc", cascade="all, delete-orphan",
                                                        order_by="StockDocLine.id")
@@ -617,6 +627,46 @@ class FopMonth(Base):
     @property
     def total(self) -> float:
         return round((self.cash or 0) + (self.cashless or 0), 2)
+
+
+class StockDocFile(Base):
+    """Скан / фото накладної, рахунку, ТТН до складського документа."""
+    __tablename__ = "stock_doc_files"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    doc_id: Mapped[int] = mapped_column(ForeignKey("stock_docs.id"), index=True)
+    path: Mapped[str] = mapped_column(String(500))
+    name: Mapped[str] = mapped_column(String(200))
+    mime: Mapped[str | None] = mapped_column(String(100))
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class BankTxn(Base):
+    """Операція з виписки monobank (лише вихідні платежі постачальникам цікавлять склад)."""
+    __tablename__ = "bank_txns"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)    # id операції monobank
+    fop: Mapped[str | None] = mapped_column(String(100), index=True)
+    account: Mapped[str | None] = mapped_column(String(64))         # id рахунку monobank
+    at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    amount: Mapped[float] = mapped_column(Float)                     # ₴, від'ємна — списання
+    counter_name: Mapped[str | None] = mapped_column(String(300))
+    counter_iban: Mapped[str | None] = mapped_column(String(40), index=True)
+    counter_edrpou: Mapped[str | None] = mapped_column(String(20))
+    description: Mapped[str | None] = mapped_column(String(500))
+    supplier_id: Mapped[int | None] = mapped_column(ForeignKey("suppliers.id"))
+    status: Mapped[str] = mapped_column(String(20), default="new", index=True)   # new | matched | partial | ignored
+    note: Mapped[str | None] = mapped_column(String(300))
+
+
+class PaymentAlloc(Base):
+    """Рознесення оплати: на документ і рядок (товар). Одна оплата може покривати кілька складів."""
+    __tablename__ = "payment_allocs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    txn_id: Mapped[str | None] = mapped_column(ForeignKey("bank_txns.id"), index=True)   # None — відмічено вручну
+    doc_id: Mapped[int] = mapped_column(ForeignKey("stock_docs.id"), index=True)
+    line_id: Mapped[int | None] = mapped_column(ForeignKey("stock_doc_lines.id"))
+    amount: Mapped[float] = mapped_column(Float)
+    fop: Mapped[str | None] = mapped_column(String(100))
+    at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class Check(Base):
