@@ -1,0 +1,22 @@
+<form method="post" action="/appeals"><input type="hidden" name="aid" value="{{ a.id }}"><input type="hidden" name="back" value="/appeals?open={{ a.id }}">
+  <div class="apd-h"><h3>Звернення №{{ a.id }} <span class="stp" style="background:{{ ap.status_color(d, a.status) }};font-size:12px;vertical-align:middle">{{ a.status }}</span></h3>
+    <div class="row" style="gap:6px"><button class="btn">Зберегти</button><button type="button" class="btn ghost" onclick="this.closest('dialog').close()">×</button></div></div>
+  <div class="apd-b">
+    <div class="small muted">Створено {{ a.created_at|local|dt('%d.%m.%Y %H:%M') }}{{ (' · ' ~ users.get(a.created_by)) if a.created_by and users.get(a.created_by) else ' · автоматично' }}</div>
+    {% if p %}<div class="alert" style="background:var(--ok-bg);color:var(--ok);margin:0">Пацієнт: <a href="/patients/{{ p.id }}"><b>{{ p.full_name }}</b></a>{{ (' · ' ~ p.phone) if p.phone }}</div>
+    {% elif match %}<div class="alert" style="background:var(--lavender);color:var(--classic);margin:0">У базі вже є {{ match.full_name }} з цим телефоном.</div>{% endif %}
+    {% set users = users %}{% include "_appeal_fields.html" %}
+  </div></form>
+<div class="apd-b" style="border-top:1px solid var(--line)">
+  <div class="row" style="gap:6px;flex-wrap:wrap">
+    {% for s in d.statuses %}{% if s.name != a.status and s.type != 'fail' %}<form method="post" action="/appeals/{{ a.id }}/status" style="margin:0"><input type="hidden" name="status" value="{{ s.name }}"><input type="hidden" name="back" value="/appeals?open={{ a.id }}"><button class="btn ghost" style="padding:4px 10px;border-color:{{ s.color }}">→ {{ s.name }}</button></form>{% endif %}{% endfor %}
+    <form method="post" action="/appeals/{{ a.id }}/patient" style="margin:0"><button class="btn" style="padding:4px 12px">{{ 'Відкрити картку пацієнта' if p else ('Привʼязати до ' ~ match.full_name if match else 'Створити пацієнта') }}</button></form>
+    <form method="post" action="/appeals/{{ a.id }}/delete" data-delpw="Видалити звернення №{{ a.id }}?" style="margin:0 0 0 auto"><button class="btn danger" style="padding:4px 10px">Видалити</button></form></div>
+  {% set fails = d.statuses|selectattr('type', 'equalto', 'fail')|list %}{% if fails and a.status not in fails|map(attribute='name')|list %}
+  <form method="post" action="/appeals/{{ a.id }}/status" class="row" style="gap:6px;flex-wrap:nowrap"><input type="hidden" name="status" value="{{ fails[0].name }}"><input type="hidden" name="back" value="/appeals?open={{ a.id }}">
+    <select name="deny_reason" required style="flex:1"><option value="">Причина відмови…</option>{% for x in d.deny_reasons %}<option>{{ x }}</option>{% endfor %}</select><button class="btn danger" style="padding:4px 12px">✕ {{ fails[0].name }}</button></form>{% endif %}
+  <form method="post" action="/appeals/{{ a.id }}/note" class="row" style="gap:6px;flex-wrap:nowrap"><input name="text" placeholder="Коментар: домовились, передзвонити після 18:00…" required style="flex:1"><button class="btn ghost">Додати</button></form>
+  <div style="display:grid;gap:6px">{% for n in notes %}<div class="small" style="border-left:3px solid {{ '#3B82C4' if n.kind=='status' else ('#ccc' if n.kind=='system' else 'var(--classic)') }};padding:4px 10px">
+    <span class="muted">{{ n.at|local|dt('%d.%m.%Y %H:%M') }}{{ (' · ' ~ users.get(n.user_id)) if n.user_id and users.get(n.user_id) }}</span><div style="white-space:pre-line">{{ n.text }}</div></div>{% endfor %}</div>
+  {% if history %}<div class="small"><b>Інші звернення з цим телефоном:</b> {% for h in history %}<a href="#" onclick="apOpen({{ h.id }});return false">№{{ h.id }} ({{ h.created_at|local|dt('%d.%m.%y') }}, {{ h.status }})</a>{{ ', ' if not loop.last }}{% endfor %}</div>{% endif %}
+</div>

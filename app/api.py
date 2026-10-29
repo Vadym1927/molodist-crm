@@ -313,6 +313,26 @@ def _by_chat(db: Session, chat_id: str) -> Patient:
     return p
 
 
+class AppealIn(BaseModel):
+    name: str | None = None
+    phone: str | None = None
+    source: str | None = None
+    cause: str | None = None
+    interest: str | None = None
+    comment: str | None = None
+    utm: str | None = None
+
+
+@router.post("/appeals", summary="Нове звернення (бот, форма сайту, n8n): імʼя / телефон, джерело, що цікавить")
+def api_appeal(body: AppealIn, key: ApiKey = Depends(BOT), db: Session = Depends(db_dep)):
+    from .services import appeals as ap
+    if not (body.name or body.phone):
+        raise HTTPException(400, "Потрібні імʼя або телефон")
+    a = ap.create(db, body.model_dump())
+    audit(db, "appeal.api", "appeal", a.id, key=key, source=a.source)
+    return {"id": a.id, "status": a.status, "patient_id": a.patient_id}
+
+
 @router.post("/bot/link", summary="Привʼязати Telegram пацієнта (за телефоном з контакту)")
 def bot_link(body: BotLink, key: ApiKey = Depends(BOT), db: Session = Depends(db_dep)):
     from .integrations.messaging import normalize_phone

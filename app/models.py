@@ -213,6 +213,42 @@ class PatientFile(Base):
     patient: Mapped[Patient | None] = relationship(back_populates="files")
 
 
+class Appeal(Base):
+    """Звернення (заявка): дзвінок, повідомлення, форма сайту, бот. Довідники — у «Налаштування → Звернення»."""
+    __tablename__ = "appeals"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    name: Mapped[str | None] = mapped_column(String(200))
+    phone: Mapped[str | None] = mapped_column(String(64), index=True)
+    patient_id: Mapped[int | None] = mapped_column(ForeignKey("patients.id"), index=True)
+    source: Mapped[str | None] = mapped_column(String(80), index=True)
+    cause: Mapped[str | None] = mapped_column(String(120))            # причина звернення
+    interest: Mapped[str | None] = mapped_column(String(200))         # послуга, що цікавить
+    marks: Mapped[list | None] = mapped_column(JSON)
+    status: Mapped[str] = mapped_column(String(60), default="Новий", index=True)
+    deny_reason: Mapped[str | None] = mapped_column(String(120))
+    amount: Mapped[float | None] = mapped_column(Float)               # потенційна сума
+    comment: Mapped[str | None] = mapped_column(Text)
+    responsible_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True)
+    next_contact: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+    utm: Mapped[str | None] = mapped_column(String(300))
+    created_by: Mapped[int | None] = mapped_column(Integer)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class AppealNote(Base):
+    """Коментар / подія в зверненні (історія)."""
+    __tablename__ = "appeal_notes"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    appeal_id: Mapped[int] = mapped_column(ForeignKey("appeals.id", ondelete="CASCADE"), index=True)
+    at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    user_id: Mapped[int | None] = mapped_column(Integer)
+    text: Mapped[str] = mapped_column(Text)
+    kind: Mapped[str] = mapped_column(String(20), default="note")     # note | status | system
+
+
 class MedRecord(Base):
     """Запис медичної картки: консультація / процедура / контроль. Лише для ролей з правом medical (власник, лікар)."""
     __tablename__ = "med_records"

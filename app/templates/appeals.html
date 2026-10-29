@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Звернення · MOLODIST CRM{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}{% set view = f.view or 'board' %}
+<style>
+.ap-h{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.ap-f{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px}.ap-f input,.ap-f select{height:40px}
+.board{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(260px,1fr);gap:12px;overflow-x:auto;padding-bottom:8px;align-items:start}
+.col{background:var(--soft);border-radius:14px;padding:8px;min-height:120px}
+.col h3{margin:2px 4px 8px;font:700 13px var(--sans);display:flex;justify-content:space-between;align-items:center;gap:6px}
+.col h3 i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+.ac{display:block;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;cursor:pointer;font:inherit;color:inherit;box-shadow:var(--shadow)}
+.ac:hover{border-color:var(--classic)}.ac b{display:block;font-size:14px}.ac .m{font-size:12px;color:var(--muted);margin-top:3px}
+.mk{display:inline-block;font-size:10.5px;font-weight:800;padding:1px 6px;border-radius:6px;background:var(--lavender);color:var(--classic);margin:3px 3px 0 0}
+.due{color:var(--bad);font-weight:700}
+.stp{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:700;color:#fff}
+dialog.apd{border:0;border-radius:18px;padding:0;width:min(720px,96vw);max-height:92vh;box-shadow:0 30px 80px rgba(42,36,48,.35)}
+dialog.apd::backdrop{background:rgba(42,36,48,.45)}
+.apd-h{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#fff;z-index:2}
+.apd-h h3{margin:0;font-size:18px}.apd-b{padding:14px 18px 18px;display:grid;gap:10px}
+.apd-b label{display:grid;gap:4px;font-size:12px;font-weight:700;color:var(--muted)}.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}.chips label{display:inline-flex;gap:5px;align-items:center;background:var(--soft);border-radius:8px;padding:5px 9px;font-size:13px;color:var(--ink)}
+.st-k{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+@media (max-width:700px){.g2{grid-template-columns:1fr}}
+</style>
+<div class="ap-h"><div><div class="eyebrow">Пацієнти</div><h1>Звернення</h1></div>
+  <div class="row" style="gap:6px"><a class="btn ghost" href="?{{ request.url.query|replace('view=list','')|replace('view=board','') }}&view={{ 'list' if view=='board' else 'board' }}">{{ '☰ Список' if view=='board' else '▦ Дошка' }}</a>
+    {% if can(user,'users') %}<a class="btn ghost" href="/settings/appeals">⚙ Довідники</a>{% endif %}<button class="btn" onclick="document.getElementById('apnew').showModal()">＋ Звернення</button></div></div>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+{% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+<form class="ap-f"><input type="hidden" name="view" value="{{ view }}">
+  <input type="date" name="df" value="{{ f.d_from or '' }}"><span class="muted">—</span><input type="date" name="dt_" value="{{ f.d_to or '' }}">
+  <select name="source"><option value="">Усі джерела</option>{% for x in d.sources %}<option {{ 'selected' if f.source==x }}>{{ x }}</option>{% endfor %}</select>
+  <select name="status"><option value="">Усі статуси</option>{% for s in d.statuses %}<option {{ 'selected' if f.status==s.name }}>{{ s.name }}</option>{% endfor %}</select>
+  <select name="cause"><option value="">Усі причини</option>{% for x in d.causes %}<option {{ 'selected' if f.cause==x }}>{{ x }}</option>{% endfor %}</select>
+  <select name="mark"><option value="">Усі мітки</option>{% for x in d.marks %}<option {{ 'selected' if f.mark==x }}>{{ x }}</option>{% endfor %}</select>
+  <select name="resp"><option value="">Усі відповідальні</option>{% for k, v in users.items() %}<option value="{{ k }}" {{ 'selected' if f.resp==k|string }}>{{ v }}</option>{% endfor %}</select>
+  <input name="q" value="{{ f.q }}" placeholder="Імʼя, телефон, №" style="width:170px"><button class="btn ghost">OK</button>
+  <a class="btn ghost {{ 'on' if f.due }}" href="?due=1&all=1&view={{ view }}" style="{{ 'background:var(--bad-bg);color:var(--bad)' if due_n }}">☎ Звʼязатися сьогодні · {{ due_n }}</a></form>
+<div class="st-k">
+  <div class="tile"><span>Звернень</span><b>{{ st.n }}</b></div>
+  <div class="tile"><span>Нові / в роботі</span><b>{{ st.by_type.get('new', 0) }} / {{ st.by_type.get('work', 0) }}</b></div>
+  <div class="tile"><span>Записані</span><b style="color:var(--ok)">{{ st.by_type.get('success', 0) }}</b></div>
+  <div class="tile"><span>Відмови</span><b style="color:var(--bad)">{{ st.by_type.get('fail', 0) }}</b></div>
+  <div class="tile"><span>Конверсія</span><b>{{ (st.conv ~ '%') if st.conv is not none else '—' }}</b><div class="muted small">записані із закритих</div></div>
+</div>
+{% macro acard(a) %}<button type="button" class="ac" onclick="apOpen({{ a.id }})"><b>{{ a.name or a.phone or ('№' ~ a.id) }}</b>
+  <div class="m">{{ a.phone or '' }}{{ (' · ' ~ a.source) if a.source }}{{ (' · ' ~ a.cause) if a.cause }}</div>
+  {% if a.interest %}<div class="m">💬 {{ a.interest }}</div>{% endif %}
+  {% if a.next_contact and not a.closed_at %}<div class="m {{ 'due' if a.next_contact <= now }}">☎ {{ a.next_contact|dt('%d.%m %H:%M') }}</div>{% endif %}
+  {% if a.deny_reason %}<div class="m" style="color:var(--bad)">✕ {{ a.deny_reason }}</div>{% endif %}
+  <div>{% for m in a.marks or [] %}<span class="mk">{{ m }}</span>{% endfor %}{% if a.patient_id %}<span class="mk" style="background:var(--ok-bg);color:var(--ok)">пацієнт</span>{% endif %}</div>
+  <div class="m">№{{ a.id }} · {{ a.created_at|local|dt('%d.%m %H:%M') }}{{ (' · ' ~ users.get(a.responsible_id)) if a.responsible_id and users.get(a.responsible_id) }}</div></button>{% endmacro %}
+{% if view == 'board' %}<div class="board">{% for s in d.statuses %}{% set items = rows|selectattr('status', 'equalto', s.name)|list %}
+  <div class="col"><h3><span><i style="background:{{ s.color }}"></i>{{ s.name }}</span><span class="muted">{{ items|length }}</span></h3>
+    {% for a in items[:150] %}{{ acard(a) }}{% else %}<div class="muted small" style="padding:6px">—</div>{% endfor %}</div>{% endfor %}
+  {% set known = d.statuses|map(attribute='name')|list %}{% set rest = rows|rejectattr('status', 'in', known)|list %}{% if rest %}<div class="col"><h3>Інші статуси<span class="muted">{{ rest|length }}</span></h3>{% for a in rest %}{{ acard(a) }}{% endfor %}</div>{% endif %}
+</div>
+{% else %}<div class="card" style="padding:6px 8px;overflow:auto"><table class="tb small"><thead><tr><th>№</th><th>Дата</th><th>Хто</th><th>Джерело</th><th>Причина</th><th>Цікавить</th><th>Статус</th><th>Звʼязатися</th><th>Відповідальний</th></tr></thead><tbody>
+  {% for a in rows %}<tr onclick="apOpen({{ a.id }})" style="cursor:pointer"><td>{{ a.id }}</td><td>{{ a.created_at|local|dt('%d.%m.%Y %H:%M') }}</td><td><b>{{ a.name or '—' }}</b><div class="meta">{{ a.phone or '' }}</div></td>
+    <td>{{ a.source or '' }}</td><td>{{ a.cause or '' }}</td><td>{{ a.interest or '' }}</td><td><span class="stp" style="background:{{ ap.status_color(d, a.status) }}">{{ a.status }}</span>{% if a.deny_reason %}<div class="meta">{{ a.deny_reason }}</div>{% endif %}</td>
+    <td class="{{ 'due' if a.next_contact and a.next_contact <= now and not a.closed_at }}">{{ a.next_contact|dt('%d.%m %H:%M') if a.next_contact else '' }}</td><td>{{ users.get(a.responsible_id, '') }}</td></tr>
+  {% else %}<tr><td colspan="9" class="muted">Звернень немає.</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+<div class="grid g2" style="margin-top:16px">
+  <div class="card" style="margin:0"><h2 style="margin-top:0">Джерела</h2><table class="tb small"><thead><tr><th>Джерело</th><th class="r">Звернень</th><th class="r">Записані</th><th class="r">%</th></tr></thead><tbody>
+    {% for k, v in st.by_source.items() %}<tr><td>{{ k }}</td><td class="r">{{ v.n }}</td><td class="r">{{ v.success }}</td><td class="r">{{ (100 * v.success / v.n)|round|int }}%</td></tr>{% else %}<tr><td class="muted">—</td></tr>{% endfor %}</tbody></table></div>
+  <div class="card" style="margin:0"><h2 style="margin-top:0">Причини відмов</h2><table class="tb small"><tbody>{% for k, n in st.deny %}<tr><td>{{ k }}</td><td class="r">{{ n }}</td></tr>{% else %}<tr><td class="muted">—</td></tr>{% endfor %}</tbody></table></div>
+</div>
+
+<dialog class="apd" id="apnew"><form method="post" action="/appeals"><input type="hidden" name="back" value="{{ request.url.path }}?{{ request.url.query }}">
+  <div class="apd-h"><h3>Нове звернення</h3><div class="row" style="gap:6px"><button class="btn">Зберегти</button><button type="button" class="btn ghost" onclick="this.closest('dialog').close()">×</button></div></div>
+  <div class="apd-b">{% set a = None %}{% include "_appeal_fields.html" %}</div></form></dialog>
+<dialog class="apd" id="apcard"><div id="apcard-b"><div class="apd-b muted">Завантаження…</div></div></dialog>
+<script>
+function apOpen(id){var d=document.getElementById('apcard');document.getElementById('apcard-b').innerHTML='<div class="apd-b muted">Завантаження…</div>';d.showModal();
+  fetch('/appeals/'+id,{credentials:'same-origin'}).then(function(r){return r.text()}).then(function(h){document.getElementById('apcard-b').innerHTML=h;
+    var u=new URL(location.href);u.searchParams.set('open',id);document.querySelectorAll('#apcard-b input[name=back]').forEach(function(i){i.value=u.pathname+u.search})})}
+document.querySelectorAll('dialog.apd').forEach(function(d){d.addEventListener('click',function(e){if(e.target===d)d.close()});
+  d.addEventListener('close',function(){var u=new URL(location.href);if(u.searchParams.has('open')){u.searchParams.delete('open');history.replaceState(null,'',u.pathname+u.search)}})});
+{% if open_ %}apOpen({{ open_ }});{% endif %}
+</script>
+{% endblock %}

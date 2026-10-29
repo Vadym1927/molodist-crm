@@ -642,6 +642,217 @@ async def upload_photos(pid: int, files: list[UploadFile] = File(...), caption: 
     return RedirectResponse(f"/patients/{pid}#files", 303)
 
 
+# ---------------- Звернення (заявки) ----------------
+def _appeal_filters(request: Request) -> dict:
+    qp = request.query_params
+    f = {k: qp.get(k, "") for k in ("source", "status", "cause", "resp", "mark", "q", "due", "view")}
+    f["d_from"], f["d_to"] = _day(qp.get("df", "")), _day(qp.get("dt_", ""))
+    if not qp.get("df") and not qp.get("all"):
+        f["d_from"] = date.today() - timedelta(days=60)
+    return f
+
+
+@app.get("/appeals", response_class=HTMLResponse)
+def appeals_page(request: Request, user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+    from .services import appeals as ap
+    from .models import Appeal
+    f = _appeal_filters(request)
+    rows = ap.listing(db, f)
+    d = ap.dirs(db)
+    users = {u_.id: u_.name for u_ in db.scalars(select(User).where(User.active.is_(True)))}
+    pats = {p_.id: p_ for p_ in db.scalars(select(Patient).where(Patient.id.in_([a.patient_id for a in rows if a.patient_id] or [0])))}
+    due_n = len([a for a in db.scalars(select(Appeal).where(Appeal.deleted_at.is_(None), Appeal.closed_at.is_(None),
+                                                            Appeal.next_contact <= datetime.now().replace(hour=23, minute=59)))])
+    return render(request, "appeals.html", nav="appeals", rows=rows, d=d, f=f, st=ap.stats(db, rows), users=users, pats=pats,
+                  ap=ap, due_n=due_n, now=datetime.now(), open_=int(request.query_params.get("open") or 0) or None)
+
+
+@app.get("/appeals/{aid:int}", response_class=HTMLResponse)
+def appeal_card(request: Request, aid: int, user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+    from .services import appeals as ap
+    from .models import Appeal, AppealNote
+    a = db.get(Appeal, aid)
+    if not a or a.deleted_at:
+        raise HTTPException(404)
+    notes = db.scalars(select(AppealNote).where(AppealNote.appeal_id == aid).order_by(AppealNote.at.desc())).all()
+    users = {u_.id: u_.name for u_ in db.scalars(select(User))}
+    other = db.scalars(select(Appeal).where(Appeal.id != aid, Appeal.deleted_at.is_(None), Appeal.phone.is_not(None))).all()
+    pk = ap.phone_key(a.phone)
+    history = [x for x in other if pk and ap.phone_key(x.phone) == pk][:20]
+    return templates.TemplateResponse(request, "_appeal_card.html", {"request": request, "user": user, "a": a, "notes": notes, "users": users,
+                                      "d": ap.dirs(db), "ap": ap, "p": db.get(Patient, a.patient_id) if a.patient_id else None,
+                                      "history": history, "match": None if a.patient_id else ap.find_patient(db, a.phone)})
+
+
+@app.post("/appeals")
+async def appeal_save(request: Request, user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+    from .services import appeals as ap
+    from .models import Appeal
+    f = await request.form()
+    back = str(f.get("back") or "/appeals")
+    back = back if back.startswith("/appeals") or back.startswith("/patients/") else "/appeals"
+    nc = str(f.get("next_contact") or "")
+    try:
+        next_contact = datetime.fromisoformat(nc) if nc else None
+    except ValueError:
+        next_contact = None
+    data = {k: str(f.get(k) or "") for k in ("name", "phone", "source", "cause", "interest", "comment", "status", "utm")}
+    data["marks"] = [str(x) for x in f.getlist("marks")]
+    data["responsible_id"] = int(f["responsible_id"]) if str(f.get("responsible_id") or "").isdigit() else None
+    data["next_contact"], data["amount"] = next_contact, _num(str(f.get("amount") or ""))
+    aid = str(f.get("aid") or "")
+    if aid.isdigit():
+        a = db.get(Appeal, int(aid))
+        if not a:
+            raise HTTPException(404)
+        changes = []
+        for k in ("name", "phone", "source", "cause", "interest", "comment", "utm"):
+            v = data[k].strip() or None
+            if (getattr(a, k) or None) != v:
+                changes.append(k)
+                setattr(a, k, v)
+        if (a.marks or []) != data["marks"]:
+            a.marks = data["marks"] or None
+        a.responsible_id, a.next_contact, a.amount = data["responsible_id"], next_contact, data["amount"]
+        a.updated_at = datetime.utcnow()
+        if not a.patient_id:
+            m = ap.find_patient(db, a.phone)
+            a.patient_id = m.id if m else None
+        db.commit()
+        if data["status"] and data["status"] != a.status:
+            ap.set_status(db, a, data["status"], user.id, str(f.get("deny_reason") or "") or None)
+        elif str(f.get("deny_reason") or "") and ap.status_type(ap.dirs(db), a.status) == "fail":
+            a.deny_reason = str(f.get("deny_reason"))[:120]
+            db.commit()
+        if changes:
+            ap.note(db, a, "Змінено: " + ", ".join(changes), user.id, "system")
+            db.commit()
+        audit(db, "appeal.edit", "appeal", a.id, user=user, status=a.status)
+    else:
+        if not (data["name"].strip() or data["phone"].strip()):
+            return RedirectResponse(_with_msg(back, "Вкажіть імʼя або телефон", True), 303)
+        a = ap.create(db, data, user.id)
+        if data["status"] and ap.status_type(ap.dirs(db), data["status"]) == "fail" and f.get("deny_reason"):
+            a.deny_reason = str(f.get("deny_reason"))[:120]
+            db.commit()
+        audit(db, "appeal.create", "appeal", a.id, user=user, source=a.source)
+    if a.next_contact and not a.closed_at:
+        _appeal_task(db, a, user)
+    return RedirectResponse(back if "open=" in back or back.startswith("/patients/") else _with_msg(back, f"Звернення №{a.id} збережено"), 303)
+
+
+def _appeal_task(db: Session, a, user: User) -> None:
+    """Наступний контакт → задача в «Задачах» (одна на звернення, оновлюється)."""
+    t = db.scalar(select(Task).where(Task.source_key == f"appeal:{a.id}"))
+    t = t or Task(source_key=f"appeal:{a.id}", kind="follow_up", created_by=user.id)
+    t.title = f"Звернення №{a.id}: звʼязатися — {a.name or a.phone or ''}"[:300]
+    t.description = "\n".join(x for x in [a.interest and f"Цікавить: {a.interest}", a.comment, f"/appeals?open={a.id}"] if x)
+    t.due_date, t.patient_id, t.assignee_id = a.next_contact.date(), a.patient_id, a.responsible_id
+    t.assignee_role = None if a.responsible_id else "admin"
+    t.status = "open"
+    db.add(t)
+    db.commit()
+
+
+@app.post("/appeals/{aid:int}/note")
+def appeal_note(aid: int, text: str = Form(...), user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+    from .services import appeals as ap
+    from .models import Appeal
+    a = db.get(Appeal, aid)
+    if a and text.strip():
+        ap.note(db, a, text.strip(), user.id)
+        a.updated_at = datetime.utcnow()
+        db.commit()
+    return RedirectResponse(f"/appeals?open={aid}", 303)
+
+
+@app.post("/appeals/{aid:int}/status")
+def appeal_status(aid: int, status: str = Form(...), deny_reason: str = Form(""), back: str = Form("/appeals"),
+                  user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+    from .services import appeals as ap
+    from .models import Appeal
+    a = db.get(Appeal, aid)
+    if a:
+        ap.set_status(db, a, status, user.id, deny_reason or None)
+        if a.closed_at:
+            t = db.scalar(select(Task).where(Task.source_key == f"appeal:{aid}", Task.status == "open"))
+            if t:
+                t.status, t.done_at, t.result = "done", datetime.utcnow(), f"Звернення: {a.status}"
+                db.commit()
+        audit(db, "appeal.status", "appeal", aid, user=user, status=status, deny=deny_reason or None)
+    return RedirectResponse(back if back.startswith("/appeals") else "/appeals", 303)
+
+
+@app.post("/appeals/{aid:int}/patient")
+def appeal_to_patient(aid: int, user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+    from .services import appeals as ap
+    from .models import Appeal
+    a = db.get(Appeal, aid) or (_ for _ in ()).throw(HTTPException(404))
+    created = not a.patient_id and not ap.find_patient(db, a.phone)
+    p = ap.to_patient(db, a)
+    ap.note(db, a, ("Створено картку пацієнта" if created else "Привʼязано до картки пацієнта") + f" №{p.id}", user.id, "system")
+    db.commit()
+    audit(db, "appeal.patient", "appeal", aid, user=user, patient=p.id, created=created)
+    return RedirectResponse(f"/patients/{p.id}", 303)
+
+
+@app.post("/appeals/{aid:int}/delete")
+def appeal_delete(aid: int, del_password: str = Form(""), user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+    from .models import Appeal
+    err = _delpw(db, user, del_password, "appeal", "appeal", aid)
+    if err:
+        return RedirectResponse(_with_err("/appeals", err), 303)
+    a = db.get(Appeal, aid)
+    if a:
+        a.deleted_at = datetime.utcnow()
+        db.commit()
+        audit(db, "appeal.delete", "appeal", aid, user=user)
+    return RedirectResponse(_with_msg("/appeals", f"Звернення №{aid} видалено"), 303)
+
+
+@app.get("/settings/appeals", response_class=HTMLResponse)
+def settings_appeals(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import appeals as ap
+    return render(request, "appeal_dirs.html", nav="settings", d=ap.dirs(db), ap=ap, open_=request.query_params.get("open", ""))
+
+
+@app.post("/settings/appeals/{what}")
+def settings_appeals_save(what: str, action: str = Form(...), idx: str = Form(""), name: str = Form(""), type_: str = Form("work", alias="type"),
+                          color: str = Form(""), del_password: str = Form(""), user: User = Depends(require("users")),
+                          db: Session = Depends(db_dep)):
+    import re as _re
+    from .services import appeals as ap
+    if what not in ap.DIR_LABELS:
+        raise HTTPException(404)
+    d = ap.dirs(db)
+    items = d[what]
+    i = int(idx) if idx.isdigit() and int(idx) < len(items) else None
+    nm = name.strip()[:80]
+    is_st = what == "statuses"
+    if action == "add" and nm:
+        items.append({"name": nm, "type": type_ if type_ in ap.STATUS_TYPES else "work", "color": color if _re.fullmatch(r"#[0-9a-fA-F]{6}", color or "") else "#888888"} if is_st else nm)
+    elif i is not None and action == "save" and nm:
+        if is_st:
+            items[i].update(name=nm, type=type_ if type_ in ap.STATUS_TYPES else items[i]["type"],
+                            color=color if _re.fullmatch(r"#[0-9a-fA-F]{6}", color or "") else items[i].get("color"))
+        else:
+            items[i] = nm
+    elif i is not None and action in ("up", "down"):
+        j = i - 1 if action == "up" else i + 1
+        if 0 <= j < len(items):
+            items[i], items[j] = items[j], items[i]
+    elif i is not None and action == "delete":
+        err = _delpw(db, user, del_password, f"appeal_{what}", None, None)
+        if err:
+            return RedirectResponse(_with_err(f"/settings/appeals?open={what}", err), 303)
+        if is_st and len(items) <= 1:
+            return RedirectResponse(_with_msg(f"/settings/appeals?open={what}", "Має лишитися хоча б один статус", True), 303)
+        items.pop(i)
+    ap.save_dirs(db, d)
+    audit(db, "settings.appeals", user=user, what=what, op=action, name=nm or None)
+    return RedirectResponse(f"/settings/appeals?open={what}#{what}", 303)
+
+
 # ---------------- Медична картка й фото до/після ----------------
 MED_KINDS = {"consultation": "Консультація", "procedure": "Процедура", "control": "Контрольний огляд"}
 MED_FIELDS = ("title", "complaints", "anamnesis", "objective", "diagnosis", "protocol", "recommendations")
@@ -2606,11 +2817,11 @@ SETTINGS_BLOCKS = [
         ("Checkbox", "Каси ФОП Колган і Бондар: оборот і ліміти ФОП", "/reports?r=fop", "finance", "cmarket/checkbox/main"),
     ]),
     ("Звернення", [
-        ("Джерела звернень", None, None, None, "dirs/appeal_type"),
-        ("Мітки звернень", None, None, None, "dirs/appeal_mark"),
-        ("Статуси звернень", None, None, None, "dirs/appeal_status"),
-        ("Причини відмов", None, None, None, "dirs/appeal_deny"),
-        ("Причини звернень", None, None, None, "dirs/appeal_cause"),
+        ("Джерела звернень", None, "/settings/appeals?open=sources", "users", "dirs/appeal_type"),
+        ("Мітки звернень", None, "/settings/appeals?open=marks", "users", "dirs/appeal_mark"),
+        ("Статуси звернень", None, "/settings/appeals?open=statuses", "users", "dirs/appeal_status"),
+        ("Причини відмов", None, "/settings/appeals?open=deny_reasons", "users", "dirs/appeal_deny"),
+        ("Причини звернень", None, "/settings/appeals?open=causes", "users", "dirs/appeal_cause"),
     ]),
     ("Співробітники й графік", [
         ("Посади співробітників", None, None, None, "dirs/prof"),

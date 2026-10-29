@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Довідники звернень · Налаштування{% endblock %}
+{% block body %}
+<style>
+.ad{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;align-items:start}
+.ad .card h2{display:flex;justify-content:space-between}
+.ir{display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:10px;padding:5px 8px;background:#FAF9F7;margin-bottom:6px}
+.ir form{margin:0}.ir input[name=name]{flex:1;height:34px;border-color:transparent;background:transparent;font-weight:600;color:#2f65a0}
+.ir input[name=name]:focus{background:#fff;border-color:var(--line)}.ir button{border:0;background:none;cursor:pointer;padding:3px 5px}
+.ir .del{border:1.5px solid #E8A0A0;color:#C0392B;font:700 11px var(--sans);border-radius:7px;padding:2px 7px}
+.ir input[type=color]{width:34px;height:30px;padding:0;border:0;background:none}
+</style>
+<div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a></div><h1>Звернення · довідники</h1>
+{% if request.query_params.get('err') %}<div class="alert">{{ request.query_params.get('err') }}</div>{% endif %}
+<p class="muted small">Значення, з яких вибирають у зверненнях. Порядок статусів — це колонки дошки «Звернення». Тип статусу визначає, чи звернення закрите (успіх / відмова).</p>
+<div class="ad">
+{% for what, title in ap.DIR_LABELS.items() %}<div class="card" id="{{ what }}" style="margin:0;{{ 'box-shadow:0 0 0 2px var(--lavender-2)' if open_==what }}"><h2 style="margin-top:0">{{ title }}<span class="muted">{{ d[what]|length }}</span></h2>
+  {% for it in d[what] %}{% set nm = it.name if what == 'statuses' else it %}<div class="ir">
+    <form method="post" action="/settings/appeals/{{ what }}" style="display:flex;flex-direction:column"><input type="hidden" name="idx" value="{{ loop.index0 }}"><button name="action" value="up" {{ 'disabled' if loop.first }}>▲</button><button name="action" value="down" {{ 'disabled' if loop.last }}>▼</button></form>
+    <form method="post" action="/settings/appeals/{{ what }}" style="display:flex;flex:1;gap:4px;align-items:center"><input type="hidden" name="idx" value="{{ loop.index0 }}"><input type="hidden" name="action" value="save">
+      <input name="name" value="{{ nm }}" onchange="this.form.submit()">
+      {% if what == 'statuses' %}<input type="color" name="color" value="{{ it.color or '#888888' }}" onchange="this.form.submit()"><select name="type" onchange="this.form.submit()" style="height:32px;font-size:12px">{% for k, v in ap.STATUS_TYPES.items() %}<option value="{{ k }}" {{ 'selected' if it.type==k }}>{{ v }}</option>{% endfor %}</select>{% endif %}</form>
+    <form method="post" action="/settings/appeals/{{ what }}" data-delpw="Видалити «{{ nm }}»?"><input type="hidden" name="idx" value="{{ loop.index0 }}"><input type="hidden" name="action" value="delete"><button class="del">DELETE</button></form></div>{% endfor %}
+  <form method="post" action="/settings/appeals/{{ what }}" class="row" style="gap:6px;flex-wrap:nowrap;margin-top:8px"><input type="hidden" name="action" value="add"><input name="name" placeholder="Додати…" required style="flex:1">
+    {% if what == 'statuses' %}<input type="color" name="color" value="#8e7cc3" style="width:40px;height:40px;padding:0"><select name="type">{% for k, v in ap.STATUS_TYPES.items() %}<option value="{{ k }}" {{ 'selected' if k=='work' }}>{{ v }}</option>{% endfor %}</select>{% endif %}
+    <button class="btn" style="background:#4CAF50;border-color:#4CAF50">＋</button></form></div>{% endfor %}
+</div>
+{% endblock %}
