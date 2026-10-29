@@ -53,74 +53,92 @@ def _patients(db: Session, ids) -> dict[int, Patient]:
     return {p.id: p for p in db.scalars(select(Patient).where(Patient.id.in_(ids or [0])))}
 
 
-# ---------------- фіноперації ----------------
+# ---------------- журнал фіноперацій: лише CRM і CleverBox ----------------
+
+KIND_LABELS = {"income": "Дохід", "expense": "Витрата", "transfer": "Переміщення", "storno": "Сторно"}
+
 
 @dataclass
-class Op:
-    day: date
-    at: datetime | None
-    kind: str             # income | expense
-    category: str
+class J:
+    src: str                 # crm | cb
+    num: str                 # «#32263» / «CRM-15»
+    at: datetime
+    kind: str                # income | expense | transfer | storno
     amount: float
-    cashbox: str
     who: str = ""
-    ref: str = ""
-    src: str = "manual"   # check | mono | manual
+    who_link: str | None = None
+    basis: str = ""
+    article: str = ""
+    filial: str = ""
+    account: str = ""
+    vid: str = ""
+    author: str = ""
+    comment: str = ""
     money: bool = True
-    link: str | None = None
     id: int | None = None
-    author: str | None = None
+    storned: bool = False
+    deleted: bool = False
+    is_storno: bool = False
+
+    @property
+    def sign(self) -> int:
+        return 1 if self.kind == "income" else (-1 if self.kind in ("expense", "storno") else 0)
 
 
-def operations(db: Session, d_from: date, d_to: date, users: dict | None = None) -> list[Op]:
+def journal(db: Session, d_from: date, d_to: date, users: dict | None = None, archive: bool = False) -> list[J]:
+    from ..models import CbFinOp
     users = users or {}
-    out: list[Op] = []
-    cs = checks(db, d_from, d_to)
-    pats = _patients(db, [c.patient_id for c in cs])
-    for c in cs:
-        p = pats.get(c.patient_id)
-        types = sorted({ITEM_TYPES.get(it.get("item_type"), "Інше") for it in c.items or []})
-        for pay in c.payments or [{"payment_name": "—", "amount": c.amount}]:
-            amt = float(pay.get("amount") or 0)
-            if not amt:
-                continue
-            name = pay.get("payment_name") or "—"
-            out.append(Op(c.date.date(), c.date, "income" if amt > 0 else "expense",
-                          "Продаж: " + (", ".join(types).lower() or "чек"), abs(amt), name,
-                          who=p.full_name if p else "—", ref=f"чек №{c.id}", src="check", money=is_money(name),
-                          link=f"/patients/{p.id}" if p else None, author=c.author))
     a, b = _range(d_from, d_to)
-    sups = {s.id: s.name for s in db.scalars(select(Supplier))}
-    for t in db.scalars(select(BankTxn).where(BankTxn.at >= a, BankTxn.at <= b)):
-        cat = ("Оплата постачальнику" if t.supplier_id or t.status in ("matched", "partial")
-               else "Інше списання з рахунку") if t.amount < 0 else "Надходження на рахунок"
-        out.append(Op(t.at.date(), t.at, "expense" if t.amount < 0 else "income", cat, abs(t.amount), f"monobank · ФОП {t.fop}",
-                      who=sups.get(t.supplier_id) or (t.counter_name or "—"), ref=(t.description or "")[:120], src="mono"))
-    for x in db.scalars(select(FinOp).where(FinOp.deleted_at.is_(None), FinOp.day >= d_from, FinOp.day <= d_to)):
-        who = ""
-        if x.doctor_id:
-            d = db.get(Doctor, x.doctor_id)
-            who = (d.name if d else "") + (f" · за {x.salary_month}" if x.salary_month else "")
-        out.append(Op(x.day, x.created_at, x.kind, x.category, x.amount, x.cashbox or "—", who=who, ref=x.comment or "",
-                      src="manual", id=x.id, author=users.get(x.created_by)))
-    out.sort(key=lambda o: (o.day, o.at or datetime.min), reverse=True)
+    out: list[J] = []
+    if not archive:
+        cb_days = set()
+        for x in db.scalars(select(CbFinOp).where(CbFinOp.at >= a, CbFinOp.at <= b)):
+            cb_days.add(x.at.date())
+            out.append(J("cb", f"#{x.id}" if x.id > 0 else "—", x.at, x.kind, x.amount, who=x.counterparty or "",
+                         basis=x.basis or "", article=x.article or "", filial=x.filial or "", account=x.account or "",
+                         vid=x.vid or "", author=x.author or "", comment=x.comment or "", money=x.kind != "transfer"))
+        cs = [c for c in checks(db, d_from, d_to) if c.date.date() not in cb_days]   # дні без журналу CleverBox — з чеків
+        pats = _patients(db, [c.patient_id for c in cs])
+        for c in cs:
+            p = pats.get(c.patient_id)
+            for pay in c.payments or [{"payment_name": "—", "amount": c.amount}]:
+                amt = float(pay.get("amount") or 0)
+                if not amt:
+                    continue
+                name = pay.get("payment_name") or "—"
+                out.append(J("cb", f"#{c.id}", c.date, "income" if amt > 0 else "expense", abs(amt),
+                             who=p.full_name if p else "—", who_link=f"/patients/{p.id}" if p else None, basis=f"Продаж #{c.id}",
+                             article="Оплата послуг, товарів", account=name, vid=name, author=c.author or "",
+                             money=is_money(name)))
+    q = select(FinOp).where(FinOp.day >= d_from, FinOp.day <= d_to)
+    q = q.where(FinOp.deleted_at.is_not(None)) if archive else q.where(FinOp.deleted_at.is_(None))
+    ops = db.scalars(q).all()
+    storned = {x.storno_of for x in db.scalars(select(FinOp).where(FinOp.storno_of.is_not(None), FinOp.deleted_at.is_(None)))}
+    docs = {d.id: d.name for d in db.scalars(select(Doctor))}
+    for x in ops:
+        who = x.counterparty or (docs.get(x.doctor_id, "") if x.doctor_id else "")
+        basis = f"сторно CRM-{x.storno_of}" if x.storno_of else (f"зарплата за {x.salary_month}" if x.salary_month else "")
+        at = datetime.combine(x.day, (x.created_at or datetime.min).time()) if x.created_at else datetime.combine(x.day, datetime.min.time())
+        out.append(J("crm", f"CRM-{x.id}", at, x.kind, x.amount, who=who, basis=basis, article=x.category,
+                     account=x.cashbox or "", vid=x.cashbox_to or "", author=users.get(x.created_by, ""), comment=x.comment or "",
+                     money=x.kind != "transfer", id=x.id, storned=x.id in storned, deleted=bool(x.deleted_at),
+                     is_storno=bool(x.storno_of)))
+    out.sort(key=lambda r: r.at, reverse=True)
     return out
 
 
-def ops_totals(ops: list[Op]) -> dict:
-    t = {"income": 0.0, "expense": 0.0, "non_money": 0.0, "by_box": defaultdict(lambda: {"income": 0.0, "expense": 0.0}),
-         "by_cat": defaultdict(float)}
-    for o in ops:
-        if not o.money:
-            t["non_money"] += o.amount
-            continue
-        t[o.kind] += o.amount
-        t["by_box"][o.cashbox][o.kind] += o.amount
-        if o.kind == "expense":
-            t["by_cat"][o.category] += o.amount
+def journal_totals(rows: list[J]) -> dict:
+    t = {"income": 0.0, "expense": 0.0, "transfer": 0.0, "non_money": 0.0, "n": len(rows)}
+    for r in rows:
+        if r.kind == "transfer":
+            t["transfer"] += r.amount
+        elif not r.money:
+            t["non_money"] += r.amount
+        elif r.kind == "income":
+            t["income"] += r.amount
+        else:
+            t["expense"] += r.amount
     t["net"] = round(t["income"] - t["expense"], 2)
-    t["by_box"] = dict(sorted(t["by_box"].items(), key=lambda kv: -(kv[1]["income"] + kv[1]["expense"])))
-    t["by_cat"] = dict(sorted(t["by_cat"].items(), key=lambda kv: -kv[1]))
     return t
 
 

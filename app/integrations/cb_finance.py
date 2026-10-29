@@ -20,7 +20,7 @@ from .cleverbox import CleverBox, _state, d, parse_dt
 
 log = logging.getLogger("cb_finance")
 
-CANDIDATES = ("finance/transactions", "finance/operations", "finance/list", "finance", "finances",
+CANDIDATES = ("finance/journal", "finance/fin_operations", "finoperations", "fin_operations", "finance/transactions", "finance/operations", "finance/list", "finance", "finances",
               "cashbox/operations", "cashbox/transactions", "cashbox/list", "cashboxes/operations",
               "transactions", "operations", "money/operations", "payments", "sales/payments",
               "expenses", "finance/expenses", "costs", "reports/profit", "reports/finance", "reports/cashflow")
@@ -131,6 +131,11 @@ def sync_cash(db: Session, start: date, end: date, cb: CleverBox | None = None) 
         for r in _rows(cb, method, cur, nxt):
             if not isinstance(r, dict):
                 continue
+            if method not in ("payments", "sales/payments"):             # кожна операція — в журнал фіноперацій CRM
+                from ..services.cb_finops_import import from_api_row, upsert
+                rec = from_api_row(r)
+                if rec:
+                    upsert(db, rec, "api")
             dt = parse_dt(str(_first(r, DATE_KEYS) or ""))
             c = classify(r)
             if not dt or not c:

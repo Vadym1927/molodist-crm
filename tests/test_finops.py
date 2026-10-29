@@ -30,7 +30,7 @@ def test_finance_sections():
             assert r.status_code == 200 and "Взаєморозрахунки по з/п" in r.text, u
         assert "Чистка обличчя" in c.get("/finance/day").text and "Бонусна Пацієнтка" in c.get("/finance/sales?q=бонусна").text
         ops = c.get("/finance/ops").text
-        assert "2 800,00 ₴" in ops and "не гроші" in ops
+        assert "Журнал фіноперацій" in ops and "2 800,00 ₴" in ops and "не гроші" in ops and "monobank" not in ops.split("<tbody>")[1]
         c.post("/finance/payroll/rule", data={"doctor_id": did, "pct_services": "40", "pct_products": "10", "base": "5000", "m": mk})
         c.post("/finance/payroll/adj", data={"doctor_id": did, "month": mk, "amount": "300", "sign": "+", "comment": "план"})
         assert "6 200,00 ₴" in c.get(f"/finance/payroll?m={mk}").text            # 5000 + 40%·2000 + 10%·1000 + 300
@@ -44,3 +44,40 @@ def test_finance_sections():
         r = next(x for x in rows if x["doctor"].id == did)
         assert r["accrued"] == 6200 and r["paid"] == 2000 and r["closing"] == 4200
         assert db.query(FinOp).filter_by(doctor_id=did, category="Зарплата").count() == 1
+
+
+def test_journal_transfer_storno_and_cb_import(tmp_path):
+    from openpyxl import Workbook
+    from app.models import CbFinOp
+    settings.admin_password = "owner-pass-1"
+    wb = Workbook(); ws = wb.active
+    ws.append(["Журнал фіноперацій"])
+    ws.append(["Дата", "Тип", "Від кого/ кому", "Стаття", "Філія", "Рахунок", "Вид", "Автор", "Сума"])
+    now = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+    ws.append([now, "Витрата #32263", "PRX-T33", "Закупка розхідні матеріали", "Molodist_", "Операційний Фонд", "", "Operations Financial", "6 240,00 ₴"])
+    ws.append([now, "Дохід #32261/12067", "Котик Вероніка підстава: Продаж #12067", "Оплата послуг, товарів", "Molodist_", "Готівка ФОП Колган", "Готівка ФОП Колган", "Дзеціна Вікторія", "2500"])
+    p = tmp_path / "fin.xlsx"; wb.save(p)
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        with open(p, "rb") as fh:
+            c.post("/finance/ops/import", files={"file": ("fin.xlsx", fh, "application/octet-stream")})
+        with open(p, "rb") as fh:                                             # повторно — без дублів
+            c.post("/finance/ops/import", files={"file": ("fin.xlsx", fh, "application/octet-stream")})
+        with SessionLocal() as db:
+            x = db.get(CbFinOp, 32263); y = db.get(CbFinOp, 32261)
+            assert x.kind == "expense" and x.amount == 6240 and y.kind == "income" and y.basis.strip() == "Продаж #12067"
+            assert db.query(CbFinOp).count() == 2
+        page = c.get("/finance/ops").text
+        assert "#32263" in page and "PRX-T33" in page and "Операційний Фонд" in page
+        r = c.post("/finance/ops", data={"kind": "transfer", "amount": "1000", "cashbox": "Готівка", "cashbox_to": "Інше"},
+                   follow_redirects=False)
+        assert "msg=" in r.headers["location"]
+        with SessionLocal() as db:
+            t = db.query(FinOp).filter_by(kind="transfer").one(); tid = t.id
+        assert "Переміщення" in c.get("/finance/ops?kind=transfer").text
+        bad = c.post("/finance/ops/storno", data={"num": f"CRM-{tid}", "comment": ""}, follow_redirects=False)
+        assert "err=" in bad.headers["location"]
+        c.post("/finance/ops/storno", data={"num": f"CRM-{tid}", "comment": "помилка"})
+        assert "сторновано" in c.get("/finance/ops").text
+        assert c.get("/finance/ops/export.xlsx").status_code == 200
+        assert "PRX-T33" not in c.get("/finance/ops?src=crm").text

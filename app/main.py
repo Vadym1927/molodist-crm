@@ -3115,7 +3115,10 @@ def _period(df: str, dt_: str, default_days: int | None = None) -> tuple[date, d
 
 def _cashboxes(db: Session) -> list[str]:
     from .integrations.checkbox import accounts as _cb_acc
-    return ["Готівка"] + [f"ФОП {a['name']}" for a in _cb_acc(db)] + ["Інше"]
+    from .models import CbFinOp
+    base = ["Готівка"] + [f"ФОП {a['name']}" for a in _cb_acc(db)]
+    cb = [a for (a,) in db.execute(select(CbFinOp.account).where(CbFinOp.account.is_not(None)).distinct()) if a]
+    return base + sorted(set(cb) - set(base)) + ["Інше"]               # + рахунки з журналу CleverBox
 
 
 def _month(m: str) -> str:
@@ -3127,38 +3130,104 @@ def fo_month_key(d: date) -> str:
     return f"{d.year}-{d.month:02d}"
 
 
-@app.get("/finance/ops", response_class=HTMLResponse)
-def finance_ops(request: Request, df: str = "", dt_: str = "", src: str = "", kind: str = "", q: str = "",
-                user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+def _journal(db: Session, request: Request, d_from: date, d_to: date):
     from .services import finops as fo
-    d_from, d_to = _period(df, dt_)
+    qp = request.query_params
     users = {u_.id: u_.name for u_ in db.scalars(select(User))}
-    ops = fo.operations(db, d_from, d_to, users)
-    tot = fo.ops_totals(ops)
-    if src:
-        ops = [o for o in ops if o.src == src]
-    if kind:
-        ops = [o for o in ops if o.kind == kind]
-    if q.strip():
-        ql = q.strip().lower()
-        ops = [o for o in ops if ql in f"{o.category} {o.cashbox} {o.who} {o.ref}".lower()]
-    return render(request, "fin_ops.html", nav="finance", ops=ops[:1500], n_all=len(ops), tot=tot, d_from=d_from, d_to=d_to,
-                  src=src, kind=kind, q=q, EXP=fo.EXPENSE_CATS, INC=fo.INCOME_CATS, boxes=_cashboxes(db),
+    rows = fo.journal(db, d_from, d_to, users, archive=bool(qp.get("archive")))
+    opts = {"accounts": sorted({r.account for r in rows if r.account}), "articles": sorted({r.article for r in rows if r.article}),
+            "authors": sorted({r.author for r in rows if r.author})}
+    f = {k: qp.get(k, "") for k in ("src", "kind", "account", "article", "author", "q")}
+    if f["src"]:
+        rows = [r for r in rows if r.src == f["src"]]
+    if f["kind"]:
+        rows = [r for r in rows if (r.is_storno if f["kind"] == "storno" else (r.kind == f["kind"] and not r.is_storno))]
+    for k in ("account", "article", "author"):
+        if f[k]:
+            rows = [r for r in rows if getattr(r, k) == f[k]]
+    if f["q"].strip():
+        ql = f["q"].strip().lower().lstrip("#")
+        rows = [r for r in rows if ql in f"{r.num} {r.who} {r.basis} {r.comment} {r.article}".lower()]
+    return rows, opts, f
+
+
+@app.get("/finance/ops", response_class=HTMLResponse)
+def finance_ops(request: Request, df: str = "", dt_: str = "", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import finops as fo
+    from .models import CbFinOp
+    d_from, d_to = _period(df, dt_)
+    rows, opts, f = _journal(db, request, d_from, d_to)
+    last_cb = db.scalar(select(func.max(CbFinOp.updated_at)))
+    return render(request, "fin_ops.html", nav="finance", rows=rows[:2000], n_all=len(rows), tot=fo.journal_totals(rows),
+                  d_from=d_from, d_to=d_to, f=f, opts=opts, archive=bool(request.query_params.get("archive")),
+                  EXP=fo.EXPENSE_CATS, INC=fo.INCOME_CATS, KL=fo.KIND_LABELS, boxes=_cashboxes(db), last_cb=last_cb,
+                  cb_imported=LAST_IMPORT.pop(f"cbfin-{user.id}", None),
                   doctors=db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)).all(),
                   today=date.today(), this_month=fo_month_key(date.today()))
 
 
+@app.get("/finance/ops/export.xlsx")
+def finance_ops_export(request: Request, df: str = "", dt_: str = "", user: User = Depends(require("finance")),
+                       db: Session = Depends(db_dep)):
+    from openpyxl import Workbook
+    from .services import finops as fo
+    import io
+    d_from, d_to = _period(df, dt_)
+    rows, _, _ = _journal(db, request, d_from, d_to)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Фіноперації"
+    ws.append(["Дата", "Тип", "№", "Джерело", "Від кого / кому", "Підстава", "Стаття", "Рахунок", "Вид / на рахунок", "Автор", "Сума", "Коментар"])
+    for r in rows:
+        ws.append([r.at, "Сторно" if r.is_storno else fo.KIND_LABELS.get(r.kind, r.kind), r.num, "CRM" if r.src == "crm" else "CleverBox",
+                   r.who, r.basis, r.article, r.account, r.vid, r.author, round(r.sign * r.amount if r.sign else r.amount, 2), r.comment])
+        ws.cell(ws.max_row, 1).number_format = "DD.MM.YYYY HH:MM"
+        ws.cell(ws.max_row, 11).number_format = "#,##0.00"
+    for col, w in zip("ABCDEFGHIJKL", (17, 12, 10, 11, 28, 22, 26, 22, 22, 20, 13, 30)):
+        ws.column_dimensions[col].width = w
+    buf = io.BytesIO()
+    wb.save(buf)
+    return Response(buf.getvalue(), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f'attachment; filename="finops_{d_from}_{d_to}.xlsx"'})
+
+
+@app.post("/finance/ops/import")
+async def finance_ops_import(file: UploadFile = File(...), back: str = Form("/finance/ops"), user: User = Depends(require("finance")),
+                             db: Session = Depends(db_dep)):
+    import tempfile
+    from .services import cb_finops_import as cfi
+    suffix = ".xls" if (file.filename or "").lower().endswith(".xls") else ".xlsx"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(await file.read())
+    try:
+        rep = await asyncio.to_thread(cfi.import_file, db, tmp.name)
+    except Exception as e:  # noqa: BLE001
+        rep = {"error": str(e)[:300]}
+    LAST_IMPORT[f"cbfin-{user.id}"] = rep
+    audit(db, "fin.cb_import", user=user, file=file.filename, **{k: v for k, v in rep.items() if k != "error"})
+    return RedirectResponse(back if back.startswith("/finance") else "/finance/ops", 303)
+
+
 @app.post("/finance/ops")
-def finance_op_add(day: str = Form(""), kind: str = Form("expense"), category: str = Form(...), amount: str = Form(...),
-                   cashbox: str = Form(""), doctor_id: str = Form(""), salary_month: str = Form(""), comment: str = Form(""),
+def finance_op_add(day: str = Form(""), kind: str = Form("expense"), category: str = Form(""), amount: str = Form(...),
+                   cashbox: str = Form(""), cashbox_to: str = Form(""), counterparty: str = Form(""), doctor_id: str = Form(""),
+                   salary_month: str = Form(""), comment: str = Form(""),
                    back: str = Form("/finance/ops"), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     from .models import FinOp
     amt = _num(amount)
     back = back if back.startswith("/finance") else "/finance/ops"
     if not amt or amt <= 0:
         return RedirectResponse(_with_msg(back, "Вкажіть суму більше 0", err=True), 303)
-    x = FinOp(day=_day(day) or date.today(), kind="income" if kind == "income" else "expense", category=category.strip()[:60],
-              amount=round(amt, 2), cashbox=cashbox.strip()[:100] or None, comment=comment.strip()[:500] or None,
+    kind = kind if kind in ("income", "expense", "transfer") else "expense"
+    if kind == "transfer":
+        if not cashbox or not cashbox_to or cashbox == cashbox_to:
+            return RedirectResponse(_with_msg(back, "Переміщення: оберіть два різні рахунки", err=True), 303)
+        category = category or "Переміщення між рахунками"
+    if not category.strip():
+        return RedirectResponse(_with_msg(back, "Оберіть статтю", err=True), 303)
+    x = FinOp(day=_day(day) or date.today(), kind=kind, category=category.strip()[:60],
+              amount=round(amt, 2), cashbox=cashbox.strip()[:100] or None, cashbox_to=(cashbox_to.strip()[:100] or None) if kind == "transfer" else None,
+              counterparty=counterparty.strip()[:200] or None, comment=comment.strip()[:500] or None,
               doctor_id=int(doctor_id) if doctor_id.isdigit() else None,
               salary_month=_month(salary_month) if salary_month else None, created_by=user.id)
     if x.category == "Зарплата" and x.doctor_id and not x.salary_month:
@@ -3166,7 +3235,33 @@ def finance_op_add(day: str = Form(""), kind: str = Form("expense"), category: s
     db.add(x)
     db.commit()
     audit(db, "fin.op_add", "fin_op", x.id, user=user, kind=x.kind, category=x.category, amount=x.amount, cashbox=x.cashbox)
-    return RedirectResponse(_with_msg(back, f"Записано: {x.category} {x.amount:,.2f} ₴".replace(",", " ")), 303)
+    return RedirectResponse(_with_msg(back, f"Записано CRM-{x.id}: {x.category} {x.amount:,.2f} ₴".replace(",", " ")), 303)
+
+
+@app.post("/finance/ops/storno")
+def finance_op_storno(num: str = Form(...), comment: str = Form(""), back: str = Form("/finance/ops"),
+                      user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Сторно операції CRM: зворотна операція на ту саму суму й рахунок; оригінал позначається «сторновано»."""
+    import re as _re
+    from .models import FinOp
+    back = back if back.startswith("/finance") else "/finance/ops"
+    m = _re.search(r"(\d+)", num or "")
+    x = db.get(FinOp, int(m[1])) if m else None
+    if not x or x.deleted_at:
+        return RedirectResponse(_with_msg(back, "Операцію CRM з таким № не знайдено (операції CleverBox сторнуються в CleverBox)", err=True), 303)
+    if x.storno_of or db.scalar(select(FinOp.id).where(FinOp.storno_of == x.id, FinOp.deleted_at.is_(None))):
+        return RedirectResponse(_with_msg(back, f"CRM-{x.id} уже сторновано або сама є сторно", err=True), 303)
+    if len(comment.strip()) < 3:
+        return RedirectResponse(_with_msg(back, "Вкажіть причину сторно", err=True), 303)
+    kind = {"income": "expense", "expense": "income", "transfer": "transfer"}[x.kind]
+    y = FinOp(day=date.today(), kind=kind, category=x.category, amount=x.amount,
+              cashbox=x.cashbox_to if x.kind == "transfer" else x.cashbox, cashbox_to=x.cashbox if x.kind == "transfer" else None,
+              counterparty=x.counterparty, doctor_id=x.doctor_id, salary_month=x.salary_month, storno_of=x.id,
+              comment=comment.strip()[:500], created_by=user.id)
+    db.add(y)
+    db.commit()
+    audit(db, "fin.op_storno", "fin_op", x.id, user=user, storno=y.id, amount=x.amount, comment=y.comment)
+    return RedirectResponse(_with_msg(back, f"Сторно CRM-{x.id} записано як CRM-{y.id}"), 303)
 
 
 @app.post("/finance/ops/{oid:int}/delete")

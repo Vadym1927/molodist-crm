@@ -651,8 +651,11 @@ class FinOp(Base):
     __tablename__ = "fin_ops"
     id: Mapped[int] = mapped_column(primary_key=True)
     day: Mapped[date] = mapped_column(Date, index=True)
-    kind: Mapped[str] = mapped_column(String(10))                     # income | expense
+    kind: Mapped[str] = mapped_column(String(10))                     # income | expense | transfer
     category: Mapped[str] = mapped_column(String(60))
+    cashbox_to: Mapped[str | None] = mapped_column(String(100))       # переміщення: на який рахунок
+    counterparty: Mapped[str | None] = mapped_column(String(200))     # від кого / кому
+    storno_of: Mapped[int | None] = mapped_column(Integer, index=True)   # сторно операції №
     amount: Mapped[float] = mapped_column(Float)                      # додатне число
     cashbox: Mapped[str | None] = mapped_column(String(100))          # готівка / ФОП Бондар / ФОП Колган / …
     doctor_id: Mapped[int | None] = mapped_column(ForeignKey("doctors.id"), index=True)   # зарплата: кому
@@ -661,6 +664,25 @@ class FinOp(Base):
     created_by: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class CbFinOp(Base):
+    """Операція з журналу фіноперацій CleverBox (API або імпорт Excel «Журнал фіноперацій»)."""
+    __tablename__ = "cb_fin_ops"
+    id: Mapped[int] = mapped_column(primary_key=True)                 # № операції CleverBox
+    at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    kind: Mapped[str] = mapped_column(String(10))                     # income | expense | transfer | storno
+    counterparty: Mapped[str | None] = mapped_column(String(300))
+    basis: Mapped[str | None] = mapped_column(String(200))            # підстава: «Продаж #12067», «Поставка #20835»
+    article: Mapped[str | None] = mapped_column(String(200))          # стаття
+    filial: Mapped[str | None] = mapped_column(String(200))
+    account: Mapped[str | None] = mapped_column(String(200))          # рахунок
+    vid: Mapped[str | None] = mapped_column(String(200))              # вид / рахунок призначення
+    author: Mapped[str | None] = mapped_column(String(200))
+    amount: Mapped[float] = mapped_column(Float, default=0)
+    comment: Mapped[str | None] = mapped_column(String(500))
+    source: Mapped[str] = mapped_column(String(10), default="import")  # api | import
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class SalaryRule(Base):
