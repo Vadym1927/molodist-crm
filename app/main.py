@@ -631,12 +631,177 @@ async def upload(request: Request, files: list[UploadFile] = File(...), user: Us
 
 
 @app.post("/patients/{pid}/photos")
-async def upload_photos(pid: int, files: list[UploadFile] = File(...), caption: str = Form(""),
-                        user: User = Depends(require("upload")), db: Session = Depends(db_dep)):
+async def upload_photos(pid: int, files: list[UploadFile] = File(...), caption: str = Form(""), stage: str = Form(""),
+                        zone: str = Form(""), user: User = Depends(require("upload")), db: Session = Depends(db_dep)):
     p = _patient_or_403(db, user, pid)
     for f in files:
-        ingest.ingest_photo(db, await f.read(), f.filename or "photo.jpg", caption or None, patient=p)
+        pf = ingest.ingest_photo(db, await f.read(), f.filename or "photo.jpg", caption or None, patient=p)
+        if stage in ("before", "after", "progress") or zone.strip():
+            pf.stage, pf.zone, pf.taken_at = (stage if stage in ("before", "after", "progress") else None), zone.strip()[:80] or None, date.today()
+            db.commit()
     return RedirectResponse(f"/patients/{pid}#files", 303)
+
+
+# ---------------- Медична картка й фото до/після ----------------
+MED_KINDS = {"consultation": "Консультація", "procedure": "Процедура", "control": "Контрольний огляд"}
+MED_FIELDS = ("title", "complaints", "anamnesis", "objective", "diagnosis", "protocol", "recommendations")
+PHOTO_STAGES = {"before": "До", "after": "Після", "progress": "У процесі"}
+
+
+def _med_patient(db, user, pid) -> Patient:
+    if not can(user, "medical"):
+        raise HTTPException(403, "Медична картка доступна лише лікарям і власнику")
+    return _patient_or_403(db, user, pid)
+
+
+@app.get("/patients/{pid}/medcard", response_class=HTMLResponse)
+def medcard_page(request: Request, pid: int, edit: int = 0, user: User = Depends(current_user), db: Session = Depends(db_dep)):
+    from .models import MedRecord, MedTemplate
+    p = _med_patient(db, user, pid)
+    recs = db.scalars(select(MedRecord).where(MedRecord.patient_id == pid, MedRecord.deleted_at.is_(None))
+                      .order_by(MedRecord.at.desc())).all()
+    photos = [f for f in p.files if f.kind == "photo"]
+    by_rec: dict[int, list] = {}
+    for f in photos:
+        if f.record_id:
+            by_rec.setdefault(f.record_id, []).append(f)
+    docs = {d_.id: d_ for d_ in db.scalars(select(Doctor))}
+    inject = [x.name for x in db.scalars(select(Product).where(Product.warehouse.in_(("inject", "classic", "single"))).order_by(Product.name)).all()][:1500]
+    return render(request, "medcard.html", nav="patient", p=p, recs=recs, by_rec=by_rec, docs=docs, KINDS=MED_KINDS, STAGES=PHOTO_STAGES,
+                  doctors=db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)).all(),
+                  templates_=db.scalars(select(MedTemplate).order_by(MedTemplate.name)).all(), products=inject,
+                  edit=next((r for r in recs if r.id == edit), None), now=datetime.now(), photos=photos,
+                  my_doctor=user.doctor_id)
+
+
+@app.post("/patients/{pid}/medcard/summary")
+def medcard_summary(pid: int, med_allergies: str = Form(""), med_conditions: str = Form(""), med_contra: str = Form(""),
+                    phototype: str = Form(""), user: User = Depends(current_user), db: Session = Depends(db_dep)):
+    p = _med_patient(db, user, pid)
+    p.med_allergies, p.med_conditions = med_allergies.strip() or None, med_conditions.strip() or None
+    p.med_contra, p.phototype = med_contra.strip() or None, phototype.strip()[:10] or None
+    db.commit()
+    audit(db, "medcard.summary", "patient", pid, user=user)
+    return RedirectResponse(f"/patients/{pid}/medcard?msg={_q('Збережено')}", 303)
+
+
+@app.post("/patients/{pid}/medcard/record")
+async def medcard_record(request: Request, pid: int, user: User = Depends(current_user), db: Session = Depends(db_dep)):
+    from .models import MedRecord, MedTemplate
+    p = _med_patient(db, user, pid)
+    f = await request.form()
+    rid = str(f.get("rid") or "")
+    r = db.get(MedRecord, int(rid)) if rid.isdigit() else None
+    if r and r.patient_id != pid:
+        raise HTTPException(404)
+    new = r is None
+    r = r or MedRecord(patient_id=pid, created_by=user.id)
+    at_s = str(f.get("at") or "")
+    try:
+        r.at = datetime.fromisoformat(at_s) if at_s else (r.at or datetime.now())
+    except ValueError:
+        r.at = r.at or datetime.now()
+    r.kind = str(f.get("kind") or "procedure") if str(f.get("kind")) in MED_KINDS else "procedure"
+    did = str(f.get("doctor_id") or "")
+    r.doctor_id = int(did) if did.isdigit() else (user.doctor_id or None)
+    for k in MED_FIELDS:
+        v = str(f.get(k) or "").strip()
+        setattr(r, k, (v[:200] if k == "title" else v) or None)
+    drugs = []
+    for i in range(12):
+        nm = str(f.get(f"drug_{i}") or "").strip()
+        if nm:
+            drugs.append({k: str(f.get(f"{k}_{i}") or "").strip()[:120] for k in ("batch", "expiry", "dose", "zone")} | {"name": nm[:200]})
+    r.drugs = drugs or None
+    r.next_visit = _day(str(f.get("next_visit") or ""))
+    r.consent = bool(f.get("consent"))
+    if not new:
+        r.updated_at = datetime.utcnow()
+    db.add(r)
+    db.commit()
+    for up in f.getlist("photos"):
+        if getattr(up, "filename", None):
+            pf = ingest.ingest_photo(db, await up.read(), up.filename or "photo.jpg", str(f.get("photo_caption") or "") or None, patient=p)
+            pf.stage = str(f.get("photo_stage") or "") if str(f.get("photo_stage") or "") in PHOTO_STAGES else None
+            pf.zone = str(f.get("photo_zone") or "").strip()[:80] or None
+            pf.taken_at, pf.record_id = r.at.date(), r.id
+            db.commit()
+    tname = str(f.get("save_template") or "").strip()
+    if tname:
+        db.add(MedTemplate(name=tname[:150], kind=r.kind, created_by=user.id,
+                           fields={k: getattr(r, k) for k in MED_FIELDS if k not in ("anamnesis",) and getattr(r, k)}))
+        db.commit()
+    audit(db, "medcard.record_add" if new else "medcard.record_edit", "patient", pid, user=user, record=r.id, kind=r.kind)
+    return RedirectResponse(f"/patients/{pid}/medcard?msg={_q('Запис збережено')}#r{r.id}", 303)
+
+
+@app.post("/patients/{pid}/medcard/record/{rid:int}/delete")
+def medcard_record_delete(pid: int, rid: int, del_password: str = Form(""), user: User = Depends(current_user), db: Session = Depends(db_dep)):
+    from .models import MedRecord
+    _med_patient(db, user, pid)
+    err = _delpw(db, user, del_password, "med_record", "patient", pid)
+    if err:
+        return RedirectResponse(_with_err(f"/patients/{pid}/medcard", err), 303)
+    r = db.get(MedRecord, rid)
+    if r and r.patient_id == pid:
+        r.deleted_at = datetime.utcnow()
+        db.commit()
+        audit(db, "medcard.record_delete", "patient", pid, user=user, record=rid)
+    return RedirectResponse(f"/patients/{pid}/medcard?msg={_q('Запис видалено')}", 303)
+
+
+@app.post("/medcard/templates/{tid:int}/delete")
+def medcard_template_delete(tid: int, back: str = Form("/"), del_password: str = Form(""), user: User = Depends(require("medical")),
+                            db: Session = Depends(db_dep)):
+    from .models import MedTemplate
+    back = back if back.startswith("/patients/") else "/"
+    err = _delpw(db, user, del_password, "med_template", None, tid)
+    if err:
+        return RedirectResponse(_with_err(back, err), 303)
+    t = db.get(MedTemplate, tid)
+    if t:
+        db.delete(t)
+        db.commit()
+    return RedirectResponse(back, 303)
+
+
+@app.get("/patients/{pid}/medcard/print", response_class=HTMLResponse)
+def medcard_print(request: Request, pid: int, rid: int = 0, user: User = Depends(current_user), db: Session = Depends(db_dep)):
+    from .models import MedRecord
+    p = _med_patient(db, user, pid)
+    q = select(MedRecord).where(MedRecord.patient_id == pid, MedRecord.deleted_at.is_(None))
+    if rid:
+        q = q.where(MedRecord.id == rid)
+    recs = db.scalars(q.order_by(MedRecord.at)).all()
+    audit(db, "medcard.print", "patient", pid, user=user, record=rid or None)
+    return render(request, "medcard_print.html", nav="print", p=p, recs=recs, KINDS=MED_KINDS,
+                  docs={d_.id: d_ for d_ in db.scalars(select(Doctor))}, now=datetime.now())
+
+
+@app.get("/patients/{pid}/photos", response_class=HTMLResponse)
+def patient_photos(request: Request, pid: int, a: int = 0, b: int = 0, user: User = Depends(current_user), db: Session = Depends(db_dep)):
+    p = _patient_or_403(db, user, pid)
+    photos = sorted([f for f in p.files if f.kind == "photo"], key=lambda f: (f.taken_at or f.created_at.date(), f.id))
+    zones: dict[str, list] = {}
+    for f in photos:
+        zones.setdefault(f.zone or "Без зони", []).append(f)
+    fa = next((f for f in photos if f.id == a), None) or next((f for f in photos if f.stage == "before"), photos[0] if photos else None)
+    fb = next((f for f in photos if f.id == b), None) or next((f for f in reversed(photos) if f.stage == "after" and f is not fa),
+                                                              photos[-1] if len(photos) > 1 else None)
+    return render(request, "photos.html", nav="patient", p=p, photos=photos, zones=zones, fa=fa, fb=fb, STAGES=PHOTO_STAGES)
+
+
+@app.post("/files/{fid:int}/meta")
+def file_meta(fid: int, stage: str = Form(""), zone: str = Form(""), taken_at: str = Form(""), caption: str = Form(""),
+              user: User = Depends(require("upload")), db: Session = Depends(db_dep)):
+    f = db.get(PatientFile, fid)
+    if not f or not f.patient_id:
+        raise HTTPException(404)
+    _patient_or_403(db, user, f.patient_id)
+    f.stage = stage if stage in PHOTO_STAGES else None
+    f.zone, f.taken_at, f.caption = zone.strip()[:80] or None, _day(taken_at), caption.strip() or f.caption
+    db.commit()
+    return RedirectResponse(f"/patients/{f.patient_id}/photos?a={fid}", 303)
 
 
 @app.get("/files/{fid}")

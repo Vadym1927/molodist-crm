@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Медкартка · {{ p.full_name }}{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}{% set r0 = edit %}
+<style>
+.mc{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:18px;align-items:start}
+.mc-rec{border:1px solid var(--line);border-radius:14px;background:#fff;margin-bottom:12px;overflow:hidden}
+.mc-rec>summary{list-style:none;display:flex;justify-content:space-between;gap:10px;padding:12px 16px;cursor:pointer;color:var(--ink)}
+.mc-rec>summary::-webkit-details-marker{display:none}.mc-rec[open]>summary{border-bottom:1px solid var(--line);background:var(--soft)}
+.mc-rec .bd{padding:12px 16px;display:grid;gap:10px}.mc-rec .bd h4{margin:0;font:700 11.5px var(--sans);text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.mc-rec .bd p{margin:2px 0 0;white-space:pre-line}
+.kd{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:700;background:var(--lavender);color:var(--classic)}
+.kd.consultation{background:#E3EDF8;color:#2f65a0}.kd.control{background:var(--ok-bg);color:var(--ok)}
+.mc-f{display:grid;gap:10px}.mc-f label{display:grid;gap:4px;font-size:12px;font-weight:700;color:var(--muted)}.mc-f textarea{min-height:64px;resize:vertical}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.drugs td{padding:3px}.drugs input{width:100%;height:36px;font-size:13.5px}
+.med-sum{background:var(--bad-bg);border-radius:12px;padding:12px 14px;margin-bottom:14px}
+.thumbs{display:flex;gap:6px;flex-wrap:wrap}.thumbs a{display:block;width:84px}.thumbs img{width:84px;height:84px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
+@media (max-width:1050px){.mc{grid-template-columns:1fr}}
+</style>
+<div class="row between" style="gap:10px;margin-bottom:10px"><div><div class="eyebrow"><a href="/patients/{{ p.id }}" style="text-decoration:none">{{ p.full_name }}</a></div><h1>🩺 Медична картка</h1>
+  <div class="muted small">Бачать лише лікарі й власник. До API, Telegram і SMS не потрапляє.</div></div>
+  <div class="row" style="gap:6px"><a class="btn ghost" href="/patients/{{ p.id }}/photos">Фото до/після</a><a class="btn ghost" href="/patients/{{ p.id }}/medcard/print" target="_blank">🖨 Друк картки</a><a class="btn ghost" href="/patients/{{ p.id }}">← Картка пацієнта</a></div></div>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+{% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+<div class="mc"><div>
+  <form method="post" action="/patients/{{ p.id }}/medcard/summary" class="card med-sum">
+    <div class="row between"><b>⚠ Важливо знати</b><button class="btn ghost" style="padding:3px 12px">Зберегти</button></div>
+    <div class="two" style="margin-top:8px"><label class="small"><b>Алергії</b><textarea name="med_allergies" rows="2" placeholder="лідокаїн, латекс…">{{ p.med_allergies or '' }}</textarea></label>
+      <label class="small"><b>Протипоказання</b><textarea name="med_contra" rows="2" placeholder="вагітність, кардіостимулятор…">{{ p.med_contra or '' }}</textarea></label></div>
+    <div class="two" style="margin-top:8px"><label class="small"><b>Хронічні захворювання, препарати</b><textarea name="med_conditions" rows="2">{{ p.med_conditions or '' }}</textarea></label>
+      <label class="small"><b>Фототип (Фіцпатрик)</b><select name="phototype"><option value="">—</option>{% for t in ['I','II','III','IV','V','VI'] %}<option {{ 'selected' if p.phototype==t }}>{{ t }}</option>{% endfor %}</select>
+        {% if p.cb_anamnesis %}<span class="small" style="font-weight:400;margin-top:6px">З CleverBox: {{ p.cb_anamnesis }}</span>{% endif %}</label></div>
+  </form>
+  <h2>Записи · {{ recs|length }}</h2>
+  {% for r in recs %}<details class="mc-rec" id="r{{ r.id }}" {{ 'open' if loop.first }}>
+    <summary><div><b>{{ r.at|dt('%d.%m.%Y %H:%M') }}</b> <span class="kd {{ r.kind }}">{{ KINDS[r.kind] }}</span> {{ r.title or '' }}
+      <div class="small muted">{{ docs[r.doctor_id].name if r.doctor_id and docs.get(r.doctor_id) else '—' }}{{ ' · згода ✓' if r.consent }}{{ (' · наступний візит ' ~ (r.next_visit|dt('%d.%m.%Y'))) if r.next_visit }}</div></div><span class="muted">⌄</span></summary>
+    <div class="bd">
+      {% for k, l in [('complaints','Скарги'),('anamnesis','Анамнез'),('objective','Обʼєктивно / огляд'),('diagnosis','Діагноз'),('protocol','Протокол процедури'),('recommendations','Рекомендації')] %}{% if r[k] %}<div><h4>{{ l }}</h4><p>{{ r[k] }}</p></div>{% endif %}{% endfor %}
+      {% if r.drugs %}<div><h4>Препарати</h4><table class="tb small"><thead><tr><th>Препарат</th><th>Серія</th><th>Термін</th><th>Доза</th><th>Зона</th></tr></thead><tbody>{% for d in r.drugs %}<tr><td>{{ d.name }}</td><td>{{ d.batch }}</td><td>{{ d.expiry }}</td><td>{{ d.dose }}</td><td>{{ d.zone }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+      {% if by_rec.get(r.id) %}<div><h4>Фото</h4><div class="thumbs">{% for f in by_rec[r.id] %}<a href="/patients/{{ p.id }}/photos?a={{ f.id }}"><img src="/files/{{ f.id }}" loading="lazy" alt=""><span class="small muted">{{ STAGES.get(f.stage, '') }}</span></a>{% endfor %}</div></div>{% endif %}
+      <div class="row" style="gap:6px"><a class="btn ghost" style="padding:3px 12px" href="?edit={{ r.id }}#form">Редагувати</a><a class="btn ghost" style="padding:3px 12px" target="_blank" href="/patients/{{ p.id }}/medcard/print?rid={{ r.id }}">🖨 Друк</a>
+        <form method="post" action="/patients/{{ p.id }}/medcard/record/{{ r.id }}/delete" data-delpw="Видалити запис медкартки від {{ r.at|dt('%d.%m.%Y') }}?" style="margin:0"><button class="btn danger" style="padding:3px 12px">Видалити</button></form>
+        {% if r.updated_at %}<span class="small muted">змінено {{ r.updated_at|local|dt('%d.%m.%Y %H:%M') }}</span>{% endif %}</div>
+    </div></details>
+  {% else %}<p class="muted">Записів ще немає — додайте перший праворуч.</p>{% endfor %}
+</div>
+<form class="card mc-f" id="form" method="post" action="/patients/{{ p.id }}/medcard/record" enctype="multipart/form-data" style="position:sticky;top:88px;margin:0">
+  <h2 style="margin:0">{{ 'Редагувати запис' if r0 else 'Новий запис' }}</h2>{% if r0 %}<input type="hidden" name="rid" value="{{ r0.id }}">{% endif %}
+  {% if templates_ and not r0 %}<label>Шаблон<select onchange="mcTpl(this)"><option value="">— заповнити з шаблону —</option>{% for t in templates_ %}<option value="{{ t.id }}" data-f='{{ (t.fields or {})|tojson }}' data-k="{{ t.kind }}">{{ t.name }}</option>{% endfor %}</select></label>{% endif %}
+  <div class="two"><label>Тип<select name="kind">{% for k, v in KINDS.items() %}<option value="{{ k }}" {{ 'selected' if (r0.kind if r0 else 'procedure')==k }}>{{ v }}</option>{% endfor %}</select></label>
+    <label>Дата й час<input type="datetime-local" name="at" value="{{ (r0.at if r0 else now).strftime('%Y-%m-%dT%H:%M') }}"></label></div>
+  <label>Лікар<select name="doctor_id"><option value="">—</option>{% for d in doctors %}<option value="{{ d.id }}" {{ 'selected' if (r0.doctor_id if r0 else my_doctor)==d.id }}>{{ d.name }}</option>{% endfor %}</select></label>
+  <label>Процедура / привід<input name="title" value="{{ r0.title or '' if r0 }}" placeholder="Контурна пластика губ"></label>
+  {% for k, l, ph in [('complaints','Скарги',''),('anamnesis','Анамнез','попередні процедури, реакції'),('objective','Обʼєктивно / огляд','стан шкіри, тургор, фототип'),('diagnosis','Діагноз',''),('protocol','Протокол процедури','техніка, канюля/голка, обʼєм, параметри апарата'),('recommendations','Рекомендації','догляд, обмеження, контроль')] %}
+  <label>{{ l }}<textarea name="{{ k }}" placeholder="{{ ph }}">{{ r0[k] or '' if r0 }}</textarea></label>{% endfor %}
+  <div><div class="small" style="font-weight:700;color:var(--muted);margin-bottom:4px">ПРЕПАРАТИ</div>
+    <table class="drugs" style="width:100%"><tbody>{% set dl = (r0.drugs if r0 and r0.drugs else []) %}{% for i in range([dl|length + 1, 3]|max) %}{% set d = dl[i] if i < dl|length else {} %}
+      <tr><td style="width:40%"><input name="drug_{{ i }}" list="mc-prod" value="{{ d.name or '' }}" placeholder="Препарат"></td><td><input name="batch_{{ i }}" value="{{ d.batch or '' }}" placeholder="Серія"></td>
+        <td><input name="expiry_{{ i }}" value="{{ d.expiry or '' }}" placeholder="Термін"></td><td><input name="dose_{{ i }}" value="{{ d.dose or '' }}" placeholder="Доза"></td><td><input name="zone_{{ i }}" value="{{ d.zone or '' }}" placeholder="Зона"></td></tr>{% endfor %}</tbody></table>
+    <datalist id="mc-prod">{% for n in products %}<option>{{ n }}</option>{% endfor %}</datalist></div>
+  <div class="two"><label>Наступний візит<input type="date" name="next_visit" value="{{ r0.next_visit if r0 and r0.next_visit else '' }}"></label>
+    <label style="align-self:end;display:flex;gap:6px;align-items:center;color:var(--ink)"><input type="checkbox" name="consent" value="1" {{ 'checked' if r0 and r0.consent }} style="width:auto"> інформовану згоду підписано</label></div>
+  <div style="border:1px dashed var(--line);border-radius:12px;padding:10px;display:grid;gap:6px"><div class="small" style="font-weight:700;color:var(--muted)">ФОТО ДО ЗАПИСУ</div>
+    <input type="file" name="photos" accept="image/*" multiple capture="environment">
+    <div class="two"><select name="photo_stage">{% for k, v in STAGES.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select><input name="photo_zone" placeholder="Зона"></div></div>
+  {% if not r0 %}<label>Зберегти як шаблон (назва)<input name="save_template" placeholder="напр. Біоревіталізація — протокол"></label>{% endif %}
+  <div class="row" style="gap:6px"><button class="btn">{{ 'Зберегти зміни' if r0 else 'Додати запис' }}</button>{% if r0 %}<a class="btn ghost" href="?">Скасувати</a>{% endif %}</div>
+  {% if templates_ %}<details class="small"><summary>Шаблони · {{ templates_|length }}</summary>{% for t in templates_ %}<div class="row between" style="padding:4px 0">{{ t.name }}
+    <form method="post" action="/medcard/templates/{{ t.id }}/delete" data-delpw="Видалити шаблон «{{ t.name }}»?" style="margin:0"><input type="hidden" name="back" value="/patients/{{ p.id }}/medcard"><button style="border:0;background:none;cursor:pointer;color:var(--muted)">×</button></form></div>{% endfor %}</details>{% endif %}
+</form></div>
+<script>function mcTpl(s){var o=s.selectedOptions[0];if(!o||!o.dataset.f)return;var f=JSON.parse(o.dataset.f),fm=s.form;
+  Object.keys(f).forEach(function(k){var el=fm.elements[k];if(el&&!el.value)el.value=f[k]});if(o.dataset.k)fm.elements.kind.value=o.dataset.k}</script>
+{% endblock %}

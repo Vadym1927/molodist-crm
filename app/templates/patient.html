@@ -41,7 +41,7 @@
 
 <div class="tabs patient-tabs">
   <a class="on" href="#info">Info</a><a href="#kpi">KPI</a><a href="#visits">Візити <em>{{ patient_kpi.done + patient_kpi.planned }}</em></a>
-  <a href="#contact">Дзвінки й повідомлення</a><a href="#files">Документи й фото</a><a href="#plans">План</a><a href="#sales">Продажі</a><a href="#history">Історія</a>
+  <a href="#contact">Дзвінки й повідомлення</a><a href="#files">Документи й фото</a><a href="/patients/{{ p.id }}/photos">Фото до/після</a>{% if can(user,'medical') %}<a href="/patients/{{ p.id }}/medcard">🩺 Медкартка</a>{% endif %}<a href="#plans">План</a><a href="#sales">Продажі</a><a href="#history">Історія</a>
 </div>
 
 <div class="card" id="info">
@@ -211,7 +211,9 @@
     <div class="photos">{% for f in photos %}<a href="/files/{{ f.id }}" target="_blank" title="{{ f.caption or '' }}"><img src="/files/{{ f.id }}" loading="lazy" alt=""><div class="muted small">{{ f.created_at|dt }}</div></a>{% endfor %}</div>
     {% for f in docs %}<div class="small"><a href="/files/{{ f.id }}" target="_blank">📄 {{ f.caption or 'файл' }}</a> <span class="muted">{{ f.created_at|dt }}</span></div>{% endfor %}
     <form method="post" action="/patients/{{ p.id }}/photos" enctype="multipart/form-data" class="drop row" style="margin-top:12px;justify-content:center">
-      <input type="file" name="files" accept="image/*" multiple required><input name="caption" placeholder="Підпис (до/після, дата)"><button class="btn ghost">Додати фото</button></form>
+      <input type="file" name="files" accept="image/*" multiple required><select name="stage"><option value="">—</option><option value="before">До</option><option value="after">Після</option><option value="progress">У процесі</option></select>
+      <input name="zone" placeholder="Зона (обличчя, шия…)" style="width:160px"><input name="caption" placeholder="Підпис"><button class="btn ghost">Додати фото</button></form>
+    <a href="/patients/{{ p.id }}/photos" class="small">Порівняти фото до/після →</a>
   </div>
 </div>
 <style>.script-box{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fdfbf8}.profile-grid{display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:14px}.profile-grid>div{padding:12px;border-radius:10px;background:#fdfbf8}.profile-grid span{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em}.profile-grid b{display:block;margin-top:3px}.patient-tabs{position:sticky;top:0;z-index:4;padding:8px 0;background:var(--bg)}@media(max-width:720px){.profile-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.patient-tabs{top:0}}</style>

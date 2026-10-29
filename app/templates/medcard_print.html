@@ -1,0 +1,20 @@
+<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>Медична картка · {{ p.full_name }}</title>
+<style>body{font:13px/1.5 "Open Sans",Arial,sans-serif;color:#111;margin:24px 32px}h1{font-size:18px;margin:0 0 4px;text-transform:uppercase;letter-spacing:.04em}
+.hd{display:flex;justify-content:space-between;border-bottom:2px solid #111;padding-bottom:8px;margin-bottom:12px}.brand{font:400 20px Georgia,serif;letter-spacing:.16em}
+table{border-collapse:collapse;width:100%;margin:6px 0}td,th{border:1px solid #999;padding:4px 6px;text-align:left;vertical-align:top}th{background:#f1f1f1;font-size:12px}
+.rec{page-break-inside:avoid;border-top:1px solid #999;margin-top:14px;padding-top:8px}.k{font-weight:700;text-transform:uppercase;font-size:11px;color:#444;margin-top:6px}
+.sign{display:flex;justify-content:space-between;margin-top:26px}.sign div{border-top:1px solid #111;width:40%;padding-top:4px;font-size:12px}
+@media print{.np{display:none}body{margin:10mm}}</style></head><body>
+<div class="np" style="margin-bottom:12px"><button onclick="print()">🖨 Друкувати</button></div>
+<div class="hd"><div><div class="brand">MOLODIST</div><div>Медичний простір</div></div><div style="text-align:right">Медична картка пацієнта<br>сформовано {{ now|dt('%d.%m.%Y %H:%M') }}</div></div>
+<h1>{{ p.full_name }}</h1>
+<table><tr><th>Телефон</th><td>{{ p.phone or '—' }}</td><th>Дата народження</th><td>{{ p.birthday|dt('%d.%m.%Y') if p.birthday else '—' }}</td><th>Фототип</th><td>{{ p.phototype or '—' }}</td></tr>
+<tr><th>Алергії</th><td colspan="5">{{ p.med_allergies or 'не зазначено' }}</td></tr><tr><th>Протипоказання</th><td colspan="5">{{ p.med_contra or 'не зазначено' }}</td></tr>
+<tr><th>Хронічні захв., препарати</th><td colspan="5">{{ p.med_conditions or 'не зазначено' }}</td></tr></table>
+{% for r in recs %}<div class="rec"><b>{{ r.at|dt('%d.%m.%Y %H:%M') }} · {{ KINDS[r.kind] }}{{ (' · ' ~ r.title) if r.title }}</b> — лікар: {{ docs[r.doctor_id].name if r.doctor_id and docs.get(r.doctor_id) else '—' }}
+  {% for k, l in [('complaints','Скарги'),('anamnesis','Анамнез'),('objective','Обʼєктивно'),('diagnosis','Діагноз'),('protocol','Протокол процедури'),('recommendations','Рекомендації')] %}{% if r[k] %}<div class="k">{{ l }}</div><div style="white-space:pre-line">{{ r[k] }}</div>{% endif %}{% endfor %}
+  {% if r.drugs %}<div class="k">Препарати</div><table><tr><th>Препарат</th><th>Серія</th><th>Термін</th><th>Доза</th><th>Зона</th></tr>{% for d in r.drugs %}<tr><td>{{ d.name }}</td><td>{{ d.batch }}</td><td>{{ d.expiry }}</td><td>{{ d.dose }}</td><td>{{ d.zone }}</td></tr>{% endfor %}</table>{% endif %}
+  {% if r.next_visit %}<div class="k">Наступний візит</div><div>{{ r.next_visit|dt('%d.%m.%Y') }}</div>{% endif %}
+  <div class="sign"><div>Лікар (підпис)</div><div>Пацієнт (підпис){{ ' · згоду підписано' if r.consent }}</div></div></div>
+{% else %}<p>Записів немає.</p>{% endfor %}
+</body></html>

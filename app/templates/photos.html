@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Фото до/після · {{ p.full_name }}{% endblock %}
+{% block body %}
+<style>
+.cmp{position:relative;width:100%;max-width:760px;aspect-ratio:3/4;border-radius:16px;overflow:hidden;background:#111;margin:0 auto;user-select:none;touch-action:none}
+.cmp img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.cmp .top{clip-path:inset(0 50% 0 0)}
+.cmp .bar{position:absolute;top:0;bottom:0;left:50%;width:3px;background:#fff;box-shadow:0 0 10px rgba(0,0,0,.4);transform:translateX(-50%)}
+.cmp .bar:after{content:"⟷";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;border-radius:50%;background:#fff;display:grid;place-items:center;font-weight:800;color:#333}
+.cmp .lbl{position:absolute;top:12px;padding:4px 10px;border-radius:8px;background:rgba(0,0,0,.55);color:#fff;font-weight:700;font-size:13px}
+.ph-lay{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:18px;align-items:start}
+.ph-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.ph-g .t{position:relative;border-radius:10px;overflow:hidden;border:2px solid transparent;cursor:pointer;background:none;padding:0}
+.ph-g .t img{width:100%;aspect-ratio:1;object-fit:cover;display:block}.ph-g .t.a{border-color:#C0392B}.ph-g .t.b{border-color:#2f7a55}
+.ph-g .t span{position:absolute;left:4px;bottom:4px;background:rgba(0,0,0,.6);color:#fff;font-size:10.5px;padding:1px 6px;border-radius:6px}
+@media (max-width:1000px){.ph-lay{grid-template-columns:1fr}}
+</style>
+<div class="row between" style="gap:10px;margin-bottom:10px"><div><div class="eyebrow"><a href="/patients/{{ p.id }}" style="text-decoration:none">{{ p.full_name }}</a></div><h1>Фото до/після</h1>
+  <div class="muted small">Оберіть фото «до» (ліва кнопка) і «після» (права) — і рухайте повзунок.</div></div>
+  <div class="row" style="gap:6px">{% if can(user,'medical') %}<a class="btn ghost" href="/patients/{{ p.id }}/medcard">🩺 Медкартка</a>{% endif %}<a class="btn ghost" href="/patients/{{ p.id }}#files">← Картка пацієнта</a></div></div>
+{% if not photos %}<div class="card muted">Фото ще немає. Додайте їх у картці пацієнта («Документи та фото») або в записі медкартки.</div>{% else %}
+<div class="ph-lay"><div>
+  {% if fa and fb %}<div class="cmp" id="cmp"><img src="/files/{{ fb.id }}" alt=""><img class="top" id="cmp-a" src="/files/{{ fa.id }}" alt="">
+    <span class="lbl" style="left:12px">{{ STAGES.get(fa.stage, 'Фото') }} · {{ (fa.taken_at or fa.created_at)|dt('%d.%m.%Y') }}</span>
+    <span class="lbl" style="right:12px">{{ STAGES.get(fb.stage, 'Фото') }} · {{ (fb.taken_at or fb.created_at)|dt('%d.%m.%Y') }}</span><div class="bar" id="cmp-bar"></div></div>
+  {% elif fa %}<img src="/files/{{ fa.id }}" style="max-width:760px;width:100%;border-radius:16px" alt=""><p class="muted small">Для порівняння потрібне ще одне фото.</p>{% endif %}
+</div>
+<div>{% for z, fs in zones.items() %}<div class="card" style="margin:0 0 12px"><h2 style="margin-top:0">{{ z }}</h2><div class="ph-g">
+  {% for f in fs %}<div class="t {{ 'a' if fa and f.id == fa.id }} {{ 'b' if fb and f.id == fb.id }}"><img src="/files/{{ f.id }}" loading="lazy" alt=""><span>{{ STAGES.get(f.stage, '') }} {{ (f.taken_at or f.created_at)|dt('%d.%m.%y') }}</span>
+    <div class="row" style="gap:2px;margin-top:3px"><a class="btn ghost" style="padding:1px 6px;font-size:11px" href="?a={{ f.id }}&b={{ fb.id if fb else '' }}">до</a><a class="btn ghost" style="padding:1px 6px;font-size:11px" href="?a={{ fa.id if fa else '' }}&b={{ f.id }}">після</a></div></div>{% endfor %}</div></div>{% endfor %}
+  {% if fa and can(user,'upload') %}<form class="card" style="margin:0" method="post" action="/files/{{ fa.id }}/meta"><h2 style="margin-top:0">Позначити фото «до»</h2>
+    <div class="grid" style="gap:8px"><select name="stage"><option value="">—</option>{% for k, v in STAGES.items() %}<option value="{{ k }}" {{ 'selected' if fa.stage==k }}>{{ v }}</option>{% endfor %}</select>
+      <input name="zone" value="{{ fa.zone or '' }}" placeholder="Зона"><input type="date" name="taken_at" value="{{ fa.taken_at or fa.created_at.date() }}"><input name="caption" value="{{ fa.caption or '' }}" placeholder="Підпис"><button class="btn ghost">Зберегти</button></div></form>{% endif %}
+</div></div>
+<script>(function(){var c=document.getElementById('cmp');if(!c)return;var a=document.getElementById('cmp-a'),b=document.getElementById('cmp-bar'),d=false;
+function mv(x){var r=c.getBoundingClientRect(),p=Math.max(0,Math.min(100,(x-r.left)/r.width*100));a.style.clipPath='inset(0 '+(100-p)+'% 0 0)';b.style.left=p+'%'}
+c.addEventListener('pointerdown',function(e){d=true;c.setPointerCapture(e.pointerId);mv(e.clientX)});c.addEventListener('pointermove',function(e){if(d)mv(e.clientX)});
+c.addEventListener('pointerup',function(){d=false})})();</script>
+{% endif %}
+{% endblock %}

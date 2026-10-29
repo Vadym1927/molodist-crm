@@ -72,6 +72,10 @@ class Patient(Base):
     address: Mapped[str | None] = mapped_column(String(300))
     communication_channel: Mapped[str | None] = mapped_column(String(30))
     client_groups: Mapped[list | None] = mapped_column(JSON)
+    med_allergies: Mapped[str | None] = mapped_column(Text)           # алергії (лише medical)
+    med_conditions: Mapped[str | None] = mapped_column(Text)          # хронічні захворювання, препарати, вагітність…
+    med_contra: Mapped[str | None] = mapped_column(Text)              # протипоказання
+    phototype: Mapped[str | None] = mapped_column(String(10))         # фототип за Фіцпатриком
     cb_balance: Mapped[float | None] = mapped_column(Float)
     cb_bonus: Mapped[float | None] = mapped_column(Float)
     # звʼязок з ботом для пацієнтів (OpenClaw) і згода на розсилки
@@ -201,8 +205,46 @@ class PatientFile(Base):
     caption: Mapped[str | None] = mapped_column(Text)
     tg_chat: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    stage: Mapped[str | None] = mapped_column(String(10))            # фото: before | after | progress
+    zone: Mapped[str | None] = mapped_column(String(80))             # обличчя, шия, зона під очима…
+    taken_at: Mapped[date | None] = mapped_column(Date)
+    record_id: Mapped[int | None] = mapped_column(Integer, index=True)   # запис медкартки
 
     patient: Mapped[Patient | None] = relationship(back_populates="files")
+
+
+class MedRecord(Base):
+    """Запис медичної картки: консультація / процедура / контроль. Лише для ролей з правом medical (власник, лікар)."""
+    __tablename__ = "med_records"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), index=True)
+    doctor_id: Mapped[int | None] = mapped_column(ForeignKey("doctors.id"), index=True)
+    at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    kind: Mapped[str] = mapped_column(String(20), default="procedure")   # consultation | procedure | control
+    title: Mapped[str | None] = mapped_column(String(200))             # процедура / привід
+    complaints: Mapped[str | None] = mapped_column(Text)               # скарги
+    anamnesis: Mapped[str | None] = mapped_column(Text)                # анамнез
+    objective: Mapped[str | None] = mapped_column(Text)                # об'єктивно / огляд, фототип, стан шкіри
+    diagnosis: Mapped[str | None] = mapped_column(Text)
+    protocol: Mapped[str | None] = mapped_column(Text)                 # що зроблено: препарат, серія, доза, зони, параметри
+    drugs: Mapped[list | None] = mapped_column(JSON)                   # [{name, batch, expiry, dose, zone}]
+    recommendations: Mapped[str | None] = mapped_column(Text)
+    next_visit: Mapped[date | None] = mapped_column(Date)
+    consent: Mapped[bool | None] = mapped_column(Boolean)              # інформована згода підписана
+    created_by: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class MedTemplate(Base):
+    """Шаблон запису медкартки (протокол процедури): підставляє текст у поля."""
+    __tablename__ = "med_templates"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(150))
+    kind: Mapped[str] = mapped_column(String(20), default="procedure")
+    fields: Mapped[dict | None] = mapped_column(JSON)                  # {complaints, objective, protocol, recommendations…}
+    created_by: Mapped[int | None] = mapped_column(Integer)
 
 
 class ReminderLog(Base):
