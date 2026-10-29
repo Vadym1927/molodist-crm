@@ -2054,7 +2054,9 @@ def _fop_page(request: Request, db: Session):
     st_ = db.get(SyncState, "checkbox_last")
     jid = request.query_params.get("job")
     return render(request, "fop.html", nav="reports", REPORTS=rp.REPORTS, key="fop", f=fop_svc.build(db, year),
-                  years=years, year=year, accs=[{"name": a["name"], "configured": a["configured"]} for a in accounts()],
+                  years=years, year=year, cb_status=__import__("app.integrations.checkbox", fromlist=["x"]).statuses(db),
+                  accs=[{"name": a["name"], "configured": a["configured"], "login": a["login"], "source": a["source"]}
+                        for a in accounts(db)],
                   cb_last=st_.value if st_ else None, job=jobs.JOBS.get(jid) if jid else None,
                   last=LAST_IMPORT.pop(f"fop-{request.state.user.id}", None))
 
@@ -2072,6 +2074,29 @@ def fop_sync(start: str = Form(""), user: User = Depends(require("finance")), db
     job = jobs.start("Оборот ФОП з Checkbox", _fop_job, start or None)
     audit(db, "fop.sync", user=user, start=start or None, job=job.id)
     return RedirectResponse(f"/reports?r=fop&job={job.id}", 303)
+
+
+@app.post("/reports/fop/connect")
+def fop_connect(name: str = Form(...), login: str = Form(...), password: str = Form(""),
+                user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Підключити кабінет Checkbox ФОП: логін/пароль касира (пароль — зашифровано в базі)."""
+    from .integrations import checkbox as chb
+    if not name.strip() or not login.strip():
+        return RedirectResponse("/reports?r=fop&cmsg=Вкажіть+назву+ФОП+і+логін+касира#connect", 303)
+    err = chb.connect(db, name, login, password)
+    audit(db, "fop.connect", user=user, fop=name.strip(), ok=err is None)       # без пароля
+    if err:
+        return RedirectResponse(f"/reports?r=fop&cerr={name.strip()}#connect", 303)
+    job = jobs.start("Оборот ФОП з Checkbox", _fop_job, f"{date.today().year}-01-01")
+    return RedirectResponse(f"/reports?r=fop&job={job.id}&cok={name.strip()}#connect", 303)
+
+
+@app.post("/reports/fop/disconnect")
+def fop_disconnect(name: str = Form(...), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .integrations import checkbox as chb
+    chb.disconnect(db, name)
+    audit(db, "fop.disconnect", user=user, fop=name)
+    return RedirectResponse("/reports?r=fop#connect", 303)
 
 
 @app.post("/reports/fop/import")

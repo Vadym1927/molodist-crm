@@ -19,7 +19,7 @@ DEFAULT_LIMITS = {"2025": 6672000.0, "2026": 7211598.0}     # 3 група ЄП:
 
 def fops(db: Session) -> list[str]:
     from ..integrations.checkbox import accounts
-    names = [a["name"] for a in accounts()]
+    names = [a["name"] for a in accounts(db)]
     for (n,) in db.execute(select(FopMonth.fop).distinct()):
         if n not in names:
             names.append(n)

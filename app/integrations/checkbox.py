@@ -26,14 +26,92 @@ class CheckboxError(RuntimeError):
     pass
 
 
-def accounts() -> list[dict]:
-    out = []
+def _saved(db: Session) -> list[dict]:
+    """ФОП, підключені з інтерфейсу: зашифровано ключем із SECRET_KEY (у базі лише шифротекст)."""
+    import json
+    from ..models import SyncState
+    from .cleverbox import _token_cipher
+    st = db.get(SyncState, "checkbox_accounts_enc")
+    if not st or not st.value:
+        return []
+    try:
+        return json.loads(_token_cipher().decrypt(st.value.encode()).decode())
+    except Exception:  # noqa: BLE001
+        log.warning("Saved Checkbox accounts cannot be decrypted")
+        return []
+
+
+def save_accounts(db: Session, items: list[dict]) -> None:
+    import json
+    from ..models import SyncState
+    from .cleverbox import _token_cipher
+    st = db.get(SyncState, "checkbox_accounts_enc") or SyncState(key="checkbox_accounts_enc")
+    st.value = _token_cipher().encrypt(json.dumps(items, ensure_ascii=False).encode()).decode()
+    st.updated_at = datetime.utcnow()
+    db.merge(st)
+    db.commit()
+
+
+def accounts(db: Session | None = None) -> list[dict]:
+    """ФОП з .env (CHECKBOX_N_*) + підключені в «Звіти → Ліміти ФОП». Однакова назва — перемагає інтерфейс."""
+    if db is None:
+        from ..models import SessionLocal
+        with SessionLocal() as s:
+            return accounts(s)
+    out: dict[str, dict] = {}
     for i in (1, 2):
         name = getattr(settings, f"checkbox_{i}_name", "") or f"ФОП {i}"
         login = getattr(settings, f"checkbox_{i}_login", "")
         pwd = getattr(settings, f"checkbox_{i}_password", "")
-        out.append({"name": name, "configured": bool(login and pwd), "login": login, "password": pwd})
-    return out
+        out[name] = {"name": name, "configured": bool(login and pwd), "login": login, "password": pwd, "source": "env"}
+    for a in _saved(db):
+        if a.get("name"):
+            out[a["name"]] = {"name": a["name"], "configured": bool(a.get("login") and a.get("password")),
+                              "login": a.get("login", ""), "password": a.get("password", ""), "source": "ui"}
+    return list(out.values())
+
+
+def connect(db: Session, name: str, login: str, password: str, client_factory=None) -> str | None:
+    """Зберегти ФОП з інтерфейсу; порожній пароль — лишити попередній. Повертає помилку входу або None."""
+    name, login = name.strip()[:100], login.strip()[:200]
+    items = [a for a in _saved(db) if a.get("name") != name]
+    prev = next((a for a in _saved(db) if a.get("name") == name), None) or \
+        next((a for a in accounts(db) if a["name"] == name), {})
+    password = password or prev.get("password", "")
+    err = None
+    try:
+        (client_factory or Checkbox)(login, password)
+    except Exception as e:  # noqa: BLE001
+        err = str(e)[:200]
+    items.append({"name": name, "login": login, "password": password})
+    save_accounts(db, items)
+    _status(db, name, err)
+    return err
+
+
+def disconnect(db: Session, name: str) -> None:
+    save_accounts(db, [a for a in _saved(db) if a.get("name") != name])
+
+
+def _status(db: Session, name: str, err: str | None) -> None:
+    import json
+    from ..models import SyncState
+    st = db.get(SyncState, "checkbox_status") or SyncState(key="checkbox_status")
+    cur = json.loads(st.value) if st.value else {}
+    cur[name] = {"ok": err is None, "error": err, "at": datetime.now().isoformat(timespec="minutes")}
+    st.value, st.updated_at = json.dumps(cur, ensure_ascii=False), datetime.utcnow()
+    db.merge(st)
+    db.commit()
+
+
+def statuses(db: Session) -> dict:
+    import json
+    from ..models import SyncState
+    st = db.get(SyncState, "checkbox_status")
+    try:
+        return json.loads(st.value) if st and st.value else {}
+    except ValueError:
+        return {}
 
 
 class Checkbox:
@@ -104,7 +182,7 @@ def sync(db: Session, start: date | None = None, end: date | None = None, client
     start = start or (end.replace(day=1) - timedelta(days=1)).replace(day=1)      # поточний + попередній місяць
     start = start.replace(day=1)
     rep = {}
-    for acc in accounts():
+    for acc in accounts(db):
         if not acc["configured"]:
             rep[acc["name"]] = "не налаштовано"
             continue
@@ -134,9 +212,11 @@ def sync(db: Session, start: date | None = None, end: date | None = None, client
                 y, m = (y + 1, 1) if m == 12 else (y, m + 1)
             db.commit()
             rep[acc["name"]] = f"{n} Z-звітів"
+            _status(db, acc["name"], None)
         except Exception as e:  # noqa: BLE001
             log.warning("checkbox %s: %s", acc["name"], e)
             rep[acc["name"]] = f"помилка: {e}"
+            _status(db, acc["name"], str(e)[:200])
     from .cleverbox import _state
     _state(db, "checkbox_last", datetime.now().isoformat(timespec="minutes") + " · " +
            "; ".join(f"{k}: {v}" for k, v in rep.items()))

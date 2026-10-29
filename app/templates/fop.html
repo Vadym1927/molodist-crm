@@ -76,13 +76,33 @@
   </tbody>{% if f.last_month %}<tfoot><tr><td colspan="2"><b>Разом {{ year }}</b></td><td class="n"><b>{{ (f.fops|sum(attribute='cash'))|uah }}</b></td><td class="n"><b>{{ (f.fops|sum(attribute='cashless'))|uah }}</b></td><td class="n"><b>{{ f.total|uah }}</b></td><td></td></tr></tfoot>{% endif %}</table></div></div>
 
 <div>
-  <div class="card"><h2>Автоматично з Checkbox</h2>
-    {% for a in accs %}<div class="row between small" style="padding:6px 0;border-bottom:1px solid var(--line)"><span>ФОП {{ a.name }}</span>
-      {% if a.configured %}<span class="pill ok">підключено</span>{% else %}<span class="pill warn">не налаштовано</span>{% endif %}</div>{% endfor %}
-    {% if cb_last %}<div class="small muted" style="margin-top:8px">Останнє оновлення: {{ cb_last[8:10] }}.{{ cb_last[5:7] }} {{ cb_last[11:16] }} · {{ cb_last[19:] }}</div>{% endif %}
-    {% if accs|selectattr('configured')|list %}<div class="small muted" style="margin-top:8px">Оновлюється сам о 8:50, 14:50 і 23:50 (поточний і попередній місяць).</div>
-    <form method="post" action="/reports/fop/sync" class="row" style="gap:6px;margin-top:10px"><input type="date" name="start" value="{{ year }}-01-01"><button class="btn">Завантажити з Checkbox</button></form>
-    {% else %}<div class="small" style="margin-top:10px">Потрібні логін і пароль <b>касира</b> кожного ФОП з кабінету Checkbox. Їх вносять у файл налаштувань сервера (не в чат) — інструкція в README, розділ «Checkbox».</div>{% endif %}
+  <div class="card" id="connect"><h2>Підключення ФОП (Checkbox)</h2>
+    {% set qp = request.query_params %}
+    {% if qp.get('cok') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">ФОП {{ qp.get('cok') }} підключено — завантажую оборот з 01.01.</div>{% endif %}
+    {% if qp.get('cerr') %}<div class="alert">ФОП {{ qp.get('cerr') }}: Checkbox не пустив — {{ (cb_status.get(qp.get('cerr')) or {}).error or 'перевірте логін і пароль касира' }}</div>{% endif %}
+    {% if qp.get('cmsg') %}<div class="alert">{{ qp.get('cmsg') }}</div>{% endif %}
+    <div class="small muted" style="margin-bottom:8px">Логін і пароль <b>касира</b> з кабінету Checkbox кожного ФОП (Checkbox → Касири; можна створити окремого касира «CRM»). CRM лише читає Z-звіти. Пароль зберігається зашифрованим і більше ніде не показується.</div>
+    {% for a in accs %}{% set stt = cb_status.get(a.name) %}
+    <details style="border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px" {{ 'open' if not a.configured }}>
+      <summary class="row between" style="cursor:pointer;list-style:none"><b>ФОП {{ a.name }}</b>
+        {% if a.configured and (not stt or stt.ok) %}<span class="pill ok">підключено</span>{% elif a.configured %}<span class="pill bad">помилка входу</span>{% else %}<span class="pill warn">не підключено</span>{% endif %}</summary>
+      {% if stt %}<div class="small muted" style="margin-top:6px">Перевірено {{ stt.at[8:10] }}.{{ stt.at[5:7] }} {{ stt.at[11:16] }}{% if stt.error %} · <span style="color:var(--bad)">{{ stt.error }}</span>{% endif %}</div>{% endif %}
+      {% if a.source == 'env' and a.configured %}<div class="small muted" style="margin-top:6px">Задано у файлі налаштувань сервера. Можна перезаписати тут.</div>{% endif %}
+      <form method="post" action="/reports/fop/connect" class="grid" style="gap:6px;margin-top:8px" autocomplete="off">
+        <input type="hidden" name="name" value="{{ a.name }}">
+        <input name="login" value="{{ a.login or '' }}" placeholder="Логін касира" required autocomplete="off">
+        <input name="password" type="password" placeholder="{{ 'Пароль збережено — введіть, щоб змінити' if a.configured else 'Пароль касира' }}" {{ '' if a.configured else 'required' }} autocomplete="new-password">
+        <div class="row" style="gap:6px"><button class="btn">{{ 'Зберегти й перевірити' if a.configured else 'Підключити' }}</button></div></form>
+      {% if a.source == 'ui' %}<form method="post" action="/reports/fop/disconnect" onsubmit="return confirm('Відключити ФОП {{ a.name }} від Checkbox? Дані обороту лишаться.')" style="margin-top:6px">
+        <input type="hidden" name="name" value="{{ a.name }}"><button class="btn ghost" style="padding:4px 10px">Відключити</button></form>{% endif %}
+    </details>{% endfor %}
+    <details style="margin-top:4px"><summary class="small" style="cursor:pointer;font-weight:600">＋ Додати ще ФОП</summary>
+      <form method="post" action="/reports/fop/connect" class="grid" style="gap:6px;margin-top:8px" autocomplete="off">
+        <input name="name" placeholder="Назва (напр. Іваненко)" required><input name="login" placeholder="Логін касира" required autocomplete="off">
+        <input name="password" type="password" placeholder="Пароль касира" required autocomplete="new-password"><button class="btn">Підключити</button></form></details>
+    {% if accs|selectattr('configured')|list %}
+    <div class="small muted" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">Оновлюється само о 8:50, 14:50 і 23:50.{% if cb_last %} Останнє: {{ cb_last[8:10] }}.{{ cb_last[5:7] }} {{ cb_last[11:16] }} · {{ cb_last[19:] }}{% endif %}</div>
+    <form method="post" action="/reports/fop/sync" class="row" style="gap:6px;margin-top:8px"><input type="date" name="start" value="{{ year }}-01-01"><button class="btn ghost">Оновити зараз</button></form>{% endif %}
   </div>
   <div class="card"><h2>Дані</h2>
     <form method="post" action="/reports/fop/import" enctype="multipart/form-data" class="grid" style="gap:8px">

@@ -56,3 +56,29 @@ def test_checkbox_sync_fake():
             assert (apr.cash, apr.cashless, apr.source) == (1000, 2000, "checkbox") and mar.cashless == 700
     finally:
         settings.checkbox_1_login, settings.checkbox_1_password = old
+
+
+def test_connect_fop_from_ui_encrypted():
+    from app.models import SyncState
+    settings.admin_password = "owner-pass-1"
+
+    class OkCB:
+        def __init__(self, login, password):
+            if password != "pw-ok":
+                raise chb.CheckboxError("вхід касира: 401 bad")
+
+    with SessionLocal() as db:
+        assert chb.connect(db, "Тестовий", "cashier1", "wrong", client_factory=OkCB)
+        assert chb.connect(db, "Тестовий", "cashier1", "pw-ok", client_factory=OkCB) is None
+        assert chb.connect(db, "Тестовий", "cashier1", "", client_factory=OkCB) is None      # порожній — лишити старий
+        raw = db.get(SyncState, "checkbox_accounts_enc").value
+        assert "pw-ok" not in raw and "cashier1" not in raw                                 # у базі лише шифротекст
+        a = next(x for x in chb.accounts(db) if x["name"] == "Тестовий")
+        assert a["configured"] and a["password"] == "pw-ok" and a["source"] == "ui"
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        page = c.get("/reports?r=fop").text
+        assert "Підключення ФОП" in page and "ФОП Тестовий" in page and "pw-ok" not in page
+        c.post("/reports/fop/disconnect", data={"name": "Тестовий"})
+    with SessionLocal() as db:
+        assert not any(x["name"] == "Тестовий" for x in chb.accounts(db))
