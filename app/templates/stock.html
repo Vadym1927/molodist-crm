@@ -98,6 +98,7 @@
 {% elif tab in KINDS %}
 {% if tab in ('supply','order') %}
 <div class="newdoc"><button type="button" class="btn" onclick="sdOpen()">＋ {{ 'Нова поставка' if tab=='supply' else 'Нове замовлення' }}</button>
+  {% if tab=='supply' %}<button type="button" class="btn ghost" onclick="sdOpen();setTimeout(()=>document.getElementById('sdRecFile').click(),250)">📄 Поставка з файлу накладної</button>{% endif %}
   {% if not active and tab == 'supply' %}<span class="muted small">Облік ще не розпочато — поставку можна зберегти чернеткою, провести після старту обліку.</span>{% endif %}</div>
 {% include "_supply_modal.html" %}
 {% else %}

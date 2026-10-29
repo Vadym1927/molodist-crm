@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     checkbox_2_login: str = ""
     checkbox_2_password: str = ""
 
+    # Claude API — розпізнавання накладних (фото / PDF). Можна внести в «Ключі й інтеграції» (зашифровано)
+    anthropic_api_key: str = ""
+    ai_model: str = "claude-sonnet-5-5"
+
     # Telegram
     telegram_bot_token: str = ""
     telegram_admin_chat_id: str = ""               # чат/група адмінів для нагадувань

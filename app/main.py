@@ -1841,6 +1841,26 @@ def stock_lookup_products(q: str = "", wh: str = "", user: User = Depends(requir
     return JSONResponse([x[1] for x in rows[:25]])
 
 
+@app.post("/stock/recognize")
+async def stock_recognize(file: UploadFile = File(...), user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    """Файл накладної → постачальник, № , дата, товари (зіставлені з каталогом), склад — для вікна «Нова поставка»."""
+    from .services import invoice_ai
+    data = await file.read()
+    if not data or len(data) > 20 * 1024 * 1024:
+        return JSONResponse({"error": "Файл порожній або більший за 20 МБ"}, status_code=400)
+    try:
+        parsed, src = await asyncio.to_thread(invoice_ai.extract, db, data, file.filename or "file", file.content_type)
+        res = invoice_ai.match(db, parsed)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    except Exception as e:  # noqa: BLE001
+        log.warning("recognize: %s", e)
+        return JSONResponse({"error": f"Не вдалося розпізнати: {str(e)[:160]}"}, status_code=400)
+    res["source"] = src
+    audit(db, "stock.recognize", user=user, file=file.filename, source=src, lines=len(res["lines"]), matched=res["matched"])
+    return JSONResponse(res)
+
+
 @app.post("/stock/docs/quick")
 async def stock_doc_quick(request: Request, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
     """Вікно «Нова поставка / замовлення»: шапка + рядки одним JSON. Рядки на різні склади → окремі документи
@@ -2128,7 +2148,17 @@ def settings_keys(request: Request, user: User = Depends(require("finance")), db
     jid = request.query_params.get("job")
     return render(request, "keys.html", nav="keys", fops=fops, mono=mono, cnt=cnt,
                   cb=[{"name": a["name"], "configured": a["configured"]} for a in chb.accounts(db)], cb_status=chb.statuses(db),
-                  cleverbox=bool(settings.cleverbox_token), job=jobs.JOBS.get(jid) if jid else None)
+                  cleverbox=bool(settings.cleverbox_token), job=jobs.JOBS.get(jid) if jid else None,
+                  ai_key=bool(__import__("app.services.invoice_ai", fromlist=["x"]).api_key(db)))
+
+
+@app.post("/settings/keys/ai")
+def settings_keys_ai(key: str = Form(""), action: str = Form("save"), user: User = Depends(require("finance")),
+                     db: Session = Depends(db_dep)):
+    from .services import invoice_ai
+    invoice_ai.save_key(db, "" if action == "clear" else key)
+    audit(db, "keys.ai", user=user, op=action)
+    return RedirectResponse("/settings/keys?saved=1#ai", 303)
 
 
 @app.post("/stock/mono/connect")
