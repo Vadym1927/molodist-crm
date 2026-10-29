@@ -91,13 +91,13 @@
     {% if pr.custom %}<div class="small muted" style="margin:0 8px 6px">Період: <b style="color:var(--ink)">{{ pr.label }}</b> · разом {{ pr.total|uah }}</div>{% endif %}
     <table class="tb"><thead><tr><th>Місяць</th><th class="n">Готівка</th><th class="n">Безготівка</th><th class="n">Разом</th><th class="n">% ліміту</th></tr></thead><tbody>
     {% for row in pr.rows %}{% set r = row.r %}
-      <tr><td>{{ row.label }}{% if r.source != 'checkbox' %} <span class="muted small" title="з таблиці">·т</span>{% endif %}</td><td class="n">{{ r.cash|uah }}</td><td class="n">{{ r.cashless|uah }}</td><td class="n"><b>{{ r.total|uah }}</b></td>
+      <tr><td>{{ row.label }}</td><td class="n">{{ r.cash|uah }}</td><td class="n">{{ r.cashless|uah }}</td><td class="n"><b>{{ r.total|uah }}</b></td>
         <td class="n small muted">{{ row.pct if row.pct is not none else '—' }}%</td></tr>
     {% else %}<tr><td colspan="5" class="muted">Немає даних за період.</td></tr>{% endfor %}
     </tbody>{% if pr.rows %}<tfoot><tr><td><b>Разом</b></td><td class="n"><b>{{ pr.cash|uah }}</b></td><td class="n"><b>{{ pr.cashless|uah }}</b></td><td class="n"><b>{{ pr.total|uah }}</b></td>
       <td class="n"><b>{{ ((100 * pr.total / f.limit)|round(1)) if f.limit and pr.start[0] == pr.end[0] == year else '' }}{{ '%' if f.limit and pr.start[0] == pr.end[0] == year }}</b></td></tr></tfoot>{% endif %}</table>
   </div>{% endfor %}</div>
-<p class="muted small" style="margin:-6px 0 16px">«% ліміту» — наростаючим підсумком з початку відповідного року. Період у кожній картці можна задати окремо, зокрема через кілька років. «·т» — місяць із Google-таблиці, решта — з Checkbox.</p>
+<p class="muted small" style="margin:-6px 0 16px">«% ліміту» — наростаючим підсумком з початку відповідного року. Період у кожній картці можна задати окремо, зокрема через кілька років.</p>
 
 <div class="f-cards" style="align-items:start">
   <div class="card" id="connect"><h2>Підключення ФОП (Checkbox)</h2>
@@ -126,17 +126,10 @@
         <input name="password" type="password" placeholder="Пароль касира" required autocomplete="new-password"><button class="btn">Підключити</button></form></details>
     {% if accs|selectattr('configured')|list %}
     <div class="small muted" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line)">Оновлюється само о 8:50, 14:50 і 23:50.{% if cb_last %} Останнє: {{ cb_last[8:10] }}.{{ cb_last[5:7] }} {{ cb_last[11:16] }} · {{ cb_last[19:] }}{% endif %}</div>
-    <form method="post" action="/reports/fop/sync" class="row" style="gap:6px;margin-top:8px"><input type="date" name="start" value="{{ year }}-01-01"><button class="btn ghost">Оновити зараз</button></form>
-    <form method="post" action="/reports/fop/sync" style="margin-top:6px"><input type="hidden" name="start" value="2022-01-01"><button class="btn" style="padding:6px 14px">Завантажити історію з 2022</button>
-      <div class="small muted" style="margin-top:4px">Усі Z-звіти з 01.01.2022 по сьогодні — по місяцях, займає кілька хвилин. Роки з'являться у перемикачі вгорі.</div></form>{% endif %}
-  </div>
-  <div class="card"><h2>Дані</h2>
-    <form method="post" action="/reports/fop/import" enctype="multipart/form-data" class="grid" style="gap:8px">
-      <div class="small muted">Google-таблиця «Ліміти ФОП»: Файл → Завантажити → Microsoft Excel (.xlsx). Аркуші «Колган 2026», «Бондар 2025»… Місяці з Checkbox не перезаписуються.</div>
-      <input type="file" name="file" accept=".xlsx,.xls" required><button class="btn ghost">Імпорт таблиці</button></form>
-    <form method="post" action="/reports/fop/limit" class="grid" style="gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
-      <div class="small muted">Річний ліміт на один ФОП (2 група ЄП — 834 мінзарплати)</div>
-      <div class="row" style="gap:6px"><input type="hidden" name="year" value="{{ year }}"><input name="amount" value="{{ '%g'|format(f.limit) }}" style="width:150px"><button class="btn ghost">Зберегти {{ year }}</button></div></form>
+    <form method="post" action="/reports/fop/sync" style="margin-top:8px"><button class="btn ghost" style="padding:6px 14px">Оновити зараз</button></form>{% endif %}
+    <form method="post" action="/reports/fop/limit" class="row" style="gap:6px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line);align-items:center;flex-wrap:wrap">
+      <span class="small muted">Річний ліміт {{ year }} на ФОП (2 група ЄП)</span><input type="hidden" name="year" value="{{ year }}">
+      <input name="amount" value="{{ '%.0f'|format(f.limit) }}" style="width:130px"><button class="btn ghost" style="padding:5px 12px">Зберегти</button></form>
   </div>
 </div>
 {% endblock %}
