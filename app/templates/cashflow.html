@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Cashflow · Звіти{% endblock %}
+{% macro sgn(v) -%}<span class="{{ 'pos' if v > 0 else ('neg' if v < 0) }}">{{ '+' if v > 0 }}{{ v|uah }}</span>{%- endmacro %}
+{% block body %}
+<style>
+.rp-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 16px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.rp-tabs a{padding:8px 14px;border-radius:10px;text-decoration:none;color:#3a342f;font-weight:600;font-size:14px}
+.rp-tabs a:hover{background:var(--card)}.rp-tabs a.on{background:var(--deep);color:#fff}
+.pos{color:var(--ok);font-weight:700}.neg{color:var(--bad);font-weight:700}
+.cf-tiles{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.cf-tiles .tile b{display:block;margin-top:4px}.cf-tiles .tile.hl{background:var(--lavender);border-color:var(--lavender-2)}
+.cf-chart{display:flex;gap:10px;align-items:flex-end;height:230px;padding:6px 4px 0;border-bottom:1px solid var(--line)}
+.cf-chart .m{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0}
+.cf-chart .bars{display:flex;gap:4px;align-items:flex-end;height:100%;width:100%;justify-content:center}
+.cf-chart .bars i{display:block;width:42%;max-width:34px;border-radius:6px 6px 2px 2px;min-height:2px}
+.cf-chart .in{background:#C9BFE6}.cf-chart .out{background:var(--deep)}
+.cf-x{display:flex;gap:10px;padding:6px 4px 0}.cf-x span{flex:1;text-align:center;font-size:12.5px;font-weight:600;color:var(--muted)}
+.cf-net{display:flex;gap:10px;height:150px;align-items:stretch;padding:0 4px;margin-top:8px;position:relative}
+.cf-net:before{content:"";position:absolute;left:0;right:0;top:50%;border-top:1px dashed var(--line)}
+.cf-net .m{flex:1;display:flex;flex-direction:column;min-width:0}
+.cf-net .up,.cf-net .dn{flex:1;display:flex;flex-direction:column;align-items:center}.cf-net .up{justify-content:flex-end}.cf-net .dn{justify-content:flex-start}
+.cf-net i{display:block;width:60%;max-width:46px;border-radius:5px}.cf-net .up i{background:#7FC8A0}.cf-net .dn i{background:#E38B8B}
+.cf-net em{font-style:normal;font-size:11.5px;font-weight:700;white-space:nowrap}
+.legend2{display:flex;gap:14px;font-size:12.5px;color:var(--muted)}.legend2 i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.cf-tb tr.mrow{cursor:pointer}.cf-tb tr.mrow:hover td{background:var(--cream,#F7F4F0)}.cf-tb tr.wk td{background:#FBFAF8;font-size:13px}
+.cf-tb tr.wk td:first-child{padding-left:28px}.cf-tb td.n,.cf-tb th.n{text-align:right;white-space:nowrap}
+.cf-tb .sub{font-size:11.5px;color:var(--muted)}
+.cf-lay{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+.ins li{margin:0 0 10px;line-height:1.45}
+@media (max-width:1100px){.cf-lay{grid-template-columns:1fr}.cf-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+<div class="row between" style="align-items:flex-end;flex-wrap:wrap;gap:10px">
+  <div><div class="eyebrow">Аналітика клініки</div><h1>Звіти</h1>
+    <div class="muted small">Рух грошових коштів: надходження, витрати, чистий рух і каса наростаючим підсумком.</div></div>
+  <form class="row" style="gap:6px">{% for y in years %}<a class="btn {{ '' if y == year else 'ghost' }}" style="padding:6px 14px" href="?r=cashflow&year={{ y }}">{{ y }}</a>{% endfor %}</form>
+</div>
+<nav class="rp-tabs">{% for k, v in REPORTS.items() %}<a href="?r={{ k }}" class="{{ 'on' if key==k }}">{{ v }}</a>{% endfor %}</nav>
+
+{% if last %}<div class="alert" style="{{ '' if last.error else 'background:var(--ok-bg);color:var(--ok)' }}">{% if last.error %}{{ last.error }}{% else %}Звіт «Прибуток» імпортовано: {{ last.rows }} днів ({{ last.period }}), з них оновлено {{ last.updated }}.{% endif %}</div>{% endif %}
+
+<div class="cf-tiles">
+  <div class="tile"><span>Каса на 01.01.{{ year }}</span><b>{{ cf.start_balance|uah if cf.start_balance is not none else '—' }}</b><div class="muted small">старт: {{ cf.opening.amount|uah }} на {{ cf.opening.date|dt('%d.%m.%Y') }}</div></div>
+  <div class="tile"><span>Надходження YTD</span><b>{{ cf.total.income|uah }}</b><div class="muted small">готівка {{ cf.total.cash_in|uah }} · безгот. {{ cf.total.card_in|uah }}</div></div>
+  <div class="tile"><span>Витрати YTD</span><b>{{ cf.total.expense|uah }}</b><div class="muted small">{{ ((100 * cf.total.expense / cf.total.income)|round(1)) if cf.total.income else 0 }}% від надходжень</div></div>
+  <div class="tile"><span>Чистий рух YTD</span><b class="{{ 'pos' if cf.total.net > 0 else 'neg' }}">{{ '+' if cf.total.net > 0 }}{{ cf.total.net|uah }}</b><div class="muted small">в середньому {{ cf.avg_net|uah }} / міс</div></div>
+  <div class="tile hl"><span>Каса зараз (розрах.)</span><b>{{ cf.balance|uah if cf.balance is not none else '—' }}</b><div class="muted small">на {{ cf.last_day|dt('%d.%m.%Y') if cf.last_day else '—' }}{% if cf.gaps %} · <b style="color:var(--bad)">неточно — є місяці без даних</b>{% endif %}</div></div>
+</div>
+
+{% if cf.coverage[1] %}<p class="muted small" style="margin:-6px 0 12px">Дані звіту CleverBox «Прибуток»: {{ cf.coverage[0]|dt('%d.%m.%Y') }} — {{ cf.coverage[1]|dt('%d.%m.%Y') }}.
+  {% if cf.total.estimated %}<b>Після {{ cf.coverage[1]|dt('%d.%m') }} — оцінка: лише надходження з чеків, без витрат ({{ cf.total.estimated }} дн)</b> — довантажте свіжий звіт, і дні перезапишуться.{% endif %}</p>{% endif %}
+{% if cf.gaps %}<div class="alert">Немає даних за: <b>{{ cf.gaps|join(', ') }}</b>. Вивантажте з CleverBox «Прибуток» за ці місяці (можна одним файлом з 01.01) — CRM доповнить без дублів. Доки даних немає, каса рахується неточно.</div>{% endif %}
+
+{% if cf.months %}
+<div class="card"><div class="row between"><h2 style="margin:0">Надходження та витрати</h2>
+  <div class="legend2"><span><i style="background:#C9BFE6"></i>Надходження</span><span><i style="background:var(--deep)"></i>Витрати</span></div></div>
+  <div class="cf-chart" style="margin-top:12px">{% for b in cf.months %}<div class="m" title="{{ b.label }}: надходження {{ b.income|uah }}, витрати {{ b.expense|uah }}">
+    <div class="bars"><i class="in" style="height:{{ (100 * b.income / cf.max)|round }}%"></i><i class="out" style="height:{{ (100 * b.expense / cf.max)|round }}%"></i></div></div>{% endfor %}</div>
+  <div class="cf-x">{% for b in cf.months %}<span>{{ b.label }}{{ '*' if b.partial }}</span>{% endfor %}</div>
+  <h2 style="margin:20px 0 0;font-size:15px">Чистий рух за місяць</h2>
+  <div class="cf-net">{% for b in cf.months %}{% set h = (46 * (b.net|abs) / cf.net_max)|round %}<div class="m">
+    <div class="up">{% if b.net > 0 %}<em class="pos">+{{ '{:,.0f}'.format(b.net).replace(',', ' ') }}</em><i style="height:{{ h }}%"></i>{% endif %}</div>
+    <div class="dn">{% if b.net < 0 %}<i style="height:{{ h }}%"></i><em class="neg">{{ '{:,.0f}'.format(b.net).replace(',', ' ') }}</em>{% endif %}</div></div>{% endfor %}</div>
+  <div class="cf-x">{% for b in cf.months %}<span>{{ b.label }}{{ '*' if b.partial }}</span>{% endfor %}</div>
+</div>
+{% endif %}
+
+<div class="cf-lay">
+<div class="card" style="padding:6px 8px"><h2 style="margin:10px 8px 2px">Контроль cashflow</h2><p class="muted small" style="margin:0 8px 8px">Натисніть на місяць — відкриються тижні Пн–Нд (перехідні тижні показано повністю).</p>
+  <div style="overflow-x:auto"><table class="cf-tb"><thead><tr><th>Місяць</th><th class="n">Надходження</th><th class="n">Витрати</th><th class="n">Чистий рух</th><th class="n">Каса на кінець</th></tr></thead><tbody>
+  {% for b in cf.months %}<tr class="mrow" data-m="{{ loop.index }}"><td><b>{{ b.label }}{{ '*' if b.partial }}</b> <span class="sub">▸ тижні{{ (' · оцінка ' ~ b.estimated ~ ' дн') if b.estimated }}</span></td>
+    <td class="n">{{ b.income|uah }}<div class="sub">гот. {{ b.cash_in|uah }} · безгот. {{ b.card_in|uah }}</div></td><td class="n">{{ b.expense|uah }}</td>
+    <td class="n">{{ sgn(b.net) }}</td><td class="n"><b>{{ b.balance|uah if b.balance is not none else '—' }}</b></td></tr>
+    {% for w in b.weeks %}<tr class="wk" hidden><td>{{ w.label }}{{ (' · оцінка') if w.estimated }}</td><td class="n">{{ w.income|uah }}</td><td class="n">{{ w.expense|uah }}</td><td class="n">{{ sgn(w.net) }}</td><td></td></tr>{% endfor %}
+  {% else %}<tr><td colspan="5" class="muted">Даних ще немає. Вивантажте з CleverBox звіт «Прибуток» за весь період (з початку руху) і завантажте нижче.</td></tr>{% endfor %}
+  </tbody>
+  {% if cf.months %}<tfoot><tr><td><b>Разом {{ year }}</b></td><td class="n"><b>{{ cf.total.income|uah }}</b></td><td class="n"><b>{{ cf.total.expense|uah }}</b></td><td class="n">{{ sgn(cf.total.net) }}</td><td class="n"><b>{{ cf.balance|uah if cf.balance is not none else '—' }}</b></td></tr></tfoot>{% endif %}
+  </table></div></div>
+
+<div>
+  <div class="card"><h2>Ключові висновки</h2><ul class="ins small" style="padding-left:18px;margin:0">
+    {% if cf.months %}
+    <li>Чистий рух за {{ year }}: <b>{{ sgn(cf.total.net) }}</b>. Це рух коштів за CleverBox, а не банківський залишок.</li>
+    {% if cf.best %}<li>Найсильніший місяць: <b>{{ cf.best.label }}</b> — {{ sgn(cf.best.net) }}.</li>{% endif %}
+    {% if cf.worst and cf.worst.net < 0 %}<li>Найслабший: <b>{{ cf.worst.label }}</b> — {{ sgn(cf.worst.net) }}.</li>{% endif %}
+    <li>Місяців у мінусі: <b>{{ cf.neg_months }}</b> з {{ cf.months|length }}.</li>
+    <li>Готівка — <b>{{ cf.cash_share }}%</b> надходжень, безготівка — {{ (100 - cf.cash_share)|round(1) }}%.</li>
+    {% if cf.balance is not none and cf.start_balance is not none %}<li>Каса змінилась з {{ cf.start_balance|uah }} до <b>{{ cf.balance|uah }}</b>.</li>{% endif %}
+    {% else %}<li>Завантажте звіт «Прибуток» — тут з'являться висновки.</li>{% endif %}
+  </ul></div>
+  <div class="card"><h2>Дані</h2>
+    <form method="post" action="/reports/cashflow/import" enctype="multipart/form-data" class="grid" style="gap:8px">
+      <div class="small muted">Звіт CleverBox <b>«Прибуток»</b> (Profit_*.xls) за будь-який період. Повторне завантаження перезаписує дні, дублів немає. Між імпортами CRM сама додає надходження з чеків (без витрат).</div>
+      <input type="file" name="file" accept=".xls,.xlsx" required><button class="btn">Імпорт звіту «Прибуток»</button></form>
+    <form method="post" action="/reports/cashflow/opening" class="grid" style="gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">
+      <div class="small muted">Залишок у касі на дату старту</div>
+      <div class="row" style="gap:6px"><input type="date" name="d" value="{{ cf.opening.date }}"><input name="amount" value="{{ '%g'|format(cf.opening.amount) }}" style="width:130px"><button class="btn ghost">Зберегти</button></div></form>
+  </div>
+</div>
+</div>
+<script>
+document.querySelectorAll('.cf-tb tr.mrow').forEach(tr => tr.addEventListener('click', () => {
+  let n = tr.nextElementSibling, open = n && n.classList.contains('wk') && n.hidden;
+  while (n && n.classList.contains('wk')) { n.hidden = !open; n = n.nextElementSibling; }
+  const s = tr.querySelector('.sub'); if (s) s.textContent = s.textContent.replace(open ? '▸' : '▾', open ? '▾' : '▸');
+}));
+</script>
+{% endblock %}

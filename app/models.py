@@ -585,6 +585,22 @@ class Subscription(Base):
         return "active"
 
 
+class CashDay(Base):
+    """Рух коштів за день: звіт CleverBox «Прибуток» (source=cleverbox) або оцінка з чеків без витрат (source=checks)."""
+    __tablename__ = "cash_days"
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    cash_in: Mapped[float] = mapped_column(Float, default=0)
+    card_in: Mapped[float] = mapped_column(Float, default=0)
+    income: Mapped[float] = mapped_column(Float, default=0)
+    expense: Mapped[float] = mapped_column(Float, default=0)        # додатне число
+    source: Mapped[str] = mapped_column(String(20), default="cleverbox")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    @property
+    def net(self) -> float:
+        return round((self.income or 0) - (self.expense or 0), 2)
+
+
 class Check(Base):
     """Чек CleverBox (/sales/checks) — джерело фактичної виручки."""
     __tablename__ = "checks"

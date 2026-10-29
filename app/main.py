@@ -21,7 +21,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .config import settings
 from .models import (init_db, SessionLocal, Patient, Doctor, BeautyPlan, PlanItem, PatientFile, Alias,
-                     CbService, Visit, SyncState, User, ApiKey, Webhook, AuditLog, ROLES)
+                     CbService, Visit, SyncState, User, ApiKey, Webhook, AuditLog, ROLES, CashDay)
 from .parsers.observ import norm
 from .security import (can, hash_password, verify_password, ensure_owner, db_dep, current_user, require,
                        patient_visible, plan_visible, new_api_key, audit)
@@ -88,6 +88,11 @@ def run_sync() -> dict:
             rep["stock_auto"] = stock_svc.auto_moves(db)      # продажі й процедури списують склад
         except Exception as e:      # noqa: BLE001
             log.warning("stock auto moves failed: %s", e)
+        try:
+            from .services import cashflow as _cf
+            rep["cashflow_days"] = _cf.auto_fill(db)        # нові дні — надходження з чеків до наступного звіту
+        except Exception as e:      # noqa: BLE001
+            log.warning("cashflow auto fill failed: %s", e)
     webhooks.fire("sync.done", {"report": {k: v for k, v in rep.items() if k != "patients"},
                                 "patients_linked": rep.get("patients", {}).get("linked")})
     if settings.google_sheet_id and settings.google_service_account_file:
@@ -842,6 +847,11 @@ def import_template(user: User = Depends(require("import"))):
     return Response(importer.template_xlsx(), media_type=XLSX, headers=_attach("MOLODIST_шаблон_імпорту.xlsx"))
 
 
+def _cash_imp():
+    from .services import cashflow
+    return cashflow
+
+
 def _cert_imp():
     from .services import certificates
     return certificates
@@ -861,6 +871,11 @@ async def import_table(request: Request, file: UploadFile = File(...), kind: str
         sheets = importer.read_sheets(data, file.filename or "data.xlsx")
         if sheets and sheets[0][1] and cbc.is_clients_export(sheets[0][1][0]):     # вивантаження «Клієнти» CleverBox
             rep = await asyncio.to_thread(cbc.import_clients, db, sheets[0][1][1:], sheets[0][1][0])
+            rep["sheet"] = file.filename
+            reports = [rep]
+        elif sheets and sheets[0][1] and _cash_imp().is_profit_export(sheets[0][1][0]):   # «Прибуток» → cashflow
+            rep = await asyncio.to_thread(_cash_imp().import_profit, db, sheets[0][1][1:], sheets[0][1][0])
+            _cash_imp().auto_fill(db)
             rep["sheet"] = file.filename
             reports = [rep]
         elif sheets and sheets[0][1] and _cert_imp().is_certificates_export(sheets[0][1][0]):   # «Сертифікати»
@@ -2011,6 +2026,49 @@ def _report_period(period: str, df: str | None, dt_: str | None) -> tuple[date, 
     return m0, today, "month"
 
 
+def _cashflow_page(request: Request, db: Session, period: str, df: str | None):
+    from .services import cashflow as cf
+    from .services import reports as rp
+    years = sorted({d.year for (d,) in db.execute(select(CashDay.day))} | {date.today().year})
+    try:
+        year = int(request.query_params.get("year") or date.today().year)
+    except ValueError:
+        year = date.today().year
+    return render(request, "cashflow.html", nav="reports", REPORTS=rp.REPORTS, key="cashflow", cf=cf.build(db, year),
+                  years=years, year=year, last=LAST_IMPORT.pop(f"cash-{request.state.user.id}", None))
+
+
+@app.post("/reports/cashflow/import")
+async def cashflow_import(file: UploadFile = File(...), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Excel CleverBox «Прибуток» (Profit_*.xls) за будь-який період — дні перезаписуються."""
+    from .services import cashflow as cf
+    try:
+        sheets = importer.read_sheets(await file.read(), file.filename or "profit.xls")
+        head, rows = (sheets[0][1][0], sheets[0][1][1:]) if sheets and sheets[0][1] else ([], [])
+        if not cf.is_profit_export(head):
+            raise ValueError("Це не звіт CleverBox «Прибуток» (потрібні колонки Дата / Надходження / Витрата)")
+        rep = await asyncio.to_thread(cf.import_profit, db, rows, head)
+        cf.auto_fill(db)
+    except ValueError as e:
+        rep = {"error": str(e)}
+    except Exception as e:  # noqa: BLE001
+        rep = {"error": f"Не вдалося прочитати файл: {type(e).__name__}"}
+    audit(db, "cashflow.import", user=user, **{k: v for k, v in rep.items() if k in ("rows", "updated", "period", "error")})
+    LAST_IMPORT[f"cash-{user.id}"] = rep
+    return RedirectResponse("/reports?r=cashflow", 303)
+
+
+@app.post("/reports/cashflow/opening")
+def cashflow_opening(d: str = Form(...), amount: str = Form(...), user: User = Depends(require("finance")),
+                     db: Session = Depends(db_dep)):
+    from .services import cashflow as cf
+    day, val = _day(d), _num(amount)
+    if day and val is not None:
+        cf.set_opening(db, day, val)
+        audit(db, "cashflow.opening", user=user, date=str(day), amount=val)
+    return RedirectResponse("/reports?r=cashflow", 303)
+
+
 REPORT_PERIODS = {"month": "Цей місяць", "prev_month": "Минулий місяць", "30d": "30 днів", "quarter": "Квартал",
                   "year": "З початку року", "12m": "12 місяців"}
 
@@ -2020,6 +2078,8 @@ def reports_page(request: Request, r: str = "revenue", period: str = "month", df
                  fmt: str = "", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     from .services import reports as rp
     key = r if r in rp.REPORTS else "revenue"
+    if key == "cashflow":
+        return _cashflow_page(request, db, period, df)
     d_from, d_to, period = _report_period(period, df, dt_)
     rep = rp.build(db, key, d_from, d_to)
     if fmt == "xlsx":
