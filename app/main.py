@@ -194,6 +194,19 @@ async def job_expiry():
         log.warning("expiry notify: %s", e)
 
 
+async def job_loyalty():
+    """Щодня: бонуси до дня народження, згоряння бонусів з минулим терміном."""
+    from .services import loyalty as ly
+    def run():
+        with SessionLocal() as db:
+            if ly.settings(db).get("enabled"):
+                return {"birthday": ly.birthday_bonuses(db), "expired": ly.expire(db)}
+    try:
+        await asyncio.to_thread(run)
+    except Exception as e:  # noqa: BLE001
+        log.warning("loyalty: %s", e)
+
+
 async def job_rematch():
     """Перерозносити платежі, що вже є в CRM (без запиту в monobank): нові правила, частково рознесені."""
     from .services import payments as pay
@@ -284,6 +297,7 @@ async def lifespan(app: FastAPI):
         sched.add_job(job_mono, "cron", minute=20)
         sched.add_job(job_rematch, "date", run_date=datetime.now() + timedelta(seconds=40))   # після оновлення — одразу
         sched.add_job(job_expiry, "cron", hour=9, minute=15)
+        sched.add_job(job_loyalty, "cron", hour=9, minute=5)
         sched.add_job(job_shop, "cron", hour=6, minute=40)
         sched.start()
     except Exception as e:          # noqa: BLE001
@@ -471,7 +485,7 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
     return render(request, "patient.html", p=p, statuses=statuses, ptasks=ptasks, msgs=msgs, dupes=dupes,
                   certs=_cert.for_patient(db, p.id), CERT_STATES=_cert.STATES, today=date.today(),
                   subs=_cert.subs_for_patient(db, p.id), SUB_STATES=_cert.SUB_STATES,
-                  CB_LABELS=CB_LABELS,
+                  CB_LABELS=CB_LABELS, loyal=_loyal_ctx(db, p),
                   pscripts=_sc.for_patient(db, p, kind, user.name) if can(user, "message") else [],
                   avail=_msg.available_channels(p),
                   users=db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all(),
@@ -483,6 +497,13 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
                                    next=min((v.starts_at for v in planned_visits), default=None),
                                    service_revenue=service_revenue, product_revenue=product_revenue,
                                    revenue=service_revenue + product_revenue))
+
+
+def _loyal_ctx(db: Session, p: Patient) -> dict:
+    from .services import loyalty as ly
+    from .models import BonusTxn
+    return {"s": ly.settings(db), "balance": ly.balance(db, p.id), "KL": ly.KIND_LABELS,
+            "txns": db.scalars(select(BonusTxn).where(BonusTxn.patient_id == p.id).order_by(BonusTxn.at.desc()).limit(30)).all()}
 
 
 CB_LABELS = {"sex": "Стать", "gender": "Стать", "address": "Адреса", "city": "Місто", "source": "Джерело",
@@ -851,6 +872,128 @@ def settings_appeals_save(what: str, action: str = Form(...), idx: str = Form(""
     ap.save_dirs(db, d)
     audit(db, "settings.appeals", user=user, what=what, op=action, name=nm or None)
     return RedirectResponse(f"/settings/appeals?open={what}#{what}", 303)
+
+
+# ---------------- Знижки й бонусна програма ----------------
+@app.get("/settings/loyalty", response_class=HTMLResponse)
+def settings_loyalty(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import loyalty as ly
+    from .models import DiscountRule, BonusTxn, CbService
+    rules = db.scalars(select(DiscountRule).order_by(DiscountRule.active.desc(), DiscountRule.name)).all()
+    cats = sorted({c for (c,) in db.execute(select(CbService.category).distinct()) if c} |
+                  {c for (c,) in db.execute(select(Product.brand).distinct()) if c})
+    bal = ly.balances(db)
+    calc = None
+    qp = request.query_params
+    if qp.get("calc"):
+        items = []
+        for t, pr, cat in (("service", qp.get("sp"), qp.get("sc")), ("product", qp.get("pp"), qp.get("pc"))):
+            v = _num(pr or "")
+            if v:
+                items.append({"type": t, "price": v, "qty": 1, "category": cat or ""})
+        pt = db.get(Patient, int(qp["pid"])) if (qp.get("pid") or "").isdigit() else None
+        if items:
+            dsc = ly.discount_for(db, items, pt, _day(qp.get("day", "")) or date.today())
+            for it, dl in zip(items, dsc["lines"]):
+                it["net"] = it["price"] - dl
+            calc = {**dsc, "bonus": ly.bonus_accrual(db, items), "patient": pt,
+                    "max_pay": ly.max_bonus_pay(db, dsc["subtotal"] - dsc["total"], pt.id) if pt else None}
+    return render(request, "loyalty.html", nav="settings", s=ly.settings(db), rules=rules, cats=cats, ly=ly, calc=calc,
+                  n_holders=sum(1 for v in bal.values() if v > 0.005), total_bonus=round(sum(v for v in bal.values() if v > 0), 2),
+                  n_txns=db.scalar(select(func.count(BonusTxn.id))) or 0,
+                  n_cb=db.scalar(select(func.count(Patient.id)).where(Patient.cb_bonus > 0)) or 0,
+                  personal=db.scalars(select(Patient).where(Patient.discount_pct > 0).order_by(Patient.full_name)).all(),
+                  edit=next((r for r in rules if str(r.id) == qp.get("edit", "")), None), WD=["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"])
+
+
+@app.post("/settings/loyalty/bonus")
+async def settings_loyalty_bonus(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import loyalty as ly
+    f = await request.form()
+    s = ly.settings(db)
+    s["enabled"] = bool(f.get("enabled"))
+    s["accrue_on_bonus_paid"] = bool(f.get("accrue_on_bonus_paid"))
+    for k in ("pct_services", "pct_products", "max_pay_pct", "welcome", "birthday", "min_check"):
+        v = _num(str(f.get(k) or ""))
+        s[k] = max(0.0, v) if v is not None else 0.0
+    v = _num(str(f.get("expire_days") or ""))
+    s["expire_days"] = int(v) if v and v > 0 else 0
+    ly.save_settings(db, s)
+    audit(db, "loyalty.settings", user=user, **s)
+    return RedirectResponse(f"/settings/loyalty?msg={_q('Бонусну програму збережено')}", 303)
+
+
+@app.post("/settings/loyalty/discount")
+async def settings_loyalty_discount(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .models import DiscountRule
+    f = await request.form()
+    rid = str(f.get("rid") or "")
+    r = db.get(DiscountRule, int(rid)) if rid.isdigit() else DiscountRule()
+    name = str(f.get("name") or "").strip()[:150]
+    val = _num(str(f.get("value") or ""))
+    if not name or not val or val <= 0:
+        return RedirectResponse(_with_msg("/settings/loyalty", "Вкажіть назву і розмір знижки", True), 303)
+    r.name, r.kind = name, "amount" if f.get("kind") == "amount" else "percent"
+    r.value = min(val, 100) if r.kind == "percent" else val
+    r.applies_to = str(f.get("applies_to")) if f.get("applies_to") in ("all", "services", "products") else "all"
+    r.categories = [str(x) for x in f.getlist("categories") if str(x)] or None
+    r.date_from, r.date_to = _day(str(f.get("date_from") or "")), _day(str(f.get("date_to") or ""))
+    r.weekdays = [int(x) for x in f.getlist("weekdays") if str(x).isdigit()] or None
+    r.min_sum = _num(str(f.get("min_sum") or ""))
+    r.segment = str(f.get("segment") or "") or None
+    r.auto, r.combine, r.active = bool(f.get("auto")), bool(f.get("combine")), bool(f.get("active"))
+    r.note = str(f.get("note") or "").strip()[:300] or None
+    db.add(r)
+    db.commit()
+    audit(db, "loyalty.discount", "discount", r.id, user=user, name=r.name, value=r.value, kind=r.kind)
+    return RedirectResponse(f"/settings/loyalty?msg={_q('Знижку збережено')}#disc", 303)
+
+
+@app.post("/settings/loyalty/discount/{rid:int}/delete")
+def settings_loyalty_discount_delete(rid: int, del_password: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .models import DiscountRule
+    err = _delpw(db, user, del_password, "discount", "discount", rid)
+    if err:
+        return RedirectResponse(_with_err("/settings/loyalty#disc", err), 303)
+    r = db.get(DiscountRule, rid)
+    if r:
+        audit(db, "loyalty.discount_delete", "discount", rid, user=user, name=r.name)
+        db.delete(r)
+        db.commit()
+    return RedirectResponse("/settings/loyalty#disc", 303)
+
+
+@app.post("/settings/loyalty/import")
+def settings_loyalty_import(user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import loyalty as ly
+    n = ly.import_cleverbox(db, user.id)
+    audit(db, "loyalty.import", user=user, n=n)
+    return RedirectResponse(f"/settings/loyalty?msg={_q(f'Перенесено залишки бонусів: {n} пацієнтів')}", 303)
+
+
+@app.post("/patients/{pid:int}/bonus")
+def patient_bonus(pid: int, amount: str = Form(...), sign: str = Form("+"), comment: str = Form(""),
+                  user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+    from .services import loyalty as ly
+    _patient_or_403(db, user, pid)
+    v = _num(amount)
+    if v and v > 0:
+        try:
+            ly.add(db, pid, -v if sign == "-" else v, "manual", comment.strip()[:300] or None, user_id=user.id)
+        except ValueError as e:
+            return RedirectResponse(_with_msg(f"/patients/{pid}#loyal", str(e), True), 303)
+        audit(db, "loyalty.manual", "patient", pid, user=user, amount=-v if sign == "-" else v, comment=comment or None)
+    return RedirectResponse(f"/patients/{pid}#loyal", 303)
+
+
+@app.post("/patients/{pid:int}/discount")
+def patient_discount(pid: int, discount_pct: str = Form(""), user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+    p = _patient_or_403(db, user, pid)
+    v = _num(discount_pct)
+    p.discount_pct = min(max(v, 0), 100) if v else None
+    db.commit()
+    audit(db, "loyalty.personal", "patient", pid, user=user, pct=p.discount_pct)
+    return RedirectResponse(f"/patients/{pid}#loyal", 303)
 
 
 # ---------------- Медична картка й фото до/після ----------------
@@ -2811,6 +2954,7 @@ SETTINGS_BLOCKS = [
         ("Онлайн-бронювання", "Віджет запису на сайті", None, None, "webwidget"),
     ]),
     ("Налаштування фінансів", [
+        ("Знижки й бонусна програма", "Правила знижок, % нарахування бонусів, термін дії, персональні знижки", "/settings/loyalty", "finance", None),
         ("Операції з балансом пацієнта", "Типи поповнень і списань балансу", None, None, "btype"),
         ("Платіжні системи", "Еквайринг; monobank для оплат постачальникам — у CRM", "/settings/keys#mono", "finance", "payment_system"),
         ("Чайові", "Налаштування чайових", None, None, "tips"),
@@ -3924,7 +4068,13 @@ def finance_bonuses(request: Request, df: str = "", dt_: str = "", q: str = "", 
                     db: Session = Depends(db_dep)):
     from .services import finops as fo
     d_from, d_to = _period(df, dt_, default_days=90)
+    from .services import loyalty as ly
+    from .models import BonusTxn
+    a_, b_ = datetime.combine(d_from, datetime.min.time()), datetime.combine(d_to, datetime.max.time())
+    ltx = db.scalars(select(BonusTxn).where(BonusTxn.at >= a_, BonusTxn.at <= b_).order_by(BonusTxn.at.desc()).limit(1000)).all()
+    lp = {p_.id: p_ for p_ in db.scalars(select(Patient).where(Patient.id.in_([t.patient_id for t in ltx] or [0])))}
     return render(request, "fin_bonuses.html", nav="finance", d_from=d_from, d_to=d_to, q=q, b=fo.bonuses(db, d_from, d_to, q),
+                  ltx=ltx, lp=lp, KL=ly.KIND_LABELS, lyon=ly.settings(db).get("enabled"),
                   synced=db.scalar(select(func.max(Patient.cb_synced_at))))
 
 

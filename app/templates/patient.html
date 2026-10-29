@@ -90,6 +90,16 @@
     <td><span class="pill {{ {'active':'ok','expiring':'warn','expired':'bad','used':'done','unpaid':'warn'}[st] }}">{{ SUB_STATES[st] }}</span></td></tr>{% endfor %}
   </tbody></table></div>{% endif %}
 
+{% if can(user,'patients_all') %}<div class="card" id="loyal"><div class="row between"><h2 style="margin:0">Бонуси й знижка</h2>
+  <span class="small muted">{{ 'бонусна програма працює' if loyal.s.enabled else 'бонусна програма вимкнена — Налаштування → Знижки й бонуси' }}</span></div>
+  <div class="row" style="gap:18px;margin-top:10px;align-items:flex-start;flex-wrap:wrap">
+    <div><div class="small muted">Бонусів</div><b style="font:600 26px var(--head)">{{ loyal.balance|uah }}</b>{% if p.cb_bonus and not loyal.txns %}<div class="small muted">у CleverBox: {{ p.cb_bonus|uah }}</div>{% endif %}</div>
+    <form method="post" action="/patients/{{ p.id }}/discount" class="row" style="gap:6px"><span class="small muted">Персональна знижка</span><input name="discount_pct" value="{{ '%g'|format(p.discount_pct) if p.discount_pct else '' }}" inputmode="decimal" style="width:70px" placeholder="%"><button class="btn ghost" style="padding:4px 10px">OK</button></form>
+    <form method="post" action="/patients/{{ p.id }}/bonus" class="row" style="gap:6px"><select name="sign"><option value="+">Нарахувати</option><option value="-">Списати</option></select>
+      <input name="amount" inputmode="decimal" placeholder="Бонусів" style="width:100px" required><input name="comment" placeholder="За що" style="width:160px"><button class="btn ghost" style="padding:4px 10px">OK</button></form></div>
+  {% if loyal.txns %}<details class="small" style="margin-top:8px"><summary>Рух бонусів · {{ loyal.txns|length }}</summary><table class="tb small" style="margin-top:6px"><tbody>
+    {% for t in loyal.txns %}<tr><td>{{ t.at|dt('%d.%m.%Y %H:%M') }}</td><td>{{ loyal.KL.get(t.kind, t.kind) }}{{ (' · ' ~ t.comment) if t.comment }}</td><td class="r" style="color:{{ 'var(--ok)' if t.amount > 0 else 'var(--bad)' }}">{{ '+' if t.amount > 0 }}{{ t.amount|uah }}</td><td class="small muted">{{ ('до ' ~ (t.expires_at|dt('%d.%m.%Y'))) if t.expires_at }}</td></tr>{% endfor %}</tbody></table></details>{% endif %}
+</div>{% endif %}
 <div class="card" id="kpi"><h2>Показники пацієнта</h2>
   <div class="grid g5">
     <div class="tile"><span>Завершені візити</span><b>{{ patient_kpi.done or p.cb_visits or 0 }}</b><div class="muted small">перший: {{ patient_kpi.first|dt('%d.%m.%Y') if patient_kpi.first else (p.cb_first_visit|dt('%d.%m.%Y') if p.cb_first_visit else '—') }}</div></div>

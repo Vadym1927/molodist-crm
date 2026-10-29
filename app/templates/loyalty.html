@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Знижки й бонуси · Налаштування{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}{% set r0 = edit %}
+<style>
+.ly{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:18px;align-items:start}
+.ly label{display:grid;gap:4px;font-size:12px;font-weight:700;color:var(--muted)}.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sw{display:flex!important;gap:8px;align-items:center;color:var(--ink)!important;font-size:14px!important}.sw input{width:auto}
+.dr{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;background:#fff;display:flex;justify-content:space-between;gap:10px;align-items:center}
+.dr.off{opacity:.55}.dr b{font-size:14.5px}.dr .v{font:700 18px var(--head);color:var(--classic);white-space:nowrap}
+.chips{display:flex;flex-wrap:wrap;gap:5px}.chips label{display:inline-flex;gap:5px;align-items:center;background:var(--soft);border-radius:8px;padding:4px 8px;font-size:12.5px;color:var(--ink);font-weight:600}
+@media (max-width:1050px){.ly{grid-template-columns:1fr}}
+</style>
+<div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a></div><h1>Знижки й бонусна програма</h1>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+{% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+<div class="ly"><div>
+<form class="card" method="post" action="/settings/loyalty/bonus"><div class="row between"><h2 style="margin:0">🎁 Бонусна програма</h2><button class="btn">Зберегти</button></div>
+  <label class="sw" style="margin:12px 0"><input type="checkbox" name="enabled" value="1" {{ 'checked' if s.enabled }}> Бонусна програма працює (нарахування в продажах CRM)</label>
+  <div class="two"><label>% бонусів з послуг<input name="pct_services" value="{{ '%g'|format(s.pct_services) }}" inputmode="decimal"></label><label>% бонусів з товарів<input name="pct_products" value="{{ '%g'|format(s.pct_products) }}" inputmode="decimal"></label></div>
+  <div class="two" style="margin-top:10px"><label>Оплата бонусами — до % чека<input name="max_pay_pct" value="{{ '%g'|format(s.max_pay_pct) }}" inputmode="decimal"></label><label>Термін дії, днів (0 — безстроково)<input name="expire_days" value="{{ s.expire_days }}" inputmode="numeric"></label></div>
+  <div class="two" style="margin-top:10px"><label>Вітальні бонуси новому пацієнту<input name="welcome" value="{{ '%g'|format(s.welcome) }}" inputmode="decimal"></label><label>Бонуси до дня народження (діють 30 днів)<input name="birthday" value="{{ '%g'|format(s.birthday) }}" inputmode="decimal"></label></div>
+  <div class="two" style="margin-top:10px"><label>Мінімальний чек для нарахування, ₴<input name="min_check" value="{{ '%g'|format(s.min_check) }}" inputmode="decimal"></label>
+    <label class="sw" style="align-self:end"><input type="checkbox" name="accrue_on_bonus_paid" value="1" {{ 'checked' if s.accrue_on_bonus_paid }}> нараховувати й на суму, сплачену бонусами</label></div>
+  <div class="small muted" style="margin-top:10px">Бонусів на рахунках: <b>{{ total_bonus|uah }}</b> у {{ n_holders }} пацієнтів · операцій {{ n_txns }}. Згоряння й бонуси до дня народження — щодня о 9:05.</div>
+</form>
+{% if n_cb %}<form class="card" method="post" action="/settings/loyalty/import"><b>Перенести залишки бонусів з CleverBox</b><p class="small muted" style="margin:4px 0 8px">У {{ n_cb }} пацієнтів у картках CleverBox є бонуси. Перенесення створить стартовий запис у журналі бонусів (один раз; пацієнтів, у яких уже є рух бонусів у CRM, не чіпає).</p><button class="btn ghost">Перенести</button></form>{% endif %}
+<div class="card" id="disc"><div class="row between"><h2 style="margin:0">🏷 Знижки · {{ rules|length }}</h2></div>
+  <p class="small muted" style="margin:6px 0 10px">Автоматичні знижки застосовуються в продажі самі; ручні — вибирає адміністратор. Якщо підходять кілька — береться найвигідніша, плюс ті, що «сумуються».</p>
+  {% for r in rules %}<div class="dr {{ 'off' if not r.active }}"><div><b>{{ r.name }}</b>{% if not r.active %} <span class="pill">вимкнено</span>{% endif %}
+      <div class="small muted">{{ {'all':'на все','services':'на послуги','products':'на товари'}[r.applies_to] }}{{ (' · ' ~ r.categories|join(', ')) if r.categories }}
+        {{ (' · з ' ~ (r.date_from|dt('%d.%m.%Y'))) if r.date_from }}{{ (' по ' ~ (r.date_to|dt('%d.%m.%Y'))) if r.date_to }}{% if r.weekdays %} · {% for w in r.weekdays %}{{ WD[w] }}{{ ',' if not loop.last }}{% endfor %}{% endif %}
+        {{ (' · від ' ~ (r.min_sum|uah)) if r.min_sum }}{{ (' · ' ~ ly.SEGMENTS.get(r.segment, '')) if r.segment }} · {{ 'авто' if r.auto else 'вручну' }}{{ ' · сумується' if r.combine }}</div>{% if r.note %}<div class="small">{{ r.note }}</div>{% endif %}</div>
+    <div class="row" style="gap:6px;flex-wrap:nowrap"><span class="v">{{ ('%g'|format(r.value) ~ '%') if r.kind=='percent' else r.value|uah }}</span><a class="btn ghost" style="padding:3px 10px" href="?edit={{ r.id }}#form">змінити</a>
+      <form method="post" action="/settings/loyalty/discount/{{ r.id }}/delete" data-delpw="Видалити знижку «{{ r.name }}»?" style="margin:0"><button style="border:0;background:none;color:var(--muted);cursor:pointer;font-size:16px">×</button></form></div></div>
+  {% else %}<p class="muted small">Знижок ще немає — додайте праворуч.</p>{% endfor %}</div>
+{% if personal %}<div class="card"><h2 style="margin-top:0">Персональні знижки · {{ personal|length }}</h2><table class="tb small"><tbody>{% for p in personal %}<tr><td><a href="/patients/{{ p.id }}#loyal">{{ p.full_name }}</a></td><td class="r"><b>{{ '%g'|format(p.discount_pct) }}%</b></td></tr>{% endfor %}</tbody></table>
+  <p class="small muted" style="margin:6px 0 0">Персональну знижку задають у картці пацієнта (блок «Бонуси й знижка»).</p></div>{% endif %}
+</div>
+<div>
+<form class="card" id="form" method="post" action="/settings/loyalty/discount" style="display:grid;gap:10px"><h2 style="margin:0">{{ 'Змінити знижку' if r0 else 'Нова знижка' }}</h2>{% if r0 %}<input type="hidden" name="rid" value="{{ r0.id }}">{% endif %}
+  <label>Назва<input name="name" value="{{ r0.name if r0 else '' }}" required placeholder="Чорна пʼятниця, -15% на догляд"></label>
+  <div class="two"><label>Тип<select name="kind"><option value="percent" {{ 'selected' if not r0 or r0.kind=='percent' }}>%</option><option value="amount" {{ 'selected' if r0 and r0.kind=='amount' }}>сума, ₴</option></select></label>
+    <label>Розмір<input name="value" value="{{ '%g'|format(r0.value) if r0 else '' }}" inputmode="decimal" required></label></div>
+  <label>На що<select name="applies_to">{% for k, v in [('all','на все'),('services','лише послуги'),('products','лише товари')] %}<option value="{{ k }}" {{ 'selected' if r0 and r0.applies_to==k }}>{{ v }}</option>{% endfor %}</select></label>
+  <details {{ 'open' if r0 and r0.categories }}><summary class="small">Лише категорії / бренди ({{ (r0.categories|length) if r0 and r0.categories else 'усі' }})</summary><div class="chips" style="margin-top:6px;max-height:180px;overflow:auto">
+    {% for c in cats %}<label><input type="checkbox" name="categories" value="{{ c }}" {{ 'checked' if r0 and r0.categories and c in r0.categories }} style="width:auto">{{ c }}</label>{% endfor %}</div></details>
+  <div class="two"><label>З<input type="date" name="date_from" value="{{ r0.date_from if r0 and r0.date_from else '' }}"></label><label>По<input type="date" name="date_to" value="{{ r0.date_to if r0 and r0.date_to else '' }}"></label></div>
+  <div class="chips">{% for w in WD %}<label><input type="checkbox" name="weekdays" value="{{ loop.index0 }}" {{ 'checked' if r0 and r0.weekdays and loop.index0 in r0.weekdays }} style="width:auto">{{ w }}</label>{% endfor %}<span class="small muted">порожньо — щодня</span></div>
+  <div class="two"><label>Від суми чека, ₴<input name="min_sum" value="{{ '%g'|format(r0.min_sum) if r0 and r0.min_sum else '' }}" inputmode="decimal"></label>
+    <label>Кому<select name="segment">{% for k, v in ly.SEGMENTS.items() %}<option value="{{ k }}" {{ 'selected' if r0 and (r0.segment or '')==k }}>{{ v }}</option>{% endfor %}</select></label></div>
+  <label class="sw"><input type="checkbox" name="auto" value="1" {{ 'checked' if r0 and r0.auto }}> застосовувати автоматично</label>
+  <label class="sw"><input type="checkbox" name="combine" value="1" {{ 'checked' if r0 and r0.combine }}> сумується з іншими знижками</label>
+  <label class="sw"><input type="checkbox" name="active" value="1" {{ 'checked' if not r0 or r0.active }}> діє</label>
+  <label>Примітка<input name="note" value="{{ r0.note or '' if r0 }}"></label>
+  <div class="row" style="gap:6px"><button class="btn">Зберегти</button>{% if r0 %}<a class="btn ghost" href="?">Скасувати</a>{% endif %}</div></form>
+<form class="card" method="get" style="display:grid;gap:8px"><h2 style="margin:0">🧮 Перевірити на прикладі</h2><input type="hidden" name="calc" value="1">
+  <div class="two"><label>Послуга, ₴<input name="sp" value="{{ qp.get('sp','') }}" inputmode="decimal"></label><label>Категорія послуги<input name="sc" value="{{ qp.get('sc','') }}" list="ly-cats"></label></div>
+  <div class="two"><label>Товар, ₴<input name="pp" value="{{ qp.get('pp','') }}" inputmode="decimal"></label><label>Категорія / бренд<input name="pc" value="{{ qp.get('pc','') }}" list="ly-cats"></label></div>
+  <div class="two"><label>Дата<input type="date" name="day" value="{{ qp.get('day','') }}"></label><label>ID пацієнта (необовʼязково)<input name="pid" value="{{ qp.get('pid','') }}" inputmode="numeric"></label></div>
+  <datalist id="ly-cats">{% for c in cats %}<option>{{ c }}</option>{% endfor %}</datalist><button class="btn ghost">Порахувати</button>
+  {% if calc %}<div class="small" style="background:var(--soft);border-radius:10px;padding:10px 12px">Сума {{ calc.subtotal|uah }} · знижка <b>{{ calc.total|uah }}</b>{{ (' (' ~ calc.rules|join(' + ') ~ ')') if calc.rules }} · до сплати <b>{{ (calc.subtotal - calc.total)|uah }}</b><br>
+    Нарахується бонусів: <b>{{ calc.bonus|uah }}</b>{% if calc.patient %} · {{ calc.patient.full_name }} може сплатити бонусами до {{ calc.max_pay|uah }}{% endif %}</div>{% endif %}</form>
+</div></div>
+{% endblock %}

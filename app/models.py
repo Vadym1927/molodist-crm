@@ -72,6 +72,7 @@ class Patient(Base):
     address: Mapped[str | None] = mapped_column(String(300))
     communication_channel: Mapped[str | None] = mapped_column(String(30))
     client_groups: Mapped[list | None] = mapped_column(JSON)
+    discount_pct: Mapped[float | None] = mapped_column(Float)          # персональна знижка, %
     med_allergies: Mapped[str | None] = mapped_column(Text)           # алергії (лише medical)
     med_conditions: Mapped[str | None] = mapped_column(Text)          # хронічні захворювання, препарати, вагітність…
     med_contra: Mapped[str | None] = mapped_column(Text)              # протипоказання
@@ -211,6 +212,41 @@ class PatientFile(Base):
     record_id: Mapped[int | None] = mapped_column(Integer, index=True)   # запис медкартки
 
     patient: Mapped[Patient | None] = relationship(back_populates="files")
+
+
+class DiscountRule(Base):
+    """Знижка: % або сума; на все / послуги / товари / категорії; період, дні тижня, мінімальна сума; авто чи вручну."""
+    __tablename__ = "discount_rules"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(150))
+    kind: Mapped[str] = mapped_column(String(10), default="percent")       # percent | amount
+    value: Mapped[float] = mapped_column(Float, default=0)
+    applies_to: Mapped[str] = mapped_column(String(12), default="all")      # all | services | products
+    categories: Mapped[list | None] = mapped_column(JSON)                  # категорії послуг / товарів (порожньо — усі)
+    date_from: Mapped[date | None] = mapped_column(Date)
+    date_to: Mapped[date | None] = mapped_column(Date)
+    weekdays: Mapped[list | None] = mapped_column(JSON)                    # [0..6], порожньо — щодня
+    min_sum: Mapped[float | None] = mapped_column(Float)
+    segment: Mapped[str | None] = mapped_column(String(40))                # birthday | new | all
+    auto: Mapped[bool] = mapped_column(Boolean, default=False)             # застосовується сама
+    combine: Mapped[bool] = mapped_column(Boolean, default=False)          # сумується з іншими
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    note: Mapped[str | None] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class BonusTxn(Base):
+    """Рух бонусів пацієнта: нарахування (+), списання (−), згоряння, ручні, стартовий залишок з CleverBox."""
+    __tablename__ = "bonus_txns"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), index=True)
+    at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, index=True)
+    amount: Mapped[float] = mapped_column(Float)
+    kind: Mapped[str] = mapped_column(String(12))                          # accrual | spend | manual | expire | import | birthday | welcome
+    expires_at: Mapped[date | None] = mapped_column(Date)
+    ref: Mapped[str | None] = mapped_column(String(60))                    # sale:123
+    comment: Mapped[str | None] = mapped_column(String(300))
+    user_id: Mapped[int | None] = mapped_column(Integer)
 
 
 class Appeal(Base):
