@@ -267,3 +267,36 @@ def test_batches_by_expiry_fefo_and_reassign():
         assert "Партії на складі" in page and "01.06.2027" in page
     with SessionLocal() as db:
         db.query(SyncState).filter(SyncState.key == "stock_ledger_start").delete(); db.commit()
+
+
+def test_manual_batches_on_product_card():
+    """Ручне внесення термінів: залишок без терміну → кілька партій; загальна к-сть не змінюється."""
+    from datetime import date as _d
+    from app.models import SyncState
+    settings.admin_password = "owner-pass-1"
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        with SessionLocal() as db:
+            db.query(SyncState).filter(SyncState.key == "stock_ledger_start").delete(); db.commit()
+            p = Product(name="Ручні терміни крем", name_norm="ручні терміни крем", warehouse="vitrina")
+            db.add(p); db.commit()
+            db.add(StockLevel(cb_product_id=None, name=p.name, qty=0)); db.commit()
+            st.start_ledger(db)
+            db.add(StockMove(product_id=p.id, warehouse="vitrina", qty=5, kind="opening", at=datetime.now())); db.commit()
+            pid = p.id
+        r = c.post(f"/products/{pid}/batches", data={"wh": "vitrina", "exp": ["2027-01-31", "2027-06-30", ""], "qty": ["2", "2", ""]},
+                   follow_redirects=False)
+        assert "saved=1" in r.headers["location"]
+        with SessionLocal() as db:
+            bb = {e: q for (x, w, e), q in st.batch_balances(db, pid).items() if abs(q) > 1e-9}
+            assert bb == {_d(2027, 1, 31): 2, _d(2027, 6, 30): 2, None: 1}
+            assert st.balance_by_product(db)[pid] == 5
+        bad = c.post(f"/products/{pid}/batches", data={"wh": "vitrina", "exp": ["2027-01-31"], "qty": ["9"]}, follow_redirects=False)
+        assert "err=" in bad.headers["location"]
+        r = c.post(f"/products/{pid}/batches", data={"wh": "vitrina", "exp": ["2027-06-30"], "qty": ["5"]}, follow_redirects=False)
+        with SessionLocal() as db:
+            bb = {e: q for (x, w, e), q in st.batch_balances(db, pid).items() if abs(q) > 1e-9}
+            assert bb == {_d(2027, 6, 30): 5}
+        assert "Внести терміни вручну" in c.get(f"/products/{pid}").text
+        with SessionLocal() as db:
+            db.query(SyncState).filter(SyncState.key == "stock_ledger_start").delete(); db.commit()

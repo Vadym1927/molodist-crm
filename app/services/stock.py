@@ -22,7 +22,8 @@ DOC_KINDS = {"supply": "Поставка", "order": "Замовлення", "tra
 DOC_PREFIX = {"supply": "П", "order": "З", "transfer": "ПМ", "writeoff": "С", "return": "В", "inventory": "І", "opening": "СТ"}
 WRITEOFF_REASONS = ["Використано в кабінеті", "Прострочено", "Пошкоджено", "Брак", "Подарунок / тестер", "Інше"]
 MOVE_KINDS = {"supply": "Поставка", "sale": "Продаж", "procedure": "Процедура", "writeoff": "Списання",
-              "transfer": "Переміщення", "return": "Повернення", "inventory": "Інвентаризація", "opening": "Старт"}
+              "transfer": "Переміщення", "return": "Повернення", "inventory": "Інвентаризація", "opening": "Старт",
+              "batch": "Терміни"}
 STATUS = {"draft": "Чернетка", "posted": "Проведено", "cancelled": "Скасовано", "sent": "Відправлено",
           "received": "Отримано"}
 
@@ -503,3 +504,28 @@ def reassign_batch(db: Session, move_id: int, expiry: date | None) -> StockMove 
     m.expiry_date = expiry
     db.commit()
     return m
+
+
+def set_batches(db: Session, product_id: int, wh: str, targets: list[tuple], note: str | None = None) -> dict:
+    """Ручний розподіл залишку складу за термінами: targets = [(термін, к-сть)], сума ≤ залишку складу.
+    Решта — «без терміну». Загальний залишок не змінюється: створюються пари рухів «Терміни» між партіями."""
+    cur = {e: q for (p, w, e), q in batch_balances(db, product_id, wh).items() if abs(q) > 1e-9}
+    total = round(sum(cur.values()), 4)
+    want: dict = defaultdict(float)
+    for e, q in targets:
+        if q and q > 0:
+            want[e] += q
+    if round(sum(want.values()), 4) > total + 1e-6:
+        raise StockError(f"Сума за термінами ({sum(want.values()):g}) більша за залишок складу ({total:g})")
+    rest = round(total - sum(v for e, v in want.items() if e is not None), 4)
+    want[None] = rest if None not in want else want[None] + (rest - want[None])
+    now = datetime.now()
+    changed = 0
+    for e in set(cur) | set(want):
+        diff = round(want.get(e, 0.0) - cur.get(e, 0.0), 4)
+        if abs(diff) > 1e-9:
+            db.add(StockMove(product_id=product_id, warehouse=wh, qty=diff, kind="batch", at=now, expiry_date=e,
+                             note=(note or "розподіл за термінами вручну")[:300]))
+            changed += 1
+    db.commit()
+    return {"total": total, "changed": changed}

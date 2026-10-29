@@ -1388,9 +1388,13 @@ def product_card(pid: int, request: Request, user: User = Depends(require("produ
     buys, buy_stats = catalog.purchase_history(prod, purchases)
     from .services import stock as _st
     from .models import StockMove as _SM
-    batches = _st.batches_view(db, pid) if _st.ledger_active(db) else []
+    ledger_on = _st.ledger_active(db)
+    batches = _st.batches_view(db, pid) if ledger_on else []
+    wh_tot: dict[str, float] = {}
+    for b in batches:
+        wh_tot[b["wh"]] = round(wh_tot.get(b["wh"], 0) + b["qty"], 4)
     out_moves = db.scalars(select(_SM).where(_SM.product_id == pid, _SM.qty < 0, _SM.kind.in_(("sale", "procedure", "writeoff")))
-                           .order_by(_SM.at.desc()).limit(30)).all() if batches or _st.ledger_active(db) else []
+                           .order_by(_SM.at.desc()).limit(30)).all() if ledger_on else []
     batch_opts: dict[str, list] = {}
     for b in batches:
         batch_opts.setdefault(b["wh"], []).append(b["expiry"])
@@ -1398,7 +1402,7 @@ def product_card(pid: int, request: Request, user: User = Depends(require("produ
         if m.expiry_date not in batch_opts.setdefault(m.warehouse, []):
             batch_opts[m.warehouse].append(m.expiry_date)
     return render(request, "product.html", WAREHOUSES=catalog.WAREHOUSES, p=prod, r=row, purchases=purchases, buys=buys, buy_stats=buy_stats,
-                  batches=batches, out_moves=out_moves, batch_opts=batch_opts, sales=sales, plans=plans, months=months,
+                  batches=batches, out_moves=out_moves, batch_opts=batch_opts, wh_tot=wh_tot, ledger_on=ledger_on, sales=sales, plans=plans, months=months,
                   m_max=max([m[1] for m in months] + [1]), stock_rows=stock_rows, today=today,
                   brands=sorted({x for (x,) in db.execute(select(Product.brand).where(Product.brand.is_not(None)).distinct())}),
                   suppliers=sorted({x for (x,) in db.execute(select(Product.supplier).where(Product.supplier.is_not(None)).distinct())}))
@@ -1439,6 +1443,29 @@ def product_update(pid: int, supply_days: str = Form(""), min_stock: str = Form(
     audit(db, "product.update", "product", prod.id, user=user, supply_days=prod.supply_days,
           min_stock=prod.min_stock, applied_to_items=n)
     return RedirectResponse(back if back.startswith("/products") else f"/products/{pid}?saved=1", 303)
+
+
+@app.post("/products/{pid:int}/batches")
+async def product_batches_set(pid: int, request: Request, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    """Ручне внесення термінів: розподіл залишку складу на кілька партій (термін + к-сть)."""
+    from .services import stock as st
+    f = await request.form()
+    wh = f.get("wh") if f.get("wh") in catalog.WAREHOUSES else None
+    if not wh or not st.ledger_active(db):
+        return RedirectResponse(f"/products/{pid}?err=Облік+складу+ще+не+розпочато#batches", 303)
+    prod = db.get(Product, pid)
+    k = prod.coef if prod and prod.coef and prod.coef > 0 else 1
+    targets = []
+    for e, q in zip(f.getlist("exp"), f.getlist("qty")):
+        qq = _num(q)
+        if qq and qq > 0:
+            targets.append((_day(e), round(qq * (k if f.get("in_packs") else 1), 4)))
+    try:
+        rep = st.set_batches(db, pid, wh, targets, note=f"терміни вручну · {user.name}")
+    except st.StockError as e:
+        return RedirectResponse(f"/products/{pid}?err={_q(str(e))}#batches", 303)
+    audit(db, "stock.batches_manual", "product", pid, user=user, wh=wh, batches=len(targets), changed=rep["changed"])
+    return RedirectResponse(f"/products/{pid}?saved=1#batches", 303)
 
 
 @app.post("/stock/moves/{mid:int}/batch")
