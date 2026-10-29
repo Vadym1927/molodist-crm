@@ -230,3 +230,40 @@ def test_supply_modal_quick_doc():
         assert d.supplier == "Модальний Дистриб'ютор" and d.ext_no == "ПН-1" and d.status == "draft"
         assert ln2.qty == 500 and ln2.unit_cost == 2                                  # 2 уп × 250 мл, 500 ₴ / 250
         assert db.query(Supplier).filter_by(name="Модальний Дистриб'ютор").count() == 1
+
+
+def test_batches_by_expiry_fefo_and_reassign():
+    """Один товар — кілька партій за терміном; продаж CleverBox списує найближчий термін; партію продажу можна змінити."""
+    from datetime import date as _d
+    from app.models import SyncState
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        db.query(SyncState).filter(SyncState.key == "stock_ledger_start").delete(); db.commit()
+        p = Product(name="Партійний крем", name_norm="партійний крем", cb_product_id=990777, warehouse="vitrina")
+        db.add(p); db.commit()
+        st.start_ledger(db)
+        doc = st.new_doc(db, "supply", wh_to="vitrina", supplier="Партія Тест")
+        doc.lines.append(st.StockDocLine(product_id=p.id, qty=2, unit_cost=100, expiry_date=_d(2027, 6, 1)))
+        doc.lines.append(st.StockDocLine(product_id=p.id, qty=3, unit_cost=100, expiry_date=_d(2027, 1, 1)))
+        db.commit(); st.post(db, doc)
+        pt = Patient(full_name="Партійна Покупниця"); db.add(pt); db.flush()
+        db.add(ProductSale(external_id="batch-s-1", patient_id=pt.id, product_id=990777, product_name=p.name, quantity=4,
+                           amount=800, sold_at=datetime.now()))
+        db.commit()
+        st.auto_moves(db)
+        bb = {e: q for (pid, w, e), q in st.batch_balances(db, p.id).items() if q}
+        assert bb == {_d(2027, 6, 1): 1}                             # 3 з січня + 1 з червня
+        rows = {r.product.id: r for r in catalog.product_rows(db, [])}
+        assert rows[p.id].expiry == _d(2027, 6, 1) and rows[p.id].stock == 1
+        mv = db.query(StockMove).filter(StockMove.ref == "sale:batch-s-1#1").one()
+        assert mv.expiry_date == _d(2027, 6, 1) and mv.qty == -1
+        st.reassign_batch(db, mv.id, _d(2027, 1, 1))                 # насправді продали ще одну січневу
+        bb = {e: q for (pid, w, e), q in st.batch_balances(db, p.id).items() if q}
+        assert bb == {_d(2027, 6, 1): 2, _d(2027, 1, 1): -1}
+        pid = p.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        page = c.get(f"/products/{pid}").text
+        assert "Партії на складі" in page and "01.06.2027" in page
+    with SessionLocal() as db:
+        db.query(SyncState).filter(SyncState.key == "stock_ledger_start").delete(); db.commit()

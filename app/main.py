@@ -1373,7 +1373,19 @@ def product_card(pid: int, request: Request, user: User = Depends(require("produ
                     mm[1] += q or 0
     stock_rows = db.scalars(select(StockLevel).where(StockLevel.cb_product_id == prod.cb_product_id)).all() if prod.cb_product_id else []
     buys, buy_stats = catalog.purchase_history(prod, purchases)
-    return render(request, "product.html", WAREHOUSES=catalog.WAREHOUSES, p=prod, r=row, purchases=purchases, buys=buys, buy_stats=buy_stats, sales=sales, plans=plans, months=months,
+    from .services import stock as _st
+    from .models import StockMove as _SM
+    batches = _st.batches_view(db, pid) if _st.ledger_active(db) else []
+    out_moves = db.scalars(select(_SM).where(_SM.product_id == pid, _SM.qty < 0, _SM.kind.in_(("sale", "procedure", "writeoff")))
+                           .order_by(_SM.at.desc()).limit(30)).all() if batches or _st.ledger_active(db) else []
+    batch_opts: dict[str, list] = {}
+    for b in batches:
+        batch_opts.setdefault(b["wh"], []).append(b["expiry"])
+    for m in out_moves:                              # поточний термін руху теж має бути в списку
+        if m.expiry_date not in batch_opts.setdefault(m.warehouse, []):
+            batch_opts[m.warehouse].append(m.expiry_date)
+    return render(request, "product.html", WAREHOUSES=catalog.WAREHOUSES, p=prod, r=row, purchases=purchases, buys=buys, buy_stats=buy_stats,
+                  batches=batches, out_moves=out_moves, batch_opts=batch_opts, sales=sales, plans=plans, months=months,
                   m_max=max([m[1] for m in months] + [1]), stock_rows=stock_rows, today=today,
                   brands=sorted({x for (x,) in db.execute(select(Product.brand).where(Product.brand.is_not(None)).distinct())}),
                   suppliers=sorted({x for (x,) in db.execute(select(Product.supplier).where(Product.supplier.is_not(None)).distinct())}))
@@ -1414,6 +1426,17 @@ def product_update(pid: int, supply_days: str = Form(""), min_stock: str = Form(
     audit(db, "product.update", "product", prod.id, user=user, supply_days=prod.supply_days,
           min_stock=prod.min_stock, applied_to_items=n)
     return RedirectResponse(back if back.startswith("/products") else f"/products/{pid}?saved=1", 303)
+
+
+@app.post("/stock/moves/{mid:int}/batch")
+def stock_move_batch(mid: int, expiry: str = Form(""), back: str = Form(""), user: User = Depends(require("stock")),
+                     db: Session = Depends(db_dep)):
+    """Який термін продали / списали — для автоматичних продажів CleverBox і процедур."""
+    from .services import stock as st
+    m = st.reassign_batch(db, mid, _day(expiry))
+    if m:
+        audit(db, "stock.batch", user=user, move=mid, expiry=expiry or None)
+    return RedirectResponse(back if back.startswith("/") else f"/products/{m.product_id if m else ''}#batches", 303)
 
 
 @app.post("/products/{pid:int}/purchases")
@@ -2012,7 +2035,8 @@ async def stock_doc_save(did: int, request: Request, user: User = Depends(requir
             if not pr:
                 db.commit()
                 return RedirectResponse(f"/stock/docs/{did}?err=Товар+не+знайдено:+{new_ref[:60]}#add", 303)
-            line = next((ln for ln in doc.lines if ln.product_id == pr.id), None)
+            new_exp = _day(f.get("new_exp"))
+            line = next((ln for ln in doc.lines if ln.product_id == pr.id and ln.expiry_date == new_exp), None)   # інший термін — нова партія
             if line and doc.kind != "inventory":
                 line.qty = (line.qty or 0) + (_num(f.get("new_qty")) or 1)
             elif not line:

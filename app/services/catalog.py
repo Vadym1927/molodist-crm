@@ -207,6 +207,15 @@ def product_rows(db: Session, statuses: list[PlanStatus] | None = None, now: dat
         for pid, r in rows.items():
             r.stock = stock.get(pid, 0.0)
     apply_purchases(db, rows)
+    if ledger_active(db):                        # термін — найближча партія, що реально лежить на складі
+        from .stock import batch_balances
+        near: dict[int, date] = {}
+        for (pid, _w, e), q in batch_balances(db).items():
+            if e and q > 1e-6 and (pid not in near or e < near[pid]):
+                near[pid] = e
+        for pid, r in rows.items():
+            if pid in near:
+                r.expiry = min(near[pid], r.product.expiry_date) if r.product.expiry_date else near[pid]
     apply_sales(db, rows, now)
     return sorted(rows.values(), key=lambda r: (-r.prescribed, r.product.name))
 

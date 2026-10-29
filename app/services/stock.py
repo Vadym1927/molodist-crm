@@ -162,9 +162,50 @@ def balance_by_product(db: Session) -> dict[int, float]:
     return out
 
 
-def _move(db, doc, ln, wh, qty, kind, note=None):
-    db.add(StockMove(product_id=ln.product_id, warehouse=wh, qty=qty, kind=kind, at=datetime.combine(doc.doc_date, datetime.now().time()),
-                     doc_id=doc.id, unit_cost=ln.unit_cost, note=note, patient_id=doc.patient_id))
+# ---------------- партії (термін придатності) ----------------
+
+def batch_balances(db: Session, product_id: int | None = None, warehouse: str | None = None) -> dict[tuple, float]:
+    """{(товар, склад, термін): к-сть}. Термін None — партія без терміну (стартові залишки, старі рухи)."""
+    q = select(StockMove.product_id, StockMove.warehouse, StockMove.expiry_date, func.sum(StockMove.qty)) \
+        .group_by(StockMove.product_id, StockMove.warehouse, StockMove.expiry_date)
+    if product_id:
+        q = q.where(StockMove.product_id == product_id)
+    if warehouse:
+        q = q.where(StockMove.warehouse == warehouse)
+    return {(p, w, e): float(s or 0) for p, w, e, s in db.execute(q)}
+
+
+def _fefo(cache: dict, db: Session, pid: int, wh: str, qty: float) -> list[tuple]:
+    """Розкласти списання qty (>0) по партіях: спершу без терміну (найстаріші залишки), далі — найближчий термін.
+    cache — залишки партій у межах однієї операції (щоб кілька рядків не списали одну партію двічі)."""
+    key = (pid, wh)
+    if key not in cache:
+        cache[key] = {e: q for (p, w, e), q in batch_balances(db, pid, wh).items()}
+    left, out = qty, []
+    for e in sorted(cache[key], key=lambda e: (e is not None, e or date.min)):
+        avail = cache[key][e]
+        if avail <= 0 or left <= 0:
+            continue
+        take = min(avail, left)
+        out.append((e, round(take, 4)))
+        cache[key][e] = avail - take
+        left = round(left - take, 4)
+    if left > 0:                                    # бракує — у мінус останньої (найпізнішої) або «без терміну»
+        e = max((e for e in cache[key] if e), default=None) if out else None
+        out.append((e, left))
+        cache[key][e] = cache[key].get(e, 0) - left
+    return out
+
+
+def _move(db, doc, ln, wh, qty, kind, note=None, cache=None):
+    """Рух документа. Прихід — у партію терміну рядка; списання — з партії рядка або FEFO. Повертає розклад."""
+    at = datetime.combine(doc.doc_date, datetime.now().time())
+    parts = [(ln.expiry_date, qty)] if qty > 0 or ln.expiry_date else \
+        [(e, -q) for e, q in _fefo(cache if cache is not None else {}, db, ln.product_id, wh, -qty)]
+    for e, q in parts:
+        db.add(StockMove(product_id=ln.product_id, warehouse=wh, qty=q, kind=kind, at=at, doc_id=doc.id,
+                         unit_cost=ln.unit_cost, note=note, patient_id=doc.patient_id, expiry_date=e))
+    return parts
 
 
 def post(db: Session, doc: StockDoc, allow_negative: bool = True) -> None:
@@ -186,13 +227,14 @@ def post(db: Session, doc: StockDoc, allow_negative: bool = True) -> None:
     if k == "return" and not (doc.wh_from or doc.wh_to):
         raise StockError("Оберіть склад")
     bal = balances(db)
+    cache: dict = {}
     if k == "inventory":
         for ln in lines:
             sys_q = bal.get((ln.product_id, doc.wh_from), 0.0)
             ln.sys_qty = sys_q
             diff = round((ln.qty or 0) - sys_q, 4)
             if diff:
-                _move(db, doc, ln, doc.wh_from, diff, "inventory", "надлишок" if diff > 0 else "нестача")
+                _move(db, doc, ln, doc.wh_from, diff, "inventory", "надлишок" if diff > 0 else "нестача", cache)
     else:
         for ln in lines:
             q = abs(ln.qty)
@@ -205,15 +247,18 @@ def post(db: Session, doc: StockDoc, allow_negative: bool = True) -> None:
                     p = db.get(Product, ln.product_id)
                     p.supplier = p.supplier or doc.supplier
             elif k == "transfer":
-                _move(db, doc, ln, doc.wh_from, -q, "transfer", f"→ {WAREHOUSES.get(doc.wh_to)}")
-                _move(db, doc, ln, doc.wh_to, q, "transfer", f"← {WAREHOUSES.get(doc.wh_from)}")
+                parts = _move(db, doc, ln, doc.wh_from, -q, "transfer", f"→ {WAREHOUSES.get(doc.wh_to)}", cache)
+                for e, pq in parts:                  # на склад отримання — ті самі партії
+                    db.add(StockMove(product_id=ln.product_id, warehouse=doc.wh_to, qty=-pq, kind="transfer",
+                                     at=datetime.combine(doc.doc_date, datetime.now().time()), doc_id=doc.id,
+                                     unit_cost=ln.unit_cost, note=f"← {WAREHOUSES.get(doc.wh_from)}", expiry_date=e))
             elif k == "writeoff":
-                _move(db, doc, ln, doc.wh_from, -q, "writeoff", doc.reason)
+                _move(db, doc, ln, doc.wh_from, -q, "writeoff", doc.reason, cache)
             elif k == "return":
                 if doc.reason == "patient":                  # пацієнт повернув — товар назад на склад
                     _move(db, doc, ln, doc.wh_to or doc.wh_from, q, "return", "від пацієнта")
                 else:                                        # повернення постачальнику
-                    _move(db, doc, ln, doc.wh_from or doc.wh_to, -q, "return", "постачальнику")
+                    _move(db, doc, ln, doc.wh_from or doc.wh_to, -q, "return", "постачальнику", cache)
             if not allow_negative and k in ("transfer", "writeoff") and bal.get((ln.product_id, doc.wh_from), 0) < q:
                 raise StockError(f"Недостатньо залишку: {ln.product.name}")
     doc.status, doc.posted_at = "posted", datetime.now()
@@ -304,13 +349,16 @@ def auto_moves(db: Session) -> dict:
     existing = {r for (r,) in db.execute(select(StockMove.ref).where(StockMove.ref.is_not(None),
                                                                        StockMove.at >= start - timedelta(days=1)))}
     by_cb = {p.cb_product_id: p for p in db.scalars(select(Product).where(Product.cb_product_id.is_not(None)))}
-    for s in db.scalars(select(ProductSale).where(ProductSale.sold_at >= start)):
+    cache: dict = {}
+    for s in db.scalars(select(ProductSale).where(ProductSale.sold_at >= start).order_by(ProductSale.sold_at)):
         ref = f"sale:{s.external_id}"
         p = by_cb.get(s.product_id)
         if ref in existing or not p:
             continue
-        db.add(StockMove(product_id=p.id, warehouse=p.warehouse or "vitrina", qty=-(s.quantity or 1), kind="sale",
-                         at=s.sold_at, ref=ref, patient_id=s.patient_id, note="продаж CleverBox"))
+        wh = p.warehouse or "vitrina"
+        for i, (e, q) in enumerate(_fefo(cache, db, p.id, wh, float(s.quantity or 1))):
+            db.add(StockMove(product_id=p.id, warehouse=wh, qty=-q, kind="sale", at=s.sold_at,
+                             ref=ref if i == 0 else f"{ref}#{i}", patient_id=s.patient_id, note="продаж CleverBox", expiry_date=e))
         existing.add(ref)
         rep["sales"] += 1
     norms: dict[int, list[ProcedureNorm]] = defaultdict(list)
@@ -323,9 +371,11 @@ def auto_moves(db: Session) -> dict:
                 ref = f"proc:{v.id}:{n.id}"
                 if ref in existing:
                     continue
-                db.add(StockMove(product_id=n.product_id, warehouse=n.warehouse or n.product.warehouse or "single",
-                                 qty=-n.qty, kind="procedure", at=v.starts_at, ref=ref, patient_id=v.patient_id,
-                                 note=(v.service_name or "")[:300]))
+                wh = n.warehouse or n.product.warehouse or "single"
+                for i, (e, q) in enumerate(_fefo(cache, db, n.product_id, wh, float(n.qty or 0))):
+                    db.add(StockMove(product_id=n.product_id, warehouse=wh, qty=-q, kind="procedure", at=v.starts_at,
+                                     ref=ref if i == 0 else f"{ref}#{i}", patient_id=v.patient_id,
+                                     note=(v.service_name or "")[:300], expiry_date=e))
                 existing.add(ref)
                 rep["procedures"] += 1
     db.commit()
@@ -432,3 +482,24 @@ def supplier_stats(db: Session, d_from: datetime | None = None) -> dict[str, dic
             a["n"] += 1
             a["wh"][x.warehouse or "other"] += x.amount or 0
     return out
+
+
+def batches_view(db: Session, product_id: int) -> list[dict]:
+    """Партії товару на складах: склад, термін, к-сть, днів до кінця."""
+    today = date.today()
+    out = []
+    for (p, w, e), q in batch_balances(db, product_id).items():
+        if abs(q) < 1e-6:
+            continue
+        out.append({"wh": w, "expiry": e, "qty": round(q, 3), "days": (e - today).days if e else None})
+    return sorted(out, key=lambda x: (x["wh"], x["expiry"] is None, x["expiry"] or date.max))
+
+
+def reassign_batch(db: Session, move_id: int, expiry: date | None) -> StockMove | None:
+    """Вибрати, з якого терміну продали / списали (для автоматичних продажів CleverBox і процедур)."""
+    m = db.get(StockMove, move_id)
+    if not m or m.qty >= 0 or m.kind not in ("sale", "procedure", "writeoff"):
+        return None
+    m.expiry_date = expiry
+    db.commit()
+    return m

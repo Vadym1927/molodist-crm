@@ -53,6 +53,21 @@
 
 <div class="lay">
 <div>
+  {% if batches or out_moves %}<div class="card" id="batches"><h2>Партії на складі (за терміном придатності)</h2>
+    <table class="tb"><thead><tr><th>Склад</th><th>Придатний до</th><th class="r">Залишок</th><th>Стан</th></tr></thead><tbody>
+    {% for b in batches %}<tr><td>{{ WAREHOUSES.get(b.wh, b.wh) }}</td><td>{{ b.expiry|dt('%d.%m.%Y') if b.expiry else 'без терміну' }}</td>
+      <td class="r"><b class="{{ 'bad' if b.qty < 0 }}">{{ '%g'|format(b.qty) }}</b> {{ p.unit or 'шт' }}</td>
+      <td>{% if b.days is not none %}{% if b.days < 0 %}<span class="pill bad">прострочено</span>{% elif b.days <= 90 %}<span class="pill warn">{{ b.days }} дн</span>{% else %}<span class="pill ok">{{ b.days }} дн</span>{% endif %}{% elif b.qty < 0 %}<span class="pill bad">мінус — перевірте партії продажів</span>{% endif %}</td></tr>
+    {% else %}<tr><td colspan="4" class="muted">Немає залишку.</td></tr>{% endfor %}</tbody></table>
+    {% if out_moves %}<details style="margin-top:12px"{{ ' open' if batches|selectattr('qty','lt',0)|list }}><summary class="small" style="cursor:pointer;font-weight:600">Продажі й списання — з якого терміну (останні {{ out_moves|length }})</summary>
+      <p class="small muted" style="margin:6px 0">CRM списує автоматично з найближчого терміну. Якщо продали іншу партію — оберіть її, залишки партій перерахуються.</p>
+      <table class="tb small"><thead><tr><th>Дата</th><th>Операція</th><th>Склад</th><th class="r">К-сть</th><th>Партія (термін)</th></tr></thead><tbody>
+      {% for m in out_moves %}<tr><td>{{ m.at|dt('%d.%m.%Y %H:%M') }}</td><td>{{ {'sale':'продаж','procedure':'процедура','writeoff':'списання'}.get(m.kind, m.kind) }}{% if m.patient_id %} · <a href="/patients/{{ m.patient_id }}">пацієнт</a>{% endif %}</td>
+        <td>{{ WAREHOUSES.get(m.warehouse, m.warehouse) }}</td><td class="r">{{ '%g'|format(-m.qty) }}</td>
+        <td><form method="post" action="/stock/moves/{{ m.id }}/batch" class="row" style="gap:4px;flex-wrap:nowrap"><input type="hidden" name="back" value="/products/{{ p.id }}#batches">
+          <select name="expiry" onchange="this.form.submit()" style="height:32px">{% for e in batch_opts.get(m.warehouse, []) %}<option value="{{ e or '' }}" {{ 'selected' if e == m.expiry_date }}>{{ e|dt('%d.%m.%Y') if e else 'без терміну' }}</option>{% endfor %}</select></form></td></tr>{% endfor %}</tbody></table></details>{% endif %}
+  </div>{% endif %}
+
   <div class="card" id="buy">
     <div class="row between" style="align-items:baseline;gap:12px;flex-wrap:wrap"><h2 style="margin:0">Поставки: коли і за якою ціною</h2>
       {% if buy_stats %}<span class="small muted">{{ buy_stats.n }} поставок · {{ '%g'|format(buy_stats.qty) }} шт · {{ buy_stats.sum|uah }}</span>{% endif %}</div>

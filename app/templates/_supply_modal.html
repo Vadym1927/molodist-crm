@@ -44,7 +44,7 @@
       <label>Файли й фото накладної<input type="file" id="sdFiles" multiple accept="image/*,application/pdf" style="padding-top:9px"></label>{% endif %}
       <label class="wide">Коментар<textarea id="sdNote" placeholder="необов'язково"></textarea></label>
     </div>
-    {% if tab=='supply' %}<p class="small muted" style="margin:-6px 0 12px">Склад можна змінити в кожному рядку: якщо одна накладна йде на кілька складів, CRM збереже окремі поставки з тим самим № і розділить оплату пропорційно.</p>{% endif %}
+    {% if tab=='supply' %}<p class="small muted" style="margin:-6px 0 12px">Склад можна змінити в кожному рядку: якщо одна накладна йде на кілька складів, CRM збереже окремі поставки з тим самим № і розділить оплату пропорційно. Той самий товар з різними термінами — кнопка «＋» у рядку (окрема партія).</p>{% endif %}
     <div class="sd-t"><table>
       <thead><tr><th>№</th><th class="hm">Артикул</th><th>Найменування</th><th class="hm">Одиниці</th>{% if tab=='supply' %}<th style="width:130px">Склад</th>{% endif %}<th class="r" style="width:90px">К-сть</th><th class="r" style="width:120px">Ціна за од., ₴</th><th class="r" style="width:120px">Сума, ₴</th>{% if tab=='supply' %}<th class="hm" style="width:150px">Придатний до</th>{% endif %}<th></th></tr></thead>
       <tbody id="sdRows"><tr class="empty"><td colspan="9" class="muted" style="padding:14px">Додайте товари пошуком нижче — за назвою, брендом, артикулом або штрихкодом.</td></tr></tbody>
@@ -84,7 +84,7 @@
       <td><input inputmode="decimal" value="${l.price || ''}" data-i="${i}" data-k="price" placeholder="0"></td>
       <td class="r sum"><b>${fmt(l.qty * (l.price || 0))}</b></td>
       ${WITH_EXP ? `<td class="hm"><input type="date" value="${l.expiry || ''}" data-i="${i}" data-k="expiry"></td>` : ''}
-      <td><button class="del" type="button" data-del="${i}" title="Прибрати">×</button></td></tr>`).join('');
+      <td style="white-space:nowrap">${WITH_EXP ? `<button class="del" type="button" data-dup="${i}" title="Ще партія цього товару з іншим терміном" style="background:var(--lavender);color:var(--classic);margin-right:4px">＋</button>` : ''}<button class="del" type="button" data-del="${i}" title="Прибрати">×</button></td></tr>`).join('');
     const tot = lines.reduce((s, l) => s + l.qty * (l.price || 0), 0);
     $('sdTot').textContent = fmt(tot); $('sdTot2').textContent = fmt(tot) + ' ₴'; $('sdN').textContent = lines.length;
   }
@@ -98,10 +98,15 @@
     const row = t.closest('tr'); row.querySelector('.sum').innerHTML = '<b>' + fmt(lines[i].qty * (lines[i].price || 0)) + '</b>';
     const tot = lines.reduce((s, l) => s + l.qty * (l.price || 0), 0); $('sdTot').textContent = fmt(tot); $('sdTot2').textContent = fmt(tot) + ' ₴';
   });
-  $('sdRows').addEventListener('click', e => { const d = e.target.dataset.del; if (d != null) { lines.splice(+d, 1); render(); } });
+  $('sdRows').addEventListener('click', e => {
+    const d = e.target.dataset.del, u = e.target.dataset.dup;
+    if (d != null) { lines.splice(+d, 1); render(); }
+    if (u != null) { const src = lines[+u]; lines.splice(+u + 1, 0, {...src, qty: 1, expiry: ''}); render();
+      const inp = $('sdRows').querySelectorAll('input[data-k="expiry"]')[+u + 1]; if (inp) inp.focus(); }
+  });
 
   function add(p) {
-    const ex = lines.find(l => l.product_id === p.id);
+    const ex = lines.find(l => l.product_id === p.id && !l.expiry);      // з терміном — окрема партія
     if (ex) ex.qty += 1; else lines.push({product_id: p.id, name: p.name, sku: p.sku, brand: p.brand, unit: p.unit, wh: p.wh, stock: p.stock,
                                           qty: 1, price: Math.round((p.price || 0) * 100) / 100, expiry: '', wh_key: $('sdWh').value});
     if (!$('sdSup').value && p.supplier) $('sdSup').value = p.supplier;

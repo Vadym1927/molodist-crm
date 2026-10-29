@@ -489,6 +489,7 @@ class StockMove(Base):
     ref: Mapped[str | None] = mapped_column(String(80))
     note: Mapped[str | None] = mapped_column(String(300))
     patient_id: Mapped[int | None] = mapped_column(Integer)
+    expiry_date: Mapped[date | None] = mapped_column(Date, index=True)   # партія: термін придатності (None — без терміну)
 
 
 class ProcedureNorm(Base):
