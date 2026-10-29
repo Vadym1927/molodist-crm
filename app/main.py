@@ -56,6 +56,19 @@ templates.env.globals.update(
     FLAG={"green": ("записана", "ok"), "yellow": ("без запису", "warn"),
           "red": ("прострочено", "bad"), "done": ("завершено", "done")})
 
+def _pay_accounts() -> list[dict]:
+    """Готові підключення платіжних систем — для вибору ФОП у формі посилання на оплату."""
+    from .services import paylinks as _pls
+    try:
+        with SessionLocal() as _db:
+            t_ = _pls.public(_db)
+            return [{"id": a_["id"], "name": a_["name"], "default": int(t_.get("default") or 0) == int(a_["id"])} for a_ in t_["accounts"] if a_["ready"]]
+    except Exception:  # noqa: BLE001
+        return []
+
+
+templates.env.globals["pay_accounts"] = _pay_accounts
+
 state = {"bot": None, "last_sync": None, "last_error": None}
 
 
@@ -3410,7 +3423,8 @@ def settings_page(request: Request, user: User = Depends(current_user), db: Sess
         st_["/settings/keys?s=mono#mono"] = f"підключено {len(monobank.saved(db))} ФОП" if monobank.saved(db) else "не підключено"
         from .services import paylinks as _pls
         _pp = _pls.public(db)
-        st_["/settings/payments"] = (_pls.PROVIDERS[_pp["provider"]]["label"] + (" · підключено" if _pp["ready"] else " · без ключа")) if _pp["provider"] else "не підключено"
+        _ra = [a_ for a_ in _pp["accounts"] if a_["ready"]]
+        st_["/settings/payments"] = f"підключено {len(_ra)}" if _ra else "не підключено"
         st_["/settings/keys?s=ai#ai"] = "ключ задано" if invoice_ai.api_key(db) else "не задано"
         st_["/settings/keys?s=shop#shop"] = "підключено" if shop_express.creds(db).get("login") else "не підключено"
         acc = chb.accounts(db)
@@ -3522,7 +3536,9 @@ def settings_payments(request: Request, user: User = Depends(require("finance"))
     links = db.scalars(select(PayLink).order_by(PayLink.id.desc()).limit(40)).all()
     pats = {p_.id: p_ for p_ in db.scalars(select(Patient).where(Patient.id.in_({l_.patient_id for l_ in links if l_.patient_id})))} if links else {}
     base = str(request.base_url).rstrip("/").replace("http://", "https://")
+    from .services import cashboxes as _cbx
     return render(request, "paysys.html", nav="settings", t=t_, PROV=pls.PROVIDERS, links=links, pats=pats, SL=pls.STATUS_LABELS,
+                  boxes=_cbx.names(db), accs={a_["id"]: a_["name"] for a_ in t_["accounts"]},
                   hook_url=lambda p: f"{base}/api/public/pay/{p}/{t_['hook']}")
 
 
@@ -3530,17 +3546,38 @@ def settings_payments(request: Request, user: User = Depends(require("finance"))
 async def settings_payments_save(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     from .services import paylinks as pls
     f = await request.form()
-    prov = str(f.get("provider") or "")
+    pls.save_common(db, int(f.get("validity_h")) if str(f.get("validity_h") or "").isdigit() else 24, str(f.get("text") or ""),
+                    int(f.get("default")) if str(f.get("default") or "").isdigit() else None)
+    audit(db, "paysys.save", user=user)
+    return RedirectResponse(_with_msg("/settings/payments", "Збережено"), 303)
+
+
+@app.post("/settings/payments/account")
+async def settings_payments_account(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import paylinks as pls
+    f = await request.form()
+    aid = int(f.get("id")) if str(f.get("id") or "").isdigit() else None
     try:
-        pls.save(db, prov, {k: f.get(k) for k in f.keys()}, int(f.get("validity_h") or 24) if str(f.get("validity_h") or "").isdigit() else 24,
-                 str(f.get("text") or ""), str(f.get("cashbox") or ""))
+        a_ = pls.save_account(db, aid, str(f.get("provider") or ""), str(f.get("name") or ""), {k: f.get(k) for k in f.keys()},
+                              str(f.get("cashbox") or ""), bool(f.get("active")))
     except ValueError as e:
         return RedirectResponse(_with_msg("/settings/payments", str(e), True), 303)
-    audit(db, "paysys.save", user=user, provider=prov)
+    audit(db, "paysys.account_save", user=user, account=a_["id"], provider=a_["provider"], name=a_["name"])
     if f.get("test"):
-        ok, msg = await asyncio.to_thread(pls.test, db)
+        ok, msg = await asyncio.to_thread(pls.test, db, a_["id"])
         return RedirectResponse(_with_msg("/settings/payments", ("✅ " if ok else "❌ ") + msg, not ok), 303)
-    return RedirectResponse(_with_msg("/settings/payments", "Збережено"), 303)
+    return RedirectResponse(_with_msg("/settings/payments", f"Підключення «{a_['name']}» збережено"), 303)
+
+
+@app.post("/settings/payments/account/{aid:int}/delete")
+def settings_payments_account_delete(aid: int, del_password: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import paylinks as pls
+    err = _delpw(db, user, del_password, "paysys", None, aid)
+    if err:
+        return RedirectResponse(_with_err("/settings/payments", err), 303)
+    pls.delete_account(db, aid)
+    audit(db, "paysys.account_delete", user=user, account=aid)
+    return RedirectResponse(_with_msg("/settings/payments", "Підключення видалено"), 303)
 
 
 @app.post("/paylinks")
@@ -3556,7 +3593,9 @@ async def paylink_create(request: Request, user: User = Depends(require("sales")
         _patient_or_403(db, user, pid)
     base = str(request.base_url).rstrip("/").replace("http://", "https://")
     try:
-        pl = await asyncio.to_thread(pls.create, db, _num(str(f.get("amount") or "0")) or 0, str(f.get("purpose") or ""), base, pid, aid, user.id)
+        acc = int(f.get("account_id")) if str(f.get("account_id") or "").isdigit() else None
+        pl = await asyncio.to_thread(pls.create, db, _num(str(f.get("amount") or "0")) or 0, str(f.get("purpose") or ""), base, pid, aid, user.id,
+                                     None, acc)
     except pls.PayError as e:
         return RedirectResponse(_with_msg(back, str(e), True), 303)
     audit(db, "paylink.create", "paylink", pl.id, user=user, amount=pl.amount, patient=pid, provider=pl.provider)

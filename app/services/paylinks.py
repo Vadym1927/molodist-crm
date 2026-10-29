@@ -46,11 +46,17 @@ def _raw(db: Session) -> dict:
         d = json.loads(st.value) if st and st.value else {}
     except ValueError:
         d = {}
-    d.setdefault("provider", "")
     d.setdefault("validity_h", 24)
     d.setdefault("text", DEFAULT_TEXT)
     d.setdefault("cashbox", "Онлайн-оплати")
-    d.setdefault("p", {})
+    if "accounts" not in d:                                    # старий формат: один провайдер
+        d["accounts"] = []
+        if d.get("provider") in PROVIDERS:
+            d["accounts"].append({"id": 1, "provider": d["provider"], "name": PROVIDERS[d["provider"]]["label"], "active": True,
+                                  "cashbox": d.get("cashbox") or "Онлайн-оплати", "creds": (d.get("p") or {}).get(d["provider"], {})})
+        d["default"] = 1 if d["accounts"] else None
+    d.pop("provider", None)
+    d.pop("p", None)
     if not d.get("hook"):
         d["hook"] = _secrets.token_urlsafe(18)
     return d
@@ -63,19 +69,30 @@ def _save(db: Session, d: dict) -> None:
     db.commit()
 
 
+def _ready(a: dict) -> bool:
+    return bool(a.get("active") and a.get("provider") in PROVIDERS and all((a.get("creds") or {}).get(f) for f, _, _ in PROVIDERS[a["provider"]]["fields"]))
+
+
 def public(db: Session) -> dict:
     d = _raw(db)
     if not db.get(SyncState, "paysys_cfg"):
         _save(db, d)
-    out = {k: v for k, v in d.items() if k != "p"}
-    out["p"] = {pr: {k: (bool(v) if k in SECRET else v) for k, v in vals.items()} for pr, vals in d["p"].items()}
-    out["ready"] = bool(d["provider"] and all(d["p"].get(d["provider"], {}).get(f) for f, _, _ in PROVIDERS[d["provider"]]["fields"])) \
-        if d["provider"] in PROVIDERS else False
+    out = {k: v for k, v in d.items() if k != "accounts"}
+    out["accounts"] = [{**{k: v for k, v in a.items() if k != "creds"}, "ready": _ready(a),
+                        "creds": {k: (bool(v) if k in SECRET else v) for k, v in (a.get("creds") or {}).items()}} for a in d["accounts"]]
+    out["ready"] = any(a["ready"] for a in out["accounts"])
     return out
 
 
-def val(d: dict, prov: str, key: str) -> str:
-    v = (d["p"].get(prov) or {}).get(key)
+def account(d: dict, aid: int | None) -> dict | None:
+    acc = [a for a in d["accounts"] if a.get("active")]
+    if aid:
+        return next((a for a in d["accounts"] if int(a["id"]) == int(aid)), None)
+    return next((a for a in acc if int(a["id"]) == int(d.get("default") or 0) and _ready(a)), None) or next((a for a in acc if _ready(a)), None)
+
+
+def val(a: dict, key: str) -> str:
+    v = (a.get("creds") or {}).get(key)
     if not v or key not in SECRET:
         return v or ""
     try:
@@ -84,22 +101,56 @@ def val(d: dict, prov: str, key: str) -> str:
         return ""
 
 
-def save(db: Session, provider: str, vals: dict, validity_h: int, text: str, cashbox: str) -> None:
+def save_common(db: Session, validity_h: int, text: str, default: int | None) -> None:
     d = _raw(db)
-    if provider and provider not in PROVIDERS:
-        raise ValueError("Невідома платіжна система")
-    d.update(provider=provider, validity_h=max(1, min(int(validity_h or 24), 24 * 30)), text=(text or DEFAULT_TEXT)[:500],
-             cashbox=(cashbox or "Онлайн-оплати")[:100])
-    if provider:
-        cur = d["p"].setdefault(provider, {})
-        for f, _, sec in PROVIDERS[provider]["fields"]:
-            v = str(vals.get(f) or "").strip()
-            if sec:
-                if v:
-                    cur[f] = _cipher().encrypt(v.encode()).decode()
-            else:
-                cur[f] = v[:200]
+    d.update(validity_h=max(1, min(int(validity_h or 24), 24 * 30)), text=(text or DEFAULT_TEXT)[:500])
+    if default:
+        d["default"] = int(default)
     _save(db, d)
+
+
+def save_account(db: Session, aid: int | None, provider: str, name: str, vals: dict, cashbox: str, active: bool) -> dict:
+    d = _raw(db)
+    if provider not in PROVIDERS:
+        raise ValueError("Оберіть платіжну систему")
+    if not (name or "").strip():
+        raise ValueError("Вкажіть назву підключення, напр. «monobank ФОП Колган»")
+    a = next((x for x in d["accounts"] if aid and int(x["id"]) == int(aid)), None)
+    if not a:
+        a = {"id": max([int(x["id"]) for x in d["accounts"]] + [0]) + 1, "creds": {}}
+        d["accounts"].append(a)
+    if a.get("provider") and a["provider"] != provider:
+        a["creds"] = {}
+    a.update(provider=provider, name=name.strip()[:80], cashbox=(cashbox or "Онлайн-оплати").strip()[:100], active=active)
+    cur = a.setdefault("creds", {})
+    for f, _, sec in PROVIDERS[provider]["fields"]:
+        v = str(vals.get(f) or "").strip()
+        if sec:
+            if v:
+                cur[f] = _cipher().encrypt(v.encode()).decode()
+        else:
+            cur[f] = v[:200]
+    if not d.get("default"):
+        d["default"] = a["id"]
+    _save(db, d)
+    return a
+
+
+def delete_account(db: Session, aid: int) -> None:
+    d = _raw(db)
+    d["accounts"] = [a for a in d["accounts"] if int(a["id"]) != int(aid)]
+    if int(d.get("default") or 0) == int(aid):
+        d["default"] = d["accounts"][0]["id"] if d["accounts"] else None
+    _save(db, d)
+
+
+def save(db: Session, provider: str, vals: dict, validity_h: int, text: str, cashbox: str) -> None:
+    """Сумісність: одне підключення (перше з таким провайдером)."""
+    d = _raw(db)
+    a = next((x for x in d["accounts"] if x.get("provider") == provider), None)
+    save_account(db, a["id"] if a else None, provider, a["name"] if a else PROVIDERS[provider]["label"], vals,
+                 cashbox or "Онлайн-оплати", True)
+    save_common(db, validity_h, text, None)
 
 
 def _hmac_md5(key: str, s: str) -> str:
@@ -111,16 +162,18 @@ def _liqpay_sig(priv: str, data: str) -> str:
 
 
 def create(db: Session, amount: float, purpose: str, base_url: str, patient_id: int | None = None, appointment_id: int | None = None,
-           user_id: int | None = None, http: httpx.Client | None = None) -> PayLink:
+           user_id: int | None = None, http: httpx.Client | None = None, account_id: int | None = None) -> PayLink:
     d = _raw(db)
-    prov = d.get("provider")
-    if prov not in PROVIDERS:
+    a = account(d, account_id)
+    if not a or not _ready(a):
         raise PayError("Платіжну систему не підключено — «Налаштування → Платіжні системи»")
+    prov = a["provider"]
     amount = round(float(amount or 0), 2)
     if amount <= 0:
         raise PayError("Вкажіть суму")
     purpose = (purpose or "Оплата послуг MOLODIST").strip()[:300]
-    pl = PayLink(provider=prov, amount=amount, purpose=purpose, patient_id=patient_id, appointment_id=appointment_id, created_by=user_id)
+    pl = PayLink(provider=prov, amount=amount, purpose=purpose, patient_id=patient_id, appointment_id=appointment_id, created_by=user_id,
+                 account_id=a["id"])
     db.add(pl)
     db.flush()
     ref = f"MOL-{pl.id}-{_secrets.token_hex(3)}"
@@ -129,7 +182,7 @@ def create(db: Session, amount: float, purpose: str, base_url: str, patient_id: 
     valid = int(d.get("validity_h") or 24) * 3600
     try:
         if prov == "mono":
-            r = http.post("https://api.monobank.ua/api/merchant/invoice/create", headers={"X-Token": val(d, prov, "token")},
+            r = http.post("https://api.monobank.ua/api/merchant/invoice/create", headers={"X-Token": val(a, "token")},
                           json={"amount": int(round(amount * 100)), "ccy": 980, "validity": valid, "webHookUrl": hook,
                                 "merchantPaymInfo": {"reference": ref, "destination": purpose}})
             js = r.json()
@@ -137,7 +190,7 @@ def create(db: Session, amount: float, purpose: str, base_url: str, patient_id: 
                 raise PayError(f"monobank: {js.get('errText') or js.get('errCode') or r.status_code}")
             pl.ext_id, pl.url = js["invoiceId"], js["pageUrl"]
         elif prov == "liqpay":
-            pub, priv = val(d, prov, "public_key"), val(d, prov, "private_key")
+            pub, priv = val(a, "public_key"), val(a, "private_key")
             exp = (datetime.utcnow() + timedelta(seconds=valid)).strftime("%Y-%m-%d %H:%M:%S")
             data = base64.b64encode(json.dumps({"version": 3, "public_key": pub, "action": "pay", "amount": f"{amount:.2f}", "currency": "UAH",
                                                 "description": purpose, "order_id": ref, "server_url": hook, "expired_date": exp},
@@ -145,7 +198,7 @@ def create(db: Session, amount: float, purpose: str, base_url: str, patient_id: 
             pl.ext_id = ref
             pl.url = "https://www.liqpay.ua/api/3/checkout?" + httpx.QueryParams({"data": data, "signature": _liqpay_sig(priv, data)}).__str__()
         elif prov == "wayforpay":
-            m, dom, sec = val(d, prov, "merchant"), val(d, prov, "domain") or "crm.molodist.com.ua", val(d, prov, "secret")
+            m, dom, sec = val(a, "merchant"), val(a, "domain") or "crm.molodist.com.ua", val(a, "secret")
             od = int(time.time())
             amt = f"{amount:.2f}"
             sig = _hmac_md5(sec, ";".join([m, dom, ref, str(od), amt, "UAH", purpose, "1", amt]))
@@ -162,7 +215,7 @@ def create(db: Session, amount: float, purpose: str, base_url: str, patient_id: 
     except PayError:
         db.rollback()
         raise
-    pl.info = {"ref": ref, "valid_until": (datetime.now() + timedelta(seconds=valid)).strftime("%d.%m.%Y %H:%M")}
+    pl.info = {"ref": ref, "account": a["name"], "valid_until": (datetime.now() + timedelta(seconds=valid)).strftime("%d.%m.%Y %H:%M")}
     db.commit()
     return pl
 
@@ -188,15 +241,24 @@ def _book(db: Session, pl: PayLink) -> None:
     """Оплачене посилання → надходження в журналі фіноперацій CRM (каса «Онлайн-оплати») + сповіщення власнику."""
     from ..models import FinOp, Patient
     d = _raw(db)
+    a = _acc_of(d, pl)
     who = db.get(Patient, pl.patient_id).full_name if pl.patient_id and db.get(Patient, pl.patient_id) else None
     db.add(FinOp(day=datetime.now().date(), kind="income", category="Онлайн-оплата", amount=pl.paid_amount or pl.amount,
-                 cashbox=d.get("cashbox") or "Онлайн-оплати", counterparty=who,
-                 comment=f"Посилання на оплату №{pl.id} ({PROVIDERS[pl.provider]['label']}): {pl.purpose}"[:500]))
+                 cashbox=(a or {}).get("cashbox") or "Онлайн-оплати", counterparty=who,
+                 comment=f"Посилання на оплату №{pl.id} ({(a or {}).get('name') or PROVIDERS[pl.provider]['label']}): {pl.purpose}"[:500]))
     try:
         from . import alerts
         alerts.send(f"💳 Онлайн-оплата {pl.paid_amount or pl.amount:.2f} ₴ · {who or 'без пацієнта'} · {pl.purpose}")
     except Exception:  # noqa: BLE001
         pass
+
+
+def _acc_of(d: dict, pl: PayLink) -> dict | None:
+    if pl.account_id:
+        a = next((x for x in d["accounts"] if int(x["id"]) == int(pl.account_id)), None)
+        if a:
+            return a
+    return next((x for x in d["accounts"] if x.get("provider") == pl.provider), None)
 
 
 def check_status(db: Session, pl: PayLink, http: httpx.Client | None = None) -> str:
@@ -205,7 +267,7 @@ def check_status(db: Session, pl: PayLink, http: httpx.Client | None = None) -> 
     if pl.provider == "mono" and pl.ext_id:
         http = http or httpx.Client(timeout=20)
         js = http.get("https://api.monobank.ua/api/merchant/invoice/status", params={"invoiceId": pl.ext_id},
-                      headers={"X-Token": val(d, "mono", "token")}).json()
+                      headers={"X-Token": val(_acc_of(d, pl) or {}, "token")}).json()
         st = {"success": "paid", "failure": "failed", "expired": "expired", "reversed": "cancelled"}.get(js.get("status"), pl.status)
         _mark(db, pl, st, (js.get("finalAmount") or js.get("amount") or 0) / 100 or None, {"mono_status": js.get("status")})
     return pl.status
@@ -224,10 +286,13 @@ def webhook(db: Session, provider: str, raw: bytes, form: dict, http: httpx.Clie
         return {"ok": True}
     if provider == "liqpay":
         data, sig = form.get("data", ""), form.get("signature", "")
-        if not hmac.compare_digest(_liqpay_sig(val(d, "liqpay", "private_key"), data), sig or ""):
-            return {"ok": False, "error": "signature"}
-        js = json.loads(base64.b64decode(data or b"e30=").decode())
+        try:
+            js = json.loads(base64.b64decode(data or "e30=").decode())
+        except ValueError:
+            return {"ok": False, "error": "data"}
         pl = db.query(PayLink).filter(PayLink.provider == "liqpay", PayLink.ext_id == js.get("order_id")).first()
+        if not pl or not hmac.compare_digest(_liqpay_sig(val(_acc_of(d, pl) or {}, "private_key"), data), sig or ""):
+            return {"ok": False, "error": "signature"}
         if pl:
             st = "paid" if js.get("status") in ("success", "sandbox") else ("failed" if js.get("status") in ("failure", "error") else pl.status)
             _mark(db, pl, st, float(js.get("amount") or 0) or None, {"liqpay_status": js.get("status")})
@@ -242,12 +307,14 @@ def webhook(db: Session, provider: str, raw: bytes, form: dict, http: httpx.Clie
                 js = json.loads(next(iter(form.keys())))       # WayForPay шле JSON як ключ форми
             except (ValueError, StopIteration):
                 js = {}
-        sec = val(d, "wayforpay", "secret")
+        pl = db.query(PayLink).filter(PayLink.provider == "wayforpay", PayLink.ext_id == js.get("orderReference")).first()
+        sec = val(_acc_of(d, pl) or {}, "secret") if pl else ""
+        if not pl:
+            return {"ok": False, "error": "unknown order"}
         s = ";".join(str(js.get(k, "")) for k in ("merchantAccount", "orderReference", "amount", "currency", "authCode", "cardPan",
                                                   "transactionStatus", "reasonCode"))
         if not hmac.compare_digest(_hmac_md5(sec, s), str(js.get("merchantSignature") or "")):
             return {"ok": False, "error": "signature"}
-        pl = db.query(PayLink).filter(PayLink.provider == "wayforpay", PayLink.ext_id == js.get("orderReference")).first()
         if pl:
             ts = js.get("transactionStatus")
             st = "paid" if ts == "Approved" else ("failed" if ts in ("Declined",) else ("expired" if ts == "Expired" else pl.status))
@@ -258,25 +325,26 @@ def webhook(db: Session, provider: str, raw: bytes, form: dict, http: httpx.Clie
     return {"ok": False}
 
 
-def test(db: Session, http: httpx.Client | None = None) -> tuple[bool, str]:
+def test(db: Session, aid: int | None = None, http: httpx.Client | None = None) -> tuple[bool, str]:
     d = _raw(db)
-    prov = d.get("provider")
-    if prov not in PROVIDERS:
-        return False, "Оберіть платіжну систему"
+    a = account(d, aid)
+    if not a:
+        return False, "Додайте підключення"
+    prov = a["provider"]
     http = http or httpx.Client(timeout=20)
     try:
         if prov == "mono":
-            r = http.get("https://api.monobank.ua/api/merchant/details", headers={"X-Token": val(d, prov, "token")})
+            r = http.get("https://api.monobank.ua/api/merchant/details", headers={"X-Token": val(a, "token")})
             js = r.json()
             if r.status_code >= 400:
                 return False, f"monobank: {js.get('errText') or r.status_code}"
-            return True, f"Підключено · {js.get('merchantName') or 'мерчант'}"
+            return True, f"{a['name']}: підключено · {js.get('merchantName') or 'мерчант'}"
         if prov == "liqpay":
-            return (True, "Ключі збережено · підпис формується — перевірте першим посиланням на 1 ₴") if \
-                val(d, prov, "public_key") and val(d, prov, "private_key") else (False, "Вкажіть обидва ключі")
+            return (True, f"{a['name']}: ключі збережено — перевірте першим посиланням на 1 ₴") if \
+                val(a, "public_key") and val(a, "private_key") else (False, "Вкажіть обидва ключі")
         if prov == "wayforpay":
-            return (True, "Дані збережено · перевірте першим посиланням на 1 ₴") if \
-                val(d, prov, "merchant") and val(d, prov, "secret") else (False, "Вкажіть merchant і secret key")
+            return (True, f"{a['name']}: дані збережено — перевірте першим посиланням на 1 ₴") if \
+                val(a, "merchant") and val(a, "secret") else (False, "Вкажіть merchant і secret key")
     except Exception as e:  # noqa: BLE001
         return False, f"Немає звʼязку: {str(e)[:150]}"
     return False, "?"

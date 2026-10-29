@@ -5,6 +5,7 @@
     <input type="hidden" name="back" value="{{ pl_back }}">
     <div class="row" style="gap:6px;flex-wrap:nowrap"><input name="amount" inputmode="decimal" placeholder="Сума, ₴" value="{{ ('%.2f'|format(pl_amount)) if pl_amount else '' }}" required style="width:130px">
       <input name="purpose" placeholder="За що (передоплата, послуга…)" value="{{ pl_purpose or '' }}" style="flex:1"></div>
+    {% set _pa = pay_accounts() %}{% if _pa|length > 1 %}<select name="account_id">{% for a in _pa %}<option value="{{ a.id }}" {{ 'selected' if a.default }}>{{ a.name }}</option>{% endfor %}</select>{% endif %}
     {% if pl_patient %}<label class="small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="send" value="1" checked> Одразу надіслати пацієнту (Telegram / Viber / SMS)</label>{% endif %}
     <button class="btn">Створити посилання</button>
   </form></details>

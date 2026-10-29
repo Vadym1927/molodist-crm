@@ -67,15 +67,31 @@ def test_pages_and_hub():
         assert "Ключі й інтеграції" not in hub
         t = c.get("/settings/payments").text
         assert "monobank еквайринг" in t and "LiqPay" in t and "WayForPay" in t
+        c.post("/settings/payments/account", data={"provider": "mono", "name": "monobank ФОП Колган", "token": "T1", "cashbox": "Онлайн-оплати", "active": "1"})
+        c.post("/settings/payments/account", data={"provider": "mono", "name": "monobank ФОП Бондар", "token": "T2", "cashbox": "Онлайн-оплати", "active": "1"})
+        t = c.get("/settings/payments").text
+        assert "monobank ФОП Колган" in t and "monobank ФОП Бондар" in t and "T1" not in t
         mono = c.get("/settings/keys?s=mono").text
         assert "Банк monobank" in mono and "Claude API" not in mono
         with SessionLocal() as db:
             p = Patient(full_name="Картка Оплати", phone="+380671110000"); db.add(p); db.commit(); pid = p.id
-        r = c.post("/paylinks", data={"amount": "100", "purpose": "x", "patient_id": pid, "back": f"/patients/{pid}"}, follow_redirects=False)
-        assert r.status_code == 303 and "err=" in r.headers["location"]          # система не підключена
-        assert "Посилання на оплату" in c.get(f"/patients/{pid}").text
+        pg = c.get(f"/patients/{pid}").text
+        assert "Посилання на оплату" in pg and "monobank ФОП Бондар" in pg        # вибір ФОП у формі
         hook = None
         with SessionLocal() as db:
             hook = pls.public(db)["hook"]
         assert c.post("/api/public/pay/mono/bad", json={}).status_code == 404
         assert c.post(f"/api/public/pay/mono/{hook}", json={"invoiceId": "zzz"}).status_code == 200
+
+
+def test_two_accounts_parallel():
+    with SessionLocal() as db:
+        a1 = pls.save_account(db, None, "mono", "monobank ФОП Колган", {"token": "MTOK"}, "Онлайн-оплати", True)
+        a2 = pls.save_account(db, None, "mono", "monobank ФОП Бондар", {"token": "OTHER"}, "Готівка", True)
+        http, st = _mono()
+        pl = pls.create(db, 1500.5, "Передоплата", "https://crm.molodist.com.ua", http=http, account_id=a1["id"])
+        assert pl.account_id == a1["id"]
+        st["status"] = "success"
+        pls.check_status(db, pl, http)                      # токен саме цього ФОП (MTOK), інакше мок впаде
+        assert pl.status == "paid"
+        assert pls.account(pls._raw(db), a2["id"])["cashbox"] == "Готівка"

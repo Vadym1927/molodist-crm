@@ -378,6 +378,7 @@ class PayLink(Base):
     info: Mapped[dict | None] = mapped_column(JSON)
     created_by: Mapped[int | None] = mapped_column(Integer)
     sale_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    account_id: Mapped[int | None] = mapped_column(Integer, index=True)     # підключення (ФОП) з «Платіжні системи»
 
 
 class Call(Base):

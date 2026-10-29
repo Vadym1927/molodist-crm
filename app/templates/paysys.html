@@ -7,35 +7,48 @@
 {% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
 {% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
 <span class="cs-tag">Посилання на оплату</span>
-<form class="cs-box" method="post" action="/settings/payments" style="display:grid;gap:14px">
-  <div class="cs-note">Пацієнт отримує посилання й оплачує карткою, Apple Pay чи Google Pay. Створити посилання можна в картці пацієнта або в записі (передоплата). Коли оплата пройде, CRM сама позначить посилання «оплачено», запише надходження в журнал фіноперацій і надішле сповіщення в Telegram. Оплати постачальникам і виписки — у <a href="/settings/keys?s=mono#mono">«Банк monobank»</a>.</div>
-  <div class="pv">
-    <label><input type="radio" name="provider" value="" {{ 'checked' if not t.provider }} onchange="tgP()"><span class="lg">—</span>Не підключено</label>
-    {% for k, p in PROV.items() %}<label><input type="radio" name="provider" value="{{ k }}" {{ 'checked' if t.provider == k }} onchange="tgP()"><span class="lg">{{ {'mono':'mono','liqpay':'LiqPay','wayforpay':'WayForPay'}[k] }}</span>{{ p.label }}</label>{% endfor %}
+<div class="cs-box" style="display:grid;gap:14px">
+  <div class="cs-note">Пацієнт отримує посилання й оплачує карткою, Apple Pay чи Google Pay. Можна підключити кілька рахунків паралельно — напр. monobank ФОП Колган і monobank ФОП Бондар; при створенні посилання обираєте, на який ФОП. Коли оплата пройде, CRM сама позначить посилання «оплачено», запише надходження в касу цього підключення і надішле сповіщення в Telegram. Оплати постачальникам і виписки — у <a href="/settings/keys?s=mono#mono">«Банк monobank»</a>.</div>
+  <div class="bx-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
+    {% for a in t.accounts %}<div class="loc" style="margin:0">
+      <div class="row between"><b>{{ a.name }}</b><span class="on-pill {{ 'on' if a.ready else 'off' }}">{{ 'ON' if a.ready else ('OFF' if not a.active else 'без ключа') }}</span></div>
+      <div class="small muted" style="margin-top:4px">{{ PROV[a.provider].label }} · каса «{{ a.cashbox }}»{{ ' · за замовчуванням' if t.default == a.id }}</div>
+      <div class="row" style="gap:6px;margin-top:8px"><button class="ch-btn" type="button" onclick='psEd({{ a|tojson }})'>Налаштування</button>
+        <form method="post" action="/settings/payments/account/{{ a.id }}/delete" data-delpw="Видалити підключення «{{ a.name }}»?" style="margin:0"><button class="ch-btn" style="border-color:#E8A0A0;color:#C0392B">×</button></form></div>
+    </div>{% endfor %}
+    <button class="cs-card" type="button" onclick="psEd(null)" style="justify-content:center"><div><b>＋ Підключити</b><span>monobank, LiqPay або WayForPay — для ще одного ФОП</span></div></button>
   </div>
-  {% for k, p in PROV.items() %}{% set cur = t.p.get(k, {}) %}
-  <div class="pf" data-p="{{ k }}" style="display:{{ 'grid' if t.provider == k else 'none' }};gap:12px">
-    {% for f, label, sec in p.fields %}<div class="cs-f"><label>{{ label }}</label>
-      {% if sec %}<input type="password" name="{{ f }}" autocomplete="new-password" placeholder="{{ '•••••••• збережено — введіть нове, щоб замінити' if cur.get(f) else 'не задано' }}">
-      {% else %}<input name="{{ f }}" value="{{ cur.get(f) or '' }}" {{ 'placeholder=crm.molodist.com.ua' if f == 'domain' }}>{% endif %}
-      <div class="hint">{{ p.hint }}</div></div>{% endfor %}
-    <div class="cs-f"><label>Адреса для сповіщень про оплату</label>
-      <div class="cp"><input readonly value="{{ hook_url(k) }}" id="hk{{ k }}"><button class="ch-btn" type="button" onclick="navigator.clipboard.writeText(document.getElementById('hk{{ k }}').value);this.textContent='✓'">Копіювати</button></div>
-      <div class="hint">{{ 'CRM передає її сама в кожному посиланні — вставляти нікуди не треба.' if k != 'wayforpay' else 'Передається в кожному рахунку автоматично; можна також вказати як Service URL у кабінеті WayForPay.' }}</div></div>
-    <div class="cs-note">Сайт провайдера <a href="{{ p.site }}" target="_blank" rel="noopener">{{ p.site }}</a></div>
-  </div>{% endfor %}
-  <div class="cs-f"><label>Посилання дійсне, годин</label><input name="validity_h" value="{{ t.validity_h }}" inputmode="numeric" style="max-width:120px"></div>
-  <div class="cs-f"><label>Каса для надходжень у журналі фіноперацій</label><input name="cashbox" value="{{ t.cashbox }}"></div>
-  <div class="cs-f"><label>Текст повідомлення пацієнту</label><textarea name="text" rows="3">{{ t.text }}</textarea>
-    <div class="hint">{url} — посилання, {sum} — сума, {purpose} — за що.</div></div>
-  <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn">Зберегти</button><button class="btn ghost" name="test" value="1">✓ Перевірити підключення</button></div>
-</form>
+  <form method="post" action="/settings/payments" style="display:grid;gap:12px">
+    {% if t.accounts|length > 1 %}<div class="cs-f"><label>Підключення за замовчуванням</label><select name="default">{% for a in t.accounts %}<option value="{{ a.id }}" {{ 'selected' if t.default == a.id }}>{{ a.name }}</option>{% endfor %}</select></div>{% endif %}
+    <div class="cs-f"><label>Посилання дійсне, годин</label><input name="validity_h" value="{{ t.validity_h }}" inputmode="numeric" style="max-width:120px"></div>
+    <div class="cs-f"><label>Текст повідомлення пацієнту</label><textarea name="text" rows="3">{{ t.text }}</textarea>
+      <div class="hint">{url} — посилання, {sum} — сума, {purpose} — за що.</div></div>
+    <div><button class="btn">Зберегти</button></div>
+  </form>
+</div>
+
+<dialog class="cs-d" id="ps-d"><div class="cs-dh"><h3 id="ps-t">Підключення</h3><button class="cs-x" type="button" onclick="this.closest('dialog').close()">×</button></div>
+  <form method="post" action="/settings/payments/account" class="cs-db"><input type="hidden" name="id">
+    <div class="pv">{% for k, p in PROV.items() %}<label><input type="radio" name="provider" value="{{ k }}" onchange="tgP()"><span class="lg">{{ {'mono':'mono','liqpay':'LiqPay','wayforpay':'WayForPay'}[k] }}</span>{{ p.label }}</label>{% endfor %}</div>
+    <div class="cs-f"><label>Назва підключення</label><input name="name" placeholder="monobank ФОП Колган" required></div>
+    {% for k, p in PROV.items() %}<div class="pf" data-p="{{ k }}" style="display:none;gap:12px">
+      {% for f, label, sec in p.fields %}<div class="cs-f"><label>{{ label }}</label>
+        {% if sec %}<input type="password" name="{{ f }}" data-sec="1" autocomplete="new-password" placeholder="не задано">
+        {% else %}<input name="{{ f }}" {{ 'placeholder=crm.molodist.com.ua' if f == 'domain' }}>{% endif %}
+        <div class="hint">{{ p.hint }}</div></div>{% endfor %}
+      <div class="cs-note">Сайт провайдера <a href="{{ p.site }}" target="_blank" rel="noopener">{{ p.site }}</a> · адреса для сповіщень про оплату передається в кожному посиланні автоматично.</div>
+    </div>{% endfor %}
+    <div class="cs-f"><label>Каса для надходжень</label><select name="cashbox">{% for b in boxes %}<option>{{ b }}</option>{% endfor %}</select>
+      <div class="hint">Куди записується оплата в журналі фіноперацій (каси — у «Каси / рахунки»).</div></div>
+    <div class="cs-f"><label class="sw"><input type="checkbox" name="active" value="1" checked> Активне</label></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn">Зберегти</button><button class="btn ghost" name="test" value="1">✓ Зберегти й перевірити</button></div>
+  </form></dialog>
 
 <span class="cs-tag">Посилання</span>
 <div class="cs-box">
   {% if t.ready %}<div style="margin-bottom:12px">{% set pl_patient, pl_appt, pl_amount, pl_purpose, pl_back = None, None, None, '', '/settings/payments' %}{% include "_paylink_form.html" %}</div>{% endif %}
-  <div style="overflow-x:auto">{% if links %}<table><tr><th>№</th><th>Створено</th><th>Пацієнт</th><th>За що</th><th>Сума</th><th>Статус</th><th></th></tr>
-  {% for l in links %}<tr><td>{{ l.id }}</td><td>{{ l.created_at|dt('%d.%m %H:%M') }}</td>
+  <div style="overflow-x:auto">{% if links %}<table><tr><th>№</th><th>Створено</th><th>Рахунок</th><th>Пацієнт</th><th>За що</th><th>Сума</th><th>Статус</th><th></th></tr>
+  {% for l in links %}<tr><td>{{ l.id }}</td><td>{{ l.created_at|dt('%d.%m %H:%M') }}</td><td class="small">{{ accs.get(l.account_id) or (l.info or {}).get('account') or '—' }}</td>
     <td>{% if l.patient_id and pats.get(l.patient_id) %}<a href="/patients/{{ l.patient_id }}">{{ pats[l.patient_id].full_name }}</a>{% else %}—{% endif %}</td>
     <td>{{ l.purpose }}</td><td>{{ l.amount|uah }}</td>
     <td><span class="{{ 'ok-t' if l.status == 'paid' else ('bad-t' if l.status in ('failed','expired') else '') }}">{{ SL.get(l.status, l.status) }}</span>{% if l.paid_at %}<div class="small muted">{{ l.paid_at|dt('%d.%m %H:%M') }}</div>{% endif %}</td>
@@ -44,5 +57,11 @@
       <form method="post" action="/paylinks/{{ l.id }}/cancel" style="display:inline" onsubmit="return confirm('Скасувати посилання в CRM?')"><button class="ch-btn" style="border-color:#E8A0A0;color:#C0392B">×</button></form>{% endif %}</td></tr>{% endfor %}</table>
   {% else %}<div class="muted">Посилань ще немає.</div>{% endif %}</div>
 </div>
-<script>function tgP(){var v=(document.querySelector('input[name=provider]:checked')||{}).value||'';document.querySelectorAll('.pf').forEach(function(e){e.style.display=e.dataset.p===v?'grid':'none'})}</script>
+<script>function tgP(){var v=(document.querySelector('#ps-d input[name=provider]:checked')||{}).value||'';document.querySelectorAll('#ps-d .pf').forEach(function(e){e.style.display=e.dataset.p===v?'grid':'none'})}
+function psEd(a){var d=document.getElementById('ps-d'),f=d.querySelector('form');f.reset();document.getElementById('ps-t').textContent=a?a.name:'Нове підключення';
+  f.id.value=a?a.id:'';var pv=a?a.provider:'mono';f.querySelector('input[name=provider][value='+pv+']').checked=true;
+  if(a){f.name.value=a.name;f.active.checked=!!a.active;var cb=f.cashbox;if(![].some.call(cb.options,function(o){return o.value===a.cashbox})){cb.add(new Option(a.cashbox,a.cashbox))}cb.value=a.cashbox;
+    Object.keys(a.creds||{}).forEach(function(k){f.querySelectorAll('.pf[data-p='+pv+'] [name='+k+']').forEach(function(i){if(i.dataset.sec){i.placeholder=a.creds[k]?'•••••••• збережено — введіть нове, щоб замінити':'не задано'}else{i.value=a.creds[k]||''}})})}
+  else{var o=[].find.call(f.cashbox.options,function(o){return o.value==='Онлайн-оплати'});if(o)f.cashbox.value=o.value}
+  tgP();d.showModal()}</script>
 {% endblock %}
