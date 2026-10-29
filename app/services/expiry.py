@@ -127,7 +127,7 @@ def summary_text(db: Session, days: int = 90) -> str | None:
         if not hot:
             continue
         val = sum(x["value"] for x in hot)
-        parts.append(f"\n<b>{escape(w['name'])}</b> — {len(hot)} парт. на {val:,.0f} ₴".replace(",", " ") + "\n" +
+        parts.append(f"\n<b>{escape(w['name'])}</b> — {len(hot)} парт. на {val:,.2f} ₴".replace(",", " ") + "\n" +
                      "\n".join(_line(x) for x in hot[:15]) + (f"\n… ще {len(hot) - 15}" if len(hot) > 15 else ""))
     if not parts:
         return None

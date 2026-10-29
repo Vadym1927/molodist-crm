@@ -341,7 +341,7 @@ def plans(db: Session, d_from: date, d_to: date) -> Report:
     r = Report("plans", "Бюті-плани", "Плани з датою консультації в періоді. Реалізація — виконані процедури й куплений "
                "догляд за даними CleverBox (на сьогодні).")
     r.tiles = [("Бюті-планів", total.plans, pt.plans, "int", ""),
-               ("Сума планів", total.planned_sum, pt.planned_sum, "uah", f"сер. {total.avg_plan:,.0f} ₴".replace(",", " ")),
+               ("Сума планів", total.planned_sum, pt.planned_sum, "uah", f"сер. {total.avg_plan:,.2f} ₴".replace(",", " ")),
                ("Реалізовано", total.realized_sum, pt.realized_sum, "uah", f"{total.realization_pct}%"),
                ("Почали виконувати", total.started_plans, pt.started_plans, "int", f"конверсія {total.conversion_pct}%"),
                ("Записані далі", total.booked_plans, None, "int", f"{total.booked_pct}% активних")]
@@ -474,7 +474,7 @@ def to_xlsx(rep: Report, d_from: date, d_to: date) -> bytes:
         ws.column_dimensions[ws.cell(3, i).column_letter].width = 42 if i == 1 else (24 if c.kind == "text" else 15)
         if c.kind in ("uah", "num"):
             for (cell,) in ws.iter_rows(min_row=4, min_col=i, max_col=i):
-                cell.number_format = "#,##0" if c.kind == "uah" else "#,##0.##"
+                cell.number_format = "#,##0.00" if c.kind == "uah" else "#,##0.##"
     buf = BytesIO()
     wb.save(buf)
     return buf.getvalue()

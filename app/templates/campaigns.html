@@ -3,7 +3,7 @@
 <div class="row between" style="margin-bottom:6px"><h1>Розсилки</h1>
   <div class="row small muted">
     Telegram-бот: {% if tg_on %}<span class="pill ok">підключено</span>{% else %}<span class="pill warn">PATIENT_BOT_TOKEN</span>{% endif %}
-    · TurboSMS: {% if ts_on %}<span class="pill ok">{{ ('баланс ' ~ '%.0f'|format(balance) ~ ' ₴') if balance is not none else 'підключено' }}</span>{% else %}<span class="pill warn">не підключено</span>{% endif %}
+    · TurboSMS: {% if ts_on %}<span class="pill ok">{{ ('баланс ' ~ '%.2f'|format(balance) ~ ' ₴') if balance is not none else 'підключено' }}</span>{% else %}<span class="pill warn">не підключено</span>{% endif %}
   </div></div>
 <p class="muted small">Розсилки за сегментами пацієнтів: спершу через бот пацієнтів у Telegram, для решти — Viber з резервом SMS. Відписані не отримують нічого,
   одному пацієнту — не частіше ніж раз на {{ settings.marketing_frequency_days }} днів, у тихі години (20:00–09:00) відправка чекає ранку.

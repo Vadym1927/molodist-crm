@@ -69,7 +69,7 @@
   const WHS = {{ WAREHOUSES.items()|list|tojson }};
   const $ = id => document.getElementById(id);
   let lines = [], res = [], sel = -1, timer = null;
-  const fmt = v => (Math.round((v || 0) * 100) / 100).toLocaleString('uk-UA', {maximumFractionDigits: 2});
+  const fmt = v => (Math.round((v || 0) * 100) / 100).toLocaleString('uk-UA', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const today = new Date().toISOString().slice(0, 10);
   window.sdOpen = () => { if (!$('sdDate').value) $('sdDate').value = today; $('sd').classList.add('on'); $('sdBack').classList.add('on'); setTimeout(() => $('sdSup').focus(), 150); };
   window.sdClose = () => { if (lines.length && !confirm('Закрити без збереження?')) return; $('sd').classList.remove('on'); $('sdBack').classList.remove('on'); };

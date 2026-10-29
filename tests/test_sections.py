@@ -79,7 +79,7 @@ def test_sections(monkeypatch, tmp_path):
         c.post("/products/2", data={"supply_days": "45", "min_stock": "3", "url": "", "apply": "1"})
 
         fin = c.get("/finance?df=2026-10-01&dt_=2026-10-31").text
-        assert "4 500 ₴" in fin and "Дарʼя Колган" in fin and "Картка" in fin
+        assert "4 500,00 ₴" in fin and "Дарʼя Колган" in fin and "Картка" in fin
 
         # ролі
         with SessionLocal() as db:

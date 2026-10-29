@@ -58,7 +58,7 @@ def to_xlsx(tables: dict[str, list[list]], title: str = "MOLODIST CRM") -> bytes
         ws.auto_filter.ref = ws.dimensions
         for idx, h in enumerate(rows[0], 1):
             letter = get_column_letter(idx)
-            fmt = '#,##0 "₴"' if h in MONEY_COLS else ("0.0%" if h in PCT_COLS else None)
+            fmt = '#,##0.00 "₴"' if h in MONEY_COLS else ("0.0%" if h in PCT_COLS else None)
             width = max(len(str(h)), *(len(str(r[idx - 1])) for r in rows[1:] if idx - 1 < len(r))) if len(rows) > 1 else len(str(h))
             ws.column_dimensions[letter].width = min(max(10, width + 2), 60)
             if fmt:
