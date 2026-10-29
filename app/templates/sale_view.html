@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Чек Ч-{{ s.id }} · Каса{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+<style>.rc{max-width:460px;margin:0 auto;background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px 24px;font-size:14px}
+.rc h2{text-align:center;font:400 22px var(--word);letter-spacing:.16em;margin:0}.rc .c{text-align:center;color:var(--muted);font-size:12.5px}
+.rc table{width:100%;margin:12px 0}.rc td{padding:4px 0;border:0;vertical-align:top}.rc .tt td{border-top:1px dashed #bbb;padding-top:8px}
+@media print{body *{visibility:hidden}.rc,.rc *{visibility:visible}.rc{position:absolute;left:0;top:0;border:0;width:80mm;padding:0;font-size:12px}}</style>
+<div class="row between" style="margin-bottom:12px"><div><div class="eyebrow"><a href="/sales" style="text-decoration:none">Каса CRM</a></div><h1>Чек Ч-{{ s.id }}</h1></div>
+  <div class="row" style="gap:6px"><button class="btn ghost" onclick="print()">🖨 Друк</button>{% if s.patient_id %}<a class="btn ghost" href="/patients/{{ s.patient_id }}">Картка пацієнта</a>{% endif %}<a class="btn" href="/sales/new">＋ Новий продаж</a></div></div>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+{% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+{% if s.status == 'refunded' %}<div class="alert">Чек повернено {{ s.refunded_at|dt('%d.%m.%Y %H:%M') }} · {{ s.refund_reason }}</div>{% endif %}
+<div class="rc"><h2>MOLODIST</h2><div class="c">Медичний простір</div><div class="c" style="margin-top:6px">Чек Ч-{{ s.id }} · {{ s.at|dt('%d.%m.%Y %H:%M') }}{{ (' · ' ~ author.name) if author }}</div>
+  {% if s.patient %}<div class="c">Пацієнт: {{ s.patient.full_name }}</div>{% endif %}
+  <table>{% for i in s.items %}<tr><td>{{ i.name }}{% if i.qty != 1 %} × {{ '%g'|format(i.qty) }}{% endif %}{% if i.doctor_id and docs.get(i.doctor_id) %}<div class="small muted">{{ docs[i.doctor_id] }}</div>{% endif %}{% if i.expiry_date %}<div class="small muted">партія до {{ i.expiry_date|dt('%d.%m.%Y') }}</div>{% endif %}</td>
+    <td style="text-align:right;white-space:nowrap">{{ (i.price * i.qty)|uah }}{% if i.discount %}<div class="small muted">−{{ i.discount|uah }}</div>{% endif %}</td></tr>{% endfor %}
+  <tr class="tt"><td>Сума</td><td style="text-align:right">{{ s.subtotal|uah }}</td></tr>
+  {% if s.discount %}<tr><td>Знижка{{ (' (' ~ s.rules|join(', ') ~ ')') if s.rules }}</td><td style="text-align:right">−{{ s.discount|uah }}</td></tr>{% endif %}
+  <tr><td><b>Разом</b></td><td style="text-align:right"><b>{{ s.total|uah }}</b></td></tr>
+  {% for p in s.payments %}<tr><td class="small">{{ p.method }}</td><td class="small" style="text-align:right">{{ p.amount|uah }}</td></tr>{% endfor %}
+  {% if s.bonus_accrued %}<tr><td class="small">Нараховано бонусів</td><td class="small" style="text-align:right">+{{ s.bonus_accrued|uah }}</td></tr>{% endif %}</table>
+  {% if s.comment %}<div class="small">{{ s.comment }}</div>{% endif %}
+  <div class="c" style="margin-top:10px">Не є фіскальним чеком{{ ' · ' ~ s.fiscal.number if s.fiscal and s.fiscal.number }}</div></div>
+{% if s.status == 'paid' %}<form method="post" action="/sales/{{ s.id }}/refund" data-delpw="Повернути чек Ч-{{ s.id }} на {{ s.total|uah }}? Товари повернуться на склад, бонуси — скасуються." class="card row" style="max-width:460px;margin:16px auto;gap:6px;flex-wrap:nowrap">
+  <input name="reason" required minlength="3" placeholder="Причина повернення" style="flex:1"><button class="btn danger">Повернути чек</button></form>{% endif %}
+{% endblock %}

@@ -110,6 +110,20 @@ def journal(db: Session, d_from: date, d_to: date, users: dict | None = None, ar
                              who=p.full_name if p else "—", who_link=f"/patients/{p.id}" if p else None, basis=f"Продаж #{c.id}",
                              article="Оплата послуг, товарів", account=name, vid=name, author=c.author or "",
                              money=is_money(name)))
+    if not archive:                                     # продажі в CRM (каса)
+        from ..models import Sale
+        for s in db.scalars(select(Sale).where(Sale.at >= a, Sale.at <= b)):
+            who = s.patient.full_name if s.patient else "—"
+            link = f"/patients/{s.patient_id}" if s.patient_id else None
+            for p in s.payments:
+                money = p.method not in ("Бонуси", "Сертифікат")
+                out.append(J("crm", f"Ч-{s.id}", s.at, "income", p.amount, who=who, who_link=link, basis=f"Продаж CRM #{s.id}",
+                             article="Оплата послуг, товарів", account=p.method, vid=p.method, author=users.get(s.created_by, ""),
+                             money=money))
+                if s.status == "refunded" and s.refunded_at:
+                    out.append(J("crm", f"Ч-{s.id}", s.refunded_at, "expense", p.amount, who=who, who_link=link,
+                                 basis=f"Повернення чека #{s.id}", article="Повернення коштів", account=p.method,
+                                 comment=s.refund_reason or "", money=money))
     q = select(FinOp).where(FinOp.day >= d_from, FinOp.day <= d_to)
     q = q.where(FinOp.deleted_at.is_not(None)) if archive else q.where(FinOp.deleted_at.is_(None))
     ops = db.scalars(q).all()
@@ -245,6 +259,11 @@ def _staff_sales(db: Session, d_from: date, d_to: date, doctors: list[Doctor]) -
                 a["n"] += int(it.get("quantity") or 1)
             elif it.get("item_type") == "product":
                 a["products"] += item_amount(it)
+    from .sales import staff_totals                     # + продажі в CRM
+    for k, v in staff_totals(db, d_from, d_to).items():
+        a = out[k]
+        for kk in ("services", "products", "n"):
+            a[kk] += v[kk]
     return out
 
 

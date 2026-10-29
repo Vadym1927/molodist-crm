@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Новий продаж · Каса{% endblock %}
+{% block body %}
+<style>
+.pos{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:18px;align-items:start}
+.pos label{display:grid;gap:4px;font-size:12px;font-weight:700;color:var(--muted)}
+.pk{position:relative}.pk input{width:100%}
+.pk .res{position:absolute;left:0;right:0;top:46px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 30px rgba(42,36,48,.15);max-height:300px;overflow:auto;z-index:5;display:none}
+.pk .res div{padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--line);font-size:14px;color:var(--ink);font-weight:400}.pk .res div:hover{background:var(--brand-soft)}
+.pk .res small{color:var(--muted)}
+.it td{vertical-align:middle;padding:6px}.it input,.it select{height:36px;font-size:13.5px}.it .q{width:70px}.it .p{width:100px}
+.it .kd{font-size:10.5px;font-weight:800;padding:1px 6px;border-radius:6px;background:var(--lavender);color:var(--classic)}.it .kd.product{background:#FFF4D6;color:#9A6B00}
+.tot div{display:flex;justify-content:space-between;padding:4px 0;font-size:14.5px}.tot .big{font:600 24px var(--head);border-top:2px solid var(--line);padding-top:10px;margin-top:6px}
+.pay{display:grid;grid-template-columns:1fr 120px 30px;gap:6px;align-items:center;margin-bottom:6px}.pay input,.pay select{height:38px}
+.pay button{border:0;background:none;cursor:pointer;color:var(--muted);font-size:16px}
+.err{background:var(--bad-bg);color:var(--bad);border-radius:10px;padding:8px 12px;font-weight:600}.err:empty{display:none}
+@media (max-width:1050px){.pos{grid-template-columns:1fr}}
+</style>
+<div class="row between" style="margin-bottom:10px"><div><div class="eyebrow"><a href="/sales" style="text-decoration:none">Каса CRM</a></div><h1>Новий продаж</h1>
+  {% if appt %}<div class="muted small">За записом №{{ appt.id }} · {{ appt.start|dt('%d.%m.%Y %H:%M') }}</div>{% endif %}</div></div>
+<div class="pos"><div>
+  <div class="card"><label>Пацієнт<div class="pk"><input id="pq" placeholder="Імʼя або телефон (можна без пацієнта — продаж «з вулиці»)" value="{{ pt.full_name if pt else '' }}" autocomplete="off"><div class="res"></div></div></label>
+    <div class="small muted" id="pinfo" style="margin-top:6px"></div></div>
+  <div class="card" style="padding:10px 12px">
+    <div class="row" style="gap:8px;flex-wrap:nowrap;margin-bottom:8px"><div class="pk" style="flex:1"><input id="sq" placeholder="＋ Послуга" autocomplete="off"><div class="res"></div></div>
+      <div class="pk" style="flex:1"><input id="gq" placeholder="＋ Товар (назва, артикул, штрихкод)" autocomplete="off"><div class="res"></div></div>
+      <button type="button" class="btn ghost" onclick="addOther()">＋ Інше</button></div>
+    <div style="overflow:auto"><table class="tb it"><thead><tr><th>Позиція</th><th>Спеціаліст / продавець</th><th class="r">К-сть</th><th class="r">Ціна</th><th class="r">Знижка</th><th class="r">Сума</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+    <div class="muted small" id="empty" style="padding:8px">Додайте послуги або товари.</div></div>
+  <div class="card"><label>Коментар до чека<input id="cmt"></label></div>
+</div>
+<div class="card" style="position:sticky;top:88px;margin:0">
+  <h2 style="margin-top:0">Розрахунок</h2>
+  {% if rules %}<label style="margin-bottom:8px">Знижка вручну (правило)<select id="rule" multiple size="{{ [rules|length, 4]|min }}">{% for r in rules %}<option value="{{ r.id }}">{{ r.name }} · {{ ('%g'|format(r.value) ~ '%') if r.kind=='percent' else r.value|uah }}</option>{% endfor %}</select></label>{% endif %}
+  <label style="margin-bottom:8px">Додаткова знижка, ₴<input id="md" inputmode="decimal" placeholder="0"></label>
+  <div class="tot"><div><span>Сума</span><b id="t-sub">0,00 ₴</b></div><div><span>Знижка</span><b id="t-disc">0,00 ₴</b></div><div class="small muted" id="t-rules"></div>
+    <div id="bonus-row" style="display:none"><span>Оплатити бонусами <small class="muted" id="t-bmax"></small></span><input id="bp" inputmode="decimal" style="width:110px;height:34px;text-align:right" value="0"></div>
+    <div class="big"><span>До сплати</span><b id="t-pay">0,00 ₴</b></div><div class="small muted" id="t-accr"></div></div>
+  <h2 style="margin:14px 0 8px">Оплата</h2><div id="pays"></div>
+  <button type="button" class="btn ghost" style="padding:3px 10px" onclick="addPay()">＋ спосіб оплати</button>
+  <div class="small" id="t-left" style="margin-top:6px"></div>
+  <div class="err" id="err" style="margin-top:10px"></div>
+  <button class="btn" style="width:100%;justify-content:center;margin-top:12px;height:48px;font-size:16px" id="go" onclick="pay()">💳 Провести продаж</button>
+</div></div>
+<script>
+var S={patient_id:{{ (pt.id if pt else None)|tojson }},appointment_id:{{ (appt.id if appt else None)|tojson }},items:{{ items|tojson }},q:null};
+var DOCS={{ doctors|map(attribute='id')|list|tojson }},DN={{ doctors|map(attribute='name')|list|tojson }},DEF={{ (default_doc or None)|tojson }};
+var METHODS={{ methods|tojson }},CERTS={{ certs|tojson }};
+function f2(v){return (+v||0).toLocaleString('uk-UA',{minimumFractionDigits:2,maximumFractionDigits:2})+' ₴'}
+function esc(s){return String(s||'').replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function docSel(v){return '<select class="d"><option value="">—</option>'+DOCS.map(function(id,i){return '<option value="'+id+'"'+(id==v?' selected':'')+'>'+esc(DN[i])+'</option>'}).join('')+'</select>'}
+function render(){var tb=document.getElementById('rows');tb.innerHTML='';document.getElementById('empty').style.display=S.items.length?'none':'block';
+  S.items.forEach(function(it,i){var tr=document.createElement('tr'),lots='';
+    if(it.kind==='product'&&it.lots&&it.lots.length){lots='<select class="e" title="Партія"><option value="">FEFO</option>'+it.lots.map(function(l){return '<option value="'+l.expiry+'"'+(it.expiry==l.expiry?' selected':'')+'>до '+l.expiry.split('-').reverse().join('.')+' · '+l.qty+'</option>'}).join('')+'</select>'}
+    tr.innerHTML='<td><span class="kd '+it.kind+'">'+({service:'послуга',product:'товар',other:'інше',certificate:'сертифікат'})[it.kind]+'</span> '+(it.kind==='other'?'<input class="n" value="'+esc(it.name)+'" placeholder="Назва">':'<b>'+esc(it.name)+'</b>')+(lots?'<div>'+lots+'</div>':'')+'</td>'+
+      '<td>'+docSel(it.doctor_id)+'</td><td class="r"><input class="q" type="number" min="0.001" step="any" value="'+(it.qty||1)+'"></td><td class="r"><input class="p" type="number" step="0.01" value="'+(+it.price).toFixed(2)+'"></td>'+
+      '<td class="r disc">'+(S.q&&S.q.lines[i]?f2(S.q.lines[i]):'—')+'</td><td class="r"><b>'+f2((it.price*(it.qty||1))-((S.q&&S.q.lines[i])||0))+'</b></td><td><button type="button" style="border:0;background:none;cursor:pointer;color:var(--muted);font-size:16px">×</button></td>';
+    tr.querySelector('.q').oninput=function(){it.qty=+this.value;quote()};tr.querySelector('.p').oninput=function(){it.price=+this.value;quote()};
+    tr.querySelector('.d').onchange=function(){it.doctor_id=this.value?+this.value:null};var n=tr.querySelector('.n');if(n)n.oninput=function(){it.name=this.value};
+    var e=tr.querySelector('.e');if(e)e.onchange=function(){it.expiry=this.value||null};
+    tr.querySelector('button').onclick=function(){S.items.splice(i,1);quote()};tb.appendChild(tr)})}
+var QT=null;function quote(){render();clearTimeout(QT);QT=setTimeout(function(){
+  fetch('/sales/quote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload())}).then(function(r){return r.json()}).then(function(q){S.q=q;render();
+    document.getElementById('t-sub').textContent=f2(q.subtotal);document.getElementById('t-disc').textContent=(q.discount?'−':'')+f2(q.discount);
+    document.getElementById('t-rules').textContent=q.rules.join(' + ');document.getElementById('t-pay').textContent=f2(q.to_pay);
+    var br=document.getElementById('bonus-row');br.style.display=(S.patient_id&&q.bonus_max>0)?'flex':'none';document.getElementById('t-bmax').textContent='(є '+f2(q.bonus_balance)+', можна до '+f2(q.bonus_max)+')';
+    if(+document.getElementById('bp').value>q.bonus_max)document.getElementById('bp').value=q.bonus_max;
+    document.getElementById('t-accr').textContent=q.bonus_accrual?('Буде нараховано бонусів: '+f2(q.bonus_accrual)):'';
+    var ps=document.querySelectorAll('#pays .pay');if(ps.length===1){ps[0].querySelector('.a').value=q.to_pay.toFixed(2)}left()})},200)}
+function payload(){var r=document.getElementById('rule');return {patient_id:S.patient_id,appointment_id:S.appointment_id,items:S.items,
+  rule_ids:r?[].map.call(r.selectedOptions,function(o){return +o.value}):[],manual_discount:+(document.getElementById('md').value||'').replace(',','.')||0,
+  bonus_pay:+(document.getElementById('bp').value||'').replace(',','.')||0,comment:document.getElementById('cmt').value,
+  payments:[].map.call(document.querySelectorAll('#pays .pay'),function(p){var m=p.querySelector('.m').value,c=p.querySelector('.c');return {method:m,amount:+p.querySelector('.a').value||0,cert_id:c&&m==='Сертифікат'?c.value:null}})}}
+function addPay(m){var w=document.getElementById('pays'),d=document.createElement('div');d.className='pay';
+  d.innerHTML='<div><select class="m">'+METHODS.concat(CERTS.length?['Сертифікат']:[]).map(function(x){return '<option'+(x===m?' selected':'')+'>'+esc(x)+'</option>'}).join('')+'</select><select class="c" style="display:none;margin-top:4px;width:100%">'+CERTS.map(function(c){return '<option value="'+c.id+'">№'+esc(c.code)+' · '+esc(c.name)+' · '+f2(c.balance)+'</option>'}).join('')+'</select></div><input class="a" inputmode="decimal" value="0"><button type="button">×</button>';
+  d.querySelector('.m').onchange=function(){d.querySelector('.c').style.display=this.value==='Сертифікат'?'block':'none'};
+  d.querySelector('.a').oninput=left;d.querySelector('button').onclick=function(){d.remove();left()};w.appendChild(d);
+  if(S.q){var paid=0;document.querySelectorAll('#pays .pay .a').forEach(function(a){if(a!==d.querySelector('.a'))paid+=+a.value||0});d.querySelector('.a').value=Math.max(0,S.q.to_pay-paid).toFixed(2)}left()}
+function left(){if(!S.q)return;var paid=0;document.querySelectorAll('#pays .pay .a').forEach(function(a){paid+=+a.value||0});var l=Math.round((S.q.to_pay-paid)*100)/100;
+  var el=document.getElementById('t-left');el.textContent=Math.abs(l)<0.01?'✓ Оплата збігається':(l>0?'Не вистачає '+f2(l):'Переплата '+f2(-l));el.style.color=Math.abs(l)<0.01?'var(--ok)':'var(--bad)'}
+function pick(inp,url,fmt,on){var r=inp.parentNode.querySelector('.res'),T=null;inp.addEventListener('input',function(){clearTimeout(T);var q=inp.value.trim();if(q.length<2){r.style.display='none';return}
+  T=setTimeout(function(){fetch(url+encodeURIComponent(q)).then(function(x){return x.json()}).then(function(js){r.innerHTML=js.map(function(x,i){return '<div data-i="'+i+'">'+fmt(x)+'</div>'}).join('')||'<div><small>Не знайдено</small></div>';r.style.display='block';
+    r.querySelectorAll('div[data-i]').forEach(function(d){d.onclick=function(){on(js[+d.dataset.i]);r.style.display='none'}})})},250)});
+  document.addEventListener('click',function(e){if(!inp.parentNode.contains(e.target))r.style.display='none'})}
+pick(document.getElementById('pq'),'/lookup/patients?q=',function(p){return esc(p.name)+' <small>'+esc(p.phone)+'</small>'},function(p){S.patient_id=p.id;document.getElementById('pq').value=p.name;document.getElementById('pinfo').innerHTML='<a href="/patients/'+p.id+'" target="_blank">картка пацієнта ↗</a>';quote()});
+document.getElementById('pq').addEventListener('input',function(){if(!this.value.trim()){S.patient_id=null;quote()}});
+pick(document.getElementById('sq'),'/lookup/services?q=',function(s){return esc(s.name)+' <small>'+s.minutes+' хв · '+f2(s.price)+'</small>'},function(s){S.items.push({kind:'service',ref_id:s.id,name:s.name,category:s.category,qty:1,price:+s.price,doctor_id:S.appointment_id?null:DEF});document.getElementById('sq').value='';quote()});
+pick(document.getElementById('gq'),'/lookup/sale-products?q=',function(p){return esc(p.name)+' <small>'+f2(p.price)+' · '+esc(p.wh||'')+' · залишок '+(p.stock==null?'—':p.stock)+'</small>'},function(p){S.items.push({kind:'product',ref_id:p.id,name:p.name,category:p.category,qty:1,price:+p.price,warehouse:p.warehouse,lots:p.lots,doctor_id:DEF});document.getElementById('gq').value='';quote()});
+function addOther(){S.items.push({kind:'other',name:'',qty:1,price:0,doctor_id:DEF});quote()}
+['md','bp'].forEach(function(id){document.getElementById(id).addEventListener('input',quote)});var rl=document.getElementById('rule');if(rl)rl.addEventListener('change',quote);
+function pay(){var e=document.getElementById('err');e.textContent='';var b=document.getElementById('go');b.disabled=true;
+  fetch('/sales',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload())}).then(function(r){return r.json()}).then(function(j){b.disabled=false;
+    if(j.error){e.textContent=j.error;return}location.href='/sales/'+j.id+'?msg='+encodeURIComponent('Продаж проведено')})}
+addPay('Готівка');quote();
+</script>
+{% endblock %}

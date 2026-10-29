@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Каса CRM · Фінанси{% endblock %}
+{% block body %}
+{% include "_fin_tabs.html" %}
+<div class="row between" style="margin-bottom:12px;gap:10px"><div><h1>Каса CRM</h1><div class="muted small">Продажі, проведені в CRM · {{ d_from|dt }} — {{ d_to|dt }}</div></div>
+  <div class="row" style="gap:6px"><form class="fin-f"><input type="date" name="df" value="{{ d_from }}"><span class="muted">—</span><input type="date" name="dt_" value="{{ d_to }}"><input name="q" value="{{ q }}" placeholder="№, пацієнт, послуга" style="width:180px"><button class="btn ghost">OK</button></form>
+    <a class="btn" href="/sales/new">＋ Новий продаж</a></div></div>
+<div class="fin-k">
+  <div class="tile"><span>Продажів</span><b>{{ tot.n }}</b></div><div class="tile"><span>Виручка</span><b>{{ tot.total|uah }}</b></div>
+  <div class="tile"><span>Знижки</span><b>{{ tot.discount|uah }}</b></div><div class="tile"><span>Повернення</span><b class="out">{{ tot.refunded|uah }}</b></div>
+</div>
+{% if by_m %}<div class="card small" style="display:flex;gap:16px;flex-wrap:wrap">{% for k, v in by_m.items() %}<span>{{ k }}: <b>{{ v|uah }}</b></span>{% endfor %}</div>{% endif %}
+<div class="card" style="padding:6px 8px;overflow:auto"><table class="tb small"><thead><tr><th>№</th><th>Час</th><th>Пацієнт</th><th>Що</th><th>Оплата</th><th class="r">Знижка</th><th class="r">Сума</th><th>Касир</th></tr></thead><tbody>
+{% for s in rows %}<tr style="{{ 'opacity:.55' if s.status == 'refunded' }}"><td><a href="/sales/{{ s.id }}"><b>Ч-{{ s.id }}</b></a>{% if s.status == 'refunded' %}<div class="meta" style="color:var(--bad)">повернено</div>{% endif %}</td>
+  <td>{{ s.at|dt('%d.%m.%Y %H:%M') }}</td><td>{% if s.patient %}<a href="/patients/{{ s.patient_id }}">{{ s.patient.full_name }}</a>{% else %}<span class="muted">без пацієнта</span>{% endif %}</td>
+  <td style="min-width:200px">{% for i in s.items %}<div>{{ i.name }}{% if i.qty != 1 %} × {{ '%g'|format(i.qty) }}{% endif %}</div>{% endfor %}</td>
+  <td>{% for p in s.payments %}<div style="white-space:nowrap">{{ p.method }} · {{ p.amount|uah }}</div>{% endfor %}</td>
+  <td class="r">{{ s.discount|uah if s.discount else '—' }}</td><td class="r"><b>{{ s.total|uah }}</b></td><td>{{ users.get(s.created_by, '') }}</td></tr>
+{% else %}<tr><td colspan="8" class="muted">Продажів у CRM за період немає. «＋ Новий продаж» або «💳 Розрахувати» в записі календаря.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

@@ -247,6 +247,59 @@ class Appointment(Base):
         return round(sum(float(s.get("price") or 0) for s in self.services or []), 2)
 
 
+class Sale(Base):
+    """Продаж (чек) у CRM: послуги, товари, сертифікати; знижки, бонуси, кілька способів оплати."""
+    __tablename__ = "sales"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, index=True)
+    patient_id: Mapped[int | None] = mapped_column(ForeignKey("patients.id"), index=True)
+    appointment_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    status: Mapped[str] = mapped_column(String(12), default="paid", index=True)    # paid | refunded
+    subtotal: Mapped[float] = mapped_column(Float, default=0)
+    discount: Mapped[float] = mapped_column(Float, default=0)
+    total: Mapped[float] = mapped_column(Float, default=0)
+    bonus_spent: Mapped[float] = mapped_column(Float, default=0)
+    bonus_accrued: Mapped[float] = mapped_column(Float, default=0)
+    rules: Mapped[list | None] = mapped_column(JSON)
+    comment: Mapped[str | None] = mapped_column(String(500))
+    created_by: Mapped[int | None] = mapped_column(Integer)
+    refunded_at: Mapped[datetime | None] = mapped_column(DateTime)
+    refund_reason: Mapped[str | None] = mapped_column(String(300))
+    fiscal: Mapped[dict | None] = mapped_column(JSON)                  # Checkbox: id, номер, посилання
+
+    items: Mapped[list["SaleItem"]] = relationship(back_populates="sale", cascade="all, delete-orphan", order_by="SaleItem.id")
+    payments: Mapped[list["SalePayment"]] = relationship(back_populates="sale", cascade="all, delete-orphan", order_by="SalePayment.id")
+    patient: Mapped[Patient | None] = relationship()
+
+
+class SaleItem(Base):
+    __tablename__ = "sale_items"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sale_id: Mapped[int] = mapped_column(ForeignKey("sales.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(12))                      # service | product | certificate | other
+    ref_id: Mapped[int | None] = mapped_column(Integer)                 # CbService.id / Product.id
+    name: Mapped[str] = mapped_column(String(300))
+    category: Mapped[str | None] = mapped_column(String(200))
+    qty: Mapped[float] = mapped_column(Float, default=1)
+    price: Mapped[float] = mapped_column(Float, default=0)
+    discount: Mapped[float] = mapped_column(Float, default=0)
+    total: Mapped[float] = mapped_column(Float, default=0)
+    doctor_id: Mapped[int | None] = mapped_column(ForeignKey("doctors.id"), index=True)   # хто надав / продав
+    warehouse: Mapped[str | None] = mapped_column(String(20))
+    expiry_date: Mapped[date | None] = mapped_column(Date)
+    sale: Mapped[Sale] = relationship(back_populates="items")
+
+
+class SalePayment(Base):
+    __tablename__ = "sale_payments"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sale_id: Mapped[int] = mapped_column(ForeignKey("sales.id", ondelete="CASCADE"), index=True)
+    method: Mapped[str] = mapped_column(String(60))                    # Готівка | Картка (термінал) | ФОП … рахунок | Бонуси | Сертифікат
+    amount: Mapped[float] = mapped_column(Float)
+    cert_id: Mapped[int | None] = mapped_column(Integer)
+    sale: Mapped[Sale] = relationship(back_populates="payments")
+
+
 class DiscountRule(Base):
     """Знижка: % або сума; на все / послуги / товари / категорії; період, дні тижня, мінімальна сума; авто чи вручну."""
     __tablename__ = "discount_rules"

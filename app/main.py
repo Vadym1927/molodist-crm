@@ -47,7 +47,7 @@ def _local(v):
 
 
 templates.env.filters["local"] = _local
-FIN_TABS = [("/finance", "Огляд"), ("/finance/ops", "Фіноперації"), ("/finance/payroll", "Нарахування зарплати"),
+FIN_TABS = [("/finance", "Огляд"), ("/sales", "Каса CRM"), ("/finance/ops", "Фіноперації"), ("/finance/payroll", "Нарахування зарплати"),
             ("/finance/settle", "Взаєморозрахунки по з/п"), ("/finance/day", "Продажі за день"), ("/finance/sales", "Продажі"),
             ("/finance/balances", "Баланс пацієнтів"), ("/finance/bonuses", "Рух бонусів"), ("/finance/pricing", "Планування ціни реалізації")]
 templates.env.globals.update(
@@ -1016,6 +1016,145 @@ def appointment_status(aid: int, status: str = Form(...), reason: str = Form("")
     audit(db, "appointment.status", "patient", a.patient_id, user=user, appt=aid, status=status, reason=reason or None)
     b = back if back.startswith("/calendar") or back.startswith("/patients/") else f"/calendar?start={a.start.date()}"
     return RedirectResponse(b, 303)
+
+
+# ---------------- Каса: продаж у CRM ----------------
+@app.get("/lookup/sale-products")
+def lookup_sale_products(q: str = "", user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+    from .services import stock as st
+    q = (q or "").strip()
+    if len(q) < 2:
+        return JSONResponse([])
+    words, ql = set(norm(q).split()), q.lower()
+    led = st.ledger_active(db)
+    out = []
+    for r in catalog.product_rows(db, []):
+        p_ = r.product
+        if p_.active is False:
+            continue
+        exact = ql in ((p_.sku or "").lower(), (p_.barcode or "").lower())
+        if not exact and not words <= set(norm(" ".join(filter(None, [p_.name, p_.sku, p_.brand, p_.barcode]))).split()):
+            continue
+        wh = p_.warehouse or "vitrina"
+        lots = []
+        if led:
+            lots = [{"expiry": e.isoformat(), "qty": round(qq, 3)} for (pid_, w_, e), qq in st.batch_balances(db, p_.id, wh).items() if e and qq > 1e-6]
+            lots.sort(key=lambda x: x["expiry"])
+        out.append((0 if exact else (0 if wh == "vitrina" else 1), {"id": p_.id, "name": p_.name, "brand": p_.brand or "", "category": p_.brand or p_.category or "",
+                    "price": p_.price or p_.price_manual or p_.shop_price or 0, "stock": r.stock, "warehouse": wh,
+                    "wh": catalog.WAREHOUSES.get(wh), "lots": lots}))
+    out.sort(key=lambda x: (x[0], x[1]["name"].lower()))
+    return JSONResponse([x[1] for x in out[:25]])
+
+
+@app.get("/sales", response_class=HTMLResponse)
+def sales_list(request: Request, df: str = "", dt_: str = "", q: str = "", user: User = Depends(require("patients_all")),
+               db: Session = Depends(db_dep)):
+    from .models import Sale
+    d_from, d_to = _period(df, dt_)
+    a_, b_ = datetime.combine(d_from, datetime.min.time()), datetime.combine(d_to, datetime.max.time())
+    rows = db.scalars(select(Sale).where(Sale.at >= a_, Sale.at <= b_).order_by(Sale.at.desc()).limit(2000)).all()
+    if q.strip():
+        ql = q.strip().lower()
+        rows = [s_ for s_ in rows if ql == str(s_.id) or (s_.patient and ql in s_.patient.full_name.lower()) or any(ql in i.name.lower() for i in s_.items)]
+    paid = [s_ for s_ in rows if s_.status == "paid"]
+    by_m: dict = {}
+    for s_ in paid:
+        for p_ in s_.payments:
+            by_m[p_.method] = round(by_m.get(p_.method, 0) + p_.amount, 2)
+    users = {u_.id: u_.name for u_ in db.scalars(select(User))}
+    return render(request, "sales.html", nav="finance", rows=rows, d_from=d_from, d_to=d_to, q=q, users=users, by_m=by_m,
+                  tot={"n": len(paid), "total": round(sum(s_.total for s_ in paid), 2), "discount": round(sum(s_.discount for s_ in paid), 2),
+                       "refunded": round(sum(s_.total for s_ in rows if s_.status == "refunded"), 2)})
+
+
+@app.get("/sales/new", response_class=HTMLResponse)
+def sale_new(request: Request, appt: int = 0, patient: int = 0, user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+    from .models import Appointment, DiscountRule, GiftCertificate
+    from .services import sales as sl
+    a_ = db.get(Appointment, appt) if appt else None
+    pt = a_.patient if a_ else (db.get(Patient, patient) if patient else None)
+    items = []
+    if a_:
+        items = [{"kind": "service", "ref_id": s_.get("id"), "name": s_.get("name"), "category": s_.get("category") or "", "qty": 1,
+                  "price": float(s_.get("price") or 0), "doctor_id": a_.doctor_id} for s_ in a_.services or []]
+    certs = db.scalars(select(GiftCertificate).where(GiftCertificate.balance > 0)).all()
+    return render(request, "sale_new.html", nav="finance", appt=a_, pt=pt, items=items, methods=sl.methods(db),
+                  doctors=spec_svc.calendar_doctors(db), rules=db.scalars(select(DiscountRule).where(DiscountRule.active.is_(True),
+                                                                                                      DiscountRule.auto.is_(False))).all(),
+                  certs=[{"id": c_.id, "code": c_.code or str(c_.id), "balance": c_.balance, "patient_id": c_.patient_id,
+                          "name": c_.client_name or ""} for c_ in certs if c_.state() in ("active", "expiring")][:500],
+                  default_doc=user.doctor_id)
+
+
+def _sale_payload(f: dict) -> dict:
+    items = []
+    for it in f.get("items") or []:
+        try:
+            items.append({"kind": it.get("kind") if it.get("kind") in ("service", "product", "certificate", "other") else "other",
+                          "ref_id": int(it["ref_id"]) if str(it.get("ref_id") or "").isdigit() else None,
+                          "name": str(it.get("name") or "")[:300], "category": str(it.get("category") or ""),
+                          "qty": max(0.001, float(it.get("qty") or 1)), "price": max(0.0, float(it.get("price") or 0)),
+                          "doctor_id": int(it["doctor_id"]) if str(it.get("doctor_id") or "").isdigit() else None,
+                          "warehouse": it.get("warehouse") or None, "expiry": _day(str(it.get("expiry") or ""))})
+        except (TypeError, ValueError):
+            continue
+    return {"patient_id": int(f["patient_id"]) if str(f.get("patient_id") or "").isdigit() else None,
+            "appointment_id": int(f["appointment_id"]) if str(f.get("appointment_id") or "").isdigit() else None,
+            "items": items, "rule_ids": [int(x) for x in f.get("rule_ids") or [] if str(x).isdigit()],
+            "manual_discount": float(f.get("manual_discount") or 0), "bonus_pay": float(f.get("bonus_pay") or 0),
+            "payments": f.get("payments") or [], "comment": str(f.get("comment") or "")}
+
+
+@app.post("/sales/quote")
+async def sale_quote(request: Request, user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+    from .services import sales as sl
+    d_ = _sale_payload(await request.json())
+    pt = db.get(Patient, d_["patient_id"]) if d_["patient_id"] else None
+    return JSONResponse(sl.quote(db, d_["items"], pt, d_["rule_ids"], d_["manual_discount"], d_["bonus_pay"]))
+
+
+@app.post("/sales")
+async def sale_create(request: Request, user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+    from .services import sales as sl
+    d_ = _sale_payload(await request.json())
+    if d_["patient_id"]:
+        _patient_or_403(db, user, d_["patient_id"])
+    try:
+        s_ = sl.create(db, d_, user.id)
+    except sl.SaleError as e:
+        db.rollback()
+        return JSONResponse({"error": str(e)}, status_code=400)
+    audit(db, "sale.create", "sale", s_.id, user=user, total=s_.total, patient=s_.patient_id, appt=s_.appointment_id)
+    return JSONResponse({"ok": True, "id": s_.id})
+
+
+@app.get("/sales/{sid:int}", response_class=HTMLResponse)
+def sale_view(request: Request, sid: int, user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+    from .models import Sale
+    s_ = db.get(Sale, sid) or (_ for _ in ()).throw(HTTPException(404))
+    docs = {d_.id: d_.name for d_ in db.scalars(select(Doctor))}
+    return render(request, "sale_view.html", nav="finance", s=s_, docs=docs, author=db.get(User, s_.created_by) if s_.created_by else None,
+                  print_=bool(request.query_params.get("print")))
+
+
+@app.post("/sales/{sid:int}/refund")
+def sale_refund(sid: int, reason: str = Form(""), del_password: str = Form(""), user: User = Depends(require("patients_all")),
+                db: Session = Depends(db_dep)):
+    from .services import sales as sl
+    from .models import Sale
+    s_ = db.get(Sale, sid) or (_ for _ in ()).throw(HTTPException(404))
+    if len(reason.strip()) < 3:
+        return RedirectResponse(_with_msg(f"/sales/{sid}", "Вкажіть причину повернення", True), 303)
+    err = _delpw(db, user, del_password, "sale_refund", "sale", sid)
+    if err:
+        return RedirectResponse(_with_err(f"/sales/{sid}", err), 303)
+    try:
+        sl.refund(db, s_, reason.strip(), user.id)
+    except sl.SaleError as e:
+        return RedirectResponse(_with_msg(f"/sales/{sid}", str(e), True), 303)
+    audit(db, "sale.refund", "sale", sid, user=user, total=s_.total, reason=reason)
+    return RedirectResponse(_with_msg(f"/sales/{sid}", "Чек повернено"), 303)
 
 
 # ---------------- Знижки й бонусна програма ----------------
