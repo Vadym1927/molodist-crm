@@ -12,5 +12,5 @@ def test_settings_hub():
         for block in ("CRM MOLODIST", "Основні налаштування", "Комунікації", "Віджети та форми", "Налаштування фінансів",
                       "Звернення", "Співробітники й графік"):
             assert block in t
-        assert "https://molodist.cbox.online/new/#setup/dirs/appeal_deny" in t and 'href="/access"' in t
+        assert "#setup/dirs/appeal_deny" not in t and 'href="/access"' in t
         assert 'href="/settings"' in c.get("/").text

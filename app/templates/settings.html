@@ -16,13 +16,13 @@
 .st-b.crm-own{border-color:var(--lavender-2,#C9BFE6)}
 </style>
 <div class="eyebrow">Ще</div><h1>Налаштування</h1>
-<p class="small muted" style="margin:-4px 0 16px">Усе в одному місці, блоками як у CleverBox. <b>CRM</b> — налаштовується тут; <b>CleverBox ↗</b> — відкривається у CleverBox у новій вкладці (ці довідники живуть там, CRM бере дані з них синхронізацією).</p>
+<p class="small muted" style="margin:-4px 0 16px">Усе в одному місці, блоками як у CleverBox. <b>CRM</b> — налаштовується тут; <b>CleverBox ↗</b> — лише для того, чого в CRM ще немає (відкривається у CleverBox у новій вкладці).</p>
 <div class="st-wrap">
 {% for title, rows in blocks %}<div class="st-b {{ 'crm-own' if title == 'CRM MOLODIST' }}"><h2>{{ title }}</h2>
   {% for r in rows %}{% set main = r.url or r.cb %}
   <div class="st-i"><a href="{{ main }}" {% if not r.url %}target="_blank" rel="noopener"{% endif %} style="text-decoration:none;color:inherit;flex:1;min-width:0">
       <b>{{ r.t }}</b>{% if r.d %}<em>{{ r.d }}</em>{% endif %}{% if r.status %}<span class="st-s">{{ r.status }}</span>{% endif %}</a>
-    <div class="st-go">{% if r.url %}<a class="crm" href="{{ r.url }}">CRM</a>{% endif %}{% if r.cb %}<a class="cb" href="{{ r.cb }}" target="_blank" rel="noopener">CleverBox ↗</a>{% endif %}</div></div>
+    <div class="st-go">{% if r.url %}<a class="crm" href="{{ r.url }}">CRM</a>{% endif %}{% if r.cb and not r.url %}<a class="cb" href="{{ r.cb }}" target="_blank" rel="noopener">CleverBox ↗</a>{% endif %}</div></div>
   {% endfor %}</div>{% endfor %}
 </div>
 {% endblock %}
