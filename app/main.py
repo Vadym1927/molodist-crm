@@ -285,7 +285,9 @@ async def lifespan(app: FastAPI):
         from .services import roles as _roles
         _roles.apply(db)                                    # свої ролі й права з «Права доступу»
         from .services import channels as _channels
-        _channels.apply(db)                                 # канали (TurboSMS, бот) з «Налаштування → Канали»
+        _channels.apply(db)
+        from .services import cashboxes as _cbx
+        _cbx.apply_seed(db)                                 # залишки кас на 30.10.2026 (один раз)                                 # канали (TurboSMS, бот) з «Налаштування → Канали»
         from .services.scripts import seed_defaults
         seed_defaults(db)
     tasks, sched = [], None

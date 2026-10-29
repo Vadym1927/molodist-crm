@@ -210,3 +210,34 @@ def overview(db: Session) -> list[dict]:
                     "balance": round(float(x.get("opening") or 0) + sum(m.amount if m.kind == "in" else -m.amount for m in mv), 2),
                     "last": max((m.at for m in mv), default=None), "cash": x.get("type") == "cash"})
     return out
+
+
+# Залишки з CleverBox на початок 30.10.2026 (надав власник) — застосовуються один раз.
+SEED_20261030 = [("Готівка ФОП Колган", "cash", 9630.80), ("Термінал ФОП Колган", "card", 3822.77), ("Термінал ФОП Бондар", "card", 10052.03),
+                 ("Готівка ФОП Бондар", "cash", 22011.00), ("Операційний Фонд", "bank", 94147.40),
+                 ("Амортизаційний + Операційний Фонд", "bank", 278751.33), ("Готівка Cейф", "cash", 14000.00)]
+
+
+def apply_seed(db: Session) -> bool:
+    flag = "cashboxes_seed_20261030"
+    if db.get(SyncState, flag):
+        return False
+    xs = items(db)
+    loc = _first_location(db)
+    by = {x["name"].lower(): x for x in xs}
+    active = set()
+    for name, typ, bal in SEED_20261030:
+        x = by.get(name.lower())
+        if not x:
+            x = {"id": max([int(y["id"]) for y in xs] + [0]) + 1, "name": name, "methods": [], "note": "",
+                 "location_id": loc, "color": COLORS[len(xs) % len(COLORS)]}
+            xs.append(x)
+        x.update(type=typ, active=True, deleted=False, opening=bal, opening_date="2026-10-30")
+        active.add(x["name"])
+    for x in xs:
+        if x["name"] not in active and x["name"] != "Онлайн-оплати":
+            x["active"] = False
+    _save(db, xs)
+    db.merge(SyncState(key=flag, value=datetime.now().isoformat(timespec="minutes"), updated_at=datetime.utcnow()))
+    db.commit()
+    return True

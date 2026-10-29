@@ -53,3 +53,13 @@ def test_cashboxes_page_and_hub():
             bid = next(x["id"] for x in cbx.items(db) if x["name"] == "Картка МОНО")
         assert "Операцій ще немає" in c.get(f"/settings/cashboxes?open={bid}").text
         assert "Картка МОНО" in c.get("/finance/ops").text           # каса в довіднику фіноперацій
+
+
+def test_seed_20261030():
+    with SessionLocal() as db:
+        db.add(CbFinOp(id=9, at=datetime(2026, 10, 29, 10), kind="income", account="Картка МОНО", amount=5)); db.commit()
+        assert cbx.apply_seed(db) and not cbx.apply_seed(db)
+        ov = {b["name"]: b for b in cbx.overview(db)}
+        assert ov["Амортизаційний + Операційний Фонд"]["balance"] == 278751.33 and ov["Готівка Cейф"]["cash"]
+        assert not ov["Картка МОНО"]["active"] and ov["Готівка ФОП Бондар"]["balance"] == 22011.0
+        assert "Картка МОНО" not in cbx.names(db) and len(cbx.names(db)) == 8
