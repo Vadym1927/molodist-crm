@@ -183,6 +183,7 @@ def build(db: Session, year: int) -> dict:
             by_month[cd.day.month].append(cd)
     last_day = max((cd.day for cd in alldays if cd.day >= y0), default=None)
     months, gaps = [], []
+    first_day = alldays[0].day if alldays else None
     for m in range(1, 13):
         ms = date(year, m, 1)
         me = date(year + (m == 12), m % 12 + 1, 1) - timedelta(days=1)
@@ -194,9 +195,10 @@ def build(db: Session, year: int) -> dict:
         upto = min(me, last_day)
         b.balance = _balance_at(op, alldays, upto)
         b.partial = me > last_day
-        expected = (upto - ms).days + 1
-        if b.days < expected:
-            gaps.append(b.label if b.days == 0 else f"{b.label} ({expected - b.days} дн)")
+        # дні без рядка всередині завантаженого періоду = руху не було (вихідні, свята) — це не пропуск;
+        # пропуск — лише цілий місяць без жодного дня даних
+        if b.days == 0 and not (first_day and upto < first_day):
+            gaps.append(b.label)
         w = ms - timedelta(days=ms.weekday())            # тижні Пн–Нд; перехідні — повністю
         while w <= upto:
             we = w + timedelta(days=6)
@@ -207,6 +209,10 @@ def build(db: Session, year: int) -> dict:
             b.weeks.append(wb)
             w += timedelta(days=7)
         months.append(b)
+    # дані починаються пізніше за дату залишку каси — рух між ними невідомий
+    if first_day and (first_day - max(op["date"], y0)).days > 7 and first_day >= y0:   # 1–7 січня можуть бути без руху
+        gaps.insert(0, f"{max(op['date'], y0):%d.%m} — {first_day - timedelta(days=1):%d.%m.%Y}")
+        months = [b for b in months if b.end >= first_day] or months
     tot = Bucket("YTD", y0, y1)
     for b in months:
         for k in ("cash_in", "card_in", "income", "expense", "days", "estimated"):

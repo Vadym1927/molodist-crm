@@ -73,3 +73,13 @@ def test_cleverbox_finance_probe_and_sync():
         for k in ("cleverbox_finance_method", "cleverbox_finance_probe"):
             db.delete(db.get(SyncState, k))
         db.commit()
+
+
+def test_days_without_movement_are_not_gaps():
+    with SessionLocal() as db:
+        cf.set_opening(db, date(2038, 1, 1), 1000)
+        cf.import_profit(db, [["02.01.2038", "100", "0", "100", "0", "100"], ["05.01.2038", "0", "50", "50", "-20", "30"],
+                              ["03.02.2038", "10", "0", "10", "0", "10"]], HEAD)
+        r = cf.build(db, 2038)
+        assert r["gaps"] == [] and r["balance"] == 1140
+        cf.set_opening(db, date(2026, 1, 1), 377130)
