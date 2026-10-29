@@ -3357,10 +3357,9 @@ SETTINGS_BLOCKS = [
     ]),
     ("Налаштування фінансів", [
         ("Знижки й бонусна програма", "Правила знижок, % нарахування бонусів, термін дії, персональні знижки", "/settings/loyalty", "finance", None),
-        ("Операції з балансом пацієнта", "Типи поповнень і списань балансу", None, None, "btype"),
+        ("Каси / рахунки", "Готівка, рахунки ФОП, термінал, онлайн-оплати: залишок після кожної операції, локація, тип", "/settings/cashboxes", "finance", None),
         ("Платіжні системи", "Посилання на оплату для пацієнтів: monobank еквайринг, LiqPay, WayForPay", "/settings/payments", "finance", "payment_system"),
         ("Банк monobank", "Виписки ФОП, оплати постачальникам і їх автоматичне рознесення", "/settings/keys?s=mono#mono", "finance", None),
-        ("Чайові", "Налаштування чайових", None, None, "tips"),
         ("Checkbox", "Фіскалізація чеків CRM, каси (РРО), відправлення чеків; оборот ФОП — у «Звіти → Ліміти ФОП»", "/settings/checkbox", "finance", "cmarket/checkbox/main"),
     ]),
     ("Звернення", [
@@ -3422,6 +3421,54 @@ def settings_page(request: Request, user: User = Depends(current_user), db: Sess
         if rows:
             blocks.append((title, rows))
     return render(request, "settings.html", blocks=blocks)
+
+
+# ---------------- Налаштування → Каси / рахунки ----------------
+@app.get("/settings/cashboxes", response_class=HTMLResponse)
+def settings_cashboxes(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import cashboxes as cbx, clinic as cl, sales as sl
+    boxes = cbx.overview(db)
+    open_ = request.query_params.get("open", "")
+    detail = next((b for b in boxes if str(b["id"]) == open_), None)
+    return render(request, "cashboxes.html", nav="settings", boxes=boxes, TYPES=cbx.TYPES, locs=cl.get(db).get("locations") or [],
+                  methods=sl.methods(db), open_=open_, detail=detail, dmoves=cbx.moves(db, detail, 100) if detail else [],
+                  total=round(sum(b["balance"] for b in boxes if b.get("active")), 2))
+
+
+@app.post("/settings/cashboxes")
+async def settings_cashboxes_save(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import cashboxes as cbx
+    f = await request.form()
+    bid = int(f.get("id")) if str(f.get("id") or "").isdigit() else None
+    data = {"name": f.get("name"), "type": f.get("type"), "active": bool(f.get("active")), "note": f.get("note"),
+            "location_id": int(f.get("location_id")) if str(f.get("location_id") or "").isdigit() else None,
+            "opening": _num(str(f.get("opening") or "0")) or 0, "opening_date": _day(str(f.get("opening_date") or "")) and str(f.get("opening_date")),
+            "methods": f.getlist("methods"), "color": str(f.get("color") or "")[:9]}
+    try:
+        x = cbx.save(db, bid, data)
+    except ValueError as e:
+        return RedirectResponse(_with_msg("/settings/cashboxes" + (f"?edit={bid}" if bid else ""), str(e), True), 303)
+    audit(db, "cashbox.save", user=user, cashbox=x["id"], name=x["name"], type=x["type"], opening=x["opening"], methods=x["methods"])
+    return RedirectResponse(_with_msg("/settings/cashboxes", f"Касу «{x['name']}» збережено"), 303)
+
+
+@app.post("/settings/cashboxes/{bid:int}/delete")
+def settings_cashboxes_delete(bid: int, del_password: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import cashboxes as cbx
+    err = _delpw(db, user, del_password, "cashbox", None, bid)
+    if err:
+        return RedirectResponse(_with_err("/settings/cashboxes", err), 303)
+    cbx.delete(db, bid)
+    audit(db, "cashbox.delete", user=user, cashbox=bid)
+    return RedirectResponse(_with_msg("/settings/cashboxes", "Касу видалено"), 303)
+
+
+@app.post("/settings/cashboxes/{bid:int}/restore")
+def settings_cashboxes_restore(bid: int, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import cashboxes as cbx
+    cbx.restore(db, bid)
+    audit(db, "cashbox.restore", user=user, cashbox=bid)
+    return RedirectResponse(_with_msg("/settings/cashboxes", "Касу відновлено"), 303)
 
 
 # ---------------- Налаштування → Платіжні системи (посилання на оплату) ----------------
@@ -4488,9 +4535,9 @@ def _period(df: str, dt_: str, default_days: int | None = None) -> tuple[date, d
 
 
 def _cashboxes(db: Session) -> list[str]:
-    from .integrations.checkbox import accounts as _cb_acc
     from .models import CbFinOp
-    base = ["Готівка"] + [f"ФОП {a['name']}" for a in _cb_acc(db)]
+    from .services import cashboxes as _cbx
+    base = _cbx.names(db)                                             # «Налаштування → Каси / рахунки»
     cb = [a for (a,) in db.execute(select(CbFinOp.account).where(CbFinOp.account.is_not(None)).distinct()) if a]
     return base + sorted(set(cb) - set(base)) + ["Інше"]               # + рахунки з журналу CleverBox
 

@@ -117,6 +117,8 @@
       c.onchange=function(){document.getElementById('jm-sal').style.display=(k==='expense'&&c.value==='Зарплата')?'block':'none'};c.onchange();}
     document.getElementById('jm-bg').classList.add('on');setTimeout(function(){var i=document.querySelector(st?'#jm-s input[name=num]':'#jm-f input[name=amount]');i&&i.focus()},50)};
   window.jmClose=function(){document.getElementById('jm-bg').classList.remove('on')};
+  (function(){var u=new URLSearchParams(location.search),k=u.get('new');if(k&&['income','expense','transfer'].indexOf(k)>=0){jmOpen(k);
+    var cb=u.get('cashbox'),s=document.querySelector('#jm-f select[name=cashbox]');if(cb&&s){s.value=cb}}})();
   document.addEventListener('keydown',function(e){if(e.key==='Escape')jmClose()});
 })();
 </script>

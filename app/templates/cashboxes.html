@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Каси / рахунки · MOLODIST CRM{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+{% include "_cs_style.html" %}
+<style>
+.bx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.bx{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);display:flex;flex-direction:column}
+.bx .tp{padding:16px 18px;flex:1}.bx .bt{display:flex;align-items:center;gap:6px;padding:12px 18px;border-top:1px solid var(--line);background:#FAF9F7;border-radius:0 0 14px 14px}
+.tg{display:inline-block;border:1.5px solid var(--line);border-radius:7px;padding:2px 8px;font:600 12.5px var(--sans);color:var(--muted)}
+.tg.loc{border-color:#5B9BD5;color:#2f65a0}.tg.on{border-color:#5CB85C;color:#3c8d3c}.tg.cash{border-color:#5B9BD5;color:#2f65a0}.tg.nc{border-color:#8E6FD8;color:#6A4FC0}
+.bx h3{display:flex;align-items:center;gap:8px;margin:10px 0 8px;font:600 17px var(--sans);text-transform:none;letter-spacing:0}
+.dot{width:12px;height:12px;border-radius:50%;flex:none}
+.bal{font:700 20px var(--sans)}.bal.pos{color:#3c8d3c}.bal.neg{color:#C0392B}
+.ic{border:0;background:none;cursor:pointer;font-size:18px;padding:4px 6px;border-radius:8px}.ic:hover{background:var(--soft)}
+.bx.off{opacity:.65}
+</style>
+<div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a></div>
+<div class="row between" style="gap:8px;flex-wrap:wrap"><h1 style="margin:0">Каси / рахунки</h1>
+  <button class="btn" type="button" onclick="bxEdit(null)">＋ Каса</button></div>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+{% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+<div class="cs-note" style="margin:12px 0 16px">Рахунки (каси) — це місця, де зберігаються гроші: готівка, банківський рахунок або будь-який інший спосіб оплати. Баланс змінюється після кожної операції: оплати, повернення, витрати, переміщення. Рахується з журналу CleverBox, фіноперацій CRM і продажів каси CRM (способи оплати, привʼязані до каси). Якщо історія CleverBox завантажена не повністю — вкажіть «Залишок на дату» з CleverBox. Разом в активних касах: <b>{{ total|uah }}</b>.</div>
+
+{% macro card(b) %}
+<div class="bx {{ '' if b.active else 'off' }}"><div class="tp">
+  <div style="display:flex;gap:6px;flex-wrap:wrap"><span class="tg">ID: {{ b.id }}</span>{% if b.location %}<span class="tg loc">📍 {{ b.location }}</span>{% endif %}</div>
+  <h3><span class="dot" style="background:{{ b.color or '#999' }}"></span>{{ b.name }}</h3>
+  <div class="small muted">Баланс</div><div class="bal {{ 'pos' if b.balance > 0 else ('neg' if b.balance < 0 else '') }}">{{ '%.2f'|format(b.balance) }}</div>
+  <div class="small muted" style="margin-top:8px">🕓 Остання транзакція: {{ b.last|dt('%d.%m.%Y • %H:%M') if b.last else '—' }}</div>
+  {% if b.methods %}<div class="small muted" style="margin-top:4px">Каса CRM: {{ b.methods|join(', ') }}</div>{% endif %}
+  {% if b.opening_date %}<div class="small muted">Залишок {{ '%.2f'|format(b.opening) }} на {{ b.opening_date }}</div>{% endif %}
+  </div><div class="bt">
+  {% if b.active %}<span class="tg on">Активна</span>{% endif %}<span class="tg {{ 'cash' if b.cash else 'nc' }}">{{ 'Готівка' if b.cash else 'Безготівка' }}</span>
+  <span style="flex:1"></span>
+  {% if b.deleted %}<form method="post" action="/settings/cashboxes/{{ b.id }}/restore" style="margin:0"><button class="btn ghost" style="padding:3px 10px">Відновити</button></form>
+  {% else %}<a class="ic" href="?open={{ b.id }}" title="Рух коштів" style="color:#3c8d3c;text-decoration:none">$</a>
+  <button class="ic" type="button" title="Змінити" style="color:#3c8d3c" onclick='bxEdit({{ b|tojson }})'>✎</button>
+  <form method="post" action="/settings/cashboxes/{{ b.id }}/delete" data-delpw="Видалити касу «{{ b.name }}»? Якщо по ній були операції — вона перейде у «Видалені каси»." style="margin:0"><button class="ic" title="Видалити" style="color:#C0392B">🗑</button></form>{% endif %}
+</div></div>
+{% endmacro %}
+
+<div class="bx-grid">{% for b in boxes if not b.deleted %}{{ card(b) }}{% endfor %}</div>
+{% set dels = boxes|selectattr('deleted')|list %}
+{% if dels %}<span class="cs-tag" style="margin-top:22px">Видалені каси</span><div class="cs-box"><div class="bx-grid">{% for b in dels %}{{ card(b) }}{% endfor %}</div></div>{% endif %}
+
+{% if detail %}
+<dialog class="cs-d" id="bx-mv" style="width:min(760px,96vw)"><div class="cs-dh"><h3>{{ detail.name }} · {{ '%.2f'|format(detail.balance) }} ₴</h3><a class="cs-x" href="/settings/cashboxes" style="display:grid;place-items:center;text-decoration:none">×</a></div>
+  <div class="cs-db" style="overflow-x:auto">
+    <div class="row" style="gap:6px;flex-wrap:wrap"><a class="btn" href="/finance/ops?new=income&cashbox={{ detail.name|urlencode }}">＋ Надходження</a><a class="btn ghost" href="/finance/ops?new=expense&cashbox={{ detail.name|urlencode }}">− Витрата</a><a class="btn ghost" href="/finance/ops?new=transfer&cashbox={{ detail.name|urlencode }}">⇄ Переміщення</a></div>
+    {% if dmoves %}<table><tr><th>Дата</th><th>Операція</th><th style="text-align:right">Сума</th></tr>
+    {% for m in dmoves %}<tr><td style="white-space:nowrap">{{ m.at|dt('%d.%m.%Y %H:%M') }}</td><td>{% if m.link %}<a href="{{ m.link }}">{{ m.what }}</a>{% else %}{{ m.what }}{% endif %}</td>
+      <td style="text-align:right;white-space:nowrap;color:{{ '#3c8d3c' if m.kind == 'in' else '#C0392B' }}">{{ '+' if m.kind == 'in' else '−' }}{{ '%.2f'|format(m.amount) }}</td></tr>{% endfor %}</table>
+    <div class="small muted">Показано останні 100 операцій.</div>{% else %}<div class="muted">Операцій ще немає.</div>{% endif %}
+  </div></dialog><script>document.getElementById('bx-mv').showModal()</script>
+{% endif %}
+
+<dialog class="cs-d" id="bx-ed"><div class="cs-dh"><h3 id="bx-t">Каса</h3><button class="cs-x" type="button" onclick="this.closest('dialog').close()">×</button></div>
+  <form method="post" action="/settings/cashboxes" class="cs-db"><input type="hidden" name="id">
+    <div class="cs-f"><label>Назва</label><input name="name" required></div>
+    <div class="cs-f"><label>Локація</label><select name="location_id"><option value="">—</option>{% for l in locs %}<option value="{{ l.id }}">{{ l.name }}</option>{% endfor %}</select></div>
+    <div class="cs-f"><label>Тип</label><select name="type">{% for k, v in TYPES.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
+    <div class="cs-f"><label>Колір</label><input type="color" name="color" value="#5CB85C" style="width:70px;height:40px;padding:2px"></div>
+    <div class="cs-f"><label>Способи оплати з каси CRM, що надходять сюди</label><div class="chips">
+      {% for m in methods %}<label><input type="checkbox" name="methods" value="{{ m }}"> {{ m }}</label>{% endfor %}</div>
+      <div class="hint">Один спосіб оплати — лише в одну касу.</div></div>
+    <div class="cs-f"><label>Залишок на дату (необовʼязково)</label>
+      <div class="row" style="gap:6px;flex-wrap:nowrap"><input name="opening" inputmode="decimal" placeholder="0.00" style="flex:1"><input type="date" name="opening_date" style="flex:1"></div>
+      <div class="hint">Баланс з CleverBox на початок дня — тоді рахуються лише операції з цієї дати. Порожня дата — уся історія.</div></div>
+    <div class="cs-f"><label>Примітка</label><input name="note"></div>
+    <div class="cs-f"><label class="sw"><input type="checkbox" name="active" value="1" checked> Активна</label></div>
+    <button class="btn">Зберегти</button>
+  </form></dialog>
+<script>
+function bxEdit(b){var d=document.getElementById('bx-ed'),f=d.querySelector('form');f.reset();
+  document.getElementById('bx-t').textContent=b?('Каса · '+b.name):'Нова каса';
+  f.id.value=b?b.id:'';if(b){f.name.value=b.name;f.location_id.value=b.location_id||'';f.type.value=b.type;f.color.value=b.color||'#5CB85C';
+    f.opening.value=b.opening||'';f.opening_date.value=b.opening_date||'';f.note.value=b.note||'';f.active.checked=!!b.active;
+    f.querySelectorAll('input[name=methods]').forEach(function(i){i.checked=(b.methods||[]).indexOf(i.value)>=0})}
+  d.showModal()}
+</script>
+{% endblock %}
