@@ -39,7 +39,7 @@
     <button class="btn" style="padding:6px 14px">Це вона — об'єднати</button></form>{% endfor %}
 </div>{% endif %}
 
-{% if can(user,'patients_all') %}<div style="display:flex;justify-content:flex-end;gap:6px;margin:-4px 0 8px"><a class="btn" href="/calendar?view=day&newappt=1&patient={{ p.id }}">📅 Записати</a><a class="btn ghost" href="/sales/new?patient={{ p.id }}">💳 Продаж</a></div>{% endif %}
+<div style="display:flex;justify-content:flex-end;gap:6px;margin:-4px 0 8px">{% if can(user,'book') %}<a class="btn" href="/calendar?view=day&newappt=1&patient={{ p.id }}">📅 Записати</a>{% endif %}{% if can(user,'sales') %}<a class="btn ghost" href="/sales/new?patient={{ p.id }}">💳 Продаж</a>{% endif %}</div>
 <div class="tabs patient-tabs">
   <a class="on" href="#info">Info</a><a href="#kpi">KPI</a><a href="#visits">Візити <em>{{ patient_kpi.done + patient_kpi.planned }}</em></a>
   <a href="#contact">Дзвінки й повідомлення</a><a href="#files">Документи й фото</a><a href="/patients/{{ p.id }}/photos">Фото до/після</a>{% if can(user,'medical') %}<a href="/patients/{{ p.id }}/medcard">🩺 Медкартка</a>{% endif %}<a href="#plans">План</a><a href="#sales">Продажі</a><a href="#history">Історія</a>
@@ -91,7 +91,7 @@
     <td><span class="pill {{ {'active':'ok','expiring':'warn','expired':'bad','used':'done','unpaid':'warn'}[st] }}">{{ SUB_STATES[st] }}</span></td></tr>{% endfor %}
   </tbody></table></div>{% endif %}
 
-{% if can(user,'patients_all') %}<div class="card" id="loyal"><div class="row between"><h2 style="margin:0">Бонуси й знижка</h2>
+{% if can(user,'loyalty_patient') %}<div class="card" id="loyal"><div class="row between"><h2 style="margin:0">Бонуси й знижка</h2>
   <span class="small muted">{{ 'бонусна програма працює' if loyal.s.enabled else 'бонусна програма вимкнена — Налаштування → Знижки й бонуси' }}</span></div>
   <div class="row" style="gap:18px;margin-top:10px;align-items:flex-start;flex-wrap:wrap">
     <div><div class="small muted">Бонусів</div><b style="font:600 26px var(--head)">{{ loyal.balance|uah }}</b>{% if p.cb_bonus and not loyal.txns %}<div class="small muted">у CleverBox: {{ p.cb_bonus|uah }}</div>{% endif %}</div>

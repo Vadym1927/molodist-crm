@@ -93,7 +93,7 @@
   <div><h1>Календар</h1>
     <div class="date">{% if view=='day' %}{{ WD[start.weekday()]|capitalize }}, {{ start.day }} {{ MON[start.month-1] }} {{ start.year }}{% elif view=='week' %}{{ start.day }} {{ MON[start.month-1] }} — {{ end.day }} {{ MON[end.month-1] }} {{ end.year }}{% else %}{{ MON1[start.month-1] }} {{ start.year }}{% endif %}</div></div>
   <div class="cal-ctl">
-    {% if can(user,'patients_all') %}<button type="button" class="btn" style="height:40px" onclick="apOpenNew({{ doc or 0 }}, '{{ start }}T{{ '%02d' % (now_h if start == today else 10) }}:00')">＋ Запис</button>{% endif %}
+    {% if can(user,'book') %}<button type="button" class="btn" style="height:40px" onclick="apOpenNew({{ doc or 0 }}, '{{ start }}T{{ '%02d' % (now_h if start == today else 10) }}:00')">＋ Запис</button>{% endif %}
     <a class="icon-btn" title="Назад" href="?start={{ prev }}&view={{ view }}&doc={{ doc or '' }}">‹</a>
     <a class="btn ghost" style="height:40px" href="?view={{ view }}&doc={{ doc or '' }}">Сьогодні</a>
     <a class="icon-btn" title="Вперед" href="?start={{ next }}&view={{ view }}&doc={{ doc or '' }}">›</a>
@@ -135,7 +135,7 @@
   <div class="tg-body" style="{{ GC }};height:{{ H + 16 }}px">
     <div class="tg-hours">{% for h in range(grid.h0, grid.h1 + 1) %}<div style="top:{{ (h - grid.h0) * 60 * PX + 8 }}px">{{ '%02d' % h }}:00</div>{% if h < grid.h1 %}<div style="top:{{ ((h - grid.h0) * 60 + 30) * PX + 8 }}px;opacity:.6;font-size:12px">{{ '%02d' % h }}:30</div>{% endif %}{% endfor %}</div>
     {% for g in grid.cols %}
-    <div class="tg-col" style="--c:{{ color(g.col.doctor) if g.col.doctor else '#9a93a6' }}" {% if can(user,'patients_all') %}onclick="tgNew(event, this, {{ g.col.doctor.id if g.col.doctor else 0 }})" title="Натисніть на вільний час — новий запис"{% endif %}>
+    <div class="tg-col" style="--c:{{ color(g.col.doctor) if g.col.doctor else '#9a93a6' }}" {% if can(user,'book') %}onclick="tgNew(event, this, {{ g.col.doctor.id if g.col.doctor else 0 }})" title="Натисніть на вільний час — новий запис"{% endif %}>
       {% set _s = (shifts or {}).get(g.col.doctor.id) if g.col.doctor else None %}{% if _s %}{% set a = (_s.start[:2]|int * 60 + _s.start[3:]|int - grid.h0 * 60) * PX %}{% set b = (_s.end[:2]|int * 60 + _s.end[3:]|int - grid.h0 * 60) * PX %}
         {% if a > 0 %}<div class="offsh" style="top:8px;height:{{ a }}px"></div>{% endif %}<div class="offsh" style="top:{{ b + 8 }}px;bottom:0"></div>{% endif %}
       {% for h in range(grid.h0, grid.h1 + 1) %}<div class="tg-line h" style="top:{{ (h - grid.h0) * 60 * PX + 8 }}px"></div>{% if h < grid.h1 %}<div class="tg-line" style="top:{{ ((h - grid.h0) * 60 + 30) * PX + 8 }}px"></div>{% endif %}{% endfor %}

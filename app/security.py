@@ -54,7 +54,13 @@ PERMS: dict[str, set[str]] = {
     "scripts_edit":   {"owner"},
     "specialists":    {"owner", "admin"},            # картки спеціалістів, їх статистика
     "specialists_edit": {"owner"},
+    "appeals":        {"owner", "admin"},            # звернення (заявки)
+    "sales":          {"owner", "admin"},            # каса CRM: продаж, чеки
+    "sale_refund":    {"owner"},                     # повернення чека
+    "loyalty_patient": {"owner", "admin"},           # бонуси й персональна знижка пацієнта
+    "schedule":       {"owner", "admin"},            # змінювати графік роботи
 }
+BASE_PERMS = {k: set(v) for k, v in PERMS.items()}  # заводські налаштування (для «Скинути»)
 
 
 def can(user: User | None, perm: str) -> bool:
@@ -72,7 +78,7 @@ def hash_password(pw: str) -> str:
 def delete_password_error(user: User | None, pw: str | None) -> str | None:
     """Перевірка пароля видалення (окремий для кожного користувача, задає власник у «Доступи й API»)."""
     if not user or not getattr(user, "delete_pw_hash", None):
-        return "Пароль для видалення вам не задано — його задає власник у «Ще → Доступи й API»"
+        return "Пароль для видалення вам не задано — його задає власник у «Права доступу → Користувачі»"
     if not pw or not verify_password(pw, user.delete_pw_hash):
         return "Невірний пароль для видалення — нічого не видалено"
     return None

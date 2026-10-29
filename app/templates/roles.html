@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Ролі · Права доступу{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}{% include "_access_tabs.html" %}
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+{% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+<style>
+.rl{display:grid;grid-template-columns:440px minmax(0,1fr);gap:18px;align-items:start}
+.rr{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:10px;box-shadow:var(--shadow)}
+.rr.on{border-color:var(--classic);box-shadow:0 0 0 2px var(--lavender-2)}
+.rr .nm{flex:1;min-width:0}.rr .nm b{display:block;font-size:15px}.rr .nm span{font-size:12px;color:var(--muted)}
+.rr a.ic{width:34px;height:34px;display:grid;place-items:center;border-radius:9px;text-decoration:none;font-size:16px;color:#3B82C4}.rr a.ic:hover{background:var(--soft)}
+.rr a.ic.eye{color:#4CAF50}.rr a.ic.eye.off{color:#aaa}
+.pg{border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin-bottom:10px;background:#fff}
+.pg h3{margin:0 0 6px;font:700 12px var(--sans);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);display:flex;justify-content:space-between}
+.pg label{display:flex;gap:8px;align-items:center;padding:4px 0;font-size:14px}.pg label input{width:auto}
+.pg .no{color:#bbb}
+@media (max-width:1000px){.rl{grid-template-columns:1fr}}
+</style>
+{% set cur_key = edit or view or copy %}{% set cur = (rs|selectattr('key', 'equalto', cur_key)|first) if cur_key else None %}
+<div class="rl"><div>
+  <div class="row between" style="margin-bottom:10px"><span class="cs-tag" style="display:inline-block;background:#8e98a6;color:#fff;font:700 12px var(--head);letter-spacing:.06em;text-transform:uppercase;padding:7px 14px;border-radius:8px">Ролі</span>
+    <a class="btn" style="background:#4CAF50;border-color:#4CAF50" href="?edit=new">＋ Додати</a></div>
+  {% for r in rs %}<div class="rr {{ 'on' if cur and cur.key == r.key }}" id="r-{{ r.key }}"><div class="nm"><b>{{ r.name }}</b><span>{{ 'вбудована' if r.builtin else 'своя' }} · {{ counts.get(r.key, 0) }} користувач(ів){{ ' · прихована' if r.hidden }}{{ (' · ' ~ r.perms|length ~ ' дозволів') if r.key != 'owner' else ' · усі дозволи' }}</span></div>
+    {% if r.key != 'owner' %}<a class="ic eye {{ 'off' if r.hidden }}" href="?view={{ r.key }}" title="Переглянути права">{{ '🚫' if r.hidden else '👁' }}</a><a class="ic" href="?edit={{ r.key }}" title="Змінити">✎</a>{% endif %}
+    <a class="ic" href="?copy={{ r.key }}" title="Копіювати як нову роль">⧉</a></div>{% endfor %}
+</div>
+<div>
+{% if edit == 'new' or cur %}
+  {% set is_new = edit == 'new' or copy %}{% set ro = view and not edit %}
+  <form class="card" method="post" action="/access/roles" style="margin:0">
+    {% if not is_new %}<input type="hidden" name="key" value="{{ cur.key }}">{% endif %}
+    <div class="row between" style="gap:8px;flex-wrap:wrap"><h2 style="margin:0">{{ 'Нова роль' if is_new else ('Права: ' ~ cur.name if ro else 'Змінити роль') }}</h2>
+      {% if not ro %}<div class="row" style="gap:6px"><button class="btn">💾 Зберегти</button><a class="btn ghost" href="/access/roles">Скасувати</a></div>{% else %}<a class="btn ghost" href="?edit={{ cur.key }}">✎ Змінити</a>{% endif %}</div>
+    {% if not ro %}<div class="row" style="gap:10px;margin:12px 0"><label class="small" style="display:grid;gap:4px;flex:1;font-weight:700;color:var(--muted)">Назва ролі<input name="name" value="{{ ('Копія — ' ~ cur.name) if copy and cur else (cur.name if cur and not is_new else '') }}" required placeholder="Маркетолог, Старший адміністратор…"></label>
+      <label class="small" style="display:flex;gap:6px;align-items:center;align-self:end"><input type="checkbox" name="hidden" value="1" {{ 'checked' if cur and cur.hidden and not is_new }} style="width:auto"> прихована (не пропонувати новим користувачам)</label></div>{% endif %}
+    {% set perms = cur.perms if cur else [] %}
+    <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;margin-top:6px">
+    {% for g, items in rl.GROUPS %}<div class="pg"><h3>{{ g }}{% if not ro %}<a href="#" style="font-weight:600;text-transform:none;letter-spacing:0" onclick="var b=this.closest('.pg').querySelectorAll('input');var on=[].some.call(b,function(x){return !x.checked});b.forEach(function(x){x.checked=on});return false">усі</a>{% endif %}</h3>
+      {% for p, l in items %}{% if ro %}<label class="{{ '' if p in perms else 'no' }}">{{ '✔' if p in perms else '—' }} {{ l }}</label>
+      {% else %}<label><input type="checkbox" name="perms" value="{{ p }}" {{ 'checked' if p in perms }}> {{ l }}</label>{% endif %}{% endfor %}</div>{% endfor %}</div>
+    {% if not ro %}<p class="small muted" style="margin:10px 0 0">Роль «Лікар» додатково бачить лише своїх пацієнтів, якщо не увімкнено «Бачити всіх пацієнтів». Власник завжди має всі права.</p>{% endif %}
+  </form>
+  {% if cur and not is_new and cur.builtin and not ro %}<form method="post" action="/access/roles/{{ cur.key }}/reset" style="margin-top:8px"><button class="btn ghost" onclick="return confirm('Повернути заводські права ролі «{{ cur.name }}»?')">↺ Скинути до заводських</button></form>{% endif %}
+  {% if cur and not is_new and not cur.builtin and not ro %}<form method="post" action="/access/roles/{{ cur.key }}/delete" data-delpw="Видалити роль «{{ cur.name }}»?" style="margin-top:8px"><button class="btn danger">Видалити роль</button></form>{% endif %}
+{% else %}<div class="card muted" style="margin:0">Оберіть роль зліва: 👁 — переглянути права, ✎ — змінити, ⧉ — створити нову на її основі.</div>{% endif %}
+</div></div>
+{% endblock %}

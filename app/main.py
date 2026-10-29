@@ -281,6 +281,8 @@ async def lifespan(app: FastAPI):
         load_saved_token(db)
         from .services import clinic as _clinic
         _clinic.apply(_clinic.get(db))                      # часовий пояс з «Налаштування → Загальні»
+        from .services import roles as _roles
+        _roles.apply(db)                                    # свої ролі й права з «Права доступу»
         from .services.scripts import seed_defaults
         seed_defaults(db)
     tasks, sched = [], None
@@ -674,7 +676,7 @@ def _appeal_filters(request: Request) -> dict:
 
 
 @app.get("/appeals", response_class=HTMLResponse)
-def appeals_page(request: Request, user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+def appeals_page(request: Request, user: User = Depends(require("appeals")), db: Session = Depends(db_dep)):
     from .services import appeals as ap
     from .models import Appeal
     f = _appeal_filters(request)
@@ -689,7 +691,7 @@ def appeals_page(request: Request, user: User = Depends(require("patients_all"))
 
 
 @app.get("/appeals/{aid:int}", response_class=HTMLResponse)
-def appeal_card(request: Request, aid: int, user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+def appeal_card(request: Request, aid: int, user: User = Depends(require("appeals")), db: Session = Depends(db_dep)):
     from .services import appeals as ap
     from .models import Appeal, AppealNote
     a = db.get(Appeal, aid)
@@ -706,7 +708,7 @@ def appeal_card(request: Request, aid: int, user: User = Depends(require("patien
 
 
 @app.post("/appeals")
-async def appeal_save(request: Request, user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+async def appeal_save(request: Request, user: User = Depends(require("appeals")), db: Session = Depends(db_dep)):
     from .services import appeals as ap
     from .models import Appeal
     f = await request.form()
@@ -776,7 +778,7 @@ def _appeal_task(db: Session, a, user: User) -> None:
 
 
 @app.post("/appeals/{aid:int}/note")
-def appeal_note(aid: int, text: str = Form(...), user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+def appeal_note(aid: int, text: str = Form(...), user: User = Depends(require("appeals")), db: Session = Depends(db_dep)):
     from .services import appeals as ap
     from .models import Appeal
     a = db.get(Appeal, aid)
@@ -789,7 +791,7 @@ def appeal_note(aid: int, text: str = Form(...), user: User = Depends(require("p
 
 @app.post("/appeals/{aid:int}/status")
 def appeal_status(aid: int, status: str = Form(...), deny_reason: str = Form(""), back: str = Form("/appeals"),
-                  user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+                  user: User = Depends(require("appeals")), db: Session = Depends(db_dep)):
     from .services import appeals as ap
     from .models import Appeal
     a = db.get(Appeal, aid)
@@ -805,7 +807,7 @@ def appeal_status(aid: int, status: str = Form(...), deny_reason: str = Form("")
 
 
 @app.post("/appeals/{aid:int}/patient")
-def appeal_to_patient(aid: int, user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+def appeal_to_patient(aid: int, user: User = Depends(require("appeals")), db: Session = Depends(db_dep)):
     from .services import appeals as ap
     from .models import Appeal
     a = db.get(Appeal, aid) or (_ for _ in ()).throw(HTTPException(404))
@@ -818,7 +820,7 @@ def appeal_to_patient(aid: int, user: User = Depends(require("patients_all")), d
 
 
 @app.post("/appeals/{aid:int}/delete")
-def appeal_delete(aid: int, del_password: str = Form(""), user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+def appeal_delete(aid: int, del_password: str = Form(""), user: User = Depends(require("appeals")), db: Session = Depends(db_dep)):
     from .models import Appeal
     err = _delpw(db, user, del_password, "appeal", "appeal", aid)
     if err:
@@ -914,7 +916,7 @@ def _appt_ctx(db: Session) -> dict:
 
 @app.get("/appointments/new", response_class=HTMLResponse)
 def appointment_new(request: Request, doc: int = 0, start: str = "", patient: int = 0, appeal: int = 0,
-                    user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+                    user: User = Depends(require("book")), db: Session = Depends(db_dep)):
     try:
         st_ = datetime.fromisoformat(start) if start else None
     except ValueError:
@@ -943,7 +945,7 @@ def appointment_card(request: Request, aid: int, edit: int = 0, user: User = Dep
 
 
 @app.post("/appointments")
-async def appointment_save(request: Request, user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+async def appointment_save(request: Request, user: User = Depends(require("book")), db: Session = Depends(db_dep)):
     from .services import appointments as aps
     from .services.booking import BookingError
     from .models import Appointment, Appeal
@@ -1006,7 +1008,7 @@ async def appointment_save(request: Request, user: User = Depends(require("patie
 
 @app.post("/appointments/{aid:int}/status")
 def appointment_status(aid: int, status: str = Form(...), reason: str = Form(""), back: str = Form(""),
-                       user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+                       user: User = Depends(require("book")), db: Session = Depends(db_dep)):
     from .services import appointments as aps
     from .models import Appointment
     a = db.get(Appointment, aid) or (_ for _ in ()).throw(HTTPException(404))
@@ -1020,7 +1022,7 @@ def appointment_status(aid: int, status: str = Form(...), reason: str = Form("")
 
 # ---------------- Каса: продаж у CRM ----------------
 @app.get("/lookup/sale-products")
-def lookup_sale_products(q: str = "", user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+def lookup_sale_products(q: str = "", user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
     from .services import stock as st
     q = (q or "").strip()
     if len(q) < 2:
@@ -1048,7 +1050,7 @@ def lookup_sale_products(q: str = "", user: User = Depends(require("patients_all
 
 
 @app.get("/sales", response_class=HTMLResponse)
-def sales_list(request: Request, df: str = "", dt_: str = "", q: str = "", user: User = Depends(require("patients_all")),
+def sales_list(request: Request, df: str = "", dt_: str = "", q: str = "", user: User = Depends(require("sales")),
                db: Session = Depends(db_dep)):
     from .models import Sale
     d_from, d_to = _period(df, dt_)
@@ -1069,7 +1071,7 @@ def sales_list(request: Request, df: str = "", dt_: str = "", q: str = "", user:
 
 
 @app.get("/sales/new", response_class=HTMLResponse)
-def sale_new(request: Request, appt: int = 0, patient: int = 0, user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+def sale_new(request: Request, appt: int = 0, patient: int = 0, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
     from .models import Appointment, DiscountRule, GiftCertificate
     from .services import sales as sl
     a_ = db.get(Appointment, appt) if appt else None
@@ -1107,7 +1109,7 @@ def _sale_payload(f: dict) -> dict:
 
 
 @app.post("/sales/quote")
-async def sale_quote(request: Request, user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+async def sale_quote(request: Request, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
     from .services import sales as sl
     d_ = _sale_payload(await request.json())
     pt = db.get(Patient, d_["patient_id"]) if d_["patient_id"] else None
@@ -1115,7 +1117,7 @@ async def sale_quote(request: Request, user: User = Depends(require("patients_al
 
 
 @app.post("/sales")
-async def sale_create(request: Request, user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+async def sale_create(request: Request, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
     from .services import sales as sl
     d_ = _sale_payload(await request.json())
     if d_["patient_id"]:
@@ -1130,7 +1132,7 @@ async def sale_create(request: Request, user: User = Depends(require("patients_a
 
 
 @app.get("/sales/{sid:int}", response_class=HTMLResponse)
-def sale_view(request: Request, sid: int, user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+def sale_view(request: Request, sid: int, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
     from .models import Sale
     s_ = db.get(Sale, sid) or (_ for _ in ()).throw(HTTPException(404))
     docs = {d_.id: d_.name for d_ in db.scalars(select(Doctor))}
@@ -1139,7 +1141,7 @@ def sale_view(request: Request, sid: int, user: User = Depends(require("patients
 
 
 @app.post("/sales/{sid:int}/refund")
-def sale_refund(sid: int, reason: str = Form(""), del_password: str = Form(""), user: User = Depends(require("patients_all")),
+def sale_refund(sid: int, reason: str = Form(""), del_password: str = Form(""), user: User = Depends(require("sale_refund")),
                 db: Session = Depends(db_dep)):
     from .services import sales as sl
     from .models import Sale
@@ -1256,7 +1258,7 @@ def settings_loyalty_import(user: User = Depends(require("finance")), db: Sessio
 
 @app.post("/patients/{pid:int}/bonus")
 def patient_bonus(pid: int, amount: str = Form(...), sign: str = Form("+"), comment: str = Form(""),
-                  user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+                  user: User = Depends(require("loyalty_patient")), db: Session = Depends(db_dep)):
     from .services import loyalty as ly
     _patient_or_403(db, user, pid)
     v = _num(amount)
@@ -1270,7 +1272,7 @@ def patient_bonus(pid: int, amount: str = Form(...), sign: str = Form("+"), comm
 
 
 @app.post("/patients/{pid:int}/discount")
-def patient_discount(pid: int, discount_pct: str = Form(""), user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+def patient_discount(pid: int, discount_pct: str = Form(""), user: User = Depends(require("loyalty_patient")), db: Session = Depends(db_dep)):
     p = _patient_or_403(db, user, pid)
     v = _num(discount_pct)
     p.discount_pct = min(max(v, 0), 100) if v else None
@@ -1553,6 +1555,50 @@ def user_save(request: Request, uid: str = Form(""), login: str = Form(...), nam
     audit(db, action, "user", u.id, user=user, login=u.login, role=u.role, active=u.active,
           password_changed=bool(password), delete_pw=("set" if delete_pw else "cleared" if delete_pw_clear else None))
     return RedirectResponse("/access", 303)
+
+
+@app.get("/access/roles", response_class=HTMLResponse)
+def access_roles(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import roles as rl
+    return render(request, "roles.html", nav="access", tab="roles", rs=rl.roles(db), rl=rl, counts=rl.users_by_role(db),
+                  edit=request.query_params.get("edit", ""), view=request.query_params.get("view", ""),
+                  copy=request.query_params.get("copy", ""))
+
+
+@app.post("/access/roles")
+async def access_roles_save(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import roles as rl
+    f = await request.form()
+    key = str(f.get("key") or "") or None
+    if key == "owner":
+        return RedirectResponse("/access/roles", 303)
+    name = str(f.get("name") or "").strip()
+    if not name:
+        return RedirectResponse(_with_msg("/access/roles", "Вкажіть назву ролі", True), 303)
+    k = rl.save_role(db, key, name, [str(x) for x in f.getlist("perms")], bool(f.get("hidden")))
+    audit(db, "roles.save", user=user, role=k, name=name, perms=sorted(str(x) for x in f.getlist("perms")))
+    return RedirectResponse(_with_msg("/access/roles", f"Роль «{name}» збережено") + f"#r-{k}", 303)
+
+
+@app.post("/access/roles/{key}/reset")
+def access_roles_reset(key: str, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import roles as rl
+    rl.reset_role(db, key)
+    audit(db, "roles.reset", user=user, role=key)
+    return RedirectResponse(_with_msg("/access/roles", "Права ролі скинуто до заводських"), 303)
+
+
+@app.post("/access/roles/{key}/delete")
+def access_roles_delete(key: str, del_password: str = Form(""), user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import roles as rl
+    err = _delpw(db, user, del_password, "role", None, None)
+    if err:
+        return RedirectResponse(_with_err("/access/roles", err), 303)
+    e = rl.delete_role(db, key)
+    if e:
+        return RedirectResponse(_with_msg("/access/roles", e, True), 303)
+    audit(db, "roles.delete", user=user, role=key)
+    return RedirectResponse(_with_msg("/access/roles", "Роль видалено"), 303)
 
 
 @app.get("/access/api", response_class=HTMLResponse)
@@ -3225,8 +3271,8 @@ SETTINGS_BLOCKS = [
     ("Основні налаштування", [
         ("Загальні", "Країна, часовий пояс, мова, валюта, ПДВ; налаштування звітів", "/settings/clinic", "users", "main_settings"),
         ("Філії", "Локації: ресурси (апарати), режим роботи, робочі місця (кабінети)", "/settings/clinic#loc", "users", "salons"),
-        ("Права доступу", "Користувачі CRM, ролі, паролі входу й видалення", "/access", "users", "roles"),
-        ("REST API", "API-ключі CRM і вебхуки; ключ CleverBox — у «Ключі й інтеграції»", "/access/api", "users", "cmarket/rest/main"),
+        ("Права доступу", "Ролі та їх дозволи, користувачі CRM, паролі входу й видалення", "/access/roles", "users", "roles"),
+        ("REST API", "API-ключі CRM і вебхуки; ключ CleverBox — у «Ключі й інтеграції»", "/access/api", "api", "cmarket/rest/main"),
     ]),
     ("Комунікації", [
         ("Канали", "Viber, SMS, месенджери", None, None, "cmarket/channels/main"),
@@ -4778,7 +4824,7 @@ def _sched_back(back: str, msg: str = "", err: bool = False) -> RedirectResponse
 
 @app.post("/specialists/schedule/cell")
 def schedule_cell(doctor_id: int = Form(...), day: str = Form(...), start: str = Form(""), end: str = Form(""), place: str = Form(""),
-                  note: str = Form(""), off: str = Form(""), back: str = Form(""), user: User = Depends(require("specialists")),
+                  note: str = Form(""), off: str = Form(""), back: str = Form(""), user: User = Depends(require("schedule")),
                   db: Session = Depends(db_dep)):
     from .services import schedule as sch
     d_ = _day(day)
@@ -4794,7 +4840,7 @@ def schedule_cell(doctor_id: int = Form(...), day: str = Form(...), start: str =
 
 
 @app.post("/specialists/schedule/fill")
-async def schedule_fill(request: Request, user: User = Depends(require("specialists")), db: Session = Depends(db_dep)):
+async def schedule_fill(request: Request, user: User = Depends(require("schedule")), db: Session = Depends(db_dep)):
     from .services import schedule as sch
     f = await request.form()
     back = str(f.get("back") or "")
@@ -4818,7 +4864,7 @@ async def schedule_fill(request: Request, user: User = Depends(require("speciali
 
 
 @app.post("/specialists/schedule/copy")
-def schedule_copy(src: str = Form(...), weeks: int = Form(1), back: str = Form(""), user: User = Depends(require("specialists")),
+def schedule_copy(src: str = Form(...), weeks: int = Form(1), back: str = Form(""), user: User = Depends(require("schedule")),
                   db: Session = Depends(db_dep)):
     from .services import schedule as sch
     s = _day(src)
@@ -4832,7 +4878,7 @@ def schedule_copy(src: str = Form(...), weeks: int = Form(1), back: str = Form("
 
 @app.post("/specialists/schedule/clear")
 def schedule_clear(doctor_id: str = Form(""), d_from: str = Form(...), d_to: str = Form(...), del_password: str = Form(""),
-                   back: str = Form(""), user: User = Depends(require("specialists")), db: Session = Depends(db_dep)):
+                   back: str = Form(""), user: User = Depends(require("schedule")), db: Session = Depends(db_dep)):
     from .services import schedule as sch
     err = _delpw(db, user, del_password, "schedule", "doctor", int(doctor_id) if doctor_id.isdigit() else None)
     if err:

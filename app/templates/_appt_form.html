@@ -13,10 +13,10 @@
   {% if a.comment %}<div class="apf-v"><span>Коментар</span>{{ a.comment }}</div>{% endif %}
   {% if a.cancel_reason %}<div class="apf-v"><span>Причина</span>{{ a.cancel_reason }}</div>{% endif %}
   <div class="small muted">{{ ('У CleverBox: запис №' ~ a.cb_record_id) if a.cb_record_id else 'Лише в CRM' }} · створено {{ a.created_at|local|dt('%d.%m.%Y %H:%M') }}</div>
-  {% if can(user,'patients_all') %}<div class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px">
+  {% if can(user,'book') %}<div class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px">
     {% for k in ['confirmed','arrived','done','no_show'] %}{% if a.status != k %}<form method="post" action="/appointments/{{ a.id }}/status" style="margin:0"><input type="hidden" name="status" value="{{ k }}"><input type="hidden" name="back" class="apf-back">
       <button class="btn ghost" style="padding:4px 10px;border-color:{{ COLORS[k] }}">{{ STATUSES[k] }}</button></form>{% endif %}{% endfor %}
-    {% if a.sale_id %}<a class="btn" style="padding:4px 12px" href="/sales/{{ a.sale_id }}">🧾 Чек №{{ a.sale_id }}</a>{% else %}<a class="btn" style="padding:4px 12px" href="/sales/new?appt={{ a.id }}">💳 Розрахувати</a>{% endif %}
+    {% if can(user,'sales') %}{% if a.sale_id %}<a class="btn" style="padding:4px 12px" href="/sales/{{ a.sale_id }}">🧾 Чек №{{ a.sale_id }}</a>{% else %}<a class="btn" style="padding:4px 12px" href="/sales/new?appt={{ a.id }}">💳 Розрахувати</a>{% endif %}{% endif %}
     <button type="button" class="btn ghost" style="padding:4px 10px" onclick="apptOpen({{ a.id }}, 1)">✎ Змінити</button></div>
   {% if a.status != 'cancelled' %}<form method="post" action="/appointments/{{ a.id }}/status" class="row" style="gap:6px;flex-wrap:nowrap;margin-top:6px"><input type="hidden" name="status" value="cancelled"><input type="hidden" name="back" class="apf-back">
     <input name="reason" placeholder="Причина скасування" required minlength="3" style="flex:1"><button class="btn danger" style="padding:4px 10px">Скасувати запис</button></form>{% endif %}{% endif %}

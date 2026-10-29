@@ -10,7 +10,7 @@
 <div class="apd-b" style="border-top:1px solid var(--line)">
   <div class="row" style="gap:6px;flex-wrap:wrap">
     {% for s in d.statuses %}{% if s.name != a.status and s.type != 'fail' %}<form method="post" action="/appeals/{{ a.id }}/status" style="margin:0"><input type="hidden" name="status" value="{{ s.name }}"><input type="hidden" name="back" value="/appeals?open={{ a.id }}"><button class="btn ghost" style="padding:4px 10px;border-color:{{ s.color }}">→ {{ s.name }}</button></form>{% endif %}{% endfor %}
-    <a class="btn" style="padding:4px 12px;background:#4CAF50;border-color:#4CAF50" href="/calendar?view=day&newappt=1&appeal={{ a.id }}">📅 Записати</a>
+    {% if can(user,'book') %}<a class="btn" style="padding:4px 12px;background:#4CAF50;border-color:#4CAF50" href="/calendar?view=day&newappt=1&appeal={{ a.id }}">📅 Записати</a>{% endif %}
     <form method="post" action="/appeals/{{ a.id }}/patient" style="margin:0"><button class="btn" style="padding:4px 12px">{{ 'Відкрити картку пацієнта' if p else ('Привʼязати до ' ~ match.full_name if match else 'Створити пацієнта') }}</button></form>
     <form method="post" action="/appeals/{{ a.id }}/delete" data-delpw="Видалити звернення №{{ a.id }}?" style="margin:0 0 0 auto"><button class="btn danger" style="padding:4px 10px">Видалити</button></form></div>
   {% set fails = d.statuses|selectattr('type', 'equalto', 'fail')|list %}{% if fails and a.status not in fails|map(attribute='name')|list %}

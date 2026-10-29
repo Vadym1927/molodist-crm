@@ -1,11 +1,8 @@
 {% extends "base.html" %}
 {% block body %}
-<h1>Доступи та API</h1>
-<nav class="row" style="margin:10px 0 18px">
-  <a class="btn {{ '' if tab=='users' else 'ghost' }}" href="/access">Користувачі</a>
-  <a class="btn {{ '' if tab=='api' else 'ghost' }}" href="/access/api">API-ключі та вебхуки</a>
-  <a class="btn {{ '' if tab=='audit' else 'ghost' }}" href="/access/audit">Журнал дій</a>
-</nav>
+{% if tab == 'api' %}<div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a></div><h1>REST API</h1>
+<p class="muted small" style="margin:-2px 0 16px">Ключі для інших систем (бот пацієнтів, сайт, n8n) і вебхуки. Документація — <a href="/api/docs" target="_blank">/api/docs</a>. Ключ CleverBox — у «Ключі й інтеграції».</p>
+{% else %}{% include "_access_tabs.html" %}{% endif %}
 
 {% if tab=='users' %}
 <p class="small muted" style="margin:-6px 0 12px">🔒 <b>Пароль для видалення</b> — окремий у кожного користувача, задаєте ви. Без нього в CRM нічого не видаляється (документи складу, плани, закупівлі, файли, норми, юр. особи постачальників). Користувач без пароля видаляти не може. Кожна спроба пишеться в «Журнал дій».</p>
@@ -42,18 +39,8 @@
       <input type="password" name="delete_pw" placeholder="Пароль для видалення (необовʼязково)" autocomplete="new-password">
       <input type="hidden" name="active" value="1">
       <button class="btn">Створити</button></form></div>
-  <div class="card"><h2>Що бачить кожна роль</h2>
-    <table class="small"><thead><tr><th></th><th>Власник</th><th>Адмін</th><th>Лікар</th></tr></thead><tbody>
-      <tr><td>Пацієнти й плани</td><td>усі</td><td>усі</td><td>лише свої</td></tr>
-      <tr><td>Редагування плану, ручні відмітки</td><td>✔</td><td>✔</td><td>свої</td></tr>
-      <tr><td>Медичні нотатки</td><td>✔</td><td>—</td><td>свої</td></tr>
-      <tr><td>Нагадування, нерозібрані файли</td><td>✔</td><td>✔</td><td>свої нагадування</td></tr>
-      <tr><td>KPI</td><td>усі лікарі</td><td>операційні</td><td>свій</td></tr>
-      <tr><td>Фінпрогноз, Google Sheets</td><td>✔</td><td>—</td><td>—</td></tr>
-      <tr><td>Синк CleverBox, зіставлення</td><td>✔</td><td>✔</td><td>—</td></tr>
-      <tr><td>Видалення планів</td><td>✔</td><td>—</td><td>—</td></tr>
-      <tr><td>Користувачі, API, журнал</td><td>✔</td><td>—</td><td>—</td></tr>
-    </tbody></table></div>
+  <div class="card"><h2>Ролі й права</h2><p class="small muted">Що може кожна роль — налаштовується у вкладці <a href="/access/roles">«Ролі»</a>: вбудовані Власник / Адміністратор / Лікар і ваші власні (наприклад «Маркетолог», «Старший адміністратор»).</p>
+    {% for k, l in ROLES.items() %}<span class="pill" style="margin:0 4px 4px 0">{{ l }}</span>{% endfor %}</div>
 </div>
 
 {% elif tab=='api' %}

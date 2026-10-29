@@ -9,7 +9,7 @@
 </style>
 {% set _de = request.query_params.get('delerr') %}{% if _de %}<div class="dp-toast" onclick="this.remove()">🔒 {{ _de }}</div>{% endif %}
 <div class="dp-bg" id="dp-bg" onclick="if(event.target===this)dpClose()"><div class="dp" role="dialog" aria-modal="true">
-  <h3 id="dp-t">Видалити?</h3><div class="small muted">Потрібен ваш пароль для видалення.{% if not user.delete_pw_hash %} <b style="color:var(--bad)">Вам його ще не задано</b> — {{ 'задайте в «Ще → Доступи й API»' if can(user,'users') else 'зверніться до власника' }}.{% endif %}</div>
+  <h3 id="dp-t">Видалити?</h3><div class="small muted">Потрібен ваш пароль для видалення.{% if not user.delete_pw_hash %} <b style="color:var(--bad)">Вам його ще не задано</b> — {{ 'задайте в «Права доступу → Користувачі»' if can(user,'users') else 'зверніться до власника' }}.{% endif %}</div>
   <form id="dp-f" autocomplete="off" onsubmit="event.preventDefault();dpGo()">
     <label>Пароль для видалення<input type="password" id="dp-pw" required autocomplete="off"></label>
     <div class="row" style="gap:8px;justify-content:flex-end;margin-top:14px"><button type="button" class="btn ghost" onclick="dpClose()">Скасувати</button><button class="btn danger">Видалити</button></div>
