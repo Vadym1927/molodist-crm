@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Канали · MOLODIST CRM{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+<style>
+.cs-tag{display:inline-block;background:#8e98a6;color:#fff;font:700 12px var(--head);letter-spacing:.06em;text-transform:uppercase;padding:7px 14px;border-radius:8px 8px 0 0;margin-left:14px}
+.cs-box{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:22px;box-shadow:var(--shadow)}
+.cs-note{border-left:4px solid #5B9BD5;background:#F4F8FD;border-radius:10px;padding:12px 16px;color:#4a4f57;font-size:14px}
+.cs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;margin-top:16px}
+.cs-card{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px 20px;cursor:pointer;text-align:left;font:inherit;color:inherit;box-shadow:var(--shadow)}
+.cs-card:hover{border-color:var(--classic)}.cs-card b{display:block;font:600 17px var(--head);text-transform:uppercase;color:var(--classic);margin-bottom:6px}
+.cs-card span{font-size:13.5px;color:var(--muted)}.cs-card i{font-style:normal;font-size:26px;color:var(--classic)}
+.loc{border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:#FAF9F7;margin-top:14px}
+.loc .lb{display:block;width:100%;margin-top:8px;border:1.5px solid #5B9BD5;color:#2f65a0;background:#fff;border-radius:10px;padding:8px;font:700 13px var(--sans);letter-spacing:.04em;text-transform:uppercase;cursor:pointer}
+.loc .lb:hover{background:#F4F8FD}
+.on-pill{display:inline-block;padding:2px 9px;border-radius:7px;font:800 12px var(--sans)}.on-pill.on{background:#4CAF50;color:#fff}.on-pill.off{background:#ddd;color:#666}
+dialog.cs-d{border:0;border-radius:18px;padding:0;width:min(620px,96vw);max-height:90vh;box-shadow:0 30px 80px rgba(42,36,48,.35)}
+dialog.cs-d::backdrop{background:rgba(42,36,48,.45)}
+.cs-dh{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#fff;z-index:2}
+.cs-dh h3{margin:0;font:600 18px var(--head);text-transform:uppercase}.cs-x{border:0;background:var(--soft);width:36px;height:36px;border-radius:10px;font-size:20px;cursor:pointer}
+.cs-db{padding:16px 18px 20px;display:grid;gap:12px}
+.cs-f{border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:grid;gap:6px}.cs-f label{font:700 11.5px var(--sans);text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.cs-f select,.cs-f input{height:44px}.cs-f .hint{font-size:12.5px;color:var(--muted)}
+.it-row{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:#FAF9F7}
+.it-row .nm{flex:1;min-width:0}.it-row .nm input{width:100%;height:36px;border-color:transparent;background:transparent;color:#2f65a0;font-weight:600}
+.it-row .nm input:focus{background:#fff;border-color:var(--line)}.it-row button{border:0;background:none;cursor:pointer;padding:4px 6px;border-radius:7px}
+.it-row .del{border:1.5px solid #E8A0A0;color:#C0392B;font:700 11px var(--sans);padding:3px 8px}
+.hr-row{display:grid;grid-template-columns:70px 1fr 1fr;gap:8px;align-items:center;border-bottom:1px solid var(--line);padding:6px 0}
+.hr-row input[type=time]{height:40px}
+.sw{position:relative;display:inline-flex;align-items:center;gap:8px;font-weight:700}
+.sw input{appearance:none;width:44px;height:24px;border-radius:12px;background:#ccc;position:relative;cursor:pointer;transition:background .15s;border:0;padding:0}
+.sw input:checked{background:#4CAF50}.sw input:before{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s}
+.sw input:checked:before{left:23px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}.chips label{display:inline-flex;gap:6px;align-items:center;background:var(--soft);border-radius:8px;padding:6px 10px;font-size:14px;text-transform:none;letter-spacing:0;color:var(--ink);font-weight:600}
+
+.ch-t{width:100%;border-collapse:collapse;background:#fff;border-radius:14px;overflow:hidden}
+.ch-t th{font:700 11.5px var(--sans);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);text-align:left;padding:10px 12px;border-bottom:1px solid var(--line)}
+.ch-t td{padding:12px;border-bottom:1px solid var(--line);vertical-align:middle}
+.ch-ic{display:inline-flex;width:34px;height:34px;border-radius:10px;align-items:center;justify-content:center;background:var(--soft);font-size:18px;margin-right:8px}
+.ch-btn{border:1.5px solid #5B9BD5;color:#2f65a0;background:#fff;border-radius:9px;padding:6px 12px;font:700 12px var(--sans);text-transform:uppercase;cursor:pointer}
+.ch-sub{font-size:13px;color:var(--muted);margin-top:4px}
+.cp{display:flex;gap:6px}.cp input{flex:1}
+.set-ok{color:var(--ok);font-weight:700;font-size:12.5px}
+@media(max-width:700px){.ch-t .hm{display:none}}
+</style>
+<div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a></div><h1>Канали</h1>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+{% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+<span class="cs-tag">Канали комунікації</span>
+<div class="cs-box">
+  <div class="cs-note">Канали, через які CRM пише пацієнтам: нагадування, розсилки, скрипти адмінів. Секрети (токени, ключі) зберігаються зашифровано і після збереження не показуються — щоб змінити, просто введіть нове значення. Порожнє поле = лишається значення з серверного .env.</div>
+  <div style="overflow-x:auto;margin-top:14px"><table class="ch-t">
+    <tr><th class="hm">ID</th><th>Канал</th><th class="hm">Сервіс</th><th>Стан</th><th></th></tr>
+    {% for c in chs %}{% set t = T.get(c.type, {}) %}
+    <tr><td class="hm">{{ c.id }}</td>
+      <td><span class="ch-ic">{{ t.icon }}</span><b>{{ c.name }}</b> <span class="muted">({{ c.type }})</span>
+        {% if c.type == 'meta' %}<div class="ch-sub">{% for p in c.params.pages or [] %}{{ p.kind }} «{{ p.name }}»{% if not loop.last %} · {% endif %}{% endfor %}</div>{% endif %}</td>
+      <td class="hm">{{ t.service }}</td>
+      <td><span class="on-pill {{ 'on' if c.on else 'off' }}">{{ 'ON' if c.on else 'OFF' }}</span></td>
+      <td style="text-align:right"><button class="ch-btn" type="button" onclick="document.getElementById('chd{{ c.id }}').showModal()">Налаштування</button></td></tr>
+    {% endfor %}
+  </table></div>
+  <form method="post" action="/settings/channels/add" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+    <select name="type" style="height:42px">{% for k, t in T.items() %}<option value="{{ k }}">{{ t.label }}</option>{% endfor %}</select>
+    <input name="name" placeholder="Назва каналу" style="height:42px">
+    <button class="btn">＋ Додати канал</button>
+  </form>
+</div>
+
+{% macro secret(c, key, label, hint='') %}
+<div class="cs-f"><label>{{ label }}</label>
+  <input type="password" name="{{ key }}" autocomplete="new-password" placeholder="{{ '•••••••• збережено — введіть нове, щоб замінити' if c.has.get(key) else ('з .env сервера' if c.env_token and key == 'token' else 'не задано') }}">
+  {% if c.has.get(key) %}<label class="chips" style="text-transform:none"><label><input type="checkbox" name="clear_{{ key }}" value="1"> очистити</label></label>{% endif %}
+  {% if hint %}<div class="hint">{{ hint }}</div>{% endif %}</div>
+{% endmacro %}
+
+{% for c in chs %}
+<dialog class="cs-d" id="chd{{ c.id }}">
+  <div class="cs-dh"><h3>{{ T.get(c.type, {}).label }} · {{ c.name }}</h3><button class="cs-x" type="button" onclick="this.closest('dialog').close()">×</button></div>
+  <form method="post" action="/settings/channels/{{ c.id }}" class="cs-db">
+    <div class="cs-f"><label class="sw"><input type="checkbox" name="on" value="1" {{ 'checked' if c.on }}> Канал увімкнено</label></div>
+    <div class="cs-f"><label>Назва каналу</label><input name="name" value="{{ c.name }}"></div>
+    {% if c.type in ('sms', 'viber') %}
+      <div class="cs-f"><label>Сервіс</label><select disabled><option>Турбосмс (TurboSMS)</option></select></div>
+      {{ secret(c, 'token', 'API-токен TurboSMS (HTTP REST v2)', 'Кабінет TurboSMS → Налаштування → API. Один токен для SMS і Viber.') }}
+      <div class="cs-f"><label>Відправник (альфа-імʼя)</label><input name="sender" value="{{ c.params.sender or '' }}" placeholder="MOLODIST"></div>
+      {% if c.type == 'viber' %}
+        <div class="cs-f"><label>Час життя Viber-повідомлення, сек</label><input name="ttl" value="{{ c.params.ttl or 3600 }}" inputmode="numeric"></div>
+        <div class="cs-f"><input type="hidden" name="_has_fallback" value="1"><label class="sw"><input type="checkbox" name="fallback_sms" value="1" {{ 'checked' if c.params.fallback_sms }}> Не доставлено у Viber → SMS</label></div>
+      {% else %}
+        {{ secret(c, 'webhook_secret', 'Секретний ключ вебхука (SHA-1)', 'Якщо задано — CRM перевіряє підпис запитів TurboSMS.') }}
+        <div class="cs-f"><label>URL вебхука статусів доставки</label>
+          <div class="cp"><input readonly value="{{ dlr_url }}" id="dlr{{ c.id }}"><button class="ch-btn" type="button" onclick="navigator.clipboard.writeText(document.getElementById('dlr{{ c.id }}').value);this.textContent='✓'">Копіювати</button></div>
+          <div class="hint">Вставте в кабінеті TurboSMS → Вебхуки. Статуси «доставлено / прочитано» оновлюються в журналі й розсилках.</div></div>
+        <div class="cs-f"><label>Логін SOAP (застарілий API, необовʼязково)</label><input name="login" value="{{ c.params.login or '' }}"></div>
+        {{ secret(c, 'password', 'Пароль SOAP') }}
+        <div class="cs-f"><label>Дозволений час відправки</label>
+          <div style="display:flex;gap:8px;align-items:center">з <input type="time" name="allowed_from" value="{{ c.params.allowed_from or '08:00' }}"> до <input type="time" name="allowed_to" value="{{ c.params.allowed_to or '23:30' }}"></div>
+          <div class="hint">Поза цим часом автоматичні повідомлення чекають до ранку. Діє для всіх каналів.</div></div>
+      {% endif %}
+    {% elif c.type == 'telegram' %}
+      {{ secret(c, 'token', 'Токен бота (BotFather)', 'Бот пацієнтів. CRM лише надсилає повідомлення — вебхук не встановлюється, тож робота бота OpenClaw не зачіпається.') }}
+      <div class="cs-f"><label>Імʼя бота</label><input name="username" value="{{ c.params.username or '' }}" placeholder="molodist_bot"></div>
+    {% elif c.type == 'meta' %}
+      <div class="cs-note">Підключення Instagram і Facebook через «Continue with Facebook» потребує застосунку Meta (App ID + перевірка Meta) — налаштуємо наступним кроком. Поки можна вставити токен сторінки вручну.</div>
+      {{ secret(c, 'page_token', 'Токен сторінки (Page access token)') }}
+      <div class="cs-f"><label>Підканали</label>{% for p in c.params.pages or [] %}<div class="it-row"><span>{{ '📘' if p.kind == 'facebook' else '📷' }}</span><span class="nm">{{ p.kind }} · {{ p.name }}</span></div>{% endfor %}</div>
+    {% endif %}
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn">Зберегти</button>
+      <button class="btn ghost" name="test" value="1">Зберегти й перевірити підключення</button>
+    </div>
+  </form>
+  <form method="post" action="/settings/channels/{{ c.id }}/delete" data-delpw="Видалити канал «{{ c.name }}»?" style="padding:0 18px 18px"><button class="btn danger" style="padding:4px 10px">Видалити канал</button></form>
+</dialog>
+{% endfor %}
+{% if open_ %}<script>var d=document.getElementById('chd{{ open_ }}');if(d)d.showModal();</script>{% endif %}
+{% endblock %}

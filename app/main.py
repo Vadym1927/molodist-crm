@@ -283,6 +283,8 @@ async def lifespan(app: FastAPI):
         _clinic.apply(_clinic.get(db))                      # часовий пояс з «Налаштування → Загальні»
         from .services import roles as _roles
         _roles.apply(db)                                    # свої ролі й права з «Права доступу»
+        from .services import channels as _channels
+        _channels.apply(db)                                 # канали (TurboSMS, бот) з «Налаштування → Канали»
         from .services.scripts import seed_defaults
         seed_defaults(db)
     tasks, sched = [], None
@@ -3275,7 +3277,7 @@ SETTINGS_BLOCKS = [
         ("REST API", "API-ключі CRM і вебхуки; ключ CleverBox — у «Ключі й інтеграції»", "/access/api", "api", "cmarket/rest/main"),
     ]),
     ("Комунікації", [
-        ("Канали", "Viber, SMS, месенджери", None, None, "cmarket/channels/main"),
+        ("Канали", "SMS і Viber (TurboSMS), Telegram-бот, Instagram та Facebook", "/settings/channels", "users", "cmarket/channels/main"),
         ("Повідомлення пацієнтам", "Розсилки й нагадування CRM; автоповідомлення — у CleverBox", "/campaigns", "campaigns", "messages"),
         ("IP-телефонія", "Дзвінки й записи розмов", None, None, "cmarket/siphone/main"),
         ("Bot", "Бот пацієнтів і чат", None, None, "cmarket/chat/main"),
@@ -3343,6 +3345,89 @@ def settings_page(request: Request, user: User = Depends(current_user), db: Sess
         if rows:
             blocks.append((title, rows))
     return render(request, "settings.html", blocks=blocks)
+
+
+# ---------------- Налаштування → Канали ----------------
+@app.get("/settings/channels", response_class=HTMLResponse)
+def settings_channels(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import channels as ch
+    return render(request, "channels.html", nav="settings", chs=ch.channels(db), T=ch.TYPES, open_=request.query_params.get("open", ""),
+                  dlr_url=str(request.base_url).rstrip("/").replace("http://", "https://") + "/api/public/turbosms/dlr")
+
+
+@app.post("/settings/channels/{cid:int}")
+async def settings_channel_save(request: Request, cid: int, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import channels as ch
+    f = await request.form()
+    params = {}
+    for k in ("sender", "allowed_from", "allowed_to", "login", "username", "ttl"):
+        if k in f:
+            params[k] = str(f.get(k) or "").strip()[:80]
+    if "ttl" in params:
+        params["ttl"] = int(params["ttl"]) if params["ttl"].isdigit() else 3600
+    if "fallback_sms" in f or f.get("_has_fallback"):
+        params["fallback_sms"] = bool(f.get("fallback_sms"))
+    secrets = {k: str(f.get(k) or "").strip() for k in ("token", "webhook_secret", "password", "page_token") if f.get(k)}
+    secrets.update({f"clear_{k}": "1" for k in ("token", "webhook_secret", "password", "page_token") if f.get(f"clear_{k}")})
+    try:
+        ch.update(db, cid, str(f.get("name") or "").strip(), bool(f.get("on")), params, secrets)
+    except ValueError as e:
+        return RedirectResponse(_with_msg("/settings/channels", str(e), True), 303)
+    audit(db, "channels.save", user=user, channel=cid, on=bool(f.get("on")), params=params, secrets=sorted(secrets))
+    if f.get("test"):
+        ok, msg = await asyncio.to_thread(ch.test, db, cid)
+        return RedirectResponse(_with_msg(f"/settings/channels?open={cid}", ("✅ " if ok else "❌ ") + msg, not ok), 303)
+    return RedirectResponse(_with_msg("/settings/channels", "Канал збережено"), 303)
+
+
+@app.post("/settings/channels/add")
+def settings_channel_add(type_: str = Form(..., alias="type"), name: str = Form(""), user: User = Depends(require("users")),
+                         db: Session = Depends(db_dep)):
+    from .services import channels as ch
+    if type_ not in ch.TYPES:
+        raise HTTPException(400)
+    c = ch.add(db, type_, name.strip())
+    audit(db, "channels.add", user=user, channel=c["id"], type=type_)
+    return RedirectResponse(f"/settings/channels?open={c['id']}", 303)
+
+
+@app.post("/settings/channels/{cid:int}/delete")
+def settings_channel_delete(cid: int, del_password: str = Form(""), user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import channels as ch
+    err = _delpw(db, user, del_password, "channel", None, cid)
+    if err:
+        return RedirectResponse(_with_err("/settings/channels", err), 303)
+    ch.remove(db, cid)
+    audit(db, "channels.delete", user=user, channel=cid)
+    return RedirectResponse(_with_msg("/settings/channels", "Канал видалено"), 303)
+
+
+@app.post("/api/public/turbosms/dlr")
+async def turbosms_dlr(request: Request, db: Session = Depends(db_dep)):
+    """Вебхук TurboSMS: статуси доставки SMS / Viber → журнал повідомлень і розсилки."""
+    from .services import channels as ch
+    from .integrations import messaging as _m
+    from .models import MessageLog, CampaignRecipient
+    raw = await request.body()
+    if not ch.verify_dlr(db, raw, request.headers.get("X-Signature") or request.headers.get("Signature")):
+        raise HTTPException(403, "bad signature")
+    try:
+        data = json.loads(raw or b"{}")
+    except ValueError:
+        data = dict((await request.form()).items())
+    rows = data if isinstance(data, list) else (data.get("messages") or data.get("response_result") or [data])
+    n = 0
+    for x in rows if isinstance(rows, list) else []:
+        mid, st_ = str(x.get("message_id") or ""), _m.STATUS_MAP.get(str(x.get("status") or "").lower())
+        if not mid or not st_:
+            continue
+        for m in db.scalars(select(MessageLog).where(MessageLog.message_id == mid)):
+            m.status = st_
+        for r in db.scalars(select(CampaignRecipient).where(CampaignRecipient.message_id == mid)):
+            r.status = st_
+        n += 1
+    db.commit()
+    return {"ok": True, "updated": n}
 
 
 # ---------------- Налаштування → Основні (загальні, звіти, локації) ----------------
