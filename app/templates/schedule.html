@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Графік роботи · Команда{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}{% set back = request.url.path ~ '?' ~ request.url.query %}
+<style>
+.sg-wrap{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:auto;box-shadow:var(--shadow)}
+.sg{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%}
+.sg th,.sg td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:0;text-align:center;font-size:12.5px}
+.sg th{background:var(--soft);padding:6px 4px;position:sticky;top:0;z-index:2;min-width:66px}
+.sg th.we{color:var(--bad)}.sg th.td{background:var(--lavender)}
+.sg .nm{position:sticky;left:0;background:#fff;z-index:3;text-align:left;padding:8px 12px;min-width:190px;max-width:220px}
+.sg th.nm{z-index:4;background:var(--soft)}
+.sg .nm b{display:block;font-size:13.5px}.sg .nm span{font-size:11.5px;color:var(--muted)}
+.cell{display:block;width:100%;min-height:52px;border:0;background:transparent;cursor:pointer;padding:5px 3px;font:inherit;color:inherit}
+.cell:hover{background:var(--brand-soft)}
+.cell .sh{display:block;border-radius:8px;padding:4px 2px;font-weight:700;font-size:12px;line-height:1.25;color:#fff;background:var(--c)}
+.cell .sh i{display:block;font-style:normal;font-weight:600;font-size:10.5px;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell .off{color:#c9c3cf;font-size:18px}
+td.we{background:#FBF9F6}td.td{background:#F6F3FB}
+.sg-tools{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px;margin-top:16px}
+dialog.sd{border:0;border-radius:18px;padding:0;width:min(440px,96vw);box-shadow:0 30px 80px rgba(42,36,48,.35)}
+dialog.sd::backdrop{background:rgba(42,36,48,.45)}
+.sd-h{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line)}
+.sd-h h3{margin:0;font-size:17px}.sd-b{padding:14px 18px 18px;display:grid;gap:10px}
+.sd-b label{display:grid;gap:4px;font-size:12px;font-weight:700;color:var(--muted)}.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.wdp{display:flex;gap:4px;flex-wrap:wrap}.wdp label{display:inline-flex;align-items:center;gap:4px;background:var(--soft);border-radius:8px;padding:6px 9px;font-weight:700;color:var(--ink)}
+</style>
+<div class="row between" style="margin-bottom:10px;gap:10px"><div><div class="eyebrow"><a href="/specialists" style="text-decoration:none">Команда</a></div><h1>Графік роботи</h1>
+  <div class="muted small">Натисніть клітинку, щоб задати зміну або вихідний. Кабінети — з «Налаштування → Локації → Робочі місця».</div></div>
+  <form class="row" style="gap:6px"><a class="btn ghost" href="?start={{ start - timedelta(days=span if span != 31 else 28) }}&span={{ span }}&doc={{ doc }}">←</a>
+    <input type="date" name="start" value="{{ start }}" onchange="this.form.submit()"><select name="span" onchange="this.form.submit()">{% for v, t in [(7,'тиждень'),(14,'2 тижні'),(31,'місяць')] %}<option value="{{ v }}" {{ 'selected' if span==v }}>{{ t }}</option>{% endfor %}</select>
+    <select name="doc" onchange="this.form.submit()"><option value="0">Усі спеціалісти</option>{% for d in all_docs %}<option value="{{ d.id }}" {{ 'selected' if doc==d.id }}>{{ d.name }}</option>{% endfor %}</select>
+    <a class="btn ghost" href="?start={{ start + timedelta(days=span if span != 31 else 28) }}&span={{ span }}&doc={{ doc }}">→</a><a class="btn ghost" href="?span={{ span }}&doc={{ doc }}">Сьогодні</a></form></div>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+{% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+<div class="sg-wrap"><table class="sg"><thead><tr><th class="nm">Спеціаліст</th>
+  {% for d in days %}<th class="{{ 'we' if d.weekday() >= 5 }} {{ 'td' if d == today }}">{{ WD[d.weekday()] }}<br><b>{{ d|dt('%d.%m') }}</b></th>{% endfor %}<th>Разом</th></tr></thead><tbody>
+{% for dc in docs %}{% set t = totals.get(dc.id) %}<tr><td class="nm"><b>{{ dc.name }}</b><span>{{ dc.position or '' }}</span></td>
+  {% for d in days %}{% set s = sh.get((dc.id, d)) %}<td class="{{ 'we' if d.weekday() >= 5 }} {{ 'td' if d == today }}">
+    <button type="button" class="cell" onclick="cell({{ dc.id }}, {{ dc.name|tojson }}, '{{ d }}', '{{ WD[d.weekday()] }} {{ d|dt('%d.%m') }}', {{ (s.start if s else '')|tojson }}, {{ (s.end if s else '')|tojson }}, {{ (s.place if s and s.place else '')|tojson }}, {{ (s.note if s and s.note else '')|tojson }})"
+      title="{{ (s.note or '') if s }}">{% if s %}<span class="sh" style="--c:{{ color(dc) }}">{{ s.start }}<br>{{ s.end }}{% if s.place %}<i>{{ s.place }}</i>{% endif %}</span>{% else %}<span class="off">·</span>{% endif %}</button></td>{% endfor %}
+  <td class="small" style="padding:6px 8px;white-space:nowrap">{% if t %}<b>{{ t.days }}</b> дн<br>{{ (t.minutes // 60) }} год{{ (' ' ~ (t.minutes % 60) ~ ' хв') if t.minutes % 60 }}{% else %}—{% endif %}</td></tr>
+{% else %}<tr><td colspan="{{ days|length + 2 }}" class="muted" style="padding:14px">Немає активних спеціалістів.</td></tr>{% endfor %}
+</tbody></table></div>
+
+<div class="sg-tools">
+<form class="card" style="margin:0" method="post" action="/specialists/schedule/fill"><input type="hidden" name="back" value="{{ back }}"><h2 style="margin-top:0">Заповнити графік</h2>
+  <div class="grid" style="gap:8px">
+    <select name="doctor_id" multiple size="4" required>{% for d in all_docs %}<option value="{{ d.id }}" {{ 'selected' if doc==d.id }}>{{ d.name }}</option>{% endfor %}</select>
+    <div class="small muted">Кілька — з Ctrl / ⌘.</div>
+    <div class="two"><label class="small muted">З<input type="date" name="d_from" value="{{ days[0] }}" required></label><label class="small muted">По<input type="date" name="d_to" value="{{ days[-1] }}" required></label></div>
+    <select name="mode" onchange="document.getElementById('wdp').style.display=this.value=='weekdays'?'flex':'none'"><option value="weekdays">За днями тижня</option><option value="2/2">2 через 2</option><option value="1/1">1 через 1</option><option value="3/3">3 через 3</option><option value="5/2">5 через 2</option></select>
+    <div class="wdp" id="wdp">{% for w in WD %}<label><input type="checkbox" name="wd" value="{{ loop.index0 }}" {{ 'checked' if loop.index0 < 5 }} style="width:auto">{{ w }}</label>{% endfor %}</div>
+    <div class="two"><input type="time" name="start" value="10:00" required><input type="time" name="end" value="20:00" required></div>
+    <select name="place"><option value="">Кабінет — не вказано</option>{% for p in places %}<option>{{ p }}</option>{% endfor %}</select>
+    <label class="small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="overwrite" value="1" checked style="width:auto"> замінити наявні зміни</label>
+    <button class="btn">Заповнити</button></div></form>
+<div class="card" style="margin:0"><h2 style="margin-top:0">Копіювати тиждень</h2>
+  <form method="post" action="/specialists/schedule/copy" class="grid" style="gap:8px"><input type="hidden" name="back" value="{{ back }}">
+    <label class="small muted">Тиждень, з якого копіювати<input type="date" name="src" value="{{ start }}"></label>
+    <label class="small muted">На скільки наступних тижнів<select name="weeks">{% for n in range(1, 9) %}<option>{{ n }}</option>{% endfor %}</select></label>
+    <button class="btn ghost">Копіювати</button></form>
+  <h2 style="margin:18px 0 8px">Очистити період</h2>
+  <form method="post" action="/specialists/schedule/clear" class="grid" style="gap:8px" data-delpw="Прибрати зміни за період?"><input type="hidden" name="back" value="{{ back }}">
+    <select name="doctor_id"><option value="">Усі спеціалісти</option>{% for d in all_docs %}<option value="{{ d.id }}" {{ 'selected' if doc==d.id }}>{{ d.name }}</option>{% endfor %}</select>
+    <div class="two"><input type="date" name="d_from" value="{{ days[0] }}"><input type="date" name="d_to" value="{{ days[-1] }}"></div>
+    <button class="btn danger">Очистити</button></form></div>
+</div>
+
+<dialog class="sd" id="sd"><form method="post" action="/specialists/schedule/cell"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="doctor_id" id="sd-doc"><input type="hidden" name="day" id="sd-day">
+  <div class="sd-h"><h3 id="sd-t"></h3><button type="button" class="btn ghost" style="padding:4px 10px" onclick="document.getElementById('sd').close()">×</button></div>
+  <div class="sd-b"><div class="two"><label>Початок<input type="time" name="start" id="sd-s"></label><label>Кінець<input type="time" name="end" id="sd-e"></label></div>
+    <label>Кабінет<select name="place" id="sd-p"><option value="">— не вказано —</option>{% for p in places %}<option>{{ p }}</option>{% endfor %}</select></label>
+    <label>Примітка<input name="note" id="sd-n" placeholder="напр. до 15:00 — навчання"></label>
+    <div class="row" style="gap:8px;justify-content:space-between"><button class="btn danger" name="off" value="1">Вихідний</button><button class="btn">Зберегти</button></div></div></form></dialog>
+<script>
+function cell(doc,name,day,label,s,e,p,n){document.getElementById('sd-doc').value=doc;document.getElementById('sd-day').value=day;
+  document.getElementById('sd-t').textContent=name+' · '+label;document.getElementById('sd-s').value=s||'10:00';document.getElementById('sd-e').value=e||'20:00';
+  var sel=document.getElementById('sd-p');if(p&&![].some.call(sel.options,function(o){return o.value===p})){var o=document.createElement('option');o.textContent=p;sel.appendChild(o)}sel.value=p||'';
+  document.getElementById('sd-n').value=n||'';document.getElementById('sd').showModal()}
+document.getElementById('sd').addEventListener('click',function(e){if(e.target===this)this.close()});
+</script>
+{% endblock %}

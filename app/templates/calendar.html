@@ -82,6 +82,7 @@
 .mon .dl{display:flex;flex-wrap:wrap;gap:4px}.mon .dl i{font-style:normal;font-size:12px;font-weight:800;color:#fff;padding:2px 7px;border-radius:99px}
 @media (max-width:720px){.blk .st{display:none}.ph .date{font-size:18px}.filters form{width:100%}.filters select{min-width:0;flex:1}.mon a.cell{min-height:70px;padding:6px}.mon .dl i{font-size:10px;padding:1px 5px}.mon .tot{display:none}
 .tg{max-height:none}}
+.offsh{position:absolute;left:0;right:0;background:repeating-linear-gradient(135deg,rgba(42,36,48,.035) 0 6px,rgba(42,36,48,.07) 6px 12px);pointer-events:none;z-index:0}
 </style>
 
 {% set WD = ['понеділок','вівторок','середа','четвер','пʼятниця','субота','неділя'] %}
@@ -118,7 +119,8 @@
     <div>Час</div>
     {% for g in grid.cols %}{% set d = g.col.doctor %}
     <div>{% if d %}<i class="av" style="{% if d.photo_url %}background-image:url('{{ d.photo_url }}');{% endif %}box-shadow:inset 0 0 0 2px {{ color(d) }}">{{ '' if d.photo_url else initials(d.name) }}</i>
-      <div style="min-width:0"><b>{{ d.name.split()[0] }}{{ (' ' ~ d.name.split()[1][:1] ~ '.') if d.name.split()|length > 1 }}</b><span>{{ d.position or ('звільнений' if not d.active else 'Спеціаліст') }}</span></div>
+      <div style="min-width:0"><b>{{ d.name.split()[0] }}{{ (' ' ~ d.name.split()[1][:1] ~ '.') if d.name.split()|length > 1 }}</b><span>{{ d.position or ('звільнений' if not d.active else 'Спеціаліст') }}</span>
+        {% set _s = (shifts or {}).get(d.id) %}<span style="display:block;font-weight:700;color:{{ 'var(--ok)' if _s else 'var(--faint)' }}">{{ (_s.start ~ '–' ~ _s.end ~ ((' · ' ~ _s.place) if _s.place else '')) if _s else 'не в графіку' }}</span></div>
       {% else %}<div><b>Без фахівця</b><span>задачі, очікувані за планом</span></div>{% endif %}</div>
     {% endfor %}
   </div>
@@ -132,6 +134,8 @@
     <div class="tg-hours">{% for h in range(grid.h0, grid.h1 + 1) %}<div style="top:{{ (h - grid.h0) * 60 * PX + 8 }}px">{{ '%02d' % h }}:00</div>{% if h < grid.h1 %}<div style="top:{{ ((h - grid.h0) * 60 + 30) * PX + 8 }}px;opacity:.6;font-size:12px">{{ '%02d' % h }}:30</div>{% endif %}{% endfor %}</div>
     {% for g in grid.cols %}
     <div class="tg-col" style="--c:{{ color(g.col.doctor) if g.col.doctor else '#9a93a6' }}">
+      {% set _s = (shifts or {}).get(g.col.doctor.id) if g.col.doctor else None %}{% if _s %}{% set a = (_s.start[:2]|int * 60 + _s.start[3:]|int - grid.h0 * 60) * PX %}{% set b = (_s.end[:2]|int * 60 + _s.end[3:]|int - grid.h0 * 60) * PX %}
+        {% if a > 0 %}<div class="offsh" style="top:8px;height:{{ a }}px"></div>{% endif %}<div class="offsh" style="top:{{ b + 8 }}px;bottom:0"></div>{% endif %}
       {% for h in range(grid.h0, grid.h1 + 1) %}<div class="tg-line h" style="top:{{ (h - grid.h0) * 60 * PX + 8 }}px"></div>{% if h < grid.h1 %}<div class="tg-line" style="top:{{ ((h - grid.h0) * 60 + 30) * PX + 8 }}px"></div>{% endif %}{% endfor %}
       {% for f in g.free %}<div class="fre" style="top:{{ f.top * PX + 12 }}px;height:{{ f.height * PX - 8 }}px"><b>Вільний час</b><span>{{ f.start|dt('%H:%M') }} – {{ f.end|dt('%H:%M') }} · {{ f.hours }}</span></div>{% endfor %}
       {% for b in g.blocks %}{% set e = b.ev %}

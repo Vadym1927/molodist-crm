@@ -685,6 +685,27 @@ class CbFinOp(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class StaffShift(Base):
+    """Зміна спеціаліста в графіку: день, години, кабінет (робоче місце з «Налаштування → Локації»)."""
+    __tablename__ = "staff_shifts"
+    __table_args__ = (UniqueConstraint("doctor_id", "day"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    doctor_id: Mapped[int] = mapped_column(ForeignKey("doctors.id"), index=True)
+    day: Mapped[date] = mapped_column(Date, index=True)
+    start: Mapped[str] = mapped_column(String(5))                    # «10:00»
+    end: Mapped[str] = mapped_column(String(5))                      # «20:00»
+    place: Mapped[str | None] = mapped_column(String(120))
+    note: Mapped[str | None] = mapped_column(String(200))
+    updated_by: Mapped[int | None] = mapped_column(Integer)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    @property
+    def minutes(self) -> int:
+        h1, m1 = map(int, self.start.split(":"))
+        h2, m2 = map(int, self.end.split(":"))
+        return max(0, h2 * 60 + m2 - h1 * 60 - m1)
+
+
 class SalaryRule(Base):
     """Правило нарахування зарплати спеціаліста: оклад + % від послуг + % від товарів (з чеків CleverBox)."""
     __tablename__ = "salary_rules"

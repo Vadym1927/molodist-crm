@@ -1213,6 +1213,8 @@ def calendar_page(request: Request, start: str | None = None, doc: str = "", vie
     _wh = _cl.hours_for(db, s) or (settings.work_hour_from, settings.work_hour_to)      # режим роботи з «Налаштування → Локації»
     grid = cal_svc.time_grid(s, cols[s], _wh[0], _wh[1]) if view == "day" else None
     n_ev = sum(1 for e in ev.get(s, []) if e.kind in ("visit", "attended")) if view == "day" else 0
+    from .services import schedule as _sch
+    ctx["shifts"] = _sch.for_day(db, s) if view == "day" else {}
     return render(request, "calendar.html", ev=ev, cols=cols, grid=grid, start=s, days=days, n_ev=n_ev,
                   prev=s - timedelta(days=days), next=s + timedelta(days=days), end=s + timedelta(days=days - 1),
                   month=None, **ctx)
@@ -3936,6 +3938,100 @@ def specialist_create(name: str = Form(...), position: str = Form(""), user: Use
     db.commit()
     audit(db, "specialist.create", "doctor", d.id, user=user)
     return RedirectResponse(f"/specialists/{d.id}", 303)
+
+
+# ---------------- Графік спеціалістів ----------------
+def _places(db: Session) -> list[str]:
+    from .services import clinic as cl
+    return [p["name"] for l_ in cl.get(db)["locations"] if l_.get("active") for p in l_.get("places", []) if p.get("active", True)]
+
+
+@app.get("/specialists/schedule", response_class=HTMLResponse)
+def schedule_page(request: Request, start: str = "", span: int = 14, doc: int = 0, user: User = Depends(require("specialists")),
+                  db: Session = Depends(db_dep)):
+    from .services import schedule as sch
+    today = date.today()
+    s = _day(start) or (today - timedelta(days=today.weekday()))
+    span = span if span in (7, 14, 31) else 14
+    days = [s + timedelta(days=i) for i in range(span)]
+    docs = [d_ for d_ in sch.doctors(db) if not doc or d_.id == doc]
+    sh = sch.shifts(db, days[0], days[-1])
+    return render(request, "schedule.html", nav="specialists", days=days, docs=docs, all_docs=sch.doctors(db), sh=sh, span=span,
+                  start=s, doc=doc, today=today, totals=sch.totals(sh, [d_.id for d_ in docs]), places=_places(db),
+                  timedelta=timedelta, WD=["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"], color=spec_svc.color)
+
+
+def _sched_back(back: str, msg: str = "", err: bool = False) -> RedirectResponse:
+    back = back if back.startswith("/specialists/schedule") else "/specialists/schedule"
+    return RedirectResponse(_with_msg(back, msg, err) if msg else back, 303)
+
+
+@app.post("/specialists/schedule/cell")
+def schedule_cell(doctor_id: int = Form(...), day: str = Form(...), start: str = Form(""), end: str = Form(""), place: str = Form(""),
+                  note: str = Form(""), off: str = Form(""), back: str = Form(""), user: User = Depends(require("specialists")),
+                  db: Session = Depends(db_dep)):
+    from .services import schedule as sch
+    d_ = _day(day)
+    if not d_:
+        return _sched_back(back, "Невірна дата", True)
+    try:
+        sch.set_shift(db, doctor_id, d_, None if off else start, None if off else end, place.strip()[:120] or None,
+                      note.strip()[:200] or None, user.id)
+    except ValueError as e:
+        return _sched_back(back, str(e), True)
+    audit(db, "schedule.cell", "doctor", doctor_id, user=user, day=day, start=None if off else start, end=None if off else end, place=place or None)
+    return _sched_back(back)
+
+
+@app.post("/specialists/schedule/fill")
+async def schedule_fill(request: Request, user: User = Depends(require("specialists")), db: Session = Depends(db_dep)):
+    from .services import schedule as sch
+    f = await request.form()
+    back = str(f.get("back") or "")
+    d_from, d_to = _day(str(f.get("d_from") or "")), _day(str(f.get("d_to") or ""))
+    if not d_from or not d_to or d_to < d_from or (d_to - d_from).days > 370:
+        return _sched_back(back, "Вкажіть період (до року)", True)
+    ids = [int(x) for x in f.getlist("doctor_id") if str(x).isdigit()]
+    if not ids:
+        return _sched_back(back, "Оберіть спеціаліста", True)
+    wd = {int(x) for x in f.getlist("wd") if str(x).isdigit()}
+    n = 0
+    try:
+        for did in ids:
+            n += sch.fill(db, did, d_from, d_to, wd, str(f.get("start") or ""), str(f.get("end") or ""),
+                          str(f.get("place") or "").strip()[:120] or None, str(f.get("mode") or "weekdays"), user.id,
+                          overwrite=bool(f.get("overwrite")))
+    except ValueError as e:
+        return _sched_back(back, str(e), True)
+    audit(db, "schedule.fill", user=user, doctors=ids, d_from=str(d_from), d_to=str(d_to), mode=f.get("mode"), shifts=n)
+    return _sched_back(back, f"Заповнено змін: {n}")
+
+
+@app.post("/specialists/schedule/copy")
+def schedule_copy(src: str = Form(...), weeks: int = Form(1), back: str = Form(""), user: User = Depends(require("specialists")),
+                  db: Session = Depends(db_dep)):
+    from .services import schedule as sch
+    s = _day(src)
+    if not s:
+        return _sched_back(back, "Невірна дата", True)
+    s = s - timedelta(days=s.weekday())
+    n = sum(sch.copy_week(db, s, s + timedelta(days=7 * k), user.id) for k in range(1, max(1, min(weeks, 12)) + 1))
+    audit(db, "schedule.copy", user=user, src=str(s), weeks=weeks, shifts=n)
+    return _sched_back(back, f"Скопійовано змін: {n}")
+
+
+@app.post("/specialists/schedule/clear")
+def schedule_clear(doctor_id: str = Form(""), d_from: str = Form(...), d_to: str = Form(...), del_password: str = Form(""),
+                   back: str = Form(""), user: User = Depends(require("specialists")), db: Session = Depends(db_dep)):
+    from .services import schedule as sch
+    err = _delpw(db, user, del_password, "schedule", "doctor", int(doctor_id) if doctor_id.isdigit() else None)
+    if err:
+        b = back if back.startswith("/specialists/schedule") else "/specialists/schedule"
+        return RedirectResponse(_with_err(b, err), 303)
+    a, b_ = _day(d_from), _day(d_to)
+    n = sch.clear(db, int(doctor_id) if doctor_id.isdigit() else None, a, b_) if a and b_ else 0
+    audit(db, "schedule.clear", user=user, doctor=doctor_id or "all", d_from=d_from, d_to=d_to, shifts=n)
+    return _sched_back(back, f"Прибрано змін: {n}")
 
 
 @app.get("/specialists/{did:int}", response_class=HTMLResponse)
