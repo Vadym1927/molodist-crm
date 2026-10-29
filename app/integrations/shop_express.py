@@ -104,17 +104,49 @@ class ShopExpress:
                 last = str(e)[:150]
         raise ShopError(f"вхід API-користувача не вдався ({last or 'немає відповіді'})")
 
+    # де саме Shop-Express чекає токен — пробуємо по черзі й запамʼятовуємо робочий варіант
+    PLACEMENTS = ("query", "body", "header_token", "bearer", "authorization", "query_body")
+
+    def _post(self, path: str, body: dict, how: str):
+        params, headers, js = {}, {}, dict(body)
+        if how in ("query", "query_body"):
+            params["token"] = self.token
+        if how in ("body", "query_body"):
+            js["token"] = self.token
+        if how == "header_token":
+            headers["token"] = self.token
+        if how == "bearer":
+            headers["Authorization"] = f"Bearer {self.token}"
+        if how == "authorization":
+            headers["Authorization"] = self.token
+        return self.http.post(urljoin(self.root, path), params=params, headers=headers, json=js)
+
+    @staticmethod
+    def _unauth(r) -> bool:
+        return r.status_code in (401, 403) or "UNAUTHORIZED" in r.text[:200].upper()
+
     def products(self, page: int = 500):
-        offset = 0
-        path = None
+        offset, path, how = 0, None, getattr(self, "how", None)
+        tried = []
         while True:
+            body = {"limit": page, "offset": offset, "display_in_showcase": False}
+            r = None
             for p in ([path] if path else EXPORT_PATHS):
-                r = self.http.post(urljoin(self.root, p), params={"token": self.token},
-                                   json={"limit": page, "offset": offset, "display_in_showcase": False})
-                if r.status_code == 404 and not path:
-                    continue
-                path = p
-                break
+                for h in ([how] if how else self.PLACEMENTS):
+                    r = self._post(p, body, h)
+                    if r.status_code == 404:
+                        break                              # інший шлях
+                    if self._unauth(r) and not how:
+                        tried.append(h)
+                        continue                           # інше місце для токена
+                    path, how = p, h
+                    break
+                if path:
+                    break
+            if r is None or not path:
+                raise ShopError(f"експорт каталогу: сайт не прийняв токен (спробовано: {', '.join(tried) or '—'}); "
+                                f"остання відповідь {r.status_code if r is not None else '—'} {r.text[:150] if r is not None else ''}")
+            self.how = how
             if r.status_code >= 400:
                 raise ShopError(f"експорт каталогу: {r.status_code} {r.text[:150]}")
             j = _resp(r.json())
@@ -204,6 +236,7 @@ def sync(db: Session, client: ShopExpress | None = None) -> dict:
         p.shop_synced_at = now
     db.commit()
     rep = {"at": now.isoformat(timespec="minutes"), "rows": n, "matched": matched, "urls": filled_url, "photos": filled_img,
+           "token_in": getattr(client, "how", None),
            "unmatched": unmatched, "keys": sorted(keys)[:60]}
     st = db.get(SyncState, "shop_express_probe") or SyncState(key="shop_express_probe")
     st.value, st.updated_at = json.dumps(rep, ensure_ascii=False), datetime.utcnow()

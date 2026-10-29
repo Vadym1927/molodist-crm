@@ -41,3 +41,17 @@ def test_shop_express_sync():
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
         assert "sx1.jpg" in c.get(f"/products/{pid}").text
         assert "molodist.store (Shop-Express)" in c.get("/settings/keys").text
+
+
+
+def test_token_in_body_is_found():
+    def tr(request: httpx.Request):
+        import json as _j
+        if request.url.path == "/api/auth/":
+            return httpx.Response(200, json={"status": "OK", "response": {"token": "t2"}})
+        body = _j.loads(request.content or b"{}")
+        if body.get("token") != "t2":
+            return httpx.Response(403, json={"status": "UNAUTHORIZED", "response": {"message": "Token is invalid"}})
+        return httpx.Response(200, json={"status": "OK", "response": {"products": [{"id": 1, "article": "Z"}]}})
+    cli = sx.ShopExpress("https://molodist.store/", "a", "b", http=httpx.Client(transport=httpx.MockTransport(tr)))
+    assert [r["article"] for r in cli.products()] == ["Z"] and cli.how == "body"
