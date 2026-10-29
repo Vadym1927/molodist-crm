@@ -126,3 +126,28 @@ def test_no_match_by_legal_form_words():
         assert pay.learn_entity(db, wrong, s)                              # ручне рознесення запамʼятовує реквізити
         assert db.query(SupplierEntity).filter_by(supplier_id=s.id).count() == 2
         assert pay.supplier_for(db, wrong).id == s.id
+
+
+def test_partial_payment_tops_up_after_wrong_unassigned():
+    from app.services import suppliers as sp, stock as st
+    with SessionLocal() as db:
+        p = Product(name="Доплатний крем", name_norm="доплатний крем", warehouse="vitrina")
+        s = Supplier(name="TOPUPTEST")
+        db.add_all([p, s]); db.commit()
+        sp.save_entity(db, s, {"kind": "ТОВ", "legal_name": "ТОВ ДОПЛАТА", "edrpou": "11112222", "iban": "UA" + "5" * 27})
+        doc = st.new_doc(db, "supply", wh_to="vitrina", supplier="TOPUPTEST", ext_no="77123")
+        doc.lines.append(st.StockDocLine(product_id=p.id, qty=1, unit_cost=1000))
+        db.commit()
+        g = pay.find_group(db, pay.group_key(doc))
+        wrong = BankTxn(id="topup-wrong", fop="Бондар", at=datetime.now(), amount=-400, counter_name="ТОВ ІНШЕ")
+        db.add(wrong); db.commit()
+        pay.allocate(db, g, 400, txn=wrong, fop="Бондар"); wrong.status = "matched"; db.commit()
+        good = BankTxn(id="topup-good", fop="Колган", at=datetime.now(), amount=-1000, counter_iban="UA" + "5" * 27,
+                       description="Оплата за товар згідно рахунку № 77123")
+        db.add(good); db.commit()
+        assert pay.match_txn(db, good) == "partial"                        # лягло лише 600
+        pay.unallocate_txn(db, wrong)
+        pay.rematch_all(db)
+        db.refresh(good)
+        assert good.status == "matched" and pay.paid_map(db, [doc.id])[doc.id] == 1000
+        assert db.get(st.StockDoc, doc.id).paid_by == "Колган"

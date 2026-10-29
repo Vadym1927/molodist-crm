@@ -214,7 +214,12 @@ def match_txn(db: Session, txn: BankTxn) -> str:
         return txn.status
     if how == "req":
         txn.supplier_id = sup.id
-    amt = round(-txn.amount, 2)
+    already = float(db.scalar(select(func.sum(PaymentAlloc.amount)).where(PaymentAlloc.txn_id == txn.id)) or 0)
+    amt = round(-txn.amount - already, 2)          # частково рознесений платіж — доносимо залишок
+    if amt <= TOL:
+        txn.status = "matched"
+        db.commit()
+        return txn.status
     day = txn.at.date() if txn.at else None
     # накладна не пізніше ніж через 60 днів після платежу (передоплата) і не раніше ніж за рік до нього
     open_g = [g for g in groups(db, sup.name, only_open=True)
@@ -223,9 +228,14 @@ def match_txn(db: Session, txn: BankTxn) -> str:
     by_no = [g for g in open_g if g.ext_no and (set(re.findall(r"\d{3,}", g.ext_no)) & nums)]
     by_amt = [g for g in open_g if abs(g.left - amt) <= TOL]
     target = by_no[0] if len(by_no) == 1 else (by_amt[0] if len(by_amt) == 1 else None)
+    if already > TOL:                              # спершу — та сама накладна, на яку платіж уже частково ліг
+        prev = {a.doc_id for a in db.scalars(select(PaymentAlloc).where(PaymentAlloc.txn_id == txn.id))}
+        same = [g for g in open_g if any(d.id in prev for d in g.docs)]
+        if same:
+            target = same[0]
     if not target and how == "req" and len(open_g) == 1 and open_g[0].left + TOL >= amt:
         target = open_g[0]                         # єдина відкрита накладна — лише якщо постачальника впізнано за реквізитами
-    if target and how == "name" and not by_no:
+    if target and how == "name" and not by_no and not already:
         target = None                              # лише за назвою + сума — не розносимо сами, чекає ручного рішення
     if not target:
         db.commit()
@@ -267,7 +277,7 @@ def learn_entity(db: Session, txn: BankTxn, sup: Supplier) -> bool:
 
 def rematch_all(db: Session) -> int:
     n = 0
-    for t in db.scalars(select(BankTxn).where(BankTxn.status == "new", BankTxn.amount < 0)).all():
+    for t in db.scalars(select(BankTxn).where(BankTxn.status.in_(("new", "partial")), BankTxn.amount < 0)).all():
         if match_txn(db, t) in ("matched", "partial"):
             n += 1
     return n

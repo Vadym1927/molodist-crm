@@ -191,6 +191,19 @@ async def job_expiry():
         log.warning("expiry notify: %s", e)
 
 
+async def job_rematch():
+    """Перерозносити платежі, що вже є в CRM (без запиту в monobank): нові правила, частково рознесені."""
+    from .services import payments as pay
+    def run():
+        with SessionLocal() as db:
+            return pay.rematch_all(db)
+    try:
+        n = await asyncio.to_thread(run)
+        log.info("rematch: %s", n)
+    except Exception as e:  # noqa: BLE001
+        log.warning("rematch: %s", e)
+
+
 async def job_mono():
     """monobank: щогодини — списання за 2 доби, рознесення оплат постачальникам."""
     from .integrations import monobank
@@ -264,6 +277,7 @@ async def lifespan(app: FastAPI):
         sched.add_job(job_message_statuses, "interval", minutes=30)
         sched.add_job(job_checkbox, "cron", hour="8,14,23", minute=50)
         sched.add_job(job_mono, "cron", minute=20)
+        sched.add_job(job_rematch, "date", run_date=datetime.now() + timedelta(seconds=40))   # після оновлення — одразу
         sched.add_job(job_expiry, "cron", hour=9, minute=15)
         sched.add_job(job_shop, "cron", hour=6, minute=40)
         sched.start()
@@ -2581,6 +2595,7 @@ def stock_mono_recheck(user: User = Depends(require("stock")), db: Session = Dep
             audit(db, "stock.pay_unassign", "stock_doc", d_, user=user, amount=round(-w.amount, 2), fop=w.fop, txn=w.id,
                   why="упізнано лише за назвою")
         n_ += 1
+    pay.rematch_all(db)                               # частково рознесені доносять залишок
     audit(db, "mono.recheck_weak", user=user, n=n_)
     return RedirectResponse(f"/stock?tab=suppliers&msg={_q(f'Знято сумнівних автоматичних рознесень: {n_}. Вони чекають ручного рішення нижче.')}#mono", 303)
 
@@ -2611,6 +2626,10 @@ def stock_mono_txn(tid: str, action: str = Form(...), group: str = Form(""), sup
         pay.unallocate_txn(db, t)
         for d_ in docs_:
             audit(db, "stock.pay_unassign", "stock_doc", d_, user=user, amount=round(-t.amount, 2), fop=t.fop, txn=tid)
+        t.status = "ignored_once"                     # цей платіж не розносити знову одразу на те саме
+        db.commit()
+        pay.rematch_all(db)                           # інші платежі (напр. частково рознесені) доносять залишок
+        t.status = "new"
     elif action == "ignore":
         t.status = "ignored"
     elif action == "auto":
