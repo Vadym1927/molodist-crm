@@ -127,11 +127,15 @@ def journal(db: Session, d_from: date, d_to: date, users: dict | None = None, ar
     return out
 
 
-def journal_totals(rows: list[J]) -> dict:
-    t = {"income": 0.0, "expense": 0.0, "transfer": 0.0, "non_money": 0.0, "n": len(rows)}
+def journal_totals(rows: list[J], exclude_income: set[str] | None = None) -> dict:
+    """exclude_income — статті, які не рахуються в дохід (Налаштування → Звіти), напр. «Внесення коштів в касу»."""
+    ex = exclude_income or set()
+    t = {"income": 0.0, "expense": 0.0, "transfer": 0.0, "non_money": 0.0, "excluded": 0.0, "n": len(rows)}
     for r in rows:
         if r.kind == "transfer":
             t["transfer"] += r.amount
+        elif r.kind == "income" and r.article.strip().lower() in ex:
+            t["excluded"] += r.amount
         elif not r.money:
             t["non_money"] += r.amount
         elif r.kind == "income":

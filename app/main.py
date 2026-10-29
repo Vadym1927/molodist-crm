@@ -266,6 +266,8 @@ async def lifespan(app: FastAPI):
         ensure_owner(db)
         from .integrations.cleverbox import load_saved_token
         load_saved_token(db)
+        from .services import clinic as _clinic
+        _clinic.apply(_clinic.get(db))                      # часовий пояс з «Налаштування → Загальні»
         from .services.scripts import seed_defaults
         seed_defaults(db)
     tasks, sched = [], None
@@ -1207,7 +1209,9 @@ def calendar_page(request: Request, start: str | None = None, doc: str = "", vie
     if doc_id:                                   # фільтр по спеціалісту — лише його колонка
         cols = {d: [c for c in cs if c.doctor and c.doctor.id == doc_id] or
                    [cal_svc.Column(str(doc_id), db.get(Doctor, doc_id), [])] for d, cs in cols.items()}
-    grid = cal_svc.time_grid(s, cols[s], settings.work_hour_from, settings.work_hour_to) if view == "day" else None
+    from .services import clinic as _cl
+    _wh = _cl.hours_for(db, s) or (settings.work_hour_from, settings.work_hour_to)      # режим роботи з «Налаштування → Локації»
+    grid = cal_svc.time_grid(s, cols[s], _wh[0], _wh[1]) if view == "day" else None
     n_ev = sum(1 for e in ev.get(s, []) if e.kind in ("visit", "attended")) if view == "day" else 0
     return render(request, "calendar.html", ev=ev, cols=cols, grid=grid, start=s, days=days, n_ev=n_ev,
                   prev=s - timedelta(days=days), next=s + timedelta(days=days), end=s + timedelta(days=days - 1),
@@ -2414,8 +2418,8 @@ CB_SETUP = "https://molodist.cbox.online/new/#setup/"
 # Налаштування: блоки як у CleverBox. Пункт: (назва, опис, посилання в CRM | None, право, шлях у CleverBox | None)
 SETTINGS_BLOCKS = [
     ("Основні налаштування", [
-        ("Загальні", "Назва, контакти, години роботи клініки", None, None, "main_settings"),
-        ("Філії", "Філії й кабінети", None, None, "salons"),
+        ("Загальні", "Країна, часовий пояс, мова, валюта, ПДВ; налаштування звітів", "/settings/clinic", "users", "main_settings"),
+        ("Філії", "Локації: ресурси (апарати), режим роботи, робочі місця (кабінети)", "/settings/clinic#loc", "users", "salons"),
         ("Права доступу", "Користувачі CRM, ролі, паролі входу й видалення", "/access", "users", "roles"),
         ("REST API", "API-ключі CRM і вебхуки; ключ CleverBox — у «Ключі й інтеграції»", "/access/api", "users", "cmarket/rest/main"),
     ]),
@@ -2487,6 +2491,123 @@ def settings_page(request: Request, user: User = Depends(current_user), db: Sess
         if rows:
             blocks.append((title, rows))
     return render(request, "settings.html", blocks=blocks)
+
+
+# ---------------- Налаштування → Основні (загальні, звіти, локації) ----------------
+@app.get("/settings/clinic", response_class=HTMLResponse)
+def settings_clinic(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import clinic as cl
+    from .models import CbFinOp
+    data = cl.get(db)
+    arts = sorted({a for (a,) in db.execute(select(CbFinOp.article).where(CbFinOp.kind == "income", CbFinOp.article.is_not(None)).distinct()) if a}
+                  | set(__import__("app.services.finops", fromlist=["INCOME_CATS"]).INCOME_CATS) | set(data["reports"]["exclude_income"]))
+    return render(request, "clinic.html", nav="settings", c=data, cl=cl, income_articles=arts,
+                  open_=request.query_params.get("open", ""))
+
+
+def _clinic_back(open_: str = "", msg: str = "Збережено") -> RedirectResponse:
+    return RedirectResponse(f"/settings/clinic?msg={_q(msg)}" + (f"&open={open_}" if open_ else ""), 303)
+
+
+@app.post("/settings/clinic/general")
+def settings_clinic_general(country: str = Form(""), timezone_: str = Form("Europe/Kyiv", alias="timezone"), language: str = Form(""),
+                            currency: str = Form("UAH"), vat: str = Form(""), user: User = Depends(require("users")),
+                            db: Session = Depends(db_dep)):
+    from zoneinfo import ZoneInfo
+    from .services import clinic as cl
+    try:
+        ZoneInfo(timezone_)
+    except Exception:  # noqa: BLE001
+        timezone_ = "Europe/Kyiv"
+    data = cl.get(db)
+    data["general"] = {"country": country[:60], "timezone": timezone_, "language": language[:40], "currency": currency[:6], "vat": bool(vat)}
+    cl.save(db, data)
+    audit(db, "settings.general", user=user, **data["general"])
+    return _clinic_back()
+
+
+@app.post("/settings/clinic/reports")
+async def settings_clinic_reports(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import clinic as cl
+    f = await request.form()
+    items = [str(x).strip()[:120] for x in f.getlist("exclude_income") if str(x).strip()]
+    extra = str(f.get("extra") or "").strip()[:120]
+    if extra:
+        items.append(extra)
+    data = cl.get(db)
+    data["reports"]["exclude_income"] = sorted(set(items))
+    cl.save(db, data)
+    audit(db, "settings.reports", user=user, exclude_income=data["reports"]["exclude_income"])
+    return _clinic_back()
+
+
+@app.post("/settings/clinic/location")
+def settings_clinic_location(lid: str = Form(""), name: str = Form(...), address: str = Form(""), phone: str = Form(""),
+                             active: str = Form(""), user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import clinic as cl
+    data = cl.get(db)
+    loc = cl.location(data, int(lid)) if lid.isdigit() else None
+    if not loc:
+        nid = max([int(x.get("id", 0)) for x in data["locations"]] + [0]) + 1
+        loc = {"id": nid, "hours": {str(i): {"on": i < 5, "from": "10:00", "to": "20:00"} for i in range(7)}, "resources": [], "places": []}
+        data["locations"].append(loc)
+    loc.update(name=name.strip()[:120] or "Локація", address=address.strip()[:200], phone=phone.strip()[:40], active=bool(active))
+    cl.save(db, data)
+    audit(db, "settings.location", user=user, location=loc["id"], name=loc["name"])
+    return _clinic_back()
+
+
+@app.post("/settings/clinic/location/{lid:int}/hours")
+async def settings_clinic_hours(lid: int, request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    import re as _re
+    from .services import clinic as cl
+    f = await request.form()
+    data = cl.get(db)
+    loc = cl.location(data, lid)
+    if loc:
+        hrs = {}
+        for i in range(7):
+            fr, to = str(f.get(f"from_{i}") or "10:00"), str(f.get(f"to_{i}") or "20:00")
+            ok = _re.fullmatch(r"\d{2}:\d{2}", fr) and _re.fullmatch(r"\d{2}:\d{2}", to) and fr < to
+            hrs[str(i)] = {"on": bool(f.get(f"on_{i}")) and bool(ok), "from": fr if ok else "10:00", "to": to if ok else "20:00"}
+        loc["hours"] = hrs
+        cl.save(db, data)
+        audit(db, "settings.hours", user=user, location=lid)
+    return _clinic_back(f"hours{lid}")
+
+
+@app.post("/settings/clinic/location/{lid:int}/{what}")
+def settings_clinic_list(lid: int, what: str, action: str = Form(...), idx: str = Form(""), name: str = Form(""),
+                         del_password: str = Form(""), user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    """Ресурси (апарати) і робочі місця (кабінети): add · rename · toggle · up · down · delete (з паролем видалення)."""
+    from .services import clinic as cl
+    if what not in ("resources", "places"):
+        raise HTTPException(404)
+    data = cl.get(db)
+    loc = cl.location(data, lid)
+    if not loc:
+        return _clinic_back()
+    items = loc.setdefault(what, [])
+    i = int(idx) if idx.isdigit() and int(idx) < len(items) else None
+    opn = f"{what}{lid}"
+    if action == "add" and name.strip():
+        items.append({"name": name.strip()[:120], "active": True})
+    elif i is not None and action == "rename" and name.strip():
+        items[i]["name"] = name.strip()[:120]
+    elif i is not None and action == "toggle":
+        items[i]["active"] = not items[i].get("active", True)
+    elif i is not None and action in ("up", "down"):
+        j = i - 1 if action == "up" else i + 1
+        if 0 <= j < len(items):
+            items[i], items[j] = items[j], items[i]
+    elif i is not None and action == "delete":
+        err = _delpw(db, user, del_password, f"settings_{what}", "location", lid)
+        if err:
+            return RedirectResponse(_with_err(f"/settings/clinic?open={opn}", err), 303)
+        items.pop(i)
+    cl.save(db, data)
+    audit(db, f"settings.{what}", user=user, location=lid, op=action, name=name or None)
+    return _clinic_back(opn)
 
 
 @app.get("/settings/keys", response_class=HTMLResponse)
@@ -3158,7 +3279,9 @@ def finance_ops(request: Request, df: str = "", dt_: str = "", user: User = Depe
     d_from, d_to = _period(df, dt_)
     rows, opts, f = _journal(db, request, d_from, d_to)
     last_cb = db.scalar(select(func.max(CbFinOp.updated_at)))
-    return render(request, "fin_ops.html", nav="finance", rows=rows[:2000], n_all=len(rows), tot=fo.journal_totals(rows),
+    from .services import clinic as _cl
+    return render(request, "fin_ops.html", nav="finance", rows=rows[:2000], n_all=len(rows),
+                  tot=fo.journal_totals(rows, _cl.excluded_income(db)),
                   d_from=d_from, d_to=d_to, f=f, opts=opts, archive=bool(request.query_params.get("archive")),
                   EXP=fo.EXPENSE_CATS, INC=fo.INCOME_CATS, KL=fo.KIND_LABELS, boxes=_cashboxes(db), last_cb=last_cb,
                   cb_imported=LAST_IMPORT.pop(f"cbfin-{user.id}", None),

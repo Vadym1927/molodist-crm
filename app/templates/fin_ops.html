@@ -59,6 +59,7 @@
   <div class="sum" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
     <div><span>Доходи</span><b class="k-income">{{ tot.income|uah }}</b></div><div><span>Витрати</span><b class="k-expense">{{ tot.expense|uah }}</b></div>
     <div><span>Різниця</span><b>{{ tot.net|uah }}</b></div>{% if tot.transfer %}<div class="muted"><span>Переміщення</span><span>{{ tot.transfer|uah }}</span></div>{% endif %}
+    {% if tot.excluded %}<div class="muted" title="Налаштування → Налаштування звітів"><span>Не в доході (внесення в касу…)</span><span>{{ tot.excluded|uah }}</span></div>{% endif %}
     {% if tot.non_money %}<div class="muted"><span>Не грошима (бонуси, баланс)</span><span>{{ tot.non_money|uah }}</span></div>{% endif %}</div>
 </form>
 <div class="jr-t">

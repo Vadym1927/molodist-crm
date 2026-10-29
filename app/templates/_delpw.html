@@ -21,7 +21,7 @@
     var f=e.target,b=e.submitter;
     var t=(b&&b.hasAttribute('data-delpw'))?b.getAttribute('data-delpw'):(f.hasAttribute('data-delpw')?f.getAttribute('data-delpw'):null);
     if(t===null||f._dpok)return;
-    e.preventDefault();cur={f:f,b:b};
+    e.preventDefault();cur={f:f,b:b};document.querySelectorAll('dialog[open]').forEach(function(d){d.close()});   // вікно пароля — поверх
     document.getElementById('dp-t').textContent=t||'Видалити?';
     document.getElementById('dp-bg').classList.add('on');setTimeout(function(){document.getElementById('dp-pw').focus()},50);
   },true);

@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Основні налаштування · MOLODIST CRM{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+<style>
+.cs-tag{display:inline-block;background:#8e98a6;color:#fff;font:700 12px var(--head);letter-spacing:.06em;text-transform:uppercase;padding:7px 14px;border-radius:8px 8px 0 0;margin-left:14px}
+.cs-box{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:22px;box-shadow:var(--shadow)}
+.cs-note{border-left:4px solid #5B9BD5;background:#F4F8FD;border-radius:10px;padding:12px 16px;color:#4a4f57;font-size:14px}
+.cs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;margin-top:16px}
+.cs-card{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px 20px;cursor:pointer;text-align:left;font:inherit;color:inherit;box-shadow:var(--shadow)}
+.cs-card:hover{border-color:var(--classic)}.cs-card b{display:block;font:600 17px var(--head);text-transform:uppercase;color:var(--classic);margin-bottom:6px}
+.cs-card span{font-size:13.5px;color:var(--muted)}.cs-card i{font-style:normal;font-size:26px;color:var(--classic)}
+.loc{border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:#FAF9F7;margin-top:14px}
+.loc .lb{display:block;width:100%;margin-top:8px;border:1.5px solid #5B9BD5;color:#2f65a0;background:#fff;border-radius:10px;padding:8px;font:700 13px var(--sans);letter-spacing:.04em;text-transform:uppercase;cursor:pointer}
+.loc .lb:hover{background:#F4F8FD}
+.on-pill{display:inline-block;padding:2px 9px;border-radius:7px;font:800 12px var(--sans)}.on-pill.on{background:#4CAF50;color:#fff}.on-pill.off{background:#ddd;color:#666}
+dialog.cs-d{border:0;border-radius:18px;padding:0;width:min(620px,96vw);max-height:90vh;box-shadow:0 30px 80px rgba(42,36,48,.35)}
+dialog.cs-d::backdrop{background:rgba(42,36,48,.45)}
+.cs-dh{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#fff;z-index:2}
+.cs-dh h3{margin:0;font:600 18px var(--head);text-transform:uppercase}.cs-x{border:0;background:var(--soft);width:36px;height:36px;border-radius:10px;font-size:20px;cursor:pointer}
+.cs-db{padding:16px 18px 20px;display:grid;gap:12px}
+.cs-f{border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:grid;gap:6px}.cs-f label{font:700 11.5px var(--sans);text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.cs-f select,.cs-f input{height:44px}.cs-f .hint{font-size:12.5px;color:var(--muted)}
+.it-row{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:#FAF9F7}
+.it-row .nm{flex:1;min-width:0}.it-row .nm input{width:100%;height:36px;border-color:transparent;background:transparent;color:#2f65a0;font-weight:600}
+.it-row .nm input:focus{background:#fff;border-color:var(--line)}.it-row button{border:0;background:none;cursor:pointer;padding:4px 6px;border-radius:7px}
+.it-row .del{border:1.5px solid #E8A0A0;color:#C0392B;font:700 11px var(--sans);padding:3px 8px}
+.hr-row{display:grid;grid-template-columns:70px 1fr 1fr;gap:8px;align-items:center;border-bottom:1px solid var(--line);padding:6px 0}
+.hr-row input[type=time]{height:40px}
+.sw{position:relative;display:inline-flex;align-items:center;gap:8px;font-weight:700}
+.sw input{appearance:none;width:44px;height:24px;border-radius:12px;background:#ccc;position:relative;cursor:pointer;transition:background .15s;border:0;padding:0}
+.sw input:checked{background:#4CAF50}.sw input:before{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s}
+.sw input:checked:before{left:23px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}.chips label{display:inline-flex;gap:6px;align-items:center;background:var(--soft);border-radius:8px;padding:6px 10px;font-size:14px;text-transform:none;letter-spacing:0;color:var(--ink);font-weight:600}
+</style>
+<div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a></div><h1>Основні налаштування</h1>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+{% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+
+<span class="cs-tag">Основні налаштування</span>
+<div class="cs-box"><div class="cs-note">Заповніть основні налаштування CRM, щоб вона працювала правильно й відповідала вашим потребам: часовий пояс — для часу записів і операцій, статті доходу — для коректних звітів.</div>
+  <div class="cs-grid">
+    <button type="button" class="cs-card" onclick="dlg('general')"><div><b>Загальні налаштування</b><span>Країна, часовий пояс, мова, валюта, ПДВ · зараз: {{ c.general.country }}, {{ c.general.timezone }}, {{ c.general.currency }}</span></div><i>›</i></button>
+    <button type="button" class="cs-card" onclick="dlg('reports')"><div><b>Налаштування звітів</b><span>Статті, які не рахуються в дохід{{ (': ' ~ c.reports.exclude_income|join(', ')) if c.reports.exclude_income }}</span></div><i>›</i></button>
+  </div></div>
+
+<span class="cs-tag" id="loc">Локації</span>
+<div class="cs-box"><div class="cs-note"><b>Це список локацій клініки.</b> Налаштовуйте назву, контакти, режим роботи, ресурси (апарати) й робочі місця (кабінети). Режим роботи задає сітку дня в «Записах».</div>
+  {% for l in c.locations %}<div class="loc">
+    <div class="row between"><span class="small muted">ID {{ l.id }}</span><span class="on-pill {{ 'on' if l.active else 'off' }}">{{ 'ON' if l.active else 'OFF' }}</span></div>
+    <div class="row between" style="margin:2px 0 4px"><a href="#" onclick="dlg('loc{{ l.id }}');return false" style="font:600 20px var(--head);color:#2f65a0;text-decoration:none">{{ l.name }}</a></div>
+    {% if l.address or l.phone %}<div class="small muted">{{ l.address }}{{ (' · ' ~ l.phone) if l.phone }}</div>{% endif %}
+    <button type="button" class="lb" onclick="dlg('resources{{ l.id }}')">⬡ Ресурси · {{ l.resources|selectattr('active')|list|length }}</button>
+    <button type="button" class="lb" onclick="dlg('hours{{ l.id }}')">🕘 Режим роботи · {% set on = [] %}{% for i in range(7) %}{% if l.hours[i|string].on %}{% set _ = on.append(cl.WEEKDAYS[i]) %}{% endif %}{% endfor %}{{ on|join(', ') if on|length < 7 else 'щодня' }} {{ l.hours['0'].from }}–{{ l.hours['0'].to }}</button>
+    <button type="button" class="lb" onclick="dlg('places{{ l.id }}')">👥 Робочі місця · {{ l.places|selectattr('active')|list|length }}</button>
+  </div>{% endfor %}
+  <button type="button" class="btn ghost" style="margin-top:12px" onclick="dlg('locnew')">＋ Додати локацію</button>
+</div>
+<p class="small muted">Технічні налаштування імпорту CleverBox (статуси візитів) CRM визначає сама — заповнювати не потрібно.</p>
+
+{# ---------- вікна ---------- #}
+<dialog class="cs-d" id="d-general"><form method="post" action="/settings/clinic/general">
+  <div class="cs-dh"><h3>Загальні налаштування</h3><div class="row" style="gap:6px"><button class="btn">💾 Зберегти</button><button type="button" class="cs-x" onclick="this.closest('dialog').close()">×</button></div></div>
+  <div class="cs-db">
+    <div class="cs-f"><label>Країна</label><select name="country">{% for x in cl.COUNTRIES %}<option {{ 'selected' if c.general.country==x }}>{{ x }}</option>{% endfor %}</select><div class="hint">Країна, де працює клініка.</div></div>
+    <div class="cs-f"><label>Часовий пояс</label><select name="timezone">{% for x in cl.TIMEZONES %}<option {{ 'selected' if c.general.timezone==x }}>{{ x }}</option>{% endfor %}</select><div class="hint">За ним показується час записів, документів і фіноперацій.</div></div>
+    <div class="cs-f"><label>Мова</label><select name="language">{% for x in cl.LANGUAGES %}<option {{ 'selected' if c.general.language==x }}>{{ x }}</option>{% endfor %}</select><div class="hint">Мова системних повідомлень і документів.</div></div>
+    <div class="cs-f"><label>Валюта</label><select name="currency">{% for x in cl.CURRENCIES %}<option {{ 'selected' if c.general.currency==x }}>{{ x }}</option>{% endfor %}</select><div class="hint">Облік ведеться в одній валюті.</div></div>
+    <div class="cs-f"><label class="sw"><input type="checkbox" name="vat" value="1" {{ 'checked' if c.general.vat }}> Використовувати податкові ставки</label><div class="hint">Якщо клініка — платник ПДВ.</div></div>
+  </div></form></dialog>
+
+<dialog class="cs-d" id="d-reports"><form method="post" action="/settings/clinic/reports">
+  <div class="cs-dh"><h3>Налаштування звітів</h3><div class="row" style="gap:6px"><button class="btn">💾 Зберегти</button><button type="button" class="cs-x" onclick="this.closest('dialog').close()">×</button></div></div>
+  <div class="cs-db"><div class="cs-f"><label>Статті, які виключаються з доходу</label>
+    <div class="chips">{% for a in income_articles %}<label><input type="checkbox" name="exclude_income" value="{{ a }}" {{ 'checked' if a in c.reports.exclude_income }} style="width:auto;height:auto">{{ a }}</label>{% endfor %}</div>
+    <input name="extra" placeholder="Інша стаття — впишіть назву точно як у CleverBox">
+    <div class="hint">Суми з цими статтями не рахуються в «Доходи» журналу фіноперацій і звітів (напр. «Внесення коштів в касу» — це не виручка).</div></div></div></form></dialog>
+
+{% for l in c.locations %}
+<dialog class="cs-d" id="d-loc{{ l.id }}"><form method="post" action="/settings/clinic/location"><input type="hidden" name="lid" value="{{ l.id }}">
+  <div class="cs-dh"><h3>Локація</h3><div class="row" style="gap:6px"><button class="btn">💾 Зберегти</button><button type="button" class="cs-x" onclick="this.closest('dialog').close()">×</button></div></div>
+  <div class="cs-db"><div class="cs-f"><label>Назва</label><input name="name" value="{{ l.name }}" required></div>
+    <div class="cs-f"><label>Адреса</label><input name="address" value="{{ l.address or '' }}"></div>
+    <div class="cs-f"><label>Телефон</label><input name="phone" value="{{ l.phone or '' }}"></div>
+    <div class="cs-f"><label class="sw"><input type="checkbox" name="active" value="1" {{ 'checked' if l.active }}> Локація працює</label></div></div></form></dialog>
+
+<dialog class="cs-d" id="d-hours{{ l.id }}"><form method="post" action="/settings/clinic/location/{{ l.id }}/hours">
+  <div class="cs-dh"><h3>Режим роботи</h3><div class="row" style="gap:6px"><button class="btn">💾 Зберегти</button><button type="button" class="cs-x" onclick="this.closest('dialog').close()">×</button></div></div>
+  <div class="cs-db"><div style="font:400 20px var(--head)">{{ l.name }}</div><div class="cs-note">Увімкніть дні, коли працює локація, і вкажіть години.</div>
+    <div>{% for i in range(7) %}{% set h = l.hours[i|string] %}<div class="hr-row"><label class="sw">{{ cl.WEEKDAYS[i] }} <input type="checkbox" name="on_{{ i }}" value="1" {{ 'checked' if h.on }}></label>
+      <input type="time" name="from_{{ i }}" value="{{ h.from }}"><input type="time" name="to_{{ i }}" value="{{ h.to }}"></div>{% endfor %}</div></div></form></dialog>
+
+{% for what, title, note, ph in [('resources','Ресурси','Апарати й обладнання, які займаються під час процедури (IPL, лазер…).','Напр. «Лазер 2»'),('places','Робочі місця','Кабінети — за ними закріплюються спеціалісти.','Напр. «Кабінет 4 (ін’єкції)»')] %}
+<dialog class="cs-d" id="d-{{ what }}{{ l.id }}"><div class="cs-dh"><h3>{{ title }}</h3><button type="button" class="cs-x" onclick="this.closest('dialog').close()">×</button></div>
+  <div class="cs-db"><div style="font:400 20px var(--head)">{{ l.name }}</div><div class="cs-note">{{ note }}</div>
+    <form method="post" action="/settings/clinic/location/{{ l.id }}/{{ what }}" class="row" style="gap:6px;flex-wrap:nowrap"><input type="hidden" name="action" value="add">
+      <input name="name" placeholder="{{ ph }}" required style="flex:1"><button class="btn" style="background:#4CAF50;border-color:#4CAF50">＋ Додати</button></form>
+    {% for it in l[what] %}<div class="it-row">
+      <form method="post" action="/settings/clinic/location/{{ l.id }}/{{ what }}" style="display:flex;flex-direction:column;margin:0"><input type="hidden" name="idx" value="{{ loop.index0 }}">
+        <button name="action" value="up" title="Вище" {{ 'disabled' if loop.first }}>▲</button><button name="action" value="down" title="Нижче" {{ 'disabled' if loop.last }}>▼</button></form>
+      <form method="post" action="/settings/clinic/location/{{ l.id }}/{{ what }}" class="nm" style="margin:0"><input type="hidden" name="idx" value="{{ loop.index0 }}"><input type="hidden" name="action" value="rename">
+        <input name="name" value="{{ it.name }}" onchange="this.form.submit()" title="Змінити назву — і Enter"></form>
+      <form method="post" action="/settings/clinic/location/{{ l.id }}/{{ what }}" style="margin:0"><input type="hidden" name="idx" value="{{ loop.index0 }}"><input type="hidden" name="action" value="toggle">
+        <button class="on-pill {{ 'on' if it.active else 'off' }}">{{ 'ON' if it.active else 'OFF' }}</button></form>
+      <form method="post" action="/settings/clinic/location/{{ l.id }}/{{ what }}" data-delpw="Видалити «{{ it.name }}»?" style="margin:0"><input type="hidden" name="idx" value="{{ loop.index0 }}"><input type="hidden" name="action" value="delete">
+        <button class="del">DELETE</button></form></div>
+    {% else %}<div class="muted small">Ще нічого немає.</div>{% endfor %}
+  </div></dialog>
+{% endfor %}
+{% endfor %}
+
+<dialog class="cs-d" id="d-locnew"><form method="post" action="/settings/clinic/location">
+  <div class="cs-dh"><h3>Нова локація</h3><div class="row" style="gap:6px"><button class="btn">💾 Додати</button><button type="button" class="cs-x" onclick="this.closest('dialog').close()">×</button></div></div>
+  <div class="cs-db"><div class="cs-f"><label>Назва</label><input name="name" required></div><div class="cs-f"><label>Адреса</label><input name="address"></div>
+    <div class="cs-f"><label>Телефон</label><input name="phone"></div><input type="hidden" name="active" value="1">
+    <div class="hint small muted">Нову локацію в CleverBox додає підтримка CleverBox (платно); у CRM — для розкладу й звітів.</div></div></form></dialog>
+<script>
+function dlg(k){var d=document.getElementById('d-'+k);if(d&&d.showModal)d.showModal()}
+(function(){var o={{ open_|tojson }};if(o)dlg(o)})();
+document.querySelectorAll('dialog.cs-d').forEach(function(d){d.addEventListener('click',function(e){if(e.target===d)d.close()})});
+</script>
+{% endblock %}
