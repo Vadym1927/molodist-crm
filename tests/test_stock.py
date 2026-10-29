@@ -321,7 +321,7 @@ def test_doc_archive_with_password():
     with TestClient(app) as c:
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
         assert "ddOpen(" in c.get("/stock?tab=supply").text
-        r = c.post(f"/stock/docs/{did}/archive", data={"del_password": "owner-pass-1", "back": "/stock?tab=supply"}, follow_redirects=False)
+        r = c.post(f"/stock/docs/{did}/archive", data={"del_password": "owner-pass-1", "note": "тест", "back": "/stock?tab=supply"}, follow_redirects=False)
         assert "err=" in r.headers["location"]                                # пароль видалення ще не задано
         from app.models import User
         with SessionLocal() as db:
@@ -329,10 +329,12 @@ def test_doc_archive_with_password():
             oid = owner.id
         c.post("/access/users", data={"uid": str(oid), "login": owner.login, "name": owner.name, "role": "owner",
                                       "active": "1", "delete_pw": "del-2026"})
-        r = c.post(f"/stock/docs/{did}/archive", data={"del_password": "wrong", "back": "/stock?tab=supply"}, follow_redirects=False)
+        r = c.post(f"/stock/docs/{did}/archive", data={"del_password": "wrong", "note": "тест", "back": "/stock?tab=supply"}, follow_redirects=False)
         assert "err=" in r.headers["location"]
         with SessionLocal() as db:
             assert db.get(st.StockDoc, did).archived_at is None
+        r = c.post(f"/stock/docs/{did}/archive", data={"del_password": "del-2026", "back": "/stock?tab=supply"}, follow_redirects=False)
+        assert "err=" in r.headers["location"]                                # без причини — ні
         r = c.post(f"/stock/docs/{did}/archive", data={"del_password": "del-2026", "note": "дубль", "back": "/stock?tab=supply"},
                    follow_redirects=False)
         assert "msg=" in r.headers["location"]

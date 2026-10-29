@@ -2333,6 +2333,8 @@ def stock_doc_archive(did: int, del_password: str = Form(""), note: str = Form("
     sep = "&" if "?" in back else "?"
     if not doc:
         return RedirectResponse(back, 303)
+    if len(note.strip()) < 3:
+        return RedirectResponse(f"{back}{sep}err={_q('Вкажіть причину видалення')}", 303)
     err = _delpw(db, user, del_password, "stock_doc", "stock_doc", did)
     if err:
         return RedirectResponse(f"{back}{sep}err={_q(err)}", 303)
