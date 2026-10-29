@@ -36,6 +36,10 @@ def _text(a: AuditLog) -> str | None:
         if d.get("op") == "clear":
             return "Знято ручні відмітки оплати"
         return "Відмічено оплату" + (f" {_uah(d['amount'])}" if d.get("amount") else "") + (f" · {d['fop']}" if d.get("fop") else "")
+    if act == "stock.pay_mono":
+        return f"Платіж monobank {_uah(d.get('amount'))} рознесено вручну" + (f" · ФОП {d['fop']}" if d.get("fop") else "")
+    if act == "stock.pay_unassign":
+        return f"Скасовано рознесення платежу monobank {_uah(d.get('amount'))}"
     if act == "stock.archive":
         return "Видалено в архів" + (f" · «{d['note']}»" if d.get("note") else "")
     if act == "stock.restore":
@@ -72,14 +76,15 @@ def history(db: Session, doc: StockDoc) -> list[dict]:
         t = _text(a)
         if t:
             out.append({"at": _local(a.at), "who": users.get(a.user_id) or ("API" if a.api_key_id else "Система"), "text": t,
-                        "kind": a.action.split(".")[-1]})
-    allocs = db.scalars(select(PaymentAlloc).where(PaymentAlloc.doc_id == doc.id, PaymentAlloc.txn_id.is_not(None))).all()
+                        "kind": {"pay_mono": "pay", "pay_unassign": "cancel"}.get(a.action.split(".")[-1], a.action.split(".")[-1])})
+    allocs = db.scalars(select(PaymentAlloc).where(PaymentAlloc.doc_id == doc.id, PaymentAlloc.txn_id.is_not(None),
+                                                   PaymentAlloc.by_user.is_(None))).all()     # лише автоматичні
     by_txn: dict[str, float] = {}
     for x in allocs:
         by_txn[x.txn_id] = by_txn.get(x.txn_id, 0) + (x.amount or 0)
     for tid, amt in by_txn.items():
         t = db.get(BankTxn, tid)
-        out.append({"at": (t.at if t else None) or _local(doc.created_at), "who": "monobank",
+        out.append({"at": (t.at if t else None) or _local(doc.created_at), "who": "🤖 автоматично (monobank)",
                     "text": f"Оплату {_uah(amt)} рознесено автоматично" + (f" · ФОП {t.fop}" if t and t.fop else "")
                             + (f" · «{t.description[:80]}»" if t and t.description else ""), "kind": "pay"})
     out.sort(key=lambda x: x["at"] or _local(doc.created_at))

@@ -433,6 +433,7 @@ class DocRow:
     total: float = 0
     paid: float = 0
     author: str | None = None
+    modes: dict | None = None
 
     @property
     def pay_state(self) -> str:
@@ -447,12 +448,14 @@ def doc_rows(db: Session, kind: str, limit: int = 200, archived: bool = False) -
                                StockDoc.archived_at.is_not(None) if archived else StockDoc.archived_at.is_(None))
     docs = db.scalars(q.order_by(StockDoc.doc_date.desc(), StockDoc.id.desc()).limit(limit)).all()
     paid = paid_map(db, [d.id for d in docs]) if kind == "supply" else {}
+    from .payments import modes_map
+    modes = modes_map(db, [d.id for d in docs]) if kind == "supply" else {}
     names = {u.id: u.name for u in db.scalars(select(User))}
     out = []
     for d in docs:
         out.append(DocRow(d, len(d.lines), sum(abs(ln.qty or 0) for ln in d.lines),
                           round(sum(abs(ln.qty or 0) * (ln.unit_cost or 0) for ln in d.lines), 2),
-                          round(paid.get(d.id, 0), 2), names.get(d.created_by) if d.created_by else None))
+                          round(paid.get(d.id, 0), 2), names.get(d.created_by) if d.created_by else None, modes.get(d.id) or {}))
     return out
 
 

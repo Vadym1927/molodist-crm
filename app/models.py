@@ -700,7 +700,13 @@ class PaymentAlloc(Base):
     line_id: Mapped[int | None] = mapped_column(ForeignKey("stock_doc_lines.id"))
     amount: Mapped[float] = mapped_column(Float)
     fop: Mapped[str | None] = mapped_column(String(100))
+    by_user: Mapped[int | None] = mapped_column(Integer)      # хто розніс вручну; None + txn — автоматично (monobank)
     at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    @property
+    def mode(self) -> str:
+        """auto — monobank сам; mono_manual — платіж monobank рознесено вручну; manual — відмічено вручну."""
+        return ("mono_manual" if self.by_user else "auto") if self.txn_id else "manual"
 
 
 class Check(Base):

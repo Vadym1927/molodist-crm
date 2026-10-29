@@ -94,7 +94,22 @@ def find_group(db: Session, key: str) -> Group | None:
     return next((g for g in groups(db) if g.key == key), None)
 
 
-def allocate(db: Session, g: Group, amount: float, txn: BankTxn | None = None, fop: str | None = None) -> float:
+MODE_LABELS = {"auto": "🤖 авто · monobank", "mono_manual": "🏦 monobank · вручну", "manual": "✋ вручну"}
+
+
+def modes_map(db: Session, doc_ids: list[int]) -> dict[int, dict[str, float]]:
+    """Документ → {режим: сума} (auto / mono_manual / manual)."""
+    out: dict[int, dict[str, float]] = {}
+    if not doc_ids:
+        return out
+    for a in db.scalars(select(PaymentAlloc).where(PaymentAlloc.doc_id.in_(doc_ids))):
+        m = out.setdefault(a.doc_id, {})
+        m[a.mode] = round(m.get(a.mode, 0) + (a.amount or 0), 2)
+    return out
+
+
+def allocate(db: Session, g: Group, amount: float, txn: BankTxn | None = None, fop: str | None = None,
+             user_id: int | None = None) -> float:
     """Розносить amount (≤ залишку групи) на документи й рядки. Повертає рознесену суму."""
     amount = round(min(amount, g.left), 2)
     if amount <= 0:
@@ -111,10 +126,10 @@ def allocate(db: Session, g: Group, amount: float, txn: BankTxn | None = None, f
         acc = 0.0
         for j, ln in enumerate(lines):
             la = round(part - acc, 2) if j == len(lines) - 1 else round(part * line_sum(ln) / tot, 2)
-            db.add(PaymentAlloc(txn_id=txn.id if txn else None, doc_id=d.id, line_id=ln.id, amount=la, fop=fop))
+            db.add(PaymentAlloc(txn_id=txn.id if txn else None, doc_id=d.id, line_id=ln.id, amount=la, fop=fop, by_user=user_id))
             acc += la
         if not lines:
-            db.add(PaymentAlloc(txn_id=txn.id if txn else None, doc_id=d.id, amount=part, fop=fop))
+            db.add(PaymentAlloc(txn_id=txn.id if txn else None, doc_id=d.id, amount=part, fop=fop, by_user=user_id))
         if fop and not d.paid_by:
             d.paid_by = fop
         done += part

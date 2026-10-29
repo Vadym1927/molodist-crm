@@ -122,10 +122,10 @@
     <div class="tile"><span>{{ 'Накладна (усі склади)' if group_docs else 'Сума' }}</span><b>{{ grp.total|uah }}</b></div>
     <div class="tile"><span>Оплачено</span><b>{{ grp.paid|uah }}</b><div class="muted small">{{ d.paid_by and ('ФОП ' ~ d.paid_by) or '' }}</div></div>
     <div class="tile"><span>Залишок</span><b style="color:{{ 'var(--bad)' if grp.left > 1 else 'inherit' }}">{{ grp.left|uah }}</b></div></div>
-  {% if allocs %}<table class="tb small"><thead><tr><th>Дата</th><th>Звідки</th><th>Товар</th><th class="r">Сума</th></tr></thead><tbody>
+  {% if allocs %}<table class="tb small"><thead><tr><th>Дата</th><th>Як рознесено</th><th>Товар</th><th class="r">Сума</th></tr></thead><tbody>
     {% set lmap = {} %}{% for ln in d.lines %}{% set _ = lmap.update({ln.id: ln}) %}{% endfor %}
     {% for a in allocs %}{% set t = txns.get(a.txn_id) %}<tr><td>{{ (t.at if t else a.at)|dt('%d.%m.%Y') }}</td>
-      <td>{% if t %}monobank · ФОП {{ t.fop }}{% else %}вручну{{ (' · ФОП ' ~ a.fop) if a.fop }}{% endif %}</td>
+      <td><span class="pay-m {{ a.mode }}">{{ MODES[a.mode] }}</span>{% if t %} · ФОП {{ t.fop }}{% elif a.fop %} · {{ a.fop }}{% endif %}{% if a.by_user %}<div class="meta">{{ alloc_users.get(a.by_user, '') }}</div>{% endif %}</td>
       <td>{{ (lmap.get(a.line_id).product.name[:50]) if a.line_id and lmap.get(a.line_id) else '—' }}</td><td class="r">{{ a.amount|uah }}</td></tr>{% endfor %}</tbody></table>{% endif %}
   {% if sup and sup.iban %}<details class="small" style="margin-top:10px"><summary style="cursor:pointer;font-weight:600">Реквізити {{ sup.name }} <a href="#" data-sup="{{ sup.id }}" style="font-weight:400">· усі юр. особи</a></summary>
     <div style="margin-top:6px">{{ sup.legal_name or sup.name }} · ЄДРПОУ {{ sup.edrpou or '—' }}<br><span style="font-family:monospace">{{ sup.iban }}</span> · {{ sup.bank or '' }}<br>
@@ -148,5 +148,7 @@
   </tbody></table>{% else %}<p class="muted small">Записів ще немає.</p>{% endif %}
   <p class="small muted" style="margin:8px 0 0">Пишеться автоматично: створення, зміни шапки й рядків, проведення, скасування, оплати (вручну й з monobank), файли, видалення й відновлення.</p>
 </div>
+<style>.pay-m{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.pay-m.auto{background:var(--ok-bg);color:var(--ok)}.pay-m.mono_manual{background:var(--lavender);color:var(--classic)}.pay-m.manual{background:#FFF4D6;color:#9A6B00}</style>
 {% include "_doc_delete.html" %}
 {% endblock %}

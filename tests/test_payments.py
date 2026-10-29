@@ -49,6 +49,7 @@ def test_split_supply_and_monobank_allocation():
         assert paid[d1.id] == 2000 and paid[d2.id] == 3000
         assert db.get(StockDoc, d1.id).paid_by == "Бондар"
         assert pay.find_group(db, d1.pay_group).state == "paid"
+        assert set(pay.modes_map(db, [d1.id])[d1.id]) == {"auto"}                 # рознесено автоматично
         pay.unallocate_txn(db, t)
         assert pay.find_group(db, d1.pay_group).state == "unpaid"
     with TestClient(app) as c:
@@ -57,6 +58,11 @@ def test_split_supply_and_monobank_allocation():
         page = c.get(f"/stock/docs/{j['ids'][0]}").text
         assert "частково" in page and "Файли й фото" in page and "UA213223130000026007233566001" in page
         assert "Платежі monobank" in c.get("/stock?tab=suppliers&s=ПлатіжТест").text
+        assert "✋ вручну" in page and "✋ вручну" in c.get("/stock?tab=supply").text
+        c.post("/stock/mono/txn/mono-t-1", data={"action": "assign", "group": d1.pay_group})
+        assert "🏦 monobank · вручну" in c.get("/stock?tab=supply").text
+        assert "рознесено вручну" in c.get(f"/stock/docs/{j['ids'][0]}").text
+        c.post("/stock/mono/txn/mono-t-1", data={"action": "unassign"})
     with SessionLocal() as db:
         paid = pay.paid_map(db, j["ids"])
         assert round(paid[j["ids"][0]] + paid[j["ids"][1]], 2) == 1000 and paid[j["ids"][0]] == 400   # пропорційно 2000:3000

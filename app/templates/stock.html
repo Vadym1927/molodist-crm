@@ -111,6 +111,8 @@
 </form>
 {% endif %}
 {% include "_doc_delete.html" %}
+<style>.pay-m{display:inline-block;margin-top:3px;padding:1px 8px;border-radius:99px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.pay-m.auto{background:var(--ok-bg);color:var(--ok)}.pay-m.mono_manual{background:var(--lavender);color:var(--classic)}.pay-m.manual{background:#FFF4D6;color:#9A6B00}</style>
 <div class="row between" style="margin:0 0 8px;gap:8px">{% if archive %}<b>Архів · видалені документи</b><a href="?tab={{ tab }}" class="small">← до документів</a>
   {% else %}<span></span>{% if archive_n %}<a href="?tab={{ tab }}&archive=1" class="small">🗄 Архів · {{ archive_n }}</a>{% endif %}{% endif %}</div>
 <div class="card" style="padding:6px 8px;overflow:auto"><table class="tb">
@@ -124,7 +126,8 @@
       {% if tab=='writeoff' %}<td class="small">{{ d.reason or '' }}</td>{% endif %}
       <td class="r">{{ r.items }}</td><td class="r">{{ '%g'|format(r.qty|round(2)) }}</td><td class="r">{{ r.total|uah if r.total else '—' }}</td>
       {% if tab=='supply' %}<td class="r" style="white-space:nowrap">{% if r.paid > 0.01 %}<b style="color:{{ 'var(--ok)' if r.pay_state=='paid' else '#9A6B00' }}">{{ r.paid|uah }}</b>{% else %}<span class="muted">—</span>{% endif %}
-        {% if d.status != 'cancelled' and r.total > 0.01 %}<div class="meta">{{ {'paid':'✓ оплачено','partial':'частково · борг ' ~ ((r.total - r.paid)|uah),'unpaid':'не оплачено','none':''}[r.pay_state] }}{{ (' · ' ~ d.paid_by) if d.paid_by and r.paid > 0.01 }}</div>{% endif %}</td>{% endif %}
+        {% if d.status != 'cancelled' and r.total > 0.01 %}<div class="meta">{{ {'paid':'✓ оплачено','partial':'частково · борг ' ~ ((r.total - r.paid)|uah),'unpaid':'не оплачено','none':''}[r.pay_state] }}{{ (' · ' ~ d.paid_by) if d.paid_by and r.paid > 0.01 }}</div>{% endif %}
+        {% for m, v in (r.modes or {}).items() %}<div class="meta" title="{{ v|uah }}"><span class="pay-m {{ m }}">{{ MODES[m] }}{{ (' · ' ~ (v|uah)) if (r.modes|length) > 1 }}</span></div>{% endfor %}</td>{% endif %}
       <td class="small">{{ r.author or 'Система' }}</td>
       <td class="small" style="max-width:220px">{{ (d.note or '')[:80] }}{{ '…' if d.note and d.note|length > 80 }}</td>
       <td class="small" style="white-space:nowrap;text-align:right">{% if archive %}{{ d.archived_at|local|dt('%d.%m.%Y %H:%M') }} · {{ user_names.get(d.archived_by, '—') }}{% if d.archive_note %}<div class="meta">{{ d.archive_note }}</div>{% endif %}

@@ -1695,6 +1695,8 @@ def stock_page(request: Request, tab: str = "balances", only: str = "", wh: str 
         arch = bool(request.query_params.get("archive"))
         ctx["docs"] = st.doc_rows(db, tab, archived=arch)
         ctx["archive"] = arch
+        from .services.payments import MODE_LABELS
+        ctx["MODES"] = MODE_LABELS
         ctx["archive_n"] = db.scalar(select(func.count(StockDoc.id)).where(StockDoc.kind == tab, StockDoc.archived_at.is_not(None))) or 0
         ctx["user_names"] = {u_.id: u_.name for u_ in db.scalars(select(User))} if arch else {}
     elif tab == "suppliers":
@@ -2002,7 +2004,7 @@ async def stock_doc_quick(request: Request, user: User = Depends(require("stock"
         g = pay.find_group(db, pay.group_key(docs[0]))
         if g:
             amt_ = g.left
-            pay.allocate(db, g, amt_, fop=paid_by)
+            pay.allocate(db, g, amt_, fop=paid_by, user_id=user.id)
             db.commit()
             audit(db, "stock.pay", "stock_doc", docs[0].id, user=user, op="paid", fop=paid_by, amount=round(amt_, 2))
     for x_ in docs:
@@ -2088,7 +2090,7 @@ def stock_doc_pay(did: int, action: str = Form("paid"), fop: str = Form(""), amo
             pay.clear_manual(db, g)
         else:
             amt = _num(amount) or g.left
-            pay.allocate(db, g, amt, fop=fop.strip() or None)
+            pay.allocate(db, g, amt, fop=fop.strip() or None, user_id=user.id)
             for d_ in g.docs:
                 d_.paid_by = fop.strip() or d_.paid_by
             db.commit()
@@ -2131,7 +2133,8 @@ def stock_doc_page(did: int, request: Request, user: User = Depends(require("sto
     sup = next((x for x in db.scalars(select(Supplier)) if x.name.lower() == (doc.supplier or "").lower()), None) if doc.supplier else None
     return render(request, "stock_doc.html", d=doc, KINDS=st.DOC_KINDS, STATUS=st.STATUS, WAREHOUSES=catalog.WAREHOUSES,
                   files=db.scalars(select(StockDocFile).where(StockDocFile.doc_id == doc.id).order_by(StockDocFile.id)).all(),
-                  grp=grp, allocs=allocs, txns=txns, PAY=pay.PAY_LABELS, line_paid=pay.by_product(db, [doc.id]),
+                  grp=grp, allocs=allocs, txns=txns, PAY=pay.PAY_LABELS, MODES=pay.MODE_LABELS,
+                  alloc_users={u_.id: u_.name for u_ in db.scalars(select(User))}, line_paid=pay.by_product(db, [doc.id]),
                   fops=[a["name"] for a in _cb_acc(db)], sup=sup, lot_opts=lot_opts, today=date.today(),
                   group_docs=[x for x in (grp.docs if grp else []) if x.id != doc.id],
                   REASONS=st.WRITEOFF_REASONS, products=_product_options(db), bal=bal, active=st.ledger_active(db),
@@ -2495,10 +2498,16 @@ def stock_mono_txn(tid: str, action: str = Form(...), group: str = Form(""), sup
     if action == "assign" and group:
         g = pay.find_group(db, group)
         if g:
-            done = pay.allocate(db, g, -t.amount, txn=t, fop=t.fop)
+            done = pay.allocate(db, g, -t.amount, txn=t, fop=t.fop, user_id=user.id)
             t.status, t.note = ("matched" if done >= -t.amount - pay.TOL else "partial"), f"→ {g.label}"
+            for d_ in g.docs:
+                audit(db, "stock.pay_mono", "stock_doc", d_.id, user=user, amount=round(done, 2), fop=t.fop, txn=tid)
     elif action == "unassign":
+        from .models import PaymentAlloc
+        docs_ = {a.doc_id for a in db.scalars(select(PaymentAlloc).where(PaymentAlloc.txn_id == t.id))}
         pay.unallocate_txn(db, t)
+        for d_ in docs_:
+            audit(db, "stock.pay_unassign", "stock_doc", d_, user=user, amount=round(-t.amount, 2), fop=t.fop, txn=tid)
     elif action == "ignore":
         t.status = "ignored"
     elif action == "auto":
