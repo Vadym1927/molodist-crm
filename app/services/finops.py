@@ -303,7 +303,8 @@ def payroll(db: Session, month: str, upto_from: str | None = None) -> list[dict]
 
 def paid_salary(db: Session, months: list[str]) -> dict[tuple[str, int], float]:
     out: dict = defaultdict(float)
-    for x in db.scalars(select(FinOp).where(FinOp.deleted_at.is_(None), FinOp.category == "Зарплата",
+    from .fin_articles import salary_names
+    for x in db.scalars(select(FinOp).where(FinOp.deleted_at.is_(None), FinOp.category.in_(salary_names(db)),
                                             FinOp.doctor_id.is_not(None))):
         mk = x.salary_month or month_key(x.day)
         if mk in months:

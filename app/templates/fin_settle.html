@@ -13,7 +13,7 @@
 <div class="card" style="padding:6px 8px;overflow:auto"><table class="tb small"><thead><tr><th>Спеціаліст</th><th class="r">Борг на початок</th><th class="r">Нараховано</th><th class="r">Виплачено</th><th class="r">До виплати</th><th>Виплатити</th></tr></thead><tbody>
 {% for r in rows %}<tr><td><b>{{ r.doctor.name }}</b></td><td class="r">{{ r.opening|uah }}</td><td class="r">{{ r.accrued|uah }}</td><td class="r">{{ r.paid|uah if r.paid else '—' }}</td>
   <td class="r"><b style="color:{{ 'var(--bad)' if r.closing > 0.01 else ('var(--ok)' if r.closing < -0.01 else 'inherit') }}">{{ r.closing|uah }}</b>{% if r.closing < -0.01 %}<div class="meta">переплата</div>{% endif %}</td>
-  <td><form method="post" action="/finance/ops" class="row" style="gap:4px;flex-wrap:nowrap"><input type="hidden" name="kind" value="expense"><input type="hidden" name="category" value="Зарплата">
+  <td><form method="post" action="/finance/ops" class="row" style="gap:4px;flex-wrap:nowrap"><input type="hidden" name="kind" value="expense"><input type="hidden" name="category" value="{{ sal_cat }}">
       <input type="hidden" name="doctor_id" value="{{ r.doctor.id }}"><input type="hidden" name="salary_month" value="{{ month }}"><input type="hidden" name="back" value="/finance/settle?m={{ month }}">
       <input name="amount" inputmode="decimal" value="{{ '%.2f'|format(r.closing) if r.closing > 0.01 else '' }}" placeholder="Сума" style="width:110px;height:34px">
       <select name="cashbox" style="height:34px">{% for b in boxes %}<option>{{ b }}</option>{% endfor %}</select><input type="date" name="day" value="{{ today }}" style="height:34px">

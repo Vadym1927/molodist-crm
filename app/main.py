@@ -3357,6 +3357,7 @@ SETTINGS_BLOCKS = [
     ]),
     ("Налаштування фінансів", [
         ("Знижки й бонусна програма", "Правила знижок, % нарахування бонусів, термін дії, персональні знижки", "/settings/loyalty", "finance", None),
+        ("Статті фінансових операцій", "Довідник статей доходів і витрат: реклама, податки, персонал, закупки…", "/settings/articles", "finance", "dirs/ftype"),
         ("Каси / рахунки", "Готівка, рахунки ФОП, термінал, онлайн-оплати: залишок після кожної операції, локація, тип", "/settings/cashboxes", "finance", None),
         ("Платіжні системи", "Посилання на оплату для пацієнтів: monobank еквайринг, LiqPay, WayForPay", "/settings/payments", "finance", "payment_system"),
         ("Банк monobank", "Виписки ФОП, оплати постачальникам і їх автоматичне рознесення", "/settings/keys?s=mono#mono", "finance", None),
@@ -3421,6 +3422,40 @@ def settings_page(request: Request, user: User = Depends(current_user), db: Sess
         if rows:
             blocks.append((title, rows))
     return render(request, "settings.html", blocks=blocks)
+
+
+# ---------------- Налаштування → Статті фінансових операцій ----------------
+@app.get("/settings/articles", response_class=HTMLResponse)
+def settings_articles(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    fa = _fa()
+    xs = fa.items(db)
+    use = fa.usage(db)
+    groups: dict = {}
+    for x in xs:
+        groups.setdefault((x["kind"], fa.group(x["name"])), []).append({**x, "used": use.get(x["name"], 0)})
+    return render(request, "fin_articles.html", nav="settings", groups=groups, KINDS=fa.KINDS, n=len(xs),
+                  kind=request.query_params.get("kind", ""), q=request.query_params.get("q", ""))
+
+
+@app.post("/settings/articles")
+def settings_articles_save(aid: str = Form(""), name: str = Form(""), kind: str = Form(""), active: str = Form(""), salary: str = Form(""),
+                           user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    try:
+        x = _fa().save(db, int(aid) if aid.isdigit() else None, name, kind, bool(active), bool(salary))
+    except ValueError as e:
+        return RedirectResponse(_with_msg("/settings/articles", str(e), True), 303)
+    audit(db, "fin.article_save", user=user, article=x["id"], name=x["name"], kind=x["kind"], active=x["active"])
+    return RedirectResponse(_with_msg("/settings/articles", f"Статтю «{x['name']}» збережено"), 303)
+
+
+@app.post("/settings/articles/{aid:int}/delete")
+def settings_articles_delete(aid: int, del_password: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    err = _delpw(db, user, del_password, "fin_article", None, aid)
+    if err:
+        return RedirectResponse(_with_err("/settings/articles", err), 303)
+    gone = _fa().delete(db, aid)
+    audit(db, "fin.article_delete", user=user, article=aid, removed=gone)
+    return RedirectResponse(_with_msg("/settings/articles", "Статтю видалено" if gone else "По статті є операції — її вимкнено (історія лишається)"), 303)
 
 
 # ---------------- Налаштування → Каси / рахунки ----------------
@@ -3800,7 +3835,7 @@ def settings_clinic(request: Request, user: User = Depends(require("users")), db
     from .models import CbFinOp
     data = cl.get(db)
     arts = sorted({a for (a,) in db.execute(select(CbFinOp.article).where(CbFinOp.kind == "income", CbFinOp.article.is_not(None)).distinct()) if a}
-                  | set(__import__("app.services.finops", fromlist=["INCOME_CATS"]).INCOME_CATS) | set(data["reports"]["exclude_income"]))
+                  | set(_fa().names(db, "income", False)) | set(data["reports"]["exclude_income"]))
     return render(request, "clinic.html", nav="settings", c=data, cl=cl, income_articles=arts,
                   open_=request.query_params.get("open", ""))
 
@@ -4534,6 +4569,11 @@ def _period(df: str, dt_: str, default_days: int | None = None) -> tuple[date, d
     return (d_from, d_to) if d_from <= d_to else (d_to, d_from)
 
 
+def _fa():
+    from .services import fin_articles
+    return fin_articles
+
+
 def _cashboxes(db: Session) -> list[str]:
     from .models import CbFinOp
     from .services import cashboxes as _cbx
@@ -4583,7 +4623,8 @@ def finance_ops(request: Request, df: str = "", dt_: str = "", user: User = Depe
     return render(request, "fin_ops.html", nav="finance", rows=rows[:2000], n_all=len(rows),
                   tot=fo.journal_totals(rows, _cl.excluded_income(db)),
                   d_from=d_from, d_to=d_to, f=f, opts=opts, archive=bool(request.query_params.get("archive")),
-                  EXP=fo.EXPENSE_CATS, INC=fo.INCOME_CATS, KL=fo.KIND_LABELS, boxes=_cashboxes(db), last_cb=last_cb,
+                  EXP=_fa().names(db, "expense"), INC=_fa().names(db, "income"), SAL=_fa().salary_names(db),
+                  KL=fo.KIND_LABELS, boxes=_cashboxes(db), last_cb=last_cb,
                   cb_imported=LAST_IMPORT.pop(f"cbfin-{user.id}", None),
                   job=jobs.JOBS.get(request.query_params.get("job") or ""),
                   doctors=db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)).all(),
@@ -4664,7 +4705,7 @@ def finance_op_add(day: str = Form(""), kind: str = Form("expense"), category: s
               counterparty=counterparty.strip()[:200] or None, comment=comment.strip()[:500] or None,
               doctor_id=int(doctor_id) if doctor_id.isdigit() else None,
               salary_month=_month(salary_month) if salary_month else None, created_by=user.id)
-    if x.category == "Зарплата" and x.doctor_id and not x.salary_month:
+    if x.category in _fa().salary_names(db) and x.doctor_id and not x.salary_month:
         x.salary_month = fo_month_key(x.day)
     db.add(x)
     db.commit()
@@ -4815,10 +4856,10 @@ def finance_settle(request: Request, m: str = "", user: User = Depends(require("
     month = _month(m)
     rows = fo.settlements(db, month)
     a, b = fo.month_bounds(month)
-    pays = db.scalars(select(FinOp).where(FinOp.deleted_at.is_(None), FinOp.category == "Зарплата", FinOp.doctor_id.is_not(None))
+    pays = db.scalars(select(FinOp).where(FinOp.deleted_at.is_(None), FinOp.category.in_(_fa().salary_names(db)), FinOp.doctor_id.is_not(None))
                       .order_by(FinOp.day.desc())).all()
     pays = [x for x in pays if (x.salary_month or fo_month_key(x.day)) == month]
-    return render(request, "fin_settle.html", nav="finance", month=month, rows=rows, months=_month_list(), start=fo.payroll_start(db),
+    return render(request, "fin_settle.html", nav="finance", month=month, rows=rows, sal_cat=_fa().salary_name(db), months=_month_list(), start=fo.payroll_start(db),
                   boxes=_cashboxes(db), pays=pays, docs={d_.id: d_ for d_ in db.scalars(select(Doctor))}, today=date.today(),
                   total={k: round(sum(r[k] for r in rows), 2) for k in ("opening", "accrued", "paid", "closing")})
 

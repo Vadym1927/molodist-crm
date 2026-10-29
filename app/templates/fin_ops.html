@@ -108,13 +108,13 @@
 </div></div>
 <script>
 (function(){
-  var CATS={expense:{{ EXP|tojson }},income:{{ INC|tojson }}},T={expense:'Нова витрата',income:'Новий дохід',transfer:'Переміщення між рахунками',storno:'Сторно операції'};
+  var SAL={{ SAL|tojson }},CATS={expense:{{ EXP|tojson }},income:{{ INC|tojson }}},T={expense:'Нова витрата',income:'Новий дохід',transfer:'Переміщення між рахунками',storno:'Сторно операції'};
   window.jmOpen=function(k){document.getElementById('jm-t').textContent=T[k];var st=k==='storno';
     document.getElementById('jm-f').style.display=st?'none':'grid';document.getElementById('jm-s').style.display=st?'grid':'none';
     if(!st){document.getElementById('jm-kind').value=k;document.querySelectorAll('.jm-x').forEach(function(e){e.style.display=e.classList.contains('jm-'+k)?'':'none'});
       document.getElementById('jm-acc-l').textContent=k==='transfer'?'З рахунку':'Рахунок';
       var c=document.getElementById('jm-cat');c.innerHTML=(CATS[k]||[]).map(function(x){return '<option>'+x+'</option>'}).join('');c.disabled=k==='transfer';
-      c.onchange=function(){document.getElementById('jm-sal').style.display=(k==='expense'&&c.value==='Зарплата')?'block':'none'};c.onchange();}
+      c.onchange=function(){document.getElementById('jm-sal').style.display=(k==='expense'&&SAL.indexOf(c.value)>=0)?'block':'none'};c.onchange();}
     document.getElementById('jm-bg').classList.add('on');setTimeout(function(){var i=document.querySelector(st?'#jm-s input[name=num]':'#jm-f input[name=amount]');i&&i.focus()},50)};
   window.jmClose=function(){document.getElementById('jm-bg').classList.remove('on')};
   (function(){var u=new URLSearchParams(location.search),k=u.get('new');if(k&&['income','expense','transfer'].indexOf(k)>=0){jmOpen(k);
