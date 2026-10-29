@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Терміни придатності · Звіти{% endblock %}
+{% block body %}
+<style>
+.rp-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 16px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.rp-tabs a{padding:8px 14px;border-radius:10px;text-decoration:none;color:#3a342f;font-weight:600;font-size:14px}
+.rp-tabs a:hover{background:var(--card)}.rp-tabs a.on{background:var(--deep);color:#fff}
+.ex-b{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:16px}
+.ex-b a{background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:12px 14px;text-decoration:none;color:var(--ink);display:flex;flex-direction:column;gap:2px}
+.ex-b a:hover{border-color:var(--classic)}.ex-b a.on{background:var(--deep);border-color:var(--deep);color:#fff}.ex-b a.on em,.ex-b a.on span{color:var(--lavender-2)}
+.ex-b span{font:600 12px var(--head);text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}.ex-b b{font-size:22px}.ex-b em{font-style:normal;font-size:12.5px;color:var(--muted)}
+.ex-b a.expired b{color:var(--bad)}.ex-b a.d30 b{color:#C2410C}.ex-b a.d90 b{color:var(--warn)}.ex-b a.on b{color:#fff}
+.whs2{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}.whs2 a{padding:6px 12px;border-radius:99px;border:1px solid var(--line);background:var(--card);text-decoration:none;font-size:13px;font-weight:600;color:var(--ink)}
+.whs2 a.on{background:var(--lavender);border-color:var(--lavender-2);color:var(--classic)}
+.ex-lay{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start}
+.pl{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:700;white-space:nowrap}
+.pl.expired{background:var(--bad-bg);color:var(--bad)}.pl.d30{background:#FFE8D6;color:#C2410C}.pl.d90{background:#FFF4D6;color:#9A6B00}
+.pl.d180{background:var(--lavender);color:var(--classic)}.pl.later{background:var(--ok-bg);color:var(--ok)}.pl.none{background:var(--soft);color:var(--muted)}
+.wsum{display:flex;gap:6px;flex-wrap:wrap}.tb td.n,.tb th.n{text-align:right;white-space:nowrap}
+@media (max-width:1100px){.ex-lay{grid-template-columns:1fr}.ex-b{grid-template-columns:repeat(3,minmax(0,1fr))}}
+</style>
+{% set qp = request.query_params %}{% set bsel = qp.get('b', '') %}
+<div class="eyebrow">Аналітика клініки · склад</div><h1>Звіти</h1>
+<nav class="rp-tabs">{% for k, v in REPORTS.items() %}<a href="?r={{ k }}" class="{{ 'on' if key==k }}">{{ v }}</a>{% endfor %}</nav>
+
+<div class="whs2"><a href="?r=expiry{{ ('&b=' ~ bsel) if bsel }}" class="{{ 'on' if not wh }}">Усі склади</a>
+  {% for w in rep.warehouses %}<a href="?r=expiry&wh={{ w.key }}{{ ('&b=' ~ bsel) if bsel }}" class="{{ 'on' if wh == w.key }}">{{ w.name }} · {{ w.rows|length }}</a>{% endfor %}</div>
+{% set shown = rep.warehouses|selectattr('key', 'equalto', wh)|list if wh else rep.warehouses %}
+<div class="ex-b">{% for k, label, lo, hi in rep.BUCKETS %}{% set ns = namespace(n=0, v=0) %}
+  {% for w in shown %}{% set t = w.b.get(k) %}{% if t %}{% set ns.n = ns.n + t.n %}{% set ns.v = ns.v + t.value %}{% endif %}{% endfor %}
+  <a href="?r=expiry{{ ('&wh=' ~ wh) if wh }}{{ '' if bsel == k else '&b=' ~ k }}" class="{{ k }} {{ 'on' if bsel == k }}"><span>{{ label }}</span><b>{{ ns.n }}</b><em>{{ ns.v|uah }}</em></a>{% endfor %}</div>
+
+<div class="ex-lay"><div>
+{% for w in shown %}{% set items = w.rows|selectattr('bucket', 'equalto', bsel)|list if bsel else w.rows %}{% if items or not bsel %}
+<div class="card" style="padding:6px 8px"><div class="row between" style="padding:10px 8px 6px;flex-wrap:wrap;gap:8px"><h2 style="margin:0">{{ w.name }}</h2>
+  <div class="wsum">{% for k, label, lo, hi in rep.BUCKETS %}{% set t = w.b.get(k) %}{% if t and t.n %}<span class="pl {{ k }}">{{ label }}: {{ t.n }}</span>{% endif %}{% endfor %}</div></div>
+  <div style="overflow-x:auto"><table class="tb"><thead><tr><th>Товар</th><th>Придатний до</th><th class="n">Днів</th><th class="n">Залишок</th><th class="n">Вартість</th><th>Стан</th></tr></thead><tbody>
+  {% for x in items %}<tr><td><a href="/products/{{ x.product.id }}#batches" style="font-weight:600;text-decoration:none">{{ x.product.name }}</a><div class="meta small muted">{{ x.product.brand or '' }}{{ (' · арт. ' ~ x.product.sku) if x.product.sku }}</div></td>
+    <td>{{ x.expiry|dt('%d.%m.%Y') if x.expiry else '—' }}</td>
+    <td class="n">{% if x.days is not none %}<b style="color:{{ 'var(--bad)' if x.days < 0 else ('#C2410C' if x.days <= 30 else 'inherit') }}">{{ x.days }}</b>{% else %}—{% endif %}</td>
+    <td class="n">{{ '%g'|format(x.qty) }} {{ x.unit }}</td><td class="n">{{ x.value|uah if x.value else '—' }}</td><td><span class="pl {{ x.bucket }}">{{ LABELS[x.bucket] }}</span></td></tr>
+  {% else %}<tr><td colspan="6" class="muted">Немає партій.</td></tr>{% endfor %}</tbody></table></div></div>{% endif %}
+{% else %}<div class="card muted">Немає залишків з терміном придатності. Терміни з'являються з поставок (поле «Придатний до») або зі старих закупівель.</div>{% endfor %}
+<p class="small muted">«Без терміну» — стартові залишки й поставки, де не вказали «Придатний до»: внесіть терміни через інвентаризацію або в наступних поставках. Партії — з обліку складу CRM: прихід з терміном у поставці, списання продажів і процедур — з найближчого терміну (змінити партію продажу — у картці товару). Вартість — за середньою ціною закупівлі.</p>
+</div>
+
+<div class="card" id="notify" style="margin:0"><h2 style="margin-top:0">Сповіщення</h2>
+  {% if qp.get('saved') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">Збережено.</div>{% endif %}
+  {% if qp.get('sent') is not none %}<div class="alert" style="{{ 'background:var(--ok-bg);color:var(--ok)' if qp.get('sent') != '0' else '' }}">{{ 'Надіслано в ' ~ qp.get('sent') ~ ' чат(и).' if qp.get('sent') != '0' else 'Не надіслано: немає отримувачів з Telegram або не налаштовано бота.' }}</div>{% endif %}
+  <div class="small muted" style="margin-bottom:10px"><b>У CRM</b> — щотижня задача адмінам на кожен склад, де є прострочене або ≤ 30 днів (дзвіночок, «Задачі»). <b>У Telegram</b> — ботом CRM:</div>
+  <form method="post" action="/reports/expiry/notify" class="grid" style="gap:8px">
+    <label class="small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="admin_chat" value="1" {{ 'checked' if cfg.admin_chat }} style="width:auto" {{ '' if admin_chat else 'disabled' }}>
+      Чат адміністраторів{% if not admin_chat %} <span class="muted">(не задано TELEGRAM_ADMIN_CHAT_ID)</span>{% endif %}</label>
+    <div class="small" style="font-weight:600;margin-top:4px">Особисто (головний лікар, власник…):</div>
+    {% for u in users %}<label class="small" style="display:flex;gap:6px;align-items:center;{{ '' if u.telegram_chat_id else 'opacity:.55' }}">
+      <input type="checkbox" name="users" value="{{ u.id }}" {{ 'checked' if u.id in cfg.users }} {{ '' if u.telegram_chat_id else 'disabled' }} style="width:auto">
+      {{ u.name }} <span class="muted">· {{ ROLES.get(u.role, u.role) }}{{ '' if u.telegram_chat_id else ' · Telegram не привʼязано' }}</span></label>{% endfor %}
+    <div class="small muted">Щоб людина отримувала повідомлення, вона в «Мій кабінет» вказує свій Telegram chat ID (бот підкаже його командою /id).</div>
+    <div class="row" style="gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap"><span class="small">Підсумок щотижня в</span>
+      <select name="weekday" style="height:36px">{% for d in WEEKDAYS %}<option value="{{ loop.index0 }}" {{ 'selected' if cfg.weekday == loop.index0 }}>{{ d }}</option>{% endfor %}</select>
+      <span class="small">о 9:15 — партії ≤</span><select name="days" style="height:36px">{% for d in (30, 60, 90, 180) %}<option value="{{ d }}" {{ 'selected' if cfg.days == d }}>{{ d }}</option>{% endfor %}</select><span class="small">днів</span></div>
+    <label class="small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="alerts" value="1" {{ 'checked' if cfg.alerts }} style="width:auto"> миттєво, коли партія доходить до 30, 7 і 0 днів (один раз на кожну межу)</label>
+    <div class="row" style="gap:6px;margin-top:4px"><button class="btn">Зберегти</button><button class="btn ghost" name="test" value="1">Зберегти й надіслати зараз</button></div>
+  </form>
+  {% if recips %}<div class="small muted" style="margin-top:10px">Отримувачі: {{ recips|map(attribute=1)|join(', ') }}.</div>{% endif %}
+  {% if not bot %}<div class="alert" style="margin-top:10px">Бот Telegram не налаштовано (TELEGRAM_BOT_TOKEN) — працюватимуть лише задачі в CRM.</div>{% endif %}
+</div>
+</div>
+{% endblock %}

@@ -12,7 +12,7 @@ from .catalog import product_rows
 
 KINDS = {"manual": "Ручна", "not_booked": "Записати на процедуру", "care_ending": "Повторний догляд",
          "stock": "Дозамовити товар", "follow_up": "Звʼязатися з пацієнтом",
-         "certificate": "Сертифікат / абонемент згорає"}
+         "certificate": "Сертифікат / абонемент згорає", "expiry": "Терміни придатності"}
 PRIORITY = {"high": "високий", "normal": "звичайний", "low": "низький"}
 
 
@@ -102,6 +102,20 @@ def generate_auto(db: Session, now: datetime | None = None) -> dict:
                description=f"{sb.type_name or 'Абонемент'}; діє до {sb.valid_to:%d.%m.%Y} (≈ {days} дн)."
                            + (f" Послуги: {sb.services[:200]}" if sb.services else ""),
                assignee_role="admin", due_date=now.date(), priority="high" if days <= 3 else "normal")
+
+    # терміни придатності: одна задача на склад на тиждень — прострочене й ≤ 30 днів
+    from .expiry import report as _exp_report
+    for w in _exp_report(db)["warehouses"]:
+        hot = [x for x in w["rows"] if x["days"] is not None and x["days"] <= 30]
+        if not hot:
+            continue
+        bad = sum(1 for x in hot if x["days"] < 0)
+        lines = [f"• {x['product'].name[:70]} — {x['qty']:g} {x['unit']}, "
+                 + (f"прострочено {-x['days']} дн" if x["days"] < 0 else f"до {x['expiry']:%d.%m.%Y} ({x['days']} дн)") for x in hot]
+        ensure(f"exp:{w['key']}:", f"exp:{w['key']}:{week}", kind="expiry",
+               title=f"{w['name']}: " + (f"{bad} прострочених, " if bad else "") + f"{len(hot) - bad} партій ≤ 30 днів",
+               description="Продати першими / використати в процедурах / повернути постачальнику / списати.\n" + "\n".join(lines[:30]),
+               assignee_role="admin", due_date=now.date(), priority="high" if bad else "normal")
 
     # автозакриття: умова зникла (пацієнт записався, купив, склад поповнено)
     for key, t in open_auto.items():

@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from ..models import Check, Visit, BeautyPlan, Patient, Product, SupplierInvoice
 from ..parsers.observ import norm
 
-REPORTS = {"cashflow": "Cashflow", "fop": "Ліміти ФОП", "revenue": "Виручка", "doctors": "Лікарі", "services": "Послуги", "products": "Товари",
+REPORTS = {"cashflow": "Cashflow", "fop": "Ліміти ФОП", "expiry": "Терміни придатності", "revenue": "Виручка", "doctors": "Лікарі", "services": "Послуги", "products": "Товари",
            "patients": "Пацієнти", "plans": "Бюті-плани", "certificates": "Сертифікати й абонементи", "supply": "Поставки"}
 
 

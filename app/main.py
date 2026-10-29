@@ -156,6 +156,18 @@ async def job_message_statuses():
 
 
 
+async def job_expiry():
+    """Терміни придатності: щодня — нові межі 30/7/0 днів, у вибраний день — підсумок по складах."""
+    from .services import expiry as ex
+    def run():
+        with SessionLocal() as db:
+            return ex.daily(db)
+    try:
+        await asyncio.to_thread(run)
+    except Exception as e:  # noqa: BLE001
+        log.warning("expiry notify: %s", e)
+
+
 async def job_mono():
     """monobank: щогодини — списання за 2 доби, рознесення оплат постачальникам."""
     from .integrations import monobank
@@ -229,6 +241,7 @@ async def lifespan(app: FastAPI):
         sched.add_job(job_message_statuses, "interval", minutes=30)
         sched.add_job(job_checkbox, "cron", hour="8,14,23", minute=50)
         sched.add_job(job_mono, "cron", minute=20)
+        sched.add_job(job_expiry, "cron", hour=9, minute=15)
         sched.start()
     except Exception as e:          # noqa: BLE001
         log.warning("scheduler not started: %s", e)
@@ -2400,6 +2413,31 @@ def _report_period(period: str, df: str | None, dt_: str | None) -> tuple[date, 
     return m0, today, "month"
 
 
+def _expiry_page(request: Request, db: Session):
+    from .services import expiry as ex, reports as rp
+    wh = request.query_params.get("wh", "")
+    rep = ex.report(db)
+    cfg = ex.config(db)
+    users = db.scalars(select(User).where(User.active.is_(True)).order_by(User.role, User.name)).all()
+    return render(request, "expiry.html", nav="reports", REPORTS=rp.REPORTS, key="expiry", rep=rep, wh=wh, cfg=cfg,
+                  users=users, LABELS=ex.LABELS, WEEKDAYS=ex.WEEKDAYS, admin_chat=bool(settings.telegram_admin_chat_id),
+                  bot=bool(settings.telegram_bot_token), recips=ex.recipients(db, cfg), ROLES=ROLES)
+
+
+@app.post("/reports/expiry/notify")
+async def expiry_notify(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import expiry as ex
+    f = await request.form()
+    cfg = {"users": [int(x) for x in f.getlist("users") if str(x).isdigit()], "admin_chat": bool(f.get("admin_chat")),
+           "weekday": int(f.get("weekday") or 0), "days": int(f.get("days") or 90), "alerts": bool(f.get("alerts"))}
+    ex.save_config(db, cfg)
+    audit(db, "expiry.notify", user=user, **cfg)
+    if f.get("test"):
+        n = ex.send(db, ex.summary_text(db, cfg["days"]) or "🗓 Терміни придатності: прострочених і близьких партій немає ✅", cfg)
+        return RedirectResponse(f"/reports?r=expiry&sent={n}#notify", 303)
+    return RedirectResponse("/reports?r=expiry&saved=1#notify", 303)
+
+
 def _fop_page(request: Request, db: Session):
     from .services import fop as fop_svc
     from .services import reports as rp
@@ -2592,6 +2630,8 @@ def reports_page(request: Request, r: str = "revenue", period: str = "month", df
         return _cashflow_page(request, db, period, df)
     if key == "fop":
         return _fop_page(request, db)
+    if key == "expiry":
+        return _expiry_page(request, db)
     d_from, d_to, period = _report_period(period, df, dt_)
     rep = rp.build(db, key, d_from, d_to)
     if fmt == "xlsx":
