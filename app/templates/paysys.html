@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Платіжні системи · MOLODIST CRM{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+{% include "_cs_style.html" %}
+<div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a></div><h1>Платіжні системи</h1>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+{% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+<span class="cs-tag">Посилання на оплату</span>
+<form class="cs-box" method="post" action="/settings/payments" style="display:grid;gap:14px">
+  <div class="cs-note">Пацієнт отримує посилання й оплачує карткою, Apple Pay чи Google Pay. Створити посилання можна в картці пацієнта або в записі (передоплата). Коли оплата пройде, CRM сама позначить посилання «оплачено», запише надходження в журнал фіноперацій і надішле сповіщення в Telegram. Оплати постачальникам і виписки — у <a href="/settings/keys?s=mono#mono">«Банк monobank»</a>.</div>
+  <div class="pv">
+    <label><input type="radio" name="provider" value="" {{ 'checked' if not t.provider }} onchange="tgP()"><span class="lg">—</span>Не підключено</label>
+    {% for k, p in PROV.items() %}<label><input type="radio" name="provider" value="{{ k }}" {{ 'checked' if t.provider == k }} onchange="tgP()"><span class="lg">{{ {'mono':'mono','liqpay':'LiqPay','wayforpay':'WayForPay'}[k] }}</span>{{ p.label }}</label>{% endfor %}
+  </div>
+  {% for k, p in PROV.items() %}{% set cur = t.p.get(k, {}) %}
+  <div class="pf" data-p="{{ k }}" style="display:{{ 'grid' if t.provider == k else 'none' }};gap:12px">
+    {% for f, label, sec in p.fields %}<div class="cs-f"><label>{{ label }}</label>
+      {% if sec %}<input type="password" name="{{ f }}" autocomplete="new-password" placeholder="{{ '•••••••• збережено — введіть нове, щоб замінити' if cur.get(f) else 'не задано' }}">
+      {% else %}<input name="{{ f }}" value="{{ cur.get(f) or '' }}" {{ 'placeholder=crm.molodist.com.ua' if f == 'domain' }}>{% endif %}
+      <div class="hint">{{ p.hint }}</div></div>{% endfor %}
+    <div class="cs-f"><label>Адреса для сповіщень про оплату</label>
+      <div class="cp"><input readonly value="{{ hook_url(k) }}" id="hk{{ k }}"><button class="ch-btn" type="button" onclick="navigator.clipboard.writeText(document.getElementById('hk{{ k }}').value);this.textContent='✓'">Копіювати</button></div>
+      <div class="hint">{{ 'CRM передає її сама в кожному посиланні — вставляти нікуди не треба.' if k != 'wayforpay' else 'Передається в кожному рахунку автоматично; можна також вказати як Service URL у кабінеті WayForPay.' }}</div></div>
+    <div class="cs-note">Сайт провайдера <a href="{{ p.site }}" target="_blank" rel="noopener">{{ p.site }}</a></div>
+  </div>{% endfor %}
+  <div class="cs-f"><label>Посилання дійсне, годин</label><input name="validity_h" value="{{ t.validity_h }}" inputmode="numeric" style="max-width:120px"></div>
+  <div class="cs-f"><label>Каса для надходжень у журналі фіноперацій</label><input name="cashbox" value="{{ t.cashbox }}"></div>
+  <div class="cs-f"><label>Текст повідомлення пацієнту</label><textarea name="text" rows="3">{{ t.text }}</textarea>
+    <div class="hint">{url} — посилання, {sum} — сума, {purpose} — за що.</div></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn">Зберегти</button><button class="btn ghost" name="test" value="1">✓ Перевірити підключення</button></div>
+</form>
+
+<span class="cs-tag">Посилання</span>
+<div class="cs-box">
+  {% if t.ready %}<div style="margin-bottom:12px">{% set pl_patient, pl_appt, pl_amount, pl_purpose, pl_back = None, None, None, '', '/settings/payments' %}{% include "_paylink_form.html" %}</div>{% endif %}
+  <div style="overflow-x:auto">{% if links %}<table><tr><th>№</th><th>Створено</th><th>Пацієнт</th><th>За що</th><th>Сума</th><th>Статус</th><th></th></tr>
+  {% for l in links %}<tr><td>{{ l.id }}</td><td>{{ l.created_at|dt('%d.%m %H:%M') }}</td>
+    <td>{% if l.patient_id and pats.get(l.patient_id) %}<a href="/patients/{{ l.patient_id }}">{{ pats[l.patient_id].full_name }}</a>{% else %}—{% endif %}</td>
+    <td>{{ l.purpose }}</td><td>{{ l.amount|uah }}</td>
+    <td><span class="{{ 'ok-t' if l.status == 'paid' else ('bad-t' if l.status in ('failed','expired') else '') }}">{{ SL.get(l.status, l.status) }}</span>{% if l.paid_at %}<div class="small muted">{{ l.paid_at|dt('%d.%m %H:%M') }}</div>{% endif %}</td>
+    <td style="white-space:nowrap">{% if l.status == 'created' %}<button class="ch-btn" type="button" onclick="navigator.clipboard.writeText('{{ l.url }}');this.textContent='✓'">Копіювати</button>
+      <form method="post" action="/paylinks/{{ l.id }}/check" style="display:inline"><button class="ch-btn">Перевірити</button></form>
+      <form method="post" action="/paylinks/{{ l.id }}/cancel" style="display:inline" onsubmit="return confirm('Скасувати посилання в CRM?')"><button class="ch-btn" style="border-color:#E8A0A0;color:#C0392B">×</button></form>{% endif %}</td></tr>{% endfor %}</table>
+  {% else %}<div class="muted">Посилань ще немає.</div>{% endif %}</div>
+</div>
+<script>function tgP(){var v=(document.querySelector('input[name=provider]:checked')||{}).value||'';document.querySelectorAll('.pf').forEach(function(e){e.style.display=e.dataset.p===v?'grid':'none'})}</script>
+{% endblock %}

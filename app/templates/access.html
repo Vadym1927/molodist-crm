@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block body %}
 {% if tab == 'api' %}<div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a></div><h1>REST API</h1>
-<p class="muted small" style="margin:-2px 0 16px">Ключі для інших систем (бот пацієнтів, сайт, n8n) і вебхуки. Документація — <a href="/api/docs" target="_blank">/api/docs</a>. Ключ CleverBox — у «Ключі й інтеграції».</p>
+<p class="muted small" style="margin:-2px 0 16px">Ключі для інших систем (бот пацієнтів, сайт, n8n) і вебхуки. Документація — <a href="/api/docs" target="_blank">/api/docs</a>. Токен CleverBox — у <a href="/data#cleverbox">«Дані й синхронізація»</a>.</p>
 {% else %}{% include "_access_tabs.html" %}{% endif %}
 
 {% if tab=='users' %}

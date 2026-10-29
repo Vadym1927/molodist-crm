@@ -195,7 +195,7 @@
     <form method="post" action="/stock/mono/disconnect" onsubmit="return confirm('Відключити monobank ФОП {{ m.fop }}?')" style="margin-top:4px"><input type="hidden" name="fop" value="{{ m.fop }}"><button class="btn ghost" style="padding:3px 10px">Відключити</button></form>
   </div>{% endfor %}
   <details style="border:1px dashed var(--line);border-radius:12px;padding:10px 12px" {{ 'open' if not mono }}><summary class="small" style="cursor:pointer;font-weight:600">＋ Підключити monobank ФОП</summary>
-    <div class="small muted" style="margin-top:6px">Усі ключі в одному місці — <a href="/settings/keys#mono">Ще → Ключі й інтеграції</a>.</div>
+    <div class="small muted" style="margin-top:6px">Підключення — <a href="/settings/keys?s=mono#mono">Налаштування → Банк monobank</a>.</div>
     <form method="post" action="/stock/mono/connect" class="grid" style="gap:6px;margin-top:8px" autocomplete="off">
       <select name="fop">{% for n in fops %}<option>{{ n }}</option>{% endfor %}</select>
       <input name="token" type="password" placeholder="Токен з api.monobank.ua" required autocomplete="new-password">

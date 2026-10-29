@@ -97,7 +97,7 @@ def test_keys_page():
         _login(c)
         page = c.get("/settings/keys").text
         assert "Ключі й інтеграції" in page and "ФОП Колган" in page and "Вставте токен monobank" in page
-        assert 'href="/settings/keys"' in c.get("/").text
+        assert 'href="/settings/keys?s=mono#mono"' in c.get("/").text
 
 
 def test_no_match_by_legal_form_words():

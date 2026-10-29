@@ -360,6 +360,26 @@ class Appeal(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
+class PayLink(Base):
+    """Посилання на оплату (еквайринг: monobank / LiqPay / WayForPay) — пацієнту в месенджер."""
+    __tablename__ = "pay_links"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, index=True)
+    provider: Mapped[str] = mapped_column(String(20))
+    amount: Mapped[float] = mapped_column(Float)
+    purpose: Mapped[str] = mapped_column(String(300))
+    patient_id: Mapped[int | None] = mapped_column(ForeignKey("patients.id"), index=True)
+    appointment_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    status: Mapped[str] = mapped_column(String(20), default="created", index=True)   # created | paid | failed | expired | cancelled
+    ext_id: Mapped[str | None] = mapped_column(String(120), index=True)
+    url: Mapped[str | None] = mapped_column(String(600))
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime)
+    paid_amount: Mapped[float | None] = mapped_column(Float)
+    info: Mapped[dict | None] = mapped_column(JSON)
+    created_by: Mapped[int | None] = mapped_column(Integer)
+    sale_id: Mapped[int | None] = mapped_column(Integer, index=True)
+
+
 class Call(Base):
     """Дзвінок з IP-телефонії (Ringostat / Binotel / Stream Telecom) — з вебхука провайдера."""
     __tablename__ = "calls"

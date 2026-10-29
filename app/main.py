@@ -503,7 +503,9 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
     from .services import patient_match as _pm
     dupes = _pm.suggestions(db, p) if not p.cleverbox_id and can(user, "patients_all") else []
     from .services import certificates as _cert
-    return render(request, "patient.html", p=p, statuses=statuses, ptasks=ptasks, msgs=msgs, dupes=dupes,
+    from .models import PayLink as _PL
+    paylinks = db.scalars(select(_PL).where(_PL.patient_id == p.id).order_by(_PL.id.desc()).limit(10)).all() if can(user, "sales") else []
+    return render(request, "patient.html", p=p, statuses=statuses, ptasks=ptasks, msgs=msgs, dupes=dupes, paylinks=paylinks,
                   certs=_cert.for_patient(db, p.id), CERT_STATES=_cert.STATES, today=date.today(),
                   subs=_cert.subs_for_patient(db, p.id), SUB_STATES=_cert.SUB_STATES,
                   CB_LABELS=CB_LABELS, loyal=_loyal_ctx(db, p),
@@ -3343,13 +3345,12 @@ SETTINGS_BLOCKS = [
         ("Загальні", "Країна, часовий пояс, мова, валюта, ПДВ; налаштування звітів", "/settings/clinic", "users", "main_settings"),
         ("Філії", "Локації: ресурси (апарати), режим роботи, робочі місця (кабінети)", "/settings/clinic#loc", "users", "salons"),
         ("Права доступу", "Ролі та їх дозволи, користувачі CRM, паролі входу й видалення", "/access/roles", "users", "roles"),
-        ("REST API", "API-ключі CRM і вебхуки; ключ CleverBox — у «Ключі й інтеграції»", "/access/api", "api", "cmarket/rest/main"),
+        ("REST API", "API-ключі CRM і вебхуки; токен CleverBox — у «Дані й синхронізація»", "/access/api", "api", "cmarket/rest/main"),
     ]),
     ("Комунікації", [
         ("Канали", "SMS і Viber (TurboSMS), Telegram-бот, Instagram та Facebook", "/settings/channels", "users", "cmarket/channels/main"),
         ("Повідомлення пацієнтам", "Розсилки й нагадування CRM; автоповідомлення — у CleverBox", "/campaigns", "campaigns", "messages"),
         ("IP-телефонія", "Binotel, Stream Telecom, Ringostat: дзвінки → звернення", "/settings/telephony", "users", "cmarket/siphone/main"),
-        ("Bot", "Бот пацієнтів і чат", None, None, "cmarket/chat/main"),
     ]),
     ("Віджети та форми", [
         ("Онлайн-бронювання", "Віджет запису на сайті", None, None, "webwidget"),
@@ -3357,7 +3358,8 @@ SETTINGS_BLOCKS = [
     ("Налаштування фінансів", [
         ("Знижки й бонусна програма", "Правила знижок, % нарахування бонусів, термін дії, персональні знижки", "/settings/loyalty", "finance", None),
         ("Операції з балансом пацієнта", "Типи поповнень і списань балансу", None, None, "btype"),
-        ("Платіжні системи", "Еквайринг; monobank для оплат постачальникам — у CRM", "/settings/keys#mono", "finance", "payment_system"),
+        ("Платіжні системи", "Посилання на оплату для пацієнтів: monobank еквайринг, LiqPay, WayForPay", "/settings/payments", "finance", "payment_system"),
+        ("Банк monobank", "Виписки ФОП, оплати постачальникам і їх автоматичне рознесення", "/settings/keys?s=mono#mono", "finance", None),
         ("Чайові", "Налаштування чайових", None, None, "tips"),
         ("Checkbox", "Фіскалізація чеків CRM, каси (РРО), відправлення чеків; оборот ФОП — у «Звіти → Ліміти ФОП»", "/settings/checkbox", "finance", "cmarket/checkbox/main"),
     ]),
@@ -3377,7 +3379,8 @@ SETTINGS_BLOCKS = [
         ("Застосунок для спеціаліста", None, None, None, "cmarket/specapp/main"),
     ]),
     ("CRM MOLODIST", [
-        ("Ключі й інтеграції", "monobank, Checkbox, CleverBox, Claude API, molodist.store", "/settings/keys", "finance", None),
+        ("Розпізнавання накладних", "Ключ Claude API — фото/PDF накладної → документ поставки", "/settings/keys?s=ai#ai", "finance", None),
+        ("molodist.store", "Shop-Express: посилання й фото товарів з сайту", "/settings/keys?s=shop#shop", "finance", None),
         ("Паролі для видалення", "Окремий у кожного користувача — без нього нічого не видаляється", "/access", "users", None),
         ("Журнал дій", "Хто що і коли робив у CRM", "/access/audit", "users", None),
         ("Дані й синхронізація", "Імпорт / експорт, синхронізація з CleverBox", "/data", "export_reports", None),
@@ -3397,7 +3400,12 @@ def settings_page(request: Request, user: User = Depends(current_user), db: Sess
     from .services import invoice_ai
     st_ = {}
     try:
-        st_["/settings/keys#mono"] = f"monobank: {len(monobank.saved(db))} ФОП" if monobank.saved(db) else "monobank не підключено"
+        st_["/settings/keys?s=mono#mono"] = f"підключено {len(monobank.saved(db))} ФОП" if monobank.saved(db) else "не підключено"
+        from .services import paylinks as _pls
+        _pp = _pls.public(db)
+        st_["/settings/payments"] = (_pls.PROVIDERS[_pp["provider"]]["label"] + (" · підключено" if _pp["ready"] else " · без ключа")) if _pp["provider"] else "не підключено"
+        st_["/settings/keys?s=ai#ai"] = "ключ задано" if invoice_ai.api_key(db) else "не задано"
+        st_["/settings/keys?s=shop#shop"] = "підключено" if shop_express.creds(db).get("login") else "не підключено"
         acc = chb.accounts(db)
         st_["/reports?r=fop"] = f"підключено {len(acc)} ФОП" if acc else "не підключено"
         n_keys = sum(bool(x) for x in (monobank.saved(db), acc, invoice_ai.api_key(db), shop_express.creds(db).get("login")))
@@ -3414,6 +3422,104 @@ def settings_page(request: Request, user: User = Depends(current_user), db: Sess
         if rows:
             blocks.append((title, rows))
     return render(request, "settings.html", blocks=blocks)
+
+
+# ---------------- Налаштування → Платіжні системи (посилання на оплату) ----------------
+@app.get("/settings/payments", response_class=HTMLResponse)
+def settings_payments(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import paylinks as pls
+    from .models import PayLink
+    t_ = pls.public(db)
+    links = db.scalars(select(PayLink).order_by(PayLink.id.desc()).limit(40)).all()
+    pats = {p_.id: p_ for p_ in db.scalars(select(Patient).where(Patient.id.in_({l_.patient_id for l_ in links if l_.patient_id})))} if links else {}
+    base = str(request.base_url).rstrip("/").replace("http://", "https://")
+    return render(request, "paysys.html", nav="settings", t=t_, PROV=pls.PROVIDERS, links=links, pats=pats, SL=pls.STATUS_LABELS,
+                  hook_url=lambda p: f"{base}/api/public/pay/{p}/{t_['hook']}")
+
+
+@app.post("/settings/payments")
+async def settings_payments_save(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import paylinks as pls
+    f = await request.form()
+    prov = str(f.get("provider") or "")
+    try:
+        pls.save(db, prov, {k: f.get(k) for k in f.keys()}, int(f.get("validity_h") or 24) if str(f.get("validity_h") or "").isdigit() else 24,
+                 str(f.get("text") or ""), str(f.get("cashbox") or ""))
+    except ValueError as e:
+        return RedirectResponse(_with_msg("/settings/payments", str(e), True), 303)
+    audit(db, "paysys.save", user=user, provider=prov)
+    if f.get("test"):
+        ok, msg = await asyncio.to_thread(pls.test, db)
+        return RedirectResponse(_with_msg("/settings/payments", ("✅ " if ok else "❌ ") + msg, not ok), 303)
+    return RedirectResponse(_with_msg("/settings/payments", "Збережено"), 303)
+
+
+@app.post("/paylinks")
+async def paylink_create(request: Request, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    from .services import paylinks as pls
+    from .integrations.messaging import send_to_patient
+    f = await request.form()
+    back = str(f.get("back") or "/settings/payments")
+    back = back if back.startswith("/") and not back.startswith("//") else "/"
+    pid = int(f.get("patient_id")) if str(f.get("patient_id") or "").isdigit() else None
+    aid = int(f.get("appointment_id")) if str(f.get("appointment_id") or "").isdigit() else None
+    if pid:
+        _patient_or_403(db, user, pid)
+    base = str(request.base_url).rstrip("/").replace("http://", "https://")
+    try:
+        pl = await asyncio.to_thread(pls.create, db, _num(str(f.get("amount") or "0")) or 0, str(f.get("purpose") or ""), base, pid, aid, user.id)
+    except pls.PayError as e:
+        return RedirectResponse(_with_msg(back, str(e), True), 303)
+    audit(db, "paylink.create", "paylink", pl.id, user=user, amount=pl.amount, patient=pid, provider=pl.provider)
+    msg = f"Посилання на оплату №{pl.id} на {pl.amount:.2f} ₴ створено"
+    if f.get("send") and pid:
+        p_ = db.get(Patient, pid)
+        res = await asyncio.to_thread(send_to_patient, p_, pls.message(db, pl))
+        pl.info = {**(pl.info or {}), "sent": {"ok": res.ok, "channel": res.channel, "at": datetime.now().strftime("%d.%m.%Y %H:%M")}}
+        db.commit()
+        msg += f" і надіслано ({res.channel})" if res.ok else f", але не надіслано: {res.error}"
+    return RedirectResponse(_with_msg(back, msg), 303)
+
+
+@app.post("/paylinks/{lid:int}/check")
+async def paylink_check(lid: int, back: str = Form("/settings/payments"), user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    from .services import paylinks as pls
+    from .models import PayLink
+    pl = db.get(PayLink, lid) or (_ for _ in ()).throw(HTTPException(404))
+    back = back if back.startswith("/") and not back.startswith("//") else "/"
+    try:
+        st_ = await asyncio.to_thread(pls.check_status, db, pl)
+    except (httpx.HTTPError, ValueError) as e:
+        return RedirectResponse(_with_msg(back, f"Не вдалося перевірити: {e}", True), 303)
+    return RedirectResponse(_with_msg(back, f"Посилання №{lid}: {pls.STATUS_LABELS.get(st_, st_)}"), 303)
+
+
+@app.post("/paylinks/{lid:int}/cancel")
+def paylink_cancel(lid: int, back: str = Form("/settings/payments"), user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    from .models import PayLink
+    pl = db.get(PayLink, lid) or (_ for _ in ()).throw(HTTPException(404))
+    back = back if back.startswith("/") and not back.startswith("//") else "/"
+    if pl.status == "created":
+        pl.status = "cancelled"
+        db.commit()
+        audit(db, "paylink.cancel", "paylink", lid, user=user)
+    return RedirectResponse(_with_msg(back, f"Посилання №{lid} скасовано в CRM"), 303)
+
+
+@app.post("/api/public/pay/{provider}/{hook}")
+async def paylink_hook(request: Request, provider: str, hook: str, db: Session = Depends(db_dep)):
+    """Вебхук платіжної системи про оплату посилання."""
+    from .services import paylinks as pls
+    import hmac as _hm
+    if provider not in pls.PROVIDERS or not _hm.compare_digest(hook, pls.public(db)["hook"]):
+        raise HTTPException(404)
+    raw = await request.body()
+    form = {}
+    if provider != "mono" and raw and not raw.lstrip().startswith(b"{"):
+        from urllib.parse import parse_qsl
+        form = dict(parse_qsl(raw.decode("utf-8", "replace"), keep_blank_values=True))
+    res = await asyncio.to_thread(pls.webhook, db, provider, raw, form)
+    return JSONResponse(res)
 
 
 # ---------------- Налаштування → IP-телефонія ----------------

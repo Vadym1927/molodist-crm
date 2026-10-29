@@ -1,0 +1,10 @@
+{# Посилання на оплату: vars pl_patient (id), pl_appt (id|None), pl_amount, pl_purpose, pl_back #}
+<details class="pl-box"><summary class="btn ghost" style="list-style:none;display:inline-flex">🔗 Посилання на оплату</summary>
+  <form method="post" action="/paylinks" style="display:grid;gap:8px;margin-top:8px;max-width:420px">
+    <input type="hidden" name="patient_id" value="{{ pl_patient or '' }}"><input type="hidden" name="appointment_id" value="{{ pl_appt or '' }}">
+    <input type="hidden" name="back" value="{{ pl_back }}">
+    <div class="row" style="gap:6px;flex-wrap:nowrap"><input name="amount" inputmode="decimal" placeholder="Сума, ₴" value="{{ ('%.2f'|format(pl_amount)) if pl_amount else '' }}" required style="width:130px">
+      <input name="purpose" placeholder="За що (передоплата, послуга…)" value="{{ pl_purpose or '' }}" style="flex:1"></div>
+    {% if pl_patient %}<label class="small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="send" value="1" checked> Одразу надіслати пацієнту (Telegram / Viber / SMS)</label>{% endif %}
+    <button class="btn">Створити посилання</button>
+  </form></details>

@@ -40,6 +40,12 @@
 </div>{% endif %}
 
 <div style="display:flex;justify-content:flex-end;gap:6px;margin:-4px 0 8px">{% if can(user,'book') %}<a class="btn" href="/calendar?view=day&newappt=1&patient={{ p.id }}">📅 Записати</a>{% endif %}{% if can(user,'sales') %}<a class="btn ghost" href="/sales/new?patient={{ p.id }}">💳 Продаж</a>{% endif %}</div>
+{% if can(user,'sales') %}<div style="display:flex;justify-content:flex-end;margin:-2px 0 8px;text-align:left">{% set pl_patient, pl_appt, pl_amount, pl_purpose, pl_back = p.id, None, None, '', '/patients/' ~ p.id %}{% include "_paylink_form.html" %}</div>
+{% if paylinks %}<div class="card small" style="padding:10px 14px;margin-bottom:8px"><b>Посилання на оплату</b>
+  {% for l in paylinks %}<div class="row between" style="padding:4px 0;border-top:1px solid var(--line);gap:6px;flex-wrap:wrap"><span>№{{ l.id }} · {{ l.created_at|dt('%d.%m %H:%M') }} · {{ l.amount|uah }} · {{ l.purpose }}</span>
+    <span><b style="color:{{ 'var(--ok)' if l.status == 'paid' else ('#C0392B' if l.status in ('failed','expired') else 'var(--muted)') }}">{{ {'created':'очікує','paid':'оплачено','failed':'помилка','expired':'прострочено','cancelled':'скасовано'}.get(l.status, l.status) }}</b>
+      {% if l.status == 'created' %}<button class="btn ghost" style="padding:2px 8px" type="button" onclick="navigator.clipboard.writeText('{{ l.url }}');this.textContent='✓'">Копіювати</button>
+      <form method="post" action="/paylinks/{{ l.id }}/check" style="display:inline"><input type="hidden" name="back" value="/patients/{{ p.id }}"><button class="btn ghost" style="padding:2px 8px">Перевірити</button></form>{% endif %}</span></div>{% endfor %}</div>{% endif %}{% endif %}
 <div class="tabs patient-tabs">
   <a class="on" href="#info">Info</a><a href="#kpi">KPI</a><a href="#visits">Візити <em>{{ patient_kpi.done + patient_kpi.planned }}</em></a>
   <a href="#contact">Дзвінки й повідомлення</a><a href="#files">Документи й фото</a><a href="/patients/{{ p.id }}/photos">Фото до/після</a>{% if can(user,'medical') %}<a href="/patients/{{ p.id }}/medcard">🩺 Медкартка</a>{% endif %}<a href="#plans">План</a><a href="#sales">Продажі</a><a href="#history">Історія</a>
