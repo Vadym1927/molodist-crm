@@ -645,6 +645,48 @@ class CashDay(Base):
         return round((self.income or 0) - (self.expense or 0), 2)
 
 
+class FinOp(Base):
+    """Ручна фінансова операція в CRM: витрата / надходження (оренда, зарплата, податки…).
+    Надходження з чеків CleverBox і оплати постачальникам з monobank сюди не пишуться — показуються поруч автоматично."""
+    __tablename__ = "fin_ops"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    day: Mapped[date] = mapped_column(Date, index=True)
+    kind: Mapped[str] = mapped_column(String(10))                     # income | expense
+    category: Mapped[str] = mapped_column(String(60))
+    amount: Mapped[float] = mapped_column(Float)                      # додатне число
+    cashbox: Mapped[str | None] = mapped_column(String(100))          # готівка / ФОП Бондар / ФОП Колган / …
+    doctor_id: Mapped[int | None] = mapped_column(ForeignKey("doctors.id"), index=True)   # зарплата: кому
+    salary_month: Mapped[str | None] = mapped_column(String(7))       # зарплата: за який місяць (РРРР-ММ)
+    comment: Mapped[str | None] = mapped_column(String(500))
+    created_by: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class SalaryRule(Base):
+    """Правило нарахування зарплати спеціаліста: оклад + % від послуг + % від товарів (з чеків CleverBox)."""
+    __tablename__ = "salary_rules"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    doctor_id: Mapped[int] = mapped_column(ForeignKey("doctors.id"), unique=True)
+    base: Mapped[float | None] = mapped_column(Float)                 # оклад за місяць
+    pct_services: Mapped[float | None] = mapped_column(Float)
+    pct_products: Mapped[float | None] = mapped_column(Float)
+    note: Mapped[str | None] = mapped_column(String(300))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class SalaryAdj(Base):
+    """Коригування нарахування за місяць: премія (+) або штраф / утримання (−)."""
+    __tablename__ = "salary_adjs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    doctor_id: Mapped[int] = mapped_column(ForeignKey("doctors.id"), index=True)
+    month: Mapped[str] = mapped_column(String(7), index=True)
+    amount: Mapped[float] = mapped_column(Float)
+    comment: Mapped[str | None] = mapped_column(String(300))
+    created_by: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class FopMonth(Base):
     """Оборот ФОП за місяць: готівка / безготівка. source: checkbox (Z-звіти ПРРО) | manual (таблиця / вручну)."""
     __tablename__ = "fop_months"

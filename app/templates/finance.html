@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block body %}
-<div class="tabs" style="margin-top:0"><a href="/finance" class="on">Огляд</a><a href="/finance/pricing">Планування ціни реалізації</a></div>
+{% include "_fin_tabs.html" %}
 <div class="row between" style="margin-bottom:14px"><div><h1>Фінанси</h1><div class="muted small">{{ d_from|dt }} — {{ d_to|dt }}{% if not fs.has_data %} · чеків з CleverBox за період немає (потрібна синхронізація){% endif %}</div></div>
   <form class="row small"><input type="date" name="df" value="{{ d_from }}"><span class="muted">—</span><input type="date" name="dt_" value="{{ d_to }}"><button class="btn ghost">OK</button>
     <a class="btn ghost" href="/export/report.xlsx?df={{ d_from }}&dt_={{ d_to }}">Excel</a></form></div>

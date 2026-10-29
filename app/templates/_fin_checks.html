@@ -1,0 +1,7 @@
+<div class="card" style="padding:6px 8px;overflow:auto"><table class="tb small"><thead><tr><th>Час</th><th>№</th><th>Пацієнт</th><th>Що</th><th>Оплата</th><th class="r">Знижка</th><th class="r">Сума</th><th>Касир</th></tr></thead><tbody>
+{% for r in rows %}{% set c = r.check %}<tr><td style="white-space:nowrap">{{ c.date|dt('%d.%m.%Y' if show_date else '%H:%M') }}{% if show_date %}<div class="meta">{{ c.date|dt('%H:%M') }}</div>{% endif %}</td><td>{{ c.id }}</td>
+  <td>{% if r.patient %}<a href="/patients/{{ r.patient.id }}">{{ r.patient.full_name }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
+  <td style="min-width:240px">{% for i in r.lines %}<div>{{ i.name }}{% if i.qty and i.qty != 1 %} × {{ i.qty }}{% endif %} <span class="muted">· {{ i.amount|uah }}{{ (' · ' ~ i.staff) if i.staff }}</span></div>{% endfor %}</td>
+  <td>{% for p in r.pays %}<div style="white-space:nowrap">{{ p.payment_name or '—' }} · {{ (p.amount or 0)|float|uah }}</div>{% endfor %}</td>
+  <td class="r">{{ c.discount|uah if c.discount else '—' }}</td><td class="r"><b>{{ c.amount|uah }}</b></td><td>{{ c.author or '' }}</td></tr>
+{% else %}<tr><td colspan="8" class="muted">Чеків немає. Чеки підтягуються з CleverBox під час синхронізації (кожні 2 години).</td></tr>{% endfor %}</tbody></table></div>

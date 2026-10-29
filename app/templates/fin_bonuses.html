@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Рух бонусів · Фінанси{% endblock %}
+{% block body %}
+{% include "_fin_tabs.html" %}
+<div class="row between" style="margin-bottom:12px;gap:10px"><div><h1>Рух бонусів</h1><div class="muted small">Залишки бонусів пацієнтів з CleverBox{{ (' · оновлено ' ~ (synced|local|dt('%d.%m.%Y %H:%M'))) if synced }} і оплати бонусами в чеках</div></div>
+  <form class="fin-f"><input type="date" name="df" value="{{ d_from }}"><span class="muted">—</span><input type="date" name="dt_" value="{{ d_to }}"><input name="q" value="{{ q }}" placeholder="Пацієнт або телефон" style="width:200px"><button class="btn ghost">OK</button></form></div>
+<div class="fin-k">
+  <div class="tile"><span>Бонусів на рахунках</span><b>{{ b.total|uah }}</b><div class="muted small">{{ b.holders|length }} пацієнтів</div></div>
+  <div class="tile"><span>Сплачено бонусами</span><b>{{ b.spent|uah }}</b><div class="muted small">{{ d_from|dt }} — {{ d_to|dt }} · {{ b.spends|length }} чеків</div></div>
+</div>
+<div class="grid g2">
+<div class="card" style="padding:6px 8px;overflow:auto;margin:0"><h2 style="margin:10px 8px">Списання бонусами</h2><table class="tb small"><thead><tr><th>Дата</th><th>Пацієнт</th><th class="r">Бонусами</th><th class="r">Чек</th></tr></thead><tbody>
+  {% for x in b.spends %}<tr><td>{{ x.at|dt('%d.%m.%Y %H:%M') }}</td><td>{% if x.patient %}<a href="/patients/{{ x.patient.id }}">{{ x.patient.full_name }}</a>{% else %}—{% endif %}</td><td class="r"><b>{{ x.amount|uah }}</b></td><td class="r">№{{ x.check }} · {{ x.total|uah }}</td></tr>
+  {% else %}<tr><td colspan="4" class="muted">За період бонусами не платили.</td></tr>{% endfor %}</tbody></table></div>
+<div class="card" style="padding:6px 8px;overflow:auto;margin:0"><h2 style="margin:10px 8px">Залишки бонусів</h2><table class="tb small"><thead><tr><th>Пацієнт</th><th>Телефон</th><th class="r">Бонуси</th></tr></thead><tbody>
+  {% for p in b.holders[:500] %}<tr><td><a href="/patients/{{ p.id }}">{{ p.full_name }}</a></td><td>{{ p.phone or '' }}</td><td class="r"><b>{{ p.cb_bonus|uah }}</b></td></tr>
+  {% else %}<tr><td colspan="3" class="muted">Немає пацієнтів з бонусами.</td></tr>{% endfor %}</tbody></table></div>
+</div>
+<p class="small muted">Нарахування бонусів CleverBox через API не віддає — видно залишок на картці пацієнта і кожну оплату бонусами з чеків.</p>
+{% endblock %}

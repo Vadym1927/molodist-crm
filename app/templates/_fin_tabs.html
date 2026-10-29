@@ -1,0 +1,6 @@
+<div class="tabs fin-tabs" style="margin-top:0">{% for u, l in FIN_TABS %}<a href="{{ u }}" class="{{ 'on' if request.url.path == u }}">{{ l }}</a>{% endfor %}</div>
+<style>.fin-tabs{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;padding-bottom:2px}.fin-tabs a{white-space:nowrap;flex:none}
+.fin-f{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.fin-f input,.fin-f select{height:40px}
+.fin-k{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
+.tb td.r,.tb th.r{text-align:right;white-space:nowrap}.mono-n{font-variant-numeric:tabular-nums}
+.in{color:var(--ok)}.out{color:var(--bad)}</style>

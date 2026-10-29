@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Фіноперації · Фінанси{% endblock %}
+{% block body %}
+{% include "_fin_tabs.html" %}
+{% set qp = request.query_params %}
+<div class="row between" style="margin-bottom:12px;gap:10px"><div><h1>Фіноперації</h1><div class="muted small">{{ d_from|dt }} — {{ d_to|dt }} · чеки CleverBox, платежі monobank і ручні операції CRM</div></div>
+  <form class="fin-f"><input type="date" name="df" value="{{ d_from }}"><span class="muted">—</span><input type="date" name="dt_" value="{{ d_to }}">
+    <select name="src"><option value="">Усі джерела</option>{% for k, v in [('check','Чеки CleverBox'),('mono','monobank'),('manual','Вручну в CRM')] %}<option value="{{ k }}" {{ 'selected' if src==k }}>{{ v }}</option>{% endfor %}</select>
+    <select name="kind"><option value="">Надходження й витрати</option><option value="income" {{ 'selected' if kind=='income' }}>Лише надходження</option><option value="expense" {{ 'selected' if kind=='expense' }}>Лише витрати</option></select>
+    <input name="q" value="{{ q }}" placeholder="Пошук" style="width:160px"><button class="btn ghost">OK</button></form></div>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+{% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+<div class="fin-k">
+  <div class="tile"><span>Надходження</span><b class="in">{{ tot.income|uah }}</b><div class="muted small">гроші: готівка, картка, рахунки</div></div>
+  <div class="tile"><span>Витрати</span><b class="out">{{ tot.expense|uah }}</b><div class="muted small">постачальники, зарплата, інше</div></div>
+  <div class="tile"><span>Різниця</span><b>{{ tot.net|uah }}</b></div>
+  <div class="tile"><span>Не грошима</span><b>{{ tot.non_money|uah }}</b><div class="muted small">бонуси, баланс, сертифікати</div></div>
+</div>
+<div class="grid" style="grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start" id="fo-lay">
+<div class="card" style="padding:6px 8px;overflow:auto;margin:0"><table class="tb small"><thead><tr><th>Дата</th><th>Операція</th><th>Каса / рахунок</th><th>Від кого / кому</th><th class="r">Сума</th><th></th></tr></thead><tbody>
+{% for o in ops %}<tr><td style="white-space:nowrap">{{ o.day|dt('%d.%m.%Y') }}{% if o.at and o.src != 'manual' %}<div class="meta">{{ o.at|dt('%H:%M') }}</div>{% endif %}</td>
+  <td><b style="font-weight:600">{{ o.category }}</b><div class="meta">{{ {'check':'чек CleverBox','mono':'monobank','manual':'вручну'}[o.src] }}{{ (' · ' ~ o.author) if o.author }}{{ (' · ' ~ o.ref) if o.ref }}</div></td>
+  <td>{{ o.cashbox }}{% if not o.money %} <span class="pill warn" style="font-size:11px">не гроші</span>{% endif %}</td>
+  <td>{% if o.link %}<a href="{{ o.link }}">{{ o.who }}</a>{% else %}{{ o.who }}{% endif %}</td>
+  <td class="r mono-n"><b class="{{ 'in' if o.kind=='income' else 'out' }}">{{ '+' if o.kind=='income' else '−' }}{{ o.amount|uah }}</b></td>
+  <td>{% if o.src=='manual' %}<form method="post" action="/finance/ops/{{ o.id }}/delete" data-delpw="Видалити операцію «{{ o.category }}» {{ o.amount|uah }}?" style="margin:0"><input type="hidden" name="back" value="{{ request.url.path }}?{{ request.url.query }}"><button class="del-ic" title="Видалити" style="border:0;background:none;cursor:pointer;color:var(--muted)">×</button></form>{% endif %}</td></tr>
+{% else %}<tr><td colspan="6" class="muted">Операцій за період немає.</td></tr>{% endfor %}</tbody></table>
+{% if n_all > ops|length %}<p class="small muted">Показано {{ ops|length }} з {{ n_all }} — звузьте період.</p>{% endif %}</div>
+<div>
+<div class="card" style="margin:0 0 14px"><h2 style="margin-top:0">Нова операція</h2>
+  <form method="post" action="/finance/ops" class="grid" style="gap:8px">
+    <input type="hidden" name="back" value="{{ request.url.path }}?{{ request.url.query }}">
+    <div class="row" style="gap:6px"><label class="small"><input type="radio" name="kind" value="expense" checked onchange="foKind(this)" style="width:auto"> витрата</label>
+      <label class="small"><input type="radio" name="kind" value="income" onchange="foKind(this)" style="width:auto"> надходження</label></div>
+    <select name="category" id="fo-cat" onchange="document.getElementById('fo-sal').style.display=this.value=='Зарплата'?'grid':'none'">{% for c in EXP %}<option>{{ c }}</option>{% endfor %}</select>
+    <div id="fo-sal" class="grid" style="gap:8px;display:none"><select name="doctor_id"><option value="">Кому (спеціаліст)…</option>{% for d in doctors %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}</select>
+      <label class="small muted">За місяць<input type="month" name="salary_month" value="{{ this_month }}"></label></div>
+    <div class="row" style="gap:6px;flex-wrap:nowrap"><input name="amount" inputmode="decimal" placeholder="Сума, ₴" required style="flex:1"><input type="date" name="day" value="{{ today }}" style="flex:1"></div>
+    <select name="cashbox">{% for b in boxes %}<option>{{ b }}</option>{% endfor %}</select>
+    <input name="comment" placeholder="Коментар">
+    <button class="btn">Записати</button></form>
+  <script>function foKind(r){var c=document.getElementById('fo-cat');var a=r.value=='income'?{{ INC|tojson }}:{{ EXP|tojson }};c.innerHTML=a.map(function(x){return '<option>'+x+'</option>'}).join('');c.onchange()}</script>
+  <p class="small muted" style="margin:8px 0 0">Продажі з CleverBox і оплати постачальникам з monobank вносити не треба — вони тут автоматично.</p></div>
+<div class="card" style="margin:0 0 14px"><h2 style="margin-top:0">За касами</h2><table class="tb small"><tbody>
+  {% for k, v in tot.by_box.items() %}<tr><td>{{ k }}</td><td class="r in">{{ v.income|uah if v.income else '' }}</td><td class="r out">{{ ('−' ~ (v.expense|uah)) if v.expense else '' }}</td></tr>{% else %}<tr><td class="muted">—</td></tr>{% endfor %}</tbody></table></div>
+<div class="card" style="margin:0"><h2 style="margin-top:0">Витрати за статтями</h2><table class="tb small"><tbody>
+  {% for k, v in tot.by_cat.items() %}<tr><td>{{ k }}</td><td class="r">{{ v|uah }}</td></tr>{% else %}<tr><td class="muted">—</td></tr>{% endfor %}</tbody></table></div>
+</div></div>
+<style>@media (max-width:1000px){ #fo-lay{grid-template-columns:1fr!important}}</style>
+{% endblock %}

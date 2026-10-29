@@ -27,7 +27,7 @@ table.pt{border-collapse:separate;border-spacing:0;font-size:13px;min-width:1900
 .savebar{position:sticky;bottom:10px;z-index:6;display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--graphite);color:#fff;border-radius:14px;padding:10px 14px;margin-top:12px;box-shadow:0 10px 30px -10px rgba(0,0,0,.4)}
 .savebar .btn{background:#fff;color:var(--graphite);border-color:#fff}
 </style>
-<div class="tabs" style="margin-top:0"><a href="/finance">Огляд</a><a href="/finance/pricing" class="on">Планування ціни реалізації</a></div>
+{% include "_fin_tabs.html" %}
 <div class="row between" style="align-items:flex-end"><div><div class="eyebrow">Фінанси</div><h1>Планування ціни реалізації</h1></div>
   <a class="btn ghost" href="/finance/pricing.xlsx?wh={{ wh }}&brand={{ brand|urlencode }}&q={{ q|urlencode }}&only={{ only }}">Excel</a></div>
 {% if request.query_params.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok);margin-top:10px">{{ request.query_params.get('msg') }}</div>{% endif %}

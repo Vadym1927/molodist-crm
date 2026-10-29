@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Продажі за день · Фінанси{% endblock %}
+{% block body %}
+{% include "_fin_tabs.html" %}
+<div class="row between" style="margin-bottom:12px;gap:10px"><div><h1>Продажі за день</h1><div class="muted small">{{ day|dt('%d.%m.%Y') }} · чеки CleverBox</div></div>
+  <form class="fin-f"><a class="btn ghost" href="?d={{ day - timedelta(days=1) }}">←</a><input type="date" name="d" value="{{ day }}" onchange="this.form.submit()">
+    <a class="btn ghost" href="?d={{ day + timedelta(days=1) }}">→</a><a class="btn ghost" href="?">Сьогодні</a></form></div>
+<div class="fin-k">
+  <div class="tile"><span>Виручка</span><b>{{ s.revenue|uah }}</b><div class="muted small">{% if prev.revenue %}тиждень тому {{ prev.revenue|uah }}{% else %}&nbsp;{% endif %}</div></div>
+  <div class="tile"><span>Чеків</span><b>{{ s.n }}</b><div class="muted small">середній {{ s.avg|uah }}</div></div>
+  <div class="tile"><span>Отримано грошима</span><b>{{ s.money|uah }}</b><div class="muted small">без бонусів і балансу</div></div>
+  <div class="tile"><span>Знижки</span><b>{{ s.discount|uah }}</b></div>
+</div>
+<div class="grid g2" style="margin-bottom:16px">
+  <div class="card" style="margin:0"><h2 style="margin-top:0">Способи оплати</h2><table class="tb small"><tbody>{% for k, v in s.by_pay.items() %}<tr><td>{{ k }}</td><td class="r">{{ v|uah }}</td></tr>{% else %}<tr><td class="muted">—</td></tr>{% endfor %}</tbody></table>
+    <h2 style="margin:16px 0 8px">Що продано</h2><table class="tb small"><tbody>{% for k, v in s.by_type.items() %}<tr><td>{{ k }}</td><td class="r">{{ v|uah }}</td></tr>{% else %}<tr><td class="muted">—</td></tr>{% endfor %}</tbody></table></div>
+  <div class="card" style="margin:0"><h2 style="margin-top:0">Спеціалісти</h2><table class="tb small"><thead><tr><th>Хто</th><th class="r">Послуг</th><th class="r">Послуги</th><th class="r">Товари</th></tr></thead><tbody>
+    {% for k, v in s.by_staff.items() %}<tr><td>{{ k }}</td><td class="r">{{ v.n }}</td><td class="r">{{ v.services|uah }}</td><td class="r">{{ v.products|uah if v.products else '—' }}</td></tr>{% else %}<tr><td colspan="4" class="muted">—</td></tr>{% endfor %}</tbody></table></div>
+</div>
+{% include "_fin_checks.html" %}
+{% endblock %}

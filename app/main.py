@@ -47,8 +47,11 @@ def _local(v):
 
 
 templates.env.filters["local"] = _local
+FIN_TABS = [("/finance", "Огляд"), ("/finance/ops", "Фіноперації"), ("/finance/payroll", "Нарахування зарплати"),
+            ("/finance/settle", "Взаєморозрахунки по з/п"), ("/finance/day", "Продажі за день"), ("/finance/sales", "Продажі"),
+            ("/finance/balances", "Баланс пацієнтів"), ("/finance/bonuses", "Рух бонусів"), ("/finance/pricing", "Планування ціни реалізації")]
 templates.env.globals.update(
-    can=can, ROLES=ROLES, EVENTS=webhooks.EVENTS,
+    can=can, ROLES=ROLES, EVENTS=webhooks.EVENTS, FIN_TABS=FIN_TABS,
     FLAG={"green": ("записана", "ok"), "yellow": ("без запису", "warn"),
           "red": ("прострочено", "bad"), "done": ("завершено", "done")})
 
@@ -1646,6 +1649,8 @@ async def products_bulk(request: Request, user: User = Depends(require("products
 STOCK_TABS = {"balances": "Залишки", "critical": "Критичні залишки", "supply": "Поставки", "order": "Замовлення",
               "transfer": "Переміщення", "writeoff": "Списання", "return": "Повернення", "inventory": "Інвентаризація",
               "suppliers": "Постачальники", "norms": "Норми списання", "moves": "Рух товарів"}
+templates.env.globals["STOCK_TABS"] = STOCK_TABS
+templates.env.globals["REPORT_TABS"] = __import__("app.services.reports", fromlist=["REPORTS"]).REPORTS
 
 
 def _critical_rows(rows):
@@ -3098,6 +3103,222 @@ def _pricing_rows(db: Session, wh: str, brand: str, q: str, only: str):
         out = [x for x in out if (pr_svc.margin(x.price_now, x.cost_uah) or 100) < 40]
     out.sort(key=lambda x: ((x.product.brand or "яяя").lower(), x.product.name))
     return out, rt
+
+
+# ---------------- Фінанси: розділи як у CleverBox ----------------
+def _period(df: str, dt_: str, default_days: int | None = None) -> tuple[date, date]:
+    today = date.today()
+    d_to = _day(dt_) or today
+    d_from = _day(df) or (d_to - timedelta(days=default_days) if default_days is not None else today.replace(day=1))
+    return (d_from, d_to) if d_from <= d_to else (d_to, d_from)
+
+
+def _cashboxes(db: Session) -> list[str]:
+    from .integrations.checkbox import accounts as _cb_acc
+    return ["Готівка"] + [f"ФОП {a['name']}" for a in _cb_acc(db)] + ["Інше"]
+
+
+def _month(m: str) -> str:
+    import re as _re
+    return m if _re.fullmatch(r"\d{4}-\d{2}", m or "") else fo_month_key(date.today())
+
+
+def fo_month_key(d: date) -> str:
+    return f"{d.year}-{d.month:02d}"
+
+
+@app.get("/finance/ops", response_class=HTMLResponse)
+def finance_ops(request: Request, df: str = "", dt_: str = "", src: str = "", kind: str = "", q: str = "",
+                user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import finops as fo
+    d_from, d_to = _period(df, dt_)
+    users = {u_.id: u_.name for u_ in db.scalars(select(User))}
+    ops = fo.operations(db, d_from, d_to, users)
+    tot = fo.ops_totals(ops)
+    if src:
+        ops = [o for o in ops if o.src == src]
+    if kind:
+        ops = [o for o in ops if o.kind == kind]
+    if q.strip():
+        ql = q.strip().lower()
+        ops = [o for o in ops if ql in f"{o.category} {o.cashbox} {o.who} {o.ref}".lower()]
+    return render(request, "fin_ops.html", nav="finance", ops=ops[:1500], n_all=len(ops), tot=tot, d_from=d_from, d_to=d_to,
+                  src=src, kind=kind, q=q, EXP=fo.EXPENSE_CATS, INC=fo.INCOME_CATS, boxes=_cashboxes(db),
+                  doctors=db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)).all(),
+                  today=date.today(), this_month=fo_month_key(date.today()))
+
+
+@app.post("/finance/ops")
+def finance_op_add(day: str = Form(""), kind: str = Form("expense"), category: str = Form(...), amount: str = Form(...),
+                   cashbox: str = Form(""), doctor_id: str = Form(""), salary_month: str = Form(""), comment: str = Form(""),
+                   back: str = Form("/finance/ops"), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .models import FinOp
+    amt = _num(amount)
+    back = back if back.startswith("/finance") else "/finance/ops"
+    if not amt or amt <= 0:
+        return RedirectResponse(_with_msg(back, "Вкажіть суму більше 0", err=True), 303)
+    x = FinOp(day=_day(day) or date.today(), kind="income" if kind == "income" else "expense", category=category.strip()[:60],
+              amount=round(amt, 2), cashbox=cashbox.strip()[:100] or None, comment=comment.strip()[:500] or None,
+              doctor_id=int(doctor_id) if doctor_id.isdigit() else None,
+              salary_month=_month(salary_month) if salary_month else None, created_by=user.id)
+    if x.category == "Зарплата" and x.doctor_id and not x.salary_month:
+        x.salary_month = fo_month_key(x.day)
+    db.add(x)
+    db.commit()
+    audit(db, "fin.op_add", "fin_op", x.id, user=user, kind=x.kind, category=x.category, amount=x.amount, cashbox=x.cashbox)
+    return RedirectResponse(_with_msg(back, f"Записано: {x.category} {x.amount:,.2f} ₴".replace(",", " ")), 303)
+
+
+@app.post("/finance/ops/{oid:int}/delete")
+def finance_op_delete(oid: int, del_password: str = Form(""), back: str = Form("/finance/ops"),
+                      user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .models import FinOp
+    back = back if back.startswith("/finance") else "/finance/ops"
+    err = _delpw(db, user, del_password, "fin_op", "fin_op", oid)
+    if err:
+        return RedirectResponse(_with_err(back, err), 303)
+    x = db.get(FinOp, oid)
+    if x and not x.deleted_at:
+        x.deleted_at = datetime.utcnow()
+        db.commit()
+        audit(db, "fin.op_delete", "fin_op", oid, user=user, category=x.category, amount=x.amount)
+    return RedirectResponse(_with_msg(back, "Операцію видалено"), 303)
+
+
+def _with_msg(url: str, msg: str, err: bool = False) -> str:
+    base, _, frag = url.partition("#")
+    return f"{base}{'&' if '?' in base else '?'}{'err' if err else 'msg'}={_q(msg)}" + (f"#{frag}" if frag else "")
+
+
+@app.get("/finance/day", response_class=HTMLResponse)
+def finance_day(request: Request, d: str = "", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import finops as fo
+    day = _day(d) or date.today()
+    cs = fo.checks(db, day, day)
+    prev = fo.sales_summary(fo.checks(db, day - timedelta(days=7), day - timedelta(days=7)))
+    return render(request, "fin_day.html", nav="finance", day=day, s=fo.sales_summary(cs), rows=fo.sales_rows(db, cs),
+                  prev=prev, timedelta=timedelta)
+
+
+@app.get("/finance/sales", response_class=HTMLResponse)
+def finance_sales(request: Request, df: str = "", dt_: str = "", q: str = "", staff: str = "",
+                  user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import finops as fo
+    d_from, d_to = _period(df, dt_)
+    cs = fo.checks(db, d_from, d_to)
+    rows = fo.sales_rows(db, cs, q, staff)
+    staff_names = sorted({it.get("initiator_name") for c in cs for it in (c.items or []) if it.get("initiator_name")})
+    return render(request, "fin_sales.html", nav="finance", d_from=d_from, d_to=d_to, q=q, staff=staff, staff_names=staff_names,
+                  s=fo.sales_summary([r["check"] for r in rows]), rows=rows[:800], n=len(rows))
+
+
+@app.get("/finance/payroll", response_class=HTMLResponse)
+def finance_payroll(request: Request, m: str = "", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import finops as fo
+    month = _month(m)
+    rows = fo.payroll(db, month)
+    all_docs = db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)).all()
+    return render(request, "fin_payroll.html", nav="finance", month=month, rows=rows, months=_month_list(),
+                  total={k: round(sum(r["m"][k] for r in rows), 2) for k in ("services", "products", "accrued", "adj")},
+                  no_rule=[d_ for d_ in all_docs if d_.id not in {r["doctor"].id for r in rows if r["rule"]}])
+
+
+def _month_list(n: int = 24) -> list[str]:
+    t = date.today().replace(day=1)
+    out = []
+    for _ in range(n):
+        out.append(fo_month_key(t))
+        t = (t - timedelta(days=1)).replace(day=1)
+    return out
+
+
+@app.post("/finance/payroll/rule")
+def finance_payroll_rule(doctor_id: int = Form(...), base: str = Form(""), pct_services: str = Form(""), pct_products: str = Form(""),
+                         note: str = Form(""), m: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .models import SalaryRule
+    from .services import finops as fo
+    if not db.get(SyncState, "payroll_start"):
+        fo.set_payroll_start(db, _month(m))
+    r = db.scalar(select(SalaryRule).where(SalaryRule.doctor_id == doctor_id)) or SalaryRule(doctor_id=doctor_id)
+    r.base, r.pct_services, r.pct_products = _num(base), _num(pct_services), _num(pct_products)
+    r.note, r.updated_at = note.strip()[:300] or None, datetime.utcnow()
+    db.add(r)
+    db.commit()
+    audit(db, "fin.salary_rule", "doctor", doctor_id, user=user, base=r.base, pct_services=r.pct_services, pct_products=r.pct_products)
+    return RedirectResponse(f"/finance/payroll?m={_month(m)}#d{doctor_id}", 303)
+
+
+@app.post("/finance/payroll/adj")
+def finance_payroll_adj(doctor_id: int = Form(...), month: str = Form(...), amount: str = Form(...), sign: str = Form("+"),
+                        comment: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .models import SalaryAdj
+    amt = _num(amount)
+    mk = _month(month)
+    if amt:
+        a = SalaryAdj(doctor_id=doctor_id, month=mk, amount=round(-abs(amt) if sign == "-" else abs(amt), 2),
+                      comment=comment.strip()[:300] or None, created_by=user.id)
+        db.add(a)
+        db.commit()
+        audit(db, "fin.salary_adj", "doctor", doctor_id, user=user, month=mk, amount=a.amount, comment=a.comment)
+    return RedirectResponse(f"/finance/payroll?m={mk}#d{doctor_id}", 303)
+
+
+@app.post("/finance/payroll/adj/{aid:int}/delete")
+def finance_payroll_adj_delete(aid: int, del_password: str = Form(""), user: User = Depends(require("finance")),
+                               db: Session = Depends(db_dep)):
+    from .models import SalaryAdj
+    a = db.get(SalaryAdj, aid)
+    back = f"/finance/payroll?m={a.month}" if a else "/finance/payroll"
+    err = _delpw(db, user, del_password, "salary_adj", "doctor", a.doctor_id if a else None)
+    if err:
+        return RedirectResponse(_with_err(back, err), 303)
+    if a:
+        audit(db, "fin.salary_adj_delete", "doctor", a.doctor_id, user=user, month=a.month, amount=a.amount)
+        db.delete(a)
+        db.commit()
+    return RedirectResponse(back, 303)
+
+
+@app.get("/finance/settle", response_class=HTMLResponse)
+def finance_settle(request: Request, m: str = "", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import finops as fo
+    from .models import FinOp
+    month = _month(m)
+    rows = fo.settlements(db, month)
+    a, b = fo.month_bounds(month)
+    pays = db.scalars(select(FinOp).where(FinOp.deleted_at.is_(None), FinOp.category == "Зарплата", FinOp.doctor_id.is_not(None))
+                      .order_by(FinOp.day.desc())).all()
+    pays = [x for x in pays if (x.salary_month or fo_month_key(x.day)) == month]
+    return render(request, "fin_settle.html", nav="finance", month=month, rows=rows, months=_month_list(), start=fo.payroll_start(db),
+                  boxes=_cashboxes(db), pays=pays, docs={d_.id: d_ for d_ in db.scalars(select(Doctor))}, today=date.today(),
+                  total={k: round(sum(r[k] for r in rows), 2) for k in ("opening", "accrued", "paid", "closing")})
+
+
+@app.post("/finance/settle/start")
+def finance_settle_start(month: str = Form(...), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import finops as fo
+    fo.set_payroll_start(db, _month(month))
+    audit(db, "fin.payroll_start", user=user, month=_month(month))
+    return RedirectResponse(f"/finance/settle?m={_month(month)}", 303)
+
+
+@app.get("/finance/balances", response_class=HTMLResponse)
+def finance_balances(request: Request, q: str = "", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import finops as fo
+    rows = fo.balances(db, q)
+    pos = round(sum(p.cb_balance for p in rows if p.cb_balance > 0), 2)
+    neg = round(sum(p.cb_balance for p in rows if p.cb_balance < 0), 2)
+    return render(request, "fin_balances.html", nav="finance", rows=rows, q=q, pos=pos, neg=neg,
+                  synced=db.scalar(select(func.max(Patient.cb_synced_at))))
+
+
+@app.get("/finance/bonuses", response_class=HTMLResponse)
+def finance_bonuses(request: Request, df: str = "", dt_: str = "", q: str = "", user: User = Depends(require("finance")),
+                    db: Session = Depends(db_dep)):
+    from .services import finops as fo
+    d_from, d_to = _period(df, dt_, default_days=90)
+    return render(request, "fin_bonuses.html", nav="finance", d_from=d_from, d_to=d_to, q=q, b=fo.bonuses(db, d_from, d_to, q),
+                  synced=db.scalar(select(func.max(Patient.cb_synced_at))))
 
 
 @app.get("/finance/pricing", response_class=HTMLResponse)

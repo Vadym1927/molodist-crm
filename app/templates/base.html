@@ -93,7 +93,30 @@ details summary{cursor:pointer;color:var(--muted);font-weight:600}.drop{border:1
 .more .menu{left:auto;right:8px;bottom:80px}
 .top{padding:0 16px;gap:10px;height:62px}.top .sub,.top .cta span{display:none}.top .cta{padding:0 14px}
 .top .search input{height:42px}}
-@media (max-width:720px){.g2{grid-template-columns:1fr}header{padding:12px 16px;gap:12px}main{padding:18px 16px 30px}.hide-m{display:none}table{font-size:14px}th,td{padding:8px 6px}h1{font-size:26px}}
+/* ---- мобільне меню-шухляда (як у CleverBox) ---- */
+.burger{display:none;width:44px;height:44px;border:0;border-radius:12px;background:var(--soft);color:var(--ink);place-items:center;cursor:pointer;flex:none}
+.drw-bg{position:fixed;inset:0;background:rgba(20,16,26,.45);z-index:60;opacity:0;pointer-events:none;transition:opacity .2s}
+.drw{position:fixed;top:0;bottom:0;left:0;width:min(84vw,340px);background:linear-gradient(180deg,#1f1b26,#2a2430);color:#e9e5f2;z-index:61;
+  transform:translateX(-102%);transition:transform .22s ease;display:flex;flex-direction:column;box-shadow:20px 0 50px rgba(0,0,0,.35)}
+body.drw-on .drw{transform:none}body.drw-on .drw-bg{opacity:1;pointer-events:auto}body.drw-on{overflow:hidden}
+.drw-h{display:flex;align-items:center;justify-content:space-between;padding:18px 18px 14px;border-bottom:1px solid rgba(255,255,255,.08)}
+.drw-h .mark{width:44px;height:44px;border-radius:50%;background:var(--deep);color:#fff;display:grid;place-items:center;font:400 24px/1 var(--word);text-decoration:none}
+.drw-h .who{flex:1;margin-left:12px;min-width:0}.drw-h .who b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.drw-h .who span{font-size:12px;color:#a59fb5}
+.drw-x{border:0;background:rgba(255,255,255,.08);color:#fff;width:38px;height:38px;border-radius:10px;font-size:22px;cursor:pointer}
+.drw-b{flex:1;overflow-y:auto;padding:8px 0 24px;-webkit-overflow-scrolling:touch}
+.drw a.di,.drw summary.di{display:flex;align-items:center;gap:14px;padding:13px 22px;color:#e9e5f2;text-decoration:none;font-size:16.5px;font-weight:600;list-style:none;cursor:pointer;position:relative}
+.drw summary.di::-webkit-details-marker{display:none}
+.drw .di svg{width:24px;height:24px;flex:none;color:#b6aec8}
+.drw a.di.on,.drw details[open]>summary.di{background:rgba(255,255,255,.06)}.drw a.di.on{box-shadow:inset 3px 0 0 var(--lavender-2)}
+.drw summary.di:after{content:"";margin-left:auto;width:8px;height:8px;border-right:2px solid #a59fb5;border-bottom:2px solid #a59fb5;transform:rotate(45deg);transition:transform .15s}
+.drw details[open]>summary.di:after{transform:rotate(-135deg)}
+.drw .sub-l{padding:4px 0 8px;background:rgba(0,0,0,.18)}
+.drw .sub-l a{display:block;padding:11px 22px 11px 60px;color:#d6d0e4;text-decoration:none;font-size:15.5px}
+.drw .sub-l a.on{color:#fff;font-weight:700;background:rgba(201,191,230,.12)}
+.drw .badge{margin-left:auto;min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:var(--bad);color:#fff;font:800 12px/22px var(--sans);text-align:center}
+@media (max-width:900px){.rail{display:none}body.app{padding-bottom:0}.burger{display:grid}.top .brand{font-size:19px}}
+@media (min-width:901px){.drw,.drw-bg{display:none}}
+@media (max-width:720px){.tile b{font-size:21px}.tile{padding:12px 14px}.g2{grid-template-columns:1fr}header{padding:12px 16px;gap:12px}main{padding:18px 16px 30px}.hide-m{display:none}table{font-size:14px}th,td{padding:8px 6px}h1{font-size:26px}}
 </style>
 </head>
 <body class="{{ 'app' if nav not in ('login','print') and user }}">
@@ -131,7 +154,40 @@ details summary{cursor:pointer;color:var(--muted);font-weight:600}.drop{border:1
   <a class="ava" href="/me" title="{{ user.name }}">{{ (user.name.split()|map('first')|join)[:2]|upper }}</a>
   <div class="role">{{ user.role_label }}</div>
 </aside>
+{% set P = request.url.path %}{% set QT = request.query_params.get('tab', '') %}{% set QR = request.query_params.get('r', '') %}
+<div class="drw-bg" onclick="document.body.classList.remove('drw-on')"></div>
+<nav class="drw" aria-label="Меню">
+  <div class="drw-h"><a class="mark" href="/">M</a><div class="who"><b>{{ user.name }}</b><span>{{ user.role_label }}</span></div>
+    <button type="button" class="drw-x" onclick="document.body.classList.remove('drw-on')" aria-label="Закрити">×</button></div>
+  <div class="drw-b">
+    {% macro di(href, label, on, icon, badge=None) %}<a class="di {{ 'on' if on }}" href="{{ href }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">{{ icon|safe }}</svg>{{ label }}{% if badge %}<i class="badge">{{ badge }}</i>{% endif %}</a>{% endmacro %}
+    {{ di('/', 'Дашборд', nav=='dashboard', '<path d="M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z"/>') }}
+    {{ di('/calendar', 'Записи', nav=='calendar', '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>') }}
+    {{ di('/tasks', 'Задачі', nav=='tasks', '<path d="M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/>', (task_counts.overdue or task_counts.open) if task_counts else None) }}
+    {{ di('/clients', 'Пацієнти', nav in ('clients','patient','patients','unassigned'), '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.3-5.5 6.5-5.5s5.7 2 6.5 5.5M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5c2 .6 3.2 2.5 3.5 5.5"/>') }}
+    {{ di('/plans', 'Бюті-плани', nav=='plans', '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/>') }}
+    {% if can(user,'specialists') %}{{ di('/specialists', 'Команда', nav in ('specialists','specialist'), '<circle cx="12" cy="7.5" r="3.5"/><path d="M5 20c.9-3.8 3.6-6 7-6s6.1 2.2 7 6"/>') }}{% endif %}
+    {% if can(user,'patients_all') %}{{ di('/gifts', 'Сертифікати й абонементи', nav=='gifts', '<rect x="3" y="8" width="18" height="13" rx="1.5"/><path d="M3 12h18M12 8v13"/>') }}{% endif %}
+    {% if can(user,'products') %}<details {{ 'open' if nav in ('products','mapping') }}><summary class="di"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6v4l2 2v11a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V9l2-2z"/></svg>Продукти</summary>
+      <div class="sub-l"><a href="/products?tab=care" class="{{ 'on' if P=='/products' and QT in ('','care') }}">Товари за складами</a><a href="/products?tab=suppliers" class="{{ 'on' if P=='/products' and QT=='suppliers' }}">Постачальники</a><a href="/products?tab=procedures" class="{{ 'on' if P=='/products' and QT=='procedures' }}">Процедури</a>{% if can(user,'mapping') %}<a href="/mapping" class="{{ 'on' if nav=='mapping' }}">Зіставлення послуг</a>{% endif %}</div></details>{% endif %}
+    {% if can(user,'stock') %}<details {{ 'open' if nav in ('stock','stock_doc') }}><summary class="di"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-5 9 5v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M7 20v-7h10v7"/></svg>Склад</summary>
+      <div class="sub-l">{% for k, v in STOCK_TABS.items() %}<a href="/stock?tab={{ k }}" class="{{ 'on' if P=='/stock' and (QT or 'balances')==k }}">{{ v }}</a>{% endfor %}</div></details>{% endif %}
+    {% if can(user,'finance') %}<details {{ 'open' if nav=='finance' }}><summary class="di"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>Фінанси</summary>
+      <div class="sub-l">{% for u, l in FIN_TABS %}<a href="{{ u }}" class="{{ 'on' if P==u }}">{{ l }}</a>{% endfor %}</div></details>
+    <details {{ 'open' if nav=='reports' }}><summary class="di"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Звіти</summary>
+      <div class="sub-l">{% for k, v in REPORT_TABS.items() %}<a href="/reports?r={{ k }}" class="{{ 'on' if P=='/reports' and QR==k }}">{{ v }}</a>{% endfor %}</div></details>{% endif %}
+    <details {{ 'open' if nav in ('settings','keys','access','data','campaigns','campaign','scripts','me') }}><summary class="di"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="19" cy="12" r="1.3" fill="currentColor"/></svg>Ще</summary>
+      <div class="sub-l"><a href="/settings" class="{{ 'on' if nav=='settings' }}">Налаштування</a>
+        {% if can(user,'campaigns') %}<a href="/campaigns" class="{{ 'on' if nav in ('campaigns','campaign') }}">Розсилки</a>{% endif %}
+        {% if can(user,'scripts_edit') %}<a href="/scripts" class="{{ 'on' if nav=='scripts' }}">Скрипти</a>{% endif %}
+        {% if can(user,'export_reports') %}<a href="/data" class="{{ 'on' if nav=='data' }}">Дані й синхронізація</a>{% endif %}
+        {% if can(user,'finance') %}<a href="/settings/keys" class="{{ 'on' if nav=='keys' }}">Ключі й інтеграції</a>{% endif %}
+        {% if can(user,'users') %}<a href="/access" class="{{ 'on' if nav=='access' }}">Доступи й API</a>{% endif %}
+        <a href="/me" class="{{ 'on' if nav=='me' }}">Мій кабінет</a><a href="/logout">Вийти</a></div></details>
+  </div>
+</nav>
 <div class="top">
+  <button type="button" class="burger" onclick="document.body.classList.add('drw-on')" aria-label="Меню"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
   <a class="brand" href="/">MOLODIST</a><span class="sub">Медичний простір</span>
   <form class="search" action="/clients" method="get"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input name="q" placeholder="Знайти пацієнта за імʼям або телефоном" value="{{ request.query_params.get('q','') if nav=='clients' else '' }}"></form>
   <a class="bell" href="/tasks" title="Задачі"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8M10 21a2 2 0 0 0 4 0"/></svg>{% if task_counts and (task_counts.overdue or task_counts.open) %}<i></i>{% endif %}</a>

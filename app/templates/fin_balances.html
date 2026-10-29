@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Баланс пацієнтів · Фінанси{% endblock %}
+{% block body %}
+{% include "_fin_tabs.html" %}
+<div class="row between" style="margin-bottom:12px;gap:10px"><div><h1>Баланс пацієнтів</h1><div class="muted small">Депозити й борги пацієнтів з CleverBox{{ (' · оновлено ' ~ (synced|local|dt('%d.%m.%Y %H:%M'))) if synced }}</div></div>
+  <form class="fin-f"><input name="q" value="{{ q }}" placeholder="Пацієнт або телефон" style="width:240px"><button class="btn ghost">OK</button></form></div>
+<div class="fin-k">
+  <div class="tile"><span>На депозитах</span><b>{{ pos|uah }}</b><div class="muted small">гроші пацієнтів у клініці</div></div>
+  <div class="tile"><span>Борги пацієнтів</span><b class="out">{{ neg|uah }}</b></div>
+  <div class="tile"><span>Пацієнтів</span><b>{{ rows|length }}</b></div>
+</div>
+<div class="card" style="padding:6px 8px;overflow:auto"><table class="tb small"><thead><tr><th>Пацієнт</th><th>Телефон</th><th class="r">Баланс</th><th class="r">Бонуси</th><th class="r">Сума покупок</th></tr></thead><tbody>
+{% for p in rows %}<tr><td><a href="/patients/{{ p.id }}">{{ p.full_name }}</a></td><td>{{ p.phone or '' }}</td>
+  <td class="r"><b class="{{ 'out' if p.cb_balance < 0 else '' }}">{{ p.cb_balance|uah }}</b></td><td class="r">{{ p.cb_bonus|uah if p.cb_bonus else '—' }}</td><td class="r">{{ p.cb_total|uah if p.cb_total else '—' }}</td></tr>
+{% else %}<tr><td colspan="5" class="muted">Немає пацієнтів з ненульовим балансом. Баланс приходить з карток CleverBox (синхронізація або імпорт «Клієнти»).</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

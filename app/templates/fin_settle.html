@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Взаєморозрахунки по з/п · Фінанси{% endblock %}
+{% block body %}
+{% include "_fin_tabs.html" %}
+<div class="row between" style="margin-bottom:12px;gap:10px"><div><h1>Взаєморозрахунки по з/п</h1><div class="muted small">Борг на початок + нараховано − виплачено = до виплати · облік з {{ start }}</div></div>
+  <form class="fin-f"><select name="m" onchange="this.form.submit()">{% for x in months %}<option {{ 'selected' if month==x }}>{{ x }}</option>{% endfor %}</select></form></div>
+<div class="fin-k">
+  <div class="tile"><span>Борг на початок</span><b>{{ total.opening|uah }}</b></div>
+  <div class="tile"><span>Нараховано</span><b>{{ total.accrued|uah }}</b></div>
+  <div class="tile"><span>Виплачено</span><b class="in">{{ total.paid|uah }}</b></div>
+  <div class="tile"><span>До виплати</span><b style="color:{{ 'var(--bad)' if total.closing > 0.01 else 'inherit' }}">{{ total.closing|uah }}</b></div>
+</div>
+<div class="card" style="padding:6px 8px;overflow:auto"><table class="tb small"><thead><tr><th>Спеціаліст</th><th class="r">Борг на початок</th><th class="r">Нараховано</th><th class="r">Виплачено</th><th class="r">До виплати</th><th>Виплатити</th></tr></thead><tbody>
+{% for r in rows %}<tr><td><b>{{ r.doctor.name }}</b></td><td class="r">{{ r.opening|uah }}</td><td class="r">{{ r.accrued|uah }}</td><td class="r">{{ r.paid|uah if r.paid else '—' }}</td>
+  <td class="r"><b style="color:{{ 'var(--bad)' if r.closing > 0.01 else ('var(--ok)' if r.closing < -0.01 else 'inherit') }}">{{ r.closing|uah }}</b>{% if r.closing < -0.01 %}<div class="meta">переплата</div>{% endif %}</td>
+  <td><form method="post" action="/finance/ops" class="row" style="gap:4px;flex-wrap:nowrap"><input type="hidden" name="kind" value="expense"><input type="hidden" name="category" value="Зарплата">
+      <input type="hidden" name="doctor_id" value="{{ r.doctor.id }}"><input type="hidden" name="salary_month" value="{{ month }}"><input type="hidden" name="back" value="/finance/settle?m={{ month }}">
+      <input name="amount" inputmode="decimal" value="{{ '%.2f'|format(r.closing) if r.closing > 0.01 else '' }}" placeholder="Сума" style="width:110px;height:34px">
+      <select name="cashbox" style="height:34px">{% for b in boxes %}<option>{{ b }}</option>{% endfor %}</select><input type="date" name="day" value="{{ today }}" style="height:34px">
+      <button class="btn" style="padding:4px 10px">Виплачено</button></form></td></tr>
+{% else %}<tr><td colspan="6" class="muted">Немає нарахувань — задайте правила на вкладці «Нарахування зарплати».</td></tr>{% endfor %}</tbody></table></div>
+<div class="grid g2">
+<div class="card" style="margin:0"><h2 style="margin-top:0">Виплати за {{ month }}</h2><table class="tb small"><tbody>
+  {% for x in pays %}<tr><td>{{ x.day|dt('%d.%m.%Y') }}</td><td>{{ docs[x.doctor_id].name if docs.get(x.doctor_id) else '—' }}</td><td>{{ x.cashbox or '' }}</td><td class="r">{{ x.amount|uah }}</td>
+    <td><form method="post" action="/finance/ops/{{ x.id }}/delete" data-delpw="Видалити виплату {{ x.amount|uah }}?" style="margin:0"><input type="hidden" name="back" value="/finance/settle?m={{ month }}"><button style="border:0;background:none;color:var(--muted);cursor:pointer">×</button></form></td></tr>
+  {% else %}<tr><td class="muted">Виплат ще немає.</td></tr>{% endfor %}</tbody></table>
+  <p class="small muted" style="margin:8px 0 0">Виплата записується у «Фіноперації» як витрата «Зарплата».</p></div>
+<div class="card" style="margin:0"><h2 style="margin-top:0">Початок обліку</h2><p class="small muted">З якого місяця рахувати борги. Раніші місяці не враховуються (вважаються закритими).</p>
+  <form method="post" action="/finance/settle/start" class="fin-f"><select name="month">{% for x in months %}<option {{ 'selected' if start==x }}>{{ x }}</option>{% endfor %}</select><button class="btn ghost">Зберегти</button></form></div>
+</div>
+{% endblock %}

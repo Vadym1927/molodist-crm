@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Нарахування зарплати · Фінанси{% endblock %}
+{% block body %}
+{% include "_fin_tabs.html" %}
+<div class="row between" style="margin-bottom:12px;gap:10px"><div><h1>Нарахування зарплати</h1><div class="muted small">Оклад + % від послуг і товарів за чеками CleverBox (за спеціалістом у позиції чека) + премії / утримання</div></div>
+  <form class="fin-f"><select name="m" onchange="this.form.submit()">{% for x in months %}<option {{ 'selected' if month==x }}>{{ x }}</option>{% endfor %}</select></form></div>
+<div class="fin-k">
+  <div class="tile"><span>Нараховано за {{ month }}</span><b>{{ total.accrued|uah }}</b></div>
+  <div class="tile"><span>Послуги спеціалістів</span><b>{{ total.services|uah }}</b></div>
+  <div class="tile"><span>Товари спеціалістів</span><b>{{ total.products|uah }}</b></div>
+  <div class="tile"><span>Премії / утримання</span><b>{{ total.adj|uah }}</b></div>
+</div>
+<div class="card" style="padding:6px 8px;overflow:auto"><table class="tb small"><thead><tr><th>Спеціаліст</th><th>Правило</th><th class="r">Послуги</th><th class="r">Від послуг</th><th class="r">Товари</th><th class="r">Від товарів</th><th class="r">Оклад</th><th class="r">Премії / утр.</th><th class="r">Нараховано</th></tr></thead><tbody>
+{% for r in rows %}{% set m = r.m %}<tr id="d{{ r.doctor.id }}"><td><b>{{ r.doctor.name }}</b>{% if r.doctor.position %}<div class="meta">{{ r.doctor.position }}</div>{% endif %}</td>
+  <td>{% if r.rule %}{{ '%g'|format(r.rule.pct_services or 0) }}% посл. · {{ '%g'|format(r.rule.pct_products or 0) }}% тов.{{ (' · оклад ' ~ (r.rule.base|uah)) if r.rule.base }}{% else %}<span class="pill warn">не задано</span>{% endif %}
+    <details><summary class="small">змінити</summary><form method="post" action="/finance/payroll/rule" class="grid" style="gap:6px;margin-top:6px;min-width:220px">
+      <input type="hidden" name="doctor_id" value="{{ r.doctor.id }}"><input type="hidden" name="m" value="{{ month }}">
+      <label class="small muted">% від послуг<input name="pct_services" value="{{ '%g'|format(r.rule.pct_services) if r.rule and r.rule.pct_services is not none else '' }}" inputmode="decimal"></label>
+      <label class="small muted">% від товарів<input name="pct_products" value="{{ '%g'|format(r.rule.pct_products) if r.rule and r.rule.pct_products is not none else '' }}" inputmode="decimal"></label>
+      <label class="small muted">Оклад за місяць, ₴<input name="base" value="{{ '%.2f'|format(r.rule.base) if r.rule and r.rule.base else '' }}" inputmode="decimal"></label>
+      <input name="note" value="{{ r.rule.note or '' if r.rule }}" placeholder="Нотатка"><button class="btn ghost">Зберегти</button></form></details></td>
+  <td class="r">{{ m.services|uah }}<div class="meta">{{ m.n }} посл.</div></td><td class="r">{{ m.from_services|uah }}</td>
+  <td class="r">{{ m.products|uah }}</td><td class="r">{{ m.from_products|uah }}</td><td class="r">{{ m.base|uah if m.base else '—' }}</td>
+  <td class="r">{% for a in m.adjs %}<div class="{{ 'in' if a.amount > 0 else 'out' }}" title="{{ a.comment or '' }}">{{ '+' if a.amount > 0 }}{{ a.amount|uah }}
+      <form method="post" action="/finance/payroll/adj/{{ a.id }}/delete" data-delpw="Видалити {{ 'премію' if a.amount > 0 else 'утримання' }} {{ a.amount|uah }}?" style="display:inline"><button style="border:0;background:none;color:var(--muted);cursor:pointer">×</button></form>{% if a.comment %}<div class="meta">{{ a.comment }}</div>{% endif %}</div>{% endfor %}
+    <details><summary class="small">＋ премія / утримання</summary><form method="post" action="/finance/payroll/adj" class="grid" style="gap:6px;margin-top:6px;min-width:200px;text-align:left">
+      <input type="hidden" name="doctor_id" value="{{ r.doctor.id }}"><input type="hidden" name="month" value="{{ month }}">
+      <select name="sign"><option value="+">Премія (+)</option><option value="-">Утримання / штраф (−)</option></select>
+      <input name="amount" inputmode="decimal" placeholder="Сума, ₴" required><input name="comment" placeholder="За що"><button class="btn ghost">Додати</button></form></details></td>
+  <td class="r"><b style="font-size:15px">{{ m.accrued|uah }}</b></td></tr>
+{% else %}<tr><td colspan="9" class="muted">Немає спеціалістів з продажами за {{ month }} і з заданими правилами.</td></tr>{% endfor %}</tbody></table></div>
+{% if no_rule %}<div class="card"><h2 style="margin-top:0">Задати правило спеціалісту</h2>
+  <form method="post" action="/finance/payroll/rule" class="fin-f"><input type="hidden" name="m" value="{{ month }}">
+    <select name="doctor_id" required>{% for d in no_rule %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}</select>
+    <input name="pct_services" placeholder="% від послуг" inputmode="decimal" style="width:120px"><input name="pct_products" placeholder="% від товарів" inputmode="decimal" style="width:120px">
+    <input name="base" placeholder="Оклад, ₴" inputmode="decimal" style="width:120px"><button class="btn">Зберегти</button></form></div>{% endif %}
+<p class="small muted">Послуги й товари рахуються за сумою, оплаченою в чеку, і за спеціалістом, указаним у позиції чека CleverBox. Виплати й борги — на вкладці «Взаєморозрахунки по з/п».</p>
+{% endblock %}

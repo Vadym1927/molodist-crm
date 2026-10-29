@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Продажі · Фінанси{% endblock %}
+{% block body %}
+{% include "_fin_tabs.html" %}
+<div class="row between" style="margin-bottom:12px;gap:10px"><div><h1>Продажі</h1><div class="muted small">{{ d_from|dt }} — {{ d_to|dt }} · {{ n }} чеків</div></div>
+  <form class="fin-f"><input type="date" name="df" value="{{ d_from }}"><span class="muted">—</span><input type="date" name="dt_" value="{{ d_to }}">
+    <select name="staff"><option value="">Усі спеціалісти</option>{% for x in staff_names %}<option {{ 'selected' if staff==x }}>{{ x }}</option>{% endfor %}</select>
+    <input name="q" value="{{ q }}" placeholder="Пацієнт, телефон, послуга, № чека" style="width:240px"><button class="btn ghost">OK</button></form></div>
+<div class="fin-k">
+  <div class="tile"><span>Виручка</span><b>{{ s.revenue|uah }}</b><div class="muted small">{{ s.n }} чеків · сер. {{ s.avg|uah }}</div></div>
+  {% for k, v in s.by_type.items() %}{% if loop.index <= 3 %}<div class="tile"><span>{{ k }}</span><b>{{ v|uah }}</b></div>{% endif %}{% endfor %}
+  <div class="tile"><span>Знижки</span><b>{{ s.discount|uah }}</b></div>
+</div>
+{% set show_date = True %}{% include "_fin_checks.html" %}
+{% if n > rows|length %}<p class="small muted">Показано {{ rows|length }} з {{ n }} — звузьте період або пошук.</p>{% endif %}
+{% endblock %}
