@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}IP-телефонія · MOLODIST CRM{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+{% include "_cs_style.html" %}
+<div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a></div><h1>IP-телефонія</h1>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+{% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+<span class="cs-tag">Провайдер послуг IP-телефонії</span>
+<form class="cs-box" method="post" action="/settings/telephony" style="display:grid;gap:14px">
+  <div class="cs-note">Вхідні дзвінки з телефонії потрапляють у CRM: журнал дзвінків, пацієнт за номером і нове звернення з вибраним джерелом. Ключі зберігаються зашифровано й не показуються після збереження.</div>
+  <div class="pv">
+    <label><input type="radio" name="provider" value="" {{ 'checked' if not t.provider }} onchange="tgP()"><span class="lg">—</span>Не підключено</label>
+    {% for k, p in PROV.items() %}<label><input type="radio" name="provider" value="{{ k }}" {{ 'checked' if t.provider == k }} onchange="tgP()"><span class="lg">{{ {'binotel':'binotel','stream':'Stream Telecom','ringostat':'Ringostat'}[k] }}</span>{{ p.label }}</label>{% endfor %}
+  </div>
+  {% for k, p in PROV.items() %}{% set cur = t.p.get(k, {}) %}
+  <div class="pf" data-p="{{ k }}" style="display:{{ 'grid' if t.provider == k else 'none' }};gap:12px">
+    {% for f, label, sec in p.fields %}
+    <div class="cs-f"><label>{{ label }}</label>
+      {% if sec %}<input type="password" name="{{ f }}" autocomplete="new-password" placeholder="{{ '•••••••• збережено — введіть нове, щоб замінити' if cur.get(f) else 'не задано' }}">
+      {% else %}<input name="{{ f }}" value="{{ cur.get(f) or '' }}">{% endif %}
+      <div class="hint">{{ p.hint }}</div></div>
+    {% endfor %}
+    <div class="cs-f"><label>Вебхук дзвінків (вставте в кабінеті {{ p.label }})</label>
+      <div class="cp"><input readonly value="{{ hook_url(k) }}" id="hk{{ k }}"><button class="ch-btn" type="button" onclick="navigator.clipboard.writeText(document.getElementById('hk{{ k }}').value);this.textContent='✓'">Копіювати</button></div>
+      <div class="hint">Адреса містить секретний ключ — не публікуйте її.</div></div>
+    <div class="cs-note">Сайт провайдера <a href="{{ p.site }}" target="_blank" rel="noopener">{{ p.site }}</a></div>
+  </div>{% endfor %}
+  <div class="cs-f"><label>Канал звернення</label>
+    <select name="source">{% for s in sources %}<option {{ 'selected' if s == t.source }}>{{ s }}</option>{% endfor %}{% if t.source not in sources %}<option selected>{{ t.source }}</option>{% endif %}</select>
+    <div class="hint">Джерело звернення, що створюватиметься при вхідному дзвінку. Список — у «Налаштування → Звернення».</div></div>
+  <div class="cs-f"><label class="sw"><input type="checkbox" name="create_appeal" value="1" {{ 'checked' if t.create_appeal }}> Створювати звернення з вхідних дзвінків</label>
+    <label class="sw"><input type="checkbox" name="missed_only" value="1" {{ 'checked' if t.missed_only }}> Лише з пропущених</label>
+    <div class="hint">Повторний дзвінок з того ж номера протягом доби привʼязується до вже створеного звернення.</div></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn">Зберегти</button><button class="btn ghost" name="test" value="1">✓ Перевірити підключення</button></div>
+</form>
+
+<span class="cs-tag">Останні дзвінки</span>
+<div class="cs-box" style="overflow-x:auto">
+  {% if calls %}<table><tr><th>Час</th><th></th><th>Номер</th><th>Пацієнт</th><th>Статус</th><th>Тривалість</th><th>Звернення</th><th>Запис</th></tr>
+  {% for c in calls %}<tr><td>{{ c.at|dt('%d.%m %H:%M') }}</td><td>{{ '⬅️' if c.direction == 'in' else '➡️' }}</td><td>{{ c.phone or '—' }}</td>
+    <td>{% if c.patient_id %}<a href="/patients/{{ c.patient_id }}">картка</a>{% else %}<span class="muted">новий</span>{% endif %}</td>
+    <td><span class="{{ 'ok-t' if c.status == 'answered' else 'bad-t' }}">{{ {'answered':'прийнятий','missed':'пропущений'}.get(c.status, c.status or '—') }}</span></td>
+    <td>{{ ('%d:%02d'|format(c.duration // 60, c.duration % 60)) if c.duration else '—' }}</td>
+    <td>{% if c.appeal_id %}<a href="/appeals?open={{ c.appeal_id }}">№{{ c.appeal_id }}</a>{% endif %}</td>
+    <td>{% if c.record_url %}<a href="{{ c.record_url }}" target="_blank" rel="noopener">▶</a>{% endif %}</td></tr>{% endfor %}</table>
+  {% else %}<div class="muted">Дзвінків ще немає — зʼявляться після підключення вебхука.</div>{% endif %}
+</div>
+<script>function tgP(){var v=(document.querySelector('input[name=provider]:checked')||{}).value||'';document.querySelectorAll('.pf').forEach(function(e){e.style.display=e.dataset.p===v?'grid':'none'})}</script>
+{% endblock %}

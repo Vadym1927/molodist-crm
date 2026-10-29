@@ -9,6 +9,7 @@ import mimetypes
 import secrets
 from contextlib import asynccontextmanager
 from datetime import datetime, date
+import httpx
 from pathlib import Path
 
 from fastapi import FastAPI, Request, Form, UploadFile, File, HTTPException, Depends
@@ -1146,6 +1147,10 @@ async def sale_create(request: Request, user: User = Depends(require("sales")), 
         db.rollback()
         return JSONResponse({"error": str(e)}, status_code=400)
     audit(db, "sale.create", "sale", s_.id, user=user, total=s_.total, patient=s_.patient_id, appt=s_.appointment_id)
+    from .services import fiscal as _fis
+    if _fis.cfg(db).get("auto"):
+        import threading
+        threading.Thread(target=_fis.auto, args=(s_.id,), daemon=True).start()
     return JSONResponse({"ok": True, "id": s_.id})
 
 
@@ -1154,8 +1159,52 @@ def sale_view(request: Request, sid: int, user: User = Depends(require("sales"))
     from .models import Sale
     s_ = db.get(Sale, sid) or (_ for _ in ()).throw(HTTPException(404))
     docs = {d_.id: d_.name for d_ in db.scalars(select(Doctor))}
+    from .services import fiscal as _fis
     return render(request, "sale_view.html", nav="finance", s=s_, docs=docs, author=db.get(User, s_.created_by) if s_.created_by else None,
-                  print_=bool(request.query_params.get("print")))
+                  print_=bool(request.query_params.get("print")), rros=[r for r in _fis.rros(db) if r["on"]], fcfg=_fis.cfg(db))
+
+
+@app.post("/sales/{sid:int}/fiscalize")
+async def sale_fiscalize(sid: int, rro: int = Form(0), ret: str = Form(""), user: User = Depends(require("sales")),
+                         db: Session = Depends(db_dep)):
+    from .services import fiscal as _fis
+    from .models import Sale
+    s_ = db.get(Sale, sid) or (_ for _ in ()).throw(HTTPException(404))
+    is_ret = bool(ret)
+    if is_ret and not can(user, "sale_refund"):
+        raise HTTPException(403)
+    try:
+        info = await asyncio.to_thread(_fis.fiscalize, db, s_, rro or None, None, 1.0, is_ret)
+    except (_fis.FiscalError, httpx.HTTPError) as e:
+        return RedirectResponse(_with_msg(f"/sales/{sid}", f"Checkbox: {e}", True), 303)
+    audit(db, "sale.fiscal_return" if is_ret else "sale.fiscalize", "sale", sid, user=user, receipt=info.get("id"), code=info.get("fiscal_code"))
+    if not is_ret and _fis.cfg(db)["send"].get("on"):
+        await asyncio.to_thread(_fis.send_receipt, db, s_)
+    return RedirectResponse(_with_msg(f"/sales/{sid}", ("Чек повернення" if is_ret else "Фіскальний чек") + f" № {info.get('fiscal_code') or info.get('id')}"), 303)
+
+
+@app.post("/sales/{sid:int}/send-receipt")
+async def sale_send_receipt(sid: int, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    from .services import fiscal as _fis
+    from .models import Sale
+    s_ = db.get(Sale, sid) or (_ for _ in ()).throw(HTTPException(404))
+    c = _fis.cfg(db)
+    c["send"]["on"] = True
+    err = None
+    if not (s_.patient and s_.fiscal and s_.fiscal.get("url")):
+        err = "Немає пацієнта або фіскального чека"
+    else:
+        from .integrations.messaging import send_to_patient
+        text = (c["send"].get("text") or "").replace("{url}", s_.fiscal["url"]).replace("{sum}", f"{s_.total:.2f}") \
+            .replace("{name}", (s_.patient.full_name or "").split(" ")[0])
+        res = await asyncio.to_thread(send_to_patient, s_.patient, text, c["send"].get("channels") or None)
+        err = None if res.ok else (res.error or "не надіслано")
+        f = dict(s_.fiscal)
+        f["sent"] = {"ok": res.ok, "channel": res.channel, "at": datetime.now().strftime("%d.%m.%Y %H:%M")}
+        s_.fiscal = f
+        db.commit()
+    audit(db, "sale.send_receipt", "sale", sid, user=user, ok=err is None)
+    return RedirectResponse(_with_msg(f"/sales/{sid}", err or "Чек надіслано пацієнту", bool(err)), 303)
 
 
 @app.post("/sales/{sid:int}/refund")
@@ -1174,6 +1223,10 @@ def sale_refund(sid: int, reason: str = Form(""), del_password: str = Form(""), 
     except sl.SaleError as e:
         return RedirectResponse(_with_msg(f"/sales/{sid}", str(e), True), 303)
     audit(db, "sale.refund", "sale", sid, user=user, total=s_.total, reason=reason)
+    from .services import fiscal as _fis
+    if s_.fiscal and s_.fiscal.get("fiscal_code") and not s_.fiscal.get("return") and _fis.cfg(db).get("auto"):
+        import threading
+        threading.Thread(target=_fis.auto_return, args=(sid,), daemon=True).start()
     return RedirectResponse(_with_msg(f"/sales/{sid}", "Чек повернено"), 303)
 
 
@@ -3295,7 +3348,7 @@ SETTINGS_BLOCKS = [
     ("Комунікації", [
         ("Канали", "SMS і Viber (TurboSMS), Telegram-бот, Instagram та Facebook", "/settings/channels", "users", "cmarket/channels/main"),
         ("Повідомлення пацієнтам", "Розсилки й нагадування CRM; автоповідомлення — у CleverBox", "/campaigns", "campaigns", "messages"),
-        ("IP-телефонія", "Дзвінки й записи розмов", None, None, "cmarket/siphone/main"),
+        ("IP-телефонія", "Binotel, Stream Telecom, Ringostat: дзвінки → звернення", "/settings/telephony", "users", "cmarket/siphone/main"),
         ("Bot", "Бот пацієнтів і чат", None, None, "cmarket/chat/main"),
     ]),
     ("Віджети та форми", [
@@ -3306,7 +3359,7 @@ SETTINGS_BLOCKS = [
         ("Операції з балансом пацієнта", "Типи поповнень і списань балансу", None, None, "btype"),
         ("Платіжні системи", "Еквайринг; monobank для оплат постачальникам — у CRM", "/settings/keys#mono", "finance", "payment_system"),
         ("Чайові", "Налаштування чайових", None, None, "tips"),
-        ("Checkbox", "Каси ФОП Колган і Бондар: оборот і ліміти ФОП", "/reports?r=fop", "finance", "cmarket/checkbox/main"),
+        ("Checkbox", "Фіскалізація чеків CRM, каси (РРО), відправлення чеків; оборот ФОП — у «Звіти → Ліміти ФОП»", "/settings/checkbox", "finance", "cmarket/checkbox/main"),
     ]),
     ("Звернення", [
         ("Джерела звернень", None, "/settings/appeals?open=sources", "users", "dirs/appeal_type"),
@@ -3361,6 +3414,147 @@ def settings_page(request: Request, user: User = Depends(current_user), db: Sess
         if rows:
             blocks.append((title, rows))
     return render(request, "settings.html", blocks=blocks)
+
+
+# ---------------- Налаштування → IP-телефонія ----------------
+@app.get("/settings/telephony", response_class=HTMLResponse)
+def settings_telephony(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import telephony as tel, appeals as ap_
+    from .models import Call
+    t_ = tel.public(db)
+    calls = db.scalars(select(Call).order_by(Call.at.desc()).limit(30)).all()
+    base = str(request.base_url).rstrip("/").replace("http://", "https://")
+    return render(request, "telephony.html", nav="settings", t=t_, PROV=tel.PROVIDERS, calls=calls, sources=ap_.dirs(db)["sources"],
+                  hook_url=lambda p: f"{base}/api/public/telephony/{p}/{t_['hook']}")
+
+
+@app.post("/settings/telephony")
+async def settings_telephony_save(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import telephony as tel
+    f = await request.form()
+    prov = str(f.get("provider") or "")
+    try:
+        tel.save(db, prov, {k: f.get(k) for k in f.keys()}, str(f.get("source") or ""), bool(f.get("create_appeal")), bool(f.get("missed_only")))
+    except ValueError as e:
+        return RedirectResponse(_with_msg("/settings/telephony", str(e), True), 303)
+    audit(db, "telephony.save", user=user, provider=prov)
+    if f.get("test"):
+        ok, msg = await asyncio.to_thread(tel.test, db)
+        return RedirectResponse(_with_msg("/settings/telephony", ("✅ " if ok else "❌ ") + msg, not ok), 303)
+    return RedirectResponse(_with_msg("/settings/telephony", "Збережено"), 303)
+
+
+@app.post("/api/public/telephony/{provider}/{hook}")
+async def telephony_hook(request: Request, provider: str, hook: str, db: Session = Depends(db_dep)):
+    """Вебхук дзвінків провайдера IP-телефонії → журнал дзвінків і звернення."""
+    from .services import telephony as tel
+    import hmac as _hm
+    t_ = tel.public(db)
+    if provider not in tel.PROVIDERS or not _hm.compare_digest(hook, t_["hook"]):
+        raise HTTPException(404)
+    raw = await request.body()
+    try:
+        data = json.loads(raw or b"{}")
+    except ValueError:
+        from urllib.parse import parse_qsl
+        data = dict(parse_qsl(raw.decode("utf-8", "replace")))
+    if not isinstance(data, dict):
+        data = {}
+    c = tel.ingest(db, provider, data)
+    return {"ok": True, "call": c.id, "appeal": c.appeal_id, "status": "success"}
+
+
+# ---------------- Налаштування → Checkbox (фіскалізація) ----------------
+@app.get("/settings/checkbox", response_class=HTMLResponse)
+def settings_checkbox(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import fiscal as _fis, sales as sl
+    from .models import Sale
+    last = db.scalars(select(Sale).where(Sale.fiscal.is_not(None)).order_by(Sale.id.desc()).limit(10)).all()
+    return render(request, "checkbox_settings.html", nav="settings", c=_fis.cfg(db), rros=_fis.rros(db), methods=sl.methods(db),
+                  last=last, open_=request.query_params.get("open", ""))
+
+
+@app.post("/settings/checkbox/receipt")
+async def settings_checkbox_receipt(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import fiscal as _fis, sales as sl
+    f = await request.form()
+    c = _fis.cfg(db)
+    c["auto"] = bool(f.get("auto"))
+    c["default_rro"] = int(f.get("default_rro")) if str(f.get("default_rro") or "").isdigit() else None
+    c["method_modes"] = {m: str(f.get(f"mode_{i}") or "skip") for i, m in enumerate(sl.methods(db))
+                         if str(f.get(f"mode_{i}") or "skip") in ("cash", "card", "skip")}
+    _fis.save_cfg(db, c)
+    audit(db, "fiscal.cfg", user=user, auto=c["auto"], rro=c["default_rro"], modes=c["method_modes"])
+    return RedirectResponse(_with_msg("/settings/checkbox", "Налаштування фіскального чека збережено"), 303)
+
+
+@app.post("/settings/checkbox/send")
+async def settings_checkbox_send(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import fiscal as _fis
+    f = await request.form()
+    c = _fis.cfg(db)
+    c["send"] = {"on": bool(f.get("on")), "channels": [x for x in ("telegram", "viber", "sms") if f.get(f"ch_{x}")],
+                 "text": str(f.get("text") or "")[:500] or _fis.DEFAULT["send"]["text"]}
+    _fis.save_cfg(db, c)
+    audit(db, "fiscal.send_cfg", user=user, on=c["send"]["on"], channels=c["send"]["channels"])
+    return RedirectResponse(_with_msg("/settings/checkbox", "Відправлення чеків збережено"), 303)
+
+
+@app.post("/settings/checkbox/extra")
+async def settings_checkbox_extra(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import fiscal as _fis
+    f = await request.form()
+    c = _fis.cfg(db)
+    if "_paylink" in f:
+        c["paylink"] = bool(f.get("paylink"))
+    if "_widget" in f:
+        c["widget"] = bool(f.get("widget"))
+    _fis.save_cfg(db, c)
+    return RedirectResponse(_with_msg("/settings/checkbox", "Збережено"), 303)
+
+
+@app.post("/settings/checkbox/rro")
+async def settings_checkbox_rro(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import fiscal as _fis
+    f = await request.form()
+    rid = int(f.get("id")) if str(f.get("id") or "").isdigit() else None
+    if not str(f.get("name") or "").strip():
+        return RedirectResponse(_with_msg("/settings/checkbox?open=rro", "Вкажіть назву каси", True), 303)
+    rid = _fis.save_rro(db, rid, {k: f.get(k) for k in ("name", "fop", "login", "license_key", "password", "pin", "test")} | {"on": bool(f.get("on"))})
+    audit(db, "fiscal.rro_save", user=user, rro=rid, test=bool(f.get("test")))
+    if f.get("check"):
+        ok, msg = await asyncio.to_thread(_fis.test, db, rid)
+        return RedirectResponse(_with_msg("/settings/checkbox?open=rro", ("✅ " if ok else "❌ ") + msg, not ok), 303)
+    return RedirectResponse(_with_msg("/settings/checkbox?open=rro", "Касу збережено"), 303)
+
+
+@app.post("/settings/checkbox/rro/{rid:int}/delete")
+def settings_checkbox_rro_delete(rid: int, del_password: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import fiscal as _fis
+    err = _delpw(db, user, del_password, "rro", None, rid)
+    if err:
+        return RedirectResponse(_with_err("/settings/checkbox?open=rro", err), 303)
+    _fis.delete_rro(db, rid)
+    audit(db, "fiscal.rro_delete", user=user, rro=rid)
+    return RedirectResponse(_with_msg("/settings/checkbox?open=rro", "Касу видалено"), 303)
+
+
+@app.post("/settings/checkbox/rro/{rid:int}/close-shift")
+async def settings_checkbox_close_shift(rid: int, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import fiscal as _fis
+
+    def _close():
+        k = _fis.Kasa(_fis._rro(db, rid))
+        if not k.shift():
+            return "Зміна вже закрита"
+        k.close_shift()
+        return "Зміну закрито (Z-звіт)"
+    try:
+        msg = await asyncio.to_thread(_close)
+    except (_fis.FiscalError, httpx.HTTPError) as e:
+        return RedirectResponse(_with_msg("/settings/checkbox?open=rro", f"Checkbox: {e}", True), 303)
+    audit(db, "fiscal.close_shift", user=user, rro=rid)
+    return RedirectResponse(_with_msg("/settings/checkbox?open=rro", msg), 303)
 
 
 # ---------------- Налаштування → Канали ----------------

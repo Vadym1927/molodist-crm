@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Checkbox · MOLODIST CRM{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+{% include "_cs_style.html" %}
+<div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a></div><h1>Інтеграція Checkbox</h1>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+{% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+<span class="cs-tag">Інтеграція Checkbox</span>
+<div class="cs-box">
+  <div class="cs-note">Checkbox — програмний РРО. Інтеграція дозволяє фіскалізувати чеки продажів CRM, не переходячи в інші сервіси й без фізичного касового апарата. Оборот і ліміти ФОП — у <a href="/reports?r=fop">«Звіти → Ліміти ФОП»</a>.</div>
+  <div class="cs-grid">
+    <button class="cs-card" type="button" onclick="cbO('rc')"><div><b>Фіскальний чек</b><span>Автоматично чи вручну, каса за замовчуванням, які способи оплати фіскалізуються · {{ 'АВТО' if c.auto else 'вручну' }}</span></div><i>›</i></button>
+    <button class="cs-card" type="button" onclick="cbO('rro')"><div><b>РРО</b><span>Каси Checkbox: ключ ліцензії, касир, тестовий режим, закриття зміни · {{ rros|length }} кас</span></div><i>›</i></button>
+    <button class="cs-card" type="button" onclick="cbO('send')"><div><b>Відправлення чеків</b><span>Канали (Telegram, Viber, SMS) і текст повідомлення з чеком · {{ 'увімкнено' if c.send.on else 'вимкнено' }}</span></div><i>›</i></button>
+    <button class="cs-card" type="button" onclick="cbO('term')"><div><b>Термінали</b><span>Checkbox PayLink: сума з чека передається на фізичний термінал</span></div><i>›</i></button>
+    <button class="cs-card" type="button" onclick="cbO('wdg')"><div><b>Віджет чека {{ '✓' if c.widget }}</b><span>QR фіскального чека на екрані чека CRM (планшет у зоні розрахунку)</span></div><i>›</i></button>
+  </div>
+</div>
+{% if last %}<span class="cs-tag">Останні фіскалізовані</span>
+<div class="cs-box" style="overflow-x:auto"><table><tr><th>Чек</th><th>Дата</th><th>Сума</th><th>Каса</th><th>Фіск. номер</th><th></th></tr>
+{% for s in last %}<tr><td><a href="/sales/{{ s.id }}">Ч-{{ s.id }}</a></td><td>{{ s.at|dt('%d.%m %H:%M') }}</td><td>{{ s.total|uah }}</td><td>{{ s.fiscal.rro_name or '—' }}{{ ' (тест)' if s.fiscal.test }}</td>
+  <td>{% if s.fiscal.fiscal_code %}{{ s.fiscal.fiscal_code }}{% elif s.fiscal.error %}<span class="bad-t">{{ s.fiscal.error }}</span>{% endif %}{% if s.fiscal.get('return') %} · повернення {{ s.fiscal['return'].fiscal_code }}{% endif %}</td>
+  <td>{% if s.fiscal.url %}<a href="{{ s.fiscal.url }}" target="_blank" rel="noopener">чек ↗</a>{% endif %}</td></tr>{% endfor %}</table></div>{% endif %}
+
+<dialog class="cs-d" id="cb-rc"><div class="cs-dh"><h3>Фіскальний чек</h3><button class="cs-x" type="button" onclick="this.closest('dialog').close()">×</button></div>
+  <form method="post" action="/settings/checkbox/receipt" class="cs-db">
+    <div class="cs-f"><label class="sw"><input type="checkbox" name="auto" value="1" {{ 'checked' if c.auto }}> Фіскалізувати автоматично після кожного продажу</label>
+      <div class="hint">Вимкнено — чек фіскалізується кнопкою на сторінці чека. Повернення фіскалізованого чека → автоматично чек повернення.</div></div>
+    <div class="cs-f"><label>Каса за замовчуванням</label><select name="default_rro"><option value="">—</option>{% for r in rros %}<option value="{{ r.id }}" {{ 'selected' if c.default_rro == r.id }}>{{ r.name }}{{ ' · ' ~ r.fop if r.fop }}{{ ' (тест)' if r.test }}</option>{% endfor %}</select></div>
+    <div class="cs-f"><label>Способи оплати</label>
+      {% for m in methods %}<div class="hr-row" style="grid-template-columns:1fr 170px"><span>{{ m }}</span>
+        <select name="mode_{{ loop.index0 }}">{% set md = c.method_modes.get(m, 'skip') %}
+          <option value="cash" {{ 'selected' if md == 'cash' }}>Готівка (CASH)</option><option value="card" {{ 'selected' if md == 'card' }}>Картка (CASHLESS)</option>
+          <option value="skip" {{ 'selected' if md == 'skip' }}>Не фіскалізувати</option></select></div>{% endfor %}
+      <div class="hint">Бонуси й сертифікат у чеку йдуть як знижка. Якщо в чеку є оплата «Не фіскалізувати» (напр. переказ на рахунок ФОП) — автоматично такий чек не фіскалізується.</div></div>
+    <button class="btn">Зберегти</button>
+  </form></dialog>
+
+<dialog class="cs-d" id="cb-rro"><div class="cs-dh"><h3>РРО — каси Checkbox</h3><button class="cs-x" type="button" onclick="this.closest('dialog').close()">×</button></div>
+  <div class="cs-db">
+    <div class="cs-note">Ключ ліцензії каси — у кабінеті Checkbox → Каси → вибрати касу → «Ключ ліцензії». Касир — логін і пароль (або PIN-код) касира. Для відкриття зміни в кабінеті Checkbox має бути налаштований підпис (Checkbox Підпис або хмарний КЕП). Тестовий режим — середовище dev-api Checkbox, чеки не потрапляють у ДПС.</div>
+    {% for r in rros + [None] %}
+    <form method="post" action="/settings/checkbox/rro" class="loc" style="display:grid;gap:8px">
+      <b>{{ r.name if r else '＋ Нова каса' }}</b>
+      {% if r and r.status %}<div class="small {{ 'ok-t' if r.status.ok else 'bad-t' }}">{{ r.status.msg }} · {{ r.status.at }}</div>{% endif %}
+      <input type="hidden" name="id" value="{{ r.id if r else '' }}">
+      <div class="cs-f"><label>Назва каси</label><input name="name" value="{{ r.name if r else '' }}" placeholder="Каса ФОП Колган" {{ '' if r else '' }}></div>
+      <div class="cs-f"><label>ФОП</label><input name="fop" value="{{ r.fop if r else '' }}" placeholder="Колган"></div>
+      <div class="cs-f"><label>Ключ ліцензії каси</label><input type="password" name="license_key" autocomplete="new-password" placeholder="{{ '•••• збережено' if r and r.has_key else 'не задано' }}"></div>
+      <div class="cs-f"><label>Логін касира</label><input name="login" value="{{ r.login if r else '' }}" autocomplete="off"></div>
+      <div class="cs-f"><label>Пароль касира</label><input type="password" name="password" autocomplete="new-password" placeholder="{{ '•••• збережено' if r and r.has_pw else 'не задано' }}"></div>
+      <div class="cs-f"><label>або PIN-код касира</label><input type="password" name="pin" inputmode="numeric" autocomplete="new-password"></div>
+      <div class="cs-f"><label class="sw"><input type="checkbox" name="on" value="1" {{ 'checked' if not r or r.on }}> Каса активна</label>
+        <label class="sw"><input type="checkbox" name="test" value="1" {{ 'checked' if r and r.test }}> Тестовий режим</label></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn">Зберегти</button><button class="btn ghost" name="check" value="1">✓ Перевірити підключення</button></div>
+    </form>
+    {% if r %}<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:-4px">
+      <form method="post" action="/settings/checkbox/rro/{{ r.id }}/close-shift" onsubmit="return confirm('Закрити зміну каси «{{ r.name }}» (Z-звіт)?')"><button class="btn ghost" style="padding:4px 10px">Закрити зміну</button></form>
+      <form method="post" action="/settings/checkbox/rro/{{ r.id }}/delete" data-delpw="Видалити касу «{{ r.name }}» з CRM?"><button class="btn danger" style="padding:4px 10px">Видалити</button></form></div>{% endif %}
+    {% endfor %}
+  </div></dialog>
+
+<dialog class="cs-d" id="cb-send"><div class="cs-dh"><h3>Відправлення чеків</h3><button class="cs-x" type="button" onclick="this.closest('dialog').close()">×</button></div>
+  <form method="post" action="/settings/checkbox/send" class="cs-db">
+    <div class="cs-f"><label class="sw"><input type="checkbox" name="on" value="1" {{ 'checked' if c.send.on }}> Надсилати пацієнту фіскальний чек після фіскалізації</label></div>
+    <div class="cs-f"><label>Канали (по черзі, перший доступний)</label><div class="chips">
+      {% for k, lb in [('telegram','Telegram'),('viber','Viber'),('sms','SMS')] %}<label><input type="checkbox" name="ch_{{ k }}" value="1" {{ 'checked' if k in c.send.channels }}> {{ lb }}</label>{% endfor %}</div>
+      <div class="hint">Канали налаштовуються в «Налаштування → <a href="/settings/channels">Канали</a>».</div></div>
+    <div class="cs-f"><label>Текст повідомлення</label><textarea name="text" rows="4">{{ c.send.text }}</textarea>
+      <div class="hint">{url} — посилання на чек, {sum} — сума, {name} — імʼя пацієнта.</div></div>
+    <button class="btn">Зберегти</button>
+  </form></dialog>
+
+<dialog class="cs-d" id="cb-term"><div class="cs-dh"><h3>Термінали</h3><button class="cs-x" type="button" onclick="this.closest('dialog').close()">×</button></div>
+  <form method="post" action="/settings/checkbox/extra" class="cs-db"><input type="hidden" name="_paylink" value="1">
+    <div class="cs-note">Checkbox PayLink передає суму з чека на банківський термінал, щоб касир не вводив її вручну. Потрібна утиліта PayLink на компʼютері каси й підтримуваний термінал — підключимо, коли визначимося з терміналом.</div>
+    <div class="cs-f"><label class="sw"><input type="checkbox" name="paylink" value="1" {{ 'checked' if c.paylink }}> Використовую PayLink</label></div>
+    <button class="btn">Зберегти</button></form></dialog>
+
+<dialog class="cs-d" id="cb-wdg"><div class="cs-dh"><h3>Віджет чека</h3><button class="cs-x" type="button" onclick="this.closest('dialog').close()">×</button></div>
+  <form method="post" action="/settings/checkbox/extra" class="cs-db"><input type="hidden" name="_widget" value="1">
+    <div class="cs-note">Після фіскалізації на сторінці чека CRM показується QR-код фіскального чека — пацієнт сканує його телефоном з планшета в зоні розрахунку.</div>
+    <div class="cs-f"><label class="sw"><input type="checkbox" name="widget" value="1" {{ 'checked' if c.widget }}> Показувати QR чека</label></div>
+    <button class="btn">Зберегти</button></form></dialog>
+<script>function cbO(k){document.getElementById('cb-'+k).showModal()}{% if open_ %}cbO('{{ open_ }}');{% endif %}</script>
+{% endblock %}

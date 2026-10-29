@@ -360,6 +360,23 @@ class Appeal(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
+class Call(Base):
+    """Дзвінок з IP-телефонії (Ringostat / Binotel / Stream Telecom) — з вебхука провайдера."""
+    __tablename__ = "calls"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, index=True)
+    provider: Mapped[str] = mapped_column(String(20))
+    ext_id: Mapped[str | None] = mapped_column(String(120), index=True)
+    direction: Mapped[str] = mapped_column(String(10), default="in")            # in | out
+    phone: Mapped[str | None] = mapped_column(String(64), index=True)
+    status: Mapped[str | None] = mapped_column(String(30))                      # answered | missed | …
+    duration: Mapped[int | None] = mapped_column(Integer)
+    employee: Mapped[str | None] = mapped_column(String(120))
+    record_url: Mapped[str | None] = mapped_column(String(500))
+    patient_id: Mapped[int | None] = mapped_column(ForeignKey("patients.id"), index=True)
+    appeal_id: Mapped[int | None] = mapped_column(Integer, index=True)
+
+
 class AppealNote(Base):
     """Коментар / подія в зверненні (історія)."""
     __tablename__ = "appeal_notes"
