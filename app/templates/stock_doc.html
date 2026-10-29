@@ -20,7 +20,7 @@
   <span class="pill {{ d.status }}">{{ STATUS[d.status] }}</span>{% if d.posted_at %} <span class="muted small">проведено {{ d.posted_at|dt('%d.%m.%Y %H:%M') }}</span>{% endif %}</div></div>
 {% if request.query_params.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ request.query_params.get('msg') }}</div>{% endif %}
 {% if request.query_params.get('err') %}<div class="alert">{{ request.query_params.get('err') }}</div>{% endif %}
-{% if d.archived_at %}<div class="alert" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">🗄 Документ в архіві — видалено {{ d.archived_at|dt('%d.%m.%Y %H:%M') }}{{ (' · ' ~ d.archive_note) if d.archive_note }}.
+{% if d.archived_at %}<div class="alert" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">🗄 Документ в архіві — видалено {{ d.archived_at|local|dt('%d.%m.%Y %H:%M') }}{{ (' · ' ~ d.archive_note) if d.archive_note }}.
   <form method="post" action="/stock/docs/{{ d.id }}/restore" style="margin:0"><button class="btn ghost" style="padding:3px 12px">Відновити</button></form></div>{% endif %}
 
 <form method="post" id="docf">
@@ -141,5 +141,12 @@
 {% endif %}
 </div>
 {% endif %}
+<div class="card" id="history" style="margin-top:16px"><h2 style="margin-top:0">Історія документа</h2>
+  {% if history %}<table class="tb small"><thead><tr><th style="width:130px">Коли</th><th style="width:180px">Хто</th><th>Що зроблено</th></tr></thead><tbody>
+  {% for h in history|reverse %}<tr><td style="white-space:nowrap">{{ h.at|dt('%d.%m.%Y %H:%M') }}</td><td>{{ h.who }}</td>
+    <td>{% set c = {'post':'ok','pay':'ok','cancel':'bad','archive':'bad','denied':'bad','restore':'warn','edit':'draft'}.get(h.kind) %}{% if c %}<span class="pill {{ c }}" style="margin-right:6px">{{ {'post':'проведення','pay':'оплата','cancel':'скасування','archive':'видалення','denied':'відмова','restore':'відновлення','edit':'зміни'}[h.kind] }}</span>{% endif %}{{ h.text }}</td></tr>{% endfor %}
+  </tbody></table>{% else %}<p class="muted small">Записів ще немає.</p>{% endif %}
+  <p class="small muted" style="margin:8px 0 0">Пишеться автоматично: створення, зміни шапки й рядків, проведення, скасування, оплати (вручну й з monobank), файли, видалення й відновлення.</p>
+</div>
 {% include "_doc_delete.html" %}
 {% endblock %}

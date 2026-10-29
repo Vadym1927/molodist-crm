@@ -350,3 +350,28 @@ def test_doc_archive_with_password():
             assert d.archived_at is None and d.status == "draft"
             db.get(User, oid).delete_pw_hash = None
             db.query(SyncState).filter(SyncState.key == "stock_ledger_start").delete(); db.commit()
+
+
+def test_supply_list_payment_author_and_history():
+    from fastapi.testclient import TestClient
+    from app.config import settings
+    from app.main import app
+    from app.models import SessionLocal, Product
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        p = Product(name="Історичний гель", name_norm="історичний гель", warehouse="vitrina")
+        db.add(p); db.commit(); pid = p.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        j = c.post("/stock/docs/quick", json={"kind": "supply", "supplier": "Історія Тест", "wh": "vitrina", "note": "термінова",
+                                               "lines": [{"product_id": pid, "qty": 2, "price": 100}]}).json()
+        did = j["id"]
+        page = c.get(f"/stock/docs/{did}").text
+        ln = page.split('name="qty_')[1].split('"')[0]
+        c.post(f"/stock/docs/{did}", data={"action": "save", f"qty_{ln}": "3", f"cost_{ln}": "100"})
+        c.post(f"/stock/docs/{did}/pay", data={"action": "paid", "fop": "Бондар", "amount": "120"})
+        lst = c.get("/stock?tab=supply").text
+        assert "Оплата" in lst and "Автор" in lst and "120,00" in lst.replace(" ", " ").replace(" 120", "120") or "120" in lst
+        assert "частково" in lst and "термінова" in lst
+        h = c.get(f"/stock/docs/{did}").text
+        assert "Історія документа" in h and "Створено у вікні поставки" in h and "к-сть 2 → 3" in h and "Відмічено оплату" in h

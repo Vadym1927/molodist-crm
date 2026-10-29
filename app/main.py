@@ -37,6 +37,16 @@ BASE = Path(__file__).parent
 templates = Jinja2Templates(directory=str(BASE / "templates"))
 templates.env.filters["uah"] = lambda v: f"{(v or 0):,.0f}".replace(",", " ") + " ₴"
 templates.env.filters["dt"] = lambda v, f="%d.%m.%Y": v.strftime(f) if v else "—"
+
+
+def _local(v):
+    """UTC (datetime.utcnow у БД) → київський час для показу."""
+    from datetime import timezone
+    from zoneinfo import ZoneInfo
+    return v.replace(tzinfo=timezone.utc).astimezone(ZoneInfo(settings.timezone)).replace(tzinfo=None) if v else v
+
+
+templates.env.filters["local"] = _local
 templates.env.globals.update(
     can=can, ROLES=ROLES, EVENTS=webhooks.EVENTS,
     FLAG={"green": ("записана", "ok"), "yellow": ("без запису", "warn"),
@@ -1887,6 +1897,7 @@ def stock_doc_create(kind: str = Form(...), wh: str = Form(""), supplier: str = 
     if kind == "inventory":
         st.inventory_prefill(db, doc)
     db.commit()
+    audit(db, "stock.create", "stock_doc", doc.id, user=user, kind=kind)
     return RedirectResponse(f"/stock/docs/{doc.id}", 303)
 
 
@@ -1990,10 +2001,13 @@ async def stock_doc_quick(request: Request, user: User = Depends(require("stock"
     if kind == "supply" and data.get("paid") and paid_by:          # оплачено вже зараз (готівка / інший банк)
         g = pay.find_group(db, pay.group_key(docs[0]))
         if g:
-            pay.allocate(db, g, g.left, fop=paid_by)
+            amt_ = g.left
+            pay.allocate(db, g, amt_, fop=paid_by)
             db.commit()
-    audit(db, "stock.quick_doc", "stock_doc", docs[0].id, user=user, kind=kind, docs=[x.id for x in docs],
-          lines=sum(len(x.lines) for x in docs))
+            audit(db, "stock.pay", "stock_doc", docs[0].id, user=user, op="paid", fop=paid_by, amount=round(amt_, 2))
+    for x_ in docs:
+        audit(db, "stock.quick_doc", "stock_doc", x_.id, user=user, kind=kind, docs=[x.id for x in docs],
+              lines=len(x_.lines))
     warn = None
     if data.get("post") and kind == "supply":
         if not st.ledger_active(db):
@@ -2054,8 +2068,10 @@ def stock_file_delete(fid: int, del_password: str = Form(""), user: User = Depen
     if err:
         return RedirectResponse(_with_err(f"/stock/docs/{did}#files", err), 303)
     if f:
+        name = f.name
         db.delete(f)
         db.commit()
+        audit(db, "stock.file_delete", "stock_doc", did, user=user, name=name)
     return RedirectResponse(f"/stock/docs/{did}#files", 303)
 
 
@@ -2066,6 +2082,7 @@ def stock_doc_pay(did: int, action: str = Form("paid"), fop: str = Form(""), amo
     from .services import payments as pay
     doc = db.get(StockDoc, did) or (_ for _ in ()).throw(HTTPException(404))
     g = pay.find_group(db, pay.group_key(doc))
+    amt = None
     if g:
         if action == "clear":
             pay.clear_manual(db, g)
@@ -2075,7 +2092,9 @@ def stock_doc_pay(did: int, action: str = Form("paid"), fop: str = Form(""), amo
             for d_ in g.docs:
                 d_.paid_by = fop.strip() or d_.paid_by
             db.commit()
-        audit(db, "stock.pay", "stock_doc", did, user=user, op=action, fop=fop or None)
+        for d_ in g.docs:
+            audit(db, "stock.pay", "stock_doc", d_.id, user=user, op=action, fop=fop or None,
+                  amount=round(amt, 2) if amt and d_.id == did else None)
     return RedirectResponse(f"/stock/docs/{did}#pay", 303)
 
 
@@ -2117,6 +2136,7 @@ def stock_doc_page(did: int, request: Request, user: User = Depends(require("sto
                   group_docs=[x for x in (grp.docs if grp else []) if x.id != doc.id],
                   REASONS=st.WRITEOFF_REASONS, products=_product_options(db), bal=bal, active=st.ledger_active(db),
                   suppliers=[x.name for x in db.scalars(select(Supplier).order_by(Supplier.name))],
+                  history=__import__("app.services.doc_history", fromlist=["history"]).history(db, doc),
                   editable=doc.status in ("draft", "sent"))
 
 
@@ -2128,6 +2148,8 @@ async def stock_doc_save(did: int, request: Request, user: User = Depends(requir
     doc = db.get(StockDoc, did) or (_ for _ in ()).throw(HTTPException(404))
     f = await request.form()
     action = f.get("action", "save")
+    from .services import doc_history as dh
+    before = dh.snapshot(doc)
     if doc.status in ("draft", "sent"):
         doc.doc_date = _day(f.get("doc_date", "")) or doc.doc_date
         for k in ("supplier", "ext_no", "note", "reason"):
@@ -2164,6 +2186,10 @@ async def stock_doc_save(did: int, request: Request, user: User = Depends(requir
                 doc.lines.append(StockDocLine(product_id=pr.id, qty=_num(f.get("new_qty")) or 1, unit_cost=cost,
                                               expiry_date=_day(f.get("new_exp"))))
         db.commit()
+        db.refresh(doc)
+        changes = dh.diff(before, dh.snapshot(doc))
+        if changes:
+            audit(db, "stock.edit", "stock_doc", doc.id, user=user, changes=changes)
     try:
         if action == "post":
             st.post(db, doc)
@@ -2172,9 +2198,11 @@ async def stock_doc_save(did: int, request: Request, user: User = Depends(requir
         if action == "send" and doc.kind == "order":
             doc.status = "sent"
             db.commit()
+            audit(db, "stock.send", "stock_doc", doc.id, user=user)
             return RedirectResponse(f"/stock/docs/{did}?msg=Позначено+як+відправлене", 303)
         if action == "receive":
             sup = st.receive_order(db, doc, user.id)
+            audit(db, "stock.receive", "stock_doc", sup.id, user=user, order=doc.number)
             return RedirectResponse(f"/stock/docs/{sup.id}?msg=Перевірте+кількості+й+ціни+та+проведіть+поставку", 303)
         if action == "cancel":
             st.cancel(db, doc)
