@@ -214,6 +214,39 @@ class PatientFile(Base):
     patient: Mapped[Patient | None] = relationship(back_populates="files")
 
 
+class Appointment(Base):
+    """Запис у CRM (власний календар). За потреби дублюється в CleverBox (cb_record_id) — тоді візит CleverBox не дублюється."""
+    __tablename__ = "appointments"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), index=True)
+    doctor_id: Mapped[int | None] = mapped_column(ForeignKey("doctors.id"), index=True)
+    start: Mapped[datetime] = mapped_column(DateTime, index=True)
+    end: Mapped[datetime] = mapped_column(DateTime)
+    services: Mapped[list | None] = mapped_column(JSON)                 # [{id, name, price, minutes, category}]
+    place: Mapped[str | None] = mapped_column(String(120))              # кабінет
+    resource: Mapped[str | None] = mapped_column(String(120))           # апарат
+    status: Mapped[str] = mapped_column(String(15), default="booked", index=True)   # booked|confirmed|arrived|done|no_show|cancelled
+    comment: Mapped[str | None] = mapped_column(Text)
+    cancel_reason: Mapped[str | None] = mapped_column(String(200))
+    source: Mapped[str] = mapped_column(String(20), default="crm")      # crm | online | bot | appeal
+    cb_record_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    sale_id: Mapped[int | None] = mapped_column(Integer)
+    appeal_id: Mapped[int | None] = mapped_column(Integer)
+    created_by: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    patient: Mapped[Patient] = relationship()
+
+    @property
+    def minutes(self) -> int:
+        return int((self.end - self.start).total_seconds() // 60)
+
+    @property
+    def total(self) -> float:
+        return round(sum(float(s.get("price") or 0) for s in self.services or []), 2)
+
+
 class DiscountRule(Base):
     """Знижка: % або сума; на все / послуги / товари / категорії; період, дні тижня, мінімальна сума; авто чи вручну."""
     __tablename__ = "discount_rules"

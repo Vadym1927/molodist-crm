@@ -39,6 +39,7 @@
     <button class="btn" style="padding:6px 14px">Це вона — об'єднати</button></form>{% endfor %}
 </div>{% endif %}
 
+{% if can(user,'patients_all') %}<div style="display:flex;justify-content:flex-end;gap:6px;margin:-4px 0 8px"><a class="btn" href="/calendar?view=day&newappt=1&patient={{ p.id }}">📅 Записати</a><a class="btn ghost" href="/sales/new?patient={{ p.id }}">💳 Продаж</a></div>{% endif %}
 <div class="tabs patient-tabs">
   <a class="on" href="#info">Info</a><a href="#kpi">KPI</a><a href="#visits">Візити <em>{{ patient_kpi.done + patient_kpi.planned }}</em></a>
   <a href="#contact">Дзвінки й повідомлення</a><a href="#files">Документи й фото</a><a href="/patients/{{ p.id }}/photos">Фото до/після</a>{% if can(user,'medical') %}<a href="/patients/{{ p.id }}/medcard">🩺 Медкартка</a>{% endif %}<a href="#plans">План</a><a href="#sales">Продажі</a><a href="#history">Історія</a>

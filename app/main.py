@@ -874,6 +874,150 @@ def settings_appeals_save(what: str, action: str = Form(...), idx: str = Form(""
     return RedirectResponse(f"/settings/appeals?open={what}#{what}", 303)
 
 
+# ---------------- Запис у CRM ----------------
+@app.get("/lookup/patients")
+def lookup_patients(q: str = "", user: User = Depends(current_user), db: Session = Depends(db_dep)):
+    import re as _re
+    q = q.strip()
+    if len(q) < 2:
+        return JSONResponse([])
+    digits = _re.sub(r"\D", "", q)
+    ql = q.lower()
+    out = []
+    for p_ in db.scalars(select(Patient).order_by(Patient.full_name)):
+        if (len(digits) >= 4 and digits[-9:] in _re.sub(r"\D", "", p_.phone or "")) or (ql in (p_.full_name or "").lower()):
+            if patient_visible(user, p_):
+                out.append({"id": p_.id, "name": p_.full_name, "phone": p_.phone or "", "bonus": None})
+        if len(out) >= 15:
+            break
+    return JSONResponse(out)
+
+
+@app.get("/lookup/services")
+def lookup_services(q: str = "", user: User = Depends(current_user), db: Session = Depends(db_dep)):
+    from .models import CbService
+    ql = q.strip().lower()
+    rows = [s for s in db.scalars(select(CbService).order_by(CbService.name)) if not ql or ql in (s.name or "").lower()
+            or ql in (s.category or "").lower()]
+    return JSONResponse([{"id": s.id, "name": s.name, "price": s.price or 0, "minutes": s.time_min or 30, "category": s.category or ""}
+                         for s in rows[:25]])
+
+
+def _appt_ctx(db: Session) -> dict:
+    from .services import clinic as cl, appointments as aps
+    data = cl.get(db)
+    loc = next((x for x in data["locations"] if x.get("active")), {"places": [], "resources": []})
+    return {"doctors": spec_svc.calendar_doctors(db), "places": [p_["name"] for p_ in loc.get("places", []) if p_.get("active", True)],
+            "resources": [r_["name"] for r_ in loc.get("resources", []) if r_.get("active", True)], "STATUSES": aps.STATUSES,
+            "COLORS": aps.COLORS, "cb_on": bool(settings.cleverbox_token or db.get(SyncState, "cleverbox_token_enc"))}
+
+
+@app.get("/appointments/new", response_class=HTMLResponse)
+def appointment_new(request: Request, doc: int = 0, start: str = "", patient: int = 0, appeal: int = 0,
+                    user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+    try:
+        st_ = datetime.fromisoformat(start) if start else None
+    except ValueError:
+        st_ = None
+    if not st_:
+        n_ = datetime.now() + timedelta(hours=1)
+        st_ = n_.replace(minute=0 if n_.minute < 30 else 30, second=0, microsecond=0)
+    pt = db.get(Patient, patient) if patient else None
+    ap_ = None
+    if appeal:
+        from .models import Appeal
+        ap_ = db.get(Appeal, appeal)
+        pt = pt or (db.get(Patient, ap_.patient_id) if ap_ and ap_.patient_id else None)
+    return templates.TemplateResponse(request, "_appt_form.html", {"request": request, "user": user, "a": None, "doc": doc, "st": st_,
+                                      "pt": pt, "appeal": ap_, **_appt_ctx(db)})
+
+
+@app.get("/appointments/{aid:int}", response_class=HTMLResponse)
+def appointment_card(request: Request, aid: int, edit: int = 0, user: User = Depends(current_user), db: Session = Depends(db_dep)):
+    from .models import Appointment
+    a = db.get(Appointment, aid) or (_ for _ in ()).throw(HTTPException(404))
+    _patient_or_403(db, user, a.patient_id)
+    return templates.TemplateResponse(request, "_appt_form.html", {"request": request, "user": user, "a": a, "doc": a.doctor_id,
+                                      "st": a.start, "pt": a.patient, "appeal": None, "view_only": not edit, **_appt_ctx(db),
+                                      "doctor": db.get(Doctor, a.doctor_id) if a.doctor_id else None})
+
+
+@app.post("/appointments")
+async def appointment_save(request: Request, user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+    from .services import appointments as aps
+    from .services.booking import BookingError
+    from .models import Appointment, Appeal
+    f = await request.json()
+    pid = f.get("patient_id")
+    if not pid and (f.get("new_name") or "").strip():
+        from .services.appeals import find_patient
+        pt = find_patient(db, f.get("new_phone")) if f.get("new_phone") else None
+        if not pt:
+            pt = Patient(full_name=f["new_name"].strip()[:200], phone=(f.get("new_phone") or "").strip()[:64] or None, source="Запис у CRM")
+            db.add(pt)
+            db.commit()
+        pid = pt.id
+    if not pid:
+        return JSONResponse({"error": "Оберіть пацієнта або введіть імʼя нового"}, status_code=400)
+    p_ = _patient_or_403(db, user, int(pid))
+    try:
+        start = datetime.fromisoformat(f.get("start") or "")
+    except ValueError:
+        return JSONResponse({"error": "Вкажіть дату й час"}, status_code=400)
+    svc = []
+    for s in f.get("services") or []:
+        try:
+            svc.append({"id": int(s["id"]), "name": str(s.get("name") or "")[:300], "category": s.get("category"),
+                        "price": round(float(s.get("price") or 0), 2), "minutes": max(5, int(s.get("minutes") or 30))})
+        except (KeyError, TypeError, ValueError):
+            continue
+    data = {"patient_id": p_.id, "doctor_id": int(f["doctor_id"]) if str(f.get("doctor_id") or "").isdigit() else None,
+            "services": svc, "start": start, "minutes": int(f.get("minutes") or 0) or None, "place": f.get("place"),
+            "resource": f.get("resource"), "comment": (f.get("comment") or "").strip()[:2000],
+            "appeal_id": int(f["appeal_id"]) if str(f.get("appeal_id") or "").isdigit() else None}
+    appt = db.get(Appointment, int(f["id"])) if str(f.get("id") or "").isdigit() else None
+    mins = data["minutes"] or sum(s["minutes"] for s in svc) or 30
+    warn = aps.conflicts(db, data["doctor_id"], start, start + timedelta(minutes=mins), data["place"], data["resource"],
+                         appt.id if appt else None, p_.id)
+    if warn and not f.get("force"):
+        return JSONResponse({"warnings": warn})
+    a = aps.save(db, data, user.id, appt)
+    msg = None
+    if f.get("to_cb") and not a.cb_record_id:
+        try:
+            rec = await asyncio.to_thread(aps.mirror_to_cleverbox, db, a)
+            msg = f"Записано й у CleverBox (№{rec})"
+        except (BookingError, Exception) as e:  # noqa: BLE001
+            msg = f"Запис у CRM є, але в CleverBox не створено: {str(e)[:200]}"
+    if a.appeal_id:
+        from .services import appeals as apl
+        ap_ = db.get(Appeal, a.appeal_id)
+        if ap_:
+            ok = next((s_["name"] for s_ in apl.dirs(db)["statuses"] if s_["type"] == "success"), None)
+            if ok:
+                apl.set_status(db, ap_, ok, user.id)
+            ap_.patient_id = ap_.patient_id or p_.id
+            apl.note(db, ap_, f"Записано на {a.start:%d.%m.%Y %H:%M}", user.id, "system")
+            db.commit()
+    audit(db, "appointment.save" if appt else "appointment.create", "patient", p_.id, user=user, appt=a.id,
+          start=a.start.isoformat(timespec="minutes"), doctor=a.doctor_id, forced=bool(warn), cb=a.cb_record_id)
+    return JSONResponse({"ok": True, "id": a.id, "msg": msg, "day": a.start.date().isoformat()})
+
+
+@app.post("/appointments/{aid:int}/status")
+def appointment_status(aid: int, status: str = Form(...), reason: str = Form(""), back: str = Form(""),
+                       user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
+    from .services import appointments as aps
+    from .models import Appointment
+    a = db.get(Appointment, aid) or (_ for _ in ()).throw(HTTPException(404))
+    if status == "cancelled" and len(reason.strip()) < 3:
+        return RedirectResponse(_with_msg(back or f"/calendar?start={a.start.date()}", "Вкажіть причину скасування", True), 303)
+    aps.set_status(db, a, status, reason.strip()[:200] or None)
+    audit(db, "appointment.status", "patient", a.patient_id, user=user, appt=aid, status=status, reason=reason or None)
+    b = back if back.startswith("/calendar") or back.startswith("/patients/") else f"/calendar?start={a.start.date()}"
+    return RedirectResponse(b, 303)
+
+
 # ---------------- Знижки й бонусна програма ----------------
 @app.get("/settings/loyalty", response_class=HTMLResponse)
 def settings_loyalty(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
@@ -1734,6 +1878,7 @@ def calendar_page(request: Request, start: str | None = None, doc: str = "", vie
     n_ev = sum(1 for e in ev.get(s, []) if e.kind in ("visit", "attended")) if view == "day" else 0
     from .services import schedule as _sch
     ctx["shifts"] = _sch.for_day(db, s) if view == "day" else {}
+    ctx["now_h"] = min(max(datetime.now().hour + 1, 8), 20)
     return render(request, "calendar.html", ev=ev, cols=cols, grid=grid, start=s, days=days, n_ev=n_ev,
                   prev=s - timedelta(days=days), next=s + timedelta(days=days), end=s + timedelta(days=days - 1),
                   month=None, **ctx)

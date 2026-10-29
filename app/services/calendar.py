@@ -26,6 +26,7 @@ class Event:
     service: str | None = None
     ends: datetime | None = None
     status_label: str | None = None
+    appt_id: int | None = None           # запис CRM (відкривається вікном у календарі)
 
     @property
     def minutes(self) -> int:
@@ -55,7 +56,26 @@ def events(db: Session, user: User, start: date, days: int = 7, doctor_id: int |
                                           Visit.status.in_(("booked", "attended", "done")))
                       .order_by(Visit.starts_at)).all()
     cal_days = {(v.patient_id, v.starts_at.date()) for v in rows if v.source != "cb_service_sale"}
+    # записи CRM
+    from ..models import Appointment
+    from .appointments import STATUSES as _AST
+    appts = db.scalars(select(Appointment).where(Appointment.start >= s_dt, Appointment.start < e_dt,
+                                                 Appointment.status != "cancelled").order_by(Appointment.start)).all()
+    mirrored = {f"{a.cb_record_id}-" for a in appts if a.cb_record_id}
+    for a in appts:
+        if user.role == "doctor" and a.doctor_id != user.doctor_id and a.patient_id not in doc_pids:
+            continue
+        if doctor_id and a.doctor_id != doctor_id:
+            continue
+        d = a.start.date()
+        if d in out:
+            sv = ", ".join(s.get("name", "") for s in a.services or []) or (a.comment or "")
+            out[d].append(Event("attended" if a.status in ("done", "no_show") else "visit", a.start, a.patient.full_name, sv,
+                                a.patient_id, in_plan=a.patient_id in plan_patients, doctor_id=a.doctor_id, service=sv or None,
+                                ends=a.end, status_label=_AST.get(a.status), appt_id=a.id))
     for v in rows:
+        if mirrored and any(v.external_id.startswith(m) for m in mirrored):
+            continue                     # той самий запис, створений у CRM і продубльований у CleverBox
         if v.source == "cb_service_sale" and (v.patient_id, v.starts_at.date()) in cal_days:
             continue                     # той самий візит уже є як запис календаря
         if user.role == "doctor" and not (v.patient_id in doc_pids or

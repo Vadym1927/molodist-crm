@@ -1,0 +1,53 @@
+<style>
+dialog.apfd{border:0;border-radius:18px;padding:0;width:min(600px,96vw);max-height:92vh;box-shadow:0 30px 80px rgba(42,36,48,.35)}
+dialog.apfd::backdrop{background:rgba(42,36,48,.45)}
+.apf-h{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#fff;z-index:3}
+.apf-h h3{margin:0;font-size:18px}.apf-st{display:inline-block;padding:2px 9px;border-radius:99px;color:#fff;font-size:12px;vertical-align:middle}
+.apf-b{padding:14px 18px 18px;display:grid;gap:10px}.apf-b label{display:grid;gap:4px;font-size:12px;font-weight:700;color:var(--muted)}
+.apf-b .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}.apf-b .sw{display:flex;gap:8px;align-items:center;color:var(--ink);font-size:13.5px}.apf-b .sw input{width:auto}
+.apf-pick{position:relative}.apf-pick input{width:100%}
+.apf-res{position:absolute;left:0;right:0;top:46px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 30px rgba(42,36,48,.15);max-height:260px;overflow:auto;z-index:5;display:none}
+.apf-res div{padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--line);font-size:14px;color:var(--ink);font-weight:400}.apf-res div:hover{background:var(--brand-soft)}
+.apf-res small{color:var(--muted)}
+.apf-s{display:flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:6px 8px;margin-bottom:6px;background:#FAF9F7}
+.apf-s b{flex:1;font-size:13.5px}.apf-s input{width:78px;height:34px}.apf-s button{border:0;background:none;cursor:pointer;color:var(--muted);font-size:16px}
+.apf-warn:empty{display:none}.apf-warn{background:var(--warn-bg);color:var(--warn);border-radius:10px;padding:8px 12px;font-size:13.5px}
+.apf-v{display:grid;gap:2px}.apf-v>span{font:700 11.5px var(--sans);text-transform:uppercase;color:var(--muted);letter-spacing:.05em}
+</style>
+<dialog class="apfd" id="apfd"><div id="apfd-b"></div></dialog>
+<script>
+(function(){
+  var dl=document.getElementById('apfd'),box=document.getElementById('apfd-b'),T=null;
+  function load(url){box.innerHTML='<div class="apf-b muted">Завантаження…</div>';dl.showModal();
+    fetch(url,{credentials:'same-origin'}).then(function(r){return r.text()}).then(function(h){box.innerHTML=h;
+      box.querySelectorAll('.apf-back').forEach(function(i){i.value=location.pathname+location.search});apfSum()})}
+  window.apOpenNew=function(doc,start,extra){load('/appointments/new?doc='+(doc||'')+'&start='+encodeURIComponent(start||'')+(extra||''))};
+  window.apptOpen=function(id,edit){load('/appointments/'+id+(edit?'?edit=1':''))};
+  window.apfClose=function(){dl.close()};
+  dl.addEventListener('click',function(e){if(e.target===dl)dl.close()});
+  function res(inp){return inp.parentNode.querySelector('.apf-res')}
+  window.apfPat=function(inp){clearTimeout(T);var q=inp.value.trim(),r=res(inp);inp.form.patient_id.value='';box.querySelector('.apf-new').style.display='grid';
+    if(q.length<2){r.style.display='none';return}
+    T=setTimeout(function(){fetch('/lookup/patients?q='+encodeURIComponent(q)).then(function(x){return x.json()}).then(function(js){
+      r.innerHTML=js.map(function(p){return '<div data-id="'+p.id+'" data-n="'+p.name.replace(/"/g,'&quot;')+'">'+p.name+' <small>'+(p.phone||'')+'</small></div>'}).join('')||'<div><small>Не знайдено — введіть нового нижче</small></div>';
+      r.style.display='block';r.querySelectorAll('div[data-id]').forEach(function(d){d.onclick=function(){inp.value=d.dataset.n;inp.form.patient_id.value=d.dataset.id;r.style.display='none';box.querySelector('.apf-new').style.display='none'}})})},250)};
+  window.apfSvc=function(inp){clearTimeout(T);var q=inp.value.trim(),r=res(inp);if(q.length<2){r.style.display='none';return}
+    T=setTimeout(function(){fetch('/lookup/services?q='+encodeURIComponent(q)).then(function(x){return x.json()}).then(function(js){
+      r.innerHTML=js.map(function(s,i){return '<div data-i="'+i+'">'+s.name+' <small>'+s.minutes+' хв · '+s.price+' ₴'+(s.category?' · '+s.category:'')+'</small></div>'}).join('')||'<div><small>Не знайдено</small></div>';
+      r.style.display='block';r.querySelectorAll('div[data-i]').forEach(function(d){d.onclick=function(){add(js[+d.dataset.i]);inp.value='';r.style.display='none'}})})},250)};
+  function add(s){var w=box.querySelector('.apf-svc'),el=document.createElement('div');el.className='apf-s';el.dataset.s=JSON.stringify(s);
+    el.innerHTML='<b></b><input type="number" class="m" min="5" step="5" title="хв"><input type="number" class="p" step="0.01" title="₴"><button type="button">×</button>';
+    el.querySelector('b').textContent=s.name;el.querySelector('.m').value=s.minutes;el.querySelector('.p').value=(+s.price).toFixed(2);
+    el.querySelector('button').onclick=function(){el.remove();apfSum()};el.querySelectorAll('input').forEach(function(i){i.oninput=apfSum});w.appendChild(el);apfSum()}
+  window.apfSum=function(){var m=0,p=0;box.querySelectorAll('.apf-s').forEach(function(e){m+=+e.querySelector('.m').value||0;p+=+e.querySelector('.p').value||0});
+    var s=box.querySelector('.apf-sum');if(s)s.textContent=m?('Разом: '+m+' хв · '+p.toLocaleString('uk-UA',{minimumFractionDigits:2})+' ₴'):''};
+  window.apfSave=function(f,force){var svc=[];box.querySelectorAll('.apf-s').forEach(function(e){var s=JSON.parse(e.dataset.s);s.minutes=+e.querySelector('.m').value;s.price=+e.querySelector('.p').value;svc.push(s)});
+    var body={services:svc,force:!!force};['patient_id','new_name','new_phone','doctor_id','start','minutes','place','resource','comment','id','appeal_id'].forEach(function(k){if(f.elements[k])body[k]=f.elements[k].value});
+    body.to_cb=!!(f.elements.to_cb&&f.elements.to_cb.checked);var w=box.querySelector('.apf-warn');w.textContent='';
+    fetch('/appointments',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json()}).then(function(j){
+      if(j.error){w.textContent=j.error;return}
+      if(j.warnings){w.innerHTML='<b>Увага:</b><br>'+j.warnings.map(function(x){return '• '+x}).join('<br>')+'<br><button type="button" class="btn" style="margin-top:8px;padding:4px 12px">Записати все одно</button>';
+        w.querySelector('button').onclick=function(){apfSave(f,true)};return}
+      var u=new URL(location.href);if(u.pathname==='/calendar'){u.searchParams.set('start',j.day);u.searchParams.set('msg',j.msg||'Записано');location.href=u.pathname+u.search}else{location.href='/calendar?view=day&start='+j.day+'&msg='+encodeURIComponent(j.msg||'Записано')}})};
+})();
+</script>

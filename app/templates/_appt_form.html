@@ -1,0 +1,45 @@
+{# Вікно запису: новий / перегляд / редагування. Відкривається в календарі (apOpenNew / apptOpen). #}
+{% set ro = view_only and a %}
+<div class="apf" data-id="{{ a.id if a else '' }}">
+<div class="apf-h"><h3>{% if a %}Запис №{{ a.id }} <span class="apf-st" style="background:{{ COLORS[a.status] }}">{{ STATUSES[a.status] }}</span>{% else %}Новий запис{% endif %}</h3>
+  <button type="button" class="btn ghost" style="padding:4px 10px" onclick="apfClose()">×</button></div>
+{% if ro %}
+<div class="apf-b">
+  <div class="apf-v"><span>Пацієнт</span><a href="/patients/{{ a.patient_id }}"><b>{{ a.patient.full_name }}</b></a>{{ (' · ' ~ a.patient.phone) if a.patient.phone }}</div>
+  <div class="apf-v"><span>Коли</span><b>{{ a.start|dt('%d.%m.%Y') }} · {{ a.start|dt('%H:%M') }}–{{ a.end|dt('%H:%M') }}</b> ({{ a.minutes }} хв)</div>
+  <div class="apf-v"><span>Спеціаліст</span>{{ doctor.name if doctor else '—' }}{{ (' · ' ~ a.place) if a.place }}{{ (' · ' ~ a.resource) if a.resource }}</div>
+  <div class="apf-v"><span>Послуги</span>{% for s in a.services or [] %}<div>{{ s.name }} <span class="muted">· {{ s.minutes }} хв · {{ s.price|uah }}</span></div>{% else %}—{% endfor %}
+    {% if a.services %}<div><b>Разом {{ a.total|uah }}</b></div>{% endif %}</div>
+  {% if a.comment %}<div class="apf-v"><span>Коментар</span>{{ a.comment }}</div>{% endif %}
+  {% if a.cancel_reason %}<div class="apf-v"><span>Причина</span>{{ a.cancel_reason }}</div>{% endif %}
+  <div class="small muted">{{ ('У CleverBox: запис №' ~ a.cb_record_id) if a.cb_record_id else 'Лише в CRM' }} · створено {{ a.created_at|local|dt('%d.%m.%Y %H:%M') }}</div>
+  {% if can(user,'patients_all') %}<div class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px">
+    {% for k in ['confirmed','arrived','done','no_show'] %}{% if a.status != k %}<form method="post" action="/appointments/{{ a.id }}/status" style="margin:0"><input type="hidden" name="status" value="{{ k }}"><input type="hidden" name="back" class="apf-back">
+      <button class="btn ghost" style="padding:4px 10px;border-color:{{ COLORS[k] }}">{{ STATUSES[k] }}</button></form>{% endif %}{% endfor %}
+    {% if a.sale_id %}<a class="btn" style="padding:4px 12px" href="/sales/{{ a.sale_id }}">🧾 Чек №{{ a.sale_id }}</a>{% else %}<a class="btn" style="padding:4px 12px" href="/sales/new?appt={{ a.id }}">💳 Розрахувати</a>{% endif %}
+    <button type="button" class="btn ghost" style="padding:4px 10px" onclick="apptOpen({{ a.id }}, 1)">✎ Змінити</button></div>
+  {% if a.status != 'cancelled' %}<form method="post" action="/appointments/{{ a.id }}/status" class="row" style="gap:6px;flex-wrap:nowrap;margin-top:6px"><input type="hidden" name="status" value="cancelled"><input type="hidden" name="back" class="apf-back">
+    <input name="reason" placeholder="Причина скасування" required minlength="3" style="flex:1"><button class="btn danger" style="padding:4px 10px">Скасувати запис</button></form>{% endif %}{% endif %}
+</div>
+{% else %}
+<form class="apf-b" onsubmit="event.preventDefault();apfSave(this)">
+  {% if appeal %}<input type="hidden" name="appeal_id" value="{{ appeal.id }}"><div class="small" style="background:var(--lavender);border-radius:10px;padding:6px 10px">Зі звернення №{{ appeal.id }}: {{ appeal.name or '' }} {{ appeal.phone or '' }}{{ (' · ' ~ appeal.interest) if appeal.interest }}</div>{% endif %}
+  <label>Пацієнт<div class="apf-pick"><input type="hidden" name="patient_id" value="{{ pt.id if pt else '' }}">
+    <input class="apf-q" placeholder="Імʼя або телефон" value="{{ pt.full_name if pt else '' }}" autocomplete="off" oninput="apfPat(this)"><div class="apf-res"></div></div></label>
+  <div class="apf-new two" style="{{ 'display:none' if pt }}"><input name="new_name" placeholder="…або новий: імʼя" value="{{ appeal.name if appeal and not pt else '' }}"><input name="new_phone" placeholder="телефон" value="{{ appeal.phone if appeal and not pt else '' }}"></div>
+  <div class="two"><label>Спеціаліст<select name="doctor_id"><option value="">—</option>{% for d in doctors %}<option value="{{ d.id }}" {{ 'selected' if doc==d.id }}>{{ d.name }}</option>{% endfor %}</select></label>
+    <label>Дата й час<input type="datetime-local" name="start" step="300" value="{{ st.strftime('%Y-%m-%dT%H:%M') }}" required></label></div>
+  <label>Послуги<div class="apf-pick"><input class="apf-sq" placeholder="Пошук послуги" autocomplete="off" oninput="apfSvc(this)"><div class="apf-res"></div></div></label>
+  <div class="apf-svc">{% for s in (a.services if a else []) or [] %}<div class="apf-s" data-s='{{ s|tojson }}'><b>{{ s.name }}</b><input type="number" class="m" value="{{ s.minutes }}" min="5" step="5" title="хв"><input type="number" class="p" value="{{ '%.2f'|format(s.price) }}" step="0.01" title="₴"><button type="button" onclick="this.parentNode.remove();apfSum()">×</button></div>{% endfor %}</div>
+  <div class="small muted apf-sum"></div>
+  <div class="two"><label>Тривалість, хв<input type="number" name="minutes" min="5" step="5" value="{{ a.minutes if a else '' }}" placeholder="за послугами"></label>
+    <label>Кабінет<select name="place"><option value="">—</option>{% for p in places %}<option {{ 'selected' if a and a.place==p }}>{{ p }}</option>{% endfor %}</select></label></div>
+  <label>Апарат<select name="resource"><option value="">—</option>{% for r in resources %}<option {{ 'selected' if a and a.resource==r }}>{{ r }}</option>{% endfor %}</select></label>
+  <label>Коментар<textarea name="comment" rows="2">{{ a.comment or '' if a else ((appeal.interest or '') if appeal else '') }}</textarea></label>
+  {% if cb_on and not (a and a.cb_record_id) %}<label class="sw"><input type="checkbox" name="to_cb" value="1" {{ 'checked' if not a }}> створити запис і в CleverBox (поки працюєте в обох)</label>{% endif %}
+  <div class="apf-warn"></div>
+  <div class="row" style="gap:6px;justify-content:flex-end"><button type="button" class="btn ghost" onclick="apfClose()">Скасувати</button><button class="btn">{{ 'Зберегти' if a else 'Записати' }}</button></div>
+  {% if a %}<input type="hidden" name="id" value="{{ a.id }}">{% endif %}
+</form>
+{% endif %}
+</div>
