@@ -133,10 +133,16 @@ class Checkbox:
 
     def z_reports(self, start: date, end: date):
         """Checkbox шукає не більше ніж за 3 місяці — запитуємо помісячно."""
+        self.failed = getattr(self, "failed", [])
         cur = start
         while cur <= end:
             nxt = min(end, (cur.replace(day=1) + timedelta(days=32)).replace(day=1) - timedelta(days=1))
-            yield from self._z_page(cur, nxt)
+            try:
+                rows = list(self._z_page(cur, nxt))
+            except CheckboxError as e:              # місяць без доступу (каси ще не було) не зупиняє решту
+                self.failed.append(f"{cur:%m.%Y}: {e}")
+                rows = []
+            yield from rows
             cur = nxt + timedelta(days=1)
 
     def _z_page(self, start: date, end: date):
@@ -219,8 +225,9 @@ def sync(db: Session, start: date | None = None, end: date | None = None, client
                 fm.cash, fm.cashless, fm.source, fm.updated_at = round(cash, 2), round(cashless, 2), "checkbox", datetime.utcnow()
                 y, m = (y + 1, 1) if m == 12 else (y, m + 1)
             db.commit()
-            rep[acc["name"]] = f"{n} Z-звітів"
-            _status(db, acc["name"], None)
+            failed = getattr(cb, "failed", [])
+            rep[acc["name"]] = f"{n} Z-звітів" + (f", без доступу {len(failed)} міс" if failed else "")
+            _status(db, acc["name"], ("; ".join(failed[:3]) if failed and not n else None))
         except Exception as e:  # noqa: BLE001
             log.warning("checkbox %s: %s", acc["name"], e)
             rep[acc["name"]] = f"помилка: {e}"
