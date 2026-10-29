@@ -85,7 +85,7 @@
     {% for a in accs %}{% set stt = cb_status.get(a.name) %}
     <details style="border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px" {{ 'open' if not a.configured }}>
       <summary class="row between" style="cursor:pointer;list-style:none"><b>ФОП {{ a.name }}</b>
-        {% if a.configured and (not stt or stt.ok) %}<span class="pill ok">підключено</span>{% elif a.configured %}<span class="pill bad">помилка входу</span>{% else %}<span class="pill warn">не підключено</span>{% endif %}</summary>
+        {% if a.configured and (not stt or stt.ok) %}<span class="pill ok">підключено</span>{% elif a.configured %}<span class="pill bad">{{ 'помилка входу' if stt and stt.error and 'вхід касира' in stt.error else 'помилка' }}</span>{% else %}<span class="pill warn">не підключено</span>{% endif %}</summary>
       {% if stt %}<div class="small muted" style="margin-top:6px">Перевірено {{ stt.at[8:10] }}.{{ stt.at[5:7] }} {{ stt.at[11:16] }}{% if stt.error %} · <span style="color:var(--bad)">{{ stt.error }}</span>{% endif %}</div>{% endif %}
       {% if a.source == 'env' and a.configured %}<div class="small muted" style="margin-top:6px">Задано у файлі налаштувань сервера. Можна перезаписати тут.</div>{% endif %}
       <form method="post" action="/reports/fop/connect" class="grid" style="gap:6px;margin-top:8px" autocomplete="off">

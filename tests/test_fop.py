@@ -82,3 +82,18 @@ def test_connect_fop_from_ui_encrypted():
         c.post("/reports/fop/disconnect", data={"name": "Тестовий"})
     with SessionLocal() as db:
         assert not any(x["name"] == "Тестовий" for x in chb.accounts(db))
+
+
+def test_checkbox_queries_month_by_month():
+    calls = []
+
+    class Fake(chb.Checkbox):
+        def __init__(self):
+            pass
+
+        def get(self, path, params):
+            calls.append((params["from_date"][:10], params["to_date"][:10]))
+            return {"results": []}
+
+    list(Fake().z_reports(date(2026, 1, 1), date(2026, 10, 29)))
+    assert len(calls) == 10 and calls[0] == ("2026-01-01", "2026-01-31") and calls[-1] == ("2026-10-01", "2026-10-29")

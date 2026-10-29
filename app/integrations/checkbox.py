@@ -132,6 +132,14 @@ class Checkbox:
         return r.json()
 
     def z_reports(self, start: date, end: date):
+        """Checkbox шукає не більше ніж за 3 місяці — запитуємо помісячно."""
+        cur = start
+        while cur <= end:
+            nxt = min(end, (cur.replace(day=1) + timedelta(days=32)).replace(day=1) - timedelta(days=1))
+            yield from self._z_page(cur, nxt)
+            cur = nxt + timedelta(days=1)
+
+    def _z_page(self, start: date, end: date):
         offset = 0
         while True:
             res = self.get("reports/search", {"is_z_report": "true", "limit": 100, "offset": offset,
