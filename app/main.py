@@ -3393,54 +3393,57 @@ def _mono_job(job, days: int = 2):
 CB_SETUP = "https://molodist.cbox.online/new/#setup/"
 # Налаштування: блоки як у CleverBox. Пункт: (назва, опис, посилання в CRM | None, право, шлях у CleverBox | None)
 SETTINGS_BLOCKS = [
-    ("Основні налаштування", [
-        ("Загальні", "Країна, часовий пояс, мова, валюта, ПДВ; налаштування звітів", "/settings/clinic", "users", "main_settings"),
-        ("Філії", "Локації: ресурси (апарати), режим роботи, робочі місця (кабінети)", "/settings/clinic#loc", "users", "salons"),
-        ("Права доступу", "Ролі та їх дозволи, користувачі CRM, паролі входу й видалення", "/access/roles", "users", "roles"),
-        ("REST API", "API-ключі CRM і вебхуки; токен CleverBox — у «Дані й синхронізація»", "/access/api", "api", "cmarket/rest/main"),
+    ('Клініка', 'clinic', 'Загальні параметри, філії, команда й графік', [
+        ('Загальні', 'Країна, часовий пояс, мова, валюта, ПДВ; налаштування звітів', '/settings/clinic', 'users', 'main_settings'),
+        ('Філії', 'Локації: ресурси (апарати), режим роботи, робочі місця (кабінети)', '/settings/clinic#loc', 'users', 'salons'),
+        ('Команда', 'Лікарі й співробітники: посади, KPI, привʼязка до CleverBox', '/specialists', 'specialists', 'sfields/staff'),
+        ('Графік роботи', 'Зміни спеціалістів по днях і кабінетах', '/specialists/schedule', 'schedule', None),
+        ('Онлайн-бронювання', 'Віджет запису на сайті', None, None, 'webwidget'),
     ]),
-    ("Комунікації", [
-        ("Канали", "SMS і Viber (TurboSMS), Telegram-бот, Instagram та Facebook", "/settings/channels", "users", "cmarket/channels/main"),
-        ("Повідомлення пацієнтам", "Розсилки й нагадування CRM; автоповідомлення — у CleverBox", "/campaigns", "campaigns", "messages"),
-        ("IP-телефонія", "Binotel, Stream Telecom, Ringostat: дзвінки → звернення", "/settings/telephony", "users", "cmarket/siphone/main"),
+    ('Фінанси', 'finance', 'Каси, статті, оплати й фіскалізація', [
+        ('Каси / рахунки', 'Готівка, рахунки ФОП, термінал, онлайн-оплати: залишок після кожної операції, локація, тип', '/settings/cashboxes', 'finance', None),
+        ('Статті фінансових операцій', 'Довідник статей доходів і витрат: реклама, податки, персонал, закупки…', '/settings/articles', 'finance', 'dirs/ftype'),
+        ('Знижки й бонусна програма', 'Правила знижок, % нарахування бонусів, термін дії, персональні знижки', '/settings/loyalty', 'finance', None),
+        ('Платіжні системи', 'Посилання на оплату для пацієнтів: monobank еквайринг, LiqPay, WayForPay', '/settings/payments', 'finance', 'payment_system'),
+        ('Банк monobank', 'Виписки ФОП, оплати постачальникам і їх автоматичне рознесення', '/settings/keys?s=mono#mono', 'finance', None),
+        ('Checkbox', 'Фіскалізація чеків CRM, каси (РРО), відправлення чеків; оборот ФОП — у «Звіти → Ліміти ФОП»', '/settings/checkbox', 'finance', 'cmarket/checkbox/main'),
     ]),
-    ("Віджети та форми", [
-        ("Онлайн-бронювання", "Віджет запису на сайті", None, None, "webwidget"),
+    ('Комунікації', 'chat', 'Канали звʼязку з пацієнтами', [
+        ('Канали', 'SMS і Viber (TurboSMS), Telegram-бот, Instagram та Facebook', '/settings/channels', 'users', 'cmarket/channels/main'),
+        ('Повідомлення пацієнтам', 'Розсилки й нагадування CRM; автоповідомлення — у CleverBox', '/campaigns', 'campaigns', 'messages'),
+        ('IP-телефонія', 'Binotel, Stream Telecom, Ringostat: дзвінки → звернення', '/settings/telephony', 'users', 'cmarket/siphone/main'),
     ]),
-    ("Налаштування фінансів", [
-        ("Знижки й бонусна програма", "Правила знижок, % нарахування бонусів, термін дії, персональні знижки", "/settings/loyalty", "finance", None),
-        ("Статті фінансових операцій", "Довідник статей доходів і витрат: реклама, податки, персонал, закупки…", "/settings/articles", "finance", "dirs/ftype"),
-        ("Каси / рахунки", "Готівка, рахунки ФОП, термінал, онлайн-оплати: залишок після кожної операції, локація, тип", "/settings/cashboxes", "finance", None),
-        ("Платіжні системи", "Посилання на оплату для пацієнтів: monobank еквайринг, LiqPay, WayForPay", "/settings/payments", "finance", "payment_system"),
-        ("Банк monobank", "Виписки ФОП, оплати постачальникам і їх автоматичне рознесення", "/settings/keys?s=mono#mono", "finance", None),
-        ("Checkbox", "Фіскалізація чеків CRM, каси (РРО), відправлення чеків; оборот ФОП — у «Звіти → Ліміти ФОП»", "/settings/checkbox", "finance", "cmarket/checkbox/main"),
+    ('Звернення', 'inbox', 'Довідники для заявок і дзвінків', [
+        ('Джерела звернень', None, '/settings/appeals?open=sources', 'users', 'dirs/appeal_type'),
+        ('Мітки звернень', None, '/settings/appeals?open=marks', 'users', 'dirs/appeal_mark'),
+        ('Статуси звернень', None, '/settings/appeals?open=statuses', 'users', 'dirs/appeal_status'),
+        ('Причини відмов', None, '/settings/appeals?open=deny_reasons', 'users', 'dirs/appeal_deny'),
+        ('Причини звернень', None, '/settings/appeals?open=causes', 'users', 'dirs/appeal_cause'),
     ]),
-    ("Звернення", [
-        ("Джерела звернень", None, "/settings/appeals?open=sources", "users", "dirs/appeal_type"),
-        ("Мітки звернень", None, "/settings/appeals?open=marks", "users", "dirs/appeal_mark"),
-        ("Статуси звернень", None, "/settings/appeals?open=statuses", "users", "dirs/appeal_status"),
-        ("Причини відмов", None, "/settings/appeals?open=deny_reasons", "users", "dirs/appeal_deny"),
-        ("Причини звернень", None, "/settings/appeals?open=causes", "users", "dirs/appeal_cause"),
+    ('Склад і товари', 'box', 'Списання, терміни, накладні, сайт', [
+        ('Норми списання', 'Що списується зі складу після процедури', '/stock?tab=norms', 'stock', None),
+        ('Сповіщення про терміни', 'Кому й коли надсилати попередження про терміни придатності', '/reports?r=expiry#notify', 'finance', None),
+        ('Розпізнавання накладних', 'Ключ Claude API — фото/PDF накладної → документ поставки', '/settings/keys?s=ai#ai', 'finance', None),
+        ('molodist.store', 'Shop-Express: посилання й фото товарів з сайту', '/settings/keys?s=shop#shop', 'finance', None),
     ]),
-    ("Співробітники й графік", [
-        ("Посади співробітників", None, None, None, "dirs/prof"),
-        ("Поля співробітників", "Команда в CRM: лікарі, KPI, привʼязка до CleverBox", "/specialists", "specialists", "sfields/staff"),
-        ("Налаштування окладів", None, None, None, "salary"),
-        ("Категорії спеціалістів", "Ціни за категоріями", None, None, "cmarket/customprice/main"),
-        ("Статті для нарахувань", None, None, None, "dirs/stype"),
-        ("Застосунок для спеціаліста", None, None, None, "cmarket/specapp/main"),
+    ('Доступ і безпека', 'lock', 'Хто що бачить і може змінювати', [
+        ('Права доступу', 'Ролі та їх дозволи, користувачі CRM, паролі входу й видалення', '/access/roles', 'users', 'roles'),
+        ('Паролі для видалення', 'Окремий у кожного користувача — без нього нічого не видаляється', '/access', 'users', None),
+        ('Журнал дій', 'Хто що і коли робив у CRM', '/access/audit', 'users', None),
+        ('Мій кабінет', 'Пароль входу, Telegram для сповіщень', '/me', None, None),
     ]),
-    ("CRM MOLODIST", [
-        ("Розпізнавання накладних", "Ключ Claude API — фото/PDF накладної → документ поставки", "/settings/keys?s=ai#ai", "finance", None),
-        ("molodist.store", "Shop-Express: посилання й фото товарів з сайту", "/settings/keys?s=shop#shop", "finance", None),
-        ("Паролі для видалення", "Окремий у кожного користувача — без нього нічого не видаляється", "/access", "users", None),
-        ("Журнал дій", "Хто що і коли робив у CRM", "/access/audit", "users", None),
-        ("Дані й синхронізація", "Імпорт / експорт, синхронізація з CleverBox", "/data", "export_reports", None),
-        ("Резервні копії", "Щоночі о 03:30 і вручну", "/data#backup", "export_reports", None),
-        ("Сповіщення про терміни", "Кому й коли надсилати попередження про терміни придатності", "/reports?r=expiry#notify", "finance", None),
-        ("Норми списання", "Що списується зі складу після процедури", "/stock?tab=norms", "stock", None),
-        ("Зіставлення послуг", "Позиції плану ↔ послуги CleverBox", "/mapping", "mapping", None),
-        ("Мій кабінет", "Пароль входу, Telegram для сповіщень", "/me", None, None),
+    ('Дані й інтеграції', 'data', 'Синхронізація, копії, API', [
+        ('Дані й синхронізація', 'Імпорт / експорт, синхронізація з CleverBox', '/data', 'export_reports', None),
+        ('Резервні копії', 'Щоночі о 03:30 і вручну', '/data#backup', 'export_reports', None),
+        ('REST API', 'API-ключі CRM і вебхуки; токен CleverBox — у «Дані й синхронізація»', '/access/api', 'api', 'cmarket/rest/main'),
+        ('Зіставлення послуг', 'Позиції плану ↔ послуги CleverBox', '/mapping', 'mapping', None),
+    ]),
+    ('Поки в CleverBox', 'ext', 'Ще не перенесено в CRM — відкривається у CleverBox', [
+        ('Посади співробітників', None, None, None, 'dirs/prof'),
+        ('Налаштування окладів', None, None, None, 'salary'),
+        ('Категорії спеціалістів', 'Ціни за категоріями', None, None, 'cmarket/customprice/main'),
+        ('Статті для нарахувань', None, None, None, 'dirs/stype'),
+        ('Застосунок для спеціаліста', None, None, None, 'cmarket/specapp/main'),
     ]),
 ]
 
@@ -3468,12 +3471,12 @@ def settings_page(request: Request, user: User = Depends(current_user), db: Sess
     except Exception:  # noqa: BLE001
         pass
     blocks = []
-    for title, items in [SETTINGS_BLOCKS[-1]] + SETTINGS_BLOCKS[:-1]:          # спершу — те, що налаштовується в CRM
+    for title, icon, about, items in SETTINGS_BLOCKS:
         rows = [{"t": t, "d": d, "url": u if (u and (not p or can(user, p))) else None, "cb": (CB_SETUP + c) if c else None,
                  "status": st_.get(u) if u else None} for t, d, u, p, c in items]
         rows = [r for r in rows if r["url"] or r["cb"]]
         if rows:
-            blocks.append((title, rows))
+            blocks.append({"title": title, "icon": icon, "about": about, "rows": rows, "ext": all(not r["url"] for r in rows)})
     return render(request, "settings.html", blocks=blocks)
 
 

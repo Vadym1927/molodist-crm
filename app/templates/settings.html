@@ -1,28 +1,62 @@
 {% extends "base.html" %}
 {% block title %}Налаштування · MOLODIST CRM{% endblock %}
 {% block body %}
+{% set IC = {
+  'clinic': '<path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6M10 10h4"/>',
+  'finance': '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h3"/>',
+  'chat': '<path d="M4 5h16v11H8l-4 4z"/><path d="M8 9.5h8M8 12.5h5"/>',
+  'inbox': '<path d="M4 13l2.5-8h11L20 13v6H4z"/><path d="M4 13h4.5l1 2h5l1-2H20"/>',
+  'box': '<path d="M3 7.5L12 3l9 4.5v9L12 21l-9-4.5z"/><path d="M3 7.5l9 4.5 9-4.5M12 12v9"/>',
+  'lock': '<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3"/>',
+  'data': '<ellipse cx="12" cy="6" rx="7" ry="2.8"/><path d="M5 6v6c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8V6M5 12v6c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8v-6"/>',
+  'ext': '<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>'} %}
 <style>
-.st-wrap{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px;align-items:start}
-.st-b{background:var(--card,#fff);border:1px solid var(--line);border-radius:18px;padding:16px 18px}
-.st-b h2{margin:0 0 10px;font-size:15px}
-.st-i{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 10px;margin:0 -10px;border-radius:12px;text-decoration:none;color:var(--ink)}
-.st-i:hover{background:var(--soft)}
-.st-i b{font-weight:600;font-size:14.5px}.st-i em{display:block;font-style:normal;font-size:12.5px;color:var(--muted);margin-top:1px}
-.st-i .st-s{display:inline-block;margin-top:3px;font-size:11.5px;font-weight:600;color:var(--classic);background:var(--lavender);border-radius:99px;padding:1px 8px}
-.st-go{display:flex;gap:6px;flex:none}
-.st-go a{font-size:12px;font-weight:700;text-decoration:none;padding:4px 10px;border-radius:99px;white-space:nowrap}
-.st-go .crm{background:var(--deep);color:#fff}.st-go .cb{border:1px solid var(--line);color:var(--muted)}
-.st-go .cb:hover{border-color:var(--classic);color:var(--classic)}
-.st-b.crm-own{border-color:var(--lavender-2,#C9BFE6)}
+.sh-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+.sh-head p{margin:6px 0 0;color:var(--muted);font-size:14px;max-width:560px}
+.sh-q{position:relative;width:min(340px,100%)}
+.sh-q input{width:100%;height:44px;padding-left:40px;border-radius:12px;background:#fff}
+.sh-q svg{position:absolute;left:13px;top:12px;color:var(--muted)}
+.sh-grid{columns:3 340px;column-gap:20px}
+.sh-card{break-inside:avoid;margin:0 0 20px;background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:22px 22px 12px;
+  box-shadow:0 1px 2px rgba(42,36,48,.04),0 10px 30px -18px rgba(42,36,48,.22)}
+.sh-card.ext{background:transparent;box-shadow:none;border-style:dashed}
+.sh-ch{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+.sh-ic{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;background:#EFEBF6;color:#3B3050;flex:none}
+.sh-card.ext .sh-ic{background:#F2EFEA;color:#8a8496}
+.sh-ch h2{margin:0;font:600 13px/1.2 var(--head);letter-spacing:.14em;text-transform:uppercase;color:#2A2430}
+.sh-ch span{display:block;margin-top:4px;font-size:12.5px;color:var(--muted)}
+.sh-ch .n{margin-left:auto;font:600 12px var(--sans);color:#9a93a6}
+.sh-r{display:flex;align-items:center;gap:12px;padding:12px 10px;margin:0 -10px;border-radius:12px;text-decoration:none;color:#2A2430;border-top:1px solid #F3EFEA;transition:background .15s}
+.sh-r:first-of-type{border-top:0}.sh-r:hover{background:#F7F4F0}.sh-r:hover .chev{transform:translateX(3px);color:#3B3050}
+.sh-r .tx{flex:1;min-width:0}
+.sh-r b{display:block;font:600 14.5px/1.3 var(--sans)}
+.sh-r em{display:block;font-style:normal;font-size:12.5px;line-height:1.45;color:#8a8496;margin-top:2px}
+.sh-r .pill{display:inline-flex;align-items:center;gap:5px;margin-top:6px;font:600 11px var(--sans);color:#5C4B82;background:#F1EDF8;border-radius:99px;padding:2px 9px}
+.sh-r .pill:before{content:"";width:6px;height:6px;border-radius:50%;background:#7BC47F}
+.sh-r .pill.off:before{background:#D8D2CC}
+.chev{flex:none;color:#C3BCCD;transition:transform .15s,color .15s}
+.sh-r .cb{flex:none;font:600 11px var(--sans);color:#8a8496;border:1px solid #E6E0D8;border-radius:99px;padding:3px 9px;white-space:nowrap}
+.sh-r.hide,.sh-card.hide{display:none}
+.sh-empty{display:none;color:var(--muted);padding:30px 0;text-align:center}
+@media(max-width:700px){.sh-grid{columns:1}.sh-card{padding:18px 16px 8px}}
 </style>
-<div class="eyebrow">Ще</div><h1>Налаштування</h1>
-<p class="small muted" style="margin:-4px 0 16px">Усе в одному місці, блоками як у CleverBox. <b>CRM</b> — налаштовується тут; <b>CleverBox ↗</b> — лише для того, чого в CRM ще немає (відкривається у CleverBox у новій вкладці).</p>
-<div class="st-wrap">
-{% for title, rows in blocks %}<div class="st-b {{ 'crm-own' if title == 'CRM MOLODIST' }}"><h2>{{ title }}</h2>
-  {% for r in rows %}{% set main = r.url or r.cb %}
-  <div class="st-i"><a href="{{ main }}" {% if not r.url %}target="_blank" rel="noopener"{% endif %} style="text-decoration:none;color:inherit;flex:1;min-width:0">
-      <b>{{ r.t }}</b>{% if r.d %}<em>{{ r.d }}</em>{% endif %}{% if r.status %}<span class="st-s">{{ r.status }}</span>{% endif %}</a>
-    <div class="st-go">{% if r.url %}<a class="crm" href="{{ r.url }}">CRM</a>{% endif %}{% if r.cb and not r.url %}<a class="cb" href="{{ r.cb }}" target="_blank" rel="noopener">CleverBox ↗</a>{% endif %}</div></div>
-  {% endfor %}</div>{% endfor %}
+<div class="sh-head"><div><div class="eyebrow">Ще</div><h1 style="margin:0">Налаштування</h1>
+  <p>Усе, що налаштовується в CRM, згруповано за розділами. Те, чого в CRM ще немає, — окремо внизу й відкривається у CleverBox.</p></div>
+  <label class="sh-q"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input id="shq" placeholder="Знайти налаштування" autocomplete="off" oninput="shF(this.value)"></label></div>
+<div class="sh-grid" id="shg">
+{% for b in blocks %}<section class="sh-card {{ 'ext' if b.ext }}">
+  <div class="sh-ch"><div class="sh-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">{{ IC.get(b.icon, '')|safe }}</svg></div>
+    <div><h2>{{ b.title }}</h2><span>{{ b.about }}</span></div><span class="n">{{ b.rows|length }}</span></div>
+  {% for r in b.rows %}<a class="sh-r" href="{{ r.url or r.cb }}" {% if not r.url %}target="_blank" rel="noopener"{% endif %} data-q="{{ (r.t ~ ' ' ~ (r.d or '') ~ ' ' ~ b.title)|lower }}">
+    <div class="tx"><b>{{ r.t }}</b>{% if r.d %}<em>{{ r.d }}</em>{% endif %}
+      {% if r.status %}<span class="pill {{ 'off' if 'не ' in r.status or r.status.startswith('не') }}">{{ r.status }}</span>{% endif %}</div>
+    {% if r.url %}<svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+    {% else %}<span class="cb">CleverBox ↗</span>{% endif %}</a>{% endfor %}
+</section>{% endfor %}
 </div>
+<div class="sh-empty" id="she">Нічого не знайдено</div>
+<script>function shF(v){v=(v||'').trim().toLowerCase();var any=0;document.querySelectorAll('#shg .sh-card').forEach(function(c){var n=0;
+  c.querySelectorAll('.sh-r').forEach(function(r){var ok=!v||r.dataset.q.indexOf(v)>=0;r.classList.toggle('hide',!ok);n+=ok});c.classList.toggle('hide',!n);any+=n});
+  document.getElementById('she').style.display=any?'none':'block'}</script>
 {% endblock %}

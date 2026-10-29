@@ -9,10 +9,10 @@ def test_settings_hub():
     with TestClient(app) as c:
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
         t = c.get("/settings").text
-        for block in ("CRM MOLODIST", "Основні налаштування", "Комунікації", "Віджети та форми", "Налаштування фінансів",
-                      "Звернення", "Співробітники й графік"):
+        for block in ("Клініка", "Фінанси", "Комунікації", "Звернення", "Склад і товари", "Доступ і безпека", "Дані й інтеграції",
+                      "Поки в CleverBox"):
             assert block in t
-        assert "#setup/dirs/appeal_deny" not in t and 'href="/access"' in t
+        assert "#setup/dirs/appeal_deny" not in t and 'href="/access"' in t and "#setup/salary" in t
         assert 'href="/settings"' in c.get("/").text
 
 
