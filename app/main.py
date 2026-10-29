@@ -2060,6 +2060,14 @@ def stock_doc_page(did: int, request: Request, user: User = Depends(require("sto
     from .models import Supplier
     doc = db.get(StockDoc, did) or (_ for _ in ()).throw(HTTPException(404))
     bal = st.balances(db) if st.ledger_active(db) else {}
+    lot_opts: dict[int, list] = {}                     # партії складу списання: товар → [(термін, к-сть)]
+    src_wh = doc.wh_from or doc.wh_to
+    if doc.kind in ("transfer", "writeoff", "return") and src_wh and bal:
+        for (pid_, w_, e_), q_ in st.batch_balances(db, warehouse=src_wh).items():
+            if e_ and q_ > 1e-6:
+                lot_opts.setdefault(pid_, []).append((e_, round(q_, 3)))
+        for v in lot_opts.values():
+            v.sort()
     from .services import payments as pay
     from .models import StockDocFile, PaymentAlloc, BankTxn
     from .integrations.checkbox import accounts as _cb_acc
@@ -2070,7 +2078,7 @@ def stock_doc_page(did: int, request: Request, user: User = Depends(require("sto
     return render(request, "stock_doc.html", d=doc, KINDS=st.DOC_KINDS, STATUS=st.STATUS, WAREHOUSES=catalog.WAREHOUSES,
                   files=db.scalars(select(StockDocFile).where(StockDocFile.doc_id == doc.id).order_by(StockDocFile.id)).all(),
                   grp=grp, allocs=allocs, txns=txns, PAY=pay.PAY_LABELS, line_paid=pay.by_product(db, [doc.id]),
-                  fops=[a["name"] for a in _cb_acc(db)], sup=sup,
+                  fops=[a["name"] for a in _cb_acc(db)], sup=sup, lot_opts=lot_opts, today=date.today(),
                   group_docs=[x for x in (grp.docs if grp else []) if x.id != doc.id],
                   REASONS=st.WRITEOFF_REASONS, products=_product_options(db), bal=bal, active=st.ledger_active(db),
                   suppliers=[x.name for x in db.scalars(select(Supplier).order_by(Supplier.name))],
@@ -2495,6 +2503,23 @@ def _expiry_page(request: Request, db: Session):
     return render(request, "expiry.html", nav="reports", REPORTS=rp.REPORTS, key="expiry", rep=rep, wh=wh, cfg=cfg,
                   users=users, LABELS=ex.LABELS, WEEKDAYS=ex.WEEKDAYS, admin_chat=bool(settings.telegram_admin_chat_id),
                   bot=bool(settings.telegram_bot_token), recips=ex.recipients(db, cfg), ROLES=ROLES)
+
+
+@app.post("/reports/expiry/writeoff")
+def expiry_writeoff(wh: str = Form(...), user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    """Чернетка списання всіх прострочених партій складу — перевірити й провести."""
+    from .services import stock as st, expiry as ex
+    from .models import StockDocLine
+    rows = [x for x in ex.rows(db) if x["wh"] == wh and x["days"] is not None and x["days"] < 0]
+    if not rows or not st.ledger_active(db):
+        return RedirectResponse(f"/reports?r=expiry&wh={wh}", 303)
+    reason = next((r for r in st.WRITEOFF_REASONS if "простроч" in r.lower()), st.WRITEOFF_REASONS[0])
+    doc = st.new_doc(db, "writeoff", user_id=user.id, wh_from=wh, reason=reason, note="Прострочені партії (зі звіту термінів)")
+    for x in rows:
+        doc.lines.append(StockDocLine(product_id=x["product"].id, qty=x["qty"], expiry_date=x["expiry"]))
+    db.commit()
+    audit(db, "expiry.writeoff_draft", "stock_doc", doc.id, user=user, wh=wh, lines=len(rows))
+    return RedirectResponse(f"/stock/docs/{doc.id}?msg=Чернетка+списання+прострочених+партій+—+перевірте+і+проведіть", 303)
 
 
 @app.post("/reports/expiry/notify")

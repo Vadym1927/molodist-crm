@@ -41,7 +41,7 @@
     {% if d.kind=='inventory' %}<th class="r">Облік</th><th class="r">Фактично</th><th class="r">Різниця</th>
     {% else %}{% if active and d.kind in ('transfer','writeoff','return') %}<th class="r">На складі</th>{% endif %}<th class="r">К-сть</th>{% endif %}
     {% if d.kind in ('supply','order','opening','return') %}<th class="r">Ціна закупівлі</th><th class="r">Сума</th>{% endif %}
-    {% if d.kind=='supply' %}<th>Придатний до</th>{% endif %}{% if editable %}<th></th>{% endif %}</tr></thead><tbody>
+    {% if d.kind=='supply' %}<th>Придатний до</th>{% endif %}{% if d.kind in ('transfer','writeoff') or (d.kind=='return' and d.reason!='patient') %}<th>Партія (термін)</th>{% endif %}{% if editable %}<th></th>{% endif %}</tr></thead><tbody>
   {% set ns = namespace(total=0, qty=0) %}
   {% for ln in d.lines %}{% set p = ln.product %}{% set ns.total = ns.total + (ln.qty or 0) * (ln.unit_cost or 0) %}{% set ns.qty = ns.qty + (ln.qty or 0) %}
     <tr><td><a href="/products/{{ p.id }}" style="font-weight:600;text-decoration:none">{{ p.name }}</a><div class="meta">{{ p.brand or '' }}{{ (' · арт. ' ~ p.sku) if p.sku }} · {{ p.unit or 'шт' }}</div></td>
@@ -56,11 +56,17 @@
       {% if d.kind in ('supply','order','opening','return') %}<td class="r">{% if editable %}<input class="c" name="cost_{{ ln.id }}" value="{{ '%g'|format(ln.unit_cost) if ln.unit_cost is not none else '' }}" inputmode="decimal">{% else %}{{ ln.unit_cost|uah if ln.unit_cost else '—' }}{% endif %}</td>
         <td class="r">{{ ((ln.qty or 0) * (ln.unit_cost or 0))|uah if ln.unit_cost else '—' }}</td>{% endif %}
       {% if d.kind=='supply' %}<td>{% if editable %}<input type="date" name="exp_{{ ln.id }}" value="{{ ln.expiry_date or '' }}">{% else %}{{ ln.expiry_date|dt('%d.%m.%Y') if ln.expiry_date else '—' }}{% endif %}</td>{% endif %}
+      {% if d.kind in ('transfer','writeoff') or (d.kind=='return' and d.reason!='patient') %}<td>{% set opts = lot_opts.get(p.id, []) %}{% if editable %}
+        <select name="exp_{{ ln.id }}" style="height:36px;min-width:190px">
+          <option value="">авто — найближчий термін</option>
+          {% for e, q in opts %}<option value="{{ e }}" {{ 'selected' if ln.expiry_date == e }}>до {{ e|dt('%d.%m.%Y') }} · {{ '%g'|format(q) }} {{ p.unit or 'шт' }}{{ ' · прострочено' if e < today else '' }}</option>{% endfor %}
+          {% if ln.expiry_date and ln.expiry_date not in opts|map('first')|list %}<option value="{{ ln.expiry_date }}" selected>до {{ ln.expiry_date|dt('%d.%m.%Y') }} (немає залишку)</option>{% endif %}
+        </select>{% else %}{{ ('до ' ~ ln.expiry_date|dt('%d.%m.%Y')) if ln.expiry_date else 'найближчий термін' }}{% endif %}</td>{% endif %}
       {% if editable %}<td><label class="small" title="Прибрати рядок" style="cursor:pointer;color:var(--bad)"><input type="checkbox" name="del_{{ ln.id }}" value="1" onchange="this.form.submit()" style="display:none">✕</label></td>{% endif %}
     </tr>
   {% else %}<tr><td colspan="8" class="muted">Товарів ще немає — додайте нижче.</td></tr>{% endfor %}
   {% if d.lines %}<tr style="background:var(--soft)"><td><b>Разом: {{ d.lines|length }} поз.</b></td>{% if d.kind=='inventory' %}<td></td>{% elif active and d.kind in ('transfer','writeoff','return') %}<td></td>{% endif %}
-    <td class="r"><b>{{ '%g'|format(ns.qty|round(3)) }}</b></td>{% if d.kind=='inventory' %}<td></td>{% endif %}{% if d.kind in ('supply','order','opening','return') %}<td></td><td class="r"><b>{{ ns.total|uah }}</b></td>{% endif %}{% if d.kind=='supply' %}<td></td>{% endif %}{% if editable %}<td></td>{% endif %}</tr>{% endif %}
+    <td class="r"><b>{{ '%g'|format(ns.qty|round(3)) }}</b></td>{% if d.kind=='inventory' %}<td></td>{% endif %}{% if d.kind in ('supply','order','opening','return') %}<td></td><td class="r"><b>{{ ns.total|uah }}</b></td>{% endif %}{% if d.kind=='supply' %}<td></td>{% endif %}{% if d.kind in ('transfer','writeoff') or (d.kind=='return' and d.reason!='patient') %}<td></td>{% endif %}{% if editable %}<td></td>{% endif %}</tr>{% endif %}
   </tbody></table>
 
   {% if editable %}

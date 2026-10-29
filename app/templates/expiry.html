@@ -33,7 +33,9 @@
 <div class="ex-lay"><div>
 {% for w in shown %}{% set items = w.rows|selectattr('bucket', 'equalto', bsel)|list if bsel else w.rows %}{% if items or not bsel %}
 <div class="card" style="padding:6px 8px"><div class="row between" style="padding:10px 8px 6px;flex-wrap:wrap;gap:8px"><h2 style="margin:0">{{ w.name }}</h2>
-  <div class="wsum">{% for k, label, lo, hi in rep.BUCKETS %}{% set t = w.b.get(k) %}{% if t and t.n %}<span class="pl {{ k }}">{{ label }}: {{ t.n }}</span>{% endif %}{% endfor %}</div></div>
+  <div class="wsum">{% for k, label, lo, hi in rep.BUCKETS %}{% set t = w.b.get(k) %}{% if t and t.n %}<span class="pl {{ k }}">{{ label }}: {{ t.n }}</span>{% endif %}{% endfor %}
+    {% set ex_n = w.b.get('expired') %}{% if ex_n and ex_n.n and can(user,'stock') %}<form method="post" action="/reports/expiry/writeoff" style="display:inline"><input type="hidden" name="wh" value="{{ w.key }}">
+      <button class="btn ghost" style="padding:2px 10px;font-size:12px" title="Створити чернетку списання прострочених партій">Списати прострочене</button></form>{% endif %}</div></div>
   <div style="overflow-x:auto"><table class="tb"><thead><tr><th>Товар</th><th>Придатний до</th><th class="n">Днів</th><th class="n">Залишок</th><th class="n">Вартість</th><th>Стан</th></tr></thead><tbody>
   {% for x in items %}<tr><td><a href="/products/{{ x.product.id }}#batches" style="font-weight:600;text-decoration:none">{{ x.product.name }}</a><div class="meta small muted">{{ x.product.brand or '' }}{{ (' · арт. ' ~ x.product.sku) if x.product.sku }}</div></td>
     <td>{{ x.expiry|dt('%d.%m.%Y') if x.expiry else '—' }}</td>

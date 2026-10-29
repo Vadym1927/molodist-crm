@@ -53,3 +53,33 @@ def test_expiry_report_tasks_and_notify(monkeypatch):
         db.query(SyncState).filter(SyncState.key == "stock_ledger_start").delete()
         oid = owner.id
     settings.telegram_admin_chat_id = old_chat
+
+
+def test_writeoff_expired_batch_draft():
+    settings.admin_password = "owner-pass-1"
+    today = date.today()
+    with SessionLocal() as db:
+        db.query(SyncState).filter(SyncState.key == "stock_ledger_start").delete(); db.commit()
+        p = Product(name="Партійний крем", name_norm="партійний крем", warehouse="vitrina")
+        db.add(p); db.commit()
+        st.start_ledger(db)
+        doc = st.new_doc(db, "supply", wh_to="vitrina", supplier="Партія Тест")
+        old, new = today - timedelta(days=5), today + timedelta(days=10)
+        doc.lines.append(st.StockDocLine(product_id=p.id, qty=2, unit_cost=50, expiry_date=old))
+        doc.lines.append(st.StockDocLine(product_id=p.id, qty=3, unit_cost=50, expiry_date=new))
+        db.commit(); st.post(db, doc)
+        pid = p.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        r = c.post("/reports/expiry/writeoff", data={"wh": "vitrina"}, follow_redirects=False)
+        assert r.status_code == 303 and "/stock/docs/" in r.headers["location"]
+        did = int(r.headers["location"].split("/stock/docs/")[1].split("?")[0])
+        page = c.get(f"/stock/docs/{did}").text
+        assert "Партія (термін)" in page and "прострочено" in page
+    with SessionLocal() as db:
+        d = db.get(st.StockDoc, did)
+        assert d.kind == "writeoff" and [(ln.product_id, ln.qty, ln.expiry_date) for ln in d.lines] == [(pid, 2, old)]
+        st.post(db, d)
+        b = st.batch_balances(db, warehouse="vitrina")
+        assert round(b.get((pid, "vitrina", old), 0), 3) == 0 and round(b.get((pid, "vitrina", new), 0), 3) == 3
+        db.query(SyncState).filter(SyncState.key == "stock_ledger_start").delete(); db.commit()
