@@ -120,7 +120,7 @@
       <td class="r">{{ x.sum|uah }}</td>
       <td>{% if x.expiry %}<span class="{{ 'exp bad' if x.expiry < today else '' }}">{{ x.expiry|dt('%d.%m.%Y') }}</span>{% else %}—{% endif %}</td>
       <td class="small">{% if x.link %}<a href="{{ x.link }}">{{ x.doc_no or x.src }}</a>{% else %}<span class="muted">{{ x.src }}</span>{% if x.doc_no and not x.period %} · {{ x.doc_no }}{% endif %}{% endif %}</td>
-      <td>{% if can(user,'products') and x.deletable %}<form method="post" action="/products/{{ p.id }}/purchases/{{ x.id }}/delete" onsubmit="return confirm('Видалити закупівлю?')"><button class="btn danger" style="padding:2px 9px">×</button></form>{% endif %}</td></tr>
+      <td>{% if can(user,'products') and x.deletable %}<form method="post" action="/products/{{ p.id }}/purchases/{{ x.id }}/delete" data-delpw="Видалити закупівлю?"><button class="btn danger" style="padding:2px 9px">×</button></form>{% endif %}</td></tr>
     {% else %}<tr><td colspan="9" class="muted">Поставок ще немає. Вони з'являються з документів «Склад → Поставка», з імпорту «Руху товарів» CleverBox або вносяться вручну нижче.{% if p.cost %} Зараз ціна закупівлі береться з CleverBox: {{ ((p.cost or 0))|uah }}.{% endif %}</td></tr>{% endfor %}
     </tbody></table></div>
     {% if p.coef and p.coef != 1 %}<p class="small muted" style="margin:8px 0 0">Ціна й кількість — за одиницю приходу (1 шт = {{ '%g'|format(p.coef) }} {{ p.unit or 'од. обліку' }}).</p>{% endif %}

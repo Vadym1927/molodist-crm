@@ -14,7 +14,8 @@
   <form method="post" id="dd-form" autocomplete="off">
     <input type="hidden" name="back" id="dd-back">
     <label>Причина (необовʼязково)<input name="note" maxlength="300" placeholder="напр. дубль, помилка в поставці"></label>
-    <label>Ваш пароль для підтвердження<input name="password" type="password" required autocomplete="current-password" id="dd-pw"></label>
+    <label>Пароль для видалення<input name="del_password" type="password" required autocomplete="off" id="dd-pw"></label>
+    {% if not user.delete_pw_hash %}<div class="small" style="color:var(--bad)">Вам ще не задано пароль для видалення — {{ 'задайте його в «Ще → Доступи й API»' if can(user,'users') else 'зверніться до власника' }}.</div>{% endif %}
     <div class="row" style="gap:8px;justify-content:flex-end"><button type="button" class="btn ghost" onclick="ddClose()">Скасувати</button><button class="btn danger">Видалити в архів</button></div>
   </form></div></div>
 <script>

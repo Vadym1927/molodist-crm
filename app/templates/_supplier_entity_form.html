@@ -17,5 +17,5 @@
   <label class="ck"><input type="checkbox" name="vat" value="1" {{ 'checked' if v and v.vat }}> платник ПДВ</label>
   <label class="ck"><input type="checkbox" name="is_main" value="1" {{ 'checked' if v and v.is_main }}> основна (за замовчуванням)</label>
   <div class="w row" style="gap:6px"><button class="btn">{{ 'Додати' if new_form else 'Зберегти' }}</button>
-    {% if eid %}<button class="btn ghost" formaction="/stock/suppliers/{{ sup.id }}/entity/{{ eid }}/delete" onclick="return confirm('Видалити цю юр. особу з картки постачальника?')">Видалити</button>{% endif %}</div>
+    {% if eid %}<button class="btn ghost" formaction="/stock/suppliers/{{ sup.id }}/entity/{{ eid }}/delete" data-delpw="Видалити цю юр. особу з картки постачальника?">Видалити</button>{% endif %}</div>
 </form>

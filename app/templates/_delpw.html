@@ -1,0 +1,36 @@
+{# Пароль для видалення: будь-яка форма або кнопка з data-delpw="текст підтвердження" спершу питає пароль #}
+<style>
+.dp-bg{position:fixed;inset:0;background:rgba(42,36,48,.45);z-index:99;display:none;align-items:center;justify-content:center;padding:16px}
+.dp-bg.on{display:flex}
+.dp{background:#fff;border-radius:18px;width:min(420px,100%);padding:20px 22px;box-shadow:0 30px 80px rgba(42,36,48,.35)}
+.dp h3{margin:0 0 6px;font-size:18px}.dp label{display:grid;gap:4px;font-size:12px;font-weight:600;color:var(--muted);margin-top:12px}
+.dp-toast{position:fixed;left:50%;top:18px;transform:translateX(-50%);z-index:100;background:var(--bad-bg);color:var(--bad);border:1px solid #F3C2C2;
+  border-radius:12px;padding:10px 16px;font-weight:600;box-shadow:0 10px 30px rgba(42,36,48,.15);max-width:min(560px,92vw)}
+</style>
+{% set _de = request.query_params.get('delerr') %}{% if _de %}<div class="dp-toast" onclick="this.remove()">🔒 {{ _de }}</div>{% endif %}
+<div class="dp-bg" id="dp-bg" onclick="if(event.target===this)dpClose()"><div class="dp" role="dialog" aria-modal="true">
+  <h3 id="dp-t">Видалити?</h3><div class="small muted">Потрібен ваш пароль для видалення.{% if not user.delete_pw_hash %} <b style="color:var(--bad)">Вам його ще не задано</b> — {{ 'задайте в «Ще → Доступи й API»' if can(user,'users') else 'зверніться до власника' }}.{% endif %}</div>
+  <form id="dp-f" autocomplete="off" onsubmit="event.preventDefault();dpGo()">
+    <label>Пароль для видалення<input type="password" id="dp-pw" required autocomplete="off"></label>
+    <div class="row" style="gap:8px;justify-content:flex-end;margin-top:14px"><button type="button" class="btn ghost" onclick="dpClose()">Скасувати</button><button class="btn danger">Видалити</button></div>
+  </form></div></div>
+<script>
+(function(){
+  var cur=null;
+  document.addEventListener('submit',function(e){
+    var f=e.target,b=e.submitter;
+    var t=(b&&b.hasAttribute('data-delpw'))?b.getAttribute('data-delpw'):(f.hasAttribute('data-delpw')?f.getAttribute('data-delpw'):null);
+    if(t===null||f._dpok)return;
+    e.preventDefault();cur={f:f,b:b};
+    document.getElementById('dp-t').textContent=t||'Видалити?';
+    document.getElementById('dp-bg').classList.add('on');setTimeout(function(){document.getElementById('dp-pw').focus()},50);
+  },true);
+  window.dpGo=function(){if(!cur)return;var f=cur.f,i=f.querySelector('input[name=del_password]');
+    if(!i){i=document.createElement('input');i.type='hidden';i.name='del_password';f.appendChild(i)}
+    i.value=document.getElementById('dp-pw').value;f._dpok=true;
+    if(cur.b&&f.requestSubmit)f.requestSubmit(cur.b);else f.submit();};
+  window.dpClose=function(){document.getElementById('dp-bg').classList.remove('on');document.getElementById('dp-pw').value='';cur=null};
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')dpClose()});
+  if(location.search.indexOf('delerr=')>-1){var u=new URL(location.href);u.searchParams.delete('delerr');history.replaceState(null,'',u.pathname+u.search+u.hash)}
+})();
+</script>

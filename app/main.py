@@ -567,9 +567,13 @@ async def plan_items_update(request: Request, plan_id: int, user: User = Depends
 
 
 @app.post("/plans/{plan_id}/delete")
-def plan_delete(plan_id: int, user: User = Depends(require("plan_delete")), db: Session = Depends(db_dep)):
+def plan_delete(plan_id: int, del_password: str = Form(""), user: User = Depends(require("plan_delete")),
+                db: Session = Depends(db_dep)):
     plan = db.get(BeautyPlan, plan_id)
     pid = plan.patient_id
+    err = _delpw(db, user, del_password, "plan", "plan", plan_id)
+    if err:
+        return RedirectResponse(_with_err(f"/patients/{pid}#plan{plan_id}", err), 303)
     audit(db, "plan.delete", "plan", plan.id, user=user, patient=plan.patient.full_name, total=plan.total_planned)
     db.delete(plan)
     db.commit()
@@ -682,6 +686,7 @@ def access(request: Request, user: User = Depends(require("users")), db: Session
 @app.post("/access/users")
 def user_save(request: Request, uid: str = Form(""), login: str = Form(...), name: str = Form(...),
               role: str = Form(...), doctor_id: str = Form(""), password: str = Form(""), active: str = Form(""),
+              delete_pw: str = Form(""), delete_pw_clear: str = Form(""),
               user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     if role not in ROLES:
         raise HTTPException(400, "Невідома роль")
@@ -705,9 +710,17 @@ def user_save(request: Request, uid: str = Form(""), login: str = Form(...), nam
                 raise HTTPException(400, "Пароль — щонайменше 8 символів")
             u.password_hash = hash_password(password)
     u.doctor_id = int(doctor_id) if role == "doctor" and doctor_id.isdigit() else None
+    if delete_pw:
+        if len(delete_pw) < 4:
+            raise HTTPException(400, "Пароль для видалення — щонайменше 4 символи")
+        if verify_password(delete_pw, u.password_hash or ""):
+            raise HTTPException(400, "Пароль для видалення має відрізнятися від пароля входу")
+        u.delete_pw_hash = hash_password(delete_pw)
+    elif delete_pw_clear:
+        u.delete_pw_hash = None
     db.commit()
     audit(db, action, "user", u.id, user=user, login=u.login, role=u.role, active=u.active,
-          password_changed=bool(password))
+          password_changed=bool(password), delete_pw=("set" if delete_pw else "cleared" if delete_pw_clear else None))
     return RedirectResponse("/access", 303)
 
 
@@ -1515,8 +1528,12 @@ def product_purchase_add(pid: int, bought_on: str = Form(""), qty: str = Form("1
 
 
 @app.post("/products/{pid:int}/purchases/{ppid:int}/delete")
-def product_purchase_delete(pid: int, ppid: int, user: User = Depends(require("products")), db: Session = Depends(db_dep)):
+def product_purchase_delete(pid: int, ppid: int, del_password: str = Form(""), user: User = Depends(require("products")),
+                            db: Session = Depends(db_dep)):
     from .models import ProductPurchase
+    err = _delpw(db, user, del_password, "purchase", "product", pid)
+    if err:
+        return RedirectResponse(_with_err(f"/products/{pid}#buy", err), 303)
     pp = db.get(ProductPurchase, ppid)
     if pp and pp.product_id == pid:
         db.delete(pp)
@@ -2029,10 +2046,13 @@ def stock_file(fid: int, user: User = Depends(require("stock")), db: Session = D
 
 
 @app.post("/stock/files/{fid:int}/delete")
-def stock_file_delete(fid: int, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+def stock_file_delete(fid: int, del_password: str = Form(""), user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
     from .models import StockDocFile
     f = db.get(StockDocFile, fid)
     did = f.doc_id if f else 0
+    err = _delpw(db, user, del_password, "stock_file", "stock_doc", did)
+    if err:
+        return RedirectResponse(_with_err(f"/stock/docs/{did}#files", err), 303)
     if f:
         db.delete(f)
         db.commit()
@@ -2261,10 +2281,13 @@ async def stock_supplier_entity(request: Request, sid: int, user: User = Depends
 
 
 @app.post("/stock/suppliers/{sid}/entity/{eid}/delete")
-def stock_supplier_entity_delete(sid: int, eid: int, back: str = Form(""), user: User = Depends(require("stock")),
-                                 db: Session = Depends(db_dep)):
+def stock_supplier_entity_delete(sid: int, eid: int, back: str = Form(""), del_password: str = Form(""),
+                                 user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
     from .models import Supplier
     from .services import suppliers as sp
+    err = _delpw(db, user, del_password, "supplier_entity", "supplier", sid)
+    if err:
+        return RedirectResponse(_card_back(back, sid, err), 303)
     x = db.get(Supplier, sid)
     if x:
         sp.delete_entity(db, x, eid)
@@ -2273,19 +2296,18 @@ def stock_supplier_entity_delete(sid: int, eid: int, back: str = Form(""), user:
 
 
 @app.post("/stock/docs/{did}/archive")
-def stock_doc_archive(did: int, password: str = Form(""), note: str = Form(""), back: str = Form(""),
+def stock_doc_archive(did: int, del_password: str = Form(""), note: str = Form(""), back: str = Form(""),
                       user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
     """Видалення документа в архів — лише з паролем поточного користувача."""
     from .services import stock as st
-    from .security import verify_password
     doc = db.get(StockDoc, did)
     back = back if back.startswith("/") and not back.startswith("//") else (f"/stock?tab={doc.kind}" if doc else "/stock")
     sep = "&" if "?" in back else "?"
     if not doc:
         return RedirectResponse(back, 303)
-    if not password or not verify_password(password, user.password_hash):
-        audit(db, "stock.archive_denied", "stock_doc", did, user=user)
-        return RedirectResponse(f"{back}{sep}err={_q('Невірний пароль — документ не видалено')}", 303)
+    err = _delpw(db, user, del_password, "stock_doc", "stock_doc", did)
+    if err:
+        return RedirectResponse(f"{back}{sep}err={_q(err)}", 303)
     try:
         num, prev = doc.number, doc.status
         st.archive(db, doc, user.id, note)
@@ -2306,6 +2328,20 @@ def stock_doc_restore(did: int, user: User = Depends(require("stock")), db: Sess
     st.restore(db, doc)
     audit(db, "stock.restore", "stock_doc", did, user=user, kind=doc.kind, number=doc.number)
     return RedirectResponse(f"/stock/docs/{did}?msg={_q('Відновлено з архіву' + (' як чернетку — перевірте й проведіть' if doc.status == 'draft' else ''))}", 303)
+
+
+def _delpw(db: Session, user: User, pw: str, what: str = "", entity: str | None = None, eid: int | None = None) -> str | None:
+    """Пароль видалення: None — можна; інакше текст помилки (і запис у журнал)."""
+    from .security import delete_password_error
+    err = delete_password_error(user, pw)
+    if err:
+        audit(db, "delete.denied", entity, eid, user=user, what=what, reason="no_pw" if not user.delete_pw_hash else "wrong")
+    return err
+
+
+def _with_err(url: str, err: str) -> str:
+    base, _, frag = url.partition("#")
+    return f"{base}{'&' if '?' in base else '?'}delerr={_q(err)}" + (f"#{frag}" if frag else "")
 
 
 def _q(v: str) -> str:
@@ -2507,11 +2543,14 @@ def stock_norm_add(service_id: int = Form(...), product: str = Form(...), qty: s
 
 
 @app.post("/stock/norms/{nid:int}/delete")
-def stock_norm_delete(nid: int, techcard: str = Form(""), user: User = Depends(require("stock")),
+def stock_norm_delete(nid: int, techcard: str = Form(""), del_password: str = Form(""), user: User = Depends(require("stock")),
                       db: Session = Depends(db_dep)):
     from .models import ProcedureNorm, CbService
     n = db.get(ProcedureNorm, nid)
     sid = n.service_id if n else ""
+    err = _delpw(db, user, del_password, "norm", "norm", nid)
+    if err:
+        return RedirectResponse(_with_err(f"/stock?tab=norms#s{sid}", err), 303)
     if n:
         if techcard:      # прибрати матеріал з усієї техкартки
             ids = [x for (x,) in db.execute(select(CbService.id).where(CbService.techcard == techcard))]
@@ -3106,6 +3145,9 @@ async def scripts_note_save(request: Request, user: User = Depends(require("scri
     f = await request.form()
     n = db.get(ProcedureNote, int(f["id"])) if str(f.get("id", "")).isdigit() else ProcedureNote()
     if f.get("delete") and n.id:
+        err = _delpw(db, user, str(f.get("del_password") or ""), "script_note", "procedure_note", n.id)
+        if err:
+            return RedirectResponse(_with_err("/scripts", err), 303)
         db.delete(n)
     else:
         n.keyword, n.why, n.benefit = f.get("keyword", "").strip(), f.get("why", "").strip(), f.get("benefit", "").strip() or None

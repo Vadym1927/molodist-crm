@@ -38,7 +38,7 @@
       <textarea name="why" rows="3" class="small">{{ n.why }}</textarea>
       <input name="benefit" value="{{ n.benefit or '' }}" class="small" placeholder="Що дасть курс">
       <div class="row"><button class="btn ghost" style="padding:3px 10px">Зберегти</button>
-        <button class="btn danger" name="delete" value="1" style="padding:3px 10px" onclick="return confirm('Видалити?')">Видалити</button></div></form>
+        <button class="btn danger" name="delete" value="1" style="padding:3px 10px" data-delpw="Видалити пояснення «{{ n.keyword }}»?">Видалити</button></div></form>
     {% endfor %}
     <form method="post" action="/scripts/notes" class="grid" style="gap:6px;margin-top:10px">
       <input name="keyword" placeholder="Ключові слова: напр. «плазмоліфтинг|prp»" required>

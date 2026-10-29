@@ -69,6 +69,15 @@ def hash_password(pw: str) -> str:
     return f"pbkdf2_sha256$260000${salt}${dk.hex()}"
 
 
+def delete_password_error(user: User | None, pw: str | None) -> str | None:
+    """Перевірка пароля видалення (окремий для кожного користувача, задає власник у «Доступи й API»)."""
+    if not user or not getattr(user, "delete_pw_hash", None):
+        return "Пароль для видалення вам не задано — його задає власник у «Ще → Доступи й API»"
+    if not pw or not verify_password(pw, user.delete_pw_hash):
+        return "Невірний пароль для видалення — нічого не видалено"
+    return None
+
+
 def verify_password(pw: str, stored: str) -> bool:
     try:
         _, it, salt, h = stored.split("$")

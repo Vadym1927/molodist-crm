@@ -270,6 +270,7 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(200))
     role: Mapped[str] = mapped_column(String(20), default="admin")      # owner | admin | doctor
     password_hash: Mapped[str] = mapped_column(String(300))
+    delete_pw_hash: Mapped[str | None] = mapped_column(String(300))   # окремий пароль для видалення (задає власник)
     doctor_id: Mapped[int | None] = mapped_column(ForeignKey("doctors.id"))   # для ролі «лікар»
     telegram_chat_id: Mapped[str | None] = mapped_column(String(64))
     active: Mapped[bool] = mapped_column(Boolean, default=True)

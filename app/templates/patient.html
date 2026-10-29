@@ -146,7 +146,7 @@
   {% if pl.medical_notes and can(user,'medical') %}<details class="small" style="margin-top:8px"><summary>Медичні нотатки лікаря</summary><p style="white-space:pre-line">{{ pl.medical_notes }}</p></details>{% endif %}
   <div class="row small" style="margin-top:10px">
     {% if pl.source_file %}<span class="muted">Джерело: PDF Observ</span>{% endif %}
-    {% if can(user,'plan_delete') %}<form method="post" action="/plans/{{ pl.id }}/delete" onsubmit="return confirm('Видалити цей бюті-план з CRM?')"><button class="btn danger" style="padding:4px 10px">Видалити план</button></form>{% endif %}
+    {% if can(user,'plan_delete') %}<form method="post" action="/plans/{{ pl.id }}/delete" data-delpw="Видалити цей бюті-план з CRM?"><button class="btn danger" style="padding:4px 10px">Видалити план</button></form>{% endif %}
   </div>
 </div>
 {% else %}

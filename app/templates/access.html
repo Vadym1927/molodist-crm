@@ -8,13 +8,15 @@
 </nav>
 
 {% if tab=='users' %}
+<p class="small muted" style="margin:-6px 0 12px">🔒 <b>Пароль для видалення</b> — окремий у кожного користувача, задаєте ви. Без нього в CRM нічого не видаляється (документи складу, плани, закупівлі, файли, норми, юр. особи постачальників). Користувач без пароля видаляти не може. Кожна спроба пишеться в «Журнал дій».</p>
 <div class="card" style="overflow:auto">
-  <table><thead><tr><th>Користувач</th><th>Логін</th><th>Роль</th><th>Лікар у CRM</th><th>Останній вхід</th><th>Статус</th><th></th></tr></thead><tbody>
+  <table><thead><tr><th>Користувач</th><th>Логін</th><th>Роль</th><th>Лікар у CRM</th><th>Останній вхід</th><th>Статус</th><th>Пароль видалення</th><th></th></tr></thead><tbody>
   {% for u in users %}
     <tr><td><b>{{ u.name }}</b></td><td class="muted">{{ u.login }}</td>
       <td><span class="pill {{ 'done' if u.role=='owner' else ('ok' if u.role=='admin' else 'warn') }}">{{ u.role_label }}</span></td>
       <td>{{ u.doctor.name if u.doctor else '—' }}</td><td class="small">{{ u.last_login|dt('%d.%m.%y %H:%M') }}</td>
       <td>{{ 'активний' if u.active else 'вимкнено' }}</td>
+      <td>{% if u.delete_pw_hash %}<span class="pill ok">задано</span>{% else %}<span class="pill draft">не задано</span>{% endif %}</td>
       <td><details><summary class="small">Змінити</summary>
         <form method="post" action="/access/users" class="grid" style="gap:6px;margin-top:6px;min-width:260px">
           <input type="hidden" name="uid" value="{{ u.id }}">
@@ -22,6 +24,8 @@
           <select name="role">{% for k,l in ROLES.items() %}<option value="{{ k }}" {{ 'selected' if u.role==k }}>{{ l }}</option>{% endfor %}</select>
           <select name="doctor_id"><option value="">— привʼязка до лікаря (для ролі «Лікар») —</option>{% for d in doctors %}<option value="{{ d.id }}" {{ 'selected' if u.doctor_id==d.id }}>{{ d.name }}</option>{% endfor %}</select>
           <input type="password" name="password" placeholder="Новий пароль (залиште порожнім)" autocomplete="new-password">
+          <input type="password" name="delete_pw" placeholder="{{ 'Новий пароль для видалення' if u.delete_pw_hash else 'Пароль для видалення (мін. 4 символи)' }}" autocomplete="new-password">
+          {% if u.delete_pw_hash %}<label class="small"><input type="checkbox" name="delete_pw_clear" value="1"> прибрати пароль видалення (не зможе видаляти)</label>{% endif %}
           <label class="small"><input type="checkbox" name="active" value="1" {{ 'checked' if u.active }}> активний</label>
           <button class="btn ghost">Зберегти</button></form></details></td></tr>
   {% endfor %}
@@ -35,6 +39,7 @@
       <select name="role">{% for k,l in ROLES.items() %}<option value="{{ k }}" {{ 'selected' if k=='admin' }}>{{ l }}</option>{% endfor %}</select>
       <select name="doctor_id"><option value="">— привʼязка до лікаря (для ролі «Лікар») —</option>{% for d in doctors %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}</select>
       <input type="password" name="password" placeholder="Пароль (мін. 8 символів)" required autocomplete="new-password">
+      <input type="password" name="delete_pw" placeholder="Пароль для видалення (необовʼязково)" autocomplete="new-password">
       <input type="hidden" name="active" value="1">
       <button class="btn">Створити</button></form></div>
   <div class="card"><h2>Що бачить кожна роль</h2>
