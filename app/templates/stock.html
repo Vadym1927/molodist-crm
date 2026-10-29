@@ -121,7 +121,8 @@
     <tr><td><a href="/stock/docs/{{ d.id }}" style="font-weight:700">{{ d.number }}</a>{% if d.ext_no %}<div class="meta">№ {{ d.ext_no }}</div>{% endif %}</td>
       <td>{{ d.doc_date|dt('%d.%m.%Y') }}<div class="meta">{{ d.created_at|local|dt('%H:%M') }}</div></td>
       <td>{% if archive %}<span class="pill cancelled">В архіві</span><div class="meta">був: {{ STATUS.get(d.archived_from, d.archived_from) }}</div>{% else %}<span class="pill {{ d.status }}">{{ STATUS[d.status] }}</span>{% endif %}</td>
-      {% if tab in ('supply','order','return') %}<td>{{ d.supplier or '—' }}</td>{% endif %}
+      {% if tab in ('supply','order','return') %}<td>{% if d.supplier %}<a href="#" data-sup-name="{{ d.supplier }}" style="color:inherit;text-decoration:none;font-weight:600">{{ d.supplier }}</a>{% else %}—{% endif %}
+        {% for n in r.legal or [] %}<div class="meta" style="max-width:240px">{{ n|replace('ТОВАРИСТВО З ОБМЕЖЕНОЮ ВІДПОВІДАЛЬНІСТЮ', 'ТОВ')|replace('Товариство з обмеженою відповідальністю', 'ТОВ')|replace('ФІЗИЧНА ОСОБА-ПІДПРИЄМЕЦЬ', 'ФОП')|replace('Фізична особа-підприємець', 'ФОП') }}</div>{% endfor %}</td>{% endif %}
       <td class="small">{% if d.wh_from %}{{ WAREHOUSES.get(d.wh_from) }}{% endif %}{% if d.wh_from and d.wh_to %} → {% endif %}{% if d.wh_to %}{{ WAREHOUSES.get(d.wh_to) }}{% endif %}</td>
       {% if tab=='writeoff' %}<td class="small">{{ d.reason or '' }}</td>{% endif %}
       <td class="r">{{ r.items }}</td><td class="r">{{ '%g'|format(r.qty|round(2)) }}</td><td class="r">{{ r.total|uah if r.total else '—' }}</td>
@@ -177,6 +178,8 @@
   {% if mono %}<div class="row" style="gap:6px"><form method="post" action="/stock/mono/sync"><input type="hidden" name="days" value="2"><button class="btn ghost" style="padding:5px 12px">Оновити</button></form>
     <form method="post" action="/stock/mono/sync"><input type="hidden" name="days" value="31"><button class="btn ghost" style="padding:5px 12px">За 31 день</button></form></div>{% endif %}</div>
   {% set qp = request.query_params %}
+  {% if weak_ids %}<div class="alert" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">⚠ {{ weak_ids|length }} автоматичн{{ 'е рознесення' if weak_ids|length == 1 else 'их рознесень' }} зроблено лише за назвою отримувача (без IBAN / ЄДРПОУ) — могли потрапити не на того постачальника.
+    <form method="post" action="/stock/mono/recheck" style="margin:0" onsubmit="return confirm('Зняти сумнівні автоматичні рознесення? Платежі повернуться в «чекають рішення».')"><button class="btn ghost" style="padding:3px 12px">Зняти й перевірити вручну</button></form></div>{% endif %}
   {% if qp.get('mono') == 'ok' %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">monobank підключено. Нижче оберіть рахунки, які відстежувати.</div>{% elif qp.get('mono') == 'err' %}<div class="alert">monobank не прийняв токен — перевірте його.</div>{% endif %}
   {% if job %}<div class="alert" style="background:var(--lavender);color:var(--classic)">{{ job.title }}: {{ 'виконується… (monobank дозволяє 1 запит на хвилину на рахунок)' if job.status == 'running' else ('готово: ' ~ (job.result or {})|tojson if job.status == 'done' else 'помилка: ' ~ job.error) }} {% if job.status == 'running' %}<a href="?tab=suppliers&job={{ job.id }}#mono">оновити</a>{% endif %}</div>{% endif %}
   <p class="small muted" style="margin:6px 0 10px">CRM щогодини бере списання з рахунків ФОП, упізнає постачальника за IBAN / ЄДРПОУ / назвою і розносить оплату на накладну: якщо накладна розділена на кілька складів — пропорційно, а в кожній — на товари. Невпевнені збіги чекають на ручне рознесення.</p>
@@ -203,7 +206,7 @@
   {% for t in txns %}<tr><td>{{ t.at|dt('%d.%m %H:%M') }}</td><td>{{ t.fop }}</td>
     <td>{{ t.counter_name or '—' }}<div class="meta">{{ (t.counter_iban or '')[-10:] }}{{ (' · ' ~ t.counter_edrpou) if t.counter_edrpou }}{% if t.supplier_id and sup_by_id.get(t.supplier_id) %} · <b>{{ sup_by_id[t.supplier_id].name }}</b>{% endif %}</div></td>
     <td class="r"><b>{{ (-t.amount)|uah }}</b></td><td style="max-width:280px">{{ t.description or '' }}</td>
-    <td>{% if t.status in ('matched','partial') %}<span class="pill {{ 'ok' if t.status=='matched' else 'warn' }}">{{ 'рознесено' if t.status=='matched' else 'частково' }}</span> <span class="meta">{{ t.note or '' }}</span>
+    <td>{% if t.status in ('matched','partial') %}<span class="pill {{ 'ok' if t.status=='matched' else 'warn' }}">{{ 'рознесено' if t.status=='matched' else 'частково' }}</span>{% if t.id in weak_ids %} <span class="pill warn" title="Упізнано лише за назвою отримувача">⚠ перевірте</span>{% endif %} <span class="meta">{{ t.note or '' }}</span>
         <form method="post" action="/stock/mono/txn/{{ t.id }}" style="display:inline"><input type="hidden" name="action" value="unassign"><button class="btn ghost" style="padding:1px 8px">скасувати</button></form>
       {% elif t.status == 'ignored' %}<span class="pill draft">не постачальник</span>
         <form method="post" action="/stock/mono/txn/{{ t.id }}" style="display:inline"><input type="hidden" name="action" value="auto"><button class="btn ghost" style="padding:1px 8px">повернути</button></form>

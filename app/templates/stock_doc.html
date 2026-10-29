@@ -27,7 +27,10 @@
 <div class="card">
   <div class="hdr">
     <label>Дата<input type="date" name="doc_date" value="{{ d.doc_date }}" {{ '' if editable else 'disabled' }}></label>
-    {% if d.kind in ('supply','order','return') %}<label>Постачальник{% if d.supplier %} <a href="#" data-sup-name="{{ d.supplier }}" style="font-weight:400;text-transform:none">картка</a>{% endif %}<input name="supplier" list="supl" value="{{ d.supplier or '' }}" {{ '' if editable else 'disabled' }}></label>
+    {% if d.kind in ('supply','order','return') %}<label>Постачальник{% if d.supplier %} <a href="#" data-sup-name="{{ d.supplier }}" style="font-weight:400;text-transform:none">картка</a>{% endif %}<input name="supplier" list="supl" value="{{ d.supplier or '' }}" {{ '' if editable else 'disabled' }}>
+      {% set _ln = [] %}{% for t in txns.values() %}{% if t.counter_name and t.counter_name not in _ln %}{% set _ = _ln.append(t.counter_name) %}{% endif %}{% endfor %}
+      {% if not _ln and sup and sup.legal_name %}{% set _ = _ln.append(sup.legal_name) %}{% endif %}
+      {% for n in _ln %}<span class="small muted" style="font-weight:400;text-transform:none;letter-spacing:0">{{ n }}</span>{% endfor %}</label>
       <datalist id="supl">{% for x in suppliers %}<option value="{{ x }}">{% endfor %}</datalist>{% endif %}
     {% if d.kind=='supply' %}<label>№ накладної постачальника<input name="ext_no" value="{{ d.ext_no or '' }}" {{ '' if editable else 'disabled' }}></label>{% endif %}
     {% if d.kind=='return' %}<label>Тип повернення<select name="reason" {{ '' if editable else 'disabled' }}><option value="supplier" {{ 'selected' if d.reason!='patient' }}>Постачальнику (списати зі складу)</option><option value="patient" {{ 'selected' if d.reason=='patient' }}>Від пацієнта (повернути на склад)</option></select></label>{% endif %}
@@ -127,6 +130,10 @@
     {% for a in allocs %}{% set t = txns.get(a.txn_id) %}<tr><td>{{ (t.at if t else a.at)|dt('%d.%m.%Y') }}</td>
       <td><span class="pay-m {{ a.mode }}">{{ MODES[a.mode] }}</span>{% if t %} · ФОП {{ t.fop }}{% elif a.fop %} · {{ a.fop }}{% endif %}{% if a.by_user %}<div class="meta">{{ alloc_users.get(a.by_user, '') }}</div>{% endif %}</td>
       <td>{{ (lmap.get(a.line_id).product.name[:50]) if a.line_id and lmap.get(a.line_id) else '—' }}</td><td class="r">{{ a.amount|uah }}</td></tr>{% endfor %}</tbody></table>{% endif %}
+  {% set _tx = [] %}{% for a in allocs %}{% if a.txn_id and a.txn_id not in _tx %}{% set _ = _tx.append(a.txn_id) %}{% endif %}{% endfor %}
+  {% if _tx %}<div class="small" style="margin-top:10px;display:grid;gap:6px">{% for tid in _tx %}{% set t = txns.get(tid) %}{% if t %}
+    <div class="row between" style="gap:8px;flex-wrap:wrap;border:1px solid var(--line);border-radius:10px;padding:6px 10px"><div><b>{{ (-t.amount)|uah }}</b> · {{ t.at|dt('%d.%m.%Y') }} · ФОП {{ t.fop }}<div class="meta">отримувач: {{ t.counter_name or '—' }}{{ (' · ' ~ t.counter_edrpou) if t.counter_edrpou }}</div></div>
+      <form method="post" action="/stock/mono/txn/{{ t.id }}" style="margin:0" onsubmit="return confirm('Скасувати рознесення цього платежу? Він повернеться в «Платежі monobank» і чекатиме рішення.')"><input type="hidden" name="action" value="unassign"><input type="hidden" name="back" value="/stock/docs/{{ d.id }}#pay"><button class="btn ghost" style="padding:2px 10px">не цей платіж — скасувати</button></form></div>{% endif %}{% endfor %}</div>{% endif %}
   {% if sup and sup.iban %}<details class="small" style="margin-top:10px"><summary style="cursor:pointer;font-weight:600">Реквізити {{ sup.name }} <a href="#" data-sup="{{ sup.id }}" style="font-weight:400">· усі юр. особи</a></summary>
     <div style="margin-top:6px">{{ sup.legal_name or sup.name }} · ЄДРПОУ {{ sup.edrpou or '—' }}<br><span style="font-family:monospace">{{ sup.iban }}</span> · {{ sup.bank or '' }}<br>
       Призначення: {{ (sup.pay_purpose or 'Оплата за товар згідно рахунку №') }} {{ d.ext_no or '' }}</div></details>

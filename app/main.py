@@ -1732,6 +1732,7 @@ def stock_page(request: Request, tab: str = "balances", only: str = "", wh: str 
                    txns=db.scalars(select(BankTxn).where(BankTxn.at >= datetime.now() - timedelta(days=60))
                                    .order_by(BankTxn.at.desc()).limit(200)).all(),
                    open_groups=pay.groups(db, only_open=True), PAY=pay.PAY_LABELS,
+                   weak_ids={w.id for w in pay.weak_auto(db)},
                    crm_groups=pay.groups(db, ctx["sel"]) if ctx["sel"] else [],
                    sup_by_id={x.id: x for x in ctx["suppliers"]},
                    job=jobs.JOBS.get(request.query_params.get("job") or "") if request.query_params.get("job") else None)
@@ -2565,11 +2566,30 @@ def stock_mono_sync(days: int = Form(2), back: str = Form(""), user: User = Depe
     return RedirectResponse(f"/stock?tab=suppliers&job={job.id}#mono", 303)
 
 
+@app.post("/stock/mono/recheck")
+def stock_mono_recheck(user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    """Зняти автоматичні рознесення, де постачальника впізнано лише за назвою (могли промахнутись)."""
+    from .models import PaymentAlloc
+    from .services import payments as pay
+    n_ = 0
+    for w in pay.weak_auto(db):
+        docs_ = {a.doc_id for a in db.scalars(select(PaymentAlloc).where(PaymentAlloc.txn_id == w.id))}
+        pay.unallocate_txn(db, w)
+        w.supplier_id = None
+        db.commit()
+        for d_ in docs_:
+            audit(db, "stock.pay_unassign", "stock_doc", d_, user=user, amount=round(-w.amount, 2), fop=w.fop, txn=w.id,
+                  why="упізнано лише за назвою")
+        n_ += 1
+    audit(db, "mono.recheck_weak", user=user, n=n_)
+    return RedirectResponse(f"/stock?tab=suppliers&msg={_q(f'Знято сумнівних автоматичних рознесень: {n_}. Вони чекають ручного рішення нижче.')}#mono", 303)
+
+
 @app.post("/stock/mono/txn/{tid}")
-def stock_mono_txn(tid: str, action: str = Form(...), group: str = Form(""), supplier_id: str = Form(""),
+def stock_mono_txn(tid: str, action: str = Form(...), group: str = Form(""), supplier_id: str = Form(""), back: str = Form(""),
                    user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
     """Ручне рознесення платежу: assign (на накладну) · unassign · ignore · auto (спробувати ще раз)."""
-    from .models import BankTxn
+    from .models import BankTxn, Supplier
     from .services import payments as pay
     t = db.get(BankTxn, tid) or (_ for _ in ()).throw(HTTPException(404))
     if supplier_id.isdigit():
@@ -2578,6 +2598,10 @@ def stock_mono_txn(tid: str, action: str = Form(...), group: str = Form(""), sup
         g = pay.find_group(db, group)
         if g:
             done = pay.allocate(db, g, -t.amount, txn=t, fop=t.fop, user_id=user.id)
+            sup_ = next((x for x in db.scalars(select(Supplier)) if x.name.lower() == (g.supplier or "").lower()), None)
+            if sup_:
+                t.supplier_id = sup_.id
+                pay.learn_entity(db, t, sup_)                    # наступного разу — автоматично за IBAN
             t.status, t.note = ("matched" if done >= -t.amount - pay.TOL else "partial"), f"→ {g.label}"
             for d_ in g.docs:
                 audit(db, "stock.pay_mono", "stock_doc", d_.id, user=user, amount=round(done, 2), fop=t.fop, txn=tid)
@@ -2593,6 +2617,8 @@ def stock_mono_txn(tid: str, action: str = Form(...), group: str = Form(""), sup
         pay.match_txn(db, t)
     db.commit()
     audit(db, "mono.txn", user=user, txn=tid, op=action)
+    if back.startswith("/stock/docs/"):
+        return RedirectResponse(back, 303)
     return RedirectResponse("/stock?tab=suppliers#mono", 303)
 
 

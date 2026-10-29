@@ -434,6 +434,7 @@ class DocRow:
     paid: float = 0
     author: str | None = None
     modes: dict | None = None
+    legal: list | None = None          # юр. назви: з оплат (отримувач платежу) або основна юр. особа постачальника
 
     @property
     def pay_state(self) -> str:
@@ -451,11 +452,26 @@ def doc_rows(db: Session, kind: str, limit: int = 200, archived: bool = False) -
     from .payments import modes_map
     modes = modes_map(db, [d.id for d in docs]) if kind == "supply" else {}
     names = {u.id: u.name for u in db.scalars(select(User))}
+    legal: dict[int, list] = {}
+    if kind in ("supply", "order", "return"):
+        from ..models import BankTxn, PaymentAlloc, SupplierEntity
+        ids = [d.id for d in docs]
+        for did, cn in db.execute(select(PaymentAlloc.doc_id, BankTxn.counter_name).join(BankTxn, BankTxn.id == PaymentAlloc.txn_id)
+                                  .where(PaymentAlloc.doc_id.in_(ids or [0])).distinct()):
+            if cn and cn not in legal.setdefault(did, []):
+                legal[did].append(cn)
+        main = {s.name.lower(): e.legal_name for s, e in db.execute(
+            select(Supplier, SupplierEntity).join(SupplierEntity, SupplierEntity.supplier_id == Supplier.id)
+            .where(SupplierEntity.is_main.is_(True)))}
+        for d in docs:
+            if not legal.get(d.id) and d.supplier and main.get(d.supplier.lower()):
+                legal[d.id] = [main[d.supplier.lower()]]
     out = []
     for d in docs:
         out.append(DocRow(d, len(d.lines), sum(abs(ln.qty or 0) for ln in d.lines),
                           round(sum(abs(ln.qty or 0) * (ln.unit_cost or 0) for ln in d.lines), 2),
-                          round(paid.get(d.id, 0), 2), names.get(d.created_by) if d.created_by else None, modes.get(d.id) or {}))
+                          round(paid.get(d.id, 0), 2), names.get(d.created_by) if d.created_by else None, modes.get(d.id) or {},
+                          legal.get(d.id) or []))
     return out
 
 

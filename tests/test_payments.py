@@ -98,3 +98,31 @@ def test_keys_page():
         page = c.get("/settings/keys").text
         assert "Ключі й інтеграції" in page and "ФОП Колган" in page and "Вставте токен monobank" in page
         assert 'href="/settings/keys"' in c.get("/").text
+
+
+def test_no_match_by_legal_form_words():
+    """«ТОВАРИСТВО З ОБМЕЖЕНОЮ ВІДПОВІДАЛЬНІСТЮ» є в усіх ТОВ — за цими словами постачальника не впізнаємо."""
+    from app.services import suppliers as sp
+    from app.models import SupplierEntity
+    with SessionLocal() as db:
+        p = Product(name="Мерц-крем", name_norm="мерц-крем", warehouse="vitrina")
+        s = Supplier(name="MERZTEST")
+        db.add_all([p, s]); db.commit()
+        sp.save_entity(db, s, {"kind": "ТОВ", "legal_name": 'Товариство з обмеженою відповідальністю "АКА8"',
+                               "edrpou": "46094319", "iban": "UA" + "7" * 27})
+        from app.services import stock as st
+        doc = st.new_doc(db, "supply", wh_to="vitrina", supplier="MERZTEST", ext_no="86140")
+        doc.lines.append(st.StockDocLine(product_id=p.id, qty=1, unit_cost=5000))
+        db.commit()
+        wrong = BankTxn(id="mono-wrong", fop="Бондар", at=datetime.now(), amount=-4881.63, counter_iban="UA" + "8" * 27,
+                        counter_name='ТОВАРИСТВО З ОБМЕЖЕНОЮ ВІДПОВІДАЛЬНІСТЮ "СТАРЛІТ"', description="Оплата за товари згідно рах.")
+        db.add(wrong); db.commit()
+        assert pay.supplier_for(db, wrong) is None and pay.match_txn(db, wrong) == "new"
+        good = BankTxn(id="mono-good", fop="Колган", at=datetime.now(), amount=-710.69, counter_iban="UA" + "7" * 27,
+                       counter_name='Товариство з обмеженою відповідальністю "АКА8"', description="Оплата за товар згідно рахунку")
+        db.add(good); db.commit()
+        assert pay.match_txn(db, good) == "matched"                       # за IBAN юр. особи — єдина відкрита накладна
+        assert pay.weak_auto(db) == []
+        assert pay.learn_entity(db, wrong, s)                              # ручне рознесення запамʼятовує реквізити
+        assert db.query(SupplierEntity).filter_by(supplier_id=s.id).count() == 2
+        assert pay.supplier_for(db, wrong).id == s.id

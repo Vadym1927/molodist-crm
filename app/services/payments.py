@@ -138,9 +138,17 @@ def allocate(db: Session, g: Group, amount: float, txn: BankTxn | None = None, f
 
 
 def unallocate_txn(db: Session, txn: BankTxn) -> None:
+    docs = set()
     for a in db.scalars(select(PaymentAlloc).where(PaymentAlloc.txn_id == txn.id)):
+        docs.add(a.doc_id)
         db.delete(a)
-    txn.status = "new"
+    txn.status, txn.note = "new", None
+    db.flush()
+    for did in docs:                                # «яким ФОП оплачено» — за тими оплатами, що лишились
+        d = db.get(StockDoc, did)
+        if d:
+            left = db.scalars(select(PaymentAlloc.fop).where(PaymentAlloc.doc_id == did, PaymentAlloc.fop.is_not(None))).first()
+            d.paid_by = left
     db.commit()
 
 
@@ -157,30 +165,38 @@ def _iban(v: str | None) -> str:
     return re.sub(r"\s", "", (v or "")).upper()
 
 
-def supplier_for(db: Session, txn: BankTxn) -> Supplier | None:
+# слова організаційно-правової форми — за ними постачальника не впізнаємо («ТОВАРИСТВО З ОБМЕЖЕНОЮ…» є в усіх ТОВ)
+LEGAL_WORDS = {"тов", "фоп", "пп", "тзов", "ооо", "llc", "ltd", "ат", "пат", "прат", "кп", "дп", "товариство", "обмеженою",
+               "відповідальністю", "відповідальн", "фізична", "особа", "підприємець", "приватне", "підприємство", "акціонерне",
+               "публічне", "приватне", "компанія", "company", "група", "україна", "україни", "ukraine", "з", "та", "і", "и"}
+
+
+def name_words(v: str | None) -> set[str]:
+    """Значущі слова назви: без форми власності, регістр і латинська/кирилична «т» зведені."""
+    words = norm(v or "").lower().replace("t", "т").split()
+    return {w for w in words if len(w) >= 3 and w not in LEGAL_WORDS and not w.isdigit()}
+
+
+def supplier_match(db: Session, txn: BankTxn) -> tuple[Supplier | None, str]:
+    """(постачальник, як упізнано): 'req' — за IBAN / ЄДРПОУ (надійно), 'name' — лише за назвою отримувача."""
     from .suppliers import find
+    from ..models import SupplierEntity
     hit = find(db, txn.counter_iban, txn.counter_edrpou)           # IBAN / ЄДРПОУ будь-якої юр. особи постачальника
     if hit:
-        return hit[0]
+        return hit[0], "req"
+    words = name_words(txn.counter_name)
+    if not words:
+        return None, ""
     sups = db.scalars(select(Supplier)).all()
-    ib, ed = _iban(txn.counter_iban), (txn.counter_edrpou or "").strip()
-    for s in sups:
-        if ib and _iban(s.iban) == ib:
-            return s
-    for s in sups:
-        if ed and (s.edrpou or "").strip() == ed:
-            return s
-    words = set(norm(txn.counter_name or "").split()) - {"тов", "фоп", "пп", "тзов", "ооо", "llc"}
-    if words:
-        from ..models import SupplierEntity
-        ent_names: dict[int, set] = {}
-        for e in db.scalars(select(SupplierEntity)):
-            ent_names.setdefault(e.supplier_id, set()).update(norm(e.legal_name or "").split())
-        hits = [s for s in sups if words & (set(norm(s.legal_name or "").split()) | set(norm(s.name or "").split())
-                                            | ent_names.get(s.id, set())) - {"тов", "фоп"}]
-        if len(hits) == 1:
-            return hits[0]
-    return None
+    ent_names: dict[int, set] = {}
+    for e in db.scalars(select(SupplierEntity)):
+        ent_names.setdefault(e.supplier_id, set()).update(name_words(e.legal_name))
+    hits = [x for x in sups if words & (name_words(x.legal_name) | name_words(x.name) | ent_names.get(x.id, set()))]
+    return (hits[0], "name") if len(hits) == 1 else (None, "")
+
+
+def supplier_for(db: Session, txn: BankTxn) -> Supplier | None:
+    return supplier_match(db, txn)[0]
 
 
 def _digits_in(text: str | None) -> set[str]:
@@ -191,18 +207,26 @@ def match_txn(db: Session, txn: BankTxn) -> str:
     """Розносить платіж, якщо збіг однозначний. Повертає статус."""
     if txn.amount >= 0 or txn.status in ("matched", "ignored"):
         return txn.status
-    sup = db.get(Supplier, txn.supplier_id) if txn.supplier_id else supplier_for(db, txn)
+    sup, how = supplier_match(db, txn)
+    if txn.supplier_id and (not sup or sup.id != txn.supplier_id):
+        sup, how = db.get(Supplier, txn.supplier_id), "name"     # вибрано раніше — без реквізитів, лише обережно
     if not sup:
         return txn.status
-    txn.supplier_id = sup.id
+    if how == "req":
+        txn.supplier_id = sup.id
     amt = round(-txn.amount, 2)
-    open_g = groups(db, sup.name, only_open=True)
+    day = txn.at.date() if txn.at else None
+    # накладна не пізніше ніж через 60 днів після платежу (передоплата) і не раніше ніж за рік до нього
+    open_g = [g for g in groups(db, sup.name, only_open=True)
+              if not day or not g.date or -365 <= (day - g.date).days <= 60]
     nums = _digits_in(txn.description)
     by_no = [g for g in open_g if g.ext_no and (set(re.findall(r"\d{3,}", g.ext_no)) & nums)]
     by_amt = [g for g in open_g if abs(g.left - amt) <= TOL]
     target = by_no[0] if len(by_no) == 1 else (by_amt[0] if len(by_amt) == 1 else None)
-    if not target and len(open_g) == 1 and open_g[0].left + TOL >= amt:
-        target = open_g[0]
+    if not target and how == "req" and len(open_g) == 1 and open_g[0].left + TOL >= amt:
+        target = open_g[0]                         # єдина відкрита накладна — лише якщо постачальника впізнано за реквізитами
+    if target and how == "name" and not by_no:
+        target = None                              # лише за назвою + сума — не розносимо сами, чекає ручного рішення
     if not target:
         db.commit()
         return txn.status
@@ -211,6 +235,34 @@ def match_txn(db: Session, txn: BankTxn) -> str:
     txn.note = f"→ {target.label}"
     db.commit()
     return txn.status
+
+
+def weak_auto(db: Session) -> list[BankTxn]:
+    """Автоматичні рознесення, де постачальника впізнано не за IBAN / ЄДРПОУ (могли промахнутись)."""
+    tids = {a.txn_id for a in db.scalars(select(PaymentAlloc).where(PaymentAlloc.txn_id.is_not(None), PaymentAlloc.by_user.is_(None)))}
+    out = []
+    for tid in tids:
+        t = db.get(BankTxn, tid)
+        if t and supplier_match(db, t)[1] != "req":
+            out.append(t)
+    return out
+
+
+def learn_entity(db: Session, txn: BankTxn, sup: Supplier) -> bool:
+    """Платіж рознесли на постачальника вручну — запамʼятати реквізити отримувача як його юр. особу."""
+    from .suppliers import find, save_entity
+    if not (txn.counter_iban or txn.counter_edrpou):
+        return False
+    hit = find(db, txn.counter_iban, txn.counter_edrpou)
+    if hit and hit[1]:
+        return False
+    try:
+        save_entity(db, sup, {"legal_name": (txn.counter_name or "")[:300], "iban": txn.counter_iban or "",
+                              "edrpou": txn.counter_edrpou or "", "note": "з платежу monobank"})
+        return True
+    except ValueError:
+        db.rollback()
+        return False
 
 
 def rematch_all(db: Session) -> int:
