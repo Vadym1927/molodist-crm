@@ -159,7 +159,7 @@
   });
   $('sdQ').addEventListener('blur', () => setTimeout(hide, 150));
 
-  let recFile = null;
+  let recFile = null, recSup = null;
   async function recognize(file) {
     if (!file) return;
     recFile = file; const msg = $('sdRecMsg'); msg.textContent = 'Розпізнаю «' + file.name + '»… (фото — до 30 с)';
@@ -168,6 +168,7 @@
       const r = await fetch('/stock/recognize', {method: 'POST', body: fd}); const j = await r.json();
       if (!r.ok || j.error) { msg.innerHTML = '<span class="sd-err">' + esc(j.error || 'Не вдалося розпізнати') + '</span>'; return; }
       if (j.supplier) $('sdSup').value = j.supplier;
+      recSup = j.supplier_raw || null;
       if (j.number) $('sdExt').value = j.number;
       if (j.date) $('sdDate').value = j.date;
       for (const ln of j.lines) {
@@ -200,7 +201,7 @@
     if (lines.some(l => !(l.qty > 0))) { $('sdErr').textContent = 'Вкажіть кількість у кожному рядку'; return; }
     const body = {kind: KIND, post, date: $('sdDate').value, supplier: $('sdSup').value, wh: $('sdWh').value, ext_no: $('sdExt').value,
                   note: $('sdNote').value, lines: lines.map(l => ({product_id: l.product_id, qty: l.qty, price: l.price, expiry: l.expiry, wh: l.wh_key || $('sdWh').value})),
-                  paid_by: $('sdPaidBy') ? $('sdPaidBy').value : '', paid: !!($('sdPaidBy') && $('sdPaidBy').value)};
+                  paid_by: $('sdPaidBy') ? $('sdPaidBy').value : '', paid: !!($('sdPaidBy') && $('sdPaidBy').value), sup_req: recSup};
     try {
       const r = await fetch('/stock/docs/quick', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
       const j = await r.json();
@@ -212,7 +213,7 @@
         if (recFile && !/\.(xlsx?|csv)$/i.test(recFile.name)) fd.append('files', recFile);
         try { await fetch('/stock/docs/' + j.id + '/files', {method: 'POST', body: fd}); } catch (e) {}
       }
-      lines = []; recFile = null;
+      lines = []; recFile = null; recSup = null;
       location.href = j.url + (j.warning ? '?msg=' + encodeURIComponent(j.warning) : (post ? '?msg=Поставку+проведено' : '?msg=Збережено'));
     } catch (e) { $('sdErr').textContent = 'Немає зв’язку із сервером — спробуйте ще раз'; }
   };

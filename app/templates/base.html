@@ -140,6 +140,7 @@ details summary{cursor:pointer;color:var(--muted);font-weight:600}.drop{border:1
 </div>
 {% endif %}
 <main>{% block body %}{% endblock %}</main>
+{% if user and can(user,'stock') %}{% include "_supplier_modal.html" %}{% endif %}
 <script>document.addEventListener('click',function(e){document.querySelectorAll('details.more[open]').forEach(function(d){if(!d.contains(e.target))d.removeAttribute('open')})});</script>
 </body>
 </html>

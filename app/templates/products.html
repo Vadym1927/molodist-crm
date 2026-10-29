@@ -80,7 +80,7 @@
       {% if can(user,'products') %}<td class="cb"><input type="checkbox" name="ids" value="{{ p.id }}" onchange="bulkUi()"></td>{% endif %}
       <td class="nm">{% if p.photo_url %}<img src="{{ p.photo_url }}" alt="" loading="lazy" style="width:38px;height:38px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:8px;float:left;margin:0 10px 0 0">{% endif %}<a class="pn" href="/products/{{ p.id }}">{{ p.name }}</a>
         <div class="meta">{{ ('арт. ' ~ p.sku) if p.sku else 'артикул —' }}{% if sort!='brand' and p.brand %} · {{ p.brand }}{% endif %}{% if wh=='all' and p.warehouse %} · {{ WAREHOUSES.get(p.warehouse) }}{% endif %}{{ (' · ' ~ p.volume) if p.volume }}{% if r.prescribed %} · у планах {{ r.prescribed }}{% endif %}{% if not p.cb_product_id %} · <span style="color:var(--warn)">немає в CleverBox</span>{% endif %}</div></td>
-      <td class="small">{{ p.supplier or r.last_supplier or '—' }}</td>
+      <td class="small">{% set _sn = p.supplier or r.last_supplier %}{% if _sn %}<a href="/stock?tab=suppliers&s={{ _sn|urlencode }}" data-sup-name="{{ _sn }}" style="color:inherit">{{ _sn }}</a>{% else %}—{% endif %}</td>
       <td class="r">{{ r.cost_avg|uah if r.cost_avg else '—' }}</td>
       <td class="r">{% if r.cost_last %}{{ r.cost_last|uah }}<div class="meta">{{ r.last_bought|dt('%d.%m.%y') if r.last_bought else (r.last_source or '') }}</div>{% else %}—{% endif %}</td>
       <td class="r">{{ r.sale_price|uah if r.sale_price else '—' }}</td>
@@ -119,7 +119,7 @@
 <p class="muted small">Постачальники — з закупівель і карток засобів. Закупівлю вносять у картці засобу (блок «Закупівлі»).</p>
 <div class="card" style="padding:6px 8px;overflow:auto"><table>
   <thead><tr><th>Постачальник</th><th class="r">Засобів</th><th class="r">Закупівель</th><th class="r">Сума закупівель</th><th>Остання закупівля</th><th></th></tr></thead><tbody>
-  {% for name, a in supplier_rows %}<tr><td><b>{{ name }}</b></td><td class="r">{{ a.products|length }}</td><td class="r">{{ a.n or '—' }}</td>
+  {% for name, a in supplier_rows %}<tr><td><a href="/stock?tab=suppliers&s={{ name|urlencode }}" data-sup-name="{{ name }}" style="font-weight:700;text-decoration:none">{{ name }}</a></td><td class="r">{{ a.products|length }}</td><td class="r">{{ a.n or '—' }}</td>
     <td class="r">{{ a.sum|uah if a.sum else '—' }}</td><td>{{ a.last|dt('%d.%m.%Y') if a.last else '—' }}</td>
     <td><a class="small" href="?tab=care&supplier={{ name|urlencode }}">засоби →</a></td></tr>
   {% else %}<tr><td colspan="6" class="muted">Ще немає постачальників. Додайте постачальника в картці засобу або внесіть закупівлю.</td></tr>{% endfor %}

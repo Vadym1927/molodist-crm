@@ -135,46 +135,21 @@
   <thead><tr><th>Постачальник</th><th>Контакт</th><th class="r">Товарів</th><th class="r">Поставок</th><th class="r">Оборот</th><th class="r">Борг</th><th>Остання поставка</th><th>Склади</th><th></th></tr></thead><tbody>
   {% for x in suppliers|sort(attribute='name') %}{% set a = agg[x.name.lower()] %}{% set ss = sstats.get(x.name.lower()) %}
     {% if not debt_only or (ss and ss.debt > 1) %}
-    <tr style="{{ 'background:var(--lavender)' if sel==x.name }}"><td><a href="?tab=suppliers&s={{ x.name|urlencode }}&per={{ per }}" style="font-weight:700;text-decoration:none">{{ x.name }}</a>{% if x.terms %}<div class="meta">{{ x.terms }}</div>{% endif %}</td>
+    <tr style="{{ 'background:var(--lavender)' if sel==x.name }}"><td><a href="?tab=suppliers&s={{ x.name|urlencode }}&per={{ per }}" data-sup="{{ x.id }}" style="font-weight:700;text-decoration:none" title="Відкрити картку постачальника">{{ x.name }}</a>{% if x.terms %}<div class="meta">{{ x.terms }}</div>{% endif %}</td>
       <td class="small">{{ x.contact or '' }}{{ (' · ' ~ x.phone) if x.phone }}{{ (' · ' ~ x.email) if x.email }}</td>
       <td class="r">{{ a.products or '—' }}</td><td class="r">{{ ss.n if ss and ss.n else '—' }}</td>
       <td class="r">{{ ss.turnover|uah if ss and ss.turnover else '—' }}</td>
       <td class="r">{% if ss and ss.debt > 1 %}<b style="color:var(--bad)">{{ ss.debt|uah }}</b><div class="meta">{{ ss.debt_n }} пост.</div>{% else %}—{% endif %}</td>
       <td class="small">{{ ss.last|dt('%d.%m.%Y') if ss and ss.last else (a.last|dt('%d.%m.%Y') if a.last else '—') }}</td>
       <td class="small">{% if ss %}{% for w, v in ss.wh.items() %}{{ WAREHOUSES.get(w, 'інше') }}{{ ', ' if not loop.last }}{% endfor %}{% endif %}</td>
-      <td><details><summary class="small">змінити</summary><form method="post" action="/stock/suppliers" class="grid" style="gap:6px;min-width:260px;margin-top:6px">
-        <input type="hidden" name="sid" value="{{ x.id }}"><input name="name" value="{{ x.name }}" required><input name="contact" value="{{ x.contact or '' }}" placeholder="Контактна особа">
-        <input name="phone" value="{{ x.phone or '' }}" placeholder="Телефон"><input name="email" value="{{ x.email or '' }}" placeholder="Email">
-        <input name="terms" value="{{ x.terms or '' }}" placeholder="Умови: доставка, мін. замовлення, оплата"><button class="btn ghost">Зберегти</button></form></details></td></tr>
+      <td><a href="?tab=suppliers&s={{ x.name|urlencode }}#inv" class="small" style="white-space:nowrap">поставки</a></td></tr>
     {% endif %}
   {% else %}<tr><td colspan="9" class="muted">Постачальників ще немає.</td></tr>{% endfor %}
   </tbody></table></div>
 
 {% if sel_sup %}{% set x = sel_sup %}
-<div class="card" id="sup"><div class="row between" style="flex-wrap:wrap;gap:8px"><h2 style="margin:0">{{ x.name }} · реквізити для оплати</h2>
-  {% if x.iban %}<button type="button" class="btn ghost" style="padding:5px 12px" onclick="navigator.clipboard.writeText(document.getElementById('reqtxt').innerText);this.textContent='Скопійовано ✓'">Скопіювати реквізити</button>{% endif %}</div>
-  {% if x.iban %}<pre id="reqtxt" class="small" style="background:var(--cream,#F7F4F0);border-radius:12px;padding:10px 14px;white-space:pre-wrap;font-family:inherit;margin:10px 0">Отримувач: {{ x.legal_name or x.name }}
-ЄДРПОУ / РНОКПП: {{ x.edrpou or '—' }}
-IBAN: {{ x.iban }}
-Банк: {{ x.bank or '—' }}
-Призначення: {{ x.pay_purpose or ('Оплата за товар згідно рахунку № …' ~ (', ПДВ' if x.vat else ', без ПДВ')) }}</pre>{% endif %}
-  <form method="post" action="/stock/suppliers" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;margin-top:10px">
-    <input type="hidden" name="sid" value="{{ x.id }}">
-    <label class="small muted">Назва в CRM<input name="name" value="{{ x.name }}" required></label>
-    <label class="small muted">Отримувач (юр. назва)<input name="legal_name" value="{{ x.legal_name or '' }}" placeholder="ТОВ «…» / ФОП …"></label>
-    <label class="small muted">ЄДРПОУ / РНОКПП<input name="edrpou" value="{{ x.edrpou or '' }}" inputmode="numeric"></label>
-    <label class="small muted">IBAN<input name="iban" value="{{ x.iban or '' }}" placeholder="UA…" style="font-family:monospace"></label>
-    <label class="small muted">Банк<input name="bank" value="{{ x.bank or '' }}"></label>
-    <label class="small muted">Договір (№, дата)<input name="contract" value="{{ x.contract or '' }}"></label>
-    <label class="small muted" style="grid-column:1/-1">Призначення платежу (шаблон)<input name="pay_purpose" value="{{ x.pay_purpose or '' }}" placeholder="Оплата за косметичні засоби згідно рахунку № …, без ПДВ"></label>
-    <label class="small muted">Юр. адреса<input name="address" value="{{ x.address or '' }}"></label>
-    <label class="small muted">Контактна особа<input name="contact" value="{{ x.contact or '' }}"></label>
-    <label class="small muted">Телефон<input name="phone" value="{{ x.phone or '' }}"></label>
-    <label class="small muted">Email<input name="email" value="{{ x.email or '' }}"></label>
-    <label class="small muted" style="grid-column:1/-1">Умови: доставка, мін. замовлення, відстрочка<input name="terms" value="{{ x.terms or '' }}"></label>
-    <label class="small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="vat" value="1" {{ 'checked' if x.vat }} style="width:auto"> платник ПДВ</label>
-    <div><button class="btn">Зберегти реквізити</button></div></form>
-  <p class="small muted" style="margin:8px 0 0">IBAN і ЄДРПОУ потрібні, щоб CRM упізнавала платежі monobank цьому постачальнику й сама розносила їх на поставки.</p>
+<div class="card" id="sup"><div class="row between" style="flex-wrap:wrap;gap:8px"><h2 style="margin:0">{{ x.name }}</h2>
+  <button type="button" class="btn ghost" style="padding:5px 12px" onclick="supOpen({{ x.id }})">Картка постачальника · реквізити</button></div>
   {% if crm_groups %}<h3 style="margin:16px 0 6px;font-size:15px">Накладні в CRM і оплата</h3>
   <table class="tb small"><thead><tr><th>Дата</th><th>№ накладної</th><th>Склади</th><th class="r">Сума</th><th class="r">Оплачено</th><th class="r">Залишок</th><th>Стан</th></tr></thead><tbody>
   {% for g in crm_groups %}<tr><td>{{ g.date|dt('%d.%m.%Y') }}</td><td>{% for d in g.docs %}<a href="/stock/docs/{{ d.id }}">{{ d.number }}</a>{{ ', ' if not loop.last }}{% endfor %}{{ (' · ' ~ g.ext_no) if g.ext_no }}</td>

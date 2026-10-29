@@ -36,7 +36,7 @@
   <div style="flex:1;min-width:0"><div class="eyebrow">{{ p.brand or 'Бренд не вказано' }}</div><h1>{{ p.name }}</h1>
     <div class="chips2">
       {% if p.brand %}<span class="b">{{ p.brand }}</span>{% endif %}
-      <span>{{ WAREHOUSES.get(p.warehouse or 'vitrina') }}</span><span>арт. {{ p.sku or '—' }}</span>{% if p.barcode %}<span>ШК {{ p.barcode }}</span>{% endif %}<span>{{ p.supplier or r.last_supplier or 'постачальник —' }}</span>
+      <span>{{ WAREHOUSES.get(p.warehouse or 'vitrina') }}</span><span>арт. {{ p.sku or '—' }}</span>{% if p.barcode %}<span>ШК {{ p.barcode }}</span>{% endif %}{% set _sn = p.supplier or r.last_supplier %}{% if _sn %}<span><a href="/stock?tab=suppliers&s={{ _sn|urlencode }}" data-sup-name="{{ _sn }}" style="color:inherit">{{ _sn }}</a></span>{% else %}<span>постачальник —</span>{% endif %}
       {% if p.volume %}<span>{{ p.volume }}</span>{% endif %}
       <span>{{ ('CleverBox #' ~ p.cb_product_id) if p.cb_product_id else 'немає в CleverBox' }}</span>
       {% if p.url %}<a href="{{ p.url }}" target="_blank" class="small" style="align-self:center">molodist.store ↗</a>{% endif %}{% if p.shop_price %}<span>на сайті {{ p.shop_price|uah }}</span>{% endif %}

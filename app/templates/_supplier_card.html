@@ -1,0 +1,77 @@
+{# Вміст вікна постачальника (вантажиться через /stock/suppliers/{id}/card) #}
+{% set x = sup %}{% set ss = stats %}
+<div class="spm-h"><div><div class="eyebrow" style="margin:0">Постачальник</div><h2>{{ x.name }}</h2>
+  {% if x.terms %}<div class="small muted">{{ x.terms }}</div>{% endif %}</div>
+  <button type="button" class="spm-x" onclick="supClose()" aria-label="Закрити">×</button></div>
+<div class="spm-b">
+  <div class="spm-k">
+    <div><span>Борг</span><b style="color:{{ 'var(--bad)' if debt > 1 else 'inherit' }}">{{ debt|uah if debt > 1 else '—' }}</b></div>
+    <div><span>Оборот (CleverBox)</span><b>{{ ss.turnover|uah if ss and ss.turnover else '—' }}</b><em>{{ ss.n if ss and ss.n else 0 }} пост.</em></div>
+    <div><span>Накладні в CRM</span><b>{{ crm_total|uah if crm_total else '—' }}</b><em>{{ groups|length }} шт.</em></div>
+    <div><span>Товарів</span><b>{{ products|length or '—' }}</b></div>
+    <div><span>Остання поставка</span><b style="font-size:17px">{{ last|dt('%d.%m.%Y') if last else '—' }}</b></div>
+  </div>
+
+  <div class="spm-sec"><div class="row between"><h3>Контакти</h3>
+    {% if can(user,'stock') %}<button type="button" class="btn ghost spm-sm" onclick="this.closest('.spm-sec').querySelector('form').classList.toggle('on')">змінити</button>{% endif %}</div>
+    <div class="spm-ct">
+      {% if x.contact %}<div><span>Менеджер</span>{{ x.contact }}</div>{% endif %}
+      {% if x.phone %}<div><span>Телефон</span><a href="tel:{{ x.phone|replace(' ', '') }}">{{ x.phone }}</a></div>{% endif %}
+      {% if x.email %}<div><span>Email</span><a href="mailto:{{ x.email }}">{{ x.email }}</a></div>{% endif %}
+      {% if x.terms %}<div><span>Умови</span>{{ x.terms }}</div>{% endif %}
+      {% if x.note %}<div style="grid-column:1/-1"><span>Нотатка</span>{{ x.note }}</div>{% endif %}
+      {% if not (x.contact or x.phone or x.email or x.terms or x.note) %}<div class="muted small">Контактів ще немає.</div>{% endif %}
+    </div>
+    {% if can(user,'stock') %}<form method="post" action="/stock/suppliers" class="spm-f">
+      <input type="hidden" name="sid" value="{{ x.id }}"><input type="hidden" name="back" class="spm-back">
+      <label>Назва в CRM<input name="name" value="{{ x.name }}" required></label>
+      <label>Контактна особа<input name="contact" value="{{ x.contact or '' }}"></label>
+      <label>Телефон<input name="phone" value="{{ x.phone or '' }}"></label>
+      <label>Email<input name="email" value="{{ x.email or '' }}"></label>
+      <label class="w">Умови: доставка, мін. замовлення, відстрочка<input name="terms" value="{{ x.terms or '' }}"></label>
+      <label class="w">Нотатка<textarea name="note">{{ x.note or '' }}</textarea></label>
+      <div><button class="btn">Зберегти</button></div></form>{% endif %}
+  </div>
+
+  <div class="spm-sec"><div class="row between"><h3>Юридичні особи · реквізити <span class="muted" style="font-weight:400">{{ entities|length }}</span></h3>
+    {% if can(user,'stock') %}<button type="button" class="btn ghost spm-sm" onclick="document.getElementById('spm-new').classList.toggle('on')">＋ ТОВ / ФОП</button>{% endif %}</div>
+  <p class="small muted" style="margin:2px 0 10px">В одного постачальника може бути кілька ТОВ / ФОП. За IBAN і ЄДРПОУ кожної CRM упізнає платежі monobank і рахунки при розпізнаванні накладних.</p>
+  {% for e in entities %}<div class="spm-e {{ 'main' if e.is_main }}">
+    <div class="row between" style="gap:8px;flex-wrap:wrap"><div><span class="pill {{ 'ok' if e.kind == 'ТОВ' else 'warn' if e.kind == 'ФОП' else 'draft' }}">{{ e.kind or 'юр. особа' }}</span>
+      <b style="margin-left:6px">{{ e.legal_name or '(без назви)' }}</b>{% if e.is_main %} <span class="small muted">· основна</span>{% endif %}</div>
+      <div class="row" style="gap:6px">{% if e.iban %}<button type="button" class="btn ghost spm-sm" data-copy="{{ req(x, e) }}" onclick="navigator.clipboard.writeText(this.dataset.copy);this.textContent='Скопійовано ✓'">Скопіювати реквізити</button>{% endif %}
+        {% if can(user,'stock') %}<button type="button" class="btn ghost spm-sm" onclick="this.closest('.spm-e').querySelector('form').classList.toggle('on')">змінити</button>{% endif %}</div></div>
+    <div class="spm-rq">
+      <div><span>{{ 'РНОКПП' if e.kind == 'ФОП' else 'ЄДРПОУ' }}</span><code>{{ e.edrpou or '—' }}</code></div>
+      <div class="w"><span>IBAN</span><code>{{ e.iban or '—' }}</code></div>
+      <div><span>Банк</span>{{ e.bank or '—' }}{{ (', МФО ' ~ e.mfo) if e.mfo }}</div>
+      <div><span>ПДВ</span>{{ 'платник ПДВ' if e.vat else 'без ПДВ' }}{{ (' · ' ~ e.tax_group) if e.tax_group }}</div>
+      {% if e.contract %}<div><span>Договір</span>{{ e.contract }}</div>{% endif %}
+      {% if e.director %}<div><span>Підписант</span>{{ e.director }}</div>{% endif %}
+      {% if e.email %}<div><span>Email для документів</span>{{ e.email }}</div>{% endif %}
+      {% if e.address %}<div class="w"><span>Юр. адреса</span>{{ e.address }}</div>{% endif %}
+      {% if e.pay_purpose %}<div class="w"><span>Призначення платежу</span>{{ e.pay_purpose }}</div>{% endif %}
+      {% if e.note %}<div class="w"><span>Нотатка</span>{{ e.note }}</div>{% endif %}
+    </div>
+    {% if can(user,'stock') %}{% with eid=e.id, v=e %}{% include "_supplier_entity_form.html" %}{% endwith %}{% endif %}
+  </div>{% else %}<div class="muted small" style="padding:6px 0 10px">Реквізитів ще немає — додайте ТОВ або ФОП постачальника.</div>{% endfor %}
+  {% if can(user,'stock') %}<div class="spm-e" id="spm-new-wrap" style="border-style:dashed">{% with eid=None, v=None %}{% set new_form = True %}{% include "_supplier_entity_form.html" %}{% endwith %}</div>{% endif %}
+  </div>
+
+  <div class="spm-sec"><h3>Поставки й оплата</h3>
+  {% if groups %}<table class="tb small"><thead><tr><th>Дата</th><th>Накладна</th><th class="r">Сума</th><th class="r">Залишок</th><th>Стан</th></tr></thead><tbody>
+    {% for g in groups %}<tr><td>{{ g.date|dt('%d.%m.%Y') }}</td><td>{% for d in g.docs %}<a href="/stock/docs/{{ d.id }}">{{ d.number }}</a>{{ ', ' if not loop.last }}{% endfor %}{{ (' · №' ~ g.ext_no) if g.ext_no }}</td>
+      <td class="r">{{ g.total|uah }}</td><td class="r">{{ g.left|uah if g.left > 1 else '—' }}</td>
+      <td><span class="pill {{ {'paid':'ok','partial':'warn','unpaid':'bad','none':'draft'}[g.state] }}">{{ PAY[g.state] }}</span></td></tr>{% endfor %}</tbody></table>{% endif %}
+  {% if invoices %}<div class="small muted" style="margin:10px 0 4px">CleverBox</div><table class="tb small"><thead><tr><th>Дата</th><th>№</th><th class="r">Сума</th><th class="r">Борг</th></tr></thead><tbody>
+    {% for v in invoices %}<tr><td>{{ v.inv_date|dt('%d.%m.%Y') }}</td><td>{{ v.cb_number }}</td><td class="r">{{ v.amount|uah }}</td>
+      <td class="r">{% if v.debt > 1 %}<b style="color:var(--bad)">{{ v.debt|uah }}</b>{% else %}<span style="color:var(--ok)">✓</span>{% endif %}</td></tr>{% endfor %}</tbody></table>{% endif %}
+  {% if not groups and not invoices %}<div class="muted small">Поставок ще немає.</div>{% endif %}
+  {% if orders %}<div class="small" style="margin-top:8px">Відкриті замовлення: {% for d in orders %}<a href="/stock/docs/{{ d.id }}">{{ d.number }}</a>{{ ', ' if not loop.last }}{% endfor %}</div>{% endif %}
+  <div class="row" style="gap:6px;margin-top:10px"><a class="btn ghost spm-sm" href="/stock?tab=suppliers&s={{ x.name|urlencode }}#inv">Усі поставки</a>
+    <a class="btn ghost spm-sm" href="/products?supplier={{ x.name|urlencode }}">Товари постачальника</a></div>
+  </div>
+
+  {% if products %}<div class="spm-sec"><h3>Товари <span class="muted" style="font-weight:400">{{ products|length }}</span></h3>
+    <div class="spm-pr">{% for p in products[:40] %}<a href="/products/{{ p.id }}">{{ p.name }}</a>{% endfor %}{% if products|length > 40 %}<span class="muted small">… ще {{ products|length - 40 }}</span>{% endif %}</div></div>{% endif %}
+</div>

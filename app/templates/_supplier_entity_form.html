@@ -1,0 +1,21 @@
+<form method="post" action="/stock/suppliers/{{ sup.id }}/entity" class="spm-f" {% if new_form %}id="spm-new"{% endif %}>
+  <input type="hidden" name="eid" value="{{ eid or '' }}"><input type="hidden" name="back" class="spm-back">
+  {% if new_form %}<div class="w" style="font-weight:700">Нова юридична особа</div>{% endif %}
+  <label>Форма<select name="kind">{% for k in KINDS %}<option {{ 'selected' if v and v.kind == k }}>{{ k }}</option>{% endfor %}</select></label>
+  <label>Повна назва<input name="legal_name" value="{{ v.legal_name or '' if v }}" placeholder="ТОВ «…» / ФОП Прізвище І. П."></label>
+  <label>ЄДРПОУ / РНОКПП<input name="edrpou" value="{{ v.edrpou or '' if v }}" inputmode="numeric" placeholder="8 цифр — ТОВ, 10 — ФОП"></label>
+  <label>IBAN<input name="iban" value="{{ v.iban or '' if v }}" placeholder="UA…" style="font-family:monospace"></label>
+  <label>Банк<input name="bank" value="{{ v.bank or '' if v }}"></label>
+  <label>МФО<input name="mfo" value="{{ v.mfo or '' if v }}" inputmode="numeric"></label>
+  <label>Договір (№, дата)<input name="contract" value="{{ v.contract or '' if v }}"></label>
+  <label>Підписант / керівник<input name="director" value="{{ v.director or '' if v }}"></label>
+  <label>Група єдиного податку (ФОП)<input name="tax_group" value="{{ v.tax_group or '' if v }}" placeholder="напр. 3 група"></label>
+  <label>Email для рахунків / актів<input name="email" value="{{ v.email or '' if v }}"></label>
+  <label class="w">Юридична адреса<input name="address" value="{{ v.address or '' if v }}"></label>
+  <label class="w">Призначення платежу (шаблон)<input name="pay_purpose" value="{{ v.pay_purpose or '' if v }}" placeholder="Оплата за косметичні засоби згідно рахунку № …, без ПДВ"></label>
+  <label class="w">Нотатка<input name="note" value="{{ v.note or '' if v }}"></label>
+  <label class="ck"><input type="checkbox" name="vat" value="1" {{ 'checked' if v and v.vat }}> платник ПДВ</label>
+  <label class="ck"><input type="checkbox" name="is_main" value="1" {{ 'checked' if v and v.is_main }}> основна (за замовчуванням)</label>
+  <div class="w row" style="gap:6px"><button class="btn">{{ 'Додати' if new_form else 'Зберегти' }}</button>
+    {% if eid %}<button class="btn ghost" formaction="/stock/suppliers/{{ sup.id }}/entity/{{ eid }}/delete" onclick="return confirm('Видалити цю юр. особу з картки постачальника?')">Видалити</button>{% endif %}</div>
+</form>

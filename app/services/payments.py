@@ -143,6 +143,10 @@ def _iban(v: str | None) -> str:
 
 
 def supplier_for(db: Session, txn: BankTxn) -> Supplier | None:
+    from .suppliers import find
+    hit = find(db, txn.counter_iban, txn.counter_edrpou)           # IBAN / ЄДРПОУ будь-якої юр. особи постачальника
+    if hit:
+        return hit[0]
     sups = db.scalars(select(Supplier)).all()
     ib, ed = _iban(txn.counter_iban), (txn.counter_edrpou or "").strip()
     for s in sups:
@@ -153,7 +157,12 @@ def supplier_for(db: Session, txn: BankTxn) -> Supplier | None:
             return s
     words = set(norm(txn.counter_name or "").split()) - {"тов", "фоп", "пп", "тзов", "ооо", "llc"}
     if words:
-        hits = [s for s in sups if words & (set(norm(s.legal_name or "").split()) | set(norm(s.name or "").split())) - {"тов", "фоп"}]
+        from ..models import SupplierEntity
+        ent_names: dict[int, set] = {}
+        for e in db.scalars(select(SupplierEntity)):
+            ent_names.setdefault(e.supplier_id, set()).update(norm(e.legal_name or "").split())
+        hits = [s for s in sups if words & (set(norm(s.legal_name or "").split()) | set(norm(s.name or "").split())
+                                            | ent_names.get(s.id, set())) - {"тов", "фоп"}]
         if len(hits) == 1:
             return hits[0]
     return None

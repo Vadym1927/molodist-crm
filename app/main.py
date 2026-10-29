@@ -1955,6 +1955,17 @@ async def stock_doc_quick(request: Request, user: User = Depends(require("stock"
     if supplier and not any(n.lower() == supplier.lower() for (n,) in db.execute(select(Supplier.name))):
         db.add(Supplier(name=supplier))
     db.commit()
+    req = data.get("sup_req") if isinstance(data.get("sup_req"), dict) else {}
+    if supplier and (req.get("edrpou") or req.get("iban")):          # реквізити з розпізнаної накладної → юр. особа
+        from .services import suppliers as sp
+        sx = next((x for x in db.scalars(select(Supplier)) if x.name.lower() == supplier.lower()), None)
+        hit = sp.find(db, req.get("iban"), req.get("edrpou"))
+        if sx and not (hit and hit[0].id == sx.id and hit[1]):
+            try:
+                sp.save_entity(db, sx, {"legal_name": str(req.get("name") or "")[:300], "edrpou": str(req.get("edrpou") or ""),
+                                        "iban": str(req.get("iban") or "")})
+            except ValueError:
+                db.rollback()
     if kind == "supply" and data.get("paid") and paid_by:          # оплачено вже зараз (готівка / інший банк)
         g = pay.find_group(db, pay.group_key(docs[0]))
         if g:
@@ -2158,9 +2169,20 @@ def stock_supplier_save(sid: str = Form(""), name: str = Form(...), contact: str
                         email: str = Form(""), terms: str = Form(""), note: str = Form(""),
                         legal_name: str = Form(""), edrpou: str = Form(""), iban: str = Form(""), bank: str = Form(""),
                         pay_purpose: str = Form(""), address: str = Form(""), contract: str = Form(""), vat: str = Form(""),
-                        user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+                        back: str = Form(""), user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
     from .models import Supplier
     x = db.get(Supplier, int(sid)) if sid.isdigit() else None
+    if back and x:                                         # з вікна постачальника: лише контакти, реквізити — в юр. особах
+        old = x.name
+        x.name, x.contact, x.phone, x.email = name.strip()[:200] or x.name, contact.strip() or None, phone.strip() or None, email.strip() or None
+        x.terms, x.note = terms.strip()[:300] or None, note.strip() or None
+        if old != x.name:
+            for p_ in db.scalars(select(Product).where(Product.supplier == old)):
+                p_.supplier = x.name
+            for d_ in db.scalars(select(StockDoc).where(StockDoc.supplier == old)):
+                d_.supplier = x.name
+        db.commit()
+        return RedirectResponse(_card_back(back, x.id), 303)
     if not x:
         x = db.scalar(select(Supplier).where(Supplier.name == name.strip())) or Supplier(name=name.strip()[:200])
         db.add(x)
@@ -2180,7 +2202,70 @@ def stock_supplier_save(sid: str = Form(""), name: str = Form(...), contact: str
         for p_ in db.scalars(select(Product).where(Product.supplier == old)):
             p_.supplier = x.name
     db.commit()
-    return RedirectResponse(f"/stock?tab=suppliers&s={_q(x.name)}#sup", 303)
+    return RedirectResponse(f"/stock?tab=suppliers&s={_q(x.name)}&card={x.id}#sup", 303)
+
+
+def _card_back(back: str, sid: int, msg: str = "") -> str:
+    from urllib.parse import urlencode, urlsplit, parse_qsl
+    u = urlsplit(back if back.startswith("/") and not back.startswith("//") else "/stock?tab=suppliers")
+    qs = [(k, v) for k, v in parse_qsl(u.query) if k not in ("card", "msg")] + [("card", str(sid))] + ([("msg", msg)] if msg else [])
+    return f"{u.path}?{urlencode(qs)}"
+
+
+@app.get("/stock/suppliers/card", response_class=HTMLResponse)
+def stock_supplier_card_by_name(request: Request, name: str = "", user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .models import Supplier
+    key = name.strip().lower()
+    x = next((s_ for s_ in db.scalars(select(Supplier)) if s_.name.lower() == key), None) if key else None
+    if not x and key:
+        x = Supplier(name=name.strip()[:200])
+        db.add(x)
+        db.commit()
+    if not x:
+        return HTMLResponse("Постачальника не знайдено", 404)
+    return stock_supplier_card(request, x.id, user, db)
+
+
+@app.get("/stock/suppliers/{sid}/card", response_class=HTMLResponse)
+def stock_supplier_card(request: Request, sid: int, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .models import Supplier
+    from .services import suppliers as sp, payments as pay
+    x = db.get(Supplier, sid)
+    if not x:
+        return HTMLResponse("Постачальника не знайдено", 404)
+    return templates.TemplateResponse(request, "_supplier_card.html", {"request": request, "user": user, "PAY": pay.PAY_LABELS,
+                                                                        **sp.card(db, x)})
+
+
+@app.post("/stock/suppliers/{sid}/entity")
+async def stock_supplier_entity(request: Request, sid: int, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .models import Supplier
+    from .services import suppliers as sp
+    f = await request.form()
+    x = db.get(Supplier, sid)
+    back = str(f.get("back") or "/stock?tab=suppliers")
+    if not x:
+        return RedirectResponse(back, 303)
+    eid = str(f.get("eid") or "")
+    try:
+        e = sp.save_entity(db, x, {k: str(v) for k, v in f.items()}, int(eid) if eid.isdigit() else None)
+    except ValueError as err:
+        db.rollback()
+        return RedirectResponse(_card_back(back, sid, f"Не збережено: {err}"), 303)
+    audit(db, "supplier.entity_save", "supplier", sid, user=user, entity_id_=e.id, kind=e.kind)
+    return RedirectResponse(_card_back(back, sid), 303)
+
+
+@app.post("/stock/suppliers/{sid}/entity/{eid}/delete")
+def stock_supplier_entity_delete(sid: int, eid: int, back: str = Form(""), user: User = Depends(require("stock")),
+                                 db: Session = Depends(db_dep)):
+    from .models import Supplier
+    from .services import suppliers as sp
+    x = db.get(Supplier, sid)
+    if x:
+        sp.delete_entity(db, x, eid)
+        audit(db, "supplier.entity_delete", "supplier", sid, user=user, entity_id_=eid)
+    return RedirectResponse(_card_back(back, sid), 303)
 
 
 def _q(v: str) -> str:

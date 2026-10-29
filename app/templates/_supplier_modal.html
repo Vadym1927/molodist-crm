@@ -1,0 +1,53 @@
+{# Вікно постачальника поверх сторінки: будь-яке посилання з data-sup="id" або data-sup-name="назва" #}
+<style>
+.spm-bg{position:fixed;inset:0;background:rgba(42,36,48,.45);z-index:90;display:none;align-items:flex-start;justify-content:center;padding:4vh 16px;overflow:auto}
+.spm-bg.on{display:flex}
+.spm{background:var(--bg,#F7F4F0);border-radius:20px;width:min(980px,100%);box-shadow:0 30px 80px rgba(42,36,48,.35);overflow:hidden}
+.spm-h{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:18px 22px;background:#fff;border-bottom:1px solid var(--line)}
+.spm-h h2{margin:2px 0 0;font-size:22px}
+.spm-x{border:0;background:var(--soft);width:38px;height:38px;border-radius:10px;font-size:22px;cursor:pointer;color:var(--ink);flex:none}
+.spm-b{padding:16px 22px 22px}
+.spm-k{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.spm-k div{background:#fff;border:1px solid var(--line);border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.spm-k span,.spm-ct span,.spm-rq span{font:600 11px var(--head);text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.spm-k b{font-size:19px}.spm-k em{font-style:normal;font-size:12px;color:var(--muted)}
+.spm-sec{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px 16px;margin-bottom:12px}
+.spm-sec h3{margin:0 0 8px;font-size:15px}
+.spm-ct,.spm-rq{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 16px}
+.spm-ct div,.spm-rq div{display:flex;flex-direction:column;gap:2px;font-size:14px;min-width:0;overflow-wrap:anywhere}
+.spm-rq .w{grid-column:span 2}.spm-rq code{font-size:13.5px}
+.spm-e{border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px}
+.spm-e.main{border-color:var(--lavender-2,#C9BFE6);background:#FBFAFD}
+.spm-e .spm-rq{margin-top:10px}
+.spm-f{display:none;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 12px;margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)}
+.spm-f.on{display:grid}.spm-f .w{grid-column:1/-1}
+.spm-f label{display:grid;gap:3px;font-size:12px;color:var(--muted);font-weight:600}
+.spm-f label.ck{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--ink)}.spm-f label.ck input{width:auto}
+.spm-f textarea{min-height:54px}
+#spm-new{border-top:0;margin-top:0;padding-top:0}#spm-new-wrap:not(:has(#spm-new.on)){display:none}
+.spm-sm{padding:4px 12px;font-size:13px}
+.spm-pr{display:flex;flex-wrap:wrap;gap:6px}.spm-pr a{padding:4px 10px;border-radius:99px;background:var(--soft);font-size:13px;text-decoration:none;color:var(--ink)}
+.spm-load{padding:60px;text-align:center;color:var(--muted)}
+@media (max-width:760px){.spm-k{grid-template-columns:repeat(2,minmax(0,1fr))}.spm-ct,.spm-rq,.spm-f{grid-template-columns:1fr}.spm-rq .w{grid-column:auto}}
+</style>
+<div class="spm-bg" id="spm-bg" onclick="if(event.target===this)supClose()"><div class="spm" id="spm" role="dialog" aria-modal="true"></div></div>
+<script>
+(function(){
+  var bg=document.getElementById('spm-bg'),box=document.getElementById('spm');
+  function backUrl(){var u=new URL(location.href);u.searchParams.delete('card');u.searchParams.delete('msg');u.hash='';return u.pathname+u.search}
+  window.supOpen=function(id,name){
+    box.innerHTML='<div class="spm-load">Завантаження…</div>';bg.classList.add('on');document.body.style.overflow='hidden';
+    var url=id?('/stock/suppliers/'+id+'/card'):('/stock/suppliers/card?name='+encodeURIComponent(name));
+    fetch(url,{credentials:'same-origin'}).then(function(r){if(!r.ok)throw r.status;return r.text()}).then(function(h){
+      box.innerHTML=h;box.querySelectorAll('.spm-back').forEach(function(i){i.value=backUrl()});
+      var m=new URL(location.href).searchParams.get('msg');if(m&&id==new URL(location.href).searchParams.get('card')){var d=document.createElement('div');d.className='alert';d.style.margin='0 0 12px';d.textContent=m;var b=box.querySelector('.spm-b');if(b)b.prepend(d)}
+    }).catch(function(){box.innerHTML='<div class="spm-load">Не вдалося відкрити картку постачальника. <a href="#" onclick="supClose();return false">Закрити</a></div>'});
+  };
+  window.supClose=function(){bg.classList.remove('on');document.body.style.overflow='';
+    var u=new URL(location.href);if(u.searchParams.has('card')){u.searchParams.delete('card');u.searchParams.delete('msg');history.replaceState(null,'',u.pathname+u.search+u.hash)}};
+  document.addEventListener('click',function(e){var a=e.target.closest('[data-sup],[data-sup-name]');if(!a||e.metaKey||e.ctrlKey)return;
+    e.preventDefault();supOpen(a.dataset.sup,a.dataset.supName)});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&bg.classList.contains('on'))supClose()});
+  var c=new URL(location.href).searchParams.get('card');if(c)supOpen(c);
+})();
+</script>

@@ -413,6 +413,30 @@ class Supplier(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class SupplierEntity(Base):
+    """Юридична особа постачальника (ТОВ / ФОП / ПП…): в одного постачальника їх може бути кілька — свої реквізити,
+    договір, ПДВ. Основна дублюється в поля Supplier.legal_name/edrpou/iban… (для сумісності)."""
+    __tablename__ = "supplier_entities"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    supplier_id: Mapped[int] = mapped_column(ForeignKey("suppliers.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str | None] = mapped_column(String(20))            # ТОВ | ФОП | ПП | інше
+    legal_name: Mapped[str | None] = mapped_column(String(300))
+    edrpou: Mapped[str | None] = mapped_column(String(20), index=True)
+    iban: Mapped[str | None] = mapped_column(String(40), index=True)
+    bank: Mapped[str | None] = mapped_column(String(200))
+    mfo: Mapped[str | None] = mapped_column(String(10))
+    pay_purpose: Mapped[str | None] = mapped_column(String(300))
+    address: Mapped[str | None] = mapped_column(String(300))
+    director: Mapped[str | None] = mapped_column(String(200))       # підписант / керівник
+    contract: Mapped[str | None] = mapped_column(String(200))
+    vat: Mapped[bool | None] = mapped_column(Boolean)
+    tax_group: Mapped[str | None] = mapped_column(String(40))       # для ФОП: група єдиного податку
+    email: Mapped[str | None] = mapped_column(String(200))           # для рахунків / актів
+    is_main: Mapped[bool | None] = mapped_column(Boolean)
+    note: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class SupplierInvoice(Base):
     """Поставка з CleverBox (шапка документа): для обороту й боргу по постачальниках. На залишки не впливає."""
     __tablename__ = "supplier_invoices"

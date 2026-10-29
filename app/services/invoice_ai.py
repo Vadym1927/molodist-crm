@@ -236,8 +236,9 @@ def match(db: Session, parsed: dict) -> dict:
     sups = db.scalars(select(Supplier)).all()
     sp = parsed.get("supplier") or {}
     ed, ib = re.sub(r"\D", "", sp.get("edrpou") or ""), re.sub(r"\s", "", sp.get("iban") or "").upper()
-    sup = next((s for s in sups if ed and (s.edrpou or "") == ed), None) or \
-        next((s for s in sups if ib and (s.iban or "").upper() == ib), None)
+    from .suppliers import find
+    hit = find(db, ib, ed)                                           # будь-яка юр. особа постачальника
+    sup = hit[0] if hit else None
     if not sup and sp.get("name"):
         w = set(norm(sp["name"]).split()) - {"тов", "фоп", "пп", "тзов", "ооо"}
         hits = [s for s in sups if w and w & (set(norm(s.name).split()) | set(norm(s.legal_name or "").split()))]
