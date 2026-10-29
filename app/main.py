@@ -2090,12 +2090,31 @@ def _mono_job(job, days: int = 2):
         return monobank.sync(db, days=days)
 
 
+@app.get("/settings/keys", response_class=HTMLResponse)
+def settings_keys(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Одне місце для ключів інтеграцій: monobank (по ФОП), Checkbox, CleverBox. Самі ключі ніколи не показуються."""
+    from .integrations import monobank, checkbox as chb
+    from .models import BankTxn
+    fops = [a["name"] for a in chb.accounts(db)]
+    mono = {m["fop"]: m for m in monobank.public(db)}
+    for n in mono:
+        if n not in fops:
+            fops.append(n)
+    cnt = {f: db.scalar(select(func.count()).select_from(BankTxn).where(BankTxn.fop == f)) or 0 for f in fops}
+    jid = request.query_params.get("job")
+    return render(request, "keys.html", nav="keys", fops=fops, mono=mono, cnt=cnt,
+                  cb=[{"name": a["name"], "configured": a["configured"]} for a in chb.accounts(db)], cb_status=chb.statuses(db),
+                  cleverbox=bool(settings.cleverbox_token), job=jobs.JOBS.get(jid) if jid else None)
+
+
 @app.post("/stock/mono/connect")
-def stock_mono_connect(fop: str = Form(...), token: str = Form(""), user: User = Depends(require("finance")),
-                       db: Session = Depends(db_dep)):
+def stock_mono_connect(fop: str = Form(...), token: str = Form(""), back: str = Form(""),
+                       user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     from .integrations import monobank
     err = monobank.connect(db, fop.strip()[:100], token)
     audit(db, "mono.connect", user=user, fop=fop, ok=err is None)            # токен у журнал не пишемо
+    if back == "keys":
+        return RedirectResponse(f"/settings/keys?mono={'err' if err else 'ok'}&fop={_q(fop)}#mono", 303)
     return RedirectResponse(f"/stock?tab=suppliers&mono={'err' if err else 'ok'}#mono", 303)
 
 
@@ -2104,20 +2123,24 @@ async def stock_mono_watch(request: Request, user: User = Depends(require("finan
     from .integrations import monobank
     f = await request.form()
     monobank.set_watch(db, f.get("fop", ""), f.getlist("acc"))
-    return RedirectResponse("/stock?tab=suppliers#mono", 303)
+    return RedirectResponse("/settings/keys?saved=1#mono" if f.get("back") == "keys" else "/stock?tab=suppliers#mono", 303)
 
 
 @app.post("/stock/mono/disconnect")
-def stock_mono_disconnect(fop: str = Form(...), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+def stock_mono_disconnect(fop: str = Form(...), back: str = Form(""), user: User = Depends(require("finance")),
+                          db: Session = Depends(db_dep)):
     from .integrations import monobank
     monobank.disconnect(db, fop)
     audit(db, "mono.disconnect", user=user, fop=fop)
-    return RedirectResponse("/stock?tab=suppliers#mono", 303)
+    return RedirectResponse("/settings/keys#mono" if back == "keys" else "/stock?tab=suppliers#mono", 303)
 
 
 @app.post("/stock/mono/sync")
-def stock_mono_sync(days: int = Form(2), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+def stock_mono_sync(days: int = Form(2), back: str = Form(""), user: User = Depends(require("finance")),
+                    db: Session = Depends(db_dep)):
     job = jobs.start("Виписка monobank", _mono_job, max(1, min(days, 31)))
+    if back == "keys":
+        return RedirectResponse(f"/settings/keys?job={job.id}#mono", 303)
     return RedirectResponse(f"/stock?tab=suppliers&job={job.id}#mono", 303)
 
 

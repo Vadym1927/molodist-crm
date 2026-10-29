@@ -84,3 +84,11 @@ def test_monobank_connect_and_sync_fake():
         assert t.amount == -1234 and t.fop == "Колган" and db.get(BankTxn, "st-2") is None
         monobank.disconnect(db, "Колган")
         assert monobank.public(db) == []
+
+
+def test_keys_page():
+    with TestClient(app) as c:
+        _login(c)
+        page = c.get("/settings/keys").text
+        assert "Ключі й інтеграції" in page and "ФОП Колган" in page and "Вставте токен monobank" in page
+        assert 'href="/settings/keys"' in c.get("/").text
