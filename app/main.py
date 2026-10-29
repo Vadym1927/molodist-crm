@@ -2034,7 +2034,18 @@ def _cashflow_page(request: Request, db: Session, period: str, df: str | None):
         year = int(request.query_params.get("year") or date.today().year)
     except ValueError:
         year = date.today().year
+    import json as _json
+    probe_raw = db.get(SyncState, "cleverbox_finance_probe")
+    try:
+        probe = _json.loads(probe_raw.value) if probe_raw and probe_raw.value else None
+    except ValueError:
+        probe = None
+    meth = db.get(SyncState, "cleverbox_finance_method")
+    last = db.get(SyncState, "cleverbox_finance_last")
+    jid = request.query_params.get("job")
     return render(request, "cashflow.html", nav="reports", REPORTS=rp.REPORTS, key="cashflow", cf=cf.build(db, year),
+                  probe=probe, cb_method=meth.value if meth else None, cb_last=last.value if last else None,
+                  job=jobs.JOBS.get(jid) if jid else None,
                   years=years, year=year, last=LAST_IMPORT.pop(f"cash-{request.state.user.id}", None))
 
 
@@ -2056,6 +2067,37 @@ async def cashflow_import(file: UploadFile = File(...), user: User = Depends(req
     audit(db, "cashflow.import", user=user, **{k: v for k, v in rep.items() if k in ("rows", "updated", "period", "error")})
     LAST_IMPORT[f"cash-{user.id}"] = rep
     return RedirectResponse("/reports?r=cashflow", 303)
+
+
+def _cf_job(job, kind: str, start: str | None = None):
+    from .integrations import cb_finance
+    with SessionLocal() as db:
+        if kind == "probe":
+            job.log("Перевіряю фінансові методи API CleverBox…")
+            return cb_finance.probe(db)
+        s0 = date.fromisoformat(start) if start else date(date.today().year, 1, 1)
+        job.log(f"Завантажую рух коштів з {s0:%d.%m.%Y}…")
+        rep = cb_finance.sync_cash(db, s0, date.today())
+        from .services import cashflow as cf
+        cf.auto_fill(db)
+        return rep
+
+
+@app.post("/reports/cashflow/cleverbox")
+def cashflow_cleverbox(action: str = Form("probe"), start: str = Form(""), user: User = Depends(require("finance")),
+                       db: Session = Depends(db_dep)):
+    """Кнопки на сторінці Cashflow: перевірити API CleverBox / дозавантажити історію."""
+    if action == "reset":
+        for k in ("cleverbox_finance_method", "cleverbox_finance_probe_at"):
+            st_ = db.get(SyncState, k)
+            if st_:
+                db.delete(st_)
+        db.commit()
+        action = "probe"
+    job = jobs.start("Cashflow з CleverBox" if action != "probe" else "Пошук фінансових методів CleverBox",
+                     _cf_job, action, start or None)
+    audit(db, "cashflow.cleverbox", user=user, action=action, job=job.id)
+    return RedirectResponse(f"/reports?r=cashflow&job={job.id}", 303)
 
 
 @app.post("/reports/cashflow/opening")

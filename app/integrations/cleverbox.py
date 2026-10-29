@@ -864,6 +864,17 @@ def full_sync(db: Session, initial: bool | None = None) -> dict:
             _state(db, "last_products_sync", datetime.now().isoformat(timespec="seconds"))
         except CleverBoxError as e:
             report["products"] = f"помилка: {e}"
+    try:                                      # рух коштів (cashflow): метод шукається сам, раз на добу, поки не знайдено
+        from .cb_finance import sync_cash, probe
+        meth, last_probe = _state(db, "cleverbox_finance_method"), _state(db, "cleverbox_finance_probe_at")
+        if not meth and (not last_probe or datetime.fromisoformat(last_probe) < datetime.now() - timedelta(hours=20)):
+            probe(db, cb)
+            _state(db, "cleverbox_finance_probe_at", datetime.now().isoformat(timespec="seconds"))
+            db.commit()
+        report["cashflow"] = sync_cash(db, end - timedelta(days=7), end, cb)
+    except Exception as e:                    # noqa: BLE001 — фінанси не мають зупиняти синк
+        log.warning("cashflow sync: %s", e)
+        report["cashflow"] = f"помилка: {e}"
     report["amounts_filled"] = backfill_visit_amounts(db)
     last_cl = _state(db, "last_clients_sync")
     if initial or not last_cl or datetime.fromisoformat(last_cl) < datetime.now() - timedelta(hours=20):

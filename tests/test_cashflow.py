@@ -41,3 +41,35 @@ def test_cashflow_import_balance_and_autofill():
         assert "Контроль cashflow" in page and "Каса зараз" in page and "377 130" in page
     with SessionLocal() as db:
         cf.set_opening(db, date(2026, 1, 1), 377130)
+
+
+def test_cleverbox_finance_probe_and_sync():
+    from app.integrations import cb_finance
+    from app.models import SyncState
+
+    class FakeCB:
+        def paged(self, method, body):
+            if method != "finance/operations":
+                raise RuntimeError("unknown method")
+            return iter([
+                {"date": "05.02.2037 10:00", "amount": 3000, "type": "income", "cashbox_name": "Каса готівка"},
+                {"date": "05.02.2037 12:00", "amount": 5000, "type": "income", "cashbox_name": "Термінал ПриватБанк"},
+                {"date": "05.02.2037 18:00", "amount": -1200, "type": "expense", "category_name": "Оренда"},
+                {"date": "05.02.2037 19:00", "amount": 2000, "type": "transfer", "cashbox_name": "Каса готівка"},
+            ])
+
+    with SessionLocal() as db:
+        for k in ("cleverbox_finance_method", "cleverbox_finance_probe"):
+            st = db.get(SyncState, k)
+            if st:
+                db.delete(st)
+        db.commit()
+        rep = cb_finance.probe(db, FakeCB())
+        assert rep["chosen"] == "finance/operations"
+        r = cb_finance.sync_cash(db, date(2037, 2, 5), date(2037, 2, 5), FakeCB())
+        assert r["transfers"] == 1
+        cd = db.get(CashDay, date(2037, 2, 5))
+        assert cd.source == "api" and cd.cash_in == 3000 and cd.card_in == 5000 and cd.expense == 1200
+        for k in ("cleverbox_finance_method", "cleverbox_finance_probe"):
+            db.delete(db.get(SyncState, k))
+        db.commit()

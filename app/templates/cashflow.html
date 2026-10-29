@@ -47,7 +47,7 @@
 </div>
 
 {% if cf.coverage[1] %}<p class="muted small" style="margin:-6px 0 12px">Дані звіту CleverBox «Прибуток»: {{ cf.coverage[0]|dt('%d.%m.%Y') }} — {{ cf.coverage[1]|dt('%d.%m.%Y') }}.
-  {% if cf.total.estimated %}<b>Після {{ cf.coverage[1]|dt('%d.%m') }} — оцінка: лише надходження з чеків, без витрат ({{ cf.total.estimated }} дн)</b> — довантажте свіжий звіт, і дні перезапишуться.{% endif %}</p>{% endif %}
+  {% if cf.total.estimated %}<b>{{ cf.total.estimated }} дн — оцінка: лише надходження з чеків, без витрат</b> — довантажте свіжий звіт, і дні перезапишуться.{% endif %}</p>{% endif %}
 {% if cf.gaps %}<div class="alert">Немає даних за: <b>{{ cf.gaps|join(', ') }}</b>. Вивантажте з CleverBox «Прибуток» за ці місяці (можна одним файлом з 01.01) — CRM доповнить без дублів. Доки даних немає, каса рахується неточно.</div>{% endif %}
 
 {% if cf.months %}
@@ -87,6 +87,20 @@
     {% if cf.balance is not none and cf.start_balance is not none %}<li>Каса змінилась з {{ cf.start_balance|uah }} до <b>{{ cf.balance|uah }}</b>.</li>{% endif %}
     {% else %}<li>Завантажте звіт «Прибуток» — тут з'являться висновки.</li>{% endif %}
   </ul></div>
+  <div class="card" id="cbapi"><h2>Автоматично з CleverBox</h2>
+    {% if job %}<div class="alert" style="background:var(--lavender);color:var(--classic)">{{ job.title }}: {{ 'виконується…' if job.status == 'running' else ('готово' if job.status == 'done' else 'помилка: ' ~ job.error) }}
+      {% if job.status == 'running' %}<a href="?r=cashflow&job={{ job.id }}">оновити</a>{% endif %}</div>{% endif %}
+    {% if cb_method %}<div class="small"><span class="pill ok">підключено</span> метод API <b>{{ cb_method }}</b>{% if cb_method in ('payments','sales/payments') %} — лише надходження, витрати з Excel{% endif %}.
+      Оновлюється сам кожні 2 год (останні 7 днів){% if cb_last %}, останнє — {{ cb_last[8:10] }}.{{ cb_last[5:7] }} {{ cb_last[11:16] }}{% endif %}. Внутрішні перекази між касами виключено. Дні зі звіту «Прибуток» (Excel) не перезаписуються.</div>
+      <form method="post" action="/reports/cashflow/cleverbox" class="row" style="gap:6px;margin-top:10px"><input type="hidden" name="action" value="load">
+        <input type="date" name="start" value="{{ year }}-01-01"><button class="btn">Дозавантажити історію</button></form>
+    {% elif probe %}<div class="small"><span class="pill warn">метод не знайдено</span> CleverBox не віддав руху коштів через API ({{ probe.at[8:10] }}.{{ probe.at[5:7] }} {{ probe.at[11:16] }}). Надходження — з чеків автоматично, витрати — зі звіту «Прибуток».
+      Надішліть розробнику скрин блоку нижче або увімкніть у CleverBox доступ API до фінансів.</div>
+    {% else %}<div class="small muted">Пошук фінансових методів API CleverBox запускається з першою синхронізацією. Можна запустити зараз.</div>{% endif %}
+    <form method="post" action="/reports/cashflow/cleverbox" style="margin-top:8px"><input type="hidden" name="action" value="{{ 'reset' if cb_method or probe else 'probe' }}"><button class="btn ghost" style="padding:5px 12px">Перевірити API CleverBox</button></form>
+    {% if probe %}<details class="small" style="margin-top:10px"><summary style="cursor:pointer">Що відповів CleverBox (без сум)</summary>
+      <table class="small" style="margin-top:6px">{% for m, v in probe.methods.items() %}<tr><td><code>{{ m }}</code></td><td>{% if v.ok %}<b>{{ v.rows }}</b> рядків · {{ v['keys']|join(', ') }}{% if v.types %}<div class="muted">типи: {{ v.types.keys()|join(' / ') }}</div>{% endif %}{% else %}<span class="muted">{{ v.error }}</span>{% endif %}</td></tr>{% endfor %}</table></details>{% endif %}
+  </div>
   <div class="card"><h2>Дані</h2>
     <form method="post" action="/reports/cashflow/import" enctype="multipart/form-data" class="grid" style="gap:8px">
       <div class="small muted">Звіт CleverBox <b>«Прибуток»</b> (Profit_*.xls) за будь-який період. Повторне завантаження перезаписує дні, дублів немає. Між імпортами CRM сама додає надходження з чеків (без витрат).</div>
