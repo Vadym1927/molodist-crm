@@ -2053,7 +2053,14 @@ def _fop_page(request: Request, db: Session):
         year = date.today().year
     st_ = db.get(SyncState, "checkbox_last")
     jid = request.query_params.get("job")
-    return render(request, "fop.html", nav="reports", REPORTS=rp.REPORTS, key="fop", f=fop_svc.build(db, year),
+    f_ = fop_svc.build(db, year)
+    qp = request.query_params
+    for i, x in enumerate(f_["fops"]):               # ручний період у картці кожного ФОП: ?p0_from=2025-01&p0_to=2026-03
+        a = fop_svc.parse_ym(qp.get(f"p{i}_from")) or (year, 1)
+        b = fop_svc.parse_ym(qp.get(f"p{i}_to")) or (year, 12)
+        x["period"] = fop_svc.period(db, x["name"], a, b)
+        x["period"]["custom"] = bool(qp.get(f"p{i}_from") or qp.get(f"p{i}_to"))
+    return render(request, "fop.html", nav="reports", REPORTS=rp.REPORTS, key="fop", f=f_,
                   years=years, year=year, cb_status=__import__("app.integrations.checkbox", fromlist=["x"]).statuses(db),
                   accs=[{"name": a["name"], "configured": a["configured"], "login": a["login"], "source": a["source"]}
                         for a in accounts(db)],

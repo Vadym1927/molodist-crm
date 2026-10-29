@@ -19,6 +19,15 @@
 .f-lay{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
 .tb td.n,.tb th.n{text-align:right;white-space:nowrap}
 @media (max-width:1100px){.f-lay{grid-template-columns:1fr}.f-tiles{grid-template-columns:1fr 1fr}}
+.fc2{position:relative;display:flex;gap:6px;height:260px;margin-top:14px;border-bottom:1px solid var(--line);padding-bottom:22px}
+.fc2 .col{flex:1;display:flex;flex-direction:column;min-width:0;position:relative}
+.fc2 .bars{flex:1;display:flex;gap:3px;align-items:flex-end;justify-content:center}
+.fc2 .b{flex:1;max-width:30px;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center}
+.fc2 .b i{display:block;width:100%;border-radius:5px 5px 2px 2px;min-height:0}
+.fc2 .b em{font-style:normal;font-size:10.5px;font-weight:700;color:var(--ink);white-space:nowrap;margin-bottom:2px}
+.fc2 .col span{position:absolute;bottom:-20px;left:0;right:0;text-align:center;font-size:12px;font-weight:600;color:var(--muted)}
+.fc2 .lim{position:absolute;left:0;right:0;border-top:2px dashed var(--bad);opacity:.6;z-index:1;pointer-events:none;font-style:normal}
+@media (max-width:700px){.fc2 .b em{display:none}}
 </style>
 {% set COLORS = ['#5C4B82', '#7FB3C8', '#C99A6B', '#7FC8A0'] %}
 <div class="row between" style="align-items:flex-end;flex-wrap:wrap;gap:10px">
@@ -53,29 +62,44 @@
       <span><span class="dot" style="background:#7FC8A0"></span>Безготівка <b>{{ x.cashless|uah }}</b></span></div>
   </div>{% endfor %}</div>
 
-{% set W, H, P = 900, 230, 40 %}
-<div class="card"><div class="row between"><h2 style="margin:0">Динаміка обороту</h2>
-  <div class="row small" style="gap:14px">{% for x in f.fops %}<span><span class="dot" style="background:{{ COLORS[loop.index0 % 4] }}"></span>{{ x.name }}</span>{% endfor %}</div></div>
-  {% if f.last_month %}<svg viewBox="0 0 {{ W }} {{ H }}" style="width:100%;height:auto;margin-top:10px" role="img" aria-label="Оборот ФОП по місяцях">
-    {% for t in range(0, 5) %}{% set yv = P + (H - 2*P) * t / 4 %}<line x1="{{ P }}" x2="{{ W - 10 }}" y1="{{ yv }}" y2="{{ yv }}" stroke="#E9E5DF"/>
-      <text x="{{ P - 6 }}" y="{{ yv + 4 }}" font-size="11" text-anchor="end" fill="#8a8290">{{ ((f.max * (4 - t) / 4 / 1000)|round|int) }}k</text>{% endfor %}
-    {% for mi in range(1, 13) %}{% set xv = P + (W - P - 30) * (mi - 1) / 11 %}<text x="{{ xv }}" y="{{ H - 10 }}" font-size="11.5" text-anchor="middle" fill="#8a8290">{{ f.MONTHS[mi-1] }}</text>{% endfor %}
-    {% for x in f.fops %}{% set c = COLORS[loop.index0 % 4] %}{% set pts = [] %}
-      {% for mi in range(1, 13) %}{% if x.months.get(mi) %}{% set _ = pts.append(((P + (W - P - 30) * (mi - 1) / 11)|round(1)|string) ~ ',' ~ ((P + (H - 2*P) * (1 - x.months[mi].total / f.max))|round(1)|string)) %}{% endif %}{% endfor %}
-      <polyline points="{{ pts|join(' ') }}" fill="none" stroke="{{ c }}" stroke-width="3" stroke-linejoin="round"/>
-      {% for p in pts %}<circle cx="{{ p.split(',')[0] }}" cy="{{ p.split(',')[1] }}" r="4.5" fill="{{ c }}"/>{% endfor %}{% endfor %}
-  </svg>{% else %}<p class="muted">Даних за {{ year }} ще немає.</p>{% endif %}
+<div class="card"><div class="row between" style="flex-wrap:wrap;gap:8px"><h2 style="margin:0">Динаміка обороту</h2>
+  <div class="row small" style="gap:14px">{% for x in f.fops %}<span><span class="dot" style="background:{{ COLORS[loop.index0 % 4] }}"></span>ФОП {{ x.name }}</span>{% endfor %}
+    {% if f.limit %}<span><span style="display:inline-block;width:16px;border-top:2px dashed var(--bad);vertical-align:3px;margin-right:5px"></span>ліміт / 12 = {{ (f.limit / 12)|uah }}</span>{% endif %}</div></div>
+  {% if f.last_month %}{% set top = [f.max, (f.limit / 12) if f.limit else 0]|max * 1.12 %}
+  <div class="fc2">
+    {% if f.limit %}<i class="lim" style="bottom:{{ (100 * f.limit / 12 / top)|round(1) }}%"></i>{% endif %}
+    {% for mi in range(1, 13) %}<div class="col">
+      <div class="bars">{% for x in f.fops %}{% set r = x.months.get(mi) %}
+        <div class="b" title="ФОП {{ x.name }} · {{ f.MONTHS[mi-1] }}: {{ (r.total if r else 0)|uah }}{% if r %} (готівка {{ r.cash|uah }}, безготівка {{ r.cashless|uah }}){% endif %}">
+          <em>{{ ((r.total / 1000)|round|int ~ 'k') if r and r.total else '' }}</em>
+          <i style="height:{{ (100 * (r.total if r else 0) / top)|round(1) }}%;background:{{ COLORS[loop.index0 % 4] }}"></i></div>{% endfor %}</div>
+      <span>{{ f.MONTHS[mi-1] }}</span></div>{% endfor %}
+  </div>
+  {% else %}<p class="muted">Даних за {{ year }} ще немає.</p>{% endif %}
 </div>
 
-<div class="f-lay">
-<div class="card" style="padding:6px 8px"><div class="row between" style="padding:10px 8px 4px"><h2 style="margin:0">Помісячна структура оплат</h2><span class="muted small">готівка / безготівка / разом</span></div>
-  <div style="overflow-x:auto"><table class="tb"><thead><tr><th>Місяць</th><th>ФОП</th><th class="n">Готівка</th><th class="n">Безготівка</th><th class="n">Разом</th><th>Джерело</th></tr></thead><tbody>
-  {% for mi in range(1, 13) %}{% for x in f.fops %}{% set r = x.months.get(mi) %}{% if r %}<tr><td>{{ f.MONTHS[mi-1] }}</td><td>ФОП {{ x.name }}</td><td class="n">{{ r.cash|uah }}</td><td class="n">{{ r.cashless|uah }}</td><td class="n"><b>{{ r.total|uah }}</b></td>
-    <td class="small muted">{{ 'Checkbox' if r.source == 'checkbox' else 'таблиця' }}</td></tr>{% endif %}{% endfor %}{% endfor %}
-  {% if not f.last_month %}<tr><td colspan="6" class="muted">Немає даних — імпортуйте таблицю або налаштуйте Checkbox.</td></tr>{% endif %}
-  </tbody>{% if f.last_month %}<tfoot><tr><td colspan="2"><b>Разом {{ year }}</b></td><td class="n"><b>{{ (f.fops|sum(attribute='cash'))|uah }}</b></td><td class="n"><b>{{ (f.fops|sum(attribute='cashless'))|uah }}</b></td><td class="n"><b>{{ f.total|uah }}</b></td><td></td></tr></tfoot>{% endif %}</table></div></div>
+<div class="row between" style="margin:4px 0 8px"><h2 style="margin:0">Помісячна структура оплат</h2><span class="muted small">готівка / безготівка / разом</span></div>
+<div class="f-cards">{% for x in f.fops %}{% set pr = x.period %}{% set i = loop.index0 %}
+  <div class="card" style="padding:6px 8px;margin:0">
+    <div class="row between" style="margin:10px 8px 6px;gap:8px;flex-wrap:wrap"><h3 style="margin:0;font:600 15px var(--head);text-transform:uppercase;letter-spacing:.04em"><span class="dot" style="background:{{ COLORS[i % 4] }}"></span>ФОП {{ x.name }}</h3>
+      <form class="row" style="gap:4px;align-items:center"><input type="hidden" name="r" value="fop"><input type="hidden" name="year" value="{{ year }}">
+        {% for k, v in request.query_params.items() %}{% if k.startswith('p') and not k.startswith('p' ~ i ~ '_') %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
+        <input type="month" name="p{{ i }}_from" value="{{ '%04d-%02d'|format(*pr.start) }}" style="height:34px;padding:2px 6px">
+        <span class="muted">—</span><input type="month" name="p{{ i }}_to" value="{{ '%04d-%02d'|format(*pr.end) }}" style="height:34px;padding:2px 6px">
+        <button class="btn ghost" style="padding:4px 10px">OK</button>
+        {% if pr.custom %}<a class="small" href="?r=fop&year={{ year }}">скинути</a>{% endif %}</form></div>
+    {% if pr.custom %}<div class="small muted" style="margin:0 8px 6px">Період: <b style="color:var(--ink)">{{ pr.label }}</b> · разом {{ pr.total|uah }}</div>{% endif %}
+    <table class="tb"><thead><tr><th>Місяць</th><th class="n">Готівка</th><th class="n">Безготівка</th><th class="n">Разом</th><th class="n">% ліміту</th></tr></thead><tbody>
+    {% for row in pr.rows %}{% set r = row.r %}
+      <tr><td>{{ row.label }}{% if r.source != 'checkbox' %} <span class="muted small" title="з таблиці">·т</span>{% endif %}</td><td class="n">{{ r.cash|uah }}</td><td class="n">{{ r.cashless|uah }}</td><td class="n"><b>{{ r.total|uah }}</b></td>
+        <td class="n small muted">{{ row.pct if row.pct is not none else '—' }}%</td></tr>
+    {% else %}<tr><td colspan="5" class="muted">Немає даних за період.</td></tr>{% endfor %}
+    </tbody>{% if pr.rows %}<tfoot><tr><td><b>Разом</b></td><td class="n"><b>{{ pr.cash|uah }}</b></td><td class="n"><b>{{ pr.cashless|uah }}</b></td><td class="n"><b>{{ pr.total|uah }}</b></td>
+      <td class="n"><b>{{ ((100 * pr.total / f.limit)|round(1)) if f.limit and pr.start[0] == pr.end[0] == year else '' }}{{ '%' if f.limit and pr.start[0] == pr.end[0] == year }}</b></td></tr></tfoot>{% endif %}</table>
+  </div>{% endfor %}</div>
+<p class="muted small" style="margin:-6px 0 16px">«% ліміту» — наростаючим підсумком з початку відповідного року. Період у кожній картці можна задати окремо, зокрема через кілька років. «·т» — місяць із Google-таблиці, решта — з Checkbox.</p>
 
-<div>
+<div class="f-cards" style="align-items:start">
   <div class="card" id="connect"><h2>Підключення ФОП (Checkbox)</h2>
     {% set qp = request.query_params %}
     {% if qp.get('cok') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">ФОП {{ qp.get('cok') }} підключено — завантажую оборот з 01.01.</div>{% endif %}
@@ -114,6 +138,5 @@
       <div class="small muted">Річний ліміт на один ФОП (2 група ЄП — 834 мінзарплати)</div>
       <div class="row" style="gap:6px"><input type="hidden" name="year" value="{{ year }}"><input name="amount" value="{{ '%g'|format(f.limit) }}" style="width:150px"><button class="btn ghost">Зберегти {{ year }}</button></div></form>
   </div>
-</div>
 </div>
 {% endblock %}

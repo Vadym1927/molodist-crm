@@ -125,3 +125,32 @@ def build(db: Session, year: int) -> dict:
             "total_left": sum(f["left"] or 0 for f in out), "best": (MONTHS[best[0] - 1], best[1]) if best else None,
             "months_left": months_left, "last_month": last_m, "period": f"{MONTHS[0]}–{MONTHS[last_m - 1]} {year}" if last_m else "",
             "max": max([r.total for r in rows] + [1]), "MONTHS": MONTHS}
+
+
+def parse_ym(v: str | None) -> tuple[int, int] | None:
+    try:
+        y, m = (v or "").split("-")[:2]
+        y, m = int(y), int(m)
+        return (y, m) if 2000 < y < 2100 and 1 <= m <= 12 else None
+    except ValueError:
+        return None
+
+
+def period(db: Session, name: str, start: tuple[int, int], end: tuple[int, int]) -> dict:
+    """Місяці ФОП у довільному періоді (можна через роки) + «% ліміту» наростаючим з початку кожного року."""
+    if start > end:
+        start, end = end, start
+    rows = db.scalars(select(FopMonth).where(FopMonth.fop == name, FopMonth.year >= start[0], FopMonth.year <= end[0])
+                      .order_by(FopMonth.year, FopMonth.month)).all()
+    lim = limits(db)
+    acc: dict[int, float] = {}
+    out = []
+    for r in rows:
+        acc[r.year] = acc.get(r.year, 0) + r.total
+        if start <= (r.year, r.month) <= end:
+            ly = lim.get(str(r.year)) or 0
+            out.append({"label": f"{MONTHS[r.month - 1]} {r.year}" if start[0] != end[0] else MONTHS[r.month - 1],
+                        "r": r, "pct": round(100 * acc[r.year] / ly, 1) if ly else None})
+    return {"rows": out, "cash": sum(x["r"].cash for x in out), "cashless": sum(x["r"].cashless for x in out),
+            "total": sum(x["r"].total for x in out), "start": start, "end": end,
+            "label": f"{MONTHS[start[1]-1]} {start[0]} — {MONTHS[end[1]-1]} {end[0]}"}

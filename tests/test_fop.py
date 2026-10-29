@@ -97,3 +97,17 @@ def test_checkbox_queries_month_by_month():
 
     list(Fake().z_reports(date(2026, 1, 1), date(2026, 10, 29)))
     assert len(calls) == 10 and calls[0] == ("2026-01-01", "2026-01-31") and calls[-1] == ("2026-10-01", "2026-10-29")
+
+
+def test_fop_custom_period_across_years():
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        fs.import_workbook(db, [("Колган 2026", K26), ("Колган 2025", [["6 672 000"], ["", "Січень"],
+                                 ["Готівка ", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1000], ["Безготівка ", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2000]])])
+        p = fs.period(db, "Колган", (2025, 12), (2026, 2))
+        assert [x["label"] for x in p["rows"]] == ["Гру 2025", "Січ 2026", "Лют 2026"]
+        assert p["total"] == 3000 + 280177 + 466114
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        page = c.get("/reports?r=fop&year=2026&p0_from=2025-12&p0_to=2026-02").text
+        assert "Гру 2025" in page and "Період:" in page
