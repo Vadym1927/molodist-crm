@@ -322,6 +322,22 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="MOLODIST Beauty Plan CRM API", version="1.0", lifespan=lifespan,
               docs_url=None, redoc_url=None, openapi_url=None,
               description=api_module.__doc__)
+class _DropEmptyQuery:
+    """Порожні параметри з форм фільтрів (?doctor=&page=) — як відсутні, а не помилка 422."""
+    def __init__(self, app_):
+        self.app = app_
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and scope.get("query_string") and not scope["path"].startswith("/api/"):
+            from urllib.parse import parse_qsl, urlencode
+            pairs = parse_qsl(scope["query_string"].decode("latin-1"), keep_blank_values=True)
+            kept = [(k, v) for k, v in pairs if v != ""]
+            if len(kept) != len(pairs):
+                scope = dict(scope, query_string=urlencode(kept).encode("latin-1"))
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(_DropEmptyQuery)
 app.add_middleware(SessionMiddleware, secret_key=settings.secret_key, max_age=60 * 60 * 24 * 14,
                    https_only=settings.public_url.startswith("https"))
 app.include_router(api_module.router)
