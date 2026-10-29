@@ -2,7 +2,7 @@
 {% block title %}Продажі за день · Фінанси{% endblock %}
 {% block body %}
 {% include "_fin_tabs.html" %}
-<div class="row between" style="margin-bottom:12px;gap:10px"><div><h1>Продажі за день</h1><div class="muted small">{{ day|dt('%d.%m.%Y') }} · чеки CleverBox</div></div>
+<div class="row between" style="margin-bottom:12px;gap:10px"><div><h1>Продажі за день</h1><div class="muted small">{{ day|dt('%d.%m.%Y') }} · чеки CleverBox і каси CRM · <a href="/sales?d={{ day }}">каса за добу</a></div></div>
   <form class="fin-f"><a class="btn ghost" href="?d={{ day - timedelta(days=1) }}">←</a><input type="date" name="d" value="{{ day }}" onchange="this.form.submit()">
     <a class="btn ghost" href="?d={{ day + timedelta(days=1) }}">→</a><a class="btn ghost" href="?">Сьогодні</a></form></div>
 <div class="fin-k">
@@ -14,8 +14,14 @@
 <div class="grid g2" style="margin-bottom:16px">
   <div class="card" style="margin:0"><h2 style="margin-top:0">Способи оплати</h2><table class="tb small"><tbody>{% for k, v in s.by_pay.items() %}<tr><td>{{ k }}</td><td class="r">{{ v|uah }}</td></tr>{% else %}<tr><td class="muted">—</td></tr>{% endfor %}</tbody></table>
     <h2 style="margin:16px 0 8px">Що продано</h2><table class="tb small"><tbody>{% for k, v in s.by_type.items() %}<tr><td>{{ k }}</td><td class="r">{{ v|uah }}</td></tr>{% else %}<tr><td class="muted">—</td></tr>{% endfor %}</tbody></table></div>
-  <div class="card" style="margin:0"><h2 style="margin-top:0">Спеціалісти</h2><table class="tb small"><thead><tr><th>Хто</th><th class="r">Послуг</th><th class="r">Послуги</th><th class="r">Товари</th></tr></thead><tbody>
-    {% for k, v in s.by_staff.items() %}<tr><td>{{ k }}</td><td class="r">{{ v.n }}</td><td class="r">{{ v.services|uah }}</td><td class="r">{{ v.products|uah if v.products else '—' }}</td></tr>{% else %}<tr><td colspan="4" class="muted">—</td></tr>{% endfor %}</tbody></table></div>
+  <div class="card" style="margin:0"><h2 style="margin-top:0">Спеціалісти</h2><table class="tb small"><thead><tr><th>Хто</th><th class="r">Послуг</th><th class="r">Послуги</th><th class="r">Косметика</th><th class="r">Разом</th></tr></thead><tbody>
+    {% for k, v in s.by_staff.items() %}<tr><td>{{ k }}</td><td class="r">{{ v.n }}</td><td class="r">{{ v.services|uah }}</td><td class="r">{{ (v.products|uah ~ ' · ' ~ v.pn ~ ' шт') if v.products else '—' }}</td><td class="r"><b>{{ (v.services + v.products)|uah }}</b></td></tr>{% else %}<tr><td colspan="5" class="muted">—</td></tr>{% endfor %}</tbody></table></div>
+</div>
+<div class="grid g2" style="margin-bottom:16px">
+  <div class="card" style="margin:0"><h2 style="margin-top:0">Послуги</h2><table class="tb small"><thead><tr><th>Послуга</th><th>Хто</th><th class="r">К-сть</th><th class="r">Сума</th></tr></thead><tbody>
+    {% for k, v in s.services.items() %}<tr><td>{{ k }}</td><td class="muted">{{ v.staff }}</td><td class="r">{{ '%g'|format(v.qty) }}</td><td class="r">{{ v.sum|uah }}</td></tr>{% else %}<tr><td colspan="4" class="muted">—</td></tr>{% endfor %}</tbody></table></div>
+  <div class="card" style="margin:0"><h2 style="margin-top:0">Косметика</h2><table class="tb small"><thead><tr><th>Товар</th><th>Хто</th><th class="r">К-сть</th><th class="r">Сума</th></tr></thead><tbody>
+    {% for k, v in s.products.items() %}<tr><td>{{ k }}</td><td class="muted">{{ v.staff }}</td><td class="r">{{ '%g'|format(v.qty) }}</td><td class="r">{{ v.sum|uah }}</td></tr>{% else %}<tr><td colspan="4" class="muted">—</td></tr>{% endfor %}</tbody></table></div>
 </div>
 {% include "_fin_checks.html" %}
 {% endblock %}

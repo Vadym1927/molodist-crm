@@ -63,3 +63,23 @@ def test_seed_20261030():
         assert ov["Амортизаційний + Операційний Фонд"]["balance"] == 278751.33 and ov["Готівка Cейф"]["cash"]
         assert not ov["Картка МОНО"]["active"] and ov["Готівка ФОП Бондар"]["balance"] == 22011.0
         assert "Картка МОНО" not in cbx.names(db) and len(cbx.names(db)) == 8
+
+
+def test_cash_day_and_fin_day_include_crm():
+    from app.models import Doctor
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        cbx.apply_seed(db)
+        x = next(b for b in cbx.items(db) if b["name"] == "Готівка ФОП Бондар")
+        cbx.save(db, x["id"], {**x, "methods": ["Готівка"], "active": True, "opening_date": date.today().isoformat(), "opening": 1000})
+        d = Doctor(name="Денна Лікарка", active=True); db.add(d); db.flush()
+        s = Sale(total=400, subtotal=500, discount=100, status="paid", at=datetime.now())
+        s.items.append(SaleItem(kind="service", name="Пілінг денний", qty=1, price=300, discount=0, total=300, doctor_id=d.id))
+        s.items.append(SaleItem(kind="product", name="Крем денний", qty=1, price=200, discount=100, total=100, doctor_id=d.id))
+        s.payments.append(SalePayment(method="Готівка", amount=400)); db.add(s); db.commit()
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        t = c.get("/sales").text
+        assert "Продажі за добу" in t and "Пілінг денний" in t and "1000.00" in t and "1400.00" in t
+        f = c.get("/finance/day").text
+        assert "Денна Лікарка" in f and "Крем денний" in f and "Косметика" in f

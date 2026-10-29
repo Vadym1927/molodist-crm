@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Каса CRM · {{ day|dt('%d.%m.%Y') }}{% endblock %}
+{% block body %}
+{% include "_fin_tabs.html" %}
+<style>.cd-g{display:grid;grid-template-columns:minmax(260px,1fr) 2fr;gap:16px;margin-bottom:16px}@media(max-width:900px){.cd-g{grid-template-columns:1fr}}
+.pl{display:inline-flex;align-items:center;gap:6px;border-radius:9px;padding:3px 10px;font:700 13.5px var(--sans);background:#EAF6EA;color:#2E6B2E}
+.pl.o{background:#fff;border:1.5px solid #5CB85C}.pl.z{background:#FFF6DD;color:#7a6a2a}.pl i{width:8px;height:8px;border-radius:50%;background:#4CAF50}
+.pl.neg{background:#FDECEA;color:#B23B2E}.pl.neg i{background:#C0392B}
+.cd-t td,.cd-t th{padding:9px 10px}.cd-t th{font:700 11.5px var(--sans);text-transform:uppercase;letter-spacing:.04em;color:var(--muted);text-align:left;background:#F6F4F1}
+.cd-t tr.tot td{background:#F6F4F1;font-weight:700}</style>
+<div class="row between" style="margin-bottom:12px;gap:10px;flex-wrap:wrap"><div><h1>Продажі за добу</h1><div class="muted small">Каса CRM і чеки CleverBox · {{ day|dt('%d.%m.%Y') }}</div></div>
+  <div class="row" style="gap:6px;flex-wrap:wrap">
+    <form class="fin-f"><a class="btn ghost" href="?d={{ day - timedelta(days=1) }}">‹</a><a class="btn ghost {{ 'on' if day == today }}" href="?">Сьогодні</a>
+      <input type="date" name="d" value="{{ day }}" onchange="this.form.submit()"><a class="btn ghost" href="?d={{ day + timedelta(days=1) }}">›</a></form>
+    {% if locs %}<select disabled style="height:40px">{% for l in locs %}<option>{{ l.name }}</option>{% endfor %}</select>{% endif %}
+    <a class="btn ghost" href="/sales?df={{ day }}&dt_={{ day }}">Список за період</a><a class="btn" href="/sales/new">＋ Новий продаж</a></div></div>
+<div class="cd-g">
+  <div class="card" style="margin:0;padding:8px"><table class="cd-t" style="width:100%"><tr><th colspan="2">Оплачено</th></tr>
+    {% for k, val in v.paid %}<tr><td>{{ k }}</td><td style="text-align:right"><span class="pl {{ '' if val else 'z' }}">{{ '%.2f'|format(val) if val else '0' }}</span></td></tr>{% endfor %}
+    <tr class="tot"><td>Разом</td><td style="text-align:right">{{ '%.2f'|format(v.paid_total) }}</td></tr>
+    <tr><td class="small muted">з них грошима</td><td class="small" style="text-align:right">{{ '%.2f'|format(v.money_total) }}</td></tr></table></div>
+  <div class="card" style="margin:0;padding:8px;overflow-x:auto"><table class="cd-t" style="width:100%"><tr><th>Рахунок</th><th>Залишок на початок доби</th><th>Залишок на кінець доби</th></tr>
+    {% for a in v.accounts %}<tr><td>{{ a.name }}</td>
+      <td>{% if a.start is none %}<span class="muted small">до стартового залишку</span>{% else %}<span class="pl {{ 'neg' if a.start < 0 }}"><i></i>{{ '%.2f'|format(a.start) }}</span>{% endif %}</td>
+      <td>{% if a.end is none %}—{% else %}<span class="pl o {{ 'neg' if a.end < 0 }}"><i></i>{{ '%.2f'|format(a.end) }}</span>{% endif %}</td></tr>
+    {% else %}<tr><td colspan="3" class="muted">Немає активних кас — <a href="/settings/cashboxes">Налаштування → Каси / рахунки</a>.</td></tr>{% endfor %}</table>
+    <div class="small muted" style="padding:6px 10px">Каси й залишки — у <a href="/settings/cashboxes">«Каси / рахунки»</a>.</div></div>
+</div>
+<span class="cs-tag" style="display:inline-block;background:#8e98a6;color:#fff;font:700 12px var(--head);letter-spacing:.06em;text-transform:uppercase;padding:7px 14px;border-radius:8px 8px 0 0;margin-left:14px">Чеки</span>
+<div class="card" style="padding:6px 8px;overflow:auto;margin-top:0"><div class="small muted" style="text-align:right;padding:4px 8px">Рядків: {{ v.rows|length }}</div>
+  <table class="tb small"><thead><tr><th>№ чеку</th><th>Підстава</th><th>Пацієнт</th><th>Співробітник</th><th>Послуга / товар</th><th class="r">Вартість</th><th class="r">Знижка</th><th class="r">До сплати</th><th>Статус оплати</th></tr></thead><tbody>
+  {% for r in v.rows %}<tr style="{{ 'opacity:.55' if r.status == 'Повернено' }}"><td style="white-space:nowrap">{% if r.link %}<a href="{{ r.link }}"><b>{{ r.num }}</b></a>{% else %}<b>{{ r.num }}</b>{% endif %}<div class="meta">{{ r.at|dt('%H:%M') }} · {{ r.src }}{{ ' · 🧾' if r.fiscal }}</div></td>
+    <td>{{ r.basis }}</td><td>{% if r.patient %}<a href="/patients/{{ r.patient.id }}">{{ r.patient.full_name }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
+    <td>{{ r.staff or '—' }}</td><td style="min-width:220px">{% for l in r.lines %}<div>{{ l }}</div>{% endfor %}</td>
+    <td class="r">{{ r.cost|uah }}</td><td class="r">{{ r.discount|uah if r.discount else '—' }}</td><td class="r"><b>{{ r.to_pay|uah }}</b></td>
+    <td><span style="font-weight:700;color:{{ '#C0392B' if r.status == 'Повернено' else 'var(--ok)' }}">{{ r.status }}</span></td></tr>
+  {% else %}<tr><td colspan="9" class="muted">За {{ day|dt('%d.%m.%Y') }} чеків немає.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

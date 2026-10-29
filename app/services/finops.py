@@ -164,7 +164,9 @@ def journal_totals(rows: list[J], exclude_income: set[str] | None = None) -> dic
 
 def sales_summary(cs: list[Check]) -> dict:
     s = {"revenue": 0.0, "discount": 0.0, "n": len(cs), "by_type": defaultdict(float), "by_pay": defaultdict(float),
-         "by_staff": defaultdict(lambda: {"services": 0.0, "products": 0.0, "n": 0}), "money": 0.0}
+         "by_staff": defaultdict(lambda: {"services": 0.0, "products": 0.0, "n": 0, "pn": 0}), "money": 0.0,
+         "services": defaultdict(lambda: {"qty": 0.0, "sum": 0.0, "staff": set()}),
+         "products": defaultdict(lambda: {"qty": 0.0, "sum": 0.0, "staff": set()})}
     for c in cs:
         s["revenue"] += c.amount or 0
         s["discount"] += c.discount or 0
@@ -173,11 +175,18 @@ def sales_summary(cs: list[Check]) -> dict:
             t = ITEM_TYPES.get(it.get("item_type"), "Інше")
             s["by_type"][t] += amt
             st = it.get("initiator_name") or c.author or "—"
+            q = float(it.get("quantity") or 1)
             if it.get("item_type") == "service":
                 s["by_staff"][st]["services"] += amt
-                s["by_staff"][st]["n"] += int(it.get("quantity") or 1)
+                s["by_staff"][st]["n"] += int(q)
             elif it.get("item_type") == "product":
                 s["by_staff"][st]["products"] += amt
+                s["by_staff"][st]["pn"] += int(q)
+            if it.get("item_type") in ("service", "product"):
+                g = s["services" if it["item_type"] == "service" else "products"][item_name(it)]
+                g["qty"] += q
+                g["sum"] += amt
+                g["staff"].add(st)
         for pay in c.payments or []:
             s["by_pay"][pay.get("payment_name") or "—"] += float(pay.get("amount") or 0)
             if is_money(pay.get("payment_name")):
@@ -186,7 +195,36 @@ def sales_summary(cs: list[Check]) -> dict:
     s["by_type"] = dict(sorted(s["by_type"].items(), key=lambda kv: -kv[1]))
     s["by_pay"] = dict(sorted(s["by_pay"].items(), key=lambda kv: -kv[1]))
     s["by_staff"] = dict(sorted(s["by_staff"].items(), key=lambda kv: -(kv[1]["services"] + kv[1]["products"])))
+    for k in ("services", "products"):
+        s[k] = {n: {**v, "staff": ", ".join(sorted(v["staff"]))} for n, v in sorted(s[k].items(), key=lambda kv: -kv[1]["sum"])}
     return s
+
+
+class CrmCheck:
+    """Продаж каси CRM у вигляді чека CleverBox — щоб рахувати разом у «Продажі за день / Продажі»."""
+    def __init__(self, sale, docs: dict, users: dict):
+        self.sale, self.crm = sale, True
+        self.id, self.date, self.amount, self.discount = f"Ч-{sale.id}", sale.at, sale.total, sale.discount
+        self.patient_id, self.author, self.deleted = sale.patient_id, users.get(sale.created_by, ""), False
+        self.items = [{"item_type": i.kind if i.kind in ITEM_TYPES else "other", "item_name": i.name, "payd_amount": i.total,
+                       "quantity": i.qty, "initiator_name": docs.get(i.doctor_id) or users.get(sale.created_by, "")} for i in sale.items]
+        self.payments = [{"payment_name": p.method, "amount": p.amount} for p in sale.payments]
+
+
+def crm_checks(db: Session, d_from: date, d_to: date, paid_only: bool = True) -> list:
+    from ..models import Sale, User
+    a, b = _range(d_from, d_to)
+    q = select(Sale).where(Sale.at >= a, Sale.at <= b)
+    if paid_only:
+        q = q.where(Sale.status == "paid")
+    docs = {d.id: d.name for d in db.scalars(select(Doctor))}
+    users = {u.id: u.name for u in db.scalars(select(User))}
+    return [CrmCheck(s, docs, users) for s in db.scalars(q.order_by(Sale.at.desc()))]
+
+
+def all_checks(db: Session, d_from: date, d_to: date) -> list:
+    """Чеки CleverBox + продажі каси CRM (оплачені), новіші — першими."""
+    return sorted(list(checks(db, d_from, d_to)) + crm_checks(db, d_from, d_to), key=lambda c: c.date, reverse=True)
 
 
 def sales_rows(db: Session, cs: list[Check], q: str = "", staff: str = "") -> list[dict]:

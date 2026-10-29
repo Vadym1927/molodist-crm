@@ -95,11 +95,14 @@ def save(db: Session, bid: int | None, data: dict) -> dict:
         x = {"id": max([int(y["id"]) for y in xs] + [0]) + 1}
         xs.append(x)
     old = x.get("name")
-    taken = {m for y in xs if y is not x for m in y.get("methods") or []}
+    taken = {m for y in xs if y is not x and y.get("active") and not y.get("deleted") for m in y.get("methods") or []}
     methods = [m for m in data.get("methods") or [] if m]
     clash = [m for m in methods if m in taken]
     if clash:
         raise ValueError("Спосіб оплати вже привʼязаний до іншої каси: " + ", ".join(clash))
+    for y in xs:                                               # з неактивних кас спосіб оплати знімаємо
+        if y is not x:
+            y["methods"] = [m for m in y.get("methods") or [] if m not in methods]
     x.update(name=name, type=data["type"], location_id=data.get("location_id") or None, active=bool(data.get("active")),
              opening=round(float(data.get("opening") or 0), 2), opening_date=data.get("opening_date") or None,
              methods=methods, note=str(data.get("note") or "")[:300], color=data.get("color") or x.get("color") or COLORS[0],
@@ -192,6 +195,15 @@ def moves(db: Session, x: dict, limit: int | None = None) -> list[Move]:
             out.append(Move(s.at, "in", p.amount, f"Чек Ч-{s.id} · {p.method}", f"/sales/{s.id}"))
     out.sort(key=lambda m: m.at, reverse=True)
     return out[:limit] if limit else out
+
+
+def balance_at(db: Session, x: dict, moment: datetime, mv: list[Move] | None = None) -> float | None:
+    """Залишок на момент (усе, що до нього). До дати стартового залишку — невідомо (None)."""
+    since = _since(x)
+    if since and moment < datetime.combine(since, datetime.min.time()):
+        return None
+    mv = moves(db, x) if mv is None else mv
+    return round(float(x.get("opening") or 0) + sum(m.amount if m.kind == "in" else -m.amount for m in mv if m.at < moment), 2)
 
 
 def balance(db: Session, x: dict) -> float:

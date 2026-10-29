@@ -1073,9 +1073,14 @@ def lookup_sale_products(q: str = "", user: User = Depends(require("sales")), db
 
 
 @app.get("/sales", response_class=HTMLResponse)
-def sales_list(request: Request, df: str = "", dt_: str = "", q: str = "", user: User = Depends(require("sales")),
+def sales_list(request: Request, df: str = "", dt_: str = "", q: str = "", d: str = "", user: User = Depends(require("sales")),
                db: Session = Depends(db_dep)):
     from .models import Sale
+    if not (df or dt_ or q):                                     # каса за добу (як «Продажі за добу» у CleverBox)
+        from .services import daybook, clinic as _cl
+        day_ = _day(d) or date.today()
+        return render(request, "fin_cash_day.html", nav="finance", day=day_, v=daybook.day(db, day_), timedelta=timedelta,
+                      today=date.today(), locs=_cl.get(db).get("locations") or [])
     d_from, d_to = _period(df, dt_)
     a_, b_ = datetime.combine(d_from, datetime.min.time()), datetime.combine(d_to, datetime.max.time())
     rows = db.scalars(select(Sale).where(Sale.at >= a_, Sale.at <= b_).order_by(Sale.at.desc()).limit(2000)).all()
@@ -4766,8 +4771,8 @@ def _with_msg(url: str, msg: str, err: bool = False) -> str:
 def finance_day(request: Request, d: str = "", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     from .services import finops as fo
     day = _day(d) or date.today()
-    cs = fo.checks(db, day, day)
-    prev = fo.sales_summary(fo.checks(db, day - timedelta(days=7), day - timedelta(days=7)))
+    cs = fo.all_checks(db, day, day)                         # чеки CleverBox + каса CRM
+    prev = fo.sales_summary(fo.all_checks(db, day - timedelta(days=7), day - timedelta(days=7)))
     return render(request, "fin_day.html", nav="finance", day=day, s=fo.sales_summary(cs), rows=fo.sales_rows(db, cs),
                   prev=prev, timedelta=timedelta)
 
@@ -4777,7 +4782,7 @@ def finance_sales(request: Request, df: str = "", dt_: str = "", q: str = "", st
                   user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     from .services import finops as fo
     d_from, d_to = _period(df, dt_)
-    cs = fo.checks(db, d_from, d_to)
+    cs = fo.all_checks(db, d_from, d_to)
     rows = fo.sales_rows(db, cs, q, staff)
     staff_names = sorted({it.get("initiator_name") for c in cs for it in (c.items or []) if it.get("initiator_name")})
     return render(request, "fin_sales.html", nav="finance", d_from=d_from, d_to=d_to, q=q, staff=staff, staff_names=staff_names,
