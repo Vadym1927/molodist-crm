@@ -2390,6 +2390,85 @@ def _mono_job(job, days: int = 2):
         return monobank.sync(db, days=days)
 
 
+CB_SETUP = "https://molodist.cbox.online/new/#setup/"
+# Налаштування: блоки як у CleverBox. Пункт: (назва, опис, посилання в CRM | None, право, шлях у CleverBox | None)
+SETTINGS_BLOCKS = [
+    ("Основні налаштування", [
+        ("Загальні", "Назва, контакти, години роботи клініки", None, None, "main_settings"),
+        ("Філії", "Філії й кабінети", None, None, "salons"),
+        ("Права доступу", "Користувачі CRM, ролі, паролі входу й видалення", "/access", "users", "roles"),
+        ("REST API", "API-ключі CRM і вебхуки; ключ CleverBox — у «Ключі й інтеграції»", "/access/api", "users", "cmarket/rest/main"),
+    ]),
+    ("Комунікації", [
+        ("Канали", "Viber, SMS, месенджери", None, None, "cmarket/channels/main"),
+        ("Повідомлення пацієнтам", "Розсилки й нагадування CRM; автоповідомлення — у CleverBox", "/campaigns", "campaigns", "messages"),
+        ("IP-телефонія", "Дзвінки й записи розмов", None, None, "cmarket/siphone/main"),
+        ("Bot", "Бот пацієнтів і чат", None, None, "cmarket/chat/main"),
+    ]),
+    ("Віджети та форми", [
+        ("Онлайн-бронювання", "Віджет запису на сайті", None, None, "webwidget"),
+    ]),
+    ("Налаштування фінансів", [
+        ("Операції з балансом пацієнта", "Типи поповнень і списань балансу", None, None, "btype"),
+        ("Платіжні системи", "Еквайринг; monobank для оплат постачальникам — у CRM", "/settings/keys#mono", "finance", "payment_system"),
+        ("Чайові", "Налаштування чайових", None, None, "tips"),
+        ("Checkbox", "Каси ФОП Колган і Бондар: оборот і ліміти ФОП", "/reports?r=fop", "finance", "cmarket/checkbox/main"),
+    ]),
+    ("Звернення", [
+        ("Джерела звернень", None, None, None, "dirs/appeal_type"),
+        ("Мітки звернень", None, None, None, "dirs/appeal_mark"),
+        ("Статуси звернень", None, None, None, "dirs/appeal_status"),
+        ("Причини відмов", None, None, None, "dirs/appeal_deny"),
+        ("Причини звернень", None, None, None, "dirs/appeal_cause"),
+    ]),
+    ("Співробітники й графік", [
+        ("Посади співробітників", None, None, None, "dirs/prof"),
+        ("Поля співробітників", "Команда в CRM: лікарі, KPI, привʼязка до CleverBox", "/specialists", "specialists", "sfields/staff"),
+        ("Налаштування окладів", None, None, None, "salary"),
+        ("Категорії спеціалістів", "Ціни за категоріями", None, None, "cmarket/customprice/main"),
+        ("Статті для нарахувань", None, None, None, "dirs/stype"),
+        ("Застосунок для спеціаліста", None, None, None, "cmarket/specapp/main"),
+    ]),
+    ("CRM MOLODIST", [
+        ("Ключі й інтеграції", "monobank, Checkbox, CleverBox, Claude API, molodist.store", "/settings/keys", "finance", None),
+        ("Паролі для видалення", "Окремий у кожного користувача — без нього нічого не видаляється", "/access", "users", None),
+        ("Журнал дій", "Хто що і коли робив у CRM", "/access/audit", "users", None),
+        ("Дані й синхронізація", "Імпорт / експорт, синхронізація з CleverBox", "/data", "export_reports", None),
+        ("Резервні копії", "Щоночі о 03:30 і вручну", "/data#backup", "export_reports", None),
+        ("Сповіщення про терміни", "Кому й коли надсилати попередження про терміни придатності", "/reports?r=expiry#notify", "finance", None),
+        ("Норми списання", "Що списується зі складу після процедури", "/stock?tab=norms", "stock", None),
+        ("Зіставлення послуг", "Позиції плану ↔ послуги CleverBox", "/mapping", "mapping", None),
+        ("Мій кабінет", "Пароль входу, Telegram для сповіщень", "/me", None, None),
+    ]),
+]
+
+
+@app.get("/settings", response_class=HTMLResponse)
+def settings_page(request: Request, user: User = Depends(current_user), db: Session = Depends(db_dep)):
+    """Налаштування: усе в одному місці, блоками як у CleverBox. Що є в CRM — відкривається тут, решта — у CleverBox."""
+    from .integrations import monobank, checkbox as chb, shop_express
+    from .services import invoice_ai
+    st_ = {}
+    try:
+        st_["/settings/keys#mono"] = f"monobank: {len(monobank.saved(db))} ФОП" if monobank.saved(db) else "monobank не підключено"
+        acc = chb.accounts(db)
+        st_["/reports?r=fop"] = f"підключено {len(acc)} ФОП" if acc else "не підключено"
+        n_keys = sum(bool(x) for x in (monobank.saved(db), acc, invoice_ai.api_key(db), shop_express.creds(db).get("login")))
+        st_["/settings/keys"] = f"підключено {n_keys} з 4"
+        users = db.scalars(select(User).where(User.active.is_(True))).all()
+        st_["/access"] = f"паролі видалення: {sum(1 for u_ in users if u_.delete_pw_hash)} з {len(users)}"
+    except Exception:  # noqa: BLE001
+        pass
+    blocks = []
+    for title, items in [SETTINGS_BLOCKS[-1]] + SETTINGS_BLOCKS[:-1]:          # спершу — те, що налаштовується в CRM
+        rows = [{"t": t, "d": d, "url": u if (u and (not p or can(user, p))) else None, "cb": (CB_SETUP + c) if c else None,
+                 "status": st_.get(u) if u else None} for t, d, u, p, c in items]
+        rows = [r for r in rows if r["url"] or r["cb"]]
+        if rows:
+            blocks.append((title, rows))
+    return render(request, "settings.html", blocks=blocks)
+
+
 @app.get("/settings/keys", response_class=HTMLResponse)
 def settings_keys(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     """Одне місце для ключів інтеграцій: monobank (по ФОП), Checkbox, CleverBox. Самі ключі ніколи не показуються."""

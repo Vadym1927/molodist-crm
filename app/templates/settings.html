@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Налаштування · MOLODIST CRM{% endblock %}
+{% block body %}
+<style>
+.st-wrap{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px;align-items:start}
+.st-b{background:var(--card,#fff);border:1px solid var(--line);border-radius:18px;padding:16px 18px}
+.st-b h2{margin:0 0 10px;font-size:15px}
+.st-i{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 10px;margin:0 -10px;border-radius:12px;text-decoration:none;color:var(--ink)}
+.st-i:hover{background:var(--soft)}
+.st-i b{font-weight:600;font-size:14.5px}.st-i em{display:block;font-style:normal;font-size:12.5px;color:var(--muted);margin-top:1px}
+.st-i .st-s{display:inline-block;margin-top:3px;font-size:11.5px;font-weight:600;color:var(--classic);background:var(--lavender);border-radius:99px;padding:1px 8px}
+.st-go{display:flex;gap:6px;flex:none}
+.st-go a{font-size:12px;font-weight:700;text-decoration:none;padding:4px 10px;border-radius:99px;white-space:nowrap}
+.st-go .crm{background:var(--deep);color:#fff}.st-go .cb{border:1px solid var(--line);color:var(--muted)}
+.st-go .cb:hover{border-color:var(--classic);color:var(--classic)}
+.st-b.crm-own{border-color:var(--lavender-2,#C9BFE6)}
+</style>
+<div class="eyebrow">Ще</div><h1>Налаштування</h1>
+<p class="small muted" style="margin:-4px 0 16px">Усе в одному місці, блоками як у CleverBox. <b>CRM</b> — налаштовується тут; <b>CleverBox ↗</b> — відкривається у CleverBox у новій вкладці (ці довідники живуть там, CRM бере дані з них синхронізацією).</p>
+<div class="st-wrap">
+{% for title, rows in blocks %}<div class="st-b {{ 'crm-own' if title == 'CRM MOLODIST' }}"><h2>{{ title }}</h2>
+  {% for r in rows %}{% set main = r.url or r.cb %}
+  <div class="st-i"><a href="{{ main }}" {% if not r.url %}target="_blank" rel="noopener"{% endif %} style="text-decoration:none;color:inherit;flex:1;min-width:0">
+      <b>{{ r.t }}</b>{% if r.d %}<em>{{ r.d }}</em>{% endif %}{% if r.status %}<span class="st-s">{{ r.status }}</span>{% endif %}</a>
+    <div class="st-go">{% if r.url %}<a class="crm" href="{{ r.url }}">CRM</a>{% endif %}{% if r.cb %}<a class="cb" href="{{ r.cb }}" target="_blank" rel="noopener">CleverBox ↗</a>{% endif %}</div></div>
+  {% endfor %}</div>{% endfor %}
+</div>
+{% endblock %}
