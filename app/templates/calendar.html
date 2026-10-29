@@ -82,7 +82,27 @@
 .mon .dl{display:flex;flex-wrap:wrap;gap:4px}.mon .dl i{font-style:normal;font-size:12px;font-weight:800;color:#fff;padding:2px 7px;border-radius:99px}
 @media (max-width:720px){.blk .st{display:none}.ph .date{font-size:18px}.filters form{width:100%}.filters select{min-width:0;flex:1}.mon a.cell{min-height:70px;padding:6px}.mon .dl i{font-size:10px;padding:1px 5px}.mon .tot{display:none}
 .tg{max-height:none}}
-.blk.crm{box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--c) 45%,transparent)}.tg-col{cursor:copy}.tg-col .blk{cursor:pointer}
+/* блоки як у CleverBox: колір за статусом, час · пацієнт · мітка, послуги рядками */
+.tg{max-height:none}
+.blk{border-left:0;border-top:4px solid var(--bc,#F5B940);background:var(--bg,#FFF8D6);border-radius:6px;padding:5px 9px 6px;box-shadow:0 1px 3px rgba(42,36,48,.12)}
+.blk:hover{background:var(--bg,#FFF8D6);filter:brightness(.98);box-shadow:0 3px 10px rgba(42,36,48,.18)}
+.blk.s-booked{--bc:#F5B940;--bg:#FFF8D6}.blk.s-confirmed{--bc:#9B4DE0;--bg:#F1E4FF}.blk.s-arrived{--bc:#3B8FD9;--bg:#E2F1FD}
+.blk.s-done{--bc:#4CAF50;--bg:#EAF6EA}.blk.s-no_show{--bc:#C0392B;--bg:#FDECEA}
+.blk .hd{display:flex;align-items:center;gap:6px;flex-wrap:wrap;line-height:1.25}
+.blk .hd .tm{margin:0;font:700 13px var(--sans);color:#2A2430;background:rgba(255,255,255,.7);border-radius:4px;padding:0 4px}
+.blk .hd b{font:700 14.5px var(--sans);display:inline;white-space:normal;padding:0}
+.blk .ptag{font:700 10.5px var(--sans);padding:1px 6px;border-radius:4px;color:#fff;background:#8BC34A;white-space:nowrap}
+.blk .ptag.reg{background:#5BC0DE}.blk .ptag.fan{background:#7CB342}
+.blk .svl{margin-top:4px;font-size:13.5px;color:#2A2430;line-height:1.35;white-space:normal}
+.blk .svl span{display:inline-block;margin-right:10px}
+.blk .nt{font-size:12.5px;color:#5d5869;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.blk .st{float:none;margin:0 0 0 auto;font-size:10.5px;padding:1px 7px}
+.blk.short{padding:3px 8px}.blk.short .svl{margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.blk.short .nt{display:none}.blk.short .st{display:none}
+.blk.attended{opacity:.85}
+.blk.crm{box-shadow:0 1px 3px rgba(42,36,48,.12)}
+.tg-head .av{width:46px;height:46px}.tg-head>div{justify-content:flex-start;padding:12px 14px}
+.tg-head a.dn{color:#2f65a0;font-weight:700;font-size:15px;text-decoration:underline dotted;text-underline-offset:3px}
+.blk.crm-old{box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--c) 45%,transparent)}.tg-col{cursor:copy}.tg-col .blk{cursor:pointer}
 .offsh{position:absolute;left:0;right:0;background:repeating-linear-gradient(135deg,rgba(42,36,48,.035) 0 6px,rgba(42,36,48,.07) 6px 12px);pointer-events:none;z-index:0}
 </style>
 
@@ -114,14 +134,14 @@
 </div>
 
 {% if view=='day' %}
-{% set PX = 1.6 %}{% set H = (grid.h1 - grid.h0) * 60 * PX %}{% set n = grid.cols|length %}
+{% set PX = 1.3 %}{% set H = (grid.h1 - grid.h0) * 60 * PX %}{% set n = grid.cols|length %}
 {% set GC = 'grid-template-columns:76px repeat(' ~ n ~ ',minmax(220px,1fr))' %}
 <div class="tg">
   <div class="tg-head" style="{{ GC }}">
     <div>Час</div>
     {% for g in grid.cols %}{% set d = g.col.doctor %}
     <div>{% if d %}<i class="av" style="{% if d.photo_url %}background-image:url('{{ d.photo_url }}');{% endif %}box-shadow:inset 0 0 0 2px {{ color(d) }}">{{ '' if d.photo_url else initials(d.name) }}</i>
-      <div style="min-width:0"><b>{{ d.name.split()[0] }}{{ (' ' ~ d.name.split()[1][:1] ~ '.') if d.name.split()|length > 1 }}</b><span>{{ d.position or ('звільнений' if not d.active else 'Спеціаліст') }}</span>
+      <div style="min-width:0"><a class="dn" href="?view=day&start={{ start }}&doc={{ d.id }}">{{ d.name }}</a><span style="display:block">{{ d.position or ('звільнений' if not d.active else 'Спеціаліст') }}</span>
         {% set _s = (shifts or {}).get(d.id) %}<span style="display:block;font-weight:700;color:{{ 'var(--ok)' if _s else 'var(--faint)' }}">{{ (_s.start ~ '–' ~ _s.end ~ ((' · ' ~ _s.place) if _s.place else '')) if _s else 'не в графіку' }}</span></div>
       {% else %}<div><b>Без фахівця</b><span>задачі, очікувані за планом</span></div>{% endif %}</div>
     {% endfor %}
@@ -139,20 +159,24 @@
       {% set _s = (shifts or {}).get(g.col.doctor.id) if g.col.doctor else None %}{% if _s %}{% set a = (_s.start[:2]|int * 60 + _s.start[3:]|int - grid.h0 * 60) * PX %}{% set b = (_s.end[:2]|int * 60 + _s.end[3:]|int - grid.h0 * 60) * PX %}
         {% if a > 0 %}<div class="offsh" style="top:8px;height:{{ a }}px"></div>{% endif %}<div class="offsh" style="top:{{ b + 8 }}px;bottom:0"></div>{% endif %}
       {% for h in range(grid.h0, grid.h1 + 1) %}<div class="tg-line h" style="top:{{ (h - grid.h0) * 60 * PX + 8 }}px"></div>{% if h < grid.h1 %}<div class="tg-line" style="top:{{ ((h - grid.h0) * 60 + 30) * PX + 8 }}px"></div>{% endif %}{% endfor %}
-      {% for f in g.free %}<div class="fre" style="top:{{ f.top * PX + 12 }}px;height:{{ f.height * PX - 8 }}px"><b>Вільний час</b><span>{{ f.start|dt('%H:%M') }} – {{ f.end|dt('%H:%M') }} · {{ f.hours }}</span></div>{% endfor %}
+
       {% for b in g.blocks %}{% set e = b.ev %}
-      <a class="blk {{ e.kind }} {{ 'short' if b.height * PX < 70 }} {{ 'crm' if e.appt_id }}" href="{{ ('/patients/' ~ e.patient_id) if e.patient_id else '/tasks' }}" title="{{ e.title }} · {{ e.service or '' }}"
+      <a class="blk {{ e.kind }} s-{{ e.status or 'booked' }} {{ 'short' if b.height * PX < 52 }} {{ 'crm' if e.appt_id }}" href="{{ ('/patients/' ~ e.patient_id) if e.patient_id else '/tasks' }}" title="{{ e.title }} · {{ e.service or '' }}"
          {% if e.appt_id %}onclick="event.stopPropagation();apptOpen({{ e.appt_id }});return false"{% endif %}
-         style="top:{{ b.top * PX + 10 }}px;height:{{ [b.height * PX - 4, 30]|max }}px;left:calc({{ 100 * b.lane / b.lanes }}% + 8px);width:calc({{ 100 / b.lanes }}% - 16px)">
-        {% if e.appt_id and b.lanes == 1 %}<span class="st">{{ e.status_label }}</span>{% elif e.in_plan and e.kind=='visit' and b.lanes == 1 %}<span class="st plan">бюті-план</span>{% elif e.kind=='attended' and b.lanes == 1 %}<span class="st">відбувся</span>{% endif %}
-        <b>{{ e.title }}</b>{% if e.service %}<div class="sv">{{ e.service }}</div>{% endif %}
-        <div class="tm">{{ e.when|dt('%H:%M') }} – {{ (e.ends or e.when)|dt('%H:%M') }} · {{ e.minutes }} хв</div></a>
+         style="top:{{ b.top * PX + 9 }}px;height:{{ [b.height * PX - 3, 26]|max }}px;left:calc({{ 100 * b.lane / b.lanes }}% + 6px);width:calc({{ 100 / b.lanes }}% - 12px)">
+        <div class="hd"><span class="tm">{{ e.when|dt('%H:%M') }}-{{ (e.ends or e.when)|dt('%H:%M') }}</span><b>{{ e.title }}</b>
+          {% if e.tag %}<span class="ptag {{ 'fan' if e.tag == 'ФАНАТ' else ('reg' if e.tag.startswith('Пост') else '') }}">{{ e.tag }}</span>{% endif %}
+          {% if e.in_plan and e.kind == 'visit' %}<span class="ptag" style="background:#5C4B82">бюті-план</span>{% endif %}
+          {% if b.lanes == 1 and e.status_label %}<span class="st">{{ e.status_label }}</span>{% endif %}</div>
+        {% if e.services %}<div class="svl">{% for s in e.services %}<span>👉 {{ s }}</span>{% endfor %}</div>{% endif %}
+        {% if e.note %}<div class="nt">Замітка: {{ e.note }}</div>{% endif %}</a>
       {% endfor %}
       {% if grid.now_top is not none %}<div class="nowline" style="top:{{ grid.now_top * PX + 8 }}px"></div>{% endif %}
     </div>
     {% endfor %}
   </div>
 </div>
+<div class="legend2" style="margin-top:10px">{% for k, lb, bc, bg in [('booked','Записаний','#F5B940','#FFF8D6'),('confirmed','Підтверджено','#9B4DE0','#F1E4FF'),('arrived','Прийшов','#3B8FD9','#E2F1FD'),('done','Візит завершено','#4CAF50','#EAF6EA'),('no_show','Не прийшов','#C0392B','#FDECEA')] %}<span><i style="background:{{ bg }};border-top:3px solid {{ bc }}"></i>{{ lb }}</span>{% endfor %}</div>
 {% elif view=='week' %}
 <div class="wk" id="wk" style="--cw:{{ '240px' if view=='day' else '140px' }}">
 {% for d, cs in cols.items() %}
@@ -202,7 +226,7 @@ if(t&&w.scrollWidth>w.clientWidth){w.scrollLeft=Math.max(0,t.offsetLeft-w.offset
 {% include "_appt_modal.html" %}
 {% set _qp = request.query_params %}{% if _qp.get('newappt') %}<script>apOpenNew({{ (doc or 0) }}, '', '{{ ('&patient=' ~ _qp.get('patient')) if _qp.get('patient') }}{{ ('&appeal=' ~ _qp.get('appeal')) if _qp.get('appeal') }}');</script>{% endif %}
 <script>function tgNew(e,col,doc){if(e.target.closest('a'))return;var r=col.getBoundingClientRect(),y=e.clientY-r.top-8,
-  m=Math.max(0,Math.round(y/{{ 1.6 }}/15)*15)+{{ (grid.h0 if grid else 9) * 60 }},h=Math.floor(m/60),mi=m%60;
+  m=Math.max(0,Math.round(y/{{ 1.3 }}/15)*15)+{{ (grid.h0 if grid else 9) * 60 }},h=Math.floor(m/60),mi=m%60;
   apOpenNew(doc,'{{ start }}T'+String(h).padStart(2,'0')+':'+String(mi).padStart(2,'0'))}</script>
 {% if request.query_params.get('msg') %}<div class="dp-toast" style="background:var(--ok-bg);color:var(--ok);border-color:#BFE3CD" onclick="this.remove()">{{ request.query_params.get('msg') }}</div>{% endif %}
 {% endblock %}

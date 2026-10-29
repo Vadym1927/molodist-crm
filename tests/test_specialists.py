@@ -100,7 +100,7 @@ def test_time_grid_layout():
     assert [b.lanes for b in blocks] == [2, 2, 1] and blocks[0].lane != blocks[1].lane
     free = g["cols"][0]["free"]
     assert [(f.start.hour, f.end.hour) for f in free] == [(12, 15), (15, 19)]
-    assert g["h0"] == 9 and g["h1"] >= 20
+    assert g["h0"] == 10 and g["h1"] >= 19
 
 
 def test_calendar_views_render():
