@@ -78,7 +78,7 @@
     </div>
     <label>Ініціатор продажу в касі<select name="sale_initiator"><option value="1" {{ 'selected' if d.sale_initiator is not false }}>Показувати у виборі «Спеціаліст / продавець»</option><option value="0" {{ 'selected' if d.sale_initiator is false }}>Не показувати</option></select></label>
     {% if xfields %}<div class="xf-h">Додаткові поля <a href="/settings/staff-fields" class="small" style="font-weight:400">налаштувати</a></div>
-    {% for f in xfields %}{% set v = xv.get(f.key) %}{% set opts = f.options or auto_opts.get(f.key, []) %}
+    {% for f in xfields %}{% set v = xv.get(f.key) %}{% set opts = auto_opts['salary'] if f.key == 'salary' else (f.options or auto_opts.get(f.key, [])) %}
       {% if f.type == 'checkbox' %}<label class="xf-cb"><input type="checkbox" name="x_{{ f.key }}" value="1" {{ 'checked' if v }}> {{ f.name }}</label>
       {% elif f.type == 'multiselect' %}<div class="xf-ms"><span>{{ f.name }}{{ ' *' if f.required }}</span><div class="xf-chips">{% for o in opts %}<label><input type="checkbox" name="x_{{ f.key }}" value="{{ o }}" {{ 'checked' if v and o in v }}><i>{{ o }}</i></label>{% else %}<em class="small muted">Варіанти не задані — <a href="/settings/staff-fields">додати</a></em>{% endfor %}</div></div>
       {% elif f.type == 'phones' %}<div class="xf-ms"><span>{{ f.name }}</span><div class="xf-ph">{% for p in (v or []) + [''] %}<input name="x_{{ f.key }}" value="{{ p }}" placeholder="+380…">{% endfor %}</div></div>

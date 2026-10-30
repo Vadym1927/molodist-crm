@@ -305,6 +305,46 @@ def _staff_sales(db: Session, d_from: date, d_to: date, doctors: list[Doctor]) -
     return out
 
 
+def _staff_lines(db: Session, d_from: date, d_to: date, doctors: list[Doctor]) -> tuple[dict, dict]:
+    """Позиції чеків для окладів: (місяць, лікар) → [позиції] і місяць → [усі позиції клініки]."""
+    from ..integrations.cleverbox import match_doctor
+    from ..models import Sale
+    by_doc: dict = defaultdict(list)
+    clinic: dict = defaultdict(list)
+    cache: dict = {}
+
+    def f(v):
+        try:
+            return float(v or 0)
+        except (TypeError, ValueError):
+            return 0.0
+    for c in checks(db, d_from, d_to):
+        mk, day = month_key(c.date.date()), c.date.date()
+        for it in c.items or []:
+            qty = f(it.get("quantity")) or 1
+            paid = item_amount(it)
+            ln = {"day": day, "type": it.get("item_type") or "service", "name": item_name(it), "qty": qty, "paid": paid,
+                  "cost": (f(it.get("price")) * qty) or paid, "category": it.get("category_name") or it.get("category") or "",
+                  "brand": it.get("brand_name") or it.get("brand") or "", "disc": f(it.get("discount")) > 0}
+            clinic[mk].append(ln)
+            nm = it.get("initiator_name") or ""
+            if nm not in cache:
+                cache[nm] = match_doctor(nm, doctors)
+            if cache[nm]:
+                by_doc[(mk, cache[nm].id)].append(ln)
+    a, b = _range(d_from, d_to)
+    for s in db.scalars(select(Sale).where(Sale.status == "paid", Sale.at >= a, Sale.at <= b)):
+        mk, day = month_key(s.at.date()), s.at.date()
+        for it in s.items:
+            ln = {"day": day, "type": {"certificate": "certificate"}.get(it.kind, it.kind), "name": it.name, "qty": it.qty or 1,
+                  "paid": it.total, "cost": round((it.price or 0) * (it.qty or 1), 2), "category": it.category or "", "brand": "",
+                  "disc": bool(it.discount)}
+            clinic[mk].append(ln)
+            if it.doctor_id:
+                by_doc[(mk, it.doctor_id)].append(ln)
+    return by_doc, clinic
+
+
 def payroll(db: Session, month: str, upto_from: str | None = None) -> list[dict]:
     """Нарахування за місяць (і, якщо upto_from, — по всіх місяцях з upto_from для взаєморозрахунків)."""
     doctors = db.scalars(select(Doctor).order_by(Doctor.name)).all()
@@ -316,14 +356,34 @@ def payroll(db: Session, month: str, upto_from: str | None = None) -> list[dict]
     adjs = defaultdict(list)
     for a in db.scalars(select(SalaryAdj).where(SalaryAdj.month.in_(months))):
         adjs[(a.month, a.doctor_id)].append(a)
+    from . import salary_plans as spl
+    plans = {d.id: spl.by_name(db, (d.extra or {}).get("salary")) for d in doctors}
+    plans = {k: v for k, v in plans.items() if v}
+    lines, clinic, shifts_ = ({}, {}, {})
+    if plans:
+        from .schedule import shifts as _shifts
+        lines, clinic = _staff_lines(db, d_from, d_to, doctors)
+        shifts_ = _shifts(db, d_from, d_to)
     rows = []
     for d in doctors:
         r = rules.get(d.id)
-        if not r and not d.active:
+        pl = plans.get(d.id)
+        if not r and not pl and not d.active:
             continue
         per = {}
         for mk in months:
             s = sales.get((mk, d.id), {"services": 0.0, "products": 0.0, "n": 0})
+            if pl:
+                lns = lines.get((mk, d.id), [])
+                days = {dd for (did, dd) in shifts_ if did == d.id and month_key(dd) == mk} | {ln["day"] for ln in lns}
+                hours = sum(sh.minutes for (did, dd), sh in shifts_.items() if did == d.id and month_key(dd) == mk) / 60
+                res = spl.accrue(pl, lns, days, hours, clinic.get(mk, []))
+                adj = sum(x.amount for x in adjs.get((mk, d.id), []))
+                per[mk] = {"services": round(s["services"], 2), "products": round(s["products"], 2), "n": s["n"], "base": res["fixed"],
+                           "from_services": res["comm_services"], "from_products": round(res["comm"] - res["comm_services"] + res["turn"], 2),
+                           "adj": round(adj, 2), "adjs": adjs.get((mk, d.id), []), "accrued": round(res["total"] + adj, 2),
+                           "plan": res, "days": len(days)}
+                continue
             base = (r.base or 0) if r else 0
             ps = (r.pct_services or 0) if r else 0
             pp = (r.pct_products or 0) if r else 0
@@ -333,9 +393,9 @@ def payroll(db: Session, month: str, upto_from: str | None = None) -> list[dict]
                        "from_services": round(s["services"] * ps / 100, 2), "from_products": round(s["products"] * pp / 100, 2),
                        "adj": round(adj, 2), "adjs": adjs.get((mk, d.id), []), "accrued": acc}
         cur = per[month]
-        if not r and not cur["services"] and not cur["products"]:
+        if not r and not pl and not cur["services"] and not cur["products"]:
             continue
-        rows.append({"doctor": d, "rule": r, "m": cur, "per": per})
+        rows.append({"doctor": d, "rule": r, "plan": pl, "m": cur, "per": per})
     return rows
 
 

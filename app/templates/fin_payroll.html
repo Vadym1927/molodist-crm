@@ -12,13 +12,15 @@
 </div>
 <div class="card" style="padding:6px 8px;overflow:auto"><table class="tb small"><thead><tr><th>Спеціаліст</th><th>Правило</th><th class="r">Послуги</th><th class="r">Від послуг</th><th class="r">Товари</th><th class="r">Від товарів</th><th class="r">Оклад</th><th class="r">Премії / утр.</th><th class="r">Нараховано</th></tr></thead><tbody>
 {% for r in rows %}{% set m = r.m %}<tr id="d{{ r.doctor.id }}"><td><b>{{ r.doctor.name }}</b>{% if r.doctor.position %}<div class="meta">{{ r.doctor.position }}</div>{% endif %}</td>
-  <td>{% if r.rule %}{{ '%g'|format(r.rule.pct_services or 0) }}% посл. · {{ '%g'|format(r.rule.pct_products or 0) }}% тов.{{ (' · оклад ' ~ (r.rule.base|uah)) if r.rule.base }}{% else %}<span class="pill warn">не задано</span>{% endif %}
-    <details><summary class="small">змінити</summary><form method="post" action="/finance/payroll/rule" class="grid" style="gap:6px;margin-top:6px;min-width:220px">
+  <td>{% if r.plan %}<a href="/settings/salary?open={{ r.plan.id }}" class="pill" style="background:#E4DEEF;color:#3B3050;text-decoration:none">Оклад: {{ r.plan.name }}</a>
+    {% if m.plan %}<div class="meta">ставка {{ m.plan.fixed|uah }}{{ (' · ' ~ m.days ~ ' дн.') if r.plan.fixed.period == 'day' }} · комісійні {{ m.plan.comm|uah }}{{ (' · оборот ' ~ (m.plan.turn|uah)) if m.plan.turn }}</div>{% endif %}
+  {% elif r.rule %}{{ '%g'|format(r.rule.pct_services or 0) }}% посл. · {{ '%g'|format(r.rule.pct_products or 0) }}% тов.{{ (' · оклад ' ~ (r.rule.base|uah)) if r.rule.base }}{% else %}<span class="pill warn">не задано</span>{% endif %}
+    {% if not r.plan %}<details><summary class="small">змінити</summary><form method="post" action="/finance/payroll/rule" class="grid" style="gap:6px;margin-top:6px;min-width:220px">
       <input type="hidden" name="doctor_id" value="{{ r.doctor.id }}"><input type="hidden" name="m" value="{{ month }}">
       <label class="small muted">% від послуг<input name="pct_services" value="{{ '%g'|format(r.rule.pct_services) if r.rule and r.rule.pct_services is not none else '' }}" inputmode="decimal"></label>
       <label class="small muted">% від товарів<input name="pct_products" value="{{ '%g'|format(r.rule.pct_products) if r.rule and r.rule.pct_products is not none else '' }}" inputmode="decimal"></label>
       <label class="small muted">Оклад за місяць, ₴<input name="base" value="{{ '%.2f'|format(r.rule.base) if r.rule and r.rule.base else '' }}" inputmode="decimal"></label>
-      <input name="note" value="{{ r.rule.note or '' if r.rule }}" placeholder="Нотатка"><button class="btn ghost">Зберегти</button></form></details></td>
+      <input name="note" value="{{ r.rule.note or '' if r.rule }}" placeholder="Нотатка"><button class="btn ghost">Зберегти</button></form></details>{% endif %}</td>
   <td class="r">{{ m.services|uah }}<div class="meta">{{ m.n }} посл.</div></td><td class="r">{{ m.from_services|uah }}</td>
   <td class="r">{{ m.products|uah }}</td><td class="r">{{ m.from_products|uah }}</td><td class="r">{{ m.base|uah if m.base else '—' }}</td>
   <td class="r">{% for a in m.adjs %}<div class="{{ 'in' if a.amount > 0 else 'out' }}" title="{{ a.comment or '' }}">{{ '+' if a.amount > 0 }}{{ a.amount|uah }}

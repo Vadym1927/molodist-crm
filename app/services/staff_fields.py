@@ -18,7 +18,7 @@ SYS = [("name", "Імʼя та прізвище", "text", True), ("position", "�
        ("email", "Email", "text", False), ("in_calendar", "Показувати в календарі", "checkbox", False), ("bio", "Короткий опис", "textarea", False)]
 SEED = [("patronymic", "По-батькові", "text", []), ("phones", "Додаткові телефони", "phones", []), ("start_work", "Дата початку роботи", "date", []),
         ("passport", "Паспорт", "text", []), ("tax_code", "Код (ІПН)", "text", []), ("birthday", "Дата народження", "date", []),
-        ("medbook", "Дата закінчення терміну медкнижки", "date", []), ("salary", "Зарплата", "select", ["Оклад", "Відсоток", "Оклад + відсоток"]),
+        ("medbook", "Дата закінчення терміну медкнижки", "date", []), ("salary", "Зарплата (оклад)", "select", []),
         ("clinic", "Клініка", "multiselect", []), ("gender", "Стать", "select", ["Жіноча", "Чоловіча"]), ("directions", "Направлення", "multiselect", [])]
 
 

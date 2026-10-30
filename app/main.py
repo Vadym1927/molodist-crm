@@ -3785,7 +3785,7 @@ SETTINGS_BLOCKS = [
     ('Співробітники', 'team', 'Посади, оклади, категорії й нарахування', [
         ('Посади співробітників', 'Директор, адміністратори, лікарі…: довідник посад для картки спеціаліста', '/settings/positions', 'specialists_edit', 'dirs/prof'),
         ('Поля співробітників', 'Свої поля для картки співробітника: дата народження, медкнижка, паспорт, стать, клініка…', '/settings/staff-fields', 'specialists_edit', 'sfields/staff'),
-        ('Налаштування окладів', None, None, None, 'salary'),
+        ('Налаштування окладів', 'Фіксована ставка, комісійні за послуги й товари, % від обороту — шаблони для зарплати', '/settings/salary', 'finance', 'salary'),
         ('Категорії спеціалістів', 'Ціни за категоріями', None, None, 'cmarket/customprice/main'),
         ('Статті для нарахувань', None, None, None, 'dirs/stype'),
         ('Застосунок для спеціаліста', None, None, None, 'cmarket/specapp/main'),
@@ -3900,6 +3900,62 @@ async def settings_positions_order(request: Request, user: User = Depends(requir
     from .services import positions as ps
     js = await request.json()
     ps.reorder(db, [int(x) for x in js.get("ids") or [] if str(x).isdigit()])
+    return JSONResponse({"ok": True})
+
+
+# ---------------- Налаштування → Оклади співробітників ----------------
+@app.get("/settings/salary", response_class=HTMLResponse)
+def settings_salary(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import salary_plans as spl
+    plans = spl.items(db)
+    use: dict = {}
+    for d_ in db.scalars(select(Doctor).where(Doctor.extra.is_not(None))):
+        nm = (d_.extra or {}).get("salary")
+        if nm:
+            use.setdefault(nm, []).append(d_.name)
+    from .models import Product as _Pr
+    lists = {"service": sorted({r_[0] for r_ in db.execute(select(CbService.name)) if r_[0]}),
+             "service_cat": sorted({r_[0] for r_ in db.execute(select(CbService.category)) if r_[0]}),
+             "product": sorted({r_[0] for r_ in db.execute(select(_Pr.name)) if r_[0]}),
+             "product_cat": sorted({r_[0] for r_ in db.execute(select(_Pr.category)) if r_[0]}),
+             "brand": sorted({r_[0] for r_ in db.execute(select(_Pr.brand)) if r_[0]})}
+    return render(request, "salary_plans.html", nav="settings", plans=plans, use=use, spl=spl, lists=lists,
+                  open_=request.query_params.get("open", ""))
+
+
+@app.post("/settings/salary")
+async def settings_salary_save(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import salary_plans as spl
+    f = await request.form()
+    pid = int(f.get("pid")) if str(f.get("pid") or "").isdigit() else None
+    plan = spl.from_form(f)
+    err = spl.save(db, pid, plan)
+    if not err:
+        audit(db, "salary_plan.save", "salary_plan", pid, user=user, name=plan["name"])
+    return RedirectResponse(_with_msg("/settings/salary", err or f"Оклад «{plan['name']}» збережено", bool(err)), 303)
+
+
+@app.post("/settings/salary/{pid:int}/copy")
+def settings_salary_copy(pid: int, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import salary_plans as spl
+    nid = spl.copy_plan(db, pid)
+    audit(db, "salary_plan.copy", "salary_plan", pid, user=user, new=nid)
+    return RedirectResponse(f"/settings/salary?open={nid}&msg=" + _q("Копію створено"), 303)
+
+
+@app.post("/settings/salary/{pid:int}/delete")
+def settings_salary_delete(pid: int, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import salary_plans as spl
+    spl.delete(db, pid)
+    audit(db, "salary_plan.delete", "salary_plan", pid, user=user)
+    return RedirectResponse(_with_msg("/settings/salary", "Оклад видалено"), 303)
+
+
+@app.post("/settings/salary/order")
+async def settings_salary_order(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import salary_plans as spl
+    js = await request.json()
+    spl.reorder(db, [int(x) for x in js.get("ids") or [] if str(x).isdigit()])
     return JSONResponse({"ok": True})
 
 
@@ -5423,7 +5479,7 @@ def finance_payroll(request: Request, m: str = "", user: User = Depends(require(
     all_docs = db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)).all()
     return render(request, "fin_payroll.html", nav="finance", month=month, rows=rows, months=_month_list(),
                   total={k: round(sum(r["m"][k] for r in rows), 2) for k in ("services", "products", "accrued", "adj")},
-                  no_rule=[d_ for d_ in all_docs if d_.id not in {r["doctor"].id for r in rows if r["rule"]}])
+                  no_rule=[d_ for d_ in all_docs if d_.id not in {r["doctor"].id for r in rows if r["rule"] or r.get("plan")}])
 
 
 def _month_list(n: int = 24) -> list[str]:
@@ -6028,7 +6084,8 @@ def specialist_page(did: int, request: Request, user: User = Depends(require("sp
     patients = db.scalars(select(Patient).where(Patient.doctor_id == did).order_by(Patient.full_name).limit(200)).all()
     from .services import positions as _ps, staff_fields as _sf, clinic as _cl
     xf = _sf.custom(db)
-    auto_opts = {"clinic": [l_.get("name") for l_ in (_cl.get(db).get("locations") or []) if l_.get("name")]}
+    from .services import salary_plans as _spl
+    auto_opts = {"clinic": [l_.get("name") for l_ in (_cl.get(db).get("locations") or []) if l_.get("name")], "salary": _spl.names(db)}
     return render(request, "specialist.html", d=d, c=card, upcoming=upcoming, patients=patients,
                   palette=spec_svc.PALETTE, positions=_ps.names(db), xfields=xf, auto_opts=auto_opts, xv=d.extra or {})
 

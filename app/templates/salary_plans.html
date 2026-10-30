@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Оклади співробітників · MOLODIST CRM{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+{% include "_cs_style.html" %}
+<style>.ps-l{display:grid;gap:8px;max-width:900px}
+.ps-r{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:10px 12px 10px 8px;transition:box-shadow .15s,border-color .15s}
+.ps-r:hover{border-color:#C9BFE6;box-shadow:0 8px 22px -16px rgba(59,48,80,.45)}.ps-r.drag{opacity:.45}.ps-r form{margin:0}
+.ps-h{cursor:grab;color:#b8b1c2;display:flex;padding:6px;border-radius:8px}.ps-h:hover{background:#F7F4F0;color:#5C4B82}
+.ps-n{flex:1;min-width:0;background:none;border:0;text-align:left;cursor:pointer;padding:4px}
+.ps-n b{display:block;font:600 15px var(--sans);color:#3B3050}.ps-n small{display:block;font:500 12.5px var(--sans);color:#9a93a6;margin-top:3px}
+.ps-c{font:600 11.5px var(--sans);color:#3B3050;background:#E4DEEF;border-radius:99px;padding:3px 10px;white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}
+.ps-b{width:36px;height:36px;border-radius:10px;border:1px solid #ECE7E1;background:#fff;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:#5C4B82}
+.ps-b:hover{background:#F7F4F0}.ps-b.del:hover{color:#B23B2E;border-color:#F0C9C3;background:#FDF3F1}
+.sp-back{position:fixed;inset:0;background:rgba(42,36,48,.45);opacity:0;pointer-events:none;transition:opacity .2s;z-index:90}.sp-back.on{opacity:1;pointer-events:auto}
+.sp{position:fixed;top:0;right:0;bottom:0;width:min(720px,100vw);background:#F7F4F0;z-index:91;transform:translateX(100%);transition:transform .25s ease;display:flex;flex-direction:column;box-shadow:-30px 0 60px -30px rgba(42,36,48,.5)}
+.sp.on{transform:none}
+.sp-hd{display:flex;align-items:center;gap:10px;padding:16px 22px;background:#fff;border-bottom:1px solid #ECE7E1}
+.sp-hd h3{flex:1;margin:0;font:600 18px var(--head);letter-spacing:.06em;text-transform:uppercase}
+.sp-bd{flex:1;overflow:auto;padding:18px 22px 40px;display:grid;gap:16px;align-content:start}
+.sec{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:16px 18px;display:grid;gap:12px}
+.sec>h4{margin:0;font:600 12.5px var(--head);letter-spacing:.14em;text-transform:uppercase;color:#3B3050;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.sec .ab{font-size:13px;color:#8a8496;line-height:1.45}
+.sec.off .body{opacity:.45;pointer-events:none}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.g2 label,.fl{display:grid;gap:5px;font:700 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#9a93a6}
+.g2 input,.g2 select,.fl input{height:42px}
+.ck{display:flex;align-items:flex-start;gap:10px;font:600 14px var(--sans);color:#2A2430;cursor:pointer}.ck input{width:18px;height:18px;margin-top:2px;accent-color:#3B3050}
+.ck small{display:block;font:400 12.5px var(--sans);color:#8a8496;margin-top:2px}
+.its{display:grid;gap:6px}.itr{display:grid;grid-template-columns:120px 1fr 80px 150px 32px;gap:6px;align-items:center;background:#F7F4F0;border-radius:12px;padding:6px}
+.itr input,.itr select{height:38px;min-width:0}.itr button{border:0;background:none;color:#B23B2E;font-size:18px;cursor:pointer}
+.adds{display:flex;flex-wrap:wrap;gap:6px}.adds button{border:1px solid #E6E0D8;background:#fff;border-radius:99px;padding:6px 12px;font:600 12.5px var(--sans);cursor:pointer;color:#3B3050}
+.adds button:hover{background:#E4DEEF}
+@media(max-width:640px){.g2{grid-template-columns:1fr}.itr{grid-template-columns:1fr 1fr}.itr .nm{grid-column:1/-1}}</style>
+<div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a></div>
+<div class="row between" style="gap:8px;flex-wrap:wrap"><h1 style="margin:0">Оклади співробітників</h1><button class="btn" type="button" onclick="spOpen(null)">＋ Додати</button></div>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+{% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+<div class="cs-note" style="margin:12px 0 16px;max-width:900px">Оклад — шаблон нарахування зарплати: фіксована ставка, комісійні за послуги й продажі, % від загального обороту. Співробітнику оклад обирають у картці (поле «Зарплата (оклад)»), а нарахування рахуються у «Фінанси → Нарахування зарплати».</div>
+<div class="ps-l" id="ps-l">
+{% for x in plans %}<div class="ps-r" draggable="true" data-id="{{ x.id }}">
+  <span class="ps-h" title="Перетягніть"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 8h14M5 12h14M5 16h14"/></svg></span>
+  <button class="ps-n" type="button" onclick="spOpen({{ x.id }})"><b>{{ x.name }}</b>
+    <small>{% set parts = [] %}{% if x.fixed.on %}{% set _ = parts.append('ставка ' ~ ('%g'|format(x.fixed.amount)) ~ ' ₴ ' ~ spl.PERIODS[x.fixed.period]|lower) %}{% endif %}{% if x.comm.on %}{% set _ = parts.append('комісійні' ~ ((' · ' ~ x.comm['items']|length ~ ' окр. ставок') if x.comm['items'] else '')) %}{% endif %}{% if x.turn.on %}{% set _ = parts.append('% від обороту') %}{% endif %}{% if x.bonus.on %}{% set _ = parts.append('бонуси') %}{% endif %}{{ parts|join(' · ') or 'ще не налаштовано' }}</small></button>
+  {% if use.get(x.name) %}<span class="ps-c" title="{{ use[x.name]|join(', ') }}">{{ use[x.name]|join(', ') }}</span>{% endif %}
+  <form method="post" action="/settings/salary/{{ x.id }}/copy"><button class="ps-b" title="Копіювати"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button></form>
+  <form method="post" action="/settings/salary/{{ x.id }}/delete" onsubmit="return confirm('Видалити оклад «{{ x.name }}»?{{ ' Він призначений: ' ~ use[x.name]|join(', ') ~ '.' if use.get(x.name) }}')"><button class="ps-b del" title="Видалити"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></form>
+</div>{% else %}<div class="muted">Окладів ще немає — «＋ Додати».</div>{% endfor %}
+</div>
+
+<div class="sp-back" id="sp-back" onclick="spClose()"></div>
+<aside class="sp" id="sp"><form method="post" action="/settings/salary" id="spf" style="display:contents"><input type="hidden" name="pid">
+  <div class="sp-hd"><h3 id="sp-t">Оклад</h3><button class="btn">Зберегти</button><button class="cs-x" type="button" onclick="spClose()">×</button></div>
+  <div class="sp-bd">
+    <label class="fl">Назва<input name="name" required maxlength="120" placeholder="Напр. Лікар-косметолог 2026"></label>
+
+    <div class="sec" data-sw="fixed_on"><h4>Фіксована ставка <label class="sw"><input type="checkbox" name="fixed_on" value="1"></label></h4>
+      <div class="ab">Сума, яка нараховується за робочі дні (за графіком), за місяць або за години — незалежно від інших показників.</div>
+      <div class="body g2"><label>Розмір ставки, ₴<input name="fixed_amount" inputmode="decimal"></label>
+        <label>Періодичність<select name="fixed_period">{% for k, v in spl.PERIODS.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label></div></div>
+
+    <div class="sec" data-sw="comm_on"><h4>Комісійні за послуги й продаж товарів <label class="sw"><input type="checkbox" name="comm_on" value="1"></label></h4>
+      <div class="ab">Відсоток (або сума) за виконані послуги й продані товари, де співробітник — ініціатор у чеку.</div>
+      <div class="body" style="display:grid;gap:12px">
+        <label class="fl">Мінімальна сума за день, ₴<input name="comm_min_day" inputmode="decimal" placeholder="0 — без мінімуму"></label>
+        <div class="ab" style="margin-top:-6px">За кожен робочий день нараховується більше: мінімум або комісійні за цей день.</div>
+        <label class="ck"><input type="checkbox" name="comm_sub_cost" value="1"><span>Віднімати собівартість послуг<small>Поки зберігається як налаштування — у розрахунку ще не враховується.</small></span></label>
+        <div class="g2">{% for t, lbl in [('services','Продаж послуг'), ('products','Продаж товарів'), ('certs','Продаж сертифікатів'), ('subs','Продаж абонементів')] %}
+          <label>{{ lbl }}<input name="comm_{{ t }}" inputmode="decimal"></label>
+          <label>Параметр<select name="comm_{{ t }}_mode">{% for k, v in spl.MODES.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>{% endfor %}</div>
+        <label class="ck"><input type="checkbox" name="comm_no_disc" value="1"><span>Не враховувати продажі товарів зі знижкою</span></label>
+        <div class="ab">Окремі ставки для конкретних послуг, категорій, товарів чи брендів — вони мають пріоритет над загальними.</div>
+        <div class="adds">{% for k, v in spl.ITEM_KINDS.items() %}<button type="button" onclick="itAdd('{{ k }}')">＋ {{ v }}</button>{% endfor %}</div>
+        <div class="its" id="its"></div></div></div>
+
+    <div class="sec" data-sw="turn_on"><h4>Відсоток від загального обороту <label class="sw"><input type="checkbox" name="turn_on" value="1"></label></h4>
+      <div class="ab">Відсоток від усіх продажів клініки — напр. для керівника чи старшого адміністратора.</div>
+      <div class="body" style="display:grid;gap:12px">
+        <label class="ck"><input type="checkbox" name="turn_workdays" value="1"><span>Враховувати продажі тільки в робочі дні співробітника</span></label>
+        <div class="g2">{% for t, lbl in [('services','Оборот послуг'), ('products','Оборот товарів'), ('certs','Оборот сертифікатів'), ('subs','Оборот абонементів')] %}
+          <label>{{ lbl }}<input name="turn_{{ t }}" inputmode="decimal"></label>
+          <label>Параметр<select name="turn_{{ t }}_mode">{% for k, v in spl.MODES.items() if k != 'fixed' %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>{% endfor %}</div></div></div>
+
+    <div class="sec" data-sw="bonus_on"><h4>Бонуси за запис чи розрахунок пацієнта <label class="sw"><input type="checkbox" name="bonus_on" value="1"></label></h4>
+      <div class="ab">Для адміністраторів, які записують і розраховують пацієнтів. Поки зберігається як налаштування — у розрахунку зарплати ще не враховується.</div>
+      <div class="body" style="display:grid;gap:12px">
+        <label class="ck"><input type="radio" name="bonus_mode" value="fixed"><span>Фіксована сума за запис / розрахунок</span></label>
+        <label class="ck"><input type="radio" name="bonus_mode" value="pct"><span>Відсоток від оплати</span></label>
+        <div class="g2"><label>За створення запису<input name="bonus_visit" inputmode="decimal"></label><label>За розрахунок пацієнта<input name="bonus_checkout" inputmode="decimal"></label></div></div></div>
+  </div></form></aside>
+{% for k, vs in lists.items() %}<datalist id="dl-{{ k }}">{% for v in vs %}<option value="{{ v }}">{% endfor %}</datalist>{% endfor %}
+<script>
+var PLANS={{ plans|tojson }},KINDS={{ spl.ITEM_KINDS|tojson }},MODES={{ spl.MODES|tojson }};
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function itAdd(k,it){it=it||{name:'',val:0,mode:'paid'};var r=document.createElement('div');r.className='itr';
+  r.innerHTML='<select name="it_kind">'+Object.keys(KINDS).map(function(x){return '<option value="'+x+'"'+(x===k?' selected':'')+'>'+KINDS[x]+'</option>'}).join('')+'</select>'+
+    '<input class="nm" name="it_name" list="dl-'+k+'" value="'+esc(it.name)+'" placeholder="Почніть вводити назву" required>'+
+    '<input name="it_val" inputmode="decimal" value="'+(it.val||0)+'">'+
+    '<select name="it_mode">'+Object.keys(MODES).map(function(x){return '<option value="'+x+'"'+(x===it.mode?' selected':'')+'>'+MODES[x]+'</option>'}).join('')+'</select><button type="button" title="Прибрати">×</button>';
+  r.querySelector('button').onclick=function(){r.remove()};r.querySelector('select').onchange=function(){r.querySelector('.nm').setAttribute('list','dl-'+this.value)};
+  document.getElementById('its').appendChild(r);if(!it.name)r.querySelector('.nm').focus()}
+function secState(){document.querySelectorAll('.sec[data-sw]').forEach(function(s){s.classList.toggle('off',!s.querySelector('input[name="'+s.dataset.sw+'"]').checked)})}
+document.querySelectorAll('.sec[data-sw] h4 input').forEach(function(i){i.addEventListener('change',secState)});
+function spOpen(id){var p=PLANS.find(function(x){return x.id===id})||null,f=document.getElementById('spf');f.reset();document.getElementById('its').innerHTML='';
+  document.getElementById('sp-t').textContent=p?'Редагування':'Новий оклад';f.pid.value=p?p.id:'';
+  if(p){f.name.value=p.name;var fx=p.fixed,c=p.comm,t=p.turn,b=p.bonus;
+    f.fixed_on.checked=fx.on;f.fixed_amount.value=fx.amount||'';f.fixed_period.value=fx.period;
+    f.comm_on.checked=c.on;f.comm_min_day.value=c.min_day||'';f.comm_sub_cost.checked=c.sub_cost;f.comm_no_disc.checked=c.no_disc;
+    ['services','products','certs','subs'].forEach(function(k){f['comm_'+k].value=c[k][0]||'';f['comm_'+k+'_mode'].value=c[k][1];f['turn_'+k].value=t[k][0]||'';f['turn_'+k+'_mode'].value=t[k][1]==='fixed'?'cost':t[k][1]});
+    (c.items||[]).forEach(function(it){itAdd(it.kind,it)});
+    f.turn_on.checked=t.on;f.turn_workdays.checked=t.workdays_only;f.bonus_on.checked=b.on;f.bonus_visit.value=b.visit||'';f.bonus_checkout.value=b.checkout||'';
+    (f.querySelector('input[name=bonus_mode][value="'+b.mode+'"]')||{}).checked=true}
+  else f.querySelector('input[name=bonus_mode][value=fixed]').checked=true;
+  secState();document.getElementById('sp').classList.add('on');document.getElementById('sp-back').classList.add('on')}
+function spClose(){document.getElementById('sp').classList.remove('on');document.getElementById('sp-back').classList.remove('on')}
+document.addEventListener('keydown',function(e){if(e.key==='Escape')spClose()});
+{% if open_ %}spOpen({{ open_|int }});{% endif %}
+(function(){var l=document.getElementById('ps-l'),dr=null;
+  l.addEventListener('dragstart',function(e){dr=e.target.closest('.ps-r');if(dr)dr.classList.add('drag')});
+  l.addEventListener('dragover',function(e){e.preventDefault();var t=e.target.closest('.ps-r');if(!dr||!t||t===dr)return;var r=t.getBoundingClientRect();l.insertBefore(dr,(e.clientY-r.top)>r.height/2?t.nextSibling:t)});
+  l.addEventListener('dragend',function(){if(!dr)return;dr.classList.remove('drag');dr=null;
+    fetch('/settings/salary/order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:[].map.call(l.querySelectorAll('.ps-r'),function(r){return r.dataset.id})})})})})();
+</script>
+{% endblock %}
