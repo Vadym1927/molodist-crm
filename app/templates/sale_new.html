@@ -37,6 +37,20 @@ dialog.pd{margin:0 0 0 auto;height:100vh;max-height:100vh;width:min(460px,100vw)
 dialog.pd::backdrop{background:rgba(42,36,48,.35)}
 .pd-h{display:flex;justify-content:space-between;align-items:center;padding:20px 22px;border-bottom:1px solid #F0ECE6}
 .pd-h h3{margin:0;font:600 16px var(--head);letter-spacing:.12em;text-transform:uppercase}
+.payd .pay-s.ps2{display:block;padding:22px 24px 18px;border-radius:22px;background:radial-gradient(120% 140% at 100% 0%,#4A3D63 0%,#3B3050 38%,#2A2430 100%);box-shadow:0 18px 40px -24px rgba(42,36,48,.7);position:relative;overflow:hidden}
+.payd .ps2:after{content:"";position:absolute;right:-40px;top:-40px;width:150px;height:150px;border-radius:50%;border:1px solid rgba(228,222,239,.12)}
+.payd .ps2 div{display:block}.payd .ps2 .ps-top span,.payd .ps2 .ps-c span{display:block;font:600 10.5px var(--sans);letter-spacing:.16em;text-transform:uppercase;color:#C9BFE6;opacity:.85}
+.payd .ps2 .ps-top b{display:block;margin-top:6px;font:500 36px/1.05 var(--head);letter-spacing:.01em;color:#fff}
+.payd .ps2 .ps-bar{height:6px;border-radius:99px;background:rgba(228,222,239,.16);margin:16px 0 14px;overflow:hidden}
+.payd .ps2 .ps-bar i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,#C9BFE6,#E4DEEF);transition:width .35s ease}
+.payd .ps2.done .ps-bar i{background:linear-gradient(90deg,#8FD19A,#C8EBCD)}.payd .ps2.over .ps-bar i{background:#F0B2A8}
+.payd .ps2 .ps-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.payd .ps2 .ps-c{background:rgba(255,255,255,.06);border:1px solid rgba(228,222,239,.12);border-radius:14px;padding:10px 14px}
+.payd .ps2 .ps-c b{display:block;margin-top:4px;font:500 19px var(--head);color:#fff}
+.payd .ps2 .ps-c.lft b{color:#F6D9A8}.payd .ps2.done .ps-c.lft b{color:#BFE6C5}
+.payd .ps2 div.ps-st{justify-content:flex-start;margin-top:12px;font:600 12.5px var(--sans);color:#F6D9A8 !important;display:flex;align-items:center;gap:7px}
+.payd .ps2.done div.ps-st{color:#BFE6C5 !important}.payd .ps2.over div.ps-st{color:#F5B8AE !important}
+.payd .ps2 div.ps-st:before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
 .tt-box{display:flex;gap:12px;align-items:flex-start;margin-top:12px;padding:14px;border-radius:16px;background:#F7F4F0;border:1px solid #ECE7E1}
 .tt-box .tt-i{width:42px;height:42px;border-radius:12px;background:#E4DEEF;color:#3B3050;display:flex;align-items:center;justify-content:center;flex:none}
 .tt-box.wait .tt-i{animation:ttp 1.2s infinite}@keyframes ttp{50%{opacity:.45}}
@@ -248,11 +262,13 @@ dialog.payd::backdrop{background:rgba(42,36,48,.45)}
       <button type="button" class="pt" data-acc="bonus"><span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.8l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/></svg></span>Бонусний рахунок<small id="a-bon">0,00 ₴</small></button>
       <button type="button" class="pt" disabled title="В розробці"><span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v10M9.5 9.5c0-1 1.1-1.6 2.5-1.6s2.5.7 2.5 1.7-1 1.4-2.5 1.6-2.5.6-2.5 1.7 1.1 1.7 2.5 1.7 2.5-.6 2.5-1.6"/></svg></span>Молодість коїни<small>в розробці</small></button></div>
   </div><div class="pay-r">
-    <div class="pay-s"><div><span>До сплати</span><b id="p-pay">0,00 ₴</b></div><div><span>Внесено</span><b id="p-in">0,00 ₴</b></div><div class="lft"><span>Залишилось</span><b id="p-left">0,00 ₴</b></div></div>
+    <div class="pay-s ps2" id="ps2"><div class="ps-top"><span>До сплати</span><b id="p-pay">0,00 ₴</b></div>
+      <div class="ps-bar"><i id="ps-fill"></i></div>
+      <div class="ps-row"><div class="ps-c"><span>Внесено</span><b id="p-in">0,00 ₴</b></div><div class="ps-c lft"><span>Залишилось</span><b id="p-left">0,00 ₴</b></div></div>
+      <div class="ps-st" id="t-left"></div></div>
     <div class="ph" style="margin-top:4px">Оплата</div>
     <div id="pays"></div><input type="hidden" id="bp" value="0"><div id="bonus-row" style="display:none"></div><span id="t-bmax" hidden></span>
     <div class="small muted" id="t-link" style="display:none;margin-top:4px">🔗 Посилання на оплату буде створено й надіслано пацієнту після «Провести продаж»; чек стане «оплачено», коли пацієнт оплатить.</div>
-    <div class="small" id="t-left" style="margin-top:6px"></div>
     <div class="tt-box" id="t-term" style="display:none"><span class="tt-i"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="2.6"/><rect x="8.4" y="5" width="7.2" height="4.4" rx=".9"/><path d="M9.3 12.6h.01M12 12.6h.01M14.7 12.6h.01M9.3 15.4h.01M12 15.4h.01M14.7 15.4h.01"/></svg></span><div><b id="t-term-h">Термінал</b><div id="t-term-m" class="small"></div></div></div>
     <div class="err" id="err" style="margin-top:10px"></div>
     <button class="btn" style="width:100%;justify-content:center;margin-top:12px;height:50px;font-size:16px" id="go" onclick="pay()">Провести продаж</button>
@@ -487,7 +503,11 @@ var TRM={busy:false};
 function termPays(){return S.pays.filter(function(p){if(PLT[p.method])return true;var b=document.querySelector('#pm-money .pt[data-k="card"][data-m="'+CSS.escape(p.method)+'"]');return !!b})}
 function tBox(st,h,m){var b=document.getElementById('t-term');b.style.display='flex';b.className='tt-box '+st;document.getElementById('t-term-h').textContent=h;document.getElementById('t-term-m').textContent=m||''}
 function goLabel(){var g=document.getElementById('go');if(TRM.busy)return;g.textContent=termPays().length?'Передати на термінал':'Провести продаж'}
-var _payLeft0=payLeft;payLeft=function(){_payLeft0();goLabel()};
+var _payLeft0=payLeft;payLeft=function(){_payLeft0();goLabel();if(!S.q)return;
+  var tp=+S.q.to_pay||0,pd=paidSum(),l=Math.round((tp-pd)*100)/100,c=document.getElementById('ps2');
+  document.getElementById('ps-fill').style.width=(tp>0?Math.min(100,pd/tp*100):(pd>0?100:0))+'%';
+  c.classList.toggle('done',Math.abs(l)<0.01);c.classList.toggle('over',l<-0.009);
+  document.getElementById('t-left').textContent=Math.abs(l)<0.01?'Оплата збігається':(l>0?'Залишилось внести '+f2(l):'Переплата '+f2(-l))};
 var _pay0=pay;pay=function(){if(!termPays().length)return _pay0();if(TRM.busy)return;
   var e=document.getElementById('err');e.textContent='';if(needDoc()){document.getElementById('payd').close();toPay();return}
   var g=document.getElementById('go'),sid=null;TRM.busy=true;g.disabled=true;g.textContent='Очікуємо оплату на терміналі…';
