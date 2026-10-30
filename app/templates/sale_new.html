@@ -65,7 +65,13 @@ dialog.pd::backdrop{background:rgba(42,36,48,.35)}
 .cr .kd{flex:none;margin-top:2px;font:700 10px var(--sans);letter-spacing:.06em;text-transform:uppercase;padding:3px 7px;border-radius:6px;background:#EFEBF6;color:#5C4B82}
 .cr .kd.product{background:#FFF4DE;color:#8A5A00}.cr .kd.other{background:#F2EFEA;color:#8a8496}
 .cr .l2{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center}
-.cr .l2 select{height:36px;max-width:220px;font-size:13px;border-radius:10px}
+.cr .l2 select{height:40px;line-height:normal;padding:0 34px 0 12px;max-width:240px;font:500 13.5px var(--sans);border-radius:10px;border:1px solid #E6E0D8;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235C4B82' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") right 12px center no-repeat;-webkit-appearance:none;appearance:none;color:#2A2430}
+.cr .ini{display:inline-flex;align-items:center;gap:8px}.cr .ini>i{font-style:normal;font:600 10px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#9a93a6}
+.cr .qty,.cr .pr{height:40px}.cr .qty input,.cr .qty button,.cr .pr input{height:38px}
+.cr .stk{display:inline-block;margin-left:8px;font:600 11px var(--sans);color:#2E6B2E;background:#EAF6EA;border-radius:5px;padding:1px 6px}
+.cr .stk.no{color:#B23B2E;background:#FDECEA}
+.tl .t .st{display:inline-block;font:600 11px var(--sans);border-radius:5px;padding:2px 7px;color:#2E6B2E;background:#EAF6EA;margin-top:2px}
+.tl .t .st.no{color:#B23B2E;background:#FDECEA}.tl .t.out{border-color:#F3C9C4}
 .cr .qty{display:inline-flex;align-items:center;border:1px solid #E6E0D8;border-radius:10px;background:#fff;overflow:hidden}
 .cr .qty button{border:0;background:none;width:32px;height:34px;font-size:16px;color:#5C4B82;cursor:pointer}.cr .qty button:hover{background:#F1EDF8}
 .cr .qty input{width:46px;height:34px;border:0;text-align:center;padding:0;font-weight:600}
@@ -85,7 +91,7 @@ dialog.pd::backdrop{background:rgba(42,36,48,.35)}
 .calc .act{display:grid;grid-template-columns:1.3fr 1fr;gap:10px;margin-top:16px}.calc .act .btn{height:50px;justify-content:center;font-size:15px}
 .danger-o{color:#B23B2E!important;border-color:#E8B4AD!important}.danger-o:hover{background:#FDECEA!important}
 .cr .l2 select.d.need{border-color:#E57373;background:#FFF5F4;box-shadow:0 0 0 3px rgba(229,115,115,.15)}
-.cr .l2 select.d{min-width:200px}.cr .l2 select.d:invalid,.cr .l2 select.d.empty{color:#B23B2E;font-weight:600}
+.cr .l2 select.d{min-width:210px}.cr .l2 select.d:invalid,.cr .l2 select.d.empty{color:#B23B2E;font-weight:600}
 dialog.payd{border:0;border-radius:22px;padding:0;width:min(980px,96vw);max-height:92vh;box-shadow:0 30px 80px rgba(42,36,48,.35)}
 dialog.payd::backdrop{background:rgba(42,36,48,.45)}
 .pay-g{display:grid;grid-template-columns:1.2fr 1fr;gap:22px;padding:18px 22px 22px;overflow:auto;max-height:calc(92vh - 80px)}
@@ -134,8 +140,6 @@ dialog.payd::backdrop{background:rgba(42,36,48,.45)}
 <div class="row between" style="margin-bottom:10px"><div><div class="eyebrow"><a href="/sales" style="text-decoration:none">Каса CRM</a></div><h1>Новий продаж</h1>
   {% if appt %}<div class="muted small">За записом №{{ appt.id }} · {{ appt.start|dt('%d.%m.%Y %H:%M') }}</div>{% endif %}</div></div>
 <div class="pt-bar">
-  <div class="loc"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.4"/></svg>
-    <div><small>Філія</small><b>{{ loc_name }}</b></div></div>
   <div class="sw2" id="mode"><button type="button" data-m="p" class="on">Продаж на пацієнта</button><button type="button" data-m="n">Без пацієнта</button></div>
   <button type="button" class="pchoose" id="pchoose" onclick="pdOpen()"><i><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.2-4.2 4.3-6.5 8-6.5s6.8 2.3 8 6.5"/></svg></i><span id="pchoose-t">{{ pt.full_name if pt else "Оберіть пацієнта" }}</span><em>»</em></button>
   <a class="btn ghost" href="/sales" style="margin-left:auto">Усі продажі</a>
@@ -212,8 +216,8 @@ function render(){var tb=document.getElementById('rows');tb.innerHTML='';documen
   S.items.forEach(function(it,i){var d=document.createElement('div'),lots='';d.className='cr';
     if(it.kind==='product'&&it.lots&&it.lots.length){lots='<select class="e" title="Партія"><option value="">Партія: FEFO</option>'+it.lots.map(function(l){return '<option value="'+l.expiry+'"'+(it.expiry==l.expiry?' selected':'')+'>до '+l.expiry.split('-').reverse().join('.')+' · '+l.qty+' шт</option>'}).join('')+'</select>'}
     d.innerHTML='<div class="l1">'+(it.kind==='product'?'<span class="th">'+(it.photo?'<img src="'+esc(it.photo)+'" alt="" onerror="this.remove()">':'')+'</span>':'')+'<span class="kd '+it.kind+'">'+KL[it.kind]+'</span><div class="nm">'+(it.kind==='other'?'<input class="n" value="'+esc(it.name)+'" placeholder="Назва позиції">':'<b>'+esc(it.name)+'</b>')+
-      (it.sku?'<small>Арт. '+esc(it.sku)+'</small>':'')+'</div><div class="sm"><b class="sum"></b><small class="disc"></small></div><button type="button" class="x" title="Прибрати">×</button></div>'+
-      '<div class="l2">'+docSel(it.doctor_id)+'<div class="qty"><button type="button" class="m">−</button><input class="q" inputmode="decimal" value="'+(it.qty||1)+'"><button type="button" class="pl">+</button></div>'+
+      ((it.sku||it.stock!=null)?'<small>'+(it.sku?'Арт. '+esc(it.sku):'')+(it.kind==='product'&&it.stock!=null?'<span class="stk '+((+it.stock)<(+it.qty||1)?'no':'')+'">'+((+it.stock)>0?'на складі '+it.stock:'немає на складі')+'</span>':'')+'</small>':'')+'</div><div class="sm"><b class="sum"></b><small class="disc"></small></div><button type="button" class="x" title="Прибрати">×</button></div>'+
+      '<div class="l2"><label class="ini"><i>Ініціатор</i>'+docSel(it.doctor_id)+'</label>'+'<div class="qty"><button type="button" class="m">−</button><input class="q" inputmode="decimal" value="'+(it.qty||1)+'"><button type="button" class="pl">+</button></div>'+
       '<label class="pr"><input class="p" inputmode="decimal" value="'+(+it.price).toFixed(2)+'"><span>₴</span></label>'+lots+'</div>';
     d.querySelector('.q').oninput=function(){it.qty=+String(this.value).replace(',','.')||0;quote(1)};
     d.querySelector('.m').onclick=function(){it.qty=Math.max(1,(+it.qty||1)-1);d.querySelector('.q').value=it.qty;quote(1)};
@@ -224,6 +228,7 @@ function render(){var tb=document.getElementById('rows');tb.innerHTML='';documen
     d.querySelector('.d').classList.toggle('empty',!it.doctor_id);
     d.querySelector('.x').onclick=function(){S.items.splice(i,1);quote()};tb.appendChild(d)});sums()}
 function sums(){document.querySelectorAll('#rows .cr').forEach(function(d,i){var it=S.items[i];if(!it)return;var ds=(S.q&&S.q.lines&&S.q.lines[i])||0;
+  var sk=d.querySelector('.stk');if(sk)sk.classList.toggle('no',(+it.stock)<(+it.qty||1));
   d.querySelector('.sum').textContent=f2((it.price*(it.qty||1))-ds);d.querySelector('.disc').textContent=ds?('знижка −'+f2(ds)):''})}
 var QT=null;function quote(partial){if(partial)sums();else render();clearTimeout(QT);QT=setTimeout(function(){
   fetch('/sales/quote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload())}).then(function(r){return r.json()}).then(function(q){S.q=q;sums();setTimeout(payLeft,0);
@@ -252,7 +257,7 @@ function pick(inp,url,fmt,on){var r=inp.parentNode.querySelector('.res'),T=null;
     r.querySelectorAll('div[data-i]').forEach(function(d){d.onclick=function(){on(js[+d.dataset.i]);r.style.display='none'}})})},250)});
   document.addEventListener('click',function(e){if(!inp.parentNode.contains(e.target))r.style.display='none'})}
 pick(document.getElementById('sq'),'/lookup/services?q=',function(s){return esc(s.name)+' <small>'+s.minutes+' хв · '+f2(s.price)+'</small>'},function(s){S.items.push({kind:'service',ref_id:s.id,name:s.name,category:s.category,qty:1,price:+s.price,doctor_id:S.appointment_id?null:DEF});document.getElementById('sq').value='';quote()});
-pick(document.getElementById('gq'),'/lookup/sale-products?q=',function(p){return esc(p.name)+' <small>'+(p.sku?'арт. '+esc(p.sku)+' · ':'')+f2(p.price)+' · '+esc(p.wh||'')+' · залишок '+(p.stock==null?'—':p.stock)+'</small>'},function(p){S.items.push({kind:'product',ref_id:p.id,name:p.name,sku:p.sku,photo:p.photo,category:p.category,qty:1,price:+p.price,warehouse:p.warehouse,lots:p.lots,doctor_id:DEF});document.getElementById('gq').value='';quote()});
+pick(document.getElementById('gq'),'/lookup/sale-products?q=',function(p){return esc(p.name)+' <small>'+(p.sku?'арт. '+esc(p.sku)+' · ':'')+f2(p.price)+' · '+esc(p.wh||'')+' · залишок '+(p.stock==null?'—':p.stock)+'</small>'},function(p){S.items.push({kind:'product',ref_id:p.id,name:p.name,sku:p.sku,photo:p.photo,stock:p.stock,category:p.category,qty:1,price:+p.price,warehouse:p.warehouse,lots:p.lots,doctor_id:DEF});document.getElementById('gq').value='';quote()});
 function addOther(){S.items.push({kind:'other',name:'',qty:1,price:0,doctor_id:DEF});quote()}
 document.getElementById('bp').addEventListener('input',function(){quote(1)});
 function pay(){var e=document.getElementById('err');e.textContent='';if(needDoc()){document.getElementById('payd').close();toPay();return}
@@ -291,14 +296,14 @@ function brLoad(keepFocus){var br=document.getElementById('br');
     var h=brSearch(isS?'Назва послуги':'Назва, артикул або штрихкод товару');
     if(B.key!==null&&!B.q)h+='<button type="button" class="bk">← Назад · '+esc(B.key)+'</button>';else if(!B.q)h+=brTabs(isS?SG:PG);else h+='<div style="height:10px"></div>';
     if(js.groups){h+='<div class="tl">'+js.groups.map(function(g){return '<button type="button" class="t g" style="--tc:'+col(g.key)+'" data-k="'+esc(g.key)+'"><b>'+esc(g.key)+'</b><span class="pr">'+g.n+'</span></button>'}).join('')+'</div>'}
-    else{h+='<div class="tl '+(isS?'':'prod')+'">'+(js.items.map(function(x,i){return '<button type="button" class="t" style="--tc:'+col(isS?(x.category||''):(x.brand||x.category||''))+'" data-i="'+i+'">'+
+    else{h+='<div class="tl '+(isS?'':'prod')+'">'+(js.items.map(function(x,i){return '<button type="button" class="t '+(!isS&&x.stock!=null&&(+x.stock)<=0?'out':'')+'" style="--tc:'+col(isS?(x.category||''):(x.brand||x.category||''))+'" data-i="'+i+'">'+
         (isS?'':'<span class="ph">'+(x.photo?'<img loading="lazy" src="'+esc(x.photo)+'" alt="" onerror="this.remove()">':'<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6v3H9zM8 6h8l1 3v11a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V9z"/><path d="M7 12h10"/></svg>')+'</span>')+'<b>'+esc(x.name)+'</b>'+
-        (isS?'<small>'+(x.minutes||'')+' хв</small>':'<small>'+(x.sku?'<span class="sku">Арт. '+esc(x.sku)+'</span>':'')+esc(x.brand||'')+(x.stock!=null?' · залишок '+x.stock:'')+'</small>')+'<span class="pr">'+f2(x.price)+'</span></button>'}).join('')||'<div class="em">Нічого не знайдено</div>')+'</div>'}
+        (isS?'<small>'+(x.minutes||'')+' хв</small>':'<small>'+(x.sku?'<span class="sku">Арт. '+esc(x.sku)+'</span>':'')+esc(x.brand||'')+'</small>'+(x.stock!=null?'<span class="st '+((+x.stock)>0?'':'no')+'">'+((+x.stock)>0?'Залишок: '+x.stock+' шт':'Немає в наявності')+'</span>':''))+'<span class="pr">'+f2(x.price)+'</span></button>'}).join('')||'<div class="em">Нічого не знайдено</div>')+'</div>'}
     br.innerHTML=h;brBind();if(keepFocus){var q=document.getElementById('brq');q.focus();q.setSelectionRange(q.value.length,q.value.length)}
     br.querySelectorAll('.t.g').forEach(function(b){b.onclick=function(){B.key=b.dataset.k;brLoad()}});
     if(js.items)br.querySelectorAll('.t[data-i]').forEach(function(b){b.onclick=function(){var x=js.items[+b.dataset.i];
       if(isS){S.items.push({kind:'service',ref_id:x.id,name:x.name,category:x.category,qty:1,price:+x.price,doctor_id:S.appointment_id?null:DEF});quote()}
-      else{fetch('/pos/lots/'+x.id).then(function(r){return r.json()}).then(function(lots){S.items.push({kind:'product',ref_id:x.id,name:x.name,sku:x.sku,photo:x.photo,category:x.category,qty:1,price:+x.price,warehouse:x.warehouse,lots:lots,doctor_id:DEF});quote()})}
+      else{fetch('/pos/lots/'+x.id).then(function(r){return r.json()}).then(function(lots){S.items.push({kind:'product',ref_id:x.id,name:x.name,sku:x.sku,photo:x.photo,stock:x.stock,category:x.category,qty:1,price:+x.price,warehouse:x.warehouse,lots:lots,doctor_id:DEF});quote()})}
       b.style.borderColor='#7BC47F';setTimeout(function(){b.style.borderColor=''},400)}})})}
 brGo({{ ('"visits"' if not appt and not items else '"services"')|safe }});
 

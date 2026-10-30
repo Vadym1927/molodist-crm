@@ -144,3 +144,14 @@ def test_pos_patient_card_extras_and_initiator():
         import re
         ids = re.search(r"var DOCS=(\[[^\]]*\])", t).group(1)
         assert str(yes_id) in ids and str(no_id) not in ids.replace(str(yes_id), "")
+
+
+def test_pos_products_stock_field():
+    from app.models import Product
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        db.add(Product(name="Залишковий крем", name_norm="залишковий крем", brand="StockB", warehouse="vitrina", price=5)); db.commit()
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        it = c.get("/pos/products", params={"group": "brand", "key": "StockB"}).json()["items"][0]
+        assert "stock" in it

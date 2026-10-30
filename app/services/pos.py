@@ -112,5 +112,5 @@ def _p(db: Session, p: Product, stock: dict) -> dict:
     from .stock import ledger_active, batch_balances
     wh = p.warehouse or "vitrina"
     return {"id": p.id, "name": p.name, "brand": p.brand or "", "sku": p.sku or "", "barcode": p.barcode or "", "category": p.brand or p.category or "",
-            "price": p.price or p.price_manual or p.shop_price or 0, "stock": round(stock[p.id], 3) if p.id in stock else None,
+            "price": p.price or p.price_manual or p.shop_price or 0, "stock": round(stock.get(p.id, 0.0), 3) if stock else None,          # облік є — товару без руху = 0
             "warehouse": wh, "wh": WAREHOUSES.get(wh), "photo": p.photo_url or ""}
