@@ -105,10 +105,11 @@ dialog.payd::backdrop{background:rgba(42,36,48,.45)}
 .pc .cl{position:absolute;top:12px;right:14px}.card.pc{position:relative}
 .tl.prod{grid-template-columns:repeat(2,minmax(0,1fr))}
 .tl.prod .t{padding:10px;min-height:0}
-.tl .t .ph{display:grid;place-items:center;height:118px;border-radius:9px;background:#F7F4F0;color:#C9BFE6;overflow:hidden}
-.tl .t .ph img{width:100%;height:100%;object-fit:contain;background:#fff}
+.tl .t .ph{position:relative;display:grid;place-items:center;width:100%;aspect-ratio:4/3;border-radius:10px;background:#fff;color:#C9BFE6;overflow:hidden;border:1px solid #F3EFEA}
+.tl .t .ph:not(:has(img)){background:#F7F4F0}
+.tl .t .ph img{position:absolute;inset:8px;width:calc(100% - 16px)!important;height:calc(100% - 16px)!important;max-width:none;object-fit:contain;object-position:center;display:block}
 .cr .th{flex:none;width:38px;height:38px;border-radius:9px;background:#F7F4F0 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%23C9BFE6' stroke-width='1.5'%3E%3Cpath d='M9 3h6v3H9zM8 6h8l1 3v11a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V9z'/%3E%3C/svg%3E") center no-repeat;overflow:hidden;border:1px solid #ECE7E1}
-.cr .th img{width:100%;height:100%;object-fit:cover;background:#fff}
+.cr .th{position:relative}.cr .th img{position:absolute;inset:2px;width:calc(100% - 4px)!important;height:calc(100% - 4px)!important;object-fit:contain;background:#fff;display:block}
 
 
 
