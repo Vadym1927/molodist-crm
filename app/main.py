@@ -1358,6 +1358,15 @@ async def sale_create(request: Request, user: User = Depends(require("sales")), 
     if any(not it_.get("doctor_id") for it_ in d_["items"]):
         return JSONResponse({"error": "Оберіть спеціаліста / продавця (ініціатора продажу) для кожної позиції"}, status_code=400)
     d_["manual_discount"] = 0                                   # знижка — лише зі списку в «Налаштування → Знижки»
+    from .services import stock as _st0
+    if _st0.ledger_active(db):                                  # кілька термінів дії товару — термін обовʼязковий
+        from .models import Product as _P0
+        for it_ in d_["items"]:
+            if it_.get("kind") == "product" and it_.get("ref_id") and not it_.get("expiry"):
+                p0_ = db.get(_P0, int(it_["ref_id"]))
+                if p0_ and len([1 for (_a, _b, e_), q_ in _st0.batch_balances(db, p0_.id, it_.get("warehouse") or p0_.warehouse or "vitrina").items()
+                                if e_ and q_ > 1e-6]) > 1:
+                    return JSONResponse({"error": f"«{p0_.name}»: оберіть термін дії для списання"}, status_code=400)
     from .services import fiscal as _fis0, sales as _sl0
     _allowed = _fis0.rro_methods(db).get(d_.get("fiscal_rro") or 0) if d_.get("fiscal_rro") else None
     if _allowed:

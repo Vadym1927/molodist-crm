@@ -153,6 +153,10 @@ dialog.kp-d::backdrop{background:rgba(42,36,48,.35)}
 .calc .act{display:grid;grid-template-columns:1.3fr 1fr;gap:10px;margin-top:16px}.calc .act .btn{height:50px;justify-content:center;font-size:15px}
 .danger-o{color:#B23B2E!important;border-color:#E8B4AD!important}.danger-o:hover{background:#FDECEA!important}
 .cr .l2 select.d.need{border-color:#E57373;background:#FFF5F4;box-shadow:0 0 0 3px rgba(229,115,115,.15)}
+.cr .l2 .exp .ex1{display:inline-flex;align-items:center;height:42px;padding:0 14px;border-radius:12px;background:#EEF7EE;color:#2E6B2E;font:600 14px var(--sans);border:1px solid #CFE8CF}
+.cr .l2 select.e{min-width:180px}.cr .l2 select.e.empty{color:#B23B2E;font-weight:600}
+.cr .l2 select.e.need{border-color:#E57373;background:#FFF5F4;box-shadow:0 0 0 3px rgba(229,115,115,.15)}
+@media(max-width:640px){.cr .l2 .ini{width:100%}.cr .l2 .ini>i{min-width:84px}.cr .l2 .ini select{flex:1;min-width:0}}
 .cr .l2 select.d{min-width:210px}.cr .l2 select.d:invalid,.cr .l2 select.d.empty{color:#B23B2E;font-weight:600}
 dialog.payd{border:0;border-radius:22px;padding:0;width:min(980px,96vw);max-height:92vh;box-shadow:0 30px 80px rgba(42,36,48,.35)}
 dialog.payd::backdrop{background:rgba(42,36,48,.45)}
@@ -292,17 +296,20 @@ var KL={service:'Послуга',product:'Товар',other:'Інше',certifica
 function render(){var tb=document.getElementById('rows');tb.innerHTML='';document.getElementById('empty').style.display=S.items.length?'none':'flex';
   document.getElementById('ck-n').textContent=S.items.length?S.items.length+' поз.':'';
   S.items.forEach(function(it,i){var d=document.createElement('div'),lots='';d.className='cr';
-    if(it.kind==='product'&&it.lots&&it.lots.length){lots='<select class="e" title="Партія"><option value="">Партія: FEFO</option>'+it.lots.map(function(l){return '<option value="'+l.expiry+'"'+(it.expiry==l.expiry?' selected':'')+'>до '+l.expiry.split('-').reverse().join('.')+' · '+l.qty+' шт</option>'}).join('')+'</select>'}
+    if(it.kind==='product'&&it.lots&&it.lots.length){var dd=function(x){return x.split('-').reverse().join('.')};
+      if(it.lots.length===1){it.expiry=it.lots[0].expiry;lots='<label class="ini exp"><i>Термін дії</i><span class="ex1">до '+dd(it.expiry)+'</span></label>'}
+      else{if(it.expiry&&!it.lots.some(function(l){return l.expiry==it.expiry}))it.expiry=null;
+        lots='<label class="ini exp"><i>Термін дії</i><select class="e'+(it.expiry?'':' empty')+'"><option value="">Оберіть термін</option>'+it.lots.map(function(l){return '<option value="'+l.expiry+'"'+(it.expiry==l.expiry?' selected':'')+'>до '+dd(l.expiry)+' · '+l.qty+' шт</option>'}).join('')+'</select></label>'}}
     d.innerHTML='<div class="l1">'+(it.kind==='product'?'<span class="th">'+(it.photo?'<img src="'+esc(it.photo)+'" alt="" onerror="this.remove()">':'')+'</span>':'')+'<span class="kd '+it.kind+'">'+KL[it.kind]+'</span><div class="nm">'+(it.kind==='other'?'<input class="n" value="'+esc(it.name)+'" placeholder="Назва позиції">':'<b>'+esc(it.name)+'</b>')+
       ((it.sku||it.stock!=null)?'<small>'+(it.sku?'Арт. '+esc(it.sku):'')+(it.kind==='product'&&it.stock!=null?'<span class="stk '+((+it.stock)<(+it.qty||1)?'no':'')+'">'+((+it.stock)>0?'на складі '+it.stock:'немає на складі')+'</span>':'')+'</small>':'')+'</div><div class="sm"><b class="sum"></b><small class="disc"></small></div><button type="button" class="x" title="Прибрати">×</button></div>'+
-      '<div class="l2"><label class="ini"><i>Ініціатор</i>'+docSel(it.doctor_id)+'</label>'+'<div class="qty"><button type="button" class="m">−</button><input class="q" inputmode="decimal" value="'+(it.qty||1)+'"><button type="button" class="pl">+</button></div>'+
-      '<label class="pr"><input class="p" inputmode="decimal" value="'+(+it.price).toFixed(2)+'"><span>₴</span></label>'+lots+'</div>';
+      '<div class="l2"><label class="ini"><i>Ініціатор</i>'+docSel(it.doctor_id)+'</label>'+lots+'<div class="qty"><button type="button" class="m">−</button><input class="q" inputmode="decimal" value="'+(it.qty||1)+'"><button type="button" class="pl">+</button></div>'+
+      '<label class="pr"><input class="p" inputmode="decimal" value="'+(+it.price).toFixed(2)+'"><span>₴</span></label></div>';
     d.querySelector('.q').oninput=function(){it.qty=+String(this.value).replace(',','.')||0;quote(1)};
     d.querySelector('.m').onclick=function(){it.qty=Math.max(1,(+it.qty||1)-1);d.querySelector('.q').value=it.qty;quote(1)};
     d.querySelector('.pl').onclick=function(){it.qty=(+it.qty||0)+1;d.querySelector('.q').value=it.qty;quote(1)};
     d.querySelector('.p').oninput=function(){it.price=+String(this.value).replace(',','.')||0;quote(1)};
     d.querySelector('.d').onchange=function(){it.doctor_id=this.value?+this.value:null;this.classList.toggle('need',!it.doctor_id);this.classList.toggle('empty',!it.doctor_id)};var n=d.querySelector('.n');if(n)n.oninput=function(){it.name=this.value};
-    var e=d.querySelector('.e');if(e)e.onchange=function(){it.expiry=this.value||null};
+    var e=d.querySelector('.e');if(e)e.onchange=function(){it.expiry=this.value||null;this.classList.toggle('empty',!it.expiry);if(it.expiry)this.classList.remove('need')};
     d.querySelector('.d').classList.toggle('empty',!it.doctor_id);
     d.querySelector('.x').onclick=function(){S.items.splice(i,1);quote()};tb.appendChild(d)});sums()}
 function sums(){document.querySelectorAll('#rows .cr').forEach(function(d,i){var it=S.items[i];if(!it)return;var ds=(S.q&&S.q.lines&&S.q.lines[i])||0;
@@ -415,10 +422,12 @@ if(S.patient_id)setPatient(S.patient_id);
 
 /* ---- знижки зі списку, сплатити → вікно оплати ---- */
 document.querySelectorAll('#dzc .dzb').forEach(function(b){b.onclick=function(){b.classList.toggle('on');var o=document.querySelector('#rule option[value="'+b.dataset.id+'"]');if(o)o.selected=b.classList.contains('on');quote(1)}});
-function needDoc(){var bad=0;document.querySelectorAll('#rows .cr').forEach(function(d,i){var it=S.items[i],sel=d.querySelector('.d'),miss=!it.doctor_id;sel.classList.toggle('need',miss);bad+=miss});return bad}
+function needDoc(){var bad=0;S.missExp=0;document.querySelectorAll('#rows .cr').forEach(function(d,i){var it=S.items[i],sel=d.querySelector('.d'),miss=!it.doctor_id;sel.classList.toggle('need',miss);bad+=miss;
+  var e=d.querySelector('select.e');if(e){var me=!it.expiry;e.classList.toggle('need',me);bad+=me;S.missExp+=me}});return bad}
+function needMsg(){return S.missExp?'Оберіть термін дії товару'+(document.querySelector('#rows .d.need')?' та ініціатора продажу':'')+' для кожної позиції':'Оберіть спеціаліста / продавця (ініціатора продажу) для кожної позиції'}
 function toPay(){var e=document.getElementById('err0');e.textContent='';
   if(!S.items.length){e.textContent='Додайте у чек послуги або товари';return}
-  if(needDoc()){e.textContent='Оберіть спеціаліста / продавця (ініціатора продажу) для кожної позиції';var f=document.querySelector('#rows .d.need');if(f)f.focus();return}
+  if(needDoc()){e.textContent=needMsg();var f=document.querySelector('#rows .need');if(f)f.focus();return}
   document.getElementById('payd').showModal();payLeft()}
 function cancelSale(){if(!S.items.length&&!S.patient_id){location.href='/sales';return}if(confirm('Скасувати продаж і очистити чек?'))location.href='/sales/new'}
 function useBonus(){var br=document.getElementById('bonus-row');br.style.display='flex';var i=document.getElementById('bp');if(S.q&&!+i.value){i.value=Math.min(S.q.bonus_max,S.q.to_pay+(+i.value||0)).toFixed(2);quote(1)}i.focus()}
