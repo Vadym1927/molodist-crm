@@ -220,3 +220,14 @@ def test_cash_report_transfer_is_not_income_or_expense():
         dst = next(r for r in rep.rows if r["name"] == names[1])
         assert src["tr"] == -500 and dst["tr"] == 500
         assert all(not v.transfer for v in cbx.moves(db, next(x for x in cbx.items(db) if x["name"] == names[0])) if v.kind == "out" and v.amount == 500 and "→" not in v.what)
+
+
+def test_cashboxes_page_with_balances_datetime():
+    """Сторінка кас не падає, коли в даних каси є дати (залишок банку з часом оновлення)."""
+    from fastapi.testclient import TestClient
+    from app.config import settings
+    from app.main import app
+    settings.admin_password = "owner-pass-1"
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        assert c.get("/settings/cashboxes").status_code == 200
