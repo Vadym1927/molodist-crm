@@ -67,14 +67,14 @@
   {% set whole, frac = ('%.2f'|format(b.balance)).split('.') %}
   <div class="bl {{ 'neg' if b.balance < 0 }}">{{ '{:,}'.format(whole|int).replace(',', ' ') }}<small>,{{ frac }} ₴</small></div>
   <div class="lt"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>{{ ('Остання операція ' ~ b.last|dt('%d.%m.%Y, %H:%M')) if b.last else 'Операцій ще не було' }}</div>
-  {% if b.methods or b.opening_date or b.note %}<div class="ex">{% if b.methods %}Каса CRM: {{ b.methods|join(', ') }}<br>{% endif %}{% if b.opening_date %}Стартовий залишок {{ '{:,.2f}'.format(b.opening or 0).replace(',', ' ').replace('.', ',') }} ₴ на {{ b.opening_date[8:10] }}.{{ b.opening_date[5:7] }}.{{ b.opening_date[:4] }}<br>{% endif %}{{ b.note or '' }}</div>{% endif %}
+  {% if b.methods or b.opening_date or b.note or b.fee_pct %}<div class="ex">{% if b.fee_pct %}<b style="color:#5C4B82">Комісія {{ '%g'|format(b.fee_pct) }}%</b> → {{ b.fee_article or FEE_ARTICLE }}{% if b.fee_from %} · з {{ b.fee_from[8:10] }}.{{ b.fee_from[5:7] }}{% endif %}<br>{% endif %}{% if b.methods %}Каса CRM: {{ b.methods|join(', ') }}<br>{% endif %}{% if b.opening_date %}Стартовий залишок {{ '{:,.2f}'.format(b.opening or 0).replace(',', ' ').replace('.', ',') }} ₴ на {{ b.opening_date[8:10] }}.{{ b.opening_date[5:7] }}.{{ b.opening_date[:4] }}<br>{% endif %}{{ b.note or '' }}</div>{% endif %}
   </div><div class="bt">
   {% if b.deleted %}<span class="pl off">Видалена {{ b.deleted_at or '' }}</span>{% elif b.active %}{% else %}<span class="pl off">Вимкнена</span>{% endif %}
   <span class="pl {{ 'cash' if b.cash else 'nc' }}">{{ 'Готівка' if b.cash else 'Безготівка' }}</span>{% if b.in_pos and b.active and not b.deleted %}<span class="pl pos" title="Показується в «Новий продаж» як спосіб оплати">У касі</span>{% endif %}
   <span style="flex:1"></span><span style="display:inline-flex;gap:2px;margin-left:auto">
   {% if b.deleted %}<form method="post" action="/settings/cashboxes/{{ b.id }}/restore" style="margin:0"><button class="btn ghost" style="padding:4px 12px">Відновити</button></form>
   {% else %}<a class="ib" href="?open={{ b.id }}" title="Рух коштів"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h13l-3-3M20 17H7l3 3"/></svg></a>
-  <button class="ib" type="button" title="Змінити" onclick='bxEdit({{ {"id": b.id, "name": b.name, "location_id": b.location_id, "type": b.type, "color": b.color, "opening": b.opening, "opening_date": (b.opening_date|string if b.opening_date else ""), "note": b.note, "active": b.active, "in_pos": b.in_pos, "methods": b.methods}|tojson }})'><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg></button>
+  <button class="ib" type="button" title="Змінити" onclick='bxEdit({{ {"id": b.id, "name": b.name, "location_id": b.get("location_id"), "type": b.get("type"), "color": b.get("color"), "opening": b.get("opening"), "opening_date": (b.opening_date|string if b.get("opening_date") else ""), "note": b.get("note"), "active": b.get("active"), "in_pos": b.get("in_pos"), "methods": b.get("methods") or [], "fee_pct": b.get("fee_pct"), "fee_article": b.get("fee_article"), "fee_from": b.get("fee_from") or ""}|tojson }})'><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg></button>
   <form method="post" action="/settings/cashboxes/{{ b.id }}/delete" data-delpw="Видалити касу «{{ b.name }}»? Якщо по ній були операції — вона перейде у «Видалені каси»." style="margin:0"><button class="ib del" title="Видалити"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button></form>{% endif %}</span>
 </div></div>
 {% endmacro %}
@@ -110,6 +110,11 @@
     <div class="cs-f"><label>Залишок на дату (необовʼязково)</label>
       <div class="row" style="gap:6px;flex-wrap:nowrap"><input name="opening" inputmode="decimal" placeholder="0.00" style="flex:1"><input type="date" name="opening_date" style="flex:1"></div>
       <div class="hint">Баланс з CleverBox на початок дня — тоді рахуються лише операції з цієї дати. Порожня дата — уся історія.</div></div>
+    <div class="cs-f"><label>Комісія банку</label>
+      <div class="row" style="gap:6px;flex-wrap:nowrap"><div style="position:relative;flex:0 0 120px"><input name="fee_pct" inputmode="decimal" placeholder="0" style="width:100%;padding-right:28px"><span style="position:absolute;right:11px;top:50%;transform:translateY(-50%);color:#8a8496;font-weight:700">%</span></div>
+        <select name="fee_article" style="flex:1">{% for a in fee_articles %}<option {{ 'selected' if a == FEE_ARTICLE }}>{{ a }}</option>{% endfor %}</select></div>
+      <div class="row" style="gap:6px;flex-wrap:nowrap;margin-top:6px;align-items:center"><span class="hint" style="margin:0;white-space:nowrap">Рахувати з</span><input type="date" name="fee_from" style="flex:1"></div>
+      <div class="hint">З кожного надходження в цю касу (оплата чека, онлайн-оплата, надходження у фіноперацях) у журнал фіноперацій одразу пишеться витрата «комісія» за обраною статтею з цієї ж каси. Повернення / скасування чека — комісія знімається. 0 — без комісії.</div></div>
     <div class="cs-f"><label>Примітка</label><input name="note"></div>
     <div class="cs-f"><label class="sw"><input type="checkbox" name="active" value="1" checked> Активна</label>
       <label class="sw"><input type="checkbox" name="pos" value="1" checked> Показувати в касі як спосіб оплати</label>
@@ -121,7 +126,8 @@ function bxEdit(b){var d=document.getElementById('bx-ed'),f=d.querySelector('for
   document.getElementById('bx-t').textContent=b?('Каса · '+b.name):'Нова каса';
   f.id.value=b?b.id:'';if(b){f.name.value=b.name;f.location_id.value=b.location_id||'';f.type.value=b.type;f.color.value=b.color||'#5CB85C';
     f.opening.value=b.opening||'';f.opening_date.value=b.opening_date||'';f.note.value=b.note||'';f.active.checked=!!b.active;f.pos.checked=b.in_pos;
-    f.querySelectorAll('input[name=methods]').forEach(function(i){i.checked=(b.methods||[]).indexOf(i.value)>=0})}
+    f.querySelectorAll('input[name=methods]').forEach(function(i){i.checked=(b.methods||[]).indexOf(i.value)>=0});
+    f.fee_pct.value=b.fee_pct||'';if(b.fee_article)f.fee_article.value=b.fee_article;f.fee_from.value=b.fee_from||''}
   d.showModal()}
 </script>
 {% endblock %}

@@ -261,6 +261,12 @@ def _mark(db: Session, pl: PayLink, status: str, paid_amount: float | None = Non
         pl.paid_amount = paid_amount if paid_amount is not None else pl.amount
         _book(db, pl)
     db.commit()
+    if status == "paid" and was != "paid":
+        try:
+            from . import cashboxes
+            cashboxes.sync_fees(db)
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def _book(db: Session, pl: PayLink) -> None:

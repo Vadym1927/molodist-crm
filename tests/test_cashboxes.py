@@ -96,3 +96,37 @@ def test_pos_toggle():
         s = next(x for x in cbx.items(db) if x["name"] == "Готівка Cейф")
         cbx.save(db, s["id"], {**s, "active": True, "pos": False})
         assert "Готівка Cейф" not in sl.methods(db)
+
+
+def test_bank_fee_on_payments():
+    with SessionLocal() as db:
+        cbx.apply_seed(db)
+        x = next(b for b in cbx.items(db) if b["name"] == "Термінал ФОП Колган")
+        cbx.save(db, x["id"], {**x, "active": True, "methods": ["Картка (термінал)"], "fee_pct": 1.3,
+                               "fee_article": "Комісія банку Еквайринг MonoBank"})
+        assert next(b for b in cbx.items(db) if b["id"] == x["id"])["fee_from"] == date.today().isoformat()
+        old = Sale(total=999, subtotal=999, status="paid", at=datetime(2026, 1, 5, 12))       # до увімкнення — без комісії
+        old.payments.append(SalePayment(method="Картка (термінал)", amount=999))
+        s = Sale(total=2000, subtotal=2000, status="paid", at=datetime.now())
+        s.payments.append(SalePayment(method="Картка (термінал)", amount=1500)); s.payments.append(SalePayment(method="Готівка", amount=500))
+        op = FinOp(day=date.today(), kind="income", category="Внесення коштів в касу", amount=1000, cashbox="Термінал ФОП Колган")
+        db.add_all([old, s, op]); db.commit()
+        assert cbx.sync_fees(db) == 2 and cbx.sync_fees(db) == 0           # ідемпотентно
+        fees = db.query(FinOp).filter(FinOp.ref.like("fee:%"), FinOp.deleted_at.is_(None)).all()
+        assert sorted(f.amount for f in fees) == [13.0, 19.5]
+        assert all(f.kind == "expense" and f.cashbox == "Термінал ФОП Колган" and f.category == "Комісія банку Еквайринг MonoBank" for f in fees)
+        bal = next(b for b in cbx.overview(db) if b["name"] == "Термінал ФОП Колган")["balance"]
+        s.status = "refunded"; db.commit()                                  # повернення — комісію знято
+        cbx.sync_fees(db)
+        assert [f.amount for f in db.query(FinOp).filter(FinOp.ref.like("fee:sp:%"), FinOp.deleted_at.is_(None))] == []
+        assert next(b for b in cbx.overview(db) if b["name"] == "Термінал ФОП Колган")["balance"] != bal
+    settings.admin_password = "owner-pass-1"
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        t = c.get("/settings/cashboxes").text
+        assert "Комісія 1.3%" in t and 'name="fee_pct"' in t
+        assert "Комісія банку Еквайринг MonoBank" in c.get("/finance/ops").text
+        c.post("/finance/ops", data={"kind": "income", "category": "Внесення коштів в касу", "amount": "200",
+                                     "cashbox": "Термінал ФОП Колган"}, follow_redirects=False)
+        with SessionLocal() as db:                                    # після операції — комісія одразу в журналі
+            assert db.query(FinOp).filter(FinOp.ref.like("fee:op:%"), FinOp.amount == 2.6).count() == 1

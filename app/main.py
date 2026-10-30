@@ -364,6 +364,30 @@ class _DropEmptyQuery:
         await self.app(scope, receive, send)
 
 
+class _BankFees:
+    """Після операцій з грошима (продаж, оплата, повернення, фіноперація, онлайн-оплата) — списання комісії банку
+    в журнал фіноперацій за налаштуваннями кас (cashboxes.sync_fees, ідемпотентно)."""
+    PREFIX = ("/sales", "/finance/ops", "/paylinks", "/pay/", "/api/")
+
+    def __init__(self, app_):
+        self.app = app_
+
+    async def __call__(self, scope, receive, send):
+        await self.app(scope, receive, send)
+        if scope["type"] == "http" and scope.get("method") == "POST" and scope["path"].startswith(self.PREFIX):
+            await asyncio.to_thread(self.run)
+
+    @staticmethod
+    def run():
+        try:
+            from .services import cashboxes as _cbx
+            with SessionLocal() as _db:
+                _cbx.sync_fees(_db)
+        except Exception as e:  # noqa: BLE001
+            log.warning("Комісія банку: %s", e)
+
+
+app.add_middleware(_BankFees)
 app.add_middleware(_DropEmptyQuery)
 app.add_middleware(SessionMiddleware, secret_key=settings.secret_key, max_age=60 * 60 * 24 * 14,
                    https_only=settings.public_url.startswith("https"))
@@ -4219,13 +4243,14 @@ def settings_articles_delete(aid: int, del_password: str = Form(""), user: User 
 # ---------------- Налаштування → Каси / рахунки ----------------
 @app.get("/settings/cashboxes", response_class=HTMLResponse)
 def settings_cashboxes(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
-    from .services import cashboxes as cbx, clinic as cl, sales as sl
+    from .services import cashboxes as cbx, clinic as cl, sales as sl, fin_articles as fa
     boxes = cbx.overview(db)
     open_ = request.query_params.get("open", "")
     detail = next((b for b in boxes if str(b["id"]) == open_), None)
     return render(request, "cashboxes.html", nav="settings", boxes=boxes, TYPES=cbx.TYPES, locs=cl.get(db).get("locations") or [],
                   methods=sl.methods(db), open_=open_, detail=detail, dmoves=cbx.moves(db, detail, 100) if detail else [],
-                  total=round(sum(b["balance"] for b in boxes if b.get("active")), 2))
+                  total=round(sum(b["balance"] for b in boxes if b.get("active")), 2), fee_articles=fa.names(db, "expense"),
+                  FEE_ARTICLE=cbx.FEE_ARTICLE)
 
 
 @app.post("/settings/cashboxes")
@@ -4236,12 +4261,16 @@ async def settings_cashboxes_save(request: Request, user: User = Depends(require
     data = {"name": f.get("name"), "type": f.get("type"), "active": bool(f.get("active")), "note": f.get("note"),
             "location_id": int(f.get("location_id")) if str(f.get("location_id") or "").isdigit() else None,
             "opening": _num(str(f.get("opening") or "0")) or 0, "opening_date": _day(str(f.get("opening_date") or "")) and str(f.get("opening_date")),
-            "methods": f.getlist("methods"), "color": str(f.get("color") or "")[:9], "pos": bool(f.get("pos"))}
+            "methods": f.getlist("methods"), "color": str(f.get("color") or "")[:9], "pos": bool(f.get("pos")),
+            "fee_pct": _num(str(f.get("fee_pct") or "0").replace(",", ".")) or 0, "fee_article": f.get("fee_article"),
+            "fee_from": str(f.get("fee_from")) if _day(str(f.get("fee_from") or "")) else None}
     try:
         x = cbx.save(db, bid, data)
     except ValueError as e:
         return RedirectResponse(_with_msg("/settings/cashboxes" + (f"?edit={bid}" if bid else ""), str(e), True), 303)
-    audit(db, "cashbox.save", user=user, cashbox=x["id"], name=x["name"], type=x["type"], opening=x["opening"], methods=x["methods"])
+    audit(db, "cashbox.save", user=user, cashbox=x["id"], name=x["name"], type=x["type"], opening=x["opening"], methods=x["methods"],
+          fee_pct=x.get("fee_pct"), fee_article=x.get("fee_article"))
+    cbx.sync_fees(db)
     return RedirectResponse(_with_msg("/settings/cashboxes", f"Касу «{x['name']}» збережено"), 303)
 
 

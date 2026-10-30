@@ -111,6 +111,13 @@ def save(db: Session, bid: int | None, data: dict) -> dict:
         if y is not x:
             y["methods"] = [m for m in y.get("methods") or [] if m not in methods]
     x["pos"] = bool(data.get("pos")) if "pos" in data else x.get("pos")
+    if "fee_pct" in data:                                      # комісія банку: % від кожного надходження + стаття списання
+        fee = max(0.0, min(20.0, round(float(data.get("fee_pct") or 0), 3)))
+        if fee and not x.get("fee_pct"):
+            x["fee_from"] = date.today().isoformat()           # комісія рахується з дня, коли її увімкнули (без «заднім числом»)
+        x["fee_pct"], x["fee_article"] = fee or None, (str(data.get("fee_article") or "").strip()[:60] or None) if fee else x.get("fee_article")
+        if data.get("fee_from"):
+            x["fee_from"] = str(data["fee_from"])
     x.update(name=name, type=data["type"], location_id=data.get("location_id") or None, active=bool(data.get("active")),
              opening=round(float(data.get("opening") or 0), 2), opening_date=data.get("opening_date") or None,
              methods=methods, note=str(data.get("note") or "")[:300], color=data.get("color") or x.get("color") or COLORS[0],
@@ -271,3 +278,74 @@ def apply_seed(db: Session) -> bool:
     db.merge(SyncState(key=flag, value=datetime.now().isoformat(timespec="minutes"), updated_at=datetime.utcnow()))
     db.commit()
     return True
+
+
+# ---------------- Комісія банку ----------------
+FEE_ARTICLE = "Комісія банку Еквайринг MonoBank"
+NON_MONEY = ("Бонуси", "Сертифікат", "Рахунок пацієнта", "Абонемент")
+
+
+def _fee_boxes(db: Session) -> list[dict]:
+    return [x for x in items(db) if not x.get("deleted") and float(x.get("fee_pct") or 0) > 0]
+
+
+def _fee_amount(amount: float, pct: float) -> float:
+    return round(float(amount or 0) * float(pct) / 100, 2)
+
+
+def sync_fees(db: Session) -> int:
+    """Списання комісії банку у журнал фіноперацій: на кожне надходження в касу з % комісії — окрема витрата
+    (стаття каси, та сама каса). Ідемпотентно: ref fee:sp:<оплата чека> / fee:op:<фіноперація>.
+    Чек повернено / скасовано, фіноперацію видалено чи сторновано — комісія прибирається (в архів)."""
+    boxes = _fee_boxes(db)
+    all_fee = db.scalars(select(FinOp).where(FinOp.ref.like("fee:%"))).all()
+    existing = {op.ref: op for op in all_fee if not op.deleted_at}
+    seen = {op.ref for op in all_fee}                         # видалену вручну комісію повторно не створюємо
+    if not boxes and not existing:
+        return 0
+    want: dict[str, dict] = {}
+    for x in boxes:
+        pct, since = float(x["fee_pct"]), _since({"opening_date": x.get("fee_from")}) or date.today()
+        art = x.get("fee_article") or FEE_ARTICLE
+        meth = [m for m in set(x.get("methods") or []) | {x["name"]} | _link_methods(db, x["name"]) if m not in NON_MONEY]
+        if meth:
+            q = (select(SalePayment, Sale).join(Sale, Sale.id == SalePayment.sale_id)
+                 .where(SalePayment.method.in_(meth), Sale.status == "paid", Sale.at >= datetime.combine(since, datetime.min.time())))
+            for p, sl in db.execute(q):
+                want[f"fee:sp:{p.id}"] = {"day": sl.at.date(), "amount": _fee_amount(p.amount, pct), "box": x["name"], "art": art,
+                                          "comment": f"Комісія {pct:g}% · чек Ч-{sl.id} · {p.method} {p.amount:.2f} ₴"}
+        storned = {i for (i,) in db.execute(select(FinOp.storno_of).where(FinOp.storno_of.is_not(None), FinOp.deleted_at.is_(None)))}
+        for op in db.scalars(select(FinOp).where(FinOp.kind == "income", FinOp.cashbox == x["name"], FinOp.deleted_at.is_(None),
+                                                 FinOp.storno_of.is_(None), FinOp.day >= since)):
+            if op.id in storned or (op.ref or "").startswith("fee:"):
+                continue
+            want[f"fee:op:{op.id}"] = {"day": op.day, "amount": _fee_amount(op.amount, pct), "box": x["name"], "art": art,
+                                       "comment": f"Комісія {pct:g}% · CRM-{op.id} {op.category} {op.amount:.2f} ₴"}
+    n = 0
+    for ref, w in want.items():
+        if ref in seen or w["amount"] < 0.01:
+            continue
+        db.add(FinOp(day=w["day"], kind="expense", category=w["art"], amount=w["amount"], cashbox=w["box"], ref=ref,
+                     counterparty="Банк", comment=w["comment"][:500]))
+        n += 1
+    for ref, op in existing.items():                          # джерело більше не дійсне — комісію знімаємо
+        if ref not in want and not _fee_source_alive(db, ref):
+            op.deleted_at = datetime.utcnow()
+            n += 1
+    if n:
+        db.commit()
+    return n
+
+
+def _fee_source_alive(db: Session, ref: str) -> bool:
+    kind, _, sid = ref[4:].partition(":")
+    if not sid.isdigit():
+        return False
+    if kind == "sp":
+        p = db.get(SalePayment, int(sid))
+        s_ = db.get(Sale, p.sale_id) if p else None
+        return bool(s_ and s_.status == "paid")
+    if kind == "op":
+        op = db.get(FinOp, int(sid))
+        return bool(op and not op.deleted_at and not db.scalar(select(FinOp.id).where(FinOp.storno_of == op.id, FinOp.deleted_at.is_(None))))
+    return False
