@@ -11,6 +11,9 @@
 .sp-top{display:flex;gap:22px;align-items:center;position:relative;z-index:1;flex-wrap:wrap}
 .sp-av{width:92px;height:92px;border-radius:50%;flex:none;display:grid;place-items:center;font:500 32px/1 var(--head);color:#fff;
   background:var(--c) center/cover no-repeat;box-shadow:0 0 0 3px rgba(255,255,255,.18),0 0 0 7px rgba(228,222,239,.08)}
+.sp-av.up{position:relative;cursor:pointer;overflow:hidden}.sp-av.up i{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  background:rgba(42,36,48,.55);color:#fff;opacity:0;transition:opacity .2s;font-style:normal}.sp-av.up i small{font:600 10px var(--sans);letter-spacing:.06em}
+.sp-av.up:hover i{opacity:1}{% if not d.photo_url %}.sp-av.up i{opacity:.0}{% endif %}
 .sp-eb{font:600 10.5px var(--sans);letter-spacing:.22em;text-transform:uppercase;color:#C9BFE6}
 .sp-hero h1{margin:6px 0 8px;color:#fff;font:500 30px/1.15 var(--head);letter-spacing:.04em;text-transform:uppercase}
 .sp-pills{display:flex;gap:6px;flex-wrap:wrap}.sp-pills span{font:600 11.5px var(--sans);border-radius:99px;padding:4px 11px;background:rgba(255,255,255,.1);color:#E4DEEF}
@@ -82,7 +85,11 @@
 <a href="/specialists" class="sp-back">← Співробітники</a>
 <section class="sp-hero" style="--c:{{ c.color }}">
   <div class="sp-top">
-    <div class="sp-av" {% if d.photo_url %}style="background-image:url('{{ d.photo_url }}')"{% endif %}>{{ '' if d.photo_url else c.initials }}</div>
+    {% if edit %}<form method="post" action="/specialists/{{ d.id }}/avatar" enctype="multipart/form-data" class="av-f" style="margin:0">
+      <label class="sp-av up" title="Завантажити аватар" {% if d.photo_url %}style="background-image:url('{{ d.photo_url }}')"{% endif %}>{{ '' if d.photo_url else c.initials }}
+        <input type="file" name="file" accept="image/jpeg,image/png,image/webp,image/heic" onchange="this.form.submit()" hidden>
+        <i><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg><small>{{ 'Змінити' if d.photo_url else 'Додати фото' }}</small></i></label></form>
+    {% else %}<div class="sp-av" {% if d.photo_url %}style="background-image:url('{{ d.photo_url }}')"{% endif %}>{{ '' if d.photo_url else c.initials }}</div>{% endif %}
     <div><div class="sp-eb">{{ d.position or 'Співробітник' }}</div><h1>{{ d.name }}</h1>
       <div class="sp-pills">{% if d.active %}<span class="ok">Працює</span>{% else %}<span class="bad">Звільнений{{ (' з ' ~ d.fired_at.strftime('%d.%m.%Y')) if d.fired_at }}</span>{% endif %}
         {% if xv.get('salary') %}<span>Оклад: {{ xv.salary }}</span>{% endif %}{% if d.cleverbox_id %}<span>CleverBox #{{ d.cleverbox_id }}</span>{% endif %}
@@ -111,7 +118,7 @@
       <div class="two"><label class="fl"><span>Телефон</span><input name="phone" value="{{ d.phone or '' }}" placeholder="+380…" {{ '' if edit else 'disabled' }}></label>
         <label class="fl"><span>Email</span><input name="email" value="{{ d.email or '' }}" {{ '' if edit else 'disabled' }}></label></div>
       <label class="fl"><span>Графік роботи</span><input name="work_days" value="{{ d.work_days or '' }}" placeholder="Пн–Пт 10:00–19:00"></label>
-      <label class="fl"><span>Фото (посилання https://…)</span><input name="photo_url" value="{{ d.photo_url or '' }}" placeholder="підтягується з CleverBox, якщо є"></label>
+      <label class="fl"><span>Фото — натисніть на аватар угорі або вставте посилання https://…</span><input name="photo_url" value="{{ d.photo_url or '' }}" placeholder="підтягується з CleverBox, якщо є">{% if xv.get('avatar_path') and edit %}<button class="btn ghost" formaction="/specialists/{{ d.id }}/avatar/delete" formnovalidate onclick="return confirm('Прибрати аватар?')" style="justify-self:start;padding:6px 12px;font-size:12.5px">Прибрати аватар</button>{% endif %}</label>
       <label class="fl"><span>Telegram chat ID</span><input name="telegram_chat_id" value="{{ d.telegram_chat_id or '' }}"><small>Для нагадувань і сповіщень співробітнику. Доступ до CRM — у «Налаштування → Права доступу».</small></label></div>
     <div class="sc"><h3>Соціальні контакти</h3><div class="soc">
       {% set S = xv.get('social') or {} %}{% set IC = {'viber':'#7360F2','telegram':'#229ED9','whatsapp':'#25D366','facebook':'#1877F2','instagram':'#C13584'} %}

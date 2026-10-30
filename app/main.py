@@ -6309,6 +6309,46 @@ async def specialist_services(did: int, request: Request, user: User = Depends(r
     return RedirectResponse(_with_msg(f"/specialists/{did}?tab=services", "Послуги збережено"), 303)
 
 
+@app.post("/specialists/{did:int}/avatar")
+async def specialist_avatar(did: int, file: UploadFile = File(...), user: User = Depends(require("specialists_edit")),
+                            db: Session = Depends(db_dep)):
+    """Аватар співробітника: jpg / png / webp до 5 МБ → показується в картці, списку й календарі."""
+    from .services import ingest
+    d = db.get(Doctor, did) or (_ for _ in ()).throw(HTTPException(404))
+    data = await file.read()
+    nm = (file.filename or "avatar").lower()
+    if not data or len(data) > 5 * 1024 * 1024 or not (nm.endswith((".jpg", ".jpeg", ".png", ".webp", ".heic")) or (file.content_type or "").startswith("image/")):
+        return RedirectResponse(_with_msg(f"/specialists/{did}", "Аватар: потрібне фото jpg, png або webp до 5 МБ", True), 303)
+    path = ingest.store(data, "avatar_" + nm[-40:])
+    d.extra = {**(d.extra or {}), "avatar_path": path, "avatar_mime": (file.content_type or "image/jpeg")[:60]}
+    d.photo_url = f"/specialists/{did}/avatar?v={int(datetime.now().timestamp())}"
+    db.commit()
+    audit(db, "specialist.avatar", "doctor", did, user=user)
+    return RedirectResponse(_with_msg(f"/specialists/{did}", "Аватар оновлено"), 303)
+
+
+@app.get("/specialists/{did:int}/avatar")
+def specialist_avatar_get(did: int, user: User = Depends(current_user), db: Session = Depends(db_dep)):
+    d = db.get(Doctor, did)
+    p = (d.extra or {}).get("avatar_path") if d else None
+    if not p or not Path(p).exists():
+        raise HTTPException(404)
+    return FileResponse(p, media_type=(d.extra or {}).get("avatar_mime") or "image/jpeg", headers={"Cache-Control": "private, max-age=604800"})
+
+
+@app.post("/specialists/{did:int}/avatar/delete")
+def specialist_avatar_delete(did: int, user: User = Depends(require("specialists_edit")), db: Session = Depends(db_dep)):
+    d = db.get(Doctor, did) or (_ for _ in ()).throw(HTTPException(404))
+    ex = dict(d.extra or {})
+    ex.pop("avatar_path", None); ex.pop("avatar_mime", None)
+    d.extra = ex
+    if (d.photo_url or "").startswith("/specialists/"):
+        d.photo_url = None
+    db.commit()
+    audit(db, "specialist.avatar_delete", "doctor", did, user=user)
+    return RedirectResponse(_with_msg(f"/specialists/{did}", "Аватар прибрано"), 303)
+
+
 @app.post("/specialists/{did:int}/files")
 async def specialist_files_upload(did: int, files: list[UploadFile] = File(...), user: User = Depends(require("specialists_edit")),
                                   db: Session = Depends(db_dep)):

@@ -195,3 +195,22 @@ def test_specialist_card_tabs():
             fid = fs[0].id
         assert c.get(f"/specialists/files/{fid}").content.startswith(b"%PDF")
         assert "Оновлено картку співробітника" in c.get(f"/specialists/{did}?tab=log").text
+
+
+def test_specialist_avatar_upload():
+    from app.models import Doctor
+    settings.admin_password = "owner-pass-1"
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        with SessionLocal() as db:
+            d = Doctor(name="Аватар Тест"); db.add(d); db.commit(); did = d.id
+        png = b"\x89PNG\r\n\x1a\n" + b"0" * 100
+        r = c.post(f"/specialists/{did}/avatar", files={"file": ("me.png", png, "image/png")}, follow_redirects=False)
+        assert r.status_code == 303
+        with SessionLocal() as db:
+            assert db.get(Doctor, did).photo_url.startswith(f"/specialists/{did}/avatar")
+        assert c.get(f"/specialists/{did}/avatar").content == png
+        assert f"/specialists/{did}/avatar?v=" in c.get(f"/specialists/{did}").text
+        c.post(f"/specialists/{did}/avatar/delete")
+        with SessionLocal() as db:
+            assert db.get(Doctor, did).photo_url is None

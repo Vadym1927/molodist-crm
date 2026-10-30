@@ -492,7 +492,7 @@ def sync_staff(db: Session, cb: CleverBox) -> int:
         if phone and not doc.phone:
             doc.phone = str(phone).strip()[:64]
         img = s.get("img") or s.get("photo") or s.get("avatar")
-        if isinstance(img, str) and img.startswith("http"):
+        if isinstance(img, str) and img.startswith("http") and not (doc.extra or {}).get("avatar_path"):   # завантажений у CRM аватар не перезаписуємо
             doc.photo_url = img[:500]
         pos = next((s.get(k) for k in STAFF_POSITION_KEYS if isinstance(s.get(k), str) and s.get(k).strip()), None)
         if pos and not doc.position:
