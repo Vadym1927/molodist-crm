@@ -40,15 +40,17 @@ def test_sales_pos():
         bad = c.post("/sales", json={"patient_id": pid, "appointment_id": aid, "items": items, "manual_discount": 100, "bonus_pay": 100,
                                      "payments": [{"method": "Готівка", "amount": 100}]})
         assert bad.status_code == 400
+        nodoc = [{**items[0], "doctor_id": None}]
+        assert "спеціаліста" in c.post("/sales", json={"items": nodoc, "payments": [{"method": "Готівка", "amount": 2000}]}).json()["error"]
         j = c.post("/sales", json={"patient_id": pid, "appointment_id": aid, "items": items, "manual_discount": 100, "bonus_pay": 100,
-                                   "payments": [{"method": "Готівка", "amount": 2900}, {"method": "Сертифікат", "amount": 500, "cert_id": 990301}]}).json()
+                                   "payments": [{"method": "Готівка", "amount": 3000}, {"method": "Сертифікат", "amount": 500, "cert_id": 990301}]}).json()
         assert j["ok"]; sid = j["id"]
         assert "Ч-" in c.get(f"/sales/{sid}").text and "Касова Пацієнтка" in c.get("/sales").text
         ops = c.get("/finance/ops").text
         assert f"Ч-{sid}" in ops
     with SessionLocal() as db:
         s = db.get(Sale, sid)
-        assert s.total == 3500 and s.bonus_spent == 100 and s.bonus_accrued > 0
+        assert s.total == 3600 and s.discount == 0 and s.bonus_spent == 100      # ручна знижка з каси ігнорується and s.bonus_accrued > 0
         assert db.get(Appointment, aid).status == "done" and db.get(Appointment, aid).sale_id == sid
         assert db.get(GiftCertificate, 990301).balance == 0
         assert round(sum(m.qty for m in db.query(StockMove).filter(StockMove.ref.like(f"crmsale:{sid}:%"))), 3) == -2

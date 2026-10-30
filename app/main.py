@@ -1251,6 +1251,9 @@ async def sale_create(request: Request, user: User = Depends(require("sales")), 
     d_ = _sale_payload(await request.json())
     if d_["patient_id"]:
         _patient_or_403(db, user, d_["patient_id"])
+    if any(not it_.get("doctor_id") for it_ in d_["items"]):
+        return JSONResponse({"error": "Оберіть спеціаліста / продавця (ініціатора продажу) для кожної позиції"}, status_code=400)
+    d_["manual_discount"] = 0                                   # знижка — лише зі списку в «Налаштування → Знижки»
     try:
         s_ = sl.create(db, d_, user.id)
     except sl.SaleError as e:

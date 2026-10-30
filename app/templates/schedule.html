@@ -37,7 +37,7 @@ dialog.sd::backdrop{background:rgba(42,36,48,.45)}
   {% for d in days %}<th class="{{ 'we' if d.weekday() >= 5 }} {{ 'td' if d == today }}">{{ WD[d.weekday()] }}<br><b>{{ d|dt('%d.%m') }}</b></th>{% endfor %}<th>Разом</th></tr></thead><tbody>
 {% for dc in docs %}{% set t = totals.get(dc.id) %}<tr><td class="nm"><b>{{ dc.name }}</b><span>{{ dc.position or '' }}</span></td>
   {% for d in days %}{% set s = sh.get((dc.id, d)) %}<td class="{{ 'we' if d.weekday() >= 5 }} {{ 'td' if d == today }}">
-    <button type="button" class="cell" onclick="cell({{ dc.id }}, {{ dc.name|tojson }}, '{{ d }}', '{{ WD[d.weekday()] }} {{ d|dt('%d.%m') }}', {{ (s.start if s else '')|tojson }}, {{ (s.end if s else '')|tojson }}, {{ (s.place if s and s.place else '')|tojson }}, {{ (s.note if s and s.note else '')|tojson }})"
+    <button type="button" class="cell" onclick='cell({{ dc.id }}, {{ dc.name|tojson }}, {{ d|string|tojson }}, {{ (WD[d.weekday()] ~ " " ~ d|dt("%d.%m"))|tojson }}, {{ (s.start if s else "")|tojson }}, {{ (s.end if s else "")|tojson }}, {{ (s.place if s and s.place else "")|tojson }}, {{ (s.note if s and s.note else "")|tojson }})'
       title="{{ (s.note or '') if s }}">{% if s %}<span class="sh" style="--c:{{ color(dc) }}">{{ s.start }}<br>{{ s.end }}{% if s.place %}<i>{{ s.place }}</i>{% endif %}</span>{% else %}<span class="off">·</span>{% endif %}</button></td>{% endfor %}
   <td class="small" style="padding:6px 8px;white-space:nowrap">{% if t %}<b>{{ t.days }}</b> дн<br>{{ (t.minutes // 60) }} год{{ (' ' ~ (t.minutes % 60) ~ ' хв') if t.minutes % 60 }}{% else %}—{% endif %}</td></tr>
 {% else %}<tr><td colspan="{{ days|length + 2 }}" class="muted" style="padding:14px">Немає активних спеціалістів.</td></tr>{% endfor %}
