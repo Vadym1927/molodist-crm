@@ -991,6 +991,19 @@ class FopMonth(Base):
         return round((self.cash or 0) + (self.cashless or 0), 2)
 
 
+class DoctorFile(Base):
+    """Файли співробітника: договір, дипломи, сертифікати, медкнижка."""
+    __tablename__ = "doctor_files"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    doctor_id: Mapped[int] = mapped_column(ForeignKey("doctors.id"), index=True)
+    path: Mapped[str] = mapped_column(String(500))
+    name: Mapped[str] = mapped_column(String(200))
+    mime: Mapped[str | None] = mapped_column(String(100))
+    size: Mapped[int | None] = mapped_column(Integer)
+    uploaded_by: Mapped[int | None] = mapped_column(Integer)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class StockDocFile(Base):
     """Скан / фото накладної, рахунку, ТТН до складського документа."""
     __tablename__ = "stock_doc_files"

@@ -6148,12 +6148,79 @@ def schedule_clear(doctor_id: str = Form(""), d_from: str = Form(...), d_to: str
     return _sched_back(back, f"Прибрано змін: {n}")
 
 
+SPEC_TABS = {"info": "Інформація", "services": "Доступні послуги", "photos": "Візити з фото", "log": "Журнал дій",
+             "files": "Файли", "online": "Онлайн-запис"}
+DOC_FILE_EXT = (".jpg", ".jpeg", ".png", ".gif", ".tiff", ".tif", ".webp", ".doc", ".docx", ".pdf", ".xls", ".xlsx")
+SOCIALS = [("viber", "Viber"), ("telegram", "Telegram"), ("whatsapp", "WhatsApp"), ("facebook", "Facebook"), ("instagram", "Instagram")]
+
+
+AUDIT_WORDS = {"login": "Увійшов до системи", "logout": "Вийшов із системи", "specialist.update": "Оновлено картку співробітника",
+               "specialist.services": "Оновлено доступні послуги", "specialist.services_fill": "Відмічено виконані послуги",
+               "specialist.files": "Завантажено файли", "specialist.file_delete": "Видалено файл", "specialist.calendar": "Змінено показ у календарі",
+               "specialist.create": "Створено співробітника", "specialist.status_auto": "Статус оновлено з CleverBox",
+               "sale.create": "Продаж", "sale.refund": "Повернення чека", "sale.cancel": "Скасовано чек", "sale.fiscalize": "Фіскалізовано чек",
+               "task.create": "Створено задачу", "task.done": "Завершено задачу", "task.update": "Оновлено задачу", "appt.create": "Створено запис",
+               "appt.update": "Змінено запис", "appt.status": "Змінено статус запису", "message.send": "Надіслано повідомлення",
+               "medcard.create": "Запис у медкартці", "medcard.update": "Змінено запис медкартки", "fin.salary_adj": "Нарахування / утримання",
+               "schedule.fill": "Заповнено графік", "schedule.set": "Змінено графік", "plan.create": "Створено бюті-план", "patient.update": "Оновлено картку пацієнта"}
+
+
+def audit_text(a) -> str:
+    base = AUDIT_WORDS.get(a.action) or AUDIT_WORDS.get(a.action.split(".")[0]) or a.action
+    det = a.details or {}
+    bits = []
+    if a.entity and a.entity_id and a.entity != "doctor":
+        bits.append({"sale": "Ч-", "task": "задача ", "appointment": "запис ", "patient": "пацієнт ", "stock_doc": "документ "}.get(a.entity, a.entity + " ") + str(a.entity_id))
+    for k in ("name", "total", "amount", "comment", "n", "files"):
+        if det.get(k) not in (None, "", 0):
+            bits.append(f"{det[k]}")
+    return base + (" · " + " · ".join(bits[:3]) if bits else "")
+
+
+templates.env.globals["audit_text"] = audit_text
+
+
+def _spec_tab_data(db: Session, user: User, d: Doctor, tab: str) -> dict:
+    """Дані вкладок картки спеціаліста (лише для відкритої вкладки)."""
+    from .models import DoctorFile, MedRecord
+    out: dict = {}
+    if tab == "services":
+        chosen = {str(k): v for k, v in ((d.extra or {}).get("services") or {}).items()}
+        groups: dict = {}
+        for s_ in db.scalars(select(CbService).order_by(CbService.name)):
+            groups.setdefault(s_.category or "Без категорії", []).append(s_)
+        out["groups"] = sorted(groups.items(), key=lambda kv: kv[0].lower())
+        out["chosen"] = chosen
+    elif tab == "photos":
+        from .security import patient_visible
+        recs = db.scalars(select(MedRecord).where(MedRecord.doctor_id == d.id, MedRecord.deleted_at.is_(None))
+                          .order_by(MedRecord.at.desc()).limit(300)).all()
+        files = db.scalars(select(PatientFile).where(PatientFile.kind == "photo", PatientFile.record_id.in_([r_.id for r_ in recs] or [0]))).all()
+        by_rec: dict = {}
+        for f_ in files:
+            by_rec.setdefault(f_.record_id, []).append(f_)
+        pats = {p_.id: p_ for p_ in db.scalars(select(Patient).where(Patient.id.in_([r_.patient_id for r_ in recs if r_.id in by_rec] or [0])))}
+        out["visits"] = [{"r": r_, "p": pats[r_.patient_id], "photos": sorted(by_rec[r_.id], key=lambda f_: f_.id)} for r_ in recs
+                         if r_.id in by_rec and r_.patient_id in pats and patient_visible(user, pats[r_.patient_id])]
+    elif tab == "log":
+        uids = [u_.id for u_ in db.scalars(select(User).where(User.doctor_id == d.id))]
+        q = select(AuditLog).where((AuditLog.entity == "doctor") & (AuditLog.entity_id == d.id))
+        if uids:
+            q = select(AuditLog).where(((AuditLog.entity == "doctor") & (AuditLog.entity_id == d.id)) | AuditLog.user_id.in_(uids))
+        out["log"] = db.scalars(q.order_by(AuditLog.at.desc()).limit(300)).all()
+        out["has_user"] = bool(uids)
+    elif tab == "files":
+        out["files"] = db.scalars(select(DoctorFile).where(DoctorFile.doctor_id == d.id).order_by(DoctorFile.uploaded_at.desc())).all()
+    return out
+
+
 @app.get("/specialists/{did:int}", response_class=HTMLResponse)
-def specialist_page(did: int, request: Request, user: User = Depends(require("specialists")),
+def specialist_page(did: int, request: Request, tab: str = "info", user: User = Depends(require("specialists")),
                     db: Session = Depends(db_dep)):
     d = db.get(Doctor, did)
     if not d:
         raise HTTPException(404)
+    tab = tab if tab in SPEC_TABS else "info"
     card = spec_svc.cards(db, [did])[0]
     now = datetime.now()
     idx = spec_svc.DoctorIndex(spec_svc.all_doctors(db))
@@ -6166,8 +6233,10 @@ def specialist_page(did: int, request: Request, user: User = Depends(require("sp
     xf = _sf.custom(db)
     from .services import salary_plans as _spl
     auto_opts = {"clinic": [l_.get("name") for l_ in (_cl.get(db).get("locations") or []) if l_.get("name")], "salary": _spl.names(db)}
-    return render(request, "specialist.html", d=d, c=card, upcoming=upcoming, patients=patients,
-                  palette=spec_svc.PALETTE, positions=_ps.names(db), xfields=xf, auto_opts=auto_opts, xv=d.extra or {})
+    locs = [l_.get("name") for l_ in (_cl.get(db).get("locations") or []) if l_.get("name")] or ["MOLODIST"]
+    return render(request, "specialist.html", d=d, c=card, upcoming=upcoming, patients=patients, tab=tab, TABS=SPEC_TABS,
+                  palette=spec_svc.PALETTE, positions=_ps.names(db), xfields=xf, auto_opts=auto_opts, xv=d.extra or {},
+                  SOCIALS=SOCIALS, locs=locs, WH=catalog.WAREHOUSES, td=_spec_tab_data(db, user, d, tab))
 
 
 @app.post("/specialists/{did:int}")
@@ -6203,9 +6272,83 @@ async def specialist_save(did: int, request: Request, name: str = Form(...), pos
                 dd_ = _exp_day(vals[f_["key"]])
                 vals[f_["key"]] = dd_.isoformat() if dd_ else ""
         d.extra = {**(d.extra or {}), **vals}
+    f_all = await request.form()
+    d.extra = {**(d.extra or {}),
+               "social": {k: str(f_all.get(f"social_{k}") or "").strip()[:200] for k, _ in SOCIALS if str(f_all.get(f"social_{k}") or "").strip()},
+               "writeoff_wh": {k[3:]: v for k, v in f_all.items() if k.startswith("wh_") and v in catalog.WAREHOUSES}}
     db.commit()
     audit(db, "specialist.update", "doctor", d.id, user=user)
     return RedirectResponse(f"/specialists/{did}?saved=1", 303)
+
+
+@app.post("/specialists/{did:int}/services")
+async def specialist_services(did: int, request: Request, user: User = Depends(require("specialists_edit")), db: Session = Depends(db_dep)):
+    """Доступні послуги спеціаліста й час виконання: svc_{id}=1, min_{id}=хвилини; fill=1 — відмітити виконані раніше."""
+    d = db.get(Doctor, did) or (_ for _ in ()).throw(HTTPException(404))
+    f = await request.form()
+    if f.get("fill") == "1":
+        idx = spec_svc.DoctorIndex(spec_svc.all_doctors(db))
+        names = {(v_.service_name or "").strip().lower() for v_ in db.scalars(select(Visit).where(Visit.master_name.is_not(None)))
+                 if v_.service_name and (m_ := idx.find(v_.master_name)) and m_.id == did}
+        cur = dict((d.extra or {}).get("services") or {})
+        for s_ in db.scalars(select(CbService)):
+            if (s_.name or "").strip().lower() in names and str(s_.id) not in cur:
+                cur[str(s_.id)] = s_.time_min or 30
+        d.extra = {**(d.extra or {}), "services": cur}
+        db.commit()
+        audit(db, "specialist.services_fill", "doctor", did, user=user, n=len(cur))
+        return RedirectResponse(_with_msg(f"/specialists/{did}?tab=services", f"Відмічено послуг: {len(cur)}"), 303)
+    out = {}
+    for k, v in f.items():
+        if k.startswith("svc_") and v == "1":
+            sid = k[4:]
+            out[sid] = int(_num(str(f.get(f"min_{sid}") or "")) or 0) or 30
+    d.extra = {**(d.extra or {}), "services": out}
+    db.commit()
+    audit(db, "specialist.services", "doctor", did, user=user, n=len(out))
+    return RedirectResponse(_with_msg(f"/specialists/{did}?tab=services", "Послуги збережено"), 303)
+
+
+@app.post("/specialists/{did:int}/files")
+async def specialist_files_upload(did: int, files: list[UploadFile] = File(...), user: User = Depends(require("specialists_edit")),
+                                  db: Session = Depends(db_dep)):
+    from .services import ingest
+    from .models import DoctorFile
+    db.get(Doctor, did) or (_ for _ in ()).throw(HTTPException(404))
+    n, bad = 0, []
+    for f in files:
+        data = await f.read()
+        nm = (f.filename or "файл")[:200]
+        if not data or len(data) > 8 * 1024 * 1024 or not nm.lower().endswith(DOC_FILE_EXT):
+            bad.append(nm)
+            continue
+        db.add(DoctorFile(doctor_id=did, path=ingest.store(data, nm), name=nm, mime=(f.content_type or "")[:100] or None,
+                          size=len(data), uploaded_by=user.id))
+        n += 1
+    db.commit()
+    audit(db, "specialist.files", "doctor", did, user=user, files=n)
+    msg = f"Завантажено файлів: {n}" + (f". Пропущено (формат або > 8 МБ): {', '.join(bad)[:150]}" if bad else "")
+    return RedirectResponse(_with_msg(f"/specialists/{did}?tab=files", msg, bool(bad) and not n), 303)
+
+
+@app.get("/specialists/files/{fid:int}")
+def specialist_file_get(fid: int, user: User = Depends(require("specialists")), db: Session = Depends(db_dep)):
+    from .models import DoctorFile
+    f = db.get(DoctorFile, fid)
+    if not f or not Path(f.path).exists():
+        raise HTTPException(404, "Файл не знайдено")
+    return FileResponse(f.path, media_type=f.mime or mimetypes.guess_type(f.name)[0] or "application/octet-stream", filename=f.name)
+
+
+@app.post("/specialists/files/{fid:int}/delete")
+def specialist_file_delete(fid: int, user: User = Depends(require("specialists_edit")), db: Session = Depends(db_dep)):
+    from .models import DoctorFile
+    f = db.get(DoctorFile, fid) or (_ for _ in ()).throw(HTTPException(404))
+    did, nm = f.doctor_id, f.name
+    db.delete(f)
+    db.commit()
+    audit(db, "specialist.file_delete", "doctor", did, user=user, name=nm)
+    return RedirectResponse(_with_msg(f"/specialists/{did}?tab=files", "Файл видалено"), 303)
 
 
 @app.post("/specialists/sync")

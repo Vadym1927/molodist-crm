@@ -164,3 +164,34 @@ def test_sale_initiator_toggle():
         c.post(f"/specialists/{did}", data={"name": "Ініціатор Тест", "status": "active", "in_calendar": "1", "sale_initiator": "1"})
         with SessionLocal() as db:
             assert db.get(Doctor, did).sale_initiator is True
+
+
+def test_specialist_card_tabs():
+    from datetime import datetime as _dt
+    from app.models import Doctor, CbService, MedRecord, PatientFile, Patient, DoctorFile
+    settings.admin_password = "owner-pass-1"
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        with SessionLocal() as db:
+            d = Doctor(name="Картка Табів"); s = CbService(id=765432, name="Тест послуга табів", category="Тест категорія", price=100, time_min=45)
+            p = Patient(full_name="Фото Пацієнтка"); db.add_all([d, s, p]); db.commit()
+            r = MedRecord(patient_id=p.id, doctor_id=d.id, at=_dt(2026, 6, 13, 11, 45), title="IPL Над верхньою губою"); db.add(r); db.commit()
+            db.add(PatientFile(patient_id=p.id, kind="photo", path="/tmp/x.jpg", stage="before", record_id=r.id)); db.commit()
+            did = d.id
+        for t in ("info", "services", "photos", "log", "files", "online"):
+            assert c.get(f"/specialists/{did}?tab={t}").status_code == 200
+        assert "IPL Над верхньою губою" in c.get(f"/specialists/{did}?tab=photos").text
+        c.post(f"/specialists/{did}/services", data={"svc_765432": "1", "min_765432": "50"})
+        assert "1 / 1" in c.get(f"/specialists/{did}?tab=services").text
+        c.post(f"/specialists/{did}", data={"name": "Картка Табів", "status": "active", "in_calendar": "1", "sale_initiator": "1",
+                                            "social_instagram": "@kartka", "wh_MOLODIST": "inject"})
+        with SessionLocal() as db:
+            ex = db.get(Doctor, did).extra
+            assert ex["services"] == {"765432": 50} and ex["social"]["instagram"] == "@kartka" and ex["writeoff_wh"]["MOLODIST"] == "inject"
+        c.post(f"/specialists/{did}/files", files=[("files", ("dyplom.pdf", b"%PDF-1.4 test", "application/pdf")), ("files", ("x.exe", b"MZ", "application/octet-stream"))])
+        with SessionLocal() as db:
+            fs = db.query(DoctorFile).filter_by(doctor_id=did).all()
+            assert [f.name for f in fs] == ["dyplom.pdf"]
+            fid = fs[0].id
+        assert c.get(f"/specialists/files/{fid}").content.startswith(b"%PDF")
+        assert "Оновлено картку співробітника" in c.get(f"/specialists/{did}?tab=log").text

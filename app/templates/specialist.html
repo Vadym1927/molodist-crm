@@ -1,101 +1,208 @@
 {% extends "base.html" %}
-{% block title %}{{ d.name }} · Спеціалісти{% endblock %}
+{% block title %}{{ d.name }} · Співробітники{% endblock %}
 {% block body %}
-<style>.xf-h{margin-top:6px;padding-top:12px;border-top:1px dashed #E6E0D8;font:600 12px var(--head);letter-spacing:.12em;text-transform:uppercase;color:#3B3050;display:flex;justify-content:space-between;align-items:center}
-.xf-cb{display:flex!important;flex-direction:row!important;align-items:center;gap:8px}.xf-ms{display:grid;gap:6px;font-size:12px;color:var(--muted);font-weight:600}
-.xf-chips{display:flex;flex-wrap:wrap;gap:6px}.xf-chips label{display:inline-flex;cursor:pointer}.xf-chips input{display:none}
-.xf-chips i{font-style:normal;font:600 13px var(--sans);color:#3B3050;border:1px solid #E6E0D8;background:#fff;border-radius:99px;padding:6px 12px}
-.xf-chips input:checked+i{background:#3B3050;border-color:#3B3050;color:#fff}.xf-ph{display:grid;gap:6px}</style>
+{% set qp = request.query_params %}{% set edit = can(user,'specialists_edit') %}
 <style>
-.hero{display:flex;gap:22px;align-items:center;margin-bottom:22px;flex-wrap:wrap}
-.hero .av{width:96px;height:96px;border-radius:50%;display:grid;place-items:center;color:#fff;font:600 34px/1 var(--serif);background:var(--c) center/cover no-repeat;box-shadow:0 0 0 4px var(--card),0 0 0 5px var(--line);flex:none}
-.hero h1{margin:0}
-.lay{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:18px;align-items:start}
-.form{display:grid;gap:10px}.form>label,.form .two>label{display:grid;gap:4px;font-size:12px;color:var(--muted);font-weight:600}
-.form input,.form select,.form textarea{width:100%;min-width:0}.form .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.sw{display:flex;gap:6px;flex-wrap:wrap}.sw label{display:block;cursor:pointer}.sw input{display:none}
-.sw span{display:block;width:26px;height:26px;border-radius:50%;box-shadow:inset 0 0 0 2px rgba(255,255,255,.6)}
-.sw input:checked+span{box-shadow:0 0 0 2px var(--card),0 0 0 4px var(--ink)}
-.ulist{display:flex;flex-direction:column}.ulist a{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);text-decoration:none}
-.ulist a:last-child{border-bottom:0}
-@media (max-width:1000px){.lay{grid-template-columns:1fr}}
+.sp-back{display:inline-flex;gap:6px;align-items:center;color:#8a8496;font-size:13px;text-decoration:none;margin-bottom:10px}.sp-back:hover{color:#3B3050}
+.sp-hero{position:relative;overflow:hidden;border-radius:24px;padding:26px 30px;color:#fff;margin-bottom:20px;
+  background:radial-gradient(120% 160% at 100% 0%,#4A3D63 0%,#3B3050 42%,#2A2430 100%);box-shadow:0 22px 50px -32px rgba(42,36,48,.8)}
+.sp-hero:before{content:"";position:absolute;right:-80px;top:-100px;width:280px;height:280px;border-radius:50%;border:1px solid rgba(228,222,239,.14)}
+.sp-hero:after{content:"";position:absolute;right:50px;top:-50px;width:150px;height:150px;border-radius:50%;border:1px solid rgba(228,222,239,.1)}
+.sp-top{display:flex;gap:22px;align-items:center;position:relative;z-index:1;flex-wrap:wrap}
+.sp-av{width:92px;height:92px;border-radius:50%;flex:none;display:grid;place-items:center;font:500 32px/1 var(--head);color:#fff;
+  background:var(--c) center/cover no-repeat;box-shadow:0 0 0 3px rgba(255,255,255,.18),0 0 0 7px rgba(228,222,239,.08)}
+.sp-eb{font:600 10.5px var(--sans);letter-spacing:.22em;text-transform:uppercase;color:#C9BFE6}
+.sp-hero h1{margin:6px 0 8px;color:#fff;font:500 30px/1.15 var(--head);letter-spacing:.04em;text-transform:uppercase}
+.sp-pills{display:flex;gap:6px;flex-wrap:wrap}.sp-pills span{font:600 11.5px var(--sans);border-radius:99px;padding:4px 11px;background:rgba(255,255,255,.1);color:#E4DEEF}
+.sp-pills .ok{background:rgba(143,209,154,.18);color:#BFE6C5}.sp-pills .bad{background:rgba(240,178,168,.18);color:#F5B8AE}
+.sp-save{margin-left:auto;background:#fff!important;color:#3B3050!important;border:0;height:46px;padding:0 22px;border-radius:14px;font-weight:700;box-shadow:0 10px 24px -14px rgba(0,0,0,.6)}
+.sp-kpi{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;margin-top:22px;position:relative;z-index:1;background:rgba(228,222,239,.12);border-radius:16px;overflow:hidden}
+.sp-kpi div{background:rgba(42,36,48,.35);padding:12px 16px}.sp-kpi span{display:block;font:600 10px var(--sans);letter-spacing:.14em;text-transform:uppercase;color:#C9BFE6}
+.sp-kpi b{display:block;margin-top:4px;font:500 20px var(--head);color:#fff}.sp-kpi small{color:rgba(255,255,255,.55);font-size:11.5px}
+.sp-lay{display:grid;grid-template-columns:240px minmax(0,1fr);gap:20px;align-items:start}
+.sp-nav{position:sticky;top:16px;background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:8px;display:grid;gap:2px}
+.sp-nav a{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 14px;border-radius:13px;font:600 14px var(--sans);color:#3B3050;text-decoration:none}
+.sp-nav a:hover{background:#F7F4F0}.sp-nav a.on{background:#3B3050;color:#fff}
+.sp-nav a em{white-space:nowrap;font-style:normal;font:600 10px var(--sans);color:#8A5A00;background:#FFF4DE;border-radius:99px;padding:2px 8px}
+.sp-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}.sp-col{display:grid;gap:18px}
+.sc{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:20px 22px;box-shadow:0 1px 2px rgba(42,36,48,.04),0 14px 34px -28px rgba(42,36,48,.35)}
+.sc>h3{margin:0 0 14px;font:600 12px var(--head);letter-spacing:.16em;text-transform:uppercase;color:#3B3050;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.sc>h3 a{font:600 12px var(--sans);letter-spacing:0;text-transform:none;color:#5C4B82}
+.fl{display:grid;gap:6px;margin-bottom:14px}.fl:last-child{margin-bottom:0}
+.fl>span{font:700 10.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#9a93a6}
+.fl input,.fl select,.fl textarea{width:100%;min-width:0;height:44px;border-radius:12px}.fl textarea{height:auto;min-height:96px}
+.fl small{color:#9a93a6;font-size:12px;line-height:1.4}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.tg{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-radius:14px;background:#F7F4F0;margin-bottom:14px;font:600 14px var(--sans);color:#2A2430;cursor:pointer}
+.tg input{appearance:none;width:44px;height:24px;border-radius:12px;background:#D8D2CC;position:relative;cursor:pointer;border:0;padding:0;flex:none;transition:background .15s}
+.tg input:checked{background:#3B3050}.tg input:before{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s}
+.tg input:checked:before{left:23px}
+.soc{display:grid;gap:8px}.soc label{display:grid;grid-template-columns:44px 1fr;border:1px solid #E6E0D8;border-radius:12px;overflow:hidden;background:#fff}
+.soc i{display:grid;place-items:center;background:#F7F4F0;font-style:normal}.soc input{border:0!important;border-radius:0!important;height:42px;box-shadow:none!important}
+.cl{display:flex;gap:8px;flex-wrap:wrap}.cl label{cursor:pointer}.cl input{display:none}
+.cl span{display:block;width:28px;height:28px;border-radius:50%;box-shadow:inset 0 0 0 2px rgba(255,255,255,.55)}.cl input:checked+span{box-shadow:0 0 0 2px #fff,0 0 0 4px #3B3050}
+.xf-chips{display:flex;flex-wrap:wrap;gap:6px}.xf-chips label{display:inline-flex;cursor:pointer}.xf-chips input{display:none}
+.xf-chips i{font-style:normal;font:600 13px var(--sans);color:#3B3050;border:1px solid #E6E0D8;background:#fff;border-radius:99px;padding:7px 13px}
+.xf-chips input:checked+i{background:#3B3050;border-color:#3B3050;color:#fff}
+.ul a{display:flex;justify-content:space-between;gap:10px;padding:11px 0;border-top:1px solid #F3EFEA;text-decoration:none;color:#2A2430;font-size:14px}.ul a:first-child{border-top:0}
+.ul a:hover{color:#3B3050}.ul small{color:#9a93a6}
+.acc details{border-top:1px solid #F3EFEA}.acc details:first-child{border-top:0}
+.acc summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 4px;font:600 14.5px var(--sans);color:#3B3050}
+.acc summary::-webkit-details-marker{display:none}.acc summary b{font:600 12px var(--sans);color:#9a93a6;background:#F7F4F0;border-radius:99px;padding:3px 10px}
+.acc summary b.full{background:#EAF6EA;color:#2E6B2E}.acc summary b.part{background:#F1EDF8;color:#3B3050}
+.acc summary:after{content:"";width:8px;height:8px;border-right:2px solid #b8b1c2;border-bottom:2px solid #b8b1c2;transform:rotate(45deg);margin:0 6px 4px auto;transition:transform .15s}
+.acc details[open] summary:after{transform:rotate(-135deg);margin-bottom:-2px}.acc summary .t{flex:1}
+.sv{display:grid;grid-template-columns:28px 1fr 110px;gap:10px;align-items:center;padding:8px 4px 8px 8px;border-radius:10px}.sv:hover{background:#FBFAF8}
+.sv input[type=checkbox]{width:18px;height:18px;accent-color:#3B3050}.sv .m{display:flex;align-items:center;gap:6px}.sv .m input{height:36px;text-align:right}
+.sv .m small{color:#9a93a6}.sv.off .m{opacity:.35}
+.vr{border-top:1px solid #F3EFEA}.vr:first-child{border-top:0}
+.vr summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:90px 1fr 90px 130px 1.2fr 36px;gap:12px;align-items:center;padding:14px 4px;font-size:14px}
+.vr summary::-webkit-details-marker{display:none}.vr .no{color:#9a93a6;font-weight:600}.vr .pc{font-weight:600;color:#3B3050}
+.vr .ph{width:34px;height:34px;border-radius:50%;background:#3B3050;color:#fff;display:grid;place-items:center}
+.vr .gal{padding:0 4px 18px}.vr h4{margin:12px 0 8px;font:700 10.5px var(--sans);letter-spacing:.12em;text-transform:uppercase;color:#9a93a6}
+.vr .gal div{display:flex;flex-wrap:wrap;gap:10px}.vr .gal a img{width:132px;height:132px;object-fit:cover;border-radius:14px;border:1px solid #ECE7E1;display:block}
+.lg{width:100%;border-collapse:collapse}.lg td,.lg th{padding:11px 10px;border-top:1px solid #F3EFEA;text-align:left;font-size:14px;vertical-align:top}
+.lg th{border-top:0;font:700 10.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#9a93a6}.lg td.d{white-space:nowrap;color:#8a8496;width:150px}
+.dz{border:1.5px dashed #C9BFE6;border-radius:18px;background:#FBFAF8;padding:34px 20px;text-align:center;cursor:pointer;transition:background .15s,border-color .15s}
+.dz.on,.dz:hover{background:#F6F3FB;border-color:#3B3050}.dz b{display:block;font:600 14px var(--head);letter-spacing:.1em;text-transform:uppercase;color:#3B3050;margin-top:10px}
+.dz small{color:#9a93a6}.dz input{display:none}
+.fi{display:grid;grid-template-columns:44px 1fr auto auto;gap:12px;align-items:center;padding:12px 4px;border-top:1px solid #F3EFEA}.fi:first-child{border-top:0}
+.fi .ic{width:44px;height:44px;border-radius:12px;background:#F1EDF8;color:#3B3050;display:grid;place-items:center;font:700 10px var(--sans);text-transform:uppercase}
+.fi a.n{font-weight:600;color:#2A2430;text-decoration:none}.fi a.n:hover{color:#5C4B82}.fi small{display:block;color:#9a93a6;font-size:12px}
+.fi form{margin:0}.fi button{width:36px;height:36px;border-radius:11px;border:1px solid #ECE7E1;background:#fff;color:#B23B2E;cursor:pointer}
+.note{border-left:3px solid #C9BFE6;background:#F6F3FB;color:#4a4458;border-radius:14px;padding:12px 16px;font-size:13.5px;margin-bottom:16px}
+.msg{border-radius:14px;padding:12px 16px;margin:0 0 16px;font-weight:600}.msg.ok{background:#EAF6EA;color:#2E6B2E}.msg.bad{background:#FDECEA;color:#B23B2E}
+.dev{text-align:center;padding:50px 20px}.dev .b{display:inline-block;font:600 11px var(--sans);color:#8A5A00;background:#FFF4DE;border-radius:99px;padding:4px 12px}
+.dev h3{font:500 20px var(--head);letter-spacing:.06em;text-transform:uppercase;color:#3B3050;margin:14px 0 6px}.dev p{color:#8a8496;max-width:460px;margin:0 auto}
+@media(max-width:1100px){.sp-grid{grid-template-columns:1fr}}
+@media(max-width:860px){.sp-lay{grid-template-columns:1fr}.sp-nav{position:static;grid-auto-flow:column;overflow-x:auto}.sp-nav a{white-space:nowrap}
+  .sp-kpi{grid-template-columns:repeat(2,1fr)}.sp-kpi div:last-child{grid-column:1/-1}.sp-hero{padding:22px 18px}.sp-hero h1{font-size:23px}.two{grid-template-columns:1fr}
+  .vr summary{grid-template-columns:1fr auto;}.vr summary .hm{display:none}.sp-save{margin-left:0;width:100%}}
 </style>
-<a href="/specialists" class="muted small" style="text-decoration:none">← Спеціалісти</a>
-<div class="hero" style="--c:{{ c.color }};margin-top:10px">
-  <div class="av" {% if d.photo_url %}style="background-image:url('{{ d.photo_url }}')"{% endif %}>{{ '' if d.photo_url else c.initials }}</div>
-  <div>
-    <div class="eyebrow">{{ d.position or 'Спеціаліст' }}</div>
-    <h1>{{ d.name }}</h1>
-    <div class="row small">
-      {% if d.active %}<span class="pill ok">працює</span>{% else %}<span class="pill bad">звільнений{{ (' з ' ~ d.fired_at.strftime('%d.%m.%Y')) if d.fired_at }}</span>{% endif %}
-      {% if d.cleverbox_id %}<span class="pill done">CleverBox #{{ d.cleverbox_id }}</span>{% else %}<span class="pill warn">немає в CleverBox</span>{% endif %}
-      {% if d.work_days %}<span class="muted">{{ d.work_days }}</span>{% endif %}
-    </div>
+<a href="/specialists" class="sp-back">← Співробітники</a>
+<section class="sp-hero" style="--c:{{ c.color }}">
+  <div class="sp-top">
+    <div class="sp-av" {% if d.photo_url %}style="background-image:url('{{ d.photo_url }}')"{% endif %}>{{ '' if d.photo_url else c.initials }}</div>
+    <div><div class="sp-eb">{{ d.position or 'Співробітник' }}</div><h1>{{ d.name }}</h1>
+      <div class="sp-pills">{% if d.active %}<span class="ok">Працює</span>{% else %}<span class="bad">Звільнений{{ (' з ' ~ d.fired_at.strftime('%d.%m.%Y')) if d.fired_at }}</span>{% endif %}
+        {% if xv.get('salary') %}<span>Оклад: {{ xv.salary }}</span>{% endif %}{% if d.cleverbox_id %}<span>CleverBox #{{ d.cleverbox_id }}</span>{% endif %}
+        {% if d.in_calendar is not false %}<span>У календарі</span>{% endif %}</div></div>
+    {% if edit and tab == 'info' %}<button class="btn sp-save" form="spf">Зберегти</button>
+    {% elif edit and tab == 'services' %}<button class="btn sp-save" form="svf">Зберегти</button>{% endif %}
   </div>
-</div>
-{% if request.query_params.get('saved') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">Збережено</div>{% endif %}
-
-<div class="grid g5" style="margin-bottom:18px">
-  <div class="tile"><span>Послуг цього місяця</span><b>{{ c.month_visits }}</b><div class="muted small">минулого: {{ c.prev_month_visits }}</div></div>
-  <div class="tile"><span>Надано на суму</span><b>{{ c.month_revenue|uah }}</b><div class="muted small">цей місяць</div></div>
-  <div class="tile"><span>Записів на 14 днів</span><b>{{ c.upcoming }}</b><div class="muted small">{{ ('найближчий ' ~ c.next_visit.strftime('%d.%m %H:%M')) if c.next_visit else '—' }}</div></div>
-  <div class="tile"><span>Бюті-плани</span><b>{{ c.kpi.active if c.kpi else 0 }}</b><div class="muted small">реалізація {{ c.kpi.realization_pct if c.kpi else 0 }}%</div></div>
-  <div class="tile"><span>Пацієнтів закріплено</span><b>{{ c.patients }}</b><div class="muted small">&nbsp;</div></div>
-</div>
-
-<div class="lay">
-<div>
-  {% if d.bio %}<div class="card"><h2>Про спеціаліста</h2><div style="white-space:pre-line">{{ d.bio }}</div></div>{% endif %}
-  <div class="card"><h2>Записи на 14 днів</h2>
-    <div class="ulist">{% for v in upcoming %}<a href="/patients/{{ v.patient_id }}"><span><b>{{ v.starts_at|dt('%d.%m %H:%M') }}</b> · {{ v.patient.full_name }}</span><span class="muted small">{{ v.service_name or '' }}</span></a>
-    {% else %}<span class="muted">Записів немає.</span>{% endfor %}</div></div>
-  {% if c.top_services %}<div class="card"><h2>Найчастіші послуги цього місяця</h2>
-    <table><tbody>{% for s, n in c.top_services %}<tr><td>{{ s }}</td><td class="r">{{ n }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
-  {% if patients %}<div class="card"><h2>Закріплені пацієнти</h2>
-    <div class="ulist">{% for p in patients %}<a href="/patients/{{ p.id }}"><span>{{ p.full_name }}</span><span class="muted small">{{ p.phone or '' }}</span></a>{% endfor %}</div></div>{% endif %}
-</div>
-
-<div class="card" style="position:sticky;top:16px">
-  <h2>Картка</h2>
-  {% if can(user,'specialists_edit') %}
-  <form class="form" method="post">
-    <label>Імʼя та прізвище<input name="name" value="{{ d.name }}" required></label>
-    <label>Посада<select name="position"><option value="">— не вказано —</option>
-      {% for p in positions %}<option {{ 'selected' if d.position == p }}>{{ p }}</option>{% endfor %}
-      {% if d.position and d.position not in positions %}<option selected>{{ d.position }}</option>{% endif %}</select>
-      <span class="small muted" style="font-weight:400">Список посад — у <a href="/settings/positions">Налаштування → Посади співробітників</a></span></label>
-    <div class="two"><label>Телефон<input name="phone" value="{{ d.phone or '' }}"></label>
-      <label>Email<input name="email" value="{{ d.email or '' }}"></label></div>
-    <label>Графік роботи<input name="work_days" value="{{ d.work_days or '' }}" placeholder="Пн–Пт 10:00–19:00"></label>
-    <label>Про спеціаліста (досвід, процедури, сертифікати)<textarea name="bio" rows="5">{{ d.bio or '' }}</textarea></label>
-    <label>Фото (посилання https://…)<input name="photo_url" value="{{ d.photo_url or '' }}" placeholder="підтягується з CleverBox, якщо є"></label>
-    <label>Telegram chat ID (для нагадувань лікарю)<input name="telegram_chat_id" value="{{ d.telegram_chat_id or '' }}"></label>
-    <div style="display:grid;gap:4px;font-size:12px;color:var(--muted);font-weight:600">Колір у календарі
-      <div class="sw">{% for col in palette %}<label><input type="radio" name="color" value="{{ col }}" {{ 'checked' if c.color==col }}><span style="background:{{ col }}"></span></label>{% endfor %}</div></div>
-    <div class="two">
-      <label>Статус<select name="status"><option value="active" {{ 'selected' if d.active }}>Працює</option><option value="fired" {{ 'selected' if not d.active }}>Звільнений</option></select></label>
-      <label>Календар<select name="in_calendar"><option value="1" {{ 'selected' if d.in_calendar is not false }}>Показувати колонку</option><option value="" {{ 'selected' if d.in_calendar is false }}>Не показувати</option></select></label>
-    </div>
-    <label>Ініціатор продажу в касі<select name="sale_initiator"><option value="1" {{ 'selected' if d.sale_initiator is not false }}>Показувати у виборі «Спеціаліст / продавець»</option><option value="0" {{ 'selected' if d.sale_initiator is false }}>Не показувати</option></select></label>
-    {% if xfields %}<div class="xf-h">Додаткові поля <a href="/settings/staff-fields" class="small" style="font-weight:400">налаштувати</a></div>
+  <div class="sp-kpi">
+    <div><span>Послуг цього місяця</span><b>{{ c.month_visits }}</b><small>минулого {{ c.prev_month_visits }}</small></div>
+    <div><span>Надано на суму</span><b>{{ c.month_revenue|uah }}</b><small>цей місяць</small></div>
+    <div><span>Записи на 14 днів</span><b>{{ c.upcoming }}</b><small>{{ ('найближчий ' ~ c.next_visit.strftime('%d.%m %H:%M')) if c.next_visit else '—' }}</small></div>
+    <div><span>Бюті-плани</span><b>{{ c.kpi.active if c.kpi else 0 }}</b><small>реалізація {{ c.kpi.realization_pct if c.kpi else 0 }}%</small></div>
+    <div><span>Пацієнти</span><b>{{ c.patients }}</b><small>закріплено</small></div>
+  </div>
+</section>
+{% if qp.get('saved') %}<div class="msg ok">Збережено</div>{% endif %}
+{% if qp.get('msg') %}<div class="msg {{ 'bad' if qp.get('err') else 'ok' }}">{{ qp.get('msg') }}</div>{% elif qp.get('err') %}<div class="msg bad">{{ qp.get('err') }}</div>{% endif %}
+<div class="sp-lay">
+  <nav class="sp-nav">{% for k, t in TABS.items() %}<a href="?tab={{ k }}" class="{{ 'on' if tab == k }}">{{ t }}{% if k == 'online' %}<em>в розробці</em>{% endif %}</a>{% endfor %}</nav>
+  <div>
+{% if tab == 'info' %}
+  <form method="post" action="/specialists/{{ d.id }}" id="spf" class="sp-grid">
+  <div class="sp-col">
+    <div class="sc"><h3>Основне</h3>
+      <label class="fl"><span>Імʼя та прізвище *</span><input name="name" value="{{ d.name }}" required {{ '' if edit else 'disabled' }}></label>
+      <div class="two"><label class="fl"><span>Телефон</span><input name="phone" value="{{ d.phone or '' }}" placeholder="+380…" {{ '' if edit else 'disabled' }}></label>
+        <label class="fl"><span>Email</span><input name="email" value="{{ d.email or '' }}" {{ '' if edit else 'disabled' }}></label></div>
+      <label class="fl"><span>Графік роботи</span><input name="work_days" value="{{ d.work_days or '' }}" placeholder="Пн–Пт 10:00–19:00"></label>
+      <label class="fl"><span>Фото (посилання https://…)</span><input name="photo_url" value="{{ d.photo_url or '' }}" placeholder="підтягується з CleverBox, якщо є"></label>
+      <label class="fl"><span>Telegram chat ID</span><input name="telegram_chat_id" value="{{ d.telegram_chat_id or '' }}"><small>Для нагадувань і сповіщень співробітнику. Доступ до CRM — у «Налаштування → Права доступу».</small></label></div>
+    <div class="sc"><h3>Соціальні контакти</h3><div class="soc">
+      {% set S = xv.get('social') or {} %}{% set IC = {'viber':'#7360F2','telegram':'#229ED9','whatsapp':'#25D366','facebook':'#1877F2','instagram':'#C13584'} %}
+      {% for k, t in SOCIALS %}<label title="{{ t }}"><i style="color:{{ IC[k] }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{% if k == 'telegram' %}<path d="M21 4 3 11l6 2 2 6 3-4 5 4z"/>{% elif k == 'instagram' %}<rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/><path d="M17.5 6.5h.01"/>{% elif k == 'facebook' %}<path d="M14 8h3V4h-3a4 4 0 0 0-4 4v3H7v4h3v6h4v-6h3l1-4h-4V8z"/>{% else %}<path d="M12 3c-5 0-8 2.3-8 7.5 0 3 1 4.8 2.6 5.8V20l3-2.2c.8.1 1.6.2 2.4.2 5 0 8-2.3 8-7.5S17 3 12 3z"/>{% endif %}</svg></i>
+        <input name="social_{{ k }}" value="{{ S.get(k, '') }}" placeholder="{{ t }}"></label>{% endfor %}</div></div>
+    <div class="sc"><h3>Склади для списання розхідників</h3>{% set W = xv.get('writeoff_wh') or {} %}
+      {% for l in locs %}<label class="fl"><span>{{ l }}</span><select name="wh_{{ l }}"><option value="">— не вказано —</option>{% for k, v in WH.items() %}<option value="{{ k }}" {{ 'selected' if W.get(l) == k }}>{{ v }}</option>{% endfor %}</select></label>{% endfor %}
+      <small style="color:#9a93a6">З якого складу списуються матеріали за нормами після процедур цього спеціаліста.</small></div>
+  </div>
+  <div class="sp-col">
+    <div class="sc"><h3>Робота</h3>
+      <label class="fl"><span>Посада</span><select name="position"><option value="">— не вказано —</option>
+        {% for p in positions %}<option {{ 'selected' if d.position == p }}>{{ p }}</option>{% endfor %}
+        {% if d.position and d.position not in positions %}<option selected>{{ d.position }}</option>{% endif %}</select></label>
+      <label class="tg">Відображати в календарі<input type="checkbox" name="in_calendar" value="1" {{ 'checked' if d.in_calendar is not false }}></label>
+      <div class="two"><label class="fl"><span>Статус</span><select name="status"><option value="active" {{ 'selected' if d.active }}>Працює</option><option value="fired" {{ 'selected' if not d.active }}>Звільнений</option></select></label>
+        <label class="fl"><span>Ініціатор продажу в касі</span><select name="sale_initiator"><option value="1" {{ 'selected' if d.sale_initiator is not false }}>Показувати</option><option value="0" {{ 'selected' if d.sale_initiator is false }}>Не показувати</option></select></label></div>
+      <div class="fl"><span>Колір у календарі</span><div class="cl">{% for col in palette %}<label><input type="radio" name="color" value="{{ col }}" {{ 'checked' if c.color==col }}><span style="background:{{ col }}"></span></label>{% endfor %}</div></div>
+      {% if d.status_locked %}<small style="color:#9a93a6">Статус змінено вручну — синхронізація з CleverBox його не перезаписує.</small>{% endif %}</div>
+    {% if xfields %}<div class="sc"><h3>Анкета <a href="/settings/staff-fields">налаштувати поля</a></h3>
     {% for f in xfields %}{% set v = xv.get(f.key) %}{% set opts = auto_opts['salary'] if f.key == 'salary' else (f.options or auto_opts.get(f.key, [])) %}
-      {% if f.type == 'checkbox' %}<label class="xf-cb"><input type="checkbox" name="x_{{ f.key }}" value="1" {{ 'checked' if v }}> {{ f.name }}</label>
-      {% elif f.type == 'multiselect' %}<div class="xf-ms"><span>{{ f.name }}{{ ' *' if f.required }}</span><div class="xf-chips">{% for o in opts %}<label><input type="checkbox" name="x_{{ f.key }}" value="{{ o }}" {{ 'checked' if v and o in v }}><i>{{ o }}</i></label>{% else %}<em class="small muted">Варіанти не задані — <a href="/settings/staff-fields">додати</a></em>{% endfor %}</div></div>
-      {% elif f.type == 'phones' %}<div class="xf-ms"><span>{{ f.name }}</span><div class="xf-ph">{% for p in (v or []) + [''] %}<input name="x_{{ f.key }}" value="{{ p }}" placeholder="+380…">{% endfor %}</div></div>
-      {% else %}<label>{{ f.name }}{{ ' *' if f.required }}
+      {% if f.type == 'checkbox' %}<label class="tg">{{ f.name }}<input type="checkbox" name="x_{{ f.key }}" value="1" {{ 'checked' if v }}></label>
+      {% elif f.type == 'multiselect' %}<div class="fl"><span>{{ f.name }}{{ ' *' if f.required }}</span><div class="xf-chips">{% for o in opts %}<label><input type="checkbox" name="x_{{ f.key }}" value="{{ o }}" {{ 'checked' if v and o in v }}><i>{{ o }}</i></label>{% else %}<small>Варіанти не задані — <a href="/settings/staff-fields">додати</a></small>{% endfor %}</div></div>
+      {% elif f.type == 'phones' %}<div class="fl"><span>{{ f.name }}</span>{% for p in (v or []) + [''] %}<input name="x_{{ f.key }}" value="{{ p }}" placeholder="+380…" style="margin-bottom:6px">{% endfor %}</div>
+      {% else %}<label class="fl"><span>{{ f.name }}{{ ' *' if f.required }}</span>
         {% if f.type == 'textarea' %}<textarea name="x_{{ f.key }}" rows="3" {{ 'required' if f.required }}>{{ v or '' }}</textarea>
         {% elif f.type == 'select' %}<select name="x_{{ f.key }}" {{ 'required' if f.required }}><option value="">—</option>{% for o in opts %}<option {{ 'selected' if v == o }}>{{ o }}</option>{% endfor %}{% if v and v not in opts %}<option selected>{{ v }}</option>{% endif %}</select>
         {% else %}<input name="x_{{ f.key }}" value="{{ (v.split('-')|reverse|join('.')) if (f.type == 'date' and v) else (v or '') }}" {{ 'required' if f.required }} {% if f.type == 'date' %}placeholder="дд.мм.рррр" inputmode="numeric"{% elif f.type == 'number' %}inputmode="decimal"{% endif %}>{% endif %}</label>{% endif %}
-    {% endfor %}{% endif %}
-    {% if d.status_locked %}<div class="muted small">Статус змінено вручну — синхронізація з CleverBox його не перезаписує.</div>{% endif %}
-    <div class="row"><button class="btn">Зберегти</button></div>
-  </form>
-  {% if d.status_locked and d.cleverbox_id %}<form method="post" action="/specialists/{{ d.id }}/unlock" style="margin-top:8px"><button class="btn ghost small">Брати статус з CleverBox</button></form>{% endif %}
-  {% else %}
-  <div class="ulist small">
-    <span>Телефон: {{ d.phone or '—' }}</span><span>Email: {{ d.email or '—' }}</span><span>Графік: {{ d.work_days or '—' }}</span>
+    {% endfor %}</div>{% endif %}
+    <div class="sc"><h3>Короткий опис</h3><label class="fl"><textarea name="bio" rows="5" placeholder="Досвід, процедури, сертифікати">{{ d.bio or '' }}</textarea></label></div>
   </div>
-  {% endif %}
+  </form>
+  <div class="sp-grid" style="margin-top:18px">
+    <div class="sc"><h3>Записи на 14 днів</h3><div class="ul">{% for v in upcoming %}<a href="/patients/{{ v.patient_id }}"><span><b>{{ v.starts_at|dt('%d.%m %H:%M') }}</b> · {{ v.patient.full_name }}</span><small>{{ v.service_name or '' }}</small></a>{% else %}<small>Записів немає.</small>{% endfor %}</div></div>
+    <div class="sc"><h3>Закріплені пацієнти</h3><div class="ul">{% for p in patients[:30] %}<a href="/patients/{{ p.id }}"><span>{{ p.full_name }}</span><small>{{ p.phone or '' }}</small></a>{% else %}<small>Немає закріплених пацієнтів.</small>{% endfor %}</div></div>
+  </div>
+
+{% elif tab == 'services' %}
+  <div class="sc"><h3>Послуги, які надає спеціаліст, і час виконання
+    {% if edit %}<form method="post" action="/specialists/{{ d.id }}/services" style="margin:0"><input type="hidden" name="fill" value="1"><button class="btn ghost" style="padding:6px 12px;font-size:12.5px">Відмітити виконані раніше</button></form>{% endif %}</h3>
+    <div class="note">Відмітьте послуги спеціаліста й тривалість — так календар і каса показуватимуть лише його послуги з правильним часом. «Відмітити виконані раніше» — додасть усі послуги, які спеціаліст уже надавав.</div>
+    <form method="post" action="/specialists/{{ d.id }}/services" id="svf" class="acc">
+    {% for g, svcs in td.groups %}{% set n = namespace(v=0) %}{% for s in svcs %}{% if (s.id|string) in td.chosen %}{% set n.v = n.v + 1 %}{% endif %}{% endfor %}
+      <details><summary><span class="t">{{ g }}</span><b class="{{ 'full' if n.v == svcs|length and n.v else ('part' if n.v else '') }}">{{ n.v }} / {{ svcs|length }}</b></summary>
+        <label class="sv" style="padding-bottom:4px"><input type="checkbox" onchange="this.closest('details').querySelectorAll('.sv:not(:first-of-type) input[type=checkbox]').forEach(function(c){c.checked=this.checked;c.dispatchEvent(new Event('change'))},this)"><small style="color:#9a93a6;font-weight:600">Обрати всі</small><span></span></label>
+        {% for s in svcs %}{% set on = (s.id|string) in td.chosen %}<label class="sv {{ '' if on else 'off' }}"><input type="checkbox" name="svc_{{ s.id }}" value="1" {{ 'checked' if on }} onchange="this.closest('.sv').classList.toggle('off',!this.checked)">
+          <span>{{ s.name }}</span><span class="m"><input name="min_{{ s.id }}" value="{{ td.chosen.get(s.id|string) or s.time_min or 30 }}" inputmode="numeric"><small>хв</small></span></label>{% endfor %}
+      </details>{% else %}<small>Послуги ще не синхронізовані з CleverBox.</small>{% endfor %}
+    </form></div>
+
+{% elif tab == 'photos' %}
+  <div class="sc"><h3>Візити з фото <input placeholder="Пошук: послуга або пацієнт" oninput="vf(this.value)" style="height:38px;width:min(300px,60%);font:400 13.5px var(--sans);text-transform:none;letter-spacing:0"></h3>
+    {% for v in td.visits %}<details class="vr" data-q="{{ ((v.r.title or '') ~ ' ' ~ v.p.full_name)|lower }}"><summary>
+      <span class="no">№{{ v.r.id }}</span><span><b>{{ v.p.full_name }}</b></span><span class="pc hm">{{ v.photos|length }} фото</span>
+      <span class="hm">{{ v.r.at|dt('%d.%m.%Y %H:%M') }}</span><span class="hm">{{ v.r.title or '' }}</span>
+      <span class="ph"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span></summary>
+      <div class="gal">{% for st, lbl in [('before','Фото до'), ('progress','У процесі'), ('after','Фото після'), (None,'Без позначки')] %}{% set ph = v.photos|selectattr('stage','equalto',st)|list if st else v.photos|rejectattr('stage')|list %}
+        {% if ph %}<h4>{{ lbl }}</h4><div>{% for f in ph %}<a href="/files/{{ f.id }}" target="_blank"><img src="/files/{{ f.id }}" alt="" loading="lazy"></a>{% endfor %}</div>{% endif %}{% endfor %}
+        <a href="/patients/{{ v.p.id }}/photos" style="display:inline-block;margin-top:12px;font-size:13px">Усі фото пацієнта →</a></div></details>
+    {% else %}<small>Фото до записів медкартки цього спеціаліста ще немає. Фото додаються в медкартці пацієнта.</small>{% endfor %}</div>
+
+{% elif tab == 'log' %}
+  <div class="sc"><h3>Журнал дій</h3>
+    {% if not td.has_user %}<div class="note">Співробітник ще не має входу в CRM — тут видно лише зміни його картки. Коли зʼявиться користувач, привʼязаний до співробітника, тут будуть і його дії.</div>{% endif %}
+    <table class="lg"><thead><tr><th>Дата</th><th>Подія</th><th>Хто</th></tr></thead><tbody>
+    {% for a in td.log %}<tr><td class="d">{{ a.at|dt('%d.%m.%Y %H:%M') }}</td><td>{{ audit_text(a) }}</td><td style="color:#8a8496">{{ a.user.name if a.user else 'система' }}</td></tr>
+    {% else %}<tr><td colspan="3"><small>Подій ще немає.</small></td></tr>{% endfor %}</tbody></table></div>
+
+{% elif tab == 'files' %}
+  <div class="sc"><h3>Файли</h3>
+    <div class="note">Формати: jpg, jpeg, png, gif, tiff, webp, doc, docx, pdf, xls, xlsx · до 8 МБ. Договір, дипломи, сертифікати, медкнижка.</div>
+    {% if edit %}<form method="post" action="/specialists/{{ d.id }}/files" enctype="multipart/form-data" id="upf">
+      <label class="dz" id="dz"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#5C4B82" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg>
+        <b>Перетягніть файли сюди</b><small>або натисніть, щоб вибрати</small>
+        <input type="file" name="files" multiple accept=".jpg,.jpeg,.png,.gif,.tiff,.tif,.webp,.doc,.docx,.pdf,.xls,.xlsx" onchange="this.form.submit()"></label></form>{% endif %}
+    <div style="margin-top:14px">{% for f in td.files %}{% set ext = f.name.rsplit('.',1)[-1][:4] if '.' in f.name else 'file' %}<div class="fi"><span class="ic">{{ ext }}</span>
+      <div><a class="n" href="/specialists/files/{{ f.id }}" target="_blank">{{ f.name }}</a><small>{{ f.uploaded_at|dt('%d.%m.%Y %H:%M') }}{{ (' · ' ~ ((f.size / 1024)|round|int) ~ ' КБ') if f.size }}</small></div>
+      <a class="btn ghost" href="/specialists/files/{{ f.id }}" style="padding:6px 12px" download>Завантажити</a>
+      {% if edit %}<form method="post" action="/specialists/files/{{ f.id }}/delete" onsubmit="return confirm('Видалити файл «{{ f.name }}»?')"><button title="Видалити">✕</button></form>{% else %}<span></span>{% endif %}</div>
+    {% else %}<small>Файлів ще немає.</small>{% endfor %}</div></div>
+
+{% else %}
+  <div class="sc dev"><span class="b">В розробці</span><h3>Онлайн-запис</h3><p>Профіль спеціаліста для онлайн-запису на сайті й медіагалерея робіт. Поки налаштовується в CleverBox — у CRM зʼявиться разом з модулем онлайн-бронювання.</p></div>
+{% endif %}
+  </div>
 </div>
-</div>
+<script>
+function vf(v){v=(v||'').toLowerCase();document.querySelectorAll('.vr').forEach(function(r){r.style.display=!v||r.dataset.q.indexOf(v)>=0?'':'none'})}
+(function(){var z=document.getElementById('dz');if(!z)return;var i=z.querySelector('input');
+  ['dragenter','dragover'].forEach(function(e){z.addEventListener(e,function(ev){ev.preventDefault();z.classList.add('on')})});
+  ['dragleave','drop'].forEach(function(e){z.addEventListener(e,function(ev){ev.preventDefault();z.classList.remove('on')})});
+  z.addEventListener('drop',function(ev){i.files=ev.dataTransfer.files;i.form.submit()})})();
+</script>
 {% endblock %}
