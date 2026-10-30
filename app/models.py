@@ -29,6 +29,7 @@ class Doctor(Base):
     work_days: Mapped[str | None] = mapped_column(String(100))          # графік, напр. «Пн–Пт 10–19»
     source: Mapped[str | None] = mapped_column(String(20))              # cleverbox | manual | plan
     in_calendar: Mapped[bool | None] = mapped_column(Boolean, default=True)
+    extra: Mapped[dict | None] = mapped_column(JSON)                      # власні поля картки («Поля співробітників»)
     sale_initiator: Mapped[bool | None] = mapped_column(Boolean)          # показувати як ініціатора продажу в касі (None = так)
     status_locked: Mapped[bool | None] = mapped_column(Boolean, default=False)   # статус змінено вручну — синк не чіпає
     cb_seen_at: Mapped[datetime | None] = mapped_column(DateTime)       # востаннє був у списку /staff

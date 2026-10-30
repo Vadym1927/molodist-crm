@@ -1,6 +1,11 @@
 {% extends "base.html" %}
 {% block title %}{{ d.name }} · Спеціалісти{% endblock %}
 {% block body %}
+<style>.xf-h{margin-top:6px;padding-top:12px;border-top:1px dashed #E6E0D8;font:600 12px var(--head);letter-spacing:.12em;text-transform:uppercase;color:#3B3050;display:flex;justify-content:space-between;align-items:center}
+.xf-cb{display:flex!important;flex-direction:row!important;align-items:center;gap:8px}.xf-ms{display:grid;gap:6px;font-size:12px;color:var(--muted);font-weight:600}
+.xf-chips{display:flex;flex-wrap:wrap;gap:6px}.xf-chips label{display:inline-flex;cursor:pointer}.xf-chips input{display:none}
+.xf-chips i{font-style:normal;font:600 13px var(--sans);color:#3B3050;border:1px solid #E6E0D8;background:#fff;border-radius:99px;padding:6px 12px}
+.xf-chips input:checked+i{background:#3B3050;border-color:#3B3050;color:#fff}.xf-ph{display:grid;gap:6px}</style>
 <style>
 .hero{display:flex;gap:22px;align-items:center;margin-bottom:22px;flex-wrap:wrap}
 .hero .av{width:96px;height:96px;border-radius:50%;display:grid;place-items:center;color:#fff;font:600 34px/1 var(--serif);background:var(--c) center/cover no-repeat;box-shadow:0 0 0 4px var(--card),0 0 0 5px var(--line);flex:none}
@@ -72,6 +77,16 @@
       <label>Календар<select name="in_calendar"><option value="1" {{ 'selected' if d.in_calendar is not false }}>Показувати колонку</option><option value="" {{ 'selected' if d.in_calendar is false }}>Не показувати</option></select></label>
     </div>
     <label>Ініціатор продажу в касі<select name="sale_initiator"><option value="1" {{ 'selected' if d.sale_initiator is not false }}>Показувати у виборі «Спеціаліст / продавець»</option><option value="0" {{ 'selected' if d.sale_initiator is false }}>Не показувати</option></select></label>
+    {% if xfields %}<div class="xf-h">Додаткові поля <a href="/settings/staff-fields" class="small" style="font-weight:400">налаштувати</a></div>
+    {% for f in xfields %}{% set v = xv.get(f.key) %}{% set opts = f.options or auto_opts.get(f.key, []) %}
+      {% if f.type == 'checkbox' %}<label class="xf-cb"><input type="checkbox" name="x_{{ f.key }}" value="1" {{ 'checked' if v }}> {{ f.name }}</label>
+      {% elif f.type == 'multiselect' %}<div class="xf-ms"><span>{{ f.name }}{{ ' *' if f.required }}</span><div class="xf-chips">{% for o in opts %}<label><input type="checkbox" name="x_{{ f.key }}" value="{{ o }}" {{ 'checked' if v and o in v }}><i>{{ o }}</i></label>{% else %}<em class="small muted">Варіанти не задані — <a href="/settings/staff-fields">додати</a></em>{% endfor %}</div></div>
+      {% elif f.type == 'phones' %}<div class="xf-ms"><span>{{ f.name }}</span><div class="xf-ph">{% for p in (v or []) + [''] %}<input name="x_{{ f.key }}" value="{{ p }}" placeholder="+380…">{% endfor %}</div></div>
+      {% else %}<label>{{ f.name }}{{ ' *' if f.required }}
+        {% if f.type == 'textarea' %}<textarea name="x_{{ f.key }}" rows="3" {{ 'required' if f.required }}>{{ v or '' }}</textarea>
+        {% elif f.type == 'select' %}<select name="x_{{ f.key }}" {{ 'required' if f.required }}><option value="">—</option>{% for o in opts %}<option {{ 'selected' if v == o }}>{{ o }}</option>{% endfor %}{% if v and v not in opts %}<option selected>{{ v }}</option>{% endif %}</select>
+        {% else %}<input name="x_{{ f.key }}" value="{{ (v.split('-')|reverse|join('.')) if (f.type == 'date' and v) else (v or '') }}" {{ 'required' if f.required }} {% if f.type == 'date' %}placeholder="дд.мм.рррр" inputmode="numeric"{% elif f.type == 'number' %}inputmode="decimal"{% endif %}>{% endif %}</label>{% endif %}
+    {% endfor %}{% endif %}
     {% if d.status_locked %}<div class="muted small">Статус змінено вручну — синхронізація з CleverBox його не перезаписує.</div>{% endif %}
     <div class="row"><button class="btn">Зберегти</button></div>
   </form>

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Поля співробітників · MOLODIST CRM{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+{% include "_cs_style.html" %}
+<style>.ps-l{display:grid;gap:8px;max-width:860px}
+.ps-r{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:10px 12px 10px 8px;transition:box-shadow .15s,border-color .15s}
+.ps-r:hover{border-color:#C9BFE6;box-shadow:0 8px 22px -16px rgba(59,48,80,.45)}
+.ps-r.drag{opacity:.45}.ps-r.off .ps-n{color:#a39dab;text-decoration:line-through}
+.ps-h{cursor:grab;color:#b8b1c2;display:flex;padding:6px;border-radius:8px}.ps-h:hover{background:#F7F4F0;color:#5C4B82}
+.ps-n{flex:1;min-width:0;font:600 15px var(--sans);color:#3B3050;background:none;border:0;text-align:left;cursor:pointer;padding:6px 4px}
+.ps-c{font:600 11.5px var(--sans);color:#8a8496;background:#F7F4F0;border-radius:99px;padding:3px 10px;white-space:nowrap}
+.ps-b{width:36px;height:36px;border-radius:10px;border:1px solid #ECE7E1;background:#fff;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:#5C4B82}
+.ps-b:hover{background:#F7F4F0}.ps-b.eye.off{color:#b8b1c2}.ps-b.del:hover{color:#B23B2E;border-color:#F0C9C3;background:#FDF3F1}
+.ps-r form{margin:0}.ps-n small.ps-t{display:block;font:500 12.5px var(--sans);color:#9a93a6;margin-top:2px}</style>
+<div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a></div>
+<div class="row between" style="gap:8px;flex-wrap:wrap"><h1 style="margin:0">Поля співробітників</h1><button class="btn" type="button" onclick="psEd(null)">＋ Додати</button></div>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+{% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+<div class="cs-note" style="margin:12px 0 16px;max-width:860px">Свої поля для картки співробітника: дата народження, термін медкнижки, паспорт, стать, клініка, направлення… Поля з позначкою «системне» вбудовані в картку й показуються завжди. 👁 — показувати в картці, порядок — перетягуванням.</div>
+<div class="ps-l" id="ps-l">
+{% for x in items %}<div class="ps-r {{ '' if x.on else 'off' }}" draggable="true" data-id="{{ x.id }}">
+  <span class="ps-h" title="Перетягніть"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 8h14M5 12h14M5 16h14"/></svg></span>
+  <button class="ps-n" type="button" onclick='psEd({{ x|tojson }})'>{{ x.name }}{% if x.required %} <b style="color:#B23B2E">*</b>{% endif %}<small class="ps-t">{{ TYPES.get(x.type, x.type) }}{{ (' · ' ~ x.options|length ~ ' варіантів') if x.options }}</small></button>
+  {% if x.sys %}<span class="ps-c">системне</span>{% endif %}
+  {% if not x.sys %}<form method="post" action="/settings/staff-fields/{{ x.id }}/toggle"><button class="ps-b eye {{ '' if x.on else 'off' }}" title="{{ 'Приховати' if x.on else 'Показувати' }}">{% if x.on %}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>{% else %}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.6 9.6 0 0 0 5.4-1.6"/></svg>{% endif %}</button></form>{% endif %}
+  {% if not x.sys %}<form method="post" action="/settings/staff-fields/{{ x.id }}/delete" onsubmit="return confirm('Видалити поле «{{ x.name }}»? Заповнені значення в картках більше не показуватимуться.')"><button class="ps-b del" title="Видалити"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></form>{% endif %}
+</div>{% else %}<div class="muted">Посад ще немає — «＋ Додати».</div>{% endfor %}
+</div>
+<dialog class="cs-d" id="ps-d" style="width:min(520px,96vw)"><div class="cs-dh"><h3 id="ps-t">Поле</h3><button class="cs-x" type="button" onclick="this.closest('dialog').close()">×</button></div>
+  <form method="post" action="/settings/staff-fields" class="cs-db"><input type="hidden" name="fid">
+    <div class="cs-f"><label>Назва поля</label><input name="name" required maxlength="80" placeholder="Дата закінчення терміну медкнижки"></div>
+    <div class="cs-f" id="ps-ty"><label>Тип</label><select name="type" onchange="psOpt()">{% for k, v in TYPES.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
+    <div class="cs-f" id="ps-op"><label>Варіанти — кожен з нового рядка</label><textarea name="options" rows="5" placeholder="Жіноча&#10;Чоловіча"></textarea><div class="hint">Для «Клініка» без варіантів підставляються філії з налаштувань клініки.</div></div>
+    <div class="cs-f" id="ps-rq"><label class="sw"><input type="checkbox" name="required" value="1"> Обовʼязкове</label></div>
+    <button class="btn">Зберегти</button></form></dialog>
+<script>
+function psOpt(){var f=document.querySelector('#ps-d form');document.getElementById('ps-op').style.display=/select/.test(f.type.value)&&!f.dataset.sys?'':'none'}
+function psEd(x){var d=document.getElementById('ps-d'),f=d.querySelector('form');f.reset();document.getElementById('ps-t').textContent=x?'Поле':'Нове поле';
+  f.fid.value=x?x.id:'';f.dataset.sys=x&&x.sys?'1':'';if(x){f.name.value=x.name;f.type.value=x.type;f.required.checked=!!x.required;f.options.value=(x.options||[]).join('\n')}
+  document.getElementById('ps-ty').style.display=x&&x.sys?'none':'';document.getElementById('ps-rq').style.display=x&&x.key==='name'?'none':'';psOpt();d.showModal();f.name.focus()}
+(function(){var l=document.getElementById('ps-l'),dr=null;
+  l.addEventListener('dragstart',function(e){dr=e.target.closest('.ps-r');if(dr)dr.classList.add('drag')});
+  l.addEventListener('dragover',function(e){e.preventDefault();var t=e.target.closest('.ps-r');if(!dr||!t||t===dr)return;var r=t.getBoundingClientRect();l.insertBefore(dr,(e.clientY-r.top)>r.height/2?t.nextSibling:t)});
+  l.addEventListener('dragend',function(){if(!dr)return;dr.classList.remove('drag');dr=null;
+    fetch('/settings/staff-fields/order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:[].map.call(l.querySelectorAll('.ps-r'),function(r){return r.dataset.id})})})})})();
+</script>
+{% endblock %}

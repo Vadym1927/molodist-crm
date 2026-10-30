@@ -3784,6 +3784,7 @@ SETTINGS_BLOCKS = [
     ]),
     ('Співробітники', 'team', 'Посади, оклади, категорії й нарахування', [
         ('Посади співробітників', 'Директор, адміністратори, лікарі…: довідник посад для картки спеціаліста', '/settings/positions', 'specialists_edit', 'dirs/prof'),
+        ('Поля співробітників', 'Свої поля для картки співробітника: дата народження, медкнижка, паспорт, стать, клініка…', '/settings/staff-fields', 'specialists_edit', 'sfields/staff'),
         ('Налаштування окладів', None, None, None, 'salary'),
         ('Категорії спеціалістів', 'Ціни за категоріями', None, None, 'cmarket/customprice/main'),
         ('Статті для нарахувань', None, None, None, 'dirs/stype'),
@@ -3899,6 +3900,46 @@ async def settings_positions_order(request: Request, user: User = Depends(requir
     from .services import positions as ps
     js = await request.json()
     ps.reorder(db, [int(x) for x in js.get("ids") or [] if str(x).isdigit()])
+    return JSONResponse({"ok": True})
+
+
+# ---------------- Налаштування → Поля співробітників ----------------
+@app.get("/settings/staff-fields", response_class=HTMLResponse)
+def settings_staff_fields(request: Request, user: User = Depends(require("specialists_edit")), db: Session = Depends(db_dep)):
+    from .services import staff_fields as sf
+    return render(request, "staff_fields.html", nav="settings", items=sf.items(db), TYPES=sf.TYPES)
+
+
+@app.post("/settings/staff-fields")
+def settings_staff_fields_save(fid: str = Form(""), name: str = Form(""), type: str = Form("text"), required: str = Form(""),
+                               options: str = Form(""), user: User = Depends(require("specialists_edit")), db: Session = Depends(db_dep)):
+    from .services import staff_fields as sf
+    err = sf.save(db, int(fid) if fid.isdigit() else None, name, type, required == "1", options)
+    if not err:
+        audit(db, "staff_fields.save", "staff_field", int(fid) if fid.isdigit() else None, user=user, name=name)
+    return RedirectResponse(_with_msg("/settings/staff-fields", err or "Збережено", bool(err)), 303)
+
+
+@app.post("/settings/staff-fields/{fid:int}/toggle")
+def settings_staff_fields_toggle(fid: int, user: User = Depends(require("specialists_edit")), db: Session = Depends(db_dep)):
+    from .services import staff_fields as sf
+    sf.toggle(db, fid)
+    return RedirectResponse("/settings/staff-fields", 303)
+
+
+@app.post("/settings/staff-fields/{fid:int}/delete")
+def settings_staff_fields_delete(fid: int, user: User = Depends(require("specialists_edit")), db: Session = Depends(db_dep)):
+    from .services import staff_fields as sf
+    sf.delete(db, fid)
+    audit(db, "staff_fields.delete", "staff_field", fid, user=user)
+    return RedirectResponse(_with_msg("/settings/staff-fields", "Поле видалено"), 303)
+
+
+@app.post("/settings/staff-fields/order")
+async def settings_staff_fields_order(request: Request, user: User = Depends(require("specialists_edit")), db: Session = Depends(db_dep)):
+    from .services import staff_fields as sf
+    js = await request.json()
+    sf.reorder(db, [int(x) for x in js.get("ids") or [] if str(x).isdigit()])
     return JSONResponse({"ok": True})
 
 
@@ -5985,13 +6026,15 @@ def specialist_page(did: int, request: Request, user: User = Depends(require("sp
                                                           Visit.master_name.is_not(None)).order_by(Visit.starts_at))
                 if (m := idx.find(v.master_name)) and m.id == did][:30]
     patients = db.scalars(select(Patient).where(Patient.doctor_id == did).order_by(Patient.full_name).limit(200)).all()
-    from .services import positions as _ps
+    from .services import positions as _ps, staff_fields as _sf, clinic as _cl
+    xf = _sf.custom(db)
+    auto_opts = {"clinic": [l_.get("name") for l_ in (_cl.get(db).get("locations") or []) if l_.get("name")]}
     return render(request, "specialist.html", d=d, c=card, upcoming=upcoming, patients=patients,
-                  palette=spec_svc.PALETTE, positions=_ps.names(db))
+                  palette=spec_svc.PALETTE, positions=_ps.names(db), xfields=xf, auto_opts=auto_opts, xv=d.extra or {})
 
 
 @app.post("/specialists/{did:int}")
-def specialist_save(did: int, name: str = Form(...), position: str = Form(""), phone: str = Form(""),
+async def specialist_save(did: int, request: Request, name: str = Form(...), position: str = Form(""), phone: str = Form(""),
                     email: str = Form(""), color: str = Form(""), bio: str = Form(""), work_days: str = Form(""),
                     telegram_chat_id: str = Form(""), photo_url: str = Form(""), status: str = Form("active"),
                     in_calendar: str = Form(""), sale_initiator: str = Form("1"), user: User = Depends(require("specialists_edit")),
@@ -6014,6 +6057,15 @@ def specialist_save(did: int, name: str = Form(...), position: str = Form(""), p
         d.fired_at = None if want_active else date.today()
     d.in_calendar = in_calendar == "1"
     d.sale_initiator = sale_initiator == "1"
+    from .services import staff_fields as _sf
+    xf = _sf.custom(db)
+    if xf:
+        vals = _sf.read_form(xf, await request.form())
+        for f_ in xf:                                           # дати — текстом дд.мм.рррр → ISO
+            if f_["type"] == "date" and vals.get(f_["key"]):
+                dd_ = _exp_day(vals[f_["key"]])
+                vals[f_["key"]] = dd_.isoformat() if dd_ else ""
+        d.extra = {**(d.extra or {}), **vals}
     db.commit()
     audit(db, "specialist.update", "doctor", d.id, user=user)
     return RedirectResponse(f"/specialists/{did}?saved=1", 303)

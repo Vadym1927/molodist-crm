@@ -35,3 +35,23 @@ def test_expiry_text_parsing():
     from app.main import _exp_day
     assert _exp_day("31.12.2027") == date(2027, 12, 31) == _exp_day("12/27") == _exp_day("12.2027") == _exp_day("2027-12-31")
     assert _exp_day("02.2028") == date(2028, 2, 29) and _exp_day("31.02.2027") is None and _exp_day("") is None
+
+
+def test_staff_fields_and_specialist_extra():
+    from app.services import staff_fields as sf
+    settings.admin_password = "owner-pass-1"
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        assert "Дата закінчення терміну медкнижки" in c.get("/settings/staff-fields").text
+        c.post("/settings/staff-fields", data={"name": "Розмір форми", "type": "select", "options": "S\nM\nL"})
+        with SessionLocal() as db:
+            d = Doctor(name="Поля Тест"); db.add(d); db.commit(); did = d.id
+            f = next(x for x in sf.items(db) if x["name"] == "Розмір форми")
+        html = c.get(f"/specialists/{did}").text
+        assert f'name="x_{f["key"]}"' in html and 'name="x_medbook"' in html
+        r = c.post(f"/specialists/{did}", data={"name": "Поля Тест", "status": "active", "sale_initiator": "1",
+                                                f"x_{f['key']}": "M", "x_medbook": "01.05.2027", "x_gender": "Жіноча"}, follow_redirects=False)
+        assert r.status_code == 303
+        with SessionLocal() as db:
+            ex = db.get(Doctor, did).extra
+            assert ex[f["key"]] == "M" and ex["medbook"] == "2027-05-01" and ex["gender"] == "Жіноча"
