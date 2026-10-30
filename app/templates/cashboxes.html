@@ -4,45 +4,88 @@
 {% set qp = request.query_params %}
 {% include "_cs_style.html" %}
 <style>
-.bx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
-.bx{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);display:flex;flex-direction:column}
-.bx .tp{padding:16px 18px;flex:1}.bx .bt{display:flex;align-items:center;gap:6px;padding:12px 18px;border-top:1px solid var(--line);background:#FAF9F7;border-radius:0 0 14px 14px}
-.tg{display:inline-block;border:1.5px solid var(--line);border-radius:7px;padding:2px 8px;font:600 12.5px var(--sans);color:var(--muted)}
-.tg.loc{border-color:#5B9BD5;color:#2f65a0}.tg.on{border-color:#5CB85C;color:#3c8d3c}.tg.cash{border-color:#5B9BD5;color:#2f65a0}.tg.nc{border-color:#8E6FD8;color:#6A4FC0}
-.bx h3{display:flex;align-items:center;gap:8px;margin:10px 0 8px;font:600 17px var(--sans);text-transform:none;letter-spacing:0}
-.dot{width:12px;height:12px;border-radius:50%;flex:none}
-.bal{font:700 20px var(--sans)}.bal.pos{color:#3c8d3c}.bal.neg{color:#C0392B}
-.ic{border:0;background:none;cursor:pointer;font-size:18px;padding:4px 6px;border-radius:8px}.ic:hover{background:var(--soft)}
-.bx.off{opacity:.65}
+.cx-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+.cx-head p{margin:6px 0 0;color:var(--muted);font-size:14px;max-width:620px;line-height:1.5}
+.cx-sum{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:16px;margin-bottom:26px}
+.cx-k{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:20px 22px;box-shadow:0 1px 2px rgba(42,36,48,.04),0 10px 30px -18px rgba(42,36,48,.22)}
+.cx-k span{display:block;font:600 11px var(--head);letter-spacing:.14em;text-transform:uppercase;color:#8a8496}
+.cx-k b{display:block;margin-top:10px;font:500 26px/1.1 var(--head);color:#2A2430;letter-spacing:.01em;white-space:nowrap}
+.cx-k small{display:block;margin-top:6px;color:#9a93a6;font-size:12.5px}
+.cx-k.hero{background:linear-gradient(135deg,#2A2430 0%,#3B3050 100%);border-color:transparent;color:#fff}
+.cx-k.hero span{color:#C9BFE6}.cx-k.hero b{color:#fff;font-size:32px}.cx-k.hero small{color:rgba(255,255,255,.65)}
+.cx-sec{display:flex;align-items:center;gap:12px;margin:6px 0 14px}
+.cx-sec h2{margin:0;font:600 12px var(--head);letter-spacing:.16em;text-transform:uppercase;color:#2A2430}
+.cx-sec i{flex:1;height:1px;background:#E9E5DF}.cx-sec em{font-style:normal;color:#9a93a6;font-size:12.5px}
+.bx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:18px;margin-bottom:30px}
+.bx{position:relative;background:#fff;border:1px solid #ECE7E1;border-radius:20px;display:flex;flex-direction:column;overflow:hidden;
+  box-shadow:0 1px 2px rgba(42,36,48,.04),0 10px 30px -20px rgba(42,36,48,.25);transition:transform .15s,box-shadow .15s}
+.bx:hover{transform:translateY(-2px);box-shadow:0 2px 4px rgba(42,36,48,.05),0 18px 40px -22px rgba(42,36,48,.35)}
+.bx:before{content:"";position:absolute;left:0;top:0;right:0;height:4px;background:var(--bc,#C9BFE6)}
+.bx .tp{padding:22px 22px 16px;flex:1;display:flex;flex-direction:column}
+.bx .meta{display:flex;align-items:center;gap:8px;font-size:12px;color:#9a93a6}
+.bx .meta .loc{display:inline-flex;align-items:center;gap:4px;color:#5C4B82;background:#F1EDF8;border-radius:99px;padding:2px 9px;font-weight:600}
+.bx h3{margin:12px 0 0;font:600 16px/1.3 var(--sans);text-transform:none;letter-spacing:0;color:#2A2430}
+.bx .bl{margin-top:18px;font:500 30px/1 var(--head);color:#2A2430;letter-spacing:.01em}
+.bx .bl small{font:500 15px var(--head);color:#9a93a6;margin-left:4px}
+.bx .bl.neg{color:#B23B2E}
+.bx .lt{margin-top:10px;font-size:12.5px;color:#9a93a6;display:flex;align-items:center;gap:6px}
+.bx .ex{margin-top:12px;padding-top:12px;border-top:1px dashed #ECE7E1;font-size:12.5px;color:#8a8496;line-height:1.5}
+.bx .bt{display:flex;align-items:center;gap:6px;flex-wrap:wrap;row-gap:4px;padding:10px 12px 10px 22px;border-top:1px solid #F3EFEA;background:#FBFAF8}
+.pl{display:inline-flex;align-items:center;gap:5px;font:600 11.5px var(--sans);border-radius:99px;padding:3px 10px;white-space:nowrap}
+.pl.on{background:#EAF6EA;color:#2E6B2E}.pl.on:before{content:"";width:6px;height:6px;border-radius:50%;background:#4CAF50}
+.pl.off{background:#F2EFEA;color:#8a8496}
+.pl.cash{background:#FFF4DE;color:#8A5A00}.pl.nc{background:#F1EDF8;color:#5C4B82}.pl.pos{background:#E8F1FB;color:#2f65a0}
+.ib{width:34px;height:34px;flex:none;display:grid;place-items:center;border:0;background:none;border-radius:10px;cursor:pointer;color:#8a8496;text-decoration:none}
+.ib:hover{background:#F1EDF8;color:#3B3050}.ib.del:hover{background:#FDECEA;color:#B23B2E}
+.bx.off{opacity:.62}.bx.off:hover{opacity:1}
+.cx-add{border:1.5px dashed #D8D0E6;border-radius:20px;display:grid;place-items:center;min-height:150px;cursor:pointer;background:transparent;color:#5C4B82;font:600 14px var(--sans);gap:8px;align-content:center}
+.cx-add:hover{background:#F7F4FB;border-color:#5C4B82}
+.cx-add i{width:46px;height:46px;border-radius:50%;background:#F1EDF8;display:grid;place-items:center;font-style:normal;font-size:24px}
+.cx-note{font-size:13px;color:#8a8496;line-height:1.55;max-width:760px;margin:-10px 0 24px}
+@media(max-width:900px){.cx-sum{grid-template-columns:1fr 1fr}.cx-k.hero{grid-column:1/-1}}
 </style>
-<div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a></div>
-<div class="row between" style="gap:8px;flex-wrap:wrap"><h1 style="margin:0">Каси / рахунки</h1>
-  <button class="btn" type="button" onclick="bxEdit(null)">＋ Каса</button></div>
+{% set act = boxes|rejectattr('deleted')|selectattr('active')|list %}
+{% set inact = boxes|rejectattr('deleted')|rejectattr('active')|list %}
+{% set dels = boxes|selectattr('deleted')|list %}
+{% set cash_t = act|selectattr('cash')|sum(attribute='balance') %}
+<div class="cx-head"><div><div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування · Фінанси</a></div><h1 style="margin:0">Каси / рахунки</h1>
+  <p>Місця, де зберігаються гроші клініки. Баланс оновлюється після кожної операції — оплати, повернення, витрати чи переміщення.</p></div>
+  <button class="btn" type="button" onclick="bxEdit(null)">＋ Нова каса</button></div>
 {% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
 {% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
-<div class="cs-note" style="margin:12px 0 16px">Рахунки (каси) — це місця, де зберігаються гроші: готівка, банківський рахунок або будь-який інший спосіб оплати. Баланс змінюється після кожної операції: оплати, повернення, витрати, переміщення. Рахується з журналу CleverBox, фіноперацій CRM і продажів каси CRM (способи оплати, привʼязані до каси). Якщо історія CleverBox завантажена не повністю — вкажіть «Залишок на дату» з CleverBox. Разом в активних касах: <b>{{ total|uah }}</b>.</div>
+<div class="cx-sum">
+  <div class="cx-k hero"><span>Разом в активних касах</span><b>{{ '{:,.2f}'.format(total).replace(',', ' ').replace('.', ',') }} ₴</b><small>{{ act|length }} активних · {{ inact|length }} вимкнених</small></div>
+  <div class="cx-k"><span>Готівка</span><b>{{ '{:,.2f}'.format(cash_t).replace(',', ' ').replace('.', ',') }} ₴</b><small>{{ act|selectattr('cash')|list|length }} кас</small></div>
+  <div class="cx-k"><span>Безготівка</span><b>{{ '{:,.2f}'.format(total - cash_t).replace(',', ' ').replace('.', ',') }} ₴</b><small>термінали, фонди, рахунки</small></div>
+  <div class="cx-k"><span>У касі CRM</span><b>{{ act|selectattr('in_pos')|list|length }}</b><small>способів оплати в «Новий продаж»</small></div>
+</div>
 
 {% macro card(b) %}
-<div class="bx {{ '' if b.active else 'off' }}"><div class="tp">
-  <div style="display:flex;gap:6px;flex-wrap:wrap"><span class="tg">ID: {{ b.id }}</span>{% if b.location %}<span class="tg loc">📍 {{ b.location }}</span>{% endif %}</div>
-  <h3><span class="dot" style="background:{{ b.color or '#999' }}"></span>{{ b.name }}</h3>
-  <div class="small muted">Баланс</div><div class="bal {{ 'pos' if b.balance > 0 else ('neg' if b.balance < 0 else '') }}">{{ '%.2f'|format(b.balance) }}</div>
-  <div class="small muted" style="margin-top:8px">🕓 Остання транзакція: {{ b.last|dt('%d.%m.%Y • %H:%M') if b.last else '—' }}</div>
-  {% if b.methods %}<div class="small muted" style="margin-top:4px">Каса CRM: {{ b.methods|join(', ') }}</div>{% endif %}
-  {% if b.opening_date %}<div class="small muted">Залишок {{ '%.2f'|format(b.opening) }} на {{ b.opening_date }}</div>{% endif %}
+<div class="bx {{ '' if b.active and not b.deleted else 'off' }}" style="--bc:{{ b.color or '#C9BFE6' }}"><div class="tp">
+  <div class="meta"><span>ID {{ b.id }}</span>{% if b.location %}<span class="loc"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.4"/></svg>{{ b.location }}</span>{% endif %}<span style="margin-left:auto">{{ b.type_label }}</span></div>
+  <h3>{{ b.name }}</h3>
+  {% set whole, frac = ('%.2f'|format(b.balance)).split('.') %}
+  <div class="bl {{ 'neg' if b.balance < 0 }}">{{ '{:,}'.format(whole|int).replace(',', ' ') }}<small>,{{ frac }} ₴</small></div>
+  <div class="lt"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>{{ ('Остання операція ' ~ b.last|dt('%d.%m.%Y, %H:%M')) if b.last else 'Операцій ще не було' }}</div>
+  {% if b.methods or b.opening_date or b.note %}<div class="ex">{% if b.methods %}Каса CRM: {{ b.methods|join(', ') }}<br>{% endif %}{% if b.opening_date %}Стартовий залишок {{ '{:,.2f}'.format(b.opening or 0).replace(',', ' ').replace('.', ',') }} ₴ на {{ b.opening_date[8:10] }}.{{ b.opening_date[5:7] }}.{{ b.opening_date[:4] }}<br>{% endif %}{{ b.note or '' }}</div>{% endif %}
   </div><div class="bt">
-  {% if b.active %}<span class="tg on">Активна</span>{% endif %}<span class="tg {{ 'cash' if b.cash else 'nc' }}">{{ 'Готівка' if b.cash else 'Безготівка' }}</span>{% if b.in_pos and b.active %}<span class="tg" title="Показується в касі як спосіб оплати">💳 у касі</span>{% endif %}
-  <span style="flex:1"></span>
-  {% if b.deleted %}<form method="post" action="/settings/cashboxes/{{ b.id }}/restore" style="margin:0"><button class="btn ghost" style="padding:3px 10px">Відновити</button></form>
-  {% else %}<a class="ic" href="?open={{ b.id }}" title="Рух коштів" style="color:#3c8d3c;text-decoration:none">$</a>
-  <button class="ic" type="button" title="Змінити" style="color:#3c8d3c" onclick='bxEdit({{ b|tojson }})'>✎</button>
-  <form method="post" action="/settings/cashboxes/{{ b.id }}/delete" data-delpw="Видалити касу «{{ b.name }}»? Якщо по ній були операції — вона перейде у «Видалені каси»." style="margin:0"><button class="ic" title="Видалити" style="color:#C0392B">🗑</button></form>{% endif %}
+  {% if b.deleted %}<span class="pl off">Видалена {{ b.deleted_at or '' }}</span>{% elif b.active %}{% else %}<span class="pl off">Вимкнена</span>{% endif %}
+  <span class="pl {{ 'cash' if b.cash else 'nc' }}">{{ 'Готівка' if b.cash else 'Безготівка' }}</span>{% if b.in_pos and b.active and not b.deleted %}<span class="pl pos" title="Показується в «Новий продаж» як спосіб оплати">У касі</span>{% endif %}
+  <span style="flex:1"></span><span style="display:inline-flex;gap:2px;margin-left:auto">
+  {% if b.deleted %}<form method="post" action="/settings/cashboxes/{{ b.id }}/restore" style="margin:0"><button class="btn ghost" style="padding:4px 12px">Відновити</button></form>
+  {% else %}<a class="ib" href="?open={{ b.id }}" title="Рух коштів"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h13l-3-3M20 17H7l3 3"/></svg></a>
+  <button class="ib" type="button" title="Змінити" onclick='bxEdit({{ b|tojson }})'><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg></button>
+  <form method="post" action="/settings/cashboxes/{{ b.id }}/delete" data-delpw="Видалити касу «{{ b.name }}»? Якщо по ній були операції — вона перейде у «Видалені каси»." style="margin:0"><button class="ib del" title="Видалити"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button></form>{% endif %}</span>
 </div></div>
 {% endmacro %}
 
-<div class="bx-grid">{% for b in boxes if not b.deleted %}{{ card(b) }}{% endfor %}</div>
-{% set dels = boxes|selectattr('deleted')|list %}
-{% if dels %}<span class="cs-tag" style="margin-top:22px">Видалені каси</span><div class="cs-box"><div class="bx-grid">{% for b in dels %}{{ card(b) }}{% endfor %}</div></div>{% endif %}
+<div class="cx-sec"><h2>Активні</h2><i></i><em>{{ act|length }}</em></div>
+<div class="bx-grid">{% for b in act %}{{ card(b) }}{% endfor %}<button class="cx-add" type="button" onclick="bxEdit(null)"><i>＋</i>Нова каса</button></div>
+{% if inact %}<div class="cx-sec"><h2>Вимкнені</h2><i></i><em>{{ inact|length }}</em></div>
+<div class="bx-grid">{% for b in inact %}{{ card(b) }}{% endfor %}</div>{% endif %}
+{% if dels %}<div class="cx-sec"><h2>Видалені каси</h2><i></i><em>{{ dels|length }}</em></div>
+<div class="bx-grid">{% for b in dels %}{{ card(b) }}{% endfor %}</div>{% endif %}
+<p class="cx-note">Баланс рахується з журналу CleverBox, фіноперацій CRM і продажів каси CRM. Якщо історія CleverBox завантажена не повністю — вкажіть у касі «Залишок на дату» з CleverBox, і CRM рахуватиме від нього.</p>
 
 {% if detail %}
 <dialog class="cs-d" id="bx-mv" style="width:min(760px,96vw)"><div class="cs-dh"><h3>{{ detail.name }} · {{ '%.2f'|format(detail.balance) }} ₴</h3><a class="cs-x" href="/settings/cashboxes" style="display:grid;place-items:center;text-decoration:none">×</a></div>
