@@ -116,7 +116,7 @@ def journal(db: Session, d_from: date, d_to: date, users: dict | None = None, ar
             who = s.patient.full_name if s.patient else "—"
             link = f"/patients/{s.patient_id}" if s.patient_id else None
             for p in s.payments:
-                money = p.method not in ("Бонуси", "Сертифікат")
+                money = p.method not in ("Бонуси", "Сертифікат", "Рахунок пацієнта", "Абонемент")
                 out.append(J("crm", f"Ч-{s.id}", s.at, "income", p.amount, who=who, who_link=link, basis=f"Продаж CRM #{s.id}",
                              article="Оплата послуг, товарів", account=p.method, vid=p.method, author=users.get(s.created_by, ""),
                              money=money))

@@ -12,7 +12,9 @@ from . import loyalty as ly
 
 BONUS = "Бонуси"
 CERT = "Сертифікат"
-NON_MONEY = (BONUS, CERT)
+BALANCE = "Рахунок пацієнта"
+SUB = "Абонемент"
+NON_MONEY = (BONUS, CERT, BALANCE, SUB)
 TOL = 0.005
 
 
@@ -38,7 +40,7 @@ def paylink_method(account_name: str) -> str:
 def method_kind(m: str) -> str:
     if m.startswith(PAYLINK):
         return "link"
-    if m in (BONUS, CERT):
+    if m in NON_MONEY:
         return "nonmoney"
     n = m.lower()
     return "cash" if ("готів" in n or "сейф" in n) else "card"
@@ -83,11 +85,25 @@ def create(db: Session, data: dict, user_id: int | None = None) -> Sale:
     paid = round(sum(float(p["amount"]) for p in pays), 2)
     if abs(paid - q["to_pay"]) > 0.01:
         raise SaleError(f"Оплата {paid:.2f} ₴ не дорівнює сумі до сплати {q['to_pay']:.2f} ₴")
-    for p in pays:                                  # сертифікат: перевірка залишку
+    from ..models import Subscription
+    if data.get("fiscal_rro") == 0 and any(method_kind(str(p.get("method") or "")) in ("card", "link") for p in pays):
+        raise SaleError("Без РРО можна приймати лише готівку — оберіть касу Checkbox для оплати карткою чи посиланням")
+    for p in pays:                                  # сертифікат / рахунок / абонемент: перевірка залишку
         if p.get("method") == CERT:
             c = db.get(GiftCertificate, int(p.get("cert_id") or 0))
             if not c or (c.balance or 0) + TOL < float(p["amount"]):
                 raise SaleError("Недостатньо коштів на сертифікаті")
+        if p.get("method") == BALANCE:
+            if not patient or (patient.cb_balance or 0) + TOL < sum(float(x["amount"]) for x in pays if x.get("method") == BALANCE):
+                raise SaleError("Недостатньо коштів на рахунку пацієнта")
+        if p.get("method") == SUB:
+            sb = db.get(Subscription, int(p.get("sub_id") or 0))
+            if not sb or not patient or sb.patient_id != patient.id or sb.state() not in ("active", "expiring"):
+                raise SaleError("Абонемент недоступний для цього пацієнта")
+            if sb.visits_total is None and (sb.balance or 0) + TOL < float(p["amount"]):
+                raise SaleError("Недостатньо коштів на абонементі")
+            if sb.visits_total is not None and (sb.visits_left or 0) < 1:
+                raise SaleError("На абонементі не лишилось візитів")
     if any(str(p.get("method") or "").startswith(PAYLINK) for p in pays) and not patient:
         raise SaleError("Посилання на оплату можна надіслати лише пацієнту — оберіть пацієнта")
     sale = Sale(patient_id=patient.id if patient else None, appointment_id=data.get("appointment_id"), created_by=user_id,
@@ -104,7 +120,8 @@ def create(db: Session, data: dict, user_id: int | None = None) -> Sale:
                                    expiry_date=it.get("expiry") or None))
     for p in pays:
         sale.payments.append(SalePayment(method=str(p["method"])[:60], amount=round(float(p["amount"]), 2),
-                                         cert_id=int(p["cert_id"]) if p.get("cert_id") else None))
+                                         cert_id=int(p["cert_id"]) if p.get("cert_id") else None,
+                                         sub_id=int(p["sub_id"]) if p.get("sub_id") else None))
     if q["bonus_pay"] > 0:
         sale.payments.append(SalePayment(method=BONUS, amount=q["bonus_pay"]))
     db.flush()
@@ -135,6 +152,14 @@ def create(db: Session, data: dict, user_id: int | None = None) -> Sale:
         if p.method == CERT and p.cert_id:
             c = db.get(GiftCertificate, p.cert_id)
             c.balance = round((c.balance or 0) - p.amount, 2)
+        if p.method == BALANCE and patient:
+            patient.cb_balance = round((patient.cb_balance or 0) - p.amount, 2)
+        if p.method == SUB and p.sub_id:
+            sb = db.get(Subscription, p.sub_id)
+            if sb.visits_total is not None:
+                sb.visits_used = (sb.visits_used or 0) + 1
+            else:
+                sb.balance = round((sb.balance or 0) - p.amount, 2)
     db.commit()
     if patient and q["bonus_pay"] > 0:
         ly.add(db, patient.id, -q["bonus_pay"], "spend", f"чек №{sale.id}", f"sale:{sale.id}", user_id)
@@ -160,6 +185,15 @@ def refund(db: Session, sale: Sale, reason: str, user_id: int | None = None) -> 
             c = db.get(GiftCertificate, p.cert_id)
             if c:
                 c.balance = round((c.balance or 0) + p.amount, 2)
+        if p.method == BALANCE and sale.patient:
+            sale.patient.cb_balance = round((sale.patient.cb_balance or 0) + p.amount, 2)
+        if p.method == SUB and p.sub_id:
+            from ..models import Subscription
+            sb = db.get(Subscription, p.sub_id)
+            if sb and sb.visits_total is not None:
+                sb.visits_used = max(0, (sb.visits_used or 0) - 1)
+            elif sb:
+                sb.balance = round((sb.balance or 0) + p.amount, 2)
     sale.status, sale.refunded_at, sale.refund_reason = "refunded", datetime.now(), reason[:300]
     db.commit()
     if sale.patient_id:

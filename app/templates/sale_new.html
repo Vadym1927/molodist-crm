@@ -83,6 +83,28 @@ dialog.pd::backdrop{background:rgba(42,36,48,.35)}
 .pc .kp{flex-wrap:nowrap}.pc .kp div{min-width:0;padding:8px 12px}
 .br,.pm,.card{border-color:#ECE7E1!important;box-shadow:0 1px 2px rgba(42,36,48,.04),0 10px 30px -20px rgba(42,36,48,.22)}
 .br,.pm{border-radius:20px}
+.payd .pt small{display:block;font-weight:600;text-transform:none;letter-spacing:0;color:var(--muted);font-size:11.5px}
+.payd .pt[disabled],.payd .pt.dis{opacity:.4;cursor:not-allowed;filter:grayscale(1)}
+.payd .pt.act{border-color:#7BC47F;background:#F4FBF3}
+.payd .pt.on{border-color:#3B3050;background:#F1EDF8}
+.pchoice{display:flex;gap:8px;margin:8px 0 2px}.pchoice button{flex:1;border:1.5px solid #E6E0D8;background:#fff;border-radius:12px;padding:12px;font:700 12.5px var(--sans);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;color:#2A2430}
+.pchoice button:hover{border-color:#5C4B82;background:#F7F4FB}.pchoice i{font-style:normal;font-size:26px}
+#pays .pay{display:flex;align-items:center;gap:10px;border:1px solid #ECE7E1;border-radius:12px;padding:10px 12px;margin-bottom:8px;background:#fff}
+#pays .pay .nm{flex:1;font-weight:600;font-size:14px}#pays .pay .nm small{display:block;color:#9a93a6;font-weight:500;font-size:12px}
+#pays .pay b{font:600 15px var(--sans)}#pays .pay .x{border:0;background:none;color:#C0392B;font-size:18px;cursor:pointer}
+dialog.kp-d{border:0;border-radius:22px;padding:0;width:min(520px,94vw);box-shadow:0 30px 80px rgba(42,36,48,.4)}
+dialog.kp-d::backdrop{background:rgba(42,36,48,.35)}
+.kp-b{padding:18px 22px 22px;display:grid;gap:12px}
+.kp-in{position:relative;display:block;border:1.5px solid #E6E0D8;border-radius:12px;padding:6px 40px 6px 14px}
+.kp-in small{display:block;font:600 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#9a93a6}
+.kp-in input{border:0;padding:0;height:34px;font:600 22px var(--head);width:100%;outline:none}
+.kp-in button{position:absolute;right:10px;top:16px;border:0;background:none;font-size:18px;color:#9a93a6;cursor:pointer}
+.kp-g{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.kp-g button{height:62px;border:1px solid #ECE7E1;border-radius:12px;background:#fff;font:600 22px var(--sans);cursor:pointer;box-shadow:0 1px 2px rgba(42,36,48,.05)}
+.kp-g button:hover{background:#F7F4FB}
+.kp-a{display:grid;grid-template-columns:1fr 1fr;gap:10px}.kp-a .btn{height:48px;justify-content:center}
+#kp-sel select{width:100%;height:42px}
+
 .calc .ch{margin:0 0 14px;font:600 13px var(--head);letter-spacing:.14em;text-transform:uppercase}
 .dz{margin-bottom:14px}.dz-h{font:600 11px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#9a93a6;margin-bottom:8px}
 .dz-c{display:flex;flex-wrap:wrap;gap:8px}
@@ -186,22 +208,35 @@ dialog.payd::backdrop{background:rgba(42,36,48,.45)}
 </div></div></div>
 <dialog class="payd" id="payd"><div class="pd-h"><h3>Оплата</h3><button type="button" class="pd-x" onclick="document.getElementById('payd').close()">×</button></div>
   <div class="pay-g"><div>
-    {% if rros %}<div class="ph">Фіскальна каса</div><div class="pt-g" id="fis">
-      <button type="button" class="pt {{ '' if fauto else 'on' }}" data-r="0">Без РРО</button>
-      {% for r in rros %}<button type="button" class="pt {{ 'on' if fauto and fdef == r.id }}" data-r="{{ r.id }}">{{ r.name }}{{ ' (тест)' if r.test }}</button>{% endfor %}</div>{% endif %}
+    <div class="ph">Фіскальна каса</div><div class="pt-g" id="fis">
+      <button type="button" class="pt {{ '' if fauto and rros else 'on' }}" data-r="0"><i>🧾</i>Без РРО<small>лише готівка</small></button>
+      {% for r in rros %}<button type="button" class="pt {{ 'on' if fauto and fdef == r.id }}" data-r="{{ r.id }}"><i>🏛</i>{{ r.name }}{{ ' (тест)' if r.test }}</button>{% endfor %}</div>
     <div class="ph">Спосіб оплати</div>
-    <div class="pt-g">{% for m in methods %}{% set k = mkinds[m] %}<button type="button" class="pt" onclick='addPay({{ m|tojson }})'><i>{{ {'cash':'💵','card':'💳','link':'🔗'}.get(k,'•') }}</i>{{ m.replace('Посилання на оплату · ','Посилання · ') }}</button>{% endfor %}
-      {% if certs %}<button type="button" class="pt" onclick="addPay('Сертифікат')"><i>🎁</i>Сертифікати<small style="font-weight:600;text-transform:none;color:var(--muted)">{{ certs|length }} шт.</small></button>{% endif %}
-      <button type="button" class="pt" id="bt-bonus" style="display:none" onclick="useBonus()"><i>🐷</i>Бонусний рахунок<small id="bt-bmax" style="font-weight:600;text-transform:none;color:var(--muted)"></small></button></div>
+    <div class="pt-g" id="pm-money">{% for m in methods if mkinds[m] in ('cash','card') %}<button type="button" class="pt" data-k="{{ mkinds[m] }}" data-m="{{ m }}" data-link="{{ link_for.get(m, '') }}"><i>{{ '💵' if mkinds[m] == 'cash' else '💳' }}</i>{{ m }}</button>{% endfor %}
+      {% for l in link_for.get('', []) %}<button type="button" class="pt" data-k="link" data-m="{{ l }}"><i>🔗</i>{{ l.replace('Посилання на оплату · ','Посилання · ') }}</button>{% endfor %}</div>
+    <div class="ph">Рахунки пацієнта</div>
+    <div class="pt-g" id="pm-acc">
+      <button type="button" class="pt" data-acc="balance"><i>🏦</i>Рахунок пацієнта<small id="a-bal">—</small></button>
+      <button type="button" class="pt" data-acc="cert"><i>🎁</i>Сертифікати<small id="a-cert">0 шт.</small></button>
+      <button type="button" class="pt" data-acc="sub"><i>🎫</i>Абонементи<small id="a-sub">0 шт.</small></button>
+      <button type="button" class="pt" data-acc="bonus"><i>🐷</i>Бонусний рахунок<small id="a-bon">0,00 ₴</small></button>
+      <button type="button" class="pt" disabled title="В розробці"><i>🪙</i>Молодість коїни<small>в розробці</small></button></div>
   </div><div class="pay-r">
     <div class="pay-s"><div><span>До сплати</span><b id="p-pay">0,00 ₴</b></div><div><span>Внесено</span><b id="p-in">0,00 ₴</b></div><div class="lft"><span>Залишилось</span><b id="p-left">0,00 ₴</b></div></div>
-    <div id="bonus-row" style="display:none"><span>Бонусами <small class="muted" id="t-bmax"></small></span><input id="bp" inputmode="decimal" value="0"></div>
-    <div id="pays"></div>
+    <div class="ph" style="margin-top:4px">Оплата</div>
+    <div id="pays"></div><input type="hidden" id="bp" value="0"><div id="bonus-row" style="display:none"></div><span id="t-bmax" hidden></span>
     <div class="small muted" id="t-link" style="display:none;margin-top:4px">🔗 Посилання на оплату буде створено й надіслано пацієнту після «Провести продаж»; чек стане «оплачено», коли пацієнт оплатить.</div>
     <div class="small" id="t-left" style="margin-top:6px"></div>
     <div class="err" id="err" style="margin-top:10px"></div>
     <button class="btn" style="width:100%;justify-content:center;margin-top:12px;height:50px;font-size:16px" id="go" onclick="pay()">Провести продаж</button>
   </div></div></dialog>
+<dialog class="kp-d" id="kpd"><div class="pd-h"><h3 id="kp-t">Сума оплати</h3><button type="button" class="pd-x" onclick="document.getElementById('kpd').close()">×</button></div>
+  <div class="kp-b"><div id="kp-sel"></div>
+    <label class="kp-in"><small>Сума</small><input id="kp-v" inputmode="decimal" autocomplete="off"><button type="button" onclick="kpSet('')">×</button></label>
+    <div class="small muted" id="kp-hint"></div>
+    <div class="kp-g">{% for k in ['1','2','3','4','5','6','7','8','9','.','0','⌫'] %}<button type="button" data-k="{{ k }}">{{ k }}</button>{% endfor %}</div>
+    <div class="kp-a"><button type="button" class="btn" onclick="kpApply()">Застосувати</button><button type="button" class="btn ghost" onclick="document.getElementById('kpd').close()">Скасувати</button></div>
+    <div class="err" id="kp-e"></div></div></dialog>
 <script>
 var S={patient_id:{{ (pt.id if pt else None)|tojson }},appointment_id:{{ (appt.id if appt else None)|tojson }},items:{{ items|tojson }},q:null};
 var DOCS={{ doctors|map(attribute='id')|list|tojson }},DN={{ doctors|map(attribute='name')|list|tojson }},DEF={{ (default_doc or None)|tojson }};
@@ -237,7 +272,7 @@ var QT=null;function quote(partial){if(partial)sums();else render();clearTimeout
     var br=document.getElementById('bonus-row');if(!(S.patient_id&&q.bonus_max>0))br.style.display='none';document.getElementById('t-bmax').textContent='(є '+f2(q.bonus_balance)+', можна до '+f2(q.bonus_max)+')';
     if(+document.getElementById('bp').value>q.bonus_max)document.getElementById('bp').value=q.bonus_max;
     document.getElementById('t-accr').textContent=q.bonus_accrual?('Буде нараховано бонусів: '+f2(q.bonus_accrual)):'';
-    var ps=document.querySelectorAll('#pays .pay');if(ps.length===1){ps[0].querySelector('.a').value=q.to_pay.toFixed(2)}left()})},200)}
+    left()})},200)}
 function payload(){var r=document.getElementById('rule');return {patient_id:S.patient_id,appointment_id:S.appointment_id,items:S.items,
   rule_ids:r?[].map.call(r.selectedOptions,function(o){return +o.value}):[],manual_discount:+(document.getElementById('md').value||'').replace(',','.')||0,
   bonus_pay:+(document.getElementById('bp').value||'').replace(',','.')||0,comment:document.getElementById('cmt').value,
@@ -347,6 +382,75 @@ function useBonus(){var br=document.getElementById('bonus-row');br.style.display
 function payLeft(){if(!S.q)return;var paid=0;document.querySelectorAll('#pays .pay .a').forEach(function(a){paid+=+a.value||0});
   document.getElementById('p-pay').textContent=f2(S.q.to_pay);document.getElementById('p-in').textContent=f2(paid);document.getElementById('p-left').textContent=f2(Math.max(0,S.q.to_pay-paid));
   var bt=document.getElementById('bt-bonus');if(bt){bt.style.display=(S.patient_id&&S.q.bonus_max>0)?'flex':'none';document.getElementById('bt-bmax').textContent='до '+f2(S.q.bonus_max)}}
+
+/* ===== оплата: каси, термінал / посилання, рахунки пацієнта, сума з клавіатури ===== */
+S.pays=[];S.pi=null;
+function fisR(){var b=document.querySelector('#fis .pt.on');return b?+b.dataset.r:0}
+function noRRO(){return {{ 'true' if rros else 'false' }}&&fisR()===0}
+function payload(){var r=document.getElementById('rule');return {patient_id:S.patient_id,appointment_id:S.appointment_id,items:S.items,
+  rule_ids:r?[].map.call(r.selectedOptions,function(o){return +o.value}):[],manual_discount:0,
+  bonus_pay:+(document.getElementById('bp').value||0)||0,comment:document.getElementById('cmt').value,fiscal_rro:fisR(),
+  payments:S.pays.map(function(p){return {method:p.method,amount:p.amount,cert_id:p.cert_id||null,sub_id:p.sub_id||null}})}}
+function paidSum(){return S.pays.reduce(function(a,p){return a+(+p.amount||0)},0)}
+function remain(){return S.q?Math.max(0,Math.round((S.q.to_pay-paidSum())*100)/100):0}
+function renderPays(){var w=document.getElementById('pays');var bp=+document.getElementById('bp').value||0;
+  var rows=S.pays.map(function(p,i){return '<div class="pay"><div class="nm">'+esc(p.label||p.method)+(p.note?'<small>'+esc(p.note)+'</small>':'')+'</div><b>'+f2(p.amount)+'</b><button type="button" class="x" data-i="'+i+'">×</button></div>'});
+  if(bp>0)rows.unshift('<div class="pay"><div class="nm">Бонусний рахунок<small>списання бонусів</small></div><b>'+f2(bp)+'</b><button type="button" class="x" data-b="1">×</button></div>');
+  w.innerHTML=rows.join('')||'<div class="small muted" style="padding:6px 2px">Оберіть спосіб оплати ліворуч. Можна поєднувати кілька — напр. частину карткою, частину готівкою.</div>';
+  w.querySelectorAll('.x').forEach(function(x){x.onclick=function(){if(x.dataset.b){document.getElementById('bp').value=0;quote(1)}else{S.pays.splice(+x.dataset.i,1)}renderPays();payLeft()}});
+  document.getElementById('t-link').style.display=S.pays.some(function(p){return p.method.indexOf('Посилання на оплату')===0})?'block':'none'}
+function left(){payLeft()}
+function payLeft(){if(!S.q)return;var paid=paidSum();document.getElementById('p-pay').textContent=f2(S.q.to_pay);document.getElementById('p-in').textContent=f2(paid);
+  document.getElementById('p-left').textContent=f2(Math.max(0,S.q.to_pay-paid));var l=Math.round((S.q.to_pay-paid)*100)/100,el=document.getElementById('t-left');
+  el.textContent=Math.abs(l)<0.01?'✓ Оплата збігається':(l>0?'Залишилось внести '+f2(l):'Переплата '+f2(-l));el.style.color=Math.abs(l)<0.01?'var(--ok)':'var(--bad)';
+  var nr=noRRO();document.querySelectorAll('#pm-money .pt').forEach(function(b){b.classList.toggle('dis',nr&&b.dataset.k!=='cash');b.title=nr&&b.dataset.k!=='cash'?'Без РРО — лише готівка':''});
+  var P=S.P||{},cs=(P.certs||{}),ss=(P.subs||{});
+  setAcc('balance',P.balance>0,P.balance!=null?f2(P.balance):'—');setAcc('cert',cs.n>0,(cs.n||0)+' шт.'+(cs.n?' · '+f2(cs.sum):''));
+  setAcc('sub',ss.n>0,(ss.n||0)+' шт.');setAcc('bonus',S.q.bonus_max>0,f2(S.q.bonus_balance||0)+(S.q.bonus_max>0?' · до '+f2(S.q.bonus_max):''))}
+function setAcc(k,on,txt){var b=document.querySelector('#pm-acc .pt[data-acc="'+k+'"]');if(!b)return;b.classList.toggle('dis',!on);b.classList.toggle('act',!!on);
+  var m={balance:'a-bal',cert:'a-cert',sub:'a-sub',bonus:'a-bon'}[k];document.getElementById(m).textContent=txt}
+function useBonus(){openKP({title:'Бонусний рахунок',max:S.q?S.q.bonus_max:0,bonus:true})}
+/* клавіатура суми */
+var KP=null;function kpSet(v){document.getElementById('kp-v').value=v}
+document.querySelectorAll('#kpd .kp-g button').forEach(function(b){b.onclick=function(){var i=document.getElementById('kp-v'),k=b.dataset.k;
+  if(k==='⌫')i.value=i.value.slice(0,-1);else if(k==='.'){if(i.value.indexOf('.')<0)i.value=(i.value||'0')+'.'}else i.value=(i.value==='0'?'':i.value)+k}});
+function openKP(o){KP=o;var rem=o.bonus?Math.min(o.max,S.q?S.q.to_pay+(+document.getElementById('bp').value||0):0):remain();if(o.max!=null&&!o.bonus)rem=Math.min(rem,o.max);
+  document.getElementById('kp-t').textContent=o.title||'Сума оплати';document.getElementById('kp-e').textContent='';
+  var sel=document.getElementById('kp-sel');sel.innerHTML=o.select||'';var se=sel.querySelector('select');if(se&&o.onSelect){se.onchange=function(){o.onSelect(se);var h=document.getElementById('kp-hint');}}
+  kpSet(rem>0?rem.toFixed(2):'');document.getElementById('kp-hint').innerHTML='Залишилось внести: <a href="#" onclick="kpSet(\''+(rem>0?rem.toFixed(2):'0')+'\');return false">'+f2(rem)+'</a>'+(o.max!=null?' · доступно '+f2(o.max):'');
+  document.getElementById('kpd').showModal()}
+function kpApply(){var v=Math.round((+String(document.getElementById('kp-v').value).replace(',','.')||0)*100)/100,e=document.getElementById('kp-e');
+  if(v<=0){e.textContent='Вкажіть суму';return}if(KP.max!=null&&v>KP.max+0.005){e.textContent='Більше, ніж доступно ('+f2(KP.max)+')';return}
+  if(KP.bonus){document.getElementById('bp').value=v.toFixed(2);document.getElementById('kpd').close();quote(1);renderPays();return}
+  var se=document.querySelector('#kp-sel select'),p={method:KP.method,amount:v,label:KP.label||KP.method,note:KP.note||'',kind:KP.kind||''};
+  if(KP.cert&&se){p.cert_id=+se.value;p.note='№'+se.selectedOptions[0].dataset.code}if(KP.sub&&se){p.sub_id=+se.value;p.note=se.selectedOptions[0].textContent}
+  S.pays.push(p);document.getElementById('kpd').close();renderPays();payLeft()}
+/* плитки */
+document.querySelectorAll('#fis .pt').forEach(function(b){b.onclick=function(){document.querySelectorAll('#fis .pt').forEach(function(x){x.classList.remove('on')});b.classList.add('on');
+  if(noRRO()){var before=S.pays.length;S.pays=S.pays.filter(function(p){var k=p.method.indexOf('Посилання')===0?'link':(METHODS.indexOf(p.method)>=0?(p.kind||''):'');return p.kind!=='card'&&p.kind!=='link'});if(S.pays.length<before)alert('Без РРО — лише готівка: оплати карткою / посиланням прибрано')}
+  renderPays();payLeft()}});
+document.querySelectorAll('#pm-money .pt').forEach(function(b){b.onclick=function(){if(b.classList.contains('dis'))return;var m=b.dataset.m,k=b.dataset.k,lk=b.dataset.link;
+  if(k==='card'&&lk){showChoice(b,m,lk);return}
+  openKP({method:m,label:m,kind:k});KP.kind=k}});
+function showChoice(b,m,lk){var old=document.querySelector('.pchoice');if(old)old.remove();var d=document.createElement('div');d.className='pchoice';d.style.gridColumn='1/-1';
+  d.innerHTML='<button type="button" data-w="t"><i>💳</i>Термінал</button><button type="button" data-w="l"><i>🔗</i>Посилання на оплату</button>';
+  b.parentNode.insertBefore(d,b.nextSibling);d.querySelector('[data-w=t]').onclick=function(){d.remove();openKP({method:m,label:m});KP.kind='card'};
+  d.querySelector('[data-w=l]').onclick=function(){d.remove();if(!S.patient_id){alert('Посилання можна надіслати лише пацієнту — оберіть пацієнта');return}openKP({method:lk,label:lk.replace('Посилання на оплату · ','Посилання · ')});KP.kind='link'}}
+document.querySelectorAll('#pm-acc .pt[data-acc]').forEach(function(b){b.onclick=function(){if(b.classList.contains('dis'))return;var a=b.dataset.acc,P=S.P||{};
+  if(a==='bonus'){useBonus();return}
+  if(a==='balance'){var used=S.pays.filter(function(p){return p.method==='Рахунок пацієнта'}).reduce(function(x,p){return x+p.amount},0);openKP({method:'Рахунок пацієнта',label:'Рахунок пацієнта',max:Math.max(0,(P.balance||0)-used)});return}
+  if(a==='cert'){var it=(P.certs||{}).items||[];openKP({method:'Сертифікат',label:'Сертифікат',cert:true,max:it.length?it[0].balance:0,
+    select:'<select>'+it.map(function(c){return '<option value="'+c.id+'" data-code="'+esc(c.code)+'" data-b="'+c.balance+'">№'+esc(c.code)+' · '+f2(c.balance)+'</option>'}).join('')+'</select>',
+    onSelect:function(se){KP.max=+se.selectedOptions[0].dataset.b}});return}
+  if(a==='sub'){var su=(P.subs||{}).items||[];var s0=su[0]||{};var price=S.items.length?Math.max.apply(null,S.items.filter(function(x){return x.kind==='service'}).map(function(x){return +x.price}).concat([0])):0;
+    openKP({method:'Абонемент',label:'Абонемент',sub:true,max:s0.visits?price:(s0.balance||0),
+      select:'<select>'+su.map(function(x){return '<option value="'+x.id+'" data-v="'+(x.visits?1:0)+'" data-b="'+(x.balance||0)+'">'+esc(x.name)+(x.visits?' · візитів: '+(x.left||0):' · '+f2(x.balance||0))+'</option>'}).join('')+'</select>',
+      onSelect:function(se){var o=se.selectedOptions[0];KP.max=o.dataset.v==='1'?price:+o.dataset.b}});
+    if(s0.visits)document.getElementById('kp-hint').innerHTML+=' · візитний абонемент покриває одну послугу ('+f2(price)+')';return}}});
+/* пацієнт для рахунків */
+var _setP=setPatient;setPatient=function(id){if(!id){S.P=null;_setP(null);return}fetch('/pos/patient/'+id).then(function(r){return r.json()}).then(function(p){S.P=p;S.patient_id=p.id;renderP(p);quote()})};
+var _toPay=toPay;toPay=function(){_toPay();renderPays();payLeft()};
+if(S.patient_id)setPatient(S.patient_id);
 quote();
 </script>
 {% endblock %}

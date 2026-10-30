@@ -139,7 +139,7 @@ def test_pos_patient_card_extras_and_initiator():
     with TestClient(app) as c:
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
         j = c.get(f"/pos/patient/{pid}").json()
-        assert j["labels"] == ["ЛЄ розсилка"] and j["certs"] == {"n": 1, "sum": 700} and j["subs"]["n"] == 0 and j["balance"] == 301
+        assert j["labels"] == ["ЛЄ розсилка"] and j["certs"]["n"] == 1 and j["certs"]["sum"] == 700 and j["subs"]["n"] == 0 and j["balance"] == 301
         t = c.get("/sales/new").text
         import re
         ids = re.search(r"var DOCS=(\[[^\]]*\])", t).group(1)
@@ -155,3 +155,30 @@ def test_pos_products_stock_field():
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
         it = c.get("/pos/products", params={"group": "brand", "key": "StockB"}).json()["items"][0]
         assert "stock" in it
+
+
+def test_pay_balance_sub_and_no_rro_rule():
+    from app.models import Subscription
+    from app.services import sales as sl
+    with SessionLocal() as db:
+        p = Patient(full_name="Рахунок Пацієнт", phone="+380671239999", cb_balance=300); db.add(p); db.flush()
+        sb = Subscription(id=995501, type_name="Масаж ×5", patient_id=p.id, price=5000, paid=5000, visits_total=5, visits_used=1)
+        db.add(sb); db.commit()
+        it = [{"kind": "service", "name": "Масаж", "qty": 1, "price": 1000}]
+        try:
+            sl.create(db, {"patient_id": p.id, "items": it, "payments": [{"method": sl.BALANCE, "amount": 400}, {"method": "Готівка", "amount": 600}]})
+            assert False
+        except sl.SaleError:
+            db.rollback()
+        try:
+            sl.create(db, {"patient_id": p.id, "items": it, "fiscal_rro": 0, "payments": [{"method": "Термінал ФОП Колган", "amount": 1000}]})
+            assert False
+        except sl.SaleError as e:
+            db.rollback(); assert "готівку" in str(e)
+        s = sl.create(db, {"patient_id": p.id, "items": it, "fiscal_rro": 0,
+                           "payments": [{"method": sl.BALANCE, "amount": 300}, {"method": sl.SUB, "amount": 700, "sub_id": 995501}]})
+        db.refresh(p); db.refresh(sb)
+        assert p.cb_balance == 0 and sb.visits_used == 2
+        sl.refund(db, s, "тест")
+        db.refresh(p); db.refresh(sb)
+        assert p.cb_balance == 300 and sb.visits_used == 1

@@ -1089,8 +1089,12 @@ def pos_patient(pid: int, user: User = Depends(require("sales")), db: Session = 
     return JSONResponse({"id": p_.id, "name": p_.full_name, "phone": p_.phone or "", "tag": _cal.tag_for(n), "visits": n,
                          "bonus": round(ly.balance(db, p_.id), 2), "balance": p_.cb_balance, "discount": p_.discount_pct,
                          "labels": labels[:6],
-                         "certs": {"n": len(certs), "sum": round(sum(c_.balance or 0 for c_ in certs), 2)},
-                         "subs": {"n": len(subs), "names": [(s_.type_name or s_.code or "")[:40] for s_ in subs][:3]}})
+                         "certs": {"n": len(certs), "sum": round(sum(c_.balance or 0 for c_ in certs), 2),
+                                   "items": [{"id": c_.id, "code": c_.code or str(c_.id), "balance": c_.balance or 0} for c_ in certs]},
+                         "subs": {"n": len(subs), "names": [(s_.type_name or s_.code or "")[:40] for s_ in subs][:3],
+                                  "items": [{"id": s_.id, "name": (s_.type_name or s_.code or f"№{s_.id}")[:80], "balance": s_.balance,
+                                             "visits": s_.visits_total is not None, "left": s_.visits_left, "services": (s_.services or "")[:300]}
+                                            for s_ in subs]}})
 
 
 @app.post("/pos/patient")
@@ -1208,6 +1212,7 @@ def sale_new(request: Request, appt: int = 0, patient: int = 0, user: User = Dep
     return render(request, "sale_new.html", nav="finance", appt=a_, pt=pt, items=items, methods=sl.methods(db), today=date.today().isoformat(),
                   loc_name=_locs[0]["name"] if _locs else "MOLODIST",
                   mkinds={m_: sl.method_kind(m_) for m_ in sl.methods(db)}, rros=[r_ for r_ in _fis.rros(db) if r_["on"]],
+                  link_for=_pos_link_map(sl.methods(db), sl),
                   fauto=bool(_fc.get("auto")), fdef=_fc.get("default_rro"),
                   doctors=[d_ for d_ in db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)) if d_.sale_initiator is not False],
                   rules=db.scalars(select(DiscountRule).where(DiscountRule.active.is_(True),
@@ -1215,6 +1220,24 @@ def sale_new(request: Request, appt: int = 0, patient: int = 0, user: User = Dep
                   certs=[{"id": c_.id, "code": c_.code or str(c_.id), "balance": c_.balance, "patient_id": c_.patient_id,
                           "name": c_.client_name or ""} for c_ in certs if c_.state() in ("active", "expiring")][:500],
                   default_doc=user.doctor_id)
+
+
+def _pos_link_map(methods: list[str], sl) -> dict:
+    """Термінал ФОП X → «Посилання · monobank ФОП X» (за прізвищем ФОП); непривʼязані посилання — під ключем ''."""
+    import re as _re
+    links = [m_ for m_ in methods if sl.method_kind(m_) == "link"]
+    out, used = {}, set()
+    for m_ in methods:
+        if sl.method_kind(m_) != "card":
+            continue
+        mm = _re.search(r"ФОП\s+(\S+)", m_)
+        if mm:
+            hit = [l_ for l_ in links if mm.group(1).lower() in l_.lower()]
+            if hit:
+                out[m_] = hit[0]
+                used.add(hit[0])
+    out[""] = [l_ for l_ in links if l_ not in used]
+    return out
 
 
 def _sale_payload(f: dict) -> dict:

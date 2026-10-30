@@ -24,7 +24,7 @@ PROD = "https://api.checkbox.in.ua/api/v1"
 DEV = "https://dev-api.checkbox.in.ua/api/v1"
 HEADERS = {"X-Client-Name": "MOLODIST CRM", "X-Client-Version": "1.0"}
 CHECK_URL = "https://check.checkbox.ua/{id}"
-NON_FISCAL_DISCOUNT = ("Бонуси", "Сертифікат")     # не гроші — у чеку як знижка
+NON_FISCAL_DISCOUNT = ("Бонуси", "Сертифікат", "Рахунок пацієнта", "Абонемент")     # не гроші — у чеку як знижка
 DEFAULT = {
     "auto": False, "default_rro": None, "method_modes": {"Готівка": "cash", "Картка (термінал)": "card"},
     "send": {"on": False, "channels": ["telegram", "viber", "sms"],

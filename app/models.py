@@ -298,6 +298,7 @@ class SalePayment(Base):
     method: Mapped[str] = mapped_column(String(60))                    # Готівка | Картка (термінал) | ФОП … рахунок | Бонуси | Сертифікат
     amount: Mapped[float] = mapped_column(Float)
     cert_id: Mapped[int | None] = mapped_column(Integer)
+    sub_id: Mapped[int | None] = mapped_column(Integer)                  # абонемент, з якого списано
     sale: Mapped[Sale] = relationship(back_populates="payments")
 
 
