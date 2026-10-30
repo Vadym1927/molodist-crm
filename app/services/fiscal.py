@@ -42,6 +42,15 @@ def _cipher():
     return _token_cipher()
 
 
+def terminals(c: dict) -> dict:
+    """PayLink: {host, port, terminals:[{id, name, device_id, method, on}]} (старий формат — прапорець)."""
+    t = c.get("terminals") if isinstance(c.get("terminals"), dict) else {}
+    t.setdefault("host", "127.0.0.1")
+    t.setdefault("port", 9020)
+    t.setdefault("items", [])
+    return t
+
+
 def cfg(db: Session) -> dict:
     st = db.get(SyncState, "fiscal_cfg")
     d = json.loads(json.dumps(DEFAULT))

@@ -146,3 +146,22 @@ def test_rro_page_renders():
         with SessionLocal() as db:
             r = next(x for x in fis.rros(db) if x["name"] == "ФОП Бондар")
             assert r["methods"] == {"Готівка ФОП Бондар": "cash"}
+
+
+def test_paylink_terminals_settings():
+    settings.admin_password = "owner-pass-1"
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        c.post("/settings/checkbox/terminals", data={"act": "conn", "host": "192.168.1.10", "port": "9020"})
+        c.post("/settings/checkbox/terminals", data={"name": "Термінал ФОП Колган", "device_id": "dev-1", "method": "Термінал ФОП Колган"})
+        with SessionLocal() as db:
+            t = fis.terminals(fis.cfg(db))
+            assert t["host"] == "192.168.1.10" and t["items"][0]["device_id"] == "dev-1" and t["items"][0]["on"]
+            tid = t["items"][0]["id"]
+        c.post("/settings/checkbox/terminals", data={"act": "off", "tid": str(tid)})
+        with SessionLocal() as db:
+            assert not fis.terminals(fis.cfg(db))["items"][0]["on"]
+        assert "dev-1" in c.get("/settings/checkbox").text
+        c.post("/settings/checkbox/terminals", data={"act": "del", "tid": str(tid)})
+        with SessionLocal() as db:
+            assert fis.terminals(fis.cfg(db))["items"] == []

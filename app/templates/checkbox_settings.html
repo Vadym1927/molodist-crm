@@ -4,6 +4,15 @@
 {% set qp = request.query_params %}
 {% include "_cs_style.html" %}
 <style>
+.pl-conn{display:grid;grid-template-columns:1fr 120px auto;gap:10px;align-items:end}
+.term{border:1px solid #ECE7E1;border-radius:16px;padding:16px 18px;background:#fff;display:grid;gap:12px}.term.off{opacity:.7}
+.term .tm-h{display:flex;align-items:center;gap:14px}.term .tm-h b{font:600 15px var(--sans);color:#3B3050}
+.term .tm-ic{width:46px;height:46px;border-radius:14px;background:#3B3050;color:#fff;display:grid;place-items:center}
+.term .onp{font:700 11px var(--sans);border-radius:6px;padding:3px 8px}.term .onp.on{background:#4CAF50;color:#fff}.term .onp.off{background:#8e98a6;color:#fff}
+.rro-act .seg.del{color:#B23B2E;border-color:#F0C9C4}
+.tm-f{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end;margin-top:10px}
+@media(max-width:700px){.pl-conn,.tm-f{grid-template-columns:1fr}}
+
 dialog.rro-d{width:min(860px,96vw)}
 .rro{border:1px solid #ECE7E1;border-radius:16px;background:#fff;overflow:hidden}
 .rro summary{display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer;list-style:none}.rro summary::-webkit-details-marker{display:none}
@@ -37,7 +46,7 @@ dialog.rro-d{width:min(860px,96vw)}
     <button class="cs-card" type="button" onclick="cbO('rc')"><div><b>Фіскальний чек</b><span>Автоматично чи вручну, каса за замовчуванням, які способи оплати фіскалізуються · {{ 'АВТО' if c.auto else 'вручну' }}</span></div><i>›</i></button>
     <button class="cs-card" type="button" onclick="cbO('rro')"><div><b>РРО</b><span>Каси Checkbox: ключ ліцензії, касир, тестовий режим, закриття зміни · {{ rros|length }} кас</span></div><i>›</i></button>
     <button class="cs-card" type="button" onclick="cbO('send')"><div><b>Відправлення чеків</b><span>Канали (Telegram, Viber, SMS) і текст повідомлення з чеком · {{ 'увімкнено' if c.send.on else 'вимкнено' }}</span></div><i>›</i></button>
-    <button class="cs-card" type="button" onclick="cbO('term')"><div><b>Термінали</b><span>Checkbox PayLink: сума з чека передається на фізичний термінал</span></div><i>›</i></button>
+    <button class="cs-card" type="button" onclick="cbO('term')"><div><b>Термінали</b><span>Checkbox PayLink: термінали оплати, привʼязка до способів оплати · {{ term['items']|length }} терм.</span></div><i>›</i></button>
     <button class="cs-card" type="button" onclick="cbO('wdg')"><div><b>Віджет чека {{ '✓' if c.widget }}</b><span>QR фіскального чека на екрані чека CRM (планшет у зоні розрахунку)</span></div><i>›</i></button>
   </div>
 </div>
@@ -116,11 +125,34 @@ dialog.rro-d{width:min(860px,96vw)}
     <button class="btn">Зберегти</button>
   </form></dialog>
 
-<dialog class="cs-d" id="cb-term"><div class="cs-dh"><h3>Термінали</h3><button class="cs-x" type="button" onclick="this.closest('dialog').close()">×</button></div>
-  <form method="post" action="/settings/checkbox/extra" class="cs-db"><input type="hidden" name="_paylink" value="1">
-    <div class="cs-note">Checkbox PayLink передає суму з чека на банківський термінал, щоб касир не вводив її вручну. Потрібна утиліта PayLink на компʼютері каси й підтримуваний термінал — підключимо, коли визначимося з терміналом.</div>
-    <div class="cs-f"><label class="sw"><input type="checkbox" name="paylink" value="1" {{ 'checked' if c.paylink }}> Використовую PayLink</label></div>
-    <button class="btn">Зберегти</button></form></dialog>
+<dialog class="cs-d rro-d" id="cb-term"><div class="cs-dh"><h3>Термінали</h3><button class="cs-x" type="button" onclick="this.closest('dialog').close()">×</button></div>
+  <div class="cs-db">
+    <div class="cs-note">Інтеграція з банківськими терміналами через утиліту <a href="https://checkbox.ua/acquiring/paylink/" target="_blank" rel="noopener">Checkbox PayLink</a>:
+      1) встановіть PayLink на компʼютер каси й підключіть до нього термінал; 2) вкажіть тут адресу PayLink і додайте термінали, привʼязавши кожен до способу оплати.</div>
+    <form method="post" action="/settings/checkbox/terminals" class="pl-conn"><input type="hidden" name="act" value="conn">
+      <div class="cs-f"><label>Адреса PayLink (компʼютер каси)</label><input name="host" value="{{ term.host }}" placeholder="127.0.0.1"></div>
+      <div class="cs-f"><label>Порт</label><input name="port" value="{{ term.port }}" inputmode="numeric" placeholder="9020"></div>
+      <button class="btn ghost">Зберегти</button></form>
+    <div class="ph" style="font:600 11px var(--head);letter-spacing:.16em;color:#8a8496;margin-top:4px">ДОДАНІ ТА ЗБЕРЕЖЕНІ ТЕРМІНАЛИ</div>
+    {% for t in term['items'] + [None] %}
+    <div class="term {{ '' if not t or t.on else 'off' }}">
+      {% if t %}<div class="tm-h"><span class="tm-ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="2.6"/><rect x="8.4" y="5" width="7.2" height="4.4" rx=".9"/><path d="M9.3 12.6h.01M12 12.6h.01M14.7 12.6h.01M9.3 15.4h.01M12 15.4h.01M14.7 15.4h.01M9.5 18.6h5"/></svg></span>
+        <div style="flex:1;min-width:0"><b>{{ t.name }}</b><div class="small muted">ID: {{ t.device_id }} · вид оплати: <b style="color:#2A2430">{{ t.method or '—' }}</b></div></div>
+        <span class="onp {{ 'on' if t.on else 'off' }}">{{ 'ON' if t.on else 'OFF' }}</span></div>
+      <div class="rro-act">
+        <form method="post" action="/settings/checkbox/terminals" style="display:contents"><input type="hidden" name="tid" value="{{ t.id }}"><button class="seg {{ 'on' if t.on }}" name="act" value="on">Підключити</button><button class="seg {{ '' if t.on else 'on' }}" name="act" value="off">Відключити</button></form>
+        <button type="button" class="seg" onclick="tmCheck(this,{{ t|tojson|forceescape }})">Перевірити налаштування</button>
+        <button type="button" class="seg" onclick="tmPing(this)">Перевірити підключення</button>
+        <form method="post" action="/settings/checkbox/terminals" style="display:contents" onsubmit="return confirm('Видалити термінал «{{ t.name }}»?')"><input type="hidden" name="tid" value="{{ t.id }}"><button class="seg del" name="act" value="del">Видалити</button></form>
+        <span class="small tm-res"></span></div>{% endif %}
+      <details {{ 'open' if not t and not term['items'] }}><summary class="small" style="cursor:pointer;color:#5C4B82;font-weight:700">{{ 'Змінити' if t else '＋ Додати термінал' }}</summary>
+        <form method="post" action="/settings/checkbox/terminals" class="tm-f"><input type="hidden" name="tid" value="{{ t.id if t else '' }}">
+          <div class="cs-f"><label>Назва</label><input name="name" value="{{ t.name if t else '' }}" placeholder="Термінал ФОП Колган" required></div>
+          <div class="cs-f"><label>ID термінала в PayLink</label><input name="device_id" value="{{ t.device_id if t else '' }}" placeholder="8307bdc3-…" required></div>
+          <div class="cs-f"><label>Вид оплати (каса CRM)</label><select name="method"><option value="">—</option>{% for bx in boxes if not bx.cash %}<option {{ 'selected' if t and t.method == bx.name }}>{{ bx.name }}</option>{% endfor %}</select></div>
+          <button class="btn">Зберегти</button></form></details>
+    </div>{% endfor %}
+  </div></dialog>
 
 <dialog class="cs-d" id="cb-wdg"><div class="cs-dh"><h3>Віджет чека</h3><button class="cs-x" type="button" onclick="this.closest('dialog').close()">×</button></div>
   <form method="post" action="/settings/checkbox/extra" class="cs-db"><input type="hidden" name="_widget" value="1">
@@ -133,4 +165,12 @@ dialog.rro-d{width:min(860px,96vw)}
     var h=w==='shifts'?'<table><tr><th>№</th><th>Статус</th><th>Відкрито</th><th>Закрито</th><th>Продажі</th></tr>'+j.rows.map(function(x){return '<tr><td>'+(x.serial||'')+'</td><td>'+(x.status||'')+'</td><td>'+(x.opened_at||'').replace('T',' ').slice(0,16)+'</td><td>'+(x.closed_at||'').replace('T',' ').slice(0,16)+'</td><td>'+(x.sales!=null?x.sales.toFixed(2)+' ₴':'')+'</td></tr>'}).join('')+'</table>'
       :'<table><tr><th>Код</th><th>Символ</th><th>Назва</th><th>Ставка</th></tr>'+j.rows.map(function(x){return '<tr><td>'+(x.code||'')+'</td><td>'+(x.symbol||'')+'</td><td>'+(x.label||'')+'</td><td>'+(x.rate!=null?x.rate+'%':'')+'</td></tr>'}).join('')+'</table>';
     o.innerHTML=j.rows.length?h:'<div class="small muted">Немає даних</div>'})}</script>
+<script>
+var PL={{ ('http://' ~ term.host ~ ':' ~ term.port)|tojson }};
+function tmCheck(b,t){var r=b.parentNode.querySelector('.tm-res'),bad=[];if(!t.device_id)bad.push('немає ID термінала');if(!t.method)bad.push('не вибрано вид оплати');if(!t.on)bad.push('термінал відключено');
+  r.className='small tm-res '+(bad.length?'bad-t':'ok-t');r.textContent=bad.length?bad.join(', '):'✓ Налаштування в порядку'}
+function tmPing(b){var r=b.parentNode.querySelector('.tm-res');r.className='small tm-res muted';r.textContent='Перевіряю PayLink '+PL+'…';
+  var done=false,to=setTimeout(function(){if(!done){r.className='small tm-res bad-t';r.textContent='PayLink не відповідає ('+PL+') — запустіть утиліту на цьому компʼютері'}},4000);
+  fetch(PL,{mode:'no-cors'}).then(function(){done=true;clearTimeout(to);r.className='small tm-res ok-t';r.textContent='✓ PayLink відповідає ('+PL+')'}).catch(function(){done=true;clearTimeout(to);r.className='small tm-res bad-t';r.textContent='PayLink недоступний ('+PL+') — перевірте, що утиліта запущена на цьому компʼютері'})}
+</script>
 {% endblock %}

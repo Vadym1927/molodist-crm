@@ -1213,6 +1213,7 @@ def sale_new(request: Request, appt: int = 0, patient: int = 0, user: User = Dep
                   loc_name=_locs[0]["name"] if _locs else "MOLODIST",
                   mkinds={m_: sl.method_kind(m_) for m_ in sl.methods(db)}, rros=[r_ for r_ in _fis.rros(db) if r_["on"]],
                   link_for=_pos_link_map(sl.methods(db), sl), rro_m=_fis.rro_methods(db),
+                  pl_term={t_["method"]: t_["name"] for t_ in _fis.terminals(_fc)["items"] if t_.get("on") and t_.get("method")},
                   fauto=bool(_fc.get("auto")), fdef=_fc.get("default_rro"),
                   doctors=[d_ for d_ in db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)) if d_.sale_initiator is not False],
                   rules=db.scalars(select(DiscountRule).where(DiscountRule.active.is_(True),
@@ -3859,7 +3860,7 @@ def settings_checkbox(request: Request, user: User = Depends(require("finance"))
     boxes = [{"name": x["name"], "cash": x.get("type") == "cash"} for x in _cbx.items(db)
              if x.get("active") and not x.get("deleted") and x.get("type") in ("cash", "card", "other")]
     return render(request, "checkbox_settings.html", nav="settings", c=_fis.cfg(db), rros=_fis.rros(db), methods=sl.methods(db),
-                  boxes=boxes, locs=_cl.get(db).get("locations") or [],
+                  boxes=boxes, locs=_cl.get(db).get("locations") or [], term=_fis.terminals(_fis.cfg(db)),
                   last=last, open_=request.query_params.get("open", ""))
 
 
@@ -3924,6 +3925,39 @@ async def settings_checkbox_rro(request: Request, user: User = Depends(require("
         ok, msg = await asyncio.to_thread(_fis.connect, db, rid)
         return RedirectResponse(_with_msg("/settings/checkbox?open=rro", ("✅ " if ok else "❌ ") + msg, not ok), 303)
     return RedirectResponse(_with_msg("/settings/checkbox?open=rro", "Касу збережено"), 303)
+
+
+@app.post("/settings/checkbox/terminals")
+async def settings_checkbox_terminals(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Термінали Checkbox PayLink: адреса утиліти PayLink і термінали (ID пристрою ↔ спосіб оплати каси)."""
+    from .services import fiscal as _fis
+    f = await request.form()
+    c = _fis.cfg(db)
+    t = _fis.terminals(c)
+    act, tid = str(f.get("act") or "save"), str(f.get("tid") or "")
+    if act == "conn":
+        t["host"] = str(f.get("host") or "127.0.0.1").strip()[:120]
+        t["port"] = int(f.get("port")) if str(f.get("port") or "").isdigit() else 9020
+    elif act in ("on", "off", "del"):
+        for x in t["items"]:
+            if str(x["id"]) == tid:
+                x["on"] = act == "on"
+        if act == "del":
+            t["items"] = [x for x in t["items"] if str(x["id"]) != tid]
+    else:
+        name, dev = str(f.get("name") or "").strip()[:80], str(f.get("device_id") or "").strip()[:80]
+        if not name or not dev:
+            return RedirectResponse(_with_msg("/settings/checkbox?open=term", "Вкажіть назву й ID термінала з PayLink", True), 303)
+        x = next((x for x in t["items"] if str(x["id"]) == tid), None)
+        if not x:
+            x = {"id": max([int(y["id"]) for y in t["items"]] + [0]) + 1, "on": True}
+            t["items"].append(x)
+        x.update(name=name, device_id=dev, method=str(f.get("method") or "")[:60])
+    c["terminals"] = t
+    c["paylink"] = any(x.get("on") for x in t["items"])
+    _fis.save_cfg(db, c)
+    audit(db, "fiscal.terminals", user=user, act=act, terminal=tid)
+    return RedirectResponse(_with_msg("/settings/checkbox?open=term", {"del": "Термінал видалено", "on": "Термінал підключено", "off": "Термінал відключено"}.get(act, "Збережено")), 303)
 
 
 @app.post("/settings/checkbox/rro/{rid:int}/off")
