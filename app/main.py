@@ -2535,34 +2535,56 @@ def calendar_page(request: Request, start: str | None = None, doc: str = "", vie
         s = date.fromisoformat(start) if start else today
     except ValueError:
         s = today
-    view = view if view in ("day", "week", "month") else "day"
+    view = view if view in ("day", "week") else "day"            # місяць прибрано
     doc_id = int(doc) if doc.isdigit() else None
-    ctx = dict(view=view, today=today, doc=doc_id, specialists=spec_svc.calendar_doctors(db),
-               color=spec_svc.color, initials=spec_svc.initials)
-    if view == "month":
-        first = s.replace(day=1)
-        nxt = (first + timedelta(days=32)).replace(day=1)
-        prv = (first - timedelta(days=1)).replace(day=1)
-        return render(request, "calendar.html", start=first, end=nxt - timedelta(days=1), prev=prv, next=nxt,
-                      month=cal_svc.month_summary(db, user, first, doc_id), ev={}, cols={}, days=0, **ctx)
+    specs = spec_svc.calendar_doctors(db)
+    if view == "week" and not doc_id and specs:                 # тиждень — розклад одного спеціаліста
+        doc_id = specs[0].id
+    ctx = dict(view=view, today=today, doc=doc_id, specialists=specs, color=spec_svc.color, initials=spec_svc.initials)
     days = 1 if view == "day" else 7
-    if view == "week":
-        s = s - timedelta(days=s.weekday())
     ev = cal_svc.events(db, user, s, days, doc_id)
-    cols = cal_svc.columns(db, ev, fixed=(view == "day" and not doc_id))
-    if doc_id:                                   # фільтр по спеціалісту — лише його колонка
-        cols = {d: [c for c in cs if c.doctor and c.doctor.id == doc_id] or
-                   [cal_svc.Column(str(doc_id), db.get(Doctor, doc_id), [])] for d, cs in cols.items()}
-    from .services import clinic as _cl
-    _wh = _cl.hours_for(db, s) or (settings.work_hour_from, settings.work_hour_to)      # режим роботи з «Налаштування → Локації»
-    grid = cal_svc.time_grid(s, cols[s], _wh[0], _wh[1]) if view == "day" else None
-    n_ev = sum(1 for e in ev.get(s, []) if e.kind in ("visit", "attended")) if view == "day" else 0
-    from .services import schedule as _sch
-    ctx["shifts"] = _sch.for_day(db, s) if view == "day" else {}
+    from .services import clinic as _cl, schedule as _sch
+    _dflt = (settings.work_hour_from, settings.work_hour_to)
+    if view == "day":
+        cols = cal_svc.columns(db, ev, fixed=not doc_id)
+        if doc_id:
+            cols = {d: [c for c in cs if c.doctor and c.doctor.id == doc_id] or
+                       [cal_svc.Column(str(doc_id), db.get(Doctor, doc_id), [])] for d, cs in cols.items()}
+        _wh = _cl.hours_for(db, s) or _dflt
+        grid = cal_svc.time_grid(s, cols[s], _wh[0], _wh[1])
+        sh = _sch.for_day(db, s)
+        for g in grid["cols"]:
+            g["day"], g["now_top"] = s, grid["now_top"]
+            g["shift"] = sh.get(g["col"].doctor.id) if g["col"].doctor else None
+        n_ev = sum(1 for e in ev.get(s, []) if e.kind in ("visit", "attended"))
+    else:                                                       # 7 днів від обраної дати, дні, коли клініка зачинена, пропускаємо
+        d_obj = db.get(Doctor, doc_id) if doc_id else None
+        open_days = [d for d in sorted(ev) if _cl.hours_for(db, d)] or sorted(ev)
+        hrs = [_cl.hours_for(db, d) or _dflt for d in open_days]
+        wf, wt = min(h[0] for h in hrs), max(h[1] for h in hrs)
+        timed = [e for d in open_days for e in ev[d] if not e.all_day]
+        h0 = min([wf] + [e.when.hour for e in timed])
+        h1 = max([wt] + [min(24, (e.ends or e.when).hour + (1 if (e.ends or e.when).minute else 0)) for e in timed])
+        sh = _sch.shifts(db, s, s + timedelta(days=6))
+        gcols, now_top = [], None
+        for d in open_days:
+            col = cal_svc.Column(d.isoformat(), d_obj, [e for e in ev[d] if e.doctor_id == doc_id or (not e.doctor_id and e.all_day)])
+            g1 = cal_svc.time_grid(d, [col], h0, h1)
+            gc = g1["cols"][0]
+            gc["day"], gc["now_top"], gc["shift"] = d, g1["now_top"], sh.get((doc_id, d))
+            if g1["now_top"] is not None:
+                now_top = g1["now_top"]
+            gcols.append(gc)
+        grid = {"h0": h0, "h1": h1, "cols": gcols, "now_top": now_top}
+        cols = {}
+        n_ev = sum(1 for d in open_days for e in ev[d] if e.kind in ("visit", "attended") and e.doctor_id == doc_id)
     ctx["now_h"] = min(max(datetime.now().hour + 1, 8), 20)
     ctx["locs"] = [l_ for l_ in (_cl.get(db).get("locations") or []) if l_.get("active")]
-    ctx["work_to"] = _wh[1]
     ctx["now_hm"] = datetime.now().strftime("%H:%M")
+    ids = [d_.id for d_ in specs]
+    if doc_id in ids:
+        i_ = ids.index(doc_id)
+        ctx["doc_prev"], ctx["doc_next"] = ids[i_ - 1], ids[(i_ + 1) % len(ids)]
     return render(request, "calendar.html", ev=ev, cols=cols, grid=grid, start=s, days=days, n_ev=n_ev,
                   prev=s - timedelta(days=days), next=s + timedelta(days=days), end=s + timedelta(days=days - 1),
                   month=None, **ctx)

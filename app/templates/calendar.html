@@ -130,6 +130,8 @@
 .tg-head a.dn{display:block;color:#3B3050;font:600 15px var(--sans);text-decoration:none;border-bottom:1px dashed #C9BFE6;width:fit-content}.tg-head a.dn:hover{color:#5C4B82}
 .tg-head .dpos{display:block;color:#8a8496;font-size:13px;margin-top:3px}.tg-head .ds{display:inline-block;margin-top:4px;font:600 11px var(--sans);color:#2E6B2E;background:#EAF6EA;border-radius:99px;padding:1px 8px}
 .tg-nav{display:flex!important;gap:4px!important;justify-content:center!important;align-items:flex-end!important;padding:0 6px 14px!important}
+.tg-nav a{width:26px;height:26px;border:1px solid #E6E0D8;border-radius:8px;background:#fff;color:#3B3050;display:grid;place-items:center;text-decoration:none;font-size:15px}
+.wkh{flex-direction:column;align-items:flex-start!important}.wkh .wd{display:block;font:600 14.5px var(--sans);color:#2A2430}.wkh.today .wd{color:#5C4B82}.wkh.today{background:#F6F3FB}
 .tg-nav button{width:26px;height:26px;border:1px solid #E6E0D8;border-radius:8px;background:#fff;color:#3B3050;cursor:pointer;font-size:15px;line-height:1}
 .tg-nav button:hover{border-color:#C9BFE6;background:#F6F3FB}
 .tg-head.ad>div{padding:8px 10px}
@@ -164,9 +166,9 @@
 {% set WD2 = ['ПН','ВТ','СР','ЧТ','ПТ','СБ','НД'] %}
 {% set q0 = '&doc=' ~ (doc or '') %}
 <div class="ctb">
-  <a class="cbtn" href="?view={{ view }}{{ q0 }}">Сьогодні</a>
+  {% if view == 'week' %}<a class="cbtn" href="?start={{ start }}&view=day">Всі спеціалісти</a>{% else %}<a class="cbtn" href="?view=day">Сьогодні</a>{% endif %}
   <div class="cdate"><a href="?start={{ prev }}&view={{ view }}{{ q0 }}" title="Назад">‹</a>
-    <label>{% if view=='day' %}{{ WD2[start.weekday()] }}, {{ start|dt('%d.%m.%Y') }}{% elif view=='week' %}{{ start|dt('%d.%m') }} — {{ end|dt('%d.%m.%Y') }}{% else %}{{ MON1[start.month-1] }} {{ start.year }}{% endif %}
+    <label>{% if view=='day' %}{{ WD2[start.weekday()] }}, {{ start|dt('%d.%m.%Y') }}{% else %}{{ start|dt('%d.%m.%Y') }} - {{ end|dt('%d.%m.%Y') }}{% endif %}
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
       <input type="date" value="{{ start }}" onchange="location.href='?start='+this.value+'&view={{ view }}{{ q0 }}'"></label>
     <a href="?start={{ next }}&view={{ view }}{{ q0 }}" title="Вперед">›</a></div>
@@ -174,7 +176,7 @@
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/></svg></div>
   <div class="cics">
     <details class="cdd"><summary class="cic" title="Вигляд: день / тиждень / місяць"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M9 14.5l2 2 4-4"/></svg></summary>
-      <div class="cmenu"><a href="?start={{ start }}&view=day{{ q0 }}" class="{{ 'on' if view=='day' }}">День</a><a href="?start={{ start }}&view=week{{ q0 }}" class="{{ 'on' if view=='week' }}">Тиждень</a><a href="?start={{ start }}&view=month{{ q0 }}" class="{{ 'on' if view=='month' }}">Місяць</a></div></details>
+      <div class="cmenu"><a href="?start={{ start }}&view=day{{ q0 }}" class="{{ 'on' if view=='day' }}">День</a><a href="?start={{ start }}&view=week{{ q0 }}" class="{{ 'on' if view=='week' }}">Тиждень · розклад спеціаліста</a></div></details>
     {% if can(user,'book') and view=='day' %}<button type="button" class="cic" title="Заблокувати час" onclick="document.getElementById('blkd').showModal()"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3"/></svg></button>{% endif %}
     <a class="cic" href="/specialists/schedule" title="Графік роботи"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></a>
     <a class="cic" href="/specialists" title="Співробітники"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 4.5a3 3 0 0 1 0 6M18 14.2c1.8.8 3 2.6 3 4.8"/></svg></a>
@@ -182,18 +184,23 @@
   {% if can(user,'book') %}<button type="button" class="btn cnew" onclick="apOpenNew({{ doc or 0 }}, '{{ start }}T{{ '%02d' % (now_h if start == today else 10) }}:00')"><span>＋</span> Створити візит</button>{% endif %}
 </div>
 
-{% if view=='day' %}
+{% if view in ('day', 'week') %}
 {% set PX = 1.3 %}{% set EXTRA = 30 %}{% set H = (grid.h1 - grid.h0) * 60 * PX %}{% set n = grid.cols|length %}
-{% set GC = 'grid-template-columns:76px repeat(' ~ n ~ ',minmax(260px,1fr))' %}
+{% set GC = 'grid-template-columns:76px repeat(' ~ n ~ ',minmax(' ~ ('165px' if view == 'week' else '260px') ~ ',1fr))' %}
 <div class="tg" id="tgw" style="--px:1.3px">
   <div class="tg-head" style="{{ GC }}">
-    <div class="tg-nav"><button type="button" onclick="calPage(-1)" title="Попередні">‹</button><button type="button" onclick="calPage(1)" title="Наступні">›</button></div>
+    {% if view == 'week' and doc_prev %}<div class="tg-nav"><a href="?start={{ start }}&view=week&doc={{ doc_prev }}" title="Попередній спеціаліст">‹</a><a href="?start={{ start }}&view=week&doc={{ doc_next }}" title="Наступний спеціаліст">›</a></div>
+    {% else %}<div class="tg-nav"><button type="button" onclick="calPage(-1)" title="Попередні">‹</button><button type="button" onclick="calPage(1)" title="Наступні">›</button></div>{% endif %}
     {% for g in grid.cols %}{% set d = g.col.doctor %}
-    <div>{% if d %}<i class="av" style="{% if d.photo_url %}background-image:url('{{ d.photo_url }}');{% else %}background-color:{{ color(d) }};{% endif %}">{{ '' if d.photo_url else initials(d.name) }}</i>
-      <div style="min-width:0"><a class="dn" href="/specialists/{{ d.id }}">{{ d.name }}</a><span class="dpos">{{ d.position or ('звільнений' if not d.active else 'Спеціаліст') }}</span>
-        {% set _s = (shifts or {}).get(d.id) %}{% if _s %}<span class="ds">{{ _s.start }}–{{ _s.end }}{{ (' · ' ~ _s.place) if _s.place }}</span>{% endif %}</div>
+    {% if view == 'week' %}<div class="wkh {{ 'today' if g.day == today }}"><div style="min-width:0"><b class="wd">{{ ['Пн','Вт','Ср','Чт','Пт','Сб','Нд'][g.day.weekday()] }}, {{ g.day.day }} {{ MON[g.day.month-1] }} {{ g.day.year }}</b>
+      {% if d %}<span class="dpos"><a href="/specialists/{{ d.id }}" style="color:#2A2430;font-weight:600;text-decoration:none">{{ d.name }}</a> · {{ d.position or 'Спеціаліст' }}</span>{% endif %}
+      {% if g.shift %}<span class="ds">{{ g.shift.start }}–{{ g.shift.end }}</span>{% endif %}</div></div>
+    {% else %}
+    <div>{% if d %}<a href="/specialists/{{ d.id }}" title="Картка співробітника"><i class="av" style="{% if d.photo_url %}background-image:url('{{ d.photo_url }}');{% else %}background-color:{{ color(d) }};{% endif %}">{{ '' if d.photo_url else initials(d.name) }}</i></a>
+      <div style="min-width:0"><a class="dn" href="?start={{ start }}&view=week&doc={{ d.id }}" title="Розклад на 7 днів">{{ d.name }}</a><span class="dpos">{{ d.position or ('звільнений' if not d.active else 'Спеціаліст') }}</span>
+        {% set _s = g.shift %}{% if _s %}<span class="ds">{{ _s.start }}–{{ _s.end }}{{ (' · ' ~ _s.place) if _s.place }}</span>{% endif %}</div>
       {% else %}<div><b>Без фахівця</b><span class="dpos">задачі, очікувані за планом</span></div>{% endif %}</div>
-    {% endfor %}
+    {% endif %}{% endfor %}
   </div>
   {% if grid.cols|selectattr('allday')|list %}
   <div class="tg-head ad" style="position:static;{{ GC }}">
@@ -205,8 +212,8 @@
     <div class="tg-hours">{% for h in range(grid.h0, grid.h1 + 1) %}<div class="hh" style="top:calc({{ (h - grid.h0) * 60 }} * var(--px))">{{ '%02d' % h }}:00</div>{% if h < grid.h1 %}<div style="top:calc({{ (h - grid.h0) * 60 + 30 }} * var(--px))">{{ '%02d' % h }}:30</div>{% endif %}{% endfor %}
       {% if grid.now_top is not none %}<span class="nowpill" style="top:calc({{ grid.now_top }} * var(--px))">{{ now_hm }}</span>{% endif %}</div>
     {% for g in grid.cols %}
-    <div class="tg-col" style="--c:{{ color(g.col.doctor) if g.col.doctor else '#9a93a6' }}" {% if can(user,'book') %}onclick="tgNew(event, this, {{ g.col.doctor.id if g.col.doctor else 0 }})" title="Натисніть на вільний час — новий запис"{% endif %}>
-      {% set _s = (shifts or {}).get(g.col.doctor.id) if g.col.doctor else None %}{% if _s %}{% set a = (_s.start[:2]|int * 60 + _s.start[3:]|int - grid.h0 * 60) %}{% set b = (_s.end[:2]|int * 60 + _s.end[3:]|int - grid.h0 * 60) %}
+    <div class="tg-col" style="--c:{{ color(g.col.doctor) if g.col.doctor else '#9a93a6' }}" {% if can(user,'book') %}onclick="tgNew(event, this, {{ g.col.doctor.id if g.col.doctor else 0 }}, '{{ g.day }}')" title="Натисніть на вільний час — новий запис"{% endif %}>
+      {% set _s = g.shift %}{% if _s %}{% set a = (_s.start[:2]|int * 60 + _s.start[3:]|int - grid.h0 * 60) %}{% set b = (_s.end[:2]|int * 60 + _s.end[3:]|int - grid.h0 * 60) %}
         {% if a > 0 %}<div class="offsh" style="top:0;height:calc({{ a }} * var(--px))"></div>{% endif %}<div class="offsh" style="top:calc({{ b }} * var(--px));bottom:0"></div>{% endif %}
       <div class="offsh" style="top:calc({{ (grid.h1 - grid.h0) * 60 }} * var(--px));bottom:0"></div>
       {% for h in range(grid.h0, grid.h1 + 1) %}<div class="tg-line h" style="top:calc({{ (h - grid.h0) * 60 }} * var(--px))"></div>{% if h < grid.h1 %}<div class="tg-line" style="top:calc({{ (h - grid.h0) * 60 + 30 }} * var(--px))"></div>{% endif %}{% endfor %}
@@ -227,7 +234,7 @@
         {% if e.services %}<div class="svl">{% for s in e.services %}<span><em>👉</em> {{ s }}</span>{% endfor %}</div>{% endif %}
         {% if e.note %}<div class="nt">Замітка: {{ e.note }}</div>{% endif %}</a>
       {% endif %}{% endfor %}
-      {% if grid.now_top is not none %}<div class="nowline" style="top:calc({{ grid.now_top }} * var(--px))"></div>{% endif %}
+      {% if g.now_top is not none %}<div class="nowline" style="top:calc({{ g.now_top }} * var(--px))"></div>{% endif %}
     </div>
     {% endfor %}
   </div>
@@ -241,50 +248,6 @@
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><label class="small muted" style="display:grid;gap:4px">З<input name="t_from" value="10:00" required placeholder="10:00"></label><label class="small muted" style="display:grid;gap:4px">До<input name="t_to" value="12:00" required placeholder="12:00"></label></div>
   <label class="small muted" style="display:grid;gap:4px">Причина<input name="title" placeholder="Зйомка, навчання, обід…" maxlength="120"></label>
   <button class="btn">Заблокувати</button></form></dialog>{% endif %}
-{% elif view=='week' %}
-<div class="wk" id="wk" style="--cw:{{ '240px' if view=='day' else '140px' }}">
-{% for d, cs in cols.items() %}
-  {% set total = ev[d]|selectattr('kind','in',['visit','attended'])|list|length %}
-  <section class="dcol {{ 'today' if d==today }} {{ 'off' if not total and d.weekday() >= 5 }}" style="--n:{{ cs|length }}">
-    <div class="dhead"><div><span class="wd">{{ ['Пн','Вт','Ср','Чт','Пт','Сб','Нд'][d.weekday()] }}</span><b>{{ d|dt('%d.%m') }}</b></div>
-      <span class="cnt">{{ (total ~ ' зап.') if total else '' }}</span></div>
-    <div class="scols">
-    {% for c in cs %}
-      <div class="scol" style="--c:{{ color(c.doctor) if c.doctor else '#b8b0a8' }}">
-        <div class="shead">{% if c.doctor %}<i class="av" style="background-color:{{ color(c.doctor) }}{% if c.doctor.photo_url %};background-image:url('{{ c.doctor.photo_url }}'){% endif %}">{{ '' if c.doctor.photo_url else initials(c.doctor.name) }}</i>
-          <span title="{{ c.doctor.name }}">{{ c.doctor.name.split()[0] }}{{ (' ' ~ c.doctor.name.split()[1][:1] ~ '.') if c.doctor.name.split()|length > 1 }}</span>{% if not c.doctor.active %}<span class="muted" title="звільнений">·зв.</span>{% endif %}
-          {% elif cs|length > 1 or c.events %}<span class="muted">Без спеціаліста</span>{% endif %}</div>
-        {% for e in c.events %}
-          <a class="ev {{ e.kind }}" style="--c:{{ color(c.doctor) if c.doctor else '#3b332e' }}" href="{{ ('/patients/' ~ e.patient_id) if e.patient_id else '/tasks' }}"{% if e.appt_id %} onclick="apptOpen({{ e.appt_id }});return false"{% endif %}>
-            <div class="t">{% if e.all_day %}{{ {'expected':'за планом','task':'задача'}.get(e.kind,'') }}{% else %}{{ e.when|dt('%H:%M') }}{% endif %}{% if e.in_plan and e.kind=='visit' %}<span class="tag">план</span>{% endif %}</div>
-            <b>{{ e.title }}</b>{% if e.subtitle %}<div class="s">{{ e.subtitle }}</div>{% endif %}</a>
-        {% else %}<div class="empty">—</div>{% endfor %}
-      </div>
-    {% endfor %}
-    </div>
-  </section>
-{% endfor %}
-</div>
-
-<div class="legend2">
-  <span><i style="background:var(--brand-soft);border-left:4px solid var(--brand)"></i>запис (колір — спеціаліст)</span>
-  <span><i style="background:var(--ok)"></i>«план» — пацієнтка з бюті-планом</span>
-  <span><i style="background:var(--warn-bg);border:1.5px dashed var(--warn)"></i>очікується за планом, без запису</span>
-  <span><i style="background:var(--done)"></i>задача</span>
-  <span><i style="background:#d8d2cc"></i>відбувся</span>
-</div>
-<script>(function(){var w=document.getElementById('wk'),t=w&&w.querySelector('.dcol.today');
-if(t&&w.scrollWidth>w.clientWidth){w.scrollLeft=Math.max(0,t.offsetLeft-w.offsetLeft-12)}})();</script>
-{% else %}
-<div class="mon">
-  {% for w in ['Пн','Вт','Ср','Чт','Пт','Сб','Нд'] %}<div class="wd">{{ w }}</div>{% endfor %}
-  {% for d, cell in month.days.items() %}
-  <a class="cell {{ 'today' if d==today }}" href="?start={{ d }}&view=day&doc={{ doc or '' }}">
-    <span class="num {{ 'out' if d.month != start.month }}">{{ d.day }}</span>
-    {% if cell.total %}<span class="tot">{{ cell.total }} зап.</span>
-    <span class="dl">{% for k, cnt in cell.docs.items() %}{% set dd = month.by_id.get(k) %}<i style="background:{{ color(dd) if dd else '#9a93a6' }}" title="{{ dd.name if dd else 'Без фахівця' }}">{{ initials(dd.name) if dd else '—' }} {{ cnt }}</i>{% endfor %}</span>{% endif %}
-  </a>{% endfor %}
-</div>
 {% endif %}
 {% if not specialists %}<p class="muted small" style="margin-top:12px">Спеціалісти і записи підтягуються з CleverBox під час синхронізації (записи — на 14 днів уперед).</p>{% endif %}
 {% include "_appt_modal.html" %}
@@ -299,8 +262,8 @@ function calFit(){var w=document.getElementById('tgw'),bd=w&&w.querySelector('.t
 calFit();window.addEventListener('resize',calFit);
 function calPage(d){var w=document.getElementById('tgw'),c=w&&w.querySelector('.tg-head>div:nth-child(2)');if(w&&c)w.scrollBy({left:d*c.offsetWidth,behavior:'smooth'})}
 (function(){var w=document.getElementById('tgw'),n=w&&w.querySelector('.nowline');if(w&&n&&window.innerWidth<860){var t=n.offsetTop-200;window.scrollTo({top:Math.max(0,w.getBoundingClientRect().top+window.scrollY+t-120)})}})();
-function tgNew(e,col,doc){if(e.target.closest('a,.blk'))return;var r=col.getBoundingClientRect(),y=e.clientY-r.top,
+function tgNew(e,col,doc,day){if(e.target.closest('a,.blk'))return;var r=col.getBoundingClientRect(),y=e.clientY-r.top,
   m=Math.max(0,Math.round(y/calPx()/15)*15)+{{ (grid.h0 if grid else 9) * 60 }},h=Math.floor(m/60),mi=m%60;
-  apOpenNew(doc,'{{ start }}T'+String(h).padStart(2,'0')+':'+String(mi).padStart(2,'0'))}</script>
+  apOpenNew(doc,(day||'{{ start }}')+'T'+String(h).padStart(2,'0')+':'+String(mi).padStart(2,'0'))}</script>
 {% if request.query_params.get('msg') %}<div class="dp-toast" style="background:var(--ok-bg);color:var(--ok);border-color:#BFE3CD" onclick="this.remove()">{{ request.query_params.get('msg') }}</div>{% endif %}
 {% endblock %}

@@ -47,8 +47,8 @@ def test_sections(monkeypatch, tmp_path):
         assert "Даниленко" in c.get("/clients?seg=plan").text and "Нова Клієнтка" not in c.get("/clients?seg=plan").text
 
         from datetime import date, timedelta
-        cal = c.get(f"/calendar?view=week&start={(date.today() + timedelta(days=5)).isoformat()}").text   # тиждень із записами
-        assert "Даниленко" in cal and "Нова Клієнтка" in cal and "class=\"tag\">план" in cal
+        cal = "".join(c.get(f"/calendar?view=day&start={(date.today() + timedelta(days=i)).isoformat()}").text for i in range(14))
+        assert "Даниленко" in cal and "Нова Клієнтка" in cal and "бюті-план" in cal
 
         # склад: залишок Azelorosa 2, інші засоби з плану не куплені і їх немає на складі -> дефіцит
         st = c.get("/stock?only=deficit").text
@@ -92,7 +92,7 @@ def test_sections(monkeypatch, tmp_path):
         assert "Фінанси" not in c.get("/").text.split("<main>")[0]
         c.get("/logout"); login(c, "doc9", "password-123")
         assert c.get("/products").status_code == 403 and c.get("/stock").status_code == 403
-        cal = c.get(f"/calendar?view=week&start={(date.today() + timedelta(days=5)).isoformat()}").text
+        cal = "".join(c.get(f"/calendar?view=day&start={(date.today() + timedelta(days=i)).isoformat()}").text for i in range(14))
         assert "Даниленко" in cal and "Нова Клієнтка" not in cal
         assert "Нова Клієнтка" not in c.get("/clients").text
 

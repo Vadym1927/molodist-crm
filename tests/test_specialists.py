@@ -110,7 +110,12 @@ def test_calendar_views_render():
         for v in ("day", "week", "month"):
             r = c.get(f"/calendar?view={v}")
             assert r.status_code == 200 and "Календар" in r.text
-        assert 'class="mon"' in c.get("/calendar?view=month").text
+        assert 'class="mon"' not in c.get("/calendar?view=month").text          # місяць прибрано → день
+        with SessionLocal() as db:
+            from app.models import Doctor
+            d = Doctor(name="Тижневий Лікар", in_calendar=True, active=True); db.add(d); db.commit(); did = d.id
+        wk = c.get(f"/calendar?view=week&doc={did}").text
+        assert "Всі спеціалісти" in wk and "Тижневий Лікар" in wk and 'class="wkh' in wk
 
 
 def test_plans_board():
