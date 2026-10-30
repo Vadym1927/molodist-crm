@@ -83,3 +83,16 @@ def test_cash_day_and_fin_day_include_crm():
         assert "Продажі за добу" in t and "Пілінг денний" in t and "1000.00" in t and "1400.00" in t
         f = c.get("/finance/day").text
         assert "Денна Лікарка" in f and "Крем денний" in f and "Косметика" in f
+
+
+def test_pos_toggle():
+    from app.services import sales as sl
+    with SessionLocal() as db:
+        cbx.apply_seed(db)
+        f = next(x for x in cbx.items(db) if x["name"] == "Операційний Фонд")
+        assert "Операційний Фонд" not in sl.methods(db)
+        cbx.save(db, f["id"], {**f, "active": True, "pos": True})
+        assert "Операційний Фонд" in sl.methods(db)
+        s = next(x for x in cbx.items(db) if x["name"] == "Готівка Cейф")
+        cbx.save(db, s["id"], {**s, "active": True, "pos": False})
+        assert "Готівка Cейф" not in sl.methods(db)

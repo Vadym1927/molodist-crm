@@ -31,7 +31,7 @@
   {% if b.methods %}<div class="small muted" style="margin-top:4px">Каса CRM: {{ b.methods|join(', ') }}</div>{% endif %}
   {% if b.opening_date %}<div class="small muted">Залишок {{ '%.2f'|format(b.opening) }} на {{ b.opening_date }}</div>{% endif %}
   </div><div class="bt">
-  {% if b.active %}<span class="tg on">Активна</span>{% endif %}<span class="tg {{ 'cash' if b.cash else 'nc' }}">{{ 'Готівка' if b.cash else 'Безготівка' }}</span>
+  {% if b.active %}<span class="tg on">Активна</span>{% endif %}<span class="tg {{ 'cash' if b.cash else 'nc' }}">{{ 'Готівка' if b.cash else 'Безготівка' }}</span>{% if b.in_pos and b.active %}<span class="tg" title="Показується в касі як спосіб оплати">💳 у касі</span>{% endif %}
   <span style="flex:1"></span>
   {% if b.deleted %}<form method="post" action="/settings/cashboxes/{{ b.id }}/restore" style="margin:0"><button class="btn ghost" style="padding:3px 10px">Відновити</button></form>
   {% else %}<a class="ic" href="?open={{ b.id }}" title="Рух коштів" style="color:#3c8d3c;text-decoration:none">$</a>
@@ -68,14 +68,16 @@
       <div class="row" style="gap:6px;flex-wrap:nowrap"><input name="opening" inputmode="decimal" placeholder="0.00" style="flex:1"><input type="date" name="opening_date" style="flex:1"></div>
       <div class="hint">Баланс з CleverBox на початок дня — тоді рахуються лише операції з цієї дати. Порожня дата — уся історія.</div></div>
     <div class="cs-f"><label>Примітка</label><input name="note"></div>
-    <div class="cs-f"><label class="sw"><input type="checkbox" name="active" value="1" checked> Активна</label></div>
+    <div class="cs-f"><label class="sw"><input type="checkbox" name="active" value="1" checked> Активна</label>
+      <label class="sw"><input type="checkbox" name="pos" value="1" checked> Показувати в касі як спосіб оплати</label>
+      <div class="hint">Плитка оплати в «Новий продаж». Фонди й рахунки зазвичай не показують.</div></div>
     <button class="btn">Зберегти</button>
   </form></dialog>
 <script>
 function bxEdit(b){var d=document.getElementById('bx-ed'),f=d.querySelector('form');f.reset();
   document.getElementById('bx-t').textContent=b?('Каса · '+b.name):'Нова каса';
   f.id.value=b?b.id:'';if(b){f.name.value=b.name;f.location_id.value=b.location_id||'';f.type.value=b.type;f.color.value=b.color||'#5CB85C';
-    f.opening.value=b.opening||'';f.opening_date.value=b.opening_date||'';f.note.value=b.note||'';f.active.checked=!!b.active;
+    f.opening.value=b.opening||'';f.opening_date.value=b.opening_date||'';f.note.value=b.note||'';f.active.checked=!!b.active;f.pos.checked=b.in_pos;
     f.querySelectorAll('input[name=methods]').forEach(function(i){i.checked=(b.methods||[]).indexOf(i.value)>=0})}
   d.showModal()}
 </script>

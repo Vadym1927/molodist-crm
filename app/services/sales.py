@@ -26,7 +26,7 @@ PAYLINK = "Посилання на оплату"
 def methods(db: Session) -> list[str]:
     """Способи оплати каси = активні каси / рахунки (як у CleverBox) + посилання на оплату по кожному ФОП."""
     from . import cashboxes as cbx, paylinks as pls
-    out = [x["name"] for x in cbx.items(db) if x.get("active") and not x.get("deleted") and x.get("type") in ("cash", "card", "other")]
+    out = [x["name"] for x in cbx.items(db) if x.get("active") and not x.get("deleted") and cbx.in_pos(x)]
     out += [paylink_method(a["name"]) for a in pls.public(db)["accounts"] if a["ready"]]
     return out or ["Готівка", "Картка (термінал)", "Інше"]
 

@@ -3569,7 +3569,7 @@ async def settings_cashboxes_save(request: Request, user: User = Depends(require
     data = {"name": f.get("name"), "type": f.get("type"), "active": bool(f.get("active")), "note": f.get("note"),
             "location_id": int(f.get("location_id")) if str(f.get("location_id") or "").isdigit() else None,
             "opening": _num(str(f.get("opening") or "0")) or 0, "opening_date": _day(str(f.get("opening_date") or "")) and str(f.get("opening_date")),
-            "methods": f.getlist("methods"), "color": str(f.get("color") or "")[:9]}
+            "methods": f.getlist("methods"), "color": str(f.get("color") or "")[:9], "pos": bool(f.get("pos"))}
     try:
         x = cbx.save(db, bid, data)
     except ValueError as e:

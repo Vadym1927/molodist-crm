@@ -70,6 +70,13 @@ def items(db: Session) -> list[dict]:
     return _defaults(db)
 
 
+def in_pos(x: dict) -> bool:
+    """Чи показувати касу плиткою оплати в касі CRM: явний перемикач, інакше — за типом (готівка / термінал / інше)."""
+    if x.get("pos") is not None:
+        return bool(x["pos"])
+    return x.get("type") in ("cash", "card", "other")
+
+
 def names(db: Session, active_only: bool = True) -> list[str]:
     return [x["name"] for x in items(db) if not x.get("deleted") and (x.get("active") or not active_only)]
 
@@ -103,6 +110,7 @@ def save(db: Session, bid: int | None, data: dict) -> dict:
     for y in xs:                                               # з неактивних кас спосіб оплати знімаємо
         if y is not x:
             y["methods"] = [m for m in y.get("methods") or [] if m not in methods]
+    x["pos"] = bool(data.get("pos")) if "pos" in data else x.get("pos")
     x.update(name=name, type=data["type"], location_id=data.get("location_id") or None, active=bool(data.get("active")),
              opening=round(float(data.get("opening") or 0), 2), opening_date=data.get("opening_date") or None,
              methods=methods, note=str(data.get("note") or "")[:300], color=data.get("color") or x.get("color") or COLORS[0],
@@ -229,7 +237,7 @@ def overview(db: Session) -> list[dict]:
         mv = moves(db, x)
         out.append({**x, "type_label": TYPES.get(x.get("type"), x.get("type")), "location": locs.get(int(x["location_id"])) if x.get("location_id") else None,
                     "balance": round(float(x.get("opening") or 0) + sum(m.amount if m.kind == "in" else -m.amount for m in mv), 2),
-                    "last": max((m.at for m in mv), default=None), "cash": x.get("type") == "cash"})
+                    "last": max((m.at for m in mv), default=None), "cash": x.get("type") == "cash", "in_pos": in_pos(x)})
     return out
 
 
