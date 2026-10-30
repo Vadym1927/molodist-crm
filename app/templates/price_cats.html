@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Категорії спеціалістів · MOLODIST CRM{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+{% include "_cs_style.html" %}
+<style>.pc{display:grid;grid-template-columns:230px 1fr;gap:18px;align-items:start}
+.pc-nav{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:10px;display:grid;gap:4px;position:sticky;top:16px}
+.pc-nav a{display:block;padding:11px 14px;border-radius:12px;font:600 14px var(--sans);color:#3B3050;text-decoration:none}
+.pc-nav a:hover{background:#F7F4F0}.pc-nav a.on{background:#3B3050;color:#fff}
+.pc-card{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:18px 20px;display:grid;gap:14px}
+.pc-hd{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.cat{display:flex;align-items:center;gap:10px;background:#F7F4F0;border-radius:14px;padding:8px 10px}
+.cat input[type=text]{flex:1;height:40px;font-weight:600;color:#3B3050}.cat .h{cursor:grab;color:#b8b1c2;display:flex}
+.cat .x{border:0;background:none;color:#B23B2E;font-size:20px;cursor:pointer;padding:0 6px}
+.st{display:grid;grid-template-columns:1fr minmax(180px,280px);gap:10px;align-items:center;padding:10px 4px;border-bottom:1px solid #F0ECE6}
+.st:last-child{border-bottom:0}.st b{font:600 14.5px var(--sans);color:#2A2430}.st small{display:block;color:#9a93a6;font-size:12px}
+.st select{height:40px}.st select.set{border-color:#C9BFE6;background:#F6F3FB;font-weight:600;color:#3B3050}
+details.grp{border:1px solid #ECE7E1;border-radius:14px;background:#fff;overflow:hidden}
+details.grp summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:13px 16px;font:600 14.5px var(--sans);color:#3B3050}
+details.grp summary::-webkit-details-marker{display:none}details.grp summary span{font:500 12.5px var(--sans);color:#9a93a6}
+details.grp[open] summary{background:#F7F4F0}
+.pr{display:grid;grid-template-columns:1fr 110px repeat(var(--n),130px);gap:8px;align-items:center;padding:8px 16px;border-top:1px solid #F0ECE6}
+.pr .nm{font-size:13.5px;color:#2A2430}.pr .nm small{color:#b8b1c2;margin-right:6px}.pr .base{text-align:right;font-weight:600;color:#8a8496}
+.pr input{height:38px;text-align:right}.pr.h{font:700 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#9a93a6;background:#FBFAF8}
+@media(max-width:860px){.pc{grid-template-columns:1fr}.pc-nav{position:static;grid-auto-flow:column;overflow:auto}.st{grid-template-columns:1fr}.pr{grid-template-columns:1fr 90px repeat(var(--n),100px)}}</style>
+<div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a></div>
+<h1 style="margin:0 0 6px">Категорії спеціалістів</h1>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+<div class="pc">
+  <nav class="pc-nav"><a href="?tab=cats" class="{{ 'on' if tab == 'cats' }}">Категорії цін</a><a href="?tab=staff" class="{{ 'on' if tab == 'staff' }}">Співробітники</a><a href="?tab=prices" class="{{ 'on' if tab == 'prices' }}">Ціни на послуги</a></nav>
+  <form method="post" action="/settings/price-cats" class="pc-card"><input type="hidden" name="tab" value="{{ tab }}">
+  {% if tab == 'cats' %}
+    <div class="pc-hd"><label class="sw"><input type="checkbox" name="on" value="1" {{ 'checked' if d.on }}> {{ 'Модуль увімкнено' if d.on else 'Модуль вимкнено' }}</label><button class="btn">Зберегти</button></div>
+    <div class="cs-note">Додаткові категорії цін — щоб у певних спеціалістів ціни на послуги відрізнялися від базових: головний лікар, топ-лікар, стажер. Коли модуль увімкнено, у касі для такого спеціаліста підставляється ціна його категорії.</div>
+    <label class="cs-f"><span style="font:700 11.5px var(--sans);text-transform:uppercase;letter-spacing:.05em;color:var(--muted)">Назва базової ціни для онлайн-запису</span><input name="base_name" value="{{ d.base_name }}" placeholder="Напр. Лікар"></label>
+    <div class="pc-hd"><b style="font:600 13px var(--head);letter-spacing:.12em;text-transform:uppercase">Категорії цін</b><button class="btn ghost" type="button" onclick="catAdd()">＋ Додати</button></div>
+    <div id="cats" style="display:grid;gap:8px">{% for c in d.cats %}<div class="cat" draggable="true"><span class="h"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 8h14M5 12h14M5 16h14"/></svg></span>
+      <input type="hidden" name="cat_id" value="{{ c.id }}"><input type="text" name="cat_name" value="{{ c.name }}" required maxlength="80">
+      <input type="hidden" name="cat_on" value="{{ '1' if c.on else '0' }}"><label class="sw" title="Увімкнути / вимкнути"><input type="checkbox" {{ 'checked' if c.on }} onchange="this.closest('.cat').querySelector('[name=cat_on]').value=this.checked?'1':'0'"></label>
+      <button type="button" class="x" title="Видалити" onclick="if(confirm('Видалити категорію? Її ціни й призначення спеціалістам буде видалено після збереження.'))this.closest('.cat').remove()">×</button></div>{% endfor %}</div>
+  {% elif tab == 'staff' %}
+    <div class="pc-hd"><div class="cs-note" style="flex:1">За замовчуванням спеціалісту застосовується базова ціна. Щоб призначити іншу категорію цін — оберіть її зі списку (категорії створюються у вкладці «Категорії цін»).</div><button class="btn">Зберегти</button></div>
+    <div>{% for doc in docs %}{% set cur = d.staff.get(doc.id|string) %}<div class="st"><div><b>{{ doc.name }}</b><small>{{ doc.position or '' }}</small></div>
+      <select name="doc_{{ doc.id }}" class="{{ 'set' if cur }}"><option value="">Базова ціна</option>{% for c in d.cats %}<option value="{{ c.id }}" {{ 'selected' if cur == c.id }}>{{ c.name }}{{ '' if c.on else ' (вимкнена)' }}</option>{% endfor %}</select></div>{% endfor %}</div>
+  {% else %}
+    <div class="pc-hd"><div class="cs-note" style="flex:1">Розгорніть групу послуг і проставте ціни для кожної категорії. Порожнє поле — діє базова ціна. Базова ціна береться з CleverBox.</div><button class="btn">Зберегти</button></div>
+    {% if not d.cats %}<div class="muted">Спершу створіть категорію у вкладці «Категорії цін».</div>{% endif %}
+    {% for g, svcs in groups %}{% set filled = namespace(n=0) %}{% for s in svcs %}{% for c in d.cats %}{% if (d.prices.get(c.id|string) or {}).get(s.id|string) is not none %}{% set filled.n = filled.n + 1 %}{% endif %}{% endfor %}{% endfor %}
+    <details class="grp"><summary>{{ g }} <span>{{ svcs|length }} послуг{{ (' · ' ~ filled.n ~ ' цін') if filled.n }} ▾</span></summary>
+      <div class="pr h" style="--n:{{ d.cats|length }}"><span>Послуга</span><span style="text-align:right">Базова</span>{% for c in d.cats %}<span style="text-align:right">{{ c.name }}</span>{% endfor %}</div>
+      {% for s in svcs %}<div class="pr" style="--n:{{ d.cats|length }}"><span class="nm"><small>id {{ s.id }}</small>{{ s.name }}</span><span class="base">{{ '%g'|format(s.price or 0) }} ₴</span>
+        {% for c in d.cats %}{% set v = (d.prices.get(c.id|string) or {}).get(s.id|string) %}<input name="p_{{ c.id }}_{{ s.id }}" value="{{ '%g'|format(v) if v is not none else '' }}" inputmode="decimal" placeholder="{{ '%g'|format(s.price or 0) }}">{% endfor %}</div>{% endfor %}
+    </details>{% endfor %}
+  {% endif %}
+  </form>
+</div>
+<template id="cat-t"><div class="cat" draggable="true"><span class="h"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 8h14M5 12h14M5 16h14"/></svg></span>
+  <input type="hidden" name="cat_id" value=""><input type="text" name="cat_name" required maxlength="80" placeholder="Напр. Топ-лікар"><input type="hidden" name="cat_on" value="1">
+  <label class="sw"><input type="checkbox" checked onchange="this.closest('.cat').querySelector('[name=cat_on]').value=this.checked?'1':'0'"></label>
+  <button type="button" class="x" onclick="this.closest('.cat').remove()">×</button></div></template>
+<script>
+function catAdd(){var t=document.getElementById('cat-t').content.cloneNode(true);document.getElementById('cats').appendChild(t);var i=document.querySelectorAll('#cats [name=cat_name]');i[i.length-1].focus()}
+(function(){var l=document.getElementById('cats');if(!l)return;var dr=null;
+  l.addEventListener('dragstart',function(e){dr=e.target.closest('.cat')});
+  l.addEventListener('dragover',function(e){e.preventDefault();var t=e.target.closest('.cat');if(!dr||!t||t===dr)return;var r=t.getBoundingClientRect();l.insertBefore(dr,(e.clientY-r.top)>r.height/2?t.nextSibling:t)});
+  l.addEventListener('dragend',function(){dr=null})})();
+</script>
+{% endblock %}

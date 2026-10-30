@@ -286,6 +286,9 @@ dialog.payd::backdrop{background:rgba(42,36,48,.45)}
     <div class="err" id="kp-e"></div></div></dialog>
 <script>
 var S={patient_id:{{ (pt.id if pt else None)|tojson }},appointment_id:{{ (appt.id if appt else None)|tojson }},items:{{ items|tojson }},q:null};
+var PCAT={{ pcat|tojson }};
+function applyCat(it){if(it.kind!=='service'||!it.ref_id||it._pd===it.doctor_id)return;it._pd=it.doctor_id;   // категорія цін спеціаліста
+  if(it._bp==null)it._bp=it.price;var m=PCAT[it.doctor_id],p=m?m[it.ref_id]:null;it.price=(p!=null?+p:it._bp);it.pcat=p!=null}
 var DOCS={{ doctors|map(attribute='id')|list|tojson }},DN={{ doctors|map(attribute='name')|list|tojson }},DEF={{ (default_doc or None)|tojson }};
 var METHODS={{ methods|tojson }},CERTS={{ certs|tojson }};
 function f2(v){return (+v||0).toLocaleString('uk-UA',{minimumFractionDigits:2,maximumFractionDigits:2})+' ₴'}
@@ -295,7 +298,7 @@ function _x(){}
 var KL={service:'Послуга',product:'Товар',other:'Інше',certificate:'Сертифікат'};
 function render(){var tb=document.getElementById('rows');tb.innerHTML='';document.getElementById('empty').style.display=S.items.length?'none':'flex';
   document.getElementById('ck-n').textContent=S.items.length?S.items.length+' поз.':'';
-  S.items.forEach(function(it,i){var d=document.createElement('div'),lots='';d.className='cr';
+  S.items.forEach(function(it,i){applyCat(it);var d=document.createElement('div'),lots='';d.className='cr';
     if(it.kind==='product'&&it.lots&&it.lots.length){var dd=function(x){return x.split('-').reverse().join('.')};
       if(it.lots.length===1){it.expiry=it.lots[0].expiry;lots='<label class="ini exp"><i>Термін дії</i><span class="ex1">до '+dd(it.expiry)+'</span></label>'}
       else{if(it.expiry&&!it.lots.some(function(l){return l.expiry==it.expiry}))it.expiry=null;
@@ -308,7 +311,8 @@ function render(){var tb=document.getElementById('rows');tb.innerHTML='';documen
     d.querySelector('.m').onclick=function(){it.qty=Math.max(1,(+it.qty||1)-1);d.querySelector('.q').value=it.qty;quote(1)};
     d.querySelector('.pl').onclick=function(){it.qty=(+it.qty||0)+1;d.querySelector('.q').value=it.qty;quote(1)};
     d.querySelector('.p').oninput=function(){it.price=+String(this.value).replace(',','.')||0;quote(1)};
-    d.querySelector('.d').onchange=function(){it.doctor_id=this.value?+this.value:null;this.classList.toggle('need',!it.doctor_id);this.classList.toggle('empty',!it.doctor_id)};var n=d.querySelector('.n');if(n)n.oninput=function(){it.name=this.value};
+    d.querySelector('.d').onchange=function(){it.doctor_id=this.value?+this.value:null;this.classList.toggle('need',!it.doctor_id);this.classList.toggle('empty',!it.doctor_id);
+      if(it.kind==='service'){var was=it.price;applyCat(it);if(it.price!==was){d.querySelector('.p').value=(+it.price).toFixed(2);quote(1)}}};var n=d.querySelector('.n');if(n)n.oninput=function(){it.name=this.value};
     var e=d.querySelector('.e');if(e)e.onchange=function(){it.expiry=this.value||null;this.classList.toggle('empty',!it.expiry);if(it.expiry)this.classList.remove('need')};
     d.querySelector('.d').classList.toggle('empty',!it.doctor_id);
     d.querySelector('.x').onclick=function(){S.items.splice(i,1);quote()};tb.appendChild(d)});sums()}

@@ -1210,7 +1210,9 @@ def sale_new(request: Request, appt: int = 0, patient: int = 0, user: User = Dep
     _fc = _fis.cfg(db)
     from .services import clinic as _cl
     _locs = [l_ for l_ in (_cl.get(db).get("locations") or []) if l_.get("active", True)]
+    from .services import price_cats as _pcat
     return render(request, "sale_new.html", nav="finance", appt=a_, pt=pt, items=items, methods=sl.methods(db), today=date.today().isoformat(),
+                  pcat=_pcat.doctor_prices(db),
                   loc_name=_locs[0]["name"] if _locs else "MOLODIST",
                   mkinds={m_: sl.method_kind(m_) for m_ in sl.methods(db)}, rros=[r_ for r_ in _fis.rros(db) if r_["on"]],
                   link_for=_pos_link_map(sl.methods(db), sl), rro_m=_fis.rro_methods(db),
@@ -3786,7 +3788,7 @@ SETTINGS_BLOCKS = [
         ('Посади співробітників', 'Директор, адміністратори, лікарі…: довідник посад для картки спеціаліста', '/settings/positions', 'specialists_edit', 'dirs/prof'),
         ('Поля співробітників', 'Свої поля для картки співробітника: дата народження, медкнижка, паспорт, стать, клініка…', '/settings/staff-fields', 'specialists_edit', 'sfields/staff'),
         ('Налаштування окладів', 'Фіксована ставка, комісійні за послуги й товари, % від обороту — шаблони для зарплати', '/settings/salary', 'finance', 'salary'),
-        ('Категорії спеціалістів', 'Ціни за категоріями', None, None, 'cmarket/customprice/main'),
+        ('Категорії спеціалістів', 'Ціни за категоріями: інші ціни на послуги для головного лікаря, топ-лікаря, стажера', '/settings/price-cats', 'finance', 'cmarket/customprice/main'),
         ('Статті для нарахувань', 'Премії, штрафи, лікарняні, податки, відпускні — для коригувань зарплати', '/settings/accrual-articles', 'finance', 'dirs/stype'),
         ('Застосунок для спеціаліста', None, None, None, 'cmarket/specapp/main'),
     ]),
@@ -3901,6 +3903,43 @@ async def settings_positions_order(request: Request, user: User = Depends(requir
     js = await request.json()
     ps.reorder(db, [int(x) for x in js.get("ids") or [] if str(x).isdigit()])
     return JSONResponse({"ok": True})
+
+
+# ---------------- Налаштування → Категорії спеціалістів (ціни за категоріями) ----------------
+@app.get("/settings/price-cats", response_class=HTMLResponse)
+def settings_price_cats(request: Request, tab: str = "cats", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import price_cats as pc
+    d = pc.get(db)
+    docs = db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)).all()
+    groups: dict = {}
+    for s_ in db.scalars(select(CbService).order_by(CbService.name)):
+        groups.setdefault(s_.category or "Без категорії", []).append(s_)
+    return render(request, "price_cats.html", nav="settings", d=d, docs=docs, groups=sorted(groups.items(), key=lambda kv: kv[0].lower()),
+                  tab=tab if tab in ("cats", "staff", "prices") else "cats")
+
+
+@app.post("/settings/price-cats")
+async def settings_price_cats_save(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import price_cats as pc
+    f = await request.form()
+    tab = f.get("tab") or "cats"
+    if tab == "cats":
+        ids, names, ons = f.getlist("cat_id"), f.getlist("cat_name"), f.getlist("cat_on")
+        pc.save_main(db, f.get("on") == "1", str(f.get("base_name") or ""),
+                     [(int(i) if str(i).isdigit() else None, n, o == "1") for i, n, o in zip(ids, names, ons)])
+    elif tab == "staff":
+        pc.save_staff(db, {k[4:]: int(v) for k, v in f.items() if k.startswith("doc_") and str(v).isdigit()})
+    else:
+        prices: dict = {}
+        for k, v in f.items():                                  # p_{cat}_{service}
+            if k.startswith("p_") and str(v).strip():
+                _, cid, sid = k.split("_", 2)
+                val = _num(str(v))
+                if val is not None:
+                    prices.setdefault(cid, {})[sid] = val
+        pc.save_prices(db, prices)
+    audit(db, "price_cats.save", "price_cats", None, user=user, tab=tab)
+    return RedirectResponse(_with_msg(f"/settings/price-cats?tab={tab}", "Збережено"), 303)
 
 
 # ---------------- Налаштування → Статті для нарахувань ----------------
