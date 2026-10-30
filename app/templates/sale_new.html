@@ -83,6 +83,27 @@ dialog.pd::backdrop{background:rgba(42,36,48,.35)}
 .pc .kp{flex-wrap:nowrap}.pc .kp div{min-width:0;padding:8px 12px}
 .br,.pm,.card{border-color:#ECE7E1!important;box-shadow:0 1px 2px rgba(42,36,48,.04),0 10px 30px -20px rgba(42,36,48,.22)}
 .br,.pm{border-radius:20px}
+/* ---- вікно оплати за брендбуком ---- */
+.payd .pd-h{padding:22px 28px}.payd .pay-g{padding:22px 28px 28px;gap:28px}
+.payd .ph{font:600 11px var(--head);letter-spacing:.16em;color:#8a8496;margin:18px 0 10px}.payd .ph:first-child{margin-top:0}
+.payd .pt-g{grid-template-columns:repeat(auto-fill,minmax(138px,1fr));gap:10px}
+.payd .pt{border:1px solid #ECE7E1;border-radius:16px;padding:14px 10px 12px;font:600 12.5px/1.3 var(--sans);text-transform:none;letter-spacing:0;color:#2A2430;gap:8px;min-height:104px;justify-content:center;
+  box-shadow:0 1px 2px rgba(42,36,48,.04);transition:border-color .15s,box-shadow .15s,transform .15s}
+.payd .pt:hover{border-color:#C9BFE6;box-shadow:0 8px 22px -14px rgba(59,48,80,.45);transform:translateY(-1px)}
+.payd .pt .ico{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;background:#F1EDF8;color:#5C4B82}
+.payd .pt[data-k=cash] .ico{background:#FFF4DE;color:#9A6B00}
+dialog.payd .pt.on{border-color:#3B3050;background:#3B3050;color:#fff}dialog.payd .pt.on .ico{background:rgba(255,255,255,.14);color:#fff}dialog.payd .pt.on small{color:#C9BFE6}
+dialog.payd .pt.act{border-color:#B9DDB5;background:#F6FBF5}.payd .pt.act .ico{background:#E3F3E1;color:#2E6B2E}
+.payd .pt.dis,.payd .pt[disabled]{opacity:.45;filter:grayscale(1);transform:none;box-shadow:none}
+.payd .pt.sel{border-color:#5C4B82;box-shadow:0 0 0 3px rgba(92,75,130,.15)}
+.pchoice{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:2px 0 4px;padding:12px;border-radius:16px;background:#F7F4FB;border:1px dashed #D8D0E6}
+.pchoice button{border:1px solid #E4DEEF;background:#fff;border-radius:14px;padding:14px 10px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;color:#2A2430}
+.pchoice button b{font:600 13.5px var(--sans)}.pchoice button small{color:#8a8496;font-size:12px}
+.pchoice button:hover{border-color:#5C4B82;box-shadow:0 8px 22px -14px rgba(59,48,80,.5)}
+.pchoice .ico{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;background:#3B3050;color:#fff}
+.pchoice button[data-w=l] .ico{background:#F1EDF8;color:#5C4B82}
+.payd .pay-s{border-radius:20px;padding:20px 22px}
+
 .payd .pt small{display:block;font-weight:600;text-transform:none;letter-spacing:0;color:var(--muted);font-size:11.5px}
 .payd .pt[disabled],.payd .pt.dis{opacity:.4;cursor:not-allowed;filter:grayscale(1)}
 .payd .pt.act{border-color:#7BC47F;background:#F4FBF3}
@@ -209,18 +230,18 @@ dialog.payd::backdrop{background:rgba(42,36,48,.45)}
 <dialog class="payd" id="payd"><div class="pd-h"><h3>Оплата</h3><button type="button" class="pd-x" onclick="document.getElementById('payd').close()">×</button></div>
   <div class="pay-g"><div>
     <div class="ph">Фіскальна каса</div><div class="pt-g" id="fis">
-      <button type="button" class="pt {{ '' if fauto and rros else 'on' }}" data-r="0"><i>🧾</i>Без РРО<small>лише готівка</small></button>
-      {% for r in rros %}<button type="button" class="pt {{ 'on' if fauto and fdef == r.id }}" data-r="{{ r.id }}"><i>🏛</i>{{ r.name }}{{ ' (тест)' if r.test }}</button>{% endfor %}</div>
+      <button type="button" class="pt {{ '' if fauto and rros else 'on' }}" data-r="0"><span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4L6 21z"/><path d="M9 8h6M9 11.5h6M9 15h4"/></svg></span>Без РРО<small>лише готівка</small></button>
+      {% for r in rros %}<button type="button" class="pt {{ 'on' if fauto and fdef == r.id }}" data-r="{{ r.id }}"><span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="9" rx="2"/><path d="M6 11V5h12v6M9 8h6M7 15h.01M10.5 15h.01M14 15h.01M17 15h.01"/></svg></span>{{ r.name }}{{ ' (тест)' if r.test }}</button>{% endfor %}</div>
     <div class="ph">Спосіб оплати</div>
-    <div class="pt-g" id="pm-money">{% for m in methods if mkinds[m] in ('cash','card') %}<button type="button" class="pt" data-k="{{ mkinds[m] }}" data-m="{{ m }}" data-link="{{ link_for.get(m, '') }}"><i>{{ '💵' if mkinds[m] == 'cash' else '💳' }}</i>{{ m }}</button>{% endfor %}
-      {% for l in link_for.get('', []) %}<button type="button" class="pt" data-k="link" data-m="{{ l }}"><i>🔗</i>{{ l.replace('Посилання на оплату · ','Посилання · ') }}</button>{% endfor %}</div>
+    <div class="pt-g" id="pm-money">{% for m in methods if mkinds[m] in ('cash','card') %}<button type="button" class="pt" data-k="{{ mkinds[m] }}" data-m="{{ m }}" data-link="{{ link_for.get(m, '') }}">{% if mkinds[m] == 'cash' %}<span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.8"/><path d="M6 9.5v.01M18 14.5v.01"/></svg></span>{% else %}<span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="2.6"/><rect x="8.4" y="5" width="7.2" height="4.4" rx=".9"/><path d="M9.3 12.6h.01M12 12.6h.01M14.7 12.6h.01M9.3 15.4h.01M12 15.4h.01M14.7 15.4h.01M9.5 18.6h5"/></svg></span>{% endif %}{{ m }}</button>{% endfor %}
+      {% for l in link_for.get('', []) %}<button type="button" class="pt" data-k="link" data-m="{{ l }}"><span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.2 1.2"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.2-1.2"/></svg></span>Посилання на оплату<small>{{ l.replace('Посилання на оплату · ','') }}</small></button>{% endfor %}</div>
     <div class="ph">Рахунки пацієнта</div>
     <div class="pt-g" id="pm-acc">
-      <button type="button" class="pt" data-acc="balance"><i>🏦</i>Рахунок пацієнта<small id="a-bal">—</small></button>
-      <button type="button" class="pt" data-acc="cert"><i>🎁</i>Сертифікати<small id="a-cert">0 шт.</small></button>
-      <button type="button" class="pt" data-acc="sub"><i>🎫</i>Абонементи<small id="a-sub">0 шт.</small></button>
-      <button type="button" class="pt" data-acc="bonus"><i>🐷</i>Бонусний рахунок<small id="a-bon">0,00 ₴</small></button>
-      <button type="button" class="pt" disabled title="В розробці"><i>🪙</i>Молодість коїни<small>в розробці</small></button></div>
+      <button type="button" class="pt" data-acc="balance"><span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v4"/><rect x="3.5" y="8.5" width="17" height="11" rx="2.2"/><path d="M16.5 14h.01"/></svg></span>Рахунок пацієнта<small id="a-bal">—</small></button>
+      <button type="button" class="pt" data-acc="cert"><span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="9" width="17" height="11" rx="1.6"/><path d="M3.5 13h17M12 9v11M12 9S10.5 4.5 8 5.5 9.5 9 12 9zm0 0s1.5-4.5 4-3.5S14.5 9 12 9z"/></svg></span>Сертифікати<small id="a-cert">0 шт.</small></button>
+      <button type="button" class="pt" data-acc="sub"><span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8a2 2 0 0 0 0 4v4.5h17V12a2 2 0 0 1 0-4V5.5h-17z"/><path d="M14 5.5v11" stroke-dasharray="1.6 2"/></svg></span>Абонементи<small id="a-sub">0 шт.</small></button>
+      <button type="button" class="pt" data-acc="bonus"><span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.8l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/></svg></span>Бонусний рахунок<small id="a-bon">0,00 ₴</small></button>
+      <button type="button" class="pt" disabled title="В розробці"><span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v10M9.5 9.5c0-1 1.1-1.6 2.5-1.6s2.5.7 2.5 1.7-1 1.4-2.5 1.6-2.5.6-2.5 1.7 1.1 1.7 2.5 1.7 2.5-.6 2.5-1.6"/></svg></span>Молодість коїни<small>в розробці</small></button></div>
   </div><div class="pay-r">
     <div class="pay-s"><div><span>До сплати</span><b id="p-pay">0,00 ₴</b></div><div><span>Внесено</span><b id="p-in">0,00 ₴</b></div><div class="lft"><span>Залишилось</span><b id="p-left">0,00 ₴</b></div></div>
     <div class="ph" style="margin-top:4px">Оплата</div>
@@ -432,10 +453,10 @@ document.querySelectorAll('#fis .pt').forEach(function(b){b.onclick=function(){d
 document.querySelectorAll('#pm-money .pt').forEach(function(b){b.onclick=function(){if(b.classList.contains('dis'))return;var m=b.dataset.m,k=b.dataset.k,lk=b.dataset.link;
   if(k==='card'&&lk){showChoice(b,m,lk);return}
   openKP({method:m,label:m,kind:k});KP.kind=k}});
-function showChoice(b,m,lk){var old=document.querySelector('.pchoice');if(old)old.remove();var d=document.createElement('div');d.className='pchoice';d.style.gridColumn='1/-1';
-  d.innerHTML='<button type="button" data-w="t"><i>💳</i>Термінал</button><button type="button" data-w="l"><i>🔗</i>Посилання на оплату</button>';
-  b.parentNode.insertBefore(d,b.nextSibling);d.querySelector('[data-w=t]').onclick=function(){d.remove();openKP({method:m,label:m});KP.kind='card'};
-  d.querySelector('[data-w=l]').onclick=function(){d.remove();if(!S.patient_id){alert('Посилання можна надіслати лише пацієнту — оберіть пацієнта');return}openKP({method:lk,label:lk.replace('Посилання на оплату · ','Посилання · ')});KP.kind='link'}}
+function showChoice(b,m,lk){var old=document.querySelector('.pchoice');if(old)old.remove();document.querySelectorAll('#pm-money .pt').forEach(function(x){x.classList.remove('sel')});b.classList.add('sel');var d=document.createElement('div');d.className='pchoice';d.style.gridColumn='1/-1';
+  var fop=(m.match(/ФОП\s+.+$/)||[''])[0];d.innerHTML='<button type="button" data-w="t"><span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="2.6"/><rect x="8.4" y="5" width="7.2" height="4.4" rx=".9"/><path d="M9.3 12.6h.01M12 12.6h.01M14.7 12.6h.01M9.3 15.4h.01M12 15.4h.01M14.7 15.4h.01M9.5 18.6h5"/></svg></span><b>Термінал</b><small>'+esc(fop)+'</small></button><button type="button" data-w="l"><span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.2 1.2"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.2-1.2"/></svg></span><b>Посилання на оплату</b><small>'+esc(lk.replace('Посилання на оплату · ',''))+'</small></button>';
+  b.parentNode.insertBefore(d,b.nextSibling);d.querySelector('[data-w=t]').onclick=function(){d.remove();b.classList.remove('sel');openKP({method:m,label:m});KP.kind='card'};
+  d.querySelector('[data-w=l]').onclick=function(){d.remove();b.classList.remove('sel');if(!S.patient_id){alert('Посилання можна надіслати лише пацієнту — оберіть пацієнта');return}openKP({method:lk,label:lk.replace('Посилання на оплату · ','Посилання · ')});KP.kind='link'}}
 document.querySelectorAll('#pm-acc .pt[data-acc]').forEach(function(b){b.onclick=function(){if(b.classList.contains('dis'))return;var a=b.dataset.acc,P=S.P||{};
   if(a==='bonus'){useBonus();return}
   if(a==='balance'){var used=S.pays.filter(function(p){return p.method==='Рахунок пацієнта'}).reduce(function(x,p){return x+p.amount},0);openKP({method:'Рахунок пацієнта',label:'Рахунок пацієнта',max:Math.max(0,(P.balance||0)-used)});return}
