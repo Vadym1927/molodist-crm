@@ -1438,6 +1438,54 @@ async def sale_send_receipt(sid: int, user: User = Depends(require("sales")), db
     return RedirectResponse(_with_msg(f"/sales/{sid}", err or "Чек надіслано пацієнту", bool(err)), 303)
 
 
+def _safe_back(back: str, default: str) -> str:
+    return back if back.startswith("/") and not back.startswith("//") else default
+
+
+@app.post("/sales/{sid:int}/cancel")
+def sale_cancel(sid: int, reason: str = Form(""), back: str = Form(""), user: User = Depends(require("sales")),
+                      db: Session = Depends(db_dep)):
+    """Скасувати чек, що очікує оплати (посилання на оплату інвалідуються)."""
+    from .services import sales as sl
+    from .models import Sale
+    s_ = db.get(Sale, sid) or (_ for _ in ()).throw(HTTPException(404))
+    back = _safe_back(back, f"/sales/{sid}")
+    try:
+        sl.cancel(db, s_, reason.strip() or "скасовано в касі", user.id)
+    except sl.SaleError as e:
+        return RedirectResponse(_with_msg(back, str(e), True), 303)
+    audit(db, "sale.cancel", "sale", sid, user=user, total=s_.total, reason=reason)
+    return RedirectResponse(_with_msg(back, f"Чек Ч-{sid} скасовано"), 303)
+
+
+@app.post("/sales/{sid:int}/archive")
+def sale_archive(sid: int, on: str = Form("1"), back: str = Form(""), user: User = Depends(require("sales")),
+                 db: Session = Depends(db_dep)):
+    """Видалити скасований чек з каси в архів (on=1) або повернути з архіву (on=0)."""
+    from .services import sales as sl
+    from .models import Sale
+    s_ = db.get(Sale, sid) or (_ for _ in ()).throw(HTTPException(404))
+    back = _safe_back(back, "/sales/archive")
+    try:
+        if on == "1" and s_.status == "awaiting":
+            sl.cancel(db, s_, "видалено з каси", user.id)
+            audit(db, "sale.cancel", "sale", sid, user=user, total=s_.total, reason="видалено з каси")
+        sl.archive(db, s_, on == "1")
+    except sl.SaleError as e:
+        return RedirectResponse(_with_msg(back, str(e), True), 303)
+    audit(db, "sale.archive" if on == "1" else "sale.unarchive", "sale", sid, user=user)
+    return RedirectResponse(_with_msg(back, f"Чек Ч-{sid} " + ("перенесено в архів" if on == "1" else "повернуто з архіву")), 303)
+
+
+@app.get("/sales/archive", response_class=HTMLResponse)
+def sales_archive(request: Request, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    from .models import Sale
+    rows = db.scalars(select(Sale).where((Sale.archived_at.is_not(None)) | (Sale.status == "cancelled"))
+                      .order_by(Sale.at.desc()).limit(1000)).all()
+    users = {u_.id: u_.name for u_ in db.scalars(select(User))}
+    return render(request, "sales_archive.html", nav="finance", rows=rows, users=users)
+
+
 @app.post("/sales/{sid:int}/refund")
 def sale_refund(sid: int, reason: str = Form(""), del_password: str = Form(""), user: User = Depends(require("sale_refund")),
                 db: Session = Depends(db_dep)):

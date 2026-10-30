@@ -203,3 +203,30 @@ def test_paylink_send_channel(monkeypatch):
     assert sent and sent[0][0] == ["viber"] and "pay.mbnk.biz/x1" in sent[0][1]
     with SessionLocal() as db:
         assert db.get(PayLink, lid).info["sent"]["channel"] == "viber"
+
+
+def test_awaiting_sale_cancel_and_archive():
+    from app.models import Sale
+    from app.services import sales as sl
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        pls.save_account(db, None, "mono", "monobank ФОП Архів", {"token": "MTOK"}, "Онлайн-оплати", True)
+        p = Patient(full_name="Архів Чек", phone="+380671234577"); db.add(p); db.commit()
+        s = sl.create(db, {"patient_id": p.id, "items": [{"kind": "other", "name": "Скасовуваний товар", "qty": 1, "price": 10}],
+                           "payments": [{"method": sl.paylink_method("monobank ФОП Архів"), "amount": 10}]})
+        pl = PayLink(provider="mono", amount=10, purpose="x", url="https://pay.mbnk.biz/zz", status="created", patient_id=p.id, sale_id=s.id)
+        db.add(pl); db.commit(); sid = s.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        assert f"/sales/{sid}/cancel" in c.get("/sales").text
+        r = c.post(f"/sales/{sid}/cancel", data={"back": "/sales"}, follow_redirects=False)
+        assert r.status_code == 303
+        with SessionLocal() as db:
+            assert db.get(Sale, sid).status == "cancelled"
+            assert all(x.status == "cancelled" for x in db.query(PayLink).filter(PayLink.sale_id == sid))
+        c.post(f"/sales/{sid}/archive", data={"on": "1"})
+        assert f"Ч-{sid}" not in c.get("/sales").text
+        assert f"Ч-{sid}" in c.get("/sales/archive").text
+        c.post(f"/sales/{sid}/archive", data={"on": "0"})
+        with SessionLocal() as db:
+            assert db.get(Sale, sid).archived_at is None

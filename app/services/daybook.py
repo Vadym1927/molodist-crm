@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..models import Patient, Sale, User
@@ -37,7 +37,7 @@ def day(db: Session, d: date) -> dict:
     for c in cb_checks:
         for p in c.payments or []:
             add(p.get("payment_name") or "—", float(p.get("amount") or 0))
-    sales = db.scalars(select(Sale).where(Sale.at >= a, Sale.at < b).order_by(Sale.at.desc())).all()
+    sales = db.scalars(select(Sale).where(Sale.at >= a, Sale.at < b, Sale.archived_at.is_(None)).order_by(Sale.at.desc())).all()
     for s in sales:
         if s.status == "paid":
             for p in s.payments:
@@ -56,7 +56,8 @@ def day(db: Session, d: date) -> dict:
         rows.append({"at": s.at, "num": f"Ч-{s.id}", "link": f"/sales/{s.id}", "src": "CRM", "basis": "Продаж CRM" + (f" · запис №{s.appointment_id}" if s.appointment_id else ""),
                      "patient": pats.get(s.patient_id), "staff": ", ".join(sorted({docs.get(i.doctor_id) for i in s.items if i.doctor_id and docs.get(i.doctor_id)})) or users.get(s.created_by, ""),
                      "lines": [f"{i.name}" + (f" × {i.qty:g}" if i.qty != 1 else "") for i in s.items], "cost": s.subtotal, "discount": s.discount,
-                     "to_pay": s.total, "status": {"refunded": "Повернено", "awaiting": "Очікує оплати"}.get(s.status, "Оплачено"),
+                     "to_pay": s.total, "status": {"refunded": "Повернено", "awaiting": "Очікує оплати", "cancelled": "Скасовано"}.get(s.status, "Оплачено"),
+                     "sid": s.id, "st": s.status,
                      "fiscal": bool(s.fiscal and s.fiscal.get("fiscal_code"))})
     for c in cb_checks:
         its = c.items or []
@@ -67,5 +68,6 @@ def day(db: Session, d: date) -> dict:
                      "cost": cost, "discount": c.discount or 0, "to_pay": c.amount, "status": "Оплачено", "fiscal": False})
     rows.sort(key=lambda r: r["at"], reverse=True)
     paid_rows = [(k, v) for k, v in paid.items()]
-    return {"paid": paid_rows, "paid_total": round(sum(v for _, v in paid_rows), 2), "accounts": accounts, "rows": rows,
+    n_arch = db.scalar(select(func.count(Sale.id)).where(Sale.archived_at.is_not(None))) or 0
+    return {"n_arch": n_arch, "paid": paid_rows, "paid_total": round(sum(v for _, v in paid_rows), 2), "accounts": accounts, "rows": rows,
             "money_total": round(sum(v for k, v in paid_rows if k not in {l for l, _ in NON_MONEY_ROWS}), 2)}

@@ -208,6 +208,38 @@ def refund(db: Session, sale: Sale, reason: str, user_id: int | None = None) -> 
             db.commit()
 
 
+def cancel(db: Session, sale: Sale, reason: str, user_id: int | None = None, http=None) -> None:
+    """Скасувати неоплачений чек (очікує оплати): відкотити склад/візити/рахунки, закрити посилання на оплату."""
+    from ..models import PayLink
+    from . import paylinks as pls
+    if sale.status != "awaiting":
+        raise SaleError("Скасувати можна лише чек, що очікує оплати" if sale.status != "cancelled" else "Чек уже скасовано")
+    links = db.query(PayLink).filter(PayLink.sale_id == sale.id).all()
+    for pl in links:                      # раптом уже оплатили — не скасовуємо
+        if pl.status == "created":
+            try:
+                pls.check_status(db, pl, http)
+            except Exception:  # noqa: BLE001
+                pass
+    db.refresh(sale)
+    if sale.status != "awaiting" or any(pl.status == "paid" for pl in links):
+        raise SaleError("За посиланням уже є оплата — скасувати не можна, оформіть повернення")
+    refund(db, sale, reason or "скасовано", user_id)
+    for pl in links:
+        if pl.status == "created":
+            pls.remove(db, pl, http)
+    sale.status = "cancelled"
+    db.commit()
+
+
+def archive(db: Session, sale: Sale, on: bool = True) -> None:
+    """Видалити чек з каси в архів (лише скасовані) або повернути з архіву."""
+    if on and sale.status not in ("cancelled",):
+        raise SaleError("В архів можна лише скасований чек")
+    sale.archived_at = datetime.now() if on else None
+    db.commit()
+
+
 def staff_totals(db: Session, d_from: date, d_to: date) -> dict:
     """(місяць, лікар) → послуги / товари з продажів CRM — для зарплати."""
     out: dict = {}

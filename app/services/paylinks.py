@@ -312,6 +312,22 @@ def check_status(db: Session, pl: PayLink, http: httpx.Client | None = None) -> 
     return pl.status
 
 
+def remove(db: Session, pl: PayLink, http: httpx.Client | None = None) -> None:
+    """Скасувати неоплачене посилання: у monobank — інвалідувати рахунок (POST /invoice/remove), у CRM — статус cancelled."""
+    if pl.status != "created":
+        return
+    if pl.provider == "mono" and pl.ext_id:
+        try:
+            http = http or httpx.Client(timeout=20)
+            http.post("https://api.monobank.ua/api/merchant/invoice/remove", json={"invoiceId": pl.ext_id},
+                      headers={"X-Token": val(_acc_of(_raw(db), pl) or {}, "token")})
+            pl.info = {**(pl.info or {}), "removed": True}
+        except Exception as e:  # noqa: BLE001
+            pl.info = {**(pl.info or {}), "remove_error": str(e)[:200]}
+    pl.status = "cancelled"
+    db.commit()
+
+
 def mono_fiscal(db: Session, pl: PayLink, http: httpx.Client | None = None, with_file: bool = False) -> list[dict]:
     """Фіскальні чеки, які monobank створив для оплати (власний ПРРО або Checkbox), — GET /invoice/fiscal-checks.
     Готовий чек записуємо в чек CRM (sale.fiscal), тож повторно фіскалізувати не потрібно."""

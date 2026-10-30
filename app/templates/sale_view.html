@@ -48,6 +48,11 @@
   if(j.sale==='paid'){clearInterval(t);document.getElementById('paid-ok').style.display='block';setTimeout(function(){location.href='/sales/{{ s.id }}?msg='+encodeURIComponent('Оплата пройшла — чек проведено')},1500)}})},5000)})();</script>
 {% endif %}
 {% if s.status == 'refunded' %}<div class="alert">Чек повернено {{ s.refunded_at|dt('%d.%m.%Y %H:%M') }} · {{ s.refund_reason }}</div>{% endif %}
+{% if s.status == 'cancelled' %}<div class="alert">Чек скасовано {{ s.refunded_at|dt('%d.%m.%Y %H:%M') }} · {{ s.refund_reason }}{{ ' · в архіві' if s.archived_at }}</div>{% endif %}
+{% if s.status in ('awaiting', 'cancelled') %}<div class="row" style="gap:8px;margin:0 0 12px;flex-wrap:wrap">
+  {% if s.status == 'awaiting' %}<form method="post" action="/sales/{{ s.id }}/cancel" style="margin:0" onsubmit="return confirm('Скасувати чек? Посилання на оплату стане недійсним.')"><button class="btn ghost">Скасувати чек</button></form>{% endif %}
+  {% if not s.archived_at %}<form method="post" action="/sales/{{ s.id }}/archive" style="margin:0" onsubmit="return confirm('Видалити чек з каси в архів?')"><input type="hidden" name="on" value="1"><input type="hidden" name="back" value="/sales"><button class="btn ghost" style="color:#B23B2E">Видалити в архів</button></form>
+  {% else %}<form method="post" action="/sales/{{ s.id }}/archive" style="margin:0"><input type="hidden" name="on" value="0"><input type="hidden" name="back" value="/sales/{{ s.id }}"><button class="btn ghost">Повернути з архіву</button></form>{% endif %}</div>{% endif %}
 {% if s.status != "awaiting" %}<div class="rc"><h2>MOLODIST</h2><div class="c">Медичний простір</div><div class="c" style="margin-top:6px">Чек Ч-{{ s.id }} · {{ s.at|dt('%d.%m.%Y %H:%M') }}{{ (' · ' ~ author.name) if author }}</div>
   {% if s.patient %}<div class="c">Пацієнт: {{ s.patient.full_name }}</div>{% endif %}
   <table>{% for i in s.items %}<tr><td>{{ i.name }}{% if i.qty != 1 %} × {{ '%g'|format(i.qty) }}{% endif %}{% if i.doctor_id and docs.get(i.doctor_id) %}<div class="small muted">{{ docs[i.doctor_id] }}</div>{% endif %}{% if i.expiry_date %}<div class="small muted">партія до {{ i.expiry_date|dt('%d.%m.%Y') }}</div>{% endif %}</td>

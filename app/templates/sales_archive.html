@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Архів чеків{% endblock %}
+{% block body %}
+{% include "_fin_tabs.html" %}
+<div class="row between" style="margin-bottom:12px;gap:10px;flex-wrap:wrap"><div><h1>Архів чеків</h1><div class="muted small">Скасовані неоплачені чеки та видалені з каси. Склад, візити й рахунки пацієнта по них відкочено.</div></div>
+  <a class="btn ghost" href="/sales">‹ До каси</a></div>
+<div class="card" style="padding:6px 8px;overflow:auto"><table class="tb small"><thead><tr><th>№</th><th>Створено</th><th>Пацієнт</th><th>Що</th><th class="r">Сума</th><th>Скасовано</th><th>Касир</th><th></th></tr></thead><tbody>
+{% for s in rows %}<tr><td><a href="/sales/{{ s.id }}"><b>Ч-{{ s.id }}</b></a><div class="meta">{{ 'в архіві' if s.archived_at else 'у касі' }}</div></td>
+  <td>{{ s.at|dt('%d.%m.%Y %H:%M') }}</td><td>{% if s.patient %}<a href="/patients/{{ s.patient_id }}">{{ s.patient.full_name }}</a>{% else %}<span class="muted">без пацієнта</span>{% endif %}</td>
+  <td style="min-width:200px">{% for i in s.items %}<div>{{ i.name }}{% if i.qty != 1 %} × {{ '%g'|format(i.qty) }}{% endif %}</div>{% endfor %}</td>
+  <td class="r"><b>{{ s.total|uah }}</b></td><td>{{ s.refunded_at|dt('%d.%m.%Y %H:%M') if s.refunded_at else '—' }}<div class="meta">{{ s.refund_reason or '' }}</div></td>
+  <td>{{ users.get(s.created_by, '') }}</td>
+  <td style="text-align:right;white-space:nowrap"><form method="post" action="/sales/{{ s.id }}/archive" style="margin:0"><input type="hidden" name="on" value="{{ '0' if s.archived_at else '1' }}"><input type="hidden" name="back" value="/sales/archive"><button class="btn ghost" style="padding:5px 12px">{{ 'Повернути в касу' if s.archived_at else 'В архів' }}</button></form></td></tr>
+{% else %}<tr><td colspan="8" class="muted">Архів порожній.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

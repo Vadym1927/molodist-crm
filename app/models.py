@@ -255,7 +255,7 @@ class Sale(Base):
     at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, index=True)
     patient_id: Mapped[int | None] = mapped_column(ForeignKey("patients.id"), index=True)
     appointment_id: Mapped[int | None] = mapped_column(Integer, index=True)
-    status: Mapped[str] = mapped_column(String(12), default="paid", index=True)    # paid | refunded
+    status: Mapped[str] = mapped_column(String(12), default="paid", index=True)    # paid | awaiting | refunded | cancelled
     subtotal: Mapped[float] = mapped_column(Float, default=0)
     discount: Mapped[float] = mapped_column(Float, default=0)
     total: Mapped[float] = mapped_column(Float, default=0)
@@ -267,6 +267,7 @@ class Sale(Base):
     refunded_at: Mapped[datetime | None] = mapped_column(DateTime)
     refund_reason: Mapped[str | None] = mapped_column(String(300))
     fiscal: Mapped[dict | None] = mapped_column(JSON)                  # Checkbox: id, номер, посилання
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)   # прихований з каси (архів чеків)
 
     items: Mapped[list["SaleItem"]] = relationship(back_populates="sale", cascade="all, delete-orphan", order_by="SaleItem.id")
     payments: Mapped[list["SalePayment"]] = relationship(back_populates="sale", cascade="all, delete-orphan", order_by="SalePayment.id")
