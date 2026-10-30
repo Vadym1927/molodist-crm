@@ -307,11 +307,11 @@ async def lifespan(app: FastAPI):
             _n0 = _pay0.backfill_finops(db)
             db.merge(SyncState(key="supply_finops_backfill_v1", value=str(_n0)))
             db.commit()
-        from .services import payments as _pay1                  # оплати без поставки (СКІН Б'ЮТІ ПРО № 41, ФОП Суха ЦБ-1099) → журнал
-        for _k1 in _pay1.UNRECORDED:
-            if not db.get(SyncState, f"fix_unrecorded_{_k1}") and _pay1.fix_unrecorded(db, _k1):
-                db.merge(SyncState(key=f"fix_unrecorded_{_k1}", value="1"))
-                db.commit()                                 # залишки кас на 30.10.2026 (один раз)                                 # канали (TurboSMS, бот) з «Налаштування → Канали»
+        if not db.get(SyncState, "revert_unrecorded_v1"):        # відкат: оплати без поставки НЕ списуємо — спишуться з поставкою
+            from .services import payments as _pay1
+            _pay1.revert_booked_without_supply(db)
+            db.merge(SyncState(key="revert_unrecorded_v1", value="1"))
+            db.commit()                                 # залишки кас на 30.10.2026 (один раз)                                 # канали (TurboSMS, бот) з «Налаштування → Канали»
         from .services.scripts import seed_defaults
         seed_defaults(db)
     tasks, sched = [], None
@@ -4906,10 +4906,6 @@ def stock_mono_txn(tid: str, action: str = Form(...), group: str = Form(""), sup
         db.commit()
         pay.rematch_all(db)                           # інші платежі (напр. частково рознесені) доносять залишок
         t.status = "new"
-    elif action == "expense":
-        if not pay.book_without_supply(db, t, user.id):
-            return RedirectResponse("/stock?tab=suppliers&err=" + _q("Рахунок monobank не привʼязано до каси CRM — Налаштування → Банк monobank") + "#mono", 303)
-        audit(db, "stock.pay_expense", "bank_txn", None, user=user, amount=round(-t.amount, 2), fop=t.fop, txn=tid)
     elif action == "unbook":
         pay.unallocate_txn(db, t)
     elif action == "ignore":
