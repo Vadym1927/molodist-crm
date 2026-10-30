@@ -68,7 +68,7 @@
       <label>Статус<select name="status"><option value="active" {{ 'selected' if d.active }}>Працює</option><option value="fired" {{ 'selected' if not d.active }}>Звільнений</option></select></label>
       <label>Календар<select name="in_calendar"><option value="1" {{ 'selected' if d.in_calendar is not false }}>Показувати колонку</option><option value="" {{ 'selected' if d.in_calendar is false }}>Не показувати</option></select></label>
     </div>
-    <label>Ініціатор продажу в касі<select name="sale_initiator"><option value="1" {{ 'selected' if d.sale_initiator is not false }}>Показувати у виборі «Спеціаліст / продавець»</option><option value="" {{ 'selected' if d.sale_initiator is false }}>Не показувати</option></select></label>
+    <label>Ініціатор продажу в касі<select name="sale_initiator"><option value="1" {{ 'selected' if d.sale_initiator is not false }}>Показувати у виборі «Спеціаліст / продавець»</option><option value="0" {{ 'selected' if d.sale_initiator is false }}>Не показувати</option></select></label>
     {% if d.status_locked %}<div class="muted small">Статус змінено вручну — синхронізація з CleverBox його не перезаписує.</div>{% endif %}
     <div class="row"><button class="btn">Зберегти</button></div>
   </form>

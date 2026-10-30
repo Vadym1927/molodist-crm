@@ -146,3 +146,21 @@ def test_calendar_toggle_from_list():
             assert did not in [x.id for x in calendar_doctors(db)]
         r = c.post(f"/specialists/{did}/calendar", data={"enabled": "1"}, headers={"Accept": "application/json"})
         assert r.json()["in_calendar"] is True
+
+
+def test_sale_initiator_toggle():
+    from fastapi.testclient import TestClient
+    from app.config import settings
+    from app.main import app
+    from app.models import SessionLocal, Doctor
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        d = Doctor(name="Ініціатор Тест", active=True); db.add(d); db.commit(); did = d.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        c.post(f"/specialists/{did}", data={"name": "Ініціатор Тест", "status": "active", "in_calendar": "1", "sale_initiator": "0"})
+        with SessionLocal() as db:
+            assert db.get(Doctor, did).sale_initiator is False
+        c.post(f"/specialists/{did}", data={"name": "Ініціатор Тест", "status": "active", "in_calendar": "1", "sale_initiator": "1"})
+        with SessionLocal() as db:
+            assert db.get(Doctor, did).sale_initiator is True
