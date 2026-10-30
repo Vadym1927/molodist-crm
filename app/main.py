@@ -3755,6 +3755,7 @@ SETTINGS_BLOCKS = [
         ('Загальні', 'Країна, часовий пояс, мова, валюта, ПДВ; налаштування звітів', '/settings/clinic', 'users', 'main_settings'),
         ('Філії', 'Локації: ресурси (апарати), режим роботи, робочі місця (кабінети)', '/settings/clinic#loc', 'users', 'salons'),
         ('Команда', 'Лікарі й співробітники: посади, KPI, привʼязка до CleverBox', '/specialists', 'specialists', 'sfields/staff'),
+        ('Посади співробітників', 'Директор, адміністратори, лікарі…: довідник посад для картки спеціаліста', '/settings/positions', 'specialists_edit', 'dirs/staff_position'),
         ('Графік роботи', 'Зміни спеціалістів по днях і кабінетах', '/specialists/schedule', 'schedule', None),
         ('Онлайн-бронювання', 'Віджет запису на сайті', None, None, 'webwidget'),
     ]),
@@ -3836,6 +3837,46 @@ def settings_page(request: Request, user: User = Depends(current_user), db: Sess
         if rows:
             blocks.append({"title": title, "icon": icon, "about": about, "rows": rows, "ext": all(not r["url"] for r in rows)})
     return render(request, "settings.html", blocks=blocks)
+
+
+# ---------------- Налаштування → Посади співробітників ----------------
+@app.get("/settings/positions", response_class=HTMLResponse)
+def settings_positions(request: Request, user: User = Depends(require("specialists_edit")), db: Session = Depends(db_dep)):
+    from .services import positions as ps
+    return render(request, "positions.html", nav="settings", items=ps.items(db), use=ps.usage(db))
+
+
+@app.post("/settings/positions")
+def settings_positions_save(pid: str = Form(""), name: str = Form(""), user: User = Depends(require("specialists_edit")),
+                            db: Session = Depends(db_dep)):
+    from .services import positions as ps
+    err = ps.save(db, int(pid) if pid.isdigit() else None, name)
+    if not err:
+        audit(db, "positions.save", "position", int(pid) if pid.isdigit() else None, user=user, name=name)
+    return RedirectResponse(_with_msg("/settings/positions", err or "Збережено", bool(err)), 303)
+
+
+@app.post("/settings/positions/{pid:int}/toggle")
+def settings_positions_toggle(pid: int, user: User = Depends(require("specialists_edit")), db: Session = Depends(db_dep)):
+    from .services import positions as ps
+    ps.toggle(db, pid)
+    return RedirectResponse("/settings/positions", 303)
+
+
+@app.post("/settings/positions/{pid:int}/delete")
+def settings_positions_delete(pid: int, user: User = Depends(require("specialists_edit")), db: Session = Depends(db_dep)):
+    from .services import positions as ps
+    ps.delete(db, pid)
+    audit(db, "positions.delete", "position", pid, user=user)
+    return RedirectResponse(_with_msg("/settings/positions", "Посаду видалено"), 303)
+
+
+@app.post("/settings/positions/order")
+async def settings_positions_order(request: Request, user: User = Depends(require("specialists_edit")), db: Session = Depends(db_dep)):
+    from .services import positions as ps
+    js = await request.json()
+    ps.reorder(db, [int(x) for x in js.get("ids") or [] if str(x).isdigit()])
+    return JSONResponse({"ok": True})
 
 
 # ---------------- Налаштування → Статті фінансових операцій ----------------
@@ -5921,8 +5962,9 @@ def specialist_page(did: int, request: Request, user: User = Depends(require("sp
                                                           Visit.master_name.is_not(None)).order_by(Visit.starts_at))
                 if (m := idx.find(v.master_name)) and m.id == did][:30]
     patients = db.scalars(select(Patient).where(Patient.doctor_id == did).order_by(Patient.full_name).limit(200)).all()
+    from .services import positions as _ps
     return render(request, "specialist.html", d=d, c=card, upcoming=upcoming, patients=patients,
-                  palette=spec_svc.PALETTE)
+                  palette=spec_svc.PALETTE, positions=_ps.names(db))
 
 
 @app.post("/specialists/{did:int}")

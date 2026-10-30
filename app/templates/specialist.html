@@ -55,7 +55,10 @@
   {% if can(user,'specialists_edit') %}
   <form class="form" method="post">
     <label>Імʼя та прізвище<input name="name" value="{{ d.name }}" required></label>
-    <label>Посада / спеціалізація<input name="position" value="{{ d.position or '' }}" placeholder="лікар-косметолог, дерматолог…"></label>
+    <label>Посада<select name="position"><option value="">— не вказано —</option>
+      {% for p in positions %}<option {{ 'selected' if d.position == p }}>{{ p }}</option>{% endfor %}
+      {% if d.position and d.position not in positions %}<option selected>{{ d.position }}</option>{% endif %}</select>
+      <span class="small muted" style="font-weight:400">Список посад — у <a href="/settings/positions">Налаштування → Посади співробітників</a></span></label>
     <div class="two"><label>Телефон<input name="phone" value="{{ d.phone or '' }}"></label>
       <label>Email<input name="email" value="{{ d.email or '' }}"></label></div>
     <label>Графік роботи<input name="work_days" value="{{ d.work_days or '' }}" placeholder="Пн–Пт 10:00–19:00"></label>
