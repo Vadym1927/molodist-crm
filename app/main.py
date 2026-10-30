@@ -1323,9 +1323,30 @@ async def sale_pay_status(sid: int, user: User = Depends(require("sales")), db: 
             await asyncio.to_thread(_pls.check_status, db, pl)
         except Exception:  # noqa: BLE001
             pass
+    for pl in db.scalars(select(PayLink).where(PayLink.sale_id == sid, PayLink.status == "paid")).all():
+        if not (s_.fiscal or {}).get("fiscal_code"):
+            try:
+                await asyncio.to_thread(_pls.mono_fiscal, db, pl)
+            except Exception:  # noqa: BLE001
+                pass
     db.refresh(s_)
-    return JSONResponse({"sale": s_.status, "links": [{"id": p_.id, "status": p_.status} for p_ in
-                                                      db.scalars(select(PayLink).where(PayLink.sale_id == sid))]})
+    return JSONResponse({"sale": s_.status, "fiscal": bool((s_.fiscal or {}).get("fiscal_code")),
+                         "links": [{"id": p_.id, "status": p_.status} for p_ in db.scalars(select(PayLink).where(PayLink.sale_id == sid))]})
+
+
+@app.get("/paylinks/{lid:int}/fiscal.pdf")
+async def paylink_fiscal_pdf(lid: int, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    """PDF фіскального чека monobank (base64 з /invoice/fiscal-checks)."""
+    import base64 as _b64
+    from fastapi.responses import Response
+    from .models import PayLink
+    from .services import paylinks as _pls
+    pl = db.get(PayLink, lid) or (_ for _ in ()).throw(HTTPException(404))
+    checks = await asyncio.to_thread(_pls.mono_fiscal, db, pl, None, True)
+    f_ = next((c_.get("file") for c_ in checks if c_.get("file")), None)
+    if not f_:
+        raise HTTPException(404, "Фіскальний чек ще не готовий")
+    return Response(_b64.b64decode(f_), media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="check-{lid}.pdf"'})
 
 
 @app.post("/sales")

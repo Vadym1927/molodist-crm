@@ -312,6 +312,35 @@ def check_status(db: Session, pl: PayLink, http: httpx.Client | None = None) -> 
     return pl.status
 
 
+def mono_fiscal(db: Session, pl: PayLink, http: httpx.Client | None = None, with_file: bool = False) -> list[dict]:
+    """Фіскальні чеки, які monobank створив для оплати (власний ПРРО або Checkbox), — GET /invoice/fiscal-checks.
+    Готовий чек записуємо в чек CRM (sale.fiscal), тож повторно фіскалізувати не потрібно."""
+    if pl.provider != "mono" or not pl.ext_id:
+        return []
+    d = _raw(db)
+    http = http or httpx.Client(timeout=20)
+    js = http.get("https://api.monobank.ua/api/merchant/invoice/fiscal-checks", params={"invoiceId": pl.ext_id},
+                  headers={"X-Token": val(_acc_of(d, pl) or {}, "token")}).json()
+    checks = [c for c in (js.get("checks") or []) if isinstance(c, dict)]
+    if with_file:
+        return checks
+    out = [{"id": c.get("id"), "type": c.get("type"), "status": c.get("status"), "url": c.get("taxUrl"),
+            "source": c.get("fiscalizationSource"), "note": c.get("statusDescription")} for c in checks]
+    pl.info = {**(pl.info or {}), "fiscal": out}
+    done = [c for c in out if (c.get("status") or "").lower() == "done" and (c.get("type") or "sale").lower() != "return"]
+    if done and pl.sale_id:
+        from ..models import Sale
+        s = db.get(Sale, pl.sale_id)
+        if s and not (s.fiscal or {}).get("fiscal_code"):
+            c = done[0]
+            src = {"checkbox": "Checkbox", "monopay": "monobank"}.get((c.get("source") or "").lower(), c.get("source") or "monobank")
+            s.fiscal = {**(s.fiscal or {}), "fiscal_code": c.get("id"), "number": c.get("id"), "url": c.get("url"),
+                        "rro_name": f"monobank · {src}", "source": "monobank", "paylink": pl.id,
+                        "at": datetime.now().strftime("%d.%m.%Y %H:%M")}
+    db.commit()
+    return out
+
+
 def webhook(db: Session, provider: str, raw: bytes, form: dict, http: httpx.Client | None = None) -> dict:
     d = _raw(db)
     if provider == "mono":

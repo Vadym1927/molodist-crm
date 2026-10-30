@@ -158,3 +158,29 @@ def test_sale_link_flow_basket_and_status():
             assert j["sale"] == "paid" and j["links"][0]["status"] == "paid"
     finally:
         P.httpx.Client = orig
+
+
+def test_mono_fiscal_check_attached_to_sale():
+    from app.models import Sale
+    from app.services import sales as sl
+    with SessionLocal() as db:
+        a = pls.save_account(db, None, "mono", "monobank ФОП Колган", {"token": "MTOK"}, "Онлайн-оплати", True)
+        p = Patient(full_name="Фіск Моно", phone="+380671234522"); db.add(p); db.commit()
+        s = sl.create(db, {"patient_id": p.id, "items": [{"kind": "other", "name": "X", "qty": 1, "price": 10}],
+                           "payments": [{"method": sl.paylink_method("monobank ФОП Колган"), "amount": 10}]})
+
+        def h(req):
+            if req.url.path.endswith("/invoice/create"):
+                return httpx.Response(200, json={"invoiceId": "invF", "pageUrl": "https://pay.mbnk.biz/invF"})
+            if req.url.path.endswith("/fiscal-checks"):
+                return httpx.Response(200, json={"checks": [{"id": "FC-1", "type": "sale", "status": "done", "taxUrl": "https://cabinet.tax.gov.ua/x",
+                                                             "fiscalizationSource": "checkbox", "file": "JVBERi0="}]})
+            return httpx.Response(200, json={"status": "success", "finalAmount": 1000})
+        http = httpx.Client(transport=httpx.MockTransport(h))
+        pl = pls.create(db, 10, "Чек", "https://crm.molodist.com.ua", p.id, http=http, account_id=a["id"])
+        pl.sale_id = s.id; db.commit()
+        pls.check_status(db, pl, http)
+        out = pls.mono_fiscal(db, pl, http)
+        db.refresh(s)
+        assert out[0]["status"] == "done" and s.status == "paid"
+        assert s.fiscal["fiscal_code"] == "FC-1" and s.fiscal["source"] == "monobank" and "Checkbox" in s.fiscal["rro_name"]
