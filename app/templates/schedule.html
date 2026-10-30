@@ -1,6 +1,16 @@
 {% extends "base.html" %}
 {% block title %}Графік співробітників · MOLODIST CRM{% endblock %}
 {% block body %}
+{% macro oico(k, sz=18) %}{% set P = {
+ 'weekend':'<path d="M6 6l12 12M18 6L6 18"/>',
+ 'other_place':'<path d="M4 8h13l-3-3M20 16H7l3 3"/>',
+ 'birthday':'<path d="M4 20h16M5 20v-6a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v6M5 16c2 1.5 4 1.5 7 0s5-1.5 7 0M12 12V8M12 3.5c1 1.2 1 2.3 0 3-1-.7-1-1.8 0-3z"/>',
+ 'corporate':'<path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6-5.3-3-5.3 3 1.2-6L3.4 9.3l6-.7z"/>',
+ 'dayoff':'<circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/>',
+ 'study':'<path d="M2.5 9L12 4.5 21.5 9 12 13.5z"/><path d="M6.5 11v4.5c3 2.5 8 2.5 11 0V11M21.5 9v5"/>',
+ 'sick':'<path d="M9.5 3.5h5v6h6v5h-6v6h-5v-6h-6v-5h6z"/>',
+ 'vacation':'<path d="M12 21V11M4.5 9.5C6 5.5 9 4 12 4s6 1.5 7.5 5.5c-2.5-1.3-5-1.3-7.5 0-2.5-1.3-5-1.3-7.5 0zM3 21h18"/>',
+ 'holiday':'<path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4M5.3 5.3l2.8 2.8M15.9 15.9l2.8 2.8M5.3 18.7l2.8-2.8M15.9 8.1l2.8-2.8"/><circle cx="12" cy="12" r="2.5"/>'} %}<svg width="{{ sz }}" height="{{ sz }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{{ (P.get(k) or '<path d="M6 12h12"/>')|safe }}</svg>{% endmacro %}
 {% set qp = request.query_params %}{% set back = request.url.path ~ '?' ~ request.url.query %}{% set edit = can(user,'schedule') %}
 <style>
 .gs-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:12px 14px;margin-bottom:14px;box-shadow:0 1px 2px rgba(42,36,48,.04),0 14px 34px -28px rgba(42,36,48,.35)}
@@ -13,7 +23,7 @@
 .gs-wrap{background:#fff;border:1px solid #ECE7E1;border-radius:20px;overflow:auto;box-shadow:0 1px 2px rgba(42,36,48,.04),0 14px 34px -28px rgba(42,36,48,.35);max-height:calc(100vh - 210px)}
 .gs{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;user-select:none}
 .gs th,.gs td{border-bottom:1px solid #F0ECE6;border-right:1px solid #F3EFEA;padding:0;text-align:center}
-.gs thead th{position:sticky;top:0;z-index:3;background:#FBFAF8;padding:8px 2px;min-width:58px;font:600 12.5px var(--sans);color:#2A2430}
+.gs thead th{position:sticky;top:0;z-index:3;background:#FBFAF8;padding:8px 2px;width:62px;min-width:62px;max-width:62px;font:600 12.5px var(--sans);color:#2A2430}
 .gs thead th small{display:block;font:500 11px var(--sans);color:#9a93a6;line-height:1.35;font-variant-numeric:tabular-nums}
 .gs thead th.we{color:#B23B2E}.gs thead th.cl{color:#B23B2E}.gs thead th.td{background:#F6F3FB;box-shadow:inset 0 -3px 0 #3B3050}
 .gs .nm{position:sticky;left:0;z-index:2;background:#FBFAF8;text-align:left;padding:10px 12px;min-width:230px;max-width:250px;border-right:1px solid #ECE7E1}
@@ -21,16 +31,16 @@
 .gs .who{display:flex;gap:10px;align-items:center}.gs .av{width:38px;height:38px;border-radius:50%;flex:none;display:grid;place-items:center;font:500 13px var(--head);color:#fff;background-size:cover;background-position:center}
 .gs .who b{display:block;font:600 14px var(--sans);color:#2A2430}.gs .who span{display:block;font-size:11.5px;color:#8a8496;line-height:1.3}
 .gs .cnt{display:inline-block;margin-top:6px;font:700 11.5px var(--sans);color:#3B3050;background:#F1EDF8;border-radius:99px;padding:1px 8px;font-variant-numeric:tabular-nums}
-.gs td.c{height:78px;min-width:58px;position:relative;cursor:pointer;vertical-align:top;background:#fff}
+.gs td.c{height:78px;width:62px;min-width:62px;max-width:62px;position:relative;cursor:pointer;vertical-align:top;background:#fff}
 .gs td.c.closed{background:#EFECE8}.gs td.c.td{box-shadow:inset 1px 0 0 #E7A2A2,inset -1px 0 0 #E7A2A2}
 .gs td.c.w{background:#EEF7EE;box-shadow:inset 0 3px 0 #7BC47F}
 .gs td.c .t{display:block;padding-top:9px;font:600 12px/1.45 var(--sans);color:#2A2430;font-variant-numeric:tabular-nums}
 .gs td.c .pl{display:block;font-size:10px;color:#6b6575;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 3px}
-.gs td.c.o{background:var(--ob)}.gs td.c.o .oi{display:block;padding-top:12px;color:var(--oc);font-size:20px;line-height:1}
-.gs td.c.o .on{display:block;font:600 9.5px var(--sans);color:var(--oc);padding:3px 2px 0;line-height:1.2}
+.gs td.c.o{background:var(--ob)}.gs td.c.o .oi{display:grid;place-items:center;margin:10px auto 0;width:32px;height:32px;border-radius:10px;background:var(--oc);color:#fff}
+.gs td.c.o .on{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;font:600 9px var(--sans);color:var(--oc);padding:3px 1px 0;line-height:1.2;word-break:normal;letter-spacing:-.01em}
 .gs td.c .bd{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);min-width:20px;height:20px;border-radius:99px;background:#C0392B;color:#fff;font:700 10.5px/20px var(--sans);padding:0 5px}
 .gs td.c:hover{filter:brightness(.97)}.gs td.c.sel{outline:2px solid #3B3050;outline-offset:-2px;background-image:linear-gradient(rgba(59,48,80,.12),rgba(59,48,80,.12))}
-.gs-leg{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;font-size:12px;color:#8a8496;font-weight:600}.gs-leg i{display:inline-block;width:14px;height:14px;border-radius:4px;margin-right:5px;vertical-align:-3px}
+.gs-leg{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;font-size:12px;color:#8a8496;font-weight:600}.gs-leg i{display:inline-block;width:16px;height:16px;border-radius:5px;margin-right:6px;vertical-align:-3px}.gs-leg i.li{display:inline-grid;place-items:center;color:#fff}.gs-leg{color:#5d5869}
 .gd-back{position:fixed;inset:0;background:rgba(42,36,48,.4);opacity:0;pointer-events:none;transition:opacity .2s;z-index:90}.gd-back.on{opacity:1;pointer-events:auto}
 .gd{position:fixed;top:0;right:0;bottom:0;width:min(420px,100vw);background:#F7F4F0;z-index:91;transform:translateX(100%);transition:transform .25s;display:flex;flex-direction:column;box-shadow:-30px 0 60px -30px rgba(42,36,48,.5)}
 .gd.on{transform:none}.gd-h{display:flex;align-items:center;gap:10px;padding:16px 20px;background:#fff;border-bottom:1px solid #ECE7E1}
@@ -43,7 +53,7 @@
 .gd .err{color:#B23B2E;font-weight:600;font-size:13px}
 .ok-k{display:grid;grid-template-columns:1fr 1fr;gap:6px}.ok-k label{cursor:pointer}.ok-k input{display:none}
 .ok-k span{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:12px;border:1px solid #E6E0D8;background:#fff;font:600 12.5px var(--sans);color:#2A2430}
-.ok-k span i{width:22px;height:22px;border-radius:7px;display:grid;place-items:center;font-style:normal;font-size:13px;flex:none}
+.ok-k span i{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-style:normal;flex:none}
 .ok-k input:checked+span{border-color:#3B3050;box-shadow:0 0 0 2px #E4DEEF}
 .gd-sel{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:80;background:#2A2430;color:#fff;border-radius:16px;padding:10px 12px 10px 18px;display:none;gap:12px;align-items:center;box-shadow:0 20px 40px -18px rgba(0,0,0,.6)}
 .gd-sel.on{display:flex}.gd-sel button{border:0;border-radius:11px;height:38px;padding:0 14px;font:700 13px var(--sans);cursor:pointer}
@@ -71,12 +81,12 @@ dialog.sd{border:0;border-radius:20px;padding:0;width:min(460px,96vw);box-shadow
     <span class="cnt" title="Робочих днів / неробочих">{{ work[dc.id] }}/{{ days|length - work[dc.id] }}</span></div></div></td>
   {% for d in days %}{% set s = sh.get((dc.id, d)) %}{% set o = of.get((dc.id, d)) %}{% set n = cnt.get((dc.id, d)) %}
     {% if s %}<td class="c w {{ 'td' if d == today }}" data-d="{{ dc.id }}" data-day="{{ d }}" data-s="{{ s.start }}" data-e="{{ s.end }}" data-p="{{ s.place or '' }}" title="{{ s.start }}–{{ s.end }}{{ (' · ' ~ s.place) if s.place }}"><span class="t">{{ s.start }}<br>{{ s.end }}</span>{% if s.place %}<span class="pl">{{ s.place }}</span>{% endif %}{% if n %}<span class="bd">{{ n }}</span>{% endif %}</td>
-    {% elif o and OFF.get(o.kind) %}{% set k = OFF[o.kind] %}<td class="c o {{ 'td' if d == today }}" style="--ob:{{ k[1] }};--oc:{{ k[2] }}" data-d="{{ dc.id }}" data-day="{{ d }}" data-k="{{ o.kind }}" title="{{ k[0] }}"><span class="oi">{{ {'weekend':'✕','vacation':'🌴','birthday':'🎂','sick':'✚','study':'✎','corporate':'★','holiday':'✦','other_place':'⇄','dayoff':'○'}.get(o.kind, '•') }}</span><span class="on">{{ k[0] }}</span>{% if n %}<span class="bd">{{ n }}</span>{% endif %}</td>
+    {% elif o and OFF.get(o.kind) %}{% set k = OFF[o.kind] %}<td class="c o {{ 'td' if d == today }}" style="--ob:{{ k[1] }};--oc:{{ k[2] }}" data-d="{{ dc.id }}" data-day="{{ d }}" data-k="{{ o.kind }}" title="{{ k[0] }}"><span class="oi">{{ oico(o.kind, 22) }}</span><span class="on">{{ k[0] }}</span>{% if n %}<span class="bd">{{ n }}</span>{% endif %}</td>
     {% else %}<td class="c {{ 'closed' if not hours[d] }} {{ 'td' if d == today }}" data-d="{{ dc.id }}" data-day="{{ d }}">{% if n %}<span class="bd" title="Записи без графіка">{{ n }}</span>{% endif %}</td>{% endif %}
   {% endfor %}</tr>
 {% else %}<tr><td colspan="{{ days|length + 1 }}" class="muted" style="padding:14px">Немає співробітників.</td></tr>{% endfor %}
 </tbody></table></div>
-<div class="gs-leg"><span><i style="background:#EEF7EE;box-shadow:inset 0 3px 0 #7BC47F"></i>Робочий день</span>{% for k, v in OFF.items() %}<span><i style="background:{{ v[1] }}"></i>{{ v[0] }}</span>{% endfor %}
+<div class="gs-leg"><span><i style="background:#EEF7EE;box-shadow:inset 0 3px 0 #7BC47F"></i>Робочий день</span>{% for k, v in OFF.items() %}<span><i class="li" style="background:{{ v[2] }}">{{ oico(k, 11) }}</i>{{ v[0] }}</span>{% endfor %}
   <span><i style="background:#EFECE8"></i>Клініка зачинена</span><span><i style="background:#C0392B;border-radius:99px"></i>Записів за день</span></div>
 <p class="small muted" style="margin-top:10px">У календарі співробітник зʼявляється в день, коли в нього є зміна в графіку і в картці увімкнено «Відображати в календарі». Без графіка — лише якщо на цей день уже є записи (перехідний період). Фіксована ставка окладу «за день» рахується за робочими днями графіка.</p>
 
@@ -86,13 +96,13 @@ dialog.sd{border:0;border-radius:20px;padding:0;width:min(460px,96vw);box-shadow
 <aside class="gd" id="gd"><div class="gd-h"><h3>Розклад</h3><button type="button" onclick="gdClose()">×</button></div>
   <div class="gd-b"><div class="gd-who" id="gd-who"></div><div class="err" id="gd-err"></div>
     <div class="gd-s"><h4>Робочий час</h4>
-      <div class="tw"><select id="gd-s">{% for i in range(10, 47) %}{% set t = '%02d:%02d' % (i // 2, 30 * (i % 2)) %}<option {{ 'selected' if t == '10:00' }}>{{ t }}</option>{% endfor %}</select><span>—</span>
-        <select id="gd-e">{% for i in range(10, 48) %}{% set t = '%02d:%02d' % (i // 2, 30 * (i % 2)) %}<option {{ 'selected' if t == '20:00' }}>{{ t }}</option>{% endfor %}</select></div>
+      <div class="tw"><select id="gd-s">{% for i in range(18, 44) %}{% set t = '%02d:%02d' % (i // 2, 30 * (i % 2)) %}<option {{ 'selected' if t == '10:00' }}>{{ t }}</option>{% endfor %}</select><span>—</span>
+        <select id="gd-e">{% for i in range(19, 45) %}{% set t = '%02d:%02d' % (i // 2, 30 * (i % 2)) %}<option {{ 'selected' if t == '20:00' }}>{{ t }}</option>{% endfor %}</select></div>
       <select id="gd-p"><option value="">Без місця (кабінет не вказано)</option>{% for p in places %}<option>{{ p }}</option>{% endfor %}</select>
       <button class="btn" type="button" onclick="gdApply('work')">Застосувати зміни</button></div>
     <div class="gd-s"><h4>Неробочі дні</h4>
-      <div class="ok-k"><label><input type="radio" name="gk" value="" checked><span><i style="background:#F2EFEA">○</i>Вихідний (прибрати зміну)</span></label>
-        {% for k, v in OFF.items() %}<label><input type="radio" name="gk" value="{{ k }}"><span><i style="background:{{ v[1] }};color:{{ v[2] }}">{{ {'weekend':'✕','vacation':'🌴','birthday':'🎂','sick':'✚','study':'✎','corporate':'★','holiday':'✦','other_place':'⇄','dayoff':'○'}.get(k) }}</i>{{ v[0] }}</span></label>{% endfor %}</div>
+      <div class="ok-k"><label><input type="radio" name="gk" value="" checked><span><i style="background:#8a8496;color:#fff">{{ oico("none", 17) }}</i>Вихідний (прибрати зміну)</span></label>
+        {% for k, v in OFF.items() %}<label><input type="radio" name="gk" value="{{ k }}"><span><i style="background:{{ v[2] }};color:#fff">{{ oico(k, 17) }}</i>{{ v[0] }}</span></label>{% endfor %}</div>
       <button class="btn ghost" type="button" onclick="gdApply('off')">Зробити дні неробочими</button></div>
   </div></aside>
 
