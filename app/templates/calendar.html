@@ -161,7 +161,7 @@
 
 /* блок візиту: суворо в межах часу, інформація зверху вниз за пріоритетом */
 .tg .blk{box-sizing:border-box;padding:5px 10px 5px;display:flex;flex-direction:column;gap:2px;overflow:hidden}
-.tg .blk .hd{flex-wrap:nowrap;min-width:0;overflow:hidden;line-height:1.3}
+.tg .blk>*{flex:none}.tg .blk .hd{flex-wrap:nowrap;min-width:0;overflow:hidden;line-height:1.3}
 .tg .blk .hd b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto}
 .tg .blk .hd .tm,.tg .blk .ptag{flex:none}
 .tg .blk .pph{font:600 12.5px var(--sans);color:#5d5869;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -172,6 +172,8 @@
 .tg .blk.mid .svl{-webkit-line-clamp:1;white-space:nowrap;text-overflow:ellipsis;display:block}.tg .blk.mid .nt{display:none}
 .tg .blk.short{padding:2px 8px;justify-content:center}.tg .blk.short .svl,.tg .blk.short .pph,.tg .blk.short .nt,.tg .blk.short .ptag{display:none}
 .tg .blk.short .hd .tm{font-size:11.5px;padding:0 4px}.tg .blk.short .hd b{font-size:13px}
+.tg .blk.f1 .pph,.tg .blk.f1 .nt{display:none}.tg .blk.f2 .svl{display:block;white-space:nowrap;text-overflow:ellipsis}
+.tg .blk.f3{padding-top:2px;padding-bottom:2px}.tg .blk.f3 .svl{display:none}
 </style>
 
 {% set WD = ['понеділок','вівторок','середа','четвер','пʼятниця','субота','неділя'] %}
@@ -201,7 +203,7 @@
 <div class="tg" id="tgw" style="--px:1.3px">
   <div class="tg-head" style="{{ GC }}">
     {% if view == 'week' and doc_prev %}<div class="tg-nav"><a href="?start={{ start }}&view=week&doc={{ doc_prev }}" title="Попередній спеціаліст">‹</a><a href="?start={{ start }}&view=week&doc={{ doc_next }}" title="Наступний спеціаліст">›</a></div>
-    {% else %}<div class="tg-nav"><button type="button" onclick="calPage(-1)" title="Попередні">‹</button><button type="button" onclick="calPage(1)" title="Наступні">›</button></div>{% endif %}
+    {% else %}<div></div>{% endif %}
     {% for g in grid.cols %}{% set d = g.col.doctor %}
     {% if view == 'week' %}<div class="wkh {{ 'today' if g.day == today }}"><div style="min-width:0"><b class="wd">{{ ['Пн','Вт','Ср','Чт','Пт','Сб','Нд'][g.day.weekday()] }}, {{ g.day.day }} {{ MON[g.day.month-1] }} {{ g.day.year }}</b>
       {% if d %}<span class="dpos"><a href="/specialists/{{ d.id }}" style="color:#2A2430;font-weight:600;text-decoration:none">{{ d.name }}</a> · {{ d.position or 'Спеціаліст' }}</span>{% endif %}
@@ -271,8 +273,10 @@ function calFind(v){v=(v||'').trim().toLowerCase();var n=0;document.querySelecto
 function calPx(){var w=document.getElementById('tgw');return w?parseFloat(getComputedStyle(w).getPropertyValue('--px'))||1.3:1.3}
 function calFit(){var w=document.getElementById('tgw'),bd=w&&w.querySelector('.tg-body');if(!w||!bd)return;
   var mins=+bd.dataset.min||600,top=bd.getBoundingClientRect().top+window.scrollY,avail=window.innerHeight-top-28;
-  var px=Math.max(1.75,Math.min(2.6,avail/mins));if(window.innerWidth<860)px=1.6;w.style.setProperty('--px',px.toFixed(3)+'px');
-  if(window.innerWidth>=860){var t0=w.getBoundingClientRect().top+window.scrollY;w.style.maxHeight=Math.max(420,window.innerHeight-t0-44)+'px'}}
+  var px=Math.max(0.75,Math.min(2.2,avail/mins));if(window.innerWidth<860)px=1.1;w.style.setProperty('--px',px.toFixed(3)+'px');
+  // вміст візиту — лише те, що влазить у його час: спершу ховаємо телефон, потім послуги в один рядок, потім лише пацієнт
+  w.querySelectorAll('.blk:not(.lock)').forEach(function(b){b.classList.remove('f1','f2','f3');
+    if(b.scrollHeight>b.clientHeight+1)b.classList.add('f1');if(b.scrollHeight>b.clientHeight+1)b.classList.add('f2');if(b.scrollHeight>b.clientHeight+1)b.classList.add('f3')})}
 calFit();window.addEventListener('resize',calFit);
 (function(){var w=document.getElementById('tgw'),n=document.querySelector('.tg .nowline')||document.querySelector('.tg .blk:not(.lock)');if(!w||!n)return;
   var y=n.getBoundingClientRect().top-w.getBoundingClientRect().top-w.clientHeight*0.35;if(y>0)w.scrollTop=y})();
