@@ -24,10 +24,11 @@
   <td class="r">{{ m.services|uah }}<div class="meta">{{ m.n }} посл.</div></td><td class="r">{{ m.from_services|uah }}</td>
   <td class="r">{{ m.products|uah }}</td><td class="r">{{ m.from_products|uah }}</td><td class="r">{{ m.base|uah if m.base else '—' }}</td>
   <td class="r">{% for a in m.adjs %}<div class="{{ 'in' if a.amount > 0 else 'out' }}" title="{{ a.comment or '' }}">{{ '+' if a.amount > 0 }}{{ a.amount|uah }}
-      <form method="post" action="/finance/payroll/adj/{{ a.id }}/delete" data-delpw="Видалити {{ 'премію' if a.amount > 0 else 'утримання' }} {{ a.amount|uah }}?" style="display:inline"><button style="border:0;background:none;color:var(--muted);cursor:pointer">×</button></form>{% if a.comment %}<div class="meta">{{ a.comment }}</div>{% endif %}</div>{% endfor %}
-    <details><summary class="small">＋ премія / утримання</summary><form method="post" action="/finance/payroll/adj" class="grid" style="gap:6px;margin-top:6px;min-width:200px;text-align:left">
+      <form method="post" action="/finance/payroll/adj/{{ a.id }}/delete" data-delpw="Видалити {{ 'премію' if a.amount > 0 else 'утримання' }} {{ a.amount|uah }}?" style="display:inline"><button style="border:0;background:none;color:var(--muted);cursor:pointer">×</button></form>{% if a.article or a.comment %}<div class="meta">{{ a.article or '' }}{{ ' · ' if a.article and a.comment }}{{ a.comment or '' }}</div>{% endif %}</div>{% endfor %}
+    <details><summary class="small">＋ нарахування / утримання</summary><form method="post" action="/finance/payroll/adj" class="grid" style="gap:6px;margin-top:6px;min-width:200px;text-align:left">
       <input type="hidden" name="doctor_id" value="{{ r.doctor.id }}"><input type="hidden" name="month" value="{{ month }}">
-      <select name="sign"><option value="+">Премія (+)</option><option value="-">Утримання / штраф (−)</option></select>
+      {% if arts %}<select name="article" required>{% for x in arts %}<option value="{{ x.id }}">{{ x.name }} ({{ '+' if x.kind == 'income' else '−' }})</option>{% endfor %}</select>
+      {% else %}<select name="sign"><option value="+">Премія (+)</option><option value="-">Утримання / штраф (−)</option></select>{% endif %}
       <input name="amount" inputmode="decimal" placeholder="Сума, ₴" required><input name="comment" placeholder="За що"><button class="btn ghost">Додати</button></form></details></td>
   <td class="r"><b style="font-size:15px">{{ m.accrued|uah }}</b></td></tr>
 {% else %}<tr><td colspan="9" class="muted">Немає спеціалістів з продажами за {{ month }} і з заданими правилами.</td></tr>{% endfor %}</tbody></table></div>

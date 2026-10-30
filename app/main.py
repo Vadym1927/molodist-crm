@@ -3787,7 +3787,7 @@ SETTINGS_BLOCKS = [
         ('Поля співробітників', 'Свої поля для картки співробітника: дата народження, медкнижка, паспорт, стать, клініка…', '/settings/staff-fields', 'specialists_edit', 'sfields/staff'),
         ('Налаштування окладів', 'Фіксована ставка, комісійні за послуги й товари, % від обороту — шаблони для зарплати', '/settings/salary', 'finance', 'salary'),
         ('Категорії спеціалістів', 'Ціни за категоріями', None, None, 'cmarket/customprice/main'),
-        ('Статті для нарахувань', None, None, None, 'dirs/stype'),
+        ('Статті для нарахувань', 'Премії, штрафи, лікарняні, податки, відпускні — для коригувань зарплати', '/settings/accrual-articles', 'finance', 'dirs/stype'),
         ('Застосунок для спеціаліста', None, None, None, 'cmarket/specapp/main'),
     ]),
     ('Фінанси', 'finance', 'Каси, статті, оплати й фіскалізація', [
@@ -3900,6 +3900,42 @@ async def settings_positions_order(request: Request, user: User = Depends(requir
     from .services import positions as ps
     js = await request.json()
     ps.reorder(db, [int(x) for x in js.get("ids") or [] if str(x).isdigit()])
+    return JSONResponse({"ok": True})
+
+
+# ---------------- Налаштування → Статті для нарахувань ----------------
+@app.get("/settings/accrual-articles", response_class=HTMLResponse)
+def settings_accrual_articles(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import accrual_articles as aa
+    from .models import SalaryAdj
+    use: dict = {}
+    for (n_,) in db.execute(select(SalaryAdj.article).where(SalaryAdj.article.is_not(None))):
+        use[n_] = use.get(n_, 0) + 1
+    return render(request, "accrual_articles.html", nav="settings", items=aa.items(db), KINDS=aa.KINDS, use=use)
+
+
+@app.post("/settings/accrual-articles")
+def settings_accrual_articles_save(aid: str = Form(""), name: str = Form(""), kind: str = Form("income"),
+                                   user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import accrual_articles as aa
+    err = aa.save(db, int(aid) if aid.isdigit() else None, name, kind)
+    if not err:
+        audit(db, "accrual_article.save", "accrual_article", int(aid) if aid.isdigit() else None, user=user, name=name, kind=kind)
+    return RedirectResponse(_with_msg("/settings/accrual-articles", err or "Збережено", bool(err)), 303)
+
+
+@app.post("/settings/accrual-articles/{aid:int}/toggle")
+def settings_accrual_articles_toggle(aid: int, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import accrual_articles as aa
+    aa.toggle(db, aid)
+    return RedirectResponse("/settings/accrual-articles", 303)
+
+
+@app.post("/settings/accrual-articles/order")
+async def settings_accrual_articles_order(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import accrual_articles as aa
+    js = await request.json()
+    aa.reorder(db, [int(x) for x in js.get("ids") or [] if str(x).isdigit()])
     return JSONResponse({"ok": True})
 
 
@@ -5477,7 +5513,8 @@ def finance_payroll(request: Request, m: str = "", user: User = Depends(require(
     month = _month(m)
     rows = fo.payroll(db, month)
     all_docs = db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)).all()
-    return render(request, "fin_payroll.html", nav="finance", month=month, rows=rows, months=_month_list(),
+    from .services import accrual_articles as _aa
+    return render(request, "fin_payroll.html", nav="finance", month=month, rows=rows, months=_month_list(), arts=_aa.active(db),
                   total={k: round(sum(r["m"][k] for r in rows), 2) for k in ("services", "products", "accrued", "adj")},
                   no_rule=[d_ for d_ in all_docs if d_.id not in {r["doctor"].id for r in rows if r["rule"] or r.get("plan")}])
 
@@ -5509,13 +5546,17 @@ def finance_payroll_rule(doctor_id: int = Form(...), base: str = Form(""), pct_s
 
 @app.post("/finance/payroll/adj")
 def finance_payroll_adj(doctor_id: int = Form(...), month: str = Form(...), amount: str = Form(...), sign: str = Form("+"),
-                        comment: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+                        article: str = Form(""), comment: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     from .models import SalaryAdj
+    from .services import accrual_articles as aa
     amt = _num(amount)
     mk = _month(month)
+    art = aa.get(db, int(article)) if article.isdigit() else None
+    if art:                                                     # знак — за видом статті (дохід + / витрата −)
+        sign = "-" if art["kind"] == "expense" else "+"
     if amt:
         a = SalaryAdj(doctor_id=doctor_id, month=mk, amount=round(-abs(amt) if sign == "-" else abs(amt), 2),
-                      comment=comment.strip()[:300] or None, created_by=user.id)
+                      comment=comment.strip()[:300] or None, created_by=user.id, article=art["name"] if art else None)
         db.add(a)
         db.commit()
         audit(db, "fin.salary_adj", "doctor", doctor_id, user=user, month=mk, amount=a.amount, comment=a.comment)

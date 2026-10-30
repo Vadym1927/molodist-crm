@@ -968,6 +968,7 @@ class SalaryAdj(Base):
     month: Mapped[str] = mapped_column(String(7), index=True)
     amount: Mapped[float] = mapped_column(Float)
     comment: Mapped[str | None] = mapped_column(String(300))
+    article: Mapped[str | None] = mapped_column(String(80))             # стаття для нарахувань: Премія, Штраф, Лікарняні…
     created_by: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

@@ -35,3 +35,21 @@ def test_salary_plan_settings_and_payroll():
         nid = None
         r = c.post(f"/settings/salary/{p['id']}/copy", follow_redirects=False)
         assert "open=" in r.headers["location"]
+
+
+def test_accrual_articles_and_payroll_adj():
+    from app.models import SalaryAdj
+    from app.services import accrual_articles as aa
+    settings.admin_password = "owner-pass-1"
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        t = c.get("/settings/accrual-articles").text
+        assert "Лікарняні" in t and "Виплата прибутку в ЗП" in t
+        with SessionLocal() as db:
+            fine = next(x for x in aa.items(db) if x["name"] == "Штраф")
+            d = Doctor(name="Штрафна Лікарка", extra={"salary": "CSD"}); db.add(d); db.commit(); did = d.id
+        assert "Штраф (−)" in c.get("/finance/payroll?m=2026-10").text
+        c.post("/finance/payroll/adj", data={"doctor_id": did, "month": "2026-10", "amount": "300", "article": str(fine["id"]), "comment": "запізнення"})
+        with SessionLocal() as db:
+            a = db.query(SalaryAdj).filter_by(doctor_id=did).one()
+            assert a.amount == -300 and a.article == "Штраф"
