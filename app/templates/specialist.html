@@ -93,7 +93,7 @@
     <div><div class="sp-eb">{{ d.position or 'Співробітник' }}</div><h1>{{ d.name }}</h1>
       <div class="sp-pills">{% if d.active %}<span class="ok">Працює</span>{% else %}<span class="bad">Звільнений{{ (' з ' ~ d.fired_at.strftime('%d.%m.%Y')) if d.fired_at }}</span>{% endif %}
         {% if xv.get('salary') %}<span>Оклад: {{ xv.salary }}</span>{% endif %}{% if d.cleverbox_id %}<span>CleverBox #{{ d.cleverbox_id }}</span>{% endif %}
-        {% if d.in_calendar is not false %}<span>У календарі</span>{% endif %}</div></div>
+        {% if d.in_calendar is not false %}<span>У календарі</span>{% endif %}{% if in_schedule(d) %}<span>У графіку</span>{% endif %}</div></div>
     {% if edit and tab == 'info' %}<button class="btn sp-save" form="spf">Зберегти</button>
     {% elif edit and tab == 'services' %}<button class="btn sp-save" form="svf">Зберегти</button>{% endif %}
   </div>
@@ -134,6 +134,7 @@
         {% for p in positions %}<option {{ 'selected' if d.position == p }}>{{ p }}</option>{% endfor %}
         {% if d.position and d.position not in positions %}<option selected>{{ d.position }}</option>{% endif %}</select></label>
       <label class="tg">Відображати в календарі<input type="checkbox" name="in_calendar" value="1" {{ 'checked' if d.in_calendar is not false }}></label>
+      <label class="tg">Відображати в графіку співробітників<input type="checkbox" name="in_schedule" value="1" {{ 'checked' if in_schedule(d) }}></label>
       <div class="two"><label class="fl"><span>Статус</span><select name="status"><option value="active" {{ 'selected' if d.active }}>Працює</option><option value="fired" {{ 'selected' if not d.active }}>Звільнений</option></select></label>
         <label class="fl"><span>Ініціатор продажу в касі</span><select name="sale_initiator"><option value="1" {{ 'selected' if d.sale_initiator is not false }}>Показувати</option><option value="0" {{ 'selected' if d.sale_initiator is false }}>Не показувати</option></select></label></div>
       <div class="fl"><span>Колір у календарі</span><div class="cl">{% for col in palette %}<label><input type="radio" name="color" value="{{ col }}" {{ 'checked' if c.color==col }}><span style="background:{{ col }}"></span></label>{% endfor %}</div></div>

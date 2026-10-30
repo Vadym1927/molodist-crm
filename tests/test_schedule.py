@@ -37,3 +37,21 @@ def test_schedule():
         assert c.get("/calendar?view=day").status_code == 200
         r = c.post("/specialists/schedule/clear", data={"doctor_id": str(did), "d_from": str(mon), "d_to": str(mon + timedelta(days=40)), "del_password": "x"}, follow_redirects=False)
         assert "delerr=" in r.headers["location"]
+
+
+def test_in_schedule_toggle():
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        a = Doctor(name="Видима Графік", active=True, in_calendar=True)
+        b = Doctor(name="Адмін Неграфік", active=True, in_calendar=False)
+        db.add_all([a, b]); db.commit(); aid = a.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        t = c.get("/specialists/schedule").text
+        assert "Видима Графік" in t and "Адмін Неграфік" not in t and "Показати всіх" in t
+        assert "Адмін Неграфік" in c.get("/specialists/schedule?all=1").text
+        assert "Відображати в графіку співробітників" in c.get(f"/specialists/{aid}").text
+        c.post(f"/specialists/{aid}", data={"name": "Видима Графік", "in_calendar": "1"})   # галочку графіка знято
+        assert "Видима Графік" not in c.get("/specialists/schedule").text
+        c.post(f"/specialists/{aid}", data={"name": "Видима Графік", "in_calendar": "1", "in_schedule": "1"})
+        assert "Видима Графік" in c.get("/specialists/schedule").text

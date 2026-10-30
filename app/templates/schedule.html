@@ -88,6 +88,7 @@ dialog.sd{border:0;border-radius:20px;padding:0;width:min(460px,96vw);box-shadow
 </tbody></table></div>
 <div class="gs-leg"><span><i style="background:#EEF7EE;box-shadow:inset 0 3px 0 #7BC47F"></i>Робочий день</span>{% for k, v in OFF.items() %}<span><i class="li" style="background:{{ v[2] }}">{{ oico(k, 11) }}</i>{{ v[0] }}</span>{% endfor %}
   <span><i style="background:#EFECE8"></i>Клініка зачинена</span><span><i style="background:#C0392B;border-radius:99px"></i>Записів за день</span></div>
+{% if hidden or show_all %}<p class="small" style="margin-top:10px">{% if show_all %}Показано всіх співробітників. <a href="?m={{ first|dt('%Y-%m') }}">Лише тих, хто в графіку</a>{% else %}Приховано {{ hidden }} — у кого в картці вимкнено «Відображати в графіку співробітників». <a href="?m={{ first|dt('%Y-%m') }}&all=1">Показати всіх</a>{% endif %}</p>{% endif %}
 <p class="small muted" style="margin-top:10px">У календарі співробітник зʼявляється в день, коли в нього є зміна в графіку і в картці увімкнено «Відображати в календарі». Без графіка — лише якщо на цей день уже є записи (перехідний період). Фіксована ставка окладу «за день» рахується за робочими днями графіка.</p>
 
 {% if edit %}

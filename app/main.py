@@ -6153,8 +6153,11 @@ def schedule_page(request: Request, m: str = "", doc: int = 0, user: User = Depe
     first = (_day(m + "-01") if m else None) or today.replace(day=1)
     nxt = (first + timedelta(days=32)).replace(day=1)
     days = [first + timedelta(days=i) for i in range((nxt - first).days)]
-    docs = [d_ for d_ in db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)) if not doc or d_.id == doc]
     sh, of = sch.shifts(db, days[0], days[-1]), sch.offs(db, days[0], days[-1])
+    act = [d_ for d_ in db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)) if not doc or d_.id == doc]
+    show_all = request.query_params.get("all") == "1"
+    docs = [d_ for d_ in act if show_all or doc or in_schedule(d_)]
+    hidden = len(act) - len(docs)
     hours = {d: _cl.hours_for(db, d) for d in days}
     cnt: dict = {}
     for d, evs in _cal.events(db, user, first, len(days)).items():
@@ -6166,7 +6169,7 @@ def schedule_page(request: Request, m: str = "", doc: int = 0, user: User = Depe
     return render(request, "schedule.html", nav="specialists", days=days, docs=docs, sh=sh, of=of, hours=hours, cnt=cnt, work=work,
                   first=first, prev=(first - timedelta(days=1)).replace(day=1), nxt=nxt, month_name=f"{MONTHS[first.month - 1]} {first.year}",
                   today=today, doc=doc, places=_places(db), OFF=sch.OFF_KINDS, color=spec_svc.color, initials=spec_svc.initials,
-                  WD=["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"], all_docs=docs, timedelta=timedelta)
+                  WD=["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"], all_docs=docs, timedelta=timedelta, hidden=hidden, show_all=show_all)
 
 
 @app.post("/specialists/schedule/bulk")
@@ -6349,6 +6352,15 @@ def specialist_page(did: int, request: Request, tab: str = "info", user: User = 
                   SOCIALS=SOCIALS, locs=locs, WH=catalog.WAREHOUSES, td=_spec_tab_data(db, user, d, tab))
 
 
+def in_schedule(d) -> bool:
+    """Чи виводити співробітника в «Графік співробітників». Не задано — як «Відображати в календарі»."""
+    v = (d.extra or {}).get("in_schedule")
+    return bool(v) if v is not None else d.in_calendar is not False
+
+
+templates.env.globals["in_schedule"] = in_schedule
+
+
 @app.post("/specialists/{did:int}")
 async def specialist_save(did: int, request: Request, name: str = Form(...), position: str = Form(""), phone: str = Form(""),
                     email: str = Form(""), color: str = Form(""), bio: str = Form(""), work_days: str = Form(""),
@@ -6385,7 +6397,8 @@ async def specialist_save(did: int, request: Request, name: str = Form(...), pos
     f_all = await request.form()
     d.extra = {**(d.extra or {}),
                "social": {k: str(f_all.get(f"social_{k}") or "").strip()[:200] for k, _ in SOCIALS if str(f_all.get(f"social_{k}") or "").strip()},
-               "writeoff_wh": {k[3:]: v for k, v in f_all.items() if k.startswith("wh_") and v in catalog.WAREHOUSES}}
+               "writeoff_wh": {k[3:]: v for k, v in f_all.items() if k.startswith("wh_") and v in catalog.WAREHOUSES},
+               "in_schedule": f_all.get("in_schedule") == "1"}
     db.commit()
     audit(db, "specialist.update", "doctor", d.id, user=user)
     return RedirectResponse(f"/specialists/{did}?saved=1", 303)
