@@ -60,7 +60,7 @@
       {% endif %}
       {% if d.kind in ('supply','order','opening','return') %}<td class="r">{% if editable %}<input class="c" name="cost_{{ ln.id }}" value="{{ '%g'|format(ln.unit_cost) if ln.unit_cost is not none else '' }}" inputmode="decimal">{% else %}{{ ln.unit_cost|uah if ln.unit_cost else '—' }}{% endif %}</td>
         <td class="r">{{ ((ln.qty or 0) * (ln.unit_cost or 0))|uah if ln.unit_cost else '—' }}</td>{% endif %}
-      {% if d.kind=='supply' %}<td>{% if editable %}<input type="date" name="exp_{{ ln.id }}" value="{{ ln.expiry_date or '' }}">{% else %}{{ ln.expiry_date|dt('%d.%m.%Y') if ln.expiry_date else '—' }}{% endif %}</td>{% endif %}
+      {% if d.kind=='supply' %}<td>{% if editable %}<input name="exp_{{ ln.id }}" value="{{ ln.expiry_date|dt('%d.%m.%Y') if ln.expiry_date else '' }}" placeholder="дд.мм.рррр" inputmode="numeric" style="width:130px;text-align:center" title="Напр. 31.12.2027, 12.2027 або 12/27">{% else %}{{ ln.expiry_date|dt('%d.%m.%Y') if ln.expiry_date else '—' }}{% endif %}</td>{% endif %}
       {% if d.kind in ('transfer','writeoff') or (d.kind=='return' and d.reason!='patient') %}<td>{% set opts = lot_opts.get(p.id, []) %}{% if editable %}
         <select name="exp_{{ ln.id }}" style="height:36px;min-width:190px">
           <option value="">авто — найближчий термін</option>
@@ -79,7 +79,7 @@
     <label style="flex:1;min-width:280px">Товар (назва, артикул або штрихкод)<input name="new_product" list="prods" placeholder="Почніть вводити…" autofocus></label>
     <label>{{ 'Фактично' if d.kind=='inventory' else 'К-сть' }}<input name="new_qty" value="1" style="width:90px" inputmode="decimal"></label>
     {% if d.kind in ('supply','order','return') %}<label>Ціна закупівлі<input name="new_cost" style="width:110px" placeholder="авто" inputmode="decimal"></label>{% endif %}
-    {% if d.kind=='supply' %}<label>Придатний до<input type="date" name="new_exp"></label>{% endif %}
+    {% if d.kind=='supply' %}<label>Придатний до<input name="new_exp" placeholder="дд.мм.рррр" inputmode="numeric" title="Напр. 31.12.2027, 12.2027 або 12/27"></label>{% endif %}
     <button class="btn ghost" name="action" value="save">＋ Додати</button>
     <datalist id="prods">{% for pid, label, w in products %}<option value="{{ label }}">{% endfor %}</datalist>
   </div>{% endif %}

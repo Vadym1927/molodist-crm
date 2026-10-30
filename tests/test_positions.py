@@ -28,3 +28,10 @@ def test_positions_settings_and_specialist_select():
             assert [x["id"] for x in ps.items(db)] == ids
         html = c.get(f"/specialists/{did}").text
         assert "<option selected>Адміністратор рецепції</option>" in html and "<option >Нутриціолог</option>" in html
+
+
+def test_expiry_text_parsing():
+    from datetime import date
+    from app.main import _exp_day
+    assert _exp_day("31.12.2027") == date(2027, 12, 31) == _exp_day("12/27") == _exp_day("12.2027") == _exp_day("2027-12-31")
+    assert _exp_day("02.2028") == date(2028, 2, 29) and _exp_day("31.02.2027") is None and _exp_day("") is None

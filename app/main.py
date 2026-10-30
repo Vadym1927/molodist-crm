@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 from collections import defaultdict
 import json
+import re
 import logging
 import mimetypes
 import secrets
@@ -2749,6 +2750,29 @@ def _day(v: str):
         return None
 
 
+def _exp_day(v) -> date | None:
+    """Термін придатності з тексту: 2027-12-31 · 31.12.2027 · 31.12.27 · 12.2027 · 12/27 · 31122027 (місяць-рік → останній день)."""
+    import calendar as _cal
+    s = re.sub(r"[/\-\s,]+", ".", str(v or "").strip()).strip(".")
+    if not s:
+        return None
+    pats = [(r"(\d{4})\.(\d{1,2})\.(\d{1,2})", "ymd"), (r"(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})", "dmy"), (r"(\d{1,2})\.(\d{2}|\d{4})", "my"),
+            (r"(\d{2})(\d{2})(\d{4})", "dmy"), (r"(\d{2})(\d{2})(\d{2})", "dmy"), (r"(\d{2})(\d{2})", "my")]
+    for rx, kind in pats:
+        m_ = re.fullmatch(rx, s)
+        if not m_:
+            continue
+        g = [int(x) for x in m_.groups()]
+        y, mo, d_ = (g[0], g[1], g[2]) if kind == "ymd" else ((g[2], g[1], g[0]) if kind == "dmy" else (g[1], g[0], 0))
+        y = y + 2000 if y < 100 else y
+        if not (1 <= mo <= 12 and 2000 <= y <= 2100):
+            return None
+        last = _cal.monthrange(y, mo)[1]
+        d_ = d_ or last
+        return date(y, mo, d_) if 1 <= d_ <= last else None
+    return None
+
+
 @app.get("/products/{pid:int}", response_class=HTMLResponse)
 def product_card(pid: int, request: Request, user: User = Depends(require("products")), db: Session = Depends(db_dep)):
     from .models import ProductPurchase, ProductSale
@@ -2851,7 +2875,7 @@ async def product_batches_set(pid: int, request: Request, user: User = Depends(r
     for e, q in zip(f.getlist("exp"), f.getlist("qty")):
         qq = _num(q)
         if qq and qq > 0:
-            targets.append((_day(e), round(qq * (k if f.get("in_packs") else 1), 4)))
+            targets.append((_exp_day(e), round(qq * (k if f.get("in_packs") else 1), 4)))
     try:
         rep = st.set_batches(db, pid, wh, targets, note=f"терміни вручну · {user.name}")
     except st.StockError as e:
@@ -3341,7 +3365,7 @@ async def stock_doc_quick(request: Request, user: User = Depends(require("stock"
             qty, price = _num(str(x.get("qty"))) or 0, _num(str(x.get("price") or ""))
             doc.lines.append(StockDocLine(product_id=p_.id, qty=round(qty * k, 4),
                                           unit_cost=round(price / k, 4) if price is not None else None,
-                                          expiry_date=_day(str(x.get("expiry") or ""))))
+                                          expiry_date=_exp_day(x.get("expiry"))))
         db.flush()
         docs.append(doc)
     if supplier and not any(n.lower() == supplier.lower() for (n,) in db.execute(select(Supplier.name))):
@@ -3528,14 +3552,14 @@ async def stock_doc_save(did: int, request: Request, user: User = Depends(requir
             if f"cost_{ln.id}" in f:
                 ln.unit_cost = _num(f.get(f"cost_{ln.id}"))
             if f"exp_{ln.id}" in f:
-                ln.expiry_date = _day(f.get(f"exp_{ln.id}"))
+                ln.expiry_date = _exp_day(f.get(f"exp_{ln.id}"))
         new_ref = (f.get("new_product") or "").strip()
         if new_ref:
             pr = _pick_product(db, new_ref)
             if not pr:
                 db.commit()
                 return RedirectResponse(f"/stock/docs/{did}?err=Товар+не+знайдено:+{new_ref[:60]}#add", 303)
-            new_exp = _day(f.get("new_exp"))
+            new_exp = _exp_day(f.get("new_exp"))
             line = next((ln for ln in doc.lines if ln.product_id == pr.id and ln.expiry_date == new_exp), None)   # інший термін — нова партія
             if line and doc.kind != "inventory":
                 line.qty = (line.qty or 0) + (_num(f.get("new_qty")) or 1)
@@ -3545,7 +3569,7 @@ async def stock_doc_save(did: int, request: Request, user: User = Depends(requir
                     rr = next((r for r in catalog.product_rows(db, []) if r.product.id == pr.id), None)
                     cost = (rr.cost_last or rr.cost_avg) if rr else pr.cost
                 doc.lines.append(StockDocLine(product_id=pr.id, qty=_num(f.get("new_qty")) or 1, unit_cost=cost,
-                                              expiry_date=_day(f.get("new_exp"))))
+                                              expiry_date=_exp_day(f.get("new_exp"))))
         db.commit()
         db.refresh(doc)
         changes = dh.diff(before, dh.snapshot(doc))

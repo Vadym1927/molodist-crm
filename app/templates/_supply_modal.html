@@ -31,6 +31,7 @@
 .sd-t tr.unm td{background:#FFF7F2}.sd-t .unm .nm b{color:var(--bad)}
 .sd-f{position:absolute;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:14px 22px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
 .sd-f .tot{font-size:18px;font-weight:700}.sd-err{color:var(--bad);font-size:13px;font-weight:600}
+.sd-exp{width:100%;height:38px;text-align:center;font-variant-numeric:tabular-nums}.sd-exp.bad{border-color:#E57373;background:#FFF5F4;color:#B23B2E}
 @media (max-width:760px){.sd-g{grid-template-columns:1fr}.sd-t th.hm,.sd-t td.hm{display:none}}
 </style>
 <div class="sd-back" id="sdBack" onclick="sdClose()"></div>
@@ -52,7 +53,7 @@
     </div>
     {% if tab=='supply' %}<p class="small muted" style="margin:-6px 0 12px">Склад можна змінити в кожному рядку: якщо одна накладна йде на кілька складів, CRM збереже окремі поставки з тим самим № і розділить оплату пропорційно. Той самий товар з різними термінами — кнопка «＋» у рядку (окрема партія).</p>{% endif %}
     <div class="sd-t"><table>
-      <thead><tr><th>№</th><th class="hm">Артикул</th><th>Найменування</th><th class="hm">Одиниці</th>{% if tab=='supply' %}<th style="width:130px">Склад</th>{% endif %}<th class="r" style="width:90px">К-сть</th><th class="r" style="width:120px">Ціна за од., ₴</th><th class="r" style="width:120px">Сума, ₴</th>{% if tab=='supply' %}<th class="hm" style="width:150px">Придатний до</th>{% endif %}<th></th></tr></thead>
+      <thead><tr><th>№</th><th class="hm">Артикул</th><th>Найменування</th><th class="hm">Одиниці</th>{% if tab=='supply' %}<th style="width:130px">Склад</th>{% endif %}<th class="r" style="width:90px">К-сть</th><th class="r" style="width:120px">Ціна за од., ₴</th><th class="r" style="width:120px">Сума, ₴</th>{% if tab=='supply' %}<th style="width:150px">Придатний до</th>{% endif %}<th></th></tr></thead>
       <tbody id="sdRows"><tr class="empty"><td colspan="9" class="muted" style="padding:14px">Додайте товари пошуком нижче — за назвою, брендом, артикулом або штрихкодом.</td></tr></tbody>
       <tfoot><tr><td colspan="4" class="hm"></td><td colspan="2" class="r">Разом:</td><td class="r" id="sdTot">0</td><td colspan="2"></td></tr></tfoot>
     </table>
@@ -92,17 +93,35 @@
       <td><input inputmode="decimal" value="${l.qty}" data-i="${i}" data-k="qty"></td>
       <td><input inputmode="decimal" value="${l.price || ''}" data-i="${i}" data-k="price" placeholder="0"></td>
       <td class="r sum"><b>${fmt(l.qty * (l.price || 0))}</b></td>
-      ${WITH_EXP ? `<td class="hm"><input type="date" value="${l.expiry || ''}" data-i="${i}" data-k="expiry"></td>` : ''}
+      ${WITH_EXP ? `<td><input class="sd-exp${l.expiry_bad ? ' bad' : ''}" inputmode="numeric" placeholder="дд.мм.рррр" value="${esc(l.expiry_txt != null ? l.expiry_txt : expShow(l.expiry))}" data-i="${i}" data-k="expiry" title="Напр. 31.12.2027, 12.2027 або 12/27"></td>` : ''}
       <td style="white-space:nowrap">${WITH_EXP ? `<button class="del" type="button" data-dup="${i}" title="Ще партія цього товару з іншим терміном" style="background:var(--lavender);color:var(--classic);margin-right:4px">＋</button>` : ''}<button class="del" type="button" data-del="${i}" title="Прибрати">×</button></td></tr>`).join('');
     const tot = lines.reduce((s, l) => s + l.qty * (l.price || 0), 0);
     $('sdTot').textContent = fmt(tot); $('sdTot2').textContent = fmt(tot) + ' ₴'; $('sdN').textContent = lines.length;
   }
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  window.parseExp = s => {                      // 31.12.2027 · 31.12.27 · 12.2027 · 12/27 · 31122027 · 2027-12-31 → ISO; місяць-рік → останній день місяця
+    s = String(s || '').trim().replace(/[\/\-\s,]+/g, '.').replace(/\.+$/, ''); if (!s) return '';
+    let d, m, y, mm;
+    if ((mm = s.match(/^(\d{4})\.(\d{1,2})\.(\d{1,2})$/))) { y = +mm[1]; m = +mm[2]; d = +mm[3]; }
+    else if ((mm = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})$/))) { d = +mm[1]; m = +mm[2]; y = +mm[3]; }
+    else if ((mm = s.match(/^(\d{1,2})\.(\d{2}|\d{4})$/))) { m = +mm[1]; y = +mm[2]; d = 0; }
+    else if ((mm = s.match(/^(\d{2})(\d{2})(\d{4})$/))) { d = +mm[1]; m = +mm[2]; y = +mm[3]; }
+    else if ((mm = s.match(/^(\d{2})(\d{2})(\d{2})$/))) { d = +mm[1]; m = +mm[2]; y = +mm[3]; }
+    else if ((mm = s.match(/^(\d{2})(\d{2})$/))) { m = +mm[1]; y = +mm[2]; d = 0; }
+    else return '';
+    if (y < 100) y += 2000; if (m < 1 || m > 12 || y < 2000 || y > 2100) return '';
+    const last = new Date(y, m, 0).getDate(); if (!d) d = last; if (d < 1 || d > last) return '';
+    return y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+  };
+  const expShow = v => v ? v.split('-').reverse().join('.') : '';
   const num = v => parseFloat(String(v).replace(/\s/g, '').replace(',', '.')) || 0;
-  $('sdRows').addEventListener('change', e => { if (e.target.dataset.k === 'wh') { lines[+e.target.dataset.i].wh_key = e.target.value; } });
+  $('sdRows').addEventListener('change', e => { if (e.target.dataset.k === 'wh') { lines[+e.target.dataset.i].wh_key = e.target.value; }
+    if (e.target.dataset.k === 'expiry') { const l = lines[+e.target.dataset.i]; if (l.expiry) { l.expiry_txt = null; e.target.value = expShow(l.expiry); } } });
   $('sdRows').addEventListener('input', e => {
     const t = e.target, i = +t.dataset.i, k = t.dataset.k; if (k == null) return;
-    lines[i][k] = (k === 'expiry' || k === 'wh') ? t.value : num(t.value);
+    if (k === 'expiry') { const v = parseExp(t.value); lines[i].expiry_txt = t.value; lines[i].expiry = v || ''; lines[i].expiry_bad = !!t.value.trim() && !v;
+      t.classList.toggle('bad', lines[i].expiry_bad); return; }
+    lines[i][k] = (k === 'wh') ? t.value : num(t.value);
     if (k === 'wh') { lines[i].wh_key = t.value; return; }
     const row = t.closest('tr'); row.querySelector('.sum').innerHTML = '<b>' + fmt(lines[i].qty * (lines[i].price || 0)) + '</b>';
     const tot = lines.reduce((s, l) => s + l.qty * (l.price || 0), 0); $('sdTot').textContent = fmt(tot); $('sdTot2').textContent = fmt(tot) + ' ₴';
@@ -113,7 +132,7 @@
     if (fd != null) { replaceIdx = +fd; $('sdQ').value = (lines[+fd].raw || '').split(/\s+/).slice(0, 3).join(' '); $('sdQ').focus(); $('sdQ').dispatchEvent(new Event('input')); return; }
     const d = e.target.dataset.del, u = e.target.dataset.dup;
     if (d != null) { lines.splice(+d, 1); render(); }
-    if (u != null) { const src = lines[+u]; lines.splice(+u + 1, 0, {...src, qty: 1, expiry: ''}); render();
+    if (u != null) { const src = lines[+u]; lines.splice(+u + 1, 0, {...src, qty: 1, expiry: '', expiry_txt: null, expiry_bad: false}); render();
       const inp = $('sdRows').querySelectorAll('input[data-k="expiry"]')[+u + 1]; if (inp) inp.focus(); }
   });
 
@@ -199,6 +218,7 @@
     if (!lines.length) { $('sdErr').textContent = 'Додайте хоча б один товар'; return; }
     if (lines.some(l => !l.product_id)) { $('sdErr').textContent = 'Оберіть товар для червоних рядків або видаліть їх'; return; }
     if (lines.some(l => !(l.qty > 0))) { $('sdErr').textContent = 'Вкажіть кількість у кожному рядку'; return; }
+    if (lines.some(l => l.expiry_bad)) { $('sdErr').textContent = 'Перевірте «Придатний до» в червоних рядках: дата у форматі 31.12.2027 або 12.2027'; return; }
     const body = {kind: KIND, post, date: $('sdDate').value, supplier: $('sdSup').value, wh: $('sdWh').value, ext_no: $('sdExt').value,
                   note: $('sdNote').value, lines: lines.map(l => ({product_id: l.product_id, qty: l.qty, price: l.price, expiry: l.expiry, wh: l.wh_key || $('sdWh').value})),
                   paid_by: $('sdPaidBy') ? $('sdPaidBy').value : '', paid: !!($('sdPaidBy') && $('sdPaidBy').value), sup_req: recSup};
