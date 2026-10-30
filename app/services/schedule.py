@@ -8,7 +8,7 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import Doctor, StaffShift
+from ..models import Doctor, StaffShift, DayOff
 
 TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
@@ -98,3 +98,43 @@ def totals(sh: dict, doctor_ids: list[int]) -> dict[int, dict]:
             out[did]["days"] += 1
             out[did]["minutes"] += s.minutes
     return out
+
+
+# ---------------- неробочі дні з причиною ----------------
+OFF_KINDS = {"weekend": ("Вікенд", "#F6C9CF", "#C0392B"), "other_place": ("Працює в іншому місці", "#E3EEF9", "#2F65A0"),
+             "birthday": ("День народження", "#E4DEEF", "#5C4B82"), "corporate": ("Корпоратив", "#E8F2DC", "#4A7A2C"),
+             "dayoff": ("Відгул", "#F2EFEA", "#6b6575"), "study": ("Навчання", "#E2F1FD", "#2F65A0"),
+             "sick": ("Лікарняний", "#FDECEA", "#B23B2E"), "vacation": ("Відпустка", "#FCEBC7", "#9A6A00"), "holiday": ("Свято", "#FFF1D6", "#B7791F")}
+
+
+def offs(db: Session, d_from: date, d_to: date) -> dict[tuple[int, date], DayOff]:
+    return {(o.doctor_id, o.day): o for o in db.scalars(select(DayOff).where(DayOff.day >= d_from, DayOff.day <= d_to))}
+
+
+def bulk(db: Session, cells: list[tuple[int, date]], action: str, start: str = "", end: str = "", place: str | None = None,
+         kind: str = "", user_id: int | None = None) -> int:
+    """Групова зміна клітинок графіка: work — робочий час, off — неробочий (kind — причина, порожньо — просто прибрати зміну)."""
+    if action == "work" and not valid(start, end):
+        raise ValueError("Час у форматі ГГ:ХХ, початок раніше за кінець")
+    n = 0
+    for did, day in cells:
+        sh = db.scalar(select(StaffShift).where(StaffShift.doctor_id == did, StaffShift.day == day))
+        of = db.scalar(select(DayOff).where(DayOff.doctor_id == did, DayOff.day == day))
+        if action == "work":
+            if of:
+                db.delete(of)
+            sh = sh or StaffShift(doctor_id=did, day=day)
+            sh.start, sh.end, sh.place, sh.updated_by, sh.updated_at = start, end, place or None, user_id, datetime.utcnow()
+            db.add(sh)
+        else:
+            if sh:
+                db.delete(sh)
+            if kind in OFF_KINDS:
+                of = of or DayOff(doctor_id=did, day=day)
+                of.kind, of.updated_by = kind, user_id
+                db.add(of)
+            elif of:
+                db.delete(of)
+        n += 1
+    db.commit()
+    return n

@@ -177,7 +177,7 @@ class Column:
     events: list[Event]
 
 
-def columns(db: Session, ev: dict[date, list[Event]], fixed: bool) -> dict[date, list[Column]]:
+def columns(db: Session, ev: dict[date, list[Event]], fixed: bool, working: set | None = None) -> dict[date, list[Column]]:
     """Колонки по спеціалістах для кожного дня.
     fixed=True (день): усі чинні спеціалісти календаря + ті, в кого є записи.
     fixed=False (тиждень): у кожен день — лише ті, хто того дня має записи (1, 2, 3…)."""
@@ -191,8 +191,9 @@ def columns(db: Session, ev: dict[date, list[Event]], fixed: bool) -> dict[date,
         for e in items:
             groups.setdefault(e.doctor_id if e.doctor_id in by_id else None, []).append(e)
         ids = [k for k in groups if k is not None]
-        if fixed:
-            ids = [x.id for x in base] + [k for k in ids if k not in order]
+        if fixed:          # у календарі — «Показувати в календарі» + зміна в графіку; без графіка — лише якщо є записи (перехідний період)
+            ids = [x.id for x in base if working is None or (x.id, d) in working] + [k for k in ids if k not in order or (working is not None and (k, d) not in working)]
+            ids = list(dict.fromkeys(ids))
         ids.sort(key=lambda k: order.get(k, 999))
         cols = [Column(str(k), by_id.get(k), groups.get(k, [])) for k in ids]
         if None in groups:

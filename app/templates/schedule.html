@@ -1,83 +1,141 @@
 {% extends "base.html" %}
-{% block title %}Графік роботи · Команда{% endblock %}
+{% block title %}Графік співробітників · MOLODIST CRM{% endblock %}
 {% block body %}
-{% set qp = request.query_params %}{% set back = request.url.path ~ '?' ~ request.url.query %}
+{% set qp = request.query_params %}{% set back = request.url.path ~ '?' ~ request.url.query %}{% set edit = can(user,'schedule') %}
 <style>
-.sg-wrap{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:auto;box-shadow:var(--shadow)}
-.sg{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%}
-.sg th,.sg td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:0;text-align:center;font-size:12.5px}
-.sg th{background:var(--soft);padding:6px 4px;position:sticky;top:0;z-index:2;min-width:66px}
-.sg th.we{color:var(--bad)}.sg th.td{background:var(--lavender)}
-.sg .nm{position:sticky;left:0;background:#fff;z-index:3;text-align:left;padding:8px 12px;min-width:190px;max-width:220px}
-.sg th.nm{z-index:4;background:var(--soft)}
-.sg .nm b{display:block;font-size:13.5px}.sg .nm span{font-size:11.5px;color:var(--muted)}
-.cell{display:block;width:100%;min-height:52px;border:0;background:transparent;cursor:pointer;padding:5px 3px;font:inherit;color:inherit}
-.cell:hover{background:var(--brand-soft)}
-.cell .sh{display:block;border-radius:8px;padding:4px 2px;font-weight:700;font-size:12px;line-height:1.25;color:#fff;background:var(--c)}
-.cell .sh i{display:block;font-style:normal;font-weight:600;font-size:10.5px;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cell .off{color:#c9c3cf;font-size:18px}
-td.we{background:#FBF9F6}td.td{background:#F6F3FB}
-.sg-tools{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px;margin-top:16px}
-dialog.sd{border:0;border-radius:18px;padding:0;width:min(440px,96vw);box-shadow:0 30px 80px rgba(42,36,48,.35)}
-dialog.sd::backdrop{background:rgba(42,36,48,.45)}
-.sd-h{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line)}
-.sd-h h3{margin:0;font-size:17px}.sd-b{padding:14px 18px 18px;display:grid;gap:10px}
-.sd-b label{display:grid;gap:4px;font-size:12px;font-weight:700;color:var(--muted)}.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.wdp{display:flex;gap:4px;flex-wrap:wrap}.wdp label{display:inline-flex;align-items:center;gap:4px;background:var(--soft);border-radius:8px;padding:6px 9px;font-weight:700;color:var(--ink)}
+.gs-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:12px 14px;margin-bottom:14px;box-shadow:0 1px 2px rgba(42,36,48,.04),0 14px 34px -28px rgba(42,36,48,.35)}
+.gs-top h1{margin:0 12px 0 4px;font-size:22px}
+.gs-m{display:flex;align-items:center;height:44px;background:#F7F4F0;border-radius:13px;padding:0 4px}
+.gs-m a{width:34px;height:36px;display:grid;place-items:center;border-radius:10px;color:#3B3050;text-decoration:none;font-size:20px}.gs-m a:hover{background:#fff}
+.gs-m b{min-width:150px;text-align:center;font:600 15px var(--sans);color:#2A2430}
+.gs-btn{height:44px;display:inline-flex;align-items:center;gap:8px;padding:0 16px;border:1px solid #E6E0D8;border-radius:13px;background:#fff;font:600 13.5px var(--sans);color:#2A2430;text-decoration:none;cursor:pointer}
+.gs-btn:hover{border-color:#C9BFE6;background:#F6F3FB}.gs-sp{margin-left:auto}
+.gs-wrap{background:#fff;border:1px solid #ECE7E1;border-radius:20px;overflow:auto;box-shadow:0 1px 2px rgba(42,36,48,.04),0 14px 34px -28px rgba(42,36,48,.35);max-height:calc(100vh - 210px)}
+.gs{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;user-select:none}
+.gs th,.gs td{border-bottom:1px solid #F0ECE6;border-right:1px solid #F3EFEA;padding:0;text-align:center}
+.gs thead th{position:sticky;top:0;z-index:3;background:#FBFAF8;padding:8px 2px;min-width:58px;font:600 12.5px var(--sans);color:#2A2430}
+.gs thead th small{display:block;font:500 11px var(--sans);color:#9a93a6;line-height:1.35;font-variant-numeric:tabular-nums}
+.gs thead th.we{color:#B23B2E}.gs thead th.cl{color:#B23B2E}.gs thead th.td{background:#F6F3FB;box-shadow:inset 0 -3px 0 #3B3050}
+.gs .nm{position:sticky;left:0;z-index:2;background:#FBFAF8;text-align:left;padding:10px 12px;min-width:230px;max-width:250px;border-right:1px solid #ECE7E1}
+.gs thead th.nm{z-index:4}
+.gs .who{display:flex;gap:10px;align-items:center}.gs .av{width:38px;height:38px;border-radius:50%;flex:none;display:grid;place-items:center;font:500 13px var(--head);color:#fff;background-size:cover;background-position:center}
+.gs .who b{display:block;font:600 14px var(--sans);color:#2A2430}.gs .who span{display:block;font-size:11.5px;color:#8a8496;line-height:1.3}
+.gs .cnt{display:inline-block;margin-top:6px;font:700 11.5px var(--sans);color:#3B3050;background:#F1EDF8;border-radius:99px;padding:1px 8px;font-variant-numeric:tabular-nums}
+.gs td.c{height:78px;min-width:58px;position:relative;cursor:pointer;vertical-align:top;background:#fff}
+.gs td.c.closed{background:#EFECE8}.gs td.c.td{box-shadow:inset 1px 0 0 #E7A2A2,inset -1px 0 0 #E7A2A2}
+.gs td.c.w{background:#EEF7EE;box-shadow:inset 0 3px 0 #7BC47F}
+.gs td.c .t{display:block;padding-top:9px;font:600 12px/1.45 var(--sans);color:#2A2430;font-variant-numeric:tabular-nums}
+.gs td.c .pl{display:block;font-size:10px;color:#6b6575;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 3px}
+.gs td.c.o{background:var(--ob)}.gs td.c.o .oi{display:block;padding-top:12px;color:var(--oc);font-size:20px;line-height:1}
+.gs td.c.o .on{display:block;font:600 9.5px var(--sans);color:var(--oc);padding:3px 2px 0;line-height:1.2}
+.gs td.c .bd{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);min-width:20px;height:20px;border-radius:99px;background:#C0392B;color:#fff;font:700 10.5px/20px var(--sans);padding:0 5px}
+.gs td.c:hover{filter:brightness(.97)}.gs td.c.sel{outline:2px solid #3B3050;outline-offset:-2px;background-image:linear-gradient(rgba(59,48,80,.12),rgba(59,48,80,.12))}
+.gs-leg{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;font-size:12px;color:#8a8496;font-weight:600}.gs-leg i{display:inline-block;width:14px;height:14px;border-radius:4px;margin-right:5px;vertical-align:-3px}
+.gd-back{position:fixed;inset:0;background:rgba(42,36,48,.4);opacity:0;pointer-events:none;transition:opacity .2s;z-index:90}.gd-back.on{opacity:1;pointer-events:auto}
+.gd{position:fixed;top:0;right:0;bottom:0;width:min(420px,100vw);background:#F7F4F0;z-index:91;transform:translateX(100%);transition:transform .25s;display:flex;flex-direction:column;box-shadow:-30px 0 60px -30px rgba(42,36,48,.5)}
+.gd.on{transform:none}.gd-h{display:flex;align-items:center;gap:10px;padding:16px 20px;background:#fff;border-bottom:1px solid #ECE7E1}
+.gd-h h3{flex:1;margin:0;font:600 16px var(--head);letter-spacing:.14em;text-transform:uppercase}.gd-h button{border:0;background:#F7F4F0;width:36px;height:36px;border-radius:10px;cursor:pointer;font-size:18px}
+.gd-b{padding:18px 20px;display:grid;gap:14px;overflow:auto}
+.gd-s{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:16px;display:grid;gap:12px}
+.gd-s h4{margin:0;font:600 11.5px var(--head);letter-spacing:.14em;text-transform:uppercase;color:#3B3050}
+.gd-who{font-size:13px;color:#6b6575;line-height:1.5}
+.tw{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center}.tw select{height:44px;text-align:center;font:600 15px var(--sans)}
+.gd .err{color:#B23B2E;font-weight:600;font-size:13px}
+.ok-k{display:grid;grid-template-columns:1fr 1fr;gap:6px}.ok-k label{cursor:pointer}.ok-k input{display:none}
+.ok-k span{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:12px;border:1px solid #E6E0D8;background:#fff;font:600 12.5px var(--sans);color:#2A2430}
+.ok-k span i{width:22px;height:22px;border-radius:7px;display:grid;place-items:center;font-style:normal;font-size:13px;flex:none}
+.ok-k input:checked+span{border-color:#3B3050;box-shadow:0 0 0 2px #E4DEEF}
+.gd-sel{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:80;background:#2A2430;color:#fff;border-radius:16px;padding:10px 12px 10px 18px;display:none;gap:12px;align-items:center;box-shadow:0 20px 40px -18px rgba(0,0,0,.6)}
+.gd-sel.on{display:flex}.gd-sel button{border:0;border-radius:11px;height:38px;padding:0 14px;font:700 13px var(--sans);cursor:pointer}
+.gd-sel .a{background:#fff;color:#3B3050}.gd-sel .x{background:rgba(255,255,255,.12);color:#fff}
+dialog.sd{border:0;border-radius:20px;padding:0;width:min(460px,96vw);box-shadow:0 30px 80px rgba(42,36,48,.35)}dialog.sd::backdrop{background:rgba(42,36,48,.45)}
+.sd-h{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #ECE7E1}.sd-h h3{margin:0;font:600 14px var(--head);letter-spacing:.14em;text-transform:uppercase}
+.sd-b{padding:14px 18px 18px;display:grid;gap:10px}.sd-b label{display:grid;gap:4px;font-size:12px;font-weight:700;color:#8a8496}.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.wdp{display:flex;gap:4px;flex-wrap:wrap}.wdp label{display:inline-flex;align-items:center;gap:4px;background:#F7F4F0;border-radius:8px;padding:6px 9px;font-weight:700;color:#2A2430}
 </style>
-<div class="row between" style="margin-bottom:10px;gap:10px"><div><div class="eyebrow"><a href="/specialists" style="text-decoration:none">Команда</a></div><h1>Графік роботи</h1>
-  <div class="muted small">Натисніть клітинку, щоб задати зміну або вихідний. Кабінети — з «Налаштування → Локації → Робочі місця».</div></div>
-  <form class="row" style="gap:6px"><a class="btn ghost" href="?start={{ start - timedelta(days=span if span != 31 else 28) }}&span={{ span }}&doc={{ doc }}">←</a>
-    <input type="date" name="start" value="{{ start }}" onchange="this.form.submit()"><select name="span" onchange="this.form.submit()">{% for v, t in [(7,'тиждень'),(14,'2 тижні'),(31,'місяць')] %}<option value="{{ v }}" {{ 'selected' if span==v }}>{{ t }}</option>{% endfor %}</select>
-    <select name="doc" onchange="this.form.submit()"><option value="0">Усі спеціалісти</option>{% for d in all_docs %}<option value="{{ d.id }}" {{ 'selected' if doc==d.id }}>{{ d.name }}</option>{% endfor %}</select>
-    <a class="btn ghost" href="?start={{ start + timedelta(days=span if span != 31 else 28) }}&span={{ span }}&doc={{ doc }}">→</a><a class="btn ghost" href="?span={{ span }}&doc={{ doc }}">Сьогодні</a></form></div>
+<div class="gs-top">
+  <h1>Графік співробітників</h1>
+  <div class="gs-m"><a href="?m={{ prev|dt('%Y-%m') }}&doc={{ doc or '' }}">‹</a><b>{{ month_name }}</b><a href="?m={{ nxt|dt('%Y-%m') }}&doc={{ doc or '' }}">›</a></div>
+  <a class="gs-btn" href="?doc={{ doc or '' }}">Цей місяць</a>
+  <span class="gs-sp"></span>
+  {% if edit %}<button class="gs-btn" type="button" onclick="document.getElementById('fill').showModal()">Заповнити за шаблоном</button>
+  <button class="gs-btn" type="button" onclick="document.getElementById('more').showModal()">Копіювати / очистити</button>{% endif %}
+  <a class="gs-btn" href="/calendar">До календаря</a>
+</div>
 {% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
 {% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
-<div class="sg-wrap"><table class="sg"><thead><tr><th class="nm">Спеціаліст</th>
-  {% for d in days %}<th class="{{ 'we' if d.weekday() >= 5 }} {{ 'td' if d == today }}">{{ WD[d.weekday()] }}<br><b>{{ d|dt('%d.%m') }}</b></th>{% endfor %}<th>Разом</th></tr></thead><tbody>
-{% for dc in docs %}{% set t = totals.get(dc.id) %}<tr><td class="nm"><b>{{ dc.name }}</b><span>{{ dc.position or '' }}</span></td>
-  {% for d in days %}{% set s = sh.get((dc.id, d)) %}<td class="{{ 'we' if d.weekday() >= 5 }} {{ 'td' if d == today }}">
-    <button type="button" class="cell" onclick='cell({{ dc.id }}, {{ dc.name|tojson }}, {{ d|string|tojson }}, {{ (WD[d.weekday()] ~ " " ~ d|dt("%d.%m"))|tojson }}, {{ (s.start if s else "")|tojson }}, {{ (s.end if s else "")|tojson }}, {{ (s.place if s and s.place else "")|tojson }}, {{ (s.note if s and s.note else "")|tojson }})'
-      title="{{ (s.note or '') if s }}">{% if s %}<span class="sh" style="--c:{{ color(dc) }}">{{ s.start }}<br>{{ s.end }}{% if s.place %}<i>{{ s.place }}</i>{% endif %}</span>{% else %}<span class="off">·</span>{% endif %}</button></td>{% endfor %}
-  <td class="small" style="padding:6px 8px;white-space:nowrap">{% if t %}<b>{{ t.days }}</b> дн<br>{{ (t.minutes // 60) }} год{{ (' ' ~ (t.minutes % 60) ~ ' хв') if t.minutes % 60 }}{% else %}—{% endif %}</td></tr>
-{% else %}<tr><td colspan="{{ days|length + 2 }}" class="muted" style="padding:14px">Немає активних спеціалістів.</td></tr>{% endfor %}
+<div class="gs-wrap"><table class="gs" id="gs"><thead><tr><th class="nm"><span style="font:600 11px var(--sans);letter-spacing:.12em;text-transform:uppercase;color:#9a93a6">Співробітник · робочих / неробочих</span></th>
+  {% for d in days %}{% set h = hours[d] %}<th class="{{ 'we' if d.weekday() >= 5 }} {{ 'cl' if not h }} {{ 'td' if d == today }}">{{ d.day }} {{ WD[d.weekday()] }}<small>{% if h %}{{ '%02d' % h[0] }}:00<br>{{ '%02d' % h[1] }}:00{% else %}вихідний<br>&nbsp;{% endif %}</small></th>{% endfor %}</tr></thead><tbody>
+{% for dc in docs %}<tr><td class="nm"><div class="who"><i class="av" style="{% if dc.photo_url %}background-image:url('{{ dc.photo_url }}'){% else %}background-color:{{ color(dc) }}{% endif %}">{{ '' if dc.photo_url else initials(dc.name) }}</i>
+    <div style="min-width:0"><b>{{ dc.name }}</b><span>{{ dc.position or '' }}{{ ' · не в календарі' if dc.in_calendar is false }}</span>
+    <span class="cnt" title="Робочих днів / неробочих">{{ work[dc.id] }}/{{ days|length - work[dc.id] }}</span></div></div></td>
+  {% for d in days %}{% set s = sh.get((dc.id, d)) %}{% set o = of.get((dc.id, d)) %}{% set n = cnt.get((dc.id, d)) %}
+    {% if s %}<td class="c w {{ 'td' if d == today }}" data-d="{{ dc.id }}" data-day="{{ d }}" data-s="{{ s.start }}" data-e="{{ s.end }}" data-p="{{ s.place or '' }}" title="{{ s.start }}–{{ s.end }}{{ (' · ' ~ s.place) if s.place }}"><span class="t">{{ s.start }}<br>{{ s.end }}</span>{% if s.place %}<span class="pl">{{ s.place }}</span>{% endif %}{% if n %}<span class="bd">{{ n }}</span>{% endif %}</td>
+    {% elif o and OFF.get(o.kind) %}{% set k = OFF[o.kind] %}<td class="c o {{ 'td' if d == today }}" style="--ob:{{ k[1] }};--oc:{{ k[2] }}" data-d="{{ dc.id }}" data-day="{{ d }}" data-k="{{ o.kind }}" title="{{ k[0] }}"><span class="oi">{{ {'weekend':'✕','vacation':'🌴','birthday':'🎂','sick':'✚','study':'✎','corporate':'★','holiday':'✦','other_place':'⇄','dayoff':'○'}.get(o.kind, '•') }}</span><span class="on">{{ k[0] }}</span>{% if n %}<span class="bd">{{ n }}</span>{% endif %}</td>
+    {% else %}<td class="c {{ 'closed' if not hours[d] }} {{ 'td' if d == today }}" data-d="{{ dc.id }}" data-day="{{ d }}">{% if n %}<span class="bd" title="Записи без графіка">{{ n }}</span>{% endif %}</td>{% endif %}
+  {% endfor %}</tr>
+{% else %}<tr><td colspan="{{ days|length + 1 }}" class="muted" style="padding:14px">Немає співробітників.</td></tr>{% endfor %}
 </tbody></table></div>
+<div class="gs-leg"><span><i style="background:#EEF7EE;box-shadow:inset 0 3px 0 #7BC47F"></i>Робочий день</span>{% for k, v in OFF.items() %}<span><i style="background:{{ v[1] }}"></i>{{ v[0] }}</span>{% endfor %}
+  <span><i style="background:#EFECE8"></i>Клініка зачинена</span><span><i style="background:#C0392B;border-radius:99px"></i>Записів за день</span></div>
+<p class="small muted" style="margin-top:10px">У календарі співробітник зʼявляється в день, коли в нього є зміна в графіку і в картці увімкнено «Відображати в календарі». Без графіка — лише якщо на цей день уже є записи (перехідний період). Фіксована ставка окладу «за день» рахується за робочими днями графіка.</p>
 
-<div class="sg-tools">
-<form class="card" style="margin:0" method="post" action="/specialists/schedule/fill"><input type="hidden" name="back" value="{{ back }}"><h2 style="margin-top:0">Заповнити графік</h2>
-  <div class="grid" style="gap:8px">
-    <select name="doctor_id" multiple size="4" required>{% for d in all_docs %}<option value="{{ d.id }}" {{ 'selected' if doc==d.id }}>{{ d.name }}</option>{% endfor %}</select>
-    <div class="small muted">Кілька — з Ctrl / ⌘.</div>
-    <div class="two"><label class="small muted">З<input type="date" name="d_from" value="{{ days[0] }}" required></label><label class="small muted">По<input type="date" name="d_to" value="{{ days[-1] }}" required></label></div>
-    <select name="mode" onchange="document.getElementById('wdp').style.display=this.value=='weekdays'?'flex':'none'"><option value="weekdays">За днями тижня</option><option value="2/2">2 через 2</option><option value="1/1">1 через 1</option><option value="3/3">3 через 3</option><option value="5/2">5 через 2</option></select>
+{% if edit %}
+<div class="gd-sel" id="gsel"><span id="gsel-n"></span><button class="a" type="button" onclick="gdOpen()">Налаштувати</button><button class="x" type="button" onclick="gdClear()">Скасувати</button></div>
+<div class="gd-back" id="gdb" onclick="gdClose()"></div>
+<aside class="gd" id="gd"><div class="gd-h"><h3>Розклад</h3><button type="button" onclick="gdClose()">×</button></div>
+  <div class="gd-b"><div class="gd-who" id="gd-who"></div><div class="err" id="gd-err"></div>
+    <div class="gd-s"><h4>Робочий час</h4>
+      <div class="tw"><select id="gd-s">{% for i in range(10, 47) %}{% set t = '%02d:%02d' % (i // 2, 30 * (i % 2)) %}<option {{ 'selected' if t == '10:00' }}>{{ t }}</option>{% endfor %}</select><span>—</span>
+        <select id="gd-e">{% for i in range(10, 48) %}{% set t = '%02d:%02d' % (i // 2, 30 * (i % 2)) %}<option {{ 'selected' if t == '20:00' }}>{{ t }}</option>{% endfor %}</select></div>
+      <select id="gd-p"><option value="">Без місця (кабінет не вказано)</option>{% for p in places %}<option>{{ p }}</option>{% endfor %}</select>
+      <button class="btn" type="button" onclick="gdApply('work')">Застосувати зміни</button></div>
+    <div class="gd-s"><h4>Неробочі дні</h4>
+      <div class="ok-k"><label><input type="radio" name="gk" value="" checked><span><i style="background:#F2EFEA">○</i>Вихідний (прибрати зміну)</span></label>
+        {% for k, v in OFF.items() %}<label><input type="radio" name="gk" value="{{ k }}"><span><i style="background:{{ v[1] }};color:{{ v[2] }}">{{ {'weekend':'✕','vacation':'🌴','birthday':'🎂','sick':'✚','study':'✎','corporate':'★','holiday':'✦','other_place':'⇄','dayoff':'○'}.get(k) }}</i>{{ v[0] }}</span></label>{% endfor %}</div>
+      <button class="btn ghost" type="button" onclick="gdApply('off')">Зробити дні неробочими</button></div>
+  </div></aside>
+
+<dialog class="sd" id="fill"><form method="post" action="/specialists/schedule/fill"><input type="hidden" name="back" value="{{ back }}">
+  <div class="sd-h"><h3>Заповнити за шаблоном</h3><button type="button" class="btn ghost" style="padding:4px 10px" onclick="this.closest('dialog').close()">×</button></div>
+  <div class="sd-b"><label>Співробітники<select name="doctor_id" multiple size="5" required>{% for d in docs %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}</select></label>
+    <div class="two"><label>З<input type="date" name="d_from" value="{{ days[0] }}" required></label><label>По<input type="date" name="d_to" value="{{ days[-1] }}" required></label></div>
+    <select name="mode" onchange="document.getElementById('wdp').style.display=this.value=='weekdays'?'flex':'none'"><option value="weekdays">За днями тижня</option><option value="2/2">2 через 2</option><option value="1/1">1 через 1</option><option value="3/3">3 через 3</option></select>
     <div class="wdp" id="wdp">{% for w in WD %}<label><input type="checkbox" name="wd" value="{{ loop.index0 }}" {{ 'checked' if loop.index0 < 5 }} style="width:auto">{{ w }}</label>{% endfor %}</div>
     <div class="two"><input type="time" name="start" value="10:00" required><input type="time" name="end" value="20:00" required></div>
     <select name="place"><option value="">Кабінет — не вказано</option>{% for p in places %}<option>{{ p }}</option>{% endfor %}</select>
-    <label class="small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="overwrite" value="1" checked style="width:auto"> замінити наявні зміни</label>
-    <button class="btn">Заповнити</button></div></form>
-<div class="card" style="margin:0"><h2 style="margin-top:0">Копіювати тиждень</h2>
-  <form method="post" action="/specialists/schedule/copy" class="grid" style="gap:8px"><input type="hidden" name="back" value="{{ back }}">
-    <label class="small muted">Тиждень, з якого копіювати<input type="date" name="src" value="{{ start }}"></label>
-    <label class="small muted">На скільки наступних тижнів<select name="weeks">{% for n in range(1, 9) %}<option>{{ n }}</option>{% endfor %}</select></label>
-    <button class="btn ghost">Копіювати</button></form>
-  <h2 style="margin:18px 0 8px">Очистити період</h2>
-  <form method="post" action="/specialists/schedule/clear" class="grid" style="gap:8px" data-delpw="Прибрати зміни за період?"><input type="hidden" name="back" value="{{ back }}">
-    <select name="doctor_id"><option value="">Усі спеціалісти</option>{% for d in all_docs %}<option value="{{ d.id }}" {{ 'selected' if doc==d.id }}>{{ d.name }}</option>{% endfor %}</select>
-    <div class="two"><input type="date" name="d_from" value="{{ days[0] }}"><input type="date" name="d_to" value="{{ days[-1] }}"></div>
-    <button class="btn danger">Очистити</button></form></div>
-</div>
-
-<dialog class="sd" id="sd"><form method="post" action="/specialists/schedule/cell"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="doctor_id" id="sd-doc"><input type="hidden" name="day" id="sd-day">
-  <div class="sd-h"><h3 id="sd-t"></h3><button type="button" class="btn ghost" style="padding:4px 10px" onclick="document.getElementById('sd').close()">×</button></div>
-  <div class="sd-b"><div class="two"><label>Початок<input type="time" name="start" id="sd-s"></label><label>Кінець<input type="time" name="end" id="sd-e"></label></div>
-    <label>Кабінет<select name="place" id="sd-p"><option value="">— не вказано —</option>{% for p in places %}<option>{{ p }}</option>{% endfor %}</select></label>
-    <label>Примітка<input name="note" id="sd-n" placeholder="напр. до 15:00 — навчання"></label>
-    <div class="row" style="gap:8px;justify-content:space-between"><button class="btn danger" name="off" value="1">Вихідний</button><button class="btn">Зберегти</button></div></div></form></dialog>
+    <label style="display:flex;flex-direction:row;gap:6px;align-items:center;color:#2A2430"><input type="checkbox" name="overwrite" value="1" checked style="width:auto"> замінити наявні зміни</label>
+    <button class="btn">Заповнити</button></div></form></dialog>
+<dialog class="sd" id="more"><div class="sd-h"><h3>Копіювати / очистити</h3><button type="button" class="btn ghost" style="padding:4px 10px" onclick="this.closest('dialog').close()">×</button></div>
+  <div class="sd-b"><form method="post" action="/specialists/schedule/copy" class="sd-b" style="padding:0"><input type="hidden" name="back" value="{{ back }}">
+    <label>Тиждень, з якого копіювати<input type="date" name="src" value="{{ today }}"></label>
+    <label>На скільки наступних тижнів<select name="weeks">{% for n in range(1, 9) %}<option>{{ n }}</option>{% endfor %}</select></label><button class="btn ghost">Копіювати тиждень</button></form>
+  <form method="post" action="/specialists/schedule/clear" class="sd-b" style="padding:12px 0 0;border-top:1px solid #ECE7E1" data-delpw="Прибрати зміни за період?"><input type="hidden" name="back" value="{{ back }}">
+    <select name="doctor_id"><option value="">Усі співробітники</option>{% for d in docs %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}</select>
+    <div class="two"><input type="date" name="d_from" value="{{ days[0] }}"><input type="date" name="d_to" value="{{ days[-1] }}"></div><button class="btn danger">Очистити період</button></form></div></dialog>
 <script>
-function cell(doc,name,day,label,s,e,p,n){document.getElementById('sd-doc').value=doc;document.getElementById('sd-day').value=day;
-  document.getElementById('sd-t').textContent=name+' · '+label;document.getElementById('sd-s').value=s||'10:00';document.getElementById('sd-e').value=e||'20:00';
-  var sel=document.getElementById('sd-p');if(p&&![].some.call(sel.options,function(o){return o.value===p})){var o=document.createElement('option');o.textContent=p;sel.appendChild(o)}sel.value=p||'';
-  document.getElementById('sd-n').value=n||'';document.getElementById('sd').showModal()}
-document.getElementById('sd').addEventListener('click',function(e){if(e.target===this)this.close()});
+(function(){var t=document.getElementById('gs'),down=false,add=true,SEL=new Set();
+  function key(td){return td.dataset.d+'|'+td.dataset.day}
+  function mark(td,on){if(on)SEL.add(key(td));else SEL.delete(key(td));td.classList.toggle('sel',on);bar()}
+  function bar(){var b=document.getElementById('gsel');b.classList.toggle('on',SEL.size>0);document.getElementById('gsel-n').textContent='Обрано днів: '+SEL.size}
+  t.addEventListener('mousedown',function(e){var td=e.target.closest('td.c');if(!td)return;down=true;add=!td.classList.contains('sel');mark(td,add);e.preventDefault()});
+  t.addEventListener('mouseover',function(e){if(!down)return;var td=e.target.closest('td.c');if(td)mark(td,add)});
+  document.addEventListener('mouseup',function(){if(down){down=false;if(SEL.size===1)gdOpen()}});
+  window.gdClear=function(){SEL.clear();t.querySelectorAll('td.sel').forEach(function(x){x.classList.remove('sel')});bar()};
+  window.gdOpen=function(){if(!SEL.size)return;var tds=[].slice.call(t.querySelectorAll('td.sel')),f=tds[0],names={};
+    tds.forEach(function(x){names[x.closest('tr').querySelector('.who b').textContent]=1});
+    document.getElementById('gd-who').textContent=Object.keys(names).join(', ')+' · днів: '+tds.length+(tds.length===1?' · '+f.dataset.day.split('-').reverse().join('.'):'');
+    if(tds.length===1&&f.dataset.s){document.getElementById('gd-s').value=f.dataset.s;document.getElementById('gd-e').value=f.dataset.e;document.getElementById('gd-p').value=f.dataset.p||''}
+    document.getElementById('gd-err').textContent='';document.getElementById('gd').classList.add('on');document.getElementById('gdb').classList.add('on')};
+  window.gdClose=function(){document.getElementById('gd').classList.remove('on');document.getElementById('gdb').classList.remove('on')};
+  window.gdApply=function(a){var cells=[].map.call(t.querySelectorAll('td.sel'),function(x){return [x.dataset.d,x.dataset.day]});
+    var k=(document.querySelector('input[name=gk]:checked')||{}).value||'';
+    fetch('/specialists/schedule/bulk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cells:cells,action:a,
+      start:document.getElementById('gd-s').value,end:document.getElementById('gd-e').value,place:document.getElementById('gd-p').value,kind:k})})
+      .then(function(r){return r.json()}).then(function(j){if(j.error){document.getElementById('gd-err').textContent=j.error;return}location.reload()})};
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'){gdClose();gdClear()}});
+  var td=t.querySelector('thead th.td');if(td){var w=t.closest('.gs-wrap');w.scrollLeft=Math.max(0,td.offsetLeft-300)}
+})();
 </script>
+{% endif %}
 {% endblock %}

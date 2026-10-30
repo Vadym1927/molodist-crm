@@ -175,11 +175,8 @@
   <div class="csrch"><input id="calq" placeholder="Пошук по пацієнтах, послугах…" oninput="calFind(this.value)" onkeydown="if(event.key==='Enter'&&!calFind(this.value))location.href='/patients?q='+encodeURIComponent(this.value)">
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/></svg></div>
   <div class="cics">
-    <details class="cdd"><summary class="cic" title="Вигляд: день / тиждень / місяць"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M9 14.5l2 2 4-4"/></svg></summary>
-      <div class="cmenu"><a href="?start={{ start }}&view=day{{ q0 }}" class="{{ 'on' if view=='day' }}">День</a><a href="?start={{ start }}&view=week{{ q0 }}" class="{{ 'on' if view=='week' }}">Тиждень · розклад спеціаліста</a></div></details>
     {% if can(user,'book') and view=='day' %}<button type="button" class="cic" title="Заблокувати час" onclick="document.getElementById('blkd').showModal()"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3"/></svg></button>{% endif %}
     <a class="cic" href="/specialists/schedule" title="Графік роботи"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></a>
-    <a class="cic" href="/specialists" title="Співробітники"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 4.5a3 3 0 0 1 0 6M18 14.2c1.8.8 3 2.6 3 4.8"/></svg></a>
   </div>
   {% if can(user,'book') %}<button type="button" class="btn cnew" onclick="apOpenNew({{ doc or 0 }}, '{{ start }}T{{ '%02d' % (now_h if start == today else 10) }}:00')"><span>＋</span> Створити візит</button>{% endif %}
 </div>

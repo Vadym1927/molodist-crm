@@ -992,6 +992,17 @@ class FopMonth(Base):
         return round((self.cash or 0) + (self.cashless or 0), 2)
 
 
+class DayOff(Base):
+    """Неробочий день співробітника з причиною: вікенд, відпустка, лікарняний, день народження…"""
+    __tablename__ = "day_offs"
+    __table_args__ = (UniqueConstraint("doctor_id", "day"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    doctor_id: Mapped[int] = mapped_column(ForeignKey("doctors.id"), index=True)
+    day: Mapped[date] = mapped_column(Date, index=True)
+    kind: Mapped[str] = mapped_column(String(20))
+    updated_by: Mapped[int | None] = mapped_column(Integer)
+
+
 class TimeBlock(Base):
     """Заблокований час у календарі спеціаліста: зйомка, навчання, обід, техобслуговування."""
     __tablename__ = "time_blocks"

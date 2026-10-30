@@ -2546,7 +2546,8 @@ def calendar_page(request: Request, start: str | None = None, doc: str = "", vie
     from .services import clinic as _cl, schedule as _sch
     _dflt = (settings.work_hour_from, settings.work_hour_to)
     if view == "day":
-        cols = cal_svc.columns(db, ev, fixed=not doc_id)
+        _work = {(did_, s) for did_ in _sch.for_day(db, s)}
+        cols = cal_svc.columns(db, ev, fixed=not doc_id, working=_work)
         if doc_id:
             cols = {d: [c for c in cs if c.doctor and c.doctor.id == doc_id] or
                        [cal_svc.Column(str(doc_id), db.get(Doctor, doc_id), [])] for d, cs in cols.items()}
@@ -6142,18 +6143,44 @@ def _places(db: Session) -> list[str]:
 
 
 @app.get("/specialists/schedule", response_class=HTMLResponse)
-def schedule_page(request: Request, start: str = "", span: int = 14, doc: int = 0, user: User = Depends(require("specialists")),
+def schedule_page(request: Request, m: str = "", doc: int = 0, user: User = Depends(require("specialists")),
                   db: Session = Depends(db_dep)):
-    from .services import schedule as sch
+    """Графік співробітників на місяць (як у CleverBox): зміни, неробочі дні з причиною, записи по днях."""
+    from .services import schedule as sch, clinic as _cl, calendar as _cal
     today = date.today()
-    s = _day(start) or (today - timedelta(days=today.weekday()))
-    span = span if span in (7, 14, 31) else 14
-    days = [s + timedelta(days=i) for i in range(span)]
-    docs = [d_ for d_ in sch.doctors(db) if not doc or d_.id == doc]
-    sh = sch.shifts(db, days[0], days[-1])
-    return render(request, "schedule.html", nav="specialists", days=days, docs=docs, all_docs=sch.doctors(db), sh=sh, span=span,
-                  start=s, doc=doc, today=today, totals=sch.totals(sh, [d_.id for d_ in docs]), places=_places(db),
-                  timedelta=timedelta, WD=["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"], color=spec_svc.color)
+    first = (_day(m + "-01") if m else None) or today.replace(day=1)
+    nxt = (first + timedelta(days=32)).replace(day=1)
+    days = [first + timedelta(days=i) for i in range((nxt - first).days)]
+    docs = [d_ for d_ in db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)) if not doc or d_.id == doc]
+    sh, of = sch.shifts(db, days[0], days[-1]), sch.offs(db, days[0], days[-1])
+    hours = {d: _cl.hours_for(db, d) for d in days}
+    cnt: dict = {}
+    for d, evs in _cal.events(db, user, first, len(days)).items():
+        for e in evs:
+            if e.kind in ("visit", "attended") and e.doctor_id:
+                cnt[(e.doctor_id, d)] = cnt.get((e.doctor_id, d), 0) + 1
+    work = {d_.id: sum(1 for d in days if (d_.id, d) in sh) for d_ in docs}
+    MONTHS = ["січень", "лютий", "березень", "квітень", "травень", "червень", "липень", "серпень", "вересень", "жовтень", "листопад", "грудень"]
+    return render(request, "schedule.html", nav="specialists", days=days, docs=docs, sh=sh, of=of, hours=hours, cnt=cnt, work=work,
+                  first=first, prev=(first - timedelta(days=1)).replace(day=1), nxt=nxt, month_name=f"{MONTHS[first.month - 1]} {first.year}",
+                  today=today, doc=doc, places=_places(db), OFF=sch.OFF_KINDS, color=spec_svc.color, initials=spec_svc.initials,
+                  WD=["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"], all_docs=docs, timedelta=timedelta)
+
+
+@app.post("/specialists/schedule/bulk")
+async def schedule_bulk(request: Request, user: User = Depends(require("schedule")), db: Session = Depends(db_dep)):
+    from .services import schedule as sch
+    js = await request.json()
+    cells = [(int(c[0]), _day(str(c[1]))) for c in js.get("cells") or [] if str(c[0]).isdigit() and _day(str(c[1]))][:2000]
+    if not cells:
+        return JSONResponse({"error": "Оберіть клітинки графіка"}, status_code=400)
+    try:
+        n = sch.bulk(db, cells, "work" if js.get("action") == "work" else "off", str(js.get("start") or ""), str(js.get("end") or ""),
+                     str(js.get("place") or "").strip()[:120] or None, str(js.get("kind") or ""), user.id)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    audit(db, "schedule.bulk", user=user, action=js.get("action"), kind=js.get("kind"), cells=n)
+    return JSONResponse({"ok": True, "n": n})
 
 
 def _sched_back(back: str, msg: str = "", err: bool = False) -> RedirectResponse:

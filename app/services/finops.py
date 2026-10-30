@@ -375,7 +375,9 @@ def payroll(db: Session, month: str, upto_from: str | None = None) -> list[dict]
             s = sales.get((mk, d.id), {"services": 0.0, "products": 0.0, "n": 0})
             if pl:
                 lns = lines.get((mk, d.id), [])
-                days = {dd for (did, dd) in shifts_ if did == d.id and month_key(dd) == mk} | {ln["day"] for ln in lns}
+                days = {dd for (did, dd) in shifts_ if did == d.id and month_key(dd) == mk}
+                if not days:            # графік на місяць не заповнений — перехідний період: дні з послугами/продажами
+                    days = {ln["day"] for ln in lns}
                 hours = sum(sh.minutes for (did, dd), sh in shifts_.items() if did == d.id and month_key(dd) == mk) / 60
                 res = spl.accrue(pl, lns, days, hours, clinic.get(mk, []))
                 adj = sum(x.amount for x in adjs.get((mk, d.id), []))
