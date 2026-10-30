@@ -170,19 +170,14 @@
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
       <input type="date" value="{{ start }}" onchange="location.href='?start='+this.value+'&view={{ view }}{{ q0 }}'"></label>
     <a href="?start={{ next }}&view={{ view }}{{ q0 }}" title="Вперед">›</a></div>
-  <div class="cloc"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
-    <select>{% for l in (locs or []) %}<option>{{ l.name }}</option>{% else %}<option>MOLODIST</option>{% endfor %}</select></div>
   <div class="csrch"><input id="calq" placeholder="Пошук по пацієнтах, послугах…" oninput="calFind(this.value)" onkeydown="if(event.key==='Enter'&&!calFind(this.value))location.href='/patients?q='+encodeURIComponent(this.value)">
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/></svg></div>
   <div class="cics">
-    {% if user.role != 'doctor' %}<details class="cdd"><summary class="cic {{ 'on' if doc }}" title="Фільтр по спеціалісту"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 5h16l-6 7.5V19l-4 1.5v-8z"/></svg></summary>
-      <div class="cmenu"><a href="?start={{ start }}&view={{ view }}" class="{{ 'on' if not doc }}">Усі фахівці</a>{% for d in specialists %}<a href="?start={{ start }}&view={{ view }}&doc={{ d.id }}" class="{{ 'on' if doc==d.id }}">{{ d.name }}</a>{% endfor %}</div></details>{% endif %}
     <details class="cdd"><summary class="cic" title="Вигляд: день / тиждень / місяць"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M9 14.5l2 2 4-4"/></svg></summary>
       <div class="cmenu"><a href="?start={{ start }}&view=day{{ q0 }}" class="{{ 'on' if view=='day' }}">День</a><a href="?start={{ start }}&view=week{{ q0 }}" class="{{ 'on' if view=='week' }}">Тиждень</a><a href="?start={{ start }}&view=month{{ q0 }}" class="{{ 'on' if view=='month' }}">Місяць</a></div></details>
     {% if can(user,'book') and view=='day' %}<button type="button" class="cic" title="Заблокувати час" onclick="document.getElementById('blkd').showModal()"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3"/></svg></button>{% endif %}
     <a class="cic" href="/specialists/schedule" title="Графік роботи"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></a>
     <a class="cic" href="/specialists" title="Співробітники"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 4.5a3 3 0 0 1 0 6M18 14.2c1.8.8 3 2.6 3 4.8"/></svg></a>
-    <a class="cic" href="/settings/clinic" title="Налаштування календаря"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg></a>
   </div>
   {% if can(user,'book') %}<button type="button" class="btn cnew" onclick="apOpenNew({{ doc or 0 }}, '{{ start }}T{{ '%02d' % (now_h if start == today else 10) }}:00')"><span>＋</span> Створити візит</button>{% endif %}
 </div>
@@ -190,7 +185,7 @@
 {% if view=='day' %}
 {% set PX = 1.3 %}{% set EXTRA = 30 %}{% set H = (grid.h1 - grid.h0) * 60 * PX %}{% set n = grid.cols|length %}
 {% set GC = 'grid-template-columns:76px repeat(' ~ n ~ ',minmax(260px,1fr))' %}
-<div class="tg" id="tgw">
+<div class="tg" id="tgw" style="--px:1.3px">
   <div class="tg-head" style="{{ GC }}">
     <div class="tg-nav"><button type="button" onclick="calPage(-1)" title="Попередні">‹</button><button type="button" onclick="calPage(1)" title="Наступні">›</button></div>
     {% for g in grid.cols %}{% set d = g.col.doctor %}
@@ -206,25 +201,25 @@
     {% for g in grid.cols %}<div class="tg-allday">{% for e in g.allday %}
       <a class="{{ e.kind }}" href="{{ ('/patients/' ~ e.patient_id) if e.patient_id else '/tasks' }}" title="{{ e.subtitle or '' }}">{{ '⏳' if e.kind=='expected' else '☑' }} {{ e.title }}</a>{% endfor %}</div>{% endfor %}
   </div>{% endif %}
-  <div class="tg-body" style="{{ GC }};height:{{ H + EXTRA * PX + 10 }}px">
-    <div class="tg-hours">{% for h in range(grid.h0, grid.h1 + 1) %}<div class="hh" style="top:{{ (h - grid.h0) * 60 * PX }}px">{{ '%02d' % h }}:00</div>{% if h < grid.h1 %}<div style="top:{{ ((h - grid.h0) * 60 + 30) * PX }}px">{{ '%02d' % h }}:30</div>{% endif %}{% endfor %}
-      {% if grid.now_top is not none %}<span class="nowpill" style="top:{{ grid.now_top * PX }}px">{{ now_hm }}</span>{% endif %}</div>
+  <div class="tg-body" data-min="{{ (grid.h1 - grid.h0) * 60 + EXTRA }}" style="{{ GC }};height:calc({{ (grid.h1 - grid.h0) * 60 + EXTRA }} * var(--px) + 10px)">
+    <div class="tg-hours">{% for h in range(grid.h0, grid.h1 + 1) %}<div class="hh" style="top:calc({{ (h - grid.h0) * 60 }} * var(--px))">{{ '%02d' % h }}:00</div>{% if h < grid.h1 %}<div style="top:calc({{ (h - grid.h0) * 60 + 30 }} * var(--px))">{{ '%02d' % h }}:30</div>{% endif %}{% endfor %}
+      {% if grid.now_top is not none %}<span class="nowpill" style="top:calc({{ grid.now_top }} * var(--px))">{{ now_hm }}</span>{% endif %}</div>
     {% for g in grid.cols %}
     <div class="tg-col" style="--c:{{ color(g.col.doctor) if g.col.doctor else '#9a93a6' }}" {% if can(user,'book') %}onclick="tgNew(event, this, {{ g.col.doctor.id if g.col.doctor else 0 }})" title="Натисніть на вільний час — новий запис"{% endif %}>
-      {% set _s = (shifts or {}).get(g.col.doctor.id) if g.col.doctor else None %}{% if _s %}{% set a = (_s.start[:2]|int * 60 + _s.start[3:]|int - grid.h0 * 60) * PX %}{% set b = (_s.end[:2]|int * 60 + _s.end[3:]|int - grid.h0 * 60) * PX %}
-        {% if a > 0 %}<div class="offsh" style="top:0;height:{{ a }}px"></div>{% endif %}<div class="offsh" style="top:{{ b }}px;bottom:0"></div>{% endif %}
-      <div class="offsh" style="top:{{ H }}px;bottom:0"></div>
-      {% for h in range(grid.h0, grid.h1 + 1) %}<div class="tg-line h" style="top:{{ (h - grid.h0) * 60 * PX }}px"></div>{% if h < grid.h1 %}<div class="tg-line" style="top:{{ ((h - grid.h0) * 60 + 30) * PX }}px"></div>{% endif %}{% endfor %}
+      {% set _s = (shifts or {}).get(g.col.doctor.id) if g.col.doctor else None %}{% if _s %}{% set a = (_s.start[:2]|int * 60 + _s.start[3:]|int - grid.h0 * 60) %}{% set b = (_s.end[:2]|int * 60 + _s.end[3:]|int - grid.h0 * 60) %}
+        {% if a > 0 %}<div class="offsh" style="top:0;height:calc({{ a }} * var(--px))"></div>{% endif %}<div class="offsh" style="top:calc({{ b }} * var(--px));bottom:0"></div>{% endif %}
+      <div class="offsh" style="top:calc({{ (grid.h1 - grid.h0) * 60 }} * var(--px));bottom:0"></div>
+      {% for h in range(grid.h0, grid.h1 + 1) %}<div class="tg-line h" style="top:calc({{ (h - grid.h0) * 60 }} * var(--px))"></div>{% if h < grid.h1 %}<div class="tg-line" style="top:calc({{ (h - grid.h0) * 60 + 30 }} * var(--px))"></div>{% endif %}{% endfor %}
       {% for b in g.blocks %}{% set e = b.ev %}
       {% if e.kind == 'block' %}
-      <div class="blk lock" style="top:{{ b.top * PX + 1 }}px;height:{{ [b.height * PX - 3, 26]|max }}px;left:calc({{ 100 * b.lane / b.lanes }}% + 6px);width:calc({{ 100 / b.lanes }}% - 12px)" onclick="event.stopPropagation()" data-q="{{ e.title|lower }}">
+      <div class="blk lock" style="top:calc({{ b.top }} * var(--px) + 1px);height:max(calc({{ b.height }} * var(--px) - 3px), 26px);left:calc({{ 100 * b.lane / b.lanes }}% + 6px);width:calc({{ 100 / b.lanes }}% - 12px)" onclick="event.stopPropagation()" data-q="{{ e.title|lower }}">
         <span class="tm">{{ e.when|dt('%H:%M') }} - {{ (e.ends or e.when)|dt('%H:%M') }}</span><b>{{ e.title }}</b>
         {% if can(user,'book') %}<form method="post" action="/calendar/blocks/{{ e.block_id }}/delete" onsubmit="return confirm('Зняти блокування «{{ e.title }}»?')"><button title="Зняти блокування">×</button></form>{% endif %}</div>
       {% else %}
-      <a class="blk {{ e.kind }} s-{{ e.status or 'booked' }} {{ 'short' if b.height * PX < 52 }} {{ 'crm' if e.appt_id }}" href="{{ ('/patients/' ~ e.patient_id) if e.patient_id else '/tasks' }}" title="{{ e.title }} · {{ e.service or '' }}"
+      <a class="blk {{ e.kind }} s-{{ e.status or 'booked' }} {{ 'short' if b.height < 45 }} {{ 'crm' if e.appt_id }}" href="{{ ('/patients/' ~ e.patient_id) if e.patient_id else '/tasks' }}" title="{{ e.title }} · {{ e.service or '' }}"
          data-q="{{ (e.title ~ ' ' ~ (e.service or '') ~ ' ' ~ (e.note or ''))|lower }}"
          {% if e.appt_id %}onclick="event.stopPropagation();apptOpen({{ e.appt_id }});return false"{% endif %}
-         style="top:{{ b.top * PX + 1 }}px;height:{{ [b.height * PX - 3, 26]|max }}px;left:calc({{ 100 * b.lane / b.lanes }}% + 6px);width:calc({{ 100 / b.lanes }}% - 12px)">
+         style="top:calc({{ b.top }} * var(--px) + 1px);height:max(calc({{ b.height }} * var(--px) - 3px), 26px);left:calc({{ 100 * b.lane / b.lanes }}% + 6px);width:calc({{ 100 / b.lanes }}% - 12px)">
         <span class="ics">{% if e.online %}<i title="Онлайн-запис">@</i>{% endif %}{% if e.paid %}<i class="pd" title="Оплачено"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/></svg></i>{% endif %}</span>
         <div class="hd"><span class="tm">{{ e.when|dt('%H:%M') }}-{{ (e.ends or e.when)|dt('%H:%M') }}</span><b>{{ e.title }}</b>
           {% if e.tag %}<span class="ptag {{ 'fan' if e.tag == 'ФАНАТ' else ('reg' if e.tag.startswith('Пост') else 'new') }}">{{ e.tag }}</span>{% endif %}
@@ -232,7 +227,7 @@
         {% if e.services %}<div class="svl">{% for s in e.services %}<span><em>👉</em> {{ s }}</span>{% endfor %}</div>{% endif %}
         {% if e.note %}<div class="nt">Замітка: {{ e.note }}</div>{% endif %}</a>
       {% endif %}{% endfor %}
-      {% if grid.now_top is not none %}<div class="nowline" style="top:{{ grid.now_top * PX }}px"></div>{% endif %}
+      {% if grid.now_top is not none %}<div class="nowline" style="top:calc({{ grid.now_top }} * var(--px))"></div>{% endif %}
     </div>
     {% endfor %}
   </div>
@@ -246,72 +241,6 @@
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><label class="small muted" style="display:grid;gap:4px">З<input name="t_from" value="10:00" required placeholder="10:00"></label><label class="small muted" style="display:grid;gap:4px">До<input name="t_to" value="12:00" required placeholder="12:00"></label></div>
   <label class="small muted" style="display:grid;gap:4px">Причина<input name="title" placeholder="Зйомка, навчання, обід…" maxlength="120"></label>
   <button class="btn">Заблокувати</button></form></dialog>{% endif %}
-{% elif view=='week' %}{{ start.day }} {{ MON[start.month-1] }} — {{ end.day }} {{ MON[end.month-1] }} {{ end.year }}{% else %}{{ MON1[start.month-1] }} {{ start.year }}{% endif %}</div></div>
-  <div class="cal-ctl">
-    {% if can(user,'book') %}<button type="button" class="btn" style="height:40px" onclick="apOpenNew({{ doc or 0 }}, '{{ start }}T{{ '%02d' % (now_h if start == today else 10) }}:00')">＋ Запис</button>{% endif %}
-    <a class="icon-btn" title="Назад" href="?start={{ prev }}&view={{ view }}&doc={{ doc or '' }}">‹</a>
-    <a class="btn ghost" style="height:40px" href="?view={{ view }}&doc={{ doc or '' }}">Сьогодні</a>
-    <a class="icon-btn" title="Вперед" href="?start={{ next }}&view={{ view }}&doc={{ doc or '' }}">›</a>
-    <div class="seg" style="margin-left:8px">
-      <a class="{{ 'on' if view=='day' }}" href="?start={{ today if (view!='day' and start <= today <= end) else start }}&view=day&doc={{ doc or '' }}">День</a>
-      <a class="{{ 'on' if view=='week' }}" href="?start={{ today if (view=='month' and start <= today <= end) else start }}&view=week&doc={{ doc or '' }}">Тиждень</a>
-      <a class="{{ 'on' if view=='month' }}" href="?start={{ start }}&view=month&doc={{ doc or '' }}">Місяць</a></div>
-  </div>
-</div>
-<div class="filters">
-  <form class="row">
-    <input type="hidden" name="view" value="{{ view }}">
-    {% if user.role != 'doctor' %}<select name="doc" onchange="this.form.submit()"><option value="">Усі фахівці</option>
-      {% for d in specialists %}<option value="{{ d.id }}" {{ 'selected' if doc==d.id }}>{{ d.name }}{{ (' — ' ~ d.position) if d.position }}</option>{% endfor %}</select>{% endif %}
-    <input type="date" name="start" value="{{ start }}" onchange="this.form.submit()" style="height:46px">
-  </form>
-  {% if view=='day' %}{% set nd = grid.cols|selectattr('col.doctor')|list|length %}<div class="meta">{{ n_ev }} {{ 'запис' if n_ev % 10 == 1 and n_ev % 100 != 11 else ('записи' if n_ev % 10 in [2,3,4] and n_ev % 100 not in [12,13,14] else 'записів') }} · {{ nd }} {{ 'фахівець' if nd == 1 else ('фахівці' if nd in [2,3,4] else 'фахівців') }}</div>{% endif %}
-</div>
-
-{% if view=='day' %}
-{% set PX = 1.3 %}{% set H = (grid.h1 - grid.h0) * 60 * PX %}{% set n = grid.cols|length %}
-{% set GC = 'grid-template-columns:76px repeat(' ~ n ~ ',minmax(220px,1fr))' %}
-<div class="tg">
-  <div class="tg-head" style="{{ GC }}">
-    <div>Час</div>
-    {% for g in grid.cols %}{% set d = g.col.doctor %}
-    <div>{% if d %}<i class="av" style="{% if d.photo_url %}background-image:url('{{ d.photo_url }}');{% endif %}box-shadow:inset 0 0 0 2px {{ color(d) }}">{{ '' if d.photo_url else initials(d.name) }}</i>
-      <div style="min-width:0"><a class="dn" href="?view=day&start={{ start }}&doc={{ d.id }}">{{ d.name }}</a><span style="display:block">{{ d.position or ('звільнений' if not d.active else 'Спеціаліст') }}</span>
-        {% set _s = (shifts or {}).get(d.id) %}<span style="display:block;font-weight:700;color:{{ 'var(--ok)' if _s else 'var(--faint)' }}">{{ (_s.start ~ '–' ~ _s.end ~ ((' · ' ~ _s.place) if _s.place else '')) if _s else 'не в графіку' }}</span></div>
-      {% else %}<div><b>Без фахівця</b><span>задачі, очікувані за планом</span></div>{% endif %}</div>
-    {% endfor %}
-  </div>
-  {% if grid.cols|selectattr('allday')|list %}
-  <div class="tg-head" style="position:static;{{ GC }}">
-    <div style="font-size:12px;color:var(--muted)">Без часу</div>
-    {% for g in grid.cols %}<div class="tg-allday" style="justify-content:flex-start">{% for e in g.allday %}
-      <a class="{{ e.kind }}" href="{{ ('/patients/' ~ e.patient_id) if e.patient_id else '/tasks' }}" title="{{ e.subtitle or '' }}">{{ '⏳' if e.kind=='expected' else '☑' }} {{ e.title }}</a>{% endfor %}</div>{% endfor %}
-  </div>{% endif %}
-  <div class="tg-body" style="{{ GC }};height:{{ H + 16 }}px">
-    <div class="tg-hours">{% for h in range(grid.h0, grid.h1 + 1) %}<div style="top:{{ (h - grid.h0) * 60 * PX + 8 }}px">{{ '%02d' % h }}:00</div>{% if h < grid.h1 %}<div style="top:{{ ((h - grid.h0) * 60 + 30) * PX + 8 }}px;opacity:.6;font-size:12px">{{ '%02d' % h }}:30</div>{% endif %}{% endfor %}</div>
-    {% for g in grid.cols %}
-    <div class="tg-col" style="--c:{{ color(g.col.doctor) if g.col.doctor else '#9a93a6' }}" {% if can(user,'book') %}onclick="tgNew(event, this, {{ g.col.doctor.id if g.col.doctor else 0 }})" title="Натисніть на вільний час — новий запис"{% endif %}>
-      {% set _s = (shifts or {}).get(g.col.doctor.id) if g.col.doctor else None %}{% if _s %}{% set a = (_s.start[:2]|int * 60 + _s.start[3:]|int - grid.h0 * 60) * PX %}{% set b = (_s.end[:2]|int * 60 + _s.end[3:]|int - grid.h0 * 60) * PX %}
-        {% if a > 0 %}<div class="offsh" style="top:8px;height:{{ a }}px"></div>{% endif %}<div class="offsh" style="top:{{ b + 8 }}px;bottom:0"></div>{% endif %}
-      {% for h in range(grid.h0, grid.h1 + 1) %}<div class="tg-line h" style="top:{{ (h - grid.h0) * 60 * PX + 8 }}px"></div>{% if h < grid.h1 %}<div class="tg-line" style="top:{{ ((h - grid.h0) * 60 + 30) * PX + 8 }}px"></div>{% endif %}{% endfor %}
-
-      {% for b in g.blocks %}{% set e = b.ev %}
-      <a class="blk {{ e.kind }} s-{{ e.status or 'booked' }} {{ 'short' if b.height * PX < 52 }} {{ 'crm' if e.appt_id }}" href="{{ ('/patients/' ~ e.patient_id) if e.patient_id else '/tasks' }}" title="{{ e.title }} · {{ e.service or '' }}"
-         {% if e.appt_id %}onclick="event.stopPropagation();apptOpen({{ e.appt_id }});return false"{% endif %}
-         style="top:{{ b.top * PX + 9 }}px;height:{{ [b.height * PX - 3, 26]|max }}px;left:calc({{ 100 * b.lane / b.lanes }}% + 6px);width:calc({{ 100 / b.lanes }}% - 12px)">
-        <div class="hd"><span class="tm">{{ e.when|dt('%H:%M') }}-{{ (e.ends or e.when)|dt('%H:%M') }}</span><b>{{ e.title }}</b>
-          {% if e.tag %}<span class="ptag {{ 'fan' if e.tag == 'ФАНАТ' else ('reg' if e.tag.startswith('Пост') else '') }}">{{ e.tag }}</span>{% endif %}
-          {% if e.in_plan and e.kind == 'visit' %}<span class="ptag" style="background:#5C4B82">бюті-план</span>{% endif %}
-          {% if b.lanes == 1 and e.status_label %}<span class="st">{{ e.status_label }}</span>{% endif %}</div>
-        {% if e.services %}<div class="svl">{% for s in e.services %}<span>👉 {{ s }}</span>{% endfor %}</div>{% endif %}
-        {% if e.note %}<div class="nt">Замітка: {{ e.note }}</div>{% endif %}</a>
-      {% endfor %}
-      {% if grid.now_top is not none %}<div class="nowline" style="top:{{ grid.now_top * PX + 8 }}px"></div>{% endif %}
-    </div>
-    {% endfor %}
-  </div>
-</div>
-<div class="legend2" style="margin-top:10px">{% for k, lb, bc, bg in [('booked','Записаний','#F5B940','#FFF8D6'),('confirmed','Підтверджено','#9B4DE0','#F1E4FF'),('arrived','Прийшов','#3B8FD9','#E2F1FD'),('done','Візит завершено','#4CAF50','#EAF6EA'),('no_show','Не прийшов','#C0392B','#FDECEA')] %}<span><i style="background:{{ bg }};border-top:3px solid {{ bc }}"></i>{{ lb }}</span>{% endfor %}</div>
 {% elif view=='week' %}
 <div class="wk" id="wk" style="--cw:{{ '240px' if view=='day' else '140px' }}">
 {% for d, cs in cols.items() %}
@@ -363,10 +292,15 @@ if(t&&w.scrollWidth>w.clientWidth){w.scrollLeft=Math.max(0,t.offsetLeft-w.offset
 <script>
 function calFind(v){v=(v||'').trim().toLowerCase();var n=0;document.querySelectorAll('.tg .blk').forEach(function(b){var ok=!v||(b.dataset.q||'').indexOf(v)>=0;b.classList.toggle('dim',!ok);b.classList.toggle('hit',!!v&&ok);if(v&&ok)n++});
   var f=document.querySelector('.tg .blk.hit');if(f)f.scrollIntoView({block:'center',inline:'center',behavior:'smooth'});return n}
+function calPx(){var w=document.getElementById('tgw');return w?parseFloat(getComputedStyle(w).getPropertyValue('--px'))||1.3:1.3}
+function calFit(){var w=document.getElementById('tgw'),bd=w&&w.querySelector('.tg-body');if(!w||!bd)return;
+  var mins=+bd.dataset.min||600,top=bd.getBoundingClientRect().top+window.scrollY,avail=window.innerHeight-top-28;
+  var px=Math.max(0.75,Math.min(2.2,avail/mins));if(window.innerWidth<860)px=1.1;w.style.setProperty('--px',px.toFixed(3)+'px')}
+calFit();window.addEventListener('resize',calFit);
 function calPage(d){var w=document.getElementById('tgw'),c=w&&w.querySelector('.tg-head>div:nth-child(2)');if(w&&c)w.scrollBy({left:d*c.offsetWidth,behavior:'smooth'})}
-(function(){var w=document.getElementById('tgw'),n=w&&w.querySelector('.nowline');if(w&&n){var t=n.offsetTop-200;window.scrollTo({top:Math.max(0,w.getBoundingClientRect().top+window.scrollY+t-120)})}})();
+(function(){var w=document.getElementById('tgw'),n=w&&w.querySelector('.nowline');if(w&&n&&window.innerWidth<860){var t=n.offsetTop-200;window.scrollTo({top:Math.max(0,w.getBoundingClientRect().top+window.scrollY+t-120)})}})();
 function tgNew(e,col,doc){if(e.target.closest('a,.blk'))return;var r=col.getBoundingClientRect(),y=e.clientY-r.top,
-  m=Math.max(0,Math.round(y/{{ 1.3 }}/15)*15)+{{ (grid.h0 if grid else 9) * 60 }},h=Math.floor(m/60),mi=m%60;
+  m=Math.max(0,Math.round(y/calPx()/15)*15)+{{ (grid.h0 if grid else 9) * 60 }},h=Math.floor(m/60),mi=m%60;
   apOpenNew(doc,'{{ start }}T'+String(h).padStart(2,'0')+':'+String(mi).padStart(2,'0'))}</script>
 {% if request.query_params.get('msg') %}<div class="dp-toast" style="background:var(--ok-bg);color:var(--ok);border-color:#BFE3CD" onclick="this.remove()">{{ request.query_params.get('msg') }}</div>{% endif %}
 {% endblock %}
