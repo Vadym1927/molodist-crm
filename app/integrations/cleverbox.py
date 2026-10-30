@@ -569,6 +569,36 @@ def link_patients(db: Session, cb: CleverBox) -> dict:
     return res
 
 
+def visit_services(v: dict) -> list[dict]:
+    """Послуги запису: CleverBox віддає їх у різних полях залежно від версії/методу."""
+    for k in ("services", "service", "services_list", "items"):
+        x = v.get(k)
+        if isinstance(x, list) and x:
+            return [i if isinstance(i, dict) else {"id": i} for i in x]
+        if isinstance(x, dict) and x:
+            return [x]
+    if v.get("service_id"):
+        return [{"id": v.get("service_id"), "name": v.get("service_name")}]
+    return [{}]
+
+
+def svc_id(s: dict) -> int | None:
+    for k in ("id", "service_id", "item_id"):
+        try:
+            if s.get(k):
+                return int(s[k])
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def svc_name(s: dict, names: dict, sid: int | None) -> str | None:
+    for k in ("name", "title", "service_name", "item_name"):
+        if s.get(k):
+            return str(s[k])[:300]
+    return names.get(sid) if sid else None
+
+
 def _service_names(db: Session) -> dict[int, str]:
     return {s.id: s.name for s in db.scalars(select(CbService))}
 
@@ -592,16 +622,16 @@ def sync_future_visits(db: Session, cb: CleverBox) -> int:
             if not start:
                 continue
             end = visit_end(v, start)
-            for i, s in enumerate(v.get("services") or [{}]):
-                sid = int(s["id"]) if s.get("id") else None
+            for i, s in enumerate(visit_services(v)):
+                sid = svc_id(s)
                 ext = f"{v['id']}-{sid or i}"
                 seen.add(ext)
                 obj = db.scalar(select(Visit).where(Visit.source == "cb_visit", Visit.external_id == ext))
                 if not obj:
                     obj = Visit(source="cb_visit", external_id=ext, patient_id=p.id)
                     db.add(obj)
-                obj.service_id, obj.service_name = sid, names.get(sid) if sid else None
-                obj.master_name = s.get("master")
+                obj.service_id, obj.service_name = sid, svc_name(s, names, sid)
+                obj.master_name = s.get("master") or s.get("master_name") or v.get("master")
                 obj.starts_at, obj.status, obj.status_label = start, "booked", label
                 obj.ends_at = end
                 obj.amount = float(v["total"]) if v.get("total") and len(v.get("services") or []) <= 1 else None
@@ -775,9 +805,15 @@ def sync_calendar(db: Session, cb: CleverBox, days: int = 14) -> int:
     n = 0
     today = date.today()
     seen: set[str] = set()
+    sample_saved = False
     for i in range(days):
         day = today + timedelta(days=i)
         for v in cb.visits_on(day):
+            if not sample_saved:                                   # назви полів запису — для діагностики (без значень)
+                sv = v.get("services")
+                _state(db, "cleverbox_visit_fields", ("visit: " + ",".join(sorted(v.keys())) + " | service: " +
+                       (",".join(sorted(sv[0].keys())) if isinstance(sv, list) and sv and isinstance(sv[0], dict) else type(sv).__name__))[:1000])
+                sample_saved = True
             label = v.get("_status") or ""
             if CANCEL_RE.search(label):
                 continue
@@ -797,16 +833,16 @@ def sync_calendar(db: Session, cb: CleverBox, days: int = 14) -> int:
                 continue
             end = visit_end(v, start)
             status = "attended" if DONE_RE.search(label) else "booked"   # «attended» не рахується в реалізацію —
-            for j, s in enumerate(v.get("services") or [{}]):           # факт послуги береться з /services/sales
-                sid = int(s["id"]) if s.get("id") else None
+            for j, s in enumerate(visit_services(v)):                   # факт послуги береться з /services/sales
+                sid = svc_id(s)
                 ext = f"{v['id']}-{sid or j}"
                 seen.add(ext)
                 obj = db.scalar(select(Visit).where(Visit.source == "cb_visit", Visit.external_id == ext))
                 if not obj:
                     obj = Visit(source="cb_visit", external_id=ext, patient_id=p.id)
                     db.add(obj)
-                obj.service_id, obj.service_name = sid, names.get(sid) if sid else obj.service_name
-                obj.master_name = s.get("master") or obj.master_name
+                obj.service_id, obj.service_name = sid, svc_name(s, names, sid) or obj.service_name
+                obj.master_name = s.get("master") or s.get("master_name") or v.get("master") or obj.master_name
                 obj.starts_at, obj.status, obj.status_label = start, status, label
                 obj.ends_at = end
                 obj.amount = float(v["total"]) if v.get("total") and len(v.get("services") or []) <= 1 else obj.amount

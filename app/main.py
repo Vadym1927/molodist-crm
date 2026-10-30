@@ -917,13 +917,16 @@ def settings_appeals_save(what: str, action: str = Form(...), idx: str = Form(""
 def lookup_patients(q: str = "", user: User = Depends(current_user), db: Session = Depends(db_dep)):
     import re as _re
     q = q.strip()
-    if len(q) < 2:
-        return JSONResponse([])
     digits = _re.sub(r"\D", "", q)
+    is_phone = bool(digits) and not _re.search(r"[^\d\s+()\-]", q)          # шукаємо за номером з першої цифри
+    if not is_phone and len(q) < 2:
+        return JSONResponse([])
     ql = q.lower()
+    d9 = digits.lstrip("0")[-9:] if len(digits) >= 10 else digits                # 0981234567 / 380981234567 → однаково
     out = []
     for p_ in db.scalars(select(Patient).order_by(Patient.full_name)):
-        if (len(digits) >= 4 and digits[-9:] in _re.sub(r"\D", "", p_.phone or "")) or (ql in (p_.full_name or "").lower()):
+        ph = _re.sub(r"\D", "", p_.phone or "")
+        if (is_phone and ph and (digits in ph or (d9 and d9 in ph))) or (not is_phone and ql in (p_.full_name or "").lower()):
             if patient_visible(user, p_):
                 out.append({"id": p_.id, "name": p_.full_name, "phone": p_.phone or "", "bonus": None})
         if len(out) >= 15:
@@ -1140,7 +1143,7 @@ def lookup_sale_products(q: str = "", user: User = Depends(require("sales")), db
         if led:
             lots = [{"expiry": e.isoformat(), "qty": round(qq, 3)} for (pid_, w_, e), qq in st.batch_balances(db, p_.id, wh).items() if e and qq > 1e-6]
             lots.sort(key=lambda x: x["expiry"])
-        out.append((0 if exact else (0 if wh == "vitrina" else 1), {"id": p_.id, "name": p_.name, "brand": p_.brand or "", "category": p_.brand or p_.category or "",
+        out.append((0 if exact else (0 if wh == "vitrina" else 1), {"id": p_.id, "name": p_.name, "brand": p_.brand or "", "sku": p_.sku or "", "category": p_.brand or p_.category or "",
                     "price": p_.price or p_.price_manual or p_.shop_price or 0, "stock": r.stock, "warehouse": wh,
                     "wh": catalog.WAREHOUSES.get(wh), "lots": lots}))
     out.sort(key=lambda x: (x[0], x[1]["name"].lower()))

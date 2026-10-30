@@ -107,3 +107,19 @@ def test_pos_patient_pick_and_create():
         assert c.post("/pos/patient", json={"name": ""}).status_code == 400
         t = c.get("/sales/new").text
         assert "Продаж на пацієнта" in t and "Без пацієнта" in t and "Оберіть пацієнта" in t
+
+
+def test_lookup_phone_from_first_digit_and_sku():
+    from app.models import Product
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        db.add(Patient(full_name="Телефонна Пацієнтка", phone="380981112233"))
+        db.add(Product(name="Артикульний крем", name_norm="артикульний крем", sku="AB-777", warehouse="vitrina", price=10)); db.commit()
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        for q in ("0", "098", "0981112233", "+38 098 111"):
+            assert any(r["name"] == "Телефонна Пацієнтка" for r in c.get("/lookup/patients", params={"q": q}).json()), q
+        assert c.get("/lookup/patients", params={"q": "Т"}).json() == []
+        it = c.get("/pos/products", params={"q": "ab-777"}).json()["items"]
+        assert it and it[0]["sku"] == "AB-777"
+        assert c.get("/lookup/sale-products", params={"q": "AB-777"}).json()[0]["sku"] == "AB-777"
