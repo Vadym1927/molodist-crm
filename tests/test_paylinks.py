@@ -184,3 +184,22 @@ def test_mono_fiscal_check_attached_to_sale():
         db.refresh(s)
         assert out[0]["status"] == "done" and s.status == "paid"
         assert s.fiscal["fiscal_code"] == "FC-1" and s.fiscal["source"] == "monobank" and "Checkbox" in s.fiscal["rro_name"]
+
+
+
+def test_paylink_send_channel(monkeypatch):
+    import app.integrations.messaging as M
+    sent = []
+    monkeypatch.setattr(M, "send_to_patient", lambda p, t, prefer=None, **k: (sent.append((prefer, t)), M.SendResult(True, prefer[0]))[1])
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        p = Patient(full_name="Надіслати Лінк", phone="+380671234599"); db.add(p); db.commit()
+        pl = PayLink(provider="mono", amount=100, purpose="Тест", url="https://pay.mbnk.biz/x1", status="created", patient_id=p.id)
+        db.add(pl); db.commit(); lid = pl.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        r = c.post(f"/paylinks/{lid}/send", data={"ch": "viber", "back": "/paylinks"}, follow_redirects=False)
+        assert r.status_code == 303 and "Viber" in r.headers["location"] or "msg=" in r.headers["location"]
+    assert sent and sent[0][0] == ["viber"] and "pay.mbnk.biz/x1" in sent[0][1]
+    with SessionLocal() as db:
+        assert db.get(PayLink, lid).info["sent"]["channel"] == "viber"

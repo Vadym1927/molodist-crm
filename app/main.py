@@ -3834,6 +3834,29 @@ async def paylink_check(lid: int, back: str = Form("/settings/payments"), user: 
     return RedirectResponse(_with_msg(back, f"Посилання №{lid}: {pls.STATUS_LABELS.get(st_, st_)}"), 303)
 
 
+@app.post("/paylinks/{lid:int}/send")
+async def paylink_send(lid: int, ch: str = Form(...), back: str = Form("/settings/payments"), user: User = Depends(require("sales")),
+                       db: Session = Depends(db_dep)):
+    """Надіслати посилання на оплату пацієнту вибраним каналом: Telegram / Viber / SMS."""
+    from .services import paylinks as pls
+    from .models import PayLink
+    from .integrations.messaging import send_to_patient
+    pl = db.get(PayLink, lid) or (_ for _ in ()).throw(HTTPException(404))
+    back = back if back.startswith("/") and not back.startswith("//") else "/"
+    if ch not in ("telegram", "viber", "sms"):
+        raise HTTPException(400)
+    p_ = db.get(Patient, pl.patient_id) if pl.patient_id else None
+    if not p_:
+        return RedirectResponse(_with_msg(back, "У посилання немає пацієнта", True), 303)
+    res = await asyncio.to_thread(send_to_patient, p_, pls.message(db, pl), [ch])
+    lbl = {"telegram": "Telegram", "viber": "Viber", "sms": "SMS"}[ch]
+    if res.ok:
+        pl.info = {**(pl.info or {}), "sent": {"ok": True, "channel": res.channel, "at": datetime.now().strftime("%d.%m.%Y %H:%M")}}
+        db.commit()
+    audit(db, "paylink.send", "paylink", lid, user=user, channel=ch, ok=res.ok)
+    return RedirectResponse(_with_msg(back, f"Посилання надіслано в {lbl}" if res.ok else f"{lbl}: не надіслано — {res.error}", not res.ok), 303)
+
+
 @app.post("/paylinks/{lid:int}/cancel")
 def paylink_cancel(lid: int, back: str = Form("/settings/payments"), user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
     from .models import PayLink
