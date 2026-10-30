@@ -38,7 +38,7 @@ def test_appointments():
             a = db.get(Appointment, aid)
             assert a.minutes == 90 and a.total == 2000 and a.end == datetime.fromisoformat(f"{day}T12:30")
         cal = c.get(f"/calendar?view=day&start={day}").text
-        assert f"apptOpen({aid})" in cal and "Записна Пацієнтка" in cal
+        assert f"visitOpen(event,'appt={aid}')" in cal and "Записна Пацієнтка" in cal
         assert "Розрахувати" in c.get(f"/appointments/{aid}").text
         r = c.post(f"/appointments/{aid}/status", data={"status": "cancelled", "reason": ""}, follow_redirects=False)
         assert "err=" in r.headers["location"]

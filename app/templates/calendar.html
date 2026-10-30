@@ -238,7 +238,7 @@
       {% else %}
       <a class="blk {{ e.kind }} s-{{ e.status or 'booked' }} {{ 'short' if b.height < 40 }} {{ 'mid' if 40 <= b.height < 60 }} {{ 'long' if b.height >= 90 }} {{ 'crm' if e.appt_id }}" href="{{ ('/patients/' ~ e.patient_id) if e.patient_id else '/tasks' }}" title="{{ e.title }} · {{ e.service or '' }}"
          data-q="{{ (e.title ~ ' ' ~ (e.service or '') ~ ' ' ~ (e.note or ''))|lower }}"
-         {% if e.appt_id %}onclick="event.stopPropagation();apptOpen({{ e.appt_id }});return false"{% endif %}
+         {% if e.appt_id %}onclick="return visitOpen(event,'appt={{ e.appt_id }}')"{% elif e.visit_ids %}onclick="return visitOpen(event,'v={{ e.visit_ids|join(',') }}')"{% endif %}
          style="top:calc({{ b.top }} * var(--px) + 1px);height:max(calc({{ b.height }} * var(--px) - 3px), 26px);left:calc({{ 100 * b.lane / b.lanes }}% + 6px);width:calc({{ 100 / b.lanes }}% - 12px)">
         <span class="ics">{% if e.online %}<i title="Онлайн-запис">@</i>{% endif %}{% if e.paid %}<i class="pd" title="Оплачено"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/></svg></i>{% endif %}</span>
         {% set ph = phones.get(e.patient_id) if e.patient_id else None %}
@@ -266,6 +266,94 @@
 {% endif %}
 {% if not specialists %}<p class="muted small" style="margin-top:12px">Спеціалісти і записи підтягуються з CleverBox під час синхронізації (записи — на 14 днів уперед).</p>{% endif %}
 {% include "_appt_modal.html" %}
+<style>
+.vd-back{position:fixed;inset:0;background:rgba(42,36,48,.42);opacity:0;pointer-events:none;transition:opacity .2s;z-index:95}.vd-back.on{opacity:1;pointer-events:auto}
+.vd{position:fixed;top:0;right:0;bottom:0;width:min(880px,100vw);background:#F7F4F0;z-index:96;transform:translateX(102%);transition:transform .26s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column;box-shadow:-30px 0 70px -30px rgba(42,36,48,.55)}
+.vd.on{transform:none}
+.vd-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 22px;background:#fff;border-bottom:1px solid #ECE7E1}
+.vd-h small{display:block;font:600 11px var(--sans);letter-spacing:.14em;text-transform:uppercase;color:#9a93a6}
+.vd-h h3{margin:2px 0 0;font:600 20px var(--head);letter-spacing:.08em;text-transform:uppercase;color:#2A2430}
+.vd-x{border:0;background:#F7F4F0;width:40px;height:40px;border-radius:12px;font-size:22px;cursor:pointer;color:#3B3050}.vd-x:hover{background:#E4DEEF}
+.vd-w{flex:1;display:grid;grid-template-columns:200px 1fr;min-height:0}
+.vd-nav{background:#fff;border-right:1px solid #ECE7E1;padding:14px 10px;display:flex;flex-direction:column;gap:4px}
+.vd-nav button{display:flex;align-items:center;gap:10px;border:0;background:none;border-radius:12px;padding:11px 12px;font:600 13.5px var(--sans);color:#3B3050;cursor:pointer;text-align:left}
+.vd-nav button:hover{background:#F7F4F0}.vd-nav button.on{background:#3B3050;color:#fff}
+.vd-nav button i{margin-left:auto;font-style:normal;font:700 11px var(--sans);background:#E4DEEF;color:#3B3050;border-radius:99px;padding:1px 8px}.vd-nav button.on i{background:rgba(255,255,255,.2);color:#fff}
+.vd-c{overflow:auto;padding:18px 22px 22px}.vd-c section{display:grid;gap:12px;align-content:start}.vd-c section[hidden]{display:none}
+.vd-st{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.vd-sel{flex:1;min-width:220px;height:46px;border-radius:14px;border:0;padding:0 14px;font:700 14.5px var(--sans);color:#fff;background:var(--sc);cursor:pointer}
+.vd-sel option{color:#2A2430;background:#fff}
+.vd-badge{display:inline-flex;align-items:center;height:40px;padding:0 16px;border-radius:12px;background:#FFF1D6;color:#9A6A00;font:700 14px var(--sans)}.vd-badge.ok{background:#E3F2E4;color:#2E7D32}
+.vd-hint{font-size:12.5px;color:#8a8496;flex:1;min-width:200px}
+.vd-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:42px;padding:0 16px;border-radius:12px;border:1px solid #E6E0D8;background:#fff;color:#3B3050;font:700 13px var(--sans);text-decoration:none;cursor:pointer;white-space:nowrap}
+.vd-btn:hover{border-color:#C9BFE6;background:#F6F3FB}.vd-btn.main{background:#3B3050;border-color:#3B3050;color:#fff}.vd-btn.main:hover{background:#5C4B82}
+.vd-btn.warm{background:#FFF1D6;border-color:#F5D58A;color:#7a5200}.vd-btn.ghost{height:36px;padding:0 12px}
+.vd-pt{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:16px;display:grid;grid-template-columns:auto 1fr auto;gap:8px 14px;align-items:center;
+  box-shadow:0 1px 2px rgba(42,36,48,.04),0 14px 34px -28px rgba(42,36,48,.35)}
+.vd-av{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;background:#E4DEEF;color:#3B3050;font:600 18px var(--head);text-decoration:none;background-size:cover;background-position:center;font-style:normal}
+.vd-av.s{width:42px;height:42px;font-size:13px;color:#fff;flex:none}
+.vd-pn a{font:700 17px var(--sans);color:#2A2430;text-decoration:none}.vd-pn a:hover{color:#5C4B82}
+.vd-tags{display:flex;gap:6px;margin-top:4px}.vd-ph{margin-top:4px;font:600 13px var(--sans);color:#6b6575;font-variant-numeric:tabular-nums}
+.ptag{font:700 10.5px var(--sans);border-radius:6px;padding:2px 7px;color:#fff;background:#E8B931}.ptag.reg{background:#4FC3D9}.ptag.fan{background:#7CB342}.ptag.plan{background:#5C4B82}
+.vd-act{display:flex;gap:8px}.vd-act a{width:42px;height:42px;border-radius:50%;border:1.5px solid #9FD3A3;color:#2E7D32;display:grid;place-items:center}.vd-act a:hover{background:#E3F2E4}
+.vd-kpi{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:6px}
+.vd-kpi div{background:#F7F4F0;border-radius:12px;padding:9px 10px;text-align:center}.vd-kpi b{display:block;font:700 15px var(--sans);color:#2A2430;font-variant-numeric:tabular-nums}
+.vd-kpi span{font-size:11px;color:#8a8496;font-weight:600}
+.vd-sec{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px}
+.vd-sec h4{margin:0;font:600 11.5px var(--head);letter-spacing:.14em;text-transform:uppercase;color:#3B3050}
+.vd-svc{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #ECE7E1;border-left:4px solid #5C4B82;border-radius:14px;padding:12px 14px}
+.vd-svc div{flex:1;min-width:0}.vd-svc b{display:block;font:600 14.5px var(--sans);color:#2A2430}.vd-svc span{font-size:12.5px;color:#6b6575;font-variant-numeric:tabular-nums}
+.vd-svc em,.vd-sum{font-style:normal;font:700 15px var(--sans);color:#2A2430;white-space:nowrap;font-variant-numeric:tabular-nums}
+.vd-tot{display:flex;justify-content:space-between;padding:4px 6px;font-size:13.5px;color:#6b6575}.vd-tot b{color:#2A2430;font-variant-numeric:tabular-nums}
+.vd-tot.big{background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:12px 14px;font-size:14.5px;margin-top:6px}.vd-tot.big b{font-size:16px}
+.vd-doc{display:flex;gap:12px;align-items:center;background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:10px 14px}
+.vd-doc a,.vd-doc b{display:block;font:600 14px var(--sans);color:#2A2430;text-decoration:none}.vd-doc span{font-size:12px;color:#8a8496}
+.vd-box{background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:10px 14px;font-size:13.5px;color:#2A2430;white-space:pre-wrap}
+.vd-box span{display:block;font:700 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#9a93a6;margin-bottom:3px}
+.vd-foot{position:sticky;bottom:-22px;background:linear-gradient(rgba(247,244,240,0),#F7F4F0 30%);padding:18px 0 4px;display:flex;gap:10px;flex-wrap:wrap}
+.vd-foot .main{flex:1;height:48px;font-size:14px}
+.vd-empty{color:#9a93a6;font-size:13px;padding:6px 2px}
+.vd-c textarea{width:100%;border-radius:14px;border:1px solid #E6E0D8;padding:12px 14px;font:14px var(--sans);resize:vertical;background:#fff}
+.vd-err{color:#B23B2E;font-weight:600;font-size:13px}
+.vd-note{background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:12px 14px}
+.vd-note div{display:flex;gap:10px;align-items:baseline}.vd-note b{font:600 13.5px var(--sans);color:#5C4B82}.vd-note span{font-size:12px;color:#9a93a6;font-variant-numeric:tabular-nums}
+.vd-note p{margin:5px 0 0;font-size:13.5px;color:#2A2430;white-space:pre-wrap}
+.vd-info{background:#F1EDF8;border-left:4px solid #5C4B82;border-radius:12px;padding:10px 14px;font-size:13px;color:#3B3050}.vd-info a{color:#5C4B82;font-weight:700}
+.vd-cost{display:grid;grid-template-columns:1fr auto 110px;gap:12px;align-items:center;background:#fff;border:1px solid #ECE7E1;border-radius:12px;padding:10px 14px}
+.vd-cost b{font:600 13.5px var(--sans);color:#2A2430}.vd-cost span{font:600 13px var(--sans);color:#6b6575;font-variant-numeric:tabular-nums}
+.vd-cost em{font-style:normal;text-align:right;font:700 13.5px var(--sans);font-variant-numeric:tabular-nums}
+.vd-up{margin:0}.vd-ph-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
+.vd-ph-g img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:12px;display:block;border:1px solid #ECE7E1}
+.vd-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.vd-grid div{background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:12px 14px}
+.vd-grid span{display:block;font:700 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#9a93a6}.vd-grid b{font:600 14px var(--sans);color:#2A2430}
+@media(max-width:720px){.vd-w{grid-template-columns:1fr}.vd-nav{flex-direction:row;overflow:auto;border-right:0;border-bottom:1px solid #ECE7E1}.vd-nav button span{white-space:nowrap}.vd-kpi{grid-template-columns:1fr 1fr}.vd-grid{grid-template-columns:1fr}}
+</style>
+<div class="vd-back" id="vdb" onclick="visitClose()"></div>
+<aside class="vd" id="vd" aria-label="Візит"><div id="vd-in" style="display:contents"></div></aside>
+<script>
+(function(){var box=document.getElementById('vd-in'),Q='';
+  function tabs(){box.querySelectorAll('.vd-nav button').forEach(function(b){b.onclick=function(){show(b.dataset.t)}});
+    var on=box.querySelector('.vd-nav button.on');show(on?on.dataset.t:'visit');
+    box.querySelectorAll('.vd-back').forEach(function(i){i.value=location.pathname+location.search})}
+  function show(t){box.querySelectorAll('.vd-nav button').forEach(function(b){b.classList.toggle('on',b.dataset.t===t)});
+    box.querySelectorAll('.vd-c section').forEach(function(s){s.hidden=s.dataset.p!==t})}
+  function load(q,tab){Q=q;box.innerHTML='<div class="vd-h"><div><small>Візит</small><h3>Завантаження…</h3></div><button type="button" class="vd-x" onclick="visitClose()">×</button></div>';
+    document.getElementById('vd').classList.add('on');document.getElementById('vdb').classList.add('on');
+    fetch('/calendar/visit?'+q+(tab?'&tab='+tab:''),{credentials:'same-origin'}).then(function(r){if(!r.ok)throw r.status;return r.text()})
+      .then(function(h){box.innerHTML=h;tabs()}).catch(function(){box.querySelector('h3').textContent='Не вдалося відкрити візит'})}
+  window.visitOpen=function(e,q){if(e&&(e.metaKey||e.ctrlKey||e.shiftKey))return true;if(e){e.preventDefault();e.stopPropagation()}load(q);return false};
+  window.visitClose=function(){document.getElementById('vd').classList.remove('on');document.getElementById('vdb').classList.remove('on')};
+  window.vdStatus=function(id,sel){var st=sel.value,reason='';
+    if(st==='cancelled'){reason=prompt('Причина скасування');if(!reason||reason.trim().length<3){load(Q);return}}
+    var fd=new FormData();fd.append('status',st);fd.append('reason',reason||'');fd.append('back','/calendar');
+    fetch('/appointments/'+id+'/status',{method:'POST',body:fd,credentials:'same-origin'}).then(function(){location.reload()})};
+  window.vdNote=function(key){var t=document.getElementById('vd-note'),err=document.getElementById('vd-nerr');err.textContent='';
+    if(!t.value.trim()){err.textContent='Напишіть нотатку';return}
+    fetch('/calendar/visit/note',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:key,text:t.value})})
+      .then(function(r){return r.json()}).then(function(j){if(j.error){err.textContent=j.error;return}load(Q,'note')})};
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')visitClose()});
+})();
+</script>
 {% set _qp = request.query_params %}{% if _qp.get('newappt') %}<script>apOpenNew({{ (doc or 0) }}, '', '{{ ('&patient=' ~ _qp.get('patient')) if _qp.get('patient') }}{{ ('&appeal=' ~ _qp.get('appeal')) if _qp.get('appeal') }}');</script>{% endif %}
 <script>
 function calFind(v){v=(v||'').trim().toLowerCase();var n=0;document.querySelectorAll('.tg .blk').forEach(function(b){var ok=!v||(b.dataset.q||'').indexOf(v)>=0;b.classList.toggle('dim',!ok);b.classList.toggle('hit',!!v&&ok);if(v&&ok)n++});

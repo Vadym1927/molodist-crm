@@ -702,14 +702,15 @@ async def upload(request: Request, files: list[UploadFile] = File(...), user: Us
 
 @app.post("/patients/{pid}/photos")
 async def upload_photos(pid: int, files: list[UploadFile] = File(...), caption: str = Form(""), stage: str = Form(""),
-                        zone: str = Form(""), user: User = Depends(require("upload")), db: Session = Depends(db_dep)):
+                        zone: str = Form(""), back: str = Form(""), user: User = Depends(require("upload")),
+                        db: Session = Depends(db_dep)):
     p = _patient_or_403(db, user, pid)
     for f in files:
         pf = ingest.ingest_photo(db, await f.read(), f.filename or "photo.jpg", caption or None, patient=p)
         if stage in ("before", "after", "progress") or zone.strip():
             pf.stage, pf.zone, pf.taken_at = (stage if stage in ("before", "after", "progress") else None), zone.strip()[:80] or None, date.today()
             db.commit()
-    return RedirectResponse(f"/patients/{pid}#files", 303)
+    return RedirectResponse(back if back.startswith("/calendar") else f"/patients/{pid}#files", 303)
 
 
 # ---------------- Звернення (заявки) ----------------
@@ -2591,6 +2592,44 @@ def calendar_page(request: Request, start: str | None = None, doc: str = "", vie
     return render(request, "calendar.html", ev=ev, cols=cols, grid=grid, start=s, days=days, n_ev=n_ev,
                   prev=s - timedelta(days=days), next=s + timedelta(days=days), end=s + timedelta(days=days - 1),
                   month=None, **ctx)
+
+
+@app.get("/calendar/visit", response_class=HTMLResponse)
+def calendar_visit(request: Request, appt: int = 0, v: str = "", tab: str = "visit", user: User = Depends(current_user),
+                   db: Session = Depends(db_dep)):
+    """Вікно візиту (як у CleverBox): відкривається з календаря кліком по запису."""
+    from .services import visit_card as vc, appointments as aps, calendar as _cal, loyalty as ly
+    ids = [int(x) for x in v.split(",") if x.strip().isdigit()][:20]
+    c = vc.card(db, appt, ids)
+    if not c:
+        raise HTTPException(404, "Візит не знайдено")
+    p_ = _patient_or_403(db, user, c["p"].id)
+    from sqlalchemy import func as _f
+    n = db.scalar(select(_f.count(_f.distinct(_f.date(Visit.starts_at)))).where(Visit.patient_id == p_.id, Visit.status.in_(("attended", "done")))) or 0
+    stats = {"tag": _cal.tag_for(n + 1), "visits": p_.cb_visits if p_.cb_visits is not None else n, "total": p_.cb_total or 0,
+             "bonus": round(ly.balance(db, p_.id), 2), "discount": p_.discount_pct}
+    return templates.TemplateResponse(request, "_visit_drawer.html", {"request": request, "user": user, "c": c, "pt": p_, "stats": stats,
+                                      "tab": tab, "STATUSES": aps.STATUSES, "COLORS": aps.COLORS, "can": can,
+                                      "color": spec_svc.color, "initials": spec_svc.initials})
+
+
+@app.post("/calendar/visit/note")
+async def calendar_visit_note(request: Request, user: User = Depends(current_user), db: Session = Depends(db_dep)):
+    from .models import VisitNote
+    f = await request.json()
+    key, text = str(f.get("key") or "")[:40], str(f.get("text") or "").strip()[:4000]
+    if not text or not (key.startswith("appt:") or key.startswith("cb:")) or not key.split(":")[1].isdigit():
+        return JSONResponse({"error": "Порожня нотатка"}, status_code=400)
+    from .services import visit_card as vc
+    kid = int(key.split(":")[1])
+    c = vc.card(db, kid if key.startswith("appt:") else 0, [kid] if key.startswith("cb:") else [])
+    if not c:
+        raise HTTPException(404)
+    _patient_or_403(db, user, c["p"].id)
+    db.add(VisitNote(key=key, patient_id=c["p"].id, text=text, user_id=user.id))
+    db.commit()
+    audit(db, "visit.note", "patient", c["p"].id, user=user, visit=key)
+    return JSONResponse({"ok": True})
 
 
 @app.post("/calendar/blocks")
@@ -6267,7 +6306,7 @@ DOC_FILE_EXT = (".jpg", ".jpeg", ".png", ".gif", ".tiff", ".tif", ".webp", ".doc
 SOCIALS = [("viber", "Viber"), ("telegram", "Telegram"), ("whatsapp", "WhatsApp"), ("facebook", "Facebook"), ("instagram", "Instagram")]
 
 
-AUDIT_WORDS = {"login": "Увійшов до системи", "logout": "Вийшов із системи", "specialist.update": "Оновлено картку співробітника",
+AUDIT_WORDS = {"visit.note": "Додано нотатку до візиту", "login": "Увійшов до системи", "logout": "Вийшов із системи", "specialist.update": "Оновлено картку співробітника",
                "specialist.services": "Оновлено доступні послуги", "specialist.services_fill": "Відмічено виконані послуги",
                "specialist.files": "Завантажено файли", "specialist.file_delete": "Видалено файл", "specialist.calendar": "Змінено показ у календарі",
                "specialist.create": "Створено співробітника", "specialist.status_auto": "Статус оновлено з CleverBox",

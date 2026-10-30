@@ -1,7 +1,7 @@
 """Розділ «Календар»: записи CleverBox + очікувані процедури за бюті-планами + дедлайни задач."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, date, timedelta
 
 from sqlalchemy import select
@@ -33,6 +33,7 @@ class Event:
     paid: bool = False                   # оплачено (чек каси CRM / візит завершено)
     online: bool = False                 # запис з онлайн-запису / бота
     block_id: int | None = None          # заблокований час
+    visit_ids: list = field(default_factory=list)   # візити CleverBox, обʼєднані в цей блок (вікно візиту)
 
     @property
     def services(self) -> list[str]:
@@ -102,6 +103,7 @@ def events(db: Session, user: User, start: date, days: int = 7, doctor_id: int |
         key = (v.patient_id, v.starts_at, doc.id if doc else v.master_name)
         if key in merged:                    # кілька послуг в одному візиті — один блок
             e = merged[key]
+            e.visit_ids.append(v.id)
             if v.service_name and v.service_name not in (e.service or ""):
                 e.service = ", ".join(filter(None, [e.service, v.service_name]))
                 e.subtitle = e.service if doc else " · ".join(filter(None, [e.service, v.master_name]))
@@ -115,7 +117,7 @@ def events(db: Session, user: User, start: date, days: int = 7, doctor_id: int |
                                 v.patient_id, in_plan=v.patient_id in plan_patients,
                                 doctor_id=doc.id if doc else None, service=v.service_name, ends=ends,
                                 status_label=v.status_label, status="booked" if v.status == "booked" else "done",
-                                paid=v.status != "booked"))
+                                paid=v.status != "booked", visit_ids=[v.id]))
             merged[key] = out[d][-1]
 
     if True:

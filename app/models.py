@@ -1003,6 +1003,17 @@ class DayOff(Base):
     updated_by: Mapped[int | None] = mapped_column(Integer)
 
 
+class VisitNote(Base):
+    """Нотатка до візиту в календарі (вкладка «Нотатка» вікна візиту). key: appt:<id> | cb:<Visit.id>."""
+    __tablename__ = "visit_notes"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    key: Mapped[str] = mapped_column(String(40), index=True)
+    patient_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    text: Mapped[str] = mapped_column(Text)
+    user_id: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class TimeBlock(Base):
     """Заблокований час у календарі спеціаліста: зйомка, навчання, обід, техобслуговування."""
     __tablename__ = "time_blocks"

@@ -1,0 +1,129 @@
+{# Вікно візиту в календарі (фрагмент; відкривається visitOpen у calendar.html) #}
+{% set a = c.a %}{% set p = pt %}{% set d = c.doctor %}
+{% set ICONS = {
+ 'visit':'<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+ 'note':'<path d="M5 4h10l4 4v12H5z"/><path d="M14 4v5h5M8.5 13h7M8.5 16.5h5"/>',
+ 'hist':'<path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4.5h4.5M12 8v4l3 2"/>',
+ 'cost':'<path d="M6 8h12l-1 12H7z"/><path d="M9 8a3 3 0 0 1 6 0"/>',
+ 'photo':'<rect x="3" y="6" width="18" height="14" rx="2.5"/><circle cx="12" cy="13" r="3.5"/><path d="M8.5 6l1.5-2.5h4L15.5 6"/>',
+ 'about':'<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8v.2"/>'} %}
+{% macro ic(k) %}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{{ ICONS[k]|safe }}</svg>{% endmacro %}
+{% macro money(v) %}{{ '{:,.2f}'.format(v or 0).replace(',', ' ') }} ₴{% endmacro %}
+<div class="vd-h">
+  <div><small>Візит · {{ c.start|dt('%d.%m.%Y') }}</small><h3>{{ c.number }}</h3></div>
+  <button type="button" class="vd-x" onclick="visitClose()" title="Закрити">×</button>
+</div>
+<div class="vd-w">
+  <nav class="vd-nav">
+    {% for k, t in [('visit','Візит'),('note','Нотатка'),('hist','Історія'),('cost','Витрати'),('photo','Фото до/після'),('about','Про візит')] %}
+    <button type="button" data-t="{{ k }}" class="{{ 'on' if tab == k or (k == 'visit' and tab not in ('note','hist','cost','photo','about')) }}">{{ ic(k) }}<span>{{ t }}</span>
+      {% if k == 'note' and c.notes %}<i>{{ c.notes|length }}</i>{% endif %}{% if k == 'photo' and (c.before or c.after or c.other_photos) %}<i>{{ (c.before + c.after + c.other_photos)|length }}</i>{% endif %}</button>{% endfor %}
+  </nav>
+  <div class="vd-c">
+    {# ---------- ВІЗИТ ---------- #}
+    <section data-p="visit">
+      <div class="vd-st">
+        {% if a %}
+          <select class="vd-sel" style="--sc:{{ COLORS.get(a.status, '#5C4B82') }}" {% if not can(user,'book') %}disabled{% endif %} onchange="vdStatus({{ a.id }}, this)">
+            {% for k, v in STATUSES.items() %}<option value="{{ k }}" {{ 'selected' if a.status == k }}>{{ v }}</option>{% endfor %}</select>
+          {% if can(user,'book') %}<button type="button" class="vd-btn warm" onclick="visitClose();apptOpen({{ a.id }}, 1)">Перенести / змінити</button>{% endif %}
+        {% else %}
+          <span class="vd-badge {{ 'ok' if c.status in ('attended','done') else '' }}">{{ c.status_label }}</span>
+          <span class="vd-hint">Статус візиту CleverBox змінюється в CleverBox — у CRM оновиться після синхронізації.</span>
+        {% endif %}
+      </div>
+
+      <div class="vd-pt">
+        <a class="vd-av" href="/patients/{{ p.id }}">{{ initials(p.full_name) }}</a>
+        <div class="vd-pn"><a href="/patients/{{ p.id }}">{{ p.full_name }}</a>
+          <div class="vd-tags"><span class="ptag {{ 'fan' if stats.tag == 'ФАНАТ' else ('reg' if stats.tag.startswith('Пост') else 'new') }}">{{ stats.tag }}</span>
+            {% if p.cb_mark == 'vip' %}<span class="ptag plan">VIP</span>{% endif %}</div>
+          {% if p.phone %}<div class="vd-ph">{{ p.phone }}</div>{% endif %}</div>
+        {% if p.phone %}{% set dig = p.phone|replace(' ','')|replace('-','')|replace('(','')|replace(')','') %}
+        <div class="vd-act"><a href="tel:{{ dig }}" title="Подзвонити"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg></a>
+          <a href="viber://chat?number={{ dig|replace('+','%2B') }}" title="Viber"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a8 8 0 0 1 16 0c0 4.4-3.6 7-8 7l-4 3v-3.5C5.6 16.3 4 14 4 11z"/></svg></a></div>{% endif %}
+        <div class="vd-kpi"><div><b>{{ stats.visits or 0 }}</b><span>візитів</span></div><div><b>{{ money(stats.total) }}</b><span>оплачено всього</span></div>
+          <div><b>{{ '%g'|format(stats.bonus or 0) }}</b><span>бонусів</span></div><div><b>{{ ('%g'|format(stats.discount) ~ '%') if stats.discount else '—' }}</b><span>знижка</span></div></div>
+      </div>
+
+      <div class="vd-sec"><h4>Послуги · {{ c.start|dt('%d.%m.%Y') }}</h4>
+        {% if a and can(user,'book') %}<button type="button" class="vd-btn ghost" onclick="visitClose();apptOpen({{ a.id }}, 1)">＋ Додати послугу</button>{% endif %}</div>
+      {% for s in c.services %}<div class="vd-svc"><div><b>{{ s.name }}</b><span>{{ s.start|dt('%H:%M') }} – {{ s.end|dt('%H:%M') }} · {{ s.minutes }} хв</span></div><em>{{ money(s.price) }}</em></div>
+      {% else %}<div class="vd-empty">Послуги не вказані</div>{% endfor %}
+      {% if c.services|length > 1 %}<div class="vd-tot"><span>Разом</span><b>{{ money(c.total) }}</b></div>{% endif %}
+
+      <div class="vd-doc">{% if d %}<i class="vd-av s" style="{% if d.photo_url %}background-image:url('{{ d.photo_url }}');{% else %}background-color:{{ color(d) }};{% endif %}">{{ '' if d.photo_url else initials(d.name) }}</i>
+        <div><a href="/specialists/{{ d.id }}">{{ d.name }}</a><span>{{ d.position or 'Спеціаліст' }}</span></div>{% else %}<div><b>Спеціаліст не визначений</b><span>{{ c.vs[0].master_name if c.vs else '' }}</span></div>{% endif %}</div>
+
+      {% if (a and a.comment) or p.cb_note %}<div class="vd-sec"><h4>Інше</h4></div>
+        {% if a and a.comment %}<div class="vd-box"><span>Коментар до запису</span>{{ a.comment }}</div>{% endif %}
+        {% if p.cb_note %}<div class="vd-box"><span>Замітка пацієнта</span>{{ p.cb_note }}</div>{% endif %}{% endif %}
+
+      <div class="vd-foot">
+        {% if can(user,'sales') %}{% if a and a.sale_id %}<a class="vd-btn main" href="/sales/{{ a.sale_id }}">Відкрити чек</a>
+        {% else %}<a class="vd-btn main" href="/sales/new?{{ ('appt=' ~ a.id) if a else ('patient=' ~ p.id) }}">Провести оплату</a>{% endif %}{% endif %}
+        <a class="vd-btn ghost" href="/patients/{{ p.id }}">Картка пацієнта</a>
+      </div>
+    </section>
+
+    {# ---------- НОТАТКА ---------- #}
+    <section data-p="note" hidden>
+      <div class="vd-sec"><h4>Нотатка до візиту</h4></div>
+      <textarea id="vd-note" rows="4" placeholder="Що важливо знати про цей візит…"></textarea>
+      <div style="display:flex;gap:10px;align-items:center"><button type="button" class="vd-btn main" onclick="vdNote('{{ c.key }}')">Додати</button><span class="vd-err" id="vd-nerr"></span></div>
+      {% for n in c.notes %}<div class="vd-note"><div><b>{{ c.users.get(n.user_id, '—') }}</b><span>{{ n.created_at|local|dt('%d.%m.%Y %H:%M') if n.created_at else '' }}</span></div><p>{{ n.text }}</p></div>
+      {% else %}<div class="vd-empty">Нотаток ще немає.</div>{% endfor %}
+    </section>
+
+    {# ---------- ІСТОРІЯ ---------- #}
+    <section data-p="hist" hidden>
+      <div class="vd-sec"><h4>Історія візиту</h4></div>
+      {% for h in c.hist %}<div class="vd-note"><div><b>{{ h.who }}</b><span>{{ h.at|local|dt('%d.%m.%Y %H:%M') if h.at else '' }}</span></div>
+        <p>{% if h.action == 'note' %}Нотатка: {{ h.details.text }}{% elif h.action == 'cb.sync' %}Завантажено з CleverBox · статус «{{ h.details.status }}»
+          {% elif h.action == 'appointment.create' %}Створено запис{% if h.details.start %} на {{ h.details.start|replace('T',' ') }}{% endif %}{% if h.details.cb %} · продубльовано в CleverBox №{{ h.details.cb }}{% endif %}
+          {% elif h.action == 'appointment.save' %}Запис змінено{% if h.details.start %} · {{ h.details.start|replace('T',' ') }}{% endif %}
+          {% elif h.action == 'appointment.status' %}Статус: «{{ STATUSES.get(h.details.status, h.details.status) }}»{% if h.details.reason %} · {{ h.details.reason }}{% endif %}
+          {% else %}{{ h.action }}{% endif %}</p></div>
+      {% else %}<div class="vd-empty">Історії ще немає.</div>{% endfor %}
+    </section>
+
+    {# ---------- ВИТРАТИ ---------- #}
+    <section data-p="cost" hidden>
+      <div class="vd-info">Витратні матеріали — за нормами списання на 1 послугу. Змінити норми: <a href="/stock?tab=norms">Склад → Норми списання</a>.</div>
+      {% for g in c.costs %}<div class="vd-sec"><h4>{{ g.service }}</h4>{% if g.rows %}<em class="vd-sum">{{ money(g.sum) }}</em>{% endif %}</div>
+        {% for r in g.rows %}<div class="vd-cost"><b>{{ r.name }}</b><span>{{ '%g'|format(r.qty or 0) }} {{ r.unit }}</span><em>{{ money(r.sum) }}</em></div>
+        {% else %}<div class="vd-empty">Норми списання для цієї послуги не задані.</div>{% endfor %}
+      {% endfor %}
+      <div class="vd-tot big"><span>Собівартість матеріалів</span><b>{{ money(c.cost_total) }}</b></div>
+      {% if c.total %}<div class="vd-tot"><span>Вартість послуг</span><b>{{ money(c.total) }}</b></div>{% endif %}
+    </section>
+
+    {# ---------- ФОТО ---------- #}
+    <section data-p="photo" hidden>
+      {% for stg, title, lst in [('before','Фото до', c.before), ('after','Фото після', c.after)] %}
+      <div class="vd-sec"><h4>{{ title }}</h4>
+        {% if can(user,'upload') %}<form method="post" action="/patients/{{ p.id }}/photos" enctype="multipart/form-data" class="vd-up">
+          <input type="hidden" name="stage" value="{{ stg }}"><input type="hidden" name="back" class="vd-back">
+          <label class="vd-btn ghost">Завантажити фото<input type="file" name="files" accept="image/*" multiple hidden onchange="this.form.submit()"></label></form>{% endif %}</div>
+      <div class="vd-ph-g">{% for f in lst %}<a href="/files/{{ f.id }}" target="_blank"><img src="/files/{{ f.id }}" alt="" loading="lazy"></a>{% else %}<div class="vd-empty">Фото ще немає.</div>{% endfor %}</div>
+      {% endfor %}
+      {% if c.other_photos %}<div class="vd-sec"><h4>Інші фото цього дня</h4></div>
+        <div class="vd-ph-g">{% for f in c.other_photos %}<a href="/files/{{ f.id }}" target="_blank"><img src="/files/{{ f.id }}" alt="" loading="lazy"></a>{% endfor %}</div>{% endif %}
+    </section>
+
+    {# ---------- ПРО ВІЗИТ ---------- #}
+    <section data-p="about" hidden>
+      <div class="vd-grid">
+        <div><span>Візит</span><b>{{ c.number }}</b></div>
+        <div><span>Дата й час</span><b>{{ c.start|dt('%d.%m.%Y %H:%M') }} – {{ c.end|dt('%H:%M') }}</b></div>
+        <div><span>Автор</span><b>{{ c.author or ('CleverBox' if not a else '—') }}</b></div>
+        <div><span>Дата створення</span><b>{{ c.created|local|dt('%d.%m.%Y %H:%M') if c.created else '—' }}</b></div>
+        {% if a %}<div><span>Джерело</span><b>{{ {'crm':'CRM','online':'Онлайн-запис','bot':'Бот пацієнтів','appeal':'Звернення'}.get(a.source, a.source) }}</b></div>
+          <div><span>CleverBox</span><b>{{ ('№' ~ a.cb_record_id) if a.cb_record_id else 'не продубльовано' }}</b></div>
+          {% if a.place %}<div><span>Кабінет</span><b>{{ a.place }}</b></div>{% endif %}{% if a.resource %}<div><span>Апарат</span><b>{{ a.resource }}</b></div>{% endif %}
+          {% if a.cancel_reason %}<div><span>Причина скасування</span><b>{{ a.cancel_reason }}</b></div>{% endif %}
+        {% else %}<div><span>Синхронізовано</span><b>{{ c.vs[0].synced_at|local|dt('%d.%m.%Y %H:%M') if c.vs[0].synced_at else '—' }}</b></div>{% endif %}
+      </div>
+    </section>
+  </div>
+</div>
