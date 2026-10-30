@@ -1366,11 +1366,17 @@ async def sale_create(request: Request, user: User = Depends(require("sales")), 
         if bad_:
             return JSONResponse({"error": "Ця каса РРО не приймає: " + ", ".join(bad_)}, status_code=400)
     _fc0 = _fis0.cfg(db)
-    term_wait = {}                                              # оплата на терміналі PayLink: чек закриється після оплати
-    if d_.get("fiscal_rro"):
-        for p_ in d_["payments"]:
-            t_ = _fis0.terminal_for(_fc0, str(p_.get("method") or ""))
-            if t_ and float(p_.get("amount") or 0) > 0:
+    term_wait = {}                                              # оплата на терміналі PayLink: чек закриється лише після оплати
+    for p_ in d_["payments"]:
+        m_ = str(p_.get("method") or "")
+        if float(p_.get("amount") or 0) <= 0 or _sl0.method_kind(m_) != "card" or m_.startswith(_sl0.PAYLINK):
+            continue
+        t_ = _fis0.terminal_for(_fc0, m_)
+        if not t_:
+            return JSONResponse({"error": f"«{m_}»: термінал не підключено до CRM — без відповіді термінала чек не проводиться. "
+                                          "Додайте термінал (ID з PayLink) у «Налаштування → Checkbox → Термінали» і привʼяжіть до цього способу оплати."},
+                                status_code=400)
+        if True:
                 w_ = term_wait.setdefault(p_["method"], {"device": t_["device_id"], "name": t_["name"], "amount": 0.0})
                 w_["amount"] = round(w_["amount"] + float(p_["amount"]), 2)
     d_["await_terminal"] = bool(term_wait)

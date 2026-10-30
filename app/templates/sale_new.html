@@ -484,7 +484,7 @@ quote();
 
 /* ===== термінал PayLink: чек закривається лише після успішної відповіді термінала з даними оплати ===== */
 var TRM={busy:false};
-function termPays(){return fisR()?S.pays.filter(function(p){return PLT[p.method]}):[]}
+function termPays(){return S.pays.filter(function(p){if(PLT[p.method])return true;var b=document.querySelector('#pm-money .pt[data-k="card"][data-m="'+CSS.escape(p.method)+'"]');return !!b})}
 function tBox(st,h,m){var b=document.getElementById('t-term');b.style.display='flex';b.className='tt-box '+st;document.getElementById('t-term-h').textContent=h;document.getElementById('t-term-m').textContent=m||''}
 function goLabel(){var g=document.getElementById('go');if(TRM.busy)return;g.textContent=termPays().length?'Передати на термінал':'Провести продаж'}
 var _payLeft0=payLeft;payLeft=function(){_payLeft0();goLabel()};

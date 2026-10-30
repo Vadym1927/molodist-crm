@@ -233,3 +233,23 @@ def test_terminal_result_without_data_is_rejected():
         f.write(js)
     r = subprocess.run(["node", "--check", f.name], capture_output=True, text=True)
     assert r.returncode == 0, r.stderr[:500]
+
+
+def test_card_payment_without_terminal_is_blocked(monkeypatch):
+    from fastapi.testclient import TestClient
+    from app.config import settings
+    from app.main import app
+    from app.models import SessionLocal, Sale, Doctor
+    import app.services.sales as SL
+    settings.admin_password = "owner-pass-1"
+    monkeypatch.setattr(SL, "method_kind", lambda m: "card" if m.startswith("Термінал") else "cash")
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        with SessionLocal() as db:
+            d = Doctor(name="Лікар Б"); db.add(d); db.commit(); did = d.id
+            n0 = db.query(Sale).count()
+        r = c.post("/sales", json={"items": [{"kind": "other", "name": "Х", "qty": 1, "price": 10, "doctor_id": did}],
+                                   "payments": [{"method": "Термінал Без Привʼязки", "amount": 10}]})
+        assert r.status_code == 400 and "термінал не підключено" in r.json()["error"]
+        with SessionLocal() as db:
+            assert db.query(Sale).count() == n0
