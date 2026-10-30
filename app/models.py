@@ -898,6 +898,7 @@ class FinOp(Base):
     cashbox_to: Mapped[str | None] = mapped_column(String(100))       # переміщення: на який рахунок
     counterparty: Mapped[str | None] = mapped_column(String(200))     # від кого / кому
     storno_of: Mapped[int | None] = mapped_column(Integer, index=True)   # сторно операції №
+    ref: Mapped[str | None] = mapped_column(String(80), index=True)      # джерело: banktxn:<id> — оплата поставки з виписки monobank
     amount: Mapped[float] = mapped_column(Float)                      # додатне число
     cashbox: Mapped[str | None] = mapped_column(String(100))          # готівка / ФОП Бондар / ФОП Колган / …
     doctor_id: Mapped[int | None] = mapped_column(ForeignKey("doctors.id"), index=True)   # зарплата: кому

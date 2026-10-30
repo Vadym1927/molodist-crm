@@ -143,3 +143,73 @@ def sync(db: Session, days: int = 2, getter=None, sleep=time.sleep) -> dict:
         _save(db, items)
     rep["рознесено"] = payments.rematch_all(db)
     return rep
+
+
+# ---------------- рахунок monobank → каса / рахунок CRM ----------------
+MAP_KEY = "mono_cashbox_map"
+DEFAULT_MAP = {"00023032": "Операційний Фонд", "00023028": "Амортизаційний + Операційний Фонд"}   # ФОП Колган / ФОП Бондар
+
+
+def cashbox_map(db: Session) -> dict:
+    st = db.get(SyncState, MAP_KEY)
+    if st and st.value:
+        try:
+            return json.loads(st.value)
+        except ValueError:
+            pass
+    return dict(DEFAULT_MAP)
+
+
+def save_cashbox_map(db: Session, m: dict) -> None:
+    st = db.get(SyncState, MAP_KEY) or SyncState(key=MAP_KEY)
+    st.value, st.updated_at = json.dumps({k: v for k, v in m.items() if v}, ensure_ascii=False), datetime.utcnow()
+    db.merge(st)
+    db.commit()
+
+
+def account_key(a: dict) -> str:
+    """Ключ привʼязки рахунку: останні 8 цифр IBAN (як показує monobank), інакше id."""
+    return (a.get("iban") or "")[-8:] or str(a.get("id") or "")
+
+
+def cashbox_for(db: Session, account_id: str | None, fop: str | None = None) -> str | None:
+    m = cashbox_map(db)
+    for x in saved(db):
+        for a in x.get("accounts", []):
+            if a.get("id") == account_id:
+                return m.get(account_key(a)) or m.get(a.get("id"))
+    return None
+
+
+def balances(db: Session, max_age: int = 300, getter=None) -> dict:
+    """Поточні залишки рахунків monobank: {account_id: {balance, iban, fop, at}}. Кеш — 5 хв (ліміт API: 1 запит / хв)."""
+    st = db.get(SyncState, "mono_balances")
+    cache = {}
+    if st and st.value:
+        try:
+            cache = json.loads(st.value)
+        except ValueError:
+            cache = {}
+    fresh = cache.get("_at") and (datetime.now() - datetime.fromisoformat(cache["_at"])).total_seconds() < max_age
+    if fresh:
+        return {k: v for k, v in cache.items() if k != "_at"}
+    getter = getter or _get
+    out = {}
+    for x in saved(db):
+        if not x.get("token"):
+            continue
+        try:
+            info = getter("/personal/client-info", x["token"])
+        except Exception as e:  # noqa: BLE001
+            log.warning("monobank balance %s: %s", x.get("fop"), e)
+            out.update({k: v for k, v in cache.items() if k != "_at" and v.get("fop") == x["fop"]})
+            continue
+        for a in info.get("accounts", []):
+            if a.get("currencyCode") == 980:
+                out[a["id"]] = {"balance": round((a.get("balance") or 0) / 100, 2), "iban": a.get("iban"), "fop": x["fop"],
+                                "type": a.get("type"), "at": datetime.now().strftime("%d.%m %H:%M")}
+    st = st or SyncState(key="mono_balances")
+    st.value, st.updated_at = json.dumps({**out, "_at": datetime.now().isoformat()}, ensure_ascii=False), datetime.utcnow()
+    db.merge(st)
+    db.commit()
+    return out

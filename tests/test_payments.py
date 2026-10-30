@@ -151,3 +151,41 @@ def test_partial_payment_tops_up_after_wrong_unassigned():
         db.refresh(good)
         assert good.status == "matched" and pay.paid_map(db, [doc.id])[doc.id] == 1000
         assert db.get(st.StockDoc, doc.id).paid_by == "Колган"
+
+
+def test_supply_payment_books_finop_and_cash_report():
+    from app.models import FinOp
+    from app.services import reports as rp
+
+    def getter(path, token):
+        return {"name": "Тест", "accounts": [{"id": "acc-k", "iban": "UA000000000000000000000023032", "type": "fop", "currencyCode": 980, "balance": 9500000}]}
+    with SessionLocal() as db:
+        p = Product(name="Фінопний крем", name_norm="фінопний крем"); db.add(p); db.commit(); pid = p.id
+        monobank.connect(db, "Колган", "tok-k", getter=getter)
+    with TestClient(app) as c:
+        _login(c)
+        c.post("/stock/suppliers", data={"name": "ФінопТест", "iban": "UA" + "4" * 27, "edrpou": "87654321"})
+        j = c.post("/stock/docs/quick", json={"kind": "supply", "supplier": "ФінопТест", "wh": "vitrina", "ext_no": "ФТ-77",
+                   "lines": [{"product_id": pid, "qty": 1, "price": 1200, "wh": "vitrina"}]}).json()
+    with SessionLocal() as db:
+        t = BankTxn(id="finop-t", fop="Колган", account="acc-k", at=datetime.now(), amount=-1200, counter_iban="UA" + "4" * 27,
+                    counter_name="ФінопТест", description="оплата ФТ-77")
+        db.add(t); db.commit()
+        assert pay.match_txn(db, t) == "matched"
+        db.commit()
+        op = db.query(FinOp).filter_by(ref="banktxn:finop-t").one()
+        assert op.cashbox == "Операційний Фонд" and op.amount == 1200 and op.kind == "expense"
+        import json as _j
+        from app.models import SyncState
+        db.merge(SyncState(key="mono_balances", value=_j.dumps({"acc-k": {"balance": 95000, "fop": "Колган", "at": "30.10 17:00"},
+                                                                  "_at": datetime.now().isoformat()})))
+        db.commit()
+        rep = rp.build(db, "cash", datetime.now().date(), datetime.now().date())
+        row = next(r for r in rep.rows if r["name"] == "Операційний Фонд")
+        assert row["bank"] == 95000 and row["out"] >= 1200
+        pay.unallocate_txn(db, t)
+        assert db.get(FinOp, op.id).deleted_at is not None
+        monobank.disconnect(db, "Колган")
+    with TestClient(app) as c:
+        _login(c)
+        assert "Стан каси" in c.get("/reports?r=cash").text

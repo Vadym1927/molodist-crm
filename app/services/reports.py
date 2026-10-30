@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from ..models import Check, Visit, BeautyPlan, Patient, Product, SupplierInvoice
 from ..parsers.observ import norm
 
-REPORTS = {"cashflow": "Cashflow", "fop": "Ліміти ФОП", "expiry": "Терміни придатності", "revenue": "Виручка", "doctors": "Лікарі", "services": "Послуги", "products": "Товари",
+REPORTS = {"cash": "Стан каси", "cashflow": "Cashflow", "fop": "Ліміти ФОП", "expiry": "Терміни придатності", "revenue": "Виручка", "doctors": "Лікарі", "services": "Послуги", "products": "Товари",
            "patients": "Пацієнти", "plans": "Бюті-плани", "certificates": "Сертифікати й абонементи", "supply": "Поставки"}
 
 
@@ -442,7 +442,65 @@ def certificates(db: Session, d_from: date, d_to: date) -> Report:
     return r.finish()
 
 
-BUILDERS = {"revenue": revenue, "doctors": doctors, "services": services, "products": products,
+def cash(db: Session, d_from: date, d_to: date) -> Report:
+    """Стан кас і рахунків: залишок на початок / кінець, рух за період; для рахунків monobank — залишок у банку зараз і різниця."""
+    from ..models import BankTxn
+    from . import cashboxes as cbx
+    from ..integrations import monobank
+    a, b = datetime.combine(d_from, datetime.min.time()), datetime.combine(d_to + timedelta(days=1), datetime.min.time())
+    try:
+        bal = monobank.balances(db)
+    except Exception:  # noqa: BLE001
+        bal = {}
+    m = monobank.cashbox_map(db)
+    bank_by_box: dict = {}
+    for x in monobank.saved(db):
+        for acc in x.get("accounts", []):
+            box = m.get(monobank.account_key(acc)) or m.get(acc.get("id"))
+            if box:
+                bank_by_box[box] = {"id": acc["id"], "fop": x["fop"], "bal": (bal.get(acc["id"]) or {}).get("balance"),
+                                    "at": (bal.get(acc["id"]) or {}).get("at")}
+    r = Report("cash", "Стан каси", "Залишки кас і рахунків CRM на початок і кінець періоду. Для рахунків monobank — скільки на рахунку в банку зараз "
+               "і різниця з CRM: оплати, ще не привʼязані до поставок, або надходження, яких ще немає в CRM.",
+               empty="Немає активних кас — Налаштування → Каси / рахунки.")
+    r.cols = [Col("name", "Рахунок"), Col("start", "Залишок на початок", "uah", True), Col("in", "Прихід", "uah", True),
+              Col("out", "Витрата", "uah", True), Col("end", "Залишок на кінець", "uah", True), Col("bank", "У банку зараз", "uah", True),
+              Col("diff", "Різниця", "uah", True), Col("open", "Не рознесено monobank", "uah", True), Col("note", "")]
+    for x in cbx.items(db):
+        if x.get("deleted") or not x.get("active"):
+            continue
+        mv = cbx.moves(db, x)
+        st, en = cbx.balance_at(db, x, a, mv), cbx.balance_at(db, x, b, mv)
+        inn = round(sum(v.amount for v in mv if a <= v.at < b and v.kind == "in"), 2)
+        out = round(sum(v.amount for v in mv if a <= v.at < b and v.kind == "out"), 2)
+        row = {"name": x["name"], "start": st, "in": inn, "out": out, "end": en, "_href": f"/settings/cashboxes?open={x.get('id', '')}"}
+        bk = bank_by_box.get(x["name"])
+        if bk:
+            now_crm = cbx.balance_at(db, x, datetime.now() + timedelta(seconds=1), mv)
+            since = cbx._since(x)
+            q = select(BankTxn).where(BankTxn.account == bk["id"], BankTxn.amount < 0, BankTxn.status == "new")
+            if since:
+                q = q.where(BankTxn.at >= datetime.combine(since, datetime.min.time()))
+            row["open"] = round(-sum(t.amount for t in db.scalars(q)), 2) or None
+            if bk["bal"] is not None:
+                row["bank"] = bk["bal"]
+                row["diff"] = round(bk["bal"] - (now_crm or 0), 2)
+                row["note"] = f"monobank ФОП {bk['fop']} · {bk['at'] or ''}"
+            else:
+                row["note"] = f"monobank ФОП {bk['fop']} · баланс недоступний"
+        r.rows.append(row)
+    r.finish()
+    t = r.total or {}
+    r.tiles = [("На початок", t.get("start", 0), None, "uah", d_from.strftime("%d.%m.%Y")), ("Прихід", t.get("in", 0), None, "uah", ""),
+               ("Витрата", t.get("out", 0), None, "uah", ""), ("На кінець", t.get("end", 0), None, "uah", d_to.strftime("%d.%m.%Y"))]
+    if any(rw.get("bank") is not None for rw in r.rows):
+        r.tiles.append(("Різниця з банком", t.get("diff", 0), None, "uah", "банк − CRM зараз"))
+    r.chart = [(rw["name"][:14], rw["end"] or 0) for rw in r.rows]
+    r.chart_title = "Залишки на кінець періоду"
+    return r
+
+
+BUILDERS = {"cash": cash, "revenue": revenue, "doctors": doctors, "services": services, "products": products,
             "patients": patients, "plans": plans, "certificates": certificates, "supply": supply}
 
 

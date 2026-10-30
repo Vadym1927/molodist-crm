@@ -134,10 +134,29 @@ def allocate(db: Session, g: Group, amount: float, txn: BankTxn | None = None, f
             d.paid_by = fop
         done += part
     db.flush()
+    if txn and done > 0:
+        _book_txn(db, txn, done, g)
     return round(done, 2)
 
 
+def _book_txn(db: Session, txn: BankTxn, amount: float, g) -> None:
+    """Оплата поставки з виписки monobank → фіноперація «Закупка товара» з рахунку CRM, привʼязаного до рахунку monobank."""
+    from ..integrations import monobank
+    from ..models import FinOp
+    box = monobank.cashbox_for(db, txn.account, txn.fop)
+    if not box:
+        return
+    nums = ", ".join(d.number for d in g.docs if getattr(d, "number", None))[:200]
+    db.add(FinOp(day=txn.at.date(), kind="expense", category="Закупка товара", amount=round(amount, 2), cashbox=box,
+                 counterparty=(g.docs[0].supplier if g.docs else None) or txn.counter_name, ref=f"banktxn:{txn.id}",
+                 comment=f"Оплата поставки {nums} · monobank ФОП {txn.fop or ''}"[:500]))
+    db.flush()
+
+
 def unallocate_txn(db: Session, txn: BankTxn) -> None:
+    from ..models import FinOp
+    for op in db.scalars(select(FinOp).where(FinOp.ref == f"banktxn:{txn.id}", FinOp.deleted_at.is_(None))):
+        op.deleted_at = datetime.utcnow()             # оплату знято з поставки — фіноперацію прибираємо з журналу
     docs = set()
     for a in db.scalars(select(PaymentAlloc).where(PaymentAlloc.txn_id == txn.id)):
         docs.add(a.doc_id)

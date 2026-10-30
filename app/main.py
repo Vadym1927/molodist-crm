@@ -4721,7 +4721,9 @@ def settings_keys(request: Request, user: User = Depends(require("finance")), db
             fops.append(n)
     cnt = {f: db.scalar(select(func.count()).select_from(BankTxn).where(BankTxn.fop == f)) or 0 for f in fops}
     jid = request.query_params.get("job")
-    return render(request, "keys.html", nav="keys", fops=fops, mono=mono, cnt=cnt,
+    from .services import cashboxes as _cbx
+    from .integrations import monobank as _mb
+    return render(request, "keys.html", nav="keys", fops=fops, mono=mono, cnt=cnt, box_names=_cbx.names(db), mono_map=_mb.cashbox_map(db), acc_key=_mb.account_key,
                   cb=[{"name": a["name"], "configured": a["configured"]} for a in chb.accounts(db)], cb_status=chb.statuses(db),
                   cleverbox=bool(settings.cleverbox_token), job=jobs.JOBS.get(jid) if jid else None,
                   ai_key=bool(__import__("app.services.invoice_ai", fromlist=["x"]).api_key(db)),
@@ -4784,6 +4786,11 @@ async def stock_mono_watch(request: Request, user: User = Depends(require("finan
     from .integrations import monobank
     f = await request.form()
     monobank.set_watch(db, f.get("fop", ""), f.getlist("acc"))
+    m = monobank.cashbox_map(db)
+    for k, v in f.items():
+        if k.startswith("cb_"):
+            m[k[3:]] = v
+    monobank.save_cashbox_map(db, m)
     return RedirectResponse("/settings/keys?saved=1#mono" if f.get("back") == "keys" else "/stock?tab=suppliers#mono", 303)
 
 
@@ -5030,6 +5037,10 @@ def _report_period(period: str, df: str | None, dt_: str | None) -> tuple[date, 
         a = _day(df) or m0
         b = _day(dt_) or today
         return (a, b, "custom") if a <= b else (b, a, "custom")
+    if period == "today":
+        return today, today, period
+    if period == "yesterday":
+        return today - timedelta(days=1), today - timedelta(days=1), period
     if period == "prev_month":
         b = m0 - timedelta(days=1)
         return b.replace(day=1), b, period
@@ -5267,7 +5278,7 @@ def cashflow_opening(d: str = Form(...), amount: str = Form(...), user: User = D
     return RedirectResponse("/reports?r=cashflow", 303)
 
 
-REPORT_PERIODS = {"month": "Цей місяць", "prev_month": "Минулий місяць", "30d": "30 днів", "quarter": "Квартал",
+REPORT_PERIODS = {"today": "Сьогодні", "yesterday": "Вчора", "month": "Цей місяць", "prev_month": "Минулий місяць", "30d": "30 днів", "quarter": "Квартал",
                   "year": "З початку року", "12m": "12 місяців"}
 
 
@@ -5282,6 +5293,8 @@ def reports_page(request: Request, r: str = "revenue", period: str = "month", df
         return _fop_page(request, db)
     if key == "expiry":
         return _expiry_page(request, db)
+    if key == "cash" and not request.query_params.get("period") and not (df or dt_):
+        period = "today"
     d_from, d_to, period = _report_period(period, df, dt_)
     rep = rp.build(db, key, d_from, d_to)
     if fmt == "xlsx":

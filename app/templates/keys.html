@@ -29,7 +29,10 @@
         {% if m.accounts %}<form method="post" action="/stock/mono/watch" style="margin-top:8px"><input type="hidden" name="fop" value="{{ f }}"><input type="hidden" name="back" value="keys">
           <div class="small" style="font-weight:600;margin-bottom:4px">Які рахунки відстежувати</div>
           {% for a in m.accounts %}<label class="small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="acc" value="{{ a.id }}" {{ 'checked' if a.id in m.watch }} style="width:auto">
-            {{ {'fop':'Рахунок ФОП','black':'Чорна картка','white':'Біла картка','platinum':'Platinum','iron':'Iron','yellow':'Дитяча','eAid':'єПідтримка'}.get(a.type, a.type) }} · {{ {980:'₴',840:'$',978:'€'}.get(a.currency, a.currency) }}{% if a.iban %} · …{{ a.iban[-8:] }}{% endif %}</label>{% endfor %}
+            {{ {'fop':'Рахунок ФОП','black':'Чорна картка','white':'Біла картка','platinum':'Platinum','iron':'Iron','yellow':'Дитяча','eAid':'єПідтримка'}.get(a.type, a.type) }} · {{ {980:'₴',840:'$',978:'€'}.get(a.currency, a.currency) }}{% if a.iban %} · …{{ a.iban[-8:] }}{% endif %}</label>
+            {% if a.currency == 980 %}<label class="small muted" style="display:flex;gap:6px;align-items:center;margin:2px 0 8px 22px">→ рахунок у CRM
+              <select name="cb_{{ acc_key(a) }}" style="height:32px;flex:1;max-width:260px"><option value="">— не списувати —</option>{% for b in box_names %}<option {{ 'selected' if mono_map.get(acc_key(a)) == b }}>{{ b }}</option>{% endfor %}</select></label>{% endif %}{% endfor %}
+          <div class="small muted" style="margin-top:4px">Оплати поставок з цього рахунку потрапляють у журнал фіноперацій («Закупка товара») і списуються з вибраного рахунку CRM.</div>
           <button class="btn ghost" style="padding:3px 10px;margin-top:6px">Зберегти рахунки</button></form>{% endif %}{% endif %}
       <form method="post" action="/stock/mono/connect" class="grid" style="gap:6px;margin-top:10px" autocomplete="off">
         <input type="hidden" name="fop" value="{{ f }}"><input type="hidden" name="back" value="keys">
