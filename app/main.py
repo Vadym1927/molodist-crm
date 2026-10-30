@@ -301,7 +301,12 @@ async def lifespan(app: FastAPI):
         from .services import channels as _channels
         _channels.apply(db)
         from .services import cashboxes as _cbx
-        _cbx.apply_seed(db)                                 # залишки кас на 30.10.2026 (один раз)                                 # канали (TurboSMS, бот) з «Налаштування → Канали»
+        _cbx.apply_seed(db)
+        if not db.get(SyncState, "supply_finops_backfill_v1"):     # уже рознесені оплати поставок → журнал фіноперацій (один раз)
+            from .services import payments as _pay0
+            _n0 = _pay0.backfill_finops(db)
+            db.merge(SyncState(key="supply_finops_backfill_v1", value=str(_n0)))
+            db.commit()                                 # залишки кас на 30.10.2026 (один раз)                                 # канали (TurboSMS, бот) з «Налаштування → Канали»
         from .services.scripts import seed_defaults
         seed_defaults(db)
     tasks, sched = [], None

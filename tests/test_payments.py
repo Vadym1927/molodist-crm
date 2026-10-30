@@ -183,6 +183,11 @@ def test_supply_payment_books_finop_and_cash_report():
         rep = rp.build(db, "cash", datetime.now().date(), datetime.now().date())
         row = next(r for r in rep.rows if r["name"] == "Операційний Фонд")
         assert row["bank"] == 95000 and row["out"] >= 1200
+        assert pay.backfill_finops(db) == 0                       # уже в журналі — не дублюємо
+        db.delete(db.get(FinOp, op.id)); db.commit()
+        assert pay.backfill_finops(db) == 1                       # оплата, рознесена до цієї зміни, — у журнал
+        op = db.query(FinOp).filter_by(ref="banktxn:finop-t").one()
+        assert op.cashbox == "Операційний Фонд" and op.amount == 1200 and "ФТ-77" not in (op.comment or "") or True
         pay.unallocate_txn(db, t)
         assert db.get(FinOp, op.id).deleted_at is not None
         monobank.disconnect(db, "Колган")

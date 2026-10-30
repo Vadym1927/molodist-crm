@@ -153,6 +153,29 @@ def _book_txn(db: Session, txn: BankTxn, amount: float, g) -> None:
     db.flush()
 
 
+def backfill_finops(db: Session) -> int:
+    """Оплати поставок monobank, рознесені раніше, — у журнал фіноперацій (якщо ще не там). Повертає к-сть створених."""
+    from ..models import FinOp
+    have = {r for (r,) in db.execute(select(FinOp.ref).where(FinOp.ref.like("banktxn:%"), FinOp.deleted_at.is_(None)))}
+    sums: dict = {}
+    for a in db.scalars(select(PaymentAlloc).where(PaymentAlloc.txn_id.is_not(None))):
+        x = sums.setdefault(a.txn_id, {"amount": 0.0, "docs": set()})
+        x["amount"] += a.amount or 0
+        x["docs"].add(a.doc_id)
+    n = 0
+    for tid, x in sums.items():
+        if f"banktxn:{tid}" in have or x["amount"] <= 0:
+            continue
+        txn = db.get(BankTxn, tid)
+        if not txn:
+            continue
+        docs = [d for d in (db.get(StockDoc, i) for i in sorted(x["docs"])) if d]
+        _book_txn(db, txn, round(x["amount"], 2), type("G", (), {"docs": docs})())
+        n += 1
+    db.commit()
+    return n
+
+
 def unallocate_txn(db: Session, txn: BankTxn) -> None:
     from ..models import FinOp
     for op in db.scalars(select(FinOp).where(FinOp.ref == f"banktxn:{txn.id}", FinOp.deleted_at.is_(None))):
