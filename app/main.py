@@ -1065,6 +1065,33 @@ def pos_visits(d: str = "", user: User = Depends(require("sales")), db: Session 
     return JSONResponse({"day": day_.isoformat(), "rows": rows})
 
 
+@app.get("/pos/patient/{pid:int}")
+def pos_patient(pid: int, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    """Картка пацієнта в касі: мітка, бонуси, баланс, персональна знижка."""
+    from .services import loyalty as ly, calendar as _cal
+    from sqlalchemy import func as _f
+    p_ = _patient_or_403(db, user, pid)
+    n = db.scalar(select(_f.count(_f.distinct(_f.date(Visit.starts_at)))).where(Visit.patient_id == p_.id, Visit.status.in_(("attended", "done")))) or 0
+    return JSONResponse({"id": p_.id, "name": p_.full_name, "phone": p_.phone or "", "tag": _cal.tag_for(n), "visits": n,
+                         "bonus": round(ly.balance(db, p_.id), 2), "balance": p_.cb_balance, "discount": p_.discount_pct})
+
+
+@app.post("/pos/patient")
+async def pos_patient_new(request: Request, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    from .services.appeals import find_patient
+    f = await request.json()
+    name, phone = str(f.get("name") or "").strip()[:200], str(f.get("phone") or "").strip()[:64]
+    if len(name) < 2:
+        return JSONResponse({"error": "Вкажіть імʼя пацієнта"}, status_code=400)
+    p_ = find_patient(db, phone) if phone else None
+    if not p_:
+        p_ = Patient(full_name=name, phone=phone or None, source="Каса CRM")
+        db.add(p_)
+        db.commit()
+        audit(db, "patient.create", "patient", p_.id, user=user, via="pos")
+    return JSONResponse({"id": p_.id, "name": p_.full_name, "phone": p_.phone or "", "existed": p_.full_name != name})
+
+
 @app.get("/pos/services")
 def pos_services(group: str = "category", key: str | None = None, q: str = "", user: User = Depends(require("sales")),
                  db: Session = Depends(db_dep)):
@@ -1159,7 +1186,10 @@ def sale_new(request: Request, appt: int = 0, patient: int = 0, user: User = Dep
     certs = db.scalars(select(GiftCertificate).where(GiftCertificate.balance > 0)).all()
     from .services import fiscal as _fis
     _fc = _fis.cfg(db)
+    from .services import clinic as _cl
+    _locs = [l_ for l_ in (_cl.get(db).get("locations") or []) if l_.get("active", True)]
     return render(request, "sale_new.html", nav="finance", appt=a_, pt=pt, items=items, methods=sl.methods(db), today=date.today().isoformat(),
+                  loc_name=_locs[0]["name"] if _locs else "MOLODIST",
                   mkinds={m_: sl.method_kind(m_) for m_ in sl.methods(db)}, rros=[r_ for r_ in _fis.rros(db) if r_["on"]],
                   fauto=bool(_fc.get("auto")), fdef=_fc.get("default_rro"),
                   doctors=spec_svc.calendar_doctors(db), rules=db.scalars(select(DiscountRule).where(DiscountRule.active.is_(True),

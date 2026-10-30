@@ -24,6 +24,35 @@
 .vl .v .tm{font:700 15px var(--sans);min-width:52px}.vl .v b{display:block;font-size:14.5px}.vl .v small{color:var(--muted)}
 .vl .v .sv{font-size:13px;color:#4a4352;margin-top:3px}
 .br .em{color:var(--muted);text-align:center;padding:40px 10px}
+.pt-bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:0 0 18px}
+.pt-bar .loc{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:8px 16px 8px 12px;color:#5C4B82}
+.pt-bar .loc small{display:block;font:600 10.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#9a93a6}.pt-bar .loc b{display:block;color:#2A2430;font-size:14.5px}
+.sw2{display:inline-flex;background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:4px}
+.sw2 button{border:0;background:none;padding:10px 18px;border-radius:10px;font:700 12.5px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:#8a8496;cursor:pointer}
+.sw2 button.on{background:#3B3050;color:#fff;box-shadow:0 4px 12px -6px rgba(59,48,80,.6)}
+.pchoose{display:flex;align-items:center;gap:10px;border:0;background:none;cursor:pointer;font:700 13px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:#5d5869;padding:6px 8px;border-radius:12px}
+.pchoose:hover{background:#F1EDF8;color:#3B3050}.pchoose i{width:38px;height:38px;border-radius:50%;background:#F1EDF8;display:grid;place-items:center;color:#5C4B82}
+.pchoose em{font-style:normal;color:#5C4B82;font-size:18px}.pchoose.hide{display:none}
+dialog.pd{margin:0 0 0 auto;height:100vh;max-height:100vh;width:min(460px,100vw);border:0;padding:0;box-shadow:-20px 0 60px rgba(42,36,48,.25)}
+dialog.pd::backdrop{background:rgba(42,36,48,.35)}
+.pd-h{display:flex;justify-content:space-between;align-items:center;padding:20px 22px;border-bottom:1px solid #F0ECE6}
+.pd-h h3{margin:0;font:600 16px var(--head);letter-spacing:.12em;text-transform:uppercase}
+.pd-x{border:0;background:#F7F4F0;width:38px;height:38px;border-radius:12px;font-size:22px;cursor:pointer}
+.pd-b{padding:18px 22px;display:grid;gap:10px}
+.pd-s{position:relative}.pd-s svg{position:absolute;left:14px;top:14px;color:#9a93a6}.pd-s input{width:100%;height:46px;padding-left:42px;border-radius:12px}
+#pdr .r{display:flex;justify-content:space-between;gap:10px;padding:12px 12px;border-radius:12px;cursor:pointer;border-bottom:1px solid #F3EFEA}
+#pdr .r:hover{background:#F7F4FB}#pdr .r b{font-weight:600}#pdr .r small{color:#9a93a6}
+.pd-new{border:0;background:none;color:#5C4B82;font:700 13px var(--sans);text-align:left;padding:10px 4px;cursor:pointer;text-transform:uppercase;letter-spacing:.05em}
+.pd-nf{display:grid;gap:8px}.pd-nf input{height:44px}
+.pc{display:flex;align-items:center;gap:16px;background:linear-gradient(135deg,#F7F4FB,#fff)!important;border-color:#E4DEEF!important}
+.pc .av{width:56px;height:56px;border-radius:50%;background:#3B3050;color:#fff;display:grid;place-items:center;font:600 18px var(--head);flex:none}
+.pc .nm a{font:600 17px var(--sans);color:#2A2430;text-decoration:none;border-bottom:1px dashed #C9BFE6}
+.pc .tg{display:inline-block;margin-top:6px;font:700 10.5px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:#fff;background:#7CB342;border-radius:5px;padding:2px 7px}
+.pc .tg.reg{background:#5BC0DE}.pc .tg.new{background:#E8A33D}
+.pc .kp{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}.pc .kp div{background:#fff;border:1px solid #ECE7E1;border-radius:12px;padding:8px 12px;min-width:84px}
+.pc .kp small{display:block;font:600 10px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#9a93a6}.pc .kp b{font:600 15px var(--sans)}
+.pc .cl{border:0;background:none;color:#C0392B;font-size:20px;cursor:pointer;align-self:flex-start}
+
 .pos label{display:grid;gap:4px;font-size:12px;font-weight:700;color:var(--muted)}
 .pk{position:relative}.pk input{width:100%}
 .pk .res{position:absolute;left:0;right:0;top:46px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 30px rgba(42,36,48,.15);max-height:300px;overflow:auto;z-index:5;display:none}
@@ -44,6 +73,21 @@
 </style>
 <div class="row between" style="margin-bottom:10px"><div><div class="eyebrow"><a href="/sales" style="text-decoration:none">Каса CRM</a></div><h1>Новий продаж</h1>
   {% if appt %}<div class="muted small">За записом №{{ appt.id }} · {{ appt.start|dt('%d.%m.%Y %H:%M') }}</div>{% endif %}</div></div>
+<div class="pt-bar">
+  <div class="loc"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.4"/></svg>
+    <div><small>Філія</small><b>{{ loc_name }}</b></div></div>
+  <div class="sw2" id="mode"><button type="button" data-m="p" class="on">Продаж на пацієнта</button><button type="button" data-m="n">Без пацієнта</button></div>
+  <button type="button" class="pchoose" id="pchoose" onclick="pdOpen()"><i><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.2-4.2 4.3-6.5 8-6.5s6.8 2.3 8 6.5"/></svg></i><span id="pchoose-t">{{ pt.full_name if pt else "Оберіть пацієнта" }}</span><em>»</em></button>
+  <a class="btn ghost" href="/sales" style="margin-left:auto">Усі продажі</a>
+</div>
+<dialog class="pd" id="pd"><div class="pd-h"><h3>Вибір пацієнта</h3><button type="button" class="pd-x" onclick="document.getElementById('pd').close()">×</button></div>
+  <div class="pd-b"><label class="pd-s"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input id="pdq" placeholder="Імʼя або телефон" autocomplete="off"></label>
+    <div id="pdr"></div>
+    <button type="button" class="pd-new" onclick="document.getElementById('pdn').style.display='grid';this.style.display='none'">＋ Створити пацієнта</button>
+    <div id="pdn" class="pd-nf" style="display:none"><input id="pdn-n" placeholder="Прізвище та імʼя"><input id="pdn-p" placeholder="Телефон" inputmode="tel">
+      <button type="button" class="btn" onclick="pdCreate()">Створити й обрати</button><div class="err" id="pdn-e"></div></div>
+  </div></dialog>
 <div class="pos">
 <nav class="pm" id="pm">
   <button type="button" data-s="visits"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4M8 13.5h3"/></svg>Візити</button>
@@ -54,8 +98,7 @@
 </nav>
 <section class="br" id="br"></section>
 <div>
-  <div class="card"><label>Пацієнт<div class="pk"><input id="pq" placeholder="Імʼя або телефон (можна без пацієнта — продаж «з вулиці»)" value="{{ pt.full_name if pt else '' }}" autocomplete="off"><div class="res"></div></div></label>
-    <div class="small muted" id="pinfo" style="margin-top:6px"></div></div>
+  <div class="card pc" id="pcard" style="display:none"></div>
   <div class="card" style="padding:10px 12px">
     <div class="row" style="gap:8px;flex-wrap:nowrap;margin-bottom:8px"><div class="pk" style="flex:1"><input id="sq" placeholder="＋ Послуга" autocomplete="off"><div class="res"></div></div>
       <div class="pk" style="flex:1"><input id="gq" placeholder="＋ Товар (назва, артикул, штрихкод)" autocomplete="off"><div class="res"></div></div>
@@ -125,8 +168,6 @@ function pick(inp,url,fmt,on){var r=inp.parentNode.querySelector('.res'),T=null;
   T=setTimeout(function(){fetch(url+encodeURIComponent(q)).then(function(x){return x.json()}).then(function(js){r.innerHTML=js.map(function(x,i){return '<div data-i="'+i+'">'+fmt(x)+'</div>'}).join('')||'<div><small>Не знайдено</small></div>';r.style.display='block';
     r.querySelectorAll('div[data-i]').forEach(function(d){d.onclick=function(){on(js[+d.dataset.i]);r.style.display='none'}})})},250)});
   document.addEventListener('click',function(e){if(!inp.parentNode.contains(e.target))r.style.display='none'})}
-pick(document.getElementById('pq'),'/lookup/patients?q=',function(p){return esc(p.name)+' <small>'+esc(p.phone)+'</small>'},function(p){S.patient_id=p.id;document.getElementById('pq').value=p.name;document.getElementById('pinfo').innerHTML='<a href="/patients/'+p.id+'" target="_blank">картка пацієнта ↗</a>';quote()});
-document.getElementById('pq').addEventListener('input',function(){if(!this.value.trim()){S.patient_id=null;quote()}});
 pick(document.getElementById('sq'),'/lookup/services?q=',function(s){return esc(s.name)+' <small>'+s.minutes+' хв · '+f2(s.price)+'</small>'},function(s){S.items.push({kind:'service',ref_id:s.id,name:s.name,category:s.category,qty:1,price:+s.price,doctor_id:S.appointment_id?null:DEF});document.getElementById('sq').value='';quote()});
 pick(document.getElementById('gq'),'/lookup/sale-products?q=',function(p){return esc(p.name)+' <small>'+f2(p.price)+' · '+esc(p.wh||'')+' · залишок '+(p.stock==null?'—':p.stock)+'</small>'},function(p){S.items.push({kind:'product',ref_id:p.id,name:p.name,category:p.category,qty:1,price:+p.price,warehouse:p.warehouse,lots:p.lots,doctor_id:DEF});document.getElementById('gq').value='';quote()});
 function addOther(){S.items.push({kind:'other',name:'',qty:1,price:0,doctor_id:DEF});quote()}
@@ -160,7 +201,7 @@ function brLoad(keepFocus){var br=document.getElementById('br');
       document.getElementById('vd').onchange=function(){B.day=this.value;brLoad()};
       br.querySelectorAll('.v[data-i]').forEach(function(b){b.onclick=function(){var v=js.rows[+b.dataset.i];if(v.sale_id){location.href='/sales/'+v.sale_id;return}
         if(v.appt_id){location.href='/sales/new?appt='+v.appt_id;return}
-        S.patient_id=v.patient_id;document.getElementById('pq').value=v.patient;document.getElementById('pinfo').innerHTML='<a href="/patients/'+v.patient_id+'" target="_blank">картка пацієнта ↗</a>';
+        setPatient(v.patient_id);
         v.services.forEach(function(x){S.items.push({kind:x.id?'service':'other',ref_id:x.id,name:x.name,category:x.category||'',qty:1,price:+x.price||0,doctor_id:v.doctor_id||DEF})});quote()}})});return}
   var isS=B.s==='services',url=(isS?'/pos/services':'/pos/products')+'?group='+B.group+(B.key!==null?'&key='+encodeURIComponent(B.key):'')+(B.q?'&q='+encodeURIComponent(B.q):'');
   fetch(url).then(function(r){return r.json()}).then(function(js){
@@ -176,6 +217,30 @@ function brLoad(keepFocus){var br=document.getElementById('br');
       else{fetch('/pos/lots/'+x.id).then(function(r){return r.json()}).then(function(lots){S.items.push({kind:'product',ref_id:x.id,name:x.name,category:x.category,qty:1,price:+x.price,warehouse:x.warehouse,lots:lots,doctor_id:DEF});quote()})}
       b.style.borderColor='#7BC47F';setTimeout(function(){b.style.borderColor=''},400)}})})}
 brGo({{ ('"visits"' if not appt and not items else '"services"')|safe }});
+
+/* ---- пацієнт: перемикач, вибір, картка ---- */
+function initials(n){return (n||'').split(/\s+/).filter(Boolean).slice(0,2).map(function(w){return w[0]}).join('').toUpperCase()}
+function setPatient(id){if(!id){S.patient_id=null;renderP(null);quote();return}
+  fetch('/pos/patient/'+id).then(function(r){return r.json()}).then(function(p){S.patient_id=p.id;renderP(p);quote()})}
+function renderP(p){var c=document.getElementById('pcard'),ch=document.getElementById('pchoose');
+  if(!p){c.style.display='none';c.innerHTML='';document.getElementById('pchoose-t').textContent='Оберіть пацієнта';return}
+  var tc=p.tag==='ФАНАТ'?'':(p.tag.indexOf('Пост')===0?'reg':'new');
+  c.innerHTML='<div class="av">'+esc(initials(p.name))+'</div><div class="nm"><a href="/patients/'+p.id+'" target="_blank">'+esc(p.name)+'</a><div class="small muted">'+esc(p.phone)+'</div><span class="tg '+tc+'">'+esc(p.tag)+'</span></div>'+
+    '<div class="kp"><div><small>Бонуси</small><b>'+f2(p.bonus)+'</b></div>'+(p.balance!=null?'<div><small>Баланс</small><b>'+f2(p.balance)+'</b></div>':'')+'<div><small>Знижка</small><b>'+(p.discount?p.discount+'%':'—')+'</b></div></div>'+
+    '<button type="button" class="cl" title="Прибрати пацієнта">×</button>';
+  c.style.display='flex';c.querySelector('.cl').onclick=function(){setPatient(null)};document.getElementById('pchoose-t').textContent='Змінити пацієнта'}
+function setMode(m){document.querySelectorAll('#mode button').forEach(function(b){b.classList.toggle('on',b.dataset.m===m)});
+  document.getElementById('pchoose').classList.toggle('hide',m==='n');if(m==='n')setPatient(null)}
+document.querySelectorAll('#mode button').forEach(function(b){b.onclick=function(){setMode(b.dataset.m);if(b.dataset.m==='p'&&!S.patient_id)pdOpen()}});
+function pdOpen(){var d=document.getElementById('pd');d.showModal();var q=document.getElementById('pdq');q.value='';document.getElementById('pdr').innerHTML='';setTimeout(function(){q.focus()},50)}
+(function(){var q=document.getElementById('pdq'),T=null;q.oninput=function(){clearTimeout(T);var v=q.value.trim();if(v.length<2){document.getElementById('pdr').innerHTML='';return}
+  T=setTimeout(function(){fetch('/lookup/patients?q='+encodeURIComponent(v)).then(function(r){return r.json()}).then(function(js){var r=document.getElementById('pdr');
+    r.innerHTML=js.map(function(p,i){return '<div class="r" data-i="'+i+'"><b>'+esc(p.name)+'</b><small>'+esc(p.phone)+'</small></div>'}).join('')||'<div class="small muted" style="padding:10px">Не знайдено — створіть нового пацієнта</div>';
+    r.querySelectorAll('.r').forEach(function(d){d.onclick=function(){document.getElementById('pd').close();setMode('p');setPatient(js[+d.dataset.i].id)}})})},250)}})();
+function pdCreate(){var n=document.getElementById('pdn-n').value,p=document.getElementById('pdn-p').value,e=document.getElementById('pdn-e');e.textContent='';
+  fetch('/pos/patient',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,phone:p})}).then(function(r){return r.json()}).then(function(j){
+    if(j.error){e.textContent=j.error;return}document.getElementById('pd').close();setMode('p');setPatient(j.id)})}
+if(S.patient_id)setPatient(S.patient_id);
 quote();
 </script>
 {% endblock %}

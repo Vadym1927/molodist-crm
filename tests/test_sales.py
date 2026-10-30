@@ -92,3 +92,18 @@ def test_pos_catalog():
         assert any(x["key"] == "Вітрина" for x in c.get("/pos/products").json()["groups"])
         assert c.get("/pos/products?group=brand&key=Hikari").json()["items"][0]["price"] == 900
         assert "Візити" in c.get("/sales/new").text
+
+
+def test_pos_patient_pick_and_create():
+    settings.admin_password = "owner-pass-1"
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        j = c.post("/pos/patient", json={"name": "Нова Касова", "phone": "+380 67 999 11 22"}).json()
+        assert j["id"]
+        again = c.post("/pos/patient", json={"name": "Інше імʼя", "phone": "0679991122"}).json()
+        assert again["id"] == j["id"]                                  # той самий телефон — той самий пацієнт
+        info = c.get(f"/pos/patient/{j['id']}").json()
+        assert info["name"] == "Нова Касова" and info["tag"] == "Первинний пацієнт" and info["bonus"] == 0
+        assert c.post("/pos/patient", json={"name": ""}).status_code == 400
+        t = c.get("/sales/new").text
+        assert "Продаж на пацієнта" in t and "Без пацієнта" in t and "Оберіть пацієнта" in t
