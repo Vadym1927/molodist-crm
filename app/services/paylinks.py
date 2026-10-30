@@ -166,7 +166,8 @@ def _liqpay_sig(priv: str, data: str) -> str:
 
 
 def create(db: Session, amount: float, purpose: str, base_url: str, patient_id: int | None = None, appointment_id: int | None = None,
-           user_id: int | None = None, http: httpx.Client | None = None, account_id: int | None = None) -> PayLink:
+           user_id: int | None = None, http: httpx.Client | None = None, account_id: int | None = None,
+           basket: list[dict] | None = None) -> PayLink:
     d = _raw(db)
     a = account(d, account_id)
     if not a or not _ready(a):
@@ -188,7 +189,8 @@ def create(db: Session, amount: float, purpose: str, base_url: str, patient_id: 
         if prov == "mono":
             r = http.post("https://api.monobank.ua/api/merchant/invoice/create", headers={"X-Token": val(a, "token")},
                           json={"amount": int(round(amount * 100)), "ccy": 980, "validity": valid, "webHookUrl": hook,
-                                "merchantPaymInfo": {"reference": ref, "destination": purpose}})
+                                "merchantPaymInfo": {"reference": ref, "destination": purpose,
+                                                     "basketOrder": _basket(basket, amount, purpose)}})
             js = r.json()
             if r.status_code >= 400 or not js.get("pageUrl"):
                 raise PayError(f"monobank: {js.get('errText') or js.get('errCode') or r.status_code}")
@@ -222,6 +224,26 @@ def create(db: Session, amount: float, purpose: str, base_url: str, patient_id: 
     pl.info = {"ref": ref, "account": a["name"], "valid_until": (datetime.now() + timedelta(seconds=valid)).strftime("%d.%m.%Y %H:%M")}
     db.commit()
     return pl
+
+
+def _basket(basket: list[dict] | None, amount: float, purpose: str) -> list[dict]:
+    """Кошик для monobank (обовʼязковий при фіскалізації в monobank): позиції в копійках, сума = сумі посилання.
+    Якщо позиції не сходяться з сумою (часткова оплата) — один рядок «за що» на всю суму."""
+    total = int(round(amount * 100))
+    rows = []
+    for b in basket or []:
+        line = int(round(float(b.get("total") or 0) * 100))
+        if line <= 0:
+            continue
+        qty = float(b.get("qty") or 1)
+        q = int(round(qty)) if abs(qty - round(qty)) < 1e-9 and round(qty) >= 1 else 1
+        if line % q:
+            q = 1
+        rows.append({"name": str(b.get("name") or purpose)[:128], "qty": q, "sum": line // q, "total": line,
+                     "code": str(b.get("code") or "1")[:64], "unit": "шт."})
+    if not rows or sum(r["total"] for r in rows) != total:
+        rows = [{"name": purpose[:128], "qty": 1, "sum": total, "total": total, "code": "pay", "unit": "посл."}]
+    return rows
 
 
 def message(db: Session, pl: PayLink) -> str:

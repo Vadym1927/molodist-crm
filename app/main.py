@@ -1269,6 +1269,65 @@ async def sale_quote(request: Request, user: User = Depends(require("sales")), d
     return JSONResponse(sl.quote(db, d_["items"], pt, d_["rule_ids"], d_["manual_discount"], d_["bonus_pay"]))
 
 
+async def _sale_links(request: Request, db: Session, s_, user: User) -> list[str]:
+    """Посилання на оплату для чека (оплати «Посилання на оплату · …» без створеного посилання) + надсилання пацієнту."""
+    from .services import paylinks as _pls, sales as sl
+    from .models import PayLink
+    from .integrations.messaging import send_to_patient
+    base = str(request.base_url).rstrip("/").replace("http://", "https://")
+    have = {(p_.account_id, round(p_.amount, 2)) for p_ in db.scalars(select(PayLink).where(PayLink.sale_id == s_.id,
+                                                                                        PayLink.status.in_(("created", "paid"))))}
+    basket = [{"name": i.name, "qty": i.qty, "total": i.total, "code": f"{i.kind[:1]}{i.ref_id or i.id}"} for i in s_.items]
+    msgs = []
+    for p_ in s_.payments:
+        if not p_.method.startswith(sl.PAYLINK):
+            continue
+        acc = _pls.account_by_name(_pls._raw(db), p_.method.split(" · ", 1)[-1])
+        if acc and (acc["id"], round(p_.amount, 2)) in have:
+            continue
+        try:
+            pl = await asyncio.to_thread(_pls.create, db, p_.amount, f"Чек Ч-{s_.id} · MOLODIST", base, s_.patient_id, s_.appointment_id,
+                                         user.id, None, acc["id"] if acc else None, basket)
+        except _pls.PayError as e:
+            msgs.append(f"посилання не створено: {e}")
+            continue
+        pl.sale_id = s_.id
+        db.commit()
+        if s_.patient:
+            res = await asyncio.to_thread(send_to_patient, s_.patient, _pls.message(db, pl))
+            pl.info = {**(pl.info or {}), "sent": {"ok": res.ok, "channel": res.channel, "at": datetime.now().strftime("%d.%m.%Y %H:%M")}}
+            db.commit()
+            msgs.append(f"посилання на {pl.amount:.2f} ₴ " + (f"надіслано ({res.channel})" if res.ok else f"створено, не надіслано: {res.error}"))
+    return msgs
+
+
+@app.post("/sales/{sid:int}/paylink")
+async def sale_paylink_retry(request: Request, sid: int, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    from .models import Sale
+    s_ = db.get(Sale, sid) or (_ for _ in ()).throw(HTTPException(404))
+    if s_.status != "awaiting":
+        return RedirectResponse(_with_msg(f"/sales/{sid}", "Чек не очікує оплати", True), 303)
+    msgs = await _sale_links(request, db, s_, user)
+    bad = any("не створено" in m_ for m_ in msgs)
+    return RedirectResponse(_with_msg(f"/sales/{sid}", "; ".join(msgs) or "Посилання вже створено", bad), 303)
+
+
+@app.get("/sales/{sid:int}/pay-status")
+async def sale_pay_status(sid: int, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    """Для сторінки чека: перепитати monobank і повернути статуси посилань і чека."""
+    from .models import Sale, PayLink
+    from .services import paylinks as _pls
+    s_ = db.get(Sale, sid) or (_ for _ in ()).throw(HTTPException(404))
+    for pl in db.scalars(select(PayLink).where(PayLink.sale_id == sid, PayLink.status == "created")).all():
+        try:
+            await asyncio.to_thread(_pls.check_status, db, pl)
+        except Exception:  # noqa: BLE001
+            pass
+    db.refresh(s_)
+    return JSONResponse({"sale": s_.status, "links": [{"id": p_.id, "status": p_.status} for p_ in
+                                                      db.scalars(select(PayLink).where(PayLink.sale_id == sid))]})
+
+
 @app.post("/sales")
 async def sale_create(request: Request, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
     from .services import sales as sl
@@ -1291,27 +1350,7 @@ async def sale_create(request: Request, user: User = Depends(require("sales")), 
         db.rollback()
         return JSONResponse({"error": str(e)}, status_code=400)
     audit(db, "sale.create", "sale", s_.id, user=user, total=s_.total, patient=s_.patient_id, appt=s_.appointment_id)
-    link_msgs = []
-    if s_.status == "awaiting":                                   # оплата посиланням: створюємо й надсилаємо пацієнту
-        from .services import paylinks as _pls
-        from .integrations.messaging import send_to_patient
-        base = str(request.base_url).rstrip("/").replace("http://", "https://")
-        for p_ in s_.payments:
-            if not p_.method.startswith(sl.PAYLINK):
-                continue
-            acc = _pls.account_by_name(_pls._raw(db), p_.method.split(" · ", 1)[-1])
-            try:
-                pl = await asyncio.to_thread(_pls.create, db, p_.amount, f"Чек Ч-{s_.id}", base, s_.patient_id, s_.appointment_id, user.id,
-                                             None, acc["id"] if acc else None)
-            except _pls.PayError as e:
-                link_msgs.append(f"посилання не створено: {e}")
-                continue
-            pl.sale_id = s_.id
-            db.commit()
-            res = await asyncio.to_thread(send_to_patient, s_.patient, _pls.message(db, pl))
-            pl.info = {**(pl.info or {}), "sent": {"ok": res.ok, "channel": res.channel, "at": datetime.now().strftime("%d.%m.%Y %H:%M")}}
-            db.commit()
-            link_msgs.append(f"посилання на {pl.amount:.2f} ₴ " + (f"надіслано ({res.channel})" if res.ok else f"створено, не надіслано: {res.error}"))
+    link_msgs = await _sale_links(request, db, s_, user) if s_.status == "awaiting" else []
     from .services import fiscal as _fis
     rro_ = d_.get("fiscal_rro")
     if rro_ and s_.status == "paid":                              # вибрана фіскальна каса в POS

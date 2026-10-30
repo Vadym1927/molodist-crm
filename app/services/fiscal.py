@@ -221,6 +221,8 @@ def _rro(db: Session, rid: int | None) -> dict:
 def mode_of(c: dict, method: str, rro: dict | None = None) -> str:
     if method in NON_FISCAL_DISCOUNT:
         return "discount"
+    if method.startswith("Посилання на оплату"):              # онлайн-оплата карткою (еквайринг) → безготівка
+        return "card"
     if rro and rro.get("methods"):                         # «Дозволені види оплат для РРО»
         return rro["methods"].get(method, "skip")
     m = (c.get("method_modes") or {}).get(method)

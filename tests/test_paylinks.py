@@ -124,3 +124,37 @@ def test_sale_paid_by_link():
             assert False
         except sl.SaleError:
             pass
+
+
+def test_sale_link_flow_basket_and_status():
+    from app.models import Sale
+    from app.services import sales as sl
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        pls.save_account(db, None, "mono", "monobank ФОП Бондар", {"token": "MTOK"}, "Онлайн-оплати", True)
+        p = Patient(full_name="Лінк Потік", phone="+380671234511"); db.add(p); db.commit()
+        s = sl.create(db, {"patient_id": p.id, "items": [{"kind": "other", "name": "X", "qty": 1, "price": 1500.5}],
+                           "payments": [{"method": sl.paylink_method("monobank ФОП Бондар"), "amount": 1500.5}]})
+        sid, pid = s.id, p.id
+    seen = {}
+
+    def h(req):
+        if req.url.path.endswith("/invoice/create"):
+            seen["body"] = json.loads(req.content)
+            return httpx.Response(200, json={"invoiceId": "inv9", "pageUrl": "https://pay.mbnk.biz/inv9"})
+        return httpx.Response(200, json={"status": "success", "finalAmount": 150050})
+    import app.services.paylinks as P
+    orig = P.httpx.Client
+    P.httpx.Client = lambda *a, **k: orig(transport=httpx.MockTransport(h))
+    try:
+        with TestClient(app) as c:
+            c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+            r = c.post(f"/sales/{sid}/paylink", follow_redirects=False)
+            assert r.status_code == 303
+            b = seen["body"]["merchantPaymInfo"]["basketOrder"]
+            assert sum(x["sum"] * x["qty"] for x in b) == 150050
+            assert "pay.mbnk.biz/inv9" in c.get(f"/sales/{sid}").text
+            j = c.get(f"/sales/{sid}/pay-status").json()
+            assert j["sale"] == "paid" and j["links"][0]["status"] == "paid"
+    finally:
+        P.httpx.Client = orig

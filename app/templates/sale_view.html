@@ -10,10 +10,33 @@
   <div class="row" style="gap:6px"><button class="btn ghost" onclick="print()">🖨 Друк</button>{% if s.patient_id %}<a class="btn ghost" href="/patients/{{ s.patient_id }}">Картка пацієнта</a>{% endif %}<a class="btn" href="/sales/new">＋ Новий продаж</a></div></div>
 {% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
 {% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
-{% if s.status == 'awaiting' %}<div class="alert" style="background:#FFF6DD;color:#7a5a00">Очікує онлайн-оплати за посиланням. Щойно пацієнт оплатить — чек стане «оплачено» автоматично.
-  {% for l in links %}<div class="small" style="margin-top:4px">№{{ l.id }} · {{ l.amount|uah }} · {{ {'created':'очікує','paid':'оплачено','failed':'помилка','expired':'прострочено','cancelled':'скасовано'}.get(l.status, l.status) }}
-    {% if l.status == 'created' %}<button class="btn ghost" style="padding:1px 8px" type="button" onclick="navigator.clipboard.writeText('{{ l.url }}');this.textContent='✓'">Копіювати</button>
-    <form method="post" action="/paylinks/{{ l.id }}/check" style="display:inline"><input type="hidden" name="back" value="/sales/{{ s.id }}"><button class="btn ghost" style="padding:1px 8px">Перевірити оплату</button></form>{% endif %}</div>{% endfor %}</div>{% endif %}
+{% if s.status == 'awaiting' %}
+<style>.pw{max-width:560px;margin:0 auto 16px;background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:20px 22px;box-shadow:0 10px 30px -20px rgba(42,36,48,.3)}
+.pw h3{margin:0 0 4px;font:600 13px var(--head);letter-spacing:.14em;text-transform:uppercase}.pw .sub{color:#8a8496;font-size:13.5px;margin-bottom:14px}
+.pl{display:grid;grid-template-columns:132px 1fr;gap:16px;align-items:center;padding:14px;border:1px solid #F0ECE6;border-radius:16px;margin-top:10px}
+.pl img{width:132px;height:132px;border-radius:10px;border:1px solid #F0ECE6}
+.pl .u{display:flex;gap:6px}.pl .u input{flex:1;min-width:0;height:38px;font-size:12.5px}.pl b.am{font:600 20px var(--head)}
+.st{display:inline-flex;align-items:center;gap:6px;font:700 12px var(--sans);border-radius:99px;padding:4px 10px;background:#FFF4DE;color:#8A5A00}
+.st.paid{background:#EAF6EA;color:#2E6B2E}.st.failed,.st.expired{background:#FDECEA;color:#B23B2E}
+.st i{width:8px;height:8px;border-radius:50%;background:currentColor;animation:pl 1.2s infinite}.st.paid i{animation:none}
+@keyframes pl{50%{opacity:.25}}
+.paid-ok{max-width:560px;margin:0 auto 16px;background:#EAF6EA;color:#2E6B2E;border-radius:16px;padding:16px 20px;font-weight:700;display:none}</style>
+<div class="paid-ok" id="paid-ok">✓ Оплата пройшла — чек проведено</div>
+<div class="pw" id="pw"><h3>Оплата за посиланням</h3><div class="sub">Надішліть посилання або покажіть QR-код пацієнту. Сторінка сама побачить, коли оплата пройде.</div>
+  {% for l in links %}<div class="pl"><img alt="QR" src="https://api.qrserver.com/v1/create-qr-code/?size=264x264&margin=8&data={{ l.url|urlencode }}">
+    <div><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b class="am">{{ l.amount|uah }}</b>
+      <span class="st {{ l.status }}" data-l="{{ l.id }}"><i></i>{{ {'created':'очікує оплати','paid':'оплачено','failed':'помилка','expired':'прострочено','cancelled':'скасовано'}.get(l.status, l.status) }}</span></div>
+      <div class="small muted" style="margin:4px 0 8px">{{ (l.info or {}).get('account') or '' }}{% if (l.info or {}).get('sent') %} · надіслано {{ l.info.sent.channel }} {{ l.info.sent.at }}{% endif %}</div>
+      {% if l.url %}<div class="u"><input readonly value="{{ l.url }}"><button class="btn ghost" type="button" onclick="navigator.clipboard.writeText('{{ l.url }}');this.textContent='✓'">Копіювати</button></div>{% endif %}
+      <div class="row" style="gap:6px;margin-top:8px"><a class="btn ghost" style="padding:5px 12px" href="{{ l.url }}" target="_blank" rel="noopener">Відкрити</a>
+        <form method="post" action="/paylinks/{{ l.id }}/check" style="margin:0"><input type="hidden" name="back" value="/sales/{{ s.id }}"><button class="btn ghost" style="padding:5px 12px">Перевірити</button></form></div></div></div>
+  {% else %}<div class="alert" style="margin:6px 0 10px">Посилання ще не створено{{ (' — ' ~ request.query_params.get('msg')) if request.query_params.get('msg') and 'не створено' in request.query_params.get('msg') else '' }}.</div>
+    <form method="post" action="/sales/{{ s.id }}/paylink"><button class="btn">Створити посилання на оплату</button></form>{% endfor %}
+</div>
+<script>(function(){var t=setInterval(function(){fetch('/sales/{{ s.id }}/pay-status').then(function(r){return r.json()}).then(function(j){
+  (j.links||[]).forEach(function(l){var e=document.querySelector('.st[data-l="'+l.id+'"]');if(e){e.className='st '+l.status;e.lastChild.textContent={created:'очікує оплати',paid:'оплачено',failed:'помилка',expired:'прострочено',cancelled:'скасовано'}[l.status]||l.status}});
+  if(j.sale==='paid'){clearInterval(t);document.getElementById('paid-ok').style.display='block';setTimeout(function(){location.href='/sales/{{ s.id }}?msg='+encodeURIComponent('Оплата пройшла — чек проведено')},1500)}})},5000)})();</script>
+{% endif %}
 {% if s.status == 'refunded' %}<div class="alert">Чек повернено {{ s.refunded_at|dt('%d.%m.%Y %H:%M') }} · {{ s.refund_reason }}</div>{% endif %}
 <div class="rc"><h2>MOLODIST</h2><div class="c">Медичний простір</div><div class="c" style="margin-top:6px">Чек Ч-{{ s.id }} · {{ s.at|dt('%d.%m.%Y %H:%M') }}{{ (' · ' ~ author.name) if author }}</div>
   {% if s.patient %}<div class="c">Пацієнт: {{ s.patient.full_name }}</div>{% endif %}
@@ -36,8 +59,9 @@
     {% if s.fiscal.get('return') %}<div class="small">Чек повернення № {{ s.fiscal['return'].fiscal_code }} · <a href="{{ s.fiscal['return'].url }}" target="_blank" rel="noopener">відкрити ↗</a></div>
     {% elif s.status == 'refunded' %}<form method="post" action="/sales/{{ s.id }}/fiscalize" onsubmit="return confirm('Фіскалізувати чек повернення в Checkbox?')"><input type="hidden" name="ret" value="1"><button class="btn ghost">Фіскалізувати повернення</button>{% if s.fiscal.return_error %}<span class="small" style="color:#C0392B"> {{ s.fiscal.return_error }}</span>{% endif %}</form>{% endif %}
     {% if s.patient_id %}<form method="post" action="/sales/{{ s.id }}/send-receipt"><button class="btn ghost">Надіслати чек пацієнту</button></form>{% endif %}
+  {% elif s.status == 'awaiting' %}<div class="small muted">Фіскалізувати можна після оплати за посиланням.</div>
   {% elif s.status == 'paid' %}
-    {% if rros %}<form method="post" action="/sales/{{ s.id }}/fiscalize" class="row" style="gap:6px;flex-wrap:nowrap" onsubmit="return confirm('Фіскалізувати чек Ч-{{ s.id }} на {{ s.total|uah }} у Checkbox?')">
+    {% if rros %}<form method="post" action="/sales/{{ s.id }}/fiscalize" class="row" style="gap:6px;flex-wrap:nowrap" onsubmit="return confirm('{{ 'Увага: якщо monobank уже фіскалізує оплати за посиланням у своєму кабінеті, повторно фіскалізувати не потрібно. ' if 'Посилання' in (s.payments|map(attribute='method')|join('|')) else '' }}Фіскалізувати чек Ч-{{ s.id }} на {{ s.total|uah }} у Checkbox?')">
       <select name="rro" style="flex:1">{% for r in rros %}<option value="{{ r.id }}" {{ 'selected' if fcfg.default_rro == r.id }}>{{ r.name }}{{ ' (тест)' if r.test }}</option>{% endfor %}</select>
       <button class="btn">Фіскалізувати</button></form>
     {% else %}<div class="small muted">Каси Checkbox не підключені — <a href="/settings/checkbox?open=rro">додати РРО</a>.</div>{% endif %}
