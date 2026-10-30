@@ -86,8 +86,8 @@
 .tg{max-height:none}
 .blk{border-left:0;border-top:4px solid var(--bc,#F5B940);background:var(--bg,#FFF8D6);border-radius:6px;padding:5px 9px 6px;box-shadow:0 1px 3px rgba(42,36,48,.12)}
 .blk:hover{background:var(--bg,#FFF8D6);filter:brightness(.98);box-shadow:0 3px 10px rgba(42,36,48,.18)}
-.blk.s-booked{--bc:#F5B940;--bg:#FFF8D6}.blk.s-confirmed{--bc:#9B4DE0;--bg:#F1E4FF}.blk.s-arrived{--bc:#3B8FD9;--bg:#E2F1FD}
-.blk.s-done{--bc:#4CAF50;--bg:#EAF6EA}.blk.s-no_show{--bc:#C0392B;--bg:#FDECEA}
+.s-booked{--bc:#F5B940;--bg:#FFF8D6}.s-confirmed{--bc:#9B4DE0;--bg:#F1E4FF}.s-arrived{--bc:#3B8FD9;--bg:#E2F1FD}
+.s-done{--bc:#4CAF50;--bg:#EAF6EA}.s-no_show{--bc:#C0392B;--bg:#FDECEA}
 .blk .hd{display:flex;align-items:center;gap:6px;flex-wrap:wrap;line-height:1.25}
 .blk .hd .tm{margin:0;font:700 13px var(--sans);color:#2A2430;background:rgba(255,255,255,.7);border-radius:4px;padding:0 4px}
 .blk .hd b{font:700 14.5px var(--sans);display:inline;white-space:normal;padding:0}
@@ -104,14 +104,149 @@
 .tg-head a.dn{color:#2f65a0;font-weight:700;font-size:15px;text-decoration:underline dotted;text-underline-offset:3px}
 .blk.crm-old{box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--c) 45%,transparent)}.tg-col{cursor:copy}.tg-col .blk{cursor:pointer}
 .offsh{position:absolute;left:0;right:0;background:repeating-linear-gradient(135deg,rgba(42,36,48,.035) 0 6px,rgba(42,36,48,.07) 6px 12px);pointer-events:none;z-index:0}
+
+/* ===== календар як у CleverBox, брендбук MOLODIST ===== */
+.ctb{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:12px 14px;margin-bottom:14px;box-shadow:0 1px 2px rgba(42,36,48,.04),0 14px 34px -28px rgba(42,36,48,.35)}
+.cbtn{height:44px;display:inline-flex;align-items:center;padding:0 18px;border:1px solid #E6E0D8;border-radius:13px;background:#fff;font:700 12.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#2A2430;text-decoration:none}
+.cbtn:hover{border-color:#C9BFE6;background:#F7F4F0}
+.cdate{display:flex;align-items:center;height:44px;background:#F7F4F0;border-radius:13px;padding:0 4px}
+.cdate a{width:34px;height:36px;display:grid;place-items:center;border-radius:10px;color:#3B3050;text-decoration:none;font-size:20px}.cdate a:hover{background:#fff}
+.cdate label{position:relative;display:flex;align-items:center;gap:10px;padding:0 14px;font:600 15px var(--sans);color:#2A2430;cursor:pointer;min-width:150px;justify-content:center;font-variant-numeric:tabular-nums}
+.cdate label svg{color:#5C4B82}.cdate input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+.cloc{display:flex;align-items:center;gap:8px;height:44px;padding:0 12px;border:1px solid #E6E0D8;border-radius:13px;min-width:160px;max-width:220px;color:#5C4B82}
+.cloc select{border:0;background:none;height:40px;flex:1;font:600 14.5px var(--sans);color:#2A2430;padding:0;box-shadow:none}
+.csrch{position:relative;flex:1;min-width:170px;max-width:340px}.csrch input{width:100%;height:44px;border-radius:13px;padding-right:40px}
+.csrch svg{position:absolute;right:14px;top:13px;color:#5C4B82}
+.cics{display:flex;gap:6px;margin-left:auto}@media(min-width:1200px){.ctb{flex-wrap:nowrap}}
+.cic{width:44px;height:44px;display:grid;place-items:center;border:1px solid #E6E0D8;border-radius:13px;background:#fff;color:#3B3050;cursor:pointer;list-style:none}
+.cic::-webkit-details-marker{display:none}.cic:hover,.cic.on{border-color:#C9BFE6;background:#F6F3FB}
+.cdd{position:relative}.cdd[open] .cic{border-color:#3B3050}
+.cmenu{position:absolute;right:0;top:50px;z-index:30;background:#fff;border:1px solid #ECE7E1;border-radius:16px;box-shadow:0 20px 50px -20px rgba(42,36,48,.45);padding:6px;min-width:230px;max-height:60vh;overflow:auto}
+.cmenu a{display:block;padding:10px 12px;border-radius:10px;color:#2A2430;text-decoration:none;font-size:14px}.cmenu a:hover{background:#F7F4F0}.cmenu a.on{background:#3B3050;color:#fff}
+.cnew{height:44px;padding:0 18px;white-space:nowrap;border-radius:13px;font-weight:700;display:inline-flex;align-items:center;gap:8px}.cnew span{font-size:18px;line-height:1}
+.tg{border-radius:20px;border:1px solid #ECE7E1;box-shadow:0 1px 2px rgba(42,36,48,.04),0 14px 34px -28px rgba(42,36,48,.35);overflow:auto;max-height:none;background:#fff}
+.tg-head{background:#FBFAF8;border-bottom:1px solid #ECE7E1}.tg-head>div{border-left:1px solid #F0ECE6;justify-content:flex-start;gap:12px;padding:14px 16px}
+.tg-head .av{width:48px;height:48px;font:500 16px var(--head);color:#fff;box-shadow:0 0 0 2px #fff,0 0 0 3px #E4DEEF;background-size:cover;background-position:center}
+.tg-head a.dn{display:block;color:#3B3050;font:600 15px var(--sans);text-decoration:none;border-bottom:1px dashed #C9BFE6;width:fit-content}.tg-head a.dn:hover{color:#5C4B82}
+.tg-head .dpos{display:block;color:#8a8496;font-size:13px;margin-top:3px}.tg-head .ds{display:inline-block;margin-top:4px;font:600 11px var(--sans);color:#2E6B2E;background:#EAF6EA;border-radius:99px;padding:1px 8px}
+.tg-nav{display:flex!important;gap:4px!important;justify-content:center!important;align-items:flex-end!important;padding:0 6px 14px!important}
+.tg-nav button{width:26px;height:26px;border:1px solid #E6E0D8;border-radius:8px;background:#fff;color:#3B3050;cursor:pointer;font-size:15px;line-height:1}
+.tg-nav button:hover{border-color:#C9BFE6;background:#F6F3FB}
+.tg-head.ad>div{padding:8px 10px}
+.tg-hours{background:#FBFAF8;border-right:1px solid #F0ECE6}.tg-hours div{right:12px;transform:translateY(4px);color:#9a93a6;font:600 12px var(--sans);font-variant-numeric:tabular-nums}
+.tg-hours div.hh{color:#2A2430;font-weight:700;font-size:13px}
+.tg-col{border-left:1px solid #F0ECE6}.tg-line{border-top:1px solid #F5F2EE}.tg-line.h{border-top:1px solid #ECE7E1}
+.offsh{background:repeating-linear-gradient(135deg,#F7F4F0 0 7px,#EFEBE5 7px 14px)}
+.nowline{height:2px;background:#C0392B;z-index:5}.nowline:before{display:none}
+.nowpill{position:absolute;left:6px;right:6px;transform:translateY(-50%);text-align:center;font:700 12.5px var(--sans);color:#C0392B;background:#fff;border:2px solid #C0392B;border-radius:99px;padding:2px 0;z-index:6}
+.blk{border-radius:10px;border-top:4px solid var(--bc);padding:6px 10px 6px;box-shadow:0 2px 6px -2px rgba(42,36,48,.18)}
+.blk .hd{gap:7px;padding-right:26px}.blk .hd .tm{font:600 12.5px var(--sans);background:rgba(255,255,255,.75);border-radius:6px;padding:1px 6px;font-variant-numeric:tabular-nums}
+.blk .hd b{font:700 14.5px var(--sans);color:#2A2430}
+.blk .ptag{font:700 10.5px var(--sans);letter-spacing:.02em;border-radius:6px;padding:2px 7px}
+.blk .ptag.new{background:#E8B931;color:#fff}.blk .ptag.reg{background:#4FC3D9}.blk .ptag.fan{background:#7CB342}.blk .ptag.plan{background:#5C4B82}
+.blk .svl{font-size:14px;margin-top:5px}.blk .svl em{font-style:normal}
+.blk .nt{font-size:12.5px;color:#6b6575}
+.blk .ics{position:absolute;right:8px;top:6px;display:flex;flex-direction:column;gap:4px;align-items:center}
+.blk .ics i{font-style:normal;font:700 13px var(--sans);color:#2E8B57;line-height:1}.blk .ics i.pd{color:#2E8B57}
+.blk.dim{opacity:.25}.blk.hit{box-shadow:0 0 0 3px #3B3050,0 8px 20px -8px rgba(42,36,48,.5);z-index:4}
+.blk.lock{border-top:4px solid #7E5BA8;background:repeating-linear-gradient(135deg,#D9C2EE 0 10px,#D2B7EA 10px 20px);color:#2A2430;padding:7px 10px;z-index:1;cursor:default}
+.blk.lock .tm{display:block;font:600 13px var(--sans)}.blk.lock b{display:block;font:700 15px var(--sans);margin-top:2px}
+.blk.lock form{position:absolute;right:6px;top:4px;margin:0}.blk.lock button{border:0;background:rgba(255,255,255,.7);width:24px;height:24px;border-radius:7px;cursor:pointer;color:#3B3050}
+.legend2{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:#8a8496;margin-top:12px;font-weight:600}
+.legend2 i.lg{display:inline-block;width:14px;height:14px;border-radius:4px;margin-right:6px;vertical-align:-3px;border-top:3px solid var(--bc);background:var(--bg)}
+.legend2 i.lockl{background:repeating-linear-gradient(135deg,#D9C2EE 0 4px,#D2B7EA 4px 8px);border-top:3px solid #7E5BA8}
+@media(max-width:860px){.ctb{padding:10px}.csrch{max-width:none;order:9;flex-basis:100%}.cics{margin-left:0}.cloc{min-width:0;flex:1}.cnew{flex:1;justify-content:center}}
 </style>
 
 {% set WD = ['понеділок','вівторок','середа','четвер','пʼятниця','субота','неділя'] %}
 {% set MON = ['січня','лютого','березня','квітня','травня','червня','липня','серпня','вересня','жовтня','листопада','грудня'] %}
 {% set MON1 = ['Січень','Лютий','Березень','Квітень','Травень','Червень','Липень','Серпень','Вересень','Жовтень','Листопад','Грудень'] %}
-<div class="ph">
-  <div><h1>Календар</h1>
-    <div class="date">{% if view=='day' %}{{ WD[start.weekday()]|capitalize }}, {{ start.day }} {{ MON[start.month-1] }} {{ start.year }}{% elif view=='week' %}{{ start.day }} {{ MON[start.month-1] }} — {{ end.day }} {{ MON[end.month-1] }} {{ end.year }}{% else %}{{ MON1[start.month-1] }} {{ start.year }}{% endif %}</div></div>
+{% set WD2 = ['ПН','ВТ','СР','ЧТ','ПТ','СБ','НД'] %}
+{% set q0 = '&doc=' ~ (doc or '') %}
+<div class="ctb">
+  <a class="cbtn" href="?view={{ view }}{{ q0 }}">Сьогодні</a>
+  <div class="cdate"><a href="?start={{ prev }}&view={{ view }}{{ q0 }}" title="Назад">‹</a>
+    <label>{% if view=='day' %}{{ WD2[start.weekday()] }}, {{ start|dt('%d.%m.%Y') }}{% elif view=='week' %}{{ start|dt('%d.%m') }} — {{ end|dt('%d.%m.%Y') }}{% else %}{{ MON1[start.month-1] }} {{ start.year }}{% endif %}
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+      <input type="date" value="{{ start }}" onchange="location.href='?start='+this.value+'&view={{ view }}{{ q0 }}'"></label>
+    <a href="?start={{ next }}&view={{ view }}{{ q0 }}" title="Вперед">›</a></div>
+  <div class="cloc"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
+    <select>{% for l in (locs or []) %}<option>{{ l.name }}</option>{% else %}<option>MOLODIST</option>{% endfor %}</select></div>
+  <div class="csrch"><input id="calq" placeholder="Пошук по пацієнтах, послугах…" oninput="calFind(this.value)" onkeydown="if(event.key==='Enter'&&!calFind(this.value))location.href='/patients?q='+encodeURIComponent(this.value)">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/></svg></div>
+  <div class="cics">
+    {% if user.role != 'doctor' %}<details class="cdd"><summary class="cic {{ 'on' if doc }}" title="Фільтр по спеціалісту"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 5h16l-6 7.5V19l-4 1.5v-8z"/></svg></summary>
+      <div class="cmenu"><a href="?start={{ start }}&view={{ view }}" class="{{ 'on' if not doc }}">Усі фахівці</a>{% for d in specialists %}<a href="?start={{ start }}&view={{ view }}&doc={{ d.id }}" class="{{ 'on' if doc==d.id }}">{{ d.name }}</a>{% endfor %}</div></details>{% endif %}
+    <details class="cdd"><summary class="cic" title="Вигляд: день / тиждень / місяць"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M9 14.5l2 2 4-4"/></svg></summary>
+      <div class="cmenu"><a href="?start={{ start }}&view=day{{ q0 }}" class="{{ 'on' if view=='day' }}">День</a><a href="?start={{ start }}&view=week{{ q0 }}" class="{{ 'on' if view=='week' }}">Тиждень</a><a href="?start={{ start }}&view=month{{ q0 }}" class="{{ 'on' if view=='month' }}">Місяць</a></div></details>
+    {% if can(user,'book') and view=='day' %}<button type="button" class="cic" title="Заблокувати час" onclick="document.getElementById('blkd').showModal()"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3"/></svg></button>{% endif %}
+    <a class="cic" href="/specialists/schedule" title="Графік роботи"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></a>
+    <a class="cic" href="/specialists" title="Співробітники"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 4.5a3 3 0 0 1 0 6M18 14.2c1.8.8 3 2.6 3 4.8"/></svg></a>
+    <a class="cic" href="/settings/clinic" title="Налаштування календаря"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg></a>
+  </div>
+  {% if can(user,'book') %}<button type="button" class="btn cnew" onclick="apOpenNew({{ doc or 0 }}, '{{ start }}T{{ '%02d' % (now_h if start == today else 10) }}:00')"><span>＋</span> Створити візит</button>{% endif %}
+</div>
+
+{% if view=='day' %}
+{% set PX = 1.3 %}{% set EXTRA = 30 %}{% set H = (grid.h1 - grid.h0) * 60 * PX %}{% set n = grid.cols|length %}
+{% set GC = 'grid-template-columns:76px repeat(' ~ n ~ ',minmax(260px,1fr))' %}
+<div class="tg" id="tgw">
+  <div class="tg-head" style="{{ GC }}">
+    <div class="tg-nav"><button type="button" onclick="calPage(-1)" title="Попередні">‹</button><button type="button" onclick="calPage(1)" title="Наступні">›</button></div>
+    {% for g in grid.cols %}{% set d = g.col.doctor %}
+    <div>{% if d %}<i class="av" style="{% if d.photo_url %}background-image:url('{{ d.photo_url }}');{% else %}background-color:{{ color(d) }};{% endif %}">{{ '' if d.photo_url else initials(d.name) }}</i>
+      <div style="min-width:0"><a class="dn" href="/specialists/{{ d.id }}">{{ d.name }}</a><span class="dpos">{{ d.position or ('звільнений' if not d.active else 'Спеціаліст') }}</span>
+        {% set _s = (shifts or {}).get(d.id) %}{% if _s %}<span class="ds">{{ _s.start }}–{{ _s.end }}{{ (' · ' ~ _s.place) if _s.place }}</span>{% endif %}</div>
+      {% else %}<div><b>Без фахівця</b><span class="dpos">задачі, очікувані за планом</span></div>{% endif %}</div>
+    {% endfor %}
+  </div>
+  {% if grid.cols|selectattr('allday')|list %}
+  <div class="tg-head ad" style="position:static;{{ GC }}">
+    <div style="font-size:11px;color:#9a93a6;justify-content:center">без часу</div>
+    {% for g in grid.cols %}<div class="tg-allday">{% for e in g.allday %}
+      <a class="{{ e.kind }}" href="{{ ('/patients/' ~ e.patient_id) if e.patient_id else '/tasks' }}" title="{{ e.subtitle or '' }}">{{ '⏳' if e.kind=='expected' else '☑' }} {{ e.title }}</a>{% endfor %}</div>{% endfor %}
+  </div>{% endif %}
+  <div class="tg-body" style="{{ GC }};height:{{ H + EXTRA * PX + 10 }}px">
+    <div class="tg-hours">{% for h in range(grid.h0, grid.h1 + 1) %}<div class="hh" style="top:{{ (h - grid.h0) * 60 * PX }}px">{{ '%02d' % h }}:00</div>{% if h < grid.h1 %}<div style="top:{{ ((h - grid.h0) * 60 + 30) * PX }}px">{{ '%02d' % h }}:30</div>{% endif %}{% endfor %}
+      {% if grid.now_top is not none %}<span class="nowpill" style="top:{{ grid.now_top * PX }}px">{{ now_hm }}</span>{% endif %}</div>
+    {% for g in grid.cols %}
+    <div class="tg-col" style="--c:{{ color(g.col.doctor) if g.col.doctor else '#9a93a6' }}" {% if can(user,'book') %}onclick="tgNew(event, this, {{ g.col.doctor.id if g.col.doctor else 0 }})" title="Натисніть на вільний час — новий запис"{% endif %}>
+      {% set _s = (shifts or {}).get(g.col.doctor.id) if g.col.doctor else None %}{% if _s %}{% set a = (_s.start[:2]|int * 60 + _s.start[3:]|int - grid.h0 * 60) * PX %}{% set b = (_s.end[:2]|int * 60 + _s.end[3:]|int - grid.h0 * 60) * PX %}
+        {% if a > 0 %}<div class="offsh" style="top:0;height:{{ a }}px"></div>{% endif %}<div class="offsh" style="top:{{ b }}px;bottom:0"></div>{% endif %}
+      <div class="offsh" style="top:{{ H }}px;bottom:0"></div>
+      {% for h in range(grid.h0, grid.h1 + 1) %}<div class="tg-line h" style="top:{{ (h - grid.h0) * 60 * PX }}px"></div>{% if h < grid.h1 %}<div class="tg-line" style="top:{{ ((h - grid.h0) * 60 + 30) * PX }}px"></div>{% endif %}{% endfor %}
+      {% for b in g.blocks %}{% set e = b.ev %}
+      {% if e.kind == 'block' %}
+      <div class="blk lock" style="top:{{ b.top * PX + 1 }}px;height:{{ [b.height * PX - 3, 26]|max }}px;left:calc({{ 100 * b.lane / b.lanes }}% + 6px);width:calc({{ 100 / b.lanes }}% - 12px)" onclick="event.stopPropagation()" data-q="{{ e.title|lower }}">
+        <span class="tm">{{ e.when|dt('%H:%M') }} - {{ (e.ends or e.when)|dt('%H:%M') }}</span><b>{{ e.title }}</b>
+        {% if can(user,'book') %}<form method="post" action="/calendar/blocks/{{ e.block_id }}/delete" onsubmit="return confirm('Зняти блокування «{{ e.title }}»?')"><button title="Зняти блокування">×</button></form>{% endif %}</div>
+      {% else %}
+      <a class="blk {{ e.kind }} s-{{ e.status or 'booked' }} {{ 'short' if b.height * PX < 52 }} {{ 'crm' if e.appt_id }}" href="{{ ('/patients/' ~ e.patient_id) if e.patient_id else '/tasks' }}" title="{{ e.title }} · {{ e.service or '' }}"
+         data-q="{{ (e.title ~ ' ' ~ (e.service or '') ~ ' ' ~ (e.note or ''))|lower }}"
+         {% if e.appt_id %}onclick="event.stopPropagation();apptOpen({{ e.appt_id }});return false"{% endif %}
+         style="top:{{ b.top * PX + 1 }}px;height:{{ [b.height * PX - 3, 26]|max }}px;left:calc({{ 100 * b.lane / b.lanes }}% + 6px);width:calc({{ 100 / b.lanes }}% - 12px)">
+        <span class="ics">{% if e.online %}<i title="Онлайн-запис">@</i>{% endif %}{% if e.paid %}<i class="pd" title="Оплачено"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/></svg></i>{% endif %}</span>
+        <div class="hd"><span class="tm">{{ e.when|dt('%H:%M') }}-{{ (e.ends or e.when)|dt('%H:%M') }}</span><b>{{ e.title }}</b>
+          {% if e.tag %}<span class="ptag {{ 'fan' if e.tag == 'ФАНАТ' else ('reg' if e.tag.startswith('Пост') else 'new') }}">{{ e.tag }}</span>{% endif %}
+          {% if e.in_plan and e.kind == 'visit' %}<span class="ptag plan">бюті-план</span>{% endif %}</div>
+        {% if e.services %}<div class="svl">{% for s in e.services %}<span><em>👉</em> {{ s }}</span>{% endfor %}</div>{% endif %}
+        {% if e.note %}<div class="nt">Замітка: {{ e.note }}</div>{% endif %}</a>
+      {% endif %}{% endfor %}
+      {% if grid.now_top is not none %}<div class="nowline" style="top:{{ grid.now_top * PX }}px"></div>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+<div class="legend2">{% for k, lb in [('booked','Записаний'),('confirmed','Підтверджено'),('arrived','Прийшов'),('done','Візит завершено'),('no_show','Не прийшов')] %}<span><i class="lg s-{{ k }}"></i>{{ lb }}</span>{% endfor %}
+  <span><i class="lg lockl"></i>Заблоковано</span><span>{{ n_ev }} {{ 'запис' if n_ev % 10 == 1 and n_ev % 100 != 11 else ('записи' if n_ev % 10 in [2,3,4] and n_ev % 100 not in [12,13,14] else 'записів') }}</span></div>
+{% if can(user,'book') %}<dialog class="cs-d" id="blkd" style="border:0;border-radius:20px;padding:0;width:min(440px,94vw)"><form method="post" action="/calendar/blocks" style="padding:20px 22px;display:grid;gap:12px">
+  <div style="display:flex;justify-content:space-between;align-items:center"><b style="font:600 14px var(--head);letter-spacing:.14em;text-transform:uppercase">Заблокувати час</b><button type="button" onclick="this.closest('dialog').close()" style="border:0;background:#F7F4F0;width:34px;height:34px;border-radius:10px;cursor:pointer">×</button></div>
+  <input type="hidden" name="day" value="{{ start }}">
+  <label class="small muted" style="display:grid;gap:4px">Спеціаліст<select name="doctor_id" required>{% for g in grid.cols if g.col.doctor %}<option value="{{ g.col.doctor.id }}" {{ 'selected' if doc == g.col.doctor.id }}>{{ g.col.doctor.name }}</option>{% endfor %}</select></label>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><label class="small muted" style="display:grid;gap:4px">З<input name="t_from" value="10:00" required placeholder="10:00"></label><label class="small muted" style="display:grid;gap:4px">До<input name="t_to" value="12:00" required placeholder="12:00"></label></div>
+  <label class="small muted" style="display:grid;gap:4px">Причина<input name="title" placeholder="Зйомка, навчання, обід…" maxlength="120"></label>
+  <button class="btn">Заблокувати</button></form></dialog>{% endif %}
+{% elif view=='week' %}{{ start.day }} {{ MON[start.month-1] }} — {{ end.day }} {{ MON[end.month-1] }} {{ end.year }}{% else %}{{ MON1[start.month-1] }} {{ start.year }}{% endif %}</div></div>
   <div class="cal-ctl">
     {% if can(user,'book') %}<button type="button" class="btn" style="height:40px" onclick="apOpenNew({{ doc or 0 }}, '{{ start }}T{{ '%02d' % (now_h if start == today else 10) }}:00')">＋ Запис</button>{% endif %}
     <a class="icon-btn" title="Назад" href="?start={{ prev }}&view={{ view }}&doc={{ doc or '' }}">‹</a>
@@ -225,7 +360,12 @@ if(t&&w.scrollWidth>w.clientWidth){w.scrollLeft=Math.max(0,t.offsetLeft-w.offset
 {% if not specialists %}<p class="muted small" style="margin-top:12px">Спеціалісти і записи підтягуються з CleverBox під час синхронізації (записи — на 14 днів уперед).</p>{% endif %}
 {% include "_appt_modal.html" %}
 {% set _qp = request.query_params %}{% if _qp.get('newappt') %}<script>apOpenNew({{ (doc or 0) }}, '', '{{ ('&patient=' ~ _qp.get('patient')) if _qp.get('patient') }}{{ ('&appeal=' ~ _qp.get('appeal')) if _qp.get('appeal') }}');</script>{% endif %}
-<script>function tgNew(e,col,doc){if(e.target.closest('a'))return;var r=col.getBoundingClientRect(),y=e.clientY-r.top-8,
+<script>
+function calFind(v){v=(v||'').trim().toLowerCase();var n=0;document.querySelectorAll('.tg .blk').forEach(function(b){var ok=!v||(b.dataset.q||'').indexOf(v)>=0;b.classList.toggle('dim',!ok);b.classList.toggle('hit',!!v&&ok);if(v&&ok)n++});
+  var f=document.querySelector('.tg .blk.hit');if(f)f.scrollIntoView({block:'center',inline:'center',behavior:'smooth'});return n}
+function calPage(d){var w=document.getElementById('tgw'),c=w&&w.querySelector('.tg-head>div:nth-child(2)');if(w&&c)w.scrollBy({left:d*c.offsetWidth,behavior:'smooth'})}
+(function(){var w=document.getElementById('tgw'),n=w&&w.querySelector('.nowline');if(w&&n){var t=n.offsetTop-200;window.scrollTo({top:Math.max(0,w.getBoundingClientRect().top+window.scrollY+t-120)})}})();
+function tgNew(e,col,doc){if(e.target.closest('a,.blk'))return;var r=col.getBoundingClientRect(),y=e.clientY-r.top,
   m=Math.max(0,Math.round(y/{{ 1.3 }}/15)*15)+{{ (grid.h0 if grid else 9) * 60 }},h=Math.floor(m/60),mi=m%60;
   apOpenNew(doc,'{{ start }}T'+String(h).padStart(2,'0')+':'+String(mi).padStart(2,'0'))}</script>
 {% if request.query_params.get('msg') %}<div class="dp-toast" style="background:var(--ok-bg);color:var(--ok);border-color:#BFE3CD" onclick="this.remove()">{{ request.query_params.get('msg') }}</div>{% endif %}

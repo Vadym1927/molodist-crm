@@ -214,3 +214,23 @@ def test_specialist_avatar_upload():
         c.post(f"/specialists/{did}/avatar/delete")
         with SessionLocal() as db:
             assert db.get(Doctor, did).photo_url is None
+
+
+def test_calendar_time_block():
+    from datetime import date as _d
+    from app.models import Doctor, TimeBlock
+    settings.admin_password = "owner-pass-1"
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        with SessionLocal() as db:
+            d = Doctor(name="Блок Календар", in_calendar=True); db.add(d); db.commit(); did = d.id
+        day = _d.today().isoformat()
+        c.post("/calendar/blocks", data={"doctor_id": did, "day": day, "t_from": "10:00", "t_to": "12:00", "title": "Зйомка"})
+        page = c.get(f"/calendar?start={day}").text
+        assert "Зйомка" in page and "Створити візит" in page and "Заблокувати час" in page
+        with SessionLocal() as db:
+            bid = db.query(TimeBlock).filter_by(doctor_id=did).one().id
+        c.post(f"/calendar/blocks/{bid}/delete")
+        with SessionLocal() as db:
+            assert db.get(TimeBlock, bid) is None
+        assert c.get(f"/calendar?start={day}&view=week").status_code == 200 and c.get(f"/calendar?start={day}&view=month").status_code == 200

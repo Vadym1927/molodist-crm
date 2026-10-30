@@ -30,6 +30,9 @@ class Event:
     status: str | None = None            # booked | confirmed | arrived | done | no_show (для кольору блоку)
     note: str | None = None              # замітка до запису
     tag: str | None = None               # Первинний / Постійний пацієнт / ФАНАТ
+    paid: bool = False                   # оплачено (чек каси CRM / візит завершено)
+    online: bool = False                 # запис з онлайн-запису / бота
+    block_id: int | None = None          # заблокований час
 
     @property
     def services(self) -> list[str]:
@@ -80,7 +83,8 @@ def events(db: Session, user: User, start: date, days: int = 7, doctor_id: int |
             out[d].append(Event("attended" if a.status in ("done", "no_show") else "visit", a.start, a.patient.full_name, sv,
                                 a.patient_id, in_plan=a.patient_id in plan_patients, doctor_id=a.doctor_id,
                                 service=", ".join(s.get("name", "") for s in a.services or []) or None,
-                                ends=a.end, status_label=_AST.get(a.status), appt_id=a.id, status=a.status, note=a.comment))
+                                ends=a.end, status_label=_AST.get(a.status), appt_id=a.id, status=a.status, note=a.comment,
+                                paid=bool(a.sale_id), online=a.source in ("online", "bot")))
     for v in rows:
         if mirrored and any(v.external_id.startswith(m) for m in mirrored):
             continue                     # той самий запис, створений у CRM і продубльований у CleverBox
@@ -110,7 +114,8 @@ def events(db: Session, user: User, start: date, days: int = 7, doctor_id: int |
                                 v.service_name if doc else " · ".join(filter(None, [v.service_name, v.master_name])),
                                 v.patient_id, in_plan=v.patient_id in plan_patients,
                                 doctor_id=doc.id if doc else None, service=v.service_name, ends=ends,
-                                status_label=v.status_label, status="booked" if v.status == "booked" else "done"))
+                                status_label=v.status_label, status="booked" if v.status == "booked" else "done",
+                                paid=v.status != "booked"))
             merged[key] = out[d][-1]
 
     if True:
@@ -130,6 +135,12 @@ def events(db: Session, user: User, start: date, days: int = 7, doctor_id: int |
                                                       Task.patient_id.is_not(None)))):   # задачі по клієнтах
             out[t.due_date].append(Event("task", datetime.combine(t.due_date, datetime.min.time()), t.title,
                                          None, t.patient_id, all_day=True))
+    from ..models import TimeBlock                  # заблокований час
+    for tb in db.scalars(select(TimeBlock).where(TimeBlock.start >= s_dt, TimeBlock.start < e_dt)):
+        if (doctor_id and tb.doctor_id != doctor_id) or (user.role == "doctor" and tb.doctor_id != user.doctor_id):
+            continue
+        if tb.start.date() in out:
+            out[tb.start.date()].append(Event("block", tb.start, tb.title, None, None, doctor_id=tb.doctor_id, ends=tb.end, block_id=tb.id))
     _tag_patients(db, out)
     for d in out:
         out[d].sort(key=lambda e: (not e.all_day, e.when))

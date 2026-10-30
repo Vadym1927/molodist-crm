@@ -2560,9 +2560,43 @@ def calendar_page(request: Request, start: str | None = None, doc: str = "", vie
     from .services import schedule as _sch
     ctx["shifts"] = _sch.for_day(db, s) if view == "day" else {}
     ctx["now_h"] = min(max(datetime.now().hour + 1, 8), 20)
+    ctx["locs"] = [l_ for l_ in (_cl.get(db).get("locations") or []) if l_.get("active")]
+    ctx["work_to"] = _wh[1]
+    ctx["now_hm"] = datetime.now().strftime("%H:%M")
     return render(request, "calendar.html", ev=ev, cols=cols, grid=grid, start=s, days=days, n_ev=n_ev,
                   prev=s - timedelta(days=days), next=s + timedelta(days=days), end=s + timedelta(days=days - 1),
                   month=None, **ctx)
+
+
+@app.post("/calendar/blocks")
+def calendar_block_add(doctor_id: int = Form(...), day: str = Form(...), t_from: str = Form(...), t_to: str = Form(...),
+                       title: str = Form(""), user: User = Depends(require("book")), db: Session = Depends(db_dep)):
+    """Заблокувати час спеціаліста (зйомка, навчання, обід)."""
+    from .models import TimeBlock
+    d_ = _day(day) or date.today()
+    try:
+        a_ = datetime.combine(d_, datetime.strptime(t_from, "%H:%M").time())
+        b_ = datetime.combine(d_, datetime.strptime(t_to, "%H:%M").time())
+    except ValueError:
+        return RedirectResponse(f"/calendar?start={d_}&msg=" + _q("Вкажіть час у форматі 10:00"), 303)
+    if b_ <= a_:
+        return RedirectResponse(f"/calendar?start={d_}&msg=" + _q("Кінець має бути пізніше за початок"), 303)
+    tb = TimeBlock(doctor_id=doctor_id, start=a_, end=b_, title=(title.strip() or "Заблоковано")[:120], created_by=user.id)
+    db.add(tb)
+    db.commit()
+    audit(db, "calendar.block", "doctor", doctor_id, user=user, name=tb.title)
+    return RedirectResponse(f"/calendar?start={d_}&msg=" + _q(f"Час заблоковано: {tb.title}"), 303)
+
+
+@app.post("/calendar/blocks/{bid:int}/delete")
+def calendar_block_delete(bid: int, user: User = Depends(require("book")), db: Session = Depends(db_dep)):
+    from .models import TimeBlock
+    tb = db.get(TimeBlock, bid) or (_ for _ in ()).throw(HTTPException(404))
+    d_ = tb.start.date()
+    db.delete(tb)
+    db.commit()
+    audit(db, "calendar.unblock", "doctor", tb.doctor_id, user=user, name=tb.title)
+    return RedirectResponse(f"/calendar?start={d_}&msg=" + _q("Блокування знято"), 303)
 
 
 @app.get("/tasks", response_class=HTMLResponse)

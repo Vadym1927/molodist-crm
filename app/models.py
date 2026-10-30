@@ -992,6 +992,18 @@ class FopMonth(Base):
         return round((self.cash or 0) + (self.cashless or 0), 2)
 
 
+class TimeBlock(Base):
+    """Заблокований час у календарі спеціаліста: зйомка, навчання, обід, техобслуговування."""
+    __tablename__ = "time_blocks"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    doctor_id: Mapped[int | None] = mapped_column(ForeignKey("doctors.id"), index=True)
+    start: Mapped[datetime] = mapped_column(DateTime, index=True)
+    end: Mapped[datetime] = mapped_column(DateTime)
+    title: Mapped[str] = mapped_column(String(120))
+    created_by: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class DoctorFile(Base):
     """Файли співробітника: договір, дипломи, сертифікати, медкнижка."""
     __tablename__ = "doctor_files"
