@@ -165,3 +165,45 @@ def test_paylink_terminals_settings():
         c.post("/settings/checkbox/terminals", data={"act": "del", "tid": str(tid)})
         with SessionLocal() as db:
             assert fis.terminals(fis.cfg(db))["items"] == []
+
+
+def test_terminal_sale_waits_then_fiscalizes(monkeypatch):
+    import json as _j
+    from fastapi.testclient import TestClient
+    from app.config import settings
+    from app.main import app
+    from app.models import SessionLocal, Sale, Patient, SyncState, Doctor
+    from app.services import fiscal as F
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        c = F.cfg(db)
+        c["terminals"] = {"host": "10.8.0.5", "port": 9020, "items": [{"id": 1, "name": "Monobank T1", "device_id": "dev-1", "method": "Термінал Тест", "on": True}]}
+        F.save_cfg(db, c)
+        rid = F.save_rro(db, None, {"name": "ФОП ТЕСТ", "license_key": "LK", "login": "l", "password": "p", "methods": {"Термінал Тест": "card"}})
+        p = Patient(full_name="Термінал Пацієнт", phone="+380671230001"); d = Doctor(name="Лікар Т"); db.add_all([p, d]); db.commit()
+        pid, did = p.id, d.id
+    seen = {}
+    monkeypatch.setattr(F, "purchase", lambda c, dev, amt, http=None: (seen.update(dev=dev, amt=amt), {"success": True, "error": "", "result": {"rrn": "R123", "card_mask": "4444****1111", "auth_code": "A1", "payment_system": "VISA"}})[1])
+
+    def fz(db, s, rid=None, http=None, wait=1.0, is_return=False):
+        body = F.build(db, s, False, F._rro(db, rid))
+        seen["body"] = body
+        s.fiscal = {**(s.fiscal or {}), "id": "rc1", "fiscal_code": "FC1", "url": "u", "rro": rid}
+        db.commit()
+        return {}
+    monkeypatch.setattr(F, "fiscalize", fz)
+    monkeypatch.setattr(F, "send_receipt", lambda db, s: None)
+    with TestClient(app) as cl:
+        cl.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        import app.services.sales as SL
+        monkeypatch.setattr(SL, "method_kind", lambda m: "card" if m.startswith("Термінал") else "cash")
+        r = cl.post("/sales", json={"patient_id": pid, "fiscal_rro": rid, "items": [{"kind": "other", "name": "Тест", "qty": 1, "price": 50, "doctor_id": did}],
+                                    "payments": [{"method": "Термінал Тест", "amount": 50}]})
+        sid = r.json()["id"]
+        with SessionLocal() as db:
+            assert db.get(Sale, sid).status == "awaiting"
+        assert "Оплата на терміналі" in cl.get(f"/sales/{sid}").text
+        j = cl.post(f"/sales/{sid}/terminal/start", json={"method": "Термінал Тест"}).json()
+        assert j["ok"] and j["sale"] == "paid" and j["fiscal"] == "FC1"
+    assert seen["dev"] == "dev-1" and seen["amt"] == 50
+    assert seen["body"]["payments"][0]["rrn"] == "R123" and seen["body"]["payments"][0]["card_mask"] == "4444****1111"

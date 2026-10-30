@@ -107,7 +107,7 @@ def create(db: Session, data: dict, user_id: int | None = None) -> Sale:
     if any(str(p.get("method") or "").startswith(PAYLINK) for p in pays) and not patient:
         raise SaleError("Посилання на оплату можна надіслати лише пацієнту — оберіть пацієнта")
     sale = Sale(patient_id=patient.id if patient else None, appointment_id=data.get("appointment_id"), created_by=user_id,
-                status="awaiting" if any(str(p.get("method") or "").startswith(PAYLINK) for p in pays) else "paid",
+                status="awaiting" if data.get("await_terminal") or any(str(p.get("method") or "").startswith(PAYLINK) for p in pays) else "paid",
                 subtotal=q["subtotal"], discount=q["discount"], total=q["total"], bonus_spent=q["bonus_pay"],
                 bonus_accrued=q["bonus_accrual"], rules=q["rules"] or None, comment=(data.get("comment") or "")[:500] or None,
                 at=datetime.now())

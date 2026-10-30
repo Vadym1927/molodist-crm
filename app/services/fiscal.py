@@ -51,6 +51,41 @@ def terminals(c: dict) -> dict:
     return t
 
 
+def terminal_for(c: dict, method: str) -> dict | None:
+    """Термінал PayLink, привʼязаний до способу оплати (увімкнений і з ID пристрою)."""
+    return next((t for t in terminals(c)["items"] if t.get("on") and t.get("device_id") and t.get("method") == method), None)
+
+
+def paylink_url(c: dict) -> str:
+    t = terminals(c)
+    h = str(t.get("host") or "127.0.0.1").strip().rstrip("/")
+    if not h.startswith("http"):
+        h = "http://" + h
+    return f"{h}:{int(t.get('port') or 9020)}"
+
+
+def paylink_local(c: dict) -> bool:
+    """PayLink на компʼютері каси (localhost) — суму на термінал передає браузер; інакше — сервер CRM."""
+    h = str(terminals(c).get("host") or "127.0.0.1").lower()
+    return any(x in h for x in ("127.0.0.1", "localhost", "[::1]"))
+
+
+def purchase(c: dict, device_id: str, amount: float, http: httpx.Client | None = None) -> dict:
+    """Оплата на терміналі через PayLink (POST /api/pos/{device}/purchase, сума в копійках). Чекає до 2 хв."""
+    http = http or httpx.Client(timeout=httpx.Timeout(130, connect=5))
+    r = http.post(f"{paylink_url(c)}/api/pos/{device_id}/purchase", json={"amount": int(round(amount * 100))})
+    try:
+        js = r.json()
+    except ValueError:
+        js = {}
+    if isinstance(js, str):
+        js = json.loads(js)
+    return js if isinstance(js, dict) else {}
+
+
+TERM_FIELDS = ("card_mask", "auth_code", "rrn", "payment_system", "terminal", "acquirer_and_seller", "receipt_no")
+
+
 def cfg(db: Session) -> dict:
     st = db.get(SyncState, "fiscal_cfg")
     d = json.loads(json.dumps(DEFAULT))
@@ -243,7 +278,13 @@ def build(db: Session, sale: Sale, is_return: bool = False, rro: dict | None = N
         if m == "cash":
             pays.append({"type": "CASH", "value": kop, "label": "Готівка"})
         elif m == "card":
-            pays.append({"type": "CASHLESS", "value": kop, "label": "Картка"})
+            cp = {"type": "CASHLESS", "value": kop, "label": "Картка"}
+            td = ((sale.fiscal or {}).get("term") or {}).get(p.method) or {}
+            for k_ in TERM_FIELDS:                      # дані термінала (PayLink) у фіскальний чек
+                v_ = td.get(k_)
+                if v_ not in (None, ""):
+                    cp[k_] = str(v_)[:128]
+            pays.append(cp)
         elif m == "discount":
             disc += kop
         else:
@@ -292,6 +333,26 @@ def fiscalize(db: Session, sale: Sale, rid: int | None = None, http: httpx.Clien
     return info
 
 
+def receipt_png(db: Session, f: dict, http: httpx.Client | None = None) -> bytes | None:
+    """PNG фіскального чека з Checkbox: спершу без авторизації, далі — з входом касира тієї каси."""
+    base = DEV if f.get("test") else PROD
+    http = http or httpx.Client(timeout=30, headers=HEADERS)
+    url = f"{base}/receipts/{f['id']}/png"
+    try:
+        r = http.get(url)
+        if r.status_code == 200 and r.content[:4] == b"\x89PNG":
+            return r.content
+        rr = next((x for x in _rro_raw(db) if f.get("rro") and int(x["id"]) == int(f["rro"])), None)
+        if rr:
+            k = Kasa(rr, http)
+            r = http.get(url, headers=k._h())
+            if r.status_code == 200:
+                return r.content
+    except (httpx.HTTPError, FiscalError):
+        return None
+    return None
+
+
 def send_receipt(db: Session, sale: Sale) -> str | None:
     """Посилання на чек пацієнту обраними каналами. Повертає помилку або None."""
     c = cfg(db)
@@ -318,7 +379,7 @@ def auto(sale_id: int, rid: int | None = None) -> None:
             return
         try:
             fiscalize(db, s, rid)
-        except FiscalError as e:
+        except (FiscalError, httpx.HTTPError) as e:
             f = dict(s.fiscal or {})
             f["error"] = str(e)[:200]
             s.fiscal = f

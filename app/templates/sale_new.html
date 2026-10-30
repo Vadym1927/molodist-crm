@@ -320,7 +320,7 @@ function pay(){var e=document.getElementById('err');e.textContent='';if(needDoc(
   if(S.q&&S.q.to_pay>0&&!document.querySelectorAll('#pays .pay').length){e.textContent='Оберіть спосіб оплати — натисніть на касу, посилання чи сертифікат вище';return}
   var b=document.getElementById('go');b.disabled=true;
   fetch('/sales',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload())}).then(function(r){return r.json()}).then(function(j){b.disabled=false;
-    if(j.error){e.textContent=j.error;return}location.href='/sales/'+j.id+'?msg='+encodeURIComponent('Продаж проведено'+(j.msg?' · '+j.msg:''))})}
+    if(j.error){e.textContent=j.error;return}location.href='/sales/'+j.id+'?msg='+encodeURIComponent((j.title||'Продаж проведено')+(j.msg?' · '+j.msg:''))})}
 
 /* ---- каталог: візити / послуги / товари ---- */
 var B={s:null,group:null,key:null,q:'',day:'{{ today }}'};

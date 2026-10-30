@@ -269,7 +269,7 @@ def _book(db: Session, pl: PayLink) -> None:
     from ..models import FinOp, Patient, Sale
     if pl.sale_id:
         s = db.get(Sale, pl.sale_id)
-        if s and s.status == "awaiting":
+        if s and s.status == "awaiting" and not (s.fiscal or {}).get("term_wait"):
             others = db.query(PayLink).filter(PayLink.sale_id == s.id, PayLink.id != pl.id, PayLink.status != "paid").count()
             if not others:
                 s.status = "paid"

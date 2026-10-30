@@ -1365,22 +1365,37 @@ async def sale_create(request: Request, user: User = Depends(require("sales")), 
                 and p_.get("method") not in _allowed]
         if bad_:
             return JSONResponse({"error": "Ця каса РРО не приймає: " + ", ".join(bad_)}, status_code=400)
+    _fc0 = _fis0.cfg(db)
+    term_wait = {}                                              # оплата на терміналі PayLink: чек закриється після оплати
+    if d_.get("fiscal_rro"):
+        for p_ in d_["payments"]:
+            t_ = _fis0.terminal_for(_fc0, str(p_.get("method") or ""))
+            if t_ and float(p_.get("amount") or 0) > 0:
+                w_ = term_wait.setdefault(p_["method"], {"device": t_["device_id"], "name": t_["name"], "amount": 0.0})
+                w_["amount"] = round(w_["amount"] + float(p_["amount"]), 2)
+    d_["await_terminal"] = bool(term_wait)
     try:
         s_ = sl.create(db, d_, user.id)
     except sl.SaleError as e:
         db.rollback()
         return JSONResponse({"error": str(e)}, status_code=400)
+    if term_wait:
+        s_.fiscal = {**(s_.fiscal or {}), "term_wait": term_wait, "rro_pending": d_.get("fiscal_rro")}
+        db.commit()
     audit(db, "sale.create", "sale", s_.id, user=user, total=s_.total, patient=s_.patient_id, appt=s_.appointment_id)
-    link_msgs = await _sale_links(request, db, s_, user) if s_.status == "awaiting" else []
+    link_msgs = await _sale_links(request, db, s_, user) if s_.status == "awaiting" and not term_wait else []
+    if term_wait and any(str(p_.get("method") or "").startswith(sl.PAYLINK) for p_ in d_["payments"]):
+        link_msgs = await _sale_links(request, db, s_, user)
     from .services import fiscal as _fis
     rro_ = d_.get("fiscal_rro")
     if rro_ and s_.status == "paid":                              # вибрана фіскальна каса в POS
         import threading
         threading.Thread(target=_fis.auto, args=(s_.id, rro_), daemon=True).start()
-    elif _fis.cfg(db).get("auto") and rro_ != 0:
+    elif _fis.cfg(db).get("auto") and rro_ != 0 and s_.status == "paid":
         import threading
         threading.Thread(target=_fis.auto, args=(s_.id,), daemon=True).start()
-    return JSONResponse({"ok": True, "id": s_.id, "msg": "; ".join(link_msgs)})
+    return JSONResponse({"ok": True, "id": s_.id, "msg": "; ".join(link_msgs),
+                         "title": "Чек створено — оплата на терміналі" if term_wait else ("Чек створено — очікує оплати" if s_.status == "awaiting" else "Продаж проведено")})
 
 
 @app.get("/sales/{sid:int}", response_class=HTMLResponse)
@@ -1393,6 +1408,87 @@ def sale_view(request: Request, sid: int, user: User = Depends(require("sales"))
                   print_=bool(request.query_params.get("print")), rros=[r for r in _fis.rros(db) if r["on"]], fcfg=_fis.cfg(db),
                   links=db.scalars(select(__import__("app.models", fromlist=["PayLink"]).PayLink).where(
                       __import__("app.models", fromlist=["PayLink"]).PayLink.sale_id == s_.id)).all())
+
+
+def _term_done(db: Session, s_, method: str, result: dict, user) -> dict:
+    """Оплата на терміналі пройшла: дані картки в чек → чек «оплачено» → фіскалізація в Checkbox (каса з POS)."""
+    from .services import fiscal as _fis
+    from .models import PayLink
+    f = dict(s_.fiscal or {})
+    wait = dict(f.get("term_wait") or {})
+    wait.pop(method, None)
+    f["term_wait"] = wait
+    f["term"] = {**(f.get("term") or {}), method: {k: result.get(k) for k in (*_fis.TERM_FIELDS, "manual") if result.get(k) not in (None, "")}}
+    s_.fiscal = f
+    db.commit()
+    open_links = db.query(PayLink).filter(PayLink.sale_id == s_.id, PayLink.status == "created").count()
+    if s_.status == "awaiting" and not wait and not open_links:
+        s_.status = "paid"
+        db.commit()
+        audit(db, "sale.terminal_paid", "sale", s_.id, user=user, method=method, rrn=result.get("rrn"), manual=bool(result.get("manual")))
+        rro_ = f.get("rro_pending")
+        if rro_ and not f.get("fiscal_code"):
+            try:
+                _fis.fiscalize(db, s_, rro_)
+                _fis.send_receipt(db, s_)
+            except (_fis.FiscalError, httpx.HTTPError) as e:
+                f2 = dict(s_.fiscal or {})
+                f2["error"] = str(e)[:200]
+                s_.fiscal = f2
+                db.commit()
+    return {"sale": s_.status, "fiscal": (s_.fiscal or {}).get("fiscal_code"), "error": (s_.fiscal or {}).get("error")}
+
+
+@app.post("/sales/{sid:int}/terminal/start")
+async def sale_terminal_start(sid: int, request: Request, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    """Передати суму на термінал. PayLink на компʼютері каси → повертаємо адресу для браузера; інакше платить сервер."""
+    from .services import fiscal as _fis
+    from .models import Sale
+    s_ = db.get(Sale, sid) or (_ for _ in ()).throw(HTTPException(404))
+    js = await request.json()
+    method = str(js.get("method") or "")
+    w = ((s_.fiscal or {}).get("term_wait") or {}).get(method)
+    if s_.status != "awaiting" or not w:
+        return JSONResponse({"error": "Цей чек не очікує оплати на терміналі"}, status_code=400)
+    c = _fis.cfg(db)
+    now_ = datetime.now()
+    started = w.get("started")
+    if started and not js.get("force") and (now_ - datetime.fromisoformat(started)).total_seconds() < 150:
+        return JSONResponse({"already": True})
+    f = dict(s_.fiscal)
+    f["term_wait"] = {**f["term_wait"], method: {**w, "started": now_.isoformat(timespec="seconds")}}
+    s_.fiscal = f
+    db.commit()
+    audit(db, "sale.terminal_start", "sale", sid, user=user, method=method, amount=w["amount"])
+    if _fis.paylink_local(c):
+        return JSONResponse({"mode": "browser", "url": f"{_fis.paylink_url(c)}/api/pos/{w['device']}/purchase", "amount": int(round(w["amount"] * 100))})
+    try:
+        res = await asyncio.to_thread(_fis.purchase, c, w["device"], w["amount"])
+    except httpx.HTTPError as e:
+        return JSONResponse({"mode": "server", "ok": False, "error": f"PayLink недоступний: {e}"[:200]})
+    if res.get("success") and not res.get("error"):
+        out = await asyncio.to_thread(_term_done, db, s_, method, res.get("result") or {}, user)
+        return JSONResponse({"mode": "server", "ok": True, **out})
+    return JSONResponse({"mode": "server", "ok": False, "error": str(res.get("error") or "оплату не проведено")[:200]})
+
+
+@app.post("/sales/{sid:int}/terminal/result")
+async def sale_terminal_result(sid: int, request: Request, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    """Результат PayLink від браузера (або «Оплата пройшла» вручну) → чек оплачено + фіскалізація."""
+    from .models import Sale
+    s_ = db.get(Sale, sid) or (_ for _ in ()).throw(HTTPException(404))
+    js = await request.json()
+    method = str(js.get("method") or "")
+    if s_.status != "awaiting" or method not in ((s_.fiscal or {}).get("term_wait") or {}):
+        return JSONResponse({"error": "Цей чек не очікує оплати на терміналі", "sale": s_.status}, status_code=400)
+    r = js.get("result") if isinstance(js.get("result"), dict) else {}
+    if js.get("manual"):
+        r = {"manual": True}
+    elif not js.get("ok"):
+        audit(db, "sale.terminal_fail", "sale", sid, user=user, method=method, error=str(js.get("error") or "")[:200])
+        return JSONResponse({"ok": False})
+    out = await asyncio.to_thread(_term_done, db, s_, method, r, user)
+    return JSONResponse({"ok": True, **out})
 
 
 @app.post("/sales/{sid:int}/fiscalize")
@@ -1415,7 +1511,7 @@ async def sale_fiscalize(sid: int, rro: int = Form(0), ret: str = Form(""), user
 
 
 @app.post("/sales/{sid:int}/send-receipt")
-async def sale_send_receipt(sid: int, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+async def sale_send_receipt(sid: int, ch: str = Form(""), user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
     from .services import fiscal as _fis
     from .models import Sale
     s_ = db.get(Sale, sid) or (_ for _ in ()).throw(HTTPException(404))
@@ -1426,16 +1522,33 @@ async def sale_send_receipt(sid: int, user: User = Depends(require("sales")), db
         err = "Немає пацієнта або фіскального чека"
     else:
         from .integrations.messaging import send_to_patient
-        text = (c["send"].get("text") or "").replace("{url}", s_.fiscal["url"]).replace("{sum}", f"{s_.total:.2f}") \
+        text = (c["send"].get("text") or _fis.DEFAULT["send"]["text"]).replace("{url}", s_.fiscal["url"]).replace("{sum}", f"{s_.total:.2f}") \
             .replace("{name}", (s_.patient.full_name or "").split(" ")[0])
-        res = await asyncio.to_thread(send_to_patient, s_.patient, text, c["send"].get("channels") or None)
+        prefer_ = [ch] if ch in ("telegram", "viber", "sms") else (c["send"].get("channels") or None)
+        res = await asyncio.to_thread(send_to_patient, s_.patient, text, prefer_)
         err = None if res.ok else (res.error or "не надіслано")
         f = dict(s_.fiscal)
         f["sent"] = {"ok": res.ok, "channel": res.channel, "at": datetime.now().strftime("%d.%m.%Y %H:%M")}
         s_.fiscal = f
         db.commit()
     audit(db, "sale.send_receipt", "sale", sid, user=user, ok=err is None)
-    return RedirectResponse(_with_msg(f"/sales/{sid}", err or "Чек надіслано пацієнту", bool(err)), 303)
+    lbl_ = {"telegram": " в Telegram", "viber": " у Viber", "sms": " в SMS"}.get(ch, "")
+    return RedirectResponse(_with_msg(f"/sales/{sid}", err or f"Чек надіслано пацієнту{lbl_}", bool(err)), 303)
+
+
+@app.get("/sales/{sid:int}/fiscal.png")
+def sale_fiscal_png(sid: int, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    """Зображення фіскального чека Checkbox (GET /receipts/{id}/png)."""
+    from .services import fiscal as _fis
+    from .models import Sale
+    s_ = db.get(Sale, sid) or (_ for _ in ()).throw(HTTPException(404))
+    f = s_.fiscal or {}
+    if not f.get("id") or f.get("source") == "monobank":
+        raise HTTPException(404)
+    png = _fis.receipt_png(db, f)
+    if not png:
+        raise HTTPException(404)
+    return Response(png, media_type="image/png", headers={"Cache-Control": "private, max-age=86400"})
 
 
 def _safe_back(back: str, default: str) -> str:
