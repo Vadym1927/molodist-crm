@@ -29,13 +29,12 @@
 @keyframes pl{50%{opacity:.25}}
 .paid-ok{max-width:560px;margin:0 auto 16px;background:#EAF6EA;color:#2E6B2E;border-radius:16px;padding:16px 20px;font-weight:700;display:none}</style>
 <div class="paid-ok" id="paid-ok">✓ Оплата пройшла — чек проведено</div>
-{% if tw %}<div class="pw tmw"><h3>Оплата на терміналі</h3><div class="sub">Сума передається на термінал автоматично. Чек закриється й фіскалізується, щойно пройде оплата.</div>
+{% if tw %}<div class="pw tmw"><h3>Оплата на терміналі</h3><div class="sub">Чек закриється й фіскалізується лише після успішної відповіді термінала. Якщо оплату ще не передано — натисніть «Передати на термінал».</div>
   {% for m, w in tw.items() %}<div class="tm-r" data-m="{{ m }}">
     <div class="tm-i"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><rect x="8.5" y="5" width="7" height="4.5" rx="1"/><path d="M9 13h.01M12 13h.01M15 13h.01M9 16h.01M12 16h.01M15 16h.01"/></svg></div>
     <div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b class="am">{{ w.amount|uah }}</b><span class="st"><i></i><em>очікує оплати</em></span></div>
       <div class="small muted">{{ w.name }} · {{ m }}</div><div class="tm-msg small" style="margin-top:6px"></div>
-      <div class="row" style="gap:6px;margin-top:10px;flex-wrap:wrap"><button class="btn ghost" type="button" style="padding:6px 12px" onclick='tStart({{ m|tojson }},true)'>Передати ще раз</button>
-        <button class="btn ghost" type="button" style="padding:6px 12px" onclick='tManual({{ m|tojson }})'>Оплата пройшла</button></div></div></div>{% endfor %}
+      <div class="row" style="gap:6px;margin-top:10px;flex-wrap:wrap"><button class="btn" type="button" style="padding:6px 14px" onclick='tStart({{ m|tojson }},true)'>Передати на термінал</button></div></div></div>{% endfor %}
 </div>
 <style>.tm-r{display:flex;gap:14px;align-items:flex-start;padding:14px;border:1px solid #F0ECE6;border-radius:16px;margin-top:10px}
 .tm-i{width:52px;height:52px;border-radius:14px;background:#E4DEEF;color:#3B3050;display:flex;align-items:center;justify-content:center;flex:none}
@@ -47,22 +46,20 @@ function st(m,cls,label,msg){var r=row(m);if(!r)return;var s=r.querySelector('.s
 function done(m,j){if(j&&j.error&&!j.sale){st(m,'failed','помилка',j.error);return}
   st(m,'paid','оплачено',j.sale==='paid'?(j.fiscal?'Оплачено · фіскальний чек № '+j.fiscal:(j.error?'Оплачено. Checkbox: '+j.error:'Оплачено')):'Оплачено — чекаємо інші оплати');
   if(j.sale==='paid')setTimeout(function(){location.href='/sales/'+SID+'?msg='+encodeURIComponent('Оплата на терміналі пройшла'+(j.fiscal?' · чек фіскалізовано':''))},1200)}
-window.tManual=function(m){if(!confirm('Підтвердити, що термінал показав УСПІШНУ оплату? Чек закриється і піде на фіскалізацію (без даних картки).'))return;
-  st(m,'','перевіряю','Закриваю чек…');post('/sales/'+SID+'/terminal/result',{method:m,manual:true}).then(function(j){done(m,j)})};
-window.tStart=function(m,force){if(force&&!confirm('Передати суму на термінал ще раз? Переконайтесь, що попередня оплата НЕ пройшла.'))return;
+window.tStart=function(m,force){if(!confirm('Передати суму на термінал? Переконайтесь, що попередня оплата НЕ пройшла.'))return;
   st(m,'','зʼєднання','Передаю суму на термінал…');
   post('/sales/'+SID+'/terminal/start',{method:m,force:!!force}).then(function(j){
     if(j.error){st(m,'failed','помилка',j.error);return}
-    if(j.already){st(m,'','очікує оплати','Сума вже передана на термінал. Якщо оплата пройшла — «Оплата пройшла», якщо ні — «Передати ще раз».');return}
+
     if(j.mode==='server'){if(j.ok)done(m,j);else st(m,'failed','не оплачено',j.error);return}
     st(m,'','очікує оплати','Прикладіть картку до термінала…');
     fetch(j.url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amount:j.amount})}).then(function(r){return r.json()}).then(function(d){
       if(typeof d==='string')d=JSON.parse(d);
-      if(d&&d.success&&!d.error){st(m,'','оплачено','Оплата пройшла — фіскалізую в Checkbox…');post('/sales/'+SID+'/terminal/result',{method:m,ok:true,result:d.result||{}}).then(function(x){done(m,x)})}
-      else{st(m,'failed','не оплачено','Термінал: '+((d&&d.error)||'оплату не проведено'));post('/sales/'+SID+'/terminal/result',{method:m,ok:false,error:(d&&d.error)||''})}
-    }).catch(function(){st(m,'failed','немає звʼязку','PayLink не відповів ('+j.url.split('/api')[0]+'). Перевірте, що утиліта запущена на цьому компʼютері. Якщо термінал показав успішну оплату — натисніть «Оплата пройшла».')})
+      if(d&&d.success&&!d.error){st(m,'','оплачено','Оплата пройшла — фіскалізую в Checkbox…');post('/sales/'+SID+'/terminal/result',{method:m,ok:true,result:d.result||{}}).then(function(x){if(!x.ok){st(m,'failed','не оплачено',x.error);return}done(m,x)})}
+      else{st(m,'failed','не оплачено','Термінал: '+((d&&d.error)||'оплату не проведено')+'. Чек не закрито.');post('/sales/'+SID+'/terminal/result',{method:m,ok:false,error:(d&&d.error)||''})}
+    }).catch(function(){st(m,'failed','немає звʼязку','PayLink не відповів ('+j.url.split('/api')[0]+'). Перевірте, що утиліта запущена на цьому компʼютері. Чек не закрито.')})
   }).catch(function(){st(m,'failed','помилка','Не вдалося звʼязатися з CRM')})};
-{% for m in tw %}tStart({{ m|tojson }},false);{% endfor %}})()</script>
+})()</script>
 {% endif %}
 {% if links or not tw %}<div class="pw" id="pw"><h3>Оплата за посиланням</h3><div class="sub">Надішліть посилання або покажіть QR-код пацієнту. Сторінка сама побачить, коли оплата пройде.</div>
   {% for l in links %}<div class="pl"><img alt="QR" src="https://api.qrserver.com/v1/create-qr-code/?size=264x264&margin=8&data={{ l.url|urlencode }}">

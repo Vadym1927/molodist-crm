@@ -207,3 +207,29 @@ def test_terminal_sale_waits_then_fiscalizes(monkeypatch):
         assert j["ok"] and j["sale"] == "paid" and j["fiscal"] == "FC1"
     assert seen["dev"] == "dev-1" and seen["amt"] == 50
     assert seen["body"]["payments"][0]["rrn"] == "R123" and seen["body"]["payments"][0]["card_mask"] == "4444****1111"
+
+
+def test_terminal_result_without_data_is_rejected():
+    from fastapi.testclient import TestClient
+    from app.config import settings
+    from app.main import app
+    from app.models import SessionLocal, Sale
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        s = Sale(status="awaiting", subtotal=5, total=5, fiscal={"term_wait": {"Термінал Х": {"device": "d", "name": "T", "amount": 5}}})
+        db.add(s); db.commit(); sid = s.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        j = c.post(f"/sales/{sid}/terminal/result", json={"method": "Термінал Х", "ok": True, "result": {}}).json()
+        assert j["ok"] is False
+        j = c.post(f"/sales/{sid}/terminal/result", json={"method": "Термінал Х", "manual": True}).json()
+        assert j["ok"] is False
+        html = c.get("/sales/new").text
+    with SessionLocal() as db:
+        assert db.get(Sale, sid).status == "awaiting"
+    import re, subprocess, tempfile
+    js = "\n".join(m for m in re.findall(r"<script>(.*?)</script>", html, re.S))
+    with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as f:
+        f.write(js)
+    r = subprocess.run(["node", "--check", f.name], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr[:500]

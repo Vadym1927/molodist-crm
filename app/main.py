@@ -1395,6 +1395,7 @@ async def sale_create(request: Request, user: User = Depends(require("sales")), 
         import threading
         threading.Thread(target=_fis.auto, args=(s_.id,), daemon=True).start()
     return JSONResponse({"ok": True, "id": s_.id, "msg": "; ".join(link_msgs),
+                         "term": list(term_wait),
                          "title": "Чек створено — оплата на терміналі" if term_wait else ("Чек створено — очікує оплати" if s_.status == "awaiting" else "Продаж проведено")})
 
 
@@ -1410,6 +1411,10 @@ def sale_view(request: Request, sid: int, user: User = Depends(require("sales"))
                       __import__("app.models", fromlist=["PayLink"]).PayLink.sale_id == s_.id)).all())
 
 
+def _term_has_data(r) -> bool:
+    return isinstance(r, dict) and any(r.get(k) for k in ("rrn", "auth_code", "card_mask", "receipt_no"))
+
+
 def _term_done(db: Session, s_, method: str, result: dict, user) -> dict:
     """Оплата на терміналі пройшла: дані картки в чек → чек «оплачено» → фіскалізація в Checkbox (каса з POS)."""
     from .services import fiscal as _fis
@@ -1418,14 +1423,14 @@ def _term_done(db: Session, s_, method: str, result: dict, user) -> dict:
     wait = dict(f.get("term_wait") or {})
     wait.pop(method, None)
     f["term_wait"] = wait
-    f["term"] = {**(f.get("term") or {}), method: {k: result.get(k) for k in (*_fis.TERM_FIELDS, "manual") if result.get(k) not in (None, "")}}
+    f["term"] = {**(f.get("term") or {}), method: {k: result.get(k) for k in _fis.TERM_FIELDS if result.get(k) not in (None, "")}}
     s_.fiscal = f
     db.commit()
     open_links = db.query(PayLink).filter(PayLink.sale_id == s_.id, PayLink.status == "created").count()
     if s_.status == "awaiting" and not wait and not open_links:
         s_.status = "paid"
         db.commit()
-        audit(db, "sale.terminal_paid", "sale", s_.id, user=user, method=method, rrn=result.get("rrn"), manual=bool(result.get("manual")))
+        audit(db, "sale.terminal_paid", "sale", s_.id, user=user, method=method, rrn=result.get("rrn"))
         rro_ = f.get("rro_pending")
         if rro_ and not f.get("fiscal_code"):
             try:
@@ -1466,10 +1471,12 @@ async def sale_terminal_start(sid: int, request: Request, user: User = Depends(r
         res = await asyncio.to_thread(_fis.purchase, c, w["device"], w["amount"])
     except httpx.HTTPError as e:
         return JSONResponse({"mode": "server", "ok": False, "error": f"PayLink недоступний: {e}"[:200]})
-    if res.get("success") and not res.get("error"):
+    if res.get("success") and not res.get("error") and _term_has_data(res.get("result")):
         out = await asyncio.to_thread(_term_done, db, s_, method, res.get("result") or {}, user)
         return JSONResponse({"mode": "server", "ok": True, **out})
-    return JSONResponse({"mode": "server", "ok": False, "error": str(res.get("error") or "оплату не проведено")[:200]})
+    err_ = str(res.get("error") or ("термінал не повернув даних оплати" if res.get("success") else "оплату не проведено"))[:200]
+    audit(db, "sale.terminal_fail", "sale", sid, user=user, method=method, error=err_)
+    return JSONResponse({"mode": "server", "ok": False, "error": err_})
 
 
 @app.post("/sales/{sid:int}/terminal/result")
@@ -1482,11 +1489,9 @@ async def sale_terminal_result(sid: int, request: Request, user: User = Depends(
     if s_.status != "awaiting" or method not in ((s_.fiscal or {}).get("term_wait") or {}):
         return JSONResponse({"error": "Цей чек не очікує оплати на терміналі", "sale": s_.status}, status_code=400)
     r = js.get("result") if isinstance(js.get("result"), dict) else {}
-    if js.get("manual"):
-        r = {"manual": True}
-    elif not js.get("ok"):
-        audit(db, "sale.terminal_fail", "sale", sid, user=user, method=method, error=str(js.get("error") or "")[:200])
-        return JSONResponse({"ok": False})
+    if not js.get("ok") or not _term_has_data(r):               # лише підтверджена терміналом оплата з даними картки
+        audit(db, "sale.terminal_fail", "sale", sid, user=user, method=method, error=str(js.get("error") or "немає даних оплати")[:200])
+        return JSONResponse({"ok": False, "error": str(js.get("error") or "Термінал не повернув даних оплати — чек не закрито")[:200]})
     out = await asyncio.to_thread(_term_done, db, s_, method, r, user)
     return JSONResponse({"ok": True, **out})
 

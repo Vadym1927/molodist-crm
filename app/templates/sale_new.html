@@ -37,6 +37,11 @@ dialog.pd{margin:0 0 0 auto;height:100vh;max-height:100vh;width:min(460px,100vw)
 dialog.pd::backdrop{background:rgba(42,36,48,.35)}
 .pd-h{display:flex;justify-content:space-between;align-items:center;padding:20px 22px;border-bottom:1px solid #F0ECE6}
 .pd-h h3{margin:0;font:600 16px var(--head);letter-spacing:.12em;text-transform:uppercase}
+.tt-box{display:flex;gap:12px;align-items:flex-start;margin-top:12px;padding:14px;border-radius:16px;background:#F7F4F0;border:1px solid #ECE7E1}
+.tt-box .tt-i{width:42px;height:42px;border-radius:12px;background:#E4DEEF;color:#3B3050;display:flex;align-items:center;justify-content:center;flex:none}
+.tt-box.wait .tt-i{animation:ttp 1.2s infinite}@keyframes ttp{50%{opacity:.45}}
+.tt-box.bad{background:#FDF3F1;border-color:#F0C9C3}.tt-box.bad .tt-i{background:#FDECEA;color:#B23B2E}.tt-box.bad b{color:#B23B2E}
+.tt-box.ok{background:#EEF7EE;border-color:#CFE8CF}.tt-box.ok .tt-i{background:#DDF0DD;color:#2E6B2E}
 .pd-x{border:0;background:#F7F4F0;width:38px;height:38px;border-radius:12px;font-size:22px;cursor:pointer}
 .pd-b{padding:18px 22px;display:grid;gap:10px}
 .pd-s{position:relative}.pd-s svg{position:absolute;left:14px;top:14px;color:#9a93a6}.pd-s input{width:100%;height:46px;padding-left:42px;border-radius:12px}
@@ -248,6 +253,7 @@ dialog.payd::backdrop{background:rgba(42,36,48,.45)}
     <div id="pays"></div><input type="hidden" id="bp" value="0"><div id="bonus-row" style="display:none"></div><span id="t-bmax" hidden></span>
     <div class="small muted" id="t-link" style="display:none;margin-top:4px">🔗 Посилання на оплату буде створено й надіслано пацієнту після «Провести продаж»; чек стане «оплачено», коли пацієнт оплатить.</div>
     <div class="small" id="t-left" style="margin-top:6px"></div>
+    <div class="tt-box" id="t-term" style="display:none"><span class="tt-i"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="2.6"/><rect x="8.4" y="5" width="7.2" height="4.4" rx=".9"/><path d="M9.3 12.6h.01M12 12.6h.01M14.7 12.6h.01M9.3 15.4h.01M12 15.4h.01M14.7 15.4h.01"/></svg></span><div><b id="t-term-h">Термінал</b><div id="t-term-m" class="small"></div></div></div>
     <div class="err" id="err" style="margin-top:10px"></div>
     <button class="btn" style="width:100%;justify-content:center;margin-top:12px;height:50px;font-size:16px" id="go" onclick="pay()">Провести продаж</button>
   </div></div></dialog>
@@ -475,5 +481,36 @@ var _setP=setPatient;setPatient=function(id){if(!id){S.P=null;_setP(null);return
 var _toPay=toPay;toPay=function(){_toPay();renderPays();payLeft()};
 if(S.patient_id)setPatient(S.patient_id);
 quote();
+
+/* ===== термінал PayLink: чек закривається лише після успішної відповіді термінала з даними оплати ===== */
+var TRM={busy:false};
+function termPays(){return fisR()?S.pays.filter(function(p){return PLT[p.method]}):[]}
+function tBox(st,h,m){var b=document.getElementById('t-term');b.style.display='flex';b.className='tt-box '+st;document.getElementById('t-term-h').textContent=h;document.getElementById('t-term-m').textContent=m||''}
+function goLabel(){var g=document.getElementById('go');if(TRM.busy)return;g.textContent=termPays().length?'Передати на термінал':'Провести продаж'}
+var _payLeft0=payLeft;payLeft=function(){_payLeft0();goLabel()};
+var _pay0=pay;pay=function(){if(!termPays().length)return _pay0();if(TRM.busy)return;
+  var e=document.getElementById('err');e.textContent='';if(needDoc()){document.getElementById('payd').close();toPay();return}
+  var g=document.getElementById('go'),sid=null;TRM.busy=true;g.disabled=true;g.textContent='Очікуємо оплату на терміналі…';
+  function post(u,b){return fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})}).then(function(r){return r.json()})}
+  function stop(msg){TRM.busy=false;g.disabled=false;tBox('bad','Оплату не проведено',msg+' Чек не закрито й не фіскалізовано.');goLabel();
+    if(sid){var f=new FormData();f.append('on','1');f.append('back','/sales');fetch('/sales/'+sid+'/archive',{method:'POST',body:f})}}
+  function one(m){tBox('wait',PLT[m]||'Термінал','Передаю '+m+' на термінал…');
+    return post('/sales/'+sid+'/terminal/start',{method:m}).then(function(j){
+      if(j.error)throw j.error;
+      if(j.mode==='server'){if(j.ok)return j;throw 'Термінал: '+(j.error||'оплату не проведено')+'.'}
+      tBox('wait',PLT[m]||'Термінал','Прикладіть картку до термінала…');
+      return fetch(j.url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amount:j.amount})})
+        .then(function(r){return r.json()},function(){throw 'PayLink не відповів ('+j.url.split('/api')[0]+') — перевірте, що утиліта запущена й термінал підключений.'})
+        .then(function(d){if(typeof d==='string')d=JSON.parse(d);
+          if(!(d&&d.success&&!d.error)){post('/sales/'+sid+'/terminal/result',{method:m,ok:false,error:(d&&d.error)||''});throw 'Термінал: '+((d&&d.error)||'оплату не проведено')+'.'}
+          tBox('wait','Оплата пройшла','Фіскалізую чек у Checkbox…');
+          return post('/sales/'+sid+'/terminal/result',{method:m,ok:true,result:d.result||{}}).then(function(x){if(!x.ok)throw x.error||'Немає даних оплати від термінала.';return x})})})}
+  post('/sales',payload()).then(function(j){if(j.error)throw j.error;sid=j.id;
+    var ms=j.term||[],k=0,last=null;
+    function next(){if(k>=ms.length)return Promise.resolve(last);return one(ms[k++]).then(function(x){last=x;return next()})}
+    return next().then(function(x){tBox('ok','Оплата пройшла',x&&x.fiscal?'Фіскальний чек № '+x.fiscal:(x&&x.error?'Checkbox: '+x.error:'Чек закрито'));
+      location.href='/sales/'+sid+'?msg='+encodeURIComponent('Оплата на терміналі пройшла'+(x&&x.fiscal?' · чек фіскалізовано':''))})
+  }).catch(function(m){stop(typeof m==='string'?m:'Помилка звʼязку з CRM.')})};
+document.querySelectorAll('#fis .pt').forEach(function(b){b.addEventListener('click',function(){setTimeout(goLabel,0)})});
 </script>
 {% endblock %}
