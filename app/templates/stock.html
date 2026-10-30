@@ -208,12 +208,15 @@
     <td class="r"><b>{{ (-t.amount)|uah }}</b></td><td style="max-width:280px">{{ t.description or '' }}</td>
     <td>{% if t.status in ('matched','partial') %}<span class="pill {{ 'ok' if t.status=='matched' else 'warn' }}">{{ 'рознесено' if t.status=='matched' else 'частково' }}</span>{% if t.id in weak_ids %} <span class="pill warn" title="Упізнано лише за назвою отримувача">⚠ перевірте</span>{% endif %} <span class="meta">{{ t.note or '' }}</span>
         <form method="post" action="/stock/mono/txn/{{ t.id }}" style="display:inline"><input type="hidden" name="action" value="unassign"><button class="btn ghost" style="padding:1px 8px">скасувати</button></form>
+      {% elif t.status == 'booked' %}<span class="pill warn" title="Списано з рахунку CRM без поставки">у журналі без поставки</span>
+        <form method="post" action="/stock/mono/txn/{{ t.id }}" style="display:inline"><input type="hidden" name="action" value="unbook"><button class="btn ghost" style="padding:1px 8px">скасувати</button></form>
       {% elif t.status == 'ignored' %}<span class="pill draft">не постачальник</span>
         <form method="post" action="/stock/mono/txn/{{ t.id }}" style="display:inline"><input type="hidden" name="action" value="auto"><button class="btn ghost" style="padding:1px 8px">повернути</button></form>
       {% else %}<form method="post" action="/stock/mono/txn/{{ t.id }}" class="row" style="gap:4px;flex-wrap:nowrap"><input type="hidden" name="action" value="assign">
           <select name="group" style="height:32px;max-width:260px" required><option value="">— рознести на накладну —</option>
             {% for g in open_groups %}{% if not t.supplier_id or not sup_by_id.get(t.supplier_id) or (g.supplier or '')|lower == sup_by_id[t.supplier_id].name|lower %}<option value="{{ g.key }}">{{ g.label }} · залишок {{ g.left|uah }}</option>{% endif %}{% endfor %}</select>
           <button class="btn" style="padding:2px 10px">OK</button></form>
+        <form method="post" action="/stock/mono/txn/{{ t.id }}" style="display:inline" onsubmit="return confirm('Списати {{ (-t.amount)|uah }} з рахунку CRM у журнал фіноперацій без поставки? Коли поставку внесуть — «скасувати» й рознести на накладну.')"><input type="hidden" name="action" value="expense"><button class="btn ghost" style="padding:1px 8px">у журнал без поставки</button></form>
         <form method="post" action="/stock/mono/txn/{{ t.id }}" style="display:inline"><input type="hidden" name="action" value="ignore"><button class="btn ghost" style="padding:1px 8px">не постачальник</button></form>{% endif %}</td></tr>{% endfor %}
   </tbody></table></div>{% elif mono %}<p class="muted small" style="margin-top:12px">Списань за 60 днів ще немає — натисніть «За 31 день».</p>{% endif %}
 </div>

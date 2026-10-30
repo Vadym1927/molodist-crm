@@ -156,6 +156,7 @@ class Move:
     amount: float
     what: str
     link: str | None
+    transfer: bool = False     # переміщення між своїми рахунками — не прихід і не витрата
 
 
 def _since(x: dict) -> date | None:
@@ -176,9 +177,9 @@ def moves(db: Session, x: dict, limit: int | None = None) -> list[Move]:
         what = f"CRM-{op.id} · {op.category}" + (f" · {op.counterparty}" if op.counterparty else "")
         if op.kind == "transfer":
             if op.cashbox == x["name"]:
-                out.append(Move(at, "out", op.amount, what + f" → {op.cashbox_to}", "/finance/ops"))
+                out.append(Move(at, "out", op.amount, what + f" → {op.cashbox_to}", "/finance/ops", True))
             if op.cashbox_to == x["name"]:
-                out.append(Move(at, "in", op.amount, what + f" ← {op.cashbox}", "/finance/ops"))
+                out.append(Move(at, "in", op.amount, what + f" ← {op.cashbox}", "/finance/ops", True))
         elif op.cashbox == x["name"]:
             out.append(Move(at, "in" if op.kind == "income" else "out", op.amount, what, "/finance/ops"))
     from ..models import CbFinOp                               # журнал CleverBox (поки CleverBox працює паралельно)
@@ -189,9 +190,9 @@ def moves(db: Session, x: dict, limit: int | None = None) -> list[Move]:
         what = f"CleverBox #{op.id} · {op.article or op.basis or ''}" + (f" · {op.counterparty}" if op.counterparty else "")
         if op.kind == "transfer":
             if op.account == x["name"]:
-                out.append(Move(op.at, "out", op.amount, what + f" → {op.vid}", None))
+                out.append(Move(op.at, "out", op.amount, what + f" → {op.vid}", None, True))
             if op.vid == x["name"]:
-                out.append(Move(op.at, "in", op.amount, what + f" ← {op.account}", None))
+                out.append(Move(op.at, "in", op.amount, what + f" ← {op.account}", None, True))
         elif op.account == x["name"]:
             out.append(Move(op.at, "in" if op.kind == "income" else "out", op.amount, what, None))
     meth = list(set(x.get("methods") or []) | {x["name"]} | _link_methods(db, x["name"]))

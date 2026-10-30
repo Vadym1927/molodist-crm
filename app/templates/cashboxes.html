@@ -93,7 +93,7 @@
     <div class="row" style="gap:6px;flex-wrap:wrap"><a class="btn" href="/finance/ops?new=income&cashbox={{ detail.name|urlencode }}">＋ Надходження</a><a class="btn ghost" href="/finance/ops?new=expense&cashbox={{ detail.name|urlencode }}">− Витрата</a><a class="btn ghost" href="/finance/ops?new=transfer&cashbox={{ detail.name|urlencode }}">⇄ Переміщення</a></div>
     {% if dmoves %}<table><tr><th>Дата</th><th>Операція</th><th style="text-align:right">Сума</th></tr>
     {% for m in dmoves %}<tr><td style="white-space:nowrap">{{ m.at|dt('%d.%m.%Y %H:%M') }}</td><td>{% if m.link %}<a href="{{ m.link }}">{{ m.what }}</a>{% else %}{{ m.what }}{% endif %}</td>
-      <td style="text-align:right;white-space:nowrap;color:{{ '#3c8d3c' if m.kind == 'in' else '#C0392B' }}">{{ '+' if m.kind == 'in' else '−' }}{{ '%.2f'|format(m.amount) }}</td></tr>{% endfor %}</table>
+      <td style="text-align:right;white-space:nowrap;color:{{ '#5C4B82' if m.transfer else ('#3c8d3c' if m.kind == 'in' else '#C0392B') }}" title="{{ 'Переміщення між рахунками — не прихід і не витрата' if m.transfer }}">{{ '⇄ ' if m.transfer }}{{ '+' if m.kind == 'in' else '−' }}{{ '%.2f'|format(m.amount) }}</td></tr>{% endfor %}</table>
     <div class="small muted">Показано останні 100 операцій.</div>{% else %}<div class="muted">Операцій ще немає.</div>{% endif %}
   </div></dialog><script>document.getElementById('bx-mv').showModal()</script>
 {% endif %}

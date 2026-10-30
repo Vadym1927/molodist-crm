@@ -153,6 +153,44 @@ def _book_txn(db: Session, txn: BankTxn, amount: float, g) -> None:
     db.flush()
 
 
+def book_without_supply(db: Session, txn: BankTxn, user_id: int | None = None) -> bool:
+    """Оплата постачальнику, поставку ще не внесено: одразу у журнал фіноперацій («Закупка товара»), залишок рахунку CRM = банку.
+    Коли поставку внесуть — «скасувати» (запис прибереться) і рознести на накладну."""
+    from ..integrations import monobank
+    from ..models import FinOp
+    if txn.amount >= 0 or db.scalar(select(FinOp.id).where(FinOp.ref == f"banktxn:{txn.id}", FinOp.deleted_at.is_(None))):
+        return False
+    box = monobank.cashbox_for(db, txn.account, txn.fop)
+    if not box:
+        return False
+    db.add(FinOp(day=txn.at.date(), kind="expense", category="Закупка товара", amount=round(-txn.amount, 2), cashbox=box,
+                 counterparty=txn.counter_name, ref=f"banktxn:{txn.id}", created_by=user_id,
+                 comment=f"Оплата постачальнику без поставки в CRM · {txn.description or ''}"[:500]))
+    txn.status, txn.note = "booked", "у журналі без поставки"
+    db.commit()
+    return True
+
+
+# разові виправлення (30.10.2026): оплати постачальникам, поставки яких не вносили на прихід → у журнал без поставки
+UNRECORDED = {"skin_41": (("скін", "skin"), r"№\s*41\b"),
+              "suha_1099": (("суха",), r"ЦБ-1099")}
+
+
+def fix_unrecorded(db: Session, key: str) -> int:
+    import re as _re
+    words, rx = UNRECORDED[key]
+    hits = [t for t in db.scalars(select(BankTxn).where(BankTxn.amount < 0, BankTxn.status.in_(("new", "partial"))))
+            if any(w in (t.counter_name or "").lower() for w in words) and _re.search(rx, t.description or "", _re.I)]
+    hits = [t for t in hits if not db.scalar(select(PaymentAlloc.id).where(PaymentAlloc.txn_id == t.id))]
+    if len(hits) != 1:
+        return 0
+    return int(book_without_supply(db, hits[0]))
+
+
+def fix_skin_beauty_41(db: Session) -> int:
+    return fix_unrecorded(db, "skin_41")
+
+
 def backfill_finops(db: Session) -> int:
     """Оплати поставок monobank, рознесені раніше, — у журнал фіноперацій (якщо ще не там). Повертає к-сть створених."""
     from ..models import FinOp
@@ -179,7 +217,7 @@ def backfill_finops(db: Session) -> int:
 def unallocate_txn(db: Session, txn: BankTxn) -> None:
     from ..models import FinOp
     for op in db.scalars(select(FinOp).where(FinOp.ref == f"banktxn:{txn.id}", FinOp.deleted_at.is_(None))):
-        op.deleted_at = datetime.utcnow()             # оплату знято з поставки — фіноперацію прибираємо з журналу
+        op.deleted_at = datetime.utcnow()             # оплату знято з поставки / з журналу — фіноперацію прибираємо
     docs = set()
     for a in db.scalars(select(PaymentAlloc).where(PaymentAlloc.txn_id == txn.id)):
         docs.add(a.doc_id)

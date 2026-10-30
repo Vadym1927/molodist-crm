@@ -194,3 +194,56 @@ def test_supply_payment_books_finop_and_cash_report():
     with TestClient(app) as c:
         _login(c)
         assert "Стан каси" in c.get("/reports?r=cash").text
+
+
+def test_book_supplier_payment_without_supply():
+    from app.models import FinOp
+
+    def getter(path, token):
+        return {"name": "Тест", "accounts": [{"id": "acc-b", "iban": "UA000000000000000000000023028", "type": "fop", "currencyCode": 980}]}
+    with SessionLocal() as db:
+        monobank.connect(db, "Бондар", "tok-b", getter=getter)
+        t = BankTxn(id="skin-41", fop="Бондар", account="acc-b", at=datetime.now(), amount=-8400,
+                    counter_name="ТОВ «СКІН Б‘ЮТІ ПРО»", description="Оплата за косметичну продукцію згідно рахунку на оплату № 41")
+        db.add(t); db.commit()
+        assert pay.fix_skin_beauty_41(db) == 1
+        op = db.query(FinOp).filter_by(ref="banktxn:skin-41").one()
+        assert op.cashbox == "Амортизаційний + Операційний Фонд" and op.amount == 8400
+        assert db.get(BankTxn, "skin-41").status == "booked" and pay.fix_skin_beauty_41(db) == 0
+    with TestClient(app) as c:
+        _login(c)
+        assert "у журналі без поставки" in c.get("/stock?tab=suppliers").text
+        c.post("/stock/mono/txn/skin-41", data={"action": "unbook"})
+    with SessionLocal() as db:
+        assert db.get(BankTxn, "skin-41").status == "new" and db.get(FinOp, op.id).deleted_at is not None
+        monobank.disconnect(db, "Бондар")
+
+
+def test_cash_report_transfer_is_not_income_or_expense():
+    from app.models import FinOp
+    from app.services import reports as rp, cashboxes as cbx
+    with SessionLocal() as db:
+        names = [x["name"] for x in cbx.items(db) if x.get("active") and not x.get("deleted")][:2]
+        db.add(FinOp(day=datetime.now().date(), kind="transfer", category="Переміщення", amount=500, cashbox=names[0], cashbox_to=names[1]))
+        db.commit()
+        rep = rp.build(db, "cash", datetime.now().date(), datetime.now().date())
+        src = next(r for r in rep.rows if r["name"] == names[0])
+        dst = next(r for r in rep.rows if r["name"] == names[1])
+        assert src["tr"] == -500 and dst["tr"] == 500
+        assert all(not v.transfer for v in cbx.moves(db, next(x for x in cbx.items(db) if x["name"] == names[0])) if v.kind == "out" and v.amount == 500 and "→" not in v.what)
+
+
+def test_fix_suha_1099():
+    from app.models import FinOp
+
+    def getter(path, token):
+        return {"name": "Тест", "accounts": [{"id": "acc-k2", "iban": "UA000000000000000000000023032", "type": "fop", "currencyCode": 980}]}
+    with SessionLocal() as db:
+        monobank.connect(db, "Колган", "tok-k2", getter=getter)
+        db.add(BankTxn(id="suha-1099", fop="Колган", account="acc-k2", at=datetime.now(), amount=-6240, counter_name="ФОП СУХА ТЕТЯНА ЄВГЕНІЇВНА",
+                       description="Оплата за товари згідно рахунку на оплату № ЦБ-1099 від 29 жовтня 2026 р., без ПДВ"))
+        db.commit()
+        assert pay.fix_unrecorded(db, "suha_1099") == 1
+        op = db.query(FinOp).filter_by(ref="banktxn:suha-1099").one()
+        assert op.cashbox == "Операційний Фонд" and op.amount == 6240
+        monobank.disconnect(db, "Колган")
