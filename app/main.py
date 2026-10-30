@@ -3779,9 +3779,15 @@ SETTINGS_BLOCKS = [
         ('Загальні', 'Країна, часовий пояс, мова, валюта, ПДВ; налаштування звітів', '/settings/clinic', 'users', 'main_settings'),
         ('Філії', 'Локації: ресурси (апарати), режим роботи, робочі місця (кабінети)', '/settings/clinic#loc', 'users', 'salons'),
         ('Команда', 'Лікарі й співробітники: посади, KPI, привʼязка до CleverBox', '/specialists', 'specialists', 'sfields/staff'),
-        ('Посади співробітників', 'Директор, адміністратори, лікарі…: довідник посад для картки спеціаліста', '/settings/positions', 'specialists_edit', 'dirs/staff_position'),
         ('Графік роботи', 'Зміни спеціалістів по днях і кабінетах', '/specialists/schedule', 'schedule', None),
         ('Онлайн-бронювання', 'Віджет запису на сайті', None, None, 'webwidget'),
+    ]),
+    ('Співробітники', 'team', 'Посади, оклади, категорії й нарахування', [
+        ('Посади співробітників', 'Директор, адміністратори, лікарі…: довідник посад для картки спеціаліста', '/settings/positions', 'specialists_edit', 'dirs/prof'),
+        ('Налаштування окладів', None, None, None, 'salary'),
+        ('Категорії спеціалістів', 'Ціни за категоріями', None, None, 'cmarket/customprice/main'),
+        ('Статті для нарахувань', None, None, None, 'dirs/stype'),
+        ('Застосунок для спеціаліста', None, None, None, 'cmarket/specapp/main'),
     ]),
     ('Фінанси', 'finance', 'Каси, статті, оплати й фіскалізація', [
         ('Каси / рахунки', 'Готівка, рахунки ФОП, термінал, онлайн-оплати: залишок після кожної операції, локація, тип', '/settings/cashboxes', 'finance', None),
@@ -3820,13 +3826,6 @@ SETTINGS_BLOCKS = [
         ('Резервні копії', 'Щоночі о 03:30 і вручну', '/data#backup', 'export_reports', None),
         ('REST API', 'API-ключі CRM і вебхуки; токен CleverBox — у «Дані й синхронізація»', '/access/api', 'api', 'cmarket/rest/main'),
         ('Зіставлення послуг', 'Позиції плану ↔ послуги CleverBox', '/mapping', 'mapping', None),
-    ]),
-    ('Поки в CleverBox', 'ext', 'Ще не перенесено в CRM — відкривається у CleverBox', [
-        ('Посади співробітників', None, None, None, 'dirs/prof'),
-        ('Налаштування окладів', None, None, None, 'salary'),
-        ('Категорії спеціалістів', 'Ціни за категоріями', None, None, 'cmarket/customprice/main'),
-        ('Статті для нарахувань', None, None, None, 'dirs/stype'),
-        ('Застосунок для спеціаліста', None, None, None, 'cmarket/specapp/main'),
     ]),
 ]
 

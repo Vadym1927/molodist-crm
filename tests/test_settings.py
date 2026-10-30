@@ -10,9 +10,9 @@ def test_settings_hub():
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
         t = c.get("/settings").text
         for block in ("Клініка", "Фінанси", "Комунікації", "Звернення", "Склад і товари", "Доступ і безпека", "Дані й інтеграції",
-                      "Поки в CleverBox"):
+                      "Співробітники"):
             assert block in t
-        assert "#setup/dirs/appeal_deny" not in t and 'href="/access"' in t and "#setup/salary" in t
+        assert "Поки в CleverBox" not in t and "/settings/positions" in t and "#setup/dirs/appeal_deny" not in t and 'href="/access"' in t and "#setup/salary" in t
         assert 'href="/settings"' in c.get("/").text
 
 
