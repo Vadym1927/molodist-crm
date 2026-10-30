@@ -77,6 +77,21 @@ dialog.pd::backdrop{background:rgba(42,36,48,.35)}
 .pc .kp{flex-wrap:nowrap}.pc .kp div{min-width:0;padding:8px 12px}
 .br,.pm,.card{border-color:#ECE7E1!important;box-shadow:0 1px 2px rgba(42,36,48,.04),0 10px 30px -20px rgba(42,36,48,.22)}
 .br,.pm{border-radius:20px}
+.pc{flex-wrap:wrap}.pc .nm{min-width:180px;flex:1}
+.pc .lbs{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}.pc .lbs .tg{margin:0}
+.pc .lb{font:700 10.5px var(--sans);letter-spacing:.03em;color:#fff;background:#3B5BA9;border-radius:5px;padding:2px 7px}
+.pc .kp{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-left:0;width:100%;flex-wrap:nowrap}
+.pc .kp div{background:#fff;border:1px solid #ECE7E1;border-radius:10px;padding:6px 9px;min-width:0}
+.pc .kp small{font-size:9.5px;letter-spacing:.07em}.pc .kp b{display:block;font:600 13px var(--sans);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pc .kp div.hot{border-color:#B9DDB5;background:#F1FAF0}.pc .kp div.hot b{color:#2E6B2E}
+.pc .cl{position:absolute;top:12px;right:14px}.card.pc{position:relative}
+.tl.prod{grid-template-columns:repeat(2,minmax(0,1fr))}
+.tl.prod .t{padding:10px;min-height:0}
+.tl .t .ph{display:grid;place-items:center;height:118px;border-radius:9px;background:#F7F4F0;color:#C9BFE6;overflow:hidden}
+.tl .t .ph img{width:100%;height:100%;object-fit:contain;background:#fff}
+.cr .th{flex:none;width:38px;height:38px;border-radius:9px;background:#F7F4F0 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%23C9BFE6' stroke-width='1.5'%3E%3Cpath d='M9 3h6v3H9zM8 6h8l1 3v11a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V9z'/%3E%3C/svg%3E") center no-repeat;overflow:hidden;border:1px solid #ECE7E1}
+.cr .th img{width:100%;height:100%;object-fit:cover;background:#fff}
+
 
 
 .pos label{display:grid;gap:4px;font-size:12px;font-weight:700;color:var(--muted)}
@@ -164,7 +179,7 @@ function render(){var tb=document.getElementById('rows');tb.innerHTML='';documen
   document.getElementById('ck-n').textContent=S.items.length?S.items.length+' поз.':'';
   S.items.forEach(function(it,i){var d=document.createElement('div'),lots='';d.className='cr';
     if(it.kind==='product'&&it.lots&&it.lots.length){lots='<select class="e" title="Партія"><option value="">Партія: FEFO</option>'+it.lots.map(function(l){return '<option value="'+l.expiry+'"'+(it.expiry==l.expiry?' selected':'')+'>до '+l.expiry.split('-').reverse().join('.')+' · '+l.qty+' шт</option>'}).join('')+'</select>'}
-    d.innerHTML='<div class="l1"><span class="kd '+it.kind+'">'+KL[it.kind]+'</span><div class="nm">'+(it.kind==='other'?'<input class="n" value="'+esc(it.name)+'" placeholder="Назва позиції">':'<b>'+esc(it.name)+'</b>')+
+    d.innerHTML='<div class="l1">'+(it.kind==='product'?'<span class="th">'+(it.photo?'<img src="'+esc(it.photo)+'" alt="" onerror="this.remove()">':'')+'</span>':'')+'<span class="kd '+it.kind+'">'+KL[it.kind]+'</span><div class="nm">'+(it.kind==='other'?'<input class="n" value="'+esc(it.name)+'" placeholder="Назва позиції">':'<b>'+esc(it.name)+'</b>')+
       (it.sku?'<small>Арт. '+esc(it.sku)+'</small>':'')+'</div><div class="sm"><b class="sum"></b><small class="disc"></small></div><button type="button" class="x" title="Прибрати">×</button></div>'+
       '<div class="l2">'+docSel(it.doctor_id)+'<div class="qty"><button type="button" class="m">−</button><input class="q" inputmode="decimal" value="'+(it.qty||1)+'"><button type="button" class="pl">+</button></div>'+
       '<label class="pr"><input class="p" inputmode="decimal" value="'+(+it.price).toFixed(2)+'"><span>₴</span></label>'+lots+'</div>';
@@ -204,7 +219,7 @@ function pick(inp,url,fmt,on){var r=inp.parentNode.querySelector('.res'),T=null;
     r.querySelectorAll('div[data-i]').forEach(function(d){d.onclick=function(){on(js[+d.dataset.i]);r.style.display='none'}})})},250)});
   document.addEventListener('click',function(e){if(!inp.parentNode.contains(e.target))r.style.display='none'})}
 pick(document.getElementById('sq'),'/lookup/services?q=',function(s){return esc(s.name)+' <small>'+s.minutes+' хв · '+f2(s.price)+'</small>'},function(s){S.items.push({kind:'service',ref_id:s.id,name:s.name,category:s.category,qty:1,price:+s.price,doctor_id:S.appointment_id?null:DEF});document.getElementById('sq').value='';quote()});
-pick(document.getElementById('gq'),'/lookup/sale-products?q=',function(p){return esc(p.name)+' <small>'+(p.sku?'арт. '+esc(p.sku)+' · ':'')+f2(p.price)+' · '+esc(p.wh||'')+' · залишок '+(p.stock==null?'—':p.stock)+'</small>'},function(p){S.items.push({kind:'product',ref_id:p.id,name:p.name,sku:p.sku,category:p.category,qty:1,price:+p.price,warehouse:p.warehouse,lots:p.lots,doctor_id:DEF});document.getElementById('gq').value='';quote()});
+pick(document.getElementById('gq'),'/lookup/sale-products?q=',function(p){return esc(p.name)+' <small>'+(p.sku?'арт. '+esc(p.sku)+' · ':'')+f2(p.price)+' · '+esc(p.wh||'')+' · залишок '+(p.stock==null?'—':p.stock)+'</small>'},function(p){S.items.push({kind:'product',ref_id:p.id,name:p.name,sku:p.sku,photo:p.photo,category:p.category,qty:1,price:+p.price,warehouse:p.warehouse,lots:p.lots,doctor_id:DEF});document.getElementById('gq').value='';quote()});
 function addOther(){S.items.push({kind:'other',name:'',qty:1,price:0,doctor_id:DEF});quote()}
 ['md','bp'].forEach(function(id){document.getElementById(id).addEventListener('input',quote)});var rl=document.getElementById('rule');if(rl)rl.addEventListener('change',quote);
 function pay(){var e=document.getElementById('err');e.textContent='';
@@ -243,13 +258,14 @@ function brLoad(keepFocus){var br=document.getElementById('br');
     var h=brSearch(isS?'Назва послуги':'Назва, артикул або штрихкод товару');
     if(B.key!==null&&!B.q)h+='<button type="button" class="bk">← Назад · '+esc(B.key)+'</button>';else if(!B.q)h+=brTabs(isS?SG:PG);else h+='<div style="height:10px"></div>';
     if(js.groups){h+='<div class="tl">'+js.groups.map(function(g){return '<button type="button" class="t g" style="--tc:'+col(g.key)+'" data-k="'+esc(g.key)+'"><b>'+esc(g.key)+'</b><span class="pr">'+g.n+'</span></button>'}).join('')+'</div>'}
-    else{h+='<div class="tl">'+(js.items.map(function(x,i){return '<button type="button" class="t" style="--tc:'+col(isS?(x.category||''):(x.brand||x.category||''))+'" data-i="'+i+'"><b>'+esc(x.name)+'</b>'+
+    else{h+='<div class="tl '+(isS?'':'prod')+'">'+(js.items.map(function(x,i){return '<button type="button" class="t" style="--tc:'+col(isS?(x.category||''):(x.brand||x.category||''))+'" data-i="'+i+'">'+
+        (isS?'':'<span class="ph">'+(x.photo?'<img loading="lazy" src="'+esc(x.photo)+'" alt="" onerror="this.remove()">':'<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6v3H9zM8 6h8l1 3v11a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V9z"/><path d="M7 12h10"/></svg>')+'</span>')+'<b>'+esc(x.name)+'</b>'+
         (isS?'<small>'+(x.minutes||'')+' хв</small>':'<small>'+(x.sku?'<span class="sku">Арт. '+esc(x.sku)+'</span>':'')+esc(x.brand||'')+(x.stock!=null?' · залишок '+x.stock:'')+'</small>')+'<span class="pr">'+f2(x.price)+'</span></button>'}).join('')||'<div class="em">Нічого не знайдено</div>')+'</div>'}
     br.innerHTML=h;brBind();if(keepFocus){var q=document.getElementById('brq');q.focus();q.setSelectionRange(q.value.length,q.value.length)}
     br.querySelectorAll('.t.g').forEach(function(b){b.onclick=function(){B.key=b.dataset.k;brLoad()}});
     if(js.items)br.querySelectorAll('.t[data-i]').forEach(function(b){b.onclick=function(){var x=js.items[+b.dataset.i];
       if(isS){S.items.push({kind:'service',ref_id:x.id,name:x.name,category:x.category,qty:1,price:+x.price,doctor_id:S.appointment_id?null:DEF});quote()}
-      else{fetch('/pos/lots/'+x.id).then(function(r){return r.json()}).then(function(lots){S.items.push({kind:'product',ref_id:x.id,name:x.name,sku:x.sku,category:x.category,qty:1,price:+x.price,warehouse:x.warehouse,lots:lots,doctor_id:DEF});quote()})}
+      else{fetch('/pos/lots/'+x.id).then(function(r){return r.json()}).then(function(lots){S.items.push({kind:'product',ref_id:x.id,name:x.name,sku:x.sku,photo:x.photo,category:x.category,qty:1,price:+x.price,warehouse:x.warehouse,lots:lots,doctor_id:DEF});quote()})}
       b.style.borderColor='#7BC47F';setTimeout(function(){b.style.borderColor=''},400)}})})}
 brGo({{ ('"visits"' if not appt and not items else '"services"')|safe }});
 
@@ -260,8 +276,12 @@ function setPatient(id){if(!id){S.patient_id=null;renderP(null);quote();return}
 function renderP(p){var c=document.getElementById('pcard'),ch=document.getElementById('pchoose');
   if(!p){c.style.display='none';c.innerHTML='';document.getElementById('pchoose-t').textContent='Оберіть пацієнта';return}
   var tc=p.tag==='ФАНАТ'?'':(p.tag.indexOf('Пост')===0?'reg':'new');
-  c.innerHTML='<div class="av">'+esc(initials(p.name))+'</div><div class="nm"><a href="/patients/'+p.id+'" target="_blank">'+esc(p.name)+'</a><div class="small muted">'+esc(p.phone)+'</div><span class="tg '+tc+'">'+esc(p.tag)+'</span></div>'+
-    '<div class="kp"><div><small>Бонуси</small><b>'+f2(p.bonus)+'</b></div>'+(p.balance!=null?'<div><small>Баланс</small><b>'+f2(p.balance)+'</b></div>':'')+'<div><small>Знижка</small><b>'+(p.discount?p.discount+'%':'—')+'</b></div></div>'+
+  function kp(lb,val,hot,title){return '<div class="'+(hot?'hot':'')+'" title="'+esc(title||'')+'"><small>'+lb+'</small><b>'+val+'</b></div>'}
+  var cs=p.certs||{n:0},ss=p.subs||{n:0,names:[]};
+  c.innerHTML='<div class="av">'+esc(initials(p.name))+'</div><div class="nm"><a href="/patients/'+p.id+'" target="_blank">'+esc(p.name)+'</a><div class="small muted">'+esc(p.phone)+'</div>'+
+    '<div class="lbs"><span class="tg '+tc+'">'+esc(p.tag)+'</span>'+(p.labels||[]).map(function(l){return '<span class="lb">'+esc(l)+'</span>'}).join('')+'</div></div>'+
+    '<div class="kp">'+kp('Бонуси',f2(p.bonus),p.bonus>0)+kp('Баланс',p.balance!=null?f2(p.balance):'—',p.balance>0)+kp('Знижка',p.discount?p.discount+'%':'—',p.discount>0)+
+      kp('Сертифікати',cs.n?cs.n+' · '+f2(cs.sum):'—',cs.n>0,'Активні сертифікати пацієнта')+kp('Абонементи',ss.n?String(ss.n):'—',ss.n>0,(ss.names||[]).join(', '))+'</div>'+
     '<button type="button" class="cl" title="Прибрати пацієнта">×</button>';
   c.style.display='flex';c.querySelector('.cl').onclick=function(){setPatient(null)};document.getElementById('pchoose-t').textContent='Змінити пацієнта'}
 function setMode(m){document.querySelectorAll('#mode button').forEach(function(b){b.classList.toggle('on',b.dataset.m===m)});

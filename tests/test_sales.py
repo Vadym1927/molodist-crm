@@ -123,3 +123,22 @@ def test_lookup_phone_from_first_digit_and_sku():
         it = c.get("/pos/products", params={"q": "ab-777"}).json()["items"]
         assert it and it[0]["sku"] == "AB-777"
         assert c.get("/lookup/sale-products", params={"q": "AB-777"}).json()[0]["sku"] == "AB-777"
+
+
+def test_pos_patient_card_extras_and_initiator():
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        p = Patient(full_name="Мітки Пацієнтка", phone="+380671230888", client_groups=["ЛЄ розсилка"], cb_balance=301)
+        db.add(p); db.flush()
+        db.add(GiftCertificate(code="GC-X", balance=700, nominal=700, price=700, paid=700, patient_id=p.id))
+        dn, dy = Doctor(name="Не Продавець", active=True, sale_initiator=False), Doctor(name="Так Продавець", active=True)
+        db.add_all([dn, dy]); db.commit()
+        pid, no_id, yes_id = p.id, dn.id, dy.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        j = c.get(f"/pos/patient/{pid}").json()
+        assert j["labels"] == ["ЛЄ розсилка"] and j["certs"] == {"n": 1, "sum": 700} and j["subs"]["n"] == 0 and j["balance"] == 301
+        t = c.get("/sales/new").text
+        import re
+        ids = re.search(r"var DOCS=(\[[^\]]*\])", t).group(1)
+        assert str(yes_id) in ids and str(no_id) not in ids.replace(str(yes_id), "")

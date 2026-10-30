@@ -1075,8 +1075,22 @@ def pos_patient(pid: int, user: User = Depends(require("sales")), db: Session = 
     from sqlalchemy import func as _f
     p_ = _patient_or_403(db, user, pid)
     n = db.scalar(select(_f.count(_f.distinct(_f.date(Visit.starts_at)))).where(Visit.patient_id == p_.id, Visit.status.in_(("attended", "done")))) or 0
+    from .services import certificates as _cert
+    certs = [c_ for c_ in _cert.for_patient(db, p_.id) if c_.state() in ("active", "expiring")]
+    subs = [s_ for s_ in _cert.subs_for_patient(db, p_.id) if s_.state() in ("active", "expiring")]
+    labels = []
+    for g_ in (p_.client_groups or []):
+        nm = g_.get("name") or g_.get("title") if isinstance(g_, dict) else str(g_)
+        if nm and nm not in labels:
+            labels.append(str(nm)[:40])
+    if db.scalar(select(User.id).where(User.active.is_(True), User.name == p_.full_name)) or \
+            db.scalar(select(Doctor.id).where(Doctor.active.is_(True), Doctor.name == p_.full_name)):
+        labels.insert(0, "Співробітник") if "Співробітник" not in labels else None
     return JSONResponse({"id": p_.id, "name": p_.full_name, "phone": p_.phone or "", "tag": _cal.tag_for(n), "visits": n,
-                         "bonus": round(ly.balance(db, p_.id), 2), "balance": p_.cb_balance, "discount": p_.discount_pct})
+                         "bonus": round(ly.balance(db, p_.id), 2), "balance": p_.cb_balance, "discount": p_.discount_pct,
+                         "labels": labels[:6],
+                         "certs": {"n": len(certs), "sum": round(sum(c_.balance or 0 for c_ in certs), 2)},
+                         "subs": {"n": len(subs), "names": [(s_.type_name or s_.code or "")[:40] for s_ in subs][:3]}})
 
 
 @app.post("/pos/patient")
@@ -1143,7 +1157,7 @@ def lookup_sale_products(q: str = "", user: User = Depends(require("sales")), db
         if led:
             lots = [{"expiry": e.isoformat(), "qty": round(qq, 3)} for (pid_, w_, e), qq in st.batch_balances(db, p_.id, wh).items() if e and qq > 1e-6]
             lots.sort(key=lambda x: x["expiry"])
-        out.append((0 if exact else (0 if wh == "vitrina" else 1), {"id": p_.id, "name": p_.name, "brand": p_.brand or "", "sku": p_.sku or "", "category": p_.brand or p_.category or "",
+        out.append((0 if exact else (0 if wh == "vitrina" else 1), {"id": p_.id, "name": p_.name, "brand": p_.brand or "", "sku": p_.sku or "", "photo": p_.photo_url or "", "category": p_.brand or p_.category or "",
                     "price": p_.price or p_.price_manual or p_.shop_price or 0, "stock": r.stock, "warehouse": wh,
                     "wh": catalog.WAREHOUSES.get(wh), "lots": lots}))
     out.sort(key=lambda x: (x[0], x[1]["name"].lower()))
@@ -1195,7 +1209,8 @@ def sale_new(request: Request, appt: int = 0, patient: int = 0, user: User = Dep
                   loc_name=_locs[0]["name"] if _locs else "MOLODIST",
                   mkinds={m_: sl.method_kind(m_) for m_ in sl.methods(db)}, rros=[r_ for r_ in _fis.rros(db) if r_["on"]],
                   fauto=bool(_fc.get("auto")), fdef=_fc.get("default_rro"),
-                  doctors=spec_svc.calendar_doctors(db), rules=db.scalars(select(DiscountRule).where(DiscountRule.active.is_(True),
+                  doctors=[d_ for d_ in db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)) if d_.sale_initiator is not False],
+                  rules=db.scalars(select(DiscountRule).where(DiscountRule.active.is_(True),
                                                                                                       DiscountRule.auto.is_(False))).all(),
                   certs=[{"id": c_.id, "code": c_.code or str(c_.id), "balance": c_.balance, "patient_id": c_.patient_id,
                           "name": c_.client_name or ""} for c_ in certs if c_.state() in ("active", "expiring")][:500],
@@ -5550,7 +5565,7 @@ def specialist_page(did: int, request: Request, user: User = Depends(require("sp
 def specialist_save(did: int, name: str = Form(...), position: str = Form(""), phone: str = Form(""),
                     email: str = Form(""), color: str = Form(""), bio: str = Form(""), work_days: str = Form(""),
                     telegram_chat_id: str = Form(""), photo_url: str = Form(""), status: str = Form("active"),
-                    in_calendar: str = Form(""), user: User = Depends(require("specialists_edit")),
+                    in_calendar: str = Form(""), sale_initiator: str = Form("1"), user: User = Depends(require("specialists_edit")),
                     db: Session = Depends(db_dep)):
     d = db.get(Doctor, did)
     if not d:
@@ -5569,6 +5584,7 @@ def specialist_save(did: int, name: str = Form(...), position: str = Form(""), p
         d.active, d.status_locked = want_active, True
         d.fired_at = None if want_active else date.today()
     d.in_calendar = in_calendar == "1"
+    d.sale_initiator = sale_initiator == "1"
     db.commit()
     audit(db, "specialist.update", "doctor", d.id, user=user)
     return RedirectResponse(f"/specialists/{did}?saved=1", 303)
