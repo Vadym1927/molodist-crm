@@ -2,13 +2,34 @@
 {% block title %}Новий продаж · Каса{% endblock %}
 {% block body %}
 <style>
-.pos{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:18px;align-items:start}
+.pos{display:grid;grid-template-columns:118px minmax(300px,1fr) minmax(0,1.45fr);gap:16px;align-items:start}
+.pm{background:#fff;border:1px solid var(--line);border-radius:18px;padding:8px;display:grid;gap:6px;position:sticky;top:88px}
+.pm button{border:1.5px solid transparent;background:none;border-radius:14px;padding:14px 4px 12px;cursor:pointer;display:grid;justify-items:center;gap:7px;
+  font:700 11.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#5d5869}
+.pm button svg{color:#8a8496}.pm button:hover{background:#F7F4F0}
+.pm button.on{border-color:#5C4B82;background:#F1EDF8;color:#3B3050}.pm button.on svg{color:#5C4B82}
+.pm button.soon{opacity:.55}
+.br{background:#fff;border:1px solid var(--line);border-radius:18px;padding:14px;min-height:520px}
+.br .bk{display:inline-flex;align-items:center;gap:6px;border:0;background:none;color:#2f65a0;font-weight:700;cursor:pointer;padding:2px 0;margin-bottom:10px}
+.br .tabs{display:inline-flex;border:1.5px solid var(--line);border-radius:12px;padding:3px;margin:10px 0 12px}
+.br .tabs button{border:0;background:none;padding:7px 14px;border-radius:9px;font:700 12px var(--sans);text-transform:uppercase;letter-spacing:.04em;color:var(--muted);cursor:pointer}
+.br .tabs button.on{background:#3B3050;color:#fff}
+.tl{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.tl .t{border:1px solid #ECE7E1;border-left:4px solid var(--tc,#C9BFE6);border-radius:12px;padding:12px;cursor:pointer;background:#fff;text-align:left;font:inherit;color:#2A2430;display:flex;flex-direction:column;gap:8px;min-height:92px}
+.tl .t:hover{box-shadow:0 6px 18px -10px rgba(42,36,48,.35);border-color:#d8d0e6}
+.tl .t b{font:600 13.5px/1.3 var(--sans)}.tl .t .pr{margin-top:auto;font:700 15px var(--sans)}.tl .t small{color:var(--muted);font-size:12px}
+.tl .g{border-left-color:#5C4B82}.tl .g b{color:#2f65a0;font-size:15px}.tl .g .pr{font-weight:600;color:var(--muted);font-size:13px}
+.vl .v{display:flex;gap:12px;align-items:flex-start;border:1px solid #ECE7E1;border-radius:12px;padding:12px;margin-bottom:8px;cursor:pointer;background:#fff;width:100%;text-align:left;font:inherit;color:inherit}
+.vl .v:hover{border-color:#C9BFE6;background:#FBFAFD}.vl .v.paid{opacity:.55;cursor:default}
+.vl .v .tm{font:700 15px var(--sans);min-width:52px}.vl .v b{display:block;font-size:14.5px}.vl .v small{color:var(--muted)}
+.vl .v .sv{font-size:13px;color:#4a4352;margin-top:3px}
+.br .em{color:var(--muted);text-align:center;padding:40px 10px}
 .pos label{display:grid;gap:4px;font-size:12px;font-weight:700;color:var(--muted)}
 .pk{position:relative}.pk input{width:100%}
 .pk .res{position:absolute;left:0;right:0;top:46px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 30px rgba(42,36,48,.15);max-height:300px;overflow:auto;z-index:5;display:none}
 .pk .res div{padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--line);font-size:14px;color:var(--ink);font-weight:400}.pk .res div:hover{background:var(--brand-soft)}
 .pk .res small{color:var(--muted)}
-.it td{vertical-align:middle;padding:6px}.it input,.it select{height:36px;font-size:13.5px}.it .q{width:70px}.it .p{width:100px}
+.it td{vertical-align:middle;padding:6px}.it td:first-child{min-width:190px}.it input,.it select{height:36px;font-size:13.5px}.it .q{width:70px}.it .p{width:100px}
 .it .kd{font-size:10.5px;font-weight:800;padding:1px 6px;border-radius:6px;background:var(--lavender);color:var(--classic)}.it .kd.product{background:#FFF4D6;color:#9A6B00}
 .tot div{display:flex;justify-content:space-between;padding:4px 0;font-size:14.5px}.tot .big{font:600 24px var(--head);border-top:2px solid var(--line);padding-top:10px;margin-top:6px}
 .pay{display:grid;grid-template-columns:1fr 120px 30px;gap:6px;align-items:center;margin-bottom:6px}.pay input,.pay select{height:38px}
@@ -18,11 +39,21 @@
 .pt:hover{border-color:var(--classic)}.pt i{font-style:normal;font-size:20px}.pt.on{border-color:#4CAF50;background:#F1FAF1}
 .ph{font:700 11px var(--sans);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:12px 0 6px}
 .err{background:var(--bad-bg);color:var(--bad);border-radius:10px;padding:8px 12px;font-weight:600}.err:empty{display:none}
-@media (max-width:1050px){.pos{grid-template-columns:1fr}}
+@media (max-width:1250px){.pos{grid-template-columns:100px minmax(260px,1fr) minmax(0,1.2fr)}}
+@media (max-width:980px){.pos{grid-template-columns:1fr}.pm{position:static;grid-template-columns:repeat(5,1fr)}.br{min-height:0}}
 </style>
 <div class="row between" style="margin-bottom:10px"><div><div class="eyebrow"><a href="/sales" style="text-decoration:none">Каса CRM</a></div><h1>Новий продаж</h1>
   {% if appt %}<div class="muted small">За записом №{{ appt.id }} · {{ appt.start|dt('%d.%m.%Y %H:%M') }}</div>{% endif %}</div></div>
-<div class="pos"><div>
+<div class="pos">
+<nav class="pm" id="pm">
+  <button type="button" data-s="visits"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4M8 13.5h3"/></svg>Візити</button>
+  <button type="button" data-s="services"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17h16M6 17a6 6 0 0 1 12 0M12 8v3M10 6h4"/><path d="M3 20h18"/></svg>Послуги</button>
+  <button type="button" data-s="products"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1 12H6z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/></svg>Товари</button>
+  <button type="button" data-s="certs" class="soon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="9" width="18" height="11" rx="1.5"/><path d="M3 13h18M12 9v11M12 9c-2-4-6-4-6-1.5S12 9 12 9s6-1 6-1.5S14 5 12 9"/></svg>Сертифікати</button>
+  <button type="button" data-s="subs" class="soon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h4M7 14h7M16 10h1"/></svg>Абонементи</button>
+</nav>
+<section class="br" id="br"></section>
+<div>
   <div class="card"><label>Пацієнт<div class="pk"><input id="pq" placeholder="Імʼя або телефон (можна без пацієнта — продаж «з вулиці»)" value="{{ pt.full_name if pt else '' }}" autocomplete="off"><div class="res"></div></div></label>
     <div class="small muted" id="pinfo" style="margin-top:6px"></div></div>
   <div class="card" style="padding:10px 12px">
@@ -32,8 +63,7 @@
     <div style="overflow:auto"><table class="tb it"><thead><tr><th>Позиція</th><th>Спеціаліст / продавець</th><th class="r">К-сть</th><th class="r">Ціна</th><th class="r">Знижка</th><th class="r">Сума</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
     <div class="muted small" id="empty" style="padding:8px">Додайте послуги або товари.</div></div>
   <div class="card"><label>Коментар до чека<input id="cmt"></label></div>
-</div>
-<div class="card" style="position:sticky;top:88px;margin:0">
+<div class="card" style="margin:0">
   <h2 style="margin-top:0">Розрахунок</h2>
   {% if rules %}<label style="margin-bottom:8px">Знижка вручну (правило)<select id="rule" multiple size="{{ [rules|length, 4]|min }}">{% for r in rules %}<option value="{{ r.id }}">{{ r.name }} · {{ ('%g'|format(r.value) ~ '%') if r.kind=='percent' else r.value|uah }}</option>{% endfor %}</select></label>{% endif %}
   <label style="margin-bottom:8px">Додаткова знижка, ₴<input id="md" inputmode="decimal" placeholder="0"></label>
@@ -51,7 +81,7 @@
   <div class="small" id="t-left" style="margin-top:6px"></div>
   <div class="err" id="err" style="margin-top:10px"></div>
   <button class="btn" style="width:100%;justify-content:center;margin-top:12px;height:48px;font-size:16px" id="go" onclick="pay()">💳 Провести продаж</button>
-</div></div>
+</div></div></div>
 <script>
 var S={patient_id:{{ (pt.id if pt else None)|tojson }},appointment_id:{{ (appt.id if appt else None)|tojson }},items:{{ items|tojson }},q:null};
 var DOCS={{ doctors|map(attribute='id')|list|tojson }},DN={{ doctors|map(attribute='name')|list|tojson }},DEF={{ (default_doc or None)|tojson }};
@@ -106,6 +136,46 @@ function pay(){var e=document.getElementById('err');e.textContent='';
   var b=document.getElementById('go');b.disabled=true;
   fetch('/sales',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload())}).then(function(r){return r.json()}).then(function(j){b.disabled=false;
     if(j.error){e.textContent=j.error;return}location.href='/sales/'+j.id+'?msg='+encodeURIComponent('Продаж проведено'+(j.msg?' · '+j.msg:''))})}
+
+/* ---- каталог: візити / послуги / товари ---- */
+var B={s:null,group:null,key:null,q:'',day:'{{ today }}'};
+function brGo(sec){B.s=sec;B.key=null;B.q='';if(sec==='services')B.group=B.group&&B.s==='services'?B.group:'category';if(sec==='products')B.group='warehouse';
+  document.querySelectorAll('#pm button').forEach(function(b){b.classList.toggle('on',b.dataset.s===sec)});brLoad()}
+document.querySelectorAll('#pm button').forEach(function(b){b.onclick=function(){brGo(b.dataset.s)}});
+function brSearch(ph){return '<div class="pk"><input id="brq" placeholder="'+ph+'" value="'+esc(B.q)+'" autocomplete="off" style="width:100%"></div>'}
+function brTabs(G){return '<div class="tabs">'+Object.keys(G).map(function(k){return '<button type="button" data-g="'+k+'" class="'+(B.group===k?'on':'')+'">'+G[k]+'</button>'}).join('')+'</div>'}
+function brBind(){var q=document.getElementById('brq');if(q){var T=null;q.oninput=function(){clearTimeout(T);var v=this.value;T=setTimeout(function(){B.q=v;B.key=null;brLoad(true)},250)};}
+  document.querySelectorAll('#br .tabs button').forEach(function(b){b.onclick=function(){B.group=b.dataset.g;B.key=null;B.q='';brLoad()}});
+  var bk=document.querySelector('#br .bk');if(bk)bk.onclick=function(){B.key=null;brLoad()}}
+var SG={category:'Категорії',direction:'Напрямки'},PG={warehouse:'Склади',category:'Категорії',brand:'Бренди'};
+var COL=['#5C4B82','#7BC47F','#E8A33D','#5B9BD5','#D96C8A','#8E6FD8','#46B3A6','#C9BFE6'];
+function col(s){var h=0;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return COL[Math.abs(h)%COL.length]}
+function brLoad(keepFocus){var br=document.getElementById('br');
+  if(!B.s){br.innerHTML='<div class="em">Оберіть розділ ліворуч, щоб побачити позиції для продажу</div>';return}
+  if(B.s==='certs'||B.s==='subs'){br.innerHTML='<div class="em">'+(B.s==='certs'?'Продаж сертифікатів':'Абонементи')+' — додамо наступним кроком.<br><br><a href="/gifts">Сертифікати й абонементи →</a></div>';return}
+  if(B.s==='visits'){fetch('/pos/visits?d='+B.day).then(function(r){return r.json()}).then(function(js){
+      br.innerHTML='<div class="row" style="gap:6px;margin-bottom:12px"><input type="date" id="vd" value="'+js.day+'" style="height:40px"><span class="muted small">записи на день</span></div><div class="vl">'+
+        (js.rows.map(function(v,i){var done=!!v.sale_id;return '<button type="button" class="v '+(done?'paid':'')+'" data-i="'+i+'"><span class="tm">'+v.at+'</span><span style="flex:1;min-width:0"><b>'+esc(v.patient)+'</b><small>'+esc(v.doctor||'')+(v.end?' · до '+v.end:'')+(v.cb?' · CleverBox':'')+(done?' · вже розраховано':'')+'</small>'+
+          '<div class="sv">'+(v.services.map(function(x){return '👉 '+esc(x.name)+(x.price?' · '+f2(x.price):'')}).join('<br>')||'<span class="muted">без послуг</span>')+'</div></span></button>'}).join('')||'<div class="em">На цей день записів немає</div>')+'</div>';
+      document.getElementById('vd').onchange=function(){B.day=this.value;brLoad()};
+      br.querySelectorAll('.v[data-i]').forEach(function(b){b.onclick=function(){var v=js.rows[+b.dataset.i];if(v.sale_id){location.href='/sales/'+v.sale_id;return}
+        if(v.appt_id){location.href='/sales/new?appt='+v.appt_id;return}
+        S.patient_id=v.patient_id;document.getElementById('pq').value=v.patient;document.getElementById('pinfo').innerHTML='<a href="/patients/'+v.patient_id+'" target="_blank">картка пацієнта ↗</a>';
+        v.services.forEach(function(x){S.items.push({kind:x.id?'service':'other',ref_id:x.id,name:x.name,category:x.category||'',qty:1,price:+x.price||0,doctor_id:v.doctor_id||DEF})});quote()}})});return}
+  var isS=B.s==='services',url=(isS?'/pos/services':'/pos/products')+'?group='+B.group+(B.key!==null?'&key='+encodeURIComponent(B.key):'')+(B.q?'&q='+encodeURIComponent(B.q):'');
+  fetch(url).then(function(r){return r.json()}).then(function(js){
+    var h=brSearch(isS?'Назва послуги':'Назва, артикул або штрихкод товару');
+    if(B.key!==null&&!B.q)h+='<button type="button" class="bk">← Назад · '+esc(B.key)+'</button>';else if(!B.q)h+=brTabs(isS?SG:PG);else h+='<div style="height:10px"></div>';
+    if(js.groups){h+='<div class="tl">'+js.groups.map(function(g){return '<button type="button" class="t g" style="--tc:'+col(g.key)+'" data-k="'+esc(g.key)+'"><b>'+esc(g.key)+'</b><span class="pr">'+g.n+'</span></button>'}).join('')+'</div>'}
+    else{h+='<div class="tl">'+(js.items.map(function(x,i){return '<button type="button" class="t" style="--tc:'+col(isS?(x.category||''):(x.brand||x.category||''))+'" data-i="'+i+'"><b>'+esc(x.name)+'</b>'+
+        (isS?'<small>'+(x.minutes||'')+' хв</small>':'<small>'+esc(x.brand||'')+(x.stock!=null?' · залишок '+x.stock:'')+'</small>')+'<span class="pr">'+f2(x.price)+'</span></button>'}).join('')||'<div class="em">Нічого не знайдено</div>')+'</div>'}
+    br.innerHTML=h;brBind();if(keepFocus){var q=document.getElementById('brq');q.focus();q.setSelectionRange(q.value.length,q.value.length)}
+    br.querySelectorAll('.t.g').forEach(function(b){b.onclick=function(){B.key=b.dataset.k;brLoad()}});
+    if(js.items)br.querySelectorAll('.t[data-i]').forEach(function(b){b.onclick=function(){var x=js.items[+b.dataset.i];
+      if(isS){S.items.push({kind:'service',ref_id:x.id,name:x.name,category:x.category,qty:1,price:+x.price,doctor_id:S.appointment_id?null:DEF});quote()}
+      else{fetch('/pos/lots/'+x.id).then(function(r){return r.json()}).then(function(lots){S.items.push({kind:'product',ref_id:x.id,name:x.name,category:x.category,qty:1,price:+x.price,warehouse:x.warehouse,lots:lots,doctor_id:DEF});quote()})}
+      b.style.borderColor='#7BC47F';setTimeout(function(){b.style.borderColor=''},400)}})})}
+brGo({{ ('"visits"' if not appt and not items else '"services"')|safe }});
 quote();
 </script>
 {% endblock %}

@@ -71,3 +71,24 @@ def test_sales_pos():
             assert round(ly.balance(db, pid), 2) == 100
             db.query(User).filter(User.login == settings.owner_login).one().delete_pw_hash = None
             db.query(SyncState).filter(SyncState.key.in_(("stock_ledger_start", "bonus_program"))).delete(); db.commit()
+
+
+def test_pos_catalog():
+    from app.models import Product
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        db.add_all([CbService(id=990901, name="Каталог послуга", category="Пілінги", direction="Класика", price=500, time_min=30),
+                    Product(name="Каталог крем", name_norm="каталог крем", brand="Hikari", warehouse="vitrina", price=900)])
+        d = Doctor(name="Каталог Лікар", active=True); p = Patient(full_name="Каталог Пацієнт", phone="+380671230777")
+        db.add_all([d, p]); db.flush()
+        db.add(Appointment(patient_id=p.id, doctor_id=d.id, start=datetime.now().replace(hour=10, minute=0), end=datetime.now().replace(hour=11, minute=0),
+                           services=[{"id": 990901, "name": "Каталог послуга", "price": 500}])); db.commit()
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        assert any(r["patient"] == "Каталог Пацієнт" and r["services"][0]["price"] == 500 for r in c.get("/pos/visits").json()["rows"])
+        g = c.get("/pos/services?group=direction").json()["groups"]
+        assert any(x["key"] == "Класика" for x in g)
+        assert c.get("/pos/services?group=category&key=Пілінги").json()["items"][0]["name"] == "Каталог послуга"
+        assert any(x["key"] == "Вітрина" for x in c.get("/pos/products").json()["groups"])
+        assert c.get("/pos/products?group=brand&key=Hikari").json()["items"][0]["price"] == 900
+        assert "Візити" in c.get("/sales/new").text

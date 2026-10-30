@@ -1057,6 +1057,41 @@ def appointment_status(aid: int, status: str = Form(...), reason: str = Form("")
 
 
 # ---------------- Каса: продаж у CRM ----------------
+@app.get("/pos/visits")
+def pos_visits(d: str = "", user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    from .services import pos
+    day_ = _day(d) or date.today()
+    rows = [r for r in pos.visits(db, day_) if not r["patient_id"] or patient_visible(user, db.get(Patient, r["patient_id"]))]
+    return JSONResponse({"day": day_.isoformat(), "rows": rows})
+
+
+@app.get("/pos/services")
+def pos_services(group: str = "category", key: str | None = None, q: str = "", user: User = Depends(require("sales")),
+                 db: Session = Depends(db_dep)):
+    from .services import pos
+    return JSONResponse(pos.services(db, group, key, q))
+
+
+@app.get("/pos/products")
+def pos_products(group: str = "warehouse", key: str | None = None, q: str = "", stock: int = 0, user: User = Depends(require("sales")),
+                 db: Session = Depends(db_dep)):
+    from .services import pos
+    return JSONResponse(pos.products(db, group, key, q, bool(stock)))
+
+
+@app.get("/pos/lots/{pid:int}")
+def pos_lots(pid: int, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    from .services import stock as st
+    from .models import Product as _P
+    p_ = db.get(_P, pid) or (_ for _ in ()).throw(HTTPException(404))
+    wh = p_.warehouse or "vitrina"
+    lots = []
+    if st.ledger_active(db):
+        lots = sorted([{"expiry": e.isoformat(), "qty": round(qq, 3)} for (pid_, w_, e), qq in st.batch_balances(db, p_.id, wh).items()
+                       if e and qq > 1e-6], key=lambda x: x["expiry"])
+    return JSONResponse(lots)
+
+
 @app.get("/lookup/sale-products")
 def lookup_sale_products(q: str = "", user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
     from .services import stock as st
@@ -1124,7 +1159,7 @@ def sale_new(request: Request, appt: int = 0, patient: int = 0, user: User = Dep
     certs = db.scalars(select(GiftCertificate).where(GiftCertificate.balance > 0)).all()
     from .services import fiscal as _fis
     _fc = _fis.cfg(db)
-    return render(request, "sale_new.html", nav="finance", appt=a_, pt=pt, items=items, methods=sl.methods(db),
+    return render(request, "sale_new.html", nav="finance", appt=a_, pt=pt, items=items, methods=sl.methods(db), today=date.today().isoformat(),
                   mkinds={m_: sl.method_kind(m_) for m_ in sl.methods(db)}, rros=[r_ for r_ in _fis.rros(db) if r_["on"]],
                   fauto=bool(_fc.get("auto")), fdef=_fc.get("default_rro"),
                   doctors=spec_svc.calendar_doctors(db), rules=db.scalars(select(DiscountRule).where(DiscountRule.active.is_(True),
