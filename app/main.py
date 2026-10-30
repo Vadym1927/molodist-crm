@@ -3782,7 +3782,7 @@ SETTINGS_BLOCKS = [
         ('Філії', 'Локації: ресурси (апарати), режим роботи, робочі місця (кабінети)', '/settings/clinic#loc', 'users', 'salons'),
         ('Команда', 'Лікарі й співробітники: посади, KPI, привʼязка до CleverBox', '/specialists', 'specialists', 'sfields/staff'),
         ('Графік роботи', 'Зміни спеціалістів по днях і кабінетах', '/specialists/schedule', 'schedule', None),
-        ('Онлайн-бронювання', 'Віджет запису на сайті', None, None, 'webwidget'),
+        ('Онлайн-бронювання', 'Віджет запису на сайті', 'dev', None, None),
     ]),
     ('Співробітники', 'team', 'Посади, оклади, категорії й нарахування', [
         ('Посади співробітників', 'Директор, адміністратори, лікарі…: довідник посад для картки спеціаліста', '/settings/positions', 'specialists_edit', 'dirs/prof'),
@@ -3790,7 +3790,7 @@ SETTINGS_BLOCKS = [
         ('Налаштування окладів', 'Фіксована ставка, комісійні за послуги й товари, % від обороту — шаблони для зарплати', '/settings/salary', 'finance', 'salary'),
         ('Категорії спеціалістів', 'Ціни за категоріями: інші ціни на послуги для головного лікаря, топ-лікаря, стажера', '/settings/price-cats', 'finance', 'cmarket/customprice/main'),
         ('Статті для нарахувань', 'Премії, штрафи, лікарняні, податки, відпускні — для коригувань зарплати', '/settings/accrual-articles', 'finance', 'dirs/stype'),
-        ('Застосунок для спеціаліста', None, None, None, 'cmarket/specapp/main'),
+        ('Застосунок для спеціаліста', 'Записи й нарахування у телефоні спеціаліста', 'dev', None, None),
     ]),
     ('Фінанси', 'finance', 'Каси, статті, оплати й фіскалізація', [
         ('Каси / рахунки', 'Готівка, рахунки ФОП, термінал, онлайн-оплати: залишок після кожної операції, локація, тип', '/settings/cashboxes', 'finance', None),
@@ -3857,9 +3857,9 @@ def settings_page(request: Request, user: User = Depends(current_user), db: Sess
         pass
     blocks = []
     for title, icon, about, items in SETTINGS_BLOCKS:
-        rows = [{"t": t, "d": d, "url": u if (u and (not p or can(user, p))) else None, "cb": (CB_SETUP + c) if c else None,
-                 "status": st_.get(u) if u else None} for t, d, u, p, c in items]
-        rows = [r for r in rows if r["url"] or r["cb"]]
+        rows = [{"t": t, "d": d, "url": u if (u and u != "dev" and (not p or can(user, p))) else None, "cb": (CB_SETUP + c) if c else None,
+                 "dev": u == "dev", "status": st_.get(u) if u else None} for t, d, u, p, c in items]
+        rows = [r for r in rows if r["url"] or r["cb"] or r["dev"]]
         if rows:
             blocks.append({"title": title, "icon": icon, "about": about, "rows": rows, "ext": all(not r["url"] for r in rows)})
     return render(request, "settings.html", blocks=blocks)

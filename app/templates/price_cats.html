@@ -23,9 +23,8 @@ details.grp[open] summary{background:#F7F4F0}
 .pr .nm{font-size:13.5px;color:#2A2430}.pr .nm small{color:#b8b1c2;margin-right:6px}.pr .base{text-align:right;font-weight:600;color:#8a8496}
 .pr input{height:38px;text-align:right}.pr.h{font:700 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#9a93a6;background:#FBFAF8}
 @media(max-width:860px){.pc{grid-template-columns:1fr}.pc-nav{position:static;grid-auto-flow:column;overflow:auto}.st{grid-template-columns:1fr}.pr{grid-template-columns:1fr 90px repeat(var(--n),100px)}}</style>
-<div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a></div>
-<h1 style="margin:0 0 6px">Категорії спеціалістів</h1>
-{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+{% set th_key, th_title, th_text, th_btn, th_btn_js = 'cats', 'Категорії спеціалістів', 'Інші ціни на послуги для певних спеціалістів — головний лікар, топ-лікар, стажер. Категорії → призначення співробітникам → ціни на послуги.', None, '' %}
+{% include "_team_head.html" %}
 <div class="pc">
   <nav class="pc-nav"><a href="?tab=cats" class="{{ 'on' if tab == 'cats' }}">Категорії цін</a><a href="?tab=staff" class="{{ 'on' if tab == 'staff' }}">Співробітники</a><a href="?tab=prices" class="{{ 'on' if tab == 'prices' }}">Ціни на послуги</a></nav>
   <form method="post" action="/settings/price-cats" class="pc-card"><input type="hidden" name="tab" value="{{ tab }}">

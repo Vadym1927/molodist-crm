@@ -31,20 +31,17 @@
 .adds{display:flex;flex-wrap:wrap;gap:6px}.adds button{border:1px solid #E6E0D8;background:#fff;border-radius:99px;padding:6px 12px;font:600 12.5px var(--sans);cursor:pointer;color:#3B3050}
 .adds button:hover{background:#E4DEEF}
 @media(max-width:640px){.g2{grid-template-columns:1fr}.itr{grid-template-columns:1fr 1fr}.itr .nm{grid-column:1/-1}}</style>
-<div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a></div>
-<div class="row between" style="gap:8px;flex-wrap:wrap"><h1 style="margin:0">Оклади співробітників</h1><button class="btn" type="button" onclick="spOpen(null)">＋ Додати</button></div>
-{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
-{% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
-<div class="cs-note" style="margin:12px 0 16px;max-width:900px">Оклад — шаблон нарахування зарплати: фіксована ставка, комісійні за послуги й продажі, % від загального обороту. Співробітнику оклад обирають у картці (поле «Зарплата (оклад)»), а нарахування рахуються у «Фінанси → Нарахування зарплати».</div>
+{% set th_key, th_title, th_text, th_btn, th_btn_js = 'salary', 'Оклади співробітників', 'Оклад — шаблон нарахування зарплати: фіксована ставка, комісійні за послуги й продажі, % від загального обороту. Співробітнику оклад обирають у картці (поле «Зарплата (оклад)»), а нарахування рахуються у «Фінанси → Нарахування зарплати».', '＋ Додати оклад', 'spOpen(null)' %}
+{% include "_team_head.html" %}
 <div class="ps-l" id="ps-l">
 {% for x in plans %}<div class="ps-r" draggable="true" data-id="{{ x.id }}">
   <span class="ps-h" title="Перетягніть"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 8h14M5 12h14M5 16h14"/></svg></span>
   <button class="ps-n" type="button" onclick="spOpen({{ x.id }})"><b>{{ x.name }}</b>
     <small>{% set parts = [] %}{% if x.fixed.on %}{% set _ = parts.append('ставка ' ~ ('%g'|format(x.fixed.amount)) ~ ' ₴ ' ~ spl.PERIODS[x.fixed.period]|lower) %}{% endif %}{% if x.comm.on %}{% set _ = parts.append('комісійні' ~ ((' · ' ~ x.comm['items']|length ~ ' окр. ставок') if x.comm['items'] else '')) %}{% endif %}{% if x.turn.on %}{% set _ = parts.append('% від обороту') %}{% endif %}{% if x.bonus.on %}{% set _ = parts.append('бонуси') %}{% endif %}{{ parts|join(' · ') or 'ще не налаштовано' }}</small></button>
   {% if use.get(x.name) %}<span class="ps-c" title="{{ use[x.name]|join(', ') }}">{{ use[x.name]|join(', ') }}</span>{% endif %}
-  <form method="post" action="/settings/salary/{{ x.id }}/copy"><button class="ps-b" title="Копіювати"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button></form>
+  <div class="ps-a"><form method="post" action="/settings/salary/{{ x.id }}/copy"><button class="ps-b" title="Копіювати"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button></form>
   <form method="post" action="/settings/salary/{{ x.id }}/delete" onsubmit="return confirm('Видалити оклад «{{ x.name }}»?{{ ' Він призначений: ' ~ use[x.name]|join(', ') ~ '.' if use.get(x.name) }}')"><button class="ps-b del" title="Видалити"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></form>
-</div>{% else %}<div class="muted">Окладів ще немає — «＋ Додати».</div>{% endfor %}
+</div></div>{% else %}<div class="muted">Окладів ще немає — «＋ Додати».</div>{% endfor %}
 </div>
 
 <div class="sp-back" id="sp-back" onclick="spClose()"></div>

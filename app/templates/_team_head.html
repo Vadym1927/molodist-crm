@@ -1,0 +1,42 @@
+{# Спільна шапка розділу «Співробітники»: th_key, th_title, th_text, th_btn (текст), th_btn_js #}
+{% set TEAM = [('positions', 'Посади', '/settings/positions'), ('fields', 'Поля', '/settings/staff-fields'), ('salary', 'Оклади', '/settings/salary'),
+               ('cats', 'Категорії спеціалістів', '/settings/price-cats'), ('articles', 'Статті для нарахувань', '/settings/accrual-articles')] %}
+<style>
+:root{--tm-line:#ECE7E1;--tm-soft:#F7F4F0;--tm-ink:#2A2430;--tm-deep:#3B3050;--tm-lav:#E4DEEF;--tm-lav2:#C9BFE6;--tm-mut:#8a8496}
+.tm-hero{position:relative;overflow:hidden;border-radius:24px;padding:26px 30px 0;margin-bottom:20px;color:#fff;
+  background:radial-gradient(120% 160% at 100% 0%,#4A3D63 0%,#3B3050 42%,#2A2430 100%);box-shadow:0 22px 50px -32px rgba(42,36,48,.8)}
+.tm-hero:before{content:"";position:absolute;right:-70px;top:-90px;width:260px;height:260px;border-radius:50%;border:1px solid rgba(228,222,239,.14)}
+.tm-hero:after{content:"";position:absolute;right:40px;top:-40px;width:140px;height:140px;border-radius:50%;border:1px solid rgba(228,222,239,.1)}
+.tm-top{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;flex-wrap:wrap;position:relative;z-index:1}
+.tm-eb{font:600 10.5px var(--sans);letter-spacing:.22em;text-transform:uppercase;color:#C9BFE6}.tm-eb a{color:#C9BFE6;text-decoration:none}.tm-eb a:hover{color:#fff}
+.tm-hero h1{margin:8px 0 0;color:#fff;font:500 30px/1.15 var(--head);letter-spacing:.04em;text-transform:uppercase}
+.tm-hero p{margin:10px 0 0;max-width:640px;color:rgba(255,255,255,.72);font-size:14px;line-height:1.55}
+.tm-hero .btn{background:#fff;color:var(--tm-deep);border:0;height:44px;padding:0 20px;border-radius:14px;font-weight:700;box-shadow:0 10px 24px -14px rgba(0,0,0,.6)}
+.tm-hero .btn:hover{background:#F6F3FB}
+.tm-tabs{display:flex;gap:4px;margin-top:22px;position:relative;z-index:1;overflow-x:auto;scrollbar-width:none}
+.tm-tabs a{flex:none;padding:12px 16px 14px;font:600 13px var(--sans);color:rgba(255,255,255,.62);text-decoration:none;border-bottom:2px solid transparent}
+.tm-tabs a:hover{color:#fff}.tm-hero .tm-tabs a.on{color:#fff!important;background:transparent!important;box-shadow:none!important;border-radius:0!important;border-bottom-color:#C9BFE6}
+.cs-note{border-left:3px solid #C9BFE6!important;background:#F6F3FB!important;color:#4a4458!important;border-radius:14px!important}
+.tm-msg{border-radius:14px;padding:12px 16px;margin:0 0 16px;font-weight:600}.tm-msg.ok{background:#EAF6EA;color:#2E6B2E}.tm-msg.bad{background:#FDECEA;color:#B23B2E}
+/* список: одна картка, рядки однакової висоти, колонка дій однакової ширини */
+.ps-l{display:block!important;max-width:none!important;background:#fff;border:1px solid var(--tm-line);border-radius:20px;overflow:hidden;box-shadow:0 1px 2px rgba(42,36,48,.04),0 14px 34px -26px rgba(42,36,48,.35)}
+.ps-r{display:grid!important;grid-template-columns:40px minmax(0,1fr) auto 84px;align-items:center;gap:14px;min-height:66px;padding:8px 18px 8px 12px!important;
+  border:0!important;border-top:1px solid #F3EFEA!important;border-radius:0!important;background:#fff;box-shadow:none!important;transition:background .15s}
+.ps-r:first-child{border-top:0!important}.ps-r:hover{background:#FBFAF8}.ps-r.drag{opacity:.4;background:var(--tm-soft)}
+.ps-h{justify-self:center}.ps-n{padding:6px 0!important}.ps-n,.ps-n b{font:600 15px/1.3 var(--sans)!important;color:var(--tm-ink)!important}
+.ps-n:hover,.ps-n:hover b{color:var(--tm-deep)!important}.ps-n small,.ps-n small.ps-t{font:500 12.5px var(--sans)!important;color:#9a93a6!important;margin-top:3px}
+.ps-r.off .ps-n,.ps-r.off .ps-n b{color:#b3adbb!important;text-decoration:none}
+.ps-c{font:600 11.5px var(--sans)!important;color:var(--tm-deep)!important;background:#F1EDF8!important;border-radius:99px;padding:4px 11px!important}
+.ps-a{grid-column:4;display:flex;gap:6px;justify-content:flex-end}.ps-c,.ps-m{grid-column:3;justify-self:end}.ps-m{display:flex;gap:6px;align-items:center}
+.kd{font:700 11px var(--sans)!important;letter-spacing:.04em;padding:4px 11px!important;border-radius:99px!important}.ps-a form{margin:0}
+.ps-b{width:36px!important;height:36px!important;border-radius:11px!important;border:1px solid var(--tm-line)!important;color:var(--tm-deep)!important;background:#fff!important}
+.ps-b:hover{background:var(--tm-soft)!important;border-color:var(--tm-lav2)!important}.ps-b.eye.off{color:#c3bccd!important}
+.ps-b.del:hover{color:#B23B2E!important;border-color:#F0C9C3!important;background:#FDF3F1!important}
+.tm-foot{display:flex;justify-content:space-between;color:#9a93a6;font-size:12.5px;padding:12px 4px 0}
+@media(max-width:640px){.tm-hero{padding:22px 18px 0;border-radius:20px}.tm-hero h1{font-size:23px}.ps-r{grid-template-columns:28px minmax(0,1fr) 84px;padding:8px 12px 8px 6px!important}.ps-r .ps-c,.ps-r .ps-m{display:none}.ps-a{grid-column:3}}
+</style>
+<section class="tm-hero"><div class="tm-top"><div><div class="tm-eb"><a href="/settings">Налаштування</a> · Співробітники</div><h1>{{ th_title }}</h1>{% if th_text %}<p>{{ th_text }}</p>{% endif %}</div>
+  {% if th_btn %}<button class="btn" type="button" onclick="{{ th_btn_js }}">{{ th_btn }}</button>{% endif %}</div>
+  <nav class="tm-tabs">{% for k, t, u in TEAM %}<a href="{{ u }}" class="{{ 'on' if k == th_key }}">{{ t }}</a>{% endfor %}</nav></section>
+{% if request.query_params.get('msg') %}<div class="tm-msg ok">{{ request.query_params.get('msg') }}</div>{% endif %}
+{% if request.query_params.get('err') %}<div class="tm-msg bad">{{ request.query_params.get('err') }}</div>{% endif %}

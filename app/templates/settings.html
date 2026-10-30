@@ -37,23 +37,26 @@
 .sh-r .pill.off:before{background:#D8D2CC}
 .chev{flex:none;color:#C3BCCD;transition:transform .15s,color .15s}
 .sh-r .cb{flex:none;font:600 11px var(--sans);color:#8a8496;border:1px solid #E6E0D8;border-radius:99px;padding:3px 9px;white-space:nowrap}
+.sh-r.dev{cursor:default}.sh-r.dev:hover{background:none}.sh-r.dev b{color:#8a8496}
+.sh-r .dv{flex:none;font:600 11px var(--sans);color:#8A5A00;background:#FFF4DE;border-radius:99px;padding:3px 10px;white-space:nowrap}
 .sh-r.hide,.sh-card.hide{display:none}
 .sh-empty{display:none;color:var(--muted);padding:30px 0;text-align:center}
 @media(max-width:700px){.sh-grid{columns:1}.sh-card{padding:18px 16px 8px}}
 </style>
 <div class="sh-head"><div><div class="eyebrow">Ще</div><h1 style="margin:0">Налаштування</h1>
-  <p>Усе, що налаштовується в CRM, згруповано за розділами. Те, чого в CRM ще немає, — окремо внизу й відкривається у CleverBox.</p></div>
+  <p>Усе, що налаштовується в CRM, згруповано за розділами. Позначка «CleverBox ↗» — ще відкривається у CleverBox, «В розробці» — готуємо в CRM.</p></div>
   <label class="sh-q"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
     <input id="shq" placeholder="Знайти налаштування" autocomplete="off" oninput="shF(this.value)"></label></div>
 <div class="sh-grid" id="shg">
 {% for b in blocks %}<section class="sh-card {{ 'ext' if b.ext }}">
   <div class="sh-ch"><div class="sh-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">{{ IC.get(b.icon, '')|safe }}</svg></div>
     <div><h2>{{ b.title }}</h2><span>{{ b.about }}</span></div><span class="n">{{ b.rows|length }}</span></div>
-  {% for r in b.rows %}<a class="sh-r" href="{{ r.url or r.cb }}" {% if not r.url %}target="_blank" rel="noopener"{% endif %} data-q="{{ (r.t ~ ' ' ~ (r.d or '') ~ ' ' ~ b.title)|lower }}">
+  {% for r in b.rows %}{% if r.dev %}<div class="sh-r dev" data-q="{{ (r.t ~ ' ' ~ (r.d or '') ~ ' ' ~ b.title)|lower }}"><div class="tx"><b>{{ r.t }}</b>{% if r.d %}<em>{{ r.d }}</em>{% endif %}</div><span class="dv">В розробці</span></div>{% else %}
+  <a class="sh-r" href="{{ r.url or r.cb }}" {% if not r.url %}target="_blank" rel="noopener"{% endif %} data-q="{{ (r.t ~ ' ' ~ (r.d or '') ~ ' ' ~ b.title)|lower }}">
     <div class="tx"><b>{{ r.t }}</b>{% if r.d %}<em>{{ r.d }}</em>{% endif %}
       {% if r.status %}<span class="pill {{ 'off' if 'не ' in r.status or r.status.startswith('не') }}">{{ r.status }}</span>{% endif %}</div>
     {% if r.url %}<svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
-    {% else %}<span class="cb">CleverBox ↗</span>{% endif %}</a>{% endfor %}
+    {% else %}<span class="cb">CleverBox ↗</span>{% endif %}</a>{% endif %}{% endfor %}
 </section>{% endfor %}
 </div>
 <div class="sh-empty" id="she">Нічого не знайдено</div>
