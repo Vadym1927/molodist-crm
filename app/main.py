@@ -2586,6 +2586,8 @@ def calendar_page(request: Request, start: str | None = None, doc: str = "", vie
     if doc_id in ids:
         i_ = ids.index(doc_id)
         ctx["doc_prev"], ctx["doc_next"] = ids[i_ - 1], ids[(i_ + 1) % len(ids)]
+    _pids = {e.patient_id for lst in ev.values() for e in lst if e.patient_id}
+    ctx["phones"] = dict(db.query(Patient.id, Patient.phone).filter(Patient.id.in_(_pids)).all()) if _pids else {}
     return render(request, "calendar.html", ev=ev, cols=cols, grid=grid, start=s, days=days, n_ev=n_ev,
                   prev=s - timedelta(days=days), next=s + timedelta(days=days), end=s + timedelta(days=days - 1),
                   month=None, **ctx)

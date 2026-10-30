@@ -158,6 +158,20 @@
 .legend2 i.lg{display:inline-block;width:14px;height:14px;border-radius:4px;margin-right:6px;vertical-align:-3px;border-top:3px solid var(--bc);background:var(--bg)}
 .legend2 i.lockl{background:repeating-linear-gradient(135deg,#D9C2EE 0 4px,#D2B7EA 4px 8px);border-top:3px solid #7E5BA8}
 @media(max-width:860px){.ctb{padding:10px}.csrch{max-width:none;order:9;flex-basis:100%}.cics{margin-left:0}.cloc{min-width:0;flex:1}.cnew{flex:1;justify-content:center}}
+
+/* блок візиту: суворо в межах часу, інформація зверху вниз за пріоритетом */
+.tg .blk{box-sizing:border-box;padding:5px 10px 5px;display:flex;flex-direction:column;gap:2px;overflow:hidden}
+.tg .blk .hd{flex-wrap:nowrap;min-width:0;overflow:hidden;line-height:1.3}
+.tg .blk .hd b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto}
+.tg .blk .hd .tm,.tg .blk .ptag{flex:none}
+.tg .blk .pph{font:600 12.5px var(--sans);color:#5d5869;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tg .blk .svl{margin-top:1px;font-size:13.5px;line-height:1.3;color:#2A2430;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+.tg .blk .svl span{display:inline;margin-right:0}.tg .blk .svl span+span:before{content:" · ";color:#9a93a6}
+.tg .blk .svl .nos{color:#9a93a6;font-style:italic;font-size:12.5px}
+.tg .blk.long .svl{-webkit-line-clamp:5}
+.tg .blk.mid .svl{-webkit-line-clamp:1;white-space:nowrap;text-overflow:ellipsis;display:block}.tg .blk.mid .nt{display:none}
+.tg .blk.short{padding:2px 8px;justify-content:center}.tg .blk.short .svl,.tg .blk.short .pph,.tg .blk.short .nt,.tg .blk.short .ptag{display:none}
+.tg .blk.short .hd .tm{font-size:11.5px;padding:0 4px}.tg .blk.short .hd b{font-size:13px}
 </style>
 
 {% set WD = ['понеділок','вівторок','середа','четвер','пʼятниця','субота','неділя'] %}
@@ -220,15 +234,17 @@
         <span class="tm">{{ e.when|dt('%H:%M') }} - {{ (e.ends or e.when)|dt('%H:%M') }}</span><b>{{ e.title }}</b>
         {% if can(user,'book') %}<form method="post" action="/calendar/blocks/{{ e.block_id }}/delete" onsubmit="return confirm('Зняти блокування «{{ e.title }}»?')"><button title="Зняти блокування">×</button></form>{% endif %}</div>
       {% else %}
-      <a class="blk {{ e.kind }} s-{{ e.status or 'booked' }} {{ 'short' if b.height < 45 }} {{ 'crm' if e.appt_id }}" href="{{ ('/patients/' ~ e.patient_id) if e.patient_id else '/tasks' }}" title="{{ e.title }} · {{ e.service or '' }}"
+      <a class="blk {{ e.kind }} s-{{ e.status or 'booked' }} {{ 'short' if b.height < 40 }} {{ 'mid' if 40 <= b.height < 60 }} {{ 'long' if b.height >= 90 }} {{ 'crm' if e.appt_id }}" href="{{ ('/patients/' ~ e.patient_id) if e.patient_id else '/tasks' }}" title="{{ e.title }} · {{ e.service or '' }}"
          data-q="{{ (e.title ~ ' ' ~ (e.service or '') ~ ' ' ~ (e.note or ''))|lower }}"
          {% if e.appt_id %}onclick="event.stopPropagation();apptOpen({{ e.appt_id }});return false"{% endif %}
          style="top:calc({{ b.top }} * var(--px) + 1px);height:max(calc({{ b.height }} * var(--px) - 3px), 26px);left:calc({{ 100 * b.lane / b.lanes }}% + 6px);width:calc({{ 100 / b.lanes }}% - 12px)">
         <span class="ics">{% if e.online %}<i title="Онлайн-запис">@</i>{% endif %}{% if e.paid %}<i class="pd" title="Оплачено"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/></svg></i>{% endif %}</span>
-        <div class="hd"><span class="tm">{{ e.when|dt('%H:%M') }}-{{ (e.ends or e.when)|dt('%H:%M') }}</span><b>{{ e.title }}</b>
+        {% set ph = phones.get(e.patient_id) if e.patient_id else None %}
+        <div class="hd"><span class="tm">{{ e.when|dt('%H:%M') }}–{{ (e.ends or e.when)|dt('%H:%M') }}</span><b>{{ e.title }}</b>
           {% if e.tag %}<span class="ptag {{ 'fan' if e.tag == 'ФАНАТ' else ('reg' if e.tag.startswith('Пост') else 'new') }}">{{ e.tag }}</span>{% endif %}
           {% if e.in_plan and e.kind == 'visit' %}<span class="ptag plan">бюті-план</span>{% endif %}</div>
-        {% if e.services %}<div class="svl">{% for s in e.services %}<span><em>👉</em> {{ s }}</span>{% endfor %}</div>{% endif %}
+        {% if ph %}<div class="pph">{{ ph }}</div>{% endif %}
+        <div class="svl">{% if e.services %}{% for s in e.services %}<span>{{ s }}</span>{% endfor %}{% else %}<span class="nos">послугу не вказано</span>{% endif %}</div>
         {% if e.note %}<div class="nt">Замітка: {{ e.note }}</div>{% endif %}</a>
       {% endif %}{% endfor %}
       {% if g.now_top is not none %}<div class="nowline" style="top:calc({{ g.now_top }} * var(--px))"></div>{% endif %}
@@ -255,8 +271,11 @@ function calFind(v){v=(v||'').trim().toLowerCase();var n=0;document.querySelecto
 function calPx(){var w=document.getElementById('tgw');return w?parseFloat(getComputedStyle(w).getPropertyValue('--px'))||1.3:1.3}
 function calFit(){var w=document.getElementById('tgw'),bd=w&&w.querySelector('.tg-body');if(!w||!bd)return;
   var mins=+bd.dataset.min||600,top=bd.getBoundingClientRect().top+window.scrollY,avail=window.innerHeight-top-28;
-  var px=Math.max(0.75,Math.min(2.2,avail/mins));if(window.innerWidth<860)px=1.1;w.style.setProperty('--px',px.toFixed(3)+'px')}
+  var px=Math.max(1.75,Math.min(2.6,avail/mins));if(window.innerWidth<860)px=1.6;w.style.setProperty('--px',px.toFixed(3)+'px');
+  if(window.innerWidth>=860){var t0=w.getBoundingClientRect().top+window.scrollY;w.style.maxHeight=Math.max(420,window.innerHeight-t0-44)+'px'}}
 calFit();window.addEventListener('resize',calFit);
+(function(){var w=document.getElementById('tgw'),n=document.querySelector('.tg .nowline')||document.querySelector('.tg .blk:not(.lock)');if(!w||!n)return;
+  var y=n.getBoundingClientRect().top-w.getBoundingClientRect().top-w.clientHeight*0.35;if(y>0)w.scrollTop=y})();
 function calPage(d){var w=document.getElementById('tgw'),c=w&&w.querySelector('.tg-head>div:nth-child(2)');if(w&&c)w.scrollBy({left:d*c.offsetWidth,behavior:'smooth'})}
 (function(){var w=document.getElementById('tgw'),n=w&&w.querySelector('.nowline');if(w&&n&&window.innerWidth<860){var t=n.offsetTop-200;window.scrollTo({top:Math.max(0,w.getBoundingClientRect().top+window.scrollY+t-120)})}})();
 function tgNew(e,col,doc,day){if(e.target.closest('a,.blk'))return;var r=col.getBoundingClientRect(),y=e.clientY-r.top,
