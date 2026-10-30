@@ -1212,7 +1212,7 @@ def sale_new(request: Request, appt: int = 0, patient: int = 0, user: User = Dep
     return render(request, "sale_new.html", nav="finance", appt=a_, pt=pt, items=items, methods=sl.methods(db), today=date.today().isoformat(),
                   loc_name=_locs[0]["name"] if _locs else "MOLODIST",
                   mkinds={m_: sl.method_kind(m_) for m_ in sl.methods(db)}, rros=[r_ for r_ in _fis.rros(db) if r_["on"]],
-                  link_for=_pos_link_map(sl.methods(db), sl),
+                  link_for=_pos_link_map(sl.methods(db), sl), rro_m=_fis.rro_methods(db),
                   fauto=bool(_fc.get("auto")), fdef=_fc.get("default_rro"),
                   doctors=[d_ for d_ in db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)) if d_.sale_initiator is not False],
                   rules=db.scalars(select(DiscountRule).where(DiscountRule.active.is_(True),
@@ -1277,6 +1277,13 @@ async def sale_create(request: Request, user: User = Depends(require("sales")), 
     if any(not it_.get("doctor_id") for it_ in d_["items"]):
         return JSONResponse({"error": "Оберіть спеціаліста / продавця (ініціатора продажу) для кожної позиції"}, status_code=400)
     d_["manual_discount"] = 0                                   # знижка — лише зі списку в «Налаштування → Знижки»
+    from .services import fiscal as _fis0, sales as _sl0
+    _allowed = _fis0.rro_methods(db).get(d_.get("fiscal_rro") or 0) if d_.get("fiscal_rro") else None
+    if _allowed:
+        bad_ = [p_.get("method") for p_ in d_["payments"] if _sl0.method_kind(str(p_.get("method") or "")) in ("cash", "card")
+                and p_.get("method") not in _allowed]
+        if bad_:
+            return JSONResponse({"error": "Ця каса РРО не приймає: " + ", ".join(bad_)}, status_code=400)
     try:
         s_ = sl.create(db, d_, user.id)
     except sl.SaleError as e:
@@ -3848,7 +3855,11 @@ def settings_checkbox(request: Request, user: User = Depends(require("finance"))
     from .services import fiscal as _fis, sales as sl
     from .models import Sale
     last = db.scalars(select(Sale).where(Sale.fiscal.is_not(None)).order_by(Sale.id.desc()).limit(10)).all()
+    from .services import cashboxes as _cbx, clinic as _cl
+    boxes = [{"name": x["name"], "cash": x.get("type") == "cash"} for x in _cbx.items(db)
+             if x.get("active") and not x.get("deleted") and x.get("type") in ("cash", "card", "other")]
     return render(request, "checkbox_settings.html", nav="settings", c=_fis.cfg(db), rros=_fis.rros(db), methods=sl.methods(db),
+                  boxes=boxes, locs=_cl.get(db).get("locations") or [],
                   last=last, open_=request.query_params.get("open", ""))
 
 
@@ -3898,12 +3909,41 @@ async def settings_checkbox_rro(request: Request, user: User = Depends(require("
     rid = int(f.get("id")) if str(f.get("id") or "").isdigit() else None
     if not str(f.get("name") or "").strip():
         return RedirectResponse(_with_msg("/settings/checkbox?open=rro", "Вкажіть назву каси", True), 303)
-    rid = _fis.save_rro(db, rid, {k: f.get(k) for k in ("name", "fop", "login", "license_key", "password", "pin", "test")} | {"on": bool(f.get("on"))})
-    audit(db, "fiscal.rro_save", user=user, rro=rid, test=bool(f.get("test")))
+    methods = {}
+    for k in f.keys():
+        if k.startswith("m_on::"):
+            m_ = k[6:]
+            methods[m_] = str(f.get("m_lbl::" + m_) or "cash")
+    data = {k: f.get(k) for k in ("name", "fop", "login", "license_key", "password", "pin", "test")} | {"on": bool(f.get("on"))}
+    if f.get("_methods"):
+        data["methods"] = methods
+        data["branches"] = f.getlist("branches")
+    rid = _fis.save_rro(db, rid, data)
+    audit(db, "fiscal.rro_save", user=user, rro=rid, test=bool(f.get("test")), methods=sorted(methods))
     if f.get("check"):
-        ok, msg = await asyncio.to_thread(_fis.test, db, rid)
+        ok, msg = await asyncio.to_thread(_fis.connect, db, rid)
         return RedirectResponse(_with_msg("/settings/checkbox?open=rro", ("✅ " if ok else "❌ ") + msg, not ok), 303)
     return RedirectResponse(_with_msg("/settings/checkbox?open=rro", "Касу збережено"), 303)
+
+
+@app.post("/settings/checkbox/rro/{rid:int}/off")
+def settings_checkbox_rro_off(rid: int, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import fiscal as _fis
+    _fis.disconnect(db, rid)
+    audit(db, "fiscal.rro_off", user=user, rro=rid)
+    return RedirectResponse(_with_msg("/settings/checkbox?open=rro", "Касу відключено"), 303)
+
+
+@app.get("/settings/checkbox/rro/{rid:int}/{what}")
+async def settings_checkbox_rro_data(rid: int, what: str, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import fiscal as _fis
+    if what not in ("shifts", "taxes"):
+        raise HTTPException(404)
+    try:
+        rows = await asyncio.to_thread(_fis.shifts if what == "shifts" else _fis.taxes, db, rid)
+    except (_fis.FiscalError, httpx.HTTPError) as e:
+        return JSONResponse({"error": str(e)[:200]}, status_code=400)
+    return JSONResponse({"rows": rows})
 
 
 @app.post("/settings/checkbox/rro/{rid:int}/delete")

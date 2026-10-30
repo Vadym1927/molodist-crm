@@ -3,6 +3,30 @@
 {% block body %}
 {% set qp = request.query_params %}
 {% include "_cs_style.html" %}
+<style>
+dialog.rro-d{width:min(860px,96vw)}
+.rro{border:1px solid #ECE7E1;border-radius:16px;background:#fff;overflow:hidden}
+.rro summary{display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer;list-style:none}.rro summary::-webkit-details-marker{display:none}
+.rro summary .rid{font:600 12px var(--sans);color:#9a93a6;min-width:44px}.rro summary b{font:600 15px var(--sans);color:#3B3050;flex:1}
+.rro .onp{font:700 11px var(--sans);border-radius:6px;padding:3px 8px}.rro .onp.on{background:#4CAF50;color:#fff}.rro .onp.off{background:#8e98a6;color:#fff}
+.rro .tst{font:700 10.5px var(--sans);background:#FFF4DE;color:#8A5A00;border-radius:6px;padding:3px 7px}
+.rro .chev{font-style:normal;color:#9a93a6;transition:transform .2s}.rro[open] .chev{transform:rotate(180deg)}
+.rro[open] summary{background:#FBFAF8;border-bottom:1px solid #F0ECE6}
+.rro-b{padding:16px 18px 18px;display:grid;gap:14px}
+.rro-act{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.rro-act .seg{border:1px solid #E6E0D8;background:#fff;border-radius:10px;padding:7px 14px;font:700 12px var(--sans);letter-spacing:.04em;text-transform:uppercase;color:#5d5869;cursor:pointer}
+.rro-act .seg.on{background:#3B3050;border-color:#3B3050;color:#fff}
+.rro-f{display:grid;gap:12px}.rro-f .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.rro .cred{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:14px;border-radius:14px;background:linear-gradient(135deg,#F7F4FB,#FBF7F2);border:1px solid #ECE4F4}
+.pm-row{display:grid;grid-template-columns:minmax(0,1.3fr) 130px minmax(0,1fr) 110px;gap:10px;align-items:center;padding:10px 0;border-top:1px solid #F3EFEA}
+.pm-row:first-of-type{border-top:0}.pm-row .ck{display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-size:14px;color:#2A2430}
+.pm-row select{height:38px}.pm-row .acc{font-size:13px;color:#8a8496}.pm-row .acc b{color:#2A2430;font-weight:600}
+.pm-row .tp{font:600 11.5px var(--sans);border-radius:99px;padding:3px 9px;text-align:center}.pm-row .tp.c{background:#FFF4DE;color:#8A5A00}.pm-row .tp.n{background:#F1EDF8;color:#5C4B82}
+.rro-info{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:14px;border-radius:14px;background:#2A2430;color:#fff}
+.rro-info span{display:block;font:600 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#C9BFE6}.rro-info b{font-weight:600;font-size:14px}.rro-info .w{grid-column:1/-1}
+.rro-out table{width:100%;font-size:13px}.rro-out td,.rro-out th{padding:6px 8px;border-bottom:1px solid #F3EFEA;text-align:left}
+@media(max-width:700px){.pm-row{grid-template-columns:1fr 1fr}.rro .cred,.rro-f .two,.rro-info{grid-template-columns:1fr}}
+</style>
 <div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a></div><h1>Інтеграція Checkbox</h1>
 {% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
 {% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
@@ -37,27 +61,47 @@
     <button class="btn">Зберегти</button>
   </form></dialog>
 
-<dialog class="cs-d" id="cb-rro"><div class="cs-dh"><h3>РРО — каси Checkbox</h3><button class="cs-x" type="button" onclick="this.closest('dialog').close()">×</button></div>
+<dialog class="cs-d rro-d" id="cb-rro"><div class="cs-dh"><h3>РРО — каси Checkbox</h3><button class="cs-x" type="button" onclick="this.closest('dialog').close()">×</button></div>
   <div class="cs-db">
-    <div class="cs-note">Ключ ліцензії каси — у кабінеті Checkbox → Каси → вибрати касу → «Ключ ліцензії». Касир — логін і пароль (або PIN-код) касира. Для відкриття зміни в кабінеті Checkbox має бути налаштований підпис (Checkbox Підпис або хмарний КЕП). Тестовий режим — середовище dev-api Checkbox, чеки не потрапляють у ДПС.</div>
+    <div class="cs-note">Ключ ліцензії каси — кабінет Checkbox → Каси → «Ключ ліцензії». Касир — логін і пароль (або PIN) касира. Для відкриття зміни в кабінеті Checkbox має бути налаштований підпис (Checkbox Підпис або хмарний КЕП). Ключі зберігаються зашифровано й після збереження не показуються.</div>
     {% for r in rros + [None] %}
-    <form method="post" action="/settings/checkbox/rro" class="loc" style="display:grid;gap:8px">
-      <b>{{ r.name if r else '＋ Нова каса' }}</b>
-      {% if r and r.status %}<div class="small {{ 'ok-t' if r.status.ok else 'bad-t' }}">{{ r.status.msg }} · {{ r.status.at }}</div>{% endif %}
-      <input type="hidden" name="id" value="{{ r.id if r else '' }}">
-      <div class="cs-f"><label>Назва каси</label><input name="name" value="{{ r.name if r else '' }}" placeholder="Каса ФОП Колган" {{ '' if r else '' }}></div>
-      <div class="cs-f"><label>ФОП</label><input name="fop" value="{{ r.fop if r else '' }}" placeholder="Колган"></div>
-      <div class="cs-f"><label>Ключ ліцензії каси</label><input type="password" name="license_key" autocomplete="new-password" placeholder="{{ '•••• збережено' if r and r.has_key else 'не задано' }}"></div>
-      <div class="cs-f"><label>Логін касира</label><input name="login" value="{{ r.login if r else '' }}" autocomplete="off"></div>
-      <div class="cs-f"><label>Пароль касира</label><input type="password" name="password" autocomplete="new-password" placeholder="{{ '•••• збережено' if r and r.has_pw else 'не задано' }}"></div>
-      <div class="cs-f"><label>або PIN-код касира</label><input type="password" name="pin" inputmode="numeric" autocomplete="new-password"></div>
-      <div class="cs-f"><label class="sw"><input type="checkbox" name="on" value="1" {{ 'checked' if not r or r.on }}> Каса активна</label>
-        <label class="sw"><input type="checkbox" name="test" value="1" {{ 'checked' if r and r.test }}> Тестовий режим</label></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn">Зберегти</button><button class="btn ghost" name="check" value="1">✓ Перевірити підключення</button></div>
-    </form>
-    {% if r %}<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:-4px">
-      <form method="post" action="/settings/checkbox/rro/{{ r.id }}/close-shift" onsubmit="return confirm('Закрити зміну каси «{{ r.name }}» (Z-звіт)?')"><button class="btn ghost" style="padding:4px 10px">Закрити зміну</button></form>
-      <form method="post" action="/settings/checkbox/rro/{{ r.id }}/delete" data-delpw="Видалити касу «{{ r.name }}» з CRM?"><button class="btn danger" style="padding:4px 10px">Видалити</button></form></div>{% endif %}
+    <details class="rro" {{ 'open' if (not r and not rros) or (r and loop.first and rros|length == 1) }}>
+      <summary><span class="rid">{{ ('ID: ' ~ r.id) if r else '＋' }}</span><b>{{ r.name if r else 'Додати касу' }}</b>
+        {% if r %}<span class="onp {{ 'on' if r.on else 'off' }}">{{ 'ON' if r.on else 'OFF' }}</span>{% if r.test %}<span class="tst">тест</span>{% endif %}{% endif %}<i class="chev">⌄</i></summary>
+      <div class="rro-b">
+      {% if r %}<div class="rro-act">
+        <form method="post" action="/settings/checkbox/rro" style="display:contents"><input type="hidden" name="id" value="{{ r.id }}"><input type="hidden" name="name" value="{{ r.name }}"><input type="hidden" name="fop" value="{{ r.fop }}"><input type="hidden" name="login" value="{{ r.login }}"><input type="hidden" name="on" value="1">{% if r.test %}<input type="hidden" name="test" value="1">{% endif %}<button class="seg {{ 'on' if r.on }}" name="check" value="1">Підключити</button></form>
+        <form method="post" action="/settings/checkbox/rro/{{ r.id }}/off" style="display:contents"><button class="seg {{ '' if r.on else 'on' }}">Відключити</button></form>
+        <form method="post" action="/settings/checkbox/rro/{{ r.id }}/close-shift" style="display:contents" onsubmit="return confirm('Закрити зміну каси «{{ r.name }}» (Z-звіт)?')"><button class="seg">Закрити зміну</button></form>
+        {% if r.status %}<span class="small {{ 'ok-t' if r.status.ok else 'bad-t' }}" style="margin-left:auto">{{ r.status.msg }} · {{ r.status.at }}</span>{% endif %}</div>{% endif %}
+      <form method="post" action="/settings/checkbox/rro" class="rro-f"><input type="hidden" name="id" value="{{ r.id if r else '' }}"><input type="hidden" name="_methods" value="1">
+        <div class="two"><div class="cs-f"><label>Назва каси</label><input name="name" value="{{ r.name if r else '' }}" placeholder="ФОП Колган" required></div>
+          <div class="cs-f"><label>ФОП</label><input name="fop" value="{{ r.fop if r else '' }}" placeholder="Колган"></div></div>
+        <div class="cred">
+          <div class="cs-f"><label>Ключ ліцензії каси</label><input type="password" name="license_key" autocomplete="new-password" placeholder="{{ '•••••••• збережено' if r and r.has_key else 'не задано' }}"></div>
+          <div class="cs-f"><label>Логін касира</label><input name="login" value="{{ r.login if r else '' }}" autocomplete="off"></div>
+          <div class="cs-f"><label>Пароль касира</label><input type="password" name="password" autocomplete="new-password" placeholder="{{ '•••••••• збережено' if r and r.has_pw else 'не задано' }}"></div>
+          <div class="cs-f"><label>або PIN касира</label><input type="password" name="pin" inputmode="numeric" autocomplete="new-password" placeholder="необовʼязково"></div></div>
+        <div class="cs-f"><label>Філії, у яких використовується РРО</label><div class="chips">
+          {% for l in locs %}<label><input type="checkbox" name="branches" value="{{ l.id }}" {{ 'checked' if r and l.id in r.branches }}> {{ l.name }}</label>{% endfor %}</div>
+          <div class="hint">Якщо не вибрати жодної — каса доступна в усіх філіях.</div></div>
+        <div class="cs-f"><label>Дозволені види оплат для РРО</label>
+          <div class="hint" style="margin-bottom:6px">Позначте способи оплати, які фіскалізуються цією касою, і фіскальну мітку. Непозначені в касі CRM з цим РРО будуть недоступні.</div>
+          {% for bx in boxes %}{% set lbl = (r.methods.get(bx.name) if r else None) %}
+          <div class="pm-row"><label class="ck"><input type="checkbox" name="m_on::{{ bx.name }}" value="1" {{ 'checked' if lbl }}> <b>{{ bx.name }}</b></label>
+            <select name="m_lbl::{{ bx.name }}"><option value="cash" {{ 'selected' if (lbl or ('cash' if bx.cash else 'card')) == 'cash' }}>Готівка</option><option value="card" {{ 'selected' if (lbl or ('cash' if bx.cash else 'card')) == 'card' }}>Картка</option></select>
+            <span class="acc">Рахунок: <b>{{ bx.name }}</b></span><span class="tp {{ 'c' if bx.cash else 'n' }}">{{ 'готівковий' if bx.cash else 'безготівковий' }}</span></div>{% endfor %}</div>
+        <div class="cs-f"><label class="sw"><input type="checkbox" name="on" value="1" {{ 'checked' if not r or r.on }}> Каса активна</label>
+          <label class="sw"><input type="checkbox" name="test" value="1" {{ 'checked' if r and r.test }}> Тестовий режим (dev-api, чеки не йдуть у ДПС)</label></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn">Зберегти</button><button class="btn ghost" name="check" value="1">Зберегти й підключити</button></div>
+      </form>
+      {% if r %}{% if r.info %}<div class="rro-info"><div><span>ID каси Checkbox</span><b>{{ r.info.id or '—' }}</b></div><div><span>Фіскальний номер</span><b>{{ r.info.fiscal_number or '—' }}</b></div><div class="w"><span>Адреса</span><b>{{ r.info.address or '—' }}</b></div></div>{% endif %}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button type="button" class="btn ghost" style="padding:6px 12px" onclick="rroData({{ r.id }},'shifts')">Показати зміни</button>
+        <button type="button" class="btn ghost" style="padding:6px 12px" onclick="rroData({{ r.id }},'taxes')">Показати податкові ставки</button>
+        <form method="post" action="/settings/checkbox/rro/{{ r.id }}/delete" data-delpw="Видалити касу «{{ r.name }}» з CRM?" style="margin-left:auto"><button class="btn danger" style="padding:6px 12px">Видалити</button></form></div>
+      <div class="rro-out" id="rro-out-{{ r.id }}"></div>{% endif %}
+      </div></details>
     {% endfor %}
   </div></dialog>
 
@@ -84,4 +128,9 @@
     <div class="cs-f"><label class="sw"><input type="checkbox" name="widget" value="1" {{ 'checked' if c.widget }}> Показувати QR чека</label></div>
     <button class="btn">Зберегти</button></form></dialog>
 <script>function cbO(k){document.getElementById('cb-'+k).showModal()}{% if open_ %}cbO('{{ open_ }}');{% endif %}</script>
+<script>function rroData(id,w){var o=document.getElementById('rro-out-'+id);o.innerHTML='<div class="small muted">Завантажую з Checkbox…</div>';
+  fetch('/settings/checkbox/rro/'+id+'/'+w).then(function(r){return r.json()}).then(function(j){if(j.error){o.innerHTML='<div class="bad-t small">'+j.error+'</div>';return}
+    var h=w==='shifts'?'<table><tr><th>№</th><th>Статус</th><th>Відкрито</th><th>Закрито</th><th>Продажі</th></tr>'+j.rows.map(function(x){return '<tr><td>'+(x.serial||'')+'</td><td>'+(x.status||'')+'</td><td>'+(x.opened_at||'').replace('T',' ').slice(0,16)+'</td><td>'+(x.closed_at||'').replace('T',' ').slice(0,16)+'</td><td>'+(x.sales!=null?x.sales.toFixed(2)+' ₴':'')+'</td></tr>'}).join('')+'</table>'
+      :'<table><tr><th>Код</th><th>Символ</th><th>Назва</th><th>Ставка</th></tr>'+j.rows.map(function(x){return '<tr><td>'+(x.code||'')+'</td><td>'+(x.symbol||'')+'</td><td>'+(x.label||'')+'</td><td>'+(x.rate!=null?x.rate+'%':'')+'</td></tr>'}).join('')+'</table>';
+    o.innerHTML=j.rows.length?h:'<div class="small muted">Немає даних</div>'})}</script>
 {% endblock %}

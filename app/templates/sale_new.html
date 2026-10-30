@@ -407,6 +407,7 @@ function payLeft(){if(!S.q)return;var paid=0;document.querySelectorAll('#pays .p
 /* ===== оплата: каси, термінал / посилання, рахунки пацієнта, сума з клавіатури ===== */
 S.pays=[];S.pi=null;
 function fisR(){var b=document.querySelector('#fis .pt.on');return b?+b.dataset.r:0}
+var RRO_M={{ rro_m|tojson }};function rroAllows(m){var r=fisR();if(!r)return true;var a=RRO_M[r]||{};return !Object.keys(a).length||!!a[m]}
 function noRRO(){return {{ 'true' if rros else 'false' }}&&fisR()===0}
 function payload(){var r=document.getElementById('rule');return {patient_id:S.patient_id,appointment_id:S.appointment_id,items:S.items,
   rule_ids:r?[].map.call(r.selectedOptions,function(o){return +o.value}):[],manual_discount:0,
@@ -424,7 +425,8 @@ function left(){payLeft()}
 function payLeft(){if(!S.q)return;var paid=paidSum();document.getElementById('p-pay').textContent=f2(S.q.to_pay);document.getElementById('p-in').textContent=f2(paid);
   document.getElementById('p-left').textContent=f2(Math.max(0,S.q.to_pay-paid));var l=Math.round((S.q.to_pay-paid)*100)/100,el=document.getElementById('t-left');
   el.textContent=Math.abs(l)<0.01?'✓ Оплата збігається':(l>0?'Залишилось внести '+f2(l):'Переплата '+f2(-l));el.style.color=Math.abs(l)<0.01?'var(--ok)':'var(--bad)';
-  var nr=noRRO();document.querySelectorAll('#pm-money .pt').forEach(function(b){b.classList.toggle('dis',nr&&b.dataset.k!=='cash');b.title=nr&&b.dataset.k!=='cash'?'Без РРО — лише готівка':''});
+  var nr=noRRO();document.querySelectorAll('#pm-money .pt').forEach(function(b){var off=(nr&&b.dataset.k!=='cash')||(b.dataset.k!=='link'&&!rroAllows(b.dataset.m));
+    b.classList.toggle('dis',off);b.title=nr&&b.dataset.k!=='cash'?'Без РРО — лише готівка':(off?'Ця каса РРО не приймає цей спосіб оплати':'')});
   var P=S.P||{},cs=(P.certs||{}),ss=(P.subs||{});
   setAcc('balance',P.balance>0,P.balance!=null?f2(P.balance):'—');setAcc('cert',cs.n>0,(cs.n||0)+' шт.'+(cs.n?' · '+f2(cs.sum):''));
   setAcc('sub',ss.n>0,(ss.n||0)+' шт.');setAcc('bonus',S.q.bonus_max>0,f2(S.q.bonus_balance||0)+(S.q.bonus_max>0?' · до '+f2(S.q.bonus_max):''))}

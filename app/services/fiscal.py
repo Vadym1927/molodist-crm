@@ -83,7 +83,13 @@ def rros(db: Session) -> list[dict]:
     """Для інтерфейсу — без секретів."""
     return [{"id": r["id"], "name": r["name"], "fop": r.get("fop", ""), "test": bool(r.get("test")), "on": r.get("on", True),
              "login": r.get("login", ""), "has_key": bool(r.get("license_key")), "has_pw": bool(r.get("password") or r.get("pin")),
-             "status": r.get("status")} for r in _rro_raw(db)]
+             "status": r.get("status"), "methods": r.get("methods") or {}, "branches": r.get("branches") or [],
+             "info": r.get("info") or {}} for r in _rro_raw(db)]
+
+
+def rro_methods(db: Session) -> dict[int, dict]:
+    """{id каси: {спосіб оплати: cash|card}} — дозволені для фіскалізації способи (порожньо = усі за типом)."""
+    return {int(r["id"]): (r.get("methods") or {}) for r in _rro_raw(db) if r.get("on", True)}
 
 
 def save_rro(db: Session, rid: int | None, data: dict) -> int:
@@ -96,6 +102,10 @@ def save_rro(db: Session, rid: int | None, data: dict) -> int:
         if k in data:
             r[k] = str(data[k] or "").strip()[:120]
     r["test"], r["on"] = bool(data.get("test")), bool(data.get("on", True))
+    if "methods" in data:
+        r["methods"] = {str(k)[:60]: v for k, v in (data.get("methods") or {}).items() if v in ("cash", "card")}
+    if "branches" in data:
+        r["branches"] = [int(b) for b in data.get("branches") or [] if str(b).isdigit()]
     for k in ("license_key", "password", "pin"):           # порожнє — лишаємо збережене
         if data.get(k):
             r[k] = str(data[k]).strip()
@@ -199,28 +209,30 @@ def _rro(db: Session, rid: int | None) -> dict:
     return r
 
 
-def mode_of(c: dict, method: str) -> str:
+def mode_of(c: dict, method: str, rro: dict | None = None) -> str:
+    if method in NON_FISCAL_DISCOUNT:
+        return "discount"
+    if rro and rro.get("methods"):                         # «Дозволені види оплат для РРО»
+        return rro["methods"].get(method, "skip")
     m = (c.get("method_modes") or {}).get(method)
     if m:
         return m
-    if method in NON_FISCAL_DISCOUNT:
-        return "discount"
     from .sales import method_kind                          # каса «Готівка …» → готівка, «Термінал …» → картка
     k = method_kind(method)
     return k if k in ("cash", "card") and not method.lower().startswith("фоп") else "skip"
 
 
-def build(db: Session, sale: Sale, is_return: bool = False) -> dict:
+def build(db: Session, sale: Sale, is_return: bool = False, rro: dict | None = None) -> dict:
     """Тіло чека Checkbox. Бонуси/сертифікат — знижкою на чек; способи «не фіскалізувати» — помилка (чек вручну)."""
     c = cfg(db)
     pays, disc, skipped = [], 0, []
     for p in sale.payments:
-        m = mode_of(c, p.method)
+        m = mode_of(c, p.method, rro)
         kop = int(round(p.amount * 100))
         if m == "cash":
             pays.append({"type": "CASH", "value": kop, "label": "Готівка"})
         elif m == "card":
-            pays.append({"type": "CASHLESS", "value": kop, "label": p.method[:40]})
+            pays.append({"type": "CASHLESS", "value": kop, "label": "Картка"})
         elif m == "discount":
             disc += kop
         else:
@@ -251,7 +263,7 @@ def fiscalize(db: Session, sale: Sale, rid: int | None = None, http: httpx.Clien
     if not is_return and sale.fiscal and sale.fiscal.get("fiscal_code"):
         raise FiscalError("Чек уже фіскалізовано")
     r = _rro(db, rid or ((sale.fiscal or {}).get("rro") if is_return else None))
-    body = build(db, sale, is_return)
+    body = build(db, sale, is_return, r)
     k = Kasa(r, http, wait)
     k.ensure_shift()
     rc = k.sell(body)
@@ -320,10 +332,58 @@ def auto_return(sale_id: int) -> None:
             db.commit()
 
 
+def _update(db: Session, rid: int, **kw) -> None:
+    items = _rro_raw(db)
+    for x in items:
+        if int(x["id"]) == int(rid):
+            x.update(kw)
+    _rro_save(db, items)
+
+
+def info(k: "Kasa") -> dict:
+    """Дані каси з Checkbox: ID, фіскальний номер, адреса, назва."""
+    try:
+        js = k._req("GET", "cash-registers/info")
+    except FiscalError:
+        return {}
+    return {"id": js.get("id"), "fiscal_number": js.get("fiscal_number"), "address": js.get("address"), "title": js.get("title"),
+            "offline": js.get("offline_mode")}
+
+
+def shifts(db: Session, rid: int, http: httpx.Client | None = None) -> list[dict]:
+    k = Kasa(_rro(db, rid), http)
+    js = k._req("GET", "cashier/shifts?limit=15&desc=true")
+    rows = js.get("results") if isinstance(js, dict) else js
+    return [{"serial": x.get("serial"), "status": x.get("status"), "opened_at": x.get("opened_at"), "closed_at": x.get("closed_at"),
+             "sales": ((x.get("balance") or {}).get("sell_cash", 0) + (x.get("balance") or {}).get("sell_cashless", 0)) / 100
+             if x.get("balance") else None} for x in (rows or [])]
+
+
+def taxes(db: Session, rid: int, http: httpx.Client | None = None) -> list[dict]:
+    k = Kasa(_rro(db, rid), http)
+    js = k._req("GET", "tax")
+    rows = js.get("results") if isinstance(js, dict) else js
+    return [{"code": x.get("code"), "label": x.get("label"), "symbol": x.get("symbol"), "rate": x.get("rate")} for x in (rows or [])]
+
+
+def connect(db: Session, rid: int, http: httpx.Client | None = None) -> tuple[bool, str]:
+    ok, msg = test(db, rid, http)
+    if ok:
+        _update(db, rid, on=True)
+    return ok, msg
+
+
+def disconnect(db: Session, rid: int) -> None:
+    _update(db, rid, on=False)
+
+
 def test(db: Session, rid: int, http: httpx.Client | None = None) -> tuple[bool, str]:
     try:
         r = _rro(db, rid)
         k = Kasa(r, http)
+        inf = info(k)
+        if inf:
+            _update(db, rid, info=inf)
         sh = k.shift()
         msg = "Підключено" + (" (тестове середовище)" if r.get("test") else "") + (" · зміна відкрита" if sh else " · зміна закрита")
         _set_status(db, rid, True, msg)

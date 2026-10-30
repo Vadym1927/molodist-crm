@@ -104,3 +104,45 @@ def test_checkbox_and_telephony_pages_and_hook():
             a = db.get(Appeal, r.json()["appeal"])
             assert a.source == "Дзвінок" and a.patient_id
         assert "0675554433" in c.get("/settings/telephony").text
+
+
+def test_rro_methods_and_info():
+    with SessionLocal() as db:
+        rid = fis.save_rro(db, None, {"name": "ФОП Колган", "license_key": "LK", "login": "l", "password": "p",
+                                      "methods": {"Готівка ФОП Колган": "cash", "Термінал ФОП Колган": "card", "x": "bad"}, "branches": ["114"]})
+        r = next(x for x in fis.rros(db) if x["id"] == rid)
+        assert r["methods"] == {"Готівка ФОП Колган": "cash", "Термінал ФОП Колган": "card"} and r["branches"] == [114]
+        assert fis.rro_methods(db)[rid]["Термінал ФОП Колган"] == "card"
+        raw = fis._rro(db, rid)
+        assert fis.mode_of({}, "Готівка ФОП Бондар", raw) == "skip" and fis.mode_of({}, "Бонуси", raw) == "discount"
+
+        def h(req):
+            p = req.url.path
+            if p.endswith("/cashier/signin"):
+                return httpx.Response(200, json={"access_token": "T"})
+            if p.endswith("/cash-registers/info"):
+                return httpx.Response(200, json={"id": "uuid-1", "fiscal_number": "4000", "address": "Київ"})
+            if p.endswith("/cashier/shift"):
+                return httpx.Response(200, json=None)
+            if p.endswith("/tax"):
+                return httpx.Response(200, json=[{"code": 1, "label": "Без ПДВ", "symbol": "Б", "rate": 0}])
+            return httpx.Response(404, json={})
+        cli = httpx.Client(transport=httpx.MockTransport(h))
+        ok, msg = fis.connect(db, rid, cli)
+        assert ok and fis._rro(db, rid)["info"]["fiscal_number"] == "4000"
+        assert fis.taxes(db, rid, cli)[0]["label"] == "Без ПДВ"
+        fis.disconnect(db, rid)
+        assert not fis._rro(db, rid)["on"]
+
+
+def test_rro_page_renders():
+    settings.admin_password = "owner-pass-1"
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        c.post("/settings/checkbox/rro", data={"name": "ФОП Бондар", "_methods": "1", "m_on::Готівка ФОП Бондар": "1",
+                                                "m_lbl::Готівка ФОП Бондар": "cash", "on": "1"})
+        t = c.get("/settings/checkbox").text
+        assert "Дозволені види оплат для РРО" in t and "ФОП Бондар" in t
+        with SessionLocal() as db:
+            r = next(x for x in fis.rros(db) if x["name"] == "ФОП Бондар")
+            assert r["methods"] == {"Готівка ФОП Бондар": "cash"}
