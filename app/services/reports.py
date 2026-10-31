@@ -16,7 +16,7 @@ from ..models import Check, Visit, BeautyPlan, Patient, Product, SupplierInvoice
 from ..parsers.observ import norm
 
 REPORTS = {"cash": "Стан каси", "cashflow": "Cashflow", "fop": "Ліміти ФОП", "expiry": "Терміни придатності", "revenue": "Виручка", "doctors": "Лікарі", "services": "Звіт з продажу послуг", "products": "Товари",
-           "patients": "Пацієнти", "plans": "Бюті-плани", "certificates": "Сертифікати й абонементи", "supply": "Поставки"}
+           "patients": "Пацієнти", "plans": "Бюті-плани", "certificates": "Сертифікати й абонементи", "supply": "Поставки", "cosmetics": "% по косметиці"}
 
 
 @dataclass
@@ -595,13 +595,81 @@ def cash(db: Session, d_from: date, d_to: date) -> Report:
     return r
 
 
+def cosmetics(db: Session, d_from: date, d_to: date, staff: str = "") -> Report:
+    """Нарахування % лікарям з продажу косметики: 10% від ціни продажу без знижки, 5% — зі знижкою,
+    0 — якщо ціна товару менше 1000 ₴. Позиції чеків CleverBox (ініціатор) і продажів каси CRM (спеціаліст)."""
+    from ..models import Sale, Doctor
+
+    def f(v):
+        try:
+            return float(v or 0)
+        except (TypeError, ValueError):
+            return 0.0
+    rows = []
+    for c in _checks(db, d_from, d_to):
+        for it in c.items or []:
+            if (it.get("item_type") or "") != "product":
+                continue
+            q = f(it.get("quantity")) or 1
+            paid = f(it.get("payd_amount") or it.get("total"))
+            price = f(it.get("price")) or (paid / q if q else paid)
+            disc = f(it.get("discount")) > 0 or paid < round(price * q, 2) - 0.01
+            rows.append({"at": c.date, "staff": (it.get("initiator_name") or "").strip() or "Без ініціатора",
+                         "name": (it.get("item_name") or "—").strip(), "qty": q, "price": price, "paid": paid, "disc": disc,
+                         "ref": f"чек CleverBox {c.id}"})
+    a, b = _rng(d_from, d_to)
+    docs = {d.id: d.name for d in db.scalars(select(Doctor))}
+    for sl in db.scalars(select(Sale).where(Sale.status == "paid", Sale.at >= a, Sale.at <= b)):
+        for it in sl.items:
+            if it.kind != "product":
+                continue
+            q = it.qty or 1
+            rows.append({"at": sl.at, "staff": docs.get(it.doctor_id, "Без ініціатора"), "name": it.name, "qty": q,
+                         "price": float(it.price or 0), "paid": float(it.total or 0),
+                         "disc": bool(it.discount) or float(it.total or 0) < float(it.price or 0) * q - 0.01, "ref": f"чек CRM Ч-{sl.id}"})
+    staff_all = sorted({x["staff"] for x in rows})
+    if staff:
+        rows = [x for x in rows if x["staff"] == staff]
+    for x in rows:
+        x["pct"] = 0 if x["price"] < 1000 else (5 if x["disc"] else 10)
+        x["sum"] = round(x["paid"] * x["pct"] / 100, 2)
+        x["rule"] = "ціна < 1000 ₴" if x["price"] < 1000 else ("зі знижкою" if x["disc"] else "без знижки")
+    r = Report("cosmetics", "Нарахування % по косметиці",
+               "Відсоток лікарю з кожного проданого товару: 10% від суми продажу без знижки, 5% — якщо продано зі знижкою, "
+               "0 — якщо ціна товару менше 1000 ₴. Лікар — ініціатор позиції в чеку CleverBox або спеціаліст у продажі каси CRM.")
+    r.grouped = True
+    r.cols = [Col("name", "Товар / лікар"), Col("day", "Дата", "date"), Col("qty", "К-сть", "num", True), Col("price", "Ціна", "uah"),
+              Col("paid", "Продано на", "uah", True), Col("rule", "Умова"), Col("pct", "%", "pct"), Col("sum", "Нараховано", "uah", True)]
+    by: dict = defaultdict(list)
+    for x in rows:
+        by[x["staff"]].append(x)
+    for who, xs in sorted(by.items(), key=lambda kv: -sum(z["sum"] for z in kv[1])):
+        xs.sort(key=lambda z: z["at"])
+        r.rows.append({"name": who, "qty": sum(z["qty"] for z in xs), "paid": round(sum(z["paid"] for z in xs), 2),
+                       "sum": round(sum(z["sum"] for z in xs), 2), "_group": True})
+        r.rows.extend({"name": z["name"] + f" · {z['ref']}", "day": z["at"].date(), "qty": z["qty"], "price": round(z["price"], 2),
+                       "paid": round(z["paid"], 2), "rule": z["rule"], "pct": z["pct"], "sum": z["sum"]} for z in xs)
+    r.filters = [{"name": "staff", "label": "Лікар", "value": staff, "options": [("", "Усі")] + [(x, x) for x in staff_all]}]
+    r.chart = [(w[:18], sum(z["sum"] for z in xs)) for w, xs in sorted(by.items(), key=lambda kv: -sum(z["sum"] for z in kv[1]))[:12]]
+    r.chart_title = "Нараховано за лікарями"
+    r.finish()
+    t = r.total or {}
+    r.tiles = [("Нараховано лікарям", t.get("sum", 0), None, "uah", ""),
+               ("Продано косметики", t.get("paid", 0), None, "uah", f"{t.get('qty', 0):g} шт."),
+               ("Без % (ціна < 1000 ₴)", round(sum(z["paid"] for z in rows if z["pct"] == 0), 2), None, "uah", "")]
+    return r
+
+
 BUILDERS = {"cash": cash, "revenue": revenue, "doctors": doctors, "services": services, "products": products,
-            "patients": patients, "plans": plans, "certificates": certificates, "supply": supply}
+            "patients": patients, "plans": plans, "certificates": certificates, "supply": supply,
+            "cosmetics": cosmetics}
 
 
 def build(db: Session, key: str, d_from: date, d_to: date, **opts) -> Report:
     if key == "services":
         return services(db, d_from, d_to, **{k: v for k, v in opts.items() if k in ("cat", "staff", "zero") and v})
+    if key == "cosmetics":
+        return cosmetics(db, d_from, d_to, staff=opts.get("staff") or "")
     return BUILDERS.get(key, revenue)(db, d_from, d_to)
 
 
