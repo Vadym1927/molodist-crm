@@ -1003,6 +1003,38 @@ class DayOff(Base):
     updated_by: Mapped[int | None] = mapped_column(Integer)
 
 
+class PayrollDoc(Base):
+    """Документ «Нарахування зарплати» за період (як у CleverBox): рядки по співробітниках за їхніми окладами.
+    posted — суми додано на баланс співробітників (взаєморозрахунки)."""
+    __tablename__ = "payroll_docs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    d_from: Mapped[date] = mapped_column(Date, index=True)
+    d_to: Mapped[date] = mapped_column(Date, index=True)
+    comment: Mapped[str | None] = mapped_column(Text)
+    total: Mapped[float] = mapped_column(Float, default=0)
+    posted: Mapped[bool] = mapped_column(Boolean, default=False)
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_by: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    lines: Mapped[list["PayrollLine"]] = relationship(back_populates="doc", cascade="all, delete-orphan", order_by="PayrollLine.id")
+
+
+class PayrollLine(Base):
+    __tablename__ = "payroll_lines"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    doc_id: Mapped[int] = mapped_column(ForeignKey("payroll_docs.id"), index=True)
+    doctor_id: Mapped[int] = mapped_column(ForeignKey("doctors.id"), index=True)
+    plan: Mapped[str | None] = mapped_column(String(120))
+    days: Mapped[int] = mapped_column(Integer, default=0)
+    calc: Mapped[float] = mapped_column(Float, default=0)          # розраховано алгоритмом
+    amount: Mapped[float] = mapped_column(Float, default=0)        # нараховано (можна виправити вручну)
+    detail: Mapped[dict | None] = mapped_column(JSON)              # ставка, комісійні послуги/товари, оборот, години, виручка
+
+    doc: Mapped[PayrollDoc] = relationship(back_populates="lines")
+
+
 class VisitNote(Base):
     """Нотатка до візиту в календарі (вкладка «Нотатка» вікна візиту). key: appt:<id> | cb:<Visit.id>."""
     __tablename__ = "visit_notes"

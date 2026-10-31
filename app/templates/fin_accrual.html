@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}{{ ('Нарахування №' ~ doc.id) if doc else 'Нарахувати зарплату' }} · Фінанси{% endblock %}
+{% block body %}
+{% include "_fin_tabs.html" %}{% set qp = request.query_params %}
+<style>
+.pa-h{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.pa-h h1{margin:0}.pa-h .acts{display:flex;gap:8px;flex-wrap:wrap}
+.pa-per{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:12px 14px;margin-bottom:12px}
+.pa-per label{display:grid;gap:4px;font:700 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}.pa-per input{height:42px}
+.pa-per textarea{min-height:42px;height:42px;width:min(420px,100%)}
+.pa-tb td{vertical-align:top}.pa-tb .nm a{font-weight:700;color:#2A2430;text-decoration:none}.pa-tb .nm span{display:block;font-size:12px;color:var(--muted)}
+.pa-tb .pl{display:inline-block;background:#E4DEEF;color:#3B3050;border-radius:8px;padding:2px 8px;font:600 12.5px var(--sans);text-decoration:none}
+.pa-tb .pl.no{background:#FFF1D6;color:#9A6A00}
+.pa-tb .det{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.5}
+.pa-tb input.amt{width:130px;height:38px;text-align:right;font-weight:700}
+.pa-tb td.acc{font-weight:700;color:#2E7D32;font-variant-numeric:tabular-nums}.pa-tb td.acc s{color:var(--muted);font-weight:500;margin-right:6px}
+.pa-tb tfoot td{font-weight:700;border-top:2px solid var(--line);background:#F7F4F0}
+.pa-warn{background:#FFF1D6;color:#7a5200;border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:13.5px}
+.pa-st{display:inline-block;font:700 12px var(--sans);border-radius:99px;padding:3px 10px}.pa-st.on{background:#E3F2E4;color:#2E7D32}.pa-st.off{background:#FFF1D6;color:#9A6A00}
+</style>
+<div class="pa-h"><div><a href="/finance/accruals" class="small" style="color:#5C4B82;text-decoration:none">← Усі нарахування</a>
+  <h1>{% if doc %}Нарахування зарплати №{{ doc.id }}{% else %}Нарахувати зарплату{% endif %}</h1>
+  <div class="muted small">{{ d_from|dt('%d.%m.%Y') }} – {{ d_to|dt('%d.%m.%Y') }}{% if doc %} · {{ doc.created_at|local|dt('%d.%m.%Y %H:%M') }}{{ (' · ' ~ author) if author }} · <span class="pa-st {{ 'on' if doc.posted else 'off' }}">{{ 'На балансі' if doc.posted else 'Чернетка' }}</span>{% endif %}</div></div>
+  {% if doc %}<div class="acts">
+    <form method="post" action="/finance/accruals/{{ doc.id }}/post" style="margin:0"><input type="hidden" name="on" value="{{ '0' if doc.posted else '1' }}"><button class="btn {{ 'ghost' if doc.posted }}">{{ 'Зняти з балансу' if doc.posted else 'На баланс' }}</button></form>
+    <a class="btn ghost" href="?fmt=xlsx">⤓ Excel</a>
+    <form method="post" action="/finance/accruals/{{ doc.id }}/delete" data-delpw="Видалити нарахування №{{ doc.id }}?" style="margin:0"><button class="btn danger">Видалити</button></form></div>{% endif %}</div>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+{% if qp.get('delerr') %}<div class="alert">{{ qp.get('delerr') }}</div>{% endif %}
+{% if overlap %}<div class="pa-warn">За цей період уже є нарахування: {% for o in overlap %}<a href="/finance/accruals/{{ o.id }}">№{{ o.id }} ({{ o.d_from|dt('%d.%m') }}–{{ o.d_to|dt('%d.%m') }}{{ ', на балансі' if o.posted }})</a>{{ ', ' if not loop.last }}{% endfor %} — перевірте, щоб не нарахувати двічі.</div>{% endif %}
+
+{% if not doc %}
+<form class="pa-per" action="/finance/accruals/new"><label>Період нарахування з<input type="date" name="df" value="{{ d_from }}"></label><label>по<input type="date" name="dt_" value="{{ d_to }}"></label><button class="btn ghost">Заповнити</button></form>
+<form method="post" action="/finance/accruals"><input type="hidden" name="df" value="{{ d_from }}"><input type="hidden" name="dt_" value="{{ d_to }}">
+{% endif %}
+<div class="card" style="padding:6px 8px;overflow:auto"><table class="tb pa-tb"><thead><tr><th>Співробітник</th><th>Оклад</th><th class="r">Днів</th><th>Як пораховано</th><th class="r">Нараховано</th><th class="r">Баланс</th></tr></thead><tbody>
+{% set items = doc.lines if doc else rows %}
+{% for r in items %}{% set dc = (docs[r.doctor_id] if doc else r.doctor) %}{% set dt = r.detail or {} %}
+<tr><td class="nm"><a href="/specialists/{{ dc.id }}">{{ dc.name }}</a><span>{{ dc.position or '' }}</span></td>
+  <td>{% if r.plan %}<a class="pl" href="/settings/salary">{{ r.plan }}</a>{% else %}<span class="pl no">оклад не призначено</span>{% endif %}</td>
+  <td class="r">{{ r.days }}</td>
+  <td><div class="det">{% if dt.fixed %}ставка {{ dt.fixed|uah }}{% if dt.hours %} · {{ '%g'|format(dt.hours|round(1)) }} год{% endif %}<br>{% endif %}
+    {% if dt.comm_services %}послуги {{ dt.comm_services|uah }} (з {{ dt.services|uah }}, {{ dt.n }} посл.)<br>{% elif dt.services %}послуги {{ dt.services|uah }} · {{ dt.n }} посл.<br>{% endif %}
+    {% if dt.comm_products %}товари {{ dt.comm_products|uah }} (з {{ dt.products|uah }})<br>{% elif dt.products %}товари {{ dt.products|uah }}<br>{% endif %}
+    {% if dt.turn %}% від обороту {{ dt.turn|uah }}<br>{% endif %}
+    {% if dt.by_schedule is false %}<span style="color:#9A6A00">днів за продажами — графік не заповнений</span>{% endif %}</div></td>
+  {% if doc %}<td class="r acc">{% if (r.amount - r.calc)|abs > 0.009 %}<s title="Розраховано">{{ r.calc|uah }}</s>{% endif %}{{ r.amount|uah }}</td>
+  {% else %}<td class="r"><input class="amt" name="a_{{ dc.id }}" value="{{ '%.2f'|format(r.amount) }}" inputmode="decimal" title="Можна виправити вручну"></td>{% endif %}
+  <td class="r">{{ (bal.get(dc.id, 0))|uah }}</td></tr>
+{% else %}<tr><td colspan="6" class="muted">Немає співробітників з окладом. Призначте оклад у картці співробітника (поле «Зарплата»).</td></tr>{% endfor %}
+</tbody><tfoot><tr><td>Разом</td><td></td><td class="r">{{ items|sum(attribute='days') }}</td><td></td><td class="r">{{ (doc.total if doc else items|sum(attribute='amount'))|uah }}</td><td></td></tr></tfoot></table></div>
+{% if doc %}{% if doc.comment %}<div class="card" style="margin-top:12px"><b>Коментар.</b> {{ doc.comment }}</div>{% endif %}
+{% else %}
+<div class="pa-per" style="margin-top:12px;justify-content:space-between"><label style="flex:1">Коментар<textarea name="comment" style="width:100%"></textarea></label>
+  <div style="display:flex;gap:8px"><button class="btn ghost">Зберегти</button><button class="btn" name="post" value="1">Зберегти й на баланс</button></div></div>
+</form>{% endif %}
+<p class="muted small" style="margin-top:12px">Як рахується: ставка «за день» — робочі дні з графіка за період (немає графіка — дні з продажами), «за годину» — години змін, «за місяць» — пропорційно частці місяця. Комісійні — за позиціями чеків CleverBox (ініціатор) і продажів каси CRM (спеціаліст) за ставками окладу; «мінімум за день» — більше з мінімуму й комісійних. % від обороту — від усіх продажів клініки. Баланс — нараховано в проведених документах мінус виплати зарплати у фінопераціях.</p>
+{% endblock %}

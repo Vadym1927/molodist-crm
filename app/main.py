@@ -49,7 +49,8 @@ def _local(v):
 
 
 templates.env.filters["local"] = _local
-FIN_TABS = [("/finance", "Огляд"), ("/sales", "Каса CRM"), ("/finance/ops", "Фіноперації"), ("/finance/payroll", "Нарахування зарплати"),
+FIN_TABS = [("/finance", "Огляд"), ("/sales", "Каса CRM"), ("/finance/ops", "Фіноперації"), ("/finance/accruals", "Нарахування зарплати"),
+            ("/finance/payroll", "ЗП за місяць"),
             ("/finance/settle", "Взаєморозрахунки по з/п"), ("/finance/day", "Продажі за день"), ("/finance/sales", "Продажі"),
             ("/finance/balances", "Баланс пацієнтів"), ("/finance/bonuses", "Рух бонусів"), ("/finance/pricing", "Планування ціни реалізації")]
 templates.env.globals.update(
@@ -5769,6 +5770,106 @@ def finance_payroll_adj_delete(aid: int, del_password: str = Form(""), user: Use
         db.delete(a)
         db.commit()
     return RedirectResponse(back, 303)
+
+
+# ---------------- Нарахування зарплати документами за період ----------------
+@app.get("/finance/accruals", response_class=HTMLResponse)
+def finance_accruals(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .models import PayrollDoc
+    from .services import payroll_docs as pd
+    docs = db.scalars(select(PayrollDoc).where(PayrollDoc.deleted_at.is_(None)).order_by(PayrollDoc.d_from.desc(), PayrollDoc.id.desc())).all()
+    users = {u_.id: u_.name for u_ in db.scalars(select(User))}
+    a, b = pd.default_period()
+    return render(request, "fin_accruals.html", nav="finance", docs=docs, users=users, df=a, dt=b)
+
+
+@app.get("/finance/accruals/new", response_class=HTMLResponse)
+def finance_accrual_new(request: Request, df: str = "", dt_: str = "", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import payroll_docs as pd
+    a, b = pd.default_period()
+    d_from, d_to = _day(df) or a, _day(dt_) or b
+    if d_to < d_from:
+        d_from, d_to = d_to, d_from
+    return render(request, "fin_accrual.html", nav="finance", doc=None, d_from=d_from, d_to=d_to, rows=pd.compute(db, d_from, d_to),
+                  bal=pd.balances(db), overlap=pd.overlaps(db, d_from, d_to))
+
+
+@app.post("/finance/accruals")
+async def finance_accrual_save(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import payroll_docs as pd
+    f = await request.form()
+    d_from, d_to = _day(str(f.get("df") or "")), _day(str(f.get("dt_") or ""))
+    if not d_from or not d_to:
+        return RedirectResponse(_with_msg("/finance/accruals", "Вкажіть період", True), 303)
+    amounts = {int(k[2:]): (_num(str(v).replace(",", ".")) or 0) for k, v in f.items() if k.startswith("a_") and k[2:].isdigit()}
+    doc = pd.save(db, d_from, d_to, amounts, str(f.get("comment") or ""), user.id)
+    if f.get("post"):
+        pd.set_posted(db, doc, True)
+    audit(db, "fin.payroll_doc", user=user, doc=doc.id, d_from=str(d_from), d_to=str(d_to), total=doc.total, posted=doc.posted)
+    return RedirectResponse(_with_msg(f"/finance/accruals/{doc.id}", f"Нарахування №{doc.id} збережено"), 303)
+
+
+@app.get("/finance/accruals/{aid:int}", response_class=HTMLResponse)
+def finance_accrual_view(request: Request, aid: int, fmt: str = "", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .models import PayrollDoc
+    from .services import payroll_docs as pd
+    doc = db.get(PayrollDoc, aid)
+    if not doc or doc.deleted_at:
+        raise HTTPException(404)
+    docs = {d_.id: d_ for d_ in db.scalars(select(Doctor))}
+    if fmt == "xlsx":
+        from io import BytesIO
+        from openpyxl import Workbook
+        from openpyxl.styles import Font
+        wb = Workbook()
+        ws = wb.active
+        ws.title = f"ЗП {doc.d_from:%d.%m}-{doc.d_to:%d.%m}"
+        ws.append([f"Нарахування зарплати №{doc.id} · {doc.d_from:%d.%m.%Y} — {doc.d_to:%d.%m.%Y}"])
+        ws.append([])
+        ws.append(["Співробітник", "Оклад", "Днів", "Ставка", "Комісійні послуги", "Комісійні товари", "% від обороту", "Розраховано", "Нараховано"])
+        for c_ in ws[3]:
+            c_.font = Font(bold=True)
+        for ln in doc.lines:
+            dt_ = ln.detail or {}
+            ws.append([docs[ln.doctor_id].name if ln.doctor_id in docs else ln.doctor_id, ln.plan or "", ln.days, dt_.get("fixed", 0),
+                       dt_.get("comm_services", 0), dt_.get("comm_products", 0), dt_.get("turn", 0), ln.calc, ln.amount])
+        ws.append(["Разом", "", sum(ln.days for ln in doc.lines), None, None, None, None, round(sum(ln.calc for ln in doc.lines), 2), doc.total])
+        ws.column_dimensions["A"].width = 30
+        ws.column_dimensions["B"].width = 30
+        buf = BytesIO()
+        wb.save(buf)
+        return Response(buf.getvalue(), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        headers={"Content-Disposition": f'attachment; filename="payroll-{doc.id}.xlsx"'})
+    return render(request, "fin_accrual.html", nav="finance", doc=doc, d_from=doc.d_from, d_to=doc.d_to, docs=docs,
+                  bal=pd.balances(db), overlap=pd.overlaps(db, doc.d_from, doc.d_to, exclude=doc.id),
+                  author=db.get(User, doc.created_by).name if doc.created_by and db.get(User, doc.created_by) else None)
+
+
+@app.post("/finance/accruals/{aid:int}/post")
+def finance_accrual_post(aid: int, on: str = Form("1"), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .models import PayrollDoc
+    from .services import payroll_docs as pd
+    doc = db.get(PayrollDoc, aid)
+    if not doc or doc.deleted_at:
+        raise HTTPException(404)
+    pd.set_posted(db, doc, on == "1")
+    audit(db, "fin.payroll_doc_post", user=user, doc=aid, posted=doc.posted)
+    return RedirectResponse(_with_msg(f"/finance/accruals/{aid}", "Додано на баланс співробітників" if doc.posted else "Знято з балансу"), 303)
+
+
+@app.post("/finance/accruals/{aid:int}/delete")
+def finance_accrual_delete(aid: int, del_password: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .models import PayrollDoc
+    doc = db.get(PayrollDoc, aid)
+    if not doc:
+        raise HTTPException(404)
+    err = _delpw(db, user, del_password, "payroll_doc", None, aid)
+    if err:
+        return RedirectResponse(_with_err(f"/finance/accruals/{aid}", err), 303)
+    doc.deleted_at = datetime.utcnow()
+    db.commit()
+    audit(db, "fin.payroll_doc_delete", user=user, doc=aid, total=doc.total)
+    return RedirectResponse(_with_msg("/finance/accruals", f"Нарахування №{aid} видалено"), 303)
 
 
 @app.get("/finance/settle", response_class=HTMLResponse)

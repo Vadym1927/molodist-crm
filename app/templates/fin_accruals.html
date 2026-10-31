@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Нарахування зарплати · Фінанси{% endblock %}
+{% block body %}
+{% include "_fin_tabs.html" %}{% set qp = request.query_params %}
+<style>
+.pa-top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.pa-new{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:12px 14px}
+.pa-new label{display:grid;gap:4px;font:700 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}.pa-new input{height:42px}
+.pa-tb a{font-weight:700;color:#5C4B82;text-decoration:none}.pa-st{display:inline-block;font:700 11px var(--sans);border-radius:99px;padding:2px 9px}
+.pa-st.on{background:#E3F2E4;color:#2E7D32}.pa-st.off{background:#FFF1D6;color:#9A6A00}
+</style>
+<div class="pa-top"><div><h1>Нарахування зарплати</h1><div class="muted small">Документи за період за окладами з карток співробітників. «На баланс» — суми йдуть у взаєморозрахунки.</div></div>
+  <form class="pa-new" action="/finance/accruals/new"><label>Період з<input type="date" name="df" value="{{ df }}"></label><label>по<input type="date" name="dt_" value="{{ dt }}"></label>
+    <button class="btn">＋ Нарахувати зарплату</button></form></div>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+<div class="card" style="padding:6px 8px;overflow:auto"><table class="tb pa-tb"><thead><tr><th>ID</th><th>Дата</th><th>Автор</th><th>Період нарахування</th><th>Статус</th><th class="r">Нараховано</th></tr></thead><tbody>
+{% for d in docs %}<tr><td>{{ d.id }}</td><td><a href="/finance/accruals/{{ d.id }}">{{ d.created_at|local|dt('%d.%m.%Y %H:%M') }}</a></td><td>{{ users.get(d.created_by, '—') }}</td>
+  <td>{{ d.d_from|dt('%d.%m.%Y') }} – {{ d.d_to|dt('%d.%m.%Y') }}</td><td><span class="pa-st {{ 'on' if d.posted else 'off' }}">{{ 'На балансі' if d.posted else 'Чернетка' }}</span></td>
+  <td class="r" style="color:#2E7D32;font-weight:700">{{ d.total|uah }}</td></tr>
+{% else %}<tr><td colspan="6" class="muted">Нарахувань ще немає. Оберіть період і натисніть «Нарахувати зарплату».</td></tr>{% endfor %}
+</tbody></table></div>
+{% endblock %}
