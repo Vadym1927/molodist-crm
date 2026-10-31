@@ -5794,7 +5794,7 @@ def finance_accruals(request: Request, user: User = Depends(require("finance")),
     docs = db.scalars(select(PayrollDoc).where(PayrollDoc.deleted_at.is_(None)).order_by(PayrollDoc.d_from.desc(), PayrollDoc.id.desc())).all()
     users = {u_.id: u_.name for u_ in db.scalars(select(User))}
     a, b = pd.default_period()
-    return render(request, "fin_accruals.html", nav="finance", docs=docs, users=users, df=a, dt=b)
+    return render(request, "fin_accruals.html", nav="finance", docs=docs, users=users, df=a, dt=b, state=pd.doc_state)
 
 
 @app.get("/finance/accruals/new", response_class=HTMLResponse)
@@ -5819,6 +5819,8 @@ async def finance_accrual_save(request: Request, user: User = Depends(require("f
     doc = pd.save(db, d_from, d_to, amounts, str(f.get("comment") or ""), user.id)
     if f.get("post"):
         pd.set_posted(db, doc, True)
+    elif str(f.get("post_one") or "").isdigit():                 # «На баланс» навпроти одного співробітника
+        pd.set_posted(db, doc, True, int(f.get("post_one")))
     audit(db, "fin.payroll_doc", user=user, doc=doc.id, d_from=str(d_from), d_to=str(d_to), total=doc.total, posted=doc.posted)
     return RedirectResponse(_with_msg(f"/finance/accruals/{doc.id}", f"Нарахування №{doc.id} збережено"), 303)
 
@@ -5855,20 +5857,26 @@ def finance_accrual_view(request: Request, aid: int, fmt: str = "", user: User =
         return Response(buf.getvalue(), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         headers={"Content-Disposition": f'attachment; filename="payroll-{doc.id}.xlsx"'})
     return render(request, "fin_accrual.html", nav="finance", doc=doc, d_from=doc.d_from, d_to=doc.d_to, docs=docs,
-                  bal=pd.balances(db), overlap=pd.overlaps(db, doc.d_from, doc.d_to, exclude=doc.id),
+                  bal=pd.balances(db), overlap=pd.overlaps(db, doc.d_from, doc.d_to, exclude=doc.id), lp=pd.line_posted,
+                  state=pd.doc_state(doc),
                   author=db.get(User, doc.created_by).name if doc.created_by and db.get(User, doc.created_by) else None)
 
 
 @app.post("/finance/accruals/{aid:int}/post")
-def finance_accrual_post(aid: int, on: str = Form("1"), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+def finance_accrual_post(aid: int, on: str = Form("1"), doctor_id: str = Form(""), user: User = Depends(require("finance")),
+                         db: Session = Depends(db_dep)):
     from .models import PayrollDoc
     from .services import payroll_docs as pd
     doc = db.get(PayrollDoc, aid)
     if not doc or doc.deleted_at:
         raise HTTPException(404)
-    pd.set_posted(db, doc, on == "1")
-    audit(db, "fin.payroll_doc_post", user=user, doc=aid, posted=doc.posted)
-    return RedirectResponse(_with_msg(f"/finance/accruals/{aid}", "Додано на баланс співробітників" if doc.posted else "Знято з балансу"), 303)
+    one = int(doctor_id) if doctor_id.isdigit() else None
+    pd.set_posted(db, doc, on == "1", one)
+    who = db.get(Doctor, one).name if one and db.get(Doctor, one) else None
+    audit(db, "fin.payroll_doc_post", user=user, doc=aid, posted=on == "1", doctor=one)
+    msg = ("На баланс: " + who if on == "1" else "Знято з балансу: " + who) if who else \
+          ("Додано на баланс співробітників" if on == "1" else "Знято з балансу")
+    return RedirectResponse(_with_msg(f"/finance/accruals/{aid}" + (f"#d{one}" if one else ""), msg), 303)
 
 
 @app.post("/finance/accruals/{aid:int}/delete")

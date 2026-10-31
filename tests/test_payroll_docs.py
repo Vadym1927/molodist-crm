@@ -56,6 +56,18 @@ def test_payroll_doc_period():
         assert "На балансі" in v and "Зняти з балансу" in v and "друга половина" in v
         assert "уже є нарахування" in c.get("/finance/accruals/new?df=2026-10-20&dt_=2026-10-25").text
         assert c.get(f"/finance/accruals/{did}?fmt=xlsx").content[:2] == b"PK"
+        assert "30% від оплати" in v and "чек CleverBox 880101" in v and "Відсоток від власних продажів" in v
         c.post(f"/finance/accruals/{did}/post", data={"on": "0"})
         with SessionLocal() as db:
             assert not db.get(PayrollDoc, did).posted and pd.balances(db) == {}
+        c.post(f"/finance/accruals/{did}/post", data={"on": "1", "doctor_id": str(d2id)})      # окремо по співробітнику
+        with SessionLocal() as db:
+            b = pd.balances(db)
+            assert b.get(d2id) == 16700 and b.get(d1id) == -1500 and pd.doc_state(db.get(PayrollDoc, did)) == "some"
+        assert "Частково на балансі" in c.get("/finance/accruals").text
+        r = c.post("/finance/accruals", data={"df": "2026-11-01", "dt_": "2026-11-15", "post_one": str(d1id)}, follow_redirects=False)
+        did2 = int(r.headers["location"].split("/")[-1].split("?")[0])
+        with SessionLocal() as db:
+            doc2 = db.get(PayrollDoc, did2)
+            assert [pd.line_posted(ln) for ln in doc2.lines if ln.doctor_id == d1id] == [True]
+            assert not any(pd.line_posted(ln) for ln in doc2.lines if ln.doctor_id != d1id)

@@ -1031,6 +1031,8 @@ class PayrollLine(Base):
     calc: Mapped[float] = mapped_column(Float, default=0)          # розраховано алгоритмом
     amount: Mapped[float] = mapped_column(Float, default=0)        # нараховано (можна виправити вручну)
     detail: Mapped[dict | None] = mapped_column(JSON)              # ставка, комісійні послуги/товари, оборот, години, виручка
+    posted: Mapped[bool | None] = mapped_column(Boolean)           # на балансі співробітника (окремо по кожному рядку)
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     doc: Mapped[PayrollDoc] = relationship(back_populates="lines")
 

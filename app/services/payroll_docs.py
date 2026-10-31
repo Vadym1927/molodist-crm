@@ -58,6 +58,7 @@ def compute(db: Session, d_from: date, d_to: date) -> list[dict]:
                "products": round(sum(ln["paid"] for ln in lines if ln["type"] == "product"), 2),
                "n": int(sum(ln["qty"] for ln in lines if ln["type"] == "service")), "by_schedule": True}
         days_all: set = set()
+        items: list = []
         if pl:
             for a, b in _chunks(d_from, d_to):
                 lns = [ln for ln in lines if a <= ln["day"] <= b]
@@ -68,6 +69,13 @@ def compute(db: Session, d_from: date, d_to: date) -> list[dict]:
                 hours = sum(s.minutes for (did, dd), s in sh.items() if did == d.id and a <= dd <= b) / 60
                 cl = [ln for v in clinic.values() for ln in v if a <= ln["day"] <= b]
                 res = spl.accrue(pl, lns, days, hours, cl)
+                if pl["comm"]["on"]:                                   # розбивка по кожній позиції
+                    for ln in lns:
+                        if pl["comm"]["no_disc"] and ln["type"] == "product" and ln.get("disc"):
+                            items.append({**_it(ln), "rate": "без % (знижка)", "sum": 0.0})
+                            continue
+                        v, m = spl._rate(pl, ln)
+                        items.append({**_it(ln), "rate": _rate_label(v, m), "sum": round(spl._amt(ln["cost"], ln["paid"], ln.get("qty") or 1, v, m), 2)})
                 fx = res["fixed"]
                 if pl["fixed"]["on"] and pl["fixed"]["period"] == "month":      # місячна ставка — пропорційно частці місяця
                     mdays = calendar.monthrange(a.year, a.month)[1]
@@ -79,23 +87,47 @@ def compute(db: Session, d_from: date, d_to: date) -> list[dict]:
                 det["hours"] += hours
                 days_all |= days
         det = {k: (round(v, 2) if isinstance(v, float) else v) for k, v in det.items()}
+        det["items"] = sorted(items, key=lambda x: x["at"])
+        det["period_days"] = (d_to - d_from).days + 1
+        det["min_day_extra"] = round(det["comm_services"] + det["comm_products"] - sum(x["sum"] for x in items), 2)
+        det["plan_fixed"] = (f"{pl['fixed']['amount']:g} ₴ " + {"day": "за день", "month": "за місяць", "hour": "за годину"}[pl["fixed"]["period"]]) \
+            if pl and pl["fixed"]["on"] else ""
         calc = round(det["fixed"] + det["comm_services"] + det["comm_products"] + det["turn"], 2)
         rows.append({"doctor": d, "plan": pl["name"] if pl else None, "days": len(days_all), "calc": calc, "amount": calc, "detail": det})
     rows.sort(key=lambda r: (not r["plan"], r["doctor"].name))
     return rows
 
 
+def _it(ln: dict) -> dict:
+    at = ln.get("at")
+    return {"at": at.isoformat(timespec="minutes") if at else ln["day"].isoformat(), "name": ln["name"], "type": ln["type"],
+            "qty": ln.get("qty") or 1, "paid": round(ln["paid"], 2), "ref": ln.get("ref") or ""}
+
+
+def _rate_label(v: float, m: str) -> str:
+    return f"{v:g} ₴ за од." if m == "fixed" else f"{v:g}% від {'оплати' if m == 'paid' else 'вартості'}"
+
+
+def line_posted(ln: PayrollLine) -> bool:
+    return bool(ln.posted) if ln.posted is not None else bool(ln.doc.posted)
+
+
+def doc_state(doc: PayrollDoc) -> str:
+    n = sum(1 for ln in doc.lines if line_posted(ln))
+    return "all" if doc.lines and n == len(doc.lines) else ("some" if n else "none")
+
+
 def balances(db: Session) -> dict[int, float]:
     """Баланс співробітника: нараховано в проведених документах − виплати зарплати (з дати першого документа)."""
     from .fin_articles import salary_names
-    docs = db.scalars(select(PayrollDoc).where(PayrollDoc.deleted_at.is_(None), PayrollDoc.posted.is_(True))).all()
+    docs = db.scalars(select(PayrollDoc).where(PayrollDoc.deleted_at.is_(None))).all()
     out: dict = defaultdict(float)
-    if not docs:
+    posted = [(d, ln) for d in docs for ln in d.lines if line_posted(ln)]
+    if not posted:
         return out
-    start = min(d.d_from for d in docs)
-    for d in docs:
-        for ln in d.lines:
-            out[ln.doctor_id] += ln.amount
+    start = min(d.d_from for d, _ in posted)
+    for _, ln in posted:
+        out[ln.doctor_id] += ln.amount
     for x in db.scalars(select(FinOp).where(FinOp.deleted_at.is_(None), FinOp.category.in_(salary_names(db)),
                                             FinOp.doctor_id.is_not(None), FinOp.day >= start)):
         out[x.doctor_id] -= x.amount if x.kind == "expense" else -x.amount
@@ -113,13 +145,20 @@ def save(db: Session, d_from: date, d_to: date, amounts: dict[int, float], comme
     for r in rows:
         amt = amounts.get(r["doctor"].id, r["calc"])
         doc.lines.append(PayrollLine(doctor_id=r["doctor"].id, plan=r["plan"], days=r["days"], calc=r["calc"],
-                                     amount=round(float(amt or 0), 2), detail=r["detail"]))
+                                     amount=round(float(amt or 0), 2), detail=r["detail"], posted=False))
     doc.total = round(sum(ln.amount for ln in doc.lines), 2)
     db.add(doc)
     db.commit()
     return doc
 
 
-def set_posted(db: Session, doc: PayrollDoc, on: bool) -> None:
-    doc.posted, doc.posted_at = on, (datetime.utcnow() if on else None)
+def set_posted(db: Session, doc: PayrollDoc, on: bool, doctor_id: int | None = None) -> None:
+    """На баланс / з балансу: весь документ або один рядок (співробітник)."""
+    now = datetime.utcnow() if on else None
+    for ln in doc.lines:
+        if doctor_id is None or ln.doctor_id == doctor_id:
+            ln.posted, ln.posted_at = on, now
+    st = doc_state(doc)
+    doc.posted = st == "all"
+    doc.posted_at = now if doc.posted else None
     db.commit()

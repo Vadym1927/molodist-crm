@@ -15,7 +15,7 @@
 {% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
 <div class="card" style="padding:6px 8px;overflow:auto"><table class="tb pa-tb"><thead><tr><th>ID</th><th>Дата</th><th>Автор</th><th>Період нарахування</th><th>Статус</th><th class="r">Нараховано</th></tr></thead><tbody>
 {% for d in docs %}<tr><td>{{ d.id }}</td><td><a href="/finance/accruals/{{ d.id }}">{{ d.created_at|local|dt('%d.%m.%Y %H:%M') }}</a></td><td>{{ users.get(d.created_by, '—') }}</td>
-  <td>{{ d.d_from|dt('%d.%m.%Y') }} – {{ d.d_to|dt('%d.%m.%Y') }}</td><td><span class="pa-st {{ 'on' if d.posted else 'off' }}">{{ 'На балансі' if d.posted else 'Чернетка' }}</span></td>
+  <td>{{ d.d_from|dt('%d.%m.%Y') }} – {{ d.d_to|dt('%d.%m.%Y') }}</td><td>{% set st = state(d) %}<span class="pa-st {{ 'on' if st == 'all' else 'off' }}">{{ {'all': 'На балансі', 'some': 'Частково на балансі', 'none': 'Чернетка'}[st] }}</span></td>
   <td class="r" style="color:#2E7D32;font-weight:700">{{ d.total|uah }}</td></tr>
 {% else %}<tr><td colspan="6" class="muted">Нарахувань ще немає. Оберіть період і натисніть «Нарахувати зарплату».</td></tr>{% endfor %}
 </tbody></table></div>

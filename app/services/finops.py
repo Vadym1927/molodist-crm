@@ -325,7 +325,8 @@ def _staff_lines(db: Session, d_from: date, d_to: date, doctors: list[Doctor]) -
             paid = item_amount(it)
             ln = {"day": day, "type": it.get("item_type") or "service", "name": item_name(it), "qty": qty, "paid": paid,
                   "cost": (f(it.get("price")) * qty) or paid, "category": it.get("category_name") or it.get("category") or "",
-                  "brand": it.get("brand_name") or it.get("brand") or "", "disc": f(it.get("discount")) > 0}
+                  "brand": it.get("brand_name") or it.get("brand") or "", "disc": f(it.get("discount")) > 0,
+                  "at": c.date, "ref": f"чек CleverBox {c.id}"}
             clinic[mk].append(ln)
             nm = it.get("initiator_name") or ""
             if nm not in cache:
@@ -338,7 +339,7 @@ def _staff_lines(db: Session, d_from: date, d_to: date, doctors: list[Doctor]) -
         for it in s.items:
             ln = {"day": day, "type": {"certificate": "certificate"}.get(it.kind, it.kind), "name": it.name, "qty": it.qty or 1,
                   "paid": it.total, "cost": round((it.price or 0) * (it.qty or 1), 2), "category": it.category or "", "brand": "",
-                  "disc": bool(it.discount)}
+                  "disc": bool(it.discount), "at": s.at, "ref": f"чек CRM Ч-{s.id}"}
             clinic[mk].append(ln)
             if it.doctor_id:
                 by_doc[(mk, it.doctor_id)].append(ln)
