@@ -344,13 +344,25 @@ def _staff_lines(db: Session, d_from: date, d_to: date, doctors: list[Doctor]) -
             if cache[nm]:
                 by_doc[(mk, cache[nm].id)].append(ln)
     a, b = _range(d_from, d_to)
+    from .techcards import cost_by_service
+    from ..models import Appointment as _Ap
     for s in db.scalars(select(Sale).where(Sale.status == "paid", Sale.at >= a, Sale.at <= b)):
         mk, day = month_key(s.at.date()), s.at.date()
+        vcost: dict = {}                                  # фактичні витратні візиту → собівартість послуги
+        if s.appointment_id:
+            ap = db.get(_Ap, s.appointment_id)
+            if ap:
+                per = cost_by_service(db, ap.id)
+                for i_, sv_ in enumerate(ap.services or []):
+                    if i_ in per:
+                        vcost.setdefault(sv_.get("id"), []).append(per[i_])
         for it in s.items:
             ln = {"day": day, "type": {"certificate": "certificate"}.get(it.kind, it.kind), "name": it.name, "qty": it.qty or 1,
                   "paid": it.total, "cost": round((it.price or 0) * (it.qty or 1), 2), "category": it.category or "", "brand": "",
                   "disc": bool(it.discount), "at": s.at, "ref": f"чек CRM Ч-{s.id}"}
             with_cost(ln)
+            if it.kind == "service" and vcost.get(it.ref_id):
+                ln["cost_tc"] = round(vcost[it.ref_id].pop(0), 2)        # з витратних візиту, не з норми
             clinic[mk].append(ln)
             if it.doctor_id:
                 by_doc[(mk, it.doctor_id)].append(ln)

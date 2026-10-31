@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Послуги · MOLODIST CRM{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}{% set back = request.url.path ~ '?' ~ request.url.query %}
+<style>
+.sv-hero{position:relative;overflow:hidden;border-radius:24px;padding:24px 28px;margin-bottom:18px;color:#fff;
+  background:radial-gradient(120% 160% at 100% 0%,#4A3D63 0%,#3B3050 42%,#2A2430 100%);box-shadow:0 22px 50px -32px rgba(42,36,48,.8)}
+.sv-hero .eb{font:600 10.5px var(--sans);letter-spacing:.22em;text-transform:uppercase;color:#C9BFE6}.sv-hero .eb a{color:#C9BFE6;text-decoration:none}
+.sv-hero h1{margin:8px 0 0;color:#fff;font:500 30px/1.15 var(--head);letter-spacing:.05em;text-transform:uppercase}
+.sv-hero p{margin:8px 0 0;max-width:720px;color:rgba(255,255,255,.72);font-size:14px;line-height:1.55}
+.sv-hero .sv-top{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap}
+.sv-hero .btn{background:#fff;color:#3B3050;border:0;height:44px;padding:0 18px;border-radius:14px;font-weight:700}
+.sv-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.sv-bar input,.sv-bar select{height:44px}.sv-bar input[name=q]{flex:1;min-width:220px}
+.sv-card{background:#fff;border:1px solid #ECE7E1;border-radius:20px;overflow:auto}
+.sv-tb{width:100%;border-collapse:collapse}.sv-tb th{background:#FBFAF8;font:700 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496;padding:11px 12px;text-align:left;white-space:nowrap}
+.sv-tb td{padding:10px 12px;border-top:1px solid #F3EFEA;font-size:13.5px;vertical-align:middle}.sv-tb .r{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.sv-tb tr.off td{color:#b3adbb}.sv-tb .nm b{font:600 14px var(--sans)}.sv-tb .nm small{display:block;color:#9a93a6;font-size:11.5px}
+.sv-tc{display:inline-block;background:#F1EDF8;color:#3B3050;border-radius:8px;padding:2px 8px;font:600 12px var(--sans);text-decoration:none}
+.sv-tc.no{background:#FFF1D6;color:#9A6A00}
+.sv-ed{border:0;background:#F7F4F0;border-radius:10px;height:32px;padding:0 10px;font:700 12px var(--sans);color:#3B3050;cursor:pointer}
+dialog.sv-d{border:0;border-radius:20px;padding:0;width:min(520px,96vw);box-shadow:0 30px 80px rgba(42,36,48,.35)}dialog.sv-d::backdrop{background:rgba(42,36,48,.45)}
+.sv-d .h{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #ECE7E1}.sv-d .h h3{margin:0;font:600 14px var(--head);letter-spacing:.14em;text-transform:uppercase}
+.sv-d form{padding:14px 18px 18px;display:grid;gap:10px}.sv-d label{display:grid;gap:4px;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496}
+.sv-d .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+</style>
+<div class="sv-hero"><div class="sv-top"><div><div class="eb"><a href="/stock">Склад</a> · <a href="/techcards">Техкарти</a></div><h1>Послуги (прайс)</h1>
+  <p>Ціна, тривалість, категорія й техкарта кожної послуги. Послуги з CleverBox і створені в CRM. Собівартість — за техкартою (поточні ціни закупівлі), маржа — від ціни прайсу.</p></div>
+  <button class="btn" type="button" onclick="svEdit(null)">＋ Нова послуга</button></div></div>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+<form class="sv-bar"><input name="q" value="{{ q }}" placeholder="Знайти послугу"><select name="cat" onchange="this.form.submit()"><option value="">Усі категорії</option>{% for c in cats %}<option {{ 'selected' if cat == c }}>{{ c }}</option>{% endfor %}</select><button class="btn ghost" style="height:44px">Знайти</button></form>
+<div class="sv-card"><table class="sv-tb"><thead><tr><th>Послуга</th><th class="r">Ціна</th><th class="r">Хв</th><th>Техкарта</th><th class="r">Собівартість</th><th class="r">Маржа</th><th></th></tr></thead><tbody>
+{% set cmap = {} %}{% for k in cards %}{% set _ = cmap.update({k.id: k}) %}{% endfor %}
+{% for r in rows %}{% set cst = cost.get(r.id, 0) %}<tr class="{{ 'off' if r.active is false }}">
+  <td class="nm"><b>{{ r.name }}</b><small>{{ r.category or '' }}{{ ' · створено в CRM' if r.source == 'crm' }}{{ ' · прихована' if r.active is false }}</small></td>
+  <td class="r">{{ r.price|uah if r.price else '—' }}</td><td class="r">{{ r.duration or r.time_min or '—' }}</td>
+  <td>{% if r.techcard_id and cmap.get(r.techcard_id) %}<a class="sv-tc" href="/techcards?open={{ r.techcard_id }}">{{ cmap[r.techcard_id].name }}</a>{% else %}<span class="sv-tc no">немає</span>{% endif %}</td>
+  <td class="r">{{ cst|uah if cst else '—' }}</td><td class="r">{{ ((100 * (r.price - cst) / r.price)|round(1) ~ '%') if r.price and cst else '—' }}</td>
+  <td class="r"><button class="sv-ed" type="button" onclick='svEdit({{ {"id": r.id, "name": r.name, "category": r.category or "", "price": r.price, "duration": r.duration or r.time_min, "techcard_id": r.techcard_id, "active": r.active is not false}|tojson }})'>Змінити</button></td></tr>
+{% else %}<tr><td colspan="7" class="muted" style="padding:14px">Послуг не знайдено.</td></tr>{% endfor %}</tbody></table></div>
+<dialog class="sv-d" id="svd"><div class="h"><h3 id="svt">Послуга</h3><button type="button" class="btn ghost" style="padding:4px 10px" onclick="this.closest('dialog').close()">×</button></div>
+  <form method="post" action="/services"><input type="hidden" name="id"><input type="hidden" name="back" value="{{ back }}">
+    <label>Назва<input name="name" required></label><label>Категорія<input name="category" list="sv-cats"></label>
+    <datalist id="sv-cats">{% for c in cats %}<option value="{{ c }}">{% endfor %}</datalist>
+    <div class="two"><label>Ціна, ₴<input name="price" inputmode="decimal"></label><label>Тривалість, хв<input name="duration" inputmode="numeric"></label></div>
+    <label>Техкарта<select name="techcard_id"><option value="">— без техкарти —</option>{% for k in cards %}<option value="{{ k.id }}">{{ k.name }}</option>{% endfor %}</select></label>
+    <label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font:600 13px var(--sans);color:#2A2430"><input type="checkbox" id="sv-act" checked style="width:auto" onchange="this.form.active.value=this.checked?'1':'0'"> Активна (є в касі й записі)</label><input type="hidden" name="active" value="1">
+    <button class="btn">Зберегти</button></form></dialog>
+<script>
+function svEdit(r){var d=document.getElementById('svd'),f=d.querySelector('form');f.reset();document.getElementById('svt').textContent=r?'Послуга':'Нова послуга';
+  f.id.value=r?r.id:'';if(r){f.name.value=r.name;f.category.value=r.category;f.price.value=r.price||'';f.duration.value=r.duration||'';f.techcard_id.value=r.techcard_id||'';
+    document.getElementById('sv-act').checked=r.active;f.active.value=r.active?'1':'0'}d.showModal()}
+</script>
+{% endblock %}

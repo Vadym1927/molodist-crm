@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Техкарти · MOLODIST CRM{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}{% set edit = cur or qp.get('new') %}
+<style>
+.tc-hero{position:relative;overflow:hidden;border-radius:24px;padding:24px 28px;margin-bottom:18px;color:#fff;
+  background:radial-gradient(120% 160% at 100% 0%,#4A3D63 0%,#3B3050 42%,#2A2430 100%);box-shadow:0 22px 50px -32px rgba(42,36,48,.8)}
+.tc-hero .eb{font:600 10.5px var(--sans);letter-spacing:.22em;text-transform:uppercase;color:#C9BFE6}.tc-hero .eb a{color:#C9BFE6;text-decoration:none}
+.tc-hero h1{margin:8px 0 0;color:#fff;font:500 30px/1.15 var(--head);letter-spacing:.05em;text-transform:uppercase}
+.tc-hero p{margin:8px 0 0;max-width:720px;color:rgba(255,255,255,.72);font-size:14px;line-height:1.55}
+.tc-hero .tc-top{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap}
+.tc-hero .btn{background:#fff;color:#3B3050;border:0;height:44px;padding:0 18px;border-radius:14px;font-weight:700}
+.tc-w{display:grid;grid-template-columns:minmax(280px,380px) 1fr;gap:16px;align-items:start}
+.tc-l{background:#fff;border:1px solid #ECE7E1;border-radius:20px;overflow:hidden;position:sticky;top:12px;max-height:calc(100vh - 40px);display:flex;flex-direction:column}
+.tc-l form{padding:12px;border-bottom:1px solid #F3EFEA}.tc-l form input{width:100%;height:42px}
+.tc-l .ls{overflow:auto}.tc-l a{display:flex;gap:10px;align-items:center;padding:11px 14px;border-top:1px solid #F7F4F0;text-decoration:none;color:#2A2430}
+.tc-l a:hover{background:#FBFAF8}.tc-l a.on{background:#F1EDF8}.tc-l a b{flex:1;font:600 13.5px var(--sans)}.tc-l a small{display:block;font-size:11.5px;color:#9a93a6;font-weight:500}
+.tc-l a em{font-style:normal;font:700 12px var(--sans);color:#3B3050;white-space:nowrap;font-variant-numeric:tabular-nums}
+.tc-l a i{font-style:normal;font:700 10.5px var(--sans);background:#F1EDF8;color:#3B3050;border-radius:99px;padding:2px 8px}
+.tc-e{display:grid;gap:14px}.tc-c{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:16px 18px;display:grid;gap:12px}
+.tc-c h3{margin:0;font:600 12px var(--head);letter-spacing:.14em;text-transform:uppercase;color:#3B3050}
+.tc-c .g{display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px}.tc-c label{display:grid;gap:4px;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496}
+.tc-c .hint{font-size:12px;color:#8a8496}
+.tc-cat,.tc-ln{display:grid;gap:8px;align-items:center}.tc-cat{grid-template-columns:1fr 1fr 32px}.tc-ln{grid-template-columns:150px 1fr 90px 110px 32px}
+.tc-ln em{font-style:normal;text-align:right;font:700 13px var(--sans);font-variant-numeric:tabular-nums}
+.tc-x{border:0;background:none;color:#B23B2E;font-size:20px;cursor:pointer}
+.tc-tot{display:flex;justify-content:space-between;align-items:center;background:#F7F4F0;border-radius:14px;padding:12px 16px;font:600 14px var(--sans)}
+.tc-tot b{font:600 20px var(--head);color:#2A2430}
+.tc-sv{max-height:260px;overflow:auto;display:grid;gap:4px;border:1px solid #F0ECE6;border-radius:12px;padding:8px}
+.tc-sv label{display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0;font:500 13px var(--sans);color:#2A2430}.tc-sv input{width:auto}
+.tc-sv small{color:#9a93a6}
+.tc-mode{display:flex;gap:16px;flex-wrap:wrap}.tc-mode label{display:flex;gap:8px;align-items:flex-start;text-transform:none;letter-spacing:0;font:600 13px var(--sans);color:#2A2430}
+.tc-mode small{display:block;font-weight:400;color:#8a8496;font-size:12px}.tc-mode input{width:auto;margin-top:2px}
+@media(max-width:900px){.tc-w{grid-template-columns:1fr}.tc-l{position:static;max-height:360px}.tc-ln{grid-template-columns:1fr 1fr}.tc-c .g{grid-template-columns:1fr}}
+</style>
+<div class="tc-hero"><div class="tc-top"><div><div class="eb"><a href="/stock">Склад</a> · <a href="/services">Послуги</a></div><h1>Техкарти</h1>
+  <p>Матеріали на одну послугу за категоріями. Кожна категорія списується зі свого складу (одноразка, препарати, обладнання). Додали послугу у візит — техкарта копіюється у витратні візиту, після оплати матеріали списуються.</p></div>
+  <a class="btn" href="?new=1" style="display:inline-flex;align-items:center;text-decoration:none">＋ Нова техкарта</a></div></div>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+{% if qp.get('delerr') %}<div class="alert">{{ qp.get('delerr') }}</div>{% endif %}
+<div class="tc-w">
+  <div class="tc-l"><form><input name="q" value="{{ q }}" placeholder="Знайти техкарту чи послугу ({{ cards|length }})"></form>
+    <div class="ls">{% for c in cards %}<a href="?open={{ c.id }}{{ ('&q=' ~ q|urlencode) if q }}" class="{{ 'on' if cur and cur.id == c.id }}"><b>{{ c.name }}<small>{{ c.category or '' }}{{ ' · ' if c.category }}{{ c.lines|length }} матеріалів</small></b>
+      <i title="Використано в послугах">{{ used.get(c.id, [])|length }}</i><em>{{ tc.card_cost(c, uc)|uah }}</em></a>
+    {% else %}<div class="muted" style="padding:14px">Техкарт ще немає.</div>{% endfor %}</div></div>
+  {% if edit %}
+  <form method="post" action="/techcards" class="tc-e" id="tcf"><input type="hidden" name="id" value="{{ cur.id if cur else '' }}">
+    <datalist id="tc-prods">{% for pid, label, w in products %}<option value="{{ label }}">{% endfor %}</datalist>
+    <datalist id="tc-gcats">{% for x in cats %}<option value="{{ x }}">{% endfor %}</datalist>
+    <div class="tc-c"><h3>Основне</h3>
+      <div class="g"><label>Назва техкарти<input name="name" value="{{ cur.name if cur else '' }}" required></label>
+        <label>Категорія<input name="category" list="tc-gcats" value="{{ (cur.category or '') if cur else '' }}"></label>
+        <label>Макс. собівартість, ₴<input name="max_cost" value="{{ '%g'|format(cur.max_cost) if cur and cur.max_cost else '' }}" inputmode="decimal" placeholder="без ліміту"></label></div>
+      <div class="hint">Максимальна собівартість — щоб у візиті не додали матеріалів більше, ніж передбачено стандартом: перевищення підсвічується червоним.</div>
+      <div class="tc-mode"><label><input type="radio" name="mode" value="extended" {{ 'checked' if not cur or cur.mode != 'simple' }}><span>Розширений режим<small>Кожна категорія списується зі свого складу</small></span></label>
+        <label><input type="radio" name="mode" value="simple" {{ 'checked' if cur and cur.mode == 'simple' }}><span>Спрощений режим<small>Усе — зі складу товару</small></span></label></div>
+      <label>Коментар<textarea name="comment" rows="2">{{ (cur.comment or '') if cur else '' }}</textarea></label></div>
+    <div class="tc-c"><h3>Категорії матеріалів і склади списання</h3>
+      <div id="tc-cats">{% for c in (cur.cats if cur and cur.cats else tc.DEFAULT_CATS) %}<div class="tc-cat"><input name="cat_name" value="{{ c.name }}" oninput="tcCats()">
+        <select name="cat_wh">{% for k, v in WAREHOUSES.items() %}<option value="{{ k }}" {{ 'selected' if c.wh == k }}>{{ v }}</option>{% endfor %}</select><button type="button" class="tc-x" onclick="this.parentNode.remove();tcCats()">×</button></div>{% endfor %}</div>
+      <button type="button" class="btn ghost" style="justify-self:start" onclick="tcAddCat()">＋ Категорія</button></div>
+    <div class="tc-c"><h3>Матеріали на 1 послугу</h3>
+      <div class="tc-ln" style="font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#9a93a6"><span>Категорія</span><span>Матеріал</span><span>К-сть</span><span style="text-align:right">Сума</span><span></span></div>
+      <div id="tc-lns">{% for ln in (cur.lines if cur else []) %}<div class="tc-ln"><select name="ln_cat" data-v="{{ ln.cat }}"></select>
+        <input name="ln_product" list="tc-prods" value="{{ ln.product.name }}{{ (' · арт. ' ~ ln.product.sku) if ln.product.sku }} [#{{ ln.product_id }}]" required>
+        <input name="ln_qty" value="{{ '%g'|format(ln.qty) }}" inputmode="decimal" title="{{ ln.product.unit or 'шт.' }}"><em>{{ (ln.qty * uc.get(ln.product_id, 0))|uah }}</em>
+        <button type="button" class="tc-x" onclick="this.parentNode.remove()">×</button></div>{% endfor %}</div>
+      <button type="button" class="btn ghost" style="justify-self:start" onclick="tcAddLn()">＋ Матеріал</button>
+      <div class="tc-tot"><span>Собівартість за техкартою</span><b>{{ (tc.card_cost(cur, uc) if cur else 0)|uah }}</b></div>
+      <div class="hint">Ціна матеріалу — остання закупівля (за одиницю обліку). Обладнання — товар складу «Обладнання» з ціною за одне використання (напр. «Амортизація OBSERV» 50 ₴).</div></div>
+    <div class="tc-c"><h3>Послуги з цією техкартою</h3>
+      <input placeholder="Знайти послугу…" oninput="var q=this.value.toLowerCase();document.querySelectorAll('#tc-sv label').forEach(function(l){l.style.display=l.textContent.toLowerCase().indexOf(q)>=0?'':'none'})">
+      <div class="tc-sv" id="tc-sv">{% for sv in services %}<label><input type="checkbox" name="services" value="{{ sv.id }}" {{ 'checked' if cur and sv.techcard_id == cur.id }}>{{ sv.name }}
+        <small>{{ sv.category or '' }}{% if sv.techcard_id and (not cur or sv.techcard_id != cur.id) %} · зараз інша техкарта{% endif %}</small></label>{% endfor %}</div></div>
+    <div style="display:flex;gap:10px;justify-content:space-between;flex-wrap:wrap"><button class="btn">Зберегти техкарту</button>
+      {% if cur %}<button type="submit" form="tcdel" class="btn danger">Видалити</button>{% endif %}</div>
+  </form>
+  {% if cur %}<form id="tcdel" method="post" action="/techcards/{{ cur.id }}/delete" data-delpw="Видалити техкарту «{{ cur.name }}»? Послуги залишаться без техкарти."></form>{% endif %}
+  {% else %}<div class="tc-c"><h3>Оберіть техкарту</h3><div class="hint">Зліва — усі техкарти: собівартість і в скількох послугах використано. Або створіть нову.</div></div>{% endif %}
+</div>
+<script>
+function tcNames(){return [].map.call(document.querySelectorAll('#tc-cats [name=cat_name]'),function(i){return i.value.trim()}).filter(Boolean)}
+function tcCats(){var n=tcNames();document.querySelectorAll('#tc-lns select[name=ln_cat]').forEach(function(s){var v=s.value||s.dataset.v;s.innerHTML=n.map(function(x){return '<option'+(x===v?' selected':'')+'>'+x.replace(/</g,'&lt;')+'</option>'}).join('');if(v&&n.indexOf(v)<0){s.insertAdjacentHTML('beforeend','<option selected>'+v+'</option>')}})}
+function tcAddCat(){var d=document.createElement('div');d.className='tc-cat';d.innerHTML=document.querySelector('#tc-cats .tc-cat')?document.querySelector('#tc-cats .tc-cat').innerHTML:'';d.querySelector('input').value='';document.getElementById('tc-cats').appendChild(d);d.querySelector('input').focus()}
+function tcAddLn(){var d=document.createElement('div');d.className='tc-ln';d.innerHTML='<select name="ln_cat"></select><input name="ln_product" list="tc-prods" required placeholder="Почніть вводити назву"><input name="ln_qty" value="1" inputmode="decimal"><em></em><button type="button" class="tc-x" onclick="this.parentNode.remove()">×</button>';document.getElementById('tc-lns').appendChild(d);tcCats();d.querySelector('[name=ln_product]').focus()}
+tcCats();
+</script>
+{% endblock %}

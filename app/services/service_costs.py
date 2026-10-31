@@ -23,6 +23,14 @@ def techcard_costs(db: Session) -> dict[int, float]:
     for sv in svcs:
         if sv.id not in per and sv.techcard and sv.techcard.strip().lower() in by_card:
             per[sv.id] = by_card[sv.techcard.strip().lower()]
+    from ..models import TechCard
+    from .techcards import unit_costs, card_cost
+    cards = {c.id: c for c in db.scalars(select(TechCard))}
+    if cards:                                              # техкарта CRM має пріоритет над нормами списання
+        uc = unit_costs(db)
+        for sv in svcs:
+            if sv.techcard_id and sv.techcard_id in cards:
+                per[sv.id] = card_cost(cards[sv.techcard_id], uc)
     return {k: round(v, 2) for k, v in per.items()}
 
 

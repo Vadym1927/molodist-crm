@@ -320,6 +320,8 @@ async def lifespan(app: FastAPI):
             _n0 = _pay0.backfill_finops(db)
             db.merge(SyncState(key="supply_finops_backfill_v1", value=str(_n0)))
             db.commit()
+        from .services.techcards import migrate_from_norms as _tcm   # техкарти CRM з норм списання (один раз)
+        _tcm(db)
         if not db.get(SyncState, "cb_calendar_freeze_20261031"):   # 31.10.2026: календар — лише вручну в CRM (рішення власника)
             from .integrations.cleverbox import set_calendar_frozen as _fz
             _fz(db, True)
@@ -404,6 +406,12 @@ class _BankFees:
                 _cbx.sync_fees(_db)
         except Exception as e:  # noqa: BLE001
             log.warning("Комісія банку: %s", e)
+        try:                                             # оплачені візити — списання витратних; повернені — назад
+            from .services import techcards as _tc
+            with SessionLocal() as _db:
+                _tc.sync(_db)
+        except Exception as e:  # noqa: BLE001
+            log.warning("Закриття візитів: %s", e)
         try:                                             # центр моніторингу цін: новий прихід → зони подорожчання
             from .services import price_monitor as _pm
             with SessionLocal() as _db:
@@ -1005,8 +1013,8 @@ def lookup_patients(q: str = "", user: User = Depends(current_user), db: Session
 def lookup_services(q: str = "", user: User = Depends(current_user), db: Session = Depends(db_dep)):
     from .models import CbService
     ql = q.strip().lower()
-    rows = [s for s in db.scalars(select(CbService).order_by(CbService.name)) if not ql or ql in (s.name or "").lower()
-            or ql in (s.category or "").lower()]
+    rows = [s for s in db.scalars(select(CbService).order_by(CbService.name)) if s.active is not False and (not ql or ql in (s.name or "").lower()
+            or ql in (s.category or "").lower())]
     return JSONResponse([{"id": s.id, "name": s.name, "price": s.price or 0, "minutes": s.time_min or 30, "category": s.category or ""}
                          for s in rows[:25]])
 
@@ -1090,6 +1098,11 @@ async def appointment_save(request: Request, user: User = Depends(require("book"
     if warn and not f.get("force"):
         return JSONResponse({"warnings": warn})
     a = aps.save(db, data, user.id, appt)
+    try:
+        from .services import techcards as _tc
+        _tc.seed(db, a)                                   # витратні з техкарт послуг візиту
+    except Exception:  # noqa: BLE001
+        log.exception("visit materials seed")
     msg = None
     if f.get("to_cb") and not a.cb_record_id:
         try:
@@ -2672,9 +2685,196 @@ def calendar_visit(request: Request, appt: int = 0, v: str = "", tab: str = "vis
     n = db.scalar(select(_f.count(_f.distinct(_f.date(Visit.starts_at)))).where(Visit.patient_id == p_.id, Visit.status.in_(("attended", "done")))) or 0
     stats = {"tag": _cal.tag_for(n + 1), "visits": p_.cb_visits if p_.cb_visits is not None else n, "total": p_.cb_total or 0,
              "bonus": round(ly.balance(db, p_.id), 2), "discount": p_.discount_pct}
+    mats, closed_, wdocs = None, False, []
+    if c["a"]:
+        from .services import techcards as _tc
+        from .models import StockDoc
+        _tc.seed(db, c["a"])
+        mats, closed_ = _tc.materials(db, c["a"]), _tc.closed(db, c["a"])
+        wdocs = db.scalars(select(StockDoc).where(StockDoc.ext_no == f"visit:{c['a'].id}", StockDoc.status == "posted")).all()
     return templates.TemplateResponse(request, "_visit_drawer.html", {"request": request, "user": user, "c": c, "pt": p_, "stats": stats,
                                       "tab": tab, "STATUSES": aps.STATUSES, "COLORS": aps.COLORS, "can": can,
-                                      "color": spec_svc.color, "initials": spec_svc.initials})
+                                      "color": spec_svc.color, "initials": spec_svc.initials, "mats": mats, "closed": closed_,
+                                      "wdocs": wdocs, "WH": catalog.WAREHOUSES,
+                                      "popts": _product_options(db, consumables=True) if mats is not None and not closed_ else []})
+
+
+# ---------------- Витратні візиту ----------------
+def _appt_editable(db: Session, user: User, aid: int):
+    from .models import Appointment
+    from .services import techcards as tc
+    a = db.get(Appointment, aid) or (_ for _ in ()).throw(HTTPException(404))
+    _patient_or_403(db, user, a.patient_id)
+    if tc.closed(db, a):
+        raise HTTPException(409, "Візит закрито — матеріали вже списано зі складу")
+    return a
+
+
+@app.post("/appointments/{aid:int}/materials")
+async def visit_material_add(aid: int, request: Request, user: User = Depends(require("book")), db: Session = Depends(db_dep)):
+    from .models import VisitMaterial, CbService, TechCard
+    from .services import techcards as tc
+    a = _appt_editable(db, user, aid)
+    f = await request.json()
+    pr = _pick_product(db, str(f.get("product") or ""))
+    if not pr:
+        return JSONResponse({"error": "Товар не знайдено — оберіть зі списку"}, status_code=400)
+    idx = int(f.get("svc_idx") or 0)
+    svc = (a.services or [])[idx] if idx < len(a.services or []) else {}
+    sv = db.get(CbService, svc.get("id")) if svc.get("id") else None
+    card = db.get(TechCard, sv.techcard_id) if sv and sv.techcard_id else None
+    cat = str(f.get("cat") or "").strip() or tc.WH_CAT.get(pr.warehouse or "single", "Одноразка")
+    m = VisitMaterial(appt_id=a.id, svc_idx=idx, service_id=svc.get("id"), cat=cat[:80], product_id=pr.id,
+                      qty=max(0.0, _num(str(f.get("qty") or "1").replace(",", ".")) or 1),
+                      unit_cost=tc.unit_costs(db).get(pr.id, 0.0), warehouse=tc.cat_wh(card, cat, pr))
+    db.add(m)
+    db.commit()
+    audit(db, "visit.material_add", "patient", a.patient_id, user=user, appt=a.id, product=pr.id, qty=m.qty)
+    return JSONResponse({"ok": True})
+
+
+@app.post("/appointments/{aid:int}/materials/{mid:int}")
+async def visit_material_edit(aid: int, mid: int, request: Request, user: User = Depends(require("book")), db: Session = Depends(db_dep)):
+    from .models import VisitMaterial
+    a = _appt_editable(db, user, aid)
+    m = db.get(VisitMaterial, mid)
+    if not m or m.appt_id != a.id:
+        raise HTTPException(404)
+    f = await request.json()
+    if f.get("delete"):
+        db.delete(m)
+        audit(db, "visit.material_delete", "patient", a.patient_id, user=user, appt=a.id, product=m.product_id)
+    else:
+        m.qty = max(0.0, round(_num(str(f.get("qty") or "0").replace(",", ".")) or 0, 3))
+    db.commit()
+    return JSONResponse({"ok": True})
+
+
+@app.post("/appointments/{aid:int}/materials-reset")
+def visit_material_reset(aid: int, svc_idx: int = Form(...), user: User = Depends(require("book")), db: Session = Depends(db_dep)):
+    """Повернути витратні послуги до техкарти."""
+    from .models import VisitMaterial
+    from .services import techcards as tc
+    a = _appt_editable(db, user, aid)
+    for m in db.scalars(select(VisitMaterial).where(VisitMaterial.appt_id == a.id, VisitMaterial.svc_idx == svc_idx)):
+        db.delete(m)
+    db.commit()
+    tc.seed(db, a)
+    return JSONResponse({"ok": True})
+
+
+# ---------------- Техкарти ----------------
+@app.get("/techcards", response_class=HTMLResponse)
+def techcards_page(request: Request, q: str = "", open: int = 0, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .models import TechCard, CbService
+    from .services import techcards as tc
+    cards = db.scalars(select(TechCard).order_by(TechCard.name)).all()
+    used: dict = defaultdict(list)
+    for sv in db.scalars(select(CbService).where(CbService.techcard_id.is_not(None))):
+        used[sv.techcard_id].append(sv)
+    if q.strip():
+        ql = q.strip().lower()
+        cards = [c for c in cards if ql in c.name.lower() or ql in (c.category or "").lower()
+                 or any(ql in sv.name.lower() for sv in used.get(c.id, []))]
+    uc = tc.unit_costs(db)
+    cur = db.get(TechCard, open) if open else None
+    services = db.scalars(select(CbService).order_by(CbService.category, CbService.name)).all()
+    return render(request, "techcards.html", nav="stock", cards=cards, used=used, uc=uc, tc=tc, cur=cur, q=q, services=services,
+                  products=_product_options(db, consumables=True), WAREHOUSES=catalog.WAREHOUSES,
+                  cats=sorted({c.category for c in db.scalars(select(TechCard)) if c.category} | {s_.category for s_ in services if s_.category}))
+
+
+@app.post("/techcards")
+async def techcard_save(request: Request, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .models import TechCard, TechCardLine, CbService
+    f = await request.form()
+    cid = int(f.get("id")) if str(f.get("id") or "").isdigit() else None
+    card = db.get(TechCard, cid) if cid else TechCard()
+    name = str(f.get("name") or "").strip()[:200]
+    if not name:
+        return RedirectResponse(_with_msg("/techcards", "Вкажіть назву техкарти", True), 303)
+    card.name, card.category = name, str(f.get("category") or "").strip()[:200] or None
+    card.max_cost = _num(str(f.get("max_cost") or "").replace(",", ".")) or None
+    card.mode = "simple" if f.get("mode") == "simple" else "extended"
+    card.comment = str(f.get("comment") or "").strip()[:2000] or None
+    cats = []
+    for nm, wh in zip(f.getlist("cat_name"), f.getlist("cat_wh")):
+        nm = str(nm).strip()[:80]
+        if nm and not any(c["name"] == nm for c in cats):
+            cats.append({"name": nm, "wh": wh if wh in catalog.WAREHOUSES else "single"})
+    card.cats = cats or None
+    lines = []
+    for cat, prod, qty in zip(f.getlist("ln_cat"), f.getlist("ln_product"), f.getlist("ln_qty")):
+        pr = _pick_product(db, str(prod))
+        if pr:
+            lines.append(TechCardLine(cat=str(cat)[:80] or (cats[0]["name"] if cats else "Одноразка"), product_id=pr.id,
+                                      qty=_num(str(qty).replace(",", ".")) or 1))
+    card.lines = lines
+    if not cid:
+        db.add(card)
+    db.flush()
+    ids = {int(x) for x in f.getlist("services") if str(x).isdigit()}
+    for sv in db.scalars(select(CbService).where((CbService.techcard_id == card.id) | (CbService.id.in_(ids or {0})))):
+        sv.techcard_id = card.id if sv.id in ids else None
+    db.commit()
+    audit(db, "techcard.save", user=user, card=card.id, name=card.name, lines=len(lines), services=len(ids))
+    return RedirectResponse(_with_msg(f"/techcards?open={card.id}", f"Техкарту «{card.name}» збережено"), 303)
+
+
+@app.post("/techcards/{cid:int}/delete")
+def techcard_delete(cid: int, del_password: str = Form(""), user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .models import TechCard, CbService
+    err = _delpw(db, user, del_password, "techcard", None, cid)
+    if err:
+        return RedirectResponse(_with_err(f"/techcards?open={cid}", err), 303)
+    c = db.get(TechCard, cid)
+    if c:
+        for sv in db.scalars(select(CbService).where(CbService.techcard_id == cid)):
+            sv.techcard_id = None
+        db.delete(c)
+        db.commit()
+        audit(db, "techcard.delete", user=user, card=cid)
+    return RedirectResponse(_with_msg("/techcards", "Техкарту видалено"), 303)
+
+
+# ---------------- Послуги (прайс) ----------------
+@app.get("/services", response_class=HTMLResponse)
+def services_page(request: Request, q: str = "", cat: str = "", user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .models import CbService, TechCard
+    from .services.service_costs import techcard_costs
+    rows = db.scalars(select(CbService).order_by(CbService.category, CbService.name)).all()
+    cats = sorted({r.category for r in rows if r.category})
+    if cat:
+        rows = [r for r in rows if r.category == cat]
+    if q.strip():
+        ql = q.strip().lower()
+        rows = [r for r in rows if ql in r.name.lower()]
+    return render(request, "services.html", nav="stock", rows=rows, cats=cats, cat=cat, q=q, cost=techcard_costs(db),
+                  cards=db.scalars(select(TechCard).order_by(TechCard.name)).all())
+
+
+@app.post("/services")
+def service_save(id: str = Form(""), name: str = Form(...), category: str = Form(""), price: str = Form(""), duration: str = Form(""),
+                 techcard_id: str = Form(""), active: str = Form(""), back: str = Form("/services"),
+                 user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .models import CbService
+    sv = db.get(CbService, int(id)) if id.isdigit() else None
+    if not sv:
+        nid = max(9_000_000, (db.scalar(select(func.max(CbService.id))) or 0) + 1)   # послуги CRM — окремий діапазон ID
+        sv = CbService(id=nid, name=name.strip()[:300], source="crm")
+        db.add(sv)
+    sv.name = name.strip()[:300] or sv.name
+    sv.category = category.strip()[:200] or None
+    sv.price = _num(price.replace(",", ".")) if price.strip() else sv.price
+    d_ = int(duration) if duration.strip().isdigit() else None
+    sv.duration = d_
+    if d_:
+        sv.time_min = d_
+    sv.techcard_id = int(techcard_id) if techcard_id.isdigit() else None
+    sv.active = active != "0"
+    db.commit()
+    audit(db, "service.save", user=user, service=sv.id, name=sv.name, price=sv.price, techcard=sv.techcard_id)
+    return RedirectResponse(_with_msg(back if back.startswith("/services") else "/services", f"Послугу «{sv.name}» збережено"), 303)
 
 
 @app.post("/calendar/visit/note")

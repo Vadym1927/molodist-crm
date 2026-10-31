@@ -160,6 +160,10 @@ class CbService(Base):
     direction: Mapped[str | None] = mapped_column(String(200))      # «Направленість»: Ін'єкційна, Лазерна епіляція…
     techcard: Mapped[str | None] = mapped_column(String(200))       # техкартка — спільні норми списання
     cost_fixed: Mapped[float | None] = mapped_column(Float)          # фіксована собівартість послуги (для окладів), ₴
+    techcard_id: Mapped[int | None] = mapped_column(Integer, index=True)   # техкарта CRM (TechCard)
+    duration: Mapped[int | None] = mapped_column(Integer)            # тривалість, хв (редагується в CRM)
+    active: Mapped[bool | None] = mapped_column(Boolean)              # False — прихована з каси й запису
+    source: Mapped[str | None] = mapped_column(String(10))            # crm — створена в CRM
 
 
 class Visit(Base):
@@ -1036,6 +1040,52 @@ class PayrollLine(Base):
     posted_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     doc: Mapped[PayrollDoc] = relationship(back_populates="lines")
+
+
+class TechCard(Base):
+    """Техкарта (як у CleverBox): матеріали на 1 послугу за категоріями, кожна категорія — свій склад списання."""
+    __tablename__ = "tech_cards"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200), index=True)
+    category: Mapped[str | None] = mapped_column(String(200))
+    max_cost: Mapped[float | None] = mapped_column(Float)              # ліміт собівартості у візиті
+    mode: Mapped[str] = mapped_column(String(10), default="extended")  # extended — склад за категорією; simple — склад спеціаліста
+    cats: Mapped[list | None] = mapped_column(JSON)                    # [{name, wh}]
+    comment: Mapped[str | None] = mapped_column(Text)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    lines: Mapped[list["TechCardLine"]] = relationship(back_populates="card", cascade="all, delete-orphan", order_by="TechCardLine.id")
+
+
+class TechCardLine(Base):
+    __tablename__ = "tech_card_lines"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    card_id: Mapped[int] = mapped_column(ForeignKey("tech_cards.id"), index=True)
+    cat: Mapped[str] = mapped_column(String(80))
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), index=True)
+    qty: Mapped[float] = mapped_column(Float, default=1)
+
+    card: Mapped[TechCard] = relationship(back_populates="lines")
+    product: Mapped["Product"] = relationship()
+
+
+class VisitMaterial(Base):
+    """Витратні матеріали конкретного візиту CRM: копія техкарти на кожну послугу, кількість можна змінити,
+    позицію — додати чи прибрати. Після оплати візиту — списання зі складу документами (по складу кожної категорії)."""
+    __tablename__ = "visit_materials"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    appt_id: Mapped[int] = mapped_column(Integer, index=True)
+    svc_idx: Mapped[int] = mapped_column(Integer, default=0)            # № послуги у візиті
+    service_id: Mapped[int | None] = mapped_column(Integer)
+    cat: Mapped[str] = mapped_column(String(80))
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), index=True)
+    qty: Mapped[float] = mapped_column(Float, default=1)
+    unit_cost: Mapped[float] = mapped_column(Float, default=0)
+    warehouse: Mapped[str | None] = mapped_column(String(20))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    product: Mapped["Product"] = relationship()
 
 
 class PriceAlert(Base):

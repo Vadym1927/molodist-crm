@@ -89,6 +89,29 @@
 
     {# ---------- ВИТРАТИ ---------- #}
     <section data-p="cost" hidden>
+      {% if mats is not none %}
+      <div class="vd-info">{% if closed %}Візит закрито — матеріали списано зі складу: {% for d in wdocs %}<a href="/stock/docs/{{ d.id }}">{{ d.number }} ({{ WH.get(d.wh_from, d.wh_from) }})</a>{{ ', ' if not loop.last }}{% endfor %}.
+        {% else %}Витратні — з техкарти кожної послуги. Кількість можна змінити, позицію — прибрати чи додати; зміни зберігаються одразу. Після оплати візиту матеріали списуються зі складу.{% endif %}</div>
+      {% if popts %}<datalist id="vd-prods">{% for pid, label, w in popts %}<option value="{{ label }}">{% endfor %}</datalist>{% endif %}
+      {% for g in mats %}
+        <div class="vd-sec"><h4>{{ g.service }}</h4><em class="vd-sum {{ 'over' if g.over }}" title="{{ ('Ліміт техкарти ' ~ money(g.max_cost)) if g.max_cost }}">{{ money(g.cost) }}</em></div>
+        {% if g.card %}<div class="vd-hint">Техкарта: <a href="/techcards?open={{ g.card.id }}">{{ g.card.name }}</a>{% if g.max_cost %} · ліміт {{ money(g.max_cost) }}{% endif %}{% if g.over %} · <b style="color:#B23B2E">перевищено ліміт</b>{% endif %}
+          {% if not closed %} · <a href="#" onclick="return vdMatReset({{ c.a.id }}, {{ g.idx }})">повернути як у техкарті</a>{% endif %}</div>
+        {% else %}<div class="vd-hint">У послуги немає техкарти — <a href="/services?q={{ g.service|urlencode }}">прив'язати</a> або додайте матеріали вручну.</div>{% endif %}
+        {% for cat, ms in g.cats.items() %}<div class="vd-cat">{{ cat }}</div>
+          {% for m in ms %}<div class="vd-mat"><b>{{ m.product.name if m.product else ('#' ~ m.product_id) }}</b>
+            {% if closed %}<span>{{ '%g'|format(m.qty) }} {{ (m.product.unit if m.product else '') or 'шт.' }}</span>
+            {% else %}<span><input type="text" inputmode="decimal" value="{{ '%g'|format(m.qty) }}" onchange="vdMat({{ c.a.id }}, {{ m.id }}, this.value)"> {{ (m.product.unit if m.product else '') or 'шт.' }}</span>{% endif %}
+            <em>{{ money(m.qty * m.unit_cost) }}</em>{% if not closed %}<button type="button" title="Прибрати" onclick="vdMat({{ c.a.id }}, {{ m.id }}, null)">×</button>{% endif %}</div>{% endfor %}
+        {% endfor %}
+        {% if not closed %}<form class="vd-add" onsubmit="return vdMatAdd(this, {{ c.a.id }}, {{ g.idx }})"><input name="product" list="vd-prods" placeholder="＋ Матеріал (почніть вводити)" required>
+          <input name="qty" value="1" inputmode="decimal"><input name="cat" list="vd-cats" placeholder="Категорія"><button class="vd-btn ghost">Додати</button></form>{% endif %}
+      {% else %}<div class="vd-empty">У візиті ще немає послуг.</div>{% endfor %}
+      <datalist id="vd-cats"><option value="Одноразка"><option value="Препарат"><option value="Обладнання"></datalist>
+      <div class="vd-tot big"><span>Собівартість візиту</span><b>{{ money(mats|sum(attribute='cost')) }}</b></div>
+      {% if c.total %}<div class="vd-tot"><span>Вартість послуг</span><b>{{ money(c.total) }}</b></div><div class="vd-tot"><span>Валовий прибуток</span><b>{{ money(c.total - (mats|sum(attribute='cost'))) }}</b></div>{% endif %}
+      <div class="vd-err" id="vd-merr"></div>
+      {% else %}
       <div class="vd-info">Витратні матеріали — за нормами списання на 1 послугу. Змінити норми: <a href="/stock?tab=norms">Склад → Норми списання</a>.</div>
       {% for g in c.costs %}<div class="vd-sec"><h4>{{ g.service }}</h4>{% if g.rows %}<em class="vd-sum">{{ money(g.sum) }}</em>{% endif %}</div>
         {% for r in g.rows %}<div class="vd-cost"><b>{{ r.name }}</b><span>{{ '%g'|format(r.qty or 0) }} {{ r.unit }}</span><em>{{ money(r.sum) }}</em></div>
@@ -96,6 +119,7 @@
       {% endfor %}
       <div class="vd-tot big"><span>Собівартість матеріалів</span><b>{{ money(c.cost_total) }}</b></div>
       {% if c.total %}<div class="vd-tot"><span>Вартість послуг</span><b>{{ money(c.total) }}</b></div>{% endif %}
+      {% endif %}
     </section>
 
     {# ---------- ФОТО ---------- #}

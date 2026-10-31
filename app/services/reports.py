@@ -240,14 +240,24 @@ def _service_lines(db: Session, d_from: date, d_to: date) -> list[dict]:
                         "doctor_id": None, "day": c.date.date()})
     a, b = _rng(d_from, d_to)
     docs = {d.id: d.name for d in db.scalars(select(Doctor))}
+    from .techcards import cost_by_service
+    from ..models import Appointment as _Ap
     for sl in db.scalars(select(Sale).where(Sale.status == "paid", Sale.at >= a, Sale.at <= b)):
+        vcost: dict = {}
+        ap = db.get(_Ap, sl.appointment_id) if sl.appointment_id else None
+        if ap:
+            per = cost_by_service(db, ap.id)
+            for i_, sv_ in enumerate(ap.services or []):
+                if i_ in per:
+                    vcost.setdefault(sv_.get("id"), []).append(per[i_])
         for it in sl.items:
             if it.kind != "service":
                 continue
             qty = it.qty or 1
             out.append({"name": it.name, "category": it.category or "", "qty": qty, "paid": float(it.total or 0),
                         "disc": max(0.0, round((it.price or 0) * qty - float(it.total or 0), 2)), "price": float(it.price or 0),
-                        "staff": docs.get(it.doctor_id, ""), "doctor_id": it.doctor_id, "day": sl.at.date()})
+                        "staff": docs.get(it.doctor_id, ""), "doctor_id": it.doctor_id, "day": sl.at.date(),
+                        "cost_actual": vcost[it.ref_id].pop(0) if vcost.get(it.ref_id) else None})
     return out
 
 
@@ -292,14 +302,15 @@ def services(db: Session, d_from: date, d_to: date, cat: str = "", staff: str = 
         if pl and pl["comm"]["on"]:
             l2 = {"type": "service", "name": ln["name"], "category": category, "brand": "", "qty": ln["qty"],
                   "paid": ln["paid"], "cost": (ln["price"] * ln["qty"]) or ln["paid"], "disc": ln["disc"] > 0,
-                  "cost_tc": (unit_cost.get(sv.id, 0.0) if sv else 0.0) * ln["qty"],
+                  "cost_tc": ln["cost_actual"] if ln.get("cost_actual") is not None else (unit_cost.get(sv.id, 0.0) if sv else 0.0) * ln["qty"],
                   "cost_fx": float((sv.cost_fixed if sv else 0) or 0) * ln["qty"]}
             sal, _, _ = spl.line_amount(pl, l2)
         x = agg.setdefault((category, ln["name"]), {"qty": 0.0, "sum": 0.0, "disc": 0.0, "cost": 0.0, "salary": 0.0})
         x["qty"] += ln["qty"]
         x["sum"] += ln["paid"]
         x["disc"] += ln["disc"]
-        x["cost"] += ((unit_cost.get(sv.id, 0.0) or float(sv.cost_fixed or 0)) if sv else 0.0) * ln["qty"]
+        x["cost"] += ln["cost_actual"] if ln.get("cost_actual") is not None else \
+            ((unit_cost.get(sv.id, 0.0) or float(sv.cost_fixed or 0)) if sv else 0.0) * ln["qty"]
         x["salary"] += sal
     if zero == "all":                                    # «Показати всі» — і послуги без продажів
         for sv in {id(v): v for v in idx.values()}.values():
