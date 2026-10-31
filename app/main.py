@@ -308,6 +308,11 @@ async def lifespan(app: FastAPI):
             _n0 = _pay0.backfill_finops(db)
             db.merge(SyncState(key="supply_finops_backfill_v1", value=str(_n0)))
             db.commit()
+        if not db.get(SyncState, "cb_calendar_freeze_20261031"):   # 31.10.2026: календар — лише вручну в CRM (рішення власника)
+            from .integrations.cleverbox import set_calendar_frozen as _fz
+            _fz(db, True)
+            db.merge(SyncState(key="cb_calendar_freeze_20261031", value="1"))
+            db.commit()
         if not db.get(SyncState, "revert_unrecorded_v1"):        # відкат: оплати без поставки НЕ списуємо — спишуться з поставкою
             from .services import payments as _pay1
             _pay1.revert_booked_without_supply(db)
@@ -2248,6 +2253,15 @@ def _tmp_response(path: str, name: str, media: str = "application/zip"):
     return FileResponse(path, media_type=media, headers=_attach(name), background=BackgroundTask(os.unlink, path))
 
 
+@app.post("/settings/cleverbox-calendar")
+def cleverbox_calendar_toggle(on: str = Form("0"), user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
+    """Синхронізація календаря з CleverBox: on=1 — увімкнути, 0 — вимкнути (записи, що вже є, лишаються)."""
+    from .integrations.cleverbox import set_calendar_frozen
+    set_calendar_frozen(db, on != "1")
+    audit(db, "cleverbox.calendar_sync", user=user, enabled=on == "1")
+    return RedirectResponse(_with_msg("/data#cleverbox", "Синхронізацію календаря з CleverBox " + ("увімкнено" if on == "1" else "вимкнено")), 303)
+
+
 @app.get("/data", response_class=HTMLResponse)
 def data_page(request: Request, user: User = Depends(require("export_reports")), db: Session = Depends(db_dep)):
     last = db.get(SyncState, "last_migration")
@@ -2261,7 +2275,7 @@ def data_page(request: Request, user: User = Depends(require("export_reports")),
                   cb_last_success=cb_success.value if cb_success else None,
                   cb_last_error=cb_error.value if cb_error else None,
                   cb_next_sync=job.next_run_time if job else None,
-                  cb_auto_sync=auto_sync_enabled(),
+                  cb_auto_sync=auto_sync_enabled(), cal_frozen=__import__("app.integrations.cleverbox", fromlist=["x"]).calendar_frozen(db),
                   cb_notice=request.query_params.get("cb_notice"),
                   wh=cb_webhooks.status(db) if user.role == "owner" else None,
                   wh_url=cb_webhooks.hook_url(db) if user.role == "owner" else None,

@@ -31,6 +31,8 @@ def test_sections(monkeypatch, tmp_path):
 
     with TestClient(app) as c:
         login(c, settings.owner_login, "owner-pass-1")
+        with SessionLocal() as db:                       # тут перевіряємо саме синхронізацію календаря з CleverBox
+            cbm.set_calendar_frozen(db, False)
         c.post("/upload", files={"files": ("plan.pdf", PDF.read_bytes(), "application/pdf")})
         assert c.post("/actions/sync", follow_redirects=False).status_code == 303
 

@@ -73,6 +73,11 @@
           <input type="hidden" name="enabled" value="{{ '0' if cb_auto_sync else '1' }}">
           <button class="btn ghost" style="padding:3px 10px" {% if not cb %}disabled title="Спершу збережіть токен"{% endif %}>{{ 'Виключити оновлення' if cb_auto_sync else 'Включити оновлення' }}</button>
         </form>
+        <br><b>Календар із CleverBox:</b>
+        {% if cal_frozen %}<span class="pill warn">не синхронізується</span> з {{ cal_frozen.at.replace('T', ' ')[:16] }} — записи, що вже є, лишились; нові записи ведуться лише в CRM
+        {% else %}<span class="pill ok">синхронізується</span>{% endif %}
+        <form method="post" action="/settings/cleverbox-calendar" style="display:inline"><input type="hidden" name="on" value="{{ '1' if cal_frozen else '0' }}">
+          <button class="btn ghost" style="padding:3px 10px">{{ 'Увімкнути синхронізацію календаря' if cal_frozen else 'Вимкнути синхронізацію календаря' }}</button></form>
         {% if cb_last_success %}<br><span class="muted">Останнє успішне: {{ cb_last_success.replace('T',' ') }}</span>{% endif %}
         {% if cb_next_sync %}<br><span class="muted">Наступне: {{ cb_next_sync|dt('%d.%m.%Y %H:%M') }}</span>{% endif %}
         {% if cb_last_error %}<br><span style="color:var(--bad)">Остання помилка: {{ cb_last_error }}</span>{% endif %}

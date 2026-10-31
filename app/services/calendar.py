@@ -63,9 +63,12 @@ def events(db: Session, user: User, start: date, days: int = 7, doctor_id: int |
     durations = {i: m for i, m in db.execute(select(CbService.id, CbService.time_min)) if m and 5 <= m <= 480}
     merged: dict = {}
 
-    rows = db.scalars(select(Visit).where(Visit.starts_at >= s_dt, Visit.starts_at < e_dt,
-                                          Visit.status.in_(("booked", "attended", "done")))
-                      .order_by(Visit.starts_at)).all()
+    q_v = select(Visit).where(Visit.starts_at >= s_dt, Visit.starts_at < e_dt, Visit.status.in_(("booked", "attended", "done")))
+    from ..integrations.cleverbox import calendar_frozen
+    fz = calendar_frozen(db)
+    if fz:                               # синхронізацію календаря вимкнено — лише записи CleverBox, що були на момент вимкнення
+        q_v = q_v.where(Visit.id <= int(fz.get("max_visit") or 0))
+    rows = db.scalars(q_v.order_by(Visit.starts_at)).all()
     cal_days = {(v.patient_id, v.starts_at.date()) for v in rows if v.source != "cb_service_sale"}
     # записи CRM
     from ..models import Appointment

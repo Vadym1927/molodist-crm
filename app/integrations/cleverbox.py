@@ -376,6 +376,36 @@ CANCEL_RE = re.compile(r"скас|відмін|отмен|не\s*прийш|не
 DONE_RE = re.compile(r"викон|заверш|оплач|прийш|done", re.I)
 
 
+CAL_FROZEN = "cb_calendar_frozen"            # {"at": ISO, "max_visit": id} — календар не синхронізується з CleverBox
+
+
+def calendar_frozen(db: Session) -> dict | None:
+    """Синхронізацію календаря з CleverBox вимкнено: записи, що вже є, лишаються як є, нові й зміни не тягнуться."""
+    import json as _json
+    st = db.get(SyncState, CAL_FROZEN)
+    if not st or not st.value:
+        return None
+    try:
+        return _json.loads(st.value)
+    except ValueError:
+        return None
+
+
+def set_calendar_frozen(db: Session, on: bool) -> None:
+    import json as _json
+    st = db.get(SyncState, CAL_FROZEN)
+    if on:
+        mx = db.scalar(select(func.max(Visit.id))) or 0
+        val = _json.dumps({"at": datetime.now().isoformat(timespec="seconds"), "max_visit": int(mx)})
+        if not st:
+            db.add(SyncState(key=CAL_FROZEN, value=val))
+        else:
+            st.value, st.updated_at = val, datetime.utcnow()
+    elif st:
+        db.delete(st)
+    db.commit()
+
+
 def _state(db: Session, key: str, value: str | None = None) -> str | None:
     st = db.get(SyncState, key)
     if value is None:
@@ -605,6 +635,8 @@ def _service_names(db: Session) -> dict[int, str]:
 
 def sync_future_visits(db: Session, cb: CleverBox) -> int:
     """Майбутні записи — по кожному привʼязаному пацієнту з активним планом."""
+    if calendar_frozen(db):
+        return 0
     names = _service_names(db)
     # Не використовуємо SQL DISTINCT: PostgreSQL не має оператора рівності
     # для JSON-поля груп клієнта. ORM прибирає повтори без порівняння JSON.
@@ -800,6 +832,8 @@ def sync_checks(db: Session, cb: CleverBox, start: date, end: date) -> int:
 
 def sync_calendar(db: Session, cb: CleverBox, days: int = 14) -> int:
     """Записи на найближчі N днів для всіх клієнтів (розділ «Календар»). Нових клієнтів створює в CRM."""
+    if calendar_frozen(db):
+        return 0                                   # календар ведеться вручну в CRM — записи CleverBox не тягнемо
     names = _service_names(db)
     by_cb = {p.cleverbox_id: p for p in db.scalars(select(Patient).where(Patient.cleverbox_id.is_not(None)))}
     n = 0
