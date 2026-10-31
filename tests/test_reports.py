@@ -45,6 +45,9 @@ def test_reports_all_tabs():
             assert page.status_code == 200, k
         assert "Звітна чистка" in c.get("/reports?r=services&df=2031-03-01&dt_=2031-03-31").text
         assert c.get("/reports?period=prev_month").status_code == 200
+        hub = c.get("/reports").text                                # сторінка з блоками
+        assert "Фінанси" in hub and "Склад" in hub and "Співробітники" in hub and "В розробці" in hub
+        assert 'href="/reports?r=services"' in hub and "з CleverBox" in hub and "Касові зміни" in hub
         x = c.get("/reports?r=products&df=2031-03-01&dt_=2031-03-31&fmt=xlsx")
         assert x.status_code == 200 and x.content[:2] == b"PK"
         assert 'href="/reports"' in c.get("/").text

@@ -5457,6 +5457,9 @@ REPORT_PERIODS = {"today": "Сьогодні", "yesterday": "Вчора", "month
 def reports_page(request: Request, r: str = "revenue", period: str = "month", df: str | None = None, dt_: str | None = None,
                  fmt: str = "", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     from .services import reports as rp
+    if "r" not in request.query_params:                  # «Звіти» — сторінка з блоками
+        from .services import report_hub
+        return render(request, "reports_hub.html", nav="reports", blocks=report_hub.blocks())
     key = r if r in rp.REPORTS else "revenue"
     if key == "cashflow":
         return _cashflow_page(request, db, period, df)

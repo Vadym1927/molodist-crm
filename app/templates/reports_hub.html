@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Звіти · MOLODIST CRM{% endblock %}
+{% block body %}
+{% set ready = blocks|sum(attribute='ready') %}{% set total = blocks|sum(attribute='total') %}
+<style>
+.rh-hero{position:relative;overflow:hidden;border-radius:24px;padding:28px 30px;margin-bottom:22px;color:#fff;
+  background:radial-gradient(120% 160% at 100% 0%,#4A3D63 0%,#3B3050 42%,#2A2430 100%);box-shadow:0 22px 50px -32px rgba(42,36,48,.8)}
+.rh-hero:before{content:"";position:absolute;right:-70px;top:-90px;width:260px;height:260px;border-radius:50%;border:1px solid rgba(228,222,239,.14)}
+.rh-hero:after{content:"";position:absolute;right:40px;top:-40px;width:140px;height:140px;border-radius:50%;border:1px solid rgba(228,222,239,.1)}
+.rh-top{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;flex-wrap:wrap;position:relative;z-index:1}
+.rh-eb{font:600 10.5px var(--sans);letter-spacing:.22em;text-transform:uppercase;color:#C9BFE6}
+.rh-hero h1{margin:8px 0 0;color:#fff;font:500 32px/1.1 var(--head);letter-spacing:.06em;text-transform:uppercase}
+.rh-hero p{margin:10px 0 0;max-width:620px;color:rgba(255,255,255,.72);font-size:14px;line-height:1.55}
+.rh-k{display:flex;gap:10px}.rh-k div{background:rgba(255,255,255,.08);border:1px solid rgba(228,222,239,.18);border-radius:16px;padding:10px 16px;min-width:110px}
+.rh-k b{display:block;font:500 24px var(--head);color:#fff}.rh-k span{font:600 10.5px var(--sans);letter-spacing:.12em;text-transform:uppercase;color:#C9BFE6}
+.rh-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
+.rh-bar input{flex:1;min-width:240px;height:46px;border-radius:14px;border:1px solid #E6E0D8;background:#fff;padding:0 16px;font:14px var(--sans)}
+.rh-f{display:flex;gap:6px}.rh-f button{height:40px;padding:0 14px;border-radius:12px;border:1px solid #E6E0D8;background:#fff;font:600 13px var(--sans);color:#3B3050;cursor:pointer}
+.rh-f button.on{background:#3B3050;border-color:#3B3050;color:#fff}
+.rh-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:18px;align-items:start}
+.rh-b{background:#fff;border:1px solid #ECE7E1;border-radius:22px;overflow:hidden;box-shadow:0 1px 2px rgba(42,36,48,.04),0 14px 34px -26px rgba(42,36,48,.35)}
+.rh-bh{display:flex;gap:14px;align-items:center;padding:18px 20px 14px;border-bottom:1px solid #F3EFEA}
+.rh-ic{width:48px;height:48px;border-radius:16px;display:grid;place-items:center;flex:none;color:#3B3050;
+  background:linear-gradient(145deg,#F1EDF8,#E4DEEF);box-shadow:inset 0 0 0 1px #E4DEEF}
+.rh-bh h2{margin:0;font:600 15px var(--head);letter-spacing:.14em;text-transform:uppercase;color:#2A2430}
+.rh-bh p{margin:3px 0 0;font-size:12.5px;color:#8a8496;line-height:1.4}
+.rh-bh em{margin-left:auto;font:700 11.5px var(--sans);font-style:normal;color:#3B3050;background:#F1EDF8;border-radius:99px;padding:4px 10px;white-space:nowrap}
+.rh-l{display:flex;flex-direction:column}
+.rh-i{display:flex;align-items:center;gap:12px;padding:12px 20px;border-top:1px solid #F7F4F0;text-decoration:none;color:#2A2430;min-height:52px}
+.rh-i:first-child{border-top:0}
+.rh-i b{display:block;font:600 14px/1.35 var(--sans)}.rh-i small{display:block;font-size:12px;color:#9a93a6;margin-top:2px;line-height:1.35}
+.rh-i .t{flex:1;min-width:0}.rh-i .ch{color:#C9BFE6;font-size:20px;transition:transform .15s,color .15s}
+a.rh-i:hover{background:#FBFAF8}a.rh-i:hover .ch{transform:translateX(3px);color:#3B3050}a.rh-i:hover b{color:#3B3050}
+.rh-i.dev{cursor:default}.rh-i.dev b{color:#9a93a6;font-weight:500}
+.rh-p{font:700 10.5px var(--sans);letter-spacing:.04em;border-radius:99px;padding:3px 9px;white-space:nowrap;flex:none}
+.rh-p.dev{background:#FFF1D6;color:#9A6A00}.rh-p.cb{background:#F2EFEA;color:#6b6575}.rh-p.new{background:#E4DEEF;color:#3B3050}
+.rh-tags{display:flex;gap:4px;flex-direction:column;align-items:flex-end}
+.rh-note{margin-top:18px;font-size:12.5px;color:#8a8496;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+@media(max-width:720px){.rh-g{grid-template-columns:1fr}.rh-hero h1{font-size:24px}}
+</style>
+<div class="rh-hero"><div class="rh-top">
+  <div><div class="rh-eb">Аналітика клініки</div><h1>Звіти</h1><p>Усі звіти CRM блоками. Готові відкриваються одразу; позначені «В розробці» — ті, що є в CleverBox і ще не перенесені, та нові, яких бракувало.</p></div>
+  <div class="rh-k"><div><b>{{ ready }}</b><span>Готові</span></div><div><b>{{ total - ready }}</b><span>В розробці</span></div></div></div></div>
+<div class="rh-bar"><input id="rhq" placeholder="Знайти звіт…" oninput="rhF()" autocomplete="off">
+  <div class="rh-f" id="rhf"><button type="button" class="on" data-f="all" onclick="rhSet(this)">Усі</button><button type="button" data-f="ready" onclick="rhSet(this)">Готові</button><button type="button" data-f="dev" onclick="rhSet(this)">В розробці</button></div></div>
+<div class="rh-g">{% for b in blocks %}
+  <section class="rh-b" data-b>
+    <div class="rh-bh"><span class="rh-ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">{{ b.icon|safe }}</svg></span>
+      <div><h2>{{ b.title }}</h2><p>{{ b.text }}</p></div><em>{{ b.ready }} / {{ b.total }}</em></div>
+    <div class="rh-l">{% for it in b['items'] %}
+      {% if it.url %}<a class="rh-i" href="{{ it.url }}" data-s="ready" data-q="{{ (it.title ~ ' ' ~ it.hint)|lower }}"><span class="t"><b>{{ it.title }}</b>{% if it.hint %}<small>{{ it.hint }}</small>{% endif %}</span><span class="ch">›</span></a>
+      {% else %}<div class="rh-i dev" data-s="dev" data-q="{{ (it.title ~ ' ' ~ it.hint)|lower }}"><span class="t"><b>{{ it.title }}</b>{% if it.hint %}<small>{{ it.hint }}</small>{% endif %}</span>
+        <span class="rh-tags"><span class="rh-p dev">В розробці</span><span class="rh-p {{ it.src }}">{{ 'з CleverBox' if it.src == 'cb' else 'нове' }}</span></span></div>{% endif %}
+    {% endfor %}</div></section>
+{% endfor %}</div>
+<div class="rh-note"><span><span class="rh-p dev">В розробці</span> ще не готово</span><span><span class="rh-p cb">з CleverBox</span> є в CleverBox, буде перенесено</span><span><span class="rh-p new">нове</span> бракувало і в CleverBox, і в CRM</span></div>
+<script>
+var RHF='all';
+function rhSet(b){RHF=b.dataset.f;document.querySelectorAll('#rhf button').forEach(function(x){x.classList.toggle('on',x===b)});rhF()}
+function rhF(){var q=(document.getElementById('rhq').value||'').trim().toLowerCase();
+  document.querySelectorAll('[data-b]').forEach(function(s){var n=0;s.querySelectorAll('.rh-i').forEach(function(i){
+    var ok=(!q||i.dataset.q.indexOf(q)>=0)&&(RHF==='all'||i.dataset.s===RHF);i.style.display=ok?'':'none';if(ok)n++});s.style.display=n?'':'none'})}
+</script>
+{% endblock %}

@@ -39,7 +39,7 @@
 .rp-tb td.c-share span{display:inline-block;border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:12.5px}
 </style>
 <div class="row between" style="align-items:flex-end;flex-wrap:wrap;gap:10px">
-  <div><div class="eyebrow">Аналітика клініки</div><h1>Звіти</h1>
+  <div><div class="eyebrow"><a href="/reports" style="color:inherit;text-decoration:none">← Усі звіти · Аналітика клініки</a></div><h1>Звіти</h1>
     <div class="muted small">{{ d_from|dt('%d.%m.%Y') }} — {{ d_to|dt('%d.%m.%Y') }} · порівняння з {{ p_from|dt('%d.%m.%Y') }} — {{ p_to|dt('%d.%m.%Y') }}</div></div>
   {% set fq = namespace(s='') %}{% for f in rep.filters %}{% if f.value %}{% set fq.s = fq.s ~ '&' ~ f.name ~ '=' ~ (f.value|urlencode) %}{% endif %}{% endfor %}
   <a class="btn ghost" href="?r={{ key }}&df={{ d_from }}&dt_={{ d_to }}{{ fq.s }}&fmt=xlsx">⤓ Excel</a>
