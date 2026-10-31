@@ -33,6 +33,14 @@ def test_payroll_doc_period():
         db.add(s); db.commit()
         rows = {r["doctor"].name: r for r in pd.compute(db, date(2026, 10, 16), date(2026, 10, 31))}
         assert rows["Адмін Денна"]["days"] == 3 and rows["Адмін Денна"]["calc"] == 3600
+        assert [z["day"] for z in rows["Адмін Денна"]["detail"]["shifts"]] == ["2026-10-17", "2026-10-18", "2026-10-20"]
+        assert rows["Адмін Денна"]["detail"]["shifts"][0]["sum"] == 1200
+        d3 = Doctor(name="Без Графіка", active=True, extra={"salary": "Док денний"}); db.add(d3)
+        db.add(Check(id=880102, date=datetime(2026, 10, 22, 12), amount=500, deleted=False, payments=[],
+                     items=[{"item_type": "service", "item_name": "Чай", "payd_amount": 500, "quantity": 1, "initiator_name": "Без Графіка"}]))
+        db.commit()
+        z = {r["doctor"].name: r for r in pd.compute(db, date(2026, 10, 16), date(2026, 10, 31))}["Без Графіка"]
+        assert z["calc"] == 0 and z["days"] == 0 and z["detail"]["needs_schedule"]       # ставка лише за графіком
         k = rows["Лікарка Комісійна"]
         assert k["detail"]["comm_services"] == 600 and k["detail"]["comm_products"] == 100
         assert k["detail"]["fixed"] == 16000                      # 31000 × 16/31

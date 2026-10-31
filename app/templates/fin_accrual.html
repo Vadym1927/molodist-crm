@@ -52,7 +52,7 @@ button.lnk{border:0;background:none;color:#5C4B82;cursor:pointer;font-weight:700
     {% if dt.comm_services %}послуги {{ dt.comm_services|uah }} (з {{ dt.services|uah }}, {{ dt.n }} посл.)<br>{% elif dt.services %}послуги {{ dt.services|uah }} · {{ dt.n }} посл.<br>{% endif %}
     {% if dt.comm_products %}товари {{ dt.comm_products|uah }} (з {{ dt.products|uah }})<br>{% elif dt.products %}товари {{ dt.products|uah }}<br>{% endif %}
     {% if dt.turn %}% від обороту {{ dt.turn|uah }}<br>{% endif %}
-    {% if dt.by_schedule is false %}<span style="color:#9A6A00">днів за продажами — графік не заповнений</span>{% endif %}</div></td>
+    {% if dt.needs_schedule %}<span style="color:#B23B2E">ставка 0 — у «Графіку співробітників» немає змін за період</span>{% endif %}</div></td>
   {% if doc %}<td class="r acc">{% if (r.amount - r.calc)|abs > 0.009 %}<s title="Розраховано">{{ r.calc|uah }}</s>{% endif %}{{ r.amount|uah }}</td>
   {% else %}<td class="r"><input class="amt" name="a_{{ dc.id }}" value="{{ '%.2f'|format(r.amount) }}" inputmode="decimal" title="Можна виправити вручну"></td>{% endif %}
   <td class="r">{{ (bal.get(dc.id, 0))|uah }}</td>
@@ -62,7 +62,11 @@ button.lnk{border:0;background:none;color:#5C4B82;cursor:pointer;font-weight:700
     {% else %}<button class="btn" style="height:36px;padding:0 12px" name="post_one" value="{{ dc.id }}" title="Зберегти документ і додати на баланс лише цього співробітника">Зберегти на баланс</button>{% endif %}</td></tr>
 <tr class="pa-det" id="det{{ dc.id }}" hidden><td colspan="7"><div class="pa-bd">
   <div class="pa-sum"><div><span>Зарплата за період</span><b>{{ d_from|dt('%d.%m.%Y') }} – {{ d_to|dt('%d.%m.%Y') }}</b></div><div><span>Днів у періоді</span><b>{{ dt.period_days or ((d_to - d_from).days + 1) }}</b></div>
-    <div><span>Відпрацьовано</span><b>{{ r.days }}{{ ' (за продажами)' if dt.by_schedule is false }}</b></div>{% if dt.plan_fixed %}<div><span>Ставка</span><b>{{ dt.plan_fixed }} → {{ (dt.fixed or 0)|uah }}</b></div>{% endif %}</div>
+    <div><span>Відпрацьовано за графіком</span><b>{{ r.days }}</b></div>{% if dt.plan_fixed %}<div><span>Ставка</span><b>{{ dt.plan_fixed }} → {{ (dt.fixed or 0)|uah }}</b></div>{% endif %}</div>
+  {% if dt.shifts %}<table class="tb small pa-it"><thead><tr><th>Зміна за графіком</th><th>Час</th><th class="r">Годин</th><th class="r">Ставка</th></tr></thead><tbody>
+    {% for z in dt.shifts %}<tr><td>{{ z.day[8:10] }}.{{ z.day[5:7] }}.{{ z.day[:4] }}</td><td>{{ z.start }}–{{ z.end }}</td><td class="r">{{ '%g'|format(z.hours) }}</td><td class="r"><b>{{ z.sum|uah }}</b></td></tr>{% endfor %}</tbody>
+    <tfoot><tr><td colspan="3">Ставка за {{ dt.shifts|length }} змін</td><td class="r">{{ (dt.shifts|sum(attribute='sum'))|uah }}</td></tr></tfoot></table>
+  {% elif dt.needs_schedule %}<div class="muted" style="color:#B23B2E">Оклад зі ставкою, але в «Графіку співробітників» за цей період немає змін — заповніть графік, і ставка порахується. <a href="/specialists/schedule?m={{ d_from|dt('%Y-%m') }}">Відкрити графік</a></div>{% endif %}
   {% if dt['items'] %}<table class="tb small pa-it"><thead><tr><th>Дата</th><th>Найменування</th><th class="r">Оплачено</th><th>Ставка</th><th class="r">Сума</th></tr></thead><tbody>
     {% for it in dt['items'] %}<tr><td style="white-space:nowrap">{{ it.at[8:10] }}.{{ it.at[5:7] }}.{{ it.at[:4] }}{% if it.at|length > 10 %} {{ it.at[11:16] }}{% endif %}</td>
       <td><b>{{ it.name }}</b>{{ (' × ' ~ ('%g'|format(it.qty))) if it.qty != 1 }}<div class="muted">{{ {'service':'послуга','product':'товар','certificate':'сертифікат','subscription':'абонемент'}.get(it.type, it.type) }}{{ (' · ' ~ it.ref) if it.ref }}</div></td>
@@ -72,6 +76,7 @@ button.lnk{border:0;background:none;color:#5C4B82;cursor:pointer;font-weight:700
       {% if dt.fixed %}<tr><td colspan="4">Ставка</td><td class="r">{{ dt.fixed|uah }}</td></tr>{% endif %}
       {% if dt.turn %}<tr><td colspan="4">% від обороту клініки</td><td class="r">{{ dt.turn|uah }}</td></tr>{% endif %}
       <tr><td colspan="4"><b>Разом розраховано</b></td><td class="r"><b>{{ r.calc|uah }}</b></td></tr></tfoot></table>
+  {% elif dt.shifts or dt.needs_schedule %}
   {% elif not r.plan %}<div class="muted">Оклад не призначено — оберіть його в картці співробітника (поле «Зарплата»).</div>
   {% else %}<div class="muted">{% if dt.services or dt.products %}Є продажі, але в окладі «{{ r.plan }}» не задано відсотків — заповніть ставки в «Налаштування → Оклади».{% else %}За період немає позицій у чеках, де співробітник — ініціатор.{% endif %}</div>{% endif %}
 </div></td></tr>
@@ -82,7 +87,7 @@ button.lnk{border:0;background:none;color:#5C4B82;cursor:pointer;font-weight:700
 <div class="pa-per" style="margin-top:12px;justify-content:space-between"><label style="flex:1">Коментар<textarea name="comment" style="width:100%"></textarea></label>
   <div style="display:flex;gap:8px"><button class="btn ghost">Зберегти</button><button class="btn" name="post" value="1">Зберегти й на баланс</button></div></div>
 </form>{% endif %}
-<p class="muted small" style="margin-top:12px">Як рахується: ставка «за день» — робочі дні з графіка за період (немає графіка — дні з продажами), «за годину» — години змін, «за місяць» — пропорційно частці місяця. Комісійні — за позиціями чеків CleverBox (ініціатор) і продажів каси CRM (спеціаліст) за ставками окладу; «мінімум за день» — більше з мінімуму й комісійних. % від обороту — від усіх продажів клініки. Баланс — нараховано в проведених документах мінус виплати зарплати у фінопераціях.</p>
+<p class="muted small" style="margin-top:12px">Як рахується: ставка «за день» — зміни з «Графіка співробітників» за період (немає змін — ставка 0), «за годину» — години змін, «за місяць» — пропорційно частці місяця. Комісійні — за позиціями чеків CleverBox (ініціатор) і продажів каси CRM (спеціаліст) за ставками окладу; «мінімум за день» — більше з мінімуму й комісійних. % від обороту — від усіх продажів клініки. Баланс — нараховано в проведених документах мінус виплати зарплати у фінопераціях.</p>
 <script>
 function paToggle(e,id){if(e.target.closest('a,button,input,select,textarea'))return;var d=document.getElementById('det'+id),r=document.getElementById('d'+id);d.hidden=!d.hidden;r.classList.toggle('open',!d.hidden)}
 </script>

@@ -185,7 +185,7 @@ def _amt(base_cost: float, base_paid: float, qty: float, v: float, mode: str) ->
 
 def accrue(p: dict, lines: list[dict], days: set, hours: float, clinic: list[dict]) -> dict:
     """lines — позиції співробітника за місяць: {day, type service|product|certificate|subscription, name, category, brand,
-    cost (вартість), paid (оплачено), qty, disc}; days — робочі дні (графік або дні з продажами); clinic — усі позиції клініки."""
+    cost (вартість), paid (оплачено), qty, disc}; days — робочі дні з графіка співробітників; clinic — усі позиції клініки."""
     out = {"fixed": 0.0, "comm": 0.0, "comm_services": 0.0, "comm_products": 0.0, "turn": 0.0}
     fx = p["fixed"]
     if fx["on"]:

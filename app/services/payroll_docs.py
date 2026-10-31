@@ -2,7 +2,7 @@
 
 Алгоритм для кожного співробітника з окладом у картці (Doctor.extra["salary"] = назва окладу):
   період ділиться на частини по календарних місяцях; для кожної частини —
-  • фіксована ставка: за день × робочі дні графіка в періоді (немає графіка — дні з послугами/продажами),
+  • фіксована ставка: за день × робочі дні з «Графіка співробітників» у періоді (немає змін у графіку — ставка 0),
     за годину × години змін графіка, за місяць — пропорційно частці місяця в періоді (1–15 з 31 → 15/31);
   • комісійні: за кожну позицію чеків, де співробітник — ініціатор (CleverBox) або спеціаліст у продажі CRM:
     окрема ставка (послуга / категорія / товар / бренд) або загальна для послуг / товарів / сертифікатів / абонементів;
@@ -59,13 +59,11 @@ def compute(db: Session, d_from: date, d_to: date) -> list[dict]:
                "n": int(sum(ln["qty"] for ln in lines if ln["type"] == "service")), "by_schedule": True}
         days_all: set = set()
         items: list = []
+        shifts: list = []
         if pl:
             for a, b in _chunks(d_from, d_to):
                 lns = [ln for ln in lines if a <= ln["day"] <= b]
-                days = {dd for (did, dd) in sh if did == d.id and a <= dd <= b}
-                if not days:
-                    days = {ln["day"] for ln in lns}
-                    det["by_schedule"] = False if lns else det["by_schedule"]
+                days = {dd for (did, dd) in sh if did == d.id and a <= dd <= b}     # робочі дні — лише з графіка співробітників
                 hours = sum(s.minutes for (did, dd), s in sh.items() if did == d.id and a <= dd <= b) / 60
                 cl = [ln for v in clinic.values() for ln in v if a <= ln["day"] <= b]
                 res = spl.accrue(pl, lns, days, hours, cl)
@@ -81,6 +79,12 @@ def compute(db: Session, d_from: date, d_to: date) -> list[dict]:
                     mdays = calendar.monthrange(a.year, a.month)[1]
                     fx = round(pl["fixed"]["amount"] * ((b - a).days + 1) / mdays, 2)
                 det["fixed"] += fx
+                if pl["fixed"]["on"] and pl["fixed"]["period"] in ("day", "hour"):  # ставка по кожній зміні графіка
+                    for dd in sorted(days):
+                        z = sh[(d.id, dd)]
+                        hrs = round(z.minutes / 60, 2)
+                        shifts.append({"day": dd.isoformat(), "start": z.start, "end": z.end, "hours": hrs,
+                                       "sum": round(pl["fixed"]["amount"] * (hrs if pl["fixed"]["period"] == "hour" else 1), 2)})
                 det["comm_services"] += res["comm_services"]
                 det["comm_products"] += res["comm"] - res["comm_services"]
                 det["turn"] += res["turn"]
@@ -88,6 +92,9 @@ def compute(db: Session, d_from: date, d_to: date) -> list[dict]:
                 days_all |= days
         det = {k: (round(v, 2) if isinstance(v, float) else v) for k, v in det.items()}
         det["items"] = sorted(items, key=lambda x: x["at"])
+        det["shifts"] = shifts
+        det["by_schedule"] = bool(days_all)
+        det["needs_schedule"] = bool(pl and pl["fixed"]["on"] and pl["fixed"]["period"] in ("day", "hour") and not days_all)
         det["period_days"] = (d_to - d_from).days + 1
         det["min_day_extra"] = round(det["comm_services"] + det["comm_products"] - sum(x["sum"] for x in items), 2)
         det["plan_fixed"] = (f"{pl['fixed']['amount']:g} ₴ " + {"day": "за день", "month": "за місяць", "hour": "за годину"}[pl["fixed"]["period"]]) \
