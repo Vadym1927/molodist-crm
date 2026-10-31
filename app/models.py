@@ -1038,6 +1038,21 @@ class PayrollLine(Base):
     doc: Mapped[PayrollDoc] = relationship(back_populates="lines")
 
 
+class PriceAlert(Base):
+    """Центр моніторингу цін: сповіщення про перехід у вищу зону подорожчання (товар складу або собівартість послуги)."""
+    __tablename__ = "price_alerts"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String(10), index=True)        # product | service
+    item_id: Mapped[int] = mapped_column(Integer, index=True)
+    name: Mapped[str] = mapped_column(String(300))
+    zone: Mapped[int] = mapped_column(Integer)                      # 1..4
+    base: Mapped[float] = mapped_column(Float)
+    current: Mapped[float] = mapped_column(Float)
+    note: Mapped[str | None] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    seen_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
 class VisitNote(Base):
     """Нотатка до візиту в календарі (вкладка «Нотатка» вікна візиту). key: appt:<id> | cb:<Visit.id>."""
     __tablename__ = "visit_notes"

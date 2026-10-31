@@ -173,6 +173,18 @@ async def job_campaigns():
         log.exception("campaigns job failed")
 
 
+async def job_price_monitor():
+    """Щогодини: ціни після синку CleverBox / поставок — зони подорожчання й сповіщення."""
+    def _run():
+        from .services import price_monitor as pm
+        with SessionLocal() as db:
+            return pm.scan(db)
+    try:
+        await asyncio.to_thread(_run)
+    except Exception:              # noqa: BLE001
+        log.exception("price monitor failed")
+
+
 async def job_message_statuses():
     from .services import campaigns as camp
     def _refresh():
@@ -330,6 +342,7 @@ async def lifespan(app: FastAPI):
         sched.add_job(job_backup, "cron", hour=settings.backup_hour, minute=30)
         sched.add_job(job_campaigns, "interval", minutes=5)
         sched.add_job(job_message_statuses, "interval", minutes=30)
+        sched.add_job(job_price_monitor, "cron", minute=40)
         sched.add_job(job_checkbox, "cron", hour="8,14,23", minute=50)
         sched.add_job(job_mono, "cron", minute=20)
         sched.add_job(job_rematch, "date", run_date=datetime.now() + timedelta(seconds=40))   # після оновлення — одразу
@@ -373,7 +386,7 @@ class _DropEmptyQuery:
 class _BankFees:
     """Після операцій з грошима (продаж, оплата, повернення, фіноперація, онлайн-оплата) — списання комісії банку
     в журнал фіноперацій за налаштуваннями кас (cashboxes.sync_fees, ідемпотентно)."""
-    PREFIX = ("/sales", "/finance/ops", "/paylinks", "/pay/", "/api/")
+    PREFIX = ("/sales", "/finance/ops", "/paylinks", "/pay/", "/api/", "/stock", "/products")
 
     def __init__(self, app_):
         self.app = app_
@@ -391,6 +404,12 @@ class _BankFees:
                 _cbx.sync_fees(_db)
         except Exception as e:  # noqa: BLE001
             log.warning("Комісія банку: %s", e)
+        try:                                             # центр моніторингу цін: новий прихід → зони подорожчання
+            from .services import price_monitor as _pm
+            with SessionLocal() as _db:
+                _pm.scan(_db)
+        except Exception as e:  # noqa: BLE001
+            log.warning("Моніторинг цін: %s", e)
 
 
 app.add_middleware(_BankFees)
@@ -420,6 +439,12 @@ def render(request: Request, name: str, **ctx):
         from .services.tasks import counts_for
         with SessionLocal() as db:
             counts = counts_for(db, user)
+            if can(user, "stock"):
+                try:
+                    from .services.price_monitor import unseen as _pu
+                    counts = dict(counts or {}, prices=_pu(db))
+                except Exception:  # noqa: BLE001
+                    pass
     return templates.TemplateResponse(request, name, {"request": request, "nav": name.split(".")[0],
                                                       "user": user, "task_counts": counts, **ctx})
 
@@ -5090,6 +5115,65 @@ def stock_norm_add(service_id: int = Form(...), product: str = Form(...), qty: s
     db.commit()
     audit(db, "stock.norm_add", user=user, service=service_id, techcard=techcard or None, services=len(ids), product=pr.id)
     return RedirectResponse(f"/stock?tab=norms#s{service_id}", 303)
+
+
+# ---------------- Центр моніторингу цін ----------------
+@app.get("/prices", response_class=HTMLResponse)
+def prices_page(request: Request, tab: str = "products", wh: str = "", zone: str = "", q: str = "",
+                user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .services import price_monitor as pm
+    from .models import PriceAlert
+    pm.scan(db, notify=True)
+    d = pm.cfg(db)
+    prods, svcs = pm.products(db, d), pm.services(db, d)
+    ql = q.strip().lower()
+    rows = prods if tab == "products" else svcs
+    if tab == "products" and wh in pm.WAREHOUSES:
+        rows = [r for r in rows if r["wh"] == wh]
+    if zone.isdigit():
+        rows = [r for r in rows if r["zone"] == int(zone)] if zone != "9" else [r for r in rows if r["zone"] > 0]
+    if ql:
+        rows = [r for r in rows if ql in (r["name"] or "").lower() or ql in (r.get("brand") or "").lower() or ql in (r.get("category") or "").lower()]
+    rows = sorted(rows, key=lambda r: (-r["zone"], -(r["diff"] or 0), r["name"]))
+    alerts_ = db.scalars(select(PriceAlert).order_by(PriceAlert.created_at.desc()).limit(300)).all()
+    stat = lambda xs: [sum(1 for r in xs if r["zone"] == z) for z in range(5)]  # noqa: E731
+    return render(request, "prices.html", nav="stock", tab=tab, rows=rows, d=d, pm=pm, wh=wh, zone=zone, q=q, alerts=alerts_,
+                  st_p=stat(prods), st_s=stat(svcs), n_p=len(prods), n_s=len(svcs), unseen=pm.unseen(db))
+
+
+@app.post("/prices/settings")
+async def prices_settings(request: Request, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .services import price_monitor as pm
+    f = await request.form()
+    d = pm.cfg(db)
+    def zs(prefix):
+        vals = [_num(str(f.get(f"{prefix}{i}") or "").replace(",", ".")) or 0 for i in range(1, 5)]
+        return sorted(round(float(v), 2) for v in vals)
+    for k in pm.WAREHOUSES:
+        d["zones"][k] = zs(f"z_{k}_")
+    d["svc_zones"] = zs("z_svc_")
+    d["tg"] = bool(f.get("tg"))
+    pm.save_cfg(db, d)
+    audit(db, "prices.settings", user=user, zones=d["zones"], svc_zones=d["svc_zones"])
+    return RedirectResponse(_with_msg("/prices?tab=settings", "Зони збережено"), 303)
+
+
+@app.post("/prices/accept")
+def prices_accept(kind: str = Form(...), item_id: int = Form(...), back: str = Form("/prices"), user: User = Depends(require("stock")),
+                  db: Session = Depends(db_dep)):
+    from .services import price_monitor as pm
+    pm.accept(db, "service" if kind == "service" else "product", item_id)
+    audit(db, "prices.accept", user=user, kind=kind, item=item_id)
+    return RedirectResponse(_with_msg(back if back.startswith("/prices") else "/prices", "Поточну ціну прийнято як стартову"), 303)
+
+
+@app.post("/prices/alerts/seen")
+def prices_alerts_seen(user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .models import PriceAlert
+    for a in db.scalars(select(PriceAlert).where(PriceAlert.seen_at.is_(None))):
+        a.seen_at = datetime.utcnow()
+    db.commit()
+    return RedirectResponse("/prices?tab=alerts", 303)
 
 
 @app.post("/stock/norms/cost")

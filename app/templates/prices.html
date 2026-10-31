@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Моніторинг цін · MOLODIST CRM{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}{% set back = request.url.path ~ '?' ~ request.url.query %}
+<style>
+.pm-hero{position:relative;overflow:hidden;border-radius:24px;padding:26px 30px 0;margin-bottom:18px;color:#fff;
+  background:radial-gradient(120% 160% at 100% 0%,#4A3D63 0%,#3B3050 42%,#2A2430 100%);box-shadow:0 22px 50px -32px rgba(42,36,48,.8)}
+.pm-hero:before{content:"";position:absolute;right:-70px;top:-90px;width:260px;height:260px;border-radius:50%;border:1px solid rgba(228,222,239,.14)}
+.pm-top{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;flex-wrap:wrap;position:relative;z-index:1}
+.pm-eb{font:600 10.5px var(--sans);letter-spacing:.22em;text-transform:uppercase;color:#C9BFE6}
+.pm-hero h1{margin:8px 0 0;color:#fff;font:500 30px/1.15 var(--head);letter-spacing:.05em;text-transform:uppercase}
+.pm-hero p{margin:10px 0 0;max-width:640px;color:rgba(255,255,255,.72);font-size:14px;line-height:1.55}
+.pm-zs{display:flex;gap:8px;flex-wrap:wrap}.pm-zs a{display:block;min-width:92px;border-radius:14px;padding:8px 12px;text-decoration:none;border:1px solid rgba(228,222,239,.18);background:rgba(255,255,255,.07)}
+.pm-zs a b{display:block;font:500 22px var(--head);color:#fff}.pm-zs a span{font:600 10px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#C9BFE6;display:flex;align-items:center;gap:6px}
+.pm-zs a span i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.pm-tabs{display:flex;gap:4px;margin-top:20px;position:relative;z-index:1;overflow-x:auto}
+.pm-tabs a{flex:none;padding:12px 16px 14px;font:600 13px var(--sans);color:rgba(255,255,255,.62);text-decoration:none;border-bottom:2px solid transparent}
+.pm-tabs a:hover{color:#fff}.pm-hero .pm-tabs a.on{color:#fff!important;background:transparent!important;box-shadow:none!important;border-radius:0!important;border-bottom-color:#C9BFE6}.pm-tabs a em{font-style:normal;background:#C0392B;color:#fff;border-radius:99px;padding:1px 7px;font-size:11px;margin-left:6px}
+.pm-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.pm-bar input,.pm-bar select{height:44px}.pm-bar input[name=q]{flex:1;min-width:220px}
+.pm-chip{display:inline-flex;align-items:center;height:36px;padding:0 12px;border-radius:12px;border:1px solid #E6E0D8;background:#fff;font:600 13px var(--sans);color:#3B3050;text-decoration:none}
+.pm-chip.on{background:#3B3050;color:#fff;border-color:#3B3050}
+.pm-card{background:#fff;border:1px solid #ECE7E1;border-radius:20px;overflow:auto;box-shadow:0 1px 2px rgba(42,36,48,.04),0 14px 34px -26px rgba(42,36,48,.35)}
+.pm-tb{width:100%;border-collapse:collapse}.pm-tb th{position:sticky;top:0;background:#FBFAF8;font:700 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496;padding:11px 12px;text-align:left;white-space:nowrap}
+.pm-tb td{padding:11px 12px;border-top:1px solid #F3EFEA;vertical-align:top;font-size:13.5px}.pm-tb .r{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.pm-tb tr.z td:first-child{box-shadow:inset 4px 0 0 var(--zc)}.pm-tb tr.z{background:linear-gradient(90deg,var(--zb) 0,#fff 55%)}
+.pm-tb .nm b{font:600 14px var(--sans);color:#2A2430}.pm-tb .nm small{display:block;color:#9a93a6;font-size:12px;margin-top:2px}
+.pm-z{display:inline-block;border-radius:99px;padding:3px 10px;font:700 11.5px var(--sans);white-space:nowrap}
+.pm-up{font-weight:700}.pm-up.pos{color:#B23B2E}.pm-up.neg{color:#2E7D32}
+.pm-h{display:flex;gap:4px;flex-wrap:wrap;max-width:360px}.pm-h span{font-size:11.5px;background:#F7F4F0;border-radius:8px;padding:2px 7px;color:#4a4458;white-space:nowrap;font-variant-numeric:tabular-nums}
+.pm-h span.st{background:#E4DEEF;color:#3B3050;font-weight:700}
+.pm-parts{font-size:12px;color:#6b6575;line-height:1.5;margin-top:4px}
+.pm-acc{border:1px solid #E6E0D8;background:#fff;border-radius:10px;height:32px;padding:0 10px;font:700 12px var(--sans);color:#3B3050;cursor:pointer;white-space:nowrap}
+.pm-acc:hover{background:#F6F3FB;border-color:#C9BFE6}
+.pm-set{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}
+.pm-set .box{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:16px}
+.pm-set h4{margin:0 0 10px;font:600 12px var(--head);letter-spacing:.14em;text-transform:uppercase;color:#3B3050}
+.pm-set .zz{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.pm-set .zz label{min-width:0}.pm-set .zz input{width:100%;min-width:0;padding:0 8px}.pm-set label{display:grid;gap:4px;font:700 10.5px var(--sans);color:#8a8496;text-transform:uppercase;letter-spacing:.06em}
+.pm-set label i{display:block;height:6px;border-radius:3px}.pm-set input{height:42px;text-align:right;font-weight:700}
+.pm-al{display:grid;gap:8px}.pm-al .a{display:flex;gap:12px;align-items:center;background:#fff;border:1px solid #ECE7E1;border-left:5px solid var(--zc);border-radius:14px;padding:10px 14px}
+.pm-al .a.new{box-shadow:0 0 0 2px #E4DEEF}.pm-al .a div{flex:1}.pm-al b{font:600 14px var(--sans)}.pm-al small{color:#8a8496;display:block;font-size:12px}
+.pm-leg{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;font-size:12px;color:#6b6575}.pm-leg i{display:inline-block;width:14px;height:14px;border-radius:4px;margin-right:6px;vertical-align:-3px}
+</style>
+<div class="pm-hero"><div class="pm-top">
+  <div><div class="pm-eb">Склад · фінанси</div><h1>Центр моніторингу цін</h1>
+    <p>Стартова ціна кожної позиції складу й кожен новий прихід; собівартість послуг прайсу за техкартами. Подорожчання розкладається на 4 зони — перехід у вищу зону дає сповіщення в CRM і в Telegram-бот.</p></div>
+  <div class="pm-zs">{% set st = st_s if tab == 'services' else st_p %}{% for z in range(4, 0, -1) %}<a href="?tab={{ 'services' if tab == 'services' else 'products' }}&zone={{ z }}"><b>{{ st[z] }}</b><span><i style="background:{{ pm.ZONE_INK[z] }}"></i>{{ pm.ZONE_NAMES[z] }}</span></a>{% endfor %}</div></div>
+  <nav class="pm-tabs"><a href="?tab=products" class="{{ 'on' if tab == 'products' }}">Товари складу · {{ n_p }}</a><a href="?tab=services" class="{{ 'on' if tab == 'services' }}">Собівартість послуг · {{ n_s }}</a>
+    <a href="?tab=alerts" class="{{ 'on' if tab == 'alerts' }}">Сповіщення{% if unseen %}<em>{{ unseen }}</em>{% endif %}</a><a href="?tab=settings" class="{{ 'on' if tab == 'settings' }}">Зони подорожчання</a></nav></div>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+
+{% if tab in ('products', 'services') %}
+<form class="pm-bar"><input type="hidden" name="tab" value="{{ tab }}"><input name="q" value="{{ q }}" placeholder="{{ 'Товар, бренд…' if tab == 'products' else 'Послуга, категорія…' }}">
+  {% if tab == 'products' %}<select name="wh" onchange="this.form.submit()"><option value="">Усі склади</option>{% for k, v in pm.WAREHOUSES.items() %}<option value="{{ k }}" {{ 'selected' if wh == k }}>{{ v }}</option>{% endfor %}</select>{% endif %}
+  <select name="zone" onchange="this.form.submit()"><option value="">Усі зони</option><option value="9" {{ 'selected' if zone == '9' }}>Лише подорожчання</option>{% for z in range(5) %}<option value="{{ z }}" {{ 'selected' if zone == z|string }}>{{ pm.ZONE_NAMES[z] }}</option>{% endfor %}</select>
+  <button class="btn ghost" style="height:44px">Знайти</button></form>
+<div class="pm-card"><table class="pm-tb"><thead><tr>
+  {% if tab == 'products' %}<th>Товар</th><th>Склад</th><th class="r">Стартова</th><th class="r">Остання</th><th class="r">Подорожчання</th><th>Зона</th><th>Приходи (ціна за од. приходу)</th><th></th>
+  {% else %}<th>Послуга</th><th class="r">Ціна прайсу</th><th class="r">Стартова собів.</th><th class="r">Зараз</th><th class="r">Подорожчання</th><th>Зона</th><th class="r">Маржа</th><th></th>{% endif %}</tr></thead><tbody>
+{% for r in rows %}<tr class="{{ 'z' if r.zone }}" style="--zc:{{ pm.ZONE_INK[r.zone] }};--zb:{{ pm.ZONE_COLORS[r.zone] }}">
+  {% if tab == 'products' %}
+  <td class="nm"><b>{{ r.name }}</b><small>{{ r.brand or '' }}{{ (' · ' ~ r.supplier) if r.supplier }}</small></td><td>{{ pm.WAREHOUSES.get(r.wh) }}</td>
+  <td class="r">{{ r.base|uah }}{% if r.base_at %}<div class="muted small">{{ r.base_at[8:10] }}.{{ r.base_at[5:7] }}.{{ r.base_at[:4] }}</div>{% endif %}</td>
+  <td class="r">{{ r.cur|uah }}{% if r.last_at %}<div class="muted small">{{ r.last_at|dt('%d.%m.%Y') }}</div>{% endif %}</td>
+  <td class="r"><span class="pm-up {{ 'pos' if r.diff > 0 else ('neg' if r.diff < 0) }}">{{ '+' if r.diff > 0 }}{{ r.diff|uah }}</span>{% if r.pct is not none and r.diff %}<div class="muted small">{{ '+' if r.pct > 0 }}{{ r.pct }}%</div>{% endif %}</td>
+  <td><span class="pm-z" style="background:{{ pm.ZONE_COLORS[r.zone] }};color:{{ pm.ZONE_INK[r.zone] }}">{{ pm.ZONE_NAMES[r.zone] }}</span></td>
+  <td><div class="pm-h">{% for h in r.hist %}<span class="{{ 'st' if loop.first and r.n == r.hist|length }}" title="{{ h.supplier or '' }}{{ (' · ' ~ h.doc) if h.doc }}">{{ h.at|dt('%d.%m.%y') }} · {{ '%.0f'|format(h.cost) }} ₴</span>{% else %}<span>ціна з CleverBox</span>{% endfor %}</div></td>
+  {% else %}
+  <td class="nm"><b>{{ r.name }}</b><small>{{ r.category or '' }}{{ (' · техкартка ' ~ r.techcard) if r.techcard }}</small>
+    <div class="pm-parts">{% for x in r.parts[:6] %}{{ x.name[:40] }} × {{ '%g'|format(x.qty) }} = {{ x.cost|uah }}{{ '; ' if not loop.last }}{% endfor %}{% if r.parts|length > 6 %} …ще {{ r.parts|length - 6 }}{% endif %}</div></td>
+  <td class="r">{{ r.price|uah if r.price else '—' }}</td><td class="r">{{ r.base|uah }}{% if r.base_at %}<div class="muted small">{{ r.base_at[8:10] }}.{{ r.base_at[5:7] }}.{{ r.base_at[:4] }}</div>{% endif %}</td><td class="r">{{ r.cur|uah }}</td>
+  <td class="r"><span class="pm-up {{ 'pos' if r.diff > 0 else ('neg' if r.diff < 0) }}">{{ '+' if r.diff > 0 }}{{ r.diff|uah }}</span>{% if r.pct is not none and r.diff %}<div class="muted small">{{ '+' if r.pct > 0 }}{{ r.pct }}%</div>{% endif %}</td>
+  <td><span class="pm-z" style="background:{{ pm.ZONE_COLORS[r.zone] }};color:{{ pm.ZONE_INK[r.zone] }}">{{ pm.ZONE_NAMES[r.zone] }}</span></td>
+  <td class="r">{{ (r.margin ~ '%') if r.margin is not none else '—' }}</td>
+  {% endif %}
+  <td class="r">{% if r.diff %}<form method="post" action="/prices/accept" style="margin:0" onsubmit="return confirm('Прийняти поточну ціну як стартову? Зона скинеться.')"><input type="hidden" name="kind" value="{{ 'service' if tab == 'services' else 'product' }}"><input type="hidden" name="item_id" value="{{ r.id }}"><input type="hidden" name="back" value="{{ back }}"><button class="pm-acc" title="Нова ціна стає стартовою">Прийняти ціну</button></form>{% endif %}</td></tr>
+{% else %}<tr><td colspan="8" class="muted" style="padding:16px">{% if tab == 'services' %}Немає послуг з техкартою — заповніть «Склад → Норми списання».{% else %}Немає товарів з ціною закупівлі на складах косметики, ін'єкцій, класики й одноразки.{% endif %}</td></tr>{% endfor %}
+</tbody></table></div>
+{% set zl = d.svc_zones if tab == 'services' else (d.zones[wh] if wh in d.zones else none) %}
+<div class="pm-leg">{% for z in range(5) %}<span><i style="background:{{ pm.ZONE_COLORS[z] }};box-shadow:inset 0 0 0 2px {{ pm.ZONE_INK[z] }}"></i>{{ pm.ZONE_NAMES[z] }}{% if z and zl %} — від +{{ '%g'|format(zl[z-1]) }} ₴{% endif %}</span>{% endfor %}
+  {% if not zl %}<span class="muted">межі зон свої для кожного складу — <a href="?tab=settings">Зони подорожчання</a></span>{% endif %}</div>
+
+{% elif tab == 'alerts' %}
+<div class="row between" style="margin-bottom:10px"><b>Сповіщення про подорожчання</b>{% if unseen %}<form method="post" action="/prices/alerts/seen" style="margin:0"><button class="btn ghost">Позначити всі прочитаними</button></form>{% endif %}</div>
+<div class="pm-al">{% for a in alerts %}<div class="a {{ 'new' if not a.seen_at }}" style="--zc:{{ pm.ZONE_INK[a.zone] }}"><span class="pm-z" style="background:{{ pm.ZONE_COLORS[a.zone] }};color:{{ pm.ZONE_INK[a.zone] }}">{{ pm.ZONE_NAMES[a.zone] }}</span>
+  <div><b>{{ a.name }}</b><small>{{ 'Товар' if a.kind == 'product' else 'Послуга' }}{{ (' · ' ~ a.note) if a.note }} · {{ a.created_at|local|dt('%d.%m.%Y %H:%M') }}</small></div>
+  <span class="r" style="font-variant-numeric:tabular-nums">{{ a.base|uah }} → <b>{{ a.current|uah }}</b> <span class="pm-up pos">+{{ (a.current - a.base)|uah }}</span></span></div>
+{% else %}<div class="muted">Сповіщень ще немає.</div>{% endfor %}</div>
+
+{% else %}
+<form method="post" action="/prices/settings">
+<p class="muted small" style="margin-top:0">Межі зон — на скільки гривень подорожчала позиція від стартової ціни. Товари — за одиницю приходу (флакон, упаковка), послуги — за собівартість техкарти на одну послугу.</p>
+<div class="pm-set">
+  {% for k, v in pm.WAREHOUSES.items() %}<div class="box"><h4>{{ v }}</h4><div class="zz">{% for i in range(4) %}<label><i style="background:{{ pm.ZONE_INK[i+1] }}"></i>Зона {{ i+1 }}, ₴<input name="z_{{ k }}_{{ i+1 }}" value="{{ '%g'|format(d.zones[k][i]) }}" inputmode="decimal"></label>{% endfor %}</div></div>{% endfor %}
+  <div class="box"><h4>Собівартість послуг</h4><div class="zz">{% for i in range(4) %}<label><i style="background:{{ pm.ZONE_INK[i+1] }}"></i>Зона {{ i+1 }}, ₴<input name="z_svc_{{ i+1 }}" value="{{ '%g'|format(d.svc_zones[i]) }}" inputmode="decimal"></label>{% endfor %}</div></div>
+</div>
+<label class="sw" style="margin:14px 0;display:flex;gap:8px;align-items:center"><input type="checkbox" name="tg" value="1" {{ 'checked' if d.tg }} style="width:auto"> Надсилати сповіщення в Telegram-бот</label>
+<button class="btn">Зберегти зони</button></form>
+{% endif %}
+{% endblock %}
