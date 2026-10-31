@@ -159,6 +159,7 @@ class CbService(Base):
     sms_name: Mapped[str | None] = mapped_column(String(300))
     direction: Mapped[str | None] = mapped_column(String(200))      # «Направленість»: Ін'єкційна, Лазерна епіляція…
     techcard: Mapped[str | None] = mapped_column(String(200))       # техкартка — спільні норми списання
+    cost_fixed: Mapped[float | None] = mapped_column(Float)          # фіксована собівартість послуги (для окладів), ₴
 
 
 class Visit(Base):

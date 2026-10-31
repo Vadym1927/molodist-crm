@@ -79,3 +79,28 @@ def test_payroll_doc_period():
             doc2 = db.get(PayrollDoc, did2)
             assert [pd.line_posted(ln) for ln in doc2.lines if ln.doctor_id == d1id] == [True]
             assert not any(pd.line_posted(ln) for ln in doc2.lines if ln.doctor_id != d1id)
+
+
+def test_salary_sub_cost():
+    from app.models import CbService, Product, ProcedureNorm
+    with SessionLocal() as db:
+        xs = spl.items(db)
+        a = {"id": 961, **spl.blank("Собівартісний")}
+        a["comm"].update(on=True, services=[20.0, "paid"], sub_cost=True, cost_src="techcard")
+        b = {"id": 962, **spl.blank("Собівартісний фікс")}
+        b["comm"].update(on=True, services=[20.0, "paid"], sub_cost=True, cost_src="fixed")
+        spl._save(db, xs + [a, b])
+        db.add_all([CbService(id=9301, name="IPL Тестове обличчя", price=3900, cost_fixed=500.0),
+                    Doctor(name="Лікар Техкарта", active=True, extra={"salary": "Собівартісний"}),
+                    Doctor(name="Лікар Фікс", active=True, extra={"salary": "Собівартісний фікс"})])
+        pr = Product(name="Гель IPL", name_norm="гель ipl", cost=50.0); db.add(pr); db.flush()
+        db.add(ProcedureNorm(service_id=9301, product_id=pr.id, qty=4))          # 200 ₴ з техкарти
+        for i, who in enumerate(("Лікар Техкарта", "Лікар Фікс")):
+            db.add(Check(id=880200 + i, date=datetime(2026, 11, 3, 12), amount=3900, deleted=False, payments=[],
+                         items=[{"item_type": "service", "item_name": "IPL Тестове обличчя", "payd_amount": 3900, "quantity": 1,
+                                 "price": 3900, "initiator_name": who}]))
+        db.commit()
+        rows = {r["doctor"].name: r for r in pd.compute(db, date(2026, 11, 1), date(2026, 11, 15))}
+        assert rows["Лікар Техкарта"]["calc"] == round((3900 - 200) * 0.2, 2)
+        assert rows["Лікар Фікс"]["calc"] == round((3900 - 500) * 0.2, 2)
+        assert rows["Лікар Техкарта"]["detail"]["items"][0]["cost"] == 200

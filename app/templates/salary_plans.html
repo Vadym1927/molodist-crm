@@ -30,7 +30,10 @@
 .itr input,.itr select{height:38px;min-width:0}.itr button{border:0;background:none;color:#B23B2E;font-size:18px;cursor:pointer}
 .adds{display:flex;flex-wrap:wrap;gap:6px}.adds button{border:1px solid #E6E0D8;background:#fff;border-radius:99px;padding:6px 12px;font:600 12.5px var(--sans);cursor:pointer;color:#3B3050}
 .adds button:hover{background:#E4DEEF}
-@media(max-width:640px){.g2{grid-template-columns:1fr}.itr{grid-template-columns:1fr 1fr}.itr .nm{grid-column:1/-1}}</style>
+@media(max-width:640px){.g2{grid-template-columns:1fr}.itr{grid-template-columns:1fr 1fr}.itr .nm{grid-column:1/-1}}.csrc{display:grid;gap:8px;margin:-4px 0 0 30px;padding:10px 12px;border-left:3px solid #C9BFE6;background:#F7F4F0;border-radius:0 12px 12px 0}
+.csrc[hidden]{display:none}.rd{display:flex;gap:10px;align-items:flex-start;cursor:pointer}.rd input{width:18px;height:18px;margin-top:2px;accent-color:#3B3050}
+.rd span{font:600 13.5px var(--sans);color:#2A2430}.rd small{display:block;font-weight:400;font-size:12px;color:#8a8496;margin-top:2px}
+</style>
 {% set th_key, th_title, th_text, th_btn, th_btn_js = 'salary', 'Оклади співробітників', 'Оклад — шаблон нарахування зарплати: фіксована ставка, комісійні за послуги й продажі, % від загального обороту. Співробітнику оклад обирають у картці (поле «Зарплата (оклад)»), а нарахування рахуються у «Фінанси → Нарахування зарплати».', '＋ Додати оклад', 'spOpen(null)' %}
 {% include "_team_head.html" %}
 <div class="ps-l" id="ps-l">
@@ -60,7 +63,10 @@
       <div class="body" style="display:grid;gap:12px">
         <label class="fl">Мінімальна сума за день, ₴<input name="comm_min_day" inputmode="decimal" placeholder="0 — без мінімуму"></label>
         <div class="ab" style="margin-top:-6px">За кожен робочий день нараховується більше: мінімум або комісійні за цей день.</div>
-        <label class="ck"><input type="checkbox" name="comm_sub_cost" value="1"><span>Віднімати собівартість послуг<small>Поки зберігається як налаштування — у розрахунку ще не враховується.</small></span></label>
+        <label class="ck"><input type="checkbox" name="comm_sub_cost" value="1" onchange="document.getElementById('csrc').hidden=!this.checked"><span>Віднімати собівартість послуг<small>Собівартість послуги віднімається від суми (вартості або оплати), з якої рахується відсоток.</small></span></label>
+        <div id="csrc" class="csrc" hidden>
+          <label class="rd"><input type="radio" name="comm_cost_src" value="fixed"><span>Використовувати фіксовану собівартість (з послуги)<small>Задається в кожній послузі: Склад → Норми списання → «Фіксована собівартість».</small></span></label>
+          <label class="rd"><input type="radio" name="comm_cost_src" value="techcard" checked><span>Використовувати розрахункову собівартість (з техкарти)<small>Матеріали за нормами списання техкарти × ціна закупівлі.</small></span></label></div>
         <div class="g2">{% for t, lbl in [('services','Продаж послуг'), ('products','Продаж товарів'), ('certs','Продаж сертифікатів'), ('subs','Продаж абонементів')] %}
           <label>{{ lbl }}<input name="comm_{{ t }}" inputmode="decimal"></label>
           <label>Параметр<select name="comm_{{ t }}_mode">{% for k, v in spl.MODES.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>{% endfor %}</div>
@@ -101,7 +107,8 @@ function spOpen(id){var p=PLANS.find(function(x){return x.id===id})||null,f=docu
   document.getElementById('sp-t').textContent=p?'Редагування':'Новий оклад';f.pid.value=p?p.id:'';
   if(p){f.name.value=p.name;var fx=p.fixed,c=p.comm,t=p.turn,b=p.bonus;
     f.fixed_on.checked=fx.on;f.fixed_amount.value=fx.amount||'';f.fixed_period.value=fx.period;
-    f.comm_on.checked=c.on;f.comm_min_day.value=c.min_day||'';f.comm_sub_cost.checked=c.sub_cost;f.comm_no_disc.checked=c.no_disc;
+    f.comm_on.checked=c.on;f.comm_min_day.value=c.min_day||'';f.comm_sub_cost.checked=c.sub_cost;document.getElementById('csrc').hidden=!c.sub_cost;
+    f.querySelectorAll('input[name=comm_cost_src]').forEach(function(r){r.checked=r.value===(c.cost_src||'techcard')});f.comm_no_disc.checked=c.no_disc;
     ['services','products','certs','subs'].forEach(function(k){f['comm_'+k].value=c[k][0]||'';f['comm_'+k+'_mode'].value=c[k][1];f['turn_'+k].value=t[k][0]||'';f['turn_'+k+'_mode'].value=t[k][1]==='fixed'?'cost':t[k][1]});
     (c.items||[]).forEach(function(it){itAdd(it.kind,it)});
     f.turn_on.checked=t.on;f.turn_workdays.checked=t.workdays_only;f.bonus_on.checked=b.on;f.bonus_visit.value=b.visit||'';f.bonus_checkout.value=b.checkout||'';

@@ -252,20 +252,8 @@ def _service_lines(db: Session, d_from: date, d_to: date) -> list[dict]:
 
 
 def _norm_costs(db: Session) -> dict[int, float]:
-    """Собівартість матеріалів на 1 послугу за нормами списання (у т.ч. спільна техкартка)."""
-    from ..models import ProcedureNorm, CbService
-    per: dict[int, float] = defaultdict(float)
-    for n in db.scalars(select(ProcedureNorm)):
-        per[n.service_id] += float(n.qty or 0) * float((n.product.cost if n.product else 0) or 0)
-    by_card: dict[str, float] = {}
-    svcs = db.scalars(select(CbService)).all()
-    for sv in svcs:
-        if sv.techcard and sv.id in per:
-            by_card.setdefault(sv.techcard.strip().lower(), per[sv.id])
-    for sv in svcs:
-        if sv.id not in per and sv.techcard and sv.techcard.strip().lower() in by_card:
-            per[sv.id] = by_card[sv.techcard.strip().lower()]
-    return per
+    from .service_costs import techcard_costs
+    return techcard_costs(db)
 
 
 def services(db: Session, d_from: date, d_to: date, cat: str = "", staff: str = "", zero: str = "hide") -> Report:
@@ -303,14 +291,15 @@ def services(db: Session, d_from: date, d_to: date, cat: str = "", staff: str = 
         pl = plans.get(doc.id) if doc else None
         if pl and pl["comm"]["on"]:
             l2 = {"type": "service", "name": ln["name"], "category": category, "brand": "", "qty": ln["qty"],
-                  "paid": ln["paid"], "cost": (ln["price"] * ln["qty"]) or ln["paid"], "disc": ln["disc"] > 0}
-            v, m = spl._rate(pl, l2)
-            sal = spl._amt(l2["cost"], l2["paid"], ln["qty"], v, m)
+                  "paid": ln["paid"], "cost": (ln["price"] * ln["qty"]) or ln["paid"], "disc": ln["disc"] > 0,
+                  "cost_tc": (unit_cost.get(sv.id, 0.0) if sv else 0.0) * ln["qty"],
+                  "cost_fx": float((sv.cost_fixed if sv else 0) or 0) * ln["qty"]}
+            sal, _, _ = spl.line_amount(pl, l2)
         x = agg.setdefault((category, ln["name"]), {"qty": 0.0, "sum": 0.0, "disc": 0.0, "cost": 0.0, "salary": 0.0})
         x["qty"] += ln["qty"]
         x["sum"] += ln["paid"]
         x["disc"] += ln["disc"]
-        x["cost"] += (unit_cost.get(sv.id, 0.0) if sv else 0.0) * ln["qty"]
+        x["cost"] += ((unit_cost.get(sv.id, 0.0) or float(sv.cost_fixed or 0)) if sv else 0.0) * ln["qty"]
         x["salary"] += sal
     if zero == "all":                                    # «Показати всі» — і послуги без продажів
         for sv in {id(v): v for v in idx.values()}.values():

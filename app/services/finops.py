@@ -312,6 +312,15 @@ def _staff_lines(db: Session, d_from: date, d_to: date, doctors: list[Doctor]) -
     by_doc: dict = defaultdict(list)
     clinic: dict = defaultdict(list)
     cache: dict = {}
+    from .service_costs import Costs
+    sc = Costs(db)
+
+    def with_cost(ln: dict) -> dict:                  # собівартість послуги на позицію: з техкарти / фіксована
+        if ln["type"] == "service":
+            tc, fx = sc.of(ln["name"])
+            q = ln.get("qty") or 1
+            ln["cost_tc"], ln["cost_fx"] = round(tc * q, 2), round(fx * q, 2)
+        return ln
 
     def f(v):
         try:
@@ -327,6 +336,7 @@ def _staff_lines(db: Session, d_from: date, d_to: date, doctors: list[Doctor]) -
                   "cost": (f(it.get("price")) * qty) or paid, "category": it.get("category_name") or it.get("category") or "",
                   "brand": it.get("brand_name") or it.get("brand") or "", "disc": f(it.get("discount")) > 0,
                   "at": c.date, "ref": f"чек CleverBox {c.id}"}
+            with_cost(ln)
             clinic[mk].append(ln)
             nm = it.get("initiator_name") or ""
             if nm not in cache:
@@ -340,6 +350,7 @@ def _staff_lines(db: Session, d_from: date, d_to: date, doctors: list[Doctor]) -
             ln = {"day": day, "type": {"certificate": "certificate"}.get(it.kind, it.kind), "name": it.name, "qty": it.qty or 1,
                   "paid": it.total, "cost": round((it.price or 0) * (it.qty or 1), 2), "category": it.category or "", "brand": "",
                   "disc": bool(it.discount), "at": s.at, "ref": f"чек CRM Ч-{s.id}"}
+            with_cost(ln)
             clinic[mk].append(ln)
             if it.doctor_id:
                 by_doc[(mk, it.doctor_id)].append(ln)

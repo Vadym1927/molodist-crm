@@ -72,8 +72,8 @@ def compute(db: Session, d_from: date, d_to: date) -> list[dict]:
                         if pl["comm"]["no_disc"] and ln["type"] == "product" and ln.get("disc"):
                             items.append({**_it(ln), "rate": "без % (знижка)", "sum": 0.0})
                             continue
-                        v, m = spl._rate(pl, ln)
-                        items.append({**_it(ln), "rate": _rate_label(v, m), "sum": round(spl._amt(ln["cost"], ln["paid"], ln.get("qty") or 1, v, m), 2)})
+                        a_, v, m = spl.line_amount(pl, ln)
+                        items.append({**_it(ln), "rate": _rate_label(v, m), "sum": round(a_, 2), "cost": round(spl.line_cost(pl, ln), 2)})
                 fx = res["fixed"]
                 if pl["fixed"]["on"] and pl["fixed"]["period"] == "month":      # місячна ставка — пропорційно частці місяця
                     mdays = calendar.monthrange(a.year, a.month)[1]

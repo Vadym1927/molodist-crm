@@ -70,7 +70,7 @@ button.lnk{border:0;background:none;color:#5C4B82;cursor:pointer;font-weight:700
   {% if dt['items'] %}<table class="tb small pa-it"><thead><tr><th>Дата</th><th>Найменування</th><th class="r">Оплачено</th><th>Ставка</th><th class="r">Сума</th></tr></thead><tbody>
     {% for it in dt['items'] %}<tr><td style="white-space:nowrap">{{ it.at[8:10] }}.{{ it.at[5:7] }}.{{ it.at[:4] }}{% if it.at|length > 10 %} {{ it.at[11:16] }}{% endif %}</td>
       <td><b>{{ it.name }}</b>{{ (' × ' ~ ('%g'|format(it.qty))) if it.qty != 1 }}<div class="muted">{{ {'service':'послуга','product':'товар','certificate':'сертифікат','subscription':'абонемент'}.get(it.type, it.type) }}{{ (' · ' ~ it.ref) if it.ref }}</div></td>
-      <td class="r">{{ it.paid|uah }}</td><td>{{ it.rate }}</td><td class="r"><b>{{ it.sum|uah }}</b></td></tr>{% endfor %}</tbody>
+      <td class="r">{{ it.paid|uah }}{% if it.cost %}<div class="muted">− собів. {{ it.cost|uah }}</div>{% endif %}</td><td>{{ it.rate }}</td><td class="r"><b>{{ it.sum|uah }}</b></td></tr>{% endfor %}</tbody>
     <tfoot><tr><td colspan="4">Відсоток від власних продажів</td><td class="r">{{ (dt['items']|sum(attribute='sum'))|uah }}</td></tr>
       {% if dt.min_day_extra and dt.min_day_extra > 0.009 %}<tr><td colspan="4">Доплата до мінімуму за день</td><td class="r">{{ dt.min_day_extra|uah }}</td></tr>{% endif %}
       {% if dt.fixed %}<tr><td colspan="4">Ставка</td><td class="r">{{ dt.fixed|uah }}</td></tr>{% endif %}

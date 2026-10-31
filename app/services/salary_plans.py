@@ -183,6 +183,23 @@ def _amt(base_cost: float, base_paid: float, qty: float, v: float, mode: str) ->
     return (base_paid if mode == "paid" else base_cost) * v / 100
 
 
+def line_cost(p: dict, ln: dict) -> float:
+    """Собівартість, яку віднімають від бази комісійних (лише послуги й лише коли в окладі ввімкнено)."""
+    c = p["comm"]
+    if not c.get("sub_cost") or ln["type"] != "service":
+        return 0.0
+    return float(ln.get("cost_fx" if c.get("cost_src") == "fixed" else "cost_tc") or 0)
+
+
+def line_amount(p: dict, ln: dict) -> tuple[float, float, str]:
+    """Комісійні за позицію: (сума, ставка, режим). Віднімати собівартість — база (вартість/оплата) мінус собівартість."""
+    v, m = _rate(p, ln)
+    sub = line_cost(p, ln)
+    if m == "fixed" or not sub:
+        return _amt(ln["cost"], ln["paid"], ln.get("qty") or 1, v, m), v, m
+    return _amt(max(0.0, ln["cost"] - sub), max(0.0, ln["paid"] - sub), ln.get("qty") or 1, v, m), v, m
+
+
 def accrue(p: dict, lines: list[dict], days: set, hours: float, clinic: list[dict]) -> dict:
     """lines — позиції співробітника за місяць: {day, type service|product|certificate|subscription, name, category, brand,
     cost (вартість), paid (оплачено), qty, disc}; days — робочі дні з графіка співробітників; clinic — усі позиції клініки."""
@@ -196,8 +213,7 @@ def accrue(p: dict, lines: list[dict], days: set, hours: float, clinic: list[dic
         for ln in lines:
             if c["no_disc"] and ln["type"] == "product" and ln.get("disc"):
                 continue
-            v, m = _rate(p, ln)
-            a = _amt(ln["cost"], ln["paid"], ln.get("qty") or 1, v, m)
+            a, _, _ = line_amount(p, ln)
             per_day[ln["day"]] += a
             out["comm_services" if ln["type"] == "service" else "comm_products"] += a
         tot = sum(per_day.values())

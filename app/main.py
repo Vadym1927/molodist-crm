@@ -3300,7 +3300,8 @@ def stock_page(request: Request, tab: str = "balances", only: str = "", wh: str 
                     item["count"] += 1
             g_["norms"] = [dict(v, total=n_svc) for v in g_["norms"].values()]
         glist = sorted(groups.values(), key=lambda g_: ((g_["direction"] or "яяя"), g_["title"].lower()))
-        ctx.update(services=services, groups=glist, norms=norms, products=_product_options(db, consumables=True))
+        from .services.service_costs import techcard_costs
+        ctx.update(services=services, groups=glist, norms=norms, products=_product_options(db, consumables=True), tcost=techcard_costs(db))
     elif tab == "moves":
         mq = select(StockMove).order_by(StockMove.at.desc(), StockMove.id.desc()).limit(300)
         if wh in catalog.WAREHOUSES:
@@ -5089,6 +5090,22 @@ def stock_norm_add(service_id: int = Form(...), product: str = Form(...), qty: s
     db.commit()
     audit(db, "stock.norm_add", user=user, service=service_id, techcard=techcard or None, services=len(ids), product=pr.id)
     return RedirectResponse(f"/stock?tab=norms#s{service_id}", 303)
+
+
+@app.post("/stock/norms/cost")
+def stock_norm_cost(service_id: int = Form(...), cost_fixed: str = Form(""), techcard: str = Form(""),
+                    user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    """Фіксована собівартість послуги (для окладів «віднімати собівартість» з фіксованою); техкартка — на всі її послуги."""
+    from .models import CbService
+    v = _num(cost_fixed.replace(",", ".")) if cost_fixed.strip() else None
+    ids = [service_id]
+    if techcard:
+        ids = [x for (x,) in db.execute(select(CbService.id).where(CbService.techcard == techcard))] or ids
+    for sv in db.scalars(select(CbService).where(CbService.id.in_(ids))):
+        sv.cost_fixed = round(v, 2) if v is not None else None
+    db.commit()
+    audit(db, "stock.service_cost", user=user, service=service_id, techcard=techcard or None, cost_fixed=v, n=len(ids))
+    return RedirectResponse(f"/stock?tab=norms&msg=Собівартість+збережено#s{service_id}", 303)
 
 
 @app.post("/stock/norms/{nid:int}/delete")
