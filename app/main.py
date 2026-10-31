@@ -5435,7 +5435,8 @@ def reports_page(request: Request, r: str = "revenue", period: str = "month", df
     if key == "cash" and not request.query_params.get("period") and not (df or dt_):
         period = "today"
     d_from, d_to, period = _report_period(period, df, dt_)
-    rep = rp.build(db, key, d_from, d_to)
+    qp_ = request.query_params
+    rep = rp.build(db, key, d_from, d_to, cat=qp_.get("cat", ""), staff=qp_.get("staff", ""), zero=qp_.get("zero", ""))
     if fmt == "xlsx":
         audit(db, "reports.export", user=user, report=key, d_from=str(d_from), d_to=str(d_to))
         return Response(rp.to_xlsx(rep, d_from, d_to),

@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from ..models import Check, Visit, BeautyPlan, Patient, Product, SupplierInvoice
 from ..parsers.observ import norm
 
-REPORTS = {"cash": "Стан каси", "cashflow": "Cashflow", "fop": "Ліміти ФОП", "expiry": "Терміни придатності", "revenue": "Виручка", "doctors": "Лікарі", "services": "Послуги", "products": "Товари",
+REPORTS = {"cash": "Стан каси", "cashflow": "Cashflow", "fop": "Ліміти ФОП", "expiry": "Терміни придатності", "revenue": "Виручка", "doctors": "Лікарі", "services": "Звіт з продажу послуг", "products": "Товари",
            "patients": "Пацієнти", "plans": "Бюті-плани", "certificates": "Сертифікати й абонементи", "supply": "Поставки"}
 
 
@@ -39,10 +39,13 @@ class Report:
     chart: list = field(default_factory=list)       # (підпис, значення)
     chart_title: str = ""
     empty: str = "За період немає даних."
+    filters: list = field(default_factory=list)     # [{name, label, options [(value, label)], value}]
+    grouped: bool = False                           # рядки-групи (_group) — без сортування кліком
 
     def finish(self):
-        if any(c.total for c in self.cols) and self.rows:
-            self.total = {c.key: sum(r.get(c.key) or 0 for r in self.rows) for c in self.cols if c.total}
+        rows = [r for r in self.rows if not r.get("_group")]
+        if any(c.total for c in self.cols) and rows:
+            self.total = {c.key: sum(r.get(c.key) or 0 for r in rows) for c in self.cols if c.total}
         return self
 
 
@@ -214,38 +217,139 @@ def _positions(db, d_from, d_to, kind):
     return agg
 
 
-def services(db: Session, d_from: date, d_to: date) -> Report:
-    agg = _positions(db, d_from, d_to, "service")
-    prev = _positions(db, *prev_period(d_from, d_to), "service")
-    total = sum(x["sum"] for x in agg.values()) or 1
+def _service_lines(db: Session, d_from: date, d_to: date) -> list[dict]:
+    """Послуги з чеків CleverBox і продажів каси CRM: назва, категорія, к-сть, оплачено, знижка, хто виконував."""
+    from ..models import Sale, Doctor
+    out = []
+
+    def f(v):
+        try:
+            return float(v or 0)
+        except (TypeError, ValueError):
+            return 0.0
+    for c in _checks(db, d_from, d_to):
+        for it in c.items or []:
+            if (it.get("item_type") or "") != "service":
+                continue
+            qty = f(it.get("quantity")) or 1
+            paid = f(it.get("payd_amount") or it.get("total"))
+            price = f(it.get("price"))
+            disc = max(0.0, round(price * qty - paid, 2)) if price else f(it.get("discount"))
+            out.append({"name": (it.get("item_name") or it.get("name") or "—").strip(), "category": (it.get("category_name") or "").strip(),
+                        "qty": qty, "paid": paid, "disc": disc, "price": price, "staff": (it.get("initiator_name") or "").strip(),
+                        "doctor_id": None, "day": c.date.date()})
+    a, b = _rng(d_from, d_to)
+    docs = {d.id: d.name for d in db.scalars(select(Doctor))}
+    for sl in db.scalars(select(Sale).where(Sale.status == "paid", Sale.at >= a, Sale.at <= b)):
+        for it in sl.items:
+            if it.kind != "service":
+                continue
+            qty = it.qty or 1
+            out.append({"name": it.name, "category": it.category or "", "qty": qty, "paid": float(it.total or 0),
+                        "disc": max(0.0, round((it.price or 0) * qty - float(it.total or 0), 2)), "price": float(it.price or 0),
+                        "staff": docs.get(it.doctor_id, ""), "doctor_id": it.doctor_id, "day": sl.at.date()})
+    return out
+
+
+def _norm_costs(db: Session) -> dict[int, float]:
+    """Собівартість матеріалів на 1 послугу за нормами списання (у т.ч. спільна техкартка)."""
+    from ..models import ProcedureNorm, CbService
+    per: dict[int, float] = defaultdict(float)
+    for n in db.scalars(select(ProcedureNorm)):
+        per[n.service_id] += float(n.qty or 0) * float((n.product.cost if n.product else 0) or 0)
+    by_card: dict[str, float] = {}
+    svcs = db.scalars(select(CbService)).all()
+    for sv in svcs:
+        if sv.techcard and sv.id in per:
+            by_card.setdefault(sv.techcard.strip().lower(), per[sv.id])
+    for sv in svcs:
+        if sv.id not in per and sv.techcard and sv.techcard.strip().lower() in by_card:
+            per[sv.id] = by_card[sv.techcard.strip().lower()]
+    return per
+
+
+def services(db: Session, d_from: date, d_to: date, cat: str = "", staff: str = "", zero: str = "hide") -> Report:
+    """Звіт з продажу послуг (як у CleverBox): категорія → послуги; к-сть, сума, % від усіх послуг, знижка,
+    собівартість (норми списання), з/п спеціаліста (комісійні з окладу), прибуток."""
+    from ..models import Doctor
+    from ..integrations.cleverbox import match_doctor
+    from . import salary_plans as spl
     from .cb_services_import import service_index
     idx = service_index(db)
-    r = Report("services", "Послуги", "Надані й оплачені послуги за чеками CleverBox. Напрямок — з довідника "
-               "«Послуги» CleverBox (Дані → Імпорт).")
-    r.cols = [Col("name", "Послуга"), Col("direction", "Напрямок"), Col("qty", "Кількість", "num", True), Col("sum", "Виручка", "uah", True),
-              Col("avg", "Сер. ціна", "uah"), Col("share", "Частка", "pct"), Col("patients", "Пацієнтів", "int"),
-              Col("prev", "Попередній період", "uah", True), Col("staff", "Хто виконував")]
-    for name, x in agg.items():
-        sv = idx.get(norm(name))
-        r.rows.append({"name": name, "direction": (sv.direction if sv else None) or "", "qty": x["qty"], "sum": x["sum"], "avg": round(x["sum"] / x["qty"]) if x["qty"] else 0,
-                       "share": round(100 * x["sum"] / total, 1), "patients": len(x["patients"]),
-                       "prev": prev[name]["sum"] if name in prev else 0,
-                       "staff": ", ".join(s for s, _ in sorted(x["staff"].items(), key=lambda kv: -kv[1])[:3])})
-    r.rows.sort(key=lambda z: -z["sum"])
-    by_dir = defaultdict(float)
-    for z in r.rows:
-        by_dir[z["direction"] or "Без напрямку"] += z["sum"]
-    if len(by_dir) > 1:
-        r.chart = sorted(by_dir.items(), key=lambda kv: -kv[1])[:12]
-        r.chart_title = "Виручка за напрямками"
-    else:
-        r.chart = [(z["name"][:18], z["sum"]) for z in r.rows[:10]]
-        r.chart_title = "Топ-10 послуг за виручкою"
+    unit_cost = _norm_costs(db)
+    doctors = db.scalars(select(Doctor)).all()
+    plans = {d.id: spl.by_name(db, (d.extra or {}).get("salary")) for d in doctors}
+    dcache: dict = {}
+    lines = _service_lines(db, d_from, d_to)
+    def cat_of(ln):
+        sv_ = idx.get(norm(ln["name"]))
+        return ln["category"] or (sv_.category if sv_ else None) or "Без категорії"
+    cats_all = sorted({cat_of(ln) for ln in lines} | {(sv.category or "Без категорії") for sv in idx.values()})
+    staff_all = sorted({ln["staff"] for ln in lines if ln["staff"]})
+    agg: dict = {}
+    for ln in lines:
+        sv = idx.get(norm(ln["name"]))
+        category = cat_of(ln)
+        if (cat and category != cat) or (staff and ln["staff"] != staff):
+            continue
+        doc = None
+        if ln["doctor_id"]:
+            doc = next((d for d in doctors if d.id == ln["doctor_id"]), None)
+        elif ln["staff"]:
+            if ln["staff"] not in dcache:
+                dcache[ln["staff"]] = match_doctor(ln["staff"], doctors)
+            doc = dcache[ln["staff"]]
+        sal = 0.0
+        pl = plans.get(doc.id) if doc else None
+        if pl and pl["comm"]["on"]:
+            l2 = {"type": "service", "name": ln["name"], "category": category, "brand": "", "qty": ln["qty"],
+                  "paid": ln["paid"], "cost": (ln["price"] * ln["qty"]) or ln["paid"], "disc": ln["disc"] > 0}
+            v, m = spl._rate(pl, l2)
+            sal = spl._amt(l2["cost"], l2["paid"], ln["qty"], v, m)
+        x = agg.setdefault((category, ln["name"]), {"qty": 0.0, "sum": 0.0, "disc": 0.0, "cost": 0.0, "salary": 0.0})
+        x["qty"] += ln["qty"]
+        x["sum"] += ln["paid"]
+        x["disc"] += ln["disc"]
+        x["cost"] += (unit_cost.get(sv.id, 0.0) if sv else 0.0) * ln["qty"]
+        x["salary"] += sal
+    if zero == "all":                                    # «Показати всі» — і послуги без продажів
+        for sv in {id(v): v for v in idx.values()}.values():
+            c_ = sv.category or "Без категорії"
+            if (not cat or c_ == cat) and not staff and not any(k[1] == sv.name for k in agg):
+                agg.setdefault((c_, sv.name), {"qty": 0.0, "sum": 0.0, "disc": 0.0, "cost": 0.0, "salary": 0.0})
+    total = sum(x["sum"] for x in agg.values()) or 1
+    groups: dict = defaultdict(list)
+    for (c_, name), x in agg.items():
+        groups[c_].append({"name": name, "qty": x["qty"], "sum": round(x["sum"], 2), "share": round(100 * x["sum"] / total, 2),
+                           "disc": round(x["disc"], 2), "cost": round(x["cost"], 2), "salary": round(x["salary"], 2),
+                           "profit": round(x["sum"] - x["cost"] - x["salary"], 2)})
+    r = Report("services", "Звіт з продажу послуг",
+               "Послуги з чеків CleverBox і каси CRM. Категорія — з чека / довідника послуг. Собівартість — матеріали за нормами "
+               "списання (Склад → Норми списання) × ціна закупівлі. З/П спеціаліста — комісійні за окладом співробітника "
+               "(Налаштування → Оклади); фіксована ставка сюди не входить. Прибуток = сума − собівартість − з/п.")
+    r.grouped = True
+    r.cols = [Col("name", "Послуга"), Col("qty", "Кількість", "num", True), Col("sum", "Сума", "uah", True),
+              Col("share", "% від усіх послуг", "pct"), Col("disc", "Знижка", "uah", True), Col("cost", "Собівартість", "uah", True),
+              Col("salary", "З/П спеціаліста", "uah", True), Col("profit", "Прибуток", "uah", True)]
+    order = sorted(groups.items(), key=lambda kv: (-sum(z["sum"] for z in kv[1]), kv[0]))
+    for c_, items in order:
+        items.sort(key=lambda z: (-z["qty"], -z["sum"], z["name"]))
+        g = {k: round(sum(z[k] for z in items), 2) for k in ("qty", "sum", "disc", "cost", "salary", "profit")}
+        r.rows.append({"name": c_, **g, "share": round(100 * g["sum"] / total, 2), "_group": True})
+        r.rows.extend(items)
+    r.filters = [{"name": "zero", "label": "Режим відображення", "value": zero, "options": [("hide", "Скрити з 0"), ("all", "Показати всі")]},
+                 {"name": "cat", "label": "Категорія", "value": cat, "options": [("", "Усі категорії")] + [(c_, c_) for c_ in cats_all]},
+                 {"name": "staff", "label": "Співробітник", "value": staff, "options": [("", "Усі співробітники")] + [(x, x) for x in staff_all]}]
+    r.chart = [(c_[:18], sum(z["sum"] for z in items)) for c_, items in order[:12]]
+    r.chart_title = "Сума за категоріями"
     r.finish()
-    pt = sum(x["sum"] for x in prev.values())
-    r.tiles = [("Виручка послуг", total if agg else 0, pt, "uah", ""),
-               ("Послуг надано", sum(x["qty"] for x in agg.values()), sum(x["qty"] for x in prev.values()), "num", ""),
-               ("Різних послуг", len(agg), len(prev), "int", "")]
+    t = r.total or {}
+    r.tiles = [("Сума послуг", t.get("sum", 0), None, "uah", f"{t.get('qty', 0):g} послуг"),
+               ("Знижки", t.get("disc", 0), None, "uah", ""),
+               ("Собівартість", t.get("cost", 0), None, "uah", ""),
+               ("З/П спеціалістів", t.get("salary", 0), None, "uah", ""),
+               ("Прибуток", t.get("profit", 0), None, "uah",
+                f"{round(100 * t.get('profit', 0) / t['sum'], 1)}% від суми" if t.get("sum") else "")]
     return r
 
 
@@ -506,7 +610,9 @@ BUILDERS = {"cash": cash, "revenue": revenue, "doctors": doctors, "services": se
             "patients": patients, "plans": plans, "certificates": certificates, "supply": supply}
 
 
-def build(db: Session, key: str, d_from: date, d_to: date) -> Report:
+def build(db: Session, key: str, d_from: date, d_to: date, **opts) -> Report:
+    if key == "services":
+        return services(db, d_from, d_to, **{k: v for k, v in opts.items() if k in ("cat", "staff", "zero") and v})
     return BUILDERS.get(key, revenue)(db, d_from, d_to)
 
 
@@ -526,6 +632,10 @@ def to_xlsx(rep: Report, d_from: date, d_to: date) -> bytes:
         cell.fill = PatternFill("solid", fgColor="3B3050")
     for row in rep.rows:
         ws.append([_xl(row.get(c.key), c.kind) for c in rep.cols])
+        if row.get("_group"):
+            for cell in ws[ws.max_row]:
+                cell.font = Font(bold=True)
+                cell.fill = PatternFill("solid", fgColor="E4DEEF")
     if rep.total:
         ws.append(["Разом"] + [_xl(rep.total.get(c.key), c.kind) if c.key in rep.total else None for c in rep.cols[1:]])
         for cell in ws[ws.max_row]:
