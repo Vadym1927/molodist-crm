@@ -3316,7 +3316,7 @@ def _product_flags(r) -> set[str]:
     f.add("selling" if r.sold_90 else "nosales")
     if r.margin is not None and r.margin < 40:
         f.add("lowmargin")
-    if not (r.cost_avg or r.cost_last):
+    if not r.cost:
         f.add("nocost")
     if not r.product.brand:
         f.add("nobrand")
@@ -3376,7 +3376,7 @@ def products_page(request: Request, tab: str = "care", q: str = "", brand: str =
             if r.product.supplier:
                 agg.setdefault(r.product.supplier, {"n": 0, "sum": 0.0, "last": None, "products": set()})["products"].add(r.product.id)
         supplier_rows = sorted(agg.items(), key=lambda x: x[0].lower())
-    return render(request, "products.html", tab=tab, groups=groups, flags=flags, counts=counts, FILTERS=PRODUCT_FILTERS,
+    return render(request, "products.html", dirs=catalog.product_dirs(db), tab=tab, groups=groups, flags=flags, counts=counts, FILTERS=PRODUCT_FILTERS,
                   SORTS=PRODUCT_SORTS, q=q, brand=brand, supplier=supplier, f=f, sort=sort, brands=brands,
                   suppliers=suppliers, tot=tot, supplier_rows=supplier_rows, today=date.today(), wh=wh,
                   WAREHOUSES=catalog.WAREHOUSES, wh_counts=wh_counts, total_all=len(every),
@@ -3464,7 +3464,8 @@ def product_card(pid: int, request: Request, user: User = Depends(require("produ
     for m in out_moves:                              # поточний термін руху теж має бути в списку
         if m.expiry_date not in batch_opts.setdefault(m.warehouse, []):
             batch_opts[m.warehouse].append(m.expiry_date)
-    return render(request, "product.html", WAREHOUSES=catalog.WAREHOUSES, p=prod, r=row, purchases=purchases, buys=buys, buy_stats=buy_stats,
+    return render(request, "product.html", dirs=catalog.product_dirs(db), wh=prod.warehouse,
+                  WAREHOUSES=catalog.WAREHOUSES, p=prod, r=row, purchases=purchases, buys=buys, buy_stats=buy_stats,
                   batches=batches, out_moves=out_moves, batch_opts=batch_opts, wh_tot=wh_tot, ledger_on=ledger_on, sales=sales, plans=plans, months=months,
                   m_max=max([m[1] for m in months] + [1]), stock_rows=stock_rows, today=today,
                   brands=sorted({x for (x,) in db.execute(select(Product.brand).where(Product.brand.is_not(None)).distinct())}),
@@ -3472,41 +3473,50 @@ def product_card(pid: int, request: Request, user: User = Depends(require("produ
 
 
 @app.post("/products/new")
-def product_create(name: str = Form(...), warehouse: str = Form("vitrina"), brand: str = Form(""), sku: str = Form(""),
-                   barcode: str = Form(""), unit: str = Form(""), coef: str = Form(""), cost: str = Form(""), price: str = Form(""),
-                   min_stock: str = Form(""), supplier: str = Form(""), qty: str = Form(""),
-                   user: User = Depends(require("products")), db: Session = Depends(db_dep)):
-    """Новий товар вручну на обраний склад; початковий залишок — документом «Інвентаризація» (без боргу постачальнику)."""
-    name = name.strip()[:300]
-    wh = warehouse if warehouse in catalog.WAREHOUSES else "vitrina"
+async def product_create(request: Request, user: User = Depends(require("products")), db: Session = Depends(db_dep)):
+    """Новий товар вручну (форма як у CleverBox) на обраний склад; початковий залишок — документом «Інвентаризація»."""
+    f = await request.form()
+    name = str(f.get("name") or "").strip()[:300]
+    wh = str(f.get("warehouse") or "") if str(f.get("warehouse") or "") in catalog.WAREHOUSES else "vitrina"
     back = f"/products?tab=care&wh={wh}"
     if not name:
         return RedirectResponse(_with_msg(back, "Вкажіть назву товару", True), 303)
-    nn = norm(name)
-    dup = db.scalar(select(Product).where(Product.name_norm == nn, Product.warehouse == wh))
+    dup = db.scalar(select(Product).where(Product.name_norm == norm(name), Product.warehouse == wh))
     if dup:
         return RedirectResponse(_with_msg(f"/products/{dup.id}", "Такий товар на цьому складі вже є — відкрито його картку", True), 303)
-    p = Product(name=name, name_norm=nn, warehouse=wh, brand=brand.strip()[:120] or None, sku=sku.strip()[:100] or None,
-                barcode=barcode.strip()[:64] or None, unit=unit.strip().rstrip(".")[:20] or None,
-                coef=_num(coef.replace(",", ".")) or None, cost=_num(cost.replace(",", ".")) or None,
-                price_manual=_num(price.replace(",", ".")) or None, min_stock=int(min_stock) if min_stock.strip().isdigit() else None,
-                supplier=supplier.strip()[:200] or None, for_sale=(wh == "vitrina"), active=True)
+    p = Product(name=name, name_norm=norm(name), warehouse=wh, active=True)
+    catalog.apply_form(p, f)
+    p.cost = _num(str(f.get("cost") or "").replace(",", ".")) or None
     db.add(p)
     db.flush()
-    q = _num(qty.replace(",", "."))
-    msg = f"Товар «{name}» додано на склад «{catalog.WAREHOUSES[wh]}»"
+    q = _num(str(f.get("qty") or "").replace(",", "."))
+    msg = f"Товар «{name}» додано на склад «{catalog.WAREHOUSES[p.warehouse or wh]}»"
     if q and q > 0:
         from .services import stock as _st
         if _st.ledger_active(db):
-            doc = _st.new_doc(db, "inventory", user_id=user.id, wh_from=wh, note=f"Початковий залишок нового товару «{name}»")
+            doc = _st.new_doc(db, "inventory", user_id=user.id, wh_from=p.warehouse or wh, note=f"Початковий залишок нового товару «{name}»")
             doc.lines.append(_st.StockDocLine(product_id=p.id, qty=q, unit_cost=p.cost or 0))
             db.flush()
             _st.post(db, doc)
             msg += f", залишок {q:g}"
     db.commit()
-    audit(db, "product.create", "product", p.id, user=user, warehouse=wh, qty=q or None)
+    audit(db, "product.create", "product", p.id, user=user, warehouse=p.warehouse, qty=q or None)
     db.commit()
-    return RedirectResponse(_with_msg(back, msg), 303)
+    return RedirectResponse(_with_msg(f"/products?tab=care&wh={p.warehouse or wh}", msg), 303)
+
+
+@app.post("/products/{pid:int}/full")
+async def product_full_save(pid: int, request: Request, user: User = Depends(require("products")), db: Session = Depends(db_dep)):
+    """Повна форма товару в картці (як у CleverBox)."""
+    p = db.get(Product, pid) or (_ for _ in ()).throw(HTTPException(404))
+    f = await request.form()
+    if not str(f.get("name") or "").strip():
+        return RedirectResponse(_with_msg(f"/products/{pid}", "Вкажіть назву товару", True), 303)
+    catalog.apply_form(p, f)
+    db.commit()
+    audit(db, "product.update", "product", pid, user=user, full=True)
+    db.commit()
+    return RedirectResponse(_with_msg(f"/products/{pid}", "Товар збережено"), 303)
 
 
 @app.post("/products/{pid:int}")
@@ -3746,7 +3756,7 @@ def stock_page(request: Request, tab: str = "balances", only: str = "", wh: str 
                 rows = [r for r in rows if (r.stock or 0) != 0]
             rows.sort(key=lambda r: (order.get(r.product.warehouse or "vitrina", 9), (r.product.brand or "яяя").lower(), r.product.name))
         wh_tot = defaultdict(lambda: {"n": 0, "value": 0.0})
-        costs = {r.product.id: (r.cost_avg or r.cost_last or 0) for r in rows}
+        costs = {r.product.id: (r.cost or 0) for r in rows}
         if ctx["active"]:
             for (pid, w), qty in per.items():
                 if qty and pid in costs:
@@ -3991,7 +4001,7 @@ def stock_lookup_products(q: str = "", wh: str = "", user: User = Depends(requir
         rows.append((0 if exact else (1 if (p_.warehouse or "vitrina") == wh else 2), {
             "id": p_.id, "name": p_.name, "sku": p_.sku or "", "barcode": p_.barcode or "", "brand": p_.brand or "",
             "unit": "шт" if k == 1 else f"уп. ({k:g} {p_.unit or 'од.'})", "coef": k,
-            "price": r.cost_last or r.cost_avg or p_.cost or 0, "stock": r.stock,
+            "price": r.cost or p_.cost or 0, "stock": r.stock,
             "wh": catalog.WAREHOUSES.get(p_.warehouse or "vitrina"), "supplier": p_.supplier or r.last_supplier or ""}))
     rows.sort(key=lambda x: (x[0], x[1]["name"].lower()))
     return JSONResponse([x[1] for x in rows[:25]])
@@ -4253,7 +4263,7 @@ async def stock_doc_save(did: int, request: Request, user: User = Depends(requir
                 cost = _num(f.get("new_cost"))
                 if cost is None and doc.kind in ("supply", "order"):
                     rr = next((r for r in catalog.product_rows(db, []) if r.product.id == pr.id), None)
-                    cost = (rr.cost_last or rr.cost_avg) if rr else pr.cost
+                    cost = (rr.cost) if rr else pr.cost
                 doc.lines.append(StockDocLine(product_id=pr.id, qty=_num(f.get("new_qty")) or 1, unit_cost=cost,
                                               expiry_date=_exp_day(f.get("new_exp"))))
         db.commit()
@@ -6094,7 +6104,7 @@ def _pricing_rows(db: Session, wh: str, brand: str, q: str, only: str):
     for r in rows:
         p_ = r.product
         cur = p_.cost_currency or "UAH"
-        pr = pr_svc.PriceRow(p_, r.cost_last or r.cost_avg, rt.get(cur, 1.0))   # для ціноутворення — остання закупівля
+        pr = pr_svc.PriceRow(p_, r.cost, rt.get(cur, 1.0))   # для ціноутворення — остання закупівля
         out.append(pr)
     if only == "nofx":
         out = [x for x in out if not x.product.cost_fx]

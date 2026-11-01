@@ -376,6 +376,18 @@ def build(db: Session, sale: Sale, is_return: bool = False, rro: dict | None = N
     for i in sale.items:
         g = {"good": {"code": f"{i.kind[:1]}{i.ref_id or i.id}", "name": i.name[:250], "price": int(round(i.price * 100))},
              "quantity": int(round(i.qty * 1000))}
+        if i.kind == "product" and i.ref_id:                    # коротка назва, штрихкод, УКТЗЕД, податок — з картки товару
+            from ..models import Product as _Pr
+            pr_ = db.get(_Pr, i.ref_id)
+            if pr_:
+                if pr_.short_name:
+                    g["good"]["name"] = pr_.short_name[:250]
+                if pr_.barcode:
+                    g["good"]["barcode"] = pr_.barcode[:64]
+                if pr_.uktzed:
+                    g["good"]["uktzed"] = pr_.uktzed[:20]
+                if pr_.tax_code:
+                    g["good"]["tax"] = [int(x) if x.isdigit() else x for x in pr_.tax_code.replace(" ", "").split(",") if x]
         if i.discount:
             g["discounts"] = [{"type": "DISCOUNT", "mode": "VALUE", "value": int(round(i.discount * 100)), "name": "Знижка"}]
         if is_return:

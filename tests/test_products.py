@@ -29,7 +29,7 @@ def test_products_flow():
         rows = {r.product.id: r for r in catalog.product_rows(db, [])}
         ra = rows[a.id]
         assert ra.cost_avg == round((4 * 2000 + 2 * 2300) / 6, 2) and ra.cost_last == 2300
-        assert ra.expiry == soon and ra.margin == round(100 * (4200 - ra.cost_avg) / ra.cost_avg)
+        assert ra.expiry == soon and ra.margin == round(100 * (4200 - ra.cost_last) / ra.cost_last) and ra.cost == ra.cost_last
         assert ra.sold_90 == 3 and ra.days_left == 60
         aid, bid = a.id, b.id
     with TestClient(app) as c:

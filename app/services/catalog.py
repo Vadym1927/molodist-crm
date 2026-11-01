@@ -123,13 +123,18 @@ class ProductRow:
         return int(self.stock / (self.sold_90 / 90))
 
     @property
+    def cost(self):
+        """Ціна закупівлі для розрахунків — завжди остання (рішення власника); середня — лише довідково."""
+        return self.cost_last or self.cost_avg
+
+    @property
     def sale_price(self):
         return self.product.price or self.product.price_manual
 
     @property
     def margin(self):
-        """Націнка, % від середньої закупівлі."""
-        c = self.cost_avg or self.cost_last
+        """Націнка, % від останньої закупівлі."""
+        c = self.cost
         return round(100 * (self.sale_price - c) / c) if c and self.sale_price else None
 
     @property
@@ -141,7 +146,7 @@ class ProductRow:
     @property
     def stock_value(self):
         """Залишок — в одиницях обліку (мл, шт), ціна закупівлі — за одиницю приходу (флакон)."""
-        c = self.cost_avg or self.cost_last
+        c = self.cost
         k = self.product.coef if self.product.coef and self.product.coef > 0 else 1
         return (self.stock or 0) * c / k if c and self.stock else 0.0
 
@@ -642,3 +647,60 @@ def parse_balances(db: Session, path: str) -> dict:
     rep["date"] = today.isoformat()
     rep["value"] = round(sum(b["value"] for b in rep["by_wh"].values()), 2)
     return rep
+
+
+# ---------------- форма товару (як у CleverBox) ----------------
+def product_dirs(db) -> dict:
+    """Підказки для форми: напрямки, категорії, мітки, що вже є в товарах."""
+    from sqlalchemy import select as _sel
+    from ..models import Product as _P
+    dirs, cats, tags = set(), set(), set()
+    for d, c, t in db.execute(_sel(_P.direction, _P.category, _P.tags)):
+        if d:
+            dirs.add(d)
+        if c:
+            cats.add(c)
+        for x in t or []:
+            tags.add(x)
+    key = str.lower
+    return {"directions": sorted(dirs, key=key), "categories": sorted(cats, key=key), "tags": sorted(tags, key=key)}
+
+
+def apply_form(p, f) -> None:
+    """Поля форми товару → товар (і для нового, і для картки)."""
+    def g(k):
+        v = f.get(k)
+        return str(v).strip() if v is not None else ""
+
+    def num(k):
+        try:
+            v = float(g(k).replace(",", ".").replace(" ", ""))
+            return v if v == v else None
+        except ValueError:
+            return None
+    if g("name"):
+        p.name = g("name")[:300]
+        p.name_norm = norm(p.name)
+    p.short_name = g("short_name")[:128] or None
+    p.sku = g("sku")[:100] or None
+    if g("warehouse") in WAREHOUSES:
+        p.warehouse = g("warehouse")
+    p.for_sale, p.for_expense = g("for_sale") == "1", g("for_expense") == "1"
+    pu = g("purchase_unit").rstrip(".")[:20] or None
+    if g("multi_unit") == "1" and g("unit"):
+        p.purchase_unit, p.unit = pu, g("unit").rstrip(".")[:20]
+        p.coef = num("coef") or None
+    else:
+        p.purchase_unit, p.unit, p.coef = None, pu, None
+    p.barcode = g("barcode")[:64] or None
+    p.tax_code = g("tax_code")[:20] or None
+    p.uktzed = "".join(ch for ch in g("uktzed") if ch.isdigit())[:20] or None
+    pr = num("price")
+    p.price_manual = pr if pr else None
+    p.tags = [t.strip()[:60] for t in g("tags").split(",") if t.strip()][:20] or None
+    p.brand = g("brand")[:120] or None
+    p.direction = g("direction")[:120] or None
+    p.category = g("category")[:200] or None
+    p.supplier = g("supplier")[:200] or None
+    p.tare_g = num("tare_g") or None
+    p.min_stock = int(num("min_stock")) if num("min_stock") is not None else None

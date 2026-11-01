@@ -1,7 +1,7 @@
 """Терміни придатності: звіт по кожному складу (партії) + сповіщення в CRM і Telegram.
 
 Звіт: партії з залишком > 0 (облік у CRM) або, якщо облік не розпочато, — найближчий термін закупівель товару.
-Групи: прострочено · ≤30 днів · 31–90 · 91–180 · >180 · без терміну. Вартість — залишок × середня ціна закупівлі.
+Групи: прострочено · ≤30 днів · 31–90 · 91–180 · >180 · без терміну. Вартість — залишок × остання ціна закупівлі.
 Сповіщення (SyncState expiry_notify): кому — чат адмінів і вибрані користувачі з Telegram (головний лікар, власник…);
 щотижневий підсумок у вибраний день + миттєві попередження, коли партія доходить до 30 / 7 / 0 днів (один раз)."""
 from __future__ import annotations
@@ -50,7 +50,7 @@ def rows(db: Session) -> list[dict]:
             r = prs[pid]
             p = r.product
             k = p.coef if p.coef and p.coef > 0 else 1
-            unit_cost = ((r.cost_avg or r.cost_last or 0) / k)
+            unit_cost = ((r.cost or 0) / k)
             days = (e - today).days if e else None
             out.append({"product": p, "wh": wh, "wh_name": WAREHOUSES.get(wh, wh), "expiry": e, "days": days,
                         "bucket": bucket(days), "qty": round(q, 3), "unit": p.unit or "шт", "value": round(q * unit_cost, 2)})
@@ -63,7 +63,7 @@ def rows(db: Session) -> list[dict]:
             k = p.coef if p.coef and p.coef > 0 else 1
             out.append({"product": p, "wh": p.warehouse or "vitrina", "wh_name": WAREHOUSES.get(p.warehouse or "vitrina"),
                         "expiry": r.expiry, "days": days, "bucket": bucket(days), "qty": r.stock, "unit": p.unit or "шт",
-                        "value": round(r.stock * (r.cost_avg or r.cost_last or 0) / k, 2)})
+                        "value": round(r.stock * (r.cost or 0) / k, 2)})
     out.sort(key=lambda x: (x["days"] is None, x["days"] if x["days"] is not None else 0, x["product"].name))
     return out
 

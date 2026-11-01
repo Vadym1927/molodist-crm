@@ -1,0 +1,82 @@
+{# Форма товару (як у CleverBox): створення (p = None) і редагування в картці. Потрібні: WAREHOUSES, brands, suppliers, dirs (directions, categories, tags) #}
+{% set new = not p %}
+<input type="hidden" name="_full" value="1">
+<div class="pf">
+  <div class="pf-col">
+    <section class="pf-s"><span class="pf-t">Основне</span>
+      <label>Назва<input name="name" required value="{{ p.name if p else '' }}" placeholder="Назва товару, як на упаковці"></label>
+      <small>Так товар відображається в системі.</small>
+      <label>Коротка назва (в чеку)<input name="short_name" maxlength="128" value="{{ p.short_name or '' if p else '' }}"></label>
+      <small>Так товар відображається у фіскальному чеку. Порожньо — повна назва.</small>
+      <div class="pf-2"><label>Артикул<input name="sku" value="{{ p.sku or '' if p else '' }}"></label>
+        <label>Склад<select name="warehouse">{% for k, v in WAREHOUSES.items() %}<option value="{{ k }}" {{ 'selected' if (p.warehouse if p else (wh if wh in WAREHOUSES else 'vitrina')) == k }}>{{ v }}</option>{% endfor %}</select></label></div>
+    </section>
+    <section class="pf-s"><span class="pf-t">Призначення товару</span>
+      <div class="pf-2">
+        <label class="pf-ck"><input type="checkbox" name="for_sale" value="1" {{ 'checked' if (p.for_sale if p and p.for_sale is not none else (new and wh in ('vitrina', None, 'all'))) }}><b>Для продажу</b><span>Товар продається в касі</span></label>
+        <label class="pf-ck"><input type="checkbox" name="for_expense" value="1" {{ 'checked' if (p.for_expense if p and p.for_expense is not none else (p and not p.for_sale) or (new and wh not in ('vitrina', None, 'all'))) }}><b>Для витрати</b><span>Розхідник: витратні візиту й техкарти</span></label>
+      </div>
+    </section>
+    <section class="pf-s"><span class="pf-t">Одиниці виміру</span>
+      {% set multi = p and p.coef and p.coef != 1 %}
+      <label>Для приходу<input name="purchase_unit" list="pf-units" value="{{ (p.purchase_unit or p.unit or '') if p else 'шт.' }}" placeholder="шт., фл., уп."></label>
+      <label class="pf-ck row"><input type="checkbox" name="multi_unit" value="1" {{ 'checked' if multi }} onchange="this.closest('.pf-s').querySelector('.pf-mu').hidden=!this.checked"><b>Товар може мати декілька одиниць вимірювань</b>
+        <span>Якщо одиниця приходу й списання різні: прихід — флакон, списання — мл</span></label>
+      <div class="pf-mu pf-2" {{ '' if multi else 'hidden' }}><label>Для списання (облік)<input name="unit" list="pf-units" value="{{ p.unit or '' if p else '' }}" placeholder="мл."></label>
+        <label>Скільки в одиниці приходу<input name="coef" inputmode="decimal" value="{{ ('%g' % p.coef) if p and p.coef else '' }}" placeholder="500"></label></div>
+      <datalist id="pf-units"><option value="шт."><option value="мл."><option value="г"><option value="фл."><option value="уп."><option value="амп."><option value="од."></datalist>
+    </section>
+    <section class="pf-s"><span class="pf-t">Маркування й податки</span>
+      <label>Штрихкод<input name="barcode" inputmode="numeric" value="{{ p.barcode or '' if p else '' }}"></label>
+      <div class="pf-2"><label>Податок (Checkbox)<input name="tax_code" value="{{ p.tax_code or '' if p else '' }}" placeholder="код податку, порожньо — без"></label>
+        <label>УКТЗЕД<input name="uktzed" value="{{ p.uktzed or '' if p else '' }}" placeholder="напр. 3304990000"></label></div>
+      <small>Якщо податок не використовуєте — залиште порожнім. Код податку й УКТЗЕД ідуть у фіскальний чек.</small>
+    </section>
+  </div>
+  <div class="pf-col">
+    <section class="pf-s pf-price"><span class="pf-t">Ціна продажу за одиницю</span>
+      <label>Базова ціна, ₴<input name="price" inputmode="decimal" value="{{ ('%g' % (p.price_manual or p.price)) if p and (p.price_manual or p.price) else '' }}" placeholder="0"></label>
+    </section>
+    <section class="pf-s"><span class="pf-t">Ціна закупівлі</span>
+      {% if p %}<div class="pf-info">Розраховується автоматично з проведених поставок{% if p.cost %} · зараз {{ p.cost|uah }}{% endif %}.</div>
+      {% else %}<div class="pf-2"><label>Початковий залишок<input name="qty" inputmode="decimal" placeholder="к-сть, необов'язково"></label>
+        <label>Ціна закупівлі за од., ₴<input name="cost" inputmode="decimal" placeholder="для початкового залишку"></label></div>
+      <small>Далі ціна закупівлі рахується автоматично з поставок. Початковий залишок — документ «Інвентаризація», без боргу постачальнику.</small>{% endif %}
+    </section>
+    <section class="pf-s"><span class="pf-t">Характеристики</span>
+      <label>Мітки<input name="tags" list="pf-tags" value="{{ (p.tags or [])|join(', ') if p else '' }}" placeholder="через кому"></label>
+      {% if dirs.tags %}<div class="pf-tags">{% for t in dirs.tags %}<button type="button" onclick="pfTag(this)">{{ t }}</button>{% endfor %}</div>{% endif %}
+      <label>Бренд<input name="brand" list="pf-brands" value="{{ p.brand or '' if p else '' }}"></label>
+      <div class="pf-2"><label>Напрямок<input name="direction" list="pf-dirs" value="{{ p.direction or '' if p else '' }}"></label>
+        <label>Категорія<input name="category" list="pf-cats" value="{{ p.category or '' if p else '' }}"></label></div>
+      <label>Постачальник<input name="supplier" list="pf-sup" value="{{ p.supplier or '' if p else '' }}"></label>
+      <div class="pf-2"><label>Тара, г<input name="tare_g" inputmode="decimal" value="{{ ('%g' % p.tare_g) if p and p.tare_g else '' }}"></label>
+        <label>Критичний залишок<input name="min_stock" inputmode="numeric" value="{{ p.min_stock if p and p.min_stock is not none else '' }}"></label></div>
+      <small>Коли залишок менший за критичний, товар підсвічується червоним і потрапляє в «Критичні залишки».</small>
+    </section>
+  </div>
+</div>
+<datalist id="pf-brands">{% for b in brands %}<option value="{{ b }}">{% endfor %}</datalist>
+<datalist id="pf-sup">{% for x in suppliers %}<option value="{{ x }}">{% endfor %}</datalist>
+<datalist id="pf-dirs">{% for x in dirs.directions %}<option value="{{ x }}">{% endfor %}</datalist>
+<datalist id="pf-cats">{% for x in dirs.categories %}<option value="{{ x }}">{% endfor %}</datalist>
+<datalist id="pf-tags">{% for x in dirs.tags %}<option value="{{ x }}">{% endfor %}</datalist>
+<style>
+.pf{display:grid;grid-template-columns:1fr 1fr;gap:16px}@media(max-width:820px){.pf{grid-template-columns:1fr}}
+.pf *{box-sizing:border-box}.pf-col{display:grid;gap:16px;align-content:start;min-width:0}
+.pf-s{position:relative;border:1px solid #ECE7E1;border-radius:16px;padding:22px 16px 14px;display:grid;gap:8px;background:#fff}
+.pf-t{position:absolute;top:-10px;left:14px;background:#E4DEEF;color:#3B3050;font:700 10.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;padding:4px 10px;border-radius:8px}
+.pf label{display:grid;gap:4px;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496;min-width:0}
+.pf input,.pf select{width:100%;min-width:0}
+.pf small{font-size:12px;color:#8a8496;margin-top:-2px}
+.pf-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pf-ck{position:relative;border:1px solid #ECE7E1;border-radius:12px;padding:12px 12px 12px 40px;text-transform:none!important;letter-spacing:0!important;cursor:pointer}
+.pf-ck input{position:absolute;left:12px;top:13px;width:18px!important;height:18px}.pf-ck b{font:600 14px var(--sans);color:#2A2430}.pf-ck span{font:400 12px var(--sans);color:#8a8496}
+.pf-ck:has(input:checked){border-color:#5C4B82;box-shadow:0 0 0 2px #E4DEEF}
+.pf-ck.row{border:0;padding:4px 0 4px 30px;box-shadow:none!important}.pf-ck.row input{left:0;top:6px}
+.pf-price{background:#F4F9F5;border-color:#CFE6D7}
+.pf-info{background:#F1EDF8;border-radius:10px;padding:10px 12px;font-size:13px;color:#3B3050}
+.pf-tags{display:flex;flex-wrap:wrap;gap:6px}.pf-tags button{border:1px solid #E9E5DF;background:#fff;border-radius:8px;padding:4px 9px;font:600 11.5px var(--sans);color:#3B3050;cursor:pointer;text-transform:uppercase}
+</style>
+<script>function pfTag(b){var i=b.closest('.pf-s').querySelector('input[name=tags]');var v=i.value.split(',').map(function(x){return x.trim()}).filter(Boolean);
+  if(v.indexOf(b.textContent)<0)v.push(b.textContent);i.value=v.join(', ')}</script>

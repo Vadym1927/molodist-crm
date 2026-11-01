@@ -346,7 +346,7 @@ def order_from_critical(db: Session, rows, supplier: str | None, user_id: int | 
             continue
         if doc is None:
             doc = new_doc(db, "order", user_id=user_id, supplier=supplier, wh_to=p.warehouse or "vitrina")
-        doc.lines.append(StockDocLine(product_id=p.id, qty=need, unit_cost=r.cost_last or r.cost_avg))
+        doc.lines.append(StockDocLine(product_id=p.id, qty=need, unit_cost=r.cost))
     db.commit()
     return doc
 

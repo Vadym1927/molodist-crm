@@ -228,7 +228,7 @@ def _product_json(p: Product, r=None) -> dict:
     k = p.coef if p.coef and p.coef > 0 else 1
     return {"id": p.id, "name": p.name, "sku": p.sku or "", "brand": p.brand or "", "unit": "шт" if k == 1 else f"уп. ({k:g} {p.unit or 'од.'})",
             "coef": k, "wh_key": p.warehouse or "vitrina", "wh": WAREHOUSES.get(p.warehouse or "vitrina"),
-            "stock": r.stock if r else None, "price": (r.cost_last or r.cost_avg) if r else (p.cost or 0)}
+            "stock": r.stock if r else None, "price": (r.cost) if r else (p.cost or 0)}
 
 
 def match(db: Session, parsed: dict) -> dict:

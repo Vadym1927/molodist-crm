@@ -368,14 +368,14 @@ def products(db: Session, d_from: date, d_to: date) -> Report:
     agg = _positions(db, d_from, d_to, "product")
     prev = _positions(db, *prev_period(d_from, d_to), "product")
     cat = {norm(pr.product.name): pr for pr in product_rows(db, [])}
-    r = Report("products", "Товари", "Продажі товарів за чеками CleverBox. Собівартість — середня ціна закупівлі "
-               "(або остання / CleverBox), прибуток = виручка − собівартість.")
+    r = Report("products", "Товари", "Продажі товарів за чеками CleverBox. Собівартість — остання ціна закупівлі "
+               "(або собівартість CleverBox), прибуток = виручка − собівартість.")
     r.cols = [Col("name", "Товар"), Col("brand", "Бренд"), Col("qty", "К-сть", "num", True), Col("sum", "Виручка", "uah", True),
               Col("cost", "Собівартість", "uah", True), Col("profit", "Валовий прибуток", "uah", True),
               Col("margin", "Маржа", "pct"), Col("patients", "Пацієнтів", "int"), Col("prev", "Попередній період", "uah", True)]
     for name, x in agg.items():
         pr = cat.get(norm(name))
-        unit = (pr.cost_avg or pr.cost_last) if pr else None
+        unit = pr.cost if pr else None
         cost = round(unit * x["qty"], 2) if unit else 0
         profit = x["sum"] - cost if unit else 0
         r.rows.append({"name": name, "brand": (pr.product.brand if pr else "") or "", "qty": x["qty"], "sum": x["sum"],

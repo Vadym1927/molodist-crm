@@ -605,6 +605,14 @@ class Product(Base):
     unit: Mapped[str | None] = mapped_column(String(20))                    # од. списання: шт., мл. …
     barcode: Mapped[str | None] = mapped_column(String(64))
     for_sale: Mapped[bool | None] = mapped_column(Boolean)                  # для продажу (інакше — витратний матеріал)
+    for_expense: Mapped[bool | None] = mapped_column(Boolean)               # для витрати (розхідники у візитах і техкартах)
+    short_name: Mapped[str | None] = mapped_column(String(128))             # коротка назва в чеку (фіскальному)
+    purchase_unit: Mapped[str | None] = mapped_column(String(20))           # од. приходу (флакон), якщо відрізняється від од. обліку
+    tags: Mapped[list | None] = mapped_column(JSON)                         # мітки
+    direction: Mapped[str | None] = mapped_column(String(120))              # напрямок (ширше за категорію)
+    tax_code: Mapped[str | None] = mapped_column(String(20))                # податок у Checkbox (код / літера)
+    uktzed: Mapped[str | None] = mapped_column(String(20))                  # код УКТЗЕД
+    tare_g: Mapped[float | None] = mapped_column(Float)                     # вага тари, г
     coef: Mapped[float | None] = mapped_column(Float)                       # одиниць обліку в одиниці приходу (500 мл у флаконі)
     # планування ціни реалізації
     cost_currency: Mapped[str | None] = mapped_column(String(3))           # USD | EUR | UAH

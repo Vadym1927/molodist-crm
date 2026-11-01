@@ -49,35 +49,19 @@
 {% if request.query_params.get('err') %}<div class="alert">{{ request.query_params.get('err') }}</div>{% endif %}
 <style>
 .pn-add{border:0;background:#3B3050;color:#fff;border-radius:14px;padding:0 18px;min-height:56px;font:700 14px var(--sans);cursor:pointer}
-dialog.pn{border:0;border-radius:20px;padding:0;width:min(640px,96vw);box-shadow:0 30px 80px rgba(42,36,48,.35)}dialog.pn::backdrop{background:rgba(42,36,48,.45)}
+dialog.pn{border:0;border-radius:20px;padding:0;width:min(1040px,97vw);max-height:94vh;background:#F7F4F0;box-shadow:0 30px 80px rgba(42,36,48,.35)}dialog.pn::backdrop{background:rgba(42,36,48,.45)}
 .pn .h{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #ECE7E1}
 .pn .h h3{margin:0;font:600 14px var(--head);letter-spacing:.14em;text-transform:uppercase}
-.pn form{padding:16px 20px 20px;display:grid;gap:10px}.pn .g{display:grid;grid-template-columns:1fr 1fr;gap:10px}.pn .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.pn form{padding:20px;display:grid;gap:10px}.pn .h{position:sticky;top:0;background:#fff;z-index:2}.pn .g{display:grid;grid-template-columns:1fr 1fr;gap:10px}.pn .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
 .pn label{display:grid;gap:4px;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496}
 .pn .hint{font-size:12px;color:#8a8496;margin:0}
 .pn *{box-sizing:border-box}.pn input,.pn select{width:100%;min-width:0;max-width:100%}.pn .g>*,.pn .g3>*{min-width:0}
 .pn-add{white-space:nowrap}
 @media(max-width:600px){.pn .g,.pn .g3{grid-template-columns:1fr}}
 </style>
-<dialog class="pn" id="pnd"><div class="h"><h3>Новий товар</h3><button type="button" class="btn ghost" style="padding:4px 10px" onclick="this.closest('dialog').close()">×</button></div>
-  <form method="post" action="/products/new">
-    <label>Назва<input name="name" required placeholder="Назва товару, як на упаковці"></label>
-    <div class="g"><label>Склад<select name="warehouse">{% for k, v in WAREHOUSES.items() %}<option value="{{ k }}" {{ 'selected' if (wh if wh in WAREHOUSES else 'vitrina') == k }}>{{ v }}</option>{% endfor %}</select></label>
-      <label>Бренд<input name="brand" list="pn-brands"></label></div>
-    <datalist id="pn-brands">{% for b in brands %}<option value="{{ b }}">{% endfor %}</datalist>
-    <div class="g3"><label>Артикул<input name="sku"></label><label>Штрихкод<input name="barcode" inputmode="numeric"></label>
-      <label>Постачальник<input name="supplier" list="pn-sup"></label></div>
-    <datalist id="pn-sup">{% for x in suppliers %}<option value="{{ x }}">{% endfor %}</datalist>
-    <div class="g3"><label>Одиниця обліку<input name="unit" list="pn-units" placeholder="шт., мл., г"></label>
-      <label>Одиниць в упаковці<input name="coef" inputmode="decimal" placeholder="напр. 500 мл у флаконі"></label>
-      <label>Мін. залишок<input name="min_stock" inputmode="numeric"></label></div>
-    <datalist id="pn-units"><option value="шт."><option value="мл."><option value="г"><option value="од."><option value="уп."></datalist>
-    <div class="g3"><label>Собівартість за од., ₴<input name="cost" inputmode="decimal"></label>
-      <label>Ціна продажу, ₴<input name="price" inputmode="decimal" placeholder="для вітрини"></label>
-      <label>Початковий залишок<input name="qty" inputmode="decimal" placeholder="к-сть, необов'язково"></label></div>
-    <p class="hint">Початковий залишок оформлюється документом «Інвентаризація» на обраний склад — без боргу постачальнику. Товари з вітрини доступні в касі для продажу, з інших складів — як витратні матеріали й у техкартах.</p>
-    <button class="btn">Додати товар</button>
-  </form></dialog>
+<dialog class="pn" id="pnd"><div class="h"><h3>Новий товар</h3><div style="display:flex;gap:8px"><button class="btn" form="pnf">Зберегти</button>
+  <button type="button" class="btn ghost" style="padding:4px 12px" onclick="this.closest('dialog').close()">×</button></div></div>
+  <form method="post" action="/products/new" id="pnf">{% with p = None %}{% include "_product_form.html" %}{% endwith %}</form></dialog>
 {% if imported %}<div class="alert" style="{{ '' if imported.error else 'background:var(--ok-bg);color:var(--ok)' }}">
   {% if imported.error %}{{ imported.error }}{% elif imported.kind == 'turnover' %}Рух товарів за {{ imported.period }}: товарів з надходженням {{ imported.with_income }}, зіставлено {{ imported.matched }}, нових {{ imported.created }} — ціни закупівлі оновлено.
   {% if imported.not_found %}<details><summary>Не знайдено в каталозі (створено нові)</summary>{{ imported.not_found|join(' · ') }}</details>{% endif %}{% else %}Імпортовано {{ imported.rows }} рядків: нових {{ imported.created }}, оновлено {{ imported.updated }}, залишків {{ imported.stock }}, брендів {{ imported.brands }}.
@@ -107,7 +91,7 @@ dialog.pn{border:0;border-radius:20px;padding:0;width:min(640px,96vw);box-shadow
   {% if sort=='brand' %}<h2>{{ bname or 'Без бренду' }} <em>{{ rows|length }} поз. · залишок {{ '%g'|format((rows|map(attribute='stock')|select|sum)|round(1)) }} {{ 'шт' if wh=='vitrina' else 'од.' }} · {{ rows|sum(attribute='stock_value')|uah }}</em></h2>{% endif %}
   <table class="pt"><thead><tr>
     {% if can(user,'products') %}<th class="cb"><input type="checkbox" onclick="for(const c of this.closest('table').querySelectorAll('tbody input[type=checkbox]')){c.checked=this.checked};bulkUi()"></th>{% endif %}
-    <th>Засіб</th><th>Постачальник</th><th class="r">Закупівля сер.</th><th class="r">Остання закупівля</th><th class="r">Продаж</th><th class="r">Націнка</th>
+    <th>Засіб</th><th>Постачальник</th><th class="r">Закупівля (остання)</th><th class="r">Продаж</th><th class="r">Націнка</th>
     <th class="r">Залишок</th><th class="r" title="На скільки днів вистачить за темпом продажів 90 днів">Вистачить</th><th>Термін придатності</th><th class="r" title="Продано за 90 днів">Продано 90д</th></tr></thead><tbody>
   {% for r in rows %}{% set p = r.product %}{% set fl = flags[p.id] %}
     <tr>
@@ -115,8 +99,7 @@ dialog.pn{border:0;border-radius:20px;padding:0;width:min(640px,96vw);box-shadow
       <td class="nm">{% if p.photo_url %}<img src="{{ p.photo_url }}" alt="" loading="lazy" style="width:38px;height:38px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:8px;float:left;margin:0 10px 0 0">{% endif %}<a class="pn" href="/products/{{ p.id }}">{{ p.name }}</a>
         <div class="meta">{{ ('арт. ' ~ p.sku) if p.sku else 'артикул —' }}{% if sort!='brand' and p.brand %} · {{ p.brand }}{% endif %}{% if wh=='all' and p.warehouse %} · {{ WAREHOUSES.get(p.warehouse) }}{% endif %}{{ (' · ' ~ p.volume) if p.volume }}{% if r.prescribed %} · у планах {{ r.prescribed }}{% endif %}{% if not p.cb_product_id %} · <span style="color:var(--warn)">немає в CleverBox</span>{% endif %}</div></td>
       <td class="small">{% set _sn = p.supplier or r.last_supplier %}{% if _sn %}<a href="/stock?tab=suppliers&s={{ _sn|urlencode }}" data-sup-name="{{ _sn }}" style="color:inherit">{{ _sn }}</a>{% else %}—{% endif %}</td>
-      <td class="r">{{ r.cost_avg|uah if r.cost_avg else '—' }}</td>
-      <td class="r">{% if r.cost_last %}{{ r.cost_last|uah }}<div class="meta">{{ r.last_bought|dt('%d.%m.%y') if r.last_bought else (r.last_source or '') }}</div>{% else %}—{% endif %}</td>
+      <td class="r">{% if r.cost %}{{ r.cost|uah }}<div class="meta">{{ r.last_bought|dt('%d.%m.%y') if r.last_bought else (r.last_source or '') }}</div>{% else %}—{% endif %}</td>
       <td class="r">{{ r.sale_price|uah if r.sale_price else '—' }}</td>
       <td class="r"><span class="mg {{ 'low' if 'lowmargin' in fl }}">{{ (r.margin ~ '%') if r.margin is not none else '—' }}</span></td>
       <td class="r"><span class="stk {{ 'zero' if 'out' in fl else ('low' if 'low' in fl) }}">{{ ('%g'|format(r.stock)) if r.stock is not none else '—' }}{{ (' ' ~ p.unit) if p.unit and p.unit != 'шт' and r.stock is not none }}</span>{% if p.min_stock %}<div class="meta">мін {{ p.min_stock }}</div>{% endif %}</td>

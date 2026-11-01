@@ -80,7 +80,7 @@
 
 <div class="card" style="padding:6px 8px;overflow:auto"><table class="tb">
   <thead><tr><th>Товар</th><th>Склад</th><th class="r">Залишок</th>{% if active and not wh %}<th>По складах</th>{% endif %}<th class="r">Мін.</th>
-    {% if tab=='critical' %}<th class="r">Потреба 30д</th><th class="r">Продано 90д</th><th class="r">Дозамовити</th><th>Постачальник</th>{% else %}<th class="r">Закупівля сер.</th><th class="r">Вартість</th><th>Термін</th>{% endif %}</tr></thead><tbody>
+    {% if tab=='critical' %}<th class="r">Потреба 30д</th><th class="r">Продано 90д</th><th class="r">Дозамовити</th><th>Постачальник</th>{% else %}<th class="r">Закупівля (остання)</th><th class="r">Вартість</th><th>Термін</th>{% endif %}</tr></thead><tbody>
   {% for r in rows[:500] %}{% set p = r.product %}
     <tr><td><a href="/products/{{ p.id }}" style="font-weight:600;text-decoration:none">{{ p.name }}</a><div class="meta">{{ p.brand or '' }}{{ (' · арт. ' ~ p.sku) if p.sku }}</div></td>
       <td class="small">{{ WAREHOUSES.get(p.warehouse or 'vitrina') }}</td>
@@ -89,7 +89,7 @@
       <td class="r">{{ p.min_stock or '—' }}</td>
       {% if tab=='critical' %}<td class="r">{{ r.need_30 or '—' }}</td><td class="r">{{ ('%g'|format(r.sold_90)) if r.sold_90 else '—' }}</td>
         <td class="r"><b>{{ suggested(r) or '—' }}</b></td><td class="small">{{ p.supplier or r.last_supplier or '—' }}</td>
-      {% else %}<td class="r">{{ r.cost_avg|uah if r.cost_avg else '—' }}</td><td class="r">{{ r.stock_value|uah if r.stock_value else '—' }}</td>
+      {% else %}<td class="r">{{ r.cost|uah if r.cost else '—' }}</td><td class="r">{{ r.stock_value|uah if r.stock_value else '—' }}</td>
         <td class="small">{% if r.expiry %}<span class="{{ 'q-neg' if r.days_to_expiry < 0 else ('q-low' if r.days_to_expiry <= 90) }}">{{ r.expiry|dt('%d.%m.%Y') }}</span>{% else %}—{% endif %}</td>{% endif %}
     </tr>
   {% else %}<tr><td colspan="9" class="muted">{{ 'Критичних залишків немає — Дозамовити нічого.' if tab=='critical' else 'Немає товарів.' }}</td></tr>{% endfor %}
