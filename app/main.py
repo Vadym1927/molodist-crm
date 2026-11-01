@@ -1275,22 +1275,36 @@ def sales_list(request: Request, df: str = "", dt_: str = "", q: str = "", d: st
 
 
 @app.get("/sales/new", response_class=HTMLResponse)
-def sale_new(request: Request, appt: int = 0, patient: int = 0, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+def sale_new(request: Request, appt: str = "", patient: int = 0, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
     from .models import Appointment, DiscountRule, GiftCertificate
     from .services import sales as sl
-    a_ = db.get(Appointment, appt) if appt else None
+    ids = list(dict.fromkeys(int(x) for x in str(appt).split(",") if x.strip().isdigit()))[:10]
+    appts = [x for x in (db.get(Appointment, i) for i in ids) if x]
+    if appts:                                                  # кілька візитів одного пацієнта — один чек
+        appts = [x for x in appts if x.patient_id == appts[0].patient_id]
+    a_ = appts[0] if appts else None
     pt = a_.patient if a_ else (db.get(Patient, patient) if patient else None)
     items = []
-    if a_:
-        items = [{"kind": "service", "ref_id": s_.get("id"), "name": s_.get("name"), "category": s_.get("category") or "", "qty": 1,
-                  "price": float(s_.get("price") or 0), "doctor_id": a_.doctor_id} for s_ in a_.services or []]
+    for x_ in appts:
+        items += [{"kind": "service", "ref_id": s_.get("id"), "name": s_.get("name"), "category": s_.get("category") or "", "qty": 1,
+                   "price": float(s_.get("price") or 0), "doctor_id": x_.doctor_id} for s_ in x_.services or []]
+    others = []
+    if a_:                                                     # інші нерозраховані візити цього пацієнта того ж дня
+        d0 = datetime.combine(a_.start.date(), datetime.min.time())
+        others = [x for x in db.scalars(select(Appointment).where(Appointment.patient_id == a_.patient_id, Appointment.start >= d0,
+                                                                   Appointment.start < d0 + timedelta(days=1),
+                                                                   Appointment.status.notin_(("cancelled", "no_show")),
+                                                                   Appointment.sale_id.is_(None)).order_by(Appointment.start))
+                  if x.id not in ids]
+    dnames = {d_.id: d_.name for d_ in db.scalars(select(Doctor))}
     certs = db.scalars(select(GiftCertificate).where(GiftCertificate.balance > 0)).all()
     from .services import fiscal as _fis
     _fc = _fis.cfg(db)
     from .services import clinic as _cl
     _locs = [l_ for l_ in (_cl.get(db).get("locations") or []) if l_.get("active", True)]
     from .services import price_cats as _pcat
-    return render(request, "sale_new.html", nav="finance", appt=a_, pt=pt, items=items, methods=sl.methods(db), today=date.today().isoformat(),
+    return render(request, "sale_new.html", nav="finance", appt=a_, appts=appts, others=others, dnames=dnames, pt=pt, items=items,
+                  methods=sl.methods(db), today=date.today().isoformat(),
                   pcat=_pcat.doctor_prices(db),
                   loc_name=_locs[0]["name"] if _locs else "MOLODIST",
                   mkinds={m_: sl.method_kind(m_) for m_ in sl.methods(db)}, rros=[r_ for r_ in _fis.rros(db) if r_["on"]],
@@ -1337,6 +1351,7 @@ def _sale_payload(f: dict) -> dict:
             continue
     return {"patient_id": int(f["patient_id"]) if str(f.get("patient_id") or "").isdigit() else None,
             "appointment_id": int(f["appointment_id"]) if str(f.get("appointment_id") or "").isdigit() else None,
+            "appointment_ids": [int(x) for x in (f.get("appointment_ids") or []) if str(x).isdigit()][:10],
             "items": items, "rule_ids": [int(x) for x in f.get("rule_ids") or [] if str(x).isdigit()],
             "manual_discount": float(f.get("manual_discount") or 0), "bonus_pay": float(f.get("bonus_pay") or 0),
             "fiscal_rro": (int(f["fiscal_rro"]) if str(f.get("fiscal_rro")).isdigit() else None) if "fiscal_rro" in f else None,
@@ -2691,6 +2706,11 @@ def calendar_visit(request: Request, appt: int = 0, v: str = "", tab: str = "vis
         from .models import StockDoc
         _tc.seed(db, c["a"])
         mats, closed_ = _tc.materials(db, c["a"]), _tc.closed(db, c["a"])
+        from .models import Appointment as _Ap
+        _d0 = datetime.combine(c["a"].start.date(), datetime.min.time())
+        c["same_day"] = [x.id for x in db.scalars(select(_Ap).where(_Ap.patient_id == c["a"].patient_id, _Ap.start >= _d0,
+                                                                  _Ap.start < _d0 + timedelta(days=1), _Ap.id != c["a"].id,
+                                                                  _Ap.sale_id.is_(None), _Ap.status.notin_(("cancelled", "no_show"))))]
         wdocs = db.scalars(select(StockDoc).where(StockDoc.ext_no == f"visit:{c['a'].id}", StockDoc.status == "posted")).all()
     return templates.TemplateResponse(request, "_visit_drawer.html", {"request": request, "user": user, "c": c, "pt": p_, "stats": stats,
                                       "tab": tab, "STATUSES": aps.STATUSES, "COLORS": aps.COLORS, "can": can,

@@ -106,6 +106,18 @@ def create(db: Session, data: dict, user_id: int | None = None) -> Sale:
                 raise SaleError("На абонементі не лишилось візитів")
     if any(str(p.get("method") or "").startswith(PAYLINK) for p in pays) and not patient:
         raise SaleError("Посилання на оплату можна надіслати лише пацієнту — оберіть пацієнта")
+    aids = list(dict.fromkeys([x for x in [data.get("appointment_id")] + list(data.get("appointment_ids") or []) if x]))
+    for aid_ in aids:                                         # візит уже розраховано іншим чеком — не дублюємо
+        ap_ = db.get(Appointment, aid_)
+        if not ap_:
+            raise SaleError(f"Візит №{aid_} не знайдено")
+        if patient and ap_.patient_id != patient.id:
+            raise SaleError(f"Візит №{aid_} — іншого пацієнта")
+        if ap_.sale_id:
+            old_ = db.get(Sale, ap_.sale_id)
+            if old_ and old_.status in ("paid", "awaiting"):
+                raise SaleError(f"Візит №{aid_} уже розраховано (чек Ч-{old_.id})")
+    data["appointment_id"] = aids[0] if aids else None
     sale = Sale(patient_id=patient.id if patient else None, appointment_id=data.get("appointment_id"), created_by=user_id,
                 status="awaiting" if data.get("await_terminal") or any(str(p.get("method") or "").startswith(PAYLINK) for p in pays) else "paid",
                 subtotal=q["subtotal"], discount=q["discount"], total=q["total"], bonus_spent=q["bonus_pay"],
@@ -165,11 +177,12 @@ def create(db: Session, data: dict, user_id: int | None = None) -> Sale:
         ly.add(db, patient.id, -q["bonus_pay"], "spend", f"чек №{sale.id}", f"sale:{sale.id}", user_id)
     if patient and q["bonus_accrual"] > 0:
         ly.add(db, patient.id, q["bonus_accrual"], "accrual", f"чек №{sale.id}", f"sale:{sale.id}", user_id)
-    if sale.appointment_id:
-        a = db.get(Appointment, sale.appointment_id)
+    sale.appt_ids = aids or None
+    for aid_ in aids:                                          # усі візити чека — закрити
+        a = db.get(Appointment, aid_)
         if a:
             a.sale_id, a.status = sale.id, "done"
-            db.commit()
+    db.commit()
     return sale
 
 
@@ -201,11 +214,11 @@ def refund(db: Session, sale: Sale, reason: str, user_id: int | None = None) -> 
             db.add(BonusTxn(patient_id=t.patient_id, amount=-t.amount, kind="manual", comment=f"повернення чека №{sale.id}",
                             ref=f"refund:{sale.id}", user_id=user_id, at=datetime.now()))
         db.commit()
-    if sale.appointment_id:
-        a = db.get(Appointment, sale.appointment_id)
+    for aid_ in (sale.appt_ids or ([sale.appointment_id] if sale.appointment_id else [])):
+        a = db.get(Appointment, aid_)
         if a and a.sale_id == sale.id:
             a.sale_id, a.status = None, "arrived"
-            db.commit()
+    db.commit()
 
 
 def cancel(db: Session, sale: Sale, reason: str, user_id: int | None = None, http=None) -> None:

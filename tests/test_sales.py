@@ -32,7 +32,7 @@ def test_sales_pos():
     with TestClient(app) as c:
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
         nw = c.get(f"/sales/new?appt={aid}").text
-        assert "За записом №" in nw and "Касова Пацієнтка" in nw and "990201" in nw
+        assert "Візит №" in nw and "Касова Пацієнтка" in nw and "990201" in nw
         items = [{"kind": "service", "ref_id": 990201, "name": "Пілінг касовий", "qty": 1, "price": 2000, "doctor_id": did},
                  {"kind": "product", "ref_id": prid, "name": "Крем касовий", "qty": 2, "price": 800, "doctor_id": did, "warehouse": "vitrina"}]
         q = c.post("/sales/quote", json={"patient_id": pid, "items": items, "manual_discount": 100, "bonus_pay": 100}).json()

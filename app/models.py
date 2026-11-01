@@ -261,6 +261,7 @@ class Sale(Base):
     at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, index=True)
     patient_id: Mapped[int | None] = mapped_column(ForeignKey("patients.id"), index=True)
     appointment_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    appt_ids: Mapped[list | None] = mapped_column(JSON)                 # усі візити, розраховані цим чеком (різні лікарі)
     status: Mapped[str] = mapped_column(String(12), default="paid", index=True)    # paid | awaiting | refunded | cancelled
     subtotal: Mapped[float] = mapped_column(Float, default=0)
     discount: Mapped[float] = mapped_column(Float, default=0)

@@ -243,13 +243,8 @@ def _service_lines(db: Session, d_from: date, d_to: date) -> list[dict]:
     from .techcards import cost_by_service
     from ..models import Appointment as _Ap
     for sl in db.scalars(select(Sale).where(Sale.status == "paid", Sale.at >= a, Sale.at <= b)):
-        vcost: dict = {}
-        ap = db.get(_Ap, sl.appointment_id) if sl.appointment_id else None
-        if ap:
-            per = cost_by_service(db, ap.id)
-            for i_, sv_ in enumerate(ap.services or []):
-                if i_ in per:
-                    vcost.setdefault(sv_.get("id"), []).append(per[i_])
+        from .techcards import sale_service_costs
+        vcost = sale_service_costs(db, sl)
         for it in sl.items:
             if it.kind != "service":
                 continue

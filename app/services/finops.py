@@ -348,14 +348,8 @@ def _staff_lines(db: Session, d_from: date, d_to: date, doctors: list[Doctor]) -
     from ..models import Appointment as _Ap
     for s in db.scalars(select(Sale).where(Sale.status == "paid", Sale.at >= a, Sale.at <= b)):
         mk, day = month_key(s.at.date()), s.at.date()
-        vcost: dict = {}                                  # фактичні витратні візиту → собівартість послуги
-        if s.appointment_id:
-            ap = db.get(_Ap, s.appointment_id)
-            if ap:
-                per = cost_by_service(db, ap.id)
-                for i_, sv_ in enumerate(ap.services or []):
-                    if i_ in per:
-                        vcost.setdefault(sv_.get("id"), []).append(per[i_])
+        from .techcards import sale_service_costs
+        vcost = sale_service_costs(db, s)                 # фактичні витратні візитів чека → собівартість послуги
         for it in s.items:
             ln = {"day": day, "type": {"certificate": "certificate"}.get(it.kind, it.kind), "name": it.name, "qty": it.qty or 1,
                   "paid": it.total, "cost": round((it.price or 0) * (it.qty or 1), 2), "category": it.category or "", "brand": "",

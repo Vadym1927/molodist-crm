@@ -199,12 +199,17 @@ dialog.payd::backdrop{background:rgba(42,36,48,.45)}
 .pt{border:1.5px solid var(--line);background:#fff;border-radius:12px;padding:10px 6px;cursor:pointer;text-align:center;font:700 12px var(--sans);text-transform:uppercase;color:var(--ink);line-height:1.25;display:flex;flex-direction:column;align-items:center;gap:5px}
 .pt:hover{border-color:var(--classic)}.pt i{font-style:normal;font-size:20px}.pt.on{border-color:#4CAF50;background:#F1FAF1}
 .ph{font:700 11px var(--sans);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:12px 0 6px}
+.vb-l{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.vb{display:inline-flex;gap:6px;align-items:center;background:#F1EDF8;color:#3B3050;border-radius:10px;padding:5px 10px;font-size:12.5px;text-decoration:none}
+.vb a{color:#B23B2E;text-decoration:none;font-weight:700}.vb.add{background:#fff;border:1px dashed #C9BFE6;font-weight:600}.vb.add:hover{background:#F6F3FB}
 .err{background:var(--bad-bg);color:var(--bad);border-radius:10px;padding:8px 12px;font-weight:600}.err:empty{display:none}
 @media (max-width:1250px){.pos{grid-template-columns:100px minmax(260px,1fr) minmax(0,1.2fr)}}
 @media (max-width:980px){.pos{grid-template-columns:1fr}.pm{position:static;grid-template-columns:repeat(5,1fr)}.br{min-height:0}}
 </style>
 <div class="row between" style="margin-bottom:10px"><div><div class="eyebrow"><a href="/sales" style="text-decoration:none">Каса CRM</a></div><h1>Новий продаж</h1>
-  {% if appt %}<div class="muted small">За записом №{{ appt.id }} · {{ appt.start|dt('%d.%m.%Y %H:%M') }}</div>{% endif %}</div></div>
+  {% if appts %}<div class="vb-l">{% set ids = appts|map(attribute='id')|list %}{% for x in appts %}<span class="vb">Візит №{{ x.id }} · {{ x.start|dt('%d.%m %H:%M') }} · <b>{{ dnames.get(x.doctor_id, 'без лікаря') }}</b>
+      {% if appts|length > 1 %}<a href="/sales/new?appt={{ ids|reject('equalto', x.id)|join(',') }}" title="Прибрати візит з чека">×</a>{% endif %}</span>{% endfor %}
+    {% for o in others %}<a class="vb add" href="/sales/new?appt={{ (ids + [o.id])|join(',') }}" title="Додати в цей чек">＋ Візит №{{ o.id }} · {{ o.start|dt('%H:%M') }} · {{ dnames.get(o.doctor_id, 'без лікаря') }}</a>{% endfor %}</div>
+    {% if others %}<div class="muted small">У пацієнта є ще візити сьогодні — додайте їх, щоб розрахувати все одним чеком.</div>{% endif %}{% endif %}</div></div>
 <div class="pt-bar">
   <div class="sw2" id="mode"><button type="button" data-m="p" class="on">Продаж на пацієнта</button><button type="button" data-m="n">Без пацієнта</button></div>
   <button type="button" class="pchoose" id="pchoose" onclick="pdOpen()"><i><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.2-4.2 4.3-6.5 8-6.5s6.8 2.3 8 6.5"/></svg></i><span id="pchoose-t">{{ pt.full_name if pt else "Оберіть пацієнта" }}</span><em>»</em></button>
@@ -285,7 +290,7 @@ dialog.payd::backdrop{background:rgba(42,36,48,.45)}
     <div class="kp-a"><button type="button" class="btn" onclick="kpApply()">Застосувати</button><button type="button" class="btn ghost" onclick="document.getElementById('kpd').close()">Скасувати</button></div>
     <div class="err" id="kp-e"></div></div></dialog>
 <script>
-var S={patient_id:{{ (pt.id if pt else None)|tojson }},appointment_id:{{ (appt.id if appt else None)|tojson }},items:{{ items|tojson }},q:null};
+var S={patient_id:{{ (pt.id if pt else None)|tojson }},appointment_id:{{ (appt.id if appt else None)|tojson }},appointment_ids:{{ (appts|map(attribute='id')|list)|tojson }},items:{{ items|tojson }},q:null};
 var PCAT={{ pcat|tojson }};
 function applyCat(it){if(it.kind!=='service'||!it.ref_id||it._pd===it.doctor_id)return;it._pd=it.doctor_id;   // категорія цін спеціаліста
   if(it._bp==null)it._bp=it.price;var m=PCAT[it.doctor_id],p=m?m[it.ref_id]:null;it.price=(p!=null?+p:it._bp);it.pcat=p!=null}
@@ -327,7 +332,7 @@ var QT=null;function quote(partial){if(partial)sums();else render();clearTimeout
     if(+document.getElementById('bp').value>q.bonus_max)document.getElementById('bp').value=q.bonus_max;
     document.getElementById('t-accr').textContent=q.bonus_accrual?('Буде нараховано бонусів: '+f2(q.bonus_accrual)):'';
     left()})},200)}
-function payload(){var r=document.getElementById('rule');return {patient_id:S.patient_id,appointment_id:S.appointment_id,items:S.items,
+function payload(){var r=document.getElementById('rule');return {patient_id:S.patient_id,appointment_id:S.appointment_id,appointment_ids:S.appointment_ids,items:S.items,
   rule_ids:r?[].map.call(r.selectedOptions,function(o){return +o.value}):[],manual_discount:+(document.getElementById('md').value||'').replace(',','.')||0,
   bonus_pay:+(document.getElementById('bp').value||'').replace(',','.')||0,comment:document.getElementById('cmt').value,
   fiscal_rro:(function(){var b=document.querySelector('#fis .pt.on');return b?+b.dataset.r:undefined})(),
@@ -377,7 +382,7 @@ function brLoad(keepFocus){var br=document.getElementById('br');
           '<div class="sv">'+(v.services.map(function(x){return '👉 '+esc(x.name)+(x.price?' · '+f2(x.price):'')}).join('<br>')||'<span class="muted">без послуг</span>')+'</div></span></button>'}).join('')||'<div class="em">На цей день записів немає</div>')+'</div>';
       document.getElementById('vd').onchange=function(){B.day=this.value;brLoad()};
       br.querySelectorAll('.v[data-i]').forEach(function(b){b.onclick=function(){var v=js.rows[+b.dataset.i];if(v.sale_id){location.href='/sales/'+v.sale_id;return}
-        if(v.appt_id){location.href='/sales/new?appt='+v.appt_id;return}
+        if(v.appt_id){var ids=(S.appointment_ids||[]);location.href='/sales/new?appt='+((ids.length&&v.patient_id===S.patient_id&&ids.indexOf(v.appt_id)<0)?ids.concat([v.appt_id]).join(','):v.appt_id);return}
         setPatient(v.patient_id);
         v.services.forEach(function(x){S.items.push({kind:x.id?'service':'other',ref_id:x.id,name:x.name,category:x.category||'',qty:1,price:+x.price||0,doctor_id:v.doctor_id||DEF})});quote()}})});return}
   var isS=B.s==='services',url=(isS?'/pos/services':'/pos/products')+'?group='+B.group+(B.key!==null?'&key='+encodeURIComponent(B.key):'')+(B.q?'&q='+encodeURIComponent(B.q):'');
@@ -444,7 +449,7 @@ S.pays=[];S.pi=null;
 function fisR(){var b=document.querySelector('#fis .pt.on');return b?+b.dataset.r:0}
 var RRO_M={{ rro_m|tojson }},PLT={{ pl_term|tojson }};function rroAllows(m){var r=fisR();if(!r)return true;var a=RRO_M[r]||{};return !Object.keys(a).length||!!a[m]}
 function noRRO(){return {{ 'true' if rros else 'false' }}&&fisR()===0}
-function payload(){var r=document.getElementById('rule');return {patient_id:S.patient_id,appointment_id:S.appointment_id,items:S.items,
+function payload(){var r=document.getElementById('rule');return {patient_id:S.patient_id,appointment_id:S.appointment_id,appointment_ids:S.appointment_ids,items:S.items,
   rule_ids:r?[].map.call(r.selectedOptions,function(o){return +o.value}):[],manual_discount:0,
   bonus_pay:+(document.getElementById('bp').value||0)||0,comment:document.getElementById('cmt').value,fiscal_rro:fisR(),
   payments:S.pays.map(function(p){return {method:p.method,amount:p.amount,cert_id:p.cert_id||null,sub_id:p.sub_id||null}})}}

@@ -61,7 +61,8 @@
 
       <div class="vd-foot">
         {% if can(user,'sales') %}{% if a and a.sale_id %}<a class="vd-btn main" href="/sales/{{ a.sale_id }}">Відкрити чек</a>
-        {% else %}<a class="vd-btn main" href="/sales/new?{{ ('appt=' ~ a.id) if a else ('patient=' ~ p.id) }}">Провести оплату</a>{% endif %}{% endif %}
+        {% else %}<a class="vd-btn main" href="/sales/new?{{ ('appt=' ~ a.id) if a else ('patient=' ~ p.id) }}">Провести оплату</a>
+          {% if a and c.same_day %}<a class="vd-btn ghost" href="/sales/new?appt={{ ([a.id] + c.same_day)|join(',') }}" title="Усі візити пацієнта сьогодні — одним чеком">Разом з іншими візитами ({{ c.same_day|length + 1 }})</a>{% endif %}{% endif %}{% endif %}
         <a class="vd-btn ghost" href="/patients/{{ p.id }}">Картка пацієнта</a>
       </div>
     </section>

@@ -195,3 +195,17 @@ def sync(db: Session) -> dict:
             if a:
                 rep["reopened"] += reopen(db, a)
     return rep
+
+
+def sale_service_costs(db: Session, sale: Sale) -> dict:
+    """Фактична собівартість послуг чека з витратних усіх його візитів: id послуги → [собівартість, …] по черзі."""
+    out: dict = {}
+    for aid in (sale.appt_ids or ([sale.appointment_id] if sale.appointment_id else [])):
+        a = db.get(Appointment, aid)
+        if not a:
+            continue
+        per = cost_by_service(db, a.id)
+        for i, s in enumerate(a.services or []):
+            if i in per:
+                out.setdefault(s.get("id"), []).append(per[i])
+    return out
