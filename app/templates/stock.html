@@ -28,7 +28,7 @@
 </div>
 {% if request.query_params.get('msg') %}<div class="alert" style="background:var(--lavender);color:var(--classic);margin-top:12px">{{ request.query_params.get('msg') }}</div>{% endif %}
 {% if request.query_params.get('err') %}<div class="alert" style="margin-top:12px">{{ request.query_params.get('err') }}</div>{% endif %}
-<nav class="st-tabs">{% for k, v in TABS.items() %}<a href="?tab={{ k }}" class="{{ 'on' if tab==k }}">{{ v }}</a>{% endfor %}</nav>
+<nav class="st-tabs">{% for k, v in TABS.items() %}<a href="?tab={{ k }}" class="{{ 'on' if tab==k }}">{{ v }}</a>{% endfor %}<a href="/services">Послуги (прайс)</a><a href="/techcards">Техкарти</a><a href="/prices">Моніторинг цін</a></nav>
 
 {% if tab == 'balances' and snap %}
 <div class="startbox" id="snap" style="display:block">
