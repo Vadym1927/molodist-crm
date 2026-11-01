@@ -160,7 +160,8 @@ def adopt_cb(db: Session, rid: int, user_id: int | None = None) -> Appointment |
     ends = [v.ends_at for v in vs if v.ends_at and v.ends_at > start]
     end = max(ends) if ends else start + timedelta(minutes=sum(s_["minutes"] for s_ in svcs))
     a = Appointment(patient_id=vs[0].patient_id, doctor_id=doc.id if doc else None, start=start, end=end, services=svcs,
-                    status="booked", source="cleverbox", cb_record_id=rid, created_by=user_id,
+                    status="arrived" if all(v.status == "attended" for v in vs) else "booked", source="cleverbox",
+                    cb_record_id=rid, created_by=user_id,
                     comment=f"Запис CleverBox №{rid}" + (f" · лікар у CleverBox: {vs[0].master_name}" if vs[0].master_name and not doc else ""))
     db.add(a)
     db.flush()
@@ -177,11 +178,25 @@ def adopt_all_cb(db: Session, since: datetime | None = None) -> int:
     """Усі майбутні (з дати переходу) записи CleverBox — у записи CRM. Повторний запуск дублів не створює."""
     from ..models import Visit
     since = since or datetime.combine(date.today(), datetime.min.time())
-    rids = {_rid(v) for v in db.scalars(select(Visit).where(Visit.source == "cb_visit", Visit.status == "booked", Visit.starts_at >= since))}
+    rids = {_rid(v) for v in db.scalars(select(Visit).where(Visit.source == "cb_visit", Visit.status.in_(("booked", "attended")),
+                                                           Visit.starts_at >= since))}
     rids.discard(None)
     done = {x for (x,) in db.execute(select(Appointment.cb_record_id).where(Appointment.cb_record_id.in_(list(rids))))} if rids else set()
     n = 0
     for rid in sorted(rids - done):
         if adopt_cb(db, rid):
             n += 1
+    seed_open(db, since)
+    return n
+
+
+def seed_open(db: Session, since: datetime) -> int:
+    """Витратні з техкарт для всіх незакритих записів CRM з дати (ті, що ще без матеріалів, або послугу змінили)."""
+    from . import techcards
+    n = 0
+    for a in db.scalars(select(Appointment).where(Appointment.start >= since, Appointment.status.notin_(("cancelled", "no_show")))):
+        try:
+            n += int(bool(techcards.seed(db, a)))
+        except Exception:  # noqa: BLE001
+            db.rollback()
     return n

@@ -2806,6 +2806,13 @@ def calendar_visit(request: Request, appt: int = 0, v: str = "", tab: str = "vis
     """Вікно візиту (як у CleverBox): відкривається з календаря кліком по запису."""
     from .services import visit_card as vc, appointments as aps, calendar as _cal, loyalty as ly
     ids = [int(x) for x in v.split(",") if x.strip().isdigit()][:20]
+    from .services import autonomy as _aut_v
+    if not appt and ids and _aut_v.offline() and can(user, "book"):      # автономно: візит CleverBox відкривається як запис CRM
+        _vs = [x for x in (db.get(Visit, i) for i in ids) if x and x.source == "cb_visit"]
+        _rid = next((aps._rid(x) for x in _vs if aps._rid(x)), None)
+        _a = aps.adopt_cb(db, _rid) if _rid else None
+        if _a:
+            appt, ids = _a.id, []
     c = vc.card(db, appt, ids)
     if not c:
         raise HTTPException(404, "Візит не знайдено")

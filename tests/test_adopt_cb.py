@@ -27,7 +27,7 @@ def test_adopt_cb_visit():
     with TestClient(app) as c:
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
         h = c.get(f"/calendar/visit?v={vids}").text
-        assert "Керувати в CRM" in h
+        assert "Керувати в CRM" in h                                                   # без автономного режиму — кнопка
         r = c.post("/calendar/visit/adopt", data={"v": vids}).json()
         aid = r["id"]
         assert c.post("/calendar/visit/adopt", data={"v": vids}).json()["id"] == aid          # без дублів
@@ -45,3 +45,30 @@ def test_adopt_cb_visit():
         db.commit()
         assert not [e for es in cal.events(db, owner, t.date(), days=1).values() for e in es]   # перенесли — оригінал не вилазить
         assert aps.adopt_all_cb(db, datetime.combine(date.today(), datetime.min.time())) == 0
+
+
+def test_auto_adopt_with_techcard():
+    """Автономний режим: відкрили візит CleverBox — це вже запис CRM з витратними з техкарти."""
+    from app.models import Product, TechCard, TechCardLine, VisitMaterial
+    from app.services import autonomy, techcards as tc
+    settings.admin_password = "owner-pass-1"
+    t = (datetime.now() + timedelta(days=1)).replace(hour=12, minute=0, second=0, microsecond=0)
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        with SessionLocal() as db:
+            pr = Product(name="Голка тест", name_norm="голка тест", warehouse="single", cost=3)
+            p = Patient(full_name="Авто Прийнята", cleverbox_id=778)
+            db.add_all([pr, p]); db.flush()
+            card = TechCard(name="ТК тест", cats=list(tc.DEFAULT_CATS), lines=[TechCardLine(cat="Одноразка", product_id=pr.id, qty=2)])
+            db.add(card); db.flush()
+            db.add(CbService(id=93101, name="Мезотерапія", price=3000, time_min=60, techcard_id=card.id))
+            db.add(Visit(source="cb_visit", external_id="16001-93101", patient_id=p.id, service_id=93101, service_name="Мезотерапія",
+                         starts_at=t, ends_at=t + timedelta(hours=1), status="booked"))
+            db.commit()
+            autonomy.save(db, autonomous=True, since=date.today().isoformat())
+            vid = db.query(Visit).filter(Visit.external_id == "16001-93101").one().id
+        h = c.get(f"/calendar/visit?v={vid}").text
+        assert "Перенести / змінити" in h and "Голка тест" in h
+    with SessionLocal() as db:
+        a = db.query(Appointment).filter(Appointment.cb_record_id == 16001).one()
+        assert db.query(VisitMaterial).filter(VisitMaterial.appt_id == a.id).count() == 1

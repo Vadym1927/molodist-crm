@@ -118,6 +118,10 @@ def create(db: Session, data: dict, user_id: int | None = None) -> Sale:
             if old_ and old_.status in ("paid", "awaiting"):
                 raise SaleError(f"Візит №{aid_} уже розраховано (чек Ч-{old_.id})")
     data["appointment_id"] = aids[0] if aids else None
+    if aids:                                                  # витратні з техкарт — до оплати (собівартість, зарплата, списання)
+        from . import techcards as _tc
+        for aid_ in aids:
+            _tc.seed(db, db.get(Appointment, aid_))
     sale = Sale(patient_id=patient.id if patient else None, appointment_id=data.get("appointment_id"), created_by=user_id,
                 status="awaiting" if data.get("await_terminal") or any(str(p.get("method") or "").startswith(PAYLINK) for p in pays) else "paid",
                 subtotal=q["subtotal"], discount=q["discount"], total=q["total"], bonus_spent=q["bonus_pay"],
