@@ -160,8 +160,52 @@ def _aliases(db: Session) -> dict[tuple[str, str], Alias]:
     return {(a.kind, a.plan_name_norm): a for a in db.scalars(select(Alias))}
 
 
-def compute_plan(db: Session, plan: BeautyPlan, aliases=None, now: datetime | None = None) -> PlanStatus:
+def crm_rows(db: Session, patient_ids=None) -> dict:
+    """Автономний режим: записи й оплачені чеки каси CRM (з дати переходу) у вигляді візитів / продажів CleverBox,
+    щоб план рахувався так само. {patient_id: {"visits": [...], "sales": [...]}}"""
+    from types import SimpleNamespace as NS
+    from . import autonomy
+    from ..models import Appointment, Sale, Product
+    s0 = autonomy.since(db)
+    out: dict = {}
+    if not s0:
+        return out
+    d0 = datetime.combine(s0, datetime.min.time())
+    docs = {d.id: d.name for d in db.scalars(select(Doctor))}
+    q = select(Appointment).where(Appointment.start >= d0, Appointment.status.notin_(("cancelled", "no_show")))
+    if patient_ids is not None:
+        q = q.where(Appointment.patient_id.in_(list(patient_ids)))
+    for a in db.scalars(q):
+        if a.sale_id:                         # оплачений візит рахується з чека
+            continue
+        st = "done" if a.status == "done" else "booked"
+        for i, s in enumerate(a.services or []):
+            out.setdefault(a.patient_id, {"visits": [], "sales": []})["visits"].append(NS(
+                id=f"a{a.id}:{i}", plan_item_id=None, service_id=s.get("id"), service_name=s.get("name"),
+                master_name=docs.get(a.doctor_id), starts_at=a.start, status=st, amount=float(s.get("price") or 0) or None))
+    q = select(Sale).where(Sale.at >= d0, Sale.status == "paid", Sale.patient_id.is_not(None))
+    if patient_ids is not None:
+        q = q.where(Sale.patient_id.in_(list(patient_ids)))
+    paid = db.scalars(q).all()
+    pids = {it.ref_id for s in paid for it in s.items if it.kind == "product" and it.ref_id}
+    cbp = {p.id: p.cb_product_id for p in db.scalars(select(Product).where(Product.id.in_(list(pids))))} if pids else {}
+    for s in paid:
+        bucket = out.setdefault(s.patient_id, {"visits": [], "sales": []})
+        for it in s.items:
+            if it.kind == "service":
+                bucket["visits"].append(NS(id=f"s{it.id}", plan_item_id=None, service_id=it.ref_id, service_name=it.name,
+                                           master_name=docs.get(it.doctor_id), starts_at=s.at, status="done", amount=it.total))
+            elif it.kind == "product":
+                bucket["sales"].append(NS(id=f"s{it.id}", plan_item_id=None, product_id=cbp.get(it.ref_id), product_name=it.name,
+                                          quantity=it.qty, amount=it.total, sold_at=s.at))
+    return out
+
+
+def compute_plan(db: Session, plan: BeautyPlan, aliases=None, now: datetime | None = None, crm: dict | None = None) -> PlanStatus:
     now = now or datetime.now()
+    if crm is None:
+        crm = crm_rows(db, [plan.patient_id])
+    extra = crm.get(plan.patient_id) or {"visits": [], "sales": []}
     aliases = aliases if aliases is not None else _aliases(db)
     patient = plan.patient
     since = (plan.session_at or plan.created_at) - timedelta(days=1)
@@ -182,7 +226,7 @@ def compute_plan(db: Session, plan: BeautyPlan, aliases=None, now: datetime | No
         return bool(cb_name) and name_match(st.item.name, cb_name) >= 0.6
 
     used_visits: set[int] = set()
-    visits = [v for v in patient.visits if v.starts_at >= since and (until is None or v.starts_at < until)]
+    visits = [v for v in list(patient.visits) + extra["visits"] if v.starts_at >= since and (until is None or v.starts_at < until)]
     # дедуп: надана послуга (service_sale) і завершений візит (visit) можуть описувати те саме —
     # враховуємо «done» з service_sale, а з візитів беремо лише майбутні записи
     done_rows = [v for v in visits if v.status == "done"]
@@ -212,7 +256,7 @@ def compute_plan(db: Session, plan: BeautyPlan, aliases=None, now: datetime | No
             st.done = min(st.item.manual_done, st.item.qty)
 
     used_sales: set[int] = set()
-    sales = [s for s in patient.sales if s.sold_at >= since and (until is None or s.sold_at < until)]
+    sales = [s for s in list(patient.sales) + extra["sales"] if s.sold_at >= since and (until is None or s.sold_at < until)]
     for st in statuses:
         if st.item.kind != "product":
             continue
@@ -298,9 +342,10 @@ def all_statuses(db: Session, date_from: date | None = None, date_to: date | Non
     if "all" not in memo or memo.get("version") != _data_version():
         plans = db.scalars(select(BeautyPlan).options(*PLAN_LOAD)).unique().all()
         aliases = _aliases(db)
+        crm = crm_rows(db)
         memo.clear()
         memo["version"] = _data_version()
-        memo["all"] = [compute_plan(db, p, aliases) for p in plans]
+        memo["all"] = [compute_plan(db, p, aliases, crm=crm) for p in plans]
     res = memo["all"]
     if doctor_id:
         res = [s for s in res if s.plan.doctor_id == doctor_id]
@@ -330,7 +375,8 @@ def _install_listener():
 
     @event.listens_for(SessionLocal, "after_flush")
     def _bump(session, ctx):
-        tracked = (BeautyPlan, PlanItem, Visit, ProductSale, Patient, Alias, Doctor)
+        from ..models import Appointment, Sale
+        tracked = (BeautyPlan, PlanItem, Visit, ProductSale, Patient, Alias, Doctor, Appointment, Sale)
         if any(isinstance(o, tracked) for o in list(session.new) + list(session.dirty) + list(session.deleted)):
             _VERSION["n"] += 1
 
