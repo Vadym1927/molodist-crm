@@ -1055,6 +1055,7 @@ class TechCard(Base):
     comment: Mapped[str | None] = mapped_column(Text)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    cb_id: Mapped[int | None] = mapped_column(Integer, index=True)     # id техкарти в CleverBox (імпорт)
 
     lines: Mapped[list["TechCardLine"]] = relationship(back_populates="card", cascade="all, delete-orphan", order_by="TechCardLine.id")
 

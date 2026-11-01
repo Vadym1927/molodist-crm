@@ -2841,6 +2841,26 @@ async def techcard_save(request: Request, user: User = Depends(require("stock"))
     return RedirectResponse(_with_msg(f"/techcards?open={card.id}", f"Техкарту «{card.name}» збережено"), 303)
 
 
+@app.get("/techcards/import-cb", response_class=HTMLResponse)
+def techcards_import_page(request: Request, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    st = db.get(SyncState, "techcards_cb_import")
+    return render(request, "techcards_import.html", nav="stock", last=st.value if st else None)
+
+
+@app.post("/techcards/import-cb")
+async def techcards_import(request: Request, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .services import techcards as tc
+    try:
+        data = await request.json()
+        assert isinstance(data, dict) and isinstance(data.get("cards"), list)
+    except Exception:
+        return JSONResponse({"error": "Невірний формат даних"}, 400)
+    rep = tc.import_cb(db, data)
+    audit(db, "techcards_import_cb", "techcard", None, user=user, **{k: v for k, v in rep.items() if k != "services_missing"})
+    db.commit()
+    return rep
+
+
 @app.post("/techcards/{cid:int}/delete")
 def techcard_delete(cid: int, del_password: str = Form(""), user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
     from .models import TechCard, CbService

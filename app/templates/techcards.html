@@ -35,7 +35,8 @@
 </style>
 <div class="tc-hero"><div class="tc-top"><div><div class="eb"><a href="/stock">Склад</a> · <a href="/services">Послуги</a></div><h1>Техкарти</h1>
   <p>Матеріали на одну послугу за категоріями. Кожна категорія списується зі свого складу (одноразка, препарати, обладнання). Додали послугу у візит — техкарта копіюється у витратні візиту, після оплати матеріали списуються.</p></div>
-  <a class="btn" href="?new=1" style="display:inline-flex;align-items:center;text-decoration:none">＋ Нова техкарта</a></div></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="/techcards/import-cb" style="display:inline-flex;align-items:center;text-decoration:none;background:rgba(255,255,255,.14);color:#fff">Імпорт з CleverBox</a>
+  <a class="btn" href="?new=1" style="display:inline-flex;align-items:center;text-decoration:none">＋ Нова техкарта</a></div></div></div>
 {% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
 {% if qp.get('delerr') %}<div class="alert">{{ qp.get('delerr') }}</div>{% endif %}
 <div class="tc-w">

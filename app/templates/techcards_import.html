@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Імпорт техкарт · MOLODIST CRM{% endblock %}
+{% block body %}
+<style>
+.ti-hero{border-radius:24px;padding:24px 28px;margin-bottom:18px;color:#fff;background:radial-gradient(120% 160% at 100% 0%,#4A3D63 0%,#3B3050 42%,#2A2430 100%)}
+.ti-hero .eb{font:600 10.5px var(--sans);letter-spacing:.22em;text-transform:uppercase;color:#C9BFE6}.ti-hero .eb a{color:#C9BFE6;text-decoration:none}
+.ti-hero h1{margin:8px 0 0;color:#fff;font:500 30px/1.15 var(--head);letter-spacing:.05em;text-transform:uppercase}
+.ti-hero p{margin:8px 0 0;max-width:760px;color:rgba(255,255,255,.72);font-size:14px;line-height:1.55}
+.ti-card{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:20px;display:grid;gap:12px;max-width:820px}
+.ti-st{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}.ti-st div{background:#F7F4F0;border-radius:14px;padding:12px}
+.ti-st b{display:block;font:600 22px var(--head);color:#2A2430}.ti-st span{font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496}
+</style>
+<div class="ti-hero"><div class="eb"><a href="/stock">Склад</a> · <a href="/techcards">Техкарти</a></div><h1>Імпорт техкарт з CleverBox</h1>
+  <p>Техкарти, матеріали й прив'язки до послуг переносяться з CleverBox. Техкарти з CleverBox оновлюються (рядки замінюються), відсутні витратні товари створюються, послуги прив'язуються до техкарт. Нічого не видаляється: старі техкарти CRM без послуг стають неактивними.</p></div>
+<div class="ti-card">
+  {% if last %}<div class="muted small">Останній імпорт: {{ last }}</div>{% endif %}
+  <div id="ti-info" class="muted">Даних для імпорту немає. Завантажте файл JSON із техкартами CleverBox.</div>
+  <input type="file" id="ti-file" accept=".json,application/json">
+  <button class="btn" id="ti-go" type="button" disabled>Імпортувати</button>
+  <div id="ti-rep"></div>
+</div>
+<script>
+var TI=null;
+function tiSet(d){try{if(typeof d==='string')d=JSON.parse(d)}catch(e){return}
+  if(!d||!Array.isArray(d.cards))return;TI=d;var n=d.cards.reduce(function(a,c){return a+(c[5]||[]).length},0),u=d.cards.reduce(function(a,c){return a+(c[6]||[]).length},0);
+  document.getElementById('ti-info').innerHTML='Готово до імпорту: <b>'+d.cards.length+'</b> техкарт · <b>'+n+'</b> рядків матеріалів · <b>'+u+'</b> прив\'язок до послуг';
+  document.getElementById('ti-go').disabled=false}
+try{if(window.name&&window.name.indexOf('CBTC:')===0){tiSet(window.name.slice(5))}}catch(e){}
+document.getElementById('ti-file').onchange=function(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(){tiSet(r.result)};r.readAsText(f)};
+document.getElementById('ti-go').onclick=async function(){if(!TI)return;var b=this;b.disabled=true;b.textContent='Імпортую…';
+  var r=await fetch('/techcards/import-cb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(TI)});var j=await r.json().catch(function(){return {error:'Помилка сервера'}});
+  if(!r.ok){document.getElementById('ti-rep').innerHTML='<div class="alert">'+(j.error||j.detail||'Помилка')+'</div>';b.disabled=false;b.textContent='Імпортувати';return}
+  try{window.name=''}catch(e){}
+  document.getElementById('ti-rep').innerHTML='<div class="ti-st"><div><b>'+j.created+'</b><span>нових техкарт</span></div><div><b>'+j.updated+'</b><span>оновлено</span></div><div><b>'+j.lines+'</b><span>рядків</span></div><div><b>'+j.services_linked+'</b><span>послуг прив\'язано</span></div><div><b>'+j.products_created+'</b><span>нових товарів</span></div><div><b>'+j.deactivated+'</b><span>старих вимкнено</span></div></div>'+
+    (j.services_missing.length?'<div class="muted small" style="margin-top:8px">Послуги, яких ще немає в CRM (id CleverBox): '+j.services_missing.join(', ')+' — прив\'яжуться після наступного імпорту, коли з\'являться.</div>':'')+
+    '<p><a class="btn" href="/techcards" style="text-decoration:none;display:inline-flex;align-items:center">До техкарт</a></p>';b.textContent='Імпортовано'};
+</script>
+{% endblock %}

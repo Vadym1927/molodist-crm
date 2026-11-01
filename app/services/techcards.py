@@ -209,3 +209,70 @@ def sale_service_costs(db: Session, sale: Sale) -> dict:
             if i in per:
                 out.setdefault(s.get("id"), []).append(per[i])
     return out
+
+
+# ---------------- імпорт з CleverBox ----------------
+CB_INACTIVE = "неактивні послуги"
+
+
+def import_cb(db: Session, data: dict) -> dict:
+    """Техкарти з CleverBox (зібрані з веб-кабінету). data = {"cards": [[cb_id, назва, категорія, max, [[кат, склад]],
+    [[індекс_кат, cb_product_id, к-сть_в_од_обліку]], [cb_service_id…], коментар]], "products": {cb_id: [назва, од., ціна_од., склад]}}.
+    Оновлює техкарту за cb_id (рядки — замінюються), створює відсутні витратні товари, прив'язує послуги.
+    Нічого не видаляє: старі техкарти CRM без послуг стають неактивними."""
+    from ..parsers.observ import norm
+    rep = {"created": 0, "updated": 0, "lines": 0, "products_created": 0, "services_linked": 0, "services_missing": [], "deactivated": 0}
+    prods = {int(k): v for k, v in (data.get("products") or {}).items()}
+    by_cb = {p.cb_product_id: p for p in db.scalars(select(Product).where(Product.cb_product_id.is_not(None)))}
+    cards = data.get("cards") or []
+    touched: set[int] = set()
+    for row in cards:
+        cb_id, name, cat, maxc, cats, items, uses = row[:7]
+        comment = row[7] if len(row) > 7 else ""
+        card = db.scalar(select(TechCard).where(TechCard.cb_id == int(cb_id)))
+        if card:
+            rep["updated"] += 1
+        else:
+            card = TechCard(cb_id=int(cb_id), name=str(name)[:200])
+            db.add(card)
+            rep["created"] += 1
+        cats = [{"name": str(c[0]).strip()[:80] or "Одноразка", "wh": c[1] if c[1] in WH_CAT else "single"} for c in (cats or [])] or list(DEFAULT_CATS)
+        card.name, card.category = str(name).strip()[:200], (str(cat).strip()[:200] or None) if cat else None
+        card.max_cost = float(maxc) if maxc else None
+        card.comment = (str(comment).strip()[:2000] or None) if comment else None
+        card.cats, card.mode = cats, "extended"
+        card.active = (str(cat or "").strip().lower() != CB_INACTIVE) or bool(uses)
+        card.lines.clear()
+        for it in items or []:
+            vi, pid, qty = int(it[0]), int(it[1]), float(it[2] or 0)
+            p = by_cb.get(pid)
+            if not p:
+                pr = prods.get(pid) or [f"Товар CleverBox #{pid}", None, 0, None]
+                p = Product(name=str(pr[0])[:300], name_norm=norm(str(pr[0])), cb_product_id=pid, unit=(str(pr[1]).rstrip(".")[:20] if pr[1] else None),
+                            cost=float(pr[2] or 0) or None, warehouse=(pr[3] if len(pr) > 3 and pr[3] in WH_CAT else None) or "single", for_sale=False)
+                db.add(p)
+                db.flush()
+                by_cb[pid] = p
+                rep["products_created"] += 1
+            c_ = cats[vi] if 0 <= vi < len(cats) else cats[0]
+            card.lines.append(TechCardLine(cat=c_["name"], product_id=p.id, qty=qty))
+            rep["lines"] += 1
+        db.flush()
+        touched.add(card.id)
+        for sid in uses or []:
+            sv = db.get(CbService, int(sid))
+            if sv:
+                sv.techcard_id = card.id
+                rep["services_linked"] += 1
+            else:
+                rep["services_missing"].append(int(sid))
+    db.flush()
+    used = {x for (x,) in db.execute(select(CbService.techcard_id).where(CbService.techcard_id.is_not(None)))}
+    for c in db.scalars(select(TechCard).where(TechCard.cb_id.is_(None), TechCard.active.is_not(False))):
+        if c.id not in used:
+            c.active = False
+            rep["deactivated"] += 1
+    db.merge(SyncState(key="techcards_cb_import", value=f"{datetime.now():%d.%m.%Y %H:%M} · {len(cards)} техкарт"))
+    db.commit()
+    rep["services_missing"] = sorted(set(rep["services_missing"]))
+    return rep
