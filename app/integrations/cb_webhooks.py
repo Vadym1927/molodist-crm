@@ -125,6 +125,10 @@ def _shape(obj, depth=0):
 
 def handle(payload) -> dict:
     ev = parse(payload)
+    from ..services import autonomy
+    if autonomy.offline():                       # автономний режим — події CleverBox не обробляються
+        ev["ignored"] = True
+        return ev
     with SessionLocal() as db:
         _set(db, "cb_webhook_last", json.dumps({"at": datetime.now().isoformat(timespec="seconds"),
                                                 "event": ev["event"], "shape": _shape(payload)},

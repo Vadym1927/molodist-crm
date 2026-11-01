@@ -52,6 +52,25 @@
   {% endif %}
 </div>
 
+{% if user.role == 'owner' %}
+<div class="card" id="mode"><h2>Режим роботи</h2>
+  <div class="grid g2">
+    <div class="small">
+      <b>Автономний режим:</b> {% if wmode.autonomous %}<span class="pill warn">увімкнено</span> облік у CRM з {{ wmode.since[8:10] }}.{{ wmode.since[5:7] }}.{{ wmode.since[:4] }}{% else %}<span class="pill ok">вимкнено</span> — CRM працює разом із CleverBox{% endif %}
+      <p class="muted" style="margin:6px 0 0">CRM не звертається до CleverBox (синхронізація, вебхуки, запис вимкнені). Візити, продажі, склад, зарплата й звіти з дати переходу — лише з CRM.
+        Дані CleverBox у звітах — до цієї дати; історію раніше довантажуйте звітами CleverBox («Перенос», «Склад», «Фінанси») або вручну.</p>
+      <br><b>Тестовий режим:</b> {% if wmode.test %}<span class="pill warn">увімкнено</span>{% else %}<span class="pill ok">вимкнено</span>{% endif %}
+      <p class="muted" style="margin:6px 0 0">Фіскалізацію відв'язано — чеки не йдуть у Checkbox; оплата карткою проводиться без термінала (гроші не реальні). Такі чеки позначені «ТЕСТ».</p>
+    </div>
+    <form method="post" action="/settings/work-mode" class="grid" style="gap:10px;align-content:start">
+      <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="autonomous" value="1" style="width:auto" {{ 'checked' if wmode.autonomous }}> <b>Автономний режим (без CleverBox)</b></label>
+      <label class="small"><b>Облік і звітність у CRM з дати</b><input type="date" name="since" value="{{ wmode.since or '' }}"></label>
+      <label class="small" style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="test" value="1" style="width:auto" {{ 'checked' if wmode.test }}> <b>Тестовий режим (без фіскалізації й терміналів)</b></label>
+      <button class="btn">Зберегти режим</button>
+    </form>
+  </div>
+</div>
+{% endif %}
 {% if can(user,'migrate') %}
 <div class="card" id="migrate"><h2>Перенос з поточної CRM</h2>
   <div class="grid g2">

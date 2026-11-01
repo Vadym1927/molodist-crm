@@ -67,8 +67,9 @@ def prev_period(d_from: date, d_to: date) -> tuple[date, date]:
 
 
 def _checks(db: Session, d_from: date, d_to: date):
+    from .finops import revenue_checks
     a, b = _rng(d_from, d_to)
-    return db.scalars(select(Check).where(Check.deleted.is_(False), Check.date >= a, Check.date <= b)).all()
+    return revenue_checks(db, a, b)
 
 
 def _items(c: Check):
@@ -156,7 +157,9 @@ def doctors(db: Session, d_from: date, d_to: date) -> Report:
             if c.patient_id and kind in ("service", "product"):
                 x["patients"].add(c.patient_id)
     seen = defaultdict(set)          # візит = пацієнт × день у лікаря (надані послуги й записи CleverBox)
-    for v in db.scalars(select(Visit).where(Visit.starts_at >= a, Visit.starts_at <= b)):
+    from . import autonomy
+    from ..models import Appointment, Doctor
+    for v in db.scalars(select(Visit).where(Visit.starts_at >= a, Visit.starts_at <= autonomy.cb_until(db, b))):
         m = (v.master_name or "—").strip()
         if v.status == "cancelled":
             agg[m]["cancelled"] += 1
@@ -164,6 +167,18 @@ def doctors(db: Session, d_from: date, d_to: date) -> Report:
             seen[m].add((v.patient_id, v.starts_at.date()))
         else:
             agg[m]["booked"] += 1
+    s_ = autonomy.since(db)
+    if s_:                                       # автономний режим: візити з дати переходу — записи CRM
+        dn = {d.id: d.name for d in db.scalars(select(Doctor))}
+        for ap in db.scalars(select(Appointment).where(Appointment.start >= max(a, datetime.combine(s_, datetime.min.time())),
+                                                       Appointment.start <= b)):
+            m = dn.get(ap.doctor_id, "—")
+            if ap.status in ("cancelled", "no_show"):
+                agg[m]["cancelled"] += 1
+            elif ap.status == "done" or ap.start < datetime.now():
+                seen[m].add((ap.patient_id, ap.start.date()))
+            else:
+                agg[m]["booked"] += 1
     for m, days in seen.items():
         agg[m]["done"] = len(days)
     for pl in db.scalars(select(BeautyPlan).where(BeautyPlan.session_at >= a, BeautyPlan.session_at <= b,

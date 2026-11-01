@@ -8,6 +8,7 @@ from datetime import datetime, date, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .finops import revenue_checks as _rc
 from ..models import Check, BeautyPlan
 from .kpi import all_statuses, forecast
 
@@ -54,7 +55,7 @@ def summary(db: Session, d_from: date, d_to: date) -> FinanceSummary:
         if p.session_at:
             plan_start[p.patient_id] = min(plan_start.get(p.patient_id, p.session_at), p.session_at)
 
-    for c in db.scalars(select(Check).where(Check.deleted.is_(False), Check.date >= start, Check.date <= end)):
+    for c in _rc(db, start, end):
         fs.has_data = True
         fs.revenue += c.amount
         fs.discount += c.discount or 0
@@ -81,7 +82,7 @@ def summary(db: Session, d_from: date, d_to: date) -> FinanceSummary:
     keys = _month_keys(d_to, 12)
     m_start = datetime(int(keys[0][:4]), int(keys[0][5:]), 1)
     agg = {k: {"month": k, "revenue": 0.0, "services": 0.0, "products": 0.0, "via_plans": 0.0} for k in keys}
-    for c in db.scalars(select(Check).where(Check.deleted.is_(False), Check.date >= m_start, Check.date <= end)):
+    for c in _rc(db, m_start, end):
         k = f"{c.date.year}-{c.date.month:02d}"
         if k not in agg:
             continue

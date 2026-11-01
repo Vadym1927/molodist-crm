@@ -312,6 +312,9 @@ def build(db: Session, sale: Sale, is_return: bool = False, rro: dict | None = N
 
 def fiscalize(db: Session, sale: Sale, rid: int | None = None, http: httpx.Client | None = None, wait: float = 1.0,
               is_return: bool = False) -> dict:
+    from . import autonomy
+    if autonomy.test_mode(db) or (sale.fiscal or {}).get("test_sale"):
+        raise FiscalError("Тестовий режим: фіскалізацію відв'язано — тестові чеки в Checkbox не надсилаються")
     if not is_return and sale.fiscal and sale.fiscal.get("fiscal_code"):
         raise FiscalError("Чек уже фіскалізовано")
     r = _rro(db, rid or ((sale.fiscal or {}).get("rro") if is_return else None))

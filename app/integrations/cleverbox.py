@@ -107,6 +107,9 @@ class CleverBox:
         """Один запит до CleverBox. Ліміт 1 запит/сек спільний для ВСІХ клієнтів у процесі
         (плановий синк, вебхуки, кнопки, запис), а при «no more than 1 request per second»
         запит повторюється з паузою — помилка не доходить до синку."""
+        from ..services import autonomy
+        if autonomy.offline():
+            raise CleverBoxError("Автономний режим: обмін з CleverBox вимкнено (Дані → Режим роботи)")
         url = f"{self.base}/{method.lstrip('/')}"
         for attempt in range(6):
             with _RATE_LOCK:

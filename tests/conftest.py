@@ -8,4 +8,10 @@ from app.models import Base, engine
 def clean_db():
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
+    from app.models import SessionLocal, SyncState      # режими роботи в тестах — вимкнені (на сервері вмикаються міграцією)
+    with SessionLocal() as db:
+        db.add(SyncState(key="work_mode_init_20261101", value="1"))
+        db.commit()
+    from app.services import autonomy
+    autonomy._CACHE["cfg"] = dict(autonomy.DEFAULT)
     yield

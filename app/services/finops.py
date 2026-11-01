@@ -43,7 +43,9 @@ def _range(d_from: date, d_to: date):
 
 
 def checks(db: Session, d_from: date, d_to: date) -> list[Check]:
+    from . import autonomy
     a, b = _range(d_from, d_to)
+    b = autonomy.cb_until(db, b)                    # автономний режим: чеки CleverBox — лише до дати переходу
     return db.scalars(select(Check).where(Check.deleted.is_(False), Check.date >= a, Check.date <= b)
                       .order_by(Check.date.desc())).all()
 
@@ -220,6 +222,18 @@ def crm_checks(db: Session, d_from: date, d_to: date, paid_only: bool = True) ->
     docs = {d.id: d.name for d in db.scalars(select(Doctor))}
     users = {u.id: u.name for u in db.scalars(select(User))}
     return [CrmCheck(s, docs, users) for s in db.scalars(q.order_by(Sale.at.desc()))]
+
+
+def revenue_checks(db: Session, a: datetime, b: datetime) -> list:
+    """Чеки для виручки/звітів: CleverBox; в автономному режимі — CleverBox до дати переходу + каса CRM з неї."""
+    from . import autonomy
+    out = list(db.scalars(select(Check).where(Check.deleted.is_(False), Check.date >= a, Check.date <= autonomy.cb_until(db, b))))
+    s = autonomy.since(db)
+    if s:
+        a2 = max(a, datetime.combine(s, datetime.min.time()))
+        if a2 <= b:
+            out += crm_checks(db, a2.date(), b.date())
+    return out
 
 
 def all_checks(db: Session, d_from: date, d_to: date) -> list:

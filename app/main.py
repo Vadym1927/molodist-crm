@@ -71,6 +71,17 @@ def _pay_accounts() -> list[dict]:
 
 templates.env.globals["pay_accounts"] = _pay_accounts
 
+
+def _work_mode() -> dict:
+    from .services import autonomy as _aut
+    try:
+        return _aut.cfg()
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+templates.env.globals["work_mode"] = _work_mode
+
 state = {"bot": None, "last_sync": None, "last_error": None}
 
 
@@ -94,7 +105,8 @@ def ensure_sync_schedule() -> None:
     sched = state.get("scheduler")
     if not sched:
         return
-    if settings.cleverbox_token and auto_sync_enabled():
+    from .services import autonomy as _aut
+    if settings.cleverbox_token and auto_sync_enabled() and not _aut.offline():
         sched.add_job(job_sync, "cron", hour="*/2", minute=5,
                       id="cleverbox_sync", replace_existing=True)
     elif sched.get_job("cleverbox_sync"):
@@ -139,7 +151,9 @@ def run_sheets() -> str:
 
 
 async def job_sync():
-    from .services import alerts
+    from .services import alerts, autonomy
+    if autonomy.offline():
+        return
     try:
         rep = await asyncio.to_thread(run_sync)
         state["last_error"] = None
@@ -326,6 +340,13 @@ async def lifespan(app: FastAPI):
             from .integrations.cleverbox import set_calendar_frozen as _fz
             _fz(db, True)
             db.merge(SyncState(key="cb_calendar_freeze_20261031", value="1"))
+            db.commit()
+        from .services import autonomy as _aut_w
+        _aut_w.cfg(db)                                          # режим роботи — у кеш процесу
+        if not db.get(SyncState, "work_mode_init_20261101"):      # 01.11.2026: тестування — CRM автономно, без фіскалізації (рішення власника)
+            from .services import autonomy as _aut
+            _aut.save(db, autonomous=True, since="2026-11-01", test=True)
+            db.merge(SyncState(key="work_mode_init_20261101", value="1"))
             db.commit()
         if not db.get(SyncState, "revert_unrecorded_v1"):        # відкат: оплати без поставки НЕ списуємо — спишуться з поставкою
             from .services import payments as _pay1
@@ -1464,7 +1485,10 @@ async def sale_create(request: Request, user: User = Depends(require("sales")), 
                 if p0_ and len([1 for (_a, _b, e_), q_ in _st0.batch_balances(db, p0_.id, it_.get("warehouse") or p0_.warehouse or "vitrina").items()
                                 if e_ and q_ > 1e-6]) > 1:
                     return JSONResponse({"error": f"«{p0_.name}»: оберіть термін дії для списання"}, status_code=400)
-    from .services import fiscal as _fis0, sales as _sl0
+    from .services import fiscal as _fis0, sales as _sl0, autonomy as _aut0
+    _test = _aut0.test_mode(db)
+    if _test:                                                   # тестовий режим: без Checkbox і без термінала
+        d_["fiscal_rro"] = None
     _allowed = _fis0.rro_methods(db).get(d_.get("fiscal_rro") or 0) if d_.get("fiscal_rro") else None
     if _allowed:
         bad_ = [p_.get("method") for p_ in d_["payments"] if _sl0.method_kind(str(p_.get("method") or "")) in ("cash", "card")
@@ -1475,7 +1499,7 @@ async def sale_create(request: Request, user: User = Depends(require("sales")), 
     term_wait = {}                                              # оплата на терміналі PayLink: чек закриється лише після оплати
     for p_ in d_["payments"]:
         m_ = str(p_.get("method") or "")
-        if float(p_.get("amount") or 0) <= 0 or _sl0.method_kind(m_) != "card" or m_.startswith(_sl0.PAYLINK):
+        if _test or float(p_.get("amount") or 0) <= 0 or _sl0.method_kind(m_) != "card" or m_.startswith(_sl0.PAYLINK):
             continue
         t_ = _fis0.terminal_for(_fc0, m_)
         if not t_:
@@ -1494,13 +1518,18 @@ async def sale_create(request: Request, user: User = Depends(require("sales")), 
     if term_wait:
         s_.fiscal = {**(s_.fiscal or {}), "term_wait": term_wait, "rro_pending": d_.get("fiscal_rro")}
         db.commit()
+    if _test:
+        s_.fiscal = {**(s_.fiscal or {}), "test_sale": True}
+        db.commit()
     audit(db, "sale.create", "sale", s_.id, user=user, total=s_.total, patient=s_.patient_id, appt=s_.appointment_id)
     link_msgs = await _sale_links(request, db, s_, user) if s_.status == "awaiting" and not term_wait else []
     if term_wait and any(str(p_.get("method") or "").startswith(sl.PAYLINK) for p_ in d_["payments"]):
         link_msgs = await _sale_links(request, db, s_, user)
     from .services import fiscal as _fis
     rro_ = d_.get("fiscal_rro")
-    if rro_ and s_.status == "paid":                              # вибрана фіскальна каса в POS
+    if _test:
+        pass
+    elif rro_ and s_.status == "paid":                              # вибрана фіскальна каса в POS
         import threading
         threading.Thread(target=_fis.auto, args=(s_.id, rro_), daemon=True).start()
     elif _fis.cfg(db).get("auto") and rro_ != 0 and s_.status == "paid":
@@ -1508,7 +1537,7 @@ async def sale_create(request: Request, user: User = Depends(require("sales")), 
         threading.Thread(target=_fis.auto, args=(s_.id,), daemon=True).start()
     return JSONResponse({"ok": True, "id": s_.id, "msg": "; ".join(link_msgs),
                          "term": list(term_wait),
-                         "title": "Чек створено — оплата на терміналі" if term_wait else ("Чек створено — очікує оплати" if s_.status == "awaiting" else "Продаж проведено")})
+                         "title": "Тестовий чек проведено (без фіскалізації й термінала)" if _test else "Чек створено — оплата на терміналі" if term_wait else ("Чек створено — очікує оплати" if s_.status == "awaiting" else "Продаж проведено")})
 
 
 @app.get("/sales/{sid:int}", response_class=HTMLResponse)
@@ -2264,6 +2293,9 @@ def api_docs(user: User = Depends(require("api"))):
 
 @app.post("/actions/sync")
 async def action_sync(user: User = Depends(require("sync")), db: Session = Depends(db_dep)):
+    from .services import autonomy as _aut
+    if _aut.offline():
+        return RedirectResponse(_with_msg("/data#mode", "Автономний режим: синхронізацію з CleverBox вимкнено", True), 303)
     await job_sync()
     audit(db, "sync.manual", user=user)
     return RedirectResponse("/", 303)
@@ -2315,6 +2347,28 @@ def cleverbox_calendar_toggle(on: str = Form("0"), user: User = Depends(require(
     return RedirectResponse(_with_msg("/data#cleverbox", "Синхронізацію календаря з CleverBox " + ("увімкнено" if on == "1" else "вимкнено")), 303)
 
 
+@app.post("/settings/work-mode")
+def work_mode_save(autonomous: str = Form(""), since: str = Form(""), test: str = Form(""), user: User = Depends(require("migrate")),
+                   db: Session = Depends(db_dep)):
+    """Режим роботи: автономний (без CleverBox, облік у CRM з дати) і тестовий (без фіскалізації й терміналів)."""
+    from .services import autonomy
+    if user.role != "owner":
+        raise HTTPException(403)
+    try:
+        s_ = date.fromisoformat(since).isoformat() if since else None
+    except ValueError:
+        return RedirectResponse(_with_msg("/data#mode", "Невірна дата переходу", True), 303)
+    d_ = autonomy.save(db, autonomous=autonomous == "1", since=s_, test=test == "1")
+    if d_["autonomous"]:
+        from .integrations.cleverbox import set_calendar_frozen, calendar_frozen
+        if not calendar_frozen(db):
+            set_calendar_frozen(db, True)
+    ensure_sync_schedule()
+    audit(db, "work_mode", user=user, autonomous=d_["autonomous"], since=d_["since"], test=d_["test"])
+    db.commit()
+    return RedirectResponse(_with_msg("/data#mode", "Режим роботи збережено"), 303)
+
+
 @app.get("/data", response_class=HTMLResponse)
 def data_page(request: Request, user: User = Depends(require("export_reports")), db: Session = Depends(db_dep)):
     last = db.get(SyncState, "last_migration")
@@ -2328,6 +2382,7 @@ def data_page(request: Request, user: User = Depends(require("export_reports")),
                   cb_last_success=cb_success.value if cb_success else None,
                   cb_last_error=cb_error.value if cb_error else None,
                   cb_next_sync=job.next_run_time if job else None,
+                  wmode=__import__("app.services.autonomy", fromlist=["x"]).cfg(db),
                   cb_auto_sync=auto_sync_enabled(), cal_frozen=__import__("app.integrations.cleverbox", fromlist=["x"]).calendar_frozen(db),
                   cb_notice=request.query_params.get("cb_notice"),
                   wh=cb_webhooks.status(db) if user.role == "owner" else None,
