@@ -99,8 +99,11 @@ def online(db: Session, minutes: int = 5) -> list[User]:
 
 def photo_url(u: User) -> str | None:
     """Фото профілю: власне завантажене, інакше — аватар картки лікаря (якщо користувач прив'язаний до спеціаліста)."""
-    if u.photo_path:
-        return f"/me/photo/{u.id}?v={u.photo_path.replace(chr(92), '/').rsplit('/', 1)[-1][:24]}"
-    if u.doctor and u.doctor.photo_url:
-        return u.doctor.photo_url
+    try:
+        if u.photo_path:
+            return f"/me/photo/{u.id}?v={u.photo_path.replace(chr(92), '/').rsplit('/', 1)[-1][:24]}"
+        if u.doctor and u.doctor.photo_url:
+            return u.doctor.photo_url
+    except Exception:  # noqa: BLE001 — користувач поза сесією (сторінка помилки) — без фото
+        return None
     return None
