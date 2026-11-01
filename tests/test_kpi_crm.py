@@ -26,3 +26,21 @@ def test_plan_counts_crm():
         assert next(x for x in kpi.all_statuses(db) if x.plan.id == plan.id).items[0].done == 1
         autonomy.save(db, autonomous=False)
         assert kpi.compute_plan(db, db.get(BeautyPlan, plan.id)).items[0].done == 0
+
+
+def test_adopted_not_double():
+    from app.models import Visit
+    with SessionLocal() as db:
+        p = Patient(full_name="Подвійна Перевірка")
+        db.add_all([p, CbService(id=94101, name="Ботулінотерапія лоб", price=4000)]); db.flush()
+        plan = BeautyPlan(patient_id=p.id, session_at=datetime.now() - timedelta(days=3), status="active",
+                          items=[PlanItem(kind="procedure", name="Ботулінотерапія лоб", qty=2, unit_price=4000)])
+        t = datetime.now() + timedelta(days=5)
+        db.add_all([plan, Visit(source="cb_visit", external_id="55501-94101", patient_id=p.id, service_id=94101, service_name="Ботулінотерапія лоб",
+                                starts_at=t, ends_at=t + timedelta(hours=1), status="booked")])
+        db.commit()
+        autonomy.save(db, autonomous=True, since=(date.today() - timedelta(days=2)).isoformat())
+        from app.services import appointments as aps
+        assert aps.adopt_cb(db, 55501)
+        db.expire_all()
+        assert kpi.compute_plan(db, db.get(BeautyPlan, plan.id)).items[0].booked == 1

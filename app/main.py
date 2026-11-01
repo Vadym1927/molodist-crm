@@ -344,6 +344,14 @@ async def lifespan(app: FastAPI):
             db.commit()
         from .services import autonomy as _aut_w
         _aut_w.cfg(db)                                          # режим роботи — у кеш процесу
+        if _aut_w.since(db):                                   # автономно: майбутні записи CleverBox — записи CRM (керуються в CRM)
+            try:
+                from .services import appointments as _aps_w
+                _n_ad = _aps_w.adopt_all_cb(db, datetime.combine(_aut_w.since(db), datetime.min.time()))
+                if _n_ad:
+                    log.info("записи CleverBox → CRM: %s", _n_ad)
+            except Exception as e:  # noqa: BLE001
+                log.warning("adopt cb: %s", e)
         if not db.get(SyncState, "work_mode_init_20261101"):      # 01.11.2026: тестування — CRM автономно, без фіскалізації (рішення власника)
             from .services import autonomy as _aut
             _aut.save(db, autonomous=True, since="2026-11-01", test=True)
@@ -2774,6 +2782,22 @@ def calendar_page(request: Request, start: str | None = None, doc: str = "", vie
     return render(request, "calendar.html", ev=ev, cols=cols, grid=grid, start=s, days=days, n_ev=n_ev,
                   prev=s - timedelta(days=days), next=s + timedelta(days=days), end=s + timedelta(days=days - 1),
                   month=None, **ctx)
+
+
+@app.post("/calendar/visit/adopt")
+def calendar_visit_adopt(v: str = Form(""), user: User = Depends(require("book")), db: Session = Depends(db_dep)):
+    """Візит CleverBox → запис CRM (ним далі керують у CRM)."""
+    from .models import Visit as _V
+    from .services import appointments as aps
+    ids = [int(x) for x in v.split(",") if x.strip().isdigit()][:20]
+    vs = [x for x in (db.get(_V, i) for i in ids) if x and x.source == "cb_visit"]
+    rid = next((aps._rid(x) for x in vs if aps._rid(x)), None)
+    a = aps.adopt_cb(db, rid, user.id) if rid else None
+    if not a:
+        return JSONResponse({"error": "Це не запис календаря CleverBox — керувати ним у CRM не можна"}, status_code=400)
+    audit(db, "appointment.adopt_cb", "appointment", a.id, user=user, cb=rid)
+    db.commit()
+    return {"ok": True, "id": a.id}
 
 
 @app.get("/calendar/visit", response_class=HTMLResponse)

@@ -29,7 +29,9 @@
           {% if can(user,'book') %}<button type="button" class="vd-btn warm" onclick="visitClose();apptOpen({{ a.id }}, 1)">Перенести / змінити</button>{% endif %}
         {% else %}
           <span class="vd-badge {{ 'ok' if c.status in ('attended','done') else '' }}">{{ c.status_label }}</span>
-          <span class="vd-hint">Статус візиту CleverBox змінюється в CleverBox — у CRM оновиться після синхронізації.</span>
+          {% if can(user,'book') and c.vs %}<button type="button" class="vd-btn warm" onclick="vdAdopt('{{ c.vs|map(attribute='id')|join(',') }}')">Керувати в CRM</button>
+          <span class="vd-hint">Візит з CleverBox. «Керувати в CRM» робить його записом CRM: можна переносити, змінювати послуги й статус, списувати витратні й розраховувати в касі.</span>
+          {% else %}<span class="vd-hint">Візит з CleverBox — лише перегляд.</span>{% endif %}
         {% endif %}
       </div>
 
@@ -61,6 +63,7 @@
 
       <div class="vd-foot">
         {% if can(user,'sales') %}{% if a and a.sale_id %}<a class="vd-btn main" href="/sales/{{ a.sale_id }}">Відкрити чек</a>
+        {% elif not a and c.vs and can(user,'book') %}<button type="button" class="vd-btn main" onclick="vdAdopt('{{ c.vs|map(attribute='id')|join(',') }}', 'pay')">Провести оплату</button>
         {% else %}<a class="vd-btn main" href="/sales/new?{{ ('appt=' ~ a.id) if a else ('patient=' ~ p.id) }}">Провести оплату</a>
           {% if a and c.same_day %}<a class="vd-btn ghost" href="/sales/new?appt={{ ([a.id] + c.same_day)|join(',') }}" title="Усі візити пацієнта сьогодні — одним чеком">Разом з іншими візитами ({{ c.same_day|length + 1 }})</a>{% endif %}{% endif %}{% endif %}
         <a class="vd-btn ghost" href="/patients/{{ p.id }}">Картка пацієнта</a>

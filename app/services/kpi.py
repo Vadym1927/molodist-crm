@@ -175,7 +175,10 @@ def crm_rows(db: Session, patient_ids=None) -> dict:
     q = select(Appointment).where(Appointment.start >= d0, Appointment.status.notin_(("cancelled", "no_show")))
     if patient_ids is not None:
         q = q.where(Appointment.patient_id.in_(list(patient_ids)))
+    adopted = out.setdefault("_adopted", set())
     for a in db.scalars(q):
+        if a.cb_record_id:                    # запис CleverBox, прийнятий у CRM — його рядки CleverBox не рахуємо
+            adopted.add(f"{a.cb_record_id}-")
         if a.sale_id:                         # оплачений візит рахується з чека
             continue
         st = "done" if a.status == "done" else "booked"
@@ -226,7 +229,9 @@ def compute_plan(db: Session, plan: BeautyPlan, aliases=None, now: datetime | No
         return bool(cb_name) and name_match(st.item.name, cb_name) >= 0.6
 
     used_visits: set[int] = set()
-    visits = [v for v in list(patient.visits) + extra["visits"] if v.starts_at >= since and (until is None or v.starts_at < until)]
+    adopted = crm.get("_adopted") or set()
+    cbv = [v for v in patient.visits if not (adopted and v.source == "cb_visit" and any(v.external_id.startswith(x) for x in adopted))]
+    visits = [v for v in cbv + extra["visits"] if v.starts_at >= since and (until is None or v.starts_at < until)]
     # дедуп: надана послуга (service_sale) і завершений візит (visit) можуть описувати те саме —
     # враховуємо «done» з service_sale, а з візитів беремо лише майбутні записи
     done_rows = [v for v in visits if v.status == "done"]

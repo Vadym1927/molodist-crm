@@ -24,7 +24,7 @@ def visits(db: Session, d: date, user=None) -> list[dict]:
     out = []
     appts = db.scalars(select(Appointment).where(Appointment.start >= a, Appointment.start < b, Appointment.status != "cancelled")
                        .order_by(Appointment.start)).all()
-    mirrored = {str(x.cb_record_id) for x in appts if x.cb_record_id}
+    mirrored = {str(r) for (r,) in db.execute(select(Appointment.cb_record_id).where(Appointment.cb_record_id.is_not(None)))}
     for x in appts:
         out.append({"key": f"a{x.id}", "appt_id": x.id, "at": x.start.strftime("%H:%M"), "end": x.end.strftime("%H:%M") if x.end else "",
                     "patient_id": x.patient_id, "patient": x.patient.full_name if x.patient else "—", "doctor_id": x.doctor_id,

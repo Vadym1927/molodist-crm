@@ -125,3 +125,63 @@ def mirror_to_cleverbox(db: Session, a: Appointment, cb=None) -> int:
 def day_list(db: Session, start: date, days: int = 1) -> list[Appointment]:
     a, b = datetime.combine(start, datetime.min.time()), datetime.combine(start + timedelta(days=days), datetime.min.time())
     return db.scalars(select(Appointment).where(Appointment.start >= a, Appointment.start < b).order_by(Appointment.start)).all()
+
+
+# ---------------- візити CleverBox → записи CRM (автономний режим) ----------------
+def _rid(v) -> int | None:
+    try:
+        return int(str(v.external_id).split("-")[0])
+    except (TypeError, ValueError):
+        return None
+
+
+def adopt_cb(db: Session, rid: int, user_id: int | None = None) -> Appointment | None:
+    """Візит CleverBox (№ запису rid) стає записом CRM: той самий пацієнт, лікар, час і послуги — далі ним керують у CRM
+    (перенести, змінити, статус, витратні, розрахунок). Рядки CleverBox не змінюються; календар показує запис CRM замість них."""
+    from ..models import CbService, Visit
+    from .specialists import DoctorIndex, all_doctors
+    have = db.scalar(select(Appointment).where(Appointment.cb_record_id == rid))
+    if have:
+        return have
+    vs = [v for v in db.scalars(select(Visit).where(Visit.source == "cb_visit", Visit.external_id.like(f"{rid}-%")).order_by(Visit.id))
+          if _rid(v) == rid]
+    if not vs:
+        return None
+    idx = DoctorIndex(all_doctors(db))
+    doc = next((d for d in (idx.find(v.master_name) for v in vs) if d), None)
+    svcs, start = [], min(v.starts_at for v in vs)
+    for v in vs:
+        sv = db.get(CbService, v.service_id) if v.service_id else None
+        mins = int((sv.duration or sv.time_min) if sv and (sv.duration or sv.time_min) else 0) or \
+            (int((v.ends_at - v.starts_at).total_seconds() // 60) if v.ends_at and v.ends_at > v.starts_at else 60)
+        price = float(sv.price) if sv and sv.price else float(v.amount or 0)
+        svcs.append({"id": v.service_id, "name": v.service_name or (sv.name if sv else "Послуга"), "price": price, "minutes": mins,
+                     "category": sv.category if sv else None})
+    ends = [v.ends_at for v in vs if v.ends_at and v.ends_at > start]
+    end = max(ends) if ends else start + timedelta(minutes=sum(s_["minutes"] for s_ in svcs))
+    a = Appointment(patient_id=vs[0].patient_id, doctor_id=doc.id if doc else None, start=start, end=end, services=svcs,
+                    status="booked", source="cleverbox", cb_record_id=rid, created_by=user_id,
+                    comment=f"Запис CleverBox №{rid}" + (f" · лікар у CleverBox: {vs[0].master_name}" if vs[0].master_name and not doc else ""))
+    db.add(a)
+    db.flush()
+    try:
+        from . import techcards
+        techcards.seed(db, a)
+    except Exception:  # noqa: BLE001
+        pass
+    db.commit()
+    return a
+
+
+def adopt_all_cb(db: Session, since: datetime | None = None) -> int:
+    """Усі майбутні (з дати переходу) записи CleverBox — у записи CRM. Повторний запуск дублів не створює."""
+    from ..models import Visit
+    since = since or datetime.combine(date.today(), datetime.min.time())
+    rids = {_rid(v) for v in db.scalars(select(Visit).where(Visit.source == "cb_visit", Visit.status == "booked", Visit.starts_at >= since))}
+    rids.discard(None)
+    done = {x for (x,) in db.execute(select(Appointment.cb_record_id).where(Appointment.cb_record_id.in_(list(rids))))} if rids else set()
+    n = 0
+    for rid in sorted(rids - done):
+        if adopt_cb(db, rid):
+            n += 1
+    return n

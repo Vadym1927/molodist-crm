@@ -75,7 +75,8 @@ def events(db: Session, user: User, start: date, days: int = 7, doctor_id: int |
     from .appointments import STATUSES as _AST
     appts = db.scalars(select(Appointment).where(Appointment.start >= s_dt, Appointment.start < e_dt,
                                                  Appointment.status != "cancelled").order_by(Appointment.start)).all()
-    mirrored = {f"{a.cb_record_id}-" for a in appts if a.cb_record_id}
+    mirrored = {f"{rid}-" for (rid,) in db.execute(select(Appointment.cb_record_id).where(   # перенесені й скасовані в CRM — оригінал CleverBox не показуємо
+        Appointment.cb_record_id.is_not(None)))}
     for a in appts:
         if user.role == "doctor" and a.doctor_id != user.doctor_id and a.patient_id not in doc_pids:
             continue
