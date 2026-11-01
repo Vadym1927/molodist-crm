@@ -692,9 +692,10 @@ def apply_form(p, f) -> None:
         p.coef = num("coef") or None
     else:
         p.purchase_unit, p.unit, p.coef = None, pu, None
-    p.barcode = g("barcode")[:64] or None
-    p.tax_code = g("tax_code")[:20] or None
-    p.uktzed = "".join(ch for ch in g("uktzed") if ch.isdigit())[:20] or None
+    if f.get("barcode") is not None:                  # штрихкод і УКТЗЕД у формі не показуються — не затираємо збережене
+        p.barcode = g("barcode")[:64] or None
+    if f.get("tax_code") is not None:
+        p.tax_code = g("tax_code")[:20] or None
     pr = num("price")
     p.price_manual = pr if pr else None
     p.tags = [t.strip()[:60] for t in g("tags").split(",") if t.strip()][:20] or None

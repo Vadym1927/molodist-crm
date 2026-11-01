@@ -382,10 +382,6 @@ def build(db: Session, sale: Sale, is_return: bool = False, rro: dict | None = N
             if pr_:
                 if pr_.short_name:
                     g["good"]["name"] = pr_.short_name[:250]
-                if pr_.barcode:
-                    g["good"]["barcode"] = pr_.barcode[:64]
-                if pr_.uktzed:
-                    g["good"]["uktzed"] = pr_.uktzed[:20]
                 if pr_.tax_code:
                     g["good"]["tax"] = [int(x) if x.isdigit() else x for x in pr_.tax_code.replace(" ", "").split(",") if x]
         if i.discount:

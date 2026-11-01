@@ -6,8 +6,6 @@
     <section class="pf-s"><span class="pf-t">Основне</span>
       <label>Назва<input name="name" required value="{{ p.name if p else '' }}" placeholder="Назва товару, як на упаковці"></label>
       <small>Так товар відображається в системі.</small>
-      <label>Коротка назва (в чеку)<input name="short_name" maxlength="128" value="{{ p.short_name or '' if p else '' }}"></label>
-      <small>Так товар відображається у фіскальному чеку. Порожньо — повна назва.</small>
       <div class="pf-2"><label>Артикул<input name="sku" value="{{ p.sku or '' if p else '' }}"></label>
         <label>Склад<select name="warehouse">{% for k, v in WAREHOUSES.items() %}<option value="{{ k }}" {{ 'selected' if (p.warehouse if p else (wh if wh in WAREHOUSES else 'vitrina')) == k }}>{{ v }}</option>{% endfor %}</select></label></div>
     </section>
@@ -26,11 +24,11 @@
         <label>Скільки в одиниці приходу<input name="coef" inputmode="decimal" value="{{ ('%g' % p.coef) if p and p.coef else '' }}" placeholder="500"></label></div>
       <datalist id="pf-units"><option value="шт."><option value="мл."><option value="г"><option value="фл."><option value="уп."><option value="амп."><option value="од."></datalist>
     </section>
-    <section class="pf-s"><span class="pf-t">Маркування й податки</span>
-      <label>Штрихкод<input name="barcode" inputmode="numeric" value="{{ p.barcode or '' if p else '' }}"></label>
-      <div class="pf-2"><label>Податок (Checkbox)<input name="tax_code" value="{{ p.tax_code or '' if p else '' }}" placeholder="код податку, порожньо — без"></label>
-        <label>УКТЗЕД<input name="uktzed" value="{{ p.uktzed or '' if p else '' }}" placeholder="напр. 3304990000"></label></div>
-      <small>Якщо податок не використовуєте — залиште порожнім. Код податку й УКТЗЕД ідуть у фіскальний чек.</small>
+    <section class="pf-s pf-fis"><span class="pf-t">Відображення у фіскальному чеку</span>
+      <label>Назва у фіскальному чеку<input name="short_name" maxlength="128" value="{{ p.short_name or '' if p else '' }}" oninput="pfFis(this)" placeholder="порожньо — піде повна назва товару"></label>
+      <div class="pf-chk"><span>Так буде в чеку Checkbox:</span><b data-fis>{{ (p.short_name or p.name) if p else '' }}</b><em data-fn></em></div>
+      <label>Податок (Checkbox)<input name="tax_code" value="{{ p.tax_code or '' if p else '' }}" placeholder="код податку, порожньо — без податку"></label>
+      <small>Назва в чеку до 128 символів. Саме вона друкується у фіскальному чеку й відображається в кабінеті Checkbox та податковій.</small>
     </section>
   </div>
   <div class="pf-col">
@@ -75,8 +73,14 @@
 .pf-ck:has(input:checked){border-color:#5C4B82;box-shadow:0 0 0 2px #E4DEEF}
 .pf-ck.row{border:0;padding:4px 0 4px 30px;box-shadow:none!important}.pf-ck.row input{left:0;top:6px}
 .pf-price{background:#F4F9F5;border-color:#CFE6D7}
+.pf-fis{border-color:#C9BFE6}.pf-chk{background:#F7F4F0;border:1px dashed #C9BFE6;border-radius:10px;padding:10px 12px;font:500 13px var(--sans);color:#2A2430}
+.pf-chk span{display:block;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496;margin-bottom:3px}.pf-chk b{font-family:monospace;font-size:14px}.pf-chk em{font-style:normal;color:#8a8496;font-size:12px}
 .pf-info{background:#F1EDF8;border-radius:10px;padding:10px 12px;font-size:13px;color:#3B3050}
 .pf-tags{display:flex;flex-wrap:wrap;gap:6px}.pf-tags button{border:1px solid #E9E5DF;background:#fff;border-radius:8px;padding:4px 9px;font:600 11.5px var(--sans);color:#3B3050;cursor:pointer;text-transform:uppercase}
 </style>
-<script>function pfTag(b){var i=b.closest('.pf-s').querySelector('input[name=tags]');var v=i.value.split(',').map(function(x){return x.trim()}).filter(Boolean);
+<script>function pfFis(i){var f=i.closest('form'),b=f.querySelector('[data-fis]'),e=f.querySelector('[data-fn]'),n=f.querySelector('input[name=name]');
+  var v=i.value.trim()||(n?n.value.trim():'');b.textContent=v||'—';e.textContent=(v.length>128?' · задовго: ':' · ')+v.length+' / 128'}
+document.querySelectorAll('.pf input[name=name]').forEach(function(n){n.addEventListener('input',function(){var s=n.closest('form').querySelector('input[name=short_name]');if(s)pfFis(s)})});
+document.querySelectorAll('.pf input[name=short_name]').forEach(pfFis);
+function pfTag(b){var i=b.closest('.pf-s').querySelector('input[name=tags]');var v=i.value.split(',').map(function(x){return x.trim()}).filter(Boolean);
   if(v.indexOf(b.textContent)<0)v.push(b.textContent);i.value=v.join(', ')}</script>

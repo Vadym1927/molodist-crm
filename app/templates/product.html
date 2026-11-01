@@ -40,7 +40,7 @@
       {% if p.volume %}<span>{{ p.volume }}</span>{% endif %}
       <span>{{ ('CleverBox #' ~ p.cb_product_id) if p.cb_product_id else 'немає в CleverBox' }}</span>
       {% if p.url %}<a href="{{ p.url }}" target="_blank" class="small" style="align-self:center">molodist.store ↗</a>{% endif %}{% if p.shop_price %}<span>на сайті {{ p.shop_price|uah }}</span>{% endif %}
-      {% for t in p.tags or [] %}<span>{{ t }}</span>{% endfor %}{% if p.for_sale %}<span>для продажу</span>{% endif %}{% if p.for_expense %}<span>для витрати</span>{% endif %}
+      {% for t in p.tags or [] %}<span>{{ t }}</span>{% endfor %}{% if p.for_sale %}<span>для продажу</span>{% endif %}<span title="Назва у фіскальному чеку">у чеку: {{ p.short_name or p.name }}</span>{% if p.for_expense %}<span>для витрати</span>{% endif %}
     </div></div>
   {% if can(user,'products') %}<button type="button" class="btn" style="align-self:flex-start" onclick="document.getElementById('pfd').showModal()">Редагувати товар</button>{% endif %}
 </div>

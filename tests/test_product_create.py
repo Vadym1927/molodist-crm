@@ -21,11 +21,11 @@ def test_product_create_on_warehouse():
         assert "/products/" in r2.headers["location"] and "err=" in r2.headers["location"]                # дубль — у картку
         c.post("/products/new", data={"name": "Крем ручний", "warehouse": "vitrina", "price": "1200", "for_sale": "1", "short_name": "Крем",
                                       "multi_unit": "1", "purchase_unit": "фл.", "unit": "мл.", "coef": "50", "tags": "МАГАЗИН, ДЕРМАТОЛОГ",
-                                      "direction": "Догляд", "category": "Креми", "uktzed": "3304 99 00 00", "tare_g": "20", "min_stock": "2"})
+                                      "direction": "Догляд", "category": "Креми", "tare_g": "20", "min_stock": "2"})
         with SessionLocal() as db:
             pid = db.query(Product).filter(Product.name == "Крем ручний").one().id
         h = c.get(f"/products/{pid}").text
-        assert "Редагувати товар" in h and "ДЕРМАТОЛОГ" in h and "Коротка назва" in h
+        assert "Редагувати товар" in h and "ДЕРМАТОЛОГ" in h and "Відображення у фіскальному чеку" in h and "у чеку: Крем" in h and "УКТЗЕД" not in h
         r = c.post(f"/products/{pid}/full", data={"name": "Крем ручний 2", "warehouse": "vitrina", "for_sale": "1", "for_expense": "1",
                                                   "purchase_unit": "шт.", "price": "1300"}, follow_redirects=False)
         assert r.status_code == 303
