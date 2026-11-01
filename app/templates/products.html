@@ -43,7 +43,41 @@
 <div class="whs">
   {% for k, v in WAREHOUSES.items() %}<a href="?tab=care&wh={{ k }}" class="{{ 'on' if wh==k }}"><b>{{ v }}</b><em>{{ wh_counts.get(k, 0) }} поз.</em></a>{% endfor %}
   <a href="?tab=care&wh=all" class="{{ 'on' if wh=='all' }}"><b>Усі склади</b><em>{{ total_all }} поз.</em></a>
+  <button type="button" class="pn-add" title="Додати товар{{ (' на склад «' ~ WAREHOUSES[wh] ~ '»') if wh in WAREHOUSES }}" onclick="document.getElementById('pnd').showModal()">＋ Додати товар</button>
 </div>
+{% if request.query_params.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ request.query_params.get('msg') }}</div>{% endif %}
+{% if request.query_params.get('err') %}<div class="alert">{{ request.query_params.get('err') }}</div>{% endif %}
+<style>
+.pn-add{border:0;background:#3B3050;color:#fff;border-radius:14px;padding:0 18px;min-height:56px;font:700 14px var(--sans);cursor:pointer}
+dialog.pn{border:0;border-radius:20px;padding:0;width:min(640px,96vw);box-shadow:0 30px 80px rgba(42,36,48,.35)}dialog.pn::backdrop{background:rgba(42,36,48,.45)}
+.pn .h{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #ECE7E1}
+.pn .h h3{margin:0;font:600 14px var(--head);letter-spacing:.14em;text-transform:uppercase}
+.pn form{padding:16px 20px 20px;display:grid;gap:10px}.pn .g{display:grid;grid-template-columns:1fr 1fr;gap:10px}.pn .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.pn label{display:grid;gap:4px;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496}
+.pn .hint{font-size:12px;color:#8a8496;margin:0}
+.pn *{box-sizing:border-box}.pn input,.pn select{width:100%;min-width:0;max-width:100%}.pn .g>*,.pn .g3>*{min-width:0}
+.pn-add{white-space:nowrap}
+@media(max-width:600px){.pn .g,.pn .g3{grid-template-columns:1fr}}
+</style>
+<dialog class="pn" id="pnd"><div class="h"><h3>Новий товар</h3><button type="button" class="btn ghost" style="padding:4px 10px" onclick="this.closest('dialog').close()">×</button></div>
+  <form method="post" action="/products/new">
+    <label>Назва<input name="name" required placeholder="Назва товару, як на упаковці"></label>
+    <div class="g"><label>Склад<select name="warehouse">{% for k, v in WAREHOUSES.items() %}<option value="{{ k }}" {{ 'selected' if (wh if wh in WAREHOUSES else 'vitrina') == k }}>{{ v }}</option>{% endfor %}</select></label>
+      <label>Бренд<input name="brand" list="pn-brands"></label></div>
+    <datalist id="pn-brands">{% for b in brands %}<option value="{{ b }}">{% endfor %}</datalist>
+    <div class="g3"><label>Артикул<input name="sku"></label><label>Штрихкод<input name="barcode" inputmode="numeric"></label>
+      <label>Постачальник<input name="supplier" list="pn-sup"></label></div>
+    <datalist id="pn-sup">{% for x in suppliers %}<option value="{{ x }}">{% endfor %}</datalist>
+    <div class="g3"><label>Одиниця обліку<input name="unit" list="pn-units" placeholder="шт., мл., г"></label>
+      <label>Одиниць в упаковці<input name="coef" inputmode="decimal" placeholder="напр. 500 мл у флаконі"></label>
+      <label>Мін. залишок<input name="min_stock" inputmode="numeric"></label></div>
+    <datalist id="pn-units"><option value="шт."><option value="мл."><option value="г"><option value="од."><option value="уп."></datalist>
+    <div class="g3"><label>Собівартість за од., ₴<input name="cost" inputmode="decimal"></label>
+      <label>Ціна продажу, ₴<input name="price" inputmode="decimal" placeholder="для вітрини"></label>
+      <label>Початковий залишок<input name="qty" inputmode="decimal" placeholder="к-сть, необов'язково"></label></div>
+    <p class="hint">Початковий залишок оформлюється документом «Інвентаризація» на обраний склад — без боргу постачальнику. Товари з вітрини доступні в касі для продажу, з інших складів — як витратні матеріали й у техкартах.</p>
+    <button class="btn">Додати товар</button>
+  </form></dialog>
 {% if imported %}<div class="alert" style="{{ '' if imported.error else 'background:var(--ok-bg);color:var(--ok)' }}">
   {% if imported.error %}{{ imported.error }}{% elif imported.kind == 'turnover' %}Рух товарів за {{ imported.period }}: товарів з надходженням {{ imported.with_income }}, зіставлено {{ imported.matched }}, нових {{ imported.created }} — ціни закупівлі оновлено.
   {% if imported.not_found %}<details><summary>Не знайдено в каталозі (створено нові)</summary>{{ imported.not_found|join(' · ') }}</details>{% endif %}{% else %}Імпортовано {{ imported.rows }} рядків: нових {{ imported.created }}, оновлено {{ imported.updated }}, залишків {{ imported.stock }}, брендів {{ imported.brands }}.

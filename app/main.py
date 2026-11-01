@@ -3471,6 +3471,44 @@ def product_card(pid: int, request: Request, user: User = Depends(require("produ
                   suppliers=sorted({x for (x,) in db.execute(select(Product.supplier).where(Product.supplier.is_not(None)).distinct())}))
 
 
+@app.post("/products/new")
+def product_create(name: str = Form(...), warehouse: str = Form("vitrina"), brand: str = Form(""), sku: str = Form(""),
+                   barcode: str = Form(""), unit: str = Form(""), coef: str = Form(""), cost: str = Form(""), price: str = Form(""),
+                   min_stock: str = Form(""), supplier: str = Form(""), qty: str = Form(""),
+                   user: User = Depends(require("products")), db: Session = Depends(db_dep)):
+    """Новий товар вручну на обраний склад; початковий залишок — документом «Інвентаризація» (без боргу постачальнику)."""
+    name = name.strip()[:300]
+    wh = warehouse if warehouse in catalog.WAREHOUSES else "vitrina"
+    back = f"/products?tab=care&wh={wh}"
+    if not name:
+        return RedirectResponse(_with_msg(back, "Вкажіть назву товару", True), 303)
+    nn = norm(name)
+    dup = db.scalar(select(Product).where(Product.name_norm == nn, Product.warehouse == wh))
+    if dup:
+        return RedirectResponse(_with_msg(f"/products/{dup.id}", "Такий товар на цьому складі вже є — відкрито його картку", True), 303)
+    p = Product(name=name, name_norm=nn, warehouse=wh, brand=brand.strip()[:120] or None, sku=sku.strip()[:100] or None,
+                barcode=barcode.strip()[:64] or None, unit=unit.strip().rstrip(".")[:20] or None,
+                coef=_num(coef.replace(",", ".")) or None, cost=_num(cost.replace(",", ".")) or None,
+                price_manual=_num(price.replace(",", ".")) or None, min_stock=int(min_stock) if min_stock.strip().isdigit() else None,
+                supplier=supplier.strip()[:200] or None, for_sale=(wh == "vitrina"), active=True)
+    db.add(p)
+    db.flush()
+    q = _num(qty.replace(",", "."))
+    msg = f"Товар «{name}» додано на склад «{catalog.WAREHOUSES[wh]}»"
+    if q and q > 0:
+        from .services import stock as _st
+        if _st.ledger_active(db):
+            doc = _st.new_doc(db, "inventory", user_id=user.id, wh_from=wh, note=f"Початковий залишок нового товару «{name}»")
+            doc.lines.append(_st.StockDocLine(product_id=p.id, qty=q, unit_cost=p.cost or 0))
+            db.flush()
+            _st.post(db, doc)
+            msg += f", залишок {q:g}"
+    db.commit()
+    audit(db, "product.create", "product", p.id, user=user, warehouse=wh, qty=q or None)
+    db.commit()
+    return RedirectResponse(_with_msg(back, msg), 303)
+
+
 @app.post("/products/{pid:int}")
 def product_update(pid: int, supply_days: str = Form(""), min_stock: str = Form(""), url: str = Form(""),
                    apply: str = Form(""), brand: str = Form(None), supplier: str = Form(None), sku: str = Form(None),
