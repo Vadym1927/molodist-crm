@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Розділи й кнопки · Права доступу{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}{% include "_access_tabs.html" %}
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+<style>
+.ua-roles{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.ua-roles a{padding:9px 16px;border-radius:12px;border:1px solid var(--line);background:#fff;text-decoration:none;color:#2A2430;font:600 14px var(--sans)}
+.ua-roles a.on{background:#3B3050;color:#fff;border-color:#3B3050}
+.ua-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+.ua-g{background:#fff;border:1px solid var(--line);border-radius:16px;padding:12px 16px}
+.ua-g h3{margin:0 0 8px;font:700 11.5px var(--sans);text-transform:uppercase;letter-spacing:.08em;color:#8a8496;display:flex;justify-content:space-between;gap:8px}
+.ua-g h3 a{text-transform:none;letter-spacing:0;font-weight:600;color:#5C4B82;text-decoration:none}
+.ua-g label{display:flex;gap:9px;align-items:flex-start;padding:5px 0;font-size:14px;line-height:1.35}.ua-g input{width:auto;margin-top:2px}
+.ua-g label.off{color:#a49cb0}
+.ua-bar{position:sticky;bottom:0;background:linear-gradient(transparent,#F7F4F0 35%);padding:18px 0 6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+</style>
+<p class="muted" style="margin:0 0 12px;max-width:880px">Галочка — роль бачить розділ, вкладку чи кнопку й може нею користуватися. Без галочки елемент зникає з меню й сторінок, а пряме посилання відповідає «Немає доступу».
+  Ці обмеження діють поверх <a href="/access/roles">дозволів ролі</a>: якщо дозволу ролі немає, галочка тут доступу не дасть. Власник бачить усе.</p>
+<div class="ua-roles">{% for r in rs %}<a class="{{ 'on' if r.key == role }}" href="?role={{ r.key }}">{{ r.name }}</a>{% endfor %}</div>
+{% if role %}<form method="post" action="/access/ui"><input type="hidden" name="role" value="{{ role }}">
+<div class="ua-grid">{% for g, items in ua.GROUPS %}<div class="ua-g"><h3>{{ g }}<a href="#" onclick="var b=this.closest('.ua-g').querySelectorAll('input');var on=[].some.call(b,function(x){return !x.checked});b.forEach(function(x){x.checked=on;x.dispatchEvent(new Event('change'))});return false">усі</a></h3>
+  {% for k, l, _p in items %}<label class="{{ 'off' if k in deny }}"><input type="checkbox" name="allow" value="{{ k }}" {{ '' if k in deny else 'checked' }} onchange="this.parentNode.classList.toggle('off',!this.checked)"> {{ l }}</label>{% endfor %}</div>{% endfor %}</div>
+<div class="ua-bar"><button class="btn">💾 Зберегти доступи ролі</button><span class="muted small">Заборонено зараз: {{ deny|length }} з {{ ua.ITEMS|length }}</span></div>
+</form>{% else %}<div class="card muted">Немає ролей, крім власника.</div>{% endif %}
+{% endblock %}

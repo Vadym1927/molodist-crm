@@ -14,4 +14,6 @@ def clean_db():
         db.commit()
     from app.services import autonomy
     autonomy._CACHE["cfg"] = dict(autonomy.DEFAULT)
+    from app.services import ui_access
+    ui_access._CACHE["deny"] = {}
     yield

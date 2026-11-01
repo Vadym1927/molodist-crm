@@ -119,6 +119,11 @@ def current_user(request: Request, db: Session = Depends(db_dep)) -> User:
         request.session.clear()
         raise HTTPException(status_code=303, headers={"Location": "/login"})
     request.state.user = user
+    if user.role != "owner":                      # доступ до розділів / вкладок / кнопок (Права доступу → Розділи й кнопки)
+        from .services import ui_access
+        what = ui_access.blocked(user.role, request.method, request.url.path, dict(request.query_params))
+        if what:
+            raise HTTPException(status_code=403, detail=f"Немає доступу: «{what}». Доступ вмикає власник у «Права доступу → Розділи й кнопки».")
     return user
 
 

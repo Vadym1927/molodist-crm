@@ -16,7 +16,7 @@ needs_pdf = pytest.mark.skipif(not PDF.exists(), reason="потрібен tests/
 
 def login(c: TestClient, lg: str, pw: str):
     r = c.post("/login", data={"login": lg, "password": pw}, follow_redirects=False)
-    assert r.status_code == 303 and r.headers["location"] == "/", r.text[:300]
+    assert r.status_code == 303 and r.headers["location"] in ("/", "/calendar"), r.text[:300]
 
 
 @pytest.fixture

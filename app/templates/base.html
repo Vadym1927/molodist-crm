@@ -122,7 +122,7 @@ body.drw-on .drw{transform:none}body.drw-on .drw-bg{opacity:1;pointer-events:aut
 <body class="{{ 'app' if nav not in ('login','print') and user }}">
 {% if nav != 'login' and user %}
 <aside class="rail">
-  <a class="mark" href="/" title="MOLODIST">M</a>
+  <a class="mark" href="/calendar" title="MOLODIST — календар">M</a>
   <a class="it {{ 'on' if nav=='dashboard' }}" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z"/></svg><span>Дашборд</span></a>
   <a class="it {{ 'on' if nav=='calendar' }}" href="/calendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M8 14h3"/></svg><span>Записи</span></a>
   <a class="it {{ 'on' if nav in ('clients','patient','patients','unassigned') }}" href="/clients"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.3-5.5 6.5-5.5s5.7 2 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14.8c1.7.8 2.7 2.5 3 5.2"/></svg><span>Пацієнти</span></a>
@@ -157,7 +157,7 @@ body.drw-on .drw{transform:none}body.drw-on .drw-bg{opacity:1;pointer-events:aut
 {% set P = request.url.path %}{% set QT = request.query_params.get('tab', '') %}{% set QR = request.query_params.get('r', '') %}
 <div class="drw-bg" onclick="document.body.classList.remove('drw-on')"></div>
 <nav class="drw" aria-label="Меню">
-  <div class="drw-h"><a class="mark" href="/">M</a><div class="who"><b>{{ user.name }}</b><span>{{ user.role_label }}</span></div>
+  <div class="drw-h"><a class="mark" href="/calendar">M</a><div class="who"><b>{{ user.name }}</b><span>{{ user.role_label }}</span></div>
     <button type="button" class="drw-x" onclick="document.body.classList.remove('drw-on')" aria-label="Закрити">×</button></div>
   <div class="drw-b">
     {% macro di(href, label, on, icon, badge=None) %}<a class="di {{ 'on' if on }}" href="{{ href }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">{{ icon|safe }}</svg>{{ label }}{% if badge %}<i class="badge">{{ badge }}</i>{% endif %}</a>{% endmacro %}
@@ -190,7 +190,7 @@ body.drw-on .drw{transform:none}body.drw-on .drw-bg{opacity:1;pointer-events:aut
 </nav>
 <div class="top">
   <button type="button" class="burger" onclick="document.body.classList.add('drw-on')" aria-label="Меню"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
-  <a class="brand" href="/">MOLODIST</a><span class="sub">Медичний простір</span>{% if user %}{% set _wm = work_mode() %}{% if _wm.test or _wm.autonomous %}<a href="/data#mode" title="Режим роботи" style="margin-left:10px;text-decoration:none;font:700 10.5px var(--sans);letter-spacing:.12em;text-transform:uppercase;padding:5px 10px;border-radius:999px;background:{{ '#FFF1D6' if _wm.test else '#E4DEEF' }};color:{{ '#9A6A00' if _wm.test else '#3B3050' }};white-space:nowrap">{{ 'Тестовий режим' if _wm.test else 'Автономно' }}</a>{% endif %}{% endif %}
+  <a class="brand" href="/calendar">MOLODIST</a><span class="sub">Медичний простір</span>{% if user %}{% set _wm = work_mode() %}{% if _wm.test or _wm.autonomous %}<a href="/data#mode" title="Режим роботи" style="margin-left:10px;text-decoration:none;font:700 10.5px var(--sans);letter-spacing:.12em;text-transform:uppercase;padding:5px 10px;border-radius:999px;background:{{ '#FFF1D6' if _wm.test else '#E4DEEF' }};color:{{ '#9A6A00' if _wm.test else '#3B3050' }};white-space:nowrap">{{ 'Тестовий режим' if _wm.test else 'Автономно' }}</a>{% endif %}{% endif %}
   <form class="search" action="/clients" method="get"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input name="q" placeholder="Знайти пацієнта за імʼям або телефоном" value="{{ request.query_params.get('q','') if nav=='clients' else '' }}"></form>
   {% if can(user,'sales') %}<a class="bell" href="/sales/new" title="Новий продаж (каса)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2.5 3h2.6l2.4 11.4a1.6 1.6 0 0 0 1.6 1.3h8.6a1.6 1.6 0 0 0 1.6-1.2L21 7H6"/></svg></a>{% endif %}
   {% if task_counts and task_counts.prices %}<a class="bell" href="/prices?tab=alerts" title="Подорожчання: {{ task_counts.prices }} нових сповіщень"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg><b class="pbadge">{{ task_counts.prices }}</b></a>{% endif %}
@@ -204,5 +204,15 @@ body.drw-on .drw{transform:none}body.drw-on .drw-bg{opacity:1;pointer-events:aut
 {% if user and can(user,'stock') %}{% include "_supplier_modal.html" %}{% endif %}
 {% if user %}{% include "_delpw.html" %}{% endif %}
 <script>document.addEventListener('click',function(e){document.querySelectorAll('details.more[open]').forEach(function(d){if(!d.contains(e.target))d.removeAttribute('open')})});</script>
+{% if user and user.role != 'owner' %}{% set _uir = ui_rules(user.role) %}{% if _uir %}<script>
+(function(){var R={{ _uir|tojson }}.map(function(r){return [r[0],new RegExp(r[1]),r[2]]});
+function bad(m,u){try{u=new URL(u,location.href)}catch(e){return false}if(u.origin!==location.origin)return false;
+  return R.some(function(r){if(r[0]!==m||!r[1].test(u.pathname))return false;if(!r[2])return true;var v=u.searchParams.get(r[2][0]);return (v===null||v===''?r[2][2]:v)===r[2][1]})}
+function scan(root){(root||document).querySelectorAll('a[href]').forEach(function(a){var h=a.getAttribute('href');if(h&&h[0]!=='#'&&!/^(javascript|mailto|tel):/.test(h)&&bad('GET',a.href))a.style.display='none'});
+  (root||document).querySelectorAll('form').forEach(function(f){var m=(f.getAttribute('method')||'GET').toUpperCase();if(bad(m,f.action))f.style.display='none'});
+  (root||document).querySelectorAll('button[formaction]').forEach(function(b){if(bad((b.getAttribute('formmethod')||'POST').toUpperCase(),b.formAction))b.style.display='none'});
+  (root||document).querySelectorAll('[data-ui-url]').forEach(function(b){if(bad((b.dataset.uiMethod||'POST').toUpperCase(),b.dataset.uiUrl))b.style.display='none'})}
+scan();new MutationObserver(function(ms){ms.forEach(function(m){m.addedNodes.forEach(function(n){if(n.nodeType===1)scan(n.parentNode||n)})})}).observe(document.body,{childList:true,subtree:true});
+})();</script>{% endif %}{% endif %}
 </body>
 </html>

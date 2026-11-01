@@ -81,6 +81,7 @@ def _work_mode() -> dict:
 
 
 templates.env.globals["work_mode"] = _work_mode
+templates.env.globals["ui_rules"] = lambda role: __import__("app.services.ui_access", fromlist=["x"]).client_rules(role)
 
 state = {"bot": None, "last_sync": None, "last_error": None}
 
@@ -456,6 +457,8 @@ async def http_exc(request: Request, exc: HTTPException):
         return RedirectResponse(exc.headers["Location"], 303)
     if request.url.path.startswith("/api/"):
         return JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers=exc.headers)
+    if "json" in (request.headers.get("content-type") or "") or "application/json" in (request.headers.get("accept") or ""):
+        return JSONResponse({"error": exc.detail, "detail": exc.detail}, status_code=exc.status_code)
     user = getattr(request.state, "user", None)
     return templates.TemplateResponse(request, "error.html", {"request": request, "user": user, "nav": "",
                                       "code": exc.status_code, "detail": exc.detail}, status_code=exc.status_code)
@@ -518,7 +521,8 @@ def login(request: Request, login: str = Form(...), password: str = Form(...), d
     u.last_login = datetime.utcnow()
     db.commit()
     audit(db, "login", user=u)
-    return RedirectResponse("/", 303)
+    from .services import ui_access as _ua                      # перше вікно після входу — календар (якщо роль його бачить)
+    return RedirectResponse("/" if _ua.blocked(u.role, "GET", "/calendar", {}) else "/calendar", 303)
 
 
 @app.get("/logout")
@@ -2187,6 +2191,27 @@ async def access_roles_save(request: Request, user: User = Depends(require("user
     k = rl.save_role(db, key, name, [str(x) for x in f.getlist("perms")], bool(f.get("hidden")))
     audit(db, "roles.save", user=user, role=k, name=name, perms=sorted(str(x) for x in f.getlist("perms")))
     return RedirectResponse(_with_msg("/access/roles", f"Роль «{name}» збережено") + f"#r-{k}", 303)
+
+
+@app.get("/access/ui", response_class=HTMLResponse)
+def access_ui(request: Request, role: str = "", user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import roles as rl, ui_access as ua
+    rs = [r for r in rl.roles(db) if r["key"] != "owner"]
+    role = role if any(r["key"] == role for r in rs) else (rs[0]["key"] if rs else "")
+    return render(request, "access_ui.html", nav="access", tab="ui", rs=rs, role=role, ua=ua, deny=ua.deny_map(db).get(role, set()))
+
+
+@app.post("/access/ui")
+async def access_ui_save(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import ui_access as ua
+    f = await request.form()
+    role = str(f.get("role") or "")
+    if not role or role == "owner":
+        return RedirectResponse("/access/ui", 303)
+    deny = ua.save(db, role, [str(x) for x in f.getlist("allow")])
+    audit(db, "access.ui", user=user, role=role, denied=sorted(deny))
+    db.commit()
+    return RedirectResponse(_with_msg(f"/access/ui?role={role}", f"Доступи збережено: заборонено {len(deny)} елемент(ів)"), 303)
 
 
 @app.post("/access/roles/{key}/reset")
