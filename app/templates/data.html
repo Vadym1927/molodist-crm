@@ -52,6 +52,7 @@
   {% endif %}
 </div>
 
+{% if can(user,'migrate') %}<a class="card" href="/data/coverage" style="display:flex;justify-content:space-between;align-items:center;text-decoration:none;color:inherit;margin-bottom:16px"><div><h2 style="margin:0">Повнота даних</h2><div class="small muted">Що є по роках з 2022, порожні місяці, незаповнені картки й послуги без техкарт — і звідки довантажити</div></div><span class="btn">Відкрити</span></a>{% endif %}
 {% if user.role == 'owner' %}
 <div class="card" id="mode"><h2>Режим роботи</h2>
   <div class="grid g2">
@@ -127,6 +128,7 @@
       {% endif %}
       {% if cb %}
       <form method="post" action="/migrate/cleverbox" class="grid" style="gap:8px">
+        <label class="small"><b>Історія з дати</b> <input type="date" name="from_date" value="2022-01-01" style="max-width:180px"> <span class="muted">(порожньо — за кількість місяців нижче)</span></label>
         <div class="row small"><span>Історія за</span><select name="months">{% for m in [6,12,24,36,60] %}<option value="{{ m }}" {{ 'selected' if m==24 }}>{{ m }} міс.</option>{% endfor %}</select></div>
         <label class="small"><input type="checkbox" name="all_history" value="1"> за весь доступний час у CleverBox</label>
         <label class="small"><input type="checkbox" name="all_clients" value="1" checked> створити картки для всіх пацієнтів CleverBox (інакше — лише привʼязати наявних)</label>

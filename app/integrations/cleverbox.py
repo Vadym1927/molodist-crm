@@ -32,6 +32,9 @@ ERRORS = {1: "адреса сайту не збігається з налашт�
           400: "токен не валідний", 403: "акаунт вимкнено або порожній токен"}
 
 
+HISTORY = threading.local()            # перенос історії (до дати переходу) дозволений і в автономному режимі
+
+
 class CleverBoxError(RuntimeError):
     pass
 
@@ -108,7 +111,7 @@ class CleverBox:
         (плановий синк, вебхуки, кнопки, запис), а при «no more than 1 request per second»
         запит повторюється з паузою — помилка не доходить до синку."""
         from ..services import autonomy
-        if autonomy.offline():
+        if autonomy.offline() and not getattr(HISTORY, "on", False):
             raise CleverBoxError("Автономний режим: обмін з CleverBox вимкнено (Дані → Режим роботи)")
         url = f"{self.base}/{method.lstrip('/')}"
         for attempt in range(6):
@@ -967,6 +970,16 @@ def migrate(job, months: int = 24, all_clients: bool = True, start_date: date | 
     """Перенос з CleverBox: довідники → клієнти → надані послуги і продажі товарів за N місяців → майбутні записи.
     Запускається у фоні (services.jobs). Ліміт API 1 запит/сек, тому велика база переноситься довго (хвилини–година)."""
     from ..models import SessionLocal
+    from ..services import autonomy
+    HISTORY.on = True                         # лише читання історії; в автономному режимі — до дати переходу
+    try:
+        return _migrate(job, months, all_clients, start_date, autonomy.since())
+    finally:
+        HISTORY.on = False
+
+
+def _migrate(job, months: int, all_clients: bool, start_date: date | None, since: date | None) -> dict:
+    from ..models import SessionLocal
     cb = CleverBox()
     rep: dict = {}
     with SessionLocal() as db:
@@ -1016,7 +1029,9 @@ def migrate(job, months: int = 24, all_clients: bool = True, start_date: date | 
         rep.update(clients_seen=n, patients_created=created, patients_linked=linked)
         job.log(f"Клієнтів: {n}, створено пацієнтів: {created}, привʼязано: {linked}")
 
-        end = date.today()
+        end = date.today() if not since else min(date.today(), since - timedelta(days=1))
+        if since:
+            job.log(f"Автономний режим: історія лише до {end:%d.%m.%Y} — далі облік веде CRM")
         # Для повного переносу беремо всю доступну в CleverBox історію,
         # а не обмежуємо її довільною кількістю місяців.
         start = start_date or (end - timedelta(days=30 * months))
@@ -1034,9 +1049,11 @@ def migrate(job, months: int = 24, all_clients: bool = True, start_date: date | 
                     f"{rep['product_sales']}, чеків {rep['checks']}")
             cur = nxt + timedelta(days=1)
 
-        job.log("Майбутні записи пацієнтів з активними планами…")
-        rep["future_visits"] = sync_future_visits(db, cb)
-        for key, fn in (("stock", lambda: sync_stock(db, cb)), ("calendar", lambda: sync_calendar(db, cb, 14))):
+        extra = () if since else (("stock", lambda: sync_stock(db, cb)), ("calendar", lambda: sync_calendar(db, cb, 14)))
+        if not since:
+            job.log("Майбутні записи пацієнтів з активними планами…")
+            rep["future_visits"] = sync_future_visits(db, cb)
+        for key, fn in extra:
             try:
                 rep[key] = fn()
             except CleverBoxError as e:

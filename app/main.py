@@ -2394,6 +2394,12 @@ def work_mode_save(autonomous: str = Form(""), since: str = Form(""), test: str 
     return RedirectResponse(_with_msg("/data#mode", "Режим роботи збережено"), 303)
 
 
+@app.get("/data/coverage", response_class=HTMLResponse)
+def data_coverage(request: Request, user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
+    from .services import data_coverage as dc
+    return render(request, "data_coverage.html", nav="data", s=dc.summary(db))
+
+
 @app.get("/data", response_class=HTMLResponse)
 def data_page(request: Request, user: User = Depends(require("export_reports")), db: Session = Depends(db_dep)):
     last = db.get(SyncState, "last_migration")
@@ -2531,12 +2537,16 @@ async def import_pdf_zip(request: Request, file: UploadFile = File(...), user: U
 
 
 @app.post("/migrate/cleverbox")
-def migrate_cleverbox(months: int = Form(24), all_clients: str = Form(""), all_history: str = Form(""),
+def migrate_cleverbox(months: int = Form(24), all_clients: str = Form(""), all_history: str = Form(""), from_date: str = Form(""),
                       user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
     from .integrations.cleverbox import migrate
     full_history = all_history == "1"
+    try:
+        sd = date(2000, 1, 1) if full_history else (date.fromisoformat(from_date) if from_date else None)
+    except ValueError:
+        sd = None
     job = jobs.start("Перенос з CleverBox", migrate, months=max(1, min(months, 120)),
-                     all_clients=bool(all_clients), start_date=date(2000, 1, 1) if full_history else None)
+                     all_clients=bool(all_clients), start_date=sd)
     audit(db, "migrate.cleverbox", user=user, months="all" if full_history else months,
           all_clients=bool(all_clients), job=job.id)
     return RedirectResponse("/data#migrate", 303)

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Повнота даних · MOLODIST CRM{% endblock %}
+{% block body %}
+{% set h = s.history %}
+<style>
+.dc-hero{border-radius:24px;padding:24px 28px;margin-bottom:18px;color:#fff;background:radial-gradient(120% 160% at 100% 0%,#4A3D63 0%,#3B3050 42%,#2A2430 100%)}
+.dc-hero .eb{font:600 10.5px var(--sans);letter-spacing:.22em;text-transform:uppercase;color:#C9BFE6}.dc-hero .eb a{color:#C9BFE6;text-decoration:none}
+.dc-hero h1{margin:8px 0 0;color:#fff;font:500 30px/1.15 var(--head);letter-spacing:.05em;text-transform:uppercase}
+.dc-hero p{margin:8px 0 0;max-width:820px;color:rgba(255,255,255,.72);font-size:14px;line-height:1.55}
+.dc-k{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.dc-k span{background:rgba(255,255,255,.12);border-radius:12px;padding:8px 14px;font:600 13px var(--sans)}
+.dc-card{background:#fff;border:1px solid #ECE7E1;border-radius:20px;overflow:auto;margin-bottom:18px}
+.dc-card h2{margin:0;padding:16px 18px 6px;font:600 14px var(--head);letter-spacing:.14em;text-transform:uppercase}
+.dc-tb{width:100%;border-collapse:collapse;font-size:13px}
+.dc-tb th{background:#FBFAF8;font:700 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496;padding:10px 12px;text-align:left;white-space:nowrap}
+.dc-tb td{padding:10px 12px;border-top:1px solid #F3EFEA;vertical-align:top}.dc-tb .r{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.dc-tb td.zero{color:#B23B2E;font-weight:700}.dc-tb small{display:block;color:#9a93a6;font-size:11.5px;margin-top:3px;line-height:1.4}
+.dc-st{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px}.dc-st.ok{background:#4E9B6B}.dc-st.warn{background:#D9A23B}.dc-st.bad{background:#B23B2E}.dc-st.info{background:#C9BFE6}
+.dc-src{color:#5C4B82;font-size:12px;max-width:340px}
+</style>
+<div class="dc-hero"><div class="eb"><a href="/data">Дані й синхронізація</a></div><h1>Повнота даних</h1>
+  <p>Що є в CRM по роках з 2022 і чого бракує: порожні роки й місяці (дірки в історії), незаповнені картки, послуги без техкарт, від'ємні залишки.
+    Біля кожного рядка вказано, звідки це довантажити: CleverBox API (перенос), звіт CleverBox (.xls) або вручну.
+    {% if h.since %}Облік у CRM ведеться з {{ h.since.strftime('%d.%m.%Y') }} — дані CleverBox очікуються до цієї дати.{% endif %}</p>
+  <div class="dc-k"><span>🔴 Критично: {{ s.bad }}</span><span>🟡 Неповно: {{ s.warn }}</span><span>Пораховано: {{ s.at.strftime('%d.%m.%Y %H:%M') }}</span></div></div>
+
+<div class="dc-card"><h2>Історія по роках</h2>
+<table class="dc-tb"><thead><tr><th>Дані</th>{% for y in h.years %}<th class="r">{{ y }}</th>{% endfor %}<th>Дані з</th><th>Порожні місяці</th><th>Звідки довантажити</th></tr></thead><tbody>
+{% for r in h.rows %}<tr><td><span class="dc-st {{ r.status }}"></span><b>{{ r.name }}</b></td>
+  {% for y in h.years %}{% set v = r.years[y] %}<td class="r {{ 'zero' if y in r.miss_years }}">{{ '{:,}'.format(v[0]).replace(',', ' ') if v[0] else '—' }}{% if r.money and v[1] %}<small>{{ v[1]|uah }}</small>{% endif %}</td>{% endfor %}
+  <td>{{ r.first or '—' }}</td>
+  <td>{% if r.gaps %}<b style="color:#B23B2E">{{ r.gaps|length }}</b><small>{{ r.gaps[:12]|join(', ') }}{{ '…' if r.gaps|length > 12 }}</small>{% else %}—{% endif %}</td>
+  <td class="dc-src">{{ r.src }}</td></tr>{% endfor %}
+</tbody></table></div>
+
+<div class="dc-card"><h2>Незаповнені й некоректні дані</h2>
+<table class="dc-tb"><thead><tr><th>Розділ</th><th>Що не так</th><th class="r">Кількість</th><th class="r">З</th><th>Приклади</th><th>Як виправити</th></tr></thead><tbody>
+{% for x in s.quality %}<tr><td>{{ x.group }}</td><td><span class="dc-st {{ x.level }}"></span>{{ x.name }}</td><td class="r"><b>{{ x.n }}</b></td><td class="r">{{ x.total }}</td>
+  <td>{% if x.sample %}<small>{{ x.sample|join('; ') }}{{ '…' if x.n > x.sample|length }}</small>{% else %}—{% endif %}</td><td class="dc-src">{{ x.hint }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% endblock %}
