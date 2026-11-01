@@ -174,6 +174,19 @@
 .tg .blk.short .hd .tm{font-size:11.5px;padding:0 4px}.tg .blk.short .hd b{font-size:13px}
 .tg .blk.f1 .pph,.tg .blk.f1 .nt{display:none}.tg .blk.f2 .svl{display:block;white-space:nowrap;text-overflow:ellipsis}
 .tg .blk.f3{padding-top:2px;padding-bottom:2px}.tg .blk.f3 .svl{display:none}
+.cic.ds-btn{width:auto;padding:0 14px;gap:8px;display:inline-flex;align-items:center;font:700 13px var(--sans);color:#3B3050}
+.ds{padding:18px 22px 30px;overflow:auto;display:grid;gap:14px;align-content:start;grid-column:1/-1}
+.ds h4{margin:6px 0 0;font:600 12.5px var(--head);letter-spacing:.14em;text-transform:uppercase;color:#2A2430}
+.ds-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.ds-t{background:#fff;border:1px solid #ECE7E1;border-radius:16px;padding:14px 16px;display:grid;gap:4px}
+.ds-t span{font:700 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496}
+.ds-t b{font:600 24px var(--head);color:#2A2430;font-variant-numeric:tabular-nums}.ds-t small{font-size:12.5px;color:#6f6879;line-height:1.5}
+.ds-t.warn{border-left:4px solid #D9A23B}.ds-t.bad{border-left:4px solid #B23B2E}
+.ds-l{background:#fff;border:1px solid #ECE7E1;border-radius:16px;overflow:hidden}
+.ds-l div{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:10px 16px;border-top:1px solid #F3EFEA;font-size:13.5px}.ds-l div:first-child{border-top:0}
+.ds-l.c4 div{grid-template-columns:minmax(0,2fr) 70px 110px 110px}.ds-l span+span{text-align:right}
+.ds-l .hd{background:#FBFAF8;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496}
+.ds-l b{font-variant-numeric:tabular-nums;text-align:right}
 </style>
 
 {% set WD = ['понеділок','вівторок','середа','четвер','пʼятниця','субота','неділя'] %}
@@ -191,6 +204,7 @@
   <div class="csrch"><input id="calq" placeholder="Пошук по пацієнтах, послугах…" oninput="calFind(this.value)" onkeydown="if(event.key==='Enter'&&!calFind(this.value))location.href='/patients?q='+encodeURIComponent(this.value)">
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/></svg></div>
   <div class="cics">
+    {% if can(user,'book') %}<button type="button" class="cic ds-btn" title="Статистика дня" onclick="dayStats('{{ start }}', {{ doc or 0 }})"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Статистика дня</span></button>{% endif %}
     {% if can(user,'book') and view=='day' %}<button type="button" class="cic" title="Заблокувати час" onclick="document.getElementById('blkd').showModal()"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3"/></svg></button>{% endif %}
     <a class="cic" href="/specialists/schedule" title="Графік роботи"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></a>
   </div>
@@ -355,6 +369,9 @@
     fetch('/calendar/visit/adopt',{method:'POST',body:fd,credentials:'same-origin',headers:{'Accept':'application/json'}}).then(function(r){return r.json()})
       .then(function(j){if(!j.id){alert(j.error||'Не вдалося');return}if(then==='pay'){location.href='/sales/new?appt='+j.id;return}
         load('appt='+j.id);document.getElementById('vdb').onclick=function(){location.reload()}})};
+  window.dayStats=function(d,doc){box.innerHTML='<div class="vd-h"><div><small>Статистика дня</small><h3>Завантаження…</h3></div><button type="button" class="vd-x" onclick="visitClose()">×</button></div>';
+    document.getElementById('vd').classList.add('on');document.getElementById('vdb').classList.add('on');
+    fetch('/calendar/day-stats?d='+d+(doc?'&doc='+doc:''),{credentials:'same-origin'}).then(function(r){return r.text()}).then(function(h){box.innerHTML=h})};
   window.visitClose=function(){document.getElementById('vd').classList.remove('on');document.getElementById('vdb').classList.remove('on')};
   window.vdStatus=function(id,sel){var st=sel.value,reason='';
     if(st==='cancelled'){reason=prompt('Причина скасування');if(!reason||reason.trim().length<3){load(Q);return}}

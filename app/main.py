@@ -1225,6 +1225,7 @@ async def appointment_save(request: Request, user: User = Depends(require("book"
                          appt.id if appt else None, p_.id)
     if warn and not f.get("force"):
         return JSONResponse({"warnings": warn})
+    _old = (appt.start, appt.doctor_id) if appt else None           # для статистики дня: «Візитів перенесено»
     a = aps.save(db, data, user.id, appt)
     try:
         from .services import techcards as _tc
@@ -1249,7 +1250,8 @@ async def appointment_save(request: Request, user: User = Depends(require("book"
             apl.note(db, ap_, f"Записано на {a.start:%d.%m.%Y %H:%M}", user.id, "system")
             db.commit()
     audit(db, "appointment.save" if appt else "appointment.create", "patient", p_.id, user=user, appt=a.id,
-          start=a.start.isoformat(timespec="minutes"), doctor=a.doctor_id, forced=bool(warn), cb=a.cb_record_id)
+          start=a.start.isoformat(timespec="minutes"), doctor=a.doctor_id, forced=bool(warn), cb=a.cb_record_id,
+          moved=bool(_old and _old[0] != a.start) or None)
     return JSONResponse({"ok": True, "id": a.id, "msg": msg, "day": a.start.date().isoformat()})
 
 
@@ -2893,6 +2895,21 @@ def calendar_visit_adopt(v: str = Form(""), user: User = Depends(require("book")
     audit(db, "appointment.adopt_cb", "appointment", a.id, user=user, cb=rid)
     db.commit()
     return {"ok": True, "id": a.id}
+
+
+@app.get("/calendar/day-stats", response_class=HTMLResponse)
+def calendar_day_stats(request: Request, d: str = "", doc: int = 0, user: User = Depends(require("book")), db: Session = Depends(db_dep)):
+    """Статистика дня (кнопка в календарі)."""
+    from .services import day_stats
+    try:
+        day = date.fromisoformat(d) if d else date.today()
+    except ValueError:
+        day = date.today()
+    if user.role == "doctor" and user.doctor_id:
+        doc = user.doctor_id
+    s_ = day_stats.compute(db, day, doc or None)
+    return templates.TemplateResponse(request, "_day_stats.html", {"request": request, "user": user, "s": s_, "can": can,
+                                      "money": can(user, "finance") or can(user, "sales")})
 
 
 @app.get("/calendar/visit", response_class=HTMLResponse)

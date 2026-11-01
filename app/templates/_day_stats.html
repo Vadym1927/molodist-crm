@@ -1,0 +1,31 @@
+{% set WD = ['Понеділок','Вівторок','Середа','Четвер',"П'ятниця",'Субота','Неділя'] %}
+<div class="vd-h"><div><small>Статистика дня</small><h3>{{ WD[s.day.weekday()] }}, {{ s.day.strftime('%d.%m.%Y') }}</h3></div><button type="button" class="vd-x" onclick="visitClose()">×</button></div>
+<div class="ds">
+  <div class="ds-g">
+    <div class="ds-t"><span>Нові пацієнти</span><b>{{ s.patients.new }}</b><small>Всього пацієнтів: {{ s.patients.total }} · прийшли: {{ s.patients.came }}</small></div>
+    {% if money %}<div class="ds-t"><span>Дохід</span><b>{{ s.income.fact|uah }}</b><small>Плановий дохід: {{ s.income.plan|uah }}<br>Зі знижкою: {{ s.income.with_discount }} чек(ів) · знижки {{ s.income.discount|uah }}</small></div>{% endif %}
+    <div class="ds-t"><span>Записів створено</span><b>{{ s.created.n }}</b><small>Онлайн-запис: {{ s.created.online }}<br>Адміністратор: {{ s.created.admin }}{% if s.created.cleverbox %} · з CleverBox: {{ s.created.cleverbox }}{% endif %}</small></div>
+    <div class="ds-t"><span>Візитів на день</span><b>{{ s.visits.n }}</b><small>Відбулось / розраховано: {{ s.visits.done }}{% if money and s.income.unpaid %}<br>Не розраховано: {{ s.income.unpaid|uah }}{% endif %}</small></div>
+    <div class="ds-t warn"><span>Скасувань на цей день</span><b>{{ s.cancel_day.n }}</b><small>На суму: {{ s.cancel_day.sum|uah }}</small></div>
+    <div class="ds-t warn"><span>Скасовано цього дня</span><b>{{ s.cancel_today.n }}</b><small>На суму: {{ s.cancel_today.sum|uah }}</small></div>
+    <div class="ds-t warn"><span>Візитів перенесено</span><b>{{ s.moved.n }}</b><small>На суму: {{ s.moved.sum|uah }}</small></div>
+    <div class="ds-t bad"><span>Неявки</span><b>{{ s.no_show.n }}</b><small>На суму: {{ s.no_show.sum|uah }}</small></div>
+  </div>
+  {% if money %}
+  <h4>Каса</h4>
+  <div class="ds-g">
+    <div class="ds-t"><span>Рахунки (чеки)</span><b>{{ s.checks.n }}</b><small>Сума: {{ s.checks.sum|uah }} · середній {{ s.income.avg|uah }}{% if s.checks.test %}<br>з них тестових: {{ s.checks.test }}{% endif %}</small></div>
+    {% set k = s.kinds %}
+    <div class="ds-t"><span>Послуги</span><b>{{ (k.service.sum if k.service else 0)|uah }}</b><small>Кількість: {{ (k.service.n if k.service else 0)|int }}</small></div>
+    <div class="ds-t"><span>Товари</span><b>{{ (k.product.sum if k.product else 0)|uah }}</b><small>Кількість: {{ (k.product.n if k.product else 0)|int }}</small></div>
+    <div class="ds-t"><span>Сертифікати</span><b>{{ ((k.cert.sum if k.cert else 0) + 0)|uah }}</b><small>Продано в касі: {{ (k.cert.n if k.cert else 0)|int }}{% if s.certs_sold.n %} · у реєстрі: {{ s.certs_sold.n }}{% endif %}</small></div>
+    <div class="ds-t"><span>Абонементи</span><b>{{ (k.sub.sum if k.sub else 0)|uah }}</b><small>Продано в касі: {{ (k.sub.n if k.sub else 0)|int }}{% if s.subs_sold.n %} · у реєстрі: {{ s.subs_sold.n }}{% endif %}</small></div>
+    <div class="ds-t"><span>Поповнення рахунку</span><b>{{ (k.topup.sum if k.topup else 0)|uah }}</b><small>Операцій: {{ (k.topup.n if k.topup else 0)|int }}</small></div>
+    {% if k.other %}<div class="ds-t"><span>Інше</span><b>{{ k.other.sum|uah }}</b><small>Позицій: {{ k.other.n|int }}</small></div>{% endif %}
+    <div class="ds-t bad"><span>Повернення</span><b>{{ s.checks.refunded }}</b><small>На суму: {{ s.checks.refund_sum|uah }}</small></div>
+  </div>
+  {% if s.pay %}<h4>Оплати</h4><div class="ds-l">{% for m, v in s.pay.items() %}<div><span>{{ m }}</span><b>{{ v|uah }}</b></div>{% endfor %}</div>{% endif %}
+  {% if s.doctors %}<h4>Спеціалісти</h4><div class="ds-l c4"><div class="hd"><span>Спеціаліст</span><span>Візитів</span><span>Послуги</span><span>Товари</span></div>
+    {% for x in s.doctors %}<div><span>{{ x.name }}</span><span>{{ x.visits }}</span><b>{{ x.services|uah }}</b><b>{{ x.products|uah }}</b></div>{% endfor %}</div>{% endif %}
+  {% endif %}
+</div>
