@@ -72,3 +72,29 @@ def test_auto_adopt_with_techcard():
     with SessionLocal() as db:
         a = db.query(Appointment).filter(Appointment.cb_record_id == 16001).one()
         assert db.query(VisitMaterial).filter(VisitMaterial.appt_id == a.id).count() == 1
+
+
+def test_adopt_resolves_service_by_name():
+    """id послуги в записі CleverBox — номер рядка; техкарта знаходиться за назвою послуги."""
+    from app.models import Product, TechCard, TechCardLine, VisitMaterial
+    from app.services import techcards as tc
+    t = (datetime.now() + timedelta(days=3)).replace(hour=13, minute=30, second=0, microsecond=0)
+    with SessionLocal() as db:
+        pr = Product(name="OBSERV амортизація т", name_norm="observ амортизація т", warehouse="equip", cost=50)
+        p = Patient(full_name="Юля Тест", cleverbox_id=779)
+        db.add_all([pr, p]); db.flush()
+        card = TechCard(name="Консультація ТК", cats=list(tc.DEFAULT_CATS), lines=[TechCardLine(cat="Обладнання", product_id=pr.id, qty=1)])
+        db.add(card); db.flush()
+        db.add_all([CbService(id=93201, name="Консультація Beauty plan Anti Acne", price=2500, time_min=60, techcard_id=card.id),
+                    CbService(id=555777, name="Інша послуга", price=100)])
+        db.add(Visit(source="cb_visit", external_id="17001-555777", patient_id=p.id, service_id=555777,
+                     service_name="Консультація Beauty plan Anti Acne", starts_at=t, ends_at=t + timedelta(hours=1), status="booked"))
+        db.commit()
+        a = aps.adopt_cb(db, 17001)
+        assert a.services[0]["id"] == 93201 and a.services[0]["price"] == 2500
+        assert db.query(VisitMaterial).filter(VisitMaterial.appt_id == a.id).count() == 1
+        # уже прийнятий раніше з неправильним id — виправляється при відкритті / seed
+        a.services = [{"id": 555777, "name": "Консультація Beauty plan Anti Acne", "price": 2500, "minutes": 60}]
+        db.query(VisitMaterial).filter(VisitMaterial.appt_id == a.id).delete(); db.commit()
+        tc.seed(db, a)
+        assert a.services[0]["id"] == 93201 and db.query(VisitMaterial).filter(VisitMaterial.appt_id == a.id).count() == 1

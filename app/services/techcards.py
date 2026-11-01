@@ -82,10 +82,44 @@ def _card_of(db: Session, service_id: int | None) -> TechCard | None:
     return db.get(TechCard, sv.techcard_id) if sv and sv.techcard_id else None
 
 
+def resolve_service(db: Session, sid, name: str | None) -> CbService | None:
+    """Послуга прайсу для рядка візиту: за id, якщо назва збігається; інакше — за назвою
+    (у записах календаря CleverBox id буває номером рядка запису, а не послуги)."""
+    from ..parsers.observ import norm
+    sv = db.get(CbService, int(sid)) if str(sid or "").isdigit() else None
+    n = norm(name or "")
+    if sv and (not n or norm(sv.name) == n):
+        return sv
+    if not n:
+        return sv
+    cand = [x for x in db.scalars(select(CbService).where(CbService.active.is_not(False))) if norm(x.name) == n]
+    if not cand:
+        cand = [x for x in db.scalars(select(CbService)) if norm(x.name) == n]
+    return next((x for x in cand if x.techcard_id), cand[0] if cand else sv)
+
+
+def fix_services(db: Session, a: Appointment) -> bool:
+    """Виправити id послуг візиту на послуги прайсу (за назвою), щоб підтягнулись техкарти, категорії й ціни."""
+    svcs = [dict(s) for s in (a.services or [])]
+    changed = False
+    for s in svcs:
+        sv = resolve_service(db, s.get("id"), s.get("name"))
+        if sv and sv.id != s.get("id"):
+            s["id"] = sv.id
+            s["category"] = s.get("category") or sv.category
+            changed = True
+    if changed:
+        a.services = svcs
+        db.flush()
+    return changed
+
+
 def seed(db: Session, a: Appointment) -> bool:
     """Для кожної послуги візиту — витратні з техкарти (якщо ще немає або послугу замінили)."""
     if not a or closed(db, a):
         return False
+    if not a.sale_id:
+        fix_services(db, a)
     have: dict[int, list] = defaultdict(list)
     for m in db.scalars(select(VisitMaterial).where(VisitMaterial.appt_id == a.id)):
         have[m.svc_idx].append(m)

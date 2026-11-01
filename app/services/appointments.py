@@ -150,12 +150,13 @@ def adopt_cb(db: Session, rid: int, user_id: int | None = None) -> Appointment |
     idx = DoctorIndex(all_doctors(db))
     doc = next((d for d in (idx.find(v.master_name) for v in vs) if d), None)
     svcs, start = [], min(v.starts_at for v in vs)
+    from .techcards import resolve_service
     for v in vs:
-        sv = db.get(CbService, v.service_id) if v.service_id else None
+        sv = resolve_service(db, v.service_id, v.service_name)
         mins = int((sv.duration or sv.time_min) if sv and (sv.duration or sv.time_min) else 0) or \
             (int((v.ends_at - v.starts_at).total_seconds() // 60) if v.ends_at and v.ends_at > v.starts_at else 60)
         price = float(sv.price) if sv and sv.price else float(v.amount or 0)
-        svcs.append({"id": v.service_id, "name": v.service_name or (sv.name if sv else "Послуга"), "price": price, "minutes": mins,
+        svcs.append({"id": sv.id if sv else v.service_id, "name": v.service_name or (sv.name if sv else "Послуга"), "price": price, "minutes": mins,
                      "category": sv.category if sv else None})
     ends = [v.ends_at for v in vs if v.ends_at and v.ends_at > start]
     end = max(ends) if ends else start + timedelta(minutes=sum(s_["minutes"] for s_ in svcs))
