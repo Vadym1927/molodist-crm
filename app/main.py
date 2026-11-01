@@ -81,6 +81,7 @@ def _work_mode() -> dict:
 
 
 templates.env.globals["work_mode"] = _work_mode
+templates.env.globals["user_photo"] = lambda u: __import__("app.services.shifts", fromlist=["x"]).photo_url(u) if u else None
 templates.env.globals["ui_rules"] = lambda role: __import__("app.services.ui_access", fromlist=["x"]).client_rules(role)
 
 state = {"bot": None, "last_sync": None, "last_error": None}
@@ -537,6 +538,70 @@ def login(request: Request, login: str = Form(...), password: str = Form(...), d
 def logout(request: Request):
     request.session.clear()
     return RedirectResponse("/login", 303)
+
+
+@app.get("/me/panel", response_class=HTMLResponse)
+def me_panel(request: Request, user: User = Depends(current_user), db: Session = Depends(db_dep)):
+    """Панель профілю (клік по аватару): фото, вихід, касова зміна, відкриті зміни, хто онлайн."""
+    from .services import shifts as sh
+    cur = sh.current(db, user)
+    users = {u.id: u.name for u in db.scalars(select(User))}
+    others = [s_ for s_ in sh.open_shifts(db) if s_.opened_by != user.id]
+    return templates.TemplateResponse(request, "_profile_panel.html", {
+        "request": request, "user": user, "can": can, "photo": sh.photo_url(user), "cur": cur,
+        "cur_sum": sh.sales_summary(db, cur) if cur else None, "boxes": sh.boxes(db) if can(user, "sales") else [],
+        "recent": sh.recent(db), "online": sh.online(db), "users": users, "sh": sh, "others": others, "busy": sh.busy(db, user.id)})
+
+
+@app.post("/me/photo")
+async def me_photo(request: Request, file: UploadFile = File(...), user: User = Depends(current_user), db: Session = Depends(db_dep)):
+    from .services import ingest
+    data = await file.read()
+    nm = (file.filename or "photo").lower()
+    back = request.headers.get("referer") or "/calendar"
+    if not data or len(data) > 5 * 1024 * 1024 or not (nm.endswith((".jpg", ".jpeg", ".png", ".webp")) or (file.content_type or "").startswith("image/")):
+        return RedirectResponse(_with_msg(back, "Фото: jpg, png або webp до 5 МБ", True), 303)
+    user.photo_path = ingest.store(data, "user_" + nm[-40:])
+    user.photo_mime = (file.content_type or "image/jpeg")[:60]
+    db.commit()
+    audit(db, "user.photo", "user", user.id, user=user)
+    db.commit()
+    return RedirectResponse(back, 303)
+
+
+@app.get("/me/photo/{uid:int}")
+def me_photo_get(uid: int, user: User = Depends(current_user), db: Session = Depends(db_dep)):
+    u = db.get(User, uid)
+    if not u or not u.photo_path or not Path(u.photo_path).exists():
+        raise HTTPException(404)
+    return FileResponse(u.photo_path, media_type=u.photo_mime or "image/jpeg", headers={"Cache-Control": "private, max-age=604800"})
+
+
+@app.post("/shift/open")
+async def shift_open(request: Request, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    from .services import shifts as sh
+    f = await request.form()
+    try:
+        s_ = sh.open_shift(db, user, [int(x) for x in f.getlist("box") if str(x).isdigit()])
+    except sh.ShiftError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    audit(db, "shift.open", "shift", s_.id, user=user, boxes=[b["name"] for b in s_.boxes])
+    db.commit()
+    return {"ok": True, "id": s_.id}
+
+
+@app.post("/shift/close")
+async def shift_close(request: Request, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    from .services import shifts as sh
+    f = await request.form()
+    try:
+        sid_ = str(f.get("shift") or "")
+        s_ = sh.close_shift(db, user, str(f.get("note") or ""), int(sid_) if sid_.isdigit() else None)
+    except sh.ShiftError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    audit(db, "shift.close", "shift", s_.id, user=user, total=(s_.summary or {}).get("total"))
+    db.commit()
+    return {"ok": True, "id": s_.id, "summary": s_.summary}
 
 
 @app.get("/me", response_class=HTMLResponse)

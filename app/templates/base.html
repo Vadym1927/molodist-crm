@@ -151,7 +151,7 @@ body.drw-on .drw{transform:none}body.drw-on .drw-bg{opacity:1;pointer-events:aut
     </div>
   </details>
   <div class="grow"></div>
-  <a class="ava" href="/me" title="{{ user.name }}">{{ (user.name.split()|map('first')|join)[:2]|upper }}</a>
+  {% set _ph = user_photo(user) %}<a class="ava" href="/me" title="{{ user.name }}" onclick="return ppOpen(event)" style="{{ 'padding:0;overflow:hidden' if _ph }}">{% if _ph %}<img src="{{ _ph }}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">{% else %}{{ (user.name.split()|map('first')|join)[:2]|upper }}{% endif %}</a>
   <div class="role">{{ user.role_label }}</div>
 </aside>
 {% set P = request.url.path %}{% set QT = request.query_params.get('tab', '') %}{% set QR = request.query_params.get('r', '') %}
@@ -204,6 +204,54 @@ body.drw-on .drw{transform:none}body.drw-on .drw-bg{opacity:1;pointer-events:aut
 {% if user and can(user,'stock') %}{% include "_supplier_modal.html" %}{% endif %}
 {% if user %}{% include "_delpw.html" %}{% endif %}
 <script>document.addEventListener('click',function(e){document.querySelectorAll('details.more[open]').forEach(function(d){if(!d.contains(e.target))d.removeAttribute('open')})});</script>
+{% if user and nav not in ('login','print') %}
+<style>
+.pp-bg{position:fixed;inset:0;background:rgba(42,36,48,.38);opacity:0;pointer-events:none;transition:.2s;z-index:80}.pp-bg.on{opacity:1;pointer-events:auto}
+.pp{position:fixed;top:0;right:0;bottom:0;width:min(680px,100vw);background:#F7F4F0;box-shadow:-24px 0 60px rgba(42,36,48,.25);transform:translateX(100%);transition:.25s;z-index:81;display:flex;flex-direction:column}
+.pp.on{transform:none}
+.pp-h{display:flex;justify-content:space-between;align-items:center;padding:20px 24px;background:#fff;border-bottom:1px solid #ECE7E1}
+.pp-h h3{margin:0;font:500 26px var(--head);letter-spacing:.08em;text-transform:uppercase;color:#2A2430}
+.pp-x{border:0;background:#F1EDF8;width:40px;height:40px;border-radius:12px;font-size:22px;color:#3B3050;cursor:pointer}
+.pp-b{overflow:auto;padding:20px 24px 40px;display:grid;gap:18px;align-content:start}
+.pp-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}@media(max-width:620px){.pp-grid{grid-template-columns:1fr}}
+.pp-card{position:relative;background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:30px 20px 18px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
+.pp-card.wide{align-items:stretch;text-align:left}
+.pp-tag{position:absolute;top:-11px;left:16px;background:#E4DEEF;color:#3B3050;font:700 10.5px var(--sans);letter-spacing:.12em;text-transform:uppercase;padding:5px 11px;border-radius:8px}
+.pp-tag.dark{background:#3B3050;color:#fff}
+.pp-ph label{display:grid;place-items:center;width:92px;height:92px;border-radius:50%;background:#E4DEEF;color:#3B3050;font:600 30px var(--head);cursor:pointer;position:relative;overflow:hidden}
+.pp-ph img{width:100%;height:100%;object-fit:cover}.pp-ph i{position:absolute;inset:auto 0 0 0;background:rgba(42,36,48,.6);color:#fff;font:600 10px var(--sans);font-style:normal;padding:4px 0;opacity:0;transition:.15s}
+.pp-ph label:hover i{opacity:1}
+.pp-nm{font:600 16px var(--sans);color:#2A2430;margin-top:4px}.pp-role{font-size:12.5px;color:#8a8496}
+.pp-acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:8px}.pp-card.wide .pp-acts{justify-content:flex-start}
+.pp-btn{display:inline-flex;align-items:center;justify-content:center;height:40px;padding:0 16px;border-radius:12px;font:700 13px var(--sans);text-decoration:none;cursor:pointer;border:1px solid transparent;margin-top:6px}
+.pp-btn.main{background:#3B3050;color:#fff}.pp-btn.ghost{background:#F7F4F0;color:#3B3050}.pp-btn.line{background:#fff;border-color:#C9BFE6;color:#3B3050}
+.pp-btn.bad{color:#B23B2E;background:#fff;border-color:#F0C9C3}
+.pp-ico{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;background:#F1EDF8;color:#8a8496;font:700 20px var(--sans)}.pp-ico.ok{background:#E3F2E8;color:#2F7A4C}
+.pp-st{font:700 14px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#2A2430}.pp-sub{font-size:12.5px;color:#8a8496}
+.pp-boxes{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.pp-box{display:flex;flex-direction:column;align-items:center;gap:4px;border:1px solid #ECE7E1;border-radius:14px;padding:14px 10px;cursor:pointer;text-align:center;position:relative}
+.pp-box input{position:absolute;top:10px;left:10px;width:auto}.pp-box:has(input:checked){border-color:#5C4B82;box-shadow:0 0 0 2px #E4DEEF}
+.pp-bi{width:30px;height:30px;color:#7B5CC4}.pp-bi svg{width:30px;height:30px}.pp-bi.t-cash{color:#2F7A4C}
+.pp-box.off{opacity:.5;cursor:not-allowed;background:#FBFAF8}.pp-box b{font-size:13.5px;color:#2A2430}.pp-box small{color:#8a8496}
+.pp-row{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid #F3EFEA;font-size:13.5px}.pp-row:first-of-type{border-top:0}
+.pp-row em.ok{color:#2F7A4C;font-style:normal;font-weight:700}
+.pp-on{display:flex;align-items:center;gap:10px;padding:6px 0;font:600 14px var(--sans);color:#2A2430}
+.pp-av{position:relative;width:36px;height:36px;border-radius:50%;background:#E4DEEF;color:#3B3050;display:grid;place-items:center;font:700 12px var(--sans);overflow:visible}
+.pp-av img{width:100%;height:100%;object-fit:cover;border-radius:50%}.pp-av i{position:absolute;right:-1px;top:-1px;width:10px;height:10px;border-radius:50%;background:#4E9B6B;border:2px solid #fff}
+.pp-err{color:#B23B2E;font-size:13px;margin-top:6px}
+</style>
+<div class="pp-bg" id="ppb" onclick="ppClose()"></div><aside class="pp" id="pp" aria-label="Профіль"><div id="pp-in" style="display:contents"></div></aside>
+<script>
+function ppLoad(){fetch('/me/panel',{credentials:'same-origin'}).then(function(r){return r.text()}).then(function(h){document.getElementById('pp-in').innerHTML=h})}
+function ppOpen(e){if(e&&(e.metaKey||e.ctrlKey))return true;if(e)e.preventDefault();document.getElementById('pp').classList.add('on');document.getElementById('ppb').classList.add('on');ppLoad();return false}
+function ppClose(){document.getElementById('pp').classList.remove('on');document.getElementById('ppb').classList.remove('on')}
+function ppShift(what,sid){var fd=what==='open'?new FormData(document.getElementById('pp-of')):new FormData();
+  if(sid)fd.append('shift',sid);
+  if(what==='close'&&!confirm('Закрити касову зміну?'))return;
+  fetch('/shift/'+what,{method:'POST',body:fd,credentials:'same-origin',headers:{'Accept':'application/json'}}).then(function(r){return r.json()})
+    .then(function(j){if(j.error){var er=document.getElementById('pp-err');if(er)er.textContent=j.error;else alert(j.error);return}ppLoad()})}
+</script>
+{% endif %}
 {% if user and user.role != 'owner' %}{% set _uir = ui_rules(user.role) %}{% if _uir %}<script>
 (function(){var R={{ _uir|tojson }}.map(function(r){return [r[0],new RegExp(r[1]),r[2]]});
 function bad(m,u){try{u=new URL(u,location.href)}catch(e){return false}if(u.origin!==location.origin)return false;

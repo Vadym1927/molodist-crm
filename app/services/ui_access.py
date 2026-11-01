@@ -92,6 +92,7 @@ GROUPS: list[tuple[str, list]] = [
         ("sale_archive", "Архівувати чек", [_p(rf"/sales/{N}/archive")]),
         ("sale_fiscal", "Фіскалізувати / надіслати чек", [_p(rf"/sales/{N}/fiscalize"), _p(rf"/sales/{N}/send-receipt")]),
         ("sale_paylink", "Посилання на оплату", [_p(rf"/sales/{N}/paylink"), _p(r"/paylinks")]),
+        ("sale_shift", "Відкривати й закривати касову зміну", [_p(r"/shift/")]),
     ]),
     ("Фінанси — вкладки", [(k, l, [_g(p)]) for p, k, l in _FIN]),
     ("Фінанси — дії", [

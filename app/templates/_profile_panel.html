@@ -1,0 +1,50 @@
+<div class="pp-h"><h3>{{ user.name.split()[0] if user.name else 'Профіль' }}</h3><button type="button" class="pp-x" onclick="ppClose()" aria-label="Закрити">×</button></div>
+<div class="pp-b">
+  <div class="pp-grid">
+    <section class="pp-card"><span class="pp-tag">Ваш профіль</span>
+      <form method="post" action="/me/photo" enctype="multipart/form-data" class="pp-ph" title="Змінити фото">
+        <label>{% if photo %}<img src="{{ photo }}" alt="">{% else %}<b>{{ (user.name.split()|map('first')|join)[:2]|upper }}</b>{% endif %}
+          <input type="file" name="file" accept="image/*" hidden onchange="this.form.submit()"><i>Змінити фото</i></label></form>
+      <div class="pp-nm">{{ user.name }}</div><div class="pp-role">{{ user.role_label }}</div>
+      <div class="pp-acts"><a class="pp-btn ghost" href="/me">Мій кабінет</a><a class="pp-btn bad" href="/logout">Вийти</a></div>
+    </section>
+    <section class="pp-card"><span class="pp-tag {{ 'dark' if cur }}">Касова зміна</span>
+      {% if cur %}<div class="pp-ico ok">₴</div><div class="pp-st">Зміна відкрита</div>
+        <div class="pp-sub">з {{ cur.opened_at.strftime('%d.%m %H:%M') }} · {{ users.get(cur.opened_by, '—') }}</div>
+        {% if cur_sum %}<div class="pp-sub">Чеків: <b>{{ cur_sum.checks }}</b> · {{ cur_sum.total|uah }}{% if cur_sum.test %} · тест: {{ cur_sum.test }}{% endif %}</div>{% endif %}
+        {% if can(user,'sales') %}<button type="button" class="pp-btn line" onclick="ppShift('close')">Закрити зміну</button>{% endif %}
+      {% else %}<div class="pp-ico">₴</div><div class="pp-st">Зміна закрита</div>
+        {% if can(user,'sales') %}<button type="button" class="pp-btn main" onclick="document.getElementById('pp-open').hidden=false">Відкрити зміну</button>{% endif %}{% endif %}
+    </section>
+  </div>
+
+  {% if not cur and boxes %}<section class="pp-card wide" id="pp-open" hidden><span class="pp-tag">Відкриття касової зміни</span>
+    <p class="pp-sub" style="margin:0 0 10px">Оберіть каси для відкриття зміни</p>
+    <form id="pp-of" class="pp-boxes">{% for b in boxes %}{% set taken = busy.get(b.id|int) %}<label class="pp-box {{ 'off' if taken }}">
+      <input type="checkbox" name="box" value="{{ b.id }}" {{ 'disabled' if taken else 'checked' }}>
+      <span class="pp-bi t-{{ b.type }}">{% if b.type == 'cash' %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7" ry="2.6"/><path d="M5 6v4c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6V6M5 10v4c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6v-4M5 14v4c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6v-4"/></svg>{% else %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h4"/></svg>{% endif %}</span>
+      <b>{{ b.name }}</b>{% if taken %}<small>відкрита: {{ users.get(taken, '—') }}</small>{% elif b.type == 'cash' %}<small>{{ b.balance|uah }}</small>{% endif %}</label>{% endfor %}</form>
+    <div class="pp-acts"><button type="button" class="pp-btn main" onclick="ppShift('open')">Відкрити зміну</button>
+      <button type="button" class="pp-btn line bad" onclick="document.getElementById('pp-open').hidden=true">Скасувати</button></div>
+    <div class="pp-err" id="pp-err"></div></section>{% endif %}
+
+  {% if cur %}<section class="pp-card wide"><span class="pp-tag">Каси зміни</span>
+    {% for b in cur.boxes or [] %}<div class="pp-row"><span>{{ b.name }}</span><b>{{ (b.open|uah) if b.open is not none and b.type == 'cash' else '' }}</b></div>{% endfor %}
+    {% if cur_sum and cur_sum.by_method %}<div class="pp-sub" style="margin-top:8px">Оплати за зміну: {% for m, v in cur_sum.by_method.items() %}{{ m }} — {{ v|uah }}{{ '; ' if not loop.last }}{% endfor %}</div>{% endif %}
+  </section>{% endif %}
+
+  {% if others %}<section class="pp-card wide"><span class="pp-tag">Відкриті зміни інших</span>
+    {% for s in others %}<div class="pp-row"><span>{{ users.get(s.opened_by, '—') }} · з {{ s.opened_at.strftime('%d.%m %H:%M') }}<small style="display:block;color:#8a8496">{{ (s.boxes or [])|map(attribute='name')|join(', ') }}</small></span>
+      {% if user.role == 'owner' %}<button type="button" class="pp-btn line" style="margin:0" onclick="ppShift('close', {{ s.id }})">Закрити</button>{% endif %}</div>{% endfor %}
+  </section>{% endif %}
+
+  <section class="pp-card wide"><span class="pp-tag">Касові зміни</span>
+    {% for s in recent %}<div class="pp-row"><span>📅 {{ s.opened_at.strftime('%d.%m %H:%M') }}{% if s.closed_at %} – {{ s.closed_at.strftime('%d.%m %H:%M') }}{% else %} · <em class="ok">відкрита</em>{% endif %}</span>
+      <span>{{ users.get(s.opened_by, '—') }}{% if s.summary %} · {{ s.summary.total|uah }}{% endif %}</span></div>
+    {% else %}<div class="pp-sub">Змін ще не було.</div>{% endfor %}
+  </section>
+
+  <section class="pp-card wide"><span class="pp-tag">Зараз онлайн ({{ online|length }})</span>
+    {% for u in online %}{% set ph = sh.photo_url(u) %}<div class="pp-on"><span class="pp-av">{% if ph %}<img src="{{ ph }}" alt="">{% else %}{{ (u.name.split()|map('first')|join)[:2]|upper }}{% endif %}<i></i></span>{{ u.name }}</div>{% endfor %}
+  </section>
+</div>

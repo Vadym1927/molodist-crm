@@ -11,7 +11,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import Request, HTTPException, Depends, Header
 from sqlalchemy import select
@@ -119,6 +119,13 @@ def current_user(request: Request, db: Session = Depends(db_dep)) -> User:
         request.session.clear()
         raise HTTPException(status_code=303, headers={"Location": "/login"})
     request.state.user = user
+    now_ = datetime.utcnow()
+    if not user.last_seen or now_ - user.last_seen > timedelta(minutes=2):   # «Зараз онлайн» у панелі профілю
+        user.last_seen = now_
+        try:
+            db.commit()
+        except Exception:  # noqa: BLE001
+            db.rollback()
     if user.role != "owner":                      # доступ до розділів / вкладок / кнопок (Права доступу → Розділи й кнопки)
         from .services import ui_access
         what = ui_access.blocked(user.role, request.method, request.url.path, dict(request.query_params))

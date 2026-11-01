@@ -524,6 +524,9 @@ class User(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_login: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    photo_path: Mapped[str | None] = mapped_column(String(500))          # фото профілю (панель профілю, аватар)
+    photo_mime: Mapped[str | None] = mapped_column(String(60))
+    last_seen: Mapped[datetime | None] = mapped_column(DateTime)         # «Зараз онлайн»
 
     doctor: Mapped[Doctor | None] = relationship()
 
@@ -1304,3 +1307,17 @@ class MessageLog(Base):
     marketing: Mapped[bool] = mapped_column(Boolean, default=False)
 
     user: Mapped[User | None] = relationship()
+
+
+class CashShift(Base):
+    """Касова зміна (як у CleverBox): відкривається на обрані каси із залишками на початок, закривається із залишками на кінець."""
+    __tablename__ = "cash_shifts"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    opened_by: Mapped[int | None] = mapped_column(Integer)
+    opened_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, index=True)
+    closed_by: Mapped[int | None] = mapped_column(Integer)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+    location_id: Mapped[int | None] = mapped_column(Integer)
+    boxes: Mapped[list | None] = mapped_column(JSON)          # [{id, name, type, open, close}]
+    summary: Mapped[dict | None] = mapped_column(JSON)        # на закритті: чеків, сума, по способах оплати
+    note: Mapped[str | None] = mapped_column(Text)
