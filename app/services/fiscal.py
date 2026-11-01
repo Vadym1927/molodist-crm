@@ -224,6 +224,23 @@ class Kasa:
     def close_shift(self) -> dict:
         return self._req("POST", "shifts/close", {})
 
+    def service(self, amount: float) -> dict:
+        """Службове внесення (+) / винесення (−) готівки."""
+        rc = self._req("POST", "receipts/service", {"payment": {"type": "CASH", "value": int(round(amount * 100)),
+                                                                "label": "Готівка"}})
+        for _ in range(15):
+            if rc.get("status") in ("DONE", "ERROR"):
+                break
+            time.sleep(self.wait)
+            rc = self._req("GET", f"receipts/{rc['id']}")
+        if rc.get("status") == "ERROR":
+            raise FiscalError("Checkbox відхилив службовий чек: " + str(rc.get("transaction", {}).get("response_error_message") or "")[:150])
+        return rc
+
+    def x_report(self) -> dict:
+        return self._req("POST", "reports", {})
+
+
     def sell(self, body: dict) -> dict:
         rc = self._req("POST", "receipts/sell", body)
         for _ in range(15):
@@ -234,6 +251,68 @@ class Kasa:
         if rc.get("status") == "ERROR":
             raise FiscalError("Checkbox відхилив чек: " + str(rc.get("transaction", {}).get("response_error_message") or "")[:150])
         return rc
+
+
+def _kop(v) -> float | None:
+    try:
+        return round(float(v) / 100, 2)
+    except (TypeError, ValueError):
+        return None
+
+
+def rro_guard(db: Session, rid: int) -> dict:
+    """Каса РРО для дій з панелі. У тестовому режимі — лише каси з позначкою «тестова» (dev-сервер Checkbox):
+    реальні фіскальні документи під час тестів не створюються."""
+    from . import autonomy
+    r = _rro(db, rid)
+    if autonomy.test_mode(db) and not r.get("test"):
+        raise FiscalError("Тестовий режим: дії з реальною касою Checkbox вимкнено (фіскалізацію відв'язано). "
+                          "Вимкніть тестовий режим або позначте касу як тестову в налаштуваннях Checkbox.")
+    return r
+
+
+def rro_status(db: Session, rid: int) -> dict:
+    """Стан зміни каси РРО: відкрита / закрита, з якого часу, готівка в касі."""
+    from . import autonomy
+    r = _rro(db, rid)
+    if autonomy.test_mode(db) and not r.get("test"):
+        return {"id": rid, "state": "test", "label": "тестовий режим — без Checkbox"}
+    s = Kasa(r).shift()
+    if not s:
+        return {"id": rid, "state": "closed", "label": "зміна закрита"}
+    bal = s.get("balance") or {}
+    return {"id": rid, "state": "open" if s.get("status") == "OPENED" else "opening", "label": "зміна відкрита",
+            "opened": str(s.get("opened_at") or "")[:16].replace("T", " "), "serial": s.get("serial"),
+            "cash": _kop(bal.get("balance")), "sell": _kop(bal.get("sell")), "service_in": _kop(bal.get("service_in")),
+            "service_out": _kop(bal.get("service_out"))}
+
+
+def rro_action(db: Session, rid: int, action: str, amount: float = 0) -> str:
+    r = rro_guard(db, rid)
+    k = Kasa(r)
+    if action == "open":
+        k.ensure_shift()
+        return "Зміну Checkbox відкрито"
+    if action == "close":
+        if not k.shift():
+            return "Зміна вже закрита"
+        z = k.close_shift()
+        zr = (z.get("z_report") or {}) if isinstance(z, dict) else {}
+        return "Зміну закрито, Z-звіт сформовано" + (f" (№{zr.get('serial')})" if zr.get("serial") else "")
+    if action in ("in", "out"):
+        if amount <= 0:
+            raise FiscalError("Вкажіть суму")
+        if not k.shift():
+            raise FiscalError("Спершу відкрийте зміну Checkbox")
+        k.service(amount if action == "in" else -amount)
+        return f"{'Внесено' if action == 'in' else 'Винесено'} {amount:.2f} ₴ готівки"
+    if action == "x":
+        if not k.shift():
+            raise FiscalError("Зміна закрита — X-звіт недоступний")
+        x = k.x_report()
+        bal = _kop(x.get("balance")) if isinstance(x, dict) else None
+        return "X-звіт сформовано" + (f" · готівка в касі {bal:.2f} ₴" if bal is not None else "")
+    raise FiscalError("Невідома дія")
 
 
 def _msg(r) -> str:

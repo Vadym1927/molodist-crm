@@ -38,6 +38,20 @@
       {% if user.role == 'owner' %}<button type="button" class="pp-btn line" style="margin:0" onclick="ppShift('close', {{ s.id }})">Закрити</button>{% endif %}</div>{% endfor %}
   </section>{% endif %}
 
+  {% if rros %}<section class="pp-card wide"><span class="pp-tag">Каси Checkbox (РРО)</span>
+    {% for r in rros %}<div class="pp-rro" data-rro="{{ r.id }}">
+      <div class="pp-rro-h"><div><b>{{ r.name }}</b>{% if r.fop %}<small> · {{ r.fop }}</small>{% endif %}{% if r.test %} <em class="pp-t">тестова</em>{% endif %}</div>
+        <span class="pp-rs" data-st>перевіряю…</span></div>
+      <div class="pp-rro-a">
+        <button type="button" class="pp-btn main sm" onclick="ppRro({{ r.id }},'open')">Відкрити зміну</button>
+        <button type="button" class="pp-btn line sm" onclick="ppRro({{ r.id }},'close')">Закрити зміну (Z-звіт)</button>
+        <button type="button" class="pp-btn ghost sm" onclick="ppRro({{ r.id }},'x')">X-звіт</button>
+        <span class="pp-amt"><input type="text" inputmode="decimal" placeholder="Сума, ₴" data-amt>
+          <button type="button" class="pp-btn line sm" onclick="ppRro({{ r.id }},'in')">Внести</button>
+          <button type="button" class="pp-btn line sm" onclick="ppRro({{ r.id }},'out')">Винести</button></span>
+      </div><div class="pp-sub" data-msg></div></div>{% endfor %}
+  </section>{% endif %}
+
   <section class="pp-card wide"><span class="pp-tag">Касові зміни</span>
     {% for s in recent %}<div class="pp-row"><span>📅 {{ s.opened_at.strftime('%d.%m %H:%M') }}{% if s.closed_at %} – {{ s.closed_at.strftime('%d.%m %H:%M') }}{% else %} · <em class="ok">відкрита</em>{% endif %}</span>
       <span>{{ users.get(s.opened_by, '—') }}{% if s.summary %} · {{ s.summary.total|uah }}{% endif %}</span></div>

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Звільнення · {{ d.name }}{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+<style>
+.fr-hero{border-radius:24px;padding:24px 28px;margin-bottom:18px;color:#fff;background:radial-gradient(120% 160% at 100% 0%,#4A3D63 0%,#3B3050 42%,#2A2430 100%)}
+.fr-hero .eb{font:600 10.5px var(--sans);letter-spacing:.22em;text-transform:uppercase;color:#C9BFE6}.fr-hero .eb a{color:#C9BFE6;text-decoration:none}
+.fr-hero h1{margin:8px 0 0;color:#fff;font:500 30px/1.15 var(--head);letter-spacing:.05em;text-transform:uppercase}
+.fr-hero p{margin:8px 0 0;max-width:760px;color:rgba(255,255,255,.72);font-size:14px;line-height:1.55}
+.fr-w{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;align-items:start}
+.fr-c{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:18px 20px;display:grid;gap:10px}
+.fr-c h2{margin:0;font:600 14px var(--head);letter-spacing:.14em;text-transform:uppercase;display:flex;justify-content:space-between}
+.fr-c h2 em{font-style:normal;background:#F1EDF8;color:#3B3050;border-radius:8px;padding:2px 9px;font:700 13px var(--sans);letter-spacing:0}
+.fr-c label.f{display:grid;gap:5px;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496}
+.fr-list{max-height:240px;overflow:auto;border:1px solid #F3EFEA;border-radius:12px}
+.fr-list div{display:flex;justify-content:space-between;gap:10px;padding:8px 12px;border-top:1px solid #F3EFEA;font-size:13px}.fr-list div:first-child{border-top:0}
+.fr-list small{color:#8a8496}
+.fr-chk{display:flex;gap:9px;align-items:flex-start;font-size:14px}.fr-chk input{width:auto;margin-top:3px}
+.fr-go{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:16px}
+.fr-go .btn.danger{background:#B23B2E;border-color:#B23B2E;color:#fff}
+</style>
+<div class="fr-hero"><div class="eb"><a href="/specialists">Команда</a> · <a href="/specialists/{{ d.id }}">{{ d.name }}</a></div><h1>Звільнення</h1>
+  <p>Перш ніж звільнити, оберіть, кому передати майбутні візити й відкриті задачі. CRM передасть їх автоматично, прибере співробітника з календаря й графіка.
+    Історія візитів, продажі й зарплата лишаються.</p></div>
+{% if qp.get('msg') %}<div class="alert">{{ qp.get('msg') }}</div>{% endif %}
+{% if not d.active %}<div class="card">{{ d.name }} уже звільнено{{ (' ' ~ d.fired_at.strftime('%d.%m.%Y')) if d.fired_at }}.</div>{% else %}
+<form method="post" action="/specialists/{{ d.id }}/fire" onsubmit="return confirm('Остаточно звільнити {{ d.name }} і передати справи?')">
+<div class="fr-w">
+  <div class="fr-c"><h2>Майбутні візити <em>{{ pv.appts|length }}</em></h2>
+    {% if pv.appts %}<div class="fr-list">{% for a in pv.appts %}<div><span>{{ a.start.strftime('%d.%m %H:%M') }} · {{ a.patient.full_name if a.patient else '—' }}</span><small>{{ (a.services or [])|map(attribute='name')|join(', ') }}</small></div>{% endfor %}</div>
+    <label class="f">Кому передати візити<select name="to_doctor" required><option value="">— оберіть спеціаліста —</option>
+      {% for x in pv.doctors %}<option value="{{ x.id }}">{{ x.name }}{{ (' · ' ~ x.position) if x.position }}</option>{% endfor %}<option value="none">Без фахівця (розподілити пізніше)</option></select></label>
+    {% else %}<div class="muted small">Майбутніх візитів немає.</div><input type="hidden" name="to_doctor" value="">{% endif %}
+  </div>
+  <div class="fr-c"><h2>Відкриті задачі <em>{{ pv.tasks|length }}</em></h2>
+    {% if pv.tasks %}<div class="fr-list">{% for t in pv.tasks %}<div><span>{{ t.title }}</span><small>{{ t.due_date.strftime('%d.%m') if t.due_date else '' }}</small></div>{% endfor %}</div>
+    <label class="f">Кому передати задачі<select name="to_user" required><option value="">— оберіть користувача —</option>
+      {% for u in pv.assignees %}<option value="{{ u.id }}">{{ u.name }} · {{ u.role_label }}</option>{% endfor %}<option value="queue">Черга адміністраторів</option></select></label>
+    {% else %}<div class="muted small">{{ 'Відкритих задач немає.' if pv.users else 'Немає облікового запису в CRM — задач немає.' }}</div><input type="hidden" name="to_user" value="">{% endif %}
+  </div>
+  <div class="fr-c"><h2>Доступ і графік</h2>
+    {% if pv.users %}<label class="fr-chk"><input type="checkbox" name="block_login" value="1" checked> Заблокувати вхід у CRM ({{ pv.users|map(attribute='login')|join(', ') }})</label>{% endif %}
+    <label class="fr-chk"><input type="checkbox" name="drop_schedule" value="1" checked> Прибрати майбутні зміни з графіка{% if pv.shifts %} ({{ pv.shifts }}){% endif %}</label>
+    <div class="muted small">Співробітник зникне з календаря й списку «Працюють»; картку можна відновити — статус «Працює».</div>
+  </div>
+</div>
+<div class="fr-go"><button class="btn danger">Звільнити й передати справи</button><a class="btn ghost" href="/specialists/{{ d.id }}">Скасувати</a></div>
+</form>{% endif %}
+{% endblock %}

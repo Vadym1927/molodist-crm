@@ -550,7 +550,8 @@ def me_panel(request: Request, user: User = Depends(current_user), db: Session =
     return templates.TemplateResponse(request, "_profile_panel.html", {
         "request": request, "user": user, "can": can, "photo": sh.photo_url(user), "cur": cur,
         "cur_sum": sh.sales_summary(db, cur) if cur else None, "boxes": sh.boxes(db) if can(user, "sales") else [],
-        "recent": sh.recent(db), "online": sh.online(db), "users": users, "sh": sh, "others": others, "busy": sh.busy(db, user.id)})
+        "recent": sh.recent(db), "online": sh.online(db), "users": users, "sh": sh, "others": others, "busy": sh.busy(db, user.id),
+        "rros": [r for r in __import__("app.services.fiscal", fromlist=["x"]).rros(db) if r["on"] and r["has_key"]] if can(user, "sales") else []})
 
 
 @app.post("/me/photo")
@@ -575,6 +576,35 @@ def me_photo_get(uid: int, user: User = Depends(current_user), db: Session = Dep
     if not u or not u.photo_path or not Path(u.photo_path).exists():
         raise HTTPException(404)
     return FileResponse(u.photo_path, media_type=u.photo_mime or "image/jpeg", headers={"Cache-Control": "private, max-age=604800"})
+
+
+@app.get("/rro/{rid:int}/status")
+async def rro_status_get(rid: int, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    from .services import fiscal as _fis
+    try:
+        return await asyncio.to_thread(_fis.rro_status, db, rid)
+    except (_fis.FiscalError, httpx.HTTPError) as e:
+        return {"id": rid, "state": "error", "label": f"Checkbox: {str(e)[:120]}"}
+
+
+@app.post("/rro/{rid:int}/{action}")
+async def rro_action_post(rid: int, action: str, request: Request, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    """Каса Checkbox з панелі профілю: відкрити / закрити зміну (Z-звіт), внести / винести готівку, X-звіт."""
+    from .services import fiscal as _fis
+    if action not in ("open", "close", "in", "out", "x"):
+        raise HTTPException(404)
+    f = await request.form()
+    try:
+        amt = float(str(f.get("amount") or "0").replace(",", ".").replace(" ", ""))
+    except ValueError:
+        amt = 0
+    try:
+        msg = await asyncio.to_thread(_fis.rro_action, db, rid, action, amt)
+    except (_fis.FiscalError, httpx.HTTPError) as e:
+        return JSONResponse({"error": str(e)[:300]}, status_code=400)
+    audit(db, f"fiscal.{action}", user=user, rro=rid, amount=amt or None)
+    db.commit()
+    return {"ok": True, "msg": msg}
 
 
 @app.post("/shift/open")
@@ -7086,6 +7116,34 @@ def in_schedule(d) -> bool:
 templates.env.globals["in_schedule"] = in_schedule
 
 
+@app.get("/specialists/{did:int}/fire", response_class=HTMLResponse)
+def specialist_fire_page(request: Request, did: int, user: User = Depends(require("specialists_edit")), db: Session = Depends(db_dep)):
+    from .services import offboarding as ob
+    d = db.get(Doctor, did) or (_ for _ in ()).throw(HTTPException(404))
+    return render(request, "specialist_fire.html", nav="specialists", d=d, pv=ob.preview(db, d))
+
+
+@app.post("/specialists/{did:int}/fire")
+def specialist_fire(did: int, to_doctor: str = Form(""), to_user: str = Form(""), block_login: str = Form(""),
+                    drop_schedule: str = Form(""), user: User = Depends(require("specialists_edit")), db: Session = Depends(db_dep)):
+    from .services import offboarding as ob
+    d = db.get(Doctor, did) or (_ for _ in ()).throw(HTTPException(404))
+    if not d.active:
+        return RedirectResponse(_with_msg(f"/specialists/{did}", "Співробітника вже звільнено", True), 303)
+    try:
+        rep = ob.fire(db, d, int(to_doctor) if to_doctor.isdigit() else None, int(to_user) if to_user.isdigit() else None,
+                      block_login == "1", drop_schedule == "1", user)
+    except ValueError as e:
+        return RedirectResponse(_with_msg(f"/specialists/{did}/fire", str(e), True), 303)
+    audit(db, "specialist.fire", "doctor", did, user=user, to_doctor=to_doctor or None, to_user=to_user or None,
+          appts=rep["appts"], tasks=rep["tasks"], blocked=rep["blocked"])
+    db.commit()
+    msg = f"{d.name} звільнено. Передано візитів: {rep['appts']}, задач: {rep['tasks']}" + \
+          (f"; прибрано змін графіка: {rep['shifts']}" if rep["shifts"] else "") + (f"; вхід у CRM заблоковано" if rep["blocked"] else "") + \
+          (f". Накладки в календарі: {'; '.join(rep['conflicts'][:3])}" if rep["conflicts"] else "")
+    return RedirectResponse(_with_msg(f"/specialists/{did}", msg, bool(rep["conflicts"])), 303)
+
+
 @app.post("/specialists/{did:int}")
 async def specialist_save(did: int, request: Request, name: str = Form(...), position: str = Form(""), phone: str = Form(""),
                     email: str = Form(""), color: str = Form(""), bio: str = Form(""), work_days: str = Form(""),
@@ -7105,6 +7163,8 @@ async def specialist_save(did: int, request: Request, name: str = Form(...), pos
     d.photo_url = photo_url if photo_url.startswith("https://") else (None if not photo_url else d.photo_url)
     d.color = color if COLOR_RE.match(color or "") else None
     want_active = status != "fired"
+    if not want_active and d.active:                            # звільнення — лише через майстер передачі справ
+        return RedirectResponse(f"/specialists/{did}/fire", 303)
     if want_active != bool(d.active):
         d.active, d.status_locked = want_active, True
         d.fired_at = None if want_active else date.today()

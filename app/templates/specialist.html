@@ -94,6 +94,7 @@
       <div class="sp-pills">{% if d.active %}<span class="ok">Працює</span>{% else %}<span class="bad">Звільнений{{ (' з ' ~ d.fired_at.strftime('%d.%m.%Y')) if d.fired_at }}</span>{% endif %}
         {% if xv.get('salary') %}<span>Оклад: {{ xv.salary }}</span>{% endif %}{% if d.cleverbox_id %}<span>CleverBox #{{ d.cleverbox_id }}</span>{% endif %}
         {% if d.in_calendar is not false %}<span>У календарі</span>{% endif %}{% if in_schedule(d) %}<span>У графіку</span>{% endif %}</div></div>
+    {% if edit and d.active %}<a class="btn ghost" href="/specialists/{{ d.id }}/fire" style="margin-left:auto;color:#B23B2E;border-color:#F0C9C3">Звільнити</a>{% endif %}
     {% if edit and tab == 'info' %}<button class="btn sp-save" form="spf">Зберегти</button>
     {% elif edit and tab == 'services' %}<button class="btn sp-save" form="svf">Зберегти</button>{% endif %}
   </div>

@@ -239,10 +239,27 @@ body.drw-on .drw{transform:none}body.drw-on .drw-bg{opacity:1;pointer-events:aut
 .pp-av{position:relative;width:36px;height:36px;border-radius:50%;background:#E4DEEF;color:#3B3050;display:grid;place-items:center;font:700 12px var(--sans);overflow:visible}
 .pp-av img{width:100%;height:100%;object-fit:cover;border-radius:50%}.pp-av i{position:absolute;right:-1px;top:-1px;width:10px;height:10px;border-radius:50%;background:#4E9B6B;border:2px solid #fff}
 .pp-err{color:#B23B2E;font-size:13px;margin-top:6px}
+.pp-rro{padding:12px 0;border-top:1px solid #F3EFEA}.pp-rro:first-of-type{border-top:0}
+.pp-rro-h{display:flex;justify-content:space-between;gap:10px;align-items:center}.pp-rro-h b{font-size:14.5px;color:#2A2430}.pp-rro-h small{color:#8a8496}
+.pp-t{font-style:normal;background:#FFF1D6;color:#9A6A00;border-radius:6px;padding:1px 6px;font:700 10.5px var(--sans)}
+.pp-rs{font:700 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;padding:4px 9px;border-radius:8px;background:#F1EDF8;color:#5C4B82;white-space:nowrap}
+.pp-rs.open{background:#E3F2E8;color:#2F7A4C}.pp-rs.closed{background:#F3EFEA;color:#8a8496}.pp-rs.error,.pp-rs.test{background:#FFF1D6;color:#9A6A00}
+.pp-rro-a{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px}.pp-btn.sm{height:34px;padding:0 12px;font-size:12px;margin-top:0}
+.pp-amt{display:inline-flex;gap:6px;align-items:center}.pp-amt input{width:110px;height:34px;border:1px solid #E9E5DF;border-radius:10px;padding:0 10px;font-size:13px}
 </style>
 <div class="pp-bg" id="ppb" onclick="ppClose()"></div><aside class="pp" id="pp" aria-label="Профіль"><div id="pp-in" style="display:contents"></div></aside>
 <script>
-function ppLoad(){fetch('/me/panel',{credentials:'same-origin'}).then(function(r){return r.text()}).then(function(h){document.getElementById('pp-in').innerHTML=h})}
+function ppLoad(){fetch('/me/panel',{credentials:'same-origin'}).then(function(r){return r.text()}).then(function(h){document.getElementById('pp-in').innerHTML=h;ppRroAll()})}
+function ppRroSt(box){var id=box.dataset.rro,st=box.querySelector('[data-st]');
+  fetch('/rro/'+id+'/status',{credentials:'same-origin'}).then(function(r){return r.json()}).then(function(j){st.className='pp-rs '+(j.state||'');
+    st.textContent=j.label+(j.cash!=null?' · готівка '+j.cash.toFixed(2)+' ₴':'')}).catch(function(){st.textContent='немає зв\'язку'})}
+function ppRroAll(){document.querySelectorAll('.pp-rro').forEach(ppRroSt)}
+function ppRro(id,act){var box=document.querySelector('.pp-rro[data-rro="'+id+'"]'),msg=box.querySelector('[data-msg]'),fd=new FormData();
+  var names={open:'Відкрити зміну Checkbox?',close:'Закрити зміну Checkbox і сформувати Z-звіт?',x:'Сформувати X-звіт?',in:'Внести готівку в касу?',out:'Винести готівку з каси?'};
+  if(act==='in'||act==='out'){var a=box.querySelector('[data-amt]').value;if(!a){msg.textContent='Вкажіть суму';return}fd.append('amount',a);names[act]+=' Сума: '+a+' ₴'}
+  if(!confirm(names[act]))return;msg.textContent='Виконую…';
+  fetch('/rro/'+id+'/'+act,{method:'POST',body:fd,credentials:'same-origin',headers:{'Accept':'application/json'}}).then(function(r){return r.json()})
+    .then(function(j){msg.textContent=j.error||j.msg;msg.style.color=j.error?'#B23B2E':'#2F7A4C';ppRroSt(box)})}
 function ppOpen(e){if(e&&(e.metaKey||e.ctrlKey))return true;if(e)e.preventDefault();document.getElementById('pp').classList.add('on');document.getElementById('ppb').classList.add('on');ppLoad();return false}
 function ppClose(){document.getElementById('pp').classList.remove('on');document.getElementById('ppb').classList.remove('on')}
 function ppShift(what,sid){var fd=what==='open'?new FormData(document.getElementById('pp-of')):new FormData();
