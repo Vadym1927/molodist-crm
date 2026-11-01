@@ -6469,6 +6469,9 @@ def book_page(request: Request, item_id: int, day: str | None = None, user: User
     item = db.get(PlanItem, item_id)
     if not item or item.kind != "procedure" or not plan_visible(user, item.plan):
         raise HTTPException(404, "Процедуру не знайдено")
+    from .services import autonomy as _aut
+    if _aut.offline():                                          # автономний режим: запис — у календарі CRM
+        return RedirectResponse(f"/appointments/new?patient={item.plan.patient_id}" + (f"&doc={item.plan.doctor_id}" if item.plan.doctor_id else ""), 303)
     ps = compute_plan(db, item.plan)
     d = date.fromisoformat(day) if day else max(date.today(), (ps.due_date.date() if ps.due_date else date.today()))
     svc, slots, error = None, [], None
