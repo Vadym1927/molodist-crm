@@ -376,6 +376,7 @@
   window.dsSale=function(e,id){if(e&&(e.metaKey||e.ctrlKey))return true;if(e)e.preventDefault();dsStash();
     box.innerHTML='<div class="vd-h"><div><small>Продаж</small><h3>Чек Ч-'+id+'</h3></div><a class="btn ghost" href="/sales/'+id+'" target="_blank" style="margin-left:auto">↗ Окремо</a><button type="button" class="vd-x" onclick="visitClose()">×</button></div>'+
       '<iframe src="/sales/'+id+'" style="flex:1;width:100%;border:0;background:#F7F4F0"></iframe>';dsBackBtn();return false};
+  (function(){var o=new URLSearchParams(location.search).get('open');if(o&&/^\d+$/.test(o))setTimeout(function(){load('appt='+o)},50)})();
   window.visitOpen=function(e,q){if(e&&(e.metaKey||e.ctrlKey||e.shiftKey))return true;if(e){e.preventDefault();e.stopPropagation()}load(q);return false};
   window.vdAdopt=function(ids,then){var fd=new FormData();fd.append('v',ids);
     fetch('/calendar/visit/adopt',{method:'POST',body:fd,credentials:'same-origin',headers:{'Accept':'application/json'}}).then(function(r){return r.json()})

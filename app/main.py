@@ -701,6 +701,26 @@ def _patient_or_403(db, user, pid) -> Patient:
     return p
 
 
+def _patient_visit_rows(db: Session, p: Patient) -> list[dict]:
+    from .models import Appointment
+    """Візити пацієнта: записи CRM (і перенесена історія CleverBox) — клік відкриває сам візит у календарі;
+    рядки CleverBox показуються лише за дні, яких ще немає серед записів CRM."""
+    docs = {d_.id: d_.name for d_ in db.scalars(select(Doctor))}
+    ST = {"booked": "запис", "confirmed": "підтверджено", "arrived": "прийшов", "done": "виконано", "no_show": "неявка", "cancelled": "скасовано"}
+    out, days = [], set()
+    for a in db.scalars(select(Appointment).where(Appointment.patient_id == p.id).order_by(Appointment.start.desc())):
+        days.add(a.start.date())
+        out.append({"appt": a.id, "at": a.start, "name": ", ".join(str(x.get("name") or "") for x in a.services or []) or "—",
+                    "doctor": docs.get(a.doctor_id, ""), "sum": a.cb_paid if a.historic and a.cb_paid is not None else a.total,
+                    "status": a.status, "label": ST.get(a.status, a.status), "cb": a.historic})
+    for v in p.visits:
+        if v.starts_at and v.starts_at.date() not in days:
+            out.append({"appt": None, "visit": v.id, "at": v.starts_at, "name": v.service_name or f"послуга #{v.service_id}", "doctor": v.master_name or "",
+                        "sum": v.amount, "status": "done" if v.status == "done" else "booked", "label": "виконано" if v.status == "done" else "запис", "cb": True})
+    out.sort(key=lambda r: r["at"], reverse=True)
+    return out
+
+
 @app.get("/patients/{pid}", response_class=HTMLResponse)
 def patient_card(request: Request, pid: int, user: User = Depends(current_user), db: Session = Depends(db_dep)):
     p = _patient_or_403(db, user, pid)
@@ -733,6 +753,7 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
                   doctors=db.scalars(select(Doctor).order_by(Doctor.name)).all(),
                   photos=[f for f in p.files if f.kind == "photo"],
                   docs=[f for f in p.files if f.kind != "photo"], now=datetime.now(),
+                  pvisits=_patient_visit_rows(db, p),
                   patient_kpi=dict(done=len(completed_visits), planned=len(planned_visits),
                                    first=min(dated_events) if dated_events else None,
                                    next=min((v.starts_at for v in planned_visits), default=None),

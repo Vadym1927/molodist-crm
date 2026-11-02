@@ -22,9 +22,11 @@ def visits(db: Session, d: date, user=None) -> list[dict]:
     docs = {x.id: x.name for x in db.scalars(select(Doctor))}
     svc = {s.id: s for s in db.scalars(select(CbService))}
     out = []
-    appts = db.scalars(select(Appointment).where(Appointment.start >= a, Appointment.start < b, Appointment.status != "cancelled")
+    appts = db.scalars(select(Appointment).where(Appointment.start >= a, Appointment.start < b, Appointment.status != "cancelled",
+                                                 Appointment.cb_status.is_(None))      # історія CleverBox уже оплачена там
                        .order_by(Appointment.start)).all()
-    mirrored = {str(r) for (r,) in db.execute(select(Appointment.cb_record_id).where(Appointment.cb_record_id.is_not(None)))}
+    mirrored = {str(r) for (r,) in db.execute(select(Appointment.cb_record_id).where(Appointment.cb_record_id.is_not(None),
+                                                                                  Appointment.start >= a - timedelta(days=60)))}
     for x in appts:
         out.append({"key": f"a{x.id}", "appt_id": x.id, "at": x.start.strftime("%H:%M"), "end": x.end.strftime("%H:%M") if x.end else "",
                     "patient_id": x.patient_id, "patient": x.patient.full_name if x.patient else "—", "doctor_id": x.doctor_id,
@@ -39,7 +41,7 @@ def visits(db: Session, d: date, user=None) -> list[dict]:
                                             Visit.status.in_(("booked", "attended", "done"))).order_by(Visit.starts_at)):
         if _cut and v.starts_at >= _cut:                # записи CleverBox після переходу — не в касі CRM
             continue
-        if any(v.external_id.startswith(m + "-") for m in mirrored):
+        if (v.external_id or "").split("-")[0] in mirrored:
             continue
         doc = idx.find(v.master_name)
         k = (v.patient_id, v.starts_at, doc.id if doc else v.master_name)

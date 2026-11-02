@@ -33,3 +33,20 @@ def test_cb_history_import():
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
         h = c.get(f"/calendar/visit?appt={aid}").text
         assert "Історія CleverBox" in h and "1500.00" in h and "Маска тест" in h
+
+
+def test_patient_visits_open_calendar():
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        p = db.query(Patient).filter(Patient.cleverbox_id == 771420).first()
+        if not p:
+            p = Patient(full_name="Історія Друга", cleverbox_id=771420); db.add(p); db.commit()
+        pid = p.id
+        cb_history.import_visits(db, [{"rid": 779001, "cid": 771420, "start": "31.10.2024 16:00", "stt": "Візит завершений", "st": "3",
+                                       "paid": 1500, "items": [{"sid": 5, "t": "Гігієна Обличчя Demax", "p": 1500, "s": 1500, "q": 1, "m": 0, "min": 90}]}])
+        aid = db.query(Appointment).filter(Appointment.cb_record_id == 779001).one().id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        h = c.get(f"/patients/{pid}").text
+        assert f"/calendar?start=2024-10-31&open={aid}" in h and "Гігієна Обличчя Demax" in h
+        assert "get('open')" in c.get("/calendar?start=2024-10-31").text

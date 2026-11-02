@@ -220,10 +220,11 @@
 </div>
 
 <div class="grid g2" id="visits">
-  <div class="card" id="history"><span id="sales"></span><h2>Візити, продажі та історія з CleverBox</h2>
+  <div class="card" id="history"><span id="sales"></span><h2>Візити, продажі та історія з CleverBox · {{ pvisits|length }}</h2><style>.pv-go{cursor:pointer}.pv-go:hover td{background:#F4F1FA}.pv-go a{color:inherit;font-weight:600}</style>
     <table class="small"><thead><tr><th>Дата</th><th>Послуга</th><th>Спеціаліст</th><th class="r">Сума</th><th>Статус</th></tr></thead><tbody>
-    {% for v in p.visits|reverse %}<tr><td>{{ v.starts_at|dt('%d.%m.%y %H:%M') }}</td><td>{{ v.service_name or ('послуга #' ~ v.service_id) }}</td><td>{{ v.master_name or '' }}</td>
-      <td class="r">{{ v.amount|uah if v.amount is not none else '—' }}</td><td><span class="pill {{ 'ok' if v.status=='done' else 'warn' }}">{{ 'виконано' if v.status=='done' else 'запис' }}</span></td></tr>
+    {% for v in pvisits %}<tr class="{{ 'pv-go' if v.appt }}" {% if v.appt %}onclick="location.href='/calendar?start={{ v.at.strftime('%Y-%m-%d') }}&open={{ v.appt }}'" title="Відкрити візит"{% endif %}>
+      <td class="nw">{% if v.appt %}<a href="/calendar?start={{ v.at.strftime('%Y-%m-%d') }}&open={{ v.appt }}">{{ v.at|dt('%d.%m.%y %H:%M') }}</a>{% else %}{{ v.at|dt('%d.%m.%y %H:%M') }}{% endif %}</td><td>{{ v.name }}</td><td>{{ v.doctor }}</td>
+      <td class="r">{{ v.sum|uah if v.sum is not none else '—' }}</td><td><span class="pill {{ 'ok' if v.status=='done' else ('bad' if v.status in ('cancelled','no_show') else 'warn') }}">{{ v.label }}</span></td></tr>
     {% else %}<tr><td colspan="5" class="muted">{{ 'Немає візитів' if p.cleverbox_id else 'Пацієнт не привʼязаний до CleverBox — вкажіть телефон або ID у картці' }}</td></tr>{% endfor %}
     {% for s in p.sales|reverse %}<tr><td>{{ s.sold_at|dt('%d.%m.%y') }}</td><td>🛍 {{ s.product_name }}</td><td></td><td class="r">{{ s.amount|uah }}</td><td>продаж</td></tr>{% endfor %}
     </tbody></table></div>
