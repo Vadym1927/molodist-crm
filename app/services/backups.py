@@ -66,6 +66,54 @@ def _rotate(folder: Path, keep: int):
         old.unlink(missing_ok=True)
 
 
+MIN_FREE_AFTER = 2 * 1024 ** 3        # після копіювання файлів на диску має лишатися ≥ 2 ГБ
+LEGACY_MB = 300                       # старі копії «база + усі файли» — більші за це
+
+
+def mirror_files(src: Path, dst: Path) -> dict:
+    """Дзеркало папки файлів: докопіювати нові/змінені (за розміром). Нічого не видаляє (видалені в CRM файли лишаються в копії)."""
+    rep = {"copied": 0, "mb": 0.0, "ok": True}
+    if not src.exists():
+        return rep
+    todo = []
+    for f in src.rglob("*"):
+        if not f.is_file():
+            continue
+        t = dst / f.relative_to(src)
+        try:
+            if not t.exists() or t.stat().st_size != f.stat().st_size:
+                todo.append((f, t, f.stat().st_size))
+        except OSError:
+            continue
+    need = sum(x[2] for x in todo)
+    dst.mkdir(parents=True, exist_ok=True)
+    if need and shutil.disk_usage(dst).free - need < MIN_FREE_AFTER:
+        rep.update(ok=False, error=f"мало місця на диску для копії файлів (потрібно {need // 1024 ** 2} МБ)")
+        alerts.failure("backup_files", rep["error"], "Звільніть місце або підключіть другий диск / хмару (BACKUP_COPY_DIR).")
+        return rep
+    for f, t, size in todo:
+        try:
+            t.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(f, t)
+            rep["copied"] += 1
+            rep["mb"] += size / 1024 ** 2
+        except OSError as e:
+            rep.update(ok=False, error=str(e)[:200])
+            break
+    rep["mb"] = round(rep["mb"], 1)
+    return rep
+
+
+def prune_legacy(folder: Path) -> int:
+    """Старі копії, де в архів запаковані всі файли (сотні МБ – ГБ): після дзеркала файлів вони дублюють його.
+    Залишаємо найновішу таку копію, решту прибираємо — щоб не заповнити диск."""
+    big = sorted((p for p in folder.glob(PREFIX + "*.zip") if p.stat().st_size > LEGACY_MB * 1024 ** 2),
+                 key=lambda p: p.stat().st_mtime, reverse=True)
+    for old in big[1:]:
+        old.unlink(missing_ok=True)
+    return max(0, len(big) - 1)
+
+
 def list_backups() -> list[dict]:
     folder = Path(settings.backup_dir)
     if not folder.exists():
@@ -92,12 +140,18 @@ def run_backup(trigger: str = "auto") -> dict:
         folder = Path(settings.backup_dir)
         folder.mkdir(parents=True, exist_ok=True)
         name = f"{PREFIX}{datetime.now():%Y-%m-%d_%H%M%S}.zip"
+        # Архів — лише база (швидко й мало місця). Фото й PDF не пакуються в кожну копію (їх гігабайти),
+        # а дзеркаляться один раз у backups/files: щоразу докопіюються лише нові файли.
         with SessionLocal() as db:
-            tmp = exporter.backup_zip(db, with_files=settings.backup_with_files)
+            tmp = exporter.backup_zip(db, with_files=False)
         dst = folder / name
         shutil.move(tmp, dst)
         rep.update(file=name, size_mb=round(dst.stat().st_size / 1024 / 1024, 1))
         _rotate(folder, settings.backup_keep)
+        if settings.backup_with_files:
+            rep["files"] = mirror_files(Path(settings.files_dir), folder / "files")
+            if rep["files"].get("ok"):
+                rep["pruned_legacy"] = prune_legacy(folder)
 
         if settings.backup_copy_dir:
             copy_dir = Path(settings.backup_copy_dir)
@@ -105,6 +159,10 @@ def run_backup(trigger: str = "auto") -> dict:
                 raise RuntimeError(f"Папка другої копії недоступна: {copy_dir} (диск/хмара не змонтовані?)")
             shutil.copy2(dst, copy_dir / name)
             _rotate(copy_dir, settings.backup_keep)
+            if settings.backup_with_files:
+                rep["copy_files"] = mirror_files(Path(settings.files_dir), copy_dir / "files")
+                if rep["copy_files"].get("ok"):
+                    prune_legacy(copy_dir)
             rep["copy"] = str(copy_dir)
 
         # у Telegram — лише нічна копія (не перед кожним оновленням CRM і не ручні)
