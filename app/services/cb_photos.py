@@ -1,5 +1,7 @@
 """Фото пацієнтів з CleverBox (файли картки клієнта) → файли пацієнтів CRM.
-Список файлів збирається у веб-кабінеті CleverBox (лише читання): [cb_client_id, cb_file_id, url_зображення, назва, дата, тип, розширення, автор].
+Список файлів збирається у веб-кабінеті CleverBox (лише читання): [cb_client_id, cb_file_id, url_зображення, назва, дата, тип, етап(before|after)?].
+Фото до/після (файл-менеджер CleverBox, папки before/after) приходять з етапом — у CRM стають фото «До» / «Після».
+Якщо на диску лишається менше MIN_FREE — перенос зупиняється, щоб не заповнити сервер.
 Сервер CRM сам завантажує зображення за прямими посиланнями сховища CleverBox. Повторний запуск не дублює (cb_file_id)."""
 from __future__ import annotations
 
@@ -12,6 +14,7 @@ from sqlalchemy import select
 from ..models import Patient, PatientFile, SessionLocal
 
 ALLOWED_HOST = "upcloudobjects.com"          # сховище файлів CleverBox
+MIN_FREE = 3 * 1024 ** 3                      # 3 ГБ вільного місця — нижче не завантажуємо
 
 
 def _taken(s: str):
@@ -31,6 +34,7 @@ def run(job, files: list) -> dict:
     for f in files:
         try:
             cid, fid, url, name, dt, typ = int(f[0]), int(f[1]), str(f[2] or ""), str(f[3] or ""), str(f[4] or ""), str(f[5] or "")
+            stage = str(f[6]) if len(f) > 6 and str(f[6]) in ("before", "after") else None
         except (TypeError, ValueError, IndexError):
             rep["failed"] += 1
             continue
@@ -43,7 +47,7 @@ def run(job, files: list) -> dict:
         if not url.startswith("https://") or ALLOWED_HOST not in url.split("/")[2]:
             rep["not_image"] += 1                        # немає прямого посилання на сховище CleverBox
             continue
-        todo.append((by_cb[cid], fid, url, name or url.rsplit("/", 1)[-1], dt, "photo" if typ == "img" else "doc"))
+        todo.append((by_cb[cid], fid, url, name or url.rsplit("/", 1)[-1], dt, "photo" if typ == "img" else "doc", stage))
     job.log(f"Файлів: {len(files)}, до завантаження: {len(todo)}, уже є: {rep['exists']}, без пацієнта: {rep['no_patient']}, не фото: {rep['not_image']}")
     http = httpx.Client(timeout=40, follow_redirects=True)
 
@@ -56,18 +60,27 @@ def run(job, files: list) -> dict:
             pass
         return t, None
     done = 0
+    from pathlib import Path
+    import shutil
+    from ..config import settings
+    root = Path(settings.files_dir)
+    root.mkdir(parents=True, exist_ok=True)
     with ThreadPoolExecutor(max_workers=4) as ex:
         for i in range(0, len(todo), 40):
+            if shutil.disk_usage(root).free < MIN_FREE:
+                rep["stopped_low_disk"] = True
+                job.log(f"Зупинено: на сервері менше {MIN_FREE // 1024 ** 3} ГБ вільного місця")
+                break
             batch = list(ex.map(fetch, todo[i:i + 40]))
             with SessionLocal() as db:
-                for (pid, fid, url, name, dt, kind), data in batch:
+                for (pid, fid, url, name, dt, kind, stage), data in batch:
                     if data is None:
                         rep["failed"] += 1
                         continue
                     path = ingest.store(data, f"cb_{fid}_{name}")
                     tk = _taken(dt)
-                    db.add(PatientFile(patient_id=pid, kind=kind, path=path, caption=f"З CleverBox: {name}"[:500],
-                                       taken_at=tk.date() if tk else None, cb_file_id=fid,
+                    db.add(PatientFile(patient_id=pid, kind=kind, path=path, caption=(f"З CleverBox ({'до' if stage == 'before' else 'після'}): {name}" if stage else f"З CleverBox: {name}")[:500],
+                                       taken_at=tk.date() if tk else None, cb_file_id=fid, stage=stage,
                                        created_at=tk or datetime.utcnow()))
                     rep["saved"] += 1
                     rep["bytes"] += len(data)
