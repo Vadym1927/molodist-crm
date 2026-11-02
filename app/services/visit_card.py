@@ -69,8 +69,9 @@ def card(db: Session, appt_id: int = 0, visit_ids: list[int] | None = None) -> d
         key = f"appt:{a.id}"
         number = f"CRM-{a.id}" + (f" · CleverBox {a.cb_record_id}" if a.cb_record_id else "")
         author = db.get(User, a.created_by).name if a.created_by and db.get(User, a.created_by) else None
+        author = author or (f"{a.cb_author} (CleverBox)" if a.cb_author else None)
         created = a.created_at
-        status, status_label = a.status, None
+        status, status_label = a.status, (a.cb_status if a.historic else None)
     else:
         vs.sort(key=lambda v: v.starts_at)
         v0 = vs[0]

@@ -178,6 +178,8 @@ def _docs(db: Session, appt_id: int) -> list[StockDoc]:
 
 
 def closed(db: Session, a: Appointment) -> bool:
+    if getattr(a, "historic", False):              # історія CleverBox: склад уже списаний у CleverBox
+        return True
     return bool(_docs(db, a.id))
 
 

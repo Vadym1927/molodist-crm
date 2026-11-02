@@ -246,8 +246,19 @@ class Appointment(Base):
     created_by: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # історія з CleverBox (перенесений закритий візит): чек, оплата, автор і статус у CleverBox
+    cb_check_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    cb_paid: Mapped[float | None] = mapped_column(Float)
+    cb_discount: Mapped[float | None] = mapped_column(Float)
+    cb_author: Mapped[str | None] = mapped_column(String(120))
+    cb_status: Mapped[str | None] = mapped_column(String(80))
 
     patient: Mapped[Patient] = relationship()
+
+    @property
+    def historic(self) -> bool:
+        """Візит перенесено з історії CleverBox: витратні вже списані там — у CRM лише для перегляду."""
+        return bool(self.cb_status)
 
     @property
     def minutes(self) -> int:

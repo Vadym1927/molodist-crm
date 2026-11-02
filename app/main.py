@@ -4138,6 +4138,19 @@ async def stock_balances_import(file: UploadFile = File(...), user: User = Depen
     return RedirectResponse("/stock?tab=balances" + (f"&msg={msg}" if msg else "#snap"), 303)
 
 
+@app.post("/migrate/cb-visits")
+async def migrate_cb_visits(request: Request, user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
+    """Історія візитів CleverBox (зібрана у веб-кабінеті частинами) → візити CRM з послугами, оплатою й витратними."""
+    from .services import cb_history, autonomy as _aut
+    data = await request.json()
+    s_ = _aut.since(db)
+    until = datetime.combine(s_, datetime.min.time()) if s_ else None
+    rep = await asyncio.to_thread(cb_history.import_visits, db, data.get("visits") or [], until)
+    audit(db, "migrate.cb_visits", user=user, **{k: v for k, v in rep.items() if isinstance(v, int)})
+    db.commit()
+    return rep
+
+
 @app.post("/patients/photos/import-cb")
 async def patients_photos_import_cb(request: Request, user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
     """Фото пацієнтів з CleverBox (список зібрано у веб-кабінеті) → у фоні завантажуються в картки пацієнтів."""
