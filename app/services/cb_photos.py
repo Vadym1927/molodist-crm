@@ -24,11 +24,30 @@ def _taken(s: str):
         return None
 
 
-def run(job, files: list) -> dict:
+def _by_record(db) -> dict[int, int]:
+    """№ запису (візиту) CleverBox → пацієнт CRM: з візитів CleverBox і перенесених у CRM записів."""
+    from ..models import Appointment, Visit
+    out = {}
+    for ext, pid in db.execute(select(Visit.external_id, Visit.patient_id).where(Visit.source == "cb_visit")):
+        try:
+            out.setdefault(int(str(ext).split("-")[0]), pid)
+        except ValueError:
+            pass
+    for rid, pid in db.execute(select(Appointment.cb_record_id, Appointment.patient_id).where(Appointment.cb_record_id.is_not(None))):
+        try:
+            out.setdefault(int(rid), pid)
+        except (TypeError, ValueError):
+            pass
+    return out
+
+
+def run(job, files: list, by: str = "client") -> dict:
+    """by="client": перше поле — id клієнта CleverBox; by="record": № запису (візиту) CleverBox (фото до/після)."""
     from . import ingest
     rep = {"files": len(files), "saved": 0, "exists": 0, "no_patient": 0, "not_image": 0, "failed": 0, "bytes": 0}   # not_image — без посилання
     with SessionLocal() as db:
-        by_cb = {p.cleverbox_id: p.id for p in db.scalars(select(Patient).where(Patient.cleverbox_id.is_not(None)))}
+        by_cb = _by_record(db) if by == "record" else \
+            {p.cleverbox_id: p.id for p in db.scalars(select(Patient).where(Patient.cleverbox_id.is_not(None)))}
         have = {x for (x,) in db.execute(select(PatientFile.cb_file_id).where(PatientFile.cb_file_id.is_not(None)))}
     todo = []
     for f in files:

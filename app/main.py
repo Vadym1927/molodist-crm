@@ -3993,7 +3993,8 @@ async def patients_photos_import_cb(request: Request, user: User = Depends(requi
     from .services import cb_photos
     data = await request.json()
     files = data.get("files") or []
-    job = jobs.start("Фото пацієнтів з CleverBox", cb_photos.run, files)
+    by = "record" if data.get("by") == "record" else "client"
+    job = jobs.start("Фото до/після з CleverBox" if by == "record" else "Фото пацієнтів з CleverBox", cb_photos.run, files, by)
     audit(db, "patients.photos_import_cb", user=user, files=len(files), job=job.id)
     db.commit()
     return {"ok": True, "job": job.id, "files": len(files)}

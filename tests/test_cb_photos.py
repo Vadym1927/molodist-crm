@@ -29,3 +29,21 @@ def test_cb_photos(monkeypatch, tmp_path):
         assert f.kind == "photo" and str(f.taken_at) == "2026-06-14"
         assert db.query(PatientFile).filter(PatientFile.cb_file_id == 11740).one().kind == "doc"
         assert db.query(PatientFile).filter(PatientFile.cb_file_id == 11741).one().stage == "after"
+
+
+def test_cb_photos_by_record(monkeypatch, tmp_path):
+    from datetime import datetime
+    from app.config import settings
+    from app.models import Visit
+    monkeypatch.setattr(settings, "files_dir", str(tmp_path))
+    with SessionLocal() as db:
+        p = Patient(full_name="До Після", cleverbox_id=7771); db.add(p); db.commit()
+        db.add(Visit(source="cb_visit", external_id="15987-3", patient_id=p.id, starts_at=datetime(2026, 10, 31, 18), status="done")); db.commit()
+        pid = p.id
+    monkeypatch.setattr(httpx.Client, "get", lambda self, url: httpx.Response(200, content=b"\xff\xd8jpeg", request=httpx.Request("GET", url)))
+    r = cb_photos.run(J(), [[15987, 14114, "https://cbox.5jk9u.upcloudobjects.com/molodist/before/15987_1.jpg", "15987_1.jpg", "31.10.2026 18:53", "img", "before"],
+                            [1, 14115, "https://cbox.5jk9u.upcloudobjects.com/molodist/after/1_1.jpg", "1_1.jpg", "", "img", "after"]], "record")
+    assert r["saved"] == 1 and r["no_patient"] == 1
+    with SessionLocal() as db:
+        f = db.query(PatientFile).filter(PatientFile.cb_file_id == 14114).one()
+        assert f.patient_id == pid and f.stage == "before"
