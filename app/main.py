@@ -487,6 +487,12 @@ def render(request: Request, name: str, **ctx):
                     counts = dict(counts or {}, prices=_pu(db))
                 except Exception:  # noqa: BLE001
                     pass
+            if can(user, "appeals"):
+                try:
+                    from .models import Appeal as _Ap
+                    counts = dict(counts or {}, appeals=db.scalar(select(func.count()).select_from(_Ap).where(_Ap.status == "Новий")) or 0)
+                except Exception:  # noqa: BLE001
+                    pass
     return templates.TemplateResponse(request, name, {"request": request, "nav": name.split(".")[0],
                                                       "user": user, "task_counts": counts, **ctx})
 
