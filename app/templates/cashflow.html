@@ -66,7 +66,7 @@
 {% endif %}
 
 <div class="cf-lay">
-<div class="card" style="padding:6px 8px"><h2 style="margin:10px 8px 2px">Контроль cashflow</h2><p class="muted small" style="margin:0 8px 8px">Натисніть на місяць — відкриються тижні Пн–Нд (перехідні тижні показано повністю).</p>
+<div class="card" style="padding:6px 8px"><h2 style="margin:10px 8px 2px">Контроль cashflow</h2><p class="muted small" style="margin:0 8px 8px">Натисніть на місяць — відкриються тижні Пн–Нд. Тиждень цілком належить місяцю, де більше його днів, і не ділиться між місяцями; місяць = сума його тижнів. Рік — з 01.01.</p>
   <div style="overflow-x:auto"><table class="cf-tb"><thead><tr><th>Місяць</th><th class="n">Надходження</th><th class="n">Витрати</th><th class="n">Чистий рух</th><th class="n">Каса на кінець</th></tr></thead><tbody>
   {% for b in cf.months %}<tr class="mrow" data-m="{{ loop.index }}"><td><b>{{ b.label }}{{ '*' if b.partial }}</b> <span class="sub">▸ тижні{{ (' · оцінка ' ~ b.estimated ~ ' дн') if b.estimated }}</span></td>
     <td class="n">{{ b.income|uah }}<div class="sub">гот. {{ b.cash_in|uah }} · безгот. {{ b.card_in|uah }}</div></td><td class="n">{{ b.expense|uah }}</td>

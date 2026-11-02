@@ -237,30 +237,41 @@ def build(db: Session, year: int) -> dict:
     last_day = max((cd.day for cd in alldays if cd.day >= y0), default=None)
     months, gaps = [], []
     first_day = alldays[0].day if alldays else None
+    # Тижні Пн–Нд цілими: тиждень належить тому місяцю, де більше його днів (місяць четверга), і не ділиться між місяцями.
+    # Межі року — 01.01 і 31.12 (перший / останній тиждень року обрізаються датами року).
+    # Місяць = сума його тижнів; каса на кінець місяця — на кінець його останнього тижня.
+    wk_by_month: dict[int, list] = defaultdict(list)
+    w = y0 - timedelta(days=y0.weekday())
+    while w <= y1:
+        ws, we = max(w, y0), min(w + timedelta(days=6), y1)
+        thu = w + timedelta(days=3)
+        m = thu.month if thu.year == year else (1 if thu < y0 else 12)
+        wk_by_month[m].append((ws, we))
+        w += timedelta(days=7)
+    in_year = [cd for cd in alldays if cd.day >= y0]
     for m in range(1, 13):
-        ms = date(year, m, 1)
-        me = date(year + (m == 12), m % 12 + 1, 1) - timedelta(days=1)
+        wks = wk_by_month.get(m) or []
+        if not wks:
+            continue
+        ms, me = wks[0][0], wks[-1][1]
         if last_day is None or ms > last_day:
             break
         b = Bucket(MONTHS[m - 1], ms, me)
-        for cd in by_month.get(m, []):
-            b.add(cd)
         upto = min(me, last_day)
-        b.balance = _balance_at(op, alldays, upto)
-        b.partial = me > last_day
-        # дні без рядка всередині завантаженого періоду = руху не було (вихідні, свята) — це не пропуск;
-        # пропуск — лише цілий місяць без жодного дня даних
-        if b.days == 0 and not (first_day and upto < first_day):
-            gaps.append(b.label)
-        w = ms - timedelta(days=ms.weekday())            # тижні Пн–Нд, обрізані межами місяця — сума тижнів = місяць
-        while w <= upto:
-            ws, we = max(w, ms), min(w + timedelta(days=6), me)
+        for ws, we in wks:
+            if ws > upto:
+                break
             wb = Bucket(f"{ws:%d.%m.%Y} — {we:%d.%m.%Y}", ws, we)
-            for cd in by_month.get(m, []):
+            for cd in in_year:
                 if ws <= cd.day <= we:
                     wb.add(cd)
+                    b.add(cd)
             b.weeks.append(wb)
-            w += timedelta(days=7)
+        b.balance = _balance_at(op, alldays, upto)
+        b.partial = me > last_day
+        # дні без руху всередині періоду (вихідні, свята) — не пропуск; пропуск — лише цілий місяць без жодного дня даних
+        if b.days == 0 and not (first_day and upto < first_day):
+            gaps.append(b.label)
         months.append(b)
     # дані починаються пізніше за дату залишку каси — рух між ними невідомий
     if first_day and (first_day - max(op["date"], y0)).days > 7 and first_day >= y0:   # 1–7 січня можуть бути без руху

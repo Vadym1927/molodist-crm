@@ -98,11 +98,14 @@ def test_cashflow_from_journal():
         db.commit()
         r = cf.build(db, 2025)
         assert r["source"] == "journal"
+        # 31.03.2025 — понеділок; тиждень 31.03–06.04 (четвер 03.04) цілком іде у квітень
         mar = next(b for b in r["months"] if b.label == "Бер")
-        assert round(mar.income) == 1500 and round(mar.cash_in) == 1000 and mar.expense == 0
-        assert round(sum(w.income for w in mar.weeks)) == 1500 and mar.weeks[-1].end == date(2025, 3, 31)
+        assert round(mar.income) == 1000 and round(mar.cash_in) == 1000 and mar.expense == 0 and mar.weeks[-1].end == date(2025, 3, 30)
         apr = next(b for b in r["months"] if b.label == "Кві")
-        assert apr.weeks[0].start == date(2025, 4, 1) and round(apr.expense) == 300
+        assert apr.weeks[0].start == date(2025, 3, 31) and round(apr.income) == 500 and round(apr.expense) == 300
+        assert round(sum(w.net for w in apr.weeks)) == round(apr.net)
+        jan = r["months"][0]
+        assert jan.weeks[0].start == date(2025, 1, 1)          # рік починається з 01.01, тиждень 30.12–05.01 — у січні
         for i in (990001, 990002, 990003, 990004, 990005):
             db.delete(db.get(CbFinOp, i))
         db.commit()
