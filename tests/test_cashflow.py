@@ -26,7 +26,7 @@ def test_cashflow_import_balance_and_autofill():
         r = cf.build(db, 2036)
         assert r["start_balance"] == 377130                 # рух 2035 до дати старту не рахується
         assert r["total"].income == 3000 and r["total"].expense == 1500 and r["balance"] == 377130 + 1500
-        assert r["months"][0].weeks and r["months"][0].weeks[0].label.startswith("31.12.2035")
+        assert r["months"][0].weeks and r["months"][0].weeks[0].label.startswith("01.01.2036")
         db.add(Check(id=930001, date=datetime(2036, 1, 3, 12), amount=1500,
                      payments=[{"payment_name": "Готівка", "amount": 500}, {"payment_name": "Картка", "amount": 1000}]))
         db.commit()
@@ -83,3 +83,26 @@ def test_days_without_movement_are_not_gaps():
         r = cf.build(db, 2038)
         assert r["gaps"] == [] and r["balance"] == 1140
         cf.set_opening(db, date(2026, 1, 1), 377130)
+
+
+def test_cashflow_from_journal():
+    from datetime import date, datetime
+    from app.models import SessionLocal, CbFinOp
+    from app.services import cashflow as cf
+    with SessionLocal() as db:
+        db.add_all([CbFinOp(id=990001, at=datetime(2025, 3, 30, 10), kind="income", amount=1000, account="Готівка", article="Оплата послуг, товарів"),
+                    CbFinOp(id=990002, at=datetime(2025, 3, 31, 11), kind="income", amount=500, account="Термінал", article="Оплата послуг, товарів"),
+                    CbFinOp(id=990003, at=datetime(2025, 4, 1, 12), kind="expense", amount=300, account="Готівка", article="Оренда"),
+                    CbFinOp(id=990004, at=datetime(2025, 3, 31, 12), kind="transfer", amount=9999, account="Готівка", article=""),
+                    CbFinOp(id=990005, at=datetime(2025, 3, 31, 13), kind="income", amount=777, account="Бонуси", article="Оплата послуг, товарів")])
+        db.commit()
+        r = cf.build(db, 2025)
+        assert r["source"] == "journal"
+        mar = next(b for b in r["months"] if b.label == "Бер")
+        assert round(mar.income) == 1500 and round(mar.cash_in) == 1000 and mar.expense == 0
+        assert round(sum(w.income for w in mar.weeks)) == 1500 and mar.weeks[-1].end == date(2025, 3, 31)
+        apr = next(b for b in r["months"] if b.label == "Кві")
+        assert apr.weeks[0].start == date(2025, 4, 1) and round(apr.expense) == 300
+        for i in (990001, 990002, 990003, 990004, 990005):
+            db.delete(db.get(CbFinOp, i))
+        db.commit()

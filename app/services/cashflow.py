@@ -5,7 +5,11 @@
   повні дані з витратами; вантажиться будь-якими періодами, дні перезаписуються (без дублів);
 - автоматично після кожної синхронізації: для днів, яких ще немає у звіті, — надходження з чеків CleverBox
   (готівка / безготівка за способом оплати), витрати 0 — позначаються як «оцінка» до наступного імпорту звіту.
-Каса = залишок на дату старту (SyncState cash_opening) + сума чистого руху від цієї дати."""
+Каса = залишок на дату старту (SyncState cash_opening) + сума чистого руху від цієї дати.
+
+Якщо перенесено журнал фіноперацій CleverBox (CbFinOp) — рух рахується з журналу фіноперацій CRM
+(операції CleverBox до дати переходу + чеки каси CRM + операції, внесені в CRM): ті самі цифри, що у «Фінанси → Фіноперації».
+Переміщення між рахунками, оплати не грошима (бонуси, сертифікати, баланс) і статті «не в дохід» не рахуються."""
 from __future__ import annotations
 
 import json
@@ -139,6 +143,51 @@ def set_opening(db: Session, d: date, amount: float) -> None:
 
 
 @dataclass
+class Day:
+    day: date
+    cash_in: float = 0.0
+    card_in: float = 0.0
+    income: float = 0.0
+    expense: float = 0.0
+    source: str = "journal"
+
+    @property
+    def net(self) -> float:
+        return round((self.income or 0) - (self.expense or 0), 2)
+
+
+def has_journal(db: Session) -> bool:
+    from ..models import CbFinOp
+    return bool(db.scalar(select(func.count()).select_from(CbFinOp)))
+
+
+def journal_days(db: Session, d_from: date, d_to: date) -> list[Day]:
+    """Рух по днях з журналу фіноперацій (як у «Фінанси → Фіноперації» з тими самими правилами підсумків)."""
+    from . import finops as fo, clinic
+    ex = clinic.excluded_income(db)
+    days: dict[date, Day] = {}
+    for r in fo.journal(db, d_from, d_to):
+        if r.kind == "transfer" or not r.money or not fo.is_money(r.account) and r.src == "cb":
+            continue
+        if r.kind == "income" and r.article.strip().lower() in ex:
+            continue
+        d = r.at.date()
+        x = days.setdefault(d, Day(d))
+        if r.kind == "income":
+            x.income += r.amount
+            if _is_cash(r.account):
+                x.cash_in += r.amount
+            else:
+                x.card_in += r.amount
+        else:                                   # витрата, сторно, повернення
+            x.expense += r.amount
+    out = sorted(days.values(), key=lambda x: x.day)
+    for x in out:
+        x.cash_in, x.card_in, x.income, x.expense = (round(v, 2) for v in (x.cash_in, x.card_in, x.income, x.expense))
+    return out
+
+
+@dataclass
 class Bucket:
     label: str
     start: date
@@ -162,7 +211,7 @@ class Bucket:
         self.income += cd.income or 0
         self.expense += cd.expense or 0
         self.days += 1
-        self.estimated += int(cd.source == "checks")
+        self.estimated += int(getattr(cd, "source", "") == "checks")
 
 
 def _balance_at(op: dict, alldays: list, d: date) -> float | None:
@@ -175,7 +224,11 @@ def _balance_at(op: dict, alldays: list, d: date) -> float | None:
 def build(db: Session, year: int) -> dict:
     op = opening(db)
     y0, y1 = date(year, 1, 1), date(year, 12, 31)
-    alldays = db.scalars(select(CashDay).where(CashDay.day <= y1).order_by(CashDay.day)).all()
+    src = "journal" if has_journal(db) else "profit"
+    if src == "journal":
+        alldays = [x for x in journal_days(db, min(op["date"], y0), min(y1, date.today())) if x.income or x.expense]
+    else:
+        alldays = db.scalars(select(CashDay).where(CashDay.day <= y1).order_by(CashDay.day)).all()
     start_balance = _balance_at(op, alldays, y0 - timedelta(days=1))
     by_month = defaultdict(list)
     for cd in alldays:
@@ -199,12 +252,12 @@ def build(db: Session, year: int) -> dict:
         # пропуск — лише цілий місяць без жодного дня даних
         if b.days == 0 and not (first_day and upto < first_day):
             gaps.append(b.label)
-        w = ms - timedelta(days=ms.weekday())            # тижні Пн–Нд; перехідні — повністю
+        w = ms - timedelta(days=ms.weekday())            # тижні Пн–Нд, обрізані межами місяця — сума тижнів = місяць
         while w <= upto:
-            we = w + timedelta(days=6)
-            wb = Bucket(f"{w:%d.%m.%Y} — {we:%d.%m.%Y}", w, we)
-            for cd in alldays:
-                if w <= cd.day <= we:
+            ws, we = max(w, ms), min(w + timedelta(days=6), me)
+            wb = Bucket(f"{ws:%d.%m.%Y} — {we:%d.%m.%Y}", ws, we)
+            for cd in by_month.get(m, []):
+                if ws <= cd.day <= we:
                     wb.add(cd)
             b.weeks.append(wb)
             w += timedelta(days=7)
@@ -218,7 +271,7 @@ def build(db: Session, year: int) -> dict:
         for k in ("cash_in", "card_in", "income", "expense", "days", "estimated"):
             setattr(tot, k, getattr(tot, k) + getattr(b, k))
     full = [b for b in months if b.days]
-    return {"year": year, "opening": op, "start_balance": start_balance, "months": months, "total": tot,
+    return {"year": year, "opening": op, "source": src, "start_balance": start_balance, "months": months, "total": tot,
             "balance": months[-1].balance if months else start_balance,
             "best": max(full, key=lambda b: b.net, default=None), "worst": min(full, key=lambda b: b.net, default=None),
             "neg_months": sum(1 for b in full if b.net < 0), "avg_net": round(tot.net / len(full)) if full else 0,
