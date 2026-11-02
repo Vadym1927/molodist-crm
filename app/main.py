@@ -1859,26 +1859,27 @@ def sales_archive(request: Request, user: User = Depends(require("sales")), db: 
 
 
 @app.post("/sales/{sid:int}/refund")
-def sale_refund(sid: int, reason: str = Form(""), del_password: str = Form(""), user: User = Depends(require("sale_refund")),
-                db: Session = Depends(db_dep)):
+def sale_refund(sid: int, reason: str = Form(""), del_password: str = Form(""), back: str = Form(""),
+                user: User = Depends(require("sale_refund")), db: Session = Depends(db_dep)):
     from .services import sales as sl
     from .models import Sale
     s_ = db.get(Sale, sid) or (_ for _ in ()).throw(HTTPException(404))
+    ret = back if back.startswith("/finance") else f"/sales/{sid}"        # відміна з журналу фіноперацій — назад у журнал
     if len(reason.strip()) < 3:
-        return RedirectResponse(_with_msg(f"/sales/{sid}", "Вкажіть причину повернення", True), 303)
+        return RedirectResponse(_with_msg(ret, "Вкажіть причину повернення", True), 303)
     err = _delpw(db, user, del_password, "sale_refund", "sale", sid)
     if err:
-        return RedirectResponse(_with_err(f"/sales/{sid}", err), 303)
+        return RedirectResponse(_with_err(ret, err), 303)
     try:
         sl.refund(db, s_, reason.strip(), user.id)
     except sl.SaleError as e:
-        return RedirectResponse(_with_msg(f"/sales/{sid}", str(e), True), 303)
+        return RedirectResponse(_with_msg(ret, str(e), True), 303)
     audit(db, "sale.refund", "sale", sid, user=user, total=s_.total, reason=reason)
     from .services import fiscal as _fis
     if s_.fiscal and s_.fiscal.get("fiscal_code") and not s_.fiscal.get("return") and _fis.cfg(db).get("auto"):
         import threading
         threading.Thread(target=_fis.auto_return, args=(sid,), daemon=True).start()
-    return RedirectResponse(_with_msg(f"/sales/{sid}", "Чек повернено"), 303)
+    return RedirectResponse(_with_msg(ret, "Чек відмінено (повернення)" if ret != f"/sales/{sid}" else "Чек повернено"), 303)
 
 
 # ---------------- Знижки й бонусна програма ----------------

@@ -81,6 +81,8 @@ class J:
     storned: bool = False
     deleted: bool = False
     is_storno: bool = False
+    sale_id: int | None = None       # чек каси CRM (Ч-…)
+    can_refund: bool = False         # чек можна відмінити (повернення) — «×» у журналі
 
     @property
     def sign(self) -> int:
@@ -121,11 +123,11 @@ def journal(db: Session, d_from: date, d_to: date, users: dict | None = None, ar
                 money = p.method not in ("Бонуси", "Сертифікат", "Рахунок пацієнта", "Абонемент")
                 out.append(J("crm", f"Ч-{s.id}", s.at, "income", p.amount, who=who, who_link=link, basis=f"Продаж CRM #{s.id}",
                              article="Оплата послуг, товарів", account=p.method, vid=p.method, author=users.get(s.created_by, ""),
-                             money=money))
+                             money=money, sale_id=s.id, can_refund=s.status == "paid"))
                 if s.status == "refunded" and s.refunded_at:
                     out.append(J("crm", f"Ч-{s.id}", s.refunded_at, "expense", p.amount, who=who, who_link=link,
                                  basis=f"Повернення чека #{s.id}", article="Повернення коштів", account=p.method,
-                                 comment=s.refund_reason or "", money=money))
+                                 comment=s.refund_reason or "", money=money, sale_id=s.id))
     q = select(FinOp).where(FinOp.day >= d_from, FinOp.day <= d_to)
     q = q.where(FinOp.deleted_at.is_not(None)) if archive else q.where(FinOp.deleted_at.is_(None))
     ops = db.scalars(q).all()
