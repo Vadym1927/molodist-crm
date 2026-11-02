@@ -1154,6 +1154,20 @@ class DoctorFile(Base):
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class ProductFile(Base):
+    """Фото й документи товару (сертифікати відповідності, інструкції); перенос з файл-менеджера CleverBox — cb_file_id."""
+    __tablename__ = "product_files"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), index=True)
+    path: Mapped[str] = mapped_column(String(500))
+    name: Mapped[str] = mapped_column(String(200))
+    kind: Mapped[str] = mapped_column(String(10), default="doc")        # photo | doc
+    mime: Mapped[str | None] = mapped_column(String(100))
+    cb_file_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    uploaded_by: Mapped[int | None] = mapped_column(Integer)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class StockDocFile(Base):
     """Скан / фото накладної, рахунку, ТТН до складського документа."""
     __tablename__ = "stock_doc_files"

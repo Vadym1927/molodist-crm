@@ -163,6 +163,23 @@
     </tbody></table></div>{% endif %}
 </div>
 
+<div class="card" id="pfiles"><h2>Фото й документи</h2>
+  {% set _ph = pfiles|selectattr('kind','equalto','photo')|list %}{% set _dc = pfiles|rejectattr('kind','equalto','photo')|list %}
+  {% if _ph %}<div class="pfg">{% for f in _ph %}<div class="pfi {{ 'main' if p.photo_url == '/products/files/' ~ f.id }}"><a href="/products/files/{{ f.id }}" target="_blank"><img src="/products/files/{{ f.id }}" loading="lazy" alt=""></a>
+    {% if can(user,'products') %}<div class="pfa">{% if p.photo_url != '/products/files/' ~ f.id %}<form method="post" action="/products/files/{{ f.id }}/main"><button title="Зробити головним">★</button></form>{% else %}<span title="Головне фото">★</span>{% endif %}
+      <form method="post" action="/products/files/{{ f.id }}/delete" data-delpw="Видалити фото товару?"><button title="Видалити">🗑</button></form></div>{% endif %}</div>{% endfor %}</div>{% endif %}
+  {% for f in _dc %}<div class="row between pfd"><a href="/products/files/{{ f.id }}" target="_blank">📄 {{ f.name }}</a><span class="row" style="gap:8px"><span class="muted small">{{ f.uploaded_at|dt('%d.%m.%Y') }}</span><a class="small" href="/products/files/{{ f.id }}?dl=1">завантажити</a>
+    {% if can(user,'products') %}<form method="post" action="/products/files/{{ f.id }}/delete" data-delpw="Видалити документ товару?" style="display:inline"><button class="pfx" title="Видалити">🗑</button></form>{% endif %}</span></div>{% endfor %}
+  {% if not pfiles %}<p class="muted small" style="margin:0 0 10px">Фото й документів ще немає: сертифікати відповідності, інструкції, фото упаковки.</p>{% endif %}
+  {% if can(user,'products') %}<form method="post" action="/products/{{ p.id }}/files" enctype="multipart/form-data" class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap">
+    <input type="file" name="files" multiple required accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx"><button class="btn ghost">Додати</button></form>{% endif %}
+</div>
+<style>.pfg{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;margin-bottom:12px}
+.pfi{position:relative;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}.pfi.main{border-color:#3B3050;box-shadow:0 0 0 2px #C9BFE6}
+.pfi img{width:100%;aspect-ratio:1;object-fit:contain;display:block}.pfa{position:absolute;top:5px;right:5px;display:flex;gap:4px}
+.pfa button,.pfa span{border:0;background:rgba(255,255,255,.92);border-radius:7px;width:26px;height:26px;cursor:pointer;display:grid;place-items:center;font-size:13px;color:#3B3050}
+.pfd{padding:7px 0;border-bottom:1px solid var(--line);gap:10px}.pfx{border:0;background:none;cursor:pointer}</style>
+
 <div class="card side"><h2>Картка засобу</h2>
   {% if can(user,'products') %}
   <form class="form" method="post" action="/products/{{ p.id }}">

@@ -7,6 +7,7 @@ import json
 import re
 import logging
 import mimetypes
+import shutil
 import secrets
 from contextlib import asynccontextmanager
 from datetime import datetime, date
@@ -22,7 +23,7 @@ from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
 from .config import settings
-from .models import (init_db, SessionLocal, Patient, Doctor, BeautyPlan, PlanItem, PatientFile, Alias,
+from .models import (init_db, SessionLocal, Patient, Doctor, BeautyPlan, PlanItem, PatientFile, ProductFile, Alias,
                      CbService, Visit, SyncState, User, ApiKey, Webhook, AuditLog, ROLES, CashDay)
 from .parsers.observ import norm
 from .security import (can, hash_password, verify_password, ensure_owner, db_dep, current_user, require,
@@ -3518,7 +3519,89 @@ def product_card(pid: int, request: Request, user: User = Depends(require("produ
                   batches=batches, out_moves=out_moves, batch_opts=batch_opts, wh_tot=wh_tot, ledger_on=ledger_on, sales=sales, plans=plans, months=months,
                   m_max=max([m[1] for m in months] + [1]), stock_rows=stock_rows, today=today,
                   brands=sorted({x for (x,) in db.execute(select(Product.brand).where(Product.brand.is_not(None)).distinct())}),
-                  suppliers=sorted({x for (x,) in db.execute(select(Product.supplier).where(Product.supplier.is_not(None)).distinct())}))
+                  suppliers=sorted({x for (x,) in db.execute(select(Product.supplier).where(Product.supplier.is_not(None)).distinct())}),
+                  pfiles=db.scalars(select(ProductFile).where(ProductFile.product_id == pid).order_by(ProductFile.kind.desc(), ProductFile.uploaded_at.desc())).all())
+
+
+# ---------------- Фото й документи товару ----------------
+@app.get("/products/files/{fid:int}")
+def product_file_get(fid: int, dl: int = 0, user: User = Depends(current_user), db: Session = Depends(db_dep)):
+    f = db.get(ProductFile, fid)
+    if not f or not Path(f.path).exists():
+        raise HTTPException(404, "Файл не знайдено")
+    return FileResponse(f.path, media_type=f.mime or mimetypes.guess_type(f.path)[0] or "application/octet-stream",
+                        filename=f.name if dl else None)
+
+
+@app.post("/products/{pid:int}/files")
+async def product_files_upload(pid: int, files: list[UploadFile] = File(...), user: User = Depends(require("products")),
+                               db: Session = Depends(db_dep)):
+    from .services import product_files as pfs
+    p = db.get(Product, pid) or (_ for _ in ()).throw(HTTPException(404))
+    n = 0
+    for up in files:
+        data = await up.read()
+        if not data:
+            continue
+        nm = (up.filename or "file")[-200:]
+        kind = "photo" if pfs.IMG.search(nm) or (up.content_type or "").startswith("image/") else "doc"
+        f = ProductFile(product_id=pid, path=ingest.store(data, f"product_{nm}"), name=nm, kind=kind,
+                        mime=(up.content_type or "")[:100] or None, uploaded_by=user.id)
+        db.add(f)
+        db.flush()
+        if kind == "photo" and not p.photo_url:
+            p.photo_url = pfs.photo_link(f)
+        n += 1
+    db.commit()
+    audit(db, "product.files_upload", "product", pid, user=user, n=n)
+    return RedirectResponse(_with_msg(f"/products/{pid}#pfiles", f"Додано файлів: {n}"), 303)
+
+
+@app.post("/products/files/{fid:int}/main")
+def product_file_main(fid: int, user: User = Depends(require("products")), db: Session = Depends(db_dep)):
+    from .services import product_files as pfs
+    f = db.get(ProductFile, fid) or (_ for _ in ()).throw(HTTPException(404))
+    p = db.get(Product, f.product_id)
+    p.photo_url = pfs.photo_link(f)
+    db.commit()
+    return RedirectResponse(_with_msg(f"/products/{p.id}#pfiles", "Головне фото змінено"), 303)
+
+
+@app.post("/products/files/{fid:int}/delete")
+def product_file_delete(fid: int, del_password: str = Form(""), user: User = Depends(require("products")), db: Session = Depends(db_dep)):
+    from .services import product_files as pfs
+    f = db.get(ProductFile, fid) or (_ for _ in ()).throw(HTTPException(404))
+    pid = f.product_id
+    err = _delpw(db, user, del_password, "product_file", "product", pid)
+    if err:
+        return RedirectResponse(_with_err(f"/products/{pid}#pfiles", err), 303)
+    p = db.get(Product, pid)
+    if p and p.photo_url == pfs.photo_link(f):
+        p.photo_url = None
+    shared = db.scalar(select(func.count()).select_from(ProductFile).where(ProductFile.path == f.path, ProductFile.id != f.id))
+    if not shared:
+        try:
+            trash = Path(settings.files_dir) / "_trash" / datetime.now().strftime("%Y-%m")
+            trash.mkdir(parents=True, exist_ok=True)
+            shutil.move(f.path, str(trash / f"p{f.id}_{Path(f.path).name}"))
+        except OSError:
+            pass
+    db.delete(f)
+    db.commit()
+    audit(db, "product.file_delete", "product", pid, user=user, file_id=fid)
+    return RedirectResponse(_with_msg(f"/products/{pid}#pfiles", "Файл видалено"), 303)
+
+
+@app.post("/products/files/import-cb")
+async def product_files_import_cb(request: Request, user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
+    """Фото й документи товарів з файл-менеджера CleverBox (список зібрано у веб-кабінеті) → у фоні до карток товарів."""
+    from .services import product_files as pfs
+    data = await request.json()
+    rows = data.get("rows") or []
+    job = jobs.start("Фото й документи товарів з CleverBox", pfs.run, rows)
+    audit(db, "products.files_import_cb", user=user, files=len(rows), job=job.id)
+    db.commit()
+    return {"ok": True, "job": job.id, "files": len(rows)}
 
 
 @app.post("/products/new")
