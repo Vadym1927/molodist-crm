@@ -48,7 +48,8 @@ def run(job, files: list, by: str = "client") -> dict:
     with SessionLocal() as db:
         by_cb = _by_record(db) if by == "record" else \
             {p.cleverbox_id: p.id for p in db.scalars(select(Patient).where(Patient.cleverbox_id.is_not(None)))}
-        have = {x for (x,) in db.execute(select(PatientFile.cb_file_id).where(PatientFile.cb_file_id.is_not(None)))}
+        have = {x: pid for x, pid in db.execute(select(PatientFile.cb_file_id, PatientFile.patient_id).where(PatientFile.cb_file_id.is_not(None)))}
+    relink: dict[int, int] = {}
     todo = []
     for f in files:
         try:
@@ -59,6 +60,8 @@ def run(job, files: list, by: str = "client") -> dict:
             continue
         if fid in have:
             rep["exists"] += 1
+            if cid in by_cb and have[fid] != by_cb[cid]:
+                relink[fid] = by_cb[cid]              # файл уже є, але в іншого пацієнта — переносимо до правильного
             continue
         if cid not in by_cb:
             rep["no_patient"] += 1
@@ -67,6 +70,13 @@ def run(job, files: list, by: str = "client") -> dict:
             rep["not_image"] += 1                        # немає прямого посилання на сховище CleverBox
             continue
         todo.append((by_cb[cid], fid, url, name or url.rsplit("/", 1)[-1], dt, "photo" if typ == "img" else "doc", stage))
+    if relink:
+        with SessionLocal() as db:
+            for f in db.scalars(select(PatientFile).where(PatientFile.cb_file_id.in_(list(relink)))):
+                f.patient_id = relink[f.cb_file_id]
+            db.commit()
+        rep["relinked"] = len(relink)
+        job.log(f"Перенесено до правильних пацієнтів: {len(relink)}")
     job.log(f"Файлів: {len(files)}, до завантаження: {len(todo)}, уже є: {rep['exists']}, без пацієнта: {rep['no_patient']}, не фото: {rep['not_image']}")
     http = httpx.Client(timeout=40, follow_redirects=True)
 

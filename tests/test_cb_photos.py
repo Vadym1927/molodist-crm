@@ -47,3 +47,16 @@ def test_cb_photos_by_record(monkeypatch, tmp_path):
     with SessionLocal() as db:
         f = db.query(PatientFile).filter(PatientFile.cb_file_id == 14114).one()
         assert f.patient_id == pid and f.stage == "before"
+
+
+def test_cb_photos_relink(monkeypatch, tmp_path):
+    from app.config import settings
+    monkeypatch.setattr(settings, "files_dir", str(tmp_path))
+    with SessionLocal() as db:
+        a = Patient(full_name="Пацієнт А", cleverbox_id=8801); b = Patient(full_name="Пацієнт Б", cleverbox_id=8802)
+        db.add_all([a, b]); db.commit()
+        db.add(PatientFile(patient_id=a.id, kind="photo", path="x.jpg", cb_file_id=55501)); db.commit(); bid = b.id
+    r = cb_photos.run(J(), [[8802, 55501, "https://cbox.5jk9u.upcloudobjects.com/molodist/before/1.jpg", "1.jpg", "", "img", "before"]])
+    assert r["relinked"] == 1
+    with SessionLocal() as db:
+        assert db.query(PatientFile).filter(PatientFile.cb_file_id == 55501).one().patient_id == bid
