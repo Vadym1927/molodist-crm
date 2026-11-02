@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Центр спілкування · MOLODIST CRM{% endblock %}
+{% block body %}
+<style>.dev{background:#FFF7E6;border:1px solid #F3D9A6;color:#8A5A00;border-radius:14px;padding:14px 18px;margin:12px 0 18px}
+.cc{display:grid;grid-template-columns:300px minmax(0,1fr) 300px;gap:0;height:calc(100vh - 260px);min-height:460px;background:#fff;border:1px solid var(--line);border-radius:18px;overflow:hidden}
+.cc>div{border-right:1px solid var(--line);display:flex;flex-direction:column;min-width:0}.cc>div:last-child{border-right:0}
+.cc-ch{display:flex;gap:6px;padding:12px;border-bottom:1px solid var(--line);flex-wrap:wrap}.cc-ch span{padding:6px 10px;border-radius:9px;background:#F7F4F0;font:600 12.5px var(--sans);color:#3B3050}
+.cc-ch span.on{background:#3B3050;color:#fff}
+.cc-empty{flex:1;display:grid;place-items:center;text-align:center;color:var(--muted);padding:20px;font-size:14px}
+.cc h4{margin:0;padding:14px 16px;border-bottom:1px solid var(--line);font:700 11px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496}
+.cc-in{border-top:1px solid var(--line);padding:12px;display:flex;gap:8px}.cc-in input{flex:1}
+@media(max-width:1000px){.cc{grid-template-columns:1fr;height:auto}.cc>div{border-right:0;border-bottom:1px solid var(--line);min-height:200px}}</style>
+<div class="eyebrow">Комунікації</div><h1>Центр спілкування з пацієнтами</h1>
+<div class="dev"><b>В розробці.</b> Усі переписки в одному вікні: Instagram, Viber, Telegram, WhatsApp. З розмови — одразу звернення, запис, задача; поруч картка пацієнта й скрипти адміністратора.</div>
+<div class="cc">
+  <div><div class="cc-ch"><span class="on">Усі</span><span>Instagram</span><span>Viber</span><span>Telegram</span><span>WhatsApp</span></div>
+    <div class="cc-empty">Тут буде список діалогів: непрочитані зверху, пошук за пацієнтом чи номером.</div></div>
+  <div><h4>Діалог</h4><div class="cc-empty">Оберіть діалог зліва — тут буде листування з пацієнтом.</div>
+    <div class="cc-in"><input disabled placeholder="Повідомлення пацієнту…"><button class="btn" disabled>Надіслати</button></div></div>
+  <div><h4>Пацієнт</h4><div class="cc-empty">Картка пацієнта, найближчий візит, бюті-план.<br><br>Кнопки: «Звернення», «Записати», «Задача», скрипти.</div></div>
+</div>
+{% endblock %}

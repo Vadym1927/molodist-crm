@@ -542,6 +542,7 @@ class User(Base):
     photo_path: Mapped[str | None] = mapped_column(String(500))          # фото профілю (панель профілю, аватар)
     photo_mime: Mapped[str | None] = mapped_column(String(60))
     last_seen: Mapped[datetime | None] = mapped_column(DateTime)         # «Зараз онлайн»
+    notif_seen_at: Mapped[datetime | None] = mapped_column(DateTime)     # дзвіночок: коли востаннє переглянув сповіщення
 
     doctor: Mapped[Doctor | None] = relationship()
 

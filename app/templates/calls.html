@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Телефонія · MOLODIST CRM{% endblock %}
+{% block body %}
+<style>.dev{background:#FFF7E6;border:1px solid #F3D9A6;color:#8A5A00;border-radius:14px;padding:14px 18px;margin:12px 0 18px}
+.tl-tabs{display:flex;gap:6px;margin-bottom:12px}.tl-tabs a{padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;text-decoration:none;font-weight:600;color:#2A2430}.tl-tabs a.on{background:#3B3050;color:#fff;border-color:#3B3050}
+.tl-plan{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-bottom:18px}.tl-plan div{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px}.tl-plan b{display:block;margin-bottom:4px}.tl-plan span{color:var(--muted);font-size:13px}</style>
+<div class="eyebrow">Комунікації</div><h1>Телефонія</h1>
+<div class="dev"><b>В розробці.</b> Підключимо Ringostat: усі дзвінки клініки з'являтимуться тут і в картці пацієнта, з записом розмови. Налаштування провайдера — <a href="/settings/telephony">Налаштування → IP-телефонія</a>.</div>
+<div class="tl-plan">
+  <div><b>Пропущені</b><span>Хто дзвонив і не додзвонився — передзвонити одним кліком, автозадача адміністратору.</span></div>
+  <div><b>Вхідні й вихідні</b><span>Тривалість, хто відповів, запис розмови, звідки дзвінок (реклама, сайт).</span></div>
+  <div><b>Дзвінки по пацієнтах</b><span>Пацієнта визначає за номером; невідомий номер — створити звернення чи пацієнта.</span></div>
+  <div><b>Звернення й задачі</b><span>З дзвінка — звернення, запис у календар, задача; скрипти для адміністратора.</span></div>
+</div>
+<div class="tl-tabs"><a href="/telephony" class="{{ 'on' if not f }}">Усі</a><a href="?f=missed" class="{{ 'on' if f == 'missed' }}">Пропущені</a><a href="?f=in" class="{{ 'on' if f == 'in' }}">Вхідні</a><a href="?f=out" class="{{ 'on' if f == 'out' }}">Вихідні</a></div>
+<div class="card" style="padding:0;overflow:auto"><table><thead><tr><th>Дата й час</th><th>Напрям</th><th>Номер</th><th>Пацієнт</th><th>Статус</th><th class="r">Тривалість</th><th>Хто</th><th>Запис</th></tr></thead><tbody>
+{% for c in calls %}<tr><td>{{ c.at|dt('%d.%m.%Y %H:%M') }}</td><td>{{ 'вхідний' if c.direction == 'in' else 'вихідний' }}</td><td>{{ c.phone or '—' }}</td>
+  <td>{% if c.patient_id and pats.get(c.patient_id) %}<a href="/patients/{{ c.patient_id }}">{{ pats[c.patient_id].full_name }}</a>{% else %}<span class="muted">невідомий</span>{% endif %}</td>
+  <td><span class="pill {{ 'bad' if c.status == 'missed' else 'ok' }}">{{ 'пропущений' if c.status == 'missed' else (c.status or '—') }}</span></td>
+  <td class="r">{{ ('%d:%02d'|format(c.duration // 60, c.duration % 60)) if c.duration else '—' }}</td><td>{{ c.employee or '' }}</td>
+  <td>{% if c.record_url %}<a href="{{ c.record_url }}" target="_blank" rel="noopener">▶ слухати</a>{% endif %}</td></tr>
+{% else %}<tr><td colspan="8" class="muted">Дзвінків ще немає — з'являться після підключення телефонії.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

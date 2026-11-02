@@ -1,0 +1,5 @@
+<div class="nt-h"><b>Сповіщення</b><button type="button" class="nt-x" onclick="ntClose()">×</button></div>
+<div class="nt-l">{% for x in items %}<a class="nt-i {{ x.level }} {{ 'new' if x.new }}" href="{{ x.url }}">
+  <i></i><div><b>{{ x.title }}</b><span>{{ x.text }}</span>{% if x.kind == 'online' and x.at_local %}<small>{{ x.at_local.strftime('%d.%m %H:%M') }}</small>{% endif %}</div></a>
+{% else %}<div class="nt-e">Нових сповіщень немає</div>{% endfor %}</div>
+<div class="nt-f">Онлайн-записи, терміни придатності, критичні залишки, сертифікати й абонементи. Задачі — у розділі «Задачі».</div>

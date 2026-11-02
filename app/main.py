@@ -4159,6 +4159,49 @@ async def stock_balances_import(file: UploadFile = File(...), user: User = Depen
     return RedirectResponse("/stock?tab=balances" + (f"&msg={msg}" if msg else "#snap"), 303)
 
 
+# ---------------- Дзвіночок, телефонія, центр спілкування ----------------
+@app.get("/notifications", response_class=HTMLResponse)
+def notifications_panel(request: Request, user: User = Depends(current_user), db: Session = Depends(db_dep)):
+    from .services import notifications as nt
+    xs = nt.items(db, user)
+    html = templates.get_template("_notifications.html").render(items=xs)
+    u = db.get(User, user.id)
+    u.notif_seen_at = datetime.utcnow()
+    db.commit()
+    return HTMLResponse(html)
+
+
+@app.get("/notifications/poll")
+def notifications_poll(since: str = "", user: User = Depends(current_user), db: Session = Depends(db_dep)):
+    """Нові онлайн-записи з моменту since (ISO, UTC) — для спливаючого вікна; кількість непереглянутих — для значка."""
+    from .services import notifications as nt
+    try:
+        s_ = datetime.fromisoformat(since) if since else datetime.utcnow() - timedelta(minutes=2)
+    except ValueError:
+        s_ = datetime.utcnow() - timedelta(minutes=2)
+    new = nt.online(db, s_) if can(user, "book") else []
+    return {"now": datetime.utcnow().isoformat(timespec="seconds"), "unseen": nt.unseen(db, user),
+            "toasts": [{"title": x["title"], "text": x["text"], "url": x["url"]} for x in new][:5]}
+
+
+@app.get("/telephony", response_class=HTMLResponse)
+def telephony_page(request: Request, f: str = "", user: User = Depends(require("appeals")), db: Session = Depends(db_dep)):
+    from .models import Call
+    q = select(Call).order_by(Call.at.desc())
+    if f == "missed":
+        q = q.where(Call.status == "missed")
+    elif f in ("in", "out"):
+        q = q.where(Call.direction == f)
+    calls = db.scalars(q.limit(300)).all()
+    pats = {p_.id: p_ for p_ in db.scalars(select(Patient).where(Patient.id.in_([c_.patient_id for c_ in calls if c_.patient_id] or [0])))}
+    return render(request, "calls.html", nav="telephony", calls=calls, pats=pats, f=f)
+
+
+@app.get("/chats", response_class=HTMLResponse)
+def chats_page(request: Request, user: User = Depends(require("appeals")), db: Session = Depends(db_dep)):
+    return render(request, "chats.html", nav="chats")
+
+
 @app.post("/migrate/cb-visits")
 async def migrate_cb_visits(request: Request, user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
     """Історія візитів CleverBox (зібрана у веб-кабінеті частинами) → візити CRM з послугами, оплатою й витратними."""
