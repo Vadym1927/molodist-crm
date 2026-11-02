@@ -84,7 +84,7 @@
     <td>{% if r.vid and r.vid != r.account %}<span class="acc" style="border-left-color:#3B82C4">{{ ('→ ' if r.kind=='transfer') ~ r.vid }}</span>{% endif %}{% if not r.money and r.kind != 'transfer' %}<div class="meta">не гроші</div>{% endif %}</td>
     <td>{{ r.author }}</td>
     <td class="r"><span class="amt {{ k }}">{{ '−' if r.sign < 0 else ('+' if r.sign > 0 else '') }}{{ r.amount|uah }}</span></td>
-    <td>{% if r.src=='crm' and not archive %}<form method="post" action="/finance/ops/{{ r.id }}/delete" data-delpw="Видалити {{ r.num }} ({{ r.article }} {{ r.amount|uah }}) в архів?" style="margin:0"><input type="hidden" name="back" value="{{ request.url.path }}?{{ request.url.query }}"><button title="Видалити в архів" style="border:0;background:none;cursor:pointer;color:var(--muted);font-size:16px">×</button></form>{% endif %}</td></tr>
+    <td>{% if r.src=='crm' and not r.id and r.num.startswith('Ч-') %}<a href="/sales/{{ r.num[2:] }}" title="Відкрити чек" style="color:var(--muted);text-decoration:none">🧾</a>{% elif r.src=='crm' and r.id and not archive %}<form method="post" action="/finance/ops/{{ r.id }}/delete" data-delpw="Видалити {{ r.num }} ({{ r.article }} {{ r.amount|uah }}) в архів?" style="margin:0"><input type="hidden" name="back" value="{{ request.url.path }}?{{ request.url.query }}"><button title="Видалити в архів" style="border:0;background:none;cursor:pointer;color:var(--muted);font-size:16px">×</button></form>{% endif %}</td></tr>
   {% else %}<tr><td colspan="9" class="muted">{{ 'Архів порожній.' if archive else 'Операцій за період немає.' }}</td></tr>{% endfor %}</tbody></table>
 </div></div>
 

@@ -47,7 +47,7 @@ def test_sales_pos():
         assert j["ok"]; sid = j["id"]
         assert "Ч-" in c.get(f"/sales/{sid}").text and "Касова Пацієнтка" in c.get("/sales").text
         ops = c.get("/finance/ops").text
-        assert f"Ч-{sid}" in ops
+        assert f"Ч-{sid}" in ops and "/finance/ops/None/" not in ops and f'href="/sales/{sid}"' in ops
     with SessionLocal() as db:
         s = db.get(Sale, sid)
         assert s.total == 3600 and s.discount == 0 and s.bonus_spent == 100      # ручна знижка з каси ігнорується and s.bonus_accrued > 0
