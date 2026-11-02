@@ -68,6 +68,9 @@ def events(db: Session, user: User, start: date, days: int = 7, doctor_id: int |
     fz = calendar_frozen(db)
     if fz:                               # синхронізацію календаря вимкнено — лише записи CleverBox, що були на момент вимкнення
         q_v = q_v.where(Visit.id <= int(fz.get("max_visit") or 0))
+    from . import autonomy as _aut
+    if _aut.since(db):                   # з дати переходу записи CleverBox у календарі CRM не показуються — їх дублюють у CRM вручну
+        q_v = q_v.where(Visit.starts_at < datetime.combine(_aut.since(db), datetime.min.time()))
     rows = db.scalars(q_v.order_by(Visit.starts_at)).all()
     cal_days = {(v.patient_id, v.starts_at.date()) for v in rows if v.source != "cb_service_sale"}
     # записи CRM

@@ -347,14 +347,7 @@ async def lifespan(app: FastAPI):
             db.commit()
         from .services import autonomy as _aut_w
         _aut_w.cfg(db)                                          # режим роботи — у кеш процесу
-        if _aut_w.since(db):                                   # автономно: майбутні записи CleverBox — записи CRM (керуються в CRM)
-            try:
-                from .services import appointments as _aps_w
-                _n_ad = _aps_w.adopt_all_cb(db, datetime.combine(_aut_w.since(db), datetime.min.time()))
-                if _n_ad:
-                    log.info("записи CleverBox → CRM: %s", _n_ad)
-            except Exception as e:  # noqa: BLE001
-                log.warning("adopt cb: %s", e)
+        # Записи CleverBox з дати переходу в CRM не переносяться: адміністратори дублюють їх у CRM вручну (рішення власника 02.11.2026)
         if not db.get(SyncState, "work_mode_init_20261101"):      # 01.11.2026: тестування — CRM автономно, без фіскалізації (рішення власника)
             from .services import autonomy as _aut
             _aut.save(db, autonomous=True, since="2026-11-01", test=True)
@@ -3042,8 +3035,10 @@ def calendar_visit(request: Request, appt: int = 0, v: str = "", tab: str = "vis
     from .services import visit_card as vc, appointments as aps, calendar as _cal, loyalty as ly
     ids = [int(x) for x in v.split(",") if x.strip().isdigit()][:20]
     from .services import autonomy as _aut_v
-    if not appt and ids and _aut_v.offline() and can(user, "book"):      # автономно: візит CleverBox відкривається як запис CRM
-        _vs = [x for x in (db.get(Visit, i) for i in ids) if x and x.source == "cb_visit"]
+    if not appt and ids and _aut_v.offline() and can(user, "book"):      # автономно: минулий візит CleverBox відкривається як запис CRM (історія)
+        _since = _aut_v.since(db)
+        _vs = [x for x in (db.get(Visit, i) for i in ids) if x and x.source == "cb_visit"
+               and not (_since and x.starts_at >= datetime.combine(_since, datetime.min.time()))]
         _rid = next((aps._rid(x) for x in _vs if aps._rid(x)), None)
         _a = aps.adopt_cb(db, _rid) if _rid else None
         if _a:

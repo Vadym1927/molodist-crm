@@ -65,13 +65,22 @@ def test_auto_adopt_with_techcard():
             db.add(Visit(source="cb_visit", external_id="16001-93101", patient_id=p.id, service_id=93101, service_name="Мезотерапія",
                          starts_at=t, ends_at=t + timedelta(hours=1), status="booked"))
             db.commit()
-            autonomy.save(db, autonomous=True, since=date.today().isoformat())
+            autonomy.save(db, autonomous=True, since=(date.today() + timedelta(days=5)).isoformat())   # візит — до дати переходу (історія)
             vid = db.query(Visit).filter(Visit.external_id == "16001-93101").one().id
         h = c.get(f"/calendar/visit?v={vid}").text
         assert "Перенести / змінити" in h and "Голка тест" in h
     with SessionLocal() as db:
         a = db.query(Appointment).filter(Appointment.cb_record_id == 16001).one()
         assert db.query(VisitMaterial).filter(VisitMaterial.appt_id == a.id).count() == 1
+        # записи CleverBox з дати переходу — не переносяться й не показуються в календарі CRM
+        from app.services import calendar as cal
+        from app.models import User
+        autonomy.save(db, autonomous=True, since=date.today().isoformat())
+        owner = db.query(User).filter(User.role == "owner").first()
+        db.add(Visit(source="cb_visit", external_id="16002-93101", patient_id=a.patient_id, service_id=93101, service_name="Мезотерапія",
+                     starts_at=t + timedelta(hours=3), ends_at=t + timedelta(hours=4), status="booked")); db.commit()
+        ev = [e for es in cal.events(db, owner, t.date(), days=1).values() for e in es]
+        assert not [e for e in ev if getattr(e, "appt_id", None) is None]
 
 
 def test_adopt_resolves_service_by_name():

@@ -33,8 +33,12 @@ def visits(db: Session, d: date, user=None) -> list[dict]:
                                   "category": s.get("category") or (svc[s["id"]].category if s.get("id") in svc else "")} for s in x.services or []]})
     idx = DoctorIndex(all_doctors(db))
     groups: dict = {}
+    from . import autonomy as _aut
+    _cut = datetime.combine(_aut.since(db), datetime.min.time()) if _aut.since(db) else None
     for v in db.scalars(select(Visit).where(Visit.starts_at >= a, Visit.starts_at < b, Visit.source == "cb_visit",
                                             Visit.status.in_(("booked", "attended", "done"))).order_by(Visit.starts_at)):
+        if _cut and v.starts_at >= _cut:                # записи CleverBox після переходу — не в касі CRM
+            continue
         if any(v.external_id.startswith(m + "-") for m in mirrored):
             continue
         doc = idx.find(v.master_name)
