@@ -77,6 +77,13 @@ def in_pos(x: dict) -> bool:
     return x.get("type") in ("cash", "card", "other")
 
 
+def in_shift(x: dict) -> bool:
+    """Чи відкривати касу в касовій зміні: явний перемикач; за замовчуванням — готівка й термінали, крім сейфа."""
+    if x.get("shift") is not None:
+        return bool(x["shift"])
+    return x.get("type") in ("cash", "card") and "сейф" not in (x.get("name") or "").lower().replace("c", "с")
+
+
 def names(db: Session, active_only: bool = True) -> list[str]:
     return [x["name"] for x in items(db) if not x.get("deleted") and (x.get("active") or not active_only)]
 
@@ -111,6 +118,7 @@ def save(db: Session, bid: int | None, data: dict) -> dict:
         if y is not x:
             y["methods"] = [m for m in y.get("methods") or [] if m not in methods]
     x["pos"] = bool(data.get("pos")) if "pos" in data else x.get("pos")
+    x["shift"] = bool(data.get("shift")) if "shift" in data else x.get("shift")
     if "fee_pct" in data:                                      # комісія банку: % від кожного надходження + стаття списання
         fee = max(0.0, min(20.0, round(float(data.get("fee_pct") or 0), 3)))
         if fee and not x.get("fee_pct"):
@@ -245,7 +253,8 @@ def overview(db: Session) -> list[dict]:
         mv = moves(db, x)
         out.append({**x, "type_label": TYPES.get(x.get("type"), x.get("type")), "location": locs.get(int(x["location_id"])) if x.get("location_id") else None,
                     "balance": round(float(x.get("opening") or 0) + sum(m.amount if m.kind == "in" else -m.amount for m in mv), 2),
-                    "last": max((m.at for m in mv), default=None), "cash": x.get("type") == "cash", "in_pos": in_pos(x)})
+                    "last": max((m.at for m in mv), default=None), "cash": x.get("type") == "cash", "in_pos": in_pos(x),
+                    "in_shift": in_shift(x)})
     return out
 
 

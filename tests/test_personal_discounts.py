@@ -44,3 +44,10 @@ def test_personal_discounts_import_cb():
         with SessionLocal() as db:
             assert pdc.pcts(db.get(Patient, pid)) == (10, 0) and pdc.cfg(db)["name"] == "Personal discount"
             pdc.save_cfg(db, "Персональна знижка", True, False)
+
+
+def test_cashbox_in_shift():
+    from app.services.cashboxes import in_shift
+    assert in_shift({"type": "cash", "name": "Готівка ФОП Колган"}) and in_shift({"type": "card", "name": "Термінал"})
+    assert not in_shift({"type": "cash", "name": "Готівка Cейф"}) and not in_shift({"type": "bank", "name": "Фонд"})
+    assert in_shift({"type": "cash", "name": "Готівка Сейф", "shift": True})

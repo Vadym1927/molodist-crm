@@ -5087,7 +5087,7 @@ async def settings_cashboxes_save(request: Request, user: User = Depends(require
     data = {"name": f.get("name"), "type": f.get("type"), "active": bool(f.get("active")), "note": f.get("note"),
             "location_id": int(f.get("location_id")) if str(f.get("location_id") or "").isdigit() else None,
             "opening": _num(str(f.get("opening") or "0")) or 0, "opening_date": _day(str(f.get("opening_date") or "")) and str(f.get("opening_date")),
-            "methods": f.getlist("methods"), "color": str(f.get("color") or "")[:9], "pos": bool(f.get("pos")),
+            "methods": f.getlist("methods"), "color": str(f.get("color") or "")[:9], "pos": bool(f.get("pos")), "shift": bool(f.get("shift")),
             "fee_pct": _num(str(f.get("fee_pct") or "0").replace(",", ".")) or 0, "fee_article": f.get("fee_article"),
             "fee_from": str(f.get("fee_from")) if _day(str(f.get("fee_from") or "")) else None}
     try:

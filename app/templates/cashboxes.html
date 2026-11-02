@@ -70,11 +70,11 @@
   {% if b.methods or b.opening_date or b.note or b.fee_pct %}<div class="ex">{% if b.fee_pct %}<b style="color:#5C4B82">Комісія {{ '%g'|format(b.fee_pct) }}%</b> → {{ b.fee_article or FEE_ARTICLE }}{% if b.fee_from %} · з {{ b.fee_from[8:10] }}.{{ b.fee_from[5:7] }}{% endif %}<br>{% endif %}{% if b.methods %}Каса CRM: {{ b.methods|join(', ') }}<br>{% endif %}{% if b.opening_date %}Стартовий залишок {{ '{:,.2f}'.format(b.opening or 0).replace(',', ' ').replace('.', ',') }} ₴ на {{ b.opening_date[8:10] }}.{{ b.opening_date[5:7] }}.{{ b.opening_date[:4] }}<br>{% endif %}{{ b.note or '' }}</div>{% endif %}
   </div><div class="bt">
   {% if b.deleted %}<span class="pl off">Видалена {{ b.deleted_at or '' }}</span>{% elif b.active %}{% else %}<span class="pl off">Вимкнена</span>{% endif %}
-  <span class="pl {{ 'cash' if b.cash else 'nc' }}">{{ 'Готівка' if b.cash else 'Безготівка' }}</span>{% if b.in_pos and b.active and not b.deleted %}<span class="pl pos" title="Показується в «Новий продаж» як спосіб оплати">У касі</span>{% endif %}
+  <span class="pl {{ 'cash' if b.cash else 'nc' }}">{{ 'Готівка' if b.cash else 'Безготівка' }}</span>{% if b.in_pos and b.active and not b.deleted %}<span class="pl pos" title="Показується в «Новий продаж» як спосіб оплати">У касі</span>{% endif %}{% if b.in_shift and b.active and not b.deleted %}<span class="pl pos" title="Відкривається в касовій зміні">У зміні</span>{% endif %}
   <span style="flex:1"></span><span style="display:inline-flex;gap:2px;margin-left:auto">
   {% if b.deleted %}<form method="post" action="/settings/cashboxes/{{ b.id }}/restore" style="margin:0"><button class="btn ghost" style="padding:4px 12px">Відновити</button></form>
   {% else %}<a class="ib" href="?open={{ b.id }}" title="Рух коштів"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h13l-3-3M20 17H7l3 3"/></svg></a>
-  <button class="ib" type="button" title="Змінити" onclick='bxEdit({{ {"id": b.id, "name": b.name, "location_id": b.get("location_id"), "type": b.get("type"), "color": b.get("color"), "opening": b.get("opening"), "opening_date": (b.opening_date|string if b.get("opening_date") else ""), "note": b.get("note"), "active": b.get("active"), "in_pos": b.get("in_pos"), "methods": b.get("methods") or [], "fee_pct": b.get("fee_pct"), "fee_article": b.get("fee_article"), "fee_from": b.get("fee_from") or ""}|tojson }})'><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg></button>
+  <button class="ib" type="button" title="Змінити" onclick='bxEdit({{ {"id": b.id, "name": b.name, "location_id": b.get("location_id"), "type": b.get("type"), "color": b.get("color"), "opening": b.get("opening"), "opening_date": (b.opening_date|string if b.get("opening_date") else ""), "note": b.get("note"), "active": b.get("active"), "in_pos": b.get("in_pos"), "in_shift": b.get("in_shift"), "methods": b.get("methods") or [], "fee_pct": b.get("fee_pct"), "fee_article": b.get("fee_article"), "fee_from": b.get("fee_from") or ""}|tojson }})'><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg></button>
   <form method="post" action="/settings/cashboxes/{{ b.id }}/delete" data-delpw="Видалити касу «{{ b.name }}»? Якщо по ній були операції — вона перейде у «Видалені каси»." style="margin:0"><button class="ib del" title="Видалити"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button></form>{% endif %}</span>
 </div></div>
 {% endmacro %}
@@ -118,14 +118,16 @@
     <div class="cs-f"><label>Примітка</label><input name="note"></div>
     <div class="cs-f"><label class="sw"><input type="checkbox" name="active" value="1" checked> Активна</label>
       <label class="sw"><input type="checkbox" name="pos" value="1" checked> Показувати в касі як спосіб оплати</label>
-      <div class="hint">Плитка оплати в «Новий продаж». Фонди й рахунки зазвичай не показують.</div></div>
+      <div class="hint">Плитка оплати в «Новий продаж». Фонди й рахунки зазвичай не показують.</div>
+      <label class="sw"><input type="checkbox" name="shift" value="1" checked> Відкривати в касовій зміні</label>
+      <div class="hint">Каса з'являється у вікні «Відкриття касової зміни» (профіль). Сейф і фонди зазвичай вимикають.</div></div>
     <button class="btn">Зберегти</button>
   </form></dialog>
 <script>
 function bxEdit(b){var d=document.getElementById('bx-ed'),f=d.querySelector('form');f.reset();
   document.getElementById('bx-t').textContent=b?('Каса · '+b.name):'Нова каса';
   f.id.value=b?b.id:'';if(b){f.name.value=b.name;f.location_id.value=b.location_id||'';f.type.value=b.type;f.color.value=b.color||'#5CB85C';
-    f.opening.value=b.opening||'';f.opening_date.value=b.opening_date||'';f.note.value=b.note||'';f.active.checked=!!b.active;f.pos.checked=b.in_pos;
+    f.opening.value=b.opening||'';f.opening_date.value=b.opening_date||'';f.note.value=b.note||'';f.active.checked=!!b.active;f.pos.checked=b.in_pos;f.shift.checked=b.in_shift!==false;
     f.querySelectorAll('input[name=methods]').forEach(function(i){i.checked=(b.methods||[]).indexOf(i.value)>=0});
     f.fee_pct.value=b.fee_pct||'';if(b.fee_article)f.fee_article.value=b.fee_article;f.fee_from.value=b.fee_from||''}
   d.showModal()}

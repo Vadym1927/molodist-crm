@@ -17,7 +17,7 @@ class ShiftError(ValueError):
 def boxes(db: Session) -> list[dict]:
     """Каси, які відкриваються зміною: готівка й термінали (як плитки в касі), з поточним залишком."""
     from . import cashboxes
-    return [x for x in cashboxes.overview(db) if x.get("active", True) is not False and x.get("type") in ("cash", "card")]
+    return [x for x in cashboxes.overview(db) if x.get("active", True) is not False and not x.get("deleted") and x.get("in_shift")]
 
 
 def open_shifts(db: Session) -> list[CashShift]:
