@@ -75,6 +75,8 @@ class Patient(Base):
     communication_channel: Mapped[str | None] = mapped_column(String(30))
     client_groups: Mapped[list | None] = mapped_column(JSON)
     discount_pct: Mapped[float | None] = mapped_column(Float)          # персональна знижка, %
+    disc_products_pct: Mapped[float | None] = mapped_column(Float)     # персональна знижка на товари, % (порожньо — discount_pct)
+    disc_services_pct: Mapped[float | None] = mapped_column(Float)     # персональна знижка на послуги, %
     med_allergies: Mapped[str | None] = mapped_column(Text)           # алергії (лише medical)
     med_conditions: Mapped[str | None] = mapped_column(Text)          # хронічні захворювання, препарати, вагітність…
     med_contra: Mapped[str | None] = mapped_column(Text)              # протипоказання

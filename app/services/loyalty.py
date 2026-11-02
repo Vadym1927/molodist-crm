@@ -168,10 +168,16 @@ def discount_for(db: Session, items: list[dict], patient: Patient | None = None,
             amt = min(r.value, base)
             per = [amt * float(items[i]["price"]) * float(items[i].get("qty") or 1) / base if i in elig else 0.0 for i in range(len(items))]
         options.append((r, per))
-    if patient and patient.discount_pct:
-        options.append((DiscountRule(id=0, name=f"Персональна {patient.discount_pct:g}%", kind="percent", value=patient.discount_pct,
-                                     applies_to="all", combine=False),
-                        [float(it["price"]) * float(it.get("qty") or 1) * patient.discount_pct / 100 for it in items]))
+    from . import personal_discounts as pdc
+    if patient and pdc.has(patient):
+        pc = pdc.cfg(db)
+        if pc["auto"] or (rule_ids and 0 in rule_ids):        # без автозастосування — лише коли обрали в касі
+            pr, sv = pdc.pcts(patient)
+            lbl = " / ".join(x for x in ((f"товари {pr:g}%" if pr else ""), (f"послуги {sv:g}%" if sv else "")) if x)
+            options.append((DiscountRule(id=0, name=f"{pc['name']} ({lbl})", kind="percent", value=max(pr, sv),
+                                         applies_to="all", combine=bool(pc["combine"])),
+                            [float(it["price"]) * float(it.get("qty") or 1) *
+                             (pr if it["type"] == "product" else sv if it["type"] == "service" else 0) / 100 for it in items]))
     combo = [o for o in options if o[0].combine]
     single = max([o for o in options if not o[0].combine], key=lambda o: sum(o[1]), default=None)
     chosen = ([single] if single else []) + combo

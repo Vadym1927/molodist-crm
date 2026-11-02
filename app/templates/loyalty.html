@@ -34,7 +34,7 @@
     <div class="row" style="gap:6px;flex-wrap:nowrap"><span class="v">{{ ('%g'|format(r.value) ~ '%') if r.kind=='percent' else r.value|uah }}</span><a class="btn ghost" style="padding:3px 10px" href="?edit={{ r.id }}#form">змінити</a>
       <form method="post" action="/settings/loyalty/discount/{{ r.id }}/delete" data-delpw="Видалити знижку «{{ r.name }}»?" style="margin:0"><button style="border:0;background:none;color:var(--muted);cursor:pointer;font-size:16px">×</button></form></div></div>
   {% else %}<p class="muted small">Знижок ще немає — додайте праворуч.</p>{% endfor %}</div>
-{% if personal %}<div class="card"><h2 style="margin-top:0">Персональні знижки · {{ personal|length }}</h2><table class="tb small"><tbody>{% for p in personal %}<tr><td><a href="/patients/{{ p.id }}#loyal">{{ p.full_name }}</a></td><td class="r"><b>{{ '%g'|format(p.discount_pct) }}%</b></td></tr>{% endfor %}</tbody></table>
+{% if personal %}<div class="card"><h2 style="margin-top:0">Персональні знижки · {{ personal|length }} <a class="small" href="/settings/personal-discounts" style="font-weight:600;text-transform:none;letter-spacing:0">керувати →</a></h2><table class="tb small"><tbody>{% for p in personal %}<tr><td><a href="/patients/{{ p.id }}#loyal">{{ p.full_name }}</a></td>{% set _pd = pdisc(p) %}<td class="r">товари <b>{{ '%g'|format(_pd[0]) }}%</b> · послуги <b>{{ '%g'|format(_pd[1]) }}%</b></td></tr>{% endfor %}</tbody></table>
   <p class="small muted" style="margin:6px 0 0">Персональну знижку задають у картці пацієнта (блок «Бонуси й знижка»).</p></div>{% endif %}
 </div>
 <div>

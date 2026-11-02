@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Персональні знижки · MOLODIST CRM{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+<style>
+.pd-info{background:linear-gradient(120deg,#F1EDF8,#F7F4F0);border:1px solid #E4DEEF;border-radius:16px;padding:18px 22px;color:#3B3050;margin:14px 0 20px}
+.pd-f{display:grid;gap:18px;max-width:1100px}
+.pd-lbl{display:grid;gap:6px;font:700 11px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496}
+.pd-ck{display:flex;gap:12px;align-items:flex-start;cursor:pointer}.pd-ck input{width:20px;height:20px;margin-top:2px;accent-color:#3B3050}
+.pd-ck b{display:block;font:700 14px var(--sans);text-transform:uppercase;letter-spacing:.04em;color:#2A2430}.pd-ck span{color:#8a8496;font-size:13.5px}
+.pd-s{position:relative;max-width:640px}.pd-s input{width:100%;height:48px;padding-right:44px}
+.pd-dd{position:absolute;left:0;right:0;top:52px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 40px -12px rgba(30,20,50,.3);z-index:10;max-height:320px;overflow:auto}
+.pd-dd div{padding:10px 14px;cursor:pointer}.pd-dd div:hover{background:var(--brand-soft)}.pd-dd small{color:#8a8496;margin-left:8px}
+.pd-list{border:1px solid #ECE7E1;border-radius:16px;background:#FBFAF8;padding:6px 18px}
+.pd-r{display:grid;grid-template-columns:44px minmax(0,1fr) 150px 150px 36px;gap:14px;align-items:center;padding:14px 0;border-bottom:1px solid #ECE7E1}
+.pd-r:last-child{border-bottom:0}
+.pd-av{width:44px;height:44px;border-radius:50%;background:#E4DEEF;color:#3B3050;display:grid;place-items:center;font:700 14px var(--sans)}
+.pd-r a{font-weight:600;color:#2A2430;text-decoration:none}.pd-r small{display:block;color:#8a8496}
+.pd-p{display:grid;gap:4px;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496}
+.pd-p span{position:relative}.pd-p input{width:100%;padding-right:28px}.pd-p span:after{content:"%";position:absolute;right:12px;top:50%;transform:translateY(-50%);color:#8a8496;font:600 14px var(--sans)}
+.pd-x{border:0;background:none;color:#B23B2E;font-size:22px;cursor:pointer}
+@media(max-width:760px){.pd-r{grid-template-columns:44px 1fr 36px}.pd-p{grid-column:2}}
+</style>
+<form method="post" class="pd-f" id="pdf">
+<div class="row between" style="gap:10px"><div><div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a> · Пацієнти</div><h1>Персональні знижки</h1></div>
+  <button class="btn">Зберегти</button></div>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok);margin:0">{{ qp.get('msg') }}</div>{% endif %}
+<div class="pd-info" style="margin:0">Персональні знижки зазвичай дають особливим (VIP) пацієнтам: окремий % на товари і на послуги. Знижка закріплюється за пацієнтом і в касі застосовується сама — або її обирає адміністратор, якщо автозастосування вимкнено.</div>
+<label class="pd-lbl" style="max-width:640px">Назва персональної знижки<input name="name" value="{{ c.name }}" style="height:48px;font-size:15px;text-transform:none;letter-spacing:0;font-weight:500;color:var(--ink)"></label>
+<label class="pd-ck"><input type="checkbox" name="auto" value="1" {{ 'checked' if c.auto }}><div><b>Автозастосування знижки</b><span>Знижка застосовується до пацієнта в касі автоматично. Якщо вимкнено — адміністратор обирає її серед знижок у момент оплати.</span></div></label>
+<label class="pd-ck"><input type="checkbox" name="combine" value="1" {{ 'checked' if c.combine }}><div><b>Сумується з іншими знижками</b><span>Персональна знижка додається до інших знижок (акції, день народження…). Якщо вимкнено — у чеку діє одна найвигідніша знижка.</span></div></label>
+<div><label class="pd-lbl">Пошук пацієнта</label><div class="pd-s"><input id="pd-q" autocomplete="off" placeholder="Знайти пацієнта за імʼям або телефоном"><div class="pd-dd" id="pd-dd" hidden></div></div>
+  <div class="small muted" style="margin-top:6px">Оберіть пацієнта зі списку і вкажіть % знижки на товари та послуги. Так додайте всіх потрібних пацієнтів і натисніть «Зберегти».</div></div>
+<div class="pd-list" id="pd-list">{% for p, pr, sv in rows %}
+  <div class="pd-r"><input type="hidden" name="pid" value="{{ p.id }}"><span class="pd-av">{{ (p.full_name.split()|map('first')|join)[:2]|upper }}</span>
+    <div><a href="/patients/{{ p.id }}#loyal" target="_blank">{{ p.full_name }}</a><small>{{ p.phone or '' }}</small></div>
+    <label class="pd-p">% на товари<span><input name="products" inputmode="decimal" value="{{ '%g'|format(pr) }}"></span></label>
+    <label class="pd-p">% на послуги<span><input name="services" inputmode="decimal" value="{{ '%g'|format(sv) }}"></span></label>
+    <button type="button" class="pd-x" title="Прибрати знижку" onclick="this.closest('.pd-r').remove();pdEmpty()">×</button></div>{% endfor %}
+  <div class="small muted" id="pd-empty" style="padding:14px 0;{{ 'display:none' if rows }}">Персональних знижок ще немає — знайдіть пацієнта вище.</div></div>
+<div><button class="btn">Зберегти</button></div>
+</form>
+<script>(function(){var q=document.getElementById('pd-q'),dd=document.getElementById('pd-dd'),t;
+function esc(s){return String(s||'').replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+window.pdEmpty=function(){document.getElementById('pd-empty').style.display=document.querySelector('#pd-list .pd-r')?'none':''};
+function add(p){if(document.querySelector('#pd-list input[name=pid][value="'+p.id+'"]')){dd.hidden=true;return}
+  var ini=(p.name||'').split(/\s+/).map(function(w){return w[0]||''}).join('').slice(0,2).toUpperCase();
+  var d=document.createElement('div');d.className='pd-r';d.innerHTML='<input type="hidden" name="pid" value="'+p.id+'"><span class="pd-av">'+esc(ini)+'</span><div><a href="/patients/'+p.id+'#loyal" target="_blank">'+esc(p.name)+'</a><small>'+esc(p.phone)+'</small></div>'+
+    '<label class="pd-p">% на товари<span><input name="products" inputmode="decimal" value="10"></span></label><label class="pd-p">% на послуги<span><input name="services" inputmode="decimal" value="0"></span></label>'+
+    '<button type="button" class="pd-x" title="Прибрати знижку">×</button>';
+  d.querySelector('.pd-x').onclick=function(){d.remove();pdEmpty()};
+  var l=document.getElementById('pd-list');l.insertBefore(d,l.firstChild);pdEmpty();q.value='';dd.hidden=true;d.querySelector('input[name=products]').focus()}
+q.addEventListener('input',function(){clearTimeout(t);var v=q.value.trim();if(v.length<2){dd.hidden=true;return}
+  t=setTimeout(function(){fetch('/lookup/patients?q='+encodeURIComponent(v)).then(function(r){return r.json()}).then(function(a){
+    dd.innerHTML='';(a||[]).slice(0,20).forEach(function(p){var e=document.createElement('div');e.innerHTML=esc(p.name)+'<small>'+esc(p.phone)+'</small>';e.onclick=function(){add(p)};dd.appendChild(e)});
+    if(!dd.children.length)dd.innerHTML='<div class="muted">Нікого не знайдено</div>';dd.hidden=false})},250)});
+q.addEventListener('keydown',function(e){if(e.key==='Enter')e.preventDefault()});
+document.addEventListener('click',function(e){if(!e.target.closest('.pd-s'))dd.hidden=true});})();</script>
+{% endblock %}

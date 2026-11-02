@@ -82,6 +82,7 @@ GROUPS: list[tuple[str, list]] = [
         ("pt_files_zip", "Завантажувати файли пацієнта архівом", [_g(rf"/patients/{N}/files\.zip")]),
         ("pt_print", "Друк картки", [_g(rf"/patients/{N}/print")]),
         ("pt_bonus", "Нараховувати бонуси, персональна знижка", [_p(rf"/patients/{N}/bonus"), _p(rf"/patients/{N}/discount")]),
+        ("pt_pdisc", "Налаштування → Персональні знижки", [_g(r"/settings/personal-discounts"), _p(r"/settings/personal-discounts")]),
         ("pt_message", "Писати пацієнту", [_p(rf"/patients/{N}/message")]),
         ("pt_upload", "Завантажувати бюті-план (PDF)", [_p(r"/upload$")]),
         ("plan_edit", "Редагувати бюті-план", [_p(rf"/plans/{N}/items")]),

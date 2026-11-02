@@ -84,6 +84,7 @@ def _work_mode() -> dict:
 templates.env.globals["work_mode"] = _work_mode
 templates.env.globals["user_photo"] = lambda u: __import__("app.services.shifts", fromlist=["x"]).photo_url(u) if u else None
 templates.env.globals["ui_rules"] = lambda role: __import__("app.services.ui_access", fromlist=["x"]).client_rules(role)
+templates.env.globals["pdisc"] = lambda p: __import__("app.services.personal_discounts", fromlist=["x"]).pcts(p)
 
 state = {"bot": None, "last_sync": None, "last_error": None}
 
@@ -1308,6 +1309,7 @@ def pos_patient(pid: int, user: User = Depends(require("sales")), db: Session = 
         labels.insert(0, "Співробітник") if "Співробітник" not in labels else None
     return JSONResponse({"id": p_.id, "name": p_.full_name, "phone": p_.phone or "", "tag": _cal.tag_for(n), "visits": n,
                          "bonus": round(ly.balance(db, p_.id), 2), "balance": p_.cb_balance, "discount": p_.discount_pct,
+                         "pdisc": (lambda t_: {"products": t_[0], "services": t_[1]})(__import__("app.services.personal_discounts", fromlist=["pcts"]).pcts(p_)),
                          "labels": labels[:6],
                          "certs": {"n": len(certs), "sum": round(sum(c_.balance or 0 for c_ in certs), 2),
                                    "items": [{"id": c_.id, "code": c_.code or str(c_.id), "balance": c_.balance or 0} for c_ in certs]},
@@ -1454,6 +1456,7 @@ def sale_new(request: Request, appt: str = "", patient: int = 0, user: User = De
                   doctors=[d_ for d_ in db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)) if d_.sale_initiator is not False],
                   rules=db.scalars(select(DiscountRule).where(DiscountRule.active.is_(True),
                                                                                                       DiscountRule.auto.is_(False))).all(),
+                  pd_manual=(lambda c_: None if c_["auto"] else c_["name"])(__import__("app.services.personal_discounts", fromlist=["cfg"]).cfg(db)),
                   certs=[{"id": c_.id, "code": c_.code or str(c_.id), "balance": c_.balance, "patient_id": c_.patient_id,
                           "name": c_.client_name or ""} for c_ in certs if c_.state() in ("active", "expiring")][:500],
                   default_doc=user.doctor_id)
@@ -1916,7 +1919,7 @@ def settings_loyalty(request: Request, user: User = Depends(require("finance")),
                   n_holders=sum(1 for v in bal.values() if v > 0.005), total_bonus=round(sum(v for v in bal.values() if v > 0), 2),
                   n_txns=db.scalar(select(func.count(BonusTxn.id))) or 0,
                   n_cb=db.scalar(select(func.count(Patient.id)).where(Patient.cb_bonus > 0)) or 0,
-                  personal=db.scalars(select(Patient).where(Patient.discount_pct > 0).order_by(Patient.full_name)).all(),
+                  personal=__import__("app.services.personal_discounts", fromlist=["patients"]).patients(db),
                   edit=next((r for r in rules if str(r.id) == qp.get("edit", "")), None), WD=["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"])
 
 
@@ -2001,13 +2004,47 @@ def patient_bonus(pid: int, amount: str = Form(...), sign: str = Form("+"), comm
 
 
 @app.post("/patients/{pid:int}/discount")
-def patient_discount(pid: int, discount_pct: str = Form(""), user: User = Depends(require("loyalty_patient")), db: Session = Depends(db_dep)):
+def patient_discount(pid: int, discount_pct: str = Form(""), products: str = Form(None), services: str = Form(None),
+                     user: User = Depends(require("loyalty_patient")), db: Session = Depends(db_dep)):
+    from .services import personal_discounts as pdc
     p = _patient_or_403(db, user, pid)
-    v = _num(discount_pct)
-    p.discount_pct = min(max(v, 0), 100) if v else None
+    if products is None and services is None:              # стара форма — одна знижка на все
+        products = services = discount_pct
+    pdc.set_for(p, products, services)
     db.commit()
-    audit(db, "loyalty.personal", "patient", pid, user=user, pct=p.discount_pct)
+    audit(db, "loyalty.personal", "patient", pid, user=user, products=p.disc_products_pct, services=p.disc_services_pct)
     return RedirectResponse(f"/patients/{pid}#loyal", 303)
+
+
+@app.get("/settings/personal-discounts", response_class=HTMLResponse)
+def settings_personal_discounts(request: Request, user: User = Depends(require("loyalty_patient")), db: Session = Depends(db_dep)):
+    from .services import personal_discounts as pdc
+    rows = [(p_, *pdc.pcts(p_)) for p_ in pdc.patients(db) if patient_visible(user, p_)]
+    return render(request, "personal_discounts.html", nav="settings", c=pdc.cfg(db), rows=rows)
+
+
+@app.post("/settings/personal-discounts")
+async def settings_personal_discounts_save(request: Request, user: User = Depends(require("loyalty_patient")), db: Session = Depends(db_dep)):
+    """Зберігає налаштування і весь список: рядки pid/products/services; пацієнти, яких прибрали зі списку, — без знижки."""
+    from .services import personal_discounts as pdc
+    f = await request.form()
+    pdc.save_cfg(db, str(f.get("name") or ""), bool(f.get("auto")), bool(f.get("combine")))
+    keep = {}
+    for pid_, pr_, sv_ in zip(f.getlist("pid"), f.getlist("products"), f.getlist("services")):
+        if str(pid_).isdigit():
+            keep[int(pid_)] = (pr_, sv_)
+    n = 0
+    for p_ in pdc.patients(db):
+        if p_.id not in keep and patient_visible(user, p_):
+            pdc.set_for(p_, 0, 0)
+    for pid_, (pr_, sv_) in keep.items():
+        p_ = db.get(Patient, pid_)
+        if p_ and patient_visible(user, p_):
+            pdc.set_for(p_, pr_, sv_)
+            n += 1 if pdc.has(p_) else 0
+    db.commit()
+    audit(db, "loyalty.personal_list", user=user, patients=n)
+    return RedirectResponse(_with_msg("/settings/personal-discounts", f"Збережено. Пацієнтів зі знижкою: {n}"), 303)
 
 
 # ---------------- Медична картка й фото до/після ----------------
@@ -4702,8 +4739,9 @@ SETTINGS_BLOCKS = [
         ('Причини відмов', None, '/settings/appeals?open=deny_reasons', 'users', 'dirs/appeal_deny'),
         ('Причини звернень', None, '/settings/appeals?open=causes', 'users', 'dirs/appeal_cause'),
     ]),
-    ('Пацієнти', 'patients', 'Фото й документи пацієнтів', [
+    ('Пацієнти', 'patients', 'Фото, документи й персональні знижки пацієнтів', [
         ('Фото пацієнтів', 'Усі фото й файли пацієнтів: згоди, обличчя, тіло, документи — перегляд, перенесення між розділами, видалення', '/settings/patient-photos', 'upload', None),
+        ('Персональні знижки', 'Знижка конкретному пацієнту: окремо % на товари і % на послуги; автозастосування й сумування з іншими знижками', '/settings/personal-discounts', 'loyalty_patient', None),
     ]),
     ('Склад і товари', 'box', 'Списання, терміни, накладні, сайт', [
         ('Норми списання', 'Що списується зі складу після процедури', '/stock?tab=norms', 'stock', None),

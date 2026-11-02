@@ -245,8 +245,8 @@ dialog.payd::backdrop{background:rgba(42,36,48,.45)}
 <div class="card calc" style="margin:0">
   <h2 class="ch">Розрахунок</h2>
   <div class="dz"><div class="dz-h">Знижка</div>
-    {% if rules %}<div class="dz-c" id="dzc">{% for r in rules %}<button type="button" class="dzb" data-id="{{ r.id }}">{{ r.name }}<span>{{ ('−' ~ '%g'|format(r.value) ~ '%') if r.kind=='percent' else ('−' ~ r.value|uah) }}</span></button>{% endfor %}</div>
-      <select id="rule" multiple hidden>{% for r in rules %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}</select>
+    {% if rules or pd_manual %}<div class="dz-c" id="dzc">{% if pd_manual %}<button type="button" class="dzb" data-id="0" title="Діє, якщо в пацієнта задана персональна знижка">{{ pd_manual }}<span>персональна</span></button>{% endif %}{% for r in rules %}<button type="button" class="dzb" data-id="{{ r.id }}">{{ r.name }}<span>{{ ('−' ~ '%g'|format(r.value) ~ '%') if r.kind=='percent' else ('−' ~ r.value|uah) }}</span></button>{% endfor %}</div>
+      <select id="rule" multiple hidden>{% if pd_manual %}<option value="0">{{ pd_manual }}</option>{% endif %}{% for r in rules %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}</select>
     {% else %}<div class="small muted">Знижок для вибору ще немає — додайте їх у <a href="/settings/loyalty">Налаштування → Знижки й бонусна програма</a>.</div>{% endif %}
     <input type="hidden" id="md" value="0"></div>
   <div class="tot"><div><span>Разом без знижки</span><b id="t-sub">0,00 ₴</b></div><div><span>Знижка</span><b id="t-disc">0,00 ₴</b></div><div class="small muted" id="t-rules"></div>
