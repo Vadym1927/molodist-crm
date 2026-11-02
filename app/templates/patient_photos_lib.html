@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Фото пацієнтів · MOLODIST CRM{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+<style>
+.pl-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0}
+.pl-tabs a{display:inline-flex;gap:8px;align-items:center;padding:9px 16px;border-radius:12px;border:1px solid #E9E5DF;background:#fff;color:#2A2430;text-decoration:none;font-weight:600;font-size:14px}
+.pl-tabs a b{font-size:12px;color:#8a8496;font-weight:600}
+.pl-tabs a.on{background:#3B3050;border-color:#3B3050;color:#fff}.pl-tabs a.on b{color:#C9BFE6}
+.pl-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:12px}
+.pl-bar form{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.pl-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.pl-i{position:relative;background:#fff;border:1px solid #ECE7E1;border-radius:14px;overflow:hidden}
+.pl-i .th{display:block;aspect-ratio:1;background:#F7F4F0}.pl-i .th img{width:100%;height:100%;object-fit:cover;display:block}
+.pl-i .doc{display:grid;place-items:center;height:100%;font-size:40px;color:#5C4B82}
+.pl-i .ck{position:absolute;top:8px;left:8px;width:22px;height:22px;accent-color:#3B3050;cursor:pointer}
+.pl-i:has(.ck:checked){border-color:#3B3050;box-shadow:0 0 0 2px #C9BFE6}
+.pl-i .mt{padding:8px 10px;font-size:12px;line-height:1.35}.pl-i .mt a{color:#2A2430;font-weight:600;text-decoration:none}
+.pl-i .mt span{color:#8a8496;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl-sel{position:sticky;bottom:12px;z-index:5;display:none;gap:8px;align-items:center;flex-wrap:wrap;background:#2A2430;color:#fff;padding:10px 14px;border-radius:14px;margin-top:14px;box-shadow:0 12px 30px rgba(42,36,48,.3)}
+.pl-sel.on{display:flex}.pl-sel select{height:36px}
+.pl-lk{background:none;border:0;color:#C9BFE6;font:600 13px var(--sans);cursor:pointer;text-decoration:underline}.pl-sel .btn.danger{background:#B23B2E;color:#fff;border-color:#B23B2E}
+.pl-pg{display:flex;gap:6px;justify-content:center;margin-top:16px}
+</style>
+<div class="row between" style="gap:10px;flex-wrap:wrap"><div><div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a> · Пацієнти</div><h1>Фото пацієнтів</h1>
+  <div class="muted small">Усі фото й файли з карток пацієнтів. Розділ визначається автоматично, а неправильно визначені файли можна перенести в інший розділ.</div></div></div>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok);margin-top:10px">{{ qp.get('msg') }}</div>{% endif %}
+{% if qp.get('err') %}<div class="alert" style="margin-top:10px">{{ qp.get('err') }}</div>{% endif %}
+<nav class="pl-tabs">{% for k, v in CATS.items() %}<a href="?tab={{ k }}{{ ('&q=' ~ lib.q|urlencode) if lib.q }}" class="{{ 'on' if lib.tab == k }}">{{ v }} <b>{{ lib.counts[k] }}</b></a>{% endfor %}</nav>
+<div class="pl-bar"><form method="get"><input type="hidden" name="tab" value="{{ lib.tab }}"><input name="q" value="{{ lib.q }}" placeholder="Пацієнт або підпис" style="width:260px"><button class="btn ghost">Знайти</button>{% if lib.q %}<a class="btn ghost" href="?tab={{ lib.tab }}">Скинути</a>{% endif %}</form>
+  <span class="muted small">Знайдено: {{ lib.total }}{% if lib.pages > 1 %} · сторінка {{ lib.page }} з {{ lib.pages }}{% endif %}</span></div>
+
+<form method="post" id="pl-f" action="/files/category"><input type="hidden" name="back" value="{{ request.url.path }}?{{ request.url.query }}">
+{% if lib['items'] %}<div class="pl-g">{% for f in lib['items'] %}<div class="pl-i"><input type="checkbox" class="ck" name="ids" value="{{ f.id }}" onchange="plSel()">
+  <a class="th" href="/files/{{ f.id }}" target="_blank">{% if img(f) %}<img src="/files/{{ f.id }}" loading="lazy" alt="">{% else %}<span class="doc">📄</span>{% endif %}</a>
+  <div class="mt"><a href="/patients/{{ f.patient_id }}/photos">{{ lib.names.get(f.patient_id, '—') }}</a><span>{{ (f.taken_at or f.created_at)|dt('%d.%m.%Y') }}{% if f.caption %} · {{ f.caption }}{% endif %}</span></div></div>{% endfor %}</div>
+{% else %}<div class="card muted">У цьому розділі файлів немає.</div>{% endif %}
+<div class="pl-sel" id="pl-sel"><b id="pl-n">0</b> обрано
+  <select name="category">{% for k, v in CATS.items() %}<option value="{{ k }}" {{ 'disabled' if k == lib.tab }}>→ {{ v }}</option>{% endfor %}</select>
+  <button class="btn" formaction="/files/category">Перенести</button>
+  <button class="btn danger" formaction="/files/delete" data-delpw="Видалити обрані файли?">Видалити</button>
+  <button type="button" class="pl-lk" onclick="plAll(false)">Зняти вибір</button>
+  <button type="button" class="pl-lk" onclick="plAll(true)">Обрати всі на сторінці</button></div>
+</form>
+{% if lib.pages > 1 %}<div class="pl-pg">{% for i in range(1, lib.pages + 1) %}{% if i == 1 or i == lib.pages or (i - lib.page)|abs < 3 %}<a class="btn {{ '' if i == lib.page else 'ghost' }}" href="?tab={{ lib.tab }}&page={{ i }}{{ ('&q=' ~ lib.q|urlencode) if lib.q }}">{{ i }}</a>{% elif (i - lib.page)|abs == 3 %}<span class="muted">…</span>{% endif %}{% endfor %}</div>{% endif %}
+<script>function plSel(){var n=document.querySelectorAll('#pl-f .ck:checked').length;document.getElementById('pl-n').textContent=n;document.getElementById('pl-sel').classList.toggle('on',n>0)}
+function plAll(v){document.querySelectorAll('#pl-f .ck').forEach(function(c){c.checked=v});plSel()}</script>
+{% endblock %}

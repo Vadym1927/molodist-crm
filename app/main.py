@@ -893,15 +893,18 @@ async def upload(request: Request, files: list[UploadFile] = File(...), user: Us
 
 @app.post("/patients/{pid}/photos")
 async def upload_photos(pid: int, files: list[UploadFile] = File(...), caption: str = Form(""), stage: str = Form(""),
-                        zone: str = Form(""), back: str = Form(""), user: User = Depends(require("upload")),
+                        zone: str = Form(""), back: str = Form(""), category: str = Form(""), user: User = Depends(require("upload")),
                         db: Session = Depends(db_dep)):
     p = _patient_or_403(db, user, pid)
     for f in files:
         pf = ingest.ingest_photo(db, await f.read(), f.filename or "photo.jpg", caption or None, patient=p)
+        if category in ("face", "body", "consent", "doc"):
+            pf.category = category
+            db.commit()
         if stage in ("before", "after", "progress") or zone.strip():
             pf.stage, pf.zone, pf.taken_at = (stage if stage in ("before", "after", "progress") else None), zone.strip()[:80] or None, date.today()
             db.commit()
-    return RedirectResponse(back if back.startswith("/calendar") else f"/patients/{pid}#files", 303)
+    return RedirectResponse(back if back.startswith(("/calendar", f"/patients/{pid}/photos")) else f"/patients/{pid}#files", 303)
 
 
 # ---------------- Звернення (заявки) ----------------
@@ -2137,15 +2140,61 @@ def medcard_print(request: Request, pid: int, rid: int = 0, user: User = Depends
 
 @app.get("/patients/{pid}/photos", response_class=HTMLResponse)
 def patient_photos(request: Request, pid: int, a: int = 0, b: int = 0, user: User = Depends(current_user), db: Session = Depends(db_dep)):
+    from .services import patient_photos as pp
     p = _patient_or_403(db, user, pid)
-    photos = sorted([f for f in p.files if f.kind == "photo"], key=lambda f: (f.taken_at or f.created_at.date(), f.id))
-    zones: dict[str, list] = {}
-    for f in photos:
-        zones.setdefault(f.zone or "Без зони", []).append(f)
-    fa = next((f for f in photos if f.id == a), None) or next((f for f in photos if f.stage == "before"), photos[0] if photos else None)
-    fb = next((f for f in photos if f.id == b), None) or next((f for f in reversed(photos) if f.stage == "after" and f is not fa),
-                                                              photos[-1] if len(photos) > 1 else None)
-    return render(request, "photos.html", nav="patient", p=p, photos=photos, zones=zones, fa=fa, fb=fb, STAGES=PHOTO_STAGES)
+    files = sorted(pp.all_files(db, pid), key=lambda f: (f.taken_at or f.created_at.date(), f.id), reverse=True)
+    items = [{"f": f, "cat": pp.cat(f), "img": pp.is_image(f)} for f in files]
+    counts = {k: sum(1 for x in items if x["cat"] == k) for k in pp.CATS}
+    return render(request, "photos.html", nav="patient", p=p, items=items, counts=counts, CATS=pp.CATS, STAGES=PHOTO_STAGES,
+                  a=a, b=b)
+
+
+@app.get("/settings/patient-photos", response_class=HTMLResponse)
+def settings_patient_photos(request: Request, tab: str = "face", q: str = "", page: int = 1, user: User = Depends(require("upload")),
+                            db: Session = Depends(db_dep)):
+    from .services import patient_photos as pp
+    vis = None if user.role == "owner" else {x.id for x in db.scalars(select(Patient)) if patient_visible(user, x)}
+    lib = pp.library(db, tab, q, page)
+    if vis is not None:
+        lib["items"] = [f for f in lib["items"] if f.patient_id in vis]
+    return render(request, "patient_photos_lib.html", nav="settings", lib=lib, CATS=pp.CATS, img=pp.is_image)
+
+
+def _files_back(back: str) -> str:
+    return back if back.startswith(("/settings/patient-photos", "/patients/")) else "/settings/patient-photos"
+
+
+@app.post("/files/category")
+async def files_category(request: Request, user: User = Depends(require("upload")), db: Session = Depends(db_dep)):
+    from .services import patient_photos as pp
+    f = await request.form()
+    ids = [int(x) for x in f.getlist("ids") if str(x).isdigit()]
+    for pid_ in {x.patient_id for x in db.scalars(select(PatientFile).where(PatientFile.id.in_(ids or [0])))}:
+        if pid_:
+            _patient_or_403(db, user, pid_)
+    n = pp.set_category(db, ids, str(f.get("category") or ""))
+    audit(db, "files.category", user=user, files=ids, category=str(f.get("category") or ""))
+    return RedirectResponse(_with_msg(_files_back(str(f.get("back") or "")), f"Перенесено файлів: {n}"), 303)
+
+
+@app.post("/files/delete")
+async def files_delete(request: Request, user: User = Depends(require("upload")), db: Session = Depends(db_dep)):
+    from .services import patient_photos as pp
+    f = await request.form()
+    back = _files_back(str(f.get("back") or ""))
+    ids = [int(x) for x in f.getlist("ids") if str(x).isdigit()]
+    if not ids:
+        return RedirectResponse(_with_msg(back, "Оберіть фото", True), 303)
+    err = _delpw(db, user, str(f.get("del_password") or ""), "patient_files", None, None)
+    if err:
+        return RedirectResponse(_with_err(back, err), 303)
+    for pid_ in {x.patient_id for x in db.scalars(select(PatientFile).where(PatientFile.id.in_(ids)))}:
+        if pid_:
+            _patient_or_403(db, user, pid_)
+    gone = pp.delete(db, ids)
+    for fid_, pid_ in gone:
+        audit(db, "file.delete", "patient", pid_, user=user, file_id=fid_)
+    return RedirectResponse(_with_msg(back, f"Видалено файлів: {len(gone)}"), 303)
 
 
 @app.post("/files/{fid:int}/meta")
@@ -4561,6 +4610,9 @@ SETTINGS_BLOCKS = [
         ('Статуси звернень', None, '/settings/appeals?open=statuses', 'users', 'dirs/appeal_status'),
         ('Причини відмов', None, '/settings/appeals?open=deny_reasons', 'users', 'dirs/appeal_deny'),
         ('Причини звернень', None, '/settings/appeals?open=causes', 'users', 'dirs/appeal_cause'),
+    ]),
+    ('Пацієнти', 'patients', 'Фото й документи пацієнтів', [
+        ('Фото пацієнтів', 'Усі фото й файли пацієнтів: згоди, обличчя, тіло, документи — перегляд, перенесення між розділами, видалення', '/settings/patient-photos', 'upload', None),
     ]),
     ('Склад і товари', 'box', 'Списання, терміни, накладні, сайт', [
         ('Норми списання', 'Що списується зі складу після процедури', '/stock?tab=norms', 'stock', None),
