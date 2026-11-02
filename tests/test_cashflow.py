@@ -104,6 +104,11 @@ def test_cashflow_from_journal():
         apr = next(b for b in r["months"] if b.label == "Кві")
         assert apr.weeks[0].start == date(2025, 3, 31) and round(apr.income) == 500 and round(apr.expense) == 300
         assert round(sum(w.net for w in apr.weeks)) == round(apr.net)
+        from app.models import CashDay
+        db.add(CashDay(day=date(2025, 3, 30), cash_in=4000, card_in=1000, income=5000, expense=200, source="cleverbox")); db.commit()
+        mar2 = next(b for b in cf.build(db, 2025)["months"] if b.label == "Бер")
+        assert round(mar2.income) == 5000 and round(mar2.expense) == 200          # звіт «Прибуток» має пріоритет до переходу
+        db.delete(db.get(CashDay, date(2025, 3, 30))); db.commit()
         jan = r["months"][0]
         assert jan.weeks[0].start == date(2025, 1, 1)          # рік починається з 01.01, тиждень 30.12–05.01 — у січні
         for i in (990001, 990002, 990003, 990004, 990005):

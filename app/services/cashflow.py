@@ -226,7 +226,14 @@ def build(db: Session, year: int) -> dict:
     y0, y1 = date(year, 1, 1), date(year, 12, 31)
     src = "journal" if has_journal(db) else "profit"
     if src == "journal":
-        alldays = [x for x in journal_days(db, min(op["date"], y0), min(y1, date.today())) if x.income or x.expense]
+        # до дати переходу на CRM — звіт CleverBox «Прибуток» (якщо завантажений за ці дні), решта — журнал фіноперацій;
+        # від дати переходу — лише CRM (каса й операції CRM)
+        from . import autonomy
+        cut = autonomy.since(db) or date.max
+        jd = {x.day: x for x in journal_days(db, min(op["date"], y0), min(y1, date.today())) if x.income or x.expense}
+        for cd in db.scalars(select(CashDay).where(CashDay.source == "cleverbox", CashDay.day < cut, CashDay.day <= y1)):
+            jd[cd.day] = Day(cd.day, cd.cash_in or 0, cd.card_in or 0, cd.income or 0, cd.expense or 0, "cleverbox")
+        alldays = sorted(jd.values(), key=lambda x: x.day)
     else:
         alldays = db.scalars(select(CashDay).where(CashDay.day <= y1).order_by(CashDay.day)).all()
     start_balance = _balance_at(op, alldays, y0 - timedelta(days=1))
