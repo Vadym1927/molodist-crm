@@ -23,7 +23,7 @@ WH_PREF = ("inject", "classic", "single", "equip", "vitrina")
 
 def _status(title: str, typ) -> str:
     t = (title or "").lower()
-    if "скас" in t or "відмін" in t or "отмен" in t:
+    if "скас" in t or "відмін" in t or "отмен" in t or "помилк" in t or "запізн" in t:
         return "cancelled"
     if "не прийш" in t or "неявк" in t or "не з'яв" in t or "не зʼяв" in t:
         return "no_show"
