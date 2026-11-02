@@ -102,26 +102,39 @@ def _start_from_snapshot(db: Session, user_id: int | None, snap: dict) -> StockD
     return first
 
 
-def reconcile_from_snapshot(db: Session, snap: dict, user_id: int | None = None) -> list[StockDoc]:
+def reconcile_from_snapshot(db: Session, snap: dict, user_id: int | None = None, as_of: date | None = None) -> list[StockDoc]:
     """Облік уже ведеться: чернетки інвентаризацій по складах — факт = залишок CleverBox (від'ємне → 0),
     облікова к-сть — з журналу CRM. Товари, яких немає у файлі, але є в CRM, — з фактом 0.
     Нічого не проводиться: власник переглядає різницю і проводить сам."""
     if not ledger_active(db):
         raise StockError("Облік ще не розпочато — почніть його з цього файлу")
     bal = balances(db)
+    # as_of: звірка на кінець дня (напр. 31.10 — останній день CleverBox): різниця = залишок CleverBox − залишок CRM на той момент;
+    # рухи після цієї дати (тестові чеки тощо) не впливають. Документ — тією датою.
+    ref = balances(db, at=datetime.combine(as_of, datetime.max.time())) if as_of else bal
     fact: dict[str, dict[int, float]] = defaultdict(dict)
     for pid, wh, q, _ in snap.get("items", []):
         if db.get(Product, pid):
             fact[wh][pid] = fact[wh].get(pid, 0.0) + max(q or 0.0, 0.0)
-    for (pid, wh), q in bal.items():
+    for (pid, wh), q in ref.items():
         if q and pid not in fact[wh]:
             fact[wh][pid] = 0.0
     docs = []
     for wh in [w for w in WAREHOUSES if fact.get(w)]:
+        kw = {"doc_date": as_of} if as_of else {}
         doc = new_doc(db, "inventory", user_id=user_id, wh_from=wh,
-                      note=f"Звірка з CleverBox «Залишки по складах» на {snap.get('date', '')}")
+                      note=f"Звірка з CleverBox «Залишки по складах» на {as_of.strftime('%d.%m.%Y') if as_of else snap.get('date', '')}"
+                           + (" (кінець дня; рухи після цієї дати не враховано)" if as_of else ""), **kw)
         for pid, q in sorted(fact[wh].items()):
-            doc.lines.append(StockDocLine(product_id=pid, qty=q, sys_qty=bal.get((pid, wh), 0.0)))
+            diff = round(q - ref.get((pid, wh), 0.0), 4)
+            if as_of and abs(diff) < 1e-6:
+                continue
+            # проведення рахує різницю від поточного залишку → факт підставляємо так, щоб різниця була саме diff
+            doc.lines.append(StockDocLine(product_id=pid, qty=round(bal.get((pid, wh), 0.0) + diff, 4) if as_of else q,
+                                          sys_qty=bal.get((pid, wh), 0.0)))
+        if as_of and not doc.lines:
+            db.delete(doc)
+            continue
         docs.append(doc)
     db.commit()
     return docs

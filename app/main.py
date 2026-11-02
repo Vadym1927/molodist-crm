@@ -3938,14 +3938,45 @@ async def stock_balances_import(file: UploadFile = File(...), user: User = Depen
     return RedirectResponse("/stock?tab=balances" + (f"&msg={msg}" if msg else "#snap"), 303)
 
 
+@app.post("/stock/balances/snapshot-cb")
+async def stock_snapshot_cb(request: Request, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    """Залишки CleverBox (зібрані з веб-кабінету): {"date": "2026-10-31", "items": [[cb_product_id, склад, к-сть, сума]]}
+    → знімок для звірки (як після імпорту звіту «Залишки по складах»). Невідомі товари повертаються списком."""
+    data = await request.json()
+    by_cb = {p.cb_product_id: p.id for p in db.scalars(select(Product).where(Product.cb_product_id.is_not(None)))}
+    items, missing = [], []
+    for cid, wh, q, cost in data.get("items") or []:
+        pid = by_cb.get(int(cid))
+        if not pid:
+            missing.append(int(cid))
+            continue
+        if wh in catalog.WAREHOUSES:
+            items.append([pid, wh, float(q or 0), float(cost or 0)])
+    by_wh: dict = {}
+    for _pid, wh_, _q, c_ in items:
+        w_ = by_wh.setdefault(wh_, {"n": 0, "value": 0.0})
+        w_["n"] += 1
+        w_["value"] = round(w_["value"] + c_, 2)
+    rep = {"date": str(data.get("date") or ""), "rows": len(items) + len(missing), "matched": len(items), "created": 0, "items": items,
+           "by_wh": by_wh, "value": round(sum(x[3] for x in items), 2), "source": "cleverbox-web", "missing": missing[:200]}
+    _balances_snapshot(db, rep)
+    audit(db, "stock.snapshot_cb", user=user, rows=len(items), missing=len(missing), date=rep["date"])
+    db.commit()
+    return {"ok": True, "rows": len(items), "missing": missing, "value": rep["value"]}
+
+
 @app.post("/stock/balances/reconcile")
-def stock_balances_reconcile(user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+def stock_balances_reconcile(as_of: str = Form(""), user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
     from .services import stock as st
     snap = _balances_snapshot(db)
     if not snap:
         return RedirectResponse("/stock?msg=Спершу+завантажте+звіт+«Залишки+по+складах»", 303)
     try:
-        docs = st.reconcile_from_snapshot(db, snap, user.id)
+        ao = date.fromisoformat(as_of) if as_of else None
+    except ValueError:
+        ao = None
+    try:
+        docs = st.reconcile_from_snapshot(db, snap, user.id, ao)
     except st.StockError as e:
         return RedirectResponse(f"/stock?msg={e}", 303)
     audit(db, "stock.balances_reconcile", user=user, docs=[d.id for d in docs])
