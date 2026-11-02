@@ -104,6 +104,27 @@ def photo_url(u: User) -> str | None:
             return f"/me/photo/{u.id}?v={u.photo_path.replace(chr(92), '/').rsplit('/', 1)[-1][:24]}"
         if u.doctor and u.doctor.photo_url:
             return u.doctor.photo_url
+        return _doc_photo_by_name(u.name)
     except Exception:  # noqa: BLE001 — користувач поза сесією (сторінка помилки) — без фото
         return None
-    return None
+
+
+_BY_NAME: dict = {"at": None, "map": {}}
+
+
+def _doc_photo_by_name(name: str | None) -> str | None:
+    """Користувач не прив'язаний до картки спеціаліста — шукаємо картку з тим самим ПІБ (власник, адміністратор)."""
+    if not name:
+        return None
+    now = datetime.utcnow()
+    if not _BY_NAME["at"] or (now - _BY_NAME["at"]).total_seconds() > 300:
+        from ..models import Doctor, SessionLocal
+        with SessionLocal() as db:
+            _BY_NAME["map"] = {_key(d.name): d.photo_url for d in db.scalars(select(Doctor).where(Doctor.photo_url.is_not(None)))
+                               if d.photo_url}
+        _BY_NAME["at"] = now
+    return _BY_NAME["map"].get(_key(name))
+
+
+def _key(n: str) -> str:
+    return " ".join(sorted((n or "").lower().replace("ʼ", "'").split()[:2]))
