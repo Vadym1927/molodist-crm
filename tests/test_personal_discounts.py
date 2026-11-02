@@ -31,3 +31,16 @@ def test_personal_discounts():
         c.post(f"/patients/{ida}/discount", data={"products": "", "services": ""})
         with SessionLocal() as db:
             assert not pdc.has(db.get(Patient, ida))
+
+
+def test_personal_discounts_import_cb():
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        p = Patient(full_name="Аштаменко Тест", cleverbox_id=990082); db.add(p); db.commit(); pid = p.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        r = c.post("/settings/personal-discounts/import-cb", json={"items": [[990082, 10, 0], [123456789, 5, 5]], "name": "Personal discount", "auto": "1"}).json()
+        assert r["saved"] == 1 and r["no_patient"] == [123456789]
+        with SessionLocal() as db:
+            assert pdc.pcts(db.get(Patient, pid)) == (10, 0) and pdc.cfg(db)["name"] == "Personal discount"
+            pdc.save_cfg(db, "Персональна знижка", True, False)

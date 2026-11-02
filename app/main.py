@@ -2016,6 +2016,33 @@ def patient_discount(pid: int, discount_pct: str = Form(""), products: str = For
     return RedirectResponse(f"/patients/{pid}#loyal", 303)
 
 
+@app.post("/settings/personal-discounts/import-cb")
+async def personal_discounts_import_cb(request: Request, user: User = Depends(require("loyalty_patient")), db: Session = Depends(db_dep)):
+    """Персональні знижки з CleverBox (зібрані у веб-кабінеті): {"items": [[cb_client_id, % товари, % послуги]], "name", "auto"}.
+    Додає / оновлює знижки пацієнтів CRM за id клієнта CleverBox; інших пацієнтів не чіпає."""
+    from .services import personal_discounts as pdc
+    data = await request.json()
+    by_cb = {p_.cleverbox_id: p_ for p_ in db.scalars(select(Patient).where(Patient.cleverbox_id.is_not(None)))}
+    rep = {"items": 0, "saved": 0, "no_patient": []}
+    for it in data.get("items") or []:
+        rep["items"] += 1
+        try:
+            p_ = by_cb.get(int(it[0]))
+        except (TypeError, ValueError, IndexError):
+            continue
+        if not p_:
+            rep["no_patient"].append(it[0])
+            continue
+        pdc.set_for(p_, it[1], it[2])
+        rep["saved"] += 1
+    if data.get("name") is not None:
+        c_ = pdc.cfg(db)
+        pdc.save_cfg(db, str(data.get("name") or c_["name"]), bool(int(data.get("auto") or 0)), c_["combine"])
+    db.commit()
+    audit(db, "loyalty.personal_import_cb", user=user, saved=rep["saved"], items=rep["items"])
+    return rep
+
+
 @app.get("/settings/personal-discounts", response_class=HTMLResponse)
 def settings_personal_discounts(request: Request, user: User = Depends(require("loyalty_patient")), db: Session = Depends(db_dep)):
     from .services import personal_discounts as pdc
