@@ -227,11 +227,11 @@ def _details(db: Session, d: date, docs: dict, live, done, new_p, created, cance
             if it.kind == "service":
                 c = costs.get(it.ref_id).pop(0) if costs.get(it.ref_id) else (float(fixed[it.ref_id]) * q if it.ref_id in fixed else None)
                 g = svc.setdefault(it.name, {"name": it.name, "qty": 0.0, "sum": 0.0, "discount": 0.0, "cost": 0.0, "cost_known": True,
-                                            "doctors": set(), "patients": []})
+                                            "doctors": set(), "patients": [], "sales": []})
             elif it.kind == "product":
                 c = uc.get(it.ref_id, 0) * q if it.ref_id and uc.get(it.ref_id) else None
                 g = prod.setdefault(it.name, {"name": it.name, "qty": 0.0, "sum": 0.0, "discount": 0.0, "cost": 0.0, "cost_known": True,
-                                             "doctors": set(), "patients": [], "price": float(it.price or 0),
+                                             "doctors": set(), "patients": [], "sales": [], "price": float(it.price or 0),
                                              "unit_cost": uc.get(it.ref_id) if it.ref_id else None})
             else:
                 continue
@@ -246,6 +246,8 @@ def _details(db: Session, d: date, docs: dict, live, done, new_p, created, cance
                 g["doctors"].add(docs.get(it.doctor_id, "—"))
             if s.patient:
                 g["patients"].append(s.patient.full_name)
+            if (s.patient.full_name if s.patient else "—", s.id) not in g["sales"]:
+                g["sales"].append((s.patient.full_name if s.patient else "—", s.id))
 
     def fin(rows):
         res = []

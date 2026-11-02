@@ -363,7 +363,19 @@
   function load(q,tab){Q=q;box.innerHTML='<div class="vd-h"><div><small>Візит</small><h3>Завантаження…</h3></div><button type="button" class="vd-x" onclick="visitClose()">×</button></div>';
     document.getElementById('vd').classList.add('on');document.getElementById('vdb').classList.add('on');
     fetch('/calendar/visit?'+q+(tab?'&tab='+tab:''),{credentials:'same-origin'}).then(function(r){if(!r.ok)throw r.status;return r.text()})
-      .then(function(h){box.innerHTML=h;tabs()}).catch(function(){box.querySelector('h3').textContent='Не вдалося відкрити візит'})}
+      .then(function(h){box.innerHTML=h;tabs();dsBackBtn()}).catch(function(){box.querySelector('h3').textContent='Не вдалося відкрити візит';dsBackBtn()})}
+  // зі статистики дня: візит відкривається поверх, кнопка «← Статистика дня» повертає до того самого списку
+  var DSB=null;
+  function dsBackBtn(){if(!DSB)return;var h=box.querySelector('.vd-h');if(!h||h.querySelector('.ds-ret'))return;
+    var b=document.createElement('button');b.type='button';b.className='btn ghost ds-ret';b.style.cssText='margin-right:auto;margin-left:0;order:-1';b.textContent='← Статистика дня';
+    b.onclick=function(){var x=DSB;DSB=null;box.innerHTML=x.html;document.getElementById('vd').classList.add('wide');
+      if(x.sec){var el=box.querySelector('.dd-s[data-d="'+x.sec+'"]');if(el){box.querySelector('#ds-main').hidden=true;box.querySelectorAll('.dd-s').forEach(function(y){y.hidden=y!==el})}}};
+    h.insertBefore(b,h.firstChild)}
+  function dsStash(){var vis=box.querySelector('.dd-s:not([hidden])');DSB={html:box.innerHTML,sec:vis?vis.dataset.d:null}}
+  window.dsVisit=function(e,id){if(e&&(e.metaKey||e.ctrlKey))return true;if(e)e.preventDefault();dsStash();document.getElementById('vd').classList.remove('wide');load('appt='+id);return false};
+  window.dsSale=function(e,id){if(e&&(e.metaKey||e.ctrlKey))return true;if(e)e.preventDefault();dsStash();
+    box.innerHTML='<div class="vd-h"><div><small>Продаж</small><h3>Чек Ч-'+id+'</h3></div><a class="btn ghost" href="/sales/'+id+'" target="_blank" style="margin-left:auto">↗ Окремо</a><button type="button" class="vd-x" onclick="visitClose()">×</button></div>'+
+      '<iframe src="/sales/'+id+'" style="flex:1;width:100%;border:0;background:#F7F4F0"></iframe>';dsBackBtn();return false};
   window.visitOpen=function(e,q){if(e&&(e.metaKey||e.ctrlKey||e.shiftKey))return true;if(e){e.preventDefault();e.stopPropagation()}load(q);return false};
   window.vdAdopt=function(ids,then){var fd=new FormData();fd.append('v',ids);
     fetch('/calendar/visit/adopt',{method:'POST',body:fd,credentials:'same-origin',headers:{'Accept':'application/json'}}).then(function(r){return r.json()})
@@ -375,7 +387,7 @@
   window.dsOpen=function(t){var k=t.dataset.k,el=document.querySelector('#vd .dd-s[data-d="'+k+'"]');if(!el)return;
     document.getElementById('ds-main').hidden=true;document.querySelectorAll('#vd .dd-s').forEach(function(x){x.hidden=x!==el});el.scrollTop=0};
   window.dsBack=function(){document.querySelectorAll('#vd .dd-s').forEach(function(x){x.hidden=true});document.getElementById('ds-main').hidden=false};
-  window.visitClose=function(){document.getElementById('vd').classList.remove('on','wide');document.getElementById('vdb').classList.remove('on')};
+  window.visitClose=function(){DSB=null;document.getElementById('vd').classList.remove('on','wide');document.getElementById('vdb').classList.remove('on')};
   window.vdStatus=function(id,sel){var st=sel.value,reason='';
     if(st==='cancelled'){reason=prompt('Причина скасування');if(!reason||reason.trim().length<3){load(Q);return}}
     var fd=new FormData();fd.append('status',st);fd.append('reason',reason||'');fd.append('back','/calendar');
