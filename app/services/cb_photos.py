@@ -23,7 +23,7 @@ def _taken(s: str):
 
 def run(job, files: list) -> dict:
     from . import ingest
-    rep = {"files": len(files), "saved": 0, "exists": 0, "no_patient": 0, "not_image": 0, "failed": 0, "bytes": 0}
+    rep = {"files": len(files), "saved": 0, "exists": 0, "no_patient": 0, "not_image": 0, "failed": 0, "bytes": 0}   # not_image — без посилання
     with SessionLocal() as db:
         by_cb = {p.cleverbox_id: p.id for p in db.scalars(select(Patient).where(Patient.cleverbox_id.is_not(None)))}
         have = {x for (x,) in db.execute(select(PatientFile.cb_file_id).where(PatientFile.cb_file_id.is_not(None)))}
@@ -40,10 +40,10 @@ def run(job, files: list) -> dict:
         if cid not in by_cb:
             rep["no_patient"] += 1
             continue
-        if typ != "img" or not url.startswith("https://") or ALLOWED_HOST not in url.split("/")[2]:
-            rep["not_image"] += 1
+        if not url.startswith("https://") or ALLOWED_HOST not in url.split("/")[2]:
+            rep["not_image"] += 1                        # немає прямого посилання на сховище CleverBox
             continue
-        todo.append((by_cb[cid], fid, url, name or url.rsplit("/", 1)[-1], dt))
+        todo.append((by_cb[cid], fid, url, name or url.rsplit("/", 1)[-1], dt, "photo" if typ == "img" else "doc"))
     job.log(f"Файлів: {len(files)}, до завантаження: {len(todo)}, уже є: {rep['exists']}, без пацієнта: {rep['no_patient']}, не фото: {rep['not_image']}")
     http = httpx.Client(timeout=40, follow_redirects=True)
 
@@ -60,13 +60,13 @@ def run(job, files: list) -> dict:
         for i in range(0, len(todo), 40):
             batch = list(ex.map(fetch, todo[i:i + 40]))
             with SessionLocal() as db:
-                for (pid, fid, url, name, dt), data in batch:
+                for (pid, fid, url, name, dt, kind), data in batch:
                     if data is None:
                         rep["failed"] += 1
                         continue
                     path = ingest.store(data, f"cb_{fid}_{name}")
                     tk = _taken(dt)
-                    db.add(PatientFile(patient_id=pid, kind="photo", path=path, caption=f"З CleverBox: {name}"[:500],
+                    db.add(PatientFile(patient_id=pid, kind=kind, path=path, caption=f"З CleverBox: {name}"[:500],
                                        taken_at=tk.date() if tk else None, cb_file_id=fid,
                                        created_at=tk or datetime.utcnow()))
                     rep["saved"] += 1
