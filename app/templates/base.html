@@ -118,6 +118,9 @@ body.drw-on .drw{transform:none}body.drw-on .drw-bg{opacity:1;pointer-events:aut
 @media (min-width:901px){.drw,.drw-bg{display:none}}
 @media (max-width:720px){.tile b{font-size:21px}.tile{padding:12px 14px}.g2{grid-template-columns:1fr}header{padding:12px 16px;gap:12px}main{padding:18px 16px 30px}.hide-m{display:none}table{font-size:14px}th,td{padding:8px 6px}h1{font-size:26px}}
 </style>
+<script>if(window.self!==window.top){document.documentElement.classList.add('in-frame')}</script>
+<style>.in-frame .rail,.in-frame .top,.in-frame .drw,.in-frame .drw-bg,.in-frame .fin-tabs{display:none!important}
+.in-frame body.app{padding-left:0!important;padding-bottom:0!important}.in-frame main{padding:16px 22px 40px;max-width:none}</style>
 </head>
 <body class="{{ 'app' if nav not in ('login','print') and user }}">
 {% if nav != 'login' and user %}

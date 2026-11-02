@@ -1,6 +1,51 @@
 {% extends "base.html" %}
 {% block body %}
 {% include "_fin_tabs.html" %}
+{% set FB = [
+  ("Каса й продажі", [("/sales", "Каса CRM", "Чеки каси, оплати, повернення, тестові чеки", "M3 6h18v12H3zM3 10h18M7 15h4"),
+                      ("/finance/day", "Продажі за день", "Що продано сьогодні: чеки, оплати, лікарі", "M4 5h16v15H4zM4 9h16M9 3v4M15 3v4"),
+                      ("/finance/sales", "Продажі", "Продажі за період: послуги, товари, спеціалісти", "M4 20V10M10 20V4M16 20v-7M22 20H2")]),
+  ("Гроші", [("/finance/ops", "Фіноперації", "Журнал: надходження, витрати, перекази, комісії", "M4 7h16M4 12h16M4 17h10"),
+             ("/settings/cashboxes", "Каси й рахунки", "Залишки кас і рахунків, комісія банку", "M3 7l9-4 9 4v10l-9 4-9-4z"),
+             ("/reports?r=cashflow", "Cashflow", "Рух грошей по днях і місяцях", "M3 17l6-6 4 4 8-8M15 7h6v6")]),
+  ("Зарплата", [("/finance/accruals", "Нарахування зарплати", "Документи нарахування за період, на баланс", "M12 3v18M7 8h7a3 3 0 0 1 0 6H8"),
+                ("/finance/payroll", "ЗП за місяць", "Зарплата кожного спеціаліста за місяць", "M5 4h14v16H5zM9 8h6M9 12h6M9 16h3"),
+                ("/finance/settle", "Взаєморозрахунки по з/п", "Нараховано, виплачено, борг", "M7 7h10l-3-3M17 17H7l3 3")]),
+  ("Пацієнти", [("/finance/balances", "Баланс пацієнтів", "Депозити й борги пацієнтів", "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c1-4 4-6 8-6s7 2 8 6"),
+                ("/finance/bonuses", "Рух бонусів", "Нарахування й списання бонусів", "M12 3l2.6 5.6 6 .6-4.5 4 1.3 6L12 16.3 6.6 19.2l1.3-6-4.5-4 6-.6z")]),
+  ("Ціни", [("/finance/pricing", "Планування ціни реалізації", "Закупівля, курс, націнка, ціна на вітрині", "M20 12l-8 8-9-9V3h8z")]),
+] %}
+<style>
+.fb{display:grid;gap:18px;margin:0 0 26px}
+.fb-g h3{margin:0 0 10px;font:600 12.5px var(--head);letter-spacing:.16em;text-transform:uppercase;color:#8a8496}
+.fb-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.fb-c{display:flex;gap:14px;align-items:flex-start;background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:16px 18px;text-decoration:none;color:#2A2430;cursor:pointer;transition:.15s;text-align:left}
+.fb-c:hover{border-color:#C9BFE6;box-shadow:0 12px 30px -18px rgba(59,48,80,.5);transform:translateY(-1px)}
+.fb-c i{flex:none;width:42px;height:42px;border-radius:12px;background:#F1EDF8;color:#3B3050;display:grid;place-items:center}
+.fb-c b{display:block;font:600 15px var(--sans)}.fb-c span{display:block;font-size:12.5px;color:#8a8496;margin-top:3px;line-height:1.4}
+.fw{position:fixed;inset:0;z-index:90;display:none}.fw.on{display:block}
+.fw-bg{position:absolute;inset:0;background:rgba(42,36,48,.45)}
+.fw-box{position:absolute;inset:3vh 3vw;background:#F7F4F0;border-radius:22px;box-shadow:0 30px 80px rgba(42,36,48,.4);display:flex;flex-direction:column;overflow:hidden}
+.fw-h{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 18px;background:#fff;border-bottom:1px solid #ECE7E1}
+.fw-h b{font:600 15px var(--head);letter-spacing:.12em;text-transform:uppercase;color:#2A2430}
+.fw-h a,.fw-h button{border:1px solid #E9E5DF;background:#fff;border-radius:10px;height:36px;padding:0 12px;font:700 12.5px var(--sans);color:#3B3050;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center}
+.fw iframe{flex:1;border:0;width:100%;background:#F7F4F0}
+@media(max-width:720px){.fw-box{inset:0;border-radius:0}}
+</style>
+<div class="fb">{% for g, items in FB %}<div class="fb-g"><h3>{{ g }}</h3><div class="fb-row">
+  {% for u, t, d, ic in items %}<a class="fb-c" href="{{ u }}" onclick="return fwOpen(event, this)" data-t="{{ t }}"><i><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ ic }}"/></svg></i>
+    <div><b>{{ t }}</b><span>{{ d }}</span></div></a>{% endfor %}</div></div>{% endfor %}</div>
+<div class="fw" id="fw"><div class="fw-bg" onclick="fwClose()"></div><div class="fw-box"><div class="fw-h"><b id="fw-t">Фінанси</b>
+  <div style="display:flex;gap:8px"><a id="fw-o" href="#" target="_top" title="Відкрити окремою сторінкою">↗ Окремо</a><button type="button" onclick="fwClose()">✕ Закрити</button></div></div>
+  <iframe id="fw-f" title="Розділ фінансів"></iframe></div></div>
+<script>
+function fwOpen(e,a){if(e&&(e.metaKey||e.ctrlKey||e.shiftKey))return true;if(e)e.preventDefault();
+  document.getElementById('fw-t').textContent=a.dataset.t;document.getElementById('fw-o').href=a.getAttribute('href');
+  document.getElementById('fw-f').src=a.getAttribute('href');document.getElementById('fw').classList.add('on');document.body.style.overflow='hidden';return false}
+function fwClose(){document.getElementById('fw').classList.remove('on');document.getElementById('fw-f').src='about:blank';document.body.style.overflow=''}
+document.addEventListener('keydown',function(e){if(e.key==='Escape')fwClose()});
+</script>
+<h2 style="margin:0 0 10px;font:600 14px var(--head);letter-spacing:.16em;text-transform:uppercase;color:#8a8496">Огляд</h2>
 <div class="row between" style="margin-bottom:14px"><div><h1>Фінанси</h1><div class="muted small">{{ d_from|dt }} — {{ d_to|dt }}{% if not fs.has_data %} · чеків з CleverBox за період немає (потрібна синхронізація){% endif %}</div></div>
   <form class="row small"><input type="date" name="df" value="{{ d_from }}"><span class="muted">—</span><input type="date" name="dt_" value="{{ d_to }}"><button class="btn ghost">OK</button>
     <a class="btn ghost" href="/export/report.xlsx?df={{ d_from }}&dt_={{ d_to }}">Excel</a></form></div>
