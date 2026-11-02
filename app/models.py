@@ -217,6 +217,7 @@ class PatientFile(Base):
     zone: Mapped[str | None] = mapped_column(String(80))             # обличчя, шия, зона під очима…
     taken_at: Mapped[date | None] = mapped_column(Date)
     record_id: Mapped[int | None] = mapped_column(Integer, index=True)   # запис медкартки
+    cb_file_id: Mapped[int | None] = mapped_column(Integer, index=True)  # файл CleverBox (перенос фото — без дублів)
 
     patient: Mapped[Patient | None] = relationship(back_populates="files")
 

@@ -3938,6 +3938,18 @@ async def stock_balances_import(file: UploadFile = File(...), user: User = Depen
     return RedirectResponse("/stock?tab=balances" + (f"&msg={msg}" if msg else "#snap"), 303)
 
 
+@app.post("/patients/photos/import-cb")
+async def patients_photos_import_cb(request: Request, user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
+    """Фото пацієнтів з CleverBox (список зібрано у веб-кабінеті) → у фоні завантажуються в картки пацієнтів."""
+    from .services import cb_photos
+    data = await request.json()
+    files = data.get("files") or []
+    job = jobs.start("Фото пацієнтів з CleverBox", cb_photos.run, files)
+    audit(db, "patients.photos_import_cb", user=user, files=len(files), job=job.id)
+    db.commit()
+    return {"ok": True, "job": job.id, "files": len(files)}
+
+
 @app.post("/finance/ops/import-cb-web")
 async def finops_import_cb_web(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     """Журнал фіноперацій із веб-кабінету CleverBox (зібраний у браузері) → CbFinOp; в автономному режимі — лише до дати переходу."""

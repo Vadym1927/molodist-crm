@@ -1,0 +1,78 @@
+"""Фото пацієнтів з CleverBox (файли картки клієнта) → файли пацієнтів CRM.
+Список файлів збирається у веб-кабінеті CleverBox (лише читання): [cb_client_id, cb_file_id, url_зображення, назва, дата, тип, розширення, автор].
+Сервер CRM сам завантажує зображення за прямими посиланнями сховища CleverBox. Повторний запуск не дублює (cb_file_id)."""
+from __future__ import annotations
+
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+
+import httpx
+from sqlalchemy import select
+
+from ..models import Patient, PatientFile, SessionLocal
+
+ALLOWED_HOST = "upcloudobjects.com"          # сховище файлів CleverBox
+
+
+def _taken(s: str):
+    try:
+        return datetime.strptime(str(s)[:16], "%d.%m.%Y %H:%M")
+    except ValueError:
+        return None
+
+
+def run(job, files: list) -> dict:
+    from . import ingest
+    rep = {"files": len(files), "saved": 0, "exists": 0, "no_patient": 0, "not_image": 0, "failed": 0, "bytes": 0}
+    with SessionLocal() as db:
+        by_cb = {p.cleverbox_id: p.id for p in db.scalars(select(Patient).where(Patient.cleverbox_id.is_not(None)))}
+        have = {x for (x,) in db.execute(select(PatientFile.cb_file_id).where(PatientFile.cb_file_id.is_not(None)))}
+    todo = []
+    for f in files:
+        try:
+            cid, fid, url, name, dt, typ = int(f[0]), int(f[1]), str(f[2] or ""), str(f[3] or ""), str(f[4] or ""), str(f[5] or "")
+        except (TypeError, ValueError, IndexError):
+            rep["failed"] += 1
+            continue
+        if fid in have:
+            rep["exists"] += 1
+            continue
+        if cid not in by_cb:
+            rep["no_patient"] += 1
+            continue
+        if typ != "img" or not url.startswith("https://") or ALLOWED_HOST not in url.split("/")[2]:
+            rep["not_image"] += 1
+            continue
+        todo.append((by_cb[cid], fid, url, name or url.rsplit("/", 1)[-1], dt))
+    job.log(f"Файлів: {len(files)}, до завантаження: {len(todo)}, уже є: {rep['exists']}, без пацієнта: {rep['no_patient']}, не фото: {rep['not_image']}")
+    http = httpx.Client(timeout=40, follow_redirects=True)
+
+    def fetch(t):
+        try:
+            r = http.get(t[2])
+            if r.status_code == 200 and r.content and len(r.content) < 25 * 1024 * 1024:
+                return t, r.content
+        except httpx.HTTPError:
+            pass
+        return t, None
+    done = 0
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        for i in range(0, len(todo), 40):
+            batch = list(ex.map(fetch, todo[i:i + 40]))
+            with SessionLocal() as db:
+                for (pid, fid, url, name, dt), data in batch:
+                    if data is None:
+                        rep["failed"] += 1
+                        continue
+                    path = ingest.store(data, f"cb_{fid}_{name}")
+                    tk = _taken(dt)
+                    db.add(PatientFile(patient_id=pid, kind="photo", path=path, caption=f"З CleverBox: {name}"[:500],
+                                       taken_at=tk.date() if tk else None, cb_file_id=fid,
+                                       created_at=tk or datetime.utcnow()))
+                    rep["saved"] += 1
+                    rep["bytes"] += len(data)
+                db.commit()
+            done += len(batch)
+            job.log(f"Завантажено {rep['saved']} з {len(todo)} ({rep['bytes'] // (1024 * 1024)} МБ), помилок {rep['failed']}")
+    http.close()
+    return rep
