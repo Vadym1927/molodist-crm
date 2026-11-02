@@ -114,3 +114,16 @@ def test_cashflow_from_journal():
         for i in (990001, 990002, 990003, 990004, 990005):
             db.delete(db.get(CbFinOp, i))
         db.commit()
+
+
+def test_journal_skips_test_sales():
+    from datetime import date, datetime
+    from app.models import SessionLocal, Sale, SalePayment
+    from app.services import finops as fo
+    with SessionLocal() as db:
+        s = Sale(at=datetime(2024, 5, 5, 12), status="paid", total=1800, fiscal={"test_sale": True})
+        db.add(s); db.flush()
+        db.add(SalePayment(sale_id=s.id, method="Готівка ФОП Колган", amount=1800)); db.commit()
+        assert not [r for r in fo.journal(db, date(2024, 5, 5), date(2024, 5, 5)) if r.sale_id == s.id]
+        s.fiscal = {}; db.commit()
+        assert [r for r in fo.journal(db, date(2024, 5, 5), date(2024, 5, 5)) if r.sale_id == s.id]

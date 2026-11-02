@@ -46,7 +46,7 @@
   <div class="tile hl"><span>Каса зараз (розрах.)</span><b>{{ cf.balance|uah if cf.balance is not none else '—' }}</b><div class="muted small">на {{ cf.last_day|dt('%d.%m.%Y') if cf.last_day else '—' }}{% if cf.gaps %} · <b style="color:var(--bad)">неточно — є місяці без даних</b>{% endif %}</div></div>
 </div>
 
-{% if cf.source == 'journal' %}<p class="muted small" style="margin:-6px 0 12px">До переходу на CRM — звіт CleverBox «Прибуток»{% if cf.coverage[1] %} ({{ cf.coverage[0]|dt('%d.%m.%Y') }} — {{ cf.coverage[1]|dt('%d.%m.%Y') }}){% endif %}; дні без звіту — з журналу фіноперацій CleverBox. Від дати переходу — лише CRM: чеки каси й операції, внесені в CRM (як у <a href="/finance/ops">Фінанси → Фіноперації</a>). Переміщення між касами й оплати не грошима не рахуються.</p>
+{% if cf.source == 'journal' %}<p class="muted small" style="margin:-6px 0 12px">Дні, за які завантажено звіт CleverBox «Прибуток»{% if cf.coverage[1] %} ({{ cf.coverage[0]|dt('%d.%m.%Y') }} — {{ cf.coverage[1]|dt('%d.%m.%Y') }}){% endif %}, — зі звіту. Решта днів — з журналу фіноперацій: операції CleverBox, чеки каси й операції, внесені в CRM (як у <a href="/finance/ops">Фінанси → Фіноперації</a>). Тестові чеки, переміщення між касами й оплати не грошима не рахуються.</p>
 {% elif cf.coverage[1] %}<p class="muted small" style="margin:-6px 0 12px">Дані звіту CleverBox «Прибуток»: {{ cf.coverage[0]|dt('%d.%m.%Y') }} — {{ cf.coverage[1]|dt('%d.%m.%Y') }}.
   {% if cf.total.estimated %}<b>{{ cf.total.estimated }} дн — оцінка: лише надходження з чеків, без витрат</b> — довантажте свіжий звіт, і дні перезапишуться.{% endif %}</p>{% endif %}
 {% if cf.gaps %}<div class="alert">Немає даних за: <b>{{ cf.gaps|join(', ') }}</b>. Вивантажте з CleverBox «Прибуток» за ці місяці (можна одним файлом з 01.01) — CRM доповнить без дублів. Доки даних немає, каса рахується неточно.</div>{% endif %}
@@ -104,7 +104,7 @@
   </div>{% endif %}
   <div class="card"><h2>Дані</h2>
     {% if true %}<form method="post" action="/reports/cashflow/import" enctype="multipart/form-data" class="grid" style="gap:8px">
-      <div class="small muted">Звіт CleverBox <b>«Прибуток»</b> (Profit_*.xls) за будь-який період. Повторне завантаження перезаписує дні, дублів немає.{% if cf.source == 'journal' %} Дні від дати переходу на CRM зі звіту не беруться — їх рахує CRM.{% else %} Між імпортами CRM сама додає надходження з чеків (без витрат).{% endif %}</div>
+      <div class="small muted">Звіт CleverBox <b>«Прибуток»</b> (Profit_*.xls) за будь-який період. Повторне завантаження перезаписує дні, дублів немає.{% if cf.source == 'journal' %} Дні зі звіту мають пріоритет над даними CRM.{% else %} Між імпортами CRM сама додає надходження з чеків (без витрат).{% endif %}</div>
       <input type="file" name="file" accept=".xls,.xlsx" required><button class="btn">Імпорт звіту «Прибуток»</button></form>{% endif %}
     <form method="post" action="/reports/cashflow/opening" class="grid" style="gap:8px;{{ 'margin-top:16px;padding-top:14px;border-top:1px solid var(--line)' if cf.source != 'journal' }}">
       <div class="small muted">Залишок у касі на дату старту</div>
