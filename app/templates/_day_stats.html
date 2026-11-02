@@ -4,7 +4,7 @@
   <div class="ds-g">
     <div class="ds-t dk" onclick="dsOpen(this)" data-k="new"><span>Нові пацієнти</span><b>{{ s.patients.new }}</b><small>Всього пацієнтів: {{ s.patients.total }} · прийшли: {{ s.patients.came }}</small></div>
     {% if money %}<div class="ds-t dk" onclick="dsOpen(this)" data-k="income"><span>Дохід</span><b>{{ s.income.fact|uah }}</b><small>Плановий дохід: {{ s.income.plan|uah }}<br>Зі знижкою: {{ s.income.with_discount }} чек(ів) · знижки {{ s.income.discount|uah }}</small></div>{% endif %}
-    <div class="ds-t dk" onclick="dsOpen(this)" data-k="created"><span>Записів створено</span><b>{{ s.created.n }}</b><small>Онлайн-запис: {{ s.created.online }}<br>Адміністратор: {{ s.created.admin }}{% if s.created.cleverbox %} · з CleverBox: {{ s.created.cleverbox }}{% endif %}</small></div>
+    <div class="ds-t dk" onclick="dsOpen(this)" data-k="created"><span>Записів створено</span><b>{{ s.created.n }}</b><small>Онлайн-запис: {{ s.created.online }}<br>Адміністратор: {{ s.created.admin }}</small></div>
     <div class="ds-t dk" onclick="dsOpen(this)" data-k="visits"><span>Візитів на день</span><b>{{ s.visits.n }}</b><small>Відбулось / розраховано: {{ s.visits.done }}{% if money and s.income.unpaid %}<br>Не розраховано: {{ s.income.unpaid|uah }}{% endif %}</small></div>
     <div class="ds-t warn dk" onclick="dsOpen(this)" data-k="cancel_day"><span>Скасувань на цей день</span><b>{{ s.cancel_day.n }}</b><small>На суму: {{ s.cancel_day.sum|uah }}</small></div>
     <div class="ds-t warn dk" onclick="dsOpen(this)" data-k="cancel_today"><span>Скасовано цього дня</span><b>{{ s.cancel_today.n }}</b><small>На суму: {{ s.cancel_today.sum|uah }}</small></div>

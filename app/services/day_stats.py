@@ -42,7 +42,8 @@ def compute(db: Session, d: date, doctor_id: int | None = None) -> dict:
 
     # записи, створені цього дня
     created = db.scalars(select(Appointment).where(Appointment.created_at >= a - timedelta(hours=3), Appointment.created_at < b)).all()
-    created = [x for x in created if x.created_at and (x.created_at + timedelta(hours=_tz_shift())).date() == d]
+    # перенесені з CleverBox візити (adopt) — це не нові записи: CleverBox більше не джерело записів
+    created = [x for x in created if x.created_at and (x.created_at + timedelta(hours=_tz_shift())).date() == d and x.source != "cleverbox"]
     online = [x for x in created if x.source in ("online", "bot")]
     by_admin = [x for x in created if x.source in ("crm", "appeal")]
     from_cb = [x for x in created if x.source == "cleverbox"]
