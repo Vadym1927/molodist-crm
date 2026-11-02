@@ -96,7 +96,7 @@
     {# ---------- ВИТРАТИ ---------- #}
     <section data-p="cost" hidden>
       {% if mats is not none %}
-      <div class="vd-info">{% if closed %}Візит закрито — матеріали списано зі складу: {% for d in wdocs %}<a href="/stock/docs/{{ d.id }}">{{ d.number }} ({{ WH.get(d.wh_from, d.wh_from) }})</a>{{ ', ' if not loop.last }}{% endfor %}.
+      <div class="vd-info">{% if a and a.historic %}Історія CleverBox: фактичні витратні цього візиту, списані зі складу в CleverBox (у CRM лише для перегляду).{% elif closed %}Візит закрито — матеріали списано зі складу: {% for d in wdocs %}<a href="/stock/docs/{{ d.id }}">{{ d.number }} ({{ WH.get(d.wh_from, d.wh_from) }})</a>{{ ', ' if not loop.last }}{% endfor %}.
         {% else %}Витратні — з техкарти кожної послуги. Кількість можна змінити, позицію — прибрати чи додати; зміни зберігаються одразу. Після оплати візиту матеріали списуються зі складу.{% endif %}</div>
       {% if popts %}<datalist id="vd-prods">{% for pid, label, w in popts %}<option value="{{ label }}">{% endfor %}</datalist>{% endif %}
       {% for g in mats %}
