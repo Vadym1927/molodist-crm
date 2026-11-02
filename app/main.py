@@ -3938,6 +3938,19 @@ async def stock_balances_import(file: UploadFile = File(...), user: User = Depen
     return RedirectResponse("/stock?tab=balances" + (f"&msg={msg}" if msg else "#snap"), 303)
 
 
+@app.post("/finance/ops/import-cb-web")
+async def finops_import_cb_web(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Журнал фіноперацій із веб-кабінету CleverBox (зібраний у браузері) → CbFinOp; в автономному режимі — лише до дати переходу."""
+    from .services import cb_finops_import as cfi, autonomy as _aut
+    data = await request.json()
+    s_ = _aut.since(db)
+    until = datetime.combine(s_, datetime.min.time()) - timedelta(seconds=1) if s_ else None
+    rep = await asyncio.to_thread(cfi.import_web_rows, db, data.get("rows") or [], until)
+    audit(db, "finops.import_cb_web", user=user, **{k: v for k, v in rep.items()})
+    db.commit()
+    return rep
+
+
 @app.post("/stock/balances/snapshot-cb")
 async def stock_snapshot_cb(request: Request, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
     """Залишки CleverBox (зібрані з веб-кабінету): {"date": "2026-10-31", "items": [[cb_product_id, склад, к-сть, сума]]}

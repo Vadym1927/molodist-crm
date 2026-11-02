@@ -212,3 +212,52 @@ def from_api_row(r: dict) -> dict | None:
             "filial": pick("filial_name", "filial", "salon_name"), "account": _text(r, CASHBOX_KEYS)[:200] or None,
             "vid": pick("payment_name", "pay_type", "cashbox_to_name", "to_cashbox"), "author": pick("author_name", "author", "user_name"),
             "comment": pick("comment", "note", "description")}
+
+
+WEB_KIND = {"pko": "income", "rko": "expense", "rpo": "transfer", "fst": "storno", "1": "income", "2": "expense", "3": "transfer"}
+
+
+def import_web_rows(db: Session, rows: list, until: datetime | None = None) -> dict:
+    """Журнал з веб-кабінету CleverBox (cashmove/list), зібраний у браузері:
+    [id, unix_ts, тип (pko/rko/rpo/fst або 1/2/3), сума, від кого/кому, підстава, стаття, філія, рахунок, вид, автор, коментар].
+    Ключ — № операції CleverBox (той самий, що в Excel-журналі): повторний імпорт оновлює, дублів немає. until — не пізніше."""
+    from sqlalchemy import select
+    recs = {}
+    skipped = 0
+    for r in rows:
+        try:
+            oid, typ = int(r[0]), str(r[2])
+            raw = str(r[1])
+            if "." in raw:                                   # «31.10.2026 18:40:54» — місцевий час, як у CleverBox
+                at = datetime.strptime(raw[:19], "%d.%m.%Y %H:%M:%S")
+            else:
+                from zoneinfo import ZoneInfo
+                at = datetime.fromtimestamp(int(raw), ZoneInfo("Europe/Kyiv")).replace(tzinfo=None)
+        except (TypeError, ValueError, IndexError):
+            skipped += 1
+            continue
+        if until and at > until:
+            skipped += 1
+            continue
+        kind = WEB_KIND.get(typ) or kind_of(str(r[5] or ""), float(r[3] or 0))
+        recs[oid] = {"at": at, "kind": kind, "amount": float(r[3] or 0), "num": oid, "who": r[4], "basis": r[5], "article": r[6],
+                     "filial": r[7], "account": r[8], "vid": r[9], "author": r[10], "comment": r[11]}
+    ids = list(recs)
+    created = updated = 0
+    for i in range(0, len(ids), 2000):
+        chunk = ids[i:i + 2000]
+        have = {x.id: x for x in db.scalars(select(CbFinOp).where(CbFinOp.id.in_(chunk)))}
+        for oid in chunk:
+            x = have.get(oid)
+            if x is None:
+                x = CbFinOp(id=oid)
+                db.add(x)
+                created += 1
+            else:
+                updated += 1
+            _fill(x, recs[oid], "import")
+        db.commit()
+    first = min((r["at"] for r in recs.values()), default=None)
+    last = max((r["at"] for r in recs.values()), default=None)
+    return {"rows": len(rows), "created": created, "updated": updated, "skipped": skipped,
+            "from": first.strftime("%d.%m.%Y") if first else None, "to": last.strftime("%d.%m.%Y") if last else None}
