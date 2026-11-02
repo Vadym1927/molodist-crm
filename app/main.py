@@ -5567,6 +5567,26 @@ def stock_mono_sync(days: int = Form(2), back: str = Form(""), user: User = Depe
     return RedirectResponse(f"/stock?tab=suppliers&job={job.id}#mono", 303)
 
 
+def _mono_history_job(job, d_from: str, d_to: str):
+    from .integrations import monobank
+    with SessionLocal() as db:
+        job.log("Історія виписок monobank: вікнами по 31 добі, пауза 61 с між запитами (ліміт monobank)…")
+        return monobank.history(db, date.fromisoformat(d_from), date.fromisoformat(d_to), log=job.log)
+
+
+@app.post("/stock/mono/history")
+def stock_mono_history(d_from: str = Form("2022-01-01"), d_to: str = Form("2026-10-31"), user: User = Depends(require("finance")),
+                       db: Session = Depends(db_dep)):
+    try:
+        a_, b_ = date.fromisoformat(d_from), date.fromisoformat(d_to)
+    except ValueError:
+        return RedirectResponse(_with_msg("/settings/keys?s=mono#mono", "Невірні дати", True), 303)
+    job = jobs.start("Історія виписок monobank", _mono_history_job, a_.isoformat(), min(b_, date.today()).isoformat())
+    audit(db, "mono.history", user=user, d_from=d_from, d_to=d_to, job=job.id)
+    db.commit()
+    return RedirectResponse(f"/settings/keys?s=mono&job={job.id}#mono", 303)
+
+
 @app.post("/stock/mono/recheck")
 def stock_mono_recheck(user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
     """Зняти автоматичні рознесення, де постачальника впізнано лише за назвою (могли промахнутись)."""

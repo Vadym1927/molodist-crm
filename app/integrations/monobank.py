@@ -145,6 +145,50 @@ def sync(db: Session, days: int = 2, getter=None, sleep=time.sleep) -> dict:
     return rep
 
 
+def history(db: Session, date_from, date_to, getter=None, sleep=time.sleep, log=lambda m: None) -> dict:
+    """Історія виписок за період: вікна по 31 добі (ліміт monobank), пауза між запитами одного токена.
+    Як і щоденна синхронізація — списання (оплати постачальникам тощо); повторний запуск не дублює (id транзакції)."""
+    from ..services import payments
+    getter = getter or _get
+    rep, items = {}, saved(db)
+    start = int(datetime.combine(date_from, datetime.min.time()).timestamp())
+    end = int(datetime.combine(date_to, datetime.max.time()).timestamp())
+    step = 31 * 86400
+    calls = 0
+    for x in items:
+        n, errors = 0, 0
+        for acc in x.get("watch", []):
+            frm = start
+            while frm <= end:
+                to = min(frm + step - 1, end)
+                if calls:
+                    sleep(STATEMENT_GAP)
+                calls += 1
+                try:
+                    rows = getter(f"/personal/statement/{acc}/{frm}/{to}", x["token"]) or []
+                except Exception as e:  # noqa: BLE001 — напр., період недоступний у monobank
+                    errors += 1
+                    log(f"{x['fop']} {datetime.fromtimestamp(frm):%d.%m.%Y}: {str(e)[:120]}")
+                    frm = to + 1
+                    continue
+                for t in rows:
+                    tid = str(t.get("id"))
+                    if not tid or (t.get("amount") or 0) >= 0 or db.get(BankTxn, tid):
+                        continue
+                    db.add(BankTxn(id=tid, fop=x["fop"], account=acc, at=datetime.fromtimestamp(int(t.get("time") or 0)),
+                                   amount=round((t.get("amount") or 0) / 100, 2), counter_name=(t.get("counterName") or "")[:300] or None,
+                                   counter_iban=(t.get("counterIban") or "")[:40] or None,
+                                   counter_edrpou=(t.get("counterEdrpou") or "")[:20] or None,
+                                   description=((t.get("description") or "") + (" · " + t["comment"] if t.get("comment") else ""))[:500] or None))
+                    n += 1
+                db.commit()
+                log(f"{x['fop']}: {datetime.fromtimestamp(frm):%d.%m.%Y}–{datetime.fromtimestamp(to):%d.%m.%Y} · нових списань усього {n}")
+                frm = to + 1
+        rep[x["fop"]] = f"{n} нових списань" + (f", періодів з помилкою {errors}" if errors else "")
+    rep["рознесено"] = payments.rematch_all(db)
+    return rep
+
+
 # ---------------- рахунок monobank → каса / рахунок CRM ----------------
 MAP_KEY = "mono_cashbox_map"
 DEFAULT_MAP = {"00023032": "Операційний Фонд", "00023028": "Амортизаційний + Операційний Фонд"}   # ФОП Колган / ФОП Бондар
