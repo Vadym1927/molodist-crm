@@ -1,31 +1,98 @@
 {% set WD = ['Понеділок','Вівторок','Середа','Четвер',"П'ятниця",'Субота','Неділя'] %}
 <div class="vd-h"><div><small>Статистика дня</small><h3>{{ WD[s.day.weekday()] }}, {{ s.day.strftime('%d.%m.%Y') }}</h3></div><button type="button" class="vd-x" onclick="visitClose()">×</button></div>
-<div class="ds">
+<div class="ds" id="ds-main">
   <div class="ds-g">
-    <div class="ds-t"><span>Нові пацієнти</span><b>{{ s.patients.new }}</b><small>Всього пацієнтів: {{ s.patients.total }} · прийшли: {{ s.patients.came }}</small></div>
-    {% if money %}<div class="ds-t"><span>Дохід</span><b>{{ s.income.fact|uah }}</b><small>Плановий дохід: {{ s.income.plan|uah }}<br>Зі знижкою: {{ s.income.with_discount }} чек(ів) · знижки {{ s.income.discount|uah }}</small></div>{% endif %}
-    <div class="ds-t"><span>Записів створено</span><b>{{ s.created.n }}</b><small>Онлайн-запис: {{ s.created.online }}<br>Адміністратор: {{ s.created.admin }}{% if s.created.cleverbox %} · з CleverBox: {{ s.created.cleverbox }}{% endif %}</small></div>
-    <div class="ds-t"><span>Візитів на день</span><b>{{ s.visits.n }}</b><small>Відбулось / розраховано: {{ s.visits.done }}{% if money and s.income.unpaid %}<br>Не розраховано: {{ s.income.unpaid|uah }}{% endif %}</small></div>
-    <div class="ds-t warn"><span>Скасувань на цей день</span><b>{{ s.cancel_day.n }}</b><small>На суму: {{ s.cancel_day.sum|uah }}</small></div>
-    <div class="ds-t warn"><span>Скасовано цього дня</span><b>{{ s.cancel_today.n }}</b><small>На суму: {{ s.cancel_today.sum|uah }}</small></div>
-    <div class="ds-t warn"><span>Візитів перенесено</span><b>{{ s.moved.n }}</b><small>На суму: {{ s.moved.sum|uah }}</small></div>
-    <div class="ds-t bad"><span>Неявки</span><b>{{ s.no_show.n }}</b><small>На суму: {{ s.no_show.sum|uah }}</small></div>
+    <div class="ds-t dk" onclick="dsOpen(this)" data-k="new"><span>Нові пацієнти</span><b>{{ s.patients.new }}</b><small>Всього пацієнтів: {{ s.patients.total }} · прийшли: {{ s.patients.came }}</small></div>
+    {% if money %}<div class="ds-t dk" onclick="dsOpen(this)" data-k="income"><span>Дохід</span><b>{{ s.income.fact|uah }}</b><small>Плановий дохід: {{ s.income.plan|uah }}<br>Зі знижкою: {{ s.income.with_discount }} чек(ів) · знижки {{ s.income.discount|uah }}</small></div>{% endif %}
+    <div class="ds-t dk" onclick="dsOpen(this)" data-k="created"><span>Записів створено</span><b>{{ s.created.n }}</b><small>Онлайн-запис: {{ s.created.online }}<br>Адміністратор: {{ s.created.admin }}{% if s.created.cleverbox %} · з CleverBox: {{ s.created.cleverbox }}{% endif %}</small></div>
+    <div class="ds-t dk" onclick="dsOpen(this)" data-k="visits"><span>Візитів на день</span><b>{{ s.visits.n }}</b><small>Відбулось / розраховано: {{ s.visits.done }}{% if money and s.income.unpaid %}<br>Не розраховано: {{ s.income.unpaid|uah }}{% endif %}</small></div>
+    <div class="ds-t warn dk" onclick="dsOpen(this)" data-k="cancel_day"><span>Скасувань на цей день</span><b>{{ s.cancel_day.n }}</b><small>На суму: {{ s.cancel_day.sum|uah }}</small></div>
+    <div class="ds-t warn dk" onclick="dsOpen(this)" data-k="cancel_today"><span>Скасовано цього дня</span><b>{{ s.cancel_today.n }}</b><small>На суму: {{ s.cancel_today.sum|uah }}</small></div>
+    <div class="ds-t warn dk" onclick="dsOpen(this)" data-k="moved"><span>Візитів перенесено</span><b>{{ s.moved.n }}</b><small>На суму: {{ s.moved.sum|uah }}</small></div>
+    <div class="ds-t bad dk" onclick="dsOpen(this)" data-k="no_show"><span>Неявки</span><b>{{ s.no_show.n }}</b><small>На суму: {{ s.no_show.sum|uah }}</small></div>
   </div>
   {% if money %}
   <h4>Каса</h4>
   <div class="ds-g">
-    <div class="ds-t"><span>Рахунки (чеки)</span><b>{{ s.checks.n }}</b><small>Сума: {{ s.checks.sum|uah }} · середній {{ s.income.avg|uah }}{% if s.checks.test %}<br>з них тестових: {{ s.checks.test }}{% endif %}</small></div>
+    <div class="ds-t dk" onclick="dsOpen(this)" data-k="checks"><span>Рахунки (чеки)</span><b>{{ s.checks.n }}</b><small>Сума: {{ s.checks.sum|uah }} · середній {{ s.income.avg|uah }}{% if s.checks.test %}<br>з них тестових: {{ s.checks.test }}{% endif %}</small></div>
     {% set k = s.kinds %}
-    <div class="ds-t"><span>Послуги</span><b>{{ (k.service.sum if k.service else 0)|uah }}</b><small>Кількість: {{ (k.service.n if k.service else 0)|int }}</small></div>
-    <div class="ds-t"><span>Товари</span><b>{{ (k.product.sum if k.product else 0)|uah }}</b><small>Кількість: {{ (k.product.n if k.product else 0)|int }}</small></div>
-    <div class="ds-t"><span>Сертифікати</span><b>{{ ((k.cert.sum if k.cert else 0) + 0)|uah }}</b><small>Продано в касі: {{ (k.cert.n if k.cert else 0)|int }}{% if s.certs_sold.n %} · у реєстрі: {{ s.certs_sold.n }}{% endif %}</small></div>
-    <div class="ds-t"><span>Абонементи</span><b>{{ (k.sub.sum if k.sub else 0)|uah }}</b><small>Продано в касі: {{ (k.sub.n if k.sub else 0)|int }}{% if s.subs_sold.n %} · у реєстрі: {{ s.subs_sold.n }}{% endif %}</small></div>
-    <div class="ds-t"><span>Поповнення рахунку</span><b>{{ (k.topup.sum if k.topup else 0)|uah }}</b><small>Операцій: {{ (k.topup.n if k.topup else 0)|int }}</small></div>
+    <div class="ds-t dk" onclick="dsOpen(this)" data-k="services"><span>Послуги</span><b>{{ (k.service.sum if k.service else 0)|uah }}</b><small>Кількість: {{ (k.service.n if k.service else 0)|int }}</small></div>
+    <div class="ds-t dk" onclick="dsOpen(this)" data-k="products"><span>Товари</span><b>{{ (k.product.sum if k.product else 0)|uah }}</b><small>Кількість: {{ (k.product.n if k.product else 0)|int }}</small></div>
+    <div class="ds-t dk" onclick="dsOpen(this)" data-k="certs"><span>Сертифікати</span><b>{{ ((k.cert.sum if k.cert else 0) + 0)|uah }}</b><small>Продано в касі: {{ (k.cert.n if k.cert else 0)|int }}{% if s.certs_sold.n %} · у реєстрі: {{ s.certs_sold.n }}{% endif %}<br>Оплачено сертифікатом: {{ s.det.cert_pay|length }}{% if s.det.cert_pay %} · {{ s.det.cert_pay|sum(attribute='amount')|uah }}{% endif %}</small></div>
+    <div class="ds-t dk" onclick="dsOpen(this)" data-k="subs"><span>Абонементи</span><b>{{ (k.sub.sum if k.sub else 0)|uah }}</b><small>Продано в касі: {{ (k.sub.n if k.sub else 0)|int }}{% if s.subs_sold.n %} · у реєстрі: {{ s.subs_sold.n }}{% endif %}<br>Оплачено абонементом: {{ s.det.sub_pay|length }}{% if s.det.sub_pay %} · {{ s.det.sub_pay|sum(attribute='amount')|uah }}{% endif %}</small></div>
+    <div class="ds-t dk" onclick="dsOpen(this)" data-k="topup"><span>Поповнення рахунку</span><b>{{ (k.topup.sum if k.topup else 0)|uah }}</b><small>Операцій: {{ (k.topup.n if k.topup else 0)|int }}</small></div>
     {% if k.other %}<div class="ds-t"><span>Інше</span><b>{{ k.other.sum|uah }}</b><small>Позицій: {{ k.other.n|int }}</small></div>{% endif %}
-    <div class="ds-t bad"><span>Повернення</span><b>{{ s.checks.refunded }}</b><small>На суму: {{ s.checks.refund_sum|uah }}</small></div>
+    <div class="ds-t bad dk" onclick="dsOpen(this)" data-k="refunds"><span>Повернення</span><b>{{ s.checks.refunded }}</b><small>На суму: {{ s.checks.refund_sum|uah }}</small></div>
   </div>
   {% if s.pay %}<h4>Оплати</h4><div class="ds-l">{% for m, v in s.pay.items() %}<div><span>{{ m }}</span><b>{{ v|uah }}</b></div>{% endfor %}</div>{% endif %}
   {% if s.doctors %}<h4>Спеціалісти</h4><div class="ds-l c4"><div class="hd"><span>Спеціаліст</span><span>Візитів</span><span>Послуги</span><span>Товари</span></div>
     {% for x in s.doctors %}<div><span>{{ x.name }}</span><span>{{ x.visits }}</span><b>{{ x.services|uah }}</b><b>{{ x.products|uah }}</b></div>{% endfor %}</div>{% endif %}
   {% endif %}
 </div>
+
+{% set D = s.det %}
+{% macro pt(r) %}<a href="/patients/{{ r.pid }}" target="_blank">{{ r.patient }}</a>{% if r.phone %}<small>{{ r.phone }}</small>{% endif %}{% endmacro %}
+{% macro svcs(r) %}{% for x in r.services %}<div>{{ x }}</div>{% else %}—{% endfor %}{% endmacro %}
+{% macro head(title, n) %}<div class="dd-h"><button type="button" class="btn ghost" onclick="dsBack()">← Статистика дня</button><h4>{{ title }} · {{ n }}</h4></div>{% endmacro %}
+{% macro visits_tbl(rows, money_col=true) %}<div class="dd-w"><table class="dd"><thead><tr><th>Візит</th><th>Пацієнт</th><th>Дата й час</th><th>Спеціаліст</th><th>Послуги</th>{% if money %}<th class="r">Сума</th>{% endif %}<th>Автор</th></tr></thead><tbody>
+  {% for r in rows %}<tr><td>№{{ r.id }}</td><td>{{ pt(r) }}</td><td class="nw">{{ r.start.strftime('%d.%m.%Y %H:%M') }}</td><td>{{ r.doctor }}</td><td>{{ svcs(r) }}</td>{% if money %}<td class="r">{{ r.sum|uah }}</td>{% endif %}<td>{{ r.author }}<small>{{ r.source }}</small></td></tr>
+  {% else %}<tr><td colspan="7" class="muted">Немає</td></tr>{% endfor %}</tbody></table></div>{% endmacro %}
+<div class="ds dd-s" data-d="new" hidden>{{ head('Нові пацієнти (первинні)', D.new|length) }}{{ visits_tbl(D.new) }}</div>
+<div class="ds dd-s" data-d="visits" hidden>{{ head('Візити на день', D.visits|length) }}{{ visits_tbl(D.visits) }}</div>
+<div class="ds dd-s" data-d="no_show" hidden>{{ head('Неявки', D.no_show|length) }}{{ visits_tbl(D.no_show) }}</div>
+<div class="ds dd-s" data-d="created" hidden>{{ head('Записи, створені цього дня', D.created|length) }}
+  <div class="dd-w"><table class="dd"><thead><tr><th>Візит</th><th>Пацієнт</th><th>Створено</th><th>На коли</th><th>Спеціаліст</th><th>Послуги</th>{% if money %}<th class="r">Сума</th>{% endif %}<th>Автор</th></tr></thead><tbody>
+  {% for r in D.created %}<tr><td>№{{ r.id }}</td><td>{{ pt(r) }}</td><td class="nw">{{ r.created_at.strftime('%H:%M') if r.created_at else '—' }}</td><td class="nw">{{ r.start.strftime('%d.%m.%Y %H:%M') }}</td><td>{{ r.doctor }}</td><td>{{ svcs(r) }}</td>{% if money %}<td class="r">{{ r.sum|uah }}</td>{% endif %}<td>{{ r.author }}<small>{{ r.source }}</small></td></tr>
+  {% else %}<tr><td colspan="8" class="muted">Немає</td></tr>{% endfor %}</tbody></table></div></div>
+{% for key, title in [('cancel_day', 'Скасування візитів на цей день'), ('cancel_today', 'Скасовано цього дня')] %}
+<div class="ds dd-s" data-d="{{ key }}" hidden>{{ head(title, D[key]|length) }}
+  <div class="dd-w"><table class="dd"><thead><tr><th>Візит</th><th>Пацієнт</th><th>Був записаний</th><th>Скасовано</th><th>За скільки</th><th>Хто скасував</th><th>Спеціаліст</th><th>Послуги</th>{% if money %}<th class="r">Сума</th>{% endif %}</tr></thead><tbody>
+  {% for r in D[key] %}<tr><td>№{{ r.id }}</td><td>{{ pt(r) }}</td><td class="nw">{{ r.start.strftime('%d.%m.%Y %H:%M') }}</td><td class="nw">{{ r.cancelled_at.strftime('%d.%m.%Y %H:%M') if r.cancelled_at else '—' }}</td>
+    <td class="nw"><b>{{ r.lead }}</b></td><td>{{ r.cancelled_by }}{% if r.reason %}<small>{{ r.reason }}</small>{% endif %}</td><td>{{ r.doctor }}</td><td>{{ svcs(r) }}</td>{% if money %}<td class="r">{{ r.sum|uah }}</td>{% endif %}</tr>
+  {% else %}<tr><td colspan="9" class="muted">Немає</td></tr>{% endfor %}</tbody></table></div></div>{% endfor %}
+<div class="ds dd-s" data-d="moved" hidden>{{ head('Перенесені візити', D.moved|length) }}
+  <div class="dd-w"><table class="dd"><thead><tr><th>Візит</th><th>Пацієнт</th><th>З дати</th><th>На дату</th><th>Хто переніс</th><th>Спеціаліст</th><th>Послуги</th>{% if money %}<th class="r">Сума</th>{% endif %}</tr></thead><tbody>
+  {% for r in D.moved %}<tr><td>№{{ r.id }}</td><td>{{ pt(r) }}</td><td class="nw">{{ r.frm.strftime('%d.%m.%Y %H:%M') if r.frm else '—' }}{% if r.frm_doc %}<small>{{ r.frm_doc }}</small>{% endif %}</td><td class="nw">{{ r.start.strftime('%d.%m.%Y %H:%M') }}</td>
+    <td>{{ r.moved_by }}{% if r.moved_at %}<small>{{ r.moved_at.strftime('%H:%M') }}</small>{% endif %}</td><td>{{ r.doctor }}</td><td>{{ svcs(r) }}</td>{% if money %}<td class="r">{{ r.sum|uah }}</td>{% endif %}</tr>
+  {% else %}<tr><td colspan="8" class="muted">Немає</td></tr>{% endfor %}</tbody></table></div>
+  <p class="small muted">«З дати» видно для переносів, зроблених після оновлення CRM 02.11.2026.</p></div>
+{% if money %}
+<div class="ds dd-s" data-d="income" hidden>{{ head('Дохід: план і факт по візитах', D.income|length) }}
+  <div class="dd-w"><table class="dd"><thead><tr><th>Візит</th><th>Пацієнт</th><th>Час</th><th>Спеціаліст</th><th>Послуги</th><th class="r">План</th><th class="r">Знижка</th><th class="r">Оплачено</th></tr></thead><tbody>
+  {% for r in D.income %}<tr><td>№{{ r.id }}</td><td>{{ pt(r) }}</td><td class="nw">{{ r.start.strftime('%H:%M') }}</td><td>{{ r.doctor }}</td><td>{{ svcs(r) }}</td><td class="r">{{ r.sum|uah }}</td>
+    <td class="r">{{ (r.discount|uah) if r.discount else '—' }}</td><td class="r">{% if r.paid is not none %}<a href="/sales/{{ r.sale_id }}" target="_blank"><b>{{ r.paid|uah }}</b></a>{% else %}<span class="muted">не розраховано</span>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="8" class="muted">Немає</td></tr>{% endfor %}</tbody>
+  <tfoot><tr><td colspan="5">Разом</td><td class="r">{{ D.income|sum(attribute='sum')|uah }}</td><td class="r">{{ s.income.discount|uah }}</td><td class="r">{{ s.income.fact|uah }}</td></tr></tfoot></table></div></div>
+{% macro checks_tbl(rows, refund=false) %}<div class="dd-w"><table class="dd"><thead><tr><th>Чек</th><th>Час</th><th>Пацієнт</th><th>Позиції</th><th class="r">Знижка</th><th class="r">Сума</th><th>Оплата</th><th>Автор</th>{% if refund %}<th>Причина</th>{% endif %}</tr></thead><tbody>
+  {% for r in rows %}<tr><td><a href="/sales/{{ r.id }}" target="_blank">Ч-{{ r.id }}</a>{% if r.test %}<small>тест</small>{% endif %}</td><td class="nw">{{ r.at.strftime('%H:%M') }}</td><td>{% if r.pid %}<a href="/patients/{{ r.pid }}" target="_blank">{{ r.patient }}</a>{% else %}{{ r.patient }}{% endif %}</td>
+    <td>{{ r['items'] }}</td><td class="r">{{ (r.discount|uah) if r.discount else '—' }}</td><td class="r"><b>{{ r.total|uah }}</b></td><td>{{ r.pay }}</td><td>{{ r.author }}</td>{% if refund %}<td>{{ r.reason }}</td>{% endif %}</tr>
+  {% else %}<tr><td colspan="9" class="muted">Немає</td></tr>{% endfor %}</tbody></table></div>{% endmacro %}
+<div class="ds dd-s" data-d="checks" hidden>{{ head('Чеки', D.checks|length) }}{{ checks_tbl(D.checks) }}</div>
+<div class="ds dd-s" data-d="refunds" hidden>{{ head('Повернення', D.refunds|length) }}{{ checks_tbl(D.refunds, true) }}</div>
+{% macro goods_tbl(rows, kind) %}<div class="dd-w"><table class="dd"><thead><tr><th>{{ 'Послуга' if kind == 's' else 'Товар' }}</th><th class="r">К-сть</th>{% if kind == 'p' %}<th class="r">Ціна</th>{% endif %}<th class="r">Знижка</th><th class="r">Виручка</th><th class="r">{{ 'Собівартість' if kind == 's' else 'Закупівля' }}</th><th class="r">Заробіток</th><th class="r">Рентаб.</th><th>{{ 'Спеціаліст' if kind == 's' else 'Продав' }}</th><th>Пацієнти</th></tr></thead><tbody>
+  {% for r in rows %}<tr><td>{{ r.name }}</td><td class="r">{{ '%g'|format(r.qty) }}</td>{% if kind == 'p' %}<td class="r">{{ r.price|uah }}{% if r.unit_cost %}<small>закуп. {{ r.unit_cost|uah }}</small>{% endif %}</td>{% endif %}
+    <td class="r">{{ (r.discount|uah) if r.discount else '—' }}</td><td class="r"><b>{{ r.sum|uah }}</b></td><td class="r">{{ r.cost|uah if r.cost_known or r.cost else '—' }}{% if not r.cost_known %}<small>{{ 'не все відомо' if r.cost else 'невідомо' }}</small>{% endif %}</td>
+    <td class="r" style="color:{{ 'var(--ok)' if r.margin >= 0 else 'var(--bad)' }}">{{ r.margin|uah }}</td><td class="r">{{ (r.margin_pct ~ '%') if r.margin_pct is not none else '—' }}</td><td>{{ r.doctors }}</td><td><small style="display:block;max-width:220px">{{ r.patients }}</small></td></tr>
+  {% else %}<tr><td colspan="10" class="muted">Немає</td></tr>{% endfor %}</tbody>
+  {% if rows %}{% set rv = rows|sum(attribute='sum') %}{% set cs = rows|sum(attribute='cost') %}<tfoot><tr><td>Разом</td><td class="r">{{ '%g'|format(rows|sum(attribute='qty')) }}</td>{% if kind == 'p' %}<td></td>{% endif %}<td class="r">{{ rows|sum(attribute='discount')|uah }}</td><td class="r">{{ rv|uah }}</td><td class="r">{{ cs|uah }}</td><td class="r">{{ (rv - cs)|uah }}</td><td class="r">{{ ((100 * (rv - cs) / rv)|round(1) ~ '%') if rv else '—' }}</td><td colspan="2"></td></tr></tfoot>{% endif %}</table></div>{% endmacro %}
+<div class="ds dd-s" data-d="services" hidden>{{ head('Послуги за день', D.services|length) }}{{ goods_tbl(D.services, 's') }}
+  <p class="small muted">Собівартість — фактичні витратні матеріали візиту (техкарти) за цінами останньої закупівлі; якщо не внесені — фіксована собівартість послуги.</p></div>
+<div class="ds dd-s" data-d="products" hidden>{{ head('Товари за день', D.products|length) }}{{ goods_tbl(D.products, 'p') }}
+  <p class="small muted">Закупівля — за ціною останньої поставки.</p></div>
+{% macro pay_tbl(rows, title) %}<h4>{{ title }} · {{ rows|length }}</h4><div class="dd-w"><table class="dd"><thead><tr><th>Чек</th><th>Час</th><th>Пацієнт</th><th>№</th><th>За що</th><th class="r">Сума</th></tr></thead><tbody>
+  {% for r in rows %}<tr><td><a href="/sales/{{ r.id }}" target="_blank">Ч-{{ r.id }}</a></td><td class="nw">{{ r.at.strftime('%H:%M') }}</td><td>{% if r.pid %}<a href="/patients/{{ r.pid }}" target="_blank">{{ r.patient }}</a>{% else %}{{ r.patient }}{% endif %}</td><td>{{ r.ref or '' }}</td><td>{{ r['items'] or r.name }}</td><td class="r"><b>{{ r.amount|uah }}</b></td></tr>
+  {% else %}<tr><td colspan="6" class="muted">Немає</td></tr>{% endfor %}</tbody></table></div>{% endmacro %}
+<div class="ds dd-s" data-d="certs" hidden>{{ head('Сертифікати', D.cert_pay|length + D.cert_sold|length) }}{{ pay_tbl(D.cert_pay, 'Розрахувались сертифікатом') }}{{ pay_tbl(D.cert_sold, 'Продано сертифікатів') }}</div>
+<div class="ds dd-s" data-d="subs" hidden>{{ head('Абонементи', D.sub_pay|length + D.sub_sold|length) }}{{ pay_tbl(D.sub_pay, 'Розрахувались абонементом') }}{{ pay_tbl(D.sub_sold, 'Продано абонементів') }}</div>
+<div class="ds dd-s" data-d="topup" hidden>{{ head('Поповнення рахунку', D.topup|length) }}{{ pay_tbl(D.topup, 'Кому й скільки') }}</div>
+{% endif %}
+<style>
+.ds-t.dk{cursor:pointer;transition:border-color .15s,box-shadow .15s}.ds-t.dk:hover{border-color:#C9BFE6;box-shadow:0 6px 18px -10px rgba(59,48,80,.4)}
+.ds-t.dk span:after{content:" ›";color:#C9BFE6}
+.dd-h{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.dd-h h4{margin:0}
+.dd-w{background:#fff;border:1px solid #ECE7E1;border-radius:16px;overflow:auto}
+table.dd{width:100%;border-collapse:collapse;font-size:13px}table.dd th{position:sticky;top:0;background:#FBFAF8;font-size:10.5px;padding:9px 10px}
+table.dd td{padding:9px 10px;vertical-align:top;border-top:1px solid #F3EFEA}table.dd td small{display:block;color:#8a8496;font-size:11.5px}
+table.dd td.nw{white-space:nowrap}table.dd a{color:#3B3050;font-weight:600;text-decoration:none}table.dd tfoot td{font-weight:700;background:#FBFAF8}
+</style>
+

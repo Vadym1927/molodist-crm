@@ -35,3 +35,11 @@ def test_day_stats():
         h = c.get(f"/calendar/day-stats?d={date.today()}").text
         assert "Нові пацієнти" in h and "Плановий дохід" in h and "Візитів перенесено" in h and "Стат Лікар" in h
         assert "Статистика дня" in c.get("/calendar").text
+        # деталізація: хто новий, скасування, послуги й товари з заробітком
+        det = r["det"]
+        assert [x["patient"] for x in det["new"]] == ["Новий Пацієнт"] and det["new"][0]["services"] == ["Пілінг"]
+        assert det["cancel_day"][0]["patient"] == "Старий Пацієнт" and det["cancel_day"][0]["sum"] == 500
+        assert det["services"][0]["name"] == "Пілінг" and det["services"][0]["sum"] == 1800
+        assert det["products"][0]["name"] == "Крем" and det["cert_sold"][0]["amount"] == 300 and det["checks"][0]["total"] == 3000
+        assert 'data-d="cancel_day"' in h and 'data-d="products"' in h and "Новий Пацієнт" in h
+        assert day_stats._lead(t, t - timedelta(minutes=20)) == "20 хв" and day_stats._lead(t, t - timedelta(days=28)).startswith("28 дн")

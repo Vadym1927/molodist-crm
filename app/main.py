@@ -1262,7 +1262,9 @@ async def appointment_save(request: Request, user: User = Depends(require("book"
             db.commit()
     audit(db, "appointment.save" if appt else "appointment.create", "patient", p_.id, user=user, appt=a.id,
           start=a.start.isoformat(timespec="minutes"), doctor=a.doctor_id, forced=bool(warn), cb=a.cb_record_id,
-          moved=bool(_old and _old[0] != a.start) or None)
+          moved=bool(_old and _old[0] != a.start) or None,
+          frm=_old[0].isoformat(timespec="minutes") if _old and _old[0] != a.start else None,
+          frm_doc=_old[1] if _old and _old[0] != a.start and _old[1] != a.doctor_id else None)
     return JSONResponse({"ok": True, "id": a.id, "msg": msg, "day": a.start.date().isoformat()})
 
 

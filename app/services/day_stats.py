@@ -86,7 +86,8 @@ def compute(db: Session, d: date, doctor_id: int | None = None) -> dict:
     subs = db.scalars(select(Subscription).where(Subscription.sold_at >= a, Subscription.sold_at < b)).all()
     from .sales import CERT, BALANCE, SUB, BONUS
     revenue = round(sum(float(s.total or 0) for s in paid), 2)
-    return {
+    det = _details(db, d, docs, live, done, new_p, created, cancelled, canc_today, moved, no_show, paid, refunded, logs, doctor_id)
+    return {"det": det,
         "day": d,
         "patients": {"new": len(new_p), "total": len(pids), "came": len({x.patient_id for x in done})},
         "income": {"fact": revenue, "plan": round(sum(price(x) for x in live), 2), "discount": round(sum(float(s.discount or 0) for s in paid), 2),
@@ -115,3 +116,166 @@ def _tz_shift() -> int:
     from zoneinfo import ZoneInfo
     off = datetime.now(ZoneInfo("Europe/Kyiv")).utcoffset()
     return int(off.total_seconds() // 3600) if off else 2
+
+
+# ---------------- деталізація (провалитися в показник) ----------------
+SRC = {"online": "Онлайн-запис", "bot": "Бот", "crm": "Адміністратор", "appeal": "Зі звернення", "cleverbox": "CleverBox"}
+TZ = None
+
+
+def _loc(dt: datetime | None) -> datetime | None:
+    return dt + timedelta(hours=_tz_shift()) if dt else None
+
+
+def _lead(start: datetime, at: datetime | None) -> str:
+    """За скільки часу до візиту: «20 хв», «5 год 10 хв», «28 дн»; після початку — «після початку»."""
+    if not at:
+        return "—"
+    m = int((start - at).total_seconds() // 60)
+    if m < 0:
+        return "після початку"
+    if m < 60:
+        return f"{m} хв"
+    if m < 24 * 60:
+        return f"{m // 60} год {m % 60:02d} хв"
+    return f"{m // 1440} дн {(m % 1440) // 60} год"
+
+
+def _ap_row(a: Appointment, docs: dict, users: dict, **extra) -> dict:
+    svc = [str(x.get("name") or "—") for x in a.services or []]
+    return {"id": a.id, "pid": a.patient_id, "patient": a.patient.full_name if a.patient else "—",
+            "phone": a.patient.phone if a.patient else "", "start": a.start, "doctor": docs.get(a.doctor_id, "—"),
+            "services": svc, "sum": round(sum(float(x.get("price") or 0) for x in a.services or []), 2),
+            "author": users.get(a.created_by, "—") if a.created_by else ("онлайн" if a.source in ("online", "bot") else "—"),
+            "source": SRC.get(a.source, a.source or "—"), "status": a.status, "sale_id": a.sale_id, **extra}
+
+
+def _details(db: Session, d: date, docs: dict, live, done, new_p, created, cancelled, canc_today, moved, no_show,
+             paid, refunded, logs, doctor_id) -> dict:
+    from ..models import Product, SaleItem, User, CbService
+    users = {u.id: u.name for u in db.scalars(select(User))}
+    # хто й коли скасував / переніс (журнал дій по пацієнтах цих візитів)
+    pids = {a.patient_id for a in list(cancelled) + list(canc_today) + list(moved)}
+    st_logs = db.scalars(select(AuditLog).where(AuditLog.entity == "patient", AuditLog.entity_id.in_(pids or [0]),
+                                                AuditLog.action.in_(("appointment.status", "appointment.save")))
+                         .order_by(AuditLog.at)).all() if pids else []
+    canc_by: dict[int, AuditLog] = {}
+    move_by: dict[int, AuditLog] = {}
+    for l in st_logs:
+        det = l.details or {}
+        aid = int(det.get("appt") or 0)
+        if l.action == "appointment.status" and det.get("status") == "cancelled":
+            canc_by[aid] = l
+        elif l.action == "appointment.save" and det.get("moved") and _loc(l.at).date() == d:
+            move_by[aid] = l
+
+    def canc_row(a):
+        l = canc_by.get(a.id)
+        at = _loc(l.at) if l else _loc(a.updated_at)
+        return _ap_row(a, docs, users, cancelled_at=at, lead=_lead(a.start, at),
+                       cancelled_by=(l.user.name if l and l.user else "—"), reason=a.cancel_reason or "")
+
+    def move_row(a):
+        l = move_by.get(a.id)
+        det = (l.details or {}) if l else {}
+        frm = None
+        try:
+            frm = datetime.fromisoformat(det["frm"]) if det.get("frm") else None
+        except ValueError:
+            pass
+        return _ap_row(a, docs, users, moved_at=_loc(l.at) if l else None, frm=frm,
+                       frm_doc=docs.get(det.get("frm_doc")) if det.get("frm_doc") else None,
+                       moved_by=(l.user.name if l and l.user else "—"))
+
+    out = {
+        "new": [_ap_row(a, docs, users) for a in live if a.patient_id in new_p],
+        "visits": [_ap_row(a, docs, users) for a in sorted(live, key=lambda x: x.start)],
+        "created": [_ap_row(a, docs, users, created_at=_loc(a.created_at)) for a in sorted(created, key=lambda x: x.created_at)],
+        "cancel_day": [canc_row(a) for a in sorted(cancelled, key=lambda x: x.start)],
+        "cancel_today": [canc_row(a) for a in sorted(canc_today, key=lambda x: x.start)],
+        "moved": [move_row(a) for a in sorted(moved, key=lambda x: x.start)],
+        "no_show": [_ap_row(a, docs, users) for a in sorted(no_show, key=lambda x: x.start)],
+    }
+    # дохід: план по візитах дня і факт по чеках
+    sale_by = {s.id: s for s in paid}
+    out["income"] = [dict(_ap_row(a, docs, users), paid=round(float(sale_by[a.sale_id].total or 0), 2) if a.sale_id in sale_by else None,
+                          discount=round(float(sale_by[a.sale_id].discount or 0), 2) if a.sale_id in sale_by else None)
+                     for a in sorted(live, key=lambda x: x.start)]
+    # чеки
+    def sale_row(s):
+        p = s.patient
+        return {"id": s.id, "at": s.at, "patient": p.full_name if p else "—", "pid": s.patient_id, "total": round(float(s.total or 0), 2),
+                "discount": round(float(s.discount or 0), 2), "author": users.get(s.created_by, "—"),
+                "pay": ", ".join(f"{x.method} {float(x.amount or 0):,.2f}".replace(",", " ") for x in s.payments),
+                "items": ", ".join(f"{i.name}{(' ×%g' % i.qty) if (i.qty or 1) != 1 else ''}" for i in s.items),
+                "test": bool((s.fiscal or {}).get("test_sale")), "reason": s.refund_reason or "",
+                "refunded_at": s.refunded_at}
+    out["checks"] = [sale_row(s) for s in sorted(paid, key=lambda x: x.at)]
+    out["refunds"] = [sale_row(s) for s in sorted(refunded, key=lambda x: x.at)]
+    # послуги й товари з собівартістю
+    from . import techcards as tc
+    uc = tc.unit_costs(db)
+    fixed = {c.id: c.cost_fixed for c in db.scalars(select(CbService).where(CbService.cost_fixed.is_not(None)))}
+    svc: dict[str, dict] = {}
+    prod: dict[str, dict] = {}
+    for s in paid:
+        costs = {k: list(v) for k, v in tc.sale_service_costs(db, s).items()} if any(i.kind == "service" for i in s.items) else {}
+        for it in s.items:
+            if doctor_id and it.doctor_id != doctor_id:
+                continue
+            q = float(it.qty or 1)
+            if it.kind == "service":
+                c = costs.get(it.ref_id).pop(0) if costs.get(it.ref_id) else (float(fixed[it.ref_id]) * q if it.ref_id in fixed else None)
+                g = svc.setdefault(it.name, {"name": it.name, "qty": 0.0, "sum": 0.0, "discount": 0.0, "cost": 0.0, "cost_known": True,
+                                            "doctors": set(), "patients": []})
+            elif it.kind == "product":
+                c = uc.get(it.ref_id, 0) * q if it.ref_id and uc.get(it.ref_id) else None
+                g = prod.setdefault(it.name, {"name": it.name, "qty": 0.0, "sum": 0.0, "discount": 0.0, "cost": 0.0, "cost_known": True,
+                                             "doctors": set(), "patients": [], "price": float(it.price or 0),
+                                             "unit_cost": uc.get(it.ref_id) if it.ref_id else None})
+            else:
+                continue
+            g["qty"] += q
+            g["sum"] += float(it.total or 0)
+            g["discount"] += float(it.discount or 0)
+            if c is None:
+                g["cost_known"] = False
+            else:
+                g["cost"] += c
+            if it.doctor_id:
+                g["doctors"].add(docs.get(it.doctor_id, "—"))
+            if s.patient:
+                g["patients"].append(s.patient.full_name)
+
+    def fin(rows):
+        res = []
+        for g in sorted(rows.values(), key=lambda x: -x["sum"]):
+            g = dict(g, doctors=", ".join(sorted(g["doctors"])), patients=", ".join(dict.fromkeys(g["patients"])))
+            for k in ("qty", "sum", "discount", "cost"):
+                g[k] = round(g[k], 2)
+            g["margin"] = round(g["sum"] - g["cost"], 2)
+            g["margin_pct"] = round(100 * g["margin"] / g["sum"], 1) if g["sum"] else None
+            res.append(g)
+        return res
+    out["services"], out["products"] = fin(svc), fin(prod)
+    # оплати сертифікатами / абонементами, поповнення рахунку
+    from .sales import CERT, SUB
+    pays = {"cert": [], "sub": []}
+    for s in paid:
+        for x in s.payments:
+            k = "cert" if x.method == CERT else "sub" if x.method == SUB else None
+            if k:
+                pays[k].append({"id": s.id, "at": s.at, "patient": s.patient.full_name if s.patient else "—", "pid": s.patient_id,
+                                "amount": round(float(x.amount or 0), 2), "ref": x.cert_id or x.sub_id, "items": ", ".join(i.name for i in s.items)})
+    out["cert_pay"], out["sub_pay"] = pays["cert"], pays["sub"]
+    sold = {"cert": [], "sub": [], "topup": []}
+    for s in paid:
+        for it in s.items:
+            if it.kind in ("service", "product"):
+                continue
+            k = "cert" if _has(it.name, CERT_W) or it.kind == "certificate" else "sub" if _has(it.name, SUB_W) else "topup" if _has(it.name, TOPUP_W) else None
+            if k:
+                sold[k].append({"id": s.id, "at": s.at, "patient": s.patient.full_name if s.patient else "—", "pid": s.patient_id,
+                                "name": it.name, "amount": round(float(it.total or 0), 2)})
+    out["cert_sold"], out["sub_sold"], out["topup"] = sold["cert"], sold["sub"], sold["topup"]
+    return out

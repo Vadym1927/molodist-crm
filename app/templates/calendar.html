@@ -175,7 +175,7 @@
 .tg .blk.f1 .pph,.tg .blk.f1 .nt{display:none}.tg .blk.f2 .svl{display:block;white-space:nowrap;text-overflow:ellipsis}
 .tg .blk.f3{padding-top:2px;padding-bottom:2px}.tg .blk.f3 .svl{display:none}
 .cic.ds-btn{width:auto;padding:0 14px;gap:8px;display:inline-flex;align-items:center;font:700 13px var(--sans);color:#3B3050}
-.ds{padding:18px 22px 30px;overflow:auto;display:grid;gap:14px;align-content:start;grid-column:1/-1}
+.ds[hidden]{display:none!important}.ds{padding:18px 22px 30px;overflow:auto;display:grid;gap:14px;align-content:start;grid-column:1/-1}
 .ds h4{margin:6px 0 0;font:600 12.5px var(--head);letter-spacing:.14em;text-transform:uppercase;color:#2A2430}
 .ds-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
 .ds-t{background:#fff;border:1px solid #ECE7E1;border-radius:16px;padding:14px 16px;display:grid;gap:4px}
@@ -282,7 +282,7 @@
 {% include "_appt_modal.html" %}
 <style>
 .vd-back{position:fixed;inset:0;background:rgba(42,36,48,.42);opacity:0;pointer-events:none;transition:opacity .2s;z-index:95}.vd-back.on{opacity:1;pointer-events:auto}
-.vd{position:fixed;top:0;right:0;bottom:0;width:min(880px,100vw);background:#F7F4F0;z-index:96;transform:translateX(102%);transition:transform .26s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column;box-shadow:-30px 0 70px -30px rgba(42,36,48,.55)}
+.vd.wide{width:min(1280px,100vw)}.vd{position:fixed;top:0;right:0;bottom:0;width:min(880px,100vw);background:#F7F4F0;z-index:96;transform:translateX(102%);transition:transform .26s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column;box-shadow:-30px 0 70px -30px rgba(42,36,48,.55)}
 .vd.on{transform:none}
 .vd-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 22px;background:#fff;border-bottom:1px solid #ECE7E1}
 .vd-h small{display:block;font:600 11px var(--sans);letter-spacing:.14em;text-transform:uppercase;color:#9a93a6}
@@ -369,10 +369,13 @@
     fetch('/calendar/visit/adopt',{method:'POST',body:fd,credentials:'same-origin',headers:{'Accept':'application/json'}}).then(function(r){return r.json()})
       .then(function(j){if(!j.id){alert(j.error||'Не вдалося');return}if(then==='pay'){location.href='/sales/new?appt='+j.id;return}
         load('appt='+j.id);document.getElementById('vdb').onclick=function(){location.reload()}})};
-  window.dayStats=function(d,doc){box.innerHTML='<div class="vd-h"><div><small>Статистика дня</small><h3>Завантаження…</h3></div><button type="button" class="vd-x" onclick="visitClose()">×</button></div>';
+  window.dayStats=function(d,doc){document.getElementById('vd').classList.add('wide');box.innerHTML='<div class="vd-h"><div><small>Статистика дня</small><h3>Завантаження…</h3></div><button type="button" class="vd-x" onclick="visitClose()">×</button></div>';
     document.getElementById('vd').classList.add('on');document.getElementById('vdb').classList.add('on');
     fetch('/calendar/day-stats?d='+d+(doc?'&doc='+doc:''),{credentials:'same-origin'}).then(function(r){return r.text()}).then(function(h){box.innerHTML=h})};
-  window.visitClose=function(){document.getElementById('vd').classList.remove('on');document.getElementById('vdb').classList.remove('on')};
+  window.dsOpen=function(t){var k=t.dataset.k,el=document.querySelector('#vd .dd-s[data-d="'+k+'"]');if(!el)return;
+    document.getElementById('ds-main').hidden=true;document.querySelectorAll('#vd .dd-s').forEach(function(x){x.hidden=x!==el});el.scrollTop=0};
+  window.dsBack=function(){document.querySelectorAll('#vd .dd-s').forEach(function(x){x.hidden=true});document.getElementById('ds-main').hidden=false};
+  window.visitClose=function(){document.getElementById('vd').classList.remove('on','wide');document.getElementById('vdb').classList.remove('on')};
   window.vdStatus=function(id,sel){var st=sel.value,reason='';
     if(st==='cancelled'){reason=prompt('Причина скасування');if(!reason||reason.trim().length<3){load(Q);return}}
     var fd=new FormData();fd.append('status',st);fd.append('reason',reason||'');fd.append('back','/calendar');
