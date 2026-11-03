@@ -26,3 +26,26 @@ def test_notifications_and_pages():
         page = c.get("/calendar").text
         assert 'href="/telephony"' in page and 'href="/chats"' in page and 'id="nt-bell"' in page
         assert "＋ Бюті-план" in c.get("/plans").text
+
+
+def test_hide_notifications():
+    from datetime import datetime, timedelta
+    from fastapi.testclient import TestClient
+    from app.config import settings
+    from app.main import app
+    from app.models import SessionLocal, Appointment, Patient
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        p = Patient(full_name="Сховати Пацієнтка", phone="+380990000777"); db.add(p); db.commit()
+        t = datetime.now() + timedelta(days=1)
+        db.add(Appointment(patient_id=p.id, start=t, end=t + timedelta(hours=1), source="online", services=[])); db.commit()
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        h = c.get("/notifications").text
+        assert "Сховати Пацієнтка" in h and "ntHide" in h
+        import re
+        k = re.search(r'data-k="(online:\d+)"', h).group(1)
+        assert c.post("/notifications/hide", json={"keys": [k]}).json()["ok"]
+        assert "Сховати Пацієнтка" not in c.get("/notifications").text
+        assert c.post("/notifications/hide", json={"all": True}).json()["ok"]
+        assert "Нових сповіщень немає" in c.get("/notifications").text

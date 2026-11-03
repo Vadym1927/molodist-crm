@@ -45,7 +45,7 @@ def calls(db: Session, since: datetime) -> list[dict]:
         dur = f" · {c.duration // 60}:{c.duration % 60:02d}" if c.duration and not miss else ""
         out.append({"kind": "call", "id": c.id, "at": c.at - sh, "level": "bad" if miss else "info",
                     "title": "Пропущений дзвінок" if miss else "Вхідний дзвінок",
-                    "text": f"{who}{(' · ' + c.phone) if p and c.phone else ''} · {c.at:%d.%m %H:%M}{dur}{(' · ' + c.employee) if c.employee else ''}"
+                    "text": f"{who}{(' · ' + c.phone) if p and c.phone else ''} · {c.at:%d.%m %H:%M}{dur}{(' · ' + c.employee) if c.employee and c.employee.strip() not in ('0', '-') else ''}"
                             + ("" if p else " · новий номер"),
                     "url": f"/patients/{p.id}#calls" if p else f"/telephony?call={c.id}#call{c.id}"})
     return out
@@ -97,6 +97,32 @@ def _summary(db: Session) -> list[dict]:
     return out
 
 
+def _key(x: dict) -> str:
+    """Ключ сповіщення для «видалити»: подія з id — назавжди; зведення (склад, сертифікати) — на сьогодні."""
+    return f"{x['kind']}:{x['id']}" if x.get("id") is not None else f"{x['kind']}:{date.today().isoformat()}"
+
+
+def _hidden(db: Session, user: User) -> set:
+    import json
+    from ..models import SyncState
+    st = db.get(SyncState, f"notif_hidden:{user.id}")
+    try:
+        return set(json.loads(st.value)) if st and st.value else set()
+    except ValueError:
+        return set()
+
+
+def hide(db: Session, user: User, keys: list[str]) -> None:
+    import json
+    from ..models import SyncState
+    cur = _hidden(db, user) | {k for k in keys if k}
+    keep = sorted(cur)[-2000:]
+    st = db.get(SyncState, f"notif_hidden:{user.id}") or SyncState(key=f"notif_hidden:{user.id}")
+    st.value, st.updated_at = json.dumps(keep), datetime.utcnow()
+    db.merge(st)
+    db.commit()
+
+
 def items(db: Session, user: User) -> list[dict]:
     res = online(db, datetime.utcnow() - timedelta(days=7)) if can(user, "book") else []
     try:
@@ -105,7 +131,11 @@ def items(db: Session, user: User) -> list[dict]:
             res += calls(db, datetime.utcnow() - timedelta(days=2))
     except Exception:  # noqa: BLE001
         pass
-    res += [x for x in _summary(db) if not x.get("perm") or can(user, x["perm"])]
+    res += [dict(x) for x in _summary(db) if not x.get("perm") or can(user, x["perm"])]
+    hid = _hidden(db, user)
+    for x in res:
+        x["key"] = _key(x)
+    res = [x for x in res if x["key"] not in hid]
     seen = user.notif_seen_at
     for x in res:
         x["new"] = not seen or (x["at"] and x["at"] > seen)

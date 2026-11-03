@@ -4389,6 +4389,16 @@ def notifications_panel(request: Request, user: User = Depends(current_user), db
     return HTMLResponse(html)
 
 
+@app.post("/notifications/hide")
+async def notifications_hide(request: Request, user: User = Depends(current_user), db: Session = Depends(db_dep)):
+    """Видалити сповіщення зі списку (для себе): {"keys": [...]} або {"all": true}."""
+    from .services import notifications as nt
+    f = await request.json()
+    keys = [x["key"] for x in nt.items(db, user)] if f.get("all") else [str(k)[:80] for k in (f.get("keys") or [])][:500]
+    nt.hide(db, user, keys)
+    return JSONResponse({"ok": True, "n": len(keys)})
+
+
 @app.get("/notifications/poll")
 def notifications_poll(since: str = "", user: User = Depends(current_user), db: Session = Depends(db_dep)):
     """Нові онлайн-записи з моменту since (ISO, UTC) — для спливаючого вікна; кількість непереглянутих — для значка."""
