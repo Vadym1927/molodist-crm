@@ -24,16 +24,18 @@ WH_CAT = {"single": "Одноразка", "inject": "Препарат", "classic
 
 # ---------------- ціни ----------------
 def unit_costs(db: Session) -> dict[int, float]:
-    """Ціна одиниці обліку для собівартості: ціна закупівлі товару (розраховується з проведених поставок — як у CleverBox),
+    """Ціна одиниці обліку (шт., мл, м) для собівартості: ціна закупівлі товару за одиницю приходу (розраховується з проведених
+    поставок — як у CleverBox), поділена на коефіцієнт фасування (скільки одиниць обліку в упаковці / флаконі),
     якщо її немає — остання закупівля, далі собівартість залишку."""
     out: dict[int, float] = {}
     for pp in db.scalars(select(ProductPurchase).where(ProductPurchase.unit_cost > 0).order_by(ProductPurchase.bought_on, ProductPurchase.id)):
         out[pp.product_id] = float(pp.unit_cost)
     for p in db.scalars(select(Product)):
+        k = float(p.coef) if p.coef and p.coef > 0 else 1.0      # ціна закупівлі — за одиницю приходу (уп., флакон) → за одиницю обліку
         if p.cost and float(p.cost) > 0:
-            out[p.id] = float(p.cost)
+            out[p.id] = float(p.cost) / k
         elif p.id not in out:
-            out[p.id] = float(p.stock_cost or 0)
+            out[p.id] = float(p.stock_cost or 0) / k
     return out
 
 

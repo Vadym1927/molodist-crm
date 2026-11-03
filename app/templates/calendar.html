@@ -357,7 +357,7 @@
 .vd-qty{display:inline-flex;align-items:center;border:1px solid #E3DFE8;border-radius:10px;overflow:hidden;background:#fff}
 .vd-qty button{width:30px;height:32px;border:0;background:#F4F1F8;color:#3B3050;font:700 17px var(--sans);cursor:pointer}.vd-qty button:hover{background:#E4DEEF}
 .vd-mat .vd-qty input{width:56px;height:32px;border:0;border-radius:0;text-align:center;box-shadow:none}
-.vd-mat .vd-u{min-width:34px;color:#6b6575}.vd-mat b small{display:block;font:500 11.5px var(--sans);color:#9a93a6}
+.vd-mat .vd-u{min-width:34px;color:#6b6575}.vd-mat select.vd-u{height:32px;width:auto;max-width:150px;padding:0 6px;font-size:12.5px;border-radius:8px}.vd-mat b small{display:block;font:500 11.5px var(--sans);color:#9a93a6}
 .vd-mat{display:grid;grid-template-columns:minmax(0,1fr) auto auto 86px 28px;gap:10px;align-items:center;background:#fff;border:1px solid #ECE7E1;border-radius:12px;padding:7px 10px}
 .vd-mat b{font:600 13px var(--sans);color:#2A2430;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .vd-mat span{font-size:12.5px;color:#6b6575;white-space:nowrap}.vd-mat input{width:70px;height:32px;text-align:right;font-weight:700;border-radius:8px}
@@ -516,8 +516,12 @@
       .then(function(x){if(!x.r.ok||x.j.error){var e2=document.getElementById('vd-merr');if(e2)e2.textContent=x.j.error||x.j.detail||'Не вдалося зберегти';return}ok&&ok()})}
   window.vdMat=function(aid,mid,qty){jpost('/appointments/'+aid+'/materials/'+mid,qty===null?{delete:1}:{qty:qty},function(){load(Q,'cost')})};
   window.vdMatAdd=function(f,aid,idx){jpost('/appointments/'+aid+'/materials',{svc_idx:idx,product:f.product.value,qty:f.qty.value,cat:f.cat.value},function(){load(Q,'cost')});return false};
-  window.vdMatStep=function(aid,mid,btn,d){var i=btn.parentNode.querySelector('input'),v=parseFloat(String(i.value).replace(',','.'))||0;
-    var st=v<1&&!(d>0&&v===0)?0.1:1;v=Math.max(0,Math.round((v+d*st)*1000)/1000);i.value=v;clearTimeout(btn.parentNode._t);btn.parentNode._t=setTimeout(function(){vdMat(aid,mid,v)},350)};
+  function mk(el){return +(el.closest('.vd-qty').dataset.k||1)}
+  window.vdMatStep=function(aid,mid,btn,d){var i=btn.parentNode.querySelector('input'),v=parseFloat(String(i.value).replace(',','.'))||0,k=mk(btn);
+    var st=v<1&&!(d>0&&v===0)?0.1:1;v=Math.max(0,Math.round((v+d*st)*1000)/1000);i.value=v;clearTimeout(btn.parentNode._t);btn.parentNode._t=setTimeout(function(){vdMat(aid,mid,Math.round(v*k*1000)/1000)},350)};
+  window.vdMatSet=function(aid,mid,i){var v=parseFloat(String(i.value).replace(',','.'))||0;vdMat(aid,mid,Math.round(v*mk(i)*1000)/1000)};
+  window.vdUnit=function(sel){var q=sel.parentNode.querySelector('.vd-qty'),i=q.querySelector('input'),old=+(q.dataset.k||1),k=+sel.value;
+    var base=(parseFloat(String(i.value).replace(',','.'))||0)*old;q.dataset.k=k;i.value=Math.round(base/k*10000)/10000};
   window.vdMatReset=function(aid,idx){if(!confirm('Повернути витратні цієї послуги як у техкарті?'))return false;var fd=new FormData();fd.append('svc_idx',idx);
     fetch('/appointments/'+aid+'/materials-reset',{method:'POST',body:fd,credentials:'same-origin'}).then(function(){load(Q,'cost')});return false};
   document.addEventListener('keydown',function(e){if(e.key==='Escape')visitClose()});

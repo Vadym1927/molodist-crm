@@ -91,3 +91,10 @@ def test_unit_cost_prefers_product_cost():
         db.add(p); db.flush()
         db.add(ProductPurchase(product_id=p.id, bought_on=date(2026, 9, 30), qty=100, unit_cost=1.41)); db.commit()
         assert tc.unit_costs(db)[p.id] == 1.14            # як у CleverBox: ціна закупівлі з проведених поставок
+
+
+def test_unit_cost_per_pack_divided_by_coef():
+    with SessionLocal() as db:
+        p = Product(name="Маска уп", name_norm="маска уп", warehouse="single", unit="шт.", purchase_unit="уп.", coef=50, cost=75)
+        db.add(p); db.commit()
+        assert tc.unit_costs(db)[p.id] == 1.5             # 75 ₴ за упаковку / 50 шт.
