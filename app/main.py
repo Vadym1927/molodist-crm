@@ -758,6 +758,20 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
     paylinks = db.scalars(select(_PL).where(_PL.patient_id == p.id).order_by(_PL.id.desc()).limit(10)).all() if can(user, "sales") else []
     from .models import Call as _Call
     pcalls = db.scalars(select(_Call).where(_Call.patient_id == p.id).order_by(_Call.at.desc()).limit(50)).all() if (can(user, "appeals") or can(user, "book")) else []
+    pvis = _patient_visit_rows(db, p)
+    phist = [dict(r, kind="visit") for r in pvis] + [
+        {"kind": "sale", "at": s_.sold_at, "name": s_.product_name, "doctor": "", "sum": s_.amount, "status": "sale",
+         "label": "продаж", "appt": None, "qty": s_.quantity} for s_ in p.sales if s_.sold_at]
+    phist.sort(key=lambda r: r["at"], reverse=True)
+    from .services import patient_tags as _ptg
+    _lv = _ptg.tags(db)
+    _vd = _ptg.visit_days(db, [p.id]).get(p.id, 0) or int(p.cb_visits or 0)
+    ptag = _ptg.tag_for(_lv, _vd)
+    ptag_color = _ptg.colors(_lv).get(ptag, "#8a8496")
+    page_age = None
+    if p.birthday:
+        _t = date.today()
+        page_age = _t.year - p.birthday.year - ((_t.month, _t.day) < (p.birthday.month, p.birthday.day))
     return render(request, "patient.html", p=p, statuses=statuses, ptasks=ptasks, msgs=msgs, dupes=dupes, paylinks=paylinks, pcalls=pcalls,
                   call_thr=float(__import__("app.services.telephony", fromlist=["x"]).public(db).get("ai_alert_below") or 0),
                   certs=_cert.for_patient(db, p.id), CERT_STATES=_cert.STATES, today=date.today(),
@@ -769,7 +783,7 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
                   doctors=db.scalars(select(Doctor).order_by(Doctor.name)).all(),
                   photos=[f for f in p.files if f.kind == "photo"],
                   docs=[f for f in p.files if f.kind != "photo"], now=datetime.now(),
-                  pvisits=_patient_visit_rows(db, p),
+                  pvisits=pvis, phist=phist, ptag=ptag, ptag_color=ptag_color, page_age=page_age,
                   patient_kpi=dict(done=len(completed_visits), planned=len(planned_visits),
                                    first=min(dated_events) if dated_events else None,
                                    next=min((v.starts_at for v in planned_visits), default=None),

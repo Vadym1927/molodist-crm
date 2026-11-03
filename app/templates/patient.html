@@ -1,15 +1,105 @@
 {% extends "base.html" %}
+{% block title %}{{ p.full_name }} · Картка пацієнта · MOLODIST CRM{% endblock %}
 {% block body %}
-<div class="row between" style="margin-bottom:16px">
-  <div><a href="/clients" class="muted small" style="text-decoration:none">← Пацієнти</a>
-    <h1>{{ p.full_name }}</h1>
-    <div class="muted">{{ p.phone or 'телефон не вказано' }} · {{ p.doctor.name if p.doctor else 'лікар не вказаний' }} ·
-      {% if p.cleverbox_id %}CleverBox #{{ p.cleverbox_id }}{% else %}<span class="pill warn">не привʼязано до CleverBox</span>{% endif %}</div></div>
-  <div class="row" style="align-items:flex-start">
-  <a class="btn ghost" href="/patients/{{ p.id }}/print" target="_blank">Друк / PDF</a>
-  {% if p.files %}<a class="btn ghost" href="/patients/{{ p.id }}/files.zip">Файли ZIP</a>{% endif %}
-  <button type="button" class="btn ghost" onclick="document.getElementById('pe-d').showModal()">Редагувати картку</button>
-  {% set _w = p.full_name.split() %}
+{% set _w = p.full_name.split() %}
+{% macro hrow(r) %}{% set _go = '/calendar?start=' ~ r.at.strftime('%Y-%m-%d') ~ '&open=' ~ r.appt if r.appt else '' %}
+<div class="ph-r{{ ' go' if _go }}" data-k="{{ r.kind }}"{% if _go %} onclick="location.href='{{ _go|safe }}'" title="Відкрити візит"{% endif %}>
+  <span class="d">{% if _go %}<a href="{{ _go|safe }}">{{ r.at|dt('%d.%m.%y %H:%M') }}</a>{% else %}{{ r.at|dt('%d.%m.%y') if r.kind == 'sale' else r.at|dt('%d.%m.%y %H:%M') }}{% endif %}</span>
+  <span class="n">{{ '🛍 ' if r.kind == 'sale' }}{{ r.name }}{% if r.doctor or r.qty %}<small>{{ r.doctor }}{{ ('× ' ~ r.qty) if r.qty and r.qty > 1 }}</small>{% endif %}</span>
+  <span class="s">{{ r.sum|uah if r.sum is not none else '—' }}</span>
+  {% if r.kind == 'sale' %}<span class="st sale">Продаж</span>
+  {% elif r.status == 'done' %}<span class="st done">Виконано</span>
+  {% elif r.status in ('cancelled','no_show') %}<span class="st bad">{{ r.label|capitalize }}</span>
+  {% else %}<span class="st plan">{{ 'Заплановано' if r.at >= now else r.label|capitalize }}</span>{% endif %}
+</div>{% endmacro %}
+<style>
+.pc-bc{font-size:13px;color:#8a8496;margin-bottom:12px}.pc-bc a{color:#5C4B82;text-decoration:none}
+.pc-hd{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:22px;align-items:center;background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:20px 24px}
+.pc-av{width:96px;height:96px;border-radius:50%;object-fit:cover;background:linear-gradient(135deg,#E4DEEF,#C9BFE6);display:flex;align-items:center;justify-content:center;font:600 30px var(--head);color:#3B3050;letter-spacing:.04em;overflow:hidden;flex:none}
+.pc-av img{width:100%;height:100%;object-fit:cover}
+.pc-nm{margin:0;font:600 28px var(--head);letter-spacing:.02em;line-height:1.15;color:#2A2430}
+.pc-mn{font-size:16px;color:#5d5869;margin-top:2px}
+.pc-tg{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.pc-tg .pill{font-size:11.5px}
+.pc-tag{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font:700 11px var(--sans);letter-spacing:.05em;text-transform:uppercase}
+.pc-meta{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:10px;font-size:13.5px;color:#5d5869}.pc-meta b{color:#2A2430;font-weight:600}
+.pc-cp{border:0;background:#F7F4F0;border-radius:6px;padding:2px 6px;cursor:pointer;font-size:12px;color:#5C4B82}
+.pc-act{display:grid;gap:8px;justify-items:end}.pc-act .row{gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.pc-more{position:relative}.pc-more>summary{list-style:none;cursor:pointer}.pc-more>summary::-webkit-details-marker{display:none}
+.pc-menu{position:absolute;right:0;top:calc(100% + 6px);background:#fff;border:1px solid #ECE7E1;border-radius:14px;box-shadow:0 14px 40px rgba(42,36,48,.15);padding:6px;min-width:220px;z-index:20;display:grid}
+.pc-menu a,.pc-menu button{display:block;text-align:left;padding:9px 12px;border-radius:9px;border:0;background:none;font:500 14px var(--sans);color:#2A2430;text-decoration:none;cursor:pointer}.pc-menu a:hover,.pc-menu button:hover{background:#F4F1FA}
+.pc-act .pl-box{text-align:left}.pc-act .pl-box[open] form{position:absolute;right:24px;background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:14px;box-shadow:0 14px 40px rgba(42,36,48,.15);z-index:20}
+.pt-tabs{position:sticky;top:0;z-index:6;display:flex;flex-wrap:nowrap;gap:4px;overflow-x:auto;background:var(--bg);padding:12px 0 10px;margin:6px 0 6px;border-bottom:1px solid #ECE7E1}
+.pt-tabs a{white-space:nowrap;padding:9px 14px;border-radius:10px;text-decoration:none;color:#5d5869;font:600 13.5px var(--sans)}.pt-tabs a:hover{background:#F4F1FA}
+.pt-tabs a.on{background:#3B3050;color:#fff}.pt-tabs em{font-style:normal;opacity:.7;margin-left:4px;font-size:12px}
+.pt-p{display:none}.pt-p.on{display:block}
+.pk{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:12px 0 16px}
+.pk>div{background:#fff;border:1px solid #ECE7E1;border-radius:16px;padding:14px 16px}.pk span{display:block;font:700 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496}
+.pk b{display:block;font:600 22px var(--head);margin-top:6px;color:#2A2430}.pk small{display:block;color:#8a8496;font-size:12.5px;margin-top:2px}
+.po{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:16px;align-items:start}.po>div{display:grid;gap:16px;min-width:0}
+.pcd{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:18px 20px}
+.pcd h3{margin:0;font:600 13px var(--head);letter-spacing:.1em;text-transform:uppercase;color:#2A2430}
+.pcd-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.ph-ch{display:flex;gap:4px}.ph-ch button{border:1px solid #E4DEEF;background:#fff;border-radius:999px;padding:4px 12px;font:600 12px var(--sans);color:#5d5869;cursor:pointer}.ph-ch button.on{background:#3B3050;border-color:#3B3050;color:#fff}
+.ph-r{display:grid;grid-template-columns:110px minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid #F1EDE8;font-size:13.5px}
+.ph-r .d{color:#5d5869;white-space:nowrap}.ph-r .n{font-weight:600;color:#2A2430;overflow:hidden;text-overflow:ellipsis}.ph-r .n small{display:block;font-weight:400;color:#8a8496}
+.ph-r .s{white-space:nowrap;font-weight:600}.ph-r a{color:inherit;text-decoration:none}.ph-r.go{cursor:pointer}.ph-r.go:hover{background:#FAF8FD}
+.st{display:inline-block;padding:3px 10px;border-radius:999px;font:700 11px var(--sans);white-space:nowrap}
+.st.plan{background:#E4DEEF;color:#3B3050}.st.done{background:#E3F1E6;color:#2E7D4F}.st.sale{background:#F7EEDD;color:#8A6420}.st.bad{background:#F8E1DE;color:#B23B2E}
+.pc-more-l{display:inline-block;margin-top:10px;color:#5C4B82;font-weight:600;font-size:13.5px;text-decoration:none;cursor:pointer}
+.pt-l{display:grid;gap:0}.pt-l>div{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-top:1px solid #F1EDE8;font-size:13.5px}
+.pt-l input[type=checkbox]{width:17px;height:17px;accent-color:#3B3050;margin-top:1px}
+.pl-kv{display:grid;gap:0}.pl-kv>div{display:grid;grid-template-columns:130px minmax(0,1fr);gap:10px;padding:8px 0;border-top:1px solid #F1EDE8;font-size:13.5px}.pl-kv span{color:#8a8496}.pl-kv b{font-weight:600;color:#2A2430;word-break:break-word}
+.pf-g{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.pf-g a{display:block;aspect-ratio:1;border-radius:12px;overflow:hidden;background:#F7F4F0}.pf-g img{width:100%;height:100%;object-fit:cover}
+.pc-btns{display:flex;flex-wrap:wrap;gap:8px}
+.bp-e{text-align:center;padding:10px 0;color:#8a8496;font-size:13.5px}.bp-e .pc-btns{justify-content:center;margin-top:10px}
+.bp-bar{height:8px;border-radius:99px;background:#F1EDE8;overflow:hidden;margin:8px 0 4px}.bp-bar i{display:block;height:100%;background:linear-gradient(90deg,#5C4B82,#C9BFE6)}
+.tgl{display:flex;justify-content:space-between;align-items:center;gap:10px;padding-top:10px;border-top:1px solid #F1EDE8;margin-top:10px;font-size:13.5px}
+.script-box{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fdfbf8}
+.pt-p>.card{margin-top:0;margin-bottom:16px}
+@media(max-width:1100px){.po{grid-template-columns:1fr}.pk{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:720px){.pc-hd{grid-template-columns:auto 1fr;padding:16px}.pc-act{grid-column:1/-1;justify-items:start}.pc-act .row{justify-content:flex-start}.pc-av{width:68px;height:68px;font-size:22px}.pc-nm{font-size:22px}.pk{grid-template-columns:repeat(2,minmax(0,1fr))}.ph-r{grid-template-columns:80px minmax(0,1fr) auto}.ph-r .s{display:none}}
+</style>
+
+<div class="pc-bc"><a href="/clients">← Пацієнти</a> / Картка пацієнта</div>
+<div class="pc-hd">
+  <div class="pc-av">{% if p.avatar_file_id %}<img src="/files/{{ p.avatar_file_id }}" alt="">{% else %}{{ (_w[0][:1] if _w else '') ~ (_w[1][:1] if _w|length > 1 else '') }}{% endif %}</div>
+  <div style="min-width:0">
+    <h1 class="pc-nm">{{ _w[:2]|join(' ') }}</h1>{% if _w|length > 2 %}<div class="pc-mn">{{ _w[2:]|join(' ') }}</div>{% endif %}
+    <div class="pc-tg">
+      {% if ptag %}<span class="pc-tag" style="background:{{ ptag_color }}22;color:{{ ptag_color }};border:1px solid {{ ptag_color }}55">● {{ ptag }}</span>{% endif %}
+      {% if p.cb_mark=='vip' %}<span class="pill ok">VIP</span>{% elif p.cb_mark %}<span class="pill done">{{ p.cb_mark }}</span>{% endif %}
+      {% if p.cb_status %}<span class="pill done">{{ p.cb_status }}</span>{% endif %}
+      {% for group in p.client_groups or [] %}<span class="pill done">{{ group }}</span>{% endfor %}
+      {% for d in p.directions or [] %}<span class="pill" style="background:var(--lavender);color:var(--classic)">{{ d }}</span>{% endfor %}
+      {% if p.no_repeat_call %}<span class="pill warn">Не дзвонити при повторному візиті</span>{% endif %}
+      {% if p.marketing_opt_out %}<span class="pill bad">відписана від розсилок</span>{% endif %}
+    </div>
+    <div class="pc-meta">
+      <span>📞 <b>{{ p.phone or 'телефон не вказано' }}</b>{% if p.phone %} <button type="button" class="pc-cp" onclick="navigator.clipboard.writeText('{{ p.phone }}');this.textContent='✓'" title="Копіювати номер">⧉</button>{% endif %}</span>
+      {% if p.birthday %}<span>🎂 <b>{{ page_age }} р.</b> · {{ p.birthday|dt('%d.%m.%Y') }}</span>{% endif %}
+      <span>Лікар: <b>{{ p.doctor.name if p.doctor else 'лікар не вказаний' }}</b></span>
+      <span>{% if p.cleverbox_id %}CleverBox #{{ p.cleverbox_id }}{% else %}<span class="pill warn">не привʼязано до CleverBox</span>{% endif %}</span>
+    </div>
+  </div>
+  <div class="pc-act">
+    <div class="row">
+      {% if can(user,'book') %}<a class="btn" href="/calendar?view=day&newappt=1&patient={{ p.id }}">＋ Записати</a>{% endif %}
+      {% if can(user,'sales') %}<a class="btn ghost" href="/sales/new?patient={{ p.id }}">💳 Продаж</a>{% endif %}
+      <details class="pc-more"><summary class="btn ghost" title="Ще">•••</summary><div class="pc-menu">
+        <button type="button" onclick="document.getElementById('pe-d').showModal();this.closest('details').open=false">Редагувати картку</button>
+        <a href="/patients/{{ p.id }}/print" target="_blank">Друк / PDF</a>
+        {% if p.files %}<a href="/patients/{{ p.id }}/files.zip">Файли ZIP</a>{% endif %}
+        <a href="/patients/{{ p.id }}/photos">Фото до / після</a>
+        {% if can(user,'medical') %}<a href="/patients/{{ p.id }}/medcard">🩺 Медкартка</a>{% endif %}
+      </div></details>
+    </div>
+    <div class="row">
+      {% if p.phone %}<a class="btn ghost" href="tel:{{ p.phone }}">📞 Зателефонувати</a>{% endif %}
+      <a class="btn ghost" href="#contact" onclick="ptGo('comm');return false">✉ Написати</a>
+      {% if can(user,'sales') %}{% set pl_patient, pl_appt, pl_amount, pl_purpose, pl_back = p.id, None, None, '', '/patients/' ~ p.id %}{% include "_paylink_form.html" %}{% endif %}
+    </div>
+  </div>
+</div>
   <dialog id="pe-d" class="pe-d"><form method="post" action="/patients/{{ p.id }}" class="pe">
     <div class="pe-h"><h2>Картка пацієнта</h2><button type="button" class="pe-x" onclick="this.closest('dialog').close()">×</button></div>
     <div class="pe-s">ПІБ</div>
@@ -51,9 +141,8 @@
   .pe-a{display:flex;justify-content:flex-end;gap:8px;margin-top:6px}
   @media(max-width:700px){.pe-g3{grid-template-columns:1fr}}
   </style>
-  </div>
-</div>
 
+{% if request.query_params.get('merged') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok);margin-top:12px">Картки об'єднано — план і файли перенесено сюди.</div>{% endif %}
 {% if request.query_params.get('merged') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">Картки об'єднано — план і файли перенесено сюди.</div>{% endif %}
 {% if dupes %}<div class="card" style="background:var(--lavender);border-color:var(--lavender-2)">
   <h2 style="margin:0 0 4px">Схоже, ця пацієнтка вже є в базі CleverBox</h2>
@@ -67,87 +156,110 @@
     <button class="btn" style="padding:6px 14px">Це вона — об'єднати</button></form>{% endfor %}
 </div>{% endif %}
 
-<div style="display:flex;justify-content:flex-end;gap:6px;margin:-4px 0 8px">{% if can(user,'book') %}<a class="btn" href="/calendar?view=day&newappt=1&patient={{ p.id }}">📅 Записати</a>{% endif %}{% if can(user,'sales') %}<a class="btn ghost" href="/sales/new?patient={{ p.id }}">💳 Продаж</a>{% endif %}</div>
-{% if can(user,'sales') %}<div style="display:flex;justify-content:flex-end;margin:-2px 0 8px;text-align:left">{% set pl_patient, pl_appt, pl_amount, pl_purpose, pl_back = p.id, None, None, '', '/patients/' ~ p.id %}{% include "_paylink_form.html" %}</div>
-{% if paylinks %}<div class="card small" style="padding:10px 14px;margin-bottom:8px"><b>Посилання на оплату</b>
-  {% for l in paylinks %}<div class="row between" style="padding:4px 0;border-top:1px solid var(--line);gap:6px;flex-wrap:wrap"><span>№{{ l.id }} · {{ l.created_at|dt('%d.%m %H:%M') }} · {{ l.amount|uah }} · {{ l.purpose }}</span>
-    <span><b style="color:{{ 'var(--ok)' if l.status == 'paid' else ('#C0392B' if l.status in ('failed','expired') else 'var(--muted)') }}">{{ {'created':'очікує','paid':'оплачено','failed':'помилка','expired':'прострочено','cancelled':'скасовано'}.get(l.status, l.status) }}</b>
-      {% if l.status == 'created' %}<button class="btn ghost" style="padding:2px 8px" type="button" onclick="navigator.clipboard.writeText('{{ l.url }}');this.textContent='✓'">Копіювати</button>
-      <form method="post" action="/paylinks/{{ l.id }}/check" style="display:inline"><input type="hidden" name="back" value="/patients/{{ p.id }}"><button class="btn ghost" style="padding:2px 8px">Перевірити</button></form>{% endif %}</span></div>{% endfor %}</div>{% endif %}{% endif %}
-<div class="tabs patient-tabs">
-  <a class="on" href="#info">Info</a><a href="#kpi">KPI</a><a href="#visits">Візити <em>{{ patient_kpi.done + patient_kpi.planned }}</em></a>
-  <a href="#contact">Дзвінки й повідомлення</a><a href="#files">Документи й фото</a><a href="/patients/{{ p.id }}/photos">Фото</a>{% if can(user,'medical') %}<a href="/patients/{{ p.id }}/medcard">🩺 Медкартка</a>{% endif %}<a href="#plans">План</a><a href="#sales">Продажі</a><a href="#history">Історія</a>
-</div>
+{% set _nvis = pvisits|length %}
+<nav class="pt-tabs" id="pt-tabs">
+  <a href="#t-over" data-t="over" class="on">Огляд</a>
+  <a href="#t-visits" data-t="visits">Візити <em>{{ _nvis }}</em></a>
+  {% if can(user,'medical') %}<a href="/patients/{{ p.id }}/medcard">Медкарта</a>{% endif %}
+  <a href="#t-plan" data-t="plan">Бʼюті-план{% if statuses %} <em>{{ statuses|length }}</em>{% endif %}</a>
+  <a href="#t-comm" data-t="comm">Комунікації{% if pcalls %} <em>{{ pcalls|length }}</em>{% endif %}</a>
+  <a href="#t-files" data-t="files">Фото й документи <em>{{ p.files|length }}</em></a>
+  <a href="#t-sales" data-t="sales">Продажі{% if p.sales %} <em>{{ p.sales|length }}</em>{% endif %}</a>
+  <a href="#t-hist" data-t="hist">Історія</a>
+</nav>
 
-<div class="card" id="info">
-  <div class="row between"><h2 style="margin:0">Профіль пацієнта</h2>
-    <div class="row">{% if p.cb_mark=='vip' %}<span class="pill ok">VIP</span>{% endif %}{% if p.cb_status %}<span class="pill done">{{ p.cb_status }}</span>{% endif %}</div></div>
-  <div class="profile-grid" style="margin-top:14px">
-    <div><span>Контакти</span><b>{{ p.phone or '—' }}</b><div class="muted small">{{ p.email or 'Email не вказано' }}</div></div>
-    <div><span>Дата народження</span><b>{{ p.birthday|dt('%d.%m.%Y') if p.birthday else '—' }}</b><div class="muted small">{{ p.gender or 'Стать не вказана' }}</div></div>
-    <div><span>Лікар</span><b>{{ p.doctor.name if p.doctor else '—' }}</b><div class="muted small">{{ p.communication_channel or 'Канал не обрано' }}</div></div>
-    <div><span>Джерело</span><b>{{ p.source or '—' }}</b><div class="muted small">{{ p.address or 'Адресу не вказано' }}</div></div>
+{# ================= ОГЛЯД ================= #}
+<section class="pt-p on" data-t="over">
+  <div class="pk" id="kpi">
+    <div><span>Завершені візити</span><b>{{ patient_kpi.done or p.cb_visits or 0 }}</b><small>перший: {{ patient_kpi.first|dt('%d.%m.%Y') if patient_kpi.first else (p.cb_first_visit|dt('%d.%m.%Y') if p.cb_first_visit else '—') }}</small></div>
+    <div><span>Найближчий візит</span><b style="font-size:18px">{{ patient_kpi.next|dt('%d.%m.%Y %H:%M') if patient_kpi.next else '—' }}</b><small>заплановано: {{ patient_kpi.planned }}</small></div>
+    <div><span>Надано послуг</span><b>{{ patient_kpi.service_revenue|uah }}</b><small>середній чек {{ p.cb_average|uah if p.cb_average is not none else '—' }}</small></div>
+    <div><span>Продажі товарів</span><b>{{ patient_kpi.product_revenue|uah }}</b><small>всього {{ p.sales|length }} позицій</small></div>
+    <div><span>Баланс / бонуси</span><b>{{ p.cb_balance|uah if p.cb_balance is not none else '—' }}</b><small>бонуси: {{ loyal.balance|uah if loyal.balance else (p.cb_bonus|uah if p.cb_bonus is not none else '—') }}</small></div>
   </div>
-  {% if p.client_groups %}<div class="row" style="margin-top:12px">{% for group in p.client_groups %}<span class="pill done">{{ group }}</span>{% endfor %}</div>{% endif %}
-  {% if p.instagram or p.viber or p.telegram_contact or p.preferred_doctor or p.drink or p.directions or p.cb_note or p.cb_first_visit or p.delivery or p.no_repeat_call %}
-  <div class="profile-grid" style="margin-top:14px">
-    {% if p.directions %}<div><span>Напрямки</span><div class="row" style="gap:4px;margin-top:4px">{% for d in p.directions %}<span class="pill" style="background:var(--lavender);color:var(--classic)">{{ d }}</span>{% endfor %}</div></div>{% endif %}
-    {% if p.preferred_doctor %}<div><span>Надає перевагу спеціалісту</span><b>{{ p.preferred_doctor }}</b></div>{% endif %}
-    {% if p.drink %}<div><span>Напій</span><b>☕ {{ p.drink }}</b></div>{% endif %}
-    {% if p.instagram or p.viber or p.telegram_contact %}<div><span>Месенджери</span><div class="small" style="margin-top:4px">
-      {% if p.instagram %}<div>Instagram: <a href="https://instagram.com/{{ p.instagram|replace('@','') }}" target="_blank">{{ p.instagram }}</a></div>{% endif %}
-      {% if p.viber %}<div>Viber: {{ p.viber }}</div>{% endif %}{% if p.telegram_contact %}<div>Telegram: {{ p.telegram_contact }}</div>{% endif %}</div></div>{% endif %}
-    {% if p.cb_first_visit %}<div><span>Перший візит</span><b>{{ p.cb_first_visit|dt('%d.%m.%Y') }}</b><div class="muted small">{{ ('у CleverBox з ' ~ p.cb_registered_at.strftime('%d.%m.%Y')) if p.cb_registered_at }}</div></div>{% endif %}
-    {% if p.delivery %}<div><span>Доставка НП</span><div class="small">{{ p.delivery }}</div></div>{% endif %}
-  </div>
-  {% if p.no_repeat_call %}<div class="pill warn" style="margin-top:10px">Не дзвонити при повторному візиті</div>{% endif %}
-  {% if p.cb_note %}<div class="small" style="margin-top:12px;padding:10px 12px;background:var(--cream,#F7F4F0);border-radius:10px"><b>Замітка CleverBox:</b> {{ p.cb_note }}</div>{% endif %}
-  {% endif %}
-  {% if p.cb_anamnesis and can(user,'medical') %}<div class="small" style="margin-top:10px;padding:10px 12px;background:var(--bad-bg);border-radius:10px"><b>Медичний анамнез (CleverBox):</b> {{ p.cb_anamnesis }} <span class="muted">· бачать лише лікарі й власник</span></div>{% endif %}
-  {% if p.cb_extra %}<details style="margin-top:14px"><summary class="small" style="cursor:pointer;font-weight:600">Усі дані з картки CleverBox ({{ p.cb_extra|length }}){% if p.cb_synced_at %} · оновлено {{ p.cb_synced_at|dt('%d.%m %H:%M') }}{% endif %}</summary>
-    <table class="small" style="margin-top:8px">{% for k, v in p.cb_extra.items() %}<tr><td class="muted" style="width:220px">{{ CB_LABELS.get(k, k) }}</td><td>{{ v }}</td></tr>{% endfor %}</table></details>{% endif %}
+  <div class="po">
+    <div>
+      <div class="pcd"><div class="pcd-h"><h3>Історія та найближчий візит</h3>
+        <div class="ph-ch" data-ph="ov"><button type="button" class="on" data-f="all">Усе</button><button type="button" data-f="visit">Візити</button><button type="button" data-f="sale">Покупки</button></div></div>
+        <div class="ph-list" data-ph="ov" data-lim="6">{% for r in phist %}{{ hrow(r) }}{% else %}<div class="muted small" style="padding:10px 0">{{ 'Немає візитів' if p.cleverbox_id else 'Пацієнт не привʼязаний до CleverBox — вкажіть телефон або ID у картці' }}</div>{% endfor %}</div>
+        {% if phist|length > 6 %}<a class="pc-more-l" onclick="ptGo('hist')">Уся історія →</a>{% endif %}
+      </div>
+<div class="pcd" id="tasks"><div class="row between"><h3>Задачі</h3></div>
+  <table class="small" style="margin-top:8px"><tbody>
+  {% for t in ptasks %}<tr style="{{ 'opacity:.55' if t.status!='open' }}"><td><b>{{ t.title }}</b>{% if t.result %}<div style="color:var(--ok)">✔ {{ t.result }}</div>{% endif %}</td>
+    <td>{{ t.assignee.name if t.assignee else ({'admin':'Адміністратори','owner':'Власник'}.get(t.assignee_role,'—')) }}</td><td>{{ t.due_date|dt('%d.%m') if t.due_date else '' }}</td>
+    <td>{% if t.status=='open' %}<form method="post" action="/tasks/{{ t.id }}" class="row" style="gap:4px;flex-wrap:nowrap"><input type="hidden" name="back" value="/patients/{{ p.id }}#tasks">
+      <input name="result" placeholder="Результат" style="width:140px;padding:4px 6px"><button class="btn" name="status" value="done" style="padding:3px 8px">✔</button></form>{% else %}{{ 'виконано' if t.status=='done' else 'скасовано' }}{% endif %}</td></tr>
+  {% else %}<tr><td class="muted">Задач немає</td></tr>{% endfor %}</tbody></table>
+  <form method="post" action="/tasks" class="row" style="margin-top:10px">
+    <input type="hidden" name="patient_id" value="{{ p.id }}"><input type="hidden" name="back" value="/patients/{{ p.id }}#tasks">
+    <input name="title" placeholder="Нова задача: напр. «Передзвонити щодо IPL»" required style="flex:1;min-width:220px">
+    <select name="assignee"><option value="">Мені</option><option value="admin">Адміністраторам</option>{% for u in users %}<option value="{{ u.id }}">{{ u.name }}</option>{% endfor %}</select>
+    <input type="date" name="due_date"><button class="btn ghost">Додати</button></form>
 </div>
-
-{% if certs %}<div class="card" id="certs"><h2>Подарункові сертифікати</h2>
-  <table class="small"><thead><tr><th>№</th><th>Сертифікат</th><th>Продано</th><th class="r">Номінал</th><th class="r">Залишок</th><th>Діє до</th><th>Стан</th></tr></thead><tbody>
-  {% for c in certs %}{% set st = c.state(today) %}<tr><td>{{ c.code or c.id }}</td><td>{{ c.type_name or '—' }}{% if c.comment %}<div class="muted">{{ c.comment }}</div>{% endif %}</td>
-    <td>{{ c.sold_at|dt('%d.%m.%Y') if c.sold_at else '—' }}<div class="muted">{{ c.seller or '' }}</div></td><td class="r">{{ c.nominal|uah }}</td><td class="r"><b>{{ c.balance|uah }}</b></td>
-    <td>{{ c.valid_to|dt('%d.%m.%Y') if c.valid_to else 'безстроково' }}</td>
-    <td><span class="pill {{ {'active':'ok','expiring':'warn','expired':'bad','used':'done','unpaid':'warn'}[st] }}">{{ CERT_STATES[st] }}</span></td></tr>{% endfor %}
-  </tbody></table></div>{% endif %}
-
-{% if subs %}<div class="card" id="subs"><h2>Абонементи</h2>
-  <table class="small"><thead><tr><th>№</th><th>Абонемент</th><th>Продано</th><th class="r">Сплачено</th><th>Візити</th><th>Діє до</th><th>Стан</th></tr></thead><tbody>
-  {% for x in subs %}{% set st = x.state(today) %}<tr><td>{{ x.code or x.id }}</td><td>{{ x.type_name or '—' }}{% if x.services %}<div class="muted">{{ x.services[:120] }}</div>{% endif %}</td>
-    <td>{{ x.sold_at|dt('%d.%m.%Y') if x.sold_at else '—' }}</td><td class="r">{{ x.paid|uah }}</td>
-    <td>{% if x.visits_total %}{{ '%g'|format(x.visits_used or 0) }} з {{ '%g'|format(x.visits_total) }} · лишилось <b>{{ '%g'|format(x.visits_left) }}</b>{% else %}—{% endif %}</td>
-    <td>{{ x.valid_to|dt('%d.%m.%Y') if x.valid_to else 'безстроково' }}</td>
-    <td><span class="pill {{ {'active':'ok','expiring':'warn','expired':'bad','used':'done','unpaid':'warn'}[st] }}">{{ SUB_STATES[st] }}</span></td></tr>{% endfor %}
-  </tbody></table></div>{% endif %}
-
-{% if can(user,'loyalty_patient') %}<div class="card" id="loyal"><div class="row between"><h2 style="margin:0">Бонуси й знижка</h2>
-  <span class="small muted">{{ 'бонусна програма працює' if loyal.s.enabled else 'бонусна програма вимкнена — Налаштування → Знижки й бонуси' }}</span></div>
-  <div class="row" style="gap:18px;margin-top:10px;align-items:flex-start;flex-wrap:wrap">
-    <div><div class="small muted">Бонусів</div><b style="font:600 26px var(--head)">{{ loyal.balance|uah }}</b>{% if p.cb_bonus and not loyal.txns %}<div class="small muted">у CleverBox: {{ p.cb_bonus|uah }}</div>{% endif %}</div>
-    {% set _pd = pdisc(p) %}<form method="post" action="/patients/{{ p.id }}/discount" class="row" style="gap:6px"><span class="small muted">Персональна знижка</span>
-      <label class="small muted" style="display:flex;gap:4px;align-items:center">товари<input name="products" value="{{ '%g'|format(_pd[0]) if _pd[0] else '' }}" inputmode="decimal" style="width:60px" placeholder="%"></label>
-      <label class="small muted" style="display:flex;gap:4px;align-items:center">послуги<input name="services" value="{{ '%g'|format(_pd[1]) if _pd[1] else '' }}" inputmode="decimal" style="width:60px" placeholder="%"></label>
-      <button class="btn ghost" style="padding:4px 10px">OK</button></form>
-    <form method="post" action="/patients/{{ p.id }}/bonus" class="row" style="gap:6px"><select name="sign"><option value="+">Нарахувати</option><option value="-">Списати</option></select>
-      <input name="amount" inputmode="decimal" placeholder="Бонусів" style="width:100px" required><input name="comment" placeholder="За що" style="width:160px"><button class="btn ghost" style="padding:4px 10px">OK</button></form></div>
-  {% if loyal.txns %}<details class="small" style="margin-top:8px"><summary>Рух бонусів · {{ loyal.txns|length }}</summary><table class="tb small" style="margin-top:6px"><tbody>
-    {% for t in loyal.txns %}<tr><td>{{ t.at|dt('%d.%m.%Y %H:%M') }}</td><td>{{ loyal.KL.get(t.kind, t.kind) }}{{ (' · ' ~ t.comment) if t.comment }}</td><td class="r" style="color:{{ 'var(--ok)' if t.amount > 0 else 'var(--bad)' }}">{{ '+' if t.amount > 0 }}{{ t.amount|uah }}</td><td class="small muted">{{ ('до ' ~ (t.expires_at|dt('%d.%m.%Y'))) if t.expires_at }}</td></tr>{% endfor %}</tbody></table></details>{% endif %}
-</div>{% endif %}
-<div class="card" id="kpi"><h2>Показники пацієнта</h2>
-  <div class="grid g5">
-    <div class="tile"><span>Завершені візити</span><b>{{ patient_kpi.done or p.cb_visits or 0 }}</b><div class="muted small">перший: {{ patient_kpi.first|dt('%d.%m.%Y') if patient_kpi.first else (p.cb_first_visit|dt('%d.%m.%Y') if p.cb_first_visit else '—') }}</div></div>
-    <div class="tile"><span>Найближчий візит</span><b style="font-size:18px">{{ patient_kpi.next|dt('%d.%m.%Y %H:%M') if patient_kpi.next else '—' }}</b><div class="muted small">заплановано: {{ patient_kpi.planned }}</div></div>
-    <div class="tile"><span>Надано послуг</span><b>{{ patient_kpi.service_revenue|uah }}</b><div class="muted small">середній чек {{ p.cb_average|uah if p.cb_average is not none else '—' }}</div></div>
-    <div class="tile"><span>Продажі товарів</span><b>{{ patient_kpi.product_revenue|uah }}</b><div class="muted small">всього {{ p.sales|length }} позицій</div></div>
-    <div class="tile"><span>Баланс / бонуси</span><b>{{ p.cb_balance|uah if p.cb_balance is not none else '—' }}</b><div class="muted small">бонуси: {{ p.cb_bonus|uah if p.cb_bonus is not none else '—' }}</div></div>
+      <div class="pcd"><div class="pcd-h"><h3>Звʼязок</h3>
+        <span class="small">{% if p.telegram_chat_id %}<span class="pill ok">Telegram-бот ✓</span>{% else %}<span class="pill warn">не в боті</span>{% endif %}</span></div>
+        <div class="pc-btns">{% if p.phone %}<a class="btn ghost" href="tel:{{ p.phone }}">📞 Зателефонувати</a>{% endif %}
+          <button type="button" class="btn ghost" onclick="ptGo('comm')">✉ Написати</button>
+          {% if pscripts %}<button type="button" class="btn ghost" onclick="ptGo('comm')">📋 Відкрити скрипт</button>{% endif %}</div>
+        <div class="tgl"><span>Отримувати розсилки</span>
+          {% if can(user,'patient_edit') %}<form method="post" action="/patients/{{ p.id }}/optout"><input type="hidden" name="value" value="{{ '0' if p.marketing_opt_out else '1' }}">
+            <button class="btn ghost" style="padding:3px 12px">{{ 'Ні — повернути згоду' if p.marketing_opt_out else 'Так — відписати' }}</button></form>
+          {% else %}<b>{{ 'ні' if p.marketing_opt_out else 'так' }}</b>{% endif %}</div>
+      </div>
+    </div>
+    <div>
+      <div class="pcd"><div class="pcd-h"><h3>Бʼюті-план</h3>{% if statuses %}<a class="small" style="color:#5C4B82;cursor:pointer" onclick="ptGo('plan')">Відкрити →</a>{% endif %}</div>
+        {% if statuses %}{% set ps = statuses[0] %}
+          <div style="font-weight:600">{{ ps.plan.title or 'Бюті-план' }} · {{ ps.plan.session_at|dt }}</div>
+          <div class="bp-bar"><i style="width:{{ [ps.realization_pct,100]|min }}%"></i></div>
+          <div class="small muted">Реалізовано {{ ps.realized_sum|uah }} з {{ ps.planned_sum|uah }} · {{ ps.realization_pct }}%</div>
+          <div class="small" style="margin-top:6px">Процедури {{ ps.proc_done }}/{{ ps.proc_planned }} · догляд {{ ps.prod_bought }}/{{ ps.prod_planned }}{% if ps.is_booked %} · <span class="pill ok">запис {{ ps.next_booking|dt('%d.%m %H:%M') }}</span>{% endif %}</div>
+        {% else %}<div class="bp-e">Бʼюті-плану ще немає
+          {% if can(user,'upload') %}<form method="post" action="/upload" enctype="multipart/form-data" class="pc-btns" id="bp-up"><label class="btn ghost" style="cursor:pointer">⬆ Завантажити PDF<input type="file" name="files" accept="application/pdf" hidden onchange="this.form.submit()"></label></form>{% endif %}</div>{% endif %}
+      </div>
+      <div class="pcd"><div class="pcd-h"><h3>Фото й документи</h3><a class="small" style="color:#5C4B82" href="/patients/{{ p.id }}/photos">Відкрити галерею →</a></div>
+        {% if photos %}<div class="pf-g">{% for f in (photos|reverse|list)[:3] %}<a href="/files/{{ f.id }}" target="_blank"><img src="/files/{{ f.id }}" loading="lazy" alt=""></a>{% endfor %}</div>
+        {% else %}<div class="small muted">Фото ще немає</div>{% endif %}
+        {% if docs %}<div class="small muted" style="margin-top:8px">Документів: {{ docs|length }}</div>{% endif %}
+        <div class="pc-btns" style="margin-top:10px"><button type="button" class="btn ghost" onclick="ptGo('files')">＋ Додати</button></div>
+      </div>
+      <div class="pcd" id="info"><div class="pcd-h"><h3>Профіль</h3><button type="button" class="btn ghost" style="padding:3px 10px" onclick="document.getElementById('pe-d').showModal()">Редагувати дані</button></div>
+        <div class="pl-kv">
+          <div><span>Контакт</span><b>{{ p.phone or '—' }}</b></div>
+          <div><span>Email</span><b>{{ p.email or '—' }}</b></div>
+          <div><span>Дата народження</span><b>{{ p.birthday|dt('%d.%m.%Y') if p.birthday else '—' }}{{ (' · ' ~ p.gender) if p.gender }}</b></div>
+          <div><span>Лікар</span><b>{{ p.doctor.name if p.doctor else '—' }}</b></div>
+          <div><span>Канал звʼязку</span><b>{{ p.communication_channel or '—' }}</b></div>
+          <div><span>Джерело</span><b>{{ p.source or '—' }}</b></div>
+          {% if p.address %}<div><span>Адреса</span><b>{{ p.address }}</b></div>{% endif %}
+          {% if p.preferred_doctor %}<div><span>Улюблений лікар</span><b>{{ p.preferred_doctor }}</b></div>{% endif %}
+          {% if p.drink %}<div><span>Напій</span><b>☕ {{ p.drink }}</b></div>{% endif %}
+          {% if p.instagram %}<div><span>Instagram</span><b><a href="https://instagram.com/{{ p.instagram|replace('@','') }}" target="_blank">{{ p.instagram }}</a></b></div>{% endif %}
+          {% if p.viber %}<div><span>Viber</span><b>{{ p.viber }}</b></div>{% endif %}
+          {% if p.telegram_contact %}<div><span>Telegram</span><b>{{ p.telegram_contact }}{{ (' · бот @' ~ p.telegram_username) if p.telegram_username }}</b></div>{% endif %}
+          {% if p.cb_first_visit %}<div><span>Перший візит</span><b>{{ p.cb_first_visit|dt('%d.%m.%Y') }}</b></div>{% endif %}
+          {% if p.cb_registered_at %}<div><span>У CleverBox з</span><b>{{ p.cb_registered_at.strftime('%d.%m.%Y') }}</b></div>{% endif %}
+          {% if p.delivery %}<div><span>Доставка НП</span><b>{{ p.delivery }}</b></div>{% endif %}
+          {% set _pd = pdisc(p) %}<div><span>Знижка / бонуси</span><b>{{ ('товари ' ~ '%g'|format(_pd[0]) ~ '%') if _pd[0] }}{{ ' · ' if _pd[0] and _pd[1] }}{{ ('послуги ' ~ '%g'|format(_pd[1]) ~ '%') if _pd[1] }}{{ '—' if not _pd[0] and not _pd[1] }} · {{ loyal.balance|uah }} {% if can(user,'loyalty_patient') %}<a class="small" style="color:#5C4B82;cursor:pointer" onclick="ptGo('sales')">Налаштувати</a>{% endif %}</b></div>
+        </div>
+        {% if p.cb_note %}<div class="small" style="margin-top:12px;padding:10px 12px;background:var(--cream,#F7F4F0);border-radius:10px"><b>Замітка CleverBox:</b> {{ p.cb_note }}</div>{% endif %}
+        {% if p.notes %}<div class="small" style="margin-top:8px;padding:10px 12px;background:#FAF8FD;border-radius:10px"><b>Нотатки:</b> {{ p.notes }}</div>{% endif %}
+        {% if p.cb_anamnesis and can(user,'medical') %}<div class="small" style="margin-top:10px;padding:10px 12px;background:var(--bad-bg);border-radius:10px"><b>Медичний анамнез (CleverBox):</b> {{ p.cb_anamnesis }} <span class="muted">· бачать лише лікарі й власник</span></div>{% endif %}
+        {% if p.cb_extra %}<details style="margin-top:12px"><summary class="small" style="cursor:pointer;font-weight:600">Усі дані з картки CleverBox ({{ p.cb_extra|length }}){% if p.cb_synced_at %} · оновлено {{ p.cb_synced_at|dt('%d.%m %H:%M') }}{% endif %}</summary>
+          <table class="small" style="margin-top:8px">{% for k, v in p.cb_extra.items() %}<tr><td class="muted" style="width:150px">{{ CB_LABELS.get(k, k) }}</td><td>{{ v }}</td></tr>{% endfor %}</table></details>{% endif %}
+      </div>
+    </div>
   </div>
-</div>
+</section>
 
+{# ================= ВІЗИТИ ================= #}
+<section class="pt-p" data-t="visits"><div class="pcd" id="visits"><div class="pcd-h"><h3>Візити · {{ _nvis }}</h3>{% if can(user,'book') %}<a class="btn" href="/calendar?view=day&newappt=1&patient={{ p.id }}">＋ Записати</a>{% endif %}</div>
+  {% for r in phist if r.kind == 'visit' %}{{ hrow(r) }}{% else %}<div class="muted small">{{ 'Немає візитів' if p.cleverbox_id else 'Пацієнт не привʼязаний до CleverBox — вкажіть телефон або ID у картці' }}</div>{% endfor %}
+</div></section>
+
+{# ================= БʼЮТІ-ПЛАН ================= #}
+<section class="pt-p" data-t="plan">
 <div id="plans">
 {% for ps in statuses %}{% set pl = ps.plan %}{% set f = FLAG[ps.flag] %}
 <div class="card" id="plan{{ pl.id }}">
@@ -201,24 +313,13 @@
 <div class="card muted">Бюті-плану ще немає. Завантажте PDF з Observ кнопкою вгорі або надішліть боту.</div>
 {% endfor %}
 </div>
+</section>
 
+{# ================= КОМУНІКАЦІЇ ================= #}
+<section class="pt-p" data-t="comm">
 {% if pcalls is defined and (can(user,'appeals') or can(user,'book')) %}{% from "_calls.html" import call_list %}
 <div class="card" id="calls"><div class="row between"><h2 style="margin:0">Дзвінки · {{ pcalls|length }}</h2><a class="btn ghost" href="/telephony">Журнал дзвінків</a></div>
   <div style="margin-top:10px">{{ call_list(pcalls, {p.id: p}, call_thr, False, '/patients/' ~ p.id ~ '#calls') }}</div></div>{% endif %}
-<div class="card" id="tasks"><div class="row between"><h2 style="margin:0">Задачі</h2></div>
-  <table class="small" style="margin-top:8px"><tbody>
-  {% for t in ptasks %}<tr style="{{ 'opacity:.55' if t.status!='open' }}"><td><b>{{ t.title }}</b>{% if t.result %}<div style="color:var(--ok)">✔ {{ t.result }}</div>{% endif %}</td>
-    <td>{{ t.assignee.name if t.assignee else ({'admin':'Адміністратори','owner':'Власник'}.get(t.assignee_role,'—')) }}</td><td>{{ t.due_date|dt('%d.%m') if t.due_date else '' }}</td>
-    <td>{% if t.status=='open' %}<form method="post" action="/tasks/{{ t.id }}" class="row" style="gap:4px;flex-wrap:nowrap"><input type="hidden" name="back" value="/patients/{{ p.id }}#tasks">
-      <input name="result" placeholder="Результат" style="width:140px;padding:4px 6px"><button class="btn" name="status" value="done" style="padding:3px 8px">✔</button></form>{% else %}{{ 'виконано' if t.status=='done' else 'скасовано' }}{% endif %}</td></tr>
-  {% else %}<tr><td class="muted">Задач немає</td></tr>{% endfor %}</tbody></table>
-  <form method="post" action="/tasks" class="row" style="margin-top:10px">
-    <input type="hidden" name="patient_id" value="{{ p.id }}"><input type="hidden" name="back" value="/patients/{{ p.id }}#tasks">
-    <input name="title" placeholder="Нова задача: напр. «Передзвонити щодо IPL»" required style="flex:1;min-width:220px">
-    <select name="assignee"><option value="">Мені</option><option value="admin">Адміністраторам</option>{% for u in users %}<option value="{{ u.id }}">{{ u.name }}</option>{% endfor %}</select>
-    <input type="date" name="due_date"><button class="btn ghost">Додати</button></form>
-</div>
-
 <div class="card" id="contact">
   <div class="row between"><h2 style="margin:0">Звʼязок з пацієнткою</h2>
     <div class="row small">
@@ -249,17 +350,11 @@
       <td><span class="pill {{ 'ok' if m.status=='sent' else 'bad' }}">{{ 'надіслано' if m.status=='sent' else 'помилка' }}</span></td>
       <td class="muted">{{ m.text[:120] }}{{ '…' if m.text|length > 120 }}{{ (' — ' ~ m.error) if m.error }}</td><td>{{ m.user.name if m.user else '' }}</td></tr>{% endfor %}</tbody></table></details>{% endif %}
 </div>
+</section>
 
-<div class="grid g2" id="visits">
-  <div class="card" id="history"><span id="sales"></span><h2>Візити, продажі та історія з CleverBox · {{ pvisits|length }}</h2><style>.pv-go{cursor:pointer}.pv-go:hover td{background:#F4F1FA}.pv-go a{color:inherit;font-weight:600}</style>
-    <table class="small"><thead><tr><th>Дата</th><th>Послуга</th><th>Спеціаліст</th><th class="r">Сума</th><th>Статус</th></tr></thead><tbody>
-    {% for v in pvisits %}<tr class="{{ 'pv-go' if v.appt }}" {% if v.appt %}onclick="location.href='/calendar?start={{ v.at.strftime('%Y-%m-%d') }}&open={{ v.appt }}'" title="Відкрити візит"{% endif %}>
-      <td class="nw">{% if v.appt %}<a href="/calendar?start={{ v.at.strftime('%Y-%m-%d') }}&open={{ v.appt }}">{{ v.at|dt('%d.%m.%y %H:%M') }}</a>{% else %}{{ v.at|dt('%d.%m.%y %H:%M') }}{% endif %}</td><td>{{ v.name }}</td><td>{{ v.doctor }}</td>
-      <td class="r">{{ v.sum|uah if v.sum is not none else '—' }}</td><td><span class="pill {{ 'ok' if v.status=='done' else ('bad' if v.status in ('cancelled','no_show') else 'warn') }}">{{ v.label }}</span></td></tr>
-    {% else %}<tr><td colspan="5" class="muted">{{ 'Немає візитів' if p.cleverbox_id else 'Пацієнт не привʼязаний до CleverBox — вкажіть телефон або ID у картці' }}</td></tr>{% endfor %}
-    {% for s in p.sales|reverse %}<tr><td>{{ s.sold_at|dt('%d.%m.%y') }}</td><td>🛍 {{ s.product_name }}</td><td></td><td class="r">{{ s.amount|uah }}</td><td>продаж</td></tr>{% endfor %}
-    </tbody></table></div>
-  <div class="card" id="files"><h2>Документи та фото</h2>
+{# ================= ФОТО Й ДОКУМЕНТИ ================= #}
+<section class="pt-p" data-t="files">
+  <div class="card" id="files"><h2>Фото й документи</h2>
     <div class="photos">{% for f in photos %}<a href="/files/{{ f.id }}" target="_blank" title="{{ f.caption or '' }}"><img src="/files/{{ f.id }}" loading="lazy" alt=""><div class="muted small">{{ f.created_at|dt }}</div></a>{% endfor %}</div>
     {% for f in docs %}<div class="small"><a href="/files/{{ f.id }}" target="_blank">📄 {{ f.caption or 'файл' }}</a> <span class="muted">{{ f.created_at|dt }}</span></div>{% endfor %}
     <form method="post" action="/patients/{{ p.id }}/photos" enctype="multipart/form-data" class="drop row" style="margin-top:12px;justify-content:center">
@@ -267,8 +362,71 @@
       <input name="zone" placeholder="Зона (обличчя, шия…)" style="width:160px"><input name="caption" placeholder="Підпис"><button class="btn ghost">Додати фото</button></form>
     <a href="/patients/{{ p.id }}/photos" class="small">Усі фото: до/після, розділи, видалення →</a>
   </div>
-</div>
-<style>.script-box{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fdfbf8}.profile-grid{display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:14px}.profile-grid>div{padding:12px;border-radius:10px;background:#fdfbf8}.profile-grid span{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em}.profile-grid b{display:block;margin-top:3px}.patient-tabs{position:sticky;top:0;z-index:4;padding:8px 0;background:var(--bg)}@media(max-width:720px){.profile-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.patient-tabs{top:0}}</style>
+</section>
+
+{# ================= ПРОДАЖІ ================= #}
+<section class="pt-p" data-t="sales"><span id="sales"></span>
+  <div class="pcd" style="margin-bottom:16px"><div class="pcd-h"><h3>Покупки товарів · {{ p.sales|length }}</h3>{% if can(user,'sales') %}<a class="btn" href="/sales/new?patient={{ p.id }}">💳 Продаж</a>{% endif %}</div>
+    {% for r in phist if r.kind == 'sale' %}{{ hrow(r) }}{% else %}<div class="muted small">Покупок ще немає</div>{% endfor %}</div>
+  {% if can(user,'sales') %}{% if paylinks %}<div class="card small" style="padding:10px 14px;margin-bottom:8px"><b>Посилання на оплату</b>
+  {% for l in paylinks %}<div class="row between" style="padding:4px 0;border-top:1px solid var(--line);gap:6px;flex-wrap:wrap"><span>№{{ l.id }} · {{ l.created_at|dt('%d.%m %H:%M') }} · {{ l.amount|uah }} · {{ l.purpose }}</span>
+    <span><b style="color:{{ 'var(--ok)' if l.status == 'paid' else ('#C0392B' if l.status in ('failed','expired') else 'var(--muted)') }}">{{ {'created':'очікує','paid':'оплачено','failed':'помилка','expired':'прострочено','cancelled':'скасовано'}.get(l.status, l.status) }}</b>
+      {% if l.status == 'created' %}<button class="btn ghost" style="padding:2px 8px" type="button" onclick="navigator.clipboard.writeText('{{ l.url }}');this.textContent='✓'">Копіювати</button>
+      <form method="post" action="/paylinks/{{ l.id }}/check" style="display:inline"><input type="hidden" name="back" value="/patients/{{ p.id }}"><button class="btn ghost" style="padding:2px 8px">Перевірити</button></form>{% endif %}</span></div>{% endfor %}</div>{% endif %}{% endif %}
+{% if certs %}<div class="card" id="certs"><h2>Подарункові сертифікати</h2>
+  <table class="small"><thead><tr><th>№</th><th>Сертифікат</th><th>Продано</th><th class="r">Номінал</th><th class="r">Залишок</th><th>Діє до</th><th>Стан</th></tr></thead><tbody>
+  {% for c in certs %}{% set st = c.state(today) %}<tr><td>{{ c.code or c.id }}</td><td>{{ c.type_name or '—' }}{% if c.comment %}<div class="muted">{{ c.comment }}</div>{% endif %}</td>
+    <td>{{ c.sold_at|dt('%d.%m.%Y') if c.sold_at else '—' }}<div class="muted">{{ c.seller or '' }}</div></td><td class="r">{{ c.nominal|uah }}</td><td class="r"><b>{{ c.balance|uah }}</b></td>
+    <td>{{ c.valid_to|dt('%d.%m.%Y') if c.valid_to else 'безстроково' }}</td>
+    <td><span class="pill {{ {'active':'ok','expiring':'warn','expired':'bad','used':'done','unpaid':'warn'}[st] }}">{{ CERT_STATES[st] }}</span></td></tr>{% endfor %}
+  </tbody></table></div>{% endif %}
+
+{% if subs %}<div class="card" id="subs"><h2>Абонементи</h2>
+  <table class="small"><thead><tr><th>№</th><th>Абонемент</th><th>Продано</th><th class="r">Сплачено</th><th>Візити</th><th>Діє до</th><th>Стан</th></tr></thead><tbody>
+  {% for x in subs %}{% set st = x.state(today) %}<tr><td>{{ x.code or x.id }}</td><td>{{ x.type_name or '—' }}{% if x.services %}<div class="muted">{{ x.services[:120] }}</div>{% endif %}</td>
+    <td>{{ x.sold_at|dt('%d.%m.%Y') if x.sold_at else '—' }}</td><td class="r">{{ x.paid|uah }}</td>
+    <td>{% if x.visits_total %}{{ '%g'|format(x.visits_used or 0) }} з {{ '%g'|format(x.visits_total) }} · лишилось <b>{{ '%g'|format(x.visits_left) }}</b>{% else %}—{% endif %}</td>
+    <td>{{ x.valid_to|dt('%d.%m.%Y') if x.valid_to else 'безстроково' }}</td>
+    <td><span class="pill {{ {'active':'ok','expiring':'warn','expired':'bad','used':'done','unpaid':'warn'}[st] }}">{{ SUB_STATES[st] }}</span></td></tr>{% endfor %}
+  </tbody></table></div>{% endif %}
+
+{% if can(user,'loyalty_patient') %}<div class="card" id="loyal"><div class="row between"><h2 style="margin:0">Бонуси й знижка</h2>
+  <span class="small muted">{{ 'бонусна програма працює' if loyal.s.enabled else 'бонусна програма вимкнена — Налаштування → Знижки й бонуси' }}</span></div>
+  <div class="row" style="gap:18px;margin-top:10px;align-items:flex-start;flex-wrap:wrap">
+    <div><div class="small muted">Бонусів</div><b style="font:600 26px var(--head)">{{ loyal.balance|uah }}</b>{% if p.cb_bonus and not loyal.txns %}<div class="small muted">у CleverBox: {{ p.cb_bonus|uah }}</div>{% endif %}</div>
+    {% set _pd = pdisc(p) %}<form method="post" action="/patients/{{ p.id }}/discount" class="row" style="gap:6px"><span class="small muted">Персональна знижка</span>
+      <label class="small muted" style="display:flex;gap:4px;align-items:center">товари<input name="products" value="{{ '%g'|format(_pd[0]) if _pd[0] else '' }}" inputmode="decimal" style="width:60px" placeholder="%"></label>
+      <label class="small muted" style="display:flex;gap:4px;align-items:center">послуги<input name="services" value="{{ '%g'|format(_pd[1]) if _pd[1] else '' }}" inputmode="decimal" style="width:60px" placeholder="%"></label>
+      <button class="btn ghost" style="padding:4px 10px">OK</button></form>
+    <form method="post" action="/patients/{{ p.id }}/bonus" class="row" style="gap:6px"><select name="sign"><option value="+">Нарахувати</option><option value="-">Списати</option></select>
+      <input name="amount" inputmode="decimal" placeholder="Бонусів" style="width:100px" required><input name="comment" placeholder="За що" style="width:160px"><button class="btn ghost" style="padding:4px 10px">OK</button></form></div>
+  {% if loyal.txns %}<details class="small" style="margin-top:8px"><summary>Рух бонусів · {{ loyal.txns|length }}</summary><table class="tb small" style="margin-top:6px"><tbody>
+    {% for t in loyal.txns %}<tr><td>{{ t.at|dt('%d.%m.%Y %H:%M') }}</td><td>{{ loyal.KL.get(t.kind, t.kind) }}{{ (' · ' ~ t.comment) if t.comment }}</td><td class="r" style="color:{{ 'var(--ok)' if t.amount > 0 else 'var(--bad)' }}">{{ '+' if t.amount > 0 }}{{ t.amount|uah }}</td><td class="small muted">{{ ('до ' ~ (t.expires_at|dt('%d.%m.%Y'))) if t.expires_at }}</td></tr>{% endfor %}</tbody></table></details>{% endif %}
+</div>{% endif %}
+</section>
+
+{# ================= ІСТОРІЯ ================= #}
+<section class="pt-p" data-t="hist"><div class="pcd" id="history"><div class="pcd-h"><h3>Візити, продажі та історія з CleverBox · {{ phist|length }}</h3>
+  <div class="ph-ch" data-ph="hi"><button type="button" class="on" data-f="all">Усе</button><button type="button" data-f="visit">Візити</button><button type="button" data-f="sale">Покупки</button></div></div>
+  <div class="ph-list" data-ph="hi">{% for r in phist %}{{ hrow(r) }}{% else %}<div class="muted small">Історії ще немає</div>{% endfor %}</div>
+</div></section>
+
+
+
 <script>document.querySelectorAll('button.copy').forEach(b=>b.addEventListener('click',()=>{const el=document.getElementById(b.dataset.copy);
-navigator.clipboard.writeText(el.value!==undefined?el.value:el.innerText).then(()=>{b.textContent='Скопійовано ✓';setTimeout(()=>b.textContent='Копіювати',1500)})}));</script>
+navigator.clipboard.writeText(el.value!==undefined?el.value:el.innerText).then(()=>{b.textContent='Скопійовано ✓';setTimeout(()=>b.textContent='Копіювати',1500)})}));
+function ptGo(t,el){document.querySelectorAll('#pt-tabs a[data-t]').forEach(a=>a.classList.toggle('on',a.dataset.t===t));
+  document.querySelectorAll('.pt-p').forEach(s=>s.classList.toggle('on',s.dataset.t===t));
+  try{history.replaceState(null,'','#t-'+t)}catch(e){}
+  if(el){setTimeout(()=>el.scrollIntoView({block:'start'}),30)}else{const n=document.getElementById('pt-tabs');if(n.getBoundingClientRect().top<0)n.scrollIntoView()}}
+document.querySelectorAll('#pt-tabs a[data-t]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();ptGo(a.dataset.t)}));
+function phFilter(g,f){const lst=document.querySelector('.ph-list[data-ph="'+g+'"]');if(!lst)return;const lim=+lst.dataset.lim||0;let n=0;
+  lst.querySelectorAll('.ph-r').forEach(r=>{const ok=f==='all'||r.dataset.k===f;const show=ok&&(!lim||n<lim);if(ok)n++;r.style.display=show?'':'none'})}
+document.querySelectorAll('.ph-ch').forEach(ch=>ch.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+  ch.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));phFilter(ch.dataset.ph,b.dataset.f)})));
+phFilter('ov','all');phFilter('hi','all');
+(function(){const h=decodeURIComponent(location.hash.slice(1));if(!h)return;
+  if(h.startsWith('t-')){ptGo(h.slice(2));return}
+  const el=document.getElementById(h);const sec=el&&el.closest('.pt-p');if(sec)ptGo(sec.dataset.t,el)})();
+</script>
 {% endblock %}
