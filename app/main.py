@@ -734,6 +734,46 @@ def _patient_visit_rows(db: Session, p: Patient) -> list[dict]:
     return out
 
 
+def _sale_sellers(db: Session, sales) -> dict[int, str]:
+    """Ініціатор продажу товару: каса CRM — спеціаліст позиції; CleverBox — initiator_name позиції чека."""
+    from .models import SaleItem, Check
+    out, crm, cbk = {}, {}, {}
+    for s_ in sales:
+        ext = s_.external_id or ""
+        if ext.startswith("crm:"):
+            try:
+                crm[s_.id] = int(ext.split(":")[2])
+            except (IndexError, ValueError):
+                pass
+        else:
+            head = ext.split("-", 1)[0]
+            if head.isdigit():
+                cbk[s_.id] = int(head)
+    if crm:
+        docs = {d_.id: d_.name for d_ in db.scalars(select(Doctor))}
+        items = {i.id: i for i in db.scalars(select(SaleItem).where(SaleItem.id.in_(set(crm.values()))))}
+        for sid, iid in crm.items():
+            it = items.get(iid)
+            if it and it.doctor_id in docs:
+                out[sid] = docs[it.doctor_id]
+    if cbk:
+        checks = {c.id: c for c in db.scalars(select(Check).where(Check.id.in_(set(cbk.values()))))}
+        byid = {s_.id: s_ for s_ in sales}
+        for sid, chk in cbk.items():
+            c = checks.get(chk)
+            if not c:
+                continue
+            prods = [it for it in (c.items or []) if (it.get("item_type") or "") == "product"]
+            s_ = byid[sid]
+            pick = next((it for it in prods if s_.product_id and str(it.get("item_id")) == str(s_.product_id)), None) \
+                or next((it for it in prods if (it.get("item_name") or "").strip() == (s_.product_name or "").strip()), None) \
+                or (prods[0] if len({(x.get("initiator_name") or "").strip() for x in prods}) == 1 and prods else None)
+            name = ((pick or {}).get("initiator_name") or "").strip()
+            if name:
+                out[sid] = name
+    return out
+
+
 @app.get("/patients/{pid}", response_class=HTMLResponse)
 def patient_card(request: Request, pid: int, user: User = Depends(current_user), db: Session = Depends(db_dep)):
     p = _patient_or_403(db, user, pid)
@@ -763,8 +803,9 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
     _ph_items = [{"f": f, "cat": _pp.cat(f), "img": _pp.is_image(f)} for f in
                  sorted(_pp.all_files(db, p.id), key=lambda f: (f.taken_at or f.created_at.date(), f.id), reverse=True)]
     _ph_counts = {k: sum(1 for x in _ph_items if x["cat"] == k) for k in _pp.CATS}
+    _sellers = _sale_sellers(db, p.sales)
     phist = [dict(r, kind="visit") for r in pvis] + [
-        {"kind": "sale", "at": s_.sold_at, "name": s_.product_name, "doctor": "", "sum": s_.amount, "status": "sale",
+        {"kind": "sale", "at": s_.sold_at, "name": s_.product_name, "doctor": _sellers.get(s_.id, ""), "sum": s_.amount, "status": "sale",
          "label": "продаж", "appt": None, "qty": s_.quantity} for s_ in p.sales if s_.sold_at]
     phist.sort(key=lambda r: r["at"], reverse=True)
     from .services import patient_tags as _ptg
