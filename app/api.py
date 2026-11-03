@@ -435,7 +435,7 @@ def calls_pending_ai(limit: int = 20, days: int = 3, key: ApiKey = Depends(CALLS
     from .models import Call
     from .services import telephony as tel
     cfg = tel.public(db)
-    rows = db.scalars(select(Call).where(Call.ai_score.is_(None), Call.status == "answered", Call.record_url.is_not(None),
+    rows = db.scalars(select(Call).where(Call.ai_score.is_(None), Call.ai_at.is_(None), Call.status == "answered", Call.record_url.is_not(None),
                                          Call.at >= datetime.now() - timedelta(days=max(1, min(days, 30))))
                       .order_by(Call.at.desc()).limit(max(1, min(limit, 100)))).all()
     return {"criteria": cfg.get("ai_criteria"), "alert_below": cfg.get("ai_alert_below"),

@@ -476,8 +476,7 @@ def agent_result(db: Session, c: Call, data: dict) -> Call:
             meta[k] = data[k] if k in ("booked", "criteria") else str(data[k])[:1000]
     meta["engine"] = "agent"
     c.ai_meta = meta
-    if c.ai_score is not None:
-        c.ai_at = datetime.utcnow()
+    c.ai_at = datetime.utcnow()                    # оброблено агентом (навіть без оцінки) — більше не в черзі
     db.commit()
     alert_low(db, c)
     return c
