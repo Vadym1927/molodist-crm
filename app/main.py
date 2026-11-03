@@ -789,9 +789,10 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
                   docs=[f for f in p.files if f.kind != "photo"], now=datetime.now(),
                   items=_ph_items, counts=_ph_counts, CATS=_pp.CATS,
                   pvisits=pvis, phist=phist, ptag=ptag, ptag_color=ptag_color, page_age=page_age,
-                  patient_kpi=dict(done=len(completed_visits), planned=len(planned_visits),
-                                   first=min(dated_events) if dated_events else None,
-                                   next=min((v.starts_at for v in planned_visits), default=None),
+                  patient_kpi=dict(done=max(len(completed_visits), len({r["at"].date() for r in pvis if r["status"] == "done"})),
+                                   planned=len({r["at"] for r in pvis if r["at"] >= datetime.now() and r["status"] not in ("done", "cancelled", "no_show")}),
+                                   first=min([*dated_events, *(r["at"] for r in pvis if r["status"] == "done")], default=None),
+                                   next=min((r["at"] for r in pvis if r["at"] >= datetime.now() and r["status"] not in ("done", "cancelled", "no_show")), default=None),
                                    service_revenue=service_revenue, product_revenue=product_revenue,
                                    revenue=service_revenue + product_revenue))
 
