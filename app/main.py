@@ -5681,7 +5681,7 @@ def settings_telephony(request: Request, user: User = Depends(require("users")),
     calls = db.scalars(select(Call).order_by(Call.at.desc()).limit(30)).all()
     base = str(request.base_url).rstrip("/").replace("http://", "https://")
     from .services import invoice_ai as _ia
-    return render(request, "telephony.html", nav="settings", t=t_, PROV=tel.PROVIDERS, calls=calls, sources=ap_.dirs(db)["sources"],
+    return render(request, "telephony.html", nav="settings", t=t_, PROV=tel.PROVIDERS, calls=calls, sources=ap_.dirs(db)["sources"], hook_log=tel.hook_log(db),
                   users_all=db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all(), has_ai_key=bool(_ia.api_key(db)),
                   hook_url=lambda p: f"{base}/api/public/telephony/{p}/{t_['hook']}", R_BODY=tel.RINGOSTAT_BODY, R_EVENTS=tel.RINGOSTAT_EVENTS)
 
@@ -5719,6 +5719,7 @@ async def telephony_hook(request: Request, provider: str, hook: str, db: Session
         data = dict(parse_qsl(raw.decode("utf-8", "replace")))
     if not isinstance(data, dict):
         data = {}
+    tel.log_hook(db, provider, request.query_params.get("event", ""), data)
     c = tel.ingest(db, provider, data, request.query_params.get("event", ""))
     return {"ok": True, "call": c.id, "appeal": c.appeal_id, "status": "success"}
 

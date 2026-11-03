@@ -174,6 +174,28 @@ def test(db: Session, http: httpx.Client | None = None) -> tuple[bool, str]:
     return False, "?"
 
 
+def log_hook(db: Session, provider: str, event: str, data: dict) -> None:
+    """Останні 30 вебхуків (для перевірки налаштування подій у кабінеті провайдера)."""
+    st = db.get(SyncState, "telephony_hook_log") or SyncState(key="telephony_hook_log")
+    try:
+        xs = json.loads(st.value) if st.value else []
+    except ValueError:
+        xs = []
+    xs.insert(0, {"at": datetime.now().strftime("%d.%m %H:%M:%S"), "provider": provider, "event": event or "—",
+                  "data": {str(k)[:40]: str(v)[:200] for k, v in list(data.items())[:40]}})
+    st.value, st.updated_at = json.dumps(xs[:30], ensure_ascii=False), datetime.utcnow()
+    db.merge(st)
+    db.commit()
+
+
+def hook_log(db: Session) -> list[dict]:
+    st = db.get(SyncState, "telephony_hook_log")
+    try:
+        return json.loads(st.value) if st and st.value else []
+    except ValueError:
+        return []
+
+
 def live(db: Session, seconds: int = 120) -> list[Call]:
     """Дзвінки, що зараз ідуть (подія «перед дзвінком» / «підняття трубки») — для спливаючого вікна."""
     return db.scalars(select(Call).where(Call.status.in_(("ringing", "answer")), Call.at >= datetime.now() - timedelta(seconds=seconds))
