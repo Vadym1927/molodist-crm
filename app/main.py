@@ -1411,7 +1411,7 @@ def pos_patient(pid: int, user: User = Depends(require("sales")), db: Session = 
     from .services import loyalty as ly, calendar as _cal
     from sqlalchemy import func as _f
     p_ = _patient_or_403(db, user, pid)
-    n = db.scalar(select(_f.count(_f.distinct(_f.date(Visit.starts_at)))).where(Visit.patient_id == p_.id, Visit.status.in_(("attended", "done")))) or 0
+    n = __import__("app.services.patient_tags", fromlist=["x"]).visit_days(db, [p_.id]).get(p_.id, 0)
     from .services import certificates as _cert
     certs = [c_ for c_ in _cert.for_patient(db, p_.id) if c_.state() in ("active", "expiring")]
     subs = [s_ for s_ in _cert.subs_for_patient(db, p_.id) if s_.state() in ("active", "expiring")]
@@ -1423,7 +1423,7 @@ def pos_patient(pid: int, user: User = Depends(require("sales")), db: Session = 
     if db.scalar(select(User.id).where(User.active.is_(True), User.name == p_.full_name)) or \
             db.scalar(select(Doctor.id).where(Doctor.active.is_(True), Doctor.name == p_.full_name)):
         labels.insert(0, "Співробітник") if "Співробітник" not in labels else None
-    return JSONResponse({"id": p_.id, "name": p_.full_name, "phone": p_.phone or "", "tag": _cal.tag_for(n), "visits": n,
+    return JSONResponse({"id": p_.id, "name": p_.full_name, "phone": p_.phone or "", "tag": _cal.tag_for(n, __import__("app.services.patient_tags", fromlist=["x"]).tags(db)), "visits": n,
                          "bonus": round(ly.balance(db, p_.id), 2), "balance": p_.cb_balance, "discount": p_.discount_pct,
                          "pdisc": (lambda t_: {"products": t_[0], "services": t_[1]})(__import__("app.services.personal_discounts", fromlist=["pcts"]).pcts(p_)),
                          "labels": labels[:6],
@@ -3117,8 +3117,11 @@ def calendar_page(request: Request, start: str | None = None, doc: str = "", vie
         ctx["doc_prev"], ctx["doc_next"] = ids[i_ - 1], ids[(i_ + 1) % len(ids)]
     _pids = {e.patient_id for lst in ev.values() for e in lst if e.patient_id}
     ctx["phones"] = dict(db.query(Patient.id, Patient.phone).filter(Patient.id.in_(_pids)).all()) if _pids else {}
-    from .services import visit_statuses as _vs
+    from .services import visit_statuses as _vs, patient_tags as _ptg
     ctx["vstats"], ctx["vstat_css"] = _vs.all_(db), _vs.css(db)
+    ctx["tag_colors"] = _ptg.colors(_ptg.tags(db))
+    ctx["pinfo"] = _ptg.calendar_info(db, [e for lst in ev.values() for e in lst], can(user, "medical"))
+    ctx["pinfo_id"] = id
     return render(request, "calendar.html", ev=ev, cols=cols, grid=grid, start=s, days=days, n_ev=n_ev,
                   prev=s - timedelta(days=days), next=s + timedelta(days=days), end=s + timedelta(days=days - 1),
                   month=None, **ctx)
@@ -3175,9 +3178,13 @@ def calendar_visit(request: Request, appt: int = 0, v: str = "", tab: str = "vis
         raise HTTPException(404, "Візит не знайдено")
     p_ = _patient_or_403(db, user, c["p"].id)
     from sqlalchemy import func as _f
-    n = db.scalar(select(_f.count(_f.distinct(_f.date(Visit.starts_at)))).where(Visit.patient_id == p_.id, Visit.status.in_(("attended", "done")))) or 0
-    stats = {"tag": _cal.tag_for(n + 1), "visits": p_.cb_visits if p_.cb_visits is not None else n, "total": p_.cb_total or 0,
+    from .services import patient_tags as _ptg
+    n = _ptg.visit_days(db, [p_.id]).get(p_.id, 0)
+    _done_here = bool(c["a"] and c["a"].status == "done")
+    _lv = _ptg.tags(db)
+    stats = {"tag": _cal.tag_for(n + (0 if _done_here else 1), _lv), "tag_color": "", "visits": p_.cb_visits if p_.cb_visits is not None else n, "total": p_.cb_total or 0,
              "bonus": round(ly.balance(db, p_.id), 2), "discount": p_.discount_pct}
+    stats["tag_color"] = _ptg.colors(_lv).get(stats["tag"], "")
     mats, closed_, wdocs = None, False, []
     if c["a"]:
         from .services import techcards as _tc
@@ -4971,6 +4978,8 @@ SETTINGS_BLOCKS = [
         ('Причини звернень', None, '/settings/appeals?open=causes', 'users', 'dirs/appeal_cause'),
     ]),
     ('Пацієнти', 'patients', 'Фото, документи й персональні знижки пацієнтів', [
+        ('Статуси пацієнтів', 'Первинний, постійний, ФАНАТ…: назва, колір і з якої кількості візитів присвоюється', '/settings/patient-tags', 'users', None),
+        ('Дані пацієнта в календарі', 'Які поля картки пацієнта показувати в блоці візиту: завжди або при наведенні мишки', '/settings/patient-tags#cal', 'users', None),
         ('Фото пацієнтів', 'Усі фото й файли пацієнтів: згоди, обличчя, тіло, документи — перегляд, перенесення між розділами, видалення', '/settings/patient-photos', 'upload', None),
         ('Персональні знижки', 'Знижка конкретному пацієнту: окремо % на товари і % на послуги; автозастосування й сумування з іншими знижками', '/settings/personal-discounts', 'loyalty_patient', None),
     ]),
@@ -5313,6 +5322,26 @@ async def settings_cosmetics_pct_save(request: Request, user: User = Depends(req
                   "staff": rows("staff", ("min_price",)), "brands": rows("brand"), "products": rows("prod")})
     audit(db, "settings.cosmetics_pct", user=user)
     return RedirectResponse(_with_msg("/settings/cosmetics-pct", "Збережено. Звіт «Нарахування % по косметиці» рахується за новими правилами"), 303)
+
+
+@app.get("/settings/patient-tags", response_class=HTMLResponse)
+def settings_patient_tags(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import patient_tags as _pt
+    return render(request, "patient_tags.html", nav="settings", tags=_pt.tags(db), fields=_pt.fields(db), FIELDS=_pt.FIELDS, MODES=_pt.MODES)
+
+
+@app.post("/settings/patient-tags")
+async def settings_patient_tags_save(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import patient_tags as _pt
+    f = await request.form()
+    if f.get("what") == "fields":
+        _pt.save_fields(db, {k: str(f.get("f_" + k) or "off") for k in _pt.FIELDS})
+        audit(db, "settings.calendar_patient_fields", user=user)
+        return RedirectResponse(_with_msg("/settings/patient-tags#cal", "Поля календаря збережено"), 303)
+    rows = [{"name": n_, "min": m_, "color": c_} for n_, m_, c_ in zip(f.getlist("name"), f.getlist("min"), f.getlist("color"))]
+    _pt.save_tags(db, rows)
+    audit(db, "settings.patient_tags", user=user, n=len(rows))
+    return RedirectResponse(_with_msg("/settings/patient-tags", "Статуси пацієнтів збережено"), 303)
 
 
 @app.get("/settings/booking-sources", response_class=HTMLResponse)

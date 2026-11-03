@@ -167,13 +167,10 @@ def events(db: Session, user: User, start: date, days: int = 7, doctor_id: int |
     return out
 
 
-def tag_for(visits: int) -> str:
-    """Мітка пацієнта за кількістю візитів (як категорії у CleverBox)."""
-    if visits <= 1:
-        return "Первинний пацієнт"
-    if visits >= 10:
-        return "ФАНАТ"
-    return "Постійний пацієнт"
+def tag_for(visits: int, levels: list | None = None) -> str:
+    """Статус пацієнта за кількістю візитів (Налаштування → Пацієнти → Статуси пацієнтів)."""
+    from . import patient_tags as _pt
+    return _pt.tag_for(levels or _pt.DEFAULT_TAGS, visits)
 
 
 def _tag_patients(db: Session, out: dict) -> None:
@@ -181,13 +178,12 @@ def _tag_patients(db: Session, out: dict) -> None:
     pids = {e.patient_id for evs in out.values() for e in evs if e.patient_id and e.kind in ("visit", "attended")}
     if not pids:
         return
-    days = {pid: n for pid, n in db.execute(
-        select(Visit.patient_id, func.count(func.distinct(func.date(Visit.starts_at))))
-        .where(Visit.patient_id.in_(pids), Visit.status.in_(("attended", "done"))).group_by(Visit.patient_id))}
+    from . import patient_tags as _pt
+    days, levels = _pt.visit_days(db, pids), _pt.tags(db)
     for evs in out.values():
         for e in evs:
             if e.patient_id in pids and e.kind in ("visit", "attended"):
-                e.tag = tag_for((days.get(e.patient_id) or 0) + (0 if e.kind == "attended" else 1))
+                e.tag = tag_for((days.get(e.patient_id) or 0) + (0 if e.kind == "attended" else 1), levels)
 
 
 @dataclass
