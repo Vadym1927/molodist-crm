@@ -124,3 +124,18 @@ def test_popup_extra_and_notifications():
         c.post(u + "?event=end", json={"call_number": "380671230099", "ID": "x1", "type": "in", "status": "NO ANSWER", "dialog": "0"})
         h = c.get("/notifications").text
         assert "Пропущений дзвінок" in h and "Інфо Пацієнтка" in h
+
+
+def test_popup_fields_setting():
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        db.add(Patient(full_name="Поля Пацієнтка", phone="+380671239999", cb_note="Замітка")); db.commit()
+        tel.save(db, "ringostat", {"project_id": "1", "auth_key": "k"}, "Дзвінок", False, False)
+        hook = tel.public(db)["hook"]
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        assert "Що показувати у вікні" in c.get("/settings/telephony").text
+        c.post("/settings/telephony", data={"provider": "ringostat", "source": "Дзвінок", "popup_cfg": "1", "popup_fields": ["tag"]})
+        c.post(f"/api/public/telephony/ringostat/{hook}?event=ringing", json={"call_number": "380671239999", "ID": "pf1", "type": "in"})
+        lv = c.get("/telephony/live").json()["calls"][0]
+        assert lv["tag"] and lv["note"] is None and lv["last"] is None

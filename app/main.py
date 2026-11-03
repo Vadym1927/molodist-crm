@@ -5703,6 +5703,7 @@ def settings_telephony(request: Request, user: User = Depends(require("users")),
     from .services import invoice_ai as _ia
     return render(request, "telephony.html", nav="settings", t=t_, PROV=tel.PROVIDERS, calls=calls, sources=ap_.dirs(db)["sources"], hook_log=tel.hook_log(db),
                   users_all=db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all(), has_ai_key=bool(_ia.api_key(db)),
+                  POPUP_FIELDS=tel.POPUP_FIELDS,
                   hook_url=lambda p: f"{base}/api/public/telephony/{p}/{t_['hook']}", R_BODY=tel.RINGOSTAT_BODY, R_EVENTS=tel.RINGOSTAT_EVENTS)
 
 
@@ -5714,7 +5715,7 @@ async def settings_telephony_save(request: Request, user: User = Depends(require
     try:
         tel.save(db, prov, {k: f.get(k) for k in f.keys()}, str(f.get("source") or ""), bool(f.get("create_appeal")), bool(f.get("missed_only")))
         tel.save_extra(db, f.getlist("popup_users"), bool(f.get("ai_on")), str(f.get("ai_criteria") or ""), f.get("ai_alert_below"), bool(f.get("ai_alert")),
-                       str(f.get("ai_engine") or "crm"))
+                       str(f.get("ai_engine") or "crm"), f.getlist("popup_fields") if f.get("popup_cfg") else None)
     except ValueError as e:
         return RedirectResponse(_with_msg("/settings/telephony", str(e), True), 303)
     audit(db, "telephony.save", user=user, provider=prov)
@@ -5764,6 +5765,7 @@ def telephony_live(user: User = Depends(current_user), db: Session = Depends(db_
     from sqlalchemy import func as _f
     if not tel.popup_for(db, user):
         return {"calls": []}
+    show = set(tel.public(db).get("popup_fields") or [])
     out = []
     d0 = datetime.combine(date.today(), datetime.min.time())
     for c_ in tel.live(db):
@@ -5803,7 +5805,13 @@ def telephony_live(user: User = Depends(current_user), db: Session = Depends(db_
                     "birthday": _bday_soon(p_.birthday)}
         out.append({"id": c_.id, "phone": c_.phone or "", "dir": c_.direction, "status": c_.status,
                     "name": p_.full_name if p_ else None, "pid": p_.id if p_ else None, "employee": c_.employee or "", "appt": ap_, **info})
-    return {"calls": out}
+        row = out[-1]
+        for k in ("avatar", "tag", "employee", "appt", "last", "visits", "tasks", "bonus", "plan", "note", "birthday"):
+            if k not in show:
+                row[k] = None
+        if "tag" not in show:
+            row["tag_color"] = None
+    return {"calls": out, "show": sorted(show)}
 
 
 @app.post("/telephony/calls/{cid:int}/patient")

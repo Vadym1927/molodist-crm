@@ -43,6 +43,9 @@
   <div class="cs-f"><label>Кому показувати вікно «Вхідний дзвінок»</label>
     <div style="display:flex;gap:8px 16px;flex-wrap:wrap">{% for u in users_all %}<label class="sw"><input type="checkbox" name="popup_users" value="{{ u.id }}" {{ 'checked' if u.id in (t.popup_users or []) }}> {{ u.name }}</label>{% endfor %}</div>
     <div class="hint">Нікого не обрано — вікно бачать усі, хто має право «Звернення» або «Записувати пацієнтів». У вікні: хто дзвонить, найближчий запис, кнопки «Картка пацієнта», «Записати», для нового номера — «Створити пацієнта».</div></div>
+  <div class="cs-f"><label>Що показувати у вікні «Вхідний дзвінок»</label><input type="hidden" name="popup_cfg" value="1">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:6px 16px">{% for k, lb in POPUP_FIELDS %}<label class="sw"><input type="checkbox" name="popup_fields" value="{{ k }}" {{ 'checked' if k in (t.popup_fields or []) }}> {{ lb }}</label>{% endfor %}</div>
+    <div class="hint">Імʼя й номер видно завжди; кнопки «Картка пацієнта», «Записати», «Створити пацієнта» — теж.</div></div>
   <div class="cs-f"><label class="sw"><input type="checkbox" name="ai_on" value="1" {{ 'checked' if t.ai_on }}> AI-оцінка діалогів</label>
     <div class="hint">Текст діалогу надходить з Ringostat AI (подія «Дзвінок оброблено AI» — нижче), оцінку ставить Claude за критеріями.{% if not has_ai_key %} <b style="color:#B23B2E">Не задано ключ Claude API — «Налаштування → Розпізнавання накладних».</b>{% endif %}</div>
     <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:6px"><label class="sw"><input type="radio" name="ai_engine" value="crm" {{ 'checked' if (t.ai_engine or 'crm') == 'crm' }}> Оцінює CRM (Claude, текст з Ringostat AI)</label>

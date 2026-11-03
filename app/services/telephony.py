@@ -24,6 +24,11 @@ PROVIDERS = {
                   "hint": "Значення можна дізнатися в особистому кабінеті Ringostat у розділі Інтеграція → Ringostat API."},
 }
 SECRET = {f for p in PROVIDERS.values() for f, _, sec in p["fields"] if sec}
+# що показувати у вікні «Вхідний дзвінок» (Налаштування → IP-телефонія)
+POPUP_FIELDS = [("avatar", "Фото пацієнта"), ("tag", "Статус пацієнта (Первинний / Постійний / ФАНАТ)"), ("employee", "Хто приймає дзвінок"),
+                ("appt", "Найближчий запис (дата, лікар, послуги)"), ("last", "Останній візит"), ("visits", "Кількість візитів"),
+                ("tasks", "Відкриті задачі"), ("bonus", "Бонуси"), ("plan", "Активний бюті-план"), ("note", "Замітка з картки пацієнта"),
+                ("birthday", "День народження (тиждень до / після)")]
 DEFAULT_CRITERIA = """Оціни розмову адміністратора медичного простору MOLODIST з пацієнтом за 100-бальною шкалою:
 1. Привітання: назвала клініку й себе, звернулась на «ви» (10)
 2. Виявила потребу: що турбує, яка процедура цікавить, чи був раніше (20)
@@ -50,7 +55,8 @@ def _raw(db: Session) -> dict:
     d.setdefault("create_appeal", True)
     d.setdefault("missed_only", False)
     d.setdefault("p", {})
-    d.setdefault("popup_users", [])          # кому показувати вікно «Вхідний дзвінок» (порожньо — усім з правом «Звернення» / «Запис»)
+    d.setdefault("popup_users", [])
+    d.setdefault("popup_fields", [k for k, _ in POPUP_FIELDS])          # кому показувати вікно «Вхідний дзвінок» (порожньо — усім з правом «Звернення» / «Запис»)
     d.setdefault("ai_on", False)             # AI-оцінка діалогів (Claude) за критеріями
     d.setdefault("ai_criteria", DEFAULT_CRITERIA)
     d.setdefault("ai_alert_below", 60)       # оцінка нижче — повідомлення власнику в Telegram
@@ -92,8 +98,10 @@ def secret(d: dict, prov: str, key: str) -> str:
 
 
 def save_extra(db: Session, popup_users: list[int], ai_on: bool, ai_criteria: str, ai_alert_below, ai_alert: bool,
-               ai_engine: str = "crm") -> None:
+               ai_engine: str = "crm", popup_fields: list[str] | None = None) -> None:
     d = _raw(db)
+    if popup_fields is not None:
+        d["popup_fields"] = [k for k, _ in POPUP_FIELDS if k in popup_fields]
     try:
         thr = max(0, min(100, int(float(ai_alert_below))))
     except (TypeError, ValueError):

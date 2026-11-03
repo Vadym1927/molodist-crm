@@ -260,7 +260,7 @@ function tick(){if(document.hidden)return;fetch('/telephony/live',{credentials:'
     if(el&&el._form)return;
     var ap=c.appt?'<div class="ap">'+(c.appt.today?'Сьогодні':'Запис')+' '+esc(c.appt.when)+(c.appt.doctor?' · '+esc(c.appt.doctor):'')+(c.appt.services?'<br>'+esc(c.appt.services):'')+'</div>':'';
     var tg=c.tag?'<em class="tg" style="background:'+(c.tag_color||'#5C4B82')+'">'+esc(c.tag)+'</em>':'';
-    var av=c.pid?'<span class="av"'+(c.avatar?' style="background-image:url('+c.avatar+')"':'')+'>'+(c.avatar?'':esc((c.name||'').split(' ').map(function(w){return w[0]||''}).join('').slice(0,2)))+'</span>':'';
+    var av=c.pid&&(j.show||[]).indexOf('avatar')>=0?'<span class="av"'+(c.avatar?' style="background-image:url('+c.avatar+')"':'')+'>'+(c.avatar?'':esc((c.name||'').split(' ').map(function(w){return w[0]||''}).join('').slice(0,2)))+'</span>':'';
     var facts=[];if(c.visits)facts.push('візитів: '+c.visits);if(c.tasks)facts.push('задач: '+c.tasks);if(c.bonus)facts.push('бонуси: '+c.bonus);if(c.plan)facts.push('бюті-план');
     var more=(c.last?'<div class="ln"><span>Останній візит</span>'+esc(c.last)+'</div>':'')+(facts.length?'<div class="ln"><span>Інфо</span>'+esc(facts.join(' · '))+'</div>':'')+
       (c.birthday?'<div class="ln bd">🎂 День народження '+esc(c.birthday)+'</div>':'')+(c.note?'<div class="ln"><span>Замітка</span>'+esc(c.note)+'</div>':'');
