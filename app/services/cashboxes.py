@@ -294,6 +294,14 @@ FEE_ARTICLE = "Комісія банку Еквайринг MonoBank"
 NON_MONEY = ("Бонуси", "Сертифікат", "Рахунок пацієнта", "Абонемент")
 
 
+def _to_utc(v: datetime) -> datetime:
+    """Київський час (Sale.at) → UTC, як created_at у БД."""
+    from datetime import timezone
+    from zoneinfo import ZoneInfo
+    from ..config import settings
+    return v.replace(tzinfo=ZoneInfo(settings.timezone)).astimezone(timezone.utc).replace(tzinfo=None)
+
+
 def _fee_boxes(db: Session) -> list[dict]:
     return [x for x in items(db) if not x.get("deleted") and float(x.get("fee_pct") or 0) > 0]
 
@@ -321,21 +329,24 @@ def sync_fees(db: Session) -> int:
             q = (select(SalePayment, Sale).join(Sale, Sale.id == SalePayment.sale_id)
                  .where(SalePayment.method.in_(meth), Sale.status == "paid", Sale.at >= datetime.combine(since, datetime.min.time())))
             for p, sl in db.execute(q):
-                want[f"fee:sp:{p.id}"] = {"day": sl.at.date(), "amount": _fee_amount(p.amount, pct), "box": x["name"], "art": art,
+                want[f"fee:sp:{p.id}"] = {"day": sl.at.date(), "at": _to_utc(sl.at), "amount": _fee_amount(p.amount, pct), "box": x["name"], "art": art,
                                           "comment": f"Комісія {pct:g}% · чек Ч-{sl.id} · {p.method} {p.amount:.2f} ₴"}
         storned = {i for (i,) in db.execute(select(FinOp.storno_of).where(FinOp.storno_of.is_not(None), FinOp.deleted_at.is_(None)))}
         for op in db.scalars(select(FinOp).where(FinOp.kind == "income", FinOp.cashbox == x["name"], FinOp.deleted_at.is_(None),
                                                  FinOp.storno_of.is_(None), FinOp.day >= since)):
             if op.id in storned or (op.ref or "").startswith("fee:"):
                 continue
-            want[f"fee:op:{op.id}"] = {"day": op.day, "amount": _fee_amount(op.amount, pct), "box": x["name"], "art": art,
+            want[f"fee:op:{op.id}"] = {"day": op.day, "at": op.created_at, "amount": _fee_amount(op.amount, pct), "box": x["name"], "art": art,
                                        "comment": f"Комісія {pct:g}% · CRM-{op.id} {op.category} {op.amount:.2f} ₴"}
     n = 0
     for ref, w in want.items():
+        if ref in existing and w.get("at") and existing[ref].created_at != w["at"]:
+            existing[ref].created_at = w["at"]                # час комісії = час оплати чека
+            n += 1
         if ref in seen or w["amount"] < 0.01:
             continue
         db.add(FinOp(day=w["day"], kind="expense", category=w["art"], amount=w["amount"], cashbox=w["box"], ref=ref,
-                     counterparty="Банк", comment=w["comment"][:500]))
+                     counterparty="Банк", comment=w["comment"][:500], **({"created_at": w["at"]} if w.get("at") else {})))
         n += 1
     for ref, op in existing.items():                          # джерело більше не дійсне — комісію знімаємо
         if ref not in want and not _fee_source_alive(db, ref):

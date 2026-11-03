@@ -19,6 +19,14 @@ NON_MONEY = ("бонус", "баланс", "депозит", "сертиф", "а
 ITEM_TYPES = {"service": "Послуги", "product": "Товари", "certificate": "Сертифікати", "subscription": "Абонементи"}
 
 
+
+def _to_local(v: datetime) -> datetime:
+    """created_at у БД — UTC (datetime.utcnow) → київський час для журналу."""
+    from datetime import timezone
+    from zoneinfo import ZoneInfo
+    from ..config import settings
+    return v.replace(tzinfo=timezone.utc).astimezone(ZoneInfo(settings.timezone)).replace(tzinfo=None)
+
 def is_money(payment_name: str | None) -> bool:
     n = (payment_name or "").lower()
     return not any(w in n for w in NON_MONEY)
@@ -138,7 +146,7 @@ def journal(db: Session, d_from: date, d_to: date, users: dict | None = None, ar
     for x in ops:
         who = x.counterparty or (docs.get(x.doctor_id, "") if x.doctor_id else "")
         basis = f"сторно CRM-{x.storno_of}" if x.storno_of else (f"зарплата за {x.salary_month}" if x.salary_month else "")
-        at = datetime.combine(x.day, (x.created_at or datetime.min).time()) if x.created_at else datetime.combine(x.day, datetime.min.time())
+        at = datetime.combine(x.day, _to_local(x.created_at).time()) if x.created_at else datetime.combine(x.day, datetime.min.time())
         out.append(J("crm", f"CRM-{x.id}", at, x.kind, x.amount, who=who, basis=basis, article=x.category,
                      account=x.cashbox or "", vid=x.cashbox_to or "", author=users.get(x.created_by, ""), comment=x.comment or "",
                      money=x.kind != "transfer", id=x.id, storned=x.id in storned, deleted=bool(x.deleted_at),
