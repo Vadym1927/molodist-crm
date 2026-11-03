@@ -16,7 +16,7 @@ from ..models import Check, Visit, BeautyPlan, Patient, Product, SupplierInvoice
 from ..parsers.observ import norm
 
 REPORTS = {"cash": "Стан каси", "cashflow": "Cashflow", "fop": "Ліміти ФОП", "expiry": "Терміни придатності", "revenue": "Виручка", "doctors": "Лікарі", "services": "Звіт з продажу послуг", "products": "Товари",
-           "patients": "Пацієнти", "plans": "Бюті-плани", "certificates": "Сертифікати й абонементи", "supply": "Поставки", "cosmetics": "% по косметиці"}
+           "patients": "Пацієнти", "plans": "Бюті-плани", "certificates": "Сертифікати й абонементи", "supply": "Поставки", "cosmetics": "% по косметиці", "sources": "Джерела запису"}
 
 
 @dataclass
@@ -690,6 +690,66 @@ def cosmetics(db: Session, d_from: date, d_to: date, staff: str = "") -> Report:
     return r
 
 
+def sources(db: Session, d_from: date, d_to: date, src: str = "") -> Report:
+    """Візити за джерелами запису (поле «Джерело запису» у вікні нового візиту) за датою візиту."""
+    from ..models import Appointment, Sale, Doctor
+    from .visit_statuses import labels
+    a, b = _rng(d_from, d_to)
+    appts = db.scalars(select(Appointment).where(Appointment.start >= a, Appointment.start <= b, Appointment.cb_status.is_(None))
+                       .order_by(Appointment.start)).all()
+    sale_tot = {sid: float(t or 0) for sid, t in db.execute(select(Sale.id, Sale.total).where(
+        Sale.id.in_({x.sale_id for x in appts if x.sale_id}), Sale.status == "paid"))} if appts else {}
+    first = {}
+    pids = {x.patient_id for x in appts}
+    if pids:
+        for pid, st in db.execute(select(Appointment.patient_id, func.min(Appointment.start)).where(Appointment.patient_id.in_(pids))
+                                  .group_by(Appointment.patient_id)):
+            first[pid] = st
+    NONE = "Не вказано"
+    by = defaultdict(lambda: {"n": 0, "done": 0, "lost": 0, "new": 0, "plan": 0.0, "paid": 0.0})
+    for x in appts:
+        k = x.booking_source or NONE
+        g = by[k]
+        g["n"] += 1
+        g["done"] += x.status == "done" or bool(x.sale_id)
+        g["lost"] += x.status in ("cancelled", "no_show")
+        g["new"] += first.get(x.patient_id) == x.start
+        g["plan"] += 0 if x.status in ("cancelled", "no_show") else float(x.total or 0)
+        g["paid"] += sale_tot.get(x.sale_id, 0)
+    r = Report("sources", "Візити за джерелами запису",
+               "Звідки записалися пацієнти: джерело обирається у вікні нового візиту (список — «Налаштування → Клініка → Джерела запису»). "
+               "Період — за датою візиту. «Не вказано» — візити, створені до появи поля або без джерела.")
+    opts = [("", "Усі джерела")] + [(k, k) for k in sorted(by, key=lambda k: -by[k]["n"])]
+    r.filters = [{"name": "src", "label": "Джерело", "value": src, "options": opts}]
+    if src:
+        st_ = labels(db)
+        docs = {d.id: d.name for d in db.scalars(select(Doctor))}
+        r.cols = [Col("day", "Дата", "date"), Col("time", "Час"), Col("name", "Пацієнт"), Col("doc", "Лікар"), Col("st", "Статус"),
+                  Col("new", "Новий"), Col("plan", "Сума запису", "uah", True), Col("paid", "Оплачено", "uah", True)]
+        for x in appts:
+            if (x.booking_source or NONE) != src:
+                continue
+            r.rows.append({"day": x.start.date(), "time": x.start.strftime("%H:%M"), "name": x.patient.full_name if x.patient else "—",
+                           "doc": docs.get(x.doctor_id, "—"), "st": st_.get(x.status, x.status), "new": "так" if first.get(x.patient_id) == x.start else "",
+                           "plan": 0 if x.status in ("cancelled", "no_show") else round(float(x.total or 0), 2),
+                           "paid": round(sale_tot.get(x.sale_id, 0), 2), "_href": f"/calendar?start={x.start.date()}&open={x.id}"})
+    else:
+        r.cols = [Col("name", "Джерело"), Col("n", "Записів", "int", True), Col("done", "Відбулось", "int", True),
+                  Col("lost", "Скасовано / не прийшов", "int", True), Col("new", "Нових пацієнтів", "int", True),
+                  Col("conv", "Відбулось, %", "pct"), Col("plan", "Сума записів", "uah", True), Col("paid", "Оплачено", "uah", True)]
+        for k, g in sorted(by.items(), key=lambda kv: -kv[1]["n"]):
+            r.rows.append({"name": k, **{z: g[z] for z in ("n", "done", "lost", "new")}, "conv": round(100 * g["done"] / g["n"], 1) if g["n"] else 0,
+                           "plan": round(g["plan"], 2), "paid": round(g["paid"], 2), "_href": f"/reports?r=sources&df={d_from}&dt_={d_to}&src=" + __import__("urllib.parse", fromlist=["x"]).quote(k)})
+        r.chart = [(k[:18], g["n"]) for k, g in sorted(by.items(), key=lambda kv: -kv[1]["n"])[:12]]
+        r.chart_title = "Записів за джерелами"
+    r.finish()
+    tot = sum(g["n"] for g in by.values())
+    r.tiles = [("Записів", tot, None, "int", ""), ("Нових пацієнтів", sum(g["new"] for g in by.values()), None, "int", ""),
+               ("Оплачено", round(sum(g["paid"] for g in by.values()), 2), None, "uah", ""),
+               ("Без джерела", by[NONE]["n"] if NONE in by else 0, None, "int", "")]
+    return r
+
+
 BUILDERS = {"cash": cash, "revenue": revenue, "doctors": doctors, "services": services, "products": products,
             "patients": patients, "plans": plans, "certificates": certificates, "supply": supply,
             "cosmetics": cosmetics}
@@ -700,6 +760,8 @@ def build(db: Session, key: str, d_from: date, d_to: date, **opts) -> Report:
         return services(db, d_from, d_to, **{k: v for k, v in opts.items() if k in ("cat", "staff", "zero") and v})
     if key == "cosmetics":
         return cosmetics(db, d_from, d_to, staff=opts.get("staff") or "")
+    if key == "sources":
+        return sources(db, d_from, d_to, src=opts.get("src") or "")
     return BUILDERS.get(key, revenue)(db, d_from, d_to)
 
 

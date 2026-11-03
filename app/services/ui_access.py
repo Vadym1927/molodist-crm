@@ -37,7 +37,7 @@ _FIN = [("/finance$", "fin_overview", "Огляд фінансів"), ("/finance
         ("/finance/bonuses", "fin_bonuses", "Рух бонусів"), ("/finance/pricing", "fin_pricing", "Планування ціни реалізації")]
 _REP = [("cash", "Стан каси"), ("cashflow", "Cashflow"), ("fop", "Ліміти ФОП"), ("expiry", "Терміни придатності"), ("revenue", "Виручка"),
         ("doctors", "Лікарі"), ("services", "Звіт з продажу послуг"), ("products", "Товари"), ("patients", "Пацієнти"),
-        ("plans", "Бюті-плани"), ("certificates", "Сертифікати й абонементи"), ("supply", "Поставки"), ("cosmetics", "% по косметиці")]
+        ("plans", "Бюті-плани"), ("certificates", "Сертифікати й абонементи"), ("supply", "Поставки"), ("cosmetics", "% по косметиці"), ("sources", "Джерела запису")]
 
 GROUPS: list[tuple[str, list]] = [
     ("Розділи меню", [

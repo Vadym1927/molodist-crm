@@ -86,8 +86,42 @@ def save(db: Session, data: dict, user_id: int | None = None, appt: Appointment 
     return a
 
 
+SRC_KEY = "booking_sources"
 BOOKING_SOURCES = ["Дзвінок", "Instagram", "Telegram", "Viber", "WhatsApp", "Сайт / онлайн-запис", "Прийшов особисто",
                    "Повторний запис", "Рекомендація", "Бюті-план", "Інше"]
+
+
+def sources_all(db: Session) -> list[dict]:
+    """Джерела запису (Налаштування → Клініка → Джерела запису): [{name, on}] у порядку показу."""
+    import json
+    from ..models import SyncState
+    st = db.get(SyncState, SRC_KEY)
+    try:
+        rows = json.loads(st.value) if st and st.value else None
+    except ValueError:
+        rows = None
+    if not rows:
+        return [{"name": n, "on": True} for n in BOOKING_SOURCES]
+    return [{"name": str(r.get("name") or "").strip(), "on": bool(r.get("on", True))} for r in rows if str(r.get("name") or "").strip()]
+
+
+def sources(db: Session) -> list[str]:
+    return [r["name"] for r in sources_all(db) if r["on"]]
+
+
+def save_sources(db: Session, rows: list[dict]) -> None:
+    import json
+    from ..models import SyncState
+    seen, out = set(), []
+    for r in rows:
+        n = " ".join(str(r.get("name") or "").split())[:60]
+        if n and n.lower() not in seen:
+            seen.add(n.lower())
+            out.append({"name": n, "on": bool(r.get("on", True))})
+    st = db.get(SyncState, SRC_KEY) or SyncState(key=SRC_KEY)
+    st.value, st.updated_at = json.dumps(out, ensure_ascii=False), datetime.utcnow()
+    db.merge(st)
+    db.commit()
 
 
 def services_for(db: Session, doctor_id: int | None) -> dict:

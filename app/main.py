@@ -1196,7 +1196,7 @@ def _appt_ctx(db: Session) -> dict:
     loc = next((x for x in data["locations"] if x.get("active")), {"places": [], "resources": []})
     return {"doctors": spec_svc.calendar_doctors(db), "places": [p_["name"] for p_ in loc.get("places", []) if p_.get("active", True)],
             "resources": [r_["name"] for r_ in loc.get("resources", []) if r_.get("active", True)], "STATUSES": _vstat_menu(db),
-            "COLORS": _vstat_colors(db), "SOURCES": aps.BOOKING_SOURCES, "cb_on": bool(settings.cleverbox_token or db.get(SyncState, "cleverbox_token_enc"))}
+            "COLORS": _vstat_colors(db), "SOURCES": aps.sources(db), "cb_on": bool(settings.cleverbox_token or db.get(SyncState, "cleverbox_token_enc"))}
 
 
 @app.get("/appointments/new", response_class=HTMLResponse)
@@ -4915,6 +4915,7 @@ SETTINGS_BLOCKS = [
         ('Філії', 'Локації: ресурси (апарати), режим роботи, робочі місця (кабінети)', '/settings/clinic#loc', 'users', 'salons'),
         ('Команда', 'Лікарі й співробітники: посади, KPI, привʼязка до CleverBox', '/specialists', 'specialists', 'sfields/staff'),
         ('Графік роботи', 'Зміни спеціалістів по днях і кабінетах', '/specialists/schedule', 'schedule', None),
+        ('Джерела запису', 'Звідки пацієнт записався: дзвінок, Instagram, повторний…: список для вікна візиту й звіт', '/settings/booking-sources', 'users', None),
         ('Статуси візитів', 'Записаний, підтверджено, оплачено ₴, скасовано…: назви, кольори в календарі, свої статуси', '/settings/visit-statuses', 'users', None),
         ('Онлайн-бронювання', 'Віджет запису на сайті', 'dev', None, None),
     ]),
@@ -5290,6 +5291,26 @@ async def settings_cosmetics_pct_save(request: Request, user: User = Depends(req
                   "staff": rows("staff", ("min_price",)), "brands": rows("brand"), "products": rows("prod")})
     audit(db, "settings.cosmetics_pct", user=user)
     return RedirectResponse(_with_msg("/settings/cosmetics-pct", "Збережено. Звіт «Нарахування % по косметиці» рахується за новими правилами"), 303)
+
+
+@app.get("/settings/booking-sources", response_class=HTMLResponse)
+def settings_booking_sources(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import appointments as aps
+    from .models import Appointment as _Ap
+    from sqlalchemy import func as _fn
+    used = dict(db.execute(select(_Ap.booking_source, _fn.count()).where(_Ap.booking_source.is_not(None)).group_by(_Ap.booking_source)).all())
+    return render(request, "booking_sources.html", nav="settings", items=aps.sources_all(db), used=used)
+
+
+@app.post("/settings/booking-sources")
+async def settings_booking_sources_save(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import appointments as aps
+    f = await request.form()
+    on_ = set(f.getlist("on"))
+    names = f.getlist("name")
+    aps.save_sources(db, [{"name": n_, "on": str(i) in on_} for i, n_ in enumerate(names)])
+    audit(db, "settings.booking_sources", user=user, n=len(names))
+    return RedirectResponse(_with_msg("/settings/booking-sources", "Джерела запису збережено"), 303)
 
 
 @app.get("/settings/visit-statuses", response_class=HTMLResponse)
@@ -6611,7 +6632,7 @@ def reports_page(request: Request, r: str = "revenue", period: str = "month", df
         period = "today"
     d_from, d_to, period = _report_period(period, df, dt_)
     qp_ = request.query_params
-    rep = rp.build(db, key, d_from, d_to, cat=qp_.get("cat", ""), staff=qp_.get("staff", ""), zero=qp_.get("zero", ""))
+    rep = rp.build(db, key, d_from, d_to, cat=qp_.get("cat", ""), staff=qp_.get("staff", ""), zero=qp_.get("zero", ""), src=qp_.get("src", ""))
     if fmt == "xlsx":
         audit(db, "reports.export", user=user, report=key, d_from=str(d_from), d_to=str(d_to))
         return Response(rp.to_xlsx(rep, d_from, d_to),

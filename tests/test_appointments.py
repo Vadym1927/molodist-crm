@@ -57,3 +57,25 @@ def test_appointments():
         with SessionLocal() as db:
             ap = db.get(Appeal, apid)
             assert ap.status == "Записаний" and ap.patient_id
+
+
+def test_booking_sources_and_report():
+    settings.admin_password = "owner-pass-1"
+    from app.services import appointments as aps
+    day = date.today()
+    with SessionLocal() as db:
+        p = Patient(full_name="Джерельна Пацієнтка", phone="+380991119999"); db.add(p); db.commit(); pid = p.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        assert "Джерела запису" in c.get("/settings").text and "Instagram" in c.get("/settings/booking-sources").text
+        c.post("/settings/booking-sources", data={"name": ["Instagram", "TikTok", "Дзвінок"], "on": ["0", "1"]})
+        with SessionLocal() as db:
+            assert aps.sources(db) == ["Instagram", "TikTok"]
+        assert "TikTok" in c.get(f"/appointments/new?start={day}T11:00").text
+        j = c.post("/appointments", json={"patient_id": pid, "start": f"{day}T11:00", "services": [], "booking_source": "TikTok", "force": True}).json()
+        assert j["ok"]
+        t = c.get(f"/reports?r=sources&df={day}&dt_={day}").text
+        assert "Візити за джерелами запису" in t and "TikTok" in t
+        t2 = c.get(f"/reports?r=sources&df={day}&dt_={day}&src=TikTok").text
+        assert "Джерельна Пацієнтка" in t2
+        assert "Візити за джерелами запису" in c.get("/reports").text

@@ -158,7 +158,7 @@
         <div><span>Дата й час</span><b>{{ c.start|dt('%d.%m.%Y %H:%M') }} – {{ c.end|dt('%H:%M') }}</b></div>
         <div><span>Автор</span><b>{{ c.author or ('CleverBox' if not a else '—') }}</b></div>
         <div><span>Дата створення</span><b>{{ c.created|local|dt('%d.%m.%Y %H:%M') if c.created else '—' }}</b></div>
-        {% if a %}<div><span>Джерело</span><b>{{ {'crm':'CRM','online':'Онлайн-запис','bot':'Бот пацієнтів','appeal':'Звернення'}.get(a.source, a.source) }}</b></div>
+        {% if a %}<div><span>Джерело</span><b>{{ {'crm':'CRM','online':'Онлайн-запис','bot':'Бот пацієнтів','appeal':'Звернення'}.get(a.source, a.source) }}</b></div>{% if a.booking_source %}<div><span>Джерело запису</span><b>{{ a.booking_source }}</b></div>{% endif %}
           <div><span>CleverBox</span><b>{{ ('№' ~ a.cb_record_id) if a.cb_record_id else 'не продубльовано' }}</b></div>
           {% if a.place %}<div><span>Кабінет</span><b>{{ a.place }}</b></div>{% endif %}{% if a.resource %}<div><span>Апарат</span><b>{{ a.resource }}</b></div>{% endif %}
           {% if a.cancel_reason %}<div><span>Причина скасування</span><b>{{ a.cancel_reason }}</b></div>{% endif %}

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Джерела запису · MOLODIST CRM{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+<style>
+.bs-info{background:linear-gradient(120deg,#F1EDF8,#F7F4F0);border:1px solid #E4DEEF;border-radius:16px;padding:16px 20px;color:#3B3050;margin:14px 0 18px;line-height:1.5;max-width:860px}
+.bs-l{border:1px solid #ECE7E1;border-radius:16px;background:#fff;max-width:860px}
+.bs-r{display:grid;grid-template-columns:28px minmax(0,1fr) 150px 120px 40px;gap:12px;align-items:center;padding:10px 16px;border-bottom:1px solid #ECE7E1}
+.bs-r:last-child{border-bottom:0}.bs-r.off{opacity:.55}
+.bs-h{font:700 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496;background:#FBFAF8;border-radius:16px 16px 0 0}
+.bs-dr{cursor:grab;color:#b9b3c4;font-size:18px;text-align:center;user-select:none}
+.bs-r input[type=text]{height:40px;width:100%}.bs-r label{display:flex;gap:6px;align-items:center;font-size:13px;color:#5d5869;cursor:pointer}
+.bs-r label input{accent-color:#3B3050;width:16px;height:16px}.bs-n{font-size:13px;color:#8a8496}.bs-n a{color:#5C4B82}
+.bs-x{border:0;background:none;color:#B23B2E;font-size:22px;cursor:pointer}
+@media(max-width:640px){.bs-r{grid-template-columns:24px 1fr 36px}.bs-r .bs-n,.bs-r label{grid-column:2}.bs-h{display:none}}
+</style>
+<form method="post" id="bsf" onsubmit="bsIdx()">
+<div class="row between" style="gap:10px;flex-wrap:wrap;max-width:860px"><div><div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a> · Клініка</div><h1>Джерела запису</h1></div>
+  <div class="row" style="gap:8px"><a class="btn ghost" href="/reports?r=sources">Звіт за джерелами</a><button class="btn">Зберегти</button></div></div>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok);margin-top:10px;max-width:860px">{{ qp.get('msg') }}</div>{% endif %}
+<div class="bs-info">Звідки пацієнт записався. Адміністратор обирає джерело у вікні «Новий візит» — без нього новий візит не зберегти.
+  Скільки записів, нових пацієнтів і оплат дало кожне джерело — у звіті <a href="/reports?r=sources">«Візити за джерелами запису»</a> (Звіти → Маркетинг).
+  Вимкнене джерело зникає з вікна візиту, але старі записи з ним лишаються у звіті. Порядок — перетягніть за ⋮⋮.</div>
+<div class="bs-l" id="bsl">
+  <div class="bs-r bs-h"><span></span><span>Назва</span><span>Записів</span><span>Показ</span><span></span></div>
+  {% for x in items %}<div class="bs-r {{ 'off' if not x.on }}" draggable="true"><span class="bs-dr">⋮⋮</span>
+    <input type="text" name="name" value="{{ x.name }}" maxlength="60" required>
+    <span class="bs-n">{% if used.get(x.name) %}<a href="/reports?r=sources&src={{ x.name|urlencode }}">{{ used[x.name] }}</a>{% else %}—{% endif %}</span>
+    <label><input type="checkbox" name="on" {{ 'checked' if x.on }} onchange="this.closest('.bs-r').classList.toggle('off',!this.checked)">увімкнено</label>
+    <button type="button" class="bs-x" title="Видалити" onclick="if(!this.dataset.n||confirm('У джерела «'+this.dataset.name+'» уже є записи ('+this.dataset.n+'). Видалити зі списку? Записи лишаться у звіті з цією назвою.'))this.closest('.bs-r').remove()" data-n="{{ used.get(x.name) or '' }}" data-name="{{ x.name }}">×</button></div>{% endfor %}
+</div>
+<button type="button" class="btn ghost" style="margin-top:12px" onclick="bsAdd()">＋ Джерело</button>
+</form>
+<script>
+function bsAdd(){var r=document.createElement('div');r.className='bs-r';r.draggable=true;
+  r.innerHTML='<span class="bs-dr">⋮⋮</span><input type="text" name="name" maxlength="60" required placeholder="Наприклад: Google, TikTok, Партнер"><span class="bs-n">—</span><label><input type="checkbox" name="on" checked>увімкнено</label><button type="button" class="bs-x" onclick="this.closest(\'.bs-r\').remove()">×</button>';
+  document.getElementById('bsl').appendChild(r);bsDrag();r.querySelector('input').focus()}
+function bsIdx(){document.querySelectorAll('#bsl .bs-r:not(.bs-h)').forEach(function(r,i){var c=r.querySelector('[name=on]');if(c)c.value=i})}
+var bsCur=null;function bsDrag(){document.querySelectorAll('#bsl .bs-r[draggable]').forEach(function(r){if(r._d)return;r._d=1;
+  r.addEventListener('dragstart',function(){bsCur=r;r.style.opacity=.4});r.addEventListener('dragend',function(){r.style.opacity='';bsCur=null});
+  r.addEventListener('dragover',function(e){e.preventDefault();if(!bsCur||bsCur===r)return;var b=r.getBoundingClientRect();r.parentNode.insertBefore(bsCur,e.clientY<b.top+b.height/2?r:r.nextSibling)})})}
+bsDrag();
+</script>
+{% endblock %}
