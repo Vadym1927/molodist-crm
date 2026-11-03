@@ -188,7 +188,8 @@ def moves(db: Session, x: dict, limit: int | None = None) -> list[Move]:
     if since:
         q = q.where(FinOp.day >= since)
     for op in db.scalars(q):
-        at = datetime.combine(op.day, datetime.min.time())
+        loc = _to_local(op.created_at) if op.created_at else None
+        at = loc if loc and loc.date() == op.day else datetime.combine(op.day, datetime.min.time())   # час внесення, якщо дата та сама
         what = f"CRM-{op.id} · {op.category}" + (f" · {op.counterparty}" if op.counterparty else "")
         if op.kind == "transfer":
             if op.cashbox == x["name"]:
@@ -292,6 +293,14 @@ def apply_seed(db: Session) -> bool:
 # ---------------- Комісія банку ----------------
 FEE_ARTICLE = "Комісія банку Еквайринг MonoBank"
 NON_MONEY = ("Бонуси", "Сертифікат", "Рахунок пацієнта", "Абонемент")
+
+
+def _to_local(v: datetime) -> datetime:
+    """UTC (created_at у БД) → київський час."""
+    from datetime import timezone
+    from zoneinfo import ZoneInfo
+    from ..config import settings
+    return v.replace(tzinfo=timezone.utc).astimezone(ZoneInfo(settings.timezone)).replace(tzinfo=None)
 
 
 def _to_utc(v: datetime) -> datetime:

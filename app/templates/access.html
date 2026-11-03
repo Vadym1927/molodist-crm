@@ -88,7 +88,7 @@ curl -H "X-API-Key: mcrm_…" -H "Content-Type: application/json" -X POST {{ req
 {% elif tab=='audit' %}
 <div class="card" style="overflow:auto"><table class="small">
   <thead><tr><th>Коли</th><th>Хто</th><th>Дія</th><th>Обʼєкт</th><th>Деталі</th></tr></thead><tbody>
-  {% for e in log %}<tr><td>{{ e.at|dt('%d.%m.%y %H:%M') }}</td>
+  {% for e in log %}<tr><td>{{ e.at|local|dt('%d.%m.%y %H:%M') }}</td>
     <td>{{ e.user.name if e.user else ('API: ' ~ e.api_key.name if e.api_key else 'система') }}</td>
     <td><code>{{ e.action }}</code></td>
     <td>{% if e.entity=='plan' or e.entity=='patient' %}{{ e.entity }} #{{ e.entity_id }}{% else %}{{ e.entity or '' }}{% endif %}</td>

@@ -831,9 +831,9 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
                   items=_ph_items, counts=_ph_counts, CATS=_pp.CATS,
                   pgroups=_ptg.groups(db),
                   pvisits=pvis, phist=phist, ptag=ptag, ptag_color=ptag_color, page_age=page_age,
-                  patient_kpi=dict(done=max(len(completed_visits), len({r["at"].date() for r in pvis if r["status"] == "done"})),
+                  patient_kpi=dict(done=len({r["at"].date() for r in pvis if r["status"] == "done"}),   # записи CRM мають пріоритет над історією CB того ж дня
                                    planned=len({r["at"] for r in pvis if r["at"] >= datetime.now() and r["status"] not in ("done", "cancelled", "no_show")}),
-                                   first=min([*dated_events, *(r["at"] for r in pvis if r["status"] == "done")], default=None),
+                                   first=min((r["at"] for r in pvis if r["status"] == "done"), default=None),
                                    next=min((r["at"] for r in pvis if r["at"] >= datetime.now() and r["status"] not in ("done", "cancelled", "no_show")), default=None),
                                    service_revenue=service_revenue, product_revenue=product_revenue,
                                    revenue=service_revenue + product_revenue))
@@ -4258,7 +4258,7 @@ def stock_page(request: Request, tab: str = "balances", only: str = "", wh: str 
                 rows = [r for r in rows if (r.stock or 0) != 0]
             rows.sort(key=lambda r: (order.get(r.product.warehouse or "vitrina", 9), (r.product.brand or "яяя").lower(), r.product.name))
         wh_tot = defaultdict(lambda: {"n": 0, "value": 0.0})
-        costs = {r.product.id: (r.cost or 0) for r in rows}
+        costs = {r.product.id: (r.cost or 0) / (r.product.coef if r.product.coef and r.product.coef > 0 else 1) for r in rows}   # ціна флакона → за одиницю обліку (мл, шт)
         if ctx["active"]:
             for (pid, w), qty in per.items():
                 if qty and pid in costs:
@@ -7165,8 +7165,11 @@ def finance_op_add(day: str = Form(""), kind: str = Form("expense"), category: s
               counterparty=counterparty.strip()[:200] or None, comment=comment.strip()[:500] or None,
               doctor_id=int(doctor_id) if doctor_id.isdigit() else None,
               salary_month=_month(salary_month) if salary_month else None, created_by=user.id)
-    if x.category in _fa().salary_names(db) and x.doctor_id and not x.salary_month:
-        x.salary_month = fo_month_key(x.day)
+    if x.category in _fa().salary_names(db):
+        if x.doctor_id and not x.salary_month:
+            x.salary_month = fo_month_key(x.day)
+    else:
+        x.salary_month = None             # «за місяць» — лише для статей зарплати (форма завжди надсилає поле)
     db.add(x)
     db.commit()
     audit(db, "fin.op_add", "fin_op", x.id, user=user, kind=x.kind, category=x.category, amount=x.amount, cashbox=x.cashbox)

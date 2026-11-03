@@ -186,7 +186,7 @@
   <div class="sc"><h3>Журнал дій</h3>
     {% if not td.has_user %}<div class="note">Співробітник ще не має входу в CRM — тут видно лише зміни його картки. Коли зʼявиться користувач, привʼязаний до співробітника, тут будуть і його дії.</div>{% endif %}
     <table class="lg"><thead><tr><th>Дата</th><th>Подія</th><th>Хто</th></tr></thead><tbody>
-    {% for a in td.log %}<tr><td class="d">{{ a.at|dt('%d.%m.%Y %H:%M') }}</td><td>{{ audit_text(a) }}</td><td style="color:#8a8496">{{ a.user.name if a.user else 'система' }}</td></tr>
+    {% for a in td.log %}<tr><td class="d">{{ a.at|local|dt('%d.%m.%Y %H:%M') }}</td><td>{{ audit_text(a) }}</td><td style="color:#8a8496">{{ a.user.name if a.user else 'система' }}</td></tr>
     {% else %}<tr><td colspan="3"><small>Подій ще немає.</small></td></tr>{% endfor %}</tbody></table></div>
 
 {% elif tab == 'files' %}
