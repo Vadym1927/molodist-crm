@@ -392,6 +392,8 @@ def auto_moves(db: Session) -> dict:
     by_cb = {p.cb_product_id: p for p in db.scalars(select(Product).where(Product.cb_product_id.is_not(None)))}
     cache: dict = {}
     for s in db.scalars(select(ProductSale).where(ProductSale.sold_at >= start).order_by(ProductSale.sold_at)):
+        if (s.external_id or "").startswith("crm:"):      # продаж каси CRM — склад уже списано при продажу
+            continue
         ref = f"sale:{s.external_id}"
         p = by_cb.get(s.product_id)
         if ref in existing or not p:

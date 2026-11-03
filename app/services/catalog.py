@@ -276,12 +276,15 @@ def apply_sales(db: Session, rows: dict, now: datetime) -> None:
     from sqlalchemy import func
     from ..models import ProductSale
     by_cb = {r.product.cb_product_id: r for r in rows.values() if r.product.cb_product_id}
-    for pid, q, sm in db.execute(select(ProductSale.product_id, func.sum(ProductSale.quantity), func.sum(ProductSale.amount))
-                                 .where(ProductSale.sold_at >= now - timedelta(days=90), ProductSale.product_id.is_not(None))
-                                 .group_by(ProductSale.product_id)):
-        r = by_cb.get(pid)
+    by_id = {r.product.id: r for r in rows.values()}
+    crm = ProductSale.external_id.like("crm:%")
+    for is_crm, pid, q, sm in db.execute(select(crm, ProductSale.product_id, func.sum(ProductSale.quantity), func.sum(ProductSale.amount))
+                                         .where(ProductSale.sold_at >= now - timedelta(days=90), ProductSale.product_id.is_not(None))
+                                         .group_by(crm, ProductSale.product_id)):
+        r = by_id.get(pid) if is_crm else by_cb.get(pid)          # продажі CRM — id товару CRM, CleverBox — id товару CleverBox
         if r:
-            r.sold_90, r.sold_90_sum = float(q or 0), float(sm or 0)
+            r.sold_90 = (r.sold_90 or 0) + float(q or 0)
+            r.sold_90_sum = (r.sold_90_sum or 0) + float(sm or 0)
 
 
 def brand_groups(rows: list) -> list[tuple[str, list]]:

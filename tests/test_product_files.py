@@ -36,3 +36,18 @@ def test_product_files(monkeypatch, tmp_path):
         with SessionLocal() as db:
             fid = db.query(ProductFile).filter(ProductFile.product_id == ida, ProductFile.kind == "photo").one().id
         assert c.get(f"/products/files/{fid}").status_code == 200
+
+
+def test_product_card_shows_crm_sales():
+    from datetime import datetime
+    from app.models import ProductSale
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        p = Product(name="Крем CRM продаж", name_norm="крем crm продаж", cb_product_id=880001, warehouse="vitrina")
+        from app.models import Patient
+        pt = Patient(full_name="Покупниця Тест"); db.add_all([p, pt]); db.flush()
+        db.add(ProductSale(external_id=f"crm:999:1", patient_id=pt.id, product_id=p.id, product_name=p.name, quantity=1, amount=2050, sold_at=datetime.now()))
+        db.commit(); pid = p.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        assert "Покупниця Тест" in c.get(f"/products/{pid}").text

@@ -3599,10 +3599,10 @@ def product_card(pid: int, request: Request, user: User = Depends(require("produ
     row = next(r for r in catalog.product_rows(db) if r.product.id == pid)
     purchases = db.scalars(select(ProductPurchase).where(ProductPurchase.product_id == pid)
                            .order_by(ProductPurchase.bought_on.desc(), ProductPurchase.id.desc())).all()
-    sales = []
-    if prod.cb_product_id:
-        sales = db.scalars(select(ProductSale).where(ProductSale.product_id == prod.cb_product_id)
-                           .order_by(ProductSale.sold_at.desc()).limit(50)).all()
+    from sqlalchemy import and_ as _and, or_ as _or
+    _mine = _or(_and(ProductSale.external_id.like("crm:%"), ProductSale.product_id == pid),           # каса CRM
+                _and(~ProductSale.external_id.like("crm:%"), ProductSale.product_id == (prod.cb_product_id or -1)))   # CleverBox
+    sales = db.scalars(select(ProductSale).where(_mine).order_by(ProductSale.sold_at.desc()).limit(50)).all()
     items = db.scalars(select(PlanItem).where(PlanItem.product_id == pid)).all()
     plans = [(it, it.plan) for it in items if it.plan and it.plan.status != "cancelled"]
     # продажі по місяцях (6 міс) для міні-графіка
@@ -3611,12 +3611,11 @@ def product_card(pid: int, request: Request, user: User = Depends(require("produ
     for k in range(5, -1, -1):
         m0 = (today.replace(day=1) - timedelta(days=31 * k)).replace(day=1)
         months.append([m0, 0])
-    if prod.cb_product_id:
-        for (q, at) in db.execute(select(ProductSale.quantity, ProductSale.sold_at).where(
-                ProductSale.product_id == prod.cb_product_id, ProductSale.sold_at >= datetime.combine(months[0][0], datetime.min.time()))):
-            for mm in months:
-                if (at.year, at.month) == (mm[0].year, mm[0].month):
-                    mm[1] += q or 0
+    for (q, at) in db.execute(select(ProductSale.quantity, ProductSale.sold_at).where(
+            _mine, ProductSale.sold_at >= datetime.combine(months[0][0], datetime.min.time()))):
+        for mm in months:
+            if (at.year, at.month) == (mm[0].year, mm[0].month):
+                mm[1] += q or 0
     stock_rows = db.scalars(select(StockLevel).where(StockLevel.cb_product_id == prod.cb_product_id)).all() if prod.cb_product_id else []
     buys, buy_stats = catalog.purchase_history(prod, purchases)
     from .services import stock as _st
