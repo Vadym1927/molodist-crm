@@ -4233,6 +4233,20 @@ def chats_page(request: Request, user: User = Depends(require("appeals")), db: S
     return render(request, "chats.html", nav="chats")
 
 
+@app.get("/patients/name-order")
+def patients_name_order(apply: int = 0, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    """ПІБ «Ім'я Прізвище По батькові» (як у CleverBox) → «Прізвище Ім'я По батькові». Без apply — лише попередній перегляд."""
+    from .services import name_order as no
+    pl = no.plan(db)
+    if apply:
+        n = no.apply(db)
+        audit(db, "patients.name_order", user=user, changed=n)
+        db.commit()
+        return {"changed": n, "unclear": len(pl["unclear"])}
+    return {"total": pl["total"], "to_fix": len(pl["fix"]), "examples": pl["fix"][:40], "unclear_n": len(pl["unclear"]),
+            "unclear": pl["unclear"][:60]}
+
+
 @app.post("/migrate/cb-visits")
 async def migrate_cb_visits(request: Request, user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
     """Історія візитів CleverBox (зібрана у веб-кабінеті частинами) → візити CRM з послугами, оплатою й витратними."""

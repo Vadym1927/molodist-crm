@@ -7,7 +7,7 @@
     <details><summary class="btn">+ Пацієнт</summary>
       <form method="post" action="/patients" class="card grid" style="gap:8px;margin-top:8px;min-width:280px">
         <b>Ручне введення пацієнта</b>
-        <input name="full_name" placeholder="ПІБ пацієнта" required autofocus>
+        <input name="full_name" placeholder="Прізвище Ім'я По батькові" required autofocus>
         <input name="phone" placeholder="Телефон">
         {% if user.role != 'doctor' %}<select name="doctor_id"><option value="">— лікар —</option>{% for d in doctors %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}</select>{% endif %}
         <textarea name="notes" rows="3" placeholder="Нотатка адміністратора"></textarea>
