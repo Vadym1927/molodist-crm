@@ -118,7 +118,7 @@ def journal(db: Session, d_from: date, d_to: date, users: dict | None = None, ar
     if not archive:                                     # продажі в CRM (каса)
         from ..models import Sale
         for s in db.scalars(select(Sale).where(Sale.at >= a, Sale.at <= b, Sale.status.notin_(("awaiting", "cancelled")))):
-            _test = bool((s.fiscal or {}).get("test_sale"))   # тестовий чек (тестовий режим): у журналі видно, у Cashflow — ні
+            _test = False                                    # чеки тестового режиму — реальні продажі (без фіскалізації): рахуються скрізь
             who = s.patient.full_name if s.patient else "—"
             link = f"/patients/{s.patient_id}" if s.patient_id else None
             for p in s.payments:

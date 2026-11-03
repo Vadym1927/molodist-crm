@@ -116,7 +116,7 @@ def test_cashflow_from_journal():
         db.commit()
 
 
-def test_journal_skips_test_sales():
+def test_journal_counts_test_mode_sales():
     from datetime import date, datetime
     from app.models import SessionLocal, Sale, SalePayment
     from app.services import finops as fo
@@ -125,6 +125,6 @@ def test_journal_skips_test_sales():
         db.add(s); db.flush()
         db.add(SalePayment(sale_id=s.id, method="Готівка ФОП Колган", amount=1800)); db.commit()
         rows = [r for r in fo.journal(db, date(2024, 5, 5), date(2024, 5, 5)) if r.sale_id == s.id]
-        assert rows and rows[0].test                                         # у журналі видно, позначено «тест»
+        assert rows                                                           # продаж у тестовому режимі — реальний
         from app.services import cashflow as cf
-        assert not [x for x in cf.journal_days(db, date(2024, 5, 5), date(2024, 5, 5)) if x.income]   # у Cashflow — ні
+        assert [x for x in cf.journal_days(db, date(2024, 5, 5), date(2024, 5, 5)) if x.income]
