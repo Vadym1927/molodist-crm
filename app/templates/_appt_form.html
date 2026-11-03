@@ -1,7 +1,7 @@
 {# Вікно запису: новий / перегляд / редагування. Відкривається в календарі (apOpenNew / apptOpen). #}
 {% set ro = view_only and a %}
 <div class="apf" data-id="{{ a.id if a else '' }}">
-<div class="apf-h"><h3>{% if a %}Запис №{{ a.id }} <span class="apf-st" style="background:{{ COLORS[a.status] }}">{{ STATUSES[a.status] }}</span>{% else %}Новий запис{% endif %}</h3>
+<div class="apf-h"><h3>{% if a %}Запис №{{ a.id }} <span class="apf-st" style="background:{{ COLORS[a.status] }}">{{ STATUSES.get(a.status, a.status) }}</span>{% else %}Новий запис{% endif %}</h3>
   <button type="button" class="btn ghost" style="padding:4px 10px" onclick="apfClose()">×</button></div>
 {% if ro %}
 <div class="apf-b">
@@ -14,7 +14,7 @@
   {% if a.cancel_reason %}<div class="apf-v"><span>Причина</span>{{ a.cancel_reason }}</div>{% endif %}
   <div class="small muted">{{ ('У CleverBox: запис №' ~ a.cb_record_id) if a.cb_record_id else 'Лише в CRM' }} · створено {{ a.created_at|local|dt('%d.%m.%Y %H:%M') }}</div>
   {% if can(user,'book') %}<div class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px">
-    {% for k in ['confirmed','arrived','done','no_show'] %}{% if a.status != k %}<form method="post" action="/appointments/{{ a.id }}/status" style="margin:0"><input type="hidden" name="status" value="{{ k }}"><input type="hidden" name="back" class="apf-back">
+    {% for k in STATUSES if k not in ('booked','cancelled') %}{% if a.status != k %}<form method="post" action="/appointments/{{ a.id }}/status" style="margin:0"><input type="hidden" name="status" value="{{ k }}"><input type="hidden" name="back" class="apf-back">
       <button class="btn ghost" style="padding:4px 10px;border-color:{{ COLORS[k] }}">{{ STATUSES[k] }}</button></form>{% endif %}{% endfor %}
     {% if can(user,'sales') %}{% if a.sale_id %}<a class="btn" style="padding:4px 12px" href="/sales/{{ a.sale_id }}">🧾 Чек №{{ a.sale_id }}</a>{% else %}<a class="btn" style="padding:4px 12px" href="/sales/new?appt={{ a.id }}">💳 Розрахувати</a>{% endif %}{% endif %}
     <button type="button" class="btn ghost" style="padding:4px 10px" onclick="apptOpen({{ a.id }}, 1)">✎ Змінити</button></div>

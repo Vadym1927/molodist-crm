@@ -187,6 +187,8 @@
 .ds-l.c4 div{grid-template-columns:minmax(0,2fr) 70px 110px 110px}.ds-l span+span{text-align:right}
 .ds-l .hd{background:#FBFAF8;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496}
 .ds-l b{font-variant-numeric:tabular-nums;text-align:right}
+.blk.s-cancelled{opacity:.75}.blk.s-cancelled .hd b{text-decoration:line-through}
+{{ vstat_css|safe }}
 </style>
 
 {% set WD = ['понеділок','вівторок','середа','четвер','пʼятниця','субота','неділя'] %}
@@ -250,7 +252,7 @@
         <span class="tm">{{ e.when|dt('%H:%M') }} - {{ (e.ends or e.when)|dt('%H:%M') }}</span><b>{{ e.title }}</b>
         {% if can(user,'book') %}<form method="post" action="/calendar/blocks/{{ e.block_id }}/delete" onsubmit="return confirm('Зняти блокування «{{ e.title }}»?')"><button title="Зняти блокування">×</button></form>{% endif %}</div>
       {% else %}
-      <a class="blk {{ e.kind }} s-{{ e.status or 'booked' }} {{ 'short' if b.height < 40 }} {{ 'mid' if 40 <= b.height < 60 }} {{ 'long' if b.height >= 90 }} {{ 'crm' if e.appt_id }}" href="{{ ('/patients/' ~ e.patient_id) if e.patient_id else '/tasks' }}" title="{{ e.title }} · {{ e.service or '' }}"
+      <a class="blk {{ e.kind }} s-{{ e.ckey or e.status or 'booked' }} {{ 'short' if b.height < 40 }} {{ 'mid' if 40 <= b.height < 60 }} {{ 'long' if b.height >= 90 }} {{ 'crm' if e.appt_id }}" href="{{ ('/patients/' ~ e.patient_id) if e.patient_id else '/tasks' }}" title="{{ e.title }} · {{ e.service or '' }}"
          data-q="{{ (e.title ~ ' ' ~ (e.service or '') ~ ' ' ~ (e.note or ''))|lower }}"
          {% if e.appt_id %}onclick="return visitOpen(event,'appt={{ e.appt_id }}')"{% elif e.visit_ids %}onclick="return visitOpen(event,'v={{ e.visit_ids|join(',') }}')"{% endif %}
          style="top:calc({{ b.top }} * var(--px) + 1px);height:max(calc({{ b.height }} * var(--px) - 3px), 26px);left:calc({{ 100 * b.lane / b.lanes }}% + 6px);width:calc({{ 100 / b.lanes }}% - 12px)">
@@ -268,7 +270,7 @@
     {% endfor %}
   </div>
 </div>
-<div class="legend2">{% for k, lb in [('booked','Записаний'),('confirmed','Підтверджено'),('arrived','Прийшов'),('done','Візит завершено'),('no_show','Не прийшов')] %}<span><i class="lg s-{{ k }}"></i>{{ lb }}</span>{% endfor %}
+<div class="legend2">{% for x in vstats %}{% if x.on and (x.key != 'cancelled' or x.cal) %}<span><i class="lg s-{{ x.key }}"></i>{{ x.label }}</span>{% endif %}{% endfor %}
   <span><i class="lg lockl"></i>Заблоковано</span><span>{{ n_ev }} {{ 'запис' if n_ev % 10 == 1 and n_ev % 100 != 11 else ('записи' if n_ev % 10 in [2,3,4] and n_ev % 100 not in [12,13,14] else 'записів') }}</span></div>
 {% if can(user,'book') %}<dialog class="cs-d" id="blkd" style="border:0;border-radius:20px;padding:0;width:min(440px,94vw)"><form method="post" action="/calendar/blocks" style="padding:20px 22px;display:grid;gap:12px">
   <div style="display:flex;justify-content:space-between;align-items:center"><b style="font:600 14px var(--head);letter-spacing:.14em;text-transform:uppercase">Заблокувати час</b><button type="button" onclick="this.closest('dialog').close()" style="border:0;background:#F7F4F0;width:34px;height:34px;border-radius:10px;cursor:pointer">×</button></div>
@@ -405,8 +407,9 @@
   window.visitClose=function(){DSB=null;document.getElementById('vd').classList.remove('on','wide');document.getElementById('vdb').classList.remove('on')};
   window.vdStatus=function(id,sel){var st=sel.value,reason='';
     if(st==='cancelled'){reason=prompt('Причина скасування');if(!reason||reason.trim().length<3){load(Q);return}}
-    var fd=new FormData();fd.append('status',st);fd.append('reason',reason||'');fd.append('back','/calendar');
-    fetch('/appointments/'+id+'/status',{method:'POST',body:fd,credentials:'same-origin'}).then(function(){location.reload()})};
+    var fd=new FormData();fd.append('status',st);fd.append('reason',reason||'');fd.append('back','/calendar');fd.append('ajax','1');
+    fetch('/appointments/'+id+'/status',{method:'POST',body:fd,credentials:'same-origin'}).then(function(r){return r.json().catch(function(){return {}})})
+      .then(function(j){if(j&&j.error){alert(j.error);load(Q);return}location.reload()})};
   window.vdNote=function(key){var t=document.getElementById('vd-note'),err=document.getElementById('vd-nerr');err.textContent='';
     if(!t.value.trim()){err.textContent='Напишіть нотатку';return}
     fetch('/calendar/visit/note',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:key,text:t.value})})

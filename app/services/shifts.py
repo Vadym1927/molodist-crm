@@ -128,3 +128,35 @@ def _doc_photo_by_name(name: str | None) -> str | None:
 
 def _key(n: str) -> str:
     return " ".join(sorted((n or "").lower().replace("ʼ", "'").split()[:2]))
+
+
+REQ_KEY = "shift_required"
+
+
+def required(db: Session) -> bool:
+    """Без відкритої касової зміни продаж і закриття візиту заборонені (вимикається в «Каси / рахунки»)."""
+    from ..models import SyncState
+    st = db.get(SyncState, REQ_KEY)
+    return not (st and st.value == "0")
+
+
+def set_required(db: Session, on: bool) -> None:
+    from ..models import SyncState
+    st = db.get(SyncState, REQ_KEY) or SyncState(key=REQ_KEY)
+    st.value, st.updated_at = "1" if on else "0", datetime.utcnow()
+    db.merge(st)
+    db.commit()
+
+
+def sale_block(db: Session, user: User) -> str | None:
+    """Причина, чому не можна провести продаж (або None)."""
+    if not required(db) or current(db, user):
+        return None
+    return "Каса не відкрита: відкрийте касову зміну (аватар угорі → «Відкрити зміну»), тоді проводьте продаж."
+
+
+def close_block(db: Session) -> str | None:
+    """Причина, чому не можна закрити візит: у клініці немає жодної відкритої касової зміни."""
+    if not required(db) or open_shifts(db):
+        return None
+    return "Каса не відкрита: візит можна закрити лише після відкриття касової зміни."

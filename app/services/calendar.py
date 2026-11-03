@@ -34,6 +34,7 @@ class Event:
     online: bool = False                 # запис з онлайн-запису / бота
     block_id: int | None = None          # заблокований час
     visit_ids: list = field(default_factory=list)   # візити CleverBox, обʼєднані в цей блок (вікно візиту)
+    ckey: str | None = None              # ключ кольору (Налаштування → Статуси візитів; «paid» — оплачений)
 
     @property
     def services(self) -> list[str]:
@@ -75,9 +76,13 @@ def events(db: Session, user: User, start: date, days: int = 7, doctor_id: int |
     cal_days = {(v.patient_id, v.starts_at.date()) for v in rows if v.source != "cb_service_sale"}
     # записи CRM
     from ..models import Appointment
-    from .appointments import STATUSES as _AST
-    appts = db.scalars(select(Appointment).where(Appointment.start >= s_dt, Appointment.start < e_dt,
-                                                 Appointment.status != "cancelled").order_by(Appointment.start)).all()
+    from . import visit_statuses as _vs
+    _AST = _vs.labels(db)
+    _paid_on = any(x["key"] == "paid" and x["on"] for x in _vs.all_(db))
+    _qa = select(Appointment).where(Appointment.start >= s_dt, Appointment.start < e_dt)
+    if not _vs.show_cancelled(db):
+        _qa = _qa.where(Appointment.status != "cancelled")
+    appts = db.scalars(_qa.order_by(Appointment.start)).all()
     mirrored = {rid for (rid,) in db.execute(select(Appointment.cb_record_id).where(   # перенесені й скасовані в CRM — оригінал CleverBox не показуємо
         Appointment.cb_record_id.is_not(None), Appointment.start >= s_dt - timedelta(days=60)))}
     appt_days = {(a.patient_id, a.start.date()) for a in appts if a.cb_record_id}      # історія CleverBox уже як записи CRM
@@ -93,7 +98,8 @@ def events(db: Session, user: User, start: date, days: int = 7, doctor_id: int |
                                 a.patient_id, in_plan=a.patient_id in plan_patients, doctor_id=a.doctor_id,
                                 service=", ".join(s.get("name", "") for s in a.services or []) or None,
                                 ends=a.end, status_label=_AST.get(a.status), appt_id=a.id, status=a.status, note=a.comment,
-                                paid=bool(a.sale_id), online=a.source in ("online", "bot")))
+                                paid=bool(a.sale_id), online=a.source in ("online", "bot"),
+                                ckey="paid" if (_paid_on and (a.sale_id or a.cb_paid) and a.status not in _vs.CANCEL) else a.status))
     for v in rows:
         _rid = (v.external_id or "").split("-")[0]
         if v.source == "cb_visit" and _rid.isdigit() and int(_rid) in mirrored:
@@ -128,7 +134,8 @@ def events(db: Session, user: User, start: date, days: int = 7, doctor_id: int |
                                 v.patient_id, in_plan=v.patient_id in plan_patients,
                                 doctor_id=doc.id if doc else None, service=v.service_name, ends=ends,
                                 status_label=v.status_label, status="booked" if v.status == "booked" else "done",
-                                paid=v.status != "booked", visit_ids=[v.id]))
+                                paid=v.status != "booked", visit_ids=[v.id],
+                                ckey="booked" if v.status == "booked" else ("paid" if _paid_on else "done")))
             merged[key] = out[d][-1]
 
     if True:

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Статуси візитів · MOLODIST CRM{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+<style>
+{{ css|safe }}
+.vs-info{background:linear-gradient(120deg,#F1EDF8,#F7F4F0);border:1px solid #E4DEEF;border-radius:16px;padding:16px 20px;color:#3B3050;margin:14px 0 18px;line-height:1.5}
+.vs-l{border:1px solid #ECE7E1;border-radius:16px;background:#fff;max-width:1000px}
+.vs-r{display:grid;grid-template-columns:28px 56px minmax(0,1fr) 220px 150px 40px;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid #ECE7E1}
+.vs-r:last-child{border-bottom:0}.vs-r.off{opacity:.55}
+.vs-h{font:700 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496;background:#FBFAF8;border-radius:16px 16px 0 0}
+.vs-dr{cursor:grab;color:#b9b3c4;font-size:18px;text-align:center;user-select:none}
+.vs-r input[type=color]{width:48px;height:38px;padding:2px;border:1px solid #E9E5DF;border-radius:10px;background:#fff;cursor:pointer}
+.vs-r input[type=text]{height:40px;width:100%}
+.vs-pv{border-top:4px solid var(--bc);background:var(--bg);border-radius:6px;padding:5px 9px;font:600 13px var(--sans);color:#2A2430;box-shadow:0 1px 3px rgba(42,36,48,.12);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vs-pv small{display:block;font-weight:500;color:#5d5869;font-size:11.5px}
+.vs-sw{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:#5d5869}.vs-sw label{display:flex;gap:6px;align-items:center;cursor:pointer}
+.vs-sw input{accent-color:#3B3050;width:16px;height:16px}
+.vs-x{border:0;background:none;color:#B23B2E;font-size:22px;cursor:pointer}.vs-x[disabled]{color:#d8d3dd;cursor:not-allowed}
+.vs-tag{font:600 10.5px var(--sans);color:#8a8496;letter-spacing:.04em;text-transform:uppercase}
+@media(max-width:760px){.vs-r{grid-template-columns:24px 50px 1fr 36px}.vs-r .vs-pv,.vs-r .vs-sw{grid-column:2/-1}.vs-h{display:none}}
+</style>
+<form method="post" id="vsf">
+<div class="row between" style="gap:10px;flex-wrap:wrap"><div><div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a> · Клініка</div><h1>Статуси візитів</h1></div>
+  <button class="btn">Зберегти</button></div>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok);margin-top:10px">{{ qp.get('msg') }}</div>{% endif %}
+<div class="vs-info">Кожен візит у календарі має колір свого статусу. Назву й колір можна змінити, непотрібні статуси — вимкнути (їх не буде в меню запису), порядок — перетягнути за ⋮⋮.
+  <b>«Оплачено ₴»</b> — колір візиту, за яким уже проведено оплату. <b>«Скасовано»</b> за замовчуванням у календарі не показується — увімкніть «показувати в календарі», щоб бачити скасовані записи. Свої статуси поводяться як звичайний активний запис.</div>
+<div class="vs-l" id="vsl">
+  <div class="vs-r vs-h"><span></span><span>Колір</span><span>Назва</span><span>Як виглядає в календарі</span><span>Показ</span><span></span></div>
+  {% for x in items %}
+  <div class="vs-r {{ 'off' if not x.on }}" draggable="true">
+    <span class="vs-dr" title="Перетягніть, щоб змінити порядок">⋮⋮</span>
+    <input type="hidden" name="key" value="{{ x.key }}">
+    <input type="color" name="color" value="{{ x.color }}" oninput="vsPv(this)">
+    <div><input type="text" name="label" value="{{ x.label }}" maxlength="40" oninput="vsPv(this)" placeholder="{{ x.default }}">
+      <div class="vs-tag">{% if x.system %}системний{% if x.default and x.default != x.label %} · {{ x.default }}{% endif %}{% else %}свій статус{% endif %}{% if used.get(x.key) %} · записів: {{ used[x.key] }}{% endif %}</div></div>
+    <div class="vs-pv" style="--bc:{{ x.color }};--bg:color-mix(in srgb,{{ x.color }} 16%,#fff)"><span class="vs-pl">{{ x.label }}</span><small>10:00–11:00 · Пацієнт{% if x.key == 'paid' %} ₴{% endif %}</small></div>
+    <div class="vs-sw">{% if x.can_off %}<label><input type="checkbox" name="on" value="{{ x.key }}" {{ 'checked' if x.on }} onchange="this.closest('.vs-r').classList.toggle('off',!this.checked)">увімкнено</label>{% else %}<span class="muted small">завжди</span>{% endif %}
+      {% if x.key == 'cancelled' %}<label><input type="checkbox" name="cal" value="cancelled" {{ 'checked' if x.cal }}>показувати в календарі</label>{% endif %}</div>
+    {% if x.system %}<span></span>{% else %}<button type="button" class="vs-x" title="{{ 'Статус уже стоїть у записах — його можна лише вимкнути' if used.get(x.key) else 'Видалити' }}" {{ 'disabled' if used.get(x.key) }} onclick="this.closest('.vs-r').remove()">×</button>{% endif %}
+  </div>{% endfor %}
+</div>
+<button type="button" class="btn ghost" style="margin-top:12px" onclick="vsAdd()">＋ Свій статус</button>
+</form>
+<template id="vs-new"><div class="vs-r" draggable="true"><span class="vs-dr">⋮⋮</span><input type="hidden" name="key" value="">
+  <input type="color" name="color" value="#5C4B82" oninput="vsPv(this)"><div><input type="text" name="label" maxlength="40" placeholder="Назва статусу" oninput="vsPv(this)" required><div class="vs-tag">свій статус</div></div>
+  <div class="vs-pv" style="--bc:#5C4B82;--bg:color-mix(in srgb,#5C4B82 16%,#fff)"><span class="vs-pl">Новий статус</span><small>10:00–11:00 · Пацієнт</small></div>
+  <div class="vs-sw"><span class="muted small">увімкнено</span></div><button type="button" class="vs-x" onclick="this.closest('.vs-r').remove()">×</button></div></template>
+<script>
+function vsPv(el){var r=el.closest('.vs-r'),c=r.querySelector('[type=color]').value,l=r.querySelector('[type=text]'),p=r.querySelector('.vs-pv');
+  p.style.setProperty('--bc',c);p.style.setProperty('--bg','color-mix(in srgb,'+c+' 16%,#fff)');p.querySelector('.vs-pl').textContent=l.value||l.placeholder}
+function vsAdd(){var t=document.getElementById('vs-new').content.cloneNode(true);document.getElementById('vsl').appendChild(t);vsDrag()}
+var vsCur=null;function vsDrag(){document.querySelectorAll('#vsl .vs-r[draggable]').forEach(function(r){if(r._d)return;r._d=1;
+  r.addEventListener('dragstart',function(){vsCur=r;r.style.opacity=.4});r.addEventListener('dragend',function(){r.style.opacity='';vsCur=null});
+  r.addEventListener('dragover',function(e){e.preventDefault();if(!vsCur||vsCur===r)return;var b=r.getBoundingClientRect();r.parentNode.insertBefore(vsCur,e.clientY<b.top+b.height/2?r:r.nextSibling)})})}
+vsDrag();
+</script>
+{% endblock %}

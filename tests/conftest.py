@@ -11,6 +11,7 @@ def clean_db():
     from app.models import SessionLocal, SyncState      # режими роботи в тестах — вимкнені (на сервері вмикаються міграцією)
     with SessionLocal() as db:
         db.add(SyncState(key="work_mode_init_20261101", value="1"))
+        db.add(SyncState(key="shift_required", value="0"))      # касова зміна в тестах не обовʼязкова (окремий тест)
         db.commit()
     from app.services import autonomy
     autonomy._CACHE["cfg"] = dict(autonomy.DEFAULT)

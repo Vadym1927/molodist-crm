@@ -205,6 +205,8 @@ dialog.payd::backdrop{background:rgba(42,36,48,.45)}
 @media (max-width:1250px){.pos{grid-template-columns:100px minmax(260px,1fr) minmax(0,1.2fr)}}
 @media (max-width:980px){.pos{grid-template-columns:1fr}.pm{position:static;grid-template-columns:repeat(5,1fr)}.br{min-height:0}}
 </style>
+{% if shift_msg %}<div class="alert" style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:14px"><span>🔒 {{ shift_msg }}</span>
+  <button type="button" class="btn" onclick="ppOpen()">Відкрити зміну</button></div>{% endif %}
 <div class="row between" style="margin-bottom:10px"><div><div class="eyebrow"><a href="/sales" style="text-decoration:none">Каса CRM</a></div><h1>Новий продаж</h1>
   {% if appts %}<div class="vb-l">{% set ids = appts|map(attribute='id')|list %}{% for x in appts %}<span class="vb">Візит №{{ x.id }} · {{ x.start|dt('%d.%m %H:%M') }} · <b>{{ dnames.get(x.doctor_id, 'без лікаря') }}</b>
       {% if appts|length > 1 %}<a href="/sales/new?appt={{ ids|reject('equalto', x.id)|join(',') }}" title="Прибрати візит з чека">×</a>{% endif %}</span>{% endfor %}

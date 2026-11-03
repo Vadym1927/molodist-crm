@@ -53,6 +53,10 @@
   <button class="btn" type="button" onclick="bxEdit(null)">＋ Нова каса</button></div>
 {% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
 {% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+<form method="post" action="/settings/shift-required" style="display:flex;gap:12px;align-items:flex-start;background:#F7F4F0;border:1px solid #E9E5DF;border-radius:14px;padding:14px 18px;margin:0 0 16px">
+  <input type="checkbox" name="on" value="1" {{ 'checked' if shift_req }} onchange="this.form.submit()" style="width:20px;height:20px;margin-top:2px;accent-color:#3B3050">
+  <div><b style="font:700 13.5px var(--sans);text-transform:uppercase;letter-spacing:.04em">Без відкритої каси — ні продажу, ні закриття візиту</b>
+  <div class="muted small">Продаж проводить лише користувач із відкритою касовою зміною; візит закривається, коли в клініці відкрита хоча б одна зміна.</div></div></form>
 <div class="cx-sum">
   <div class="cx-k hero"><span>Разом в активних касах</span><b>{{ '{:,.2f}'.format(total).replace(',', ' ').replace('.', ',') }} ₴</b><small>{{ act|length }} активних · {{ inact|length }} вимкнених</small></div>
   <div class="cx-k"><span>Готівка</span><b>{{ '{:,.2f}'.format(cash_t).replace(',', ' ').replace('.', ',') }} ₴</b><small>{{ act|selectattr('cash')|list|length }} кас</small></div>

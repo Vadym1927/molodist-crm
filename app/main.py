@@ -1172,13 +1172,31 @@ def lookup_services(q: str = "", user: User = Depends(current_user), db: Session
                          for s in rows[:25]])
 
 
+def _vstat_menu(db: Session, cur: str | None = None) -> dict:
+    """Статуси для меню запису: увімкнені в «Статуси візитів» + поточний статус запису (навіть якщо його вимкнули)."""
+    from .services import visit_statuses as _vs
+    every = _vs.labels(db)
+    on = _vs.labels(db, only_on=True)
+    if cur and cur not in on:
+        on[cur] = every.get(cur, cur)
+    return on
+
+
+def _vstat_colors(db: Session) -> dict:
+    from collections import defaultdict
+    from .services import visit_statuses as _vs
+    d = defaultdict(lambda: "#8a8496")
+    d.update(_vs.colors(db))
+    return d
+
+
 def _appt_ctx(db: Session) -> dict:
     from .services import clinic as cl, appointments as aps
     data = cl.get(db)
     loc = next((x for x in data["locations"] if x.get("active")), {"places": [], "resources": []})
     return {"doctors": spec_svc.calendar_doctors(db), "places": [p_["name"] for p_ in loc.get("places", []) if p_.get("active", True)],
-            "resources": [r_["name"] for r_ in loc.get("resources", []) if r_.get("active", True)], "STATUSES": aps.STATUSES,
-            "COLORS": aps.COLORS, "cb_on": bool(settings.cleverbox_token or db.get(SyncState, "cleverbox_token_enc"))}
+            "resources": [r_["name"] for r_ in loc.get("resources", []) if r_.get("active", True)], "STATUSES": _vstat_menu(db),
+            "COLORS": _vstat_colors(db), "cb_on": bool(settings.cleverbox_token or db.get(SyncState, "cleverbox_token_enc"))}
 
 
 @app.get("/appointments/new", response_class=HTMLResponse)
@@ -1314,15 +1332,27 @@ async def appointment_time(aid: int, request: Request, user: User = Depends(requ
 
 
 @app.post("/appointments/{aid:int}/status")
-def appointment_status(aid: int, status: str = Form(...), reason: str = Form(""), back: str = Form(""),
+def appointment_status(aid: int, status: str = Form(...), reason: str = Form(""), back: str = Form(""), ajax: str = Form(""),
                        user: User = Depends(require("book")), db: Session = Depends(db_dep)):
     from .services import appointments as aps
     from .models import Appointment
     a = db.get(Appointment, aid) or (_ for _ in ()).throw(HTTPException(404))
     if status == "cancelled" and len(reason.strip()) < 3:
         return RedirectResponse(_with_msg(back or f"/calendar?start={a.start.date()}", "Вкажіть причину скасування", True), 303)
-    aps.set_status(db, a, status, reason.strip()[:200] or None)
+    from .services import shifts as _shq
+    _err = _shq.close_block(db) if status == "done" and a.status != "done" else None
+    if not _err:
+        try:
+            aps.set_status(db, a, status, reason.strip()[:200] or None)
+        except ValueError as e:
+            _err = str(e)
+    if _err:
+        if ajax:
+            return JSONResponse({"error": _err}, status_code=400)
+        return RedirectResponse(_with_msg(back or f"/calendar?start={a.start.date()}", _err, True), 303)
     audit(db, "appointment.status", "patient", a.patient_id, user=user, appt=aid, status=status, reason=reason or None)
+    if ajax:
+        return JSONResponse({"ok": True})
     b = back if back.startswith("/calendar") or back.startswith("/patients/") else f"/calendar?start={a.start.date()}"
     return RedirectResponse(b, 303)
 
@@ -1493,6 +1523,7 @@ def sale_new(request: Request, appt: str = "", patient: int = 0, user: User = De
     _locs = [l_ for l_ in (_cl.get(db).get("locations") or []) if l_.get("active", True)]
     from .services import price_cats as _pcat
     return render(request, "sale_new.html", nav="finance", appt=a_, appts=appts, others=others, dnames=dnames, pt=pt, items=items,
+                  shift_msg=__import__("app.services.shifts", fromlist=["x"]).sale_block(db, user),
                   methods=sl.methods(db), today=date.today().isoformat(),
                   pcat=_pcat.doctor_prices(db),
                   loc_name=_locs[0]["name"] if _locs else "MOLODIST",
@@ -1640,6 +1671,9 @@ async def paylink_fiscal_pdf(lid: int, user: User = Depends(require("sales")), d
 async def sale_create(request: Request, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
     from .services import sales as sl
     d_ = _sale_payload(await request.json())
+    from .services import shifts as _shq
+    if (_blk := _shq.sale_block(db, user)):
+        return JSONResponse({"error": _blk}, status_code=400)
     if d_["patient_id"]:
         _patient_or_403(db, user, d_["patient_id"])
     if any(not it_.get("doctor_id") for it_ in d_["items"]):
@@ -3044,6 +3078,8 @@ def calendar_page(request: Request, start: str | None = None, doc: str = "", vie
         ctx["doc_prev"], ctx["doc_next"] = ids[i_ - 1], ids[(i_ + 1) % len(ids)]
     _pids = {e.patient_id for lst in ev.values() for e in lst if e.patient_id}
     ctx["phones"] = dict(db.query(Patient.id, Patient.phone).filter(Patient.id.in_(_pids)).all()) if _pids else {}
+    from .services import visit_statuses as _vs
+    ctx["vstats"], ctx["vstat_css"] = _vs.all_(db), _vs.css(db)
     return render(request, "calendar.html", ev=ev, cols=cols, grid=grid, start=s, days=days, n_ev=n_ev,
                   prev=s - timedelta(days=days), next=s + timedelta(days=days), end=s + timedelta(days=days - 1),
                   month=None, **ctx)
@@ -3116,7 +3152,7 @@ def calendar_visit(request: Request, appt: int = 0, v: str = "", tab: str = "vis
                                                                   _Ap.sale_id.is_(None), _Ap.status.notin_(("cancelled", "no_show"))))]
         wdocs = db.scalars(select(StockDoc).where(StockDoc.ext_no == f"visit:{c['a'].id}", StockDoc.status == "posted")).all()
     return templates.TemplateResponse(request, "_visit_drawer.html", {"request": request, "user": user, "c": c, "pt": p_, "stats": stats,
-                                      "tab": tab, "STATUSES": aps.STATUSES, "COLORS": aps.COLORS, "can": can,
+                                      "tab": tab, "STATUSES": _vstat_menu(db, c["a"].status if c.get("a") else None), "COLORS": _vstat_colors(db), "can": can,
                                       "color": spec_svc.color, "initials": spec_svc.initials, "mats": mats, "closed": closed_,
                                       "wdocs": wdocs, "WH": catalog.WAREHOUSES,
                                       "popts": _product_options(db, consumables=True) if mats is not None and not closed_ else []})
@@ -4854,6 +4890,7 @@ SETTINGS_BLOCKS = [
         ('Філії', 'Локації: ресурси (апарати), режим роботи, робочі місця (кабінети)', '/settings/clinic#loc', 'users', 'salons'),
         ('Команда', 'Лікарі й співробітники: посади, KPI, привʼязка до CleverBox', '/specialists', 'specialists', 'sfields/staff'),
         ('Графік роботи', 'Зміни спеціалістів по днях і кабінетах', '/specialists/schedule', 'schedule', None),
+        ('Статуси візитів', 'Записаний, підтверджено, оплачено ₴, скасовано…: назви, кольори в календарі, свої статуси', '/settings/visit-statuses', 'users', None),
         ('Онлайн-бронювання', 'Віджет запису на сайті', 'dev', None, None),
     ]),
     ('Співробітники', 'team', 'Посади, оклади, категорії й нарахування', [
@@ -5194,7 +5231,45 @@ def settings_cashboxes(request: Request, user: User = Depends(require("finance")
     return render(request, "cashboxes.html", nav="settings", boxes=boxes, TYPES=cbx.TYPES, locs=cl.get(db).get("locations") or [],
                   methods=sl.methods(db), open_=open_, detail=detail, dmoves=cbx.moves(db, detail, 100) if detail else [],
                   total=round(sum(b["balance"] for b in boxes if b.get("active")), 2), fee_articles=fa.names(db, "expense"),
-                  FEE_ARTICLE=cbx.FEE_ARTICLE)
+                  FEE_ARTICLE=cbx.FEE_ARTICLE, shift_req=__import__("app.services.shifts", fromlist=["x"]).required(db))
+
+
+@app.get("/settings/visit-statuses", response_class=HTMLResponse)
+def settings_visit_statuses(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import visit_statuses as _vs
+    from .models import Appointment as _Ap
+    from sqlalchemy import func as _fn
+    used = dict(db.execute(select(_Ap.status, _fn.count()).group_by(_Ap.status)).all())
+    return render(request, "visit_statuses.html", nav="settings", items=_vs.all_(db), used=used, css=_vs.css(db))
+
+
+@app.post("/settings/visit-statuses")
+async def settings_visit_statuses_save(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import visit_statuses as _vs
+    f = await request.form()
+    keys, labels_, colors_ = f.getlist("key"), f.getlist("label"), f.getlist("color")
+    on_, cal_ = set(f.getlist("on")), set(f.getlist("cal"))
+    items = []
+    for i, k in enumerate(keys):
+        tag = k or f"new{i}"
+        items.append({"key": k, "label": labels_[i] if i < len(labels_) else "", "color": colors_[i] if i < len(colors_) else "",
+                      "on": tag in on_ or (not k), "cal": tag in cal_})
+    from .models import Appointment as _Ap
+    used = {k for (k,) in db.execute(select(_Ap.status).distinct())}
+    old = {x["key"]: x for x in _vs.all_(db) if not x["system"]}
+    for k in used & set(old) - set(keys):        # статус уже стоїть у записах — не видаляємо, лише вимикаємо
+        items.append({**old[k], "on": False})
+    _vs.save(db, items)
+    audit(db, "settings.visit_statuses", user=user, n=len(items))
+    return RedirectResponse(_with_msg("/settings/visit-statuses", "Статуси візитів збережено"), 303)
+
+
+@app.post("/settings/shift-required")
+def settings_shift_required(on: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import shifts as _shq
+    _shq.set_required(db, bool(on))
+    audit(db, "settings.shift_required", user=user, on=bool(on))
+    return RedirectResponse(_with_msg("/settings/cashboxes", "Збережено"), 303)
 
 
 @app.post("/settings/cashboxes")

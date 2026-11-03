@@ -36,7 +36,7 @@ def conflicts(db: Session, doctor_id: int | None, start: datetime, end: datetime
     warn = []
     day0, day1 = datetime.combine(start.date(), datetime.min.time()), datetime.combine(start.date(), datetime.max.time())
     same_day = [a for a in db.scalars(select(Appointment).where(Appointment.start >= day0, Appointment.start <= day1,
-                                                                 Appointment.status.in_(ACTIVE)))
+                                                                 Appointment.status.notin_(("no_show", "cancelled"))))
                 if a.id != exclude_id and overlaps(start, end, a.start, a.end)]
     d = db.get(Doctor, doctor_id) if doctor_id else None
     for a in same_day:
@@ -85,7 +85,8 @@ def save(db: Session, data: dict, user_id: int | None = None, appt: Appointment 
 
 
 def set_status(db: Session, a: Appointment, status: str, reason: str | None = None) -> None:
-    if status not in STATUSES:
+    from . import visit_statuses as _vs
+    if not _vs.valid(db, status):
         raise ValueError("Невідомий статус")
     a.status, a.updated_at = status, datetime.utcnow()
     a.cancel_reason = reason if status in ("cancelled", "no_show") else None
