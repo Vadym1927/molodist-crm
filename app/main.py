@@ -1370,6 +1370,29 @@ async def appointment_time(aid: int, request: Request, user: User = Depends(requ
     return JSONResponse({"ok": True, "day": a.start.date().isoformat()})
 
 
+@app.post("/appointments/{aid:int}/doctor")
+async def appointment_doctor(aid: int, request: Request, user: User = Depends(require("book")), db: Session = Depends(db_dep)):
+    """Заміна лікаря у візиті (з картки візиту): попередження про зайнятість, «force» — замінити все одно."""
+    from .services import appointments as aps
+    from .models import Appointment
+    a = db.get(Appointment, aid) or (_ for _ in ()).throw(HTTPException(404))
+    _patient_or_403(db, user, a.patient_id)
+    if a.historic or a.sale_id:
+        return JSONResponse({"error": "Оплачений або історичний візит змінити не можна"}, status_code=400)
+    f = await request.json()
+    did = int(f.get("doctor_id") or 0) or None
+    if did and not db.get(Doctor, did):
+        raise HTTPException(404)
+    warn = aps.conflicts(db, did, a.start, a.end, a.place, a.resource, a.id, a.patient_id) if did else []
+    if warn and not f.get("force"):
+        return JSONResponse({"warnings": warn})
+    old = a.doctor_id
+    a.doctor_id, a.updated_at = did, datetime.utcnow()
+    db.commit()
+    audit(db, "appointment.save", "patient", a.patient_id, user=user, appt=a.id, doctor=did, frm_doc=old, via="doctor")
+    return JSONResponse({"ok": True})
+
+
 @app.post("/appointments/{aid:int}/status")
 def appointment_status(aid: int, status: str = Form(...), reason: str = Form(""), back: str = Form(""), ajax: str = Form(""),
                        user: User = Depends(require("book")), db: Session = Depends(db_dep)):
@@ -3185,6 +3208,13 @@ def calendar_visit(request: Request, appt: int = 0, v: str = "", tab: str = "vis
     stats = {"tag": _cal.tag_for(n + (0 if _done_here else 1), _lv), "tag_color": "", "visits": p_.cb_visits if p_.cb_visits is not None else n, "total": p_.cb_total or 0,
              "bonus": round(ly.balance(db, p_.id), 2), "discount": p_.discount_pct}
     stats["tag_color"] = _ptg.colors(_lv).get(stats["tag"], "")
+    from .services import certificates as _cert2
+    from .models import Subscription as _Sub
+    _td = date.today()
+    stats["certs"] = sum(1 for x in _cert2.for_patient(db, p_.id) if x.state() in ("active", "expiring"))
+    stats["subs"] = sum(1 for x in db.scalars(select(_Sub).where(_Sub.patient_id == p_.id))
+                        if (not x.valid_to or x.valid_to >= _td) and ((x.visits_left or 0) > 0 or (x.balance or 0) > 0))
+    _cal_docs = spec_svc.calendar_doctors(db)
     mats, closed_, wdocs = None, False, []
     if c["a"]:
         from .services import techcards as _tc
@@ -3208,7 +3238,7 @@ def calendar_visit(request: Request, appt: int = 0, v: str = "", tab: str = "vis
     return templates.TemplateResponse(request, "_visit_drawer.html", {"request": request, "user": user, "c": c, "pt": p_, "stats": stats, "sale": sale_,
                                       "tab": tab, "STATUSES": _vstat_menu(db, c["a"].status if c.get("a") else None), "COLORS": _vstat_colors(db), "can": can,
                                       "color": spec_svc.color, "initials": spec_svc.initials, "mats": mats, "closed": closed_,
-                                      "wdocs": wdocs, "WH": catalog.WAREHOUSES,
+                                      "wdocs": wdocs, "WH": catalog.WAREHOUSES, "cal_docs": _cal_docs,
                                       "popts": _product_options(db, consumables=True) if mats is not None and not closed_ else []})
 
 

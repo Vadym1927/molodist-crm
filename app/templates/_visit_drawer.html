@@ -33,15 +33,21 @@
             {% if p.phone %}{% set dig = p.phone|replace(' ','')|replace('-','')|replace('(','')|replace(')','') %}
             <div class="vx-act"><a href="tel:{{ dig }}" title="Подзвонити"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg></a>
               <a href="viber://chat?number={{ dig|replace('+','%2B') }}" title="Написати у Viber"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a8 8 0 0 1 16 0c0 4.4-3.6 7-8 7l-4 3v-3.5C5.6 16.3 4 14 4 11z"/></svg></a></div>{% endif %}</div>
-          <div class="vx-ln">{% if p.phone %}<span class="vx-phone" onclick="this.textContent=this.dataset.full" data-full="{{ p.phone }}" title="Показати номер">{{ p.phone[:6] ~ '•••••' ~ p.phone[-2:] if p.phone|length > 8 else p.phone }}</span><i></i>{% endif %}<a href="/patients/{{ p.id }}">Картка пацієнта</a></div>
+          <div class="vx-ln">{% if p.phone %}<a class="vx-phone" href="tel:{{ dig }}">{{ p.phone }}</a><i></i>{% endif %}<a href="/patients/{{ p.id }}">Картка пацієнта</a>{% if can(user,'medical') %}<i></i><a href="/patients/{{ p.id }}/medcard">Медкарта</a>{% endif %}</div>
           <div class="vx-kpi"><div><b>{{ stats.visits or 0 }}</b><span>попередніх візитів</span></div><div><b>{{ '{:,.0f}'.format(stats.total or 0).replace(',', ' ') }} ₴</b><span>оплачено</span></div>
-            <div><b>{{ '%g'|format(stats.bonus or 0) }}</b><span>бонусів</span></div><div><b>{{ ('%g'|format(stats.discount) ~ '%') if stats.discount else '—' }}</b><span>знижка</span></div></div>
+            <div><b>{{ '%g'|format(stats.bonus or 0) }}</b><span>бонусів</span></div><div><b>{{ ('%g'|format(stats.discount) ~ '%') if stats.discount else '—' }}</b><span>знижка</span></div>
+            <div class="dev" title="MOLODIST коїни — в розробці"><b>—</b><span>MOLODIST коїни</span><em>в розробці</em></div>
+            <a href="/gifts?q={{ p.full_name|urlencode }}"><b>{{ stats.subs or 0 }}</b><span>абонементи</span></a>
+            <a href="/gifts?q={{ p.full_name|urlencode }}"><b>{{ stats.certs or 0 }}</b><span>сертифікати</span></a></div>
         </div>
       </div>
 
       <div class="vx-bar">
-        {% if a %}<label class="vx-st" style="--sc:{{ COLORS.get(a.status, '#5C4B82') }}"><i></i><select {% if not can(user,'book') or a.historic %}disabled{% endif %} onchange="vdStatus({{ a.id }}, this)">
-            {% for k, v in STATUSES.items() %}<option value="{{ k }}" {{ 'selected' if a.status == k }}>{{ v }}</option>{% endfor %}</select></label>
+        {% if a %}{% set _sto = can(user,'book') and not a.historic %}
+          <div class="vx-st vx-dd" style="--sc:{{ COLORS.get(a.status, '#5C4B82') }}">
+            <button type="button" class="vx-stb" {% if _sto %}onclick="vxDd(this)"{% else %}disabled{% endif %}><i></i><b>{{ STATUSES.get(a.status, a.status) }}</b>{% if _sto %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg>{% endif %}</button>
+            {% if _sto %}<div class="vx-menu" hidden>{% for k, v in STATUSES.items() %}<button type="button" class="{{ 'on' if a.status == k }}" style="--sc:{{ COLORS.get(k, '#8a8496') }}" onclick="vdStatus({{ a.id }}, {value:'{{ k }}'})"><i></i>{{ v }}</button>{% endfor %}</div>{% endif %}
+          </div>
         {% else %}<span class="vx-st" style="--sc:{{ '#4CAF50' if c.status in ('attended','done') else '#F5B940' }}"><i></i><b>{{ c.status_label }}</b></span>{% endif %}
         <span class="vx-d"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>{{ uday(c.start) }}</span>
         <span class="vx-d"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>{{ c.start|dt('%H:%M') }} – {{ c.end|dt('%H:%M') }} · {{ ((c.end - c.start).total_seconds() // 60)|int }} хв</span>
@@ -60,15 +66,19 @@
             <h3>Час візиту</h3>
             <div class="vt-r"><label>Дата<input type="date" id="vt-d" value="{{ c.start.strftime('%Y-%m-%d') }}"></label><label>Початок<input type="time" id="vt-t" step="300" value="{{ c.start.strftime('%H:%M') }}" oninput="vtCalc()"></label></div>
             {% for s in c.services %}<div class="vt-s"><span>{{ s.name }}</span><label><input type="number" class="vt-m" min="5" max="600" step="5" value="{{ s.minutes }}" oninput="vtCalc()"> хв</label></div>{% endfor %}
-            <div class="vt-e">Закінчення: <b id="vt-end">{{ c.end.strftime('%H:%M') }}</b></div>
+            <div class="vt-e"><label>Закінчення<input type="time" id="vt-endi" step="300" value="{{ c.end.strftime('%H:%M') }}" oninput="vtEnd()"></label><span id="vt-dur">{{ ((c.end - c.start).total_seconds() // 60)|int }} хв</span></div>
             <div class="vt-w" id="vt-w"></div>
             <div class="vt-a"><button type="button" class="vd-btn ghost" onclick="document.getElementById('vt').hidden=true">Скасувати</button><button type="button" class="vd-btn main" id="vt-ok" onclick="vtSave({{ a.id }})">Зберегти</button></div>
           </div></div>{% endif %}
 
           <div class="vx-h"><h4>Лікар</h4></div>
-          <div class="vx-doc">{% if d %}<i class="vx-dav" style="{% if d.photo_url %}background-image:url('{{ d.photo_url }}');{% else %}background-color:{{ color(d) }};{% endif %}">{{ '' if d.photo_url else initials(d.name) }}</i>
-            <div><a href="/specialists/{{ d.id }}">{{ d.name }}</a><span>{{ d.position or 'Спеціаліст' }}</span></div>{% else %}<div><b>Спеціаліст не визначений</b><span>{{ c.vs[0].master_name if c.vs else '' }}</span></div>{% endif %}
+          {% set _dch = a and not a.historic and not a.sale_id and can(user,'book') %}
+          <div class="vx-dd vx-docw"><div class="vx-doc {{ 'ch' if _dch }}" {% if _dch %}onclick="vxDd(this)" title="Замінити лікаря"{% endif %}>{% if d %}<i class="vx-dav" style="{% if d.photo_url %}background-image:url('{{ d.photo_url }}');{% else %}background-color:{{ color(d) }};{% endif %}">{{ '' if d.photo_url else initials(d.name) }}</i>
+            <div>{% if _dch %}<b>{{ d.name }}</b>{% else %}<a href="/specialists/{{ d.id }}">{{ d.name }}</a>{% endif %}<span>{{ d.position or 'Спеціаліст' }}</span></div>{% else %}<div><b>Спеціаліст не визначений</b><span>{{ c.vs[0].master_name if c.vs else '' }}</span></div>{% endif %}
             {% if a and a.place %}<span class="vx-room"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 21V4h11v17M16 7h3v14M3 21h18"/><circle cx="13" cy="13" r=".8" fill="currentColor"/></svg>{{ a.place }}</span>{% endif %}</div>
+            {% if _dch %}<div class="vx-menu vx-docs" hidden><div class="vx-mh">Замінити лікаря</div>{% for x in cal_docs %}<button type="button" class="{{ 'on' if d and d.id == x.id }}" onclick="vxDoc({{ a.id }}, {{ x.id }})">
+              <i class="vx-dav" style="{% if x.photo_url %}background-image:url('{{ x.photo_url }}');{% else %}background-color:{{ color(x) }};{% endif %}">{{ '' if x.photo_url else initials(x.name) }}</i>
+              <span><b>{{ x.name }}</b><small>{{ x.position or 'Спеціаліст' }}</small></span></button>{% endfor %}</div>{% endif %}</div>
 
           <div class="vx-h"><h4>Коментар до запису</h4></div>
           <div class="vx-com"><span>{{ (a.comment if a else '') or (p.cb_note if p.cb_note else '') or '—' }}</span>
@@ -97,7 +107,7 @@
       </div>
 
       <div class="vx-foot"><span class="vx-saved"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2E9E5B" stroke-width="2.2"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Усі зміни збережено</span>
-        {% if a and not a.historic and can(user,'book') and a.status != 'cancelled' and not a.sale_id %}<button type="button" class="vx-b" onclick="vdCancel({{ a.id }})">Скасувати візит</button>{% endif %}
+        {% if a and not a.historic and can(user,'book') and a.status != 'cancelled' and not a.sale_id %}<button type="button" class="vx-b danger" onclick="vdCancel({{ a.id }})">Скасувати візит</button>{% endif %}
         <details class="vx-more"><summary title="Ще">•••</summary><div>
           <a href="/patients/{{ p.id }}">Картка пацієнта</a><a href="/patients/{{ p.id }}/photos">Фото пацієнта</a>
           {% if can(user,'medical') %}<a href="/patients/{{ p.id }}/medcard">Медкартка</a>{% endif %}

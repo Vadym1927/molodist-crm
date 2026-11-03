@@ -424,6 +424,25 @@
 .vx-more{position:relative}.vx-more summary{list-style:none;width:52px;height:46px;border:1px solid #E9E5DF;border-radius:12px;display:grid;place-items:center;cursor:pointer;font:700 14px var(--sans);letter-spacing:.1em;color:#2A2430}
 .vx-more summary::-webkit-details-marker{display:none}.vx-more>div{position:absolute;right:0;bottom:54px;background:#fff;border:1px solid #E9E5DF;border-radius:14px;box-shadow:0 18px 40px -12px rgba(42,36,48,.3);padding:6px;min-width:220px;display:grid}
 .vx-more>div a{padding:10px 12px;border-radius:9px;color:#2A2430;text-decoration:none;font-weight:600}.vx-more>div a:hover{background:#F6F3FB}
+.vx-kpi{grid-template-columns:repeat(7,1fr)}.vx-kpi a{text-align:center;padding:4px 8px;border-left:1px solid #E9E5DF;text-decoration:none;color:inherit}.vx-kpi a:hover b{color:#5C4B82}
+.vx-kpi b{font-size:20px}.vx-kpi span{font-size:12.5px}.vx-kpi .dev b{color:#b9b3c4}.vx-kpi .dev em{display:block;font-style:normal;font-size:10.5px;color:#B07A3E;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+.vx-phone{color:#2A2430!important;font-weight:500!important;text-decoration:none}
+.vx-dd{position:relative}
+.vx-stb{display:flex;align-items:center;gap:10px;border:0;background:color-mix(in srgb,var(--sc) 14%,#fff);border-radius:10px;padding:8px 12px;cursor:pointer;font:600 15.5px var(--sans);color:#2A2430;box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--sc) 45%,transparent)}
+.vx-stb i{width:12px;height:12px;border-radius:50%;background:var(--sc)}.vx-stb:disabled{cursor:default}
+.vx-menu{position:absolute;top:calc(100% + 6px);left:0;z-index:30;background:#fff;border:1px solid #E9E5DF;border-radius:14px;box-shadow:0 18px 44px -10px rgba(42,36,48,.32);padding:6px;min-width:240px;display:grid;gap:3px}
+.vx-menu[hidden]{display:none}
+.vx-menu>button{display:flex;align-items:center;gap:10px;border:0;border-radius:9px;padding:9px 12px;font:600 14.5px var(--sans);color:#2A2430;cursor:pointer;text-align:left;background:color-mix(in srgb,var(--sc,#fff) 10%,#fff)}
+.vx-menu>button i{width:11px;height:11px;border-radius:50%;background:var(--sc);flex:none}
+.vx-menu>button:hover{background:color-mix(in srgb,var(--sc,#C9BFE6) 24%,#fff)}.vx-menu>button.on{box-shadow:inset 0 0 0 2px var(--sc,#3B3050)}
+.vx-doc.ch{cursor:pointer}.vx-doc.ch:hover{border-color:#C9BFE6}.vx-doc.ch:after{content:"";width:9px;height:9px;border:solid #5C4B82;border-width:0 2px 2px 0;transform:rotate(45deg);margin:0 6px 4px 4px}
+.vx-docs{left:0;right:0;min-width:0}.vx-mh{font:700 11px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496;padding:6px 10px 4px}
+.vx-docs>button{background:#fff;padding:10px 12px;gap:14px}.vx-docs>button:hover{background:#F6F3FB}.vx-docs>button.on{box-shadow:inset 0 0 0 2px #C9BFE6}
+.vx-docs>button span{display:grid}.vx-docs>button b{font:700 15.5px var(--sans)}.vx-docs>button small{font:500 13.5px var(--sans);color:#6b6575}
+.vx-docs .vx-dav{width:52px;height:52px}
+.vx-mv{border-color:#D9822B!important;color:#B4610E!important;background:#FFF6EC!important}.vx-mv:hover{background:#FDEBD6!important}
+.vx-b.danger{border-color:#C0392B;color:#C0392B;background:#fff}.vx-b.danger:hover{background:#FDECEA}
+.vt-e{display:flex;align-items:flex-end;gap:12px}.vt-e label{display:grid;gap:4px;font:700 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496}.vt-e input{height:44px;width:150px}.vt-e span{color:#5d5869;font-weight:600;padding-bottom:12px}
 @media(max-width:900px){.vx-cols{grid-template-columns:1fr}.vx-pt{grid-template-columns:110px 1fr}.vx-av{width:110px;height:110px;font-size:30px}.vx-name{font-size:26px}.vx-kpi{grid-template-columns:1fr 1fr;gap:8px}.vx-mv{margin-left:0}}
 @media(max-width:720px){.vd-w{grid-template-columns:1fr}.vd-nav{flex-direction:row;overflow:auto;border-right:0;border-bottom:1px solid #ECE7E1}.vd-nav button span{white-space:nowrap}.vd-kpi{grid-template-columns:1fr 1fr}.vd-grid{grid-template-columns:1fr}}
 </style>
@@ -455,7 +474,14 @@
   (function(){var o=new URLSearchParams(location.search).get('open');if(o&&/^\d+$/.test(o))setTimeout(function(){load('appt='+o)},50)})();
   window.vtOpen=function(){var v=document.getElementById('vt');v.hidden=false;document.getElementById('vt-w').textContent='';document.getElementById('vt-ok').dataset.force='';vtCalc()};
   window.vtCalc=function(){var t=document.getElementById('vt-t').value;if(!t)return;var m=0;document.querySelectorAll('#vt .vt-m').forEach(function(i){m+=(+i.value||0)});
-    var p=t.split(':'),x=(+p[0])*60+(+p[1])+m;document.getElementById('vt-end').textContent=('0'+Math.floor(x/60)%24).slice(-2)+':'+('0'+x%60).slice(-2)};
+    var p=t.split(':'),x=(+p[0])*60+(+p[1])+m,e=document.getElementById('vt-endi'),d=document.getElementById('vt-dur');if(e)e.value=('0'+Math.floor(x/60)%24).slice(-2)+':'+('0'+x%60).slice(-2);if(d)d.textContent=m+' хв'};
+  window.vtEnd=function(){var t=document.getElementById('vt-t').value,e=document.getElementById('vt-endi').value;if(!t||!e)return;
+    var a=t.split(':'),b=e.split(':'),tot=((+b[0])*60+(+b[1]))-((+a[0])*60+(+a[1]));if(tot<5)return;var ms=[].slice.call(document.querySelectorAll('#vt .vt-m'));if(!ms.length)return;
+    var other=0;ms.slice(0,-1).forEach(function(i){other+=(+i.value||0)});var last=Math.max(5,tot-other);ms[ms.length-1].value=last;document.getElementById('vt-dur').textContent=(other+last)+' хв'};
+  window.vxDd=function(el){var w=el.closest('.vx-dd'),m=w.querySelector('.vx-menu');if(!m)return;var op=m.hidden;document.querySelectorAll('#vd .vx-menu').forEach(function(x){x.hidden=true});m.hidden=!op};
+  document.addEventListener('click',function(e){if(!e.target.closest('.vx-dd'))document.querySelectorAll('#vd .vx-menu').forEach(function(x){x.hidden=true})});
+  window.vxDoc=function(aid,did,force){fetch('/appointments/'+aid+'/doctor',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({doctor_id:did,force:!!force})})
+    .then(function(r){return r.json()}).then(function(j){if(j.error){alert(j.error);return}if(j.warnings){if(confirm('Увага: '+j.warnings.join('; ')+'\n\nЗамінити лікаря все одно?'))vxDoc(aid,did,true);return}location.reload()})};
   window.vtSave=function(id){var b=document.getElementById('vt-ok'),w=document.getElementById('vt-w');
     var body={day:document.getElementById('vt-d').value,time:document.getElementById('vt-t').value,minutes:[].map.call(document.querySelectorAll('#vt .vt-m'),function(i){return i.value}),force:!!b.dataset.force};
     fetch('/appointments/'+id+'/time',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)}).then(function(r){return r.json()}).then(function(j){
