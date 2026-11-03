@@ -76,6 +76,9 @@ def test_visit_cycle():
         # закритий візит не редагується
         assert c.post(f"/appointments/{aid}/materials/{gid}", json={"qty": "9"}).status_code == 409
         assert "матеріали списано зі складу" in c.get(f"/calendar/visit?appt={aid}&tab=cost").text
+        hh = c.get(f"/calendar/visit?appt={aid}&tab=hist").text
+        assert "Цикл Рукавички</b> 2 → 4" in hh and "додано <b>Цикл Ватні диски" in hh and "прибрано <b>Цикл Амортизація" in hh
+        assert f"Ч-{sid}</a> на <b>5 000.00" in hh and "Списання зі складу" in hh
         # повернення чека — списання скасовано, візит відкрито
         from app.services import sales as sl
         from app.models import Sale

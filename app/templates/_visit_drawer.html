@@ -145,12 +145,35 @@
     {# ---------- ІСТОРІЯ ---------- #}
     <section data-p="hist" hidden>
       <div class="vd-sec"><h4>Історія візиту</h4></div>
-      {% for h in c.hist %}<div class="vd-note"><div><b>{{ h.who }}</b><span>{{ h.at|local|dt('%d.%m.%Y %H:%M') if h.at else '' }}</span></div>
-        <p>{% if h.action == 'note' %}Нотатка: {{ h.details.text }}{% elif h.action == 'cb.sync' %}Завантажено з CleverBox · статус «{{ h.details.status }}»
-          {% elif h.action == 'appointment.create' %}Створено запис{% if h.details.start %} на {{ h.details.start|replace('T',' ') }}{% endif %}{% if h.details.cb %} · продубльовано в CleverBox №{{ h.details.cb }}{% endif %}
-          {% elif h.action == 'appointment.save' %}Запис змінено{% if h.details.start %} · {{ h.details.start|replace('T',' ') }}{% endif %}
-          {% elif h.action == 'appointment.status' %}Статус: «{{ STATUSES.get(h.details.status, h.details.status) }}»{% if h.details.reason %} · {{ h.details.reason }}{% endif %}
-          {% else %}{{ h.action }}{% endif %}</p></div>
+      {% macro hm(v) %}{{ '{:,.2f}'.format(v or 0).replace(',', ' ') }} ₴{% endmacro %}
+      {% for h in c.hist %}{% set d_ = h.details %}{% set A = h.action %}
+      {% set ico = 'pay' if A in ('sale.create','sale.terminal_paid') else ('ret' if A in ('sale.refund','sale.cancel','sale.fiscal_return') else ('st' if A == 'appointment.status' else ('mat' if A.startswith('visit.material') or A == 'stock.writeoff' else ('note' if A == 'note' else 'ed')))) %}
+      <div class="vh vh-{{ ico }}"><i></i><div><div class="vh-t"><b>{{ h.who }}</b><span>{{ h.at|local|dt('%d.%m.%Y %H:%M') if h.at else '' }}</span></div>
+        <p>{% if A == 'note' %}Нотатка: {{ d_.text }}
+          {% elif A == 'cb.sync' %}Завантажено з CleverBox · статус «{{ d_.status }}»
+          {% elif A == 'appointment.create' %}Створено запис{% if d_.start %} на {{ d_.start|replace('T',' ') }}{% endif %}{% if d_.cb %} · продубльовано в CleverBox №{{ d_.cb }}{% endif %}
+          {% elif A == 'appointment.adopt_cb' %}Запис CleverBox{% if d_.cb %} №{{ d_.cb }}{% endif %} перенесено в CRM
+          {% elif A == 'appointment.save' %}{% if d_.via == 'doctor' %}Змінено лікаря: {{ dnames.get(d_.frm_doc, '—') if d_.frm_doc else '—' }} → <b>{{ dnames.get(d_.doctor, '—') if d_.doctor else '—' }}</b>
+            {% elif d_.moved %}Перенесено{% if d_.frm %} з {{ d_.frm|replace('T',' ') }}{% endif %} на <b>{{ d_.start|replace('T',' ') }}</b>{% if d_.frm_doc %} · лікар змінено{% endif %}
+            {% elif d_.via == 'time' %}Змінено час / тривалість · {{ d_.start|replace('T',' ') }}
+            {% else %}Запис змінено (послуги, кабінет, коментар){% if d_.start %} · {{ d_.start|replace('T',' ') }}{% endif %}{% endif %}{% if d_.forced %} · попри попередження{% endif %}
+          {% elif A == 'appointment.status' %}Статус: <b>«{{ STATUSES.get(d_.status, d_.status) }}»</b>{% if d_.status == 'done' %} — візит закрито{% endif %}{% if d_.reason %} · {{ d_.reason }}{% endif %}
+          {% elif A == 'sale.create' %}Оплата: чек <a href="/sales/{{ d_.sale }}">Ч-{{ d_.sale }}</a>{% if d_.total is not none %} на <b>{{ hm(d_.total) }}</b>{% endif %}
+          {% elif A == 'sale.terminal_start' %}Оплата на терміналі запущена · {{ d_.method }}{% if d_.amount %} · {{ hm(d_.amount) }}{% endif %}
+          {% elif A == 'sale.terminal_paid' %}Термінал підтвердив оплату · чек Ч-{{ d_.sale }} · {{ d_.method }}
+          {% elif A == 'sale.terminal_fail' %}Термінал: оплата не пройшла · {{ d_.error }}
+          {% elif A == 'sale.fiscalize' %}Чек Ч-{{ d_.sale }} фіскалізовано{% if d_.code %} · ФН {{ d_.code }}{% endif %}
+          {% elif A == 'sale.fiscal_return' %}Фіскальне повернення по чеку Ч-{{ d_.sale }}
+          {% elif A == 'sale.send_receipt' %}Чек Ч-{{ d_.sale }} надіслано пацієнту{% if d_.ok is sameas false %} (не вдалося){% endif %}
+          {% elif A == 'sale.cancel' %}Чек Ч-{{ d_.sale }} скасовано{% if d_.reason %} · {{ d_.reason }}{% endif %}
+          {% elif A == 'sale.refund' %}Повернення по чеку Ч-{{ d_.sale }}{% if d_.total is not none %} · {{ hm(d_.total) }}{% endif %}{% if d_.reason %} · {{ d_.reason }}{% endif %}
+          {% elif A in ('sale.archive','sale.unarchive') %}Чек Ч-{{ d_.sale }} {{ 'в архів' if A == 'sale.archive' else 'повернено з архіву' }}
+          {% elif A == 'visit.material_add' %}Витратні: додано <b>{{ d_.pname }}</b> · {{ '%g'|format(d_.qty or 0) }}
+          {% elif A == 'visit.material_delete' %}Витратні: прибрано <b>{{ d_.pname }}</b>
+          {% elif A == 'visit.material_qty' %}Витратні: <b>{{ d_.pname }}</b> {{ '%g'|format(d_.frm or 0) }} → {{ '%g'|format(d_.qty or 0) }}
+          {% elif A == 'visit.material_reset' %}Витратні послуги повернено як у техкарті
+          {% elif A == 'stock.writeoff' %}Списання зі складу: документ <a href="/stock/docs/{{ d_.doc }}">{{ d_.number }}</a>{% if d_.wh %} · {{ WH.get(d_.wh, d_.wh) }}{% endif %}{% if d_.status == 'cancelled' %} · скасовано{% elif d_.status != 'posted' %} · {{ d_.status }}{% endif %}
+          {% else %}{{ A }}{% endif %}</p></div></div>
       {% else %}<div class="vd-empty">Історії ще немає.</div>{% endfor %}
     </section>
 

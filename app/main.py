@@ -3266,7 +3266,7 @@ def calendar_visit(request: Request, appt: int = 0, v: str = "", tab: str = "vis
     return templates.TemplateResponse(request, "_visit_drawer.html", {"request": request, "user": user, "c": c, "pt": p_, "stats": stats, "sale": sale_,
                                       "tab": tab, "STATUSES": _vstat_menu(db, c["a"].status if c.get("a") else None), "COLORS": _vstat_colors(db), "can": can,
                                       "color": spec_svc.color, "initials": spec_svc.initials, "mats": mats, "closed": closed_,
-                                      "wdocs": wdocs, "WH": catalog.WAREHOUSES, "cal_docs": _cal_docs, "ptasks": _tasks, "PRIORITY": tasks_svc.PRIORITY,
+                                      "wdocs": wdocs, "WH": catalog.WAREHOUSES, "cal_docs": _cal_docs, "dnames": _docn, "ptasks": _tasks, "PRIORITY": tasks_svc.PRIORITY,
                                       "popts": _product_options(db, consumables=True) if mats is not None and not closed_ else []})
 
 
@@ -3316,7 +3316,10 @@ async def visit_material_edit(aid: int, mid: int, request: Request, user: User =
         db.delete(m)
         audit(db, "visit.material_delete", "patient", a.patient_id, user=user, appt=a.id, product=m.product_id)
     else:
+        _oq = m.qty
         m.qty = max(0.0, round(_num(str(f.get("qty") or "0").replace(",", ".")) or 0, 3))
+        if abs((_oq or 0) - m.qty) > 1e-9:
+            audit(db, "visit.material_qty", "patient", a.patient_id, user=user, appt=a.id, product=m.product_id, frm=_oq, qty=m.qty)
     db.commit()
     return JSONResponse({"ok": True})
 
@@ -3331,6 +3334,7 @@ def visit_material_reset(aid: int, svc_idx: int = Form(...), user: User = Depend
         db.delete(m)
     db.commit()
     tc.seed(db, a)
+    audit(db, "visit.material_reset", "patient", a.patient_id, user=user, appt=a.id, svc=svc_idx)
     return JSONResponse({"ok": True})
 
 

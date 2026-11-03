@@ -93,10 +93,37 @@ def card(db: Session, appt_id: int = 0, visit_ids: list[int] | None = None) -> d
     # історія: журнал дій по цьому запису CRM + нотатки
     hist = []
     if a:
+        from sqlalchemy import or_
+        from ..models import Product, Sale, StockDoc
+        pnames: dict = {}
+
+        def pname(i):
+            if i and i not in pnames:
+                pr = db.get(Product, i)
+                pnames[i] = pr.name if pr else f"#{i}"
+            return pnames.get(i, "")
         for r in db.scalars(select(AuditLog).where(AuditLog.entity == "patient", AuditLog.entity_id == pid,
-                                                   AuditLog.action.like("appointment.%")).order_by(AuditLog.at.desc()).limit(200)):
-            if (r.details or {}).get("appt") == a.id:
-                hist.append({"at": r.at, "who": users.get(r.user_id, "Система"), "action": r.action, "details": r.details or {}})
+                                                   or_(AuditLog.action.like("appointment.%"), AuditLog.action.like("visit.material%")))
+                            .order_by(AuditLog.at.desc()).limit(400)):
+            d_ = dict(r.details or {})
+            if d_.get("appt") == a.id:
+                if d_.get("product"):
+                    d_["pname"] = pname(d_["product"])
+                hist.append({"at": r.at, "who": users.get(r.user_id, "Система"), "action": r.action, "details": d_})
+        for r in db.scalars(select(AuditLog).where(AuditLog.entity == "appointment", AuditLog.entity_id == a.id)):
+            hist.append({"at": r.at, "who": users.get(r.user_id, "Система"), "action": r.action, "details": r.details or {}})
+        sids = {x.id for x in db.scalars(select(Sale).where(or_(Sale.appointment_id == a.id, Sale.id == (a.sale_id or -1))))}
+        sids |= {x.id for x in db.scalars(select(Sale).where(Sale.appt_ids.is_not(None), Sale.at >= a.start - timedelta(days=60)))
+                 if a.id in (x.appt_ids or [])}
+        if sids:
+            for r in db.scalars(select(AuditLog).where(AuditLog.entity == "sale", AuditLog.entity_id.in_(sids))):
+                d_ = dict(r.details or {})
+                d_["sale"] = r.entity_id
+                hist.append({"at": r.at, "who": users.get(r.user_id, "Система"), "action": r.action, "details": d_})
+        for doc in db.scalars(select(StockDoc).where(StockDoc.ext_no == f"visit:{a.id}")):
+            hist.append({"at": getattr(doc, "posted_at", None) or doc.created_at, "who": users.get(getattr(doc, "created_by", None), "Система"),
+                         "action": "stock.writeoff", "details": {"doc": doc.id, "number": doc.number, "status": doc.status,
+                                                                  "wh": doc.wh_from or ""}})
     else:
         hist.append({"at": vs[0].synced_at, "who": "CleverBox", "action": "cb.sync",
                      "details": {"status": status_label}})
