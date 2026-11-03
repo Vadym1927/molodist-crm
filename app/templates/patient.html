@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ p.full_name }} · Картка пацієнта · MOLODIST CRM{% endblock %}
 {% block body %}
-{% set _w = p.full_name.split() %}
+{% set _w = p.full_name.split() %}{% set qp_msg = request.query_params.get('msg') %}
 {% macro hrow(r) %}{% set _go = '/calendar?start=' ~ r.at.strftime('%Y-%m-%d') ~ '&open=' ~ r.appt if r.appt else '' %}
 <div class="ph-r{{ ' go' if _go }}" data-k="{{ r.kind }}"{% if _go %} onclick="location.href='{{ _go|safe }}'" title="Відкрити візит"{% endif %}>
   <span class="d">{% if _go %}<a href="{{ _go|safe }}">{{ r.at|dt('%d.%m.%y %H:%M') }}</a>{% else %}{{ r.at|dt('%d.%m.%y') if r.kind == 'sale' else r.at|dt('%d.%m.%y %H:%M') }}{% endif %}</span>
@@ -218,7 +218,7 @@
         {% else %}<div class="bp-e">Бʼюті-плану ще немає
           {% if can(user,'upload') %}<form method="post" action="/upload" enctype="multipart/form-data" class="pc-btns" id="bp-up"><label class="btn ghost" style="cursor:pointer">⬆ Завантажити PDF<input type="file" name="files" accept="application/pdf" hidden onchange="this.form.submit()"></label></form>{% endif %}</div>{% endif %}
       </div>
-      <div class="pcd"><div class="pcd-h"><h3>Фото й документи</h3><a class="small" style="color:#5C4B82" href="/patients/{{ p.id }}/photos">Відкрити галерею →</a></div>
+      <div class="pcd"><div class="pcd-h"><h3>Фото й документи</h3><a class="small" style="color:#5C4B82;cursor:pointer" onclick="ptGo('files')">Відкрити галерею →</a></div>
         {% if photos %}<div class="pf-g">{% for f in (photos|reverse|list)[:3] %}<a href="/files/{{ f.id }}" target="_blank"><img src="/files/{{ f.id }}" loading="lazy" alt=""></a>{% endfor %}</div>
         {% else %}<div class="small muted">Фото ще немає</div>{% endif %}
         {% if docs %}<div class="small muted" style="margin-top:8px">Документів: {{ docs|length }}</div>{% endif %}
@@ -353,15 +353,10 @@
 </section>
 
 {# ================= ФОТО Й ДОКУМЕНТИ ================= #}
-<section class="pt-p" data-t="files">
-  <div class="card" id="files"><h2>Фото й документи</h2>
-    <div class="photos">{% for f in photos %}<a href="/files/{{ f.id }}" target="_blank" title="{{ f.caption or '' }}"><img src="/files/{{ f.id }}" loading="lazy" alt=""><div class="muted small">{{ f.created_at|dt }}</div></a>{% endfor %}</div>
-    {% for f in docs %}<div class="small"><a href="/files/{{ f.id }}" target="_blank">📄 {{ f.caption or 'файл' }}</a> <span class="muted">{{ f.created_at|dt }}</span></div>{% endfor %}
-    <form method="post" action="/patients/{{ p.id }}/photos" enctype="multipart/form-data" class="drop row" style="margin-top:12px;justify-content:center">
-      <input type="file" name="files" accept="image/*" multiple required><select name="stage"><option value="">—</option><option value="before">До</option><option value="after">Після</option><option value="progress">У процесі</option></select>
-      <input name="zone" placeholder="Зона (обличчя, шия…)" style="width:160px"><input name="caption" placeholder="Підпис"><button class="btn ghost">Додати фото</button></form>
-    <a href="/patients/{{ p.id }}/photos" class="small">Усі фото: до/після, розділи, видалення →</a>
-  </div>
+<section class="pt-p" data-t="files"><div id="files"></div>
+  {% if qp_msg %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp_msg }}</div>{% endif %}
+  <div class="muted small" style="margin-bottom:10px">Оберіть фото «до» і фото «після» — і вони співставляться. Галочка «аватар» — фото пацієнта в картці й візиті.</div>
+  {% set ph_back = "/patients/" ~ p.id ~ "#t-files" %}{% include "_photo_gallery.html" %}
 </section>
 
 {# ================= ПРОДАЖІ ================= #}

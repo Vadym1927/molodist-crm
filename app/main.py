@@ -759,6 +759,10 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
     from .models import Call as _Call
     pcalls = db.scalars(select(_Call).where(_Call.patient_id == p.id).order_by(_Call.at.desc()).limit(50)).all() if (can(user, "appeals") or can(user, "book")) else []
     pvis = _patient_visit_rows(db, p)
+    from .services import patient_photos as _pp
+    _ph_items = [{"f": f, "cat": _pp.cat(f), "img": _pp.is_image(f)} for f in
+                 sorted(_pp.all_files(db, p.id), key=lambda f: (f.taken_at or f.created_at.date(), f.id), reverse=True)]
+    _ph_counts = {k: sum(1 for x in _ph_items if x["cat"] == k) for k in _pp.CATS}
     phist = [dict(r, kind="visit") for r in pvis] + [
         {"kind": "sale", "at": s_.sold_at, "name": s_.product_name, "doctor": "", "sum": s_.amount, "status": "sale",
          "label": "продаж", "appt": None, "qty": s_.quantity} for s_ in p.sales if s_.sold_at]
@@ -783,6 +787,7 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
                   doctors=db.scalars(select(Doctor).order_by(Doctor.name)).all(),
                   photos=[f for f in p.files if f.kind == "photo"],
                   docs=[f for f in p.files if f.kind != "photo"], now=datetime.now(),
+                  items=_ph_items, counts=_ph_counts, CATS=_pp.CATS,
                   pvisits=pvis, phist=phist, ptag=ptag, ptag_color=ptag_color, page_age=page_age,
                   patient_kpi=dict(done=len(completed_visits), planned=len(planned_visits),
                                    first=min(dated_events) if dated_events else None,
@@ -973,7 +978,7 @@ async def upload_photos(pid: int, files: list[UploadFile] = File(...), caption: 
         if stage in ("before", "after", "progress") or zone.strip():
             pf.stage, pf.zone, pf.taken_at = (stage if stage in ("before", "after", "progress") else None), zone.strip()[:80] or None, date.today()
             db.commit()
-    return RedirectResponse(back if back.startswith(("/calendar", f"/patients/{pid}/photos")) else f"/patients/{pid}#files", 303)
+    return RedirectResponse(back if back.startswith(("/calendar", f"/patients/{pid}/photos", f"/patients/{pid}#")) else f"/patients/{pid}#t-files", 303)
 
 
 # ---------------- Звернення (заявки) ----------------

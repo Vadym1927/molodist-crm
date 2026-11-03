@@ -2,102 +2,12 @@
 {% block title %}Фото · {{ p.full_name }}{% endblock %}
 {% block body %}
 {% set qp = request.query_params %}
-<style>
-.cmp{position:relative;width:100%;max-width:560px;aspect-ratio:3/4;border-radius:16px;overflow:hidden;background:#111;margin:0 auto;user-select:none;touch-action:none}
-.cmp img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none}
-.cmp .bar{position:absolute;top:0;bottom:0;left:50%;width:3px;background:#fff;box-shadow:0 0 10px rgba(0,0,0,.4);transform:translateX(-50%)}
-.cmp .bar:after{content:"⟷";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;border-radius:50%;background:#fff;display:grid;place-items:center;font-weight:800;color:#333}
-.cmp .lbl{position:absolute;top:12px;padding:4px 10px;border-radius:8px;background:rgba(0,0,0,.55);color:#fff;font-weight:700;font-size:13px}
-.ph-lay{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:18px;align-items:start}@media(max-width:1000px){.ph-lay{grid-template-columns:1fr}}
-.ph-pick{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
-.ph-slot{border:2px dashed #C9BFE6;border-radius:14px;padding:10px;display:flex;gap:10px;align-items:center;min-height:76px;background:#fff;cursor:pointer}
-.ph-slot.cur{border-color:#3B3050;border-style:solid;box-shadow:0 0 0 3px #E4DEEF}
-.ph-slot img{width:56px;height:56px;object-fit:cover;border-radius:10px}.ph-slot b{display:block;font-size:13px}.ph-slot span{font-size:12px;color:#8a8496}
-.ph-hint{border-radius:16px;background:#F7F4F0;border:1px dashed #C9BFE6;padding:40px 20px;text-align:center;color:#5C4B82}
-.ph-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
-.ph-tabs button{border:1px solid #E9E5DF;background:#fff;border-radius:10px;padding:7px 12px;font:600 13px var(--sans);color:#2A2430;cursor:pointer}
-.ph-tabs button b{color:#8a8496;font-weight:600;margin-left:4px}.ph-tabs button.on{background:#3B3050;color:#fff;border-color:#3B3050}.ph-tabs button.on b{color:#C9BFE6}
-.ph-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
-.ph-t{position:relative;border-radius:12px;overflow:hidden;border:2px solid #ECE7E1;background:#fff}
-.av-ck{position:absolute;top:6px;right:6px;z-index:2;margin:0}.av-ck label,.av-ck.on{display:flex;gap:5px;align-items:center;background:rgba(255,255,255,.92);border-radius:8px;padding:3px 7px;font:700 10.5px var(--sans);text-transform:uppercase;letter-spacing:.05em;color:#3B3050;cursor:pointer;box-shadow:0 1px 4px rgba(42,36,48,.15)}
-.av-ck input{width:15px;height:15px;accent-color:#3B3050;margin:0}.ph-t:has(.av-ck input:checked){border-color:#3B3050}
-.ph-t .im{display:block;aspect-ratio:1;background:#F7F4F0;cursor:zoom-in}.ph-t .im img{width:100%;height:100%;object-fit:cover;display:block}
-.ph-t .im .doc{display:grid;place-items:center;height:100%;font-size:38px;color:#5C4B82;text-decoration:none}
-.ph-t.is-a{border-color:#B23B2E}.ph-t.is-b{border-color:#2F7A4C}
-.ph-t .badge{position:absolute;top:6px;left:6px;padding:2px 8px;border-radius:7px;color:#fff;font:700 11px var(--sans);display:none}
-.ph-t.is-a .badge.a{display:block;background:#B23B2E}.ph-t.is-b .badge.b{display:block;background:#2F7A4C}
-.ph-t .mt{padding:6px 8px 8px;font-size:11.5px;color:#8a8496}
-.ph-t .acts{display:flex;gap:4px;margin-top:6px}
-.ph-t .acts button{flex:1;border:1px solid #E9E5DF;background:#fff;border-radius:8px;padding:4px 0;font:600 11.5px var(--sans);cursor:pointer;color:#2A2430}
-.ph-t .acts button.ba:hover{border-color:#B23B2E;color:#B23B2E}.ph-t .acts button.bb:hover{border-color:#2F7A4C;color:#2F7A4C}
-.ph-t .acts .del{flex:0 0 30px;color:#B23B2E}
-.ph-t .cat{width:100%;margin-top:5px;height:28px;font-size:11.5px;padding:0 6px}
-.ph-zoom{position:fixed;inset:0;background:rgba(20,16,26,.9);z-index:90;display:none;align-items:center;justify-content:center;padding:20px}
-.ph-zoom.on{display:flex}.ph-zoom img{max-width:100%;max-height:100%;border-radius:10px}
-</style>
+
 <div class="row between" style="gap:10px;margin-bottom:10px;flex-wrap:wrap"><div><div class="eyebrow"><a href="/patients/{{ p.id }}" style="text-decoration:none">{{ p.full_name }}</a></div><h1>Фото пацієнта</h1>
   <div class="muted small">Оберіть фото «до» і фото «після» — і вони співставляться.</div></div>
   <div class="row" style="gap:6px">{% if can(user,'medical') %}<a class="btn ghost" href="/patients/{{ p.id }}/medcard">🩺 Медкартка</a>{% endif %}<a class="btn ghost" href="/patients/{{ p.id }}#files">← Картка пацієнта</a></div></div>
 {% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
 {% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
 
-<div class="ph-lay"><div>
-  <div class="ph-pick">
-    <div class="ph-slot cur" id="slot-a" onclick="phMode('a')"><span id="sa-img"></span><div><b style="color:#B23B2E">Фото «до»</b><span id="sa-t">натисніть «До» під фото</span></div></div>
-    <div class="ph-slot" id="slot-b" onclick="phMode('b')"><span id="sb-img"></span><div><b style="color:#2F7A4C">Фото «після»</b><span id="sb-t">натисніть «Після» під фото</span></div></div>
-  </div>
-  <div id="ph-hint" class="ph-hint">Оберіть два фото: одне «До», друге «Після».</div>
-  <div class="cmp" id="cmp" hidden><img id="cmp-b" alt=""><img id="cmp-a" alt="" style="clip-path:inset(0 50% 0 0)">
-    <span class="lbl" style="left:12px" id="cmp-la"></span><span class="lbl" style="right:12px" id="cmp-lb"></span><div class="bar" id="cmp-bar"></div></div>
-  <div class="row" style="justify-content:center;gap:8px;margin-top:10px"><button type="button" class="btn ghost" onclick="phReset()">Скинути вибір</button><button type="button" class="btn ghost" id="ph-swap" onclick="phSwap()" hidden>⇄ Поміняти місцями</button></div>
-</div>
-
-<div>
-  <div class="ph-tabs" id="ph-tabs"><button type="button" class="on" data-c="">Усі <b>{{ items|length }}</b></button>{% for k, v in CATS.items() %}<button type="button" data-c="{{ k }}">{{ v }} <b>{{ counts[k] }}</b></button>{% endfor %}</div>
-  {% if items %}<div class="ph-g" id="ph-g">{% for x in items %}{% set f = x.f %}
-    <div class="ph-t" data-id="{{ f.id }}" data-c="{{ x.cat }}" data-img="{{ 1 if x.img else 0 }}" data-d="{{ (f.taken_at or f.created_at)|dt('%d.%m.%Y') }}">
-      {% if x.img %}<span class="im" onclick="phZoom({{ f.id }})"><img src="/files/{{ f.id }}" loading="lazy" alt=""></span>{% else %}<span class="im"><a class="doc" href="/files/{{ f.id }}" target="_blank">📄</a></span>{% endif %}
-      <span class="badge a">ДО</span><span class="badge b">ПІСЛЯ</span>
-      {% if x.img and can(user,'upload') %}<form method="post" action="/patients/{{ p.id }}/avatar" class="av-ck" title="Аватар пацієнта (картка візиту)"><input type="hidden" name="file_id" value="{{ 0 if p.avatar_file_id == f.id else f.id }}"><input type="hidden" name="back" value="/patients/{{ p.id }}/photos">
-        <label><input type="checkbox" {{ 'checked' if p.avatar_file_id == f.id }} onchange="this.form.submit()"><span>аватар</span></label></form>{% elif p.avatar_file_id == f.id %}<span class="av-ck on"><span>аватар</span></span>{% endif %}
-      <div class="mt">{{ (f.taken_at or f.created_at)|dt('%d.%m.%Y') }}{% if f.zone %} · {{ f.zone }}{% endif %}
-        {% if x.img %}<div class="acts"><button type="button" class="ba" onclick="phSet('a',{{ f.id }})">До</button><button type="button" class="bb" onclick="phSet('b',{{ f.id }})">Після</button>
-          {% if can(user,'upload') %}<form method="post" action="/files/delete" style="display:contents" data-delpw="Видалити це фото?"><input type="hidden" name="ids" value="{{ f.id }}"><input type="hidden" name="back" value="/patients/{{ p.id }}/photos"><button class="del" title="Видалити">🗑</button></form>{% endif %}</div>
-        {% elif can(user,'upload') %}<div class="acts"><form method="post" action="/files/delete" style="display:contents" data-delpw="Видалити цей файл?"><input type="hidden" name="ids" value="{{ f.id }}"><input type="hidden" name="back" value="/patients/{{ p.id }}/photos"><button class="del" style="flex:1" title="Видалити">🗑 Видалити</button></form></div>{% endif %}
-        {% if can(user,'upload') %}<form method="post" action="/files/category"><input type="hidden" name="ids" value="{{ f.id }}"><input type="hidden" name="back" value="/patients/{{ p.id }}/photos">
-          <select class="cat" name="category" onchange="this.form.submit()">{% for k, v in CATS.items() %}<option value="{{ k }}" {{ 'selected' if x.cat == k }}>{{ v }}</option>{% endfor %}</select></form>{% endif %}
-      </div></div>{% endfor %}</div>
-  {% else %}<div class="card muted">Фото ще немає.</div>{% endif %}
-  {% if can(user,'upload') %}<form method="post" action="/patients/{{ p.id }}/photos" enctype="multipart/form-data" class="card row" style="gap:8px;flex-wrap:wrap;margin-top:14px">
-    <input type="hidden" name="back" value="/patients/{{ p.id }}/photos"><input type="file" name="files" accept="image/*,application/pdf" multiple required>
-    <select name="category">{% for k, v in CATS.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select>
-    <input name="zone" placeholder="Зона" style="width:120px"><button class="btn ghost">Додати</button></form>{% endif %}
-</div></div>
-<div class="ph-zoom" id="ph-zoom" onclick="this.classList.remove('on')"><img id="ph-zi" alt=""></div>
-<script>(function(){
-  var sel={a:{{ a or 'null' }},b:{{ b or 'null' }}},mode='a';
-  function card(id){return document.querySelector('.ph-t[data-id="'+id+'"]')}
-  window.phMode=function(m){mode=m;document.getElementById('slot-a').classList.toggle('cur',m==='a');document.getElementById('slot-b').classList.toggle('cur',m==='b')};
-  window.phSet=function(k,id){sel[k]=id;if(k==='a'&&sel.b===id)sel.b=null;if(k==='b'&&sel.a===id)sel.a=null;phMode(k==='a'&&!sel.b?'b':k==='b'&&!sel.a?'a':k);draw()};
-  window.phReset=function(){sel={a:null,b:null};phMode('a');draw()};
-  window.phSwap=function(){var t=sel.a;sel.a=sel.b;sel.b=t;draw()};
-  window.phZoom=function(id){document.getElementById('ph-zi').src='/files/'+id;document.getElementById('ph-zoom').classList.add('on')};
-  function slot(k){var c=sel[k]&&card(sel[k]);document.getElementById('s'+k+'-img').innerHTML=c?'<img src="/files/'+sel[k]+'" alt="">':'';
-    document.getElementById('s'+k+'-t').textContent=c?c.dataset.d:(k==='a'?'натисніть «До» під фото':'натисніть «Після» під фото');if(!c)sel[k]=null}
-  function draw(){slot('a');slot('b');
-    document.querySelectorAll('.ph-t').forEach(function(t){var i=+t.dataset.id;t.classList.toggle('is-a',i===sel.a);t.classList.toggle('is-b',i===sel.b)});
-    var ok=sel.a&&sel.b,c=document.getElementById('cmp');c.hidden=!ok;document.getElementById('ph-hint').hidden=!!ok;document.getElementById('ph-swap').hidden=!ok;
-    if(ok){document.getElementById('cmp-a').src='/files/'+sel.a;document.getElementById('cmp-b').src='/files/'+sel.b;
-      document.getElementById('cmp-la').textContent='До · '+card(sel.a).dataset.d;document.getElementById('cmp-lb').textContent='Після · '+card(sel.b).dataset.d;mv(null,50)}
-    var u=new URL(location.href);['a','b','msg','err'].forEach(function(k){u.searchParams.delete(k)});if(sel.a)u.searchParams.set('a',sel.a);if(sel.b)u.searchParams.set('b',sel.b);history.replaceState(null,'',u.pathname+u.search)}
-  var c=document.getElementById('cmp'),d=false;
-  function mv(x,pct){var r=c.getBoundingClientRect(),p=pct!=null?pct:Math.max(0,Math.min(100,(x-r.left)/r.width*100));
-    document.getElementById('cmp-a').style.clipPath='inset(0 '+(100-p)+'% 0 0)';document.getElementById('cmp-bar').style.left=p+'%'}
-  c.addEventListener('pointerdown',function(e){d=true;c.setPointerCapture(e.pointerId);mv(e.clientX)});c.addEventListener('pointermove',function(e){if(d)mv(e.clientX)});
-  c.addEventListener('pointerup',function(){d=false});
-  document.querySelectorAll('#ph-tabs button').forEach(function(b){b.onclick=function(){document.querySelectorAll('#ph-tabs button').forEach(function(x){x.classList.toggle('on',x===b)});
-    var k=b.dataset.c;document.querySelectorAll('.ph-t').forEach(function(t){t.hidden=!!k&&t.dataset.c!==k})}});
-  document.addEventListener('keydown',function(e){if(e.key==='Escape')document.getElementById('ph-zoom').classList.remove('on')});
-  draw();
-})();</script>
+{% set ph_back = "/patients/" ~ p.id ~ "/photos" %}{% include "_photo_gallery.html" %}
 {% endblock %}
