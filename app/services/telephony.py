@@ -132,6 +132,12 @@ def test(db: Session, http: httpx.Client | None = None) -> tuple[bool, str]:
     return False, "?"
 
 
+def live(db: Session, seconds: int = 120) -> list[Call]:
+    """Дзвінки, що зараз ідуть (подія «перед дзвінком» / «підняття трубки») — для спливаючого вікна."""
+    return db.scalars(select(Call).where(Call.status.in_(("ringing", "answer")), Call.at >= datetime.now() - timedelta(seconds=seconds))
+                      .order_by(Call.at.desc()).limit(5)).all()
+
+
 def _pick(data: dict, *keys):
     for k in keys:
         v = data.get(k)
@@ -140,8 +146,19 @@ def _pick(data: dict, *keys):
     return None
 
 
+# Тіло вебхука для Ringostat (Webhooks 2.0 → JSON, змінні з «$»). event: ringing (перед дзвінком), answer (підняття трубки), end (після дзвінка)
+RINGOSTAT_BODY = ('{"event":"%s","call_id":"$cdr_id","uid":"$uniqueid","caller":"$userfield","callee":"$dst","status":"$disposition",'
+                  '"date":"$calldate","call_duration":"$duration","dialog":"$billsec","type":"$call_type","manager":"$staffid",'
+                  '"employee_fio":"$employee_fio","record_link":"$recording_wav"}')
+RINGOSTAT_EVENTS = [("ringing", "Перед дзвінком", "спливаюче вікно «Вхідний дзвінок» у CRM: хто дзвонить, картка пацієнта"),
+                    ("answer", "У момент підняття трубки", "позначка, що дзвінок прийнято"),
+                    ("end", "Після дзвінка", "журнал дзвінків, тривалість, запис розмови, звернення для нових номерів"),
+                    ("end", "Після вихідного дзвінка", "вихідні дзвінки в журналі й історії пацієнта")]
+
+
 def parse(provider: str, data: dict) -> dict:
     """Нормалізуємо вебхук будь-якого з провайдерів (поля з документації + типові назви)."""
+    data = {k: v for k, v in data.items() if not (isinstance(v, str) and v.startswith("$"))}   # незаповнені змінні Ringostat
     flat = dict(data)
     for k, v in data.items():                                # Binotel: callDetails[externalNumber]
         if k.startswith("callDetails[") and k.endswith("]"):
@@ -150,38 +167,53 @@ def parse(provider: str, data: dict) -> dict:
         flat.update(data["callDetails"])
     direction = "in"
     ct = str(_pick(flat, "callType", "call_type", "direction", "type") or "").lower()
-    if ct in ("1", "out", "outgoing", "outbound", "outcoming"):
+    if ct in ("1", "out", "outgoing", "outbound", "outcoming", "callback"):
         direction = "out"
     disp = str(_pick(flat, "disposition", "status", "call_status") or "").upper()
-    status = "answered" if disp in ("ANSWER", "ANSWERED", "PROPER", "SUCCESS") else ("missed" if disp else None)
+    status = "answered" if disp in ("ANSWER", "ANSWERED", "PROPER", "SUCCESS", "PROPER_ANSWERED") else ("missed" if disp else None)
     if disp in ("NOANSWER", "NO ANSWER", "BUSY", "CANCEL", "FAILED", "MISSED", "CHANUNAVAIL", "VM", "VM-SUCCESS"):
         status = "missed"
     try:
-        dur = int(float(_pick(flat, "billsec", "duration", "talk_time") or 0))
+        dur = int(float(_pick(flat, "billsec", "dialog", "talk_time", "duration", "call_duration") or 0))
     except (TypeError, ValueError):
         dur = None
     phone = _pick(flat, "externalNumber", "caller", "callerNumber", "phone", "src", "from", "client_phone")
     if direction == "out":
-        phone = _pick(flat, "externalNumber", "dst", "to", "phone", "client_phone") or phone
-    return {"ext_id": str(_pick(flat, "generalCallID", "callID", "uniqueid", "call_id", "id") or "")[:120] or None,
+        phone = _pick(flat, "externalNumber", "dst", "callee", "to", "phone", "client_phone") or phone
+    return {"ext_id": str(_pick(flat, "generalCallID", "callID", "uniqueid", "uid", "call_id", "id") or "")[:120] or None,
             "direction": direction, "phone": str(phone or "")[:64] or None, "status": status, "duration": dur,
-            "employee": str(_pick(flat, "employeeName", "employee", "manager", "dst_name") or "")[:120] or None,
-            "record_url": str(_pick(flat, "linkToCallRecordInMyBusiness", "recording", "record_url", "record") or "")[:500] or None}
+            "employee": str(_pick(flat, "employeeName", "employee_fio", "employee", "manager", "dst_name") or "")[:120] or None,
+            "record_url": str(_pick(flat, "linkToCallRecordInMyBusiness", "recording", "recording_wav", "record_link", "record_url", "record") or "")[:500] or None}
 
 
-def ingest(db: Session, provider: str, data: dict) -> Call:
+def ingest(db: Session, provider: str, data: dict, event: str = "") -> Call:
+    """event: ringing (дзвінок іде — спливаюче вікно), answer (підняли трубку), end / порожньо (дзвінок завершено)."""
     d = _raw(db)
+    event = (event or str(data.get("event") or "")).strip().lower()
     x = parse(provider, data)
+    if event in ("ringing", "answer"):
+        x["status"] = event
+        x["duration"] = None
     c = db.scalars(select(Call).where(Call.provider == provider, Call.ext_id == x["ext_id"])).first() if x["ext_id"] else None
+    if not c and x["phone"]:                                  # той самий дзвінок з попередньої події (інший id у Ringostat)
+        k_ = ap.phone_key(x["phone"])
+        c = next((z for z in db.scalars(select(Call).where(Call.provider == provider, Call.status.in_(("ringing", "answer")),
+                                                         Call.at >= datetime.now() - timedelta(minutes=30))).all()
+                  if ap.phone_key(z.phone) == k_), None)
     if not c:
         c = Call(provider=provider, at=datetime.now())
         db.add(c)
     for k, v in x.items():
-        if v is not None:
+        if v is not None and not (k == "ext_id" and c.ext_id):
             setattr(c, k, v)
+    if event == "end" and c.status in ("ringing", "answer"):
+        c.status = "answered" if c.status == "answer" or (c.duration or 0) > 0 else "missed"
     p = ap.find_patient(db, c.phone)
     c.patient_id = p.id if p else c.patient_id
     db.flush()
+    if event in ("ringing", "answer"):
+        db.commit()
+        return c
     want = d.get("create_appeal") and c.direction == "in" and c.phone and not c.appeal_id
     if want and d.get("missed_only") and c.status != "missed":
         want = False

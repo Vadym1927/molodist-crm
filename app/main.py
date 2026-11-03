@@ -50,6 +50,19 @@ def _local(v):
 
 
 templates.env.filters["local"] = _local
+
+
+def _telephony_on() -> bool:
+    """Підключено IP-телефонію (провайдер обрано) — у шаблоні вмикається спливаюче вікно вхідних дзвінків."""
+    try:
+        with SessionLocal() as _db:
+            st = _db.get(SyncState, "telephony_cfg")
+            return bool(st and st.value and json.loads(st.value).get("provider"))
+    except Exception:  # noqa: BLE001
+        return False
+
+
+templates.env.globals["telephony_on"] = _telephony_on
 FIN_TABS = [("/finance", "Огляд"), ("/sales", "Каса CRM"), ("/finance/ops", "Фіноперації"), ("/finance/accruals", "Нарахування зарплати"),
             ("/finance/payroll", "ЗП за місяць"),
             ("/finance/settle", "Взаєморозрахунки по з/п"), ("/finance/day", "Продажі за день"), ("/finance/sales", "Продажі"),
@@ -5659,7 +5672,7 @@ def settings_telephony(request: Request, user: User = Depends(require("users")),
     calls = db.scalars(select(Call).order_by(Call.at.desc()).limit(30)).all()
     base = str(request.base_url).rstrip("/").replace("http://", "https://")
     return render(request, "telephony.html", nav="settings", t=t_, PROV=tel.PROVIDERS, calls=calls, sources=ap_.dirs(db)["sources"],
-                  hook_url=lambda p: f"{base}/api/public/telephony/{p}/{t_['hook']}")
+                  hook_url=lambda p: f"{base}/api/public/telephony/{p}/{t_['hook']}", R_BODY=tel.RINGOSTAT_BODY, R_EVENTS=tel.RINGOSTAT_EVENTS)
 
 
 @app.post("/settings/telephony")
@@ -5694,8 +5707,24 @@ async def telephony_hook(request: Request, provider: str, hook: str, db: Session
         data = dict(parse_qsl(raw.decode("utf-8", "replace")))
     if not isinstance(data, dict):
         data = {}
-    c = tel.ingest(db, provider, data)
+    c = tel.ingest(db, provider, data, request.query_params.get("event", ""))
     return {"ok": True, "call": c.id, "appeal": c.appeal_id, "status": "success"}
+
+
+@app.get("/telephony/live")
+def telephony_live(user: User = Depends(current_user), db: Session = Depends(db_dep)):
+    """Вхідні дзвінки, що зараз ідуть — для спливаючого вікна «Вхідний дзвінок»."""
+    from .services import telephony as tel
+    if not (can(user, "appeals") or can(user, "book")):
+        return {"calls": []}
+    out = []
+    for c_ in tel.live(db):
+        p_ = db.get(Patient, c_.patient_id) if c_.patient_id else None
+        if p_ and not patient_visible(user, p_):
+            p_ = None
+        out.append({"id": c_.id, "phone": c_.phone or "", "dir": c_.direction, "status": c_.status,
+                    "name": p_.full_name if p_ else None, "pid": p_.id if p_ else None, "employee": c_.employee or ""})
+    return {"calls": out}
 
 
 # ---------------- Налаштування → Checkbox (фіскалізація) ----------------

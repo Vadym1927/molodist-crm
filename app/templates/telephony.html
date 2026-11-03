@@ -24,6 +24,12 @@
     <div class="cs-f"><label>Вебхук дзвінків (вставте в кабінеті {{ p.label }})</label>
       <div class="cp"><input readonly value="{{ hook_url(k) }}" id="hk{{ k }}"><button class="ch-btn" type="button" onclick="navigator.clipboard.writeText(document.getElementById('hk{{ k }}').value);this.textContent='✓'">Копіювати</button></div>
       <div class="hint">Адреса містить секретний ключ — не публікуйте її.</div></div>
+    {% if k == 'ringostat' %}<style>.rg-e{display:grid;gap:6px;padding:10px 0;border-top:1px solid #F1EDE8}.rg-e b{font-size:14px}</style><div class="cs-f rg"><label>Як підключити в Ringostat (Інтеграція → Webhooks 2.0 → «+ Додати подію»)</label>
+      <div class="hint" style="margin-bottom:8px">Для кожної події: метод <b>POST</b>, заголовок <b>Content-Type: application/json</b>, формат даних <b>raw</b>, тіло — <b>JSON</b> (скопіюйте нижче).</div>
+      {% for ev, nm, what in R_EVENTS %}<div class="rg-e"><b>{{ loop.index }}. Подія «{{ nm }}»</b> <span class="hint">— {{ what }}</span>
+        <div class="cp"><input readonly value="{{ hook_url(k) }}?event={{ ev }}" id="rgu{{ loop.index }}"><button class="ch-btn" type="button" onclick="navigator.clipboard.writeText(document.getElementById('rgu{{ loop.index }}').value);this.textContent='✓'">URL</button></div>
+        <div class="cp"><input readonly value='{{ R_BODY|format(ev) }}' id="rgb{{ loop.index }}"><button class="ch-btn" type="button" onclick="navigator.clipboard.writeText(document.getElementById('rgb{{ loop.index }}').value);this.textContent='✓'">JSON</button></div></div>{% endfor %}
+      <div class="hint">Наявні події з адресами cbox.mobi (CleverBox) можна вимкнути, коли CleverBox більше не потрібен.</div></div>{% endif %}
     <div class="cs-note">Сайт провайдера <a href="{{ p.site }}" target="_blank" rel="noopener">{{ p.site }}</a></div>
   </div>{% endfor %}
   <div class="cs-f"><label>Канал звернення</label>

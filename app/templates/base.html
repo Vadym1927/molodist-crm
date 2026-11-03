@@ -237,6 +237,26 @@ function toast(t){var w=document.querySelector('.nt-toast');if(!w){w=document.cr
 function poll(){if(document.hidden)return;fetch('/notifications/poll'+(since?'?since='+encodeURIComponent(since):''),{credentials:'same-origin'}).then(function(r){return r.ok?r.json():null}).then(function(j){if(!j)return;
   if(since)(j.toasts||[]).forEach(toast);since=j.now;bd.textContent=j.unseen;bd.hidden=!j.unseen}).catch(function(){})}
 poll();setInterval(poll,60000)})();</script>
+{% if can(user,'appeals') or can(user,'book') %}{% if telephony_on() %}<style>
+.call-pop{position:fixed;right:22px;bottom:22px;z-index:120;display:grid;gap:10px}
+.call-pop .cp-c{width:330px;background:#2A2430;color:#fff;border-radius:18px;padding:16px 18px;box-shadow:0 24px 60px -12px rgba(42,36,48,.55);animation:cpIn .25s ease-out}
+@keyframes cpIn{from{transform:translateY(20px);opacity:0}to{transform:none;opacity:1}}
+.cp-c small{display:flex;gap:8px;align-items:center;font:700 11px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#C9BFE6}
+.cp-c small i{width:9px;height:9px;border-radius:50%;background:#5BD37E;animation:cpB 1s infinite}@keyframes cpB{50%{opacity:.3}}
+.cp-c b{display:block;font:600 19px var(--head);margin:6px 0 2px}.cp-c span{color:#d8d2e2;font-size:14px}
+.cp-c .a{display:flex;gap:8px;margin-top:12px}.cp-c .a a{flex:1;text-align:center;padding:9px 10px;border-radius:10px;background:#fff;color:#2A2430;text-decoration:none;font:700 13px var(--sans)}.cp-c .a a.g{background:rgba(255,255,255,.12);color:#fff}
+.cp-c .x{float:right;border:0;background:none;color:#C9BFE6;font-size:20px;cursor:pointer;margin:-6px -6px 0 0}
+</style><div class="call-pop" id="callpop"></div><script>
+(function(){var shown={},hid={},box=document.getElementById('callpop');
+function esc(x){return String(x||'').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function tick(){if(document.hidden)return;fetch('/telephony/live',{credentials:'same-origin'}).then(function(r){return r.ok?r.json():null}).then(function(j){if(!j)return;
+  var ids={};(j.calls||[]).forEach(function(c){if(c.dir!=='in'||hid[c.id])return;ids[c.id]=1;var el=shown[c.id];
+    var h='<button class="x" title="Сховати">×</button><small><i></i>'+(c.status==='answer'?'Розмова триває':'Вхідний дзвінок')+(c.employee?' · '+esc(c.employee):'')+'</small><b>'+esc(c.name||c.phone)+'</b><span>'+(c.name?esc(c.phone):'новий номер — пацієнта не знайдено')+'</span>'+
+      '<div class="a">'+(c.pid?'<a href="/patients/'+c.pid+'">Картка пацієнта</a><a class="g" href="/calendar?newappt=1&patient='+c.pid+'">Записати</a>':'<a href="/calendar?newappt=1">Записати</a><a class="g" href="/appeals">Звернення</a>')+'</div>';
+    if(!el){el=document.createElement('div');el.className='cp-c';box.appendChild(el);shown[c.id]=el}
+    el.innerHTML=h;el.querySelector('.x').onclick=function(){hid[c.id]=1;el.remove();delete shown[c.id]}});
+  Object.keys(shown).forEach(function(k){if(!ids[k]){shown[k].remove();delete shown[k]}})}).catch(function(){})}
+tick();setInterval(tick,5000)})();</script>{% endif %}{% endif %}
 {% endif %}
 <script>document.addEventListener('click',function(e){document.querySelectorAll('details.more[open]').forEach(function(d){if(!d.contains(e.target))d.removeAttribute('open')})});</script>
 {% if user and nav not in ('login','print') %}
