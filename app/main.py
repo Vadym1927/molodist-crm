@@ -7622,6 +7622,17 @@ def patient_message(pid: int, text: str = Form(...), channel: str = Form("auto")
     return RedirectResponse(f"/patients/{pid}#contact", 303)
 
 
+@app.post("/patients/{pid}/mark")
+def patient_mark(pid: int, mark: str = Form(""), user: User = Depends(require("patient_edit")), db: Session = Depends(db_dep)):
+    """Мітка пацієнта VIP / BAD (поле cb_mark, як у CleverBox); повторне натискання — зняти."""
+    p = _patient_or_403(db, user, pid)
+    old = p.cb_mark
+    p.cb_mark = None if mark not in ("vip", "bad") or p.cb_mark == mark else mark
+    db.commit()
+    audit(db, "patient.mark", "patient", p.id, user=user, old=old, new=p.cb_mark)
+    return RedirectResponse(f"/patients/{pid}", 303)
+
+
 @app.post("/patients/{pid}/optout")
 def patient_optout(pid: int, value: str = Form(...), user: User = Depends(require("patient_edit")),
                    db: Session = Depends(db_dep)):

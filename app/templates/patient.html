@@ -76,6 +76,8 @@
 .pc-nm{font:700 32px var(--head);letter-spacing:0;text-transform:none;color:#1F1A24}
 .pc-l1{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .pc-l2{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:4px}.pc-l2 .pc-mn{margin:0;font-size:19px;color:#3B3050;font-weight:500}
+.pc-mk{border:1.5px dashed #D9D3E3;background:#fff;color:#8a8496;border-radius:999px;padding:4px 12px;font:700 12.5px var(--sans);letter-spacing:.04em;cursor:pointer}
+.pc-mk.vip:hover,.pc-mk.vip.on{border:1.5px solid #C9A227;color:#8A6A00;background:#FFF6D6}.pc-mk.bad:hover,.pc-mk.bad.on{border:1.5px solid #B23B2E;color:#B23B2E;background:#FBE7E4}
 .pc-sep{width:1px;height:20px;background:#D9D3E3}
 .pc-tag{text-transform:none;letter-spacing:0;font:600 13.5px var(--sans);padding:4px 12px}
 .pc-meta{margin-top:10px;font-size:14.5px;gap:4px 14px}.pc-meta .ic{color:#5C4B82;margin-right:4px}
@@ -89,8 +91,9 @@
 .tk-add{display:grid;gap:8px;margin-top:10px}.tk-add[hidden]{display:none}
 .po2{display:grid;grid-template-columns:minmax(0,1fr) 430px;gap:18px;align-items:start}.po2>div{display:grid;gap:18px;min-width:0}
 .pk2>div.go{cursor:pointer;border-radius:10px}.pk2>div.go:hover{background:#FAF8FD}
-.pk2{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:16px 6px}
-.pk2>div{padding:0 16px;border-left:1px solid #F1EDE8}.pk2>div:first-child{border-left:0}
+.pk2{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));row-gap:14px;background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:16px 6px}
+.pk2>div{padding:4px 16px;border-left:1px solid #F1EDE8}.pk2>div:nth-child(4n+1){border-left:0}.pk2>div:nth-child(n+5){border-top:1px solid #F1EDE8;padding-top:14px}
+.pk2 .coin b{color:#B07A1E}
 .pk2 span{display:block;font:700 10px var(--sans);letter-spacing:.04em;white-space:nowrap;text-transform:uppercase;color:#5d5869}
 .pk2 b{display:block;font:700 21px var(--sans);margin-top:8px;color:#2A2430;white-space:nowrap}.pk2 small{display:block;color:#8a8496;font-size:12.5px;margin-top:4px}
 .ph2{display:grid;grid-template-columns:22px 118px minmax(0,1fr) 120px 90px 110px;gap:12px;align-items:center;padding:10px 0;border-top:1px solid #F1EDE8;font-size:14px}
@@ -119,10 +122,12 @@
   <div class="pc-av">{% if p.avatar_file_id %}<img src="/files/{{ p.avatar_file_id }}" alt="">{% else %}{{ (_w[0][:1] if _w else '') ~ (_w[1][:1] if _w|length > 1 else '') }}{% endif %}</div>
   <div style="min-width:0;padding-top:6px">
     <div class="pc-l1"><h1 class="pc-nm">{{ _w[:2]|join(' ') }}{% if _w|length > 2 %} <span class="pc-pat">{{ _w[2:]|join(' ') }}</span>{% endif %}</h1>
-      {% if p.cb_mark=='vip' %}<span class="pill ok">VIP</span>{% elif p.cb_mark %}<span class="pill done">{{ p.cb_mark }}</span>{% endif %}
       {% if p.cb_status %}<span class="pill done">{{ p.cb_status }}</span>{% endif %}</div>
     <div class="pc-l2">
       {% if ptag %}<span class="pc-tag" style="background:{{ ptag_color }}22;color:{{ ptag_color }};border:1px solid {{ ptag_color }}55">{{ ptag }}</span>{% endif %}</div>
+      {% for mk, ml in [('vip','VIP'),('bad','BAD')] %}{% if can(user,'patient_edit') %}<form method="post" action="/patients/{{ p.id }}/mark" style="display:inline"><input type="hidden" name="mark" value="{{ mk }}">
+        <button class="pc-mk {{ mk }}{{ ' on' if p.cb_mark == mk }}" title="{{ ('Зняти мітку ' if p.cb_mark == mk else 'Позначити ') ~ ml }}">{{ '★ ' if mk == 'vip' else '⚠ ' }}{{ ml }}</button></form>
+      {% elif p.cb_mark == mk %}<span class="pc-mk {{ mk }} on">{{ ml }}</span>{% endif %}{% endfor %}
     {% if p.client_groups or p.directions or p.no_repeat_call or p.marketing_opt_out %}<div class="pc-tg">
       {% for group in p.client_groups or [] %}<span class="pill done">{{ group }}</span>{% endfor %}
       {% for d in p.directions or [] %}<span class="pill" style="background:var(--lavender);color:var(--classic)">{{ d }}</span>{% endfor %}
@@ -234,8 +239,10 @@
         <div class="go" onclick="ptVis('plan')" title="Відкрити заплановані візити"><span>Найближчі візити</span><b>{{ patient_kpi.planned }}</b><small>{{ ('найближчий ' ~ (patient_kpi.next|dt('%d.%m · %H:%M'))) if patient_kpi.next else 'немає запису' }}</small></div>
         <div class="go" onclick="ptVis('done')"><span>Послуги</span><b>{{ patient_kpi.service_revenue|uah }}</b><small>{{ ('середній чек ' ~ (p.cb_average|uah)) if p.cb_average else 'надано послуг' }}</small></div>
         <div class="go" onclick="ptGo('sales')"><span>Товари</span><b>{{ patient_kpi.product_revenue|uah }}</b><small>{{ p.sales|sum(attribute='quantity') }} шт · {{ p.sales|length }} позицій</small></div>
-        <div class="go" onclick="ptGo('sales');setTimeout(()=>{var e=document.getElementById('loyal');e&&e.scrollIntoView()},40)"><span>Бонуси</span><b>{{ loyal.balance|uah if loyal.balance else ((p.cb_bonus or 0)|uah) }}</b><small>баланс {{ (p.cb_balance or 0)|uah }} · коїни <i style="font-style:normal;color:#B07A1E">в розробці</i></small></div>
-        {% if _cs.n or _cs.sn %}<div class="go" onclick="ptGo('sales');setTimeout(()=>{var e=document.getElementById('certs')||document.getElementById('subs');e&&e.scrollIntoView()},40)"><span>Сертифікати / абон.</span><b>{{ _cs.n }} / {{ _cs.sn }}</b><small>{{ ('залишок ' ~ (_cs.bal|uah)) if _cs.n }}{{ ' · ' if _cs.n and _cs.sn }}{{ ('візитів ' ~ ('%g'|format(_cs.left))) if _cs.sn }}</small></div>{% endif %}
+        <div class="go" onclick="ptTo('certs')"><span>Сертифікати</span><b>{{ (_cs.bal|uah) if _cs.n else '0' }}</b><small>{{ ('активних ' ~ _cs.n) if _cs.n else ('немає активних' if not certs else 'всього ' ~ certs|length ~ ', активних немає') }}</small></div>
+        <div class="go" onclick="ptTo('subs')"><span>Абонементи</span><b>{{ _cs.sn }}</b><small>{{ ('лишилось візитів ' ~ ('%g'|format(_cs.left))) if _cs.sn else ('немає активних' if not subs else 'всього ' ~ subs|length ~ ', активних немає') }}</small></div>
+        <div class="go" onclick="ptTo('loyal')"><span>Бонуси</span><b>{{ loyal.balance|uah if loyal.balance else ((p.cb_bonus or 0)|uah) }}</b><small>{% set _pd0 = pdisc(p) %}{{ ('знижка ' ~ ('%g'|format(_pd0[0] or _pd0[1])) ~ '%') if _pd0[0] or _pd0[1] else 'знижка не встановлена' }}{{ (' · баланс ' ~ (p.cb_balance|uah)) if p.cb_balance }}</small></div>
+        <div class="coin"><span>MOLODIST COINS</span><b>—</b><small><i style="font-style:normal;color:#B07A1E">в розробці</i></small></div>
       </div>
       <div class="pcd"><div class="pcd-h"><h3>Історія та найближчий візит</h3>
         <div class="ph-ch" data-ph="ov"><span class="ph-sum" data-ph="ov"></span><button type="button" class="on" data-f="all">Усе</button><button type="button" data-f="visit">Візити</button><button type="button" data-f="sale">Покупки</button></div></div>
@@ -509,6 +516,7 @@ document.querySelectorAll('#pt-tabs a[data-t]').forEach(a=>a.addEventListener('c
 function phFilter(g,f){const lst=document.querySelector('.ph-list[data-ph="'+g+'"]');if(!lst)return;const lim=+lst.dataset.lim||0;let n=0,sum=0,cnt=0;
   lst.querySelectorAll('.ph-r').forEach(r=>{const ok=f==='all'||r.dataset.k===f||r.dataset.s===f;const show=ok&&(!lim||n<lim);if(ok){n++;if(r.dataset.s!=='bad'||f==='bad'){sum+=+r.dataset.sum||0;cnt++}}r.style.display=show?'':'none'});
   const el=document.querySelector('.ph-sum[data-ph="'+g+'"]');if(el)el.textContent=cnt?(cnt+' · разом '+sum.toLocaleString('uk-UA',{minimumFractionDigits:2,maximumFractionDigits:2})+' ₴'):''}
+function ptTo(id){ptGo('sales');setTimeout(()=>{var e=document.getElementById(id);if(e)e.scrollIntoView({block:'start'})},40)}
 function ptVis(f){ptGo('visits');const ch=document.querySelector('.ph-ch[data-ph="vi"]');if(ch)ch.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x.dataset.f===f));phFilter('vi',f)}
 document.querySelectorAll('.ph-ch').forEach(ch=>ch.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
   ch.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));phFilter(ch.dataset.ph,b.dataset.f)})));
