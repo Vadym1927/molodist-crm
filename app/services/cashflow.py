@@ -167,7 +167,7 @@ def journal_days(db: Session, d_from: date, d_to: date) -> list[Day]:
     ex = clinic.excluded_income(db)
     days: dict[date, Day] = {}
     for r in fo.journal(db, d_from, d_to):
-        if r.kind == "transfer" or not r.money or not fo.is_money(r.account) and r.src == "cb":
+        if r.kind == "transfer" or not r.money or getattr(r, "test", False) or not fo.is_money(r.account) and r.src == "cb":
             continue
         if r.kind == "income" and r.article.strip().lower() in ex:
             continue

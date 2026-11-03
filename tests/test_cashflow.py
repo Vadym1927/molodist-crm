@@ -124,6 +124,7 @@ def test_journal_skips_test_sales():
         s = Sale(at=datetime(2024, 5, 5, 12), status="paid", total=1800, fiscal={"test_sale": True})
         db.add(s); db.flush()
         db.add(SalePayment(sale_id=s.id, method="Готівка ФОП Колган", amount=1800)); db.commit()
-        assert not [r for r in fo.journal(db, date(2024, 5, 5), date(2024, 5, 5)) if r.sale_id == s.id]
-        s.fiscal = {}; db.commit()
-        assert [r for r in fo.journal(db, date(2024, 5, 5), date(2024, 5, 5)) if r.sale_id == s.id]
+        rows = [r for r in fo.journal(db, date(2024, 5, 5), date(2024, 5, 5)) if r.sale_id == s.id]
+        assert rows and rows[0].test                                         # у журналі видно, позначено «тест»
+        from app.services import cashflow as cf
+        assert not [x for x in cf.journal_days(db, date(2024, 5, 5), date(2024, 5, 5)) if x.income]   # у Cashflow — ні

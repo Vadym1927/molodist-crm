@@ -83,6 +83,7 @@ class J:
     is_storno: bool = False
     sale_id: int | None = None       # чек каси CRM (Ч-…)
     can_refund: bool = False         # чек можна відмінити (повернення) — «×» у журналі
+    test: bool = False               # тестовий чек (тестовий режим)
 
     @property
     def sign(self) -> int:
@@ -117,19 +118,18 @@ def journal(db: Session, d_from: date, d_to: date, users: dict | None = None, ar
     if not archive:                                     # продажі в CRM (каса)
         from ..models import Sale
         for s in db.scalars(select(Sale).where(Sale.at >= a, Sale.at <= b, Sale.status.notin_(("awaiting", "cancelled")))):
-            if (s.fiscal or {}).get("test_sale"):           # тестові чеки (тестовий режим) — не гроші, у фінанси не йдуть
-                continue
+            _test = bool((s.fiscal or {}).get("test_sale"))   # тестовий чек (тестовий режим): у журналі видно, у Cashflow — ні
             who = s.patient.full_name if s.patient else "—"
             link = f"/patients/{s.patient_id}" if s.patient_id else None
             for p in s.payments:
                 money = p.method not in ("Бонуси", "Сертифікат", "Рахунок пацієнта", "Абонемент")
                 out.append(J("crm", f"Ч-{s.id}", s.at, "income", p.amount, who=who, who_link=link, basis=f"Продаж CRM #{s.id}",
                              article="Оплата послуг, товарів", account=p.method, vid=p.method, author=users.get(s.created_by, ""),
-                             money=money, sale_id=s.id, can_refund=s.status == "paid"))
+                             money=money, sale_id=s.id, can_refund=s.status == "paid", test=_test, comment="тестовий чек" if _test else ""))
                 if s.status == "refunded" and s.refunded_at:
                     out.append(J("crm", f"Ч-{s.id}", s.refunded_at, "expense", p.amount, who=who, who_link=link,
                                  basis=f"Повернення чека #{s.id}", article="Повернення коштів", account=p.method,
-                                 comment=s.refund_reason or "", money=money, sale_id=s.id))
+                                 comment=s.refund_reason or "", money=money, sale_id=s.id, test=_test))
     q = select(FinOp).where(FinOp.day >= d_from, FinOp.day <= d_to)
     q = q.where(FinOp.deleted_at.is_not(None)) if archive else q.where(FinOp.deleted_at.is_(None))
     ops = db.scalars(q).all()

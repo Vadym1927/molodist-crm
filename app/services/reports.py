@@ -243,6 +243,8 @@ def _service_lines(db: Session, d_from: date, d_to: date) -> list[dict]:
         except (TypeError, ValueError):
             return 0.0
     for c in _checks(db, d_from, d_to):
+        if getattr(c, "crm", False):                 # продажі каси CRM — нижче, окремо (з собівартістю)
+            continue
         for it in c.items or []:
             if (it.get("item_type") or "") != "service":
                 continue
@@ -628,6 +630,8 @@ def cosmetics(db: Session, d_from: date, d_to: date, staff: str = "") -> Report:
             return 0.0
     rows = []
     for c in _checks(db, d_from, d_to):
+        if getattr(c, "crm", False):                 # продажі каси CRM — нижче, окремо
+            continue
         for it in c.items or []:
             if (it.get("item_type") or "") != "product":
                 continue
