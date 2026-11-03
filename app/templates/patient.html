@@ -202,6 +202,9 @@
 {% endfor %}
 </div>
 
+{% if pcalls is defined and (can(user,'appeals') or can(user,'book')) %}{% from "_calls.html" import call_list %}
+<div class="card" id="calls"><div class="row between"><h2 style="margin:0">Дзвінки · {{ pcalls|length }}</h2><a class="btn ghost" href="/telephony">Журнал дзвінків</a></div>
+  <div style="margin-top:10px">{{ call_list(pcalls, {p.id: p}, call_thr, False, '/patients/' ~ p.id ~ '#calls') }}</div></div>{% endif %}
 <div class="card" id="tasks"><div class="row between"><h2 style="margin:0">Задачі</h2></div>
   <table class="small" style="margin-top:8px"><tbody>
   {% for t in ptasks %}<tr style="{{ 'opacity:.55' if t.status!='open' }}"><td><b>{{ t.title }}</b>{% if t.result %}<div style="color:var(--ok)">✔ {{ t.result }}</div>{% endif %}</td>

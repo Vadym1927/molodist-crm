@@ -22,7 +22,7 @@ def test_notifications_and_pages():
         h = c.get("/notifications").text
         assert "Онлайн-запис" in h and "Онлайн Пацієнтка" in h
         assert c.get("/notifications/poll").json()["unseen"] == 0 or True
-        assert "В розробці" in c.get("/telephony").text and "WhatsApp" in c.get("/chats").text
+        assert "Телефонію не підключено" in c.get("/telephony").text and "WhatsApp" in c.get("/chats").text
         page = c.get("/calendar").text
         assert 'href="/telephony"' in page and 'href="/chats"' in page and 'id="nt-bell"' in page
         assert "＋ Бюті-план" in c.get("/plans").text

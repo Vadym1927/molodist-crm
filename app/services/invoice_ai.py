@@ -36,6 +36,10 @@ qty — у тих одиницях, що в накладній; sku — арти
 
 # ---------------- ключ Claude API ----------------
 
+def model() -> str:
+    return getattr(settings, "ai_model", "") or "claude-sonnet-5-5"
+
+
 def api_key(db: Session) -> str:
     if getattr(settings, "anthropic_api_key", ""):
         return settings.anthropic_api_key

@@ -29,6 +29,8 @@
       {% for ev, nm, what in R_EVENTS %}<div class="rg-e"><b>{{ loop.index }}. Подія «{{ nm }}»</b> <span class="hint">— {{ what }}</span>
         <div class="cp"><input readonly value="{{ hook_url(k) }}?event={{ ev }}" id="rgu{{ loop.index }}"><button class="ch-btn" type="button" onclick="navigator.clipboard.writeText(document.getElementById('rgu{{ loop.index }}').value);this.textContent='✓'">URL</button></div>
         <div class="cp"><input readonly value='{{ R_BODY|format(ev) }}' id="rgb{{ loop.index }}"><button class="ch-btn" type="button" onclick="navigator.clipboard.writeText(document.getElementById('rgb{{ loop.index }}').value);this.textContent='✓'">JSON</button></div></div>{% endfor %}
+      <div class="rg-e"><b>5. Подія «Дзвінок оброблено AI»</b> <span class="hint">— текст діалогу, короткий зміст, настрій (потрібен Ringostat AI). У тілі JSON вкажіть ключі: call_id, caller, summary, client_mood, employee_mood, recommendations, vtt (посилання на файл діалогу VTT) — значення оберіть зі змінних події.</span>
+        <div class="cp"><input readonly value="{{ hook_url(k) }}?event=ai" id="rgu-ai"><button class="ch-btn" type="button" onclick="navigator.clipboard.writeText(document.getElementById('rgu-ai').value);this.textContent='✓'">URL</button></div></div>
       <div class="hint">Наявні події з адресами cbox.mobi (CleverBox) можна вимкнути, коли CleverBox більше не потрібен.</div></div>{% endif %}
     <div class="cs-note">Сайт провайдера <a href="{{ p.site }}" target="_blank" rel="noopener">{{ p.site }}</a></div>
   </div>{% endfor %}
@@ -38,6 +40,15 @@
   <div class="cs-f"><label class="sw"><input type="checkbox" name="create_appeal" value="1" {{ 'checked' if t.create_appeal }}> Створювати звернення з вхідних дзвінків</label>
     <label class="sw"><input type="checkbox" name="missed_only" value="1" {{ 'checked' if t.missed_only }}> Лише з пропущених</label>
     <div class="hint">Повторний дзвінок з того ж номера протягом доби привʼязується до вже створеного звернення.</div></div>
+  <div class="cs-f"><label>Кому показувати вікно «Вхідний дзвінок»</label>
+    <div style="display:flex;gap:8px 16px;flex-wrap:wrap">{% for u in users_all %}<label class="sw"><input type="checkbox" name="popup_users" value="{{ u.id }}" {{ 'checked' if u.id in (t.popup_users or []) }}> {{ u.name }}</label>{% endfor %}</div>
+    <div class="hint">Нікого не обрано — вікно бачать усі, хто має право «Звернення» або «Записувати пацієнтів». У вікні: хто дзвонить, найближчий запис, кнопки «Картка пацієнта», «Записати», для нового номера — «Створити пацієнта».</div></div>
+  <div class="cs-f"><label class="sw"><input type="checkbox" name="ai_on" value="1" {{ 'checked' if t.ai_on }}> AI-оцінка діалогів</label>
+    <div class="hint">Текст діалогу надходить з Ringostat AI (подія «Дзвінок оброблено AI» — нижче), оцінку ставить Claude за критеріями.{% if not has_ai_key %} <b style="color:#B23B2E">Не задано ключ Claude API — «Налаштування → Розпізнавання накладних».</b>{% endif %}</div>
+    <textarea name="ai_criteria" rows="9" style="margin-top:6px">{{ t.ai_criteria }}</textarea>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:8px"><label class="sw"><input type="checkbox" name="ai_alert" value="1" {{ 'checked' if t.ai_alert }}> Повідомлення мені в Telegram, якщо оцінка нижче</label>
+      <input name="ai_alert_below" type="number" min="0" max="100" value="{{ t.ai_alert_below }}" style="width:90px"> <span class="hint" style="margin:0">балів зі 100</span></div>
+    <div class="hint">Оцінки йдуть у KPI дзвінків по співробітниках («Телефонія» → таблиця KPI).</div></div>
   <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn">Зберегти</button><button class="btn ghost" name="test" value="1">✓ Перевірити підключення</button></div>
 </form>
 

@@ -423,6 +423,13 @@ class Call(Base):
     record_url: Mapped[str | None] = mapped_column(String(500))
     patient_id: Mapped[int | None] = mapped_column(ForeignKey("patients.id"), index=True)
     appeal_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    user_id: Mapped[int | None] = mapped_column(Integer, index=True)                # співробітник CRM (за імʼям з телефонії)
+    transcript: Mapped[str | None] = mapped_column(Text)                         # текст діалогу (Ringostat AI / VTT)
+    summary: Mapped[str | None] = mapped_column(Text)                            # короткий зміст
+    ai_meta: Mapped[dict | None] = mapped_column(JSON)                           # настрій, рекомендації, сирі поля AI
+    ai_score: Mapped[float | None] = mapped_column(Float)                        # оцінка діалогу 0–100 (Claude за критеріями)
+    ai_comment: Mapped[str | None] = mapped_column(Text)
+    ai_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 class AppealNote(Base):

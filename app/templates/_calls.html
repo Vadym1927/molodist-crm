@@ -1,0 +1,38 @@
+{# Дзвінки: список карток (журнал «Телефонія» і картка пацієнта). call_list(calls, pats, thr, show_patient, back) #}
+{% macro call_list(calls, pats, thr, show_patient=True, back='/telephony', cur='') %}
+<style>
+.cl{display:grid;gap:10px}
+.cl-i{background:#fff;border:1px solid #ECE7E1;border-left:4px solid #C9BFE6;border-radius:14px;padding:12px 16px;display:grid;gap:8px}
+.cl-i.missed{border-left-color:#C0392B}.cl-i.answered{border-left-color:#2E9E5B}.cl-i.cur{box-shadow:0 0 0 3px #C9BFE6}
+.cl-h{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.cl-h b{font:600 15px var(--sans)}.cl-h .m{color:#8a8496;font-size:13px}
+.cl-h .dir{font:700 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:7px;background:#F1EDF8;color:#3B3050}
+.cl-h .st{font:700 11px var(--sans);padding:3px 8px;border-radius:7px}.cl-h .st.missed{background:#FDECEA;color:#B23B2E}.cl-h .st.answered{background:#E3F3E7;color:#2E7D4F}
+.cl-h .sc{margin-left:auto;font:800 14px var(--sans);padding:4px 10px;border-radius:9px;background:#E3F3E7;color:#2E7D4F}.cl-h .sc.low{background:#FDECEA;color:#B23B2E}.cl-h .sc.mid{background:#FFF1D6;color:#9A6A00}
+.cl-i audio{width:100%;max-width:520px;height:36px}
+.cl-sum{font-size:14px;color:#2A2430;background:#F7F4F0;border-radius:10px;padding:8px 12px}.cl-ai{font-size:13.5px;color:#3f3a49;background:#F6F3FB;border-radius:10px;padding:8px 12px}
+.cl-i details summary{cursor:pointer;color:#5C4B82;font-weight:600;font-size:13.5px}.cl-i details pre{white-space:pre-wrap;font:13.5px/1.5 var(--sans);background:#FBFAF8;border-radius:10px;padding:10px 12px;max-height:340px;overflow:auto;margin:6px 0 0}
+.cl-a{display:flex;gap:8px;flex-wrap:wrap}.cl-a button,.cl-a a{border:1px solid #E3DFE8;background:#fff;border-radius:9px;padding:6px 12px;font:600 13px var(--sans);color:#3B3050;cursor:pointer;text-decoration:none}.cl-a button:hover,.cl-a a:hover{background:#F6F3FB}
+</style>
+<div class="cl">{% for c in calls %}{% set pt = pats.get(c.patient_id) if c.patient_id else None %}
+<div class="cl-i {{ c.status or '' }} {{ 'cur' if cur and cur|string == c.id|string }}" id="call{{ c.id }}">
+  <div class="cl-h"><span class="dir">{{ 'вхідний' if c.direction == 'in' else 'вихідний' }}</span>
+    <b>{% if show_patient %}{% if pt %}<a href="/patients/{{ pt.id }}" style="color:inherit">{{ pt.full_name }}</a>{% else %}{{ c.phone or '—' }}{% endif %}{% else %}{{ c.at|dt('%d.%m.%Y %H:%M') }}{% endif %}</b>
+    <span class="m">{% if show_patient %}{{ c.at|dt('%d.%m.%Y %H:%M') }}{% if pt %} · {{ c.phone }}{% endif %}{% endif %}{% if c.duration %} · {{ '%d:%02d'|format(c.duration // 60, c.duration % 60) }}{% endif %}{% if c.employee %} · {{ c.employee }}{% endif %}</span>
+    <span class="st {{ c.status or '' }}">{{ {'missed':'пропущений','answered':'прийнятий','ringing':'дзвонить','answer':'розмова'}.get(c.status, c.status or '—') }}</span>
+    {% if c.ai_score is not none %}<span class="sc {{ 'low' if c.ai_score < thr else ('mid' if c.ai_score < 80 else '') }}" title="AI-оцінка діалогу">AI {{ '%.0f'|format(c.ai_score) }}/100</span>{% endif %}</div>
+  {% if c.record_url %}<audio controls preload="none" src="{{ c.record_url }}"></audio>{% endif %}
+  {% if c.summary %}<div class="cl-sum"><b>Зміст:</b> {{ c.summary }}</div>{% endif %}
+  {% if c.ai_comment %}<div class="cl-ai"><b>AI-оцінка:</b> {{ c.ai_comment }}{% if c.ai_meta and c.ai_meta.booked is defined %} · {{ 'записано' if c.ai_meta.booked else 'не записано' }}{% endif %}</div>{% endif %}
+  {% if c.transcript %}<details><summary>Текст діалогу</summary><pre>{{ c.transcript }}</pre></details>{% endif %}
+  <div class="cl-a">
+    {% if c.transcript %}<button type="button" onclick="clEval({{ c.id }}, this)">{{ 'Переоцінити AI' if c.ai_score is not none else 'Оцінити AI' }}</button>{% endif %}
+    <button type="button" onclick="clTask({{ c.id }}, {{ c.patient_id or 'null' }}, '{{ ((pt.full_name if pt else c.phone) or '')|e }}', '{{ c.at|dt('%d.%m %H:%M') }}', '{{ back }}')">+ Задача</button>
+    {% if pt %}<a href="/calendar?newappt=1&patient={{ pt.id }}">Записати</a>{% endif %}
+  </div>
+</div>{% else %}<div class="card muted">Дзвінків ще немає — з'являться після підключення телефонії.</div>{% endfor %}</div>
+<script>
+function clEval(id,b){b.disabled=true;b.textContent='Оцінюю…';fetch('/telephony/calls/'+id+'/evaluate',{method:'POST',credentials:'same-origin'}).then(function(r){return r.json()}).then(function(j){if(j.error){alert(j.error);b.disabled=false;b.textContent='Оцінити AI';return}location.reload()})}
+function clTask(id,pid,who,at,back){var t=prompt('Задача по дзвінку ('+who+', '+at+'):','Передзвонити: '+who);if(!t)return;var fd=new FormData();fd.append('title',t);fd.append('description','Дзвінок '+at);if(pid)fd.append('patient_id',pid);fd.append('back',back);
+  fetch('/tasks',{method:'POST',body:fd,credentials:'same-origin'}).then(function(){alert('Задачу створено')})}
+</script>
+{% endmacro %}

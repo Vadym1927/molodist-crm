@@ -756,7 +756,10 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
     from .services import certificates as _cert
     from .models import PayLink as _PL
     paylinks = db.scalars(select(_PL).where(_PL.patient_id == p.id).order_by(_PL.id.desc()).limit(10)).all() if can(user, "sales") else []
-    return render(request, "patient.html", p=p, statuses=statuses, ptasks=ptasks, msgs=msgs, dupes=dupes, paylinks=paylinks,
+    from .models import Call as _Call
+    pcalls = db.scalars(select(_Call).where(_Call.patient_id == p.id).order_by(_Call.at.desc()).limit(50)).all() if (can(user, "appeals") or can(user, "book")) else []
+    return render(request, "patient.html", p=p, statuses=statuses, ptasks=ptasks, msgs=msgs, dupes=dupes, paylinks=paylinks, pcalls=pcalls,
+                  call_thr=float(__import__("app.services.telephony", fromlist=["x"]).public(db).get("ai_alert_below") or 0),
                   certs=_cert.for_patient(db, p.id), CERT_STATES=_cert.STATES, today=date.today(),
                   subs=_cert.subs_for_patient(db, p.id), SUB_STATES=_cert.SUB_STATES,
                   CB_LABELS=CB_LABELS, loyal=_loyal_ctx(db, p),
@@ -4387,9 +4390,15 @@ def telephony_page(request: Request, f: str = "", user: User = Depends(require("
         q = q.where(Call.status == "missed")
     elif f in ("in", "out"):
         q = q.where(Call.direction == f)
+    elif f == "low":
+        from .services import telephony as _tl
+        q = q.where(Call.ai_score.is_not(None), Call.ai_score < float(_tl.public(db).get("ai_alert_below") or 0))
     calls = db.scalars(q.limit(300)).all()
     pats = {p_.id: p_ for p_ in db.scalars(select(Patient).where(Patient.id.in_([c_.patient_id for c_ in calls if c_.patient_id] or [0])))}
-    return render(request, "calls.html", nav="telephony", calls=calls, pats=pats, f=f)
+    from .services import telephony as _tl2
+    d_to = date.today()
+    return render(request, "calls.html", nav="telephony", calls=calls, pats=pats, f=f, tcfg=_tl2.public(db),
+                  kpi=_tl2.kpi(db, d_to.replace(day=1), d_to), cur=request.query_params.get("call", ""))
 
 
 @app.get("/chats", response_class=HTMLResponse)
@@ -5671,7 +5680,9 @@ def settings_telephony(request: Request, user: User = Depends(require("users")),
     t_ = tel.public(db)
     calls = db.scalars(select(Call).order_by(Call.at.desc()).limit(30)).all()
     base = str(request.base_url).rstrip("/").replace("http://", "https://")
+    from .services import invoice_ai as _ia
     return render(request, "telephony.html", nav="settings", t=t_, PROV=tel.PROVIDERS, calls=calls, sources=ap_.dirs(db)["sources"],
+                  users_all=db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all(), has_ai_key=bool(_ia.api_key(db)),
                   hook_url=lambda p: f"{base}/api/public/telephony/{p}/{t_['hook']}", R_BODY=tel.RINGOSTAT_BODY, R_EVENTS=tel.RINGOSTAT_EVENTS)
 
 
@@ -5682,6 +5693,7 @@ async def settings_telephony_save(request: Request, user: User = Depends(require
     prov = str(f.get("provider") or "")
     try:
         tel.save(db, prov, {k: f.get(k) for k in f.keys()}, str(f.get("source") or ""), bool(f.get("create_appeal")), bool(f.get("missed_only")))
+        tel.save_extra(db, f.getlist("popup_users"), bool(f.get("ai_on")), str(f.get("ai_criteria") or ""), f.get("ai_alert_below"), bool(f.get("ai_alert")))
     except ValueError as e:
         return RedirectResponse(_with_msg("/settings/telephony", str(e), True), 303)
     audit(db, "telephony.save", user=user, provider=prov)
@@ -5715,16 +5727,59 @@ async def telephony_hook(request: Request, provider: str, hook: str, db: Session
 def telephony_live(user: User = Depends(current_user), db: Session = Depends(db_dep)):
     """Вхідні дзвінки, що зараз ідуть — для спливаючого вікна «Вхідний дзвінок»."""
     from .services import telephony as tel
-    if not (can(user, "appeals") or can(user, "book")):
+    from .models import Appointment as _Ap
+    if not tel.popup_for(db, user):
         return {"calls": []}
     out = []
+    d0 = datetime.combine(date.today(), datetime.min.time())
     for c_ in tel.live(db):
         p_ = db.get(Patient, c_.patient_id) if c_.patient_id else None
         if p_ and not patient_visible(user, p_):
             p_ = None
+        ap_ = None
+        if p_:
+            x = db.scalars(select(_Ap).where(_Ap.patient_id == p_.id, _Ap.start >= d0, _Ap.status.notin_(("cancelled", "no_show")))
+                           .order_by(_Ap.start).limit(1)).first()
+            if x:
+                d_ = db.get(Doctor, x.doctor_id) if x.doctor_id else None
+                ap_ = {"id": x.id, "day": x.start.date().isoformat(), "when": x.start.strftime("%d.%m %H:%M"), "today": x.start.date() == date.today(),
+                       "doctor": d_.name if d_ else "", "services": ", ".join(s_.get("name", "") for s_ in x.services or [])[:80]}
         out.append({"id": c_.id, "phone": c_.phone or "", "dir": c_.direction, "status": c_.status,
-                    "name": p_.full_name if p_ else None, "pid": p_.id if p_ else None, "employee": c_.employee or ""})
+                    "name": p_.full_name if p_ else None, "pid": p_.id if p_ else None, "employee": c_.employee or "", "appt": ap_})
     return {"calls": out}
+
+
+@app.post("/telephony/calls/{cid:int}/patient")
+async def telephony_call_patient(cid: int, request: Request, user: User = Depends(require("patient_edit")), db: Session = Depends(db_dep)):
+    """З вікна дзвінка: створити пацієнта з номером дзвінка (Прізвище Імʼя По батькові)."""
+    from .models import Call
+    c_ = db.get(Call, cid) or (_ for _ in ()).throw(HTTPException(404))
+    f = await request.json()
+    nm = " ".join(str(f.get(k) or "").strip() for k in ("last", "first", "middle") if str(f.get(k) or "").strip())
+    if len(nm.split()) < 2:
+        return JSONResponse({"error": "Вкажіть прізвище та імʼя"}, status_code=400)
+    from .services.appeals import find_patient
+    p_ = find_patient(db, c_.phone)
+    if not p_:
+        p_ = Patient(full_name=nm[:200], phone=c_.phone, source="Дзвінок")
+        db.add(p_)
+        db.flush()
+    c_.patient_id = p_.id
+    db.commit()
+    audit(db, "patient.create_from_call", "patient", p_.id, user=user, call=cid)
+    return JSONResponse({"ok": True, "pid": p_.id, "name": p_.full_name})
+
+
+@app.post("/telephony/calls/{cid:int}/evaluate")
+async def telephony_call_evaluate(cid: int, user: User = Depends(require("appeals")), db: Session = Depends(db_dep)):
+    from .services import telephony as tel
+    from .models import Call
+    c_ = db.get(Call, cid) or (_ for _ in ()).throw(HTTPException(404))
+    try:
+        await asyncio.to_thread(tel.evaluate, db, c_)
+    except (ValueError, RuntimeError) as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return JSONResponse({"ok": True, "score": c_.ai_score, "comment": c_.ai_comment})
 
 
 # ---------------- Налаштування → Checkbox (фіскалізація) ----------------
