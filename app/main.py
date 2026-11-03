@@ -1403,6 +1403,21 @@ async def appointment_time(aid: int, request: Request, user: User = Depends(requ
     return JSONResponse({"ok": True, "day": a.start.date().isoformat()})
 
 
+@app.post("/appointments/{aid:int}/services/{idx:int}/delete")
+def appointment_service_delete(aid: int, idx: int, user: User = Depends(require("book")), db: Session = Depends(db_dep)):
+    from .services import appointments as aps
+    from .models import Appointment
+    a = db.get(Appointment, aid) or (_ for _ in ()).throw(HTTPException(404))
+    _patient_or_403(db, user, a.patient_id)
+    if a.historic or a.sale_id:
+        return JSONResponse({"error": "Оплачений або історичний візит змінити не можна"}, status_code=400)
+    gone = aps.remove_service(db, a, idx)
+    if not gone:
+        raise HTTPException(404)
+    audit(db, "appointment.save", "patient", a.patient_id, user=user, appt=a.id, via="service_delete", service=gone.get("name"))
+    return JSONResponse({"ok": True})
+
+
 @app.post("/appointments/{aid:int}/doctor")
 async def appointment_doctor(aid: int, request: Request, user: User = Depends(require("book")), db: Session = Depends(db_dep)):
     """Заміна лікаря у візиті (з картки візиту): попередження про зайнятість, «force» — замінити все одно."""
@@ -3229,6 +3244,11 @@ def calendar_visit(request: Request, appt: int = 0, v: str = "", tab: str = "vis
         _a = aps.adopt_cb(db, _rid) if _rid else None
         if _a:
             appt, ids = _a.id, []
+    if appt:
+        from .models import Appointment as _ApF
+        _af = db.get(_ApF, appt)
+        if _af:
+            aps.fill_prices(db, _af)
     c = vc.card(db, appt, ids)
     if not c:
         raise HTTPException(404, "Візит не знайдено")

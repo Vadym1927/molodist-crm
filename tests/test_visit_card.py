@@ -57,3 +57,29 @@ def test_drawer_tasks_planned_and_costs_permission():
         assert "заплановані" in h and "попередніх візитів" not in h and "<span>оплачено</span>" not in h
         assert "Передзвонити щодо результату" in h and "активні задачі" in h and 'data-t="tasks"' in h
         assert "Собівартість візиту" in h                                    # власник бачить суми
+
+
+def test_fill_prices_and_remove_service():
+    from datetime import datetime, timedelta
+    from fastapi.testclient import TestClient
+    from app.config import settings
+    from app.main import app
+    from app.models import SessionLocal, Appointment, Patient, CbService
+    settings.admin_password = "owner-pass-1"
+    st = datetime.now() + timedelta(days=1)
+    with SessionLocal() as db:
+        db.add_all([CbService(id=99011, name="Консультація Beauty plan Anti Age", price=1500, time_min=90),
+                    CbService(id=99012, name="Гігієна Обличчя + Пілінг (ВИТРАТНІ)", price=2200, time_min=90)])
+        p = Patient(full_name="Цінова Пацієнтка", phone="+380990001199"); db.add(p); db.commit()
+        a = Appointment(patient_id=p.id, start=st, end=st + timedelta(minutes=180), status="booked",
+                        services=[{"id": 1, "name": "Консультація Beauty plan Anti Age", "price": 0, "minutes": 90},
+                                  {"name": "Гігієна Обличчя + Пілінг (ВИТРАТНІ)", "price": 0, "minutes": 90}])
+        db.add(a); db.commit(); aid = a.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        h = c.get(f"/calendar/visit?appt={aid}").text
+        assert "1 500.00" in h and "3 700.00" in h and "vdSvcDel" in h
+        assert c.post(f"/appointments/{aid}/services/0/delete").json()["ok"]
+    with SessionLocal() as db:
+        a = db.get(Appointment, aid)
+        assert [x["name"] for x in a.services] == ["Гігієна Обличчя + Пілінг (ВИТРАТНІ)"] and a.end - a.start == timedelta(minutes=90)

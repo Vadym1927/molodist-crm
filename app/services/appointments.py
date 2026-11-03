@@ -151,6 +151,51 @@ def services_for(db: Session, doctor_id: int | None) -> dict:
     return {"all": [one(s) for s in rows], "mine": [i for i, _ in mine.most_common() if i in ids]}
 
 
+def fill_prices(db: Session, a: Appointment) -> bool:
+    """Послуги без ціни (записи з CleverBox, послуга без ціни в момент запису) — ціна з прайсу / категорії лікаря."""
+    if not a or a.historic or a.sale_id or not a.services:
+        return False
+    from . import price_cats
+    from .techcards import resolve_service
+    dp = price_cats.doctor_prices(db).get(a.doctor_id or 0, {}) if a.doctor_id else {}
+    svcs, ch = [dict(x) for x in a.services], False
+    for x in svcs:
+        if float(x.get("price") or 0) > 0:
+            continue
+        sv = resolve_service(db, x.get("id"), x.get("name"))
+        if not sv:
+            continue
+        pr = dp.get(str(sv.id), dp.get(sv.id))
+        pr = float(pr if pr not in (None, "") else (sv.price or 0))
+        if pr > 0:
+            x["price"], x["id"], ch = pr, sv.id, True
+            x["category"] = x.get("category") or sv.category
+    if ch:
+        a.services = svcs
+        db.commit()
+    return ch
+
+
+def remove_service(db: Session, a: Appointment, idx: int) -> dict | None:
+    """Прибрати послугу з візиту: витратні цієї послуги видаляються, нумерація решти зсувається."""
+    from ..models import VisitMaterial
+    svcs = list(a.services or [])
+    if idx < 0 or idx >= len(svcs):
+        return None
+    gone = svcs.pop(idx)
+    for m in db.scalars(select(VisitMaterial).where(VisitMaterial.appt_id == a.id)):
+        if m.svc_idx == idx:
+            db.delete(m)
+        elif m.svc_idx > idx:
+            m.svc_idx -= 1
+    a.services = svcs
+    mins = sum(int(x.get("minutes") or 0) for x in svcs) or 30
+    a.end = a.start + timedelta(minutes=max(5, mins))
+    a.updated_at = datetime.utcnow()
+    db.commit()
+    return gone
+
+
 def set_status(db: Session, a: Appointment, status: str, reason: str | None = None) -> None:
     from . import visit_statuses as _vs
     if not _vs.valid(db, status):

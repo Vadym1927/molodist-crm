@@ -65,7 +65,7 @@
           <div class="vx-h"><h4>Послуги</h4>{% if a and not a.historic and can(user,'book') %}<button type="button" class="vx-lnk" onclick="visitClose();apptOpen({{ a.id }}, 1)">+ Додати</button>{% endif %}</div>
           {% set _edt = a and not a.historic and can(user,'book') %}
           {% for s in c.services %}<div class="vd-svc"><div><b>{{ s.name }}</b><span>{{ s.start|dt('%H:%M') }} – {{ s.end|dt('%H:%M') }} · {{ s.minutes }} хв</span></div>
-            <em>{{ money(s.price) }}</em>{% if _edt %}<button type="button" class="vd-pen" title="Змінити час візиту" onclick="vtOpen()"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg></button>{% endif %}</div>
+            <em>{{ money(s.price) }}</em>{% if _edt and not a.sale_id %}<button type="button" class="vd-pen vd-del" title="Прибрати послугу з візиту" onclick="vdSvcDel({{ a.id }}, {{ loop.index0 }}, '{{ s.name|e }}')"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>{% endif %}{% if _edt %}<button type="button" class="vd-pen" title="Змінити час візиту" onclick="vtOpen()"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg></button>{% endif %}</div>
           {% else %}<div class="vd-empty">Послуги не вказані</div>{% endfor %}
           {% if _edt %}<div class="vt-bg" id="vt" hidden onclick="if(event.target===this)this.hidden=true"><div class="vt">
             <h3>Час візиту</h3>
@@ -156,6 +156,7 @@
           {% elif A == 'appointment.save' %}{% if d_.via == 'doctor' %}Змінено лікаря: {{ dnames.get(d_.frm_doc, '—') if d_.frm_doc else '—' }} → <b>{{ dnames.get(d_.doctor, '—') if d_.doctor else '—' }}</b>
             {% elif d_.moved %}Перенесено{% if d_.frm %} з {{ d_.frm|replace('T',' ') }}{% endif %} на <b>{{ d_.start|replace('T',' ') }}</b>{% if d_.frm_doc %} · лікар змінено{% endif %}
             {% elif d_.via == 'time' %}Змінено час / тривалість · {{ d_.start|replace('T',' ') }}
+            {% elif d_.via == 'service_delete' %}Прибрано послугу: <b>{{ d_.service }}</b>
             {% else %}Запис змінено (послуги, кабінет, коментар){% if d_.start %} · {{ d_.start|replace('T',' ') }}{% endif %}{% endif %}{% if d_.forced %} · попри попередження{% endif %}
           {% elif A == 'appointment.status' %}Статус: <b>«{{ STATUSES.get(d_.status, d_.status) }}»</b>{% if d_.status == 'done' %} — візит закрито{% endif %}{% if d_.reason %} · {{ d_.reason }}{% endif %}
           {% elif A == 'sale.create' %}Оплата: чек <a href="/sales/{{ d_.sale }}">Ч-{{ d_.sale }}</a>{% if d_.total is not none %} на <b>{{ hm(d_.total) }}</b>{% endif %}

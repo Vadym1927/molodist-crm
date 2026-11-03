@@ -404,7 +404,8 @@
 .vx-h{display:flex;justify-content:space-between;align-items:center;margin-top:4px}.vx-h h4{margin:0;font:700 16px var(--head);letter-spacing:.1em;text-transform:uppercase;color:#2A2430}
 .vx-lnk{border:0;background:none;color:#3B3050;font:700 14.5px var(--sans);cursor:pointer;display:inline-flex;gap:8px;align-items:center;white-space:nowrap}
 .vx .vd-svc{border-radius:14px;padding:14px 16px;box-shadow:0 2px 10px rgba(42,36,48,.05)}.vx .vd-svc b{font-size:16px}.vx .vd-svc span{font-size:13.5px}
-.vx .vd-svc em{font-size:17px}.vx .vd-pen{width:40px;height:40px;border:1px solid #E9E5DF;border-radius:10px;background:#fff;display:grid;place-items:center;cursor:pointer;color:#3B3050}
+.vx .vd-svc em{font-size:17px}.vx .vd-del{color:#B23B2E;margin-left:6px}.vx .vd-del:hover{background:#FDECEA;border-color:#F3C2BC}
+.vx .vd-pen{width:40px;height:40px;border:1px solid #E9E5DF;border-radius:10px;background:#fff;display:grid;place-items:center;cursor:pointer;color:#3B3050}
 .vx-doc{display:flex;align-items:center;gap:16px;border:1px solid #ECE7E1;border-radius:14px;padding:12px 16px;box-shadow:0 2px 10px rgba(42,36,48,.05)}
 .vx-dav{width:62px;height:62px;border-radius:50%;flex:none;background:#E4DEEF center/cover;display:grid;place-items:center;color:#fff;font:600 18px var(--head);font-style:normal}
 .vx-doc>div{flex:1;min-width:0}.vx-doc a,.vx-doc b{display:block;font:700 16.5px var(--sans);color:#2A2430;text-decoration:none}.vx-doc span{font-size:14px;color:#6b6575}
@@ -523,6 +524,8 @@
     document.getElementById('ds-main').hidden=true;document.querySelectorAll('#vd .dd-s').forEach(function(x){x.hidden=x!==el});el.scrollTop=0};
   window.dsBack=function(){document.querySelectorAll('#vd .dd-s').forEach(function(x){x.hidden=true});document.getElementById('ds-main').hidden=false};
   window.visitClose=function(){DSB=null;document.getElementById('vd').classList.remove('on','wide');document.getElementById('vdb').classList.remove('on')};
+  window.vdSvcDel=function(aid,idx,nm){if(!confirm('Прибрати послугу «'+nm+'» з візиту? Її витратні теж приберуться.'))return;
+    fetch('/appointments/'+aid+'/services/'+idx+'/delete',{method:'POST',credentials:'same-origin'}).then(function(r){return r.json()}).then(function(j){if(j.error){alert(j.error);return}load(Q)})};
   window.vxCopy=function(b,t){var ok=function(){b.classList.add('ok');b.title='Скопійовано';setTimeout(function(){b.classList.remove('ok');b.title='Скопіювати номер'},1500)};
     if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(ok,function(){})}else{var x=document.createElement('textarea');x.value=t;document.body.appendChild(x);x.select();try{document.execCommand('copy');ok()}catch(e){}x.remove()}};
   window.vkAdd=function(f,pid){var fd=new FormData(f);fd.append('patient_id',pid);fd.append('back','/tasks');
