@@ -34,7 +34,7 @@
     <span class="nv-pt"><b>{{ _pn or ((appeal.name if appeal else '') or 'Оберіть пацієнта') }}</b><small>{{ (pt.phone if pt else (appeal.phone if appeal else '')) or '' }}{% if appeal and not pt and appeal.name %} · новий пацієнт{% endif %}</small></span><span class="nv-go">»</span></button>
 
   <div class="nv-sec"><span>Послуги</span></div>
-  <div class="nv-row"><label class="nv-date"><input type="date" name="day" value="{{ st.strftime('%Y-%m-%d') }}" required onchange="nvTimes()"><span class="nv-dl"></span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg></label>
+  <div class="nv-row"><div class="nv-dw"><input type="hidden" name="day" value="{{ st.strftime('%Y-%m-%d') }}"><button type="button" class="nv-date" onclick="nvCal(event)"><span class="nv-dl"></span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg></button><div class="nv-cal" hidden></div></div>
     <button type="button" class="nv-add" onclick="nvGo('svc')">+ Додати послугу</button></div>
   <div class="nv-g3"><label>Лікар<select name="doctor_id" onchange="nvDoc()"><option value="">—</option>{% for d in doctors %}<option value="{{ d.id }}" {{ 'selected' if doc==d.id }}>{{ d.name }}</option>{% endfor %}</select></label>
     <label>Початок<input type="time" name="time" step="300" value="{{ st.strftime('%H:%M') }}" required oninput="nvTimes()"></label>
@@ -48,7 +48,6 @@
   <div class="nv-sec"><span>Інше</span></div>
   <label class="nv-fl"><span>Нотатка</span><textarea name="comment" rows="3">{{ a.comment or '' if a else ((appeal.interest or '') if appeal else '') }}</textarea></label>
   <label class="nv-fl nv-src"><span>Джерело запису {% if not a %}<i>*</i>{% endif %}</span><select name="booking_source" {{ 'required' if not a }}><option value="">— оберіть —</option>{% for x in SOURCES %}<option {{ 'selected' if (a and a.booking_source == x) or (not a and appeal and x == 'Дзвінок' and false) }}>{{ x }}</option>{% endfor %}{% if a and a.booking_source and a.booking_source not in SOURCES %}<option selected>{{ a.booking_source }}</option>{% endif %}</select></label>
-  {% if cb_on and not (a and a.cb_record_id) %}<label class="sw"><input type="checkbox" name="to_cb" value="1"> створити запис і в CleverBox</label>{% endif %}
   <div class="apf-warn"></div>
   <button class="nv-save wide" type="submit"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v5h8V3M8 21v-7h8v7"/></svg>Зберегти</button>
   {% if a %}<input type="hidden" name="id" value="{{ a.id }}">{% endif %}
