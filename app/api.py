@@ -89,7 +89,7 @@ def list_patients(q: str | None = None, flag: str | None = None, doctor_id: int 
     words = set(norm(q).split()) if q else set()
     out = []
     for p in db.scalars(select(Patient).order_by(Patient.id)):
-        if words and not (words <= set(norm(p.full_name).split()) or (p.phone and q in p.phone)):
+        if words and not __import__("app.services.search", fromlist=["x"]).patient(q, p):
             continue
         plan = p.plans[0] if p.plans else None
         if doctor_id and (not plan or plan.doctor_id != doctor_id):

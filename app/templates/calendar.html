@@ -427,7 +427,7 @@
 </script>
 {% set _qp = request.query_params %}{% if _qp.get('newappt') %}<script>apOpenNew({{ (doc or 0) }}, '', '{{ ('&patient=' ~ _qp.get('patient')) if _qp.get('patient') }}{{ ('&appeal=' ~ _qp.get('appeal')) if _qp.get('appeal') }}');</script>{% endif %}
 <script>
-function calFind(v){v=(v||'').trim().toLowerCase();var n=0;document.querySelectorAll('.tg .blk').forEach(function(b){var ok=!v||(b.dataset.q||'').indexOf(v)>=0;b.classList.toggle('dim',!ok);b.classList.toggle('hit',!!v&&ok);if(v&&ok)n++});
+function calFind(v){v=(v||'').trim().toLowerCase();var n=0;document.querySelectorAll('.tg .blk').forEach(function(b){var hq=(b.dataset.q||'').replace(/[ʼ'’]/g,''),ok=!v||v.replace(/[ʼ'’]/g,'').split(/\s+/).every(function(w){return hq.indexOf(w)>=0});b.classList.toggle('dim',!ok);b.classList.toggle('hit',!!v&&ok);if(v&&ok)n++});
   var f=document.querySelector('.tg .blk.hit');if(f)f.scrollIntoView({block:'center',inline:'center',behavior:'smooth'});return n}
 function calPx(){var w=document.getElementById('tgw');return w?parseFloat(getComputedStyle(w).getPropertyValue('--px'))||1.3:1.3}
 function calFit(){var w=document.getElementById('tgw'),bd=w&&w.querySelector('.tg-body');if(!w||!bd)return;

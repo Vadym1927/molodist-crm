@@ -61,7 +61,8 @@ def library(db: Session, tab: str, q: str = "", page: int = 1, per: int = 96) ->
     sel = [f for f in rows if cat(f) == tab]
     if q.strip():
         ql = q.strip().lower()
-        sel = [f for f in sel if ql in (names.get(f.patient_id) or "").lower() or ql in (f.caption or "").lower()]
+        from .search import match as _m
+        sel = [f for f in sel if _m(ql, names.get(f.patient_id) or "", f.caption or "")]
     pages = max(1, -(-len(sel) // per))
     page = min(max(1, page), pages)
     return {"tab": tab, "counts": counts, "total": len(sel), "page": page, "pages": pages,

@@ -1150,11 +1150,13 @@ def lookup_patients(q: str = "", user: User = Depends(current_user), db: Session
     if not is_phone and len(q) < 2:
         return JSONResponse([])
     ql = q.lower()
+    from .services import search as _srch
+    _qw = _srch.qwords(q)
     d9 = digits.lstrip("0")[-9:] if len(digits) >= 10 else digits                # 0981234567 / 380981234567 → однаково
     out = []
     for p_ in db.scalars(select(Patient).order_by(Patient.full_name)):
         ph = _re.sub(r"\D", "", p_.phone or "")
-        if (is_phone and ph and (digits in ph or (d9 and d9 in ph))) or (not is_phone and ql in (p_.full_name or "").lower()):
+        if (is_phone and ph and (digits in ph or (d9 and d9 in ph))) or (not is_phone and _srch.match(_qw, p_.full_name)):
             if patient_visible(user, p_):
                 out.append({"id": p_.id, "name": p_.full_name, "phone": p_.phone or "", "bonus": None})
         if len(out) >= 15:
@@ -1506,7 +1508,7 @@ def sales_list(request: Request, df: str = "", dt_: str = "", q: str = "", d: st
     rows = db.scalars(select(Sale).where(Sale.at >= a_, Sale.at <= b_).order_by(Sale.at.desc()).limit(2000)).all()
     if q.strip():
         ql = q.strip().lower()
-        rows = [s_ for s_ in rows if ql == str(s_.id) or (s_.patient and ql in s_.patient.full_name.lower()) or any(ql in i.name.lower() for i in s_.items)]
+        rows = [s_ for s_ in rows if ql == str(s_.id) or (s_.patient and __import__("app.services.search", fromlist=["x"]).match(ql, s_.patient.full_name)) or any(ql in i.name.lower() for i in s_.items)]
     paid = [s_ for s_ in rows if s_.status == "paid"]
     by_m: dict = {}
     for s_ in paid:
@@ -3020,7 +3022,7 @@ def clients_page(request: Request, seg: str = "all", q: str = "", doctor: int | 
     for p in db.scalars(select(Patient).options(selectinload(Patient.plans)).order_by(Patient.full_name)):
         if not patient_visible(user, p):
             continue
-        if words and not (words <= set(norm(p.full_name).split()) or (p.phone and q.strip() in (p.phone or ""))):
+        if words and not __import__("app.services.search", fromlist=["x"]).patient(q, p):
             continue
         if doctor and p.doctor_id != doctor and not any(pl.doctor_id == doctor for pl in p.plans):
             continue
@@ -8026,7 +8028,7 @@ def plans_board(request: Request, doc: str = "", q: str = "", plan: int | None =
         statuses = [ps for ps in statuses if ps.plan.doctor_id == doc_id]
     if q:
         words = set(norm(q).split())
-        statuses = [ps for ps in statuses if words <= set(norm(ps.plan.patient.full_name + " " + (ps.plan.patient.phone or "")).split())
+        statuses = [ps for ps in statuses if __import__("app.services.search", fromlist=["x"]).match(list(words), ps.plan.patient.full_name, ps.plan.patient.phone or "")
                     or (ps.plan.patient.phone and q.strip() in ps.plan.patient.phone)]
     cols = {k: [] for k, *_ in PLAN_COLUMNS}
     for ps in statuses:

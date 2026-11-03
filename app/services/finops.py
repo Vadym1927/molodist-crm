@@ -255,7 +255,7 @@ def sales_rows(db: Session, cs: list[Check], q: str = "", staff: str = "") -> li
                   "amount": item_amount(it), "staff": it.get("initiator_name") or ""} for it in c.items or []]
         if staff and not any(staff == i["staff"] for i in items) and staff != (c.author or ""):
             continue
-        if ql and ql not in (p.full_name.lower() if p else "") and ql not in str(c.id) and \
+        if ql and not (p and __import__("app.services.search", fromlist=["x"]).match(ql, p.full_name)) and ql not in str(c.id) and \
                 not any(ql in i["name"].lower() for i in items) and ql not in ((p.phone or "") if p else ""):
             continue
         out.append({"check": c, "patient": p, "lines": items, "pays": c.payments or []})
@@ -482,7 +482,7 @@ def bonuses(db: Session, d_from: date, d_to: date, q: str = "") -> dict:
         for pay in c.payments or []:
             if "бонус" in (pay.get("payment_name") or "").lower():
                 p = pats.get(c.patient_id)
-                if ql and not (p and (ql in p.full_name.lower() or ql in (p.phone or ""))):
+                if ql and not (p and __import__("app.services.search", fromlist=["x"]).patient(ql, p)):
                     continue
                 spends.append({"at": c.date, "patient": p, "amount": float(pay.get("amount") or 0), "check": c.id,
                                "total": c.amount, "name": pay.get("payment_name")})

@@ -131,7 +131,8 @@ def listing(db: Session, f: dict) -> list[Appeal]:
         rows = [a for a in rows if f["mark"] in (a.marks or [])]
     if f.get("q"):
         ql, pk = f["q"].strip().lower(), phone_key(f["q"])
-        rows = [a for a in rows if ql in (a.name or "").lower() or (len(pk) >= 4 and pk in re.sub(r"\D", "", a.phone or ""))
+        from .search import match as _m
+        rows = [a for a in rows if _m(ql, a.name or "") or (len(pk) >= 4 and pk in re.sub(r"\D", "", a.phone or ""))
                 or ql in (a.comment or "").lower() or ql == str(a.id)]
     if f.get("due"):
         now = datetime.now()
