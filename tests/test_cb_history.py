@@ -50,3 +50,21 @@ def test_patient_visits_open_calendar():
         h = c.get(f"/patients/{pid}").text
         assert f"/calendar?start=2024-10-31&open={aid}" in h and "Гігієна Обличчя Demax" in h
         assert "get('open')" in c.get("/calendar?start=2024-10-31").text
+
+
+def test_appointment_time_edit():
+    from datetime import timedelta
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        p = Patient(full_name="Час Пацієнтка"); db.add(p); db.flush()
+        t = datetime(2026, 12, 10, 13, 30)
+        a = Appointment(patient_id=p.id, start=t, end=t + timedelta(minutes=60), services=[{"id": None, "name": "Консультація", "price": 2500, "minutes": 60}])
+        db.add(a); db.commit(); aid = a.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        assert 'onclick="vtOpen()"' in c.get(f"/calendar/visit?appt={aid}").text
+        j = c.post(f"/appointments/{aid}/time", json={"day": "2026-12-11", "time": "15:00", "minutes": ["45"], "force": True}).json()
+        assert j["ok"] and j["day"] == "2026-12-11"
+    with SessionLocal() as db:
+        a = db.get(Appointment, aid)
+        assert a.start == datetime(2026, 12, 11, 15, 0) and a.end == datetime(2026, 12, 11, 15, 45) and a.services[0]["minutes"] == 45

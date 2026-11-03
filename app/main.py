@@ -1282,6 +1282,37 @@ async def appointment_save(request: Request, user: User = Depends(require("book"
     return JSONResponse({"ok": True, "id": a.id, "msg": msg, "day": a.start.date().isoformat()})
 
 
+@app.post("/appointments/{aid:int}/time")
+async def appointment_time(aid: int, request: Request, user: User = Depends(require("book")), db: Session = Depends(db_dep)):
+    """Олівець у вікні візиту: змінити дату, час початку й тривалість послуг. {day, time, minutes:[хв по послугах], force}"""
+    from .services import appointments as aps
+    from .models import Appointment
+    a = db.get(Appointment, aid) or (_ for _ in ()).throw(HTTPException(404))
+    if a.historic:
+        return JSONResponse({"error": "Це візит з історії CleverBox — час не змінюється"})
+    f = await request.json()
+    try:
+        start = datetime.fromisoformat(f"{f.get('day')}T{f.get('time')}")
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "Вкажіть дату й час"})
+    mins = [max(5, min(600, int(x))) for x in (f.get("minutes") or []) if str(x).strip().isdigit()]
+    svcs = [dict(x) for x in a.services or []]
+    for i, m in enumerate(mins[:len(svcs)]):
+        svcs[i]["minutes"] = m
+    total = sum(int(x.get("minutes") or 30) for x in svcs) or (mins[0] if mins else a.minutes)
+    end = start + timedelta(minutes=total)
+    warn = aps.conflicts(db, a.doctor_id, start, end, a.place, a.resource, a.id, a.patient_id)
+    if warn and not f.get("force"):
+        return JSONResponse({"warnings": warn})
+    old = a.start
+    a.services, a.start, a.end, a.updated_at = svcs, start, end, datetime.utcnow()
+    db.commit()
+    audit(db, "appointment.save", "patient", a.patient_id, user=user, appt=a.id, start=a.start.isoformat(timespec="minutes"),
+          doctor=a.doctor_id, forced=bool(warn), moved=(old != a.start) or None,
+          frm=old.isoformat(timespec="minutes") if old != a.start else None, via="time")
+    return JSONResponse({"ok": True, "day": a.start.date().isoformat()})
+
+
 @app.post("/appointments/{aid:int}/status")
 def appointment_status(aid: int, status: str = Form(...), reason: str = Form(""), back: str = Form(""),
                        user: User = Depends(require("book")), db: Session = Depends(db_dep)):

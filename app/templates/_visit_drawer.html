@@ -50,9 +50,19 @@
 
       <div class="vd-sec"><h4>Послуги · {{ c.start|dt('%d.%m.%Y') }}</h4>
         {% if a and can(user,'book') %}<button type="button" class="vd-btn ghost" onclick="visitClose();apptOpen({{ a.id }}, 1)">＋ Додати послугу</button>{% endif %}</div>
-      {% for s in c.services %}<div class="vd-svc"><div><b>{{ s.name }}</b><span>{{ s.start|dt('%H:%M') }} – {{ s.end|dt('%H:%M') }} · {{ s.minutes }} хв</span></div><em>{{ money(s.price) }}</em></div>
+      {% set _edt = a and not a.historic and can(user,'book') %}
+      {% for s in c.services %}<div class="vd-svc"><div><b>{{ s.name }}</b><span>{{ s.start|dt('%H:%M') }} – {{ s.end|dt('%H:%M') }} · {{ s.minutes }} хв</span></div>
+        {% if _edt %}<button type="button" class="vd-pen" title="Змінити час візиту" onclick="vtOpen()"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg></button>{% endif %}<em>{{ money(s.price) }}</em></div>
       {% else %}<div class="vd-empty">Послуги не вказані</div>{% endfor %}
       {% if c.services|length > 1 %}<div class="vd-tot"><span>Разом</span><b>{{ money(c.total) }}</b></div>{% endif %}
+      {% if _edt %}<div class="vt-bg" id="vt" hidden onclick="if(event.target===this)this.hidden=true"><div class="vt">
+        <h3>Час візиту</h3>
+        <div class="vt-r"><label>Дата<input type="date" id="vt-d" value="{{ c.start.strftime('%Y-%m-%d') }}"></label><label>Початок<input type="time" id="vt-t" step="300" value="{{ c.start.strftime('%H:%M') }}" oninput="vtCalc()"></label></div>
+        {% for s in c.services %}<div class="vt-s"><span>{{ s.name }}</span><label><input type="number" class="vt-m" min="5" max="600" step="5" value="{{ s.minutes }}" oninput="vtCalc()"> хв</label></div>{% endfor %}
+        <div class="vt-e">Закінчення: <b id="vt-end">{{ c.end.strftime('%H:%M') }}</b></div>
+        <div class="vt-w" id="vt-w"></div>
+        <div class="vt-a"><button type="button" class="vd-btn ghost" onclick="document.getElementById('vt').hidden=true">Скасувати</button><button type="button" class="vd-btn main" id="vt-ok" onclick="vtSave({{ a.id }})">Зберегти</button></div>
+      </div></div>{% endif %}
 
       <div class="vd-doc">{% if d %}<i class="vd-av s" style="{% if d.photo_url %}background-image:url('{{ d.photo_url }}');{% else %}background-color:{{ color(d) }};{% endif %}">{{ '' if d.photo_url else initials(d.name) }}</i>
         <div><a href="/specialists/{{ d.id }}">{{ d.name }}</a><span>{{ d.position or 'Спеціаліст' }}</span></div>{% else %}<div><b>Спеціаліст не визначений</b><span>{{ c.vs[0].master_name if c.vs else '' }}</span></div>{% endif %}</div>

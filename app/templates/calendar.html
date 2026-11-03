@@ -316,6 +316,12 @@
 .vd-sec{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px}
 .vd-sec h4{margin:0;font:600 11.5px var(--head);letter-spacing:.14em;text-transform:uppercase;color:#3B3050}
 .vd-svc{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #ECE7E1;border-left:4px solid #5C4B82;border-radius:14px;padding:12px 14px}
+.vd-pen{flex:none;border:1px solid #E6E0D8;background:#fff;border-radius:10px;width:34px;height:34px;display:grid;place-items:center;color:#5C4B82;cursor:pointer}.vd-pen:hover{background:#F1EDF8;border-color:#C9BFE6}
+.vt-bg{position:fixed;inset:0;background:rgba(42,36,48,.4);z-index:130;display:flex;align-items:center;justify-content:center;padding:16px}.vt-bg[hidden]{display:none}
+.vt{background:#fff;border-radius:18px;width:min(460px,100%);padding:20px 22px;display:grid;gap:12px;box-shadow:0 30px 80px rgba(42,36,48,.35)}.vt h3{margin:0;font:600 16px var(--head);text-transform:uppercase;letter-spacing:.08em}
+.vt-r{display:grid;grid-template-columns:1fr 1fr;gap:10px}.vt label{display:grid;gap:4px;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496}
+.vt-s{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13.5px}.vt-s label{display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-weight:500}.vt-s input{width:80px}
+.vt-e{font-size:14px}.vt-w{color:#9A6A00;font-size:13px}.vt-w:empty{display:none}.vt-a{display:flex;gap:8px;justify-content:flex-end}
 .vd-svc div{flex:1;min-width:0}.vd-svc b{display:block;font:600 14.5px var(--sans);color:#2A2430}.vd-svc span{font-size:12.5px;color:#6b6575;font-variant-numeric:tabular-nums}
 .vd-svc em,.vd-sum{font-style:normal;font:700 15px var(--sans);color:#2A2430;white-space:nowrap;font-variant-numeric:tabular-nums}
 .vd-tot{display:flex;justify-content:space-between;padding:4px 6px;font-size:13.5px;color:#6b6575}.vd-tot b{color:#2A2430;font-variant-numeric:tabular-nums}
@@ -377,6 +383,14 @@
     box.innerHTML='<div class="vd-h"><div><small>Продаж</small><h3>Чек Ч-'+id+'</h3></div><a class="btn ghost" href="/sales/'+id+'" target="_blank" style="margin-left:auto">↗ Окремо</a><button type="button" class="vd-x" onclick="visitClose()">×</button></div>'+
       '<iframe src="/sales/'+id+'" style="flex:1;width:100%;border:0;background:#F7F4F0"></iframe>';dsBackBtn();return false};
   (function(){var o=new URLSearchParams(location.search).get('open');if(o&&/^\d+$/.test(o))setTimeout(function(){load('appt='+o)},50)})();
+  window.vtOpen=function(){var v=document.getElementById('vt');v.hidden=false;document.getElementById('vt-w').textContent='';document.getElementById('vt-ok').dataset.force='';vtCalc()};
+  window.vtCalc=function(){var t=document.getElementById('vt-t').value;if(!t)return;var m=0;document.querySelectorAll('#vt .vt-m').forEach(function(i){m+=(+i.value||0)});
+    var p=t.split(':'),x=(+p[0])*60+(+p[1])+m;document.getElementById('vt-end').textContent=('0'+Math.floor(x/60)%24).slice(-2)+':'+('0'+x%60).slice(-2)};
+  window.vtSave=function(id){var b=document.getElementById('vt-ok'),w=document.getElementById('vt-w');
+    var body={day:document.getElementById('vt-d').value,time:document.getElementById('vt-t').value,minutes:[].map.call(document.querySelectorAll('#vt .vt-m'),function(i){return i.value}),force:!!b.dataset.force};
+    fetch('/appointments/'+id+'/time',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)}).then(function(r){return r.json()}).then(function(j){
+      if(j.error){w.textContent=j.error;return}if(j.warnings){w.textContent='⚠ '+j.warnings.join('; ')+' — натисніть «Зберегти» ще раз, щоб усе одно зберегти';b.dataset.force='1';return}
+      var u=new URL(location.href);u.searchParams.set('start',j.day);u.searchParams.set('open',id);location.href=u.pathname+u.search})};
   window.visitOpen=function(e,q){if(e&&(e.metaKey||e.ctrlKey||e.shiftKey))return true;if(e){e.preventDefault();e.stopPropagation()}load(q);return false};
   window.vdAdopt=function(ids,then){var fd=new FormData();fd.append('v',ids);
     fetch('/calendar/visit/adopt',{method:'POST',body:fd,credentials:'same-origin',headers:{'Accept':'application/json'}}).then(function(r){return r.json()})
