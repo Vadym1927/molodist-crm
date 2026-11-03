@@ -90,3 +90,16 @@ def test_ringing_without_event_param():
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
         c.post(f"/api/public/telephony/ringostat/{hook}", json={"caller": "380631110000", "status": "$disposition", "dialog": "$billsec"})
         assert c.get("/telephony/live").json()["calls"]
+
+
+def test_ringostat_form_fields_like_openclaw():
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        tel.save(db, "ringostat", {"project_id": "1", "auth_key": "k"}, "Дзвінок", True, False)
+        hook = tel.public(db)["hook"]
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        c.post(f"/api/public/telephony/ringostat/{hook}?event=ringing",
+               json={"call_number": "380731110099", "recive_number": "380933756437", "reciver": "", "ID": "ua20_-1.1", "type": "in", "project": "210608", "connected": ""})
+        lv = c.get("/telephony/live").json()["calls"]
+        assert lv and lv[0]["phone"] == "380731110099"

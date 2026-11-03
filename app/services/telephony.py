@@ -244,12 +244,12 @@ def parse(provider: str, data: dict) -> dict:
         dur = int(float(_pick(flat, "billsec", "dialog", "talk_time", "duration", "call_duration") or 0))
     except (TypeError, ValueError):
         dur = None
-    phone = _pick(flat, "externalNumber", "caller", "callerNumber", "phone", "src", "from", "client_phone")
+    phone = _pick(flat, "externalNumber", "caller", "call_number", "callerNumber", "phone", "src", "from", "client_phone")
     if direction == "out":
-        phone = _pick(flat, "externalNumber", "dst", "callee", "to", "phone", "client_phone") or phone
-    return {"ext_id": str(_pick(flat, "generalCallID", "callID", "uniqueid", "uid", "call_id", "id") or "")[:120] or None,
+        phone = _pick(flat, "externalNumber", "dst", "callee", "recive_number", "receive_number", "to", "phone", "client_phone") or phone
+    return {"ext_id": str(_pick(flat, "generalCallID", "callID", "uniqueid", "uid", "call_id", "id", "ID") or "")[:120] or None,
             "direction": direction, "phone": str(phone or "")[:64] or None, "status": status, "duration": dur,
-            "employee": str(_pick(flat, "employeeName", "employee_fio", "employee", "manager", "dst_name") or "")[:120] or None,
+            "employee": str(_pick(flat, "employeeName", "employee_fio", "employee", "connected", "reciver", "receiver", "dst_name") or "")[:120] or None,
             "record_url": str(_pick(flat, "linkToCallRecordInMyBusiness", "recording", "recording_wav", "record_link", "record_url", "record") or "")[:500] or None}
 
 
