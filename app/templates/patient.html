@@ -8,21 +8,49 @@
   <div class="row" style="align-items:flex-start">
   <a class="btn ghost" href="/patients/{{ p.id }}/print" target="_blank">Друк / PDF</a>
   {% if p.files %}<a class="btn ghost" href="/patients/{{ p.id }}/files.zip">Файли ZIP</a>{% endif %}
-  <details><summary class="btn ghost">Редагувати картку</summary>
-    <form method="post" action="/patients/{{ p.id }}" class="card grid" style="gap:8px;margin-top:8px;min-width:300px">
-      <input name="full_name" value="{{ p.full_name }}" required>
-      <input name="phone" value="{{ p.phone or '' }}" placeholder="Телефон (для привʼязки до CleverBox)">
-      <input name="email" type="email" value="{{ p.email or '' }}" placeholder="Email">
-      <input name="cleverbox_id" value="{{ p.cleverbox_id or '' }}" placeholder="ID пацієнта в CleverBox">
-      <select name="gender"><option value="">— стать —</option><option value="жіноча" {{ 'selected' if p.gender=='жіноча' }}>Жіноча</option><option value="чоловіча" {{ 'selected' if p.gender=='чоловіча' }}>Чоловіча</option></select>
-      <input name="address" value="{{ p.address or '' }}" placeholder="Місто / адреса">
-      <input name="source" value="{{ p.source or '' }}" placeholder="Джерело звернення">
-      <select name="communication_channel"><option value="">— канал звʼязку —</option>{% for ch in ['Телефон','Telegram','Viber','SMS','Email','Instagram'] %}<option value="{{ ch }}" {{ 'selected' if p.communication_channel==ch }}>{{ ch }}</option>{% endfor %}</select>
-      <input name="client_groups" value="{{ (p.client_groups or [])|join(', ') }}" placeholder="Групи / теги через кому">
-      <div class="row"><input name="cb_balance" value="{{ p.cb_balance if p.cb_balance is not none else '' }}" placeholder="Баланс, ₴"><input name="cb_bonus" value="{{ p.cb_bonus if p.cb_bonus is not none else '' }}" placeholder="Бонуси, ₴"></div>
-      {% if user.role != 'doctor' %}<select name="doctor_id"><option value="">— лікар —</option>{% for d in doctors %}<option value="{{ d.id }}" {{ 'selected' if p.doctor_id==d.id }}>{{ d.name }}</option>{% endfor %}</select>{% endif %}
-      <textarea name="notes" rows="3" placeholder="Нотатки адміністратора">{{ p.notes or '' }}</textarea>
-      <button class="btn">Зберегти</button></form></details>
+  <button type="button" class="btn ghost" onclick="document.getElementById('pe-d').showModal()">Редагувати картку</button>
+  {% set _w = p.full_name.split() %}
+  <dialog id="pe-d" class="pe-d"><form method="post" action="/patients/{{ p.id }}" class="pe">
+    <div class="pe-h"><h2>Картка пацієнта</h2><button type="button" class="pe-x" onclick="this.closest('dialog').close()">×</button></div>
+    <div class="pe-s">ПІБ</div>
+    <div class="pe-g3"><label>Прізвище *<input name="last_name" value="{{ _w[0] if _w|length > 0 else '' }}" required></label>
+      <label>Імʼя *<input name="first_name" value="{{ _w[1] if _w|length > 1 else '' }}" required></label>
+      <label>По батькові<input name="middle_name" value="{{ _w[2:]|join(' ') }}"></label></div>
+    <div class="pe-s">Контакти</div>
+    <div class="pe-g3"><label>Телефон<input name="phone" value="{{ p.phone or '' }}" inputmode="tel"></label>
+      <label>Email<input name="email" type="email" value="{{ p.email or '' }}"></label>
+      <label>Основний канал звʼязку<select name="communication_channel"><option value="">—</option>{% for ch in ['Телефон','Telegram','Viber','SMS','Email','Instagram'] %}<option value="{{ ch }}" {{ 'selected' if p.communication_channel==ch }}>{{ ch }}</option>{% endfor %}</select></label>
+      <label>Instagram<input name="instagram" value="{{ p.instagram or '' }}" placeholder="@нік"></label>
+      <label>Viber<input name="viber" value="{{ p.viber or '' }}"></label>
+      <label>Telegram<input name="telegram_contact" value="{{ p.telegram_contact or '' }}" placeholder="@нік"></label></div>
+    <div class="pe-s">Особисте</div>
+    <div class="pe-g3"><label>Дата народження<input type="date" name="birthday" value="{{ p.birthday.isoformat() if p.birthday else '' }}"></label>
+      <label>Стать<select name="gender"><option value="">—</option><option value="жіноча" {{ 'selected' if p.gender=='жіноча' }}>Жіноча</option><option value="чоловіча" {{ 'selected' if p.gender=='чоловіча' }}>Чоловіча</option></select></label>
+      <label>Місто / адреса<input name="address" value="{{ p.address or '' }}"></label>
+      <label>Напій, якому надає перевагу<input name="drink" value="{{ p.drink or '' }}"></label>
+      <label>Улюблений лікар (з CleverBox)<input name="preferred_doctor" value="{{ p.preferred_doctor or '' }}"></label>
+      <label>Джерело звернення<input name="source" value="{{ p.source or '' }}"></label></div>
+    <div class="pe-s">У клініці</div>
+    <div class="pe-g3">{% if user.role != 'doctor' %}<label>Лікар пацієнта<select name="doctor_id"><option value="">—</option>{% for d in doctors %}<option value="{{ d.id }}" {{ 'selected' if p.doctor_id==d.id }}>{{ d.name }}</option>{% endfor %}</select></label>{% endif %}
+      <label>Групи / теги (через кому)<input name="client_groups" value="{{ (p.client_groups or [])|join(', ') }}"></label>
+      <label>ID у CleverBox<input name="cleverbox_id" value="{{ p.cleverbox_id or '' }}" inputmode="numeric"></label>
+      <label>Баланс, ₴<input name="cb_balance" value="{{ p.cb_balance if p.cb_balance is not none else '' }}" inputmode="decimal"></label>
+      <label>Бонуси, ₴<input name="cb_bonus" value="{{ p.cb_bonus if p.cb_bonus is not none else '' }}" inputmode="decimal"></label></div>
+    <label class="pe-w">Нотатки адміністратора<textarea name="notes" rows="3">{{ p.notes or '' }}</textarea></label>
+    <div class="pe-a"><button type="button" class="btn ghost" onclick="this.closest('dialog').close()">Скасувати</button><button class="btn">Зберегти</button></div>
+  </form></dialog>
+  <style>
+  .pe-d{border:0;border-radius:20px;padding:0;width:min(900px,96vw);max-height:92vh;box-shadow:0 30px 80px rgba(42,36,48,.35)}.pe-d::backdrop{background:rgba(42,36,48,.45)}
+  .pe{padding:0 24px 22px;display:grid;gap:10px}
+  .pe-h{display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#fff;padding:18px 0 10px;z-index:2;border-bottom:1px solid #F1EDE8}
+  .pe-h h2{margin:0;font:600 20px var(--head);letter-spacing:.06em;text-transform:uppercase}.pe-x{border:0;background:#F7F4F0;width:38px;height:38px;border-radius:10px;font-size:22px;cursor:pointer}
+  .pe-s{font:700 11px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#5C4B82;margin-top:8px}
+  .pe-g3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 12px}
+  .pe label{display:grid;gap:5px;font:700 11px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:#8a8496}
+  .pe label input,.pe label select,.pe label textarea{font:500 14.5px var(--sans);text-transform:none;letter-spacing:0;color:#2A2430;height:44px}.pe label textarea{height:auto}
+  .pe-a{display:flex;justify-content:flex-end;gap:8px;margin-top:6px}
+  @media(max-width:700px){.pe-g3{grid-template-columns:1fr}}
+  </style>
   </div>
 </div>
 

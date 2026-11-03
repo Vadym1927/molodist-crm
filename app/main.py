@@ -794,14 +794,31 @@ def patient_merge(pid: int, target: int = Form(...), user: User = Depends(requir
 
 
 @app.post("/patients/{pid:int}")
-def patient_update(pid: int, full_name: str = Form(...), phone: str = Form(""), cleverbox_id: str = Form(""),
+def patient_update(pid: int, full_name: str = Form(""), last_name: str = Form(""), first_name: str = Form(""), middle_name: str = Form(""),
+                   birthday: str = Form(""), instagram: str = Form(None), viber: str = Form(None), telegram_contact: str = Form(None),
+                   drink: str = Form(None), preferred_doctor: str = Form(None),
+                   phone: str = Form(""), cleverbox_id: str = Form(""),
                    doctor_id: str = Form(""), notes: str = Form(""), email: str = Form(""),
                    gender: str = Form(""), address: str = Form(""), source: str = Form(""),
                    communication_channel: str = Form(""), client_groups: str = Form(""),
                    cb_balance: str = Form(""), cb_bonus: str = Form(""),
                    user: User = Depends(require("patient_edit")), db: Session = Depends(db_dep)):
     p = _patient_or_403(db, user, pid)
-    p.full_name, p.phone, p.notes = full_name.strip(), phone.strip() or None, notes.strip() or None
+    _nm = " ".join(x.strip() for x in (last_name, first_name, middle_name) if x and x.strip()) or " ".join(full_name.split())
+    if not _nm:
+        raise HTTPException(400, "Вкажіть прізвище та імʼя")
+    p.full_name, p.phone, p.notes = _nm[:200], phone.strip() or None, notes.strip() or None
+    if birthday.strip():
+        try:
+            p.birthday = date.fromisoformat(birthday.strip())
+        except ValueError:
+            pass
+    else:
+        p.birthday = None
+    for _k, _v in (("instagram", instagram), ("viber", viber), ("telegram_contact", telegram_contact), ("drink", drink),
+                   ("preferred_doctor", preferred_doctor)):
+        if _v is not None:
+            setattr(p, _k, _v.strip()[:200] or None)
     p.cleverbox_id = int(cleverbox_id) if cleverbox_id.strip().isdigit() else None
     p.email, p.gender, p.address = email.strip() or None, gender.strip() or None, address.strip() or None
     p.source, p.communication_channel = source.strip() or None, communication_channel.strip() or None
