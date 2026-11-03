@@ -79,3 +79,14 @@ def test_agent_api_calls_ai():
         assert r.json()["ai_score"] == 50
         assert cl.get("/api/v1/calls/pending-ai", headers=h).json()["calls"] == []
         assert cl.get("/api/v1/patients", headers=h).status_code == 403
+
+
+def test_ringing_without_event_param():
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        tel.save(db, "ringostat", {"project_id": "1", "auth_key": "k"}, "Дзвінок", True, False)
+        hook = tel.public(db)["hook"]
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        c.post(f"/api/public/telephony/ringostat/{hook}", json={"caller": "380631110000", "status": "$disposition", "dialog": "$billsec"})
+        assert c.get("/telephony/live").json()["calls"]
