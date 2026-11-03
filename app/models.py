@@ -1237,6 +1237,22 @@ class PaymentAlloc(Base):
         return ("mono_manual" if self.by_user else "auto") if self.txn_id else "manual"
 
 
+class InvoiceJob(Base):
+    """Накладна в черзі на розпізнавання зовнішнім агентом (OpenClaw на VPS) через API v1 /invoices."""
+    __tablename__ = "invoice_jobs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, index=True)
+    user_id: Mapped[int | None] = mapped_column(Integer)
+    filename: Mapped[str] = mapped_column(String(300))
+    mime: Mapped[str | None] = mapped_column(String(80))
+    path: Mapped[str] = mapped_column(String(500))
+    status: Mapped[str] = mapped_column(String(12), default="pending", index=True)   # pending | taken | done | error
+    taken_at: Mapped[datetime | None] = mapped_column(DateTime)
+    done_at: Mapped[datetime | None] = mapped_column(DateTime)
+    result: Mapped[dict | None] = mapped_column(JSON)
+    error: Mapped[str | None] = mapped_column(String(500))
+
+
 class Check(Base):
     """Чек CleverBox (/sales/checks) — джерело фактичної виручки."""
     __tablename__ = "checks"

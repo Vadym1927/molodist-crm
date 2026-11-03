@@ -2728,7 +2728,7 @@ def key_create(request: Request, name: str = Form(...), scopes: list[str] = Form
                user: User = Depends(require("api")), db: Session = Depends(db_dep)):
     raw, prefix, h = new_api_key()
     k = ApiKey(name=name.strip(), prefix=prefix, key_hash=h,
-               scopes=[s for s in scopes if s in ("read", "write", "medical", "bot", "calls")] or ["read"], created_by=user.id)
+               scopes=[s for s in scopes if s in ("read", "write", "medical", "bot", "calls", "invoices")] or ["read"], created_by=user.id)
     db.add(k)
     db.commit()
     audit(db, "api_key.create", "api_key", k.id, user=user, name=k.name, scopes=k.scopes)
@@ -4659,6 +4659,12 @@ async def stock_recognize(file: UploadFile = File(...), user: User = Depends(req
     data = await file.read()
     if not data or len(data) > 20 * 1024 * 1024:
         return JSONResponse({"error": "Файл порожній або більший за 20 МБ"}, status_code=400)
+    if invoice_ai.engine(db) == "agent" and invoice_ai.needs_ai(file.filename or ""):
+        loc = await asyncio.to_thread(invoice_ai.try_local, data, file.filename or "")
+        if not loc:
+            j = invoice_ai.queue(db, data, file.filename or "file", file.content_type, user.id)
+            audit(db, "stock.recognize_queue", user=user, file=file.filename, job=j.id)
+            return JSONResponse({"queued": j.id, "message": "Передано агенту на розпізнавання"})
     try:
         parsed, src = await asyncio.to_thread(invoice_ai.extract, db, data, file.filename or "file", file.content_type)
         res = invoice_ai.match(db, parsed)
@@ -4669,6 +4675,23 @@ async def stock_recognize(file: UploadFile = File(...), user: User = Depends(req
         return JSONResponse({"error": f"Не вдалося розпізнати: {str(e)[:160]}"}, status_code=400)
     res["source"] = src
     audit(db, "stock.recognize", user=user, file=file.filename, source=src, lines=len(res["lines"]), matched=res["matched"])
+    return JSONResponse(res)
+
+
+@app.get("/stock/recognize/{jid}")
+def stock_recognize_poll(jid: int, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    """Стан накладної в черзі агента: pending / taken → чекати; done → результат як у /stock/recognize."""
+    from .models import InvoiceJob
+    from .services import invoice_ai
+    j = db.get(InvoiceJob, jid)
+    if not j:
+        return JSONResponse({"error": "Задачу не знайдено"}, status_code=404)
+    if j.status == "error":
+        return JSONResponse({"error": "Агент не розпізнав: " + (j.error or "помилка")}, status_code=400)
+    if j.status != "done":
+        return JSONResponse({"queued": j.id, "status": j.status, "wait": int((datetime.now() - j.created_at).total_seconds())})
+    res = invoice_ai.match(db, invoice_ai.normalize(j.result or {}))
+    res["source"] = "agent"
     return JSONResponse(res)
 
 
@@ -5194,7 +5217,7 @@ def settings_page(request: Request, user: User = Depends(current_user), db: Sess
         _pp = _pls.public(db)
         _ra = [a_ for a_ in _pp["accounts"] if a_["ready"]]
         st_["/settings/payments"] = f"підключено {len(_ra)}" if _ra else "не підключено"
-        st_["/settings/keys?s=ai#ai"] = "ключ задано" if invoice_ai.api_key(db) else "не задано"
+        st_["/settings/keys?s=ai#ai"] = "агент на VPS" if invoice_ai.engine(db) == "agent" else ("ключ задано" if invoice_ai.api_key(db) else "не задано")
         st_["/settings/keys?s=shop#shop"] = "підключено" if shop_express.creds(db).get("login") else "не підключено"
         acc = chb.accounts(db)
         st_["/reports?r=fop"] = f"підключено {len(acc)} ФОП" if acc else "не підключено"
@@ -6309,6 +6332,8 @@ def settings_keys(request: Request, user: User = Depends(require("finance")), db
                   cb=[{"name": a["name"], "configured": a["configured"]} for a in chb.accounts(db)], cb_status=chb.statuses(db),
                   cleverbox=bool(settings.cleverbox_token), job=jobs.JOBS.get(jid) if jid else None,
                   ai_key=bool(__import__("app.services.invoice_ai", fromlist=["x"]).api_key(db)),
+                  ai_engine=__import__("app.services.invoice_ai", fromlist=["x"]).engine(db),
+                  ai_jobs=db.scalars(select(__import__("app.models", fromlist=["x"]).InvoiceJob).order_by(__import__("app.models", fromlist=["x"]).InvoiceJob.id.desc()).limit(8)).all(),
                   shop=__import__("app.integrations.shop_express", fromlist=["x"]).creds(db),
                   shop_rep=__import__("app.integrations.shop_express", fromlist=["x"]).last_report(db))
 
@@ -6344,9 +6369,13 @@ def settings_keys_shop(site: str = Form(""), login: str = Form(""), password: st
 
 
 @app.post("/settings/keys/ai")
-def settings_keys_ai(key: str = Form(""), action: str = Form("save"), user: User = Depends(require("finance")),
+def settings_keys_ai(key: str = Form(""), action: str = Form("save"), engine: str = Form(""), user: User = Depends(require("finance")),
                      db: Session = Depends(db_dep)):
     from .services import invoice_ai
+    if action == "engine":
+        invoice_ai.set_engine(db, engine)
+        audit(db, "keys.ai_engine", user=user, engine=engine)
+        return RedirectResponse("/settings/keys?saved=1#ai", 303)
     invoice_ai.save_key(db, "" if action == "clear" else key)
     audit(db, "keys.ai", user=user, op=action)
     return RedirectResponse("/settings/keys?saved=1#ai", 303)

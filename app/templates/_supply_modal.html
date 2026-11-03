@@ -184,7 +184,16 @@
     recFile = file; const msg = $('sdRecMsg'); msg.textContent = 'Розпізнаю «' + file.name + '»… (фото — до 30 с)';
     const fd = new FormData(); fd.append('file', file);
     try {
-      const r = await fetch('/stock/recognize', {method: 'POST', body: fd}); const j = await r.json();
+      let r = await fetch('/stock/recognize', {method: 'POST', body: fd}); let j = await r.json();
+      if (r.ok && j.queued) {                     // розпізнає агент на VPS — чекаємо відповіді
+        const jid = j.queued, t0 = Date.now();
+        while (r.ok && j.queued && Date.now() - t0 < 15 * 60 * 1000) {
+          msg.textContent = 'Агент розпізнає «' + file.name + '»… ' + Math.round((Date.now() - t0) / 1000) + ' с (можна зачекати або закрити — результат буде в Налаштування → Розпізнавання накладних)';
+          await new Promise(res => setTimeout(res, 4000));
+          r = await fetch('/stock/recognize/' + jid); j = await r.json();
+        }
+        if (j.queued) { msg.innerHTML = '<span class="sd-err">Агент ще не відповів. Спробуйте пізніше або перевірте, що агент на VPS працює.</span>'; return; }
+      }
       if (!r.ok || j.error) { msg.innerHTML = '<span class="sd-err">' + esc(j.error || 'Не вдалося розпізнати') + '</span>'; return; }
       if (j.supplier) $('sdSup').value = j.supplier;
       recSup = j.supplier_raw || null;
@@ -199,7 +208,7 @@
       }
       render();
       const tot = lines.reduce((s, l) => s + l.qty * (l.price || 0), 0);
-      msg.innerHTML = `Розпізнано ${j.lines.length} поз. (${j.source === 'ai' ? 'Claude' : j.source === 'excel' ? 'Excel' : 'PDF'}): знайдено в каталозі <b>${j.matched}</b>` +
+      msg.innerHTML = `Розпізнано ${j.lines.length} поз. (${j.source === 'ai' ? 'Claude' : j.source === 'agent' ? 'агент' : j.source === 'excel' ? 'Excel' : 'PDF'}): знайдено в каталозі <b>${j.matched}</b>` +
         (j.unmatched ? `, <b style="color:var(--bad)">оберіть ${j.unmatched}</b> червоних` : '') +
         (j.supplier_known ? '' : (j.supplier ? ' · постачальника «' + esc(j.supplier) + '» ще немає в довіднику — буде створено' : ' · вкажіть постачальника')) +
         (j.total && Math.abs(j.total - tot) > 1 ? ` · <b>сума накладної ${fmt(j.total)} ₴ ≠ ${fmt(tot)} ₴</b> — перевірте` : ` · сума ${fmt(tot)} ₴`) + '. Перевірте й збережіть.';

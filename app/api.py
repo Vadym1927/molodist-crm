@@ -459,3 +459,58 @@ def call_ai_result(cid: int, body: dict, key: ApiKey = Depends(CALLS), db: Sessi
     tel.agent_result(db, c, body or {})
     audit(db, "call.ai_agent", "call", c.id, key=key, score=c.ai_score)
     return {"ok": True, "id": c.id, "ai_score": c.ai_score}
+
+
+# ---------------- розпізнавання накладних (агент OpenClaw на VPS) ----------------
+INVOICES = scope("invoices")
+
+
+def _inv_json(j) -> dict:
+    return {"id": j.id, "created_at": j.created_at.isoformat(timespec="seconds"), "filename": j.filename, "mime": j.mime,
+            "status": j.status, "file_url": f"/api/v1/invoices/{j.id}/file"}
+
+
+@router.get("/invoices/pending", summary="Накладні (фото / скани), що чекають розпізнавання, + формат відповіді")
+def invoices_pending(limit: int = 10, key: ApiKey = Depends(INVOICES), db: Session = Depends(db_dep)):
+    from datetime import timedelta
+    from .models import InvoiceJob
+    from .services import invoice_ai
+    stale = datetime.now() - timedelta(minutes=15)          # «взяв і зник» — повертаємо в чергу
+    rows = db.scalars(select(InvoiceJob).where((InvoiceJob.status == "pending") | ((InvoiceJob.status == "taken") & (InvoiceJob.taken_at < stale)))
+                      .order_by(InvoiceJob.id).limit(max(1, min(limit, 50)))).all()
+    return {"prompt": invoice_ai.PROMPT, "answer_format": {"result": "JSON у форматі з prompt", "error": "або текст помилки"},
+            "invoices": [_inv_json(j) for j in rows]}
+
+
+@router.get("/invoices/{jid}/file", summary="Файл накладної (позначає задачу як взяту агентом)")
+def invoice_file(jid: int, key: ApiKey = Depends(INVOICES), db: Session = Depends(db_dep)):
+    from pathlib import Path
+    from fastapi.responses import FileResponse
+    from .models import InvoiceJob
+    j = db.get(InvoiceJob, jid) or (_ for _ in ()).throw(HTTPException(404))
+    if not Path(j.path).exists():
+        raise HTTPException(410, "Файл недоступний")
+    if j.status in ("pending", "taken"):
+        j.status, j.taken_at = "taken", datetime.now()
+        db.commit()
+    return FileResponse(j.path, media_type=j.mime or "application/octet-stream", filename=j.filename)
+
+
+@router.post("/invoices/{jid}/result", summary="Результат розпізнавання: {result: {supplier, number, date, total, lines[]}} або {error}")
+def invoice_result(jid: int, body: dict, key: ApiKey = Depends(INVOICES), db: Session = Depends(db_dep)):
+    from .models import InvoiceJob
+    from .services import invoice_ai
+    j = db.get(InvoiceJob, jid) or (_ for _ in ()).throw(HTTPException(404))
+    body = body or {}
+    if body.get("error") and not body.get("result"):
+        j.status, j.error = "error", str(body["error"])[:500]
+    else:
+        res = body.get("result") if isinstance(body.get("result"), dict) else body
+        res = invoice_ai.normalize(res)
+        if not res["lines"]:
+            raise HTTPException(422, "У результаті немає жодного рядка lines")
+        j.status, j.result, j.error = "done", res, None
+    j.done_at = datetime.now()
+    db.commit()
+    audit(db, "invoice.agent", "invoice_job", j.id, key=key, status=j.status)
+    return {"ok": True, "id": j.id, "status": j.status}

@@ -225,6 +225,88 @@ def extract(db: Session, data: bytes, filename: str, mime: str | None = None, cl
     raise ValueError("Підтримуються PDF, фото (JPG, PNG, WebP), Excel і CSV. Фото з iPhone (HEIC) збережіть як JPG.")
 
 
+# ---------------- агент на VPS (OpenClaw) ----------------
+CFG_KEY = "invoice_ai_cfg"
+
+
+def engine(db: Session) -> str:
+    """crm — розпізнає Claude API з ключем у CRM; agent — зовнішній агент через API v1 /invoices (ключ зі scope invoices)."""
+    from ..models import SyncState
+    st = db.get(SyncState, CFG_KEY)
+    try:
+        v = json.loads(st.value).get("engine") if st and st.value else None
+    except ValueError:
+        v = None
+    return v if v in ("crm", "agent") else "crm"
+
+
+def set_engine(db: Session, v: str) -> None:
+    from datetime import datetime
+    from ..models import SyncState
+    db.merge(SyncState(key=CFG_KEY, value=json.dumps({"engine": v if v in ("crm", "agent") else "crm"}), updated_at=datetime.utcnow()))
+    db.commit()
+
+
+def needs_ai(filename: str) -> bool:
+    return not (filename or "").lower().endswith((".xlsx", ".xls", ".xlsm", ".csv"))
+
+
+def try_local(data: bytes, filename: str) -> tuple[dict, str] | None:
+    """Excel / PDF з текстом — без AI. None, якщо потрібне розпізнавання (скан, фото)."""
+    name = (filename or "").lower()
+    if not name.endswith(".pdf"):
+        return None
+    try:
+        import pdfplumber
+        rows, text = [], []
+        with pdfplumber.open(io.BytesIO(data)) as pdf:
+            for pg in pdf.pages[:10]:
+                text.append(pg.extract_text() or "")
+                for t in pg.extract_tables() or []:
+                    rows.extend(t)
+        res = parse_table([[" ".join(text)[:2000]]] + rows) if rows else None
+        return (res, "pdf") if res and res["lines"] else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def queue(db: Session, data: bytes, filename: str, mime: str | None, user_id: int | None):
+    from datetime import datetime
+    from pathlib import Path
+    from ..models import InvoiceJob
+    base = Path(settings.files_dir) / "invoices" / datetime.now().strftime("%Y/%m")
+    base.mkdir(parents=True, exist_ok=True)
+    safe = re.sub(r"[^\w.\-]+", "_", filename or "file")[-80:]
+    path = base / f"{datetime.now().strftime('%d%H%M%S')}_{safe}"
+    path.write_bytes(data)
+    j = InvoiceJob(filename=(filename or "file")[:300], mime=(mime or "")[:80] or None, path=str(path), user_id=user_id)
+    db.add(j)
+    db.commit()
+    return j
+
+
+def normalize(j: dict) -> dict:
+    """Відповідь агента → той самий формат, що й від Claude API."""
+    j = dict(j or {})
+    sup = j.get("supplier")
+    j["supplier"] = sup if isinstance(sup, dict) else {"name": str(sup or "")}
+    lines = []
+    for ln in j.get("lines") or []:
+        if not isinstance(ln, dict):
+            continue
+        ln = dict(ln)
+        for k in ("qty", "price", "sum"):
+            ln[k] = _num(ln.get(k))
+        ln["expiry"] = _date(ln.get("expiry"))
+        ln["name"] = str(ln.get("name") or "")[:300]
+        lines.append(ln)
+    j["lines"] = lines
+    j["date"] = _date(j.get("date"))
+    j["total"] = _num(j.get("total"))
+    j["number"] = str(j.get("number") or "")[:60]
+    return j
+
+
 # ---------------- зіставлення з даними CRM ----------------
 
 def _product_json(p: Product, r=None) -> dict:
