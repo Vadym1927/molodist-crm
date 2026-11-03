@@ -22,7 +22,12 @@ def test_appointments():
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
         assert c.get("/lookup/patients?q=записна").json()[0]["id"] == pid
         assert c.get("/lookup/services?q=записна").json()
-        assert "Новий запис" in c.get(f"/appointments/new?doc={did}&start={day}T11:00").text
+        _nv = c.get(f"/appointments/new?doc={did}&start={day}T11:00").text
+        assert "Новий візит" in _nv and "Вибір пацієнта" in _nv and "Вибір послуг" in _nv and "Джерело запису" in _nv
+        _sv = c.get(f"/appointments/services?doc={did}").json()
+        assert any(x["id"] == 990101 for x in _sv["all"])
+        assert c.post("/appointments", json={"patient_id": pid, "doctor_id": did, "start": f"{day}T15:00", "services": [], "booking_source": ""}).json()["error"] == "Вкажіть джерело запису"
+        assert isinstance(c.get("/appointments/calls").json(), list)
         body = {"patient_id": pid, "doctor_id": did, "start": f"{day}T11:00",
                 "services": [{"id": 990101, "name": "Чистка", "price": 1500, "minutes": 60}, {"id": 990102, "name": "Маска", "price": 500, "minutes": 30}],
                 "place": "Кабінет 1 (косметолог)"}

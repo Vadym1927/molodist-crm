@@ -1,5 +1,55 @@
 <style>
-dialog.apfd{border:0;border-radius:18px;padding:0;width:min(600px,96vw);max-height:92vh;box-shadow:0 30px 80px rgba(42,36,48,.35)}
+dialog.apfd{border:0;border-radius:0;padding:0;width:min(560px,100vw);height:100vh;max-height:100vh;margin:0 0 0 auto;box-shadow:-20px 0 60px rgba(42,36,48,.25);overflow:auto;background:#fff}
+dialog.apfd[open]{animation:nvIn .22s ease-out}@keyframes nvIn{from{transform:translateX(40px);opacity:.4}to{transform:none;opacity:1}}
+.nv-x{position:fixed;top:14px;right:calc(min(560px,100vw) + 12px);width:46px;height:46px;border:0;border-radius:10px;background:#8a8496;color:#fff;font-size:26px;cursor:pointer;box-shadow:0 6px 18px rgba(42,36,48,.25)}
+@media(max-width:620px){.nv-x{right:auto;left:auto;top:10px;right:10px;z-index:9;width:38px;height:38px;font-size:22px}}
+.apf-b.nv{padding:0 26px 30px;display:block}
+.nv-scr{display:none}.nv-scr.on{display:grid;gap:14px;animation:nvF .18s ease-out}@keyframes nvF{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}
+.nv-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 -26px;padding:16px 26px 14px;border-bottom:4px solid #F7F4F0;position:sticky;top:0;background:#fff;z-index:4}
+.nv-top h2{margin:0;font:600 24px var(--head);letter-spacing:.04em;text-transform:uppercase;color:#2A2430}
+.nv-save{display:inline-flex;gap:8px;align-items:center;justify-content:center;height:44px;padding:0 18px;border:0;border-radius:10px;background:#3B3050;color:#fff;font:700 13.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+.nv-save:disabled{background:#E3E0E7;color:#fff;cursor:not-allowed}.nv-save.wide{width:100%;height:52px;margin-top:10px}
+.nv-note{background:#F1EDF8;border-radius:10px;padding:8px 12px;font-size:13.5px;color:#3B3050}
+.nv-card{display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:#fff;border:1px solid #EEEAF2;border-radius:14px;padding:16px 20px;box-shadow:0 4px 16px rgba(42,36,48,.06);cursor:pointer;font:inherit}
+.nv-card:hover{border-color:#C9BFE6}
+.nv-av{width:50px;height:50px;border-radius:50%;background:#EDE8F6;color:#5C4B82;display:grid;place-items:center;flex:none}
+.nv-pt{flex:1;display:grid;gap:2px}.nv-pt b{font:600 15px var(--sans);text-transform:uppercase;letter-spacing:.04em;color:#2A2430}.nv-pt b.pick{text-transform:none;letter-spacing:0;font-size:16px}.nv-pt small{color:#8a8496;font-size:13px}
+.nv-pat.empty .nv-pt b{color:#8a8496}
+.nv-go{color:#5C4B82;font:700 22px var(--sans)}
+.nv-sec{border-bottom:1px solid #E9E5DF;margin-top:12px}.nv-sec span{display:inline-block;background:#8a8496;color:#fff;font:700 12.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;padding:8px 18px;border-radius:8px 8px 0 0}
+.nv-row{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.nv label.nv-date{position:relative;display:inline-flex;text-transform:none;letter-spacing:0;align-items:center;gap:6px;color:#5C4B82;font:600 16px var(--sans);border-bottom:1.5px dashed #5C4B82;padding-bottom:2px;cursor:pointer}
+.nv-date input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+.nv-add{border:1.5px solid #5C4B82;background:#fff;color:#5C4B82;border-radius:8px;padding:7px 12px;font:700 13px var(--sans);letter-spacing:.05em;text-transform:uppercase;cursor:pointer}.nv-add:hover{background:#F6F3FB}
+.nv-g3{display:grid;grid-template-columns:1.6fr 1fr 1fr;gap:10px}.nv-g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.nv label{display:grid;gap:4px;font:700 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496}
+.nv label input,.nv label select,.nv label textarea{font:500 14.5px var(--sans);text-transform:none;letter-spacing:0;color:#2A2430}
+.nv-empty{display:grid;justify-items:center;gap:12px;text-align:center;color:#6d6778;font-size:14.5px;line-height:1.5;padding:16px 0}
+.nv .apf-svc:not(:empty)+.nv-empty{display:none}
+.nv .apf-s{gap:8px;padding:10px 12px;border-radius:12px;border:1px solid #ECE7E1;background:#FBFAF8;margin:0 0 8px}
+.nv .apf-s .nm{flex:1;display:grid}.nv .apf-s .nm b{font-size:14px}.nv .apf-s .nm small{color:#5C4B82;font-weight:600;font-size:12.5px}
+.nv .apf-s input{width:76px}
+.nv .apf-sum{font:700 14px var(--sans);color:#2A2430;text-align:right}.nv .apf-sum:empty{display:none}
+.nv-fl{position:relative}.nv-fl>span{font:700 11px var(--sans)}.nv-fl i{color:#B23B2E;font-style:normal}
+.nv-back{justify-self:start;border:0;background:none;color:#5C4B82;font:600 16px var(--sans);letter-spacing:.06em;text-transform:uppercase;cursor:pointer;padding:8px 0 0}
+.nv-sr{display:flex;gap:14px;align-items:flex-end}
+.nv-act{display:flex;align-items:center;gap:12px;border:0;border-top:1px solid #E9E5DF;background:none;padding:20px 0;color:#5C4B82;font:700 16px var(--sans);letter-spacing:.05em;text-transform:uppercase;cursor:pointer;text-align:left}
+.nv-act i{width:22px;height:22px;border-radius:50%;background:#5C4B82;color:#fff;font:700 17px/22px var(--sans);text-align:center;font-style:normal}
+.nv-list{display:grid}.nv-list:empty{display:none}
+.nv-list .it{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:11px 12px;border-radius:10px;cursor:pointer;border-bottom:1px solid #F1EDE8}
+.nv-list .it:hover{background:#F6F3FB}.nv-list .it b{font-weight:600;color:#2A2430}.nv-list .it small{color:#8a8496}
+.nv-mut{color:#8a8496;font-size:13.5px;padding:8px 2px}
+.nv-newp{display:grid;gap:10px;background:#FBFAF8;border:1px solid #ECE7E1;border-radius:14px;padding:14px}.nv-err{color:#B23B2E;font-size:13px}.nv-err:empty{display:none}
+.nv-tabs{display:grid;grid-template-columns:1fr 1fr;border:1px solid #E3DFE8;border-radius:8px;overflow:hidden}
+.nv-tabs button{border:0;background:#F4F2F6;padding:10px;font:700 13px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#2A2430;cursor:pointer}
+.nv-tabs button.on{background:#3B3050;color:#fff}
+.nv-cat{background:#fff;border-radius:12px;box-shadow:0 3px 14px rgba(42,36,48,.07);margin-bottom:12px;border:1px solid #F1EDE8}
+.nv-cat>summary{list-style:none;display:flex;justify-content:space-between;align-items:center;padding:18px 20px;font:600 16px var(--sans);color:#5d5869;cursor:pointer}
+.nv-cat>summary::-webkit-details-marker{display:none}.nv-cat>summary:after{content:"";width:9px;height:9px;border:solid #5C4B82;border-width:0 2px 2px 0;transform:rotate(45deg);margin-right:6px;transition:transform .15s}
+.nv-cat[open]>summary:after{transform:rotate(-135deg)}.nv-cat>summary small{color:#a9a3b4;font-weight:500;margin-left:8px}
+.nv-sv{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:11px 20px;border-top:1px solid #F4F1ED;cursor:pointer}
+.nv-sv:hover{background:#F6F3FB}.nv-sv b{font-weight:500;color:#2A2430;font-size:14.5px}.nv-sv small{white-space:nowrap;color:#8a8496}.nv-sv.added b:before{content:"✓ ";color:#2E9E5B}
+@media(max-width:560px){.nv-g3{grid-template-columns:1fr 1fr}.nv-g3 label:first-child{grid-column:1/-1}.apf-b.nv{padding:0 16px 24px}.nv-top{margin:0 -16px;padding:14px 60px 12px 16px}}
 dialog.apfd::backdrop{background:rgba(42,36,48,.45)}
 .apf-h{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#fff;z-index:3}
 .apf-h h3{margin:0;font-size:18px}.apf-st{display:inline-block;padding:2px 9px;border-radius:99px;color:#fff;font-size:12px;vertical-align:middle}
@@ -20,7 +70,8 @@ dialog.apfd::backdrop{background:rgba(42,36,48,.45)}
   var dl=document.getElementById('apfd'),box=document.getElementById('apfd-b'),T=null;
   function load(url){box.innerHTML='<div class="apf-b muted">Завантаження…</div>';dl.showModal();
     fetch(url,{credentials:'same-origin'}).then(function(r){return r.text()}).then(function(h){box.innerHTML=h;
-      box.querySelectorAll('.apf-back').forEach(function(i){i.value=location.pathname+location.search});apfSum()})}
+      box.querySelectorAll('.apf-back').forEach(function(i){i.value=location.pathname+location.search});SV=null;apfSum();
+      var f=F();if(f){var c=f.querySelector('.nv-pat');if(c&&!f.patient_id.value&&!f.new_name.value)c.classList.add('empty');nvTimes();nvValid()}})}
   window.apOpenNew=function(doc,start,extra){load('/appointments/new?doc='+(doc||'')+'&start='+encodeURIComponent(start||'')+(extra||''))};
   window.apptOpen=function(id,edit){load('/appointments/'+id+(edit?'?edit=1':''))};
   window.apfClose=function(){dl.close()};
@@ -36,13 +87,59 @@ dialog.apfd::backdrop{background:rgba(42,36,48,.45)}
       r.innerHTML=js.map(function(s,i){return '<div data-i="'+i+'">'+s.name+' <small>'+s.minutes+' хв · '+s.price+' ₴'+(s.category?' · '+s.category:'')+'</small></div>'}).join('')||'<div><small>Не знайдено</small></div>';
       r.style.display='block';r.querySelectorAll('div[data-i]').forEach(function(d){d.onclick=function(){add(js[+d.dataset.i]);inp.value='';r.style.display='none'}})})},250)};
   function add(s){var w=box.querySelector('.apf-svc'),el=document.createElement('div');el.className='apf-s';el.dataset.s=JSON.stringify(s);
-    el.innerHTML='<b></b><input type="number" class="m" min="5" step="5" title="хв"><input type="number" class="p" step="0.01" title="₴"><button type="button">×</button>';
+    el.innerHTML='<div class="nm"><b></b><small class="tm"></small></div><input type="number" class="m" min="5" step="5" title="хв"><input type="number" class="p" step="0.01" title="₴"><button type="button">×</button>';
     el.querySelector('b').textContent=s.name;el.querySelector('.m').value=s.minutes;el.querySelector('.p').value=(+s.price).toFixed(2);
     el.querySelector('button').onclick=function(){el.remove();apfSum()};el.querySelectorAll('input').forEach(function(i){i.oninput=apfSum});w.appendChild(el);apfSum()}
   window.apfSum=function(){var m=0,p=0;box.querySelectorAll('.apf-s').forEach(function(e){m+=+e.querySelector('.m').value||0;p+=+e.querySelector('.p').value||0});
-    var s=box.querySelector('.apf-sum');if(s)s.textContent=m?('Разом: '+m+' хв · '+p.toLocaleString('uk-UA',{minimumFractionDigits:2})+' ₴'):''};
+    var s=box.querySelector('.apf-sum');if(s)s.textContent=m?('Разом: '+m+' хв · '+p.toLocaleString('uk-UA',{minimumFractionDigits:2})+' ₴'):'';if(window.nvTimes)nvTimes()};
+  var SV=null,TAB='all',PT=null;
+  function F(){return box.querySelector('form.nv')}
+  window.nvGo=function(n){var f=F();if(!f)return;f.querySelectorAll('.nv-scr').forEach(function(x){x.classList.toggle('on',x.dataset.s===n)});dl.scrollTop=0;
+    if(n==='pat'){var q=f.querySelector('.nv-pq');setTimeout(function(){q.focus()},50)}
+    if(n==='svc'){nvSvcLoad();setTimeout(function(){f.querySelector('.nv-sq').focus()},50)}};
+  function esc(x){return String(x==null?'':x).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+  function setPat(id,name,phone,isNew){var f=F();f.patient_id.value=id||'';f.new_name.value=isNew?name:'';f.new_phone.value=isNew?phone:'';
+    var c=f.querySelector('.nv-pat');c.classList.toggle('empty',!name);c.querySelector('b').textContent=name||'Оберіть пацієнта';c.querySelector('b').classList.toggle('pick',!!name);
+    c.querySelector('small').textContent=(phone||'')+(isNew?' · новий пацієнт':'');nvGo('main');nvValid()}
+  window.nvPat=function(inp){clearTimeout(T);var q=inp.value.trim(),r=document.getElementById('nv-pres');if(q.length<2){r.innerHTML='';return}
+    T=setTimeout(function(){fetch('/lookup/patients?q='+encodeURIComponent(q)).then(function(x){return x.json()}).then(function(js){
+      r.innerHTML=js.map(function(p,i){return '<div class="it" data-i="'+i+'"><b>'+esc(p.name)+'</b><small>'+esc(p.phone||'')+'</small></div>'}).join('')||'<div class="nv-mut">Не знайдено — створіть нового пацієнта нижче</div>';
+      r.querySelectorAll('.it').forEach(function(d){d.onclick=function(){var p=js[+d.dataset.i];setPat(p.id,p.name,p.phone,false)}})})},250)};
+  window.nvNewOpen=function(ph){var f=F(),b=f.querySelector('.nv-newp');b.hidden=false;var q=f.querySelector('.nv-pq').value.trim();
+    if(ph){b.querySelector('.np-p').value=ph}else if(/^[+\d\s()-]{5,}$/.test(q)){b.querySelector('.np-p').value=q}else if(q&&!b.querySelector('.np-l').value){var w=q.split(/\s+/);b.querySelector('.np-l').value=w[0]||'';b.querySelector('.np-f').value=w[1]||'';b.querySelector('.np-m').value=w.slice(2).join(' ')}
+    b.querySelector(b.querySelector('.np-l').value?'.np-p':'.np-l').focus()};
+  window.nvNewOk=function(){var f=F(),b=f.querySelector('.nv-newp'),g=function(c){return b.querySelector(c).value.trim()},e=b.querySelector('.np-e');
+    var nm=[g('.np-l'),g('.np-f'),g('.np-m')].filter(Boolean).join(' ');if(!g('.np-l')||!g('.np-f')){e.textContent='Вкажіть прізвище та імʼя';return}
+    if(g('.np-p').replace(/\D/g,'').length<9){e.textContent='Вкажіть телефон';return}e.textContent='';setPat('',nm,g('.np-p'),true)};
+  window.nvCalls=function(){var r=document.getElementById('nv-calls');r.hidden=!r.hidden;if(r.hidden)return;r.innerHTML='<div class="nv-mut">Завантаження…</div>';
+    fetch('/appointments/calls').then(function(x){return x.json()}).then(function(js){
+      r.innerHTML=js.map(function(c,i){return '<div class="it" data-i="'+i+'"><b>'+esc(c.name||c.phone||'—')+'</b><small>'+(c.dir==='out'?'↗ ':'↙ ')+esc(c.at)+(c.name?' · '+esc(c.phone):'')+(c.status==='missed'?' · пропущений':'')+'</small></div>'}).join('')||'<div class="nv-mut">Дзвінків ще немає — телефонія в розробці.</div>';
+      r.querySelectorAll('.it').forEach(function(d){d.onclick=function(){var c=js[+d.dataset.i];if(c.patient_id){setPat(c.patient_id,c.name,c.phone,false)}else{nvNewOpen(c.phone)}}})})};
+  function svcLoad(cb){var f=F(),doc=f.doctor_id.value;fetch('/appointments/services?doc='+(doc||0)).then(function(x){return x.json()}).then(function(j){SV=j;SV.doc=doc;cb&&cb()})}
+  window.nvSvcLoad=function(){var f=F();if(!SV||SV.doc!==f.doctor_id.value){document.getElementById('nv-sl').innerHTML='<div class="nv-mut">Завантаження…</div>';svcLoad(function(){nvTab(f.doctor_id.value&&SV.mine.length?'mine':'all')})}else nvSvcDraw()};
+  window.nvTab=function(t){TAB=t;F().querySelectorAll('.nv-tabs button').forEach(function(b){b.classList.toggle('on',b.dataset.t===t)});nvSvcDraw()};
+  window.nvDoc=function(){SV=null;nvValid()};
+  window.nvSvcDraw=function(){var f=F(),el=document.getElementById('nv-sl');if(!SV)return;var q=f.querySelector('.nv-sq').value.trim().toLowerCase();
+    var have={};f.querySelectorAll('.apf-s').forEach(function(e){try{have[JSON.parse(e.dataset.s).id]=1}catch(_){}});
+    var by={},list=SV.all;if(TAB==='mine'){var ix={};SV.all.forEach(function(s){ix[s.id]=s});list=SV.mine.map(function(i){return ix[i]}).filter(Boolean)}
+    list=list.filter(function(s){return !q||s.name.toLowerCase().indexOf(q)>=0||s.category.toLowerCase().indexOf(q)>=0});
+    if(TAB==='mine'&&!f.doctor_id.value){el.innerHTML='<div class="nv-mut">Спочатку оберіть лікаря — тоді тут будуть його послуги.</div>';return}
+    if(!list.length){el.innerHTML='<div class="nv-mut">'+(TAB==='mine'?'У лікаря ще немає проведених послуг — оберіть у «Всі послуги».':'Нічого не знайдено')+'</div>';return}
+    var order=[];list.forEach(function(s){if(!by[s.category]){by[s.category]=[];order.push(s.category)}by[s.category].push(s)});
+    var open=!!q||TAB==='mine'||order.length===1;
+    el.innerHTML=order.map(function(c){return '<details class="nv-cat"'+(open?' open':'')+'><summary><span>'+esc(c)+'<small>'+by[c].length+'</small></span></summary>'+by[c].map(function(s){
+      return '<div class="nv-sv'+(have[s.id]?' added':'')+'" data-id="'+s.id+'"><b>'+esc(s.name)+'</b><small>'+s.minutes+' хв · '+(+s.price).toLocaleString('uk-UA')+' ₴</small></div>'}).join('')+'</details>'}).join('');
+    el.querySelectorAll('.nv-sv').forEach(function(d){d.onclick=function(){var s=SV.all.filter(function(x){return String(x.id)===d.dataset.id})[0];if(s){add(s);nvGo('main')}}})};
+  window.nvTimes=function(){var f=F();if(!f)return;var t=f.time.value||'00:00',p=t.split(':'),m=(+p[0])*60+(+p[1]);
+    f.querySelectorAll('.apf-s').forEach(function(e){var d=+e.querySelector('.m').value||0,a=m;m+=d;var h=function(x){x=((x%1440)+1440)%1440;return String(Math.floor(x/60)).padStart(2,'0')+':'+String(x%60).padStart(2,'0')};
+      var tm=e.querySelector('.tm');if(tm)tm.textContent=h(a)+' – '+h(m)+' · '+d+' хв'});
+    var dl_=f.querySelector('.nv-dl');if(dl_&&f.day.value){var d=new Date(f.day.value+'T12:00');var s_=d.toLocaleDateString('uk-UA',{weekday:'short',day:'2-digit',month:'long',year:'numeric'});dl_.textContent=s_.charAt(0).toUpperCase()+s_.slice(1)}};
+  window.nvValid=function(){var f=F();if(!f)return;var ok=(f.patient_id.value||f.new_name.value)&&f.day.value&&f.time.value&&(!f.booking_source.required||f.booking_source.value);
+    f.querySelectorAll('.nv-save').forEach(function(b){b.disabled=!ok})};
+  box.addEventListener('change',function(e){if(e.target.name==='booking_source')nvValid()});
   window.apfSave=function(f,force){var svc=[];box.querySelectorAll('.apf-s').forEach(function(e){var s=JSON.parse(e.dataset.s);s.minutes=+e.querySelector('.m').value;s.price=+e.querySelector('.p').value;svc.push(s)});
-    var body={services:svc,force:!!force};['patient_id','new_name','new_phone','doctor_id','start','minutes','place','resource','comment','id','appeal_id'].forEach(function(k){if(f.elements[k])body[k]=f.elements[k].value});
+    var body={services:svc,force:!!force};['patient_id','new_name','new_phone','doctor_id','start','minutes','place','resource','comment','id','appeal_id','booking_source'].forEach(function(k){if(f.elements[k])body[k]=f.elements[k].value});
+    if(f.elements.day&&f.elements.time)body.start=f.elements.day.value+'T'+f.elements.time.value;
     body.to_cb=!!(f.elements.to_cb&&f.elements.to_cb.checked);var w=box.querySelector('.apf-warn');w.textContent='';
     fetch('/appointments',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json()}).then(function(j){
       if(j.error){w.textContent=j.error;return}

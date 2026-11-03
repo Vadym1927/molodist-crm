@@ -75,6 +75,8 @@ def save(db: Session, data: dict, user_id: int | None = None, appt: Appointment 
     a.end = a.start + timedelta(minutes=max(5, mins))
     a.place, a.resource = data.get("place") or None, data.get("resource") or None
     a.comment = data.get("comment") or None
+    if data.get("booking_source"):
+        a.booking_source = data["booking_source"]
     if data.get("appeal_id"):
         a.appeal_id = data["appeal_id"]
     if appt:
@@ -82,6 +84,37 @@ def save(db: Session, data: dict, user_id: int | None = None, appt: Appointment 
     db.add(a)
     db.commit()
     return a
+
+
+BOOKING_SOURCES = ["Дзвінок", "Instagram", "Telegram", "Viber", "WhatsApp", "Сайт / онлайн-запис", "Прийшов особисто",
+                   "Повторний запис", "Рекомендація", "Бюті-план", "Інше"]
+
+
+def services_for(db: Session, doctor_id: int | None) -> dict:
+    """Послуги для вікна запису: усі активні за категоріями + послуги лікаря (які він уже проводив, за частотою) + ціни лікаря."""
+    from collections import Counter
+    from . import price_cats
+    from ..models import Visit
+    rows = [s for s in db.scalars(select(CbService).order_by(CbService.category, CbService.name)) if s.active is not False]
+    prices = price_cats.doctor_prices(db).get(doctor_id or 0, {}) if doctor_id else {}
+    mine = Counter()
+    if doctor_id:
+        for (svcs,) in db.execute(select(Appointment.services).where(Appointment.doctor_id == doctor_id)
+                                  .order_by(Appointment.start.desc()).limit(3000)):
+            for s in svcs or []:
+                if s.get("id"):
+                    mine[int(s["id"])] += 1
+        d = db.get(Doctor, doctor_id)
+        if d and d.name and not mine:
+            for (sid,) in db.execute(select(Visit.service_id).where(Visit.master_name == d.name, Visit.service_id.is_not(None)).limit(5000)):
+                mine[sid] += 1
+    ids = {s.id for s in rows}
+
+    def one(s):
+        pr = prices.get(str(s.id), prices.get(s.id))
+        return {"id": s.id, "name": s.name, "price": float(pr if pr not in (None, "") else (s.price or 0)),
+                "minutes": int(s.duration or s.time_min or 30), "category": s.category or "Без категорії"}
+    return {"all": [one(s) for s in rows], "mine": [i for i, _ in mine.most_common() if i in ids]}
 
 
 def set_status(db: Session, a: Appointment, status: str, reason: str | None = None) -> None:

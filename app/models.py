@@ -240,6 +240,7 @@ class Appointment(Base):
     comment: Mapped[str | None] = mapped_column(Text)
     cancel_reason: Mapped[str | None] = mapped_column(String(200))
     source: Mapped[str] = mapped_column(String(20), default="crm")      # crm | online | bot | appeal
+    booking_source: Mapped[str | None] = mapped_column(String(60))     # джерело запису: телефон, Instagram, повторний…
     cb_record_id: Mapped[int | None] = mapped_column(Integer, index=True)
     sale_id: Mapped[int | None] = mapped_column(Integer)
     appeal_id: Mapped[int | None] = mapped_column(Integer)

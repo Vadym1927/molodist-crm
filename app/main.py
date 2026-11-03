@@ -1196,7 +1196,7 @@ def _appt_ctx(db: Session) -> dict:
     loc = next((x for x in data["locations"] if x.get("active")), {"places": [], "resources": []})
     return {"doctors": spec_svc.calendar_doctors(db), "places": [p_["name"] for p_ in loc.get("places", []) if p_.get("active", True)],
             "resources": [r_["name"] for r_ in loc.get("resources", []) if r_.get("active", True)], "STATUSES": _vstat_menu(db),
-            "COLORS": _vstat_colors(db), "cb_on": bool(settings.cleverbox_token or db.get(SyncState, "cleverbox_token_enc"))}
+            "COLORS": _vstat_colors(db), "SOURCES": aps.BOOKING_SOURCES, "cb_on": bool(settings.cleverbox_token or db.get(SyncState, "cleverbox_token_enc"))}
 
 
 @app.get("/appointments/new", response_class=HTMLResponse)
@@ -1217,6 +1217,28 @@ def appointment_new(request: Request, doc: int = 0, start: str = "", patient: in
         pt = pt or (db.get(Patient, ap_.patient_id) if ap_ and ap_.patient_id else None)
     return templates.TemplateResponse(request, "_appt_form.html", {"request": request, "user": user, "a": None, "doc": doc, "st": st_,
                                       "pt": pt, "appeal": ap_, **_appt_ctx(db)})
+
+
+@app.get("/appointments/services")
+def appointment_services(doc: int = 0, user: User = Depends(require("book")), db: Session = Depends(db_dep)):
+    from .services import appointments as aps
+    return JSONResponse(aps.services_for(db, doc or None))
+
+
+@app.get("/appointments/calls")
+def appointment_calls(user: User = Depends(require("book")), db: Session = Depends(db_dep)):
+    """Останні дзвінки для вибору пацієнта у вікні запису."""
+    from .models import Call
+    rows = db.scalars(select(Call).order_by(Call.at.desc()).limit(40)).all()
+    pts = {p_.id: p_ for p_ in db.scalars(select(Patient).where(Patient.id.in_({c_.patient_id for c_ in rows if c_.patient_id})))} if rows else {}
+    out = []
+    for c_ in rows:
+        p_ = pts.get(c_.patient_id)
+        if p_ and not patient_visible(user, p_):
+            p_ = None
+        out.append({"at": c_.at.strftime("%d.%m %H:%M"), "phone": c_.phone or "", "dir": c_.direction, "status": c_.status or "",
+                    "patient_id": p_.id if p_ else None, "name": p_.full_name if p_ else None})
+    return JSONResponse(out)
 
 
 @app.get("/appointments/{aid:int}", response_class=HTMLResponse)
@@ -1261,8 +1283,11 @@ async def appointment_save(request: Request, user: User = Depends(require("book"
     data = {"patient_id": p_.id, "doctor_id": int(f["doctor_id"]) if str(f.get("doctor_id") or "").isdigit() else None,
             "services": svc, "start": start, "minutes": int(f.get("minutes") or 0) or None, "place": f.get("place"),
             "resource": f.get("resource"), "comment": (f.get("comment") or "").strip()[:2000],
-            "appeal_id": int(f["appeal_id"]) if str(f.get("appeal_id") or "").isdigit() else None}
+            "appeal_id": int(f["appeal_id"]) if str(f.get("appeal_id") or "").isdigit() else None,
+            "booking_source": str(f.get("booking_source") or "").strip()[:60] or None}
     appt = db.get(Appointment, int(f["id"])) if str(f.get("id") or "").isdigit() else None
+    if not appt and "booking_source" in f and not data["booking_source"]:
+        return JSONResponse({"error": "Вкажіть джерело запису"}, status_code=400)
     mins = data["minutes"] or sum(s["minutes"] for s in svc) or 30
     warn = aps.conflicts(db, data["doctor_id"], start, start + timedelta(minutes=mins), data["place"], data["resource"],
                          appt.id if appt else None, p_.id)
