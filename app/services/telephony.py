@@ -55,6 +55,7 @@ def _raw(db: Session) -> dict:
     d.setdefault("ai_criteria", DEFAULT_CRITERIA)
     d.setdefault("ai_alert_below", 60)       # оцінка нижче — повідомлення власнику в Telegram
     d.setdefault("ai_alert", True)
+    d.setdefault("ai_engine", "crm")         # crm — оцінює Claude з CRM; agent — зовнішній агент (OpenClaw) через API v1 /calls
     if not d.get("hook"):
         d["hook"] = _secrets.token_urlsafe(18)
     return d
@@ -90,14 +91,16 @@ def secret(d: dict, prov: str, key: str) -> str:
         return ""
 
 
-def save_extra(db: Session, popup_users: list[int], ai_on: bool, ai_criteria: str, ai_alert_below, ai_alert: bool) -> None:
+def save_extra(db: Session, popup_users: list[int], ai_on: bool, ai_criteria: str, ai_alert_below, ai_alert: bool,
+               ai_engine: str = "crm") -> None:
     d = _raw(db)
     try:
         thr = max(0, min(100, int(float(ai_alert_below))))
     except (TypeError, ValueError):
         thr = 60
     d.update(popup_users=[int(x) for x in popup_users if str(x).isdigit()], ai_on=bool(ai_on),
-             ai_criteria=(ai_criteria or "").strip()[:4000] or DEFAULT_CRITERIA, ai_alert_below=thr, ai_alert=bool(ai_alert))
+             ai_criteria=(ai_criteria or "").strip()[:4000] or DEFAULT_CRITERIA, ai_alert_below=thr, ai_alert=bool(ai_alert),
+             ai_engine=ai_engine if ai_engine in ("crm", "agent") else "crm")
     _save(db, d)
 
 
@@ -361,7 +364,7 @@ def ingest_ai(db: Session, provider: str, data: dict, http: httpx.Client | None 
     p = ap.find_patient(db, c.phone)
     c.patient_id = p.id if p else c.patient_id
     db.commit()
-    if _raw(db).get("ai_on") and c.transcript and c.ai_score is None:
+    if _raw(db).get("ai_on") and _raw(db).get("ai_engine", "crm") == "crm" and c.transcript and c.ai_score is None:
         try:
             evaluate(db, c, http=http)
         except Exception:  # noqa: BLE001
@@ -408,6 +411,12 @@ def evaluate(db: Session, c: Call, http: httpx.Client | None = None, claude=None
     c.ai_meta = meta
     c.ai_at = datetime.utcnow()
     db.commit()
+    alert_low(db, c)
+    return c
+
+
+def alert_low(db: Session, c: Call) -> None:
+    d = _raw(db)
     if c.ai_score is not None and d.get("ai_alert") and c.ai_score < float(d.get("ai_alert_below") or 0):
         from . import alerts
         from ..config import settings
@@ -415,7 +424,6 @@ def evaluate(db: Session, c: Call, http: httpx.Client | None = None, claude=None
         alerts.send(f"📞 Низька оцінка дзвінка: <b>{c.ai_score:.0f}/100</b>\n{escape(c.employee or 'співробітник не вказаний')} · "
                     f"{c.at:%d.%m %H:%M} · {'вхідний' if c.direction == 'in' else 'вихідний'}\n{escape((c.ai_comment or '')[:500])}\n"
                     f'<a href="{settings.public_url.rstrip("/")}/telephony?call={c.id}">Відкрити дзвінок</a>')
-    return c
 
 
 def kpi(db: Session, d_from, d_to) -> list[dict]:
@@ -446,3 +454,30 @@ def kpi(db: Session, d_from, d_to) -> list[dict]:
                     "score": round(sum(g["scores"]) / len(g["scores"]), 1) if g["scores"] else None,
                     "rated": len(g["scores"]), "low": g["low"], "booked": g["booked"]})
     return out
+
+
+def agent_result(db: Session, c: Call, data: dict) -> Call:
+    """Результат AI-розбору від зовнішнього агента: текст діалогу, зміст, оцінка 0–100, коментар, чи записано."""
+    if data.get("transcript"):
+        t = str(data["transcript"])
+        c.transcript = (_vtt_text(t) if "-->" in t else t)[:60000]
+    if data.get("summary"):
+        c.summary = str(data["summary"])[:4000]
+    if data.get("score") is not None:
+        try:
+            c.ai_score = max(0.0, min(100.0, float(data["score"])))
+        except (TypeError, ValueError):
+            pass
+    if data.get("comment"):
+        c.ai_comment = str(data["comment"])[:2000]
+    meta = dict(c.ai_meta or {})
+    for k in ("booked", "client_mood", "employee_mood", "recommendations", "criteria"):
+        if k in data:
+            meta[k] = data[k] if k in ("booked", "criteria") else str(data[k])[:1000]
+    meta["engine"] = "agent"
+    c.ai_meta = meta
+    if c.ai_score is not None:
+        c.ai_at = datetime.utcnow()
+    db.commit()
+    alert_low(db, c)
+    return c

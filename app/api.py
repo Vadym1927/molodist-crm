@@ -417,3 +417,45 @@ def bot_patient(chat_id: str, key: ApiKey = Depends(BOT), db: Session = Depends(
             "home_care": care, "routine_comment": ps.plan.routine_comment,
         }
     return out
+
+
+# ---------------- AI-розбір дзвінків (агент OpenClaw на VPS) ----------------
+CALLS = scope("calls")
+
+
+def _call_json(c) -> dict:
+    return {"id": c.id, "at": c.at.isoformat(timespec="seconds"), "direction": c.direction, "status": c.status,
+            "duration": c.duration, "employee": c.employee, "record_url": c.record_url, "transcript": c.transcript,
+            "summary": c.summary, "ai_score": c.ai_score, "ai_comment": c.ai_comment, "phone_last4": (c.phone or "")[-4:]}
+
+
+@router.get("/calls/pending-ai", summary="Дзвінки для AI-розбору: прийняті, є запис розмови, ще без оцінки (+ критерії оцінювання)")
+def calls_pending_ai(limit: int = 20, days: int = 3, key: ApiKey = Depends(CALLS), db: Session = Depends(db_dep)):
+    from datetime import datetime, timedelta
+    from .models import Call
+    from .services import telephony as tel
+    cfg = tel.public(db)
+    rows = db.scalars(select(Call).where(Call.ai_score.is_(None), Call.status == "answered", Call.record_url.is_not(None),
+                                         Call.at >= datetime.now() - timedelta(days=max(1, min(days, 30))))
+                      .order_by(Call.at.desc()).limit(max(1, min(limit, 100)))).all()
+    return {"criteria": cfg.get("ai_criteria"), "alert_below": cfg.get("ai_alert_below"),
+            "answer_format": {"score": "0-100", "comment": "2-4 речення українською", "booked": "true/false",
+                              "transcript": "текст діалогу (Адмін: … / Пацієнт: …)", "summary": "короткий зміст"},
+            "calls": [_call_json(c) for c in rows]}
+
+
+@router.get("/calls/{cid}", summary="Дзвінок для AI-розбору")
+def call_get(cid: int, key: ApiKey = Depends(CALLS), db: Session = Depends(db_dep)):
+    from .models import Call
+    c = db.get(Call, cid) or (_ for _ in ()).throw(HTTPException(404))
+    return _call_json(c)
+
+
+@router.post("/calls/{cid}/ai", summary="Записати результат AI-розбору: transcript, summary, score, comment, booked")
+def call_ai_result(cid: int, body: dict, key: ApiKey = Depends(CALLS), db: Session = Depends(db_dep)):
+    from .models import Call
+    from .services import telephony as tel
+    c = db.get(Call, cid) or (_ for _ in ()).throw(HTTPException(404))
+    tel.agent_result(db, c, body or {})
+    audit(db, "call.ai_agent", "call", c.id, key=key, score=c.ai_score)
+    return {"ok": True, "id": c.id, "ai_score": c.ai_score}

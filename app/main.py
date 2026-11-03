@@ -2650,7 +2650,7 @@ def key_create(request: Request, name: str = Form(...), scopes: list[str] = Form
                user: User = Depends(require("api")), db: Session = Depends(db_dep)):
     raw, prefix, h = new_api_key()
     k = ApiKey(name=name.strip(), prefix=prefix, key_hash=h,
-               scopes=[s for s in scopes if s in ("read", "write", "medical", "bot")] or ["read"], created_by=user.id)
+               scopes=[s for s in scopes if s in ("read", "write", "medical", "bot", "calls")] or ["read"], created_by=user.id)
     db.add(k)
     db.commit()
     audit(db, "api_key.create", "api_key", k.id, user=user, name=k.name, scopes=k.scopes)
@@ -5693,7 +5693,8 @@ async def settings_telephony_save(request: Request, user: User = Depends(require
     prov = str(f.get("provider") or "")
     try:
         tel.save(db, prov, {k: f.get(k) for k in f.keys()}, str(f.get("source") or ""), bool(f.get("create_appeal")), bool(f.get("missed_only")))
-        tel.save_extra(db, f.getlist("popup_users"), bool(f.get("ai_on")), str(f.get("ai_criteria") or ""), f.get("ai_alert_below"), bool(f.get("ai_alert")))
+        tel.save_extra(db, f.getlist("popup_users"), bool(f.get("ai_on")), str(f.get("ai_criteria") or ""), f.get("ai_alert_below"), bool(f.get("ai_alert")),
+                       str(f.get("ai_engine") or "crm"))
     except ValueError as e:
         return RedirectResponse(_with_msg("/settings/telephony", str(e), True), 303)
     audit(db, "telephony.save", user=user, provider=prov)

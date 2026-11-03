@@ -60,3 +60,22 @@ def test_call_ai_popup_create_patient_and_kpi():
         t = c.get("/telephony").text
         assert "KPI дзвінків" in t and "AI 55/100" in t and "Текст діалогу" in t
         assert "Дзвінки · 1" in c.get(f"/patients/{cl.patient_id}").text
+
+
+def test_agent_api_calls_ai():
+    from app.models import ApiKey
+    from app.security import new_api_key
+    with SessionLocal() as db:
+        tel.save_extra(db, [], True, "критерії", 70, False, "agent")
+        c = Call(provider="ringostat", phone="380501112233", direction="in", status="answered", duration=60, record_url="https://r/1.wav")
+        db.add(c); db.commit(); cid = c.id
+        raw, prefix, hsh = new_api_key()
+        db.add(ApiKey(name="openclaw", prefix=prefix, key_hash=hsh, scopes=["calls"])); db.commit()
+    with TestClient(app) as cl:
+        h = {"X-API-Key": raw}
+        j = cl.get("/api/v1/calls/pending-ai", headers=h).json()
+        assert j["criteria"] == "критерії" and j["calls"][0]["id"] == cid and j["calls"][0]["phone_last4"] == "2233"
+        r = cl.post(f"/api/v1/calls/{cid}/ai", headers=h, json={"transcript": "Адмін: Добрий день", "score": 50, "comment": "слабко", "booked": False})
+        assert r.json()["ai_score"] == 50
+        assert cl.get("/api/v1/calls/pending-ai", headers=h).json()["calls"] == []
+        assert cl.get("/api/v1/patients", headers=h).status_code == 403
