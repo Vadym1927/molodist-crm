@@ -4899,6 +4899,7 @@ SETTINGS_BLOCKS = [
         ('Налаштування окладів', 'Фіксована ставка, комісійні за послуги й товари, % від обороту — шаблони для зарплати', '/settings/salary', 'finance', 'salary'),
         ('Категорії спеціалістів', 'Ціни за категоріями: інші ціни на послуги для головного лікаря, топ-лікаря, стажера', '/settings/price-cats', 'finance', 'cmarket/customprice/main'),
         ('Статті для нарахувань', 'Премії, штрафи, лікарняні, податки, відпускні — для коригувань зарплати', '/settings/accrual-articles', 'finance', 'dirs/stype'),
+        ('% від продажу косметики', 'Відсоток лікарям з продажу товарів: без знижки, зі знижкою, поріг ціни; свої % для лікарів, брендів і товарів', '/settings/cosmetics-pct', 'finance', None),
         ('Застосунок для спеціаліста', 'Записи й нарахування у телефоні спеціаліста', 'dev', None, None),
     ]),
     ('Фінанси', 'finance', 'Каси, статті, оплати й фіскалізація', [
@@ -5232,6 +5233,38 @@ def settings_cashboxes(request: Request, user: User = Depends(require("finance")
                   methods=sl.methods(db), open_=open_, detail=detail, dmoves=cbx.moves(db, detail, 100) if detail else [],
                   total=round(sum(b["balance"] for b in boxes if b.get("active")), 2), fee_articles=fa.names(db, "expense"),
                   FEE_ARTICLE=cbx.FEE_ARTICLE, shift_req=__import__("app.services.shifts", fromlist=["x"]).required(db))
+
+
+@app.get("/settings/cosmetics-pct", response_class=HTMLResponse)
+def settings_cosmetics_pct(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import cosmetics_pct as _cp
+    from .models import Product as _P
+    docs = sorted({d_.name for d_ in spec_svc.all_doctors(db) if d_.active} | set(_cp.cfg(db)["staff"]))
+    brands = sorted({b_ for (b_,) in db.execute(select(_P.brand).where(_P.brand.is_not(None)).distinct()) if b_.strip()})
+    prods = sorted({n_ for (n_,) in db.execute(select(_P.name).where(_P.active.is_not(False))) if n_})
+    return render(request, "cosmetics_pct.html", nav="settings", c=_cp.cfg(db), BASES=_cp.BASES, docs=docs, brands=brands, prods=prods)
+
+
+@app.post("/settings/cosmetics-pct")
+async def settings_cosmetics_pct_save(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import cosmetics_pct as _cp
+    f = await request.form()
+
+    def rows(prefix, extra=()):
+        out = {}
+        names = f.getlist(prefix + "_name")
+        cols = {k: f.getlist(f"{prefix}_{k}") for k in ("full", "disc", *extra)}
+        for i, n_ in enumerate(names):
+            r_ = {k: (v[i] if i < len(v) else "") for k, v in cols.items()}
+            if prefix == "staff":
+                r_["off"] = str(i) in f.getlist("staff_off")
+            if str(n_).strip():
+                out[str(n_).strip()] = r_
+        return out
+    _cp.save(db, {**{k: f.get(k) for k in ("full", "disc", "min_price", "low", "disc_from", "base")},
+                  "staff": rows("staff", ("min_price",)), "brands": rows("brand"), "products": rows("prod")})
+    audit(db, "settings.cosmetics_pct", user=user)
+    return RedirectResponse(_with_msg("/settings/cosmetics-pct", "Збережено. Звіт «Нарахування % по косметиці» рахується за новими правилами"), 303)
 
 
 @app.get("/settings/visit-statuses", response_class=HTMLResponse)

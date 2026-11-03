@@ -618,6 +618,13 @@ def cash(db: Session, d_from: date, d_to: date) -> Report:
     return r
 
 
+def _disc_pct(price: float, qty: float, paid: float, flagged: bool) -> float:
+    """Знижка позиції у %: з різниці ціни й оплаченої суми (позначка знижки без різниці — мінімальна знижка)."""
+    full = round(price * (qty or 1), 2)
+    pct = (1 - paid / full) * 100 if full > 0 and paid < full - 0.01 else 0.0
+    return round(max(pct, 0.01 if flagged else 0.0), 2)
+
+
 def cosmetics(db: Session, d_from: date, d_to: date, staff: str = "") -> Report:
     """Нарахування % лікарям з продажу косметики: 10% від ціни продажу без знижки, 5% — зі знижкою,
     0 — якщо ціна товару менше 1000 ₴. Позиції чеків CleverBox (ініціатор) і продажів каси CRM (спеціаліст)."""
@@ -638,10 +645,9 @@ def cosmetics(db: Session, d_from: date, d_to: date, staff: str = "") -> Report:
             q = f(it.get("quantity")) or 1
             paid = f(it.get("payd_amount") or it.get("total"))
             price = f(it.get("price")) or (paid / q if q else paid)
-            disc = f(it.get("discount")) > 0 or paid < round(price * q, 2) - 0.01
             rows.append({"at": c.date, "staff": (it.get("initiator_name") or "").strip() or "Без ініціатора",
-                         "name": (it.get("item_name") or "—").strip(), "qty": q, "price": price, "paid": paid, "disc": disc,
-                         "ref": f"чек CleverBox {c.id}"})
+                         "name": (it.get("item_name") or "—").strip(), "qty": q, "price": price, "paid": paid,
+                         "disc_pct": _disc_pct(price, q, paid, f(it.get("discount")) > 0), "ref": f"чек CleverBox {c.id}"})
     a, b = _rng(d_from, d_to)
     docs = {d.id: d.name for d in db.scalars(select(Doctor))}
     for sl in db.scalars(select(Sale).where(Sale.status == "paid", Sale.at >= a, Sale.at <= b)):
@@ -650,18 +656,17 @@ def cosmetics(db: Session, d_from: date, d_to: date, staff: str = "") -> Report:
                 continue
             q = it.qty or 1
             rows.append({"at": sl.at, "staff": docs.get(it.doctor_id, "Без ініціатора"), "name": it.name, "qty": q,
-                         "price": float(it.price or 0), "paid": float(it.total or 0),
-                         "disc": bool(it.discount) or float(it.total or 0) < float(it.price or 0) * q - 0.01, "ref": f"чек CRM Ч-{sl.id}"})
+                         "price": float(it.price or 0), "paid": float(it.total or 0), "product_id": it.ref_id,
+                         "disc_pct": _disc_pct(float(it.price or 0), q, float(it.total or 0), bool(it.discount)), "ref": f"чек CRM Ч-{sl.id}"})
     staff_all = sorted({x["staff"] for x in rows})
     if staff:
         rows = [x for x in rows if x["staff"] == staff]
+    from .cosmetics_pct import Rules
+    rules = Rules(db)
     for x in rows:
-        x["pct"] = 0 if x["price"] < 1000 else (5 if x["disc"] else 10)
-        x["sum"] = round(x["paid"] * x["pct"] / 100, 2)
-        x["rule"] = "ціна < 1000 ₴" if x["price"] < 1000 else ("зі знижкою" if x["disc"] else "без знижки")
+        rules.apply(x)
     r = Report("cosmetics", "Нарахування % по косметиці",
-               "Відсоток лікарю з кожного проданого товару: 10% від суми продажу без знижки, 5% — якщо продано зі знижкою, "
-               "0 — якщо ціна товару менше 1000 ₴. Лікар — ініціатор позиції в чеку CleverBox або спеціаліст у продажі каси CRM.")
+               rules.describe() + " Лікар — ініціатор позиції в чеку CleverBox або спеціаліст у продажі каси CRM.")
     r.grouped = True
     r.cols = [Col("name", "Товар / лікар"), Col("day", "Дата", "date"), Col("qty", "К-сть", "num", True), Col("price", "Ціна", "uah"),
               Col("paid", "Продано на", "uah", True), Col("rule", "Умова"), Col("pct", "%", "pct"), Col("sum", "Нараховано", "uah", True)]
@@ -681,7 +686,7 @@ def cosmetics(db: Session, d_from: date, d_to: date, staff: str = "") -> Report:
     t = r.total or {}
     r.tiles = [("Нараховано лікарям", t.get("sum", 0), None, "uah", ""),
                ("Продано косметики", t.get("paid", 0), None, "uah", f"{t.get('qty', 0):g} шт."),
-               ("Без % (ціна < 1000 ₴)", round(sum(z["paid"] for z in rows if z["pct"] == 0), 2), None, "uah", "")]
+               ("Без %", round(sum(z["paid"] for z in rows if z["pct"] == 0), 2), None, "uah", "")]
     return r
 
 

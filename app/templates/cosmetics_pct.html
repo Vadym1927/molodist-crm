@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}% від продажу косметики · MOLODIST CRM{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+<style>
+.cp-info{background:linear-gradient(120deg,#F1EDF8,#F7F4F0);border:1px solid #E4DEEF;border-radius:16px;padding:16px 20px;color:#3B3050;margin:14px 0 18px;line-height:1.5}
+.cp-f{display:grid;gap:18px;max-width:1100px}
+.cp-c{background:#fff;border:1px solid #ECE7E1;border-radius:16px;padding:18px 20px}
+.cp-c h3{margin:0 0 4px;font:600 14px var(--head);letter-spacing:.1em;text-transform:uppercase}.cp-c>p{margin:0 0 14px;color:#8a8496;font-size:13.5px}
+.cp-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;align-items:end}
+.cp-l{display:grid;gap:6px;font:700 10.5px var(--sans);letter-spacing:.07em;text-transform:uppercase;color:#8a8496}
+.cp-l input,.cp-l select{height:44px;font:500 15px var(--sans);text-transform:none;letter-spacing:0;color:#2A2430}
+.pc{position:relative}.pc input{width:100%;padding-right:34px}.pc:after{content:attr(data-u);position:absolute;right:12px;top:50%;transform:translateY(-50%);color:#8a8496;font:600 14px var(--sans)}
+.cp-t{display:grid;gap:0}
+.cp-r{display:grid;grid-template-columns:minmax(0,1fr) 130px 130px var(--x,0px) 36px;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid #F1EDE8}
+.cp-r.st{--x:260px}.cp-r.hd{font:700 10.5px var(--sans);letter-spacing:.07em;text-transform:uppercase;color:#8a8496;padding:0 0 6px}
+.cp-r input{height:40px;width:100%}.cp-r .two{display:grid;grid-template-columns:120px 1fr;gap:10px;align-items:center}
+.cp-r label.off{display:flex;gap:6px;align-items:center;font-size:13px;color:#5d5869;cursor:pointer}.cp-r label.off input{width:16px;height:16px;accent-color:#B23B2E}
+.cp-x{border:0;background:none;color:#B23B2E;font-size:22px;cursor:pointer}
+.cp-ex{margin-top:6px;color:#8a8496;font-size:13px}
+.cp-pr{font-size:12.5px;color:#8a8496;margin-top:10px}
+@media(max-width:760px){.cp-r,.cp-r.st{grid-template-columns:1fr 1fr 36px}.cp-r>:first-child{grid-column:1/-1}.cp-r .two{grid-column:1/-1}.cp-r.hd{display:none}}
+</style>
+<form method="post" class="cp-f" id="cpf" onsubmit="cpIdx()">
+<div class="row between" style="gap:10px;flex-wrap:wrap"><div><div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a> · Співробітники</div><h1>% від продажу косметики</h1></div>
+  <div class="row" style="gap:8px"><a class="btn ghost" href="/reports?r=cosmetics">Звіт нарахувань</a><button class="btn">Зберегти</button></div></div>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok);margin:0">{{ qp.get('msg') }}</div>{% endif %}
+<div class="cp-info" style="margin:0">Скільки відсотків лікар отримує з проданої косметики. Лікар — ініціатор позиції в чеку (спеціаліст у продажі каси).
+  Порядок перевірки: <b>свій % товару</b> → <b>свій % бренду</b> → <b>поріг ціни</b> → <b>свій % лікаря</b> → <b>загальне правило</b>. Порожнє поле у винятку — береться загальне значення. За цими правилами рахується звіт «Нарахування % по косметиці».</div>
+
+<div class="cp-c"><h3>Загальне правило</h3><p>Діє для всіх лікарів і товарів, якщо нижче не задано інше.</p>
+  <div class="cp-g">
+    <label class="cp-l">Без знижки<span class="pc" data-u="%"><input name="full" inputmode="decimal" value="{{ '%g'|format(c.full) }}"></span></label>
+    <label class="cp-l">Зі знижкою<span class="pc" data-u="%"><input name="disc" inputmode="decimal" value="{{ '%g'|format(c.disc) }}"></span></label>
+    <label class="cp-l">Зі знижкою, якщо знижка більше<span class="pc" data-u="%"><input name="disc_from" inputmode="decimal" value="{{ '%g'|format(c.disc_from) }}"></span></label>
+    <label class="cp-l">Поріг ціни товару<span class="pc" data-u="₴"><input name="min_price" inputmode="decimal" value="{{ '%g'|format(c.min_price) }}"></span></label>
+    <label class="cp-l">% для товарів дешевших за поріг<span class="pc" data-u="%"><input name="low" inputmode="decimal" value="{{ '%g'|format(c.low) }}"></span></label>
+    <label class="cp-l">Рахувати<select name="base">{% for k, v in BASES.items() %}<option value="{{ k }}" {{ 'selected' if c.base == k }}>{{ v }}</option>{% endfor %}</select></label>
+  </div>
+  <div class="cp-pr" id="cp-pr"></div></div>
+
+<div class="cp-c"><h3>Лікарі</h3><p>Свій % для конкретного лікаря, свій поріг ціни або «не нараховувати» (наприклад, адміністратору).</p>
+  <div class="cp-t" id="t-staff"><div class="cp-r st hd"><span>Лікар</span><span>Без знижки, %</span><span>Зі знижкою, %</span><span>Поріг ціни, ₴ · без %</span><span></span></div>
+  {% for n, r in c.staff.items() %}<div class="cp-r st"><input name="staff_name" value="{{ n }}" list="dl-docs">
+    <input name="staff_full" inputmode="decimal" value="{{ '%g'|format(r.full) if r.full is not none }}" placeholder="{{ '%g'|format(c.full) }}">
+    <input name="staff_disc" inputmode="decimal" value="{{ '%g'|format(r.disc) if r.disc is not none }}" placeholder="{{ '%g'|format(c.disc) }}">
+    <div class="two"><input name="staff_min_price" inputmode="decimal" value="{{ '%g'|format(r.min_price) if r.min_price is not none }}" placeholder="{{ '%g'|format(c.min_price) }}"><label class="off"><input type="checkbox" name="staff_off" {{ 'checked' if r.off }}>не нараховувати</label></div>
+    <button type="button" class="cp-x" onclick="this.parentNode.remove()">×</button></div>{% endfor %}</div>
+  <button type="button" class="btn ghost" style="margin-top:10px" onclick="cpAdd('staff')">＋ Лікар</button></div>
+
+<div class="cp-c"><h3>Бренди</h3><p>Інший % на весь бренд (поріг ціни для бренду не діє).</p>
+  <div class="cp-t" id="t-brand"><div class="cp-r hd"><span>Бренд</span><span>Без знижки, %</span><span>Зі знижкою, %</span><span></span><span></span></div>
+  {% for n, r in c.brands.items() %}<div class="cp-r"><input name="brand_name" value="{{ n }}" list="dl-brands">
+    <input name="brand_full" inputmode="decimal" value="{{ '%g'|format(r.full) if r.full is not none }}" placeholder="{{ '%g'|format(c.full) }}">
+    <input name="brand_disc" inputmode="decimal" value="{{ '%g'|format(r.disc) if r.disc is not none }}" placeholder="{{ '%g'|format(c.disc) }}"><span></span>
+    <button type="button" class="cp-x" onclick="this.parentNode.remove()">×</button></div>{% endfor %}</div>
+  <button type="button" class="btn ghost" style="margin-top:10px" onclick="cpAdd('brand')">＋ Бренд</button></div>
+
+<div class="cp-c"><h3>Товари</h3><p>Свій % на конкретний товар — найвищий пріоритет (поріг ціни не діє).</p>
+  <div class="cp-t" id="t-prod"><div class="cp-r hd"><span>Товар</span><span>Без знижки, %</span><span>Зі знижкою, %</span><span></span><span></span></div>
+  {% for n, r in c.products.items() %}<div class="cp-r"><input name="prod_name" value="{{ n }}" list="dl-prods">
+    <input name="prod_full" inputmode="decimal" value="{{ '%g'|format(r.full) if r.full is not none }}" placeholder="{{ '%g'|format(c.full) }}">
+    <input name="prod_disc" inputmode="decimal" value="{{ '%g'|format(r.disc) if r.disc is not none }}" placeholder="{{ '%g'|format(c.disc) }}"><span></span>
+    <button type="button" class="cp-x" onclick="this.parentNode.remove()">×</button></div>{% endfor %}</div>
+  <button type="button" class="btn ghost" style="margin-top:10px" onclick="cpAdd('prod')">＋ Товар</button></div>
+</form>
+<datalist id="dl-docs">{% for n in docs %}<option value="{{ n }}">{% endfor %}</datalist>
+<datalist id="dl-brands">{% for n in brands %}<option value="{{ n }}">{% endfor %}</datalist>
+<datalist id="dl-prods">{% for n in prods %}<option value="{{ n }}">{% endfor %}</datalist>
+<script>
+function cpAdd(t){var f=document.querySelector('[name=full]').value,d=document.querySelector('[name=disc]').value,m=document.querySelector('[name=min_price]').value;
+  var dl={staff:'dl-docs',brand:'dl-brands',prod:'dl-prods'}[t],ph={staff:'Почніть вводити імʼя лікаря',brand:'Назва бренду',prod:'Почніть вводити назву товару'}[t];
+  var r=document.createElement('div');r.className='cp-r'+(t==='staff'?' st':'');
+  r.innerHTML='<input name="'+t+'_name" list="'+dl+'" placeholder="'+ph+'" required><input name="'+t+'_full" inputmode="decimal" placeholder="'+f+'"><input name="'+t+'_disc" inputmode="decimal" placeholder="'+d+'">'+
+    (t==='staff'?'<div class="two"><input name="staff_min_price" inputmode="decimal" placeholder="'+m+'"><label class="off"><input type="checkbox" name="staff_off">не нараховувати</label></div>':'<span></span>')+
+    '<button type="button" class="cp-x" onclick="this.parentNode.remove()">×</button>';
+  document.getElementById('t-'+t).appendChild(r);r.querySelector('input').focus()}
+function cpIdx(){document.querySelectorAll('#t-staff .cp-r:not(.hd)').forEach(function(r,i){var c=r.querySelector('[name=staff_off]');if(c)c.value=i})}
+function cpPr(){var g=function(n){return parseFloat((document.querySelector('[name='+n+']').value||'0').replace(',','.'))||0};
+  var full=g('full'),disc=g('disc'),mp=g('min_price'),low=g('low'),p=1500;
+  document.getElementById('cp-pr').textContent='Приклад: крем за '+p+' ₴ без знижки → '+(p*full/100).toFixed(2)+' ₴ лікарю; зі знижкою 10% ('+(p*.9)+' ₴) → '+(p*.9*disc/100).toFixed(2)+' ₴'+
+    (mp?'; товар за '+Math.max(mp-100,1)+' ₴ (менше порогу) → '+(Math.max(mp-100,1)*low/100).toFixed(2)+' ₴':'')+'.'}
+document.querySelectorAll('.cp-g input').forEach(function(i){i.addEventListener('input',cpPr)});cpPr();
+</script>
+{% endblock %}
