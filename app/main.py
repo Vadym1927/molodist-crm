@@ -7622,6 +7622,39 @@ def patient_message(pid: int, text: str = Form(...), channel: str = Form("auto")
     return RedirectResponse(f"/patients/{pid}#contact", 303)
 
 
+def _grp_name(g) -> str:
+    v = (g.get("name") or g.get("title") or "") if isinstance(g, dict) else g
+    return " ".join(str(v or "").split())[:60]
+
+
+@app.get("/patient-groups")
+def patient_groups_list(user: User = Depends(current_user), db: Session = Depends(db_dep)):
+    """Усі групи пацієнтів (з CleverBox і додані вручну) — для вибору в картці."""
+    cnt: dict[str, int] = {}
+    for gl in db.scalars(select(Patient.client_groups).where(Patient.client_groups.is_not(None))):
+        for g in gl or []:
+            n = _grp_name(g)
+            if n:
+                cnt[n] = cnt.get(n, 0) + 1
+    return JSONResponse([{"name": k, "n": v} for k, v in sorted(cnt.items(), key=lambda x: (-x[1], x[0].lower()))])
+
+
+@app.post("/patients/{pid}/groups")
+def patient_groups_edit(pid: int, action: str = Form(...), name: str = Form(""), user: User = Depends(require("patient_edit")),
+                        db: Session = Depends(db_dep)):
+    p = _patient_or_403(db, user, pid)
+    cur = [n for n in (_grp_name(g) for g in (p.client_groups or [])) if n]
+    nm = " ".join(name.split())[:60]
+    if action == "add" and nm and nm.lower() not in {x.lower() for x in cur}:
+        cur.append(nm)
+    elif action == "remove":
+        cur = [x for x in cur if x.lower() != nm.lower()]
+    p.client_groups = list(dict.fromkeys(cur))     # [] — свідомо порожньо, синк CleverBox не перезаписує
+    db.commit()
+    audit(db, f"patient.group_{action}", "patient", p.id, user=user, group=nm)
+    return RedirectResponse(f"/patients/{pid}", 303)
+
+
 @app.post("/patients/{pid}/mark")
 def patient_mark(pid: int, mark: str = Form(""), user: User = Depends(require("patient_edit")), db: Session = Depends(db_dep)):
     """Мітка пацієнта VIP / BAD (поле cb_mark, як у CleverBox); повторне натискання — зняти."""

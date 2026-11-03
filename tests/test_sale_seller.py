@@ -15,3 +15,21 @@ def test_sale_initiator_from_cb_check():
         db.add_all([s1, s2]); db.commit()
         r = _sale_sellers(db, [s1, s2])
         assert r == {s1.id: "Дар'я Колган"}
+
+
+def test_patient_groups_add_remove():
+    from fastapi.testclient import TestClient
+    from app.config import settings
+    from app.main import app
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        p = Patient(full_name="Група Тест", client_groups=["ЖК", {"name": "Трихолог"}]); db.add(p); db.commit(); pid = p.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        assert "Трихолог" in c.get(f"/patients/{pid}").text
+        c.post(f"/patients/{pid}/groups", data={"action": "remove", "name": "Трихолог"})
+        c.post(f"/patients/{pid}/groups", data={"action": "add", "name": "ЛЄ розсилка"})
+        names = [g["name"] for g in c.get("/patient-groups").json()]
+        assert "ЖК" in names and "ЛЄ розсилка" in names
+    with SessionLocal() as db:
+        assert db.get(Patient, pid).client_groups == ["ЖК", "ЛЄ розсилка"]

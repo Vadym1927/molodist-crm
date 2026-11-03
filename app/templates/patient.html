@@ -78,6 +78,9 @@
 .pc-l2{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:4px}.pc-l2 .pc-mn{margin:0;font-size:19px;color:#3B3050;font-weight:500}
 .pc-mk{border:1.5px dashed #D9D3E3;background:#fff;color:#8a8496;border-radius:999px;padding:4px 12px;font:700 12.5px var(--sans);letter-spacing:.04em;cursor:pointer}
 .pc-mk.vip:hover,.pc-mk.vip.on{border:1.5px solid #C9A227;color:#8A6A00;background:#FFF6D6}.pc-mk.bad:hover,.pc-mk.bad.on{border:1.5px solid #B23B2E;color:#B23B2E;background:#FBE7E4}
+.pc-gr{display:inline-flex;align-items:center;gap:4px}.pc-gr form{display:inline;margin:0}.pc-gr button{border:0;background:none;color:inherit;opacity:.45;cursor:pointer;font-size:15px;line-height:1;padding:0 0 0 2px}.pc-gr button:hover{opacity:1;color:#B23B2E}
+.pc-gr-add{border:1.5px dashed #C9BFE6;background:#fff;color:#5C4B82;cursor:pointer;font-weight:600}
+.pc-gr-f{display:flex;gap:6px;align-items:center;width:100%;margin-top:4px}.pc-gr-f[hidden]{display:none}.pc-gr-f input{height:34px;min-width:240px}
 .pc-sep{width:1px;height:20px;background:#D9D3E3}
 .pc-tag{text-transform:none;letter-spacing:0;font:600 13.5px var(--sans);padding:4px 12px}
 .pc-meta{margin-top:10px;font-size:14.5px;gap:4px 14px}.pc-meta .ic{color:#5C4B82;margin-right:4px}
@@ -124,12 +127,16 @@
     <div class="pc-l1"><h1 class="pc-nm">{{ _w[:2]|join(' ') }}{% if _w|length > 2 %} <span class="pc-pat">{{ _w[2:]|join(' ') }}</span>{% endif %}</h1>
       {% if p.cb_status %}<span class="pill done">{{ p.cb_status }}</span>{% endif %}</div>
     <div class="pc-l2">
-      {% if ptag %}<span class="pc-tag" style="background:{{ ptag_color }}22;color:{{ ptag_color }};border:1px solid {{ ptag_color }}55">{{ ptag }}</span>{% endif %}</div>
+      {% if ptag %}<span class="pc-tag" style="background:{{ ptag_color }}22;color:{{ ptag_color }};border:1px solid {{ ptag_color }}55">{{ ptag }}</span>{% endif %}
       {% for mk, ml in [('vip','VIP'),('bad','BAD')] %}{% if can(user,'patient_edit') %}<form method="post" action="/patients/{{ p.id }}/mark" style="display:inline"><input type="hidden" name="mark" value="{{ mk }}">
         <button class="pc-mk {{ mk }}{{ ' on' if p.cb_mark == mk }}" title="{{ ('Зняти мітку ' if p.cb_mark == mk else 'Позначити ') ~ ml }}">{{ '★ ' if mk == 'vip' else '⚠ ' }}{{ ml }}</button></form>
-      {% elif p.cb_mark == mk %}<span class="pc-mk {{ mk }} on">{{ ml }}</span>{% endif %}{% endfor %}
-    {% if p.client_groups or p.directions or p.no_repeat_call or p.marketing_opt_out %}<div class="pc-tg">
-      {% for group in p.client_groups or [] %}<span class="pill done">{{ group }}</span>{% endfor %}
+      {% elif p.cb_mark == mk %}<span class="pc-mk {{ mk }} on">{{ ml }}</span>{% endif %}{% endfor %}</div>
+    {% if p.client_groups or p.directions or p.no_repeat_call or p.marketing_opt_out or can(user,'patient_edit') %}<div class="pc-tg">
+      {% for group in p.client_groups or [] %}{% set _gn = (group.get('name') or group.get('title')) if group is mapping else group %}<span class="pill done pc-gr">{{ _gn }}{% if can(user,'patient_edit') %}<form method="post" action="/patients/{{ p.id }}/groups" onsubmit="return confirm('Прибрати групу «{{ _gn|replace("'", "’") }}»?')"><input type="hidden" name="action" value="remove"><input type="hidden" name="name" value="{{ _gn }}"><button title="Прибрати групу">×</button></form>{% endif %}</span>{% endfor %}
+      {% if can(user,'patient_edit') %}<button type="button" class="pill pc-gr-add" onclick="grOpen(this)">＋ група</button>
+      <form method="post" action="/patients/{{ p.id }}/groups" class="pc-gr-f" id="gr-f" hidden><input type="hidden" name="action" value="add">
+        <input name="name" list="dl-groups" placeholder="Почніть вводити або нова група" required autocomplete="off"><button class="btn" style="padding:4px 12px">Додати</button><button type="button" class="btn ghost" style="padding:4px 10px" onclick="this.form.hidden=true">✕</button>
+        <datalist id="dl-groups"></datalist></form>{% endif %}
       {% for d in p.directions or [] %}<span class="pill" style="background:var(--lavender);color:var(--classic)">{{ d }}</span>{% endfor %}
       {% if p.no_repeat_call %}<span class="pill warn">Не дзвонити при повторному візиті</span>{% endif %}
       {% if p.marketing_opt_out %}<span class="pill bad">відписана від розсилок</span>{% endif %}</div>{% endif %}
@@ -517,6 +524,9 @@ function phFilter(g,f){const lst=document.querySelector('.ph-list[data-ph="'+g+'
   lst.querySelectorAll('.ph-r').forEach(r=>{const ok=f==='all'||r.dataset.k===f||r.dataset.s===f;const show=ok&&(!lim||n<lim);if(ok){n++;if(r.dataset.s!=='bad'||f==='bad'){sum+=+r.dataset.sum||0;cnt++}}r.style.display=show?'':'none'});
   const el=document.querySelector('.ph-sum[data-ph="'+g+'"]');if(el)el.textContent=cnt?(cnt+' · разом '+sum.toLocaleString('uk-UA',{minimumFractionDigits:2,maximumFractionDigits:2})+' ₴'):''}
 function ptTo(id){ptGo('sales');setTimeout(()=>{var e=document.getElementById(id);if(e)e.scrollIntoView({block:'start'})},40)}
+function grOpen(b){const f=document.getElementById('gr-f');f.hidden=false;f.querySelector('[name=name]').focus();
+  const dl=document.getElementById('dl-groups');if(dl.dataset.ok)return;dl.dataset.ok=1;
+  fetch('/patient-groups').then(r=>r.json()).then(a=>{dl.innerHTML=a.map(g=>'<option value="'+g.name.replace(/"/g,'&quot;')+'">'+g.n+' пацієнтів</option>').join('')})}
 function ptVis(f){ptGo('visits');const ch=document.querySelector('.ph-ch[data-ph="vi"]');if(ch)ch.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x.dataset.f===f));phFilter('vi',f)}
 document.querySelectorAll('.ph-ch').forEach(ch=>ch.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
   ch.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));phFilter(ch.dataset.ph,b.dataset.f)})));

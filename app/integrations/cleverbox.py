@@ -282,7 +282,7 @@ def apply_client_fields(p: Patient, c: dict) -> None:
     if not p.source and _first_val(c, SOURCE_KEYS):
         p.source = str(_flat(_first_val(c, SOURCE_KEYS)))[:100]
     grp = _first_val(c, GROUP_KEYS)
-    if not p.client_groups and grp:
+    if p.client_groups is None and grp:
         items = grp if isinstance(grp, list) else str(_flat(grp)).split(",")
         p.client_groups = [str(_flat(x)).strip() for x in items if str(_flat(x)).strip()][:20] or None
     for attr, keys in (("cb_balance", BALANCE_KEYS), ("cb_bonus", BONUS_KEYS), ("cb_total", TOTAL_KEYS),
