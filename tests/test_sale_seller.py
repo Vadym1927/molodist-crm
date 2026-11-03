@@ -28,8 +28,9 @@ def test_patient_groups_add_remove():
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
         assert "Трихолог" in c.get(f"/patients/{pid}").text
         c.post(f"/patients/{pid}/groups", data={"action": "remove", "name": "Трихолог"})
-        c.post(f"/patients/{pid}/groups", data={"action": "add", "name": "ЛЄ розсилка"})
-        names = [g["name"] for g in c.get("/patient-groups").json()]
-        assert "ЖК" in names and "ЛЄ розсилка" in names
+        assert c.post(f"/patients/{pid}/groups", data={"action": "add", "name": "ЛЄ розсилка"}).status_code == 400   # немає в довіднику
+        c.post("/settings/patient-tags", data={"what": "groups", "g_name": ["ЖК", "ЛЄ розсилка"], "g_color": ["#5C4B82", "#2F7A4C"], "g_orig": ["ЖК", ""]})
+        c.post(f"/patients/{pid}/groups", data={"action": "add", "name": "лє розсилка"})
+        assert "Групи пацієнтів" in c.get("/settings/patient-tags").text
     with SessionLocal() as db:
         assert db.get(Patient, pid).client_groups == ["ЖК", "ЛЄ розсилка"]

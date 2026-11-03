@@ -11,13 +11,14 @@
 .pt-r input[type=text],.pt-r input[type=number]{height:40px;width:100%}.pt-r input[type=color]{width:48px;height:38px;padding:2px;border:1px solid #E9E5DF;border-radius:10px;background:#fff}
 .pt-pv{display:inline-block;color:#fff;font:700 11px var(--sans);padding:3px 9px;border-radius:6px;white-space:nowrap}
 .pt-rg{font-size:13px;color:#5d5869}.pt-x{border:0;background:none;color:#B23B2E;font-size:22px;cursor:pointer}
+.pg-r{display:grid;grid-template-columns:56px minmax(0,1fr) 110px 40px;gap:12px;align-items:center;padding:7px 0;border-bottom:1px solid #F1EDE8}.pg-r.hd{font:700 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496;padding-top:0}.pg-r input[type=text]{height:40px;width:100%}.pg-r input[type=color]{width:48px;height:38px;padding:2px;border:1px solid #E9E5DF;border-radius:10px;background:#fff}
 .pf-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:10px}
 .pf{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1px solid #ECE7E1;border-radius:12px;padding:10px 12px;background:#FBFAF8}
 .pf b{font-weight:600;font-size:14px}.pf small{display:block;color:#B23B2E;font-size:11.5px}.pf select{height:40px;width:170px;padding:0 10px;flex:none}
 .pf.on{border-color:#C9BFE6;background:#F6F3FB}.pf.hover{border-color:#E4DEEF;background:#fff}
 @media(max-width:700px){.pt-r{grid-template-columns:48px 1fr 36px}.pt-r .pt-n,.pt-r .pt-rg{grid-column:2}.pt-r.hd{display:none}}
 </style>
-<div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a> · Пацієнти</div><h1>Статуси пацієнтів</h1>
+<div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a> · Пацієнти</div><h1>Статуси й групи пацієнтів</h1>
 {% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok);margin-top:10px;max-width:900px">{{ qp.get('msg') }}</div>{% endif %}
 <div class="pt-info"><b>Як визначається статус.</b> CRM рахує візити пацієнта — кількість різних днів, коли візит завершено (історія CleverBox і записи CRM зі статусом «Візит завершено»). Для запланованого візиту він уже враховується: на першому візиті пацієнт — первинний.
   Пацієнт отримує найвищий статус, поріг якого досягнув. Зараз: <b>{% for t in tags %}{{ t.name }} — від {{ t.min if t.min > 1 else 1 }}{{ '' if loop.last else ' · ' }}{% endfor %}</b> візитів.
@@ -31,6 +32,14 @@
   <div class="row" style="gap:8px;margin-top:12px"><button type="button" class="btn ghost" onclick="ptAdd()">＋ Статус</button><button class="btn">Зберегти статуси</button></div>
 </form>
 
+<form method="post" class="pt-c" id="groups"><input type="hidden" name="what" value="groups">
+  <h3>Групи пацієнтів</h3><p>Довідник груп. У картці пацієнта групи лише вибираються з цього списку. Перейменування змінить групу в усіх картках; видалення зі списку прибирає її з вибору (у картках, де вона вже є, вона залишиться — приберіть ×).</p>
+  <div class="pg-r hd"><span>Колір</span><span>Назва</span><span>Пацієнтів</span><span></span></div>
+  <div id="pgl">{% for g in groups %}<div class="pg-r"><input type="color" name="g_color" value="{{ g.color }}"><input type="hidden" name="g_orig" value="{{ g.name }}">
+    <input type="text" name="g_name" value="{{ g.name }}" maxlength="60" required><span class="pt-rg">{{ gcounts.get(g.name, 0) }}</span><button type="button" class="pt-x" onclick="this.parentNode.remove()">×</button></div>{% endfor %}</div>
+  <div class="row" style="gap:8px;margin-top:12px"><button type="button" class="btn ghost" onclick="pgAdd()">＋ Група</button><button class="btn">Зберегти групи</button></div>
+</form>
+
 <form method="post" class="pt-c" id="cal"><input type="hidden" name="what" value="fields">
   <h3>Дані пацієнта в календарі</h3><p>Які поля картки пацієнта показувати в блоці візиту. «Завжди» — видно одразу, «При наведенні» — блок трохи розкривається, коли наводите мишку. Час, пацієнт, статус і послуги видно завжди. Медичні поля бачать лише лікарі й власник.</p>
   <div class="pf-g">{% for k, (lb, med) in FIELDS.items() %}<label class="pf {{ fields[k] }}"><div><b>{{ lb }}</b>{% if med %}<small>лише з доступом до медкартки</small>{% endif %}</div>
@@ -38,6 +47,7 @@
   <button class="btn" style="margin-top:14px">Зберегти поля</button>
 </form>
 <script>
+function pgAdd(){var r=document.createElement('div');r.className='pg-r';r.innerHTML='<input type="color" name="g_color" value="#5C4B82"><input type="hidden" name="g_orig" value=""><input type="text" name="g_name" maxlength="60" required placeholder="Назва групи"><span class="pt-rg">0</span><button type="button" class="pt-x" onclick="this.parentNode.remove()">×</button>';document.getElementById('pgl').appendChild(r);r.querySelector('[name=g_name]').focus()}
 function ptAdd(){var r=document.createElement('div');r.className='pt-r';r.innerHTML='<input type="color" name="color" value="#5C4B82" oninput="ptPv()"><input type="text" class="pt-n" name="name" maxlength="40" required placeholder="Наприклад: VIP" oninput="ptPv()"><input type="number" name="min" min="0" step="1" value="20" oninput="ptPv()"><span class="pt-rg"></span><button type="button" class="pt-x" onclick="this.parentNode.remove();ptPv()">×</button>';document.getElementById('ptl').appendChild(r);ptPv()}
 function ptPv(){var rs=[].slice.call(document.querySelectorAll('#ptl .pt-r')).map(function(r){return {r:r,m:Math.max(0,parseInt(r.querySelector('[name=min]').value)||0)}}).sort(function(a,b){return a.m-b.m});
   rs.forEach(function(x,i){var nx=rs[i+1],a=Math.max(1,x.m),t=nx?(nx.m-1>=a?(nx.m-1===a?a+' візит':a+'–'+(nx.m-1)+' візитів'):'перекрито наступним'):'від '+a+' візитів';

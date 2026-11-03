@@ -16,6 +16,7 @@ from ..models import SyncState
 
 TAGS_KEY = "patient_tags"
 FIELDS_KEY = "calendar_patient_fields"
+GROUPS_KEY = "patient_groups"
 DEFAULT_TAGS = [{"name": "Первинний пацієнт", "min": 0, "color": "#E8B931"},
                 {"name": "Постійний пацієнт", "min": 2, "color": "#4FC3D9"},
                 {"name": "ФАНАТ", "min": 10, "color": "#7CB342"}]
@@ -96,6 +97,54 @@ def visit_days(db: Session, pids) -> dict[int, int]:
             Appointment.patient_id.in_(pids), Appointment.status == "done").distinct()):
         days.setdefault(pid, set()).add(str(d))
     return {k: len(v) for k, v in days.items()}
+
+
+# ---------------- групи пацієнтів ----------------
+def group_name(g) -> str:
+    v = (g.get("name") or g.get("title") or "") if isinstance(g, dict) else g
+    return " ".join(str(v or "").split())[:60]
+
+
+def group_counts(db: Session) -> dict[str, int]:
+    from ..models import Patient
+    cnt: dict[str, int] = {}
+    for gl in db.scalars(select(Patient.client_groups).where(Patient.client_groups.is_not(None))):
+        for g in gl or []:
+            n = group_name(g)
+            if n:
+                cnt[n] = cnt.get(n, 0) + 1
+    return cnt
+
+
+def groups(db: Session) -> list[dict]:
+    """Довідник груп (Налаштування → Пацієнти). Якщо ще не збережено — з груп, що вже є в пацієнтів (CleverBox)."""
+    saved = _get(db, GROUPS_KEY)
+    if saved is None:
+        cnt = group_counts(db)
+        return [{"name": k, "color": "#5C4B82"} for k, _ in sorted(cnt.items(), key=lambda x: (-x[1], x[0].lower()))]
+    out, seen = [], set()
+    for r in saved:
+        n = group_name(r.get("name"))
+        if n and n.lower() not in seen:
+            seen.add(n.lower())
+            out.append({"name": n, "color": r.get("color") if _HEX.match(str(r.get("color") or "")) else "#5C4B82"})
+    return out
+
+
+def save_groups(db: Session, rows: list[dict]) -> None:
+    _put(db, GROUPS_KEY, [{"name": group_name(r.get("name")), "color": r.get("color")} for r in rows if group_name(r.get("name"))])
+
+
+def rename_group(db: Session, old: str, new: str) -> int:
+    from ..models import Patient
+    n = 0
+    for p in db.scalars(select(Patient).where(Patient.client_groups.is_not(None))):
+        names = [group_name(g) for g in p.client_groups or []]
+        if any(x.lower() == old.lower() for x in names):
+            p.client_groups = list(dict.fromkeys(new if x.lower() == old.lower() else x for x in names if x))
+            n += 1
+    db.commit()
+    return n
 
 
 # ---------------- поля в календарі ----------------

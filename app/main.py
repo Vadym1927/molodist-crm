@@ -829,6 +829,7 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
                   photos=[f for f in p.files if f.kind == "photo"],
                   docs=[f for f in p.files if f.kind != "photo"], now=datetime.now(),
                   items=_ph_items, counts=_ph_counts, CATS=_pp.CATS,
+                  pgroups=_ptg.groups(db),
                   pvisits=pvis, phist=phist, ptag=ptag, ptag_color=ptag_color, page_age=page_age,
                   patient_kpi=dict(done=max(len(completed_visits), len({r["at"].date() for r in pvis if r["status"] == "done"})),
                                    planned=len({r["at"] for r in pvis if r["at"] >= datetime.now() and r["status"] not in ("done", "cancelled", "no_show")}),
@@ -877,7 +878,7 @@ def patient_update(pid: int, full_name: str = Form(""), last_name: str = Form(""
                    phone: str = Form(""), cleverbox_id: str = Form(""),
                    doctor_id: str = Form(""), notes: str = Form(""), email: str = Form(""),
                    gender: str = Form(""), address: str = Form(""), source: str = Form(""),
-                   communication_channel: str = Form(""), client_groups: str = Form(""),
+                   communication_channel: str = Form(""), client_groups: str | None = Form(None),
                    cb_balance: str = Form(""), cb_bonus: str = Form(""),
                    user: User = Depends(require("patient_edit")), db: Session = Depends(db_dep)):
     p = _patient_or_403(db, user, pid)
@@ -899,7 +900,8 @@ def patient_update(pid: int, full_name: str = Form(""), last_name: str = Form(""
     p.cleverbox_id = int(cleverbox_id) if cleverbox_id.strip().isdigit() else None
     p.email, p.gender, p.address = email.strip() or None, gender.strip() or None, address.strip() or None
     p.source, p.communication_channel = source.strip() or None, communication_channel.strip() or None
-    p.client_groups = [x.strip() for x in client_groups.split(",") if x.strip()] or None
+    if client_groups is not None:          # групи тепер змінюються лише чіпами в шапці картки (з довідника)
+        p.client_groups = [x.strip() for x in client_groups.split(",") if x.strip()]
     def money(value: str):
         try:
             return float(value.strip().replace(" ", "").replace(",", ".")) if value.strip() else None
@@ -5154,6 +5156,7 @@ SETTINGS_BLOCKS = [
     ]),
     ('Пацієнти', 'patients', 'Фото, документи й персональні знижки пацієнтів', [
         ('Статуси пацієнтів', 'Первинний, постійний, ФАНАТ…: назва, колір і з якої кількості візитів присвоюється', '/settings/patient-tags', 'users', None),
+        ('Групи пацієнтів', 'Довідник груп (ЖК, Трихолог, -30% ЛЄ…): додати, перейменувати, колір — у картці пацієнта групи вибираються зі списку', '/settings/patient-tags#groups', 'users', None),
         ('Дані пацієнта в календарі', 'Які поля картки пацієнта показувати в блоці візиту: завжди або при наведенні мишки', '/settings/patient-tags#cal', 'users', None),
         ('Фото пацієнтів', 'Усі фото й файли пацієнтів: згоди, обличчя, тіло, документи — перегляд, перенесення між розділами, видалення', '/settings/patient-photos', 'upload', None),
         ('Персональні знижки', 'Знижка конкретному пацієнту: окремо % на товари і % на послуги; автозастосування й сумування з іншими знижками', '/settings/personal-discounts', 'loyalty_patient', None),
@@ -5502,13 +5505,24 @@ async def settings_cosmetics_pct_save(request: Request, user: User = Depends(req
 @app.get("/settings/patient-tags", response_class=HTMLResponse)
 def settings_patient_tags(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     from .services import patient_tags as _pt
-    return render(request, "patient_tags.html", nav="settings", tags=_pt.tags(db), fields=_pt.fields(db), FIELDS=_pt.FIELDS, MODES=_pt.MODES)
+    return render(request, "patient_tags.html", nav="settings", tags=_pt.tags(db), fields=_pt.fields(db), FIELDS=_pt.FIELDS, MODES=_pt.MODES,
+                  groups=_pt.groups(db), gcounts=_pt.group_counts(db))
 
 
 @app.post("/settings/patient-tags")
 async def settings_patient_tags_save(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     from .services import patient_tags as _pt
     f = await request.form()
+    if f.get("what") == "groups":
+        rows = [{"name": n_, "color": c_, "orig": o_} for n_, c_, o_ in zip(f.getlist("g_name"), f.getlist("g_color"), f.getlist("g_orig"))]
+        ren = 0
+        for r in rows:
+            nn, oo = _pt.group_name(r["name"]), _pt.group_name(r["orig"])
+            if oo and nn and nn != oo:
+                ren += _pt.rename_group(db, oo, nn)
+        _pt.save_groups(db, rows)
+        audit(db, "settings.patient_groups", user=user, n=len(rows), renamed=ren)
+        return RedirectResponse(_with_msg("/settings/patient-tags#groups", "Групи збережено" + (f" · перейменовано в {ren} картках" if ren else "")), 303)
     if f.get("what") == "fields":
         _pt.save_fields(db, {k: str(f.get("f_" + k) or "off") for k in _pt.FIELDS})
         audit(db, "settings.calendar_patient_fields", user=user)
@@ -7622,31 +7636,18 @@ def patient_message(pid: int, text: str = Form(...), channel: str = Form("auto")
     return RedirectResponse(f"/patients/{pid}#contact", 303)
 
 
-def _grp_name(g) -> str:
-    v = (g.get("name") or g.get("title") or "") if isinstance(g, dict) else g
-    return " ".join(str(v or "").split())[:60]
-
-
-@app.get("/patient-groups")
-def patient_groups_list(user: User = Depends(current_user), db: Session = Depends(db_dep)):
-    """Усі групи пацієнтів (з CleverBox і додані вручну) — для вибору в картці."""
-    cnt: dict[str, int] = {}
-    for gl in db.scalars(select(Patient.client_groups).where(Patient.client_groups.is_not(None))):
-        for g in gl or []:
-            n = _grp_name(g)
-            if n:
-                cnt[n] = cnt.get(n, 0) + 1
-    return JSONResponse([{"name": k, "n": v} for k, v in sorted(cnt.items(), key=lambda x: (-x[1], x[0].lower()))])
-
-
 @app.post("/patients/{pid}/groups")
 def patient_groups_edit(pid: int, action: str = Form(...), name: str = Form(""), user: User = Depends(require("patient_edit")),
                         db: Session = Depends(db_dep)):
+    from .services import patient_tags as _pt
     p = _patient_or_403(db, user, pid)
-    cur = [n for n in (_grp_name(g) for g in (p.client_groups or [])) if n]
+    cur = [n for n in (_pt.group_name(g) for g in (p.client_groups or [])) if n]
     nm = " ".join(name.split())[:60]
-    if action == "add" and nm and nm.lower() not in {x.lower() for x in cur}:
-        cur.append(nm)
+    allowed = {g["name"].lower(): g["name"] for g in _pt.groups(db)}
+    if action == "add" and nm.lower() not in allowed:
+        raise HTTPException(400, "Такої групи немає — додайте її в Налаштування → Пацієнти → Групи")
+    if action == "add" and nm.lower() not in {x.lower() for x in cur}:
+        cur.append(allowed[nm.lower()])
     elif action == "remove":
         cur = [x for x in cur if x.lower() != nm.lower()]
     p.client_groups = list(dict.fromkeys(cur))     # [] — свідомо порожньо, синк CleverBox не перезаписує
