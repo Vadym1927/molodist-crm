@@ -4233,7 +4233,7 @@ def chats_page(request: Request, user: User = Depends(require("appeals")), db: S
     return render(request, "chats.html", nav="chats")
 
 
-@app.get("/patients/name-order")
+@app.get("/data/name-order")
 def patients_name_order(apply: int = 0, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     """ПІБ «Ім'я Прізвище По батькові» (як у CleverBox) → «Прізвище Ім'я По батькові». Без apply — лише попередній перегляд."""
     from .services import name_order as no
