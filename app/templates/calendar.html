@@ -444,6 +444,13 @@
 .vx-mv{border-color:#D9822B!important;color:#B4610E!important;background:#FFF6EC!important}.vx-mv:hover{background:#FDEBD6!important}
 .vx-b.danger{border-color:#C0392B;color:#C0392B;background:#fff}.vx-b.danger:hover{background:#FDECEA}
 .vt-e{display:flex;align-items:flex-end;gap:12px}.vt-e label{display:grid;gap:4px;font:700 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496}.vt-e input{height:44px;width:150px}.vt-e span{color:#5d5869;font-weight:600;padding-bottom:12px}
+.vx-kpi{grid-template-columns:repeat(7,1fr)}.vx-kt{border:0;border-left:1px solid #E9E5DF;background:none;cursor:pointer;padding:4px 8px;text-align:center;font:inherit}.vx-kt:hover b{color:#5C4B82}.vx-kt.hot b{color:#B4610E}
+.vk-new{display:grid;grid-template-columns:minmax(0,1fr) 150px 140px auto;gap:8px}.vk-new input,.vk-new select{height:42px}
+.vk{display:flex;gap:12px;align-items:flex-start;background:#fff;border:1px solid #ECE7E1;border-left:4px solid #C9BFE6;border-radius:12px;padding:12px 14px}
+.vk.p-high{border-left-color:#C0392B}.vk.late{background:#FFF8F0}.vk.done,.vk.cancelled{opacity:.6}.vk.done b{text-decoration:line-through}
+.vk-ck{width:24px;height:24px;flex:none;border:2px solid #C9BFE6;border-radius:7px;background:#fff;cursor:pointer;color:#2E9E5B;font-weight:800;line-height:18px;padding:0}.vk-ck:hover{border-color:#3B3050}
+.vk b{display:block;font:600 14.5px var(--sans);color:#2A2430}.vk p{margin:3px 0;font-size:13.5px;color:#4a433d;white-space:pre-wrap}.vk span{font-size:12.5px;color:#8a8496}
+@media(max-width:700px){.vk-new{grid-template-columns:1fr 1fr}.vk-new input[name=title]{grid-column:1/-1}}
 @media(max-width:900px){.vx-cols{grid-template-columns:1fr}.vx-pt{grid-template-columns:110px 1fr}.vx-av{width:110px;height:110px;font-size:30px}.vx-name{font-size:26px}.vx-kpi{grid-template-columns:1fr 1fr;gap:8px}.vx-mv{margin-left:0}}
 @media(max-width:720px){.vd-mat{grid-template-columns:1fr 1fr 28px}.vd-mat b{grid-column:1/-1}.vd-mat .vd-qty,.vd-mat .vd-u{width:100%}.vd-w{grid-template-columns:1fr}.vd-nav{flex-direction:row;overflow:auto;border-right:0;border-bottom:1px solid #ECE7E1}.vd-nav button span{white-space:nowrap}.vd-kpi{grid-template-columns:1fr 1fr}.vd-grid{grid-template-columns:1fr}}
 </style>
@@ -500,6 +507,10 @@
     document.getElementById('ds-main').hidden=true;document.querySelectorAll('#vd .dd-s').forEach(function(x){x.hidden=x!==el});el.scrollTop=0};
   window.dsBack=function(){document.querySelectorAll('#vd .dd-s').forEach(function(x){x.hidden=true});document.getElementById('ds-main').hidden=false};
   window.visitClose=function(){DSB=null;document.getElementById('vd').classList.remove('on','wide');document.getElementById('vdb').classList.remove('on')};
+  window.vkAdd=function(f,pid){var fd=new FormData(f);fd.append('patient_id',pid);fd.append('back','/tasks');
+    fetch('/tasks',{method:'POST',body:fd,credentials:'same-origin'}).then(function(){load(Q,'tasks')});return false};
+  window.vkSet=function(id,st){var fd=new FormData();fd.append('status',st);fd.append('back','/tasks');
+    fetch('/tasks/'+id,{method:'POST',body:fd,credentials:'same-origin'}).then(function(){load(Q,'tasks')})};
   window.vdCancel=function(id){var r=prompt('Причина скасування візиту');if(!r||r.trim().length<3)return;var fd=new FormData();fd.append('status','cancelled');fd.append('reason',r);fd.append('ajax','1');
     fetch('/appointments/'+id+'/status',{method:'POST',body:fd,credentials:'same-origin'}).then(function(x){return x.json().catch(function(){return {}})}).then(function(j){if(j&&j.error){alert(j.error);return}location.reload()})};
   window.vdStatus=function(id,sel){var st=sel.value,reason='';

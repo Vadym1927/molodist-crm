@@ -3232,6 +3232,13 @@ def calendar_visit(request: Request, appt: int = 0, v: str = "", tab: str = "vis
     stats["subs"] = sum(1 for x in db.scalars(select(_Sub).where(_Sub.patient_id == p_.id))
                         if (not x.valid_to or x.valid_to >= _td) and ((x.visits_left or 0) > 0 or (x.balance or 0) > 0))
     _cal_docs = spec_svc.calendar_doctors(db)
+    from .models import Appointment as _Ap2
+    stats["planned"] = db.scalar(select(_f.count()).select_from(_Ap2).where(
+        _Ap2.patient_id == p_.id, _Ap2.start > datetime.now(), _Ap2.status.notin_(("cancelled", "no_show", "done")),
+        _Ap2.id != (c["a"].id if c["a"] else 0))) or 0
+    from .models import Task
+    _tasks = db.scalars(tasks_svc.visible_query(user).where(Task.patient_id == p_.id).order_by(Task.status != "open", Task.due_date.is_(None), Task.due_date, Task.id.desc()).limit(60)).all()
+    stats["tasks_open"] = sum(1 for t_ in _tasks if t_.status == "open")
     mats, closed_, wdocs = None, False, []
     if c["a"]:
         from .services import techcards as _tc
@@ -3255,7 +3262,7 @@ def calendar_visit(request: Request, appt: int = 0, v: str = "", tab: str = "vis
     return templates.TemplateResponse(request, "_visit_drawer.html", {"request": request, "user": user, "c": c, "pt": p_, "stats": stats, "sale": sale_,
                                       "tab": tab, "STATUSES": _vstat_menu(db, c["a"].status if c.get("a") else None), "COLORS": _vstat_colors(db), "can": can,
                                       "color": spec_svc.color, "initials": spec_svc.initials, "mats": mats, "closed": closed_,
-                                      "wdocs": wdocs, "WH": catalog.WAREHOUSES, "cal_docs": _cal_docs,
+                                      "wdocs": wdocs, "WH": catalog.WAREHOUSES, "cal_docs": _cal_docs, "ptasks": _tasks, "PRIORITY": tasks_svc.PRIORITY,
                                       "popts": _product_options(db, consumables=True) if mats is not None and not closed_ else []})
 
 

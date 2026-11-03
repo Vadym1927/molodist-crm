@@ -35,3 +35,25 @@ def test_visit_drawer():
         assert c.get("/calendar/visit?appt=999999").status_code == 404
     with SessionLocal() as db:
         assert db.query(VisitNote).filter_by(patient_id=pid).count() == 1
+
+
+def test_drawer_tasks_planned_and_costs_permission():
+    from datetime import datetime, timedelta
+    from fastapi.testclient import TestClient
+    from app.config import settings
+    from app.main import app
+    from app.models import SessionLocal, Appointment, Patient, Task
+    settings.admin_password = "owner-pass-1"
+    st = datetime.now() + timedelta(days=1)
+    with SessionLocal() as db:
+        p = Patient(full_name="Задачна Пацієнтка", phone="+380990001122"); db.add(p); db.commit()
+        a = Appointment(patient_id=p.id, start=st, end=st + timedelta(hours=1), services=[], status="booked")
+        b = Appointment(patient_id=p.id, start=st + timedelta(days=7), end=st + timedelta(days=7, hours=1), services=[], status="booked")
+        db.add_all([a, b, Task(title="Передзвонити щодо результату", patient_id=p.id, assignee_role="owner")]); db.commit()
+        aid = a.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        h = c.get(f"/calendar/visit?appt={aid}").text
+        assert "заплановані" in h and "попередніх візитів" not in h and "<span>оплачено</span>" not in h
+        assert "Передзвонити щодо результату" in h and "активні задачі" in h and 'data-t="tasks"' in h
+        assert "Собівартість візиту" in h                                    # власник бачить суми

@@ -6,7 +6,8 @@
  'hist':'<path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4.5h4.5M12 8v4l3 2"/>',
  'cost':'<path d="M6 8h12l-1 12H7z"/><path d="M9 8a3 3 0 0 1 6 0"/>',
  'photo':'<rect x="3" y="6" width="18" height="14" rx="2.5"/><circle cx="12" cy="13" r="3.5"/><path d="M8.5 6l1.5-2.5h4L15.5 6"/>',
- 'about':'<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8v.2"/>'} %}
+ 'about':'<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8v.2"/>',
+ 'tasks':'<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/>'} %}
 {% macro ic(k) %}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{{ ICONS[k]|safe }}</svg>{% endmacro %}
 {% macro money(v) %}{{ '{:,.2f}'.format(v or 0).replace(',', ' ') }} ₴{% endmacro %}
 {% set _MG = ['січня','лютого','березня','квітня','травня','червня','липня','серпня','вересня','жовтня','листопада','грудня'] %}
@@ -17,9 +18,9 @@
 </div>
 <div class="vd-w">
   <nav class="vd-nav">
-    {% for k, t in [('visit','Візит'),('note','Нотатка'),('hist','Історія'),('cost','Витрати'),('photo','Фото до/після'),('about','Про візит')] %}
-    <button type="button" data-t="{{ k }}" class="{{ 'on' if tab == k or (k == 'visit' and tab not in ('note','hist','cost','photo','about')) }}">{{ ic(k) }}<span>{{ t }}</span>
-      {% if k == 'note' and c.notes %}<i>{{ c.notes|length }}</i>{% endif %}{% if k == 'photo' and (c.before or c.after or c.other_photos) %}<i>{{ (c.before + c.after + c.other_photos)|length }}</i>{% endif %}</button>{% endfor %}
+    {% for k, t in [('visit','Візит'),('note','Нотатка'),('tasks','Задачі'),('hist','Історія'),('cost','Витрати'),('photo','Фото до/після'),('about','Про візит')] %}
+    <button type="button" data-t="{{ k }}" class="{{ 'on' if tab == k or (k == 'visit' and tab not in ('note','tasks','hist','cost','photo','about')) }}">{{ ic(k) }}<span>{{ t }}</span>
+      {% if k == 'note' and c.notes %}<i>{{ c.notes|length }}</i>{% endif %}{% if k == 'tasks' and stats.tasks_open %}<i>{{ stats.tasks_open }}</i>{% endif %}{% if k == 'photo' and (c.before or c.after or c.other_photos) %}<i>{{ (c.before + c.after + c.other_photos)|length }}</i>{% endif %}</button>{% endfor %}
   </nav>
   <div class="vd-c">
     {# ---------- ВІЗИТ ---------- #}
@@ -34,7 +35,8 @@
             <div class="vx-act"><a href="tel:{{ dig }}" title="Подзвонити"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg></a>
               <a href="viber://chat?number={{ dig|replace('+','%2B') }}" title="Написати у Viber"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a8 8 0 0 1 16 0c0 4.4-3.6 7-8 7l-4 3v-3.5C5.6 16.3 4 14 4 11z"/></svg></a></div>{% endif %}</div>
           <div class="vx-ln">{% if p.phone %}<a class="vx-phone" href="tel:{{ dig }}">{{ p.phone }}</a><i></i>{% endif %}<a href="/patients/{{ p.id }}">Картка пацієнта</a>{% if can(user,'medical') %}<i></i><a href="/patients/{{ p.id }}/medcard">Медкарта</a>{% endif %}</div>
-          <div class="vx-kpi"><div><b>{{ stats.visits or 0 }}</b><span>попередніх візитів</span></div><div><b>{{ '{:,.0f}'.format(stats.total or 0).replace(',', ' ') }} ₴</b><span>оплачено</span></div>
+          <div class="vx-kpi"><div><b>{{ stats.planned or 0 }}</b><span>заплановані</span></div>
+            <button type="button" class="vx-kt {{ 'hot' if stats.tasks_open }}" onclick="var b=document.querySelector('#vd .vd-nav [data-t=tasks]');b&&b.click()"><b>{{ stats.tasks_open or 0 }}</b><span>активні задачі</span></button>
             <div><b>{{ '%g'|format(stats.bonus or 0) }}</b><span>бонусів</span></div><div><b>{{ ('%g'|format(stats.discount) ~ '%') if stats.discount else '—' }}</b><span>знижка</span></div>
             <div class="dev" title="MOLODIST коїни — в розробці"><b>—</b><span>MOLODIST коїни</span><em>в розробці</em></div>
             <a href="/gifts?q={{ p.full_name|urlencode }}"><b>{{ stats.subs or 0 }}</b><span>абонементи</span></a>
@@ -124,6 +126,18 @@
       {% else %}<div class="vd-empty">Нотаток ще немає.</div>{% endfor %}
     </section>
 
+    {# ---------- ЗАДАЧІ ---------- #}
+    <section data-p="tasks" hidden>
+      <div class="vd-sec"><h4>Задачі пацієнта</h4><a class="vd-btn ghost" href="/tasks?q={{ p.full_name|urlencode }}">Усі задачі</a></div>
+      <form class="vk-new" onsubmit="return vkAdd(this, {{ p.id }})"><input name="title" placeholder="Нова задача по пацієнту: що зробити…" required maxlength="300">
+        <input type="date" name="due_date" value="{{ c.start.strftime('%Y-%m-%d') }}"><select name="priority">{% for k, l in PRIORITY.items() %}<option value="{{ k }}" {{ 'selected' if k == 'normal' }}>{{ l }}</option>{% endfor %}</select><button class="vd-btn main">Додати</button></form>
+      {% for t in ptasks %}<div class="vk {{ t.status }} {{ 'late' if t.status == 'open' and t.due_date and t.due_date < c.start.date() }} p-{{ t.priority }}">
+        <button type="button" class="vk-ck" title="{{ 'Позначити виконаною' if t.status == 'open' else 'Повернути в роботу' }}" onclick="vkSet({{ t.id }}, '{{ 'done' if t.status == 'open' else 'open' }}')">{% if t.status == 'done' %}✓{% endif %}</button>
+        <div><b>{{ t.title }}</b>{% if t.description %}<p>{{ t.description }}</p>{% endif %}
+          <span>{% if t.due_date %}до {{ t.due_date.strftime('%d.%m.%Y') }} · {% endif %}{{ PRIORITY.get(t.priority, t.priority) }}{% if t.assignee %} · {{ t.assignee.name }}{% elif t.assignee_role %} · черга {{ 'адміністраторів' if t.assignee_role == 'admin' else 'власника' }}{% endif %}{% if t.status == 'done' %} · виконано{% elif t.status == 'cancelled' %} · скасовано{% endif %}{% if t.result %} · {{ t.result }}{% endif %}</span></div>
+      </div>{% else %}<div class="vd-empty">Задач по цьому пацієнту немає.</div>{% endfor %}
+    </section>
+
     {# ---------- ІСТОРІЯ ---------- #}
     <section data-p="hist" hidden>
       <div class="vd-sec"><h4>Історія візиту</h4></div>
@@ -144,34 +158,34 @@
       {% if popts %}<datalist id="vd-prods">{% for pid, label, w in popts %}<option value="{{ label }}">{% endfor %}</datalist>
         {% for wh in ['single','inject','classic','equip','vitrina'] %}<datalist id="vd-prods-{{ wh }}">{% for pid, label, w in popts if (w or 'vitrina') == wh %}<option value="{{ label }}">{% endfor %}</datalist>{% endfor %}{% endif %}
       {% for g in mats %}
-        <div class="vd-sec"><h4>{{ g.service }}</h4><em class="vd-sum {{ 'over' if g.over }}" title="{{ ('Ліміт техкарти ' ~ money(g.max_cost)) if g.max_cost }}">{{ money(g.cost) }}</em></div>
-        {% if g.card %}<div class="vd-hint">Техкарта: <a href="/techcards?open={{ g.card.id }}">{{ g.card.name }}</a>{% if g.max_cost %} · ліміт {{ money(g.max_cost) }}{% endif %}{% if g.over %} · <b style="color:#B23B2E">перевищено ліміт</b>{% endif %}
+        <div class="vd-sec"><h4>{{ g.service }}</h4>{% if can(user,'see_costs') %}<em class="vd-sum {{ 'over' if g.over }}" title="{{ ('Ліміт техкарти ' ~ money(g.max_cost)) if g.max_cost }}">{{ money(g.cost) }}</em>{% endif %}</div>
+        {% if g.card %}<div class="vd-hint">Техкарта: <a href="/techcards?open={{ g.card.id }}">{{ g.card.name }}</a>{% if g.max_cost and can(user,'see_costs') %} · ліміт {{ money(g.max_cost) }}{% endif %}{% if g.over and can(user,'see_costs') %} · <b style="color:#B23B2E">перевищено ліміт</b>{% endif %}
           {% if not closed %} · <a href="#" onclick="return vdMatReset({{ c.a.id }}, {{ g.idx }})">повернути як у техкарті</a>{% endif %}</div>
         {% else %}<div class="vd-hint">У послуги немає техкарти — <a href="/services?q={{ g.service|urlencode }}">прив'язати</a> або додайте матеріали вручну.</div>{% endif %}
         {% for cat, ms in g.cats.items() %}{% if ms or not closed %}
           {% set _ct = namespace(t=0) %}{% for m in ms %}{% set _ct.t = _ct.t + m.qty * m.unit_cost %}{% endfor %}
-          <div class="vd-cath"><span>Категорія: <b>{{ cat }}</b>{% if ms %} <i>{{ money(_ct.t) }}</i>{% endif %}</span>
+          <div class="vd-cath"><span>Категорія: <b>{{ cat }}</b>{% if ms and can(user,'see_costs') %} <i>{{ money(_ct.t) }}</i>{% endif %}</span>
             {% if not closed %}<button type="button" class="vd-addb" onclick="var f=this.parentNode.nextElementSibling;f.hidden=!f.hidden;if(!f.hidden)f.product.focus()">+ Додати розхідник</button>{% endif %}</div>
           {% if not closed %}<form class="vd-add" hidden onsubmit="return vdMatAdd(this, {{ c.a.id }}, {{ g.idx }})"><input name="product" list="vd-prods-{{ g.cat_wh.get(cat, 'single') }}" placeholder="Почніть вводити назву ({{ cat|lower }})" required autocomplete="off">
             <input name="qty" value="1" inputmode="decimal" title="Кількість"><input type="hidden" name="cat" value="{{ cat }}"><button class="vd-btn">Додати</button></form>{% endif %}
-          {% for m in ms %}{% set _u = (m.product.unit if m.product else '') or 'шт.' %}<div class="vd-mat"><b>{{ m.product.name if m.product else ('#' ~ m.product_id) }}<small>{{ money(m.unit_cost) }} за {{ _u }}</small></b>
+          {% for m in ms %}{% set _u = (m.product.unit if m.product else '') or 'шт.' %}<div class="vd-mat"><b>{{ m.product.name if m.product else ('#' ~ m.product_id) }}{% if can(user,'see_costs') %}<small>{{ money(m.unit_cost) }} за {{ _u }}</small>{% endif %}</b>
             {% if closed %}<span>{{ '%g'|format(m.qty) }} {{ _u }}</span>
             {% else %}{% set _k = m.product.coef if m.product and m.product.coef and m.product.coef > 1 else 1 %}<span class="vd-qty" data-k="1"><button type="button" onclick="vdMatStep({{ c.a.id }}, {{ m.id }}, this, -1)" title="Менше">−</button><input type="text" inputmode="decimal" value="{{ '%g'|format(m.qty) }}" onchange="vdMatSet({{ c.a.id }}, {{ m.id }}, this)"><button type="button" onclick="vdMatStep({{ c.a.id }}, {{ m.id }}, this, 1)" title="Більше">+</button></span>
               {% if _k > 1 %}<select class="vd-u" title="Одиниця виміру" onchange="vdUnit(this)" data-k="{{ _k }}"><option value="1">{{ _u }}</option><option value="{{ _k }}">{{ m.product.purchase_unit or 'уп.' }} ({{ '%g'|format(_k) }} {{ _u }})</option></select>{% else %}<span class="vd-u">{{ _u }}</span>{% endif %}{% endif %}
-            <em>{{ money(m.qty * m.unit_cost) }}</em>{% if not closed %}<button type="button" class="vd-x" title="Прибрати" onclick="vdMat({{ c.a.id }}, {{ m.id }}, null)">×</button>{% endif %}</div>{% endfor %}
+            <em>{{ money(m.qty * m.unit_cost) if can(user,'see_costs') else '' }}</em>{% if not closed %}<button type="button" class="vd-x" title="Прибрати" onclick="vdMat({{ c.a.id }}, {{ m.id }}, null)">×</button>{% endif %}</div>{% endfor %}
         {% endif %}{% endfor %}
       {% else %}<div class="vd-empty">У візиті ще немає послуг.</div>{% endfor %}
       <datalist id="vd-cats"><option value="Одноразка"><option value="Препарат"><option value="Обладнання"></datalist>
-      <div class="vd-tot big"><span>Собівартість візиту</span><b>{{ money(mats|sum(attribute='cost')) }}</b></div>
-      {% if c.total %}<div class="vd-tot"><span>Вартість послуг</span><b>{{ money(c.total) }}</b></div><div class="vd-tot"><span>Валовий прибуток</span><b>{{ money(c.total - (mats|sum(attribute='cost'))) }}</b></div>{% endif %}
+      {% if can(user,'see_costs') %}<div class="vd-tot big"><span>Собівартість візиту</span><b>{{ money(mats|sum(attribute='cost')) }}</b></div>
+      {% if c.total %}<div class="vd-tot"><span>Вартість послуг</span><b>{{ money(c.total) }}</b></div><div class="vd-tot"><span>Валовий прибуток</span><b>{{ money(c.total - (mats|sum(attribute='cost'))) }}</b></div>{% endif %}{% endif %}
       <div class="vd-err" id="vd-merr"></div>
       {% else %}
       <div class="vd-info">Витратні матеріали — за нормами списання на 1 послугу. Змінити норми: <a href="/stock?tab=norms">Склад → Норми списання</a>.</div>
-      {% for g in c.costs %}<div class="vd-sec"><h4>{{ g.service }}</h4>{% if g.rows %}<em class="vd-sum">{{ money(g.sum) }}</em>{% endif %}</div>
-        {% for r in g.rows %}<div class="vd-cost"><b>{{ r.name }}</b><span>{{ '%g'|format(r.qty or 0) }} {{ r.unit }}</span><em>{{ money(r.sum) }}</em></div>
+      {% for g in c.costs %}<div class="vd-sec"><h4>{{ g.service }}</h4>{% if g.rows and can(user,'see_costs') %}<em class="vd-sum">{{ money(g.sum) }}</em>{% endif %}</div>
+        {% for r in g.rows %}<div class="vd-cost"><b>{{ r.name }}</b><span>{{ '%g'|format(r.qty or 0) }} {{ r.unit }}</span><em>{{ money(r.sum) if can(user,'see_costs') else '' }}</em></div>
         {% else %}<div class="vd-empty">Норми списання для цієї послуги не задані.</div>{% endfor %}
       {% endfor %}
-      <div class="vd-tot big"><span>Собівартість матеріалів</span><b>{{ money(c.cost_total) }}</b></div>
+      {% if can(user,'see_costs') %}<div class="vd-tot big"><span>Собівартість матеріалів</span><b>{{ money(c.cost_total) }}</b></div>{% endif %}
       {% if c.total %}<div class="vd-tot"><span>Вартість послуг</span><b>{{ money(c.total) }}</b></div>{% endif %}
       {% endif %}
     </section>

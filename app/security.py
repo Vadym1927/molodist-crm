@@ -59,6 +59,7 @@ PERMS: dict[str, set[str]] = {
     "sale_refund":    {"owner"},                     # повернення чека
     "loyalty_patient": {"owner", "admin"},           # бонуси й персональна знижка пацієнта
     "schedule":       {"owner", "admin"},            # змінювати графік роботи
+    "see_costs":      {"owner"},                     # собівартість витратних і валовий прибуток у візиті
 }
 BASE_PERMS = {k: set(v) for k, v in PERMS.items()}  # заводські налаштування (для «Скинути»)
 
