@@ -201,7 +201,7 @@
   <div class="cdate"><a href="?start={{ prev }}&view={{ view }}{{ q0 }}" title="Назад">‹</a>
     <label>{% if view=='day' %}{{ WD2[start.weekday()] }}, {{ start|dt('%d.%m.%Y') }}{% else %}{{ start|dt('%d.%m.%Y') }} - {{ end|dt('%d.%m.%Y') }}{% endif %}
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
-      <input type="date" value="{{ start }}" onchange="location.href='?start='+this.value+'&view={{ view }}{{ q0 }}'"></label>
+      <input type="date" data-months="3" value="{{ start }}" onchange="location.href='?start='+this.value+'&view={{ view }}{{ q0 }}'"></label>
     <a href="?start={{ next }}&view={{ view }}{{ q0 }}" title="Вперед">›</a></div>
   <div class="csrch"><input id="calq" placeholder="Пошук по пацієнтах, послугах…" oninput="calFind(this.value)" onkeydown="if(event.key==='Enter'&&!calFind(this.value))location.href='/patients?q='+encodeURIComponent(this.value)">
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/></svg></div>

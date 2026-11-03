@@ -36,7 +36,8 @@ body.app{padding-left:var(--rail-w)}:root{--rail-w:264px}@media(max-width:1280px
 .rail a.it svg,.rail summary.it svg{width:23px;height:23px;flex:none;color:#cfc8de}
 .rail a.it:hover,.rail summary.it:hover{background:rgba(255,255,255,.06);color:#fff}
 .rail a.it.on{background:#4A3F63;color:#fff}.rail a.it.on svg{color:#fff}
-.rail a.it .ti{width:23px;height:23px;flex:none;color:#cfc8de}.rail a.it.on .ti{color:#fff}
+.rail a.it .ti,.rail summary.it .ti{width:23px;height:23px;flex:none;color:#cfc8de}.rail a.it.on .ti,.rail summary.it.on .ti{color:#fff}
+.rail .more .menu a .ti{width:18px;height:18px;flex:none;color:inherit}
 .rail .dot{margin-left:auto;min-width:24px;height:24px;padding:0 7px;border-radius:12px;background:#E4DEEF;color:#2A2430;font:700 12px/24px var(--sans);font-style:normal;text-align:center}
 .rail .dot.hot{background:#C0392B;color:#fff}
 .rail hr{border:0;border-top:1px solid rgba(255,255,255,.12);margin:14px 10px}
@@ -157,12 +158,12 @@ body.drw-on .drw{transform:none}body.drw-on .drw-bg{opacity:1;pointer-events:aut
   <hr>
   {% if can(user,'products') %}<a class="it {{ 'on' if nav in ('products','mapping','product') }}" href="/products"><span class="ti" style="--ti:url(/static/icons/nav-products.png)"></span><span>Продукти</span></a>{% endif %}
   {% if can(user,'stock') %}<a class="it {{ 'on' if nav in ('stock','stock_doc') }}" href="/stock"><span class="ti" style="--ti:url(/static/icons/nav-stock.png)"></span><span>Склад</span></a>{% endif %}
-  {% if can(user,'finance') %}<a class="it {{ 'on' if nav=='finance' }}" href="/finance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7.5" ry="3"/><path d="M4.5 6v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V6M4.5 12v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-6"/></svg><span>Фінанси</span></a>{% endif %}
-  {% if can(user,'finance') %}<a class="it {{ 'on' if nav in ('reports','cashflow') }}" href="/reports"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18M6 20V12M10.5 20V5M15 20v-9M19.5 20v-5"/></svg><span>Звіти</span></a>{% endif %}
+  {% if can(user,'finance') %}<a class="it {{ 'on' if nav=='finance' }}" href="/finance"><span class="ti" style="--ti:url(/static/icons/nav-finance.png)"></span><span>Фінанси</span></a>{% endif %}
+  {% if can(user,'finance') %}<a class="it {{ 'on' if nav in ('reports','cashflow') }}" href="/reports"><span class="ti" style="--ti:url(/static/icons/nav-reports.png)"></span><span>Звіти</span></a>{% endif %}
   <details class="more">
-    <summary class="it {{ 'on' if nav in ('settings','keys','access','data','campaigns','campaign','scripts') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.3" fill="currentColor"/><circle cx="12" cy="12" r="1.3" fill="currentColor"/><circle cx="19" cy="12" r="1.3" fill="currentColor"/></svg><span>Ще</span></summary>
+    <summary class="it {{ 'on' if nav in ('settings','keys','access','data','campaigns','campaign','scripts') }}"><span class="ti" style="--ti:url(/static/icons/nav-more.png)"></span><span>Ще</span></summary>
     <div class="menu">
-      <a href="/settings" class="{{ 'on' if nav=='settings' }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Налаштування</a>
+      <a href="/settings" class="{{ 'on' if nav=='settings' }}"><span class="ti" style="--ti:url(/static/icons/nav-settings.png)"></span>Налаштування</a>
       {% if can(user,'campaigns') %}<a href="/campaigns" class="{{ 'on' if nav in ('campaigns','campaign') }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1zM16 8a5 5 0 0 1 0 8M19 5a9 9 0 0 1 0 14"/></svg>Розсилки</a>{% endif %}
       {% if can(user,'scripts_edit') %}<a href="/scripts" class="{{ 'on' if nav=='scripts' }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 8h9M8 12h6"/></svg>Скрипти</a>{% endif %}
       {% if can(user,'export_reports') %}<a href="/data" class="{{ 'on' if nav=='data' }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Дані й синхронізація</a>{% endif %}
@@ -312,5 +313,59 @@ function scan(root){(root||document).querySelectorAll('a[href]').forEach(functio
   (root||document).querySelectorAll('[data-ui-url]').forEach(function(b){if(bad((b.dataset.uiMethod||'POST').toUpperCase(),b.dataset.uiUrl))b.style.display='none'})}
 scan();new MutationObserver(function(ms){ms.forEach(function(m){m.addedNodes.forEach(function(n){if(n.nodeType===1)scan(n.parentNode||n)})})}).observe(document.body,{childList:true,subtree:true});
 })();</script>{% endif %}{% endif %}
+<style>
+input[type=date]{cursor:pointer}
+input[type=date]::-webkit-calendar-picker-indicator{opacity:0;width:16px;cursor:pointer}
+input[type=date]:not([data-native]){background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235C4B82' stroke-width='1.8' stroke-linecap='round'%3E%3Crect x='3.5' y='5' width='17' height='15.5' rx='2'/%3E%3Cpath d='M3.5 10h17M8 3v4M16 3v4'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:32px}
+.dp{position:fixed;z-index:2147483000;background:#fff;border:1px solid #E9E5DF;border-radius:14px;box-shadow:0 18px 44px -10px rgba(42,36,48,.32);padding:12px;width:304px;font-family:var(--sans,'Open Sans',sans-serif)}
+.dp.multi{width:auto}.dp .ms{display:flex;gap:22px}.dp .mo{width:280px}.dp .hd span{width:34px;height:34px}.dp.multi .g button.o{visibility:hidden}
+@media(max-width:940px){.dp .ms{flex-direction:column;max-height:70vh;overflow:auto}}
+.dp .hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}.dp .hd b{font:600 15px var(--sans);color:#2A2430}
+.dp .hd button{border:0;background:none;width:34px;height:34px;border-radius:8px;cursor:pointer;font:700 18px var(--sans);color:#3B3050}.dp .hd button:hover{background:#F6F3FB}
+.dp .g{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center}
+.dp .g i{font:600 12px var(--sans);color:#8a8496;font-style:normal;padding:4px 0}
+.dp .g button{border:0;background:none;height:36px;border-radius:8px;font:500 14px var(--sans);color:#2A2430;cursor:pointer;padding:0}
+.dp .g button:hover{background:#F1EDF8}.dp .g button.o{color:#c3bfcc}.dp .g button.t{box-shadow:inset 0 0 0 1.5px #C9BFE6}.dp .g button.s{background:#3B3050;color:#fff}
+.dp .g button:disabled{color:#e0dce5;cursor:not-allowed;background:none}
+.dp .ft{display:flex;justify-content:space-between;margin-top:8px;border-top:1px solid #F1EDE8;padding-top:8px}
+.dp .ft button{border:0;background:none;color:#5C4B82;font:700 12.5px var(--sans);letter-spacing:.05em;text-transform:uppercase;cursor:pointer;padding:6px 8px;border-radius:8px}.dp .ft button:hover{background:#F6F3FB}
+</style>
+<script>
+/* Єдиний календар CRM для всіх полів дати (як у вікні «Новий візит»). data-native на полі — залишити системний. */
+(function(){var P=null,INP=null,CM=null;
+  function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+  function close(){if(P){P.remove();P=null;INP=null}}
+  function anchor(i){return getComputedStyle(i).opacity==='0'&&i.parentElement?i.parentElement:i}
+  function place(){if(!P||!INP)return;var r=anchor(INP).getBoundingClientRect(),h=P.offsetHeight,w=P.offsetWidth,vh=innerHeight,vw=innerWidth;
+    var top=r.bottom+6;if(top+h>vh-8&&r.top-h-6>8)top=r.top-h-6;var left=Math.min(Math.max(8,r.left),vw-w-8);P.style.top=Math.max(8,top)+'px';P.style.left=left+'px'}
+  function set(v){var i=INP;if(!i)return;i.value=v;i.dispatchEvent(new Event('input',{bubbles:true}));i.dispatchEvent(new Event('change',{bubbles:true}));close()}
+  function grid(y,m,i,today,sel,mn,mx){var sh=(new Date(y,m,1).getDay()+6)%7,st=new Date(y,m,1-sh),h='<div class="g">'+['Пн','Вт','Ср','Чт','Пт','Сб','Нд'].map(function(x){return '<i>'+x+'</i>'}).join('');
+    for(var k=0;k<42;k++){var d=new Date(st.getFullYear(),st.getMonth(),st.getDate()+k),v=iso(d),off=(mn&&v<mn)||(mx&&v>mx);
+      h+='<button type="button" data-d="'+v+'" class="'+(d.getMonth()!==m?'o ':'')+(v===today?'t ':'')+(v===sel?'s':'')+'"'+(off?' disabled':'')+'>'+d.getDate()+'</button>'}
+    return h+'</div>'}
+  function mname(y,m){var t=new Date(y,m,1).toLocaleDateString('uk-UA',{month:'long',year:'numeric'}).replace(' р.','');return t.charAt(0).toUpperCase()+t.slice(1)}
+  function draw(){var i=INP,y=CM.getFullYear(),m=CM.getMonth(),today=iso(new Date()),sel=i.value,mn=i.min||'',mx=i.max||'',n=Math.min(3,Math.max(1,+(i.dataset.months||1)));
+    P.classList.toggle('multi',n>1);var h='<div class="ms">';
+    for(var j=0;j<n;j++){var yy=new Date(y,m+j,1).getFullYear(),mm=new Date(y,m+j,1).getMonth();
+      h+='<div class="mo"><div class="hd">'+(j===0?'<button type="button" data-n="-1" title="Попередній місяць">‹</button>':'<span></span>')+'<b>'+mname(yy,mm)+'</b>'+(j===n-1?'<button type="button" data-n="1" title="Наступний місяць">›</button>':'<span></span>')+'</div>'+grid(yy,mm,i,today,sel,mn,mx)+'</div>'}
+    h+='</div><div class="ft"><button type="button" data-d="'+today+'">Сьогодні</button>'+(i.required||n>1?'':'<button type="button" data-clr="1">Очистити</button>')+'</div>';
+    P.innerHTML=h;
+    P.querySelectorAll('[data-n]').forEach(function(b){b.onclick=function(e){e.stopPropagation();CM=new Date(y,m+(+b.dataset.n),1);draw();place()}});
+    P.querySelectorAll('[data-d]').forEach(function(b){b.onclick=function(e){e.stopPropagation();set(b.dataset.d)}});
+    var c=P.querySelector('[data-clr]');if(c)c.onclick=function(e){e.stopPropagation();set('')}}
+  function open(i){close();INP=i;var v=i.value||iso(new Date()),d=new Date(v.replace(/-/g,'/'));if(isNaN(d))d=new Date();var n0=+(i.dataset.months||1);CM=new Date(d.getFullYear(),d.getMonth()-(n0>=3?1:0),1);
+    P=document.createElement('div');P.className='dp';P.addEventListener('mousedown',function(e){e.stopPropagation();e.preventDefault()});
+    (i.closest('dialog')||document.body).appendChild(P);draw();place()}
+  function ok(i){return i&&i.matches&&i.matches('input[type=date]')&&!i.disabled&&!i.readOnly&&!i.hasAttribute('data-native')}
+  document.addEventListener('mousedown',function(e){var i=e.target.closest&&e.target.closest('input[type=date]');
+    if(ok(i)){e.preventDefault();if(INP===i){close();return}i.focus({preventScroll:true});open(i);return}
+    if(P&&!P.contains(e.target))close()},true);
+  document.addEventListener('click',function(e){var i=e.target.closest&&e.target.closest('input[type=date]');if(ok(i))e.preventDefault()},true);
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&P){close();return}var i=e.target;if(ok(i)&&(e.key===' '||(e.key==='ArrowDown'&&e.altKey))){e.preventDefault();open(i)}
+    if(P&&ok(i)&&e.key==='Tab')close()},true);
+  addEventListener('resize',close);addEventListener('scroll',function(e){if(P&&!P.contains(e.target))place()},true);
+  window.crmDatePicker={open:open,close:close};
+})();
+</script>
 </body>
 </html>
