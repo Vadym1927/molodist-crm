@@ -260,10 +260,8 @@ def ingest(db: Session, provider: str, data: dict, event: str = "") -> Call:
     if event.startswith("$"):
         event = ""
     x = parse(provider, data)
-    if not event:                         # подія без ?event=: немає статусу й тривалості — дзвінок ще йде
-        filled = {k: v for k, v in data.items() if not (isinstance(v, str) and v.startswith("$")) and v not in (None, "")}
-        if not any(k in filled for k in ("status", "disposition", "billsec", "dialog", "duration", "call_duration", "recording", "record_link")):
-            event = "ringing"
+    if not event and x["status"] is None and not x["duration"] and not x["record_url"]:
+        event = "ringing"                 # подія без ?event=: немає статусу й тривалості — дзвінок ще йде
     if event == "ai":
         return ingest_ai(db, provider, data)
     if event in ("ringing", "answer"):

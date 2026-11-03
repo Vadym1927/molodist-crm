@@ -5725,11 +5725,23 @@ async def telephony_hook(request: Request, provider: str, hook: str, db: Session
     return {"ok": True, "call": c.id, "appeal": c.appeal_id, "status": "success"}
 
 
+def _bday_soon(b) -> str | None:
+    """День народження в найближчі ±7 днів → «12.11»."""
+    if not b:
+        return None
+    try:
+        d_ = b.replace(year=date.today().year)
+    except ValueError:
+        return None
+    return b.strftime("%d.%m") if abs((d_ - date.today()).days) <= 7 else None
+
+
 @app.get("/telephony/live")
 def telephony_live(user: User = Depends(current_user), db: Session = Depends(db_dep)):
     """Вхідні дзвінки, що зараз ідуть — для спливаючого вікна «Вхідний дзвінок»."""
-    from .services import telephony as tel
+    from .services import telephony as tel, calendar as _cal
     from .models import Appointment as _Ap
+    from sqlalchemy import func as _f
     if not tel.popup_for(db, user):
         return {"calls": []}
     out = []
@@ -5746,8 +5758,31 @@ def telephony_live(user: User = Depends(current_user), db: Session = Depends(db_
                 d_ = db.get(Doctor, x.doctor_id) if x.doctor_id else None
                 ap_ = {"id": x.id, "day": x.start.date().isoformat(), "when": x.start.strftime("%d.%m %H:%M"), "today": x.start.date() == date.today(),
                        "doctor": d_.name if d_ else "", "services": ", ".join(s_.get("name", "") for s_ in x.services or [])[:80]}
+        info = {}
+        if p_:
+            from .services import patient_tags as _ptg
+            from .models import Visit as _V, Task as _T
+            lv = _ptg.tags(db)
+            n_ = _ptg.visit_days(db, [p_.id]).get(p_.id, 0)
+            tag = _cal.tag_for(n_ + 1, lv)
+            last = db.scalars(select(_Ap).where(_Ap.patient_id == p_.id, _Ap.start < d0, _Ap.status == "done").order_by(_Ap.start.desc()).limit(1)).first()
+            lv_txt = None
+            if last:
+                dl_ = db.get(Doctor, last.doctor_id) if last.doctor_id else None
+                lv_txt = f"{last.start:%d.%m.%Y} · " + (", ".join(s_.get("name", "") for s_ in last.services or [])[:60] or "візит") + (f" · {dl_.name}" if dl_ else "")
+            else:
+                vv = db.scalars(select(_V).where(_V.patient_id == p_.id, _V.status.in_(("attended", "done"))).order_by(_V.starts_at.desc()).limit(1)).first()
+                if vv:
+                    lv_txt = f"{vv.starts_at:%d.%m.%Y} · {(vv.service_name or 'візит')[:60]}" + (f" · {vv.master_name}" if vv.master_name else "")
+            tasks_n = db.scalar(select(_f.count()).select_from(_T).where(_T.patient_id == p_.id, _T.status == "open")) or 0
+            plan = next((pl for pl in p_.plans if pl.status == "active"), None) if hasattr(p_, "plans") else None
+            info = {"tag": tag, "tag_color": _ptg.colors(lv).get(tag, ""), "visits": n_, "last": lv_txt, "tasks": tasks_n,
+                    "plan": (plan.title or "Бюті-план") if plan else None,
+                    "note": (p_.cb_note or "")[:140] or None, "avatar": f"/files/{p_.avatar_file_id}" if p_.avatar_file_id else None,
+                    "bonus": round(float(p_.cb_bonus or 0), 2) if p_.cb_bonus else None,
+                    "birthday": _bday_soon(p_.birthday)}
         out.append({"id": c_.id, "phone": c_.phone or "", "dir": c_.direction, "status": c_.status,
-                    "name": p_.full_name if p_ else None, "pid": p_.id if p_ else None, "employee": c_.employee or "", "appt": ap_})
+                    "name": p_.full_name if p_ else None, "pid": p_.id if p_ else None, "employee": c_.employee or "", "appt": ap_, **info})
     return {"calls": out}
 
 

@@ -245,6 +245,10 @@ poll();setInterval(poll,60000)})();</script>
 .cp-c small i{width:9px;height:9px;border-radius:50%;background:#5BD37E;animation:cpB 1s infinite}@keyframes cpB{50%{opacity:.3}}
 .cp-c b{display:block;font:600 19px var(--head);margin:6px 0 2px}.cp-c span{color:#d8d2e2;font-size:14px}
 .cp-c .a{display:flex;gap:8px;margin-top:12px}.cp-c .a a{flex:1;text-align:center;padding:9px 10px;border-radius:10px;background:#fff;color:#2A2430;text-decoration:none;font:700 13px var(--sans)}.cp-c .a a.g{background:rgba(255,255,255,.12);color:#fff}
+.cp-c{width:360px!important}.cp-c .who{display:flex;gap:12px;align-items:center;margin-top:8px}.cp-c .who b{margin:0}
+.cp-c .av{width:52px;height:52px;border-radius:50%;flex:none;background:#4A3F63 center/cover;display:grid;place-items:center;font:600 17px var(--head);color:#fff}
+.cp-c .tg{display:inline-block;font:700 10.5px var(--sans);font-style:normal;color:#fff;padding:2px 8px;border-radius:6px;margin:3px 0}
+.cp-c .who span{display:block}.cp-c .ln{font-size:12.5px;color:#e6e1ee;margin-top:6px;line-height:1.4}.cp-c .ln span{display:block;font:700 10px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#a99fc0}.cp-c .ln.bd{color:#FFD58A;font-weight:700}
 .cp-c .ap{margin-top:8px;background:rgba(255,255,255,.1);border-radius:10px;padding:7px 10px;font-size:13px;color:#fff}
 .cp-c .nf{display:grid;gap:6px;margin-top:10px}.cp-c .nf input{height:36px;border-radius:9px;border:0;padding:0 10px}.cp-c .nf button{height:38px;border:0;border-radius:10px;background:#fff;color:#2A2430;font:700 13px var(--sans);cursor:pointer}.cp-c .nf em{color:#FFB4A8;font-style:normal;font-size:12.5px}
 .cp-c .x{float:right;border:0;background:none;color:#C9BFE6;font-size:20px;cursor:pointer;margin:-6px -6px 0 0}
@@ -255,7 +259,12 @@ function tick(){if(document.hidden)return;fetch('/telephony/live',{credentials:'
   var ids={};(j.calls||[]).forEach(function(c){if(c.dir!=='in'||hid[c.id])return;ids[c.id]=1;var el=shown[c.id];
     if(el&&el._form)return;
     var ap=c.appt?'<div class="ap">'+(c.appt.today?'Сьогодні':'Запис')+' '+esc(c.appt.when)+(c.appt.doctor?' · '+esc(c.appt.doctor):'')+(c.appt.services?'<br>'+esc(c.appt.services):'')+'</div>':'';
-    var h='<button class="x" title="Сховати">×</button><small><i></i>'+(c.status==='answer'?'Розмова триває':'Вхідний дзвінок')+(c.employee?' · '+esc(c.employee):'')+'</small><b>'+esc(c.name||c.phone)+'</b><span>'+(c.name?esc(c.phone):'новий номер — пацієнта не знайдено')+'</span>'+ap+
+    var tg=c.tag?'<em class="tg" style="background:'+(c.tag_color||'#5C4B82')+'">'+esc(c.tag)+'</em>':'';
+    var av=c.pid?'<span class="av"'+(c.avatar?' style="background-image:url('+c.avatar+')"':'')+'>'+(c.avatar?'':esc((c.name||'').split(' ').map(function(w){return w[0]||''}).join('').slice(0,2)))+'</span>':'';
+    var facts=[];if(c.visits)facts.push('візитів: '+c.visits);if(c.tasks)facts.push('задач: '+c.tasks);if(c.bonus)facts.push('бонуси: '+c.bonus);if(c.plan)facts.push('бюті-план');
+    var more=(c.last?'<div class="ln"><span>Останній візит</span>'+esc(c.last)+'</div>':'')+(facts.length?'<div class="ln"><span>Інфо</span>'+esc(facts.join(' · '))+'</div>':'')+
+      (c.birthday?'<div class="ln bd">🎂 День народження '+esc(c.birthday)+'</div>':'')+(c.note?'<div class="ln"><span>Замітка</span>'+esc(c.note)+'</div>':'');
+    var h='<button class="x" title="Сховати">×</button><small><i></i>'+(c.status==='answer'?'Розмова триває':'Вхідний дзвінок')+(c.employee?' · '+esc(c.employee):'')+'</small><div class="who">'+av+'<div><b>'+esc(c.name||c.phone)+'</b>'+tg+'<span>'+(c.name?esc(c.phone):'новий номер — пацієнта не знайдено')+'</span></div></div>'+ap+more+
       '<div class="a">'+(c.pid?'<a href="/patients/'+c.pid+'">Картка пацієнта</a>'+(c.appt?'<a class="g" href="/calendar?start='+c.appt.day+'&open='+c.appt.id+'">Запис</a>':'')+'<a class="g" href="/calendar?newappt=1&patient='+c.pid+'">Записати</a>':'<a href="#" class="np">Створити пацієнта</a><a class="g" href="/calendar?newappt=1">Записати</a>')+'</div>';
     if(!el){el=document.createElement('div');el.className='cp-c';box.appendChild(el);shown[c.id]=el}
     el.innerHTML=h;el.querySelector('.x').onclick=function(){hid[c.id]=1;el.remove();delete shown[c.id]};

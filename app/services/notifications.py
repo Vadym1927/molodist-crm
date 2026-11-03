@@ -31,6 +31,26 @@ def online(db: Session, since: datetime) -> list[dict]:
     return out
 
 
+def calls(db: Session, since: datetime) -> list[dict]:
+    """Вхідні дзвінки (пропущені — червоні) з моменту since (UTC). Call.at — київський час."""
+    from ..models import Call, Patient
+    from .day_stats import _tz_shift
+    sh = timedelta(hours=_tz_shift())
+    out = []
+    for c in db.scalars(select(Call).where(Call.direction == "in", Call.at >= since + sh, Call.status.notin_(("ringing", "answer")))
+                        .order_by(Call.at.desc()).limit(60)):
+        p = db.get(Patient, c.patient_id) if c.patient_id else None
+        miss = c.status == "missed"
+        who = p.full_name if p else (c.phone or "невідомий номер")
+        dur = f" · {c.duration // 60}:{c.duration % 60:02d}" if c.duration and not miss else ""
+        out.append({"kind": "call", "id": c.id, "at": c.at - sh, "level": "bad" if miss else "info",
+                    "title": "Пропущений дзвінок" if miss else "Вхідний дзвінок",
+                    "text": f"{who}{(' · ' + c.phone) if p and c.phone else ''} · {c.at:%d.%m %H:%M}{dur}{(' · ' + c.employee) if c.employee else ''}"
+                            + ("" if p else " · новий номер"),
+                    "url": f"/patients/{p.id}#calls" if p else f"/telephony?call={c.id}#call{c.id}"})
+    return out
+
+
 def _summary(db: Session) -> list[dict]:
     now = datetime.utcnow()
     if _CACHE["at"] and (now - _CACHE["at"]).total_seconds() < TTL:
@@ -79,6 +99,12 @@ def _summary(db: Session) -> list[dict]:
 
 def items(db: Session, user: User) -> list[dict]:
     res = online(db, datetime.utcnow() - timedelta(days=7)) if can(user, "book") else []
+    try:
+        from . import telephony as _tel
+        if _tel.public(db).get("provider") and _tel.popup_for(db, user):
+            res += calls(db, datetime.utcnow() - timedelta(days=2))
+    except Exception:  # noqa: BLE001
+        pass
     res += [x for x in _summary(db) if not x.get("perm") or can(user, x["perm"])]
     seen = user.notif_seen_at
     for x in res:

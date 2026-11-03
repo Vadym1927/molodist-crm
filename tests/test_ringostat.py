@@ -103,3 +103,24 @@ def test_ringostat_form_fields_like_openclaw():
                json={"call_number": "380731110099", "recive_number": "380933756437", "reciver": "", "ID": "ua20_-1.1", "type": "in", "project": "210608", "connected": ""})
         lv = c.get("/telephony/live").json()["calls"]
         assert lv and lv[0]["phone"] == "380731110099"
+
+
+def test_popup_extra_and_notifications():
+    from datetime import datetime, timedelta
+    from app.models import Appointment
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        p = Patient(full_name="Інфо Пацієнтка", phone="+380671230099", cb_note="Любить зелений чай"); db.add(p); db.commit()
+        db.add(Appointment(patient_id=p.id, start=datetime.now() - timedelta(days=20), end=datetime.now() - timedelta(days=20, hours=-1),
+                           services=[{"name": "Чистка"}], status="done")); db.commit()
+        tel.save(db, "ringostat", {"project_id": "1", "auth_key": "k"}, "Дзвінок", False, False)
+        hook = tel.public(db)["hook"]
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        u = f"/api/public/telephony/ringostat/{hook}"
+        c.post(u + "?event=ringing", json={"call_number": "380671230099", "ID": "x1", "type": "in"})
+        lv = c.get("/telephony/live").json()["calls"][0]
+        assert lv["tag"] and "Чистка" in lv["last"] and lv["note"] == "Любить зелений чай" and lv["visits"] == 1
+        c.post(u + "?event=end", json={"call_number": "380671230099", "ID": "x1", "type": "in", "status": "NO ANSWER", "dialog": "0"})
+        h = c.get("/notifications").text
+        assert "Пропущений дзвінок" in h and "Інфо Пацієнтка" in h
