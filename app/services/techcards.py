@@ -24,10 +24,16 @@ WH_CAT = {"single": "Одноразка", "inject": "Препарат", "classic
 
 # ---------------- ціни ----------------
 def unit_costs(db: Session) -> dict[int, float]:
-    """Поточна ціна одиниці обліку: остання закупівля, інакше собівартість товару."""
-    out = {p.id: float(p.cost or 0) for p in db.scalars(select(Product))}
+    """Ціна одиниці обліку для собівартості: ціна закупівлі товару (розраховується з проведених поставок — як у CleverBox),
+    якщо її немає — остання закупівля, далі собівартість залишку."""
+    out: dict[int, float] = {}
     for pp in db.scalars(select(ProductPurchase).where(ProductPurchase.unit_cost > 0).order_by(ProductPurchase.bought_on, ProductPurchase.id)):
         out[pp.product_id] = float(pp.unit_cost)
+    for p in db.scalars(select(Product)):
+        if p.cost and float(p.cost) > 0:
+            out[p.id] = float(p.cost)
+        elif p.id not in out:
+            out[p.id] = float(p.stock_cost or 0)
     return out
 
 
@@ -38,6 +44,9 @@ def card_cost(card: TechCard, uc: dict[int, float]) -> float:
 def cat_wh(card: TechCard | None, cat: str, product: Product | None = None) -> str:
     for c in (card.cats if card and card.cats else DEFAULT_CATS):
         if c.get("name") == cat and c.get("wh"):
+            return c["wh"]
+    for c in DEFAULT_CATS:
+        if c["name"] == cat:
             return c["wh"]
     return (product.warehouse if product and product.warehouse else None) or "single"
 
@@ -152,15 +161,31 @@ def seed(db: Session, a: Appointment) -> bool:
 def materials(db: Session, a: Appointment) -> list[dict]:
     """По послугах візиту: категорії → рядки, собівартість, ліміт техкарти."""
     rows = db.scalars(select(VisitMaterial).where(VisitMaterial.appt_id == a.id).order_by(VisitMaterial.svc_idx, VisitMaterial.id)).all()
+    if rows and not closed(db, a):                 # відкритий візит — собівартість за поточною ціною закупівлі
+        uc = unit_costs(db)
+        ch = False
+        for m in rows:
+            v = round(uc.get(m.product_id, m.unit_cost or 0), 6)
+            if abs((m.unit_cost or 0) - v) > 1e-6:
+                m.unit_cost, ch = v, True
+        if ch:
+            db.commit()
     out = []
     for idx, s in enumerate(a.services or []):
         mine = [m for m in rows if m.svc_idx == idx]
         card = _card_of(db, s.get("id"))
         cats: dict[str, list] = {}
+        for c in (card.cats if card and card.cats else DEFAULT_CATS):     # усі категорії техкарти (і порожні — щоб додати)
+            if c.get("name"):
+                cats.setdefault(c["name"], [])
+        if "Обладнання" not in cats:
+            cats["Обладнання"] = []
         for m in mine:
             cats.setdefault(m.cat, []).append(m)
+        cats = {k: v for k, v in sorted(cats.items(), key=lambda kv: (not kv[1], 0))}
+        cat_wh_ = {k: cat_wh(card, k) for k in cats}
         cost = round(sum(m.qty * m.unit_cost for m in mine), 2)
-        out.append({"idx": idx, "service": s.get("name"), "service_id": s.get("id"), "card": card, "cats": cats, "cost": cost,
+        out.append({"idx": idx, "service": s.get("name"), "service_id": s.get("id"), "card": card, "cats": cats, "cat_wh": cat_wh_, "cost": cost,
                     "max_cost": card.max_cost if card else None, "over": bool(card and card.max_cost and cost > card.max_cost + 0.005)})
     return out
 

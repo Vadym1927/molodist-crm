@@ -108,20 +108,24 @@
       {% if mats is not none %}
       <div class="vd-info">{% if a and a.historic %}Історія CleverBox: фактичні витратні цього візиту, списані зі складу в CleverBox (у CRM лише для перегляду).{% elif closed %}Візит закрито — матеріали списано зі складу: {% for d in wdocs %}<a href="/stock/docs/{{ d.id }}">{{ d.number }} ({{ WH.get(d.wh_from, d.wh_from) }})</a>{{ ', ' if not loop.last }}{% endfor %}.
         {% else %}Витратні — з техкарти кожної послуги. Кількість можна змінити, позицію — прибрати чи додати; зміни зберігаються одразу. Після оплати візиту матеріали списуються зі складу.{% endif %}</div>
-      {% if popts %}<datalist id="vd-prods">{% for pid, label, w in popts %}<option value="{{ label }}">{% endfor %}</datalist>{% endif %}
+      {% if popts %}<datalist id="vd-prods">{% for pid, label, w in popts %}<option value="{{ label }}">{% endfor %}</datalist>
+        {% for wh in ['single','inject','classic','equip','vitrina'] %}<datalist id="vd-prods-{{ wh }}">{% for pid, label, w in popts if (w or 'vitrina') == wh %}<option value="{{ label }}">{% endfor %}</datalist>{% endfor %}{% endif %}
       {% for g in mats %}
         <div class="vd-sec"><h4>{{ g.service }}</h4><em class="vd-sum {{ 'over' if g.over }}" title="{{ ('Ліміт техкарти ' ~ money(g.max_cost)) if g.max_cost }}">{{ money(g.cost) }}</em></div>
         {% if g.card %}<div class="vd-hint">Техкарта: <a href="/techcards?open={{ g.card.id }}">{{ g.card.name }}</a>{% if g.max_cost %} · ліміт {{ money(g.max_cost) }}{% endif %}{% if g.over %} · <b style="color:#B23B2E">перевищено ліміт</b>{% endif %}
           {% if not closed %} · <a href="#" onclick="return vdMatReset({{ c.a.id }}, {{ g.idx }})">повернути як у техкарті</a>{% endif %}</div>
         {% else %}<div class="vd-hint">У послуги немає техкарти — <a href="/services?q={{ g.service|urlencode }}">прив'язати</a> або додайте матеріали вручну.</div>{% endif %}
-        {% for cat, ms in g.cats.items() %}<div class="vd-cat">{{ cat }}</div>
-          {% for m in ms %}<div class="vd-mat"><b>{{ m.product.name if m.product else ('#' ~ m.product_id) }}</b>
-            {% if closed %}<span>{{ '%g'|format(m.qty) }} {{ (m.product.unit if m.product else '') or 'шт.' }}</span>
-            {% else %}<span><input type="text" inputmode="decimal" value="{{ '%g'|format(m.qty) }}" onchange="vdMat({{ c.a.id }}, {{ m.id }}, this.value)"> {{ (m.product.unit if m.product else '') or 'шт.' }}</span>{% endif %}
-            <em>{{ money(m.qty * m.unit_cost) }}</em>{% if not closed %}<button type="button" title="Прибрати" onclick="vdMat({{ c.a.id }}, {{ m.id }}, null)">×</button>{% endif %}</div>{% endfor %}
-        {% endfor %}
-        {% if not closed %}<form class="vd-add" onsubmit="return vdMatAdd(this, {{ c.a.id }}, {{ g.idx }})"><input name="product" list="vd-prods" placeholder="＋ Матеріал (почніть вводити)" required>
-          <input name="qty" value="1" inputmode="decimal"><input name="cat" list="vd-cats" placeholder="Категорія"><button class="vd-btn ghost">Додати</button></form>{% endif %}
+        {% for cat, ms in g.cats.items() %}{% if ms or not closed %}
+          {% set _ct = namespace(t=0) %}{% for m in ms %}{% set _ct.t = _ct.t + m.qty * m.unit_cost %}{% endfor %}
+          <div class="vd-cath"><span>Категорія: <b>{{ cat }}</b>{% if ms %} <i>{{ money(_ct.t) }}</i>{% endif %}</span>
+            {% if not closed %}<button type="button" class="vd-addb" onclick="var f=this.parentNode.nextElementSibling;f.hidden=!f.hidden;if(!f.hidden)f.product.focus()">+ Додати розхідник</button>{% endif %}</div>
+          {% if not closed %}<form class="vd-add" hidden onsubmit="return vdMatAdd(this, {{ c.a.id }}, {{ g.idx }})"><input name="product" list="vd-prods-{{ g.cat_wh.get(cat, 'single') }}" placeholder="Почніть вводити назву ({{ cat|lower }})" required autocomplete="off">
+            <input name="qty" value="1" inputmode="decimal" title="Кількість"><input type="hidden" name="cat" value="{{ cat }}"><button class="vd-btn">Додати</button></form>{% endif %}
+          {% for m in ms %}{% set _u = (m.product.unit if m.product else '') or 'шт.' %}<div class="vd-mat"><b>{{ m.product.name if m.product else ('#' ~ m.product_id) }}<small>{{ money(m.unit_cost) }} за {{ _u }}</small></b>
+            {% if closed %}<span>{{ '%g'|format(m.qty) }} {{ _u }}</span>
+            {% else %}<span class="vd-qty"><button type="button" onclick="vdMatStep({{ c.a.id }}, {{ m.id }}, this, -1)" title="Менше">−</button><input type="text" inputmode="decimal" value="{{ '%g'|format(m.qty) }}" onchange="vdMat({{ c.a.id }}, {{ m.id }}, this.value)"><button type="button" onclick="vdMatStep({{ c.a.id }}, {{ m.id }}, this, 1)" title="Більше">+</button></span><span class="vd-u">{{ _u }}</span>{% endif %}
+            <em>{{ money(m.qty * m.unit_cost) }}</em>{% if not closed %}<button type="button" class="vd-x" title="Прибрати" onclick="vdMat({{ c.a.id }}, {{ m.id }}, null)">×</button>{% endif %}</div>{% endfor %}
+        {% endif %}{% endfor %}
       {% else %}<div class="vd-empty">У візиті ще немає послуг.</div>{% endfor %}
       <datalist id="vd-cats"><option value="Одноразка"><option value="Препарат"><option value="Обладнання"></datalist>
       <div class="vd-tot big"><span>Собівартість візиту</span><b>{{ money(mats|sum(attribute='cost')) }}</b></div>

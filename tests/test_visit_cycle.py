@@ -21,7 +21,7 @@ def test_visit_cycle():
         spl._save(db, xs + [pl])
         d = Doctor(name="Циклова Лікарка", active=True, extra={"salary": "Цикловий оклад"})
         pt = Patient(full_name="Циклова Пацієнтка", phone="+380501112244")
-        drug = Product(name="Цикл Препарат", name_norm="цикл препарат", warehouse="inject", unit="шт.", cost=1000)
+        drug = Product(name="Цикл Препарат", name_norm="цикл препарат", warehouse="inject", unit="шт.")   # без ціни закупівлі — береться остання закупівля
         glove = Product(name="Цикл Рукавички", name_norm="цикл рукавички", warehouse="single", unit="шт.", cost=2)
         amort = Product(name="Цикл Амортизація апарата", name_norm="цикл амортизація апарата", warehouse="equip", unit="шт.", cost=50)
         cotton = Product(name="Цикл Ватні диски", name_norm="цикл ватні диски", warehouse="single", unit="шт.", cost=0.5)
@@ -83,3 +83,11 @@ def test_visit_cycle():
             sl.refund(db, db.get(Sale, sid), "тест повернення")
             assert tc.sync(db)["reopened"] == 2
             assert not db.query(StockDoc).filter(StockDoc.ext_no == f"visit:{aid}", StockDoc.status == "posted").count()
+
+
+def test_unit_cost_prefers_product_cost():
+    with SessionLocal() as db:
+        p = Product(name="Бахіли ціна", name_norm="бахіли ціна", warehouse="single", unit="шт.", cost=1.14)
+        db.add(p); db.flush()
+        db.add(ProductPurchase(product_id=p.id, bought_on=date(2026, 9, 30), qty=100, unit_cost=1.41)); db.commit()
+        assert tc.unit_costs(db)[p.id] == 1.14            # як у CleverBox: ціна закупівлі з проведених поставок
