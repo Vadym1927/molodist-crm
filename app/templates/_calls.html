@@ -11,6 +11,10 @@
 .cl-i audio{width:100%;max-width:520px;height:36px}
 .cl-sum{font-size:14px;color:#2A2430;background:#F7F4F0;border-radius:10px;padding:8px 12px}.cl-ai{font-size:13.5px;color:#3f3a49;background:#F6F3FB;border-radius:10px;padding:8px 12px}
 .cl-i details summary{cursor:pointer;color:#5C4B82;font-weight:600;font-size:13.5px}.cl-i details pre{white-space:pre-wrap;font:13.5px/1.5 var(--sans);background:#FBFAF8;border-radius:10px;padding:10px 12px;max-height:340px;overflow:auto;margin:6px 0 0}
+.cl-dlg{display:flex;flex-direction:column;gap:6px;margin-top:8px;max-height:420px;overflow:auto;background:#FBFAF8;border-radius:12px;padding:10px}
+.cl-dlg .bb{max-width:78%;padding:7px 11px;border-radius:12px;font-size:14px;line-height:1.45;white-space:pre-wrap}
+.cl-dlg .bb small{display:block;font:700 10.5px var(--sans);letter-spacing:.05em;text-transform:uppercase;opacity:.7;margin-bottom:2px}
+.cl-dlg .bb.a{align-self:flex-end;background:#3B3050;color:#fff;border-bottom-right-radius:4px}.cl-dlg .bb.p{align-self:flex-start;background:#fff;border:1px solid #ECE7E1;border-bottom-left-radius:4px}
 .cl-a{display:flex;gap:8px;flex-wrap:wrap}.cl-a button,.cl-a a{border:1px solid #E3DFE8;background:#fff;border-radius:9px;padding:6px 12px;font:600 13px var(--sans);color:#3B3050;cursor:pointer;text-decoration:none}.cl-a button:hover,.cl-a a:hover{background:#F6F3FB}
 </style>
 <div class="cl">{% for c in calls %}{% set pt = pats.get(c.patient_id) if c.patient_id else None %}
@@ -23,7 +27,11 @@
   {% if c.record_url %}<audio controls preload="none" src="{{ c.record_url }}"></audio>{% endif %}
   {% if c.summary %}<div class="cl-sum"><b>Зміст:</b> {{ c.summary }}</div>{% endif %}
   {% if c.ai_comment %}<div class="cl-ai"><b>AI-оцінка:</b> {{ c.ai_comment }}{% if c.ai_meta and c.ai_meta.booked is defined %} · {{ 'записано' if c.ai_meta.booked else 'не записано' }}{% endif %}</div>{% endif %}
-  {% if c.transcript %}<details><summary>Текст діалогу</summary><pre>{{ c.transcript }}</pre></details>{% endif %}
+  {% if c.transcript %}<details><summary>Діалог ({{ c.transcript.splitlines()|select|list|length }} реплік)</summary><div class="cl-dlg">
+    {% for ln in c.transcript.splitlines() if ln.strip() %}{% set sp, _, tx = ln.partition(':') %}
+      {% if tx and sp|length < 30 %}{% set adm = sp.strip().lower() in ('адмін','адміністратор','admin','оператор','менеджер','співробітник') or (c.employee and sp.strip() in c.employee) %}
+        <div class="bb {{ 'a' if adm else 'p' }}"><small>{{ sp.strip() }}</small>{{ tx.strip() }}</div>
+      {% else %}<div class="bb p">{{ ln }}</div>{% endif %}{% endfor %}</div></details>{% endif %}
   <div class="cl-a">
     {% if c.transcript %}<button type="button" onclick="clEval({{ c.id }}, this)">{{ 'Переоцінити AI' if c.ai_score is not none else 'Оцінити AI' }}</button>{% endif %}
     <button type="button" onclick="clTask({{ c.id }}, {{ c.patient_id or 'null' }}, '{{ ((pt.full_name if pt else c.phone) or '')|e }}', '{{ c.at|dt('%d.%m %H:%M') }}', '{{ back }}')">+ Задача</button>

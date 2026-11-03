@@ -58,7 +58,7 @@ def test_call_ai_popup_create_patient_and_kpi():
     with TestClient(app) as c:
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
         t = c.get("/telephony").text
-        assert "KPI дзвінків" in t and "AI 55/100" in t and "Текст діалогу" in t
+        assert "KPI дзвінків" in t and "AI 55/100" in t and "Діалог (" in t and "Добрий день, MOLODIST" in t
         assert "Дзвінки · 1" in c.get(f"/patients/{cl.patient_id}").text
 
 
