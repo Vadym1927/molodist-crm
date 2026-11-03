@@ -45,7 +45,9 @@
 
 {% elif tab=='api' %}
 {% if new_key %}<div class="card" style="border-color:var(--accent)"><b>Новий API-ключ — скопіюйте зараз, повторно він не показується:</b>
-  <pre style="background:var(--accent-soft);padding:10px;border-radius:8px;overflow:auto;user-select:all">{{ new_key }}</pre></div>{% endif %}
+  <div style="display:flex;gap:8px;align-items:stretch;margin-top:8px;flex-wrap:wrap">
+    <pre id="nk" style="flex:1;min-width:240px;margin:0;background:var(--accent-soft);padding:10px;border-radius:8px;overflow:auto;user-select:all">{{ new_key }}</pre>
+    <button type="button" class="btn" onclick="var t=document.getElementById('nk').textContent.trim(),b=this,ok=function(){b.textContent='✓ Скопійовано'};if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(ok)}else{var r=document.createRange();r.selectNodeContents(document.getElementById('nk'));var s=getSelection();s.removeAllRanges();s.addRange(r);document.execCommand('copy');ok()}">Копіювати</button></div></div>{% endif %}
 {% if new_secret %}<div class="card" style="border-color:var(--accent)"><b>Секрет вебхука (для перевірки підпису X-CRM-Signature) — скопіюйте зараз:</b>
   <pre style="background:var(--accent-soft);padding:10px;border-radius:8px;overflow:auto;user-select:all">{{ new_secret }}</pre></div>{% endif %}
 <div class="grid g2">
