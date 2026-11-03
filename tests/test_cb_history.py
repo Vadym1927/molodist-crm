@@ -32,7 +32,7 @@ def test_cb_history_import():
     with TestClient(app) as c:
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
         h = c.get(f"/calendar/visit?appt={aid}").text
-        assert "Історія CleverBox" in h and "1500.00" in h and "Маска тест" in h
+        assert "Історія CleverBox" in h and "1 500.00" in h and "Маска тест" in h
 
 
 def test_patient_visits_open_calendar():

@@ -19,6 +19,8 @@
 .ph-tabs button b{color:#8a8496;font-weight:600;margin-left:4px}.ph-tabs button.on{background:#3B3050;color:#fff;border-color:#3B3050}.ph-tabs button.on b{color:#C9BFE6}
 .ph-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
 .ph-t{position:relative;border-radius:12px;overflow:hidden;border:2px solid #ECE7E1;background:#fff}
+.av-ck{position:absolute;top:6px;right:6px;z-index:2;margin:0}.av-ck label,.av-ck.on{display:flex;gap:5px;align-items:center;background:rgba(255,255,255,.92);border-radius:8px;padding:3px 7px;font:700 10.5px var(--sans);text-transform:uppercase;letter-spacing:.05em;color:#3B3050;cursor:pointer;box-shadow:0 1px 4px rgba(42,36,48,.15)}
+.av-ck input{width:15px;height:15px;accent-color:#3B3050;margin:0}.ph-t:has(.av-ck input:checked){border-color:#3B3050}
 .ph-t .im{display:block;aspect-ratio:1;background:#F7F4F0;cursor:zoom-in}.ph-t .im img{width:100%;height:100%;object-fit:cover;display:block}
 .ph-t .im .doc{display:grid;place-items:center;height:100%;font-size:38px;color:#5C4B82;text-decoration:none}
 .ph-t.is-a{border-color:#B23B2E}.ph-t.is-b{border-color:#2F7A4C}
@@ -56,6 +58,8 @@
     <div class="ph-t" data-id="{{ f.id }}" data-c="{{ x.cat }}" data-img="{{ 1 if x.img else 0 }}" data-d="{{ (f.taken_at or f.created_at)|dt('%d.%m.%Y') }}">
       {% if x.img %}<span class="im" onclick="phZoom({{ f.id }})"><img src="/files/{{ f.id }}" loading="lazy" alt=""></span>{% else %}<span class="im"><a class="doc" href="/files/{{ f.id }}" target="_blank">📄</a></span>{% endif %}
       <span class="badge a">ДО</span><span class="badge b">ПІСЛЯ</span>
+      {% if x.img and can(user,'upload') %}<form method="post" action="/patients/{{ p.id }}/avatar" class="av-ck" title="Аватар пацієнта (картка візиту)"><input type="hidden" name="file_id" value="{{ 0 if p.avatar_file_id == f.id else f.id }}"><input type="hidden" name="back" value="/patients/{{ p.id }}/photos">
+        <label><input type="checkbox" {{ 'checked' if p.avatar_file_id == f.id }} onchange="this.form.submit()"><span>аватар</span></label></form>{% elif p.avatar_file_id == f.id %}<span class="av-ck on"><span>аватар</span></span>{% endif %}
       <div class="mt">{{ (f.taken_at or f.created_at)|dt('%d.%m.%Y') }}{% if f.zone %} · {{ f.zone }}{% endif %}
         {% if x.img %}<div class="acts"><button type="button" class="ba" onclick="phSet('a',{{ f.id }})">До</button><button type="button" class="bb" onclick="phSet('b',{{ f.id }})">Після</button>
           {% if can(user,'upload') %}<form method="post" action="/files/delete" style="display:contents" data-delpw="Видалити це фото?"><input type="hidden" name="ids" value="{{ f.id }}"><input type="hidden" name="back" value="/patients/{{ p.id }}/photos"><button class="del" title="Видалити">🗑</button></form>{% endif %}</div>

@@ -42,6 +42,7 @@ class Patient(Base):
     full_name: Mapped[str] = mapped_column(String(200), index=True)
     phone: Mapped[str | None] = mapped_column(String(64), index=True)
     cleverbox_id: Mapped[int | None] = mapped_column(Integer, unique=True)
+    avatar_file_id: Mapped[int | None] = mapped_column(Integer)          # фото пацієнта (PatientFile) — аватар у картці візиту
     doctor_id: Mapped[int | None] = mapped_column(ForeignKey("doctors.id"))
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

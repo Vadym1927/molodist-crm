@@ -9,8 +9,10 @@
  'about':'<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8v.2"/>'} %}
 {% macro ic(k) %}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{{ ICONS[k]|safe }}</svg>{% endmacro %}
 {% macro money(v) %}{{ '{:,.2f}'.format(v or 0).replace(',', ' ') }} ₴{% endmacro %}
+{% set _MG = ['січня','лютого','березня','квітня','травня','червня','липня','серпня','вересня','жовтня','листопада','грудня'] %}
+{% macro uday(x) %}{{ x.day }} {{ _MG[x.month - 1] }} {{ x.year }}{% endmacro %}
 <div class="vd-h">
-  <div><small>Візит · {{ c.start|dt('%d.%m.%Y') }}</small><h3>{{ c.number }}</h3></div>
+  <div><small>{{ ('Візит №' ~ c.a.id) if c.a else c.number }} · {{ uday(c.start) }}</small><h3>Деталі візиту</h3></div>
   <button type="button" class="vd-x" onclick="visitClose()" title="Закрити">×</button>
 </div>
 <div class="vd-w">
@@ -21,64 +23,85 @@
   </nav>
   <div class="vd-c">
     {# ---------- ВІЗИТ ---------- #}
-    <section data-p="visit">
-      <div class="vd-st">
-        {% if a %}
-          <select class="vd-sel" style="--sc:{{ COLORS.get(a.status, '#5C4B82') }}" {% if not can(user,'book') %}disabled{% endif %} onchange="vdStatus({{ a.id }}, this)">
-            {% for k, v in STATUSES.items() %}<option value="{{ k }}" {{ 'selected' if a.status == k }}>{{ v }}</option>{% endfor %}</select>
-          {% if can(user,'book') %}<button type="button" class="vd-btn warm" onclick="visitClose();apptOpen({{ a.id }}, 1)">Перенести / змінити</button>{% endif %}
-        {% else %}
-          <span class="vd-badge {{ 'ok' if c.status in ('attended','done') else '' }}">{{ c.status_label }}</span>
-          {% if can(user,'book') and c.vs %}<button type="button" class="vd-btn warm" onclick="vdAdopt('{{ c.vs|map(attribute='id')|join(',') }}')">Керувати в CRM</button>
-          <span class="vd-hint">Візит з CleverBox. «Керувати в CRM» робить його записом CRM: можна переносити, змінювати послуги й статус, списувати витратні й розраховувати в касі.</span>
-          {% else %}<span class="vd-hint">Візит з CleverBox — лише перегляд.</span>{% endif %}
-        {% endif %}
+    <section data-p="visit" class="vx">
+      {% set _ph = ('/files/' ~ p.avatar_file_id) if p.avatar_file_id else None %}
+      <div class="vx-pt">
+        <a class="vx-av" href="/patients/{{ p.id }}/photos" title="{{ 'Змінити фото' if _ph else 'Обрати фото пацієнта (галочка «аватар» у фото)' }}" {% if _ph %}style="background-image:url('{{ _ph }}')"{% endif %}>{{ '' if _ph else initials(p.full_name) }}</a>
+        <div class="vx-pn">
+          <div class="vx-top"><div><a class="vx-name" href="/patients/{{ p.id }}">{{ p.full_name }}</a>
+            <div class="vd-tags"><span class="vx-tag">{{ stats.tag }}</span>{% if p.cb_mark == 'vip' %}<span class="vx-tag vip">VIP</span>{% endif %}</div></div>
+            {% if p.phone %}{% set dig = p.phone|replace(' ','')|replace('-','')|replace('(','')|replace(')','') %}
+            <div class="vx-act"><a href="tel:{{ dig }}" title="Подзвонити"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg></a>
+              <a href="viber://chat?number={{ dig|replace('+','%2B') }}" title="Написати у Viber"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a8 8 0 0 1 16 0c0 4.4-3.6 7-8 7l-4 3v-3.5C5.6 16.3 4 14 4 11z"/></svg></a></div>{% endif %}</div>
+          <div class="vx-ln">{% if p.phone %}<span class="vx-phone" onclick="this.textContent=this.dataset.full" data-full="{{ p.phone }}" title="Показати номер">{{ p.phone[:6] ~ '•••••' ~ p.phone[-2:] if p.phone|length > 8 else p.phone }}</span><i></i>{% endif %}<a href="/patients/{{ p.id }}">Картка пацієнта</a></div>
+          <div class="vx-kpi"><div><b>{{ stats.visits or 0 }}</b><span>попередніх візитів</span></div><div><b>{{ '{:,.0f}'.format(stats.total or 0).replace(',', ' ') }} ₴</b><span>оплачено</span></div>
+            <div><b>{{ '%g'|format(stats.bonus or 0) }}</b><span>бонусів</span></div><div><b>{{ ('%g'|format(stats.discount) ~ '%') if stats.discount else '—' }}</b><span>знижка</span></div></div>
+        </div>
       </div>
 
-      <div class="vd-pt">
-        <a class="vd-av" href="/patients/{{ p.id }}">{{ initials(p.full_name) }}</a>
-        <div class="vd-pn"><a href="/patients/{{ p.id }}">{{ p.full_name }}</a>
-          <div class="vd-tags"><span class="ptag {{ 'fan' if stats.tag == 'ФАНАТ' else ('reg' if stats.tag.startswith('Пост') else 'new') }}">{{ stats.tag }}</span>
-            {% if p.cb_mark == 'vip' %}<span class="ptag plan">VIP</span>{% endif %}</div>
-          {% if p.phone %}<div class="vd-ph">{{ p.phone }}</div>{% endif %}</div>
-        {% if p.phone %}{% set dig = p.phone|replace(' ','')|replace('-','')|replace('(','')|replace(')','') %}
-        <div class="vd-act"><a href="tel:{{ dig }}" title="Подзвонити"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg></a>
-          <a href="viber://chat?number={{ dig|replace('+','%2B') }}" title="Viber"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a8 8 0 0 1 16 0c0 4.4-3.6 7-8 7l-4 3v-3.5C5.6 16.3 4 14 4 11z"/></svg></a></div>{% endif %}
-        <div class="vd-kpi"><div><b>{{ stats.visits or 0 }}</b><span>візитів</span></div><div><b>{{ money(stats.total) }}</b><span>оплачено всього</span></div>
-          <div><b>{{ '%g'|format(stats.bonus or 0) }}</b><span>бонусів</span></div><div><b>{{ ('%g'|format(stats.discount) ~ '%') if stats.discount else '—' }}</b><span>знижка</span></div></div>
+      <div class="vx-bar">
+        {% if a %}<label class="vx-st" style="--sc:{{ COLORS.get(a.status, '#5C4B82') }}"><i></i><select {% if not can(user,'book') or a.historic %}disabled{% endif %} onchange="vdStatus({{ a.id }}, this)">
+            {% for k, v in STATUSES.items() %}<option value="{{ k }}" {{ 'selected' if a.status == k }}>{{ v }}</option>{% endfor %}</select></label>
+        {% else %}<span class="vx-st" style="--sc:{{ '#4CAF50' if c.status in ('attended','done') else '#F5B940' }}"><i></i><b>{{ c.status_label }}</b></span>{% endif %}
+        <span class="vx-d"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>{{ uday(c.start) }}</span>
+        <span class="vx-d"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>{{ c.start|dt('%H:%M') }} – {{ c.end|dt('%H:%M') }} · {{ ((c.end - c.start).total_seconds() // 60)|int }} хв</span>
+        {% if a and not a.historic and can(user,'book') %}<button type="button" class="vx-mv" onclick="visitClose();apptOpen({{ a.id }}, 1)">Перенести візит</button>
+        {% elif not a and can(user,'book') and c.vs %}<button type="button" class="vx-mv" onclick="vdAdopt('{{ c.vs|map(attribute='id')|join(',') }}')">Керувати в CRM</button>{% endif %}
       </div>
 
-      <div class="vd-sec"><h4>Послуги · {{ c.start|dt('%d.%m.%Y') }}</h4>
-        {% if a and can(user,'book') %}<button type="button" class="vd-btn ghost" onclick="visitClose();apptOpen({{ a.id }}, 1)">＋ Додати послугу</button>{% endif %}</div>
-      {% set _edt = a and not a.historic and can(user,'book') %}
-      {% for s in c.services %}<div class="vd-svc"><div><b>{{ s.name }}</b><span>{{ s.start|dt('%H:%M') }} – {{ s.end|dt('%H:%M') }} · {{ s.minutes }} хв</span></div>
-        {% if _edt %}<button type="button" class="vd-pen" title="Змінити час візиту" onclick="vtOpen()"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg></button>{% endif %}<em>{{ money(s.price) }}</em></div>
-      {% else %}<div class="vd-empty">Послуги не вказані</div>{% endfor %}
-      {% if c.services|length > 1 %}<div class="vd-tot"><span>Разом</span><b>{{ money(c.total) }}</b></div>{% endif %}
-      {% if _edt %}<div class="vt-bg" id="vt" hidden onclick="if(event.target===this)this.hidden=true"><div class="vt">
-        <h3>Час візиту</h3>
-        <div class="vt-r"><label>Дата<input type="date" id="vt-d" value="{{ c.start.strftime('%Y-%m-%d') }}"></label><label>Початок<input type="time" id="vt-t" step="300" value="{{ c.start.strftime('%H:%M') }}" oninput="vtCalc()"></label></div>
-        {% for s in c.services %}<div class="vt-s"><span>{{ s.name }}</span><label><input type="number" class="vt-m" min="5" max="600" step="5" value="{{ s.minutes }}" oninput="vtCalc()"> хв</label></div>{% endfor %}
-        <div class="vt-e">Закінчення: <b id="vt-end">{{ c.end.strftime('%H:%M') }}</b></div>
-        <div class="vt-w" id="vt-w"></div>
-        <div class="vt-a"><button type="button" class="vd-btn ghost" onclick="document.getElementById('vt').hidden=true">Скасувати</button><button type="button" class="vd-btn main" id="vt-ok" onclick="vtSave({{ a.id }})">Зберегти</button></div>
-      </div></div>{% endif %}
+      <div class="vx-cols">
+        <div class="vx-l">
+          <div class="vx-h"><h4>Послуги</h4>{% if a and not a.historic and can(user,'book') %}<button type="button" class="vx-lnk" onclick="visitClose();apptOpen({{ a.id }}, 1)">+ Додати</button>{% endif %}</div>
+          {% set _edt = a and not a.historic and can(user,'book') %}
+          {% for s in c.services %}<div class="vd-svc"><div><b>{{ s.name }}</b><span>{{ s.start|dt('%H:%M') }} – {{ s.end|dt('%H:%M') }} · {{ s.minutes }} хв</span></div>
+            <em>{{ money(s.price) }}</em>{% if _edt %}<button type="button" class="vd-pen" title="Змінити час візиту" onclick="vtOpen()"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg></button>{% endif %}</div>
+          {% else %}<div class="vd-empty">Послуги не вказані</div>{% endfor %}
+          {% if _edt %}<div class="vt-bg" id="vt" hidden onclick="if(event.target===this)this.hidden=true"><div class="vt">
+            <h3>Час візиту</h3>
+            <div class="vt-r"><label>Дата<input type="date" id="vt-d" value="{{ c.start.strftime('%Y-%m-%d') }}"></label><label>Початок<input type="time" id="vt-t" step="300" value="{{ c.start.strftime('%H:%M') }}" oninput="vtCalc()"></label></div>
+            {% for s in c.services %}<div class="vt-s"><span>{{ s.name }}</span><label><input type="number" class="vt-m" min="5" max="600" step="5" value="{{ s.minutes }}" oninput="vtCalc()"> хв</label></div>{% endfor %}
+            <div class="vt-e">Закінчення: <b id="vt-end">{{ c.end.strftime('%H:%M') }}</b></div>
+            <div class="vt-w" id="vt-w"></div>
+            <div class="vt-a"><button type="button" class="vd-btn ghost" onclick="document.getElementById('vt').hidden=true">Скасувати</button><button type="button" class="vd-btn main" id="vt-ok" onclick="vtSave({{ a.id }})">Зберегти</button></div>
+          </div></div>{% endif %}
 
-      <div class="vd-doc">{% if d %}<i class="vd-av s" style="{% if d.photo_url %}background-image:url('{{ d.photo_url }}');{% else %}background-color:{{ color(d) }};{% endif %}">{{ '' if d.photo_url else initials(d.name) }}</i>
-        <div><a href="/specialists/{{ d.id }}">{{ d.name }}</a><span>{{ d.position or 'Спеціаліст' }}</span></div>{% else %}<div><b>Спеціаліст не визначений</b><span>{{ c.vs[0].master_name if c.vs else '' }}</span></div>{% endif %}</div>
+          <div class="vx-h"><h4>Лікар</h4></div>
+          <div class="vx-doc">{% if d %}<i class="vx-dav" style="{% if d.photo_url %}background-image:url('{{ d.photo_url }}');{% else %}background-color:{{ color(d) }};{% endif %}">{{ '' if d.photo_url else initials(d.name) }}</i>
+            <div><a href="/specialists/{{ d.id }}">{{ d.name }}</a><span>{{ d.position or 'Спеціаліст' }}</span></div>{% else %}<div><b>Спеціаліст не визначений</b><span>{{ c.vs[0].master_name if c.vs else '' }}</span></div>{% endif %}
+            {% if a and a.place %}<span class="vx-room"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 21V4h11v17M16 7h3v14M3 21h18"/><circle cx="13" cy="13" r=".8" fill="currentColor"/></svg>{{ a.place }}</span>{% endif %}</div>
 
-      {% if (a and a.comment) or p.cb_note %}<div class="vd-sec"><h4>Інше</h4></div>
-        {% if a and a.comment %}<div class="vd-box"><span>Коментар до запису</span>{{ a.comment }}</div>{% endif %}
-        {% if p.cb_note %}<div class="vd-box"><span>Замітка пацієнта</span>{{ p.cb_note }}</div>{% endif %}{% endif %}
+          <div class="vx-h"><h4>Коментар до запису</h4></div>
+          <div class="vx-com"><span>{{ (a.comment if a else '') or (p.cb_note if p.cb_note else '') or '—' }}</span>
+            <button type="button" class="vx-lnk" onclick="var b=document.querySelector('#vd .vd-nav [data-t=note]');b&&b.click()"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>Додати нотатку</button></div>
+        </div>
 
-      <div class="vd-foot">
-        {% if a and a.historic %}<div class="vd-box" style="flex:1 1 100%"><span>Історія CleverBox · {{ a.cb_status }}</span>
-          {% if a.cb_paid is not none %}Оплачено: <b>{{ '%.2f'|format(a.cb_paid) }} ₴</b>{% if a.cb_discount %} · знижка {{ '%.2f'|format(a.cb_discount) }} ₴{% endif %}{% if a.cb_check_id %} · чек CleverBox №{{ a.cb_check_id }}{% endif %}{% else %}Без оплати{% endif %}</div>
-        {% elif can(user,'sales') %}{% if a and a.sale_id %}<a class="vd-btn main" href="/sales/{{ a.sale_id }}">Відкрити чек</a>
-        {% elif not a and c.vs and can(user,'book') %}<button type="button" class="vd-btn main" onclick="vdAdopt('{{ c.vs|map(attribute='id')|join(',') }}', 'pay')">Провести оплату</button>
-        {% else %}<a class="vd-btn main" href="/sales/new?{{ ('appt=' ~ a.id) if a else ('patient=' ~ p.id) }}">Провести оплату</a>
-          {% if a and c.same_day %}<a class="vd-btn ghost" href="/sales/new?appt={{ ([a.id] + c.same_day)|join(',') }}" title="Усі візити пацієнта сьогодні — одним чеком">Разом з іншими візитами ({{ c.same_day|length + 1 }})</a>{% endif %}{% endif %}{% endif %}
-        <a class="vd-btn ghost" href="/patients/{{ p.id }}">Картка пацієнта</a>
+        <div class="vx-pay">
+          <h4>Оплата</h4>
+          {% if sale %}{% set _sv, _pr, _ds, _to = sale.services, sale.products, sale.discount, sale.total %}
+          {% elif a and a.historic %}{% set _sv, _pr, _ds, _to = c.total, 0, a.cb_discount or 0, a.cb_paid if a.cb_paid is not none else c.total %}
+          {% else %}{% set _sv, _pr, _ds, _to = c.total, 0, 0, c.total %}{% endif %}
+          {% set _paid = (sale and sale.status == 'paid') or (a and a.historic and a.cb_paid is not none) %}
+          <div class="vx-r"><span>Послуги</span><b>{{ money(_sv) }}</b></div><div class="vx-r"><span>Товари</span><b>{{ money(_pr) }}</b></div><div class="vx-r"><span>Знижка</span><b>{{ money(_ds) }}</b></div>
+          <div class="vx-tot"><span>{{ 'Оплачено' if _paid else 'До сплати' }}</span><b>{{ money(_to) }}</b></div>
+          <span class="vx-ps {{ 'ok' if _paid else ('wait' if sale and sale.status == 'awaiting' else '') }}">{{ 'Оплачено' if _paid else ('Очікує оплати' if sale and sale.status == 'awaiting' else ('Повернено' if sale and sale.status == 'refunded' else 'Не оплачено')) }}</span>
+          {% if a and a.historic %}<div class="vx-note">Історія CleverBox · {{ a.cb_status }}{% if a.cb_check_id %} · чек №{{ a.cb_check_id }}{% endif %}</div>
+          {% elif can(user,'sales') %}
+            {% if a and a.sale_id %}<a class="vx-b main" href="/sales/{{ a.sale_id }}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>Відкрити чек</a>
+            {% elif not a and c.vs and can(user,'book') %}<button type="button" class="vx-b main" onclick="vdAdopt('{{ c.vs|map(attribute='id')|join(',') }}', 'pay')">Провести оплату</button>
+            {% else %}<a class="vx-b main" href="/sales/new?{{ ('appt=' ~ a.id) if a else ('patient=' ~ p.id) }}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6 15h4"/></svg>Провести оплату</a>
+              <a class="vx-b" href="/sales/new?{{ ('appt=' ~ a.id) if a else ('patient=' ~ p.id) }}&add=product">Додати товар</a>
+              {% if a and c.same_day %}<a class="vx-b" href="/sales/new?appt={{ ([a.id] + c.same_day)|join(',') }}" title="Усі візити пацієнта сьогодні — одним чеком">Разом з іншими візитами ({{ c.same_day|length + 1 }})</a>{% endif %}
+              <div class="vx-note"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.2"/></svg>Рахунок буде сформовано після оплати.</div>{% endif %}
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="vx-foot"><span class="vx-saved"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2E9E5B" stroke-width="2.2"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Усі зміни збережено</span>
+        {% if a and not a.historic and can(user,'book') and a.status != 'cancelled' and not a.sale_id %}<button type="button" class="vx-b" onclick="vdCancel({{ a.id }})">Скасувати візит</button>{% endif %}
+        <details class="vx-more"><summary title="Ще">•••</summary><div>
+          <a href="/patients/{{ p.id }}">Картка пацієнта</a><a href="/patients/{{ p.id }}/photos">Фото пацієнта</a>
+          {% if can(user,'medical') %}<a href="/patients/{{ p.id }}/medcard">Медкартка</a>{% endif %}
+          {% if a and can(user,'book') %}<a href="/calendar?start={{ c.start.date() }}&newappt=1&patient={{ p.id }}">Новий запис пацієнта</a>{% endif %}</div></details>
       </div>
     </section>
 

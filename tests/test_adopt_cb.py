@@ -31,7 +31,7 @@ def test_adopt_cb_visit():
         r = c.post("/calendar/visit/adopt", data={"v": vids}).json()
         aid = r["id"]
         assert c.post("/calendar/visit/adopt", data={"v": vids}).json()["id"] == aid          # без дублів
-        assert "Перенести / змінити" in c.get(f"/calendar/visit?appt={aid}").text
+        assert "Перенести візит" in c.get(f"/calendar/visit?appt={aid}").text
         assert c.get(f"/sales/new?appt={aid}").status_code == 200
     with SessionLocal() as db:
         a = db.get(Appointment, aid)
@@ -68,7 +68,7 @@ def test_auto_adopt_with_techcard():
             autonomy.save(db, autonomous=True, since=(date.today() + timedelta(days=5)).isoformat())   # візит — до дати переходу (історія)
             vid = db.query(Visit).filter(Visit.external_id == "16001-93101").one().id
         h = c.get(f"/calendar/visit?v={vid}").text
-        assert "Перенести / змінити" in h and "Голка тест" in h
+        assert "Перенести візит" in h and "Голка тест" in h
     with SessionLocal() as db:
         a = db.query(Appointment).filter(Appointment.cb_record_id == 16001).one()
         assert db.query(VisitMaterial).filter(VisitMaterial.appt_id == a.id).count() == 1

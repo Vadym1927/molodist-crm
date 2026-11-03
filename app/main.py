@@ -1221,6 +1221,18 @@ def appointment_new(request: Request, doc: int = 0, start: str = "", patient: in
                                       "pt": pt, "appeal": ap_, **_appt_ctx(db)})
 
 
+@app.post("/patients/{pid:int}/avatar")
+def patient_avatar(pid: int, file_id: int = Form(0), back: str = Form(""), user: User = Depends(require("upload")), db: Session = Depends(db_dep)):
+    """Аватар пацієнта — одне з його фото (галочка в «Фото»); 0 — прибрати."""
+    from .models import PatientFile
+    p_ = _patient_or_403(db, user, pid)
+    f_ = db.get(PatientFile, file_id) if file_id else None
+    p_.avatar_file_id = f_.id if f_ and f_.patient_id == p_.id else None
+    db.commit()
+    audit(db, "patient.avatar", "patient", pid, user=user, file=p_.avatar_file_id)
+    return RedirectResponse(back if back.startswith("/patients/") else f"/patients/{pid}/photos", 303)
+
+
 @app.get("/appointments/services")
 def appointment_services(doc: int = 0, user: User = Depends(require("book")), db: Session = Depends(db_dep)):
     from .services import appointments as aps
@@ -3178,7 +3190,15 @@ def calendar_visit(request: Request, appt: int = 0, v: str = "", tab: str = "vis
                                                                   _Ap.start < _d0 + timedelta(days=1), _Ap.id != c["a"].id,
                                                                   _Ap.sale_id.is_(None), _Ap.status.notin_(("cancelled", "no_show"))))]
         wdocs = db.scalars(select(StockDoc).where(StockDoc.ext_no == f"visit:{c['a'].id}", StockDoc.status == "posted")).all()
-    return templates.TemplateResponse(request, "_visit_drawer.html", {"request": request, "user": user, "c": c, "pt": p_, "stats": stats,
+    sale_ = None
+    if c["a"] and c["a"].sale_id:
+        from .models import Sale as _Sl
+        _s = db.get(_Sl, c["a"].sale_id)
+        if _s:
+            sale_ = {"id": _s.id, "status": _s.status, "services": round(sum(float(i.total or 0) + float(i.discount or 0) for i in _s.items if i.kind == "service"), 2),
+                     "products": round(sum(float(i.total or 0) + float(i.discount or 0) for i in _s.items if i.kind == "product"), 2),
+                     "discount": round(float(_s.discount or 0) + sum(float(i.discount or 0) for i in _s.items), 2), "total": round(float(_s.total or 0), 2)}
+    return templates.TemplateResponse(request, "_visit_drawer.html", {"request": request, "user": user, "c": c, "pt": p_, "stats": stats, "sale": sale_,
                                       "tab": tab, "STATUSES": _vstat_menu(db, c["a"].status if c.get("a") else None), "COLORS": _vstat_colors(db), "can": can,
                                       "color": spec_svc.color, "initials": spec_svc.initials, "mats": mats, "closed": closed_,
                                       "wdocs": wdocs, "WH": catalog.WAREHOUSES,
