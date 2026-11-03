@@ -36,6 +36,7 @@ body.app{padding-left:var(--rail-w)}:root{--rail-w:264px}@media(max-width:1280px
 .rail a.it svg,.rail summary.it svg{width:23px;height:23px;flex:none;color:#cfc8de}
 .rail a.it:hover,.rail summary.it:hover{background:rgba(255,255,255,.06);color:#fff}
 .rail a.it.on{background:#4A3F63;color:#fff}.rail a.it.on svg{color:#fff}
+.rail .devt{display:block;font:700 9.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#D9A25B;margin-top:1px}
 .rail a.it .ti,.rail summary.it .ti{width:23px;height:23px;flex:none;color:#cfc8de}.rail a.it.on .ti,.rail summary.it.on .ti{color:#fff}
 .rail .more .menu a .ti{width:18px;height:18px;flex:none;color:inherit}
 .rail .dot{margin-left:auto;min-width:24px;height:24px;padding:0 7px;border-radius:12px;background:#E4DEEF;color:#2A2430;font:700 12px/24px var(--sans);font-style:normal;text-align:center}
@@ -152,7 +153,7 @@ body.drw-on .drw{transform:none}body.drw-on .drw-bg{opacity:1;pointer-events:aut
   <a class="it {{ 'on' if nav in ('clients','patient','patients','unassigned') }}" href="/clients"><span class="ti" style="--ti:url(/static/icons/nav-patients.png)"></span><span>Пацієнти</span></a>
   {% if can(user,'appeals') %}<a class="it {{ 'on' if nav=='appeals' }}" href="/appeals"><span class="ti" style="--ti:url(/static/icons/nav-appeals.png)"></span><span>Звернення</span>{% if task_counts and task_counts.appeals %}<em class="dot">{{ task_counts.appeals }}</em>{% endif %}</a>{% endif %}
   <a class="it {{ 'on' if nav=='plans' }}" href="/plans"><span class="ti" style="--ti:url(/static/icons/nav-plans.png)"></span><span>Б'юті-плани</span></a>
-  <a class="it {{ 'on' if nav=='tasks' }}" href="/tasks"><span class="ti" style="--ti:url(/static/icons/nav-tasks.png)"></span><span>Задачі</span>{% if task_counts and task_counts.overdue %}<em class="dot hot" title="Прострочені">{{ task_counts.overdue }}</em>{% endif %}</a>
+  <a class="it {{ 'on' if nav=='tasks' }}" href="/tasks"><span class="ti" style="--ti:url(/static/icons/nav-tasks.png)"></span><span>Задачі <small class="devt">в розробці</small></span>{% if task_counts and task_counts.overdue %}<em class="dot hot" title="Прострочені">{{ task_counts.overdue }}</em>{% endif %}</a>
   {% if can(user,'specialists') %}<a class="it {{ 'on' if nav in ('specialists','specialist') }}" href="/specialists"><span class="ti" style="--ti:url(/static/icons/nav-team.png)"></span><span>Команда</span></a>{% endif %}
   {% if can(user,'patients_all') %}<a class="it {{ 'on' if nav=='gifts' }}" href="/gifts"><span class="ti" style="--ti:url(/static/icons/nav-gifts.png)"></span><span>Сертифікати й абонементи</span></a>{% endif %}
   <hr>

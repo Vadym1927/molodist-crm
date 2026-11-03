@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block body %}
-<div class="row between" style="margin-bottom:6px"><h1>Задачі</h1>
+<div class="row between" style="margin-bottom:6px"><h1>Задачі <span style="font:700 11px var(--sans);letter-spacing:.08em;vertical-align:middle;background:#FFF1D6;color:#9A6A00;padding:4px 10px;border-radius:999px">В РОЗРОБЦІ</span></h1>
   {% if can(user,'reminders') %}<form method="post" action="/tasks-generate"><button class="btn ghost" title="Створити задачі з бюті-планів і складу зараз">↻ Оновити автозадачі</button></form>{% endif %}</div>
 <p class="muted small">Автозадачі створюються з бюті-планів (не записаний на процедуру, закінчується догляд) і складу (дефіцит) та закриваються самі, коли пацієнт записався чи купив.</p>
 <div class="tabs">

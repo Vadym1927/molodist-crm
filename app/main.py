@@ -3233,9 +3233,13 @@ def calendar_visit(request: Request, appt: int = 0, v: str = "", tab: str = "vis
                         if (not x.valid_to or x.valid_to >= _td) and ((x.visits_left or 0) > 0 or (x.balance or 0) > 0))
     _cal_docs = spec_svc.calendar_doctors(db)
     from .models import Appointment as _Ap2
-    stats["planned"] = db.scalar(select(_f.count()).select_from(_Ap2).where(
+    _docn = {d_.id: d_.name for d_ in spec_svc.all_doctors(db)}
+    stats["planned_list"] = [{"id": x.id, "start": x.start, "doctor": _docn.get(x.doctor_id, ""),
+                              "services": ", ".join(s_.get("name", "") for s_ in x.services or [])}
+                             for x in db.scalars(select(_Ap2).where(
         _Ap2.patient_id == p_.id, _Ap2.start > datetime.now(), _Ap2.status.notin_(("cancelled", "no_show", "done")),
-        _Ap2.id != (c["a"].id if c["a"] else 0))) or 0
+        _Ap2.id != (c["a"].id if c["a"] else 0)).order_by(_Ap2.start).limit(30))]
+    stats["planned"] = len(stats["planned_list"])
     from .models import Task
     _tasks = db.scalars(tasks_svc.visible_query(user).where(Task.patient_id == p_.id).order_by(Task.status != "open", Task.due_date.is_(None), Task.due_date, Task.id.desc()).limit(60)).all()
     stats["tasks_open"] = sum(1 for t_ in _tasks if t_.status == "open")
