@@ -84,3 +84,16 @@ def test_seed_migrate_accrue_pay():
         assert c.get("/settings/amort").status_code == 200
         c.post("/settings/amort", data={"name": "Тест апарат", "kind": "device", "cost": "10000", "life_years": "5", "rate": "20", "unit": "процедура", "active": "1"})
         assert db.scalar(select(AmortAsset.id).where(AmortAsset.name == "Тест апарат")) if False else True
+
+
+def test_operational_part():
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        assert am.operational(db) == 110000
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        c.post("/settings/amort/operational", data={"amount": "120000"})
+        assert "120000.00" in c.get("/settings/amort").text
+        c.post("/settings/amort/operational", data={"amount": "110000"})
+    with SessionLocal() as db:
+        assert am.operational(db) == 110000

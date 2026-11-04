@@ -22,6 +22,11 @@
   <form method="post" action="/settings/amort/setup" style="margin:0"><input type="hidden" name="what" value="migrate"><button class="btn ghost">📦 Позиції → склад «Обладнання», техкарти{{ ' · виконано' if migrated }}</button></form>
   <span class="small muted">Обидві дії безпечні для повторного запуску: нічого не дублюють.</span></div>
 
+<form class="card as-set" method="post" action="/settings/amort/operational"><b>Операційний фонд</b>
+  <span class="small muted">Сума на спільному рахунку, що належить операційному фонду — віднімається від балансу і в амортизації не показується</span>
+  <input name="amount" value="{{ '%.2f'|format(operational) }}" inputmode="decimal" style="width:140px"> <span>₴</span>
+  <button class="btn ghost">Зберегти</button></form>
+
 <div class="as-g"><div>
 <div class="card"><div class="row between"><h2 style="margin:0">Позиції · {{ assets|length }}</h2><a class="btn" href="?new=1#form">＋ Додати</a></div>
   <div style="overflow:auto;margin-top:8px"><table class="as-t"><thead><tr><th>Назва</th><th>Позиція техкарт</th><th class="r">Вартість</th><th class="r">Термін / ресурс</th><th class="r">Ставка</th><th>Рахунок</th><th></th></tr></thead><tbody>

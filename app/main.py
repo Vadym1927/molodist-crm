@@ -7995,7 +7995,7 @@ def amort_page(request: Request, year: int = 0, user: User = Depends(require("fi
     boxes = cbx.items(db)
     fund_box = next((b for b in boxes if b.get("name") == (rows[0]["asset"].cashbox if rows else "")), None)
     return render(request, "amort.html", nav="finance", rows=rows, fund=fund, year=yr, years=am.years(db), am=am,
-                  boxes=[b["name"] for b in boxes if b.get("active", True)], fund_balance=cbx.balance(db, fund_box) if fund_box else None,
+                  boxes=[b["name"] for b in boxes if b.get("active", True)], fund_balance=(cbx.balance(db, fund_box) - am.operational(db)) if fund_box else None,
                   fund_name=fund_box["name"] if fund_box else (rows[0]["asset"].cashbox if rows else ""),
                   txns=am.txns(db)[:30], today=today, prev=am.prev_half(today), assets_all=[r["asset"] for r in rows])
 
@@ -8083,8 +8083,19 @@ def settings_amort(request: Request, edit: int = 0, user: User = Depends(require
     return render(request, "amort_settings.html", nav="settings", assets=assets, cur=db.get(AmortAsset, edit) if edit else None,
                   products=am.candidates(db), boxes=[b["name"] for b in cbx.items(db) if b.get("active", True)],
                   devices=[a for a in assets if a.kind == "device"], UNITS=am.UNITS, am=am,
-                  seeded=am._flag(db, am.SEEDED_KEY), migrated=am._flag(db, am.MIGRATED_KEY),
+                  seeded=am._flag(db, am.SEEDED_KEY), migrated=am._flag(db, am.MIGRATED_KEY), operational=am.operational(db),
                   pnames={a.product_id: (a.product.name if a.product else "") for a in assets if a.product_id})
+
+
+@app.post("/settings/amort/operational")
+def settings_amort_operational(amount: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import amort as am
+    v = _num(amount)
+    if v is None:
+        return RedirectResponse(_with_err("/settings/amort", "Вкажіть суму"), 303)
+    am.set_operational(db, v)
+    audit(db, "amort.operational", "sync_state", None, user=user, amount=v)
+    return RedirectResponse(_with_msg("/settings/amort", "Операційну частину фонду збережено"), 303)
 
 
 @app.post("/settings/amort")

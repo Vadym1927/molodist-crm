@@ -30,7 +30,7 @@ dialog.am-d{border:0;border-radius:18px;padding:0;width:min(460px,95vw);box-shad
 .yr{display:inline-flex;gap:4px;background:#F1EDE7;border-radius:999px;padding:3px}.yr a{padding:5px 12px;border-radius:999px;text-decoration:none;color:#5d5869;font:600 13px var(--sans)}.yr a.on{background:#3B3050;color:#fff}
 </style>
 
-<div class="am-hd"><div><h1>Амортизація обладнання</h1><div class="muted small">Нарахування 16-го (за 1–15) і 1-го (за 16–кінець) · ставка × списано у візитах за техкартами · фонд: <b>{{ fund_name }}</b>{% if fund_balance is not none %} · баланс рахунку {{ fund_balance|uah }}{% endif %}</div></div>
+<div class="am-hd"><div><h1>Амортизація обладнання</h1><div class="muted small">Нарахування 16-го (за 1–15) і 1-го (за 16–кінець) · ставка × списано у візитах за техкартами · фонд: <b>{{ fund_name }}</b>{% if fund_balance is not none %} · амортизаційна частина {{ fund_balance|uah }}{% endif %}</div></div>
   <div class="am-act">
     <span class="yr">{% for y in years %}<a href="?year={{ y }}" class="{{ 'on' if y == year }}">{{ y }}</a>{% endfor %}</span>
     <form method="post" action="/amort/accrue" style="margin:0"><button class="btn ghost" title="Зафіксувати нарахування за попередній півмісяць ({{ am.label(prev[0], prev[1], prev[2]) }})">⏱ Нарахувати за {{ am.label(prev[0], prev[1], prev[2], true) }}</button></form>

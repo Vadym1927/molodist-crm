@@ -325,6 +325,26 @@ def _set_flag(db: Session, key: str) -> None:
     db.commit()
 
 
+OPERATIONAL_KEY = "amort_operational"
+OPERATIONAL_DEFAULT = 110000.0
+
+
+def operational(db: Session) -> float:
+    """Операційна частина спільного рахунку «Амортизаційний + Операційний Фонд» — в амортизації не показується."""
+    st = db.get(SyncState, OPERATIONAL_KEY)
+    try:
+        return float(st.value) if st and st.value not in (None, "") else OPERATIONAL_DEFAULT
+    except ValueError:
+        return OPERATIONAL_DEFAULT
+
+
+def set_operational(db: Session, amount: float) -> None:
+    st = db.get(SyncState, OPERATIONAL_KEY) or SyncState(key=OPERATIONAL_KEY)
+    st.value, st.updated_at = str(round(max(amount, 0.0), 2)), datetime.utcnow()
+    db.merge(st)
+    db.commit()
+
+
 def _product_by_name(db: Session, name: str) -> Product | None:
     nm = " ".join(name.split()).lower()
     for p in db.scalars(select(Product)):
