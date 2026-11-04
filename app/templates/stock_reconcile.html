@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Звірка складів з CleverBox{% endblock %}
+{% block body %}
+<style>
+.rc-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin:12px 0}
+.rc-sum .card{margin:0;padding:12px 14px}.rc-sum b{font:700 18px var(--head)}
+.rct{width:100%;border-collapse:collapse;font-size:13.5px}.rct th{text-align:left;font:700 11px var(--head);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);padding:7px 8px;border-bottom:1px solid var(--line)}
+.rct td{padding:7px 8px;border-bottom:1px solid var(--line)}.rct .r{text-align:right;white-space:nowrap}.neg{color:#B3261E;font-weight:700}.pos{color:#1E7A46;font-weight:700}
+</style>
+<div class="eyebrow"><a href="/stock" style="text-decoration:none">Склад</a></div><h1>Звірка з CleverBox</h1>
+{% if not rec %}<div class="card"><p>Знімка залишків CleverBox ще немає.</p></div>{% else %}
+<p class="small muted">Знімок CleverBox: {{ rec.at }} · позицій у звіті {{ rec.n_cb }}. Вартість CRM = залишок × собівартість одиниці обліку (як на вкладці «Залишки»). CleverBox — «Собівартість» зі звіту «Залишки».</p>
+<div class="rc-sum">{% for k, t in rec.tot.items() %}<div class="card"><div class="small muted">{{ WAREHOUSES.get(k, k) }}</div>
+  <div>CRM <b>{{ t.crm_v|uah }}</b></div><div class="small">CleverBox {{ t.cb_v|uah }} · Δ {{ (t.crm_v - t.cb_v)|uah }}</div>
+  <div class="small">{{ t.n_bad }} розбіжн. кількості · {{ t.n_vbad }} лише вартості</div></div>{% endfor %}</div>
+{% for kind, ttl in [('qty','Не сходиться кількість'),('value','Кількість сходиться, вартість — ні')] %}{% set rs = rec.rows|selectattr('kind','equalto',kind)|list %}
+<div class="card"><h2 style="margin-top:0">{{ ttl }} · {{ rs|length }}</h2>{% if rs %}<div style="overflow:auto"><table class="rct"><thead><tr><th>Товар</th><th>Склад</th><th class="r">CleverBox</th><th class="r">CRM</th><th class="r">Δ к-сть</th><th class="r">Вартість CB</th><th class="r">Вартість CRM</th><th class="r">Δ ₴</th><th class="r">Ціна од. CB / CRM</th></tr></thead><tbody>
+{% for r in rs %}<tr><td>{{ r.name }}</td><td>{{ WAREHOUSES.get(r.wh, r.wh) }}</td><td class="r">{{ '%g'|format(r.cb_q) }} {{ r.unit }}</td><td class="r">{{ '%g'|format(r.crm_q) }}</td>
+<td class="r {{ 'neg' if r.dq < 0 else 'pos' if r.dq > 0 }}">{{ '%+g'|format(r.dq) if r.dq else '0' }}</td><td class="r">{{ r.cb_v|uah }}</td><td class="r">{{ r.crm_v|uah }}</td>
+<td class="r {{ 'neg' if r.dv < 0 else 'pos' if r.dv > 0 }}">{{ r.dv|uah }}</td><td class="r small">{{ (r.cb_unit_cost|uah) if r.cb_unit_cost is not none else '—' }} / {{ r.crm_unit_cost|uah }}</td></tr>{% endfor %}
+</tbody></table></div>{% else %}<p class="small muted">Усе сходиться.</p>{% endif %}</div>{% endfor %}
+{% if rec.unknown %}<div class="card"><h2 style="margin-top:0">Є в CleverBox, немає в CRM · {{ rec.unknown|length }}</h2><table class="rct"><tbody>{% for u in rec.unknown %}<tr><td>{{ u.name }}</td><td>{{ WAREHOUSES.get(u.wh, u.wh) }}</td><td class="r">{{ '%g'|format(u.qty) }}</td><td class="r">{{ u.value|uah }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+{% endif %}
+{% endblock %}

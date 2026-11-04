@@ -4563,6 +4563,74 @@ async def _import_balances_file(db: Session, path: str) -> dict:
     return _balances_snapshot(db, rep)
 
 
+@app.post("/stock/reconcile")
+async def stock_reconcile_upload(request: Request, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    """Знімок залишків CleverBox (звіт «Залишки») для звірки: {rows: [[cb_id, wh, qty, value, name], …]}."""
+    import json
+    data = await request.json()
+    rows = [r for r in (data.get("rows") or []) if isinstance(r, list) and len(r) >= 4]
+    stt = db.get(SyncState, "wh_reconcile") or SyncState(key="wh_reconcile")
+    stt.value, stt.updated_at = json.dumps({"rows": rows, "at": datetime.now().isoformat(timespec="minutes")}, ensure_ascii=False), datetime.utcnow()
+    db.merge(stt)
+    db.commit()
+    audit(db, "stock.reconcile_upload", user=user, n=len(rows))
+    return {"ok": True, "n": len(rows)}
+
+
+def _reconcile(db: Session) -> dict | None:
+    import json
+    from .services import stock as st
+    stt = db.get(SyncState, "wh_reconcile")
+    if not stt or not stt.value:
+        return None
+    snap = json.loads(stt.value)
+    prods = db.scalars(select(Product)).all()
+    by_cb = {p.cb_product_id: p for p in prods if p.cb_product_id}
+    by_name = {p.name_norm: p for p in prods}
+    cost = {r.product.id: (r.cost or 0) / (r.product.coef if r.product.coef and r.product.coef > 0 else 1) for r in catalog.product_rows(db)}
+    crm = st.balances(db) if st.ledger_active(db) else {}
+    cb: dict = {}
+    unknown = []
+    for cid, wh, q, v, *rest in snap["rows"]:
+        nm = rest[0] if rest else ""
+        p = by_cb.get(int(cid)) if str(cid).isdigit() else None
+        p = p or by_name.get(norm(nm))
+        if not p:
+            if abs(float(q or 0)) > 1e-6:
+                unknown.append({"name": nm, "wh": wh, "qty": float(q or 0), "value": float(v or 0)})
+            continue
+        a = cb.setdefault((p.id, wh), [0.0, 0.0])
+        a[0] += float(q or 0)
+        a[1] += float(v or 0)
+    names = {p.id: p for p in prods}
+    rows, tot = [], {}
+    for key in set(cb) | {k for k, q in crm.items() if abs(q) > 1e-6}:
+        pid, wh = key
+        cq, cv = cb.get(key, [0.0, 0.0])
+        mq = round(crm.get(key, 0.0), 3)
+        mv = round(mq * cost.get(pid, 0.0), 2)
+        t = tot.setdefault(wh, {"cb_q": 0, "cb_v": 0.0, "crm_v": 0.0, "n_bad": 0, "n_vbad": 0})
+        t["cb_v"] += cv
+        t["crm_v"] += mv
+        dq, dv = round(mq - cq, 3), round(mv - cv, 2)
+        bad_q, bad_v = abs(dq) > 0.01, abs(dv) > max(1.0, abs(cv) * 0.01)
+        t["n_bad"] += bad_q
+        t["n_vbad"] += bad_v and not bad_q
+        if bad_q or bad_v:
+            p = names.get(pid)
+            rows.append({"pid": pid, "name": p.name if p else str(pid), "wh": wh, "unit": (p.unit if p else "") or "",
+                         "cb_q": round(cq, 3), "crm_q": mq, "dq": dq, "cb_v": round(cv, 2), "crm_v": mv, "dv": dv,
+                         "kind": "qty" if bad_q else "value",
+                         "cb_unit_cost": round(cv / cq, 2) if cq else None, "crm_unit_cost": round(cost.get(pid, 0.0), 2)})
+    rows.sort(key=lambda r: (r["kind"] != "qty", list(catalog.WAREHOUSES).index(r["wh"]) if r["wh"] in catalog.WAREHOUSES else 9, -abs(r["dv"])))
+    return {"at": snap.get("at"), "rows": rows, "tot": tot, "unknown": unknown, "n_cb": len(snap["rows"])}
+
+
+@app.get("/stock/reconcile", response_class=HTMLResponse)
+def stock_reconcile_page(request: Request, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    return render(request, "stock_reconcile.html", nav="stock", rec=_reconcile(db), WAREHOUSES=catalog.WAREHOUSES)
+
+
 @app.post("/stock/balances/import")
 async def stock_balances_import(file: UploadFile = File(...), user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
     """Звіт CleverBox «Залишки по складах» → собівартість залишку + знімок для старту обліку / звірки."""
