@@ -186,7 +186,9 @@ def notify_expiring(db: Session, certs: list[GiftCertificate], base_url: str = "
     text = "🎁 <b>Сертифікати закінчуються</b> — запросіть пацієнтів:\n" + "\n".join(lines[:30]) + (f"\n… і ще {len(lines) - 30}" if len(lines) > 30 else "") + \
            (f'\n<a href="{base_url.rstrip("/")}/gifts?st=expiring">Усі сертифікати</a>' if base_url else "")
     n = 0
-    for ch in set(admin_chats(db) + alerts.recipients()):
+    from ..config import settings as _st
+    extra = [c.strip() for c in (_st.telegram_alert_chat_id or "").split(",") if c.strip()]   # без окремої сесії (alerts.recipients)
+    for ch in set(admin_chats(db) + extra):
         if alerts._api("sendMessage", data={"chat_id": ch, "text": text[:4000], "parse_mode": "HTML", "disable_web_page_preview": "true"}):
             n += 1
     _put(db, "gift_notified", sorted(done | {f"{c.id}:{c.valid_to:%Y%m%d}" for c in fresh})[-2000:])
