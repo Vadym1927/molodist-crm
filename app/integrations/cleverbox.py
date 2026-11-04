@@ -650,37 +650,98 @@ def sync_future_visits(db: Session, cb: CleverBox) -> int:
                           .join(BeautyPlan).where(BeautyPlan.status == "active")).unique().all()
     n = 0
     for p in patients:
-        rows = cb.client_future_visits(p.cleverbox_id)
-        seen = set()
-        for v in rows:
-            label = v.get("_status") or ""
-            if CANCEL_RE.search(label):
-                continue
-            start = parse_dt(v.get("date_start"))
-            if not start:
-                continue
-            end = visit_end(v, start)
-            for i, s in enumerate(visit_services(v)):
-                sid = svc_id(s)
-                ext = f"{v['id']}-{sid or i}"
-                seen.add(ext)
-                obj = db.scalar(select(Visit).where(Visit.source == "cb_visit", Visit.external_id == ext))
-                if not obj:
-                    obj = Visit(source="cb_visit", external_id=ext, patient_id=p.id)
-                    db.add(obj)
-                obj.service_id, obj.service_name = sid, svc_name(s, names, sid)
-                obj.master_name = s.get("master") or s.get("master_name") or v.get("master")
-                obj.starts_at, obj.status, obj.status_label = start, "booked", label
-                obj.ends_at = end
-                obj.amount = float(v["total"]) if v.get("total") and len(v.get("services") or []) <= 1 else None
-                obj.synced_at = datetime.utcnow()
-                n += 1
-        # записи, яких більше немає серед майбутніх (скасовані/перенесені) — прибираємо
-        db.execute(delete(Visit).where(Visit.patient_id == p.id, Visit.source == "cb_visit",
-                                       Visit.starts_at >= datetime.now(),
-                                       Visit.external_id.not_in(seen or {"-"})))
+        n += _future_one(db, cb, p, names)
     db.commit()
     return n
+
+
+def _future_one(db: Session, cb: CleverBox, p: Patient, names: dict | None = None) -> int:
+    """Майбутні записи одного пацієнта з CleverBox (оновлює/прибирає Visit source=cb_visit)."""
+    names = names if names is not None else _service_names(db)
+    n = 0
+    rows = cb.client_future_visits(p.cleverbox_id)
+    seen = set()
+    for v in rows:
+        label = v.get("_status") or ""
+        if CANCEL_RE.search(label):
+            continue
+        start = parse_dt(v.get("date_start"))
+        if not start:
+            continue
+        end = visit_end(v, start)
+        for i, s in enumerate(visit_services(v)):
+            sid = svc_id(s)
+            ext = f"{v['id']}-{sid or i}"
+            seen.add(ext)
+            obj = db.scalar(select(Visit).where(Visit.source == "cb_visit", Visit.external_id == ext))
+            if not obj:
+                obj = Visit(source="cb_visit", external_id=ext, patient_id=p.id)
+                db.add(obj)
+            obj.service_id, obj.service_name = sid, svc_name(s, names, sid)
+            obj.master_name = s.get("master") or s.get("master_name") or v.get("master")
+            obj.starts_at, obj.status, obj.status_label = start, "booked", label
+            obj.ends_at = end
+            obj.amount = float(v["total"]) if v.get("total") and len(v.get("services") or []) <= 1 else None
+            obj.synced_at = datetime.utcnow()
+            n += 1
+    # записи, яких більше немає серед майбутніх (скасовані/перенесені) — прибираємо
+    db.execute(delete(Visit).where(Visit.patient_id == p.id, Visit.source == "cb_visit",
+                                   Visit.starts_at >= datetime.now(),
+                                   Visit.external_id.not_in(seen or {"-"})))
+    return n
+
+
+def sync_one(db: Session, p: Patient, cb_id: int | None = None, cb: CleverBox | None = None) -> dict:
+    """Синхронізація однієї картки з CleverBox: знайти клієнта (ID / телефон / ПІБ), привʼязати, оновити поля,
+    історію послуг і майбутні записи. Повертає {cb_id, how, visits, future}."""
+    from ..services.patient_match import score, digits, AUTO
+    cb = cb or CleverBox()
+    target = cb_id or p.cleverbox_id
+    found, how = None, ""
+    if not target and p.phone and len(digits(p.phone)) >= 9:
+        hits = cb.search_client(p.phone) or []
+        if len(hits) == 1:
+            found, how = hits[0], "за телефоном"
+    if not found:
+        full = lambda c: (" ".join(str(c.get(k) or "") for k in ("lname", "fname", "sname")).strip()  # noqa: E731
+                          or str(c.get("name") or c.get("full_name") or "")).strip()
+        best, cands = 0, []
+        for c in cb.clients():
+            if target and int(c.get("id") or 0) == int(target):
+                found, how, cands = c, "за ID", []
+                break
+            if not target:
+                sc = score(p.full_name, full(c))
+                if sc > best:
+                    best, cands = sc, [c]
+                elif sc == best and sc:
+                    cands.append(c)
+        if not found and not target and best >= AUTO and len(cands) == 1:
+            found, how = cands[0], "за ПІБ"
+        if not found and not target and len(cands) > 1 and best >= AUTO:
+            raise CleverBoxError(f"У CleverBox кілька клієнтів з таким ПІБ ({len(cands)}) — вкажіть ID у CleverBox вручну")
+    if not found:
+        raise CleverBoxError("Клієнта не знайдено в CleverBox" + (f" (ID {target})" if target else " ні за телефоном, ні за ПІБ"))
+    cid = int(found.get("id") or 0)
+    other = db.scalar(select(Patient).where(Patient.cleverbox_id == cid, Patient.id != p.id))
+    if other:
+        raise CleverBoxError(f"Клієнт CleverBox #{cid} уже привʼязаний до картки «{other.full_name}» (#{other.id}) — це дубль, обʼєднайте картки")
+    p.cleverbox_id = cid
+    apply_client_fields(p, found)
+    p.cb_synced_at = datetime.utcnow()
+    db.commit()
+    out = {"cb_id": cid, "how": how, "visits": 0, "future": 0}
+    try:
+        out["visits"] = sync_done_services(db, cb, date.today() - timedelta(days=3 * 365), date.today(), client_id=cid)
+    except CleverBoxError:
+        pass
+    try:
+        if not calendar_frozen(db):
+            out["future"] = _future_one(db, cb, p)
+            db.commit()
+    except CleverBoxError:
+        pass
+    return out
 
 
 def sync_done_services(db: Session, cb: CleverBox, start: date, end: date,

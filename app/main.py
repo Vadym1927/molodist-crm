@@ -839,7 +839,10 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
     if p.birthday:
         _t = date.today()
         page_age = _t.year - p.birthday.year - ((_t.month, _t.day) < (p.birthday.month, p.birthday.day))
-    return render(request, "patient.html", p=p, statuses=statuses, ptasks=ptasks, msgs=msgs, dupes=dupes, paylinks=paylinks, pcalls=pcalls,
+    from .models import CbService as _CbS
+    pe_services = sorted({(n_, pr_) for n_, pr_ in db.execute(select(_CbS.name, _CbS.price).where(_CbS.active.is_not(False))) if n_}, key=lambda x: x[0])
+    pe_products = sorted({(n_, pr_) for n_, pr_ in db.execute(select(Product.name, Product.price).where(Product.active.is_not(False))) if n_}, key=lambda x: x[0])
+    return render(request, "patient.html", p=p, statuses=statuses, pe_services=pe_services, pe_products=pe_products, ptasks=ptasks, msgs=msgs, dupes=dupes, paylinks=paylinks, pcalls=pcalls,
                   call_thr=float(__import__("app.services.telephony", fromlist=["x"]).public(db).get("ai_alert_below") or 0),
                   certs=_cert.for_patient(db, p.id), CERT_STATES=_cert.STATES, today=date.today(),
                   subs=_cert.subs_for_patient(db, p.id), SUB_STATES=_cert.SUB_STATES,
@@ -968,6 +971,20 @@ def patient_create_test(user: User = Depends(require("patient_edit")), db: Sessi
     return RedirectResponse(f"/patients/{p.id}", 303)
 
 
+@app.post("/patients/{pid:int}/cb-sync")
+async def patient_cb_sync(pid: int, cb_id: str = Form(""), user: User = Depends(require("patient_edit")), db: Session = Depends(db_dep)):
+    """Синхронізувати одну картку з CleverBox (лише читання з CleverBox): привʼязка, поля, історія послуг, майбутні записи."""
+    from .integrations import cleverbox as _cbx
+    p = _patient_or_403(db, user, pid)
+    try:
+        r = await asyncio.to_thread(_cbx.sync_one, db, p, int(cb_id) if cb_id.strip().isdigit() else None)
+    except _cbx.CleverBoxError as e:
+        return RedirectResponse(_with_err(f"/patients/{pid}", str(e)), 303)
+    audit(db, "patient.cb_sync", "patient", pid, user=user, **r)
+    return RedirectResponse(_with_msg(f"/patients/{pid}", f"Синхронізовано з CleverBox #{r['cb_id']}" + (f" ({r['how']})" if r['how'] else "")
+                                      + f" · послуг в історії: {r['visits']} · майбутніх записів: {r['future']}"), 303)
+
+
 @app.post("/plans/{plan_id}/items")
 async def plan_items_update(request: Request, plan_id: int, user: User = Depends(require("plan_edit")),
                             db: Session = Depends(db_dep)):
@@ -976,6 +993,44 @@ async def plan_items_update(request: Request, plan_id: int, user: User = Depends
     if not plan or not plan_visible(user, plan):
         raise HTTPException(403, "Немає доступу до цього плану")
     changes = {}
+    from .models import PlanItem
+    for it in list(plan.items):                         # редагування позицій: видалити / назва / ціна
+        if form.get(f"del_{it.id}"):
+            changes[f"{it.name[:40]}"] = ["позиція", "видалено"]
+            plan.items.remove(it)
+            continue
+        nm = " ".join(str(form.get(f"name_{it.id}") or "").split())[:300]
+        if nm and nm != it.name:
+            changes[f"{it.name[:40]}.name"] = [it.name, nm]
+            it.name = nm
+        pr = _num(str(form.get(f"price_{it.id}") or ""))
+        if pr is not None and pr >= 0 and abs(pr - (it.unit_price or 0)) > 0.004:
+            changes[f"{it.name[:40]}.price"] = [it.unit_price, pr]
+            it.unit_price = pr
+    for k_, n_, p_, q_ in zip(form.getlist("new_kind"), form.getlist("new_name"), form.getlist("new_price"), form.getlist("new_qty")):
+        n_ = " ".join(str(n_ or "").split())[:300]
+        if not n_:
+            continue
+        q = int(_num(str(q_)) or 1)
+        pr = _num(str(p_)) or 0.0
+        kind = "product" if k_ == "product" else "procedure"
+        prod = db.scalar(select(Product).where(Product.name == n_)) if kind == "product" else None
+        plan.items.append(PlanItem(kind=kind, name=n_, qty=max(1, q), unit_price=pr, total=max(1, q) * pr,
+                                   product_id=prod.id if prod else None, manual_done=0))
+        changes[f"+{n_[:40]}"] = [None, f"{q} × {pr:g}"]
+    if "complaints" in form:
+        cpl = str(form.get("complaints") or "").strip()[:2000] or None
+        if cpl != plan.complaints:
+            changes["complaints"] = [plan.complaints, cpl]
+            plan.complaints = cpl
+    if str(form.get("session_at") or "").strip():
+        try:
+            sa = datetime.fromisoformat(str(form.get("session_at")))
+            if not plan.session_at or sa.date() != plan.session_at.date():
+                changes["session_at"] = [str(plan.session_at), str(sa)]
+                plan.session_at = sa
+        except ValueError:
+            pass
     for it in plan.items:
         for f in ("interval_days", "supply_days", "manual_done", "qty"):
             v = form.get(f"{f}_{it.id}")

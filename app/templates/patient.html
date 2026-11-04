@@ -149,6 +149,9 @@
     <div class="pc-meta" style="margin-top:6px">
       <span><span class="ic">👤</span>Лікар: <b>{{ p.doctor.name if p.doctor else 'лікар не вказаний' }}</b></span>
       <span>· {% if p.cleverbox_id %}CleverBox ID: #{{ p.cleverbox_id }}{% else %}<span class="pill warn">не привʼязано до CleverBox</span>{% endif %}</span>
+      {% if can(user,'patient_edit') %}<form method="post" action="/patients/{{ p.id }}/cb-sync" style="display:inline-flex;gap:4px;align-items:center;margin:0" onsubmit="this.querySelector('button').textContent='⏳ Синхронізую…'">
+        {% if not p.cleverbox_id %}<input name="cb_id" placeholder="ID у CB (необовʼязково)" inputmode="numeric" style="width:150px;height:30px;font-size:12.5px">{% endif %}
+        <button class="btn ghost" style="padding:3px 10px;font-size:12.5px">↻ {{ 'Оновити з CleverBox' if p.cleverbox_id else 'Синхронізувати з CleverBox' }}</button></form>{% endif %}
     </div>
   </div>
   <div class="pc-act">
@@ -350,7 +353,7 @@
   <div class="row between">
     <div><h2 style="margin:0">{{ pl.title or 'Бюті-план' }} · {{ pl.session_at|dt }}</h2>
       <div class="muted small">{{ pl.complaints or '' }}</div></div>
-    <div class="row"><span class="pill {{ f[1] }}">{{ f[0] }}</span>
+    <div class="row">{% if can(user,'plan_edit') %}<button type="button" class="btn ghost pe-tg" style="padding:4px 12px" onclick="peToggle({{ pl.id }})">✏️ Редагувати план</button>{% endif %}<span class="pill {{ f[1] }}">{{ f[0] }}</span>
       {% if ps.is_booked %}<span class="pill ok">запис {{ ps.next_booking|dt('%d.%m %H:%M') }}</span>
       {% elif ps.due_date %}<span class="muted small">наступна процедура до {{ ps.due_date|dt }}</span>{% endif %}</div>
   </div>
@@ -361,15 +364,18 @@
     <div class="tile"><span>Процедури</span><b>{{ ps.proc_done }} / {{ ps.proc_planned }}</b><div class="muted small">записано ще {{ ps.proc_booked }}</div></div>
     <div class="tile"><span>Догляд</span><b>{{ ps.prod_bought }} / {{ ps.prod_planned }}</b><div class="muted small">засобів куплено</div></div>
   </div>
-  <form method="post" action="/plans/{{ pl.id }}/items">
+  <form method="post" action="/plans/{{ pl.id }}/items" id="pf{{ pl.id }}" class="pe-f">
+  <div class="pe-only pe-hd"><label>Дата сесії<input type="date" name="session_at" value="{{ pl.session_at.strftime('%Y-%m-%d') if pl.session_at else '' }}"></label>
+    <label style="flex:1">Скарги<input name="complaints" value="{{ pl.complaints or '' }}"></label></div>
   <div style="overflow:auto"><table>
     <thead><tr><th>Позиція</th><th class="r">Ціна</th><th class="r">К-сть</th><th>Виконано</th><th class="r">Ручна відмітка</th><th class="r" title="для процедур — інтервал між процедурами, для засобів — на скільки днів вистачає">Днів</th><th>Події з CleverBox</th></tr></thead>
     <tbody>
     {% for st in ps.items %}{% set it = st.item %}
       <tr>
-        <td>{{ '💉' if it.kind=='procedure' else '🧴' }} {% if it.url %}<a href="{{ it.url }}" target="_blank">{{ it.name }}</a>{% else %}{{ it.name }}{% endif %}
+        <td><span class="pe-no">{{ '💉' if it.kind=='procedure' else '🧴' }} {% if it.url %}<a href="{{ it.url }}" target="_blank">{{ it.name }}</a>{% else %}{{ it.name }}{% endif %}</span>
+          <span class="pe-only pe-nm"><button type="button" class="pe-x" title="Видалити позицію" onclick="peDel(this)">×</button><input type="hidden" name="del_{{ it.id }}" value=""><input name="name_{{ it.id }}" value="{{ it.name }}"></span>
           {% if it.kind=='product' %}<div class="muted small">{{ it.volume or '' }} {{ ('· ' ~ ((it.usage or [])|join(' / ')|replace('morning','ранок')|replace('evening','вечір'))) if it.usage }}</div>{% endif %}</td>
-        <td class="r">{{ it.unit_price|uah }}</td>
+        <td class="r"><span class="pe-no">{{ it.unit_price|uah }}</span><input class="num pe-only" name="price_{{ it.id }}" value="{{ '%g'|format(it.unit_price or 0) }}" inputmode="decimal" style="width:100px"></td>
         <td class="r"><input class="num" name="qty_{{ it.id }}" value="{{ it.qty }}"></td>
         <td><div class="row" style="gap:8px;flex-wrap:nowrap"><div class="bar" style="width:80px"><i style="width:{{ (100 * [st.done, it.qty]|min / it.qty)|round(0) if it.qty else 0 }}%"></i></div><span class="small">{{ st.done }}/{{ it.qty }}{% if st.booked %} <span class="pill ok">+{{ st.booked }} запис</span>{% endif %}</span>
           {% if it.kind=='procedure' and st.unbooked and can(user,'book') %}<a class="btn ghost" style="padding:2px 8px;font-size:12px" href="/book/{{ it.id }}">Записати</a>{% endif %}</div></td>
@@ -379,6 +385,9 @@
       </tr>
     {% endfor %}
     </tbody></table></div>
+    <div class="pe-only pe-add"><div class="pe-nl" id="pen{{ pl.id }}"></div>
+      <button type="button" class="btn ghost" onclick="peAdd({{ pl.id }},'procedure')">＋ Процедура</button> <button type="button" class="btn ghost" onclick="peAdd({{ pl.id }},'product')">＋ Засіб догляду</button>
+      <span class="small muted">Почніть вводити назву — ціна підставиться з прайсу / каталогу.</span></div>
     <div class="row between" style="margin-top:12px">
       <div class="row small"><span class="muted">Статус плану</span>
         <select name="status">{% for s,l in [('active','активний'),('completed','завершений'),('cancelled','скасований')] %}<option value="{{ s }}" {{ 'selected' if pl.status==s }}>{{ l }}</option>{% endfor %}</select>
@@ -532,5 +541,20 @@ phFilter('ov','all');phFilter('hi','all');phFilter('vi','all');
 (function(){const h=decodeURIComponent(location.hash.slice(1));if(!h)return;
   if(h.startsWith('t-')){ptGo(h.slice(2));return}
   const el=document.getElementById(h);const sec=el&&el.closest('.pt-p');if(sec)ptGo(sec.dataset.t,el)})();
+</script>
+<datalist id="pe-svc">{% for n, pr in pe_services %}<option value="{{ n }}" data-p="{{ pr or '' }}">{% endfor %}</datalist>
+<datalist id="pe-prod">{% for n, pr in pe_products %}<option value="{{ n }}" data-p="{{ pr or '' }}">{% endfor %}</datalist>
+<style>.pe-only{display:none}.pe-f.edit .pe-only{display:revert}.pe-f.edit .pe-no{display:none}.pe-f.edit span.pe-nm{display:flex;gap:6px;align-items:center}
+.pe-nm input{flex:1;min-width:220px}.pe-x{border:0;background:#FCE9E6;color:#B23B2E;width:28px;height:28px;border-radius:8px;cursor:pointer;font-size:17px;flex:none}
+tr.pe-dead td{opacity:.35;text-decoration:line-through}.pe-f.edit .pe-hd{display:flex;gap:10px;margin-bottom:10px}.pe-hd label{display:grid;gap:4px;font-size:12px;font-weight:700;color:var(--muted)}
+.pe-f.edit .pe-add{display:block;margin-top:10px}.pe-nl{display:grid;gap:6px;margin-bottom:8px}.pe-r{display:grid;grid-template-columns:110px minmax(0,1fr) 110px 80px 32px;gap:6px;align-items:center}
+.pe-r span{font-size:12.5px;font-weight:700;color:#5C4B82}</style>
+<script>
+function peToggle(id){var f=document.getElementById('pf'+id);f.classList.toggle('edit')}
+function peDel(b){var tr=b.closest('tr'),h=b.parentNode.querySelector('input[type=hidden]');var on=!h.value;h.value=on?'1':'';tr.classList.toggle('pe-dead',on);b.textContent=on?'↺':'×'}
+function peAdd(id,k){var r=document.createElement('div');r.className='pe-r';
+  r.innerHTML='<span>'+(k==='product'?'🧴 засіб':'💉 процедура')+'</span><input type="hidden" name="new_kind" value="'+k+'"><input name="new_name" list="'+(k==='product'?'pe-prod':'pe-svc')+'" placeholder="Назва" required><input name="new_price" inputmode="decimal" placeholder="Ціна, ₴"><input name="new_qty" value="1" inputmode="numeric"><button type="button" class="pe-x" onclick="this.parentNode.remove()">×</button>';
+  document.getElementById('pen'+id).appendChild(r);var n=r.querySelector('[name=new_name]');n.focus();
+  n.addEventListener('change',function(){var o=[].find.call(document.getElementById(n.getAttribute('list')).options,function(o){return o.value===n.value});var pr=r.querySelector('[name=new_price]');if(o&&o.dataset.p&&!pr.value)pr.value=o.dataset.p})}
 </script>
 {% endblock %}
