@@ -1,0 +1,17 @@
+{# Графік півмісяців: стовпчики 1–15 / 16–кінець по 12 місяцях + лінія накопичення. months — am.series(); h — висота px #}
+{% macro chart(months, h=120, compact=False) -%}
+{% set mx = ([1] + (months|map(attribute='h1')|map(attribute='amount')|list) + (months|map(attribute='h2')|map(attribute='amount')|list))|max %}
+{% set W = 480 %}{% set gw = (W / 12) %}
+{% set ns = namespace(cum=0, pts=[]) %}
+{% for m in months %}{% set ns.cum = ns.cum + m.amount %}{% set _ = ns.pts.append(ns.cum) %}{% endfor %}
+{% set cmax = (ns.pts|max) or 1 %}
+<svg viewBox="0 0 {{ W }} {{ h + 22 }}" class="amc" preserveAspectRatio="none">
+  {% for m in months %}{% set x0 = loop.index0 * gw %}
+    {% for hh in ['h1','h2'] %}{% set d = m[hh] %}{% set bh = (h * d.amount / mx) if d.amount else 0 %}{% set bx = x0 + 4 + (loop.index0 * (gw - 8) / 2) %}
+    <rect x="{{ bx }}" y="{{ h - bh }}" width="{{ (gw - 8) / 2 - 2 }}" height="{{ bh }}" rx="2" class="b {{ 'cur' if d.current }} {{ 'sheet' if d.source == 'sheet' }} {{ 'open' if d.source == 'crm' and not d.fixed }}"><title>{{ m.name }} · {{ '1–15' if hh == 'h1' else '16–кінець' }}: {{ d.amount|uah }} · {{ d.procs }} проц.</title></rect>
+    {% endfor %}
+    <text x="{{ x0 + gw / 2 }}" y="{{ h + 16 }}" text-anchor="middle" class="l">{{ m.short }}</text>
+  {% endfor %}
+  <polyline class="cum" points="{% for v in ns.pts %}{{ loop.index0 * gw + gw / 2 }},{{ h - h * v / cmax }} {% endfor %}"/>
+</svg>
+{%- endmacro %}

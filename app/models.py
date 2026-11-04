@@ -1121,6 +1121,67 @@ class TechCardLine(Base):
     product: Mapped["Product"] = relationship()
 
 
+class AmortAsset(Base):
+    """Амортизація: апарат (ставка за процедуру) або розхідник з ресурсом (імпульси, хвилини — ставка за одиницю).
+    product_id — позиція «Амортизація…» / «маніпула» / «хвилини мотору», що стоїть у техкартах: списання цієї позиції у візиті = нарахування."""
+    __tablename__ = "amort_assets"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    kind: Mapped[str] = mapped_column(String(12), default="device")        # device | consumable
+    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"), index=True)
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey("amort_assets.id"))   # розхідник → апарат
+    cost: Mapped[float] = mapped_column(Float, default=0)                  # вартість, ₴
+    life_years: Mapped[float | None] = mapped_column(Float)                # апарат: термін служби
+    resource: Mapped[float | None] = mapped_column(Float)                  # розхідник: ресурс (імпульсів / хвилин)
+    unit: Mapped[str] = mapped_column(String(20), default="процедура")     # процедура | імпульс | хвилина
+    rate: Mapped[float] = mapped_column(Float, default=0)                  # ₴ за одиницю
+    avg_month: Mapped[float | None] = mapped_column(Float)                 # середня к-сть на місяць (план)
+    commissioned_at: Mapped[date | None] = mapped_column(Date)
+    cashbox: Mapped[str | None] = mapped_column(String(100))               # рахунок фонду, куди погашаємо
+    accrued_before: Mapped[float] = mapped_column(Float, default=0)        # нараховано до першого періоду в CRM
+    used_before: Mapped[float] = mapped_column(Float, default=0)           # використано ресурсу до першого періоду
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    sort: Mapped[int] = mapped_column(Integer, default=0)
+    note: Mapped[str | None] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    product: Mapped["Product | None"] = relationship()
+
+
+class AmortPeriod(Base):
+    """Нарахування за півмісяць: 1–15 (half=1) і 16–кінець (half=2). source: sheet (перенесено) | crm (з візитів) | manual."""
+    __tablename__ = "amort_periods"
+    __table_args__ = (UniqueConstraint("asset_id", "year", "month", "half"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    asset_id: Mapped[int] = mapped_column(ForeignKey("amort_assets.id"), index=True)
+    year: Mapped[int] = mapped_column(Integer)
+    month: Mapped[int] = mapped_column(Integer)
+    half: Mapped[int] = mapped_column(Integer)
+    procs: Mapped[float] = mapped_column(Float, default=0)                 # кількість процедур
+    qty: Mapped[float] = mapped_column(Float, default=0)                   # одиниць (процедур × ставка-одиниць / імпульсів / хвилин)
+    amount: Mapped[float] = mapped_column(Float, default=0)
+    source: Mapped[str] = mapped_column(String(10), default="crm")
+    accrued_at: Mapped[datetime | None] = mapped_column(DateTime)          # коли зафіксовано (16-го / 1-го)
+    note: Mapped[str | None] = mapped_column(String(300))
+
+
+class AmortTxn(Base):
+    """Рух фонду амортизації: pay — погашення (переміщення грошей на рахунок фонду), expense — витрата з фонду (ремонт, кредит…).
+    finop_id — операція в журналі фіноперацій (порожньо — історія з таблиці, без руху грошей)."""
+    __tablename__ = "amort_txns"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    asset_id: Mapped[int | None] = mapped_column(ForeignKey("amort_assets.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(10))                          # pay | expense
+    day: Mapped[date] = mapped_column(Date, index=True)
+    amount: Mapped[float] = mapped_column(Float)
+    cashbox: Mapped[str | None] = mapped_column(String(100))               # pay: звідки; expense: з якого рахунку
+    note: Mapped[str | None] = mapped_column(String(300))
+    finop_id: Mapped[int | None] = mapped_column(Integer)
+    source: Mapped[str] = mapped_column(String(10), default="crm")         # crm | sheet
+    created_by: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class VisitMaterial(Base):
     """Витратні матеріали конкретного візиту CRM: копія техкарти на кожну послугу, кількість можна змінити,
     позицію — додати чи прибрати. Після оплати візиту — списання зі складу документами (по складу кожної категорії)."""

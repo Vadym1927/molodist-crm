@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}{{ a.name }} · Амортизація · MOLODIST CRM{% endblock %}
+{% block body %}
+{% from "_amort_chart.html" import chart %}
+{% set qp = request.query_params %}
+<style>
+.aa-hd{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px}.aa-hd h1{margin:0}
+.aa-g{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(320px,.8fr);gap:14px;align-items:start}
+.am-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.am-sum .card{margin:0;padding:12px 14px}.am-sum span{display:block;font:700 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496}
+.am-sum b{display:block;font:700 20px var(--head);margin-top:4px;color:#2A2430}.am-sum small{color:#8a8496;font-size:12px}.am-sum .neg b{color:#B23B2E}.am-sum .pos b{color:#1E7A46}
+svg.amc{width:100%;height:auto;display:block}.amc .b{fill:#C9BFE6}.amc .b.cur{fill:#5C4B82}.amc .b.open{fill:#A99FC0}.amc .b.sheet{fill:#D9D2E8}.amc .l{font:10px var(--sans);fill:#8a8496}.amc .cum{fill:none;stroke:#3B3050;stroke-width:1.5;opacity:.8}
+.am-bar{height:10px;background:#EFEBF5;border-radius:99px;overflow:hidden}.am-bar i{display:block;height:100%;background:#5C4B82}.am-bar i.warn{background:#E08A2E}.am-bar i.over{background:#C0392B}
+.pt{width:100%;border-collapse:collapse;font-size:13.5px}.pt th{text-align:left;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496;padding:7px 8px;border-bottom:1px solid #ECE7E1}
+.pt td{padding:7px 8px;border-bottom:1px solid #F1EDE8}.pt .r{text-align:right;white-space:nowrap}.pt tr.cur td{background:#F3F0FA}.pt .src{font-size:10.5px;color:#8a8496}.pt tfoot td{font-weight:700;background:#FBFAF8}
+.yr{display:inline-flex;gap:4px;background:#F1EDE7;border-radius:999px;padding:3px}.yr a{padding:5px 12px;border-radius:999px;text-decoration:none;color:#5d5869;font:600 13px var(--sans)}.yr a.on{background:#3B3050;color:#fff}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13.5px}.kv span{color:#8a8496}
+dialog.am-d{border:0;border-radius:18px;padding:0;width:min(460px,95vw);box-shadow:0 30px 80px rgba(42,36,48,.35)}dialog.am-d::backdrop{background:rgba(42,36,48,.4)}
+.am-d form{display:grid;gap:10px;padding:18px 20px}.am-d h3{margin:0 0 4px;font:600 16px var(--head);letter-spacing:.06em;text-transform:uppercase}.am-d label{display:grid;gap:4px;font:700 12px var(--sans);color:#8a8496}.am-d input,.am-d select{height:42px}
+.am-tx{width:100%;border-collapse:collapse;font-size:13px}.am-tx td{padding:6px 6px;border-bottom:1px solid #F1EDE8}.am-tx .r{text-align:right;white-space:nowrap}.am-tx .pay{color:#1E7A46;font-weight:700}.am-tx .exp{color:#B23B2E;font-weight:700}
+.tc-l{display:grid;gap:4px;font-size:13px}.tc-l a{display:flex;justify-content:space-between;gap:8px;text-decoration:none;color:#2A2430;padding:5px 8px;border-radius:8px;background:#FBFAF8}.tc-l a b{white-space:nowrap;color:#5C4B82}
+@media(max-width:1000px){.aa-g{grid-template-columns:1fr}}
+</style>
+<div class="eyebrow"><a href="/amort" style="text-decoration:none">Амортизація</a>{% if parent %} · <a href="/amort/{{ parent.id }}" style="text-decoration:none">{{ parent.name }}</a>{% endif %}</div>
+<div class="aa-hd"><div><h1>{{ a.name }}</h1><div class="muted small">{{ 'Розхідник з ресурсом' if a.kind == 'consumable' else 'Апарат' }} · {{ a.cost|uah }}{% if a.kind == 'device' %} · термін {{ '%g'|format(a.life_years or 0) }} р.{% else %} · ресурс {{ '%g'|format(a.resource or 0) }} {{ UNITS.get(a.unit, '') }}{% endif %} · ставка <b>{{ '%g'|format(a.rate) }} ₴ / {{ a.unit }}</b>{% if a.commissioned_at %} · в експлуатації з {{ a.commissioned_at|dt('%d.%m.%Y') }}{% endif %}{% if not a.active %} · <span class="pill">вимкнено</span>{% endif %}</div></div>
+  <div class="row" style="gap:8px"><span class="yr">{% for y in years %}<a href="?year={{ y }}" class="{{ 'on' if y == year }}">{{ y }}</a>{% endfor %}</span>
+    <button type="button" class="btn" onclick="document.getElementById('am-pay').showModal()">↗ Погасити</button>
+    <button type="button" class="btn ghost" onclick="document.getElementById('am-exp').showModal()">− Витрата</button>
+    <a class="btn ghost" href="/settings/amort?edit={{ a.id }}">✏️</a></div></div>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+{% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+
+<div class="am-sum">
+  <div class="card"><span>Нараховано</span><b>{{ t.accrued|uah }}</b><small>{% if a.accrued_before %}у т.ч. до обліку {{ a.accrued_before|uah }}{% else %}з початку{% endif %}</small></div>
+  <div class="card pos"><span>Погашено</span><b>{{ t.paid|uah }}</b></div>
+  <div class="card {{ 'neg' if t.diff > 0.5 }}"><span>Різниця</span><b>{{ t.diff|uah }}</b><small>до погашення</small></div>
+  {% if a.kind == 'device' %}<div class="card"><span>Залишкова вартість</span><b>{{ t.residual|uah }}</b><small>{{ t.pct }}% амортизовано{% if t.end_at %} · до {{ t.end_at|dt('%m.%Y') }}{% endif %}</small></div>
+  <div class="card"><span>План на місяць</span><b>{{ (t.per_month_plan or 0)|uah }}</b><small>{{ a.cost|uah }} / {{ '%g'|format(a.life_years or 0) }} р. / 12{% if a.avg_month %} · {{ '%g'|format(a.avg_month) }} проц./міс{% endif %}</small></div>
+  {% else %}<div class="card {{ 'neg' if t.over }}"><span>Залишок ресурсу</span><b>{{ '%g'|format(t.resource_left) }}</b><small>{{ UNITS.get(a.unit, '') }} · використано {{ '%g'|format(t.used) }} ({{ t.pct }}%)</small></div>
+  <div class="card"><span>Витрати на апарат</span><b>{{ t.spent|uah }}</b><small>з фонду</small></div>{% endif %}
+  <div class="card"><span>{{ t.live.label }}</span><b>{{ t.live.amount|uah }}</b><small>{{ t.live.procs }} проц. · {{ '%g'|format(t.live.qty) }} {{ UNITS.get(a.unit, '') }} · ще не зафіксовано</small></div>
+</div>
+<div class="am-bar" style="margin-bottom:14px" title="{{ t.pct }}%"><i class="{{ 'over' if t.pct > 100 else ('warn' if t.pct > 85) }}" style="width:{{ [t.pct, 100]|min }}%"></i></div>
+
+<div class="aa-g"><div>
+  <div class="card"><h2 style="margin-top:0">{{ year }} по півмісяцях</h2>{{ chart(months, 140) }}
+    <div style="overflow:auto;margin-top:10px"><table class="pt"><thead><tr><th>Місяць</th><th class="r">Проц. 1–15</th><th class="r">Проц. 16–31</th><th class="r">{{ UNITS.get(a.unit, 'од.')|capitalize }} 1–15</th><th class="r">16–31</th><th class="r">₴ 1–15</th><th class="r">₴ 16–31</th><th class="r">Разом</th></tr></thead><tbody>
+      {% set ns = namespace(p=0, q=0, s=0) %}
+      {% for m in months %}{% set ns.p = ns.p + m.procs %}{% set ns.q = ns.q + m.qty %}{% set ns.s = ns.s + m.amount %}
+      <tr class="{{ 'cur' if m.h1.current or m.h2.current }}"><td>{{ m.name|capitalize }}{% if m.h1.source == 'sheet' or m.h2.source == 'sheet' %} <span class="src">табл.</span>{% elif (m.h1.source == 'crm' and not m.h1.fixed) or (m.h2.source == 'crm' and not m.h2.fixed) %} <span class="src">live</span>{% endif %}</td>
+        <td class="r">{{ '%g'|format(m.h1.procs) }}</td><td class="r">{{ '%g'|format(m.h2.procs) }}</td><td class="r">{{ '%g'|format(m.h1.qty) }}</td><td class="r">{{ '%g'|format(m.h2.qty) }}</td>
+        <td class="r">{{ m.h1.amount|uah }}</td><td class="r">{{ m.h2.amount|uah }}</td><td class="r"><b>{{ m.amount|uah }}</b></td></tr>{% endfor %}
+      </tbody><tfoot><tr><td>Разом {{ year }}</td><td class="r" colspan="2">{{ '%g'|format(ns.p) }} проц.</td><td class="r" colspan="2">{{ '%g'|format(ns.q) }}</td><td class="r" colspan="3">{{ ns.s|uah }}</td></tr></tfoot></table></div></div>
+  {% if children %}<div class="card"><h2 style="margin-top:0">Розхідники цього апарата</h2>{% for c, ct in children %}<div class="row between" style="padding:6px 0;border-bottom:1px solid #F1EDE8"><a href="/amort/{{ c.id }}"><b>{{ c.name }}</b></a><span class="small">ресурс {{ '%g'|format(ct.resource_left) }} {{ UNITS.get(c.unit, '') }} · нараховано {{ ct.accrued|uah }} · різниця {{ ct.diff|uah }}</span></div>{% endfor %}</div>{% endif %}
+</div><div>
+  <div class="card"><h2 style="margin-top:0">Рухи фонду</h2>{% if txns %}<table class="am-tx"><tbody>{% for x in txns %}<tr><td style="white-space:nowrap">{{ x.day|dt('%d.%m.%y') }}</td><td>{{ x.note or ('погашення' if x.kind == 'pay' else 'витрата') }}{% if x.source == 'sheet' %} <span class="src small muted">табл.</span>{% endif %}<div class="small muted">{{ x.cashbox or '' }}</div></td><td class="r {{ 'pay' if x.kind == 'pay' else 'exp' }}">{{ ('+' if x.kind == 'pay' else '−') ~ (x.amount|uah) }}</td>
+    <td><form method="post" action="/amort/txn/{{ x.id }}/delete" data-delpw="Видалити цей рух?" style="margin:0"><input type="hidden" name="back" value="/amort/{{ a.id }}"><button style="border:0;background:none;color:var(--muted);cursor:pointer">×</button></form></td></tr>{% endfor %}</tbody></table>{% else %}<p class="small muted">Рухів ще немає.</p>{% endif %}</div>
+  <div class="card"><h2 style="margin-top:0">У техкартах · {{ cards|length }}</h2><p class="small muted" style="margin:0 0 8px">Позиція «{{ a.product.name if a.product else '—' }}»: скільки одиниць списується на 1 послугу × ставка.</p>
+    {% if cards %}<div class="tc-l">{% for c in cards %}<a href="/techcards?open={{ c.card.id }}"><span>{{ c.card.name }}</span><b>{{ '%g'|format(c.qty) }} × {{ '%g'|format(a.rate) }} = {{ c.amount|uah }}</b></a>{% endfor %}</div>
+    {% else %}<p class="small muted">Жодна техкарта не містить цю позицію — нарахувань з візитів не буде. <a href="/techcards">Додати в техкарти</a>.</p>{% endif %}</div>
+  <div class="card"><h2 style="margin-top:0">Параметри</h2><div class="kv">
+    <span>Позиція складу</span><div>{{ a.product.name if a.product else '—' }}</div><span>Рахунок фонду</span><div>{{ a.cashbox or '—' }}</div>
+    {% if a.used_before %}<span>Ресурсу до обліку</span><div>{{ '%g'|format(a.used_before) }}</div>{% endif %}{% if a.note %}<span>Примітка</span><div>{{ a.note }}</div>{% endif %}</div></div>
+</div></div>
+
+<dialog class="am-d" id="am-pay"><form method="post" action="/amort/pay"><h3>Погашення · {{ a.name }}</h3><input type="hidden" name="asset_id" value="{{ a.id }}"><input type="hidden" name="back" value="/amort/{{ a.id }}">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><label>Дата<input type="date" name="day" value="{{ today.isoformat() }}"></label><label>Сума, ₴<input name="amount" inputmode="decimal" value="{{ ('%.2f'|format(t.diff)) if t.diff > 0 else '' }}" required></label></div>
+  <label>Звідки гроші<select name="cashbox_from">{% for b in boxes if b != a.cashbox %}<option {{ 'selected' if 'Сейф' in b }}>{{ b }}</option>{% endfor %}</select></label>
+  <label>Примітка<input name="note" placeholder="необовʼязково"></label>
+  <div class="small muted">Переміщення → «{{ a.cashbox }}» зʼявиться у фіноперціях.</div>
+  <div class="row" style="justify-content:flex-end;gap:8px"><button type="button" class="btn ghost" onclick="this.closest('dialog').close()">Скасувати</button><button class="btn">Погасити</button></div></form></dialog>
+<dialog class="am-d" id="am-exp"><form method="post" action="/amort/expense"><h3>Витрата з фонду · {{ a.name }}</h3><input type="hidden" name="asset_id" value="{{ a.id }}"><input type="hidden" name="back" value="/amort/{{ a.id }}">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><label>Дата<input type="date" name="day" value="{{ today.isoformat() }}"></label><label>Сума, ₴<input name="amount" inputmode="decimal" required></label></div>
+  <label>З рахунку<select name="cashbox">{% for b in boxes %}<option {{ 'selected' if b == a.cashbox }}>{{ b }}</option>{% endfor %}</select></label>
+  <label>Що оплачено<input name="note" placeholder="Ремонт, запчастина, кредит…" required></label>
+  <div class="row" style="justify-content:flex-end;gap:8px"><button type="button" class="btn ghost" onclick="this.closest('dialog').close()">Скасувати</button><button class="btn">Записати</button></div></form></dialog>
+{% endblock %}

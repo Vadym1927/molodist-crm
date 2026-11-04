@@ -95,7 +95,7 @@
     </tr>
   {% else %}<tr><td colspan="9" class="muted">{{ 'Критичних залишків немає — Дозамовити нічого.' if tab=='critical' else 'Немає товарів.' }}</td></tr>{% endfor %}
   </tbody></table>{% if rows|length > 500 %}<p class="muted small">Показано 500 з {{ rows|length }} — уточніть пошук або склад.</p>{% endif %}</div>
-{% if active %}<p class="small" style="margin:4px 0"><a href="/stock/reconcile">⚖ Звірка з CleverBox →</a></p>{% endif %}{% if not active and cb_updated %}<p class="muted small">Залишки CleverBox на {{ cb_updated|dt('%d.%m.%Y %H:%M') }}</p>{% endif %}
+{% if active %}<p class="small" style="margin:4px 0"><a href="/stock/reconcile">⚖ Звірка з CleverBox →</a> · <a href="/amort">🏭 Амортизація обладнання →</a></p>{% endif %}{% if not active and cb_updated %}<p class="muted small">Залишки CleverBox на {{ cb_updated|dt('%d.%m.%Y %H:%M') }}</p>{% endif %}
 
 {% elif tab in KINDS %}
 {% if tab in ('supply','order') %}

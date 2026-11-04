@@ -87,7 +87,8 @@ templates.env.globals["call_who"] = _call_who
 FIN_TABS = [("/finance", "Огляд"), ("/sales", "Каса CRM"), ("/finance/ops", "Фіноперації"), ("/finance/accruals", "Нарахування зарплати"),
             ("/finance/payroll", "ЗП за місяць"),
             ("/finance/settle", "Взаєморозрахунки по з/п"), ("/finance/day", "Продажі за день"), ("/finance/sales", "Продажі"),
-            ("/finance/balances", "Баланс пацієнтів"), ("/finance/bonuses", "Рух бонусів"), ("/finance/pricing", "Планування ціни реалізації")]
+            ("/finance/balances", "Баланс пацієнтів"), ("/finance/bonuses", "Рух бонусів"), ("/finance/pricing", "Планування ціни реалізації"),
+            ("/amort", "Амортизація обладнання")]
 templates.env.globals.update(
     can=can, ROLES=ROLES, EVENTS=webhooks.EVENTS, FIN_TABS=FIN_TABS,
     FLAG={"green": ("записана", "ok"), "yellow": ("без запису", "warn"),
@@ -274,6 +275,18 @@ async def job_expiry():
         log.warning("expiry notify: %s", e)
 
 
+async def job_amort():
+    """16-го — нарахування за 1–15, 1-го — за 16–кінець минулого місяця; звіт власнику в Telegram."""
+    from .services import amort as _am, alerts
+    try:
+        with SessionLocal() as db:
+            txt = await asyncio.to_thread(_am.run_scheduled, db)
+        if txt:
+            await asyncio.to_thread(alerts.send, txt + f"\n{settings.public_url.rstrip('/')}/amort")
+    except Exception as e:          # noqa: BLE001
+        log.warning("amort accrual failed: %s", e)
+
+
 async def job_loyalty():
     """Щодня: бонуси до дня народження, згоряння бонусів з минулим терміном."""
     from .services import loyalty as ly
@@ -411,10 +424,19 @@ async def lifespan(app: FastAPI):
         sched.add_job(job_expiry, "cron", hour=9, minute=15)
         sched.add_job(job_loyalty, "cron", hour=9, minute=5)
         sched.add_job(job_reconcile, "cron", hour=9, minute=0)
+        sched.add_job(job_amort, "cron", day="1,16", hour=9, minute=10)
         sched.add_job(job_shop, "cron", hour=6, minute=40)
         sched.start()
     except Exception as e:          # noqa: BLE001
         log.warning("scheduler not started: %s", e)
+    try:
+        from .services import amort as _am
+        with SessionLocal() as db:
+            _r = _am.ensure_setup(db)
+        if _r:
+            log.info("amort setup: %s", _r)
+    except Exception as e:          # noqa: BLE001
+        log.warning("amort setup failed: %s", e)
     if settings.telegram_bot_token:
         from .integrations.telegram_bot import make_bot
         bot, dp = make_bot()
@@ -5602,6 +5624,7 @@ SETTINGS_BLOCKS = [
         ('Статуси пацієнтів', 'Первинний, постійний, ФАНАТ…: назва, колір і з якої кількості візитів присвоюється', '/settings/patient-tags', 'users', None),
         ('Групи пацієнтів', 'Довідник груп (ЖК, Трихолог, -30% ЛЄ…): додати, перейменувати, колір — у картці пацієнта групи вибираються зі списку', '/settings/patient-tags#groups', 'users', None),
         ('Дані пацієнта в календарі', 'Які поля картки пацієнта показувати в блоці візиту: завжди або при наведенні мишки', '/settings/patient-tags#cal', 'users', None),
+        ('Амортизація обладнання', 'Апарати й розхідники з ресурсом: вартість, ставка за процедуру/імпульс, рахунок фонду; перенесення з таблиці', '/settings/amort', 'finance', None),
         ('Колонки списку пацієнтів', 'Які колонки видно в розділі «Пацієнти»: телефон, статус, групи, бонуси, ДН, джерело…', '/settings/patient-tags#cols', 'users', None),
         ('Фото пацієнтів', 'Усі фото й файли пацієнтів: згоди, обличчя, тіло, документи — перегляд, перенесення між розділами, видалення', '/settings/patient-photos', 'upload', None),
         ('Персональні знижки', 'Знижка конкретному пацієнту: окремо % на товари і % на послуги; автозастосування й сумування з іншими знижками', '/settings/personal-discounts', 'loyalty_patient', None),
@@ -7956,6 +7979,157 @@ def finance_bonuses(request: Request, df: str = "", dt_: str = "", q: str = "", 
     return render(request, "fin_bonuses.html", nav="finance", d_from=d_from, d_to=d_to, q=q, b=fo.bonuses(db, d_from, d_to, q),
                   ltx=ltx, lp=lp, KL=ly.KIND_LABELS, lyon=ly.settings(db).get("enabled"),
                   synced=db.scalar(select(func.max(Patient.cb_synced_at))))
+
+
+# ---------------- Амортизація обладнання ----------------
+@app.get("/amort", response_class=HTMLResponse)
+def amort_page(request: Request, year: int = 0, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import amort as am, cashboxes as cbx
+    today = date.today()
+    rows = am.overview(db, today)
+    yr = year or today.year
+    if yr != today.year:
+        for r in rows:
+            r["months"] = am.series(db, r["asset"], yr)
+    fund = am.fund_summary(db, rows)
+    boxes = cbx.items(db)
+    fund_box = next((b for b in boxes if b.get("name") == (rows[0]["asset"].cashbox if rows else "")), None)
+    return render(request, "amort.html", nav="finance", rows=rows, fund=fund, year=yr, years=am.years(db), am=am,
+                  boxes=[b["name"] for b in boxes if b.get("active", True)], fund_balance=cbx.balance(db, fund_box) if fund_box else None,
+                  fund_name=fund_box["name"] if fund_box else (rows[0]["asset"].cashbox if rows else ""),
+                  txns=am.txns(db)[:30], today=today, prev=am.prev_half(today), assets_all=[r["asset"] for r in rows])
+
+
+@app.get("/amort/{aid:int}", response_class=HTMLResponse)
+def amort_asset_page(aid: int, request: Request, year: int = 0, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import amort as am, cashboxes as cbx
+    from .models import AmortAsset
+    a = db.get(AmortAsset, aid) or (_ for _ in ()).throw(HTTPException(404))
+    am.recompute_open(db)
+    today = date.today()
+    yr = year or today.year
+    t = am.totals(db, a, today)
+    children = db.scalars(select(AmortAsset).where(AmortAsset.parent_id == a.id)).all()
+    return render(request, "amort_asset.html", nav="finance", a=a, t=t, months=am.series(db, a, yr), year=yr, years=am.years(db), am=am,
+                  cards=am.techcards_for(db, a), txns=am.txns(db, a.id), boxes=[b["name"] for b in cbx.items(db) if b.get("active", True)],
+                  children=[(c, am.totals(db, c, today)) for c in children], parent=db.get(AmortAsset, a.parent_id) if a.parent_id else None,
+                  today=today, UNITS=am.UNITS)
+
+
+@app.post("/amort/accrue")
+def amort_accrue(year: int = Form(0), month: int = Form(0), half: int = Form(0), force: str = Form(""),
+                 user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import amort as am
+    if not (year and month and half):
+        year, month, half = am.prev_half(date.today())
+    rows = am.accrue(db, year, month, half, force=bool(force))
+    n = sum(1 for r in rows if not r["skipped"])
+    audit(db, "amort.accrue", user=user, period=f"{year}-{month:02d}-{half}", n=n)
+    return RedirectResponse(_with_msg("/amort", f"Нараховано за {am.label(year, month, half)}: позицій {n}"
+                                      + (" · перенесені з таблиці не змінюються" if n < len(rows) else "")), 303)
+
+
+@app.post("/amort/pay")
+def amort_pay(asset_id: int = Form(...), day: str = Form(""), amount: str = Form(...), cashbox_from: str = Form(""), note: str = Form(""),
+              back: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import amort as am
+    from .models import AmortAsset
+    a = db.get(AmortAsset, asset_id) or (_ for _ in ()).throw(HTTPException(404))
+    amt = _num(amount)
+    if not amt or amt <= 0:
+        return RedirectResponse(_with_err(back or "/amort", "Вкажіть суму погашення"), 303)
+    t = am.pay(db, a, _day(day) or date.today(), amt, cashbox_from.strip(), user.id, note.strip() or None)
+    audit(db, "amort.pay", "amort_txn", t.id, user=user, asset=a.name, amount=amt, cashbox=cashbox_from, finop=t.finop_id)
+    return RedirectResponse(_with_msg(back or f"/amort/{a.id}", f"Погашено {amt:,.2f} ₴ → {a.cashbox}".replace(",", " ")), 303)
+
+
+@app.post("/amort/expense")
+def amort_expense(asset_id: str = Form(""), day: str = Form(""), amount: str = Form(...), cashbox: str = Form(""), note: str = Form(""),
+                  back: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import amort as am
+    from .models import AmortAsset
+    a = db.get(AmortAsset, int(asset_id)) if asset_id.isdigit() else None
+    amt = _num(amount)
+    if not amt or amt <= 0 or not note.strip():
+        return RedirectResponse(_with_err(back or "/amort", "Вкажіть суму і що саме оплачено"), 303)
+    t = am.expense(db, a, _day(day) or date.today(), amt, cashbox.strip(), note.strip(), user.id)
+    audit(db, "amort.expense", "amort_txn", t.id, user=user, asset=a.name if a else None, amount=amt, note=note)
+    return RedirectResponse(_with_msg(back or "/amort", f"Витрата з фонду {amt:,.2f} ₴ записана".replace(",", " ")), 303)
+
+
+@app.post("/amort/txn/{tid:int}/delete")
+def amort_txn_delete(tid: int, back: str = Form(""), del_password: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import amort as am
+    from .models import AmortTxn
+    err = _delpw(db, user, del_password, "amort_txn", "amort_txn", tid)
+    if err:
+        return RedirectResponse(_with_err(back or "/amort", err), 303)
+    t = db.get(AmortTxn, tid)
+    if t:
+        audit(db, "amort.txn_delete", "amort_txn", tid, user=user, kind=t.kind, amount=t.amount)
+        am.delete_txn(db, t)
+    return RedirectResponse(back or "/amort", 303)
+
+
+@app.get("/settings/amort", response_class=HTMLResponse)
+def settings_amort(request: Request, edit: int = 0, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import amort as am, cashboxes as cbx
+    from .models import AmortAsset
+    assets = db.scalars(select(AmortAsset).order_by(AmortAsset.active.desc(), AmortAsset.kind.desc(), AmortAsset.sort, AmortAsset.id)).all()
+    return render(request, "amort_settings.html", nav="settings", assets=assets, cur=db.get(AmortAsset, edit) if edit else None,
+                  products=am.candidates(db), boxes=[b["name"] for b in cbx.items(db) if b.get("active", True)],
+                  devices=[a for a in assets if a.kind == "device"], UNITS=am.UNITS, am=am,
+                  seeded=am._flag(db, am.SEEDED_KEY), migrated=am._flag(db, am.MIGRATED_KEY),
+                  pnames={a.product_id: (a.product.name if a.product else "") for a in assets if a.product_id})
+
+
+@app.post("/settings/amort")
+async def settings_amort_save(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .models import AmortAsset
+    f = await request.form()
+    aid = str(f.get("aid") or "")
+    a = db.get(AmortAsset, int(aid)) if aid.isdigit() else AmortAsset()
+    name = " ".join(str(f.get("name") or "").split())[:200]
+    if not name:
+        return RedirectResponse(_with_err("/settings/amort", "Вкажіть назву"), 303)
+    a.name = name
+    a.kind = "consumable" if f.get("kind") == "consumable" else "device"
+    a.product_id = int(f["product_id"]) if str(f.get("product_id") or "").isdigit() else None
+    a.parent_id = int(f["parent_id"]) if str(f.get("parent_id") or "").isdigit() and a.kind == "consumable" else None
+    a.cost = _num(str(f.get("cost") or "")) or 0.0
+    a.life_years = _num(str(f.get("life_years") or "")) if a.kind == "device" else None
+    a.resource = _num(str(f.get("resource") or "")) if a.kind == "consumable" else None
+    a.unit = str(f.get("unit") or "процедура") if str(f.get("unit") or "") in ("процедура", "імпульс", "хвилина") else "процедура"
+    a.rate = _num(str(f.get("rate") or "")) or 0.0
+    if a.kind == "consumable" and not a.rate and a.cost and a.resource:
+        a.rate = round(a.cost / a.resource, 4)
+    a.avg_month = _num(str(f.get("avg_month") or ""))
+    a.commissioned_at = _day(str(f.get("commissioned_at") or ""))
+    a.cashbox = str(f.get("cashbox") or "").strip()[:100] or None
+    a.accrued_before = _num(str(f.get("accrued_before") or "")) or 0.0
+    a.used_before = _num(str(f.get("used_before") or "")) or 0.0
+    a.active = bool(f.get("active"))
+    a.note = str(f.get("note") or "").strip()[:500] or None
+    if a.product and a.product.price != a.rate and a.unit == "процедура" and a.product_id:
+        a.product.price = a.rate                                # ставка живе в ціні позиції техкарти — тримаємо однаковою
+    db.add(a)
+    db.commit()
+    audit(db, "amort.asset", "amort_asset", a.id, user=user, name=a.name, rate=a.rate)
+    return RedirectResponse(_with_msg("/settings/amort", "Збережено"), 303)
+
+
+@app.post("/settings/amort/setup")
+def settings_amort_setup(what: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import amort as am
+    if what == "seed":
+        r = am.seed_from_sheet(db)
+        msg = f"Перенесено з таблиці: позицій {r['assets']}, півмісяців {r['periods']}, погашень/витрат {r['txns']}" + \
+              (f" · не знайдено товарів: {', '.join(r['no_product'])}" if r["no_product"] else "")
+    else:
+        r = am.migrate_products(db)
+        msg = f"Перенесено в «Обладнання»: {r['moved']} поз. · у техкартах оновлено {r['lines']} рядків, прибрано дублів {r['dupes']}, вимкнено старих {r['deactivated']}"
+    audit(db, "amort.setup", user=user, what=what, **{k: v for k, v in r.items() if not isinstance(v, list)})
+    return RedirectResponse(_with_msg("/settings/amort", msg), 303)
 
 
 @app.get("/finance/pricing", response_class=HTMLResponse)
