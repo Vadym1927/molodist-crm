@@ -1138,6 +1138,7 @@ class AmortAsset(Base):
     avg_month: Mapped[float | None] = mapped_column(Float)                 # середня к-сть на місяць (план)
     commissioned_at: Mapped[date | None] = mapped_column(Date)
     cashbox: Mapped[str | None] = mapped_column(String(100))               # рахунок фонду, куди погашаємо
+    jar: Mapped[str | None] = mapped_column(String(200))                   # банка monobank (посилання send.monobank.ua/jar/…)
     accrued_before: Mapped[float] = mapped_column(Float, default=0)        # нараховано до першого періоду в CRM
     used_before: Mapped[float] = mapped_column(Float, default=0)           # використано ресурсу до першого періоду
     active: Mapped[bool] = mapped_column(Boolean, default=True)

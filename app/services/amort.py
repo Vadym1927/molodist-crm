@@ -463,15 +463,57 @@ def migrate_products(db: Session) -> dict:
     return rep
 
 
+OBSERV_JAR = "https://send.monobank.ua/jar/AKLXQJS3zc"
+OBSERV_BOX = "Банка OBSERV 520x"
+OBSERV_KEY = "amort_observ_jar_v1"
+
+
+def setup_observ_jar(db: Session) -> bool:
+    """OBSERV 520x погашається не на спільний фонд, а в окрему банку monobank: каса «Банка OBSERV 520x» + привʼязка."""
+    from . import cashboxes as cbx
+    if _flag(db, OBSERV_KEY):
+        return False
+    a = next((x for x in db.scalars(select(AmortAsset)) if "observ" in (x.name or "").lower() and x.kind == "device"), None)
+    if not a:
+        return False
+    if not any((x.get("name") or "").lower() == OBSERV_BOX.lower() for x in cbx.items(db)):
+        cbx.save(db, None, {"name": OBSERV_BOX, "type": "bank", "active": True, "opening": 0, "methods": [],
+                            "pos": False, "shift": False, "opening_date": date.today().isoformat(), "note": f"Банка monobank для амортизації OBSERV 520x: {OBSERV_JAR}"})
+    a.cashbox, a.jar = OBSERV_BOX, OBSERV_JAR
+    db.commit()
+    _set_flag(db, OBSERV_KEY)
+    return True
+
+
+HAND_RES_KEY = "amort_ipl_hand_res_v1"
+
+
+def setup_hand_resource(db: Session) -> bool:
+    """Ресурс маніпули IPL Shiny — 100 000 імпульсів (вказав власник 04.11.2026); ставка за імпульс не змінюється."""
+    if _flag(db, HAND_RES_KEY):
+        return False
+    a = next((x for x in db.scalars(select(AmortAsset)) if x.kind == "consumable" and "маніпула ipl" in (x.name or "").lower()), None)
+    if not a:
+        return False
+    a.resource = 100000
+    db.commit()
+    _set_flag(db, HAND_RES_KEY)
+    return True
+
+
 def ensure_setup(db: Session) -> dict | None:
     """Один раз після оновлення: перенести позиції й історію з таблиці."""
     if _flag(db, MIGRATED_KEY) and _flag(db, SEEDED_KEY):
+        setup_observ_jar(db)
+        setup_hand_resource(db)
         return None
     out = {}
     if not _flag(db, SEEDED_KEY):
         out["seed"] = seed_from_sheet(db)
     if not _flag(db, MIGRATED_KEY):
         out["migrate"] = migrate_products(db)
+    setup_observ_jar(db)
+    setup_hand_resource(db)
     return out
 
 

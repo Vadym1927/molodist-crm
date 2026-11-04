@@ -7995,10 +7995,19 @@ def amort_page(request: Request, year: int = 0, user: User = Depends(require("fi
             r["months"] = am.series(db, r["asset"], yr)
     fund = am.fund_summary(db, rows)
     boxes = cbx.items(db)
-    fund_box = next((b for b in boxes if b.get("name") == (rows[0]["asset"].cashbox if rows else "")), None)
+    from collections import Counter
+    main_box = (Counter(r["asset"].cashbox for r in rows if r["asset"].cashbox).most_common(1) or [(None, 0)])[0][0]
+    fund_box = next((b for b in boxes if b.get("name") == main_box), None)
+    from .integrations import monobank as _mono
+    jars = []
+    for r in rows:
+        if r["asset"].jar:
+            j = _mono.jar(db, r["asset"].jar, refresh=not jars)
+            box = next((b for b in boxes if b.get("name") == r["asset"].cashbox), None)
+            jars.append({"asset": r["asset"], "jar": j, "crm": cbx.balance(db, box) if box else None})
     return render(request, "amort.html", nav="finance", rows=rows, fund=fund, year=yr, years=am.years(db), am=am,
                   boxes=[b["name"] for b in boxes if b.get("active", True)], fund_balance=(cbx.balance(db, fund_box) - am.operational(db)) if fund_box else None,
-                  fund_name=fund_box["name"] if fund_box else (rows[0]["asset"].cashbox if rows else ""),
+                  fund_name=fund_box["name"] if fund_box else (main_box or ""), jars=jars,
                   txns=am.txns(db)[:30], today=today, prev=am.prev_half(today), assets_all=[r["asset"] for r in rows])
 
 
@@ -8017,6 +8026,7 @@ def amort_asset_page(aid: int, request: Request, year: int = 0, user: User = Dep
     return render(request, "amort_asset.html", nav="finance", a=a, t=t, months=am.series(db, a, yr) if yr else all_rows, year=yr,
                   years=sorted({r_["year"] for r_ in all_rows} | set(am.years(db)), reverse=True), am=am, all_rows=all_rows,
                   ytot=am.by_year_totals(all_rows),
+                  jar=__import__("app.integrations.monobank", fromlist=["jar"]).jar(db, a.jar) if a.jar else None,
                   cards=am.techcards_for(db, a), txns=am.txns(db, a.id), boxes=[b["name"] for b in cbx.items(db) if b.get("active", True)],
                   children=[(c, am.totals(db, c, today)) for c in children], parent=db.get(AmortAsset, a.parent_id) if a.parent_id else None,
                   today=today, UNITS=am.UNITS)
@@ -8123,6 +8133,7 @@ async def settings_amort_save(request: Request, user: User = Depends(require("fi
     a.avg_month = _num(str(f.get("avg_month") or ""))
     a.commissioned_at = _day(str(f.get("commissioned_at") or ""))
     a.cashbox = str(f.get("cashbox") or "").strip()[:100] or None
+    a.jar = str(f.get("jar") or "").strip()[:200] or None
     a.accrued_before = _num(str(f.get("accrued_before") or "")) or 0.0
     a.used_before = _num(str(f.get("used_before") or "")) or 0.0
     a.active = bool(f.get("active"))

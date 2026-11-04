@@ -70,6 +70,7 @@ dialog.am-d{border:0;border-radius:18px;padding:0;width:min(460px,95vw);box-shad
     {% else %}<p class="small muted">Жодна техкарта не містить цю позицію — нарахувань з візитів не буде. <a href="/techcards">Додати в техкарти</a>.</p>{% endif %}</div>
   <div class="card"><h2 style="margin-top:0">Параметри</h2><div class="kv">
     <span>Позиція складу</span><div>{{ a.product.name if a.product else '—' }}</div><span>Рахунок фонду</span><div>{{ a.cashbox or '—' }}</div>
+    {% if a.jar %}<span>Банка monobank</span><div><a href="{{ a.jar }}" target="_blank" rel="noopener">{{ jar.title if jar and jar.title else 'відкрити банку' }} ↗</a>{% if jar %}<div class="small"><b>{{ jar.balance|uah }}</b>{% if jar.goal %} з {{ jar.goal|uah }}{% endif %} · <span class="muted">monobank {{ jar.at }}</span></div>{% else %}<div class="small muted">баланс з’явиться, коли банка буде в одному з підключених токенів monobank</div>{% endif %}</div>{% endif %}
     {% if a.used_before %}<span>Ресурсу до обліку</span><div>{{ '%g'|format(a.used_before) }}</div>{% endif %}{% if a.note %}<span>Примітка</span><div>{{ a.note }}</div>{% endif %}</div></div>
 </div></div>
 

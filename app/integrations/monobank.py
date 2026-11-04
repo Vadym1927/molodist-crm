@@ -238,7 +238,7 @@ def balances(db: Session, max_age: int = 300, getter=None) -> dict:
     if fresh:
         return {k: v for k, v in cache.items() if k != "_at"}
     getter = getter or _get
-    out = {}
+    out, jars = {}, {}
     for x in saved(db):
         if not x.get("token"):
             continue
@@ -252,8 +252,39 @@ def balances(db: Session, max_age: int = 300, getter=None) -> dict:
             if a.get("currencyCode") == 980:
                 out[a["id"]] = {"balance": round((a.get("balance") or 0) / 100, 2), "iban": a.get("iban"), "fop": x["fop"],
                                 "type": a.get("type"), "at": datetime.now().strftime("%d.%m %H:%M")}
+        for j in info.get("jars", []) or []:                # банки — окремо, щоб не змішувались з рахунками
+            jars[str(j.get("id"))] = {"send_id": j.get("sendId") or "", "title": j.get("title") or "", "fop": x["fop"],
+                                      "balance": round((j.get("balance") or 0) / 100, 2),
+                                      "goal": round((j.get("goal") or 0) / 100, 2) or None, "at": datetime.now().strftime("%d.%m %H:%M")}
     st = st or SyncState(key="mono_balances")
     st.value, st.updated_at = json.dumps({**out, "_at": datetime.now().isoformat()}, ensure_ascii=False), datetime.utcnow()
     db.merge(st)
+    if jars or not db.get(SyncState, "mono_jars"):
+        sj = db.get(SyncState, "mono_jars") or SyncState(key="mono_jars")
+        sj.value, sj.updated_at = json.dumps(jars, ensure_ascii=False), datetime.utcnow()
+        db.merge(sj)
     db.commit()
     return out
+
+
+def jar_key(link: str | None) -> str:
+    """send.monobank.ua/jar/AKLXQJS3zc → AKLXQJS3zc."""
+    return (link or "").strip().rstrip("/").split("/")[-1].split("?")[0]
+
+
+def jar(db: Session, link: str | None, refresh: bool = True) -> dict | None:
+    """Банка monobank за посиланням: {title, balance, goal, fop, at} — з client-info підключених токенів (кеш 5 хв)."""
+    key = jar_key(link)
+    if not key:
+        return None
+    if refresh:
+        try:
+            balances(db)
+        except Exception as e:  # noqa: BLE001
+            log.warning("monobank jars: %s", e)
+    st = db.get(SyncState, "mono_jars")
+    try:
+        jars = json.loads(st.value) if st and st.value else {}
+    except ValueError:
+        jars = {}
+    return next((j for j in jars.values() if jar_key(j.get("send_id")) == key), None)

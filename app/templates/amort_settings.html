@@ -50,6 +50,7 @@
     <label>В експлуатації з<input type="date" name="commissioned_at" value="{{ r0.commissioned_at if r0 and r0.commissioned_at else '' }}"></label></div>
   <label class="k-con">Апарат, до якого належить<select name="parent_id"><option value="">—</option>{% for d in devices %}<option value="{{ d.id }}" {{ 'selected' if r0 and r0.parent_id == d.id }}>{{ d.name }}</option>{% endfor %}</select></label>
   <label>Рахунок фонду (куди погашати)<select name="cashbox"><option value="">—</option>{% for b in boxes %}<option {{ 'selected' if r0 and r0.cashbox == b }}>{{ b }}</option>{% endfor %}</select></label>
+  <label>Банка monobank (необовʼязково)<input name="jar" value="{{ r0.jar if r0 and r0.jar else '' }}" placeholder="https://send.monobank.ua/jar/…"></label>
   <div class="two"><label>Нараховано до обліку, ₴<input name="accrued_before" value="{{ '%g'|format(r0.accrued_before) if r0 and r0.accrued_before else '' }}" inputmode="decimal"></label>
     <label class="k-con">Ресурсу використано до обліку<input name="used_before" value="{{ '%g'|format(r0.used_before) if r0 and r0.used_before else '' }}" inputmode="decimal"></label></div>
   <label class="sw"><input type="checkbox" name="active" value="1" {{ 'checked' if not r0 or r0.active }}> активна</label>

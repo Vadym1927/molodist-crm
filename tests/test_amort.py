@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from app.config import settings
 from app.main import app
-from app.models import SessionLocal, Product, TechCard, TechCardLine, StockMove, AmortAsset, AmortPeriod, AmortTxn, FinOp
+from app.models import SyncState, SessionLocal, Product, TechCard, TechCardLine, StockMove, AmortAsset, AmortPeriod, AmortTxn, FinOp
 from app.services import amort as am
 
 
@@ -40,12 +40,12 @@ def test_seed_migrate_accrue_pay():
         a = db.scalar(select(AmortAsset).where(AmortAsset.name == "IPL Shiny"))
         assert a.product_id == ipl.id and a.rate == 50 and a.cashbox
         hand = db.scalar(select(AmortAsset).where(AmortAsset.name == "Маніпула IPL Shiny"))
-        assert hand.parent_id == a.id and hand.kind == "consumable" and hand.resource == 50000
+        assert hand.parent_id == a.id and hand.kind == "consumable" and hand.resource == 100000
         # перенесена історія: сума 2026 по IPL = 55050, погашено 52000
         t = am.totals(db, a, date(2026, 11, 4))
         assert round(t["accrued"]) == 55050 and t["paid"] == 52000 and round(t["diff"]) == 3050
         th = am.totals(db, hand, date(2026, 11, 4))
-        assert round(th["accrued"], 1) == 102694.4 and th["over"] and round(th["used"]) == 80162
+        assert round(th["accrued"], 1) == 102694.4 and not th["over"] and round(th["used"]) == 80162
         m = am.migrate_products(db)
         db.refresh(ipl); db.refresh(card); db.refresh(hand_old)
         assert ipl.warehouse == "equip" and hand_old.active is False
@@ -97,3 +97,21 @@ def test_operational_part():
         c.post("/settings/amort/operational", data={"amount": "110000"})
     with SessionLocal() as db:
         assert am.operational(db) == 110000
+
+
+def test_observ_jar():
+    from app.services import cashboxes as cbx
+    from app.integrations import monobank
+    with SessionLocal() as db:
+        am.seed_from_sheet(db)
+        a = next(x for x in db.scalars(select(AmortAsset)) if x.name.startswith("OBSERV"))
+        db.query(SyncState).filter(SyncState.key == am.OBSERV_KEY).delete()
+        am.setup_observ_jar(db)
+        db.refresh(a)
+        assert a.cashbox == am.OBSERV_BOX and a.jar.endswith("AKLXQJS3zc")
+        assert am.OBSERV_BOX in cbx.names(db)
+        assert am.setup_observ_jar(db) is False                       # один раз
+        assert monobank.jar_key("https://send.monobank.ua/jar/AKLXQJS3zc") == "AKLXQJS3zc"
+        tx = am.pay(db, a, date(2026, 11, 16), 500, "Готівка Cейф", None, "тест")
+        assert db.get(FinOp, tx.finop_id).cashbox_to == am.OBSERV_BOX
+        am.delete_txn(db, tx)
