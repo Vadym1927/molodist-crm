@@ -231,6 +231,12 @@ RINGOSTAT_EVENTS = [("ringing", "Перед дзвінком", "спливаюч
                     ("end", "Після вихідного дзвінка", "вихідні дзвінки в журналі й історії пацієнта")]
 
 
+def _emp(v) -> str | None:
+    """Імʼя співробітника з вебхука; «0», «-», порожнє — ніхто не прийняв."""
+    v = " ".join(str(v or "").split())[:120]
+    return None if v in ("", "0", "-", "—", "null", "None") or v.startswith("$") else v
+
+
 def parse(provider: str, data: dict) -> dict:
     """Нормалізуємо вебхук будь-якого з провайдерів (поля з документації + типові назви)."""
     data = {k: v for k, v in data.items() if not (isinstance(v, str) and v.startswith("$"))}   # незаповнені змінні Ringostat
@@ -257,7 +263,7 @@ def parse(provider: str, data: dict) -> dict:
         phone = _pick(flat, "externalNumber", "dst", "callee", "recive_number", "receive_number", "to", "phone", "client_phone") or phone
     return {"ext_id": str(_pick(flat, "generalCallID", "callID", "uniqueid", "uid", "call_id", "id", "ID") or "")[:120] or None,
             "direction": direction, "phone": str(phone or "")[:64] or None, "status": status, "duration": dur,
-            "employee": str(_pick(flat, "employeeName", "employee_fio", "employee", "connected", "reciver", "receiver", "dst_name") or "")[:120] or None,
+            "employee": _emp(_pick(flat, "employeeName", "employee_fio", "employee", "connected", "reciver", "receiver", "dst_name")),
             "record_url": str(_pick(flat, "linkToCallRecordInMyBusiness", "recording", "recording_wav", "record_link", "record_url", "record") or "")[:500] or None}
 
 
@@ -445,7 +451,7 @@ def kpi(db: Session, d_from, d_to) -> list[dict]:
     a, b = datetime.combine(d_from, datetime.min.time()), datetime.combine(d_to, datetime.max.time())
     by: dict = defaultdict(lambda: {"in": 0, "ans": 0, "miss": 0, "out": 0, "dur": 0, "n_dur": 0, "scores": [], "low": 0, "booked": 0})
     for c in db.scalars(select(Call).where(Call.at >= a, Call.at <= b)):
-        g = by[c.employee or ("Без співробітника" if c.status != "missed" else "Пропущені (нікому)")]
+        g = by[_emp(c.employee) or ("Без співробітника" if c.status != "missed" else "Пропущені (нікому)")]
         if c.direction == "in":
             g["in"] += 1
             g["miss" if c.status == "missed" else "ans"] += 1

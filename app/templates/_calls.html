@@ -21,7 +21,7 @@
 <div class="cl-i {{ c.status or '' }} {{ 'cur' if cur and cur|string == c.id|string }}" id="call{{ c.id }}">
   <div class="cl-h"><span class="dir">{{ 'вхідний' if c.direction == 'in' else 'вихідний' }}</span>
     <b>{% if show_patient %}{% if pt %}<a href="/patients/{{ pt.id }}" style="color:inherit">{{ pt.full_name }}</a>{% else %}{{ c.phone or '—' }}{% endif %}{% else %}{{ c.at|dt('%d.%m.%Y %H:%M') }}{% endif %}</b>
-    <span class="m">{% if show_patient %}{{ c.at|dt('%d.%m.%Y %H:%M') }}{% if pt %} · {{ c.phone }}{% endif %}{% endif %}{% if c.duration %} · {{ '%d:%02d'|format(c.duration // 60, c.duration % 60) }}{% endif %}{% if c.employee %} · {{ c.employee }}{% endif %}</span>
+    <span class="m">{% if show_patient %}{{ c.at|dt('%d.%m.%Y %H:%M') }}{% if pt %} · {{ c.phone }}{% endif %}{% endif %}{% if c.duration %} · {{ '%d:%02d'|format(c.duration // 60, c.duration % 60) }}{% endif %}{% if c.employee and c.employee != '0' %} · {{ c.employee }}{% endif %}</span>
     <span class="st {{ c.status or '' }}">{{ {'missed':'пропущений','answered':'прийнятий','ringing':'дзвонить','answer':'розмова'}.get(c.status, c.status or '—') }}</span>
     {% if c.ai_score is not none %}<span class="sc {{ 'low' if c.ai_score < thr else ('mid' if c.ai_score < 80 else '') }}" title="AI-оцінка діалогу">AI {{ '%.0f'|format(c.ai_score) }}/100</span>{% endif %}</div>
   {% if c.record_url %}<audio controls preload="none" src="{{ c.record_url }}"></audio>{% endif %}
