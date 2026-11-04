@@ -471,7 +471,7 @@ def evaluate(db: Session, c: Call, http: httpx.Client | None = None, claude=None
     from . import invoice_ai
     d = _raw(db)
     if not c.transcript:
-        raise ValueError("Немає тексту діалогу — потрібна транскрипція (Ringostat AI)")
+        raise ValueError("Немає тексту діалогу: Ringostat AI його не надіслав. Щоб AI розбирав сам запис розмови, увімкніть «Агент на VPS» у Налаштування → IP-телефонія → AI-оцінка.")
     prompt = (d.get("ai_criteria") or DEFAULT_CRITERIA) + """
 
 Відповідай ЛИШЕ JSON: {"score": число 0-100, "comment": "2-4 речення українською: що добре, що погано, що порадити",
@@ -561,7 +561,7 @@ def requeue(db: Session, c: Call) -> None:
     """Повернути дзвінок у чергу агента (кнопка «Переоцінити AI», коли розбирає агент на VPS)."""
     c.ai_score = c.ai_comment = None
     c.ai_at = None
-    c.ai_meta = {k: v for k, v in (c.ai_meta or {}).items() if k not in ("fails",)}
+    c.ai_meta = {**{k: v for k, v in (c.ai_meta or {}).items() if k not in ("fails",)}, "manual": True}   # вручну — агент бере і старі дзвінки
     db.commit()
 
 

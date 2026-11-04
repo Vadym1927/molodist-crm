@@ -194,3 +194,29 @@ def test_staff_and_lines():
         assert "Співробітники й лінії" in page and 'value="777001"' in page
         j = c.get("/telephony").text
         assert "відповідальний" in j and "Основна" in j
+
+
+def test_manual_send_old_call_to_ai():
+    from datetime import datetime, timedelta
+    from fastapi.testclient import TestClient
+    from app.config import settings
+    from app.main import app
+    from app.models import SessionLocal, Call, ApiKey
+    from app.security import new_api_key
+    from app.services import telephony as tel
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        tel.save_extra(db, [], True, "критерії", 70, False, "agent")
+        c = Call(provider="ringostat", at=datetime.now() - timedelta(days=20), phone="380501117777", direction="in", status="answered",
+                 duration=80, record_url="https://r/old.wav", ai_at=datetime.utcnow(), ai_comment="Запис недоступний")
+        db.add(c); db.commit(); cid = c.id
+        raw, prefix, hsh = new_api_key()
+        db.add(ApiKey(name="openclaw-man", prefix=prefix, key_hash=hsh, scopes=["calls"])); db.commit()
+    with TestClient(app) as cl:
+        cl.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        h = {"X-API-Key": raw}
+        assert cid not in [x["id"] for x in cl.get("/api/v1/calls/pending-ai", headers=h).json()["calls"]]
+        assert "Відправити на AI-оцінку" in cl.get("/telephony").text
+        assert cl.post(f"/telephony/calls/{cid}/evaluate").json()["ok"]
+        assert cid in [x["id"] for x in cl.get("/api/v1/calls/pending-ai", headers=h).json()["calls"]]     # стара — але вручну
+        assert "у черзі на AI-оцінку" in cl.get("/telephony").text

@@ -435,9 +435,11 @@ def calls_pending_ai(limit: int = 20, days: int = 3, key: ApiKey = Depends(CALLS
     from .models import Call
     from .services import telephony as tel
     cfg = tel.public(db)
-    rows = db.scalars(select(Call).where(Call.ai_score.is_(None), Call.ai_at.is_(None), Call.status == "answered", Call.record_url.is_not(None),
-                                         Call.at >= datetime.now() - timedelta(days=max(1, min(days, 30))))
-                      .order_by(Call.at.desc()).limit(max(1, min(limit, 100)))).all()
+    since = datetime.now() - timedelta(days=max(1, min(days, 30)))
+    cand = db.scalars(select(Call).where(Call.ai_score.is_(None), Call.ai_at.is_(None), Call.status != "missed", Call.record_url.is_not(None))
+                      .order_by(Call.at.desc()).limit(1000)).all()
+    # автоматично — прийняті за останні `days` днів; вручну відправлені («Відправити на AI-оцінку») — будь-якої давності
+    rows = [c for c in cand if (c.status == "answered" and c.at >= since) or (c.ai_meta or {}).get("manual")][:max(1, min(limit, 100))]
     return {"criteria": cfg.get("ai_criteria"), "alert_below": cfg.get("ai_alert_below"),
             "answer_format": {"score": "0-100", "comment": "2-4 речення українською", "booked": "true/false",
                               "transcript": "текст діалогу (Адмін: … / Пацієнт: …)", "summary": "короткий зміст"},

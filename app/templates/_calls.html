@@ -16,6 +16,7 @@
 .cl-dlg .bb{max-width:78%;padding:7px 11px;border-radius:12px;font-size:14px;line-height:1.45;white-space:pre-wrap}
 .cl-dlg .bb small{display:block;font:700 10.5px var(--sans);letter-spacing:.05em;text-transform:uppercase;opacity:.7;margin-bottom:2px}
 .cl-dlg .bb.a{align-self:flex-end;background:#3B3050;color:#fff;border-bottom-right-radius:4px}.cl-dlg .bb.p{align-self:flex-start;background:#fff;border:1px solid #ECE7E1;border-bottom-left-radius:4px}
+.cl-q{display:inline-flex;align-items:center;border-radius:9px;padding:6px 12px;font:600 13px var(--sans);background:#FFF1D6;color:#9A6A00}.cl-a button:disabled{opacity:.5;cursor:default}
 .cl-a{display:flex;gap:8px;flex-wrap:wrap}.cl-a button,.cl-a a{border:1px solid #E3DFE8;background:#fff;border-radius:9px;padding:6px 12px;font:600 13px var(--sans);color:#3B3050;cursor:pointer;text-decoration:none}.cl-a button:hover,.cl-a a:hover{background:#F6F3FB}
 </style>
 {% set _who = call_who(calls) %}
@@ -36,13 +37,16 @@
         <div class="bb {{ 'a' if adm else 'p' }}"><small>{{ sp.strip() }}</small>{{ tx.strip() }}</div>
       {% else %}<div class="bb p">{{ ln }}</div>{% endif %}{% endfor %}</div></details>{% endif %}
   <div class="cl-a">
-    {% if c.transcript or c.record_url %}<button type="button" onclick="clEval({{ c.id }}, this)">{{ 'Переоцінити AI' if c.ai_score is not none else 'Оцінити AI' }}</button>{% endif %}
+    {% if c.status != 'missed' %}{% set _q = c.record_url and c.ai_at is none and c.ai_score is none and (c.ai_meta or {}).get('manual') %}
+      {% if _q %}<span class="cl-q" title="Дзвінок чекає AI-розбору">⏳ у черзі на AI-оцінку</span>
+      {% elif c.transcript or c.record_url %}<button type="button" onclick="clEval({{ c.id }}, this)">🤖 {{ 'Переоцінити AI' if c.ai_score is not none else 'Відправити на AI-оцінку' }}</button>
+      {% else %}<button type="button" disabled title="Телефонія не передала запис розмови">🤖 Немає запису для AI</button>{% endif %}{% endif %}
     <button type="button" onclick="clTask({{ c.id }}, {{ c.patient_id or 'null' }}, '{{ ((pt.full_name if pt else c.phone) or '')|e }}', '{{ c.at|dt('%d.%m %H:%M') }}', '{{ back }}')">+ Задача</button>
     {% if pt %}<a href="/calendar?newappt=1&patient={{ pt.id }}">Записати</a>{% endif %}
   </div>
 </div>{% else %}<div class="card muted">Дзвінків ще немає — з'являться після підключення телефонії.</div>{% endfor %}</div>
 <script>
-function clEval(id,b){b.disabled=true;b.textContent='Оцінюю…';fetch('/telephony/calls/'+id+'/evaluate',{method:'POST',credentials:'same-origin'}).then(function(r){return r.json()}).then(function(j){if(j.error){alert(j.error);b.disabled=false;b.textContent='Оцінити AI';return}location.reload()})}
+function clEval(id,b){var t0=b.textContent;b.disabled=true;b.textContent='Надсилаю…';fetch('/telephony/calls/'+id+'/evaluate',{method:'POST',credentials:'same-origin'}).then(function(r){return r.json()}).then(function(j){if(j.error){alert(j.error);b.disabled=false;b.textContent=t0;return}location.reload()}).catch(function(){b.disabled=false;b.textContent=t0;alert('Немає зв’язку з сервером')})}
 function clTask(id,pid,who,at,back){var t=prompt('Задача по дзвінку ('+who+', '+at+'):','Передзвонити: '+who);if(!t)return;var fd=new FormData();fd.append('title',t);fd.append('description','Дзвінок '+at);if(pid)fd.append('patient_id',pid);fd.append('back',back);
   fetch('/tasks',{method:'POST',body:fd,credentials:'same-origin'}).then(function(){alert('Задачу створено')})}
 </script>
