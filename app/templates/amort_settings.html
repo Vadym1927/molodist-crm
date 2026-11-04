@@ -3,14 +3,16 @@
 {% block body %}
 {% set qp = request.query_params %}{% set r0 = cur %}
 <style>
-.as-g{display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:16px;align-items:start}
+.as-g{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,420px);gap:16px;align-items:start}
 .as-t{width:100%;border-collapse:collapse;font-size:13.5px}.as-t th{text-align:left;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496;padding:7px 8px;border-bottom:1px solid #ECE7E1}
-.as-t td{padding:8px;border-bottom:1px solid #F1EDE8;vertical-align:middle}.as-t tr.off td{opacity:.5}.as-t .r{text-align:right;white-space:nowrap}
+.as-t td{padding:8px;border-bottom:1px solid #F1EDE8;vertical-align:middle}.as-t tr.off td{opacity:.5}.as-t tbody tr:hover td{background:#FBFAF8}.as-t tr.sel td{background:#F3F0FA}.as-t .r{text-align:right;white-space:nowrap}
 .as-k{display:inline-block;border-radius:6px;padding:2px 7px;font:700 10px var(--sans);letter-spacing:.05em;text-transform:uppercase;background:#ECE7F6;color:#3B3050}.as-k.c{background:#FFF1D6;color:#9A6A00}
-.as-f{display:grid;gap:10px}.as-f label{display:grid;gap:4px;font:700 12px var(--sans);color:#8a8496}.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.as-f{display:grid;gap:10px}.as-f label{display:grid;gap:4px;font:700 12px var(--sans);color:#8a8496}.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}.as-f>*,.two>*{min-width:0}
+.as-f input,.as-f select,.as-f textarea{width:100%;min-width:0;box-sizing:border-box}.as-f .sw input{width:auto}
+.as-t td.pn{max-width:220px;font-size:12px;color:#5d5869}
 .sw{display:flex!important;gap:8px;align-items:center;color:var(--ink)!important;font-size:14px!important}.sw input{width:auto}
 .as-set{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-@media(max-width:1000px){.as-g{grid-template-columns:1fr}}
+@media(max-width:1300px){.as-g{grid-template-columns:minmax(0,1fr)}}
 </style>
 <div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a> · <a href="/amort" style="text-decoration:none">Амортизація</a></div>
 <h1>Амортизація обладнання</h1>
@@ -27,8 +29,8 @@
 <div class="as-g"><div>
 <div class="card"><div class="row between"><h2 style="margin:0">Позиції · {{ assets|length }}</h2><a class="btn" href="?new=1#form">＋ Додати</a></div>
   <div style="overflow:auto;margin-top:8px"><table class="as-t"><thead><tr><th>Назва</th><th>Позиція техкарт</th><th class="r">Вартість</th><th class="r">Термін / ресурс</th><th class="r">Ставка</th><th>Рахунок</th><th></th></tr></thead><tbody>
-  {% for a in assets %}<tr class="{{ '' if a.active else 'off' }}"><td><a href="/amort/{{ a.id }}" style="font-weight:600;text-decoration:none;color:var(--ink)">{{ a.name }}</a> <span class="as-k {{ 'c' if a.kind == 'consumable' }}">{{ 'розхідник' if a.kind == 'consumable' else 'апарат' }}</span>{% if a.parent_id %}<div class="small muted">→ {{ (assets|selectattr('id','equalto',a.parent_id)|first).name }}</div>{% endif %}</td>
-    <td class="small">{{ pnames.get(a.product_id) or '<span class="pill warn">не вказано</span>'|safe }}</td><td class="r">{{ a.cost|uah }}</td>
+  {% for a in assets %}<tr class="{{ '' if a.active else 'off' }}{{ ' sel' if cur and cur.id == a.id }}" style="cursor:pointer" title="Змінити" onclick="if(!event.target.closest('a,button'))location='?edit={{ a.id }}#form'"><td><a href="/amort/{{ a.id }}" style="font-weight:600;text-decoration:none;color:var(--ink)">{{ a.name }}</a> <span class="as-k {{ 'c' if a.kind == 'consumable' }}">{{ 'розхідник' if a.kind == 'consumable' else 'апарат' }}</span>{% if a.parent_id %}<div class="small muted">→ {{ (assets|selectattr('id','equalto',a.parent_id)|first).name }}</div>{% endif %}</td>
+    <td class="pn">{{ pnames.get(a.product_id) or '<span class="pill warn">не вказано</span>'|safe }}</td><td class="r">{{ a.cost|uah }}</td>
     <td class="r">{% if a.kind == 'device' %}{{ '%g'|format(a.life_years or 0) }} р.{% else %}{{ '%g'|format(a.resource or 0) }} {{ UNITS.get(a.unit, '') }}{% endif %}</td>
     <td class="r">{{ '%g'|format(a.rate) }} ₴/{{ a.unit }}</td><td class="small">{{ a.cashbox or '—' }}</td><td><a class="btn ghost" style="padding:3px 10px" href="?edit={{ a.id }}#form">змінити</a></td></tr>
   {% else %}<tr><td colspan="7" class="muted">Ще немає — додайте або перенесіть з таблиці.</td></tr>{% endfor %}</tbody></table></div></div>
@@ -39,17 +41,17 @@
     <label>Одиниця<select name="unit">{% for u in ['процедура','імпульс','хвилина'] %}<option {{ 'selected' if r0 and r0.unit == u }}>{{ u }}</option>{% endfor %}</select></label></div>
   <label>Позиція у техкартах (товар складу)<select name="product_id"><option value="">— не вказано —</option>{% for p in products %}<option value="{{ p.id }}" {{ 'selected' if r0 and r0.product_id == p.id }}>{{ p.name }}{{ ' · вимкнено' if p.active is false }}</option>{% endfor %}</select>
     <span class="small muted" style="font-weight:400">Списання цієї позиції у візитах = нарахування. Для нового апарата спершу створіть товар «Амортизація обладнання (виробнича) …» у «Продукти».</span></label>
-  <div class="two"><label>Вартість, ₴<input name="cost" value="{{ '%g'|format(r0.cost) if r0 else '' }}" inputmode="decimal" required></label>
-    <label>Ставка, ₴ за одиницю<input name="rate" value="{{ '%g'|format(r0.rate) if r0 else '' }}" inputmode="decimal" placeholder="розхідник: вартість / ресурс"></label></div>
-  <div class="two"><label class="k-dev">Термін служби, років<input name="life_years" value="{{ '%g'|format(r0.life_years) if r0 and r0.life_years else '' }}" inputmode="decimal"></label>
-    <label class="k-con">Ресурс (імпульсів / хвилин)<input name="resource" value="{{ '%g'|format(r0.resource) if r0 and r0.resource else '' }}" inputmode="decimal"></label></div>
-  <div class="two"><label>Середня к-сть на місяць<input name="avg_month" value="{{ '%g'|format(r0.avg_month) if r0 and r0.avg_month else '' }}" inputmode="decimal"></label>
+  <div class="two"><label>Вартість, ₴<input name="cost" value="{{ '%.12g'|format(r0.cost) if r0 else '' }}" inputmode="decimal" required></label>
+    <label>Ставка, ₴ за одиницю<input name="rate" value="{{ '%.12g'|format(r0.rate) if r0 else '' }}" inputmode="decimal" placeholder="розхідник: вартість / ресурс"></label></div>
+  <div class="two"><label class="k-dev">Термін служби, років<input name="life_years" value="{{ '%.12g'|format(r0.life_years) if r0 and r0.life_years else '' }}" inputmode="decimal"></label>
+    <label class="k-con">Ресурс (імпульсів / хвилин)<input name="resource" value="{{ '%.12g'|format(r0.resource) if r0 and r0.resource else '' }}" inputmode="decimal"></label></div>
+  <div class="two"><label>Середня к-сть на місяць<input name="avg_month" value="{{ '%.12g'|format(r0.avg_month) if r0 and r0.avg_month else '' }}" inputmode="decimal"></label>
     <label>В експлуатації з<input type="date" name="commissioned_at" value="{{ r0.commissioned_at if r0 and r0.commissioned_at else '' }}"></label></div>
   <label class="k-con">Апарат, до якого належить<select name="parent_id"><option value="">—</option>{% for d in devices %}<option value="{{ d.id }}" {{ 'selected' if r0 and r0.parent_id == d.id }}>{{ d.name }}</option>{% endfor %}</select></label>
   <label>Рахунок фонду (куди погашати)<select name="cashbox"><option value="">—</option>{% for b in boxes %}<option {{ 'selected' if r0 and r0.cashbox == b }}>{{ b }}</option>{% endfor %}</select></label>
   <label>Банка monobank (необовʼязково)<input name="jar" value="{{ r0.jar if r0 and r0.jar else '' }}" placeholder="https://send.monobank.ua/jar/…"></label>
-  <div class="two"><label>Нараховано до обліку, ₴<input name="accrued_before" value="{{ '%g'|format(r0.accrued_before) if r0 and r0.accrued_before else '' }}" inputmode="decimal"></label>
-    <label class="k-con">Ресурсу використано до обліку<input name="used_before" value="{{ '%g'|format(r0.used_before) if r0 and r0.used_before else '' }}" inputmode="decimal"></label></div>
+  <div class="two"><label>Нараховано до обліку, ₴<input name="accrued_before" value="{{ '%.12g'|format(r0.accrued_before) if r0 and r0.accrued_before else '' }}" inputmode="decimal"></label>
+    <label class="k-con">Ресурсу використано до обліку<input name="used_before" value="{{ '%.12g'|format(r0.used_before) if r0 and r0.used_before else '' }}" inputmode="decimal"></label></div>
   <label class="sw"><input type="checkbox" name="active" value="1" {{ 'checked' if not r0 or r0.active }}> активна</label>
   <label>Примітка<input name="note" value="{{ r0.note or '' if r0 }}"></label>
   <div class="row" style="gap:8px"><button class="btn">Зберегти</button>{% if r0 %}<a class="btn ghost" href="/settings/amort">Скасувати</a>{% endif %}</div>
