@@ -125,21 +125,21 @@
   <div class="pc-av">{% if p.avatar_file_id %}<img src="/files/{{ p.avatar_file_id }}" alt="">{% else %}{{ (_w[0][:1] if _w else '') ~ (_w[1][:1] if _w|length > 1 else '') }}{% endif %}</div>
   <div style="min-width:0;padding-top:6px">
     <div class="pc-l1"><h1 class="pc-nm">{{ _w[:2]|join(' ') }}{% if _w|length > 2 %} <span class="pc-pat">{{ _w[2:]|join(' ') }}</span>{% endif %}</h1>
-      {% if p.cb_status %}<span class="pill done">{{ p.cb_status }}</span>{% endif %}</div>
+      {% if p.cb_status and (p.cb_status|lower) != (ptag or '')|lower %}<span class="pill done" title="Статус у CleverBox (у CRM статус рахується за кількістю візитів — Налаштування → Пацієнти → Статуси пацієнтів)">{{ p.cb_status }}</span>{% endif %}</div>
     <div class="pc-l2">
-      {% if ptag %}<span class="pc-tag" style="background:{{ ptag_color }}22;color:{{ ptag_color }};border:1px solid {{ ptag_color }}55">{{ ptag }}</span>{% endif %}
+      {% if ptag %}<a class="pc-tag" href="/clients?tag={{ ptag|urlencode }}" title="Статус за кількістю візитів — усі пацієнти зі статусом «{{ ptag }}». Пороги: Налаштування → Пацієнти → Статуси пацієнтів" style="text-decoration:none;background:{{ ptag_color }}22;color:{{ ptag_color }};border:1px solid {{ ptag_color }}55">{{ ptag }}</a>{% if can(user,'users') %}<a class="small" style="color:#8a8496;text-decoration:none;margin:0 2px" href="/settings/patient-tags" title="Налаштувати статуси">⚙</a>{% endif %}{% endif %}
       {% for mk, ml in [('vip','VIP'),('bad','BAD')] %}{% if can(user,'patient_edit') %}<form method="post" action="/patients/{{ p.id }}/mark" style="display:inline"><input type="hidden" name="mark" value="{{ mk }}">
         <button class="pc-mk {{ mk }}{{ ' on' if p.cb_mark == mk }}" title="{{ ('Зняти мітку ' if p.cb_mark == mk else 'Позначити ') ~ ml }}">{{ '★ ' if mk == 'vip' else '⚠ ' }}{{ ml }}</button></form>
       {% elif p.cb_mark == mk %}<span class="pc-mk {{ mk }} on">{{ ml }}</span>{% endif %}{% endfor %}</div>
     {% if p.client_groups or p.directions or p.no_repeat_call or p.marketing_opt_out or can(user,'patient_edit') %}<div class="pc-tg">
       {% set _gcol = {} %}{% for g in pgroups %}{% set _ = _gcol.update({g.name: g.color}) %}{% endfor %}{% set _have = [] %}
-      {% for group in p.client_groups or [] %}{% set _gn = (group.get('name') or group.get('title')) if group is mapping else group %}{% set _ = _have.append((_gn or '')|lower) %}{% set _c = _gcol.get(_gn, '#5C4B82') %}<span class="pill pc-gr" style="background:{{ _c }}1F;color:{{ _c }}">{{ _gn }}{% if can(user,'patient_edit') %}<form method="post" action="/patients/{{ p.id }}/groups" onsubmit="return confirm('Прибрати групу «{{ _gn|replace("'", "’") }}»?')"><input type="hidden" name="action" value="remove"><input type="hidden" name="name" value="{{ _gn }}"><button title="Прибрати групу">×</button></form>{% endif %}</span>{% endfor %}
+      {% for group in p.client_groups or [] %}{% set _gn = (group.get('name') or group.get('title')) if group is mapping else group %}{% set _ = _have.append((_gn or '')|lower) %}{% set _c = _gcol.get(_gn, '#5C4B82') %}<span class="pill pc-gr" style="background:{{ _c }}1F;color:{{ _c }}"><a href="/clients?grp={{ _gn|urlencode }}" style="color:inherit;text-decoration:none" title="Усі пацієнти групи «{{ _gn }}»">{{ _gn }}</a>{% if can(user,'patient_edit') %}<form method="post" action="/patients/{{ p.id }}/groups" onsubmit="return confirm('Прибрати групу «{{ _gn|replace("'", "’") }}»?')"><input type="hidden" name="action" value="remove"><input type="hidden" name="name" value="{{ _gn }}"><button title="Прибрати групу">×</button></form>{% endif %}</span>{% endfor %}
       {% if can(user,'patient_edit') %}
       <form method="post" action="/patients/{{ p.id }}/groups" class="pc-gr-f"><input type="hidden" name="action" value="add">
         <select name="name" class="pc-gr-add" onchange="if(this.value)this.form.submit()"><option value="">＋ група</option>
           {% for g in pgroups if g.name|lower not in _have %}<option value="{{ g.name }}">{{ g.name }}</option>{% endfor %}</select></form>
         {% if can(user,'users') %}<a class="small" style="color:#8a8496" href="/settings/patient-tags#groups" title="Довідник груп">⚙</a>{% endif %}{% endif %}
-      {% for d in p.directions or [] %}<span class="pill" style="background:var(--lavender);color:var(--classic)">{{ d }}</span>{% endfor %}
+      {% for d in p.directions or [] %}<a class="pill" href="/clients?dirs={{ d|urlencode }}" title="Напрямок (з CleverBox) — усі пацієнти з напрямком «{{ d }}»" style="background:var(--lavender);color:var(--classic);text-decoration:none">{{ d }}</a>{% endfor %}
       {% if p.no_repeat_call %}<span class="pill warn">Не дзвонити при повторному візиті</span>{% endif %}
       {% if p.marketing_opt_out %}<span class="pill bad">відписана від розсилок</span>{% endif %}</div>{% endif %}
     <div class="pc-meta">
