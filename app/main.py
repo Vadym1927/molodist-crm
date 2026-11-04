@@ -2216,7 +2216,7 @@ def _disc_ctx(db, rules, qp) -> dict:
     form = qp.get("edit") or qp.get("new")
     ctx = {"dtag": tag, "dst": st, "shown": shown, "tag_counts": counts, "n_untagged": sum(1 for r in base if not r.tag),
            "n_base": len(base), "dtags": ly.tags(db), "form_open": bool(form), "today": today,
-           "n_cb_seed": sum(1 for x in ly.CB_DISCOUNTS if x[0].lower() not in {r.name.strip().lower() for r in rules})}
+           "n_cb_seed": ly.cb_pending(db)}
     if form:
         ctx.update(groups=[g["name"] for g in ptg.groups(db)], statuses=[t["name"] for t in ptg.tags(db)],
                    svc_names=sorted({n for (n,) in db.execute(select(CbService.name).where(CbService.active.is_not(False))) if n}),

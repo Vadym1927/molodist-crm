@@ -199,12 +199,11 @@ def item_ok(r: DiscountRule, it: dict) -> bool:
     if t == "subscription":
         return bool(r.on_subs)
     if r.services or r.products:                       # точний перелік послуг / товарів — головний
-        nm = (it.get("name") or "").strip().lower()
         pool = r.services if t == "service" else r.products if t == "product" else None
-        return bool(pool) and nm in {str(x).strip().lower() for x in pool}
+        return bool(pool) and _key(it.get("name")) in {_key(x) for x in pool}
     if r.applies_to == "services" and t != "service" or r.applies_to == "products" and t != "product":
         return False
-    if r.categories and (it.get("category") or "") not in r.categories:
+    if r.categories and _key(it.get("category")) not in {_key(c) for c in r.categories}:
         return False
     return t in ("service", "product")
 
@@ -281,48 +280,57 @@ def max_bonus_pay(db: Session, total: float, patient_id: int) -> float:
     return round(min(balance(db, patient_id), total * float(s.get("max_pay_pct") or 0) / 100), 2)
 
 
-# ---------------- перенесення активних знижок CleverBox (з переліку на 04.11.2026) ----------------
-# (назва, розмір, %|₴, з, по, розділ, обмеження на пацієнта, на що)
-CB_DISCOUNTS = [
-    ("-10% БАРБ (діє лише 1 РАЗ)", 10, "percent", "2026-01-01", "2026-12-31", "Постійні акції", 1, "all"),
-    ("-10% ДР Пацієнти", 10, "percent", "2026-01-01", "2026-12-31", "Постійні акції", None, "all"),
-    ("-15% ЗСУ", 15, "percent", "2026-01-01", "2026-12-31", "Постійні акції", None, "all"),
-    ("-5% без пакування", 5, "percent", "2026-01-01", "2026-12-31", "Постійні акції", None, "products"),
-    ("-5% Фото відгук за QR", 5, "percent", "2026-01-01", "2026-12-31", "Постійні акції", None, "all"),
-    ("5% sorry", 5, "percent", "2026-01-01", "2026-12-31", "Постійні акції", None, "all"),
-    ("300 STRATOSPHERE 1 ВІЗИТ", 300, "amount", "2026-01-01", "2026-11-30", "STRATO", None, "services"),
-    ("-15 % Лазер Епіляція", 15, "percent", "2025-03-26", "2026-12-28", "ЛЕ", None, "services"),
-    ("-30% Лазер ТІЛЬКИ ДЛЯ ПОСТІЙНИХ від 2 зон (крім комплексів)", 30, "percent", "2025-01-01", "2026-12-31", "ЛЕ", None, "services"),
-    ("-50% Перший Візит Лазер", 50, "percent", "2025-01-01", "2026-12-31", "ЛЕ", 1, "services"),
-    ("-15% Косметика (Співробітник)", 15, "percent", "2026-01-01", "2026-12-31", "Співробітник", None, "products"),
-    ("-20% Додаткові Послуги (Співробітники)", 20, "percent", "2026-01-23", "2026-12-31", "Співробітник", None, "services"),
-    ("-30% Біоревіталізація/мезотерапія (Співробітник)", 30, "percent", "2026-01-23", "2026-12-31", "Співробітник", None, "services"),
-    ("-40% Біоревіталізація/мезотерапія (Співробітники)", 40, "percent", "2026-01-23", "2026-12-31", "Співробітник", None, "services"),
-    ("-40% Ботулінотерапія (Співробітники)", 40, "percent", "2026-01-23", "2026-12-31", "Співробітник", None, "services"),
-    ("-40% Видалення (Співробітники)", 40, "percent", "2026-01-23", "2026-12-31", "Співробітник", None, "services"),
-    ("-40% Доглядові процедури (Співробітники)", 40, "percent", "2026-01-23", "2026-12-31", "Співробітник", None, "services"),
-    ("-40% Пілінги (Співробітники)", 40, "percent", "2026-01-23", "2026-12-31", "Співробітник", None, "services"),
-    ("-40% Трихологія (Співробітники)", 40, "percent", "2026-01-23", "2026-12-31", "Співробітник", None, "services"),
-    ("-50% MOLODIST RESET (Співробітники)", 50, "percent", "2026-01-23", "2026-12-31", "Співробітник", None, "services"),
-    ("-50% Очищення шкіри (Співробітники)", 50, "percent", "2026-01-23", "2026-12-31", "Співробітник", None, "services"),
-    ("-60% Лазерна Епіляція (Співробітники)", 60, "percent", "2025-07-01", "2027-06-30", "Співробітник", None, "services"),
-    ("-60% Неінвазивний рф (Співробітники)", 60, "percent", "2026-01-23", "2026-12-31", "Співробітник", None, "services"),
-]
+# ---------------- перенесення активних знижок CleverBox (знімок налаштувань 04.11.2026, app/data/cb_discounts.json) ----------------
+TAG_MAP = {"ПОСТІЙНІ АКЦІЇ": "Постійні акції", "СЕЗОННІ АКЦІЇ": "Сезонні акції", "СПІВРОБІТНИК": "Співробітник", "ЛЕ": "ЛЕ", "STRATO": "STRATO"}
+
+
+def _cb_list() -> list[dict]:
+    from pathlib import Path
+    return json.loads((Path(__file__).resolve().parent.parent / "data" / "cb_discounts.json").read_text("utf-8"))
+
+
+CB_DISCOUNTS = _cb_list()
+
+
+def _key(s: str) -> str:
+    return "".join(str(s or "").split()).lower()
+
+
+def cb_pending(db: Session) -> int:
+    """Скільки знижок CleverBox ще не перенесено (або перенесено без налаштувань — старий імпорт)."""
+    notes = {r.note or "" for r in db.scalars(select(DiscountRule))}
+    return sum(1 for x in CB_DISCOUNTS if f"CleverBox #{x['cb']}" not in notes)
 
 
 def import_cb_discounts(db: Session) -> tuple[int, int]:
-    """Створює відсутні (за назвою) активні знижки CleverBox як ручні; наявні лише дописує розділ. → (створено, оновлено)."""
-    have = {r.name.strip().lower(): r for r in db.scalars(select(DiscountRule))}
+    """Активні знижки CleverBox → CRM (ручні), з розділом, групами, категоріями й переліком послуг.
+    Наявну знижку (за назвою без пробілів) оновлює. → (створено, оновлено)."""
+    have = {_key(r.name): r for r in db.scalars(select(DiscountRule))}
     new = upd = 0
-    for name, val, kind, d1, d2, tag, lim, to in CB_DISCOUNTS:
-        r = have.get(name.lower())
-        if r:
-            if not r.tag:
-                r.tag, upd = tag, upd + 1
-            continue
-        db.add(DiscountRule(name=name, value=val, kind=kind, date_from=date.fromisoformat(d1), date_to=date.fromisoformat(d2),
-                            tag=tag, per_client_limit=lim, applies_to=to, auto=False, combine=False, active=True,
-                            note="Перенесено з CleverBox — уточніть послуги/товари"))
-        new += 1
+    for x in CB_DISCOUNTS:
+        r = have.get(_key(x["name"]))
+        if r is None:
+            r, new = DiscountRule(auto=False, combine=False, active=True), new + 1
+            db.add(r)
+        else:
+            upd += 1
+        r.name = " ".join(x["name"].split())[:150]
+        r.value, r.kind = float(x["val"]), x["kind"]
+        r.date_from, r.date_to = date.fromisoformat(x["from"]), date.fromisoformat(x["to"])
+        r.tag = TAG_MAP.get(x.get("tag") or "", x.get("tag")) or None
+        r.client_groups = x.get("groups") or None
+        r.services, r.products = x.get("services") or None, None
+        r.categories = x.get("scats") or None
+        if x.get("services"):
+            r.applies_to = "services"
+        elif x.get("items_on") and not x.get("svc_on") or x.get("to_products"):
+            r.applies_to = "products"           # «Вітрина» в CleverBox = уся косметика на продаж
+        elif x.get("svc_on") and not x.get("items_on"):
+            r.applies_to = "services"
+        else:
+            r.applies_to = "all"
+        r.per_client_limit = x.get("limit") or r.per_client_limit
+        r.note = f"CleverBox #{x['cb']}"
+        r.active = True
     db.commit()
     return new, upd

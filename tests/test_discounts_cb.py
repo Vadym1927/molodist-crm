@@ -16,10 +16,16 @@ def test_cb_discounts_import_form_and_rules():
         assert r.status_code == 303
         c.post("/settings/loyalty/import-discounts")                       # повторно — без дублів
         with SessionLocal() as db:
-            rs = db.scalars(__import__("sqlalchemy").select(DiscountRule).where(DiscountRule.tag.is_not(None))).all()
+            rs = db.scalars(__import__("sqlalchemy").select(DiscountRule).where(DiscountRule.note.like("CleverBox #%"))).all()
             names = [x.name for x in rs]
             assert len(names) == len(set(names)) >= len(ly.CB_DISCOUNTS)
-            assert all(not x.auto for x in rs if x.name in {d[0] for d in ly.CB_DISCOUNTS})
+            assert all(not x.auto for x in rs)
+            assert ly.cb_pending(db) == 0
+            bt = next(x for x in rs if x.name.startswith("-40% Ботулінотерапія"))
+            assert bt.tag == "Співробітник" and bt.client_groups == ["Співробітник"] and len(bt.services) > 50
+            le = next(x for x in rs if x.name == "-15 % Лазер Епіляція")
+            assert le.applies_to == "services" and le.categories and le.client_groups == ["-30% ЛЕ"]
+            assert ly.item_ok(le, {"type": "service", "category": "Лазерна епіляція (-50% на перший візит від повної вартості)", "price": 1})
         page = c.get("/settings/loyalty?tag=" + "Співробітник").text
         assert "-40% Ботулінотерапія (Співробітники)" in page and "-15% ЗСУ" not in page
         assert "Перенести з CleverBox" not in page
