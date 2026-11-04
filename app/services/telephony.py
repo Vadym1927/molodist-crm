@@ -474,6 +474,14 @@ def kpi(db: Session, d_from, d_to) -> list[dict]:
     return out
 
 
+def requeue(db: Session, c: Call) -> None:
+    """Повернути дзвінок у чергу агента (кнопка «Переоцінити AI», коли розбирає агент на VPS)."""
+    c.ai_score = c.ai_comment = None
+    c.ai_at = None
+    c.ai_meta = {k: v for k, v in (c.ai_meta or {}).items() if k not in ("fails",)}
+    db.commit()
+
+
 def agent_result(db: Session, c: Call, data: dict) -> Call:
     """Результат AI-розбору від зовнішнього агента: текст діалогу, зміст, оцінка 0–100, коментар, чи записано."""
     if data.get("transcript"):
@@ -493,8 +501,11 @@ def agent_result(db: Session, c: Call, data: dict) -> Call:
         if k in data:
             meta[k] = data[k] if k in ("booked", "criteria") else str(data[k])[:1000]
     meta["engine"] = "agent"
+    failed = not data.get("transcript") and data.get("score") is None and bool(c.record_url) and not data.get("final")
+    if failed:                                     # агент не зміг дістати запис — до 3 спроб, далі зупиняємось
+        meta["fails"] = int(meta.get("fails") or 0) + 1
     c.ai_meta = meta
-    c.ai_at = datetime.utcnow()                    # оброблено агентом (навіть без оцінки) — більше не в черзі
+    c.ai_at = None if failed and meta["fails"] < 3 else datetime.utcnow()   # None — дзвінок повернеться в чергу агента
     db.commit()
     alert_low(db, c)
     return c

@@ -139,3 +139,26 @@ def test_popup_fields_setting():
         c.post(f"/api/public/telephony/ringostat/{hook}?event=ringing", json={"call_number": "380671239999", "ID": "pf1", "type": "in"})
         lv = c.get("/telephony/live").json()["calls"][0]
         assert lv["tag"] and lv["note"] is None and lv["last"] is None
+
+
+def test_agent_failed_record_requeues():
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from app.models import SessionLocal, Call, ApiKey
+    from app.security import new_api_key
+    from app.services import telephony as tel
+    with SessionLocal() as db:
+        tel.save_extra(db, [], True, "критерії", 70, False, "agent")
+        c = Call(provider="ringostat", phone="380501119999", direction="in", status="answered", duration=50, record_url="https://r/2.wav")
+        db.add(c); db.commit(); cid = c.id
+        raw, prefix, hsh = new_api_key()
+        db.add(ApiKey(name="openclaw-rq", prefix=prefix, key_hash=hsh, scopes=["calls"])); db.commit()
+    with TestClient(app) as cl:
+        h = {"X-API-Key": raw}
+        for i in range(3):
+            assert cid in [x["id"] for x in cl.get("/api/v1/calls/pending-ai", headers=h).json()["calls"]]
+            cl.post(f"/api/v1/calls/{cid}/ai", headers=h, json={"comment": "Запис недоступний"})
+        assert cid not in [x["id"] for x in cl.get("/api/v1/calls/pending-ai", headers=h).json()["calls"]]   # після 3 спроб — стоп
+        with SessionLocal() as db:
+            tel.requeue(db, db.get(Call, cid))
+        assert cid in [x["id"] for x in cl.get("/api/v1/calls/pending-ai", headers=h).json()["calls"]]

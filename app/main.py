@@ -6004,6 +6004,10 @@ async def telephony_call_evaluate(cid: int, user: User = Depends(require("appeal
     from .services import telephony as tel
     from .models import Call
     c_ = db.get(Call, cid) or (_ for _ in ()).throw(HTTPException(404))
+    if tel.public(db).get("ai_engine") == "agent":           # розбирає агент на VPS — повертаємо дзвінок у його чергу
+        tel.requeue(db, c_)
+        audit(db, "call.ai_requeue", "call", c_.id, user=user)
+        return JSONResponse({"ok": True, "score": None, "comment": "Передано агенту на повторний розбір"})
     try:
         await asyncio.to_thread(tel.evaluate, db, c_)
     except (ValueError, RuntimeError) as e:
