@@ -6124,13 +6124,15 @@ def settings_telephony(request: Request, user: User = Depends(require("users")),
     from .services import telephony as tel, appeals as ap_
     from .models import Call
     t_ = tel.public(db)
-    calls = db.scalars(select(Call).order_by(Call.at.desc()).limit(30)).all()
+    calls = db.scalars(select(Call).where(Call.at >= datetime.now() - timedelta(days=31)).order_by(Call.at.desc()).limit(500)).all()
+    _pids = {c_.patient_id for c_ in calls if c_.patient_id}
+    pnames = {p_.id: p_.full_name for p_ in db.scalars(select(Patient).where(Patient.id.in_(_pids or [0])))}
     base = str(request.base_url).rstrip("/").replace("http://", "https://")
     from .services import invoice_ai as _ia
     return render(request, "telephony.html", nav="settings", t=t_, PROV=tel.PROVIDERS, calls=calls, sources=ap_.dirs(db)["sources"], hook_log=tel.hook_log(db),
                   users_all=db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all(), has_ai_key=bool(_ia.api_key(db)),
                   POPUP_FIELDS=tel.POPUP_FIELDS, found=tel.discovered(db), line_info=lambda n: tel.line_info(t_, n),
-                  hook_url=lambda p: f"{base}/api/public/telephony/{p}/{t_['hook']}", R_BODY=tel.RINGOSTAT_BODY, R_EVENTS=tel.RINGOSTAT_EVENTS, POPUP_EXTRA=tel.POPUP_EXTRA, crit=tel.crit_rows(t_.get("ai_criteria") or ""), crit_tail=tel.crit_tail(t_.get("ai_criteria") or ""))
+                  hook_url=lambda p: f"{base}/api/public/telephony/{p}/{t_['hook']}", R_BODY=tel.RINGOSTAT_BODY, R_EVENTS=tel.RINGOSTAT_EVENTS, POPUP_EXTRA=tel.POPUP_EXTRA, pnames=pnames, crit=tel.crit_rows(t_.get("ai_criteria") or ""), crit_tail=tel.crit_tail(t_.get("ai_criteria") or ""))
 
 
 @app.post("/settings/telephony")

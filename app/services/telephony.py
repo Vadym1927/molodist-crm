@@ -265,7 +265,7 @@ def test(db: Session, http: httpx.Client | None = None) -> tuple[bool, str]:
 
 
 def log_hook(db: Session, provider: str, event: str, data: dict) -> None:
-    """Останні 30 вебхуків (для перевірки налаштування подій у кабінеті провайдера)."""
+    """Останні 100 вебхуків (для перевірки налаштування подій у кабінеті провайдера)."""
     st = db.get(SyncState, "telephony_hook_log") or SyncState(key="telephony_hook_log")
     try:
         xs = json.loads(st.value) if st.value else []
@@ -273,7 +273,7 @@ def log_hook(db: Session, provider: str, event: str, data: dict) -> None:
         xs = []
     xs.insert(0, {"at": datetime.now().strftime("%d.%m %H:%M:%S"), "provider": provider, "event": event or "—",
                   "data": {str(k)[:40]: str(v)[:200] for k, v in list(data.items())[:40]}})
-    st.value, st.updated_at = json.dumps(xs[:30], ensure_ascii=False), datetime.utcnow()
+    st.value, st.updated_at = json.dumps(xs[:100], ensure_ascii=False), datetime.utcnow()
     db.merge(st)
     db.commit()
 
