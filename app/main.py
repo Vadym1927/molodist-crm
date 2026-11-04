@@ -4574,7 +4574,9 @@ async def stock_reconcile_upload(request: Request, user: User = Depends(require(
     db.merge(stt)
     db.commit()
     audit(db, "stock.reconcile_upload", user=user, n=len(rows))
-    return {"ok": True, "n": len(rows)}
+    known = {x for (x,) in db.execute(select(Product.cb_product_id).where(Product.cb_product_id.is_not(None)))}
+    return {"ok": True, "n": len(rows), "unmatched": sorted({int(r[0]) for r in rows if str(r[0]).isdigit() and int(r[0]) not in known
+                                                             and not (len(r) > 4 and r[4])})}
 
 
 def _reconcile(db: Session) -> dict | None:
