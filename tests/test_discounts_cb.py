@@ -54,3 +54,19 @@ def test_cb_discounts_import_form_and_rules():
         assert ly.discount_for(db, items, p, mon, [rid], at=datetime(2026, 11, 2, 10, 0))["total"] == 0   # ліміт 1 на пацієнта
         assert rr not in ly.available(db, p, mon)
         db.delete(rr); db.commit()
+
+
+def test_per_line_discount_and_applicable():
+    with SessionLocal() as db:
+        a = DiscountRule(name="Тест -10% послуги", kind="percent", value=10, applies_to="services", active=True, auto=False, tag="Постійні акції")
+        b = DiscountRule(name="Тест -50% товари", kind="percent", value=50, applies_to="products", active=True, auto=False)
+        db.add_all([a, b]); db.commit()
+        items = [{"type": "service", "name": "S", "price": 1000, "qty": 1}, {"type": "product", "name": "P", "price": 400, "qty": 1}]
+        d = ly.discount_for(db, items, None, rule_ids=[])
+        assert d["applicable"][a.id] == [0] and d["applicable"][b.id] == [1]
+        items[0]["rule_id"], items[1]["rule_id"] = a.id, b.id
+        d = ly.discount_for(db, items, None, rule_ids=[])
+        assert d["lines"] == [100, 200] and set(d["rules"]) == {a.name, b.name}
+        items[1]["rule_id"] = a.id                                   # не діє на товар — ігнорується
+        assert ly.discount_for(db, items, None, rule_ids=[])["lines"] == [100, 0]
+        db.delete(a); db.delete(b); db.commit()

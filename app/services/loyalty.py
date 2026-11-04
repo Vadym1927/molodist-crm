@@ -216,6 +216,15 @@ def available(db: Session, patient: Patient | None = None, day: date | None = No
     return [r for r in rs if rule_applies(r, day, patient, db, at)]
 
 
+def listable(db: Session, day: date | None = None) -> list[DiscountRule]:
+    """Ручні знижки для списку в касі: діють за датою й загальним лімітом. Чи підходить пацієнту / позиції — скаже quote (applicable)."""
+    day = day or date.today()
+    rs = db.scalars(select(DiscountRule).where(DiscountRule.active.is_(True), DiscountRule.auto.is_(False))
+                    .order_by(DiscountRule.tag, DiscountRule.name)).all()
+    return [r for r in rs if not (r.date_from and day < r.date_from or r.date_to and day > r.date_to)
+            and not (r.uses_limit and uses(db, r) >= r.uses_limit)]
+
+
 def discount_for(db: Session, items: list[dict], patient: Patient | None = None, day: date | None = None,
                  rule_ids: list[int] | None = None, at: datetime | None = None) -> dict:
     """items: [{type: service|product|certificate|subscription, name, category, price, qty}] → знижка по рядках і підсумок.
@@ -229,8 +238,9 @@ def discount_for(db: Session, items: list[dict], patient: Patient | None = None,
         return float(it["price"]) * float(it.get("qty") or 1)
 
     options = []
+    line_rule = {i: int(it["rule_id"]) for i, it in enumerate(items) if str(it.get("rule_id") or "").isdigit()}
     for r in rules:
-        elig = [i for i, it in enumerate(items) if item_ok(r, it)]
+        elig = [i for i, it in enumerate(items) if item_ok(r, it) and i not in line_rule]
         if r.kind == "amount":
             b = sum(base(items[i]) for i in elig) or 1
             amt = min(r.value, b)
@@ -248,14 +258,31 @@ def discount_for(db: Session, items: list[dict], patient: Patient | None = None,
                                          applies_to="all", combine=bool(pc["combine"])),
                             [float(it["price"]) * float(it.get("qty") or 1) *
                              (pr if it["type"] == "product" else sv if it["type"] == "service" else 0) / 100 for it in items]))
+    # ручні знижки, які можна обрати: на які рядки діють (для списку в касі)
+    avail = [r for r in available(db, patient, day, at) if total + 0.005 >= (r.min_sum or 0)]
+    applicable = {r.id: [i for i, it in enumerate(items) if item_ok(r, it) and base(it) > 0] for r in avail}
+    applicable = {k: v for k, v in applicable.items() if v}
+    # знижка на конкретну позицію (обрана в рядку чека) — лише на цей рядок, замість знижок чека
+    by_id = {r.id: r for r in avail}
+    line_opts = []
+    for i, rid in line_rule.items():
+        r = by_id.get(rid)
+        if not r or i not in applicable.get(rid, []):
+            continue
+        b = base(items[i])
+        line_opts.append((r, i, min(r.value, b) if r.kind == "amount" else b * r.value / 100))
     combo = [o for o in options if o[0].combine]
     single = max([o for o in options if not o[0].combine], key=lambda o: sum(o[1]), default=None)
     chosen = ([single] if single else []) + combo
     per = [0.0] * len(items)
     for _r, p in chosen:
         per = [a + b for a, b in zip(per, p)]
+    for r, i, v in line_opts:
+        per[i] += v
+    names = [r.name for r, _ in chosen] + [r.name for r, _i, _v in line_opts if r.name not in [x.name for x, _ in chosen]]
     per = [round(min(d, float(it["price"]) * float(it.get("qty") or 1)), 2) for d, it in zip(per, items)]
-    return {"lines": per, "total": round(sum(per), 2), "rules": [r.name for r, _ in chosen], "subtotal": round(total, 2)}
+    return {"lines": per, "total": round(sum(per), 2), "rules": list(dict.fromkeys(names)), "subtotal": round(total, 2),
+            "applicable": applicable}
 
 
 def bonus_accrual(db: Session, items: list[dict], paid_by_bonus: float = 0.0) -> float:

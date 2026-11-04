@@ -55,7 +55,7 @@ def quote(db: Session, items: list[dict], patient: Patient | None, rule_ids: lis
           manual_discount: float = 0.0, bonus_pay: float = 0.0) -> dict:
     """items: [{kind, ref_id, name, category, qty, price}] → знижки по рядках, підсумки, бонуси."""
     li = [{"type": it["kind"], "price": float(it["price"]), "qty": float(it.get("qty") or 1), "category": it.get("category") or "",
-           "name": it.get("name") or ""}
+           "name": it.get("name") or "", "rule_id": it.get("rule_id")}
           for it in items]
     d = ly.discount_for(db, li, patient, rule_ids=rule_ids, at=_kyiv_now()) if items else {"lines": [], "total": 0.0, "rules": [], "subtotal": 0.0}
     lines = list(d["lines"])
@@ -73,7 +73,7 @@ def quote(db: Session, items: list[dict], patient: Patient | None, rule_ids: lis
     s = ly.settings(db)
     if patient and s.get("enabled") and total + TOL >= float(s.get("min_check") or 0):
         accr = ly.bonus_accrual(db, nets, bp)
-    return {"lines": lines, "subtotal": sub, "discount": disc, "total": total, "rules": d["rules"] + (["Ручна знижка"] if md > 0 else []),
+    return {"applicable": d.get("applicable", {}), "lines": lines, "subtotal": sub, "discount": disc, "total": total, "rules": d["rules"] + (["Ручна знижка"] if md > 0 else []),
             "bonus_max": max_b, "bonus_pay": bp, "bonus_accrual": accr, "to_pay": round(total - bp, 2),
             "bonus_balance": ly.balance(db, patient.id) if patient else 0.0}
 

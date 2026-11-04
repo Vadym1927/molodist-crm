@@ -147,7 +147,11 @@ dialog.kp-d::backdrop{background:rgba(42,36,48,.35)}
 
 .calc .ch{margin:0 0 14px;font:600 13px var(--head);letter-spacing:.14em;text-transform:uppercase}
 .dz{margin-bottom:14px}.dz-h{font:600 11px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#9a93a6;margin-bottom:8px}
-.dz-c{display:flex;flex-wrap:wrap;gap:8px}
+.dz-c{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.dzm{display:inline-flex;background:#F1EDE7;border-radius:99px;padding:3px;margin-bottom:10px}.dzm button{border:0;background:none;border-radius:99px;padding:6px 14px;font:600 12.5px var(--sans);color:#6B6375;cursor:pointer}
+.dzm button.on{background:#3B3050;color:#fff}.rsel{width:100%;border:1.5px solid #E6E0D8;border-radius:12px;padding:9px 12px;font:600 13.5px var(--sans);background:#fff}
+.rsel option:disabled{color:#bbb}.dzb b{margin-left:4px;opacity:.7}
+.ini.rdw select{min-width:0;max-width:260px}.ini.rdw select.on{border-color:#3B3050;background:#F3F0FA}
 .dzb{border:1.5px solid #E6E0D8;background:#fff;border-radius:99px;padding:7px 14px;font:600 13px var(--sans);color:#2A2430;cursor:pointer;display:inline-flex;gap:8px;align-items:center}
 .dzb span{color:#5C8F3E;font-weight:700}.dzb:hover{border-color:#C9BFE6}.dzb.on{background:#3B3050;border-color:#3B3050;color:#fff}.dzb.on span{color:#C9F0C0}
 .calc .act{display:grid;grid-template-columns:1.3fr 1fr;gap:10px;margin-top:16px}.calc .act .btn{height:50px;justify-content:center;font-size:15px}
@@ -247,7 +251,11 @@ dialog.payd::backdrop{background:rgba(42,36,48,.45)}
 <div class="card calc" style="margin:0">
   <h2 class="ch">Розрахунок</h2>
   <div class="dz"><div class="dz-h">Знижка</div>
-    {% if rules or pd_manual %}<div class="dz-c" id="dzc">{% if pd_manual %}<button type="button" class="dzb" data-id="0" title="Діє, якщо в пацієнта задана персональна знижка">{{ pd_manual }}<span>персональна</span></button>{% endif %}{% for r in rules %}<button type="button" class="dzb" data-id="{{ r.id }}">{{ r.name }}<span>{{ ('−' ~ '%g'|format(r.value) ~ '%') if r.kind=='percent' else ('−' ~ r.value|uah) }}</span></button>{% endfor %}</div>
+    {% if rules or pd_manual %}<div class="dzm" id="dzm"><button type="button" class="on" data-m="check">На весь чек</button><button type="button" data-m="items">На кожну позицію</button></div>
+      <div id="dz-check"><select id="rsel" class="rsel"><option value="">＋ Обрати знижку на чек…</option>{% if pd_manual %}<option value="0">{{ pd_manual }} · персональна</option>{% endif %}
+        {% for tg, grp in rules|groupby('tag', default='Інші') %}<optgroup label="{{ tg or 'Інші' }}">{% for r in grp %}<option value="{{ r.id }}">{{ r.name }} · {{ ('−' ~ '%g'|format(r.value) ~ '%') if r.kind=='percent' else ('−' ~ r.value|uah) }}</option>{% endfor %}</optgroup>{% endfor %}</select>
+        <div class="dz-c" id="dzc"></div></div>
+      <div id="dz-items" class="small muted" hidden>Оберіть знижку в рядку кожної послуги / товару — у списку лише ті, що діють на цю позицію.</div>
       <select id="rule" multiple hidden>{% if pd_manual %}<option value="0">{{ pd_manual }}</option>{% endif %}{% for r in rules %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}</select>
     {% else %}<div class="small muted">Знижок для вибору ще немає — додайте їх у <a href="/settings/loyalty">Налаштування → Знижки й бонусна програма</a>.</div>{% endif %}
     <input type="hidden" id="md" value="0"></div>
@@ -303,6 +311,20 @@ function esc(s){return String(s||'').replace(/[&<>"]/g,function(c){return{'&':'&
 function docSel(v){return '<select class="d"><option value="">Спеціаліст / продавець</option>'+DOCS.map(function(id,i){return '<option value="'+id+'"'+(id==v?' selected':'')+'>'+esc(DN[i])+'</option>'}).join('')+'</select>'}
 function _x(){}
 var KL={service:'Послуга',product:'Товар',other:'Інше',certificate:'Сертифікат'};
+var DZ={mode:'check',rules:{{ rules|map(attribute='id')|list|tojson }},meta:{ {% for r in rules %}"{{ r.id }}":{n:{{ r.name|tojson }},t:{{ (r.tag or 'Інші')|tojson }},v:{{ (('−' ~ '%g'|format(r.value) ~ '%') if r.kind=='percent' else ('−' ~ r.value|uah))|tojson }}}{{ ',' if not loop.last }}{% endfor %} }};
+function dzApp(id){return S.q&&S.q.applicable?(S.q.applicable[id]||null):null}
+function rowSel(it,i){var groups={},order=[];DZ.rules.forEach(function(id){var m=DZ.meta[id],ap=dzApp(id);var ok=!S.q||(ap&&ap.indexOf(i)>=0);if(!ok&&it.rule_id!=id)return;
+    if(!groups[m.t]){groups[m.t]=[];order.push(m.t)}groups[m.t].push('<option value="'+id+'"'+(it.rule_id==id?' selected':'')+'>'+esc(m.n)+' · '+esc(m.v)+'</option>')});
+  return '<select class="rd'+(it.rule_id?' on':'')+'"><option value="">без знижки</option>'+order.map(function(t){return '<optgroup label="'+esc(t)+'">'+groups[t].join('')+'</optgroup>'}).join('')+'</select>'}
+function dzChips(){var c=document.getElementById('dzc');if(!c)return;c.innerHTML='';
+  [].forEach.call(document.querySelectorAll('#rule option'),function(o){if(!o.selected)return;var m=DZ.meta[o.value],b=document.createElement('button');b.type='button';b.className='dzb on';
+    var ap=o.value==='0'||dzApp(o.value);b.innerHTML=esc(m?m.n:o.textContent)+'<span>'+(m?esc(m.v):'персональна')+'</span>'+(ap?'':'<small style="opacity:.75">не діє на ці позиції</small>')+'<b>×</b>';
+    b.onclick=function(){o.selected=false;dzChips();quote(1)};c.appendChild(b)})}
+function dzRefresh(){var rs=document.getElementById('rsel');if(rs)[].forEach.call(rs.querySelectorAll('option[value]'),function(o){if(o.value===''||o.value==='0')return;
+    var sel=document.querySelector('#rule option[value="'+o.value+'"]');o.disabled=!dzApp(o.value)||(sel&&sel.selected)});dzChips();
+  if(DZ.mode==='items')document.querySelectorAll('#rows .cr').forEach(function(d,i){var it=S.items[i],old=d.querySelector('select.rd');if(!it||!old)return;
+    if(document.activeElement===old)return;var w=document.createElement('div');w.innerHTML=rowSel(it,i);var nw=w.firstChild;old.replaceWith(nw);
+    nw.onchange=function(){it.rule_id=this.value?+this.value:null;this.classList.toggle('on',!!it.rule_id);quote(1)}})}
 function render(){var tb=document.getElementById('rows');tb.innerHTML='';document.getElementById('empty').style.display=S.items.length?'none':'flex';
   document.getElementById('ck-n').textContent=S.items.length?S.items.length+' поз.':'';
   S.items.forEach(function(it,i){applyCat(it);var d=document.createElement('div'),lots='';d.className='cr';
@@ -312,7 +334,7 @@ function render(){var tb=document.getElementById('rows');tb.innerHTML='';documen
         lots='<label class="ini exp"><i>Термін дії</i><select class="e'+(it.expiry?'':' empty')+'"><option value="">Оберіть термін</option>'+it.lots.map(function(l){return '<option value="'+l.expiry+'"'+(it.expiry==l.expiry?' selected':'')+'>до '+dd(l.expiry)+' · '+l.qty+' шт</option>'}).join('')+'</select></label>'}}
     d.innerHTML='<div class="l1">'+(it.kind==='product'?'<span class="th">'+(it.photo?'<img src="'+esc(it.photo)+'" alt="" onerror="this.remove()">':'')+'</span>':'')+'<span class="kd '+it.kind+'">'+KL[it.kind]+'</span><div class="nm">'+(it.kind==='other'?'<input class="n" value="'+esc(it.name)+'" placeholder="Назва позиції">':'<b>'+esc(it.name)+'</b>')+
       ((it.sku||it.stock!=null)?'<small>'+(it.sku?'Арт. '+esc(it.sku):'')+(it.kind==='product'&&it.stock!=null?'<span class="stk '+((+it.stock)<(+it.qty||1)?'no':'')+'">'+((+it.stock)>0?'на складі '+it.stock:'немає на складі')+'</span>':'')+'</small>':'')+'</div><div class="sm"><b class="sum"></b><small class="disc"></small></div><button type="button" class="x" title="Прибрати">×</button></div>'+
-      '<div class="l2"><label class="ini"><i>Ініціатор</i>'+docSel(it.doctor_id)+'</label>'+lots+'<div class="qty"><button type="button" class="m">−</button><input class="q" inputmode="decimal" value="'+(it.qty||1)+'"><button type="button" class="pl">+</button></div>'+
+      '<div class="l2"><label class="ini"><i>Ініціатор</i>'+docSel(it.doctor_id)+'</label>'+lots+(DZ.mode==='items'?'<label class="ini rdw"><i>Знижка</i>'+rowSel(it,i)+'</label>':'')+'<div class="qty"><button type="button" class="m">−</button><input class="q" inputmode="decimal" value="'+(it.qty||1)+'"><button type="button" class="pl">+</button></div>'+
       '<label class="pr"><input class="p" inputmode="decimal" value="'+(+it.price).toFixed(2)+'"><span>₴</span></label></div>';
     d.querySelector('.q').oninput=function(){it.qty=+String(this.value).replace(',','.')||0;quote(1)};
     d.querySelector('.m').onclick=function(){it.qty=Math.max(1,(+it.qty||1)-1);d.querySelector('.q').value=it.qty;quote(1)};
@@ -322,12 +344,13 @@ function render(){var tb=document.getElementById('rows');tb.innerHTML='';documen
       if(it.kind==='service'){var was=it.price;applyCat(it);if(it.price!==was){d.querySelector('.p').value=(+it.price).toFixed(2);quote(1)}}};var n=d.querySelector('.n');if(n)n.oninput=function(){it.name=this.value};
     var e=d.querySelector('.e');if(e)e.onchange=function(){it.expiry=this.value||null;this.classList.toggle('empty',!it.expiry);if(it.expiry)this.classList.remove('need')};
     d.querySelector('.d').classList.toggle('empty',!it.doctor_id);
+    var rd=d.querySelector('select.rd');if(rd)rd.onchange=function(){it.rule_id=this.value?+this.value:null;this.classList.toggle('on',!!it.rule_id);quote(1)};
     d.querySelector('.x').onclick=function(){S.items.splice(i,1);quote()};tb.appendChild(d)});sums()}
 function sums(){document.querySelectorAll('#rows .cr').forEach(function(d,i){var it=S.items[i];if(!it)return;var ds=(S.q&&S.q.lines&&S.q.lines[i])||0;
   var sk=d.querySelector('.stk');if(sk)sk.classList.toggle('no',(+it.stock)<(+it.qty||1));
   d.querySelector('.sum').textContent=f2((it.price*(it.qty||1))-ds);d.querySelector('.disc').textContent=ds?('знижка −'+f2(ds)):''})}
 var QT=null;function quote(partial){if(partial)sums();else render();clearTimeout(QT);QT=setTimeout(function(){
-  fetch('/sales/quote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload())}).then(function(r){return r.json()}).then(function(q){S.q=q;sums();setTimeout(payLeft,0);
+  fetch('/sales/quote',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload())}).then(function(r){return r.json()}).then(function(q){S.q=q;sums();setTimeout(payLeft,0);dzRefresh();
     document.getElementById('t-sub').textContent=f2(q.subtotal);document.getElementById('t-disc').textContent=(q.discount?'−':'')+f2(q.discount);
     document.getElementById('t-rules').textContent=q.rules.join(' + ');document.getElementById('t-pay').textContent=f2(q.to_pay);
     var br=document.getElementById('bonus-row');if(!(S.patient_id&&q.bonus_max>0))br.style.display='none';document.getElementById('t-bmax').textContent='(є '+f2(q.bonus_balance)+', можна до '+f2(q.bonus_max)+')';
@@ -432,7 +455,12 @@ function pdCreate(){var n=document.getElementById('pdn-n').value,p=document.getE
 if(S.patient_id)setPatient(S.patient_id);
 
 /* ---- знижки зі списку, сплатити → вікно оплати ---- */
-document.querySelectorAll('#dzc .dzb').forEach(function(b){b.onclick=function(){b.classList.toggle('on');var o=document.querySelector('#rule option[value="'+b.dataset.id+'"]');if(o)o.selected=b.classList.contains('on');quote(1)}});
+(function(){var rs=document.getElementById('rsel');if(!rs)return;
+  rs.onchange=function(){var v=rs.value;rs.value='';if(v==='')return;var o=document.querySelector('#rule option[value="'+v+'"]');if(o)o.selected=true;dzChips();quote(1)};
+  document.querySelectorAll('#dzm button').forEach(function(b){b.onclick=function(){document.querySelectorAll('#dzm button').forEach(function(x){x.classList.toggle('on',x===b)});
+    DZ.mode=b.dataset.m;document.getElementById('dz-check').hidden=DZ.mode!=='check';document.getElementById('dz-items').hidden=DZ.mode!=='items';
+    if(DZ.mode==='items'){[].forEach.call(document.querySelectorAll('#rule option'),function(o){o.selected=false});dzChips()}else{S.items.forEach(function(it){it.rule_id=null})}
+    quote()}})})();
 function needDoc(){var bad=0;S.missExp=0;document.querySelectorAll('#rows .cr').forEach(function(d,i){var it=S.items[i],sel=d.querySelector('.d'),miss=!it.doctor_id;sel.classList.toggle('need',miss);bad+=miss;
   var e=d.querySelector('select.e');if(e){var me=!it.expiry;e.classList.toggle('need',me);bad+=me;S.missExp+=me}});return bad}
 function needMsg(){return S.missExp?'Оберіть термін дії товару'+(document.querySelector('#rows .d.need')?' та ініціатора продажу':'')+' для кожної позиції':'Оберіть спеціаліста / продавця (ініціатора продажу) для кожної позиції'}

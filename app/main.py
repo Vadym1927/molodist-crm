@@ -1727,7 +1727,7 @@ def sale_new(request: Request, appt: str = "", patient: int = 0, user: User = De
                   pl_term={t_["method"]: t_["name"] for t_ in _fis.terminals(_fc)["items"] if t_.get("on") and t_.get("method")},
                   fauto=bool(_fc.get("auto")), fdef=_fc.get("default_rro"),
                   doctors=[d_ for d_ in db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)) if d_.sale_initiator is not False],
-                  rules=__import__("app.services.loyalty", fromlist=["available"]).available(db, pt),
+                  rules=__import__("app.services.loyalty", fromlist=["listable"]).listable(db),
                   pd_manual=(lambda c_: None if c_["auto"] else c_["name"])(__import__("app.services.personal_discounts", fromlist=["cfg"]).cfg(db)),
                   certs=[{"id": c_.id, "code": c_.code or str(c_.id), "balance": c_.balance, "patient_id": c_.patient_id,
                           "name": c_.client_name or ""} for c_ in certs if c_.state() in ("active", "expiring")][:500],
@@ -1761,7 +1761,8 @@ def _sale_payload(f: dict) -> dict:
                           "name": str(it.get("name") or "")[:300], "category": str(it.get("category") or ""),
                           "qty": max(0.001, float(it.get("qty") or 1)), "price": max(0.0, float(it.get("price") or 0)),
                           "doctor_id": int(it["doctor_id"]) if str(it.get("doctor_id") or "").isdigit() else None,
-                          "warehouse": it.get("warehouse") or None, "expiry": _day(str(it.get("expiry") or ""))})
+                          "warehouse": it.get("warehouse") or None, "expiry": _day(str(it.get("expiry") or "")),
+                          "rule_id": int(it["rule_id"]) if str(it.get("rule_id") or "").isdigit() else None})
         except (TypeError, ValueError):
             continue
     return {"patient_id": int(f["patient_id"]) if str(f.get("patient_id") or "").isdigit() else None,
