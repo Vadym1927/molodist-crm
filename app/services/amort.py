@@ -330,12 +330,35 @@ OPERATIONAL_DEFAULT = 110000.0
 
 
 def operational(db: Session) -> float:
-    """Операційна частина спільного рахунку «Амортизаційний + Операційний Фонд» — в амортизації не показується."""
+    """Операційна частина спільного рахунку «Амортизаційний + Операційний Фонд» на дату його стартового залишку."""
     st = db.get(SyncState, OPERATIONAL_KEY)
     try:
         return float(st.value) if st and st.value not in (None, "") else OPERATIONAL_DEFAULT
     except ValueError:
         return OPERATIONAL_DEFAULT
+
+
+def fund_part(db: Session, box: dict) -> dict:
+    """Амортизаційна частина спільного рахунку — окремий облік, на який впливають лише рухи амортизації:
+    стартовий залишок рахунку − операційна частина + погашення (переміщення на рахунок) − витрати з фонду.
+    Закупки, оплати постачальникам та інші операції рахунку йдуть з операційної частини."""
+    from . import cashboxes as cbx
+    name = box.get("name")
+    since = cbx._since(box)
+    q = select(FinOp).where(FinOp.deleted_at.is_(None), FinOp.ref.like("amort:%"))
+    if since:
+        q = q.where(FinOp.day >= since)
+    inc = out = 0.0
+    for f in db.scalars(q):
+        if f.kind == "transfer" and f.cashbox_to == name:
+            inc += f.amount or 0
+        elif f.cashbox == name:
+            out += f.amount or 0
+    start = round(float(box.get("opening") or 0) - operational(db), 2)
+    amort = round(start + inc - out, 2)
+    total = cbx.balance(db, box)
+    return {"amort": amort, "start": start, "in": round(inc, 2), "out": round(out, 2), "total": total,
+            "oper": round(total - amort, 2), "since": since}
 
 
 def set_operational(db: Session, amount: float) -> None:

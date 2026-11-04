@@ -23,7 +23,7 @@
   <span class="small muted">Обидві дії безпечні для повторного запуску: нічого не дублюють.</span></div>
 
 <form class="card as-set" method="post" action="/settings/amort/operational"><b>Операційний фонд</b>
-  <span class="small muted">Сума на спільному рахунку, що належить операційному фонду — віднімається від балансу і в амортизації не показується</span>
+  <span class="small muted">Операційна частина спільного рахунку на дату його стартового залишку. Далі амортизаційна частина змінюється лише від погашень і витрат амортизації, а закупки та інші оплати з рахунку зменшують операційну</span>
   <input name="amount" value="{{ '%.2f'|format(operational) }}" inputmode="decimal" style="width:140px"> <span>₴</span>
   <button class="btn ghost">Зберегти</button></form>
 

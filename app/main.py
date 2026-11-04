@@ -8007,6 +8007,7 @@ def amort_page(request: Request, year: int = 0, user: User = Depends(require("fi
             jars.append({"asset": r["asset"], "jar": j, "crm": cbx.balance(db, box) if box else None,
                          "diff": round(sum(x["t"]["diff"] for x in rows if x["asset"].active and x["asset"].cashbox == r["asset"].cashbox), 2)})
     diff_main = round(sum(x["t"]["diff"] for x in rows if x["asset"].active and x["asset"].cashbox == main_box), 2)
+    fund_part = am.fund_part(db, fund_box) if fund_box else None
     split = {k_: {f_: round(sum(x["t"][f_] if f_ != "live" else x["t"]["live"]["amount"] for x in rows
                                if x["asset"].active and x["asset"].kind == k_), 2) for f_ in ("accrued", "paid", "diff", "live")}
              for k_ in ("device", "consumable")}
@@ -8014,7 +8015,7 @@ def amort_page(request: Request, year: int = 0, user: User = Depends(require("fi
         split[k_]["spent"] = round(sum(t_.amount for t_ in am.txns(db, kind="expense")
                                        if t_.asset_id and next((x["asset"].kind for x in rows if x["asset"].id == t_.asset_id), None) == k_), 2)
     return render(request, "amort.html", nav="finance", rows=rows, fund=fund, year=yr, years=am.years(db), am=am,
-                  boxes=[b["name"] for b in boxes if b.get("active", True)], fund_balance=(cbx.balance(db, fund_box) - am.operational(db)) if fund_box else None,
+                  boxes=[b["name"] for b in boxes if b.get("active", True)], fund_balance=fund_part["amort"] if fund_part else None, fund_part=fund_part,
                   fund_name=fund_box["name"] if fund_box else (main_box or ""), jars=jars, diff_main=diff_main, split=split, expenses=am.txns(db, kind="expense"),
                   txns=am.txns(db, kind="pay")[:30], today=today, prev=am.prev_half(today), assets_all=[r["asset"] for r in rows])
 

@@ -115,3 +115,22 @@ def test_observ_jar():
         tx = am.pay(db, a, date(2026, 11, 16), 500, "Готівка Cейф", None, "тест")
         assert db.get(FinOp, tx.finop_id).cashbox_to == am.OBSERV_BOX
         am.delete_txn(db, tx)
+
+
+def test_fund_part_ignores_purchases():
+    from app.services import cashboxes as cbx
+    with SessionLocal() as db:
+        name = "Фонд-тест"
+        if name not in cbx.names(db):
+            cbx.save(db, None, {"name": name, "type": "bank", "active": True, "opening": 200000, "opening_date": "2026-10-30", "methods": []})
+        box = next(x for x in cbx.items(db) if x["name"] == name)
+        base = am.fund_part(db, box)
+        assert base["amort"] == 200000 - am.operational(db)
+        db.add(FinOp(day=date(2026, 11, 4), kind="expense", category="Закупка товара", amount=18854.64, cashbox=name, ref="banktxn:x"))
+        db.commit()
+        p2 = am.fund_part(db, box)
+        assert p2["amort"] == base["amort"] and round(p2["oper"], 2) == round(base["oper"] - 18854.64, 2)
+        db.add(FinOp(day=date(2026, 11, 4), kind="transfer", category="Амортизація обладнання", amount=1000, cashbox="Готівка Cейф", cashbox_to=name, ref="amort:1"))
+        db.add(FinOp(day=date(2026, 11, 4), kind="expense", category="Обслуговування обладнання", amount=300, cashbox=name, ref="amort:fund"))
+        db.commit()
+        assert am.fund_part(db, box)["amort"] == round(base["amort"] + 700, 2)
