@@ -125,3 +125,31 @@ def test_doctor_kpi_compute_and_premium():
             cfg = dk.settings(db)
             assert cfg["targets"]["load_pct"] == 75 and len(cfg["ladder"]) == 2 and cfg["doctors"][str(s["doctor_id"])]["taxes"] == 4000
         assert "KPI лікарів" in c.get("/reports").text
+
+
+def test_doctor_kpi_history_archive_cosmetics():
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        docs = seed(db)
+        sh = dk.sheet_history(db)
+        names = {h["name"] for h in sh.values()}
+        assert "Софія Сирова" in names or any("Сирова" in n for n in names)
+        hs = dk.history(db, next(k for k, h in sh.items() if "Сирова" in h["name"]), date(2026, 11, 4))
+        assert len(hs["rows"]) >= 13 and hs["rows"][0]["key"] == "2025-10" and hs["rows"][0]["source"] == "sheet"
+        r = dk.compute(db, D_FROM, D_TO)
+        arch = dk.archive(db, D_FROM, {m["doctor_id"] for m in r["rows"]})
+        assert any("Ісакова" in a["name"] for a in arch)
+        c = dk.cosmetics(r["rows"])
+        assert c["sum"] > 0 and c["top"][0]["name"] == "Крем KPI" and c["by_doc"]
+        lt = dk.clinic_ltv(db)
+        assert lt["patients"] > 0 and lt["avg"] > 0
+        s = next(m for m in r["rows"] if m["name"] == "KPI Лікар Сирова")
+        assert s["contrib"] == round(s["services"] - s["cost_services"] - s["salary"], 2) and s["visits_per_patient"] > 1
+    with TestClient(app) as cl:
+        cl.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        page = cl.get("/reports/doctors-kpi?m=2026-10").text
+        assert "Лідер по обороту" in page and "Косметика" in page and "Архів команди" in page and "Маржа внеску послуг" in page
+        hp = cl.get(f"/reports/doctors-kpi/history?key={s['doctor_id']}")
+        assert hp.status_code == 200
+        hp2 = cl.get("/reports/doctors-kpi/history?key=" + __import__("urllib.parse").parse.quote(next(a["key"] for a in arch if isinstance(a["key"], str))))
+        assert hp2.status_code == 200 and "Оборот по місяцях" in hp2.text

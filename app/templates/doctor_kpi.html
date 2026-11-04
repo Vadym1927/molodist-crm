@@ -45,6 +45,26 @@
 .nr{width:100%;border-collapse:collapse;font-size:13px}.nr td{padding:6px 8px;border-bottom:1px solid #F1EDE8}.nr td.r{text-align:right;white-space:nowrap}
 details.nrb summary{cursor:pointer;font-weight:600;color:var(--classic);font-size:13.5px;list-style:none}details.nrb summary::-webkit-details-marker{display:none}details.nrb summary:before{content:"▸ ";}details.nrb[open] summary:before{content:"▾ "}
 .sp{display:flex;gap:4px;align-items:flex-end;height:54px;margin-top:6px}.sp div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:2px;min-width:0}.sp i{display:block;width:100%;max-width:28px;background:#C9BFE6;border-radius:3px 3px 1px 1px;min-height:2px}.sp div.cur i{background:#6B57A8}.sp span{font-size:9.5px;color:#8a8496;white-space:nowrap}
+.ldr{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:10px;margin-bottom:14px}
+.ldr .card{margin:0;padding:14px 16px;display:flex;gap:12px;align-items:center}.ldr span{display:block;font:700 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496}
+.ldr b{display:block;font:700 17px var(--head);color:#2A2430;margin-top:3px}.ldr small{color:#8a8496;font-size:12px}
+.kav{flex:none;width:44px;height:44px;border-radius:50%;background:#E4DEEF center/cover no-repeat;display:inline-flex;align-items:center;justify-content:center;font:700 14px var(--sans);color:#3B3050}
+.kav.lg{width:64px;height:64px;font-size:20px}
+.ltv{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;background:#2A2430;color:#fff;border-radius:16px;padding:16px 20px;margin-bottom:14px}
+.ltv span{display:block;font:700 10.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#C9BFE6}.ltv h3{margin:2px 0;font:600 17px var(--head);letter-spacing:.04em;text-transform:uppercase}
+.ltv small{color:#b8b0c8;font-size:12.5px}.ltv .v{display:flex;gap:22px;align-items:center}.ltv .v b{font:700 30px var(--head)}.ltv .v div:last-child{border-left:1px solid rgba(255,255,255,.15);padding-left:18px;font-size:12.5px;color:#d8d2e4;line-height:1.7}
+.rank{display:inline-block;background:#3B3050;color:#fff;border-radius:99px;padding:2px 10px;font:700 11.5px var(--sans);margin-left:6px;vertical-align:3px}
+.ctr{display:flex;justify-content:space-between;align-items:center;gap:10px;background:#EEF7F1;border-radius:12px;padding:10px 14px;margin:0 0 12px}.ctr span{display:block;font-size:12px;color:#5d5869}.ctr b{font:700 22px var(--head);color:#1E7A46}.ctr .r{text-align:right}.ctr .r b{color:#2A2430;font-size:17px}
+.hl-l{display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:13px;color:var(--classic);text-decoration:none;border:1px solid #E4DEEF;border-radius:10px;padding:6px 12px}
+.cs-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:12px;margin-top:12px}
+.tl{list-style:none;margin:0;padding:0}.tl li{display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid #F1EDE8;font-size:13px}.tl li:last-child{border:0}
+.tl i{flex:none;width:24px;height:24px;border-radius:8px;background:#ECE7F6;color:#3B3050;font:700 12px var(--sans);font-style:normal;display:inline-flex;align-items:center;justify-content:center}
+.tl .n{flex:1;min-width:0}.tl .n b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}.tl .n small{color:#8a8496}.tl .v{text-align:right;white-space:nowrap}.tl .v b{display:block}.tl .v small{color:#8a8496}
+.bd{border:1px solid #ECE7E1;border-radius:12px;padding:12px 14px;margin-top:10px}.bd-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px}.bd-h b{font-size:15px}.bd-h .r{text-align:right}.bd-h .r b{font-size:17px}
+.bd-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:8px;margin-top:8px}.bd-g div{background:#FBFAF8;border-radius:10px;padding:8px 12px;display:flex;justify-content:space-between;gap:8px;font-size:12.5px}.bd-g b{color:#1E7A46;white-space:nowrap}
+.arc{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:12px;margin-top:10px}.arc .a{border:1px solid #ECE7E1;border-radius:14px;padding:14px;background:#FBFAF8}
+.arc .t{display:flex;gap:12px;align-items:center}.arc .t span{display:block;font:700 10px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#9A6A00}.arc .t b{display:block;font-size:15px}.arc .t small{color:#8a8496;font-size:12px}
+.arc .nums{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.arc .nums div{background:#fff;border-radius:10px;padding:8px 10px;font-size:12px;color:#8a8496}.arc .nums b{display:block;color:#2A2430;font-size:14px}
 .pm{display:inline-flex;gap:6px;align-items:center;background:#E3F3E7;color:#1E7A46;border-radius:99px;padding:3px 10px;font-weight:700;font-size:12.5px}
 </style>
 
@@ -69,6 +89,15 @@ details.nrb summary{cursor:pointer;font-weight:600;color:var(--classic);font-siz
   <div class="card"><span>Не перезаписані</span><b>{{ t.not_rebooked|int }}</b><small>перезаписано {{ pct(t.rebook_pct) }} · бюті-плани {{ pct(t.plans.pct) }}</small></div>
 </div>
 
+{% macro avatar(d, cls='') -%}<span class="kav {{ cls }}" style="{% if d and d.photo_url %}background-image:url('{{ d.photo_url }}'){% endif %}">{% if not (d and d.photo_url) %}{{ ((d.name if d else '?').split()|map('first')|join)[:2]|upper }}{% endif %}</span>{%- endmacro %}
+{% if leaders %}<div class="ldr">
+  <div class="card">{{ avatar(leaders.turnover.doctor) }}<div><span>Лідер по обороту</span><b>{{ leaders.turnover.name }}</b><small>{{ leaders.turnover.total|uah }}</small></div></div>
+  {% if leaders.hour %}<div class="card">{{ avatar(leaders.hour.doctor) }}<div><span>Лідер монетизації години</span><b>{{ leaders.hour.name }}</b><small>{{ leaders.hour.rev_per_worked_h|uah }} / год у роботі</small></div></div>{% endif %}
+  {% if leaders.load %}<div class="card">{{ avatar(leaders.load.doctor) }}<div><span>Найвище завантаження</span><b>{{ leaders.load.name }}</b><small>{{ pct(leaders.load.load) }} · середнє {{ pct(t.load) }}</small></div></div>{% endif %}
+</div>{% endif %}
+{% if ltv.patients %}<div class="ltv"><div><span>LTV пацієнта · уся історія CRM</span><h3>Цінність пацієнта клініки</h3><small>чеки CleverBox і каса CRM{% if ltv.since %} · з {{ ltv.since|dt('%d.%m.%Y') }}{% endif %}</small></div>
+  <div class="v"><div><small>середній LTV</small><b>{{ ltv.avg|uah }}</b></div><div>медіана <b style="font-size:14px">{{ ltv.median|uah }}</b><br>{{ ltv.patients }} пацієнтів<br>{{ ltv.total|uah }} оплачено</div></div></div>{% endif %}
+
 {% if r.rows|length > 1 %}
 {% set mx = (r.rows|map(attribute='total')|list + [1])|max %}
 <div class="dk-cmp">
@@ -89,23 +118,27 @@ details.nrb summary{cursor:pointer;font-weight:600;color:var(--classic);font-siz
 
 {% for m in r.rows %}{% set p = m.prev %}
 <section class="doc" id="d{{ m.doctor_id }}">
-  <div class="doc-h"><div><h2>{{ m.name }} <span class="sc {{ 'g' if m.score >= 75 else ('w' if m.score >= 50 else 'b') }}" title="індекс ефективності">{{ m.score }}</span></h2>
-      <div class="sub">{{ m.doctor.position or 'лікар' }} · {{ m.work_days }} роб. дн. · {{ m.done }} візитів · {{ m.patients }} пацієнтів{% if m.premium.total %} · <span class="pm">премія {{ m.premium.total|uah }}</span>{% endif %}</div></div>
+  <div class="doc-h"><div style="display:flex;gap:14px;align-items:center">{{ avatar(m.doctor, 'lg') }}<div><h2>{{ m.name }}{% if m.rank and r.rows|length > 1 %}<span class="rank">#{{ m.rank }} за оборотом</span>{% endif %} <span class="sc {{ 'g' if m.score >= 75 else ('w' if m.score >= 50 else 'b') }}" title="індекс ефективності">{{ m.score }}</span></h2>
+      <div class="sub">{{ m.doctor.position or 'лікар' }} · {{ m.work_days }} роб. дн. · {{ m.done }} візитів · {{ m.patients }} пацієнтів{% if m.premium.total %} · <span class="pm">премія {{ m.premium.total|uah }}</span>{% endif %}</div>
+      <a class="hl-l" style="margin-top:8px" href="/reports/doctors-kpi/history?key={{ m.doctor_id }}">Історія KPI ↗</a></div></div>
     <div class="big"><b>{{ m.total|uah }}{{ delta(m.total, (p.total if p else none)) }}</b><small>оборот · прибуток {{ m.profit|uah }} ({{ pct(m.margin) }})</small>
       {% if series.get(m.doctor_id) %}{% set sr = series[m.doctor_id] %}{% set smx = (sr|map(attribute='total')|list + [1])|max %}
       <div class="sp" title="оборот по місяцях">{% for s in sr %}<div class="{{ 'cur' if loop.last }}" title="{{ s.label }}: {{ s.total|uah }} · {{ s.patients }} пац."><i style="height:{{ 100 * s.total / smx }}%"></i><span>{{ s.label }}</span></div>{% endfor %}</div>{% endif %}</div></div>
 
+  {% if m.contrib_pct is not none %}<div class="ctr"><div><span>Маржа внеску послуг</span><b>{{ pct(m.contrib_pct) }}</b></div><div class="r"><span>Внесок</span><b>{{ m.contrib|uah }}</b><span>послуги − матеріали − з/п</span></div></div>{% endif %}
   <div class="doc-g">
     <div class="kb"><h3>Виручка</h3>
       {{ row('Послуги', m.services, (p.services if p else none)) }}{{ row('Догляд (товари)', m.products, (p.products if p else none)) }}
       {{ row('Частка догляду', m.products_share, (p.products_share if p else none), 'pct') }}
       {{ row('Послуг, шт', m.n_services, (p.n_services if p else none), 'num') }}{{ row('Товарів, шт', m.n_products, (p.n_products if p else none), 'num') }}
       {{ row('Середній чек', m.avg_check, (p.avg_check if p else none)) }}{{ row('На пацієнта', m.avg_patient, (p.avg_patient if p else none)) }}{{ row('Сер. вартість послуги', m.avg_service, (p.avg_service if p else none)) }}
+      {% if m.certs or m.subs %}{{ row('Сертифікати', m.certs, (p.certs if p else none)) }}{{ row('Абонементи', m.subs, (p.subs if p else none)) }}{% endif %}
       {{ row('Купили догляд', m.pat_products_pct, (p.pat_products_pct if p else none), 'pct', hint=m.pat_products ~ ' пацієнтів') }}</div>
     <div class="kb"><h3>Пацієнти</h3>
       {{ row('Унікальних', m.patients, (p.patients if p else none), 'int') }}{{ row('Нових', m.new, (p.new if p else none), 'int') }}{{ row('Повторних', m.old, (p.old if p else none), 'int') }}
       {{ row('Постійних (за статусом)', m.regular, (p.regular if p else none), 'int') }}{{ row('Поверненість', m.retention if m.patients else none, (p.retention if p and p.patients else none), 'pct') }}
       {{ row('Нові минулого міс. → повернулись', m.conversion, none, 'int', hint='з нових пацієнтів минулого періоду прийшли знову') }}
+      {{ row('Візитів на пацієнта', m.visits_per_patient, (p.visits_per_patient if p else none), 'num') }}
       {{ row('З рекомендацій', m.recommended, (p.recommended if p else none), 'int') }}
       {{ row('LTV 6 міс', m.ltv6, (p.ltv6 if p else none), hint='виручка цих пацієнтів за останні 6 місяців') }}{{ row('LTV 12 міс', m.ltv12, (p.ltv12 if p else none)) }}
       {{ row('LTV 12 міс на пацієнта', (m.ltv12 / m.patients) if m.patients else 0, (p.ltv12 / p.patients) if p and p.patients else none) }}</div>
@@ -113,7 +146,7 @@ details.nrb summary{cursor:pointer;font-weight:600;color:var(--classic);font-siz
       {{ row('Годин за графіком', m.sched_h, (p.sched_h if p else none), 'num') }}{{ row('Годин у роботі', m.worked_h, (p.worked_h if p else none), 'num') }}
       <div class="kr hl"><span>Завантаження</span><b>{{ pct(m.load) }}</b>{{ delta(m.load, (p.load if p else none), 'pct') }}</div>
       {{ row('Простій, год', m.idle_h, (p.idle_h if p else none), 'num', True) }}{{ row('Робочих днів', m.work_days, (p.work_days if p else none), 'int') }}
-      {{ row('Візитів відбулось', m.done, (p.done if p else none), 'int') }}{{ row('Скасовано / не прийшли', m.cancelled, (p.cancelled if p else none), 'int', True) }}{{ row('% скасувань', m.cancel_pct, (p.cancel_pct if p else none), 'pct', True) }}
+      {{ row('Візитів відбулось', m.done, (p.done if p else none), 'int') }}{{ row('Скасовано', m.cancelled - m.no_show, ((p.cancelled - p.no_show) if p else none), 'int', True) }}{{ row('Не прийшли', m.no_show, (p.no_show if p else none), 'int', True) }}{{ row('% скасувань', m.cancel_pct, (p.cancel_pct if p else none), 'pct', True) }}
       {{ row('Оборот за год у роботі', m.rev_per_worked_h, (p.rev_per_worked_h if p else none)) }}{{ row('Оборот за год графіка', m.rev_per_sched_h, (p.rev_per_sched_h if p else none)) }}{{ row('Оборот за день', m.rev_per_day, (p.rev_per_day if p else none)) }}</div>
     <div class="kb"><h3>Фінанси спеціаліста</h3>
       {{ row('З/П (оклад + комісійні)', m.salary, (p.salary if p else none), 'uah', True) }}{{ row('з них % косметика', m.comm_products, (p.comm_products if p else none)) }}
@@ -153,4 +186,24 @@ details.nrb summary{cursor:pointer;font-weight:600;color:var(--classic);font-siz
       <td class="r"><a class="btn ghost" style="padding:3px 10px" href="/calendar?view=day&newappt=1&patient={{ n.id }}&doc={{ m.doctor_id }}">Записати</a></td></tr>{% endfor %}</tbody></table></details>{% endif %}
 </section>
 {% else %}<div class="card">За {{ month_label }} у лікарів немає чеків і візитів. Оберіть інший місяць.</div>{% endfor %}
+
+{% if cosm.sum %}<section class="doc" id="cosm"><div class="doc-h"><div><h2>Косметика</h2><div class="sub">продажі товарів лікарями · {{ month_label }}</div></div></div>
+  <div class="dk-sum" style="margin:0">
+    <div class="card"><span>Продажі</span><b>{{ cosm.sum|uah }}</b><small>{{ num(cosm.units) }} одиниць</small></div>
+    <div class="card"><span>Валовий прибуток</span><b>{{ cosm.profit|uah }}</b><small>собівартість {{ cosm.cost|uah }}</small></div>
+    <div class="card"><span>Валова маржа</span><b>{{ pct(cosm.margin) }}</b><small>виручка мінус закупівля</small></div>
+    <div class="card"><span>Товарів з продажами</span><b>{{ cosm.sku }}</b><small>різних позицій</small></div></div>
+  <div class="cs-g">
+    <div class="kb"><h3>Топ товари · за виторгом</h3><ul class="tl">{% for x in cosm.top %}<li><i>{{ loop.index }}</i><div class="n"><b>{{ x.name }}</b><small>{{ x.brand or '—' }} · {{ num(x.qty) }} шт.</small></div><div class="v"><b>{{ x.sum|uah }}</b><small>прибуток {{ x.profit|uah }}</small></div></li>{% endfor %}</ul></div>
+    {% if cosm.weak %}<div class="kb"><h3>Слабкі продажі · найменший виторг</h3><ul class="tl">{% for x in cosm.weak %}<li><i>{{ loop.index }}</i><div class="n"><b>{{ x.name }}</b><small>{{ x.brand or '—' }} · {{ num(x.qty) }} шт.</small></div><div class="v"><b>{{ x.sum|uah }}</b><small>прибуток {{ x.profit|uah }}</small></div></li>{% endfor %}</ul></div>{% endif %}
+  </div>
+  {% if cosm.by_doc %}<div class="kb" style="margin-top:12px"><h3>Топ товар по відповідальному</h3>
+    {% for b in cosm.by_doc %}<div class="bd"><div class="bd-h"><b>{{ b.name }}</b><div class="r"><b>{{ b.sum|uah }}</b><div class="small muted">{{ num(b.qty) }} шт. · прибуток {{ b.profit|uah }}</div></div></div>
+      <div class="bd-g">{% for x in b.top %}<div><span>{{ x.name }}<br><small class="muted">{{ x.brand or '—' }} · {{ num(x.qty) }} шт.</small></span><b>{{ x.sum|uah }}</b></div>{% endfor %}</div></div>{% endfor %}</div>{% endif %}
+</section>{% endif %}
+
+{% if arch %}<section class="doc"><div class="doc-h"><div><h2>Архів команди</h2><div class="sub">мали факт за останні 12 місяців, але без активності за {{ month_label }} — не входять у KPI та рейтинг</div></div><span class="sc">{{ arch|length }}</span></div>
+  <div class="arc">{% for a in arch %}<div class="a"><div class="t"><span class="kav" style="{% if a.photo %}background-image:url('{{ a.photo }}'){% endif %}">{% if not a.photo %}{{ (a.name.split()|map('first')|join)[:2]|upper }}{% endif %}</span><div><span>неактивний</span><b>{{ a.name }}</b><small>{{ a.position }}{{ ' · ' if a.position }}останній факт {{ a.last_label }}</small></div></div>
+    <div class="nums"><div>Оборот послуг<b>{{ a.services|uah }}</b></div><div>Прибуток<b>{{ a.profit|uah }}</b></div></div>
+    <a class="hl-l" href="/reports/doctors-kpi/history?key={{ a.key|urlencode }}">Відкрити історію KPI ↗</a></div>{% endfor %}</div></section>{% endif %}
 {% endblock %}

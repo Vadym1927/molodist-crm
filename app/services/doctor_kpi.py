@@ -25,7 +25,7 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
 from ..models import (Check, Visit, Appointment, Doctor, Patient, PatientFile, VisitNote, StockMove, AmortAsset, SyncState,
-                      SalaryAdj)
+                      SalaryAdj, Product)
 from ..parsers.observ import norm
 
 KEY = "doctor_kpi"
@@ -97,7 +97,8 @@ def _blank() -> dict:
     return {"services": 0.0, "products": 0.0, "n_services": 0.0, "n_products": 0.0, "cost_services": 0.0, "cost_products": 0.0,
             "patients": set(), "pat_products": set(), "cats": defaultdict(lambda: {"n": 0.0, "sum": 0.0, "cost": 0.0}),
             "checks": set(), "visits": [], "done_keys": set(), "cancelled": 0, "booked": 0, "days": set(), "worked_min": 0.0,
-            "amort": 0.0, "amort_procs": 0}
+            "amort": 0.0, "amort_procs": 0, "no_show": 0, "certs": 0.0, "n_certs": 0.0, "subs": 0.0, "n_subs": 0.0,
+            "prods": defaultdict(lambda: {"qty": 0.0, "sum": 0.0, "cost": 0.0, "brand": ""})}
 
 
 def _collect(db: Session, d_from: date, d_to: date, doctors: list[Doctor]) -> dict[int, dict]:
@@ -117,13 +118,16 @@ def _collect(db: Session, d_from: date, d_to: date, doctors: list[Doctor]) -> di
         if nm not in cache:
             cache[nm] = match_doctor(nm, doctors)
         return cache[nm]
-    costs = Costs(db)
-    idx = service_index(db)
-    pcost = {norm(pr.product.name): (pr.cost or 0.0) for pr in product_rows(db, [])}
+    ref = db.info.get("_kpi_ref")                 # довідники — один раз на запит (звіт збирає кілька місяців)
+    if not ref:
+        ref = db.info["_kpi_ref"] = {"costs": Costs(db), "idx": service_index(db),
+                                     "pcost": {norm(pr.product.name): (pr.cost or 0.0) for pr in product_rows(db, [])},
+                                     "brand": {norm(p.name): (p.brand or "") for p in db.scalars(select(Product))}}
+    costs, idx, pcost, brands = ref["costs"], ref["idx"], ref["pcost"], ref["brand"]
     for c in revenue_checks(db, a, b):
         for it in c.items or []:
             kind = it.get("item_type") or "other"
-            if kind not in ("service", "product"):
+            if kind not in ("service", "product", "certificate", "subscription"):
                 continue
             d = doc_of(it.get("initiator_name") or c.author)
             if not d:
@@ -132,6 +136,10 @@ def _collect(db: Session, d_from: date, d_to: date, doctors: list[Doctor]) -> di
             name = (it.get("item_name") or it.get("name") or "—").strip()
             qty = _f(it.get("quantity")) or 1
             paid = _f(it.get("payd_amount") or it.get("total"))
+            if kind in ("certificate", "subscription"):          # сертифікати й абонементи — окремо, не в оборот лікаря
+                x["certs" if kind == "certificate" else "subs"] += paid
+                x["n_certs" if kind == "certificate" else "n_subs"] += qty
+                continue
             x["checks"].add(c.id)
             if c.patient_id:
                 x["patients"].add(c.patient_id)
@@ -158,6 +166,11 @@ def _collect(db: Session, d_from: date, d_to: date, doctors: list[Doctor]) -> di
                 k["n"] += qty
                 k["sum"] += paid
                 k["cost"] += cost
+                pp = x["prods"][name]
+                pp["qty"] += qty
+                pp["sum"] += paid
+                pp["cost"] += cost
+                pp["brand"] = brands.get(norm(name), "")
     # візити: CleverBox до дати автономії + записи CRM
     now = datetime.now()
     for v in db.scalars(select(Visit).where(Visit.starts_at >= a, Visit.starts_at <= autonomy.cb_until(db, b))):
@@ -167,6 +180,8 @@ def _collect(db: Session, d_from: date, d_to: date, doctors: list[Doctor]) -> di
         x = agg[d.id]
         if v.status == "cancelled":
             x["cancelled"] += 1
+            if "не прийш" in (v.status_label or "").lower() or "no" in (v.status_label or "").lower():
+                x["no_show"] += 1
         elif v.status == "done" or (v.source != "cb_service_sale" and v.starts_at < now):
             key = (v.patient_id, v.starts_at.date())
             if key not in x["done_keys"]:
@@ -187,6 +202,7 @@ def _collect(db: Session, d_from: date, d_to: date, doctors: list[Doctor]) -> di
             x = agg[ap.doctor_id]
             if ap.status in ("cancelled", "no_show"):
                 x["cancelled"] += 1
+                x["no_show"] += ap.status == "no_show"
             elif ap.status == "done" or ap.start < now:
                 key = (ap.patient_id, ap.start.date())
                 if key not in x["done_keys"]:
@@ -387,7 +403,12 @@ def _metrics(db: Session, d: Doctor, x: dict, d_from: date, d_to: date, cfg: dic
         "cost_per_h": round((cost + sal + taxes + x["amort"]) / worked_h, 2) if worked_h else 0.0,
         "card_pct": card_pct, "photo_pct": photo_pct, "discipline": discipline,
         "rebooked": len(rebooked), "rebook_pct": rebook_pct, "not_rebooked": len(pats) - len(rebooked),
-        "cats": cats, "targets": tg, "revenue_target": _f(dcfg.get("revenue_target")),
+        "cats": cats, "targets": tg, "no_show": x["no_show"], "certs": round(x["certs"], 2), "n_certs": x["n_certs"],
+        "subs": round(x["subs"], 2), "n_subs": x["n_subs"],
+        "visits_per_patient": round(done / len(pats), 2) if pats else 0.0,
+        "contrib": round(x["services"] - x["cost_services"] - sal, 2),
+        "contrib_pct": _pct(x["services"] - x["cost_services"] - sal, x["services"]) if x["services"] else None,
+        "prods": sorted(({"name": k_, **v_, "profit": round(v_["sum"] - v_["cost"], 2)} for k_, v_ in x["prods"].items()), key=lambda z: -z["sum"]), "revenue_target": _f(dcfg.get("revenue_target")),
         "plans": {"n": pl.plans, "sum": round(pl.planned_sum, 2), "realized": round(pl.realized_sum, 2), "pct": pl.realization_pct,
                   "conv": pl.conversion_pct, "booked": pl.booked_plans, "red": pl.red, "started": pl.started_plans} if pl else
                  {"n": 0, "sum": 0.0, "realized": 0.0, "pct": 0.0, "conv": 0.0, "booked": 0, "red": 0, "started": 0},
@@ -545,7 +566,7 @@ def compute(db: Session, d_from: date, d_to: date, with_prev: bool = True, only:
             continue
         pv = prev_rows.get(d.id)
         m = _metrics(db, d, x, d_from, d_to, cfg, sched.get(d.id, {}), pay.get(d.id, {}), plans, pv["_new"] if pv else None)
-        m["prev"] = {k: v for k, v in pv.items() if not k.startswith("_") and k not in ("doctor", "cats", "targets")} if pv else None
+        m["prev"] = {k: v for k, v in pv.items() if not k.startswith("_") and k not in ("doctor", "cats", "targets", "prods")} if pv else None
         m["zones"] = _zones(m, pv)
         m["premium"] = _premium(m, cfg)
         m["goals"] = _goals(m)
@@ -553,7 +574,11 @@ def compute(db: Session, d_from: date, d_to: date, with_prev: bool = True, only:
         rows.append(m)
     rows.sort(key=lambda r: -r["total"])
     tot = _total(rows)
-    return {"rows": rows, "total": tot, "d_from": d_from, "d_to": d_to, "cfg": cfg,
+    prev_tot = None
+    if prev_rows:
+        pr_ = [dict(v, premium={"total": 0}) for v in prev_rows.values()]
+        prev_tot = _total(pr_)
+    return {"rows": rows, "total": tot, "prev_total": prev_tot, "d_from": d_from, "d_to": d_to, "cfg": cfg,
             "prev_range": prev_period(d_from, d_to) if with_prev else None}
 
 
@@ -634,3 +659,139 @@ def series_all(db: Session, d_to: date, months: int = 6) -> dict[int, list[dict]
                               "patients": len({p for p in x["patients"] if p}) if x else 0,
                               "load": _pct(wh, sm / 60) if sm else None})
     return out
+
+
+# ---------------- історія з таблиці власника + CRM ----------------
+HIST_FIELDS = [("total", "Оборот", "uah"), ("services", "Послуги", "uah"), ("products", "Догляд", "uah"), ("patients", "Пацієнтів", "int"),
+               ("new", "Нових", "int"), ("load", "Завантаження", "pct"), ("worked_h", "Год у роботі", "num"),
+               ("rev_per_worked_h", "Оборот / год", "uah"), ("salary", "З/П", "uah"), ("cost", "Собівартість", "uah"),
+               ("profit", "Прибуток", "uah"), ("margin", "Маржа", "pct"), ("retention", "Поверненість", "pct"), ("ltv12", "LTV 12 міс", "uah")]
+
+
+def _hist_seed() -> list[dict]:
+    from pathlib import Path
+    try:
+        return json.loads((Path(__file__).with_name("doctor_kpi_history.json")).read_text("utf-8"))["rows"]
+    except (OSError, ValueError, KeyError):
+        return []
+
+
+def _hist_key(db: Session, name: str, doctors: list[Doctor]) -> tuple[int | None, str]:
+    from ..integrations.cleverbox import match_doctor
+    d = match_doctor(name, doctors)
+    if not d:                                           # «Дар'я Колган» ↔ «Колган Дар'я»
+        parts = set(norm(name).split())
+        d = next((x for x in doctors if parts and parts <= set(norm(x.name).split())), None)
+    return (d.id if d else None), (d.name if d else name)
+
+
+def sheet_history(db: Session) -> dict:
+    """{ключ: {"doctor_id", "name", "months": {"YYYY-MM": row}}} — ключ doctor_id або імʼя з таблиці."""
+    doctors = db.scalars(select(Doctor)).all()
+    out: dict = {}
+    for r in _hist_seed():
+        did, nm = _hist_key(db, r["doctor"], doctors)
+        k = did or nm
+        x = out.setdefault(k, {"doctor_id": did, "name": nm, "months": {}})
+        x["months"][f"{r['year']:04d}-{r['month']:02d}"] = {**r, "source": "sheet"}
+    return out
+
+
+def _month_range(a: date, b: date):
+    y, m = a.year, a.month
+    while (y, m) <= (b.year, b.month):
+        yield y, m
+        y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+
+
+def history(db: Session, key, until: date) -> dict:
+    """Історія KPI лікаря по місяцях: таблиця власника, далі — CRM (місяці, яких у таблиці немає)."""
+    sh = sheet_history(db)
+    did = int(key) if str(key).isdigit() else None
+    h = sh.get(did) if did else sh.get(key)
+    if not h and did:
+        d = db.get(Doctor, did)
+        h = {"doctor_id": did, "name": d.name if d else str(key), "months": {}}
+    if not h:
+        return {"name": str(key), "rows": [], "doctor_id": None}
+    months = dict(h["months"])
+    y0, m0 = until.year, until.month - 11
+    while m0 < 1:
+        y0, m0 = y0 - 1, m0 + 12
+    start = date(y0, m0, 1)                                   # CRM — останні 12 місяців
+    if months:
+        first = min(months)
+        start = min(start, date(int(first[:4]), int(first[5:]), 1))
+    if h["doctor_id"]:
+        for y, m in _month_range(start, until):
+            k = f"{y:04d}-{m:02d}"
+            if k in months:
+                continue
+            a = date(y, m, 1)
+            b = date(y + (m == 12), (m % 12) + 1, 1) - timedelta(days=1)
+            r = compute(db, a, min(b, until), with_prev=False, only=h["doctor_id"])
+            if r["rows"]:
+                months[k] = {**{f: r["rows"][0].get(f) for f, _, _ in HIST_FIELDS}, "source": "crm"}
+    rows = [{"key": k, "label": f"{k[5:]}.{k[2:4]}", **v} for k, v in sorted(months.items())]
+    return {"name": h["name"], "doctor_id": h["doctor_id"], "rows": rows}
+
+
+def archive(db: Session, d_from: date, active_ids: set, months: int = 12) -> list[dict]:
+    """Спеціалісти з фактом за останні N місяців (таблиця + CRM), але без активності в поточному періоді."""
+    since = d_from - timedelta(days=31 * months)
+    sk = f"{since.year:04d}-{since.month:02d}"
+    cur = f"{d_from.year:04d}-{d_from.month:02d}"
+    out = []
+    for k, h in sheet_history(db).items():
+        if h["doctor_id"] in active_ids:
+            continue
+        ms = {m: r for m, r in h["months"].items() if sk <= m < cur}
+        if not ms:
+            continue
+        last = max(ms)
+        d = db.get(Doctor, h["doctor_id"]) if h["doctor_id"] else None
+        out.append({"key": k, "name": h["name"], "position": (d.position if d else "") or "", "photo": d.photo_url if d else None,
+                    "last": last, "last_label": f"{last[5:]}.{last[:4]}", "services": round(sum(_f(r.get("services")) for r in ms.values()), 2),
+                    "profit": round(sum(_f(r.get("profit")) for r in ms.values()), 2), "months": len(ms)})
+    out.sort(key=lambda z: z["last"], reverse=True)
+    return out
+
+
+def clinic_ltv(db: Session) -> dict:
+    """LTV пацієнта клініки за всю історію CRM: середній і медіана виручки на пацієнта."""
+    from ..models import Sale
+    sums: dict[int, float] = defaultdict(float)
+    for pid, s_ in db.execute(select(Check.patient_id, func.sum(Check.amount)).where(Check.patient_id.is_not(None), Check.deleted.is_(False))
+                              .group_by(Check.patient_id)):
+        sums[pid] += float(s_ or 0)
+    for pid, s_ in db.execute(select(Sale.patient_id, func.sum(Sale.total)).where(Sale.patient_id.is_not(None), Sale.status == "paid")
+                              .group_by(Sale.patient_id)):
+        sums[pid] += float(s_ or 0)
+    vals = sorted(v for v in sums.values() if v > 0)
+    first = db.scalar(select(func.min(Check.date)).where(Check.deleted.is_(False)))
+    if not vals:
+        return {"avg": 0.0, "median": 0.0, "patients": 0, "total": 0.0, "since": first}
+    n = len(vals)
+    med = vals[n // 2] if n % 2 else (vals[n // 2 - 1] + vals[n // 2]) / 2
+    return {"avg": round(sum(vals) / n, 2), "median": round(med, 2), "patients": n, "total": round(sum(vals), 2), "since": first}
+
+
+def cosmetics(rows: list[dict]) -> dict:
+    """Косметика за період по всіх лікарях: продажі, валовий прибуток, маржа, SKU, топ / слабкі, топ по відповідальному."""
+    allp: dict = {}
+    for r in rows:
+        for p in r.get("prods") or []:
+            x = allp.setdefault(p["name"], {"name": p["name"], "brand": p["brand"], "qty": 0.0, "sum": 0.0, "cost": 0.0})
+            x["qty"] += p["qty"]
+            x["sum"] += p["sum"]
+            x["cost"] += p["cost"]
+    items = [{**x, "profit": round(x["sum"] - x["cost"], 2)} for x in allp.values() if x["sum"] > 0]
+    items.sort(key=lambda z: -z["sum"])
+    tot = round(sum(z["sum"] for z in items), 2)
+    cost = round(sum(z["cost"] for z in items), 2)
+    by_doc = [{"name": r["name"], "doctor_id": r["doctor_id"], "sum": r["products"], "qty": r["n_products"],
+               "profit": round(r["products"] - r["cost_products"], 2), "top": (r.get("prods") or [])[:2]}
+              for r in sorted(rows, key=lambda z: -z["products"]) if r["products"] > 0]
+    return {"sum": tot, "cost": cost, "profit": round(tot - cost, 2), "margin": _pct(tot - cost, tot) if tot else None,
+            "sku": len(items), "units": round(sum(z["qty"] for z in items), 2), "top": items[:5],
+            "weak": sorted(items, key=lambda z: z["sum"])[:5] if len(items) > 5 else [], "by_doc": by_doc}

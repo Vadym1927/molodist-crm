@@ -8112,11 +8112,25 @@ def doctors_kpi_page(request: Request, m: str = "", doc: str = "", user: User = 
     d_from, d_to, mk = _kpi_month(m)
     only = int(doc) if doc.isdigit() else None
     r = dk.compute(db, d_from, d_to, only=only)
-    prev_total = None
-    if r["prev_range"]:
-        pr = dk.compute(db, r["prev_range"][0], r["prev_range"][1], with_prev=False, only=only)
-        prev_total = pr["total"] if pr["rows"] else None
+    prev_total = r.get("prev_total")
     series = dk.series_all(db, d_to, 6) if r["rows"] else {}
+    sh_ = dk.sheet_history(db)
+    for did_, sr_ in series.items():                         # місяці з таблиці власника — її цифри (звірені вручну)
+        hm_ = (sh_.get(did_) or {}).get("months") or {}
+        for pt_ in sr_:
+            row_ = hm_.get(pt_["month"].strftime("%Y-%m"))
+            if row_:
+                pt_.update(total=row_.get("total") or 0, patients=int(row_.get("patients") or 0), sheet=True)
+    rows_ = r["rows"]
+    leaders = {}
+    if rows_:
+        leaders["turnover"] = max(rows_, key=lambda z: z["total"])
+        hr_ = [z for z in rows_ if z["rev_per_worked_h"]]
+        leaders["hour"] = max(hr_, key=lambda z: z["rev_per_worked_h"]) if hr_ else None
+        ld_ = [z for z in rows_ if z["load"] is not None]
+        leaders["load"] = max(ld_, key=lambda z: z["load"]) if ld_ else None
+        for i_, z in enumerate(sorted(rows_, key=lambda z: -z["total"])):
+            z["rank"] = i_ + 1
     months = []
     cur = date.today().replace(day=1)
     for i in range(0, 4):
@@ -8127,7 +8141,15 @@ def doctors_kpi_page(request: Request, m: str = "", doc: str = "", user: User = 
     months.reverse()
     return render(request, "doctor_kpi.html", nav="reports", r=r, d_from=d_from, d_to=d_to, month_key=mk, month_label=d_from.strftime("%m.%Y"),
                   months=months, doctors=db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)).all(), doc=doc,
-                  prev_total=prev_total, series=series)
+                  prev_total=prev_total, series=series, leaders=leaders, ltv=dk.clinic_ltv(db), cosm=dk.cosmetics(rows_),
+                  arch=dk.archive(db, d_from, {z["doctor_id"] for z in rows_}) if not only else [])
+
+
+@app.get("/reports/doctors-kpi/history", response_class=HTMLResponse)
+def doctors_kpi_history(request: Request, key: str = "", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import doctor_kpi as dk
+    h = dk.history(db, key, date.today())
+    return render(request, "doctor_kpi_history.html", nav="reports", h=h, F=dk.HIST_FIELDS)
 
 
 @app.post("/reports/doctors-kpi/premium")
