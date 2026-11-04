@@ -46,84 +46,121 @@ dialog.al-d{border:0;border-radius:20px;padding:0;width:min(520px,96vw);max-heig
 .al-o input{width:18px;height:18px;accent-color:#3B3050;flex:none}.al-o span{display:grid}.al-o small{color:#8a8496;font-size:12px}.al-o em{margin-left:auto;font-style:normal;font-size:11.5px;color:#B07A1E;white-space:nowrap}
 .al-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px 18px;border-top:1px solid #F1EDE8;position:sticky;bottom:0;background:#fff}
 @media(max-width:760px){.tp-2{grid-template-columns:1fr}.st-r{grid-template-columns:1fr 1fr 36px}.st-r>:first-child{grid-column:1/-1}.st-r.hd{display:none}.tp-c{padding:16px}}
+
+/* ===== референс: шапка, таби, банер ===== */
+.tp-wrap{background:#fff;border:1px solid #ECE7E1;border-radius:24px;padding:22px 24px 26px;max-width:1240px}
+.tp-top{display:flex;gap:14px;align-items:center;margin-bottom:16px}.tp-ic{width:52px;height:52px;border-radius:14px;background:#F1EDF7;display:grid;place-items:center;color:#3B3050;flex:none}
+.tp-top h1{margin:0;font:700 26px var(--head);letter-spacing:.04em;text-transform:uppercase;color:#2A2430}.tp-top p{margin:2px 0 0;color:#6E6878;font-size:14.5px}
+.tp-tabs{display:flex;gap:4px;background:#F4F1EC;border-radius:14px;padding:5px;overflow-x:auto;margin-bottom:18px;width:max-content;max-width:100%}
+.tp-tabs a{display:inline-flex;gap:8px;align-items:center;white-space:nowrap;padding:11px 20px;border-radius:10px;text-decoration:none;color:#3B3050;font:600 14.5px var(--sans)}
+.tp-tabs a svg{opacity:.75}.tp-tabs a.on{background:#3B3050;color:#fff;box-shadow:0 4px 14px rgba(59,48,80,.25)}.tp-tabs a.on svg{opacity:1}
+.tp-pane{display:none}.tp-pane.on{display:block}
+.tp-ban{position:relative;overflow:hidden;display:flex;align-items:center;gap:22px;flex-wrap:wrap;background:#2A2430;color:#fff;border-radius:16px;padding:20px 26px;margin-bottom:20px;min-height:92px}
+.tp-ban .nm{display:flex;gap:12px;align-items:center;font:600 24px var(--sans);letter-spacing:.01em;padding-right:22px;border-right:1px solid rgba(255,255,255,.18)}
+.tp-ban .nm i{width:34px;height:34px;border-radius:10px;background:rgba(255,255,255,.1);display:grid;place-items:center;font-style:normal}
+.tp-ban .stt{display:grid;gap:6px}.tp-ban .pill{display:inline-flex;gap:7px;align-items:center;width:max-content;background:rgba(46,158,91,.18);color:#9BE3B5;border-radius:999px;padding:4px 12px;font:600 13px var(--sans)}
+.tp-ban .pill i{width:8px;height:8px;border-radius:50%;background:#2ECC71}.tp-ban .pill.warn{background:rgba(230,170,40,.18);color:#F3D27A}.tp-ban .pill.warn i{background:#F0B429}
+.tp-ban .pill.off{background:rgba(255,255,255,.1);color:#ccc}.tp-ban .pill.off i{background:#999}
+.tp-ban .stt span.t{font-size:14px;color:#D9D4E2}.tp-ban .chk-b{position:relative;z-index:1;display:inline-flex;gap:8px;align-items:center;border:1.5px solid rgba(255,255,255,.75);background:transparent;color:#fff;border-radius:10px;padding:9px 18px;font:600 13.5px var(--sans);cursor:pointer}
+.tp-ban .chk-b:hover{background:rgba(255,255,255,.08)}.tp-ban svg.wv{position:absolute;right:0;top:0;height:100%;width:46%;opacity:.55;pointer-events:none}
+.tp-lb{font:700 11.5px var(--sans);letter-spacing:.12em;text-transform:uppercase;color:#5d5869;margin:0 0 8px}
+.tpv2{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.tpv2 label{display:flex;align-items:center;gap:14px;border:1.5px solid #ECE7E1;border-radius:14px;padding:16px 18px;cursor:pointer;background:#fff;min-height:74px}
+.tpv2 label:has(input:checked){border-color:#3B3050;background:#F8F6FC;box-shadow:0 0 0 1px #3B3050 inset}
+.tpv2 input{width:18px;height:18px;accent-color:#3B3050;flex:none}.tpv2 .pv{display:grid;gap:2px}.tpv2 .pv b{font:700 17px var(--sans);color:#2A2430;display:flex;gap:8px;align-items:center}
+.tpv2 .pv small{color:#6E6878;font-size:13px}.tpv2 .pv b i{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-style:normal;color:#fff;font-size:13px}
+.tp-in{position:relative}.tp-in input{width:100%;height:46px;padding-right:44px!important}.tp-in .eye{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:none;cursor:pointer;color:#6E6878;padding:6px}
+.tp-cpy{display:flex;gap:10px}.tp-cpy .tp-in{flex:1}.tp-cpy .cb{display:inline-flex;gap:8px;align-items:center;border:1.5px solid #E3DFE8;background:#fff;border-radius:10px;padding:0 16px;font:700 12.5px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:#3B3050;cursor:pointer;white-space:nowrap}
+.tp-bot{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:18px}.tp-box{border:1px solid #ECE7E1;border-radius:16px;padding:18px 20px;background:#fff}
+.tp-box h3{display:flex;gap:12px;align-items:center;margin:0 0 4px;font:700 15px var(--head);letter-spacing:.1em;text-transform:uppercase;color:#2A2430}.tp-box h3+p{margin:0 0 14px 34px;color:#6E6878;font-size:13.5px}
+.acc{display:grid;gap:8px}.acc details{background:#F6F3FB;border-radius:10px}.acc summary{list-style:none;display:flex;gap:12px;align-items:center;padding:10px 14px;cursor:pointer;font:600 14.5px var(--sans);color:#2A2430}
+.acc summary::-webkit-details-marker{display:none}.acc summary em{width:26px;height:26px;border-radius:50%;background:#E4DEEF;display:grid;place-items:center;font-style:normal;font-size:13px;color:#3B3050;flex:none}
+.acc summary:after{content:"";margin-left:auto;width:9px;height:9px;border-right:2px solid #3B3050;border-bottom:2px solid #3B3050;transform:rotate(45deg);transition:transform .15s}.acc details[open] summary:after{transform:rotate(-135deg)}
+.acc .ab{padding:0 14px 12px 52px;font-size:13.5px;color:#4E4859;line-height:1.55}
+.tsw{display:flex!important;gap:12px;align-items:center;font:600 14.5px var(--sans)!important;color:#2A2430!important;text-transform:none!important;letter-spacing:0!important;cursor:pointer}
+.tsw input{appearance:none;width:44px;height:24px;border-radius:12px;background:#D6D2DB;position:relative;cursor:pointer;border:0;padding:0;flex:none;transition:background .15s}
+.tsw input:before{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.tsw input:checked{background:#2E9E5B}.tsw input:checked:before{left:23px}
+.tp-sv{display:flex;gap:10px;margin-top:20px}.tp-sv .btn{display:inline-flex;gap:8px;align-items:center;padding:12px 26px}
+.tp-pane .tp-c{max-width:none;border-radius:16px}
+@media(max-width:980px){.tpv2{grid-template-columns:1fr 1fr}.tp-bot{grid-template-columns:1fr}}
+@media(max-width:560px){.tpv2{grid-template-columns:1fr}.tp-wrap{padding:16px}.tp-ban .nm{border-right:0}}
 </style>
 
-<div class="tp-hd"><div><div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a> · Комунікації</div><h1>IP-телефонія</h1></div>
-  <div class="tp-st">
-    <span class="{{ 'ok' if t.provider else 'bad' }}"><i></i>{{ PROV[t.provider].label if t.provider in PROV else 'Не підключено' }}</span>
-    <span class="{{ 'ok' if hook_log else '' }}"><i></i>{{ ('Останній вебхук ' ~ hook_log[0].at) if hook_log else 'Вебхуків ще не було' }}</span>
-    <span class="{{ 'ok' if (t.staff or []) else '' }}"><i></i>Співробітників: {{ (t.staff or [])|length }} · ліній: {{ (t.lines or [])|length }}</span>
-    <span class="{{ 'ok' if t.ai_on else '' }}"><i></i>AI: {{ ('агент на VPS' if t.ai_engine == 'agent' else 'CRM') if t.ai_on else 'вимкнено' }}</span>
-  </div></div>
-{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok);max-width:1120px">{{ qp.get('msg') }}</div>{% endif %}
-{% if qp.get('err') %}<div class="alert" style="max-width:1120px">{{ qp.get('err') }}</div>{% endif %}
+{% set _pv = PROV.get(t.provider) %}{% set _pn = {'binotel':'Binotel','stream':'Stream Telecom','ringostat':'Ringostat'} %}
+{% set _pc = {'binotel':'#8B3FB5','stream':'#2F6FD6','ringostat':'#1E9E63'} %}
+<div class="tp-wrap">
+<div class="tp-top"><div class="tp-ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg></div>
+  <div><h1>IP-телефонія</h1><p>Налаштуйте телефонію для прийому дзвінків у CRM, роботи команди та автоматичної фіксації звернень.</p></div></div>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+{% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+<nav class="tp-tabs" id="tp-tabs">
+  <a href="#conn" data-t="conn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 7V3M15 7V3M6 7h12v4a6 6 0 0 1-12 0zM12 17v4"/></svg>Підключення</a>
+  <a href="#staff" data-t="staff"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14a6.5 6.5 0 0 1 3 6"/></svg>Співробітники й лінії</a>
+  <a href="#popup" data-t="popup"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>Вікно дзвінка</a>
+  <a href="#ai" data-t="ai"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>AI-оцінка</a>
+  <a href="#log" data-t="log"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/></svg>Дзвінки</a>
+</nav>
 
-<nav class="tp-nav"><a href="#staff">Співробітники й лінії</a><a href="#conn">Підключення</a><a href="#appeal">Звернення</a><a href="#popup">Вікно дзвінка</a><a href="#ai">AI-оцінка</a><a href="#log">Дзвінки й вебхуки</a></nav>
+<form method="post" action="/settings/telephony" id="tp-main">
+<div class="tp-pane" data-p="conn">
+  <div class="tp-ban">
+    <div class="nm"><i><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg></i>{{ _pn.get(t.provider, 'Телефонія') }}</div>
+    <div class="stt">{% if not t.provider %}<span class="pill off"><i></i>Не підключено</span><span class="t">Оберіть провайдера нижче</span>
+      {% elif hook_log %}<span class="pill"><i></i>Підключено</span><span class="t">CRM успішно інтегровано з {{ _pn.get(t.provider) }} · останній вебхук {{ hook_log[0].at }}</span>
+      {% else %}<span class="pill warn"><i></i>Очікуємо перший дзвінок</span><span class="t">Ключі збережено — вебхуків від {{ _pn.get(t.provider) }} ще не було</span>{% endif %}</div>
+    {% if t.provider %}<button class="chk-b" name="test" value="1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg>Перевірити підключення</button>{% endif %}
+    <svg class="wv" viewBox="0 0 400 100" preserveAspectRatio="none" fill="none" stroke="#C9BFE6" stroke-width=".7">{% for k in range(14) %}<path d="M0 {{ 60 + k }} C 80 {{ 20 + k*3 }}, 160 {{ 100 - k*2 }}, 240 {{ 45 + k*2 }} S 360 {{ 10 + k*4 }}, 400 {{ 40 + k }}"/>{% endfor %}</svg>
+  </div>
 
-{# ================= СПІВРОБІТНИКИ Й ЛІНІЇ ================= #}
-{% set _users = users_all %}
-<form method="post" action="/settings/telephony/staff" class="tp-c" id="staff">
-  <h2>Співробітники й лінії</h2>
-  <p class="sub">Хто взяв дзвінок — CRM визначає за <b>ID співробітника в Ringostat</b> (поле <code>manager</code> / staffid у вебхуку) або за його <b>імʼям у Ringostat</b>. Лінія — ваш номер, на який дзвонять; у кожної лінії є <b>відповідальний</b>: пропущені дзвінки лінії зараховуються йому в KPI і видно в журналі «не взяли · відповідальний: …».</p>
-  <div class="tp-f"><label>Співробітники телефонії</label>
-    <div class="st-t" id="st-s"><div class="st-r hd"><span>Користувач CRM</span><span>ID у Ringostat</span><span>Імʼя в Ringostat</span><span></span></div>
-      {% for r in t.staff or [] %}<div class="st-r"><select name="s_user">{% for u in _users %}<option value="{{ u.id }}" {{ 'selected' if u.id == r.user_id }}>{{ u.name }}</option>{% endfor %}</select>
-        <input name="s_ext" value="{{ r.ext }}" placeholder="напр. 521088"><input name="s_alias" value="{{ r.alias }}" placeholder="як підписаний у Ringostat"><button type="button" class="st-x" onclick="this.parentNode.remove()" title="Прибрати">×</button></div>{% endfor %}</div>
-    <div class="row" style="gap:8px;margin-top:8px"><button type="button" class="btn ghost" onclick="stAdd('s')">＋ Співробітник</button></div>
-    {% if found.staff %}<div class="hint" style="margin-top:8px">Знайдено в дзвінках за 30 днів — натисніть, щоб додати:</div>
-      <div class="fd">{% for x in found.staff %}<button type="button" onclick="stAdd('s','{{ x.ext|e }}','{{ x.alias|e }}')">{{ x.alias or 'без імені' }}{% if x.ext %} · ID {{ x.ext }}{% endif %} <small>{{ x.n }} дз.</small></button>{% endfor %}</div>{% endif %}
+  <div class="tp-lb">Провайдер телефонії</div>
+  <div class="tpv2">
+    <label><input type="radio" name="provider" value="" {{ 'checked' if not t.provider }} onchange="tgP()"><span class="pv"><b><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2A2430" stroke-width="1.7" stroke-linecap="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>Без телефонії</b><small>Не підключено</small></span></label>
+    {% for k, p in PROV.items() %}<label><input type="radio" name="provider" value="{{ k }}" {{ 'checked' if t.provider == k }} onchange="tgP()"><span class="pv"><b><i style="background:{{ _pc.get(k, '#5C4B82') }}">{{ _pn[k][0] }}</i>{{ _pn[k] }}</b><small>{{ {'binotel':'IP-АТС, Україна','stream':'Віртуальна АТС','ringostat':'Колтрекінг і віртуальна АТС'}.get(k, '') }}</small></span></label>{% endfor %}
   </div>
-  <div class="tp-f" style="margin-top:18px"><label>Лінії (ваші номери)</label>
-    <div class="st-t" id="st-l"><div class="st-r hd"><span>Номер лінії</span><span>Назва</span><span>Відповідальний</span><span></span></div>
-      {% for r in t.lines or [] %}<div class="st-r"><input name="l_number" value="{{ r.number }}" placeholder="380…"><input name="l_name" value="{{ r.name }}" placeholder="Основна / Instagram / Сайт">
-        <select name="l_user"><option value="">— не призначено —</option>{% for u in _users %}<option value="{{ u.id }}" {{ 'selected' if u.id == r.user_id }}>{{ u.name }}</option>{% endfor %}</select><button type="button" class="st-x" onclick="this.parentNode.remove()" title="Прибрати">×</button></div>{% endfor %}</div>
-    <div class="row" style="gap:8px;margin-top:8px"><button type="button" class="btn ghost" onclick="stAdd('l')">＋ Лінія</button></div>
-    {% if found.lines %}<div class="hint" style="margin-top:8px">Номери, на які вже дзвонили:</div>
-      <div class="fd">{% for x in found.lines %}{% if not line_info(x.number) %}<button type="button" onclick="stAdd('l','{{ x.number }}')">{{ x.number }} <small>{{ x.n }} дз.</small></button>{% endif %}{% endfor %}</div>{% endif %}
-  </div>
-  <div class="row" style="gap:8px;margin-top:16px"><button class="btn">Зберегти співробітників і лінії</button><span class="hint">Після збереження недавні дзвінки перепривʼязуються до співробітників.</span></div>
-</form>
-<template id="tp-us"><option value="">— не призначено —</option>{% for u in _users %}<option value="{{ u.id }}">{{ u.name }}</option>{% endfor %}</template>
 
-{# ================= ОСНОВНІ НАЛАШТУВАННЯ ================= #}
-<form method="post" action="/settings/telephony">
-<div class="tp-c" id="conn"><h2>Підключення</h2>
-  <p class="sub">Вхідні дзвінки з телефонії потрапляють у CRM: журнал дзвінків, пацієнт за номером і нове звернення з вибраним джерелом. Ключі зберігаються зашифровано й не показуються після збереження.</p>
-  <div class="tp-g">
-  <div class="tpv">
-    <label><input type="radio" name="provider" value="" {{ 'checked' if not t.provider }} onchange="tgP()"><span><span class="lg">Без телефонії</span><br>Не підключено</span></label>
-    {% for k, p in PROV.items() %}<label><input type="radio" name="provider" value="{{ k }}" {{ 'checked' if t.provider == k }} onchange="tgP()"><span><span class="lg">{{ {'binotel':'Binotel','stream':'Stream Telecom','ringostat':'Ringostat'}[k] }}</span><br>{{ {'binotel':'IP-АТС, Україна','stream':'Віртуальна АТС','ringostat':'Колтрекінг і віртуальна АТС'}.get(k, '') }}</span></label>{% endfor %}
-  </div>
   {% for k, p in PROV.items() %}{% set cur = t.p.get(k, {}) %}
-  <div class="pf tp-g" data-p="{{ k }}" style="display:{{ 'grid' if t.provider == k else 'none' }}">
+  <div class="pf" data-p="{{ k }}" style="display:{{ 'block' if t.provider == k else 'none' }}">
     <div class="tp-2">{% for f, label, sec in p.fields %}
-    <div class="tp-f"><label>{{ label }}</label>
-      {% if sec %}<input type="password" name="{{ f }}" autocomplete="new-password" placeholder="{{ '•••••••• збережено — введіть нове, щоб замінити' if cur.get(f) else 'не задано' }}">
-      {% else %}<input name="{{ f }}" value="{{ cur.get(f) or '' }}">{% endif %}
-      <div class="hint">{{ p.hint }}</div></div>
+      <div class="tp-f"><label>{{ label }}</label>
+        {% if sec %}<div class="tp-in"><input type="password" name="{{ f }}" autocomplete="new-password" placeholder="{{ '••••••••••••••••••• збережено — введіть нове, щоб замінити' if cur.get(f) else 'не задано' }}"><button type="button" class="eye" onclick="tpEye(this)" title="Показати / сховати"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
+        {% else %}<div class="tp-in"><input name="{{ f }}" value="{{ cur.get(f) or '' }}"></div>{% endif %}</div>
     {% endfor %}</div>
-    <div class="tp-f"><label>Вебхук дзвінків (вставте в кабінеті {{ p.label }})</label>
-      <div class="cp"><input readonly value="{{ hook_url(k) }}" id="hk{{ k }}"><button class="ch-btn" type="button" onclick="navigator.clipboard.writeText(document.getElementById('hk{{ k }}').value);this.textContent='✓'">Копіювати</button></div>
-      <div class="hint">Адреса містить секретний ключ — не публікуйте її. Сайт провайдера: <a href="{{ p.site }}" target="_blank" rel="noopener">{{ p.site }}</a></div></div>
-    {% if k == 'ringostat' %}<details class="tp-d"><summary>Як підключити в Ringostat (Інтеграція → Webhooks 2.0 → «+ Додати подію»)</summary>
-      <div class="hint" style="margin:8px 0">Для кожної події: метод <b>POST</b>, заголовок <b>Content-Type: application/json</b>, формат даних <b>raw</b>, тіло — <b>JSON</b> (скопіюйте нижче).</div>
+    <div class="tp-f" style="margin-top:14px"><label>Вебхук дзвінків ({{ _pn[k] }})</label>
+      <div class="tp-cpy"><div class="tp-in"><input type="password" readonly value="{{ hook_url(k) }}" id="hk{{ k }}"><button type="button" class="eye" onclick="tpEye(this)" title="Показати"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
+        <button class="cb" type="button" onclick="tpCopy('hk{{ k }}',this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>Копіювати</button></div>
+      <div class="hint">Адреса містить секретний ключ — не публікуйте її. {{ p.hint }}</div></div>
+  </div>{% endfor %}
+
+  <div class="tp-bot">
+    <div class="tp-box"><h3><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M2 5h7a3 3 0 0 1 3 3v12a2 2 0 0 0-2-2H2zM22 5h-7a3 3 0 0 0-3 3v12a2 2 0 0 1 2-2h8z"/></svg>Інструкція з підключення</h3><p></p>
+      <div class="acc">{% if t.provider == 'ringostat' or not t.provider %}
+        <details><summary><em>1</em>Створіть інтеграцію в Ringostat</summary><div class="ab">У кабінеті Ringostat відкрийте «Інтеграції» → «Webhooks 2.0». Для подій CRM знадобиться вебхук вище — він уже містить секретний ключ.</div></details>
+        <details><summary><em>2</em>Скопіюйте параметри в CRM</summary><div class="ab">Ringostat → «Інтеграції» → «Ringostat API»: скопіюйте <b>Project ID</b> і <b>Auth-key</b> у поля вище й натисніть «Зберегти», потім «Перевірити підключення».</div></details>
+        <details><summary><em>3</em>Налаштуйте Webhooks 2.0</summary><div class="ab">Для кожної події: метод <b>POST</b>, заголовок <b>Content-Type: application/json</b>, формат <b>raw</b>, тіло — <b>JSON</b>.
       {% for ev, nm, what in R_EVENTS %}<div class="rg-e"><b>{{ loop.index }}. Подія «{{ nm }}»</b> <span class="hint">— {{ what }}</span>
-        <div class="cp"><input readonly value="{{ hook_url(k) }}?event={{ ev }}" id="rgu{{ loop.index }}"><button class="ch-btn" type="button" onclick="navigator.clipboard.writeText(document.getElementById('rgu{{ loop.index }}').value);this.textContent='✓'">URL</button></div>
+        <div class="cp"><input readonly value="{{ hook_url('ringostat') }}?event={{ ev }}" id="rgu{{ loop.index }}"><button class="ch-btn" type="button" onclick="navigator.clipboard.writeText(document.getElementById('rgu{{ loop.index }}').value);this.textContent='✓'">URL</button></div>
         <div class="cp"><input readonly value='{{ R_BODY|format(ev) }}' id="rgb{{ loop.index }}"><button class="ch-btn" type="button" onclick="navigator.clipboard.writeText(document.getElementById('rgb{{ loop.index }}').value);this.textContent='✓'">JSON</button></div></div>{% endfor %}
       <div class="rg-e"><b>5. Подія «Дзвінок оброблено AI»</b> <span class="hint">— текст діалогу, короткий зміст, настрій (потрібен Ringostat AI). У тілі JSON вкажіть ключі: call_id, caller, summary, client_mood, employee_mood, recommendations, vtt (посилання на файл діалогу VTT) — значення оберіть зі змінних події.</span>
-        <div class="cp"><input readonly value="{{ hook_url(k) }}?event=ai" id="rgu-ai"><button class="ch-btn" type="button" onclick="navigator.clipboard.writeText(document.getElementById('rgu-ai').value);this.textContent='✓'">URL</button></div></div>
-      <div class="hint">Наявні події з адресами cbox.mobi (CleverBox) можна вимкнути, коли CleverBox більше не потрібен.</div></details>{% endif %}
-  </div>{% endfor %}
-  </div></div>
+        <div class="cp"><input readonly value="{{ hook_url('ringostat') }}?event=ai" id="rgu-ai"><button class="ch-btn" type="button" onclick="navigator.clipboard.writeText(document.getElementById('rgu-ai').value);this.textContent='✓'">URL</button></div></div>
+          <div class="rg-e"><b>5. Подія «Дзвінок оброблено AI»</b> <span class="hint">— ключі JSON: call_id, caller, summary, client_mood, employee_mood, recommendations, vtt.</span>
+            <div class="cp"><input readonly value="{{ hook_url('ringostat') }}?event=ai" id="rgu-ai"><button class="ch-btn" type="button" onclick="tpCopy('rgu-ai',this)">URL</button></div></div>
+          <div class="hint">Події з адресами cbox.mobi (CleverBox) можна вимкнути, коли CleverBox більше не потрібен.</div></div></details>
+      {% else %}
+        <details open><summary><em>1</em>Ключі доступу</summary><div class="ab">Вставте ключі з кабінету {{ _pn.get(t.provider) }} у поля вище й збережіть.</div></details>
+        <details><summary><em>2</em>Вебхук</summary><div class="ab">Скопіюйте адресу вебхука й вставте її в кабінеті провайдера (сайт: <a href="{{ _pv.site }}" target="_blank" rel="noopener">{{ _pv.site }}</a>).</div></details>
+      {% endif %}</div></div>
+    <div class="tp-box" id="appeal"><h3><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>Звернення з дзвінків</h3>
+      <p>Налаштуйте автоматичне створення звернень у CRM. Повторний дзвінок з того ж номера за добу привʼязується до наявного звернення.</p>
+      <div class="tp-2"><div class="tp-f"><label>Канал звернення</label>
+        <select name="source">{% for s in sources %}<option {{ 'selected' if s == t.source }}>{{ s }}</option>{% endfor %}{% if t.source not in sources %}<option selected>{{ t.source }}</option>{% endif %}</select></div>
+      <div class="tp-f" style="align-content:start;gap:12px"><label>Коли створювати</label>
+        <label class="tsw"><input type="checkbox" name="create_appeal" value="1" {{ 'checked' if t.create_appeal }}> Створювати звернення з вхідних дзвінків</label>
+        <label class="tsw"><input type="checkbox" name="missed_only" value="1" {{ 'checked' if t.missed_only }}> Лише з пропущених</label></div></div></div>
+  </div>
+</div>
 
-<div class="tp-c" id="appeal"><h2>Звернення з дзвінків</h2><p class="sub">Повторний дзвінок з того ж номера протягом доби привʼязується до вже створеного звернення.</p>
-  <div class="tp-2"><div class="tp-f"><label>Канал звернення</label>
-    <select name="source">{% for s in sources %}<option {{ 'selected' if s == t.source }}>{{ s }}</option>{% endfor %}{% if t.source not in sources %}<option selected>{{ t.source }}</option>{% endif %}</select>
-    <div class="hint">Джерело звернення, що створюватиметься при вхідному дзвінку. Список — у «Налаштування → Звернення».</div></div>
-  <div class="tp-f" style="align-content:start;gap:12px"><label>Коли створювати</label>
-    <label class="sw" style="text-transform:none;letter-spacing:0;color:#2A2430;font-size:14px"><input type="checkbox" name="create_appeal" value="1" {{ 'checked' if t.create_appeal }}> Створювати звернення з вхідних дзвінків</label>
-    <label class="sw" style="text-transform:none;letter-spacing:0;color:#2A2430;font-size:14px"><input type="checkbox" name="missed_only" value="1" {{ 'checked' if t.missed_only }}> Лише з пропущених</label></div></div></div>
-
+<div class="tp-pane" data-p="popup">
 <div class="tp-c" id="popup"><h2>Вікно «Вхідний дзвінок»</h2><p class="sub">У вікні: хто дзвонить, найближчий запис, кнопки «Картка пацієнта», «Записати», для нового номера — «Створити пацієнта».</p>
   <div class="tp-f"><label>Кому показувати</label>
     <div class="chk">{% for u in users_all %}<label><input type="checkbox" name="popup_users" value="{{ u.id }}" {{ 'checked' if u.id in (t.popup_users or []) }}> {{ u.name }}</label>{% endfor %}</div>
@@ -132,6 +169,8 @@ dialog.al-d{border:0;border-radius:20px;padding:0;width:min(520px,96vw);max-heig
     <div class="chk">{% for k, lb in POPUP_FIELDS %}<label><input type="checkbox" name="popup_fields" value="{{ k }}" {{ 'checked' if k in (t.popup_fields or []) }}> {{ lb }}</label>{% endfor %}</div>
     <div class="hint">Імʼя й номер видно завжди; кнопки «Картка пацієнта», «Записати», «Створити пацієнта» — теж.</div></div></div>
 
+</div>
+<div class="tp-pane" data-p="ai">
 <div class="tp-c" id="ai"><h2>AI-оцінка діалогів</h2><p class="sub">Оцінки йдуть у KPI дзвінків по співробітниках («Телефонія» → таблиця KPI).</p>
   <div class="tp-g">
   <label class="sw"><input type="checkbox" name="ai_on" value="1" {{ 'checked' if t.ai_on }}> Увімкнути AI-оцінку</label>
@@ -156,10 +195,39 @@ dialog.al-d{border:0;border-radius:20px;padding:0;width:min(520px,96vw);max-heig
     </div>
     <div class="al-f"><button type="button" class="btn ghost" onclick="alClear()">Нікого (власнику)</button><button type="button" class="btn" onclick="alDone()">Готово</button></div></dialog>
   </div></div>
-<div class="tp-save"><button class="btn">Зберегти</button><button class="btn ghost" name="test" value="1">✓ Перевірити підключення</button></div>
+</div>
+<div class="tp-sv" id="tp-sv"><button class="btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>Зберегти</button></div>
 </form>
 
-{# ================= ДЗВІНКИ Й ВЕБХУКИ ================= #}
+<div class="tp-pane" data-p="staff">
+{# ================= СПІВРОБІТНИКИ Й ЛІНІЇ ================= #}
+{% set _users = users_all %}
+<form method="post" action="/settings/telephony/staff" class="tp-c" id="staff-f">
+  <h2>Співробітники й лінії</h2>
+  <p class="sub">Хто взяв дзвінок — CRM визначає за <b>ID співробітника в Ringostat</b> (поле <code>manager</code> / staffid у вебхуку) або за його <b>імʼям у Ringostat</b>. Лінія — ваш номер, на який дзвонять; у кожної лінії є <b>відповідальний</b>: пропущені дзвінки лінії зараховуються йому в KPI і видно в журналі «не взяли · відповідальний: …».</p>
+  <div class="tp-f"><label>Співробітники телефонії</label>
+    <div class="st-t" id="st-s"><div class="st-r hd"><span>Користувач CRM</span><span>ID у Ringostat</span><span>Імʼя в Ringostat</span><span></span></div>
+      {% for r in t.staff or [] %}<div class="st-r"><select name="s_user">{% for u in _users %}<option value="{{ u.id }}" {{ 'selected' if u.id == r.user_id }}>{{ u.name }}</option>{% endfor %}</select>
+        <input name="s_ext" value="{{ r.ext }}" placeholder="напр. 521088"><input name="s_alias" value="{{ r.alias }}" placeholder="як підписаний у Ringostat"><button type="button" class="st-x" onclick="this.parentNode.remove()" title="Прибрати">×</button></div>{% endfor %}</div>
+    <div class="row" style="gap:8px;margin-top:8px"><button type="button" class="btn ghost" onclick="stAdd('s')">＋ Співробітник</button></div>
+    {% if found.staff %}<div class="hint" style="margin-top:8px">Знайдено в дзвінках за 30 днів — натисніть, щоб додати:</div>
+      <div class="fd">{% for x in found.staff %}<button type="button" onclick="stAdd('s','{{ x.ext|e }}','{{ x.alias|e }}')">{{ x.alias or 'без імені' }}{% if x.ext %} · ID {{ x.ext }}{% endif %} <small>{{ x.n }} дз.</small></button>{% endfor %}</div>{% endif %}
+  </div>
+  <div class="tp-f" style="margin-top:18px"><label>Лінії (ваші номери)</label>
+    <div class="st-t" id="st-l"><div class="st-r hd"><span>Номер лінії</span><span>Назва</span><span>Відповідальний</span><span></span></div>
+      {% for r in t.lines or [] %}<div class="st-r"><input name="l_number" value="{{ r.number }}" placeholder="380…"><input name="l_name" value="{{ r.name }}" placeholder="Основна / Instagram / Сайт">
+        <select name="l_user"><option value="">— не призначено —</option>{% for u in _users %}<option value="{{ u.id }}" {{ 'selected' if u.id == r.user_id }}>{{ u.name }}</option>{% endfor %}</select><button type="button" class="st-x" onclick="this.parentNode.remove()" title="Прибрати">×</button></div>{% endfor %}</div>
+    <div class="row" style="gap:8px;margin-top:8px"><button type="button" class="btn ghost" onclick="stAdd('l')">＋ Лінія</button></div>
+    {% if found.lines %}<div class="hint" style="margin-top:8px">Номери, на які вже дзвонили:</div>
+      <div class="fd">{% for x in found.lines %}{% if not line_info(x.number) %}<button type="button" onclick="stAdd('l','{{ x.number }}')">{{ x.number }} <small>{{ x.n }} дз.</small></button>{% endif %}{% endfor %}</div>{% endif %}
+  </div>
+  <div class="row" style="gap:8px;margin-top:16px"><button class="btn">Зберегти співробітників і лінії</button><span class="hint">Після збереження недавні дзвінки перепривʼязуються до співробітників.</span></div>
+</form>
+<template id="tp-us"><option value="">— не призначено —</option>{% for u in _users %}<option value="{{ u.id }}">{{ u.name }}</option>{% endfor %}</template>
+
+</div>
+
+<div class="tp-pane" data-p="log">
 <div class="tp-c" id="log"><h2>Останні дзвінки</h2><p class="sub">Повний журнал, KPI і AI-оцінки — у розділі <a href="/telephony">«Телефонія»</a>.</p>
   <div style="overflow-x:auto">{% if calls %}{% set _w = call_who(calls) %}<table class="tbl"><tr><th>Час</th><th></th><th>Номер</th><th>Лінія</th><th>Взяв / відповідальний</th><th>Пацієнт</th><th>Статус</th><th>Тривалість</th><th>Звернення</th><th>Запис</th></tr>
   {% for c in calls %}{% set w = _w.get(c.id, {}) %}<tr><td>{{ c.at|dt('%d.%m %H:%M') }}</td><td>{{ '⬅️' if c.direction == 'in' else '➡️' }}</td><td>{{ c.phone or '—' }}</td>
@@ -176,8 +244,19 @@ dialog.al-d{border:0;border-radius:20px;padding:0;width:min(520px,96vw);max-heig
   {% for h in hook_log %}<details style="border-top:1px solid #F1EDE8;padding:8px 0"><summary style="cursor:pointer"><b>{{ h.at }}</b> · {{ h.provider }} · подія <b>{{ h.event }}</b> · {{ h.data.get('caller') or h.data.get('callee') or '' }} · {{ h.data.get('status') or '' }}</summary>
     <pre style="white-space:pre-wrap;font-size:12.5px;background:#FBFAF8;border-radius:10px;padding:8px 10px">{{ h.data|tojson(indent=1) }}</pre></details>
   {% else %}<div class="muted">Вебхуків ще не було.</div>{% endfor %}</div>
+</div>
+</div>
 <script>
-function tgP(){var v=(document.querySelector('input[name=provider]:checked')||{}).value||'';document.querySelectorAll('.pf').forEach(function(e){e.style.display=e.dataset.p===v?'grid':'none'})}
+function tgP(){var v=(document.querySelector('input[name=provider]:checked')||{}).value||'';document.querySelectorAll('.pf').forEach(function(e){e.style.display=e.dataset.p===v?'block':'none'})}
+function tpEye(b){var i=b.parentNode.querySelector('input');i.type=i.type==='password'?'text':'password'}
+function tpCopy(id,b){var v=document.getElementById(id).value;(navigator.clipboard?navigator.clipboard.writeText(v):Promise.reject()).then(function(){var t=b.innerHTML;b.textContent='✓ Скопійовано';setTimeout(function(){b.innerHTML=t},1500)})}
+function tpTab(t){if(!document.querySelector('.tp-pane[data-p="'+t+'"]'))t='conn';
+  document.querySelectorAll('.tp-pane').forEach(function(p){p.classList.toggle('on',p.dataset.p===t)});
+  document.querySelectorAll('#tp-tabs a').forEach(function(a){a.classList.toggle('on',a.dataset.t===t)});
+  document.getElementById('tp-sv').style.display=(t==='staff'||t==='log')?'none':'flex';try{localStorage.setItem('tp-tab',t)}catch(e){}}
+document.querySelectorAll('#tp-tabs a').forEach(function(a){a.onclick=function(e){e.preventDefault();history.replaceState(null,'','#'+a.dataset.t);tpTab(a.dataset.t)}});
+(function(){var h=(location.hash||'').slice(1),m={staff:'staff',conn:'conn',appeal:'conn',popup:'popup',ai:'ai',log:'log'};var t=m[h];
+  if(!t){try{t=localStorage.getItem('tp-tab')}catch(e){}}tpTab(t||'conn')})();
 function alDone(){var c=document.getElementById('al-ch'),xs=[...document.querySelectorAll('#al-d input:checked')].map(function(i){return i.closest('label').querySelector('b').textContent});
   c.innerHTML=(xs.length?xs:['Власнику']).map(function(x){return '<i>'+x.replace(/</g,'&lt;')+'</i>'}).join('');document.getElementById('al-d').close()}
 function alClear(){document.querySelectorAll('#al-d input').forEach(function(i){i.checked=false});alDone()}
