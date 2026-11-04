@@ -4635,14 +4635,19 @@ def reconcile_from_api(db: Session) -> dict | None:
     """Свіжі залишки CleverBox через API (/products/stock) → знімок звірки (лише кількість)."""
     import json
     from .integrations.cleverbox import CleverBox, _first
-    rows = []
+    rows, skipped, raw_n = [], set(), 0
     for r in CleverBox().products_stock():
+        raw_n += 1
         pid = _first(r, "product_id", "item_id", "id")
-        wh = catalog.warehouse_of(_first(r, "storage_name", "storage", "store_name"))
+        sname = _first(r, "storage_name", "storage", "store_name")
+        wh = catalog.warehouse_of(sname)
         if pid in (None, "") or not wh:
+            skipped.add(str(sname or "?")[:40])
             continue
         q = float(_first(r, "quantity", "qty", "stock", "balance", "count", "amount", default=0) or 0)
         rows.append([int(pid), wh, q, 0.0, str(_first(r, "product_name", "name", "title", default=""))])
+    if not rows:
+        raise RuntimeError(f"API CleverBox не дав залишків по складах (рядків {raw_n}, склади без відповідності: {', '.join(sorted(skipped)) or '—'})")
     stt = db.get(SyncState, "wh_reconcile") or SyncState(key="wh_reconcile")
     stt.value = json.dumps({"rows": rows, "at": datetime.now().isoformat(timespec="minutes"), "source": "api"}, ensure_ascii=False)
     stt.updated_at = datetime.utcnow()
@@ -4680,6 +4685,8 @@ async def job_reconcile():
         await asyncio.to_thread(run_daily_reconcile)
     except Exception as e:          # noqa: BLE001
         log.warning("daily reconcile failed: %s", e)
+        from .services import alerts
+        await asyncio.to_thread(alerts.send, f"⚖ Звірка складів з CleverBox не вдалася: {str(e)[:300]}")
 
 
 @app.post("/stock/reconcile/inventory")
