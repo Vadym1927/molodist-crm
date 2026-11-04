@@ -2198,6 +2198,16 @@ def settings_loyalty(request: Request, user: User = Depends(require("finance")),
                   edit=next((r for r in rules if str(r.id) == qp.get("edit", "")), None), WD=["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"])
 
 
+@app.get("/settings/bonuses", response_class=HTMLResponse)
+def settings_bonuses(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import loyalty as ly
+    from .models import BonusTxn
+    bal = ly.balances(db)
+    return render(request, "bonuses.html", nav="settings", s=ly.settings(db), n_holders=sum(1 for v in bal.values() if v > 0.005),
+                  total_bonus=round(sum(v for v in bal.values() if v > 0), 2), n_txns=db.scalar(select(func.count(BonusTxn.id))) or 0,
+                  n_cb=db.scalar(select(func.count(Patient.id)).where(Patient.cb_bonus > 0)) or 0)
+
+
 @app.post("/settings/loyalty/bonus")
 async def settings_loyalty_bonus(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     from .services import loyalty as ly
@@ -2212,7 +2222,7 @@ async def settings_loyalty_bonus(request: Request, user: User = Depends(require(
     s["expire_days"] = int(v) if v and v > 0 else 0
     ly.save_settings(db, s)
     audit(db, "loyalty.settings", user=user, **s)
-    return RedirectResponse(f"/settings/loyalty?msg={_q('Бонусну програму збережено')}", 303)
+    return RedirectResponse(f"/settings/bonuses?msg={_q('Бонусну програму збережено')}", 303)
 
 
 @app.post("/settings/loyalty/discount")
@@ -2260,7 +2270,7 @@ def settings_loyalty_import(user: User = Depends(require("finance")), db: Sessio
     from .services import loyalty as ly
     n = ly.import_cleverbox(db, user.id)
     audit(db, "loyalty.import", user=user, n=n)
-    return RedirectResponse(f"/settings/loyalty?msg={_q(f'Перенесено залишки бонусів: {n} пацієнтів')}", 303)
+    return RedirectResponse(f"/settings/bonuses?msg={_q(f'Перенесено залишки бонусів: {n} пацієнтів')}", 303)
 
 
 @app.post("/patients/{pid:int}/bonus")
@@ -5236,7 +5246,8 @@ SETTINGS_BLOCKS = [
     ('Фінанси', 'finance', 'Каси, статті, оплати й фіскалізація', [
         ('Каси / рахунки', 'Готівка, рахунки ФОП, термінал, онлайн-оплати: залишок після кожної операції, локація, тип', '/settings/cashboxes', 'finance', None),
         ('Статті фінансових операцій', 'Довідник статей доходів і витрат: реклама, податки, персонал, закупки…', '/settings/articles', 'finance', 'dirs/ftype'),
-        ('Знижки й бонусна програма', 'Правила знижок, % нарахування бонусів, термін дії, персональні знижки', '/settings/loyalty', 'finance', None),
+        ('Знижки', 'Правила знижок: акції, дні тижня, категорії, автозастосування; персональні знижки', '/settings/loyalty', 'finance', None),
+        ('Бонусна програма · в розробці', '% нарахування бонусів, оплата бонусами, термін дії, вітальні бонуси, перенос залишків з CleverBox', '/settings/bonuses', 'finance', None),
         ('Платіжні системи', 'Посилання на оплату для пацієнтів: monobank еквайринг, LiqPay, WayForPay', '/settings/payments', 'finance', 'payment_system'),
         ('Банк monobank', 'Виписки ФОП, оплати постачальникам і їх автоматичне рознесення', '/settings/keys?s=mono#mono', 'finance', None),
         ('Checkbox', 'Фіскалізація чеків CRM, каси (РРО), відправлення чеків; оборот ФОП — у «Звіти → Ліміти ФОП»', '/settings/checkbox', 'finance', 'cmarket/checkbox/main'),

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Знижки й бонуси · Налаштування{% endblock %}
+{% block title %}Знижки · Налаштування{% endblock %}
 {% block body %}
 {% set qp = request.query_params %}{% set r0 = edit %}
 <style>
@@ -11,20 +11,11 @@
 .chips{display:flex;flex-wrap:wrap;gap:5px}.chips label{display:inline-flex;gap:5px;align-items:center;background:var(--soft);border-radius:8px;padding:4px 8px;font-size:12.5px;color:var(--ink);font-weight:600}
 @media (max-width:1050px){.ly{grid-template-columns:1fr}}
 </style>
-<div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a></div><h1>Знижки й бонусна програма</h1>
+<div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a></div><h1>Знижки</h1>
 {% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
 {% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
 <div class="ly"><div>
-<form class="card" method="post" action="/settings/loyalty/bonus"><div class="row between"><h2 style="margin:0">🎁 Бонусна програма</h2><button class="btn">Зберегти</button></div>
-  <label class="sw" style="margin:12px 0"><input type="checkbox" name="enabled" value="1" {{ 'checked' if s.enabled }}> Бонусна програма працює (нарахування в продажах CRM)</label>
-  <div class="two"><label>% бонусів з послуг<input name="pct_services" value="{{ '%g'|format(s.pct_services) }}" inputmode="decimal"></label><label>% бонусів з товарів<input name="pct_products" value="{{ '%g'|format(s.pct_products) }}" inputmode="decimal"></label></div>
-  <div class="two" style="margin-top:10px"><label>Оплата бонусами — до % чека<input name="max_pay_pct" value="{{ '%g'|format(s.max_pay_pct) }}" inputmode="decimal"></label><label>Термін дії, днів (0 — безстроково)<input name="expire_days" value="{{ s.expire_days }}" inputmode="numeric"></label></div>
-  <div class="two" style="margin-top:10px"><label>Вітальні бонуси новому пацієнту<input name="welcome" value="{{ '%g'|format(s.welcome) }}" inputmode="decimal"></label><label>Бонуси до дня народження (діють 30 днів)<input name="birthday" value="{{ '%g'|format(s.birthday) }}" inputmode="decimal"></label></div>
-  <div class="two" style="margin-top:10px"><label>Мінімальний чек для нарахування, ₴<input name="min_check" value="{{ '%g'|format(s.min_check) }}" inputmode="decimal"></label>
-    <label class="sw" style="align-self:end"><input type="checkbox" name="accrue_on_bonus_paid" value="1" {{ 'checked' if s.accrue_on_bonus_paid }}> нараховувати й на суму, сплачену бонусами</label></div>
-  <div class="small muted" style="margin-top:10px">Бонусів на рахунках: <b>{{ total_bonus|uah }}</b> у {{ n_holders }} пацієнтів · операцій {{ n_txns }}. Згоряння й бонуси до дня народження — щодня о 9:05.</div>
-</form>
-{% if n_cb %}<form class="card" method="post" action="/settings/loyalty/import"><b>Перенести залишки бонусів з CleverBox</b><p class="small muted" style="margin:4px 0 8px">У {{ n_cb }} пацієнтів у картках CleverBox є бонуси. Перенесення створить стартовий запис у журналі бонусів (один раз; пацієнтів, у яких уже є рух бонусів у CRM, не чіпає).</p><button class="btn ghost">Перенести</button></form>{% endif %}
+<div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:#FBFAF8"><div><b>🎁 Бонусна програма</b> <span class="pill" style="background:#FFF1D6;color:#9A6A00">в розробці</span><div class="small muted">Налаштовується окремо від знижок.</div></div><a class="btn ghost" href="/settings/bonuses">Відкрити →</a></div>
 <div class="card" id="disc"><div class="row between"><h2 style="margin:0">🏷 Знижки · {{ rules|length }}</h2></div>
   <p class="small muted" style="margin:6px 0 10px">Автоматичні знижки застосовуються в продажі самі; ручні — вибирає адміністратор. Якщо підходять кілька — береться найвигідніша, плюс ті, що «сумуються».</p>
   {% for r in rules %}<div class="dr {{ 'off' if not r.active }}"><div><b>{{ r.name }}</b>{% if not r.active %} <span class="pill">вимкнено</span>{% endif %}
