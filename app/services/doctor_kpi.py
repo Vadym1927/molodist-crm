@@ -569,6 +569,8 @@ def compute(db: Session, d_from: date, d_to: date, with_prev: bool = True, only:
         pv = prev_rows.get(d.id)
         m = _overlay(_metrics(db, d, x, d_from, d_to, cfg, sched.get(d.id, {}), pay.get(d.id, {}), plans, pv["_new"] if pv else None),
                      sheet.get(d.id, {}).get(f"{d_from:%Y-%m}"))
+        if not m["total"] and m["done"] < 3:               # без обороту й майже без візитів (лабораторія, тест) — не в KPI
+            continue
         m["prev"] = {k: v for k, v in pv.items() if not k.startswith("_") and k not in ("doctor", "cats", "targets", "prods")} if pv else None
         m["zones"] = _zones(m, pv)
         m["premium"] = _premium(m, cfg)
@@ -603,6 +605,7 @@ def _overlay(m: dict, sh: dict | None) -> dict:
     m["avg_patient"] = round(m["total"] / m["patients"], 2) if m.get("patients") else 0.0
     m["avg_service"] = round(_f(m["services"]) / m["n_services"], 2) if m.get("n_services") else 0.0
     m["patients"], m["new"], m["old"] = int(_f(m["patients"])), int(_f(m["new"])), int(_f(m["old"]))
+    m["work_days"] = int(_f(m.get("work_days")))
     m["gross"] = round(m["total"] - _f(m["cost"]), 2)
     m["staff_cost"] = round(_f(m["salary"]) + _f(m["taxes"]), 2)
     m["contrib"] = round(_f(m["services"]) - _f(m["cost"]) - _f(m["salary"]), 2)
