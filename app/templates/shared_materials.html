@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Спільні розхідники візиту · MOLODIST CRM{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+<style>
+.sm-info{background:linear-gradient(120deg,#F1EDF8,#F7F4F0);border:1px solid #E4DEEF;border-radius:16px;padding:16px 20px;color:#3B3050;margin:14px 0 18px;line-height:1.55;max-width:980px}
+.sm-info ol{margin:8px 0 0 18px;padding:0}.sm-info li{margin:4px 0}
+.sm-c{background:#fff;border:1px solid #ECE7E1;border-radius:16px;padding:18px 20px;max-width:980px}
+.sm-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px;margin-top:12px}
+.sm-g label{display:flex;gap:10px;align-items:center;border:1px solid #ECE7E1;border-radius:12px;padding:9px 12px;background:#FBFAF8;cursor:pointer;font-size:13.5px}
+.sm-g label:has(input:checked){border-color:#C9BFE6;background:#F6F3FB}.sm-g input{width:17px;height:17px;accent-color:#3B3050;flex:none}
+.sm-g small{color:#B07A1E;font-size:11px;margin-left:auto;white-space:nowrap}
+.sm-t{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+</style>
+<div class="row between" style="gap:10px;flex-wrap:wrap"><div><div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a> · Склад</div><h1>Спільні розхідники візиту</h1></div></div>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok);margin-top:10px;max-width:980px">{{ qp.get('msg') }}</div>{% endif %}
+<div class="sm-info"><b>Алгоритм списання, коли у візиті кілька послуг</b>
+  <ol>
+    <li>Кожна послуга візиту отримує витратні зі своєї техкарти — як і раніше.</li>
+    <li>Розхідники, позначені нижче (рукавички, маски, шапочки, простирадла, бахіли, рушники, ватні диски, антисептик…), — <b>один комплект на візит</b>: між послугами вони не сумуються, списується <b>найбільша</b> кількість з усіх послуг. Приклад: рукавички 2 + 2 → 2; ватні диски 7 + 5 → 7.</li>
+    <li>У картці візиту такий рядок у другій послузі позначається «у комплекті візиту» і не додається до собівартості.</li>
+    <li>Усе інше — препарати, шприци, голки, канюлі, хвилини роботи апарата — <b>сумується по кожній послузі</b>, як у техкартах.</li>
+    <li>Якщо адміністратор змінив кількість вручну, правило рахує вже з новими кількостями. Правило діє на нові списання; уже закриті візити не перераховуються.</li>
+  </ol></div>
+<form method="post" class="sm-c">
+  <div class="sm-t"><label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" name="on" value="1" {{ 'checked' if cfg.on }} style="width:18px;height:18px;accent-color:#3B3050"> Правило увімкнено</label>
+    <span class="small muted">Склад «Одноразка» · позначено {{ sel|length }} з {{ prods|length }}{% if not cfg.saved %} · <b style="color:#B07A1E">ще не збережено — позначено підказки за назвою</b>{% endif %}</span>
+    <input id="sm-q" placeholder="Пошук розхідника" style="margin-left:auto;height:38px;min-width:220px" oninput="smF(this.value)">
+    <button class="btn">Зберегти</button></div>
+  <div class="sm-g" id="sm-g">{% for p in prods %}<label data-n="{{ p.name|lower }}"><input type="checkbox" name="p" value="{{ p.id }}" {{ 'checked' if p.id in sel }}> <span>{{ p.name }}</span>{% if p.id in sug %}<small>підказка</small>{% endif %}</label>{% else %}<div class="muted">На складі «Одноразка» ще немає товарів.</div>{% endfor %}</div>
+</form>
+<script>function smF(q){q=q.toLowerCase().trim();document.querySelectorAll('#sm-g label').forEach(function(l){l.hidden=!!q&&l.dataset.n.indexOf(q)<0})}</script>
+{% endblock %}

@@ -188,6 +188,8 @@
     <section data-p="cost" hidden>
       {% if mats is not none %}
       <div class="vd-info">{% if a and a.historic %}Історія CleverBox: фактичні витратні цього візиту, списані зі складу в CleverBox (у CRM лише для перегляду).{% elif closed %}Візит закрито — матеріали списано зі складу: {% for d in wdocs %}<a href="/stock/docs/{{ d.id }}">{{ d.number }} ({{ WH.get(d.wh_from, d.wh_from) }})</a>{{ ', ' if not loop.last }}{% endfor %}.
+          {% if c.a.sale_id and not c.a.historic %}<form method="post" action="/appointments/{{ c.a.id }}/materials-unlock" style="display:inline" data-delpw="Відкрити витратні оплаченого візиту для виправлення? Списання скасується, після змін натисніть «Списати зі складу»."><button class="vd-addb" style="margin-left:6px">🔒 Виправити витратні</button></form>{% endif %}
+        {% elif c.mat_editing %}<b style="color:#B07A1E">Витратні відкриті для виправлення.</b> Чек уже оплачено — після змін натисніть <form method="post" action="/appointments/{{ c.a.id }}/materials-close" style="display:inline"><button class="vd-btn">Списати зі складу</button></form>
         {% else %}Витратні — з техкарти кожної послуги. Кількість можна змінити, позицію — прибрати чи додати; зміни зберігаються одразу. Після оплати візиту матеріали списуються зі складу.{% endif %}</div>
       {% if popts %}<datalist id="vd-prods">{% for pid, label, w in popts %}<option value="{{ label }}">{% endfor %}</datalist>
         {% for wh in ['single','inject','classic','equip','vitrina'] %}<datalist id="vd-prods-{{ wh }}">{% for pid, label, w in popts if (w or 'vitrina') == wh %}<option value="{{ label }}">{% endfor %}</datalist>{% endfor %}{% endif %}
@@ -206,7 +208,7 @@
             {% if closed %}<span>{{ '%g'|format(m.qty) }} {{ _u }}</span>
             {% else %}{% set _k = m.product.coef if m.product and m.product.coef and m.product.coef > 1 else 1 %}<span class="vd-qty" data-k="1"><button type="button" onclick="vdMatStep({{ c.a.id }}, {{ m.id }}, this, -1)" title="Менше">−</button><input type="text" inputmode="decimal" value="{{ '%g'|format(m.qty) }}" onchange="vdMatSet({{ c.a.id }}, {{ m.id }}, this)"><button type="button" onclick="vdMatStep({{ c.a.id }}, {{ m.id }}, this, 1)" title="Більше">+</button></span>
               {% if _k > 1 %}<select class="vd-u" title="Одиниця виміру" onchange="vdUnit(this)" data-k="{{ _k }}"><option value="1">{{ _u }}</option><option value="{{ _k }}">{{ m.product.purchase_unit or 'уп.' }} ({{ '%g'|format(_k) }} {{ _u }})</option></select>{% else %}<span class="vd-u">{{ _u }}</span>{% endif %}{% endif %}
-            <em>{{ money(m.qty * m.unit_cost) if can(user,'see_costs') else '' }}</em>{% if not closed %}<button type="button" class="vd-x" title="Прибрати" onclick="vdMat({{ c.a.id }}, {{ m.id }}, null)">×</button>{% endif %}</div>{% endfor %}
+            <em>{% if m.eff_qty is defined and m.eff_qty != m.qty %}<small title="Спільний розхідник: один комплект на візит — уже враховано в іншій послузі цього візиту" style="color:#8a8496;font-style:normal">у комплекті візиту</small>{% elif can(user,'see_costs') %}{{ money(m.qty * m.unit_cost) }}{% endif %}</em>{% if not closed %}<button type="button" class="vd-x" title="Прибрати" onclick="vdMat({{ c.a.id }}, {{ m.id }}, null)">×</button>{% endif %}</div>{% endfor %}
         {% endif %}{% endfor %}
       {% else %}<div class="vd-empty">У візиті ще немає послуг.</div>{% endfor %}
       <datalist id="vd-cats"><option value="Одноразка"><option value="Препарат"><option value="Обладнання"></datalist>

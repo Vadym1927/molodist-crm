@@ -160,6 +160,89 @@ def seed(db: Session, a: Appointment) -> bool:
     return changed
 
 
+# ---------------- спільні розхідники візиту (один комплект на візит) ----------------
+SHARED_KEY = "visit_shared_materials"
+EDIT_KEY = "visit_materials_editing"
+SHARED_HINTS = ("рукавич", "маска мед", "шапоч", "простирад", "бахіл", "рушник", "халат", "ватн", "хлоргексид", "ахд",
+                "серветк", "пелюшк", "фартух", "антисепт")
+
+
+def _js(db: Session, key: str):
+    import json
+    from ..models import SyncState
+    st = db.get(SyncState, key)
+    try:
+        return json.loads(st.value) if st and st.value else None
+    except ValueError:
+        return None
+
+
+def _put(db: Session, key: str, val) -> None:
+    import json
+    from datetime import datetime
+    from ..models import SyncState
+    db.merge(SyncState(key=key, value=json.dumps(val, ensure_ascii=False), updated_at=datetime.utcnow()))
+    db.commit()
+
+
+def suggested_shared(db: Session) -> set[int]:
+    """Підказка: загальні кабінетні розхідники складу «Одноразка» за назвою."""
+    out = set()
+    for p in db.scalars(select(Product).where(Product.warehouse == "single")):
+        n = (p.name or "").lower()
+        if any(h in n for h in SHARED_HINTS):
+            out.add(p.id)
+    return out
+
+
+def shared_cfg(db: Session) -> dict:
+    v = _js(db, SHARED_KEY)
+    if v is None:
+        return {"on": True, "products": sorted(suggested_shared(db)), "saved": False}
+    return {"on": bool(v.get("on", True)), "products": [int(x) for x in v.get("products") or []], "saved": True}
+
+
+def save_shared(db: Session, on: bool, products) -> None:
+    _put(db, SHARED_KEY, {"on": bool(on), "products": sorted({int(x) for x in products})})
+
+
+def effective(db: Session, rows) -> dict[int, float]:
+    """Скільки реально списати по кожному рядку витратних візиту.
+    Алгоритм: розхідники зі списку «один комплект на візит» не сумуються між послугами одного візиту —
+    списується НАЙБІЛЬША кількість з усіх послуг (рядок із нею лишається, інші → 0; при рівності — перша послуга).
+    Усе інше (препарати, шприци, голки, хвилини апарата…) — сума по кожній послузі, як у техкартах."""
+    eff = {m.id: float(m.qty or 0) for m in rows}
+    cfg = shared_cfg(db)
+    if not cfg["on"]:
+        return eff
+    sh = set(cfg["products"])
+    groups: dict[int, list] = defaultdict(list)
+    for m in rows:
+        if m.product_id in sh:
+            groups[m.product_id].append(m)
+    for pid, ms in groups.items():
+        if len({m.svc_idx for m in ms}) < 2:
+            continue
+        per: dict[int, float] = defaultdict(float)
+        for m in ms:
+            per[m.svc_idx] += float(m.qty or 0)
+        keep = max(sorted(per), key=lambda i: per[i])        # послуга з найбільшою кількістю (перша при рівності)
+        for m in ms:
+            if m.svc_idx != keep:
+                eff[m.id] = 0.0
+    return eff
+
+
+def editing(db: Session) -> set[int]:
+    return {int(x) for x in (_js(db, EDIT_KEY) or [])}
+
+
+def set_editing(db: Session, aid: int, on: bool) -> None:
+    cur = editing(db)
+    cur = (cur | {aid}) if on else (cur - {aid})
+    _put(db, EDIT_KEY, sorted(cur))
+
+
 def materials(db: Session, a: Appointment) -> list[dict]:
     """По послугах візиту: категорії → рядки, собівартість, ліміт техкарти."""
     rows = db.scalars(select(VisitMaterial).where(VisitMaterial.appt_id == a.id).order_by(VisitMaterial.svc_idx, VisitMaterial.id)).all()
@@ -173,8 +256,11 @@ def materials(db: Session, a: Appointment) -> list[dict]:
         if ch:
             db.commit()
     out = []
+    eff = effective(db, rows)
     for idx, s in enumerate(a.services or []):
         mine = [m for m in rows if m.svc_idx == idx]
+        for m in mine:
+            m.eff_qty = eff.get(m.id, m.qty)
         card = _card_of(db, s.get("id"))
         cats: dict[str, list] = {}
         for c in (card.cats if card and card.cats else DEFAULT_CATS):     # усі категорії техкарти (і порожні — щоб додати)
@@ -186,7 +272,7 @@ def materials(db: Session, a: Appointment) -> list[dict]:
             cats.setdefault(m.cat, []).append(m)
         cats = {k: v for k, v in sorted(cats.items(), key=lambda kv: (not kv[1], 0))}
         cat_wh_ = {k: cat_wh(card, k) for k in cats}
-        cost = round(sum(m.qty * m.unit_cost for m in mine), 2)
+        cost = round(sum(eff.get(m.id, m.qty) * m.unit_cost for m in mine), 2)
         out.append({"idx": idx, "service": s.get("name"), "service_id": s.get("id"), "card": card, "cats": cats, "cat_wh": cat_wh_, "cost": cost,
                     "max_cost": card.max_cost if card else None, "over": bool(card and card.max_cost and cost > card.max_cost + 0.005)})
     return out
@@ -194,8 +280,10 @@ def materials(db: Session, a: Appointment) -> list[dict]:
 
 def cost_by_service(db: Session, appt_id: int) -> dict[int, float]:
     out: dict[int, float] = defaultdict(float)
-    for m in db.scalars(select(VisitMaterial).where(VisitMaterial.appt_id == appt_id)):
-        out[m.svc_idx] += m.qty * m.unit_cost
+    rows = db.scalars(select(VisitMaterial).where(VisitMaterial.appt_id == appt_id)).all()
+    eff = effective(db, rows)
+    for m in rows:
+        out[m.svc_idx] += eff.get(m.id, m.qty) * m.unit_cost
     return {k: round(v, 2) for k, v in out.items()}
 
 
@@ -217,15 +305,17 @@ def close(db: Session, a: Appointment, user_id: int | None = None) -> list[Stock
         return []
     seed(db, a)
     by_wh: dict[str, list] = defaultdict(list)
-    for m in db.scalars(select(VisitMaterial).where(VisitMaterial.appt_id == a.id)):
-        if m.qty:
+    rows = db.scalars(select(VisitMaterial).where(VisitMaterial.appt_id == a.id)).all()
+    eff = effective(db, rows)
+    for m in rows:
+        if eff.get(m.id, m.qty):
             by_wh[m.warehouse or "single"].append(m)
     docs = []
     for wh, ms in sorted(by_wh.items()):
         doc = stock.new_doc(db, "writeoff", user_id=user_id, wh_from=wh, reason="Списання матеріалів", patient_id=a.patient_id,
                             ext_no=f"visit:{a.id}", note=f"Підстава: візит №{a.id}")
         for m in ms:
-            doc.lines.append(StockDocLine(product_id=m.product_id, qty=m.qty, unit_cost=m.unit_cost))
+            doc.lines.append(StockDocLine(product_id=m.product_id, qty=eff.get(m.id, m.qty), unit_cost=m.unit_cost))
         db.flush()
         stock.post(db, doc)
         docs.append(doc)
@@ -244,7 +334,10 @@ def reopen(db: Session, a: Appointment) -> int:
 def sync(db: Session) -> dict:
     """Оплачені візити — закрити (списати матеріали); повернені / скасовані чеки — відкрити назад."""
     rep = {"closed": 0, "reopened": 0}
+    ed = editing(db)
     for a in db.scalars(select(Appointment).where(Appointment.sale_id.is_not(None))):
+        if a.id in ed:                     # витратні відкриті для виправлення — списання після «Списати зі складу»
+            continue
         s = db.get(Sale, a.sale_id)
         if s and s.status == "paid" and not closed(db, a):
             if close(db, a, s.created_by):

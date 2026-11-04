@@ -497,7 +497,7 @@
   window.dsSale=function(e,id){if(e&&(e.metaKey||e.ctrlKey))return true;if(e)e.preventDefault();dsStash();
     box.innerHTML='<div class="vd-h"><div><small>Продаж</small><h3>Чек Ч-'+id+'</h3></div><a class="btn ghost" href="/sales/'+id+'" target="_blank" style="margin-left:auto">↗ Окремо</a><button type="button" class="vd-x" onclick="visitClose()">×</button></div>'+
       '<iframe src="/sales/'+id+'" style="flex:1;width:100%;border:0;background:#F7F4F0"></iframe>';dsBackBtn();return false};
-  (function(){var o=new URLSearchParams(location.search).get('open');if(o&&/^\d+$/.test(o))setTimeout(function(){load('appt='+o)},50)})();
+  (function(){var u=new URLSearchParams(location.search),o=u.get('open'),t=u.get('tab');if(o&&/^\d+$/.test(o))setTimeout(function(){load('appt='+o,/^[a-z]+$/.test(t||'')?t:null)},50)})();
   window.vtOpen=function(){var v=document.getElementById('vt');v.hidden=false;document.getElementById('vt-w').textContent='';document.getElementById('vt-ok').dataset.force='';vtCalc()};
   window.vtCalc=function(){var t=document.getElementById('vt-t').value;if(!t)return;var m=0;document.querySelectorAll('#vt .vt-m').forEach(function(i){m+=(+i.value||0)});
     var p=t.split(':'),x=(+p[0])*60+(+p[1])+m,e=document.getElementById('vt-endi'),d=document.getElementById('vt-dur');if(e)e.value=('0'+Math.floor(x/60)%24).slice(-2)+':'+('0'+x%60).slice(-2);if(d)d.textContent=m+' хв'};

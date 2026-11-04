@@ -3348,6 +3348,7 @@ def calendar_visit(request: Request, appt: int = 0, v: str = "", tab: str = "vis
         from .models import StockDoc
         _tc.seed(db, c["a"])
         mats, closed_ = _tc.materials(db, c["a"]), _tc.closed(db, c["a"])
+        c["mat_editing"] = c["a"].id in _tc.editing(db)
         from .models import Appointment as _Ap
         _d0 = datetime.combine(c["a"].start.date(), datetime.min.time())
         c["same_day"] = [x.id for x in db.scalars(select(_Ap).where(_Ap.patient_id == c["a"].patient_id, _Ap.start >= _d0,
@@ -3435,6 +3436,60 @@ def visit_material_reset(aid: int, svc_idx: int = Form(...), user: User = Depend
     tc.seed(db, a)
     audit(db, "visit.material_reset", "patient", a.patient_id, user=user, appt=a.id, svc=svc_idx)
     return JSONResponse({"ok": True})
+
+
+@app.post("/appointments/{aid:int}/materials-unlock")
+def visit_material_unlock(aid: int, del_password: str = Form(""), user: User = Depends(require("book")), db: Session = Depends(db_dep)):
+    """Оплачений візит: відкрити витратні для виправлення (без повернення чека). Потрібен пароль для видалення:
+    списання скасовується, матеріали повертаються на склад, після правок — «Списати зі складу»."""
+    from .models import Appointment
+    from .services import techcards as tc
+    a = db.get(Appointment, aid) or (_ for _ in ()).throw(HTTPException(404))
+    _patient_or_403(db, user, a.patient_id)
+    back = f"/calendar?start={a.start.strftime('%Y-%m-%d')}&open={a.id}"
+    err = _delpw(db, user, del_password, "visit_materials_unlock", "appointment", a.id)
+    if err:
+        return RedirectResponse(_with_err(back, err), 303)
+    if getattr(a, "historic", False):
+        return RedirectResponse(_with_err(back, "Візит з історії CleverBox — витратні не змінюються"), 303)
+    tc.set_editing(db, a.id, True)
+    n = tc.reopen(db, a)
+    audit(db, "visit.materials_unlock", "patient", a.patient_id, user=user, appt=a.id, docs=n)
+    return RedirectResponse(back + "&tab=cost", 303)
+
+
+@app.post("/appointments/{aid:int}/materials-close")
+def visit_material_close(aid: int, user: User = Depends(require("book")), db: Session = Depends(db_dep)):
+    """Після виправлення: списати витратні зі складу знову (лише якщо чек візиту оплачено)."""
+    from .models import Appointment, Sale
+    from .services import techcards as tc
+    a = db.get(Appointment, aid) or (_ for _ in ()).throw(HTTPException(404))
+    _patient_or_403(db, user, a.patient_id)
+    back = f"/calendar?start={a.start.strftime('%Y-%m-%d')}&open={a.id}"
+    tc.set_editing(db, a.id, False)
+    s_ = db.get(Sale, a.sale_id) if a.sale_id else None
+    docs = tc.close(db, a, user.id) if s_ and s_.status == "paid" else []
+    audit(db, "visit.materials_close", "patient", a.patient_id, user=user, appt=a.id, docs=len(docs))
+    return RedirectResponse(back + "&tab=cost", 303)
+
+
+@app.get("/settings/shared-materials", response_class=HTMLResponse)
+def settings_shared_materials(request: Request, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .models import Product
+    from .services import techcards as tc
+    cfg = tc.shared_cfg(db)
+    prods = db.scalars(select(Product).where(Product.warehouse == "single", Product.active.isnot(False)).order_by(Product.name)).all()
+    return render(request, "shared_materials.html", nav="settings", cfg=cfg, prods=prods, sel=set(cfg["products"]), sug=tc.suggested_shared(db))
+
+
+@app.post("/settings/shared-materials")
+async def settings_shared_materials_save(request: Request, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .services import techcards as tc
+    f = await request.form()
+    ids = [int(x) for x in f.getlist("p") if str(x).isdigit()]
+    tc.save_shared(db, f.get("on") == "1", ids)
+    audit(db, "settings.shared_materials", user=user, on=f.get("on") == "1", n=len(ids))
+    return RedirectResponse(_with_msg("/settings/shared-materials", "Збережено"), 303)
 
 
 # ---------------- Техкарти ----------------
@@ -5186,6 +5241,7 @@ SETTINGS_BLOCKS = [
     ]),
     ('Склад і товари', 'box', 'Списання, терміни, накладні, сайт', [
         ('Норми списання', 'Що списується зі складу після процедури', '/stock?tab=norms', 'stock', None),
+        ('Спільні розхідники візиту', 'Рукавички, маски, простирадла… — один комплект на візит, навіть якщо в ньому кілька послуг', '/settings/shared-materials', 'stock', None),
         ('Сповіщення про терміни', 'Кому й коли надсилати попередження про терміни придатності', '/reports?r=expiry#notify', 'finance', None),
         ('Розпізнавання накладних', 'Ключ Claude API — фото/PDF накладної → документ поставки', '/settings/keys?s=ai#ai', 'finance', None),
         ('molodist.store', 'Shop-Express: посилання й фото товарів з сайту', '/settings/keys?s=shop#shop', 'finance', None),
