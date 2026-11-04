@@ -105,6 +105,9 @@ dialog.al-d{border:0;border-radius:20px;padding:0;width:min(520px,96vw);max-heig
 .icw-rows i{font-style:normal}.icw-rows span{color:#B9B2C6}.icw-rows b{text-align:right;font-weight:600}
 .icw-b{display:grid;grid-template-columns:1fr 1fr;gap:10px}.icw-b span{text-align:center;border-radius:12px;padding:11px;font-weight:700;font-size:14px}.icw-b .o{border:1.5px solid rgba(255,255,255,.7)}.icw-b .f{background:#C9BFE6;color:#2A2430}
 .icw-pv [data-f].off{display:none}
+.pc-l{display:grid;gap:8px;margin-bottom:8px}.pc-r{display:flex;gap:8px;align-items:center}.pc-r select{flex:1 1 0;min-width:0}.pc-r input{flex:1.2 1 0;min-width:0}.pc-r .st-x{flex:none;width:36px}
+.pc-r input,.pc-r select{height:42px;width:100%}.pc-r input[hidden]{display:none}
+.icw-rows div.tip{grid-template-columns:22px 1fr;color:#FFD58A;font-weight:600}
 @media(max-width:1050px){.icw-g{grid-template-columns:1fr}.icw-pv{position:relative;top:0}}
 .tp-sh{display:flex;gap:14px;align-items:flex-start}.tp-ic.sm{width:44px;height:44px;border-radius:12px}.tp-sh h2{margin:4px 0 0;font:700 19px var(--head);letter-spacing:.04em;text-transform:uppercase}
 .fd button{display:inline-flex;gap:8px;align-items:center;padding:7px 14px}.fd button b{color:#2A2430}
@@ -196,7 +199,16 @@ dialog.al-d{border:0;border-radius:20px;padding:0;width:min(520px,96vw);max-heig
     <div class="hint">Нікого не обрано — вікно бачать усі, хто має право «Звернення» або «Записувати пацієнтів».</div></div>
   <div class="tp-f" style="margin-top:16px"><label>Що показувати у вікні «Вхідний дзвінок»</label><input type="hidden" name="popup_cfg" value="1">
     <div class="chk icw-c">{% for k, lb in POPUP_FIELDS %}<label><input type="checkbox" name="popup_fields" value="{{ k }}" {{ 'checked' if k in (t.popup_fields or []) }} onchange="ppUpd()"> {{ lb }}</label>{% endfor %}</div>
-    <div class="hint">Імʼя й номер видно завжди; кнопки «Картка пацієнта», «Записати», «Створити пацієнта» — теж.</div></div></div>
+    <div class="hint">Імʼя й номер видно завжди; кнопки «Картка пацієнта», «Записати», «Створити пацієнта» — теж.</div></div>
+  <div class="tp-f" style="margin-top:16px"><label>Свої поля на картці дзвінка</label>
+    <div class="pc-l" id="pc-l">{% for r in t.popup_custom or [] %}<div class="pc-r"><select name="pc_key" onchange="pcKind(this);ppUpd()">{% for k, lb in POPUP_EXTRA %}<option value="{{ k }}" {{ 'selected' if k == r.key }}>{{ lb }}</option>{% endfor %}</select>
+      <input name="pc_label" value="{{ r.label }}" placeholder="Підпис на картці (необовʼязково)" oninput="ppUpd()" {{ 'hidden' if r.key == 'text' }}><input name="pc_text" value="{{ r.text }}" placeholder="Текст підказки" oninput="ppUpd()" {{ '' if r.key == 'text' else 'hidden' }}>
+      <button type="button" class="st-x" onclick="this.parentNode.remove();ppUpd()">×</button></div>{% endfor %}</div>
+    <div class="row" style="gap:8px"><button type="button" class="btn ghost" onclick="pcAdd()">＋ Додати поле</button></div>
+    <div class="hint">Будь-які дані з картки пацієнта (крім медичних) або свій текст-підказка для адміністратора, напр. «Запропонуйте акцію місяця». Порожні поля на картці не показуються.</div></div></div>
+<template id="pc-t"><div class="pc-r"><select name="pc_key" onchange="pcKind(this);ppUpd()">{% for k, lb in POPUP_EXTRA %}<option value="{{ k }}">{{ lb }}</option>{% endfor %}</select>
+  <input name="pc_label" placeholder="Підпис на картці (необовʼязково)" oninput="ppUpd()"><input name="pc_text" placeholder="Текст підказки" oninput="ppUpd()" hidden>
+  <button type="button" class="st-x" onclick="this.parentNode.remove();ppUpd()">×</button></div></template>
 <div class="icw-pv"><div class="icw-h"><span class="icw-i"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg></span><b>Вхідний дзвінок</b>{% if t.provider %}<span class="icw-pr">{% if t.provider == 'ringostat' %}<img src="/static/img/ringostat.png" alt="">{% endif %}{{ _pn.get(t.provider) }}</span>{% endif %}</div>
   <svg class="wv" viewBox="0 0 400 100" preserveAspectRatio="none" fill="none" stroke="#C9BFE6" stroke-width=".6">{% for k in range(12) %}<path d="M0 {{ 40 + k }} C 80 {{ 10 + k*3 }}, 160 {{ 80 - k*2 }}, 240 {{ 30 + k*2 }} S 360 {{ 5 + k*4 }}, 400 {{ 30 + k }}"/>{% endfor %}</svg>
   <div class="icw-av" data-f="avatar"><span>ПК</span></div>
@@ -212,6 +224,7 @@ dialog.al-d{border:0;border-radius:20px;padding:0;width:min(520px,96vw);max-heig
     <div data-f="plan"><i>✨</i><span>Бʼюті-план</span><b>активний · 60%</b></div>
     <div data-f="note"><i>📝</i><span>Замітка</span><b>дзвонити після 12:00</b></div>
     <div data-f="birthday"><i>🎂</i><span>День народження</span><b>через 3 дні</b></div>
+    <div id="pv-cust" style="display:contents"></div>
   </div>
   <div class="icw-b"><span class="o">Картка пацієнта</span><span class="f">Записати</span></div>
   <div class="hint" style="color:#B9B2C6;text-align:center;margin-top:8px">Приклад із вигаданими даними</div></div>
@@ -310,7 +323,16 @@ function crAdd(){var l=document.getElementById('crl'),r=document.createElement('
   r.innerHTML='<em></em><input name="crit_t" class="ct" placeholder="Назва"><input name="crit_d" class="cd" placeholder="що саме оцінюємо"><input name="crit_p" class="cp2" inputmode="numeric" value="0" oninput="crSum()"><span class="hint">балів</span><button type="button" class="st-x" onclick="this.parentNode.remove();crSum();crNum()">×</button>';
   l.insertBefore(r,l.querySelector('button.btn'));crNum();r.querySelector('.ct').focus()}
 crSum&&setTimeout(crSum,0);
-function ppUpd(){var on={};document.querySelectorAll('input[name=popup_fields]').forEach(function(i){on[i.value]=i.checked});
+var PC_DEMO={groups:'Співробітник, ЛЕ розсилка',mark:'VIP',discount:'товари 10% / послуги 5%',balance:'1 200 ₴',ltv:'48 500 ₴',avg:'2 300 ₴',source:'Instagram',
+  pref_doctor:'Дарія К.',drink:'капучино на рослинному',directions:'ЛЕ, Косметолог',channel:'Telegram',no_repeat:'так',first_visit:'14.03.2024',email:'p***@gmail.com',instagram:'@p***'};
+function pcKind(sel){var t=sel.parentNode.querySelector('input[name=pc_text]'),l=sel.parentNode.querySelector('input[name=pc_label]');t.hidden=sel.value!=='text';l.hidden=!t.hidden;if(!t.hidden)t.focus()}
+function pcAdd(){var tp=document.getElementById('pc-t').content.cloneNode(true);document.getElementById('pc-l').appendChild(tp);ppUpd()}
+function ppUpd(){var box=document.getElementById('pv-cust');if(box){box.innerHTML='';
+  document.querySelectorAll('#pc-l .pc-r').forEach(function(r){var k=r.querySelector('select').value,o=r.querySelector('select').selectedOptions[0],lb=r.querySelector('[name=pc_label]').value||o.textContent,
+    tx=r.querySelector('[name=pc_text]').value,d=document.createElement('div');
+    if(k==='text'){if(!tx)return;d.className='tip';d.innerHTML='<i>💡</i><b style="text-align:left"></b>';d.querySelector('b').textContent=tx}
+    else{d.innerHTML='<i>•</i><span></span><b></b>';d.querySelector('span').textContent=lb;d.querySelector('b').textContent=PC_DEMO[k]||'…'}box.appendChild(d)})}
+  var on={};document.querySelectorAll('input[name=popup_fields]').forEach(function(i){on[i.value]=i.checked});
   document.querySelectorAll('.icw-pv [data-f]').forEach(function(e){e.classList.toggle('off',!on[e.dataset.f])})}
 setTimeout(ppUpd,0);
 function tpEye(b){var i=b.parentNode.querySelector('input');i.type=i.type==='password'?'text':'password'}

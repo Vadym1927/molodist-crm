@@ -244,34 +244,42 @@ function poll(){if(document.hidden)return;fetch('/notifications/poll'+(since?'?s
   if(since)(j.toasts||[]).forEach(toast);since=j.now;bd.textContent=j.unseen;bd.hidden=!j.unseen}).catch(function(){})}
 poll();setInterval(poll,60000)})();</script>
 {% if telephony_on() %}{% if True %}<style>
-.call-pop{position:fixed;right:22px;bottom:22px;z-index:120;display:grid;gap:10px}
-.call-pop .cp-c{width:330px;background:#2A2430;color:#fff;border-radius:18px;padding:16px 18px;box-shadow:0 24px 60px -12px rgba(42,36,48,.55);animation:cpIn .25s ease-out}
+.call-pop{position:fixed;right:22px;bottom:22px;z-index:120;display:grid;gap:10px;max-height:calc(100vh - 44px);overflow:auto}
+.cp-c{position:relative;overflow:hidden;width:360px;background:#2A2430;color:#fff;border-radius:20px;padding:16px 18px 18px;box-shadow:0 24px 60px -12px rgba(42,36,48,.55);animation:cpIn .25s ease-out}
 @keyframes cpIn{from{transform:translateY(20px);opacity:0}to{transform:none;opacity:1}}
-.cp-c small{display:flex;gap:8px;align-items:center;font:700 11px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#C9BFE6}
-.cp-c small i{width:9px;height:9px;border-radius:50%;background:#5BD37E;animation:cpB 1s infinite}@keyframes cpB{50%{opacity:.3}}
-.cp-c b{display:block;font:600 19px var(--head);margin:6px 0 2px}.cp-c span{color:#d8d2e2;font-size:14px}
-.cp-c .a{display:flex;gap:8px;margin-top:12px}.cp-c .a a{flex:1;text-align:center;padding:9px 10px;border-radius:10px;background:#fff;color:#2A2430;text-decoration:none;font:700 13px var(--sans)}.cp-c .a a.g{background:rgba(255,255,255,.12);color:#fff}
-.cp-c{width:360px!important}.cp-c .who{display:flex;gap:12px;align-items:center;margin-top:8px}.cp-c .who b{margin:0}
-.cp-c .av{width:52px;height:52px;border-radius:50%;flex:none;background:#4A3F63 center/cover;display:grid;place-items:center;font:600 17px var(--head);color:#fff}
-.cp-c .tg{display:inline-block;font:700 10.5px var(--sans);font-style:normal;color:#fff;padding:2px 8px;border-radius:6px;margin:3px 0}
-.cp-c .who span{display:block}.cp-c .ln{font-size:12.5px;color:#e6e1ee;margin-top:6px;line-height:1.4}.cp-c .ln span{display:block;font:700 10px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#a99fc0}.cp-c .ln.bd{color:#FFD58A;font-weight:700}
-.cp-c .ap{margin-top:8px;background:rgba(255,255,255,.1);border-radius:10px;padding:7px 10px;font-size:13px;color:#fff}
-.cp-c .nf{display:grid;gap:6px;margin-top:10px}.cp-c .nf input{height:36px;border-radius:9px;border:0;padding:0 10px}.cp-c .nf button{height:38px;border:0;border-radius:10px;background:#fff;color:#2A2430;font:700 13px var(--sans);cursor:pointer}.cp-c .nf em{color:#FFB4A8;font-style:normal;font-size:12.5px}
-.cp-c .x{float:right;border:0;background:none;color:#C9BFE6;font-size:20px;cursor:pointer;margin:-6px -6px 0 0}
+.cp-c .wv{position:absolute;left:0;top:34px;width:100%;height:100px;opacity:.35;pointer-events:none}
+.cp-h{position:relative;display:flex;gap:10px;align-items:center}.cp-h .pi{width:36px;height:36px;border-radius:11px;background:rgba(255,255,255,.08);display:grid;place-items:center}
+.cp-h b{font:600 16px var(--sans)}.cp-h small{display:flex;gap:6px;align-items:center;font-size:11.5px;color:#C9BFE6}.cp-h small i{width:8px;height:8px;border-radius:50%;background:#5BD37E;animation:cpB 1s infinite}@keyframes cpB{50%{opacity:.3}}
+.cp-h .pr{margin-left:auto;display:inline-flex;gap:5px;align-items:center;border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:3px 10px;font-size:11.5px}.cp-h .pr img{width:14px}
+.cp-c .x{position:absolute;top:8px;right:10px;border:0;background:none;color:#C9BFE6;font-size:20px;cursor:pointer;z-index:2}
+.cp-c .av{position:relative;width:84px;height:84px;margin:14px auto 8px;border-radius:50%;background:#C9BFE6 center/cover;display:grid;place-items:center;box-shadow:0 0 0 8px rgba(201,191,230,.12);font:700 28px var(--head);color:#2A2430}
+.cp-c .nm{position:relative;text-align:center;font:700 19px var(--sans);margin-top:6px}.cp-c .ph{text-align:center;color:#D9D4E2;font-size:13.5px;margin-top:2px}
+.cp-c .tg{display:block;width:max-content;margin:8px auto 0;border-radius:999px;padding:3px 12px;font:600 12px var(--sans);font-style:normal;color:#fff}
+.cp-c .rw{display:grid;gap:5px;margin:12px 0}.cp-c .rw div{display:grid;grid-template-columns:20px auto 1fr;gap:8px;align-items:center;background:rgba(255,255,255,.06);border-radius:10px;padding:7px 11px;font-size:12.5px}
+.cp-c .rw span{color:#B9B2C6}.cp-c .rw b{text-align:right;font-weight:600}.cp-c .rw div.tip{grid-template-columns:20px 1fr;color:#FFD58A;font-weight:600}.cp-c .rw div.tip b{text-align:left}
+.cp-c .a{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cp-c .a a{text-align:center;padding:10px;border-radius:12px;text-decoration:none;font:700 13px var(--sans);border:1.5px solid rgba(255,255,255,.7);color:#fff}
+.cp-c .a a.f{background:#C9BFE6;border-color:#C9BFE6;color:#2A2430}.cp-c .a a.w{grid-column:1/-1}
+.cp-c .nf{display:grid;gap:6px;margin-top:10px}.cp-c .nf input{height:36px;border-radius:9px;border:0;padding:0 10px}.cp-c .nf button{height:38px;border:0;border-radius:10px;background:#C9BFE6;color:#2A2430;font:700 13px var(--sans);cursor:pointer}.cp-c .nf em{color:#FFB4A8;font-style:normal;font-size:12.5px}
 </style><div class="call-pop" id="callpop"></div><script>
 (function(){var shown={},hid={},box=document.getElementById('callpop');
 function esc(x){return String(x||'').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 function tick(){if(document.hidden)return;fetch('/telephony/live',{credentials:'same-origin'}).then(function(r){return r.ok?r.json():null}).then(function(j){if(!j)return;
   var ids={};(j.calls||[]).forEach(function(c){if(c.dir!=='in'||hid[c.id])return;ids[c.id]=1;var el=shown[c.id];
     if(el&&el._form)return;
-    var ap=c.appt?'<div class="ap">'+(c.appt.today?'Сьогодні':'Запис')+' '+esc(c.appt.when)+(c.appt.doctor?' · '+esc(c.appt.doctor):'')+(c.appt.services?'<br>'+esc(c.appt.services):'')+'</div>':'';
-    var tg=c.tag?'<em class="tg" style="background:'+(c.tag_color||'#5C4B82')+'">'+esc(c.tag)+'</em>':'';
-    var av=c.pid&&(j.show||[]).indexOf('avatar')>=0?'<span class="av"'+(c.avatar?' style="background-image:url('+c.avatar+')"':'')+'>'+(c.avatar?'':esc((c.name||'').split(' ').map(function(w){return w[0]||''}).join('').slice(0,2)))+'</span>':'';
-    var facts=[];if(c.visits)facts.push('візитів: '+c.visits);if(c.tasks)facts.push('задач: '+c.tasks);if(c.bonus)facts.push('бонуси: '+c.bonus);if(c.plan)facts.push('бюті-план');
-    var more=(c.last?'<div class="ln"><span>Останній візит</span>'+esc(c.last)+'</div>':'')+(facts.length?'<div class="ln"><span>Інфо</span>'+esc(facts.join(' · '))+'</div>':'')+
-      (c.birthday?'<div class="ln bd">🎂 День народження '+esc(c.birthday)+'</div>':'')+(c.note?'<div class="ln"><span>Замітка</span>'+esc(c.note)+'</div>':'');
-    var h='<button class="x" title="Сховати">×</button><small><i></i>'+(c.status==='answer'?'Розмова триває':'Вхідний дзвінок')+(c.employee?' · '+esc(c.employee):'')+'</small><div class="who">'+av+'<div><b>'+esc(c.name||c.phone)+'</b>'+tg+'<span>'+(c.name?esc(c.phone):'новий номер — пацієнта не знайдено')+'</span></div></div>'+ap+more+
-      '<div class="a">'+(c.pid?'<a href="/patients/'+c.pid+'">Картка пацієнта</a>'+(c.appt?'<a class="g" href="/calendar?start='+c.appt.day+'&open='+c.appt.id+'">Запис</a>':'')+'<a class="g" href="/calendar?newappt=1&patient='+c.pid+'">Записати</a>':'<a href="#" class="np">Створити пацієнта</a><a class="g" href="/calendar?newappt=1">Записати</a>')+'</div>';
+    var row=function(ic,l,v){return v?'<div><i>'+ic+'</i><span>'+esc(l)+'</span><b>'+esc(v)+'</b></div>':''};
+    var ini=esc((c.name||'').split(' ').slice(0,2).map(function(w){return w[0]||''}).join(''));
+    var av=c.pid&&(j.show||[]).indexOf('avatar')>=0?'<div class="av"'+(c.avatar?' style="background-image:url('+c.avatar+')"':'')+'>'+(c.avatar?'':ini)+'</div>':(c.pid?'':'<div class="av">?</div>');
+    var tg=c.tag?'<em class="tg" style="background:'+(c.tag_color||'rgba(201,191,230,.25)')+'">'+esc(c.tag)+'</em>':'';
+    var rows=row('👤','Приймає',c.employee)+(c.appt?row('📅',c.appt.today?'Сьогодні':'Найближчий запис',c.appt.when+(c.appt.doctor?' · '+c.appt.doctor:'')+(c.appt.services?' · '+c.appt.services:'')):'')+
+      row('🕘','Останній візит',c.last)+row('🔁','Візитів',c.visits)+row('✅','Відкриті задачі',c.tasks)+row('🎁','Бонуси',c.bonus?c.bonus+' ₴':'')+row('✨','Бʼюті-план',c.plan)+
+      row('📝','Замітка',c.note)+row('🎂','День народження',c.birthday)+
+      (c.custom||[]).map(function(x){return x.text?'<div class="tip"><i>💡</i><b>'+esc(x.value)+'</b></div>':row('•',x.label,x.value)}).join('');
+    var wv='<svg class="wv" viewBox="0 0 400 100" preserveAspectRatio="none" fill="none" stroke="#C9BFE6" stroke-width=".6">'+[0,1,2,3,4,5,6,7,8,9].map(function(k){return '<path d="M0 '+(40+k)+' C 80 '+(10+k*3)+', 160 '+(80-k*2)+', 240 '+(30+k*2)+' S 360 '+(5+k*4)+', 400 '+(30+k)+'"/>'}).join('')+'</svg>';
+    var h='<button class="x" title="Сховати">×</button>'+wv+'<div class="cp-h"><span class="pi"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg></span>'+
+      '<div><b>Вхідний дзвінок</b><small><i></i>'+(c.status==='answer'?'Розмова триває':'Дзвонить')+'</small></div>'+(j.provider?'<span class="pr">'+(j.provider==='Ringostat'?'<img src="/static/img/ringostat.png" alt="">':'')+esc(j.provider)+'</span>':'')+'</div>'+
+      av+'<div class="nm">'+esc(c.name||c.phone)+'</div><div class="ph">'+(c.name?esc(c.phone):'новий номер — пацієнта не знайдено')+'</div>'+tg+
+      (rows?'<div class="rw">'+rows+'</div>':'<div style="height:12px"></div>')+
+      '<div class="a">'+(c.pid?'<a href="/patients/'+c.pid+'">Картка пацієнта</a><a class="f" href="/calendar?newappt=1&patient='+c.pid+'">Записати</a>'+(c.appt?'<a class="w" href="/calendar?start='+c.appt.day+'&open='+c.appt.id+'">Відкрити запис '+esc(c.appt.when)+'</a>':''):'<a href="#" class="np">Створити пацієнта</a><a class="f" href="/calendar?newappt=1">Записати</a>')+'</div>';
     if(!el){el=document.createElement('div');el.className='cp-c';box.appendChild(el);shown[c.id]=el}
     el.innerHTML=h;el.querySelector('.x').onclick=function(){hid[c.id]=1;el.remove();delete shown[c.id]};
     var np=el.querySelector('.np');if(np)np.onclick=function(e){e.preventDefault();el._form=1;var f=document.createElement('form');f.className='nf';
@@ -279,7 +287,7 @@ function tick(){if(document.hidden)return;fetch('/telephony/live',{credentials:'
       el.querySelector('.a').replaceWith(f);f.last.focus();
       f.onsubmit=function(ev){ev.preventDefault();fetch('/telephony/calls/'+c.id+'/patient',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',
         body:JSON.stringify({last:f.last.value,first:f.first.value,middle:f.middle.value})}).then(function(r){return r.json()}).then(function(j){if(j.error){f.querySelector('em').textContent=j.error;return}
-          el._form=0;f.outerHTML='<div class="a"><a href="/patients/'+j.pid+'">Картка пацієнта</a><a class="g" href="/calendar?newappt=1&patient='+j.pid+'">Записати</a></div>';el.querySelector('b').textContent=j.name})}}});
+          el._form=0;f.outerHTML='<div class="a"><a href="/patients/'+j.pid+'">Картка пацієнта</a><a class="f" href="/calendar?newappt=1&patient='+j.pid+'">Записати</a></div>';el.querySelector('.nm').textContent=j.name})}}});
   Object.keys(shown).forEach(function(k){if(!ids[k]){shown[k].remove();delete shown[k]}})}).catch(function(){})}
 tick();setInterval(tick,5000)})();</script>{% endif %}{% endif %}
 {% endif %}

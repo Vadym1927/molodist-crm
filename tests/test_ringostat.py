@@ -295,3 +295,16 @@ def test_ai_criteria_rows_and_low_call_task(monkeypatch):
         tel.alert_low(db, c); tel.alert_low(db, c)
         ts = db.query(Task).filter(Task.source_key == f"call_low:{c.id}").all()
         assert len(ts) == 1 and ts[0].kind == "call_review" and ts[0].priority == "high"
+
+
+def test_popup_custom_fields():
+    from app.services import telephony as tel
+    from app.models import SessionLocal as _SL, Patient
+    with _SL() as db:
+        tel.save_extra(db, [], False, tel.DEFAULT_CRITERIA, 60, True, "crm", None, None, None, None,
+                       [{"key": "drink", "label": "Напій"}, {"key": "text", "text": "Запропонуйте акцію"}, {"key": "bogus"}])
+        cfg = tel.public(db)["popup_custom"]
+        assert [r["key"] for r in cfg] == ["drink", "text"]
+        p = Patient(full_name="Поп Ап", drink="капучино", cb_mark="vip")
+        assert tel.popup_extra_value(p, "drink") == "капучино" and tel.popup_extra_value(p, "mark") == "VIP"
+        assert tel.popup_extra_value(p, "email") is None and tel.popup_extra_value(None, "text", "Привіт") == "Привіт"

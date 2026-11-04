@@ -6130,7 +6130,7 @@ def settings_telephony(request: Request, user: User = Depends(require("users")),
     return render(request, "telephony.html", nav="settings", t=t_, PROV=tel.PROVIDERS, calls=calls, sources=ap_.dirs(db)["sources"], hook_log=tel.hook_log(db),
                   users_all=db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all(), has_ai_key=bool(_ia.api_key(db)),
                   POPUP_FIELDS=tel.POPUP_FIELDS, found=tel.discovered(db), line_info=lambda n: tel.line_info(t_, n),
-                  hook_url=lambda p: f"{base}/api/public/telephony/{p}/{t_['hook']}", R_BODY=tel.RINGOSTAT_BODY, R_EVENTS=tel.RINGOSTAT_EVENTS, crit=tel.crit_rows(t_.get("ai_criteria") or ""), crit_tail=tel.crit_tail(t_.get("ai_criteria") or ""))
+                  hook_url=lambda p: f"{base}/api/public/telephony/{p}/{t_['hook']}", R_BODY=tel.RINGOSTAT_BODY, R_EVENTS=tel.RINGOSTAT_EVENTS, POPUP_EXTRA=tel.POPUP_EXTRA, crit=tel.crit_rows(t_.get("ai_criteria") or ""), crit_tail=tel.crit_tail(t_.get("ai_criteria") or ""))
 
 
 @app.post("/settings/telephony")
@@ -6149,7 +6149,9 @@ async def settings_telephony_save(request: Request, user: User = Depends(require
         tel.save_extra(db, f.getlist("popup_users"), bool(f.get("ai_on")), _crit, f.get("ai_alert_below"), bool(f.get("ai_alert")),
                        str(f.get("ai_engine") or "crm"), f.getlist("popup_fields") if f.get("popup_cfg") else None,
                        f.getlist("ai_alert_to") if f.get("ai_alert_cfg") else None,
-                       str(f.get("ai_task_to") or "") if f.get("ai_task_cfg") else None, bool(f.get("ai_task_tg")) if f.get("ai_task_cfg") else None)
+                       str(f.get("ai_task_to") or "") if f.get("ai_task_cfg") else None, bool(f.get("ai_task_tg")) if f.get("ai_task_cfg") else None,
+                       [{"key": k_, "label": l_, "text": x_} for k_, l_, x_ in zip(f.getlist("pc_key"), f.getlist("pc_label"), f.getlist("pc_text"))]
+                       if f.get("popup_cfg") else None)
     except ValueError as e:
         return RedirectResponse(_with_msg("/settings/telephony", str(e), True), 303)
     audit(db, "telephony.save", user=user, provider=prov)
@@ -6253,12 +6255,16 @@ def telephony_live(user: User = Depends(current_user), db: Session = Depends(db_
         out.append({"id": c_.id, "phone": c_.phone or "", "dir": c_.direction, "status": c_.status,
                     "name": p_.full_name if p_ else None, "pid": p_.id if p_ else None, "employee": c_.employee or "", "appt": ap_, **info})
         row = out[-1]
+        _ex = dict(tel.POPUP_EXTRA)
+        row["custom"] = [{"label": r_.get("label") or _ex.get(r_["key"], ""), "value": v_, "text": r_["key"] == "text"}
+                         for r_ in (tel.public(db).get("popup_custom") or [])
+                         for v_ in [tel.popup_extra_value(p_, r_["key"], r_.get("text") or "")] if v_]
         for k in ("avatar", "tag", "employee", "appt", "last", "visits", "tasks", "bonus", "plan", "note", "birthday"):
             if k not in show:
                 row[k] = None
         if "tag" not in show:
             row["tag_color"] = None
-    return {"calls": out, "show": sorted(show)}
+    return {"calls": out, "show": sorted(show), "provider": {"ringostat": "Ringostat", "binotel": "Binotel", "stream": "Stream Telecom"}.get(tel.public(db).get("provider") or "", "")}
 
 
 @app.post("/telephony/calls/{cid:int}/patient")

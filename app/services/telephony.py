@@ -29,6 +29,39 @@ POPUP_FIELDS = [("avatar", "Фото пацієнта"), ("tag", "Статус �
                 ("appt", "Найближчий запис (дата, лікар, послуги)"), ("last", "Останній візит"), ("visits", "Кількість візитів"),
                 ("tasks", "Відкриті задачі"), ("bonus", "Бонуси"), ("plan", "Активний бюті-план"), ("note", "Замітка з картки пацієнта"),
                 ("birthday", "День народження (тиждень до / після)")]
+# свої поля на картці дзвінка (без медичних даних): ключ → (назва, функція значення)
+POPUP_EXTRA = [("groups", "Групи пацієнта"), ("mark", "Мітка VIP / BAD"), ("discount", "Персональна знижка"), ("balance", "Баланс рахунку"),
+               ("ltv", "Сума покупок (LTV)"), ("avg", "Середній чек"), ("source", "Джерело залучення"), ("pref_doctor", "Улюблений лікар"),
+               ("drink", "Улюблений напій"), ("directions", "Напрямки"), ("channel", "Канал звʼязку"), ("no_repeat", "Не дзвонити при повторному візиті"),
+               ("first_visit", "Перший візит"), ("email", "Email"), ("instagram", "Instagram"), ("text", "Свій текст (підказка адміністратору)")]
+
+
+def popup_extra_value(p, key: str, text: str = "") -> str | None:
+    """Значення свого поля для пацієнта (рядок) або None, якщо порожньо."""
+    def money(v):
+        return f"{float(v):,.0f} ₴".replace(",", " ") if v else None
+    if key == "text":
+        return (text or "").strip()[:200] or None
+    if p is None:
+        return None
+    v = {"groups": lambda: ", ".join(str(g.get("name") if isinstance(g, dict) else g) for g in (p.client_groups or [])) or None,
+         "mark": lambda: {"vip": "VIP", "bad": "BAD"}.get((p.cb_mark or "").lower()),
+         "discount": lambda: (" / ".join(x for x in [f"товари {p.disc_products_pct:g}%" if p.disc_products_pct else "",
+                                                   f"послуги {p.disc_services_pct:g}%" if p.disc_services_pct else ""] if x)
+                              or (f"{p.discount_pct:g}%" if p.discount_pct else None)),
+         "balance": lambda: money(p.cb_balance), "ltv": lambda: money(p.cb_total), "avg": lambda: money(p.cb_average),
+         "source": lambda: p.source, "pref_doctor": lambda: p.preferred_doctor, "drink": lambda: p.drink,
+         "directions": lambda: ", ".join(p.directions or []) or None, "channel": lambda: p.communication_channel,
+         "no_repeat": lambda: "так" if p.no_repeat_call else None,
+         "first_visit": lambda: p.cb_first_visit.strftime("%d.%m.%Y") if p.cb_first_visit else None,
+         "email": lambda: p.email, "instagram": lambda: p.instagram}.get(key)
+    try:
+        r = v() if v else None
+    except Exception:          # noqa: BLE001
+        r = None
+    return str(r)[:160] if r else None
+
+
 DEFAULT_CRITERIA = """Оціни розмову адміністратора медичного простору MOLODIST з пацієнтом за 100-бальною шкалою:
 1. Привітання: назвала клініку й себе, звернулась на «ви» (10)
 2. Виявила потребу: що турбує, яка процедура цікавить, чи був раніше (20)
@@ -86,6 +119,7 @@ def _raw(db: Session) -> dict:
     d.setdefault("p", {})
     d.setdefault("popup_users", [])
     d.setdefault("popup_fields", [k for k, _ in POPUP_FIELDS])          # кому показувати вікно «Вхідний дзвінок» (порожньо — усім з правом «Звернення» / «Запис»)
+    d.setdefault("popup_custom", [])         # свої поля на картці дзвінка: [{key, label, text}]
     d.setdefault("ai_on", False)             # AI-оцінка діалогів (Claude) за критеріями
     d.setdefault("ai_criteria", DEFAULT_CRITERIA)
     d.setdefault("ai_alert_below", 60)       # оцінка нижче — повідомлення власнику в Telegram
@@ -133,7 +167,7 @@ def secret(d: dict, prov: str, key: str) -> str:
 
 def save_extra(db: Session, popup_users: list[int], ai_on: bool, ai_criteria: str, ai_alert_below, ai_alert: bool,
                ai_engine: str = "crm", popup_fields: list[str] | None = None, ai_alert_to: list[str] | None = None,
-               ai_task_to: str | None = None, ai_task_tg: bool | None = None) -> None:
+               ai_task_to: str | None = None, ai_task_tg: bool | None = None, popup_custom: list[dict] | None = None) -> None:
     d = _raw(db)
     if ai_task_to is not None:
         d["ai_task_to"] = ai_task_to if ai_task_to in ("taker", "resp") or str(ai_task_to).isdigit() else ""
@@ -143,6 +177,10 @@ def save_extra(db: Session, popup_users: list[int], ai_on: bool, ai_criteria: st
         d["ai_alert_to"] = [x if x in ("taker", "resp") else int(x) for x in ai_alert_to if x in ("taker", "resp") or str(x).isdigit()]
     if popup_fields is not None:
         d["popup_fields"] = [k for k, _ in POPUP_FIELDS if k in popup_fields]
+    if popup_custom is not None:
+        keys = {k for k, _ in POPUP_EXTRA}
+        d["popup_custom"] = [{"key": r["key"], "label": " ".join(str(r.get("label") or "").split())[:60],
+                              "text": str(r.get("text") or "").strip()[:200]} for r in popup_custom if r.get("key") in keys][:20]
     try:
         thr = max(0, min(100, int(float(ai_alert_below))))
     except (TypeError, ValueError):
