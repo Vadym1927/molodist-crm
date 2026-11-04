@@ -245,3 +245,33 @@ def test_ai_alert_recipients(monkeypatch):
             db.add(cl); db.commit()
             tel.agent_result(db, cl, {"score": 30, "comment": "слабко", "transcript": "Адмін: ..."})
         assert sent == ["5550001"]
+
+
+def test_call_record_proxy(monkeypatch):
+    import httpx
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from app.models import SessionLocal, Call, ApiKey
+    from app.security import new_api_key
+
+    class R:
+        status_code, content, headers = 200, b"RIFFwav", {"content-type": "audio/wav"}
+
+    class C:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def get(self, url): assert "ringostat.com" in url; return R()
+    monkeypatch.setattr(httpx, "Client", C)
+    with SessionLocal() as db:
+        a = Call(provider="ringostat", phone="380501115555", direction="in", status="answered", record_url="https://app.ringostat.com/recordings/x.wav?token=t")
+        b = Call(provider="ringostat", phone="380501115556", direction="in", status="answered", record_url="https://evil.example.com/x.wav")
+        db.add_all([a, b]); db.commit(); ia, ib = a.id, b.id
+        raw, prefix, hsh = new_api_key()
+        db.add(ApiKey(name="openclaw-rec", prefix=prefix, key_hash=hsh, scopes=["calls"])); db.commit()
+    with TestClient(app) as cl:
+        h = {"X-API-Key": raw}
+        r = cl.get(f"/api/v1/calls/{ia}/record", headers=h)
+        assert r.status_code == 200 and r.content == b"RIFFwav"
+        assert cl.get(f"/api/v1/calls/{ib}/record", headers=h).status_code == 404
+        assert cl.get(f"/api/v1/calls/{ia}/record").status_code in (401, 403)

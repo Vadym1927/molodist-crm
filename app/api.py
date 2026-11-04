@@ -446,6 +446,33 @@ def calls_pending_ai(limit: int = 20, days: int = 3, key: ApiKey = Depends(CALLS
             "calls": [_call_json(c) for c in rows]}
 
 
+REC_HOSTS = ("ringostat.com", "ringostat.net", "binotel.com", "binotel.ua", "stream-telecom.com")
+
+
+@router.get("/calls/{cid}/record", summary="Аудіо запису розмови через CRM (агенту не потрібен доступ до телефонії)")
+def call_record(cid: int, key: ApiKey = Depends(CALLS), db: Session = Depends(db_dep)):
+    import httpx
+    from urllib.parse import urlparse
+    from fastapi.responses import Response
+    from .models import Call
+    c = db.get(Call, cid) or (_ for _ in ()).throw(HTTPException(404))
+    u = urlparse(c.record_url or "")
+    host = (u.hostname or "").lower()
+    if u.scheme != "https" or not any(host == h or host.endswith("." + h) for h in REC_HOSTS):
+        raise HTTPException(404, "Запису немає")
+    try:
+        with httpx.Client(timeout=60, follow_redirects=True) as http:
+            r = http.get(c.record_url)
+    except httpx.HTTPError as e:
+        raise HTTPException(502, f"Телефонія недоступна з сервера CRM: {type(e).__name__}")
+    if r.status_code >= 400:
+        raise HTTPException(502, f"Телефонія відповіла HTTP {r.status_code}")
+    if not r.content or len(r.content) > 60 * 1024 * 1024:
+        raise HTTPException(502, "Порожній або завеликий файл запису")
+    return Response(r.content, media_type=r.headers.get("content-type", "audio/wav").split(";")[0],
+                    headers={"Content-Disposition": f'attachment; filename="call-{c.id}.wav"'})
+
+
 @router.get("/calls/{cid}", summary="Дзвінок для AI-розбору")
 def call_get(cid: int, key: ApiKey = Depends(CALLS), db: Session = Depends(db_dep)):
     from .models import Call
