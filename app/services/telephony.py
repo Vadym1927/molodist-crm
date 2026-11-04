@@ -61,6 +61,8 @@ def _raw(db: Session) -> dict:
     d.setdefault("ai_criteria", DEFAULT_CRITERIA)
     d.setdefault("ai_alert_below", 60)       # оцінка нижче — повідомлення власнику в Telegram
     d.setdefault("ai_alert", True)
+    d.setdefault("staff", [])                # співробітники: {user_id, ext (ID у телефонії), alias (імʼя в телефонії)}
+    d.setdefault("lines", [])                # лінії: {number, name, user_id (відповідальний)}
     d.setdefault("ai_engine", "crm")         # crm — оцінює Claude з CRM; agent — зовнішній агент (OpenClaw) через API v1 /calls
     if not d.get("hook"):
         d["hook"] = _secrets.token_urlsafe(18)
@@ -231,6 +233,11 @@ RINGOSTAT_EVENTS = [("ringing", "Перед дзвінком", "спливаюч
                     ("end", "Після вихідного дзвінка", "вихідні дзвінки в журналі й історії пацієнта")]
 
 
+def _digits(v) -> str | None:
+    d = "".join(ch for ch in str(v or "") if ch.isdigit())
+    return d[-12:] if len(d) >= 5 else None
+
+
 def _emp(v) -> str | None:
     """Імʼя співробітника з вебхука; «0», «-», порожнє — ніхто не прийняв."""
     v = " ".join(str(v or "").split())[:120]
@@ -264,6 +271,9 @@ def parse(provider: str, data: dict) -> dict:
     return {"ext_id": str(_pick(flat, "generalCallID", "callID", "uniqueid", "uid", "call_id", "id", "ID") or "")[:120] or None,
             "direction": direction, "phone": str(phone or "")[:64] or None, "status": status, "duration": dur,
             "employee": _emp(_pick(flat, "employeeName", "employee_fio", "employee", "connected", "reciver", "receiver", "dst_name")),
+            "agent_ext": _emp(_pick(flat, "manager", "staffid", "staff_id", "employee_id", "internalNumber", "internal")),
+            "line": _digits(_pick(flat, "callee", "dst", "did", "source", "recive_number", "receive_number", "pbxNumber", "line")
+                            if direction == "in" else _pick(flat, "caller", "src", "pbxNumber", "line")),
             "record_url": str(_pick(flat, "linkToCallRecordInMyBusiness", "recording", "recording_wav", "record_link", "record_url", "record") or "")[:500] or None}
 
 
@@ -297,8 +307,8 @@ def ingest(db: Session, provider: str, data: dict, event: str = "") -> Call:
         c.status = "answered" if c.status == "answer" or (c.duration or 0) > 0 else "missed"
     p = ap.find_patient(db, c.phone)
     c.patient_id = p.id if p else c.patient_id
-    if c.employee and not c.user_id:
-        c.user_id = _user_by_name(db, c.employee)
+    if not c.user_id:
+        c.user_id = staff_user(d, c.agent_ext, c.employee) or (_user_by_name(db, c.employee) if c.employee else None)
     db.flush()
     if event in ("ringing", "answer"):
         db.commit()
@@ -320,6 +330,72 @@ def ingest(db: Session, provider: str, data: dict, event: str = "") -> Call:
             c.appeal_id = a.id
     db.commit()
     return c
+
+
+# ---------------- співробітники й лінії ----------------
+def _lk(v) -> str:
+    d = "".join(ch for ch in str(v or "") if ch.isdigit())
+    return d[-9:]
+
+
+def staff_user(d: dict, ext: str | None, name: str | None) -> int | None:
+    """Хто взяв дзвінок: за ID у телефонії, потім за імʼям у телефонії (з налаштувань «Співробітники»)."""
+    from .search import qwords
+    for r in d.get("staff") or []:
+        if ext and str(r.get("ext") or "").strip() and str(r["ext"]).strip() == str(ext).strip():
+            return int(r["user_id"])
+    nm = set(qwords(name or ""))
+    for r in d.get("staff") or []:
+        al = set(qwords(r.get("alias") or ""))
+        if nm and al and al <= nm:
+            return int(r["user_id"])
+    return None
+
+
+def line_info(d: dict, number: str | None) -> dict | None:
+    k = _lk(number)
+    if not k:
+        return None
+    for r in d.get("lines") or []:
+        if _lk(r.get("number")) == k:
+            return r
+    return None
+
+
+def save_staff(db: Session, staff: list[dict], lines: list[dict]) -> None:
+    d = _raw(db)
+    d["staff"] = [{"user_id": int(r["user_id"]), "ext": str(r.get("ext") or "").strip()[:40], "alias": " ".join(str(r.get("alias") or "").split())[:120]}
+                  for r in staff if str(r.get("user_id") or "").isdigit()]
+    d["lines"] = [{"number": "".join(ch for ch in str(r.get("number") or "") if ch.isdigit() or ch == "+")[:20],
+                   "name": " ".join(str(r.get("name") or "").split())[:60],
+                   "user_id": int(r["user_id"]) if str(r.get("user_id") or "").isdigit() else None}
+                  for r in lines if _lk(r.get("number"))]
+    _save(db, d)
+
+
+def relink(db: Session, days: int = 60) -> int:
+    """Після зміни співробітників — перепривʼязати недавні дзвінки до користувачів CRM."""
+    d = _raw(db)
+    n = 0
+    for c in db.scalars(select(Call).where(Call.at >= datetime.now() - timedelta(days=days))):
+        u = staff_user(d, c.agent_ext, c.employee)
+        if u and c.user_id != u:
+            c.user_id, n = u, n + 1
+    db.commit()
+    return n
+
+
+def discovered(db: Session, days: int = 30) -> dict:
+    """Що вже приходило з телефонії: співробітники (ID + імʼя) і лінії — для швидкого додавання."""
+    from collections import Counter
+    emp, lines = Counter(), Counter()
+    for c in db.scalars(select(Call).where(Call.at >= datetime.now() - timedelta(days=days))):
+        if c.agent_ext or _emp(c.employee):
+            emp[(c.agent_ext or "", _emp(c.employee) or "")] += 1
+        if c.line:
+            lines[c.line] += 1
+    return {"staff": [{"ext": e, "alias": a, "n": n} for (e, a), n in emp.most_common(20)],
+            "lines": [{"number": l, "n": n} for l, n in lines.most_common(20)]}
 
 
 # ---------------- співробітник, AI ----------------
@@ -450,8 +526,15 @@ def kpi(db: Session, d_from, d_to) -> list[dict]:
     thr = float(_raw(db).get("ai_alert_below") or 0)
     a, b = datetime.combine(d_from, datetime.min.time()), datetime.combine(d_to, datetime.max.time())
     by: dict = defaultdict(lambda: {"in": 0, "ans": 0, "miss": 0, "out": 0, "dur": 0, "n_dur": 0, "scores": [], "low": 0, "booked": 0})
+    from ..models import User
+    d = _raw(db)
+    unames = {u.id: u.name for u in db.scalars(select(User))}
     for c in db.scalars(select(Call).where(Call.at >= a, Call.at <= b)):
-        g = by[_emp(c.employee) or ("Без співробітника" if c.status != "missed" else "Пропущені (нікому)")]
+        who = unames.get(c.user_id) or _emp(c.employee)
+        if not who and c.status == "missed":
+            li = line_info(d, c.line)
+            who = unames.get(li.get("user_id")) if li and li.get("user_id") in unames else "Пропущені (нікому)"   # пропущений — на відповідального за лінію
+        g = by[who or "Без співробітника"]
         if c.direction == "in":
             g["in"] += 1
             g["miss" if c.status == "missed" else "ans"] += 1

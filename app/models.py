@@ -430,6 +430,8 @@ class Call(Base):
     ai_score: Mapped[float | None] = mapped_column(Float)                        # оцінка діалогу 0–100 (Claude за критеріями)
     ai_comment: Mapped[str | None] = mapped_column(Text)
     ai_at: Mapped[datetime | None] = mapped_column(DateTime)
+    line: Mapped[str | None] = mapped_column(String(64), index=True)           # номер лінії, на яку дзвонили (наш номер)
+    agent_ext: Mapped[str | None] = mapped_column(String(64))                  # ID співробітника в телефонії (Ringostat staffid)
 
 
 class AppealNote(Base):

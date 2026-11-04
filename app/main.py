@@ -63,6 +63,27 @@ def _telephony_on() -> bool:
 
 
 templates.env.globals["telephony_on"] = _telephony_on
+
+
+def _call_who(calls) -> dict:
+    """Для журналу дзвінків: id → {line (назва лінії), resp (відповідальний), taker (хто взяв)}."""
+    from .services import telephony as _tel
+    calls = list(calls or [])
+    if not calls:
+        return {}
+    with SessionLocal() as db_:
+        d = _tel._raw(db_)
+        un = {u.id: u.name for u in db_.scalars(select(User))}
+    out = {}
+    for c in calls:
+        li = _tel.line_info(d, getattr(c, "line", None))
+        out[c.id] = {"line": (li.get("name") or li.get("number")) if li else (getattr(c, "line", None) or ""),
+                     "resp": un.get(li.get("user_id")) if li else None,
+                     "taker": un.get(c.user_id) or (c.employee if c.employee and c.employee != "0" else None)}
+    return out
+
+
+templates.env.globals["call_who"] = _call_who
 FIN_TABS = [("/finance", "Огляд"), ("/sales", "Каса CRM"), ("/finance/ops", "Фіноперації"), ("/finance/accruals", "Нарахування зарплати"),
             ("/finance/payroll", "ЗП за місяць"),
             ("/finance/settle", "Взаєморозрахунки по з/п"), ("/finance/day", "Продажі за день"), ("/finance/sales", "Продажі"),
@@ -5867,7 +5888,7 @@ def settings_telephony(request: Request, user: User = Depends(require("users")),
     from .services import invoice_ai as _ia
     return render(request, "telephony.html", nav="settings", t=t_, PROV=tel.PROVIDERS, calls=calls, sources=ap_.dirs(db)["sources"], hook_log=tel.hook_log(db),
                   users_all=db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all(), has_ai_key=bool(_ia.api_key(db)),
-                  POPUP_FIELDS=tel.POPUP_FIELDS,
+                  POPUP_FIELDS=tel.POPUP_FIELDS, found=tel.discovered(db), line_info=lambda n: tel.line_info(t_, n),
                   hook_url=lambda p: f"{base}/api/public/telephony/{p}/{t_['hook']}", R_BODY=tel.RINGOSTAT_BODY, R_EVENTS=tel.RINGOSTAT_EVENTS)
 
 
@@ -5887,6 +5908,19 @@ async def settings_telephony_save(request: Request, user: User = Depends(require
         ok, msg = await asyncio.to_thread(tel.test, db)
         return RedirectResponse(_with_msg("/settings/telephony", ("✅ " if ok else "❌ ") + msg, not ok), 303)
     return RedirectResponse(_with_msg("/settings/telephony", "Збережено"), 303)
+
+
+@app.post("/settings/telephony/staff")
+async def settings_telephony_staff(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    """Співробітники телефонії (ID / імʼя в Ringostat → користувач CRM) і лінії (номер → відповідальний)."""
+    from .services import telephony as tel
+    f = await request.form()
+    staff = [{"user_id": u, "ext": e, "alias": a} for u, e, a in zip(f.getlist("s_user"), f.getlist("s_ext"), f.getlist("s_alias"))]
+    lines = [{"number": n, "name": nm, "user_id": u} for n, nm, u in zip(f.getlist("l_number"), f.getlist("l_name"), f.getlist("l_user"))]
+    tel.save_staff(db, staff, lines)
+    n = tel.relink(db)
+    audit(db, "telephony.staff", user=user, staff=len(staff), lines=len(lines), relinked=n)
+    return RedirectResponse(_with_msg("/settings/telephony#staff", "Співробітників і лінії збережено" + (f" · перепривʼязано дзвінків: {n}" if n else "")), 303)
 
 
 @app.post("/api/public/telephony/{provider}/{hook}")

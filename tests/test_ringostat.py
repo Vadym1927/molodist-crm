@@ -162,3 +162,35 @@ def test_agent_failed_record_requeues():
         with SessionLocal() as db:
             tel.requeue(db, db.get(Call, cid))
         assert cid in [x["id"] for x in cl.get("/api/v1/calls/pending-ai", headers=h).json()["calls"]]
+
+
+def test_staff_and_lines():
+    from fastapi.testclient import TestClient
+    from app.config import settings
+    from app.main import app
+    from app.models import SessionLocal, Call, User
+    from app.services import telephony as tel
+    from datetime import date
+    settings.admin_password = "owner-pass-1"
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        with SessionLocal() as db:
+            uid = db.query(User).filter(User.login == settings.owner_login).one().id
+            hook = tel.public(db)["hook"]
+        r = c.post("/settings/telephony/staff", data={"s_user": [str(uid)], "s_ext": ["777001"], "s_alias": ["Оля Адмін"],
+                                                      "l_number": ["+380 44 111 22 33"], "l_name": ["Основна"], "l_user": [str(uid)]}, follow_redirects=False)
+        assert r.status_code == 303
+        c.post(f"/api/public/telephony/ringostat/{hook}?event=end", json={"uid": "st1", "caller": "380509990001", "callee": "380441112233",
+                                                                            "status": "PROPER", "dialog": "40", "type": "in", "manager": "777001", "employee_fio": ""})
+        c.post(f"/api/public/telephony/ringostat/{hook}?event=end", json={"uid": "st2", "caller": "380509990002", "callee": "380441112233",
+                                                                            "status": "NO ANSWER", "dialog": "0", "type": "in", "manager": "0"})
+        with SessionLocal() as db:
+            a = db.query(Call).filter(Call.ext_id == "st1").one(); b = db.query(Call).filter(Call.ext_id == "st2").one()
+            assert a.user_id == uid and a.line == "380441112233" and b.user_id is None
+            name = db.get(User, uid).name
+            k = {x["name"]: x for x in tel.kpi(db, date.today(), date.today())}
+            assert k[name]["ans"] >= 1 and k[name]["miss"] >= 1          # пропущений — на відповідального за лінію
+        page = c.get("/settings/telephony").text
+        assert "Співробітники й лінії" in page and 'value="777001"' in page
+        j = c.get("/telephony").text
+        assert "відповідальний" in j and "Основна" in j
