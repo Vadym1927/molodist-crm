@@ -1291,6 +1291,7 @@ class BankTxn(Base):
     supplier_id: Mapped[int | None] = mapped_column(ForeignKey("suppliers.id"))
     status: Mapped[str] = mapped_column(String(20), default="new", index=True)   # new | matched | partial | ignored
     note: Mapped[str | None] = mapped_column(String(300))
+    rejected: Mapped[str | None] = mapped_column(String(500))      # групи накладних, з яких платіж зняли вручну («не цей платіж»)
 
 
 class PaymentAlloc(Base):

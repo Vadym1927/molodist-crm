@@ -231,3 +231,16 @@ def test_cashboxes_page_with_balances_datetime():
     with TestClient(app) as c:
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
         assert c.get("/settings/cashboxes").status_code == 200
+
+
+def test_window_and_reject():
+    from datetime import date, timedelta
+    from app.services import payments as pay
+    from app.models import BankTxn
+    assert pay.in_window(date(2026, 11, 1), date(2026, 10, 1))          # оплата через місяць
+    assert pay.in_window(date(2026, 10, 25), date(2026, 11, 1))         # передоплата за тиждень
+    assert not pay.in_window(date(2026, 6, 8), date(2026, 11, 1))       # старий платіж на нову накладну
+    assert not pay.in_window(date(2026, 11, 1), date(2025, 11, 1))      # рік після накладної
+    t = BankTxn(id="x", at=datetime.now(), amount=-1)
+    pay.reject(t, {"doc:5", "g:1"}); pay.reject(t, {"doc:5"})
+    assert pay.rejected_keys(t) == {"doc:5", "g:1"}

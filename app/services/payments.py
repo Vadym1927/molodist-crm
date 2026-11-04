@@ -18,6 +18,26 @@ from ..models import StockDoc, StockDocLine, PaymentAlloc, BankTxn, Supplier
 from ..parsers.observ import norm
 
 TOL = 1.0      # ₴ — допуск на копійки / комісію
+PREPAY_DAYS = 14     # платіж може бути раніше накладної не більше ніж на стільки днів
+POSTPAY_DAYS = 120   # і пізніше неї — не більше ніж на стільки
+
+
+def in_window(pay_day, doc_day) -> bool:
+    """Чи може платіж від pay_day стосуватися накладної від doc_day."""
+    if not pay_day or not doc_day:
+        return True
+    d = (pay_day - doc_day).days
+    return -PREPAY_DAYS <= d <= POSTPAY_DAYS
+
+
+def rejected_keys(txn: BankTxn) -> set[str]:
+    return {k for k in (txn.rejected or "").split("|") if k}
+
+
+def reject(txn: BankTxn, keys) -> None:
+    """Запамʼятати: цей платіж не стосується цих накладних — автоматика їх більше не пропонує."""
+    ks = rejected_keys(txn) | {k for k in keys if k}
+    txn.rejected = "|".join(sorted(ks))[:500]
 
 
 def line_sum(ln: StockDocLine) -> float:
@@ -276,9 +296,9 @@ def match_txn(db: Session, txn: BankTxn) -> str:
         db.commit()
         return txn.status
     day = txn.at.date() if txn.at else None
-    # накладна не пізніше ніж через 60 днів після платежу (передоплата) і не раніше ніж за рік до нього
-    open_g = [g for g in groups(db, sup.name, only_open=True)
-              if not day or not g.date or -365 <= (day - g.date).days <= 60]
+    rej = rejected_keys(txn)
+    open_g = [g for g in groups(db, sup.name, only_open=True) if g.key not in rej and in_window(day, g.date)]
+    open_g.sort(key=lambda g: (g.date or day or datetime.min.date()))    # старші накладні — першими
     nums = _digits_in(txn.description)
     by_no = [g for g in open_g if g.ext_no and (set(re.findall(r"\d{3,}", g.ext_no)) & nums)]
     by_amt = [g for g in open_g if abs(g.left - amt) <= TOL]
@@ -302,13 +322,23 @@ def match_txn(db: Session, txn: BankTxn) -> str:
     return txn.status
 
 
+def out_of_window(db: Session, txn: BankTxn) -> bool:
+    """Платіж рознесено на накладну поза часовим вікном (напр. старий платіж на нову накладну)."""
+    day = txn.at.date() if txn.at else None
+    for a in db.scalars(select(PaymentAlloc).where(PaymentAlloc.txn_id == txn.id)):
+        d = db.get(StockDoc, a.doc_id)
+        if d and not in_window(day, d.doc_date):
+            return True
+    return False
+
+
 def weak_auto(db: Session) -> list[BankTxn]:
-    """Автоматичні рознесення, де постачальника впізнано не за IBAN / ЄДРПОУ (могли промахнутись)."""
+    """Сумнівні автоматичні рознесення: постачальника впізнано не за IBAN / ЄДРПОУ або дата платежу поза вікном накладної."""
     tids = {a.txn_id for a in db.scalars(select(PaymentAlloc).where(PaymentAlloc.txn_id.is_not(None), PaymentAlloc.by_user.is_(None)))}
     out = []
     for tid in tids:
         t = db.get(BankTxn, tid)
-        if t and supplier_match(db, t)[1] != "req":
+        if t and (supplier_match(db, t)[1] != "req" or out_of_window(db, t)):
             out.append(t)
     return out
 

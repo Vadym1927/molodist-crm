@@ -5322,6 +5322,8 @@ def stock_doc_page(did: int, request: Request, user: User = Depends(require("sto
     return render(request, "stock_doc.html", d=doc, KINDS=st.DOC_KINDS, STATUS=st.STATUS, WAREHOUSES=catalog.WAREHOUSES,
                   files=db.scalars(select(StockDocFile).where(StockDocFile.doc_id == doc.id).order_by(StockDocFile.id)).all(),
                   grp=grp, allocs=allocs, txns=txns, PAY=pay.PAY_LABELS, MODES=pay.MODE_LABELS,
+                  off_window={k for k, t_ in txns.items() if not pay.in_window(t_.at.date() if t_.at else None, doc.doc_date)},
+                  win=(pay.PREPAY_DAYS, pay.POSTPAY_DAYS),
                   alloc_users={u_.id: u_.name for u_ in db.scalars(select(User))}, line_paid=pay.by_product(db, [doc.id]),
                   fops=[a["name"] for a in _cb_acc(db)], sup=sup, lot_opts=lot_opts, today=date.today(),
                   group_docs=[x for x in (grp.docs if grp else []) if x.id != doc.id],
@@ -6931,6 +6933,7 @@ def stock_mono_recheck(user: User = Depends(require("stock")), db: Session = Dep
     for w in pay.weak_auto(db):
         docs_ = {a.doc_id for a in db.scalars(select(PaymentAlloc).where(PaymentAlloc.txn_id == w.id))}
         pay.unallocate_txn(db, w)
+        pay.reject(w, {pay.group_key(x) for x in (db.get(StockDoc, i) for i in docs_) if x})
         w.supplier_id = None
         db.commit()
         for d_ in docs_:
@@ -6968,10 +6971,9 @@ def stock_mono_txn(tid: str, action: str = Form(...), group: str = Form(""), sup
         pay.unallocate_txn(db, t)
         for d_ in docs_:
             audit(db, "stock.pay_unassign", "stock_doc", d_, user=user, amount=round(-t.amount, 2), fop=t.fop, txn=tid)
-        t.status = "ignored_once"                     # цей платіж не розносити знову одразу на те саме
+        pay.reject(t, {pay.group_key(x) for x in (db.get(StockDoc, i) for i in docs_) if x})   # на ці накладні — більше ніколи
         db.commit()
-        pay.rematch_all(db)                           # інші платежі (напр. частково рознесені) доносять залишок
-        t.status = "new"
+        pay.rematch_all(db)                           # інші платежі доносять залишок (за тими ж правилами вікна)
     elif action == "unbook":
         pay.unallocate_txn(db, t)
     elif action == "ignore":
