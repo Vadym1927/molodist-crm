@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Порівняння місяців · KPI лікарів{% endblock %}
+{% macro fv(v, kind) -%}
+{%- if v is none or v == '' -%}—{%- elif kind == 'uah' -%}{{ v|uah }}{%- elif kind == 'pct' -%}{{ '%g'|format(v|round(1)) }}%{%- elif kind == 'int' -%}{{ v|int }}{%- else -%}{{ '%g'|format(v|round(1)) }}{%- endif -%}
+{%- endmacro %}
+{% block body %}
+<style>
+.kc-hd{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px}.kc-hd h1{margin:0}
+.kc-per{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.kc-ch{display:grid;gap:8px;margin-top:6px}
+.kc-r{display:grid;grid-template-columns:170px 1fr;gap:12px;align-items:center}.kc-r .nm{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kc-bars{display:flex;gap:3px;align-items:center;flex-wrap:wrap}.kc-bars div{display:flex;align-items:center;gap:6px;width:100%}
+.kc-bars i{display:block;height:14px;border-radius:3px;min-width:2px}.kc-bars span{font-size:11.5px;color:#5d5869;white-space:nowrap}
+.kc-lg{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:#8a8496;margin-top:10px}.kc-lg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.kc-t{width:100%;border-collapse:collapse;font-size:13px}.kc-t th,.kc-t td{padding:7px 10px;border-bottom:1px solid #F1EDE8;white-space:nowrap;text-align:right}
+.kc-t th{font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496;background:#FBFAF8}.kc-t th:first-child,.kc-t td:first-child{text-align:left}
+.kc-t td:first-child{color:#5d5869}.kc-t td b{font-weight:700;color:#2A2430}
+.kc-t .dl{display:block;font-size:11px;font-weight:700;color:#8a8496}.kc-t .dl.up{color:#1E7A46}.kc-t .dl.down{color:#B23B2E}
+.kc-t td.best b{background:#EEF7F1;border-radius:6px;padding:1px 6px}.kc-t th .src{display:block;font-weight:600;text-transform:none;letter-spacing:0;color:#9A6A00}
+.kc-g{margin-bottom:16px}.kc-g h2{display:flex;align-items:center;gap:10px;margin:0 0 10px}
+.kav{flex:none;width:36px;height:36px;border-radius:50%;background:#E4DEEF center/cover no-repeat;display:inline-flex;align-items:center;justify-content:center;font:700 12px var(--sans);color:#3B3050}
+</style>
+{% set C = ['#6B57A8', '#2E9E8E', '#C9792B', '#B75C8F', '#2A9DB0', '#8F7FC4'] %}
+<div class="kc-hd"><div><div class="eyebrow"><a href="/reports/doctors-kpi" style="color:inherit;text-decoration:none">← KPI лікарів</a> · Порівняння</div><h1>Порівняння місяців</h1>
+    <div class="muted small">{{ c.cols|map(attribute='label')|join(' · ') }} · зміна — до попереднього обраного місяця{% if c.cols|selectattr('partial')|list %} · поточний місяць — лише до сьогодні{% endif %}</div></div>
+  <div class="kc-per">{% from "_kpi_months.html" import picker %}{{ picker(keys, doc, doctors, avail_from, 'many') }}</div></div>
+
+{% set g0 = c.groups[0] if c.groups else none %}
+{% if c.groups|length > 1 or (g0 and g0.doctor) %}
+{% set docs_ = c.groups|selectattr('doctor')|list %}
+{% set mx = namespace(v=1) %}{% for g in docs_ %}{% for k in keys %}{% set v = (g.months.get(k) or {}).get('total') or 0 %}{% if v > mx.v %}{% set mx.v = v %}{% endif %}{% endfor %}{% endfor %}
+<div class="card" style="margin-bottom:16px"><h2 style="margin:0 0 10px">Оборот лікарів по місяцях</h2>
+  <div class="kc-ch">{% for g in docs_ %}<div class="kc-r"><div class="nm">{{ g.name }}</div><div class="kc-bars">
+    {% for k in keys %}{% set v = (g.months.get(k) or {}).get('total') or 0 %}<div title="{{ k }}: {{ v|uah }}"><i style="width:{{ (85 * v / mx.v)|round(1) }}%;background:{{ C[loop.index0 % 6] }}"></i><span>{{ v|uah }}</span></div>{% endfor %}</div></div>{% endfor %}</div>
+  <div class="kc-lg">{% for col in c.cols %}<span><i style="background:{{ C[loop.index0 % 6] }}"></i>{{ col.label }}{{ ' (до сьогодні)' if col.partial }}</span>{% endfor %}</div></div>
+{% endif %}
+
+{% for g in c.groups %}
+<section class="card kc-g"><h2>{% if g.doctor %}<span class="kav" style="{% if g.doctor.photo_url %}background-image:url('{{ g.doctor.photo_url }}'){% endif %}">{% if not g.doctor.photo_url %}{{ (g.name.split()|map('first')|join)[:2]|upper }}{% endif %}</span>{% endif %}{{ g.name }}
+  {% if g.doctor %}<a class="small" href="/reports/doctors-kpi/history?key={{ g.doctor.id }}" style="font:600 13px var(--sans);text-transform:none;letter-spacing:0;margin-left:auto">історія KPI ↗</a>{% endif %}</h2>
+  <div style="overflow:auto"><table class="kc-t"><thead><tr><th>Показник</th>{% for col in c.cols %}<th>{{ col.label }}{% if col.partial %}<span class="src">до сьогодні</span>{% elif (g.months.get(col.key) or {}).get('source') == 'sheet' %}<span class="src">з таблиці</span>{% endif %}</th>{% endfor %}</tr></thead><tbody>
+  {% for key, label, kind, inverse in M %}{% set vals = [] %}{% for col in c.cols %}{% set _ = vals.append((g.months.get(col.key) or {}).get(key)) %}{% endfor %}
+    {% if vals|select('ne', none)|list %}{% set nn = vals|select('ne', none)|list %}{% set best = (nn|min if inverse else nn|max) if nn|length > 1 else none %}
+    <tr><td>{{ label }}</td>{% for v in vals %}{% set pv = vals[loop.index0 - 1] if loop.index0 else none %}
+      <td class="{{ 'best' if best is not none and v == best }}"><b>{{ fv(v, kind) }}</b>
+        {%- if v is not none and pv is not none -%}
+          {%- if kind == 'pct' -%}{% set d = (v - pv)|round(1) %}<span class="dl {{ ('down' if inverse else 'up') if d > 0 else (('up' if inverse else 'down') if d < 0) }}">{{ '+' if d > 0 }}{{ '%g'|format(d) }} п.п.</span>
+          {%- elif pv -%}{% set d = ((100 * (v - pv) / pv)|round(0))|int %}<span class="dl {{ ('down' if inverse else 'up') if d > 0 else (('up' if inverse else 'down') if d < 0) }}">{{ '▲' if d > 0 else ('▼' if d < 0 else '=') }}{{ d|abs }}%</span>{%- endif -%}
+        {%- endif -%}</td>{% endfor %}</tr>{% endif %}{% endfor %}
+  </tbody></table></div></section>
+{% else %}<div class="card">За обрані місяці даних немає.</div>{% endfor %}
+<p class="small muted">Зелене тло — найкращий місяць за показником. Місяці без позицій у чеках CleverBox — цифри з таблиці власника.</p>
+{% endblock %}

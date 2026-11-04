@@ -162,3 +162,21 @@ def test_overlay_from_sheet():
     r = dk._overlay(dict(m), sh)
     assert r["source"] == "sheet" and r["total"] == 120000 and r["patients"] == 40 and r["load"] == 60 and r["cats"][0]["name"] == "Ботулінотерапія"
     assert dk._overlay({**m, "total": 5.0}, sh)["source"] == "crm"
+
+
+def test_compare_months_and_picker():
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        seed(db)
+        c = dk.compare(db, ["2026-09", "2026-10"])
+        assert [x["key"] for x in c["cols"]] == ["2026-09", "2026-10"] and c["groups"][0]["name"] == "Усі лікарі разом"
+        g = next(x for x in c["groups"] if x["name"] == "KPI Лікар Сирова")
+        assert g["months"]["2026-09"]["total"] > 0 and g["months"]["2026-10"]["total"] > 0
+        assert dk.avail_from(db) <= "2025-10"
+    with TestClient(app) as cl:
+        cl.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        r = cl.get("/reports/doctors-kpi/compare?ms=2026-09,2026-10")
+        assert r.status_code == 200 and "Порівняння місяців" in r.text and "KPI Лікар Сирова" in r.text and "Оборот лікарів по місяцях" in r.text
+        assert cl.get("/reports/doctors-kpi/compare?ms=2026-10", follow_redirects=False).status_code == 303
+        p = cl.get("/reports/doctors-kpi?m=2026-10").text
+        assert 'id="kmp"' in p and "Порівняти місяці" in p

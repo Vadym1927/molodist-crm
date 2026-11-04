@@ -69,10 +69,9 @@ details.nrb summary{cursor:pointer;font-weight:600;color:var(--classic);font-siz
 </style>
 
 <div class="dk-hd"><div><div class="eyebrow"><a href="/reports" style="color:inherit;text-decoration:none">← Усі звіти</a> · Співробітники</div><h1>KPI лікарів</h1>
-    <div class="muted small">{{ d_from|dt('%d.%m.%Y') }} — {{ d_to|dt('%d.%m.%Y') }}{% if r.prev_range %} · порівняння з {{ r.prev_range[0]|dt('%d.%m.%Y') }} — {{ r.prev_range[1]|dt('%d.%m.%Y') }}{% endif %}</div></div>
+    <div class="muted small">{{ d_from|dt('%d.%m.%Y') }} — {{ d_to|dt('%d.%m.%Y') }}{% if partial %} · місяць ще триває — порівняння з тими самими днями минулого місяця{% endif %}{% if r.prev_range %} · порівняння з {{ r.prev_range[0]|dt('%d.%m.%Y') }} — {{ r.prev_range[1]|dt('%d.%m.%Y') }}{% endif %}</div></div>
   <div class="dk-per">
-    {% for m_ in months %}<a class="m {{ 'on' if m_.key == month_key }}" href="?m={{ m_.key }}{{ ('&doc=' ~ doc) if doc }}">{{ m_.label }}</a>{% endfor %}
-    <form><input type="month" name="m" value="{{ month_key }}"><select name="doc" onchange="this.form.submit()"><option value="">Усі лікарі</option>{% for d_ in doctors %}<option value="{{ d_.id }}" {{ 'selected' if doc == d_.id|string }}>{{ d_.name }}</option>{% endfor %}</select><button class="btn ghost">Показати</button></form>
+    {% from "_kpi_months.html" import picker %}{{ picker([month_key], doc, doctors, avail_from) }}
     <a class="btn ghost" href="/settings/doctor-kpi">⚙ Цілі й премія</a>
     {% if r.total.premium > 0 %}<form method="post" action="/reports/doctors-kpi/premium" style="margin:0" onsubmit="return confirm('Нарахувати премію KPI за {{ month_label }} усім лікарям зі звіту? Сума {{ r.total.premium|uah }}.')"><input type="hidden" name="m" value="{{ month_key }}"><button class="btn">＋ Нарахувати премію {{ r.total.premium|uah }}</button></form>{% endif %}
   </div></div>

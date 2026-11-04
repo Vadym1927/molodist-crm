@@ -558,7 +558,7 @@ def compute(db: Session, d_from: date, d_to: date, with_prev: bool = True, only:
         for d in doctors:
             if d.id in pagg and (only is None or d.id == only):
                 prev_rows[d.id] = _overlay(_metrics(db, d, pagg[d.id], p_from, p_to, cfg, psh.get(d.id, {}), ppay.get(d.id, {}), pplans, None, with_lists=False),
-                                           sheet.get(d.id, {}).get(f"{p_from:%Y-%m}"))
+                                           sheet.get(d.id, {}).get(f"{p_from:%Y-%m}") if _full_month(p_from, p_to) else None)
     rows = []
     for d in doctors:
         if d.id not in agg or (only is not None and d.id != only):
@@ -568,7 +568,7 @@ def compute(db: Session, d_from: date, d_to: date, with_prev: bool = True, only:
             continue
         pv = prev_rows.get(d.id)
         m = _overlay(_metrics(db, d, x, d_from, d_to, cfg, sched.get(d.id, {}), pay.get(d.id, {}), plans, pv["_new"] if pv else None),
-                     sheet.get(d.id, {}).get(f"{d_from:%Y-%m}"))
+                     sheet.get(d.id, {}).get(f"{d_from:%Y-%m}") if _full_month(d_from, d_to) else None)
         if not m["total"] and m["done"] < 3:               # без обороту й майже без візитів (лабораторія, тест) — не в KPI
             continue
         m["prev"] = {k: v for k, v in pv.items() if not k.startswith("_") and k not in ("doctor", "cats", "targets", "prods")} if pv else None
@@ -585,6 +585,10 @@ def compute(db: Session, d_from: date, d_to: date, with_prev: bool = True, only:
         prev_tot = _total(pr_)
     return {"rows": rows, "total": tot, "prev_total": prev_tot, "d_from": d_from, "d_to": d_to, "cfg": cfg,
             "prev_range": prev_period(d_from, d_to) if with_prev else None}
+
+
+def _full_month(a: date, b: date) -> bool:
+    return a.day == 1 and (b + timedelta(days=1)).day == 1 and a.month == b.month
 
 
 SHEET_OVERLAY = ["services", "products", "n_services", "patients", "new", "old", "sched_h", "worked_h", "idle_h", "load",
@@ -830,3 +834,59 @@ def cosmetics(rows: list[dict]) -> dict:
     return {"sum": tot, "cost": cost, "profit": round(tot - cost, 2), "margin": _pct(tot - cost, tot) if tot else None,
             "sku": len(items), "units": round(sum(z["qty"] for z in items), 2), "top": items[:5],
             "weak": sorted(items, key=lambda z: z["sum"])[:5] if len(items) > 5 else [], "by_doc": by_doc}
+
+
+# ---------------- порівняння кількох місяців ----------------
+CMP_METRICS = [("total", "Оборот", "uah", False), ("services", "Послуги", "uah", False), ("products", "Догляд (товари)", "uah", False),
+               ("products_share", "Частка догляду", "pct", False), ("n_services", "Послуг, шт", "num", False),
+               ("avg_patient", "На пацієнта", "uah", False), ("patients", "Пацієнтів", "int", False), ("new", "Нових", "int", False),
+               ("retention", "Поверненість", "pct", False), ("load", "Завантаження", "pct", False), ("worked_h", "Год у роботі", "num", False),
+               ("idle_h", "Простій, год", "num", True), ("rev_per_worked_h", "Оборот / год у роботі", "uah", False),
+               ("salary", "З/П", "uah", True), ("cost", "Собівартість", "uah", True), ("profit", "Прибуток", "uah", False),
+               ("margin", "Чиста маржа", "pct", False), ("contrib_pct", "Маржа внеску послуг", "pct", False),
+               ("cancel_pct", "% скасувань", "pct", True), ("discipline", "Дисципліна", "pct", False),
+               ("plans_pct", "Реалізація бюті-планів", "pct", False), ("ltv12", "LTV 12 міс", "uah", False), ("score", "Індекс ефективності", "int", False)]
+
+
+def avail_from(db: Session) -> str:
+    """Найраніший місяць, за який є дані: таблиця власника або чеки CRM."""
+    ks = [f"{r['year']:04d}-{r['month']:02d}" for r in _hist_seed()]
+    first = db.scalar(select(func.min(Check.date)).where(Check.deleted.is_(False)))
+    if first:
+        f = first if isinstance(first, datetime) else datetime.fromisoformat(str(first))
+        ks.append(f"{f.year:04d}-{f.month:02d}")
+    return min(ks) if ks else f"{date.today().year - 1:04d}-01"
+
+
+def compare(db: Session, keys: list[str], only: int | None = None) -> dict:
+    """Кілька місяців поруч: по кожному лікарю й разом — значення метрик по місяцях."""
+    today = date.today()
+    cols = []
+    docs: dict = {}
+    for k in keys:
+        y, m = int(k[:4]), int(k[5:])
+        a = date(y, m, 1)
+        b = date(y + (m == 12), (m % 12) + 1, 1) - timedelta(days=1)
+        part = a <= today < b
+        r = compute(db, a, min(b, today), with_prev=False, only=only)
+        cols.append({"key": k, "label": f"{k[5:]}.{k[:4]}", "partial": part, "total": r["total"]})
+        for row in r["rows"]:
+            x = docs.setdefault(row["doctor_id"], {"doctor": row["doctor"], "name": row["name"], "months": {}})
+            x["months"][k] = {**{mk: row.get(mk) for mk, *_ in CMP_METRICS}, "plans_pct": row["plans"]["pct"] if row["plans"]["n"] else None,
+                              "source": row.get("source")}
+    tot_rows = {}
+    for c in cols:
+        t = c["total"]
+        tot_rows[c["key"]] = {"total": t["total"], "services": t["services"], "products": t["products"], "products_share": t["products_share"],
+                              "patients": t["patients"], "new": t["new"], "retention": t["retention"] if t["patients"] else None,
+                              "load": t["load"], "worked_h": t["worked_h"], "idle_h": t["idle_h"], "salary": t["salary"], "cost": t["cost"],
+                              "profit": t["profit"], "margin": t["margin"], "ltv12": t["ltv12"],
+                              "rev_per_worked_h": round(t["total"] / t["worked_h"], 2) if t["worked_h"] else None,
+                              "plans_pct": t["plans"]["pct"] if t["plans"]["n"] else None, "n_services": t["n_services"],
+                              "avg_patient": round(t["total"] / t["patients"], 2) if t["patients"] else None}
+    groups = []
+    if not only:
+        groups.append({"name": "Усі лікарі разом", "doctor": None, "months": tot_rows})
+    for x in sorted(docs.values(), key=lambda z: -sum(_f(v.get("total")) for v in z["months"].values())):
+        groups.append(x)
+    return {"cols": cols, "groups": groups}

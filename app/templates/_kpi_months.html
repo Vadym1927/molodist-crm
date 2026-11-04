@@ -1,0 +1,75 @@
+{# Вибір місяця / кількох місяців для KPI лікарів: поповер з роками й 12 місяцями (брендбук), режим «Порівняти». #}
+{% macro picker(selected, doc, doctors, avail_from, mode='one') -%}
+{% set sel = selected or [] %}
+<style>
+.kmp{position:relative;display:inline-block}
+.kmp-btn{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 14px;border:1px solid #E4DEEF;border-radius:12px;background:#fff;font:600 14px var(--sans);color:#2A2430;cursor:pointer}
+.kmp-btn svg{width:16px;height:16px;stroke:#5C4B82}.kmp-btn:hover{border-color:#C9BFE6}
+.kmp-pop{position:absolute;z-index:60;top:46px;left:0;width:330px;background:#fff;border:1px solid #ECE7E1;border-radius:16px;box-shadow:0 18px 50px rgba(42,36,48,.18);padding:14px;display:none}
+.kmp.open .kmp-pop{display:block}
+.kmp-tabs{display:flex;background:#F3F0FA;border-radius:10px;padding:3px;margin-bottom:12px}.kmp-tabs button{flex:1;border:0;background:none;padding:7px;border-radius:8px;font:600 13px var(--sans);color:#5d5869;cursor:pointer}
+.kmp-tabs button.on{background:#3B3050;color:#fff}
+.kmp-y{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.kmp-y b{font:600 15px var(--head);letter-spacing:.06em}
+.kmp-y button{border:0;background:#F7F4F0;width:32px;height:32px;border-radius:10px;cursor:pointer;font-size:16px;color:#3B3050}.kmp-y button:disabled{opacity:.3;cursor:default}
+.kmp-g{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.kmp-g button{position:relative;border:1px solid #ECE7E1;background:#fff;border-radius:10px;padding:9px 0;font:600 13px var(--sans);color:#2A2430;cursor:pointer}
+.kmp-g button:hover{border-color:#C9BFE6;background:#FBFAF8}.kmp-g button.cur{border-color:#C9BFE6}.kmp-g button.cur:after{content:"";position:absolute;left:50%;bottom:3px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:#5C4B82}
+.kmp-g button.on{background:#3B3050;border-color:#3B3050;color:#fff}.kmp-g button:disabled{opacity:.35;cursor:default;background:#fff}
+.kmp-g button.sh{box-shadow:inset 0 -2px 0 #C9BFE6}.kmp-g button.on.sh{box-shadow:none}
+.kmp-f{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:12px;font-size:12px;color:#8a8496}
+.kmp-f .btn{padding:7px 14px}.kmp-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:10px}.kmp-chips span{background:#E4DEEF;color:#3B3050;border-radius:99px;padding:3px 9px;font:600 12px var(--sans)}
+.kmp-q{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}.kmp-q button{border:1px solid #ECE7E1;background:#FBFAF8;border-radius:99px;padding:4px 10px;font:600 12px var(--sans);color:#5d5869;cursor:pointer}.kmp-q button:hover{border-color:#C9BFE6;color:#3B3050}
+</style>
+<div class="kmp" id="kmp">
+  <button type="button" class="kmp-btn" onclick="kmpToggle(event)"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg><span id="kmp-label"></span><span style="color:#8a8496">▾</span></button>
+  <div class="kmp-pop" onclick="event.stopPropagation()">
+    <div class="kmp-tabs"><button type="button" data-m="one">Один місяць</button><button type="button" data-m="many">Порівняти місяці</button></div>
+    <div class="kmp-q" id="kmp-q"></div>
+    <div class="kmp-y"><button type="button" id="kmp-prev">‹</button><b id="kmp-year"></b><button type="button" id="kmp-next">›</button></div>
+    <div class="kmp-g" id="kmp-grid"></div>
+    <div class="kmp-chips" id="kmp-chips"></div>
+    <div class="kmp-f"><span id="kmp-hint"></span><button type="button" class="btn" id="kmp-go">Порівняти</button></div>
+  </div>
+</div>
+<script>
+(function(){
+  var MN=['січ','лют','бер','кві','тра','чер','лип','сер','вер','жов','лис','гру'],FULL=['Січень','Лютий','Березень','Квітень','Травень','Червень','Липень','Серпень','Вересень','Жовтень','Листопад','Грудень'];
+  var now=new Date(),curKey=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0'),minKey={{ avail_from|tojson }},doc={{ (doc or '')|tojson }};
+  var S={mode:{{ mode|tojson }},sel:{{ sel|tojson }},year:0};
+  S.year=+((S.sel[S.sel.length-1]||curKey).slice(0,4));
+  var root=document.getElementById('kmp');
+  function lbl(k){return MN[+k.slice(5)-1]+' '+k.slice(2,4)}
+  function label(){var l=document.getElementById('kmp-label');
+    if(S.mode==='many'&&S.sel.length>1)l.textContent='Порівняння: '+S.sel.map(lbl).join(', ');
+    else{var k=S.sel[0]||curKey;l.textContent=(k===curKey?'Цей місяць · ':'')+FULL[+k.slice(5)-1]+' '+k.slice(0,4)}}
+  function go(keys){var q=doc?'&doc='+encodeURIComponent(doc):'';
+    if(keys.length>1)location='/reports/doctors-kpi/compare?ms='+keys.join(',')+q;else location='/reports/doctors-kpi?m='+keys[0]+q}
+  function shift(k,n){var y=+k.slice(0,4),m=+k.slice(5)-1+n;y+=Math.floor(m/12);m=((m%12)+12)%12;return y+'-'+String(m+1).padStart(2,'0')}
+  function quick(){var q=document.getElementById('kmp-q');q.innerHTML='';
+    var opts=S.mode==='one'?[['Цей місяць',[curKey]],['Минулий',[shift(curKey,-1)]]]:[['Останні 3',[shift(curKey,-2),shift(curKey,-1),curKey]],['Останні 6',[0,1,2,3,4,5].map(function(i){return shift(curKey,i-5)})],['Цей і минулий',[shift(curKey,-1),curKey]],['Той самий міс. торік',[shift(curKey,-12),curKey]]];
+    opts.forEach(function(o){var b=document.createElement('button');b.type='button';b.textContent=o[0];b.onclick=function(){var ks=o[1].filter(function(k){return k>=minKey});if(S.mode==='one')go(ks);else{S.sel=ks;draw()}};q.appendChild(b)})}
+  function draw(){
+    root.querySelectorAll('.kmp-tabs button').forEach(function(b){b.classList.toggle('on',b.dataset.m===S.mode)});
+    document.getElementById('kmp-year').textContent=S.year;
+    document.getElementById('kmp-prev').disabled=S.year<=+minKey.slice(0,4);document.getElementById('kmp-next').disabled=S.year>=now.getFullYear();
+    var g=document.getElementById('kmp-grid');g.innerHTML='';
+    for(var i=0;i<12;i++){(function(i){var k=S.year+'-'+String(i+1).padStart(2,'0'),b=document.createElement('button');b.type='button';b.textContent=MN[i];
+      b.disabled=k>curKey||k<minKey;if(k===curKey)b.classList.add('cur');if(S.sel.indexOf(k)>=0)b.classList.add('on');
+      b.title=FULL[i]+' '+S.year;
+      b.onclick=function(){if(S.mode==='one'){go([k]);return}var j=S.sel.indexOf(k);if(j>=0)S.sel.splice(j,1);else if(S.sel.length<6)S.sel.push(k);S.sel.sort();draw()};g.appendChild(b)})(i)}
+    var many=S.mode==='many';document.getElementById('kmp-go').style.display=many?'':'none';
+    document.getElementById('kmp-chips').innerHTML=many?S.sel.map(function(k){return '<span>'+lbl(k)+'</span>'}).join(''):'';
+    document.getElementById('kmp-hint').textContent=many?(S.sel.length<2?'оберіть 2–6 місяців':S.sel.length+' міс. обрано'):'клікніть місяць';
+    document.getElementById('kmp-go').disabled=many&&S.sel.length<2;quick();label()}
+  root.querySelectorAll('.kmp-tabs button').forEach(function(b){b.onclick=function(){S.mode=b.dataset.m;if(S.mode==='one'&&S.sel.length>1)S.sel=[S.sel[S.sel.length-1]];draw()}});
+  document.getElementById('kmp-prev').onclick=function(){S.year--;draw()};document.getElementById('kmp-next').onclick=function(){S.year++;draw()};
+  document.getElementById('kmp-go').onclick=function(){if(S.sel.length>=2)go(S.sel)};
+  window.kmpToggle=function(e){e.stopPropagation();root.classList.toggle('open')};
+  document.addEventListener('click',function(){root.classList.remove('open')});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')root.classList.remove('open')});
+  draw();
+})();
+</script>
+<select class="kmp-doc" onchange="location=(location.pathname)+'?'+{{ (('ms=' ~ sel|join(',')) if mode == 'many' else ('m=' ~ (sel[0] if sel else '')))|tojson }}+(this.value?'&doc='+this.value:'')" style="height:40px;margin:0;max-width:240px">
+  <option value="">Усі лікарі</option>{% for d_ in doctors %}<option value="{{ d_.id }}" {{ 'selected' if (doc or '') == d_.id|string }}>{{ d_.name }}</option>{% endfor %}</select>
+{%- endmacro %}

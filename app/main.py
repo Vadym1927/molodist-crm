@@ -8111,6 +8111,9 @@ def doctors_kpi_page(request: Request, m: str = "", doc: str = "", user: User = 
     from .services import doctor_kpi as dk
     d_from, d_to, mk = _kpi_month(m)
     only = int(doc) if doc.isdigit() else None
+    partial = d_from <= date.today() < d_to                    # поточний місяць — лише до сьогодні, порівняння з тими ж днями
+    if partial:
+        d_to = date.today()
     r = dk.compute(db, d_from, d_to, only=only)
     prev_total = r.get("prev_total")
     series = dk.series_all(db, d_to, 6) if r["rows"] else {}
@@ -8142,7 +8145,20 @@ def doctors_kpi_page(request: Request, m: str = "", doc: str = "", user: User = 
     return render(request, "doctor_kpi.html", nav="reports", r=r, d_from=d_from, d_to=d_to, month_key=mk, month_label=d_from.strftime("%m.%Y"),
                   months=months, doctors=db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)).all(), doc=doc,
                   prev_total=prev_total, series=series, leaders=leaders, ltv=dk.clinic_ltv(db), cosm=dk.cosmetics(rows_),
-                  arch=dk.archive(db, d_from, {z["doctor_id"] for z in rows_}) if not only else [])
+                  arch=dk.archive(db, d_from, {z["doctor_id"] for z in rows_}) if not only else [],
+                  partial=partial, avail_from=dk.avail_from(db))
+
+
+@app.get("/reports/doctors-kpi/compare", response_class=HTMLResponse)
+def doctors_kpi_compare(request: Request, ms: str = "", doc: str = "", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import doctor_kpi as dk
+    keys = sorted({k for k in ms.split(",") if len(k) == 7 and k[4] == "-" and k[:4].isdigit() and k[5:].isdigit()})[-6:]
+    if len(keys) < 2:
+        return RedirectResponse(f"/reports/doctors-kpi?m={keys[0] if keys else ''}", 303)
+    only = int(doc) if doc.isdigit() else None
+    cmp_ = dk.compare(db, keys, only)
+    return render(request, "doctor_kpi_compare.html", nav="reports", c=cmp_, keys=keys, doc=doc, M=dk.CMP_METRICS,
+                  doctors=db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)).all(), avail_from=dk.avail_from(db))
 
 
 @app.get("/reports/doctors-kpi/history", response_class=HTMLResponse)
