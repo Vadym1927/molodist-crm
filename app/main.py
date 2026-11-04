@@ -410,6 +410,7 @@ async def lifespan(app: FastAPI):
         sched.add_job(job_rematch, "date", run_date=datetime.now() + timedelta(seconds=40))   # після оновлення — одразу
         sched.add_job(job_expiry, "cron", hour=9, minute=15)
         sched.add_job(job_loyalty, "cron", hour=9, minute=5)
+        sched.add_job(job_reconcile, "cron", hour=9, minute=0)
         sched.add_job(job_shop, "cron", hour=6, minute=40)
         sched.start()
     except Exception as e:          # noqa: BLE001
@@ -4593,6 +4594,7 @@ def _reconcile(db: Session) -> dict | None:
     crm = st.balances(db) if st.ledger_active(db) else {}
     cb: dict = {}
     unknown = []
+    has_v = snap.get("source") != "api"           # API CleverBox віддає лише кількість — вартість не звіряємо
     for cid, wh, q, v, *rest in snap["rows"]:
         nm = rest[0] if rest else ""
         p = by_cb.get(int(cid)) if str(cid).isdigit() else None
@@ -4615,7 +4617,7 @@ def _reconcile(db: Session) -> dict | None:
         t["cb_v"] += cv
         t["crm_v"] += mv
         dq, dv = round(mq - cq, 3), round(mv - cv, 2)
-        bad_q, bad_v = abs(dq) > 0.01, abs(dv) > max(1.0, abs(cv) * 0.01)
+        bad_q, bad_v = abs(dq) > 0.01, has_v and abs(dv) > max(1.0, abs(cv) * 0.01)
         t["n_bad"] += bad_q
         t["n_vbad"] += bad_v and not bad_q
         if bad_q or bad_v:
@@ -4625,7 +4627,59 @@ def _reconcile(db: Session) -> dict | None:
                          "kind": "qty" if bad_q else "value",
                          "cb_unit_cost": round(cv / cq, 2) if cq else None, "crm_unit_cost": round(cost.get(pid, 0.0), 2)})
     rows.sort(key=lambda r: (r["kind"] != "qty", list(catalog.WAREHOUSES).index(r["wh"]) if r["wh"] in catalog.WAREHOUSES else 9, -abs(r["dv"])))
-    return {"at": snap.get("at"), "rows": rows, "tot": tot, "unknown": unknown, "n_cb": len(snap["rows"])}
+    return {"at": snap.get("at"), "rows": rows, "tot": tot, "unknown": unknown, "n_cb": len(snap["rows"]), "has_v": has_v,
+            "source": snap.get("source") or "report"}
+
+
+def reconcile_from_api(db: Session) -> dict | None:
+    """Свіжі залишки CleverBox через API (/products/stock) → знімок звірки (лише кількість)."""
+    import json
+    from .integrations.cleverbox import CleverBox, _first
+    rows = []
+    for r in CleverBox().products_stock():
+        pid = _first(r, "product_id", "item_id", "id")
+        wh = catalog.warehouse_of(_first(r, "storage_name", "storage", "store_name"))
+        if pid in (None, "") or not wh:
+            continue
+        q = float(_first(r, "quantity", "qty", "stock", "balance", "count", "amount", default=0) or 0)
+        rows.append([int(pid), wh, q, 0.0, str(_first(r, "product_name", "name", "title", default=""))])
+    stt = db.get(SyncState, "wh_reconcile") or SyncState(key="wh_reconcile")
+    stt.value = json.dumps({"rows": rows, "at": datetime.now().isoformat(timespec="minutes"), "source": "api"}, ensure_ascii=False)
+    stt.updated_at = datetime.utcnow()
+    db.merge(stt)
+    db.commit()
+    return _reconcile(db)
+
+
+def run_daily_reconcile() -> str:
+    from .services import alerts
+    with SessionLocal() as db:
+        rec = reconcile_from_api(db)
+    if not rec:
+        return "нема даних"
+    bad = [r for r in rec["rows"] if r["kind"] == "qty"]
+    real = [r for r in bad if not (r["name"].startswith("Амортизація") or "манімула" in r["name"] or r["cb_q"] < 0)]
+    if not bad:
+        txt = "⚖ <b>Звірка складів з CleverBox</b>: усе сходиться ✅"
+    else:
+        lines = [f"• {r['name'][:60]} ({catalog.WAREHOUSES.get(r['wh'], r['wh'])}): CB {r['cb_q']:g} / CRM {r['crm_q']:g} ({r['dq']:+g})"
+                 for r in real[:15]]
+        txt = (f"⚖ <b>Звірка складів з CleverBox</b>: розбіжностей кількості {len(bad)}, з них товар/розхідники {len(real)}"
+               f" (технічні — амортизація, маніпули, мінуси CB — {len(bad) - len(real)}).\n" + "\n".join(lines)
+               + (f"\n… ще {len(real) - 15}" if len(real) > 15 else "")
+               + f"\n\n{settings.public_url.rstrip('/')}/stock/reconcile")
+    alerts.send(txt)
+    return f"{len(bad)} розбіжн."
+
+
+async def job_reconcile():
+    from .services import autonomy
+    if autonomy.offline() or not settings.cleverbox_token:
+        return
+    try:
+        await asyncio.to_thread(run_daily_reconcile)
+    except Exception as e:          # noqa: BLE001
+        log.warning("daily reconcile failed: %s", e)
 
 
 @app.post("/stock/reconcile/inventory")
@@ -4654,6 +4708,16 @@ async def stock_reconcile_inventory(request: Request, user: User = Depends(requi
     if len(ids) == 1:
         return RedirectResponse(f"/stock/docs/{ids[0]}?msg=Чернетка+інвентаризації+—+перевірте+і+проведіть", 303)
     return RedirectResponse(f"/stock?tab=inventory&msg=Створено+{len(ids)}+чернеток+інвентаризації", 303)
+
+
+@app.post("/stock/reconcile/refresh")
+def stock_reconcile_refresh(user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    try:
+        reconcile_from_api(db)
+    except Exception as e:          # noqa: BLE001
+        return RedirectResponse(f"/stock/reconcile?err={_q('CleverBox: ' + str(e)[:150])}", 303)
+    audit(db, "stock.reconcile_refresh", user=user)
+    return RedirectResponse("/stock/reconcile", 303)
 
 
 @app.get("/stock/reconcile", response_class=HTMLResponse)

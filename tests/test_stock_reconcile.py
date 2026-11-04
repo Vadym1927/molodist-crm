@@ -38,3 +38,21 @@ def test_reconcile_inventory_draft():
         with SessionLocal() as db:
             d = db.query(StockDoc).filter(StockDoc.kind == "inventory").order_by(StockDoc.id.desc()).first()
             assert d.status == "draft" and d.lines[0].qty == 3
+
+
+def test_daily_reconcile_api(monkeypatch):
+    from app import main
+    from app.integrations import cleverbox
+    sent = []
+    monkeypatch.setattr("app.services.alerts.send", lambda t: sent.append(t) or 1)
+    monkeypatch.setattr(cleverbox.CleverBox, "__init__", lambda self, *a, **k: None)
+    monkeypatch.setattr(cleverbox.CleverBox, "products_stock",
+                        lambda self, day=None: iter([{"product_id": 987654, "storage_name": "Вітрина", "quantity": 5, "product_name": "Звірка тест крем"}]))
+    with SessionLocal() as db:
+        if not db.query(Product).filter(Product.cb_product_id == 987654).first():
+            db.add(Product(name="Звірка тест крем", name_norm="звірка тест крем", cb_product_id=987654, cost=100)); db.commit()
+    main.run_daily_reconcile()
+    assert sent and "Звірка складів" in sent[0]
+    with SessionLocal() as db:
+        rec = main._reconcile(db)
+        assert rec["source"] == "api" and not rec["has_v"]
