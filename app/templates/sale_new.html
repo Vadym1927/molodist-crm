@@ -253,7 +253,7 @@ dialog.payd::backdrop{background:rgba(42,36,48,.45)}
   <div class="dz"><div class="dz-h">Знижка</div>
     {% if rules or pd_manual %}<div class="dzm" id="dzm"><button type="button" class="on" data-m="check">На весь чек</button><button type="button" data-m="items">На кожну позицію</button></div>
       <div id="dz-check"><select id="rsel" class="rsel"><option value="">＋ Обрати знижку на чек…</option>{% if pd_manual %}<option value="0">{{ pd_manual }} · персональна</option>{% endif %}
-        {% for tg, grp in rules|groupby('tag', default='Інші') %}<optgroup label="{{ tg or 'Інші' }}">{% for r in grp %}<option value="{{ r.id }}">{{ r.name }} · {{ ('−' ~ '%g'|format(r.value) ~ '%') if r.kind=='percent' else ('−' ~ r.value|uah) }}</option>{% endfor %}</optgroup>{% endfor %}</select>
+        {% set _tags = [] %}{% for r in rules %}{% if (r.tag or 'Інші') not in _tags %}{% set _ = _tags.append(r.tag or 'Інші') %}{% endif %}{% endfor %}{% for tg in _tags %}<optgroup label="{{ tg }}">{% for r in rules if (r.tag or 'Інші') == tg %}<option value="{{ r.id }}">{{ r.name }} · {{ ('−' ~ '%g'|format(r.value) ~ '%') if r.kind=='percent' else ('−' ~ r.value|uah) }}</option>{% endfor %}</optgroup>{% endfor %}</select>
         <div class="dz-c" id="dzc"></div></div>
       <div id="dz-items" class="small muted" hidden>Оберіть знижку в рядку кожної послуги / товару — у списку лише ті, що діють на цю позицію.</div>
       <select id="rule" multiple hidden>{% if pd_manual %}<option value="0">{{ pd_manual }}</option>{% endif %}{% for r in rules %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}</select>

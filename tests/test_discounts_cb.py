@@ -70,3 +70,17 @@ def test_per_line_discount_and_applicable():
         items[1]["rule_id"] = a.id                                   # не діє на товар — ігнорується
         assert ly.discount_for(db, items, None, rule_ids=[])["lines"] == [100, 0]
         db.delete(a); db.delete(b); db.commit()
+
+
+def test_pos_with_untagged_discount():
+    """Знижка без розділу поруч зі знижками з розділами — каса не падає (групування None vs str)."""
+    from app.models import SessionLocal, DiscountRule
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        db.add(DiscountRule(name="Без розділу тест", kind="percent", value=5, active=True, auto=False, tag=None))
+        db.add(DiscountRule(name="З розділом тест", kind="percent", value=7, active=True, auto=False, tag="Акції"))
+        db.commit()
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        r = c.get("/sales/new")
+        assert r.status_code == 200 and "Без розділу тест" in r.text and "З розділом тест" in r.text

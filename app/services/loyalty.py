@@ -221,8 +221,9 @@ def listable(db: Session, day: date | None = None) -> list[DiscountRule]:
     day = day or date.today()
     rs = db.scalars(select(DiscountRule).where(DiscountRule.active.is_(True), DiscountRule.auto.is_(False))
                     .order_by(DiscountRule.tag, DiscountRule.name)).all()
-    return [r for r in rs if not (r.date_from and day < r.date_from or r.date_to and day > r.date_to)
-            and not (r.uses_limit and uses(db, r) >= r.uses_limit)]
+    out = [r for r in rs if not (r.date_from and day < r.date_from or r.date_to and day > r.date_to)
+           and not (r.uses_limit and uses(db, r) >= r.uses_limit)]
+    return sorted(out, key=lambda r: ((r.tag or "").strip() == "", (r.tag or "").lower(), (r.name or "").lower()))   # без розділу — в кінці
 
 
 def discount_for(db: Session, items: list[dict], patient: Patient | None = None, day: date | None = None,
