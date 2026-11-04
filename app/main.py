@@ -5900,7 +5900,8 @@ async def settings_telephony_save(request: Request, user: User = Depends(require
     try:
         tel.save(db, prov, {k: f.get(k) for k in f.keys()}, str(f.get("source") or ""), bool(f.get("create_appeal")), bool(f.get("missed_only")))
         tel.save_extra(db, f.getlist("popup_users"), bool(f.get("ai_on")), str(f.get("ai_criteria") or ""), f.get("ai_alert_below"), bool(f.get("ai_alert")),
-                       str(f.get("ai_engine") or "crm"), f.getlist("popup_fields") if f.get("popup_cfg") else None)
+                       str(f.get("ai_engine") or "crm"), f.getlist("popup_fields") if f.get("popup_cfg") else None,
+                       f.getlist("ai_alert_to") if f.get("ai_alert_cfg") else None)
     except ValueError as e:
         return RedirectResponse(_with_msg("/settings/telephony", str(e), True), 303)
     audit(db, "telephony.save", user=user, provider=prov)

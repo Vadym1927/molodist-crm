@@ -220,3 +220,28 @@ def test_manual_send_old_call_to_ai():
         assert cl.post(f"/telephony/calls/{cid}/evaluate").json()["ok"]
         assert cid in [x["id"] for x in cl.get("/api/v1/calls/pending-ai", headers=h).json()["calls"]]     # стара — але вручну
         assert "у черзі на AI-оцінку" in cl.get("/telephony").text
+
+
+def test_ai_alert_recipients(monkeypatch):
+    from fastapi.testclient import TestClient
+    from app.config import settings
+    from app.main import app
+    from app.models import SessionLocal, Call, User
+    from app.services import telephony as tel, alerts
+    settings.admin_password = "owner-pass-1"
+    sent = []
+    monkeypatch.setattr(alerts, "_api", lambda m, **kw: sent.append(kw["data"]["chat_id"]) or True)
+    monkeypatch.setattr(alerts, "send", lambda text: sent.append("owner") or 1)
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        with SessionLocal() as db:
+            u = User(login="al_admin", name="Алерт Адмін", role="admin", password_hash="x", telegram_chat_id="5550001"); db.add(u); db.commit(); uid = u.id
+        assert "Кого повідомити" in c.get("/settings/telephony").text
+        c.post("/settings/telephony", data={"provider": "ringostat", "source": "Дзвінок", "ai_on": "1", "ai_alert": "1", "ai_alert_below": "60",
+                                            "ai_alert_cfg": "1", "ai_alert_to": ["taker"], "ai_engine": "agent"})
+        with SessionLocal() as db:
+            assert tel.public(db)["ai_alert_to"] == ["taker"]
+            cl = Call(provider="ringostat", phone="380501116666", direction="in", status="answered", duration=40, record_url="https://r/a.wav", user_id=uid)
+            db.add(cl); db.commit()
+            tel.agent_result(db, cl, {"score": 30, "comment": "слабко", "transcript": "Адмін: ..."})
+        assert sent == ["5550001"]

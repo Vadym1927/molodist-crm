@@ -38,6 +38,13 @@ details.tp-d{border:1px solid #ECE7E1;border-radius:14px;padding:12px 16px;backg
 .fd button small{color:#8a8496;font-weight:500}
 .tbl{width:100%;border-collapse:collapse;font-size:13.5px}.tbl th{font:700 10.5px var(--sans);letter-spacing:.07em;text-transform:uppercase;color:#8a8496;text-align:left;padding:8px 10px;border-bottom:1px solid #ECE7E1}
 .tbl td{padding:9px 10px;border-bottom:1px solid #F1EDE8}.ok-t{color:#2E7D4F;font-weight:700}.bad-t{color:#B23B2E;font-weight:700}
+.al-b{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.al-ch{display:flex;gap:6px;flex-wrap:wrap}.al-ch i{font-style:normal;background:#F6F3FB;border:1px solid #E4DEEF;border-radius:999px;padding:4px 12px;font:600 13px var(--sans);color:#3B3050}
+dialog.al-d{border:0;border-radius:20px;padding:0;width:min(520px,96vw);max-height:88vh;box-shadow:0 30px 80px rgba(42,36,48,.35)}dialog.al-d::backdrop{background:rgba(42,36,48,.45)}
+.al-h{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #F1EDE8;position:sticky;top:0;background:#fff}.al-h h3{margin:0;font:600 16px var(--head);text-transform:uppercase;letter-spacing:.06em}
+.al-bd{padding:14px 20px;display:grid;gap:8px}.al-s{font:700 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496;margin-top:8px}
+.al-o{display:flex;gap:12px;align-items:center;border:1px solid #ECE7E1;border-radius:12px;padding:10px 14px;cursor:pointer;background:#FBFAF8}.al-o:has(input:checked){border-color:#C9BFE6;background:#F6F3FB}
+.al-o input{width:18px;height:18px;accent-color:#3B3050;flex:none}.al-o span{display:grid}.al-o small{color:#8a8496;font-size:12px}.al-o em{margin-left:auto;font-style:normal;font-size:11.5px;color:#B07A1E;white-space:nowrap}
+.al-f{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px 18px;border-top:1px solid #F1EDE8;position:sticky;bottom:0;background:#fff}
 @media(max-width:760px){.tp-2{grid-template-columns:1fr}.st-r{grid-template-columns:1fr 1fr 36px}.st-r>:first-child{grid-column:1/-1}.st-r.hd{display:none}.tp-c{padding:16px}}
 </style>
 
@@ -133,8 +140,21 @@ details.tp-d{border:1px solid #ECE7E1;border-radius:14px;padding:12px 16px;backg
     <label><input type="radio" name="ai_engine" value="agent" {{ 'checked' if t.ai_engine == 'agent' }}><span><span class="lg">Агент на VPS</span><br>OpenClaw сам слухає запис, робить текст і оцінку</span></label></div>
   <div class="hint">Для агента: ключ API з дозволом <b>calls</b> («Права доступу → REST API»), опис методів — <code>docs/openclaw-calls-ai.md</code>.</div>
   <div class="tp-f"><label>Критерії оцінювання</label><textarea name="ai_criteria" rows="9">{{ t.ai_criteria }}</textarea></div>
-  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><label class="sw"><input type="checkbox" name="ai_alert" value="1" {{ 'checked' if t.ai_alert }}> Повідомлення мені в Telegram, якщо оцінка нижче</label>
-    <input name="ai_alert_below" type="number" min="0" max="100" value="{{ t.ai_alert_below }}" style="width:90px"> <span class="hint">балів зі 100</span></div>
+  {% set _to = t.ai_alert_to or [] %}{% set _un = {} %}{% for u in users_all %}{% set _ = _un.update({u.id: u}) %}{% endfor %}
+  <div class="al-b"><label class="sw"><input type="checkbox" name="ai_alert" value="1" {{ 'checked' if t.ai_alert }}> Повідомлення в Telegram, якщо оцінка нижче</label>
+    <input name="ai_alert_below" type="number" min="0" max="100" value="{{ t.ai_alert_below }}" style="width:90px"> <span class="hint">балів зі 100 · кому:</span>
+    <span class="al-ch" id="al-ch">{% if not _to %}<i>Власнику</i>{% endif %}{% for x in _to %}<i>{{ 'Хто говорив' if x == 'taker' else ('Відповідальний за лінію' if x == 'resp' else (_un[x].name if x in _un else '#' ~ x)) }}</i>{% endfor %}</span>
+    <button type="button" class="btn ghost" style="padding:6px 14px" onclick="document.getElementById('al-d').showModal()">Вибрати, кого повідомити</button></div>
+  <input type="hidden" name="ai_alert_cfg" value="1">
+  <dialog id="al-d" class="al-d"><div class="al-h"><h3>Кого повідомити про низьку оцінку</h3><button type="button" class="cs-x" onclick="this.closest('dialog').close()">×</button></div>
+    <div class="al-bd"><div class="hint">Повідомлення приходить у Telegram тим, хто підключив свій Telegram у «Мій кабінет». Нікого не вибрано — власнику, як раніше.</div>
+      <div class="al-s">Залежно від дзвінка</div>
+      <label class="al-o"><input type="checkbox" name="ai_alert_to" value="taker" {{ 'checked' if 'taker' in _to }}><span><b>Хто говорив</b><small>співробітник, який узяв цей дзвінок</small></span></label>
+      <label class="al-o"><input type="checkbox" name="ai_alert_to" value="resp" {{ 'checked' if 'resp' in _to }}><span><b>Відповідальний за лінію</b><small>з блоку «Співробітники й лінії»</small></span></label>
+      <div class="al-s">Завжди</div>
+      {% for u in users_all %}<label class="al-o"><input type="checkbox" name="ai_alert_to" value="{{ u.id }}" {{ 'checked' if u.id in _to }}><span><b>{{ u.name }}</b><small>{{ {'owner':'власник','admin':'адміністратор','doctor':'лікар'}.get(u.role, u.role) }} · {{ 'Telegram підключено' if u.telegram_chat_id else 'Telegram не підключено' }}</small></span>{% if not u.telegram_chat_id %}<em>немає Telegram</em>{% endif %}</label>{% endfor %}
+    </div>
+    <div class="al-f"><button type="button" class="btn ghost" onclick="alClear()">Нікого (власнику)</button><button type="button" class="btn" onclick="alDone()">Готово</button></div></dialog>
   </div></div>
 <div class="tp-save"><button class="btn">Зберегти</button><button class="btn ghost" name="test" value="1">✓ Перевірити підключення</button></div>
 </form>
@@ -158,6 +178,9 @@ details.tp-d{border:1px solid #ECE7E1;border-radius:14px;padding:12px 16px;backg
   {% else %}<div class="muted">Вебхуків ще не було.</div>{% endfor %}</div>
 <script>
 function tgP(){var v=(document.querySelector('input[name=provider]:checked')||{}).value||'';document.querySelectorAll('.pf').forEach(function(e){e.style.display=e.dataset.p===v?'grid':'none'})}
+function alDone(){var c=document.getElementById('al-ch'),xs=[...document.querySelectorAll('#al-d input:checked')].map(function(i){return i.closest('label').querySelector('b').textContent});
+  c.innerHTML=(xs.length?xs:['Власнику']).map(function(x){return '<i>'+x.replace(/</g,'&lt;')+'</i>'}).join('');document.getElementById('al-d').close()}
+function alClear(){document.querySelectorAll('#al-d input').forEach(function(i){i.checked=false});alDone()}
 function stAdd(t,a,b){var us=document.getElementById('tp-us').innerHTML,r=document.createElement('div');r.className='st-r';
   var esc=function(v){return String(v||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')};
   r.innerHTML=t==='s'?'<select name="s_user">'+us.replace('<option value="">— не призначено —</option>','')+'</select><input name="s_ext" placeholder="напр. 521088" value="'+esc(a)+'"><input name="s_alias" placeholder="як підписаний у Ringostat" value="'+esc(b)+'"><button type="button" class="st-x" onclick="this.parentNode.remove()">×</button>'

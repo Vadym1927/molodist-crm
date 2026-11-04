@@ -61,6 +61,7 @@ def _raw(db: Session) -> dict:
     d.setdefault("ai_criteria", DEFAULT_CRITERIA)
     d.setdefault("ai_alert_below", 60)       # оцінка нижче — повідомлення власнику в Telegram
     d.setdefault("ai_alert", True)
+    d.setdefault("ai_alert_to", [])          # кому: id користувачів + "taker" (хто говорив) + "resp" (відповідальний за лінію); порожньо — власнику
     d.setdefault("staff", [])                # співробітники: {user_id, ext (ID у телефонії), alias (імʼя в телефонії)}
     d.setdefault("lines", [])                # лінії: {number, name, user_id (відповідальний)}
     d.setdefault("ai_engine", "crm")         # crm — оцінює Claude з CRM; agent — зовнішній агент (OpenClaw) через API v1 /calls
@@ -100,8 +101,10 @@ def secret(d: dict, prov: str, key: str) -> str:
 
 
 def save_extra(db: Session, popup_users: list[int], ai_on: bool, ai_criteria: str, ai_alert_below, ai_alert: bool,
-               ai_engine: str = "crm", popup_fields: list[str] | None = None) -> None:
+               ai_engine: str = "crm", popup_fields: list[str] | None = None, ai_alert_to: list[str] | None = None) -> None:
     d = _raw(db)
+    if ai_alert_to is not None:
+        d["ai_alert_to"] = [x if x in ("taker", "resp") else int(x) for x in ai_alert_to if x in ("taker", "resp") or str(x).isdigit()]
     if popup_fields is not None:
         d["popup_fields"] = [k for k, _ in POPUP_FIELDS if k in popup_fields]
     try:
@@ -515,9 +518,26 @@ def alert_low(db: Session, c: Call) -> None:
         from . import alerts
         from ..config import settings
         from html import escape
-        alerts.send(f"📞 Низька оцінка дзвінка: <b>{c.ai_score:.0f}/100</b>\n{escape(c.employee or 'співробітник не вказаний')} · "
-                    f"{c.at:%d.%m %H:%M} · {'вхідний' if c.direction == 'in' else 'вихідний'}\n{escape((c.ai_comment or '')[:500])}\n"
-                    f'<a href="{settings.public_url.rstrip("/")}/telephony?call={c.id}">Відкрити дзвінок</a>')
+        from ..models import User
+        taker = db.get(User, c.user_id) if c.user_id else None
+        text = (f"📞 Низька оцінка дзвінка: <b>{c.ai_score:.0f}/100</b>\n{escape((taker.name if taker else None) or c.employee or 'співробітник не вказаний')} · "
+                f"{c.at:%d.%m %H:%M} · {'вхідний' if c.direction == 'in' else 'вихідний'}\n{escape((c.ai_comment or '')[:500])}\n"
+                f'<a href="{settings.public_url.rstrip("/")}/telephony?call={c.id}">Відкрити дзвінок</a>')
+        to = d.get("ai_alert_to") or []
+        if not to:
+            alerts.send(text)                      # як раніше — власнику
+            return
+        ids = {int(x) for x in to if str(x).isdigit()}
+        if "taker" in to and c.user_id:
+            ids.add(c.user_id)
+        li = line_info(d, c.line)
+        if "resp" in to and li and li.get("user_id"):
+            ids.add(int(li["user_id"]))
+        chats = {u.telegram_chat_id for u in db.scalars(select(User).where(User.id.in_(ids or [0]), User.active.is_(True))) if u.telegram_chat_id}
+        for ch in chats:
+            alerts._api("sendMessage", data={"chat_id": ch, "text": text[:4000], "parse_mode": "HTML", "disable_web_page_preview": "true"})
+        if not chats:
+            alerts.send(text)                      # нікому з обраних не підключено Telegram — щоб не загубилось, власнику
 
 
 def kpi(db: Session, d_from, d_to) -> list[dict]:
