@@ -80,7 +80,7 @@ dialog.am-d{border:0;border-radius:18px;padding:0;width:min(460px,95vw);box-shad
   </div>
   <div class="am-bar" title="{{ 'амортизовано' if a.kind == 'device' else 'використано ресурсу' }} {{ t.pct }}%"><i class="{{ 'over' if t.pct > 100 else ('warn' if t.pct > 85) }}" style="width:{{ [t.pct, 100]|min }}%"></i></div>
   <div class="am-live"><span>{{ t.live.label }}: <b>{{ t.live.amount|uah }}</b> · {{ t.live.procs }} проц. · {{ '%g'|format(t.live.qty) }} {{ am.UNITS.get(a.unit, '') }}</span>
-    {% if t.diff > 0.5 and a.active %}<button type="button" class="btn ghost" style="padding:4px 10px;font-size:12.5px" onclick="amPay({{ a.id }}, {{ t.diff }})">Погасити {{ t.diff|uah }}</button>{% endif %}</div>
+    {% if a.active %}<button type="button" class="btn ghost" style="padding:4px 10px;font-size:12.5px" onclick="amPay({{ a.id }}, {{ t.diff if t.diff > 0.5 else 'null' }})">Погасити{{ (' ' ~ (t.diff|uah)) if t.diff > 0.5 }}</button>{% endif %}</div>
 </div>
 {% else %}<div class="card">Позицій ще немає — <a href="/settings/amort">додайте апарати</a> або перенесіть з таблиці.</div>{% endfor %}
 </div>{% endif %}{% endfor %}
@@ -107,11 +107,11 @@ dialog.am-d{border:0;border-radius:18px;padding:0;width:min(460px,95vw);box-shad
     <td><form method="post" action="/amort/txn/{{ x.id }}/delete" data-delpw="Видалити цей рух фонду?" style="margin:0"><input type="hidden" name="back" value="/amort"><button style="border:0;background:none;color:var(--muted);cursor:pointer">×</button></form></td></tr>{% endfor %}</tbody></table></div>{% endif %}
 
 <dialog class="am-d" id="am-pay"><form method="post" action="/amort/pay"><h3>Погашення амортизації</h3><input type="hidden" name="back" value="/amort">
-  <label>Апарат / розхідник<select name="asset_id" id="am-pa">{% for r in rows if r.asset.active %}<option value="{{ r.asset.id }}" data-diff="{{ r.t.diff }}">{{ r.asset.name }} · до погашення {{ r.t.diff|uah }}</option>{% endfor %}</select></label>
+  <label>Апарат / розхідник<select name="asset_id" id="am-pa">{% for r in rows if r.asset.active %}<option value="{{ r.asset.id }}" data-diff="{{ r.t.diff }}" data-box="{{ r.asset.cashbox or '' }}">{{ r.asset.name }} · до погашення {{ r.t.diff|uah }}</option>{% endfor %}</select></label>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><label>Дата<input type="date" name="day" value="{{ today.isoformat() }}"></label><label>Сума, ₴<input name="amount" id="am-pm" inputmode="decimal" required></label></div>
   <label>Звідки гроші<select name="cashbox_from">{% for b in boxes if b != fund_name %}<option {{ 'selected' if 'Сейф' in b }}>{{ b }}</option>{% endfor %}</select></label>
   <label>Примітка<input name="note" placeholder="необовʼязково"></label>
-  <div class="small muted">Створиться переміщення у фіноперціях: звідки → «{{ fund_name }}».</div>
+  <div class="small muted">Створиться переміщення у фіноперціях: звідки → «<span id="am-pbox">{{ fund_name }}</span>».</div>
   <div class="row" style="justify-content:flex-end;gap:8px"><button type="button" class="btn ghost" onclick="this.closest('dialog').close()">Скасувати</button><button class="btn">Погасити</button></div></form></dialog>
 <dialog class="am-d" id="am-exp"><form method="post" action="/amort/expense"><h3>Витрата з фонду</h3><input type="hidden" name="back" value="/amort">
   <label>Апарат<select name="asset_id"><option value="">— фонд загалом —</option>{% for r in rows %}<option value="{{ r.asset.id }}">{{ r.asset.name }}</option>{% endfor %}</select></label>
@@ -121,7 +121,8 @@ dialog.am-d{border:0;border-radius:18px;padding:0;width:min(460px,95vw);box-shad
   <div class="row" style="justify-content:flex-end;gap:8px"><button type="button" class="btn ghost" onclick="this.closest('dialog').close()">Скасувати</button><button class="btn">Записати</button></div></form></dialog>
 <script>
 function amPay(id,sum){var d=document.getElementById('am-pay'),s=document.getElementById('am-pa'),m=document.getElementById('am-pm');if(id)s.value=id;
-  var o=s.selectedOptions[0];m.value=sum!=null?sum.toFixed(2):(o?(+o.dataset.diff>0?(+o.dataset.diff).toFixed(2):''):'');d.showModal()}
-document.getElementById('am-pa').onchange=function(){var o=this.selectedOptions[0];document.getElementById('am-pm').value=+o.dataset.diff>0?(+o.dataset.diff).toFixed(2):''};
+  var o=s.selectedOptions[0];m.value=sum!=null?sum.toFixed(2):(o?(+o.dataset.diff>0?(+o.dataset.diff).toFixed(2):''):'');amBox();d.showModal()}
+function amBox(){var o=document.getElementById('am-pa').selectedOptions[0];if(o&&o.dataset.box)document.getElementById('am-pbox').textContent=o.dataset.box}
+document.getElementById('am-pa').onchange=function(){var o=this.selectedOptions[0];document.getElementById('am-pm').value=+o.dataset.diff>0?(+o.dataset.diff).toFixed(2):'';amBox()};
 </script>
 {% endblock %}
