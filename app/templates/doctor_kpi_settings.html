@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}KPI лікарів · Налаштування{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+<style>
+.ks-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:16px;align-items:start}.ks-g .card{margin:0}
+.ks-t{display:grid;gap:8px}.ks-t label{display:grid;grid-template-columns:1fr 110px;gap:10px;align-items:center;font-size:13.5px}.ks-t input{margin:0;height:40px;width:100%;min-width:0;box-sizing:border-box}
+.ks-l{width:100%;border-collapse:collapse}.ks-l td{padding:4px 4px;vertical-align:middle}.ks-l select,.ks-l input{margin:0;height:40px;width:100%;min-width:0;box-sizing:border-box}
+.ks-d{width:100%;border-collapse:collapse;font-size:13.5px}.ks-d th{text-align:left;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496;padding:6px 4px;border-bottom:1px solid #ECE7E1}.ks-d td{padding:5px 4px;border-bottom:1px solid #F1EDE8}
+.ks-d input{margin:0;height:38px;width:100%;min-width:0;box-sizing:border-box}
+</style>
+<div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a> · Співробітники · <a href="/reports/doctors-kpi" style="text-decoration:none">звіт KPI лікарів →</a></div>
+<h1>KPI лікарів</h1>
+<p class="muted small" style="margin-top:0">Цілі показують у звіті «виконано / не виконано» і формують зони покращення та індекс ефективності. Шкала премії — за якими метриками і з якого порогу нараховується премія; кнопка «Нарахувати премію» у звіті створює коригування «Премія KPI» у зарплаті за місяць.</p>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+
+<form method="post" action="/settings/doctor-kpi">
+<div class="ks-g">
+  <div class="card"><h2 style="margin-top:0">Цілі для всіх лікарів</h2><div class="ks-t">
+    {% for k, label in TL.items() %}<label><span>{{ label }}</span><input name="t_{{ k }}" value="{{ '%g'|format(cfg.targets.get(k, 0)) }}" inputmode="decimal"></label>{% endfor %}
+    </div><p class="small muted" style="margin:10px 0 0">Поверненість — частка повторних пацієнтів серед усіх за місяць. Перезаписані — хто з пацієнтів місяця вже має наступний запис. Дисципліна — середнє з «візитів з нотаткою» і «пацієнтів з фото до/після».</p></div>
+
+  <div class="card"><h2 style="margin-top:0">Шкала премії</h2>
+    <table class="ks-l" id="ladder"><thead><tr><th class="small muted" style="text-align:left">Метрика</th><th class="small muted" style="text-align:left">від, %</th><th class="small muted" style="text-align:left">премія, ₴</th><th></th></tr></thead><tbody>
+    {% for st in cfg.ladder %}<tr><td><select name="l_metric">{% for k, l in LM.items() %}<option value="{{ k }}" {{ 'selected' if st.metric == k }}>{{ l }}</option>{% endfor %}</select></td>
+      <td style="width:90px"><input name="l_min" value="{{ '%g'|format(st.min) }}" inputmode="decimal"></td><td style="width:110px"><input name="l_amount" value="{{ '%g'|format(st.amount) }}" inputmode="decimal"></td>
+      <td style="width:30px"><button type="button" class="btn ghost" style="padding:4px 8px" onclick="this.closest('tr').remove()">×</button></td></tr>{% endfor %}
+    </tbody></table>
+    <button type="button" class="btn ghost" style="margin-top:8px" onclick="addStep()">＋ Поріг</button>
+    <p class="small muted" style="margin:10px 0 0">По одній метриці береться найвищий досягнутий поріг (85% → 1000 ₴, 90% → 2000 ₴ дасть 2000 ₴ при 92%). Премія = сума по метриках.</p>
+    <template id="step"><tr><td><select name="l_metric">{% for k, l in LM.items() %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></td><td style="width:90px"><input name="l_min" value="85" inputmode="decimal"></td><td style="width:110px"><input name="l_amount" value="1000" inputmode="decimal"></td><td style="width:30px"><button type="button" class="btn ghost" style="padding:4px 8px" onclick="this.closest('tr').remove()">×</button></td></tr></template></div>
+
+  <div class="card" style="grid-column:1/-1"><h2 style="margin-top:0">По лікарях</h2>
+    <table class="ks-d"><thead><tr><th>Лікар</th><th style="width:200px">Податки клініки, ₴/міс</th><th style="width:200px">План обороту, ₴/міс</th></tr></thead><tbody>
+    {% for d in doctors %}{% set x = cfg.doctors.get(d.id|string) or {} %}<tr><td><b>{{ d.name }}</b><div class="small muted">{{ d.position or '' }}</div></td>
+      <td><input name="d_{{ d.id }}_taxes" value="{{ '%g'|format(x.get('taxes') or 0) if x.get('taxes') else '' }}" inputmode="decimal" placeholder="ЄСВ, ПДФО…"></td>
+      <td><input name="d_{{ d.id }}_revenue" value="{{ '%g'|format(x.get('revenue_target') or 0) if x.get('revenue_target') else '' }}" inputmode="decimal" placeholder="необовʼязково"></td></tr>{% endfor %}</tbody></table>
+    <p class="small muted" style="margin:10px 0 0">Податки клініки віднімаються з прибутку лікаря (як у таблиці). План обороту вмикає ціль «План обороту» у звіті й метрику «Виконання плану обороту» для премії.</p></div>
+</div>
+<div style="margin-top:14px"><button class="btn">Зберегти</button></div>
+</form>
+<script>function addStep(){document.querySelector('#ladder tbody').appendChild(document.getElementById('step').content.cloneNode(true))}</script>
+{% endblock %}

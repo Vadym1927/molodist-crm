@@ -5595,6 +5595,7 @@ SETTINGS_BLOCKS = [
     ('Співробітники', 'team', 'Посади, оклади, категорії й нарахування', [
         ('Посади співробітників', 'Директор, адміністратори, лікарі…: довідник посад для картки спеціаліста', '/settings/positions', 'specialists_edit', 'dirs/prof'),
         ('Поля співробітників', 'Свої поля для картки співробітника: дата народження, медкнижка, паспорт, стать, клініка…', '/settings/staff-fields', 'specialists_edit', 'sfields/staff'),
+        ('KPI лікарів', 'Цілі (завантаження, догляд, поверненість, дисципліна…), шкала премії, податки клініки й план обороту по лікарю — для звіту «KPI лікарів»', '/settings/doctor-kpi', 'finance', None),
         ('Налаштування окладів', 'Фіксована ставка, комісійні за послуги й товари, % від обороту — шаблони для зарплати', '/settings/salary', 'finance', 'salary'),
         ('Категорії спеціалістів', 'Ціни за категоріями: інші ціни на послуги для головного лікаря, топ-лікаря, стажера', '/settings/price-cats', 'finance', 'cmarket/customprice/main'),
         ('Статті для нарахувань', 'Премії, штрафи, лікарняні, податки, відпускні — для коригувань зарплати', '/settings/accrual-articles', 'finance', 'dirs/stype'),
@@ -8094,6 +8095,80 @@ def amort_txn_delete(tid: int, back: str = Form(""), del_password: str = Form(""
         audit(db, "amort.txn_delete", "amort_txn", tid, user=user, kind=t.kind, amount=t.amount)
         am.delete_txn(db, t)
     return RedirectResponse(back or "/amort", 303)
+
+
+# ---------------- Звіти → KPI лікарів ----------------
+def _kpi_month(m: str) -> tuple[date, date, str]:
+    mk = _month(m)
+    y, mm = int(mk[:4]), int(mk[5:])
+    a = date(y, mm, 1)
+    b = date(y + (mm == 12), (mm % 12) + 1, 1) - timedelta(days=1)
+    return a, b, mk
+
+
+@app.get("/reports/doctors-kpi", response_class=HTMLResponse)
+def doctors_kpi_page(request: Request, m: str = "", doc: str = "", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import doctor_kpi as dk
+    d_from, d_to, mk = _kpi_month(m)
+    only = int(doc) if doc.isdigit() else None
+    r = dk.compute(db, d_from, d_to, only=only)
+    prev_total = None
+    if r["prev_range"]:
+        pr = dk.compute(db, r["prev_range"][0], r["prev_range"][1], with_prev=False, only=only)
+        prev_total = pr["total"] if pr["rows"] else None
+    series = dk.series_all(db, d_to, 6) if r["rows"] else {}
+    months = []
+    cur = date.today().replace(day=1)
+    for i in range(0, 4):
+        y, mm = cur.year, cur.month - i
+        while mm < 1:
+            y, mm = y - 1, mm + 12
+        months.append({"key": f"{y:04d}-{mm:02d}", "label": date(y, mm, 1).strftime("%m.%Y") if i else "Цей місяць"})
+    months.reverse()
+    return render(request, "doctor_kpi.html", nav="reports", r=r, d_from=d_from, d_to=d_to, month_key=mk, month_label=d_from.strftime("%m.%Y"),
+                  months=months, doctors=db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)).all(), doc=doc,
+                  prev_total=prev_total, series=series)
+
+
+@app.post("/reports/doctors-kpi/premium")
+def doctors_kpi_premium(m: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import doctor_kpi as dk
+    d_from, d_to, mk = _kpi_month(m)
+    r = dk.compute(db, d_from, d_to, with_prev=False)
+    n = dk.accrue_premium(db, mk, r["rows"], user.id)
+    audit(db, "kpi.premium", user=user, month=mk, n=n, total=r["total"]["premium"])
+    return RedirectResponse(_with_msg(f"/reports/doctors-kpi?m={mk}", f"Премію KPI за {mk} нараховано: {n} лікар(ів), {r['total']['premium']:,.2f} ₴ — див. Фінанси → Взаєморозрахунки по з/п".replace(",", " ")), 303)
+
+
+@app.get("/settings/doctor-kpi", response_class=HTMLResponse)
+def settings_doctor_kpi(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import doctor_kpi as dk
+    return render(request, "doctor_kpi_settings.html", nav="settings", cfg=dk.settings(db), TL=dk.TARGET_LABELS, LM=dk.LADDER_METRICS,
+                  doctors=db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)).all())
+
+
+@app.post("/settings/doctor-kpi")
+async def settings_doctor_kpi_save(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import doctor_kpi as dk
+    f = await request.form()
+    cfg = dk.settings(db)
+    for k in dk.TARGET_LABELS:
+        v = _num(str(f.get(f"t_{k}") or ""))
+        if v is not None:
+            cfg["targets"][k] = v
+    ladder = []
+    for met, mn, am in zip(f.getlist("l_metric"), f.getlist("l_min"), f.getlist("l_amount")):
+        if met in dk.LADDER_METRICS and _num(str(mn)) is not None and _num(str(am)):
+            ladder.append({"metric": met, "min": _num(str(mn)), "amount": _num(str(am))})
+    cfg["ladder"] = ladder
+    for d in db.scalars(select(Doctor)):
+        tx, rt = _num(str(f.get(f"d_{d.id}_taxes") or "")), _num(str(f.get(f"d_{d.id}_revenue") or ""))
+        if f"d_{d.id}_taxes" in f or f"d_{d.id}_revenue" in f:
+            x = cfg["doctors"].setdefault(str(d.id), {})
+            x["taxes"], x["revenue_target"] = tx or 0, rt or 0
+    dk.save_settings(db, cfg)
+    audit(db, "kpi.settings", user=user)
+    return RedirectResponse(_with_msg("/settings/doctor-kpi", "Збережено"), 303)
 
 
 @app.get("/settings/amort", response_class=HTMLResponse)

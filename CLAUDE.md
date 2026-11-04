@@ -28,6 +28,8 @@ CRM естетичної клініки MOLODIST (Київ) під бюті-пл
   токен у заголовку `token`, ліміт 1 запит/сек, IP сервера має бути в дозволених у CleverBox)
 - `app/services/`: clients (сегменти), tasks (автозадачі), scripts (скрипти адмінів), campaigns (розсилки),
   booking (запис у CleverBox через slots), backups, alerts (Telegram власнику), exporter/importer
+- `app/services/doctor_kpi.py` — звіт «KPI лікарів» (/reports/doctors-kpi): виручка, пацієнти, LTV, час, фінанси, бюті-плани,
+  дисципліна, зони покращення, премія (SalaryAdj «Премія KPI»); цілі/шкала — SyncState `doctor_kpi` (/settings/doctor-kpi)
 - `app/integrations/messaging.py` — бот пацієнтів (токен PATIENT_BOT_TOKEN) + TurboSMS (Viber→SMS)
 - `docs/openclaw-patient-bot.md` — контракт API для бота пацієнтів
 - Тести: `docker compose exec app pytest -q` (потрібен будь-який PDF плану в `tests/sample_plan.pdf`)
