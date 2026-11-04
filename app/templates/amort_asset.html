@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ a.name }} · Амортизація · MOLODIST CRM{% endblock %}
 {% block body %}
-{% from "_amort_chart.html" import chart %}
+{% from "_amort_chart.html" import chart, legend, styles %}
 {% set qp = request.query_params %}
 <style>
 .aa-hd{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px}.aa-hd h1{margin:0}
@@ -9,7 +9,7 @@
 .am-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
 .am-sum .card{margin:0;padding:12px 14px}.am-sum span{display:block;font:700 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496}
 .am-sum b{display:block;font:700 20px var(--head);margin-top:4px;color:#2A2430}.am-sum small{color:#8a8496;font-size:12px}.am-sum .neg b{color:#B23B2E}.am-sum .pos b{color:#1E7A46}
-svg.amc{width:100%;height:auto;display:block}.amc .b{fill:#C9BFE6}.amc .b.cur{fill:#5C4B82}.amc .b.open{fill:#A99FC0}.amc .b.sheet{fill:#D9D2E8}.amc .l{font:10px var(--sans);fill:#8a8496}.amc .cum{fill:none;stroke:#3B3050;stroke-width:1.5;opacity:.8}
+{{ styles() }}
 .am-bar{height:10px;background:#EFEBF5;border-radius:99px;overflow:hidden}.am-bar i{display:block;height:100%;background:#5C4B82}.am-bar i.warn{background:#E08A2E}.am-bar i.over{background:#C0392B}
 .pt{width:100%;border-collapse:collapse;font-size:13.5px}.pt th{text-align:left;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496;padding:7px 8px;border-bottom:1px solid #ECE7E1}
 .pt td{padding:7px 8px;border-bottom:1px solid #F1EDE8}.pt .r{text-align:right;white-space:nowrap}.pt tr.cur td{background:#F3F0FA}.pt .src{font-size:10.5px;color:#8a8496}.pt tfoot td{font-weight:700;background:#FBFAF8}

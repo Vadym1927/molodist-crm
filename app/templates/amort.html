@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Амортизація обладнання · MOLODIST CRM{% endblock %}
 {% block body %}
-{% from "_amort_chart.html" import chart %}
+{% from "_amort_chart.html" import chart, legend, styles %}
 {% set qp = request.query_params %}
 <style>
 .am-hd{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px}.am-hd h1{margin:0}
@@ -16,6 +16,10 @@
 .am-sum .card{margin:0;padding:14px 16px}.am-sum span{display:block;font:700 11px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496}
 .am-sum b{display:block;font:700 22px var(--head);margin-top:4px;color:#2A2430}.am-sum small{color:#8a8496;font-size:12px}
 .am-sum .neg b{color:#B23B2E}.am-sum .pos b{color:#1E7A46}
+.am-sum .spl{margin-top:8px;padding-top:8px;border-top:1px dashed #ECE7E1;font-size:12px;color:#5d5869;line-height:1.6}.am-sum .spl em{font-style:normal;color:#8a8496;display:inline-block;min-width:78px}
+.am-sec{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin:18px 0 10px}.am-sec h2{margin:0}.am-sec span{font-size:13px;color:#8a8496}.am-sec b{color:#2A2430}.am-sec b.neg{color:#B23B2E}
+.am-xf{display:grid;grid-template-columns:150px 120px 1fr 200px 200px auto;gap:8px;margin:12px 0}.am-xf input,.am-xf select{margin:0}
+@media(max-width:1000px){.am-xf{grid-template-columns:1fr 1fr}}
 .am-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:14px}
 .am-c:hover{border-color:#C9BFE6;box-shadow:0 6px 20px rgba(59,48,80,.08)}.am-c{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:16px 18px;display:grid;gap:10px}.am-c.off{opacity:.55}
 .am-t{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.am-t a{font:700 16px var(--sans);color:#2A2430;text-decoration:none}
@@ -25,9 +29,7 @@
 .am-n b{display:block;font-size:15px;margin-top:2px;white-space:nowrap}.am-n .neg b{color:#B23B2E}.am-n .pos b{color:#1E7A46}
 .am-bar{height:8px;background:#EFEBF5;border-radius:99px;overflow:hidden}.am-bar i{display:block;height:100%;background:#5C4B82;border-radius:99px}.am-bar i.warn{background:#E08A2E}.am-bar i.over{background:#C0392B}
 .am-live{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px;background:#F3F0FA;border-radius:10px;padding:8px 12px}.am-live b{font-size:15px}
-svg.amc{width:100%;height:auto;display:block}.amc .b{fill:#C9BFE6}.amc .b.cur{fill:#5C4B82}.amc .b.open{fill:#A99FC0}.amc .b.sheet{fill:#D9D2E8}.amc .l{font:10px var(--sans);fill:#8a8496}
-.amc .cum{fill:none;stroke:#3B3050;stroke-width:1.5;opacity:.8}
-.am-lg{display:flex;gap:12px;font-size:11.5px;color:#8a8496}.am-lg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+{{ styles() }}
 .am-act{display:flex;gap:8px;flex-wrap:wrap}.am-act .btn{padding:7px 12px;font-size:13px}
 dialog.am-d{border:0;border-radius:18px;padding:0;width:min(460px,95vw);box-shadow:0 30px 80px rgba(42,36,48,.35)}dialog.am-d::backdrop{background:rgba(42,36,48,.4)}
 .am-d form{display:grid;gap:10px;padding:18px 20px}.am-d h3{margin:0 0 4px;font:600 16px var(--head);letter-spacing:.06em;text-transform:uppercase}
@@ -54,16 +56,18 @@ dialog.am-d{border:0;border-radius:18px;padding:0;width:min(460px,95vw);box-shad
   {% for j in jars %}<div class="jar">🫙 <a href="{{ j.asset.jar }}" target="_blank" rel="noopener">{{ j.asset.cashbox }}</a> · {{ j.asset.name }}: зараз <b style="display:inline;font-size:14px">{{ (j.jar.balance if j.jar else j.crm or 0)|uah }}</b>{{ '' if j.jar else ' (за CRM)' }} · не погашено <b style="display:inline;font-size:14px">{{ j.diff|uah }}</b></div>{% endfor %}
 </div>{% endif %}
 <div class="am-sum">
-  <div class="card"><span>Поточний півмісяць</span><b>{{ fund.live|uah }}</b><small>{{ fund.live_label }} · ще не зафіксовано</small></div>
-  <div class="card"><span>Нараховано всього</span><b>{{ fund.accrued|uah }}</b><small>з початку обліку (у т.ч. з таблиці)</small></div>
-  <div class="card pos"><span>Погашено на фонд</span><b>{{ fund.paid|uah }}</b><small>переміщено на рахунок фонду</small></div>
-  <div class="card {{ 'neg' if fund.diff > 0 }}"><span>До погашення</span><b>{{ fund.diff|uah }}</b><small>зафіксовані періоди − погашено; поточний додасться в день нарахування</small></div>
-  <div class="card"><span>Витрати з фонду</span><b>{{ fund.spent|uah }}</b><small>ремонти, запчастини, кредит</small></div>
+  {% macro sp(f) %}<div class="spl"><em>апарати</em> {{ split.device[f]|uah }}<br><em>розхідники</em> {{ split.consumable[f]|uah }}</div>{% endmacro %}
+  <div class="card"><span>Поточний півмісяць</span><b>{{ fund.live|uah }}</b><small>{{ fund.live_label }} · ще не зафіксовано</small>{{ sp('live') }}</div>
+  <div class="card"><span>Нараховано всього</span><b>{{ fund.accrued|uah }}</b><small>з початку обліку (у т.ч. з таблиці)</small>{{ sp('accrued') }}</div>
+  <div class="card pos"><span>Погашено на фонд</span><b>{{ fund.paid|uah }}</b><small>переміщено на рахунок фонду</small>{{ sp('paid') }}</div>
+  <div class="card {{ 'neg' if fund.diff > 0 }}"><span>До погашення</span><b>{{ fund.diff|uah }}</b><small>зафіксовані періоди − погашено</small>{{ sp('diff') }}</div>
+  <div class="card"><span>Витрати з фонду</span><b>{{ fund.spent|uah }}</b><small><a href="#am-exp-list">усі витрати ↓</a></small>{{ sp('spent') }}</div>
 </div>
-
-<div class="am-lg" style="margin-bottom:8px"><span><i style="background:#C9BFE6"></i>зафіксовано</span><span><i style="background:#D9D2E8"></i>з таблиці</span><span><i style="background:#5C4B82"></i>поточний півмісяць</span><span><i style="background:#3B3050;height:2px;vertical-align:3px"></i>накопичено за рік</span></div>
+{{ legend() }}
+{% for kind, ktitle in [("device", "Апарати"), ("consumable", "Розхідники з ресурсом")] %}{% set krows = rows|selectattr("asset.kind", "equalto", kind)|list %}{% if krows or kind == "device" %}
+<div class="am-sec"><h2>{{ ktitle }} · {{ krows|length }}</h2><span>нараховано <b>{{ split[kind].accrued|uah }}</b> · погашено <b>{{ split[kind].paid|uah }}</b> · до погашення <b class="{{ 'neg' if split[kind].diff > 0.5 }}">{{ split[kind].diff|uah }}</b></span></div>
 <div class="am-g">
-{% for r in rows %}{% set a = r.asset %}{% set t = r.t %}
+{% for r in krows %}{% set a = r.asset %}{% set t = r.t %}
 <div class="am-c {{ '' if a.active else 'off' }}" onclick="if(!event.target.closest('button,a,form'))location='/amort/{{ a.id }}'" style="cursor:pointer" title="Відкрити всі дані з початку">
   <div class="am-t"><div><a href="/amort/{{ a.id }}">{{ a.name }} →</a><small>{{ a.cost|uah }}{% if a.kind == 'device' %} · {{ '%g'|format(a.life_years or 0) }} р.{% else %} · ресурс {{ '%g'|format(a.resource or 0) }} {{ am.UNITS.get(a.unit, '') }}{% endif %} · {{ '%g'|format(a.rate) }} ₴/{{ a.unit }}{% if a.commissioned_at %} · з {{ a.commissioned_at|dt('%m.%Y') }}{% endif %}</small></div>
     <span class="am-k {{ 'c' if a.kind == 'consumable' }}">{{ 'розхідник' if a.kind == 'consumable' else 'апарат' }}</span></div>
@@ -79,9 +83,24 @@ dialog.am-d{border:0;border-radius:18px;padding:0;width:min(460px,95vw);box-shad
     {% if t.diff > 0.5 and a.active %}<button type="button" class="btn ghost" style="padding:4px 10px;font-size:12.5px" onclick="amPay({{ a.id }}, {{ t.diff }})">Погасити {{ t.diff|uah }}</button>{% endif %}</div>
 </div>
 {% else %}<div class="card">Позицій ще немає — <a href="/settings/amort">додайте апарати</a> або перенесіть з таблиці.</div>{% endfor %}
-</div>
+</div>{% endif %}{% endfor %}
 
-{% if txns %}<div class="card" style="margin-top:16px"><h2 style="margin-top:0">Останні рухи фонду</h2>
+<div class="card" id="am-exp-list" style="margin-top:16px"><div class="row between" style="align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0">Витрати з фонду · {{ fund.spent|uah }}</h2>
+  <span class="small muted">ремонти, запчастини, кредит — на апарат або на фонд загалом</span></div>
+  <form class="am-xf" method="post" action="/amort/expense"><input type="hidden" name="back" value="/amort#am-exp-list">
+    <input type="date" name="day" value="{{ today.isoformat() }}">
+    <input name="amount" inputmode="decimal" placeholder="Сума, ₴" required>
+    <input name="note" placeholder="Що оплачено" required>
+    <select name="asset_id"><option value="">— фонд загалом —</option>{% for r in rows %}<option value="{{ r.asset.id }}">{{ r.asset.name }}</option>{% endfor %}</select>
+    <select name="cashbox">{% for b in boxes %}<option {{ 'selected' if b == fund_name }}>{{ b }}</option>{% endfor %}</select>
+    <button class="btn">＋ Додати витрату</button></form>
+  {% if expenses %}<table class="am-tx"><thead><tr><th>Дата</th><th>На що</th><th>Апарат</th><th>Рахунок</th><th class="r">Сума</th><th></th></tr></thead><tbody>
+  {% for x in expenses %}{% set ax = (assets_all|selectattr('id', 'equalto', x.asset_id)|first) if x.asset_id else None %}<tr><td style="white-space:nowrap">{{ x.day|dt('%d.%m.%Y') }}</td><td>{{ x.note or '—' }}{% if x.source == 'sheet' %} <span class="pill small">з таблиці</span>{% endif %}</td>
+    <td>{% if ax %}<a href="/amort/{{ ax.id }}">{{ ax.name }}</a>{% else %}<span class="muted">фонд загалом</span>{% endif %}</td><td class="muted">{{ x.cashbox or '' }}</td><td class="r exp">−{{ x.amount|uah }}</td>
+    <td><form method="post" action="/amort/txn/{{ x.id }}/delete" data-delpw="Видалити цю витрату?" style="margin:0"><input type="hidden" name="back" value="/amort#am-exp-list"><button style="border:0;background:none;color:var(--muted);cursor:pointer">×</button></form></td></tr>{% endfor %}
+  </tbody><tfoot><tr><td colspan="4"><b>Разом</b></td><td class="r exp"><b>−{{ fund.spent|uah }}</b></td><td></td></tr></tfoot></table>{% else %}<p class="small muted">Витрат ще не було.</p>{% endif %}</div>
+
+{% if txns %}<div class="card" style="margin-top:16px"><h2 style="margin-top:0">Погашення на фонд</h2>
   <table class="am-tx"><tbody>{% for x in txns %}<tr><td style="white-space:nowrap">{{ x.day|dt('%d.%m.%Y') }}</td><td class="{{ 'pay' if x.kind == 'pay' else 'exp' }}">{{ 'погашення' if x.kind == 'pay' else 'витрата' }}</td>
     <td>{% set ax = (assets_all|selectattr('id', 'equalto', x.asset_id)|first) if x.asset_id else None %}{{ ax.name if ax else 'фонд загалом' }}{% if x.note %} · <span class="muted">{{ x.note }}</span>{% endif %}{% if x.source == 'sheet' %} <span class="pill small">з таблиці</span>{% endif %}</td>
     <td class="muted">{{ x.cashbox or '' }}</td><td class="r {{ 'pay' if x.kind == 'pay' else 'exp' }}">{{ ('+' if x.kind == 'pay' else '−') ~ (x.amount|uah) }}</td>

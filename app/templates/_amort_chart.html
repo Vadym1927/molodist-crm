@@ -1,17 +1,56 @@
-{# Графік півмісяців: стовпчики 1–15 / 16–кінець по 12 місяцях + лінія накопичення. months — am.series(); h — висота px #}
+{# Графік амортизації: один стовпчик на місяць (низ — 1–15, верх — 16–кінець), сітка з сумами,
+   підписи значень, накопичення — заливка з лінією. months — am.series()/series_all(); h — висота поля px. #}
+{% macro k(v) -%}{%- if v >= 1000 -%}{{ ('%.1f'|format(v / 1000)).replace('.0', '') }}к{%- else -%}{{ '%.0f'|format(v) }}{%- endif -%}{%- endmacro %}
 {% macro chart(months, h=120, compact=False, W=480) -%}
-{% set mx = ([1] + (months|map(attribute='h1')|map(attribute='amount')|list) + (months|map(attribute='h2')|map(attribute='amount')|list))|max %}
-{% set gw = (W / (months|length or 1)) %}{% set every = 1 if months|length <= 14 else (3 if months|length <= 36 else 6) %}
+{% set n = months|length or 1 %}
+{% set tops = months|map(attribute='amount')|list %}
+{% set raw = ([1] + tops)|max %}
+{% set mag = 10 ** ((raw|string).split('.')[0]|length - 1) %}
+{% set mx = ((raw / mag)|round(0, 'ceil')) * mag %}{% set mx = mx if mx > 0 else 1 %}
+{% set top = 14 %}{% set bot = 18 %}{% set H = h + top + bot %}
+{% set L = 34 %}{% set gw = (W - L) / n %}{% set every = 1 if n <= 14 else (3 if n <= 36 else 6) %}
+{% set bw = [gw * (0.62 if n <= 14 else 0.72), 2]|max %}
 {% set ns = namespace(cum=0, pts=[]) %}
-{% for m in months %}{% set ns.cum = ns.cum + m.amount %}{% set _ = ns.pts.append(ns.cum) %}{% endfor %}
-{% set cmax = (ns.pts|max) or 1 %}
-<svg viewBox="0 0 {{ W }} {{ h + 22 }}" class="amc" preserveAspectRatio="none">
-  {% for m in months %}{% set x0 = loop.index0 * gw %}
-    {% for hh in ['h1','h2'] %}{% set d = m[hh] %}{% set bh = (h * d.amount / mx) if d.amount else 0 %}{% set pad = 4 if gw > 20 else 1 %}{% set bx = x0 + pad + (loop.index0 * (gw - 2 * pad) / 2) %}
-    <rect x="{{ bx }}" y="{{ h - bh }}" width="{{ [((gw - (8 if gw > 20 else 2)) / 2 - (2 if gw > 20 else 0.5)), 1]|max }}" height="{{ bh }}" rx="2" class="b {{ 'cur' if d.current }} {{ 'sheet' if d.source == 'sheet' }} {{ 'open' if d.source == 'crm' and not d.fixed }}"><title>{{ m.name }}{{ (' ' ~ m.year) if m.year }} · {{ '1–15' if hh == 'h1' else '16–кінець' }}: {{ d.amount|uah }} · {{ d.procs }} проц.</title></rect>
-    {% endfor %}
-    {% if loop.index0 % every == 0 %}<text x="{{ x0 + gw / 2 }}" y="{{ h + 16 }}" text-anchor="middle" class="l">{{ m.short }}</text>{% endif %}
+{% set cur_i = namespace(i=n - 1) %}{% for m in months %}{% if m.h1.current or m.h2.current %}{% set cur_i.i = loop.index0 %}{% endif %}{% endfor %}
+{% for m in months %}{% set ns.cum = ns.cum + m.amount %}{% if loop.index0 <= cur_i.i %}{% set _ = ns.pts.append(ns.cum) %}{% endif %}{% endfor %}
+{% set cmax = (ns.pts|max) if ns.pts else 1 %}{% set cmax = cmax or 1 %}
+<svg viewBox="0 0 {{ W }} {{ H }}" class="amc" role="img">
+  {% if raw > 1 %}{% for g in [0.5, 1] %}{% set gy = top + h - h * g %}
+  <line x1="{{ L }}" x2="{{ W }}" y1="{{ gy }}" y2="{{ gy }}" class="g"/><text x="{{ L - 5 }}" y="{{ gy + 3 }}" text-anchor="end" class="gl">{{ k(mx * g) }}</text>{% endfor %}{% endif %}
+  <text x="{{ L - 5 }}" y="{{ top + h + 3 }}" text-anchor="end" class="gl">0</text>
+  <line x1="{{ L }}" x2="{{ W }}" y1="{{ top + h }}" y2="{{ top + h }}" class="g0"/>
+  {% if ns.pts and ns.pts[-1] > 0 %}
+  <path class="cuma" d="M{{ L + gw / 2 }},{{ top + h }} {% for v in ns.pts %}L{{ L + loop.index0 * gw + gw / 2 }},{{ top + h - h * 0.92 * v / cmax }} {% endfor %}L{{ L + (ns.pts|length - 1) * gw + gw / 2 }},{{ top + h }} Z"/>
+  <polyline class="cum" points="{% for v in ns.pts %}{{ L + loop.index0 * gw + gw / 2 }},{{ top + h - h * 0.92 * v / cmax }} {% endfor %}"/>
+  {% endif %}
+  {% for m in months %}{% set x = L + loop.index0 * gw + (gw - bw) / 2 %}{% set cur = m.h1.current or m.h2.current %}
+    {% set b1 = h * m.h1.amount / mx %}{% set b2 = h * m.h2.amount / mx %}
+    <g class="{{ 'cur' if cur }}"><title>{{ m.name|capitalize }}{{ (' ' ~ m.year) if m.year }}: {{ m.amount|uah }}
+1–15: {{ m.h1.amount|uah }} · {{ m.h1.procs }} проц.
+16–кінець: {{ m.h2.amount|uah }} · {{ m.h2.procs }} проц.{{ '
+поточний — ще не зафіксовано' if cur }}</title>
+      <rect x="{{ x }}" y="{{ top }}" width="{{ bw }}" height="{{ h }}" class="hit"/>
+      {% if b1 %}<rect x="{{ x }}" y="{{ top + h - b1 }}" width="{{ bw }}" height="{{ b1 }}" rx="{{ 2 if bw > 6 else 0 }}" class="b1"/>{% endif %}
+      {% if b2 %}<rect x="{{ x }}" y="{{ top + h - b1 - b2 }}" width="{{ bw }}" height="{{ b2 }}" rx="{{ 2 if bw > 6 else 0 }}" class="b2"/>{% endif %}
+      {% if m.amount and gw >= 26 and not compact %}<text x="{{ x + bw / 2 }}" y="{{ top + h - b1 - b2 - 4 }}" text-anchor="middle" class="v">{{ k(m.amount) }}</text>{% endif %}
+    </g>
+    {% if loop.index0 % every == 0 %}<text x="{{ L + loop.index0 * gw + gw / 2 }}" y="{{ H - 4 }}" text-anchor="middle" class="l {{ 'cur' if cur }}">{{ m.short }}</text>{% endif %}
   {% endfor %}
-  <polyline class="cum" points="{% for v in ns.pts %}{{ loop.index0 * gw + gw / 2 }},{{ h - h * v / cmax }} {% endfor %}"/>
 </svg>
+{%- endmacro %}
+
+{% macro legend() -%}
+<div class="am-lg"><span><i style="background:#7C6BAE"></i>1–15</span><span><i style="background:#C9BFE6"></i>16–кінець</span><span><i style="background:#3B3050"></i>поточний місяць</span><span><i style="background:rgba(201,191,230,.45);border-top:2px solid #3B3050;height:8px"></i>накопичено</span><span class="muted">наведіть на стовпчик — деталі</span></div>
+{%- endmacro %}
+
+{% macro styles() -%}
+svg.amc{width:100%;height:auto;display:block;overflow:visible}
+.amc .g{stroke:#EEEAF3;stroke-width:1;stroke-dasharray:3 3}.amc .g0{stroke:#D9D2E8;stroke-width:1}
+.amc .gl{font:600 9.5px var(--sans);fill:#A69FB3}
+.amc .b1{fill:#7C6BAE}.amc .b2{fill:#C9BFE6}.amc .cur .b1{fill:#3B3050}.amc .cur .b2{fill:#6E5FA0}
+.amc .hit{fill:transparent}.amc g:hover .hit{fill:rgba(59,48,80,.05)}.amc g:hover .b1,.amc g:hover .b2{filter:brightness(1.08)}
+.amc .v{font:700 9.5px var(--sans);fill:#5d5869}.amc .cur .v{fill:#3B3050}
+.amc .l{font:600 10px var(--sans);fill:#8a8496}.amc .l.cur{fill:#3B3050;font-weight:800}
+.amc .cuma{fill:rgba(201,191,230,.28)}.amc .cum{fill:none;stroke:#3B3050;stroke-width:1.6;stroke-linejoin:round;opacity:.75}
+.am-lg{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:11.5px;color:#8a8496;align-items:center}.am-lg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
 {%- endmacro %}
