@@ -122,15 +122,17 @@ def totals(db: Session, asset: AmortAsset, today: date | None = None) -> dict:
     accrued = float(asset.accrued_before or 0) + sum(float(p.amount or 0) for p in fixed)
     used = float(asset.used_before or 0) + sum(float(p.qty or 0) for p in fixed)
     live = live_period(db, asset, today)
+    fixed_accrued = accrued                                   # зафіксовано (нарахування 1-го / 16-го + перенесене)
     if not any(p.year == y and p.month == m and p.half == h and p.source == "sheet" for p in periods):
-        accrued += live["amount"]
+        accrued += live["amount"]                             # з поточним півмісяцем, що оновлюється після кожного візиту
         used += live["qty"]
     else:
         live = {**live, "amount": 0.0, "qty": 0.0, "procs": 0, "frozen": True}
     paid = float(db.scalar(select(func.sum(AmortTxn.amount)).where(AmortTxn.asset_id == asset.id, AmortTxn.kind == "pay")) or 0)
     spent = float(db.scalar(select(func.sum(AmortTxn.amount)).where(AmortTxn.asset_id == asset.id, AmortTxn.kind == "expense")) or 0)
-    out = {"accrued": round(accrued, 2), "paid": round(paid, 2), "diff": round(accrued - paid, 2), "spent": round(spent, 2),
-           "live": live, "used": round(used, 2)}
+    # до погашення — лише зафіксовані періоди: поточний півмісяць додасться в день нарахування
+    out = {"accrued": round(accrued, 2), "fixed": round(fixed_accrued, 2), "paid": round(paid, 2), "diff": round(fixed_accrued - paid, 2),
+           "spent": round(spent, 2), "live": live, "used": round(used, 2)}
     if asset.kind == "device":
         out["residual"] = round(float(asset.cost or 0) - accrued, 2)
         out["pct"] = round(100 * accrued / float(asset.cost), 1) if asset.cost else 0.0
@@ -174,6 +176,42 @@ def series(db: Session, asset: AmortAsset, year: int) -> list[dict]:
     return out
 
 
+def series_all(db: Session, asset: AmortAsset, today: date | None = None) -> list[dict]:
+    """Усі місяці від введення в експлуатацію (або першого нарахування) до поточного — з накопиченням."""
+    today = today or date.today()
+    first = db.scalar(select(func.min(AmortPeriod.year * 100 + AmortPeriod.month)).where(AmortPeriod.asset_id == asset.id))
+    starts = [today.year * 100 + today.month]
+    if asset.commissioned_at:
+        starts.append(asset.commissioned_at.year * 100 + asset.commissioned_at.month)
+    if first:
+        starts.append(int(first))
+    y, m = divmod(min(starts), 100)
+    by_year: dict[int, list] = {}
+    out, cum = [], float(asset.accrued_before or 0)
+    while (y, m) <= (today.year, today.month):
+        if y not in by_year:
+            by_year[y] = series(db, asset, y)
+        row = dict(by_year[y][m - 1])
+        cum += row["amount"]
+        row.update(year=y, short=f"{MONTHS_SHORT[m - 1]} {str(y)[2:]}", cum=round(cum, 2))
+        out.append(row)
+        m += 1
+        if m > 12:
+            y, m = y + 1, 1
+    return out
+
+
+def by_year_totals(rows: list[dict]) -> list[dict]:
+    agg: dict[int, dict] = {}
+    for r in rows:
+        a = agg.setdefault(r["year"], {"year": r["year"], "amount": 0.0, "procs": 0, "qty": 0.0, "months": 0})
+        a["amount"] += r["amount"]
+        a["procs"] += r["procs"]
+        a["qty"] += r["qty"]
+        a["months"] += 1
+    return [dict(v, amount=round(v["amount"], 2), qty=round(v["qty"], 2)) for _, v in sorted(agg.items())]
+
+
 def years(db: Session) -> list[int]:
     ys = {y for (y,) in db.execute(select(AmortPeriod.year).distinct())} | {date.today().year}
     return sorted(ys, reverse=True)
@@ -193,7 +231,8 @@ def fund_summary(db: Session, rows: list[dict]) -> dict:
     paid = sum(r["t"]["paid"] for r in rows if r["asset"].active)
     spent = float(db.scalar(select(func.sum(AmortTxn.amount)).where(AmortTxn.kind == "expense")) or 0)
     live = sum(r["t"]["live"]["amount"] for r in rows if r["asset"].active)
-    return {"accrued": round(accrued, 2), "paid": round(paid, 2), "diff": round(accrued - paid, 2), "spent": round(spent, 2),
+    fixed = sum(r["t"]["fixed"] for r in rows if r["asset"].active)
+    return {"accrued": round(accrued, 2), "paid": round(paid, 2), "diff": round(fixed - paid, 2), "spent": round(spent, 2),
             "live": round(live, 2), "live_label": rows[0]["t"]["live"]["label"] if rows else ""}
 
 

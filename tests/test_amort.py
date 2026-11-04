@@ -79,6 +79,8 @@ def test_seed_migrate_accrue_pay():
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
         assert "IPL Shiny" in c.get("/amort").text
         assert "по півмісяцях" in c.get(f"/amort/{a.id}?year=2026").text
+        t_all = c.get(f"/amort/{a.id}").text
+        assert "Увесь час · з лют 24" in t_all and "Разом за весь час" in t_all
         assert c.get("/settings/amort").status_code == 200
         c.post("/settings/amort", data={"name": "Тест апарат", "kind": "device", "cost": "10000", "life_years": "5", "rate": "20", "unit": "процедура", "active": "1"})
         assert db.scalar(select(AmortAsset.id).where(AmortAsset.name == "Тест апарат")) if False else True

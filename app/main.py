@@ -8010,7 +8010,11 @@ def amort_asset_page(aid: int, request: Request, year: int = 0, user: User = Dep
     yr = year or today.year
     t = am.totals(db, a, today)
     children = db.scalars(select(AmortAsset).where(AmortAsset.parent_id == a.id)).all()
-    return render(request, "amort_asset.html", nav="finance", a=a, t=t, months=am.series(db, a, yr), year=yr, years=am.years(db), am=am,
+    all_rows = am.series_all(db, a, today)
+    yr = year if year else 0                                   # 0 — увесь час
+    return render(request, "amort_asset.html", nav="finance", a=a, t=t, months=am.series(db, a, yr) if yr else all_rows, year=yr,
+                  years=sorted({r_["year"] for r_ in all_rows} | set(am.years(db)), reverse=True), am=am, all_rows=all_rows,
+                  ytot=am.by_year_totals(all_rows),
                   cards=am.techcards_for(db, a), txns=am.txns(db, a.id), boxes=[b["name"] for b in cbx.items(db) if b.get("active", True)],
                   children=[(c, am.totals(db, c, today)) for c in children], parent=db.get(AmortAsset, a.parent_id) if a.parent_id else None,
                   today=today, UNITS=am.UNITS)

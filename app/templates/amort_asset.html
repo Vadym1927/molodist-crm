@@ -14,16 +14,20 @@ svg.amc{width:100%;height:auto;display:block}.amc .b{fill:#C9BFE6}.amc .b.cur{fi
 .pt{width:100%;border-collapse:collapse;font-size:13.5px}.pt th{text-align:left;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496;padding:7px 8px;border-bottom:1px solid #ECE7E1}
 .pt td{padding:7px 8px;border-bottom:1px solid #F1EDE8}.pt .r{text-align:right;white-space:nowrap}.pt tr.cur td{background:#F3F0FA}.pt .src{font-size:10.5px;color:#8a8496}.pt tfoot td{font-weight:700;background:#FBFAF8}
 .yr{display:inline-flex;gap:4px;background:#F1EDE7;border-radius:999px;padding:3px}.yr a{padding:5px 12px;border-radius:999px;text-decoration:none;color:#5d5869;font:600 13px var(--sans)}.yr a.on{background:#3B3050;color:#fff}
+.yt{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.yt a,.yt div{display:grid;gap:2px;background:#FBFAF8;border:1px solid #ECE7E1;border-radius:12px;padding:8px 12px;text-decoration:none;color:#2A2430;min-width:130px}
+.yt span{font:700 11px var(--sans);letter-spacing:.06em;color:#8a8496}.yt b{font-size:15px}.yt small{color:#8a8496;font-size:11.5px}.yt a:hover{border-color:#C9BFE6}
+.pt tr.ysep td{background:#F1EDF7;font:700 12px var(--sans);letter-spacing:.06em;color:#3B3050;padding:5px 8px}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13.5px}.kv span{color:#8a8496}
 dialog.am-d{border:0;border-radius:18px;padding:0;width:min(460px,95vw);box-shadow:0 30px 80px rgba(42,36,48,.35)}dialog.am-d::backdrop{background:rgba(42,36,48,.4)}
 .am-d form{display:grid;gap:10px;padding:18px 20px}.am-d h3{margin:0 0 4px;font:600 16px var(--head);letter-spacing:.06em;text-transform:uppercase}.am-d label{display:grid;gap:4px;font:700 12px var(--sans);color:#8a8496}.am-d input,.am-d select{height:42px}
 .am-tx{width:100%;border-collapse:collapse;font-size:13px}.am-tx td{padding:6px 6px;border-bottom:1px solid #F1EDE8}.am-tx .r{text-align:right;white-space:nowrap}.am-tx .pay{color:#1E7A46;font-weight:700}.am-tx .exp{color:#B23B2E;font-weight:700}
 .tc-l{display:grid;gap:4px;font-size:13px}.tc-l a{display:flex;justify-content:space-between;gap:8px;text-decoration:none;color:#2A2430;padding:5px 8px;border-radius:8px;background:#FBFAF8}.tc-l a b{white-space:nowrap;color:#5C4B82}
+.aa-g.one{grid-template-columns:1fr}.aa-g.one>div:last-child{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;align-items:start}.aa-g.one>div:last-child>.card{margin:0}
 @media(max-width:1000px){.aa-g{grid-template-columns:1fr}}
 </style>
 <div class="eyebrow"><a href="/amort" style="text-decoration:none">Амортизація</a>{% if parent %} · <a href="/amort/{{ parent.id }}" style="text-decoration:none">{{ parent.name }}</a>{% endif %}</div>
 <div class="aa-hd"><div><h1>{{ a.name }}</h1><div class="muted small">{{ 'Розхідник з ресурсом' if a.kind == 'consumable' else 'Апарат' }} · {{ a.cost|uah }}{% if a.kind == 'device' %} · термін {{ '%g'|format(a.life_years or 0) }} р.{% else %} · ресурс {{ '%g'|format(a.resource or 0) }} {{ UNITS.get(a.unit, '') }}{% endif %} · ставка <b>{{ '%g'|format(a.rate) }} ₴ / {{ a.unit }}</b>{% if a.commissioned_at %} · в експлуатації з {{ a.commissioned_at|dt('%d.%m.%Y') }}{% endif %}{% if not a.active %} · <span class="pill">вимкнено</span>{% endif %}</div></div>
-  <div class="row" style="gap:8px"><span class="yr">{% for y in years %}<a href="?year={{ y }}" class="{{ 'on' if y == year }}">{{ y }}</a>{% endfor %}</span>
+  <div class="row" style="gap:8px"><span class="yr"><a href="?" class="{{ 'on' if not year }}">Увесь час</a>{% for y in years %}<a href="?year={{ y }}" class="{{ 'on' if y == year }}">{{ y }}</a>{% endfor %}</span>
     <button type="button" class="btn" onclick="document.getElementById('am-pay').showModal()">↗ Погасити</button>
     <button type="button" class="btn ghost" onclick="document.getElementById('am-exp').showModal()">− Витрата</button>
     <a class="btn ghost" href="/settings/amort?edit={{ a.id }}">✏️</a></div></div>
@@ -31,9 +35,9 @@ dialog.am-d{border:0;border-radius:18px;padding:0;width:min(460px,95vw);box-shad
 {% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
 
 <div class="am-sum">
-  <div class="card"><span>Нараховано</span><b>{{ t.accrued|uah }}</b><small>{% if a.accrued_before %}у т.ч. до обліку {{ a.accrued_before|uah }}{% else %}з початку{% endif %}</small></div>
+  <div class="card"><span>Нараховано</span><b>{{ t.accrued|uah }}</b><small>з них поточний півмісяць {{ t.live.amount|uah }}{% if a.accrued_before %} · у т.ч. до обліку {{ a.accrued_before|uah }}{% endif %}</small></div>
   <div class="card pos"><span>Погашено</span><b>{{ t.paid|uah }}</b></div>
-  <div class="card {{ 'neg' if t.diff > 0.5 }}"><span>Різниця</span><b>{{ t.diff|uah }}</b><small>до погашення</small></div>
+  <div class="card {{ 'neg' if t.diff > 0.5 }}"><span>До погашення</span><b>{{ t.diff|uah }}</b><small>за зафіксовані періоди</small></div>
   {% if a.kind == 'device' %}<div class="card"><span>Залишкова вартість</span><b>{{ t.residual|uah }}</b><small>{{ t.pct }}% амортизовано{% if t.end_at %} · до {{ t.end_at|dt('%m.%Y') }}{% endif %}</small></div>
   <div class="card"><span>План на місяць</span><b>{{ (t.per_month_plan or 0)|uah }}</b><small>{{ a.cost|uah }} / {{ '%g'|format(a.life_years or 0) }} р. / 12{% if a.avg_month %} · {{ '%g'|format(a.avg_month) }} проц./міс{% endif %}</small></div>
   {% else %}<div class="card {{ 'neg' if t.over }}"><span>Залишок ресурсу</span><b>{{ '%g'|format(t.resource_left) }}</b><small>{{ UNITS.get(a.unit, '') }} · використано {{ '%g'|format(t.used) }} ({{ t.pct }}%)</small></div>
@@ -42,15 +46,21 @@ dialog.am-d{border:0;border-radius:18px;padding:0;width:min(460px,95vw);box-shad
 </div>
 <div class="am-bar" style="margin-bottom:14px" title="{{ t.pct }}%"><i class="{{ 'over' if t.pct > 100 else ('warn' if t.pct > 85) }}" style="width:{{ [t.pct, 100]|min }}%"></i></div>
 
-<div class="aa-g"><div>
-  <div class="card"><h2 style="margin-top:0">{{ year }} по півмісяцях</h2>{{ chart(months, 140) }}
-    <div style="overflow:auto;margin-top:10px"><table class="pt"><thead><tr><th>Місяць</th><th class="r">Проц. 1–15</th><th class="r">Проц. 16–31</th><th class="r">{{ UNITS.get(a.unit, 'од.')|capitalize }} 1–15</th><th class="r">16–31</th><th class="r">₴ 1–15</th><th class="r">₴ 16–31</th><th class="r">Разом</th></tr></thead><tbody>
+<div class="aa-g {{ 'one' if not year }}"><div>
+  <div class="card"><h2 style="margin-top:0">{{ year if year else ('Увесь час · з ' ~ (all_rows[0].short if all_rows else '')) }} по півмісяцях</h2>{{ chart(months, 140) if year else chart(months, 200, W=1100) }}
+    {% if not year and ytot %}<div class="yt">{% for y in ytot %}<a href="?year={{ y.year }}"><span>{{ y.year }}</span><b>{{ y.amount|uah }}</b><small>{{ '%g'|format(y.procs) }} проц. · {{ y.months }} міс.</small></a>{% endfor %}
+      {% if a.accrued_before %}<div><span>До обліку</span><b>{{ a.accrued_before|uah }}</b><small>без розбивки</small></div>{% endif %}</div>{% endif %}
+    <div style="overflow:auto;margin-top:10px"><table class="pt"><thead><tr><th>Місяць</th><th class="r">Проц. 1–15</th><th class="r">Проц. 16–31</th><th class="r">{{ UNITS.get(a.unit, 'од.')|capitalize }} 1–15</th><th class="r">16–31</th><th class="r">₴ 1–15</th><th class="r">₴ 16–31</th><th class="r">Разом</th>{% if not year %}<th class="r">Накопичено</th>{% endif %}</tr></thead><tbody>
+      {% if not year and a.accrued_before %}<tr><td colspan="7" class="muted">Нараховано до першого періоду (без розбивки)</td><td class="r"><b>{{ a.accrued_before|uah }}</b></td><td class="r">{{ a.accrued_before|uah }}</td></tr>{% endif %}
       {% set ns = namespace(p=0, q=0, s=0) %}
+      {% set empty_years = ytot|selectattr('amount', 'equalto', 0)|map(attribute='year')|list if not year else [] %}
       {% for m in months %}{% set ns.p = ns.p + m.procs %}{% set ns.q = ns.q + m.qty %}{% set ns.s = ns.s + m.amount %}
-      <tr class="{{ 'cur' if m.h1.current or m.h2.current }}"><td>{{ m.name|capitalize }}{% if m.h1.source == 'sheet' or m.h2.source == 'sheet' %} <span class="src">табл.</span>{% elif (m.h1.source == 'crm' and not m.h1.fixed) or (m.h2.source == 'crm' and not m.h2.fixed) %} <span class="src">live</span>{% endif %}</td>
+      {% if not year and (loop.first or m.month == 1) %}<tr class="ysep"><td colspan="9">{{ m.year }}{% if m.year in empty_years %} · <span style="font-weight:500;text-transform:none;letter-spacing:0">нарахувань немає</span>{% endif %}</td></tr>{% endif %}
+      {% if m.year not in empty_years or m.h1.current or m.h2.current %}
+      <tr class="{{ 'cur' if m.h1.current or m.h2.current }}"><td>{{ m.name|capitalize }}{% if m.h1.source == 'sheet' or m.h2.source == 'sheet' %} <span class="src">табл.</span>{% elif m.h1.current or m.h2.current %} <span class="src">live</span>{% elif m.h1.fixed or m.h2.fixed %} <span class="src">CRM</span>{% endif %}</td>
         <td class="r">{{ '%g'|format(m.h1.procs) }}</td><td class="r">{{ '%g'|format(m.h2.procs) }}</td><td class="r">{{ '%g'|format(m.h1.qty) }}</td><td class="r">{{ '%g'|format(m.h2.qty) }}</td>
-        <td class="r">{{ m.h1.amount|uah }}</td><td class="r">{{ m.h2.amount|uah }}</td><td class="r"><b>{{ m.amount|uah }}</b></td></tr>{% endfor %}
-      </tbody><tfoot><tr><td>Разом {{ year }}</td><td class="r" colspan="2">{{ '%g'|format(ns.p) }} проц.</td><td class="r" colspan="2">{{ '%g'|format(ns.q) }}</td><td class="r" colspan="3">{{ ns.s|uah }}</td></tr></tfoot></table></div></div>
+        <td class="r">{{ m.h1.amount|uah }}</td><td class="r">{{ m.h2.amount|uah }}</td><td class="r"><b>{{ m.amount|uah }}</b></td>{% if not year %}<td class="r muted">{{ m.cum|uah }}</td>{% endif %}</tr>{% endif %}{% endfor %}
+      </tbody><tfoot><tr><td>{{ ('Разом ' ~ year) if year else 'Разом за весь час' }}</td><td class="r" colspan="2">{{ '%g'|format(ns.p) }} проц.</td><td class="r" colspan="2">{{ '%g'|format(ns.q) }}</td><td class="r" colspan="3">{{ (ns.s + (0 if year else (a.accrued_before or 0)))|uah }}</td>{% if not year %}<td></td>{% endif %}</tr></tfoot></table></div></div>
   {% if children %}<div class="card"><h2 style="margin-top:0">Розхідники цього апарата</h2>{% for c, ct in children %}<div class="row between" style="padding:6px 0;border-bottom:1px solid #F1EDE8"><a href="/amort/{{ c.id }}"><b>{{ c.name }}</b></a><span class="small">ресурс {{ '%g'|format(ct.resource_left) }} {{ UNITS.get(c.unit, '') }} · нараховано {{ ct.accrued|uah }} · різниця {{ ct.diff|uah }}</span></div>{% endfor %}</div>{% endif %}
 </div><div>
   <div class="card"><h2 style="margin-top:0">Рухи фонду</h2>{% if txns %}<table class="am-tx"><tbody>{% for x in txns %}<tr><td style="white-space:nowrap">{{ x.day|dt('%d.%m.%y') }}</td><td>{{ x.note or ('погашення' if x.kind == 'pay' else 'витрата') }}{% if x.source == 'sheet' %} <span class="src small muted">табл.</span>{% endif %}<div class="small muted">{{ x.cashbox or '' }}</div></td><td class="r {{ 'pay' if x.kind == 'pay' else 'exp' }}">{{ ('+' if x.kind == 'pay' else '−') ~ (x.amount|uah) }}</td>

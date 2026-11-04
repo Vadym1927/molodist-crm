@@ -10,7 +10,7 @@
 .am-sum b{display:block;font:700 22px var(--head);margin-top:4px;color:#2A2430}.am-sum small{color:#8a8496;font-size:12px}
 .am-sum .neg b{color:#B23B2E}.am-sum .pos b{color:#1E7A46}
 .am-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:14px}
-.am-c{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:16px 18px;display:grid;gap:10px}.am-c.off{opacity:.55}
+.am-c:hover{border-color:#C9BFE6;box-shadow:0 6px 20px rgba(59,48,80,.08)}.am-c{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:16px 18px;display:grid;gap:10px}.am-c.off{opacity:.55}
 .am-t{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.am-t a{font:700 16px var(--sans);color:#2A2430;text-decoration:none}
 .am-t small{display:block;color:#8a8496;font-size:12.5px;margin-top:2px}.am-k{display:inline-block;border-radius:6px;padding:2px 8px;font:700 10.5px var(--sans);letter-spacing:.05em;text-transform:uppercase;background:#ECE7F6;color:#3B3050}
 .am-k.c{background:#FFF1D6;color:#9A6A00}
@@ -44,21 +44,21 @@ dialog.am-d{border:0;border-radius:18px;padding:0;width:min(460px,95vw);box-shad
   <div class="card"><span>Поточний півмісяць</span><b>{{ fund.live|uah }}</b><small>{{ fund.live_label }} · ще не зафіксовано</small></div>
   <div class="card"><span>Нараховано всього</span><b>{{ fund.accrued|uah }}</b><small>з початку обліку (у т.ч. з таблиці)</small></div>
   <div class="card pos"><span>Погашено на фонд</span><b>{{ fund.paid|uah }}</b><small>переміщено на рахунок фонду</small></div>
-  <div class="card {{ 'neg' if fund.diff > 0 }}"><span>До погашення</span><b>{{ fund.diff|uah }}</b><small>нараховано − погашено</small></div>
+  <div class="card {{ 'neg' if fund.diff > 0 }}"><span>До погашення</span><b>{{ fund.diff|uah }}</b><small>зафіксовані періоди − погашено; поточний додасться в день нарахування</small></div>
   <div class="card"><span>Витрати з фонду</span><b>{{ fund.spent|uah }}</b><small>ремонти, запчастини, кредит</small></div>
 </div>
 
 <div class="am-lg" style="margin-bottom:8px"><span><i style="background:#C9BFE6"></i>зафіксовано</span><span><i style="background:#D9D2E8"></i>з таблиці</span><span><i style="background:#5C4B82"></i>поточний півмісяць</span><span><i style="background:#3B3050;height:2px;vertical-align:3px"></i>накопичено за рік</span></div>
 <div class="am-g">
 {% for r in rows %}{% set a = r.asset %}{% set t = r.t %}
-<div class="am-c {{ '' if a.active else 'off' }}">
-  <div class="am-t"><div><a href="/amort/{{ a.id }}?year={{ year }}">{{ a.name }}</a><small>{{ a.cost|uah }}{% if a.kind == 'device' %} · {{ '%g'|format(a.life_years or 0) }} р.{% else %} · ресурс {{ '%g'|format(a.resource or 0) }} {{ am.UNITS.get(a.unit, '') }}{% endif %} · {{ '%g'|format(a.rate) }} ₴/{{ a.unit }}{% if a.commissioned_at %} · з {{ a.commissioned_at|dt('%m.%Y') }}{% endif %}</small></div>
+<div class="am-c {{ '' if a.active else 'off' }}" onclick="if(!event.target.closest('button,a,form'))location='/amort/{{ a.id }}'" style="cursor:pointer" title="Відкрити всі дані з початку">
+  <div class="am-t"><div><a href="/amort/{{ a.id }}">{{ a.name }} →</a><small>{{ a.cost|uah }}{% if a.kind == 'device' %} · {{ '%g'|format(a.life_years or 0) }} р.{% else %} · ресурс {{ '%g'|format(a.resource or 0) }} {{ am.UNITS.get(a.unit, '') }}{% endif %} · {{ '%g'|format(a.rate) }} ₴/{{ a.unit }}{% if a.commissioned_at %} · з {{ a.commissioned_at|dt('%m.%Y') }}{% endif %}</small></div>
     <span class="am-k {{ 'c' if a.kind == 'consumable' }}">{{ 'розхідник' if a.kind == 'consumable' else 'апарат' }}</span></div>
   {{ chart(r.months, 90) }}
   <div class="am-n">
     <div><span>Нараховано</span><b>{{ t.accrued|uah }}</b></div>
     <div class="pos"><span>Погашено</span><b>{{ t.paid|uah }}</b></div>
-    <div class="{{ 'neg' if t.diff > 0.5 }}"><span>Різниця</span><b>{{ t.diff|uah }}</b></div>
+    <div class="{{ 'neg' if t.diff > 0.5 }}"><span>До погашення</span><b>{{ t.diff|uah }}</b></div>
     {% if a.kind == 'device' %}<div><span>Залишкова</span><b>{{ t.residual|uah }}</b></div>{% else %}<div class="{{ 'neg' if t.over }}"><span>Ресурс</span><b>{{ '%g'|format(t.resource_left) }}</b></div>{% endif %}
   </div>
   <div class="am-bar" title="{{ 'амортизовано' if a.kind == 'device' else 'використано ресурсу' }} {{ t.pct }}%"><i class="{{ 'over' if t.pct > 100 else ('warn' if t.pct > 85) }}" style="width:{{ [t.pct, 100]|min }}%"></i></div>
