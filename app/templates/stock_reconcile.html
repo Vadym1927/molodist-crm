@@ -13,12 +13,17 @@
 <div class="rc-sum">{% for k, t in rec.tot.items() %}<div class="card"><div class="small muted">{{ WAREHOUSES.get(k, k) }}</div>
   <div>CRM <b>{{ t.crm_v|uah }}</b></div><div class="small">CleverBox {{ t.cb_v|uah }} · Δ {{ (t.crm_v - t.cb_v)|uah }}</div>
   <div class="small">{{ t.n_bad }} розбіжн. кількості · {{ t.n_vbad }} лише вартості</div></div>{% endfor %}</div>
+{% if request.query_params.get('err') %}<div class="alert">{{ request.query_params.get('err') }}</div>{% endif %}
+<form method="post" action="/stock/reconcile/inventory" id="rc-f"></form>
 {% for kind, ttl in [('qty','Не сходиться кількість'),('value','Кількість сходиться, вартість — ні')] %}{% set rs = rec.rows|selectattr('kind','equalto',kind)|list %}
-<div class="card"><h2 style="margin-top:0">{{ ttl }} · {{ rs|length }}</h2>{% if rs %}<div style="overflow:auto"><table class="rct"><thead><tr><th>Товар</th><th>Склад</th><th class="r">CleverBox</th><th class="r">CRM</th><th class="r">Δ к-сть</th><th class="r">Вартість CB</th><th class="r">Вартість CRM</th><th class="r">Δ ₴</th><th class="r">Ціна од. CB / CRM</th></tr></thead><tbody>
-{% for r in rs %}<tr><td>{{ r.name }}</td><td>{{ WAREHOUSES.get(r.wh, r.wh) }}</td><td class="r">{{ '%g'|format(r.cb_q) }} {{ r.unit }}</td><td class="r">{{ '%g'|format(r.crm_q) }}</td>
+<div class="card"><h2 style="margin-top:0">{{ ttl }} · {{ rs|length }}</h2>{% if rs %}<div style="overflow:auto"><table class="rct"><thead><tr>{% if kind=='qty' %}<th></th>{% endif %}<th>Товар</th><th>Склад</th><th class="r">CleverBox</th><th class="r">CRM</th><th class="r">Δ к-сть</th><th class="r">Вартість CB</th><th class="r">Вартість CRM</th><th class="r">Δ ₴</th><th class="r">Ціна од. CB / CRM</th></tr></thead><tbody>
+{% for r in rs %}{% set tech = r.name.startswith('Амортизація') or 'манімула' in r.name or r.cb_q < 0 %}<tr>{% if kind=='qty' %}<td><input type="checkbox" form="rc-f" name="pick" value="{{ r.pid }}|{{ r.wh }}" {{ 'checked' if not tech }} style="width:auto"></td>{% endif %}<td>{{ r.name }}</td><td>{{ WAREHOUSES.get(r.wh, r.wh) }}</td><td class="r">{{ '%g'|format(r.cb_q) }} {{ r.unit }}</td><td class="r">{{ '%g'|format(r.crm_q) }}</td>
 <td class="r {{ 'neg' if r.dq < 0 else 'pos' if r.dq > 0 }}">{{ '%+g'|format(r.dq) if r.dq else '0' }}</td><td class="r">{{ r.cb_v|uah }}</td><td class="r">{{ r.crm_v|uah }}</td>
 <td class="r {{ 'neg' if r.dv < 0 else 'pos' if r.dv > 0 }}">{{ r.dv|uah }}</td><td class="r small">{{ (r.cb_unit_cost|uah) if r.cb_unit_cost is not none else '—' }} / {{ r.crm_unit_cost|uah }}</td></tr>{% endfor %}
-</tbody></table></div>{% else %}<p class="small muted">Усе сходиться.</p>{% endif %}</div>{% endfor %}
+</tbody></table></div>
+{% if kind=='qty' %}<div class="row" style="gap:10px;margin-top:10px;align-items:center"><button class="btn" form="rc-f">Створити чернетку інвентаризації з вибраних</button>
+<span class="small muted">Факт = залишок CleverBox (мінус → 0). Чернетку можна перевірити й провести; технічні позиції (амортизація, маніпули, мінуси CleverBox) не відмічені.</span></div>{% endif %}
+{% else %}<p class="small muted">Усе сходиться.</p>{% endif %}</div>{% endfor %}
 {% if rec.unknown %}<div class="card"><h2 style="margin-top:0">Є в CleverBox, немає в CRM · {{ rec.unknown|length }}</h2><table class="rct"><tbody>{% for u in rec.unknown %}<tr><td>{{ u.name }}</td><td>{{ WAREHOUSES.get(u.wh, u.wh) }}</td><td class="r">{{ '%g'|format(u.qty) }}</td><td class="r">{{ u.value|uah }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
 {% endif %}
 {% endblock %}

@@ -4628,6 +4628,34 @@ def _reconcile(db: Session) -> dict | None:
     return {"at": snap.get("at"), "rows": rows, "tot": tot, "unknown": unknown, "n_cb": len(snap["rows"])}
 
 
+@app.post("/stock/reconcile/inventory")
+async def stock_reconcile_inventory(request: Request, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    """Вибрані розбіжності кількості → чернетки інвентаризації (факт = CleverBox), по одній на склад. Нічого не проводиться."""
+    from .services import stock as st
+    from .models import StockDocLine
+    f = await request.form()
+    pick = {tuple(x.split("|", 1)) for x in f.getlist("pick") if "|" in str(x)}
+    rec = _reconcile(db)
+    if not rec or not pick:
+        return RedirectResponse("/stock/reconcile?err=Нічого+не+вибрано", 303)
+    bal = st.balances(db)
+    by_wh: dict = defaultdict(list)
+    for r in rec["rows"]:
+        if r["kind"] == "qty" and (str(r["pid"]), r["wh"]) in pick:
+            by_wh[r["wh"]].append(r)
+    ids = []
+    for wh, rs in by_wh.items():
+        doc = st.new_doc(db, "inventory", user_id=user.id, wh_from=wh, note=f"Звірка з CleverBox (знімок {rec['at']}): факт = залишок CleverBox")
+        for r in rs:
+            doc.lines.append(StockDocLine(product_id=r["pid"], qty=max(r["cb_q"], 0.0), sys_qty=bal.get((r["pid"], wh), 0.0)))
+        db.commit()
+        ids.append(doc.id)
+    audit(db, "stock.reconcile_inventory", user=user, docs=ids)
+    if len(ids) == 1:
+        return RedirectResponse(f"/stock/docs/{ids[0]}?msg=Чернетка+інвентаризації+—+перевірте+і+проведіть", 303)
+    return RedirectResponse(f"/stock?tab=inventory&msg=Створено+{len(ids)}+чернеток+інвентаризації", 303)
+
+
 @app.get("/stock/reconcile", response_class=HTMLResponse)
 def stock_reconcile_page(request: Request, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
     return render(request, "stock_reconcile.html", nav="stock", rec=_reconcile(db), WAREHOUSES=catalog.WAREHOUSES)
