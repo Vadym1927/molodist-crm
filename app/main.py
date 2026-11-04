@@ -8004,10 +8004,12 @@ def amort_page(request: Request, year: int = 0, user: User = Depends(require("fi
         if r["asset"].jar:
             j = _mono.jar(db, r["asset"].jar, refresh=not jars)
             box = next((b for b in boxes if b.get("name") == r["asset"].cashbox), None)
-            jars.append({"asset": r["asset"], "jar": j, "crm": cbx.balance(db, box) if box else None})
+            jars.append({"asset": r["asset"], "jar": j, "crm": cbx.balance(db, box) if box else None,
+                         "diff": round(sum(x["t"]["diff"] for x in rows if x["asset"].active and x["asset"].cashbox == r["asset"].cashbox), 2)})
+    diff_main = round(sum(x["t"]["diff"] for x in rows if x["asset"].active and x["asset"].cashbox == main_box), 2)
     return render(request, "amort.html", nav="finance", rows=rows, fund=fund, year=yr, years=am.years(db), am=am,
                   boxes=[b["name"] for b in boxes if b.get("active", True)], fund_balance=(cbx.balance(db, fund_box) - am.operational(db)) if fund_box else None,
-                  fund_name=fund_box["name"] if fund_box else (main_box or ""), jars=jars,
+                  fund_name=fund_box["name"] if fund_box else (main_box or ""), jars=jars, diff_main=diff_main,
                   txns=am.txns(db)[:30], today=today, prev=am.prev_half(today), assets_all=[r["asset"] for r in rows])
 
 

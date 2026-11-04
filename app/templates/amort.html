@@ -5,6 +5,13 @@
 {% set qp = request.query_params %}
 <style>
 .am-hd{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px}.am-hd h1{margin:0}
+.am-hero{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:0;background:#2A2430;color:#fff;border-radius:18px;padding:18px 22px;margin-bottom:12px;align-items:center}
+.am-hero>div{padding:0 18px;border-left:1px solid rgba(255,255,255,.12)}.am-hero>div:first-child{padding-left:0;border-left:0}
+.am-hero span{display:block;font:700 11px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#C9BFE6}
+.am-hero b{display:block;font:700 30px var(--head);margin:4px 0 2px}.am-hero>div:first-child b{font-size:38px}
+.am-hero small{color:#b8b0c8;font-size:12.5px}.am-hero .neg b{color:#FFB4A8}.am-hero .jar{grid-column:1/-1;border:0;padding:12px 0 0;margin-top:12px;border-top:1px solid rgba(255,255,255,.12);font-size:13px;color:#d8d2e4}
+.am-hero .jar a{color:#E4DEEF}
+@media(max-width:800px){.am-hero{grid-template-columns:1fr}.am-hero>div{border-left:0;padding:8px 0}}
 .am-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:16px}
 .am-sum .card{margin:0;padding:14px 16px}.am-sum span{display:block;font:700 11px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496}
 .am-sum b{display:block;font:700 22px var(--head);margin-top:4px;color:#2A2430}.am-sum small{color:#8a8496;font-size:12px}
@@ -30,7 +37,7 @@ dialog.am-d{border:0;border-radius:18px;padding:0;width:min(460px,95vw);box-shad
 .yr{display:inline-flex;gap:4px;background:#F1EDE7;border-radius:999px;padding:3px}.yr a{padding:5px 12px;border-radius:999px;text-decoration:none;color:#5d5869;font:600 13px var(--sans)}.yr a.on{background:#3B3050;color:#fff}
 </style>
 
-<div class="am-hd"><div><h1>Амортизація обладнання</h1><div class="muted small">Нарахування 16-го (за 1–15) і 1-го (за 16–кінець) · ставка × списано у візитах за техкартами · фонд: <b>{{ fund_name }}</b>{% if fund_balance is not none %} · амортизаційна частина {{ fund_balance|uah }}{% endif %}{% for j in jars %} · <a href="{{ j.asset.jar }}" target="_blank" rel="noopener">{{ j.asset.cashbox or 'банка' }}</a> ({{ j.asset.name }}){% if j.jar %}: {{ j.jar.balance|uah }}{% elif j.crm is not none %}: {{ j.crm|uah }} за CRM{% endif %}{% endfor %}</div></div>
+<div class="am-hd"><div><h1>Амортизація обладнання</h1><div class="muted small">Нарахування 16-го (за 1–15) і 1-го (за 16–кінець) · ставка × списано у візитах за техкартами · фонд: <b>{{ fund_name }}</b></div></div>
   <div class="am-act">
     <span class="yr">{% for y in years %}<a href="?year={{ y }}" class="{{ 'on' if y == year }}">{{ y }}</a>{% endfor %}</span>
     <form method="post" action="/amort/accrue" style="margin:0"><button class="btn ghost" title="Зафіксувати нарахування за попередній півмісяць ({{ am.label(prev[0], prev[1], prev[2]) }})">⏱ Нарахувати за {{ am.label(prev[0], prev[1], prev[2], true) }}</button></form>
@@ -40,6 +47,12 @@ dialog.am-d{border:0;border-radius:18px;padding:0;width:min(460px,95vw);box-shad
 {% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
 {% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
 
+{% if fund_balance is not none %}<div class="am-hero">
+  <div><span>На амортизаційному фонді зараз</span><b>{{ fund_balance|uah }}</b><small>{{ fund_name }} без операційної частини · змінюється після кожного погашення й витрати</small></div>
+  <div class="{{ 'neg' if diff_main > 0.5 }}"><span>Не погашено</span><b>{{ diff_main|uah }}</b><small>за зафіксовані періоди</small></div>
+  <div><span>Після погашення буде</span><b>{{ (fund_balance + ([diff_main, 0]|max))|uah }}</b><small>+ поточний півмісяць {{ fund.live|uah }} з наступним нарахуванням</small></div>
+  {% for j in jars %}<div class="jar">🫙 <a href="{{ j.asset.jar }}" target="_blank" rel="noopener">{{ j.asset.cashbox }}</a> · {{ j.asset.name }}: зараз <b style="display:inline;font-size:14px">{{ (j.jar.balance if j.jar else j.crm or 0)|uah }}</b>{{ '' if j.jar else ' (за CRM)' }} · не погашено <b style="display:inline;font-size:14px">{{ j.diff|uah }}</b></div>{% endfor %}
+</div>{% endif %}
 <div class="am-sum">
   <div class="card"><span>Поточний півмісяць</span><b>{{ fund.live|uah }}</b><small>{{ fund.live_label }} · ще не зафіксовано</small></div>
   <div class="card"><span>Нараховано всього</span><b>{{ fund.accrued|uah }}</b><small>з початку обліку (у т.ч. з таблиці)</small></div>
