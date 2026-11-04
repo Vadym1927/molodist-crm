@@ -92,6 +92,20 @@ dialog.al-d{border:0;border-radius:20px;padding:0;width:min(520px,96vw);max-heig
 .crt{display:grid;align-content:center;gap:8px;border-left:1px solid #ECE7E1;padding-left:16px}.crt-b{display:grid;justify-items:center;background:#ECE7F6;border-radius:14px;padding:16px}
 .crt-b b{font:700 40px var(--head);color:#2A2430;line-height:1}.crt-b span{color:#5d5869}.crt-b.bad{background:#FCE9E6}
 @media(max-width:900px){.crb{grid-template-columns:1fr}.crt{border-left:0;padding-left:0}.crr{grid-template-columns:28px 1fr 70px 30px}.crr .cd,.crr .hint{display:none}}
+.icw-g{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(320px,.8fr);gap:16px;align-items:start}
+.icw-c{grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}.icw-c label{padding:11px 14px}
+.icw-pv{position:relative;overflow:hidden;background:#2A2430;color:#fff;border-radius:20px;padding:18px 20px 20px;position:sticky;top:12px}
+.icw-pv .wv{position:absolute;left:0;top:40px;width:100%;height:110px;opacity:.35;pointer-events:none}
+.icw-h{position:relative;display:flex;gap:12px;align-items:center}.icw-h b{font:600 18px var(--sans)}.icw-i{width:40px;height:40px;border-radius:12px;background:rgba(255,255,255,.08);display:grid;place-items:center}
+.icw-pr{margin-left:auto;display:inline-flex;gap:6px;align-items:center;border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:4px 12px;font-size:12.5px}.icw-pr img{width:16px}
+.icw-av{position:relative;width:104px;height:104px;margin:18px auto 10px;border-radius:50%;background:#C9BFE6;display:grid;place-items:center;box-shadow:0 0 0 10px rgba(201,191,230,.12)}
+.icw-av span{font:700 34px var(--head);color:#2A2430}.icw-n{text-align:center;font:700 22px var(--sans)}.icw-ph{text-align:center;color:#D9D4E2;margin-top:2px}
+.icw-tg{width:max-content;margin:10px auto 0;background:rgba(201,191,230,.18);color:#E4DEEF;border-radius:999px;padding:4px 14px;font-size:12.5px;font-weight:600}
+.icw-rows{display:grid;gap:6px;margin:14px 0}.icw-rows div{display:grid;grid-template-columns:22px auto 1fr;gap:8px;align-items:center;background:rgba(255,255,255,.06);border-radius:10px;padding:8px 12px;font-size:13px}
+.icw-rows i{font-style:normal}.icw-rows span{color:#B9B2C6}.icw-rows b{text-align:right;font-weight:600}
+.icw-b{display:grid;grid-template-columns:1fr 1fr;gap:10px}.icw-b span{text-align:center;border-radius:12px;padding:11px;font-weight:700;font-size:14px}.icw-b .o{border:1.5px solid rgba(255,255,255,.7)}.icw-b .f{background:#C9BFE6;color:#2A2430}
+.icw-pv [data-f].off{display:none}
+@media(max-width:1050px){.icw-g{grid-template-columns:1fr}.icw-pv{position:relative;top:0}}
 .tp-sh{display:flex;gap:14px;align-items:flex-start}.tp-ic.sm{width:44px;height:44px;border-radius:12px}.tp-sh h2{margin:4px 0 0;font:700 19px var(--head);letter-spacing:.04em;text-transform:uppercase}
 .fd button{display:inline-flex;gap:8px;align-items:center;padding:7px 14px}.fd button b{color:#2A2430}
 @media(max-width:980px){.tpv2{grid-template-columns:1fr 1fr}.tp-bot{grid-template-columns:1fr}}
@@ -175,13 +189,33 @@ dialog.al-d{border:0;border-radius:20px;padding:0;width:min(520px,96vw);max-heig
 </div>
 
 <div class="tp-pane" data-p="popup">
-<div class="tp-c" id="popup"><h2>Вікно «Вхідний дзвінок»</h2><p class="sub">У вікні: хто дзвонить, найближчий запис, кнопки «Картка пацієнта», «Записати», для нового номера — «Створити пацієнта».</p>
+<div class="icw-g">
+<div class="tp-c" id="popup" style="margin:0"><h2>Вікно «Вхідний дзвінок»</h2><p class="sub">Налаштуйте, яку інформацію показувати у вікні під час вхідного дзвінка. Праворуч — як це виглядатиме.</p>
   <div class="tp-f"><label>Кому показувати</label>
-    <div class="chk">{% for u in users_all %}<label><input type="checkbox" name="popup_users" value="{{ u.id }}" {{ 'checked' if u.id in (t.popup_users or []) }}> {{ u.name }}</label>{% endfor %}</div>
+    <div class="chk icw-c">{% for u in users_all %}<label><input type="checkbox" name="popup_users" value="{{ u.id }}" {{ 'checked' if u.id in (t.popup_users or []) }}> {{ u.name }}</label>{% endfor %}</div>
     <div class="hint">Нікого не обрано — вікно бачать усі, хто має право «Звернення» або «Записувати пацієнтів».</div></div>
   <div class="tp-f" style="margin-top:16px"><label>Що показувати у вікні «Вхідний дзвінок»</label><input type="hidden" name="popup_cfg" value="1">
-    <div class="chk">{% for k, lb in POPUP_FIELDS %}<label><input type="checkbox" name="popup_fields" value="{{ k }}" {{ 'checked' if k in (t.popup_fields or []) }}> {{ lb }}</label>{% endfor %}</div>
+    <div class="chk icw-c">{% for k, lb in POPUP_FIELDS %}<label><input type="checkbox" name="popup_fields" value="{{ k }}" {{ 'checked' if k in (t.popup_fields or []) }} onchange="ppUpd()"> {{ lb }}</label>{% endfor %}</div>
     <div class="hint">Імʼя й номер видно завжди; кнопки «Картка пацієнта», «Записати», «Створити пацієнта» — теж.</div></div></div>
+<div class="icw-pv"><div class="icw-h"><span class="icw-i"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg></span><b>Вхідний дзвінок</b>{% if t.provider %}<span class="icw-pr">{% if t.provider == 'ringostat' %}<img src="/static/img/ringostat.png" alt="">{% endif %}{{ _pn.get(t.provider) }}</span>{% endif %}</div>
+  <svg class="wv" viewBox="0 0 400 100" preserveAspectRatio="none" fill="none" stroke="#C9BFE6" stroke-width=".6">{% for k in range(12) %}<path d="M0 {{ 40 + k }} C 80 {{ 10 + k*3 }}, 160 {{ 80 - k*2 }}, 240 {{ 30 + k*2 }} S 360 {{ 5 + k*4 }}, 400 {{ 30 + k }}"/>{% endfor %}</svg>
+  <div class="icw-av" data-f="avatar"><span>ПК</span></div>
+  <div class="icw-n">Петро К*******</div><div class="icw-ph">+38 (0**) ***-**-**</div>
+  <div class="icw-tg" data-f="tag">Постійний пацієнт</div>
+  <div class="icw-rows">
+    <div data-f="employee"><i>👤</i><span>Приймає</span><b>Вікторія Д.</b></div>
+    <div data-f="appt"><i>📅</i><span>Найближчий запис</span><b>12 лют, 14:00 · лікар · послуга</b></div>
+    <div data-f="last"><i>🕘</i><span>Останній візит</span><b>28 січ</b></div>
+    <div data-f="visits"><i>🔁</i><span>Візитів</span><b>8</b></div>
+    <div data-f="tasks"><i>✅</i><span>Відкриті задачі</span><b>1</b></div>
+    <div data-f="bonus"><i>🎁</i><span>Бонуси</span><b>350 ₴</b></div>
+    <div data-f="plan"><i>✨</i><span>Бʼюті-план</span><b>активний · 60%</b></div>
+    <div data-f="note"><i>📝</i><span>Замітка</span><b>дзвонити після 12:00</b></div>
+    <div data-f="birthday"><i>🎂</i><span>День народження</span><b>через 3 дні</b></div>
+  </div>
+  <div class="icw-b"><span class="o">Картка пацієнта</span><span class="f">Записати</span></div>
+  <div class="hint" style="color:#B9B2C6;text-align:center;margin-top:8px">Приклад із вигаданими даними</div></div>
+</div>
 
 </div>
 <div class="tp-pane" data-p="ai">
@@ -276,6 +310,9 @@ function crAdd(){var l=document.getElementById('crl'),r=document.createElement('
   r.innerHTML='<em></em><input name="crit_t" class="ct" placeholder="Назва"><input name="crit_d" class="cd" placeholder="що саме оцінюємо"><input name="crit_p" class="cp2" inputmode="numeric" value="0" oninput="crSum()"><span class="hint">балів</span><button type="button" class="st-x" onclick="this.parentNode.remove();crSum();crNum()">×</button>';
   l.insertBefore(r,l.querySelector('button.btn'));crNum();r.querySelector('.ct').focus()}
 crSum&&setTimeout(crSum,0);
+function ppUpd(){var on={};document.querySelectorAll('input[name=popup_fields]').forEach(function(i){on[i.value]=i.checked});
+  document.querySelectorAll('.icw-pv [data-f]').forEach(function(e){e.classList.toggle('off',!on[e.dataset.f])})}
+setTimeout(ppUpd,0);
 function tpEye(b){var i=b.parentNode.querySelector('input');i.type=i.type==='password'?'text':'password'}
 function tpCopy(id,b){var v=document.getElementById(id).value;(navigator.clipboard?navigator.clipboard.writeText(v):Promise.reject()).then(function(){var t=b.innerHTML;b.textContent='✓ Скопійовано';setTimeout(function(){b.innerHTML=t},1500)})}
 function tpTab(t){if(!document.querySelector('.tp-pane[data-p="'+t+'"]'))t='conn';
