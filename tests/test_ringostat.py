@@ -236,7 +236,7 @@ def test_ai_alert_recipients(monkeypatch):
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
         with SessionLocal() as db:
             u = User(login="al_admin", name="Алерт Адмін", role="admin", password_hash="x", telegram_chat_id="5550001"); db.add(u); db.commit(); uid = u.id
-        assert "Кого повідомити" in c.get("/settings/telephony").text
+        assert "Відповідальний за обробку" in c.get("/settings/telephony").text
         c.post("/settings/telephony", data={"provider": "ringostat", "source": "Дзвінок", "ai_on": "1", "ai_alert": "1", "ai_alert_below": "60",
                                             "ai_alert_cfg": "1", "ai_alert_to": ["taker"], "ai_engine": "agent"})
         with SessionLocal() as db:
@@ -275,3 +275,23 @@ def test_call_record_proxy(monkeypatch):
         assert r.status_code == 200 and r.content == b"RIFFwav"
         assert cl.get(f"/api/v1/calls/{ib}/record", headers=h).status_code == 404
         assert cl.get(f"/api/v1/calls/{ia}/record").status_code in (401, 403)
+
+
+def test_ai_criteria_rows_and_low_call_task(monkeypatch):
+    from datetime import datetime as _dt
+    from app.services import telephony as tel
+    from app.models import SessionLocal as _SL, Call, Task, User
+    rows = tel.crit_rows(tel.DEFAULT_CRITERIA)
+    assert len(rows) == 6 and sum(r["pts"] for r in rows) == 100 and rows[0]["title"] == "Привітання"
+    txt = tel.crit_text(rows, tel.crit_tail(tel.DEFAULT_CRITERIA))
+    assert tel.crit_rows(txt) == rows and "не записано" in txt
+    sent = []
+    monkeypatch.setattr("app.services.alerts.send", lambda t: sent.append(t) or 1)
+    with _SL() as db:
+        u = db.query(User).first()
+        tel.save_extra(db, [], True, txt, 60, True, "crm", None, None, str(u.id) if u else "taker", True)
+        c = Call(provider="ringostat", at=_dt.now(), direction="in", status="answered", phone="380000000001", ai_score=40, ai_comment="погано", user_id=u.id if u else None)
+        db.add(c); db.commit()
+        tel.alert_low(db, c); tel.alert_low(db, c)
+        ts = db.query(Task).filter(Task.source_key == f"call_low:{c.id}").all()
+        assert len(ts) == 1 and ts[0].kind == "call_review" and ts[0].priority == "high"

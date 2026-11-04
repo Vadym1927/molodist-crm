@@ -64,10 +64,10 @@ dialog.al-d{border:0;border-radius:20px;padding:0;width:min(520px,96vw);max-heig
 .tp-ban .stt span.t{font-size:14px;color:#D9D4E2}.tp-ban .chk-b{position:relative;z-index:1;display:inline-flex;gap:8px;align-items:center;border:1.5px solid rgba(255,255,255,.75);background:transparent;color:#fff;border-radius:10px;padding:9px 18px;font:600 13.5px var(--sans);cursor:pointer}
 .tp-ban .chk-b:hover{background:rgba(255,255,255,.08)}.tp-ban svg.wv{position:absolute;right:0;top:0;height:100%;width:46%;opacity:.55;pointer-events:none}
 .tp-lb{font:700 11.5px var(--sans);letter-spacing:.12em;text-transform:uppercase;color:#5d5869;margin:0 0 8px}
-.tpv2{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.tpv2{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:16px}
 .tpv2 label{display:flex;align-items:center;gap:14px;border:1.5px solid #ECE7E1;border-radius:14px;padding:16px 18px;cursor:pointer;background:#fff;min-height:74px}
 .tpv2 label:has(input:checked){border-color:#3B3050;background:#F8F6FC;box-shadow:0 0 0 1px #3B3050 inset}
-.tpv2 input{width:18px;height:18px;accent-color:#3B3050;flex:none}.tpv2 .pv{display:grid;gap:2px}.tpv2 .pv b{font:700 17px var(--sans);color:#2A2430;display:flex;gap:8px;align-items:center}
+.tpv2 input{width:18px;height:18px;accent-color:#3B3050;flex:none}.tpv2 .pv{display:grid;grid-template-columns:minmax(0,1fr);gap:2px}.tpv2 .pv b{font:700 17px var(--sans);color:#2A2430;display:flex;gap:8px;align-items:center}
 .tpv2 .pv small{color:#6E6878;font-size:13px}.tpv2 .pv b i{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-style:normal;color:#fff;font-size:13px}
 .tp-in{position:relative}.tp-in input{width:100%;height:46px;padding-right:44px!important}.tp-in .eye{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:0;background:none;cursor:pointer;color:#6E6878;padding:6px}
 .tp-cpy{display:flex;gap:10px}.tp-cpy .tp-in{flex:1}.tp-cpy .cb{display:inline-flex;gap:8px;align-items:center;border:1.5px solid #E3DFE8;background:#fff;border-radius:10px;padding:0 16px;font:700 12.5px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:#3B3050;cursor:pointer;white-space:nowrap}
@@ -85,6 +85,13 @@ dialog.al-d{border:0;border-radius:20px;padding:0;width:min(520px,96vw);max-heig
 .tp-pane .tp-c{max-width:none;border-radius:16px}
 .tp-ban.sm{min-height:0;padding:12px 22px;margin-bottom:16px}.tp-ban.sm .nm{font-size:20px}.tp-ban.sm .nm i{width:28px;height:28px;font-size:14px}.tp-ban.sm .stt{display:flex;gap:8px;align-items:center}
 .plogo{width:26px;height:auto;display:block}.plogo.b{width:34px}.tp-ban.sm .plogo.b{width:28px}
+.crb{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:16px;border:1px solid #ECE7E1;border-radius:14px;padding:12px 16px}
+.crl{display:grid;gap:6px}.crr{display:grid;grid-template-columns:28px minmax(0,1.3fr) minmax(0,2fr) 80px 40px 30px;gap:8px;align-items:center;background:#F8F6FC;border-radius:10px;padding:4px 8px}
+.crr em{width:26px;height:26px;border-radius:50%;background:#E4DEEF;display:grid;place-items:center;font-style:normal;font-size:13px;color:#3B3050;font-weight:700}
+.crr input{height:36px;border:1px solid transparent;background:transparent}.crr input:focus,.crr input.cp2{border-color:#E3DFE8;background:#fff}.crr .ct{font-weight:700}
+.crt{display:grid;align-content:center;gap:8px;border-left:1px solid #ECE7E1;padding-left:16px}.crt-b{display:grid;justify-items:center;background:#ECE7F6;border-radius:14px;padding:16px}
+.crt-b b{font:700 40px var(--head);color:#2A2430;line-height:1}.crt-b span{color:#5d5869}.crt-b.bad{background:#FCE9E6}
+@media(max-width:900px){.crb{grid-template-columns:1fr}.crt{border-left:0;padding-left:0}.crr{grid-template-columns:28px 1fr 70px 30px}.crr .cd,.crr .hint{display:none}}
 .tp-sh{display:flex;gap:14px;align-items:flex-start}.tp-ic.sm{width:44px;height:44px;border-radius:12px}.tp-sh h2{margin:4px 0 0;font:700 19px var(--head);letter-spacing:.04em;text-transform:uppercase}
 .fd button{display:inline-flex;gap:8px;align-items:center;padding:7px 14px}.fd button b{color:#2A2430}
 @media(max-width:980px){.tpv2{grid-template-columns:1fr 1fr}.tp-bot{grid-template-columns:1fr}}
@@ -123,10 +130,10 @@ dialog.al-d{border:0;border-radius:20px;padding:0;width:min(520px,96vw);max-heig
   <div class="tp-lb">Провайдер телефонії</div>
   <div class="tpv2">
     <label><input type="radio" name="provider" value="" {{ 'checked' if not t.provider }} onchange="tgP()"><span class="pv"><b><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2A2430" stroke-width="1.7" stroke-linecap="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>Без телефонії</b><small>Не підключено</small></span></label>
-    {% for k, p in PROV.items() %}<label><input type="radio" name="provider" value="{{ k }}" {{ 'checked' if t.provider == k }} onchange="tgP()"><span class="pv"><b>{% if k == 'ringostat' %}<img src="/static/img/ringostat.png" alt="" class="plogo">{% else %}<i style="background:{{ _pc.get(k, '#5C4B82') }}">{{ _pn[k][0] }}</i>{% endif %}{{ _pn[k] }}</b><small>{{ {'binotel':'IP-АТС, Україна','stream':'Віртуальна АТС','ringostat':'Колтрекінг і віртуальна АТС'}.get(k, '') }}</small></span></label>{% endfor %}
+    {% for k, p in PROV.items() if k != 'stream' or t.provider == 'stream' %}<label><input type="radio" name="provider" value="{{ k }}" {{ 'checked' if t.provider == k }} onchange="tgP()"><span class="pv"><b>{% if k == 'ringostat' %}<img src="/static/img/ringostat.png" alt="" class="plogo">{% else %}<i style="background:{{ _pc.get(k, '#5C4B82') }}">{{ _pn[k][0] }}</i>{% endif %}{{ _pn[k] }}</b><small>{{ {'binotel':'IP-АТС, Україна','stream':'Віртуальна АТС','ringostat':'Колтрекінг і віртуальна АТС'}.get(k, '') }}</small></span></label>{% endfor %}
   </div>
 
-  {% for k, p in PROV.items() %}{% set cur = t.p.get(k, {}) %}
+  {% for k, p in PROV.items() if k != 'stream' or t.provider == 'stream' %}{% set cur = t.p.get(k, {}) %}
   <div class="pf" data-p="{{ k }}" style="display:{{ 'block' if t.provider == k else 'none' }}">
     <div class="tp-2">{% for f, label, sec in p.fields %}
       <div class="tp-f"><label>{{ label }}</label>
@@ -180,30 +187,35 @@ dialog.al-d{border:0;border-radius:20px;padding:0;width:min(520px,96vw);max-heig
 <div class="tp-pane" data-p="ai">
 <div class="tp-c" id="ai"><h2>AI-оцінка діалогів</h2><p class="sub">Оцінки йдуть у KPI дзвінків по співробітниках («Телефонія» → таблиця KPI).</p>
   <div class="tp-g">
-  <label class="sw"><input type="checkbox" name="ai_on" value="1" {{ 'checked' if t.ai_on }}> Увімкнути AI-оцінку</label>
-  <div class="tpv">
-    <label><input type="radio" name="ai_engine" value="crm" {{ 'checked' if (t.ai_engine or 'crm') == 'crm' }}><span><span class="lg">CRM</span><br>Claude оцінює текст з Ringostat AI{% if not has_ai_key %} · <b style="color:#B23B2E">ключ Claude не задано</b>{% endif %}</span></label>
-    <label><input type="radio" name="ai_engine" value="agent" {{ 'checked' if t.ai_engine == 'agent' }}><span><span class="lg">Агент на VPS</span><br>OpenClaw сам слухає запис, робить текст і оцінку</span></label></div>
-  <div class="hint">Для агента: ключ API з дозволом <b>calls</b> («Права доступу → REST API»), опис методів — <code>docs/openclaw-calls-ai.md</code>.</div>
-  <div class="tp-f"><label>Критерії оцінювання</label><textarea name="ai_criteria" rows="9">{{ t.ai_criteria }}</textarea></div>
-  {% set _to = t.ai_alert_to or [] %}{% set _un = {} %}{% for u in users_all %}{% set _ = _un.update({u.id: u}) %}{% endfor %}
-  <div class="al-b"><label class="sw"><input type="checkbox" name="ai_alert" value="1" {{ 'checked' if t.ai_alert }}> Повідомлення в Telegram, якщо оцінка нижче</label>
-    <input name="ai_alert_below" type="number" min="0" max="100" value="{{ t.ai_alert_below }}" style="width:90px"> <span class="hint">балів зі 100 · кому:</span>
-    <span class="al-ch" id="al-ch">{% if not _to %}<i>Власнику</i>{% endif %}{% for x in _to %}<i>{{ 'Хто говорив' if x == 'taker' else ('Відповідальний за лінію' if x == 'resp' else (_un[x].name if x in _un else '#' ~ x)) }}</i>{% endfor %}</span>
-    <button type="button" class="btn ghost" style="padding:6px 14px" onclick="document.getElementById('al-d').showModal()">Вибрати, кого повідомити</button></div>
-  <input type="hidden" name="ai_alert_cfg" value="1">
-  <dialog id="al-d" class="al-d"><div class="al-h"><h3>Кого повідомити про низьку оцінку</h3><button type="button" class="cs-x" onclick="this.closest('dialog').close()">×</button></div>
-    <div class="al-bd"><div class="hint">Повідомлення приходить у Telegram тим, хто підключив свій Telegram у «Мій кабінет». Нікого не вибрано — власнику, як раніше.</div>
-      <div class="al-s">Залежно від дзвінка</div>
-      <label class="al-o"><input type="checkbox" name="ai_alert_to" value="taker" {{ 'checked' if 'taker' in _to }}><span><b>Хто говорив</b><small>співробітник, який узяв цей дзвінок</small></span></label>
-      <label class="al-o"><input type="checkbox" name="ai_alert_to" value="resp" {{ 'checked' if 'resp' in _to }}><span><b>Відповідальний за лінію</b><small>з блоку «Співробітники й лінії»</small></span></label>
-      <div class="al-s">Завжди</div>
-      {% for u in users_all %}<label class="al-o"><input type="checkbox" name="ai_alert_to" value="{{ u.id }}" {{ 'checked' if u.id in _to }}><span><b>{{ u.name }}</b><small>{{ {'owner':'власник','admin':'адміністратор','doctor':'лікар'}.get(u.role, u.role) }} · {{ 'Telegram підключено' if u.telegram_chat_id else 'Telegram не підключено' }}</small></span>{% if not u.telegram_chat_id %}<em>немає Telegram</em>{% endif %}</label>{% endfor %}
-    </div>
-    <div class="al-f"><button type="button" class="btn ghost" onclick="alClear()">Нікого (власнику)</button><button type="button" class="btn" onclick="alDone()">Готово</button></div></dialog>
+  <label class="tsw"><input type="checkbox" name="ai_on" value="1" {{ 'checked' if t.ai_on }}> Увімкнути AI-оцінку</label>
+  <div class="tpv2" style="grid-template-columns:1fr 1fr;margin:0">
+    <label><input type="radio" name="ai_engine" value="crm" {{ 'checked' if (t.ai_engine or 'crm') == 'crm' }}><span class="pv"><b>CRM</b><small>Claude оцінює текст з Ringostat AI{% if not has_ai_key %} · <span style="color:#B23B2E;font-weight:700">ключ Claude не задано</span>{% endif %}</small></span></label>
+    <label><input type="radio" name="ai_engine" value="agent" {{ 'checked' if t.ai_engine == 'agent' }}><span class="pv"><b>Агент на VPS</b><small>OpenClaw сам слухає запис, робить текст і оцінку</small></span></label></div>
+  <div class="acc"><details><summary><em><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8M8 17h5"/></svg></em>Інструкція: підключення API для агента</summary><div class="ab">Агенту потрібен ключ API з дозволом <b>calls</b> («Права доступу → REST API»), дозволений хост — лише crm.molodist.com.ua. Агент бере дзвінки з <code>/api/v1/calls/pending-ai</code>, запис — через <code>/api/v1/calls/{id}/record</code>, а результат повертає в <code>/api/v1/calls/{id}/ai</code>. Повний опис — <code>docs/openclaw-calls-ai.md</code>.</div></details></div>
+
+  {% if crit %}<input type="hidden" name="crit_cfg" value="1">
+  <div class="tp-lb" style="margin:6px 0 0">Критерії оцінювання</div>
+  <div class="crb"><div class="crl" id="crl">{% for r in crit %}<div class="crr"><em>{{ loop.index }}</em><input name="crit_t" value="{{ r.title }}" class="ct"><input name="crit_d" value="{{ r.desc }}" class="cd"><input name="crit_p" value="{{ r.pts }}" class="cp2" inputmode="numeric" oninput="crSum()"><span class="hint">балів</span><button type="button" class="st-x" onclick="this.parentNode.remove();crSum();crNum()">×</button></div>{% endfor %}
+      <button type="button" class="btn ghost" style="justify-self:start;margin-top:4px" onclick="crAdd()">＋ Критерій</button></div>
+    <div class="crt"><div class="tp-lb" style="text-align:center">Загалом</div><div class="crt-b" id="crt-b"><b id="crt">0</b><span>балів</span></div><div class="hint" id="crt-w" style="text-align:center"></div></div></div>
+  <div class="tp-f"><label>Додатково для AI (необовʼязково)</label><input name="crit_tail" value="{{ crit_tail }}" placeholder="Напр.: якщо пацієнта не записано — поясни чому"></div>
+  {% else %}<div class="tp-f"><label>Критерії оцінювання</label><textarea name="ai_criteria" rows="9">{{ t.ai_criteria }}</textarea></div>{% endif %}
+
+  {% set _tt = (t.ai_task_to or '')|string %}<input type="hidden" name="ai_task_cfg" value="1">
+  <div class="tp-box" style="margin-top:4px"><h3><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Погані дзвінки</h3>
+    <p>На кожен дзвінок з низькою оцінкою створюється задача «Розібрати дзвінок» на відповідального — з оцінкою, коментарем AI і посиланням на запис.</p>
+    <div class="al-b" style="gap:12px"><label class="tsw"><input type="checkbox" name="ai_alert" value="1" {{ 'checked' if t.ai_alert }}> Створювати задачу, якщо оцінка нижче</label>
+      <input name="ai_alert_below" type="number" min="0" max="100" value="{{ t.ai_alert_below }}" style="width:90px"> <span class="hint">балів зі 100</span></div>
+    <div class="tp-2" style="margin-top:12px"><div class="tp-f"><label>Відповідальний за обробку поганих дзвінків</label>
+      <select name="ai_task_to"><option value="" {{ 'selected' if not _tt }}>— не обрано (лише повідомлення, як раніше) —</option>
+        <option value="taker" {{ 'selected' if _tt == 'taker' }}>Хто говорив (співробітник, що взяв дзвінок)</option>
+        <option value="resp" {{ 'selected' if _tt == 'resp' }}>Відповідальний за лінію</option>
+        {% for u in users_all %}<option value="{{ u.id }}" {{ 'selected' if _tt == u.id|string }}>{{ u.name }}{{ '' if u.telegram_chat_id else ' · без Telegram' }}</option>{% endfor %}</select></div>
+      <div class="tp-f" style="align-content:end"><label class="tsw"><input type="checkbox" name="ai_task_tg" value="1" {{ 'checked' if t.ai_task_tg }}> і повідомити його в Telegram</label></div></div>
+  </div>
   </div></div>
 </div>
-<div class="tp-sv" id="tp-sv"><button class="btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>Зберегти</button></div>
+<div class="tp-sv" id="tp-sv"><button class="btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"/></svg>Зберегти</button><button class="btn ghost" name="test" value="1" style="display:inline-flex;gap:8px;align-items:center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg>Перевірити підключення</button></div>
 </form>
 
 <div class="tp-pane" data-p="staff">
@@ -257,6 +269,13 @@ dialog.al-d{border:0;border-radius:20px;padding:0;width:min(520px,96vw);max-heig
 </div>
 <script>
 function tgP(){var v=(document.querySelector('input[name=provider]:checked')||{}).value||'';document.querySelectorAll('.pf').forEach(function(e){e.style.display=e.dataset.p===v?'block':'none'})}
+function crSum(){var t=0;document.querySelectorAll('#crl .cp2').forEach(function(i){t+=+i.value||0});var b=document.getElementById('crt');if(!b)return;b.textContent=t;
+  document.getElementById('crt-b').classList.toggle('bad',t!==100);document.getElementById('crt-w').textContent=t===100?'':'Сума має бути 100'}
+function crNum(){document.querySelectorAll('#crl .crr em').forEach(function(e,i){e.textContent=i+1})}
+function crAdd(){var l=document.getElementById('crl'),r=document.createElement('div');r.className='crr';
+  r.innerHTML='<em></em><input name="crit_t" class="ct" placeholder="Назва"><input name="crit_d" class="cd" placeholder="що саме оцінюємо"><input name="crit_p" class="cp2" inputmode="numeric" value="0" oninput="crSum()"><span class="hint">балів</span><button type="button" class="st-x" onclick="this.parentNode.remove();crSum();crNum()">×</button>';
+  l.insertBefore(r,l.querySelector('button.btn'));crNum();r.querySelector('.ct').focus()}
+crSum&&setTimeout(crSum,0);
 function tpEye(b){var i=b.parentNode.querySelector('input');i.type=i.type==='password'?'text':'password'}
 function tpCopy(id,b){var v=document.getElementById(id).value;(navigator.clipboard?navigator.clipboard.writeText(v):Promise.reject()).then(function(){var t=b.innerHTML;b.textContent='✓ Скопійовано';setTimeout(function(){b.innerHTML=t},1500)})}
 function tpTab(t){if(!document.querySelector('.tp-pane[data-p="'+t+'"]'))t='conn';

@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 import re
 import secrets as _secrets
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 import httpx
 from sqlalchemy import select
@@ -39,6 +39,35 @@ DEFAULT_CRITERIA = """Оціни розмову адміністратора м�
 Якщо пацієнта не записано — поясни чому і що треба було зробити інакше."""
 
 
+_CRIT_RE = re.compile(r"^\s*\d+[.)]\s*(.+?)\s*\((\d+)\)\s*$")
+
+
+def crit_rows(text: str) -> list[dict]:
+    """Текст критеріїв → рядки [{title, desc, pts}] (рядки «N. Назва: опис (бали)»)."""
+    out = []
+    for ln in (text or "").splitlines():
+        m = _CRIT_RE.match(ln)
+        if not m:
+            continue
+        body, pts = m.group(1), int(m.group(2))
+        t, _, dsc = body.partition(":")
+        out.append({"title": t.strip(), "desc": dsc.strip(), "pts": pts})
+    return out
+
+
+def crit_text(rows: list[dict], tail: str = "") -> str:
+    head = "Оціни розмову адміністратора медичного простору MOLODIST з пацієнтом за 100-бальною шкалою:"
+    lines = [f"{i}. {r['title']}" + (f": {r['desc']}" if r.get("desc") else "") + f" ({int(r['pts'])})" for i, r in enumerate(rows, 1)]
+    return "\n".join([head] + lines + ([tail] if tail else []))
+
+
+def crit_tail(text: str) -> str:
+    """Рядки після переліку критеріїв (напр. «Якщо пацієнта не записано…»)."""
+    ls = (text or "").splitlines()
+    last = max([i for i, ln in enumerate(ls) if _CRIT_RE.match(ln)], default=-1)
+    return "\n".join(ls[last + 1:]).strip() if last >= 0 else ""
+
+
 def _cipher():
     from ..integrations.cleverbox import _token_cipher
     return _token_cipher()
@@ -61,6 +90,8 @@ def _raw(db: Session) -> dict:
     d.setdefault("ai_criteria", DEFAULT_CRITERIA)
     d.setdefault("ai_alert_below", 60)       # оцінка нижче — повідомлення власнику в Telegram
     d.setdefault("ai_alert", True)
+    d.setdefault("ai_task_to", "")           # відповідальний за обробку поганих дзвінків: id | "taker" | "resp" | "" (як раніше — повідомлення)
+    d.setdefault("ai_task_tg", True)         # і повідомити його в Telegram
     d.setdefault("ai_alert_to", [])          # кому: id користувачів + "taker" (хто говорив) + "resp" (відповідальний за лінію); порожньо — власнику
     d.setdefault("staff", [])                # співробітники: {user_id, ext (ID у телефонії), alias (імʼя в телефонії)}
     d.setdefault("lines", [])                # лінії: {number, name, user_id (відповідальний)}
@@ -101,8 +132,13 @@ def secret(d: dict, prov: str, key: str) -> str:
 
 
 def save_extra(db: Session, popup_users: list[int], ai_on: bool, ai_criteria: str, ai_alert_below, ai_alert: bool,
-               ai_engine: str = "crm", popup_fields: list[str] | None = None, ai_alert_to: list[str] | None = None) -> None:
+               ai_engine: str = "crm", popup_fields: list[str] | None = None, ai_alert_to: list[str] | None = None,
+               ai_task_to: str | None = None, ai_task_tg: bool | None = None) -> None:
     d = _raw(db)
+    if ai_task_to is not None:
+        d["ai_task_to"] = ai_task_to if ai_task_to in ("taker", "resp") or str(ai_task_to).isdigit() else ""
+    if ai_task_tg is not None:
+        d["ai_task_tg"] = bool(ai_task_tg)
     if ai_alert_to is not None:
         d["ai_alert_to"] = [x if x in ("taker", "resp") else int(x) for x in ai_alert_to if x in ("taker", "resp") or str(x).isdigit()]
     if popup_fields is not None:
@@ -523,6 +559,26 @@ def alert_low(db: Session, c: Call) -> None:
         text = (f"📞 Низька оцінка дзвінка: <b>{c.ai_score:.0f}/100</b>\n{escape((taker.name if taker else None) or c.employee or 'співробітник не вказаний')} · "
                 f"{c.at:%d.%m %H:%M} · {'вхідний' if c.direction == 'in' else 'вихідний'}\n{escape((c.ai_comment or '')[:500])}\n"
                 f'<a href="{settings.public_url.rstrip("/")}/telephony?call={c.id}">Відкрити дзвінок</a>')
+        tt = str(d.get("ai_task_to") or "")
+        if tt:
+            uid = c.user_id if tt == "taker" else (int((line_info(d, c.line) or {}).get("user_id") or 0) or None) if tt == "resp" else int(tt)
+            u = db.get(User, uid) if uid else None
+            from ..models import Task
+            key = f"call_low:{c.id}"
+            if not db.scalar(select(Task.id).where(Task.source_key == key)):
+                db.add(Task(title=f"Розібрати дзвінок · оцінка {c.ai_score:.0f}/100 · {(taker.name if taker else None) or c.employee or 'співробітник не вказаний'}"[:300],
+                            description=(f"{c.at:%d.%m.%Y %H:%M} · {'вхідний' if c.direction == 'in' else 'вихідний'} · {c.phone or ''}\n"
+                                         f"{c.ai_comment or ''}\n\nДзвінок: {settings.public_url.rstrip('/')}/telephony?call={c.id}"),
+                            kind="call_review", source_key=key, patient_id=c.patient_id, assignee_id=u.id if u else None,
+                            assignee_role=None if u else "owner", due_date=date.today(), priority="high"))
+                db.commit()
+            if d.get("ai_task_tg", True):
+                if u and u.telegram_chat_id and u.active:
+                    alerts._api("sendMessage", data={"chat_id": u.telegram_chat_id, "text": (text + "\n📝 Створено задачу «Розібрати дзвінок»")[:4000],
+                                                     "parse_mode": "HTML", "disable_web_page_preview": "true"})
+                else:
+                    alerts.send(text + f"\n📝 Задача: {escape(u.name) if u else 'власнику'}")
+            return
         to = d.get("ai_alert_to") or []
         if not to:
             alerts.send(text)                      # як раніше — власнику
