@@ -46,6 +46,12 @@
     <select name="f_{{ k }}" onchange="this.closest('.pf').className='pf '+this.value">{% for m, ml in MODES.items() %}<option value="{{ m }}" {{ 'selected' if fields[k] == m }}>{{ ml }}</option>{% endfor %}</select></label>{% endfor %}</div>
   <button class="btn" style="margin-top:14px">Зберегти поля</button>
 </form>
+<form method="post" action="/settings/clients-columns" class="pt-c" id="cols">
+  <h3>Колонки списку пацієнтів</h3><p>Що видно в таблиці розділу «Пацієнти». Фото й ПІБ показуються завжди.</p>
+  <div class="pf-g">{% for k, lb in COLS.items() %}<label class="pf {{ 'on' if k in cols else 'off' }}" style="cursor:pointer"><div><b>{{ lb }}</b></div>
+    <input type="checkbox" name="cols" value="{{ k }}" {{ 'checked' if k in cols }} style="width:20px;height:20px;accent-color:#3B3050" onchange="this.closest('.pf').className='pf '+(this.checked?'on':'off')"></label>{% endfor %}</div>
+  <button class="btn" style="margin-top:14px">Зберегти колонки</button>
+</form>
 <script>
 function pgAdd(){var r=document.createElement('div');r.className='pg-r';r.innerHTML='<input type="color" name="g_color" value="#5C4B82"><input type="hidden" name="g_orig" value=""><input type="text" name="g_name" maxlength="60" required placeholder="Назва групи"><span class="pt-rg">0</span><button type="button" class="pt-x" onclick="this.parentNode.remove()">×</button>';document.getElementById('pgl').appendChild(r);r.querySelector('[name=g_name]').focus()}
 function ptAdd(){var r=document.createElement('div');r.className='pt-r';r.innerHTML='<input type="color" name="color" value="#5C4B82" oninput="ptPv()"><input type="text" class="pt-n" name="name" maxlength="40" required placeholder="Наприклад: VIP" oninput="ptPv()"><input type="number" name="min" min="0" step="1" value="20" oninput="ptPv()"><span class="pt-rg"></span><button type="button" class="pt-x" onclick="this.parentNode.remove();ptPv()">×</button>';document.getElementById('ptl').appendChild(r);ptPv()}

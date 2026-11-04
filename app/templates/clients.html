@@ -1,45 +1,134 @@
 {% extends "base.html" %}
 {% block body %}
-<div class="row between" style="margin-bottom:6px"><div><h1>{{ 'Мої пацієнти' if user.role=='doctor' else 'Пацієнти' }}</h1>
+{% set FLAG_ = FLAG %}
+<style>
+.cl-hd{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.cl-hd h1{margin:0}.cl-act{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.cl-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#fff;border:1px solid #ECE7E1;border-radius:16px;padding:10px 12px;margin-bottom:12px}
+.cl-q{flex:1 1 320px;display:flex;gap:8px;align-items:center;border:1.5px solid #E6E0D8;border-radius:12px;padding:0 12px;color:#8a8496;background:#fff}
+.cl-q input{border:0!important;height:42px;flex:1;outline:0;background:transparent;box-shadow:none!important}
+.cl-bar select{height:44px;border-radius:12px;min-width:170px}
+.cl-fb{display:inline-flex;gap:8px;align-items:center;height:44px;border:1.5px solid #3B3050;background:#3B3050;color:#fff;border-radius:12px;padding:0 16px;font:700 13.5px var(--sans);cursor:pointer}
+.cl-fb em{font-style:normal;background:#C9BFE6;color:#2A2430;border-radius:999px;padding:0 8px;font-size:12px}
+.cl-ic{display:inline-grid;place-items:center;width:44px;height:44px;border:1.5px solid #E6E0D8;border-radius:12px;color:#3B3050;background:#fff}
+.cl-seg{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}.cl-seg a{display:inline-flex;gap:8px;align-items:center;padding:8px 14px;border-radius:999px;background:#fff;border:1px solid #ECE7E1;text-decoration:none;color:#2A2430;font:600 13.5px var(--sans)}
+.cl-seg a em{font-style:normal;color:#8a8496;font-weight:700}.cl-seg a.on{background:#3B3050;border-color:#3B3050;color:#fff}.cl-seg a.on em{color:#C9BFE6}
+.cl-chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px}.cl-chips a{display:inline-flex;gap:6px;align-items:center;background:#ECE7F6;color:#3B3050;border-radius:999px;padding:5px 8px 5px 12px;font:600 12.5px var(--sans);text-decoration:none}
+.cl-chips a b{opacity:.6}.cl-chips .rs{background:none;color:#B23B2E;text-decoration:underline}
+.cl-t{width:100%;border-collapse:collapse}.cl-t th{position:sticky;top:0;background:#F6F3EF;text-align:left;font:700 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#6E6878;padding:10px;white-space:nowrap}
+.cl-t td{padding:9px 10px;border-bottom:1px solid #F1EDE8;font-size:14px;vertical-align:middle}.cl-t tr:hover td{background:#FAF8FD}
+.cl-p{display:flex;gap:10px;align-items:center;min-width:220px}.cl-av{width:36px;height:36px;border-radius:50%;flex:none;background:#E4DEEF center/cover;display:grid;place-items:center;font:700 13px var(--head);color:#3B3050}
+.cl-p a{font-weight:600;color:#2A2430;text-decoration:none}.cl-p small{display:block;color:#8a8496;font-size:12px}
+.cl-tg{display:inline-block;color:#fff;border-radius:6px;padding:2px 8px;font:700 11px var(--sans);white-space:nowrap}
+.cl-gr{display:inline-block;background:#F1EDF7;color:#3B3050;border-radius:6px;padding:1px 7px;font-size:12px;margin:1px 2px 1px 0}
+.cl-mk{display:inline-block;border-radius:6px;padding:1px 7px;font:700 11px var(--sans);background:#FFF1D6;color:#9A6A00}.cl-mk.bad{background:#FCE9E6;color:#B23B2E}
+dialog.cl-dr{border:0;padding:0;margin:0 0 0 auto;height:100vh;max-height:100vh;width:min(520px,100vw);background:#F7F4F0;box-shadow:-24px 0 60px rgba(42,36,48,.25)}
+dialog.cl-dr::backdrop{background:rgba(42,36,48,.38)}
+.cl-dh{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;padding:16px 20px;background:#fff;border-bottom:1px solid #ECE7E1}
+.cl-dh h3{margin:0;font:600 18px var(--head);letter-spacing:.08em;text-transform:uppercase}.cl-dh button{border:0;background:#F1EDF8;width:38px;height:38px;border-radius:11px;font-size:20px;cursor:pointer;color:#3B3050}
+.cl-db{padding:16px 20px 90px;display:grid;gap:14px}.cl-fs{background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:12px 14px;display:grid;gap:10px}
+.cl-fs h4{margin:0;font:700 11px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#6E6878}
+.cl-ck{display:flex;flex-wrap:wrap;gap:6px}.cl-ck label{display:inline-flex;gap:6px;align-items:center;border:1.5px solid #E6E0D8;border-radius:999px;padding:5px 12px;font:600 13px var(--sans);cursor:pointer;background:#fff}
+.cl-ck label:has(input:checked){border-color:#3B3050;background:#F3F0FA}.cl-ck input{accent-color:#3B3050;width:15px;height:15px}
+.cl-2{display:grid;grid-template-columns:1fr 1fr;gap:8px}.cl-2 label,.cl-fs>label{display:grid;gap:4px;font:600 12px var(--sans);color:#6E6878}.cl-2 input,.cl-2 select,.cl-fs select{height:40px;width:100%}
+.cl-df{position:sticky;bottom:0;display:flex;gap:8px;padding:12px 20px;background:#fff;border-top:1px solid #ECE7E1}
+.cl-df .btn{flex:1;justify-content:center}
+</style>
+
+<div class="cl-hd"><div><h1>{{ 'Мої пацієнти' if user.role=='doctor' else 'Пацієнти' }}</h1>
   <div class="muted small">Знайдено {{ total }}{% if unassigned %} · <a href="/unassigned">нерозібраних файлів: {{ unassigned }}</a>{% endif %}</div></div>
-  <div class="row" style="justify-content:flex-end">
+  <div class="cl-act">
     {% if can(user, 'patient_edit') %}
-    <details><summary class="btn">+ Пацієнт</summary>
-      <form method="post" action="/patients" class="card grid" style="gap:8px;margin-top:8px;min-width:280px">
+    <details style="position:relative"><summary class="btn">＋ Пацієнт</summary>
+      <form method="post" action="/patients" class="card grid" style="gap:8px;margin-top:8px;min-width:280px;position:absolute;right:0;z-index:20">
         <b>Ручне введення пацієнта</b>
         <input name="full_name" placeholder="Прізвище Ім'я По батькові" required autofocus>
         <input name="phone" placeholder="Телефон">
         {% if user.role != 'doctor' %}<select name="doctor_id"><option value="">— лікар —</option>{% for d in doctors %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}</select>{% endif %}
         <textarea name="notes" rows="3" placeholder="Нотатка адміністратора"></textarea>
-        <div class="row"><button class="btn">Створити картку</button><span class="muted small">CleverBox не змінюється</span></div>
+        <div class="row"><button class="btn">Створити картку</button></div>
       </form>
     </details>
-    <form method="post" action="/patients/test" onsubmit="return confirm('Створити або відкрити тестову картку?')"><button class="btn ghost">Тестова картка</button></form>
+    <form method="post" action="/patients/test" onsubmit="return confirm('Створити або відкрити тестову картку?')" style="margin:0"><button class="btn ghost">Тестова картка</button></form>
     {% endif %}
-    <form class="row" method="get"><input type="hidden" name="seg" value="{{ seg }}">
-      <input name="q" value="{{ q }}" placeholder="ПІБ або телефон">
-      {% if user.role != 'doctor' %}<select name="doctor"><option value="">Усі лікарі</option>{% for d in doctors %}<option value="{{ d.id }}" {{ 'selected' if doctor==d.id }}>{{ d.name }}</option>{% endfor %}</select>{% endif %}
-      <button class="btn ghost">Знайти</button></form>
   </div></div>
-<div class="tabs">{% for k,l in SEGMENTS.items() %}<a href="?seg={{ k }}&q={{ q }}&doctor={{ doctor or '' }}" class="{{ 'on' if seg==k }}">{{ l }}<em>{{ counts.get(k,0) }}</em></a>{% endfor %}</div>
+
+<form method="get" id="clf">
+<input type="hidden" name="seg" value="{{ seg }}">
+<div class="cl-bar">
+  <label class="cl-q"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input name="q" value="{{ q }}" placeholder="ПІБ, телефон, email, Instagram"></label>
+  {% if user.role != 'doctor' %}<select name="doctor" onchange="this.form.submit()"><option value="">Усі лікарі</option>{% for d in doctors %}<option value="{{ d.id }}" {{ 'selected' if doctor==d.id }}>{{ d.name }}</option>{% endfor %}</select>{% endif %}
+  <select name="sort" onchange="this.form.submit()">{% for k, lb in [('', 'Спершу важливі'), ('name', 'За алфавітом'), ('-last', 'Останній візит'), ('next', 'Найближчий запис'), ('-visits', 'Більше візитів'), ('-revenue', 'Більше покупок')] %}<option value="{{ k }}" {{ 'selected' if qp.get('sort','') == k }}>{{ lb }}</option>{% endfor %}</select>
+  <button type="button" class="cl-fb" onclick="document.getElementById('cl-dr').showModal()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>Фільтри{% if n_filters %} <em>{{ n_filters }}</em>{% endif %}</button>
+  <button class="btn ghost" style="height:44px">Знайти</button>
+  {% if can(user,'users') %}<a class="cl-ic" href="/settings/patient-tags#cols" title="Налаштувати колонки"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/></svg></a>{% endif %}
+</div>
+
+<dialog class="cl-dr" id="cl-dr"><div class="cl-dh"><h3>Фільтри</h3><button type="button" onclick="this.closest('dialog').close()">×</button></div>
+  <div class="cl-db">
+    <div class="cl-fs"><h4>Статус пацієнта</h4><div class="cl-ck">{% for t in fopts.tags %}<label><input type="checkbox" name="tag" value="{{ t }}" {{ 'checked' if t in qp.getlist('tag') }}><span class="cl-tg" style="background:{{ fopts.tag_colors.get(t, '#8a8496') }}">{{ t }}</span></label>{% endfor %}</div></div>
+    {% if fopts.groups %}<div class="cl-fs"><h4>Групи</h4><div class="cl-ck">{% for g in fopts.groups %}<label><input type="checkbox" name="grp" value="{{ g }}" {{ 'checked' if g in qp.getlist('grp') }}>{{ g }}</label>{% endfor %}</div></div>{% endif %}
+    <div class="cl-fs"><h4>Візити</h4>
+      <div class="cl-2"><label>Кількість від<input name="vis_from" inputmode="numeric" value="{{ qp.get('vis_from','') }}"></label><label>до<input name="vis_to" inputmode="numeric" value="{{ qp.get('vis_to','') }}"></label></div>
+      <div class="cl-2"><label>Останній візит з<input type="date" name="lv_from" value="{{ qp.get('lv_from','') }}"></label><label>по<input type="date" name="lv_to" value="{{ qp.get('lv_to','') }}"></label></div>
+      <div class="cl-2"><label>Майбутній запис<select name="nv"><option value="">байдуже</option><option value="yes" {{ 'selected' if qp.get('nv')=='yes' }}>є запис</option><option value="no" {{ 'selected' if qp.get('nv')=='no' }}>немає запису</option></select></label>
+        <label>Бюті-план<select name="plan"><option value="">байдуже</option><option value="yes" {{ 'selected' if qp.get('plan')=='yes' }}>є</option><option value="no" {{ 'selected' if qp.get('plan')=='no' }}>немає</option></select></label></div></div>
+    {% if user.role != 'doctor' %}<div class="cl-fs"><h4>Гроші</h4>
+      <div class="cl-2"><label>Покупки (LTV) від, ₴<input name="ltv_from" inputmode="decimal" value="{{ qp.get('ltv_from','') }}"></label><label>до, ₴<input name="ltv_to" inputmode="decimal" value="{{ qp.get('ltv_to','') }}"></label></div>
+      <div class="cl-ck"><label><input type="checkbox" name="bonus" value="1" {{ 'checked' if qp.get('bonus') }}>Є бонуси</label><label><input type="checkbox" name="bal" value="1" {{ 'checked' if qp.get('bal') }}>Є гроші на рахунку</label></div></div>{% endif %}
+    <div class="cl-fs"><h4>Особисте</h4>
+      <div class="cl-2"><label>Вік від<input name="age_from" inputmode="numeric" value="{{ qp.get('age_from','') }}"></label><label>до<input name="age_to" inputmode="numeric" value="{{ qp.get('age_to','') }}"></label></div>
+      <div class="cl-2"><label>День народження у місяці<select name="bmonth"><option value="">будь-коли</option>{% for m in MONTHS %}<option value="{{ loop.index }}" {{ 'selected' if qp.get('bmonth')==loop.index|string }}>{{ m }}</option>{% endfor %}</select></label>
+        <label>Стать<select name="gender"><option value="">будь-яка</option>{% for g in fopts.genders %}<option {{ 'selected' if qp.get('gender')==g }}>{{ g }}</option>{% endfor %}</select></label></div>
+      <div class="cl-2"><label>Мітка<select name="mark"><option value="">будь-яка</option><option value="vip" {{ 'selected' if qp.get('mark')=='vip' }}>VIP</option><option value="bad" {{ 'selected' if qp.get('mark')=='bad' }}>BAD</option><option value="none" {{ 'selected' if qp.get('mark')=='none' }}>без мітки</option></select></label>
+        <label>Канал звʼязку<select name="ch"><option value="">будь-який</option>{% for c in fopts.channels %}<option {{ 'selected' if qp.get('ch')==c }}>{{ c }}</option>{% endfor %}</select></label></div></div>
+    {% if fopts.sources %}<div class="cl-fs"><h4>Джерело залучення</h4><div class="cl-ck">{% for x in fopts.sources %}<label><input type="checkbox" name="src" value="{{ x }}" {{ 'checked' if x in qp.getlist('src') }}>{{ x }}</label>{% endfor %}</div></div>{% endif %}
+    {% if fopts.dirs %}<div class="cl-fs"><h4>Напрямки</h4><div class="cl-ck">{% for x in fopts.dirs %}<label><input type="checkbox" name="dirs" value="{{ x }}" {{ 'checked' if x in qp.getlist('dirs') }}>{{ x }}</label>{% endfor %}</div></div>{% endif %}
+    <div class="cl-fs"><h4>Картка</h4>
+      <div class="cl-2"><label>Додано з<input type="date" name="reg_from" value="{{ qp.get('reg_from','') }}"></label><label>по<input type="date" name="reg_to" value="{{ qp.get('reg_to','') }}"></label></div>
+      <div class="cl-2"><label>Розсилки<select name="optout"><option value="">усі</option><option value="0" {{ 'selected' if qp.get('optout')=='0' }}>не відписані</option><option value="1" {{ 'selected' if qp.get('optout')=='1' }}>відписані</option></select></label><span></span></div>
+      <div class="cl-ck"><label><input type="checkbox" name="tg" value="1" {{ 'checked' if qp.get('tg') }}>Підключений бот</label><label><input type="checkbox" name="noph" value="1" {{ 'checked' if qp.get('noph') }}>Без телефону</label></div></div>
+  </div>
+  <div class="cl-df"><a class="btn ghost" href="?seg={{ seg }}">Скинути</a><button class="btn">Показати</button></div>
+</dialog>
+</form>
+
+<div class="cl-seg">{% for k,l in SEGMENTS.items() %}<a href="?seg={{ k }}{{ ('&' ~ base_q) if base_q }}" class="{{ 'on' if seg==k }}">{{ l }}<em>{{ counts.get(k,0) }}</em></a>{% endfor %}</div>
+{% if chips %}<div class="cl-chips">{% for c in chips %}<a href="{{ c.url }}">{{ c.label }} <b>×</b></a>{% endfor %}<a class="rs" href="?seg={{ seg }}">Скинути всі</a></div>{% endif %}
 {% if seg=='no_plan' %}<p class="small muted">Пацієнти з візитами, але без бюті-плану — кандидати на консультацію з аналізом шкіри.</p>{% endif %}
-{% if seg=='sleeping' %}<p class="small muted">Останній візит понад 90 днів тому і немає майбутнього запису — повернути розсилкою/дзвінком (можна створити задачу в картці).</p>{% endif %}
-<div class="card" style="padding:6px 8px;overflow:auto"><table>
-  <thead><tr><th>Пацієнт</th><th class="hide-m">Телефон</th><th>Бюті-план</th><th>Реалізація</th><th class="hide-m">Візитів</th><th>Останній</th><th>Наступний</th>{% if user.role!='doctor' %}<th class="r hide-m">Покупки</th>{% endif %}<th>Статус</th></tr></thead>
+{% if seg=='sleeping' %}<p class="small muted">Останній візит понад 90 днів тому і немає майбутнього запису — повернути розсилкою/дзвінком.</p>{% endif %}
+
+{% set money = user.role != 'doctor' %}
+<div class="card" style="padding:0;overflow:auto"><table class="cl-t">
+  <thead><tr><th>Пацієнт</th>{% for c in cols %}{% if money or c not in ('revenue','bonus','balance') %}<th class="{{ 'r' if c in ('revenue','bonus','balance','visits') }}">{{ COLS[c] }}</th>{% endif %}{% endfor %}</tr></thead>
   <tbody>
-  {% for r in rows %}{% set ps = r.plan_status %}
-    <tr onclick="location='/patients/{{ r.patient.id }}'" style="cursor:pointer">
-      <td><a href="/patients/{{ r.patient.id }}" style="font-weight:500;text-decoration:none">{{ r.patient.full_name }}</a>{% if not r.patient.cleverbox_id %} <span class="pill warn small" title="Не привʼязано до CleverBox">CB?</span>{% endif %}</td>
-      <td class="hide-m muted">{{ r.patient.phone or '—' }}</td>
-      <td class="small">{% if ps %}{{ ps.plan.session_at|dt }} · {{ ps.planned_sum|uah }}{% else %}<span class="muted">—</span>{% endif %}</td>
-      <td>{% if ps %}<div class="row" style="gap:8px;flex-wrap:nowrap"><div class="bar" style="flex:1"><i style="width:{{ [ps.realization_pct,100]|min }}%"></i></div><span class="small">{{ ps.realization_pct }}%</span></div>{% endif %}</td>
-      <td class="hide-m">{{ r.visits or '—' }}</td>
-      <td class="small">{{ r.last_visit|dt('%d.%m.%y') }}</td>
-      <td class="small">{{ r.next_visit|dt('%d.%m %H:%M') }}</td>
-      {% if user.role!='doctor' %}<td class="r hide-m">{{ r.revenue|uah if r.revenue else '—' }}</td>{% endif %}
-      <td>{% if ps %}{% set f = FLAG[ps.flag] %}<span class="pill {{ f[1] }}">{{ f[0] }}</span>{% elif 'sleeping' in r.segment_flags %}<span class="pill warn">сплячий</span>{% endif %}</td>
+  {% for r in rows %}{% set ps = r.plan_status %}{% set p = r.patient %}
+    <tr onclick="location='/patients/{{ p.id }}'" style="cursor:pointer">
+      <td><div class="cl-p"><span class="cl-av" {% if p.avatar_file_id %}style="background-image:url(/files/{{ p.avatar_file_id }})"{% endif %}>{% if not p.avatar_file_id %}{{ (p.full_name or '?').split()[:2]|map('first')|join }}{% endif %}</span>
+        <div><a href="/patients/{{ p.id }}">{{ p.full_name }}</a>{% if not p.cleverbox_id %} <span class="pill warn small" title="Не привʼязано до CleverBox">CB?</span>{% endif %}</div></div></td>
+      {% for c in cols %}{% if money or c not in ('revenue','bonus','balance') %}
+      {% if c == 'phone' %}<td class="muted" style="white-space:nowrap">{{ p.phone or '—' }}</td>
+      {% elif c == 'tag' %}{% set tg = tags_of.get(p.id) %}<td>{% if tg %}<span class="cl-tg" style="background:{{ fopts.tag_colors.get(tg, '#8a8496') }}">{{ tg }}</span>{% endif %}</td>
+      {% elif c == 'groups' %}<td>{% for g in p.client_groups or [] %}<span class="cl-gr">{{ g.name if g is mapping else g }}</span>{% endfor %}</td>
+      {% elif c == 'plan' %}<td class="small">{% if ps %}{{ ps.plan.session_at|dt }} · {{ ps.planned_sum|uah }}{% else %}<span class="muted">—</span>{% endif %}</td>
+      {% elif c == 'real' %}<td style="min-width:130px">{% if ps %}<div class="row" style="gap:8px;flex-wrap:nowrap"><div class="bar" style="flex:1"><i style="width:{{ [ps.realization_pct,100]|min }}%"></i></div><span class="small">{{ ps.realization_pct }}%</span></div>{% endif %}</td>
+      {% elif c == 'visits' %}<td class="r">{{ r.visits or '—' }}</td>
+      {% elif c == 'last' %}<td class="small" style="white-space:nowrap">{{ r.last_visit|dt('%d.%m.%y') if r.last_visit else '—' }}</td>
+      {% elif c == 'next' %}<td class="small" style="white-space:nowrap">{{ r.next_visit|dt('%d.%m %H:%M') if r.next_visit else '—' }}</td>
+      {% elif c == 'revenue' %}<td class="r" style="white-space:nowrap">{{ r.revenue|uah if r.revenue else '—' }}</td>
+      {% elif c == 'status' %}<td>{% if ps %}{% set f = FLAG_[ps.flag] %}<span class="pill {{ f[1] }}">{{ f[0] }}</span>{% elif 'sleeping' in r.segment_flags %}<span class="pill warn">сплячий</span>{% endif %}</td>
+      {% elif c == 'bonus' %}<td class="r">{{ p.cb_bonus|uah if p.cb_bonus else '—' }}</td>
+      {% elif c == 'balance' %}<td class="r">{{ p.cb_balance|uah if p.cb_balance else '—' }}</td>
+      {% elif c == 'birthday' %}<td class="small" style="white-space:nowrap">{{ p.birthday|dt('%d.%m.%Y') if p.birthday else '—' }}</td>
+      {% elif c == 'age' %}<td class="small">{{ age(p) if p.birthday else '—' }}</td>
+      {% elif c == 'source' %}<td class="small">{{ p.source or '—' }}</td>
+      {% elif c == 'doctor' %}<td class="small">{{ dnames.get(p.doctor_id) or '—' }}</td>
+      {% elif c == 'registered' %}<td class="small" style="white-space:nowrap">{{ (p.cb_registered_at or p.created_at)|dt('%d.%m.%Y') }}</td>
+      {% elif c == 'channel' %}<td class="small">{{ p.communication_channel or '—' }}</td>
+      {% elif c == 'mark' %}<td>{% if p.cb_mark %}<span class="cl-mk {{ p.cb_mark }}">{{ p.cb_mark|upper }}</span>{% endif %}</td>
+      {% endif %}{% endif %}{% endfor %}
     </tr>
-  {% else %}<tr><td colspan="9" class="muted">Нікого в цьому сегменті.</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="{{ cols|length + 1 }}" class="muted" style="padding:16px">Нікого за цими умовами.</td></tr>{% endfor %}
   </tbody></table></div>
-{% if pages > 1 %}<div class="row">{% for pg in range(1, pages+1) %}<a class="btn {{ '' if pg==page else 'ghost' }}" style="padding:4px 10px" href="?seg={{ seg }}&q={{ q }}&doctor={{ doctor or '' }}&page={{ pg }}">{{ pg }}</a>{% endfor %}</div>{% endif %}
+{% if pages > 1 %}<div class="row" style="margin-top:10px;flex-wrap:wrap">{% for pg in range(1, pages+1) %}<a class="btn {{ '' if pg==page else 'ghost' }}" style="padding:4px 10px" href="?{{ page_q }}{{ '&' if page_q }}page={{ pg }}">{{ pg }}</a>{% endfor %}</div>{% endif %}
 {% endblock %}

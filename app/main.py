@@ -3267,19 +3267,68 @@ def clients_page(request: Request, seg: str = "all", q: str = "", doctor: int | 
             continue
         pats.append(p)
     rows = clients_svc.client_rows(db, pats)
+    from .services import patient_tags as _ptg
+    _lv = _ptg.tags(db)
+    _vd = _ptg.visit_days(db, [p_.id for p_ in pats])
+    tags_of = {p_.id: _ptg.tag_for(_lv, _vd.get(p_.id, 0) or int(p_.cb_visits or 0)) for p_ in pats}
+    qp = request.query_params
+    rows = clients_svc.apply_filters(rows, qp, tags_of)
     counts = clients_svc.segment_counts(rows)
     rows = [r for r in rows if seg in r.segment_flags]
     order = {"red": 0, "yellow": 1, "green": 2, "done": 3}
-    rows.sort(key=lambda r: (order.get(r.plan_status.flag, 4) if r.plan_status else 5,
-                             -(r.last_visit.timestamp() if r.last_visit else 0)))
+    srt = qp.get("sort", "")
+    if srt in ("name", "-visits", "-revenue", "-last", "next"):
+        key = {"name": lambda r: r.patient.full_name.lower(), "-visits": lambda r: -r.visits, "-revenue": lambda r: -r.revenue,
+               "-last": lambda r: -(r.last_visit.timestamp() if r.last_visit else 0),
+               "next": lambda r: r.next_visit.timestamp() if r.next_visit else 9e12}[srt]
+        rows.sort(key=key)
+    else:
+        rows.sort(key=lambda r: (order.get(r.plan_status.flag, 4) if r.plan_status else 5,
+                                 -(r.last_visit.timestamp() if r.last_visit else 0)))
     per = 100
     total = len(rows)
     rows = rows[(page - 1) * per: page * per]
+    # довідники для фільтрів
+    allp = pats
+    uniq = lambda xs: sorted({x for x in xs if x}, key=str.lower)                  # noqa: E731
+    fopts = {"tags": [t_["name"] for t_ in _lv], "tag_colors": _ptg.colors(_lv), "groups": [g_["name"] for g_ in _ptg.groups(db)],
+             "sources": uniq(p_.source for p_ in allp), "dirs": uniq(d_ for p_ in allp for d_ in (p_.directions or [])),
+             "channels": uniq(p_.communication_channel for p_ in allp), "genders": uniq(p_.gender for p_ in allp)}
+    MONTHS = ["січень", "лютий", "березень", "квітень", "травень", "червень", "липень", "серпень", "вересень", "жовтень", "листопад", "грудень"]
+    labels = {"tag": "Статус", "grp": "Група", "mark": "Мітка", "gender": "Стать", "src": "Джерело", "dirs": "Напрямок", "ch": "Канал",
+              "bmonth": "ДН у місяці", "age_from": "Вік від", "age_to": "Вік до", "vis_from": "Візитів від", "vis_to": "Візитів до",
+              "lv_from": "Останній візит з", "lv_to": "Останній візит по", "nv": "Майбутній запис", "ltv_from": "LTV від", "ltv_to": "LTV до",
+              "plan": "Бюті-план", "bonus": "Є бонуси", "bal": "Є баланс", "tg": "Підключений бот", "optout": "Розсилки",
+              "reg_from": "Додано з", "reg_to": "Додано по", "noph": "Без телефону"}
+    vals = {"nv": {"yes": "є", "no": "немає"}, "plan": {"yes": "є", "no": "немає"}, "mark": {"vip": "VIP", "bad": "BAD", "none": "без мітки"},
+            "optout": {"1": "відписані", "0": "не відписані"}}
+    chips = []
+    from urllib.parse import urlencode
+    items = [(k_, v_) for k_, v_ in qp.multi_items() if k_ != "page"]
+    for i_, (k_, v_) in enumerate(items):
+        if k_ in clients_svc.FILTER_KEYS and v_:
+            vv = vals.get(k_, {}).get(v_, MONTHS[int(v_) - 1] if k_ == "bmonth" and v_.isdigit() and 1 <= int(v_) <= 12 else v_)
+            chips.append({"label": f"{labels.get(k_, k_)}: {vv}" if k_ not in ("bonus", "bal", "tg", "noph") else labels[k_],
+                          "url": "?" + urlencode([x for j_, x in enumerate(items) if j_ != i_])})
+    base_q = urlencode([x for x in items if x[0] not in ("seg",)])
+    page_q = urlencode(items)
+    from .services import loyalty as _ly
     return render(request, "clients.html", rows=rows, counts=counts, seg=seg, q=q, doctor=doctor, page=page,
                   pages=max(1, (total + per - 1) // per), total=total, SEGMENTS=clients_svc.SEGMENTS,
-                  doctors=db.scalars(select(Doctor).order_by(Doctor.name)).all(),
+                  doctors=db.scalars(select(Doctor).order_by(Doctor.name)).all(), cols=clients_svc.columns(db), COLS=clients_svc.COLUMNS,
+                  tags_of=tags_of, fopts=fopts, chips=chips, base_q=base_q, page_q=page_q, qp=qp, MONTHS=MONTHS, age=clients_svc.age,
+                  n_filters=len(chips), dnames={d_.id: d_.name for d_ in db.scalars(select(Doctor))},
                   unassigned=db.scalar(select(func.count()).select_from(PatientFile)
                                        .where(PatientFile.patient_id.is_(None))) if can(user, "files_assign") else 0)
+
+
+@app.post("/settings/clients-columns")
+async def settings_clients_columns(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    f = await request.form()
+    clients_svc.save_columns(db, f.getlist("cols"))
+    audit(db, "settings.clients_columns", user=user)
+    back = str(f.get("back") or "")
+    return RedirectResponse(back if back.startswith("/clients") else _with_msg("/settings/patient-tags#cols", "Колонки списку збережено"), 303)
 
 
 @app.get("/calendar", response_class=HTMLResponse)
@@ -5498,6 +5547,7 @@ SETTINGS_BLOCKS = [
         ('Статуси пацієнтів', 'Первинний, постійний, ФАНАТ…: назва, колір і з якої кількості візитів присвоюється', '/settings/patient-tags', 'users', None),
         ('Групи пацієнтів', 'Довідник груп (ЖК, Трихолог, -30% ЛЄ…): додати, перейменувати, колір — у картці пацієнта групи вибираються зі списку', '/settings/patient-tags#groups', 'users', None),
         ('Дані пацієнта в календарі', 'Які поля картки пацієнта показувати в блоці візиту: завжди або при наведенні мишки', '/settings/patient-tags#cal', 'users', None),
+        ('Колонки списку пацієнтів', 'Які колонки видно в розділі «Пацієнти»: телефон, статус, групи, бонуси, ДН, джерело…', '/settings/patient-tags#cols', 'users', None),
         ('Фото пацієнтів', 'Усі фото й файли пацієнтів: згоди, обличчя, тіло, документи — перегляд, перенесення між розділами, видалення', '/settings/patient-photos', 'upload', None),
         ('Персональні знижки', 'Знижка конкретному пацієнту: окремо % на товари і % на послуги; автозастосування й сумування з іншими знижками', '/settings/personal-discounts', 'loyalty_patient', None),
     ]),
@@ -5847,7 +5897,7 @@ async def settings_cosmetics_pct_save(request: Request, user: User = Depends(req
 def settings_patient_tags(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     from .services import patient_tags as _pt
     return render(request, "patient_tags.html", nav="settings", tags=_pt.tags(db), fields=_pt.fields(db), FIELDS=_pt.FIELDS, MODES=_pt.MODES,
-                  groups=_pt.groups(db), gcounts=_pt.group_counts(db))
+                  groups=_pt.groups(db), gcounts=_pt.group_counts(db), cols=clients_svc.columns(db), COLS=clients_svc.COLUMNS)
 
 
 @app.post("/settings/patient-tags")

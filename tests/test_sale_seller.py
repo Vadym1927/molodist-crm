@@ -34,3 +34,21 @@ def test_patient_groups_add_remove():
         assert "Групи пацієнтів" in c.get("/settings/patient-tags").text
     with SessionLocal() as db:
         assert db.get(Patient, pid).client_groups == ["ЖК", "ЛЄ розсилка"]
+
+
+def test_clients_filters_and_columns():
+    from fastapi.testclient import TestClient
+    from app.config import settings
+    from app.main import app
+    from app.models import SessionLocal, Patient
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        db.add(Patient(full_name="Фільтр Вікторія", phone="380991112233", source="Instagram", cb_mark="vip", cb_bonus=100)); db.commit()
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        t = c.get("/clients?src=Instagram&mark=vip&bonus=1").text
+        assert "Фільтр Вікторія" in t and "Джерело: Instagram" in t
+        assert "Фільтр Вікторія" not in c.get("/clients?mark=bad").text
+        c.post("/settings/clients-columns", data={"cols": ["phone", "source", "bonus"]})
+        t = c.get("/clients?src=Instagram").text
+        assert "Джерело</th>" in t and "Реалізація плану</th>" not in t
