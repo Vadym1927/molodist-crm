@@ -1726,8 +1726,7 @@ def sale_new(request: Request, appt: str = "", patient: int = 0, user: User = De
                   pl_term={t_["method"]: t_["name"] for t_ in _fis.terminals(_fc)["items"] if t_.get("on") and t_.get("method")},
                   fauto=bool(_fc.get("auto")), fdef=_fc.get("default_rro"),
                   doctors=[d_ for d_ in db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)) if d_.sale_initiator is not False],
-                  rules=db.scalars(select(DiscountRule).where(DiscountRule.active.is_(True),
-                                                                                                      DiscountRule.auto.is_(False))).all(),
+                  rules=__import__("app.services.loyalty", fromlist=["available"]).available(db, pt),
                   pd_manual=(lambda c_: None if c_["auto"] else c_["name"])(__import__("app.services.personal_discounts", fromlist=["cfg"]).cfg(db)),
                   certs=[{"id": c_.id, "code": c_.code or str(c_.id), "balance": c_.balance, "patient_id": c_.patient_id,
                           "name": c_.client_name or ""} for c_ in certs if c_.state() in ("active", "expiring")][:500],
@@ -2195,7 +2194,36 @@ def settings_loyalty(request: Request, user: User = Depends(require("finance")),
                   n_txns=db.scalar(select(func.count(BonusTxn.id))) or 0,
                   n_cb=db.scalar(select(func.count(Patient.id)).where(Patient.cb_bonus > 0)) or 0,
                   personal=__import__("app.services.personal_discounts", fromlist=["patients"]).patients(db),
-                  edit=next((r for r in rules if str(r.id) == qp.get("edit", "")), None), WD=["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"])
+                  edit=next((r for r in rules if str(r.id) == qp.get("edit", "")), None), WD=ly.WD, **_disc_ctx(db, rules, qp))
+
+
+def _disc_ctx(db, rules, qp) -> dict:
+    """Розділи (теги), лічильники, довідники для форми знижки в стилі CleverBox."""
+    from .services import loyalty as ly, patient_tags as ptg
+    from .models import CbService
+    tag = qp.get("tag", "")
+    today = date.today()
+    st = qp.get("st", "active")                     # active | expired | all
+    def ok(r):
+        if st == "active" and (not r.active or ly.expired(r, today)):
+            return False
+        if st == "expired" and not (ly.expired(r, today) or not r.active):
+            return False
+        return True
+    base = [r for r in rules if ok(r)]
+    shown = [r for r in base if (not tag) or (tag == "-" and not r.tag) or r.tag == tag]
+    counts = {t: sum(1 for r in base if r.tag == t) for t in ly.tags(db)}
+    form = qp.get("edit") or qp.get("new")
+    ctx = {"dtag": tag, "dst": st, "shown": shown, "tag_counts": counts, "n_untagged": sum(1 for r in base if not r.tag),
+           "n_base": len(base), "dtags": ly.tags(db), "form_open": bool(form), "today": today,
+           "n_cb_seed": sum(1 for x in ly.CB_DISCOUNTS if x[0].lower() not in {r.name.strip().lower() for r in rules})}
+    if form:
+        ctx.update(groups=[g["name"] for g in ptg.groups(db)], statuses=[t["name"] for t in ptg.tags(db)],
+                   svc_names=sorted({n for (n,) in db.execute(select(CbService.name).where(CbService.active.is_not(False))) if n}),
+                   prod_names=sorted({n for (n,) in db.execute(select(Product.name)) if n}))
+        r0 = next((r for r in rules if str(r.id) == qp.get("edit", "")), None)
+        ctx["uses_n"] = ly.uses(db, r0) if r0 else 0
+    return ctx
 
 
 @app.get("/settings/bonuses", response_class=HTMLResponse)
@@ -2240,15 +2268,47 @@ async def settings_loyalty_discount(request: Request, user: User = Depends(requi
     r.applies_to = str(f.get("applies_to")) if f.get("applies_to") in ("all", "services", "products") else "all"
     r.categories = [str(x) for x in f.getlist("categories") if str(x)] or None
     r.date_from, r.date_to = _day(str(f.get("date_from") or "")), _day(str(f.get("date_to") or ""))
-    r.weekdays = [int(x) for x in f.getlist("weekdays") if str(x).isdigit()] or None
     r.min_sum = _num(str(f.get("min_sum") or ""))
     r.segment = str(f.get("segment") or "") or None
     r.auto, r.combine, r.active = bool(f.get("auto")), bool(f.get("combine")), bool(f.get("active"))
     r.note = str(f.get("note") or "").strip()[:300] or None
+    r.tag = " ".join(str(f.get("tag") or "").split())[:60] or None
+    def _int(k):
+        v = _num(str(f.get(k) or ""))
+        return int(v) if v and v > 0 else None
+    r.per_client_limit = _int("per_client_limit")
+    r.uses_limit = None if f.get("unlimited") else _int("uses_limit")
+    tw = {}
+    for d in range(7):
+        if f.get(f"wd{d}"):
+            tw[str(d)] = [str(f.get(f"wf{d}") or "")[:5], str(f.get(f"wt{d}") or "")[:5]]
+    if f.get("wd_on") and tw:
+        r.time_windows = tw if any(a or b for a, b in tw.values()) else None
+        r.weekdays = sorted(int(k) for k in tw) if len(tw) < 7 else None
+    else:
+        r.time_windows, r.weekdays = None, None
+    def _lst(k):
+        return [str(x).strip() for x in f.getlist(k) if str(x).strip()] or None
+    r.client_groups, r.patient_statuses = _lst("client_groups"), _lst("patient_statuses")
+    r.services, r.products = _lst("services"), _lst("products")
+    r.on_certs, r.on_subs = bool(f.get("on_certs")), bool(f.get("on_subs"))
+    if r.services and not r.products:
+        r.applies_to = "services"
+    elif r.products and not r.services:
+        r.applies_to = "products"
     db.add(r)
     db.commit()
     audit(db, "loyalty.discount", "discount", r.id, user=user, name=r.name, value=r.value, kind=r.kind)
-    return RedirectResponse(f"/settings/loyalty?msg={_q('Знижку збережено')}#disc", 303)
+    back = f"&tag={_q(r.tag)}" if r.tag else ""
+    return RedirectResponse(f"/settings/loyalty?msg={_q('Знижку збережено')}{back}#disc", 303)
+
+
+@app.post("/settings/loyalty/import-discounts")
+def settings_loyalty_import_disc(user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import loyalty as ly
+    n, u = ly.import_cb_discounts(db)
+    audit(db, "loyalty.import_discounts", user=user, n=n, upd=u)
+    return RedirectResponse(f"/settings/loyalty?msg={_q(f'Перенесено знижок CleverBox: {n} нових, {u} оновлено')}#disc", 303)
 
 
 @app.post("/settings/loyalty/discount/{rid:int}/delete")

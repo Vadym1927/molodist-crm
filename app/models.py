@@ -346,6 +346,17 @@ class DiscountRule(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     note: Mapped[str | None] = mapped_column(String(300))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    # як у CleverBox: розділ (тег), обмеження, години, кому і на що
+    tag: Mapped[str | None] = mapped_column(String(60))                    # ЛЕ | STRATO | Постійні акції | Співробітник …
+    per_client_limit: Mapped[int | None] = mapped_column(Integer)          # скільки разів один пацієнт
+    uses_limit: Mapped[int | None] = mapped_column(Integer)                # загальна к-сть використань (порожньо — безліміт)
+    time_windows: Mapped[dict | None] = mapped_column(JSON)                # {"0": ["09:00","21:00"], …} — дні тижня з годинами
+    client_groups: Mapped[list | None] = mapped_column(JSON)               # групи пацієнтів (порожньо — усі)
+    patient_statuses: Mapped[list | None] = mapped_column(JSON)            # статуси пацієнтів (Новий, Постійний …)
+    services: Mapped[list | None] = mapped_column(JSON)                    # назви послуг (порожньо — за «На що»/категоріями)
+    products: Mapped[list | None] = mapped_column(JSON)                    # назви товарів
+    on_certs: Mapped[bool | None] = mapped_column(Boolean)                 # діє на продаж сертифікатів
+    on_subs: Mapped[bool | None] = mapped_column(Boolean)                  # діє на продаж абонементів
 
 
 class BonusTxn(Base):

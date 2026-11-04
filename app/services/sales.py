@@ -10,6 +10,11 @@ from ..models import (Appointment, CbService, Doctor, GiftCertificate, Patient, 
                       SalePayment, StockMove, Visit)
 from . import loyalty as ly
 
+
+def _kyiv_now() -> datetime:
+    from zoneinfo import ZoneInfo
+    return datetime.now(ZoneInfo("Europe/Kyiv")).replace(tzinfo=None)
+
 BONUS = "Бонуси"
 CERT = "Сертифікат"
 BALANCE = "Рахунок пацієнта"
@@ -49,9 +54,10 @@ def method_kind(m: str) -> str:
 def quote(db: Session, items: list[dict], patient: Patient | None, rule_ids: list[int] | None = None,
           manual_discount: float = 0.0, bonus_pay: float = 0.0) -> dict:
     """items: [{kind, ref_id, name, category, qty, price}] → знижки по рядках, підсумки, бонуси."""
-    li = [{"type": it["kind"], "price": float(it["price"]), "qty": float(it.get("qty") or 1), "category": it.get("category") or ""}
+    li = [{"type": it["kind"], "price": float(it["price"]), "qty": float(it.get("qty") or 1), "category": it.get("category") or "",
+           "name": it.get("name") or ""}
           for it in items]
-    d = ly.discount_for(db, li, patient, rule_ids=rule_ids) if items else {"lines": [], "total": 0.0, "rules": [], "subtotal": 0.0}
+    d = ly.discount_for(db, li, patient, rule_ids=rule_ids, at=_kyiv_now()) if items else {"lines": [], "total": 0.0, "rules": [], "subtotal": 0.0}
     lines = list(d["lines"])
     sub = round(sum(x["price"] * x["qty"] for x in li), 2)
     md = round(min(max(manual_discount or 0, 0), sub - sum(lines)), 2)

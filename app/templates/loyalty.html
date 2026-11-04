@@ -3,54 +3,146 @@
 {% block body %}
 {% set qp = request.query_params %}{% set r0 = edit %}
 <style>
-.ly{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:18px;align-items:start}
-.ly label{display:grid;gap:4px;font-size:12px;font-weight:700;color:var(--muted)}.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.sw{display:flex!important;gap:8px;align-items:center;color:var(--ink)!important;font-size:14px!important}.sw input{width:auto}
-.dr{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;background:#fff;display:flex;justify-content:space-between;gap:10px;align-items:center}
-.dr.off{opacity:.55}.dr b{font-size:14.5px}.dr .v{font:700 18px var(--head);color:var(--classic);white-space:nowrap}
+.dz{display:grid;grid-template-columns:220px minmax(0,1fr);gap:18px;align-items:start}
+.dz-side{display:block!important;background:#fff;border:1px solid var(--line);border-radius:14px;padding:8px;position:sticky;top:12px}
+.dz-side a{display:flex;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:9px;text-decoration:none;color:var(--ink);font-size:14px;font-weight:600}
+.dz-side a:hover{background:var(--soft)}.dz-side a.on{background:#3B3050;color:#fff}.dz-side a .n{font-weight:700;opacity:.7}
+.dz-side .h{font:700 11px var(--head);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:8px 10px 4px}
+.dz-tabs{display:flex;gap:6px;flex-wrap:wrap}.dz-tabs a{padding:6px 12px;border-radius:999px;background:var(--soft);text-decoration:none;color:var(--ink);font-size:13px;font-weight:600}.dz-tabs a.on{background:#5C4B82;color:#fff}
+.dtb{width:100%;border-collapse:collapse;font-size:14px}.dtb th{text-align:left;font:700 11px var(--head);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--line)}
+.dtb td{padding:10px;border-bottom:1px solid var(--line);vertical-align:middle}.dtb tr.off td{opacity:.5}.dtb .v{font:700 16px var(--head);color:#5C4B82;white-space:nowrap}
+.dtb .meta{font-size:12px;color:var(--muted);margin-top:2px}.tg{display:inline-block;padding:2px 9px;border-radius:999px;background:#E4DEEF;color:#3B3050;font-size:12px;font-weight:700;white-space:nowrap}
+.df{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}.df .card{margin:0}.df h3{margin:0 0 10px;font:700 13px var(--head);letter-spacing:.06em;text-transform:uppercase}
+.df label{display:grid;gap:4px;font-size:12px;font-weight:700;color:var(--muted)}.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sw{display:flex!important;gap:8px;align-items:center;color:var(--ink)!important;font-size:14px!important;font-weight:600!important}.sw input{width:auto}
 .chips{display:flex;flex-wrap:wrap;gap:5px}.chips label{display:inline-flex;gap:5px;align-items:center;background:var(--soft);border-radius:8px;padding:4px 8px;font-size:12.5px;color:var(--ink);font-weight:600}
-@media (max-width:1050px){.ly{grid-template-columns:1fr}}
+.wdr{display:grid;grid-template-columns:70px 1fr 1fr;gap:8px;align-items:center;margin-bottom:6px}.wdr input[type=time]{padding:6px 8px}
+.pk{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}.pk span{background:#E4DEEF;color:#3B3050;border-radius:8px;padding:4px 6px 4px 9px;font-size:12.5px;font-weight:600;display:inline-flex;gap:6px;align-items:center}
+.pk span b{cursor:pointer;opacity:.6}
+.df [hidden]{display:none!important}.pk-in{width:100%}
+@media (max-width:1000px){.dz,.df{grid-template-columns:1fr}.dz-side{position:static}}
 </style>
-<div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a></div><h1>Знижки</h1>
+<div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a></div>
+<div class="row between" style="flex-wrap:wrap;gap:10px"><h1 style="margin:0">Знижки</h1>
+  <div class="row" style="gap:8px">{% if n_cb_seed %}<form method="post" action="/settings/loyalty/import-discounts" style="margin:0"><button class="btn ghost" title="Створює відсутні за назвою; наявні не змінює">⇩ Перенести з CleverBox · {{ n_cb_seed }}</button></form>{% endif %}
+  <a class="btn" href="?new=1#form">＋ Створити знижку</a></div></div>
 {% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
 {% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
-<div class="ly"><div>
-<div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:#FBFAF8"><div><b>🎁 Бонусна програма</b> <span class="pill" style="background:#FFF1D6;color:#9A6A00">в розробці</span><div class="small muted">Налаштовується окремо від знижок.</div></div><a class="btn ghost" href="/settings/bonuses">Відкрити →</a></div>
-<div class="card" id="disc"><div class="row between"><h2 style="margin:0">🏷 Знижки · {{ rules|length }}</h2></div>
-  <p class="small muted" style="margin:6px 0 10px">Автоматичні знижки застосовуються в продажі самі; ручні — вибирає адміністратор. Якщо підходять кілька — береться найвигідніша, плюс ті, що «сумуються».</p>
-  {% for r in rules %}<div class="dr {{ 'off' if not r.active }}"><div><b>{{ r.name }}</b>{% if not r.active %} <span class="pill">вимкнено</span>{% endif %}
-      <div class="small muted">{{ {'all':'на все','services':'на послуги','products':'на товари'}[r.applies_to] }}{{ (' · ' ~ r.categories|join(', ')) if r.categories }}
-        {{ (' · з ' ~ (r.date_from|dt('%d.%m.%Y'))) if r.date_from }}{{ (' по ' ~ (r.date_to|dt('%d.%m.%Y'))) if r.date_to }}{% if r.weekdays %} · {% for w in r.weekdays %}{{ WD[w] }}{{ ',' if not loop.last }}{% endfor %}{% endif %}
-        {{ (' · від ' ~ (r.min_sum|uah)) if r.min_sum }}{{ (' · ' ~ ly.SEGMENTS.get(r.segment, '')) if r.segment }} · {{ 'авто' if r.auto else 'вручну' }}{{ ' · сумується' if r.combine }}</div>{% if r.note %}<div class="small">{{ r.note }}</div>{% endif %}</div>
-    <div class="row" style="gap:6px;flex-wrap:nowrap"><span class="v">{{ ('%g'|format(r.value) ~ '%') if r.kind=='percent' else r.value|uah }}</span><a class="btn ghost" style="padding:3px 10px" href="?edit={{ r.id }}#form">змінити</a>
-      <form method="post" action="/settings/loyalty/discount/{{ r.id }}/delete" data-delpw="Видалити знижку «{{ r.name }}»?" style="margin:0"><button style="border:0;background:none;color:var(--muted);cursor:pointer;font-size:16px">×</button></form></div></div>
-  {% else %}<p class="muted small">Знижок ще немає — додайте праворуч.</p>{% endfor %}</div>
-{% if personal %}<div class="card"><h2 style="margin-top:0">Персональні знижки · {{ personal|length }} <a class="small" href="/settings/personal-discounts" style="font-weight:600;text-transform:none;letter-spacing:0">керувати →</a></h2><table class="tb small"><tbody>{% for p in personal %}<tr><td><a href="/patients/{{ p.id }}#loyal">{{ p.full_name }}</a></td>{% set _pd = pdisc(p) %}<td class="r">товари <b>{{ '%g'|format(_pd[0]) }}%</b> · послуги <b>{{ '%g'|format(_pd[1]) }}%</b></td></tr>{% endfor %}</tbody></table>
-  <p class="small muted" style="margin:6px 0 0">Персональну знижку задають у картці пацієнта (блок «Бонуси й знижка»).</p></div>{% endif %}
+
+{% if form_open %}
+{% set tw = (r0.time_windows if r0 and r0.time_windows else {}) %}{% set wds = (r0.weekdays if r0 and r0.weekdays else []) %}
+{% set wd_on = r0 and (r0.time_windows or r0.weekdays) %}
+<form id="form" method="post" action="/settings/loyalty/discount" style="display:grid;gap:16px;margin-top:14px">
+  {% if r0 %}<input type="hidden" name="rid" value="{{ r0.id }}">{% endif %}
+  <div class="row between"><h2 style="margin:0">{{ 'Редагувати знижку' if r0 else 'Створити знижку' }}</h2><a class="btn ghost" href="?{{ ('tag=' ~ r0.tag|urlencode) if r0 and r0.tag }}#disc">← до списку</a></div>
+  <div class="df">
+  <div style="display:grid;gap:16px">
+    <div class="card" style="display:grid;gap:10px"><h3>Властивості</h3>
+      <label>Назва *<input name="name" value="{{ r0.name if r0 else '' }}" required placeholder="-15% Лазер Епіляція"></label>
+      <div class="two"><label>Період дії з *<input type="date" name="date_from" value="{{ r0.date_from if r0 and r0.date_from else today }}" required></label>
+        <label>по<input type="date" name="date_to" value="{{ r0.date_to if r0 and r0.date_to else '' }}"></label></div>
+      <label>Тег (розділ)<input name="tag" list="dz-tags" value="{{ (r0.tag or '') if r0 else qp.get('tag','') if qp.get('tag','') != '-' else '' }}" placeholder="Постійні акції"></label>
+      <datalist id="dz-tags">{% for t in dtags %}<option>{{ t }}</option>{% endfor %}</datalist>
+      <div class="two"><label>Розмір *<input name="value" value="{{ '%g'|format(r0.value) if r0 else '' }}" inputmode="decimal" required></label>
+        <label>Тип<select name="kind"><option value="percent" {{ 'selected' if not r0 or r0.kind=='percent' }}>%</option><option value="amount" {{ 'selected' if r0 and r0.kind=='amount' }}>₴ (сума)</option></select></label></div>
+      <label>Обмеження на одного пацієнта, разів<input name="per_client_limit" value="{{ r0.per_client_limit or '' if r0 }}" inputmode="numeric" placeholder="без обмеження"></label>
+    </div>
+    <div class="card" style="display:grid;gap:10px"><h3>Використання</h3>
+      <label class="sw"><input type="checkbox" name="unlimited" value="1" id="dz-unl" {{ 'checked' if not r0 or not r0.uses_limit }}> Безлімітна</label>
+      <label id="dz-uses" {{ 'hidden' if not r0 or not r0.uses_limit }}>Кількість використань<input name="uses_limit" value="{{ r0.uses_limit or '' if r0 }}" inputmode="numeric"></label>
+      {% if r0 %}<div class="small muted">Використано: {{ uses_n }}{{ (' з ' ~ r0.uses_limit) if r0.uses_limit }}</div>{% endif %}
+    </div>
+    <div class="card"><h3>Дні тижня</h3>
+      <label class="sw" style="margin-bottom:8px"><input type="checkbox" name="wd_on" value="1" id="dz-wd" {{ 'checked' if wd_on }}> Лише в певні дні / години</label>
+      <div id="dz-wdb" {{ 'hidden' if not wd_on }}>
+        {% for w in WD %}{% set d = loop.index0|string %}{% set t = tw.get(d) %}
+        <div class="wdr"><label class="sw"><input type="checkbox" name="wd{{ loop.index0 }}" value="1" {{ 'checked' if (t is not none) or (loop.index0 in wds) or not wd_on }}> {{ w }}</label>
+          <input type="time" name="wf{{ loop.index0 }}" value="{{ t[0] if t else '' }}"><input type="time" name="wt{{ loop.index0 }}" value="{{ t[1] if t else '' }}"></div>{% endfor %}
+        <div class="small muted">Години порожні — весь день.</div></div>
+    </div>
+  </div>
+  <div style="display:grid;gap:16px">
+    <div class="card" style="display:grid;gap:12px"><h3>Дія знижки</h3>
+      <div><div class="small" style="font-weight:700;color:var(--muted);margin-bottom:4px">Групи пацієнтів <span style="font-weight:400">(порожньо — усі)</span></div>
+        <div class="chips">{% for g in groups %}<label><input type="checkbox" name="client_groups" value="{{ g }}" {{ 'checked' if r0 and r0.client_groups and g in r0.client_groups }} style="width:auto">{{ g }}</label>{% else %}<span class="small muted">Груп немає — <a href="/settings/patient-tags">додати</a></span>{% endfor %}</div></div>
+      <div><div class="small" style="font-weight:700;color:var(--muted);margin-bottom:4px">Статуси пацієнтів</div>
+        <div class="chips">{% for g in statuses %}<label><input type="checkbox" name="patient_statuses" value="{{ g }}" {{ 'checked' if r0 and r0.patient_statuses and g in r0.patient_statuses }} style="width:auto">{{ g }}</label>{% endfor %}</div></div>
+      {% for key, ttl, names, ph in [('services','Послуги',svc_names,'почніть вводити назву послуги'),('products','Товари',prod_names,'почніть вводити назву товару')] %}
+      <div class="pkw" data-name="{{ key }}"><div class="small" style="font-weight:700;color:var(--muted);margin-bottom:4px">{{ ttl }}</div>
+        <input list="dl-{{ key }}" placeholder="{{ ph }}" class="pk-in"><datalist id="dl-{{ key }}">{% for n in names %}<option>{{ n }}</option>{% endfor %}</datalist>
+        <div class="pk">{% for n in (r0[key] if r0 and r0[key] else []) %}<span>{{ n }}<input type="hidden" name="{{ key }}" value="{{ n }}"><b>×</b></span>{% endfor %}</div></div>
+      {% endfor %}
+      <div class="small muted" style="margin-top:-4px">Якщо обрано послуги/товари — знижка діє лише на них. Інакше — за полем «На що» й категоріями нижче.</div>
+      <div class="row" style="gap:16px"><label class="sw"><input type="checkbox" name="on_certs" value="1" {{ 'checked' if r0 and r0.on_certs }}> Сертифікати</label>
+        <label class="sw"><input type="checkbox" name="on_subs" value="1" {{ 'checked' if r0 and r0.on_subs }}> Абонементи</label></div>
+    </div>
+    <div class="card" style="display:grid;gap:10px"><h3>Додатково</h3>
+      <label>На що (якщо послуги/товари не обрані)<select name="applies_to">{% for k, v in [('all','на все'),('services','лише послуги'),('products','лише товари')] %}<option value="{{ k }}" {{ 'selected' if r0 and r0.applies_to==k }}>{{ v }}</option>{% endfor %}</select></label>
+      <details {{ 'open' if r0 and r0.categories }}><summary class="small">Лише категорії / бренди ({{ (r0.categories|length) if r0 and r0.categories else 'усі' }})</summary><div class="chips" style="margin-top:6px;max-height:180px;overflow:auto">
+        {% for c in cats %}<label><input type="checkbox" name="categories" value="{{ c }}" {{ 'checked' if r0 and r0.categories and c in r0.categories }} style="width:auto">{{ c }}</label>{% endfor %}</div></details>
+      <div class="two"><label>Від суми чека, ₴<input name="min_sum" value="{{ '%g'|format(r0.min_sum) if r0 and r0.min_sum else '' }}" inputmode="decimal"></label>
+        <label>Кому<select name="segment">{% for k, v in ly.SEGMENTS.items() %}<option value="{{ k }}" {{ 'selected' if r0 and (r0.segment or '')==k }}>{{ v }}</option>{% endfor %}</select></label></div>
+      <label class="sw"><input type="checkbox" name="auto" value="1" {{ 'checked' if r0 and r0.auto }}> застосовувати автоматично</label>
+      <label class="sw"><input type="checkbox" name="combine" value="1" {{ 'checked' if r0 and r0.combine }}> сумується з іншими знижками</label>
+      <label class="sw"><input type="checkbox" name="active" value="1" {{ 'checked' if not r0 or r0.active }}> діє</label>
+      <label>Примітка<input name="note" value="{{ r0.note or '' if r0 }}"></label>
+    </div>
+  </div></div>
+  <div class="row" style="gap:8px"><button class="btn">Зберегти</button><a class="btn ghost" href="?#disc">Скасувати</a></div>
+</form>
+<script>
+(function(){
+  const u=document.getElementById('dz-unl'),ub=document.getElementById('dz-uses');u.onchange=()=>{ub.hidden=u.checked};
+  const w=document.getElementById('dz-wd'),wb=document.getElementById('dz-wdb');w.onchange=()=>{wb.hidden=!w.checked};
+  document.querySelectorAll('.pkw').forEach(box=>{
+    const inp=box.querySelector('.pk-in'),list=box.querySelector('.pk'),nm=box.dataset.name,
+          opts=new Set([...box.querySelectorAll('datalist option')].map(o=>o.value));
+    const add=v=>{v=v.trim();if(!v||!opts.has(v))return;if([...list.querySelectorAll('input')].some(i=>i.value===v)){inp.value='';return}
+      const s=document.createElement('span');s.textContent=v;const h=document.createElement('input');h.type='hidden';h.name=nm;h.value=v;
+      const b=document.createElement('b');b.textContent='×';s.append(h,b);list.append(s);inp.value=''};
+    inp.addEventListener('change',()=>add(inp.value));
+    inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();add(inp.value)}});
+    list.addEventListener('click',e=>{if(e.target.tagName==='B')e.target.parentElement.remove()});
+  });
+})();
+</script>
+{% else %}
+<div class="dz" id="disc" style="margin-top:14px">
+  <nav class="dz-side"><div class="h">Розділи</div>
+    {% set sq = ('&st=' ~ dst) if dst != 'active' else '' %}
+    <a href="?{{ sq }}#disc" class="{{ 'on' if not dtag }}">Всі <span class="n">{{ n_base }}</span></a>
+    {% for t in dtags %}<a href="?tag={{ t|urlencode }}{{ sq }}#disc" class="{{ 'on' if dtag==t }}">{{ t }} <span class="n">{{ tag_counts.get(t, 0) }}</span></a>{% endfor %}
+    {% if n_untagged %}<a href="?tag=-{{ sq }}#disc" class="{{ 'on' if dtag=='-' }}">Без тегу <span class="n">{{ n_untagged }}</span></a>{% endif %}
+  </nav>
+  <div>
+    <div class="card"><div class="row between" style="flex-wrap:wrap;gap:8px;margin-bottom:8px"><h2 style="margin:0">{{ 'Без тегу' if dtag=='-' else (dtag or 'Усі знижки') }} · {{ shown|length }}</h2>
+      {% set tq = ('tag=' ~ dtag|urlencode ~ '&') if dtag else '' %}
+      <div class="dz-tabs"><a href="?{{ tq }}#disc" class="{{ 'on' if dst=='active' }}">Активні</a><a href="?{{ tq }}st=expired#disc" class="{{ 'on' if dst=='expired' }}">Завершені / вимкнені</a><a href="?{{ tq }}st=all#disc" class="{{ 'on' if dst=='all' }}">Усі</a></div></div>
+      {% if shown %}<div style="overflow:auto"><table class="dtb"><thead><tr><th>Назва</th><th>Розмір</th><th>Період дії</th><th>Тег</th><th></th></tr></thead><tbody>
+      {% for r in shown %}{% set exp = ly.expired(r, today) %}<tr class="{{ 'off' if exp or not r.active }}"><td><a href="?edit={{ r.id }}#form" style="text-decoration:none;color:var(--ink);font-weight:700">{{ r.name }}</a>
+          {% if not r.active %} <span class="pill">вимкнено</span>{% elif exp %} <span class="pill">завершена</span>{% endif %}
+          <div class="meta">{% if r.services or r.products %}{{ ((r.services or [])|length + (r.products or [])|length) }} поз.{% else %}{{ {'all':'на все','services':'на послуги','products':'на товари'}[r.applies_to] }}{{ (' · ' ~ r.categories|join(', ')) if r.categories }}{% endif %}{% if r.client_groups %} · {{ r.client_groups|join(', ') }}{% endif %}{% if r.patient_statuses %} · {{ r.patient_statuses|join(', ') }}{% endif %}{% if r.weekdays %} · {% for w in r.weekdays %}{{ WD[w] }}{{ ',' if not loop.last }}{% endfor %}{% endif %}{% if r.per_client_limit %} · {{ r.per_client_limit }}× на пацієнта{% endif %}{% if r.uses_limit %} · ліміт {{ r.uses_limit }}{% endif %}{{ (' · від ' ~ (r.min_sum|uah)) if r.min_sum }}{{ (' · ' ~ ly.SEGMENTS.get(r.segment, '')) if r.segment }} · {{ 'авто' if r.auto else 'вручну' }}{{ ' · сумується' if r.combine }}</div>
+          {% if r.note %}<div class="meta" style="color:var(--ink)">{{ r.note }}</div>{% endif %}</td>
+        <td class="v">{{ ('%g'|format(r.value) ~ '%') if r.kind=='percent' else r.value|uah }}</td>
+        <td class="small" style="white-space:nowrap">{{ r.date_from|dt('%d.%m.%y') if r.date_from else '…' }} – {{ r.date_to|dt('%d.%m.%y') if r.date_to else '…' }}</td>
+        <td>{% if r.tag %}<span class="tg">{{ r.tag }}</span>{% endif %}</td>
+        <td><div class="row" style="gap:6px;flex-wrap:nowrap;justify-content:flex-end"><a class="btn ghost" style="padding:3px 10px" href="?edit={{ r.id }}#form">змінити</a>
+          <form method="post" action="/settings/loyalty/discount/{{ r.id }}/delete" data-delpw="Видалити знижку «{{ r.name }}»?" style="margin:0"><button style="border:0;background:none;color:var(--muted);cursor:pointer;font-size:16px">×</button></form></div></td></tr>
+      {% endfor %}</tbody></table></div>
+      {% else %}<p class="muted small">Тут поки порожньо. <a href="?new=1{{ ('&tag=' ~ dtag|urlencode) if dtag and dtag != '-' }}#form">Створити знижку</a>{% if n_cb_seed %} або перенесіть активні з CleverBox кнопкою вгорі{% endif %}.</p>{% endif %}
+      <p class="small muted" style="margin:10px 0 0">Ручні знижки вибирає адміністратор у касі — там показуються лише ті, що діють сьогодні й не вичерпали ліміт. Автоматичні застосовуються самі; з кількох береться найвигідніша, плюс ті, що «сумуються».</p></div>
+
+    <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:#FBFAF8"><div><b>🎁 Бонусна програма</b> <span class="pill" style="background:#FFF1D6;color:#9A6A00">в розробці</span><div class="small muted">Налаштовується окремо від знижок.</div></div><a class="btn ghost" href="/settings/bonuses">Відкрити →</a></div>
+    {% if personal %}<div class="card"><h2 style="margin-top:0">Персональні знижки · {{ personal|length }} <a class="small" href="/settings/personal-discounts" style="font-weight:600;text-transform:none;letter-spacing:0">керувати →</a></h2><table class="tb small"><tbody>{% for p in personal %}<tr><td><a href="/patients/{{ p.id }}#loyal">{{ p.full_name }}</a></td>{% set _pd = pdisc(p) %}<td class="r">товари <b>{{ '%g'|format(_pd[0]) }}%</b> · послуги <b>{{ '%g'|format(_pd[1]) }}%</b></td></tr>{% endfor %}</tbody></table>
+      <p class="small muted" style="margin:6px 0 0">Персональну знижку задають у картці пацієнта (блок «Бонуси й знижка»).</p></div>{% endif %}
+    <form class="card" method="get" style="display:grid;gap:8px;max-width:560px"><h2 style="margin:0">🧮 Перевірити автознижки на прикладі</h2><input type="hidden" name="calc" value="1">
+      <div class="two"><label>Послуга, ₴<input name="sp" value="{{ qp.get('sp','') }}" inputmode="decimal"></label><label>Категорія послуги<input name="sc" value="{{ qp.get('sc','') }}" list="ly-cats"></label></div>
+      <div class="two"><label>Товар, ₴<input name="pp" value="{{ qp.get('pp','') }}" inputmode="decimal"></label><label>Категорія / бренд<input name="pc" value="{{ qp.get('pc','') }}" list="ly-cats"></label></div>
+      <div class="two"><label>Дата<input type="date" name="day" value="{{ qp.get('day','') }}"></label><label>ID пацієнта (необовʼязково)<input name="pid" value="{{ qp.get('pid','') }}" inputmode="numeric"></label></div>
+      <datalist id="ly-cats">{% for c in cats %}<option>{{ c }}</option>{% endfor %}</datalist><button class="btn ghost">Порахувати</button>
+      {% if calc %}<div class="small" style="background:var(--soft);border-radius:10px;padding:10px 12px">Сума {{ calc.subtotal|uah }} · знижка <b>{{ calc.total|uah }}</b>{{ (' (' ~ calc.rules|join(' + ') ~ ')') if calc.rules }} · до сплати <b>{{ (calc.subtotal - calc.total)|uah }}</b></div>{% endif %}</form>
+  </div>
 </div>
-<div>
-<form class="card" id="form" method="post" action="/settings/loyalty/discount" style="display:grid;gap:10px"><h2 style="margin:0">{{ 'Змінити знижку' if r0 else 'Нова знижка' }}</h2>{% if r0 %}<input type="hidden" name="rid" value="{{ r0.id }}">{% endif %}
-  <label>Назва<input name="name" value="{{ r0.name if r0 else '' }}" required placeholder="Чорна пʼятниця, -15% на догляд"></label>
-  <div class="two"><label>Тип<select name="kind"><option value="percent" {{ 'selected' if not r0 or r0.kind=='percent' }}>%</option><option value="amount" {{ 'selected' if r0 and r0.kind=='amount' }}>сума, ₴</option></select></label>
-    <label>Розмір<input name="value" value="{{ '%g'|format(r0.value) if r0 else '' }}" inputmode="decimal" required></label></div>
-  <label>На що<select name="applies_to">{% for k, v in [('all','на все'),('services','лише послуги'),('products','лише товари')] %}<option value="{{ k }}" {{ 'selected' if r0 and r0.applies_to==k }}>{{ v }}</option>{% endfor %}</select></label>
-  <details {{ 'open' if r0 and r0.categories }}><summary class="small">Лише категорії / бренди ({{ (r0.categories|length) if r0 and r0.categories else 'усі' }})</summary><div class="chips" style="margin-top:6px;max-height:180px;overflow:auto">
-    {% for c in cats %}<label><input type="checkbox" name="categories" value="{{ c }}" {{ 'checked' if r0 and r0.categories and c in r0.categories }} style="width:auto">{{ c }}</label>{% endfor %}</div></details>
-  <div class="two"><label>З<input type="date" name="date_from" value="{{ r0.date_from if r0 and r0.date_from else '' }}"></label><label>По<input type="date" name="date_to" value="{{ r0.date_to if r0 and r0.date_to else '' }}"></label></div>
-  <div class="chips">{% for w in WD %}<label><input type="checkbox" name="weekdays" value="{{ loop.index0 }}" {{ 'checked' if r0 and r0.weekdays and loop.index0 in r0.weekdays }} style="width:auto">{{ w }}</label>{% endfor %}<span class="small muted">порожньо — щодня</span></div>
-  <div class="two"><label>Від суми чека, ₴<input name="min_sum" value="{{ '%g'|format(r0.min_sum) if r0 and r0.min_sum else '' }}" inputmode="decimal"></label>
-    <label>Кому<select name="segment">{% for k, v in ly.SEGMENTS.items() %}<option value="{{ k }}" {{ 'selected' if r0 and (r0.segment or '')==k }}>{{ v }}</option>{% endfor %}</select></label></div>
-  <label class="sw"><input type="checkbox" name="auto" value="1" {{ 'checked' if r0 and r0.auto }}> застосовувати автоматично</label>
-  <label class="sw"><input type="checkbox" name="combine" value="1" {{ 'checked' if r0 and r0.combine }}> сумується з іншими знижками</label>
-  <label class="sw"><input type="checkbox" name="active" value="1" {{ 'checked' if not r0 or r0.active }}> діє</label>
-  <label>Примітка<input name="note" value="{{ r0.note or '' if r0 }}"></label>
-  <div class="row" style="gap:6px"><button class="btn">Зберегти</button>{% if r0 %}<a class="btn ghost" href="?">Скасувати</a>{% endif %}</div></form>
-<form class="card" method="get" style="display:grid;gap:8px"><h2 style="margin:0">🧮 Перевірити на прикладі</h2><input type="hidden" name="calc" value="1">
-  <div class="two"><label>Послуга, ₴<input name="sp" value="{{ qp.get('sp','') }}" inputmode="decimal"></label><label>Категорія послуги<input name="sc" value="{{ qp.get('sc','') }}" list="ly-cats"></label></div>
-  <div class="two"><label>Товар, ₴<input name="pp" value="{{ qp.get('pp','') }}" inputmode="decimal"></label><label>Категорія / бренд<input name="pc" value="{{ qp.get('pc','') }}" list="ly-cats"></label></div>
-  <div class="two"><label>Дата<input type="date" name="day" value="{{ qp.get('day','') }}"></label><label>ID пацієнта (необовʼязково)<input name="pid" value="{{ qp.get('pid','') }}" inputmode="numeric"></label></div>
-  <datalist id="ly-cats">{% for c in cats %}<option>{{ c }}</option>{% endfor %}</datalist><button class="btn ghost">Порахувати</button>
-  {% if calc %}<div class="small" style="background:var(--soft);border-radius:10px;padding:10px 12px">Сума {{ calc.subtotal|uah }} · знижка <b>{{ calc.total|uah }}</b>{{ (' (' ~ calc.rules|join(' + ') ~ ')') if calc.rules }} · до сплати <b>{{ (calc.subtotal - calc.total)|uah }}</b><br>
-    Нарахується бонусів: <b>{{ calc.bonus|uah }}</b>{% if calc.patient %} · {{ calc.patient.full_name }} може сплатити бонусами до {{ calc.max_pay|uah }}{% endif %}</div>{% endif %}</form>
-</div></div>
+{% endif %}
+<style>.two label,.df .two label{display:grid;gap:4px;font-size:12px;font-weight:700;color:var(--muted)}</style>
 {% endblock %}

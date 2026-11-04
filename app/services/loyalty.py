@@ -122,12 +122,46 @@ def birthday_bonuses(db: Session, today: date | None = None) -> int:
 
 # ---------------- знижки ----------------
 
-def rule_applies(r: DiscountRule, day: date, patient: Patient | None = None) -> bool:
+TAGS = ["Постійні акції", "Сезонні акції", "ЛЕ", "STRATO", "Співробітник"]
+WD = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"]
+
+
+def tags(db: Session) -> list[str]:
+    """Розділи знижок: стандартні + ті, що вже є в правилах."""
+    have = [t for (t,) in db.execute(select(DiscountRule.tag).distinct()) if t]
+    return TAGS + sorted({t for t in have if t not in TAGS}, key=str.lower)
+
+
+def uses(db: Session, r: DiscountRule, patient_id: int | None = None) -> int:
+    """Скільки разів знижку застосовано в оплачених продажах (Sale.rules зберігає назви)."""
+    from ..models import Sale
+    q = select(Sale.rules).where(Sale.status.in_(("paid", "awaiting")), Sale.rules.is_not(None))
+    if patient_id:
+        q = q.where(Sale.patient_id == patient_id)
+    return sum(1 for rl in db.scalars(q) if rl and r.name in rl)
+
+
+def expired(r: DiscountRule, day: date | None = None) -> bool:
+    day = day or date.today()
+    return bool(r.date_to and day > r.date_to)
+
+
+def rule_applies(r: DiscountRule, day: date, patient: Patient | None = None, db: Session | None = None,
+                 at: datetime | None = None) -> bool:
     if not r.active:
         return False
     if r.date_from and day < r.date_from or r.date_to and day > r.date_to:
         return False
     if r.weekdays and day.weekday() not in [int(x) for x in r.weekdays]:
+        return False
+    tw = (r.time_windows or {}).get(str(day.weekday())) if r.time_windows else None
+    if r.time_windows and at is not None:
+        if not tw:
+            return False
+        hm = at.strftime("%H:%M")
+        if tw[0] and hm < tw[0] or tw[1] and hm > tw[1]:
+            return False
+    elif r.time_windows and str(day.weekday()) not in r.time_windows:
         return False
     if r.segment == "birthday":
         if not patient or not patient.birthday:
@@ -138,35 +172,72 @@ def rule_applies(r: DiscountRule, day: date, patient: Patient | None = None) -> 
     if r.segment == "new" and patient is not None and (patient.visits or []):
         if any(v.status == "done" for v in patient.visits):
             return False
+    if r.client_groups:
+        from .patient_tags import group_name
+        mine = {group_name(g).lower() for g in (patient.client_groups or [])} if patient else set()
+        if not mine & {str(g).lower() for g in r.client_groups}:
+            return False
+    if r.patient_statuses:
+        if not patient or db is None:
+            return False
+        from . import patient_tags as ptg
+        st = ptg.tag_for(ptg.tags(db), ptg.visit_days(db, [patient.id]).get(patient.id, 0))
+        if st not in r.patient_statuses:
+            return False
+    if db is not None and r.uses_limit and uses(db, r) >= r.uses_limit:
+        return False
+    if db is not None and r.per_client_limit and patient and uses(db, r, patient.id) >= r.per_client_limit:
+        return False
     return True
 
 
+def item_ok(r: DiscountRule, it: dict) -> bool:
+    """Чи діє правило на рядок продажу."""
+    t = it.get("type")
+    if t == "certificate":
+        return bool(r.on_certs)
+    if t == "subscription":
+        return bool(r.on_subs)
+    if r.services or r.products:                       # точний перелік послуг / товарів — головний
+        nm = (it.get("name") or "").strip().lower()
+        pool = r.services if t == "service" else r.products if t == "product" else None
+        return bool(pool) and nm in {str(x).strip().lower() for x in pool}
+    if r.applies_to == "services" and t != "service" or r.applies_to == "products" and t != "product":
+        return False
+    if r.categories and (it.get("category") or "") not in r.categories:
+        return False
+    return t in ("service", "product")
+
+
+def available(db: Session, patient: Patient | None = None, day: date | None = None, at: datetime | None = None) -> list[DiscountRule]:
+    """Ручні знижки, які зараз можна вибрати в касі (діють за датою, днем, лімітами, групою)."""
+    day = day or date.today()
+    rs = db.scalars(select(DiscountRule).where(DiscountRule.active.is_(True), DiscountRule.auto.is_(False))
+                    .order_by(DiscountRule.tag, DiscountRule.name)).all()
+    return [r for r in rs if rule_applies(r, day, patient, db, at)]
+
+
 def discount_for(db: Session, items: list[dict], patient: Patient | None = None, day: date | None = None,
-                 rule_ids: list[int] | None = None) -> dict:
-    """items: [{type: service|product, category, price, qty}] → знижка по рядках і підсумок.
+                 rule_ids: list[int] | None = None, at: datetime | None = None) -> dict:
+    """items: [{type: service|product|certificate|subscription, name, category, price, qty}] → знижка по рядках і підсумок.
     Беремо авто-правила (+ вибрані вручну rule_ids) і персональну знижку пацієнта; без combine — найвигідніша одна."""
     day = day or date.today()
     total = sum(float(i["price"]) * float(i.get("qty") or 1) for i in items)
     rules = [r for r in db.scalars(select(DiscountRule).where(DiscountRule.active.is_(True)))
-             if (r.auto or (rule_ids and r.id in rule_ids)) and rule_applies(r, day, patient) and total + 0.005 >= (r.min_sum or 0)]
+             if (r.auto or (rule_ids and r.id in rule_ids)) and rule_applies(r, day, patient, db, at) and total + 0.005 >= (r.min_sum or 0)]
 
-    def line_disc(r: DiscountRule, it: dict) -> float:
-        if r.applies_to == "services" and it["type"] != "service" or r.applies_to == "products" and it["type"] != "product":
-            return 0.0
-        if r.categories and (it.get("category") or "") not in r.categories:
-            return 0.0
-        base = float(it["price"]) * float(it.get("qty") or 1)
-        return base * r.value / 100 if r.kind == "percent" else 0.0
+    def base(it: dict) -> float:
+        return float(it["price"]) * float(it.get("qty") or 1)
 
     options = []
     for r in rules:
-        per = [line_disc(r, it) for it in items]
+        elig = [i for i, it in enumerate(items) if item_ok(r, it)]
         if r.kind == "amount":
-            elig = [i for i, it in enumerate(items) if line_disc(DiscountRule(kind="percent", value=100, applies_to=r.applies_to,
-                                                                                categories=r.categories), it) > 0]
-            base = sum(float(items[i]["price"]) * float(items[i].get("qty") or 1) for i in elig) or 1
-            amt = min(r.value, base)
-            per = [amt * float(items[i]["price"]) * float(items[i].get("qty") or 1) / base if i in elig else 0.0 for i in range(len(items))]
+            b = sum(base(items[i]) for i in elig) or 1
+            amt = min(r.value, b)
+            per = [amt * base(items[i]) / b if i in elig else 0.0 for i in range(len(items))]
+        else:
+            per = [base(it) * r.value / 100 if i in elig else 0.0 for i, it in enumerate(items)]
         options.append((r, per))
     from . import personal_discounts as pdc
     if patient and pdc.has(patient):
@@ -208,3 +279,50 @@ def max_bonus_pay(db: Session, total: float, patient_id: int) -> float:
     if not s.get("enabled"):
         return 0.0
     return round(min(balance(db, patient_id), total * float(s.get("max_pay_pct") or 0) / 100), 2)
+
+
+# ---------------- перенесення активних знижок CleverBox (з переліку на 04.11.2026) ----------------
+# (назва, розмір, %|₴, з, по, розділ, обмеження на пацієнта, на що)
+CB_DISCOUNTS = [
+    ("-10% БАРБ (діє лише 1 РАЗ)", 10, "percent", "2026-01-01", "2026-12-31", "Постійні акції", 1, "all"),
+    ("-10% ДР Пацієнти", 10, "percent", "2026-01-01", "2026-12-31", "Постійні акції", None, "all"),
+    ("-15% ЗСУ", 15, "percent", "2026-01-01", "2026-12-31", "Постійні акції", None, "all"),
+    ("-5% без пакування", 5, "percent", "2026-01-01", "2026-12-31", "Постійні акції", None, "products"),
+    ("-5% Фото відгук за QR", 5, "percent", "2026-01-01", "2026-12-31", "Постійні акції", None, "all"),
+    ("5% sorry", 5, "percent", "2026-01-01", "2026-12-31", "Постійні акції", None, "all"),
+    ("300 STRATOSPHERE 1 ВІЗИТ", 300, "amount", "2026-01-01", "2026-11-30", "STRATO", None, "services"),
+    ("-15 % Лазер Епіляція", 15, "percent", "2025-03-26", "2026-12-28", "ЛЕ", None, "services"),
+    ("-30% Лазер ТІЛЬКИ ДЛЯ ПОСТІЙНИХ від 2 зон (крім комплексів)", 30, "percent", "2025-01-01", "2026-12-31", "ЛЕ", None, "services"),
+    ("-50% Перший Візит Лазер", 50, "percent", "2025-01-01", "2026-12-31", "ЛЕ", 1, "services"),
+    ("-15% Косметика (Співробітник)", 15, "percent", "2026-01-01", "2026-12-31", "Співробітник", None, "products"),
+    ("-20% Додаткові Послуги (Співробітники)", 20, "percent", "2026-01-23", "2026-12-31", "Співробітник", None, "services"),
+    ("-30% Біоревіталізація/мезотерапія (Співробітник)", 30, "percent", "2026-01-23", "2026-12-31", "Співробітник", None, "services"),
+    ("-40% Біоревіталізація/мезотерапія (Співробітники)", 40, "percent", "2026-01-23", "2026-12-31", "Співробітник", None, "services"),
+    ("-40% Ботулінотерапія (Співробітники)", 40, "percent", "2026-01-23", "2026-12-31", "Співробітник", None, "services"),
+    ("-40% Видалення (Співробітники)", 40, "percent", "2026-01-23", "2026-12-31", "Співробітник", None, "services"),
+    ("-40% Доглядові процедури (Співробітники)", 40, "percent", "2026-01-23", "2026-12-31", "Співробітник", None, "services"),
+    ("-40% Пілінги (Співробітники)", 40, "percent", "2026-01-23", "2026-12-31", "Співробітник", None, "services"),
+    ("-40% Трихологія (Співробітники)", 40, "percent", "2026-01-23", "2026-12-31", "Співробітник", None, "services"),
+    ("-50% MOLODIST RESET (Співробітники)", 50, "percent", "2026-01-23", "2026-12-31", "Співробітник", None, "services"),
+    ("-50% Очищення шкіри (Співробітники)", 50, "percent", "2026-01-23", "2026-12-31", "Співробітник", None, "services"),
+    ("-60% Лазерна Епіляція (Співробітники)", 60, "percent", "2025-07-01", "2027-06-30", "Співробітник", None, "services"),
+    ("-60% Неінвазивний рф (Співробітники)", 60, "percent", "2026-01-23", "2026-12-31", "Співробітник", None, "services"),
+]
+
+
+def import_cb_discounts(db: Session) -> tuple[int, int]:
+    """Створює відсутні (за назвою) активні знижки CleverBox як ручні; наявні лише дописує розділ. → (створено, оновлено)."""
+    have = {r.name.strip().lower(): r for r in db.scalars(select(DiscountRule))}
+    new = upd = 0
+    for name, val, kind, d1, d2, tag, lim, to in CB_DISCOUNTS:
+        r = have.get(name.lower())
+        if r:
+            if not r.tag:
+                r.tag, upd = tag, upd + 1
+            continue
+        db.add(DiscountRule(name=name, value=val, kind=kind, date_from=date.fromisoformat(d1), date_to=date.fromisoformat(d2),
+                            tag=tag, per_client_limit=lim, applies_to=to, auto=False, combine=False, active=True,
+                            note="Перенесено з CleverBox — уточніть послуги/товари"))
+        new += 1
+    db.commit()
+    return new, upd
