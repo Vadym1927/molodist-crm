@@ -119,7 +119,7 @@ details.nrb summary{cursor:pointer;font-weight:600;color:var(--classic);font-siz
 {% for m in r.rows %}{% set p = m.prev %}
 <section class="doc" id="d{{ m.doctor_id }}">
   <div class="doc-h"><div style="display:flex;gap:14px;align-items:center">{{ avatar(m.doctor, 'lg') }}<div><h2>{{ m.name }}{% if m.rank and r.rows|length > 1 %}<span class="rank">#{{ m.rank }} за оборотом</span>{% endif %} <span class="sc {{ 'g' if m.score >= 75 else ('w' if m.score >= 50 else 'b') }}" title="індекс ефективності">{{ m.score }}</span></h2>
-      <div class="sub">{{ m.doctor.position or 'лікар' }} · {{ m.work_days }} роб. дн. · {{ m.done }} візитів · {{ m.patients }} пацієнтів{% if m.premium.total %} · <span class="pm">премія {{ m.premium.total|uah }}</span>{% endif %}</div>
+      <div class="sub">{{ m.doctor.position or 'лікар' }} · {{ m.work_days }} роб. дн. · {{ m.done }} візитів · {{ m.patients }} пацієнтів{% if m.source == 'sheet' %} · <span class="sc w" title="у чеках CleverBox за цей місяць немає позицій — фінанси, пацієнти й час з таблиці власника «KPI лікарі»">цифри з таблиці</span>{% endif %}{% if m.premium.total %} · <span class="pm">премія {{ m.premium.total|uah }}</span>{% endif %}</div>
       <a class="hl-l" style="margin-top:8px" href="/reports/doctors-kpi/history?key={{ m.doctor_id }}">Історія KPI ↗</a></div></div>
     <div class="big"><b>{{ m.total|uah }}{{ delta(m.total, (p.total if p else none)) }}</b><small>оборот · прибуток {{ m.profit|uah }} ({{ pct(m.margin) }})</small>
       {% if series.get(m.doctor_id) %}{% set sr = series[m.doctor_id] %}{% set smx = (sr|map(attribute='total')|list + [1])|max %}

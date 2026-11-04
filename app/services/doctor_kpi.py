@@ -543,6 +543,7 @@ def compute(db: Session, d_from: date, d_to: date, with_prev: bool = True, only:
         pay = {}
     _, by_doc = kpi_summary(all_statuses(db, d_from, d_to))
     plans = {k.doctor_id: k for k in by_doc if k.doctor_id}
+    sheet = {k: h["months"] for k, h in sheet_history(db).items() if isinstance(k, int)} if d_from.day == 1 else {}
     prev_rows: dict[int, dict] = {}
     if with_prev:
         p_from, p_to = prev_period(d_from, d_to)
@@ -556,7 +557,8 @@ def compute(db: Session, d_from: date, d_to: date, with_prev: bool = True, only:
         pplans = {k.doctor_id: k for k in pby if k.doctor_id}
         for d in doctors:
             if d.id in pagg and (only is None or d.id == only):
-                prev_rows[d.id] = _metrics(db, d, pagg[d.id], p_from, p_to, cfg, psh.get(d.id, {}), ppay.get(d.id, {}), pplans, None, with_lists=False)
+                prev_rows[d.id] = _overlay(_metrics(db, d, pagg[d.id], p_from, p_to, cfg, psh.get(d.id, {}), ppay.get(d.id, {}), pplans, None, with_lists=False),
+                                           sheet.get(d.id, {}).get(f"{p_from:%Y-%m}"))
     rows = []
     for d in doctors:
         if d.id not in agg or (only is not None and d.id != only):
@@ -565,7 +567,8 @@ def compute(db: Session, d_from: date, d_to: date, with_prev: bool = True, only:
         if not (x["services"] or x["products"] or x["done_keys"]):
             continue
         pv = prev_rows.get(d.id)
-        m = _metrics(db, d, x, d_from, d_to, cfg, sched.get(d.id, {}), pay.get(d.id, {}), plans, pv["_new"] if pv else None)
+        m = _overlay(_metrics(db, d, x, d_from, d_to, cfg, sched.get(d.id, {}), pay.get(d.id, {}), plans, pv["_new"] if pv else None),
+                     sheet.get(d.id, {}).get(f"{d_from:%Y-%m}"))
         m["prev"] = {k: v for k, v in pv.items() if not k.startswith("_") and k not in ("doctor", "cats", "targets", "prods")} if pv else None
         m["zones"] = _zones(m, pv)
         m["premium"] = _premium(m, cfg)
@@ -580,6 +583,35 @@ def compute(db: Session, d_from: date, d_to: date, with_prev: bool = True, only:
         prev_tot = _total(pr_)
     return {"rows": rows, "total": tot, "prev_total": prev_tot, "d_from": d_from, "d_to": d_to, "cfg": cfg,
             "prev_range": prev_period(d_from, d_to) if with_prev else None}
+
+
+SHEET_OVERLAY = ["services", "products", "n_services", "patients", "new", "old", "sched_h", "worked_h", "idle_h", "load",
+                 "rev_per_worked_h", "rev_per_sched_h", "salary", "comm_products", "taxes", "cost", "amort", "profit", "margin", "roi",
+                 "profit_per_h", "cost_per_h", "retention", "recommended", "ltv6", "ltv12", "work_days", "rev_per_day"]
+
+
+def _overlay(m: dict, sh: dict | None) -> dict:
+    """Місяці, де в чеках CleverBox немає позицій (виручка лікаря 0), — цифри з таблиці власника."""
+    if not sh or m["total"] > 0:
+        m["source"] = "crm"
+        return m
+    for k in SHEET_OVERLAY:
+        if sh.get(k) is not None:
+            m[k] = sh[k]
+    m["total"] = round(_f(m["services"]) + _f(m["products"]), 2)
+    m["products_share"] = _pct(_f(m["products"]), m["total"])
+    m["avg_patient"] = round(m["total"] / m["patients"], 2) if m.get("patients") else 0.0
+    m["avg_service"] = round(_f(m["services"]) / m["n_services"], 2) if m.get("n_services") else 0.0
+    m["patients"], m["new"], m["old"] = int(_f(m["patients"])), int(_f(m["new"])), int(_f(m["old"]))
+    m["gross"] = round(m["total"] - _f(m["cost"]), 2)
+    m["staff_cost"] = round(_f(m["salary"]) + _f(m["taxes"]), 2)
+    m["contrib"] = round(_f(m["services"]) - _f(m["cost"]) - _f(m["salary"]), 2)
+    m["contrib_pct"] = _pct(m["contrib"], _f(m["services"])) if m["services"] else None
+    if sh.get("cats"):
+        m["cats"] = [{"name": k, "n": 0, "sum": v, "cost": 0.0, "margin": None, "share": _pct(v, m["total"])}
+                     for k, v in sorted(sh["cats"].items(), key=lambda kv: -kv[1])]
+    m["source"] = "sheet"
+    return m
 
 
 def _score(m: dict) -> int:

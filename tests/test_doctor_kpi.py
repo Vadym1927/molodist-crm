@@ -153,3 +153,12 @@ def test_doctor_kpi_history_archive_cosmetics():
         assert hp.status_code == 200
         hp2 = cl.get("/reports/doctors-kpi/history?key=" + __import__("urllib.parse").parse.quote(next(a["key"] for a in arch if isinstance(a["key"], str))))
         assert hp2.status_code == 200 and "Оборот по місяцях" in hp2.text
+
+
+def test_overlay_from_sheet():
+    m = {"taxes": 0.0, "total": 0.0, "services": 0.0, "products": 0.0, "patients": 5, "new": 0, "old": 5, "cats": [], "n_services": 0, "cost": 0, "salary": 0}
+    sh = {"services": 100000.0, "products": 20000.0, "patients": 40.0, "new": 5.0, "old": 35.0, "n_services": 50.0, "salary": 30000.0,
+          "cost": 25000.0, "load": 60.0, "profit": 50000.0, "cats": {"Ботулінотерапія": 60000.0, "Косметика": 20000.0}}
+    r = dk._overlay(dict(m), sh)
+    assert r["source"] == "sheet" and r["total"] == 120000 and r["patients"] == 40 and r["load"] == 60 and r["cats"][0]["name"] == "Ботулінотерапія"
+    assert dk._overlay({**m, "total": 5.0}, sh)["source"] == "crm"
