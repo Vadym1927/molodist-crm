@@ -1808,7 +1808,7 @@ def sale_new(request: Request, appt: str = "", patient: int = 0, user: User = De
                   pd_manual=(lambda c_: None if c_["auto"] else c_["name"])(__import__("app.services.personal_discounts", fromlist=["cfg"]).cfg(db)),
                   certs=[{"id": c_.id, "code": c_.code or str(c_.id), "balance": c_.balance, "patient_id": c_.patient_id,
                           "name": c_.client_name or ""} for c_ in certs if c_.state() in ("active", "expiring")][:500],
-                  default_doc=user.doctor_id)
+                  default_doc=user.doctor_id, gift_types=__import__("app.services.gift_types", fromlist=["pos_items"]).pos_items(db))
 
 
 def _pos_link_map(methods: list[str], sl) -> dict:
@@ -1846,6 +1846,7 @@ def _sale_payload(f: dict) -> dict:
             "appointment_id": int(f["appointment_id"]) if str(f.get("appointment_id") or "").isdigit() else None,
             "appointment_ids": [int(x) for x in (f.get("appointment_ids") or []) if str(x).isdigit()][:10],
             "items": items, "rule_ids": [int(x) for x in f.get("rule_ids") or [] if str(x).isdigit()],
+            "cert_for": str(f.get("cert_for") or "")[:100],
             "manual_discount": float(f.get("manual_discount") or 0), "bonus_pay": float(f.get("bonus_pay") or 0),
             "fiscal_rro": (int(f["fiscal_rro"]) if str(f.get("fiscal_rro")).isdigit() else None) if "fiscal_rro" in f else None,
             "payments": f.get("payments") or [], "comment": str(f.get("comment") or "")}
@@ -2002,7 +2003,7 @@ async def sale_create(request: Request, user: User = Depends(require("sales")), 
         link_msgs = await _sale_links(request, db, s_, user)
     from .services import fiscal as _fis
     rro_ = d_.get("fiscal_rro")
-    if _test:
+    if _test or (s_.fiscal or {}).get("skipped"):                   # повна оплата сертифікатом / бонусами — без РРО
         pass
     elif rro_ and s_.status == "paid":                              # вибрана фіскальна каса в POS
         import threading
@@ -2012,7 +2013,7 @@ async def sale_create(request: Request, user: User = Depends(require("sales")), 
         threading.Thread(target=_fis.auto, args=(s_.id,), daemon=True).start()
     return JSONResponse({"ok": True, "id": s_.id, "msg": "; ".join(link_msgs),
                          "term": list(term_wait),
-                         "title": "Тестовий чек проведено (без фіскалізації й термінала)" if _test else "Чек створено — оплата на терміналі" if term_wait else ("Чек створено — очікує оплати" if s_.status == "awaiting" else "Продаж проведено")})
+                         "title": "Тестовий чек проведено (без фіскалізації й термінала)" if _test else "Продаж проведено — оплата сертифікатом, без РРО" if (s_.fiscal or {}).get("skipped") else "Чек створено — оплата на терміналі" if term_wait else ("Чек створено — очікує оплати" if s_.status == "awaiting" else "Продаж проведено")})
 
 
 @app.get("/sales/{sid:int}", response_class=HTMLResponse)
@@ -5607,6 +5608,7 @@ SETTINGS_BLOCKS = [
         ('Статті фінансових операцій', 'Довідник статей доходів і витрат: реклама, податки, персонал, закупки…', '/settings/articles', 'finance', 'dirs/ftype'),
         ('Знижки', 'Правила знижок: акції, дні тижня, категорії, автозастосування; персональні знижки', '/settings/loyalty', 'finance', None),
         ('Бонусна програма · в розробці', '% нарахування бонусів, оплата бонусами, термін дії, вітальні бонуси, перенос залишків з CleverBox', '/settings/bonuses', 'finance', None),
+        ('Сертифікати', 'Шаблони подарункових сертифікатів для продажу в касі (номінал, термін дії, ціна), нагадування адміністраторам, розрахунок сертифікатом', '/gifts?tab=types', 'finance', 'certs/types'),
         ('Платіжні системи', 'Посилання на оплату для пацієнтів: monobank еквайринг, LiqPay, WayForPay', '/settings/payments', 'finance', 'payment_system'),
         ('Банк monobank', 'Виписки ФОП, оплати постачальникам і їх автоматичне рознесення', '/settings/keys?s=mono#mono', 'finance', None),
         ('Checkbox', 'Фіскалізація чеків CRM, каси (РРО), відправлення чеків; оборот ФОП — у «Звіти → Ліміти ФОП»', '/settings/checkbox', 'finance', 'cmarket/checkbox/main'),
@@ -7168,8 +7170,18 @@ def gifts_page(request: Request, tab: str = "certs", st: str = "", q: str = "", 
                user: User = Depends(require("patients_all")), db: Session = Depends(db_dep)):
     from .models import GiftCertificate, Subscription
     from .services import certificates as cs
-    tab = tab if tab in ("certs", "subs") else "certs"
+    tab = tab if tab in ("certs", "subs", "types") else "certs"
     today = date.today()
+    if tab == "types":
+        from .services import gift_types as _gt
+        qp_ = request.query_params
+        sold_: dict = defaultdict(int)
+        for (tn_,) in db.execute(select(GiftCertificate.type_name).where(GiftCertificate.id >= _gt.CRM_ID_FROM)):
+            sold_[tn_ or ""] += 1
+        return render(request, "gifts.html", nav="gifts", tab=tab, types=_gt.items(db), gcfg=_gt.cfg(db), sold=dict(sold_),
+                      cur=_gt.get(db, int(qp_.get("edit"))) if (qp_.get("edit") or "").isdigit() else None,
+                      items=[], total=0, states=cs.STATES, counts={}, st="", q="", seller="", sellers=[], today=today, other_n=0, last=None,
+                      remind_days=_gt.cfg(db).get("remind_days", 14))
     model, states = (GiftCertificate, cs.STATES) if tab == "certs" else (Subscription, cs.SUB_STATES)
     items = db.scalars(select(model).order_by(model.sold_at.desc())).all()
     counts = defaultdict(lambda: {"n": 0, "sum": 0.0})
@@ -7193,7 +7205,41 @@ def gifts_page(request: Request, tab: str = "certs", st: str = "", q: str = "", 
     other = Subscription if tab == "certs" else GiftCertificate
     return render(request, "gifts.html", nav="gifts", tab=tab, items=items[:500], total=len(items), states=states,
                   counts=dict(counts), st=st, q=q, seller=seller, sellers=sellers, today=today,
-                  other_n=db.scalar(select(func.count()).select_from(other)) or 0, last=LAST_IMPORT.pop(f"gifts-{user.id}", None))
+                  other_n=db.scalar(select(func.count()).select_from(other)) or 0, last=LAST_IMPORT.pop(f"gifts-{user.id}", None),
+                  remind_days=__import__("app.services.gift_types", fromlist=["cfg"]).cfg(db).get("remind_days", 14))
+
+
+@app.post("/gifts/types")
+async def gifts_types_save(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import gift_types as _gt
+    f = await request.form()
+    try:
+        t = _gt.save(db, int(f["tid"]) if str(f.get("tid") or "").isdigit() else None,
+                     {"name": f.get("name"), "nominal": _num(str(f.get("nominal") or "")), "price": _num(str(f.get("price") or "")),
+                      "days": int(_num(str(f.get("days") or "")) or 60), "desc": f.get("desc"), "services": f.get("services"),
+                      "only_buyer": bool(f.get("only_buyer")), "active": bool(f.get("active")),
+                      "cb_id": int(f["cb_id"]) if str(f.get("cb_id") or "").isdigit() else None})
+    except (ValueError, TypeError) as e:
+        return RedirectResponse(_with_err("/gifts?tab=types", str(e)), 303)
+    audit(db, "gifts.type_save", user=user, name=t["name"])
+    return RedirectResponse(_with_msg("/gifts?tab=types", f"Шаблон «{t['name']}» збережено"), 303)
+
+
+@app.post("/gifts/types/{tid:int}/toggle")
+def gifts_types_toggle(tid: int, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import gift_types as _gt
+    _gt.toggle(db, tid)
+    return RedirectResponse("/gifts?tab=types", 303)
+
+
+@app.post("/gifts/settings")
+async def gifts_settings_save(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import gift_types as _gt
+    f = await request.form()
+    _gt.save_cfg(db, {"remind_days": int(_num(str(f.get("remind_days") or "")) or 14), "notify_tg": bool(f.get("notify_tg")),
+                      "code_prefix": f.get("code_prefix"), "desc": f.get("desc")})
+    audit(db, "gifts.settings", user=user)
+    return RedirectResponse(_with_msg("/gifts?tab=types", "Налаштування збережено"), 303)
 
 
 @app.post("/gifts/import")

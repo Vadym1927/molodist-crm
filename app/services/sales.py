@@ -128,11 +128,13 @@ def create(db: Session, data: dict, user_id: int | None = None) -> Sale:
         from . import techcards as _tc
         for aid_ in aids:
             _tc.seed(db, db.get(Appointment, aid_))
+    non_money_only = bool(pays) and all(p.get("method") in NON_MONEY for p in pays)
     sale = Sale(patient_id=patient.id if patient else None, appointment_id=data.get("appointment_id"), created_by=user_id,
                 status="awaiting" if data.get("await_terminal") or any(str(p.get("method") or "").startswith(PAYLINK) for p in pays) else "paid",
                 subtotal=q["subtotal"], discount=q["discount"], total=q["total"], bonus_spent=q["bonus_pay"],
                 bonus_accrued=q["bonus_accrual"], rules=q["rules"] or None, comment=(data.get("comment") or "")[:500] or None,
-                at=datetime.now())
+                at=datetime.now(),
+                fiscal={"skipped": "оплата сертифікатом / бонусами / з рахунку — без РРО"} if non_money_only else None)
     db.add(sale)
     for it, disc in zip(items, q["lines"]):
         qty, price = float(it.get("qty") or 1), round(float(it["price"]), 2)
@@ -149,6 +151,15 @@ def create(db: Session, data: dict, user_id: int | None = None) -> Sale:
     db.flush()
     # наслідки
     docs = {d.id: d.name for d in db.scalars(select(Doctor))}
+    from . import gift_types as _gt
+    for si in sale.items:                                      # продаж сертифіката → виписати в картку покупця
+        if si.kind == "certificate" and si.ref_id:
+            tpl = _gt.get(db, si.ref_id)
+            if not tpl:
+                raise SaleError("Шаблон сертифіката не знайдено")
+            for _ in range(max(1, int(round(si.qty)))):
+                _gt.issue(db, tpl, patient, db.get(Doctor, si.doctor_id) if si.doctor_id else None, sale.id, si.total / max(1, int(round(si.qty))),
+                          sale.at, recipient=(data.get("cert_for") or "").strip()[:100] or None)
     cache: dict = {}
     ledger = ledger_active(db)
     for si in sale.items:
@@ -203,6 +214,12 @@ def refund(db: Session, sale: Sale, reason: str, user_id: int | None = None) -> 
     db.execute(StockMove.__table__.delete().where(StockMove.ref.like(f"crmsale:{sale.id}:%")))
     db.execute(Visit.__table__.delete().where(Visit.external_id.like(f"crm:{sale.id}:%")))
     db.execute(ProductSale.__table__.delete().where(ProductSale.external_id.like(f"crm:{sale.id}:%")))
+    from . import gift_types as _gt
+    for c in _gt.sold_by_sale(db, sale.id):                    # виписані цим чеком: не використані — прибрати, інакше анулювати
+        if abs((c.balance or 0) - (c.nominal or 0)) < TOL:
+            db.delete(c)
+        else:
+            c.balance, c.cb_status = 0.0, "Повернено"
     for p in sale.payments:
         if p.method == CERT and p.cert_id:
             c = db.get(GiftCertificate, p.cert_id)

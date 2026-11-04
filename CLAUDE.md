@@ -30,6 +30,8 @@ CRM естетичної клініки MOLODIST (Київ) під бюті-пл
   booking (запис у CleverBox через slots), backups, alerts (Telegram власнику), exporter/importer
 - `app/services/doctor_kpi.py` — звіт «KPI лікарів» (/reports/doctors-kpi): виручка, пацієнти, LTV, час, фінанси, бюті-плани,
   дисципліна, зони покращення, премія (SalaryAdj «Премія KPI»); цілі/шкала — SyncState `doctor_kpi` (/settings/doctor-kpi)
+- `app/services/gift_types.py` — шаблони подарункових сертифікатів (/gifts?tab=types), продаж у касі (kind=certificate → GiftCertificate
+  у картці покупця), повна оплата сертифікатом — без РРО, часткова — знижка у фіскальному чеку; нагадування адмінам (задача + Telegram)
 - `app/integrations/messaging.py` — бот пацієнтів (токен PATIENT_BOT_TOKEN) + TurboSMS (Viber→SMS)
 - `docs/openclaw-patient-bot.md` — контракт API для бота пацієнтів
 - Тести: `docker compose exec app pytest -q` (потрібен будь-який PDF плану в `tests/sample_plan.pdf`)

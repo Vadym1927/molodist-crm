@@ -83,8 +83,9 @@ def generate_auto(db: Session, now: datetime | None = None) -> dict:
                description="\n".join(lines[:25]), assignee_role="owner", due_date=now.date())
 
     # сертифікати з залишком, що згорають за ≤ 14 днів — нагадати пацієнтці записатися
-    from .certificates import expiring
-    for c in expiring(db, now.date()):
+    from .gift_types import expiring as _gexp, notify_expiring as _gnotify
+    _gcerts = _gexp(db, now.date())
+    for c in _gcerts:
         days = (c.valid_to - now.date()).days
         who = c.patient.full_name if c.patient else (c.client_name or "власник сертифіката")
         ensure(f"cert:{c.id}:", f"cert:{c.id}:{c.valid_to:%Y%m%d}", kind="certificate", patient_id=c.patient_id,
@@ -93,6 +94,11 @@ def generate_auto(db: Session, now: datetime | None = None) -> dict:
                            f"діє до {c.valid_to:%d.%m.%Y} (≈ {days} дн). Продав(ла): {c.seller or '—'}.".replace(",", " "),
                assignee_role="admin", due_date=now.date(), priority="high" if days <= 3 else "normal")
 
+    try:
+        from ..config import settings as _cfg
+        _gnotify(db, _gcerts, _cfg.public_url)
+    except Exception:  # noqa: BLE001
+        pass
     from .certificates import subs_expiring
     for sb in subs_expiring(db, now.date()):
         days = (sb.valid_to - now.date()).days

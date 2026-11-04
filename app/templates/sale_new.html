@@ -234,7 +234,7 @@ dialog.payd::backdrop{background:rgba(42,36,48,.45)}
   <button type="button" data-s="visits"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4M8 13.5h3"/></svg>Візити</button>
   <button type="button" data-s="services"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17h16M6 17a6 6 0 0 1 12 0M12 8v3M10 6h4"/><path d="M3 20h18"/></svg>Послуги</button>
   <button type="button" data-s="products"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1 12H6z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/></svg>Товари</button>
-  <button type="button" data-s="certs" class="soon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="9" width="18" height="11" rx="1.5"/><path d="M3 13h18M12 9v11M12 9c-2-4-6-4-6-1.5S12 9 12 9s6-1 6-1.5S14 5 12 9"/></svg>Сертифікати</button>
+  <button type="button" data-s="certs"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="9" width="18" height="11" rx="1.5"/><path d="M3 13h18M12 9v11M12 9c-2-4-6-4-6-1.5S12 9 12 9s6-1 6-1.5S14 5 12 9"/></svg>Сертифікати</button>
   <button type="button" data-s="subs" class="soon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h4M7 14h7M16 10h1"/></svg>Абонементи</button>
 </nav>
 <section class="br" id="br"></section>
@@ -310,7 +310,7 @@ function f2(v){return (+v||0).toLocaleString('uk-UA',{minimumFractionDigits:2,ma
 function esc(s){return String(s||'').replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 function docSel(v){return '<select class="d"><option value="">Спеціаліст / продавець</option>'+DOCS.map(function(id,i){return '<option value="'+id+'"'+(id==v?' selected':'')+'>'+esc(DN[i])+'</option>'}).join('')+'</select>'}
 function _x(){}
-var KL={service:'Послуга',product:'Товар',other:'Інше',certificate:'Сертифікат'};
+var KL={service:'Послуга',product:'Товар',other:'Інше',certificate:'Сертифікат'},GIFTS={{ gift_types|tojson }};
 var DZ={mode:'check',rules:{{ rules|map(attribute='id')|list|tojson }},meta:{ {% for r in rules %}"{{ r.id }}":{n:{{ r.name|tojson }},t:{{ (r.tag or 'Інші')|tojson }},v:{{ (('−' ~ '%g'|format(r.value) ~ '%') if r.kind=='percent' else ('−' ~ r.value|uah))|tojson }}}{{ ',' if not loop.last }}{% endfor %} }};
 function dzApp(id){return S.q&&S.q.applicable?(S.q.applicable[id]||null):null}
 function rowSel(it,i){var groups={},order=[];DZ.rules.forEach(function(id){var m=DZ.meta[id],ap=dzApp(id);var ok=!S.q||(ap&&ap.indexOf(i)>=0);if(!ok&&it.rule_id!=id)return;
@@ -359,7 +359,7 @@ var QT=null;function quote(partial){if(partial)sums();else render();clearTimeout
     left()})},200)}
 function payload(){var r=document.getElementById('rule');return {patient_id:S.patient_id,appointment_id:S.appointment_id,appointment_ids:S.appointment_ids,items:S.items,
   rule_ids:r?[].map.call(r.selectedOptions,function(o){return +o.value}):[],manual_discount:+(document.getElementById('md').value||'').replace(',','.')||0,
-  bonus_pay:+(document.getElementById('bp').value||'').replace(',','.')||0,comment:document.getElementById('cmt').value,
+  bonus_pay:+(document.getElementById('bp').value||'').replace(',','.')||0,comment:document.getElementById('cmt').value,cert_for:S.cert_for||'',
   fiscal_rro:(function(){var b=document.querySelector('#fis .pt.on');return b?+b.dataset.r:undefined})(),
   payments:[].map.call(document.querySelectorAll('#pays .pay'),function(p){var m=p.querySelector('.m').value,c=p.querySelector('.c');return {method:m,amount:+p.querySelector('.a').value||0,cert_id:c&&m==='Сертифікат'?c.value:null}})}}
 document.querySelectorAll('#fis .pt').forEach(function(b){b.onclick=function(){document.querySelectorAll('#fis .pt').forEach(function(x){x.classList.remove('on')});b.classList.add('on')}});
@@ -400,7 +400,12 @@ var COL=['#5C4B82','#7BC47F','#E8A33D','#5B9BD5','#D96C8A','#8E6FD8','#46B3A6','
 function col(s){var h=0;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return COL[Math.abs(h)%COL.length]}
 function brLoad(keepFocus){var br=document.getElementById('br');
   if(!B.s){br.innerHTML='<div class="em">Оберіть розділ ліворуч, щоб побачити позиції для продажу</div>';return}
-  if(B.s==='certs'||B.s==='subs'){br.innerHTML='<div class="em">'+(B.s==='certs'?'Продаж сертифікатів':'Абонементи')+' — додамо наступним кроком.<br><br><a href="/gifts">Сертифікати й абонементи →</a></div>';return}
+  if(B.s==='certs'){br.innerHTML=(GIFTS.length?'<div class="tl">'+GIFTS.map(function(g,i){return '<button type="button" class="t" style="--tc:#5C4B82" data-i="'+i+'"><b>'+esc(g.name)+'</b><small>номінал '+f2(g.nominal)+' · діє '+g.days+' дн.'+(g.desc?' · '+esc(g.desc):'')+'</small><span class="pr">'+f2(g.price)+'</span></button>'}).join('')+'</div>':'<div class="em">Шаблонів сертифікатів ще немає</div>')+
+      '<div class="small muted" style="margin-top:10px">Сертифікат запишеться в картку обраного пацієнта (покупця): код, номінал, термін дії. <a href="/gifts?tab=types">Шаблони →</a></div>'+
+      '<label class="small" style="display:block;margin-top:8px">Для кого (необовʼязково)<input id="cfor" value="'+esc(S.cert_for||'')+'" placeholder="імʼя отримувача, якщо подарунок" style="height:38px;width:100%;margin-top:4px"></label>';
+    document.getElementById('cfor').oninput=function(){S.cert_for=this.value};
+    br.querySelectorAll('.t[data-i]').forEach(function(b){b.onclick=function(){var g=GIFTS[+b.dataset.i];S.items.push({kind:'certificate',ref_id:g.id,name:g.name,category:'Сертифікати',qty:1,price:+g.price,doctor_id:DEF});quote()}});return}
+  if(B.s==='subs'){br.innerHTML='<div class="em">Абонементи — додамо наступним кроком.<br><br><a href="/gifts?tab=subs">Абонементи →</a></div>';return}
   if(B.s==='visits'){fetch('/pos/visits?d='+B.day).then(function(r){return r.json()}).then(function(js){
       br.innerHTML='<div class="row" style="gap:6px;margin-bottom:12px"><input type="date" id="vd" value="'+js.day+'" style="height:40px"><span class="muted small">записи на день</span></div><div class="vl">'+
         (js.rows.map(function(v,i){var done=!!v.sale_id;return '<button type="button" class="v '+(done?'paid':'')+'" data-i="'+i+'"><span class="tm">'+v.at+'</span><span style="flex:1;min-width:0"><b>'+esc(v.patient)+'</b><small>'+esc(v.doctor||'')+(v.end?' · до '+v.end:'')+(v.cb?' · CleverBox':'')+(done?' · вже розраховано':'')+'</small>'+
