@@ -280,13 +280,13 @@ def max_bonus_pay(db: Session, total: float, patient_id: int) -> float:
     return round(min(balance(db, patient_id), total * float(s.get("max_pay_pct") or 0) / 100), 2)
 
 
-# ---------------- перенесення активних знижок CleverBox (знімок налаштувань 04.11.2026, app/data/cb_discounts.json) ----------------
+# ---------------- перенесення активних знижок CleverBox (знімок налаштувань 04.11.2026, app/services/cb_discounts.json) ----------------
 TAG_MAP = {"ПОСТІЙНІ АКЦІЇ": "Постійні акції", "СЕЗОННІ АКЦІЇ": "Сезонні акції", "СПІВРОБІТНИК": "Співробітник", "ЛЕ": "ЛЕ", "STRATO": "STRATO"}
 
 
 def _cb_list() -> list[dict]:
     from pathlib import Path
-    return json.loads((Path(__file__).resolve().parent.parent / "data" / "cb_discounts.json").read_text("utf-8"))
+    return json.loads((Path(__file__).resolve().parent / "cb_discounts.json").read_text("utf-8"))
 
 
 CB_DISCOUNTS = _cb_list()
