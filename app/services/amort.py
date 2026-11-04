@@ -339,26 +339,23 @@ def operational(db: Session) -> float:
 
 
 def fund_part(db: Session, box: dict) -> dict:
-    """Амортизаційна частина спільного рахунку — окремий облік, на який впливають лише рухи амортизації:
-    стартовий залишок рахунку − операційна частина + погашення (переміщення на рахунок) − витрати з фонду.
-    Закупки, оплати постачальникам та інші операції рахунку йдуть з операційної частини."""
+    """Амортизаційна частина спільного рахунку = усі погашення − усі витрати з фонду (як у таблиці: з історією).
+    Закупки, оплати постачальникам та інші операції рахунку — операційна частина (решта балансу)."""
     from . import cashboxes as cbx
     name = box.get("name")
-    since = cbx._since(box)
-    q = select(FinOp).where(FinOp.deleted_at.is_(None), FinOp.ref.like("amort:%"))
-    if since:
-        q = q.where(FinOp.day >= since)
+    assets = {a.id: a for a in db.scalars(select(AmortAsset))}
     inc = out = 0.0
-    for f in db.scalars(q):
-        if f.kind == "transfer" and f.cashbox_to == name:
-            inc += f.amount or 0
-        elif f.cashbox == name:
-            out += f.amount or 0
-    start = round(float(box.get("opening") or 0) - operational(db), 2)
-    amort = round(start + inc - out, 2)
+    for t in db.scalars(select(AmortTxn)):
+        if t.kind == "pay":
+            a = assets.get(t.asset_id)
+            if t.source == "sheet" or not a or (a.cashbox or name) == name:
+                inc += t.amount or 0
+        elif t.kind == "expense":
+            if t.source == "sheet" or (t.cashbox or name) == name:
+                out += t.amount or 0
+    amort = round(inc - out, 2)
     total = cbx.balance(db, box)
-    return {"amort": amort, "start": start, "in": round(inc, 2), "out": round(out, 2), "total": total,
-            "oper": round(total - amort, 2), "since": since}
+    return {"amort": amort, "in": round(inc, 2), "out": round(out, 2), "total": total, "oper": round(total - amort, 2)}
 
 
 def set_operational(db: Session, amount: float) -> None:

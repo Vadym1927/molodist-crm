@@ -50,7 +50,7 @@ dialog.am-d{border:0;border-radius:18px;padding:0;width:min(460px,95vw);box-shad
 {% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
 
 {% if fund_balance is not none %}<div class="am-hero">
-  <div><span>На амортизаційному фонді зараз</span><b>{{ fund_balance|uah }}</b><small>змінюється лише від погашень і витрат амортизації · на рахунку «{{ fund_name }}» усього {{ fund_part.total|uah }}, з них операційна частина {{ fund_part.oper|uah }} (закупки й інші оплати з рахунку йдуть з неї)</small></div>
+  <div><span>На амортизаційному фонді зараз</span><b>{{ fund_balance|uah }}</b><small>усі відрахування {{ fund_part.in|uah }} − витрати {{ fund_part.out|uah }} · змінюється від кожного погашення й витрати · на рахунку «{{ fund_name }}» усього {{ fund_part.total|uah }}, з них операційна частина {{ fund_part.oper|uah }}</small></div>
   <div class="{{ 'neg' if diff_main > 0.5 }}"><span>Не погашено</span><b>{{ diff_main|uah }}</b><small>за зафіксовані періоди</small></div>
   <div><span>Після погашення буде</span><b>{{ (fund_balance + ([diff_main, 0]|max))|uah }}</b><small>+ поточний півмісяць {{ fund.live|uah }} з наступним нарахуванням</small></div>
   {% for j in jars %}<div class="jar">🫙 <a href="{{ j.asset.jar }}" target="_blank" rel="noopener">{{ j.asset.cashbox }}</a> · {{ j.asset.name }}: зараз <b style="display:inline;font-size:14px">{{ (j.jar.balance if j.jar else j.crm or 0)|uah }}</b>{{ '' if j.jar else ' (за CRM)' }} · не погашено <b style="display:inline;font-size:14px">{{ j.diff|uah }}</b></div>{% endfor %}

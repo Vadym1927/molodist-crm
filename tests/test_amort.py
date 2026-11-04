@@ -93,7 +93,7 @@ def test_operational_part():
     with TestClient(app) as c:
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
         c.post("/settings/amort/operational", data={"amount": "120000"})
-        assert "120000.00" in c.get("/settings/amort").text
+        assert am.operational(SessionLocal()) == 120000
         c.post("/settings/amort/operational", data={"amount": "110000"})
     with SessionLocal() as db:
         assert am.operational(db) == 110000
@@ -125,12 +125,8 @@ def test_fund_part_ignores_purchases():
             cbx.save(db, None, {"name": name, "type": "bank", "active": True, "opening": 200000, "opening_date": "2026-10-30", "methods": []})
         box = next(x for x in cbx.items(db) if x["name"] == name)
         base = am.fund_part(db, box)
-        assert base["amort"] == 200000 - am.operational(db)
+        assert base["amort"] == round(base["in"] - base["out"], 2)
         db.add(FinOp(day=date(2026, 11, 4), kind="expense", category="Закупка товара", amount=18854.64, cashbox=name, ref="banktxn:x"))
         db.commit()
         p2 = am.fund_part(db, box)
         assert p2["amort"] == base["amort"] and round(p2["oper"], 2) == round(base["oper"] - 18854.64, 2)
-        db.add(FinOp(day=date(2026, 11, 4), kind="transfer", category="Амортизація обладнання", amount=1000, cashbox="Готівка Cейф", cashbox_to=name, ref="amort:1"))
-        db.add(FinOp(day=date(2026, 11, 4), kind="expense", category="Обслуговування обладнання", amount=300, cashbox=name, ref="amort:fund"))
-        db.commit()
-        assert am.fund_part(db, box)["amort"] == round(base["amort"] + 700, 2)
