@@ -29,8 +29,15 @@
   {% if can(user,'finance') %}<a href="?tab=types" class="{{ 'on' if tab=='types' }}">⚙ Шаблони й налаштування</a>{% endif %}</nav>
 
 {% if tab == 'types' %}
-<style>.gt-g{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,420px);gap:16px;align-items:start}@media(max-width:1100px){.gt-g{grid-template-columns:1fr}}
-.gt-f{display:grid;gap:10px}.gt-f label{display:grid;gap:4px;font:700 12px var(--sans);color:#8a8496}.gt-f input{margin:0;width:100%;min-width:0;box-sizing:border-box}.gt-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+<style>.gt-g{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,400px);gap:16px;align-items:start;max-width:100%}@media(max-width:1200px){.gt-g{grid-template-columns:minmax(0,1fr)}}
+.gt-g>*{min-width:0}.gt-g .card{margin:0;box-sizing:border-box;max-width:100%}#gtf{position:sticky;top:84px}@media(max-width:1200px){ #gtf{position:static}}
+.gt-f{display:grid;gap:12px}.gt-f label{display:grid;gap:5px;font:700 12px var(--sans);color:#8a8496;min-width:0}
+.gt-f input,.gt-f select{margin:0;width:100%;min-width:0;max-width:100%;box-sizing:border-box;height:42px}.gt-2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;align-items:end}
+.gt-hint{font:500 12px var(--sans);color:#8a8496;line-height:1.4}
+.gt-t{width:100%;border-collapse:collapse;font-size:13.5px}.gt-t th{font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496;text-align:left;padding:8px 10px;border-bottom:1px solid #ECE7E1;white-space:nowrap}
+.gt-t td{padding:10px;border-bottom:1px solid #F1EDE8;vertical-align:middle}.gt-t .r{text-align:right;white-space:nowrap}.gt-t tr:hover td{background:#FBFAF8}.gt-t tr.on td{background:#F3F0FA}
+.gt-t tr.off td{opacity:.55}.gt-t .meta{font-size:11.5px;color:#8a8496;font-weight:500;margin-top:2px}
+.gt-pill{display:inline-block;border-radius:99px;padding:2px 9px;font:700 11px var(--sans);background:#E4DEEF;color:#3B3050;white-space:nowrap}.gt-pill.s{background:#FFF1D6;color:#9A6A00}
 .gt-sw{display:flex!important;gap:8px;align-items:center;color:var(--ink)!important;font-size:14px!important}.gt-sw input{width:auto!important}
 .tb tr.off td{opacity:.5}</style>
 {% set qp = request.query_params %}{% set r0 = cur %}
@@ -38,18 +45,19 @@
 <div class="gt-g"><div>
   <div class="card"><div class="row between"><h2 style="margin:0">Шаблони сертифікатів · {{ types|length }}</h2><a class="btn" href="?tab=types&new=1#gtf">＋ Шаблон</a></div>
     <p class="small muted" style="margin:6px 0 10px">Те саме, що «Шаблони Gift Card» у CleverBox. Продаються в касі CRM (розділ «Сертифікати»): сертифікат записується в картку покупця з кодом, номіналом і датою закінчення.</p>
-    <div style="overflow:auto"><table class="tb small"><thead><tr><th>Код</th><th>Назва</th><th class="r">Номінал</th><th class="r">Термін дії</th><th class="r">Ціна</th><th>Використання</th><th>У фіскальному чеку</th><th class="r">Продано в CRM</th><th></th></tr></thead><tbody>
-    {% for t in types %}<tr class="{{ '' if t.active else 'off' }}" style="cursor:pointer" onclick="if(!event.target.closest('a,button,form'))location='?tab=types&edit={{ t.id }}#gtf'">
-      <td class="muted">{{ t.cb_id or ('CRM-' ~ t.id) }}</td><td><b>{{ t.name }}</b>{% if t.only_buyer %}<div class="meta">лише покупець</div>{% endif %}{% if t.services %}<div class="meta">{{ t.services }}</div>{% endif %}</td>
-      <td class="r">{{ t.nominal|uah }}</td><td class="r">{{ t.days }} дн.</td><td class="r">{{ (t.price or t.nominal)|uah }}</td><td>{{ 'одноразовий' if t.usage == 'single' else 'багаторазовий' }}</td><td class="muted">{{ t.desc or 'Послуги краси' }}</td><td class="r">{{ sold.get(t.name, 0) }}</td>
-      <td class="r" style="white-space:nowrap"><form method="post" action="/gifts/types/{{ t.id }}/toggle" style="display:inline"><button class="btn ghost" style="padding:3px 10px">{{ 'вимкнути' if t.active else 'увімкнути' }}</button></form></td></tr>
-    {% else %}<tr><td colspan="9" class="muted">Шаблонів немає</td></tr>{% endfor %}</tbody></table></div></div>
+    <div style="overflow-x:auto"><table class="gt-t"><thead><tr><th>Шаблон</th><th class="r">Номінал / ціна</th><th class="r">Діє</th><th>Використання</th><th class="r">Продано</th><th></th></tr></thead><tbody>
+    {% for t in types %}<tr class="{{ '' if t.active else 'off' }}{{ ' on' if r0 and r0.id == t.id }}" style="cursor:pointer" onclick="if(!event.target.closest('a,button,form'))location='?tab=types&edit={{ t.id }}#gtf'">
+      <td><b>{{ t.name }}</b><div class="meta">{{ ('CleverBox ' ~ t.cb_id) if t.cb_id else ('CRM-' ~ t.id) }} · у чеку: {{ t.desc or 'Послуги краси' }}{{ ' · лише покупець' if t.only_buyer }}{{ (' · ' ~ t.services) if t.services }}</div></td>
+      <td class="r"><b>{{ t.nominal|uah }}</b>{% if t.price and t.price != t.nominal %}<div class="meta">ціна {{ t.price|uah }}</div>{% endif %}</td>
+      <td class="r">{{ t.days }} дн.</td><td><span class="gt-pill {{ 's' if t.usage == 'single' }}">{{ 'одноразовий' if t.usage == 'single' else 'багаторазовий' }}</span></td><td class="r">{{ sold.get(t.name, 0) }}</td>
+      <td class="r"><form method="post" action="/gifts/types/{{ t.id }}/toggle" style="display:inline"><button class="btn ghost" style="padding:3px 10px;font-size:12px">{{ 'вимкнути' if t.active else 'увімкнути' }}</button></form></td></tr>
+    {% else %}<tr><td colspan="6" class="muted">Шаблонів немає</td></tr>{% endfor %}</tbody></table></div></div>
 
   <form class="card" method="post" action="/gifts/settings" style="margin-top:16px"><h2 style="margin-top:0">Налаштування сертифікатів</h2>
     <div class="gt-f"><div class="gt-2"><label>Нагадувати адміністраторам за, днів до закінчення<input name="remind_days" value="{{ gcfg.remind_days }}" inputmode="numeric"></label>
       <label>Префікс коду сертифіката CRM<input name="code_prefix" value="{{ gcfg.code_prefix }}" maxlength="8"></label></div>
       <label>Назва у фіскальному чеку за замовчуванням<input name="desc" value="{{ gcfg.desc }}"></label>
-      <label class="gt-sw"><input type="checkbox" name="notify_tg" value="1" {{ 'checked' if gcfg.notify_tg }}> Надсилати в Telegram адміністраторам і власнику (крім задачі в «Задачах»)</label></div>
+      <label class="gt-sw"><input type="checkbox" name="notify_tg" value="1" {{ 'checked' if gcfg.notify_tg }} style="height:auto"> Надсилати в Telegram адміністраторам і власнику (крім задачі в «Задачах»)</label></div>
     <p class="small muted" style="margin:10px 0">Як працює: щодня о 10:00 CRM знаходить сертифікати з залишком, які закінчуються за вказану кількість днів, створює задачу адміністратору «запросити пацієнта» і надсилає Telegram (один раз на сертифікат). Розрахунок сертифікатом у касі: повна оплата — чек без РРО; часткова — сума сертифіката йде знижкою у фіскальний чек, решта фіскалізується. Одноразовий сертифікат після першого використання обнуляється. Чек при продажі сертифіката пацієнту не надсилається — вмикається в <a href="/settings/checkbox">Checkbox → Відправлення чеків</a>.</p>
     <button class="btn">Зберегти</button></form></div>
 
@@ -59,11 +67,12 @@
       <label>Ціна продажу, ₴<input name="price" value="{{ '%g'|format(r0.price) if r0 and r0.price else '' }}" inputmode="decimal" placeholder="= номінал"></label></div>
     <div class="gt-2"><label>Термін дії, днів<input name="days" value="{{ r0.days if r0 else 60 }}" inputmode="numeric" required></label>
       <label>Код CleverBox<input name="cb_id" value="{{ r0.cb_id if r0 and r0.cb_id else '' }}" inputmode="numeric" placeholder="необовʼязково"></label></div>
-    <label>Назва у фіскальному чеку<input name="desc" value="{{ r0.desc if r0 else gcfg.desc }}" placeholder="Послуги краси"><span style="font-weight:500;color:#8a8496">Ця назва буде використовуватись у фіскальному чеку Checkbox замість назви сертифіката</span></label>
-    <label>Використання<select name="usage" style="margin:0;height:42px"><option value="multi" {{ 'selected' if not r0 or (r0.usage or 'multi') == 'multi' }}>Багаторазовий — залишок можна витрачати кілька візитів</option><option value="single" {{ 'selected' if r0 and r0.usage == 'single' }}>Одноразовий — після першого використання залишок згорає</option></select></label>
+    <label>Назва у фіскальному чеку<input name="desc" value="{{ r0.desc if r0 else gcfg.desc }}" placeholder="Послуги краси"><span class="gt-hint">Ця назва буде використовуватись у фіскальному чеку Checkbox замість назви сертифіката</span></label>
+    <label>Використання<select name="usage" onchange="document.getElementById('gt-uh').textContent=this.value=='single'?'Після першого використання залишок згорає':'Залишок можна витрачати за кілька візитів'"><option value="multi" {{ 'selected' if not r0 or (r0.usage or 'multi') == 'multi' }}>Багаторазовий</option><option value="single" {{ 'selected' if r0 and r0.usage == 'single' }}>Одноразовий</option></select>
+      <span class="gt-hint" id="gt-uh">{{ 'Після першого використання залишок згорає' if r0 and r0.usage == 'single' else 'Залишок можна витрачати за кілька візитів' }}</span></label>
     <label>На які послуги діє<input name="services" value="{{ r0.services if r0 else '' }}" placeholder="порожньо — на всі послуги"></label>
-    <label class="gt-sw"><input type="checkbox" name="only_buyer" value="1" {{ 'checked' if r0 and r0.only_buyer }}> Лише покупець (не можна передати іншому)</label>
-    <label class="gt-sw"><input type="checkbox" name="active" value="1" {{ 'checked' if not r0 or r0.active }}> Активний (видно в касі)</label>
+    <label class="gt-sw"><input type="checkbox" name="only_buyer" value="1" style="height:auto" {{ 'checked' if r0 and r0.only_buyer }}> Лише покупець (не можна передати іншому)</label>
+    <label class="gt-sw"><input type="checkbox" name="active" value="1" style="height:auto" {{ 'checked' if not r0 or r0.active }}> Активний (видно в касі)</label>
     <div class="row" style="gap:8px"><button class="btn">Зберегти</button>{% if r0 %}<a class="btn ghost" href="?tab=types">Скасувати</a>{% endif %}</div></form>
 </div>
 {% else %}
