@@ -10,15 +10,60 @@
   <div class="tile"><span>Виплачено</span><b class="in">{{ total.paid|uah }}</b></div>
   <div class="tile"><span>До виплати</span><b style="color:{{ 'var(--bad)' if total.closing > 0.01 else 'inherit' }}">{{ total.closing|uah }}</b></div>
 </div>
-<div class="card" style="padding:6px 8px;overflow:auto"><table class="tb small"><thead><tr><th>Спеціаліст</th><th class="r">Борг на початок</th><th class="r">Нараховано</th><th class="r">Виплачено</th><th class="r">До виплати</th><th>Виплатити</th></tr></thead><tbody>
-{% for r in rows %}<tr><td><b>{{ r.doctor.name }}</b></td><td class="r">{{ r.opening|uah }}</td><td class="r">{{ r.accrued|uah }}</td><td class="r">{{ r.paid|uah if r.paid else '—' }}</td>
-  <td class="r"><b style="color:{{ 'var(--bad)' if r.closing > 0.01 else ('var(--ok)' if r.closing < -0.01 else 'inherit') }}">{{ r.closing|uah }}</b>{% if r.closing < -0.01 %}<div class="meta">переплата</div>{% endif %}</td>
-  <td><form method="post" action="/finance/ops" class="row" style="gap:4px;flex-wrap:nowrap"><input type="hidden" name="kind" value="expense"><input type="hidden" name="category" value="{{ sal_cat }}">
-      <input type="hidden" name="doctor_id" value="{{ r.doctor.id }}"><input type="hidden" name="salary_month" value="{{ month }}"><input type="hidden" name="back" value="/finance/settle?m={{ month }}">
-      <input name="amount" inputmode="decimal" value="{{ '%.2f'|format(r.closing) if r.closing > 0.01 else '' }}" placeholder="Сума" style="width:110px;height:34px">
-      <select name="cashbox" style="height:34px">{% for b in boxes %}<option>{{ b }}</option>{% endfor %}</select><input type="date" name="day" value="{{ today }}" style="height:34px">
-      <button class="btn" style="padding:4px 10px">Виплачено</button></form></td></tr>
-{% else %}<tr><td colspan="6" class="muted">Немає нарахувань — задайте правила на вкладці «Нарахування зарплати».</td></tr>{% endfor %}</tbody></table></div>
+<style>
+.st-t{width:100%;border-collapse:collapse;font-size:13.5px}.st-t th{font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496;text-align:right;padding:10px 12px;border-bottom:1px solid #ECE7E1;white-space:nowrap}
+.st-t th:first-child{text-align:left}.st-t td{padding:10px 12px;border-bottom:1px solid #F1EDE8;text-align:right;white-space:nowrap;vertical-align:middle}.st-t td:first-child{text-align:left;white-space:normal}
+.st-t tr:hover td{background:#FBFAF8}.st-t tr.zero td{color:#a39fab}.st-t tr.zero .st-n b{color:#6b6575}
+.st-n{display:flex;gap:12px;align-items:center;min-width:220px}.st-n b{display:block;font-size:14px;color:#2A2430}.st-n small{color:#8a8496;font-size:12px}
+.st-av{flex:none;width:40px;height:40px;border-radius:50%;background:#E4DEEF center/cover no-repeat;display:inline-flex;align-items:center;justify-content:center;font:700 13px var(--sans);color:#3B3050}
+.st-due{font-weight:700;font-size:14.5px}.st-due.bad{color:#B23B2E}.st-due.ok{color:#1E7A46}.st-t .meta{font-size:11.5px;color:#8a8496;font-weight:500}
+.st-act{display:flex;gap:6px;justify-content:flex-end}.st-act button{border:1px solid #E4DEEF;background:#fff;border-radius:10px;height:34px;padding:0 12px;font:600 13px var(--sans);color:#3B3050;cursor:pointer;white-space:nowrap}
+.st-act button:hover{border-color:#C9BFE6;background:#F3F0FA}.st-act button.pay{background:#3B3050;border-color:#3B3050;color:#fff}.st-act button.pay:hover{background:#5C4B82}
+.st-act button.plus{color:#1E7A46}.st-act button.minus{color:#B23B2E}
+.st-adj{font-size:11.5px;color:#8a8496;margin-top:2px}.st-adj span{display:inline-block;margin-right:6px}
+dialog.st-d{border:0;border-radius:18px;padding:0;width:min(440px,calc(100vw - 32px));box-shadow:0 30px 80px rgba(42,36,48,.35);overflow:hidden}dialog.st-d::backdrop{background:rgba(42,36,48,.4)}
+.st-d form{display:grid;gap:10px;padding:18px 20px}.st-d h3{margin:0;font:600 16px var(--head);letter-spacing:.06em;text-transform:uppercase}.st-d .who{display:flex;gap:10px;align-items:center;font-weight:600}
+.st-d label{display:grid;gap:4px;font:700 12px var(--sans);color:#8a8496}.st-d input,.st-d select{height:42px;margin:0;width:100%;min-width:0;box-sizing:border-box}
+.st-d .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.st-d .bt{display:flex;justify-content:flex-end;gap:8px}
+</style>
+{% macro av(d) -%}<span class="st-av" style="{% if d.photo_url %}background-image:url('{{ d.photo_url }}'){% endif %}">{% if not d.photo_url %}{{ (d.name.split()|map('first')|join)[:2]|upper }}{% endif %}</span>{%- endmacro %}
+{% set adj_by = {} %}{% for a_ in adjs %}{% set _ = adj_by.setdefault(a_.doctor_id, []).append(a_) %}{% endfor %}
+<div class="card" style="padding:4px 6px;overflow:auto"><table class="st-t"><thead><tr><th>Співробітник</th><th>Борг на початок</th><th>Нараховано</th><th>Виплачено</th><th>До виплати</th><th></th></tr></thead><tbody>
+{% for r in rows %}{% set d = r.doctor %}{% set zero = not (r.opening or r.accrued or r.paid or r.closing) %}
+<tr class="{{ 'zero' if zero }}"><td><div class="st-n">{{ av(d) }}<div><b>{{ d.name }}</b><small>{{ d.position or '' }}</small>
+    {% if adj_by.get(d.id) %}<div class="st-adj">{% for a_ in adj_by[d.id] %}<span style="color:{{ '#1E7A46' if a_.amount > 0 else '#B23B2E' }}">{{ '+' if a_.amount > 0 }}{{ a_.amount|uah }} {{ a_.article or a_.comment or '' }}</span>{% endfor %}</div>{% endif %}</div></div></td>
+  <td>{{ r.opening|uah }}</td><td>{{ r.accrued|uah }}</td><td>{{ r.paid|uah if r.paid else '—' }}</td>
+  <td><span class="st-due {{ 'bad' if r.closing > 0.01 else ('ok' if r.closing < -0.01) }}">{{ r.closing|uah }}</span>{% if r.closing < -0.01 %}<div class="meta">переплата</div>{% endif %}</td>
+  <td><div class="st-act">
+    <button type="button" class="plus" onclick="stAdj({{ d.id }},'+')" title="Нарахувати: премія, доплата…">＋ Нарахувати</button>
+    <button type="button" class="minus" onclick="stAdj({{ d.id }},'-')" title="Утримати: штраф, аванс…">− Утримати</button>
+    <button type="button" class="pay" onclick="stPay({{ d.id }}, {{ r.closing if r.closing > 0.01 else 0 }})">Виплатити</button></div></td></tr>
+{% else %}<tr><td colspan="6" class="muted">Немає активних співробітників — додайте їх у «Команда».</td></tr>{% endfor %}</tbody></table></div>
+
+<dialog class="st-d" id="st-pay"><form method="post" action="/finance/ops"><h3>Виплата зарплати</h3><div class="who" id="st-pay-who"></div>
+  <input type="hidden" name="kind" value="expense"><input type="hidden" name="category" value="{{ sal_cat }}"><input type="hidden" name="doctor_id" id="st-pay-d">
+  <input type="hidden" name="salary_month" value="{{ month }}"><input type="hidden" name="back" value="/finance/settle?m={{ month }}">
+  <div class="two"><label>Сума, ₴<input name="amount" id="st-pay-a" inputmode="decimal" required></label><label>Дата<input type="date" name="day" value="{{ today }}"></label></div>
+  <label>З рахунку<select name="cashbox">{% for b in boxes %}<option>{{ b }}</option>{% endfor %}</select></label>
+  <label>Коментар<input name="comment" placeholder="необовʼязково"></label>
+  <div class="small muted">Запишеться у «Фіноперації» як витрата «{{ sal_cat }}» за {{ month }}.</div>
+  <div class="bt"><button type="button" class="btn ghost" onclick="this.closest('dialog').close()">Скасувати</button><button class="btn">Виплачено</button></div></form></dialog>
+
+<dialog class="st-d" id="st-adj"><form method="post" action="/finance/payroll/adj"><h3 id="st-adj-h">Нарахувати</h3><div class="who" id="st-adj-who"></div>
+  <input type="hidden" name="doctor_id" id="st-adj-d"><input type="hidden" name="month" value="{{ month }}"><input type="hidden" name="sign" id="st-adj-s" value="+">
+  <input type="hidden" name="back" value="/finance/settle?m={{ month }}">
+  <div class="two"><label>Сума, ₴<input name="amount" inputmode="decimal" required></label>
+    <label>Стаття<select name="article" id="st-adj-art"><option value="">— без статті —</option>{% for a_ in articles %}<option value="{{ a_.id }}" data-k="{{ a_.kind }}">{{ a_.name }}</option>{% endfor %}</select></label></div>
+  <label>Коментар<input name="comment" placeholder="за що"></label>
+  <div class="small muted">Додається до нарахованого за {{ month }} · статті — Налаштування → Співробітники → Статті для нарахувань.</div>
+  <div class="bt"><button type="button" class="btn ghost" onclick="this.closest('dialog').close()">Скасувати</button><button class="btn" id="st-adj-b">Записати</button></div></form></dialog>
+<script>
+var ST_D={ {% for r in rows %}"{{ r.doctor.id }}":{{ (r.doctor.name ~ ((' · ' ~ r.doctor.position) if r.doctor.position else ''))|tojson }}{{ ',' if not loop.last }}{% endfor %} };
+function stPay(id,sum){document.getElementById('st-pay-d').value=id;document.getElementById('st-pay-who').textContent=ST_D[id]||'';var a=document.getElementById('st-pay-a');a.value=sum?(+sum).toFixed(2):'';document.getElementById('st-pay').showModal();a.focus()}
+function stAdj(id,sg){document.getElementById('st-adj-d').value=id;document.getElementById('st-adj-s').value=sg;document.getElementById('st-adj-who').textContent=ST_D[id]||'';
+  document.getElementById('st-adj-h').textContent=sg==='+'?'Нарахувати':'Утримати';document.getElementById('st-adj-b').textContent=sg==='+'?'Нарахувати':'Утримати';
+  var s=document.getElementById('st-adj-art');s.value='';[].forEach.call(s.options,function(o){if(o.value)o.hidden=(o.dataset.k==='expense')!==(sg==='-')});document.getElementById('st-adj').showModal()}
+</script>
 <div class="grid g2">
 <div class="card" style="margin:0"><h2 style="margin-top:0">Виплати за {{ month }}</h2><table class="tb small"><tbody>
   {% for x in pays %}<tr><td>{{ x.day|dt('%d.%m.%Y') }}</td><td>{{ docs[x.doctor_id].name if docs.get(x.doctor_id) else '—' }}</td><td>{{ x.cashbox or '' }}</td><td class="r">{{ x.amount|uah }}</td>

@@ -7843,7 +7843,7 @@ def finance_payroll_rule(doctor_id: int = Form(...), base: str = Form(""), pct_s
 
 @app.post("/finance/payroll/adj")
 def finance_payroll_adj(doctor_id: int = Form(...), month: str = Form(...), amount: str = Form(...), sign: str = Form("+"),
-                        article: str = Form(""), comment: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+                        article: str = Form(""), comment: str = Form(""), back: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     from .models import SalaryAdj
     from .services import accrual_articles as aa
     amt = _num(amount)
@@ -7857,6 +7857,8 @@ def finance_payroll_adj(doctor_id: int = Form(...), month: str = Form(...), amou
         db.add(a)
         db.commit()
         audit(db, "fin.salary_adj", "doctor", doctor_id, user=user, month=mk, amount=a.amount, comment=a.comment)
+    if back.startswith("/finance/"):
+        return RedirectResponse(back, 303)
     return RedirectResponse(f"/finance/payroll?m={mk}#d{doctor_id}", 303)
 
 
@@ -7996,6 +7998,9 @@ def finance_settle(request: Request, m: str = "", user: User = Depends(require("
     pays = [x for x in pays if (x.salary_month or fo_month_key(x.day)) == month]
     return render(request, "fin_settle.html", nav="finance", month=month, rows=rows, sal_cat=_fa().salary_name(db), months=_month_list(), start=fo.payroll_start(db),
                   boxes=_cashboxes(db), pays=pays, docs={d_.id: d_ for d_ in db.scalars(select(Doctor))}, today=date.today(),
+                  articles=__import__("app.services.accrual_articles", fromlist=["active"]).active(db),
+                  adjs=db.scalars(select(__import__("app.models", fromlist=["SalaryAdj"]).SalaryAdj).where(
+                      __import__("app.models", fromlist=["SalaryAdj"]).SalaryAdj.month == month)).all(),
                   total={k: round(sum(r[k] for r in rows), 2) for k in ("opening", "accrued", "paid", "closing")})
 
 
