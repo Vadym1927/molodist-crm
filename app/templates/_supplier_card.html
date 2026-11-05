@@ -72,6 +72,16 @@
     <a class="btn ghost spm-sm" href="/products?supplier={{ x.name|urlencode }}">Товари постачальника</a></div>
   </div>
 
+  <div class="spm-sec"><div class="row between"><h3>Рахунки й квитанції <span class="muted" style="font-weight:400">{{ payreqs|length }}</span></h3>
+    {% if can(user,'finance') %}<a class="btn ghost spm-sm" href="/payreq">усі рахунки</a>{% endif %}</div>
+  {% if payreqs %}<table class="tb small"><thead><tr><th>Дата</th><th>Документ</th><th class="r">Сума</th><th>Стан</th><th></th></tr></thead><tbody>
+    {% for r in payreqs %}<tr><td>{{ (r.invoice_date or r.created_at)|dt('%d.%m.%Y') }}</td>
+      <td>{{ '🧾 Квитанція' if r.kind == 'receipt' else 'Рахунок' }}{{ (' № ' ~ r.invoice_no) if r.invoice_no }}{% if r.fop %}<div class="muted">ФОП {{ r.fop }}</div>{% endif %}</td>
+      <td class="r">{{ (r.amount or 0)|uah }}</td>
+      <td><span class="pill {{ 'ok' if r.status in ('paid', 'receipt') else ('bad' if r.status in ('error', 'declined') else ('draft' if r.status == 'rejected' else 'warn')) }}">{{ {'receipt':'оплачено','paid':'оплачено','new':'очікує','draft':'на підписі','recognizing':'розпізнається','error':'помилка','rejected':'відхилено','declined':'відхилено банком','approved':'погоджено'}.get(r.status, r.status) }}</span>{% if r.link_id %}<div class="muted">↔ #{{ r.link_id }}</div>{% endif %}</td>
+      <td>{% if can(user,'finance') %}<a href="/payreq/{{ r.id }}">відкрити</a> · <a href="/payreq/{{ r.id }}/file" target="_blank">файл</a>{% endif %}</td></tr>{% endfor %}</tbody></table>
+  {% else %}<div class="muted small">Рахунків і квитанцій ще немає — вони потрапляють сюди з Telegram-групи рахунків, коли CRM упізнає постачальника за IBAN / ЄДРПОУ.</div>{% endif %}</div>
+
   <div class="spm-sec"><div class="row between"><h3>Прайси <span class="muted" style="font-weight:400">{{ prices|length }}</span></h3>
     {% if can(user,'finance') %}<a class="btn ghost spm-sm" href="/finance/pricing">＋ завантажити прайс</a>{% endif %}</div>
   {% if prices %}<table class="tb small"><thead><tr><th>Бренд</th><th>Дата прайсу</th><th>Завантажено</th><th class="r">Рядків</th><th>Ціни</th><th></th></tr></thead><tbody>

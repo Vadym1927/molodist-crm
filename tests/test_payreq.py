@@ -189,3 +189,22 @@ def test_receipt_links_to_invoice(tmp_path, monkeypatch):
         settings.files_dir = old_dir
         with SessionLocal() as db:
             invoice_ai.set_engine(db, "crm")
+
+
+def test_receipt_in_supplier_card(tmp_path):
+    settings.admin_password = "owner-pass-1"
+    old_dir, settings.files_dir = settings.files_dir, str(tmp_path)
+    try:
+        with SessionLocal() as db:
+            s = Supplier(name="Квит Постач"); db.add(s); db.commit()
+            rc = prq.create(db, b"%PDF", "Квитанція_1.pdf", "application/pdf", claude=lambda *a: {"seller": {"name": "ТОВ Квит"}, "total": 500})
+            assert rc.kind == "receipt" and rc.supplier_id is None
+            rid, sid = rc.id, s.id
+        with TestClient(app) as c:
+            c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+            assert "Зберегти" in c.get(f"/payreq/{rid}").text
+            c.post(f"/payreq/{rid}", data={"action": "save", "supplier_id": str(sid), "receiver_name": "ТОВ Квит", "amount": "500"})
+            card = c.get(f"/stock/suppliers/{sid}/card").text
+            assert "Рахунки й квитанції" in card and "🧾 Квитанція" in card and "500" in card
+    finally:
+        settings.files_dir = old_dir

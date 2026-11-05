@@ -140,7 +140,13 @@ def card(db: Session, sup: Supplier) -> dict:
     last = max(filter(None, [_d(ss.get("last")), *(_d(g.date) for g in groups)]), default=None)
     return {"sup": sup, "entities": entities(db, sup), "stats": ss, "groups": groups[:12], "crm_total": crm_total,
             "crm_left": crm_left, "invoices": invoices, "products": products, "orders": orders, "last": last,
-            "debt": (ss.get("debt") or 0) + crm_left, "KINDS": KINDS, "req": requisites_text, "prices": _prices(db, sup)}
+            "debt": (ss.get("debt") or 0) + crm_left, "KINDS": KINDS, "req": requisites_text, "prices": _prices(db, sup), "payreqs": _payreqs(db, sup)}
+
+
+def _payreqs(db: Session, sup: Supplier) -> list:
+    """Рахунки на оплату й квитанції про оплату цього постачальника (з Telegram-групи / CRM)."""
+    from ..models import PayRequest
+    return db.scalars(select(PayRequest).where(PayRequest.supplier_id == sup.id).order_by(PayRequest.id.desc()).limit(30)).all()
 
 
 def _prices(db: Session, sup: Supplier) -> list:

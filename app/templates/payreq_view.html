@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Рахунок на оплату #{{ pr.id }}{% endblock %}
 {% block body %}
-{% set qp = request.query_params %}{% set edit = pr.status in ('new', 'error', 'rejected') %}
+{% set qp = request.query_params %}{% set edit = pr.status in ('new', 'error', 'rejected') or pr.kind == 'receipt' %}
 <style>
 .pv-g{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}@media(max-width:1000px){.pv-g{grid-template-columns:1fr}}
 .pv-g .card{margin:0}.pv-f{display:grid;gap:10px}.pv-f label{display:grid;gap:4px;font:700 12px var(--sans);color:#8a8496}
@@ -33,8 +33,9 @@
       <label>Рахунок списання<select name="sender_iban" id="pv-acc"></select></label></div>
     <label>Призначення платежу<textarea name="purpose" rows="3" maxlength="420">{{ pr.purpose or '' }}</textarea></label>
     <div class="pv-act"><button class="btn ghost" name="action" value="save">Зберегти</button>
-      {% if user.role == 'owner' %}<button class="btn" name="action" value="approve" onclick="return confirm('Створити в monobank чернетку платежу {{ '%.2f'|format(pr.amount or 0) }} ₴ на «{{ (pr.receiver_name or '')|replace("'", "’") }}»? Її треба буде підписати в застосунку.')">✅ Погодити — чернетка в monobank</button>{% endif %}
-      {% if pr.status != 'rejected' %}<button class="btn ghost" name="action" value="reject" style="color:#B23B2E">Відхилити</button>{% endif %}</div>
+      {% if user.role == 'owner' and pr.kind != 'receipt' %}<button class="btn" name="action" value="approve" onclick="return confirm('Створити в monobank чернетку платежу {{ '%.2f'|format(pr.amount or 0) }} ₴ на «{{ (pr.receiver_name or '')|replace("'", "’") }}»? Її треба буде підписати в застосунку.')">✅ Погодити — чернетка в monobank</button>{% endif %}
+      {% if pr.status != 'rejected' and pr.kind != 'receipt' %}<button class="btn ghost" name="action" value="reject" style="color:#B23B2E">Відхилити</button>{% endif %}</div>
+    {% if pr.kind == 'receipt' %}<p class="small muted" style="margin:0">Квитанція: після «Зберегти» CRM привʼяже її до рахунку з тим самим отримувачем і сумою, а постачальника — до картки постачальника.</p>{% endif %}
     {% else %}
     <div class="pv-kv"><span>Отримувач</span><b>{{ pr.receiver_name }}{% if sup %} · {{ sup.name }}{% endif %}</b><span>IBAN</span><code>{{ pr.receiver_iban }}</code><span>ЄДРПОУ</span><div>{{ pr.receiver_edrpou }}</div>
       <span>Сума</span><b>{{ (pr.amount or 0)|uah }}</b><span>Рахунок</span><div>№ {{ pr.invoice_no or '—' }}{% if pr.invoice_date %} від {{ pr.invoice_date|dt('%d.%m.%Y') }}{% endif %}</div>

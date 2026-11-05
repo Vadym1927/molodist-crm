@@ -6972,7 +6972,7 @@ async def payreq_save(pid: int, request: Request, user: User = Depends(require("
         pr.status, pr.error = "new", None
         db.commit()
         return RedirectResponse(f"/payreq/{pid}", 303)
-    if pr.status in ("new", "error", "rejected"):
+    if pr.status in ("new", "error", "rejected") or pr.kind == "receipt":
         pr.receiver_name = str(f.get("receiver_name") or "").strip()[:300] or None
         pr.receiver_iban = prq.clean_iban(f.get("receiver_iban"))[:40] or None
         pr.receiver_edrpou = re.sub(r"\D", "", str(f.get("receiver_edrpou") or ""))[:20] or None
@@ -6989,7 +6989,19 @@ async def payreq_save(pid: int, request: Request, user: User = Depends(require("
         pr.supplier_id = int(sid_) if sid_.isdigit() else pr.supplier_id
         if pr.status == "error" and not prq.problems(pr):
             pr.status, pr.error = "new", None
+        if pr.kind == "receipt":
+            if pr.status == "error":
+                pr.status, pr.error = "receipt", None
+            if not pr.supplier_id:
+                from .services.suppliers import find as _sfind
+                hit = _sfind(db, pr.receiver_iban, pr.receiver_edrpou)
+                pr.supplier_id = hit[0].id if hit else None
         db.commit()
+        if pr.kind == "receipt" and not pr.link_id:
+            tgt = prq.link_receipt(db, pr)
+            if tgt:
+                prq.tg_update(db, tgt)
+                prq.tg_update(db, pr)
     if act == "approve":
         if user.role != "owner":
             return RedirectResponse(_with_err(f"/payreq/{pid}", "Погоджує лише власник"), 303)
