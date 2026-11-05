@@ -30,7 +30,7 @@
 {% for role, rlabel in ROLES.items() %}{% set items = cfg.roles[role] %}
 <div class="tn-c"><div class="tn-h"><h2>{{ rlabel }}</h2>
   <div class="tn-who">{% if have[role] %}отримують: <b>{{ have[role]|map(attribute='name')|join(', ') }}</b>{% else %}<span class="no">ніхто не отримає</span> — {% if role == 'chief' %}оберіть головного лікаря нижче{% else %}у користувачів цієї ролі не вказано Telegram{% endif %}{% endif %}</div></div>
-  {% if role == 'chief' %}<div class="tn-chips" style="margin:4px 0 12px">{% for u in users if u.role in ('doctor', 'owner') %}<label><input type="checkbox" name="chiefs" value="{{ u.id }}" {{ 'checked' if u.id in cfg.chiefs }}><span>{{ u.name }}{{ '' if u.telegram_chat_id else ' · без Telegram' }}</span></label>{% else %}<span class="muted small">Немає користувачів з роллю «лікар»</span>{% endfor %}</div>{% endif %}
+  {% if role == 'chief' %}<div class="tn-chips" style="margin:4px 0 12px">{% for u in users if u.role in ('doctor', 'owner') %}<label><input type="checkbox" name="chiefs" value="{{ u.id }}" {{ 'checked' if u.id in chief_ids }}><span>{{ u.name }}{{ '' if u.telegram_chat_id else ' · без Telegram' }}</span></label>{% else %}<span class="muted small">Немає користувачів з роллю «лікар»</span>{% endfor %}</div>{% endif %}
   <table class="tn-t"><thead><tr><th style="width:56px">Увімк.</th><th>Сповіщення</th><th style="width:120px">Час</th><th style="width:90px">Коли</th><th style="width:80px"></th></tr></thead><tbody>
   {% for key, title, desc, per, defaults in TYPES if key in items %}{% set v = items[key] %}
   <tr class="{{ '' if v.on else 'off' }}">

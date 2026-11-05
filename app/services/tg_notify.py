@@ -78,7 +78,7 @@ def cfg(db: Session) -> dict:
             d_on, d_time = defaults[role]
             v = (roles.get(role) or {}).get(key) or {}
             out[role][key] = {"on": bool(v.get("on", d_on)), "time": v.get("time") or d_time, "dow": v.get("dow") or "mon", "per": per}
-    return {"roles": out, "chiefs": [int(x) for x in c.get("chiefs") or []], "greeting": c.get("greeting") or GREETING_DEFAULT,
+    return {"roles": out, "chiefs": [int(x) for x in c.get("chiefs") or []], "chief_doctors": [int(x) for x in c.get("chief_doctors") or []], "greeting": c.get("greeting") or GREETING_DEFAULT,
             "bday_days": int(c.get("bday_days") or 3), "custom": c.get("custom") or []}
 
 
@@ -114,9 +114,42 @@ def custom_text(x: dict) -> str:
     return f"🔔 <b>{escape(x.get('title') or 'Нагадування')}</b>\n{escape(x.get('text') or '')}"
 
 
+def is_chief(db: Session, doctor_id: int) -> bool:
+    return int(doctor_id) in set(cfg(db)["chief_doctors"])
+
+
+def set_chief(db: Session, doctor_id: int, on: bool) -> None:
+    """Активатор «Головний лікар» у картці лікаря: його користувач CRM отримує сповіщення ролі «Головний лікар»."""
+    c = _get(db, KEY, {}) or {}
+    ids = {int(x) for x in c.get("chief_doctors") or []}
+    ids = (ids | {int(doctor_id)}) if on else (ids - {int(doctor_id)})
+    c["chief_doctors"] = sorted(ids)
+    if not on:                                   # прибрати і з ручного вибору користувачів
+        uids = {u.id for u in db.scalars(select(User).where(User.doctor_id == int(doctor_id)))}
+        c["chiefs"] = [x for x in c.get("chiefs") or [] if int(x) not in uids]
+    _put(db, KEY, c)
+
+
+def chief_users(db: Session) -> set[int]:
+    c = cfg(db)
+    docs = set(c["chief_doctors"])
+    ids = set(c["chiefs"])
+    if docs:
+        ids |= {u.id for u in db.scalars(select(User).where(User.doctor_id.in_(docs)))}
+    return ids
+
+
 def save(db: Session, roles: dict, chiefs: list[int], greeting: str, bday_days: int) -> None:
     c = _get(db, KEY, {}) or {}
     c["roles"] = roles
+    sel = {int(x) for x in chiefs}
+    users = db.scalars(select(User)).all()
+    docs = {int(x) for x in c.get("chief_doctors") or []}
+    for u in users:                              # користувачі-лікарі → прапорець у картці лікаря
+        if u.doctor_id:
+            docs = (docs | {u.doctor_id}) if u.id in sel else (docs - {u.doctor_id})
+    c["chief_doctors"] = sorted(docs)
+    chiefs = [u.id for u in users if u.id in sel and not u.doctor_id]
     c["chiefs"] = [int(x) for x in chiefs]
     c["greeting"] = (greeting or "").strip()[:500] or GREETING_DEFAULT
     c["bday_days"] = max(0, min(int(bday_days or 3), 14))
@@ -127,7 +160,7 @@ def recipients(db: Session, role: str) -> list[User]:
     """Користувачі CRM цієї ролі з Telegram. Головний лікар — обрані в налаштуваннях."""
     users = db.scalars(select(User).where(User.active.is_(True), User.telegram_chat_id.is_not(None))).all()
     if role == "chief":
-        ids = set(cfg(db)["chiefs"])
+        ids = chief_users(db)
         return [u for u in users if u.id in ids]
     return [u for u in users if u.role == role]
 

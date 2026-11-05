@@ -5823,11 +5823,11 @@ def tg_notify_page(request: Request, user: User = Depends(require("users")), db:
     from .services import tg_notify as tn
     users = db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all()
     c = tn.cfg(db)
-    have = {r: [u for u in users if u.telegram_chat_id and (u.role == r if r != "chief" else u.id in c["chiefs"])] for r in tn.ROLES}
+    have = {r: [u for u in users if u.telegram_chat_id and (u.role == r if r != "chief" else u.id in tn.chief_users(db))] for r in tn.ROLES}
     qp_ = request.query_params
     cur = next((x for x in c["custom"] if str(x["id"]) == qp_.get("edit")), None)
     return render(request, "tg_notify.html", nav="settings", cfg=c, TYPES=tn.TYPES, ROLES=tn.ROLES, DOW=tn.DOW, users=users, have=have, PER=tn.PER, cur=cur,
-                  bot_ok=bool(settings.telegram_bot_token))
+                  bot_ok=bool(settings.telegram_bot_token), chief_ids=tn.chief_users(db))
 
 
 @app.post("/settings/tg-notify")
@@ -9647,7 +9647,9 @@ def specialist_page(did: int, request: Request, tab: str = "info", user: User = 
     locs = [l_.get("name") for l_ in (_cl.get(db).get("locations") or []) if l_.get("name")] or ["MOLODIST"]
     return render(request, "specialist.html", d=d, c=card, upcoming=upcoming, patients=patients, tab=tab, TABS=SPEC_TABS,
                   palette=spec_svc.PALETTE, positions=_ps.names(db), xfields=xf, auto_opts=auto_opts, xv=d.extra or {},
-                  SOCIALS=SOCIALS, locs=locs, WH=catalog.WAREHOUSES, td=_spec_tab_data(db, user, d, tab))
+                  SOCIALS=SOCIALS, locs=locs, WH=catalog.WAREHOUSES, td=_spec_tab_data(db, user, d, tab),
+                  chief=__import__("app.services.tg_notify", fromlist=["is_chief"]).is_chief(db, d.id),
+                  d_users=db.scalars(select(User).where(User.doctor_id == d.id, User.active.is_(True))).all())
 
 
 def in_schedule(d) -> bool:
@@ -9713,6 +9715,12 @@ async def specialist_save(did: int, request: Request, name: str = Form(...), pos
         d.fired_at = None if want_active else date.today()
     d.in_calendar = in_calendar == "1"
     d.sale_initiator = sale_initiator == "1"
+    f_chief = await request.form()
+    if "chief_set" in f_chief:
+        from .services import tg_notify as _tn
+        if _tn.is_chief(db, d.id) != (f_chief.get("chief") == "1"):
+            _tn.set_chief(db, d.id, f_chief.get("chief") == "1")
+            audit(db, "specialist.chief", user=user, id=d.id, op="on" if f_chief.get("chief") == "1" else "off")
     from .services import staff_fields as _sf
     xf = _sf.custom(db)
     if xf:

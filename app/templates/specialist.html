@@ -138,6 +138,10 @@
       <label class="tg">Відображати в графіку співробітників<input type="checkbox" name="in_schedule" value="1" {{ 'checked' if in_schedule(d) }}></label>
       <div class="two"><label class="fl"><span>Статус</span><select name="status"><option value="active" {{ 'selected' if d.active }}>Працює</option><option value="fired" {{ 'selected' if not d.active }}>Звільнений</option></select></label>
         <label class="fl"><span>Ініціатор продажу в касі</span><select name="sale_initiator"><option value="1" {{ 'selected' if d.sale_initiator is not false }}>Показувати</option><option value="0" {{ 'selected' if d.sale_initiator is false }}>Не показувати</option></select></label></div>
+      <input type="hidden" name="chief_set" value="1">
+      <label class="tg">Головний лікар<input type="checkbox" name="chief" value="1" {{ 'checked' if chief }}></label>
+      <small style="color:#9a93a6;display:block;margin:-4px 0 8px">Отримує в Telegram сповіщення головного лікаря (контроль планів, підсумки по лікарях) — <a href="/settings/tg-notify">налаштувати</a>.
+        {% if not d_users %} ⚠ Немає користувача CRM, привʼязаного до цього лікаря.{% elif not (d_users|selectattr('telegram_chat_id')|list) %} ⚠ У користувача не підключено Telegram.{% endif %}</small>
       <div class="fl"><span>Колір у календарі</span><div class="cl">{% for col in palette %}<label><input type="radio" name="color" value="{{ col }}" {{ 'checked' if c.color==col }}><span style="background:{{ col }}"></span></label>{% endfor %}</div></div>
       {% if d.status_locked %}<small style="color:#9a93a6">Статус змінено вручну — синхронізація з CleverBox його не перезаписує.</small>{% endif %}</div>
     {% if xfields %}<div class="sc"><h3>Анкета <a href="/settings/staff-fields">налаштувати поля</a></h3>

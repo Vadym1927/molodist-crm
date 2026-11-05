@@ -241,3 +241,26 @@ def test_package_template_editor_and_hidden_unpaid_blanks():
         with SessionLocal() as db:
             x = cs.package_get(db, xid)
             assert x["kind"] == "universal" and x["visits"] == 10 and x["price"] == 7000 and x["days"] == 0 and x["type"] == "Універсальний"
+
+
+def test_chief_doctor_toggle_in_specialist_card():
+    from app.models import User
+    from app.services import tg_notify as tn
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        from app.security import ensure_owner
+        ensure_owner(db)
+        d = Doctor(name="Головна Тестова", active=True)
+        db.add(d); db.commit()
+        u = User(login="chief_t", name="Головна Тестова", role="doctor", doctor_id=d.id, telegram_chat_id="111", active=True, password_hash="x")
+        db.add(u); db.commit()
+        did, uid = d.id, u.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        assert "Головний лікар" in c.get(f"/specialists/{did}").text
+        c.post(f"/specialists/{did}", data={"name": "Головна Тестова", "status": "active", "chief_set": "1", "chief": "1"})
+        with SessionLocal() as db:
+            assert tn.is_chief(db, did) and uid in [x.id for x in tn.recipients(db, "chief")]
+        c.post(f"/specialists/{did}", data={"name": "Головна Тестова", "status": "active", "chief_set": "1"})
+        with SessionLocal() as db:
+            assert not tn.is_chief(db, did) and uid not in [x.id for x in tn.recipients(db, "chief")]

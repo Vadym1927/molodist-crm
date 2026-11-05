@@ -46,7 +46,7 @@ def test_texts_and_run(monkeypatch):
         assert r.status_code == 303
         with SessionLocal() as db:
             c_ = tn.cfg(db)
-            assert c_["roles"]["admin"]["today"]["time"] == "07:45" and c_["roles"]["owner"]["week"]["dow"] == "tue" and c_["chiefs"] == [u_doc.id]
+            assert c_["roles"]["admin"]["today"]["time"] == "07:45" and c_["roles"]["owner"]["week"]["dow"] == "tue" and u_doc.id in tn.chief_users(db)
             assert c_["greeting"] == "Зі святом!" and c_["bday_days"] == 5 and c_["roles"]["admin"]["tasks"]["on"] is False
             assert [u.id for u in tn.recipients(db, "chief")] == [u_doc.id]
 
