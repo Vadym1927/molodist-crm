@@ -57,6 +57,15 @@
 .gs tr.hid{display:none}
 .gs-leg{display:none;gap:8px 16px;flex-wrap:wrap;margin-top:10px;font:600 12px var(--sans);color:#5d5869;align-items:center;padding:12px 16px;background:#fff;border:1px solid #ECE7E1;border-radius:14px}
 .gs-leg.on{display:flex}.gs-leg i{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:6px;margin-right:6px;vertical-align:-4px;color:#fff}
+.gs-seg{display:inline-flex;height:40px;background:#F1EDF8;border-radius:12px;padding:3px;gap:2px}.gs-seg button{border:0;background:transparent;border-radius:9px;padding:0 12px;font:600 12.5px var(--sans);color:#5C4B82;cursor:pointer}.gs-seg button.on{background:#fff;color:#2A2430;box-shadow:0 1px 3px rgba(42,36,48,.12)}
+.gs .t .f{display:none;font-style:normal}.gs .t .x{font-style:normal}
+.fit .gs{width:100%;min-width:0;table-layout:fixed}.fit .gs td.c,.fit .gs thead th.d{width:auto;min-width:0;max-width:none}
+.fit .gs .nm{min-width:168px;max-width:168px;width:168px;padding:7px 10px}.fit .gs .who{gap:8px}.fit .gs .av{width:34px;height:34px;font-size:12px}.fit .gs .who b{font-size:12.5px}.fit .gs .who span{font-size:10.5px}.fit .gs .who .cnt{font-size:10px;padding:1px 6px;margin-top:2px}
+.fit .gs thead th{padding:8px 0 6px}.fit .gs thead th.d b{font-size:12.5px}.fit .gs thead th.d small{font-size:8.5px;letter-spacing:.02em}
+.fit .gs td.c{height:58px}.fit .gs td.c .t{padding:0;font-size:10.5px;letter-spacing:-.02em;line-height:58px}.fit .gs .t .f{display:inline}.fit .gs .t .x{display:none}.fit .gs td.c .pl{display:none}
+.fit .gs td.c.w{box-shadow:inset 0 2px 0 #5FAE6A}.fit .gs td.c.o .oi{width:22px;height:22px;border-radius:7px;margin:9px auto 0}.fit .gs td.c.o .oi svg{width:13px;height:13px}.fit .gs td.c.o .on{font-size:7.5px;padding:2px 1px 0;-webkit-line-clamp:1}
+.fit .gs td.c .bd{right:2px;bottom:2px;height:15px;line-height:15px;font-size:9.5px;padding:0 4px;border-radius:5px;gap:0}.fit .gs td.c .bd svg{display:none}
+@media(max-width:1150px){.fit .gs td.c .t{font-size:9.5px}.fit .gs .nm{min-width:140px;max-width:140px;width:140px}.fit .gs .who span{display:none}}
 .gd-back{position:fixed;inset:0;background:rgba(42,36,48,.4);opacity:0;pointer-events:none;transition:opacity .2s;z-index:90}.gd-back.on{opacity:1;pointer-events:auto}
 .gd{position:fixed;top:0;right:0;bottom:0;width:min(420px,100vw);background:#F7F4F0;z-index:91;transform:translateX(100%);transition:transform .25s;display:flex;flex-direction:column;box-shadow:-30px 0 60px -30px rgba(42,36,48,.5)}
 .gd.on{transform:none}.gd-h{display:flex;align-items:center;gap:10px;padding:16px 20px;background:#fff;border-bottom:1px solid #ECE7E1}
@@ -96,18 +105,19 @@ dialog.sd{border:0;border-radius:20px;padding:0;width:min(460px,96vw);box-shadow
     <select class="gs-sel" onchange="location=this.value">{% if show_all %}<option value="?m={{ first|dt('%Y-%m') }}">Лише ті, хто в графіку</option><option selected value="?m={{ first|dt('%Y-%m') }}&all=1">Показано всіх</option>
       {% else %}<option selected value="?m={{ first|dt('%Y-%m') }}">Ті, хто в графіку{{ (' (приховано ' ~ hidden ~ ')') if hidden }}</option><option value="?m={{ first|dt('%Y-%m') }}&all=1">Показати всіх</option>{% endif %}</select>
     <span class="gs-sp"></span>
+    <div class="gs-seg" id="gs-seg"><button type="button" class="on" data-v="fit" onclick="gsMode('fit')">Весь місяць</button><button type="button" data-v="full" onclick="gsMode('full')">Детально</button></div>
     <button class="gs-btn" type="button" onclick="var l=document.getElementById('gs-leg');l.classList.toggle('on');try{localStorage.setItem('gs_leg',l.classList.contains('on')?'1':'')}catch(e){}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg> Легенда <span style="opacity:.5">⌄</span></button>
   </div>
 </div>
 {% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
 {% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
-<div class="gs-wrap"><table class="gs" id="gs"><thead><tr><th class="nm">Співробітник /<br>роль</th>
+<div class="gs-wrap fit" id="gs-wrap"><table class="gs" id="gs"><thead><tr><th class="nm">Співробітник /<br>роль</th>
   {% for d in days %}{% set h = hours[d] %}<th class="d {{ 'we' if d.weekday() >= 5 }} {{ 'cl' if not h }} {{ 'td' if d == today }} {{ 'wk' if d.weekday() == 6 }}" title="{% if h %}Клініка {{ '%02d' % h[0] }}:00–{{ '%02d' % h[1] }}:00{% else %}Клініка зачинена{% endif %}"><b>{{ '%02d' % d.day }}</b><small>{{ WD[d.weekday()] }}</small></th>{% endfor %}</tr></thead><tbody>
 {% for dc in docs %}<tr data-n="{{ dc.name|lower }}" data-r="{{ dc.position or '' }}"><td class="nm"><div class="who"><i class="av" style="{% if dc.photo_url %}background-image:url('{{ dc.photo_url }}'){% else %}background-color:{{ color(dc) }}{% endif %}">{{ '' if dc.photo_url else initials(dc.name) }}</i>
     <div style="min-width:0"><b>{{ dc.name }}</b><span>{{ dc.position or '' }}{{ ' · не в календарі' if dc.in_calendar is false }}</span>
     <span class="cnt" title="Робочих днів у місяці / усього днів">{{ work[dc.id] }}/{{ days|length }}</span></div></div></td>
   {% for d in days %}{% set s = sh.get((dc.id, d)) %}{% set o = of.get((dc.id, d)) %}{% set n = cnt.get((dc.id, d)) %}{% set cls = ('we' if d.weekday() >= 5) ~ (' td' if d == today) ~ (' wk' if d.weekday() == 6) ~ ('' if hours[d] else ' closed') %}
-    {% if s %}<td class="c w {{ cls }}" data-d="{{ dc.id }}" data-day="{{ d }}" data-s="{{ s.start }}" data-e="{{ s.end }}" data-p="{{ s.place or '' }}" title="{{ s.start }}–{{ s.end }}{{ (' · ' ~ s.place) if s.place }}"><span class="t">{{ s.start }} –<br>{{ s.end }}</span>{% if s.place %}<span class="pl">{{ s.place }}</span>{% endif %}{% if n %}<span class="bd">{{ CAL|safe }}{{ n }}</span>{% endif %}</td>
+    {% if s %}<td class="c w {{ cls }}" data-d="{{ dc.id }}" data-day="{{ d }}" data-s="{{ s.start }}" data-e="{{ s.end }}" data-p="{{ s.place or '' }}" title="{{ s.start }}–{{ s.end }}{{ (' · ' ~ s.place) if s.place }}"><span class="t"><em class="f">{{ hm(s.start) }}–{{ hm(s.end) }}</em><em class="x">{{ s.start }} –<br>{{ s.end }}</em></span>{% if s.place %}<span class="pl">{{ s.place }}</span>{% endif %}{% if n %}<span class="bd">{{ CAL|safe }}{{ n }}</span>{% endif %}</td>
     {% elif o and OFF.get(o.kind) %}{% set k = OFF[o.kind] %}<td class="c o {{ cls }}" style="--ob:{{ k[1] }};--oc:{{ k[2] }}" data-d="{{ dc.id }}" data-day="{{ d }}" data-k="{{ o.kind }}" title="{{ k[0] }}"><span class="oi">{{ oico(o.kind, 17) }}</span><span class="on">{{ k[0] }}</span>{% if n %}<span class="bd">{{ CAL|safe }}{{ n }}</span>{% endif %}</td>
     {% else %}<td class="c {{ cls }}" data-d="{{ dc.id }}" data-day="{{ d }}">{% if n %}<span class="bd" title="Записи без графіка">{{ CAL|safe }}{{ n }}</span>{% endif %}</td>{% endif %}
   {% endfor %}</tr>
@@ -120,6 +130,9 @@ dialog.sd{border:0;border-radius:20px;padding:0;width:min(460px,96vw);box-shadow
 function gsFilter(){var q=(document.getElementById('gs-q').value||'').toLowerCase().trim(),r=document.getElementById('gs-r').value;
   document.querySelectorAll('#gs tbody tr[data-n]').forEach(function(tr){tr.classList.toggle('hid',(q&&tr.dataset.n.indexOf(q)<0)||(r&&tr.dataset.r!==r))})}
 try{if(localStorage.getItem('gs_leg')==='1')document.getElementById('gs-leg').classList.add('on')}catch(e){}
+function gsMode(v){var w=document.getElementById('gs-wrap');w.classList.toggle('fit',v==='fit');document.querySelectorAll('#gs-seg button').forEach(function(b){b.classList.toggle('on',b.dataset.v===v)});try{localStorage.setItem('gs_mode',v)}catch(e){}
+  if(v==='full'){var t=document.getElementById('gs'),td=t.querySelector('thead th.td');if(td){var nm=t.querySelector('thead th.nm'),x=td.getBoundingClientRect().left-t.getBoundingClientRect().left;w.scrollLeft=Math.max(0,x-nm.offsetWidth-td.offsetWidth*2)}}}
+try{if(localStorage.getItem('gs_mode')==='full')gsMode('full')}catch(e){}
 </script>
 
 {% if edit %}
@@ -176,7 +189,7 @@ try{if(localStorage.getItem('gs_leg')==='1')document.getElementById('gs-leg').cl
       start:document.getElementById('gd-s').value,end:document.getElementById('gd-e').value,place:document.getElementById('gd-p').value,kind:k})})
       .then(function(r){return r.json()}).then(function(j){if(j.error){document.getElementById('gd-err').textContent=j.error;return}location.reload()})};
   document.addEventListener('keydown',function(e){if(e.key==='Escape'){gdClose();gdClear()}});
-  var td=t.querySelector('thead th.td');if(td){var w=t.closest('.gs-wrap'),nm=t.querySelector('thead th.nm');var x=td.getBoundingClientRect().left-t.getBoundingClientRect().left;w.scrollLeft=Math.max(0,x-nm.offsetWidth-td.offsetWidth*2)}
+  var td=t.querySelector('thead th.td');if(td&&!t.closest('.gs-wrap').classList.contains('fit')){var w=t.closest('.gs-wrap'),nm=t.querySelector('thead th.nm');var x=td.getBoundingClientRect().left-t.getBoundingClientRect().left;w.scrollLeft=Math.max(0,x-nm.offsetWidth-td.offsetWidth*2)}
 })();
 </script>
 {% endif %}
