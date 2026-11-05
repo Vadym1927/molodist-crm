@@ -182,3 +182,31 @@ def test_patient_subscription_manual():
         c.post(f"/patients/{pid}/subs", data={"sid": str(sid), "action": "delete"})
         with SessionLocal() as db:
             assert db.get(Subscription, sid) is None
+
+
+def test_gifts_subs_tab_create_and_package_new():
+    from fastapi.testclient import TestClient
+    from app.models import Subscription
+    from app.services import certificates as cs
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        p = Patient(full_name="Вкладка Абонемент", phone="+380670000111"); db.add(p); db.commit(); pid = p.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        pg = c.get("/gifts?tab=subs").text
+        assert "＋ Абонемент" in pg and 'id="subd"' in pg
+        r = c.post("/gifts/subs", data={"pid": str(pid), "type_name": "Курс масажу 6", "visits_total": "6", "visits_used": "0", "paid": "5670"}, follow_redirects=False)
+        assert r.status_code == 303 and r.headers["location"] == "/gifts?tab=subs"
+        with SessionLocal() as db:
+            s = db.query(Subscription).filter(Subscription.patient_id == pid).one()
+            assert s.visits_total == 6 and s.type_name == "Курс масажу 6"
+        assert "змінити" in c.get("/gifts?tab=subs").text
+        r = c.post("/gifts/packages/0", data={"action": "new", "name": "Свій курс 3", "visits": "3", "days": "90", "price": "4500", "services": "Масаж"}, follow_redirects=False)
+        assert r.status_code == 303
+        with SessionLocal() as db:
+            x = next(y for y in cs.packages(db) if y["name"] == "Свій курс 3")
+            assert x["visits"] == 3 and x["price"] == 4500 and x["id"] >= 900001 and x["active"]
+            nid = x["id"]
+        c.post(f"/gifts/packages/{nid}", data={"action": "delete"})
+        with SessionLocal() as db:
+            assert not any(y["id"] == nid for y in cs.packages(db))

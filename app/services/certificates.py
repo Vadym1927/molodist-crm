@@ -328,6 +328,23 @@ def package_save(db: Session, pid: int, data: dict) -> None:
     _pkg_put(db, xs)
 
 
+def package_new(db: Session, data: dict) -> dict:
+    """Свій шаблон абонемента (не з CleverBox): id від 900001."""
+    xs = packages(db)
+    x = {"id": max([int(y["id"]) for y in xs] + [900000]) + 1, "name": str(data.get("name") or "").strip()[:300] or "Абонемент", "type": "CRM",
+         "visits": max(1, min(int(float(data.get("visits") or 1)), 100)), "days": max(0, int(float(data.get("days") or 0))),
+         "price": round(float(str(data.get("price") or 0).replace(",", ".").replace(" ", "")), 2), "branch": "", "services": str(data.get("services") or "").strip()[:500],
+         "all_clients": False, "sold": 0, "active": True}
+    xs.append(x)
+    xs.sort(key=lambda z: z["name"].lower())
+    _pkg_put(db, xs)
+    return x
+
+
+def package_delete(db: Session, pid: int) -> None:
+    _pkg_put(db, [x for x in packages(db) if int(x["id"]) != int(pid)])
+
+
 def package_items(db: Session) -> list[dict]:
     """Активні шаблони абонементів для каси."""
     return [{"id": x["id"], "name": x["name"], "price": x.get("price") or 0, "visits": x.get("visits") or 1, "days": x.get("days") or 0,

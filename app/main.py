@@ -6189,6 +6189,17 @@ async def settings_cosmetics_pct_save(request: Request, user: User = Depends(req
     return RedirectResponse(_with_msg("/settings/cosmetics-pct", "Збережено. Звіт «Нарахування % по косметиці» рахується за новими правилами"), 303)
 
 
+@app.post("/gifts/subs")
+async def gifts_sub_save(request: Request, user: User = Depends(require("patient_edit")), db: Session = Depends(db_dep)):
+    """Абонемент з розділу «Сертифікати й абонементи»: пацієнт обирається у вікні."""
+    f = await request.form()
+    pid = str(f.get("pid") or "")
+    if not pid.isdigit():
+        return RedirectResponse(_with_err("/gifts?tab=subs", "Оберіть пацієнта"), 303)
+    resp = await patient_sub_save(int(pid), request, user, db)
+    return RedirectResponse("/gifts?tab=subs", 303) if resp.status_code == 303 else resp
+
+
 @app.post("/patients/{pid:int}/subs")
 async def patient_sub_save(pid: int, request: Request, user: User = Depends(require("patient_edit")), db: Session = Depends(db_dep)):
     """Абонемент пацієнта вручну: створити / змінити / видалити (візити, термін, послуги, сплачено, закритий)."""
@@ -7594,6 +7605,7 @@ def gifts_page(request: Request, tab: str = "certs", st: str = "", q: str = "", 
         for (tn_,) in db.execute(select(GiftCertificate.type_name).where(GiftCertificate.id >= _gt.CRM_ID_FROM)):
             sold_[tn_ or ""] += 1
         return render(request, "gifts.html", nav="gifts", tab=tab, types=_gt.items(db), gcfg=_gt.cfg(db), sold=dict(sold_), packages=cs.packages(db),
+                      pkg_items=cs.package_items(db),
                       pkg_rep=LAST_IMPORT.pop(f"gifts-{user.id}", None),
                       cur=_gt.get(db, int(qp_.get("edit"))) if (qp_.get("edit") or "").isdigit() else None,
                       items=[], total=0, states=cs.STATES, counts={}, st="", q="", seller="", sellers=[], today=today, other_n=0, last=None,
@@ -7622,6 +7634,7 @@ def gifts_page(request: Request, tab: str = "certs", st: str = "", q: str = "", 
     return render(request, "gifts.html", nav="gifts", tab=tab, items=items[:500], total=len(items), states=states,
                   counts=dict(counts), st=st, q=q, seller=seller, sellers=sellers, today=today,
                   other_n=db.scalar(select(func.count()).select_from(other)) or 0, last=LAST_IMPORT.pop(f"gifts-{user.id}", None),
+                  packages=cs.package_items(db) if tab == "subs" else [],
                   remind_days=__import__("app.services.gift_types", fromlist=["cfg"]).cfg(db).get("remind_days", 14))
 
 
@@ -7663,6 +7676,14 @@ async def gifts_package_save(pid: int, request: Request, user: User = Depends(re
     """Шаблон абонемента: кількість візитів, термін, ціна, активний для продажу."""
     from .services import certificates as cs
     f = await request.form()
+    if f.get("action") == "new":
+        x = cs.package_new(db, {"name": f.get("name"), "visits": f.get("visits"), "days": f.get("days"), "price": f.get("price"), "services": f.get("services")})
+        audit(db, "gifts.package", user=user, id=x["id"], op="new")
+        return RedirectResponse("/gifts?tab=types#pkg", 303)
+    if f.get("action") == "delete":
+        cs.package_delete(db, pid)
+        audit(db, "gifts.package", user=user, id=pid, op="delete")
+        return RedirectResponse("/gifts?tab=types#pkg", 303)
     if f.get("action") == "all_on":
         for x in cs.packages(db):
             cs.package_save(db, x["id"], {"active": True})
