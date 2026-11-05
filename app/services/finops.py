@@ -437,8 +437,9 @@ def payroll(db: Session, month: str, upto_from: str | None = None) -> list[dict]
                        "from_services": round(s["services"] * ps / 100, 2), "from_products": round(s["products"] * pp / 100, 2),
                        "adj": round(adj, 2), "adjs": adjs.get((mk, d.id), []), "accrued": acc}
         cur = per[month]
-        if not r and not pl and not cur["services"] and not cur["products"]:
-            continue
+        if not r and not pl and not cur["services"] and not cur["products"] and not d.active \
+                and not any(v["accrued"] or v["adj"] for v in per.values()):
+            continue                                         # активні співробітники — завжди (взаєморозрахунки по всіх)
         rows.append({"doctor": d, "rule": r, "plan": pl, "m": cur, "per": per})
     return rows
 
