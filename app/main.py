@@ -4050,6 +4050,82 @@ def _product_flags(r) -> set[str]:
     return f
 
 
+PRODUCT_XL_COLS = [   # key, назва, за замовчуванням
+    ("brand", "Бренд", True), ("name", "Засіб", True), ("sku", "Артикул", True), ("barcode", "Штрихкод", False),
+    ("warehouse", "Склад", False), ("supplier", "Постачальник", True), ("cost", "Закупівля (остання), ₴", True),
+    ("cost_date", "Дата закупівлі", False), ("cost_avg", "Закупівля середня, ₴", False), ("price", "Ціна продажу, ₴", True),
+    ("margin_pct", "Маржа, %", True), ("markup", "Націнка, %", True), ("stock", "Залишок", True), ("min_stock", "Мін. залишок", False),
+    ("days_left", "Вистачить, дн", False), ("expiry", "Термін придатності", False), ("stock_value", "Вартість залишку, ₴", True),
+    ("sold_90", "Продано за 90 дн, шт", False), ("sold_90_sum", "Продано за 90 дн, ₴", False), ("prescribed", "Призначено в планах", False),
+    ("cost_fx", "Закупівля у валюті", False), ("cost_currency", "Валюта", False), ("rrp_fx", "РРЦ (вал.)", False),
+    ("planned_price", "Рекомендована ціна", False), ("unit", "Одиниця", False), ("category", "Категорія", False),
+]
+
+
+def _product_xl_val(r, k):
+    p_ = r.product
+    return {"brand": p_.brand, "name": p_.name, "sku": p_.sku, "barcode": p_.barcode,
+            "warehouse": catalog.WAREHOUSES.get(p_.warehouse or "vitrina"), "supplier": p_.supplier or r.last_supplier,
+            "cost": r.cost, "cost_date": r.last_bought, "cost_avg": r.cost_avg, "price": r.sale_price, "margin_pct": r.margin_pct,
+            "markup": r.margin, "stock": r.stock, "min_stock": p_.min_stock, "days_left": r.days_left, "expiry": r.expiry,
+            "stock_value": round(r.stock_value, 2) if r.stock_value else None, "sold_90": r.sold_90 or None,
+            "sold_90_sum": round(r.sold_90_sum, 2) if r.sold_90_sum else None, "prescribed": r.prescribed or None,
+            "cost_fx": p_.cost_fx, "cost_currency": p_.cost_currency, "rrp_fx": p_.rrp_fx, "planned_price": p_.planned_price,
+            "unit": p_.unit, "category": p_.category}.get(k)
+
+
+@app.get("/products.xlsx")
+def products_xlsx(request: Request, q: str = "", brand: str = "", supplier: str = "", f: str = "", sort: str = "brand",
+                  wh: str = "vitrina", user: User = Depends(require("products")), db: Session = Depends(db_dep)):
+    """Excel товарів: рядки — за фільтрами сторінки або лише обрані (ids), стовпчики — обрані (cols)."""
+    import io
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    ids = {int(x) for x in request.query_params.getlist("ids") if x.isdigit()}
+    cols = [c for c in PRODUCT_XL_COLS if c[0] in set(request.query_params.getlist("cols"))] or [c for c in PRODUCT_XL_COLS if c[2]]
+    sts = all_statuses(db)
+    rows = [r for r in catalog.product_rows(db, sts) if r.product.active is not False]
+    if ids:
+        rows = [r for r in rows if r.product.id in ids]
+    else:
+        wh = wh if wh in catalog.WAREHOUSES or wh == "all" else "vitrina"
+        if wh != "all":
+            rows = [r for r in rows if (r.product.warehouse or "vitrina") == wh]
+        if q:
+            words = set(norm(q).split())
+            rows = [r for r in rows if words <= set(norm(" ".join(filter(None, [r.product.name, r.product.sku, r.product.brand]))).split())
+                    or (r.product.sku and q.strip().lower() == r.product.sku.lower())]
+        if brand:
+            rows = [r for r in rows if (r.product.brand or "") == ("" if brand == "—" else brand)]
+        if supplier:
+            rows = [r for r in rows if (r.product.supplier or r.last_supplier or "") == supplier]
+        if f in PRODUCT_FILTERS:
+            rows = [r for r in rows if f in _product_flags(r)]
+    keyf = {"stock": lambda r: (r.stock if r.stock is not None else 1e9), "expiry": lambda r: (r.expiry or date(2999, 1, 1)),
+            "margin": lambda r: -(r.margin or -1e9), "sold": lambda r: -r.sold_90, "revenue": lambda r: -r.revenue,
+            "value": lambda r: -r.stock_value}.get(sort) or (lambda r: ((r.product.brand or "яяя").lower(), r.product.name.lower()))
+    rows = sorted(rows, key=keyf)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Товари"
+    ws.append([c[1] for c in cols])
+    for c in ws[1]:
+        c.font = Font(bold=True, color="FFFFFF")
+        c.fill = PatternFill("solid", fgColor="3B3050")
+        c.alignment = Alignment(wrap_text=True, vertical="center")
+    import re as _re
+    for r in rows:
+        ws.append([(_re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", v) if isinstance(v, str) else v) for v in (_product_xl_val(r, c[0]) for c in cols)])
+    for i, c in enumerate(cols):
+        ws.column_dimensions[ws.cell(row=1, column=i + 1).column_letter].width = 46 if c[0] == "name" else (18 if c[0] in ("brand", "supplier") else 14)
+    ws.freeze_panes = "C2" if len(cols) > 2 else "A2"
+    buf = io.BytesIO()
+    wb.save(buf)
+    audit(db, "products.export", user=user, rows=len(rows), cols=len(cols))
+    return Response(buf.getvalue(), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f"attachment; filename=tovary-{date.today()}.xlsx"})
+
+
 @app.get("/products", response_class=HTMLResponse)
 def products_page(request: Request, tab: str = "care", q: str = "", brand: str = "", supplier: str = "",
                   f: str = "", sort: str = "brand", wh: str = "vitrina", user: User = Depends(require("products")),
@@ -4103,7 +4179,7 @@ def products_page(request: Request, tab: str = "care", q: str = "", brand: str =
             if r.product.supplier:
                 agg.setdefault(r.product.supplier, {"n": 0, "sum": 0.0, "last": None, "products": set()})["products"].add(r.product.id)
         supplier_rows = sorted(agg.items(), key=lambda x: x[0].lower())
-    return render(request, "products.html", dirs=catalog.product_dirs(db), tab=tab, groups=groups, flags=flags, counts=counts, FILTERS=PRODUCT_FILTERS,
+    return render(request, "products.html", XL_COLS=PRODUCT_XL_COLS, dirs=catalog.product_dirs(db), tab=tab, groups=groups, flags=flags, counts=counts, FILTERS=PRODUCT_FILTERS,
                   SORTS=PRODUCT_SORTS, q=q, brand=brand, supplier=supplier, f=f, sort=sort, brands=brands,
                   suppliers=suppliers, tot=tot, supplier_rows=supplier_rows, today=date.today(), wh=wh,
                   WAREHOUSES=catalog.WAREHOUSES, wh_counts=wh_counts, total_all=len(every),

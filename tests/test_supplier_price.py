@@ -242,3 +242,20 @@ def test_supplier_fx_in_pricing():
     with SessionLocal() as db:
         rows, _ = _pricing_rows(db, "all", "КурсБренд", "", "")
         assert rows[0].cost_uah == 525.0
+
+
+def test_products_xlsx_rows_and_cols():
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        a = Product(name="Експорт Крем", name_norm="експорт крем", brand="ЕкспБренд", sku="EX-1", price=500, warehouse="vitrina")
+        b = Product(name="Експорт Тонік", name_norm="експорт тонік", brand="ЕкспБренд", sku="EX-2", price=300, warehouse="vitrina")
+        db.add_all([a, b]); db.commit(); ida = a.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        assert "Вивантажити в Excel" in c.get("/products?brand=ЕкспБренд").text
+        r = c.get("/products.xlsx", params=[("brand", "ЕкспБренд"), ("cols", "name"), ("cols", "price")])
+        ws = openpyxl.load_workbook(io.BytesIO(r.content)).active
+        assert [x.value for x in ws[1]] == ["Засіб", "Ціна продажу, ₴"] and ws.max_row == 3
+        r = c.get("/products.xlsx", params=[("ids", str(ida)), ("cols", "sku")])
+        ws = openpyxl.load_workbook(io.BytesIO(r.content)).active
+        assert ws.max_row == 2 and ws["A2"].value == "EX-1"

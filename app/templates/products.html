@@ -81,7 +81,7 @@ dialog.pn{border:0;border-radius:20px;padding:0;width:min(1040px,97vw);max-heigh
   <a href="{{ base }}" class="{{ 'on' if not f }}">Усі</a>
   {% for k, v in FILTERS.items() %}<a href="{{ base }}&f={{ k }}" class="{{ 'on' if f==k }} {{ 'alert-f' if k in ('out','expired') else ('warn-f' if k in ('low','expiring','lowmargin') else '') }}">{{ v }} <em>{{ counts[k] }}</em></a>{% endfor %}
 </div>
-<div class="sum"><span>Позицій: <b>{{ tot.n }}</b></span><span>Залишок: <b>{{ '%g'|format(tot.stock|round(1)) }} {{ 'шт' if wh=='vitrina' else 'од.' }}</b></span>
+<div class="sum"><button type="button" class="btn ghost" style="padding:5px 14px" onclick="xlOpen()">⬇ Excel</button><span>Позицій: <b>{{ tot.n }}</b></span><span>Залишок: <b>{{ '%g'|format(tot.stock|round(1)) }} {{ 'шт' if wh=='vitrina' else 'од.' }}</b></span>
   <span>Вартість залишку (за закупівлею): <b>{{ tot.value|uah }}</b></span><span>Продано за 90 дн: <b>{{ tot.sold|uah }}</b></span></div>
 
 <form method="post" action="/products/bulk" id="bulkf">
@@ -130,6 +130,27 @@ dialog.pn{border:0;border-radius:20px;padding:0;width:min(1040px,97vw);max-heigh
   <b style="color:var(--ink)">Ціни закупівлі з руху товарів CleverBox</b> — звіт «Рух товарів» за період: ціна = сума приходу / к-сть. Вивантажуйте помісячно — остання ціна береться з найсвіжішого періоду.
   <label>з <input type="date" name="d_from" required></label><label>по <input type="date" name="d_to" required></label>
   <input type="file" name="file" accept=".xls,.xlsx" required><button class="btn ghost">Імпортувати</button></form>{% endif %}
+<dialog id="xld" style="border:0;border-radius:18px;padding:0;max-width:640px;width:calc(100% - 32px)">
+  <form method="get" action="/products.xlsx" id="xlf" style="padding:20px 22px;display:grid;gap:14px">
+    <div class="row between"><h2 style="margin:0">Вивантажити в Excel</h2><button type="button" class="btn ghost" onclick="this.closest('dialog').close()">×</button></div>
+    {% for k, v in [('wh', wh), ('q', q), ('brand', brand), ('supplier', supplier), ('f', f), ('sort', sort)] %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+    <div><b>Рядки</b>
+      <label style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="radio" name="_rows" value="all" checked style="width:auto;height:auto"> Усі за поточними фільтрами ({{ tot.n }})</label>
+      <label style="display:flex;gap:8px;align-items:center"><input type="radio" name="_rows" value="sel" id="xlsel" style="width:auto;height:auto"> Лише обрані галочками (<span id="xlseln">0</span>)</label></div>
+    <div><div class="row between"><b>Стовпчики</b><span class="small"><a href="#" onclick="xlAll(true);return false">усі</a> · <a href="#" onclick="xlAll(false);return false">жодного</a></span></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:4px 12px;margin-top:6px">
+      {% for k, l, d in XL_COLS %}<label style="display:flex;gap:6px;align-items:center;font-size:13.5px"><input type="checkbox" name="cols" value="{{ k }}" class="xlc" {{ 'checked' if d }} style="width:auto;height:auto"> {{ l }}</label>{% endfor %}</div></div>
+    <div><button class="btn">⬇ Скачати</button></div>
+  </form></dialog>
+<script>
+function xlOpen(){var n=document.querySelectorAll('#bulkf tbody input[type=checkbox]:checked').length;document.getElementById('xlseln').textContent=n;
+  var s=document.getElementById('xlsel');s.disabled=!n;if(n)s.checked=true;else document.querySelector('#xlf input[value=all]').checked=true;document.getElementById('xld').showModal()}
+function xlAll(v){document.querySelectorAll('#xlf .xlc').forEach(function(c){c.checked=v})}
+document.getElementById('xlf').addEventListener('submit',function(e){var f=this;f.querySelectorAll('input[name=ids]').forEach(function(x){x.remove()});
+  if(!f.querySelector('.xlc:checked')){e.preventDefault();alert('Оберіть хоча б один стовпчик');return}
+  if(document.getElementById('xlsel').checked){document.querySelectorAll('#bulkf tbody input[type=checkbox]:checked').forEach(function(c){var i=document.createElement('input');i.type='hidden';i.name='ids';i.value=c.value;f.appendChild(i)})}
+  setTimeout(function(){document.getElementById('xld').close()},300)});
+</script>
 <script>function bulkUi(){var n=document.querySelectorAll('#bulkf tbody input[type=checkbox]:checked').length;var b=document.getElementById('bulkbar');if(!b)return;b.classList.toggle('show',n>0);document.getElementById('bulkn').textContent=n}</script>
 
 {% elif tab=='suppliers' %}
