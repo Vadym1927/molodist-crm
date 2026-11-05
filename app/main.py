@@ -7594,9 +7594,11 @@ def _fa():
 def _cashboxes(db: Session) -> list[str]:
     from .models import CbFinOp
     from .services import cashboxes as _cbx
-    base = _cbx.names(db)                                             # «Налаштування → Каси / рахунки»
+    base = _cbx.names(db)                                             # лише активні з «Налаштування → Каси / рахунки»
+    if base:
+        return base
     cb = [a for (a,) in db.execute(select(CbFinOp.account).where(CbFinOp.account.is_not(None)).distinct()) if a]
-    return base + sorted(set(cb) - set(base)) + ["Інше"]               # + рахунки з журналу CleverBox
+    return sorted(set(cb)) + ["Інше"]                                 # кас ще не налаштовано — рахунки з журналу CleverBox
 
 
 def _month(m: str) -> str:
