@@ -1300,7 +1300,7 @@ class PayRequest(Base):
     """Рахунок постачальника на оплату: з Telegram-чату або CRM → погодження власником → чернетка платежу в monobank (Corporate API)."""
     __tablename__ = "pay_requests"
     id: Mapped[int] = mapped_column(primary_key=True)
-    status: Mapped[str] = mapped_column(String(20), default="new", index=True)   # new | approved | draft | paid | declined | rejected | error
+    status: Mapped[str] = mapped_column(String(20), default="new", index=True)   # recognizing | new | approved | draft | paid | declined | rejected | error
     file_path: Mapped[str | None] = mapped_column(String(500))
     file_name: Mapped[str | None] = mapped_column(String(200))
     mime: Mapped[str | None] = mapped_column(String(100))
@@ -1363,6 +1363,8 @@ class InvoiceJob(Base):
     done_at: Mapped[datetime | None] = mapped_column(DateTime)
     result: Mapped[dict | None] = mapped_column(JSON)
     error: Mapped[str | None] = mapped_column(String(500))
+    kind: Mapped[str | None] = mapped_column(String(20))       # None — накладна; payreq — рахунок на оплату (PayRequest)
+    ref_id: Mapped[int | None] = mapped_column(Integer)        # id PayRequest для kind=payreq
 
 
 class Check(Base):

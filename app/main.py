@@ -6950,6 +6950,10 @@ async def payreq_save(pid: int, request: Request, user: User = Depends(require("
     pr = db.get(PayRequest, pid) or (_ for _ in ()).throw(HTTPException(404))
     f = await request.form()
     act = str(f.get("action") or "save")
+    if act == "manual" and pr.status == "recognizing":           # не чекати агента — заповнити вручну
+        pr.status, pr.error = "new", None
+        db.commit()
+        return RedirectResponse(f"/payreq/{pid}", 303)
     if pr.status in ("new", "error", "rejected"):
         pr.receiver_name = str(f.get("receiver_name") or "").strip()[:300] or None
         pr.receiver_iban = prq.clean_iban(f.get("receiver_iban"))[:40] or None

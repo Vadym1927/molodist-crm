@@ -89,3 +89,54 @@ def test_corp_probe():
         assert not res2["ok"] and "не підходить" in res2["msg"]
         assert not next(x for x in monobank.saved(db) if x["fop"] == "Колган").get("corp_token")      # невдалий — не зберігаємо
         assert next(x for x in monobank.public(db) if x["fop"] == "Бондар")["corp"]["ok"]
+
+
+def test_payreq_via_agent(tmp_path, monkeypatch):
+    """Розпізнавання через агента на VPS (як накладні): черга kind=payreq → результат → картка в Telegram оновлена."""
+    from app.security import new_api_key
+    from app.models import ApiKey, InvoiceJob
+    from app.services import invoice_ai, alerts
+    settings.admin_password = "owner-pass-1"
+    old_dir, settings.files_dir = settings.files_dir, str(tmp_path)
+    sent = []
+    monkeypatch.setattr(alerts, "_api", lambda m, **kw: sent.append((m, kw.get("data"))) or True)
+    with SessionLocal() as db:
+        _mono(db)
+        invoice_ai.set_engine(db, "agent")
+        raw, prefix, hsh = new_api_key()
+        db.add(ApiKey(name="openclaw-pay", prefix=prefix, key_hash=hsh, scopes=["invoices"])); db.commit()
+        pr = prq.create(db, b"%PDF-1.4 x", "rah.pdf", "application/pdf", "telegram", "-100", 7, "Адмін")
+        assert pr.status == "recognizing" and "розпізнає" in prq.card_text(db, pr)
+        pr.tg_card = 55; db.commit()
+        pid = pr.id
+        j = db.query(InvoiceJob).filter(InvoiceJob.ref_id == pid).one()
+        assert j.kind == "payreq"
+        jid = j.id
+    try:
+        with TestClient(app) as c:
+            h = {"X-API-Key": raw}
+            p = c.get("/api/v1/invoices/pending", headers=h).json()
+            job = next(x for x in p["invoices"] if x["id"] == jid)
+            assert job["kind"] == "payreq" and "рахунок на оплату" in job["prompt"].lower()
+            assert c.get(f"/api/v1/invoices/{jid}/file", headers=h).status_code == 200
+            r = c.post(f"/api/v1/invoices/{jid}/result", headers=h, json={"result": _claude("", b"", "", "рахунок на оплату")})
+            assert r.status_code == 200 and r.json()["pay_request"] == pid
+        with SessionLocal() as db:
+            pr = db.get(PayRequest, pid)
+            assert pr.status == "new" and pr.amount == 18854.64 and pr.fop == "Колган" and pr.receiver_iban == IBAN
+        m, d = sent[-1]
+        assert m == "editMessageText" and d["message_id"] == "55" and "pay:ok" in d.get("reply_markup", "")
+        # помилка агента
+        with SessionLocal() as db:
+            pr2 = prq.create(db, b"\xff\xd8 x", "r.jpg", "image/jpeg")
+            j2 = db.query(InvoiceJob).filter(InvoiceJob.ref_id == pr2.id).one().id
+            p2 = pr2.id
+        with TestClient(app) as c:
+            c.post(f"/api/v1/invoices/{j2}/result", headers={"X-API-Key": raw}, json={"error": "розмите фото"})
+        with SessionLocal() as db:
+            pr2 = db.get(PayRequest, p2)
+            assert pr2.status == "error" and "розмите" in pr2.error
+    finally:
+        settings.files_dir = old_dir
+        with SessionLocal() as db:
+            invoice_ai.set_engine(db, "crm")

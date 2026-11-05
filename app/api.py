@@ -495,8 +495,11 @@ INVOICES = scope("invoices")
 
 
 def _inv_json(j) -> dict:
+    from .services import invoice_ai, pay_requests
+    kind = j.kind or "invoice"
     return {"id": j.id, "created_at": j.created_at.isoformat(timespec="seconds"), "filename": j.filename, "mime": j.mime,
-            "status": j.status, "file_url": f"/api/v1/invoices/{j.id}/file"}
+            "status": j.status, "file_url": f"/api/v1/invoices/{j.id}/file", "kind": kind,
+            "prompt": pay_requests.PROMPT if kind == "payreq" else invoice_ai.PROMPT}
 
 
 @router.get("/invoices/pending", summary="Накладні (фото / скани), що чекають розпізнавання, + формат відповіді")
@@ -507,7 +510,8 @@ def invoices_pending(limit: int = 10, key: ApiKey = Depends(INVOICES), db: Sessi
     stale = datetime.now() - timedelta(minutes=15)          # «взяв і зник» — повертаємо в чергу
     rows = db.scalars(select(InvoiceJob).where((InvoiceJob.status == "pending") | ((InvoiceJob.status == "taken") & (InvoiceJob.taken_at < stale)))
                       .order_by(InvoiceJob.id).limit(max(1, min(limit, 50)))).all()
-    return {"prompt": invoice_ai.PROMPT, "answer_format": {"result": "JSON у форматі з prompt", "error": "або текст помилки"},
+    return {"prompt": invoice_ai.PROMPT, "answer_format": {"result": "JSON у форматі prompt САМОЇ задачі (invoices[].prompt; kind=invoice — накладна, kind=payreq — рахунок на оплату)",
+                                                   "error": "або текст помилки"},
             "invoices": [_inv_json(j) for j in rows]}
 
 
@@ -525,12 +529,24 @@ def invoice_file(jid: int, key: ApiKey = Depends(INVOICES), db: Session = Depend
     return FileResponse(j.path, media_type=j.mime or "application/octet-stream", filename=j.filename)
 
 
-@router.post("/invoices/{jid}/result", summary="Результат розпізнавання: {result: {supplier, number, date, total, lines[]}} або {error}")
+@router.post("/invoices/{jid}/result", summary="Результат розпізнавання: {result: …} у форматі prompt задачі (накладна — supplier, number, date, total, lines[]; рахунок на оплату — seller, payer, number, date, total, vat, purpose) або {error}")
 def invoice_result(jid: int, body: dict, key: ApiKey = Depends(INVOICES), db: Session = Depends(db_dep)):
     from .models import InvoiceJob
     from .services import invoice_ai
     j = db.get(InvoiceJob, jid) or (_ for _ in ()).throw(HTTPException(404))
     body = body or {}
+    if j.kind == "payreq":                                   # рахунок на оплату — формат pay_requests.PROMPT
+        from .models import PayRequest
+        from .services import pay_requests
+        err = str(body["error"])[:500] if body.get("error") and not body.get("result") else None
+        res = body.get("result") if isinstance(body.get("result"), dict) else (None if err else body)
+        pr = db.get(PayRequest, j.ref_id) if j.ref_id else None
+        j.status, j.result, j.error, j.done_at = ("error" if err else "done"), res, err, datetime.now()
+        db.commit()
+        if pr:
+            pay_requests.apply_agent(db, pr, res, err)
+        audit(db, "invoice.agent", "invoice_job", j.id, key=key, status=j.status, kind="payreq")
+        return {"ok": True, "id": j.id, "status": j.status, "pay_request": pr.id if pr else None}
     if body.get("error") and not body.get("result"):
         j.status, j.error = "error", str(body["error"])[:500]
     else:

@@ -21,7 +21,7 @@ from ..models import PayRequest, SyncState, User
 
 CHAT_KEY = "pay_chat_id"
 CFG_KEY = "pay_cfg"
-STATUS = {"new": "очікує погодження", "approved": "погоджено", "draft": "чернетка в monobank — підпишіть",
+STATUS = {"recognizing": "розпізнається агентом", "new": "очікує погодження", "approved": "погоджено", "draft": "чернетка в monobank — підпишіть",
           "paid": "оплачено", "declined": "відхилено в monobank", "rejected": "відхилено", "error": "помилка"}
 
 PROMPT = """Це рахунок на оплату (рахунок-фактура) від постачальника клініці в Україні.
@@ -96,31 +96,39 @@ def clean_iban(v) -> str:
     return re.sub(r"\s", "", str(v or "")).upper()
 
 
+def _mime(filename: str, mime: str | None) -> str:
+    name, mime = (filename or "").lower(), (mime or "").lower()
+    for ext, m in ((".pdf", "application/pdf"), (".jpg", "image/jpeg"), (".jpeg", "image/jpeg"), (".png", "image/png"), (".webp", "image/webp")):
+        if name.endswith(ext):
+            return m
+    return mime
+
+
+def fields(j: dict) -> dict:
+    """JSON розпізнавання (формат PROMPT; приймає й формат накладних: supplier / number / date / total) → поля PayRequest."""
+    j = dict(j or {})
+    seller = j.get("seller") or j.get("supplier") or {}
+    seller = seller if isinstance(seller, dict) else {"name": str(seller)}
+    payer = j.get("payer") or j.get("buyer") or {}
+    payer = payer if isinstance(payer, dict) else {"name": str(payer)}
+    return {"receiver_name": str(seller.get("name") or "").strip()[:300],
+            "receiver_iban": clean_iban(seller.get("iban"))[:40],
+            "receiver_edrpou": re.sub(r"\D", "", str(seller.get("edrpou") or seller.get("code") or ""))[:20],
+            "payer_name": str(payer.get("name") or "").strip()[:300],
+            "invoice_no": str(j.get("number") or "").strip()[:80], "invoice_date": _date(j.get("date")),
+            "amount": _num(j.get("total")), "vat": _num(j.get("vat")), "purpose": str(j.get("purpose") or "").strip()[:420], "raw": j}
+
+
 def recognize(db: Session, data: bytes, filename: str, mime: str | None = None, claude=None) -> dict:
-    """PDF / фото рахунку → поля. claude(key, data, mime, prompt) — для тестів."""
+    """PDF / фото рахунку → поля через Claude API з ключем у CRM. claude(key, data, mime, prompt) — для тестів."""
     from . import invoice_ai
-    name = (filename or "").lower()
-    mime = (mime or "").lower()
-    if name.endswith(".pdf"):
-        mime = "application/pdf"
-    elif name.endswith((".jpg", ".jpeg")):
-        mime = "image/jpeg"
-    elif name.endswith(".png"):
-        mime = "image/png"
-    elif name.endswith(".webp"):
-        mime = "image/webp"
+    mime = _mime(filename, mime)
     if mime not in invoice_ai.IMAGE_TYPES | {"application/pdf"}:
         raise ValueError("Підтримуються PDF і фото (JPG, PNG, WebP)")
     key = invoice_ai.api_key(db)
     if not key and not claude:
-        raise ValueError("Для розпізнавання рахунків потрібен ключ Claude API («Налаштування → Розпізнавання накладних»)")
-    j = (claude or _claude)(key, data, mime, PROMPT)
-    return {"receiver_name": ((j.get("seller") or {}).get("name") or "").strip()[:300],
-            "receiver_iban": clean_iban((j.get("seller") or {}).get("iban"))[:40],
-            "receiver_edrpou": re.sub(r"\D", "", str((j.get("seller") or {}).get("edrpou") or ""))[:20],
-            "payer_name": ((j.get("payer") or {}).get("name") or "").strip()[:300],
-            "invoice_no": str(j.get("number") or "").strip()[:80], "invoice_date": _date(j.get("date")),
-            "amount": _num(j.get("total")), "vat": _num(j.get("vat")), "purpose": str(j.get("purpose") or "").strip()[:420], "raw": j}
+        raise ValueError("Для розпізнавання рахунків потрібен ключ Claude API або агент на VPS («Налаштування → Розпізнавання накладних»)")
+    return fields((claude or _claude)(key, data, mime, PROMPT))
 
 
 def _claude(key: str, data: bytes, mime: str, prompt: str) -> dict:
@@ -179,29 +187,81 @@ def default_purpose(pr: PayRequest) -> str:
     return f"Оплата за товар згідно рахунку{no}{dt}{vat}"[:420]
 
 
-def create(db: Session, data: bytes, filename: str, mime: str | None, source: str = "crm", tg_chat: str | None = None,
-           tg_msg: int | None = None, sender: str | None = None, claude=None) -> PayRequest:
-    """Новий рахунок на оплату з файлу: зберегти, розпізнати, підставити постачальника, ФОП і призначення."""
-    from . import ingest
+def _finish(db: Session, pr: PayRequest) -> None:
+    """Після розпізнавання: постачальник у CRM, ФОП-платник, рахунок списання, призначення."""
     from .suppliers import find
-    pr = PayRequest(file_path=ingest.store(data, filename or "rahunok"), file_name=(filename or "рахунок")[:200], mime=(mime or "")[:100] or None,
-                    source=source, tg_chat=tg_chat, tg_msg=tg_msg, sender_name=(sender or "")[:200] or None)
-    try:
-        f = recognize(db, data, filename, mime, claude=claude)
-        for k, v in f.items():
-            setattr(pr, k, v)
-    except Exception as e:  # noqa: BLE001
-        pr.status, pr.error = "error", f"Не розпізнано: {str(e)[:300]}"
     hit = find(db, pr.receiver_iban, pr.receiver_edrpou)
     if hit:
         pr.supplier_id = hit[0].id
-    pr.fop = fop_for(db, pr.payer_name) or (fops(db)[0] if len(fops(db)) == 1 else None)
-    pr.sender_iban = sender_iban(db, pr.fop)
+    pr.fop = pr.fop or fop_for(db, pr.payer_name) or (fops(db)[0] if len(fops(db)) == 1 else None)
+    pr.sender_iban = pr.sender_iban or sender_iban(db, pr.fop)
     if not pr.purpose:
         pr.purpose = default_purpose(pr)
+
+
+def create(db: Session, data: bytes, filename: str, mime: str | None, source: str = "crm", tg_chat: str | None = None,
+           tg_msg: int | None = None, sender: str | None = None, claude=None) -> PayRequest:
+    """Новий рахунок на оплату з файлу: зберегти, розпізнати (агент на VPS або Claude API — як накладні),
+    підставити постачальника, ФОП і призначення. Через агента — статус recognizing до відповіді (apply_agent)."""
+    from . import ingest, invoice_ai
+    pr = PayRequest(file_path=ingest.store(data, filename or "rahunok"), file_name=(filename or "рахунок")[:200], mime=(mime or "")[:100] or None,
+                    source=source, tg_chat=tg_chat, tg_msg=tg_msg, sender_name=(sender or "")[:200] or None)
+    if not claude and invoice_ai.engine(db) == "agent":
+        if _mime(filename, mime) not in invoice_ai.IMAGE_TYPES | {"application/pdf"}:
+            pr.status, pr.error = "error", "Не розпізнано: підтримуються PDF і фото (JPG, PNG, WebP)"
+        else:
+            pr.status = "recognizing"
+            db.add(pr)
+            db.flush()
+            j = invoice_ai.queue(db, data, filename, _mime(filename, mime) or mime, None)   # commit усередині
+            j.kind, j.ref_id = "payreq", pr.id
+            db.commit()
+            return pr
+    else:
+        try:
+            for k, v in recognize(db, data, filename, mime, claude=claude).items():
+                setattr(pr, k, v)
+        except Exception as e:  # noqa: BLE001
+            pr.status, pr.error = "error", f"Не розпізнано: {str(e)[:300]}"
+    _finish(db, pr)
     db.add(pr)
     db.commit()
     return pr
+
+
+def apply_agent(db: Session, pr: PayRequest, result: dict | None, error: str | None = None) -> PayRequest:
+    """Відповідь агента (OpenClaw) по рахунку на оплату → поля PayRequest; оновити картку в Telegram."""
+    if pr.status != "recognizing":
+        return pr                                         # уже заповнено вручну / погоджено / відхилено — не чіпаємо
+    if error and not result:
+        pr.status, pr.error = "error", f"Не розпізнано агентом: {str(error)[:300]}"
+    else:
+        for k, v in fields(result or {}).items():
+            setattr(pr, k, v)
+        pr.status, pr.error = "new", None
+        _finish(db, pr)
+    db.commit()
+    tg_update(db, pr)
+    return pr
+
+
+def tg_update(db: Session, pr: PayRequest) -> bool:
+    """Синхронно оновити картку рахунку в Telegram-групі (текст + кнопки) — Bot API, той самий бот адмінів."""
+    if not (pr.tg_chat and pr.tg_card):
+        return False
+    from . import alerts
+    kb = None
+    try:
+        from ..integrations.telegram_bot import pay_keyboard
+        m = pay_keyboard(pr)
+        kb = m.model_dump_json(exclude_none=True) if m else None
+    except Exception:  # noqa: BLE001
+        kb = None
+    data = {"chat_id": pr.tg_chat, "message_id": str(pr.tg_card), "text": card_text(db, pr)[:4000], "parse_mode": "HTML",
+            "disable_web_page_preview": "true"}
+    if kb:
+        data["reply_markup"] = kb
+    return alerts._api("editMessageText", data=data)
 
 
 def problems(pr: PayRequest) -> list[str]:
@@ -320,6 +380,9 @@ def card_text(db: Session, pr: PayRequest) -> str:
     from ..models import Supplier
     sup = db.get(Supplier, pr.supplier_id) if pr.supplier_id else None
     lines = [f"🧾 <b>Рахунок на оплату #{pr.id}</b> · {STATUS.get(pr.status, pr.status)}"]
+    if pr.status == "recognizing":
+        lines.append("⏳ Агент на VPS розпізнає рахунок — картка оновиться з реквізитами й кнопками «Погодити / Відхилити».")
+        return "\n".join(lines)
     lines.append(f"Отримувач: <b>{escape(pr.receiver_name or '—')}</b>" + (f" ({escape(sup.name)})" if sup else " · <i>новий постачальник</i>"))
     lines.append(f"IBAN: <code>{escape(pr.receiver_iban or '—')}</code> · ЄДРПОУ {escape(pr.receiver_edrpou or '—')}")
     lines.append(f"Сума: <b>{(pr.amount or 0):,.2f} ₴</b>".replace(",", " ") + (f" (ПДВ {pr.vat:,.2f})".replace(",", " ") if pr.vat else ""))
