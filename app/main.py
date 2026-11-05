@@ -8556,6 +8556,22 @@ def finance_price_file(spid: int, user: User = Depends(current_user), db: Sessio
                         content_disposition_type="inline" if (sp.file_name or "").lower().endswith((".pdf", ".jpg", ".jpeg", ".png", ".webp")) else "attachment")
 
 
+@app.get("/finance/pricing/price/{spid:int}/text")
+def finance_price_text(spid: int, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Що CRM бачить у PDF прайсу (перші рядки таблиці / тексту) — щоб зрозуміти, чому не розібрано."""
+    from pathlib import Path
+    from .models import SupplierPrice
+    from .services import supplier_prices as spx
+    sp = db.get(SupplierPrice, spid) or (_ for _ in ()).throw(HTTPException(404))
+    if not sp.file_path or not Path(sp.file_path).exists() or not (sp.file_name or "").lower().endswith(".pdf"):
+        return JSONResponse({"error": "не PDF або файл недоступний"}, status_code=400)
+    try:
+        tab = spx.pdf_table(Path(sp.file_path).read_bytes())
+    except Exception as e:  # noqa: BLE001
+        return JSONResponse({"error": str(e)[:300]}, status_code=400)
+    return JSONResponse({"rows": len(tab), "sample": [[spx._s(c) for c in r] for r in tab[:40]]})
+
+
 @app.post("/finance/pricing/price/{spid:int}")
 async def finance_price_apply(spid: int, request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     from .models import SupplierPrice
