@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Сповіщення в Telegram · Налаштування{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+<style>
+.tn-g{display:grid;gap:14px}.tn-c{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 18px;box-shadow:var(--shadow)}
+.tn-h{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}.tn-h h2{margin:0}
+.tn-who{font-size:12.5px;color:var(--muted)}.tn-who b{color:var(--ink)}.tn-who .no{color:#B23B2E;font-weight:700}
+.tn-t{width:100%;border-collapse:collapse;font-size:13.5px}.tn-t th{font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496;text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+.tn-t td{padding:8px;border-bottom:1px solid #F1EDE8;vertical-align:middle}.tn-t tr.off td{color:#8a8496}.tn-t .d{font-size:12px;color:var(--muted);font-weight:400}
+.tn-t input[type=time],.tn-t select{height:36px;margin:0;font-size:13px}.tn-t input[type=time]{width:124px}.tn-t select{width:72px}
+.tn-sw{position:relative;display:inline-block;width:40px;height:22px;vertical-align:middle}.tn-sw input{opacity:0;width:0;height:0}
+.tn-sw i{position:absolute;inset:0;background:#D8D3DE;border-radius:99px;transition:.15s;cursor:pointer}.tn-sw i:before{content:"";position:absolute;width:18px;height:18px;left:2px;top:2px;background:#fff;border-radius:50%;transition:.15s}
+.tn-sw input:checked+i{background:#3B3050}.tn-sw input:checked+i:before{transform:translateX(18px)}
+.tn-test{padding:3px 10px;font-size:12px}
+.tn-chips{display:flex;gap:8px;flex-wrap:wrap}.tn-chips label{cursor:pointer}.tn-chips input{position:absolute;opacity:0;pointer-events:none}
+.tn-chips span{display:inline-block;padding:6px 12px;border-radius:99px;border:1.5px solid #E9E5DF;font:600 13px var(--sans);color:#6b6575;background:#fff}.tn-chips input:checked+span{background:#3B3050;border-color:#3B3050;color:#fff}
+.savebar{position:sticky;bottom:10px;z-index:6;display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--graphite);color:#fff;border-radius:14px;padding:10px 14px;margin-top:12px}
+.savebar .btn{background:#fff;color:var(--graphite);border-color:#fff}
+</style>
+<div class="eyebrow"><a href="/settings" style="text-decoration:none">← Налаштування · Співробітники</a></div>
+<h1>Сповіщення в Telegram</h1>
+<p class="muted small" style="margin-top:4px">Бот CRM надсилає кожному співробітнику особисто — за роллю й у вказаний час. Отримують ті, у кого в «<a href="/me">Мій кабінет</a>» вказано Telegram.
+  Щоб отримати свій ID: напишіть боту CRM у Telegram — він відповість ID, або скористайтесь ботом <code>@userinfobot</code>.</p>
+{% if not bot_ok %}<div class="alert">Токен бота адміністраторів (TELEGRAM_BOT_TOKEN) не задано — сповіщення не надсилатимуться.</div>{% endif %}
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+{% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+
+<form method="post" action="/settings/tg-notify" id="tnf"><div class="tn-g">
+{% for role, rlabel in ROLES.items() %}{% set items = cfg.roles[role] %}
+<div class="tn-c"><div class="tn-h"><h2>{{ rlabel }}</h2>
+  <div class="tn-who">{% if have[role] %}отримують: <b>{{ have[role]|map(attribute='name')|join(', ') }}</b>{% else %}<span class="no">ніхто не отримає</span> — {% if role == 'chief' %}оберіть головного лікаря нижче{% else %}у користувачів цієї ролі не вказано Telegram{% endif %}{% endif %}</div></div>
+  {% if role == 'chief' %}<div class="tn-chips" style="margin:4px 0 12px">{% for u in users if u.role in ('doctor', 'owner') %}<label><input type="checkbox" name="chiefs" value="{{ u.id }}" {{ 'checked' if u.id in cfg.chiefs }}><span>{{ u.name }}{{ '' if u.telegram_chat_id else ' · без Telegram' }}</span></label>{% else %}<span class="muted small">Немає користувачів з роллю «лікар»</span>{% endfor %}</div>{% endif %}
+  <table class="tn-t"><thead><tr><th style="width:56px">Увімк.</th><th>Сповіщення</th><th style="width:120px">Час</th><th style="width:90px">Коли</th><th style="width:80px"></th></tr></thead><tbody>
+  {% for key, title, desc, per, defaults in TYPES if key in items %}{% set v = items[key] %}
+  <tr class="{{ '' if v.on else 'off' }}">
+    <td><label class="tn-sw"><input type="checkbox" name="{{ role }}_{{ key }}_on" value="1" {{ 'checked' if v.on }} onchange="this.closest('tr').classList.toggle('off',!this.checked)"><i></i></label></td>
+    <td><b>{{ title }}</b><div class="d">{{ desc }}</div></td>
+    <td><input type="time" name="{{ role }}_{{ key }}_time" value="{{ v.time }}"></td>
+    <td>{% if per == 'weekly' %}<select name="{{ role }}_{{ key }}_dow">{% for k, l in DOW.items() %}<option value="{{ k }}" {{ 'selected' if v.dow == k }}>{{ l }}</option>{% endfor %}</select>{% elif per == 'monthly' %}<span class="d">1-го числа</span>{% else %}<span class="d">щодня</span>{% endif %}</td>
+    <td><button class="btn ghost tn-test" name="action" value="test" formaction="/settings/tg-notify" onclick="this.form.key.value='{{ key }}';this.form.role.value='{{ role }}'" title="Надіслати приклад мені в Telegram">тест → мені</button></td>
+  </tr>{% endfor %}</tbody></table>
+</div>
+{% endfor %}
+<div class="tn-c"><h2 style="margin:0 0 8px">Дні народження</h2>
+  <div class="row" style="gap:14px;flex-wrap:wrap;align-items:flex-end">
+    <label style="display:grid;gap:4px;font:600 12.5px var(--sans);color:var(--muted)">Нагадувати за, днів<input type="number" name="bday_days" value="{{ cfg.bday_days }}" min="0" max="14" style="width:90px;height:40px;margin:0"></label>
+    <label style="display:grid;gap:4px;font:600 12.5px var(--sans);color:var(--muted);flex:1;min-width:260px">Текст привітання (додається до списку іменинників — адміністратор копіює й надсилає пацієнту)<textarea name="greeting" rows="2" style="margin:0">{{ cfg.greeting }}</textarea></label></div></div>
+<div class="tn-c"><h2 style="margin:0 0 6px">Інші сповіщення бота</h2>
+  <ul class="small" style="margin:0;padding-left:18px;line-height:1.8">
+    <li>Низька оцінка дзвінка й задача «Розібрати дзвінок» — <a href="/settings/telephony">Телефонія</a></li>
+    <li>Сертифікати, що закінчуються — <a href="/gifts?tab=types">Сертифікати</a>; терміни придатності — <a href="/reports?r=expiry#notify">Сповіщення про терміни</a></li>
+    <li>Рахунки на оплату й видатки з Telegram-групи — <a href="/payreq">Рахунки на оплату</a>; збої синхронізації, бекапи — власнику (TELEGRAM_ALERT_CHAT_ID)</li>
+    <li>Щоденний дайджест нагадувань по планах у спільний чат адміністраторів (TELEGRAM_ADMIN_CHAT_ID) — працює як раніше; тут — особисті сповіщення кожному</li>
+  </ul></div>
+</div>
+<input type="hidden" name="key"><input type="hidden" name="role">
+<div class="savebar"><span>Перевірка кожні 5 хв; повідомлення надсилається один раз на день кожному, не пізніше 3 годин після вказаного часу.</span><button class="btn" name="action" value="save">Зберегти</button></div>
+</form>
+{% endblock %}

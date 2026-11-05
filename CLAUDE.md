@@ -37,6 +37,8 @@ CRM естетичної клініки MOLODIST (Київ) під бюті-пл
   на підпис у застосунку; стан щогодини (job_payreq). Доступ перевіряється в Налаштування → monobank → «Платежі на підпис»
 - `app/services/supplier_prices.py` — прайс постачальника по бренду (Excel/CSV) у «Планування ціни реалізації»: колонки артикул/назва/штрихкод/закупівля/РРЦ,
   зіставлення з товарами бренду → підставити cost_currency/cost_fx і rrp_fx; прайси (дата прайсу, дата й час завантаження) — у картці постачальника (SupplierPrice)
+- `app/services/tg_notify.py` — сповіщення співробітникам у Telegram за ролями (адміни / лікарі / головний лікар / власник) і часом:
+  записи на день, підтвердити завтра, плани, ДН, не перезаписані, задачі, підсумок дня / тижня / місяця (/settings/tg-notify, job_tg_notify кожні 5 хв)
 - `app/integrations/messaging.py` — бот пацієнтів (токен PATIENT_BOT_TOKEN) + TurboSMS (Viber→SMS)
 - `docs/openclaw-patient-bot.md` — контракт API для бота пацієнтів
 - Тести: `docker compose exec app pytest -q` (потрібен будь-який PDF плану в `tests/sample_plan.pdf`)

@@ -356,6 +356,18 @@ async def job_payreq():
         log.warning("payreq refresh: %s", e)
 
 
+async def job_tg_notify():
+    """Сповіщення співробітникам у Telegram за ролями й часом (Налаштування → Співробітники → Сповіщення в Telegram)."""
+    from .services import tg_notify
+    def run():
+        with SessionLocal() as db:
+            return tg_notify.run(db)
+    try:
+        await asyncio.to_thread(run)
+    except Exception as e:  # noqa: BLE001
+        log.warning("tg_notify: %s", e)
+
+
 async def job_checkbox():
     """Оборот ФОП з Checkbox (Z-звіти) — поточний і попередній місяць."""
     from .integrations import checkbox as chb
@@ -451,6 +463,7 @@ async def lifespan(app: FastAPI):
         sched.add_job(job_checkbox, "cron", hour="8,14,23", minute=50)
         sched.add_job(job_mono, "cron", minute=20)
         sched.add_job(job_payreq, "cron", minute=35)
+        sched.add_job(job_tg_notify, "cron", minute="*/5")
         sched.add_job(job_rematch, "date", run_date=datetime.now() + timedelta(seconds=40))   # після оновлення — одразу
         sched.add_job(job_expiry, "cron", hour=9, minute=15)
         sched.add_job(job_loyalty, "cron", hour=9, minute=5)
@@ -5745,6 +5758,7 @@ SETTINGS_BLOCKS = [
         ('Категорії спеціалістів', 'Ціни за категоріями: інші ціни на послуги для головного лікаря, топ-лікаря, стажера', '/settings/price-cats', 'finance', 'cmarket/customprice/main'),
         ('Статті для нарахувань', 'Премії, штрафи, лікарняні, податки, відпускні — для коригувань зарплати', '/settings/accrual-articles', 'finance', 'dirs/stype'),
         ('% від продажу косметики', 'Відсоток лікарям з продажу товарів: без знижки, зі знижкою, поріг ціни; свої % для лікарів, брендів і товарів', '/settings/cosmetics-pct', 'finance', None),
+        ('Сповіщення в Telegram', 'Бот для адміністраторів, лікарів, головного лікаря й власника: записи на день, нагадування по планах, ДН пацієнтів, задачі, підсумок дня / тижня / місяця — що й о котрій', '/settings/tg-notify', 'users', None),
         ('Застосунок для спеціаліста', 'Записи й нарахування у телефоні спеціаліста', 'dev', None, None),
     ]),
     ('Фінанси', 'finance', 'Каси, статті, оплати й фіскалізація', [
@@ -5799,6 +5813,42 @@ SETTINGS_BLOCKS = [
         ('Зіставлення послуг', 'Позиції плану ↔ послуги CleverBox', '/mapping', 'mapping', None),
     ]),
 ]
+
+
+@app.get("/settings/tg-notify", response_class=HTMLResponse)
+def tg_notify_page(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import tg_notify as tn
+    users = db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all()
+    c = tn.cfg(db)
+    have = {r: [u for u in users if u.telegram_chat_id and (u.role == r if r != "chief" else u.id in c["chiefs"])] for r in tn.ROLES}
+    return render(request, "tg_notify.html", nav="settings", cfg=c, TYPES=tn.TYPES, ROLES=tn.ROLES, DOW=tn.DOW, users=users, have=have,
+                  bot_ok=bool(settings.telegram_bot_token))
+
+
+@app.post("/settings/tg-notify")
+async def tg_notify_save(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import tg_notify as tn
+    f = await request.form()
+    if f.get("action") == "test":
+        key, role = str(f.get("key") or ""), str(f.get("role") or "")
+        if key not in tn.BUILDERS or role not in tn.ROLES:
+            raise HTTPException(400)
+        if not user.telegram_chat_id:
+            return RedirectResponse(_with_err("/settings/tg-notify", "Укажіть свій Telegram у «Мій кабінет», щоб отримати тест"), 303)
+        text = tn.BUILDERS[key](db, user, role) or f"({tn.TYPE[key][1]}: сьогодні нічого немає — повідомлення не надсилається)"
+        ok = tn.send_text(user.telegram_chat_id, text)
+        return RedirectResponse(_with_msg("/settings/tg-notify", "Тест надіслано вам у Telegram" if ok else "Не вдалося надіслати — перевірте бота", err=not ok), 303)
+    roles = {}
+    for role in tn.ROLES:
+        roles[role] = {}
+        for key, *_ in tn.TYPES:
+            if f"{role}_{key}_time" in f:
+                roles[role][key] = {"on": bool(f.get(f"{role}_{key}_on")), "time": str(f.get(f"{role}_{key}_time") or "09:00")[:5],
+                                    "dow": str(f.get(f"{role}_{key}_dow") or "mon")}
+    chiefs = [int(x) for x in f.getlist("chiefs") if str(x).isdigit()]
+    tn.save(db, roles, chiefs, str(f.get("greeting") or ""), int(f.get("bday_days") or 3) if str(f.get("bday_days") or "").isdigit() else 3)
+    audit(db, "settings.tg_notify", user=user)
+    return RedirectResponse(_with_msg("/settings/tg-notify", "Збережено"), 303)
 
 
 @app.get("/settings", response_class=HTMLResponse)
