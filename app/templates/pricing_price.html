@@ -42,7 +42,7 @@
 {% for r in rows %}{% set p = r.p %}
 <tr id="r{{ r.i }}" class="{{ 'no' if not p else ('same' if r.same else '') }}">
   <td>{% if p and not r.same %}<input type="checkbox" class="ppc" name="row" value="{{ r.i }}" checked>{% endif %}</td>
-  <td><b>{{ r.name }}</b><div class="how">{{ ('арт. ' ~ r.sku) if r.sku }}{{ (' · ' ~ r.barcode) if r.barcode }}</div></td>
+  <td><b>{{ r.name }}</b>{% if r.name2 %}<div class="how">{{ r.name2 }}</div>{% endif %}<div class="how">{{ ('арт. ' ~ r.sku) if r.sku }}{{ (' · ' ~ r.barcode) if r.barcode }}</div></td>
   <td>{% if p %}<a href="/products/{{ p.id }}">{{ p.name }}</a><div class="how">{{ r.how }}{{ (' · арт. ' ~ p.sku) if p.sku }}</div>{% endif %}
     <button type="button" class="btn ghost" style="padding:2px 10px;font-size:12px" onclick="ppPick(this, {{ r.i }})">{{ 'змінити' if p else 'обрати товар' }}</button></td>
   <td class="r">{% if r.old %}{{ '%g'|format(r.old) }} {{ r.old_cur or 'UAH' }}{% else %}<span class="muted">—</span>{% endif %}</td>
