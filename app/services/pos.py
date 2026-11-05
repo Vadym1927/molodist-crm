@@ -105,7 +105,9 @@ def products(db: Session, group: str = "warehouse", key: str | None = None, q: s
         ps = [p for p in ps if stock.get(p.id, 0) > 1e-6]
     ql = q.strip().lower()
     if ql:
-        ps = [p for p in ps if ql in " ".join(filter(None, [p.name, p.sku, p.brand, p.barcode, p.category])).lower()]
+        from .catalog import product_match
+        hit = [(product_match(p, q), p) for p in ps]
+        ps = [p for m, p in sorted([x for x in hit if x[0] is not None], key=lambda x: (x[0], x[1].name.lower()))]
         return {"items": [_p(db, p, stock) for p in ps[:80]]}
     if key is None:
         c = Counter(_p_key(p, group) for p in ps)

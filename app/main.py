@@ -1755,9 +1755,10 @@ def lookup_sale_products(q: str = "", user: User = Depends(require("sales")), db
         p_ = r.product
         if p_.active is False:
             continue
-        exact = ql in ((p_.sku or "").lower(), (p_.barcode or "").lower())
-        if not exact and not words <= set(norm(" ".join(filter(None, [p_.name, p_.sku, p_.brand, p_.barcode]))).split()):
+        _m = catalog.product_match(p_, q)
+        if _m is None:
             continue
+        exact = _m <= 1
         wh = p_.warehouse or "vitrina"
         lots = []
         if led:
@@ -4118,9 +4119,7 @@ def products_xlsx(request: Request, q: str = "", brand: str = "", supplier: str 
         if wh != "all":
             rows = [r for r in rows if (r.product.warehouse or "vitrina") == wh]
         if q:
-            words = set(norm(q).split())
-            rows = [r for r in rows if words <= set(norm(" ".join(filter(None, [r.product.name, r.product.sku, r.product.brand]))).split())
-                    or (r.product.sku and q.strip().lower() == r.product.sku.lower())]
+            rows = [r for r in rows if catalog.product_match(r.product, q) is not None]
         if brand:
             rows = [r for r in rows if (r.product.brand or "") == ("" if brand == "—" else brand)]
         if supplier:
@@ -4175,9 +4174,7 @@ def products_page(request: Request, tab: str = "care", q: str = "", brand: str =
             if k in counts:
                 counts[k] += 1
     if q:
-        words = set(norm(q).split())
-        rows = [r for r in rows if words <= set(norm(" ".join(filter(None, [r.product.name, r.product.sku, r.product.brand]))).split())
-                or (r.product.sku and q.strip().lower() == r.product.sku.lower())]
+        rows = [r for r in rows if catalog.product_match(r.product, q) is not None]
     if brand:
         rows = [r for r in rows if (r.product.brand or "") == ("" if brand == "—" else brand)]
     if supplier:
@@ -4653,8 +4650,7 @@ def stock_page(request: Request, tab: str = "balances", only: str = "", wh: str 
             else:
                 rows = [r for r in rows if (r.product.warehouse or "vitrina") == wh]
         if q:
-            words = set(norm(q).split())
-            rows = [r for r in rows if words <= set(norm(" ".join(filter(None, [r.product.name, r.product.sku, r.product.brand]))).split())]
+            rows = [r for r in rows if catalog.product_match(r.product, q) is not None]
         if tab == "critical":
             rows = _critical_rows(rows)
             if sup:
@@ -5215,9 +5211,10 @@ def stock_lookup_products(q: str = "", wh: str = "", user: User = Depends(requir
         p_ = r.product
         if p_.active is False:
             continue
-        exact = ql in ((p_.sku or "").lower(), (p_.barcode or "").lower())
-        if not exact and not words <= set(norm(" ".join(filter(None, [p_.name, p_.sku, p_.brand, p_.barcode]))).split()):
+        _m = catalog.product_match(p_, q)
+        if _m is None:
             continue
+        exact = _m <= 1
         k = p_.coef if p_.coef and p_.coef > 0 else 1
         rows.append((0 if exact else (1 if (p_.warehouse or "vitrina") == wh else 2), {
             "id": p_.id, "name": p_.name, "sku": p_.sku or "", "barcode": p_.barcode or "", "brand": p_.brand or "",
@@ -7847,8 +7844,7 @@ def _pricing_rows(db: Session, wh: str, brand: str, q: str, only: str):
     if brand:
         rows = [r for r in rows if (r.product.brand or "") == ("" if brand == "—" else brand)]
     if q:
-        words = set(norm(q).split())
-        rows = [r for r in rows if words <= set(norm(" ".join(filter(None, [r.product.name, r.product.sku, r.product.brand]))).split())]
+        rows = [r for r in rows if catalog.product_match(r.product, q) is not None]
     out = []
     from .models import Supplier as _Sup
     sfx = {s_.name.strip().lower(): s_ for s_ in db.scalars(select(_Sup).where((_Sup.fx_usd.is_not(None)) | (_Sup.fx_eur.is_not(None))))}

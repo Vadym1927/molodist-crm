@@ -1,6 +1,8 @@
 """Розділи «Продукти» і «Склад»: каталог засобів, конверсія «призначено → куплено», потреба за планами vs залишки."""
 from __future__ import annotations
 
+import re
+
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
@@ -714,3 +716,32 @@ def apply_form(p, f) -> None:
     p.supplier = g("supplier")[:200] or None
     p.tare_g = num("tare_g") or None
     p.min_stock = int(num("min_stock")) if num("min_stock") is not None else None
+
+
+
+def product_match(p, q: str) -> int | None:
+    """Пошук товару: None — не підходить; менше — вище в списку.
+    Цифри від 2 знаків — артикул / штрихкод (точний збіг, початок, частина); текст від 3 символів — кожне слово запиту
+    є початком (або частиною, від 4 літер) якогось слова назви / бренду / артикула."""
+    q = (q or "").strip()
+    if not q:
+        return 0
+    ql = q.lower()
+    sku, bar = (p.sku or "").lower(), (p.barcode or "").lower()
+    if ql in (sku, bar):
+        return 0
+    if len(ql) >= 2 and (sku.startswith(ql) or bar.startswith(ql)):
+        return 1
+    if re.fullmatch(r"[\d\s-]+", ql):
+        d = re.sub(r"\D", "", ql)
+        return 2 if len(d) >= 2 and (d in re.sub(r"\D", "", sku) or d in bar) else None
+    if len(ql) < 3:
+        return None
+    words = norm(" ".join(filter(None, [p.name, p.short_name, p.sku, p.brand, p.barcode]))).split()
+    qw = norm(q).split()
+    if not qw:
+        return None
+    for w in qw:
+        if not any(x.startswith(w) or (len(w) >= 4 and w in x) for x in words):
+            return None
+    return 3 if norm(p.name or "").startswith(norm(q)) else 4
