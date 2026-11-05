@@ -5482,6 +5482,20 @@ def stock_supplier_save(sid: str = Form(""), name: str = Form(...), contact: str
     return RedirectResponse(f"/stock?tab=suppliers&s={_q(x.name)}&card={x.id}#sup", 303)
 
 
+@app.post("/stock/suppliers/{sid:int}/fx")
+def stock_supplier_fx(sid: int, usd: str = Form(""), eur: str = Form(""), back: str = Form(""),
+                      user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    """Курс постачальника (USD / EUR) — ним рахується закупівля в гривнях у «Плануванні ціни» для товарів цього постачальника."""
+    from .models import Supplier
+    x = db.get(Supplier, sid) or (_ for _ in ()).throw(HTTPException(404))
+    old = (x.fx_usd, x.fx_eur)
+    x.fx_usd, x.fx_eur = (_num(usd) or None), (_num(eur) or None)
+    x.fx_at = datetime.now() if (x.fx_usd or x.fx_eur) else None
+    db.commit()
+    audit(db, "supplier.fx", "supplier", x.id, user=user, old=old, usd=x.fx_usd, eur=x.fx_eur)
+    return RedirectResponse(_card_back(back, x.id, "Курс постачальника збережено"), 303)
+
+
 def _card_back(back: str, sid: int, msg: str = "") -> str:
     from urllib.parse import urlencode, urlsplit, parse_qsl
     u = urlsplit(back if back.startswith("/") and not back.startswith("//") else "/stock?tab=suppliers")
@@ -7731,10 +7745,15 @@ def _pricing_rows(db: Session, wh: str, brand: str, q: str, only: str):
         words = set(norm(q).split())
         rows = [r for r in rows if words <= set(norm(" ".join(filter(None, [r.product.name, r.product.sku, r.product.brand]))).split())]
     out = []
+    from .models import Supplier as _Sup
+    sfx = {s_.name.strip().lower(): s_ for s_ in db.scalars(select(_Sup).where((_Sup.fx_usd.is_not(None)) | (_Sup.fx_eur.is_not(None))))}
     for r in rows:
         p_ = r.product
         cur = p_.cost_currency or "UAH"
-        pr = pr_svc.PriceRow(p_, r.cost, rt.get(cur, 1.0))   # для ціноутворення — остання закупівля
+        s_ = sfx.get((p_.supplier or "").strip().lower())
+        own = {"USD": s_.fx_usd, "EUR": s_.fx_eur}.get(cur) if s_ else None
+        pr = pr_svc.PriceRow(p_, r.cost, own or rt.get(cur, 1.0))   # курс постачальника, інакше загальний
+        pr.sup_fx = {"USD": s_.fx_usd, "EUR": s_.fx_eur, "name": s_.name} if s_ else None
         out.append(pr)
     if only == "nofx":
         out = [x for x in out if not x.product.cost_fx]
@@ -8549,8 +8568,14 @@ def finance_price_view(request: Request, spid: int, show: str = "", user: User =
     elif show == "changed":
         rows = [r for r in rows if r["p"] and not r["same"]]
     brand_products = db.scalars(select(Product).where(Product.brand == sp.brand, Product.active.is_not(False)).order_by(Product.name)).all() if sp.brand else []
-    return render(request, "pricing_price.html", nav="finance", sp=sp, rows=rows, show=show, sup=db.get(Supplier, sp.supplier_id) if sp.supplier_id else None,
-                  rt=pr_svc.rates(db), brand_products=brand_products,
+    sup_ = db.get(Supplier, sp.supplier_id) if sp.supplier_id else None
+    rt_ = dict(pr_svc.rates(db))
+    if sup_ and sup_.fx_usd:
+        rt_["USD"] = sup_.fx_usd
+    if sup_ and sup_.fx_eur:
+        rt_["EUR"] = sup_.fx_eur
+    return render(request, "pricing_price.html", nav="finance", sp=sp, rows=rows, show=show, sup=sup_,
+                  rt=rt_, brand_products=brand_products,
                   job=__import__("app.services.invoice_ai", fromlist=["x"]).job_state(db, "price", sp.id) if sp.status == "recognizing" else None,
                   uploader=db.get(User, sp.user_id) if sp.user_id else None)
 

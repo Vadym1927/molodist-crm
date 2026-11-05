@@ -37,7 +37,7 @@
 <form class="pp-m" method="post" action="/finance/pricing/price/{{ sp.id }}"><input type="hidden" name="action" value="meta">
   <label>Валюта прайсу<select name="currency">{% for c in ['UAH','USD','EUR'] %}<option {{ 'selected' if sp.currency == c }}>{{ c }}</option>{% endfor %}</select></label>
   <label>Дата прайсу<input type="date" name="price_date" value="{{ sp.price_date or '' }}"></label>
-  {% if sp.currency %}<span class="small muted">Курс: {{ sp.currency }} = {{ rt.get(sp.currency, 1) }} ₴</span>{% endif %}
+  {% if sp.currency and sp.currency != 'UAH' %}<span class="small muted">Курс: {{ sp.currency }} = {{ rt.get(sp.currency, 1) }} ₴{{ ' (курс постачальника)' if sup and ((sp.currency == 'USD' and sup.fx_usd) or (sp.currency == 'EUR' and sup.fx_eur)) }}</span>{% endif %}
   <button class="btn ghost" style="height:38px">Змінити</button></form>
 <nav class="pp-f">{% for k, l in [('', 'Усі'), ('changed', 'Зміниться ціна'), ('nomatch', 'Не знайдено в CRM')] %}<a href="?show={{ k }}" class="{{ 'on' if show == k }}">{{ l }}</a>{% endfor %}</nav>
 <form method="post" action="/finance/pricing/price/{{ sp.id }}" id="ppf">

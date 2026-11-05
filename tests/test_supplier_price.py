@@ -212,3 +212,25 @@ def test_pricing_history_undo_and_sale_price(tmp_path):
             assert "Зберегти версію" in c.get("/finance/pricing?brand=ІсторБренд&wh=all").text
     finally:
         settings.files_dir = old
+
+
+def test_supplier_fx_in_pricing():
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        s = Supplier(name="Курс Постач"); db.add(s); db.commit()
+        db.add(Product(name="Курсовий крем", name_norm="курсовий крем", brand="КурсБренд", supplier="Курс Постач", cost_currency="EUR", cost_fx=10,
+                       warehouse="vitrina")); db.commit()
+        sid = s.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        r = c.post(f"/stock/suppliers/{sid}/fx", data={"usd": "44", "eur": "52,5", "back": "/stock?tab=suppliers"}, follow_redirects=False)
+        assert r.status_code == 303
+        with SessionLocal() as db:
+            assert db.get(Supplier, sid).fx_eur == 52.5
+        assert "Курс постачальника" in c.get(f"/stock/suppliers/{sid}/card").text
+        pg = c.get("/finance/pricing?brand=КурсБренд&wh=all").text
+        assert 'data-fx-eur="52.5"' in pg
+    from app.main import _pricing_rows
+    with SessionLocal() as db:
+        rows, _ = _pricing_rows(db, "all", "КурсБренд", "", "")
+        assert rows[0].cost_uah == 525.0

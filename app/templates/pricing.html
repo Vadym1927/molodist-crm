@@ -93,7 +93,7 @@ table.pt{border-collapse:separate;border-spacing:0;font-size:13px;min-width:1900
   {% for m in MARGINS %}<th>Ціна при маржі {{ m }}%</th>{% endfor %}
   <th class="g">Рекомендована ціна продажу</th><th class="g">Різниця з поточною</th><th class="g">Націнка, %</th><th class="g">Маржа, %</th></tr></thead><tbody>
 {% for x in rows %}{% set p = x.product %}
-  <tr data-crm="{{ x.cost_uah_crm or '' }}" data-now="{{ x.price_now or '' }}">
+  <tr data-crm="{{ x.cost_uah_crm or '' }}" data-now="{{ x.price_now or '' }}"{% if x.sup_fx %} data-fx-usd="{{ x.sup_fx.USD or '' }}" data-fx-eur="{{ x.sup_fx.EUR or '' }}"{% endif %}>
     <td class="nm"><input type="hidden" name="pid" value="{{ p.id }}"><a href="/products/{{ p.id }}" style="font-weight:600;text-decoration:none">{{ p.name }}</a>
       <div class="meta">{{ p.brand or '—' }}{{ (' · арт. ' ~ p.sku) if p.sku }}</div></td>
     <td><select name="cur_{{ p.id }}" class="cur">{% for c in CURRENCIES %}<option {{ 'selected' if (p.cost_currency or 'UAH')==c }}>{{ c }}</option>{% endfor %}</select></td>
@@ -118,18 +118,20 @@ table.pt{border-collapse:separate;border-spacing:0;font-size:13px;min-width:1900
 <script>
 const UAH = new Intl.NumberFormat('uk-UA', {maximumFractionDigits: 0});
 function num(v){ if(v===null||v===undefined) return null; v=String(v).replace(/\s/g,'').replace(',','.'); const n=parseFloat(v); return isNaN(n)?null:n; }
-function rate(cur){ return cur==='UAH'?1:(num(document.getElementById('r_'+cur).value)||0); }
+function rate(cur, tr){ if(cur==='UAH') return 1; const own = tr ? num(tr.dataset['fx'+(cur==='USD'?'Usd':'Eur')]) : null;
+  return own || num(document.getElementById('r_'+cur).value) || 0; }
 function rnd(v){ const s=parseInt(document.getElementById('r_round').value)||1; return v==null?null:(s>1?Math.round(v/s)*s:Math.round(v*100)/100); }
 function money(v){ return v==null?'—':UAH.format(v)+' ₴'; }
 function pct(v, cls){ if(v==null) return '—'; const c = cls===false?'':(v<30?'m-bad':(v<40?'m-warn':'m-ok')); return '<span class="'+c+'">'+v.toFixed(1)+'%</span>'; }
 function margin(p,c){ return (p&&c!=null)?100*(p-c)/p:null; }
 function markup(p,c){ return (p&&c)?100*(p-c)/c:null; }
 function calc(tr){
-  const cur=tr.querySelector('.cur').value, r=rate(cur), cfx=num(tr.querySelector('.cfx').value), rrp=num(tr.querySelector('.rrp').value);
+  const cur=tr.querySelector('.cur').value, r=rate(cur, tr), cfx=num(tr.querySelector('.cfx').value), rrp=num(tr.querySelector('.rrp').value);
   const cost = cfx!=null ? cfx*r : num(tr.dataset.crm);
   const now = num(tr.dataset.now), at = rrp!=null ? rnd(rrp*r) : null, plan = num(tr.querySelector('.plan').value);
   tr._cost=cost; tr._at=at; tr._now=now;
-  tr.querySelector('.c-cost').innerHTML = cost==null?'—':money(cost)+(cfx==null&&cost!=null?'<div class="meta">з CRM</div>':'');
+  const own = cur!=='UAH' && num(tr.dataset['fx'+(cur==='USD'?'Usd':'Eur')]);
+  tr.querySelector('.c-cost').innerHTML = cost==null?'—':money(cost)+(cfx==null&&cost!=null?'<div class="meta">з CRM</div>':(own?'<div class="meta" title="курс постачальника">курс пост. '+own+'</div>':''));
   tr.querySelector('.c-gp').innerHTML = (now&&cost!=null)?money(now-cost):'—';
   tr.querySelector('.c-m').innerHTML = pct(margin(now,cost));
   tr.querySelector('.c-at').innerHTML = money(at);

@@ -710,6 +710,9 @@ class Supplier(Base):
     vat: Mapped[bool | None] = mapped_column(Boolean)              # платник ПДВ
     note: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    fx_usd: Mapped[float | None] = mapped_column(Float)            # курс постачальника USD, ₴ (для «Планування ціни»)
+    fx_eur: Mapped[float | None] = mapped_column(Float)            # курс постачальника EUR, ₴
+    fx_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 class SupplierPrice(Base):
