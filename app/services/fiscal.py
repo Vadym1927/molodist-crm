@@ -376,6 +376,9 @@ def build(db: Session, sale: Sale, is_return: bool = False, rro: dict | None = N
     for i in sale.items:
         g = {"good": {"code": f"{i.kind[:1]}{i.ref_id or i.id}", "name": i.name[:250], "price": int(round(i.price * 100))},
              "quantity": int(round(i.qty * 1000))}
+        if i.kind == "certificate":                              # сертифікат — назва з шаблону («Послуги краси»)
+            from .gift_types import fiscal_name
+            g["good"]["name"] = fiscal_name(db, i.ref_id)[:250]
         if i.kind == "product" and i.ref_id:                    # коротка назва, штрихкод, УКТЗЕД, податок — з картки товару
             from ..models import Product as _Pr
             pr_ = db.get(_Pr, i.ref_id)
@@ -448,6 +451,8 @@ def send_receipt(db: Session, sale: Sale) -> str | None:
     c = cfg(db)
     if not (c["send"].get("on") and sale.patient and sale.fiscal and sale.fiscal.get("url")):
         return "вимкнено або немає пацієнта"
+    if any(i.kind == "certificate" for i in sale.items) and not c["send"].get("certs"):
+        return "чек із сертифікатом не надсилається (Налаштування → Checkbox → Відправлення чеків)"
     from ..integrations.messaging import send_to_patient
     text = (c["send"].get("text") or DEFAULT["send"]["text"]).replace("{url}", sale.fiscal["url"]) \
         .replace("{sum}", f"{sale.total:.2f}").replace("{name}", (sale.patient.full_name or "").split(" ")[0])

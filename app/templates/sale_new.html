@@ -400,7 +400,7 @@ var COL=['#5C4B82','#7BC47F','#E8A33D','#5B9BD5','#D96C8A','#8E6FD8','#46B3A6','
 function col(s){var h=0;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return COL[Math.abs(h)%COL.length]}
 function brLoad(keepFocus){var br=document.getElementById('br');
   if(!B.s){br.innerHTML='<div class="em">Оберіть розділ ліворуч, щоб побачити позиції для продажу</div>';return}
-  if(B.s==='certs'){br.innerHTML=(GIFTS.length?'<div class="tl">'+GIFTS.map(function(g,i){return '<button type="button" class="t" style="--tc:#5C4B82" data-i="'+i+'"><b>'+esc(g.name)+'</b><small>номінал '+f2(g.nominal)+' · діє '+g.days+' дн.'+(g.desc?' · '+esc(g.desc):'')+'</small><span class="pr">'+f2(g.price)+'</span></button>'}).join('')+'</div>':'<div class="em">Шаблонів сертифікатів ще немає</div>')+
+  if(B.s==='certs'){br.innerHTML=(GIFTS.length?'<div class="tl">'+GIFTS.map(function(g,i){return '<button type="button" class="t" style="--tc:#5C4B82" data-i="'+i+'"><b>'+esc(g.name)+'</b><small>номінал '+f2(g.nominal)+' · діє '+g.days+' дн. · '+esc((g.usage||'').toLowerCase())+'</small><span class="pr">'+f2(g.price)+'</span></button>'}).join('')+'</div>':'<div class="em">Шаблонів сертифікатів ще немає</div>')+
       '<div class="small muted" style="margin-top:10px">Сертифікат запишеться в картку обраного пацієнта (покупця): код, номінал, термін дії. <a href="/gifts?tab=types">Шаблони →</a></div>'+
       '<label class="small" style="display:block;margin-top:8px">Для кого (необовʼязково)<input id="cfor" value="'+esc(S.cert_for||'')+'" placeholder="імʼя отримувача, якщо подарунок" style="height:38px;width:100%;margin-top:4px"></label>';
     document.getElementById('cfor').oninput=function(){S.cert_for=this.value};

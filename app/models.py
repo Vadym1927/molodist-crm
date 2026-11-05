@@ -853,6 +853,7 @@ class GiftCertificate(Base):
     comment: Mapped[str | None] = mapped_column(String(500))
     cb_status: Mapped[str | None] = mapped_column(String(50))
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    single_use: Mapped[bool | None] = mapped_column(Boolean)              # одноразовий: після першого використання залишок згорає
 
     patient: Mapped[Patient | None] = relationship()
 

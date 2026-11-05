@@ -185,6 +185,10 @@ def create(db: Session, data: dict, user_id: int | None = None) -> Sale:
         if p.method == CERT and p.cert_id:
             c = db.get(GiftCertificate, p.cert_id)
             c.balance = round((c.balance or 0) - p.amount, 2)
+            if c.single_use and c.balance > TOL:                # одноразовий: залишок згорає після першого використання
+                c.comment = (f"{c.comment or ''} · одноразовий: використано {p.amount:.2f} ₴ у чеку Ч-{sale.id}, "
+                             f"залишок {c.balance:.2f} ₴ згорів").strip(" ·")[:500]
+                c.balance = 0.0
         if p.method == BALANCE and patient:
             patient.cb_balance = round((patient.cb_balance or 0) - p.amount, 2)
         if p.method == SUB and p.sub_id:

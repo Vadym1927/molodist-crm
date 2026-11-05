@@ -1807,7 +1807,7 @@ def sale_new(request: Request, appt: str = "", patient: int = 0, user: User = De
                   rules=__import__("app.services.loyalty", fromlist=["listable"]).listable(db),
                   pd_manual=(lambda c_: None if c_["auto"] else c_["name"])(__import__("app.services.personal_discounts", fromlist=["cfg"]).cfg(db)),
                   certs=[{"id": c_.id, "code": c_.code or str(c_.id), "balance": c_.balance, "patient_id": c_.patient_id,
-                          "name": c_.client_name or ""} for c_ in certs if c_.state() in ("active", "expiring")][:500],
+                          "name": (c_.client_name or "") + (" · одноразовий" if c_.single_use else "")} for c_ in certs if c_.state() in ("active", "expiring")][:500],
                   default_doc=user.doctor_id, gift_types=__import__("app.services.gift_types", fromlist=["pos_items"]).pos_items(db))
 
 
@@ -6472,7 +6472,7 @@ async def settings_checkbox_send(request: Request, user: User = Depends(require(
     from .services import fiscal as _fis
     f = await request.form()
     c = _fis.cfg(db)
-    c["send"] = {"on": bool(f.get("on")), "channels": [x for x in ("telegram", "viber", "sms") if f.get(f"ch_{x}")],
+    c["send"] = {"on": bool(f.get("on")), "channels": [x for x in ("telegram", "viber", "sms") if f.get(f"ch_{x}")], "certs": bool(f.get("certs")),
                  "text": str(f.get("text") or "")[:500] or _fis.DEFAULT["send"]["text"]}
     _fis.save_cfg(db, c)
     audit(db, "fiscal.send_cfg", user=user, on=c["send"]["on"], channels=c["send"]["channels"])
@@ -7217,7 +7217,7 @@ async def gifts_types_save(request: Request, user: User = Depends(require("finan
         t = _gt.save(db, int(f["tid"]) if str(f.get("tid") or "").isdigit() else None,
                      {"name": f.get("name"), "nominal": _num(str(f.get("nominal") or "")), "price": _num(str(f.get("price") or "")),
                       "days": int(_num(str(f.get("days") or "")) or 60), "desc": f.get("desc"), "services": f.get("services"),
-                      "only_buyer": bool(f.get("only_buyer")), "active": bool(f.get("active")),
+                      "only_buyer": bool(f.get("only_buyer")), "active": bool(f.get("active")), "usage": f.get("usage"),
                       "cb_id": int(f["cb_id"]) if str(f.get("cb_id") or "").isdigit() else None})
     except (ValueError, TypeError) as e:
         return RedirectResponse(_with_err("/gifts?tab=types", str(e)), 303)

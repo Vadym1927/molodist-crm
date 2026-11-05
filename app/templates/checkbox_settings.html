@@ -120,6 +120,8 @@ dialog.rro-d{width:min(860px,96vw)}
     <div class="cs-f"><label>Канали (по черзі, перший доступний)</label><div class="chips">
       {% for k, lb in [('telegram','Telegram'),('viber','Viber'),('sms','SMS')] %}<label><input type="checkbox" name="ch_{{ k }}" value="1" {{ 'checked' if k in c.send.channels }}> {{ lb }}</label>{% endfor %}</div>
       <div class="hint">Канали налаштовуються в «Налаштування → <a href="/settings/channels">Канали</a>».</div></div>
+    <div class="cs-f"><label class="sw"><input type="checkbox" name="certs" value="1" {{ 'checked' if c.send.certs }}> Надсилати чек і при продажі подарункових сертифікатів</label>
+      <div class="hint">За замовчуванням вимкнено: сертифікат реєструється на того, хто ним користуватиметься, — повідомлення про покупку видало б подарунок.</div></div>
     <div class="cs-f"><label>Текст повідомлення</label><textarea name="text" rows="4">{{ c.send.text }}</textarea>
       <div class="hint">{url} — посилання на чек, {sum} — сума, {name} — імʼя пацієнта.</div></div>
     <button class="btn">Зберегти</button>

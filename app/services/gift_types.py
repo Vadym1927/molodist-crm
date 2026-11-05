@@ -19,6 +19,8 @@ CFG_KEY = "gift_cfg"
 CRM_ID_FROM = 900000            # id сертифікатів, проданих у CRM (CleverBox-id менші — без колізій при імпорті)
 DEFAULT_CFG = {"remind_days": 14, "notify_tg": True, "code_prefix": "MC", "next_no": 1, "desc": "Послуги краси"}
 # шаблони CleverBox на 04.11.2026 (ID / код, назва, номінал, днів, ціна)
+FISCAL_DEFAULT = "Послуги краси"       # назва позиції у фіскальному чеку Checkbox
+USAGE = {"multi": "Багаторазовий", "single": "Одноразовий"}
 SEED = [{"cb_id": 1030, "name": "Сертифікат 2000", "nominal": 2000, "days": 60, "price": 2000},
         {"cb_id": 1031, "name": "Сертифікат 3000", "nominal": 3000, "days": 60, "price": 3000},
         {"cb_id": 1033, "name": "Сертифікат 5000", "nominal": 5000, "days": 60, "price": 5000},
@@ -65,7 +67,7 @@ def save_cfg(db: Session, data: dict) -> None:
 def items(db: Session) -> list[dict]:
     xs = _get(db, KEY)
     if xs is None:                                   # перший раз — шаблони з CleverBox
-        xs = [{"id": i + 1, "active": True, "only_buyer": False, "services": "", "desc": DEFAULT_CFG["desc"], **s} for i, s in enumerate(SEED)]
+        xs = [{"id": i + 1, "active": True, "only_buyer": False, "services": "", "desc": DEFAULT_CFG["desc"], "usage": "multi", **s} for i, s in enumerate(SEED)]
         _put(db, KEY, xs)
     return xs
 
@@ -93,6 +95,7 @@ def save(db: Session, tid: int | None, data: dict) -> dict:
     x.update(name=name, nominal=round(nominal, 2), price=round(float(data.get("price") or nominal), 2),
              days=max(1, int(data.get("days") or 60)), desc=str(data.get("desc") or "").strip()[:200],
              only_buyer=bool(data.get("only_buyer")), services=str(data.get("services") or "").strip()[:500],
+             usage="single" if data.get("usage") == "single" else "multi",
              active=bool(data.get("active", True)))
     if data.get("cb_id") is not None:
         x["cb_id"] = data["cb_id"]
@@ -137,10 +140,16 @@ def issue(db: Session, tpl: dict, patient: Patient | None, seller: Doctor | None
                         nominal=float(tpl["nominal"]), balance=float(tpl["nominal"]),
                         valid_to=(sold_at + timedelta(days=int(tpl.get("days") or 60))).date(),
                         comment=(f"Продано в касі CRM, чек Ч-{sale_id}" + (f" · для {recipient}" if recipient else ""))[:500],
-                        cb_status="Оплачено")
+                        cb_status="Оплачено", single_use=tpl.get("usage") == "single")
     db.add(c)
     db.flush()
     return c
+
+
+def fiscal_name(db: Session, tpl_id: int | None) -> str:
+    """Назва сертифіката у фіскальному чеку (поле «Назва у фіскальному чеку» шаблону)."""
+    t = get(db, tpl_id)
+    return ((t or {}).get("desc") or "").strip() or FISCAL_DEFAULT
 
 
 def sold_by_sale(db: Session, sale_id: int) -> list[GiftCertificate]:
@@ -149,7 +158,7 @@ def sold_by_sale(db: Session, sale_id: int) -> list[GiftCertificate]:
 
 def pos_items(db: Session) -> list[dict]:
     return [{"id": x["id"], "name": x["name"], "price": x.get("price") or x["nominal"], "nominal": x["nominal"], "days": x["days"],
-             "desc": x.get("desc") or ""} for x in active(db)]
+             "desc": x.get("desc") or "", "usage": USAGE.get(x.get("usage") or "multi")} for x in active(db)]
 
 
 # ---------------- нагадування ----------------

@@ -38,19 +38,19 @@
 <div class="gt-g"><div>
   <div class="card"><div class="row between"><h2 style="margin:0">Шаблони сертифікатів · {{ types|length }}</h2><a class="btn" href="?tab=types&new=1#gtf">＋ Шаблон</a></div>
     <p class="small muted" style="margin:6px 0 10px">Те саме, що «Шаблони Gift Card» у CleverBox. Продаються в касі CRM (розділ «Сертифікати»): сертифікат записується в картку покупця з кодом, номіналом і датою закінчення.</p>
-    <div style="overflow:auto"><table class="tb small"><thead><tr><th>Код</th><th>Назва</th><th class="r">Номінал</th><th class="r">Термін дії</th><th class="r">Ціна</th><th>Опис</th><th class="r">Продано в CRM</th><th></th></tr></thead><tbody>
+    <div style="overflow:auto"><table class="tb small"><thead><tr><th>Код</th><th>Назва</th><th class="r">Номінал</th><th class="r">Термін дії</th><th class="r">Ціна</th><th>Використання</th><th>У фіскальному чеку</th><th class="r">Продано в CRM</th><th></th></tr></thead><tbody>
     {% for t in types %}<tr class="{{ '' if t.active else 'off' }}" style="cursor:pointer" onclick="if(!event.target.closest('a,button,form'))location='?tab=types&edit={{ t.id }}#gtf'">
       <td class="muted">{{ t.cb_id or ('CRM-' ~ t.id) }}</td><td><b>{{ t.name }}</b>{% if t.only_buyer %}<div class="meta">лише покупець</div>{% endif %}{% if t.services %}<div class="meta">{{ t.services }}</div>{% endif %}</td>
-      <td class="r">{{ t.nominal|uah }}</td><td class="r">{{ t.days }} дн.</td><td class="r">{{ (t.price or t.nominal)|uah }}</td><td class="muted">{{ t.desc or '' }}</td><td class="r">{{ sold.get(t.name, 0) }}</td>
+      <td class="r">{{ t.nominal|uah }}</td><td class="r">{{ t.days }} дн.</td><td class="r">{{ (t.price or t.nominal)|uah }}</td><td>{{ 'одноразовий' if t.usage == 'single' else 'багаторазовий' }}</td><td class="muted">{{ t.desc or 'Послуги краси' }}</td><td class="r">{{ sold.get(t.name, 0) }}</td>
       <td class="r" style="white-space:nowrap"><form method="post" action="/gifts/types/{{ t.id }}/toggle" style="display:inline"><button class="btn ghost" style="padding:3px 10px">{{ 'вимкнути' if t.active else 'увімкнути' }}</button></form></td></tr>
-    {% else %}<tr><td colspan="8" class="muted">Шаблонів немає</td></tr>{% endfor %}</tbody></table></div></div>
+    {% else %}<tr><td colspan="9" class="muted">Шаблонів немає</td></tr>{% endfor %}</tbody></table></div></div>
 
   <form class="card" method="post" action="/gifts/settings" style="margin-top:16px"><h2 style="margin-top:0">Налаштування сертифікатів</h2>
     <div class="gt-f"><div class="gt-2"><label>Нагадувати адміністраторам за, днів до закінчення<input name="remind_days" value="{{ gcfg.remind_days }}" inputmode="numeric"></label>
       <label>Префікс коду сертифіката CRM<input name="code_prefix" value="{{ gcfg.code_prefix }}" maxlength="8"></label></div>
-      <label>Опис за замовчуванням для нових шаблонів<input name="desc" value="{{ gcfg.desc }}"></label>
+      <label>Назва у фіскальному чеку за замовчуванням<input name="desc" value="{{ gcfg.desc }}"></label>
       <label class="gt-sw"><input type="checkbox" name="notify_tg" value="1" {{ 'checked' if gcfg.notify_tg }}> Надсилати в Telegram адміністраторам і власнику (крім задачі в «Задачах»)</label></div>
-    <p class="small muted" style="margin:10px 0">Як працює: щодня о 10:00 CRM знаходить сертифікати з залишком, які закінчуються за вказану кількість днів, створює задачу адміністратору «запросити пацієнта» і надсилає Telegram (один раз на сертифікат). Розрахунок сертифікатом у касі: повна оплата — чек без РРО; часткова — сума сертифіката йде знижкою у фіскальний чек, решта фіскалізується.</p>
+    <p class="small muted" style="margin:10px 0">Як працює: щодня о 10:00 CRM знаходить сертифікати з залишком, які закінчуються за вказану кількість днів, створює задачу адміністратору «запросити пацієнта» і надсилає Telegram (один раз на сертифікат). Розрахунок сертифікатом у касі: повна оплата — чек без РРО; часткова — сума сертифіката йде знижкою у фіскальний чек, решта фіскалізується. Одноразовий сертифікат після першого використання обнуляється. Чек при продажі сертифіката пацієнту не надсилається — вмикається в <a href="/settings/checkbox">Checkbox → Відправлення чеків</a>.</p>
     <button class="btn">Зберегти</button></form></div>
 
   <form class="card gt-f" id="gtf" method="post" action="/gifts/types"><h2 style="margin:0">{{ 'Змінити шаблон' if r0 else 'Новий шаблон' }}</h2>{% if r0 %}<input type="hidden" name="tid" value="{{ r0.id }}">{% endif %}
@@ -59,7 +59,8 @@
       <label>Ціна продажу, ₴<input name="price" value="{{ '%g'|format(r0.price) if r0 and r0.price else '' }}" inputmode="decimal" placeholder="= номінал"></label></div>
     <div class="gt-2"><label>Термін дії, днів<input name="days" value="{{ r0.days if r0 else 60 }}" inputmode="numeric" required></label>
       <label>Код CleverBox<input name="cb_id" value="{{ r0.cb_id if r0 and r0.cb_id else '' }}" inputmode="numeric" placeholder="необовʼязково"></label></div>
-    <label>Опис<input name="desc" value="{{ r0.desc if r0 else gcfg.desc }}"></label>
+    <label>Назва у фіскальному чеку<input name="desc" value="{{ r0.desc if r0 else gcfg.desc }}" placeholder="Послуги краси"><span style="font-weight:500;color:#8a8496">Ця назва буде використовуватись у фіскальному чеку Checkbox замість назви сертифіката</span></label>
+    <label>Використання<select name="usage" style="margin:0;height:42px"><option value="multi" {{ 'selected' if not r0 or (r0.usage or 'multi') == 'multi' }}>Багаторазовий — залишок можна витрачати кілька візитів</option><option value="single" {{ 'selected' if r0 and r0.usage == 'single' }}>Одноразовий — після першого використання залишок згорає</option></select></label>
     <label>На які послуги діє<input name="services" value="{{ r0.services if r0 else '' }}" placeholder="порожньо — на всі послуги"></label>
     <label class="gt-sw"><input type="checkbox" name="only_buyer" value="1" {{ 'checked' if r0 and r0.only_buyer }}> Лише покупець (не можна передати іншому)</label>
     <label class="gt-sw"><input type="checkbox" name="active" value="1" {{ 'checked' if not r0 or r0.active }}> Активний (видно в касі)</label>

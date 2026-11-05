@@ -78,3 +78,35 @@ def test_gift_templates_sale_and_pay():
             generate_auto(db)
             t = db.scalar(select(Task).where(Task.source_key.like("cert:990777:%")))
             assert t and t.assignee_role == "admin" and "X-1" in t.title
+
+
+def test_single_use_fiscal_name_and_no_sms():
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        t = gt.save(db, None, {"name": "Разовий 1000", "nominal": 1000, "days": 30, "desc": "Послуги краси", "usage": "single", "active": True})
+        d = Doctor(name="Разова Лікарка", active=True)
+        p = Patient(full_name="Разова Пацієнтка", phone="+380671230778")
+        s1 = CbService(id=990402, name="Чистка разова", price=600, time_min=30, category="Очищення")
+        db.add_all([d, p, s1]); db.commit()
+        did, pid, tid = d.id, p.id, t["id"]
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        j = c.post("/sales", json={"patient_id": pid, "items": [{"kind": "certificate", "ref_id": tid, "name": "Разовий 1000", "qty": 1, "price": 1000, "doctor_id": did}],
+                                   "payments": [{"method": "Готівка", "amount": 1000}]}).json()
+        assert j["ok"]
+        with SessionLocal() as db:
+            from app.services import fiscal as fis
+            s = db.get(Sale, j["id"])
+            assert fis.build(db, s)["goods"][0]["good"]["name"] == "Послуги краси"
+            cfg = fis.cfg(db); cfg["send"]["on"] = True; fis.save_cfg(db, cfg)
+            s.fiscal = {"url": "https://check.example/x"}; db.commit()
+            assert "сертифікат" in (fis.send_receipt(db, s) or "")
+            cert = db.scalar(select(GiftCertificate).where(GiftCertificate.patient_id == pid))
+            assert cert.single_use is True
+            cid = cert.id
+        j2 = c.post("/sales", json={"patient_id": pid, "items": [{"kind": "service", "ref_id": 990402, "name": "Чистка разова", "qty": 1, "price": 600, "doctor_id": did}],
+                                    "payments": [{"method": "Сертифікат", "amount": 600, "cert_id": cid}]}).json()
+        assert j2["ok"]
+        with SessionLocal() as db:
+            cc = db.get(GiftCertificate, cid)
+            assert cc.balance == 0 and "згорів" in cc.comment and cc.state() == "used"
