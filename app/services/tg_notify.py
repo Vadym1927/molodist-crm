@@ -23,7 +23,9 @@ DOW = {"mon": "Пн", "tue": "Вт", "wed": "Ср", "thu": "Чт", "fri": "Пт"
 # key, назва, опис, періодичність (daily | weekly | monthly), ролі → (on, time)
 TYPES = [
     ("today", "Записи на сьогодні", "Хто записаний сьогодні: час, пацієнт, послуги (лікар — лише свої записи)", "daily",
-     {"admin": (True, "08:30"), "doctor": (True, "08:30"), "chief": (True, "08:30"), "owner": (False, "08:30")}),
+     {"admin": (True, "08:30"), "chief": (True, "08:30"), "owner": (False, "08:30")}),
+    ("next_day", "Записи на завтра", "Записи на завтра: час, пацієнт, послуги — щоб підготуватись (лікар — лише свої записи)", "daily",
+     {"doctor": (True, "19:00"), "admin": (False, "19:00"), "chief": (False, "19:00"), "owner": (False, "19:00")}),
     ("tomorrow", "Записи на завтра — підтвердити", "Записи на завтра без підтвердження: кому зателефонувати", "daily",
      {"admin": (True, "17:00"), "chief": (False, "17:00")}),
     ("plans", "Нагадування по бюті-планах", "Не записані на наступну процедуру, закінчується домашній догляд (лікар — лише свої плани)", "daily",
@@ -77,7 +79,39 @@ def cfg(db: Session) -> dict:
             v = (roles.get(role) or {}).get(key) or {}
             out[role][key] = {"on": bool(v.get("on", d_on)), "time": v.get("time") or d_time, "dow": v.get("dow") or "mon", "per": per}
     return {"roles": out, "chiefs": [int(x) for x in c.get("chiefs") or []], "greeting": c.get("greeting") or GREETING_DEFAULT,
-            "bday_days": int(c.get("bday_days") or 3)}
+            "bday_days": int(c.get("bday_days") or 3), "custom": c.get("custom") or []}
+
+
+PER = {"daily": "щодня", "weekly": "щотижня", "monthly": "щомісяця", "once": "один раз"}
+
+
+def custom_save(db: Session, item: dict) -> dict:
+    """Своє повідомлення: заголовок, текст, кому (ролі), час, коли (щодня / день тижня / число місяця / дата)."""
+    c = _get(db, KEY, {}) or {}
+    xs = c.get("custom") or []
+    cid = int(item.get("id") or 0)
+    x = next((y for y in xs if int(y["id"]) == cid), None) if cid else None
+    if not x:
+        x = {"id": max([int(y["id"]) for y in xs] + [0]) + 1}
+        xs.append(x)
+    per = item.get("per") if item.get("per") in PER else "daily"
+    x.update(title=str(item.get("title") or "").strip()[:100] or "Нагадування", text=str(item.get("text") or "").strip()[:3000],
+             roles=[r for r in item.get("roles") or [] if r in ROLES], time=str(item.get("time") or "09:00")[:5], per=per,
+             dow=item.get("dow") if item.get("dow") in DOW else "mon", day=max(1, min(int(item.get("day") or 1), 28)),
+             date=str(item.get("date") or "")[:10], on=bool(item.get("on", True)))
+    c["custom"] = xs
+    _put(db, KEY, c)
+    return x
+
+
+def custom_delete(db: Session, cid: int) -> None:
+    c = _get(db, KEY, {}) or {}
+    c["custom"] = [y for y in c.get("custom") or [] if int(y["id"]) != int(cid)]
+    _put(db, KEY, c)
+
+
+def custom_text(x: dict) -> str:
+    return f"🔔 <b>{escape(x.get('title') or 'Нагадування')}</b>\n{escape(x.get('text') or '')}"
 
 
 def save(db: Session, roles: dict, chiefs: list[int], greeting: str, bday_days: int) -> None:
@@ -147,6 +181,10 @@ def text_today(db: Session, u: User, role: str, d: date | None = None) -> str | 
                      + (" ✅" if x.status in ("confirmed", "arrived", "paid", "done") else ""))
     lines.append(f'\n<a href="{_B}/calendar?start={d}">Календар</a>')
     return "\n".join(lines)
+
+
+def text_next_day(db: Session, u: User, role: str, d: date | None = None) -> str | None:
+    return text_today(db, u, role, (d or date.today()) + timedelta(days=1))
 
 
 def text_tomorrow(db: Session, u: User, role: str, d: date | None = None) -> str | None:
@@ -383,7 +421,7 @@ def text_month(db: Session, u: User, role: str, d: date | None = None) -> str | 
     return "\n".join(lines)
 
 
-BUILDERS = {"today": text_today, "tomorrow": text_tomorrow, "plans": text_plans, "plan_control": text_plan_control, "birthdays": text_birthdays,
+BUILDERS = {"next_day": text_next_day, "today": text_today, "tomorrow": text_tomorrow, "plans": text_plans, "plan_control": text_plan_control, "birthdays": text_birthdays,
             "no_rebook": text_no_rebook, "tasks": text_tasks, "day_close": text_day_close, "week": text_week, "month": text_month}
 
 
@@ -401,6 +439,10 @@ def send_one(db: Session, key: str, role: str, u: User, d: date | None = None) -
 
 
 def _due(v: dict, now: datetime, per: str) -> bool:
+    if per == "once" and v.get("date") != now.date().isoformat():
+        return False
+    if per == "monthly" and v.get("day") and now.day != int(v["day"]):
+        return False
     try:
         hh, mm = (int(x) for x in str(v.get("time") or "09:00").split(":")[:2])
     except ValueError:
@@ -411,7 +453,7 @@ def _due(v: dict, now: datetime, per: str) -> bool:
     if per == "weekly":
         return list(DOW)[now.weekday()] == (v.get("dow") or "mon")
     if per == "monthly":
-        return now.day == 1
+        return now.day == int(v.get("day") or 1)
     return True
 
 
@@ -438,6 +480,17 @@ def run(db: Session, now: datetime | None = None) -> int:
                 except Exception:  # noqa: BLE001
                     import logging
                     logging.getLogger("tg_notify").exception("%s %s", key, u.id)
+                log[lk] = today
+                n += 1
+    for x in c["custom"]:                                      # свої повідомлення
+        if not x.get("on", True) or not _due(x, now, x.get("per") or "daily"):
+            continue
+        for role in x.get("roles") or []:
+            for u in recipients(db, role):
+                lk = f"custom:{x['id']}:{u.id}"
+                if log.get(lk) == today:
+                    continue
+                send_text(u.telegram_chat_id, custom_text(x))
                 log[lk] = today
                 n += 1
     if n:

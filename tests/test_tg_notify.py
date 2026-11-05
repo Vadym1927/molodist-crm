@@ -34,7 +34,7 @@ def test_texts_and_run(monkeypatch):
         # планувальник: адмінам о 08:30 «записи на сьогодні» — один раз
         now = datetime.combine(date.today(), datetime.min.time()).replace(hour=8, minute=35)
         n1 = tn.run(db, now)
-        assert n1 >= 2 and any(x["chat_id"] == "111" and "Записи на" in x["text"] for x in sent)
+        assert n1 >= 1 and any(x["chat_id"] == "111" and "Записи на" in x["text"] for x in sent)
         assert tn.run(db, now) == 0                     # повторно того ж дня — нічого
         assert tn.run(db, now.replace(hour=3)) == 0     # поза вікном часу — нічого
     with TestClient(app) as c:
@@ -49,3 +49,33 @@ def test_texts_and_run(monkeypatch):
             assert c_["roles"]["admin"]["today"]["time"] == "07:45" and c_["roles"]["owner"]["week"]["dow"] == "tue" and c_["chiefs"] == [u_doc.id]
             assert c_["greeting"] == "Зі святом!" and c_["bday_days"] == 5 and c_["roles"]["admin"]["tasks"]["on"] is False
             assert [u.id for u in tn.recipients(db, "chief")] == [u_doc.id]
+
+
+def test_custom_and_next_day(monkeypatch):
+    settings.admin_password = "owner-pass-1"
+    sent = []
+    monkeypatch.setattr(alerts, "_api", lambda m, **kw: sent.append(kw["data"]) or True)
+    from app.security import ensure_owner
+    with SessionLocal() as db:
+        ensure_owner(db)
+        d = Doctor(name="Завтра Лікар", active=True); db.add(d); db.commit()
+        u = User(name="Завтра Лікар", login="tn_doc2", role="doctor", telegram_chat_id="333", doctor_id=d.id, password_hash="x")
+        db.add(u); db.commit()
+        p = Patient(full_name="Пацієнтка Завтра", phone="380000000077"); db.add(p); db.commit()
+        st = datetime.combine(date.today() + timedelta(days=1), datetime.min.time()).replace(hour=12)
+        db.add(Appointment(patient_id=p.id, doctor_id=d.id, start=st, end=st + timedelta(hours=1), status="booked", services=[{"name": "Пілінг"}])); db.commit()
+        assert "Пілінг" in tn.text_next_day(db, u, "doctor") and "today" not in tn.cfg(db)["roles"]["doctor"]
+        uid = u.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        r = c.post("/settings/tg-notify", data={"action": "custom_save", "c_title": "Здати касу", "c_text": "Порахувати готівку", "c_roles": ["doctor"],
+                                                "c_time": "18:00", "c_per": "daily", "c_on": "1"}, follow_redirects=False)
+        assert r.status_code == 303
+        assert "Здати касу" in c.get("/settings/tg-notify").text
+    with SessionLocal() as db:
+        now = datetime.combine(date.today(), datetime.min.time()).replace(hour=18, minute=5)
+        tn.run(db, now)
+        assert any(x["chat_id"] == "333" and "Здати касу" in x["text"] for x in sent)
+        n = len(sent); tn.run(db, now); assert len(sent) == n
+        tn.run(db, now.replace(hour=19, minute=2))
+        assert any(x["chat_id"] == "333" and "Записи на" in x["text"] and "Пілінг" in x["text"] for x in sent)

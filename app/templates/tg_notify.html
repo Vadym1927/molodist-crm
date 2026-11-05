@@ -42,6 +42,34 @@
   </tr>{% endfor %}</tbody></table>
 </div>
 {% endfor %}
+<div class="tn-c" id="custom"><div class="tn-h"><h2>Свої повідомлення</h2><a class="btn ghost" href="?new=1#custom" style="padding:5px 12px">＋ Додати</a></div>
+  <p class="small muted" style="margin:0 0 10px">Будь-яке нагадування своїм текстом: «Перевірити залишки вітрини», «Здати касу», «Планірка о 9:30»… Кому, о котрій і як часто — обираєте самі.</p>
+  {% if cfg.custom %}<table class="tn-t" style="margin-bottom:10px"><thead><tr><th>Повідомлення</th><th>Кому</th><th>Коли</th><th></th></tr></thead><tbody>
+  {% for x in cfg.custom %}<tr class="{{ '' if x.on else 'off' }}"><td><b>{{ x.title }}</b><div class="d">{{ x.text[:140] }}{{ '…' if x.text|length > 140 }}</div></td>
+    <td class="d">{% for r in x.roles %}{{ ROLES.get(r, r) }}{{ ', ' if not loop.last }}{% else %}—{% endfor %}</td>
+    <td class="d" style="white-space:nowrap">{{ PER[x.per] }}{{ (' · ' ~ DOW[x.dow]) if x.per == 'weekly' }}{{ (' · ' ~ x.day ~ '-го') if x.per == 'monthly' }}{{ (' · ' ~ x.date) if x.per == 'once' }} · {{ x.time }}</td>
+    <td style="white-space:nowrap"><a class="btn ghost tn-test" href="?edit={{ x.id }}#custom">змінити</a>
+      <button class="btn ghost tn-test" style="color:#B23B2E" name="action" value="custom_del" onclick="if(!confirm('Видалити «{{ x.title|replace("'", "’") }}»?'))return false;this.form.cid.value='{{ x.id }}'">×</button></td></tr>{% endfor %}</tbody></table>{% endif %}
+  {% set qn = request.query_params %}{% if cur or qn.get('new') or not cfg.custom %}
+  <div style="border:1px dashed #D8D3DE;border-radius:14px;padding:12px 14px;display:grid;gap:10px" id="cform">
+    <div class="row" style="gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <label style="display:grid;gap:4px;font:600 12px var(--sans);color:var(--muted);flex:1;min-width:220px">Заголовок<input name="c_title" value="{{ cur.title if cur else '' }}" placeholder="Здати касу" style="height:40px;margin:0"></label>
+      <label style="display:grid;gap:4px;font:600 12px var(--sans);color:var(--muted)">Час<input type="time" name="c_time" value="{{ cur.time if cur else '09:00' }}" style="height:40px;margin:0;width:124px"></label>
+      <label style="display:grid;gap:4px;font:600 12px var(--sans);color:var(--muted)">Як часто<select name="c_per" style="height:40px;margin:0" onchange="cPer(this.value)">{% for k, l in PER.items() %}<option value="{{ k }}" {{ 'selected' if (cur.per if cur else 'daily') == k }}>{{ l }}</option>{% endfor %}</select></label>
+      <label class="c-w" style="display:grid;gap:4px;font:600 12px var(--sans);color:var(--muted)">День тижня<select name="c_dow" style="height:40px;margin:0">{% for k, l in DOW.items() %}<option value="{{ k }}" {{ 'selected' if cur and cur.dow == k }}>{{ l }}</option>{% endfor %}</select></label>
+      <label class="c-m" style="display:grid;gap:4px;font:600 12px var(--sans);color:var(--muted)">Число місяця<input type="number" name="c_day" min="1" max="28" value="{{ cur.day if cur else 1 }}" style="height:40px;margin:0;width:90px"></label>
+      <label class="c-o" style="display:grid;gap:4px;font:600 12px var(--sans);color:var(--muted)">Дата<input type="date" name="c_date" value="{{ cur.date if cur else '' }}" style="height:40px;margin:0"></label></div>
+    <label style="display:grid;gap:4px;font:600 12px var(--sans);color:var(--muted)">Текст повідомлення<textarea name="c_text" rows="3" style="margin:0" placeholder="Що нагадати">{{ cur.text if cur else '' }}</textarea></label>
+    <div><div class="lb-t" style="font:700 11px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496;margin-bottom:6px">Кому</div><div class="tn-chips">
+      {% for r, l in ROLES.items() %}<label><input type="checkbox" name="c_roles" value="{{ r }}" {{ 'checked' if cur and r in cur.roles }}><span>{{ l }}</span></label>{% endfor %}
+      <label style="margin-left:12px;display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" name="c_on" value="1" {{ 'checked' if not cur or cur.on }} style="position:static;opacity:1;pointer-events:auto"> Увімкнено</label></div></div>
+    <div class="row" style="gap:8px"><button class="btn" name="action" value="custom_save" onclick="this.form.cid.value='{{ cur.id if cur else '' }}'">Зберегти повідомлення</button>
+      <button class="btn ghost" name="action" value="custom_test" onclick="this.form.cid.value='{{ cur.id if cur else '' }}'">Зберегти й тест → мені</button>
+      {% if cur or qn.get('new') %}<a class="btn ghost" href="/settings/tg-notify#custom">Скасувати</a>{% endif %}</div>
+  </div>
+  <script>function cPer(v){document.querySelector('#cform .c-w').style.display=v=='weekly'?'':'none';document.querySelector('#cform .c-m').style.display=v=='monthly'?'':'none';document.querySelector('#cform .c-o').style.display=v=='once'?'':'none'}cPer('{{ cur.per if cur else 'daily' }}')</script>
+  {% endif %}
+</div>
 <div class="tn-c"><h2 style="margin:0 0 8px">Дні народження</h2>
   <div class="row" style="gap:14px;flex-wrap:wrap;align-items:flex-end">
     <label style="display:grid;gap:4px;font:600 12.5px var(--sans);color:var(--muted)">Нагадувати за, днів<input type="number" name="bday_days" value="{{ cfg.bday_days }}" min="0" max="14" style="width:90px;height:40px;margin:0"></label>
@@ -54,7 +82,7 @@
     <li>Щоденний дайджест нагадувань по планах у спільний чат адміністраторів (TELEGRAM_ADMIN_CHAT_ID) — працює як раніше; тут — особисті сповіщення кожному</li>
   </ul></div>
 </div>
-<input type="hidden" name="key"><input type="hidden" name="role">
+<input type="hidden" name="key"><input type="hidden" name="role"><input type="hidden" name="cid">
 <div class="savebar"><span>Перевірка кожні 5 хв; повідомлення надсилається один раз на день кожному, не пізніше 3 годин після вказаного часу.</span><button class="btn" name="action" value="save">Зберегти</button></div>
 </form>
 {% endblock %}

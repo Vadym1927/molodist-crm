@@ -5821,7 +5821,9 @@ def tg_notify_page(request: Request, user: User = Depends(require("users")), db:
     users = db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all()
     c = tn.cfg(db)
     have = {r: [u for u in users if u.telegram_chat_id and (u.role == r if r != "chief" else u.id in c["chiefs"])] for r in tn.ROLES}
-    return render(request, "tg_notify.html", nav="settings", cfg=c, TYPES=tn.TYPES, ROLES=tn.ROLES, DOW=tn.DOW, users=users, have=have,
+    qp_ = request.query_params
+    cur = next((x for x in c["custom"] if str(x["id"]) == qp_.get("edit")), None)
+    return render(request, "tg_notify.html", nav="settings", cfg=c, TYPES=tn.TYPES, ROLES=tn.ROLES, DOW=tn.DOW, users=users, have=have, PER=tn.PER, cur=cur,
                   bot_ok=bool(settings.telegram_bot_token))
 
 
@@ -5829,6 +5831,19 @@ def tg_notify_page(request: Request, user: User = Depends(require("users")), db:
 async def tg_notify_save(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     from .services import tg_notify as tn
     f = await request.form()
+    act = str(f.get("action") or "")
+    if act in ("custom_save", "custom_test"):
+        x = tn.custom_save(db, {"id": f.get("cid"), "title": f.get("c_title"), "text": f.get("c_text"), "roles": f.getlist("c_roles"),
+                                "time": f.get("c_time"), "per": f.get("c_per"), "dow": f.get("c_dow"), "day": f.get("c_day") or 1,
+                                "date": f.get("c_date"), "on": bool(f.get("c_on"))})
+        audit(db, "settings.tg_notify_custom", user=user, id=x["id"])
+        if act == "custom_test" and user.telegram_chat_id:
+            tn.send_text(user.telegram_chat_id, tn.custom_text(x))
+            return RedirectResponse(_with_msg("/settings/tg-notify", "Збережено й надіслано вам у Telegram") + "#custom", 303)
+        return RedirectResponse(_with_msg("/settings/tg-notify", f"Повідомлення «{x['title']}» збережено") + "#custom", 303)
+    if act == "custom_del":
+        tn.custom_delete(db, int(f.get("cid") or 0))
+        return RedirectResponse(_with_msg("/settings/tg-notify", "Видалено") + "#custom", 303)
     if f.get("action") == "test":
         key, role = str(f.get("key") or ""), str(f.get("role") or "")
         if key not in tn.BUILDERS or role not in tn.ROLES:
