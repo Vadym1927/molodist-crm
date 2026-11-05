@@ -8753,7 +8753,12 @@ def finance_pricing_history_xlsx(snid: int, user: User = Depends(require("financ
     from .services import price_history as ph
     sn = db.get(PriceSnapshot, snid) or (_ for _ in ()).throw(HTTPException(404))
     name = f"planuvannia-{(sn.brand or 'vsi').replace(' ', '_')}-{sn.created_at:%Y-%m-%d}-{sn.id}.xlsx"
-    return Response(ph.xlsx(db, sn), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    try:
+        data = ph.xlsx(db, sn)
+    except Exception as e:  # noqa: BLE001
+        log.exception("pricing history xlsx %s", snid)
+        return HTMLResponse(f"Не вдалося сформувати Excel: {type(e).__name__}: {__import__("html").escape(str(e))[:300]}", status_code=500)
+    return Response(data, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"})
 
 

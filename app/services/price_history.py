@@ -44,6 +44,17 @@ def _rates(db: Session) -> dict:
     return {"USD": r["USD"], "EUR": r["EUR"], "round": r["round"]}
 
 
+def _cell(v):
+    """Значення для Excel: числа як є, текст без керівних символів (openpyxl їх не приймає)."""
+    import re
+    if v is None or isinstance(v, (int, float)):
+        return v
+    try:
+        return float(v) if isinstance(v, str) and re.fullmatch(r"-?\d+(\.\d+)?", v) else re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", str(v))
+    except ValueError:
+        return str(v)
+
+
 def xlsx(db: Session, sn: PriceSnapshot) -> bytes:
     """Версія / зміна планування в Excel: значення після (і до — для змін), закупівля в грн за курсом на момент збереження."""
     import io
@@ -56,8 +67,8 @@ def xlsx(db: Session, sn: PriceSnapshot) -> bytes:
     wb = Workbook()
     ws = wb.active
     ws.title = "Планування"
-    ws.append([f"{KINDS.get(sn.kind, sn.kind)} №{sn.id} · {sn.created_at:%d.%m.%Y %H:%M}" + (f" · {sn.brand}" if sn.brand else "")
-               + (f" · {sn.note}" if sn.note else "") + f"  ·  курс USD {rt.get('USD')} · EUR {rt.get('EUR')}"])
+    ws.append([_cell(f"{KINDS.get(sn.kind, sn.kind)} №{sn.id} · {sn.created_at:%d.%m.%Y %H:%M}" + (f" · {sn.brand}" if sn.brand else "")
+               + (f" · {sn.note}" if sn.note else "") + f"  ·  курс USD {rt.get('USD')} · EUR {rt.get('EUR')}")])
     chg = sn.kind != "version"
     head = ["Бренд", "Товар", "Артикул", "Валюта", "Закупівля (вал.)", "Курс", "Закупівля, грн", "РРЦ (вал.)", "РРЦ, грн",
             "Рекомендована ціна", "Націнка, %", "Маржа від рекомендованої, %", "Ціна продажу", "Маржа від ціни продажу, %"]
@@ -80,7 +91,7 @@ def xlsx(db: Session, sn: PriceSnapshot) -> bytes:
                plan, markup(plan, cost), margin(plan, cost), price, margin(price, cost)]
         if chg:
             row += [b.get("cost_fx"), b.get("rrp_fx"), b.get("planned_price"), b.get("price")]
-        ws.append(row)
+        ws.append([_cell(v) for v in row])
     for i, w in enumerate([14, 46, 12, 8] + [13] * 14):
         ws.column_dimensions[chr(65 + i)].width = w
     ws.freeze_panes = "C3"
