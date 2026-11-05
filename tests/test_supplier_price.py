@@ -200,6 +200,8 @@ def test_pricing_history_undo_and_sale_price(tmp_path):
             with SessionLocal() as db:
                 assert db.get(Product, pid).cost_fx == 400
             # ціна продажу окремо + версія
+            jb = c.post("/finance/pricing/sale-bulk", json={"items": [{"pid": pid, "price": 1150}]}).json()
+            assert jb["n"] == 1 and jb["prices"][str(pid)] == 1150
             j = c.post(f"/finance/pricing/sale/{pid}", data={"price": "1190"}).json()
             assert j["price"] == 1190
             r = c.post("/finance/pricing/version", data={"brand": "ІсторБренд", "wh": "all", "note": "листопад"}, follow_redirects=False)

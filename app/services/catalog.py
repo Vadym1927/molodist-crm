@@ -138,6 +138,12 @@ class ProductRow:
         return round(100 * (self.sale_price - c) / c) if c and self.sale_price else None
 
     @property
+    def margin_pct(self):
+        """Маржа, % від ціни продажу на останню закупівлю: (ціна − закупівля) / ціна."""
+        c = self.cost
+        return round(100 * (self.sale_price - c) / self.sale_price, 1) if c and self.sale_price else None
+
+    @property
     def days_to_expiry(self):
         return (self.expiry - date.today()).days if self.expiry else None
 

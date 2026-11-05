@@ -82,6 +82,7 @@ table.pt{border-collapse:separate;border-spacing:0;font-size:13px;min-width:1900
   {% for m in MARGINS %}<button type="button" onclick="fill({{ m }})">= маржа {{ m }}%</button>{% endfor %}
   <button type="button" onclick="fill('now')">= поточна</button>
   <label style="display:flex;gap:5px;align-items:center"><input type="checkbox" id="ovw"> перезаписати заповнені</label>
+  <button type="button" id="goall" onclick="goAll()" style="border-color:var(--classic);color:var(--classic)">→ Ціна продажу = рекомендована для всіх</button>
   <span style="margin-left:auto">{{ total }} товарів{{ ' (показано 600)' if total > 600 }}</span>
 </div>
 
@@ -111,7 +112,7 @@ table.pt{border-collapse:separate;border-spacing:0;font-size:13px;min-width:1900
     {% for m in MARGINS %}<td class="r c-pm" data-m="{{ m }}"></td>{% endfor %}
     <td class="r"><input name="plan_{{ p.id }}" class="plan" value="{{ '%g'|format(p.planned_price) if p.planned_price else '' }}" inputmode="decimal" placeholder="—"></td>
     <td class="r c-diff"></td><td class="r c-mu"></td><td class="r c-mp"></td>
-    <td class="r"><button type="button" class="btn ghost c-go" style="padding:4px 10px;font-size:12.5px;white-space:nowrap" onclick="goSale(this, {{ p.id }})" hidden></button></td>
+    <td class="r"><button type="button" class="btn ghost c-go" style="padding:4px 10px;font-size:12.5px;white-space:nowrap" onclick="goSale(this, {{ p.id }})" style="display:none"></button></td>
   </tr>
 {% else %}<tr><td class="nm muted" colspan="20">Немає товарів за цими фільтрами.</td></tr>{% endfor %}
 </tbody></table></div>
@@ -148,7 +149,7 @@ function calc(tr){
   tr.querySelector('.c-diff').innerHTML = d==null?'—':'<span class="'+(d<0?'neg':(d>0?'pos':''))+'">'+(d>0?'+':'')+money(d)+'</span>';
   tr.querySelector('.c-mu').innerHTML = pct(markup(plan,cost), false);
   tr.querySelector('.c-mp').innerHTML = pct(margin(plan,cost));
-  const go=tr.querySelector('.c-go'); if(go){ const same = plan && now && Math.abs(plan-now)<0.5; go.hidden=!plan||same; go.textContent='→ змінити на '+money(plan); }
+  const go=tr.querySelector('.c-go'); if(go){ const same = plan && now && Math.abs(plan-now)<0.5; go.style.display=(!plan||same)?'none':''; go.textContent='→ змінити на '+money(plan); }
 }
 function recalcAll(){ document.querySelectorAll('.pt tbody tr[data-now]').forEach(calc); }
 let dirty=new Set();
@@ -164,6 +165,20 @@ function fill(mode){
     if(mode==='rate') v=tr._at; else if(mode==='now') v=tr._now; else if(tr._cost) v=rnd(tr._cost/(1-mode/100));
     if(v!=null){ inp.value=v; calc(tr); markDirty(tr); }
   });
+}
+function goAll(){
+  const items=[]; document.querySelectorAll('.pt tbody tr[data-now]').forEach(tr=>{
+    const plan=num(tr.querySelector('.plan').value), now=num(tr.dataset.now), pid=tr.querySelector('input[name=pid]').value;
+    if(plan && !(now && Math.abs(plan-now)<0.5)) items.push({pid:+pid, price:plan, tr:tr});
+  });
+  if(!items.length){alert('Немає товарів, де рекомендована ціна відрізняється від поточної. Спершу заповніть «Рекомендовану ціну» (кнопки вище) і збережіть.');return}
+  if(!confirm('Змінити ціну продажу на рекомендовану для '+items.length+' товарів? Зміну видно в «Історії», її можна відкотити.')) return;
+  fetch('/finance/pricing/sale-bulk',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',
+    body:JSON.stringify({items:items.map(x=>({pid:x.pid,price:x.price}))})}).then(r=>r.json()).then(j=>{
+      if(j.error){alert(j.error);return}
+      items.forEach(x=>{const p=j.prices[x.pid]; if(p){x.tr.dataset.now=p; x.tr.querySelector('.pnow').textContent=money(p); calc(x.tr);}});
+      alert('Ціну продажу змінено: '+j.n+' товарів');
+    });
 }
 function goSale(b, pid){
   const tr=b.closest('tr'), plan=num(tr.querySelector('.plan').value); if(!plan) return;

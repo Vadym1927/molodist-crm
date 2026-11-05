@@ -8720,6 +8720,23 @@ async def finance_pricing_sale(pid: int, request: Request, user: User = Depends(
     return JSONResponse({"ok": True, "price": p_.price})
 
 
+@app.post("/finance/pricing/sale-bulk")
+async def finance_pricing_sale_bulk(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Ціна продажу = рекомендована для кількох товарів одним записом в історії (можна відкотити)."""
+    from .services import price_history as ph
+    body = await request.json()
+    want = {int(x["pid"]): float(x["price"]) for x in (body.get("items") or []) if str(x.get("pid", "")).isdigit() and float(x.get("price") or 0) > 0}
+    prods = db.scalars(select(Product).where(Product.id.in_(list(want)))).all() if want else []
+    before = {p_.id: ph.state(p_) for p_ in prods}
+    now_ = datetime.now()
+    for p_ in prods:
+        p_.price, p_.price_set_at = round(want[p_.id], 2), now_
+    db.commit()
+    ph.record(db, "sale", before, prods, user.id, note=f"Ціна продажу = рекомендована для {len(prods)} товарів")
+    audit(db, "pricing.sale_bulk", user=user, n=len(prods))
+    return JSONResponse({"ok": True, "n": len(prods), "prices": {p_.id: p_.price for p_ in prods}})
+
+
 @app.post("/finance/pricing/version")
 async def finance_pricing_version(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     """Зберегти поточне планування (бренд / фільтри сторінки) як версію в історії."""
