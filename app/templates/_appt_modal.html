@@ -117,7 +117,7 @@ dialog.apfd::backdrop{background:rgba(42,36,48,.45)}
     if(ph){b.querySelector('.np-p').value=ph}else if(/^[+\d\s()-]{5,}$/.test(q)){b.querySelector('.np-p').value=q}else if(q&&!b.querySelector('.np-l').value){var w=q.split(/\s+/);b.querySelector('.np-l').value=w[0]||'';b.querySelector('.np-f').value=w[1]||'';b.querySelector('.np-m').value=w.slice(2).join(' ')}
     b.querySelector(b.querySelector('.np-l').value?'.np-p':'.np-l').focus()};
   window.nvNewOk=function(){var f=F(),b=f.querySelector('.nv-newp'),g=function(c){return b.querySelector(c).value.trim()},e=b.querySelector('.np-e');
-    var nm=[g('.np-l'),g('.np-f'),g('.np-m')].filter(Boolean).join(' ');if(!g('.np-l')||!g('.np-f')){e.textContent='Вкажіть прізвище та імʼя';return}
+    var nm=[g('.np-l'),g('.np-f'),g('.np-m')].filter(Boolean).join(' ');if(!g('.np-f')){e.textContent='Вкажіть імʼя';return}
     if(g('.np-p').replace(/\D/g,'').length<9){e.textContent='Вкажіть телефон';return}e.textContent='';setPat('',nm,g('.np-p'),true)};
   window.nvCalls=function(){var r=document.getElementById('nv-calls');r.hidden=!r.hidden;if(r.hidden)return;r.innerHTML='<div class="nv-mut">Завантаження…</div>';
     fetch('/appointments/calls').then(function(x){return x.json()}).then(function(js){

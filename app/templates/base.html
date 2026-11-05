@@ -283,8 +283,8 @@ function tick(){if(document.hidden)return;fetch('/telephony/live',{credentials:'
     if(!el){el=document.createElement('div');el.className='cp-c';box.appendChild(el);shown[c.id]=el}
     el.innerHTML=h;el.querySelector('.x').onclick=function(){hid[c.id]=1;el.remove();delete shown[c.id]};
     var np=el.querySelector('.np');if(np)np.onclick=function(e){e.preventDefault();el._form=1;var f=document.createElement('form');f.className='nf';
-      f.innerHTML='<input name="last" placeholder="Прізвище" required><input name="first" placeholder="Імʼя" required><input name="middle" placeholder="По батькові"><button>Зберегти</button><em></em>';
-      el.querySelector('.a').replaceWith(f);f.last.focus();
+      f.innerHTML='<input name="last" placeholder="Прізвище (необовʼязково)"><input name="first" placeholder="Імʼя" required><input name="middle" placeholder="По батькові"><button>Зберегти</button><em></em>';
+      el.querySelector('.a').replaceWith(f);f.first.focus();
       f.onsubmit=function(ev){ev.preventDefault();fetch('/telephony/calls/'+c.id+'/patient',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',
         body:JSON.stringify({last:f.last.value,first:f.first.value,middle:f.middle.value})}).then(function(r){return r.json()}).then(function(j){if(j.error){f.querySelector('em').textContent=j.error;return}
           el._form=0;f.outerHTML='<div class="a"><a href="/patients/'+j.pid+'">Картка пацієнта</a><a class="f" href="/calendar?newappt=1&patient='+j.pid+'">Записати</a></div>';el.querySelector('.nm').textContent=j.name})}}});

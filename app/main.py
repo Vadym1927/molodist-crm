@@ -962,7 +962,7 @@ def patient_update(pid: int, full_name: str = Form(""), last_name: str = Form(""
     p = _patient_or_403(db, user, pid)
     _nm = " ".join(x.strip() for x in (last_name, first_name, middle_name) if x and x.strip()) or " ".join(full_name.split())
     if not _nm:
-        raise HTTPException(400, "Вкажіть прізвище та імʼя")
+        raise HTTPException(400, "Вкажіть імʼя")
     p.full_name, p.phone, p.notes = _nm[:200], phone.strip() or None, notes.strip() or None
     if birthday.strip():
         try:
@@ -6557,8 +6557,8 @@ async def telephony_call_patient(cid: int, request: Request, user: User = Depend
     c_ = db.get(Call, cid) or (_ for _ in ()).throw(HTTPException(404))
     f = await request.json()
     nm = " ".join(str(f.get(k) or "").strip() for k in ("last", "first", "middle") if str(f.get(k) or "").strip())
-    if len(nm.split()) < 2:
-        return JSONResponse({"error": "Вкажіть прізвище та імʼя"}, status_code=400)
+    if not str(f.get("first") or "").strip() and not nm:
+        return JSONResponse({"error": "Вкажіть імʼя"}, status_code=400)
     from .services.appeals import find_patient
     p_ = find_patient(db, c_.phone)
     if not p_:

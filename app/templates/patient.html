@@ -175,7 +175,7 @@
   <dialog id="pe-d" class="pe-d"><form method="post" action="/patients/{{ p.id }}" class="pe">
     <div class="pe-h"><h2>Картка пацієнта</h2><button type="button" class="pe-x" onclick="this.closest('dialog').close()">×</button></div>
     <div class="pe-s">ПІБ</div>
-    <div class="pe-g3"><label>Прізвище *<input name="last_name" value="{{ _w[0] if _w|length > 0 else '' }}" required></label>
+    <div class="pe-g3"><label>Прізвище<input name="last_name" value="{{ _w[0] if _w|length > 0 else '' }}"></label>
       <label>Імʼя *<input name="first_name" value="{{ _w[1] if _w|length > 1 else '' }}" required></label>
       <label>По батькові<input name="middle_name" value="{{ _w[2:]|join(' ') }}"></label></div>
     <div class="pe-s">Контакти</div>
