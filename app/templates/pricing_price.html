@@ -20,7 +20,7 @@
   <a class="btn ghost" href="/finance/pricing/price/{{ sp.id }}/file">Файл прайсу ↓</a></div>
 <div class="muted small" style="margin-top:4px">{{ sp.file_name }} · завантажено {{ sp.uploaded_at|dt('%d.%m.%Y %H:%M') }}{{ (' · ' ~ uploader.name) if uploader }}{% if sp.applied_at %} · підставлено {{ sp.applied_at|dt('%d.%m.%Y %H:%M') }} ({{ sp.n_applied }}){% endif %}</div>
 {% if sp.status == 'recognizing' %}<div class="alert" style="background:#F3F0FA;color:#3B3050;margin-top:10px">⏳ PDF / фото прайсу розпізнає агент на VPS (як накладні) — зазвичай кілька хвилин, для великого прайсу довше. Сторінка оновиться сама.
-  <form method="post" action="/finance/pricing/price/{{ sp.id }}" style="margin-top:8px"><input type="hidden" name="action" value="retry"><button class="btn ghost" style="padding:4px 12px">Спробувати розібрати без агента</button>{% if sp.error %} <span class="small">{{ sp.error }}</span>{% endif %}</form>
+  <form method="post" action="/finance/pricing/price/{{ sp.id }}" style="margin-top:8px"><input type="hidden" name="action" value="retry"><button class="btn ghost" style="padding:4px 12px">Спробувати розібрати без агента</button></form>{% if sp.error %}<div class="small" style="margin-top:6px;color:#B23B2E;white-space:pre-wrap">{{ sp.error }}</div>{% endif %}
   {% if job %}<div style="margin-top:6px;font-weight:700">{{ {'pending':'🕓','taken':'⚙️','done':'✅','error':'❗'}.get(job.status, '') }} Стан: {{ job.text }}</div>{% endif %}</div>
 <script>setTimeout(function(){location.reload()},20000)</script>{% endif %}
 {% if sp.status == 'error' %}<div class="alert" style="margin-top:10px">❗ {{ sp.error }} — спробуйте Excel-версію прайсу або завантажте файл ще раз.</div>{% endif %}
@@ -33,7 +33,7 @@
 <form class="pp-m" method="post" action="/finance/pricing/price/{{ sp.id }}"><input type="hidden" name="action" value="meta">
   <label>Валюта прайсу<select name="currency">{% for c in ['UAH','USD','EUR'] %}<option {{ 'selected' if sp.currency == c }}>{{ c }}</option>{% endfor %}</select></label>
   <label>Дата прайсу<input type="date" name="price_date" value="{{ sp.price_date or '' }}"></label>
-  <span class="small muted">Курс: {{ sp.currency }} = {{ rt.get(sp.currency or 'UAH', 1) }} ₴</span>
+  {% if sp.currency %}<span class="small muted">Курс: {{ sp.currency }} = {{ rt.get(sp.currency, 1) }} ₴</span>{% endif %}
   <button class="btn ghost" style="height:38px">Змінити</button></form>
 <nav class="pp-f">{% for k, l in [('', 'Усі'), ('changed', 'Зміниться ціна'), ('nomatch', 'Не знайдено в CRM')] %}<a href="?show={{ k }}" class="{{ 'on' if show == k }}">{{ l }}</a>{% endfor %}</nav>
 <form method="post" action="/finance/pricing/price/{{ sp.id }}" id="ppf">
@@ -52,7 +52,7 @@
   <td class="r">{% if r.rrp %}<b>{{ '%g'|format(r.rrp) }} {{ sp.currency }}</b><div class="how">≈ {{ (r.rrp * rt.get(sp.currency or 'UAH', 1))|uah }}{{ (' · з ' ~ r.rrp_src) if r.rrp_src }}</div>{% else %}—{% endif %}</td>
 </tr>{% else %}<tr><td colspan="8" class="muted">Немає рядків.</td></tr>{% endfor %}
 </tbody></table></div>
-<div class="savebar"><span>Вибрані товари отримають закупівлю у валюті з прайсу ({{ sp.currency }}) і РРЦ постачальника — далі «ціна при курсі», маржа й рекомендовані ціни перераховуються в «Плануванні ціни реалізації».</span>
+<div class="savebar"><span>Вибрані товари отримають закупівлю у валюті з прайсу{{ (' (' ~ sp.currency ~ ')') if sp.currency }} і РРЦ постачальника — далі «ціна при курсі», маржа й рекомендовані ціни перераховуються в «Плануванні ціни реалізації».</span>
   <span class="row" style="gap:12px"><label><input type="checkbox" name="rrp" value="1" checked> і РРЦ постачальника</label><button class="btn">Підставити закупівельні ціни</button></span></div>
 </form>
 <form id="ppm" method="post" action="/finance/pricing/price/{{ sp.id }}" hidden><input type="hidden" name="action" value="match"><input type="hidden" name="i"><input type="hidden" name="pid"><input type="hidden" name="show" value="{{ show }}"></form>

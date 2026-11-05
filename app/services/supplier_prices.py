@@ -148,8 +148,14 @@ def parse(data: bytes, filename: str, table: list | None = None) -> dict:
     """→ {rows: [{name, sku, barcode, cost, rrp}], currency (з заголовків або None), header: {...}}."""
     tab = table if table is not None else read_table(data, filename)
     rows, hdr, cur, rcur = [], None, None, None
+    prev = None
     for r in tab:
-        h = _header(r) if r and not any(isinstance(c, (int, float)) and c for c in r) else None
+        txt = r and not any(isinstance(c, (int, float)) and c for c in r) and not any(_num(c) and len(_s(c)) < 12 and re.fullmatch(r"[\d\s.,]+", _s(c)) for c in r)
+        h = _header(r) if txt else None
+        if not h and txt and prev:                    # заголовок у два рядки (обʼєднані клітинки: «Ціна» / «опт | РРЦ»)
+            w = max(len(prev), len(r))
+            h = _header([" ".join(filter(None, [_s(prev[i]) if i < len(prev) else "", _s(r[i]) if i < len(r) else ""])) for i in range(w)])
+        prev = r if txt else None
         if h:
             hdr = h
             cur = cur or h["_cur"].get("cost")
@@ -349,20 +355,35 @@ def retry(db: Session, sp: SupplierPrice) -> SupplierPrice:
         sp.status, sp.error = "error", "Файл прайсу недоступний"
         db.commit()
         return sp
-    res = None
+    res, why = None, None
     mime = _doc_mime(sp.file_name or "")
     try:
-        res = parse(data, sp.file_name, pdf_table(data)) if mime == "application/pdf" else (None if mime else parse(data, sp.file_name))
-    except Exception:  # noqa: BLE001
-        res = None
+        if mime == "application/pdf":
+            tab = pdf_table(data)
+            if not tab:
+                why = "у PDF немає тексту — це скан / картинка, потрібне розпізнавання (агент або Claude API)"
+            else:
+                try:
+                    res = parse(data, sp.file_name, tab)
+                except ValueError as e:
+                    sample = " | ".join(" ; ".join(_s(c) for c in r if _s(c))[:120] for r in tab[:6] if any(_s(c) for c in r))
+                    why = f"{e} Текст у PDF є ({len(tab)} рядків), початок: {sample[:400]}"
+        elif mime:
+            why = "фото прайсу — потрібне розпізнавання (агент або Claude API)"
+        else:
+            res = parse(data, sp.file_name)
+    except Exception as e:  # noqa: BLE001
+        why = f"не вдалося прочитати файл: {str(e)[:200]}"
     if res is None and mime and invoice_ai.api_key(db):
         try:
             res = _norm_ai(_claude_read(db, data, mime))
         except Exception as e:  # noqa: BLE001
-            sp.error = f"Claude API: {str(e)[:200]}"
+            why = f"Claude API: {str(e)[:200]}"
     if res is not None:
         _fill(db, sp, res)
         sp.status, sp.error = None, None
+    else:
+        sp.error = ("Без агента не розібрано: " + (why or "невідома причина"))[:500]
     db.commit()
     return sp
 
