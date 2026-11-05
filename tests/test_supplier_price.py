@@ -203,7 +203,12 @@ def test_pricing_history_undo_and_sale_price(tmp_path):
             j = c.post(f"/finance/pricing/sale/{pid}", data={"price": "1190"}).json()
             assert j["price"] == 1190
             r = c.post("/finance/pricing/version", data={"brand": "ІсторБренд", "wh": "all", "note": "листопад"}, follow_redirects=False)
-            assert "msg=" in r.headers["location"]
+            assert "msg=" in r.headers["location"] and "xl=" in r.headers["location"]
+            xl = int(r.headers["location"].split("xl=")[1].split("&")[0])
+            f = c.get(f"/finance/pricing/history/{xl}.xlsx")
+            assert f.status_code == 200 and f.content[:2] == b"PK"
+            ws = openpyxl.load_workbook(io.BytesIO(f.content)).active
+            assert ws["B3"].value == "Історія Крем 50 мл" and ws["M3"].value == 1190
             with SessionLocal() as db:
                 x = db.get(Product, pid)
                 assert x.price == 1190 and x.price_set_at

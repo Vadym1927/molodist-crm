@@ -8694,11 +8694,12 @@ async def finance_pricing_save(request: Request, user: User = Depends(require("f
             p_.cost_currency, p_.cost_fx, p_.rrp_fx, p_.planned_price = new
             n += 1
     db.commit()
-    ph.record(db, "save", _before, _prods, user.id, note="Зміни в таблиці планування")
+    _sn = ph.record(db, "save", _before, _prods, user.id, note="Зміни в таблиці планування")
     audit(db, "pricing.save", user=user, changed=n)
     back = str(f.get("back") or "/finance/pricing")
     sep = "&" if "?" in back else "?"
-    return RedirectResponse((back if back.startswith("/finance") else "/finance/pricing") + f"{sep}msg=Збережено:+{n}", 303)
+    return RedirectResponse((back if back.startswith("/finance") else "/finance/pricing") + f"{sep}msg=Збережено:+{n}"
+                            + (f"&xl={_sn.id}" if _sn else ""), 303)
 
 
 @app.post("/finance/pricing/sale/{pid:int}")
@@ -8729,7 +8730,8 @@ async def finance_pricing_version(request: Request, user: User = Depends(require
     sup = spx.default_supplier(db, brand) if brand and brand != "—" else None
     sn = ph.version(db, [x.product for x in rows], user.id, brand or None, sup.id if sup else None, str(f.get("note") or "").strip() or None)
     back = f"/finance/pricing?wh={quote(wh)}&brand={quote(brand)}&q={quote(q)}&only={quote(only)}"
-    return RedirectResponse(_with_msg(back, f"Версію планування збережено: {sn.n if sn else 0} товарів (№{sn.id if sn else '—'})"), 303)
+    return RedirectResponse(_with_msg(back, f"Версію планування збережено: {sn.n if sn else 0} товарів (№{sn.id if sn else '—'})")
+                            + (f"&xl={sn.id}" if sn else ""), 303)
 
 
 @app.get("/finance/pricing/history", response_class=HTMLResponse)
@@ -8743,6 +8745,16 @@ def finance_pricing_history(request: Request, brand: str = "", sn: int = 0, user
     brands = sorted({x for (x,) in db.execute(select(PriceSnapshot.brand).where(PriceSnapshot.brand.is_not(None)).distinct())}, key=str.lower)
     return render(request, "pricing_history.html", nav="finance", rows=rows, cur=cur, brand=brand, brands=brands, users=users, sups=sups,
                   KINDS=ph.KINDS, FIELDS=ph.FIELDS)
+
+
+@app.get("/finance/pricing/history/{snid:int}.xlsx")
+def finance_pricing_history_xlsx(snid: int, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .models import PriceSnapshot
+    from .services import price_history as ph
+    sn = db.get(PriceSnapshot, snid) or (_ for _ in ()).throw(HTTPException(404))
+    name = f"planuvannia-{(sn.brand or 'vsi').replace(' ', '_')}-{sn.created_at:%Y-%m-%d}-{sn.id}.xlsx"
+    return Response(ph.xlsx(db, sn), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"})
 
 
 @app.post("/finance/pricing/history/{snid:int}")

@@ -752,6 +752,7 @@ class PriceSnapshot(Base):
     note: Mapped[str | None] = mapped_column(String(300))
     items: Mapped[list | None] = mapped_column(JSON)                       # [{pid, name, before:{…}, after:{…}}]
     n: Mapped[int | None] = mapped_column(Integer)
+    rates: Mapped[dict | None] = mapped_column(JSON)                       # курс на момент збереження {USD, EUR, round}
 
 
 class SupplierEntity(Base):
