@@ -162,11 +162,11 @@ dialog.pn{border:0;border-radius:20px;padding:0;width:min(1040px,97vw);max-heigh
     <div>
       <div class="lb-s"><div class="lb-t">Друкувати елементи</div><div class="lb-chips">
         {% for k, l, d in [('name','Назва товару',1),('sku','Артикул',0),('barcode','Штрихкод',0),('price','Ціна товару',1)] %}<label><input type="checkbox" class="lbe" value="{{ k }}" {{ 'checked' if d }} onchange="lbPrev()"><span>{{ l }}</span></label>{% endfor %}</div></div>
-      <div class="lb-s"><div class="lb-t">Розмір і копії</div><div class="lb-row">
+      <div class="lb-s"><div class="lb-t">Розмір цінника</div><div class="lb-row">
         <label>Ширина, мм<select id="lbw" onchange="lbPrev()">{% for v in [20,25,30,35,40,43,50,58,60,70,80,100] %}<option {{ 'selected' if v == 30 }}>{{ v }}</option>{% endfor %}</select></label>
         <span class="lb-sz">×</span>
         <label>Висота, мм<select id="lbh" onchange="lbPrev()">{% for v in [15,20,25,30,35,40,50,60] %}<option {{ 'selected' if v == 20 }}>{{ v }}</option>{% endfor %}</select></label>
-        <label style="margin-left:auto">Копій кожного<input type="number" id="lbc" value="1" min="1" max="200" oninput="document.querySelectorAll('.lbq').forEach(function(i){i.value=document.getElementById('lbc').value});lbTot()"></label></div></div>
+</div></div>
       <div class="lb-s"><div class="lb-t" style="display:flex;justify-content:space-between"><span>Товари для друку</span><span id="lbtot"></span></div>
         <div class="lb-list"><table><thead><tr><th>Назва</th><th class="r">Ціна</th><th class="r">Копій</th></tr></thead><tbody id="lbl"></tbody></table></div></div>
     </div>
@@ -176,7 +176,7 @@ dialog.pn{border:0;border-radius:20px;padding:0;width:min(1040px,97vw);max-heigh
   </div></dialog>
 <script>
 function lbSel(){return Array.from(document.querySelectorAll('#bulkf tbody input[name=ids]:checked'))}
-function lbOpen(){var t=document.getElementById('lbl'),c=document.getElementById('lbc').value||1;t.innerHTML='';
+function lbOpen(){var t=document.getElementById('lbl'),c=1;t.innerHTML='';
   lbSel().forEach(function(x){var tr=document.createElement('tr');tr.innerHTML='<td></td><td class="r"></td><td class="r"><input type="number" class="lbq" min="0" max="200" style="width:70px;height:34px"></td>';
     tr.children[0].textContent=x.dataset.n;tr.children[1].textContent=x.dataset.p?lbMoney(x.dataset.p):'—';var q=tr.querySelector('input');q.value=c;q.dataset.id=x.value;q.oninput=lbTot;t.appendChild(tr)});
   lbPrev();lbTot();document.getElementById('lbd').showModal()}
