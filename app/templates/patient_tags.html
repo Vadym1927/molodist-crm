@@ -20,17 +20,49 @@
 </style>
 <div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a> · Пацієнти</div><h1>Статуси й групи пацієнтів</h1>
 {% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok);margin-top:10px;max-width:900px">{{ qp.get('msg') }}</div>{% endif %}
-<div class="pt-info"><b>Як визначається статус.</b> CRM рахує візити пацієнта — кількість різних днів, коли візит завершено (історія CleverBox і записи CRM зі статусом «Візит завершено»). Для запланованого візиту він уже враховується: на першому візиті пацієнт — первинний.
-  Пацієнт отримує найвищий статус, поріг якого досягнув. Зараз: <b>{% for t in tags %}{{ t.name }} — від {{ t.min if t.min > 1 else 1 }}{{ '' if loop.last else ' · ' }}{% endfor %}</b> візитів.
-  Статус видно в блоці візиту в календарі, у картці візиту й у касі.</div>
+<div class="pt-info"><b>Як визначається статус.</b> CRM рахує для кожного пацієнта три числа: <b>успішні візити</b> (різних днів із завершеним візитом — історія CleverBox і записи CRM),
+  <b>заплановані</b> (майбутні записи) і <b>днів від останнього візиту</b>. Статус — останній у списку, усі умови якого виконані; порядок у списку = пріоритет (нижчий переважає).
+  Статуси за днями від візиту <b>плаваючі</b>: пацієнт, якого давно не було, сам переходить у «Давно не бачилися» / «Колишній», а коли повертається — знову стає активним.
+  Поле «до» порожнє або {{ INF }} — без обмеження. Статус видно в календарі, картці візиту, касі й списку пацієнтів.</div>
 
-<form method="post" class="pt-c" id="ptf"><input type="hidden" name="what" value="tags">
-  <h3>Статуси</h3><p>Назва, колір мітки і з якої кількості візитів присвоюється. Порядок — за порогом.</p>
-  <div class="pt-r hd"><span>Колір</span><span>Назва</span><span>Від, візитів</span><span>Діє</span><span></span></div>
-  <div id="ptl">{% for t in tags %}<div class="pt-r"><input type="color" name="color" value="{{ t.color }}" oninput="ptPv()"><input type="text" class="pt-n" name="name" value="{{ t.name }}" maxlength="40" required oninput="ptPv()">
-    <input type="number" name="min" min="0" step="1" value="{{ t.min }}" oninput="ptPv()"><span class="pt-rg"></span><button type="button" class="pt-x" onclick="this.parentNode.remove();ptPv()">×</button></div>{% endfor %}</div>
-  <div class="row" style="gap:8px;margin-top:12px"><button type="button" class="btn ghost" onclick="ptAdd()">＋ Статус</button><button class="btn">Зберегти статуси</button></div>
+<style>
+.mx{width:100%;border-collapse:collapse;font-size:13px}.mx th{font:700 10px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496;text-align:left;padding:6px 6px;border-bottom:1px solid #ECE7E1;white-space:nowrap}
+.mx th.g{text-align:center;background:#F7F4F0;border-radius:8px 8px 0 0}.mx td{padding:6px 5px;border-bottom:1px solid #F1EDE8;vertical-align:middle}
+.mx input[type=text]{height:38px;width:100%;min-width:150px;margin:0}.mx input[type=number]{height:36px;width:66px;margin:0;padding:0 6px;text-align:center}.mx select{height:38px;margin:0;width:110px}
+.mx input[type=color]{width:40px;height:36px;padding:2px;border:1px solid #E9E5DF;border-radius:8px;background:#fff}
+.mx .ar{display:inline-block;color:#b0aab8;padding:0 2px}.mx .cnt{font-weight:700;white-space:nowrap}.mx .cnt small{color:#8a8496;font-weight:400}
+.mx .mv{display:inline-flex;flex-direction:column;gap:2px}.mx .mv button,.mx .pt-x{border:1px solid #ECE7E1;background:#fff;border-radius:6px;width:28px;height:22px;font-size:12px;cursor:pointer;line-height:1;color:#5d5869}.mx .pt-x{color:#B23B2E;height:36px;width:32px;font-size:18px}
+.mx tr.cat-sleep td:first-child,.mx tr.cat-lost td:first-child{box-shadow:inset 3px 0 0 #C0392B}.mx tr.cat-sleep td:first-child{box-shadow:inset 3px 0 0 #A0522D}
+.mx-leg{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 4px}.mx-leg span{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:#5d5869}
+.pt-c.wide{max-width:none}
+</style>
+<form method="post" class="pt-c wide" id="ptf"><input type="hidden" name="what" value="tags">
+  <div class="row between" style="align-items:flex-start;gap:10px;flex-wrap:wrap"><div><h3>Матриця статусів</h3><p>Назва, колір, категорія й умови: візити, заплановані записи, днів від останнього візиту. Порядок — стрілками.</p></div>
+    <button class="btn ghost" name="what" value="reset" formnovalidate onclick="return confirm('Замінити статуси на набір за замовчуванням (Потенційний, Первинний, Постійний, ФАНАТ, Давно не бачилися, Колишній)?')">↺ За замовчуванням</button></div>
+  <div class="mx-leg">{% for k, v in CATS.items() %}<span><i style="width:10px;height:10px;border-radius:3px;background:{{ {'active':'#7CB342','sleep':'#A0522D','lost':'#C0392B'}[k] }}"></i>{{ v }}: {{ {'active':'ходять і мають майбутнє','sleep':'давно не було — нагадати про себе','lost':'ймовірно втрачені'}[k] }}</span>{% endfor %}</div>
+  <div style="overflow-x:auto"><table class="mx"><thead>
+    <tr><th rowspan="2"></th><th rowspan="2">Колір</th><th rowspan="2">Статус</th><th rowspan="2">Категорія</th><th colspan="2" class="g">Успішні візити</th><th colspan="2" class="g">Заплановані</th><th colspan="2" class="g">Днів від останнього візиту</th><th rowspan="2">Пацієнтів зараз</th><th rowspan="2"></th></tr>
+    <tr><th>від</th><th>до</th><th>від</th><th>до</th><th>від</th><th>до</th></tr></thead>
+  <tbody id="ptl">{% for t in tags %}<tr class="cat-{{ t.cat }}">
+    <td><span class="mv"><button type="button" onclick="mxMove(this,-1)" title="вище">▲</button><button type="button" onclick="mxMove(this,1)" title="нижче">▼</button></span></td>
+    <td><input type="color" name="color" value="{{ t.color }}"></td>
+    <td><input type="text" name="name" value="{{ t.name }}" maxlength="40" required></td>
+    <td><select name="cat" onchange="this.closest('tr').className='cat-'+this.value">{% for k, v in CATS.items() %}<option value="{{ k }}" {{ 'selected' if t.cat == k }}>{{ v }}</option>{% endfor %}</select></td>
+    <td><input type="number" name="v_from" min="0" value="{{ t.v_from }}"></td><td><input type="number" name="v_to" min="0" value="{{ '' if t.v_to >= INF else t.v_to }}" placeholder="∞"></td>
+    <td><input type="number" name="p_from" min="0" value="{{ t.p_from }}"></td><td><input type="number" name="p_to" min="0" value="{{ '' if t.p_to >= INF else t.p_to }}" placeholder="∞"></td>
+    <td><input type="number" name="l_from" min="0" value="{{ t.l_from }}"></td><td><input type="number" name="l_to" min="0" value="{{ '' if t.l_to >= INF else t.l_to }}" placeholder="∞"></td>
+    <td class="cnt">{{ tcounts.get(t.name, 0) }}<br><small>{{ range_text(t) }}</small></td>
+    <td><button type="button" class="pt-x" onclick="this.closest('tr').remove()" title="видалити">×</button></td></tr>{% endfor %}</tbody></table></div>
+  <div class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap"><button type="button" class="btn ghost" onclick="mxAdd()">＋ Статус</button><button class="btn">Зберегти статуси</button>
+    <span class="small muted">Умови «від … до» включно. Пацієнт без жодного відповідного статусу отримує статус лише за кількістю візитів.</span></div>
 </form>
+<script>
+function mxMove(b,d){var tr=b.closest('tr'),p=tr.parentNode,s=d<0?tr.previousElementSibling:tr.nextElementSibling;if(!s)return;if(d<0)p.insertBefore(tr,s);else p.insertBefore(s,tr)}
+function mxAdd(){var tr=document.createElement('tr');tr.className='cat-active';tr.innerHTML='<td><span class="mv"><button type="button" onclick="mxMove(this,-1)">▲</button><button type="button" onclick="mxMove(this,1)">▼</button></span></td><td><input type="color" name="color" value="#5C4B82"></td><td><input type="text" name="name" maxlength="40" required placeholder="Наприклад: VIP"></td>'+
+  '<td><select name="cat" onchange="this.closest(\'tr\').className=\'cat-\'+this.value">{% for k, v in CATS.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></td>'+
+  '<td><input type="number" name="v_from" min="0" value="0"></td><td><input type="number" name="v_to" min="0" placeholder="∞"></td><td><input type="number" name="p_from" min="0" value="0"></td><td><input type="number" name="p_to" min="0" placeholder="∞"></td><td><input type="number" name="l_from" min="0" value="0"></td><td><input type="number" name="l_to" min="0" placeholder="∞"></td><td class="cnt">—</td><td><button type="button" class="pt-x" onclick="this.closest(\'tr\').remove()">×</button></td>';
+  document.getElementById('ptl').appendChild(tr);tr.querySelector('[name=name]').focus()}
+</script>
 
 <form method="post" class="pt-c" id="groups"><input type="hidden" name="what" value="groups">
   <h3>Групи пацієнтів</h3><p>Довідник груп. У картці пацієнта групи лише вибираються з цього списку. Перейменування змінить групу в усіх картках; видалення зі списку прибирає її з вибору (у картках, де вона вже є, вона залишиться — приберіть ×).</p>
@@ -54,10 +86,5 @@
 </form>
 <script>
 function pgAdd(){var r=document.createElement('div');r.className='pg-r';r.innerHTML='<input type="color" name="g_color" value="#5C4B82"><input type="hidden" name="g_orig" value=""><input type="text" name="g_name" maxlength="60" required placeholder="Назва групи"><span class="pt-rg">0</span><button type="button" class="pt-x" onclick="this.parentNode.remove()">×</button>';document.getElementById('pgl').appendChild(r);r.querySelector('[name=g_name]').focus()}
-function ptAdd(){var r=document.createElement('div');r.className='pt-r';r.innerHTML='<input type="color" name="color" value="#5C4B82" oninput="ptPv()"><input type="text" class="pt-n" name="name" maxlength="40" required placeholder="Наприклад: VIP" oninput="ptPv()"><input type="number" name="min" min="0" step="1" value="20" oninput="ptPv()"><span class="pt-rg"></span><button type="button" class="pt-x" onclick="this.parentNode.remove();ptPv()">×</button>';document.getElementById('ptl').appendChild(r);ptPv()}
-function ptPv(){var rs=[].slice.call(document.querySelectorAll('#ptl .pt-r')).map(function(r){return {r:r,m:Math.max(0,parseInt(r.querySelector('[name=min]').value)||0)}}).sort(function(a,b){return a.m-b.m});
-  rs.forEach(function(x,i){var nx=rs[i+1],a=Math.max(1,x.m),t=nx?(nx.m-1>=a?(nx.m-1===a?a+' візит':a+'–'+(nx.m-1)+' візитів'):'перекрито наступним'):'від '+a+' візитів';
-    var c=x.r.querySelector('[type=color]').value,n=x.r.querySelector('.pt-n').value||'—';x.r.querySelector('.pt-rg').innerHTML='<span class="pt-pv" style="background:'+c+'">'+n.replace(/</g,'&lt;')+'</span> '+t})}
-ptPv();
 </script>
 {% endblock %}

@@ -898,8 +898,9 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
     phist.sort(key=lambda r: r["at"], reverse=True)
     from .services import patient_tags as _ptg
     _lv = _ptg.tags(db)
-    _vd = _ptg.visit_days(db, [p.id]).get(p.id, 0) or int(p.cb_visits or 0)
-    ptag = _ptg.tag_for(_lv, _vd)
+    _st = _ptg.stats(db, [p.id]).get(p.id) or {"visits": 0, "planned": 0, "last_days": None}
+    _vd = _st["visits"] or int(p.cb_visits or 0)
+    ptag = _ptg.tag_for(_lv, _vd, _st["planned"], _st["last_days"])
     ptag_color = _ptg.colors(_lv).get(ptag, "#8a8496")
     page_age = None
     if p.birthday:
@@ -3393,8 +3394,9 @@ def clients_page(request: Request, seg: str = "all", q: str = "", doctor: int | 
     rows = clients_svc.client_rows(db, pats)
     from .services import patient_tags as _ptg
     _lv = _ptg.tags(db)
-    _vd = _ptg.visit_days(db, [p_.id for p_ in pats])
-    tags_of = {p_.id: _ptg.tag_for(_lv, _vd.get(p_.id, 0) or int(p_.cb_visits or 0)) for p_ in pats}
+    _vd = _ptg.stats(db, [p_.id for p_ in pats])
+    tags_of = {p_.id: _ptg.tag_for(_lv, (_vd.get(p_.id) or {}).get("visits", 0) or int(p_.cb_visits or 0),
+                                   (_vd.get(p_.id) or {}).get("planned"), (_vd.get(p_.id) or {}).get("last_days")) for p_ in pats}
     qp = request.query_params
     rows = clients_svc.apply_filters(rows, qp, tags_of)
     counts = clients_svc.segment_counts(rows)
@@ -6190,7 +6192,19 @@ async def settings_cosmetics_pct_save(request: Request, user: User = Depends(req
 @app.get("/settings/patient-tags", response_class=HTMLResponse)
 def settings_patient_tags(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     from .services import patient_tags as _pt
-    return render(request, "patient_tags.html", nav="settings", tags=_pt.tags(db), fields=_pt.fields(db), FIELDS=_pt.FIELDS, MODES=_pt.MODES,
+    lv = _pt.tags(db)
+    cnt: dict = {}
+    try:                                                                 # скільки пацієнтів у кожному статусі зараз
+        pids = [i for (i,) in db.execute(select(Patient.id))]
+        st_all = _pt.stats(db, pids)
+        for i in pids:
+            x = st_all.get(i) or {"visits": 0, "planned": 0, "last_days": None}
+            t = _pt.tag_for(lv, x["visits"], x["planned"], x["last_days"])
+            cnt[t] = cnt.get(t, 0) + 1
+    except Exception:  # noqa: BLE001
+        cnt = {}
+    return render(request, "patient_tags.html", nav="settings", tags=lv, tcounts=cnt, CATS=_pt.CATS, INF=_pt.INF, range_text=_pt.range_text,
+                  fields=_pt.fields(db), FIELDS=_pt.FIELDS, MODES=_pt.MODES,
                   groups=_pt.groups(db), gcounts=_pt.group_counts(db), cols=clients_svc.columns(db), COLS=clients_svc.COLUMNS)
 
 
@@ -6212,7 +6226,13 @@ async def settings_patient_tags_save(request: Request, user: User = Depends(requ
         _pt.save_fields(db, {k: str(f.get("f_" + k) or "off") for k in _pt.FIELDS})
         audit(db, "settings.calendar_patient_fields", user=user)
         return RedirectResponse(_with_msg("/settings/patient-tags#cal", "Поля календаря збережено"), 303)
-    rows = [{"name": n_, "min": m_, "color": c_} for n_, m_, c_ in zip(f.getlist("name"), f.getlist("min"), f.getlist("color"))]
+    if f.get("what") == "reset":
+        _pt.reset_tags(db)
+        audit(db, "settings.patient_tags", user=user, reset=True)
+        return RedirectResponse(_with_msg("/settings/patient-tags", "Статуси за замовчуванням відновлено"), 303)
+    keys = ("name", "color", "cat", "v_from", "v_to", "p_from", "p_to", "l_from", "l_to")
+    cols = {k: f.getlist(k) for k in keys}
+    rows = [{k: cols[k][i] for k in keys if i < len(cols[k])} for i in range(len(cols["name"]))]
     _pt.save_tags(db, rows)
     audit(db, "settings.patient_tags", user=user, n=len(rows))
     return RedirectResponse(_with_msg("/settings/patient-tags", "Статуси пацієнтів збережено"), 303)

@@ -179,11 +179,12 @@ def _tag_patients(db: Session, out: dict) -> None:
     if not pids:
         return
     from . import patient_tags as _pt
-    days, levels = _pt.visit_days(db, pids), _pt.tags(db)
+    st, levels = _pt.stats(db, pids), _pt.tags(db)
     for evs in out.values():
         for e in evs:
             if e.patient_id in pids and e.kind in ("visit", "attended"):
-                e.tag = tag_for((days.get(e.patient_id) or 0) + (0 if e.kind == "attended" else 1), levels)
+                x = st.get(e.patient_id) or {"visits": 0, "planned": 0, "last_days": None}
+                e.tag = _pt.tag_for(levels, x["visits"] + (0 if e.kind == "attended" else 1), x["planned"], x["last_days"])
 
 
 @dataclass

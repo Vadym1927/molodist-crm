@@ -181,7 +181,7 @@ def rule_applies(r: DiscountRule, day: date, patient: Patient | None = None, db:
         if not patient or db is None:
             return False
         from . import patient_tags as ptg
-        st = ptg.tag_for(ptg.tags(db), ptg.visit_days(db, [patient.id]).get(patient.id, 0))
+        st = ptg.tag_of(db, ptg.tags(db), patient.id)
         if st not in r.patient_statuses:
             return False
     if db is not None and r.uses_limit and uses(db, r) >= r.uses_limit:

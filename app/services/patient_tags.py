@@ -51,31 +51,90 @@ def _put(db: Session, key: str, val) -> None:
     db.commit()
 
 
-# ---------------- статуси ----------------
+# ---------------- статуси (матриця) ----------------
+CATS = {"active": "Активні", "sleep": "Сплячі", "lost": "Втрачені"}
+INF = 9999
+# за замовчуванням — як «Матриця статусів» CleverBox: візити (успішні), заплановані, днів від останнього візиту
+DEFAULT_MATRIX = [
+    {"name": "Потенційний", "color": "#E8B931", "cat": "active", "v_from": 0, "v_to": 0, "p_from": 1, "p_to": INF, "l_from": 0, "l_to": INF},
+    {"name": "Первинний пацієнт", "color": "#C9B037", "cat": "active", "v_from": 1, "v_to": 1, "p_from": 0, "p_to": INF, "l_from": 0, "l_to": 179},
+    {"name": "Постійний пацієнт", "color": "#4FC3D9", "cat": "active", "v_from": 2, "v_to": 9, "p_from": 0, "p_to": INF, "l_from": 0, "l_to": 179},
+    {"name": "ФАНАТ", "color": "#7CB342", "cat": "active", "v_from": 10, "v_to": INF, "p_from": 0, "p_to": INF, "l_from": 0, "l_to": 179},
+    {"name": "Давно не бачилися", "color": "#A0522D", "cat": "sleep", "v_from": 1, "v_to": INF, "p_from": 0, "p_to": 0, "l_from": 180, "l_to": 359},
+    {"name": "Колишній", "color": "#C0392B", "cat": "lost", "v_from": 1, "v_to": INF, "p_from": 0, "p_to": 0, "l_from": 360, "l_to": INF},
+]
+_RANGES = (("v_from", "v_to"), ("p_from", "p_to"), ("l_from", "l_to"))
+
+
+def _int(v, d):
+    try:
+        return max(0, min(int(float(v)), INF))
+    except (TypeError, ValueError):
+        return d
+
+
+def _norm(r: dict) -> dict | None:
+    n = " ".join(str(r.get("name") or "").split())[:40]
+    if not n:
+        return None
+    x = {"name": n, "color": r.get("color") if _HEX.match(str(r.get("color") or "")) else "#8a8496",
+         "cat": r.get("cat") if r.get("cat") in CATS else "active"}
+    if "min" in r and "v_from" not in r:                        # старий формат {name, min, color}: від N візитів
+        x.update(v_from=_int(r.get("min"), 0), v_to=INF, p_from=0, p_to=INF, l_from=0, l_to=INF)
+    else:
+        for a, b in _RANGES:
+            x[a], x[b] = _int(r.get(a), 0), _int(r.get(b), INF)
+            if x[b] < x[a]:
+                x[b] = x[a]
+    x["min"] = x["v_from"]                                      # сумісність зі старими шаблонами
+    return x
+
+
 def tags(db: Session) -> list[dict]:
-    rows = _get(db, TAGS_KEY) or DEFAULT_TAGS
-    out = []
-    for r in rows:
-        n = " ".join(str(r.get("name") or "").split())[:40]
-        if n:
-            try:
-                mn = max(0, int(float(r.get("min") or 0)))
-            except (TypeError, ValueError):
-                mn = 0
-            out.append({"name": n, "min": mn, "color": r.get("color") if _HEX.match(str(r.get("color") or "")) else "#8a8496"})
-    out.sort(key=lambda x: x["min"])
-    return out or list(DEFAULT_TAGS)
+    """Статуси в порядку пріоритету: пацієнт отримує ОСТАННІЙ у списку статус, умови якого виконані (плаваючі —
+    за днями від останнього візиту: статус змінюється сам, коли пацієнт зникає й повертається)."""
+    rows = _get(db, TAGS_KEY)
+    if rows is None:
+        rows = DEFAULT_TAGS
+    out = [x for x in (_norm(r) for r in rows) if x]
+    if rows and "min" in rows[0] and "v_from" not in rows[0]:   # старий формат — за порогом
+        out.sort(key=lambda x: x["v_from"])
+    return out or [_norm(r) for r in DEFAULT_MATRIX]
 
 
 def save_tags(db: Session, rows: list[dict]) -> None:
-    _put(db, TAGS_KEY, [r for r in rows if str(r.get("name") or "").strip()])
+    _put(db, TAGS_KEY, [x for x in (_norm(r) for r in rows) if x])
 
 
-def tag_for(levels: list[dict], visits: int) -> str:
-    cur = levels[0]["name"] if levels else ""
+def reset_tags(db: Session) -> None:
+    _put(db, TAGS_KEY, [dict(r) for r in DEFAULT_MATRIX])
+
+
+def matches(t: dict, visits: int, planned: int | None = None, last_days: int | None = None) -> bool:
+    if not (t["v_from"] <= visits <= t["v_to"]):
+        return False
+    if planned is not None and not (t["p_from"] <= planned <= t["p_to"]):
+        return False
+    if last_days is not None and not (t["l_from"] <= last_days <= t["l_to"]):
+        return False
+    if last_days is None and t["l_from"] > 0:                   # умова за останнім візитом, а дати немає — не підходить
+        return False
+    if planned is None and t["p_from"] > 0:
+        return False
+    return True
+
+
+def tag_for(levels: list[dict], visits: int, planned: int | None = None, last_days: int | None = None) -> str:
+    """Статус за візитами (+ заплановані, + днів від останнього візиту, якщо відомі). Останній відповідний у списку."""
+    cur = ""
     for t in levels:
-        if visits >= t["min"]:
+        if matches(t, visits, planned, last_days):
             cur = t["name"]
+    if not cur and levels:                                      # нічого не підійшло (напр. повернувся після паузи з записом) — лише за візитами
+        for t in levels:
+            if matches(t, visits):
+                cur = t["name"]
+        cur = cur or levels[0]["name"]
     return cur
 
 
@@ -83,8 +142,31 @@ def colors(levels: list[dict]) -> dict[str, str]:
     return {t["name"]: t["color"] for t in levels}
 
 
+def cat_of(levels: list[dict]) -> dict[str, str]:
+    return {t["name"]: t["cat"] for t in levels}
+
+
+def range_text(t: dict) -> str:
+    def rng(a, b, unit):
+        if a == 0 and b >= INF:
+            return ""
+        if b >= INF:
+            return f"від {a} {unit}"
+        if a == b:
+            return f"{a} {unit}"
+        return f"{a}–{b} {unit}"
+    parts = [rng(t["v_from"], t["v_to"], "візитів"), rng(t["p_from"], t["p_to"], "запланов."), rng(t["l_from"], t["l_to"], "дн. від візиту")]
+    return " · ".join(p for p in parts if p) or "без умов"
+
+
 def visit_days(db: Session, pids) -> dict[int, int]:
     """Кількість різних днів із завершеним візитом: історія CleverBox (Visit) + записи CRM «Візит завершено»."""
+    return {k: v["visits"] for k, v in stats(db, pids).items()}
+
+
+def stats(db: Session, pids) -> dict[int, dict]:
+    """pid → {visits: різних днів із завершеним візитом, planned: майбутніх записів, last_days: днів від останнього візиту | None}."""
+    from datetime import date as _date, datetime as _dt
     from ..models import Appointment, Visit
     pids = list({p for p in pids if p})
     if not pids:
@@ -92,11 +174,33 @@ def visit_days(db: Session, pids) -> dict[int, int]:
     days: dict[int, set] = {}
     for pid, d in db.execute(select(Visit.patient_id, func.date(Visit.starts_at)).where(
             Visit.patient_id.in_(pids), Visit.status.in_(("attended", "done"))).distinct()):
-        days.setdefault(pid, set()).add(str(d))
+        days.setdefault(pid, set()).add(str(d)[:10])
     for pid, d in db.execute(select(Appointment.patient_id, func.date(Appointment.start)).where(
             Appointment.patient_id.in_(pids), Appointment.status.in_(("done", "paid"))).distinct()):
-        days.setdefault(pid, set()).add(str(d))
-    return {k: len(v) for k, v in days.items()}
+        days.setdefault(pid, set()).add(str(d)[:10])
+    now = _dt.now()
+    planned: dict[int, int] = {}
+    for pid, n in db.execute(select(Appointment.patient_id, func.count()).where(
+            Appointment.patient_id.in_(pids), Appointment.start > now, Appointment.status.notin_(("cancelled", "no_show")))
+            .group_by(Appointment.patient_id)):
+        planned[pid] = int(n)
+    today = _date.today()
+    out = {}
+    for pid in pids:
+        ds = days.get(pid) or set()
+        last = None
+        if ds:
+            try:
+                last = (today - _date.fromisoformat(max(ds))).days
+            except ValueError:
+                last = None
+        out[pid] = {"visits": len(ds), "planned": planned.get(pid, 0), "last_days": max(0, last) if last is not None else None}
+    return out
+
+
+def tag_of(db: Session, levels: list[dict], pid: int, extra_visit: int = 0) -> str:
+    st = stats(db, [pid]).get(pid) or {"visits": 0, "planned": 0, "last_days": None}
+    return tag_for(levels, st["visits"] + extra_visit, st["planned"], st["last_days"])
 
 
 # ---------------- групи пацієнтів ----------------
