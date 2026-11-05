@@ -1,0 +1,23 @@
+<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>Цінники · MOLODIST</title>
+<style>
+@page{size:{{ w }}mm {{ h }}mm;margin:0}
+*{box-sizing:border-box}html,body{margin:0;padding:0;background:#fff;color:#000;font-family:"Open Sans",Arial,sans-serif}
+.lbl{width:{{ w }}mm;height:{{ h }}mm;padding:1.2mm 1.5mm;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.4mm;
+  text-align:center;overflow:hidden;page-break-after:always;break-after:page}
+.lbl:last-child{page-break-after:auto;break-after:auto}
+.nm{font-weight:700;font-size:{{ [6, (h * 0.42)|round|int]|max if h < 25 else 9 }}pt;line-height:1.1;max-height:{{ (h * 0.45)|round(1) }}mm;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;word-break:break-word}
+.sku{font-size:6pt;color:#333}.pr{font-weight:800;font-size:{{ [8, (h * 0.55)|round|int]|max if h < 30 else 14 }}pt;line-height:1}
+.bc{width:100%;height:{{ (h * 0.28)|round(1) }}mm;fill:#000}.code{font-size:5.5pt;letter-spacing:.05em}
+@media screen{body{background:#E9E5DF;padding:16px;display:flex;flex-wrap:wrap;gap:8px}.lbl{background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25)}
+  .bar{width:100%;font:600 14px Arial;margin-bottom:6px}.bar button{font:700 14px Arial;padding:8px 16px;border-radius:10px;border:0;background:#3B3050;color:#fff;cursor:pointer}}
+@media print{.bar{display:none}}
+</style></head><body>
+<div class="bar">{{ items|length }} цінників · {{ w }}×{{ h }} мм <button onclick="window.print()">🖨 Друк</button></div>
+{% for it in items %}<div class="lbl">
+  {% if 'name' in els %}<div class="nm">{{ it.name }}</div>{% endif %}
+  {% if 'sku' in els and it.sku %}<div class="sku">{{ it.sku }}</div>{% endif %}
+  {% if 'barcode' in els and it.bc %}{{ it.bc|safe }}<div class="code">{{ it.code }}</div>{% endif %}
+  {% if 'price' in els and it.price %}<div class="pr">{{ '{:,.2f}'.format(it.price).replace(',', ' ') }} ₴</div>{% endif %}
+</div>{% else %}<p>Не обрано жодного товару.</p>{% endfor %}
+{% if auto and items %}<script>window.addEventListener('load',function(){setTimeout(function(){window.print()},300)})</script>{% endif %}
+</body></html>

@@ -4074,6 +4074,32 @@ def _product_xl_val(r, k):
             "unit": p_.unit, "category": p_.category}.get(k)
 
 
+@app.get("/products/labels", response_class=HTMLResponse)
+def products_labels(request: Request, w: int = 30, h: int = 20, show: str = "name,price", auto: int = 1,
+                    user: User = Depends(require("products")), db: Session = Depends(db_dep)):
+    """Сторінка друку цінників: кожен цінник — окрема «сторінка» w×h мм (термопринтер етикеток) з обраними елементами."""
+    from .services import labels as lb
+    qp = request.query_params
+    ids = [int(x) for x in qp.getlist("ids") if x.isdigit()]
+    prods = {p_.id: p_ for p_ in db.scalars(select(Product).where(Product.id.in_(ids)))} if ids else {}
+    w, h = max(15, min(w, 150)), max(10, min(h, 150))
+    els = {x for x in show.split(",") if x in ("name", "sku", "barcode", "price")} or {"name"}
+    items = []
+    for i in ids:
+        p_ = prods.get(i)
+        if not p_:
+            continue
+        try:
+            n = max(0, min(int(qp.get(f"q_{i}") or 1), 200))
+        except ValueError:
+            n = 1
+        code = p_.barcode or p_.sku or ""
+        items += [{"name": p_.short_name or p_.name, "sku": p_.sku, "price": p_.price or p_.price_manual,
+                   "bc": lb.barcode_svg(code) if "barcode" in els and code else "", "code": code}] * n
+    audit(db, "products.labels", user=user, n=len(items))
+    return templates.TemplateResponse(request, "labels_print.html", {"request": request, "items": items, "w": w, "h": h, "els": els, "auto": auto})
+
+
 @app.get("/products.xlsx")
 def products_xlsx(request: Request, q: str = "", brand: str = "", supplier: str = "", f: str = "", sort: str = "brand",
                   wh: str = "vitrina", user: User = Depends(require("products")), db: Session = Depends(db_dep)):

@@ -259,3 +259,16 @@ def test_products_xlsx_rows_and_cols():
         r = c.get("/products.xlsx", params=[("ids", str(ida)), ("cols", "sku")])
         ws = openpyxl.load_workbook(io.BytesIO(r.content)).active
         assert ws.max_row == 2 and ws["A2"].value == "EX-1"
+
+
+def test_price_labels_page():
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        a = Product(name="Цінник Крем 50 мл", name_norm="цінник крем 50 мл", sku="LB-1", barcode="4820000000017", price=1250)
+        db.add(a); db.commit(); ida = a.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        assert "Друк цінників" in c.get("/products").text
+        r = c.get("/products/labels", params=[("ids", str(ida)), (f"q_{ida}", "3"), ("w", "40"), ("h", "25"), ("show", "name,price,barcode")])
+        assert r.status_code == 200 and r.text.count('class="lbl"') == 3 and "1 250.00 ₴" in r.text and "<svg class=\"bc\"" in r.text
+        assert "size:40mm 25mm" in r.text
