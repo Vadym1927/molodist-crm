@@ -351,3 +351,28 @@ def match(db: Session, parsed: dict) -> dict:
             "supplier_raw": sp, "number": parsed.get("number") or "", "date": parsed.get("date") or date.today().isoformat(),
             "total": parsed.get("total") or round(sum(x["sum"] for x in lines), 2), "lines": lines,
             "matched": matched, "unmatched": len(lines) - matched}
+
+
+def job_state(db, kind: str, ref_id: int) -> dict | None:
+    """Що робить агент із задачею: чекає в черзі / взяв / відповів — для показу людині."""
+    from datetime import datetime as _dt
+    from sqlalchemy import select as _sel
+    from ..models import InvoiceJob
+    j = db.scalars(_sel(InvoiceJob).where(InvoiceJob.kind == kind, InvoiceJob.ref_id == ref_id).order_by(InvoiceJob.id.desc())).first()
+    if not j:
+        return None
+    now = _dt.now()
+    mins = lambda t: max(0, int((now - t).total_seconds() // 60)) if t else 0    # noqa: E731
+    if j.status == "pending":
+        txt = f"у черзі {mins(j.created_at)} хв — агент ще не забрав файл"
+        if mins(j.created_at) >= 10:
+            txt += ". Схоже, агент не перевіряє чергу — перевірте, що OpenClaw запущений і має завдання з docs/openclaw-invoices-ai.md"
+    elif j.status == "taken":
+        txt = f"агент забрав файл о {j.taken_at:%H:%M} і розпізнає ({mins(j.taken_at)} хв)"
+        if mins(j.taken_at) >= 15:
+            txt += " — довго; через 15 хв без відповіді задача повертається в чергу"
+    elif j.status == "done":
+        txt = f"агент відповів о {j.done_at:%H:%M}" if j.done_at else "агент відповів"
+    else:
+        txt = "агент повернув помилку: " + (j.error or "")
+    return {"id": j.id, "status": j.status, "text": txt, "created": j.created_at, "taken": j.taken_at}

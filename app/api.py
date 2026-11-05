@@ -499,7 +499,7 @@ def _inv_json(j) -> dict:
     kind = j.kind or "invoice"
     return {"id": j.id, "created_at": j.created_at.isoformat(timespec="seconds"), "filename": j.filename, "mime": j.mime,
             "status": j.status, "file_url": f"/api/v1/invoices/{j.id}/file", "kind": kind,
-            "prompt": pay_requests.PROMPT if kind == "payreq" else (supplier_prices.PROMPT if kind == "price" else invoice_ai.PROMPT)}
+            "prompt": {"payreq": pay_requests.PROMPT, "receipt": pay_requests.RECEIPT_PROMPT, "price": supplier_prices.PROMPT}.get(kind, invoice_ai.PROMPT)}
 
 
 @router.get("/invoices/pending", summary="Накладні (фото / скани), що чекають розпізнавання, + формат відповіді")
@@ -548,7 +548,7 @@ def invoice_result(jid: int, body: dict, key: ApiKey = Depends(INVOICES), db: Se
         audit(db, "invoice.agent", "invoice_job", j.id, key=key, status=j.status, kind="price")
         return {"ok": True, "id": j.id, "status": j.status, "supplier_price": sp.id if sp else None,
                 "rows": sp.n_rows if sp else 0, "matched": sp.n_matched if sp else 0}
-    if j.kind == "payreq":                                   # рахунок на оплату — формат pay_requests.PROMPT
+    if j.kind in ("payreq", "receipt"):                      # рахунок на оплату / квитанція — формат pay_requests.PROMPT / RECEIPT_PROMPT
         from .models import PayRequest
         from .services import pay_requests
         err = str(body["error"])[:500] if body.get("error") and not body.get("result") else None
@@ -558,7 +558,7 @@ def invoice_result(jid: int, body: dict, key: ApiKey = Depends(INVOICES), db: Se
         db.commit()
         if pr:
             pay_requests.apply_agent(db, pr, res, err)
-        audit(db, "invoice.agent", "invoice_job", j.id, key=key, status=j.status, kind="payreq")
+        audit(db, "invoice.agent", "invoice_job", j.id, key=key, status=j.status, kind=j.kind)
         return {"ok": True, "id": j.id, "status": j.status, "pay_request": pr.id if pr else None}
     if body.get("error") and not body.get("result"):
         j.status, j.error = "error", str(body["error"])[:500]

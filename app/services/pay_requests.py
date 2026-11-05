@@ -21,7 +21,7 @@ from ..models import PayRequest, SyncState, User
 
 CHAT_KEY = "pay_chat_id"
 CFG_KEY = "pay_cfg"
-STATUS = {"recognizing": "розпізнається агентом", "new": "очікує погодження", "approved": "погоджено", "draft": "чернетка в monobank — підпишіть",
+STATUS = {"receipt": "квитанція про оплату", "recognizing": "розпізнається агентом", "new": "очікує погодження", "approved": "погоджено", "draft": "чернетка в monobank — підпишіть",
           "paid": "оплачено", "declined": "відхилено в monobank", "rejected": "відхилено", "error": "помилка"}
 
 PROMPT = """Це рахунок на оплату (рахунок-фактура) від постачальника клініці в Україні.
@@ -128,7 +128,7 @@ def recognize(db: Session, data: bytes, filename: str, mime: str | None = None, 
     key = invoice_ai.api_key(db)
     if not key and not claude:
         raise ValueError("Для розпізнавання рахунків потрібен ключ Claude API або агент на VPS («Налаштування → Розпізнавання накладних»)")
-    return fields((claude or _claude)(key, data, mime, PROMPT))
+    return fields((claude or _claude)(key, data, mime, RECEIPT_PROMPT if is_receipt(filename) else PROMPT))
 
 
 def _claude(key: str, data: bytes, mime: str, prompt: str) -> dict:
@@ -187,6 +187,38 @@ def default_purpose(pr: PayRequest) -> str:
     return f"Оплата за товар згідно рахунку{no}{dt}{vat}"[:420]
 
 
+RECEIPT_PROMPT = """Це квитанція / платіжна інструкція про ВИКОНАНИЙ платіж з банку (monobank тощо) з рахунку ФОП постачальнику.
+Поверни ЛИШЕ JSON без пояснень:
+{"seller": {"name": "", "edrpou": "", "iban": ""}, "payer": {"name": "", "edrpou": ""}, "number": "", "date": "РРРР-ММ-ДД",
+ "total": 0, "vat": 0, "purpose": ""}
+Правила: seller — ОТРИМУВАЧ коштів (його IBAN UA… з 29 символів, ЄДРПОУ 8 цифр або ІПН 10 цифр); payer — ПЛАТНИК (ФОП …);
+number — номер платежу / квитанції; date — дата платежу; total — сума платежу; purpose — призначення платежу дослівно.
+Числа — без пробілів, крапка як роздільник. Не вигадуй: невідоме — порожній рядок або 0."""
+RECEIPT_RE = re.compile(r"квитанц|receipt|платіжн|платежн|вихідний.платіж|kvytanc", re.I)
+
+
+def is_receipt(filename: str | None, caption: str | None = None) -> bool:
+    """Квитанція про оплату (з застосунку банку), а не рахунок — за назвою файлу або підписом."""
+    return bool(RECEIPT_RE.search(filename or "") or RECEIPT_RE.search(caption or ""))
+
+
+def link_receipt(db: Session, rc: PayRequest) -> PayRequest | None:
+    """Знайти рахунок до квитанції: той самий отримувач (IBAN / ЄДРПОУ) і сума; позначити оплаченим."""
+    if rc.kind != "receipt" or not rc.amount:
+        return None
+    q = select(PayRequest).where(PayRequest.kind.is_(None), PayRequest.status.in_(("new", "approved", "draft", "paid", "error")),
+                                 PayRequest.link_id.is_(None)).order_by(PayRequest.id.desc()).limit(200)
+    for x in db.scalars(q):
+        same_to = (rc.receiver_iban and x.receiver_iban == rc.receiver_iban) or (rc.receiver_edrpou and x.receiver_edrpou == rc.receiver_edrpou)
+        if same_to and x.amount and abs(x.amount - rc.amount) < 0.01:
+            x.link_id, rc.link_id = rc.id, x.id
+            if x.status != "paid":
+                x.status, x.paid_at, x.error = "paid", datetime.utcnow(), None
+            db.commit()
+            return x
+    return None
+
+
 def _finish(db: Session, pr: PayRequest) -> None:
     """Після розпізнавання: постачальник у CRM, ФОП-платник, рахунок списання, призначення."""
     from .suppliers import find
@@ -200,12 +232,13 @@ def _finish(db: Session, pr: PayRequest) -> None:
 
 
 def create(db: Session, data: bytes, filename: str, mime: str | None, source: str = "crm", tg_chat: str | None = None,
-           tg_msg: int | None = None, sender: str | None = None, claude=None) -> PayRequest:
+           tg_msg: int | None = None, sender: str | None = None, claude=None, receipt: bool | None = None) -> PayRequest:
     """Новий рахунок на оплату з файлу: зберегти, розпізнати (агент на VPS або Claude API — як накладні),
     підставити постачальника, ФОП і призначення. Через агента — статус recognizing до відповіді (apply_agent)."""
     from . import ingest, invoice_ai
     pr = PayRequest(file_path=ingest.store(data, filename or "rahunok"), file_name=(filename or "рахунок")[:200], mime=(mime or "")[:100] or None,
-                    source=source, tg_chat=tg_chat, tg_msg=tg_msg, sender_name=(sender or "")[:200] or None)
+                    source=source, tg_chat=tg_chat, tg_msg=tg_msg, sender_name=(sender or "")[:200] or None,
+                    kind="receipt" if (receipt if receipt is not None else is_receipt(filename)) else None)
     if not claude and invoice_ai.engine(db) == "agent":
         if _mime(filename, mime) not in invoice_ai.IMAGE_TYPES | {"application/pdf"}:
             pr.status, pr.error = "error", "Не розпізнано: підтримуються PDF і фото (JPG, PNG, WebP)"
@@ -214,7 +247,7 @@ def create(db: Session, data: bytes, filename: str, mime: str | None, source: st
             db.add(pr)
             db.flush()
             j = invoice_ai.queue(db, data, filename, _mime(filename, mime) or mime, None)   # commit усередині
-            j.kind, j.ref_id = "payreq", pr.id
+            j.kind, j.ref_id = ("receipt" if pr.kind == "receipt" else "payreq"), pr.id
             db.commit()
             return pr
     else:
@@ -226,13 +259,26 @@ def create(db: Session, data: bytes, filename: str, mime: str | None, source: st
     _finish(db, pr)
     db.add(pr)
     db.commit()
+    _receipt_done(db, pr)
     return pr
+
+
+def _receipt_done(db: Session, pr: PayRequest) -> PayRequest | None:
+    """Квитанція розпізнана → статус «квитанція», привʼязати до рахунку (той оплачено)."""
+    if pr.kind != "receipt" or pr.status in ("recognizing",):
+        return None
+    if pr.status != "error":
+        pr.status = "receipt"
+    db.commit()
+    return link_receipt(db, pr)
 
 
 def apply_agent(db: Session, pr: PayRequest, result: dict | None, error: str | None = None) -> PayRequest:
     """Відповідь агента (OpenClaw) по рахунку на оплату → поля PayRequest; оновити картку в Telegram."""
     if pr.status != "recognizing":
-        return pr                                         # уже заповнено вручну / погоджено / відхилено — не чіпаємо
+        return pr
+    if pr.kind is None and is_receipt(pr.file_name):          # квитанції, що потрапили в чергу як рахунки
+        pr.kind = "receipt"                                         # уже заповнено вручну / погоджено / відхилено — не чіпаємо
     if error and not result:
         pr.status, pr.error = "error", f"Не розпізнано агентом: {str(error)[:300]}"
     else:
@@ -241,8 +287,27 @@ def apply_agent(db: Session, pr: PayRequest, result: dict | None, error: str | N
         pr.status, pr.error = "new", None
         _finish(db, pr)
     db.commit()
+    target = _receipt_done(db, pr)
     tg_update(db, pr)
+    if target:
+        tg_update(db, target)
+        tg_paid_reply(db, target)
     return pr
+
+
+def tg_paid_reply(db: Session, pr: PayRequest) -> bool:
+    """Окреме повідомлення в групі у відповідь на картку рахунку: «✅ Оплачено» (+ квитанція, якщо є)."""
+    if not (pr.tg_chat and (pr.tg_card or pr.tg_msg)):
+        return False
+    from html import escape
+    from . import alerts
+    rc = db.get(PayRequest, pr.link_id) if pr.link_id else None
+    text = (f"✅ <b>Оплачено</b> · рахунок #{pr.id}\n{escape(pr.receiver_name or '')} — <b>{(pr.amount or 0):,.2f} ₴</b>".replace(",", " ")
+            + (f"\nФОП {escape(pr.fop)}" if pr.fop else "") + (f"\nПризначення: {escape(pr.purpose)}" if pr.purpose else "")
+            + ("\n🧾 Квитанція: " + escape(rc.file_name or "файл") if rc else "\n🏦 Платіж у виписці monobank"))
+    data = {"chat_id": pr.tg_chat, "text": text[:4000], "parse_mode": "HTML", "disable_web_page_preview": "true",
+            "reply_to_message_id": str(pr.tg_card or pr.tg_msg), "allow_sending_without_reply": "true"}
+    return alerts._api("sendMessage", data=data)
 
 
 def tg_update(db: Session, pr: PayRequest) -> bool:
@@ -381,7 +446,16 @@ def card_text(db: Session, pr: PayRequest) -> str:
     sup = db.get(Supplier, pr.supplier_id) if pr.supplier_id else None
     lines = [f"🧾 <b>Рахунок на оплату #{pr.id}</b> · {STATUS.get(pr.status, pr.status)}"]
     if pr.status == "recognizing":
-        lines.append("⏳ Агент на VPS розпізнає рахунок — картка оновиться з реквізитами й кнопками «Погодити / Відхилити».")
+        lines.append("⏳ Агент на VPS розпізнає " + ("квитанцію — привʼяжу її до рахунку." if pr.kind == "receipt" else
+                                                       "рахунок — картка оновиться з реквізитами й кнопками «Погодити / Відхилити»."))
+        return "\n".join(lines)
+    if pr.kind == "receipt":
+        lines[0] = f"🧾 <b>Квитанція про оплату</b> · {escape(pr.receiver_name or '—')} · <b>{(pr.amount or 0):,.2f} ₴</b>".replace(",", " ")
+        tgt = db.get(PayRequest, pr.link_id) if pr.link_id else None
+        lines.append(f"✅ Привʼязано до рахунку #{tgt.id}" + (f" № {escape(tgt.invoice_no)}" if tgt and tgt.invoice_no else "") + " — позначено оплаченим"
+                     if tgt else "Рахунку з таким отримувачем і сумою не знайдено — квитанцію збережено в CRM.")
+        if pr.error:
+            lines.append(f"❗ {escape(pr.error)}")
         return "\n".join(lines)
     lines.append(f"Отримувач: <b>{escape(pr.receiver_name or '—')}</b>" + (f" ({escape(sup.name)})" if sup else " · <i>новий постачальник</i>"))
     lines.append(f"IBAN: <code>{escape(pr.receiver_iban or '—')}</code> · ЄДРПОУ {escape(pr.receiver_edrpou or '—')}")
@@ -398,5 +472,5 @@ def card_text(db: Session, pr: PayRequest) -> str:
     if pr.status == "draft":
         lines.append("✍️ Чернетка створена в monobank — підпишіть у застосунку.")
     if pr.status == "paid":
-        lines.append("✅ Оплачено (у виписці).")
+        lines.append("✅ Оплачено" + (" — квитанція в чаті." if pr.link_id else " (у виписці)."))
     return "\n".join(lines)

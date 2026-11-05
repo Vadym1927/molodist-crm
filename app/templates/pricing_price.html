@@ -19,7 +19,8 @@
 <div class="row between" style="align-items:flex-end;gap:10px;flex-wrap:wrap"><h1 style="margin:0">Прайс {{ sp.brand or '' }}</h1>
   <a class="btn ghost" href="/finance/pricing/price/{{ sp.id }}/file">Файл прайсу ↓</a></div>
 <div class="muted small" style="margin-top:4px">{{ sp.file_name }} · завантажено {{ sp.uploaded_at|dt('%d.%m.%Y %H:%M') }}{{ (' · ' ~ uploader.name) if uploader }}{% if sp.applied_at %} · підставлено {{ sp.applied_at|dt('%d.%m.%Y %H:%M') }} ({{ sp.n_applied }}){% endif %}</div>
-{% if sp.status == 'recognizing' %}<div class="alert" style="background:#F3F0FA;color:#3B3050;margin-top:10px">⏳ PDF / фото прайсу розпізнає агент на VPS (як накладні) — зазвичай кілька хвилин, для великого прайсу довше. Сторінка оновиться сама.</div>
+{% if sp.status == 'recognizing' %}<div class="alert" style="background:#F3F0FA;color:#3B3050;margin-top:10px">⏳ PDF / фото прайсу розпізнає агент на VPS (як накладні) — зазвичай кілька хвилин, для великого прайсу довше. Сторінка оновиться сама.
+  {% if job %}<div style="margin-top:6px;font-weight:700">{{ {'pending':'🕓','taken':'⚙️','done':'✅','error':'❗'}.get(job.status, '') }} Стан: {{ job.text }}</div>{% endif %}</div>
 <script>setTimeout(function(){location.reload()},20000)</script>{% endif %}
 {% if sp.status == 'error' %}<div class="alert" style="margin-top:10px">❗ {{ sp.error }} — спробуйте Excel-версію прайсу або завантажте файл ще раз.</div>{% endif %}
 <div class="pp-k">

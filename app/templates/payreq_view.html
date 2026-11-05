@@ -7,14 +7,14 @@
 .pv-g .card{margin:0}.pv-f{display:grid;gap:10px}.pv-f label{display:grid;gap:4px;font:700 12px var(--sans);color:#8a8496}
 .pv-f input,.pv-f select,.pv-f textarea{margin:0;width:100%;min-width:0;box-sizing:border-box}.pv-f input,.pv-f select{height:40px}.pv-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .pv-doc{width:100%;height:78vh;border:1px solid #ECE7E1;border-radius:12px;background:#FBFAF8}.pv-img{max-width:100%;border-radius:12px;border:1px solid #ECE7E1}
-.pv-b{display:inline-block;border-radius:99px;padding:4px 12px;font:700 12px var(--sans)}.pv-b.new{background:#FFF1D6;color:#9A6A00}.pq-b.recognizing,.pv-b.recognizing{background:#F3F0FA;color:#5C4B82}.pv-b.draft,.pv-b.approved{background:#E4DEEF;color:#3B3050}
+.pv-b{display:inline-block;border-radius:99px;padding:4px 12px;font:700 12px var(--sans)}.pv-b.new{background:#FFF1D6;color:#9A6A00}.pq-b.receipt,.pv-b.receipt{background:#E3F3E7;color:#1E7A46}.pq-b.recognizing,.pv-b.recognizing{background:#F3F0FA;color:#5C4B82}.pv-b.draft,.pv-b.approved{background:#E4DEEF;color:#3B3050}
 .pv-b.paid{background:#E3F3E7;color:#1E7A46}.pv-b.error,.pv-b.declined{background:#FDECEA;color:#B23B2E}.pv-b.rejected{background:#F1EDE8;color:#6b6575}
 .pv-act{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}.pv-warn{background:#FFF8EE;border-left:3px solid #C9792B;border-radius:8px;padding:8px 12px;font-size:13px}
 .pv-kv{display:grid;grid-template-columns:150px 1fr;gap:6px 12px;font-size:13.5px}.pv-kv span{color:#8a8496}
 </style>
 <div class="eyebrow"><a href="/payreq" style="text-decoration:none">← Рахунки на оплату</a></div>
 <div class="row between" style="align-items:center;gap:10px;flex-wrap:wrap"><h1 style="margin:0">Рахунок #{{ pr.id }}</h1><span class="pv-b {{ pr.status }}">{{ STATUS.get(pr.status, pr.status) }}</span></div>
-<div class="muted small" style="margin:4px 0 12px">{{ pr.created_at|local|dt('%d.%m.%Y %H:%M') }} · {{ ('Telegram · ' ~ (pr.sender_name or '')) if pr.source == 'telegram' else 'додано в CRM' }}{% if pr.corp_id %} · monobank ID {{ pr.corp_id }}{% endif %}{% if pr.corp_state %} · стан {{ pr.corp_state }}{% endif %}</div>
+<div class="muted small" style="margin:4px 0 12px">{{ pr.created_at|local|dt('%d.%m.%Y %H:%M') }} · {{ ('Telegram · ' ~ (pr.sender_name or '')) if pr.source == 'telegram' else 'додано в CRM' }}{% if pr.corp_id %} · monobank ID {{ pr.corp_id }}{% endif %}{% if pr.corp_state %} · стан {{ pr.corp_state }}{% endif %}{% if pr.link_id %} · <a href="/payreq/{{ pr.link_id }}">{{ 'рахунок' if pr.kind == 'receipt' else 'квитанція' }} #{{ pr.link_id }}</a>{% endif %}</div>
 {% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
 {% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
 <div class="pv-g">
@@ -39,7 +39,8 @@
     <div class="pv-kv"><span>Отримувач</span><b>{{ pr.receiver_name }}{% if sup %} · {{ sup.name }}{% endif %}</b><span>IBAN</span><code>{{ pr.receiver_iban }}</code><span>ЄДРПОУ</span><div>{{ pr.receiver_edrpou }}</div>
       <span>Сума</span><b>{{ (pr.amount or 0)|uah }}</b><span>Рахунок</span><div>№ {{ pr.invoice_no or '—' }}{% if pr.invoice_date %} від {{ pr.invoice_date|dt('%d.%m.%Y') }}{% endif %}</div>
       <span>Платник</span><div>ФОП {{ pr.fop }} · …{{ (pr.sender_iban or '')[-8:] }}</div><span>Призначення</span><div>{{ pr.purpose }}</div></div>
-    {% if pr.status == 'recognizing' %}<div class="pv-warn" style="background:#F3F0FA;border-color:#5C4B82">⏳ Рахунок розпізнає агент на VPS (як і накладні) — зазвичай кілька хвилин. Сторінка оновиться сама.</div>
+    {% if pr.status == 'recognizing' %}<div class="pv-warn" style="background:#F3F0FA;border-color:#5C4B82">⏳ Рахунок розпізнає агент на VPS (як і накладні) — зазвичай кілька хвилин. Сторінка оновиться сама.
+      {% if job %}<div style="margin-top:6px;font-weight:700">{{ {'pending':'🕓','taken':'⚙️','done':'✅','error':'❗'}.get(job.status, '') }} Стан: {{ job.text }}</div>{% endif %}</div>
       <div class="pv-act"><button class="btn ghost" name="action" value="manual">Заповнити вручну</button><button class="btn ghost" name="action" value="reject" style="color:#B23B2E">Відхилити</button></div>
       <script>setTimeout(function(){location.reload()},20000)</script>{% endif %}
     {% if pr.status == 'draft' %}<div class="pv-warn" style="background:#F3F0FA;border-color:#5C4B82">✍️ Чернетка в monobank — підпишіть у застосунку monobank (ФОП {{ pr.fop }}). Стан оновлюється щогодини.</div>

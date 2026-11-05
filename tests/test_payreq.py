@@ -140,3 +140,45 @@ def test_payreq_via_agent(tmp_path, monkeypatch):
         settings.files_dir = old_dir
         with SessionLocal() as db:
             invoice_ai.set_engine(db, "crm")
+
+
+def test_receipt_links_to_invoice(tmp_path, monkeypatch):
+    """Квитанція в групі → розпізнано агентом → привʼязано до рахунку з тим самим отримувачем і сумою → «✅ Оплачено» у чаті."""
+    from app.security import new_api_key
+    from app.models import ApiKey, InvoiceJob
+    from app.services import invoice_ai, alerts
+    settings.admin_password = "owner-pass-1"
+    old_dir, settings.files_dir = settings.files_dir, str(tmp_path)
+    sent = []
+    monkeypatch.setattr(alerts, "_api", lambda m, **kw: sent.append((m, kw.get("data"))) or True)
+    with SessionLocal() as db:
+        _mono(db)
+        inv = prq.create(db, b"%PDF", "rah.pdf", "application/pdf", "telegram", "-100", 9, "Адмін", claude=_claude)
+        inv.tg_card = 77; db.commit()
+        assert inv.status == "new" and inv.kind is None
+        invoice_ai.set_engine(db, "agent")
+        raw, prefix, hsh = new_api_key()
+        db.add(ApiKey(name="oc-rc", prefix=prefix, key_hash=hsh, scopes=["invoices"])); db.commit()
+        assert prq.is_receipt("Квитанція_Вихідний_платіж_4MXP.pdf") and not prq.is_receipt("rahunok 87224.pdf")
+        rc = prq.create(db, b"%PDF r", "Квитанція_Вихідний_платіж_4MXP.pdf", "application/pdf", "telegram", "-100", 10, "Вадим")
+        rc.tg_card = 78; db.commit()
+        assert rc.kind == "receipt" and rc.status == "recognizing"
+        j = db.query(InvoiceJob).filter(InvoiceJob.ref_id == rc.id).one()
+        assert j.kind == "receipt"
+        jid, inv_id, rc_id = j.id, inv.id, rc.id
+    try:
+        with TestClient(app) as c:
+            h = {"X-API-Key": raw}
+            job = next(x for x in c.get("/api/v1/invoices/pending", headers=h).json()["invoices"] if x["id"] == jid)
+            assert "квитанція" in job["prompt"].lower()
+            c.post(f"/api/v1/invoices/{jid}/result", headers=h, json={"result": _claude("", b"", "", "рахунок на оплату")})
+        with SessionLocal() as db:
+            inv, rc = db.get(PayRequest, inv_id), db.get(PayRequest, rc_id)
+            assert rc.status == "receipt" and rc.link_id == inv_id and inv.status == "paid" and inv.link_id == rc_id
+            assert "Привʼязано до рахунку #" in prq.card_text(db, rc)
+        msgs = [d for m, d in sent if m == "sendMessage"]
+        assert msgs and "Оплачено" in msgs[-1]["text"] and msgs[-1]["reply_to_message_id"] == "77"
+    finally:
+        settings.files_dir = old_dir
+        with SessionLocal() as db:
+            invoice_ai.set_engine(db, "crm")

@@ -1352,6 +1352,8 @@ class PayRequest(Base):
     decided_at: Mapped[datetime | None] = mapped_column(DateTime)
     decided_by: Mapped[int | None] = mapped_column(Integer)
     paid_at: Mapped[datetime | None] = mapped_column(DateTime)
+    kind: Mapped[str | None] = mapped_column(String(12))            # None — рахунок; receipt — квитанція про оплату
+    link_id: Mapped[int | None] = mapped_column(Integer)            # квитанція ↔ рахунок (взаємно)
 
 
 class PaymentAlloc(Base):

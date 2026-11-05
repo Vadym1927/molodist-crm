@@ -108,3 +108,16 @@ def test_pdf_price_via_agent(tmp_path):
         settings.files_dir = old
         with SessionLocal() as db:
             invoice_ai.set_engine(db, "crm")
+
+
+def test_job_state_text():
+    from datetime import datetime, timedelta
+    from app.models import InvoiceJob
+    from app.services import invoice_ai
+    with SessionLocal() as db:
+        j = InvoiceJob(filename="x.pdf", path="/tmp/x", kind="price", ref_id=987654, created_at=datetime.now() - timedelta(minutes=12))
+        db.add(j); db.commit()
+        st = invoice_ai.job_state(db, "price", 987654)
+        assert st["status"] == "pending" and "не забрав" in st["text"] and "OpenClaw" in st["text"]
+        j.status, j.taken_at = "taken", datetime.now(); db.commit()
+        assert "забрав файл" in invoice_ai.job_state(db, "price", 987654)["text"]

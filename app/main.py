@@ -341,6 +341,16 @@ async def job_payreq():
         if ch and state.get("bot"):
             from .integrations.telegram_bot import pay_notify
             await pay_notify(state["bot"], ch)
+        paid = [x.id for x in ch if x.status == "paid"]
+        if paid:                                              # «✅ Оплачено» окремим повідомленням у групі під карткою рахунку
+            def _reply():
+                with SessionLocal() as db:
+                    from .models import PayRequest as _PR
+                    for i in paid:
+                        x = db.get(_PR, i)
+                        if x:
+                            prq.tg_paid_reply(db, x)
+            await asyncio.to_thread(_reply)
     except Exception as e:  # noqa: BLE001
         log.warning("payreq refresh: %s", e)
 
@@ -6921,7 +6931,9 @@ def payreq_view(request: Request, pid: int, user: User = Depends(require("financ
     pr = db.get(PayRequest, pid) or (_ for _ in ()).throw(HTTPException(404))
     return render(request, "payreq_view.html", nav="stock", pr=pr, STATUS=prq.STATUS, problems=prq.problems(pr), fops=prq.fops(db),
                   accs={f: prq.sender_accounts(db, f) for f in prq.fops(db)}, sup=db.get(Supplier, pr.supplier_id) if pr.supplier_id else None,
-                  suppliers=db.scalars(select(Supplier).order_by(Supplier.name)).all())
+                  suppliers=db.scalars(select(Supplier).order_by(Supplier.name)).all(),
+                  job=__import__("app.services.invoice_ai", fromlist=["x"]).job_state(db, "receipt" if pr.kind == "receipt" else "payreq", pr.id)
+                  if pr.status == "recognizing" else None)
 
 
 @app.get("/payreq/{pid:int}/file")
@@ -8522,6 +8534,7 @@ def finance_price_view(request: Request, spid: int, show: str = "", user: User =
     brand_products = db.scalars(select(Product).where(Product.brand == sp.brand, Product.active.is_not(False)).order_by(Product.name)).all() if sp.brand else []
     return render(request, "pricing_price.html", nav="finance", sp=sp, rows=rows, show=show, sup=db.get(Supplier, sp.supplier_id) if sp.supplier_id else None,
                   rt=pr_svc.rates(db), brand_products=brand_products,
+                  job=__import__("app.services.invoice_ai", fromlist=["x"]).job_state(db, "price", sp.id) if sp.status == "recognizing" else None,
                   uploader=db.get(User, sp.user_id) if sp.user_id else None)
 
 
