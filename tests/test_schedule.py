@@ -55,3 +55,25 @@ def test_in_schedule_toggle():
         assert "Видима Графік" not in c.get("/specialists/schedule").text
         c.post(f"/specialists/{aid}", data={"name": "Видима Графік", "in_calendar": "1", "in_schedule": "1"})
         assert "Видима Графік" in c.get("/specialists/schedule").text
+
+
+def test_schedule_bulk_panel():
+    """Бокова панель «Розклад»: групова зміна клітинок (робочий час / неробочий день) через JSON."""
+    from app.models import DayOff
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        d = Doctor(name="Балк Лікарка", active=True)
+        db.add(d); db.commit(); did = d.id
+    d1, d2 = date.today() + timedelta(days=40), date.today() + timedelta(days=41)
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        j = c.post("/specialists/schedule/bulk", json={"cells": [[did, str(d1)], [did, str(d2)]], "action": "work", "start": "10:00", "end": "20:00", "place": "Кабінет 2"}).json()
+        assert j.get("ok") or j.get("n") == 2, j
+        with SessionLocal() as db:
+            assert db.query(StaffShift).filter_by(doctor_id=did).count() == 2
+        j = c.post("/specialists/schedule/bulk", json={"cells": [[did, str(d1)]], "action": "off", "kind": "vacation"}).json()
+        assert not j.get("error"), j
+        with SessionLocal() as db:
+            assert db.query(StaffShift).filter_by(doctor_id=did).count() == 1 and db.query(DayOff).filter_by(doctor_id=did, kind="vacation").count() == 1
+        j = c.post("/specialists/schedule/bulk", json={"cells": [[did, str(d2)]], "action": "work", "start": "20:00", "end": "10:00"}).json()
+        assert j.get("error")

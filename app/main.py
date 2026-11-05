@@ -9482,7 +9482,7 @@ async def schedule_bulk(request: Request, user: User = Depends(require("schedule
                      str(js.get("place") or "").strip()[:120] or None, str(js.get("kind") or ""), user.id)
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
-    audit(db, "schedule.bulk", user=user, action=js.get("action"), kind=js.get("kind"), cells=n)
+    audit(db, "schedule.bulk", user=user, op=js.get("action"), kind=js.get("kind"), cells=n)
     return JSONResponse({"ok": True, "n": n})
 
 
