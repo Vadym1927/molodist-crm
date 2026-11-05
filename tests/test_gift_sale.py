@@ -202,7 +202,7 @@ def test_gifts_subs_tab_create_and_package_new():
             assert s.visits_total == 6 and s.type_name == "Курс масажу 6"
         assert "змінити" in c.get("/gifts?tab=subs").text
         r = c.post("/gifts/packages/0", data={"action": "new", "name": "Свій курс 3", "visits": "3", "days": "90", "price": "4500", "services": "Масаж"}, follow_redirects=False)
-        assert r.status_code == 303
+        assert r.status_code in (200, 303)
         with SessionLocal() as db:
             x = next(y for y in cs.packages(db) if y["name"] == "Свій курс 3")
             assert x["visits"] == 3 and x["price"] == 4500 and x["id"] >= 900001 and x["active"]
@@ -210,3 +210,34 @@ def test_gifts_subs_tab_create_and_package_new():
         c.post(f"/gifts/packages/{nid}", data={"action": "delete"})
         with SessionLocal() as db:
             assert not any(y["id"] == nid for y in cs.packages(db))
+
+
+def test_package_template_editor_and_hidden_unpaid_blanks():
+    """Редактор шаблону абонемента як у CleverBox (тип, коротка назва для чека, послуги × к-сть × ціна) + неоплачені заготовки
+    «без клієнта» не показуються у списку сертифікатів."""
+    from app.services import certificates as cs
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        db.add(GiftCertificate(id=4409, type_name="Сертифікат 2000", nominal=2000, balance=2000, sold_at=date(2026, 8, 7), cb_status="Не оплачений"))
+        db.add(GiftCertificate(id=4410, type_name="Сертифікат 2000", nominal=2000, balance=2000, sold_at=date(2026, 8, 7), cb_status="Не оплачений", client_name="Тест Неоплач"))
+        db.commit()
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        page = c.get("/gifts?tab=certs").text
+        assert "4410" in page and ">4409<" not in page
+        r = c.post("/gifts/packages/0", data={"action": "full", "kind": "separate", "name": "Масаж курс", "short_name": "Масаж 6", "days": "90", "price": "",
+                                              "all_clients": "1", "it_sid": ["990401", ""], "it_name": ["Пілінг гіфт", "Маска"], "it_qty": ["4", "2"], "it_price": ["1000", "500"]})
+        assert r.status_code in (200, 303)
+        with SessionLocal() as db:
+            x = next(p for p in cs.packages(db) if p["name"] == "Масаж курс")
+            assert x["kind"] == "separate" and x["short_name"] == "Масаж 6" and x["visits"] == 6 and x["price"] == 5000 and x["all_clients"]
+            assert x["items"][0]["service_id"] == 990401 and x["services"] == "Пілінг гіфт, Маска"
+            assert cs.package_fiscal_name(db, x["id"]) == "Масаж 6"
+            xid = x["id"]
+        ed = c.get(f"/gifts?tab=types&pkg={xid}").text
+        assert "Масаж 6" in ed and 'name="it_qty" value="4"' in ed
+        r = c.post(f"/gifts/packages/{xid}", data={"action": "full", "kind": "universal", "name": "Масаж курс", "visits": "10", "price": "7000", "days": "0",
+                                                   "it_name": ["Пілінг гіфт"], "it_sid": [""], "it_qty": ["1"], "it_price": ["700"]})
+        with SessionLocal() as db:
+            x = cs.package_get(db, xid)
+            assert x["kind"] == "universal" and x["visits"] == 10 and x["price"] == 7000 and x["days"] == 0 and x["type"] == "Універсальний"

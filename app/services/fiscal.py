@@ -379,6 +379,11 @@ def build(db: Session, sale: Sale, is_return: bool = False, rro: dict | None = N
         if i.kind == "certificate":                              # сертифікат — назва з шаблону («Послуги краси»)
             from .gift_types import fiscal_name
             g["good"]["name"] = fiscal_name(db, i.ref_id)[:250]
+        if i.kind == "subscription":                             # абонемент — коротка назва з шаблону (для фіскального чека)
+            from .certificates import package_fiscal_name
+            fn = package_fiscal_name(db, i.ref_id)
+            if fn:
+                g["good"]["name"] = fn[:250]
         if i.kind == "product" and i.ref_id:                    # коротка назва, штрихкод, УКТЗЕД, податок — з картки товару
             from ..models import Product as _Pr
             pr_ = db.get(_Pr, i.ref_id)

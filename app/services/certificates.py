@@ -375,3 +375,57 @@ def issue_subscription(db: Session, pkg: dict, patient, seller, sale_id: int, pa
 def subs_by_sale(db: Session, sale_id: int) -> list:
     from ..models import Subscription
     return db.scalars(select(Subscription).where(Subscription.comment == f"Продано в касі CRM, чек Ч-{sale_id}")).all()
+
+
+PKG_KINDS = {"separate": "Роздільний", "universal": "Універсальний"}
+
+
+def package_get(db: Session, pid: int) -> dict | None:
+    return next((x for x in packages(db) if int(x["id"]) == int(pid)), None)
+
+
+def package_full_save(db: Session, pid: int | None, data: dict) -> dict:
+    """Повне редагування шаблону (як «Редагування пакету послуг» у CleverBox): тип, назва, коротка назва для чека,
+    термін, ціна, усім клієнтам, активний, послуги [{service_id, name, qty, price}]."""
+    xs = packages(db)
+    x = next((y for y in xs if pid and int(y["id"]) == int(pid)), None)
+    if not x:
+        x = {"id": max([int(y["id"]) for y in xs] + [900000]) + 1, "type": "CRM", "branch": "", "sold": 0, "active": True}
+        xs.append(x)
+    items = []
+    for it in data.get("items") or []:
+        nm = str(it.get("name") or "").strip()[:200]
+        if not nm:
+            continue
+        try:
+            qty = max(1, int(float(it.get("qty") or 1)))
+            pr = round(float(str(it.get("price") or 0).replace(",", ".").replace(" ", "")), 2)
+        except ValueError:
+            qty, pr = 1, 0.0
+        sid = it.get("service_id")
+        items.append({"service_id": int(sid) if str(sid or "").isdigit() else None, "name": nm, "qty": qty, "price": pr})
+    kind = data.get("kind") if data.get("kind") in PKG_KINDS else "separate"
+    try:
+        price = round(float(str(data.get("price") or 0).replace(",", ".").replace(" ", "")), 2)
+    except ValueError:
+        price = 0.0
+    if not price and items:
+        price = round(sum(i["qty"] * i["price"] for i in items), 2)
+    try:
+        visits_u = max(1, int(float(data.get("visits") or 1)))
+    except ValueError:
+        visits_u = 1
+    x.update(name=str(data.get("name") or "").strip()[:300] or x.get("name") or "Абонемент", kind=kind,
+             short_name=str(data.get("short_name") or "").strip()[:128], days=max(0, int(float(data.get("days") or 0) if str(data.get("days") or "").strip() else 0)),
+             price=price, all_clients=bool(data.get("all_clients")), active=bool(data.get("active", True)), items=items,
+             visits=(sum(i["qty"] for i in items) if items else visits_u) if kind == "separate" else visits_u,
+             services=", ".join(i["name"] for i in items) or str(data.get("services") or "").strip()[:500])
+    x["type"] = PKG_KINDS[kind]
+    xs.sort(key=lambda z: z["name"].lower())
+    _pkg_put(db, xs)
+    return x
+
+
+def package_fiscal_name(db: Session, pid: int | None) -> str | None:
+    x = package_get(db, pid) if pid else None
+    return (x or {}).get("short_name") or None
