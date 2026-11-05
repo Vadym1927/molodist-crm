@@ -593,10 +593,25 @@ def alert_low(db: Session, c: Call) -> None:
         from ..config import settings
         from html import escape
         from ..models import User
+        from ..models import Patient
         taker = db.get(User, c.user_id) if c.user_id else None
-        text = (f"📞 Низька оцінка дзвінка: <b>{c.ai_score:.0f}/100</b>\n{escape((taker.name if taker else None) or c.employee or 'співробітник не вказаний')} · "
-                f"{c.at:%d.%m %H:%M} · {'вхідний' if c.direction == 'in' else 'вихідний'}\n{escape((c.ai_comment or '')[:500])}\n"
-                f'<a href="{settings.public_url.rstrip("/")}/telephony?call={c.id}">Відкрити дзвінок</a>')
+        base = settings.public_url.rstrip("/")
+        adm = (taker.name if taker else None) or c.employee or "не визначено"
+        if taker and c.employee and c.employee.strip().lower() != (taker.name or "").strip().lower():
+            adm += f" (у телефонії: {c.employee})"
+        ln = line_info(d, c.line) if c.line else None
+        line_txt = f" · лінія {escape((ln or {}).get('name') or c.line)}" if c.line else ""
+        pt = db.get(Patient, c.patient_id) if c.patient_id else None
+        if pt:
+            pat = f'<a href="{base}/patients/{pt.id}">{escape(pt.full_name or "пацієнт")}</a>' + (f" · {escape(c.phone)}" if c.phone else "")
+        else:
+            pat = f"не знайдено в базі · {escape(c.phone or 'номер невідомий')}"
+        text = (f"📞 Низька оцінка дзвінка: <b>{c.ai_score:.0f}/100</b>\n"
+                f"{c.at:%d.%m %H:%M} · {'вхідний' if c.direction == 'in' else 'вихідний'}{line_txt}\n"
+                f"👩‍💼 Адміністратор: <b>{escape(adm)}</b>\n👤 Пацієнт: {pat}\n"
+                f"{escape((c.ai_comment or '')[:500])}\n"
+                f'<a href="{base}/telephony?call={c.id}">Відкрити дзвінок</a>')
+        pat_plain = (pt.full_name if pt else "новий номер") + (f" · {c.phone}" if c.phone else "")
         tt = str(d.get("ai_task_to") or "")
         if tt:
             uid = c.user_id if tt == "taker" else (int((line_info(d, c.line) or {}).get("user_id") or 0) or None) if tt == "resp" else int(tt)
@@ -604,8 +619,9 @@ def alert_low(db: Session, c: Call) -> None:
             from ..models import Task
             key = f"call_low:{c.id}"
             if not db.scalar(select(Task.id).where(Task.source_key == key)):
-                db.add(Task(title=f"Розібрати дзвінок · оцінка {c.ai_score:.0f}/100 · {(taker.name if taker else None) or c.employee or 'співробітник не вказаний'}"[:300],
-                            description=(f"{c.at:%d.%m.%Y %H:%M} · {'вхідний' if c.direction == 'in' else 'вихідний'} · {c.phone or ''}\n"
+                db.add(Task(title=f"Розібрати дзвінок · оцінка {c.ai_score:.0f}/100 · {adm} → {pt.full_name if pt else (c.phone or 'пацієнт')}"[:300],
+                            description=(f"{c.at:%d.%m.%Y %H:%M} · {'вхідний' if c.direction == 'in' else 'вихідний'}\n"
+                                         f"Адміністратор: {adm}\nПацієнт: {pat_plain}\n"
                                          f"{c.ai_comment or ''}\n\nДзвінок: {settings.public_url.rstrip('/')}/telephony?call={c.id}"),
                             kind="call_review", source_key=key, patient_id=c.patient_id, assignee_id=u.id if u else None,
                             assignee_role=None if u else "owner", due_date=date.today(), priority="high"))

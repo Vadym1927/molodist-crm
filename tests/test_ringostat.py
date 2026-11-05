@@ -280,7 +280,7 @@ def test_call_record_proxy(monkeypatch):
 def test_ai_criteria_rows_and_low_call_task(monkeypatch):
     from datetime import datetime as _dt
     from app.services import telephony as tel
-    from app.models import SessionLocal as _SL, Call, Task, User
+    from app.models import SessionLocal as _SL, Call, Task, User, Patient
     rows = tel.crit_rows(tel.DEFAULT_CRITERIA)
     assert len(rows) == 6 and sum(r["pts"] for r in rows) == 100 and rows[0]["title"] == "Привітання"
     txt = tel.crit_text(rows, tel.crit_tail(tel.DEFAULT_CRITERIA))
@@ -295,6 +295,14 @@ def test_ai_criteria_rows_and_low_call_task(monkeypatch):
         tel.alert_low(db, c); tel.alert_low(db, c)
         ts = db.query(Task).filter(Task.source_key == f"call_low:{c.id}").all()
         assert len(ts) == 1 and ts[0].kind == "call_review" and ts[0].priority == "high"
+        assert "Адміністратор:" in ts[0].description and "Пацієнт: новий номер · 380000000001" in ts[0].description
+        tel.save_extra(db, [], True, txt, 60, True, "crm", None, None, "", True)   # без задачі — повідомлення власнику
+        p_ = Patient(full_name="Дзвін Пацієнтка", phone="380000000002"); db.add(p_); db.commit()
+        c2 = Call(provider="ringostat", at=_dt.now(), direction="out", status="answered", phone="380000000002", ai_score=11,
+                  employee="Адмін Оля", patient_id=p_.id)
+        db.add(c2); db.commit()
+        sent.clear(); tel.alert_low(db, c2)
+        assert sent and "Адміністратор: <b>Адмін Оля</b>" in sent[-1] and "Дзвін Пацієнтка</a> · 380000000002" in sent[-1]
 
 
 def test_popup_custom_fields():
