@@ -8557,7 +8557,7 @@ def finance_price_file(spid: int, user: User = Depends(current_user), db: Sessio
 
 
 @app.get("/finance/pricing/price/{spid:int}/text")
-def finance_price_text(spid: int, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+def finance_price_text(spid: int, offset: int = 0, limit: int = 40, page: int = 0, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     """Що CRM бачить у PDF прайсу (перші рядки таблиці / тексту) — щоб зрозуміти, чому не розібрано."""
     from pathlib import Path
     from .models import SupplierPrice
@@ -8566,10 +8566,18 @@ def finance_price_text(spid: int, user: User = Depends(require("finance")), db: 
     if not sp.file_path or not Path(sp.file_path).exists() or not (sp.file_name or "").lower().endswith(".pdf"):
         return JSONResponse({"error": "не PDF або файл недоступний"}, status_code=400)
     try:
+        if page:                                          # слова сторінки з координатами (для налаштування розбору)
+            import io as _io
+            import pdfplumber
+            with pdfplumber.open(_io.BytesIO(Path(sp.file_path).read_bytes())) as pdf:
+                pg = pdf.pages[page - 1]
+                ws = [[round(w["x0"]), round(w["top"]), w["text"]] for w in pg.extract_words()]
+                return JSONResponse({"pages": len(pdf.pages), "tables": len(pg.extract_tables() or []), "words": ws[offset:offset + limit]})
         tab = spx.pdf_table(Path(sp.file_path).read_bytes())
     except Exception as e:  # noqa: BLE001
         return JSONResponse({"error": str(e)[:300]}, status_code=400)
-    return JSONResponse({"rows": len(tab), "sample": [[spx._s(c) for c in r] for r in tab[:40]]})
+    rows = [[f"{i}:{spx._s(c)}" for i, c in enumerate(r) if spx._s(c)] for r in tab]
+    return JSONResponse({"rows": len(tab), "sample": rows[offset:offset + limit]})
 
 
 @app.post("/finance/pricing/price/{spid:int}")

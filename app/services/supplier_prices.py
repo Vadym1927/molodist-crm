@@ -36,7 +36,10 @@ def _num(v) -> float | None:
         return None
     if isinstance(v, (int, float)):
         return float(v) if v > 0 else None
-    t = re.sub(r"[^\d,.\-]", "", str(v).replace("\xa0", "").replace(" ", ""))
+    raw = str(v).replace("\xa0", " ").strip()
+    if re.search(r"[a-zа-яіїєґ]", re.sub(r"(?i)грн|uah|usd|eur|€|\$|₴", "", raw), re.I):
+        return None                                   # «200мл», «20 mL», «Арт. 15» — не ціна
+    t = re.sub(r"[^\d,.\-]", "", raw.replace(" ", ""))
     if t.count(",") and t.count("."):
         t = t.replace(",", "") if t.rfind(".") > t.rfind(",") else t.replace(".", "").replace(",", ".")
     else:
