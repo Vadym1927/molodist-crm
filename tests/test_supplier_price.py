@@ -121,3 +121,28 @@ def test_job_state_text():
         assert st["status"] == "pending" and "не забрав" in st["text"] and "OpenClaw" in st["text"]
         j.status, j.taken_at = "taken", datetime.now(); db.commit()
         assert "забрав файл" in invoice_ai.job_state(db, "price", 987654)["text"]
+
+
+def test_text_pdf_parsed_locally(tmp_path):
+    import pytest
+    rl = pytest.importorskip("reportlab")
+    import glob
+    from reportlab.lib.pagesizes import A4
+    from reportlab.platypus import SimpleDocTemplate, Table
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from app.services import supplier_prices as spx
+    fonts = glob.glob("/usr/share/fonts/**/DejaVuSans.ttf", recursive=True)
+    if not fonts:
+        pytest.skip("no font")
+    pdfmetrics.registerFont(TTFont("DV", fonts[0]))
+    f = tmp_path / "p.pdf"
+    SimpleDocTemplate(str(f), pagesize=A4).build([Table([["Артикул", "Назва", "Ціна, USD"], ["L-1", "Локальний крем", "11,50"]],
+                                                        style=[("FONT", (0, 0), (-1, -1), "DV"), ("GRID", (0, 0), (-1, -1), 0.5, (0, 0, 0))])])
+    old, settings.files_dir = settings.files_dir, str(tmp_path)
+    try:
+        with SessionLocal() as db:
+            sp = spx.create(db, f.read_bytes(), "Прайс.pdf", "ЛокБренд", None, None, None, None)
+            assert sp.status is None and sp.currency == "USD" and sp.rows[0]["cost"] == 11.5
+    finally:
+        settings.files_dir = old

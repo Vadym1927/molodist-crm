@@ -127,9 +127,26 @@ def _header(row: list) -> dict | None:
     return None
 
 
-def parse(data: bytes, filename: str) -> dict:
+def pdf_table(data: bytes) -> list[list]:
+    """PDF з текстом (не скан) → таблиця з усіх сторінок; рядки тексту — як запасний варіант. Порожньо — скан, потрібне розпізнавання."""
+    import pdfplumber
+    out: list = []
+    with pdfplumber.open(io.BytesIO(data)) as pdf:
+        for pg in pdf.pages:
+            tbs = pg.extract_tables() or []
+            for t in tbs:
+                out += [[c for c in r] for r in t if r]
+            if not tbs:                                  # таблиця без ліній — колонки з тексту за великими пробілами
+                for ln in (pg.extract_text(layout=True) or "").splitlines():
+                    cells = [c for c in re.split(r"\s{2,}", ln.strip()) if c]
+                    if len(cells) >= 2:
+                        out.append(cells)
+    return out
+
+
+def parse(data: bytes, filename: str, table: list | None = None) -> dict:
     """→ {rows: [{name, sku, barcode, cost, rrp}], currency (з заголовків або None), header: {...}}."""
-    tab = read_table(data, filename)
+    tab = table if table is not None else read_table(data, filename)
     rows, hdr, cur, rcur = [], None, None, None
     for r in tab:
         h = _header(r) if r and not any(isinstance(c, (int, float)) and c for c in r) else None
@@ -294,6 +311,11 @@ def create(db: Session, data: bytes, filename: str, brand: str | None, supplier_
     from . import ingest, invoice_ai
     mime = _doc_mime(filename)
     res = None if mime else parse(data, filename)               # помилка формату — одразу, без запису
+    if mime == "application/pdf":                                # PDF з текстом — розбираємо самі, без агента
+        try:
+            res = parse(data, filename, pdf_table(data))
+        except Exception:  # noqa: BLE001 — скан або без заголовків колонок → агент / Claude
+            res = None
     if not supplier_id:
         s = default_supplier(db, brand)
         supplier_id = s.id if s else None
@@ -314,6 +336,33 @@ def create(db: Session, data: bytes, filename: str, brand: str | None, supplier_
             _fill(db, sp, _norm_ai(_claude_read(db, data, mime, claude)))
         except Exception as e:  # noqa: BLE001
             sp.status, sp.error = "error", f"Не розпізнано: {str(e)[:300]}"
+    db.commit()
+    return sp
+
+
+def retry(db: Session, sp: SupplierPrice) -> SupplierPrice:
+    """Ще раз розібрати збережений файл: PDF з текстом — самі; інакше Claude API, якщо є ключ. Без результату — лишається в агента."""
+    from pathlib import Path
+    from . import invoice_ai
+    data = Path(sp.file_path).read_bytes() if sp.file_path and Path(sp.file_path).exists() else b""
+    if not data:
+        sp.status, sp.error = "error", "Файл прайсу недоступний"
+        db.commit()
+        return sp
+    res = None
+    mime = _doc_mime(sp.file_name or "")
+    try:
+        res = parse(data, sp.file_name, pdf_table(data)) if mime == "application/pdf" else (None if mime else parse(data, sp.file_name))
+    except Exception:  # noqa: BLE001
+        res = None
+    if res is None and mime and invoice_ai.api_key(db):
+        try:
+            res = _norm_ai(_claude_read(db, data, mime))
+        except Exception as e:  # noqa: BLE001
+            sp.error = f"Claude API: {str(e)[:200]}"
+    if res is not None:
+        _fill(db, sp, res)
+        sp.status, sp.error = None, None
     db.commit()
     return sp
 

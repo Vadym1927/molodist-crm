@@ -8561,6 +8561,9 @@ async def finance_price_apply(spid: int, request: Request, user: User = Depends(
         if i.isdigit():
             spx.set_match(db, sp, int(i), int(pid_) if pid_.isdigit() else None)
         return RedirectResponse(f"/finance/pricing/price/{spid}?show={quote(str(f.get('show') or ''))}#r{i}", 303)
+    if f.get("action") == "retry":
+        spx.retry(db, sp)
+        return RedirectResponse(f"/finance/pricing/price/{spid}", 303)
     if f.get("action") == "meta":
         cur = str(f.get("currency") or "")
         if cur in ("USD", "EUR", "UAH"):
