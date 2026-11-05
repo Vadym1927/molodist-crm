@@ -842,7 +842,8 @@ def sync_products(db: Session, cb: CleverBox) -> int:
         unit = _first(it, "unit", "unit_name", "unit_write_off")
         if isinstance(unit, str) and unit.strip() and not prod.unit:
             prod.unit = unit.strip().rstrip(".")[:20]
-        prod.price = float(_first(it, "sale_price", "base_price", default=0) or 0) or prod.price
+        if not getattr(prod, "price_set_at", None):          # ціну продажу задали в CRM («Планування ціни») — не затираємо
+            prod.price = float(_first(it, "sale_price", "base_price", default=0) or 0) or prod.price
         prod.cost = float(it["cost"]) if it.get("cost") not in (None, "") else prod.cost
         # бренд / артикул / постачальник — якщо CleverBox їх віддає (ручні значення не затираємо)
         brand = _first(it, "brand", "brand_name", "manufacturer", "manufacturer_name", "producer", "vendor")

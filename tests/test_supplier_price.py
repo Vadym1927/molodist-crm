@@ -167,3 +167,48 @@ def test_word_pdf_layout_and_ua_name():
         db.add(Product(name="ZO 10% Вітамін С сироватка 20 мл", name_norm="zo 10 вітамін с сироватка 20 мл", brand="ZO Тест")); db.commit()
         m = spx.match(db, "ZO Тест", r["rows"])
         assert m[0]["pid"]
+
+
+def test_pricing_history_undo_and_sale_price(tmp_path):
+    from app.models import PriceSnapshot
+    settings.admin_password = "owner-pass-1"
+    old, settings.files_dir = settings.files_dir, str(tmp_path)
+    with SessionLocal() as db:
+        p = Product(name="Історія Крем 50 мл", name_norm="історія крем 50 мл", brand="ІсторБренд", sku="IH-1", price=1000)
+        db.add(p); db.commit(); pid = p.id
+    wb = openpyxl.Workbook(); ws = wb.active
+    ws.append(["Артикул", "Назва", "Ціна, грн", "РРЦ"]); ws.append(["IH-1", "Крем 50 мл", 400, 900])
+    b = io.BytesIO(); wb.save(b)
+    try:
+        with TestClient(app) as c:
+            c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+            r = c.post("/finance/pricing/price", data={"brand": "ІсторБренд"}, files={"file": ("p.xlsx", b.getvalue(), "application/octet-stream")},
+                       follow_redirects=False)
+            spid = int(r.headers["location"].rsplit("/", 1)[1])
+            c.post(f"/finance/pricing/price/{spid}", data={"row": ["0"], "rrp": "1"})
+            with SessionLocal() as db:
+                assert db.get(Product, pid).cost_fx == 400
+                sn = db.query(PriceSnapshot).filter(PriceSnapshot.price_id == spid).one()
+                assert sn.kind == "price" and sn.items[0]["before"]["cost_fx"] is None and sn.items[0]["after"]["cost_fx"] == 400
+            assert "Відкотити" in c.get(f"/finance/pricing/history?brand=ІсторБренд&sn={sn.id}").text
+            c.post(f"/finance/pricing/price/{spid}", data={"action": "undo"})
+            with SessionLocal() as db:
+                x = db.get(Product, pid)
+                assert x.cost_fx is None and x.rrp_fx is None
+            # повернути версію прайсу
+            c.post(f"/finance/pricing/history/{sn.id}", data={"which": "after"})
+            with SessionLocal() as db:
+                assert db.get(Product, pid).cost_fx == 400
+            # ціна продажу окремо + версія
+            j = c.post(f"/finance/pricing/sale/{pid}", data={"price": "1190"}).json()
+            assert j["price"] == 1190
+            r = c.post("/finance/pricing/version", data={"brand": "ІсторБренд", "wh": "all", "note": "листопад"}, follow_redirects=False)
+            assert "msg=" in r.headers["location"]
+            with SessionLocal() as db:
+                x = db.get(Product, pid)
+                assert x.price == 1190 and x.price_set_at
+                v = db.query(PriceSnapshot).filter(PriceSnapshot.kind == "version").order_by(PriceSnapshot.id.desc()).first()
+                assert v.note == "листопад" and v.items[0]["after"]["price"] == 1190
+            assert "Зберегти версію" in c.get("/finance/pricing?brand=ІсторБренд&wh=all").text
+    finally:
+        settings.files_dir = old

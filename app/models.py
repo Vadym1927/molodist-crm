@@ -658,6 +658,7 @@ class Product(Base):
     rrp_fx: Mapped[float | None] = mapped_column(Float)                     # рекомендована ціна постачальника у валюті
     planned_price: Mapped[float | None] = mapped_column(Float)              # рекомендована ціна продажу (наше рішення)
     planned_at: Mapped[datetime | None] = mapped_column(DateTime)
+    price_set_at: Mapped[datetime | None] = mapped_column(DateTime)        # ціну продажу задано в CRM — синк CleverBox її не перезаписує
     stock_cost: Mapped[float | None] = mapped_column(Float)                 # собівартість залишку CleverBox за од. приходу
     stock_cost_at: Mapped[date | None] = mapped_column(Date)
 
@@ -732,6 +733,22 @@ class SupplierPrice(Base):
     status: Mapped[str | None] = mapped_column(String(12))                 # None — готовий; recognizing — PDF/фото в агента; error
     error: Mapped[str | None] = mapped_column(String(500))
     cur_forced: Mapped[bool | None] = mapped_column(Boolean)               # валюту вибрано вручну при завантаженні
+
+
+class PriceSnapshot(Base):
+    """Історія «Планування ціни реалізації»: стан товарів до й після зміни (прайс, збереження, ціна продажу) або збережена версія.
+    Можна повернутись: «відкотити» (стан до) або «повернути цю версію» (стан після)."""
+    __tablename__ = "price_snapshots"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, index=True)
+    user_id: Mapped[int | None] = mapped_column(Integer)
+    kind: Mapped[str] = mapped_column(String(12), default="version")      # version | price | save | sale | restore
+    brand: Mapped[str | None] = mapped_column(String(120), index=True)
+    supplier_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    price_id: Mapped[int | None] = mapped_column(Integer)                  # SupplierPrice, якщо зміна з прайсу
+    note: Mapped[str | None] = mapped_column(String(300))
+    items: Mapped[list | None] = mapped_column(JSON)                       # [{pid, name, before:{…}, after:{…}}]
+    n: Mapped[int | None] = mapped_column(Integer)
 
 
 class SupplierEntity(Base):

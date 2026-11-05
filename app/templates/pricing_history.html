@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Історія планування цін · Фінанси{% endblock %}
+{% block body %}
+<style>
+.ph-g{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:16px;align-items:start}@media(max-width:1000px){.ph-g{grid-template-columns:1fr}}
+.ph-l{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.ph-l a{display:block;padding:10px 14px;border-bottom:1px solid var(--line);text-decoration:none;color:var(--ink)}.ph-l a:hover{background:#FBFAF8}.ph-l a.on{background:#F3F0FA;box-shadow:inset 3px 0 0 #3B3050}
+.ph-l small{display:block;color:var(--muted);font-size:12px}.ph-k{display:inline-block;border-radius:99px;padding:2px 9px;font:700 11px var(--sans);background:#E4DEEF;color:#3B3050}
+.ph-k.version{background:#E3F3E7;color:#1E7A46}.ph-k.restore,.ph-k.undo{background:#FFF1D6;color:#9A6A00}
+.ph-c{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px}.ph-t{width:100%;border-collapse:collapse;font-size:13px}
+.ph-t th{font:700 10.5px var(--sans);text-transform:uppercase;letter-spacing:.05em;color:#8a8496;text-align:left;padding:7px 8px;border-bottom:1px solid var(--line)}
+.ph-t td{padding:7px 8px;border-bottom:1px solid #F1EDE8;vertical-align:top}.ph-t .r{text-align:right;white-space:nowrap}.ph-t s{color:#b0aab8}
+</style>
+{% include "_fin_tabs.html" %}
+<div class="eyebrow"><a href="/finance/pricing{{ ('?brand=' ~ brand|urlencode) if brand }}" style="text-decoration:none">← Планування ціни реалізації</a></div>
+<div class="row between" style="align-items:flex-end;gap:10px;flex-wrap:wrap"><h1 style="margin:0">Історія планування</h1>
+  <form method="get"><select name="brand" onchange="this.form.submit()" style="height:40px"><option value="">Усі бренди</option>{% for b in brands %}<option {{ 'selected' if b == brand }}>{{ b }}</option>{% endfor %}</select></form></div>
+{% if request.query_params.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok);margin-top:10px">{{ request.query_params.get('msg') }}</div>{% endif %}
+<p class="small muted">Кожна зміна закупівлі, РРЦ, рекомендованої ціни й ціни продажу зберігається тут. «Відкотити» — повернути, як було до зміни; «Повернути цю версію» — поставити значення цієї версії.</p>
+<div class="ph-g">
+  <div class="ph-l">{% for x in rows %}<a href="?brand={{ brand|urlencode }}&sn={{ x.id }}" class="{{ 'on' if cur and cur.id == x.id }}">
+    <span class="ph-k {{ x.kind }}">{{ KINDS.get(x.kind, x.kind) }}</span> <b>№{{ x.id }}</b> · {{ x.n }} тов.
+    <small>{{ x.created_at|dt('%d.%m.%Y %H:%M') }}{{ (' · ' ~ users.get(x.user_id)) if x.user_id and users.get(x.user_id) }}{{ (' · ' ~ x.brand) if x.brand }}{{ (' · ' ~ sups.get(x.supplier_id)) if x.supplier_id and sups.get(x.supplier_id) }}</small>
+    {% if x.note %}<small>{{ x.note }}</small>{% endif %}</a>{% else %}<div class="muted small" style="padding:14px">Історії ще немає — вона зʼявиться після першої зміни або «Зберегти версію».</div>{% endfor %}</div>
+  {% if cur %}<div class="ph-c">
+    <div class="row between" style="gap:8px;flex-wrap:wrap"><h2 style="margin:0">№{{ cur.id }} · {{ KINDS.get(cur.kind, cur.kind) }}</h2>
+      <div class="row" style="gap:6px">
+        {% if cur.kind != 'version' %}<form method="post" action="/finance/pricing/history/{{ cur.id }}" onsubmit="return confirm('Відкотити: повернути {{ cur.n }} товарів до стану перед цією зміною?')"><input type="hidden" name="which" value="before"><button class="btn ghost">↶ Відкотити</button></form>{% endif %}
+        <form method="post" action="/finance/pricing/history/{{ cur.id }}" onsubmit="return confirm('Поставити {{ cur.n }} товарам значення цієї версії?')"><input type="hidden" name="which" value="after"><button class="btn">Повернути цю версію</button></form></div></div>
+    <div class="small muted" style="margin:4px 0 10px">{{ cur.created_at|dt('%d.%m.%Y %H:%M') }}{{ (' · ' ~ cur.note) if cur.note }}</div>
+    <div style="overflow:auto"><table class="ph-t"><thead><tr><th>Товар</th><th class="r">Закупівля</th><th class="r">РРЦ</th><th class="r">Рекомендована</th><th class="r">Ціна продажу</th></tr></thead><tbody>
+    {% for it in cur.items %}{% set b, a = it.before or {}, it.after or {} %}<tr><td><a href="/products/{{ it.pid }}">{{ it.name }}</a></td>
+      {% for f, cf in [('cost_fx', 'cost_currency'), ('rrp_fx', 'cost_currency'), ('planned_price', None), ('price', None)] %}<td class="r">
+        {% set bv, av = b.get(f), a.get(f) %}{% if bv != av and cur.kind != 'version' %}<s>{{ ('%g'|format(bv)) if bv else '—' }}</s> → {% endif %}<b>{{ ('%g'|format(av)) if av else '—' }}</b>{% if cf and av %} <span class="muted">{{ a.get(cf) or 'UAH' }}</span>{% elif av %} ₴{% endif %}</td>{% endfor %}</tr>{% endfor %}
+    </tbody></table></div></div>
+  {% else %}<div class="ph-c muted">Оберіть запис зліва.</div>{% endif %}
+</div>
+{% endblock %}

@@ -8594,6 +8594,10 @@ async def finance_price_apply(spid: int, request: Request, user: User = Depends(
     if f.get("action") == "retry":
         spx.retry(db, sp)
         return RedirectResponse(f"/finance/pricing/price/{spid}", 303)
+    if f.get("action") == "undo":
+        n = spx.undo(db, sp, user.id)
+        audit(db, "pricing.price_undo", "supplier_price", sp.id, user=user, reverted=n)
+        return RedirectResponse(_with_msg(f"/finance/pricing/price/{spid}", f"Скасовано підстановку з прайсу: {n} товарів повернуто"), 303)
     if f.get("action") == "meta":
         cur = str(f.get("currency") or "")
         if cur in ("USD", "EUR", "UAH"):
@@ -8604,7 +8608,7 @@ async def finance_price_apply(spid: int, request: Request, user: User = Depends(
         db.commit()
         return RedirectResponse(f"/finance/pricing/price/{spid}", 303)
     idx = [int(x) for x in f.getlist("row") if str(x).isdigit()]
-    n = spx.apply(db, sp, idx, with_rrp=bool(f.get("rrp")))
+    n = spx.apply(db, sp, idx, with_rrp=bool(f.get("rrp")), user_id=user.id)
     audit(db, "pricing.price_apply", "supplier_price", sp.id, user=user, applied=n)
     b = f"/finance/pricing?brand={quote(sp.brand)}" if sp.brand else "/finance/pricing"
     return RedirectResponse(_with_msg(b, f"Закупівельні ціни з прайсу підставлено: {n}"), 303)
@@ -8633,10 +8637,13 @@ async def finance_rates(request: Request, user: User = Depends(require("finance"
 async def finance_pricing_save(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     from .services import pricing as pr_svc
     f = await request.form()
+    from .services import price_history as ph
     ids = [int(x) for x in f.getlist("pid") if str(x).isdigit()]
     n = 0
     now = datetime.now()
-    for p_ in db.scalars(select(Product).where(Product.id.in_(ids))):
+    _prods = db.scalars(select(Product).where(Product.id.in_(ids))).all()
+    _before = {p_.id: ph.state(p_) for p_ in _prods}
+    for p_ in _prods:
         cur = f.get(f"cur_{p_.id}")
         cfx, rrp, plan = _num(f.get(f"cfx_{p_.id}") or ""), _num(f.get(f"rrp_{p_.id}") or ""), _num(f.get(f"plan_{p_.id}") or "")
         new = (cur if cur in pr_svc.CURRENCIES else p_.cost_currency, cfx, rrp, plan)
@@ -8646,10 +8653,68 @@ async def finance_pricing_save(request: Request, user: User = Depends(require("f
             p_.cost_currency, p_.cost_fx, p_.rrp_fx, p_.planned_price = new
             n += 1
     db.commit()
+    ph.record(db, "save", _before, _prods, user.id, note="Зміни в таблиці планування")
     audit(db, "pricing.save", user=user, changed=n)
     back = str(f.get("back") or "/finance/pricing")
     sep = "&" if "?" in back else "?"
     return RedirectResponse((back if back.startswith("/finance") else "/finance/pricing") + f"{sep}msg=Збережено:+{n}", 303)
+
+
+@app.post("/finance/pricing/sale/{pid:int}")
+async def finance_pricing_sale(pid: int, request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Ціна продажу окремого товару (ціна в програмі) = вказана / рекомендована; синк CleverBox її більше не затирає."""
+    from .services import price_history as ph
+    p_ = db.get(Product, pid) or (_ for _ in ()).throw(HTTPException(404))
+    f = await request.form()
+    v = _num(str(f.get("price") or "")) or p_.planned_price
+    if not v or v <= 0:
+        return JSONResponse({"error": "Вкажіть рекомендовану ціну"}, status_code=400)
+    b = {p_.id: ph.state(p_)}
+    old = p_.price
+    p_.price, p_.price_set_at = round(v, 2), datetime.now()
+    db.commit()
+    ph.record(db, "sale", b, [p_], user.id, p_.brand, note=f"Ціна продажу {p_.name}: {old or 0:.2f} → {v:.2f}")
+    audit(db, "pricing.sale_price", "product", p_.id, user=user, old=old, new=v)
+    return JSONResponse({"ok": True, "price": p_.price})
+
+
+@app.post("/finance/pricing/version")
+async def finance_pricing_version(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Зберегти поточне планування (бренд / фільтри сторінки) як версію в історії."""
+    from .services import price_history as ph, supplier_prices as spx
+    f = await request.form()
+    wh, brand, q, only = (str(f.get(k) or "") for k in ("wh", "brand", "q", "only"))
+    rows, _ = _pricing_rows(db, wh or "vitrina", brand, q, only)
+    sup = spx.default_supplier(db, brand) if brand and brand != "—" else None
+    sn = ph.version(db, [x.product for x in rows], user.id, brand or None, sup.id if sup else None, str(f.get("note") or "").strip() or None)
+    back = f"/finance/pricing?wh={quote(wh)}&brand={quote(brand)}&q={quote(q)}&only={quote(only)}"
+    return RedirectResponse(_with_msg(back, f"Версію планування збережено: {sn.n if sn else 0} товарів (№{sn.id if sn else '—'})"), 303)
+
+
+@app.get("/finance/pricing/history", response_class=HTMLResponse)
+def finance_pricing_history(request: Request, brand: str = "", sn: int = 0, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .models import PriceSnapshot, Supplier
+    from .services import price_history as ph
+    rows = ph.for_brand(db, brand or None)
+    cur = db.get(PriceSnapshot, sn) if sn else None
+    users = {u.id: u.name for u in db.scalars(select(User))}
+    sups = {x.id: x.name for x in db.scalars(select(Supplier))}
+    brands = sorted({x for (x,) in db.execute(select(PriceSnapshot.brand).where(PriceSnapshot.brand.is_not(None)).distinct())}, key=str.lower)
+    return render(request, "pricing_history.html", nav="finance", rows=rows, cur=cur, brand=brand, brands=brands, users=users, sups=sups,
+                  KINDS=ph.KINDS, FIELDS=ph.FIELDS)
+
+
+@app.post("/finance/pricing/history/{snid:int}")
+async def finance_pricing_restore(snid: int, request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .models import PriceSnapshot
+    from .services import price_history as ph
+    sn = db.get(PriceSnapshot, snid) or (_ for _ in ()).throw(HTTPException(404))
+    f = await request.form()
+    which = "before" if f.get("which") == "before" else "after"
+    n = ph.restore(db, sn, which, user.id)
+    audit(db, "pricing.restore", "price_snapshot", sn.id, user=user, which=which, n=n)
+    return RedirectResponse(_with_msg(f"/finance/pricing/history?brand={quote(sn.brand or '')}",
+                                      f"{'Відкочено' if which == 'before' else 'Повернуто версію'} №{sn.id}: {n} товарів"), 303)
 
 
 @app.get("/finance/pricing.xlsx")

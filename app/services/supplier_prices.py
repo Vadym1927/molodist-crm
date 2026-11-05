@@ -167,14 +167,20 @@ def parse(data: bytes, filename: str, table: list | None = None) -> dict:
             continue
         if not hdr or not r:
             continue
-        def g(k, _r=r):
-            """Клітинка колонки k; у PDF (Word) текст часто зсунутий на 1–3 клітинки від заголовка — беремо найближчу непорожню."""
+        taken: set = set()
+
+        def g(k, _r=r, _t=taken):
+            """Клітинка колонки k; у PDF (Word) текст часто зсунутий на 1–3 клітинки від заголовка — беремо найближчу непорожню,
+            яку ще не взяла інша колонка (назва не може стати ціною)."""
             if k not in hdr:
                 return None
             i = hdr[k]
             for d in (0, 1, -1, 2, -2, 3, -3):
                 j = i + d
-                if 0 <= j < len(_r) and _s(_r[j]) and (d == 0 or j not in hdr["_idx"]):
+                if 0 <= j < len(_r) and j not in _t and _s(_r[j]) and (d == 0 or j not in hdr["_idx"]):
+                    if k in ("cost", "rrp") and _num(_r[j]) is None:
+                        continue
+                    _t.add(j)
                     return _r[j]
             return None
         name, cost = _s(g("name")), _num(g("cost"))
@@ -460,21 +466,53 @@ def preview(db: Session, sp: SupplierPrice) -> list[dict]:
     return out
 
 
-def apply(db: Session, sp: SupplierPrice, idx: list[int], with_rrp: bool = True) -> int:
-    """Підставити закупівлю у валюті (і РРЦ) вибраним товарам."""
+def apply(db: Session, sp: SupplierPrice, idx: list[int], with_rrp: bool = True, user_id: int | None = None) -> int:
+    """Підставити закупівлю у валюті (і РРЦ) вибраним товарам; стан «до» — в історію (можна відкотити)."""
+    from . import price_history as ph
     rows = sp.rows or []
-    n = 0
+    before, changed = {}, []
     for i in idx:
         if not (0 <= i < len(rows)) or not rows[i].get("pid"):
             continue
         p = db.get(Product, rows[i]["pid"])
         if not p:
             continue
+        before.setdefault(p.id, ph.state(p))
         p.cost_currency, p.cost_fx = sp.currency or "UAH", rows[i]["cost"]
         if with_rrp and rows[i].get("rrp"):
             p.rrp_fx = rows[i]["rrp"]
-        n += 1
-    sp.applied_at, sp.n_applied = datetime.now(), n
+        changed.append(p)
+    sp.applied_at, sp.n_applied = datetime.now(), len(changed)
+    db.commit()
+    ph.record(db, "price", before, changed, user_id, sp.brand, sp.supplier_id, sp.id,
+              note=f"Прайс {sp.file_name or ''} від {sp.price_date:%d.%m.%Y}" if sp.price_date else f"Прайс {sp.file_name or ''}")
+    return len(changed)
+
+
+def undo(db: Session, sp: SupplierPrice, user_id: int | None = None) -> int:
+    """Скасувати підстановку з цього прайсу: з історії (стан «до»), а для старих підстановок без історії — прибрати
+    закупівлю у валюті й РРЦ, якщо в товарі досі значення з цього прайсу."""
+    from ..models import PriceSnapshot
+    from . import price_history as ph
+    sn = db.scalars(select(PriceSnapshot).where(PriceSnapshot.kind == "price", PriceSnapshot.price_id == sp.id)
+                    .order_by(PriceSnapshot.id.desc())).first()
+    if sn:
+        n = ph.restore(db, sn, "before", user_id)
+    else:
+        before, changed = {}, []
+        for r in sp.rows or []:
+            p = db.get(Product, r["pid"]) if r.get("pid") else None
+            if not p or p.cost_fx is None or abs((p.cost_fx or 0) - r["cost"]) > 0.005 or (p.cost_currency or "UAH") != (sp.currency or "UAH"):
+                continue
+            before[p.id] = ph.state(p)
+            p.cost_fx = None
+            if r.get("rrp") and p.rrp_fx and abs(p.rrp_fx - r["rrp"]) < 0.005:
+                p.rrp_fx = None
+            changed.append(p)
+        db.commit()
+        ph.record(db, "undo", before, changed, user_id, sp.brand, sp.supplier_id, sp.id, note=f"Скасовано прайс {sp.file_name or ''}")
+        n = len(changed)
+    sp.applied_at, sp.n_applied = None, None
     db.commit()
     return n
 

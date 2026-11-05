@@ -29,11 +29,17 @@ table.pt{border-collapse:separate;border-spacing:0;font-size:13px;min-width:1900
 .pl summary{cursor:pointer;font:700 14px var(--sans);display:flex;gap:10px;align-items:center;flex-wrap:wrap;list-style:none}.pl summary::-webkit-details-marker{display:none}
 .pl summary .muted{font-weight:400;font-size:12.5px}.pl form{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:12px}
 .pl label{display:grid;gap:3px;font-size:12.5px;color:var(--muted);font-weight:600}.pl select,.pl input[type=date]{height:42px}.pl input[type=file]{height:42px;padding:8px}
+.pset{border:1px solid var(--line);background:#fff;border-radius:8px;padding:1px 7px;font-size:12px;cursor:pointer;margin-left:4px}.pset:hover{border-color:var(--classic)}
 .savebar .btn{background:#fff;color:var(--graphite);border-color:#fff}
 </style>
 {% include "_fin_tabs.html" %}
 <div class="row between" style="align-items:flex-end"><div><div class="eyebrow">Фінанси</div><h1>Планування ціни реалізації</h1></div>
-  <a class="btn ghost" href="/finance/pricing.xlsx?wh={{ wh }}&brand={{ brand|urlencode }}&q={{ q|urlencode }}&only={{ only }}">Excel</a></div>
+  <div class="row" style="gap:8px;flex-wrap:wrap">
+    <form method="post" action="/finance/pricing/version" class="row" style="gap:6px" onsubmit="var n=prompt('Назва версії (необовʼязково)', '{{ brand or '' }} {{ today.strftime('%d.%m.%Y') if today }}');if(n===null)return false;this.note.value=n">
+      {% for k, v in [('wh', wh), ('brand', brand), ('q', q), ('only', only)] %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}<input type="hidden" name="note">
+      <button class="btn ghost">💾 Зберегти версію</button></form>
+    <a class="btn ghost" href="/finance/pricing/history{{ ('?brand=' ~ brand|urlencode) if brand }}">Історія</a>
+    <a class="btn ghost" href="/finance/pricing.xlsx?wh={{ wh }}&brand={{ brand|urlencode }}&q={{ q|urlencode }}&only={{ only }}">Excel</a></div></div>
 {% if request.query_params.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok);margin-top:10px">{{ request.query_params.get('msg') }}</div>{% endif %}
 {% if request.query_params.get('err') %}<div class="alert" style="margin-top:10px">{{ request.query_params.get('err') }}</div>{% endif %}
 
@@ -94,7 +100,8 @@ table.pt{border-collapse:separate;border-spacing:0;font-size:13px;min-width:1900
     <td class="r"><input name="cfx_{{ p.id }}" class="cfx" value="{{ '%g'|format(p.cost_fx) if p.cost_fx else '' }}" inputmode="decimal" placeholder="—"></td>
     <td class="r c-cost"></td>
     <td class="r"><input name="rrp_{{ p.id }}" class="rrp" value="{{ '%g'|format(p.rrp_fx) if p.rrp_fx else '' }}" inputmode="decimal" placeholder="—"></td>
-    <td class="r">{{ x.price_now|uah if x.price_now else '—' }}</td>
+    <td class="r"><span class="pnow">{{ x.price_now|uah if x.price_now else '—' }}</span>{% if p.price_set_at %}<div class="meta" title="Задано в CRM {{ p.price_set_at|dt('%d.%m.%Y %H:%M') }}">CRM</div>{% endif %}
+      <button type="button" class="pset" onclick="setSale(this, {{ p.id }})" title="Змінити ціну продажу цього товару">✎</button></td>
     <td class="r c-gp"></td><td class="r c-m"></td>
     <td class="r c-at"></td><td class="r c-mat"></td>
     {% for m in MARGINS %}<td class="r c-pm" data-m="{{ m }}"></td>{% endfor %}
@@ -146,6 +153,16 @@ function fill(mode){
     let v=null;
     if(mode==='rate') v=tr._at; else if(mode==='now') v=tr._now; else if(tr._cost) v=rnd(tr._cost/(1-mode/100));
     if(v!=null){ inp.value=v; calc(tr); markDirty(tr); }
+  });
+}
+function setSale(b, pid){
+  const tr=b.closest('tr'), plan=num(tr.querySelector('.plan').value);
+  const v=prompt('Нова ціна продажу, ₴ (ціна в програмі; CleverBox її більше не перезапише)', plan||tr.dataset.now||'');
+  if(v===null) return; const n=num(v); if(!n||n<=0){alert('Вкажіть ціну');return}
+  const fd=new FormData(); fd.append('price', n);
+  fetch('/finance/pricing/sale/'+pid,{method:'POST',body:fd,credentials:'same-origin'}).then(r=>r.json()).then(j=>{
+    if(j.error){alert(j.error);return} tr.dataset.now=j.price; tr.querySelector('.pnow').textContent=money(j.price); calc(tr);
+    b.textContent='✓'; setTimeout(()=>b.textContent='✎',1500);
   });
 }
 recalcAll();
