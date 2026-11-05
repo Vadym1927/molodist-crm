@@ -8536,7 +8536,8 @@ def finance_pricing(request: Request, wh: str = "vitrina", brand: str = "", q: s
     return render(request, "pricing.html", nav="finance", rows=rows[:600], total=len(rows), rt=rt, wh=wh, brand=brand, q=q,
                   only=only, brands=brands, WAREHOUSES=catalog.WAREHOUSES, CURRENCIES=pr_svc.CURRENCIES, MARGINS=pr_svc.MARGINS,
                   suppliers=db.scalars(select(Supplier).order_by(Supplier.name)).all(), last_price=last_prices.get(brand) if brand else None,
-                  def_sup=spx.default_supplier(db, brand) if brand and brand != "—" else None, today=date.today())
+                  def_sup=spx.default_supplier(db, brand) if brand and brand != "—" else None, today=date.today(),
+                  last_pl=spx.last_for_products(db, {x.product.id for x in rows[:600]}))
 
 
 @app.post("/finance/pricing/price")

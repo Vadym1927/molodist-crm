@@ -209,7 +209,8 @@ def test_pricing_history_undo_and_sale_price(tmp_path):
                 assert x.price == 1190 and x.price_set_at
                 v = db.query(PriceSnapshot).filter(PriceSnapshot.kind == "version").order_by(PriceSnapshot.id.desc()).first()
                 assert v.note == "листопад" and v.items[0]["after"]["price"] == 1190
-            assert "Зберегти версію" in c.get("/finance/pricing?brand=ІсторБренд&wh=all").text
+            pg = c.get("/finance/pricing?brand=ІсторБренд&wh=all").text
+            assert "Зберегти версію" in pg and "goSale(this" in pg and "<b class=\"\">400 UAH</b>" in pg and "прайс: <b>900 UAH</b>" in pg
     finally:
         settings.files_dir = old
 

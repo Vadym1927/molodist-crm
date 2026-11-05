@@ -88,18 +88,21 @@ table.pt{border-collapse:separate;border-spacing:0;font-size:13px;min-width:1900
 <input type="hidden" name="back" value="{{ request.url.path }}?{{ request.url.query }}">
 <div class="pwrap"><table class="pt"><thead><tr>
   <th class="nm">Товар</th><th>Валюта</th><th>Закупівля у валюті</th><th>Закупівля, грн</th><th>РРЦ постачальника (вал.)</th>
-  <th>Ціна в програмі зараз</th><th>Валовий прибуток, грн</th><th>Маржа, %</th>
-  <th class="g">Ціна продажу при курсі</th><th class="g">Маржа при курсі</th>
+  <th>Ціна в програмі зараз</th><th>Валовий прибуток, грн</th><th title="(ціна в програмі − закупівля) / ціна в програмі">Маржа, % (від ціни в програмі)</th>
+  <th class="g" title="РРЦ постачальника × курс">Ціна продажу при курсі (РРЦ)</th><th class="g" title="(РРЦ × курс − закупівля) / (РРЦ × курс)">Маржа при РРЦ</th>
   {% for m in MARGINS %}<th>Ціна при маржі {{ m }}%</th>{% endfor %}
-  <th class="g">Рекомендована ціна продажу</th><th class="g">Різниця з поточною</th><th class="g">Націнка, %</th><th class="g">Маржа, %</th></tr></thead><tbody>
+  <th class="g">Рекомендована ціна продажу</th><th class="g">Різниця з поточною</th><th class="g">Націнка, %</th><th class="g">Маржа, %</th><th class="g">Ціна продажу</th></tr></thead><tbody>
 {% for x in rows %}{% set p = x.product %}
   <tr data-crm="{{ x.cost_uah_crm or '' }}" data-now="{{ x.price_now or '' }}"{% if x.sup_fx %} data-fx-usd="{{ x.sup_fx.USD or '' }}" data-fx-eur="{{ x.sup_fx.EUR or '' }}"{% endif %}>
     <td class="nm"><input type="hidden" name="pid" value="{{ p.id }}"><a href="/products/{{ p.id }}" style="font-weight:600;text-decoration:none">{{ p.name }}</a>
       <div class="meta">{{ p.brand or '—' }}{{ (' · арт. ' ~ p.sku) if p.sku }}</div></td>
     <td><select name="cur_{{ p.id }}" class="cur">{% for c in CURRENCIES %}<option {{ 'selected' if (p.cost_currency or 'UAH')==c }}>{{ c }}</option>{% endfor %}</select></td>
-    <td class="r"><input name="cfx_{{ p.id }}" class="cfx" value="{{ '%g'|format(p.cost_fx) if p.cost_fx else '' }}" inputmode="decimal" placeholder="—"></td>
+    {% set pl = last_pl.get(p.id) %}
+    <td class="r"><input name="cfx_{{ p.id }}" class="cfx" value="{{ '%g'|format(p.cost_fx) if p.cost_fx else '' }}" inputmode="decimal" placeholder="—">
+      {% if pl %}<div class="meta" title="Прайс {{ pl.file }}">прайс {{ pl.date|dt('%d.%m') }}: <b class="{{ 'neg' if p.cost_fx and pl.cost > p.cost_fx + 0.005 else ('pos' if p.cost_fx and pl.cost < p.cost_fx - 0.005 else '') }}">{{ '%g'|format(pl.cost) }} {{ pl.cur }}</b></div>{% endif %}</td>
     <td class="r c-cost"></td>
-    <td class="r"><input name="rrp_{{ p.id }}" class="rrp" value="{{ '%g'|format(p.rrp_fx) if p.rrp_fx else '' }}" inputmode="decimal" placeholder="—"></td>
+    <td class="r"><input name="rrp_{{ p.id }}" class="rrp" value="{{ '%g'|format(p.rrp_fx) if p.rrp_fx else '' }}" inputmode="decimal" placeholder="—">
+      {% if pl and pl.rrp %}<div class="meta">прайс: <b>{{ '%g'|format(pl.rrp) }} {{ pl.cur }}</b></div>{% endif %}</td>
     <td class="r"><span class="pnow">{{ x.price_now|uah if x.price_now else '—' }}</span>{% if p.price_set_at %}<div class="meta" title="Задано в CRM {{ p.price_set_at|dt('%d.%m.%Y %H:%M') }}">CRM</div>{% endif %}
       <button type="button" class="pset" onclick="setSale(this, {{ p.id }})" title="Змінити ціну продажу цього товару">✎</button></td>
     <td class="r c-gp"></td><td class="r c-m"></td>
@@ -107,12 +110,15 @@ table.pt{border-collapse:separate;border-spacing:0;font-size:13px;min-width:1900
     {% for m in MARGINS %}<td class="r c-pm" data-m="{{ m }}"></td>{% endfor %}
     <td class="r"><input name="plan_{{ p.id }}" class="plan" value="{{ '%g'|format(p.planned_price) if p.planned_price else '' }}" inputmode="decimal" placeholder="—"></td>
     <td class="r c-diff"></td><td class="r c-mu"></td><td class="r c-mp"></td>
+    <td class="r"><button type="button" class="btn ghost c-go" style="padding:4px 10px;font-size:12.5px;white-space:nowrap" onclick="goSale(this, {{ p.id }})" hidden></button></td>
   </tr>
 {% else %}<tr><td class="nm muted" colspan="20">Немає товарів за цими фільтрами.</td></tr>{% endfor %}
 </tbody></table></div>
 <div class="savebar"><span id="dirtyn">Змін немає</span><button class="btn">Зберегти зміни</button></div>
 </form>
-<p class="muted small" style="margin-top:12px">Закупівля, грн = закупівля у валюті × курс (якщо валютної ціни немає — остання закупівля з CRM). Маржа = (ціна − закупівля) / ціна. Націнка = (ціна − закупівля) / закупівля.
+<p class="muted small" style="margin-top:12px">Закупівля, грн = закупівля у валюті × курс (курс постачальника з його картки, інакше загальний; якщо валютної ціни немає — остання закупівля з CRM).
+  «Маржа, %» (після ціни в програмі) = (ціна в програмі − закупівля) / ціна в програмі. «Маржа при курсі» = (РРЦ постачальника × курс − закупівля) / (РРЦ × курс) — що дає постачальник, якщо продавати за його РРЦ.
+  Під полями «Закупівля у валюті» і «РРЦ» — значення з останнього прайсу постачальника (червоне — дорожче за поточне, зелене — дешевше). Маржа = (ціна − закупівля) / ціна. Націнка = (ціна − закупівля) / закупівля.
   «Ціна при маржі X%» = закупівля / (1 − X%). Рекомендована ціна — ваше рішення; ціну в CleverBox змінюєте за вивантаженням Excel.</p>
 
 <script>
@@ -141,6 +147,7 @@ function calc(tr){
   tr.querySelector('.c-diff').innerHTML = d==null?'—':'<span class="'+(d<0?'neg':(d>0?'pos':''))+'">'+(d>0?'+':'')+money(d)+'</span>';
   tr.querySelector('.c-mu').innerHTML = pct(markup(plan,cost), false);
   tr.querySelector('.c-mp').innerHTML = pct(margin(plan,cost));
+  const go=tr.querySelector('.c-go'); if(go){ const same = plan && now && Math.abs(plan-now)<0.5; go.hidden=!plan||same; go.textContent='→ змінити на '+money(plan); }
 }
 function recalcAll(){ document.querySelectorAll('.pt tbody tr[data-now]').forEach(calc); }
 let dirty=new Set();
@@ -155,6 +162,14 @@ function fill(mode){
     let v=null;
     if(mode==='rate') v=tr._at; else if(mode==='now') v=tr._now; else if(tr._cost) v=rnd(tr._cost/(1-mode/100));
     if(v!=null){ inp.value=v; calc(tr); markDirty(tr); }
+  });
+}
+function goSale(b, pid){
+  const tr=b.closest('tr'), plan=num(tr.querySelector('.plan').value); if(!plan) return;
+  if(!confirm('Змінити ціну продажу на '+money(plan)+'?')) return;
+  const fd=new FormData(); fd.append('price', plan);
+  fetch('/finance/pricing/sale/'+pid,{method:'POST',body:fd,credentials:'same-origin'}).then(r=>r.json()).then(j=>{
+    if(j.error){alert(j.error);return} tr.dataset.now=j.price; tr.querySelector('.pnow').textContent=money(j.price); calc(tr);
   });
 }
 function setSale(b, pid){

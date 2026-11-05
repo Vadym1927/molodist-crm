@@ -536,3 +536,17 @@ def latest_by_brand(db: Session) -> dict[str, SupplierPrice]:
         if sp.brand and sp.brand not in out:
             out[sp.brand] = sp
     return out
+
+
+def last_for_products(db: Session, ids: set) -> dict:
+    """Останній розібраний прайс по кожному товару: pid → {cost, rrp, cur, date, file} — щоб бачити, що дає постачальник."""
+    out: dict = {}
+    if not ids:
+        return out
+    for sp in db.scalars(select(SupplierPrice).where(SupplierPrice.status.is_(None)).order_by(SupplierPrice.uploaded_at.desc()).limit(100)):
+        for r in sp.rows or []:
+            pid = r.get("pid")
+            if pid in ids and pid not in out:
+                out[pid] = {"cost": r["cost"], "rrp": r.get("rrp"), "cur": sp.currency or "UAH", "date": sp.price_date or sp.uploaded_at.date(),
+                            "file": sp.file_name}
+    return out
