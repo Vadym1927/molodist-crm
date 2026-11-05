@@ -12,7 +12,7 @@
 .pv-act{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}.pv-warn{background:#FFF8EE;border-left:3px solid #C9792B;border-radius:8px;padding:8px 12px;font-size:13px}
 .pv-kv{display:grid;grid-template-columns:150px 1fr;gap:6px 12px;font-size:13.5px}.pv-kv span{color:#8a8496}
 </style>
-<div class="eyebrow"><a href="/payreq" style="text-decoration:none">← Рахунки на оплату</a></div>
+<div class="eyebrow"><a href="/payreq" style="text-decoration:none">← Фінанси · Рахунки на оплату</a></div>
 <div class="row between" style="align-items:center;gap:10px;flex-wrap:wrap"><h1 style="margin:0">Рахунок #{{ pr.id }}</h1><span class="pv-b {{ pr.status }}">{{ STATUS.get(pr.status, pr.status) }}</span></div>
 <div class="muted small" style="margin:4px 0 12px">{{ pr.created_at|local|dt('%d.%m.%Y %H:%M') }} · {{ ('Telegram · ' ~ (pr.sender_name or '')) if pr.source == 'telegram' else 'додано в CRM' }}{% if pr.corp_id %} · monobank ID {{ pr.corp_id }}{% endif %}{% if pr.corp_state %} · стан {{ pr.corp_state }}{% endif %}{% if pr.link_id %} · <a href="/payreq/{{ pr.link_id }}">{{ 'рахунок' if pr.kind == 'receipt' else 'квитанція' }} #{{ pr.link_id }}</a>{% endif %}</div>
 {% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
@@ -47,7 +47,7 @@
       <div class="pv-act"><button class="btn ghost" name="action" value="refresh">Оновити стан</button></div>{% endif %}
     {% endif %}
   </form>
-  <div class="card"><div class="row between"><h2 style="margin:0">Файл рахунку</h2><a class="btn ghost" href="/payreq/{{ pr.id }}/file" target="_blank">Відкрити ↗</a></div>
+  <div class="card"><div class="row between"><h2 style="margin:0">Файл рахунку</h2><span class="row" style="gap:6px"><a class="btn ghost" href="/payreq/{{ pr.id }}/file" target="_blank">Відкрити ↗</a><a class="btn ghost" href="/payreq/{{ pr.id }}/file?dl=1">Скачати</a></span></div>
     {% if pr.file_path %}{% if (pr.mime or '').startswith('image/') or (pr.file_name or '').lower().endswith(('.jpg', '.jpeg', '.png', '.webp')) %}<img class="pv-img" src="/payreq/{{ pr.id }}/file" alt="" style="margin-top:10px">
     {% else %}<iframe class="pv-doc" src="/payreq/{{ pr.id }}/file" style="margin-top:10px"></iframe>{% endif %}{% else %}<p class="muted">Файлу немає.</p>{% endif %}</div>
 </div>

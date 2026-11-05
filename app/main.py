@@ -88,7 +88,8 @@ templates.env.globals["call_who"] = _call_who
 FIN_TABS = [("/finance", "Огляд"), ("/sales", "Каса CRM"), ("/finance/ops", "Фіноперації"), ("/finance/accruals", "Нарахування зарплати"),
             ("/finance/payroll", "ЗП за місяць"),
             ("/finance/settle", "Взаєморозрахунки по з/п"), ("/finance/day", "Продажі за день"), ("/finance/sales", "Продажі"),
-            ("/finance/balances", "Баланс пацієнтів"), ("/finance/bonuses", "Рух бонусів"), ("/finance/pricing", "Планування ціни реалізації"),
+            ("/finance/balances", "Баланс пацієнтів"), ("/finance/bonuses", "Рух бонусів"), ("/payreq", "Рахунки на оплату"),
+            ("/finance/pricing", "Планування ціни реалізації"),
             ("/amort", "Амортизація обладнання")]
 templates.env.globals.update(
     can=can, ROLES=ROLES, EVENTS=webhooks.EVENTS, FIN_TABS=FIN_TABS,
@@ -6918,7 +6919,7 @@ def payreq_list(request: Request, st: str = "", user: User = Depends(require("fi
     rows = db.scalars(q.limit(300)).all()
     cnt = {k: db.scalar(select(func.count()).select_from(PayRequest).where(PayRequest.status == k)) or 0 for k in prq.STATUS}
     from .integrations import monobank
-    return render(request, "payreq.html", nav="stock", rows=rows, st=st, STATUS=prq.STATUS, cnt=cnt, chat=prq.chat_id(db),
+    return render(request, "payreq.html", nav="finance", rows=rows, st=st, STATUS=prq.STATUS, cnt=cnt, chat=prq.chat_id(db),
                   sups={x.id: x.name for x in db.scalars(select(Supplier))}, fops=prq.fops(db), cfg=prq.cfg(db),
                   accs={f: prq.sender_accounts(db, f) for f in prq.fops(db)}, owners=prq.owner_tg_ids(db),
                   corp={m["fop"]: m.get("corp") for m in monobank.public(db)})
@@ -6929,7 +6930,7 @@ def payreq_view(request: Request, pid: int, user: User = Depends(require("financ
     from .services import pay_requests as prq
     from .models import PayRequest, Supplier
     pr = db.get(PayRequest, pid) or (_ for _ in ()).throw(HTTPException(404))
-    return render(request, "payreq_view.html", nav="stock", pr=pr, STATUS=prq.STATUS, problems=prq.problems(pr), fops=prq.fops(db),
+    return render(request, "payreq_view.html", nav="finance", pr=pr, STATUS=prq.STATUS, problems=prq.problems(pr), fops=prq.fops(db),
                   accs={f: prq.sender_accounts(db, f) for f in prq.fops(db)}, sup=db.get(Supplier, pr.supplier_id) if pr.supplier_id else None,
                   suppliers=db.scalars(select(Supplier).order_by(Supplier.name)).all(),
                   job=__import__("app.services.invoice_ai", fromlist=["x"]).job_state(db, "receipt" if pr.kind == "receipt" else "payreq", pr.id)
@@ -6937,12 +6938,16 @@ def payreq_view(request: Request, pid: int, user: User = Depends(require("financ
 
 
 @app.get("/payreq/{pid:int}/file")
-def payreq_file(pid: int, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+def payreq_file(pid: int, dl: int = 0, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     from .models import PayRequest
     pr = db.get(PayRequest, pid)
     if not pr or not pr.file_path or not Path(pr.file_path).exists():
         raise HTTPException(404)
-    return FileResponse(pr.file_path, filename=pr.file_name or "rahunok", media_type=pr.mime or None)
+    nm = (pr.file_name or "rahunok").lower()
+    mt = "application/pdf" if nm.endswith(".pdf") else ({"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "webp": "image/webp"}.get(
+        nm.rsplit(".", 1)[-1]) or pr.mime or None)
+    return FileResponse(pr.file_path, filename=pr.file_name or "rahunok", media_type=mt,
+                        content_disposition_type="attachment" if dl else "inline")     # inline — показ у вікні рахунку
 
 
 @app.post("/payreq/upload")
@@ -8547,7 +8552,8 @@ def finance_price_file(spid: int, user: User = Depends(current_user), db: Sessio
     sp = db.get(SupplierPrice, spid) or (_ for _ in ()).throw(HTTPException(404))
     if not sp.file_path or not Path(sp.file_path).exists():
         raise HTTPException(410, "Файл недоступний")
-    return FileResponse(sp.file_path, filename=sp.file_name or "prais")
+    return FileResponse(sp.file_path, filename=sp.file_name or "prais",
+                        content_disposition_type="inline" if (sp.file_name or "").lower().endswith((".pdf", ".jpg", ".jpeg", ".png", ".webp")) else "attachment")
 
 
 @app.post("/finance/pricing/price/{spid:int}")

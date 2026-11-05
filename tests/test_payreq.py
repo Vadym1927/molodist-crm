@@ -124,7 +124,14 @@ def test_payreq_via_agent(tmp_path, monkeypatch):
         with SessionLocal() as db:
             pr = db.get(PayRequest, pid)
             assert pr.status == "new" and pr.amount == 18854.64 and pr.fop == "Колган" and pr.receiver_iban == IBAN
-        m, d = sent[-1]
+        with TestClient(app) as c:
+            c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+            f = c.get(f"/payreq/{pid}/file")
+            assert f.status_code == 200 and f.headers["content-type"] == "application/pdf" and f.headers["content-disposition"].startswith("inline")
+            assert c.get(f"/payreq/{pid}/file?dl=1").headers["content-disposition"].startswith("attachment")
+            pg = c.get("/payreq").text
+            assert "fin-tabs" in pg and 'href="/payreq" class="on"' in pg
+        m, d = [x for x in sent if x[0] == "editMessageText"][-1]
         assert m == "editMessageText" and d["message_id"] == "55" and "pay:ok" in d.get("reply_markup", "")
         # помилка агента
         with SessionLocal() as db:
