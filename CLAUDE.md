@@ -35,6 +35,8 @@ CRM естетичної клініки MOLODIST (Київ) під бюті-пл
 - `app/services/pay_requests.py` — рахунки постачальників на оплату (/payreq): Telegram-група (команда /rahunky) → розпізнавання як у накладних (агент OpenClaw через API v1 /invoices, kind=payreq, або Claude API)
   → погодження власником (кнопки бота) → чернетка платежу в monobank Corporate API (`corp-api.monobank.ua/ext/v1/payment/prepare`)
   на підпис у застосунку; стан щогодини (job_payreq). Доступ перевіряється в Налаштування → monobank → «Платежі на підпис»
+- `app/services/supplier_prices.py` — прайс постачальника по бренду (Excel/CSV) у «Планування ціни реалізації»: колонки артикул/назва/штрихкод/закупівля/РРЦ,
+  зіставлення з товарами бренду → підставити cost_currency/cost_fx і rrp_fx; прайси (дата прайсу, дата й час завантаження) — у картці постачальника (SupplierPrice)
 - `app/integrations/messaging.py` — бот пацієнтів (токен PATIENT_BOT_TOKEN) + TurboSMS (Viber→SMS)
 - `docs/openclaw-patient-bot.md` — контракт API для бота пацієнтів
 - Тести: `docker compose exec app pytest -q` (потрібен будь-який PDF плану в `tests/sample_plan.pdf`)

@@ -711,6 +711,26 @@ class Supplier(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class SupplierPrice(Base):
+    """Прайс постачальника по бренду (Excel / CSV): файл, дата прайсу, коли завантажено; рядки й зіставлення з товарами CRM.
+    «Застосувати» підставляє закупівлю у валюті (і РРЦ) в «Планування ціни реалізації»."""
+    __tablename__ = "supplier_prices"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    supplier_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    brand: Mapped[str | None] = mapped_column(String(120), index=True)
+    file_path: Mapped[str | None] = mapped_column(String(500))
+    file_name: Mapped[str | None] = mapped_column(String(300))
+    price_date: Mapped[date | None] = mapped_column(Date)                  # дата прайсу (від постачальника)
+    currency: Mapped[str | None] = mapped_column(String(3))                # USD | EUR | UAH
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, index=True)
+    user_id: Mapped[int | None] = mapped_column(Integer)
+    rows: Mapped[list | None] = mapped_column(JSON)                         # [{name, sku, barcode, cost, rrp, pid, how}]
+    n_rows: Mapped[int | None] = mapped_column(Integer)
+    n_matched: Mapped[int | None] = mapped_column(Integer)
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime)
+    n_applied: Mapped[int | None] = mapped_column(Integer)
+
+
 class SupplierEntity(Base):
     """Юридична особа постачальника (ТОВ / ФОП / ПП…): в одного постачальника їх може бути кілька — свої реквізити,
     договір, ПДВ. Основна дублюється в поля Supplier.legal_name/edrpou/iban… (для сумісності)."""

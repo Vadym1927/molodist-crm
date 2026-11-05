@@ -25,12 +25,17 @@ table.pt{border-collapse:separate;border-spacing:0;font-size:13px;min-width:1900
 .pt .neg{color:var(--bad)}.pt .pos{color:var(--ok)}
 .pt tr.dirty td.nm{box-shadow:inset 4px 0 0 var(--classic),1px 0 0 var(--line)}
 .savebar{position:sticky;bottom:10px;z-index:6;display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--graphite);color:#fff;border-radius:14px;padding:10px 14px;margin-top:12px;box-shadow:0 10px 30px -10px rgba(0,0,0,.4)}
+.pl{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 16px;margin-bottom:14px;box-shadow:var(--shadow)}
+.pl summary{cursor:pointer;font:700 14px var(--sans);display:flex;gap:10px;align-items:center;flex-wrap:wrap;list-style:none}.pl summary::-webkit-details-marker{display:none}
+.pl summary .muted{font-weight:400;font-size:12.5px}.pl form{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-top:12px}
+.pl label{display:grid;gap:3px;font-size:12.5px;color:var(--muted);font-weight:600}.pl select,.pl input[type=date]{height:42px}.pl input[type=file]{height:42px;padding:8px}
 .savebar .btn{background:#fff;color:var(--graphite);border-color:#fff}
 </style>
 {% include "_fin_tabs.html" %}
 <div class="row between" style="align-items:flex-end"><div><div class="eyebrow">Фінанси</div><h1>Планування ціни реалізації</h1></div>
   <a class="btn ghost" href="/finance/pricing.xlsx?wh={{ wh }}&brand={{ brand|urlencode }}&q={{ q|urlencode }}&only={{ only }}">Excel</a></div>
 {% if request.query_params.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok);margin-top:10px">{{ request.query_params.get('msg') }}</div>{% endif %}
+{% if request.query_params.get('err') %}<div class="alert" style="margin-top:10px">{{ request.query_params.get('err') }}</div>{% endif %}
 
 <form class="rates" method="post" action="/finance/rates">
   <input type="hidden" name="back" value="{{ request.url.path }}?{{ request.url.query }}">
@@ -40,6 +45,22 @@ table.pt{border-collapse:separate;border-spacing:0;font-size:13px;min-width:1900
   <button class="btn">Зберегти курс</button><button class="btn ghost" name="nbu" value="1">Курс НБУ сьогодні</button>
   <span class="src">{{ rt.source }}{{ (' · ' ~ rt.updated.replace('T',' ')) if rt.updated }}</span>
 </form>
+
+<details class="pl" {{ 'open' if brand and not last_price }}>
+  <summary>📄 Прайс постачальника{% if brand %} · {{ brand }}{% endif %}
+    {% if last_price %}<span class="muted">останній: від {{ last_price.price_date|dt('%d.%m.%Y') }}, завантажено {{ last_price.uploaded_at|dt('%d.%m.%Y %H:%M') }} ·
+      {{ last_price.n_matched }}/{{ last_price.n_rows }} зіставлено{% if last_price.applied_at %} · підставлено {{ last_price.n_applied }}{% endif %}</span>
+      <a href="/finance/pricing/price/{{ last_price.id }}" class="small">відкрити</a>{% else %}<span class="muted">завантажте Excel / CSV — закупівельні ціни підставляться в таблицю</span>{% endif %}</summary>
+  <form method="post" action="/finance/pricing/price" enctype="multipart/form-data">
+    <label>Бренд<select name="brand" required><option value="">— оберіть —</option>{% for b in brands %}<option {{ 'selected' if brand==b }}>{{ b }}</option>{% endfor %}</select></label>
+    <label>Постачальник<select name="supplier_id"><option value="">{{ 'за брендом: ' ~ def_sup.name if def_sup else 'за брендом (авто)' }}</option>{% for x in suppliers %}<option value="{{ x.id }}">{{ x.name }}</option>{% endfor %}</select></label>
+    <label>Валюта прайсу<select name="currency"><option value="">з файлу (інакше грн)</option>{% for c in CURRENCIES %}<option>{{ c }}</option>{% endfor %}</select></label>
+    <label>Дата прайсу<input type="date" name="price_date" value="{{ today }}"></label>
+    <label>Файл (.xlsx, .xls, .csv)<input type="file" name="file" accept=".xlsx,.xls,.csv" required></label>
+    <button class="btn" style="height:42px">Завантажити й зіставити</button>
+  </form>
+  <p class="small muted" style="margin:8px 0 0">CRM знайде колонки «артикул / назва / штрихкод / ціна закупівлі / РРЦ», зіставить з товарами бренду (артикул → штрихкод → назва) і покаже, що зміниться. Прайс з датою й часом завантаження зберігається в картці постачальника.</p>
+</details>
 
 <form class="fl" method="get">
   <select name="wh" onchange="this.form.submit()">{% for k, v in WAREHOUSES.items() %}<option value="{{ k }}" {{ 'selected' if wh==k }}>{{ v }}</option>{% endfor %}<option value="all" {{ 'selected' if wh=='all' }}>Усі склади</option></select>

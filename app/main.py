@@ -26,6 +26,7 @@ from .config import settings
 from .models import (init_db, SessionLocal, Patient, Doctor, BeautyPlan, PlanItem, PatientFile, ProductFile, Alias,
                      CbService, Visit, SyncState, User, ApiKey, Webhook, AuditLog, ROLES, CashDay)
 from .parsers.observ import norm
+from urllib.parse import quote
 from .security import (can, hash_password, verify_password, ensure_owner, db_dep, current_user, require,
                        patient_visible, plan_visible, new_api_key, audit)
 from .services import ingest, reminders
@@ -8481,8 +8482,86 @@ def finance_pricing(request: Request, wh: str = "vitrina", brand: str = "", q: s
     from .services import pricing as pr_svc
     rows, rt = _pricing_rows(db, wh, brand, q, only)
     brands = sorted({x for (x,) in db.execute(select(Product.brand).where(Product.brand.is_not(None)).distinct())}, key=str.lower)
+    from .models import Supplier
+    from .services import supplier_prices as spx
+    last_prices = spx.latest_by_brand(db)
     return render(request, "pricing.html", nav="finance", rows=rows[:600], total=len(rows), rt=rt, wh=wh, brand=brand, q=q,
-                  only=only, brands=brands, WAREHOUSES=catalog.WAREHOUSES, CURRENCIES=pr_svc.CURRENCIES, MARGINS=pr_svc.MARGINS)
+                  only=only, brands=brands, WAREHOUSES=catalog.WAREHOUSES, CURRENCIES=pr_svc.CURRENCIES, MARGINS=pr_svc.MARGINS,
+                  suppliers=db.scalars(select(Supplier).order_by(Supplier.name)).all(), last_price=last_prices.get(brand) if brand else None,
+                  def_sup=spx.default_supplier(db, brand) if brand and brand != "—" else None, today=date.today())
+
+
+@app.post("/finance/pricing/price")
+async def finance_price_upload(file: UploadFile = File(...), brand: str = Form(""), supplier_id: str = Form(""), currency: str = Form(""),
+                               price_date: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Прайс постачальника по бренду → зіставлення з товарами → перегляд перед застосуванням."""
+    from .services import supplier_prices as spx
+    data = await file.read()
+    back = f"/finance/pricing?brand={quote(brand)}" if brand else "/finance/pricing"
+    if not data:
+        return RedirectResponse(_with_err(back, "Порожній файл"), 303)
+    try:
+        sp = spx.create(db, data, file.filename or "prais.xlsx", brand.strip() or None, int(supplier_id) if supplier_id.isdigit() else None,
+                        currency or None, _day(price_date), user.id)
+    except Exception as e:  # noqa: BLE001
+        return RedirectResponse(_with_err(back, f"Прайс не прочитано: {str(e)[:200]}"), 303)
+    audit(db, "pricing.price_upload", "supplier_price", sp.id, user=user, brand=sp.brand, rows=sp.n_rows, matched=sp.n_matched)
+    return RedirectResponse(f"/finance/pricing/price/{sp.id}", 303)
+
+
+@app.get("/finance/pricing/price/{spid:int}", response_class=HTMLResponse)
+def finance_price_view(request: Request, spid: int, show: str = "", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .models import SupplierPrice, Supplier
+    from .services import supplier_prices as spx, pricing as pr_svc
+    sp = db.get(SupplierPrice, spid) or (_ for _ in ()).throw(HTTPException(404))
+    rows = spx.preview(db, sp)
+    if show == "nomatch":
+        rows = [r for r in rows if not r["p"]]
+    elif show == "changed":
+        rows = [r for r in rows if r["p"] and not r["same"]]
+    brand_products = db.scalars(select(Product).where(Product.brand == sp.brand, Product.active.is_not(False)).order_by(Product.name)).all() if sp.brand else []
+    return render(request, "pricing_price.html", nav="finance", sp=sp, rows=rows, show=show, sup=db.get(Supplier, sp.supplier_id) if sp.supplier_id else None,
+                  rt=pr_svc.rates(db), brand_products=brand_products,
+                  uploader=db.get(User, sp.user_id) if sp.user_id else None)
+
+
+@app.get("/finance/pricing/price/{spid:int}/file")
+def finance_price_file(spid: int, user: User = Depends(current_user), db: Session = Depends(db_dep)):
+    from pathlib import Path
+    if not (can(user, "finance") or can(user, "stock")):
+        raise HTTPException(403, "Недостатньо прав")
+    from .models import SupplierPrice
+    sp = db.get(SupplierPrice, spid) or (_ for _ in ()).throw(HTTPException(404))
+    if not sp.file_path or not Path(sp.file_path).exists():
+        raise HTTPException(410, "Файл недоступний")
+    return FileResponse(sp.file_path, filename=sp.file_name or "prais")
+
+
+@app.post("/finance/pricing/price/{spid:int}")
+async def finance_price_apply(spid: int, request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .models import SupplierPrice
+    from .services import supplier_prices as spx
+    sp = db.get(SupplierPrice, spid) or (_ for _ in ()).throw(HTTPException(404))
+    f = await request.form()
+    if f.get("action") == "match":
+        i, pid_ = str(f.get("i") or ""), str(f.get("pid") or "")
+        if i.isdigit():
+            spx.set_match(db, sp, int(i), int(pid_) if pid_.isdigit() else None)
+        return RedirectResponse(f"/finance/pricing/price/{spid}?show={quote(str(f.get('show') or ''))}#r{i}", 303)
+    if f.get("action") == "meta":
+        cur = str(f.get("currency") or "")
+        if cur in ("USD", "EUR", "UAH"):
+            sp.currency = cur
+        sp.price_date = _day(str(f.get("price_date") or "")) or sp.price_date
+        sid_ = str(f.get("supplier_id") or "")
+        sp.supplier_id = int(sid_) if sid_.isdigit() else sp.supplier_id
+        db.commit()
+        return RedirectResponse(f"/finance/pricing/price/{spid}", 303)
+    idx = [int(x) for x in f.getlist("row") if str(x).isdigit()]
+    n = spx.apply(db, sp, idx, with_rrp=bool(f.get("rrp")))
+    audit(db, "pricing.price_apply", "supplier_price", sp.id, user=user, applied=n)
+    b = f"/finance/pricing?brand={quote(sp.brand)}" if sp.brand else "/finance/pricing"
+    return RedirectResponse(_with_msg(b, f"Закупівельні ціни з прайсу підставлено: {n}"), 303)
 
 
 @app.post("/finance/rates")

@@ -1,0 +1,70 @@
+"""Прайс постачальника по бренду → зіставлення → підстановка закупівлі у валюті; прайс у картці постачальника."""
+import io
+
+import openpyxl
+from fastapi.testclient import TestClient
+
+from app.config import settings
+from app.main import app
+from app.models import SessionLocal, Product, Supplier, SupplierPrice
+
+
+def _xlsx():
+    wb = openpyxl.Workbook(); ws = wb.active
+    ws.append(["Прайс ПрайсБренд на 01.11.2026"]); ws.append([])
+    ws.append(["Код товару", "Найменування", "Штрих-код", "Ціна закупівлі, EUR", "РРЦ, EUR"])
+    ws.append(["PB-1", "Сироватка судинна 30 мл", None, 24.5, 49])
+    ws.append([None, "Крем навколо очей Smart C 15 мл", None, "12,30", "25"])
+    ws.append(["X-9", "Невідомий засіб", None, 5, None])
+    b = io.BytesIO(); wb.save(b)
+    return b.getvalue()
+
+
+def test_supplier_price_upload_apply(tmp_path):
+    settings.admin_password = "owner-pass-1"
+    old, settings.files_dir = settings.files_dir, str(tmp_path)
+    with SessionLocal() as db:
+        s = Supplier(name="Прайс Постач"); db.add(s); db.commit()
+        p1 = Product(name="ПБ Сироватка судинна", name_norm="пб сироватка судинна", brand="ПрайсБренд", sku="pb-1", supplier="Прайс Постач", cost_currency="EUR", cost_fx=20)
+        p2 = Product(name="Крем навколо очей Smart C 15 мл", name_norm="крем навколо очей smart c 15 мл", brand="ПрайсБренд", supplier="Прайс Постач")
+        db.add_all([p1, p2]); db.commit()
+        ids, sid = (p1.id, p2.id), s.id
+    try:
+        with TestClient(app) as c:
+            c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+            assert "Прайс постачальника" in c.get("/finance/pricing?brand=ПрайсБренд").text
+            r = c.post("/finance/pricing/price", data={"brand": "ПрайсБренд", "currency": "", "price_date": "2026-11-01"},
+                       files={"file": ("prais.xlsx", _xlsx(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+                       follow_redirects=False)
+            assert r.status_code == 303 and "/finance/pricing/price/" in r.headers["location"], r.headers["location"]
+            spid = int(r.headers["location"].rsplit("/", 1)[1])
+            with SessionLocal() as db:
+                sp = db.get(SupplierPrice, spid)
+                assert sp.currency == "EUR" and sp.n_rows == 3 and sp.n_matched == 2 and sp.supplier_id == sid
+                assert [x["how"] for x in sp.rows][:2] == ["артикул", "назва 100%"]
+            v = c.get(f"/finance/pricing/price/{spid}").text
+            assert "Невідомий засіб" in v and "+22.5%" in v
+            r = c.post(f"/finance/pricing/price/{spid}", data={"row": ["0", "1"], "rrp": "1"}, follow_redirects=False)
+            assert r.status_code == 303
+            with SessionLocal() as db:
+                a, b = db.get(Product, ids[0]), db.get(Product, ids[1])
+                assert (a.cost_currency, a.cost_fx, a.rrp_fx) == ("EUR", 24.5, 49) and (b.cost_currency, b.cost_fx, b.rrp_fx) == ("EUR", 12.3, 25)
+                assert db.get(SupplierPrice, spid).n_applied == 2
+            card = c.get(f"/stock/suppliers/{sid}/card").text
+            assert "Прайси" in card and "01.11.2026" in card and "підставлено 2" in card
+            assert c.get(f"/finance/pricing/price/{spid}/file").status_code == 200
+            bad = c.post("/finance/pricing/price", data={"brand": "ПрайсБренд"}, files={"file": ("x.csv", b"a;b\n1;2\n", "text/csv")},
+                         follow_redirects=False)
+            assert "err=" in bad.headers["location"]
+    finally:
+        settings.files_dir = old
+
+
+def test_price_rrp_other_currency():
+    from app.services import supplier_prices as spx
+    wb = openpyxl.Workbook(); ws = wb.active
+    ws.append(["Артикул", "Назва", "Ціна закупівлі, EUR", "РРЦ, грн"])
+    ws.append(["A1", "Крем", 10, 1000])
+    b = io.BytesIO(); wb.save(b)
+    r = spx.parse(b.getvalue(), "p.xlsx")
+    assert r["currency"] == "EUR" and r["rrp_currency"] == "UAH" and r["rows"][0]["rrp"] == 1000
