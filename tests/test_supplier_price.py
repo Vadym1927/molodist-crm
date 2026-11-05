@@ -146,3 +146,24 @@ def test_text_pdf_parsed_locally(tmp_path):
             assert sp.status is None and sp.currency == "USD" and sp.rows[0]["cost"] == 11.5
     finally:
         settings.files_dir = old
+
+
+def test_word_pdf_layout_and_ua_name():
+    """Прайс з Word: текст зсунутий від заголовка на клітинку, заголовок у кілька рядків, укр. назва рядком нижче."""
+    from app.services import supplier_prices as spx
+    E = [""] * 100
+    def row(**kw):
+        r = list(E)
+        for k, v in kw.items():
+            r[int(k[1:])] = v
+        return r
+    tab = [row(c3="Додаток № 1"), row(c2="Найменування", c62="Оптова ціна, грн", c84="Рекомендована"), row(c84="мінімальна роздрібна"),
+           row(c84="ціна, грн"), row(c3="10 Vitamin C 20mL", c62="1 920,00", c84="3 175,00"),
+           row(c3="ZO® 10% Вітамін С сироватка для шкіри 20 ml")]
+    r = spx.parse(b"", "x.pdf", tab)
+    assert r["currency"] == "UAH" and r["rows"] == [{"name": "10 Vitamin C 20mL", "sku": "", "barcode": "", "cost": 1920.0, "rrp": 3175.0,
+                                                     "name2": "ZO® 10% Вітамін С сироватка для шкіри 20 ml"}]
+    with SessionLocal() as db:
+        db.add(Product(name="ZO 10% Вітамін С сироватка 20 мл", name_norm="zo 10 вітамін с сироватка 20 мл", brand="ZO Тест")); db.commit()
+        m = spx.match(db, "ZO Тест", r["rows"])
+        assert m[0]["pid"]

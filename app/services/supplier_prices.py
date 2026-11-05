@@ -123,6 +123,7 @@ def _header(row: list) -> dict | None:
         cols["cost"] = cols["price"]
     if "name" in cols and "cost" in cols:
         cols["_cur"] = {k: _cur(cells[cols[k]]) for k in ("cost", "rrp") if k in cols}
+        cols["_idx"] = {v for k, v in cols.items() if not k.startswith("_")}
         return cols
     return None
 
@@ -163,8 +164,21 @@ def parse(data: bytes, filename: str, table: list | None = None) -> dict:
             continue
         if not hdr or not r:
             continue
-        g = lambda k: r[hdr[k]] if k in hdr and hdr[k] < len(r) else None    # noqa: E731
+        def g(k, _r=r):
+            """Клітинка колонки k; у PDF (Word) текст часто зсунутий на 1–3 клітинки від заголовка — беремо найближчу непорожню."""
+            if k not in hdr:
+                return None
+            i = hdr[k]
+            for d in (0, 1, -1, 2, -2, 3, -3):
+                j = i + d
+                if 0 <= j < len(_r) and _s(_r[j]) and (d == 0 or j not in hdr["_idx"]):
+                    return _r[j]
+            return None
         name, cost = _s(g("name")), _num(g("cost"))
+        if name and not cost and rows and not any(_num(c) for c in r if c is not None and re.search(r"\d[\d\s]*[.,]\d{2}$", _s(c))):
+            if not rows[-1].get("name2") and len(name) > 3:      # продовження назви з наступного рядка (укр. назва під англ.)
+                rows[-1]["name2"] = name[:300]
+            continue
         if not name or not cost:
             continue
         sku = _s(g("sku"))
@@ -184,8 +198,28 @@ def _k(v: str | None) -> str:
     return re.sub(r"[^0-9a-zа-яіїєґ]", "", (v or "").lower())
 
 
+_UNIT = {"мл": "ml", "ml": "ml", "г": "g", "гр": "g", "g": "g", "шт": "pcs", "pcs": "pcs"}
+
+
 def _tok(v: str | None) -> set:
-    return {w for w in norm(v or "").split() if len(w) > 1}
+    t = re.sub(r"(\d)([a-zа-яії]+)", r"\1 \2", (v or "").lower().replace("®", " ").replace("™", " "))
+    out = set()
+    for w in norm(t).lower().replace("%", " ").split():
+        w = _UNIT.get(w, w)
+        if len(w) > 1 or w.isdigit():
+            out.add(w)
+    return out
+
+
+def _sim(a: set, b: set) -> float:
+    """Схожість назв: Жаккар або «одна назва повністю в іншій» (≥ 3 спільні слова); обʼєм / числа мають збігатися."""
+    da, dbb = {w for w in a if w.isdigit()}, {w for w in b if w.isdigit()}
+    if da and dbb and da != dbb:
+        return 0.0
+    common = len(a & b)
+    jac = common / len(a | b) if a | b else 0.0
+    cont = common / min(len(a), len(b)) if a and b and common >= 3 else 0.0
+    return max(jac, 0.85 * cont)
 
 
 def match(db: Session, brand: str | None, rows: list[dict]) -> list[dict]:
@@ -201,7 +235,9 @@ def match(db: Session, brand: str | None, rows: list[dict]) -> list[dict]:
             by_sku.setdefault(_k(p.sku), p)
         if p.barcode and _k(p.barcode):
             by_bar.setdefault(_k(p.barcode), p)
-    toks = [(p, _tok(p.name)) for p in prods]
+    bw = (norm(brand or "").lower().split() or [""])[0]
+    bt = {bw} if bw else set()                                   # перше слово бренду (ZO, AG…) не впливає на схожість
+    toks = [(p, _tok(p.name) - bt) for p in prods]
     used: set = set()
     out = []
     for r in rows:
@@ -211,12 +247,12 @@ def match(db: Session, brand: str | None, rows: list[dict]) -> list[dict]:
         elif r.get("barcode") and _k(r["barcode"]) in by_bar:
             p, how = by_bar[_k(r["barcode"])], "штрихкод"
         else:
-            t = _tok(r["name"])
+            ts = [t for t in (_tok(r["name"]) - bt, _tok(r.get("name2")) - bt) if t]
             best, sc = None, 0.0
             for pp, pt in toks:
-                if not t or not pt or pp.id in used:
+                if not ts or not pt or pp.id in used:
                     continue
-                j = len(t & pt) / len(t | pt)
+                j = max(_sim(t, pt) for t in ts)
                 if j > sc:
                     best, sc = pp, j
             if best and sc >= 0.75:
@@ -382,6 +418,10 @@ def retry(db: Session, sp: SupplierPrice) -> SupplierPrice:
     if res is not None:
         _fill(db, sp, res)
         sp.status, sp.error = None, None
+        from ..models import InvoiceJob
+        for j in db.scalars(select(InvoiceJob).where(InvoiceJob.kind == "price", InvoiceJob.ref_id == sp.id,
+                                                     InvoiceJob.status.in_(("pending", "taken")))):
+            j.status, j.error, j.done_at = "error", "розібрано в CRM без агента", datetime.now()   # агенту більше не віддаємо
     else:
         sp.error = ("Без агента не розібрано: " + (why or "невідома причина"))[:500]
     db.commit()
