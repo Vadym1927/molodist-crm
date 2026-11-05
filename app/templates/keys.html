@@ -34,6 +34,14 @@
               <select name="cb_{{ acc_key(a) }}" style="height:32px;flex:1;max-width:260px"><option value="">— не списувати —</option>{% for b in box_names %}<option {{ 'selected' if mono_map.get(acc_key(a)) == b }}>{{ b }}</option>{% endfor %}</select></label>{% endif %}{% endfor %}
           <div class="small muted" style="margin-top:4px">Оплати поставок з цього рахунку потрапляють у журнал фіноперацій («Закупка товара») і списуються з вибраного рахунку CRM.</div>
           <button class="btn ghost" style="padding:3px 10px;margin-top:6px">Зберегти рахунки</button></form>{% endif %}{% endif %}
+      {% if m %}<div style="margin-top:12px;padding:10px 12px;border:1px dashed var(--line);border-radius:12px">
+        <div class="row between"><b class="small">Платежі на підпис (Corporate API)</b>
+          {% if m.corp %}<span class="pill {{ 'ok' if m.corp.ok else 'bad' }}">{{ 'є доступ' if m.corp.ok else 'немає доступу' }}</span>{% endif %}</div>
+        {% if m.corp %}<div class="small muted" style="margin-top:4px">{{ m.corp.at }} · {{ m.corp.token }}: {{ m.corp.msg }}</div>{% endif %}
+        <form method="post" action="/stock/mono/corp" class="grid" style="gap:6px;margin-top:8px" autocomplete="off"><input type="hidden" name="fop" value="{{ f }}">
+          <input name="token" type="password" placeholder="{{ 'Корпоративний токен збережено' if m.corp_own else 'Корпоративний токен (необовʼязково — спершу перевіримо наявний)' }}" autocomplete="new-password" style="font-family:monospace">
+          <button class="btn ghost">Перевірити доступ</button></form>
+        <div class="small muted" style="margin-top:4px">Для створення чернеток оплати постачальникам на підпис у застосунку. Корпоративний токен — <a href="http://web.monobank.ua/?modal=tokens" target="_blank" rel="noopener">web.monobank.ua → Токени</a>. Перевірка лише читає стан — нічого не створює.</div></div>{% endif %}
       <form method="post" action="/stock/mono/connect" class="grid" style="gap:6px;margin-top:10px" autocomplete="off">
         <input type="hidden" name="fop" value="{{ f }}"><input type="hidden" name="back" value="keys">
         <input name="token" type="password" placeholder="{{ 'Токен збережено — вставте новий, щоб замінити' if m else 'Вставте токен monobank' }}" {{ '' if m else 'required' }} autocomplete="new-password" style="font-family:monospace">

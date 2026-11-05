@@ -326,6 +326,24 @@ async def job_mono():
         log.warning("monobank sync: %s", e)
 
 
+async def job_payreq():
+    """Чернетки оплат у monobank: стан (підписано → у виписці / відхилено) — щогодини; картку в Telegram оновити."""
+    from .services import pay_requests as prq
+    def run():
+        with SessionLocal() as db:
+            ch = prq.refresh_all(db)
+            for x in ch:
+                db.expunge(x)
+            return ch
+    try:
+        ch = await asyncio.to_thread(run)
+        if ch and state.get("bot"):
+            from .integrations.telegram_bot import pay_notify
+            await pay_notify(state["bot"], ch)
+    except Exception as e:  # noqa: BLE001
+        log.warning("payreq refresh: %s", e)
+
+
 async def job_checkbox():
     """Оборот ФОП з Checkbox (Z-звіти) — поточний і попередній місяць."""
     from .integrations import checkbox as chb
@@ -420,6 +438,7 @@ async def lifespan(app: FastAPI):
         sched.add_job(job_price_monitor, "cron", minute=40)
         sched.add_job(job_checkbox, "cron", hour="8,14,23", minute=50)
         sched.add_job(job_mono, "cron", minute=20)
+        sched.add_job(job_payreq, "cron", minute=35)
         sched.add_job(job_rematch, "date", run_date=datetime.now() + timedelta(seconds=40))   # після оновлення — одразу
         sched.add_job(job_expiry, "cron", hour=9, minute=15)
         sched.add_job(job_loyalty, "cron", hour=9, minute=5)
@@ -5610,6 +5629,7 @@ SETTINGS_BLOCKS = [
         ('Бонусна програма · в розробці', '% нарахування бонусів, оплата бонусами, термін дії, вітальні бонуси, перенос залишків з CleverBox', '/settings/bonuses', 'finance', None),
         ('Сертифікати', 'Шаблони подарункових сертифікатів для продажу в касі (номінал, термін дії, ціна), нагадування адміністраторам, розрахунок сертифікатом', '/gifts?tab=types', 'finance', 'certs/types'),
         ('Платіжні системи', 'Посилання на оплату для пацієнтів: monobank еквайринг, LiqPay, WayForPay', '/settings/payments', 'finance', 'payment_system'),
+        ('Рахунки на оплату', 'Рахунки постачальників з Telegram-групи → погодження власником → чернетка платежу в monobank на підпис', '/payreq', 'finance', None),
         ('Банк monobank', 'Виписки ФОП, оплати постачальникам і їх автоматичне рознесення', '/settings/keys?s=mono#mono', 'finance', None),
         ('Checkbox', 'Фіскалізація чеків CRM, каси (РРО), відправлення чеків; оборот ФОП — у «Звіти → Ліміти ФОП»', '/settings/checkbox', 'finance', 'cmarket/checkbox/main'),
     ]),
@@ -6874,6 +6894,122 @@ def stock_mono_connect(fop: str = Form(...), token: str = Form(""), back: str = 
     if back == "keys":
         return RedirectResponse(f"/settings/keys?mono={'err' if err else 'ok'}&fop={_q(fop)}#mono", 303)
     return RedirectResponse(f"/stock?tab=suppliers&mono={'err' if err else 'ok'}#mono", 303)
+
+
+# ---------------- Рахунки постачальників на оплату (Telegram → погодження → чернетка monobank) ----------------
+@app.get("/payreq", response_class=HTMLResponse)
+def payreq_list(request: Request, st: str = "", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import pay_requests as prq
+    from .models import PayRequest, Supplier
+    q = select(PayRequest).order_by(PayRequest.id.desc())
+    if st in prq.STATUS:
+        q = q.where(PayRequest.status == st)
+    rows = db.scalars(q.limit(300)).all()
+    cnt = {k: db.scalar(select(func.count()).select_from(PayRequest).where(PayRequest.status == k)) or 0 for k in prq.STATUS}
+    from .integrations import monobank
+    return render(request, "payreq.html", nav="stock", rows=rows, st=st, STATUS=prq.STATUS, cnt=cnt, chat=prq.chat_id(db),
+                  sups={x.id: x.name for x in db.scalars(select(Supplier))}, fops=prq.fops(db), cfg=prq.cfg(db),
+                  accs={f: prq.sender_accounts(db, f) for f in prq.fops(db)}, owners=prq.owner_tg_ids(db),
+                  corp={m["fop"]: m.get("corp") for m in monobank.public(db)})
+
+
+@app.get("/payreq/{pid:int}", response_class=HTMLResponse)
+def payreq_view(request: Request, pid: int, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import pay_requests as prq
+    from .models import PayRequest, Supplier
+    pr = db.get(PayRequest, pid) or (_ for _ in ()).throw(HTTPException(404))
+    return render(request, "payreq_view.html", nav="stock", pr=pr, STATUS=prq.STATUS, problems=prq.problems(pr), fops=prq.fops(db),
+                  accs={f: prq.sender_accounts(db, f) for f in prq.fops(db)}, sup=db.get(Supplier, pr.supplier_id) if pr.supplier_id else None,
+                  suppliers=db.scalars(select(Supplier).order_by(Supplier.name)).all())
+
+
+@app.get("/payreq/{pid:int}/file")
+def payreq_file(pid: int, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .models import PayRequest
+    pr = db.get(PayRequest, pid)
+    if not pr or not pr.file_path or not Path(pr.file_path).exists():
+        raise HTTPException(404)
+    return FileResponse(pr.file_path, filename=pr.file_name or "rahunok", media_type=pr.mime or None)
+
+
+@app.post("/payreq/upload")
+async def payreq_upload(file: UploadFile = File(...), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import pay_requests as prq
+    data = await file.read()
+    if not data:
+        return RedirectResponse(_with_err("/payreq", "Порожній файл"), 303)
+    pr = await asyncio.to_thread(prq.create, db, data, file.filename or "rahunok", file.content_type, "crm", None, None, user.name)
+    audit(db, "payreq.create", "payreq", pr.id, user=user, amount=pr.amount)
+    return RedirectResponse(f"/payreq/{pr.id}", 303)
+
+
+@app.post("/payreq/{pid:int}")
+async def payreq_save(pid: int, request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import pay_requests as prq
+    from .models import PayRequest
+    pr = db.get(PayRequest, pid) or (_ for _ in ()).throw(HTTPException(404))
+    f = await request.form()
+    act = str(f.get("action") or "save")
+    if pr.status in ("new", "error", "rejected"):
+        pr.receiver_name = str(f.get("receiver_name") or "").strip()[:300] or None
+        pr.receiver_iban = prq.clean_iban(f.get("receiver_iban"))[:40] or None
+        pr.receiver_edrpou = re.sub(r"\D", "", str(f.get("receiver_edrpou") or ""))[:20] or None
+        pr.amount = _num(str(f.get("amount") or ""))
+        pr.vat = _num(str(f.get("vat") or "")) or 0
+        pr.invoice_no = str(f.get("invoice_no") or "").strip()[:80] or None
+        pr.invoice_date = _day(str(f.get("invoice_date") or ""))
+        fop_ = str(f.get("fop") or "")
+        if fop_ in prq.fops(db):
+            pr.fop = fop_
+        pr.sender_iban = str(f.get("sender_iban") or "").strip() or prq.sender_iban(db, pr.fop)
+        pr.purpose = str(f.get("purpose") or "").strip()[:420] or prq.default_purpose(pr)
+        sid_ = str(f.get("supplier_id") or "")
+        pr.supplier_id = int(sid_) if sid_.isdigit() else pr.supplier_id
+        if pr.status == "error" and not prq.problems(pr):
+            pr.status, pr.error = "new", None
+        db.commit()
+    if act == "approve":
+        if user.role != "owner":
+            return RedirectResponse(_with_err(f"/payreq/{pid}", "Погоджує лише власник"), 303)
+        await asyncio.to_thread(prq.approve, db, pr, user.id)
+        audit(db, "payreq.approve", "payreq", pid, user=user, amount=pr.amount, status=pr.status)
+    elif act == "reject":
+        prq.reject(db, pr, user.id)
+        audit(db, "payreq.reject", "payreq", pid, user=user)
+    elif act == "refresh":
+        await asyncio.to_thread(prq.refresh, db, pr)
+    if pr.tg_chat and pr.tg_card and state.get("bot"):                 # оновити картку в Telegram
+        try:
+            from .integrations.telegram_bot import pay_keyboard
+            await state["bot"].edit_message_text(prq.card_text(db, pr), chat_id=pr.tg_chat, message_id=pr.tg_card,
+                                                 reply_markup=pay_keyboard(pr), disable_web_page_preview=True)
+        except Exception:  # noqa: BLE001
+            pass
+    msg_ = {"approve": "Чернетку створено в monobank — підпишіть у застосунку" if pr.status == "draft" else (pr.error or "Помилка"),
+            "reject": "Відхилено", "refresh": f"Стан: {prq.STATUS.get(pr.status)}"}.get(act, "Збережено")
+    return RedirectResponse(_with_msg(f"/payreq/{pid}", msg_, err=(act == "approve" and pr.status != "draft")), 303)
+
+
+@app.post("/payreq/settings")
+async def payreq_settings(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import pay_requests as prq
+    f = await request.form()
+    c = prq.cfg(db)
+    c["sender"] = {fp: str(f.get(f"sender_{i}") or "") for i, fp in enumerate(prq.fops(db)) if f.get(f"sender_{i}")}
+    prq.save_cfg(db, c)
+    if "chat" in f:
+        prq.set_chat(db, str(f.get("chat") or "").strip() or None)
+    audit(db, "payreq.settings", user=user)
+    return RedirectResponse(_with_msg("/payreq", "Налаштування збережено"), 303)
+
+
+@app.post("/stock/mono/corp")
+def stock_mono_corp(fop: str = Form(...), token: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Перевірити доступ до Corporate API monobank (платежі на підпис) — токеном виписки або окремим корпоративним."""
+    from .integrations import monobank
+    res = monobank.corp_probe(db, fop.strip()[:100], token)
+    audit(db, "mono.corp_probe", user=user, fop=fop, ok=res.get("ok"), code=res.get("code"))      # токен у журнал не пишемо
+    return RedirectResponse(f"/settings/keys?s=mono#mono", 303)
 
 
 @app.post("/stock/mono/watch")

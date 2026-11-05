@@ -51,7 +51,40 @@ def _save(db: Session, items: list[dict]) -> None:
 def public(db: Session) -> list[dict]:
     """Без токенів — для сторінки."""
     return [{"fop": x["fop"], "accounts": x.get("accounts", []), "watch": x.get("watch", []),
-             "error": x.get("error"), "checked": x.get("checked"), "last": x.get("last")} for x in saved(db)]
+             "error": x.get("error"), "checked": x.get("checked"), "last": x.get("last"),
+             "corp": x.get("corp"), "corp_own": bool(x.get("corp_token"))} for x in saved(db)]
+
+
+# ---------------- Corporate API (платежі на підпис) ----------------
+CORP = "https://corp-api.monobank.ua"
+
+
+def corp_probe(db: Session, fop: str, token: str = "", http: httpx.Client | None = None) -> dict:
+    """Перевірка доступу до Corporate API monobank (лише читання: стан неіснуючого платежу).
+    token — окремий корпоративний токен (web.monobank.ua → Токени); порожній — пробуємо збережений, далі токен виписки."""
+    items = saved(db)
+    rec = next((x for x in items if x["fop"] == fop), None)
+    if rec is None:
+        return {"ok": False, "error": "ФОП не підключено"}
+    tok = token.strip() or rec.get("corp_token") or rec.get("token") or ""
+    which = "корпоративний" if (token.strip() or rec.get("corp_token")) else "токен виписки"
+    c = http or httpx.Client(timeout=20)
+    try:
+        r = c.get(f"{CORP}/ext/v1/payment/state", params={"externalReference": "crm-probe-0"},
+                  headers={"x-token": tok, "accept": "application/json"})
+        code = r.status_code
+        body = r.text[:200]
+    except httpx.HTTPError as e:
+        code, body = 0, str(e)[:200]
+    ok = code in (200, 400, 404, 422)            # авторизацію пройдено (платежу з таким номером просто немає)
+    res = {"ok": ok, "code": code, "token": which, "at": datetime.now().strftime("%d.%m.%Y %H:%M"),
+           "msg": "доступ є — можна створювати платежі на підпис" if ok else
+                  ("токен не підходить для Corporate API" if code in (401, 403) else f"відповідь {code}: {body[:120]}")}
+    if token.strip() and ok:
+        rec["corp_token"] = token.strip()
+    rec["corp"] = res
+    _save(db, items)
+    return res
 
 
 def _get(path: str, token: str, http: httpx.Client | None = None) -> object:
@@ -74,7 +107,8 @@ def connect(db: Session, fop: str, token: str, getter=None) -> str | None:
     items = saved(db)
     prev = next((x for x in items if x["fop"] == fop), {})
     token = token.strip() or prev.get("token", "")
-    rec = {"fop": fop, "token": token, "watch": prev.get("watch", []), "checked": datetime.now().isoformat(timespec="minutes")}
+    rec = {"fop": fop, "token": token, "watch": prev.get("watch", []), "checked": datetime.now().isoformat(timespec="minutes"),
+           **{k: prev[k] for k in ("corp_token", "corp") if k in prev}}             # Corporate API — не губимо при заміні токена
     try:
         info = getter("/personal/client-info", token)
         accs = []

@@ -15,7 +15,7 @@ import logging
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.client.default import DefaultBotProperties
 from aiogram.filters import Command
-from aiogram.types import Message
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 
 from ..config import settings
 from ..models import SessionLocal, PatientFile
@@ -25,6 +25,127 @@ from sqlalchemy import select
 
 log = logging.getLogger("tg")
 router = Router()
+pay_router = Router()          # група «Рахунки на оплату» — обробляється раніше за бюті-плани / фото
+
+
+# ---------------- рахунки постачальників на оплату ----------------
+def _is_pay_chat(msg: Message) -> bool:
+    from ..services import pay_requests as prq
+    with SessionLocal() as db:
+        cid = prq.chat_id(db)
+    return bool(cid) and str(msg.chat.id) == cid
+
+
+def pay_keyboard(pr) -> InlineKeyboardMarkup | None:
+    if pr.status not in ("new", "error"):
+        return None
+    from ..services import pay_requests as prq
+    rows = [[InlineKeyboardButton(text=f"✅ Погодити · ФОП {pr.fop}" if pr.fop else "✅ Погодити", callback_data=f"pay:ok:{pr.id}"),
+             InlineKeyboardButton(text="❌ Відхилити", callback_data=f"pay:no:{pr.id}")]]
+    with SessionLocal() as db:
+        others = [f for f in prq.fops(db) if f != pr.fop]
+    if others:
+        rows.append([InlineKeyboardButton(text=f"🔁 Платити з ФОП {f}", callback_data=f"pay:fop:{pr.id}:{f[:20]}") for f in others[:2]])
+    rows.append([InlineKeyboardButton(text="✏️ Відкрити в CRM", url=f"{settings.public_url.rstrip('/')}/payreq/{pr.id}")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+async def _pay_file(msg: Message, bot: Bot, file_id: str, name: str, mime: str | None):
+    import asyncio
+    from ..services import pay_requests as prq
+    data = await _download(bot, file_id)
+    who = (msg.from_user.full_name if msg.from_user else "") or ""
+
+    def run():
+        with SessionLocal() as db:
+            pr = prq.create(db, data, name, mime, source="telegram", tg_chat=str(msg.chat.id), tg_msg=msg.message_id, sender=who)
+            return pr.id, prq.card_text(db, pr), pr
+    pid, text, pr = await asyncio.to_thread(run)
+    card = await msg.reply(text, reply_markup=pay_keyboard(pr), disable_web_page_preview=True)
+    with SessionLocal() as db:
+        from ..models import PayRequest
+        x = db.get(PayRequest, pid)
+        if x:
+            x.tg_card = card.message_id
+            db.commit()
+
+
+@pay_router.message(Command("rahunky"))
+async def cmd_bind_pay(msg: Message):
+    """Призначити цей чат групою рахунків на оплату (лише власник)."""
+    from ..services import pay_requests as prq
+    with SessionLocal() as db:
+        if str(msg.from_user.id if msg.from_user else "") not in prq.owner_tg_ids(db):
+            await msg.reply("Призначити чат рахунків може лише власник (його Telegram ID — у «Мій кабінет» CRM).")
+            return
+        prq.set_chat(db, str(msg.chat.id))
+    await msg.reply("✅ Цей чат — «Рахунки на оплату». Надсилайте сюди рахунки постачальників (PDF або фото): "
+                    "я розпізнаю їх, а після погодження власником створю чернетку платежу в monobank на підпис.")
+
+
+@pay_router.message(F.document, _is_pay_chat)
+async def pay_document(msg: Message, bot: Bot):
+    d = msg.document
+    if not ((d.mime_type or "").startswith("image/") or (d.file_name or "").lower().endswith(".pdf") or d.mime_type == "application/pdf"):
+        return
+    await _pay_file(msg, bot, d.file_id, d.file_name or "rahunok.pdf", d.mime_type)
+
+
+@pay_router.message(F.photo, _is_pay_chat)
+async def pay_photo(msg: Message, bot: Bot):
+    ph = msg.photo[-1]
+    await _pay_file(msg, bot, ph.file_id, f"rahunok_{ph.file_unique_id}.jpg", "image/jpeg")
+
+
+@pay_router.callback_query(F.data.startswith("pay:"))
+async def pay_callback(cb: CallbackQuery):
+    import asyncio
+    from ..services import pay_requests as prq
+    from ..models import PayRequest
+    parts = (cb.data or "").split(":")
+    act, pid = parts[1], int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0
+    with SessionLocal() as db:
+        if str(cb.from_user.id) not in prq.owner_tg_ids(db):
+            await cb.answer("Погоджує лише власник", show_alert=True)
+            return
+        owner = db.scalar(select(__import__("app.models", fromlist=["User"]).User).where(
+            __import__("app.models", fromlist=["User"]).User.telegram_chat_id == str(cb.from_user.id)))
+        uid = owner.id if owner else None
+        pr = db.get(PayRequest, pid)
+        if not pr:
+            await cb.answer("Рахунок не знайдено", show_alert=True)
+            return
+        if act == "fop" and len(parts) > 3:
+            f = next((x for x in prq.fops(db) if x[:20] == parts[3]), None)
+            if f:
+                pr.fop, pr.sender_iban, pr.status, pr.error = f, prq.sender_iban(db, f), "new", None
+                db.commit()
+            await cb.answer(f"Платник: ФОП {pr.fop}")
+        elif act == "no":
+            prq.reject(db, pr, uid)
+            await cb.answer("Відхилено")
+        elif act == "ok":
+            await cb.answer("Створюю чернетку в monobank…")
+            await asyncio.to_thread(prq.approve, db, pr, uid)
+        text, kb = prq.card_text(db, pr), pay_keyboard(pr)
+    try:
+        await cb.message.edit_text(text, reply_markup=kb, disable_web_page_preview=True)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+async def pay_notify(bot: Bot, changed) -> None:
+    """Зміна стану чернетки (оплачено / відхилено в monobank) — оновити картку в чаті."""
+    from ..services import pay_requests as prq
+    for pr in changed:
+        if not (pr.tg_chat and pr.tg_card):
+            continue
+        with SessionLocal() as db:
+            text = prq.card_text(db, pr)
+        try:
+            await bot.edit_message_text(text, chat_id=pr.tg_chat, message_id=pr.tg_card, disable_web_page_preview=True)
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def allowed(msg: Message) -> bool:
@@ -172,5 +293,6 @@ async def send_digest(bot: Bot, force_chat: str | None = None, only_new: bool = 
 def make_bot() -> tuple[Bot, Dispatcher]:
     bot = Bot(settings.telegram_bot_token, default=DefaultBotProperties(parse_mode="HTML"))
     dp = Dispatcher()
+    dp.include_router(pay_router)
     dp.include_router(router)
     return bot, dp

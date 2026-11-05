@@ -1296,6 +1296,41 @@ class BankTxn(Base):
     rejected: Mapped[str | None] = mapped_column(String(500))      # групи накладних, з яких платіж зняли вручну («не цей платіж»)
 
 
+class PayRequest(Base):
+    """Рахунок постачальника на оплату: з Telegram-чату або CRM → погодження власником → чернетка платежу в monobank (Corporate API)."""
+    __tablename__ = "pay_requests"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    status: Mapped[str] = mapped_column(String(20), default="new", index=True)   # new | approved | draft | paid | declined | rejected | error
+    file_path: Mapped[str | None] = mapped_column(String(500))
+    file_name: Mapped[str | None] = mapped_column(String(200))
+    mime: Mapped[str | None] = mapped_column(String(100))
+    supplier_id: Mapped[int | None] = mapped_column(ForeignKey("suppliers.id"), index=True)
+    receiver_name: Mapped[str | None] = mapped_column(String(300))
+    receiver_iban: Mapped[str | None] = mapped_column(String(40))
+    receiver_edrpou: Mapped[str | None] = mapped_column(String(20))
+    payer_name: Mapped[str | None] = mapped_column(String(300))           # платник з рахунку
+    fop: Mapped[str | None] = mapped_column(String(100))                  # ФОП CRM, з якого платимо
+    sender_iban: Mapped[str | None] = mapped_column(String(40))
+    amount: Mapped[float | None] = mapped_column(Float)
+    vat: Mapped[float | None] = mapped_column(Float)
+    invoice_no: Mapped[str | None] = mapped_column(String(80))
+    invoice_date: Mapped[date | None] = mapped_column(Date)
+    purpose: Mapped[str | None] = mapped_column(String(420))
+    corp_id: Mapped[str | None] = mapped_column(String(80))               # id платежу в monobank
+    corp_state: Mapped[str | None] = mapped_column(String(30))            # DRAFT | DECLINED | IN_STATEMENT
+    error: Mapped[str | None] = mapped_column(String(500))
+    source: Mapped[str | None] = mapped_column(String(20))                # telegram | crm
+    tg_chat: Mapped[str | None] = mapped_column(String(40))
+    tg_msg: Mapped[int | None] = mapped_column(Integer)                   # повідомлення з рахунком
+    tg_card: Mapped[int | None] = mapped_column(Integer)                  # картка бота з кнопками
+    sender_name: Mapped[str | None] = mapped_column(String(200))          # хто надіслав у чат
+    raw: Mapped[dict | None] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime)
+    decided_by: Mapped[int | None] = mapped_column(Integer)
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
 class PaymentAlloc(Base):
     """Рознесення оплати: на документ і рядок (товар). Одна оплата може покривати кілька складів."""
     __tablename__ = "payment_allocs"

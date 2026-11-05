@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Рахунки на оплату · Склад{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+<style>
+.pq-st{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px}.pq-st a{padding:7px 12px;border-radius:99px;border:1px solid var(--line);background:#fff;text-decoration:none;font:600 13px var(--sans);color:var(--ink)}
+.pq-st a.on{background:#3B3050;border-color:#3B3050;color:#fff}.pq-st em{font-style:normal;opacity:.7;margin-left:4px}
+.pq-t{width:100%;border-collapse:collapse;font-size:13.5px}.pq-t th{font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496;text-align:left;padding:9px 10px;border-bottom:1px solid #ECE7E1}
+.pq-t td{padding:10px;border-bottom:1px solid #F1EDE8;vertical-align:middle}.pq-t .r{text-align:right;white-space:nowrap}.pq-t tr{cursor:pointer}.pq-t tr:hover td{background:#FBFAF8}
+.pq-b{display:inline-block;border-radius:99px;padding:3px 10px;font:700 11.5px var(--sans);white-space:nowrap}
+.pq-b.new{background:#FFF1D6;color:#9A6A00}.pq-b.draft{background:#E4DEEF;color:#3B3050}.pq-b.paid{background:#E3F3E7;color:#1E7A46}
+.pq-b.error,.pq-b.declined{background:#FDECEA;color:#B23B2E}.pq-b.rejected{background:#F1EDE8;color:#6b6575}.pq-b.approved{background:#E4DEEF;color:#3B3050}
+.pq-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:14px;margin-top:16px}.pq-g .card{margin:0}
+.pq-g label{display:grid;gap:4px;font:700 12px var(--sans);color:#8a8496;margin-top:8px}.pq-g input,.pq-g select{margin:0;height:40px;width:100%;box-sizing:border-box}
+.pq-ok{color:#1E7A46;font-weight:700}.pq-no{color:#B23B2E;font-weight:700}
+</style>
+<div class="row between" style="align-items:flex-end;gap:10px;flex-wrap:wrap"><div><div class="eyebrow"><a href="/stock?tab=suppliers" style="text-decoration:none">Склад · Постачальники</a></div>
+  <h1>Рахунки на оплату</h1><div class="muted small">Рахунок у Telegram-групі → розпізнавання → ваше погодження → чернетка платежу в monobank на підпис</div></div>
+  <form method="post" action="/payreq/upload" enctype="multipart/form-data" class="row" style="gap:8px"><input type="file" name="file" accept=".pdf,image/*" required><button class="btn">＋ Додати рахунок</button></form></div>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok);margin-top:10px">{{ qp.get('msg') }}</div>{% endif %}
+{% if qp.get('err') %}<div class="alert" style="margin-top:10px">{{ qp.get('err') }}</div>{% endif %}
+<nav class="pq-st" style="margin-top:14px"><a href="/payreq" class="{{ 'on' if not st }}">Усі</a>{% for k, l in STATUS.items() %}{% if cnt.get(k) %}<a href="?st={{ k }}" class="{{ 'on' if st == k }}">{{ l }}<em>{{ cnt[k] }}</em></a>{% endif %}{% endfor %}</nav>
+<div class="card" style="padding:4px 6px;overflow:auto"><table class="pq-t"><thead><tr><th>#</th><th>Дата</th><th>Отримувач</th><th>Рахунок</th><th>Платник</th><th class="r">Сума</th><th>Стан</th></tr></thead><tbody>
+{% for r in rows %}<tr onclick="location='/payreq/{{ r.id }}'"><td class="muted">{{ r.id }}</td><td>{{ r.created_at|local|dt('%d.%m %H:%M') }}<div class="small muted">{{ '📨 ' ~ (r.sender_name or 'Telegram') if r.source == 'telegram' else 'CRM' }}</div></td>
+  <td><b>{{ r.receiver_name or '—' }}</b>{% if r.supplier_id %}<div class="small muted">{{ sups.get(r.supplier_id, '') }}</div>{% endif %}</td>
+  <td>{{ ('№ ' ~ r.invoice_no) if r.invoice_no else '—' }}{% if r.invoice_date %}<div class="small muted">від {{ r.invoice_date|dt('%d.%m.%Y') }}</div>{% endif %}</td>
+  <td>{{ ('ФОП ' ~ r.fop) if r.fop else '⚠️ —' }}</td><td class="r"><b>{{ (r.amount or 0)|uah }}</b></td>
+  <td><span class="pq-b {{ r.status }}">{{ STATUS.get(r.status, r.status) }}</span>{% if r.error %}<div class="small" style="color:#B23B2E;max-width:280px;white-space:normal">{{ r.error[:120] }}</div>{% endif %}</td></tr>
+{% else %}<tr><td colspan="7" class="muted" style="cursor:default">Рахунків ще немає. Додайте бота CRM у групу з рахунками й напишіть там <code>/rahunky</code>.</td></tr>{% endfor %}</tbody></table></div>
+
+<div class="pq-g">
+  <div class="card"><h2 style="margin-top:0">Як підключити</h2>
+    <ol class="small" style="margin:0;padding-left:18px;line-height:1.7">
+      <li>Додайте бота CRM у Telegram-групу з рахунками і зробіть його <b>адміністратором</b> групи (інакше бот не бачить файлів).</li>
+      <li>Напишіть у групі <code>/rahunky</code> — від свого імені (власника). Група {% if chat %}<span class="pq-ok">підключена</span> (ID <code>{{ chat }}</code>){% else %}<span class="pq-no">ще не підключена</span>{% endif %}.</li>
+      <li>Ваш Telegram ID вказаний у «<a href="/me">Мій кабінет</a>» — {% if owners %}<span class="pq-ok">так</span>{% else %}<span class="pq-no">ні — без нього кнопки «Погодити» не працюють</span>{% endif %}.</li>
+      <li>monobank: доступ до платежів на підпис (Corporate API) — у <a href="/settings/keys?s=mono#mono">Налаштування → monobank</a>:
+        {% for f in fops %}<div>ФОП {{ f }}: {% set c = corp.get(f) %}{% if c and c.ok %}<span class="pq-ok">є доступ</span>{% elif c %}<span class="pq-no">{{ c.msg }}</span>{% else %}<span class="muted">не перевірено</span>{% endif %}</div>{% endfor %}</li>
+    </ol>
+    <p class="small muted" style="margin:10px 0 0">Платник визначається за назвою покупця в рахунку (ФОП Бондар / ФОП Колган); у картці можна змінити кнопкою. Погоджує лише власник. Після підпису платіж потрапляє у виписку й автоматично рознесеться на накладну.</p></div>
+  <form class="card" method="post" action="/payreq/settings"><h2 style="margin-top:0">Рахунок списання</h2>
+    {% for f in fops %}<label>ФОП {{ f }}<select name="sender_{{ loop.index0 }}"><option value="">— перший рахунок ФОП —</option>{% for a in accs.get(f, []) %}<option value="{{ a.iban }}" {{ 'selected' if (cfg.sender or {}).get(f) == a.iban }}>Рахунок ФОП · …{{ a.iban[-8:] }}</option>{% endfor %}</select></label>{% else %}<p class="small muted">Спершу підключіть monobank ФОП.</p>{% endfor %}
+    <label>ID групи рахунків<input name="chat" value="{{ chat or '' }}" placeholder="заповнюється командою /rahunky"></label>
+    <button class="btn" style="margin-top:12px">Зберегти</button></form>
+</div>
+{% endblock %}

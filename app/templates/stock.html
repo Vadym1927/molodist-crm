@@ -175,6 +175,7 @@
 </div>
 {% endif %}
 
+<a class="card" href="/payreq" style="display:flex;justify-content:space-between;align-items:center;gap:10px;text-decoration:none;color:inherit;margin-bottom:12px"><div><b>🧾 Рахунки на оплату</b><div class="small muted">З Telegram-групи → ваше погодження → чернетка платежу в monobank на підпис</div></div><span class="btn ghost">Відкрити →</span></a>
 <div class="card" id="mono"><div class="row between" style="flex-wrap:wrap;gap:8px"><h2 style="margin:0">Платежі monobank</h2>
   {% if mono %}<div class="row" style="gap:6px"><form method="post" action="/stock/mono/sync"><input type="hidden" name="days" value="2"><button class="btn ghost" style="padding:5px 12px">Оновити</button></form>
     <form method="post" action="/stock/mono/sync"><input type="hidden" name="days" value="31"><button class="btn ghost" style="padding:5px 12px">За 31 день</button></form></div>{% endif %}</div>

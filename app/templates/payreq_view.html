@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Рахунок на оплату #{{ pr.id }}{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}{% set edit = pr.status in ('new', 'error', 'rejected') %}
+<style>
+.pv-g{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}@media(max-width:1000px){.pv-g{grid-template-columns:1fr}}
+.pv-g .card{margin:0}.pv-f{display:grid;gap:10px}.pv-f label{display:grid;gap:4px;font:700 12px var(--sans);color:#8a8496}
+.pv-f input,.pv-f select,.pv-f textarea{margin:0;width:100%;min-width:0;box-sizing:border-box}.pv-f input,.pv-f select{height:40px}.pv-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pv-doc{width:100%;height:78vh;border:1px solid #ECE7E1;border-radius:12px;background:#FBFAF8}.pv-img{max-width:100%;border-radius:12px;border:1px solid #ECE7E1}
+.pv-b{display:inline-block;border-radius:99px;padding:4px 12px;font:700 12px var(--sans)}.pv-b.new{background:#FFF1D6;color:#9A6A00}.pv-b.draft,.pv-b.approved{background:#E4DEEF;color:#3B3050}
+.pv-b.paid{background:#E3F3E7;color:#1E7A46}.pv-b.error,.pv-b.declined{background:#FDECEA;color:#B23B2E}.pv-b.rejected{background:#F1EDE8;color:#6b6575}
+.pv-act{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}.pv-warn{background:#FFF8EE;border-left:3px solid #C9792B;border-radius:8px;padding:8px 12px;font-size:13px}
+.pv-kv{display:grid;grid-template-columns:150px 1fr;gap:6px 12px;font-size:13.5px}.pv-kv span{color:#8a8496}
+</style>
+<div class="eyebrow"><a href="/payreq" style="text-decoration:none">← Рахунки на оплату</a></div>
+<div class="row between" style="align-items:center;gap:10px;flex-wrap:wrap"><h1 style="margin:0">Рахунок #{{ pr.id }}</h1><span class="pv-b {{ pr.status }}">{{ STATUS.get(pr.status, pr.status) }}</span></div>
+<div class="muted small" style="margin:4px 0 12px">{{ pr.created_at|local|dt('%d.%m.%Y %H:%M') }} · {{ ('Telegram · ' ~ (pr.sender_name or '')) if pr.source == 'telegram' else 'додано в CRM' }}{% if pr.corp_id %} · monobank ID {{ pr.corp_id }}{% endif %}{% if pr.corp_state %} · стан {{ pr.corp_state }}{% endif %}</div>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+{% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+<div class="pv-g">
+  <form class="card pv-f" method="post" action="/payreq/{{ pr.id }}">
+    <h2 style="margin:0">Реквізити платежу</h2>
+    {% if pr.error %}<div class="pv-warn">❗ {{ pr.error }}</div>{% endif %}
+    {% if problems and edit %}<div class="pv-warn">Перевірте: {{ problems|join(', ') }}</div>{% endif %}
+    {% if edit %}
+    <label>Отримувач (назва)<input name="receiver_name" value="{{ pr.receiver_name or '' }}"></label>
+    <div class="pv-2"><label>IBAN отримувача<input name="receiver_iban" value="{{ pr.receiver_iban or '' }}" style="font-family:monospace"></label>
+      <label>ЄДРПОУ / ІПН<input name="receiver_edrpou" value="{{ pr.receiver_edrpou or '' }}" inputmode="numeric"></label></div>
+    <label>Постачальник у CRM<select name="supplier_id"><option value="">— не привʼязано —</option>{% for s in suppliers %}<option value="{{ s.id }}" {{ 'selected' if pr.supplier_id == s.id }}>{{ s.name }}</option>{% endfor %}</select></label>
+    <div class="pv-2"><label>Сума, ₴<input name="amount" value="{{ '%.2f'|format(pr.amount or 0) }}" inputmode="decimal"></label><label>У т.ч. ПДВ, ₴<input name="vat" value="{{ '%.2f'|format(pr.vat) if pr.vat else '' }}" inputmode="decimal"></label></div>
+    <div class="pv-2"><label>№ рахунку<input name="invoice_no" value="{{ pr.invoice_no or '' }}"></label><label>Дата рахунку<input type="date" name="invoice_date" value="{{ pr.invoice_date or '' }}"></label></div>
+    <div class="pv-2"><label>Платник (ФОП)<select name="fop" onchange="pvAcc(this.value)">{% for f in fops %}<option {{ 'selected' if pr.fop == f }}>{{ f }}</option>{% endfor %}</select>{% if pr.payer_name %}<span style="font-weight:500">у рахунку: {{ pr.payer_name }}</span>{% endif %}</label>
+      <label>Рахунок списання<select name="sender_iban" id="pv-acc"></select></label></div>
+    <label>Призначення платежу<textarea name="purpose" rows="3" maxlength="420">{{ pr.purpose or '' }}</textarea></label>
+    <div class="pv-act"><button class="btn ghost" name="action" value="save">Зберегти</button>
+      {% if user.role == 'owner' %}<button class="btn" name="action" value="approve" onclick="return confirm('Створити в monobank чернетку платежу {{ '%.2f'|format(pr.amount or 0) }} ₴ на «{{ (pr.receiver_name or '')|replace("'", "’") }}»? Її треба буде підписати в застосунку.')">✅ Погодити — чернетка в monobank</button>{% endif %}
+      {% if pr.status != 'rejected' %}<button class="btn ghost" name="action" value="reject" style="color:#B23B2E">Відхилити</button>{% endif %}</div>
+    {% else %}
+    <div class="pv-kv"><span>Отримувач</span><b>{{ pr.receiver_name }}{% if sup %} · {{ sup.name }}{% endif %}</b><span>IBAN</span><code>{{ pr.receiver_iban }}</code><span>ЄДРПОУ</span><div>{{ pr.receiver_edrpou }}</div>
+      <span>Сума</span><b>{{ (pr.amount or 0)|uah }}</b><span>Рахунок</span><div>№ {{ pr.invoice_no or '—' }}{% if pr.invoice_date %} від {{ pr.invoice_date|dt('%d.%m.%Y') }}{% endif %}</div>
+      <span>Платник</span><div>ФОП {{ pr.fop }} · …{{ (pr.sender_iban or '')[-8:] }}</div><span>Призначення</span><div>{{ pr.purpose }}</div></div>
+    {% if pr.status == 'draft' %}<div class="pv-warn" style="background:#F3F0FA;border-color:#5C4B82">✍️ Чернетка в monobank — підпишіть у застосунку monobank (ФОП {{ pr.fop }}). Стан оновлюється щогодини.</div>
+      <div class="pv-act"><button class="btn ghost" name="action" value="refresh">Оновити стан</button></div>{% endif %}
+    {% endif %}
+  </form>
+  <div class="card"><div class="row between"><h2 style="margin:0">Файл рахунку</h2><a class="btn ghost" href="/payreq/{{ pr.id }}/file" target="_blank">Відкрити ↗</a></div>
+    {% if pr.file_path %}{% if (pr.mime or '').startswith('image/') or (pr.file_name or '').lower().endswith(('.jpg', '.jpeg', '.png', '.webp')) %}<img class="pv-img" src="/payreq/{{ pr.id }}/file" alt="" style="margin-top:10px">
+    {% else %}<iframe class="pv-doc" src="/payreq/{{ pr.id }}/file" style="margin-top:10px"></iframe>{% endif %}{% else %}<p class="muted">Файлу немає.</p>{% endif %}</div>
+</div>
+<script>
+var ACCS={ {% for f, xs in accs.items() %}{{ f|tojson }}:{{ xs|map(attribute='iban')|list|tojson }}{{ ',' if not loop.last }}{% endfor %} },CUR={{ (pr.sender_iban or '')|tojson }};
+function pvAcc(f){var s=document.getElementById('pv-acc');if(!s)return;var xs=ACCS[f]||[];s.innerHTML=xs.map(function(i){return '<option value="'+i+'"'+(i===CUR?' selected':'')+'>Рахунок ФОП · …'+i.slice(-8)+'</option>'}).join('')||'<option value="">немає рахунку ФОП у monobank</option>'}
+pvAcc({{ (pr.fop or (fops[0] if fops else ''))|tojson }});
+</script>
+{% endblock %}

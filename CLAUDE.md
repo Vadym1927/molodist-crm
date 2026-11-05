@@ -32,6 +32,9 @@ CRM естетичної клініки MOLODIST (Київ) під бюті-пл
   дисципліна, зони покращення, премія (SalaryAdj «Премія KPI»); цілі/шкала — SyncState `doctor_kpi` (/settings/doctor-kpi)
 - `app/services/gift_types.py` — шаблони подарункових сертифікатів (/gifts?tab=types), продаж у касі (kind=certificate → GiftCertificate
   у картці покупця), повна оплата сертифікатом — без РРО, часткова — знижка у фіскальному чеку; нагадування адмінам (задача + Telegram)
+- `app/services/pay_requests.py` — рахунки постачальників на оплату (/payreq): Telegram-група (команда /rahunky) → розпізнавання (Claude)
+  → погодження власником (кнопки бота) → чернетка платежу в monobank Corporate API (`corp-api.monobank.ua/ext/v1/payment/prepare`)
+  на підпис у застосунку; стан щогодини (job_payreq). Доступ перевіряється в Налаштування → monobank → «Платежі на підпис»
 - `app/integrations/messaging.py` — бот пацієнтів (токен PATIENT_BOT_TOKEN) + TurboSMS (Viber→SMS)
 - `docs/openclaw-patient-bot.md` — контракт API для бота пацієнтів
 - Тести: `docker compose exec app pytest -q` (потрібен будь-який PDF плану в `tests/sample_plan.pdf`)
