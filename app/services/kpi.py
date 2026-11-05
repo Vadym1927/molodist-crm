@@ -181,7 +181,7 @@ def crm_rows(db: Session, patient_ids=None) -> dict:
             adopted.add(f"{a.cb_record_id}-")
         if a.sale_id:                         # оплачений візит рахується з чека
             continue
-        st = "done" if a.status == "done" else "booked"
+        st = "done" if a.status in ("done", "paid") else "booked"
         for i, s in enumerate(a.services or []):
             out.setdefault(a.patient_id, {"visits": [], "sales": []})["visits"].append(NS(
                 id=f"a{a.id}:{i}", plan_item_id=None, service_id=s.get("id"), service_name=s.get("name"),

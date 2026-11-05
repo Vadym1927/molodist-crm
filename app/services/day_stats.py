@@ -28,7 +28,7 @@ def compute(db: Session, d: date, doctor_id: int | None = None) -> dict:
     live = [x for x in appts if x.status not in ("cancelled", "no_show")]
     cancelled = [x for x in appts if x.status == "cancelled"]
     no_show = [x for x in appts if x.status == "no_show"]
-    done = [x for x in appts if x.status in ("done", "arrived") or x.sale_id]
+    done = [x for x in appts if x.status in ("done", "paid", "arrived") or x.sale_id]
 
     # пацієнти: нові — перший візит саме цього дня (раніше не було ні записів CRM, ні візитів CleverBox)
     pids = {x.patient_id for x in live}

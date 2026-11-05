@@ -782,13 +782,13 @@ def _patient_visit_rows(db: Session, p: Patient) -> list[dict]:
     """Візити пацієнта: записи CRM (і перенесена історія CleverBox) — клік відкриває сам візит у календарі;
     рядки CleverBox показуються лише за дні, яких ще немає серед записів CRM."""
     docs = {d_.id: d_.name for d_ in db.scalars(select(Doctor))}
-    ST = {"booked": "запис", "confirmed": "підтверджено", "arrived": "прийшов", "done": "виконано", "no_show": "неявка", "cancelled": "скасовано"}
+    ST = {"booked": "запис", "confirmed": "підтверджено", "arrived": "прийшов", "paid": "оплачено", "done": "виконано", "no_show": "неявка", "cancelled": "скасовано"}
     out, days = [], set()
     for a in db.scalars(select(Appointment).where(Appointment.patient_id == p.id).order_by(Appointment.start.desc())):
         days.add(a.start.date())
         out.append({"appt": a.id, "at": a.start, "name": ", ".join(str(x.get("name") or "") for x in a.services or []) or "—",
                     "doctor": docs.get(a.doctor_id, ""), "sum": a.cb_paid if a.historic and a.cb_paid is not None else a.total,
-                    "status": a.status, "label": ST.get(a.status, a.status), "cb": a.historic})
+                    "status": "done" if a.status == "paid" else a.status, "label": ST.get(a.status, a.status), "cb": a.historic})
     for v in p.visits:
         if v.starts_at and v.starts_at.date() not in days:
             out.append({"appt": None, "visit": v.id, "at": v.starts_at, "name": v.service_name or f"послуга #{v.service_id}", "doctor": v.master_name or "",
@@ -3558,7 +3558,7 @@ def calendar_visit(request: Request, appt: int = 0, v: str = "", tab: str = "vis
     from sqlalchemy import func as _f
     from .services import patient_tags as _ptg
     n = _ptg.visit_days(db, [p_.id]).get(p_.id, 0)
-    _done_here = bool(c["a"] and c["a"].status == "done")
+    _done_here = bool(c["a"] and c["a"].status in ("done", "paid"))
     _lv = _ptg.tags(db)
     stats = {"tag": _cal.tag_for(n + (0 if _done_here else 1), _lv), "tag_color": "", "visits": p_.cb_visits if p_.cb_visits is not None else n, "total": p_.cb_total or 0,
              "bonus": round(ly.balance(db, p_.id), 2), "discount": p_.discount_pct}
@@ -3575,7 +3575,7 @@ def calendar_visit(request: Request, appt: int = 0, v: str = "", tab: str = "vis
     stats["planned_list"] = [{"id": x.id, "start": x.start, "doctor": _docn.get(x.doctor_id, ""),
                               "services": ", ".join(s_.get("name", "") for s_ in x.services or [])}
                              for x in db.scalars(select(_Ap2).where(
-        _Ap2.patient_id == p_.id, _Ap2.start > datetime.now(), _Ap2.status.notin_(("cancelled", "no_show", "done")),
+        _Ap2.patient_id == p_.id, _Ap2.start > datetime.now(), _Ap2.status.notin_(("cancelled", "no_show", "done", "paid")),
         _Ap2.id != (c["a"].id if c["a"] else 0)).order_by(_Ap2.start).limit(30))]
     stats["planned"] = len(stats["planned_list"])
     from .models import Task
@@ -6391,7 +6391,7 @@ def telephony_live(user: User = Depends(current_user), db: Session = Depends(db_
             lv = _ptg.tags(db)
             n_ = _ptg.visit_days(db, [p_.id]).get(p_.id, 0)
             tag = _cal.tag_for(n_ + 1, lv)
-            last = db.scalars(select(_Ap).where(_Ap.patient_id == p_.id, _Ap.start < d0, _Ap.status == "done").order_by(_Ap.start.desc()).limit(1)).first()
+            last = db.scalars(select(_Ap).where(_Ap.patient_id == p_.id, _Ap.start < d0, _Ap.status.in_(("done", "paid"))).order_by(_Ap.start.desc()).limit(1)).first()
             lv_txt = None
             if last:
                 dl_ = db.get(Doctor, last.doctor_id) if last.doctor_id else None

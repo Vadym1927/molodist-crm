@@ -94,7 +94,7 @@ def visit_days(db: Session, pids) -> dict[int, int]:
             Visit.patient_id.in_(pids), Visit.status.in_(("attended", "done"))).distinct()):
         days.setdefault(pid, set()).add(str(d))
     for pid, d in db.execute(select(Appointment.patient_id, func.date(Appointment.start)).where(
-            Appointment.patient_id.in_(pids), Appointment.status == "done").distinct()):
+            Appointment.patient_id.in_(pids), Appointment.status.in_(("done", "paid"))).distinct()):
         days.setdefault(pid, set()).add(str(d))
     return {k: len(v) for k, v in days.items()}
 

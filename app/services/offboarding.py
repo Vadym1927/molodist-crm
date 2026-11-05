@@ -17,7 +17,7 @@ def users_of(db: Session, d: Doctor) -> list[User]:
 def preview(db: Session, d: Doctor) -> dict:
     now = datetime.now()
     appts = db.scalars(select(Appointment).where(Appointment.doctor_id == d.id, Appointment.start >= now,
-                                                 Appointment.status.notin_(("cancelled", "no_show", "done"))).order_by(Appointment.start)).all()
+                                                 Appointment.status.notin_(("cancelled", "no_show", "done", "paid"))).order_by(Appointment.start)).all()
     uids = [u.id for u in users_of(db, d)]
     tasks = db.scalars(select(Task).where(Task.assignee_id.in_(uids), Task.status == "open").order_by(Task.due_date)).all() if uids else []
     shifts = db.scalars(select(StaffShift).where(StaffShift.doctor_id == d.id, StaffShift.day >= date.today())).all()

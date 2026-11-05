@@ -34,7 +34,7 @@ def test_visit_statuses_settings_and_calendar():
         from app.services import visit_statuses as vs
         with SessionLocal() as db:
             lb = vs.labels(db)
-            assert lb["confirmed"] == "Підтвердив" and lb["c1"] == "Чекає оплати" and "paid" not in lb
+            assert lb["confirmed"] == "Підтвердив" and lb["c1"] == "Чекає оплати" and lb["paid"]  # «Оплачено» — справжній статус запису
             assert vs.colors(db)["booked"] == "#111111" and vs.show_cancelled(db)
         cal = c.get(f"/calendar?view=day&start={day}").text
         assert ".s-booked{--bc:#111111" in cal and "Чекає оплати" in cal

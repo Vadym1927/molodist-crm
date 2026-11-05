@@ -58,7 +58,7 @@
           <div class="vx-st vx-dd" style="--sc:{{ COLORS.get(a.status, '#5C4B82') }}">
             <button type="button" class="vx-stb" {% if _sto %}onclick="vxDd(this)"{% else %}disabled{% endif %}><i></i><b>{{ STATUSES.get(a.status, a.status) }}</b>{% if _sto %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg>{% endif %}</button>
             {% if _sto %}<div class="vx-menu" hidden>{% for k, v in STATUSES.items() %}<button type="button" class="{{ 'on' if a.status == k }}" style="--sc:{{ COLORS.get(k, '#8a8496') }}" onclick="vdStatus({{ a.id }}, {value:'{{ k }}'})"><i></i>{{ v }}</button>{% endfor %}</div>{% endif %}
-          </div>
+          </div>{% if _sto and a.status == 'paid' and 'done' in STATUSES %}<button type="button" class="btn" style="padding:6px 12px;margin-left:6px" onclick="vdStatus({{ a.id }}, {value:'done'})">✔ Завершити візит</button>{% endif %}
         {% else %}<span class="vx-st" style="--sc:{{ '#4CAF50' if c.status in ('attended','done') else '#F5B940' }}"><i></i><b>{{ c.status_label }}</b></span>{% endif %}
         <span class="vx-d"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>{{ uday(c.start) }}</span>
         <span class="vx-d"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>{{ c.start|dt('%H:%M') }} – {{ c.end|dt('%H:%M') }} · {{ ((c.end - c.start).total_seconds() // 60)|int }} хв</span>

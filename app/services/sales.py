@@ -206,7 +206,8 @@ def create(db: Session, data: dict, user_id: int | None = None) -> Sale:
     for aid_ in aids:                                          # усі візити чека — закрити
         a = db.get(Appointment, aid_)
         if a:
-            a.sale_id, a.status = sale.id, "done"
+            from . import visit_statuses as _vs
+            a.sale_id, a.status = sale.id, _vs.after_payment(db, a.status)      # «Оплачено»; «Завершено» — вручну
     db.commit()
     return sale
 

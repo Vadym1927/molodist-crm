@@ -97,7 +97,7 @@ def client_rows(db: Session, patients: list[Patient]) -> list[ClientRow]:
         if mn and (pid not in nxt or mn < nxt[pid]):
             nxt[pid] = mn
     for pid, mx in db.execute(select(Appointment.patient_id, func.max(Appointment.start))
-                              .where(Appointment.status == "done", Appointment.start <= now).group_by(Appointment.patient_id)):
+                              .where(Appointment.status.in_(("done", "paid")), Appointment.start <= now).group_by(Appointment.patient_id)):
         if mx and (pid not in last or mx > last[pid]):
             last[pid] = mx
     has_checks = False

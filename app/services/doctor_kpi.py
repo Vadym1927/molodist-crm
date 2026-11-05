@@ -203,7 +203,7 @@ def _collect(db: Session, d_from: date, d_to: date, doctors: list[Doctor]) -> di
             if ap.status in ("cancelled", "no_show"):
                 x["cancelled"] += 1
                 x["no_show"] += ap.status == "no_show"
-            elif ap.status == "done" or ap.start < now:
+            elif ap.status in ("done", "paid") or ap.start < now:
                 key = (ap.patient_id, ap.start.date())
                 if key not in x["done_keys"]:
                     x["done_keys"].add(key)
@@ -280,7 +280,7 @@ def _visit_counts(db: Session, patient_ids: set[int], until: datetime) -> dict[i
                              .where(Visit.patient_id.in_(ids), Visit.status == "done", Visit.starts_at <= until).group_by(Visit.patient_id)):
         out[pid] += int(n or 0)
     for pid, n in db.execute(select(Appointment.patient_id, func.count(func.distinct(func.date(Appointment.start))))
-                             .where(Appointment.patient_id.in_(ids), Appointment.status == "done", Appointment.start <= until).group_by(Appointment.patient_id)):
+                             .where(Appointment.patient_id.in_(ids), Appointment.status.in_(("done", "paid")), Appointment.start <= until).group_by(Appointment.patient_id)):
         out[pid] += int(n or 0)
     return out
 

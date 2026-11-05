@@ -64,7 +64,7 @@ def test_visit_cycle():
             assert sorted(x.wh_from for x in docs) == ["inject", "single"]
             mv = {(m.product_id, m.warehouse): m.qty for m in db.query(StockMove).filter(StockMove.doc_id.in_([x.id for x in docs]))}
             assert mv[(ids["drug"], "inject")] == -1 and mv[(ids["glove"], "single")] == -4 and mv[(ids["cotton"], "single")] == -6
-            assert db.get(Appointment, aid).status == "done"
+            assert db.get(Appointment, aid).status == "paid"   # оплачено; «Завершено» — вручну
             # з/п: 20% × (5000 − 1211) — собівартість з фактичних витратних візиту
             row = {r_["doctor"].name: r_ for r_ in pd.compute(db, start.date().replace(day=1), start.date())}
             dd = start.date()

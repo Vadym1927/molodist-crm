@@ -8,10 +8,11 @@ from sqlalchemy.orm import Session
 
 from ..models import Appointment, CbService, Doctor, Patient, StaffShift, Visit
 
-STATUSES = {"booked": "Записаний", "confirmed": "Підтверджено", "arrived": "Прийшов", "done": "Візит завершено",
+STATUSES = {"booked": "Записаний", "confirmed": "Підтверджено", "arrived": "Прийшов", "paid": "Оплачено ₴", "done": "Візит завершено",
             "no_show": "Не прийшов", "cancelled": "Скасовано"}
-ACTIVE = ("booked", "confirmed", "arrived", "done")
-COLORS = {"booked": "#5c4b82", "confirmed": "#2f7a8a", "arrived": "#b07a3e", "done": "#8a8496", "no_show": "#b23a32", "cancelled": "#c3bfcc"}
+ACTIVE = ("booked", "confirmed", "arrived", "paid", "done")
+DONE = ("done", "paid")                  # візит відбувся (оплачений, ще не закритий вручну, або завершений)
+COLORS = {"booked": "#5c4b82", "confirmed": "#2f7a8a", "arrived": "#b07a3e", "paid": "#2E9E5B", "done": "#8a8496", "no_show": "#b23a32", "cancelled": "#c3bfcc"}
 
 
 def services_from_ids(db: Session, ids: list[int], prices: dict | None = None, minutes: dict | None = None) -> list[dict]:

@@ -94,12 +94,12 @@ def events(db: Session, user: User, start: date, days: int = 7, doctor_id: int |
         d = a.start.date()
         if d in out:
             sv = ", ".join(s.get("name", "") for s in a.services or []) or (a.comment or "")
-            out[d].append(Event("attended" if a.status in ("done", "no_show") else "visit", a.start, a.patient.full_name, sv,
+            out[d].append(Event("attended" if a.status in ("done", "paid", "no_show") else "visit", a.start, a.patient.full_name, sv,
                                 a.patient_id, in_plan=a.patient_id in plan_patients, doctor_id=a.doctor_id,
                                 service=", ".join(s.get("name", "") for s in a.services or []) or None,
                                 ends=a.end, status_label=_AST.get(a.status), appt_id=a.id, status=a.status, note=a.comment,
                                 paid=bool(a.sale_id), online=a.source in ("online", "bot"),
-                                ckey="paid" if (_paid_on and (a.sale_id or a.cb_paid) and a.status not in _vs.CANCEL) else a.status))
+                                ckey=a.status if a.status in ("done", "paid") else ("paid" if (_paid_on and (a.sale_id or a.cb_paid) and a.status not in _vs.CANCEL) else a.status)))
     for v in rows:
         _rid = (v.external_id or "").split("-")[0]
         if v.source == "cb_visit" and _rid.isdigit() and int(_rid) in mirrored:

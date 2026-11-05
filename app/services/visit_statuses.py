@@ -1,6 +1,7 @@
 """Статуси візитів (Налаштування → Клініка → Статуси візитів): назва, колір у календарі, увімкнено чи ні.
 Системні статуси мають фіксовані ключі (логіка CRM спирається на них), назву й колір можна змінити.
-«Оплачено ₴» — не окремий статус запису, а колір візиту, за яким уже проведено оплату (чек каси).
+«Оплачено ₴» — статус запису після оплати в касі CRM (чек); «Візит завершено» адміністратор ставить вручну.
+Якщо «Оплачено ₴» вимкнено — оплата одразу завершує візит (як раніше).
 Власні статуси (ключ c1, c2…) поводяться як активний запис (як «Записаний»)."""
 from __future__ import annotations
 
@@ -24,7 +25,7 @@ BUILTIN = [
     ("cancelled", "Скасовано", "#9E9AA8", False),
 ]
 SYSTEM = {k for k, *_ in BUILTIN}
-PSEUDO = {"paid"}                        # лише колір у календарі, не значення Appointment.status
+PSEUDO: set = set()                       # (раніше «paid» був лише кольором; тепер — справжній статус запису)
 CANCEL = {"cancelled", "no_show"}
 _HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 
@@ -86,6 +87,18 @@ def labels(db: Session, only_on: bool = False, real: bool = True) -> dict[str, s
     return {x["key"]: x["label"] for x in all_(db) if (not real or x["key"] not in PSEUDO) and (x["on"] or not only_on)}
 
 
+def paid_on(db: Session) -> bool:
+    """Чи вмикнено статус «Оплачено ₴»: тоді оплата в касі ставить «Оплачено», а «Завершено» — вручну."""
+    return next((x["on"] for x in all_(db) if x["key"] == "paid"), False)
+
+
+def after_payment(db: Session, current: str | None) -> str:
+    """Статус запису після оплати чека: завершений лишається завершеним; інакше «Оплачено» (або «Завершено», якщо «Оплачено» вимкнено)."""
+    if current == "done":
+        return "done"
+    return "paid" if paid_on(db) else "done"
+
+
 def colors(db: Session) -> dict[str, str]:
     return {x["key"]: x["color"] for x in all_(db)}
 
@@ -106,6 +119,8 @@ def show_cancelled(db: Session) -> bool:
 def display(db: Session, status: str | None, paid: bool) -> str:
     """Ключ кольору візиту в календарі: оплачений (і не скасований) — «Оплачено ₴», якщо цей статус увімкнено."""
     st = status or "booked"
+    if st in ("done", "paid"):
+        return st
     if paid and st not in CANCEL and next((x["on"] for x in all_(db) if x["key"] == "paid"), False):
         return "paid"
     return st

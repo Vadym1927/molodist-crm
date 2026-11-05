@@ -51,7 +51,7 @@ def test_sales_pos():
     with SessionLocal() as db:
         s = db.get(Sale, sid)
         assert s.total == 3600 and s.discount == 0 and s.bonus_spent == 100      # ручна знижка з каси ігнорується and s.bonus_accrued > 0
-        assert db.get(Appointment, aid).status == "done" and db.get(Appointment, aid).sale_id == sid
+        assert db.get(Appointment, aid).status == "paid" and db.get(Appointment, aid).sale_id == sid
         assert db.get(GiftCertificate, 990301).balance == 0
         assert round(sum(m.qty for m in db.query(StockMove).filter(StockMove.ref.like(f"crmsale:{sid}:%"))), 3) == -2
         assert db.query(Visit).filter(Visit.external_id.like(f"crm:{sid}:%")).count() == 1
@@ -182,3 +182,17 @@ def test_pay_balance_sub_and_no_rro_rule():
         sl.refund(db, s, "тест")
         db.refresh(p); db.refresh(sb)
         assert p.cb_balance == 300 and sb.visits_used == 1
+
+
+def test_paid_then_done_manually():
+    """Оплата → «Оплачено ₴»; уже завершений лишається завершеним; «Оплачено» вимкнено — оплата завершує візит."""
+    from app.services import visit_statuses as vs
+    with SessionLocal() as db:
+        assert vs.after_payment(db, "arrived") == "paid" and vs.after_payment(db, "done") == "done"
+        assert vs.valid(db, "paid") and vs.display(db, "done", True) == "done" and vs.display(db, "paid", True) == "paid"
+        items = [{**x, "on": (x["key"] != "paid") or False} for x in vs.all_(db)]
+        vs.save(db, items)
+        try:
+            assert vs.after_payment(db, "arrived") == "done"
+        finally:
+            vs.save(db, [{**x, "on": True} for x in vs.all_(db)])

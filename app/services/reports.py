@@ -175,7 +175,7 @@ def doctors(db: Session, d_from: date, d_to: date) -> Report:
             m = dn.get(ap.doctor_id, "—")
             if ap.status in ("cancelled", "no_show"):
                 agg[m]["cancelled"] += 1
-            elif ap.status == "done" or ap.start < datetime.now():
+            elif ap.status in ("done", "paid") or ap.start < datetime.now():
                 seen[m].add((ap.patient_id, ap.start.date()))
             else:
                 agg[m]["booked"] += 1
@@ -711,7 +711,7 @@ def sources(db: Session, d_from: date, d_to: date, src: str = "") -> Report:
         k = x.booking_source or NONE
         g = by[k]
         g["n"] += 1
-        g["done"] += x.status == "done" or bool(x.sale_id)
+        g["done"] += x.status in ("done", "paid") or bool(x.sale_id)
         g["lost"] += x.status in ("cancelled", "no_show")
         g["new"] += first.get(x.patient_id) == x.start
         g["plan"] += 0 if x.status in ("cancelled", "no_show") else float(x.total or 0)
