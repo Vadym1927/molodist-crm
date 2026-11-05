@@ -49,17 +49,17 @@ table.pt{border-collapse:separate;border-spacing:0;font-size:13px;min-width:1900
 <details class="pl" {{ 'open' if brand and not last_price }}>
   <summary>📄 Прайс постачальника{% if brand %} · {{ brand }}{% endif %}
     {% if last_price %}<span class="muted">останній: від {{ last_price.price_date|dt('%d.%m.%Y') }}, завантажено {{ last_price.uploaded_at|dt('%d.%m.%Y %H:%M') }} ·
-      {{ last_price.n_matched }}/{{ last_price.n_rows }} зіставлено{% if last_price.applied_at %} · підставлено {{ last_price.n_applied }}{% endif %}</span>
-      <a href="/finance/pricing/price/{{ last_price.id }}" class="small">відкрити</a>{% else %}<span class="muted">завантажте Excel / CSV — закупівельні ціни підставляться в таблицю</span>{% endif %}</summary>
+      {{ 'розпізнається…' if last_price.status == 'recognizing' else (last_price.n_matched ~ '/' ~ last_price.n_rows ~ ' зіставлено') }}{% if last_price.applied_at %} · підставлено {{ last_price.n_applied }}{% endif %}</span>
+      <a href="/finance/pricing/price/{{ last_price.id }}" class="small">відкрити</a>{% else %}<span class="muted">завантажте Excel, CSV або PDF — закупівельні ціни підставляться в таблицю</span>{% endif %}</summary>
   <form method="post" action="/finance/pricing/price" enctype="multipart/form-data">
     <label>Бренд<select name="brand" required><option value="">— оберіть —</option>{% for b in brands %}<option {{ 'selected' if brand==b }}>{{ b }}</option>{% endfor %}</select></label>
     <label>Постачальник<select name="supplier_id"><option value="">{{ 'за брендом: ' ~ def_sup.name if def_sup else 'за брендом (авто)' }}</option>{% for x in suppliers %}<option value="{{ x.id }}">{{ x.name }}</option>{% endfor %}</select></label>
     <label>Валюта прайсу<select name="currency"><option value="">з файлу (інакше грн)</option>{% for c in CURRENCIES %}<option>{{ c }}</option>{% endfor %}</select></label>
     <label>Дата прайсу<input type="date" name="price_date" value="{{ today }}"></label>
-    <label>Файл (.xlsx, .xls, .csv)<input type="file" name="file" accept=".xlsx,.xls,.csv" required></label>
+    <label>Файл (Excel, CSV, PDF, фото)<input type="file" name="file" accept=".xlsx,.xls,.csv,.pdf,.jpg,.jpeg,.png,.webp" required></label>
     <button class="btn" style="height:42px">Завантажити й зіставити</button>
   </form>
-  <p class="small muted" style="margin:8px 0 0">CRM знайде колонки «артикул / назва / штрихкод / ціна закупівлі / РРЦ», зіставить з товарами бренду (артикул → штрихкод → назва) і покаже, що зміниться. Прайс з датою й часом завантаження зберігається в картці постачальника.</p>
+  <p class="small muted" style="margin:8px 0 0">CRM знайде колонки «артикул / назва / штрихкод / ціна закупівлі / РРЦ», зіставить з товарами бренду (артикул → штрихкод → назва) і покаже, що зміниться. PDF і фото розпізнає агент на VPS (як накладні) — кілька хвилин. Прайс з датою й часом завантаження зберігається в картці постачальника.</p>
 </details>
 
 <form class="fl" method="get">

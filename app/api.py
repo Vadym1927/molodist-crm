@@ -495,11 +495,11 @@ INVOICES = scope("invoices")
 
 
 def _inv_json(j) -> dict:
-    from .services import invoice_ai, pay_requests
+    from .services import invoice_ai, pay_requests, supplier_prices
     kind = j.kind or "invoice"
     return {"id": j.id, "created_at": j.created_at.isoformat(timespec="seconds"), "filename": j.filename, "mime": j.mime,
             "status": j.status, "file_url": f"/api/v1/invoices/{j.id}/file", "kind": kind,
-            "prompt": pay_requests.PROMPT if kind == "payreq" else invoice_ai.PROMPT}
+            "prompt": pay_requests.PROMPT if kind == "payreq" else (supplier_prices.PROMPT if kind == "price" else invoice_ai.PROMPT)}
 
 
 @router.get("/invoices/pending", summary="Накладні (фото / скани), що чекають розпізнавання, + формат відповіді")
@@ -535,6 +535,19 @@ def invoice_result(jid: int, body: dict, key: ApiKey = Depends(INVOICES), db: Se
     from .services import invoice_ai
     j = db.get(InvoiceJob, jid) or (_ for _ in ()).throw(HTTPException(404))
     body = body or {}
+    if j.kind == "price":                                    # прайс постачальника (PDF / фото) — формат supplier_prices.PROMPT
+        from .models import SupplierPrice
+        from .services import supplier_prices
+        err = str(body["error"])[:500] if body.get("error") and not body.get("result") else None
+        res = body.get("result") if isinstance(body.get("result"), dict) else (None if err else body)
+        sp = db.get(SupplierPrice, j.ref_id) if j.ref_id else None
+        j.status, j.result, j.error, j.done_at = ("error" if err else "done"), res, err, datetime.now()
+        db.commit()
+        if sp:
+            supplier_prices.apply_agent(db, sp, res, err)
+        audit(db, "invoice.agent", "invoice_job", j.id, key=key, status=j.status, kind="price")
+        return {"ok": True, "id": j.id, "status": j.status, "supplier_price": sp.id if sp else None,
+                "rows": sp.n_rows if sp else 0, "matched": sp.n_matched if sp else 0}
     if j.kind == "payreq":                                   # рахунок на оплату — формат pay_requests.PROMPT
         from .models import PayRequest
         from .services import pay_requests

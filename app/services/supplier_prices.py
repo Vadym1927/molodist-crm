@@ -215,12 +215,27 @@ def default_supplier(db: Session, brand: str | None) -> Supplier | None:
     return next((s for s in db.scalars(select(Supplier)) if s.name.strip().lower() == name), None)
 
 
-def create(db: Session, data: bytes, filename: str, brand: str | None, supplier_id: int | None, currency: str | None,
-           price_date: date | None, user_id: int | None) -> SupplierPrice:
-    from . import ingest
-    res = parse(data, filename)
-    cur = currency if currency in ("USD", "EUR", "UAH") else (res["currency"] or "UAH")
-    rows = match(db, brand or None, res["rows"])
+PROMPT = """Це прайс-лист постачальника косметики (PDF або фото), можливо кілька сторінок. Перепиши ВСІ товарні рядки.
+Поверни ЛИШЕ JSON без пояснень:
+{"currency": "EUR | USD | UAH", "rrp_currency": "EUR | USD | UAH або порожньо",
+ "rows": [{"name": "", "sku": "", "barcode": "", "cost": 0, "rrp": 0}]}
+Правила: name — назва товару з обʼємом; sku — артикул / код, якщо є; barcode — штрихкод, якщо є;
+cost — ціна ЗАКУПІВЛІ для салону / опт / дилер / «ціна» (якщо колонка одна); rrp — рекомендована роздрібна ціна (РРЦ), якщо є, інакше 0.
+currency — валюта цін закупівлі ($ / USD, € / EUR, грн / UAH); rrp_currency — якщо РРЦ в іншій валюті.
+Пропускай заголовки розділів, порожні й підсумкові рядки. Числа — числами, крапка як роздільник. Не вигадуй: невідоме — порожньо або 0."""
+DOC_EXT = (".pdf", ".jpg", ".jpeg", ".png", ".webp")
+
+
+def _doc_mime(filename: str) -> str | None:
+    n = (filename or "").lower()
+    return {".pdf": "application/pdf", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}.get(
+        next((e for e in DOC_EXT if n.endswith(e)), ""), None)
+
+
+def _fill(db: Session, sp: SupplierPrice, res: dict) -> None:
+    """Розпізнані рядки → валюта, РРЦ у валюті закупівлі, зіставлення з товарами бренду."""
+    cur = sp.currency if sp.cur_forced and sp.currency in ("USD", "EUR", "UAH") else (res.get("currency") or sp.currency or "UAH")
+    rows = match(db, sp.brand, res["rows"])
     rc = res.get("rrp_currency")
     if rc and rc != cur:                                       # РРЦ в іншій валюті (напр. закупівля в EUR, РРЦ у грн) — у валюту закупівлі
         from .pricing import rates
@@ -229,14 +244,91 @@ def create(db: Session, data: bytes, filename: str, brand: str | None, supplier_
             if r.get("rrp"):
                 r["rrp"] = round(r["rrp"] * rt.get(rc, 1.0) / (rt.get(cur, 1.0) or 1.0), 2)
                 r["rrp_src"] = f"{rc}"
+    sp.currency, sp.rows, sp.n_rows, sp.n_matched = cur, rows, len(rows), sum(1 for r in rows if r["pid"])
+
+
+def _norm_ai(j: dict) -> dict:
+    """Відповідь агента / Claude → {rows, currency, rrp_currency} (як у parse)."""
+    j = j if isinstance(j, dict) else {}
+    cu = lambda v: v if v in ("USD", "EUR", "UAH") else _cur(str(v or ""))    # noqa: E731
+    rows = []
+    for r in j.get("rows") or j.get("lines") or []:
+        if not isinstance(r, dict):
+            continue
+        name, cost = _s(r.get("name")), _num(r.get("cost") if r.get("cost") is not None else r.get("price"))
+        if name and cost:
+            rows.append({"name": name[:300], "sku": _s(r.get("sku"))[:100], "barcode": _s(r.get("barcode"))[:64],
+                         "cost": round(cost, 4), "rrp": _num(r.get("rrp"))})
+    if not rows:
+        raise ValueError("У прайсі не знайдено рядків з назвою і ціною")
+    return {"rows": rows, "currency": cu(j.get("currency")), "rrp_currency": cu(j.get("rrp_currency"))}
+
+
+def _claude_read(db: Session, data: bytes, mime: str, claude=None) -> dict:
+    import base64
+    import json as _json
+    import httpx
+    from . import invoice_ai
+    if claude:
+        return claude(data, mime, PROMPT)
+    key = invoice_ai.api_key(db)
+    if not key:
+        raise ValueError("Для PDF-прайсу потрібен агент на VPS або ключ Claude API («Налаштування → Розпізнавання накладних»)")
+    block = {"type": "document" if mime == "application/pdf" else "image",
+             "source": {"type": "base64", "media_type": mime, "data": base64.b64encode(data).decode()}}
+    r = httpx.post(invoice_ai.API, timeout=300, headers={"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
+                   json={"model": invoice_ai.model(), "max_tokens": 16000,
+                         "messages": [{"role": "user", "content": [block, {"type": "text", "text": PROMPT}]}]})
+    if r.status_code >= 400:
+        raise RuntimeError(f"Claude API {r.status_code}: {r.text[:200]}")
+    out = "".join(b.get("text", "") for b in r.json().get("content", []) if b.get("type") == "text")
+    m = re.search(r"\{.*\}", out, re.S)
+    if not m:
+        raise RuntimeError("Claude API: відповідь без JSON")
+    return _json.loads(m.group(0))
+
+
+def create(db: Session, data: bytes, filename: str, brand: str | None, supplier_id: int | None, currency: str | None,
+           price_date: date | None, user_id: int | None, claude=None) -> SupplierPrice:
+    """Excel / CSV — розбір одразу; PDF / фото — через агента на VPS (черга /api/v1/invoices, kind=price) або Claude API, як накладні."""
+    from . import ingest, invoice_ai
+    mime = _doc_mime(filename)
+    res = None if mime else parse(data, filename)               # помилка формату — одразу, без запису
     if not supplier_id:
         s = default_supplier(db, brand)
         supplier_id = s.id if s else None
-    sp = SupplierPrice(supplier_id=supplier_id, brand=brand or None, file_path=ingest.store(data, filename or "prais.xlsx"),
-                       file_name=(filename or "прайс")[:300], price_date=price_date or date.today(), currency=cur,
-                       uploaded_at=datetime.now(), user_id=user_id, rows=rows, n_rows=len(rows),
-                       n_matched=sum(1 for r in rows if r["pid"]))
+    forced = currency in ("USD", "EUR", "UAH")
+    sp = SupplierPrice(supplier_id=supplier_id, brand=brand or None, file_path=ingest.store(data, filename or "prais"),
+                       file_name=(filename or "прайс")[:300], price_date=price_date or date.today(), currency=currency if forced else None,
+                       cur_forced=forced, uploaded_at=datetime.now(), user_id=user_id, rows=[], n_rows=0, n_matched=0)
     db.add(sp)
+    if res is not None:
+        _fill(db, sp, res)
+    elif not claude and invoice_ai.engine(db) == "agent":
+        sp.status = "recognizing"
+        db.flush()
+        j = invoice_ai.queue(db, data, filename, mime, user_id)
+        j.kind, j.ref_id = "price", sp.id
+    else:
+        try:
+            _fill(db, sp, _norm_ai(_claude_read(db, data, mime, claude)))
+        except Exception as e:  # noqa: BLE001
+            sp.status, sp.error = "error", f"Не розпізнано: {str(e)[:300]}"
+    db.commit()
+    return sp
+
+
+def apply_agent(db: Session, sp: SupplierPrice, result: dict | None, error: str | None = None) -> SupplierPrice:
+    """Відповідь агента по PDF / фото прайсу → рядки й зіставлення."""
+    if sp.status != "recognizing":
+        return sp
+    try:
+        if error and not result:
+            raise ValueError(error)
+        _fill(db, sp, _norm_ai(result or {}))
+        sp.status, sp.error = None, None
+    except Exception as e:  # noqa: BLE001
+        sp.status, sp.error = "error", f"Не розпізнано агентом: {str(e)[:300]}"
     db.commit()
     return sp
 

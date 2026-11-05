@@ -68,3 +68,43 @@ def test_price_rrp_other_currency():
     b = io.BytesIO(); wb.save(b)
     r = spx.parse(b.getvalue(), "p.xlsx")
     assert r["currency"] == "EUR" and r["rrp_currency"] == "UAH" and r["rows"][0]["rrp"] == 1000
+
+
+def test_pdf_price_via_agent(tmp_path):
+    from app.security import new_api_key
+    from app.models import ApiKey, InvoiceJob
+    from app.services import invoice_ai, supplier_prices as spx
+    settings.admin_password = "owner-pass-1"
+    old, settings.files_dir = settings.files_dir, str(tmp_path)
+    with SessionLocal() as db:
+        db.add(Product(name="Агент Тонік 200 мл", name_norm="агент тонік 200 мл", brand="АгентБренд", sku="AT-200")); db.commit()
+        invoice_ai.set_engine(db, "agent")
+        raw, prefix, hsh = new_api_key()
+        db.add(ApiKey(name="oc-price", prefix=prefix, key_hash=hsh, scopes=["invoices"])); db.commit()
+    try:
+        with TestClient(app) as c:
+            c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+            r = c.post("/finance/pricing/price", data={"brand": "АгентБренд"}, files={"file": ("prais.pdf", b"%PDF-1.4 x", "application/pdf")},
+                       follow_redirects=False)
+            spid = int(r.headers["location"].rsplit("/", 1)[1])
+            assert "розпізнає агент" in c.get(f"/finance/pricing/price/{spid}").text
+            with SessionLocal() as db:
+                jid = db.query(InvoiceJob).filter(InvoiceJob.kind == "price", InvoiceJob.ref_id == spid).one().id
+            h = {"X-API-Key": raw}
+            job = next(x for x in c.get("/api/v1/invoices/pending", headers=h).json()["invoices"] if x["id"] == jid)
+            assert job["kind"] == "price" and "прайс-лист" in job["prompt"]
+            res = c.post(f"/api/v1/invoices/{jid}/result", headers=h, json={"result": {"currency": "€", "rows": [
+                {"name": "Тонік 200 мл", "sku": "AT-200", "cost": "8,40", "rrp": 18}, {"name": "Розділ", "cost": 0}]}}).json()
+            assert res["rows"] == 1 and res["matched"] == 1
+            with SessionLocal() as db:
+                sp = db.get(SupplierPrice, spid)
+                assert sp.status is None and sp.currency == "EUR" and sp.rows[0]["cost"] == 8.4
+        # Claude-шлях (двигун CRM) — мок
+        with SessionLocal() as db:
+            sp2 = spx.create(db, b"\xff\xd8", "p.jpg", "АгентБренд", None, "USD", None, None,
+                             claude=lambda d, m, p: {"currency": "EUR", "rows": [{"name": "Тонік", "sku": "at-200", "cost": 9}]})
+            assert sp2.currency == "USD" and sp2.n_matched == 1 and sp2.status is None
+    finally:
+        settings.files_dir = old
+        with SessionLocal() as db:
+            invoice_ai.set_engine(db, "crm")

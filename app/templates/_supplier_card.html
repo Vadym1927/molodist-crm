@@ -76,7 +76,7 @@
     {% if can(user,'finance') %}<a class="btn ghost spm-sm" href="/finance/pricing">＋ завантажити прайс</a>{% endif %}</div>
   {% if prices %}<table class="tb small"><thead><tr><th>Бренд</th><th>Дата прайсу</th><th>Завантажено</th><th class="r">Рядків</th><th>Ціни</th><th></th></tr></thead><tbody>
     {% for pz in prices %}<tr><td>{{ pz.brand or '—' }}</td><td>{{ pz.price_date|dt('%d.%m.%Y') if pz.price_date else '—' }}</td><td>{{ pz.uploaded_at|dt('%d.%m.%Y %H:%M') }}</td>
-      <td class="r">{{ pz.n_matched }}/{{ pz.n_rows }}</td><td>{% if pz.applied_at %}<span class="pill ok">підставлено {{ pz.n_applied }}</span>{% else %}<span class="pill draft">не підставлено</span>{% endif %} {{ pz.currency }}</td>
+      <td class="r">{{ pz.n_matched }}/{{ pz.n_rows }}</td><td>{% if pz.status == 'recognizing' %}<span class="pill warn">розпізнається</span>{% elif pz.status == 'error' %}<span class="pill bad">помилка</span>{% elif pz.applied_at %}<span class="pill ok">підставлено {{ pz.n_applied }}</span>{% else %}<span class="pill draft">не підставлено</span>{% endif %} {{ pz.currency }}</td>
       <td>{% if can(user,'finance') %}<a href="/finance/pricing/price/{{ pz.id }}">відкрити</a> · {% endif %}<a href="/finance/pricing/price/{{ pz.id }}/file">файл</a></td></tr>{% endfor %}</tbody></table>
   {% else %}<div class="muted small">Прайсів ще немає — завантажте в «Фінанси → Планування ціни реалізації».</div>{% endif %}</div>
 

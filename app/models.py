@@ -729,6 +729,9 @@ class SupplierPrice(Base):
     n_matched: Mapped[int | None] = mapped_column(Integer)
     applied_at: Mapped[datetime | None] = mapped_column(DateTime)
     n_applied: Mapped[int | None] = mapped_column(Integer)
+    status: Mapped[str | None] = mapped_column(String(12))                 # None — готовий; recognizing — PDF/фото в агента; error
+    error: Mapped[str | None] = mapped_column(String(500))
+    cur_forced: Mapped[bool | None] = mapped_column(Boolean)               # валюту вибрано вручну при завантаженні
 
 
 class SupplierEntity(Base):
