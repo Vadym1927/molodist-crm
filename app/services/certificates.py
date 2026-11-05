@@ -225,3 +225,53 @@ def subs_expiring(db: Session, today: date | None = None):
     today = today or date.today()
     return [s for s in db.scalars(select(Subscription).where(Subscription.valid_to >= today))
             if s.state(today) == "expiring"]
+
+
+
+# ---------------- шаблони абонементів (CleverBox «Пакети» / Packages) ----------------
+PKG_KEY = "sub_packages"
+
+
+def is_packages_export(header: list) -> bool:
+    h = [str(x or "").strip().lower() for x in header]
+    return any("дозволити використовувати всім" in x for x in h) or ({"id", "назва", "тип", "продано"} <= set(h) and any("послуги" in x for x in h))
+
+
+def import_packages(db: Session, rows: list[list], header: list) -> dict:
+    """Вивантаження CleverBox «Пакети» (шаблони абонементів): ID, Назва, Тип, Термін дії, Ціна, Філія, Послуги, Усім клієнтам, Продано."""
+    import json
+    from ..models import SyncState
+    h = [str(x or "").strip().lower() for x in header]
+
+    def ix(*keys):
+        return next((i for i, x in enumerate(h) if any(k in x for k in keys)), None)
+    c = {"id": ix("id"), "name": ix("назва"), "type": ix("тип"), "days": ix("термін"), "price": ix("ціна"), "branch": ix("філія"),
+         "services": ix("послуги"), "all": ix("дозволити"), "sold": ix("продано")}
+    g = lambda row, k: row[c[k]] if c[k] is not None and c[k] < len(row) else None      # noqa: E731
+    out = []
+    for row in rows:
+        pid = _s(g(row, "id"))
+        if not pid or not str(pid).replace(".0", "").isdigit():
+            continue
+        days = _n(g(row, "days"))
+        out.append({"id": int(float(pid)), "name": (_s(g(row, "name")) or "")[:300], "type": _s(g(row, "type")) or "",
+                    "days": int(days) if days else 0, "price": _n(g(row, "price")), "branch": _s(g(row, "branch")) or "",
+                    "services": (_s(g(row, "services")) or "")[:500], "all_clients": (_s(g(row, "all")) or "").lower() in ("yes", "так", "1", "true"),
+                    "sold": int(_n(g(row, "sold")) or 0)})
+    out.sort(key=lambda x: x["name"].lower())
+    st = db.get(SyncState, PKG_KEY) or SyncState(key=PKG_KEY)
+    st.value, st.updated_at = json.dumps(out, ensure_ascii=False), datetime.utcnow()
+    db.merge(st)
+    db.commit()
+    return {"type": "CleverBox: шаблони абонементів (пакети)", "rows": len(out), "updated": len(out), "skipped": 0,
+            "note": "Це шаблони (пакети). Продані абонементи пацієнтів із залишком візитів — у вивантаженні CleverBox «Абонементи»."}
+
+
+def packages(db: Session) -> list[dict]:
+    import json
+    from ..models import SyncState
+    st = db.get(SyncState, PKG_KEY)
+    try:
+        return json.loads(st.value) if st and st.value else []
+    except ValueError:
+        return []

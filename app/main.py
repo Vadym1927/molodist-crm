@@ -7514,7 +7514,8 @@ def gifts_page(request: Request, tab: str = "certs", st: str = "", q: str = "", 
         sold_: dict = defaultdict(int)
         for (tn_,) in db.execute(select(GiftCertificate.type_name).where(GiftCertificate.id >= _gt.CRM_ID_FROM)):
             sold_[tn_ or ""] += 1
-        return render(request, "gifts.html", nav="gifts", tab=tab, types=_gt.items(db), gcfg=_gt.cfg(db), sold=dict(sold_),
+        return render(request, "gifts.html", nav="gifts", tab=tab, types=_gt.items(db), gcfg=_gt.cfg(db), sold=dict(sold_), packages=cs.packages(db),
+                      pkg_rep=LAST_IMPORT.pop(f"gifts-{user.id}", None),
                       cur=_gt.get(db, int(qp_.get("edit"))) if (qp_.get("edit") or "").isdigit() else None,
                       items=[], total=0, states=cs.STATES, counts={}, st="", q="", seller="", sellers=[], today=today, other_n=0, last=None,
                       remind_days=_gt.cfg(db).get("remind_days", 14))
@@ -7588,10 +7589,12 @@ async def gifts_import(file: UploadFile = File(...), user: User = Depends(requir
         head, rows = (sheets[0][1][0], sheets[0][1][1:]) if sheets and sheets[0][1] else ([], [])
         if cs.is_certificates_export(head):
             rep = await asyncio.to_thread(cs.import_certificates, db, rows, head)
+        elif cs.is_packages_export(head):
+            rep, tab = await asyncio.to_thread(cs.import_packages, db, rows, head), "types"
         elif cs.is_subscriptions_export(head):
             rep, tab = await asyncio.to_thread(cs.import_subscriptions, db, rows, head), "subs"
         else:
-            rep = {"error": "Це не вивантаження CleverBox «Сертифікати» чи «Абонементи». Колонки: "
+            rep = {"error": "Це не вивантаження CleverBox «Сертифікати», «Абонементи» чи «Пакети». Колонки: "
                             + ", ".join(str(h) for h in head[:12])}
     except Exception as e:  # noqa: BLE001
         rep = {"error": f"Не вдалося прочитати файл: {type(e).__name__}"}

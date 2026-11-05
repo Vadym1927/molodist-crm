@@ -110,3 +110,22 @@ def test_single_use_fiscal_name_and_no_sms():
         with SessionLocal() as db:
             cc = db.get(GiftCertificate, cid)
             assert cc.balance == 0 and "згорів" in cc.comment and cc.state() == "used"
+
+
+
+def test_packages_import():
+    """Вивантаження CleverBox «Пакети» (шаблони абонементів) — розпізнається й показується в «Шаблони й налаштування»."""
+    from fastapi.testclient import TestClient
+    from app.config import settings
+    from app.main import app
+    from app.services import certificates as cs
+    head = ["ID", "Назва", "Тип", "ТЕРМІН ДІЇ ", "Ціна", "Філія", "Послуги", "Дозволити використовувати всім клієнтам", "Продано"]
+    rows = [["64", "5 процедур RF-ліфтинг", "Роздільний", "180", "16000", "Всі", "RF - ліфтинг все обличчя", "no", "1"]]
+    assert cs.is_packages_export(head) and not cs.is_subscriptions_export(head) or cs.is_packages_export(head)
+    with SessionLocal() as db:
+        rep = cs.import_packages(db, rows, head)
+        assert rep["rows"] == 1 and cs.packages(db)[0]["price"] == 16000 and cs.packages(db)[0]["days"] == 180
+    settings.admin_password = "owner-pass-1"
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        assert "5 процедур RF-ліфтинг" in c.get("/gifts?tab=types").text

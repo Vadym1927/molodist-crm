@@ -59,7 +59,15 @@
       <label>Назва у фіскальному чеку за замовчуванням<input name="desc" value="{{ gcfg.desc }}"></label>
       <label class="gt-sw"><input type="checkbox" name="notify_tg" value="1" {{ 'checked' if gcfg.notify_tg }} style="height:auto"> Надсилати в Telegram адміністраторам і власнику (крім задачі в «Задачах»)</label></div>
     <p class="small muted" style="margin:10px 0">Як працює: щодня о 10:00 CRM знаходить сертифікати з залишком, які закінчуються за вказану кількість днів, створює задачу адміністратору «запросити пацієнта» і надсилає Telegram (один раз на сертифікат). Розрахунок сертифікатом у касі: повна оплата — чек без РРО; часткова — сума сертифіката йде знижкою у фіскальний чек, решта фіскалізується. Одноразовий сертифікат після першого використання обнуляється. Чек при продажі сертифіката пацієнту не надсилається — вмикається в <a href="/settings/checkbox">Checkbox → Відправлення чеків</a>.</p>
-    <button class="btn">Зберегти</button></form></div>
+    <button class="btn">Зберегти</button></form>
+
+  <div class="card" style="margin-top:16px" id="pkg"><div class="row between"><h2 style="margin:0">Шаблони абонементів · {{ packages|length }}</h2><span class="small muted">з CleverBox «Пакети»</span></div>
+    {% if pkg_rep %}<div class="alert" style="margin:10px 0 0;{{ '' if pkg_rep.error else 'background:var(--ok-bg);color:var(--ok)' }}">{{ pkg_rep.error or ('Завантажено шаблонів: ' ~ pkg_rep.rows ~ '. ' ~ (pkg_rep.note or '')) }}</div>{% endif %}
+    <p class="small muted" style="margin:6px 0 10px">Завантажте вивантаження CleverBox «Пакети» кнопкою «Імпорт з CleverBox» угорі сторінки. Продані абонементи пацієнтів (з залишком візитів) — окреме вивантаження «Абонементи» → вкладка «Абонементи».</p>
+    {% if packages %}<div style="overflow-x:auto;max-height:520px;overflow-y:auto"><table class="gt-t"><thead><tr><th>Пакет</th><th class="r">Ціна</th><th class="r">Діє</th><th class="r">Продано</th></tr></thead><tbody>
+    {% for x in packages %}<tr><td><b>{{ x.name }}</b><div class="meta">{{ x.services }}{{ (' · ' ~ x.type) if x.type }}{{ (' · ' ~ x.branch) if x.branch and x.branch != 'Всі' }}{{ ' · усім клієнтам' if x.all_clients }}</div></td>
+      <td class="r">{{ x.price|uah }}</td><td class="r">{{ (x.days ~ ' дн.') if x.days else 'без терміну' }}</td><td class="r">{{ x.sold }}</td></tr>{% endfor %}</tbody></table></div>
+    {% else %}<div class="muted small">Шаблонів ще немає.</div>{% endif %}</div></div>
 
   <form class="card gt-f" id="gtf" method="post" action="/gifts/types"><h2 style="margin:0">{{ 'Змінити шаблон' if r0 else 'Новий шаблон' }}</h2>{% if r0 %}<input type="hidden" name="tid" value="{{ r0.id }}">{% endif %}
     <label>Назва<input name="name" value="{{ r0.name if r0 else '' }}" required placeholder="Сертифікат 2000"></label>
