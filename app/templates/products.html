@@ -131,39 +131,66 @@ dialog.pn{border:0;border-radius:20px;padding:0;width:min(1040px,97vw);max-heigh
   <b style="color:var(--ink)">Ціни закупівлі з руху товарів CleverBox</b> — звіт «Рух товарів» за період: ціна = сума приходу / к-сть. Вивантажуйте помісячно — остання ціна береться з найсвіжішого періоду.
   <label>з <input type="date" name="d_from" required></label><label>по <input type="date" name="d_to" required></label>
   <input type="file" name="file" accept=".xls,.xlsx" required><button class="btn ghost">Імпортувати</button></form>{% endif %}
-<dialog id="lbd" style="border:0;border-radius:18px;padding:0;max-width:900px;width:calc(100% - 32px)">
-  <div style="padding:20px 22px;display:grid;gap:14px">
-    <div class="row between"><h2 style="margin:0">Друк цінників</h2><button type="button" class="btn ghost" onclick="this.closest('dialog').close()">×</button></div>
-    <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,260px);gap:16px;align-items:start">
-      <div style="display:grid;gap:12px">
-        <div><b>Друкувати елементи</b><div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px">
-          {% for k, l, d in [('name','Назва товару',1),('sku','Артикул',0),('barcode','Штрихкод',0),('price','Ціна товару',1)] %}<label style="display:flex;gap:6px;align-items:center"><input type="checkbox" class="lbe" value="{{ k }}" {{ 'checked' if d }} onchange="lbPrev()" style="width:auto;height:auto"> {{ l }}</label>{% endfor %}</div></div>
-        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
-          <label style="display:grid;gap:3px;font-size:12px;font-weight:600;color:var(--muted)">Ширина, мм<select id="lbw" onchange="lbPrev()" style="height:40px">{% for v in [20,25,30,35,40,43,50,58,60,70,80,100] %}<option {{ 'selected' if v == 30 }}>{{ v }}</option>{% endfor %}</select></label>
-          <label style="display:grid;gap:3px;font-size:12px;font-weight:600;color:var(--muted)">Висота, мм<select id="lbh" onchange="lbPrev()" style="height:40px">{% for v in [15,20,25,30,35,40,50,60] %}<option {{ 'selected' if v == 20 }}>{{ v }}</option>{% endfor %}</select></label>
-          <label style="display:grid;gap:3px;font-size:12px;font-weight:600;color:var(--muted)">Копій кожного<input type="number" id="lbc" value="1" min="1" max="200" style="height:40px;width:90px" oninput="document.querySelectorAll('.lbq').forEach(function(i){i.value=document.getElementById('lbc').value})"></label></div>
-        <div><b>Товари, обрані для друку</b><div style="max-height:300px;overflow:auto;margin-top:6px;border:1px solid var(--line);border-radius:12px">
-          <table class="pt" style="margin:0"><thead><tr><th>Назва</th><th class="r">Ціна</th><th class="r">Кількість</th></tr></thead><tbody id="lbl"></tbody></table></div></div>
-      </div>
-      <div style="display:grid;gap:12px;justify-items:center;background:#F7F4F0;border-radius:14px;padding:16px">
-        <div id="lbp" style="background:#fff;border-radius:6px;box-shadow:0 1px 6px rgba(0,0,0,.15);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:6px;overflow:hidden"></div>
-        <button type="button" class="btn" onclick="lbPrint()" style="width:100%">🖨 Друк</button>
-        <span class="small muted" style="text-align:center">У вікні друку оберіть принтер етикеток; розмір сторінки = розмір цінника.</span></div>
-    </div></div></dialog>
+<style>
+#lbd{border:0;border-radius:20px;padding:0;max-width:940px;width:calc(100% - 32px);box-shadow:0 30px 80px -20px rgba(42,36,48,.45)}
+#lbd::backdrop,#xld::backdrop{background:rgba(42,36,48,.45)}
+.lb-h{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;border-bottom:1px solid #ECE7E1}
+.lb-h h2{margin:0;font:600 17px var(--head);letter-spacing:.14em;text-transform:uppercase}
+.lb-x{width:38px;height:38px;border-radius:50%;border:1px solid #ECE7E1;background:#fff;font-size:20px;line-height:1;cursor:pointer;color:#2A2430}
+.lb-b{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:18px;padding:18px 22px 22px}@media(max-width:760px){.lb-b{grid-template-columns:1fr}}
+.lb-s{border:1px solid #ECE7E1;border-radius:14px;padding:12px 14px}.lb-s+.lb-s{margin-top:12px}
+.lb-t{font:700 11px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496;margin-bottom:8px}
+.lb-chips{display:flex;gap:8px;flex-wrap:wrap}.lb-chips label{position:relative;cursor:pointer}
+.lb-chips input{position:absolute;opacity:0;pointer-events:none}
+.lb-chips span{display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:99px;border:1.5px solid #E9E5DF;background:#fff;font:600 13px var(--sans);color:#6b6575}
+.lb-chips input:checked+span{border-color:#3B3050;background:#3B3050;color:#fff}
+.lb-row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}.lb-row label{display:grid;gap:4px;font:600 12px var(--sans);color:#8a8496}
+.lb-row select,.lb-row input{height:40px;margin:0;min-width:0}.lb-row select{width:100px}.lb-row input{width:90px}
+.lb-sz{font:600 12px var(--sans);color:#8a8496;padding-bottom:10px}
+.lb-list{max-height:280px;overflow:auto;border:1px solid #ECE7E1;border-radius:12px}
+.lb-list table{width:100%;border-collapse:collapse;font-size:13.5px}.lb-list th{position:sticky;top:0;background:#F7F4F0;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496;text-align:left;padding:8px 10px}
+.lb-list td{padding:7px 10px;border-top:1px solid #F1EDE8}.lb-list .r{text-align:right;white-space:nowrap}.lb-list input{width:64px;height:34px;margin:0;text-align:center}
+.lb-pv{background:#F7F4F0;border-radius:16px;padding:18px 14px;display:grid;gap:12px;justify-items:center;align-content:start}
+#lbp{background:#fff;border-radius:6px;box-shadow:0 2px 10px rgba(42,36,48,.18);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:6px 8px;overflow:hidden;gap:2px;color:#000}
+#lbp .n{font-weight:700;line-height:1.15;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;width:100%}
+#lbp .bcv{width:86%;height:22%;background:repeating-linear-gradient(90deg,#000 0 2px,#fff 2px 3px,#000 3px 4px,#fff 4px 6px,#000 6px 9px,#fff 9px 10px)}
+.lb-pv .btn{width:100%;justify-content:center}.lb-note{font-size:12px;color:#8a8496;text-align:center;line-height:1.45}
+</style>
+<dialog id="lbd">
+  <div class="lb-h"><h2>Друк цінників</h2><button type="button" class="lb-x" onclick="this.closest('dialog').close()" aria-label="Закрити">×</button></div>
+  <div class="lb-b">
+    <div>
+      <div class="lb-s"><div class="lb-t">Друкувати елементи</div><div class="lb-chips">
+        {% for k, l, d in [('name','Назва товару',1),('sku','Артикул',0),('barcode','Штрихкод',0),('price','Ціна товару',1)] %}<label><input type="checkbox" class="lbe" value="{{ k }}" {{ 'checked' if d }} onchange="lbPrev()"><span>{{ l }}</span></label>{% endfor %}</div></div>
+      <div class="lb-s"><div class="lb-t">Розмір і копії</div><div class="lb-row">
+        <label>Ширина, мм<select id="lbw" onchange="lbPrev()">{% for v in [20,25,30,35,40,43,50,58,60,70,80,100] %}<option {{ 'selected' if v == 30 }}>{{ v }}</option>{% endfor %}</select></label>
+        <span class="lb-sz">×</span>
+        <label>Висота, мм<select id="lbh" onchange="lbPrev()">{% for v in [15,20,25,30,35,40,50,60] %}<option {{ 'selected' if v == 20 }}>{{ v }}</option>{% endfor %}</select></label>
+        <label style="margin-left:auto">Копій кожного<input type="number" id="lbc" value="1" min="1" max="200" oninput="document.querySelectorAll('.lbq').forEach(function(i){i.value=document.getElementById('lbc').value});lbTot()"></label></div></div>
+      <div class="lb-s"><div class="lb-t" style="display:flex;justify-content:space-between"><span>Товари для друку</span><span id="lbtot"></span></div>
+        <div class="lb-list"><table><thead><tr><th>Назва</th><th class="r">Ціна</th><th class="r">Копій</th></tr></thead><tbody id="lbl"></tbody></table></div></div>
+    </div>
+    <div class="lb-pv"><div class="lb-t" style="margin:0">Попередній вигляд</div><div id="lbp"></div><div class="lb-sz" id="lbsz" style="padding:0"></div>
+      <button type="button" class="btn" onclick="lbPrint()">🖨 Друк</button>
+      <span class="lb-note">У вікні друку оберіть принтер етикеток. Розмір сторінки = розмір цінника.</span></div>
+  </div></dialog>
 <script>
 function lbSel(){return Array.from(document.querySelectorAll('#bulkf tbody input[name=ids]:checked'))}
 function lbOpen(){var t=document.getElementById('lbl'),c=document.getElementById('lbc').value||1;t.innerHTML='';
   lbSel().forEach(function(x){var tr=document.createElement('tr');tr.innerHTML='<td></td><td class="r"></td><td class="r"><input type="number" class="lbq" min="0" max="200" style="width:70px;height:34px"></td>';
-    tr.children[0].textContent=x.dataset.n;tr.children[1].textContent=x.dataset.p?(Math.round(x.dataset.p*100)/100).toFixed(2):'—';var q=tr.querySelector('input');q.value=c;q.dataset.id=x.value;t.appendChild(tr)});
-  lbPrev();document.getElementById('lbd').showModal()}
+    tr.children[0].textContent=x.dataset.n;tr.children[1].textContent=x.dataset.p?lbMoney(x.dataset.p):'—';var q=tr.querySelector('input');q.value=c;q.dataset.id=x.value;q.oninput=lbTot;t.appendChild(tr)});
+  lbPrev();lbTot();document.getElementById('lbd').showModal()}
+function lbMoney(v){return new Intl.NumberFormat('uk-UA',{minimumFractionDigits:2,maximumFractionDigits:2}).format(+v)+' ₴'}
+function lbTot(){var n=0;document.querySelectorAll('.lbq').forEach(function(q){n+=Math.max(0,+q.value||0)});document.getElementById('lbtot').textContent='усього цінників: '+n}
 function lbEls(){return Array.from(document.querySelectorAll('.lbe:checked')).map(function(c){return c.value})}
-function lbPrev(){var s=lbSel()[0],e=lbEls(),w=+document.getElementById('lbw').value,h=+document.getElementById('lbh').value,b=document.getElementById('lbp'),k=Math.min(220/w,140/h,5);
-  b.style.width=(w*k)+'px';b.style.height=(h*k)+'px';b.innerHTML='';if(!s)return;
-  function add(t,css){var d=document.createElement('div');d.textContent=t;d.style.cssText=css;b.appendChild(d)}
-  if(e.indexOf('name')>=0)add(s.dataset.n,'font-weight:700;font-size:'+Math.max(9,h*k*.14)+'px;line-height:1.15;max-height:45%;overflow:hidden');
-  if(e.indexOf('sku')>=0&&s.dataset.s)add(s.dataset.s,'font-size:9px;color:#555');
-  if(e.indexOf('barcode')>=0&&s.dataset.b)add('║▌║█║▌│║▌║','font-size:'+(h*k*.2)+'px;letter-spacing:-1px;line-height:1');
-  if(e.indexOf('price')>=0&&s.dataset.p)add((Math.round(s.dataset.p*100)/100).toFixed(2)+' ₴','font-weight:800;font-size:'+Math.max(11,h*k*.2)+'px')}
+function lbPrev(){var s=lbSel()[0],e=lbEls(),w=+document.getElementById('lbw').value,h=+document.getElementById('lbh').value,b=document.getElementById('lbp'),k=Math.min(230/w,150/h,6);
+  b.style.width=(w*k)+'px';b.style.height=(h*k)+'px';b.innerHTML='';document.getElementById('lbsz').textContent=w+' × '+h+' мм';if(!s)return;
+  var parts=e.length,fs=h*k;
+  function add(cls,t,css){var d=document.createElement('div');d.className=cls;if(t!==null)d.textContent=t;d.style.cssText=css||'';b.appendChild(d);return d}
+  if(e.indexOf('name')>=0)add('n',s.dataset.n,'font-size:'+Math.max(9,fs*(parts>2?.12:.16))+'px');
+  if(e.indexOf('sku')>=0&&s.dataset.s)add('s',s.dataset.s,'font-size:'+Math.max(8,fs*.08)+'px;color:#444');
+  if(e.indexOf('barcode')>=0&&s.dataset.b)add('bcv',null);
+  if(e.indexOf('price')>=0&&s.dataset.p)add('p',lbMoney(s.dataset.p),'font-weight:800;font-size:'+Math.max(11,fs*(parts>2?.16:.22))+'px;line-height:1.05')}
 function lbPrint(){var u=new URLSearchParams();u.set('w',document.getElementById('lbw').value);u.set('h',document.getElementById('lbh').value);u.set('show',lbEls().join(','));
   document.querySelectorAll('.lbq').forEach(function(q){if(+q.value>0){u.append('ids',q.dataset.id);u.set('q_'+q.dataset.id,q.value)}});
   if(!u.getAll('ids').length){alert('Оберіть кількість хоча б для одного товару');return}
