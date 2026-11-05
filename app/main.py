@@ -6933,7 +6933,8 @@ def payreq_list(request: Request, st: str = "", user: User = Depends(require("fi
     rows = db.scalars(q.limit(300)).all()
     cnt = {k: db.scalar(select(func.count()).select_from(PayRequest).where(PayRequest.status == k)) or 0 for k in prq.STATUS}
     from .integrations import monobank
-    return render(request, "payreq.html", nav="finance", rows=rows, st=st, STATUS=prq.STATUS, cnt=cnt, chat=prq.chat_id(db),
+    from .services import chat_expenses as _ce
+    return render(request, "payreq.html", nav="finance", exp_on=_ce.enabled(db), rows=rows, st=st, STATUS=prq.STATUS, cnt=cnt, chat=prq.chat_id(db),
                   sups={x.id: x.name for x in db.scalars(select(Supplier))}, fops=prq.fops(db), cfg=prq.cfg(db),
                   accs={f: prq.sender_accounts(db, f) for f in prq.fops(db)}, owners=prq.owner_tg_ids(db),
                   corp={m["fop"]: m.get("corp") for m in monobank.public(db)})
@@ -7047,6 +7048,8 @@ async def payreq_settings(request: Request, user: User = Depends(require("financ
     prq.save_cfg(db, c)
     if "chat" in f:
         prq.set_chat(db, str(f.get("chat") or "").strip() or None)
+    from .services import chat_expenses as _ce
+    _ce.set_enabled(db, bool(f.get("exp_on")))
     audit(db, "payreq.settings", user=user)
     return RedirectResponse(_with_msg("/payreq", "Налаштування збережено"), 303)
 

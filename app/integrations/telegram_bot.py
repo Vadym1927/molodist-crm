@@ -97,6 +97,107 @@ async def pay_photo(msg: Message, bot: Bot):
     await _pay_file(msg, bot, ph.file_id, f"rahunok_{ph.file_unique_id}.jpg", "image/jpeg")
 
 
+def _exp_text(msg: Message) -> bool:
+    """Текст у групі бухгалтерії з сумою й назвою — видаток з каси (див. services/chat_expenses)."""
+    if not msg.text or msg.text.startswith("/") or not _is_pay_chat(msg):
+        return False
+    from ..services import chat_expenses as ce
+    with SessionLocal() as db:
+        return ce.enabled(db) and ce.parse(db, msg.text) is not None
+
+
+def _exp_kb(key: str, d: dict) -> InlineKeyboardMarkup:
+    rows = []
+    if not d.get("cashbox"):
+        rows += [[InlineKeyboardButton(text=f"💳 {n}"[:60], callback_data=f"exp:c:{key}:{i}")] for i, n in enumerate(d.get("cash_all", [])[:8])]
+    elif not d.get("category"):
+        rows += [[InlineKeyboardButton(text=f"📂 {n}"[:60], callback_data=f"exp:a:{key}:{i}")] for i, n in enumerate(d.get("cat_top", [])[:6])]
+        rows.append([InlineKeyboardButton(text="✏️ Інша стаття — у CRM", url=f"{settings.public_url.rstrip('/')}/finance/ops")])
+    rows.append([InlineKeyboardButton(text="✖️ Не вносити", callback_data=f"exp:x:{key}:0")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def _exp_ask(d: dict) -> str:
+    from html import escape
+    head = f"🧾 Видаток <b>{d['amount']:,.2f} ₴</b>".replace(",", " ") + (f" · {escape(d['comment'])}" if d.get("comment") else "")
+    if not d.get("cashbox"):
+        return head + "\nЗ якої каси? Оберіть кнопкою:"
+    return head + f"\nКаса: {escape(d['cashbox'])}\nЯка стаття? Оберіть кнопкою:"
+
+
+def _undo_kb(op_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="↩️ Скасувати", callback_data=f"exp:u:{op_id}:0"),
+                                                   InlineKeyboardButton(text="Фіноперації", url=f"{settings.public_url.rstrip('/')}/finance/ops")]])
+
+
+@pay_router.message(F.text, _exp_text)
+async def exp_message(msg: Message):
+    from ..services import chat_expenses as ce, cashboxes
+    who = (msg.from_user.full_name if msg.from_user else "") or ""
+    with SessionLocal() as db:
+        d = ce.parse(db, msg.text)
+        u = ce.user_by_tg(db, msg.from_user.id) if msg.from_user else None
+        ref = f"tg:{msg.chat.id}:{msg.message_id}"
+        if d["cashbox"] and d["category"]:
+            x = ce.create(db, d, who, u.id if u else None, ref)
+            await msg.reply(ce.text_done(x), reply_markup=_undo_kb(x.id))
+            return
+        key = f"{msg.chat.id}_{msg.message_id}"
+        if not d["cat_top"]:
+            from ..services import fin_articles
+            d["cat_top"] = fin_articles.names(db, "expense")[:6]
+        d.update(author=who, uid=u.id if u else None, ref=ref, cash_all=d["cash_top"] or cashboxes.names(db)[:8])
+        ce.pend_put(db, key, d)
+    await msg.reply(_exp_ask(d), reply_markup=_exp_kb(key, d))
+
+
+@pay_router.callback_query(F.data.startswith("exp:"))
+async def exp_callback(cb: CallbackQuery):
+    from ..services import chat_expenses as ce
+    _, act, key, idx = (cb.data or "").split(":", 3)
+    with SessionLocal() as db:
+        if act == "u":
+            x = ce.cancel(db, int(key))
+            await cb.answer("Скасовано")
+            try:
+                await cb.message.edit_text(f"↩️ Видаток CRM-{key} скасовано" + (f" ({x.amount:,.2f} ₴ · {x.category})".replace(",", " ") if x else ""))
+            except Exception:  # noqa: BLE001
+                pass
+            return
+        d = ce.pend_get(db, key)
+        if not d:
+            await cb.answer("Уже оброблено", show_alert=True)
+            return
+        if act == "x":
+            ce.pend_del(db, key)
+            await cb.answer("Не вношу")
+            try:
+                await cb.message.edit_text("✖️ Видаток не внесено")
+            except Exception:  # noqa: BLE001
+                pass
+            return
+        i = int(idx) if idx.isdigit() else -1
+        if act == "c" and 0 <= i < len(d.get("cash_all", [])):
+            d["cashbox"] = d["cash_all"][i]
+        elif act == "a" and 0 <= i < len(d.get("cat_top", [])):
+            d["category"] = d["cat_top"][i]
+        if d.get("cashbox") and d.get("category"):
+            x = ce.create(db, d, d.get("author"), d.get("uid"), d.get("ref"))
+            ce.pend_del(db, key)
+            text, kb = ce.text_done(x), _undo_kb(x.id)
+        else:
+            if not d.get("cat_top"):
+                from ..services import fin_articles
+                d["cat_top"] = fin_articles.names(db, "expense")[:6]
+            ce.pend_put(db, key, d)
+            text, kb = _exp_ask(d), _exp_kb(key, d)
+    await cb.answer()
+    try:
+        await cb.message.edit_text(text, reply_markup=kb)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 @pay_router.callback_query(F.data.startswith("pay:"))
 async def pay_callback(cb: CallbackQuery):
     import asyncio

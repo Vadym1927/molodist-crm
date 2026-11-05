@@ -43,6 +43,8 @@
   <form class="card" method="post" action="/payreq/settings"><h2 style="margin-top:0">Рахунок списання</h2>
     {% for f in fops %}<label>ФОП {{ f }}<select name="sender_{{ loop.index0 }}"><option value="">— перший рахунок ФОП —</option>{% for a in accs.get(f, []) %}<option value="{{ a.iban }}" {{ 'selected' if (cfg.sender or {}).get(f) == a.iban }}>Рахунок ФОП · …{{ a.iban[-8:] }}</option>{% endfor %}</select></label>{% else %}<p class="small muted">Спершу підключіть monobank ФОП.</p>{% endfor %}
     <label>ID групи рахунків<input name="chat" value="{{ chat or '' }}" placeholder="заповнюється командою /rahunky"></label>
+    <label style="display:flex;gap:8px;align-items:flex-start;font-weight:600;color:var(--ink)"><input type="checkbox" name="exp_on" value="1" {{ 'checked' if exp_on }} style="width:auto;height:auto;margin-top:3px">
+      <span>Видатки з каси з цієї групи<span class="small muted" style="display:block;font-weight:400">Повідомлення «155 грн доставка НП термінал Бондар» → витрата у «Фіноперації» (сума, каса, стаття; що не впізнано — бот спитає кнопками; є «Скасувати»).</span></span></label>
     <button class="btn" style="margin-top:12px">Зберегти</button></form>
 </div>
 {% endblock %}
