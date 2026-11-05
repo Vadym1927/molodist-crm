@@ -95,7 +95,7 @@ dialog.pn{border:0;border-radius:20px;padding:0;width:min(1040px,97vw);max-heigh
     <th class="r">Залишок</th><th class="r" title="На скільки днів вистачить за темпом продажів 90 днів">Вистачить</th><th>Термін придатності</th><th class="r" title="Продано за 90 днів">Продано 90д</th></tr></thead><tbody>
   {% for r in rows %}{% set p = r.product %}{% set fl = flags[p.id] %}
     <tr>
-      {% if can(user,'products') %}<td class="cb"><input type="checkbox" name="ids" value="{{ p.id }}" onchange="bulkUi()" data-n="{{ p.short_name or p.name }}" data-s="{{ p.sku or '' }}" data-b="{{ p.barcode or p.sku or '' }}" data-p="{{ r.sale_price or '' }}"></td>{% endif %}
+      {% if can(user,'products') %}<td class="cb"><input type="checkbox" name="ids" value="{{ p.id }}" onchange="bulkUi()" data-n="{{ p.short_name or p.name }}" data-s="{{ p.sku or '' }}" data-b="{{ p.barcode or p.sku or '' }}" data-p="{{ r.sale_price or '' }}" data-q="{{ ('%g'|format(r.stock)) if r.stock is not none else '' }}"></td>{% endif %}
       <td class="nm">{% if p.photo_url %}<img src="{{ p.photo_url }}" alt="" loading="lazy" style="width:38px;height:38px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:8px;float:left;margin:0 10px 0 0">{% endif %}<a class="pn" href="/products/{{ p.id }}">{{ p.name }}</a>
         <div class="meta">{{ ('арт. ' ~ p.sku) if p.sku else 'артикул —' }}{% if sort!='brand' and p.brand %} · {{ p.brand }}{% endif %}{% if wh=='all' and p.warehouse %} · {{ WAREHOUSES.get(p.warehouse) }}{% endif %}{{ (' · ' ~ p.volume) if p.volume }}{% if r.prescribed %} · у планах {{ r.prescribed }}{% endif %}{% if not p.cb_product_id %} · <span style="color:var(--warn)">немає в CleverBox</span>{% endif %}</div></td>
       <td class="small">{% set _sn = p.supplier or r.last_supplier %}{% if _sn %}<a href="/stock?tab=suppliers&s={{ _sn|urlencode }}" data-sup-name="{{ _sn }}" style="color:inherit">{{ _sn }}</a>{% else %}—{% endif %}</td>
@@ -168,18 +168,19 @@ dialog.pn{border:0;border-radius:20px;padding:0;width:min(1040px,97vw);max-heigh
         <label>Висота, мм<select id="lbh" onchange="lbPrev()">{% for v in [15,20,25,30,35,40,50,60] %}<option {{ 'selected' if v == 20 }}>{{ v }}</option>{% endfor %}</select></label>
 </div></div>
       <div class="lb-s"><div class="lb-t" style="display:flex;justify-content:space-between"><span>Товари для друку</span><span id="lbtot"></span></div>
-        <div class="lb-list"><table><thead><tr><th>Назва</th><th class="r">Ціна</th><th class="r">Копій</th></tr></thead><tbody id="lbl"></tbody></table></div></div>
+        <div class="lb-list"><table><thead><tr><th>Назва</th><th class="r">Ціна</th><th class="r">Залишок</th><th class="r">Копій</th></tr></thead><tbody id="lbl"></tbody></table></div></div>
     </div>
     <div class="lb-pv"><div class="lb-t" style="margin:0">Попередній вигляд</div><div id="lbp"></div><div class="lb-sz" id="lbsz" style="padding:0"></div>
       <button type="button" class="btn" onclick="lbPrint()">🖨 Друк</button>
-      <span class="lb-note">У вікні друку оберіть принтер етикеток. Розмір сторінки = розмір цінника.</span></div>
+      <span class="lb-note">Кількість копій підставлено за залишком на складі — змініть, якщо треба. 0 — не друкувати.<br>У вікні друку оберіть принтер етикеток. Розмір сторінки = розмір цінника.</span></div>
   </div></dialog>
 <script>
 function lbSel(){return Array.from(document.querySelectorAll('#bulkf tbody input[name=ids]:checked'))}
 function lbOpen(){if(!lbSel().length){alert('Позначте галочками товари, для яких друкувати цінники (галочка зліва від назви; у заголовку — усі в групі).');return}
   var t=document.getElementById('lbl'),c=1;t.innerHTML='';
-  lbSel().forEach(function(x){var tr=document.createElement('tr');tr.innerHTML='<td></td><td class="r"></td><td class="r"><input type="number" class="lbq" min="0" max="200" style="width:70px;height:34px"></td>';
-    tr.children[0].textContent=x.dataset.n;tr.children[1].textContent=x.dataset.p?lbMoney(x.dataset.p):'—';var q=tr.querySelector('input');q.value=c;q.dataset.id=x.value;q.oninput=lbTot;t.appendChild(tr)});
+  lbSel().forEach(function(x){var tr=document.createElement('tr');tr.innerHTML='<td></td><td class="r"></td><td class="r"></td><td class="r"><input type="number" class="lbq" min="0" max="200" style="width:70px;height:34px"></td>';
+    tr.children[0].textContent=x.dataset.n;tr.children[1].textContent=x.dataset.p?lbMoney(x.dataset.p):'—';var st=x.dataset.q===''?null:+x.dataset.q;tr.children[2].innerHTML=st===null?'<span style="color:#8a8496">—</span>':(st>0?st+' шт':'<span style="color:#B23B2E">0</span>');
+    var q=tr.querySelector('input');q.value=st===null?1:Math.max(0,Math.min(200,Math.round(st)));q.dataset.id=x.value;q.oninput=lbTot;t.appendChild(tr)});
   lbPrev();lbTot();document.getElementById('lbd').showModal()}
 function lbMoney(v){return new Intl.NumberFormat('uk-UA',{minimumFractionDigits:2,maximumFractionDigits:2}).format(+v)+' ₴'}
 function lbTot(){var n=0;document.querySelectorAll('.lbq').forEach(function(q){n+=Math.max(0,+q.value||0)});document.getElementById('lbtot').textContent='усього цінників: '+n}
