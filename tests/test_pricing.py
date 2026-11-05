@@ -26,7 +26,7 @@ def test_pricing_flow(monkeypatch):
         assert "Medik8 C-Tetra" in page and "Ціна при маржі 47%" in page and "Рекомендована ціна продажу" in page
         r = c.post("/finance/pricing", data={"pid": [str(pid)], f"cur_{pid}": "EUR", f"cfx_{pid}": "25", f"rrp_{pid}": "60",
                                              f"plan_{pid}": "2900"}, follow_redirects=False)
-        assert r.status_code == 303 and r.headers["location"].endswith(":+1")
+        assert r.status_code == 303 and ":+1" in r.headers["location"] and "xl=" in r.headers["location"]
         with SessionLocal() as db:
             p = db.get(Product, pid)
             assert (p.cost_currency, p.cost_fx, p.rrp_fx, p.planned_price) == ("EUR", 25, 60, 2900) and p.planned_at
