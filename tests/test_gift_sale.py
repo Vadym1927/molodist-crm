@@ -156,3 +156,29 @@ def test_package_sale_creates_subscription():
         with SessionLocal() as db:
             x = next(y for y in cs.packages(db) if y["id"] == 9)
             assert x["visits"] == 3 and x["days"] == 90 and x["active"] is False and len(cs.package_items(db)) == 1
+
+
+def test_patient_subscription_manual():
+    from fastapi.testclient import TestClient
+    from app.models import Subscription
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        p = Patient(full_name="Ручний Абонемент"); db.add(p); db.commit(); pid = p.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        assert "＋ Абонемент" in c.get(f"/patients/{pid}").text
+        r = c.post(f"/patients/{pid}/subs", data={"type_name": "Курс масажу 6", "visits_total": "6", "visits_used": "2", "sold_at": "2026-11-01",
+                                                  "valid_to": "2027-05-01", "paid": "5670", "services": "Масаж 60хв"}, follow_redirects=False)
+        assert r.status_code == 303
+        with SessionLocal() as db:
+            s = db.query(Subscription).filter(Subscription.patient_id == pid).one()
+            assert s.visits_total == 6 and s.visits_used == 2 and s.visits_left == 4 and s.paid == 5670 and str(s.valid_to) == "2027-05-01" and s.state() == "active"
+            sid = s.id
+        pg = c.get(f"/patients/{pid}").text
+        assert "Курс масажу 6" in pg and "лишилось <b>4</b>" in pg
+        c.post(f"/patients/{pid}/subs", data={"sid": str(sid), "type_name": "Курс масажу 6", "visits_total": "6", "visits_used": "6", "paid": "5670", "closed": "1"})
+        with SessionLocal() as db:
+            assert db.get(Subscription, sid).state() == "used"
+        c.post(f"/patients/{pid}/subs", data={"sid": str(sid), "action": "delete"})
+        with SessionLocal() as db:
+            assert db.get(Subscription, sid) is None

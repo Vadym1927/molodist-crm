@@ -912,7 +912,7 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
     return render(request, "patient.html", p=p, statuses=statuses, pe_services=pe_services, pe_products=pe_products, ptasks=ptasks, msgs=msgs, dupes=dupes, paylinks=paylinks, pcalls=pcalls,
                   call_thr=float(__import__("app.services.telephony", fromlist=["x"]).public(db).get("ai_alert_below") or 0),
                   certs=_cert.for_patient(db, p.id), CERT_STATES=_cert.STATES, today=date.today(),
-                  subs=_cert.subs_for_patient(db, p.id), SUB_STATES=_cert.SUB_STATES,
+                  subs=_cert.subs_for_patient(db, p.id), SUB_STATES=_cert.SUB_STATES, packages=_cert.package_items(db),
                   CB_LABELS=CB_LABELS, loyal=_loyal_ctx(db, p),
                   pscripts=_sc.for_patient(db, p, kind, user.name) if can(user, "message") else [],
                   avail=_msg.available_channels(p),
@@ -6187,6 +6187,49 @@ async def settings_cosmetics_pct_save(request: Request, user: User = Depends(req
                   "staff": rows("staff", ("min_price",)), "brands": rows("brand"), "products": rows("prod")})
     audit(db, "settings.cosmetics_pct", user=user)
     return RedirectResponse(_with_msg("/settings/cosmetics-pct", "Збережено. Звіт «Нарахування % по косметиці» рахується за новими правилами"), 303)
+
+
+@app.post("/patients/{pid:int}/subs")
+async def patient_sub_save(pid: int, request: Request, user: User = Depends(require("patient_edit")), db: Session = Depends(db_dep)):
+    """Абонемент пацієнта вручну: створити / змінити / видалити (візити, термін, послуги, сплачено, закритий)."""
+    from .models import Subscription
+    from .services import certificates as _cert
+    p_ = _patient_or_403(db, user, pid)
+    f = await request.form()
+    sid = str(f.get("sid") or "")
+    s = db.get(Subscription, int(sid)) if sid.isdigit() else None
+    if s and s.patient_id != p_.id:
+        raise HTTPException(403)
+    if f.get("action") == "delete":
+        if s:
+            db.delete(s)
+            db.commit()
+            audit(db, "patient.sub_delete", "patient", pid, user=user, sub=int(sid))
+        return RedirectResponse(f"/patients/{pid}#subs", 303)
+    if not s:
+        from sqlalchemy import func as _f
+        mx = db.scalar(select(_f.max(Subscription.id))) or 0
+        s = Subscription(id=max(mx + 1, _cert.SUB_CRM_FROM), patient_id=p_.id, cb_client_id=p_.cleverbox_id, client_name=p_.full_name,
+                         seller=user.name, price=0, paid=0)
+        db.add(s)
+    s.type_name = str(f.get("type_name") or "").strip()[:300] or s.type_name or "Абонемент"
+    s.services = str(f.get("services") or "").strip() or None
+    tot, used, bal = _num(str(f.get("visits_total") or "")), _num(str(f.get("visits_used") or "")), _num(str(f.get("balance") or ""))
+    s.visits_total = tot if tot else None
+    s.visits_used = used or 0
+    s.balance = bal if (bal is not None and str(f.get("balance") or "").strip()) else (None if s.visits_total else s.balance)
+    s.valid_to = _day(str(f.get("valid_to") or ""))
+    sd = _day(str(f.get("sold_at") or ""))
+    s.sold_at = datetime.combine(sd, datetime.min.time()).replace(hour=12) if sd else (s.sold_at or datetime.now())
+    paid = _num(str(f.get("paid") or ""))
+    s.paid = paid or 0
+    s.price = s.price or s.paid
+    s.comment = str(f.get("comment") or "").strip()[:500] or None
+    s.cb_status = "Закритий" if f.get("closed") else ("Активний" if (s.cb_status or "").lower() in ("", "закритий", "активний") else s.cb_status)
+    s.updated_at = datetime.utcnow()
+    db.commit()
+    audit(db, "patient.sub_save", "patient", pid, user=user, sub=s.id, visits=s.visits_total, used=s.visits_used)
+    return RedirectResponse(f"/patients/{pid}#subs", 303)
 
 
 @app.get("/settings/patient-tags", response_class=HTMLResponse)

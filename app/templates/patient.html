@@ -491,14 +491,44 @@
     <td><span class="pill {{ {'active':'ok','expiring':'warn','expired':'bad','used':'done','unpaid':'warn'}[st] }}">{{ CERT_STATES[st] }}</span></td></tr>{% endfor %}
   </tbody></table></div>{% endif %}
 
-{% if subs %}<div class="card" id="subs"><h2>Абонементи</h2>
-  <table class="small"><thead><tr><th>№</th><th>Абонемент</th><th>Продано</th><th class="r">Сплачено</th><th>Візити</th><th>Діє до</th><th>Стан</th></tr></thead><tbody>
-  {% for x in subs %}{% set st = x.state(today) %}<tr><td>{{ x.code or x.id }}</td><td>{{ x.type_name or '—' }}{% if x.services %}<div class="muted">{{ x.services[:120] }}</div>{% endif %}</td>
+{% set _can_sub = can(user,'patient_edit') %}
+{% if subs or _can_sub %}<div class="card" id="subs"><div class="row between"><h2 style="margin:0">Абонементи</h2>{% if _can_sub %}<button type="button" class="btn ghost" style="padding:5px 12px" onclick="subEdit(null)">＋ Абонемент</button>{% endif %}</div>
+  {% if subs %}<table class="small" style="margin-top:10px"><thead><tr><th>№</th><th>Абонемент</th><th>Продано</th><th class="r">Сплачено</th><th>Візити</th><th>Діє до</th><th>Стан</th>{% if _can_sub %}<th></th>{% endif %}</tr></thead><tbody>
+  {% for x in subs %}{% set st = x.state(today) %}<tr><td>{{ x.code or x.id }}</td><td>{{ x.type_name or '—' }}{% if x.services %}<div class="muted">{{ x.services[:120] }}</div>{% endif %}{% if x.comment %}<div class="muted">{{ x.comment[:100] }}</div>{% endif %}</td>
     <td>{{ x.sold_at|dt('%d.%m.%Y') if x.sold_at else '—' }}</td><td class="r">{{ x.paid|uah }}</td>
-    <td>{% if x.visits_total %}{{ '%g'|format(x.visits_used or 0) }} з {{ '%g'|format(x.visits_total) }} · лишилось <b>{{ '%g'|format(x.visits_left) }}</b>{% else %}—{% endif %}</td>
+    <td>{% if x.visits_total %}{{ '%g'|format(x.visits_used or 0) }} з {{ '%g'|format(x.visits_total) }} · лишилось <b>{{ '%g'|format(x.visits_left) }}</b>{% elif x.balance is not none %}залишок {{ x.balance|uah }}{% else %}—{% endif %}</td>
     <td>{{ x.valid_to|dt('%d.%m.%Y') if x.valid_to else 'безстроково' }}</td>
-    <td><span class="pill {{ {'active':'ok','expiring':'warn','expired':'bad','used':'done','unpaid':'warn'}[st] }}">{{ SUB_STATES[st] }}</span></td></tr>{% endfor %}
-  </tbody></table></div>{% endif %}
+    <td><span class="pill {{ {'active':'ok','expiring':'warn','expired':'bad','used':'done','unpaid':'warn'}[st] }}">{{ SUB_STATES[st] }}</span></td>
+    {% if _can_sub %}<td style="white-space:nowrap"><button type="button" class="btn ghost" style="padding:3px 9px;font-size:12px" onclick='subEdit({{ {"id": x.id, "type_name": x.type_name or "", "services": x.services or "", "visits_total": x.visits_total, "visits_used": x.visits_used or 0, "balance": x.balance, "valid_to": x.valid_to.isoformat() if x.valid_to else "", "sold_at": x.sold_at.date().isoformat() if x.sold_at else "", "price": x.price or 0, "paid": x.paid or 0, "comment": x.comment or "", "cb_status": x.cb_status or ""}|tojson }})'>змінити</button></td>{% endif %}</tr>{% endfor %}
+  </tbody></table>{% else %}<p class="muted small" style="margin:8px 0 0">Абонементів немає. Продати — у касі (розділ «Абонементи») або додати вручну.</p>{% endif %}
+  {% if _can_sub %}<dialog id="subd" style="border:0;border-radius:18px;padding:0;max-width:560px;width:calc(100% - 32px)">
+    <form method="post" action="/patients/{{ p.id }}/subs" id="subf" style="padding:18px 20px;display:grid;gap:10px">
+      <div class="row between"><h2 style="margin:0" id="subh">Абонемент</h2><button type="button" class="btn ghost" onclick="document.getElementById('subd').close()">×</button></div>
+      <input type="hidden" name="sid" id="s_id">
+      <label style="display:grid;gap:4px;font:600 12px var(--sans);color:var(--muted)">Назва<input name="type_name" id="s_type" required list="s_pk" style="margin:0" placeholder="Курс IPL 4 процедури"><datalist id="s_pk">{% for x in packages %}<option value="{{ x.name }}" data-v="{{ x.visits }}" data-d="{{ x.days }}" data-p="{{ x.price }}" data-s="{{ x.services }}">{% endfor %}</datalist></label>
+      <label style="display:grid;gap:4px;font:600 12px var(--sans);color:var(--muted)">Послуги, на які діє<input name="services" id="s_srv" style="margin:0" placeholder="порожньо — на всі"></label>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px">
+        <label style="display:grid;gap:4px;font:600 12px var(--sans);color:var(--muted)">Візитів усього<input name="visits_total" id="s_tot" inputmode="numeric" style="margin:0" placeholder="порожньо — грошовий"></label>
+        <label style="display:grid;gap:4px;font:600 12px var(--sans);color:var(--muted)">Використано<input name="visits_used" id="s_used" inputmode="numeric" style="margin:0" value="0"></label>
+        <label style="display:grid;gap:4px;font:600 12px var(--sans);color:var(--muted)">Залишок, ₴ (грошовий)<input name="balance" id="s_bal" inputmode="decimal" style="margin:0"></label></div>
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px">
+        <label style="display:grid;gap:4px;font:600 12px var(--sans);color:var(--muted)">Продано<input type="date" name="sold_at" id="s_sold" style="margin:0"></label>
+        <label style="display:grid;gap:4px;font:600 12px var(--sans);color:var(--muted)">Діє до<input type="date" name="valid_to" id="s_valid" style="margin:0"></label>
+        <label style="display:grid;gap:4px;font:600 12px var(--sans);color:var(--muted)">Сплачено, ₴<input name="paid" id="s_paid" inputmode="decimal" style="margin:0"></label></div>
+      <label style="display:grid;gap:4px;font:600 12px var(--sans);color:var(--muted)">Коментар<input name="comment" id="s_cmt" style="margin:0"></label>
+      <label style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" name="closed" id="s_closed" value="1" style="width:auto;height:auto;margin:0"> Закритий (не діє)</label>
+      <div class="row" style="gap:8px;justify-content:space-between"><div class="row" style="gap:8px"><button class="btn">Зберегти</button><button type="button" class="btn ghost" onclick="document.getElementById('subd').close()">Скасувати</button></div>
+        <button class="btn ghost" name="action" value="delete" id="s_del" style="color:#B23B2E" onclick="return confirm('Видалити абонемент?')">Видалити</button></div>
+    </form></dialog>
+  <script>
+  function subEdit(x){var g=function(i){return document.getElementById(i)};x=x||{};g('subh').textContent=x.id?'Абонемент №'+x.id:'Новий абонемент';g('s_id').value=x.id||'';g('s_type').value=x.type_name||'';g('s_srv').value=x.services||'';
+    g('s_tot').value=x.visits_total!=null?x.visits_total:'';g('s_used').value=x.visits_used||0;g('s_bal').value=x.balance!=null?x.balance:'';g('s_sold').value=x.sold_at||new Date().toISOString().slice(0,10);
+    g('s_valid').value=x.valid_to||'';g('s_paid').value=x.paid||'';g('s_cmt').value=x.comment||'';g('s_closed').checked=/закрит|використ|повернен/i.test(x.cb_status||'');g('s_del').style.display=x.id?'':'none';g('subd').showModal()}
+  document.getElementById('s_type').addEventListener('change',function(){var o=[].slice.call(document.querySelectorAll('#s_pk option')).filter(function(o){return o.value===document.getElementById('s_type').value})[0];if(!o)return;
+    var g=function(i){return document.getElementById(i)};if(!g('s_tot').value)g('s_tot').value=o.dataset.v;if(!g('s_srv').value)g('s_srv').value=o.dataset.s;if(!g('s_paid').value)g('s_paid').value=o.dataset.p;
+    if(!g('s_valid').value&&+o.dataset.d){var d=new Date(g('s_sold').value||Date.now());d.setDate(d.getDate()+ +o.dataset.d);g('s_valid').value=d.toISOString().slice(0,10)}});
+  </script>{% endif %}
+</div>{% endif %}
 
 {% if can(user,'loyalty_patient') %}<div class="card" id="loyal"><div class="row between"><h2 style="margin:0">Бонуси й знижка</h2>
   <span class="small muted">{{ 'бонусна програма працює' if loyal.s.enabled else 'бонусна програма вимкнена — Налаштування → Знижки й бонуси' }}</span></div>
