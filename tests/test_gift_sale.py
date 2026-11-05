@@ -129,3 +129,30 @@ def test_packages_import():
     with TestClient(app) as c:
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
         assert "5 процедур RF-ліфтинг" in c.get("/gifts?tab=types").text
+
+
+def test_package_sale_creates_subscription():
+    from fastapi.testclient import TestClient
+    from app.models import Subscription
+    from app.services import certificates as cs
+    head = ["ID", "Назва", "Тип", "ТЕРМІН ДІЇ ", "Ціна", "Філія", "Послуги", "Дозволити використовувати всім клієнтам", "Продано"]
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        cs.import_packages(db, [["64", "Курс RF 5 процедур", "Роздільний", "180", "16000", "Всі", "RF - ліфтинг", "no", "1"],
+                                ["9", "Rejuran HB", "Роздільний", "0", "12600", "Всі", "Rejuran НВ", "no", "1"]], head)
+        assert {x["id"]: x["visits"] for x in cs.packages(db)} == {64: 5, 9: 1} and all(x["active"] for x in cs.packages(db))
+        d = Doctor(name="Абон Лікарка", active=True); p = Patient(full_name="Абон Пацієнтка", phone="+380671230778")
+        db.add_all([d, p]); db.commit(); did, pid = d.id, p.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        assert "PKGS=[" in c.get("/sales/new").text
+        j = c.post("/sales", json={"patient_id": pid, "items": [{"kind": "subscription", "ref_id": 64, "name": "Курс RF 5 процедур", "qty": 1, "price": 16000,
+                                                                 "doctor_id": did}], "payments": [{"method": "Готівка", "amount": 16000}]}).json()
+        assert j["ok"], j
+        with SessionLocal() as db:
+            s = db.query(Subscription).filter(Subscription.patient_id == pid).one()
+            assert s.visits_total == 5 and s.visits_used == 0 and s.valid_to and s.paid == 16000 and s.id >= cs.SUB_CRM_FROM
+        c.post("/gifts/packages/9", data={"visits": "3", "days": "90", "price": "12600"})       # без «active» → вимкнено
+        with SessionLocal() as db:
+            x = next(y for y in cs.packages(db) if y["id"] == 9)
+            assert x["visits"] == 3 and x["days"] == 90 and x["active"] is False and len(cs.package_items(db)) == 1

@@ -1853,7 +1853,8 @@ def sale_new(request: Request, appt: str = "", patient: int = 0, user: User = De
                   pd_manual=(lambda c_: None if c_["auto"] else c_["name"])(__import__("app.services.personal_discounts", fromlist=["cfg"]).cfg(db)),
                   certs=[{"id": c_.id, "code": c_.code or str(c_.id), "balance": c_.balance, "patient_id": c_.patient_id,
                           "name": (c_.client_name or "") + (" · одноразовий" if c_.single_use else "")} for c_ in certs if c_.state() in ("active", "expiring")][:500],
-                  default_doc=user.doctor_id, gift_types=__import__("app.services.gift_types", fromlist=["pos_items"]).pos_items(db))
+                  default_doc=user.doctor_id, gift_types=__import__("app.services.gift_types", fromlist=["pos_items"]).pos_items(db),
+                  packages=__import__("app.services.certificates", fromlist=["package_items"]).package_items(db))
 
 
 def _pos_link_map(methods: list[str], sl) -> dict:
@@ -1878,7 +1879,7 @@ def _sale_payload(f: dict) -> dict:
     items = []
     for it in f.get("items") or []:
         try:
-            items.append({"kind": it.get("kind") if it.get("kind") in ("service", "product", "certificate", "other") else "other",
+            items.append({"kind": it.get("kind") if it.get("kind") in ("service", "product", "certificate", "subscription", "other") else "other",
                           "ref_id": int(it["ref_id"]) if str(it.get("ref_id") or "").isdigit() else None,
                           "name": str(it.get("name") or "")[:300], "category": str(it.get("category") or ""),
                           "qty": max(0.001, float(it.get("qty") or 1)), "price": max(0.0, float(it.get("price") or 0)),
@@ -7592,6 +7593,23 @@ async def gifts_settings_save(request: Request, user: User = Depends(require("fi
                       "code_prefix": f.get("code_prefix"), "desc": f.get("desc")})
     audit(db, "gifts.settings", user=user)
     return RedirectResponse(_with_msg("/gifts?tab=types", "Налаштування збережено"), 303)
+
+
+@app.post("/gifts/packages/{pid:int}")
+async def gifts_package_save(pid: int, request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Шаблон абонемента: кількість візитів, термін, ціна, активний для продажу."""
+    from .services import certificates as cs
+    f = await request.form()
+    if f.get("action") == "all_on":
+        for x in cs.packages(db):
+            cs.package_save(db, x["id"], {"active": True})
+    elif f.get("action") == "all_off":
+        for x in cs.packages(db):
+            cs.package_save(db, x["id"], {"active": False})
+    else:
+        cs.package_save(db, pid, {"visits": f.get("visits"), "days": f.get("days"), "price": f.get("price"), "active": bool(f.get("active"))})
+    audit(db, "gifts.package", user=user, id=pid, op=f.get("action") or "save")
+    return RedirectResponse("/gifts?tab=types#pkg", 303)
 
 
 @app.post("/gifts/import")

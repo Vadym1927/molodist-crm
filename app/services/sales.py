@@ -153,6 +153,16 @@ def create(db: Session, data: dict, user_id: int | None = None) -> Sale:
     docs = {d.id: d.name for d in db.scalars(select(Doctor))}
     from . import gift_types as _gt
     for si in sale.items:                                      # продаж сертифіката → виписати в картку покупця
+        if si.kind == "subscription" and si.ref_id:          # продаж абонемента → картка пацієнта
+            from . import certificates as _cs
+            pkg = next((x for x in _cs.packages(db) if int(x["id"]) == int(si.ref_id)), None)
+            if not pkg:
+                raise SaleError("Шаблон абонемента не знайдено")
+            if not patient:
+                raise SaleError("Абонемент продається пацієнту — оберіть пацієнта")
+            for _ in range(max(1, int(round(si.qty)))):
+                _cs.issue_subscription(db, pkg, patient, db.get(Doctor, si.doctor_id) if si.doctor_id else None, sale.id,
+                                       si.total / max(1, int(round(si.qty))), sale.at)
         if si.kind == "certificate" and si.ref_id:
             tpl = _gt.get(db, si.ref_id)
             if not tpl:
@@ -220,6 +230,12 @@ def refund(db: Session, sale: Sale, reason: str, user_id: int | None = None) -> 
     db.execute(Visit.__table__.delete().where(Visit.external_id.like(f"crm:{sale.id}:%")))
     db.execute(ProductSale.__table__.delete().where(ProductSale.external_id.like(f"crm:{sale.id}:%")))
     from . import gift_types as _gt
+    from . import certificates as _cs
+    for sb in _cs.subs_by_sale(db, sale.id):                   # абонементи цього чека: не використані — прибрати, інакше анулювати
+        if not (sb.visits_used or 0):
+            db.delete(sb)
+        else:
+            sb.cb_status, sb.visits_total = "Повернено", sb.visits_used
     for c in _gt.sold_by_sale(db, sale.id):                    # виписані цим чеком: не використані — прибрати, інакше анулювати
         if abs((c.balance or 0) - (c.nominal or 0)) < TOL:
             db.delete(c)

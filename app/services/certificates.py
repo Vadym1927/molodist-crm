@@ -118,7 +118,7 @@ SUB_COLS = {
     "client_id": ("client id", "id клієнта"),
     "client": ("клієнт", "client"),
     "seller": ("seller", "продавець", "продав"),
-    "sold": ("дата продажу", "продано", "дата"),
+    "sold": ("дата продажу", "дата продажи", "продано", "дата"),
     "price": ("ціна",),
     "paid": ("до сплати", "сплачено", "оплачено"),
     "total": ("кількість візитів", "к-сть візитів", "візитів", "кількість", "всього візитів", "к-сть"),
@@ -145,16 +145,32 @@ def _sub_cols(header: list) -> dict[str, int]:
     return out
 
 
+def is_package_uses_export(header: list) -> bool:
+    """CleverBox «Продані пакети» (PackageUses): ID, Код, Назва, Client id, Клієнт, … Послуги (= к-сть візитів), використано, Статус."""
+    h = [str(x or "").strip().lower() for x in header]
+    return "client id" in h and "використано" in h and "послуги" in h and any(x.startswith("термін") for x in h)
+
+
 def is_subscriptions_export(header: list) -> bool:
     h = " | ".join(str(x or "").strip().lower() for x in header)
     if is_certificates_export(header):
         return False
+    if is_package_uses_export(header):
+        return True
     return "абонемент" in h or ("візит" in h and ("залиш" in h or "використ" in h) and "клієнт" in h)
 
 
 def import_subscriptions(db: Session, rows: list[list], header: list) -> dict:
     from ..models import Subscription
     col = _sub_cols(header)
+    pkg_uses = is_package_uses_export(header)
+    if pkg_uses:                                               # «Продані пакети»: «Послуги» — це к-сть візитів, назва — тип абонемента
+        hh = [str(x or "").strip().lower() for x in header]
+        col["total"] = hh.index("послуги")
+        col.pop("services", None)
+        col["type"] = hh.index("назва")
+        col["sold"] = next(i for i, x in enumerate(hh) if x.startswith("дата прод"))
+        col["valid"] = next(i for i, x in enumerate(hh) if x.startswith("термін"))
 
     def g(row, key):
         i = col.get(key)
@@ -208,7 +224,7 @@ def import_subscriptions(db: Session, rows: list[list], header: list) -> dict:
         vt = _dt(g(row, "valid"))
         s.valid_to = vt.date() if vt else None
         s.comment = (_s(g(row, "comment")) or "")[:500] or None
-        s.cb_status = _s(g(row, "status"))
+        s.cb_status = {"active": "Активний", "redeemed": "Використано", "expired": "Прострочено"}.get((_s(g(row, "status")) or "").lower(), _s(g(row, "status")))
         s.updated_at = datetime.utcnow()
     db.commit()
     return rep
@@ -249,12 +265,16 @@ def import_packages(db: Session, rows: list[list], header: list) -> dict:
          "services": ix("послуги"), "all": ix("дозволити"), "sold": ix("продано")}
     g = lambda row, k: row[c[k]] if c[k] is not None and c[k] < len(row) else None      # noqa: E731
     out = []
+    prev = {int(x["id"]): x for x in packages(db)}            # повторний імпорт — зберегти ручні «візитів» і «активний»
     for row in rows:
         pid = _s(g(row, "id"))
         if not pid or not str(pid).replace(".0", "").isdigit():
             continue
         days = _n(g(row, "days"))
-        out.append({"id": int(float(pid)), "name": (_s(g(row, "name")) or "")[:300], "type": _s(g(row, "type")) or "",
+        nm = (_s(g(row, "name")) or "")[:300]
+        old = prev.get(int(float(pid))) or {}
+        out.append({"id": int(float(pid)), "name": nm, "type": _s(g(row, "type")) or "",
+                    "visits": old.get("visits") or visits_from_name(nm), "active": old.get("active", True),
                     "days": int(days) if days else 0, "price": _n(g(row, "price")), "branch": _s(g(row, "branch")) or "",
                     "services": (_s(g(row, "services")) or "")[:500], "all_clients": (_s(g(row, "all")) or "").lower() in ("yes", "так", "1", "true"),
                     "sold": int(_n(g(row, "sold")) or 0)})
@@ -275,3 +295,66 @@ def packages(db: Session) -> list[dict]:
         return json.loads(st.value) if st and st.value else []
     except ValueError:
         return []
+
+
+def visits_from_name(name: str) -> int:
+    """«5 процедур RF», «Rejuran S 4проц», «курс масажу 7 процедур» → кількість візитів; не вказано — 1."""
+    import re
+    m = re.search(r"(\d{1,2})\s*-?\s*(?:х\s*)?(?:проц|сеанс|візит|раз|занят|масаж)", name or "", re.I)
+    return int(m.group(1)) if m and 0 < int(m.group(1)) <= 50 else 1
+
+
+def _pkg_put(db: Session, xs: list[dict]) -> None:
+    import json
+    from ..models import SyncState
+    st = db.get(SyncState, PKG_KEY) or SyncState(key=PKG_KEY)
+    st.value, st.updated_at = json.dumps(xs, ensure_ascii=False), datetime.utcnow()
+    db.merge(st)
+    db.commit()
+
+
+def package_save(db: Session, pid: int, data: dict) -> None:
+    xs = packages(db)
+    for x in xs:
+        if int(x["id"]) == int(pid):
+            if data.get("visits") not in (None, ""):
+                x["visits"] = max(1, min(int(float(data["visits"])), 100))
+            if data.get("days") not in (None, ""):
+                x["days"] = max(0, int(float(data["days"])))
+            if data.get("price") not in (None, ""):
+                x["price"] = round(float(str(data["price"]).replace(",", ".").replace(" ", "")), 2)
+            if "active" in data:
+                x["active"] = bool(data["active"])
+    _pkg_put(db, xs)
+
+
+def package_items(db: Session) -> list[dict]:
+    """Активні шаблони абонементів для каси."""
+    return [{"id": x["id"], "name": x["name"], "price": x.get("price") or 0, "visits": x.get("visits") or 1, "days": x.get("days") or 0,
+             "services": x.get("services") or ""} for x in packages(db) if x.get("active", True)]
+
+
+SUB_CRM_FROM = 900000
+
+
+def issue_subscription(db: Session, pkg: dict, patient, seller, sale_id: int, paid: float, sold_at: datetime | None = None):
+    """Абонемент за шаблоном при продажу в касі CRM → картка пацієнта (візити, термін, послуги)."""
+    from datetime import timedelta
+    from sqlalchemy import func
+    from ..models import Subscription
+    sold_at = sold_at or datetime.now()
+    mx = db.scalar(select(func.max(Subscription.id))) or 0
+    s = Subscription(id=max(mx + 1, SUB_CRM_FROM), type_name=pkg["name"][:300], services=pkg.get("services") or None,
+                     patient_id=patient.id if patient else None, cb_client_id=patient.cleverbox_id if patient else None,
+                     client_name=patient.full_name if patient else None, seller=seller.name if seller else None, sold_at=sold_at,
+                     price=float(pkg.get("price") or paid), paid=round(paid, 2), visits_total=float(pkg.get("visits") or 1), visits_used=0,
+                     valid_to=(sold_at + timedelta(days=int(pkg["days"]))).date() if pkg.get("days") else None,
+                     comment=f"Продано в касі CRM, чек Ч-{sale_id}", cb_status="Оплачено", updated_at=datetime.utcnow())
+    db.add(s)
+    db.flush()
+    return s
+
+
+def subs_by_sale(db: Session, sale_id: int) -> list:
+    from ..models import Subscription
+    return db.scalars(select(Subscription).where(Subscription.comment == f"Продано в касі CRM, чек Ч-{sale_id}")).all()
