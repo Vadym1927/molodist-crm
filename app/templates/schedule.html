@@ -67,19 +67,26 @@
 .fit .gs td.c .bd{right:2px;bottom:2px;height:15px;line-height:15px;font-size:9.5px;padding:0 4px;border-radius:5px;gap:0}.fit .gs td.c .bd svg{display:none}
 @media(max-width:1150px){.fit .gs td.c .t{font-size:9.5px}.fit .gs .nm{min-width:140px;max-width:140px;width:140px}.fit .gs .who span{display:none}}
 .gd-back{position:fixed;inset:0;background:rgba(42,36,48,.4);opacity:0;pointer-events:none;transition:opacity .2s;z-index:90}.gd-back.on{opacity:1;pointer-events:auto}
-.gd{position:fixed;top:0;right:0;bottom:0;width:min(420px,100vw);background:#F7F4F0;z-index:91;transform:translateX(100%);transition:transform .25s;display:flex;flex-direction:column;box-shadow:-30px 0 60px -30px rgba(42,36,48,.5)}
-.gd.on{transform:none}.gd-h{display:flex;align-items:center;gap:10px;padding:16px 20px;background:#fff;border-bottom:1px solid #ECE7E1}
-.gd-h h3{flex:1;margin:0;font:600 16px var(--head);letter-spacing:.14em;text-transform:uppercase}.gd-h button{border:0;background:#F7F4F0;width:36px;height:36px;border-radius:10px;cursor:pointer;font-size:18px}
-.gd-b{padding:18px 20px;display:grid;gap:14px;overflow:auto}
-.gd-s{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:16px;display:grid;gap:12px}
-.gd-s h4{margin:0;font:600 11.5px var(--head);letter-spacing:.14em;text-transform:uppercase;color:#3B3050}
-.gd-who{font-size:13px;color:#6b6575;line-height:1.5}
-.tw{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center}.tw select{height:44px;text-align:center;font:600 15px var(--sans)}
-.gd .err{color:#B23B2E;font-weight:600;font-size:13px}
-.ok-k{display:grid;grid-template-columns:1fr 1fr;gap:6px}.ok-k label{cursor:pointer}.ok-k input{display:none}
-.ok-k span{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:12px;border:1px solid #E6E0D8;background:#fff;font:600 12.5px var(--sans);color:#2A2430}
-.ok-k span i{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-style:normal;flex:none}
-.ok-k input:checked+span{border-color:#3B3050;box-shadow:0 0 0 2px #E4DEEF}
+.gd{position:fixed;top:0;right:0;bottom:0;width:min(520px,100vw);background:#F7F4F0;z-index:91;transform:translateX(100%);transition:transform .25s;display:flex;flex-direction:column;box-shadow:-30px 0 60px -30px rgba(42,36,48,.5)}
+.gd.on{transform:none}.gd-h{display:flex;align-items:center;gap:12px;padding:16px 22px;background:#fff;border-bottom:1px solid #ECE7E1}
+.gd-ic{width:36px;height:36px;border-radius:11px;background:#F1EDF8;color:#5C4B82;display:grid;place-items:center}.gd-ic svg{width:19px;height:19px}
+.gd-h h3{flex:1;margin:0;font:600 18px var(--head);letter-spacing:.14em;text-transform:uppercase;color:#2A2430}.gd-h button{border:0;background:#F7F4F0;width:36px;height:36px;border-radius:10px;cursor:pointer;font-size:18px}
+.gd-b{padding:16px 22px 22px;display:grid;gap:14px;overflow:auto;align-content:start}
+.gd-who{display:flex;align-items:center;gap:12px;padding:4px 0 10px;border-bottom:1px solid #E6E0D8}
+.gd-who .av{width:48px;height:48px;border-radius:50%;flex:none;display:grid;place-items:center;font:500 15px var(--head);color:#fff;background:#8a8496 center/cover;box-shadow:0 0 0 2px #fff,0 0 0 3px #ECE7E1}
+.gd-who b{display:block;font:600 15px var(--sans);color:#2A2430;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.gd-who span{display:block;font-size:12px;color:#8a8496}
+.gd-dt{margin-left:auto;display:inline-flex!important;align-items:center;gap:7px;background:#E4DEEF;color:#3B3050;border-radius:10px;padding:8px 12px;font:600 12.5px var(--sans)!important;white-space:nowrap}.gd-dt svg{width:15px;height:15px}.gd-dt em{font-style:normal}
+.gd-s{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:16px 18px;display:grid;gap:12px}
+.gd-s h4{margin:0;font:600 13px var(--head);letter-spacing:.14em;text-transform:uppercase;color:#2A2430}.gd-sub{font-size:12.5px;color:#8a8496;margin-top:-8px}
+.tw{display:grid;grid-template-columns:1fr 1fr;gap:12px}.tw label{display:grid;gap:5px;font:500 12.5px var(--sans);color:#6b6575}.tw select{height:46px;font:600 15px var(--sans);margin:0;padding-left:14px}
+.gd-hrs{display:flex;align-items:center;justify-content:center;gap:6px;font:500 13px var(--sans);color:#5C4B82}.gd-hrs svg{width:15px;height:15px}
+.gd-pl{position:relative}.gd-pl svg{position:absolute;left:14px;top:50%;width:16px;height:16px;transform:translateY(-50%);color:#6b6575;pointer-events:none}.gd-pl select{height:46px;margin:0;padding-left:38px;font:500 14px var(--sans);width:100%}
+.gd .err{color:#B23B2E;font-weight:600;font-size:13px}.gd .err:empty{display:none}
+.gd .btn{height:46px;border-radius:12px;font-size:14px}.gd-off{background:#fff;border:1.5px solid #C9BFE6;color:#5C4B82;font-weight:700;text-align:center;justify-content:center;display:flex;align-items:center}
+.ok-k{display:grid;grid-template-columns:1fr 1fr;gap:8px}.ok-k label{cursor:pointer}.ok-k input{display:none}
+.ok-k span{display:flex;align-items:center;gap:9px;padding:10px 12px;min-height:50px;border-radius:12px;border:1px solid #E6E0D8;background:#fff;font:600 13px/1.2 var(--sans);color:#2A2430}
+.ok-k span i{width:22px;height:22px;display:grid;place-items:center;font-style:normal;flex:none;color:#3B3050}.ok-k span .ck{display:none;width:16px;height:16px;margin-left:auto;color:#5C4B82;flex:none}
+.ok-k input:checked+span{border-color:#5C4B82;background:#F3EFF9;box-shadow:0 0 0 1px #5C4B82}.ok-k input:checked+span .ck{display:block}
 .gd-sel{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:80;background:#2A2430;color:#fff;border-radius:16px;padding:10px 12px 10px 18px;display:none;gap:12px;align-items:center;box-shadow:0 20px 40px -18px rgba(0,0,0,.6)}
 .gd-sel.on{display:flex}.gd-sel button{border:0;border-radius:11px;height:38px;padding:0 14px;font:700 13px var(--sans);cursor:pointer}
 .gd-sel .a{background:#fff;color:#3B3050}.gd-sel .x{background:rgba(255,255,255,.12);color:#fff}
@@ -138,17 +145,20 @@ try{if(localStorage.getItem('gs_mode')==='full')gsMode('full')}catch(e){}
 {% if edit %}
 <div class="gd-sel" id="gsel"><span id="gsel-n"></span><button class="a" type="button" onclick="gdOpen()">Налаштувати</button><button class="x" type="button" onclick="gdClear()">Скасувати</button></div>
 <div class="gd-back" id="gdb" onclick="gdClose()"></div>
-<aside class="gd" id="gd"><div class="gd-h"><h3>Розклад</h3><button type="button" onclick="gdClose()">×</button></div>
-  <div class="gd-b"><div class="gd-who" id="gd-who"></div><div class="err" id="gd-err"></div>
+<aside class="gd" id="gd"><div class="gd-h"><i class="gd-ic">{{ CAL|safe }}</i><h3>Розклад</h3><button type="button" onclick="gdClose()">×</button></div>
+  <div class="gd-b">
+    <div class="gd-who"><i class="av" id="gd-av"></i><div style="min-width:0"><b id="gd-nm"></b><span id="gd-ps"></span></div><span class="gd-dt" id="gd-dt">{{ CAL|safe }}<em></em></span></div>
+    <div class="err" id="gd-err"></div>
     <div class="gd-s"><h4>Робочий час</h4>
-      <div class="tw"><select id="gd-s">{% for i in range(18, 44) %}{% set t = '%02d:%02d' % (i // 2, 30 * (i % 2)) %}<option {{ 'selected' if t == '10:00' }}>{{ t }}</option>{% endfor %}</select><span>—</span>
-        <select id="gd-e">{% for i in range(19, 45) %}{% set t = '%02d:%02d' % (i // 2, 30 * (i % 2)) %}<option {{ 'selected' if t == '20:00' }}>{{ t }}</option>{% endfor %}</select></div>
-      <select id="gd-p"><option value="">Без місця (кабінет не вказано)</option>{% for p in places %}<option>{{ p }}</option>{% endfor %}</select>
+      <div class="tw"><label><span>Початок</span><select id="gd-s" onchange="gdHrs()">{% for i in range(18, 44) %}{% set t = '%02d:%02d' % (i // 2, 30 * (i % 2)) %}<option {{ 'selected' if t == '10:00' }}>{{ t }}</option>{% endfor %}</select></label>
+        <label><span>Завершення</span><select id="gd-e" onchange="gdHrs()">{% for i in range(19, 45) %}{% set t = '%02d:%02d' % (i // 2, 30 * (i % 2)) %}<option {{ 'selected' if t == '20:00' }}>{{ t }}</option>{% endfor %}</select></label></div>
+      <div class="gd-hrs"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/></svg><span id="gd-hrs">10 годин</span></div>
+      <div class="gd-pl"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="3.5" width="16" height="17" rx="2"/><path d="M4 9h16M4 14h16M9 3.5v17M15 3.5v17"/></svg><select id="gd-p"><option value="">Кабінет не вказано</option>{% for p in places %}<option>{{ p }}</option>{% endfor %}</select></div>
       <button class="btn" type="button" onclick="gdApply('work')">Застосувати зміни</button></div>
-    <div class="gd-s"><h4>Неробочі дні</h4>
-      <div class="ok-k"><label><input type="radio" name="gk" value="" checked><span><i style="background:#8a8496;color:#fff">{{ oico("none", 17) }}</i>Вихідний (прибрати зміну)</span></label>
-        {% for k, v in OFF.items() %}<label><input type="radio" name="gk" value="{{ k }}"><span><i style="background:{{ v[2] }};color:#fff">{{ oico(k, 17) }}</i>{{ v[0] }}</span></label>{% endfor %}</div>
-      <button class="btn ghost" type="button" onclick="gdApply('off')">Зробити дні неробочими</button></div>
+    <div class="gd-s"><h4>Неробочий день</h4><div class="gd-sub">Оберіть причину</div>
+      <div class="ok-k"><label><input type="radio" name="gk" value="" checked><span><i>{{ oico("none", 17) }}</i>Вихідний (прибрати зміну)<svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span></label>
+        {% for k, v in OFF.items() %}<label><input type="radio" name="gk" value="{{ k }}"><span><i style="color:{{ v[2] }}">{{ oico(k, 17) }}</i>{{ v[0] }}<svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span></label>{% endfor %}</div></div>
+    <button class="btn ghost gd-off" type="button" onclick="gdApply('off')">Зробити дні неробочими</button>
   </div></aside>
 
 <dialog class="sd" id="fill"><form method="post" action="/specialists/schedule/fill"><input type="hidden" name="back" value="{{ back }}">
@@ -177,10 +187,20 @@ try{if(localStorage.getItem('gs_mode')==='full')gsMode('full')}catch(e){}
   t.addEventListener('mouseover',function(e){if(!down)return;var td=e.target.closest('td.c');if(td)mark(td,add)});
   document.addEventListener('mouseup',function(){if(down){down=false;if(SEL.size===1)gdOpen()}});
   window.gdClear=function(){SEL.clear();t.querySelectorAll('td.sel').forEach(function(x){x.classList.remove('sel')});bar()};
-  window.gdOpen=function(){if(!SEL.size)return;var tds=[].slice.call(t.querySelectorAll('td.sel')),f=tds[0],names={};
-    tds.forEach(function(x){names[x.closest('tr').querySelector('.who b').textContent]=1});
-    document.getElementById('gd-who').textContent=Object.keys(names).join(', ')+' · днів: '+tds.length+(tds.length===1?' · '+f.dataset.day.split('-').reverse().join('.'):'');
-    if(tds.length===1&&f.dataset.s){document.getElementById('gd-s').value=f.dataset.s;document.getElementById('gd-e').value=f.dataset.e;document.getElementById('gd-p').value=f.dataset.p||''}
+  window.gdHrs=function(){var a=document.getElementById('gd-s').value.split(':'),b=document.getElementById('gd-e').value.split(':'),h=(b[0]*60+ +b[1]-a[0]*60-a[1])/60;
+    document.getElementById('gd-hrs').textContent=h>0?(h%1?h.toFixed(1):h)+' '+(h==1?'година':h<5?'години':'годин'):'кінець раніше за початок'};
+  var MN=['січня','лютого','березня','квітня','травня','червня','липня','серпня','вересня','жовтня','листопада','грудня'];
+  function dtxt(d){var p=d.split('-');return (+p[2])+' '+MN[+p[1]-1]+' '+p[0]}
+  window.gdOpen=function(){if(!SEL.size)return;var tds=[].slice.call(t.querySelectorAll('td.sel')),f=tds[0],rows={};
+    tds.forEach(function(x){var r=x.closest('tr');rows[r.querySelector('.who b').textContent]=r});
+    var nm=Object.keys(rows),r0=rows[nm[0]],av=r0.querySelector('.av'),ga=document.getElementById('gd-av');
+    ga.setAttribute('style',av.getAttribute('style')||'');ga.textContent=nm.length===1?av.textContent:'';if(nm.length>1){ga.setAttribute('style','background:#5C4B82');ga.textContent=nm.length}
+    document.getElementById('gd-nm').textContent=nm.length===1?nm[0]:nm.length+' співробітники: '+nm.join(', ');
+    document.getElementById('gd-ps').textContent=nm.length===1?(r0.dataset.r||''):'';
+    var days=tds.map(function(x){return x.dataset.day}).sort(),n=tds.length;
+    document.querySelector('#gd-dt em').textContent=(days[0]===days[n-1]?dtxt(days[0]):dtxt(days[0])+' — '+dtxt(days[n-1]))+' · '+n+' '+(n%10==1&&n%100!=11?'день':(n%10>=2&&n%10<=4&&(n%100<10||n%100>=20))?'дні':'днів');
+    document.querySelector('.gd-off').textContent=n===1?'Зробити день неробочим':'Зробити дні неробочими';
+    if(tds.length===1&&f.dataset.s){document.getElementById('gd-s').value=f.dataset.s;document.getElementById('gd-e').value=f.dataset.e;document.getElementById('gd-p').value=f.dataset.p||''}gdHrs();
     document.getElementById('gd-err').textContent='';document.getElementById('gd').classList.add('on');document.getElementById('gdb').classList.add('on')};
   window.gdClose=function(){document.getElementById('gd').classList.remove('on');document.getElementById('gdb').classList.remove('on')};
   window.gdApply=function(a){var cells=[].map.call(t.querySelectorAll('td.sel'),function(x){return [x.dataset.d,x.dataset.day]});
