@@ -100,7 +100,12 @@ body.app{padding-left:var(--rail-w)}:root{--rail-w:264px}@media(max-width:1280px
 .nt-toast a b{display:block;color:#C9BFE6;font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px}
 .top .cta{height:46px;padding:0 20px;font-size:15px;border-radius:14px}
 /* ---- вміст ---- */
-.eyebrow{font:500 12px var(--head);letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.eyebrow{font:500 12px var(--head);letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px}
+.eyebrow a{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:99px;background:#EEEAF6;color:#3B3050!important;font-weight:600;letter-spacing:.12em;text-decoration:none!important;transition:background .15s,box-shadow .15s}
+.eyebrow a:hover{background:#E4DEEF;box-shadow:0 0 0 1px #C9BFE6}
+.crm-back{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 15px 0 10px;border-radius:99px;border:1px solid #C9BFE6;background:#fff;color:#3B3050;font:700 13px var(--sans);letter-spacing:.04em;text-transform:none;cursor:pointer;text-decoration:none;box-shadow:0 1px 2px rgba(42,36,48,.06);transition:background .15s,transform .15s}
+.crm-back:hover{background:#F3EFF9;transform:translateX(-2px)}.crm-back svg{width:16px;height:16px}
+.crm-back-row{margin:0 0 10px}
 .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 18px}
 .tabs a{padding:8px 14px;border-radius:99px;text-decoration:none;color:#3a342f;border:1.5px solid var(--line);background:var(--card);font-weight:700;font-size:14px}
 .tabs a:hover{border-color:var(--brand)}.tabs a.on{background:var(--brand);color:#fff;border-color:var(--brand)}.tabs a em{font-style:normal;opacity:.75;margin-left:5px}
@@ -249,6 +254,30 @@ body.drw-on .drw{transform:none}body.drw-on .drw-bg{opacity:1;pointer-events:aut
 </div>
 {% endif %}
 <main>{% block body %}{% endblock %}</main>
+{% if user and nav not in ('login','print') %}<script>(function(){
+  /* «← Назад» на всіх внутрішніх сторінках CRM: повертає у попереднє вікно (історія браузера),
+     а якщо зайшли за прямим посиланням — у батьківський розділ (посилання в «eyebrow» або на рівень вище). */
+  if (window.top !== window) return;                                   // у вбудованих вікнах (фінанси) є «Закрити»
+  var p = location.pathname.replace(/\/+$/, '') || '/';
+  var ROOT = ['/', '/calendar', '/clients', '/patients', '/appeals', '/plans', '/tasks', '/specialists', '/gifts', '/products', '/stock', '/finance', '/reports', '/settings', '/more', '/telephony', '/chats', '/login'];
+  var main = document.querySelector('main'); if (!main) return;
+  var eb = main.querySelector('.eyebrow'), h1 = main.querySelector('h1');
+  // власне посилання сторінки «← Розділ» над заголовком — стає адресою «Назад», а дубль ховаємо
+  var own = null;
+  [].some.call(main.querySelectorAll('a[href]'), function(a){
+    if (h1 && (h1.compareDocumentPosition(a) & Node.DOCUMENT_POSITION_FOLLOWING)) return true;
+    if (/^\s*←/.test(a.textContent)) { own = a; return true; } return false; });
+  if (ROOT.indexOf(p) >= 0 && !own) return;                          // розділи меню — без «Назад», якщо в них немає власного «←»
+  if (eb) eb.querySelectorAll('a').forEach(function(a){ a.textContent = a.textContent.replace(/^\s*←\s*/, ''); });
+  var parent = own ? own.getAttribute('href') : (eb && eb.querySelector('a[href^="/"]') ? eb.querySelector('a[href^="/"]').getAttribute('href') : (p.split('/').slice(0, -1).join('/') || '/'));
+  if (own && !(eb && eb.contains(own)) && !own.classList.contains('btn')) own.style.display = 'none';
+  var sameRef = false; try { sameRef = !!document.referrer && new URL(document.referrer).origin === location.origin && document.referrer !== location.href; } catch (e) {}
+  var b = document.createElement('a'); b.className = 'crm-back'; b.href = parent; b.title = sameRef ? 'Повернутися у попереднє вікно (Alt + ←)' : 'До розділу';
+  b.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>Назад';
+  b.addEventListener('click', function(e){ if (sameRef && history.length > 1) { e.preventDefault(); history.back(); } });
+  if (eb) { eb.insertBefore(b, eb.firstChild); }
+  else { var r = document.createElement('div'); r.className = 'crm-back-row'; r.appendChild(b); main.insertBefore(r, main.firstChild); }
+})();</script>{% endif %}
 {% if user and can(user,'stock') %}{% include "_supplier_modal.html" %}{% endif %}
 {% if user %}{% include "_delpw.html" %}{% endif %}
 {% if user and nav not in ('login','print') %}<script>(function(){var since=null,box=document.getElementById('nt'),bd=document.getElementById('nt-badge');if(!box)return;
