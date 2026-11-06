@@ -2,29 +2,48 @@
 {% block body %}
 {% include "_fin_tabs.html" %}
 {% set FB = [
-  ("Каса й продажі", [("/sales", "Каса CRM", "Чеки каси, оплати, повернення, тестові чеки", "M3 6h18v12H3zM3 10h18M7 15h4"),
-                      ("/finance/day", "Продажі за день", "Що продано сьогодні: чеки, оплати, лікарі", "M4 5h16v15H4zM4 9h16M9 3v4M15 3v4"),
-                      ("/finance/sales", "Продажі", "Продажі за період: послуги, товари, спеціалісти", "M4 20V10M10 20V4M16 20v-7M22 20H2"),
-                      ("/reports?r=cash", "Стан рахунків", "Залишки кас і рахунків на початок і кінець періоду, різниця з банком", "M3 7l9-4 9 4v10l-9 4-9-4zM12 11v6M9 14h6")]),
-  ("Гроші", [("/finance/ops", "Фіноперації", "Журнал: надходження, витрати, перекази, комісії", "M4 7h16M4 12h16M4 17h10"),
-             ("/payreq", "Рахунки на оплату", "Рахунки постачальників з Telegram → погодження → чернетка в monobank", "M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6"),
-             ("/settings/cashboxes", "Каси й рахунки", "Залишки кас і рахунків, комісія банку", "M3 7l9-4 9 4v10l-9 4-9-4z"),
-             ("/reports?r=cashflow", "Cashflow", "Рух грошей по днях і місяцях", "M3 17l6-6 4 4 8-8M15 7h6v6")]),
-  ("Зарплата", [("/finance/accruals", "Нарахування зарплати", "Документи нарахування за період, на баланс", "M12 3v18M7 8h7a3 3 0 0 1 0 6H8"),
-                ("/finance/payroll", "ЗП за місяць", "Зарплата кожного спеціаліста за місяць", "M5 4h14v16H5zM9 8h6M9 12h6M9 16h3"),
-                ("/finance/settle", "Взаєморозрахунки по з/п", "Нараховано, виплачено, борг", "M7 7h10l-3-3M17 17H7l3 3")]),
-  ("Пацієнти", [("/finance/balances", "Баланс пацієнтів", "Депозити й борги пацієнтів", "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c1-4 4-6 8-6s7 2 8 6"),
-                ("/finance/bonuses", "Рух бонусів", "Нарахування й списання бонусів", "M12 3l2.6 5.6 6 .6-4.5 4 1.3 6L12 16.3 6.6 19.2l1.3-6-4.5-4 6-.6z")]),
-  ("Ціни", [("/finance/pricing", "Планування ціни реалізації", "Закупівля, курс, націнка, ціна на вітрині", "M20 12l-8 8-9-9V3h8z")]),
+  ("Каса й продажі", 12, '<rect x="3" y="10" width="18" height="10" rx="2"/><path d="M6 10V5h8v5M8 14h2M14 14h3M7 17h10M16 7h3v3"/>', [
+     ("/sales", "Каса CRM", "Чеки каси, оплати, повернення", '<rect x="4" y="11" width="24" height="15" rx="3"/><path d="M8 11V5h13v6M11 16h3M18 16h5M9 21h14M23 7h4v4"/>'),
+     ("/finance/day", "Продажі за день", "Що продано сьогодні: чеки, оплати, лікарі", '<rect x="4" y="6" width="22" height="20" rx="3"/><path d="M4 12h22M10 3v5M20 3v5"/><circle cx="23" cy="23" r="5"/><path d="M21 23l1.5 1.5L25 22"/>'),
+     ("/finance/sales", "Продажі", "Продажі за період: послуги, товари, спеціалісти", '<path d="M7 11h18l-1.5 15h-15z"/><path d="M11 11V8a5 5 0 0 1 10 0v3M12 22v-3M16 22v-5M20 22v-4"/>'),
+     ("/reports?r=cash", "Стан рахунків", "Залишки кас і рахунків на початок і кінець періоду", '<rect x="4" y="9" width="21" height="16" rx="3"/><path d="M4 13h21M8 9l11-4 2 4"/><ellipse cx="24" cy="21" rx="4" ry="1.6"/><path d="M20 21v3c0 .9 1.8 1.6 4 1.6s4-.7 4-1.6v-3"/>')]),
+  ("Гроші", 12, '<ellipse cx="9" cy="7" rx="6" ry="2.5"/><path d="M3 7v4c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5V7M3 11v4c0 1.4 2.7 2.5 6 2.5"/><ellipse cx="16" cy="15" rx="5" ry="2"/><path d="M11 15v3c0 1.1 2.2 2 5 2s5-.9 5-2v-3"/>', [
+     ("/finance/ops", "Фіноперації", "Журнал: надходження, витрати, перекази", '<path d="M4 11h13l-3-3M26 21H13l3 3"/><circle cx="23" cy="10" r="4"/><path d="M23 8v4M21 10h4"/><circle cx="7" cy="21" r="4"/><path d="M5 21h4"/>'),
+     ("/payreq", "Рахунки на оплату", "Рахунки постачальників: Telegram → погодження → оплата", '<path d="M8 4h11l5 5v17H8z"/><path d="M19 4v5h5M12 13h8M12 17h5"/><circle cx="21" cy="22" r="4"/><path d="M19.3 22l1.2 1.2 2.3-2.4"/>'),
+     ("/settings/cashboxes", "Каси й рахунки", "Залишки кас і рахунків, комісія банку", '<path d="M4 11L15 5l11 6M5 11h20M7 11v11M12 11v11M18 11v11M23 11v11M4 25h22"/>'),
+     ("/reports?r=cashflow", "Cashflow", "Рух грошей по днях і місяцях", '<ellipse cx="10" cy="8" rx="6" ry="2.5"/><path d="M4 8v4c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5V8"/><ellipse cx="20" cy="20" rx="6" ry="2.5"/><path d="M14 20v3c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5v-3M18 7c4 0 7 2.5 7 6l-2-1.5M12 24c-4 0-7-2.5-7-6l2 1.5"/>')]),
+  ("Зарплата", 7, '<circle cx="9" cy="7" r="3.5"/><path d="M3 20c.6-3.8 3-6 6-6 1.5 0 2.8.5 3.8 1.4"/><circle cx="17" cy="17" r="4"/><path d="M17 15v4M15.5 16.2c0-.7.7-1.2 1.5-1.2s1.5.5 1.5 1.2-.7 1-1.5 1-1.5.4-1.5 1 .7 1.1 1.5 1.1 1.5-.4 1.5-1"/>', [
+     ("/finance/accruals", "Нарахування зарплати", "Документи нарахування за період, на баланс", '<rect x="3" y="8" width="21" height="14" rx="2.5"/><circle cx="13.5" cy="15" r="3.5"/><path d="M7 12v6"/><circle cx="23" cy="22" r="5"/><path d="M23 20v4M21 22h4"/>'),
+     ("/finance/payroll", "ЗП за місяць", "Зарплата кожного спеціаліста за місяць", '<rect x="4" y="6" width="20" height="19" rx="3"/><path d="M4 12h20M10 3v5M18 3v5M8 16h2M12 16h2M8 20h2"/><ellipse cx="23" cy="21" rx="4" ry="1.6"/><path d="M19 21v3c0 .9 1.8 1.6 4 1.6s4-.7 4-1.6v-3"/>'),
+     ("/finance/settle", "Взаєморозрахунки з/п", "Нараховано, виплачено, борг", '<ellipse cx="16" cy="13" rx="5" ry="2"/><path d="M11 13v5c0 1.1 2.2 2 5 2s5-.9 5-2v-5M6 12a10 10 0 0 1 17-6l1.5-1.5V9H20M26 20a10 10 0 0 1-17 6l-1.5 1.5V23H12"/>')]),
+  ("Пацієнти", 5, '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4.2 4.2-6.5 8-6.5s7 2.3 8 6.5"/>', [
+     ("/finance/balances", "Баланс пацієнтів", "Депозити й борги пацієнтів", '<circle cx="13" cy="10" r="5"/><path d="M4 26c1-5 4.6-8 9-8 1.7 0 3.3.4 4.6 1.2"/><rect x="18" y="19" width="10" height="7" rx="1.5"/><path d="M18 21.5h10M25 23.5h1"/>'),
+     ("/finance/bonuses", "Рух бонусів", "Нарахування й списання бонусів", '<rect x="5" y="13" width="20" height="13" rx="2.5"/><path d="M4 13h22v-3H4zM15 10v16M15 10c-1-3-3-5-5-5a2.5 2.5 0 0 0 0 5h5zM15 10c1-3 3-5 5-5a2.5 2.5 0 0 1 0 5h-5zM25 3l.7 1.6L27 5l-1.3.6L25 7l-.7-1.4L23 5l1.3-.4z"/>')]),
+  ("Ціни", 12, '<path d="M20.5 12.5l-8 8-9-9V3.5h8z"/><circle cx="8" cy="8" r="1.5"/>', [
+     ("/finance/pricing", "Планування ціни реалізації", "Закупівля, курс, націнка, ціна на вітрині", '<path d="M20 15l-8 8-9-9V6h8z"/><circle cx="8" cy="10" r="1.6"/><rect x="17" y="14" width="10" height="13" rx="2"/><path d="M19.5 17h5M19.5 20.5h1M22 20.5h1M24.5 20.5h0M19.5 23.5h1M22 23.5h1M24.5 23.5h0"/>')]),
 ] %}
 <style>
-.fb{display:grid;gap:18px;margin:0 0 26px}
-.fb-g h3{margin:0 0 10px;font:600 12.5px var(--head);letter-spacing:.16em;text-transform:uppercase;color:#8a8496}
-.fb-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
-.fb-c{display:flex;gap:14px;align-items:flex-start;background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:16px 18px;text-decoration:none;color:#2A2430;cursor:pointer;transition:.15s;text-align:left}
-.fb-c:hover{border-color:#C9BFE6;box-shadow:0 12px 30px -18px rgba(59,48,80,.5);transform:translateY(-1px)}
-.fb-c i{flex:none;width:42px;height:42px;border-radius:12px;background:#F1EDF8;color:#3B3050;display:grid;place-items:center}
-.fb-c b{display:block;font:600 15px var(--sans)}.fb-c span{display:block;font-size:12.5px;color:#8a8496;margin-top:3px;line-height:1.4}
+.fh{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:0 0 16px}
+.fh .pill-e{display:inline-block;background:#E4DEEF;color:#3B3050;border-radius:8px;padding:4px 10px;font:700 11px var(--head);letter-spacing:.16em;text-transform:uppercase}
+.fh h1{margin:8px 0 2px;font-size:38px;text-transform:none;letter-spacing:0;font-weight:700;color:#2A2430}.fh p{margin:0;color:#6b6575;font-size:15px}
+.fh .fq{position:relative;width:min(420px,100%)}.fh .fq svg{position:absolute;left:16px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:#6b6575}
+.fh .fq input{margin:0;height:48px;width:100%;padding-left:44px;border-radius:14px;background:#fff;border:1px solid #E6E0D8;font-size:14.5px;box-shadow:0 1px 2px rgba(42,36,48,.04)}
+.fb{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px;margin:0 0 18px}
+@media(max-width:1200px){.fb>.fb-g{grid-column:1/-1!important}}
+.fb-g{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:14px 16px 16px;box-shadow:0 1px 2px rgba(42,36,48,.04),0 14px 34px -28px rgba(42,36,48,.35)}
+.fb-g h3{display:flex;align-items:center;gap:10px;margin:0 0 12px 4px;font:700 14px var(--head);letter-spacing:.14em;text-transform:uppercase;color:#3B3050}.fb-g h3 svg{width:24px;height:24px}
+.fb-row{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:10px}
+@media(max-width:1000px){.fb-row{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:620px){.fb-row{grid-template-columns:1fr}}
+.fb-c{position:relative;display:flex;gap:14px;align-items:center;background:#fff;border:1px solid #ECE7E1;border-radius:16px;padding:12px 34px 12px 12px;text-decoration:none;color:#2A2430;cursor:pointer;transition:.15s;text-align:left;min-height:78px}
+.fb-c:hover{border-color:#C9BFE6;background:#FBFAFD;box-shadow:0 12px 30px -18px rgba(59,48,80,.5);transform:translateY(-1px)}
+.fb-c.hot{background:#F1EDF8;border-color:#E4DEEF}
+.fb-c i{flex:none;width:58px;height:58px;border-radius:14px;background:#EEEAF6;color:#3B3050;display:grid;place-items:center}.fb-c i svg{width:38px;height:38px}
+.fb-g.nar .fb-c{gap:11px;padding:10px 28px 10px 10px}.fb-g.nar .fb-c i{width:50px;height:50px}.fb-g.nar .fb-c i svg{width:32px;height:32px}.fb-g.nar .fb-c b{font-size:14.5px;hyphens:auto}.fb-g.nar .fb-c span{font-size:12px}.fb-g.nar .fb-c:after{right:11px}
+.fb-c b{display:block;font:700 15.5px var(--sans);line-height:1.25}.fb-c span{display:block;font-size:12.5px;color:#6b6575;margin-top:3px;line-height:1.4}
+.fb-c em{display:block;font:800 14px var(--sans);font-style:normal;color:#2A2430;margin-top:2px;letter-spacing:-.01em}
+.fb-c:after{content:"";position:absolute;right:14px;top:50%;width:8px;height:8px;border-right:2px solid #2A2430;border-top:2px solid #2A2430;transform:translateY(-50%) rotate(45deg)}
+.fb-c.hide{display:none}.fb-g.hide{display:none}
+.fb-go{display:flex;align-items:center;justify-content:center;gap:8px;height:48px;border-radius:14px;background:#EEEAF6;color:#2A2430;font:600 15px var(--sans);text-decoration:none;margin:0 0 22px}.fb-go:hover{background:#E4DEEF}
 .fw{position:fixed;inset:0;z-index:90;display:none}.fw.on{display:block}
 .fw-bg{position:absolute;inset:0;background:rgba(42,36,48,.45)}
 .fw-box{position:absolute;inset:3vh 3vw;background:#F7F4F0;border-radius:22px;box-shadow:0 30px 80px rgba(42,36,48,.4);display:flex;flex-direction:column;overflow:hidden}
@@ -34,9 +53,14 @@
 .fw iframe{flex:1;border:0;width:100%;background:#F7F4F0}
 @media(max-width:720px){.fw-box{inset:0;border-radius:0}}
 </style>
-<div class="fb">{% for g, items in FB %}<div class="fb-g"><h3>{{ g }}</h3><div class="fb-row">
-  {% for u, t, d, ic in items %}<a class="fb-c" href="{{ u }}" onclick="return fwOpen(event, this)" data-t="{{ t }}"><i><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ ic }}"/></svg></i>
+<div class="fh"><div><span class="pill-e">Управління клінікою</span><h1>Фінанси</h1><p>Усі фінансові процеси — в одному місці.</p></div>
+  <label class="fq"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="fb-q" placeholder="Знайти розділ…" autocomplete="off" oninput="fbFind(this.value)"></label></div>
+<div class="fb">{% for g, span, gi, items in FB %}<div class="fb-g {{ 'nar' if span < 12 }}" style="grid-column:span {{ span }}"><h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">{{ gi|safe }}</svg>{{ g }}</h3>
+  <div class="fb-row" style="--n:{{ [items|length, 4]|min if span == 12 else items|length }}">
+  {% for u, t, d, ic in items %}<a class="fb-c {{ 'hot' if u == '/payreq' }}" href="{{ u }}" onclick="return fwOpen(event, this)" data-t="{{ t }}" data-q="{{ (t ~ ' ' ~ d ~ ' ' ~ g)|lower }}"><i><svg viewBox="0 0 30 30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">{{ ic|safe }}</svg></i>
     <div><b>{{ t }}</b><span>{{ d }}</span></div></a>{% endfor %}</div></div>{% endfor %}</div>
+<a class="fb-go" href="#fin-overview">Перейти до фінансового огляду <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg></a>
+<script>function fbFind(q){q=(q||'').toLowerCase().trim();document.querySelectorAll('.fb-g').forEach(function(g){var any=false;g.querySelectorAll('.fb-c').forEach(function(c){var ok=!q||c.dataset.q.indexOf(q)>=0;c.classList.toggle('hide',!ok);if(ok)any=true});g.classList.toggle('hide',!any)})}</script>
 <div class="fw" id="fw"><div class="fw-bg" onclick="fwClose()"></div><div class="fw-box"><div class="fw-h"><b id="fw-t">Фінанси</b>
   <div style="display:flex;gap:8px"><a id="fw-o" href="#" target="_top" title="Відкрити окремою сторінкою">↗ Окремо</a><button type="button" onclick="fwClose()">✕ Закрити</button></div></div>
   <iframe id="fw-f" title="Розділ фінансів"></iframe></div></div>
@@ -47,8 +71,7 @@ function fwOpen(e,a){if(e&&(e.metaKey||e.ctrlKey||e.shiftKey))return true;if(e)e
 function fwClose(){document.getElementById('fw').classList.remove('on');document.getElementById('fw-f').src='about:blank';document.body.style.overflow=''}
 document.addEventListener('keydown',function(e){if(e.key==='Escape')fwClose()});
 </script>
-<h2 style="margin:0 0 10px;font:600 14px var(--head);letter-spacing:.16em;text-transform:uppercase;color:#8a8496">Огляд</h2>
-<div class="row between" style="margin-bottom:14px"><div><h1>Фінанси</h1><div class="muted small">{{ d_from|dt }} — {{ d_to|dt }}{% if not fs.has_data %} · чеків з CleverBox за період немає (потрібна синхронізація){% endif %}</div></div>
+<div class="row between" id="fin-overview" style="margin-bottom:14px;scroll-margin-top:90px"><div><h1 style="font-size:22px">Фінансовий огляд</h1><div class="muted small">{{ d_from|dt }} — {{ d_to|dt }}{% if not fs.has_data %} · чеків з CleverBox за період немає (потрібна синхронізація){% endif %}</div></div>
   <form class="row small"><input type="date" name="df" value="{{ d_from }}"><span class="muted">—</span><input type="date" name="dt_" value="{{ d_to }}"><button class="btn ghost">OK</button>
     <a class="btn ghost" href="/export/report.xlsx?df={{ d_from }}&dt_={{ d_to }}">Excel</a></form></div>
 <div class="grid g5" style="margin-bottom:18px">
