@@ -228,10 +228,49 @@ def unallocate_txn(db: Session, txn: BankTxn) -> None:
 
 
 def clear_manual(db: Session, g: Group) -> None:
+    from ..models import FinOp
     for a in db.scalars(select(PaymentAlloc).where(PaymentAlloc.doc_id.in_([d.id for d in g.docs]),
                                                    PaymentAlloc.txn_id.is_(None))):
         db.delete(a)
+    for x in db.scalars(select(FinOp).where(FinOp.ref.in_([f"stockpay:{d.id}" for d in g.docs]), FinOp.deleted_at.is_(None))):
+        x.deleted_at = datetime.utcnow()                    # готівку, списану з каси за цю накладну, — повертаємо
     db.commit()
+
+
+# ---------------- оплата поставки готівкою з каси ----------------
+CASH_PREFIX = "Готівка · "
+
+
+def cash_boxes(db: Session) -> list[str]:
+    """Каси з готівкою (тип «Готівка»), з яких можна оплатити поставку."""
+    from . import cashboxes as cb
+    return [x["name"] for x in cb.items(db) if not x.get("deleted") and x.get("active", True) and x.get("type") == "cash"]
+
+
+def supply_articles(db: Session) -> list[str]:
+    """Статті витрат для оплати поставки: спершу «закуп…»."""
+    from . import fin_articles as fa
+    xs = fa.names(db, "expense")
+    return sorted(xs, key=lambda n: (0 if "закуп" in n.lower() else 1, n.lower()))
+
+
+def cash_expense(db: Session, g: Group, amount: float, fop: str | None, user_id: int | None = None,
+                 category: str | None = None):
+    """fop = «Готівка · <каса>» → витрата у «Фіноперації» з цієї каси (залишок каси зменшується). Повертає FinOp або None."""
+    from datetime import date as _date
+    from ..models import FinOp
+    if not fop or not fop.startswith(CASH_PREFIX) or not amount or amount <= 0 or not g.docs:
+        return None
+    box = fop[len(CASH_PREFIX):].strip()
+    arts = supply_articles(db)
+    cat = category if category in arts else (arts[0] if arts else "Закупівля товару")
+    d0 = g.docs[0]
+    x = FinOp(day=_date.today(), kind="expense", category=cat[:60], amount=round(amount, 2), cashbox=box[:100],
+              counterparty=(g.supplier or "")[:200] or None, ref=f"stockpay:{d0.id}", created_by=user_id,
+              comment=f"Оплата поставки готівкою · накладна {g.ext_no or ('№' + str(d0.id))}"[:500])
+    db.add(x)
+    db.commit()
+    return x
 
 
 # ---------------- автоматичне зіставлення ----------------

@@ -139,10 +139,15 @@
       Призначення: {{ (sup.pay_purpose or 'Оплата за товар згідно рахунку №') }} {{ d.ext_no or '' }}</div></details>
   {% elif d.supplier %}<p class="small muted" style="margin-top:8px">Реквізитів постачальника ще немає — <a href="/stock?tab=suppliers&s={{ d.supplier|urlencode }}#sup" data-sup-name="{{ d.supplier }}">додати</a>, щоб CRM упізнавала платежі monobank.</p>{% endif %}
   {% if grp.left > 1 %}<form method="post" action="/stock/docs/{{ d.id }}/pay" class="row" style="gap:6px;margin-top:12px;flex-wrap:wrap"><input type="hidden" name="action" value="paid">
-    <select name="fop" required><option value="">Яким ФОП оплачено…</option>{% for n in fops %}<option {{ 'selected' if d.paid_by == n }}>{{ n }}</option>{% endfor %}<option>Готівка / інше</option></select>
+    <select name="fop" required onchange="var c=this.value.indexOf('{{ CASH_PREFIX }}')===0;this.form.querySelector('.pay-cat').style.display=c?'':'none'"><option value="">Чим оплачено…</option>
+      {% if fops %}<optgroup label="Безготівково (ФОП)">{% for n in fops %}<option {{ 'selected' if d.paid_by == n }}>{{ n }}</option>{% endfor %}</optgroup>{% endif %}
+      {% if cash_boxes %}<optgroup label="Готівка — списати з каси">{% for n in cash_boxes %}<option value="{{ CASH_PREFIX ~ n }}">💵 {{ n }}</option>{% endfor %}</optgroup>{% endif %}
+      <optgroup label="Інше"><option value="Готівка / інше">Інше (без списання з каси)</option></optgroup></select>
+    <select name="category" class="pay-cat" style="display:none;max-width:240px" title="Стаття витрат у «Фіноперації»">{% for a in sup_arts %}<option>{{ a }}</option>{% endfor %}</select>
     <input name="amount" placeholder="{{ '%.2f'|format(grp.left) }}" inputmode="decimal" style="width:120px" title="Порожньо — весь залишок">
     <button class="btn">Відмітити оплату</button></form>
-  <p class="small muted" style="margin:6px 0 0">Оплата за накладну на кілька складів розноситься пропорційно, у кожному складі — на товари. З підключеним monobank це відбувається само.</p>{% endif %}
+  <p class="small muted" style="margin:6px 0 0">Оплата за накладну на кілька складів розноситься пропорційно, у кожному складі — на товари. З підключеним monobank це відбувається само.
+    Готівкою з каси — сума списується з обраної каси витратою у «Фіноперації» (стаття на вибір); «зняти ручні відмітки» її повертає.</p>{% endif %}
   {% if allocs|selectattr('txn_id', 'none')|list %}<form method="post" action="/stock/docs/{{ d.id }}/pay" style="margin-top:6px" onsubmit="return confirm('Зняти ручні відмітки оплати з усієї накладної?')"><input type="hidden" name="action" value="clear"><button class="btn ghost" style="padding:2px 10px">зняти ручні відмітки</button></form>{% endif %}
 </div>
 {% endif %}

@@ -244,3 +244,29 @@ def test_window_and_reject():
     t = BankTxn(id="x", at=datetime.now(), amount=-1)
     pay.reject(t, {"doc:5", "g:1"}); pay.reject(t, {"doc:5"})
     assert pay.rejected_keys(t) == {"doc:5", "g:1"}
+
+
+def test_supply_paid_cash_from_cashbox_and_clear():
+    """Оплата поставки готівкою з обраної каси → витрата у Фіноперації з цієї каси; «зняти ручні відмітки» її скасовує."""
+    from app.models import FinOp
+    from app.services import cashboxes as cbx
+    with SessionLocal() as db:
+        p = Product(name="Готівковий товар", name_norm="готівковий товар")
+        db.add(p); db.commit(); pid = p.id
+    with TestClient(app) as c:
+        _login(c)
+        j = c.post("/stock/docs/quick", json={"kind": "supply", "supplier": "ГотівкаПост", "wh": "vitrina", "ext_no": "ГТ-1",
+                   "lines": [{"product_id": pid, "qty": 2, "price": 500, "wh": "vitrina"}]}).json()
+        did = j["ids"][0]
+        page = c.get(f"/stock/docs/{did}").text
+        import re
+        assert "Готівка — списати з каси" in page
+        box = re.search(r'value="Готівка · ([^"]+)"', page).group(1)
+        c.post(f"/stock/docs/{did}/pay", data={"action": "paid", "fop": f"Готівка · {box}", "amount": "1000", "category": "Закупка товара"})
+        with SessionLocal() as db:
+            x = db.query(FinOp).filter_by(ref=f"stockpay:{did}").one()
+            assert x.kind == "expense" and x.amount == 1000 and x.cashbox == box and x.deleted_at is None
+            assert pay.find_group(db, pay.group_key(db.get(StockDoc, did))).state == "paid"
+        c.post(f"/stock/docs/{did}/pay", data={"action": "clear"})
+        with SessionLocal() as db:
+            assert db.query(FinOp).filter_by(ref=f"stockpay:{did}").one().deleted_at is not None

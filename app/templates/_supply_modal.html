@@ -47,7 +47,7 @@
         <datalist id="sdSupList">{% for x in sup_names %}<option value="{{ x }}">{% endfor %}</datalist></label>
       <label>Склад<select id="sdWh">{% for k, v in WAREHOUSES.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
       <label>№ накладної постачальника<input id="sdExt" placeholder="напр. ПН-0412"></label>
-      {% if tab=='supply' %}<label>Оплата<select id="sdPaidBy"><option value="">— ще не оплачено —</option>{% for n in fops %}<option value="{{ n }}">оплачено ФОП {{ n }}</option>{% endfor %}<option value="Готівка / інше">оплачено готівкою / інше</option></select></label>
+      {% if tab=='supply' %}<label>Оплата<select id="sdPaidBy"><option value="">— ще не оплачено —</option>{% for n in fops %}<option value="{{ n }}">оплачено ФОП {{ n }}</option>{% endfor %}{% for n in cash_boxes or [] %}<option value="Готівка · {{ n }}">💵 готівкою з каси «{{ n }}»</option>{% endfor %}<option value="Готівка / інше">інше (без списання з каси)</option></select></label>
       <label>Файли й фото накладної<input type="file" id="sdFiles" multiple accept="image/*,application/pdf" style="padding-top:9px"></label>{% endif %}
       <label class="wide">Коментар<textarea id="sdNote" placeholder="необов'язково"></textarea></label>
     </div>

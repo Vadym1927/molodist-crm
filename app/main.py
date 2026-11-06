@@ -4656,6 +4656,7 @@ def stock_page(request: Request, tab: str = "balances", only: str = "", wh: str 
     from .integrations.checkbox import accounts as _cb_acc
     ctx = dict(tab=tab, TABS=STOCK_TABS, WAREHOUSES=catalog.WAREHOUSES, STATUS=st.STATUS, KINDS=st.DOC_KINDS, sup_names=_sup_names,
                fops=[a["name"] for a in _cb_acc(db)] if tab in ("supply", "order", "suppliers") else [],
+               cash_boxes=__import__("app.services.payments", fromlist=["cash_boxes"]).cash_boxes(db) if tab in ("supply", "order", "suppliers") else [],
                MOVE_KINDS=st.MOVE_KINDS, active=st.ledger_active(db), start=st.ledger_start(db), wh=wh, q=q, sup=sup)
     if tab in ("balances", "critical"):
         rows = [r for r in catalog.product_rows(db) if r.product.active is not False]
@@ -5341,6 +5342,7 @@ async def stock_doc_quick(request: Request, user: User = Depends(require("stock"
             amt_ = g.left
             pay.allocate(db, g, amt_, fop=paid_by, user_id=user.id)
             db.commit()
+            pay.cash_expense(db, g, amt_, paid_by, user.id)
             audit(db, "stock.pay", "stock_doc", docs[0].id, user=user, op="paid", fop=paid_by, amount=round(amt_, 2))
     for x_ in docs:
         audit(db, "stock.quick_doc", "stock_doc", x_.id, user=user, kind=kind, docs=[x.id for x in docs],
@@ -5413,7 +5415,7 @@ def stock_file_delete(fid: int, del_password: str = Form(""), user: User = Depen
 
 
 @app.post("/stock/docs/{did:int}/pay")
-def stock_doc_pay(did: int, action: str = Form("paid"), fop: str = Form(""), amount: str = Form(""),
+def stock_doc_pay(did: int, action: str = Form("paid"), fop: str = Form(""), amount: str = Form(""), category: str = Form(""),
                   user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
     """Оплата накладної вручну (усі склади групи): action=paid — оплатити залишок / суму; clear — зняти ручні відмітки."""
     from .services import payments as pay
@@ -5429,6 +5431,7 @@ def stock_doc_pay(did: int, action: str = Form("paid"), fop: str = Form(""), amo
             for d_ in g.docs:
                 d_.paid_by = fop.strip() or d_.paid_by
             db.commit()
+            pay.cash_expense(db, g, amt, fop.strip(), user.id, category.strip() or None)
         for d_ in g.docs:
             audit(db, "stock.pay", "stock_doc", d_.id, user=user, op=action, fop=fop or None,
                   amount=round(amt, 2) if amt and d_.id == did else None)
@@ -5473,6 +5476,7 @@ def stock_doc_page(did: int, request: Request, user: User = Depends(require("sto
                   win=(pay.PREPAY_DAYS, pay.POSTPAY_DAYS),
                   alloc_users={u_.id: u_.name for u_ in db.scalars(select(User))}, line_paid=pay.by_product(db, [doc.id]),
                   fops=[a["name"] for a in _cb_acc(db)], sup=sup, lot_opts=lot_opts, today=date.today(),
+                  cash_boxes=pay.cash_boxes(db), sup_arts=pay.supply_articles(db), CASH_PREFIX=pay.CASH_PREFIX,
                   group_docs=[x for x in (grp.docs if grp else []) if x.id != doc.id],
                   REASONS=st.WRITEOFF_REASONS, products=_product_options(db), bal=bal, active=st.ledger_active(db),
                   suppliers=[x.name for x in db.scalars(select(Supplier).order_by(Supplier.name))],
