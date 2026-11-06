@@ -123,3 +123,19 @@ def test_hook_log_and_summary():
         ev = mi.hook_events(db)
     assert ev and ev[0]["kind"] == "event" and "message×1" in ev[0]["note"] and "read×1" in ev[0]["note"]
     assert "hi" not in ev[0]["note"]
+
+
+def test_suggest_translit_and_close_thread():
+    from app.services import appeals as ap
+    with SessionLocal() as db:
+        p = Patient(full_name="Тестенко Олена Іванівна", phone="+380500000777")
+        db.add(p); db.commit()
+        assert mi.to_cyr("Olena Testenko") == "олена тестенко"
+        assert p.id in [x.id for x in mi.suggest(db, "Olena Testenko")]
+        a = ap.create(db, {"name": "x", "source": "Facebook"})
+        db.add(ChatMessage(channel="facebook", thread="777000111", direction="in", text="hi", appeal_id=a.id)); db.commit()
+        st = next(s["name"] for s in ap.dirs(db)["statuses"] if s.get("type") == "other")
+        assert mi.close_thread(db, "777000111", st, "Спам / робот", None) == 1
+        db.refresh(a)
+        assert a.closed_at and a.deny_reason == "Спам / робот"
+        assert next(t for t in mi.threads(db) if t["thread"] == "777000111")["closed"]

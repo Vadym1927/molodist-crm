@@ -15,8 +15,17 @@
 .cx-l{flex:1;overflow:auto}
 .cx-t{display:flex;gap:10px;align-items:center;padding:11px 14px;border-bottom:1px solid #F6F3EF;text-decoration:none;color:#2A2430}
 .cx-t:hover{background:#FBFAF8}.cx-t.on{background:#F3EFF9;box-shadow:inset 3px 0 0 #3B3050}
-.cx-av{width:40px;height:40px;border-radius:50%;flex:none;display:grid;place-items:center;font:700 13px var(--sans);color:#fff;background:linear-gradient(135deg,#962FBF,#FA7E1E)}
-.cx-av.fb{background:#1877F2}
+.cx-av,.cx-t .cx-av{width:40px;height:40px;border-radius:50%;flex:none;display:grid;place-items:center;font:700 13px var(--sans);color:#fff;background:linear-gradient(135deg,#962FBF,#FA7E1E);position:relative;overflow:hidden;white-space:normal}
+.cx-av.fb{background:#1877F2}.cx-av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.cx-av .bd{position:absolute;right:-1px;bottom:-1px;width:15px;height:15px;border-radius:50%;border:2px solid #fff;background:#1877F2}.cx-av .bd.ig{background:linear-gradient(135deg,#962FBF,#FA7E1E)}
+.cx-hd .cx-av{width:44px;height:44px}.cx-hd .sp{flex:1}
+.cx-t .cl{display:inline-block;font-size:10.5px;color:#4a7a52;background:#E5F2E7;border-radius:6px;padding:0 6px;margin-left:4px;vertical-align:1px}
+.cx-sg{display:grid;gap:6px}.cx-sg button{all:unset;cursor:pointer;display:block;padding:8px 10px;border:1px dashed #C9BFE6;border-radius:10px;font-size:13px;background:#FBFAFE}.cx-sg button:hover{background:#F3EFF9;border-style:solid}
+.cx-sg small{color:#8a8496}
+dialog.cx-dl{border:0;border-radius:18px;padding:22px;width:min(420px,92vw);box-shadow:0 30px 60px -20px rgba(42,36,48,.45)}dialog.cx-dl::backdrop{background:rgba(42,36,48,.35)}
+.cx-dl h3{margin:0 0 4px;font:700 18px var(--sans);text-transform:none;letter-spacing:0}.cx-dl p{margin:0 0 14px;color:#6b6575;font-size:13.5px}
+.cx-dl .opts{display:grid;gap:8px;margin-bottom:12px}.cx-dl label.op{display:flex;gap:10px;align-items:center;padding:10px 12px;border:1px solid #ECE7E1;border-radius:12px;cursor:pointer;font-size:14px}
+.cx-dl label.op:has(input:checked){border-color:#3B3050;background:#F3EFF9}.cx-dl label.op input{margin:0;width:auto}.cx-dl label.op i{width:10px;height:10px;border-radius:50%;flex:none}
 .cx-t .tx{flex:1;min-width:0}.cx-t b{display:block;font:600 14px var(--sans);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cx-t span{display:block;font-size:12.5px;color:#8a8496;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cx-t em{font-style:normal;font-size:11px;color:#9a93a6;white-space:nowrap;align-self:flex-start}.cx-t i{font-style:normal;background:#D9534F;color:#fff;border-radius:99px;min-width:20px;height:20px;display:grid;place-items:center;font:700 11px var(--sans);padding:0 6px}
@@ -46,13 +55,14 @@
     <div class="cx-f"><div class="cx-tabs"><a href="?" class="{{ 'on' if not ch_ }}">Усі</a><a href="?ch=instagram" class="{{ 'on' if ch_ == 'instagram' }}">Instagram</a><a href="?ch=facebook" class="{{ 'on' if ch_ == 'facebook' }}">Facebook</a></div>
       <form><input type="hidden" name="ch" value="{{ ch_ }}"><input name="q" value="{{ q }}" placeholder="Пошук: імʼя або текст"></form></div>
     <div class="cx-l">{% for x in threads %}<a class="cx-t {{ 'on' if cur and cur.thread == x.thread }}" href="?t={{ x.thread }}{{ ('&ch=' ~ ch_) if ch_ }}">
-      <span class="cx-av {{ 'fb' if x.channel == 'facebook' }}">{{ (x.name.lstrip('@')[:2])|upper }}</span>
-      <span class="tx"><b>{{ x.name }}</b><span>{{ '↪ ' if x.last.direction == 'out' }}{{ x.last.text or '[вкладення]' }}</span></span>
+      <span class="cx-av {{ 'fb' if x.channel == 'facebook' }}">{{ (x.name.lstrip('@')[:2])|upper }}<img src="/chats/{{ x.thread }}/avatar" alt="" loading="lazy" onerror="this.remove()"><span class="bd {{ 'ig' if x.channel == 'instagram' }}"></span></span>
+      <span class="tx"><b>{{ x.name }}{% if x.closed %}<span class="cl">✓ закрито</span>{% endif %}</b><span>{{ '↪ ' if x.last.direction == 'out' }}{{ x.last.text or '[вкладення]' }}</span></span>
       <em>{{ x.last.at|local|dt('%d.%m %H:%M') }}</em>{% if x.unread and not (cur and cur.thread == x.thread) %}<i>{{ x.unread }}</i>{% endif %}</a>
     {% else %}<div class="cx-e">Повідомлень ще немає.<br>Щойно пацієнт напише в Instagram чи Messenger — діалог зʼявиться тут.</div>{% endfor %}</div>
   </div>
   <div>{% if cur %}
-    <div class="cx-hd"><span class="cx-av {{ 'fb' if cur.channel == 'facebook' }}">{{ (cur.name.lstrip('@')[:2])|upper }}</span><div><b>{{ cur.name }}</b><small>{{ 'Instagram Direct' if cur.channel == 'instagram' else 'Facebook Messenger' }}</small></div></div>
+    <div class="cx-hd"><span class="cx-av {{ 'fb' if cur.channel == 'facebook' }}">{{ (cur.name.lstrip('@')[:2])|upper }}<img src="/chats/{{ cur.thread }}/avatar" alt="" onerror="this.remove()"></span><div class="sp"><b>{{ cur.name }}</b><small>{{ 'Instagram Direct' if cur.channel == 'instagram' else 'Facebook Messenger' }}{% if cur.closed %} · ✓ закрито ({{ cur.appeal_status }}){% endif %}</small></div>
+      <button class="btn ghost" type="button" onclick="document.getElementById('cx-close').showModal()">✓ Закрити діалог</button></div>
     <div class="cx-m" id="cx-m">{% set ns = namespace(d='') %}{% for m in msgs %}{% set dd = (m.at|local|dt('%d.%m.%Y')) %}{% if dd != ns.d %}<div class="cx-d">{{ dd }}</div>{% set ns.d = dd %}{% endif %}
       <div class="cx-b {{ m.direction }} {{ 'bad' if m.direction == 'out' and m.status != 'sent' }}">{{ m.text or '' }}{% for a in m.attachments or [] %}{% if a.url %}<div><a href="{{ a.url }}" target="_blank" rel="noopener">📎 {{ a.type or 'файл' }}</a></div>{% endif %}{% endfor %}
         <small>{{ m.at|local|dt('%H:%M') }}{% if m.direction == 'out' %} · {{ {'sent':'надіслано','paused':'не надіслано — вимкнено','failed':'помилка'}.get(m.status, m.status) }}{% if m.error and m.status != 'sent' %}: {{ m.error }}{% endif %}{% endif %}</small></div>{% endfor %}</div>
@@ -62,18 +72,29 @@
     <h4>Пацієнт</h4>
     {% if pat %}<div class="card"><a href="/patients/{{ pat.id }}" style="font-weight:700">{{ pat.full_name }}</a><div class="small muted">{{ pat.phone or '' }}</div></div>
     {% else %}<div class="small muted">Не привʼязано до картки.</div>{% endif %}
-    <form method="post" action="/chats/{{ cur.thread }}/patient" class="cx-lk"><input type="hidden" name="patient_id" id="cx-pid"><input id="cx-q" placeholder="Знайти пацієнта для привʼязки" autocomplete="off" style="margin:0;height:38px"><div class="res" id="cx-res"></div></form>
+    <form method="post" action="/chats/{{ cur.thread }}/patient" class="cx-lk" id="cx-lf"><input type="hidden" name="patient_id" id="cx-pid">
+      {% if suggest %}<div class="cx-sg"><small>Схожі пацієнти — натисніть, щоб привʼязати:</small>{% for p in suggest %}<button type="button" onclick="document.getElementById('cx-pid').value='{{ p.id }}';document.getElementById('cx-lf').submit()"><b>{{ p.full_name }}</b>{% if p.phone %} <small>· {{ p.phone }}</small>{% endif %}</button>{% endfor %}</div>{% endif %}
+      <input id="cx-q" onkeydown="if(event.key==='Enter'){event.preventDefault();var f=document.querySelector('#cx-res div[data-id]');if(f)f.click()}" placeholder="{{ 'Змінити: імʼя або телефон' if pat else 'Імʼя або телефон (від 3 символів)' }}" autocomplete="off" style="margin:6px 0 0;height:40px;width:100%;box-sizing:border-box"><div class="res" id="cx-res"></div>
+      {% if pat %}<button class="btn ghost" name="patient_id" value="" style="margin-top:6px;font-size:12.5px">Відвʼязати</button>{% endif %}</form>
     {% if appeal %}<h4>Звернення</h4><a class="btn ghost" href="/appeals?open={{ appeal.id }}">№{{ appeal.id }} · {{ appeal.status }}</a>{% endif %}
     {% if can(user,'book') %}<a class="btn" href="/calendar?view=day&newappt=1{{ ('&appeal=' ~ appeal.id) if appeal }}">📅 Записати</a>{% endif %}
   {% endif %}</div>
 </div>
+{% if cur %}<dialog class="cx-dl" id="cx-close"><form method="post" action="/chats/{{ cur.thread }}/close">
+  <h3>Закрити діалог</h3><p>Звернення з цього діалогу закриється з обраним результатом. Якщо пацієнт напише знову — створиться нове звернення.</p>
+  <div class="opts">{% for s_ in close_st %}<label class="op"><input type="radio" name="status" value="{{ s_.name }}" data-t="{{ s_.type }}" {{ 'checked' if loop.first }} onchange="cxR()"><i style="background:{{ s_.color or '#999' }}"></i>{{ s_.name }}</label>{% endfor %}</div>
+  <select name="reason" id="cx-rs-fail" style="display:none;margin:0 0 12px" disabled><option value="">Причина відмови…</option>{% for r in deny_reasons %}<option>{{ r }}</option>{% endfor %}</select>
+  <select name="reason" id="cx-rs-other" style="display:none;margin:0 0 12px" disabled><option value="">Хто це…</option>{% for r in other_reasons %}<option>{{ r }}</option>{% endfor %}</select>
+  <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn ghost" onclick="this.closest('dialog').close()">Скасувати</button><button class="btn">Закрити діалог</button></div>
+</form></dialog>{% endif %}
 <script>
+function cxR(){var c=document.querySelector('#cx-close input[name=status]:checked');var t=c?c.dataset.t:'';['fail','other'].forEach(function(k){var e=document.getElementById('cx-rs-'+k);if(!e)return;var on=t===k;e.style.display=on?'':'none';e.disabled=!on})}cxR();
 (function(){var m=document.getElementById('cx-m');if(m)m.scrollTop=m.scrollHeight;
   var q=document.getElementById('cx-q');if(!q)return;var r=document.getElementById('cx-res'),T;
-  q.addEventListener('input',function(){clearTimeout(T);var v=q.value.trim();if(v.length<2){r.style.display='none';return}
+  q.addEventListener('input',function(){clearTimeout(T);var v=q.value.trim();if(v.replace(/\D/g,'').length<3&&v.length<3){r.style.display='none';return}
     T=setTimeout(function(){fetch('/lookup/patients?q='+encodeURIComponent(v),{credentials:'same-origin'}).then(function(x){return x.json()}).then(function(js){
-      r.innerHTML='';js.slice(0,8).forEach(function(p){var d=document.createElement('div');d.textContent=p.name+(p.phone?' · '+p.phone:'');d.onclick=function(){document.getElementById('cx-pid').value=p.id;q.form.submit()};r.appendChild(d)});
-      r.style.display=js.length?'':'none'})},250)})})();
+      r.innerHTML='';js.slice(0,8).forEach(function(p){var d=document.createElement('div');d.textContent=p.name+(p.phone?' · '+p.phone:'');d.dataset.id=p.id;d.onclick=function(){document.getElementById('cx-pid').value=p.id;q.form.submit()};r.appendChild(d)});
+      if(!js.length){var e=document.createElement('div');e.textContent='Нікого не знайдено';e.style.color='#8a8496';e.style.cursor='default';r.appendChild(e)}r.style.display='block'})},250)})})();
 setTimeout(function(){var t=document.querySelector('.cx-in textarea');if(!t||!t.value.trim())location.reload()},60000);
 </script>
 {% endblock %}

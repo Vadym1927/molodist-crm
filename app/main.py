@@ -5121,9 +5121,32 @@ def chats_page(request: Request, t: str = "", ch: str = "", q: str = "", user: U
         mi.mark_read(db, cur["thread"])
         pat = db.get(Patient, cur["patient_id"]) if cur.get("patient_id") else None
     c = mi.meta_channel(db)
+    from .services import appeals as _ap
+    _d = _ap.dirs(db)
+    close_st = [s_ for s_ in _d["statuses"] if s_.get("type") in ("success", "fail", "other")]
     return render(request, "chats.html", nav="chats", threads=th, cur=cur, msgs=msgs, pat=pat, ch_=ch, q=q,
                   connected=bool(c and c.get("has", {}).get("page_token")), replies_on=mi.replies_enabled(db),
+                  suggest=mi.suggest(db, cur["name"]) if cur and not pat else [], close_st=close_st,
+                  deny_reasons=_d.get("deny_reasons") or [], other_reasons=_d.get("other_reasons") or [],
                   appeal=db.get(__import__("app.models", fromlist=["Appeal"]).Appeal, msgs[-1].appeal_id) if msgs and msgs[-1].appeal_id else None)
+
+
+@app.get("/chats/{thread}/avatar")
+def chats_avatar(thread: str, user: User = Depends(require("appeals")), db: Session = Depends(db_dep)):
+    from .services import meta_inbox as mi
+    av = mi.avatar(db, thread) if thread.isdigit() else None
+    if not av:
+        raise HTTPException(404)
+    return Response(av[0], media_type=av[1], headers={"Cache-Control": "private, max-age=21600"})
+
+
+@app.post("/chats/{thread}/close")
+def chats_close(thread: str, status: str = Form(...), reason: str = Form(""), user: User = Depends(require("appeals")),
+                db: Session = Depends(db_dep)):
+    from .services import meta_inbox as mi
+    n = mi.close_thread(db, thread, status, reason.strip() or None, user.id)
+    audit(db, "chats.close", user=user, thread=thread[-6:], status=status, appeals=n)
+    return RedirectResponse(_with_msg(f"/chats?t={thread}", f"Діалог закрито · {status}" + ("" if n else " (відкритих звернень не було)")), 303)
 
 
 @app.post("/chats/{thread}/reply")

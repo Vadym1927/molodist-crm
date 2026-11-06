@@ -180,7 +180,10 @@ def threads(db: Session, channel: str = "", q: str = "") -> list[dict]:
         nm = db.scalar(select(ChatMessage.name).where(ChatMessage.thread == t, ChatMessage.name.is_not(None)).limit(1))
         if q and q.lower() not in (nm or "").lower() and q.lower() not in (m.text or "").lower():
             continue
-        out.append({"thread": t, "channel": m.channel, "name": nm or f"{CH_LABEL.get(m.channel, m.channel)} …{t[-4:]}", "last": m,
+        aid = m.appeal_id or db.scalar(select(ChatMessage.appeal_id).where(ChatMessage.thread == t, ChatMessage.appeal_id.is_not(None))
+                                       .order_by(ChatMessage.id.desc()).limit(1))
+        ap_ = db.get(Appeal, aid) if aid else None
+        out.append({"thread": t, "channel": m.channel, "closed": bool(ap_ and ap_.closed_at), "appeal_status": ap_.status if ap_ else None, "name": nm or f"{CH_LABEL.get(m.channel, m.channel)} …{t[-4:]}", "last": m,
                     "unread": unread.get(t, 0), "patient_id": db.scalar(select(ChatMessage.patient_id).where(
                         ChatMessage.thread == t, ChatMessage.patient_id.is_not(None)).limit(1))})
     out.sort(key=lambda x: x["last"].at, reverse=True)
@@ -324,3 +327,90 @@ def subscribe(db: Session, http: httpx.Client | None = None) -> tuple[bool, str]
             m += " — потрібен дозвіл pages_manage_metadata у токені сторінки"
         return False, f"Meta: {m}"
     return bool(js.get("success")), "Сторінку підписано на messages, messaging_postbacks" if js.get("success") else "Meta не підтвердила підписку"
+
+
+_AV: dict[str, tuple[float, bytes, str]] = {}     # аватари співрозмовників: thread → (час, байти, тип) — у памʼяті, 12 год
+
+
+def avatar(db: Session, thread: str, http: httpx.Client | None = None) -> tuple[bytes, str] | None:
+    """Фото профілю співрозмовника (profile_pic через Graph токеном сторінки). Посилання Meta тимчасові — тож кешуємо байти."""
+    import time
+    hit = _AV.get(thread)
+    if hit and time.time() - hit[0] < 12 * 3600:
+        return (hit[1], hit[2]) if hit[1] else None
+    tok = _page_token(db)
+    data, ctype = b"", ""
+    if tok:
+        cl = http or httpx.Client(timeout=10, follow_redirects=True)
+        try:
+            js = cl.get(f"{GRAPH}/{thread}", params={"access_token": tok, "fields": "profile_pic"}).json()
+            url = js.get("profile_pic") if not js.get("error") else None
+            if url:
+                r = cl.get(url)
+                if r.status_code == 200 and r.headers.get("content-type", "").startswith("image/") and len(r.content) < 2_000_000:
+                    data, ctype = r.content, r.headers["content-type"]
+        except Exception:  # noqa: BLE001
+            pass
+    _AV[thread] = (time.time(), data, ctype)
+    if len(_AV) > 500:
+        _AV.pop(next(iter(_AV)))
+    return (data, ctype) if data else None
+
+
+_LAT = [("shch", "щ"), ("zh", "ж"), ("kh", "х"), ("ts", "ц"), ("ch", "ч"), ("sh", "ш"), ("yu", "ю"), ("ya", "я"), ("ye", "є"),
+        ("yi", "ї"), ("iu", "ю"), ("ia", "я"), ("ie", "є"), ("a", "а"), ("b", "б"), ("v", "в"), ("h", "г"), ("g", "г"), ("d", "д"),
+        ("e", "е"), ("z", "з"), ("y", "и"), ("i", "і"), ("j", "й"), ("k", "к"), ("l", "л"), ("m", "м"), ("n", "н"), ("o", "о"),
+        ("p", "п"), ("r", "р"), ("s", "с"), ("t", "т"), ("u", "у"), ("f", "ф"), ("c", "к"), ("w", "в"), ("x", "кс"), ("q", "к")]
+
+
+def to_cyr(s: str) -> str:
+    """Латиниця → кирилиця для пошуку (Vadym Bondar → вадим бондар). Кирилицю не чіпаємо."""
+    s, out, i = (s or "").lower(), [], 0
+    while i < len(s):
+        for lat, cyr in _LAT:
+            if s.startswith(lat, i):
+                out.append(cyr)
+                i += len(lat)
+                break
+        else:
+            out.append(s[i])
+            i += 1
+    return "".join(out)
+
+
+def suggest(db: Session, name: str | None, limit: int = 5) -> list[Patient]:
+    """Схожі пацієнти за іменем співрозмовника (імʼя + прізвище, латиницю переводимо в кирилицю; @нік — за Instagram)."""
+    from . import search as srch
+    if not name or name[:1] == "…":
+        return []
+    out: list[Patient] = []
+    if name.startswith("@") and (p := _patient_for(db, "instagram", name)):
+        out.append(p)
+        name = name.split("·", 1)[1] if "·" in name else ""
+    raw = [w for w in (name or "").replace("@", " ").replace("·", " ").split() if len(w) >= 3 and not w.isdigit()][:3]
+    if not raw:
+        return out
+    variants = {" ".join(raw), " ".join(to_cyr(w) for w in raw)}
+    # «Vadym» → «вадим», «Bondar» → «бондар»; закінчення можуть відрізнятися — беремо основу слова
+    stems = [srch.qwords(" ".join(w[:max(3, len(w) - 2)] for w in v.split())) for v in variants]
+    for p in db.scalars(select(Patient).where(Patient.full_name.is_not(None))):
+        if p in out:
+            continue
+        if any(st and srch.match(st, p.full_name) for st in stems):
+            out.append(p)
+            if len(out) >= limit:
+                break
+    return out
+
+
+def close_thread(db: Session, thread: str, status: str, reason: str | None, user_id: int | None) -> int:
+    """Закрити діалог = закрити відкриті звернення з нього вказаним статусом (Записаний / Відмова / Не цільове).
+    Наступне вхідне повідомлення відкриє нове звернення. Повертає кількість закритих."""
+    from . import appeals as ap
+    ids = {i for (i,) in db.execute(select(ChatMessage.appeal_id).where(ChatMessage.thread == thread, ChatMessage.appeal_id.is_not(None)))}
+    n = 0
+    for a in db.scalars(select(Appeal).where(Appeal.id.in_(ids or {0}), Appeal.closed_at.is_(None))):
+        ap.set_status(db, a, status, user_id, reason or None)
+        n += 1
+    mark_read(db, thread)
+    return n
