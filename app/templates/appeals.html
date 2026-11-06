@@ -20,6 +20,8 @@ dialog.apd::backdrop{background:rgba(42,36,48,.45)}
 .apd-h h3{margin:0;font-size:18px}.apd-b{padding:14px 18px 18px;display:grid;gap:10px}
 .apd-b label{display:grid;gap:4px;font-size:12px;font-weight:700;color:var(--muted)}.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .chips{display:flex;flex-wrap:wrap;gap:6px}.chips label{display:inline-flex;gap:5px;align-items:center;background:var(--soft);border-radius:8px;padding:5px 9px;font-size:13px;color:var(--ink)}
+.ap-oth{display:grid;gap:8px;background:#FBFAF8;border:1px dashed #D9D3DE;border-radius:12px;padding:10px 12px;margin:0}
+.ap-oth-r{display:flex;flex-wrap:wrap;gap:6px}.ap-oth-b{border:1px solid #E6E0D8;background:#fff;border-radius:99px;padding:5px 12px;font:600 12.5px var(--sans);cursor:pointer;color:#2A2430}.ap-oth-b:hover{border-color:#8a8496;background:#F2EFEA}
 .st-k{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
 @media (max-width:700px){.g2{grid-template-columns:1fr}}
 </style>
@@ -43,12 +45,13 @@ dialog.apd::backdrop{background:rgba(42,36,48,.45)}
   <div class="tile"><span>Записані</span><b style="color:var(--ok)">{{ st.by_type.get('success', 0) }}</b></div>
   <div class="tile"><span>Відмови</span><b style="color:var(--bad)">{{ st.by_type.get('fail', 0) }}</b></div>
   <div class="tile"><span>Конверсія</span><b>{{ (st.conv ~ '%') if st.conv is not none else '—' }}</b><div class="muted small">записані із закритих</div></div>
+  <div class="tile" title="Постачальники, курʼєри, реклама, не туди потрапили — не входять у звернення й конверсію"><span>Не цільові</span><b style="color:#8a8496">{{ st.by_type.get('other', 0) }}</b><div class="muted small">{% for r, n in st.other %}{{ r }} {{ n }}{{ ' · ' if not loop.last }}{% else %}не пацієнти{% endfor %}</div></div>
 </div>
 {% macro acard(a) %}<button type="button" class="ac" onclick="apOpen({{ a.id }})"><b>{{ a.name or a.phone or ('№' ~ a.id) }}</b>
   <div class="m">{{ a.phone or '' }}{{ (' · ' ~ a.source) if a.source }}{{ (' · ' ~ a.cause) if a.cause }}</div>
   {% if a.interest %}<div class="m">💬 {{ a.interest }}</div>{% endif %}
   {% if a.next_contact and not a.closed_at %}<div class="m {{ 'due' if a.next_contact <= now }}">☎ {{ a.next_contact|dt('%d.%m %H:%M') }}</div>{% endif %}
-  {% if a.deny_reason %}<div class="m" style="color:var(--bad)">✕ {{ a.deny_reason }}</div>{% endif %}
+  {% if a.deny_reason %}{% set _ot = ap.status_type(d, a.status) == 'other' %}<div class="m" style="color:{{ '#8a8496' if _ot else 'var(--bad)' }}">{{ '◦' if _ot else '✕' }} {{ a.deny_reason }}</div>{% endif %}
   <div>{% for m in a.marks or [] %}<span class="mk">{{ m }}</span>{% endfor %}{% if a.patient_id %}<span class="mk" style="background:var(--ok-bg);color:var(--ok)">пацієнт</span>{% endif %}</div>
   <div class="m">№{{ a.id }} · {{ a.created_at|local|dt('%d.%m %H:%M') }}{{ (' · ' ~ users.get(a.responsible_id)) if a.responsible_id and users.get(a.responsible_id) }}</div></button>{% endmacro %}
 {% if view == 'board' %}<div class="board">{% for s in d.statuses %}{% set items = rows|selectattr('status', 'equalto', s.name)|list %}

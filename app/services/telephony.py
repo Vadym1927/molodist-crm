@@ -390,7 +390,7 @@ def ingest(db: Session, provider: str, data: dict, event: str = "") -> Call:
     if event in ("ringing", "answer"):
         db.commit()
         return c
-    want = d.get("create_appeal") and c.direction == "in" and c.phone and not c.appeal_id
+    want = d.get("create_appeal") and c.direction == "in" and c.phone and not c.appeal_id and not ap.is_ignored(db, c.phone)
     if want and d.get("missed_only") and c.status != "missed":
         want = False
     if want:

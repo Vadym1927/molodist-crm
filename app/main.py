@@ -1220,7 +1220,8 @@ def appeal_card(request: Request, aid: int, user: User = Depends(require("appeal
     history = [x for x in other if pk and ap.phone_key(x.phone) == pk][:20]
     return templates.TemplateResponse(request, "_appeal_card.html", {"request": request, "user": user, "a": a, "notes": notes, "users": users,
                                       "d": ap.dirs(db), "ap": ap, "p": db.get(Patient, a.patient_id) if a.patient_id else None,
-                                      "history": history, "match": None if a.patient_id else ap.find_patient(db, a.phone)})
+                                      "history": history, "match": None if a.patient_id else ap.find_patient(db, a.phone),
+                                      "ign_one": ap.is_ignored(db, a.phone)})
 
 
 @app.post("/appeals")
@@ -1306,13 +1307,15 @@ def appeal_note(aid: int, text: str = Form(...), user: User = Depends(require("a
 
 
 @app.post("/appeals/{aid:int}/status")
-def appeal_status(aid: int, status: str = Form(...), deny_reason: str = Form(""), back: str = Form("/appeals"),
+def appeal_status(aid: int, status: str = Form(...), deny_reason: str = Form(""), back: str = Form("/appeals"), ignore: str = Form(""),
                   user: User = Depends(require("appeals")), db: Session = Depends(db_dep)):
     from .services import appeals as ap
     from .models import Appeal
     a = db.get(Appeal, aid)
     if a:
         ap.set_status(db, a, status, user.id, deny_reason or None)
+        if ap.status_type(ap.dirs(db), status) == "other" and a.phone:
+            ap.set_ignored(db, a.phone, bool(ignore), deny_reason or "", a.name or "", user.id)
         if a.closed_at:
             t = db.scalar(select(Task).where(Task.source_key == f"appeal:{aid}", Task.status == "open"))
             if t:
@@ -1352,7 +1355,16 @@ def appeal_delete(aid: int, del_password: str = Form(""), user: User = Depends(r
 @app.get("/settings/appeals", response_class=HTMLResponse)
 def settings_appeals(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     from .services import appeals as ap
-    return render(request, "appeal_dirs.html", nav="settings", d=ap.dirs(db), ap=ap, open_=request.query_params.get("open", ""))
+    return render(request, "appeal_dirs.html", nav="settings", d=ap.dirs(db), ap=ap, open_=request.query_params.get("open", ""), ign=ap.ignored(db))
+
+
+@app.post("/settings/appeals-ignore")
+def settings_appeals_ignore(phone: str = Form(""), reason: str = Form(""), name: str = Form(""), action: str = Form("add"),
+                            user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import appeals as ap
+    ap.set_ignored(db, phone, action == "add", reason, name, user.id)
+    audit(db, "appeal.ignore", user=user, phone=phone[-4:], op=action)
+    return RedirectResponse("/settings/appeals?open=ignore#ignore", 303)
 
 
 @app.post("/settings/appeals/{what}")

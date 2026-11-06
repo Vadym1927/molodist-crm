@@ -13,18 +13,23 @@ from sqlalchemy.orm import Session
 from ..models import Appeal, AppealNote, Patient, SyncState
 
 KEY = "appeal_dirs"
-STATUS_TYPES = {"new": "Новий", "work": "В роботі", "success": "Успіх (записаний)", "fail": "Відмова"}
+STATUS_TYPES = {"new": "Новий", "work": "В роботі", "success": "Успіх (записаний)", "fail": "Відмова",
+                "other": "Не цільове (не пацієнт)"}
+IGNORE_KEY = "appeal_ignore_phones"          # {phone_key: {reason, at, by, name}} — дзвінки з цих номерів не створюють звернень
+OTHER_DEFAULT = {"name": "Не цільове", "type": "other", "color": "#8a8496"}
 DEFAULT = {
     "sources": ["Instagram", "Facebook", "Google", "Сайт", "Telegram-бот", "Viber", "Дзвінок", "Рекомендація", "Повторний пацієнт", "Інше"],
     "marks": ["Гаряча", "Тепла", "Холодна", "VIP", "Акція"],
     "statuses": [{"name": "Новий", "type": "new", "color": "#3B82C4"}, {"name": "В роботі", "type": "work", "color": "#E9A93A"},
                  {"name": "Передзвонити", "type": "work", "color": "#8e7cc3"}, {"name": "Записаний", "type": "success", "color": "#4CAF50"},
-                 {"name": "Відмова", "type": "fail", "color": "#D9534F"}],
+                 {"name": "Відмова", "type": "fail", "color": "#D9534F"}, dict(OTHER_DEFAULT)],
     "deny_reasons": ["Дорого", "Неактуально", "Не додзвонились", "Обрали іншу клініку", "Далеко", "Немає зручного часу", "Інше"],
     "causes": ["Консультація", "Запис на процедуру", "Ціна", "Акція", "Сертифікат", "Повторний візит", "Скарга", "Інше"],
+    "other_reasons": ["Постачальник", "Курʼєр / доставка", "Реклама / агенти", "Не туди потрапили", "Спам / робот", "Співробітник", "Інше"],
 }
+IGNORE_BY_DEFAULT = ("Постачальник", "Курʼєр / доставка", "Реклама / агенти", "Спам / робот", "Співробітник")
 DIR_LABELS = {"sources": "Джерела звернень", "marks": "Мітки звернень", "statuses": "Статуси звернень",
-              "deny_reasons": "Причини відмов", "causes": "Причини звернень"}
+              "deny_reasons": "Причини відмов", "causes": "Причини звернень", "other_reasons": "Не цільові (не пацієнт)"}
 
 
 def dirs(db: Session) -> dict:
@@ -35,7 +40,42 @@ def dirs(db: Session) -> dict:
             d.update(json.loads(st.value))
         except ValueError:
             pass
+    if not any(s.get("type") == "other" for s in d["statuses"]):     # старі налаштування — додаємо «Не цільове»
+        d["statuses"].append(dict(OTHER_DEFAULT))
+    d.setdefault("other_reasons", list(DEFAULT["other_reasons"]))
     return d
+
+
+def other_status(d: dict) -> str:
+    return next((s["name"] for s in d["statuses"] if s.get("type") == "other"), OTHER_DEFAULT["name"])
+
+
+def ignored(db: Session) -> dict:
+    st = db.get(SyncState, IGNORE_KEY)
+    try:
+        return json.loads(st.value) if st and st.value else {}
+    except ValueError:
+        return {}
+
+
+def is_ignored(db: Session, phone: str | None) -> dict | None:
+    k = phone_key(phone)
+    return ignored(db).get(k) if len(k) >= 9 else None
+
+
+def set_ignored(db: Session, phone: str | None, on: bool, reason: str = "", name: str = "", user_id: int | None = None) -> None:
+    k = phone_key(phone)
+    if len(k) < 9:
+        return
+    x = ignored(db)
+    if on:
+        x[k] = {"reason": reason[:80], "name": (name or "")[:120], "at": datetime.now().strftime("%d.%m.%Y"), "by": user_id, "phone": phone}
+    else:
+        x.pop(k, None)
+    st = db.get(SyncState, IGNORE_KEY) or SyncState(key=IGNORE_KEY)
+    st.value, st.updated_at = json.dumps(x, ensure_ascii=False), datetime.utcnow()
+    db.merge(st)
+    db.commit()
 
 
 def save_dirs(db: Session, d: dict) -> None:
@@ -95,10 +135,10 @@ def set_status(db: Session, a: Appeal, status: str, user_id: int | None = None, 
     old = a.status
     a.status = status
     t = status_type(d, status)
-    a.deny_reason = deny_reason if t == "fail" else None
-    a.closed_at = datetime.utcnow() if t in ("success", "fail") else None
+    a.deny_reason = deny_reason if t in ("fail", "other") else None
+    a.closed_at = datetime.utcnow() if t in ("success", "fail", "other") else None
     a.updated_at = datetime.utcnow()
-    note(db, a, f"Статус: {old} → {status}" + (f" ({deny_reason})" if t == "fail" and deny_reason else ""), user_id, "status")
+    note(db, a, f"Статус: {old} → {status}" + (f" ({deny_reason})" if t in ("fail", "other") and deny_reason else ""), user_id, "status")
     db.commit()
 
 
@@ -142,7 +182,10 @@ def listing(db: Session, f: dict) -> list[Appeal]:
 
 def stats(db: Session, rows: list[Appeal]) -> dict:
     d = dirs(db)
+    other = [a for a in rows if status_type(d, a.status) == "other"]
+    rows = [a for a in rows if status_type(d, a.status) != "other"]      # не пацієнти — поза воронкою й конверсією
     by_type = Counter(status_type(d, a.status) for a in rows)
+    by_type["other"] = len(other)
     by_source = defaultdict(lambda: {"n": 0, "success": 0})
     for a in rows:
         s = by_source[a.source or "—"]
@@ -151,4 +194,5 @@ def stats(db: Session, rows: list[Appeal]) -> dict:
     closed = by_type["success"] + by_type["fail"]
     return {"n": len(rows), "by_type": by_type, "conv": round(100 * by_type["success"] / closed) if closed else None,
             "by_source": dict(sorted(by_source.items(), key=lambda kv: -kv[1]["n"])),
-            "deny": Counter(a.deny_reason for a in rows if a.deny_reason).most_common(8)}
+            "deny": Counter(a.deny_reason for a in rows if a.deny_reason).most_common(8),
+            "other": Counter(a.deny_reason or "Інше" for a in other).most_common(8)}

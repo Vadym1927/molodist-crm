@@ -115,3 +115,26 @@ def test_cosmetics_pct_big_discount_tiers():
                                                 "tier_from": ["20", "35"], "tier_pct": ["3", "0"], "tier_off": ["1"]})
         with SessionLocal() as db:
             assert cp.cfg(db)["tiers"] == [{"from": 20.0, "pct": 3.0}, {"from": 35.0, "pct": 0.0}]
+
+
+def test_appeal_not_target_and_ignore_phone():
+    from app.models import SessionLocal, Appeal
+    from app.services import appeals as ap
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        d = ap.dirs(db)
+        assert ap.other_status(d) == "Не цільове" and "Постачальник" in d["other_reasons"]
+        a = ap.create(db, {"phone": "+380671119988", "name": "Постачальник Тест"})
+        aid = a.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        c.post(f"/appeals/{aid}/status", data={"status": "Не цільове", "deny_reason": "Постачальник", "ignore": "1"})
+        with SessionLocal() as db:
+            a = db.get(Appeal, aid)
+            assert a.closed_at and a.deny_reason == "Постачальник" and ap.is_ignored(db, "0671119988")["reason"] == "Постачальник"
+            st = ap.stats(db, [a])
+            assert st["n"] == 0 and st["by_type"]["other"] == 1
+        assert "Номери без звернень" in c.get("/settings/appeals").text
+        c.post("/settings/appeals-ignore", data={"phone": "+380671119988", "action": "remove"})
+        with SessionLocal() as db:
+            assert not ap.is_ignored(db, "+380671119988")
