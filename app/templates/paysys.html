@@ -122,6 +122,11 @@ dialog.ps-d{border:0;border-radius:24px;padding:0;width:min(780px,96vw);box-shad
         <form method="post" action="/settings/payments/account/{{ a.id }}/delete" data-delpw="Видалити підключення «{{ a.name }}»?" style="margin:0"><button class="del">Видалити підключення</button></form></div></div></div>
   </div>{% endfor %}
   {% set used = t.accounts|map(attribute='provider')|list %}
+  {% if 'mono' in used %}{% set mn = t.accounts|selectattr('provider', 'equalto', 'mono')|list %}<div class="ps-c" style="border-style:dashed;background:#FCFBFA">
+    <div class="top"><img src="{{ LOGO['mono'] }}" alt="monobank"><span class="ps-pill wait">{{ mn|length }} ФОП</span></div>
+    <div class="ds">Ще один ФОП на monobank — окремий токен еквайрингу й своя каса. При створенні посилання обираєте, на який ФОП приймати оплату.</div>
+    <div class="act"><button class="ps-b sm out" type="button" onclick="psEd(null,'mono')">{{ ic(I_PLUS, 16) }} Підключити ще ФОП</button></div>
+  </div>{% endif %}
   {% for k, p in PROV.items() if k not in used %}<div class="ps-c">
     <div class="top"><img src="{{ LOGO[k] }}" alt="{{ p.label }}"></div>
     <div class="ds">{{ PDESC[k] }}</div>
@@ -194,7 +199,7 @@ dialog.ps-d{border:0;border-radius:24px;padding:0;width:min(780px,96vw);box-shad
 </form></dialog>
 
 <script>
-var PS_DEF={{ (t.default or 0)|tojson }};
+var PS_DEF={{ (t.default or 0)|tojson }},PS_NAMES={{ t.accounts|map(attribute='name')|list|tojson }};
 function psTab(t){document.querySelectorAll('.ps-tabs button').forEach(function(b){b.classList.toggle('on',b.dataset.t===t)});document.getElementById('tab-links').style.display=t==='links'?'':'none';document.getElementById('tab-hist').style.display=t==='hist'?'':'none';try{history.replaceState(null,'',t==='hist'?'#history':location.pathname+location.search)}catch(e){}}
 if(location.hash==='#history')psTab('hist');
 function psVh(h){var s=document.getElementById('ps-vh');s.value=String(h);document.querySelectorAll('.ps-chip').forEach(function(c){c.classList.toggle('on',c.dataset.h===String(h))})}
@@ -207,7 +212,10 @@ function psEd(a,prov){var d=document.getElementById('ps-d'),f=d.querySelector('f
   f.is_default.checked=a?(a.id===PS_DEF):!PS_DEF;
   if(a){f.name.value=a.name;f.active.checked=!!a.active;var cb=f.cashbox;if(![].some.call(cb.options,function(o){return o.value===a.cashbox})){cb.add(new Option(a.cashbox,a.cashbox))}cb.value=a.cashbox;
     Object.keys(a.creds||{}).forEach(function(k){f.querySelectorAll('.pf[data-p='+pv+'] [name='+k+']').forEach(function(i){if(i.dataset.sec){i.placeholder=a.creds[k]?'•••••••• збережено — введіть нове, щоб замінити':'не задано'}else{i.value=a.creds[k]||''}})})}
-  else{var o=[].find.call(f.cashbox.options,function(o){return o.value==='Онлайн-оплати'});if(o)f.cashbox.value=o.value}
+  else{var o=[].find.call(f.cashbox.options,function(o){return o.value==='Онлайн-оплати'});if(o)f.cashbox.value=o.value;
+    var have=PS_NAMES.join(' ').toLowerCase(),fop=['Колган','Бондар'].find(function(x){return have.indexOf(x.toLowerCase())<0});
+    f.name.placeholder=pv==='mono'?('monobank ФОП '+(fop||'…')):(pv==='liqpay'?'LiqPay ФОП …':'WayForPay ФОП …');
+    var c2=fop&&[].find.call(f.cashbox.options,function(o){return o.value.indexOf(fop)>=0&&/термінал|онлайн/i.test(o.value)});if(c2)f.cashbox.value=c2.value}
   tgP();d.showModal()}
 (function(){var q=document.getElementById('pn-q');if(!q)return;var r=document.getElementById('pn-res'),T;
   q.addEventListener('input',function(){document.getElementById('pn-pid').value='';document.getElementById('pn-send').style.display='none';clearTimeout(T);var v=q.value.trim();if(v.length<2){r.style.display='none';return}

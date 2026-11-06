@@ -270,3 +270,18 @@ def test_supply_paid_cash_from_cashbox_and_clear():
         c.post(f"/stock/docs/{did}/pay", data={"action": "clear"})
         with SessionLocal() as db:
             assert db.query(FinOp).filter_by(ref=f"stockpay:{did}").one().deleted_at is not None
+
+
+def test_two_mono_fops_paylinks():
+    """Два підключення monobank (ФОП Колган і ФОП Бондар) — посилання створюється на обраний ФОП."""
+    from app.services import paylinks as pls
+    with SessionLocal() as db:
+        a1 = pls.save_account(db, None, "mono", "monobank ФОП Колган", {"token": "t1"}, "Онлайн-оплати", True)
+        a2 = pls.save_account(db, None, "mono", "monobank ФОП Бондар", {"token": "t2"}, "Онлайн-оплати", True)
+        pls.set_default(db, a2["id"])
+        accs = [a for a in pls.public(db)["accounts"] if a["provider"] == "mono"]
+        assert {a["name"] for a in accs} >= {"monobank ФОП Колган", "monobank ФОП Бондар"} and pls.public(db)["default"] == a2["id"]
+    with TestClient(app) as c:
+        _login(c)
+        page = c.get("/settings/payments").text
+        assert "Підключити ще ФОП" in page and "monobank ФОП Колган" in page and "monobank ФОП Бондар" in page
