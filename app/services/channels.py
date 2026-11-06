@@ -197,6 +197,10 @@ def test(db: Session, cid: int, http: httpx.Client | None = None) -> tuple[bool,
             if js.get("error"):
                 e1 = js["error"]
                 js2 = http.get("https://graph.facebook.com/v19.0/me", params={"access_token": tok, "fields": "id"}).json()
+                jc = http.get("https://graph.facebook.com/v19.0/me/conversations", params={"access_token": tok, "limit": 1}).json()
+                if not jc.get("error"):                                # pages_messaging є — повідомлення працюватимуть
+                    return True, ("Токен сторінки робочий: доступ до повідомлень Messenger є. Назву сторінки Meta не віддає — "
+                                  "бракує pages_read_engagement (на роботу повідомлень не впливає)")
                 if js2.get("id") and not js2.get("error"):          # токен робочий, бракує лише дозволу на дані сторінки
                     return True, (f"Токен робочий (ID сторінки {js2['id']}), але бракує дозволу pages_read_engagement — "
                                   "додайте його в сценарії Messenger і згенеруйте токен ще раз")
