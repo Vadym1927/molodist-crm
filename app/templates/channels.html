@@ -65,11 +65,11 @@ details.cc-how[open] summary:after{transform:rotate(180deg)}details.cc-how summa
 .cc-c{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:16px 18px 14px;display:grid;gap:12px;box-shadow:0 1px 2px rgba(42,36,48,.04),0 14px 34px -28px rgba(42,36,48,.35)}
 .cc-c.on{border-color:#C9BFE6}.cc-c.meta{background:linear-gradient(160deg,#fff 40%,#F6F3FB)}
 .cc-top{display:flex;gap:16px;align-items:flex-start}
-.cc-ic{width:86px;height:76px;border-radius:16px;background:#F3EFF9;display:grid;place-items:center;flex:none}.cc-ic svg{width:54px;height:54px}.cc-c.meta .cc-ic svg{width:70px;height:44px}
+.cc-ic{width:80px;height:80px;border-radius:18px;background:#F3EFF9;display:grid;place-items:center;flex:none;overflow:hidden}.cc-ic img{width:100%;height:100%;display:block}.cc-ic svg{width:54px;height:54px}.cc-c.meta .cc-ic svg{width:70px;height:44px}
 .cc-inf{flex:1;min-width:0;display:grid;gap:2px}.cc-inf small{font:700 10.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#8a8496}
 .cc-inf b{font:700 17px var(--sans);color:#2A2430;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cc-inf span{font-size:14.5px;color:#2A2430}.cc-inf em{font-style:normal;font-size:12.5px;color:#6b6575}
 .cc-st{display:inline-flex;align-items:center;gap:7px;border-radius:99px;padding:5px 12px;font:600 12.5px var(--sans);white-space:nowrap}.cc-st:before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
-.cc-st.on{background:#E3F3E7;color:#1E7A46}.cc-st.off{background:#F2EFEA;color:#6b6575}
+.cc-st.on{background:#E3F3E7;color:#1E7A46}.cc-st.pz{background:#FFF1D6;color:#9A6A00}.cc-st.off{background:#F2EFEA;color:#6b6575}
 .cc-ft{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid #F1EDE8;padding-top:12px}
 .cc-tag{background:#F2EFEA;border-radius:10px;padding:5px 12px;font:600 13px var(--sans);color:#2A2430}
 .cc-btn{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 16px;border-radius:12px;border:1.5px solid #3B3050;background:#fff;color:#3B3050;font:700 13.5px var(--sans);cursor:pointer}.cc-btn:hover{background:#F3EFF9}.cc-btn svg{width:18px;height:18px}
@@ -95,12 +95,12 @@ details.cc-how[open] summary:after{transform:rotate(180deg)}details.cc-how summa
 
 <div class="cc-g">{% for c in chs %}{% set t = T.get(c.type, {}) %}
   <div class="cc-c {{ 'on' if c.on }} {{ 'meta' if c.type == 'meta' }}"><div class="cc-top">
-    <div class="cc-ic">{{ (CI.get(c.type) or t.icon)|safe }}</div>
+    <div class="cc-ic">{% if c.type in ('sms', 'viber', 'telegram', 'meta') %}<img src="/static/img/ch/{{ c.type }}.png" alt="{{ t.label }}">{% else %}{{ (CI.get(c.type) or t.icon)|safe }}{% endif %}</div>
     <div class="cc-inf"><small>Канал</small><b title="{{ c.name }}">{{ c.name }}</b><small>Провайдер</small><span>{{ t.service }}</span>
       {% if c.type == 'meta' %}{% for p in c.params.pages or [] %}<em>{{ 'Facebook' if p.kind == 'facebook' else 'Instagram' }}: {{ p.name }}</em>{% endfor %}
       {% elif c.type == 'telegram' and c.params.username %}<em>@{{ c.params.username|replace('@', '') }}</em>
       {% elif c.params.sender %}<em>Відправник: {{ c.params.sender }}</em>{% endif %}</div>
-    <span class="cc-st {{ 'on' if c.on else 'off' }}">{{ 'Активний' if c.on else 'Неактивний' }}</span></div>
+    {% if c.on and not sending_on and c.type != 'meta' %}<span class="cc-st pz" title="Канал налаштований, але надсилання пацієнтам вимкнено">На паузі</span>{% else %}<span class="cc-st {{ 'on' if c.on else 'off' }}">{{ 'Активний' if c.on else 'Неактивний' }}</span>{% endif %}</div>
     <div class="cc-ft"><span class="cc-tag">{{ 'Meta' if c.type == 'meta' else t.label }}</span>
       <button class="cc-btn" type="button" onclick="document.getElementById('chd{{ c.id }}').showModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2.500v3M12 18.500v3M2.500 12h3M18.500 12h3M5.300 5.300l2.100 2.100M16.600 16.600l2.100 2.100M5.300 18.700l2.100-2.100M16.600 7.400l2.100-2.100"/></svg>Налаштувати</button></div></div>
 {% endfor %}</div>
