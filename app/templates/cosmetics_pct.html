@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}% від продажу косметики · MOLODIST CRM{% endblock %}
+{% block title %}Бонус за продаж косметики · MOLODIST CRM{% endblock %}
 {% block body %}
 {% set qp = request.query_params %}
 <style>
@@ -35,7 +35,7 @@
 @media(max-width:760px){.cpp-r,.cpp-r.st{grid-template-columns:1fr 1fr 36px}.cpp-r>:first-child{grid-column:1/-1}.cpp-r .two{grid-column:1/-1}.cpp-r.hd{display:none}}
 </style>
 <form method="post" class="cpp-f" id="cpf" onsubmit="cpIdx()">
-<div class="cpp-h"><div><div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a> · Співробітники</div><h1>% від продажу косметики</h1>
+<div class="cpp-h"><div><div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a> · Співробітники</div><h1>Бонус за продаж косметики</h1>
   <p>Скільки лікар отримує з проданої косметики. Лікар — ініціатор позиції в чеку каси.</p></div>
   <div class="row" style="gap:8px"><a class="btn ghost" href="/reports?r=cosmetics">Звіт нарахувань</a><button class="btn">Зберегти</button></div></div>
 {% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok);margin:0">{{ qp.get('msg') }}</div>{% endif %}

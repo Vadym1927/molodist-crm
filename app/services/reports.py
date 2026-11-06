@@ -16,7 +16,7 @@ from ..models import Check, Visit, BeautyPlan, Patient, Product, SupplierInvoice
 from ..parsers.observ import norm
 
 REPORTS = {"cash": "Стан рахунків", "cashflow": "Cashflow", "fop": "Ліміти ФОП", "expiry": "Терміни придатності", "revenue": "Виручка", "doctors": "Лікарі", "services": "Звіт з продажу послуг", "products": "Товари",
-           "patients": "Пацієнти", "plans": "Бюті-плани", "certificates": "Сертифікати й абонементи", "supply": "Поставки", "cosmetics": "% по косметиці", "sources": "Джерела запису"}
+           "patients": "Пацієнти", "plans": "Бюті-плани", "certificates": "Сертифікати й абонементи", "supply": "Поставки", "cosmetics": "Бонус за косметику", "sources": "Джерела запису"}
 
 
 @dataclass
@@ -665,7 +665,7 @@ def cosmetics(db: Session, d_from: date, d_to: date, staff: str = "") -> Report:
     rules = Rules(db)
     for x in rows:
         rules.apply(x)
-    r = Report("cosmetics", "Нарахування % по косметиці",
+    r = Report("cosmetics", "Бонус за продаж косметики",
                rules.describe() + " Лікар — ініціатор позиції в чеку CleverBox або спеціаліст у продажі каси CRM.")
     r.grouped = True
     r.cols = [Col("name", "Товар / лікар"), Col("day", "Дата", "date"), Col("qty", "К-сть", "num", True), Col("price", "Ціна", "uah"),

@@ -5777,7 +5777,7 @@ SETTINGS_BLOCKS = [
         ('Налаштування окладів', 'Фіксована ставка, комісійні за послуги й товари, % від обороту — шаблони для зарплати', '/settings/salary', 'finance', 'salary'),
         ('Категорії спеціалістів', 'Ціни за категоріями: інші ціни на послуги для головного лікаря, топ-лікаря, стажера', '/settings/price-cats', 'finance', 'cmarket/customprice/main'),
         ('Статті для нарахувань', 'Премії, штрафи, лікарняні, податки, відпускні — для коригувань зарплати', '/settings/accrual-articles', 'finance', 'dirs/stype'),
-        ('% від продажу косметики', 'Відсоток лікарям з продажу товарів: без знижки, зі знижкою, поріг ціни; свої % для лікарів, брендів і товарів', '/settings/cosmetics-pct', 'finance', None),
+        ('Бонус за продаж косметики', 'Відсоток лікарям з продажу товарів: без знижки, зі знижкою, поріг ціни; свої % для лікарів, брендів і товарів', '/settings/cosmetics-pct', 'finance', None),
         ('Сповіщення в Telegram', 'Бот для адміністраторів, лікарів, головного лікаря й власника: записи на день, нагадування по планах, ДН пацієнтів, задачі, підсумок дня / тижня / місяця — що й о котрій', '/settings/tg-notify', 'users', None),
         ('Застосунок для спеціаліста', 'Записи й нарахування у телефоні спеціаліста', 'dev', None, None),
     ]),
@@ -6205,7 +6205,7 @@ async def settings_cosmetics_pct_save(request: Request, user: User = Depends(req
     _cp.save(db, {**{k: f.get(k) for k in ("full", "disc", "min_price", "low", "disc_from", "base")},
                   "staff": rows("staff", ("min_price",)), "brands": rows("brand"), "products": rows("prod"), "tiers": tiers_})
     audit(db, "settings.cosmetics_pct", user=user)
-    return RedirectResponse(_with_msg("/settings/cosmetics-pct", "Збережено. Звіт «Нарахування % по косметиці» рахується за новими правилами"), 303)
+    return RedirectResponse(_with_msg("/settings/cosmetics-pct", "Збережено. Звіт «Бонус за продаж косметики» рахується за новими правилами"), 303)
 
 
 @app.post("/gifts/subs")

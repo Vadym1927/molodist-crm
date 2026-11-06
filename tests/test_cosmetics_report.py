@@ -29,7 +29,7 @@ def test_cosmetics_commission():
     with TestClient(app) as c:
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
         t = c.get("/reports?r=cosmetics&df=2032-02-01&dt_=2032-02-28").text
-        assert "Нарахування % по косметиці" in t and "Косметична Лікарка" in t and "ціна &lt; 1000" in t
+        assert "Бонус за продаж косметики" in t and "Косметична Лікарка" in t and "ціна &lt; 1000" in t
         assert 'href="/reports?r=cosmetics"' in c.get("/reports").text
 
 
@@ -46,7 +46,7 @@ def test_cosmetics_pct_settings():
         db.commit()
     with TestClient(app) as c:
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
-        assert "% від продажу косметики" in c.get("/settings").text
+        assert "Бонус за продаж косметики" in c.get("/settings").text
         assert "Загальне правило" in c.get("/settings/cosmetics-pct").text
         r = c.post("/settings/cosmetics-pct", data={"full": "12", "disc": "6", "disc_from": "0", "min_price": "800", "low": "2", "base": "paid",
                    "staff_name": ["Адмін Б", "Лікарка А"], "staff_full": ["", "15"], "staff_disc": ["", ""], "staff_min_price": ["", ""], "staff_off": ["0"],
