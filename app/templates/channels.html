@@ -85,6 +85,8 @@ details.cc-how[open] summary:after{transform:rotate(180deg)}details.cc-how summa
 {% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
 <div class="cc-pause {{ 'on' if sending_on else '' }}"><div class="t">{% if sending_on %}<b>Повідомлення пацієнтам увімкнено.</b> Нагадування, розсилки, чеки й посилання на оплату надсилаються.{% else %}<b>Повідомлення пацієнтам — в розробці.</b> Зараз CRM <u>нічого не надсилає</u> пацієнтам: ні SMS, ні Viber, ні Telegram. Нагадування, розсилки, чеки й посилання на оплату лише записуються в журнал із позначкою «вимкнено».{% endif %}</div>
   {% if user.role == 'owner' %}<form method="post" action="/settings/channels/sending" onsubmit="return confirm('{{ 'Вимкнути надсилання пацієнтам?' if sending_on else 'Увімкнути надсилання пацієнтам? Підуть нагадування, розсилки й інші повідомлення.' }}')"><input type="hidden" name="on" value="{{ '' if sending_on else '1' }}"><button class="cc-btn">{{ 'Вимкнути' if sending_on else 'Увімкнути надсилання' }}</button></form>{% endif %}</div>
+{% set mch = chs|selectattr('type', 'equalto', 'meta')|list %}{% if mch %}<div class="cc-pause {{ 'on' if replies_on else '' }}"><div class="t"><b>Instagram / Facebook чати:</b> {% if replies_on %}адміністратори читають і відповідають з CRM у «Центрі спілкування» (лише ручні відповіді пацієнту, автоматичні розсилки сюди не йдуть).{% else %}відповіді з CRM вимкнено — повідомлення лише читаються.{% endif %}</div>
+  <form method="post" action="/settings/channels/replies"><input type="hidden" name="on" value="{{ '' if replies_on else '1' }}"><button class="cc-btn">{{ 'Вимкнути відповіді' if replies_on else 'Увімкнути відповіді' }}</button></form></div>{% endif %}
 <div class="cc-sec"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.500-3.300 8-8 9-4.700-1-8-4.500-8-9V6z"/><path d="M8.500 12l2.500 2.500 4.500-5"/></svg>
   <div>Токени та ключі зберігаються зашифрованими. <span>Після збереження не показуються — щоб змінити, введіть нове значення. Порожнє поле — значення з налаштувань сервера.</span></div></div>
 <details class="cc-how"><summary><i>?</i>Як працюють канали?</summary><div class="cc-how-b">
@@ -144,8 +146,13 @@ details.cc-how[open] summary:after{transform:rotate(180deg)}details.cc-how summa
       {{ secret(c, 'token', 'Токен бота (BotFather)', 'Бот пацієнтів. CRM лише надсилає повідомлення — вебхук не встановлюється, тож робота бота OpenClaw не зачіпається.') }}
       <div class="cs-f"><label>Імʼя бота</label><input name="username" value="{{ c.params.username or '' }}" placeholder="molodist_bot"></div>
     {% elif c.type == 'meta' %}
-      <div class="cs-note">Підключення Instagram і Facebook через «Continue with Facebook» потребує застосунку Meta (App ID + перевірка Meta) — налаштуємо наступним кроком. Поки можна вставити токен сторінки вручну.</div>
-      {{ secret(c, 'page_token', 'Токен сторінки (Page access token)') }}
+      {{ secret(c, 'page_token', 'Токен сторінки (Page access token)', 'Messenger API Settings → Generate access tokens → «Молодість» → Generate. Починається з EAA.') }}
+      <div class="cs-f"><label>Callback URL (вебхук)</label>
+        <div class="cp"><input readonly value="{{ meta_hook }}" id="mh{{ c.id }}"><button class="ch-btn" type="button" onclick="navigator.clipboard.writeText(document.getElementById('mh{{ c.id }}').value);this.textContent='✓'">Копіювати</button></div></div>
+      <div class="cs-f"><label>Verify token</label>
+        <div class="cp"><input readonly value="{{ meta_vt }}" id="mv{{ c.id }}"><button class="ch-btn" type="button" onclick="navigator.clipboard.writeText(document.getElementById('mv{{ c.id }}').value);this.textContent='✓'">Копіювати</button></div>
+        <div class="hint">Застосунок Meta → сценарій Messenger (і Instagram) → «Configure webhooks»: вставте Callback URL і Verify token → «Verify and save». Далі підпишіть сторінку на поля <b>messages</b>, <b>messaging_postbacks</b>.</div></div>
+      {{ secret(c, 'app_secret', 'App Secret застосунку', 'App settings → Basic → App secret («Показати»). CRM перевіряє ним, що повідомлення справді від Meta.') }}
       <div class="cs-f"><label>Підканали</label>{% for p in c.params.pages or [] %}<div class="it-row"><span>{{ '📘' if p.kind == 'facebook' else '📷' }}</span><span class="nm">{{ p.kind }} · {{ p.name }}</span></div>{% endfor %}</div>
     {% endif %}
     <div style="display:flex;gap:8px;flex-wrap:wrap">

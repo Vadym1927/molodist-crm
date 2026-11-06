@@ -1513,6 +1513,26 @@ class CampaignRecipient(Base):
     patient: Mapped[Patient] = relationship()
 
 
+class ChatMessage(Base):
+    """Переписка з пацієнтами з Messenger / Instagram Direct (вебхук Meta) — центр спілкування."""
+    __tablename__ = "chat_messages"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    channel: Mapped[str] = mapped_column(String(20), index=True)          # facebook | instagram
+    thread: Mapped[str] = mapped_column(String(80), index=True)           # PSID / IGSID співрозмовника
+    direction: Mapped[str] = mapped_column(String(4), default="in")       # in | out
+    text: Mapped[str | None] = mapped_column(Text)
+    attachments: Mapped[list | None] = mapped_column(JSON)
+    mid: Mapped[str | None] = mapped_column(String(200), index=True)      # id повідомлення Meta (від дублів)
+    name: Mapped[str | None] = mapped_column(String(200))                 # імʼя / @username співрозмовника
+    patient_id: Mapped[int | None] = mapped_column(ForeignKey("patients.id"), index=True)
+    appeal_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    user_id: Mapped[int | None] = mapped_column(Integer)                  # хто відповів (out)
+    status: Mapped[str | None] = mapped_column(String(20))                # out: sent | failed | paused
+    error: Mapped[str | None] = mapped_column(String(300))
+    read_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
 class MessageLog(Base):
     """Кожне повідомлення пацієнту (з задачі, з картки, з розсилки) — для історії і ліміту частоти."""
     __tablename__ = "message_log"

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} · MOLODIST{% endblock %}
+{% block body %}
+<style>.lg{max-width:820px;margin:30px auto;background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:30px 36px;line-height:1.65;color:#2A2430;font-size:15px}
+.lg h1{text-transform:none;letter-spacing:0;font-size:28px;margin:0 0 4px}.lg h2{text-transform:none;letter-spacing:0;font-size:18px;margin:22px 0 6px}.lg .m{color:#8a8496;font-size:13px}
+.lg .wm{font:400 20px var(--word);letter-spacing:.16em;color:#3B3050;margin-bottom:14px}</style>
+<div class="lg"><div class="wm">MOLODIST</div>
+{% if kind == 'privacy' %}
+<h1>Політика конфіденційності</h1><div class="m">Медичний простір MOLODIST, м. Київ · оновлено {{ today|dt('%d.%m.%Y') }}</div>
+<p>Ця політика пояснює, які дані обробляє медичний простір MOLODIST (далі — «ми»), коли ви пишете нам в Instagram, Facebook Messenger, Telegram, Viber, телефонуєте чи записуєтесь на прийом, і як ми їх захищаємо.</p>
+<h2>Які дані ми отримуємо</h2>
+<p>Імʼя та ідентифікатор профілю в месенджері (наприклад, @username в Instagram), текст ваших повідомлень і вкладення, які ви надсилаєте; номер телефону — якщо ви його повідомили; дані про записи на процедури.</p>
+<h2>Для чого</h2>
+<p>Щоб відповісти на ваше звернення, записати вас на консультацію чи процедуру, нагадати про візит і вести історію спілкування. Ми не продаємо й не передаємо ваші дані третім особам для реклами.</p>
+<h2>Де зберігаються</h2>
+<p>У внутрішній CRM-системі клініки на захищеному сервері. Доступ мають лише адміністратори й лікарі MOLODIST. Повідомлення з Instagram і Facebook ми отримуємо через офіційний інтерфейс Meta (Messenger Platform).</p>
+<h2>Строк зберігання</h2>
+<p>Поки це потрібно для обслуговування, або до вашого запиту на видалення.</p>
+<h2>Ваші права</h2>
+<p>Ви можете попросити показати, виправити чи видалити ваші дані — див. <a href="/data-deletion">Видалення даних</a>.</p>
+<h2>Контакти</h2>
+<p>Напишіть нам у Direct Instagram <b>@_molodist</b> або в Messenger сторінки «Молодість».</p>
+{% else %}
+<h1>Видалення даних</h1><div class="m">Медичний простір MOLODIST · інструкція для користувачів Instagram і Facebook</div>
+<p>Щоб видалити дані, які ми отримали з вашого Instagram чи Facebook (імʼя профілю, листування):</p>
+<ol><li>Напишіть нам у Direct Instagram <b>@_molodist</b> або в Messenger сторінки «Молодість» повідомлення <b>«Видаліть мої дані»</b>.</li>
+<li>Протягом 30 днів ми видалимо листування й дані профілю з нашої CRM і підтвердимо це у відповідь.</li></ol>
+<p>Ви також можете відкликати доступ застосунку MOLODIST CRM у Facebook: <i>Налаштування → Бізнес-інтеграції</i>.</p>
+<p>Медичні записи, які ми зобовʼязані зберігати за законодавством України (медична документація), видаляються в строки, визначені законом.</p>
+{% endif %}
+</div>
+{% endblock %}

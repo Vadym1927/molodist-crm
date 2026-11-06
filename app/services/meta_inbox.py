@@ -1,0 +1,239 @@
+"""Messenger / Instagram Direct → CRM (вебхук Meta) і відповіді з центру спілкування.
+
+• GET  /api/public/meta/webhook — перевірка Meta (hub.verify_token = verify_token каналу «Instagram та Facebook»).
+• POST /api/public/meta/webhook — події: object=page (Messenger) або instagram; підпис X-Hub-Signature-256 = HMAC-SHA256(App Secret).
+• Нова розмова → звернення (джерело Instagram / Facebook), якщо за 24 год з цим співрозмовником ще немає відкритого.
+• Відповідь пацієнту — Graph API /me/messages токеном сторінки; діє загальний вимикач «повідомлення пацієнтам» (messaging).
+"""
+from __future__ import annotations
+
+import hashlib
+import hmac
+import logging
+import secrets as _secrets
+from datetime import datetime, timedelta
+
+import httpx
+from sqlalchemy import select, func
+from sqlalchemy.orm import Session
+
+from ..models import Appeal, ChatMessage, Patient
+from . import channels as ch
+
+log = logging.getLogger("meta_inbox")
+GRAPH = "https://graph.facebook.com/v19.0"
+CH_LABEL = {"facebook": "Facebook", "instagram": "Instagram"}
+
+
+def meta_channel(db: Session) -> dict | None:
+    return next((c for c in ch.channels(db) if c["type"] == "meta"), None)
+
+
+def _raw_meta(db: Session) -> dict | None:
+    return next((c for c in ch._raw(db) if c["type"] == "meta"), None)
+
+
+def verify_token(db: Session) -> str:
+    """Verify token для Meta — генерується один раз і зберігається в параметрах каналу."""
+    c = meta_channel(db)
+    if not c:
+        return ""
+    tok = (c.get("params") or {}).get("verify_token")
+    if not tok:
+        tok = "molodist-" + _secrets.token_urlsafe(18)
+        ch.update(db, c["id"], None, bool(c.get("on")), {"verify_token": tok}, {})
+    return tok
+
+
+def check_signature(db: Session, body: bytes, header: str | None) -> bool:
+    c = _raw_meta(db)
+    secret = ch.secret(c, "app_secret") if c else ""
+    if not secret:
+        log.warning("Meta webhook: App Secret не задано — підпис не перевіряється")
+        return True
+    if not header or not header.startswith("sha256="):
+        return False
+    want = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(want, header[7:])
+
+
+def _page_token(db: Session) -> str:
+    c = _raw_meta(db)
+    return ch.secret(c, "page_token") if c else ""
+
+
+def _profile(db: Session, channel: str, sid: str, http: httpx.Client | None = None) -> str | None:
+    tok = _page_token(db)
+    if not tok:
+        return None
+    fields = "name,username" if channel == "instagram" else "first_name,last_name,name"
+    try:
+        js = (http or httpx.Client(timeout=10)).get(f"{GRAPH}/{sid}", params={"access_token": tok, "fields": fields}).json()
+    except Exception:  # noqa: BLE001
+        return None
+    if js.get("error"):
+        return None
+    if channel == "instagram":
+        u = js.get("username")
+        return (f"@{u}" + (f" · {js['name']}" if js.get("name") else "")) if u else js.get("name")
+    return js.get("name") or " ".join(filter(None, (js.get("first_name"), js.get("last_name")))) or None
+
+
+def _patient_for(db: Session, channel: str, name: str | None) -> Patient | None:
+    if channel != "instagram" or not name or not name.startswith("@"):
+        return None
+    u = name[1:].split(" ")[0].strip().lower()
+    if not u:
+        return None
+    for p in db.scalars(select(Patient).where(Patient.instagram.is_not(None))):
+        v = (p.instagram or "").strip().lower().lstrip("@")
+        v = v.rstrip("/").split("/")[-1] if "instagram.com" in v else v
+        if v == u:
+            return p
+    return None
+
+
+IGNORE_ATT = {"story_mention", "like_heart", "reel", "ig_reel", "share", "fallback", "unsupported_type"}
+
+
+def is_direct(ev: dict) -> bool:
+    """Лише справжнє повідомлення в Direct / Messenger від пацієнта: текст або фото / відео / файл / голосове.
+    Ігноруємо: реакції (reaction), лайки, відповіді-реакції на сторіз, згадки в сторіз, репости, «ехо» власних
+    повідомлень адміністратора, видалені й непідтримувані, прочитання / доставку. Коментарі приходять як changes — не сюди."""
+    msg = ev.get("message") or {}
+    if not msg or ev.get("reaction") or msg.get("is_echo") or msg.get("is_deleted") or msg.get("is_unsupported"):
+        return False
+    rt = msg.get("reply_to") or {}
+    if rt.get("story"):                                    # відповідь / реакція на сторіз
+        return False
+    atts = msg.get("attachments") or []
+    if any((a.get("type") or "") in IGNORE_ATT for a in atts):
+        return False
+    if msg.get("sticker_id") and not msg.get("text"):       # лайк у Messenger = стікер «👍»
+        return False
+    return bool((msg.get("text") or "").strip() or atts)
+
+
+def _appeal_for(db: Session, channel: str, sid: str, pat_id: int | None, name: str | None, text: str | None) -> int | None:
+    """Звернення для вхідного: відкрите звернення цього діалогу чи пацієнта — продовжуємо його;
+    є відкрита задача по пацієнту — нового звернення не створюємо; інакше — нове звернення по каналу.
+    Адміністратор закриває звернення — наступне вхідне відкриє нове."""
+    from ..models import Task
+    from . import appeals as ap
+    ids = {i for (i,) in db.execute(select(ChatMessage.appeal_id).where(ChatMessage.thread == sid, ChatMessage.appeal_id.is_not(None)))}
+    q = select(Appeal).where(Appeal.closed_at.is_(None), Appeal.deleted_at.is_(None))
+    open_ = db.scalars(q.where(Appeal.id.in_(ids)).order_by(Appeal.id.desc())).first() if ids else None
+    if not open_ and pat_id:
+        open_ = db.scalars(q.where(Appeal.patient_id == pat_id).order_by(Appeal.id.desc())).first()
+    if open_:
+        return open_.id
+    if pat_id and db.scalar(select(Task.id).where(Task.patient_id == pat_id, Task.status == "open").limit(1)):
+        return None
+    a = ap.create(db, {"name": name or f"{CH_LABEL[channel]} …{sid[-4:]}", "source": CH_LABEL[channel], "patient_id": pat_id,
+                       "comment": f"Вхідне повідомлення в {CH_LABEL[channel]}: {(text or '[вкладення]')[:300]}"})
+    return a.id
+
+
+def ingest(db: Session, payload: dict, http: httpx.Client | None = None) -> int:
+    """Подія вебхука → нові ChatMessage (вхідні; «ехо» наших відповідей пропускаємо). Повертає кількість нових."""
+    obj = payload.get("object")
+    channel = "instagram" if obj == "instagram" else "facebook"
+    n = 0
+    for entry in payload.get("entry") or []:
+        own = str(entry.get("id") or "")
+        for ev in entry.get("messaging") or []:
+            msg = ev.get("message") or {}
+            if not msg or not is_direct(ev):          # реакції, лайки, сторіз, ехо адміна, прочитання — не Direct
+                continue
+            sid = str((ev.get("sender") or {}).get("id") or "")
+            if not sid or sid == own:
+                continue
+            mid = msg.get("mid")
+            if mid and db.scalar(select(ChatMessage.id).where(ChatMessage.mid == mid)):
+                continue
+            prev = db.scalars(select(ChatMessage).where(ChatMessage.thread == sid).order_by(ChatMessage.id.desc())).first()
+            name = prev.name if prev and prev.name else _profile(db, channel, sid, http)
+            pat_id = prev.patient_id if prev and prev.patient_id else ((p.id) if (p := _patient_for(db, channel, name)) else None)
+            atts = [{"type": a.get("type"), "url": (a.get("payload") or {}).get("url")} for a in msg.get("attachments") or []] or None
+            ts = ev.get("timestamp")
+            at = datetime.utcfromtimestamp(ts / 1000) if isinstance(ts, (int, float)) else datetime.utcnow()
+            m = ChatMessage(at=at, channel=channel, thread=sid, direction="in", text=(msg.get("text") or "")[:4000] or None,
+                            attachments=atts, mid=mid, name=name, patient_id=pat_id)
+            m.appeal_id = _appeal_for(db, channel, sid, pat_id, name, m.text)
+            db.add(m)
+            db.commit()
+            n += 1
+    return n
+
+
+def threads(db: Session, channel: str = "", q: str = "") -> list[dict]:
+    """Діалоги: останнє повідомлення, непрочитані, імʼя."""
+    rows = db.execute(select(ChatMessage.thread, func.max(ChatMessage.id)).group_by(ChatMessage.thread)).all()
+    last = {m.id: m for m in db.scalars(select(ChatMessage).where(ChatMessage.id.in_([i for _, i in rows])))} if rows else {}
+    unread = dict(db.execute(select(ChatMessage.thread, func.count()).where(ChatMessage.direction == "in", ChatMessage.read_at.is_(None))
+                             .group_by(ChatMessage.thread)).all())
+    out = []
+    for t, i in rows:
+        m = last.get(i)
+        if not m or (channel and m.channel != channel):
+            continue
+        nm = db.scalar(select(ChatMessage.name).where(ChatMessage.thread == t, ChatMessage.name.is_not(None)).limit(1))
+        if q and q.lower() not in (nm or "").lower() and q.lower() not in (m.text or "").lower():
+            continue
+        out.append({"thread": t, "channel": m.channel, "name": nm or f"{CH_LABEL.get(m.channel, m.channel)} …{t[-4:]}", "last": m,
+                    "unread": unread.get(t, 0), "patient_id": db.scalar(select(ChatMessage.patient_id).where(
+                        ChatMessage.thread == t, ChatMessage.patient_id.is_not(None)).limit(1))})
+    out.sort(key=lambda x: x["last"].at, reverse=True)
+    return out
+
+
+REPLY_KEY = "meta_chat_replies"          # ручні відповіді в чатах — окремо від автоматичних SMS/Viber/Telegram (за замовч. увімкнено)
+
+
+def replies_enabled(db: Session) -> bool:
+    from ..models import SyncState
+    st = db.get(SyncState, REPLY_KEY)
+    return not (st and st.value == "off")
+
+
+def set_replies(db: Session, on: bool) -> None:
+    from ..models import SyncState
+    st = db.get(SyncState, REPLY_KEY) or SyncState(key=REPLY_KEY)
+    st.value, st.updated_at = ("on" if on else "off"), datetime.utcnow()
+    db.merge(st)
+    db.commit()
+
+
+def reply(db: Session, thread: str, text: str, user_id: int | None = None, http: httpx.Client | None = None) -> ChatMessage:
+    """Ручна відповідь адміністратора в Messenger / Instagram (лише у відповідь пацієнту — тип RESPONSE, вікно 24 год).
+    Автоматичні повідомлення (нагадування, розсилки) сюди не йдуть; окремий вимикач — replies_enabled."""
+    last = db.scalars(select(ChatMessage).where(ChatMessage.thread == thread).order_by(ChatMessage.id.desc())).first()
+    if not last:
+        raise ValueError("Діалог не знайдено")
+    m = ChatMessage(channel=last.channel, thread=thread, direction="out", text=text[:2000], user_id=user_id,
+                    patient_id=last.patient_id, appeal_id=last.appeal_id, name=last.name)
+    if not replies_enabled(db):
+        m.status, m.error = "paused", "Відповіді в чатах вимкнено (Налаштування → Канали)"
+    elif not _page_token(db):
+        m.status, m.error = "failed", "Немає токена сторінки (Налаштування → Канали → Instagram та Facebook)"
+    else:
+        try:
+            js = (http or httpx.Client(timeout=20)).post(f"{GRAPH}/me/messages", params={"access_token": _page_token(db)},
+                                                         json={"recipient": {"id": thread}, "message": {"text": text[:2000]},
+                                                               "messaging_type": "RESPONSE"}).json()
+        except Exception as e:  # noqa: BLE001
+            js = {"error": {"message": str(e)[:200]}}
+        if js.get("error"):
+            m.status, m.error = "failed", (js["error"].get("message") or "помилка")[:300]
+        else:
+            m.status, m.mid = "sent", js.get("message_id")
+    db.add(m)
+    db.commit()
+    return m
+
+
+def mark_read(db: Session, thread: str) -> None:
+    now = datetime.utcnow()
+    for m in db.scalars(select(ChatMessage).where(ChatMessage.thread == thread, ChatMessage.direction == "in", ChatMessage.read_at.is_(None))):
+        m.read_at = now
+    db.commit()

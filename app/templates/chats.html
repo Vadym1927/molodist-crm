@@ -1,22 +1,79 @@
 {% extends "base.html" %}
 {% block title %}Центр спілкування · MOLODIST CRM{% endblock %}
 {% block body %}
-<style>.dev{background:#FFF7E6;border:1px solid #F3D9A6;color:#8A5A00;border-radius:14px;padding:14px 18px;margin:12px 0 18px}
-.cc{display:grid;grid-template-columns:300px minmax(0,1fr) 300px;gap:0;height:calc(100vh - 260px);min-height:460px;background:#fff;border:1px solid var(--line);border-radius:18px;overflow:hidden}
-.cc>div{border-right:1px solid var(--line);display:flex;flex-direction:column;min-width:0}.cc>div:last-child{border-right:0}
-.cc-ch{display:flex;gap:6px;padding:12px;border-bottom:1px solid var(--line);flex-wrap:wrap}.cc-ch span{padding:6px 10px;border-radius:9px;background:#F7F4F0;font:600 12.5px var(--sans);color:#3B3050}
-.cc-ch span.on{background:#3B3050;color:#fff}
-.cc-empty{flex:1;display:grid;place-items:center;text-align:center;color:var(--muted);padding:20px;font-size:14px}
-.cc h4{margin:0;padding:14px 16px;border-bottom:1px solid var(--line);font:700 11px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496}
-.cc-in{border-top:1px solid var(--line);padding:12px;display:flex;gap:8px}.cc-in input{flex:1}
-@media(max-width:1000px){.cc{grid-template-columns:1fr;height:auto}.cc>div{border-right:0;border-bottom:1px solid var(--line);min-height:200px}}</style>
-<div class="eyebrow">Комунікації</div><h1>Центр спілкування з пацієнтами</h1>
-<div class="dev"><b>В розробці.</b> Усі переписки в одному вікні: Instagram, Viber, Telegram, WhatsApp. З розмови — одразу звернення, запис, задача; поруч картка пацієнта й скрипти адміністратора.</div>
-<div class="cc">
-  <div><div class="cc-ch"><span class="on">Усі</span><span>Instagram</span><span>Viber</span><span>Telegram</span><span>WhatsApp</span></div>
-    <div class="cc-empty">Тут буде список діалогів: непрочитані зверху, пошук за пацієнтом чи номером.</div></div>
-  <div><h4>Діалог</h4><div class="cc-empty">Оберіть діалог зліва — тут буде листування з пацієнтом.</div>
-    <div class="cc-in"><input disabled placeholder="Повідомлення пацієнту…"><button class="btn" disabled>Надіслати</button></div></div>
-  <div><h4>Пацієнт</h4><div class="cc-empty">Картка пацієнта, найближчий візит, бюті-план.<br><br>Кнопки: «Звернення», «Записати», «Задача», скрипти.</div></div>
+{% set qp = request.query_params %}
+{% set CHI = {'instagram': '/static/img/ch/meta.png', 'facebook': '/static/img/ch/meta.png'} %}
+<style>
+.cx-h{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.cx-h h1{margin:4px 0 2px;font-size:30px;text-transform:none;letter-spacing:0;font-weight:700;color:#2A2430}.cx-h p{margin:0;color:#6b6575}
+.cx-warn{background:#FFF1D6;border:1px solid #F0D9A8;border-radius:14px;padding:10px 16px;margin-bottom:12px;color:#5a4300;font-size:14px}
+.cx{display:grid;grid-template-columns:320px minmax(0,1fr) 300px;height:calc(100vh - 230px);min-height:480px;background:#fff;border:1px solid #ECE7E1;border-radius:20px;overflow:hidden;box-shadow:0 14px 34px -28px rgba(42,36,48,.35)}
+.cx>div{border-right:1px solid #F1EDE8;display:flex;flex-direction:column;min-width:0;min-height:0}.cx>div:last-child{border-right:0}
+.cx-f{padding:12px;border-bottom:1px solid #F1EDE8;display:grid;gap:8px}.cx-f form{display:grid;gap:8px}
+.cx-tabs{display:flex;gap:6px}.cx-tabs a{padding:6px 12px;border-radius:9px;background:#F7F4F0;font:600 12.5px var(--sans);color:#3B3050;text-decoration:none}.cx-tabs a.on{background:#3B3050;color:#fff}
+.cx-f input{height:38px;margin:0;border-radius:10px}
+.cx-l{flex:1;overflow:auto}
+.cx-t{display:flex;gap:10px;align-items:center;padding:11px 14px;border-bottom:1px solid #F6F3EF;text-decoration:none;color:#2A2430}
+.cx-t:hover{background:#FBFAF8}.cx-t.on{background:#F3EFF9;box-shadow:inset 3px 0 0 #3B3050}
+.cx-av{width:40px;height:40px;border-radius:50%;flex:none;display:grid;place-items:center;font:700 13px var(--sans);color:#fff;background:linear-gradient(135deg,#962FBF,#FA7E1E)}
+.cx-av.fb{background:#1877F2}
+.cx-t .tx{flex:1;min-width:0}.cx-t b{display:block;font:600 14px var(--sans);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cx-t span{display:block;font-size:12.5px;color:#8a8496;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cx-t em{font-style:normal;font-size:11px;color:#9a93a6;white-space:nowrap;align-self:flex-start}.cx-t i{font-style:normal;background:#D9534F;color:#fff;border-radius:99px;min-width:20px;height:20px;display:grid;place-items:center;font:700 11px var(--sans);padding:0 6px}
+.cx-hd{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid #F1EDE8}.cx-hd b{font:700 15px var(--sans)}.cx-hd small{color:#8a8496;display:block}
+.cx-m{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:6px;background:#FBFAF8}
+.cx-b{max-width:72%;padding:8px 12px;border-radius:14px;font-size:14px;line-height:1.45;white-space:pre-wrap;word-break:break-word}
+.cx-b.in{align-self:flex-start;background:#fff;border:1px solid #ECE7E1;border-bottom-left-radius:4px}
+.cx-b.out{align-self:flex-end;background:#3B3050;color:#fff;border-bottom-right-radius:4px}.cx-b.out.bad{background:#FDECEA;color:#B23B2E;border:1px solid #F5C6C1}
+.cx-b small{display:block;font-size:10.5px;opacity:.65;margin-top:3px}.cx-b a{color:inherit}
+.cx-d{align-self:center;font-size:11.5px;color:#9a93a6;background:#F2EFEA;border-radius:8px;padding:2px 10px;margin:6px 0}
+.cx-in{border-top:1px solid #F1EDE8;padding:10px;display:flex;gap:8px;align-items:flex-end}.cx-in textarea{flex:1;margin:0;min-height:44px;max-height:140px;border-radius:12px;resize:vertical}
+.cx-e{flex:1;display:grid;place-items:center;text-align:center;color:#8a8496;padding:24px;font-size:14px;line-height:1.5}
+.cx-p{padding:14px;display:grid;gap:10px;overflow:auto;align-content:start}.cx-p h4{margin:0;font:700 11px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496}
+.cx-p .card{margin:0;padding:12px}.cx-p .btn{width:100%;justify-content:center}
+.cx-lk{position:relative}.cx-lk .res{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ECE7E1;border-radius:10px;z-index:5;display:none;max-height:220px;overflow:auto;box-shadow:0 10px 24px -12px rgba(0,0,0,.3)}
+.cx-lk .res div{padding:8px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid #F4F0EB}.cx-lk .res div:hover{background:#F7F4F0}
+@media(max-width:1100px){.cx{grid-template-columns:280px minmax(0,1fr)}.cx>div:last-child{display:none}}
+@media(max-width:720px){.cx{grid-template-columns:1fr;height:auto}.cx>div{border-right:0;border-bottom:1px solid #F1EDE8;min-height:260px}}
+</style>
+<div class="cx-h"><div><div class="eyebrow">Комунікації</div><h1>Центр спілкування</h1><p>Instagram Direct і Facebook Messenger — читайте й відповідайте з CRM.</p></div>
+  {% if can(user,'users') %}<a class="btn ghost" href="/settings/channels?open={{ '' }}">⚙ Канали</a>{% endif %}</div>
+{% if qp.get('msg') %}<div class="alert" style="{{ '' if qp.get('err') else 'background:var(--ok-bg);color:var(--ok)' }}">{{ qp.get('msg') }}</div>{% endif %}
+{% if not connected %}<div class="cx-warn"><b>Канал не підключено.</b> Налаштування → Канали → «Instagram та Facebook»: токен сторінки й вебхук.</div>
+{% elif not replies_on %}<div class="cx-warn">Відповіді з CRM вимкнено — повідомлення лише читаються (Налаштування → Канали).</div>{% endif %}
+<div class="cx">
+  <div>
+    <div class="cx-f"><div class="cx-tabs"><a href="?" class="{{ 'on' if not ch_ }}">Усі</a><a href="?ch=instagram" class="{{ 'on' if ch_ == 'instagram' }}">Instagram</a><a href="?ch=facebook" class="{{ 'on' if ch_ == 'facebook' }}">Facebook</a></div>
+      <form><input type="hidden" name="ch" value="{{ ch_ }}"><input name="q" value="{{ q }}" placeholder="Пошук: імʼя або текст"></form></div>
+    <div class="cx-l">{% for x in threads %}<a class="cx-t {{ 'on' if cur and cur.thread == x.thread }}" href="?t={{ x.thread }}{{ ('&ch=' ~ ch_) if ch_ }}">
+      <span class="cx-av {{ 'fb' if x.channel == 'facebook' }}">{{ (x.name.lstrip('@')[:2])|upper }}</span>
+      <span class="tx"><b>{{ x.name }}</b><span>{{ '↪ ' if x.last.direction == 'out' }}{{ x.last.text or '[вкладення]' }}</span></span>
+      <em>{{ x.last.at|local|dt('%d.%m %H:%M') }}</em>{% if x.unread and not (cur and cur.thread == x.thread) %}<i>{{ x.unread }}</i>{% endif %}</a>
+    {% else %}<div class="cx-e">Повідомлень ще немає.<br>Щойно пацієнт напише в Instagram чи Messenger — діалог зʼявиться тут.</div>{% endfor %}</div>
+  </div>
+  <div>{% if cur %}
+    <div class="cx-hd"><span class="cx-av {{ 'fb' if cur.channel == 'facebook' }}">{{ (cur.name.lstrip('@')[:2])|upper }}</span><div><b>{{ cur.name }}</b><small>{{ 'Instagram Direct' if cur.channel == 'instagram' else 'Facebook Messenger' }}</small></div></div>
+    <div class="cx-m" id="cx-m">{% set ns = namespace(d='') %}{% for m in msgs %}{% set dd = (m.at|local|dt('%d.%m.%Y')) %}{% if dd != ns.d %}<div class="cx-d">{{ dd }}</div>{% set ns.d = dd %}{% endif %}
+      <div class="cx-b {{ m.direction }} {{ 'bad' if m.direction == 'out' and m.status != 'sent' }}">{{ m.text or '' }}{% for a in m.attachments or [] %}{% if a.url %}<div><a href="{{ a.url }}" target="_blank" rel="noopener">📎 {{ a.type or 'файл' }}</a></div>{% endif %}{% endfor %}
+        <small>{{ m.at|local|dt('%H:%M') }}{% if m.direction == 'out' %} · {{ {'sent':'надіслано','paused':'не надіслано — вимкнено','failed':'помилка'}.get(m.status, m.status) }}{% if m.error and m.status != 'sent' %}: {{ m.error }}{% endif %}{% endif %}</small></div>{% endfor %}</div>
+    <form class="cx-in" method="post" action="/chats/{{ cur.thread }}/reply"><textarea name="text" required placeholder="{{ 'Відповідь пацієнту…' if replies_on else 'Відповіді вимкнено' }}" {{ 'disabled' if not replies_on or not connected }} onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){this.form.submit()}"></textarea><button class="btn" {{ 'disabled' if not replies_on or not connected }}>Надіслати</button></form>
+  {% else %}<div class="cx-e">Оберіть діалог зліва.</div>{% endif %}</div>
+  <div class="cx-p">{% if cur %}
+    <h4>Пацієнт</h4>
+    {% if pat %}<div class="card"><a href="/patients/{{ pat.id }}" style="font-weight:700">{{ pat.full_name }}</a><div class="small muted">{{ pat.phone or '' }}</div></div>
+    {% else %}<div class="small muted">Не привʼязано до картки.</div>{% endif %}
+    <form method="post" action="/chats/{{ cur.thread }}/patient" class="cx-lk"><input type="hidden" name="patient_id" id="cx-pid"><input id="cx-q" placeholder="Знайти пацієнта для привʼязки" autocomplete="off" style="margin:0;height:38px"><div class="res" id="cx-res"></div></form>
+    {% if appeal %}<h4>Звернення</h4><a class="btn ghost" href="/appeals?open={{ appeal.id }}">№{{ appeal.id }} · {{ appeal.status }}</a>{% endif %}
+    {% if can(user,'book') %}<a class="btn" href="/calendar?view=day&newappt=1{{ ('&appeal=' ~ appeal.id) if appeal }}">📅 Записати</a>{% endif %}
+  {% endif %}</div>
 </div>
+<script>
+(function(){var m=document.getElementById('cx-m');if(m)m.scrollTop=m.scrollHeight;
+  var q=document.getElementById('cx-q');if(!q)return;var r=document.getElementById('cx-res'),T;
+  q.addEventListener('input',function(){clearTimeout(T);var v=q.value.trim();if(v.length<2){r.style.display='none';return}
+    T=setTimeout(function(){fetch('/lookup/patients?q='+encodeURIComponent(v),{credentials:'same-origin'}).then(function(x){return x.json()}).then(function(js){
+      r.innerHTML='';js.slice(0,8).forEach(function(p){var d=document.createElement('div');d.textContent=p.name+(p.phone?' · '+p.phone:'');d.onclick=function(){document.getElementById('cx-pid').value=p.id;q.form.submit()};r.appendChild(d)});
+      r.style.display=js.length?'':'none'})},250)})})();
+setTimeout(function(){var t=document.querySelector('.cx-in textarea');if(!t||!t.value.trim())location.reload()},60000);
+</script>
 {% endblock %}

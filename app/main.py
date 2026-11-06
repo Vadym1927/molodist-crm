@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import hmac
 from collections import defaultdict
 import json
 import re
@@ -5109,8 +5110,97 @@ def telephony_page(request: Request, f: str = "", user: User = Depends(require("
 
 
 @app.get("/chats", response_class=HTMLResponse)
-def chats_page(request: Request, user: User = Depends(require("appeals")), db: Session = Depends(db_dep)):
-    return render(request, "chats.html", nav="chats")
+def chats_page(request: Request, t: str = "", ch: str = "", q: str = "", user: User = Depends(require("appeals")), db: Session = Depends(db_dep)):
+    from .services import meta_inbox as mi
+    from .models import ChatMessage
+    th = mi.threads(db, ch, q)
+    cur = next((x for x in th if x["thread"] == t), None) or (th[0] if th and not t else None)
+    msgs, pat = [], None
+    if cur:
+        msgs = db.scalars(select(ChatMessage).where(ChatMessage.thread == cur["thread"]).order_by(ChatMessage.at, ChatMessage.id)).all()
+        mi.mark_read(db, cur["thread"])
+        pat = db.get(Patient, cur["patient_id"]) if cur.get("patient_id") else None
+    c = mi.meta_channel(db)
+    return render(request, "chats.html", nav="chats", threads=th, cur=cur, msgs=msgs, pat=pat, ch_=ch, q=q,
+                  connected=bool(c and c.get("has", {}).get("page_token")), replies_on=mi.replies_enabled(db),
+                  appeal=db.get(__import__("app.models", fromlist=["Appeal"]).Appeal, msgs[-1].appeal_id) if msgs and msgs[-1].appeal_id else None)
+
+
+@app.post("/chats/{thread}/reply")
+def chats_reply(thread: str, text: str = Form(...), user: User = Depends(require("appeals")), db: Session = Depends(db_dep)):
+    from .services import meta_inbox as mi
+    try:
+        m = mi.reply(db, thread, text.strip(), user.id)
+    except ValueError as e:
+        return RedirectResponse(_with_msg("/chats", str(e), True), 303)
+    audit(db, "chats.reply", user=user, thread=thread[-6:], status=m.status)
+    url = f"/chats?t={thread}"
+    return RedirectResponse(url if m.status == "sent" else _with_msg(url, f"Не надіслано: {m.error}", True), 303)
+
+
+@app.post("/chats/{thread}/patient")
+def chats_link_patient(thread: str, patient_id: str = Form(""), user: User = Depends(require("appeals")), db: Session = Depends(db_dep)):
+    from .models import ChatMessage
+    pid = int(patient_id) if patient_id.isdigit() else None
+    from .models import Appeal as _Ap
+    aids = set()
+    for m in db.scalars(select(ChatMessage).where(ChatMessage.thread == thread)):
+        m.patient_id = pid
+        if m.appeal_id:
+            aids.add(m.appeal_id)
+    for a_ in db.scalars(select(_Ap).where(_Ap.id.in_(aids or {0}), _Ap.closed_at.is_(None))):
+        a_.patient_id = pid                                    # звернення з цього діалогу — до картки пацієнта
+    db.commit()
+    audit(db, "chats.patient", user=user, thread=thread[-6:], patient=pid)
+    return RedirectResponse(f"/chats?t={thread}", 303)
+
+
+@app.get("/privacy", response_class=HTMLResponse)
+def privacy_page(request: Request):
+    return render(request, "legal.html", nav="login", kind="privacy", title="Політика конфіденційності", today=date.today())
+
+
+@app.get("/data-deletion", response_class=HTMLResponse)
+def data_deletion_page(request: Request):
+    return render(request, "legal.html", nav="login", kind="deletion", title="Видалення даних", today=date.today())
+
+
+@app.get("/api/public/meta/webhook")
+def meta_webhook_verify(request: Request, db: Session = Depends(db_dep)):
+    from .services import meta_inbox as mi
+    qp = request.query_params
+    if qp.get("hub.mode") == "subscribe" and qp.get("hub.verify_token") and hmac.compare_digest(qp.get("hub.verify_token"), mi.verify_token(db)):
+        return Response(qp.get("hub.challenge") or "", media_type="text/plain")
+    raise HTTPException(403, "verify token mismatch")
+
+
+@app.post("/api/public/meta/webhook")
+async def meta_webhook(request: Request, db: Session = Depends(db_dep)):
+    from .services import meta_inbox as mi
+    body = await request.body()
+    if not mi.check_signature(db, body, request.headers.get("x-hub-signature-256")):
+        raise HTTPException(403, "bad signature")
+    try:
+        import json as _j
+        n = await asyncio.to_thread(mi.ingest, db, _j.loads(body or b"{}"))
+    except Exception:                     # noqa: BLE001 — Meta має отримати 200, інакше вимкне вебхук
+        logging.getLogger("meta_inbox").exception("webhook")
+        n = 0
+    if n:
+        try:
+            from .services import alerts as _al
+            _al.send(f"💬 Нове повідомлення в Instagram / Facebook ({n}) — {settings.public_url.rstrip('/')}/chats")
+        except Exception:  # noqa: BLE001
+            pass
+    return {"ok": True}
+
+
+@app.post("/settings/channels/replies")
+def settings_channels_replies(on: str = Form(""), user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import meta_inbox as mi
+    mi.set_replies(db, on == "1")
+    audit(db, "channels.replies", user=user, op="on" if on == "1" else "off")
+    return RedirectResponse(_with_msg("/settings/channels", "Відповіді в чатах " + ("увімкнено" if on == "1" else "вимкнено")), 303)
 
 
 @app.get("/data/name-order")
@@ -6939,8 +7029,11 @@ def settings_channels_sending(on: str = Form(""), user: User = Depends(require("
 def settings_channels(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     from .services import channels as ch
     from .integrations import messaging as _m_
+    from .services import meta_inbox as _mi
+    _base = str(request.base_url).rstrip("/").replace("http://", "https://")
     return render(request, "channels.html", nav="settings", chs=ch.channels(db), T=ch.TYPES, open_=request.query_params.get("open", ""),
-                  sending_on=_m_.sending_enabled(),
+                  sending_on=_m_.sending_enabled(), meta_hook=_base + "/api/public/meta/webhook", meta_vt=_mi.verify_token(db) if _mi.meta_channel(db) else "",
+                  replies_on=_mi.replies_enabled(db),
                   dlr_url=str(request.base_url).rstrip("/").replace("http://", "https://") + "/api/public/turbosms/dlr")
 
 
@@ -6956,8 +7049,8 @@ async def settings_channel_save(request: Request, cid: int, user: User = Depends
         params["ttl"] = int(params["ttl"]) if params["ttl"].isdigit() else 3600
     if "fallback_sms" in f or f.get("_has_fallback"):
         params["fallback_sms"] = bool(f.get("fallback_sms"))
-    secrets = {k: str(f.get(k) or "").strip() for k in ("token", "webhook_secret", "password", "page_token") if f.get(k)}
-    secrets.update({f"clear_{k}": "1" for k in ("token", "webhook_secret", "password", "page_token") if f.get(f"clear_{k}")})
+    secrets = {k: str(f.get(k) or "").strip() for k in ("token", "webhook_secret", "password", "page_token", "app_secret") if f.get(k)}
+    secrets.update({f"clear_{k}": "1" for k in ("token", "webhook_secret", "password", "page_token", "app_secret") if f.get(f"clear_{k}")})
     try:
         ch.update(db, cid, str(f.get("name") or "").strip(), bool(f.get("on")), params, secrets)
     except ValueError as e:

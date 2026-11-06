@@ -16,7 +16,7 @@ from ..config import settings
 from ..models import SyncState
 
 KEY = "channels_cfg"
-SECRET_FIELDS = {"token", "webhook_secret", "password", "page_token"}
+SECRET_FIELDS = {"token", "webhook_secret", "password", "page_token", "app_secret"}
 ENV0 = {k: getattr(settings, k) for k in ("turbosms_token", "turbosms_sender_sms", "turbosms_sender_viber", "turbosms_viber_ttl",
                                           "patient_bot_token", "patient_bot_username", "quiet_hours_start", "quiet_hours_end")}
 TYPES = {
