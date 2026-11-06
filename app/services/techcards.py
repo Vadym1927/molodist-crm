@@ -31,37 +31,48 @@ def _same_unit(a: str | None, b: str | None) -> bool:
 def unit_costs(db: Session) -> dict[int, float]:
     """Ціна одиниці обліку (шт., мл, МО, м) для собівартості — як у CleverBox: ціна закупівлі товару (Product.cost),
     якщо її немає — остання закупівля (ProductPurchase, уже за одиницю обліку), далі собівартість залишку.
-    Ціна закупівлі ділиться на коефіцієнт фасування лише коли одиниця приходу інша, ніж одиниця обліку (уп. → шт.).
-    Якщо одиниці однакові (МО / МО, шт / шт) — CleverBox уже дає ціну за одиницю обліку, коеф. лише довідковий
-    (раніше ділилось удруге: Нейронокс 70 МО = 16,88 ₴ замість ~3 375 ₴, шприц 0,08 ₴ замість 3,86 ₴)."""
+
+    Product.cost з CleverBox зазвичай уже за одиницю обліку (МО, шт), а з Excel-імпорту може бути за упаковку.
+    Тому на коефіцієнт фасування ділимо, лише якщо:
+      • є закупівлі й ціна «за упаковку / коеф.» ближча до ціни останньої закупівлі за одиницю, ніж ціна «як є»;
+      • або закупівель немає, а одиниця приходу явно задана й відрізняється від одиниці обліку (уп. → шт.).
+    (Раніше ділилось завжди: Нейронокс 70 МО = 16,88 ₴ замість ~3 000 ₴, шприц 0,08 ₴ замість 3,86 ₴.)"""
+    import math
     out: dict[int, float] = {}
     for pp in db.scalars(select(ProductPurchase).where(ProductPurchase.unit_cost > 0).order_by(ProductPurchase.bought_on, ProductPurchase.id)):
         out[pp.product_id] = float(pp.unit_cost)
     for p in db.scalars(select(Product)):
-        k = float(p.coef) if p.coef and p.coef > 0 else 1.0
-        if _same_unit(p.purchase_unit, p.unit):
-            k = 1.0
-        if p.cost and float(p.cost) > 0:
-            out[p.id] = float(p.cost) / k
+        k = float(p.coef) if p.coef and p.coef > 1 else 1.0
+        c = float(p.cost or 0)
+        if c > 0:
+            if k > 1:
+                ref = out.get(p.id)
+                if ref:
+                    per_pack = abs(math.log((c / k) / ref)) < abs(math.log(c / ref))
+                else:
+                    per_pack = bool(p.purchase_unit) and not _same_unit(p.purchase_unit, p.unit)
+                out[p.id] = c / k if per_pack else c
+            else:
+                out[p.id] = c
         elif p.id not in out:
             out[p.id] = float(p.stock_cost or 0) / k
     return out
 
 
-def fix_unit_costs_v1(db: Session) -> int:
-    """Один раз: перерахувати ціну одиниці у витратних візитів для товарів, де коеф. фасування ділив ціну вдруге
-    (одиниця приходу = одиниці обліку). Кількості й списання зі складу не змінюються — лише собівартість."""
-    if db.get(SyncState, "visit_unit_cost_fix_v1"):
+def fix_unit_costs_v2(db: Session) -> int:
+    """Один раз: збережені витратні візитів, де ціна одиниці була поділена на коеф. фасування вдруге, — перерахувати.
+    Кількості й списання зі складу не змінюються — лише собівартість."""
+    if db.get(SyncState, "visit_unit_cost_fix_v2"):
         return 0
     uc = unit_costs(db)
-    bad = {p.id for p in db.scalars(select(Product)) if p.coef and p.coef > 1 and _same_unit(p.purchase_unit, p.unit)}
+    coef = {p.id: float(p.coef) for p in db.scalars(select(Product).where(Product.coef > 1))}
     n = 0
-    if bad:
-        for m in db.scalars(select(VisitMaterial).where(VisitMaterial.product_id.in_(bad))):
-            new = round(uc.get(m.product_id, 0.0), 4)
-            if new and abs((m.unit_cost or 0) - new) > 1e-6:
-                m.unit_cost, n = new, n + 1
-    db.merge(SyncState(key="visit_unit_cost_fix_v1", value=str(n)))
+    if coef:
+        for m in db.scalars(select(VisitMaterial).where(VisitMaterial.product_id.in_(list(coef)))):
+            new, old, k = uc.get(m.product_id, 0.0), float(m.unit_cost or 0), coef[m.product_id]
+            if new > 0 and old > 0 and abs(old * k - new) / new < 0.35:      # стара ціна ≈ нова / коеф. — подвійне ділення
+                m.unit_cost, n = round(new, 4), n + 1
+    db.merge(SyncState(key="visit_unit_cost_fix_v2", value=str(n)))
     db.commit()
     return n
 

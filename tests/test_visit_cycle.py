@@ -111,3 +111,15 @@ def test_unit_cost_same_units_not_divided():
         db.add_all([p, s]); db.commit()
         uc = tc.unit_costs(db)
         assert round(uc[p.id] * 70, 2) == 3375.4 and uc[s.id] == 3.86
+
+
+def test_unit_cost_cb_cost_per_unit_with_purchases():
+    """Одиниця приходу не задана, коеф. 200: ціна CleverBox 48.22 за МО, закупівля 44.04 за МО — ділити не треба."""
+    with SessionLocal() as db:
+        p = Product(name="Нейро тест", name_norm="нейро тест", warehouse="inject", unit="МО", coef=200, cost=48.22)
+        q = Product(name="Пачка тест", name_norm="пачка тест", warehouse="single", unit="шт", coef=50, cost=75)
+        db.add_all([p, q]); db.flush()
+        db.add(ProductPurchase(product_id=p.id, bought_on=date(2026, 9, 30), qty=200, unit_cost=44.04))
+        db.add(ProductPurchase(product_id=q.id, bought_on=date(2026, 9, 30), qty=50, unit_cost=1.6)); db.commit()
+        uc = tc.unit_costs(db)
+        assert uc[p.id] == 48.22 and uc[q.id] == 1.5
