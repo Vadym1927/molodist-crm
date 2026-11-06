@@ -233,7 +233,7 @@
   <a href="#t-visits" data-t="visits">Візити <em>{{ _nvis }}</em></a>
   {% if can(user,'medical') %}<a href="/patients/{{ p.id }}/medcard">Медкарта</a>{% endif %}
   <a href="#t-plan" data-t="plan">Бʼюті-план{% if statuses %} <em>{{ statuses|length }}</em>{% endif %}</a>
-  <a href="#t-comm" data-t="comm">Комунікації{% if pcalls %} <em>{{ pcalls|length }}</em>{% endif %}</a>
+  <a href="#t-comm" data-t="comm">Комунікації{% if pcalls or pchats %} <em>{{ (pcalls|length) + (pchats|default([])|length) }}</em>{% endif %}</a>
   <a href="#t-files" data-t="files">Фото й документи <em>{{ p.files|length }}</em></a>
   <a href="#t-sales" data-t="sales">Продажі{% if p.sales %} <em>{{ p.sales|length }}</em>{% endif %}</a>
   <a href="#t-hist" data-t="hist">Історія</a>
@@ -410,6 +410,24 @@
 
 {# ================= КОМУНІКАЦІЇ ================= #}
 <section class="pt-p" data-t="comm">
+{% if pchats %}<style>
+.pch-t{border:1px solid #ECE7E1;border-radius:14px;margin-top:10px;overflow:hidden}.pch-t summary{list-style:none;cursor:pointer;display:flex;gap:10px;align-items:center;padding:10px 14px;background:#FBFAF8}
+.pch-t summary::-webkit-details-marker{display:none}.pch-t summary b{font:600 14px var(--sans)}.pch-t summary small{color:#8a8496;margin-left:auto;white-space:nowrap}
+.pch-av{width:34px;height:34px;border-radius:50%;flex:none;display:grid;place-items:center;color:#fff;font:700 12px var(--sans);background:linear-gradient(135deg,#962FBF,#FA7E1E);position:relative;overflow:hidden}
+.pch-av.fb{background:#1877F2}.pch-av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.pch-m{padding:12px 14px;display:flex;flex-direction:column;gap:5px;max-height:420px;overflow:auto}
+.pch-b{max-width:75%;padding:7px 11px;border-radius:13px;font-size:13.5px;line-height:1.45;white-space:pre-wrap;word-break:break-word}
+.pch-b.in{align-self:flex-start;background:#fff;border:1px solid #ECE7E1;border-bottom-left-radius:4px}.pch-b.out{align-self:flex-end;background:#3B3050;color:#fff;border-bottom-right-radius:4px}
+.pch-b.out.bad{background:#FDECEA;color:#B23B2E}.pch-b small{display:block;font-size:10.5px;opacity:.65;margin-top:2px}.pch-b a{color:inherit}
+.pch-d{align-self:center;font-size:11px;color:#9a93a6;background:#F2EFEA;border-radius:8px;padding:1px 9px;margin:4px 0}</style>
+<div class="card" id="chats"><div class="row between"><h2 style="margin:0">Чати Instagram / Facebook · {{ pchats|length }}</h2><a class="btn ghost" href="/chats">Центр спілкування</a></div>
+  {% for c in pchats %}{% set nm = c.name or (('Instagram' if c.channel == 'instagram' else 'Facebook') ~ ' …' ~ c.thread[-4:]) %}
+  <details class="pch-t" {{ 'open' if loop.first }}><summary><span class="pch-av {{ 'fb' if c.channel == 'facebook' }}">{{ nm.lstrip('@')[:2]|upper }}<img src="/chats/{{ c.thread }}/avatar" alt="" loading="lazy" onerror="this.remove()"></span>
+    <span><b>{{ nm }}</b><br><span class="small muted">{{ 'Instagram Direct' if c.channel == 'instagram' else 'Facebook Messenger' }} · {{ c.msgs|length }} повідомл.</span></span>
+    <small>{{ c.msgs[-1].at|local|dt('%d.%m.%Y %H:%M') }} · <a href="/chats?t={{ c.thread }}" onclick="event.stopPropagation()">відкрити</a></small></summary>
+    <div class="pch-m">{% set ns = namespace(d='') %}{% for m in c.msgs %}{% set dd = (m.at|local|dt('%d.%m.%Y')) %}{% if dd != ns.d %}<div class="pch-d">{{ dd }}</div>{% set ns.d = dd %}{% endif %}
+      <div class="pch-b {{ m.direction }} {{ 'bad' if m.direction == 'out' and m.status != 'sent' }}">{{ m.text or '' }}{% for a in m.attachments or [] %}{% if a.url %}<div><a href="{{ a.url }}" target="_blank" rel="noopener">📎 {{ a.type or 'файл' }}</a></div>{% endif %}{% endfor %}<small>{{ m.at|local|dt('%H:%M') }}{% if m.direction == 'out' and m.status != 'sent' %} · не надіслано{% endif %}</small></div>{% endfor %}</div>
+  </details>{% endfor %}</div>{% endif %}
 {% if pcalls is defined and (can(user,'appeals') or can(user,'book')) %}{% from "_calls.html" import call_list %}
 <div class="card" id="calls"><div class="row between"><h2 style="margin:0">Дзвінки · {{ pcalls|length }}</h2><a class="btn ghost" href="/telephony">Журнал дзвінків</a></div>
   <div style="margin-top:10px">{{ call_list(pcalls, {p.id: p}, call_thr, False, '/patients/' ~ p.id ~ '#calls') }}</div></div>{% endif %}

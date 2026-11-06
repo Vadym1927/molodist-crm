@@ -900,6 +900,14 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
     from .models import Call as _Call
     pcalls = db.scalars(select(_Call).where(_Call.patient_id == p.id).order_by(_Call.at.desc()).limit(50)).all() if (can(user, "appeals") or can(user, "book")) else []
     pvis = _patient_visit_rows(db, p)
+    pchats = []                                             # діалоги Instagram / Messenger, привʼязані до пацієнта
+    if can(user, "appeals"):
+        from .models import ChatMessage as _CM
+        _th: dict = {}
+        for m_ in db.scalars(select(_CM).where(_CM.patient_id == p.id).order_by(_CM.at, _CM.id)):
+            _th.setdefault(m_.thread, []).append(m_)
+        pchats = sorted(({"thread": k, "channel": v[0].channel, "name": next((x.name for x in v if x.name), None), "msgs": v} for k, v in _th.items()),
+                        key=lambda x: x["msgs"][-1].at, reverse=True)
     from .services import patient_photos as _pp
     _ph_items = [{"f": f, "cat": _pp.cat(f), "img": _pp.is_image(f)} for f in
                  sorted(_pp.all_files(db, p.id), key=lambda f: (f.taken_at or f.created_at.date(), f.id), reverse=True)]
@@ -922,7 +930,7 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
     from .models import CbService as _CbS
     pe_services = sorted({(n_, pr_) for n_, pr_ in db.execute(select(_CbS.name, _CbS.price).where(_CbS.active.is_not(False))) if n_}, key=lambda x: x[0])
     pe_products = sorted({(n_, pr_) for n_, pr_ in db.execute(select(Product.name, Product.price).where(Product.active.is_not(False))) if n_}, key=lambda x: x[0])
-    return render(request, "patient.html", p=p, statuses=statuses, pe_services=pe_services, pe_products=pe_products, ptasks=ptasks, msgs=msgs, dupes=dupes, paylinks=paylinks, pcalls=pcalls,
+    return render(request, "patient.html", p=p, statuses=statuses, pe_services=pe_services, pe_products=pe_products, ptasks=ptasks, msgs=msgs, dupes=dupes, paylinks=paylinks, pcalls=pcalls, pchats=pchats,
                   call_thr=float(__import__("app.services.telephony", fromlist=["x"]).public(db).get("ai_alert_below") or 0),
                   certs=_cert.for_patient(db, p.id), CERT_STATES=_cert.STATES, today=date.today(),
                   subs=_cert.subs_for_patient(db, p.id), SUB_STATES=_cert.SUB_STATES, packages=_cert.package_items(db),
