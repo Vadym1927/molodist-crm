@@ -4672,6 +4672,7 @@ def stock_page(request: Request, tab: str = "balances", only: str = "", wh: str 
                MOVE_KINDS=st.MOVE_KINDS, active=st.ledger_active(db), start=st.ledger_start(db), wh=wh, q=q, sup=sup)
     if tab in ("balances", "critical"):
         rows = [r for r in catalog.product_rows(db) if r.product.active is not False]
+        ctx["crit_n"] = len(_critical_rows(rows))
         per = st.balances(db) if ctx["active"] else {}
         if wh in catalog.WAREHOUSES:
             if ctx["active"]:

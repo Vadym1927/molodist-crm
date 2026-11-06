@@ -22,13 +22,54 @@
 .norm .nl button{border:0;background:#fff;border-radius:50%;width:20px;height:20px;cursor:pointer;color:var(--bad)}
 @media (max-width:900px){.whs{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
-<div class="row between" style="align-items:flex-end">
+{% set SI = {'balances': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 12l9 5 9-5M3 16l9 5 9-5"/></svg>', 'critical': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4L2.5 20h19z"/><path d="M12 10v4M12 17h.01"/></svg>', 'inventory': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 14h6M9 18h3"/></svg>', 'prices': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20v-6M10 20V9M15 20v-9M20 20V5"/></svg>', 'supply': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg>', 'order': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h2l2.5 11h11L21 7H7"/><circle cx="9" cy="19.5" r="1.3"/><circle cx="17" cy="19.5" r="1.3"/></svg>', 'transfer': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h15l-3-3M20 16H5l3 3"/></svg>', 'writeoff': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>', 'return': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>', 'moves': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 20V4M3 8l4-4 4 4M17 4v16M13 16l4 4 4-4"/></svg>', 'suppliers': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14.8c1.6.8 2.6 2.6 3 5.2"/></svg>', 'norms': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>', 'services': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 12.5l-8 8-9-9V3.5h8z"/><circle cx="8" cy="8" r="1.5"/></svg>', 'techcards': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 12l9 5 9-5M3 16l9 5 9-5"/></svg>'} %}
+<style>
+.sk-h{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.sk-h h1{margin:2px 0 4px;font-size:34px;text-transform:none;letter-spacing:0;font-weight:700;color:#2A2430}
+.sk-b{height:44px;display:inline-flex;align-items:center;gap:9px;padding:0 18px;border-radius:12px;border:1.5px solid #3B3050;background:#fff;color:#3B3050;font:700 14px var(--sans);cursor:pointer;text-decoration:none}
+.sk-b:hover{background:#F3EFF9}.sk-b svg{width:20px;height:20px}
+.sk-nav{display:grid;grid-template-columns:minmax(240px,.75fr) minmax(0,1.85fr) minmax(0,1.4fr);gap:12px;margin-bottom:16px;align-items:start}
+@media(max-width:1440px){.sk-nav{grid-template-columns:1fr 1fr}.sk-nav .g2{grid-column:1/-1;order:-1}.sk-nav .sk-l{grid-template-columns:1fr 1fr}}@media(max-width:700px){.sk-nav{grid-template-columns:1fr}}
+.sk-g{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:14px 16px 16px;box-shadow:0 1px 2px rgba(42,36,48,.04),0 14px 34px -28px rgba(42,36,48,.35)}
+.sk-g h3{margin:0 0 10px 4px;font:700 11.5px var(--head);letter-spacing:.14em;text-transform:uppercase;color:#3B3050}
+.sk-l{display:grid;gap:7px}.sk-t3{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.sk-t2{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}
+@media(max-width:700px){.sk-t3{grid-template-columns:1fr 1fr}}
+.sk-i{min-width:0;display:flex;align-items:center;gap:10px;text-decoration:none;color:#2A2430;font:600 13.5px var(--sans);border:1px solid #E6E0D8;border-radius:12px;background:#fff;padding:7px 12px;transition:.15s;line-height:1.2}
+.sk-i i{flex:none;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:#3B3050}.sk-i i svg{width:20px;height:20px}
+.sk-i:hover{border-color:#C9BFE6;background:#FBFAFD;box-shadow:0 8px 18px -14px rgba(59,48,80,.6)}
+.sk-i.on{background:#3B3050;border-color:#3B3050;color:#fff}.sk-i.on i{color:#fff}
+.sk-t3 .sk-i,.sk-t2 .sk-i{min-height:56px;padding:8px 10px}.sk-i span{min-width:0;hyphens:auto}.sk-t3 .sk-i,.sk-t2 .sk-i{font-size:13px;gap:9px}.sk-t3 .sk-i i,.sk-t2 .sk-i i{width:34px;height:34px;border-radius:11px;background:#F3EFF9}.sk-t3 .sk-i.on i,.sk-t2 .sk-i.on i{background:rgba(255,255,255,.14)}
+.sk-dot{width:9px;height:9px;border-radius:50%;background:#E0A93B;margin-left:auto;flex:none}.sk-cnt{margin-left:auto;font:700 11px var(--sans);background:#FFF1D6;color:#9A6A00;border-radius:99px;padding:1px 8px}
+.sk-i.on .sk-cnt{background:#fff;color:#3B3050}
+.whs{grid-template-columns:repeat(6,minmax(0,1fr))}.whs a{border-radius:14px;padding:12px 16px;background:#fff;border:1px solid #E6E0D8;box-shadow:0 1px 2px rgba(42,36,48,.04)}
+.whs a.on{background:#3B3050;border-color:#3B3050}.whs b{font:700 14px var(--head);letter-spacing:.06em}
+.sk-q{display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.sk-q .in{flex:1;min-width:240px;position:relative}.sk-q .in svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:#6b6575}
+.sk-q .in input{margin:0;height:46px;padding-left:42px;border-radius:12px;width:100%}.sk-q select{height:46px;margin:0;width:auto}
+.sk-q .go{height:46px;padding:0 26px;border-radius:12px;background:#3B3050;color:#fff;border:0;font:700 14px var(--sans);cursor:pointer}
+.tb tbody tr:hover td{background:#F3EFF9}.sk-ph{width:46px;height:46px;border-radius:10px;border:1px solid #ECE7E1;background:#fff center/contain no-repeat;flex:none}
+.sk-ph.no{display:grid;place-items:center;color:#C9BFE6;background:#FBFAF8}.sk-ph.no svg{width:20px;height:20px}
+.sk-pn{display:flex;gap:12px;align-items:center}
+dialog.sk-imp{border:0;border-radius:20px;padding:0;width:min(560px,96vw);box-shadow:0 30px 80px rgba(42,36,48,.4)}dialog.sk-imp::backdrop{background:rgba(42,36,48,.45)}
+</style>
+<div class="sk-h">
   <div><div class="eyebrow">Облік у CRM</div><h1>Склад</h1>
     <div class="muted small">{% if active %}Облік ведеться в CRM з {{ start|dt('%d.%m.%Y %H:%M') }} · продажі з CleverBox і процедури за нормами списуються автоматично{% else %}Облік ще не розпочато — зараз показано залишки з CleverBox{% endif %}</div></div>
+  <button class="sk-b" type="button" onclick="document.getElementById('sk-imp').showModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg> Імпорт з CleverBox</button>
 </div>
 {% if request.query_params.get('msg') %}<div class="alert" style="background:var(--lavender);color:var(--classic);margin-top:12px">{{ request.query_params.get('msg') }}</div>{% endif %}
 {% if request.query_params.get('err') %}<div class="alert" style="margin-top:12px">{{ request.query_params.get('err') }}</div>{% endif %}
-<nav class="st-tabs">{% for k, v in TABS.items() %}<a href="?tab={{ k }}" class="{{ 'on' if tab==k }}">{{ v }}</a>{% endfor %}<a href="/services">Послуги (прайс)</a><a href="/techcards">Техкарти</a><a href="/prices">Моніторинг цін</a></nav>
+{% macro nav_i(k, label, href=None) %}<a class="sk-i {{ 'on' if tab == k and not href }}" href="{{ href or ('?tab=' ~ k) }}"><i>{{ SI[k]|safe }}</i><span>{{ label }}</span>{% if k == 'critical' and crit_n %}<b class="sk-cnt" title="Критичних позицій">{{ crit_n }}</b>{% endif %}</a>{% endmacro %}
+<div class="sk-nav">
+  <div class="sk-g"><h3>Залишки та контроль</h3><div class="sk-l">{{ nav_i('balances', 'Залишки') }}{{ nav_i('critical', 'Критичні залишки') }}{{ nav_i('inventory', 'Інвентаризація') }}{{ nav_i('prices', 'Моніторинг цін', '/prices') }}</div></div>
+  <div class="sk-g g2"><h3>Складські операції</h3><div class="sk-t3">{{ nav_i('supply', 'Поставки') }}{{ nav_i('order', 'Замовлення') }}{{ nav_i('transfer', 'Переміщення') }}{{ nav_i('writeoff', 'Списання') }}{{ nav_i('return', 'Повернення') }}{{ nav_i('moves', 'Рух товарів') }}</div></div>
+  <div class="sk-g"><h3>Довідники та норми</h3><div class="sk-t2">{{ nav_i('suppliers', 'Постачальники') }}{{ nav_i('norms', 'Норми списання') }}{{ nav_i('services', 'Послуги (прайс)', '/services') }}{{ nav_i('techcards', 'Техкарти', '/techcards') }}</div></div>
+</div>
+<dialog class="sk-imp" id="sk-imp"><div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #ECE7E1"><b style="font:700 16px var(--sans)">Імпорт з CleverBox</b><button type="button" class="btn ghost" style="padding:4px 10px" onclick="this.closest('dialog').close()">×</button></div>
+  <form method="post" action="/stock/balances/import" enctype="multipart/form-data" style="padding:16px 20px 20px;display:grid;gap:12px">
+    <div class="small">Звіт CleverBox <b>«Залишки по складах»</b> (.xls / .xlsx) — CRM покаже залишки по кожному складу, оновить собівартість і запропонує звірку з обліком CRM.</div>
+    <input type="file" name="file" accept=".xls,.xlsx" required><div><button class="btn">Завантажити</button></div>
+    <div class="small muted">Товари, ціни й рух товарів — у «Продукти» (імпорт внизу сторінки).</div></form></dialog>
 
 {% if tab == 'balances' and snap %}
 <div class="startbox" id="snap" style="display:block">
@@ -53,25 +94,20 @@
 </div>
 {% elif not active and tab in ('balances','critical') %}
 <div class="startbox">
-  <div><b>Почати облік складу в CRM</b><div class="small" style="margin-top:4px">Найточніше — завантажте звіт CleverBox «Залишки по складах» нижче: кожен склад отримає свої залишки. Або почніть з поточних залишків CleverBox (тоді все піде на основний склад товару).</div></div>
+  <div><b>Почати облік складу в CRM</b><div class="small" style="margin-top:4px">Найточніше — завантажте звіт CleverBox «Залишки по складах» кнопкою «Імпорт з CleverBox» угорі: кожен склад отримає свої залишки. Або почніть з поточних залишків CleverBox (тоді все піде на основний склад товару).</div></div>
   <form method="post" action="/stock/start" onsubmit="return confirm('Почати облік у CRM з поточних залишків?')"><button class="btn ghost">Почати з поточних</button></form>
 </div>{% endif %}
-{% if tab == 'balances' %}
-<form method="post" action="/stock/balances/import" enctype="multipart/form-data" class="row" style="gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
-  <span class="small"><b>Імпорт залишків з CleverBox</b> (звіт «Залишки по складах», .xls)</span>
-  <input type="file" name="file" accept=".xls,.xlsx" required><button class="btn ghost">Завантажити</button></form>
-{% endif %}
 
 {% if tab in ('balances','critical') %}
 <div class="whs">
   <a href="?tab={{ tab }}" class="{{ 'on' if not wh }}"><b>Усі склади</b><em>{{ rows|length if not wh else '' }}</em></a>
   {% for k, v in WAREHOUSES.items() %}<a href="?tab={{ tab }}&wh={{ k }}" class="{{ 'on' if wh==k }}"><b>{{ v }}</b><em>{% if wh_tot.get(k) %}{{ wh_tot[k].n }} поз. · {{ wh_tot[k].value|uah }}{% else %}&nbsp;{% endif %}</em></a>{% endfor %}
 </div>
-<form class="row" style="margin-bottom:12px"><input type="hidden" name="tab" value="{{ tab }}"><input type="hidden" name="wh" value="{{ wh }}">
-  <input name="q" value="{{ q }}" placeholder="Назва, бренд або артикул" style="flex:1;height:44px">
-  {% if tab=='critical' %}<select name="sup" onchange="this.form.submit()" style="height:44px"><option value="">Усі постачальники</option>{% for x in suppliers %}<option {{ 'selected' if sup==x }}>{{ x }}</option>{% endfor %}</select>{% endif %}
-  {% if tab=='balances' %}<label class="small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="all" value="1" {{ 'checked' if request.query_params.get('all') }} onchange="this.form.submit()"> показати з нульовим залишком</label>{% endif %}
-  <button class="btn ghost" style="height:44px">Знайти</button></form>
+<form class="sk-q"><input type="hidden" name="tab" value="{{ tab }}"><input type="hidden" name="wh" value="{{ wh }}">
+  <div class="in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input name="q" value="{{ q }}" placeholder="Назва, бренд або артикул"></div>
+  {% if tab=='critical' %}<select name="sup" onchange="this.form.submit()"><option value="">Усі постачальники</option>{% for x in suppliers %}<option {{ 'selected' if sup==x }}>{{ x }}</option>{% endfor %}</select>{% endif %}
+  {% if tab=='balances' %}<label style="display:flex;gap:8px;align-items:center;font:500 14px var(--sans);color:#2A2430"><input type="checkbox" name="all" value="1" {{ 'checked' if request.query_params.get('all') }} onchange="this.form.submit()" style="width:18px;height:18px;margin:0"> З нульовим залишком</label>{% endif %}
+  <button class="go">Знайти</button></form>
 
 {% if tab=='critical' %}
 <div class="row between" style="margin-bottom:10px"><div class="muted small">Критичні — залишок ≤ мін. залишку (або закінчився товар, що продається / є в планах). «Дозамовити» = мін. залишок + потреба з планів на 30 дн + місячний темп продажів − залишок.</div>
@@ -83,7 +119,7 @@
   <thead><tr><th>Товар</th><th>Склад</th><th class="r">Залишок</th>{% if active and not wh %}<th>По складах</th>{% endif %}<th class="r">Мін.</th>
     {% if tab=='critical' %}<th class="r">Потреба 30д</th><th class="r">Продано 90д</th><th class="r">Дозамовити</th><th>Постачальник</th>{% else %}<th class="r">Закупівля (остання)</th><th class="r">Вартість</th><th>Термін</th>{% endif %}</tr></thead><tbody>
   {% for r in rows[:500] %}{% set p = r.product %}
-    <tr><td><a href="/products/{{ p.id }}" style="font-weight:600;text-decoration:none">{{ p.name }}</a><div class="meta">{{ p.brand or '' }}{{ (' · арт. ' ~ p.sku) if p.sku }}</div></td>
+    <tr><td><div class="sk-pn">{% if p.photo_url %}<span class="sk-ph" style="background-image:url('{{ p.photo_url }}')"></span>{% else %}<span class="sk-ph no">{{ SI['supply']|safe }}</span>{% endif %}<div><a href="/products/{{ p.id }}" style="font-weight:600;text-decoration:none;color:#2A2430">{{ p.name }}</a><div class="meta">{{ p.brand or '' }}{{ (' · арт. ' ~ p.sku) if p.sku and p.sku not in ('0', '0.0') }}</div></div></div></td>
       <td class="small">{{ WAREHOUSES.get(p.warehouse or 'vitrina') }}</td>
       <td class="r"><span class="{{ 'q-neg' if r.stock is not none and r.stock < 0 else ('q-low' if p.min_stock and r.stock is not none and r.stock <= p.min_stock) }}">{{ ('%g'|format(r.stock|round(2))) if r.stock is not none else '—' }}</span> <span class="meta">{{ p.unit or 'шт' }}</span></td>
       {% if active and not wh %}<td class="small">{% for k, v in WAREHOUSES.items() %}{% set qq = per.get((p.id, k)) %}{% if qq %}<span style="white-space:nowrap">{{ v }}: <b>{{ '%g'|format(qq|round(2)) }}</b></span>&nbsp; {% endif %}{% endfor %}</td>{% endif %}
