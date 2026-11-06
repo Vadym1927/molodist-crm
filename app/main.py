@@ -91,6 +91,16 @@ FIN_TABS = [("/finance", "Огляд"), ("/sales", "Каса CRM"), ("/finance/o
             ("/finance/balances", "Баланс пацієнтів"), ("/finance/bonuses", "Рух бонусів"), ("/payreq", "Рахунки на оплату"),
             ("/finance/pricing", "Планування ціни реалізації"),
             ("/amort", "Амортизація обладнання")]
+def _site_url(request) -> str:
+    """Абсолютна адреса CRM для og:image / og:url: PUBLIC_URL (https) або адреса запиту."""
+    u = (settings.public_url or "").rstrip("/")
+    if u.startswith("https://"):
+        return u
+    return str(request.base_url).rstrip("/")
+
+
+SITE_DESC = "Робочий простір команди медичного простору MOLODIST: записи, пацієнти, бюті-плани, склад і фінанси."
+templates.env.globals.update(site_url=_site_url, SITE_DESC=SITE_DESC)
 templates.env.globals.update(
     can=can, ROLES=ROLES, EVENTS=webhooks.EVENTS, FIN_TABS=FIN_TABS,
     FLAG={"green": ("записана", "ok"), "yellow": ("без запису", "warn"),
@@ -9401,6 +9411,11 @@ def patients_redirect(request: Request):
 
 _VERSION_FILE = Path(__file__).with_name("VERSION")
 APP_VERSION = _VERSION_FILE.read_text().strip() if _VERSION_FILE.exists() else "dev"
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return FileResponse(str(BASE / "static" / "img" / "icon-32.png"), media_type="image/png", headers={"Cache-Control": "public, max-age=604800"})
 
 
 @app.get("/health")

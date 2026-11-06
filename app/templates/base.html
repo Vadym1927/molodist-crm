@@ -3,6 +3,28 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{% block title %}MOLODIST CRM{% endblock %}</title>
+{% set _su = site_url(request) %}
+<link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/static/img/icon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/static/img/icon-180.png">
+<meta name="theme-color" content="#2A2430">
+<meta name="description" content="{{ SITE_DESC }}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="MOLODIST">
+<meta property="og:locale" content="uk_UA">
+<meta property="og:title" content="MOLODIST CRM">
+<meta property="og:description" content="{{ SITE_DESC }}">
+<meta property="og:url" content="{{ _su }}/">
+<meta property="og:image" content="{{ _su }}/static/img/og.png">
+<meta property="og:image:secure_url" content="{{ _su }}/static/img/og.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="MOLODIST · медичний простір — CRM">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="MOLODIST CRM">
+<meta name="twitter:description" content="{{ SITE_DESC }}">
+<meta name="twitter:image" content="{{ _su }}/static/img/og.png">
 <link rel="stylesheet" href="/static/fonts/fonts.css">
 <style>
 /* Тема: кольори бренду задаються лише тут (--brand*). Решта — нейтральні, з високим контрастом. */

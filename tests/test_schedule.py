@@ -77,3 +77,10 @@ def test_schedule_bulk_panel():
             assert db.query(StaffShift).filter_by(doctor_id=did).count() == 1 and db.query(DayOff).filter_by(doctor_id=did, kind="vacation").count() == 1
         j = c.post("/specialists/schedule/bulk", json={"cells": [[did, str(d2)]], "action": "work", "start": "20:00", "end": "10:00"}).json()
         assert j.get("error")
+
+
+def test_favicon_and_og_tags():
+    with TestClient(app) as c:
+        r = c.get("/login")
+        assert 'rel="icon"' in r.text and 'property="og:image"' in r.text and "/static/img/og.png" in r.text and "Робочий простір команди" in r.text
+        assert c.get("/favicon.ico").status_code == 200 and c.get("/static/img/og.png").status_code == 200
