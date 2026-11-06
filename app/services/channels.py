@@ -189,7 +189,18 @@ def test(db: Session, cid: int, http: httpx.Client | None = None) -> tuple[bool,
                 return False, "Немає токена сторінки Meta — підключення через Facebook ще не налаштовано в CRM"
             js = http.get("https://graph.facebook.com/v19.0/me", params={"access_token": tok, "fields": "id,name"}).json()
             if js.get("error"):
-                return False, f"Meta: {js['error'].get('message', 'помилка')}"
+                e1 = js["error"]
+                js2 = http.get("https://graph.facebook.com/v19.0/me", params={"access_token": tok, "fields": "id"}).json()
+                if js2.get("id") and not js2.get("error"):          # токен робочий, бракує лише дозволу на дані сторінки
+                    return True, (f"Токен робочий (ID сторінки {js2['id']}), але бракує дозволу pages_read_engagement — "
+                                  "додайте його в сценарії Messenger і згенеруйте токен ще раз")
+                msg = e1.get("message", "помилка")
+                if e1.get("code") == 190:
+                    msg += " — токен протух або недійсний, згенеруйте новий"
+                elif e1.get("code") in (10, 100, 200):
+                    msg = ("бракує дозволів. У застосунку Meta → сценарій Messenger → Permissions додайте pages_read_engagement, "
+                           "pages_show_list, pages_messaging, pages_manage_metadata і згенеруйте токен сторінки заново. (" + msg[:120] + "…)")
+                return False, f"Meta: {msg}"
             return True, f"Підключено · {js.get('name')}"
     except Exception as e:  # noqa: BLE001
         return False, f"Немає звʼязку: {str(e)[:150]}"
