@@ -5170,7 +5170,9 @@ def meta_webhook_verify(request: Request, db: Session = Depends(db_dep)):
     from .services import meta_inbox as mi
     qp = request.query_params
     if qp.get("hub.mode") == "subscribe" and qp.get("hub.verify_token") and hmac.compare_digest(qp.get("hub.verify_token"), mi.verify_token(db)):
+        mi.hook_log(db, "verify", "Meta перевірила вебхук — OK")
         return Response(qp.get("hub.challenge") or "", media_type="text/plain")
+    mi.hook_log(db, "verify-bad", "Перевірка вебхука: Verify token не збігається")
     raise HTTPException(403, "verify token mismatch")
 
 
@@ -5179,12 +5181,17 @@ async def meta_webhook(request: Request, db: Session = Depends(db_dep)):
     from .services import meta_inbox as mi
     body = await request.body()
     if not mi.check_signature(db, body, request.headers.get("x-hub-signature-256")):
+        mi.hook_log(db, "bad-signature", "Підпис не збігається — перевірте App Secret у CRM")
         raise HTTPException(403, "bad signature")
     try:
         import json as _j
-        n = await asyncio.to_thread(mi.ingest, db, _j.loads(body or b"{}"))
-    except Exception:                     # noqa: BLE001 — Meta має отримати 200, інакше вимкне вебхук
+        payload = _j.loads(body or b"{}")
+        n = await asyncio.to_thread(mi.ingest, db, payload)
+        mi.hook_log(db, "event", mi.summarize(payload) + f" → збережено {n}")
+    except Exception as e:                # noqa: BLE001 — Meta має отримати 200, інакше вимкне вебхук
         logging.getLogger("meta_inbox").exception("webhook")
+        db.rollback()
+        mi.hook_log(db, "error", f"Помилка обробки: {type(e).__name__}")
         n = 0
     if n:
         try:
@@ -5193,6 +5200,15 @@ async def meta_webhook(request: Request, db: Session = Depends(db_dep)):
         except Exception:  # noqa: BLE001
             pass
     return {"ok": True}
+
+
+@app.post("/settings/channels/meta-subscribe")
+def settings_channels_meta_subscribe(user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import meta_inbox as mi
+    ok, msg = mi.subscribe(db)
+    audit(db, "channels.meta_subscribe", user=user, op="ok" if ok else "fail")
+    c = mi.meta_channel(db)
+    return RedirectResponse(_with_msg(f"/settings/channels?open={c['id'] if c else ''}", ("✅ " if ok else "❌ ") + msg, not ok), 303)
 
 
 @app.post("/settings/channels/replies")
@@ -7033,7 +7049,7 @@ def settings_channels(request: Request, user: User = Depends(require("users")), 
     _base = str(request.base_url).rstrip("/").replace("http://", "https://")
     return render(request, "channels.html", nav="settings", chs=ch.channels(db), T=ch.TYPES, open_=request.query_params.get("open", ""),
                   sending_on=_m_.sending_enabled(), meta_hook=_base + "/api/public/meta/webhook", meta_vt=_mi.verify_token(db) if _mi.meta_channel(db) else "",
-                  replies_on=_mi.replies_enabled(db),
+                  replies_on=_mi.replies_enabled(db), meta_log=_mi.hook_events(db),
                   dlr_url=str(request.base_url).rstrip("/").replace("http://", "https://") + "/api/public/turbosms/dlr")
 
 
@@ -7058,6 +7074,12 @@ async def settings_channel_save(request: Request, cid: int, user: User = Depends
     audit(db, "channels.save", user=user, channel=cid, on=bool(f.get("on")), params=params, secrets=sorted(secrets))
     if f.get("test"):
         ok, msg = await asyncio.to_thread(ch.test, db, cid)
+        if ok and next((c for c in ch.channels(db) if c["id"] == cid and c["type"] == "meta"), None):
+            from .services import meta_inbox as _mi
+            sub, smsg = await asyncio.to_thread(_mi.subscription, db)
+            if smsg:
+                msg += f". Вебхук: {smsg}"
+                ok = ok and sub is not False
         return RedirectResponse(_with_msg(f"/settings/channels?open={cid}", ("✅ " if ok else "❌ ") + msg, not ok), 303)
     return RedirectResponse(_with_msg("/settings/channels", "Канал збережено"), 303)
 

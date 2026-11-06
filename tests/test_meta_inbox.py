@@ -112,3 +112,14 @@ def test_ignore_non_direct_and_appeal_rules():
         assert mi.ingest(db, _ev("U2", "m8", text="Привіт"), http=H2()) == 1
         m = db.query(ChatMessage).filter_by(thread="U2").one()
         assert m.patient_id == p.id and m.appeal_id is None and db.query(Appeal).count() == 2
+
+
+def test_hook_log_and_summary():
+    from app.services import meta_inbox as mi
+    from app.models import SessionLocal
+    with SessionLocal() as db:
+        mi.hook_log(db, "event", mi.summarize({"object": "instagram", "entry": [{"id": "1", "messaging": [
+            {"sender": {"id": "2"}, "message": {"mid": "x", "text": "hi"}}, {"sender": {"id": "2"}, "read": {"mid": "x"}}]}]}))
+        ev = mi.hook_events(db)
+    assert ev and ev[0]["kind"] == "event" and "message×1" in ev[0]["note"] and "read×1" in ev[0]["note"]
+    assert "hi" not in ev[0]["note"]

@@ -237,3 +237,90 @@ def mark_read(db: Session, thread: str) -> None:
     for m in db.scalars(select(ChatMessage).where(ChatMessage.thread == thread, ChatMessage.direction == "in", ChatMessage.read_at.is_(None))):
         m.read_at = now
     db.commit()
+
+
+HOOK_KEY = "meta_webhook_log"           # останні виклики вебхука — діагностика в Налаштування → Канали
+
+
+def hook_log(db: Session, kind: str, note: str = "") -> None:
+    """Записати виклик вебхука (без вмісту повідомлень): час, тип, коротка примітка. Зберігаємо 15 останніх."""
+    import json
+    from ..models import SyncState
+    try:
+        st = db.get(SyncState, HOOK_KEY) or SyncState(key=HOOK_KEY)
+        rows = json.loads(st.value or "[]")
+        rows = ([{"at": datetime.utcnow().isoformat(timespec="seconds"), "kind": kind, "note": note[:160]}] + rows)[:15]
+        st.value, st.updated_at = json.dumps(rows, ensure_ascii=False), datetime.utcnow()
+        db.merge(st)
+        db.commit()
+    except Exception:  # noqa: BLE001
+        db.rollback()
+
+
+def hook_events(db: Session) -> list[dict]:
+    import json
+    from ..models import SyncState
+    st = db.get(SyncState, HOOK_KEY)
+    try:
+        rows = json.loads(st.value) if st and st.value else []
+    except ValueError:
+        rows = []
+    for r in rows:
+        try:
+            r["at"] = datetime.fromisoformat(r["at"])
+        except (KeyError, ValueError):
+            r["at"] = None
+    return rows
+
+
+def summarize(payload: dict) -> str:
+    """Коротко про подію без тексту: object, скільки подій і яких типів."""
+    kinds: dict[str, int] = {}
+    for e in payload.get("entry") or []:
+        for ev in e.get("messaging") or []:
+            k = ("message" if is_direct(ev) else "ignored") if ev.get("message") else next(
+                (x for x in ("reaction", "read", "delivery", "postback", "referral") if ev.get(x)), "other")
+            kinds[k] = kinds.get(k, 0) + 1
+        for c in e.get("changes") or []:
+            k = f"change:{c.get('field')}"
+            kinds[k] = kinds.get(k, 0) + 1
+    return f"{payload.get('object') or '?'} · " + (", ".join(f"{k}×{v}" for k, v in kinds.items()) or "порожньо")
+
+
+SUB_FIELDS = "messages,messaging_postbacks"
+
+
+def subscription(db: Session, http: httpx.Client | None = None) -> tuple[bool | None, str]:
+    """Чи підписана сторінка на наш застосунок (GET /me/subscribed_apps токеном сторінки)."""
+    tok = _page_token(db)
+    if not tok or tok.startswith("IG"):
+        return None, ""
+    try:
+        js = (http or httpx.Client(timeout=15)).get(f"{GRAPH}/me/subscribed_apps", params={"access_token": tok}).json()
+    except Exception as e:  # noqa: BLE001
+        return None, f"не вдалося перевірити підписку ({str(e)[:80]})"
+    if js.get("error"):
+        return None, f"підписку не перевірено: {js['error'].get('message', '')[:120]}"
+    apps = js.get("data") or []
+    if not apps:
+        return False, "сторінку НЕ підписано на вебхук — натисніть «Підписати сторінку»"
+    flds = sorted({f for a in apps for f in (a.get("subscribed_fields") or [])})
+    ok = "messages" in flds
+    return ok, ("сторінку підписано: " + (", ".join(flds) or "без полів") + ("" if ok else " — немає messages, натисніть «Підписати сторінку»"))
+
+
+def subscribe(db: Session, http: httpx.Client | None = None) -> tuple[bool, str]:
+    tok = _page_token(db)
+    if not tok:
+        return False, "Немає токена сторінки"
+    try:
+        js = (http or httpx.Client(timeout=15)).post(f"{GRAPH}/me/subscribed_apps",
+                                                     params={"access_token": tok, "subscribed_fields": SUB_FIELDS}).json()
+    except Exception as e:  # noqa: BLE001
+        return False, f"Немає звʼязку: {str(e)[:120]}"
+    if js.get("error"):
+        m = js["error"].get("message", "помилка")[:200]
+        if js["error"].get("code") in (10, 200):
+            m += " — потрібен дозвіл pages_manage_metadata у токені сторінки"
+        return False, f"Meta: {m}"
+    return bool(js.get("success")), "Сторінку підписано на messages, messaging_postbacks" if js.get("success") else "Meta не підтвердила підписку"
