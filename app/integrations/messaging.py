@@ -58,6 +58,40 @@ def sms_parts(text: str) -> int:
     return 1 if n <= single else -(-n // multi)
 
 
+# ---------------- Загальний вимикач: повідомлення пацієнтам «в розробці» ----------------
+# Поки власник не увімкне (Налаштування → Канали), CRM НЕ надсилає пацієнтам нічого: ні SMS, ні Viber, ні Telegram.
+# Немає запису в SyncState = вимкнено (безпечно за замовчуванням).
+PAUSE_KEY = "patient_msgs"
+_PCACHE: dict = {}
+PAUSED_ERROR = "Повідомлення пацієнтам вимкнено (в розробці) — Налаштування → Канали"
+
+
+def sending_enabled() -> bool:
+    import time
+    c = _PCACHE.get("v")
+    if c and time.monotonic() - c[1] < 20:
+        return c[0]
+    on = False
+    try:
+        from ..models import SessionLocal, SyncState
+        with SessionLocal() as db:
+            st = db.get(SyncState, PAUSE_KEY)
+            on = bool(st and st.value == "on")
+    except Exception:          # noqa: BLE001 — немає БД → не надсилаємо
+        on = False
+    _PCACHE["v"] = (on, time.monotonic())
+    return on
+
+
+def set_sending(db, on: bool) -> None:
+    from ..models import SyncState
+    st = db.get(SyncState, PAUSE_KEY) or SyncState(key=PAUSE_KEY)
+    st.value, st.updated_at = ("on" if on else "off"), datetime.utcnow()
+    db.merge(st)
+    db.commit()
+    _PCACHE.pop("v", None)
+
+
 # ---------------- Telegram (бот пацієнтів) ----------------
 
 def telegram_available() -> bool:
@@ -65,6 +99,9 @@ def telegram_available() -> bool:
 
 
 def send_telegram(chat_id: str, text: str) -> SendResult:
+    if not sending_enabled():
+        log.info("patient message blocked (paused): telegram")
+        return SendResult(False, "telegram", error=PAUSED_ERROR)
     if not settings.patient_bot_token:
         return SendResult(False, "telegram", error="PATIENT_BOT_TOKEN не задано")
     try:
@@ -97,6 +134,9 @@ def _ts(method: str, body: dict, timeout: float | None = None) -> dict:
 
 def send_turbosms(phone: str, text: str, channels: list[str], sequence_id: str | None = None) -> SendResult:
     """channels ⊂ {viber, sms}; обидва → гібрид Viber→SMS."""
+    if not sending_enabled():
+        log.info("patient message blocked (paused): turbosms")
+        return SendResult(False, "viber" if "viber" in channels else "sms", error=PAUSED_ERROR)
     to = normalize_phone(phone)
     if not to:
         return SendResult(False, "sms", error="некоректний номер")

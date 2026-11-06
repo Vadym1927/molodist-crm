@@ -52,6 +52,8 @@ dialog.cs-d::backdrop{background:rgba(42,36,48,.45)}
 .cc-h{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
 .cc-h h1{margin:4px 0 2px;font-size:34px;text-transform:none;letter-spacing:0;font-weight:700;color:#2A2430}.cc-h p{margin:0;color:#6b6575;font-size:15px}
 .cc-add{height:46px;display:inline-flex;align-items:center;gap:8px;padding:0 20px;border-radius:14px;background:#3B3050;color:#fff;border:0;font:700 15px var(--sans);cursor:pointer;text-decoration:none}.cc-add:hover{background:#2A2430}
+.cc-pause{display:flex;align-items:center;gap:14px;justify-content:space-between;flex-wrap:wrap;background:#FFF1D6;border:1px solid #F0D9A8;border-radius:16px;padding:12px 18px;margin-bottom:10px;font-size:14px;color:#5a4300}
+.cc-pause.on{background:#E3F3E7;border-color:#BFE0C8;color:#1E5A35}.cc-pause .t{flex:1;min-width:260px}
 .cc-sec{display:flex;align-items:center;gap:14px;background:#EEEAF6;border-radius:16px;padding:12px 18px;margin-bottom:10px;font:600 14.5px var(--sans);color:#2A2430}
 .cc-sec svg{width:26px;height:26px;color:#3B3050;flex:none}.cc-sec span{font-weight:400;color:#4a4f57;font-size:13.5px}
 details.cc-how{background:#fff;border:1px solid #ECE7E1;border-radius:16px;margin-bottom:14px}
@@ -81,6 +83,8 @@ details.cc-how[open] summary:after{transform:rotate(180deg)}details.cc-how summa
   <a class="cc-add" href="#cc-new" onclick="setTimeout(function(){document.querySelector('#cc-new input[name=name]').focus()},300)">＋ Додати канал</a></div>
 {% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
 {% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+<div class="cc-pause {{ 'on' if sending_on else '' }}"><div class="t">{% if sending_on %}<b>Повідомлення пацієнтам увімкнено.</b> Нагадування, розсилки, чеки й посилання на оплату надсилаються.{% else %}<b>Повідомлення пацієнтам — в розробці.</b> Зараз CRM <u>нічого не надсилає</u> пацієнтам: ні SMS, ні Viber, ні Telegram. Нагадування, розсилки, чеки й посилання на оплату лише записуються в журнал із позначкою «вимкнено».{% endif %}</div>
+  {% if user.role == 'owner' %}<form method="post" action="/settings/channels/sending" onsubmit="return confirm('{{ 'Вимкнути надсилання пацієнтам?' if sending_on else 'Увімкнути надсилання пацієнтам? Підуть нагадування, розсилки й інші повідомлення.' }}')"><input type="hidden" name="on" value="{{ '' if sending_on else '1' }}"><button class="cc-btn">{{ 'Вимкнути' if sending_on else 'Увімкнути надсилання' }}</button></form>{% endif %}</div>
 <div class="cc-sec"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.500-3.300 8-8 9-4.700-1-8-4.500-8-9V6z"/><path d="M8.500 12l2.500 2.500 4.500-5"/></svg>
   <div>Токени та ключі зберігаються зашифрованими. <span>Після збереження не показуються — щоб змінити, введіть нове значення. Порожнє поле — значення з налаштувань сервера.</span></div></div>
 <details class="cc-how"><summary><i>?</i>Як працюють канали?</summary><div class="cc-how-b">

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block body %}
+<div style="display:flex;gap:12px;align-items:center;background:#FFF1D6;border:1px solid #F0D9A8;border-radius:14px;padding:12px 16px;margin-bottom:14px;color:#5a4300;font-size:14px"><b>В розробці.</b> Повідомлення пацієнтам зараз вимкнені — розсилки й нагадування не надсилаються (Налаштування → Канали).</div>
 <div class="row between" style="margin-bottom:6px"><h1>Розсилки</h1>
   <div class="row small muted">
     Telegram-бот: {% if tg_on %}<span class="pill ok">підключено</span>{% else %}<span class="pill warn">PATIENT_BOT_TOKEN</span>{% endif %}

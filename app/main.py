@@ -5806,7 +5806,7 @@ SETTINGS_BLOCKS = [
     ]),
     ('Комунікації', 'chat', 'Канали звʼязку з пацієнтами', [
         ('Канали', 'SMS і Viber (TurboSMS), Telegram-бот, Instagram та Facebook', '/settings/channels', 'users', 'cmarket/channels/main'),
-        ('Повідомлення пацієнтам', 'Розсилки й нагадування CRM; автоповідомлення — у CleverBox', '/campaigns', 'campaigns', 'messages'),
+        ('Повідомлення пацієнтам · в розробці', 'Зараз нічого не надсилається пацієнтам. Розсилки й нагадування CRM; автоповідомлення — у CleverBox', '/campaigns', 'campaigns', 'messages'),
         ('IP-телефонія', 'Binotel, Stream Telecom, Ringostat: дзвінки → звернення', '/settings/telephony', 'users', 'cmarket/siphone/main'),
     ]),
     ('Звернення', 'inbox', 'Довідники для заявок і дзвінків', [
@@ -6925,10 +6925,22 @@ async def settings_checkbox_close_shift(rid: int, user: User = Depends(require("
 
 
 # ---------------- Налаштування → Канали ----------------
+@app.post("/settings/channels/sending")
+def settings_channels_sending(on: str = Form(""), user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .integrations import messaging as _m
+    if user.role != "owner":
+        raise HTTPException(403, "Вмикати надсилання пацієнтам може лише власник")
+    _m.set_sending(db, on == "1")
+    audit(db, "channels.sending", user=user, op="on" if on == "1" else "off")
+    return RedirectResponse(_with_msg("/settings/channels", "Надсилання пацієнтам увімкнено" if on == "1" else "Надсилання пацієнтам вимкнено — жодне повідомлення не піде"), 303)
+
+
 @app.get("/settings/channels", response_class=HTMLResponse)
 def settings_channels(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     from .services import channels as ch
+    from .integrations import messaging as _m_
     return render(request, "channels.html", nav="settings", chs=ch.channels(db), T=ch.TYPES, open_=request.query_params.get("open", ""),
+                  sending_on=_m_.sending_enabled(),
                   dlr_url=str(request.base_url).rstrip("/").replace("http://", "https://") + "/api/public/turbosms/dlr")
 
 

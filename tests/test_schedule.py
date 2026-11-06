@@ -138,3 +138,21 @@ def test_appeal_not_target_and_ignore_phone():
         c.post("/settings/appeals-ignore", data={"phone": "+380671119988", "action": "remove"})
         with SessionLocal() as db:
             assert not ap.is_ignored(db, "+380671119988")
+
+
+def test_patient_messages_paused_blocks_all_sends(monkeypatch):
+    import httpx
+    from app.models import SessionLocal, SyncState
+    from app.integrations import messaging as m
+    with SessionLocal() as db:
+        db.delete(db.get(SyncState, "patient_msgs")); db.commit()
+    m._PCACHE.clear()
+    called = []
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: called.append(a) or (_ for _ in ()).throw(AssertionError("sent!")))
+    assert not m.sending_enabled()
+    r1 = m.send_turbosms("+380671234567", "тест", ["viber", "sms"])
+    r2 = m.send_telegram("123", "тест")
+    assert not r1.ok and not r2.ok and "в розробці" in r1.error and not called
+    with SessionLocal() as db:
+        m.set_sending(db, True)
+    assert m.sending_enabled()
