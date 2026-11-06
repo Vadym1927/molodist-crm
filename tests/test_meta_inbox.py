@@ -151,3 +151,41 @@ def test_subscription_dict_fields():
         _setup(db)
         ok, msg = mi.subscription(db, H())
     assert ok and "messages" in msg
+
+
+def test_sessions_split_and_templates():
+    from app.services import appeals as ap, reply_templates as rt
+    from datetime import datetime, timedelta
+    with SessionLocal() as db:
+        p = Patient(full_name="Сесієнко Марія", phone="+380500000888"); db.add(p); db.commit()
+        a = ap.create(db, {"name": "x", "source": "Instagram", "patient_id": p.id})
+        t0 = datetime(2026, 11, 1, 10, 0)
+        db.add_all([ChatMessage(at=t0, channel="instagram", thread="888001", direction="in", text="1", patient_id=p.id, appeal_id=a.id),
+                    ChatMessage(at=t0 + timedelta(minutes=5), channel="instagram", thread="888001", direction="out", text="2", patient_id=p.id, appeal_id=a.id, status="sent")])
+        db.commit()
+        st = next(s["name"] for s in ap.dirs(db)["statuses"] if s.get("type") == "success")
+        mi.close_thread(db, "888001", st, None, None)
+        db.add(ChatMessage(at=datetime.utcnow(), channel="instagram", thread="888001", direction="in", text="3", patient_id=p.id)); db.commit()
+        msgs = db.scalars(__import__("sqlalchemy").select(ChatMessage).where(ChatMessage.thread == "888001").order_by(ChatMessage.at, ChatMessage.id)).all()
+        ss = mi.sessions(msgs, {a.id: db.get(Appeal, a.id)})
+        assert len(ss) == 2 and not ss[0]["closed"] and ss[1]["closed"] and ss[1]["result"] == st and len(ss[1]["msgs"]) == 2
+        ctx = rt.context(db, p, None, "Олена Адмін")
+        assert ctx["імʼя"] == "Марія" and ctx["адмін"] == "Олена"
+        assert rt.render("Вітаємо, {імʼя}!", rt.context(db, None, "@nick", None)) == "Вітаємо!"
+        assert rt.for_channel(db, "instagram")
+    settings.admin_password = "owner-pass-1"
+    with TestClient(app) as c:
+        _sess_http(c, p)
+
+
+def _sess_http(c, p):
+    from app.services import reply_templates as rt
+    c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+    r = c.get("/settings/reply-templates"); assert r.status_code == 200 and "Шаблони відповідей" in r.text
+    r = c.post("/settings/reply-templates", data={"id": ["a1"], "title": ["Тест"], "cat": ["Ціни"], "text": ["Привіт, {імʼя}"], "ch_0": ["instagram"]},
+               follow_redirects=False)
+    assert r.status_code == 303
+    with SessionLocal() as db:
+        assert [t["title"] for t in rt.for_channel(db, "instagram")] == ["Тест"] and not rt.for_channel(db, "sms")
+    r = c.get("/chats?t=888001"); assert r.status_code == 200 and "Сесієнко" in r.text and "Шаблони" in r.text and "Діалог закрито" in r.text
+    r = c.get(f"/patients/{p.id}"); assert r.status_code == 200 and "Діалоги Instagram" in r.text and "триває" in r.text

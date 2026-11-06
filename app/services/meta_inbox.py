@@ -413,5 +413,43 @@ def close_thread(db: Session, thread: str, status: str, reason: str | None, user
     for a in db.scalars(select(Appeal).where(Appeal.id.in_(ids or {0}), Appeal.closed_at.is_(None))):
         ap.set_status(db, a, status, user_id, reason or None)
         n += 1
+    last = db.scalars(select(ChatMessage).where(ChatMessage.thread == thread).order_by(ChatMessage.id.desc())).first()
+    if last and last.direction != "sys":                 # межа діалогу: далі — новий діалог (у картці пацієнта окремо)
+        db.add(ChatMessage(channel=last.channel, thread=thread, direction="sys", status="closed", user_id=user_id,
+                           text=f"Діалог закрито · {status}" + (f" ({reason})" if reason else ""), name=last.name,
+                           patient_id=last.patient_id, appeal_id=last.appeal_id))
+        db.commit()
     mark_read(db, thread)
     return n
+
+
+def sessions(msgs: list[ChatMessage], appeals: dict | None = None) -> list[dict]:
+    """Розбити переписку на окремі діалоги «від відкриття до закриття»: межа — позначка закриття (sys)
+    або зміна звернення. Повертає нові першими: {start, end, closed, result, msgs, channel, thread}."""
+    appeals = appeals or {}
+    out: list[dict] = []
+    cur: dict | None = None
+    for m in msgs:
+        if m.direction == "sys":
+            if cur:
+                cur.update(end=m.at, closed=True, result=(m.text or "").replace("Діалог закрито · ", ""))
+                cur = None
+            continue
+        if cur and m.appeal_id and cur["appeal_id"] and m.appeal_id != cur["appeal_id"]:
+            a = appeals.get(cur["appeal_id"])
+            cur.update(end=(a.closed_at if a and a.closed_at else cur["msgs"][-1].at), closed=bool(a and a.closed_at),
+                       result=(a.status if a else ""))
+            cur = None
+        if cur is None:
+            cur = {"start": m.at, "end": None, "closed": False, "result": "", "msgs": [], "channel": m.channel, "thread": m.thread,
+                   "appeal_id": m.appeal_id, "name": m.name}
+            out.append(cur)
+        cur["msgs"].append(m)
+        cur["appeal_id"] = cur["appeal_id"] or m.appeal_id
+        cur["name"] = cur["name"] or m.name
+    for c in out:                                   # старі закриті звернення без позначки
+        a = appeals.get(c["appeal_id"])
+        if not c["closed"] and a and a.closed_at and a.closed_at >= c["msgs"][-1].at:
+            c.update(end=a.closed_at, closed=True, result=a.status)
+    out.sort(key=lambda c: c["start"], reverse=True)
+    return out

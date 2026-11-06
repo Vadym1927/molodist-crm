@@ -902,12 +902,13 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
     pvis = _patient_visit_rows(db, p)
     pchats = []                                             # діалоги Instagram / Messenger, привʼязані до пацієнта
     if can(user, "appeals"):
-        from .models import ChatMessage as _CM
+        from .models import ChatMessage as _CM, Appeal as _ApM
+        from .services import meta_inbox as _mi
         _th: dict = {}
         for m_ in db.scalars(select(_CM).where(_CM.patient_id == p.id).order_by(_CM.at, _CM.id)):
             _th.setdefault(m_.thread, []).append(m_)
-        pchats = sorted(({"thread": k, "channel": v[0].channel, "name": next((x.name for x in v if x.name), None), "msgs": v} for k, v in _th.items()),
-                        key=lambda x: x["msgs"][-1].at, reverse=True)
+        _aps = {a_.id: a_ for a_ in db.scalars(select(_ApM).where(_ApM.id.in_({m_.appeal_id for v in _th.values() for m_ in v if m_.appeal_id} or {0})))}
+        pchats = sorted((s_ for v in _th.values() for s_ in _mi.sessions(v, _aps)), key=lambda x: x["start"], reverse=True)
     from .services import patient_photos as _pp
     _ph_items = [{"f": f, "cat": _pp.cat(f), "img": _pp.is_image(f)} for f in
                  sorted(_pp.all_files(db, p.id), key=lambda f: (f.taken_at or f.created_at.date(), f.id), reverse=True)]
@@ -3774,6 +3775,26 @@ def visit_material_close(aid: int, user: User = Depends(require("book")), db: Se
     return RedirectResponse(back + "&tab=cost", 303)
 
 
+@app.get("/settings/reply-templates", response_class=HTMLResponse)
+def settings_reply_templates(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import reply_templates as rt
+    rows = rt.all_(db)
+    return render(request, "reply_templates.html", nav="settings", rows=rows, VARS=rt.VARS, CHANNELS=rt.CHANNELS,
+                  cats=sorted({r["cat"] for r in rows if r["cat"]}))
+
+
+@app.post("/settings/reply-templates")
+async def settings_reply_templates_save(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import reply_templates as rt
+    f = await request.form()
+    ids, titles, cats, texts = f.getlist("id"), f.getlist("title"), f.getlist("cat"), f.getlist("text")
+    rows = [{"id": ids[i] if i < len(ids) else "", "title": titles[i], "cat": cats[i] if i < len(cats) else "", "text": texts[i] if i < len(texts) else "",
+             "channels": f.getlist(f"ch_{i}")} for i in range(len(titles))]
+    rt.save(db, rows)
+    audit(db, "reply_templates.save", user=user, count=len(rows))
+    return RedirectResponse(_with_msg("/settings/reply-templates", f"Збережено шаблонів: {len([r for r in rows if r['text'].strip()])}"), 303)
+
+
 @app.get("/settings/shared-materials", response_class=HTMLResponse)
 def settings_shared_materials(request: Request, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
     from .models import Product
@@ -5132,7 +5153,24 @@ def chats_page(request: Request, t: str = "", ch: str = "", q: str = "", user: U
     from .services import appeals as _ap
     _d = _ap.dirs(db)
     close_st = [s_ for s_ in _d["statuses"] if s_.get("type") in ("success", "fail", "other")]
-    return render(request, "chats.html", nav="chats", threads=th, cur=cur, msgs=msgs, pat=pat, ch_=ch, q=q,
+    from .services import reply_templates as _rt
+    tpls = []
+    if cur:
+        _ctx = _rt.context(db, pat, cur["name"], user.name)
+        tpls = [dict(t_, out=_rt.render(t_["text"], _ctx)) for t_ in _rt.for_channel(db, cur["channel"])]
+    pinfo = None
+    if pat:
+        from .services.kpi import compute_plan as _cpl
+        _pl = next((pl_ for pl_ in pat.plans if pl_.status == "active"), pat.plans[0] if pat.plans else None)
+        _ps = None
+        if _pl:
+            try:
+                _ps = _cpl(db, _pl)
+            except Exception:  # noqa: BLE001
+                _ps = None
+        _lastv = db.scalar(select(func.max(Visit.starts_at)).where(Visit.patient_id == pat.id, Visit.status.in_(("done", "attended")), Visit.starts_at <= datetime.now()))
+        pinfo = {"upcoming": _rt.upcoming(db, pat.id, 3), "plan": _pl, "ps": _ps, "last_visit": _lastv}
+    return render(request, "chats.html", nav="chats", threads=th, cur=cur, msgs=msgs, pat=pat, ch_=ch, q=q, tpls=tpls, pinfo=pinfo,
                   connected=bool(c and c.get("has", {}).get("page_token")), replies_on=mi.replies_enabled(db),
                   suggest=mi.suggest(db, cur["name"]) if cur and not pat else [], close_st=close_st,
                   deny_reasons=_d.get("deny_reasons") or [], other_reasons=_d.get("other_reasons") or [],
@@ -5943,6 +5981,7 @@ SETTINGS_BLOCKS = [
     ]),
     ('Комунікації', 'chat', 'Канали звʼязку з пацієнтами', [
         ('Канали', 'SMS і Viber (TurboSMS), Telegram-бот, Instagram та Facebook', '/settings/channels', 'users', 'cmarket/channels/main'),
+        ('Шаблони відповідей', 'Готові відповіді для Instagram, Facebook, SMS, Viber і Telegram зі змінними {імʼя}, {запис}… — вставляються в чат одним кліком', '/settings/reply-templates', 'users', None),
         ('Повідомлення пацієнтам · в розробці', 'Зараз нічого не надсилається пацієнтам. Розсилки й нагадування CRM; автоповідомлення — у CleverBox', '/campaigns', 'campaigns', 'messages'),
         ('IP-телефонія', 'Binotel, Stream Telecom, Ringostat: дзвінки → звернення', '/settings/telephony', 'users', 'cmarket/siphone/main'),
     ]),

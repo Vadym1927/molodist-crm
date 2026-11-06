@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Шаблони відповідей · MOLODIST CRM{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+<style>
+.rt-w{max-width:1080px}
+.rt-info{background:linear-gradient(120deg,#F1EDF8,#F7F4F0);border:1px solid #E4DEEF;border-radius:16px;padding:14px 18px;color:#3B3050;margin:14px 0 16px;line-height:1.55;font-size:14px}
+.rt-vars{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.rt-vars code{background:#fff;border:1px solid #E4DEEF;border-radius:8px;padding:2px 8px;font-size:12.5px;cursor:pointer}
+.rt-vars code:hover{background:#F3EFF9}
+.rt-top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}.rt-top input{height:40px;margin:0;min-width:240px}
+.rt-list{display:grid;gap:10px}
+.rt-c{background:#fff;border:1px solid #ECE7E1;border-radius:16px;padding:14px 16px;display:grid;grid-template-columns:minmax(0,1fr) 230px;gap:14px}
+.rt-c .f{display:grid;gap:8px}.rt-c .r2{display:grid;grid-template-columns:minmax(0,1fr) 200px;gap:8px}
+.rt-c input,.rt-c textarea{margin:0}.rt-c textarea{min-height:92px;resize:vertical;font-size:14px;line-height:1.5}
+.rt-c .side{display:grid;gap:6px;align-content:start}.rt-c .side b{font:700 11px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496}
+.rt-ch{display:flex;flex-wrap:wrap;gap:6px}.rt-ch label{display:flex;gap:6px;align-items:center;border:1px solid #ECE7E1;border-radius:9px;padding:5px 9px;font-size:12.5px;cursor:pointer;background:#FBFAF8}
+.rt-ch label:has(input:checked){border-color:#3B3050;background:#F3EFF9}.rt-ch input{margin:0;width:auto;accent-color:#3B3050}
+.rt-c .del{all:unset;cursor:pointer;color:#B23B2E;font-size:12.5px;margin-top:6px}
+.rt-c .hint{font-size:11.5px;color:#8a8496}
+.rt-pv{font-size:12.5px;color:#5d5869;background:#FBFAF8;border:1px dashed #E4DEEF;border-radius:10px;padding:8px 10px;white-space:pre-wrap}
+@media(max-width:800px){.rt-c{grid-template-columns:1fr}.rt-c .r2{grid-template-columns:1fr}}
+</style>
+<div class="rt-w">
+<div class="row between" style="gap:10px;flex-wrap:wrap"><div><div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a> · Комунікації</div><h1>Шаблони відповідей</h1>
+  <p class="muted" style="margin:4px 0 0">Готові відповіді для Instagram, Facebook Messenger, SMS, Viber і Telegram — адміністратор вставляє їх у чат одним кліком.</p></div></div>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok);margin-top:10px">{{ qp.get('msg') }}</div>{% endif %}
+<div class="rt-info"><b>Змінні</b> — підставляються самі: з картки пацієнта, якщо діалог привʼязаний, інакше з імені співрозмовника. Натисніть на змінну, щоб вставити її в текст, де стоїть курсор.
+  <div class="rt-vars">{% for k, v in VARS.items() %}<code title="{{ v }}" onclick="rtIns('{{ '{' ~ k ~ '}' }}')">{{ '{' ~ k ~ '}' }}</code>{% endfor %}</div>
+  <div class="small" style="margin-top:8px">Канали: не позначили жодного — шаблон доступний скрізь.</div></div>
+<form method="post" id="rt-f">
+  <div class="rt-top"><input id="rt-q" placeholder="Пошук шаблону" oninput="rtF(this.value)"><span class="small muted">{{ rows|length }} шабл.</span>
+    <button type="button" class="btn ghost" onclick="rtAdd()" style="margin-left:auto">＋ Новий шаблон</button><button class="btn">Зберегти</button></div>
+  <div class="rt-list" id="rt-l">
+  {% for t in rows %}{% set i = loop.index0 %}
+    <div class="rt-c" data-n="{{ (t.title ~ ' ' ~ t.cat ~ ' ' ~ t.text)|lower }}">
+      <div class="f"><input type="hidden" name="id" value="{{ t.id }}">
+        <div class="r2"><input name="title" value="{{ t.title }}" placeholder="Назва (бачить адміністратор)" required><input name="cat" value="{{ t.cat }}" placeholder="Група: Ціни, Запис…" list="rt-cats"></div>
+        <textarea name="text" placeholder="Текст відповіді" onfocus="rtCur=this">{{ t.text }}</textarea></div>
+      <div class="side"><b>Канали</b><div class="rt-ch">{% for k, v in CHANNELS.items() %}<label><input type="checkbox" name="ch_{{ i }}" value="{{ k }}" {{ 'checked' if k in t.channels }}>{{ v }}</label>{% endfor %}</div>
+        <span class="hint">{% if not t.channels %}Усі канали{% else %}{% for c in t.channels %}{{ CHANNELS[c] }}{{ ', ' if not loop.last }}{% endfor %}{% endif %}</span>
+        <button type="button" class="del" onclick="this.closest('.rt-c').remove()">✕ Видалити шаблон</button></div>
+    </div>
+  {% endfor %}
+  </div>
+  <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end"><button class="btn">Зберегти</button></div>
+</form>
+<datalist id="rt-cats">{% for c in cats %}<option value="{{ c }}">{% endfor %}</datalist>
+<template id="rt-new"><div class="rt-c" data-n=""><div class="f"><input type="hidden" name="id" value="">
+  <div class="r2"><input name="title" placeholder="Назва (бачить адміністратор)" required><input name="cat" placeholder="Група: Ціни, Запис…" list="rt-cats"></div>
+  <textarea name="text" placeholder="Текст відповіді" onfocus="rtCur=this"></textarea></div>
+  <div class="side"><b>Канали</b><div class="rt-ch">{% for k, v in CHANNELS.items() %}<label><input type="checkbox" data-ch="{{ k }}">{{ v }}</label>{% endfor %}</div>
+  <button type="button" class="del" onclick="this.closest('.rt-c').remove()">✕ Видалити шаблон</button></div></div></template>
+</div>
+<script>
+var rtCur=null;
+function rtIns(v){var t=rtCur||document.querySelector('#rt-l textarea');if(!t)return;var s=t.selectionStart||t.value.length;t.value=t.value.slice(0,s)+v+t.value.slice(t.selectionEnd||s);t.focus();t.selectionStart=t.selectionEnd=s+v.length}
+function rtF(q){q=q.toLowerCase();document.querySelectorAll('#rt-l .rt-c').forEach(function(c){c.style.display=!q||(c.dataset.n||'').indexOf(q)>=0||c.querySelector('textarea').value.toLowerCase().indexOf(q)>=0?'':'none'})}
+function rtAdd(){var n=document.getElementById('rt-new').content.cloneNode(true);var l=document.getElementById('rt-l');l.insertBefore(n,l.firstChild);rtIdx();l.querySelector('.rt-c input[name=title]').focus()}
+function rtIdx(){document.querySelectorAll('#rt-l .rt-c').forEach(function(c,i){c.querySelectorAll('.rt-ch input').forEach(function(x){x.name='ch_'+i;if(x.dataset.ch)x.value=x.dataset.ch})})}
+document.getElementById('rt-f').addEventListener('submit',rtIdx);
+</script>
+{% endblock %}
