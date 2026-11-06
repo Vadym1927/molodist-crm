@@ -139,3 +139,15 @@ def test_suggest_translit_and_close_thread():
         db.refresh(a)
         assert a.closed_at and a.deny_reason == "Спам / робот"
         assert next(t for t in mi.threads(db) if t["thread"] == "777000111")["closed"]
+
+
+def test_subscription_dict_fields():
+    class R:
+        def __init__(s, js): s._js = js
+        def json(s): return s._js
+    class H:
+        def get(s, url, params=None): return R({"data": [{"name": "MOLODIST CRM", "subscribed_fields": [{"name": "messages", "version": "v27.0"}]}]})
+    with SessionLocal() as db:
+        _setup(db)
+        ok, msg = mi.subscription(db, H())
+    assert ok and "messages" in msg

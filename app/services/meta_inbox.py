@@ -307,7 +307,8 @@ def subscription(db: Session, http: httpx.Client | None = None) -> tuple[bool | 
     apps = js.get("data") or []
     if not apps:
         return False, "сторінку НЕ підписано на вебхук — натисніть «Підписати сторінку»"
-    flds = sorted({f for a in apps for f in (a.get("subscribed_fields") or [])})
+    flds = sorted({(f.get("name") or "") if isinstance(f, dict) else str(f)          # нові версії Graph: [{"name": "messages", ...}]
+                   for a in apps for f in (a.get("subscribed_fields") or [])} - {""})
     ok = "messages" in flds
     return ok, ("сторінку підписано: " + (", ".join(flds) or "без полів") + ("" if ok else " — немає messages, натисніть «Підписати сторінку»"))
 
