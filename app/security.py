@@ -136,8 +136,11 @@ def current_user(request: Request, db: Session = Depends(db_dep)) -> User:
 
 
 def require(perm: str):
+    """perm — дозвіл або кілька через «|» (досить будь-якого)."""
+    perms = perm.split("|")
+
     def dep(user: User = Depends(current_user)) -> User:
-        if not can(user, perm):
+        if not any(can(user, p_) for p_ in perms):
             raise HTTPException(status_code=403, detail="Недостатньо прав")
         return user
     return dep

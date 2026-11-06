@@ -63,7 +63,7 @@ dialog.sk-imp{border:0;border-radius:20px;padding:0;width:min(560px,96vw);box-sh
 <div class="sk-nav">
   <div class="sk-g"><h3>Залишки та контроль</h3><div class="sk-l">{{ nav_i('balances', 'Залишки') }}{{ nav_i('critical', 'Критичні залишки') }}{{ nav_i('inventory', 'Інвентаризація') }}{{ nav_i('prices', 'Моніторинг цін', '/prices') }}</div></div>
   <div class="sk-g g2"><h3>Складські операції</h3><div class="sk-t3">{{ nav_i('supply', 'Поставки') }}{{ nav_i('order', 'Замовлення') }}{{ nav_i('transfer', 'Переміщення') }}{{ nav_i('writeoff', 'Списання') }}{{ nav_i('return', 'Повернення') }}{{ nav_i('moves', 'Рух товарів') }}</div></div>
-  <div class="sk-g"><h3>Довідники та норми</h3><div class="sk-t2">{{ nav_i('suppliers', 'Постачальники') }}{{ nav_i('norms', 'Норми списання') }}{{ nav_i('services', 'Послуги (прайс)', '/services') }}{{ nav_i('techcards', 'Техкарти', '/techcards') }}</div></div>
+  <div class="sk-g"><h3>Довідники та норми</h3><div class="sk-t2">{{ nav_i('suppliers', 'Постачальники') }}{{ nav_i('norms', 'Норми списання') }}{{ nav_i('techcards', 'Техкарти', '/techcards') }}</div></div>
 </div>
 <dialog class="sk-imp" id="sk-imp"><div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #ECE7E1"><b style="font:700 16px var(--sans)">Імпорт з CleverBox</b><button type="button" class="btn ghost" style="padding:4px 10px" onclick="this.closest('dialog').close()">×</button></div>
   <form method="post" action="/stock/balances/import" enctype="multipart/form-data" style="padding:16px 20px 20px;display:grid;gap:12px">

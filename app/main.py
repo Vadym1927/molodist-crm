@@ -3910,7 +3910,7 @@ def techcard_delete(cid: int, del_password: str = Form(""), user: User = Depends
 
 # ---------------- Послуги (прайс) ----------------
 @app.get("/services", response_class=HTMLResponse)
-def services_page(request: Request, q: str = "", cat: str = "", user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+def services_page(request: Request, q: str = "", cat: str = "", user: User = Depends(require("products|stock")), db: Session = Depends(db_dep)):
     from .models import CbService, TechCard
     from .services.service_costs import techcard_costs
     rows = db.scalars(select(CbService).order_by(CbService.category, CbService.name)).all()
@@ -3920,14 +3920,14 @@ def services_page(request: Request, q: str = "", cat: str = "", user: User = Dep
     if q.strip():
         ql = q.strip().lower()
         rows = [r for r in rows if ql in r.name.lower()]
-    return render(request, "services.html", nav="stock", rows=rows, cats=cats, cat=cat, q=q, cost=techcard_costs(db),
+    return render(request, "services.html", nav="products", rows=rows, cats=cats, cat=cat, q=q, cost=techcard_costs(db),
                   cards=db.scalars(select(TechCard).order_by(TechCard.name)).all())
 
 
 @app.post("/services")
 def service_save(id: str = Form(""), name: str = Form(...), category: str = Form(""), price: str = Form(""), duration: str = Form(""),
                  techcard_id: str = Form(""), active: str = Form(""), back: str = Form("/services"),
-                 user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+                 user: User = Depends(require("products|stock")), db: Session = Depends(db_dep)):
     from .models import CbService
     sv = db.get(CbService, int(id)) if id.isdigit() else None
     if not sv:

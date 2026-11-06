@@ -137,7 +137,7 @@ def quality(db: Session) -> list[dict]:
     svs = db.scalars(select(CbService)).all()
     act = [s for s in svs if s.active is not False]
     ta = len(act)
-    add("Послуги (прайс)", "Без ціни", sum(1 for s in act if not s.price), ta, "«Склад → Послуги (прайс)» або перенос з CleverBox", "warn",
+    add("Послуги (прайс)", "Без ціни", sum(1 for s in act if not s.price), ta, "«Продукти → Послуги (прайс)» або перенос з CleverBox", "warn",
         [s.name for s in act if not s.price])
     add("Послуги (прайс)", "Без категорії", sum(1 for s in act if not s.category), ta, "«Послуги (прайс)» → Змінити", "info",
         [s.name for s in act if not s.category])
