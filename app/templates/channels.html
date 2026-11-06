@@ -43,29 +43,67 @@ dialog.cs-d::backdrop{background:rgba(42,36,48,.45)}
 .set-ok{color:var(--ok);font-weight:700;font-size:12.5px}
 @media(max-width:700px){.ch-t .hm{display:none}}
 </style>
-<div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a></div><h1>Канали</h1>
+{% set CI = {
+ 'sms': '<svg viewBox="0 0 48 48" fill="none" stroke="#5C4B82" stroke-width="3" stroke-linejoin="round"><path d="M8 22c0-8 7-13 16-13s16 5 16 13-7 13-16 13c-2 0-4-.2-5.8-.7L10 38l2.6-6.4C9.700 29.300 8 25.900 8 22z"/><circle cx="17" cy="22" r="1.6" fill="#5C4B82"/><circle cx="24" cy="22" r="1.6" fill="#5C4B82"/><circle cx="31" cy="22" r="1.6" fill="#5C4B82"/></svg>',
+ 'viber': '<svg viewBox="0 0 48 48" fill="none" stroke="#7360F2" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M24 6c10 0 17 5.500 17 15 0 9-6 14.500-16 14.500l-7 5.500v-6.500C11 32 7 27 7 21 7 11.500 14 6 24 6z"/><path d="M18.500 15.500c1.500-.5 2.500.5 3 2l.6 1.600c.3.900-.3 1.700-1 2.200 1 2 2.500 3.500 4.500 4.500.5-.7 1.300-1.300 2.200-1l1.600.6c1.500.5 2.500 1.500 2 3-1 2.500-4 2.500-6.500 1.300-3.500-1.700-6.400-4.700-7.800-8.300-.9-2.400-.4-5.300 1.400-5.900zM25.500 13.500a7 7 0 0 1 6 6M26 17.500a3 3 0 0 1 2.500 2.500"/></svg>',
+ 'telegram': '<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="19" fill="#2AABEE"/><path d="M13 23.500l18-7c.900-.3 1.700.2 1.400 1.500l-3 14.300c-.2 1-.9 1.300-1.800.8l-5-3.700-2.400 2.300c-.3.300-.5.500-1 .5l.4-5.100 9.300-8.400c.4-.4-.1-.6-.6-.2l-11.500 7.200-4.900-1.500c-1.100-.3-1.100-1.100.1-1.700z" fill="#fff"/></svg>',
+ 'meta': '<svg viewBox="0 0 64 40"><defs><linearGradient id="igg" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#FEDA75"/><stop offset=".35" stop-color="#FA7E1E"/><stop offset=".6" stop-color="#D62976"/><stop offset=".85" stop-color="#962FBF"/><stop offset="1" stop-color="#4F5BD5"/></linearGradient></defs><rect x="2" y="6" width="27" height="27" rx="8" fill="url(#igg)"/><rect x="8" y="12" width="15" height="15" rx="4.500" fill="none" stroke="#fff" stroke-width="2.200"/><circle cx="15.500" cy="19.500" r="3.400" fill="none" stroke="#fff" stroke-width="2.200"/><circle cx="20.300" cy="14.600" r="1.100" fill="#fff"/><circle cx="48" cy="19.500" r="13.500" fill="#1877F2"/><path d="M50 33v-9.500h3.200l.5-3.700H50v-2.400c0-1.100.3-1.800 1.900-1.800h2V12.300c-.3 0-1.500-.2-2.900-.2-2.900 0-4.800 1.700-4.800 5v2.700h-3.200v3.700h3.200V33z" fill="#fff"/></svg>'} %}
+<style>
+.cc-h{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.cc-h h1{margin:4px 0 2px;font-size:34px;text-transform:none;letter-spacing:0;font-weight:700;color:#2A2430}.cc-h p{margin:0;color:#6b6575;font-size:15px}
+.cc-add{height:46px;display:inline-flex;align-items:center;gap:8px;padding:0 20px;border-radius:14px;background:#3B3050;color:#fff;border:0;font:700 15px var(--sans);cursor:pointer;text-decoration:none}.cc-add:hover{background:#2A2430}
+.cc-sec{display:flex;align-items:center;gap:14px;background:#EEEAF6;border-radius:16px;padding:12px 18px;margin-bottom:10px;font:600 14.5px var(--sans);color:#2A2430}
+.cc-sec svg{width:26px;height:26px;color:#3B3050;flex:none}.cc-sec span{font-weight:400;color:#4a4f57;font-size:13.5px}
+details.cc-how{background:#fff;border:1px solid #ECE7E1;border-radius:16px;margin-bottom:14px}
+details.cc-how summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:12px;padding:12px 18px;font:600 15px var(--sans);color:#2A2430}
+details.cc-how summary::-webkit-details-marker{display:none}details.cc-how summary:after{content:"⌄";margin-left:auto;font-size:20px;color:#6b6575;transition:transform .15s}
+details.cc-how[open] summary:after{transform:rotate(180deg)}details.cc-how summary i{width:28px;height:28px;border-radius:50%;border:1.6px solid #2A2430;display:grid;place-items:center;font:700 13px var(--sans);font-style:normal}
+.cc-how-b{padding:2px 18px 16px 58px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px 18px;font-size:13.5px;color:#4a4f57;line-height:1.5}.cc-how-b b{color:#2A2430}
+.cc-g{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:14px}@media(max-width:1000px){.cc-g{grid-template-columns:1fr}}
+.cc-c{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:16px 18px 14px;display:grid;gap:12px;box-shadow:0 1px 2px rgba(42,36,48,.04),0 14px 34px -28px rgba(42,36,48,.35)}
+.cc-c.on{border-color:#C9BFE6}.cc-c.meta{background:linear-gradient(160deg,#fff 40%,#F6F3FB)}
+.cc-top{display:flex;gap:16px;align-items:flex-start}
+.cc-ic{width:86px;height:76px;border-radius:16px;background:#F3EFF9;display:grid;place-items:center;flex:none}.cc-ic svg{width:54px;height:54px}.cc-c.meta .cc-ic svg{width:70px;height:44px}
+.cc-inf{flex:1;min-width:0;display:grid;gap:2px}.cc-inf small{font:700 10.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#8a8496}
+.cc-inf b{font:700 17px var(--sans);color:#2A2430;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cc-inf span{font-size:14.5px;color:#2A2430}.cc-inf em{font-style:normal;font-size:12.5px;color:#6b6575}
+.cc-st{display:inline-flex;align-items:center;gap:7px;border-radius:99px;padding:5px 12px;font:600 12.5px var(--sans);white-space:nowrap}.cc-st:before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+.cc-st.on{background:#E3F3E7;color:#1E7A46}.cc-st.off{background:#F2EFEA;color:#6b6575}
+.cc-ft{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid #F1EDE8;padding-top:12px}
+.cc-tag{background:#F2EFEA;border-radius:10px;padding:5px 12px;font:600 13px var(--sans);color:#2A2430}
+.cc-btn{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 16px;border-radius:12px;border:1.5px solid #3B3050;background:#fff;color:#3B3050;font:700 13.5px var(--sans);cursor:pointer}.cc-btn:hover{background:#F3EFF9}.cc-btn svg{width:18px;height:18px}
+.cc-new{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:16px 18px;margin-bottom:10px;scroll-margin-top:90px}
+.cc-new h3{margin:0 0 10px;font:700 17px var(--sans);text-transform:none;letter-spacing:0;color:#2A2430}
+.cc-new form{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr) auto;gap:12px;align-items:end}@media(max-width:800px){.cc-new form{grid-template-columns:1fr}}
+.cc-new label{display:grid;gap:6px;font:700 10.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#2A2430}.cc-new select,.cc-new input{height:46px;margin:0;width:100%;font-size:15px}
+.cc-tip{display:flex;align-items:center;gap:12px;background:#EEEAF6;border-radius:14px;padding:10px 16px;font-size:13.5px;color:#2A2430}
+</style>
+<div class="cc-h"><div><div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a></div><h1>Канали комунікації</h1><p>Нагадування, розсилки та повідомлення пацієнтам.</p></div>
+  <a class="cc-add" href="#cc-new" onclick="setTimeout(function(){document.querySelector('#cc-new input[name=name]').focus()},300)">＋ Додати канал</a></div>
 {% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
 {% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
-<span class="cs-tag">Канали комунікації</span>
-<div class="cs-box">
-  <div class="cs-note">Канали, через які CRM пише пацієнтам: нагадування, розсилки, скрипти адмінів. Секрети (токени, ключі) зберігаються зашифровано і після збереження не показуються — щоб змінити, просто введіть нове значення. Порожнє поле = лишається значення з серверного .env.</div>
-  <div style="overflow-x:auto;margin-top:14px"><table class="ch-t">
-    <tr><th class="hm">ID</th><th>Канал</th><th class="hm">Сервіс</th><th>Стан</th><th></th></tr>
-    {% for c in chs %}{% set t = T.get(c.type, {}) %}
-    <tr><td class="hm">{{ c.id }}</td>
-      <td><span class="ch-ic">{{ t.icon }}</span><b>{{ c.name }}</b> <span class="muted">({{ c.type }})</span>
-        {% if c.type == 'meta' %}<div class="ch-sub">{% for p in c.params.pages or [] %}{{ p.kind }} «{{ p.name }}»{% if not loop.last %} · {% endif %}{% endfor %}</div>{% endif %}</td>
-      <td class="hm">{{ t.service }}</td>
-      <td><span class="on-pill {{ 'on' if c.on else 'off' }}">{{ 'ON' if c.on else 'OFF' }}</span></td>
-      <td style="text-align:right"><button class="ch-btn" type="button" onclick="document.getElementById('chd{{ c.id }}').showModal()">Налаштування</button></td></tr>
-    {% endfor %}
-  </table></div>
-  <form method="post" action="/settings/channels/add" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
-    <select name="type" style="height:42px">{% for k, t in T.items() %}<option value="{{ k }}">{{ t.label }}</option>{% endfor %}</select>
-    <input name="name" placeholder="Назва каналу" style="height:42px">
-    <button class="btn">＋ Додати канал</button>
-  </form>
-</div>
+<div class="cc-sec"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.500-3.300 8-8 9-4.700-1-8-4.500-8-9V6z"/><path d="M8.500 12l2.500 2.500 4.500-5"/></svg>
+  <div>Токени та ключі зберігаються зашифрованими. <span>Після збереження не показуються — щоб змінити, введіть нове значення. Порожнє поле — значення з налаштувань сервера.</span></div></div>
+<details class="cc-how"><summary><i>?</i>Як працюють канали?</summary><div class="cc-how-b">
+  <div><b>Нагадування й розсилки</b> — CRM надсилає пацієнту в той канал, що в нього є: Telegram-бот → Viber → SMS.</div>
+  <div><b>Viber і SMS</b> — через TurboSMS (один токен). Якщо Viber не доставлено, можна дослати SMS.</div>
+  <div><b>Telegram</b> — бот пацієнтів; CRM лише надсилає повідомлення, вебхук не змінюється.</div>
+  <div><b>Нічний час</b> — автоматичні повідомлення поза дозволеними годинами чекають до ранку.</div></div></details>
+
+<div class="cc-g">{% for c in chs %}{% set t = T.get(c.type, {}) %}
+  <div class="cc-c {{ 'on' if c.on }} {{ 'meta' if c.type == 'meta' }}"><div class="cc-top">
+    <div class="cc-ic">{{ (CI.get(c.type) or t.icon)|safe }}</div>
+    <div class="cc-inf"><small>Канал</small><b title="{{ c.name }}">{{ c.name }}</b><small>Провайдер</small><span>{{ t.service }}</span>
+      {% if c.type == 'meta' %}{% for p in c.params.pages or [] %}<em>{{ 'Facebook' if p.kind == 'facebook' else 'Instagram' }}: {{ p.name }}</em>{% endfor %}
+      {% elif c.type == 'telegram' and c.params.username %}<em>@{{ c.params.username|replace('@', '') }}</em>
+      {% elif c.params.sender %}<em>Відправник: {{ c.params.sender }}</em>{% endif %}</div>
+    <span class="cc-st {{ 'on' if c.on else 'off' }}">{{ 'Активний' if c.on else 'Неактивний' }}</span></div>
+    <div class="cc-ft"><span class="cc-tag">{{ 'Meta' if c.type == 'meta' else t.label }}</span>
+      <button class="cc-btn" type="button" onclick="document.getElementById('chd{{ c.id }}').showModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2.500v3M12 18.500v3M2.500 12h3M18.500 12h3M5.300 5.300l2.100 2.100M16.600 16.600l2.100 2.100M5.300 18.700l2.100-2.100M16.600 7.400l2.100-2.100"/></svg>Налаштувати</button></div></div>
+{% endfor %}</div>
+<div class="cc-new" id="cc-new"><h3>Новий канал</h3>
+  <form method="post" action="/settings/channels/add"><label>Тип каналу<select name="type">{% for k, t in T.items() %}<option value="{{ k }}">{{ t.label }}</option>{% endfor %}</select></label>
+    <label>Назва каналу<input name="name" placeholder="напр. MOLODIST Viber"></label><button class="cc-add">＋ Додати</button></form></div>
+<div class="cc-tip">ⓘ Після підключення канал стане доступним для нагадувань і розсилок.</div>
 
 {% macro secret(c, key, label, hint='') %}
 <div class="cs-f"><label>{{ label }}</label>
