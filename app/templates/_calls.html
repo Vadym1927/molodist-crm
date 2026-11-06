@@ -14,6 +14,8 @@
 .cl-i details summary{cursor:pointer;color:#5C4B82;font-weight:600;font-size:13.5px}.cl-i details pre{white-space:pre-wrap;font:13.5px/1.5 var(--sans);background:#FBFAF8;border-radius:10px;padding:10px 12px;max-height:340px;overflow:auto;margin:6px 0 0}
 .cl-dlg{display:flex;flex-direction:column;gap:6px;margin-top:8px;max-height:420px;overflow:auto;background:#FBFAF8;border-radius:12px;padding:10px}
 .cl-dlg .bb{max-width:78%;padding:7px 11px;border-radius:12px;font-size:14px;line-height:1.45;white-space:pre-wrap}
+.cl-leg{position:sticky;top:-10px;z-index:1;display:flex;justify-content:space-between;background:#FBFAF8;padding:2px 2px 6px;font:700 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496}
+.cl-leg .a{color:#3B3050}.cl-gs{align-self:center;font-size:11.5px;color:#9a93a6;background:#F2EFEA;border-radius:8px;padding:3px 10px}
 .cl-dlg .bb small{display:block;font:700 10.5px var(--sans);letter-spacing:.05em;text-transform:uppercase;opacity:.7;margin-bottom:2px}
 .cl-dlg .bb.a{align-self:flex-end;background:#3B3050;color:#fff;border-bottom-right-radius:4px}.cl-dlg .bb.p{align-self:flex-start;background:#fff;border:1px solid #ECE7E1;border-bottom-left-radius:4px}
 .cl-q{display:inline-flex;align-items:center;border-radius:9px;padding:6px 12px;font:600 13px var(--sans);background:#FFF1D6;color:#9A6A00}.cl-a button:disabled{opacity:.5;cursor:default}
@@ -31,11 +33,10 @@
   {% if c.record_url %}<audio controls preload="none" src="{{ c.record_url }}"></audio>{% endif %}
   {% if c.summary %}<div class="cl-sum"><b>Зміст:</b> {{ c.summary }}</div>{% endif %}
   {% if c.ai_comment %}<div class="cl-ai"><b>AI-оцінка:</b> {{ c.ai_comment }}{% if c.ai_meta and c.ai_meta.booked is defined %} · {{ 'записано' if c.ai_meta.booked else 'не записано' }}{% endif %}</div>{% endif %}
-  {% if c.transcript %}<details><summary>Діалог ({{ c.transcript.splitlines()|select|list|length }} реплік)</summary><div class="cl-dlg">
-    {% for ln in c.transcript.splitlines() if ln.strip() %}{% set sp, _, tx = ln.partition(':') %}
-      {% if tx and sp|length < 30 %}{% set adm = sp.strip().lower() in ('адмін','адміністратор','admin','оператор','менеджер','співробітник') or (c.employee and sp.strip() in c.employee) %}
-        <div class="bb {{ 'a' if adm else 'p' }}"><small>{{ sp.strip() }}</small>{{ tx.strip() }}</div>
-      {% else %}<div class="bb p">{{ ln }}</div>{% endif %}{% endfor %}</div></details>{% endif %}
+  {% if c.transcript %}{% set dg = call_dialog(c.transcript, c.employee) %}<details><summary>Діалог ({{ dg.lines|length }} реплік)</summary>
+    <div class="cl-dlg"><div class="cl-leg"><span class="p">Пацієнт</span><span class="a">Адміністратор{{ (' · ' ~ c.employee) if c.employee }}</span></div>
+    {% if dg.guessed %}<div class="cl-gs">Ролі визначено автоматично за чергуванням реплік — транскрипція без міток спікерів.</div>{% endif %}
+    {% for x in dg.lines %}<div class="bb {{ x.role }}">{% if loop.first or x.role != dg.lines[loop.index0 - 1].role %}<small>{{ 'Адміністратор' if x.role == 'a' else 'Пацієнт' }}</small>{% endif %}{{ x.text }}</div>{% endfor %}</div></details>{% endif %}
   <div class="cl-a">
     {% if c.status != 'missed' %}{% set _q = c.record_url and c.ai_at is none and c.ai_score is none and (c.ai_meta or {}).get('manual') %}
       {% if _q %}<span class="cl-q" title="Дзвінок чекає AI-розбору">⏳ у черзі на AI-оцінку</span>

@@ -442,7 +442,7 @@ def calls_pending_ai(limit: int = 20, days: int = 3, key: ApiKey = Depends(CALLS
     rows = [c for c in cand if (c.status == "answered" and c.at >= since) or (c.ai_meta or {}).get("manual")][:max(1, min(limit, 100))]
     return {"criteria": cfg.get("ai_criteria"), "alert_below": cfg.get("ai_alert_below"),
             "answer_format": {"score": "0-100", "comment": "2-4 речення українською", "booked": "true/false",
-                              "transcript": "текст діалогу (Адмін: … / Пацієнт: …)", "summary": "короткий зміст"},
+                              "transcript": "кожна репліка з нового рядка І З МІТКОЮ спікера: «Адміністратор: …» / «Пацієнт: …» (CRM показує діалог чатом ліворуч/праворуч)", "summary": "короткий зміст"},
             "calls": [_call_json(c) for c in rows]}
 
 

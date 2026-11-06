@@ -40,6 +40,7 @@ log = logging.getLogger("crm")
 BASE = Path(__file__).parent
 templates = Jinja2Templates(directory=str(BASE / "templates"))
 templates.env.filters["uah"] = lambda v: f"{(v or 0):,.2f}".replace(",", " ").replace(".", ",") + " ₴"   # копійка в копійку
+templates.env.globals["call_dialog"] = lambda t, e=None: __import__("app.services.telephony", fromlist=["dialog"]).dialog(t, e)
 templates.env.filters["dt"] = lambda v, f="%d.%m.%Y": v.strftime(f) if v else "—"
 
 

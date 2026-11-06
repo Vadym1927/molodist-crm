@@ -487,6 +487,56 @@ def _user_by_name(db: Session, name: str | None) -> int | None:
     return None
 
 
+ADMIN_WORDS = ("адмін", "адміністратор", "admin", "оператор", "менеджер", "співробітник", "клініка", "molodist")
+PATIENT_WORDS = ("пацієнт", "пацієнтка", "клієнт", "клієнтка", "абонент", "client", "caller", "співрозмовник")
+
+
+def dialog(transcript: str | None, employee: str | None = None) -> dict:
+    """Транскрипт → репліки з ролями для показу «чатом»: адміністратор праворуч, пацієнт ліворуч.
+    Мітки «Адміністратор: / Пацієнт:» (або імʼя співробітника) — точно; без міток — чергуємо, починаючи з того,
+    хто представився клінікою (зазвичай адміністратор бере трубку), і позначаємо guessed=True."""
+    lines = [ln.strip() for ln in (transcript or "").splitlines() if ln.strip()]
+    emp = (employee or "").strip().lower()
+    out, labelled = [], 0
+    for ln in lines:
+        sp, sep, tx = ln.partition(":")
+        role = None
+        if sep and tx.strip() and len(sp) < 30:
+            s = sp.strip().lower()
+            if any(w in s for w in ADMIN_WORDS) or (emp and (s in emp or emp.split()[0] in s)):
+                role = "a"
+            elif any(w in s for w in PATIENT_WORDS):
+                role = "p"
+            elif re.fullmatch(r"(speaker|спікер|голос)\s*[_ ]?\d+", s):
+                role = "s" + re.sub(r"\D", "", s)
+        if role:
+            labelled += 1
+            out.append({"role": role, "text": tx.strip()})
+        else:
+            out.append({"role": None, "text": ln})
+    guessed = labelled < max(1, len(out)) // 2
+    if guessed:                                              # без міток — чергуємо
+        first_admin = not out or any(w in out[0]["text"].lower() for w in ("molodist", "молодіст", "адміністратор", "слухаю", "клініка"))
+        cur = "a" if first_admin else "p"
+        for x in out:
+            x["role"] = cur
+            cur = "p" if cur == "a" else "a"
+    else:                                                    # «Speaker 1/2» — хто перший і представився клінікою, той адміністратор
+        spk = [x for x in out if x["role"] and x["role"].startswith("s")]
+        if spk:
+            adm = next((x["role"] for x in spk if any(w in x["text"].lower() for w in ("molodist", "молодіст", "адміністратор"))), spk[0]["role"])
+            for x in spk:
+                x["role"] = "a" if x["role"] == adm else "p"
+        last = "a"
+        for x in out:
+            if not x["role"]:
+                x["role"] = last
+            last = x["role"]
+    for x in out:
+        x["label"] = "Адміністратор" + (f" · {employee}" if employee else "") if x["role"] == "a" else "Пацієнт"
+    return {"lines": out, "guessed": guessed and len(out) > 1}
+
+
 def _vtt_text(raw: str) -> str:
     """WEBVTT → «Спікер: репліка» рядками (без таймкодів)."""
     out = []

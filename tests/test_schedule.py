@@ -84,3 +84,11 @@ def test_favicon_and_og_tags():
         r = c.get("/login")
         assert 'rel="icon"' in r.text and 'property="og:image"' in r.text and "/static/img/og.png" in r.text and "Робочий простір команди" in r.text
         assert c.get("/favicon.ico").status_code == 200 and c.get("/static/img/og.png").status_code == 200
+
+
+def test_call_dialog_roles():
+    from app.services.telephony import dialog
+    d = dialog("Адміністратор: Добрий день\nПацієнт: Хочу записатись", "Оля")
+    assert [x["role"] for x in d["lines"]] == ["a", "p"] and not d["guessed"]
+    g = dialog("MOLODIST, слухаю вас.\nДоброго дня.\nЧим допомогти?")
+    assert [x["role"] for x in g["lines"]] == ["a", "p", "a"] and g["guessed"]
