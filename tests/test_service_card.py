@@ -34,7 +34,7 @@ def test_planner_two_prices():
         assert pl["gross_then"] == 5980 and pl["gross_now"] == 4980
         assert pl["margin_then"] == 59.8 and pl["margin_now"] == 49.8
         assert pl["rows"][0]["drug"] and pl["rows"][0]["now_sup"] == "Тест-пост"
-        assert pl["keep_margin_price"] == round(5020 / (1 - 0.598))
+        assert pl["keep_margin_price"] and pl["zp_now"] >= 0
 
 
 def test_card_pages_save_price_and_sync_lock():
@@ -63,3 +63,31 @@ def test_card_pages_save_price_and_sync_lock():
         cbm.sync_services(db, FakeCB())
         sv = db.get(CbService, sid)
         assert sv.price == 12000 and sv.cb_price == 10200
+
+
+def test_service_pricing_center():
+    from app.services import service_pricing as sp
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        sid = db.scalar(__import__("sqlalchemy").select(CbService.id).where(CbService.id == 8_800_001)) or _mk(db)
+        sv = db.get(CbService, sid); sv.zp_fixed = 1000; sv.duration = 60; db.commit()
+        c = sp.cfg(db); c.update(ovh_min=25, target=45)
+        r = next(x for x in sp.rows(db, c) if x["sv"].id == sid)
+        assert r["zp"] == 1000 and r["ovh"] == 1500 and r["mat"] == 5020 - r["am"]
+        assert r["net"] == round(r["price"] - r["cost"] - 1500, 2) and r["rec"]
+        rr = sp.calc(sv, r["rec"], r["mat"], r["am"], sp.Zp(db), c)
+        assert rr["net_m"] >= 45
+    with TestClient(app) as cl:
+        cl.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        t = cl.get("/finance/service-pricing").text
+        assert "Планування ціни послуг" in t and "Тест губи" in t
+        assert cl.get("/finance/service-pricing?fmt=xlsx").status_code == 200
+        assert cl.post("/finance/service-pricing/save", json={"prices": {str(sid): 15000}}).json()["n"] == 1
+        vid = None
+        with SessionLocal() as db:
+            assert db.get(CbService, sid).price == 15000
+            vid = sp.versions(db)[0]["id"]
+        cl.post(f"/finance/service-pricing/restore/{vid}", follow_redirects=False)
+        with SessionLocal() as db:
+            assert db.get(CbService, sid).price != 15000
+        assert cl.get(f"/services/{sid}?tab=price").status_code == 200

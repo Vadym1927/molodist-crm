@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Планування ціни послуг · MOLODIST CRM{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+{% macro m(v) %}{{ ('{:,.0f}'.format(v)).replace(',', ' ') if v is not none else '—' }}{% endmacro %}
+{% macro mc(v) %}{% set t = c.target|float %}{% if v is none %}{% elif v < t - 10 %}bad{% elif v < t %}warn{% else %}ok{% endif %}{% endmacro %}
+<style>
+.spx-h{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.spx-h h1{margin:4px 0 2px;font-size:28px;text-transform:none;letter-spacing:0;font-weight:700;color:#2A2430}.spx-h p{margin:0;color:#6b6575;max-width:760px}
+.spx-k{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;margin-bottom:12px}
+.spx-k div{background:#fff;border:1px solid #ECE7E1;border-radius:16px;padding:12px 14px}.spx-k small{display:block;font:700 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496}
+.spx-k b{font:700 22px var(--sans);color:#2A2430}.spx-k b.bad{color:#B23B2E}
+.spx-cfg{background:#fff;border:1px solid #ECE7E1;border-radius:16px;padding:12px 14px;display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin-bottom:10px}
+.spx-cfg label{display:grid;gap:4px;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496}.spx-cfg input,.spx-cfg select{margin:0;height:38px}
+.spx-cfg .mg{display:flex;gap:4px}.spx-cfg .mg button{all:unset;cursor:pointer;padding:0 9px;height:38px;display:grid;place-items:center;border:1px solid #ECE7E1;border-radius:9px;font:600 12.5px var(--sans);color:#3B3050}
+.spx-cfg .mg button.on{background:#3B3050;color:#fff;border-color:#3B3050}
+.spx-f{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}.spx-f input,.spx-f select{margin:0;height:40px}
+.spx-f a.t{padding:8px 12px;border-radius:10px;background:#F7F4F0;font:600 12.5px var(--sans);color:#3B3050;text-decoration:none}.spx-f a.t.on{background:#3B3050;color:#fff}
+.spx-w{background:#fff;border:1px solid #ECE7E1;border-radius:18px;overflow:auto;max-height:calc(100vh - 260px)}
+.spx{border-collapse:separate;border-spacing:0;font-size:13px;min-width:1500px;width:100%}
+.spx th{position:sticky;top:0;z-index:2;background:#F7F4F0;font:700 10.5px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:#5d5869;padding:9px 8px;text-align:right;border-bottom:1px solid #ECE7E1;white-space:nowrap}
+.spx th:first-child,.spx td:first-child{position:sticky;left:0;z-index:1;background:#fff;text-align:left;min-width:280px;max-width:320px;border-right:1px solid #F1EDE8}
+.spx th:first-child{z-index:3;background:#F7F4F0}
+.spx th.pr{background:#F3D7F1}.spx th.gr{background:#FFF6C9}.spx th.np{background:#E4DEEF}
+.spx td{padding:8px;text-align:right;border-bottom:1px solid #F4F0EB;white-space:nowrap;vertical-align:middle}
+.spx td.pr{background:#FBEFFA;font-weight:700}.spx td.gr{background:#FFFBE6}
+.spx td:first-child a{color:#2A2430;text-decoration:none;font-weight:600;white-space:normal;display:block}.spx td:first-child small{display:block;color:#9a93a6;font-size:11px;white-space:normal}
+.spx tr.cat td{background:#EEF7EE;font:700 12px var(--sans);color:#2f5f37;text-align:left;position:static;max-width:none;padding:6px 0}
+.spx .mg{display:inline-block;min-width:54px;border-radius:7px;padding:2px 7px;font-weight:700}.spx .mg.ok{background:#E5F2E7;color:#2f6b3b}.spx .mg.warn{background:#FFF1D6;color:#8a5b00}.spx .mg.bad{background:#FDECEA;color:#B23B2E}
+.spx td.np input{width:96px;height:32px;margin:0;text-align:right;font-weight:700;padding:0 8px}
+.spx td.np small{display:block;font-size:11px;color:#6b6575;margin-top:2px}
+.spx .rec{all:unset;cursor:pointer;color:#5C4B82;font-weight:600;border-bottom:1px dashed #C9BFE6}
+.spx tr.ch td{background:#F6F3FB}.spx tr.ch td:first-child{box-shadow:inset 3px 0 0 #3B3050}
+.spx .no{color:#B07A1E;font-size:11px}
+.spx tfoot td{position:sticky;bottom:0;background:#F7F4F0;font-weight:700;border-top:1px solid #ECE7E1}
+.spx-bar{position:sticky;bottom:0;display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap;background:#fff;border:1px solid #ECE7E1;border-radius:16px;padding:10px 14px;margin-top:10px;box-shadow:0 -10px 30px -24px rgba(0,0,0,.3)}
+.spx-v{margin-top:16px;background:#fff;border:1px solid #ECE7E1;border-radius:16px;padding:12px 16px}.spx-v h3{margin:0 0 8px;font:700 11px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#8a8496}
+.spx-v div.r{display:flex;gap:12px;align-items:center;padding:7px 0;border-bottom:1px solid #F4F0EB;font-size:13.5px}.spx-v div.r:last-child{border:0}.spx-v .r span{flex:1}
+.spx-v details summary{cursor:pointer;color:#5C4B82;font-size:12.5px}.spx-v details div{font-size:12.5px;color:#5d5869;padding:2px 0}
+</style>
+<div class="spx-h"><div><div class="eyebrow">Фінанси</div><h1>Планування ціни послуг</h1>
+  <p>Матеріали з техкарт за останньою поставкою, ЗП лікаря за окладом, накладні за хвилину — і чистий прибуток, маржа та ROI кожної послуги. Вводьте нову ціну — перерахунок одразу.</p></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn ghost" href="?{{ request.url.query }}&fmt=xlsx">⬇ Excel</a>
+    <form method="post" action="/finance/service-pricing/version" onsubmit="var n=prompt('Назва версії (необовʼязково)','');if(n===null)return false;this.note.value=n"><input type="hidden" name="note"><button class="btn ghost">💾 Зберегти версію</button></form>
+    <a class="btn ghost" href="/finance/pricing">Ціни товарів →</a></div></div>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+<div class="spx-k">
+  <div><small>Послуг</small><b>{{ rows|length }}</b></div>
+  <div><small>Середня чиста маржа</small><b>{{ tot.net_m if tot.net_m is not none else '—' }}%</b></div>
+  <div><small>Нижче цілі {{ '%g'|format(c.target) }}%</small><b class="{{ 'bad' if low }}">{{ low }}</b></div>
+  <div><small>Без техкарти</small><b>{{ rows|rejectattr('card')|list|length }}</b></div>
+</div>
+<form class="spx-cfg" method="post" action="/finance/service-pricing/cfg"><input type="hidden" name="back" value="{{ request.url.query }}">
+  <label>Накладні, ₴ за хвилину<input name="ovh_min" value="{{ '%g'|format(c.ovh_min) }}" inputmode="decimal" style="width:120px" title="Оренда, адміністратори, реклама, комуналка… на хвилину роботи кабінету"></label>
+  <label>Цільова чиста маржа, %<span class="mg">{% for x in MARGINS %}<button type="button" class="{{ 'on' if c.target|float == x }}" onclick="this.form.target.value={{ x }};this.form.submit()">{{ x }}</button>{% endfor %}<input name="target" value="{{ '%g'|format(c.target) }}" style="width:70px"></span></label>
+  <label>Округлення<select name="rnd">{% for x in [1, 10, 50, 100, 500] %}<option value="{{ x }}" {{ 'selected' if c.round|int == x }}>{{ 'до 1 ₴' if x == 1 else ('до ' ~ x ~ ' ₴') }}</option>{% endfor %}</select></label>
+  <label>ЗП рахувати для лікаря<select name="doctor"><option value="">Найбільша з тих, хто надає послугу</option>{% for d in doctors %}<option value="{{ d.id }}" {{ 'selected' if c.doctor|string == d.id|string }}>{{ d.name }}</option>{% endfor %}</select></label>
+  <button class="btn">Застосувати</button>
+</form>
+<form class="spx-f"><input name="q" value="{{ q }}" placeholder="Знайти послугу" style="min-width:240px"><select name="cat" onchange="this.form.submit()"><option value="">Усі категорії</option>{% for x in cats %}<option {{ 'selected' if cat == x }}>{{ x }}</option>{% endfor %}</select>
+  <input type="hidden" name="only" value="{{ only }}">
+  {% set base = '?q=' ~ q|urlencode ~ '&cat=' ~ cat|urlencode %}
+  <a class="t {{ 'on' if not only }}" href="{{ base }}">Усі</a><a class="t {{ 'on' if only == 'low' }}" href="{{ base }}&only=low">Маржа нижче цілі</a><a class="t {{ 'on' if only == 'nocard' }}" href="{{ base }}&only=nocard">Без техкарти</a></form>
+<div class="spx-w"><table class="spx" id="spx"><thead><tr>
+  <th>Послуга</th><th>Хв</th><th class="pr">Ціна</th><th>Матеріали</th><th>Аморт.</th><th class="gr">Валовий</th><th>ЗП лікаря</th><th>ЗП/хв</th><th>Собівартість</th>
+  <th>Накладні</th><th class="gr">Чистий</th><th>₴/хв</th><th>Чиста маржа</th><th>ROI</th><th>Рекомендована</th><th class="np">Нова ціна</th></tr></thead><tbody>
+{% set ns = namespace(cat=None) %}
+{% for r in rows %}{% if not cat and r.sv.category != ns.cat %}{% set ns.cat = r.sv.category %}<tr class="cat"><td colspan="16"><span style="position:sticky;left:12px">{{ r.sv.category or 'Без категорії' }}</span></td></tr>{% endif %}
+<tr data-id="{{ r.sv.id }}" data-mat="{{ r.mat }}" data-am="{{ r.am }}" data-ovh="{{ r.ovh }}" data-za="{{ r.za }}" data-zb="{{ r.zb }}" data-mins="{{ r.mins }}" data-price="{{ r.price }}">
+  <td><a href="/services/{{ r.sv.id }}?tab=price">{{ r.sv.name }}</a><small>{% if r.card %}техкарта: {{ r.card.name }}{% else %}<span class="no">немає техкарти</span>{% endif %}{% if r.zp_who %} · ЗП: {{ r.zp_who }}{% endif %}</small></td>
+  <td>{{ r.mins or '—' }}</td><td class="pr">{{ m(r.price) }}</td><td>{{ m(r.mat) }}</td><td>{{ m(r.am) if r.am else '—' }}</td><td class="gr">{{ m(r.gross) }}</td>
+  <td>{{ m(r.zp) }}</td><td>{{ r.zp_min if r.zp_min is not none else '—' }}</td><td>{{ m(r.cost) }}</td><td>{{ m(r.ovh) }}</td>
+  <td class="gr c-net">{{ m(r.net) }}</td><td class="c-em">{{ r.earn_min if r.earn_min is not none else '—' }}</td>
+  <td class="c-nm"><span class="mg {{ mc(r.net_m) }}">{{ r.net_m if r.net_m is not none else '—' }}%</span></td><td class="c-roi">{{ (r.roi ~ '%') if r.roi is not none else '—' }}</td>
+  <td>{% if r.rec %}<button type="button" class="rec" onclick="spxSet(this.closest('tr'),{{ r.rec }})">{{ m(r.rec) }}</button>{% else %}—{% endif %}</td>
+  <td class="np"><input inputmode="decimal" placeholder="{{ m(r.price) }}" oninput="spxRow(this.closest('tr'))"><small></small></td></tr>
+{% else %}<tr><td colspan="16" class="muted" style="text-align:left;padding:16px">Послуг не знайдено.</td></tr>{% endfor %}
+</tbody><tfoot><tr><td>Разом · {{ rows|length }}</td><td></td><td>{{ m(tot.price) }}</td><td>{{ m(tot.mat) }}</td><td>{{ m(tot.am) }}</td><td></td><td>{{ m(tot.zp) }}</td><td></td><td></td><td>{{ m(tot.ovh) }}</td><td>{{ m(tot.net) }}</td><td></td><td>{{ tot.net_m }}%</td><td></td><td></td><td></td></tr></tfoot></table></div>
+<div class="spx-bar"><div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn ghost" onclick="spxRecLow()">Підставити рекомендовані — де маржа нижче цілі</button><button type="button" class="btn ghost" onclick="spxClear()">Очистити</button></div>
+  <div style="display:flex;gap:10px;align-items:center"><span class="small muted" id="spx-n">Змін немає</span><button type="button" class="btn" id="spx-save" onclick="spxSave()" disabled>Зберегти нові ціни</button></div></div>
+<div class="spx-v"><h3>Версії й історія змін</h3>
+  {% for v in versions %}<div class="r"><span><b>№{{ v.id }} · {{ {'version':'Збережена версія','save':'Зміна цін','restore':'Повернення'}.get(v.kind, v.kind) }}</b>{% if v.note %} — {{ v.note }}{% endif %}<br><small class="muted">{{ v.at.replace('T', ' ') }} · {{ v.user or '' }} · {{ v.n }} послуг</small>
+    {% if v.kind != 'version' %}<details><summary>Що змінено</summary>{% for i in v['items'][:60] %}<div>{{ i.name }}: {{ m(i.before) }} → <b>{{ m(i.after) }}</b></div>{% endfor %}</details>{% endif %}</span>
+    <form method="post" action="/finance/service-pricing/restore/{{ v.id }}" onsubmit="return confirm('{{ 'Повернути ціни цієї версії?' if v.kind == 'version' else 'Скасувати цю зміну — повернути попередні ціни?' }}')"><button class="btn ghost" style="padding:4px 12px;font-size:12.5px">{{ 'Повернути ці ціни' if v.kind == 'version' else 'Скасувати' }}</button></form></div>
+  {% else %}<div class="muted small">Ще немає. «Зберегти версію» — знімок усіх цін; кожне «Зберегти нові ціни» теж записується сюди, і його можна скасувати.</div>{% endfor %}
+  <div class="small muted" style="margin-top:8px">Нові ціни діють у касі й записі CRM і закріплюються від синку CleverBox. У CleverBox їх треба змінити окремо.</div></div>
+<script>
+var SPX_T={{ c.target|float }},SPX_R={{ c.round|int or 1 }};
+function n(v){return Math.round(v).toLocaleString('uk-UA')}
+function spxRow(tr){var i=tr.querySelector('td.np input'),sm=tr.querySelector('td.np small'),d=tr.dataset;
+  var p=parseFloat((i.value||'').replace(/\s/g,'').replace(',','.'));if(!p){sm.textContent='';tr.classList.remove('ch');spxCount();return}
+  var mat=+d.mat,am=+d.am,ovh=+d.ovh,zp=Math.max(0,+d.za+(+d.zb)*p),net=p-mat-am-zp-ovh,mg=100*net/p,roi=(mat+am+zp+ovh)?100*net/(mat+am+zp+ovh):0;
+  var cls=mg<SPX_T-10?'bad':mg<SPX_T?'warn':'ok';
+  sm.innerHTML='чистий '+n(net)+' · <span class="mg '+cls+'" style="padding:0 5px;min-width:0">'+mg.toFixed(1)+'%</span>'+(+d.price?' · '+(p>+d.price?'+':'')+n(p-(+d.price)):'');
+  tr.classList.toggle('ch',Math.abs(p-(+d.price))>0.005);spxCount()}
+function spxSet(tr,v){tr.querySelector('td.np input').value=v;spxRow(tr)}
+function spxRecLow(){document.querySelectorAll('#spx tbody tr[data-id]').forEach(function(tr){var b=tr.querySelector('.rec'),mg=parseFloat((tr.querySelector('.c-nm').textContent||'').replace(',','.'));
+  if(b&&!isNaN(mg)&&mg<SPX_T){spxSet(tr,parseFloat(b.getAttribute('onclick').match(/,([\d.]+)\)/)[1]))}})}
+function spxClear(){document.querySelectorAll('#spx td.np input').forEach(function(i){i.value='';spxRow(i.closest('tr'))})}
+function spxCh(){var o={};document.querySelectorAll('#spx tbody tr.ch').forEach(function(tr){o[tr.dataset.id]=parseFloat(tr.querySelector('td.np input').value.replace(/\s/g,'').replace(',','.'))});return o}
+function spxCount(){var k=Object.keys(spxCh()).length;document.getElementById('spx-n').textContent=k?('Змінено цін: '+k):'Змін немає';document.getElementById('spx-save').disabled=!k}
+function spxSave(){var o=spxCh(),k=Object.keys(o).length;if(!k)return;var note=prompt('Коментар до зміни цін (необовʼязково)','');if(note===null)return;
+  fetch('/finance/service-pricing/save',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({prices:o,note:note})})
+   .then(function(r){return r.json()}).then(function(js){document.querySelectorAll('#spx tr.ch').forEach(function(t){t.classList.remove('ch')});location.href=location.pathname+location.search.replace(/[?&]msg=[^&]*/,'')+(location.search?'&':'?')+'msg='+encodeURIComponent('Збережено цін: '+js.n)})}
+window.addEventListener('beforeunload',function(e){if(Object.keys(spxCh()).length){e.preventDefault();e.returnValue=''}});
+</script>
+{% endblock %}

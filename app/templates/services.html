@@ -25,7 +25,7 @@ dialog.sv-d{border:0;border-radius:20px;padding:0;width:min(520px,96vw);box-shad
 </style>
 <div class="sv-hero"><div class="sv-top"><div><div class="eb"><a href="/products">Продукти</a> · <a href="/techcards">Техкарти</a></div><h1>Послуги (прайс)</h1>
   <p>Ціна, тривалість, категорія й техкарта кожної послуги. Послуги з CleverBox і створені в CRM. Собівартість — за техкартою (поточні ціни закупівлі), маржа — від ціни прайсу.</p></div>
-  <button class="btn" type="button" onclick="svEdit(null)">＋ Нова послуга</button></div></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">{% if can(user,'finance') %}<a class="btn ghost" href="/finance/service-pricing">📊 Планування ціни послуг</a>{% endif %}<button class="btn" type="button" onclick="svEdit(null)">＋ Нова послуга</button></div></div></div>
 {% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
 <form class="sv-bar"><input name="q" value="{{ q }}" placeholder="Знайти послугу"><select name="cat" onchange="this.form.submit()"><option value="">Усі категорії</option>{% for c in cats %}<option {{ 'selected' if cat == c }}>{{ c }}</option>{% endfor %}</select><button class="btn ghost" style="height:44px">Знайти</button></form>
 <div class="sv-card"><table class="sv-tb"><thead><tr><th>Послуга</th><th class="r">Ціна</th><th class="r">Хв</th><th>Техкарта</th><th class="r">Собівартість</th><th class="r">Маржа</th><th></th></tr></thead><tbody>

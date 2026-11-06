@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from ..models import CbService, Product, ProductPurchase, ServiceLog, TechCard
 
 FIELDS = {"price": "Ціна", "name": "Назва", "techcard": "Техкарта", "duration": "Тривалість", "created": "Послугу створено",
-          "category": "Категорія", "price_set_on": "Дата формування ціни", "active": "Активність"}
+          "category": "Категорія", "price_set_on": "Дата формування ціни", "active": "Активність", "zp": "ЗП лікаря (вручну)"}
 COLORS = ["#D9483B", "#DD8547", "#CDA33B", "#5E9F52", "#3A8778", "#4499DD", "#3F86D9", "#3E49A0",
           "#8A2FA8", "#C7305E", "#5B707B", "#36434B"]
 
@@ -47,7 +47,11 @@ def _purchases(db: Session, pids: set[int]) -> dict[int, list[ProductPurchase]]:
     return out
 
 
-def planner(db: Session, sv: CbService, on: date | None = None, new_price: float | None = None) -> dict:
+def sp_round(v: float) -> float:
+    return float(round(v))
+
+
+def planner(db: Session, sv: CbService, on: date | None = None, new_price: float | None = None, doctor_id: int | None = None) -> dict:
     """Розрахунок: лінії техкарти з ціною одиниці на дату формування ціни і зараз, підсумки й маржі."""
     from .techcards import unit_costs
     on = on or sv.price_set_on
@@ -93,6 +97,26 @@ def planner(db: Session, sv: CbService, on: date | None = None, new_price: float
     # ціна, щоб повернути маржу на дату формування при поточній собівартості
     m = (res["margin_then"] or 0) / 100
     res["keep_margin_price"] = round(c_now / (1 - m), 0) if price and m < 0.99 and c_now else None
+    # ЗП лікаря й накладні (Фінанси → Планування ціни послуг): маржа після ЗП
+    from . import service_pricing as sp
+    zp, c = sp.Zp(db), sp.cfg(db)
+    res["zp_doctors"] = [d for d in zp.doctors() if not sv.doctor_ids or d.id in sv.doctor_ids] or zp.doctors()
+    res["doctor_id"] = doctor_id
+    z_then, who = zp.calc(sv, price, c_then, doctor_id)
+    z_now, _ = zp.calc(sv, price, c_now, doctor_id)
+    mins = int(sv.duration or sv.time_min or 0)
+    ovh = round(mins * float(c.get("ovh_min") or 0), 2)
+    res.update(zp_then=z_then, zp_now=z_now, zp_who=who, zp_manual=sv.zp_fixed is not None, mins=mins, ovh=ovh, ovh_min=c.get("ovh_min"),
+               after_zp_then=round(price - c_then - z_then, 2), after_zp_now=round(price - c_now - z_now, 2),
+               net_then=round(price - c_then - z_then - ovh, 2), net_now=round(price - c_now - z_now - ovh, 2))
+    for k in ("after_zp", "net"):
+        res[k + "_m_then"] = round(100 * res[k + "_then"] / price, 1) if price else None
+        res[k + "_m_now"] = round(100 * res[k + "_now"] / price, 1) if price else None
+    res["za"], res["zb"] = sp.zp_linear(zp, sv, price, c_now, doctor_id)
+    m0 = (res["net_m_then"] or 0) / 100            # зберегти чисту маржу (після ЗП і накладних) на дату формування ціни
+    k = 1 - res["zb"] - m0
+    res["keep_margin"] = res["net_m_then"]
+    res["keep_margin_price"] = sp_round(round((c_now + res["za"] + ovh) / k, 2)) if price and k > 0.01 and m0 > 0 else None
     if new_price:
         res["np"] = new_price
         res["np_gross"] = round(new_price - c_now, 2)

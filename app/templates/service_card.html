@@ -24,7 +24,7 @@
 .sc-col label:has(input:checked){outline:3px solid #2A2430;outline-offset:2px}
 .sc-save{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 30%);padding:14px 0 4px;display:flex;justify-content:flex-end;gap:8px;grid-column:1/-1}
 /* ціна */
-.sc-k{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.sc-k{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
 .sc-kp{background:#fff;border:1px solid #ECE7E1;border-radius:16px;padding:14px 16px}.sc-kp small{display:block;font:700 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496}
 .sc-kp .v2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}.sc-kp .v2 span{font-size:11.5px;color:#8a8496;display:block}
 .sc-kp .v2 b{font:700 17px var(--sans);color:#2A2430}.sc-kp .big{font:700 24px var(--sans);color:#3B3050;margin-top:6px}
@@ -84,10 +84,19 @@
   {% else %}
   <div class="sc-k">
     <div class="sc-kp"><small>Ціна продажу</small><div class="big">{{ money(pl.price) }}</div><span class="small muted">сформовано {{ pl.on.strftime('%d.%m.%Y') if pl.on else '— дату не задано' }}</span></div>
-    <div class="sc-kp"><small>Собівартість</small><div class="v2"><div><span>на дату ціни</span><b>{{ money(pl.cost_then) }}</b></div><div><span>зараз</span><b>{{ money(pl.cost_now) }}</b></div></div><div style="margin-top:6px">{{ delta(pl.cost_diff, True) }}</div></div>
-    <div class="sc-kp"><small>Валовий прибуток</small><div class="v2"><div><span>на дату ціни</span><b>{{ money(pl.gross_then) }}</b></div><div><span>зараз</span><b>{{ money(pl.gross_now) }}</b></div></div><div style="margin-top:6px">{{ delta(pl.gross_diff) }}</div></div>
-    <div class="sc-kp"><small>Маржа</small><div class="v2"><div><span>на дату ціни</span><b>{{ pl.margin_then if pl.margin_then is not none else '—' }}%</b></div><div><span>зараз</span><b>{{ pl.margin_now if pl.margin_now is not none else '—' }}%</b></div></div><div style="margin-top:6px">{{ delta(pl.margin_diff, False, True) }}</div></div>
+    <div class="sc-kp"><small>Матеріали (техкарта)</small><div class="v2"><div><span>на дату ціни</span><b>{{ money(pl.cost_then) }}</b></div><div><span>зараз</span><b>{{ money(pl.cost_now) }}</b></div></div><div style="margin-top:6px">{{ delta(pl.cost_diff, True) }}</div></div>
+    <div class="sc-kp"><small>Валовий (ціна − матеріали)</small><div class="v2"><div><span>на дату ціни</span><b>{{ money(pl.gross_then) }}</b></div><div><span>зараз</span><b>{{ money(pl.gross_now) }}</b></div></div><div style="margin-top:6px">{{ delta(pl.gross_diff) }}</div></div>
+    <div class="sc-kp"><small>ЗП лікаря</small><div class="big" style="font-size:20px">{{ money(pl.zp_now) }}</div>
+      <span class="small muted">{% if pl.zp_manual %}задано вручну{% elif pl.zp_who %}за окладом: {{ pl.zp_who }}{% else %}оклад лікаря не налаштовано{% endif %}</span></div>
+    <div class="sc-kp"><small>Прибуток після ЗП</small><div class="v2"><div><span>на дату ціни</span><b>{{ money(pl.after_zp_then) }}</b></div><div><span>зараз</span><b>{{ money(pl.after_zp_now) }}</b></div></div><div style="margin-top:6px">{{ delta((pl.after_zp_now - pl.after_zp_then)|round(2)) }}</div></div>
+    <div class="sc-kp"><small>Маржа після ЗП</small><div class="v2"><div><span>на дату ціни</span><b>{{ pl.after_zp_m_then if pl.after_zp_m_then is not none else '—' }}%</b></div><div><span>зараз</span><b>{{ pl.after_zp_m_now if pl.after_zp_m_now is not none else '—' }}%</b></div></div>
+      <div style="margin-top:6px">{{ delta(((pl.after_zp_m_now or 0) - (pl.after_zp_m_then or 0))|round(1), False, True) }}</div></div>
+    {% if pl.ovh %}<div class="sc-kp"><small>Накладні · {{ pl.mins }} хв × {{ '%g'|format(pl.ovh_min) }} ₴</small><div class="big" style="font-size:20px">{{ money(pl.ovh) }}</div><span class="small muted">оренда, адміністратори, реклама…</span></div>
+    <div class="sc-kp"><small>Чистий прибуток · чиста маржа</small><div class="v2"><div><span>на дату ціни</span><b>{{ money(pl.net_then) }}</b><span>{{ pl.net_m_then }}%</span></div><div><span>зараз</span><b>{{ money(pl.net_now) }}</b><span>{{ pl.net_m_now }}%</span></div></div></div>{% endif %}
   </div>
+  <form class="sc-c" style="margin-top:14px;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;align-items:end" method="get"><input type="hidden" name="tab" value="price">
+    <label>ЗП рахувати для лікаря<select name="doc" onchange="this.form.submit()"><option value="">Найбільша серед тих, хто надає послугу</option>{% for d in pl.zp_doctors %}<option value="{{ d.id }}" {{ 'selected' if pl.doctor_id == d.id }}>{{ d.name }}</option>{% endfor %}</select></label>
+    <span class="hint">ЗП — з «Налаштування окладів» лікаря (комісійні за послуги). Можна задати суму вручну нижче, у планувальнику. Накладні ₴/хв — у <a href="/finance/service-pricing">Плануванні ціни послуг</a>.</span><span></span></form>
   <div class="sc-c" style="margin-top:14px"><h3>Техкарта «{{ pl.card.name }}» · ціни матеріалів</h3>
     <table class="sc-tb"><thead><tr><th>Матеріал</th><th class="r">К-сть</th><th class="r">Ціна од. на дату ціни</th><th class="r">Ціна од. зараз</th><th class="r">Сума на дату</th><th class="r">Сума зараз</th><th class="r">Зміна</th></tr></thead><tbody>
     {% for grp, title, t_then, t_now in [(True, 'Препарат', pl.drug_then, pl.drug_now), (False, 'Розхідні матеріали й обладнання', pl.cons_then, pl.cons_now)] %}
@@ -109,21 +118,23 @@
     <div class="sc-pp">
       <label>Дата формування ціни<input type="date" name="price_set_on" value="{{ pl.on.isoformat() if pl.on else '' }}"></label>
       <label>Нова ціна продажу, ₴<input name="price" id="sc-np" inputmode="decimal" value="{{ '%g'|format(sv.price) if sv.price else '' }}" oninput="scCalc('p')"></label>
-      <label>Цільова маржа, %<input id="sc-tm" inputmode="decimal" placeholder="{{ pl.margin_then or '' }}" oninput="scCalc('m')"></label>
+      <label>Цільова маржа після ЗП{{ ' і накладних' if pl.ovh }}, %<input id="sc-tm" inputmode="decimal" placeholder="{{ pl.net_m_then or '' }}" oninput="scCalc('m')"></label>
     </div>
+    <div class="sc-pp"><label>ЗП лікаря вручну, ₴<input name="zp_fixed" inputmode="decimal" value="{{ '%g'|format(sv.zp_fixed) if sv.zp_fixed is not none else '' }}" placeholder="за окладом: {{ pl.zp_now|uah if not pl.zp_manual else '—' }}"></label><span class="hint" style="grid-column:span 2">Порожньо — ЗП рахується за окладом лікаря і змінюється разом із ціною (якщо оклад у % від вартості).</span></div>
     <div class="sc-out" id="sc-out"></div>
-    {% if pl.keep_margin_price and pl.cost_diff > 0 %}<div class="small">Щоб зберегти маржу {{ pl.margin_then }}% при нинішній собівартості, ціна має бути ≈ <b>{{ pl.keep_margin_price|uah }}</b> <button type="button" class="btn ghost" style="padding:2px 10px;font-size:12px" onclick="document.getElementById('sc-np').value='{{ '%g'|format(pl.keep_margin_price) }}';scCalc('p')">Підставити</button></div>{% endif %}
+    {% if pl.keep_margin_price and pl.cost_diff > 0 %}<div class="small">Щоб зберегти маржу {{ pl.keep_margin }}% (після ЗП{{ ' і накладних' if pl.ovh }}) при нинішній собівартості, ціна має бути ≈ <b>{{ pl.keep_margin_price|uah }}</b> <button type="button" class="btn ghost" style="padding:2px 10px;font-size:12px" onclick="document.getElementById('sc-np').value='{{ '%g'|format(pl.keep_margin_price) }}';scCalc('p')">Підставити</button></div>{% endif %}
     <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn">Зберегти ціну</button></div>
     <span class="hint">Нова ціна діє в касі й записі CRM. У CleverBox її треба змінити окремо — CRM лише читає CleverBox. Дата формування ставиться сьогоднішня, якщо не вказати іншу.</span>
   </form>
   <script>
-  var SC={cost:{{ pl.cost_now or 0 }},price:{{ pl.price or 0 }}};
+  var SC={cost:{{ pl.cost_now or 0 }},price:{{ pl.price or 0 }},za:{{ pl.za or 0 }},zb:{{ pl.zb or 0 }},ovh:{{ pl.ovh or 0 }}};
   function f2(v){return v.toLocaleString('uk-UA',{minimumFractionDigits:2,maximumFractionDigits:2})+' ₴'}
   function scCalc(src){var np=document.getElementById('sc-np'),tm=document.getElementById('sc-tm'),o=document.getElementById('sc-out');
-    if(src==='m'){var m=parseFloat((tm.value||'').replace(',','.'));if(m>0&&m<100&&SC.cost){np.value=Math.round(SC.cost/(1-m/100))}}
+    if(src==='m'){var m=parseFloat((tm.value||'').replace(',','.'))/100;var k=1-SC.zb-m;if(m>0&&k>0){np.value=Math.round((SC.cost+SC.za+SC.ovh)/k)}}
     var p=parseFloat((np.value||'').replace(',','.'))||0;if(!p){o.innerHTML='Введіть ціну або цільову маржу.';return}
-    var g=p-SC.cost,mg=p?100*g/p:0,dp=p-SC.price;
-    o.innerHTML='При ціні <b>'+f2(p)+'</b> і нинішній собівартості '+f2(SC.cost)+': валовий <b>'+f2(g)+'</b>, маржа <b>'+mg.toFixed(1)+'%</b>'+(SC.price&&dp?' · '+(dp>0?'+':'')+f2(dp)+' до поточної ціни':'')}
+    var zp=Math.max(0,SC.za+SC.zb*p),g=p-SC.cost,az=g-zp,net=az-SC.ovh,dp=p-SC.price;
+    o.innerHTML='При ціні <b>'+f2(p)+'</b> (матеріали зараз '+f2(SC.cost)+'): валовий <b>'+f2(g)+'</b> · ЗП лікаря '+f2(zp)+' · після ЗП <b>'+f2(az)+'</b>, маржа <b>'+(100*az/p).toFixed(1)+'%</b>'+
+      (SC.ovh?' · накладні '+f2(SC.ovh)+' · чистий <b>'+f2(net)+'</b> ('+(100*net/p).toFixed(1)+'%)':'')+(SC.price&&dp?' · '+(dp>0?'+':'')+f2(dp)+' до поточної ціни':'')}
   scCalc('p');
   </script>
 

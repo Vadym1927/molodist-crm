@@ -91,7 +91,7 @@ FIN_TABS = [("/finance", "Огляд"), ("/sales", "Каса CRM"), ("/finance/o
             ("/finance/payroll", "ЗП за місяць"),
             ("/finance/settle", "Взаєморозрахунки по з/п"), ("/finance/day", "Продажі за день"), ("/finance/sales", "Продажі"),
             ("/finance/balances", "Баланс пацієнтів"), ("/finance/bonuses", "Рух бонусів"), ("/payreq", "Рахунки на оплату"),
-            ("/finance/pricing", "Планування ціни реалізації"),
+            ("/finance/pricing", "Планування ціни реалізації"), ("/finance/service-pricing", "Планування ціни послуг"),
             ("/amort", "Амортизація обладнання")]
 def _site_url(request) -> str:
     """Абсолютна адреса CRM для og:image / og:url: PUBLIC_URL (https) або адреса запиту."""
@@ -3928,7 +3928,7 @@ SVC_TABS = {"about": "Про послугу", "price": "Ціна й маржа",
 
 
 @app.get("/services/{sid:int}", response_class=HTMLResponse)
-def service_card_page(request: Request, sid: int, tab: str = "about", np: str = "", on: str = "",
+def service_card_page(request: Request, sid: int, tab: str = "about", np: str = "", on: str = "", doc: str = "",
                       user: User = Depends(require("products|stock")), db: Session = Depends(db_dep)):
     from .models import CbService, TechCard
     from .services import service_card as sc
@@ -3937,7 +3937,7 @@ def service_card_page(request: Request, sid: int, tab: str = "about", np: str = 
         raise HTTPException(404, "Послугу не знайдено")
     tab = tab if tab in SVC_TABS else "about"
     allrows = db.scalars(select(CbService)).all()
-    pl = sc.planner(db, sv, _day(on) if on else None, _num(np.replace(",", ".")) if np.strip() else None)
+    pl = sc.planner(db, sv, _day(on) if on else None, _num(np.replace(",", ".")) if np.strip() else None, int(doc) if doc.isdigit() else None)
     users = {u.id: u.name for u in db.scalars(select(User))}
     return render(request, "service_card.html", nav="products", sv=sv, tab=tab, TABS=SVC_TABS, pl=pl, COLORS=sc.COLORS,
                   FIELDS=sc.FIELDS, hist=sc.history(db, sid), users=users,
@@ -3991,6 +3991,11 @@ async def service_card_save(request: Request, sid: int, user: User = Depends(req
         if day and day != sv.price_set_on:
             sc.log(db, sv.id, "price_set_on", sv.price_set_on.strftime("%d.%m.%Y") if sv.price_set_on else None, day.strftime("%d.%m.%Y"), user.id, commit=False)
             sv.price_set_on = day
+        if "zp_fixed" in f:
+            zf = _num(g("zp_fixed").replace(",", ".")) if g("zp_fixed") else None
+            if zf != sv.zp_fixed:
+                sc.log(db, sv.id, "zp", sv.zp_fixed, zf, user.id, commit=False)
+                sv.zp_fixed = zf
         if f.get("unlock"):
             sv.price_locked = False
             if sv.cb_price is not None and sv.cb_price != sv.price:
@@ -8340,6 +8345,75 @@ def reports_page(request: Request, r: str = "revenue", period: str = "month", df
     return render(request, "reports.html", rep=rep, REPORTS=rp.REPORTS, PERIODS=REPORT_PERIODS, key=key, period=period,
                   d_from=d_from, d_to=d_to, p_from=p_from, p_to=p_to,
                   c_max=max([v for _, v in rep.chart] + [1]))
+
+
+# ---------------- Фінанси → Планування ціни послуг ----------------
+@app.get("/finance/service-pricing", response_class=HTMLResponse)
+def service_pricing_page(request: Request, cat: str = "", q: str = "", only: str = "", fmt: str = "",
+                         user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import service_pricing as sp
+    from .models import CbService
+    c = sp.cfg(db)
+    rws = sp.rows(db, c, cat, q, only)
+    if fmt == "xlsx":
+        from openpyxl import Workbook
+        wb = Workbook(); ws = wb.active; ws.title = "Ціни послуг"
+        ws.append(["Послуга", "Категорія", "Хв", "Ціна", "Матеріали", "Амортизація", "Валовий", "ЗП лікаря", "ЗП/хв", "Собівартість",
+                   "Накладні", "Чистий прибуток", "Заробіток/хв", "Чиста маржа %", "ROI %", "Рекомендована ціна"])
+        for r in rws:
+            ws.append([r["sv"].name, r["sv"].category, r["mins"], r["price"], r["mat"], r["am"], r["gross"], r["zp"], r["zp_min"], r["cost"],
+                       r["ovh"], r["net"], r["earn_min"], r["net_m"], r["roi"], r["rec"]])
+        import io as _io
+        bio = _io.BytesIO(); wb.save(bio)
+        audit(db, "service_pricing.export", user=user, n=len(rws))
+        return Response(bio.getvalue(), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        headers={"Content-Disposition": f'attachment; filename="service-prices-{date.today()}.xlsx"'})
+    cats = sorted({x for (x,) in db.execute(select(CbService.category).where(CbService.category.is_not(None)).distinct())})
+    tot = {k: round(sum((r[k] or 0) for r in rws), 2) for k in ("price", "mat", "am", "zp", "ovh", "net")}
+    tot["net_m"] = round(100 * tot["net"] / tot["price"], 1) if tot["price"] else None
+    return render(request, "service_pricing.html", nav="finance", rows=rws, c=c, cats=cats, cat=cat, q=q, only=only, MARGINS=sp.MARGINS,
+                  doctors=sp.Zp(db).doctors(), versions=sp.versions(db)[:15], tot=tot,
+                  low=sum(1 for r in rws if r["net_m"] is not None and r["net_m"] < float(c["target"])))
+
+
+@app.post("/finance/service-pricing/cfg")
+def service_pricing_cfg(ovh_min: str = Form(""), target: str = Form(""), rnd: str = Form(""), doctor: str = Form(""), back: str = Form(""),
+                        user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import service_pricing as sp
+    c = sp.cfg(db)
+    c["ovh_min"] = _num(ovh_min.replace(",", ".")) or 0.0 if ovh_min.strip() else c["ovh_min"]
+    c["target"] = _num(target.replace(",", ".")) or c["target"] if target.strip() else c["target"]
+    c["round"] = int(rnd) if rnd.isdigit() else c["round"]
+    c["doctor"] = doctor if doctor.isdigit() else ""
+    sp.save_cfg(db, c)
+    audit(db, "service_pricing.cfg", user=user, **{k: c[k] for k in ("ovh_min", "target", "round", "doctor")})
+    return RedirectResponse(_with_msg("/finance/service-pricing" + (("?" + back) if back else ""), "Налаштування збережено"), 303)
+
+
+@app.post("/finance/service-pricing/save")
+async def service_pricing_save(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import service_pricing as sp
+    js = await request.json()
+    prices = {int(k): float(v) for k, v in (js.get("prices") or {}).items() if str(k).isdigit() and v not in (None, "")}
+    n = sp.apply_prices(db, prices, user.id, user.name, str(js.get("note") or "")[:120] or None)
+    audit(db, "service_pricing.save", user=user, n=n)
+    return JSONResponse({"ok": True, "n": n})
+
+
+@app.post("/finance/service-pricing/version")
+def service_pricing_version(note: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import service_pricing as sp
+    v = sp.snapshot(db, user.name, note.strip() or None)
+    audit(db, "service_pricing.version", user=user, version=v["id"])
+    return RedirectResponse(_with_msg("/finance/service-pricing", f"Версію №{v['id']} збережено ({v['n']} послуг)"), 303)
+
+
+@app.post("/finance/service-pricing/restore/{vid:int}")
+def service_pricing_restore(vid: int, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import service_pricing as sp
+    n = sp.restore(db, vid, user.id, user.name)
+    audit(db, "service_pricing.restore", user=user, version=vid, n=n)
+    return RedirectResponse(_with_msg("/finance/service-pricing", f"Повернуто цін: {n}"), 303)
 
 
 # ---------------- Фінанси → Планування ціни реалізації ----------------

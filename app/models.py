@@ -180,6 +180,7 @@ class CbService(Base):
     specialist_note: Mapped[str | None] = mapped_column(Text)          # інформація для спеціаліста
     doctor_ids: Mapped[list | None] = mapped_column(JSON)              # хто надає послугу
     allow_price_change: Mapped[bool | None] = mapped_column(Boolean)   # дозволити зміну ціни при оплаті
+    zp_fixed: Mapped[float | None] = mapped_column(Float)              # ЗП лікаря за послугу вручну (інакше — за окладом)
 
 
 class ServiceLog(Base):
