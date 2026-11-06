@@ -71,35 +71,91 @@ function fwOpen(e,a){if(e&&(e.metaKey||e.ctrlKey||e.shiftKey))return true;if(e)e
 function fwClose(){document.getElementById('fw').classList.remove('on');document.getElementById('fw-f').src='about:blank';document.body.style.overflow=''}
 document.addEventListener('keydown',function(e){if(e.key==='Escape')fwClose()});
 </script>
-<div class="row between" id="fin-overview" style="margin-bottom:14px;scroll-margin-top:90px"><div><h1 style="font-size:22px">Фінансовий огляд</h1><div class="muted small">{{ d_from|dt }} — {{ d_to|dt }}{% if not fs.has_data %} · чеків з CleverBox за період немає (потрібна синхронізація){% endif %}</div></div>
-  <form class="row small"><input type="date" name="df" value="{{ d_from }}"><span class="muted">—</span><input type="date" name="dt_" value="{{ d_to }}"><button class="btn ghost">OK</button>
+{% set MN = ['Січ','Лют','Бер','Кві','Тра','Чер','Лип','Сер','Вер','Жов','Лис','Гру'] %}
+{% set MNF = ['Січень','Лютий','Березень','Квітень','Травень','Червень','Липень','Серпень','Вересень','Жовтень','Листопад','Грудень'] %}
+<style>
+.fo-h{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:8px 0 14px;scroll-margin-top:90px}
+.fo-h .eb{font:500 14px var(--head);letter-spacing:.24em;text-transform:uppercase;color:#5C4B82}.fo-h h1{margin:4px 0 2px;font:400 40px var(--head);text-transform:none;letter-spacing:0;color:#2A2430}
+.fo-h form{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.fo-h input{height:42px;margin:0;width:auto}
+.fo-c{background:#fff;border:1px solid #ECE7E1;border-radius:22px;padding:18px 20px;box-shadow:0 1px 2px rgba(42,36,48,.04),0 14px 34px -28px rgba(42,36,48,.35)}
+.fo-c h2{display:flex;align-items:center;gap:12px;margin:0;font:700 18px var(--head);letter-spacing:.08em;text-transform:uppercase;color:#2A2430}.fo-c h2 svg{width:26px;height:26px;color:#3B3050}
+.fo-c h3{display:flex;align-items:center;gap:12px;margin:0 0 14px;font:700 20px var(--sans);color:#3B3050}.fo-c h3 i{width:42px;height:42px;border-radius:12px;background:#EEEAF6;display:grid;place-items:center;color:#3B3050}.fo-c h3 svg{width:24px;height:24px}
+.fo-top{display:grid;grid-template-columns:minmax(0,1.9fr) minmax(0,1fr);gap:18px;margin-bottom:16px}@media(max-width:1100px){.fo-top{grid-template-columns:1fr}}
+.fo-fc{background:#F3EFF9;border-radius:18px;padding:16px 18px 20px}
+.ch{display:grid;grid-template-columns:48px 1fr;gap:6px;margin-top:34px}
+.ch .ax{position:relative;height:190px;font:500 12px var(--sans);color:#2A2430}.ch .ax span{position:absolute;right:4px;transform:translateY(50%)}
+.ch .ax em{position:absolute;top:-24px;right:4px;font-style:normal;color:#6b6575}
+.ch .pl{position:relative;height:190px;border-left:1px solid #D9D3DE;border-bottom:1px solid #D9D3DE;display:flex;align-items:flex-end;gap:8px;padding:0 6px}
+.ch .gl{position:absolute;left:0;right:0;border-top:1px solid #EEEAF1}
+.ch .b{flex:1;position:relative;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;min-width:0}
+.ch .b i{display:block;width:100%;max-width:54px;border-radius:8px 8px 3px 3px;background:#5C4B82;min-height:2px;transition:filter .15s}.ch .b:hover i{filter:brightness(1.12)}
+.ch .b i.pt{background:#E4DEEF}.ch.fc .b i{background:#E4DEEF;border:1.5px solid #B9ADDC}
+.ch .b b{font:700 14px var(--sans);color:#2A2430;margin-bottom:5px;white-space:nowrap}
+.ch .b .tag{white-space:nowrap;font:600 11px var(--sans);background:#E4DEEF;color:#3B3050;border-radius:8px;padding:3px 8px;margin-bottom:4px;align-self:flex-end}
+.ch .lb{display:flex;gap:8px;padding:6px 6px 0;grid-column:2}.ch .lb span{flex:1;text-align:center;font:500 12.5px/1.15 var(--sans);color:#2A2430;min-width:0}
+.fo-sc{display:inline-block;font:600 12px var(--sans);background:#E4DEEF;color:#3B3050;border-radius:8px;padding:4px 12px;margin:8px 0 0 38px}
+.fo-b3{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr) minmax(0,1fr);gap:16px}@media(max-width:1100px){.fo-b3{grid-template-columns:1fr}}
+.fo-t{width:100%;border-collapse:collapse;font-size:13.5px}.fo-t th{text-align:left;font:600 11.5px var(--sans);text-transform:uppercase;color:#2A2430;background:#F7F4F0;padding:9px 10px}.fo-t th:first-child{border-radius:10px 0 0 10px}.fo-t th:last-child{border-radius:0 10px 10px 0}
+.fo-t td{padding:9px 10px;border-bottom:1px solid #F1EDE8}.fo-t .r{text-align:right;white-space:nowrap}
+.fo-av{display:inline-grid;place-items:center;width:38px;height:38px;border-radius:50%;background:#EEEAF6 center/cover;color:#3B3050;font:600 12px var(--head);margin-right:10px;vertical-align:middle;flex:none}
+.fo-pm{display:grid;gap:14px}.fo-pm .r1{display:flex;justify-content:space-between;gap:8px;font:500 14px var(--sans);color:#2A2430}.fo-pm .r1 b{font-weight:600;white-space:nowrap}
+.fo-pm .br{height:12px;border-radius:99px;background:#EEEAF6;margin-top:6px;overflow:hidden}.fo-pm .br i{display:block;height:100%;border-radius:99px;background:#5C4B82}
+</style>
+<div class="fo-h" id="fin-overview"><div><div class="eb">Фінансовий огляд</div><h1>Дохід і прогноз</h1>
+  <div class="muted small">{{ d_from|dt }} — {{ d_to|dt }}{% if not fs.has_data %} · чеків з CleverBox за період немає (потрібна синхронізація){% endif %}</div></div>
+  <form><input type="date" name="df" value="{{ d_from }}"><span class="muted">—</span><input type="date" name="dt_" value="{{ d_to }}"><button class="btn ghost">OK</button>
     <a class="btn ghost" href="/export/report.xlsx?df={{ d_from }}&dt_={{ d_to }}">Excel</a></form></div>
-<div class="grid g5" style="margin-bottom:18px">
+<div class="grid g5" style="margin-bottom:16px">
   <div class="tile"><span>Виручка (чеки)</span><b>{{ fs.revenue|uah }}</b><div class="muted small">{{ fs.checks }} чеків · сер. {{ fs.avg_check|uah }}</div></div>
   <div class="tile"><span>Послуги / товари</span><b>{{ fs.services|uah }}</b><div class="muted small">товари {{ fs.products|uah }}{{ (' · інше ' ~ (fs.other|uah)) if fs.other }}</div></div>
   <div class="tile"><span>Через бюті-плани</span><b>{{ fs.via_plans|uah }}</b><div class="bar" style="margin-top:6px"><i style="width:{{ [fs.plans_share,100]|min }}%"></i></div><div class="muted small">{{ fs.plans_share }}% виручки — пацієнти з планом</div></div>
   <div class="tile"><span>Плани за період</span><b>{{ total.planned_sum|uah }}</b><div class="muted small">реалізовано {{ total.realized_sum|uah }} ({{ total.realization_pct }}%)</div></div>
   <div class="tile"><span>Знижки</span><b>{{ fs.discount|uah }}</b><div class="muted small">{{ ((100*fs.discount/(fs.revenue+fs.discount))|round(1)) if fs.revenue else 0 }}% від суми</div></div>
 </div>
-<div class="card"><div class="row between"><h2>Факт за 12 місяців і прогноз за бюті-планами</h2>
-  <div class="legend"><span><i class="c1"></i>Факт: послуги</span><span><i class="c2"></i>Факт: товари</span><span><i class="c3"></i>Прогноз за планами</span></div></div>
-  <div class="fc" style="height:220px">
-    {% for m in fs.months %}<div class="col"><div class="small" style="font-weight:600;font-size:11px">{{ ((m.revenue/1000)|round(0)|int ~ 'k') if m.revenue else '' }}</div>
-      <div class="stack" style="height:{{ (m.revenue / m_max * 160)|round(0) }}px"><div class="c1" style="flex:{{ m.services or 0.0001 }}"></div><div class="c2" style="flex:{{ m.products }}"></div><div style="flex:{{ [m.revenue - m.services - m.products, 0]|max }};background:#bdb3a6"></div></div>
-      <div class="muted small">{{ m.month[5:] }}.{{ m.month[2:4] }}</div></div>{% endfor %}
-    {% for r in fc[1:] %}<div class="col"><div class="small" style="font-size:11px;color:var(--muted)">{{ ((r.total/1000)|round(0)|int ~ 'k') if r.total else '' }}</div>
-      <div class="stack" style="height:{{ (r.total / m_max * 160)|round(0) }}px"><div class="c3" style="flex:1"></div></div>
-      <div class="muted small">{{ r.month[5:] }}.{{ r.month[2:4] }}</div></div>{% endfor %}
-  </div></div>
-<div class="grid g2">
-  <div class="card"><h2>За спеціалістами</h2><table class="small"><thead><tr><th>Спеціаліст</th><th class="r">Послуги</th><th class="r">Кількість</th><th class="r">Товари</th><th class="r">Разом</th></tr></thead><tbody>
-    {% for name, v in fs.by_staff.items() %}<tr><td>{{ name }}</td><td class="r">{{ v.services|uah }}</td><td class="r">{{ v.count }}</td><td class="r">{{ v.products|uah }}</td><td class="r"><b>{{ (v.services+v.products)|uah }}</b></td></tr>
-    {% else %}<tr><td colspan="5" class="muted">Немає даних</td></tr>{% endfor %}</tbody></table></div>
-  <div class="card"><h2>За способами оплати</h2><table class="small"><tbody>
-    {% for name, v in fs.by_payment.items() %}<tr><td>{{ name }}</td><td class="r">{{ v|uah }}</td><td style="width:40%"><div class="bar"><i style="width:{{ (100*v/fs.revenue)|round(0) if fs.revenue else 0 }}%"></i></div></td></tr>
-    {% else %}<tr><td class="muted">Немає даних</td></tr>{% endfor %}</tbody></table>
-    <h2 style="margin-top:18px">Прогноз за бюті-планами</h2>
-    <table class="small"><thead><tr><th>Місяць</th><th class="r">Записи</th><th class="r">Очікується</th><th class="r">Догляд</th><th class="r">Разом</th></tr></thead><tbody>
-    {% for r in fc %}<tr><td>{{ r.month[5:] }}.{{ r.month[:4] }}</td><td class="r">{{ r.confirmed|uah }}</td><td class="r">{{ r.expected|uah }}</td><td class="r">{{ r.care|uah }}</td><td class="r"><b>{{ r.total|uah }}</b></td></tr>{% endfor %}</tbody></table></div>
+
+{% set months = fs.months %}{% set mx = (months|map(attribute='revenue')|max if months else 0) / 1000 %}
+{% set fcs = fc[1:] %}{% set fx = (fcs|map(attribute='total')|max if fcs else 0) / 1000 %}
+{% set STEPS = [3,6,9,12,15,30,45,60,90,120,150,300,450,600,900,1200,1500,1800,2400,3000,4500,6000,9000,12000,15000,30000] %}
+{% set top1 = (STEPS|select('ge', [mx, 1]|max)|first) or mx %}{% set top2 = (STEPS|select('ge', [fx, 1]|max)|first) or fx %}
+<div class="fo-c fo-top">
+  <div>
+    <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 20h16M6 20V11M10.5 20V5M15 20v-7M19.5 20V9"/></svg>Факт за 12 місяців
+      {% if months %}<span class="muted small" style="margin-left:auto;font:500 13px var(--sans);letter-spacing:0;text-transform:none;border:1px solid #E6E0D8;border-radius:12px;padding:8px 14px;color:#2A2430">{{ MNF[months[0].month[5:]|int - 1] }} {{ months[0].month[:4] }} — {{ MNF[months[-1].month[5:]|int - 1]|lower }} {{ months[-1].month[:4] }}</span>{% endif %}</h2>
+    <div class="ch">
+      <div class="ax"><em>тис. ₴</em>{% for k in range(4) %}<span style="bottom:{{ k * 33.333 }}%">{{ '{:,.0f}'.format(top1 * k / 3).replace(',', ' ') }}</span>{% endfor %}</div>
+      <div class="pl">{% for k in range(1, 4) %}<div class="gl" style="bottom:{{ k * 33.333 }}%"></div>{% endfor %}
+        {% for m in months %}{% set v = m.revenue / 1000 %}{% set part = loop.last and m.month == today.strftime('%Y-%m') %}
+        <div class="b" title="{{ MNF[m.month[5:]|int - 1] }} {{ m.month[:4] }}: {{ m.revenue|uah }} · послуги {{ m.services|uah }} · товари {{ m.products|uah }}">
+          {% if part %}<span class="tag">Неповний місяць</span>{% endif %}<b>{{ '{:,.0f}'.format(v).replace(',', ' ') if v >= 1 else ('%.1f'|format(v) if v else '') }}</b>
+          <i class="{{ 'pt' if part }}" style="height:{{ (v / top1 * 100)|round(1) if top1 else 0 }}%"></i></div>{% endfor %}</div>
+      <div class="lb">{% for m in months %}<span>{{ MN[m.month[5:]|int - 1] }}<br>{{ m.month[2:4] }}</span>{% endfor %}</div>
+    </div>
+  </div>
+  <div class="fo-fc">
+    <h2 style="font-size:16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/></svg>Прогноз за бюті-планами</h2>
+    <span class="fo-sc" title="Прогноз має свою шкалу — не порівнюйте висоту стовпців з фактом">Окрема шкала</span>
+    {% if fcs %}<div class="ch fc">
+      <div class="ax"><em>тис. ₴</em>{% for k in range(4) %}<span style="bottom:{{ k * 33.333 }}%">{{ '{:,.0f}'.format(top2 * k / 3).replace(',', ' ') }}</span>{% endfor %}</div>
+      <div class="pl">{% for k in range(1, 4) %}<div class="gl" style="bottom:{{ k * 33.333 }}%"></div>{% endfor %}
+        {% for r in fcs %}{% set v = r.total / 1000 %}<div class="b" title="{{ MNF[r.month[5:]|int - 1] }} {{ r.month[:4] }}: {{ r.total|uah }} · записи {{ r.confirmed|uah }} · очікується {{ r.expected|uah }} · догляд {{ r.care|uah }}">
+          <b>{{ '{:,.0f}'.format(v).replace(',', ' ') if v >= 1 or v == 0 else '%.1f'|format(v) }}</b><i style="height:{{ (v / top2 * 100)|round(1) if top2 else 0 }}%"></i></div>{% endfor %}</div>
+      <div class="lb">{% for r in fcs %}<span>{{ MN[r.month[5:]|int - 1] }}{{ r.month[2:4] }}</span>{% endfor %}</div></div>
+    {% else %}<div class="muted small" style="margin-top:20px">Прогнозу ще немає — з'явиться з бюті-планами пацієнтів.</div>{% endif %}
+  </div>
+</div>
+
+<div class="fo-b3">
+  <div class="fo-c"><h3><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5M16 4.5a3.5 3.5 0 0 1 0 7M18.5 14.8c1.6.8 2.6 2.6 3 5.2"/></svg></i>За спеціалістами</h3>
+    <div style="overflow-x:auto"><table class="fo-t"><thead><tr><th>Спеціаліст</th><th class="r">Послуги</th><th class="r">Кількість</th><th class="r">Товари</th><th class="r">Разом</th></tr></thead><tbody>
+    {% for name, v in fs.by_staff.items() %}<tr><td style="white-space:nowrap">{% set ph = staff_ph.get(name) %}<span class="fo-av" {% if ph %}style="background-image:url('{{ ph }}')"{% endif %}>{{ '' if ph else (name.split()|map('first')|join)[:2] }}</span>{{ name }}</td>
+      <td class="r">{{ v.services|uah }}</td><td class="r">{{ v.count }}</td><td class="r">{{ v.products|uah }}</td><td class="r"><b>{{ (v.services+v.products)|uah }}</b></td></tr>
+    {% else %}<tr><td colspan="5" class="muted">Немає даних</td></tr>{% endfor %}</tbody></table></div></div>
+  <div class="fo-c"><h3><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M3 10h18M7 15h4"/></svg></i>Способи оплати</h3>
+    <div class="fo-pm">{% for name, v in fs.by_payment.items() %}<div><div class="r1"><span>{{ name }}</span><b>{{ v|uah }}</b></div><div class="br"><i style="width:{{ (100*v/fs.revenue)|round(0) if fs.revenue else 0 }}%"></i></div></div>
+    {% else %}<div class="muted small">Немає даних</div>{% endfor %}</div></div>
+  <div class="fo-c"><h3><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M8 3v4M16 3v4M3.5 10h17"/></svg></i>Прогноз за планами</h3>
+    <table class="fo-t"><thead><tr><th>Місяць</th><th class="r">Разом</th></tr></thead><tbody>
+    {% for r in fc %}<tr title="Записи {{ r.confirmed|uah }} · очікується {{ r.expected|uah }} · догляд {{ r.care|uah }}"><td>{{ MNF[r.month[5:]|int - 1] }} {{ r.month[:4] }}</td><td class="r"><b>{{ r.total|uah }}</b></td></tr>
+    {% else %}<tr><td colspan="2" class="muted">Немає даних</td></tr>{% endfor %}</tbody></table></div>
 </div>
 {% endblock %}

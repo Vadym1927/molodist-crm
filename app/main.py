@@ -7614,7 +7614,8 @@ def finance_page(request: Request, df: str | None = None, dt_: str | None = None
     sts = all_statuses(db, d_from, d_to)
     total, _ = kpi_summary(sts)
     m_max = max([m["revenue"] for m in fs.months] + [r["total"] for r in fc] + [1])
-    return render(request, "finance.html", fs=fs, fc=fc, total=total, d_from=d_from, d_to=d_to, m_max=m_max)
+    staff_ph = {d_.name: d_.photo_url for d_ in db.scalars(select(Doctor)) if d_.photo_url}
+    return render(request, "finance.html", fs=fs, fc=fc, total=total, d_from=d_from, d_to=d_to, m_max=m_max, staff_ph=staff_ph, today=today)
 
 
 # ---------------- Сертифікати й абонементи ----------------
