@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Бонус за продаж косметики · Звіти{% endblock %}
+{% block body %}
+{% set X = rep.extra %}{% set c = X.cfg %}{% set t = rep.total or {} %}
+{% macro av(name, photo, sz=40) %}<span class="bc-av" style="width:{{ sz }}px;height:{{ sz }}px;{% if photo %}background-image:url('{{ photo }}'){% endif %}">{% if not photo %}{{ (name.split()|map('first')|join)[:2] }}{% endif %}</span>{% endmacro %}
+{% set PIC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6v3H9zM8 6h8l1 3v11a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V9z"/><path d="M7 12h10"/></svg>' %}
+<style>
+.bc-h{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.bc-h h1{margin:4px 0 2px;font-size:32px;text-transform:none;letter-spacing:0;font-weight:700;color:#2A2430}
+.bc-f{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:12px 14px;margin-bottom:14px;display:grid;gap:10px;box-shadow:0 1px 2px rgba(42,36,48,.04)}
+.bc-per{display:flex;gap:6px;flex-wrap:wrap}.bc-per a{padding:7px 14px;border-radius:99px;border:1px solid #E6E0D8;background:#fff;text-decoration:none;font:600 13px var(--sans);color:#2A2430}
+.bc-per a.on{background:#E4DEEF;border-color:#C9BFE6;color:#3B3050}
+.bc-f form{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.bc-f input,.bc-f select{height:42px;margin:0;width:auto}.bc-f select{min-width:200px}
+.bc-f .go{margin-left:auto;height:42px;padding:0 20px;border-radius:12px;background:#3B3050;color:#fff;border:0;font:700 14px var(--sans);cursor:pointer}
+.bc-k{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:14px}@media(max-width:900px){.bc-k{grid-template-columns:1fr}}
+.bc-k>div{display:flex;align-items:center;gap:14px;background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:16px 18px;box-shadow:0 1px 2px rgba(42,36,48,.04)}
+.bc-k>div.hi{background:#F1EDF8;border-color:#E4DEEF}
+.bc-k i{width:50px;height:50px;border-radius:14px;background:#EEEAF6;color:#3B3050;display:grid;place-items:center;flex:none}.bc-k>div.hi i{background:#fff}.bc-k i svg{width:26px;height:26px}
+.bc-k span{display:block;font:700 11.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#6b6575}.bc-k b{display:block;font:700 26px var(--sans);color:#2A2430;margin-top:2px}.bc-k small{color:#6b6575}
+.bc-c{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:16px 18px;margin-bottom:14px;box-shadow:0 1px 2px rgba(42,36,48,.04)}
+.bc-c h2{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 12px;font:700 19px var(--sans);text-transform:none;letter-spacing:0;color:#2A2430}
+.bc-c h2 em{font:600 12.5px var(--sans);font-style:normal;background:#E4DEEF;color:#3B3050;border-radius:99px;padding:4px 12px}
+.bc-av{display:inline-grid;place-items:center;border-radius:50%;background:#EEEAF6 center/cover no-repeat;color:#3B3050;font:600 13px var(--head);flex:none;box-shadow:0 0 0 2px #fff,0 0 0 3px #ECE7E1}
+.bc-st{display:grid;grid-template-columns:minmax(180px,260px) 1fr auto;gap:14px;align-items:center;padding:7px 0}
+.bc-st .nm{display:flex;align-items:center;gap:12px;font:600 15px var(--sans);color:#2A2430;min-width:0}.bc-st .nm span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bc-st .br{height:14px;border-radius:99px;background:#F2EFEA;overflow:hidden}.bc-st .br i{display:block;height:100%;border-radius:99px;background:#5C4B82}.bc-st:nth-child(n+3) .br i{background:#9C8FC4}
+.bc-st .sm{font:700 16px var(--sans);color:#2A2430;white-space:nowrap}.bc-st .sm small{font:500 12px var(--sans);color:#8a8496;margin-left:6px}
+.bc-rl{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#FBFAF8;border:1px solid #ECE7E1;border-radius:16px;padding:10px 14px;margin-bottom:14px}
+.bc-rl .b{font:600 13px var(--sans);color:#2A2430;padding-right:12px;border-right:1px solid #E6E0D8}
+.bc-rl .r{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #ECE7E1;border-radius:12px;padding:7px 12px}
+.bc-rl .r i{width:30px;height:30px;border-radius:9px;background:#EEEAF6;color:#3B3050;display:grid;place-items:center;font-style:normal;font:700 13px var(--sans)}
+.bc-rl .r b{display:block;font:700 14px var(--sans);color:#2A2430}.bc-rl .r small{display:block;font-size:11.5px;color:#6b6575}.bc-rl .r.x b{color:#B23B2E}
+.bc-rl a{margin-left:auto;font:600 13px var(--sans);color:#5C4B82;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+.bc-tl{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}.bc-tl h2{margin:0;flex:1}
+.bc-q{position:relative;min-width:260px}.bc-q svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:#6b6575}.bc-q input{margin:0;height:40px;padding-left:36px;border-radius:12px;width:100%}
+.bc-sg{display:inline-flex;background:#F1EDF8;border-radius:12px;padding:3px;gap:2px}.bc-sg button{border:0;background:transparent;border-radius:9px;padding:7px 16px;font:600 13px var(--sans);color:#5C4B82;cursor:pointer}.bc-sg button.on{background:#3B3050;color:#fff}
+.bc-t{width:100%;border-collapse:collapse;font-size:13.5px}.bc-t th{text-align:left;font:600 12px var(--sans);color:#2A2430;background:#F7F4F0;padding:10px}.bc-t th.r,.bc-t td.r{text-align:right;white-space:nowrap}
+.bc-t td{padding:8px 10px;border-bottom:1px solid #F1EDE8;vertical-align:middle}
+.bc-t tr.g td{background:#EEEAF6;border-bottom:0;padding:9px 10px;cursor:pointer}.bc-t tr.g td:first-child{border-radius:10px 0 0 10px}.bc-t tr.g td:last-child{border-radius:0 10px 10px 0}
+.bc-t tr.g .gn{display:flex;align-items:center;gap:10px;font:700 15px var(--sans);color:#2A2430}.bc-t tr.g .gn small{font:500 12.5px var(--sans);color:#6b6575}
+.bc-t tr.g .ch{transition:transform .15s;color:#3B3050;font-size:14px;width:16px;display:inline-block}.bc-t tr.g.closed .ch{transform:rotate(-90deg)}
+.bc-pn{display:flex;align-items:center;gap:12px}.bc-ph{width:44px;height:44px;border-radius:10px;border:1px solid #ECE7E1;background:#fff center/contain no-repeat;flex:none;display:grid;place-items:center;color:#C9BFE6}.bc-ph svg{width:22px;height:22px}
+.bc-pn b{display:block;font:600 13.5px var(--sans);color:#2A2430;line-height:1.3}.bc-pn small{display:block;color:#8a8496;font-size:12px}
+.bc-pill{display:inline-block;border-radius:8px;padding:3px 10px;font:600 12px var(--sans);background:#F2EFEA;color:#2A2430;line-height:1.3}.bc-pill.w{background:#FFF1D6;color:#9A6A00}.bc-pill.x{background:#FDECEA;color:#B23B2E}
+.bc-sum{display:inline-block;border-radius:8px;padding:4px 10px;font:700 13.5px var(--sans);background:#EEEAF6;color:#2A2430}.bc-sum.z{background:transparent;color:#B7B0BD;font-weight:600}
+.bc-tot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:#3B3050;color:#fff;border-radius:14px;padding:14px 20px;margin-top:12px;font:500 15px var(--sans)}
+.bc-tot b{font:700 18px var(--sans)}.bc-tot>span{padding-left:16px;border-left:1px solid rgba(255,255,255,.25)}.bc-tot>span:first-child{border:0;padding:0;font:700 18px var(--sans)}
+</style>
+<div class="bc-h"><div><div class="eyebrow"><a href="/reports">Усі звіти</a></div><h1>Бонус за продаж косметики</h1><div class="muted small">{{ d_from|dt('%d.%m.%Y') }} — {{ d_to|dt('%d.%m.%Y') }}</div></div>
+  <a class="btn ghost" href="?r=cosmetics&df={{ d_from }}&dt_={{ d_to }}{{ ('&staff=' ~ X.staff|urlencode) if X.staff }}&fmt=xlsx">⤓ Excel</a></div>
+
+<div class="bc-f">
+  <div class="bc-per">{% for k, v in PERIODS.items() %}<a href="?r=cosmetics&period={{ k }}{{ ('&staff=' ~ X.staff|urlencode) if X.staff }}" class="{{ 'on' if period == k }}">{{ v }}</a>{% endfor %}</div>
+  <form><input type="hidden" name="r" value="cosmetics"><input type="date" name="df" value="{{ d_from }}"><span class="muted">—</span><input type="date" name="dt_" value="{{ d_to }}">
+    <span class="muted small" style="margin-left:8px">Лікар:</span><select name="staff"><option value="">Усі</option>{% for x in X.staff_all %}<option {{ 'selected' if X.staff == x }}>{{ x }}</option>{% endfor %}</select>
+    <button class="go">Застосувати</button></form></div>
+
+<div class="bc-k">
+  <div class="hi"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><ellipse cx="10" cy="6" rx="6" ry="2.5"/><path d="M4 6v4c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5V6M4 10v4c0 1.4 2.7 2.5 6 2.5"/><circle cx="17.5" cy="17.5" r="4"/><path d="M17.5 15.5v4M15.5 17.5h4"/></svg></i><div><span>Нараховано лікарям</span><b>{{ (t.sum or 0)|uah }}</b></div></div>
+  <div><i>{{ PIC|safe }}</i><div><span>Продано косметики</span><b>{{ (t.paid or 0)|uah }}</b><small>{{ '%g'|format(t.qty or 0) }} одиниць</small></div></div>
+  <div><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/></svg></i><div><span>Продажі без бонусу</span><b>{{ rep.tiles[2][1]|uah if rep.tiles|length > 2 else '—' }}</b></div></div>
+</div>
+
+{% if X.groups %}{% set mx = X.groups|map(attribute='sum')|max %}
+<div class="bc-c"><h2>Нарахування за лікарями <em>{{ X.groups|length }} {{ 'спеціаліст' if X.groups|length == 1 else ('спеціалісти' if X.groups|length < 5 else 'спеціалістів') }}</em></h2>
+  {% for g in X.groups %}<div class="bc-st"><div class="nm">{{ av(g.staff, g.photo, 40) }}<span>{{ g.staff }}</span></div>
+    <div class="br"><i style="width:{{ (100 * g.sum / mx)|round(1) if mx else 0 }}%"></i></div>
+    <div class="sm">{{ g.sum|uah }}{% if t.sum %}<small>({{ '%.1f'|format(100 * g.sum / t.sum) }}%)</small>{% endif %}</div></div>{% endfor %}</div>
+{% endif %}
+
+<div class="bc-rl"><span class="b">{{ BASES.get(c.base, '')|capitalize }}</span>
+  <span class="r"><i>%</i><span><b>{{ '%g'|format(c.full) }}%</b><small>Без знижки</small></span></span>
+  <span class="r"><i>−</i><span><b>{{ '%g'|format(c.disc) }}%</b><small>Зі знижкою{{ (' понад ' ~ '%g'|format(c.disc_from) ~ '%') if c.disc_from }}</small></span></span>
+  {% if c.min_price %}<span class="r"><i>₴</i><span><b>{{ '%g'|format(c.low) }}%</b><small>Товар до {{ '{:,.0f}'.format(c.min_price).replace(',', ' ') }} ₴</small></span></span>{% endif %}
+  {% for tr in c.tiers or [] %}<span class="r {{ 'x' if not tr.pct }}"><i>!</i><span><b>{{ ('%g'|format(tr.pct) ~ '%') if tr.pct else 'не нарах.' }}</b><small>Знижка понад {{ '%g'|format(tr['from']) }}%</small></span></span>{% endfor %}
+  <a href="/settings/cosmetics-pct">⚙ Налаштувати правила</a></div>
+
+<div class="bc-c">
+  <div class="bc-tl"><h2>Деталізація продажів</h2>
+    <label class="bc-q"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="bc-q" placeholder="Пошук товару або чека" oninput="bcF()"></label>
+    <div class="bc-sg" id="bc-sg"><button type="button" class="on" data-v="" onclick="bcM(this)">Усі</button><button type="button" data-v="y" onclick="bcM(this)">З бонусом</button><button type="button" data-v="n" onclick="bcM(this)">Без бонусу</button></div></div>
+  {% if X.groups %}<div style="overflow-x:auto"><table class="bc-t"><thead><tr><th>Товар</th><th>Дата</th><th class="r">К-сть</th><th class="r">Ціна</th><th class="r">Сума продажу</th><th>Умова</th><th class="r">%</th><th class="r">Бонус</th></tr></thead>
+  {% for g in X.groups %}<tbody data-g="{{ loop.index }}"><tr class="g" onclick="bcT(this)"><td colspan="7"><div class="gn"><span class="ch">▾</span>{{ av(g.staff, g.photo, 34) }}{{ g.staff }} <small>· {{ g.n }} {{ 'товар' if g.n == 1 else ('товари' if g.n < 5 else 'товарів') }} · продано {{ g.paid|uah }}</small></div></td><td class="r"><b>{{ g.sum|uah }}</b></td></tr>
+    {% for z in g.rows %}{% set cls = '' if z.sum else ('x' if 'не нарахов' in (z.rule or '') else 'w') %}<tr class="it" data-b="{{ 'y' if z.sum else 'n' }}" data-q="{{ (z.name ~ ' ' ~ z.ref)|lower }}">
+      <td><div class="bc-pn">{% if z.photo %}<span class="bc-ph" style="background-image:url('{{ z.photo }}')"></span>{% else %}<span class="bc-ph">{{ PIC|safe }}</span>{% endif %}<div><b>{{ z.name }}</b><small>{{ z.ref[:1]|upper ~ z.ref[1:] }}</small></div></div></td>
+      <td style="white-space:nowrap">{{ z.at|dt('%d.%m.%Y') }}</td><td class="r">{{ '%g'|format(z.qty) }}</td><td class="r">{{ z.price|uah }}</td><td class="r">{{ z.paid|uah }}</td>
+      <td><span class="bc-pill {{ cls }}">{{ (z.rule or '')[:1]|upper ~ (z.rule or '')[1:] }}</span></td><td class="r">{{ '%g'|format(z.pct) }}%</td>
+      <td class="r"><span class="bc-sum {{ '' if z.sum else 'z' }}">{{ z.sum|uah }}</span></td></tr>{% endfor %}</tbody>{% endfor %}
+  </table></div>
+  <div class="bc-tot"><span>Разом</span><span><b>{{ '%g'|format(t.qty or 0) }}</b> одиниць</span><span><b>{{ (t.paid or 0)|uah }}</b> продажів</span><span><b>{{ (t.sum or 0)|uah }}</b> бонусів</span></div>
+  {% else %}<div class="muted">{{ rep.empty }}</div>{% endif %}
+</div>
+<script>
+var BCM='';
+function bcT(tr){var tb=tr.parentNode,cl=!tr.classList.contains('closed');tr.classList.toggle('closed',cl);tb.querySelectorAll('tr.it').forEach(function(r){r.dataset.c=cl?'1':''});bcF()}
+function bcM(b){BCM=b.dataset.v;document.querySelectorAll('#bc-sg button').forEach(function(x){x.classList.toggle('on',x===b)});bcF()}
+function bcF(){var q=(document.getElementById('bc-q').value||'').toLowerCase().trim();
+  document.querySelectorAll('.bc-t tbody').forEach(function(tb){var any=false;tb.querySelectorAll('tr.it').forEach(function(r){var ok=(!q||r.dataset.q.indexOf(q)>=0)&&(!BCM||r.dataset.b===BCM);if(ok)any=true;r.style.display=ok&&!r.dataset.c?'':'none'});tb.style.display=any?'':'none'})}
+</script>
+{% endblock %}

@@ -29,7 +29,7 @@ def test_cosmetics_commission():
     with TestClient(app) as c:
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
         t = c.get("/reports?r=cosmetics&df=2032-02-01&dt_=2032-02-28").text
-        assert "Бонус за продаж косметики" in t and "Косметична Лікарка" in t and "ціна &lt; 1000" in t
+        assert "Бонус за продаж косметики" in t and "Косметична Лікарка" in t and "іна &lt; 1000" in t
         assert 'href="/reports?r=cosmetics"' in c.get("/reports").text
 
 

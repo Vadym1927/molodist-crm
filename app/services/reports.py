@@ -41,6 +41,7 @@ class Report:
     empty: str = "За період немає даних."
     filters: list = field(default_factory=list)     # [{name, label, options [(value, label)], value}]
     grouped: bool = False                           # рядки-групи (_group) — без сортування кліком
+    extra: dict = field(default_factory=dict)       # дані для окремого вигляду звіту (напр. бонус за косметику)
 
     def finish(self):
         rows = [r for r in self.rows if not r.get("_group")]
@@ -682,6 +683,20 @@ def cosmetics(db: Session, d_from: date, d_to: date, staff: str = "") -> Report:
     r.filters = [{"name": "staff", "label": "Лікар", "value": staff, "options": [("", "Усі")] + [(x, x) for x in staff_all]}]
     r.chart = [(w[:18], sum(z["sum"] for z in xs)) for w, xs in sorted(by.items(), key=lambda kv: -sum(z["sum"] for z in kv[1]))[:12]]
     r.chart_title = "Нараховано за лікарями"
+    # окремий вигляд: аватари лікарів і фото товарів
+    from ..models import Product
+    from ..parsers.observ import norm as _nrm
+    doc_ph = {d.name: d.photo_url for d in db.scalars(select(Doctor)) if d.photo_url}
+    p_ph, p_ph_id = {}, {}
+    for pid, nm, ph in db.execute(select(Product.id, Product.name, Product.photo_url).where(Product.photo_url.is_not(None))):
+        p_ph_id[pid] = ph
+        p_ph.setdefault(_nrm(nm or ""), ph)
+    groups = []
+    for who, xs in sorted(by.items(), key=lambda kv: -sum(z["sum"] for z in kv[1])):
+        groups.append({"staff": who, "photo": doc_ph.get(who), "n": len(xs), "qty": sum(z["qty"] for z in xs),
+                       "paid": round(sum(z["paid"] for z in xs), 2), "sum": round(sum(z["sum"] for z in xs), 2),
+                       "rows": [{**z, "photo": p_ph_id.get(z.get("product_id")) or p_ph.get(_nrm(z["name"] or ""))} for z in xs]})
+    r.extra = {"groups": groups, "staff_all": staff_all, "staff": staff, "cfg": rules.c}
     r.finish()
     t = r.total or {}
     r.tiles = [("Нараховано лікарям", t.get("sum", 0), None, "uah", ""),

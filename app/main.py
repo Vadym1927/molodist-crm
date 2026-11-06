@@ -8047,6 +8047,10 @@ def reports_page(request: Request, r: str = "revenue", period: str = "month", df
                         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         headers={"Content-Disposition": f'attachment; filename="report-{key}-{d_from}-{d_to}.xlsx"'})
     p_from, p_to = rp.prev_period(d_from, d_to)
+    if key == "cosmetics":
+        from .services import cosmetics_pct as _cp
+        return render(request, "rep_cosmetics.html", nav="reports", rep=rep, PERIODS=REPORT_PERIODS, key=key, period=period,
+                      d_from=d_from, d_to=d_to, BASES=_cp.BASES)
     return render(request, "reports.html", rep=rep, REPORTS=rp.REPORTS, PERIODS=REPORT_PERIODS, key=key, period=period,
                   d_from=d_from, d_to=d_to, p_from=p_from, p_to=p_to,
                   c_max=max([v for _, v in rep.chart] + [1]))
