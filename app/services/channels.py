@@ -187,6 +187,12 @@ def test(db: Session, cid: int, http: httpx.Client | None = None) -> tuple[bool,
             tok = secret(ch, "page_token")
             if not tok:
                 return False, "Немає токена сторінки Meta — підключення через Facebook ще не налаштовано в CRM"
+            if tok.startswith("IG"):                                   # токен Instagram API (Instagram Login), не сторінки Facebook
+                ji = http.get("https://graph.instagram.com/v21.0/me", params={"access_token": tok, "fields": "user_id,username"}).json()
+                if ji.get("error"):
+                    return False, f"Instagram: {ji['error'].get('message', 'помилка')[:200]}"
+                return True, (f"Підключено Instagram · @{ji.get('username')} (токен Instagram). Для Facebook Messenger потрібен ще токен "
+                              "сторінки (починається з EAA) — з розділу Messenger API Settings")
             js = http.get("https://graph.facebook.com/v19.0/me", params={"access_token": tok, "fields": "id,name"}).json()
             if js.get("error"):
                 e1 = js["error"]
@@ -195,6 +201,9 @@ def test(db: Session, cid: int, http: httpx.Client | None = None) -> tuple[bool,
                     return True, (f"Токен робочий (ID сторінки {js2['id']}), але бракує дозволу pages_read_engagement — "
                                   "додайте його в сценарії Messenger і згенеруйте токен ще раз")
                 msg = e1.get("message", "помилка")
+                if not tok.startswith("EAA"):
+                    return False, ("Meta: це не схоже на токен сторінки Facebook (він починається з «EAA»). Скопіюйте токен з "
+                                   "Messenger API Settings → Generate access tokens → «Молодість» → Generate")
                 if e1.get("code") == 190:
                     msg += " — токен протух або недійсний, згенеруйте новий"
                 elif e1.get("code") in (10, 100, 200):
