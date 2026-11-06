@@ -23,20 +23,47 @@ WH_CAT = {"single": "Одноразка", "inject": "Препарат", "classic
 
 
 # ---------------- ціни ----------------
+def _same_unit(a: str | None, b: str | None) -> bool:
+    f = lambda x: (x or "").strip().lower().rstrip(".")
+    return bool(f(a)) and f(a) == f(b)
+
+
 def unit_costs(db: Session) -> dict[int, float]:
-    """Ціна одиниці обліку (шт., мл, м) для собівартості: ціна закупівлі товару за одиницю приходу (розраховується з проведених
-    поставок — як у CleverBox), поділена на коефіцієнт фасування (скільки одиниць обліку в упаковці / флаконі),
-    якщо її немає — остання закупівля, далі собівартість залишку."""
+    """Ціна одиниці обліку (шт., мл, МО, м) для собівартості — як у CleverBox: ціна закупівлі товару (Product.cost),
+    якщо її немає — остання закупівля (ProductPurchase, уже за одиницю обліку), далі собівартість залишку.
+    Ціна закупівлі ділиться на коефіцієнт фасування лише коли одиниця приходу інша, ніж одиниця обліку (уп. → шт.).
+    Якщо одиниці однакові (МО / МО, шт / шт) — CleverBox уже дає ціну за одиницю обліку, коеф. лише довідковий
+    (раніше ділилось удруге: Нейронокс 70 МО = 16,88 ₴ замість ~3 375 ₴, шприц 0,08 ₴ замість 3,86 ₴)."""
     out: dict[int, float] = {}
     for pp in db.scalars(select(ProductPurchase).where(ProductPurchase.unit_cost > 0).order_by(ProductPurchase.bought_on, ProductPurchase.id)):
         out[pp.product_id] = float(pp.unit_cost)
     for p in db.scalars(select(Product)):
-        k = float(p.coef) if p.coef and p.coef > 0 else 1.0      # ціна закупівлі — за одиницю приходу (уп., флакон) → за одиницю обліку
+        k = float(p.coef) if p.coef and p.coef > 0 else 1.0
+        if _same_unit(p.purchase_unit, p.unit):
+            k = 1.0
         if p.cost and float(p.cost) > 0:
             out[p.id] = float(p.cost) / k
         elif p.id not in out:
             out[p.id] = float(p.stock_cost or 0) / k
     return out
+
+
+def fix_unit_costs_v1(db: Session) -> int:
+    """Один раз: перерахувати ціну одиниці у витратних візитів для товарів, де коеф. фасування ділив ціну вдруге
+    (одиниця приходу = одиниці обліку). Кількості й списання зі складу не змінюються — лише собівартість."""
+    if db.get(SyncState, "visit_unit_cost_fix_v1"):
+        return 0
+    uc = unit_costs(db)
+    bad = {p.id for p in db.scalars(select(Product)) if p.coef and p.coef > 1 and _same_unit(p.purchase_unit, p.unit)}
+    n = 0
+    if bad:
+        for m in db.scalars(select(VisitMaterial).where(VisitMaterial.product_id.in_(bad))):
+            new = round(uc.get(m.product_id, 0.0), 4)
+            if new and abs((m.unit_cost or 0) - new) > 1e-6:
+                m.unit_cost, n = new, n + 1
+    db.merge(SyncState(key="visit_unit_cost_fix_v1", value=str(n)))
+    db.commit()
+    return n
 
 
 def card_cost(card: TechCard, uc: dict[int, float]) -> float:

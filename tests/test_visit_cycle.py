@@ -101,3 +101,13 @@ def test_unit_cost_per_pack_divided_by_coef():
         p = Product(name="Маска уп", name_norm="маска уп", warehouse="single", unit="шт.", purchase_unit="уп.", coef=50, cost=75)
         db.add(p); db.commit()
         assert tc.unit_costs(db)[p.id] == 1.5             # 75 ₴ за упаковку / 50 шт.
+
+
+def test_unit_cost_same_units_not_divided():
+    """Одиниця приходу = одиниці обліку (МО/МО, шт/шт) — ціна CleverBox уже за одиницю, коефіцієнт не ділить."""
+    with SessionLocal() as db:
+        p = Product(name="Ботулотоксин тест", name_norm="ботулотоксин тест", warehouse="inject", unit="МО", purchase_unit="МО", coef=200, cost=48.22)
+        s = Product(name="Шприц тест к", name_norm="шприц тест к", warehouse="single", unit="шт", purchase_unit="шт", coef=50, cost=3.86)
+        db.add_all([p, s]); db.commit()
+        uc = tc.unit_costs(db)
+        assert round(uc[p.id] * 70, 2) == 3375.4 and uc[s.id] == 3.86
