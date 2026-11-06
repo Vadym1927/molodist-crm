@@ -6440,10 +6440,20 @@ async def settings_payments_account(request: Request, user: User = Depends(requi
     except ValueError as e:
         return RedirectResponse(_with_msg("/settings/payments", str(e), True), 303)
     audit(db, "paysys.account_save", user=user, account=a_["id"], provider=a_["provider"], name=a_["name"])
+    if f.get("is_default"):
+        pls.set_default(db, a_["id"])
     if f.get("test"):
         ok, msg = await asyncio.to_thread(pls.test, db, a_["id"])
         return RedirectResponse(_with_msg("/settings/payments", ("✅ " if ok else "❌ ") + msg, not ok), 303)
     return RedirectResponse(_with_msg("/settings/payments", f"Підключення «{a_['name']}» збережено"), 303)
+
+
+@app.post("/settings/payments/account/{aid:int}/default")
+def settings_payments_account_default(aid: int, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import paylinks as pls
+    pls.set_default(db, aid)
+    audit(db, "paysys.default", user=user, account=aid)
+    return RedirectResponse(_with_msg("/settings/payments", "Підключення за замовчуванням змінено"), 303)
 
 
 @app.post("/settings/payments/account/{aid:int}/delete")

@@ -113,6 +113,13 @@ def save_common(db: Session, validity_h: int, text: str, default: int | None) ->
     _save(db, d)
 
 
+def set_default(db: Session, aid: int) -> None:
+    d = _raw(db)
+    if any(int(x["id"]) == int(aid) for x in d["accounts"]):
+        d["default"] = int(aid)
+        _save(db, d)
+
+
 def save_account(db: Session, aid: int | None, provider: str, name: str, vals: dict, cashbox: str, active: bool) -> dict:
     d = _raw(db)
     if provider not in PROVIDERS:

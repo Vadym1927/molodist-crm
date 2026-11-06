@@ -2,66 +2,217 @@
 {% block title %}Платіжні системи · MOLODIST CRM{% endblock %}
 {% block body %}
 {% set qp = request.query_params %}
-{% include "_cs_style.html" %}
-<div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a></div><h1>Платіжні системи</h1>
+{% set LOGO = {'mono': '/static/img/pay/plata.png', 'liqpay': '/static/img/pay/liqpay.png', 'wayforpay': '/static/img/pay/wayforpay.png'} %}
+{% set PDESC = {'mono': 'Еквайринг monobank: картка, Apple Pay та Google Pay', 'liqpay': 'Прийом оплат карткою, Apple Pay та Google Pay', 'wayforpay': 'Прийом оплат карткою, Apple Pay та Google Pay'} %}
+{% set WHERE = {'mono': 'Кабінет monobank → Еквайринг → Інтернет-еквайринг → API', 'liqpay': 'Кабінет LiqPay → Налаштування → API', 'wayforpay': 'Кабінет WayForPay → Налаштування магазину'} %}
+{% macro ic(p, s=18) %}<svg width="{{ s }}" height="{{ s }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">{{ p|safe }}</svg>{% endmacro %}
+{% set I_LINK = '<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/>' %}
+{% set I_CARD = '<rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M3 10h18M7 15h4"/>' %}
+{% set I_OK = '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 9.8"/>' %}
+{% set I_CLOCK = '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>' %}
+{% set I_GEAR = '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>' %}
+{% set I_PHONE = '<rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M11 18.5h2"/>' %}
+{% set I_KEY = '<circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3M16 7l3 3M14 9l2 2"/>' %}
+{% set I_PLUS = '<path d="M12 5v14M5 12h14"/>' %}
+{% macro table(rows) %}<div style="overflow-x:auto"><table class="ps-tbl"><thead><tr><th>Дата створення</th><th>Пацієнт</th><th>Телефон</th><th>Призначення</th><th>Рахунок</th><th class="r">Сума</th><th>Статус</th><th></th></tr></thead><tbody>
+  {% for l in rows %}{% set p = pats.get(l.patient_id) if l.patient_id else None %}<tr><td class="mono">{{ l.created_at|dt('%d.%m.%Y, %H:%M') }}</td>
+    <td>{% if p %}<a href="/patients/{{ l.patient_id }}">{{ p.full_name }}</a>{% else %}<span class="muted">—</span>{% endif %}</td>
+    <td class="mono">{% if p and p.phone %}{% set ph = p.phone|replace(' ', '') %}{{ ph[:-4] }}••••{% else %}—{% endif %}</td>
+    <td>{{ l.purpose or '—' }}</td><td class="small muted">{{ accs.get(l.account_id) or (l.info or {}).get('account') or '—' }}</td><td class="r"><b>{{ l.amount|uah }}</b></td>
+    <td>{% set cls = {'paid':'ok','created':'wait','failed':'bad','expired':'off','cancelled':'bad'}.get(l.status, 'off') %}<span class="ps-pill {{ cls }}">{{ '✓ ' if l.status == 'paid' else ('✕ ' if l.status in ('cancelled', 'failed') else '') }}{{ SL.get(l.status, l.status)|capitalize }}</span>{% if l.paid_at %}<div class="small muted">{{ l.paid_at|dt('%d.%m %H:%M') }}</div>{% endif %}</td>
+    <td class="r">{% if l.status == 'created' %}<div class="ps-more" style="display:inline-block"><button type="button" onclick="this.parentNode.classList.toggle('open')">⋯</button><div class="mn" style="left:auto;right:0">
+      <button type="button" onclick="navigator.clipboard.writeText('{{ l.url }}');this.textContent='✓ Скопійовано'">Копіювати посилання</button>
+      <form method="post" action="/paylinks/{{ l.id }}/check" style="margin:0"><button>Перевірити оплату</button></form>
+      <form method="post" action="/paylinks/{{ l.id }}/cancel" style="margin:0" onsubmit="return confirm('Скасувати посилання в CRM?')"><button class="del">Скасувати</button></form></div></div>{% endif %}</td></tr>{% endfor %}
+</tbody></table></div>{% endmacro %}
+<style>
+.ps-h{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.ps-h .eb{font:600 12px var(--head);letter-spacing:.16em;text-transform:uppercase;color:#8a8496}.ps-h .eb a{color:inherit;text-decoration:none}
+.ps-h h1{margin:4px 0 2px;font-size:30px;text-transform:none;letter-spacing:0;color:#2A2430}.ps-h p{margin:0;color:#8a8496;font-size:14px}
+.ps-b{height:44px;display:inline-flex;align-items:center;gap:8px;padding:0 18px;border-radius:12px;border:1px solid #E6E0D8;background:#fff;color:#2A2430;font:600 13.5px var(--sans);cursor:pointer;text-decoration:none;white-space:nowrap}
+.ps-b:hover{border-color:#C9BFE6;background:#F6F3FB}.ps-b.pri{background:#3B3050;border-color:#3B3050;color:#fff}.ps-b.pri:hover{background:#2A2430}
+.ps-b.out{border:1.5px solid #3B3050;color:#3B3050;background:#fff}.ps-b.sm{height:36px;padding:0 14px;font-size:13px;border-radius:10px}
+.ps-tabs{display:flex;gap:8px;margin-bottom:14px;border-bottom:1px solid #E6E0D8;padding-bottom:12px}
+.ps-tabs button{height:40px;display:inline-flex;align-items:center;gap:8px;padding:0 18px;border-radius:11px;border:1px solid #E6E0D8;background:#fff;font:600 13.5px var(--sans);color:#2A2430;cursor:pointer}
+.ps-tabs button.on{background:#3B3050;border-color:#3B3050;color:#fff}
+.ps-flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:center;gap:10px;background:#EEEAF6;border-radius:16px;padding:12px 18px;margin-bottom:14px}
+.ps-flow .st{display:flex;align-items:center;gap:12px}.ps-flow .st i{width:42px;height:42px;border-radius:50%;background:#fff;color:#5C4B82;display:grid;place-items:center;flex:none}
+.ps-flow b{display:block;font:600 13.5px var(--sans);color:#2A2430}.ps-flow span{display:block;font-size:12px;color:#6b6575}.ps-flow .ar{color:#8a8496;font-size:20px}
+@media(max-width:900px){.ps-flow{grid-template-columns:1fr}.ps-flow .ar{display:none}}
+.ps-prov{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin-bottom:14px}
+.ps-c{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:16px 18px;display:grid;gap:8px;align-content:start;box-shadow:0 1px 2px rgba(42,36,48,.04),0 14px 34px -28px rgba(42,36,48,.35)}
+.ps-c.on{border-color:#C9BFE6;box-shadow:0 0 0 1px #C9BFE6,0 14px 34px -26px rgba(59,48,80,.45)}
+.ps-c .top{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:34px}.ps-c .top img{height:30px;width:auto;max-width:190px;object-fit:contain}
+.ps-c .nm{font:700 15px var(--sans);color:#2A2430}.ps-c .mt{font-size:12.5px;color:#8a8496}.ps-c .ds{font-size:13px;color:#6b6575;line-height:1.45}
+.ps-pill{display:inline-flex;align-items:center;gap:5px;border-radius:99px;padding:3px 10px;font:600 12px var(--sans);white-space:nowrap}
+.ps-pill.ok{background:#E3F3E7;color:#1E7A46}.ps-pill.off{background:#F2EFEA;color:#6b6575}.ps-pill.warn{background:#FFF1D6;color:#9A6A00}.ps-pill.bad{background:#FDECEA;color:#B23B2E}.ps-pill.wait{background:#EEEAF6;color:#3B3050}
+.ps-tagd{justify-self:start;background:#E4DEEF;color:#3B3050;border-radius:7px;padding:2px 9px;font:600 11.5px var(--sans)}
+.ps-c .act{display:flex;align-items:center;gap:8px;margin-top:4px}
+.ps-more{position:relative}.ps-more>button{width:36px;height:36px;border-radius:10px;border:0;background:transparent;cursor:pointer;font-size:20px;color:#6b6575}.ps-more>button:hover{background:#F7F4F0}
+.ps-more .mn{display:none;position:absolute;left:0;top:40px;z-index:5;background:#fff;border:1px solid #ECE7E1;border-radius:12px;box-shadow:0 16px 40px -16px rgba(42,36,48,.4);padding:6px;min-width:190px}
+.ps-more.open .mn{display:block}.ps-more .mn button{display:block;width:100%;text-align:left;border:0;background:none;padding:9px 12px;border-radius:8px;font:600 13px var(--sans);cursor:pointer;color:#2A2430}.ps-more .mn button:hover{background:#F7F4F0}.ps-more .mn .del{color:#B23B2E}
+.ps-g2{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:14px;margin-bottom:14px}@media(max-width:1000px){.ps-g2{grid-template-columns:1fr}}
+.ps-box{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:18px 20px;box-shadow:0 1px 2px rgba(42,36,48,.04),0 14px 34px -28px rgba(42,36,48,.35)}
+.ps-box h2{display:flex;align-items:center;gap:10px;margin:0 0 14px;font:700 17px var(--sans);text-transform:none;letter-spacing:0;color:#2A2430}.ps-box h2 i{color:#3B3050;display:inline-grid}
+.ps-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}.ps-row>label{min-width:150px;font:500 13.5px var(--sans);color:#2A2430}
+.ps-row select{height:40px;margin:0;min-width:200px;width:auto}
+.ps-chip{height:34px;padding:0 16px;border-radius:9px;border:0;background:#EEEAF6;color:#3B3050;font:600 13px var(--sans);cursor:pointer}.ps-chip.on{background:#3B3050;color:#fff}
+.ps-box textarea{width:100%;min-height:76px;font:500 14px var(--sans);border-radius:12px;margin:6px 0 8px}
+.ps-vars{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;color:#6b6575;margin-bottom:14px}.ps-vars button{border:0;background:#EEEAF6;color:#3B3050;border-radius:7px;padding:3px 9px;font:600 12px var(--sans);cursor:pointer}
+.ps-ph{display:flex;justify-content:center;padding-top:2px}
+.ps-ph .fr{width:270px;border:7px solid #E9E5DF;border-bottom:0;border-radius:30px 30px 0 0;background:#fff;padding:10px 14px 18px;box-shadow:0 18px 40px -26px rgba(42,36,48,.5)}
+.ps-ph .sb{display:flex;justify-content:space-between;font:600 11px var(--sans);color:#2A2430;padding:0 4px 10px}
+.ps-ph .ch{display:flex;align-items:center;gap:8px;font:700 13px var(--sans);color:#2A2430;padding-bottom:10px;border-bottom:1px solid #F1EDE8;margin-bottom:12px}.ps-ph .ch i{width:24px;height:24px;border-radius:50%;background:#3B3050;color:#fff;display:grid;place-items:center;font:500 11px var(--head)}
+.ps-ph .bub{background:#EEEAF6;border-radius:14px 14px 14px 4px;padding:12px 14px;max-width:220px}
+.ps-ph .bub .p{font:600 12.5px var(--sans);color:#2A2430}.ps-ph .bub .s{font:800 22px var(--sans);color:#2A2430;margin:2px 0 10px}
+.ps-ph .bub .pay{display:block;text-align:center;background:#3B3050;color:#fff;border-radius:10px;padding:8px;font:700 13px var(--sans)}
+.ps-ph .bub .cards{display:flex;gap:8px;align-items:center;justify-content:center;margin-top:8px;font:800 11px var(--sans);color:#2A2430}.ps-ph .bub .cards em{font-style:italic;color:#1A1F71}
+.ps-ph .bub .tx{font-size:11px;color:#6b6575;white-space:pre-line;margin-top:8px;word-break:break-word}
+.ps-tbl{width:100%;border-collapse:collapse;font-size:13.5px}.ps-tbl th{text-align:left;font:600 12px var(--sans);color:#6b6575;background:#F7F4F0;padding:9px 12px}.ps-tbl th:first-child{border-radius:10px 0 0 10px}.ps-tbl th:last-child{border-radius:0 10px 10px 0}
+.ps-tbl td{padding:10px 12px;border-bottom:1px solid #F1EDE8;vertical-align:middle}.ps-tbl td.r{text-align:right;white-space:nowrap}.ps-tbl a{color:#2A2430;font-weight:600;text-decoration:none}
+.ps-tbl .mono{font-variant-numeric:tabular-nums;color:#6b6575;white-space:nowrap}
+.ps-new{display:none;background:#FBFAF8;border:1px solid #ECE7E1;border-radius:14px;padding:14px;margin-bottom:14px}.ps-new.on{display:block}
+.ps-new form{display:grid;grid-template-columns:minmax(220px,1.4fr) 140px minmax(200px,1.4fr) minmax(170px,1fr) auto;gap:8px;align-items:end}.ps-new label{display:grid;gap:4px;font:600 12px var(--sans);color:#6b6575}.ps-new input,.ps-new select{margin:0;height:42px}
+@media(max-width:1100px){.ps-new form{grid-template-columns:1fr 1fr}}
+.ps-lk{position:relative}.ps-lk .res{position:absolute;top:100%;left:0;right:0;z-index:6;background:#fff;border:1px solid #ECE7E1;border-radius:12px;box-shadow:0 12px 30px -12px rgba(0,0,0,.3);display:none;max-height:240px;overflow:auto}
+.ps-lk .res div{padding:8px 12px;cursor:pointer;border-bottom:1px solid #F4F0EB;font-size:13.5px}.ps-lk .res div:hover{background:#F7F4F0}
+dialog.ps-d{border:0;border-radius:24px;padding:0;width:min(780px,96vw);box-shadow:0 30px 80px rgba(42,36,48,.4);background:#FDFCFB}dialog.ps-d::backdrop{background:rgba(42,36,48,.5)}
+.ps-dh{display:flex;align-items:center;gap:14px;padding:22px 26px 6px}.ps-dh i{width:52px;height:52px;border-radius:14px;background:#E4DEEF;color:#3B3050;display:grid;place-items:center;flex:none}
+.ps-dh h3{margin:0;font:700 22px var(--sans);text-transform:none;letter-spacing:0;color:#2A2430}.ps-dh p{margin:2px 0 0;color:#6b6575;font-size:14px}.ps-dh .x{margin-left:auto;align-self:flex-start;width:40px;height:40px;border:0;border-radius:12px;background:#F2EFEA;cursor:pointer;font-size:20px}
+.ps-db{padding:14px 26px 8px;display:grid;gap:14px}
+.ps-pv{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.ps-pv label{position:relative;cursor:pointer}.ps-pv input{position:absolute;opacity:0}
+.ps-pv span{display:grid;place-items:center;gap:8px;height:112px;border:1.5px solid #E6E0D8;border-radius:16px;background:#fff;padding:12px;text-align:center}.ps-pv span img{max-height:34px;max-width:85%;object-fit:contain}
+.ps-pv span em{font:700 11.5px var(--sans);font-style:normal;letter-spacing:.06em;text-transform:uppercase;color:#2A2430}
+.ps-pv input:checked+span{border-color:#5C4B82;background:#F3EFF9;box-shadow:0 0 0 1px #5C4B82}
+.ps-pv input:checked+span:after{content:"✓";position:absolute;top:10px;right:10px;width:24px;height:24px;border-radius:50%;background:#5C4B82;color:#fff;display:grid;place-items:center;font:700 13px var(--sans)}
+.ps-f2{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:640px){.ps-f2,.ps-pv{grid-template-columns:1fr}}
+.ps-fl{display:grid;gap:6px}.ps-fl>label{font:700 11.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#2A2430}.ps-fl input,.ps-fl select{margin:0;height:46px;font-size:15px;width:100%;max-width:none}
+.ps-sec{position:relative}.ps-sec input{padding-right:52px}.ps-sec button{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:40px;height:36px;border:0;background:transparent;cursor:pointer;color:#2A2430}
+.ps-hint{display:flex;align-items:center;gap:12px;background:#EEEAF6;border-radius:14px;padding:12px 16px}.ps-hint i{width:38px;height:38px;border-radius:10px;background:#fff;color:#5C4B82;display:grid;place-items:center;flex:none}
+.ps-hint b{display:block;font:700 14px var(--sans);color:#2A2430}.ps-hint span{display:block;font-size:12.5px;color:#4a4f57}.ps-hint a{margin-left:auto;white-space:nowrap;color:#5C4B82;font:600 13px var(--sans)}
+.ps-note{display:flex;align-items:center;gap:8px;font-size:13.5px;color:#4a4f57}.ps-note i{color:#6b6575;display:inline-grid}
+.ps-sw{display:flex;align-items:center;gap:14px;cursor:pointer}.ps-sw input{display:none}.ps-sw .t{width:48px;height:28px;border-radius:99px;background:#E6E0D8;position:relative;flex:none;transition:.15s}
+.ps-sw .t:after{content:"";position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:.15s}.ps-sw input:checked+.t{background:#3B3050}.ps-sw input:checked+.t:after{left:23px}
+.ps-sw b{display:block;font:700 14.5px var(--sans);color:#2A2430}.ps-sw small{display:block;font-size:12.5px;color:#6b6575}
+.ps-df{display:flex;align-items:center;gap:10px;padding:16px 26px 22px;border-top:1px solid #ECE7E1;margin-top:8px}.ps-df .sp{flex:1}
+</style>
+
+<div class="ps-h"><div><div class="eb"><a href="/settings">Налаштування</a> /</div><h1>Платіжні системи</h1><p>Приймайте оплату зручно для пацієнтів.</p></div>
+  <button class="ps-b pri" type="button" onclick="psEd(null)">{{ ic(I_PLUS, 18) }} Підключити сервіс</button></div>
 {% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
 {% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
-<span class="cs-tag">Посилання на оплату</span>
-<div class="cs-box" style="display:grid;gap:14px">
-  <div class="cs-note">Пацієнт отримує посилання й оплачує карткою, Apple Pay чи Google Pay. Можна підключити кілька рахунків паралельно — напр. monobank ФОП Колган і monobank ФОП Бондар; при створенні посилання обираєте, на який ФОП. Коли оплата пройде, CRM сама позначить посилання «оплачено», запише надходження в касу цього підключення і надішле сповіщення в Telegram. Оплати постачальникам і виписки — у <a href="/settings/keys?s=mono#mono">«Банк monobank»</a>.</div>
-  <div class="bx-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
-    {% for a in t.accounts %}<div class="loc" style="margin:0">
-      <div class="row between"><b>{{ a.name }}</b><span class="on-pill {{ 'on' if a.ready else 'off' }}">{{ 'ON' if a.ready else ('OFF' if not a.active else 'без ключа') }}</span></div>
-      <div class="small muted" style="margin-top:4px">{{ PROV[a.provider].label }} · каса «{{ a.cashbox }}»{{ ' · за замовчуванням' if t.default == a.id }}</div>
-      <div class="row" style="gap:6px;margin-top:8px"><button class="ch-btn" type="button" onclick='psEd({{ a|tojson }})'>Налаштування</button>
-        <form method="post" action="/settings/payments/account/{{ a.id }}/delete" data-delpw="Видалити підключення «{{ a.name }}»?" style="margin:0"><button class="ch-btn" style="border-color:#E8A0A0;color:#C0392B">×</button></form></div>
-    </div>{% endfor %}
-    <button class="cs-card" type="button" onclick="psEd(null)" style="justify-content:center"><div><b>＋ Підключити</b><span>monobank, LiqPay або WayForPay — для ще одного ФОП</span></div></button>
-  </div>
-  <form method="post" action="/settings/payments" style="display:grid;gap:12px">
-    {% if t.accounts|length > 1 %}<div class="cs-f"><label>Підключення за замовчуванням</label><select name="default">{% for a in t.accounts %}<option value="{{ a.id }}" {{ 'selected' if t.default == a.id }}>{{ a.name }}</option>{% endfor %}</select></div>{% endif %}
-    <div class="cs-f"><label>Посилання дійсне, годин</label><input name="validity_h" value="{{ t.validity_h }}" inputmode="numeric" style="max-width:120px"></div>
-    <div class="cs-f"><label>Текст повідомлення пацієнту</label><textarea name="text" rows="3">{{ t.text }}</textarea>
-      <div class="hint">{url} — посилання, {sum} — сума, {purpose} — за що.</div></div>
-    <div><button class="btn">Зберегти</button></div>
+
+<div class="ps-tabs"><button type="button" class="on" data-t="links" onclick="psTab('links')">{{ ic(I_LINK) }} Посилання на оплату</button><button type="button" data-t="hist" onclick="psTab('hist')">{{ ic(I_CLOCK) }} Історія оплат</button></div>
+
+<div class="ps-flow">
+  <div class="st"><i>{{ ic(I_LINK, 20) }}</i><div><b>Посилання пацієнту</b><span>Створіть посилання на оплату</span></div></div><div class="ar">→</div>
+  <div class="st"><i>{{ ic(I_CARD, 20) }}</i><div><b>Оплата карткою / Apple Pay / Google Pay</b><span>Пацієнт оплачує у зручний спосіб</span></div></div><div class="ar">→</div>
+  <div class="st"><i>{{ ic(I_OK, 20) }}</i><div><b>Надходження в CRM</b><span>Оплата автоматично фіксується в касі й Telegram</span></div></div>
+</div>
+
+<div class="ps-prov">
+  {% for a in t.accounts %}<div class="ps-c {{ 'on' if a.ready }}">
+    <div class="top"><img src="{{ LOGO[a.provider] }}" alt="{{ PROV[a.provider].label }}">
+      {% if a.ready %}<span class="ps-pill ok">{{ ic(I_OK, 14) }} Підключено</span>{% elif not a.active %}<span class="ps-pill off">Вимкнено</span>{% else %}<span class="ps-pill warn">Без ключа</span>{% endif %}</div>
+    <div><div class="nm">{{ a.name }}</div><div class="mt">Каса: {{ a.cashbox }}</div></div>
+    {% if t.default == a.id %}<span class="ps-tagd">За замовчуванням</span>{% endif %}
+    <div class="act"><button class="ps-b sm out" type="button" onclick='psEd({{ a|tojson }})'>{{ ic(I_GEAR, 16) }} Налаштувати</button>
+      <div class="ps-more"><button type="button" onclick="this.parentNode.classList.toggle('open')" title="Ще">⋮</button><div class="mn">
+        {% if t.default != a.id %}<form method="post" action="/settings/payments/account/{{ a.id }}/default" style="margin:0"><button>Зробити за замовчуванням</button></form>{% endif %}
+        <form method="post" action="/settings/payments/account/{{ a.id }}/delete" data-delpw="Видалити підключення «{{ a.name }}»?" style="margin:0"><button class="del">Видалити підключення</button></form></div></div></div>
+  </div>{% endfor %}
+  {% set used = t.accounts|map(attribute='provider')|list %}
+  {% for k, p in PROV.items() if k not in used %}<div class="ps-c">
+    <div class="top"><img src="{{ LOGO[k] }}" alt="{{ p.label }}"></div>
+    <div class="ds">{{ PDESC[k] }}</div>
+    <div class="act"><button class="ps-b sm out" type="button" onclick="psEd(null,'{{ k }}')">{{ ic(I_PLUS, 16) }} Підключити</button></div>
+  </div>{% endfor %}
+</div>
+
+<div id="tab-links">
+<div class="ps-g2">
+  <form class="ps-box" method="post" action="/settings/payments" id="ps-set">
+    <h2><i>{{ ic(I_LINK, 20) }}</i> Налаштування посилань</h2>
+    <div class="ps-row"><label>Термін дії посилання</label>
+      <select name="validity_h" id="ps-vh" onchange="psVh(this.value)">{% for h in [1, 2, 6, 12, 24, 48, 72, 168] %}<option value="{{ h }}" {{ 'selected' if t.validity_h == h }}>{{ h }} {{ 'година' if h == 1 else ('години' if h in (2, 24) else 'годин') }}</option>{% endfor %}
+        {% if t.validity_h not in [1, 2, 6, 12, 24, 48, 72, 168] %}<option value="{{ t.validity_h }}" selected>{{ t.validity_h }} год</option>{% endif %}</select>
+      {% for h in [12, 24, 48] %}<button type="button" class="ps-chip {{ 'on' if t.validity_h == h }}" data-h="{{ h }}" onclick="psVh({{ h }})">{{ h }} год</button>{% endfor %}</div>
+    {% if t.accounts|length > 1 %}<div class="ps-row"><label>За замовчуванням</label><select name="default">{% for a in t.accounts %}<option value="{{ a.id }}" {{ 'selected' if t.default == a.id }}>{{ a.name }}</option>{% endfor %}</select></div>{% endif %}
+    <div style="font:500 13.5px var(--sans);color:#2A2430">Текст повідомлення пацієнту</div>
+    <textarea name="text" id="ps-txt" rows="3" oninput="psPrev()">{{ t.text }}</textarea>
+    <div class="ps-vars">ⓘ Доступні змінні: {% for v in ['{purpose}', '{sum}', '{url}'] %}<button type="button" onclick="psIns('{{ v }}')">{{ v }}</button>{% endfor %}</div>
+    <button class="ps-b pri sm" style="height:42px;padding:0 20px">Зберегти зміни</button>
   </form>
+  <div class="ps-box"><h2><i>{{ ic(I_PHONE, 20) }}</i> Як це бачить пацієнт</h2>
+    <div class="ps-ph"><div class="fr"><div class="sb"><span>14:20</span><span>▂▄▆ ◔ ▮</span></div>
+      <div class="ch"><span style="color:#8a8496">‹</span><i>M</i>MOLODIST</div>
+      <div class="bub"><div class="p">Оплата консультації</div><div class="s">2 500 ₴</div><span class="pay">Оплатити</span>
+        <div class="cards"><em>VISA</em><span style="color:#EB001B">●</span><span>Pay</span><span>G Pay</span></div>
+        <div class="tx" id="ps-pv"></div></div></div></div></div>
 </div>
 
-<dialog class="cs-d" id="ps-d"><div class="cs-dh"><h3 id="ps-t">Підключення</h3><button class="cs-x" type="button" onclick="this.closest('dialog').close()">×</button></div>
-  <form method="post" action="/settings/payments/account" class="cs-db"><input type="hidden" name="id">
-    <div class="pv">{% for k, p in PROV.items() %}<label><input type="radio" name="provider" value="{{ k }}" onchange="tgP()"><span class="lg">{{ {'mono':'mono','liqpay':'LiqPay','wayforpay':'WayForPay'}[k] }}</span>{{ p.label }}</label>{% endfor %}</div>
-    <div class="cs-f"><label>Назва підключення</label><input name="name" placeholder="monobank ФОП Колган" required></div>
-    {% for k, p in PROV.items() %}<div class="pf" data-p="{{ k }}" style="display:none;gap:12px">
-      {% for f, label, sec in p.fields %}<div class="cs-f"><label>{{ label }}</label>
-        {% if sec %}<input type="password" name="{{ f }}" data-sec="1" autocomplete="new-password" placeholder="не задано">
-        {% else %}<input name="{{ f }}" {{ 'placeholder=crm.molodist.com.ua' if f == 'domain' }}>{% endif %}
-        <div class="hint">{{ p.hint }}</div></div>{% endfor %}
-      <div class="cs-note">Сайт провайдера <a href="{{ p.site }}" target="_blank" rel="noopener">{{ p.site }}</a> · адреса для сповіщень про оплату передається в кожному посиланні автоматично.</div>
+<div class="ps-box">
+  <div class="row between" style="gap:10px;flex-wrap:wrap;margin-bottom:12px"><h2 style="margin:0"><i>{{ ic(I_LINK, 20) }}</i> Посилання на оплату</h2>
+    {% if t.ready %}<button class="ps-b sm out" type="button" onclick="document.getElementById('ps-new').classList.toggle('on')">{{ ic(I_PLUS, 16) }} Створити посилання</button>
+    {% else %}<span class="small muted">Щоб створювати посилання, підключіть сервіс вище.</span>{% endif %}</div>
+  {% if t.ready %}<div class="ps-new" id="ps-new"><form method="post" action="/paylinks" autocomplete="off"><input type="hidden" name="back" value="/settings/payments"><input type="hidden" name="patient_id" id="pn-pid">
+    <label class="ps-lk">Пацієнт<input id="pn-q" placeholder="Імʼя або телефон (необовʼязково)"><div class="res" id="pn-res"></div></label>
+    <label>Сума, ₴<input name="amount" inputmode="decimal" required placeholder="2500"></label>
+    <label>Призначення<input name="purpose" placeholder="Консультація дерматолога"></label>
+    {% set _pa = pay_accounts() %}{% if _pa|length > 1 %}<label>Рахунок<select name="account_id">{% for a in _pa %}<option value="{{ a.id }}" {{ 'selected' if a.default }}>{{ a.name }}</option>{% endfor %}</select></label>{% else %}<span></span>{% endif %}
+    <button class="ps-b pri" style="height:42px">Створити</button>
+    <label id="pn-send" style="display:none;grid-column:1/-1;flex-direction:row;align-items:center;gap:8px;color:#2A2430"><input type="checkbox" name="send" value="1" checked style="width:auto;height:auto"> Одразу надіслати пацієнту (Telegram / Viber / SMS)</label>
+  </form></div>{% endif %}
+  {% set act = links|selectattr('status', 'equalto', 'created')|list %}
+  {% if act %}{{ table(act) }}{% else %}<div class="muted small">Активних посилань немає — усі оплачені чи завершені посилання в «Історії оплат».</div>{% endif %}
+</div>
+</div>
+
+<div id="tab-hist" style="display:none"><div class="ps-box"><h2><i>{{ ic(I_CLOCK, 20) }}</i> Історія оплат</h2>
+  {% if links %}{{ table(links) }}{% else %}<div class="muted">Посилань ще немає.</div>{% endif %}</div></div>
+
+
+
+<dialog class="ps-d" id="ps-d"><form method="post" action="/settings/payments/account"><input type="hidden" name="id">
+  <div class="ps-dh"><i>{{ ic(I_CARD, 26) }}</i><div><h3 id="ps-t">Нове підключення</h3><p>Оберіть сервіс та налаштуйте приймання оплат</p></div><button class="x" type="button" onclick="this.closest('dialog').close()">×</button></div>
+  <div class="ps-db">
+    <div class="ps-pv">{% for k, p in PROV.items() %}<label><input type="radio" name="provider" value="{{ k }}" onchange="tgP()"><span><img src="{{ LOGO[k] }}" alt=""><em>{{ p.label }}</em></span></label>{% endfor %}</div>
+    <div class="ps-f2"><div class="ps-fl"><label>Назва підключення</label><input name="name" placeholder="monobank ФОП Колган" required></div>
+      <div class="ps-fl"><label>Каса для надходжень</label><select name="cashbox">{% for b in boxes %}<option>{{ b }}</option>{% endfor %}</select></div></div>
+    {% for k, p in PROV.items() %}<div class="pf" data-p="{{ k }}" style="display:none;gap:14px">
+      {% for f, label, sec in p.fields %}<div class="ps-fl"><label>{{ label }}</label>
+        {% if sec %}<div class="ps-sec"><input type="password" name="{{ f }}" data-sec="1" autocomplete="new-password" placeholder="не задано"><button type="button" title="Показати" onclick="var i=this.previousElementSibling;i.type=i.type==='password'?'text':'password'">{{ ic('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>', 20) }}</button></div>
+        {% else %}<input name="{{ f }}" {{ 'placeholder=crm.molodist.com.ua' if f == 'domain' }}>{% endif %}</div>{% endfor %}
+      <div class="ps-hint"><i>{{ ic(I_KEY, 20) }}</i><div><b>Де знайти {{ 'токен' if k == 'mono' else 'ключі' }}?</b><span>{{ WHERE[k] }}</span></div><a href="{{ p.site }}" target="_blank" rel="noopener">Відкрити {{ {'mono':'monobank','liqpay':'LiqPay','wayforpay':'WayForPay'}[k] }} ↗</a></div>
     </div>{% endfor %}
-    <div class="cs-f"><label>Каса для надходжень</label><select name="cashbox">{% for b in boxes %}<option>{{ b }}</option>{% endfor %}</select>
-      <div class="hint">Куди записується оплата в журналі фіноперацій (каси — у «Каси / рахунки»).</div></div>
-    <div class="cs-f"><label class="sw"><input type="checkbox" name="active" value="1" checked> Активне</label></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn">Зберегти</button><button class="btn ghost" name="test" value="1">✓ Зберегти й перевірити</button></div>
-  </form></dialog>
+    <div class="ps-note"><i>{{ ic(I_LINK, 17) }}</i> Сповіщення про оплату підключаються автоматично — адреса передається в кожному посиланні.</div>
+    <div style="border-top:1px solid #ECE7E1;padding-top:14px;display:grid;gap:14px">
+      <label class="ps-sw"><input type="checkbox" name="active" value="1" checked><span class="t"></span><span><b>Активне підключення</b><small>Доступне при створенні посилань</small></span></label>
+      <label class="ps-sw"><input type="checkbox" name="is_default" value="1"><span class="t"></span><span><b>Використовувати за замовчуванням</b><small>Підставляється першим при створенні посилання</small></span></label></div>
+  </div>
+  <div class="ps-df"><button class="ps-b" type="button" onclick="this.closest('dialog').close()">Скасувати</button><span class="sp"></span><button class="ps-b out">Зберегти</button><button class="ps-b pri" name="test" value="1">Зберегти й перевірити</button></div>
+</form></dialog>
 
-<span class="cs-tag">Посилання</span>
-<div class="cs-box">
-  {% if t.ready %}<div style="margin-bottom:12px">{% set pl_patient, pl_appt, pl_amount, pl_purpose, pl_back = None, None, None, '', '/settings/payments' %}{% include "_paylink_form.html" %}</div>{% endif %}
-  <div style="overflow-x:auto">{% if links %}<table><tr><th>№</th><th>Створено</th><th>Рахунок</th><th>Пацієнт</th><th>За що</th><th>Сума</th><th>Статус</th><th></th></tr>
-  {% for l in links %}<tr><td>{{ l.id }}</td><td>{{ l.created_at|dt('%d.%m %H:%M') }}</td><td class="small">{{ accs.get(l.account_id) or (l.info or {}).get('account') or '—' }}</td>
-    <td>{% if l.patient_id and pats.get(l.patient_id) %}<a href="/patients/{{ l.patient_id }}">{{ pats[l.patient_id].full_name }}</a>{% else %}—{% endif %}</td>
-    <td>{{ l.purpose }}</td><td>{{ l.amount|uah }}</td>
-    <td><span class="{{ 'ok-t' if l.status == 'paid' else ('bad-t' if l.status in ('failed','expired') else '') }}">{{ SL.get(l.status, l.status) }}</span>{% if l.paid_at %}<div class="small muted">{{ l.paid_at|dt('%d.%m %H:%M') }}</div>{% endif %}</td>
-    <td style="white-space:nowrap">{% if l.status == 'created' %}<button class="ch-btn" type="button" onclick="navigator.clipboard.writeText('{{ l.url }}');this.textContent='✓'">Копіювати</button>
-      <form method="post" action="/paylinks/{{ l.id }}/check" style="display:inline"><button class="ch-btn">Перевірити</button></form>
-      <form method="post" action="/paylinks/{{ l.id }}/cancel" style="display:inline" onsubmit="return confirm('Скасувати посилання в CRM?')"><button class="ch-btn" style="border-color:#E8A0A0;color:#C0392B">×</button></form>{% endif %}</td></tr>{% endfor %}</table>
-  {% else %}<div class="muted">Посилань ще немає.</div>{% endif %}</div>
-</div>
-<script>function tgP(){var v=(document.querySelector('#ps-d input[name=provider]:checked')||{}).value||'';document.querySelectorAll('#ps-d .pf').forEach(function(e){e.style.display=e.dataset.p===v?'grid':'none'})}
-function psEd(a){var d=document.getElementById('ps-d'),f=d.querySelector('form');f.reset();document.getElementById('ps-t').textContent=a?a.name:'Нове підключення';
-  f.id.value=a?a.id:'';var pv=a?a.provider:'mono';f.querySelector('input[name=provider][value='+pv+']').checked=true;
+<script>
+var PS_DEF={{ (t.default or 0)|tojson }};
+function psTab(t){document.querySelectorAll('.ps-tabs button').forEach(function(b){b.classList.toggle('on',b.dataset.t===t)});document.getElementById('tab-links').style.display=t==='links'?'':'none';document.getElementById('tab-hist').style.display=t==='hist'?'':'none';try{history.replaceState(null,'',t==='hist'?'#history':location.pathname+location.search)}catch(e){}}
+if(location.hash==='#history')psTab('hist');
+function psVh(h){var s=document.getElementById('ps-vh');s.value=String(h);document.querySelectorAll('.ps-chip').forEach(function(c){c.classList.toggle('on',c.dataset.h===String(h))})}
+function psIns(v){var t=document.getElementById('ps-txt'),a=t.selectionStart||t.value.length;t.value=t.value.slice(0,a)+v+t.value.slice(t.selectionEnd||a);t.focus();psPrev()}
+function psPrev(){var t=document.getElementById('ps-txt').value||'';document.getElementById('ps-pv').textContent=t.replace(/\{purpose\}/g,'Оплата консультації').replace(/\{sum\}/g,'2500.00').replace(/\{url\}/g,'https://pay.mbnk.biz/…')}psPrev();
+document.addEventListener('click',function(e){document.querySelectorAll('.ps-more.open').forEach(function(m){if(!m.contains(e.target))m.classList.remove('open')})});
+function tgP(){var v=(document.querySelector('#ps-d input[name=provider]:checked')||{}).value||'';document.querySelectorAll('#ps-d .pf').forEach(function(e){e.style.display=e.dataset.p===v?'grid':'none'})}
+function psEd(a,prov){var d=document.getElementById('ps-d'),f=d.querySelector('form');f.reset();document.getElementById('ps-t').textContent=a?a.name:'Нове підключення';
+  f.id.value=a?a.id:'';var pv=a?a.provider:(prov||'mono');f.querySelector('input[name=provider][value='+pv+']').checked=true;
+  f.is_default.checked=a?(a.id===PS_DEF):!PS_DEF;
   if(a){f.name.value=a.name;f.active.checked=!!a.active;var cb=f.cashbox;if(![].some.call(cb.options,function(o){return o.value===a.cashbox})){cb.add(new Option(a.cashbox,a.cashbox))}cb.value=a.cashbox;
     Object.keys(a.creds||{}).forEach(function(k){f.querySelectorAll('.pf[data-p='+pv+'] [name='+k+']').forEach(function(i){if(i.dataset.sec){i.placeholder=a.creds[k]?'•••••••• збережено — введіть нове, щоб замінити':'не задано'}else{i.value=a.creds[k]||''}})})}
   else{var o=[].find.call(f.cashbox.options,function(o){return o.value==='Онлайн-оплати'});if(o)f.cashbox.value=o.value}
-  tgP();d.showModal()}</script>
+  tgP();d.showModal()}
+(function(){var q=document.getElementById('pn-q');if(!q)return;var r=document.getElementById('pn-res'),T;
+  q.addEventListener('input',function(){document.getElementById('pn-pid').value='';document.getElementById('pn-send').style.display='none';clearTimeout(T);var v=q.value.trim();if(v.length<2){r.style.display='none';return}
+    T=setTimeout(function(){fetch('/lookup/patients?q='+encodeURIComponent(v),{credentials:'same-origin'}).then(function(x){return x.json()}).then(function(js){
+      r.innerHTML='';js.slice(0,8).forEach(function(p){var d=document.createElement('div');d.textContent=p.name+(p.phone?' · '+p.phone:'');d.onclick=function(){q.value=p.name;document.getElementById('pn-pid').value=p.id;document.getElementById('pn-send').style.display='flex';r.style.display='none'};r.appendChild(d)});
+      if(!js.length)r.innerHTML='<div class="muted">не знайдено</div>';r.style.display=''})},250)})})();
+</script>
 {% endblock %}
