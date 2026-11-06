@@ -6200,8 +6200,10 @@ async def settings_cosmetics_pct_save(request: Request, user: User = Depends(req
             if str(n_).strip():
                 out[str(n_).strip()] = r_
         return out
+    offs_ = set(f.getlist("tier_off"))
+    tiers_ = [{"from": a_, "pct": b_, "off": str(i_) in offs_} for i_, (a_, b_) in enumerate(zip(f.getlist("tier_from"), f.getlist("tier_pct")))]
     _cp.save(db, {**{k: f.get(k) for k in ("full", "disc", "min_price", "low", "disc_from", "base")},
-                  "staff": rows("staff", ("min_price",)), "brands": rows("brand"), "products": rows("prod")})
+                  "staff": rows("staff", ("min_price",)), "brands": rows("brand"), "products": rows("prod"), "tiers": tiers_})
     audit(db, "settings.cosmetics_pct", user=user)
     return RedirectResponse(_with_msg("/settings/cosmetics-pct", "Збережено. Звіт «Нарахування % по косметиці» рахується за новими правилами"), 303)
 

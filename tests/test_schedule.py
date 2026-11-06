@@ -92,3 +92,26 @@ def test_call_dialog_roles():
     assert [x["role"] for x in d["lines"]] == ["a", "p"] and not d["guessed"]
     g = dialog("MOLODIST, слухаю вас.\nДоброго дня.\nЧим допомогти?")
     assert [x["role"] for x in g["lines"]] == ["a", "p", "a"] and g["guessed"]
+
+
+def test_cosmetics_pct_big_discount_tiers():
+    from app.models import SessionLocal
+    from app.services import cosmetics_pct as cp
+    with SessionLocal() as db:
+        cp.save(db, {"full": 10, "disc": 5, "disc_from": 0, "min_price": 0, "low": 0, "base": "paid",
+                     "tiers": [{"from": "20", "pct": "2"}, {"from": "30", "off": True}], "brands": {"ТестБренд": {"full": 15, "disc": 12}}})
+        r = cp.Rules(db)
+        rows = [{"staff": "X", "name": "Крем", "price": 1000, "qty": 1, "paid": p, "disc_pct": d} for d, p in ((0, 1000), (10, 900), (25, 750), (40, 600))]
+        for x in rows:
+            r.apply(x)
+        assert [x["pct"] for x in rows] == [10, 5, 2, 0] and rows[2]["sum"] == 15 and "не нараховується" in rows[3]["rule"]
+        assert "знижка більше 30% — не нараховується" in r.describe()
+    with TestClient(app) as c:
+        settings.admin_password = "owner-pass-1"
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        page = c.get("/settings/cosmetics-pct").text
+        assert "Велика знижка" in page and 'name="tier_from"' in page
+        c.post("/settings/cosmetics-pct", data={"full": "10", "disc": "5", "disc_from": "0", "min_price": "1000", "low": "0", "base": "paid",
+                                                "tier_from": ["20", "35"], "tier_pct": ["3", "0"], "tier_off": ["1"]})
+        with SessionLocal() as db:
+            assert cp.cfg(db)["tiers"] == [{"from": 20.0, "pct": 3.0}, {"from": 35.0, "pct": 0.0}]

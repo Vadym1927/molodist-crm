@@ -14,7 +14,7 @@ from ..models import SyncState
 
 KEY = "cosmetics_pct"
 DEFAULT = {"full": 10.0, "disc": 5.0, "min_price": 1000.0, "low": 0.0, "disc_from": 0.0, "base": "paid",
-           "staff": {}, "brands": {}, "products": {}}
+           "staff": {}, "brands": {}, "products": {}, "tiers": []}
 BASES = {"paid": "від суми продажу (після знижки)", "price": "від ціни товару (без знижки)"}
 
 
@@ -43,6 +43,13 @@ def cfg(db: Session) -> dict:
 def save(db: Session, c: dict) -> None:
     out = {k: _num(c.get(k), DEFAULT[k]) for k in ("full", "disc", "min_price", "low", "disc_from")}
     out["base"] = c.get("base") if c.get("base") in BASES else "paid"
+    tiers = []                                              # велика знижка: «знижка більше X% → Y%» (Y = 0 — не нараховувати)
+    for t in c.get("tiers") or []:
+        fr = _num(t.get("from"))
+        if fr is None or fr <= 0:
+            continue
+        tiers.append({"from": min(fr, 100.0), "pct": 0.0 if t.get("off") else (_num(t.get("pct"), 0.0) or 0.0)})
+    out["tiers"] = sorted({t["from"]: t for t in tiers}.values(), key=lambda t: t["from"])
     for grp in ("staff", "brands", "products"):
         g = {}
         for name, r in (c.get(grp) or {}).items():
@@ -90,8 +97,13 @@ class Rules:
         br = self.brands.get(_k(brand)) if brand else None
         kind = "disc" if disc else "full"
         lbl = "зі знижкою" if disc else "без знижки"
+        dp = float(x.get("disc_pct") or 0)
+        tier = next((t for t in reversed(c.get("tiers") or []) if dp > float(t["from"]) + 1e-9), None)
         if st.get("off"):
             pct, rule = 0.0, "лікарю не нараховується"
+        elif tier:
+            pct = float(tier["pct"])
+            rule = f"знижка {dp:g}% > {tier['from']:g}% · " + (f"{pct:g}%" if pct else "не нараховується")
         elif pr and pr.get(kind) is not None:
             pct, rule = pr[kind], f"товар · {lbl}"
         elif br and br.get(kind) is not None:
@@ -110,7 +122,8 @@ class Rules:
         c = self.c
         s = (f"Відсоток лікарю з кожного проданого товару {BASES[c['base']]}: {c['full']:g}% без знижки, {c['disc']:g}% — зі знижкою"
              + (f" (понад {c['disc_from']:g}%)" if c["disc_from"] else "")
-             + (f", {c['low']:g}% — якщо ціна товару менше {c['min_price']:g} ₴" if c["min_price"] else "") + ".")
+             + (f", {c['low']:g}% — якщо ціна товару менше {c['min_price']:g} ₴" if c["min_price"] else "")
+             + "".join(f"; знижка більше {t['from']:g}% — " + (f"{t['pct']:g}%" if t["pct"] else "не нараховується") for t in c.get("tiers") or []) + ".")
         n = len(c["staff"]) + len(c["brands"]) + len(c["products"])
         if n:
             s += f" Винятків для лікарів, брендів і товарів: {n}."

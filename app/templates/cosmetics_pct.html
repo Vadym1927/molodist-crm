@@ -3,66 +3,88 @@
 {% block body %}
 {% set qp = request.query_params %}
 <style>
-.cp-info{background:linear-gradient(120deg,#F1EDF8,#F7F4F0);border:1px solid #E4DEEF;border-radius:16px;padding:16px 20px;color:#3B3050;margin:14px 0 18px;line-height:1.5}
-.cp-f{display:grid;gap:18px;max-width:1100px}
-.cp-c{background:#fff;border:1px solid #ECE7E1;border-radius:16px;padding:18px 20px}
-.cp-c h3{margin:0 0 4px;font:600 14px var(--head);letter-spacing:.1em;text-transform:uppercase}.cp-c>p{margin:0 0 14px;color:#8a8496;font-size:13.5px}
-.cp-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;align-items:end}
-.cp-l{display:grid;gap:6px;font:700 10.5px var(--sans);letter-spacing:.07em;text-transform:uppercase;color:#8a8496}
-.cp-l input,.cp-l select{height:44px;font:500 15px var(--sans);text-transform:none;letter-spacing:0;color:#2A2430}
-.pc{position:relative}.pc input{width:100%;padding-right:34px}.pc:after{content:attr(data-u);position:absolute;right:12px;top:50%;transform:translateY(-50%);color:#8a8496;font:600 14px var(--sans)}
-.cp-t{display:grid;gap:0}
-.cp-r{display:grid;grid-template-columns:minmax(0,1fr) 130px 130px var(--x,0px) 36px;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid #F1EDE8}
-.cp-r.st{--x:260px}.cp-r.hd{font:700 10.5px var(--sans);letter-spacing:.07em;text-transform:uppercase;color:#8a8496;padding:0 0 6px}
-.cp-r input{height:40px;width:100%}.cp-r .two{display:grid;grid-template-columns:120px 1fr;gap:10px;align-items:center}
-.cp-r label.off{display:flex;gap:6px;align-items:center;font-size:13px;color:#5d5869;cursor:pointer}.cp-r label.off input{width:16px;height:16px;accent-color:#B23B2E}
-.cp-x{border:0;background:none;color:#B23B2E;font-size:22px;cursor:pointer}
-.cp-ex{margin-top:6px;color:#8a8496;font-size:13px}
-.cp-pr{font-size:12.5px;color:#8a8496;margin-top:10px}
-@media(max-width:760px){.cp-r,.cp-r.st{grid-template-columns:1fr 1fr 36px}.cp-r>:first-child{grid-column:1/-1}.cp-r .two{grid-column:1/-1}.cp-r.hd{display:none}}
+.cpp-f{display:grid;gap:16px;max-width:1180px}
+.cpp-h{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.cpp-h h1{margin:4px 0 2px;font-size:32px;text-transform:none;letter-spacing:0;font-weight:700;color:#2A2430}.cpp-h p{margin:0;color:#6b6575}
+.cpp-pri{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff;border:1px solid #ECE7E1;border-radius:16px;padding:12px 16px;font-size:13px;color:#6b6575}
+.cpp-pri b{font:600 12.5px var(--sans);color:#3B3050;background:#EEEAF6;border-radius:99px;padding:4px 11px}.cpp-pri b.x{background:#FDECEA;color:#B23B2E}.cpp-pri i{font-style:normal;color:#B7B0BD}
+.cpp-c{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:18px 20px;box-shadow:0 1px 2px rgba(42,36,48,.04),0 14px 34px -28px rgba(42,36,48,.35)}
+.cpp-c h3{display:flex;align-items:center;gap:10px;margin:0 0 2px;font:700 17px var(--sans);text-transform:none;letter-spacing:0;color:#2A2430}
+.cpp-c h3 i{width:34px;height:34px;border-radius:10px;background:#EEEAF6;color:#3B3050;display:grid;place-items:center;font-style:normal}.cpp-c h3 svg{width:19px;height:19px}
+.cpp-c>p{margin:2px 0 14px 44px;color:#8a8496;font-size:13px}
+.cpp-b{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:start}@media(max-width:900px){.cpp-b{grid-template-columns:1fr}}
+.cpp-k{border:1px solid #ECE7E1;border-radius:16px;padding:14px;background:#FCFBFA;display:grid;gap:10px;align-content:start}
+.cpp-k .t{font:700 12px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#3B3050}.cpp-k .d{font-size:12.5px;color:#8a8496;margin-top:-6px}
+.cpp-in{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13.5px;color:#2A2430}
+.pc{position:relative;display:inline-block}.pc input{width:96px;height:44px;margin:0;padding-right:30px;font:700 17px var(--sans);text-align:right;border-radius:12px}.pc.w input{width:130px}
+.pc:after{content:attr(data-u);position:absolute;right:11px;top:50%;transform:translateY(-50%);color:#8a8496;font:600 14px var(--sans)}
+.pc.sm input{width:80px;height:38px;font-size:15px}
+.cpp-seg{display:inline-flex;background:#F1EDF8;border-radius:12px;padding:3px;gap:2px}.cpp-seg label{cursor:pointer}.cpp-seg input{display:none}
+.cpp-seg span{display:block;padding:8px 14px;border-radius:9px;font:600 13px var(--sans);color:#5C4B82}.cpp-seg input:checked+span{background:#fff;color:#2A2430;box-shadow:0 1px 3px rgba(42,36,48,.12)}
+.cpp-tier{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:9px 10px;border-radius:12px;background:#fff;border:1px solid #ECE7E1}
+.cpp-tier .off{display:flex;align-items:center;gap:6px;font-size:13px;color:#B23B2E;cursor:pointer}.cpp-tier .off input{width:16px;height:16px;margin:0;accent-color:#B23B2E}
+.cpp-tier.isoff .pcx{opacity:.35;pointer-events:none}
+.cpp-add{border:1.5px dashed #C9BFE6;background:#fff;border-radius:12px;height:40px;font:600 13px var(--sans);color:#5C4B82;cursor:pointer}.cpp-add:hover{background:#F6F3FB}
+.cpp-pr{margin-top:14px;background:#F3EFF9;border-radius:14px;padding:12px 16px;display:block;font-size:13.5px;line-height:1.75;color:#2A2430}.cpp-pr b{font-weight:700;display:inline}.cpp-pr{gap:2px}.cpp-pr .h{font:700 11.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#5C4B82}
+.cpp-t{display:grid;gap:0}
+.cpp-r{display:grid;grid-template-columns:minmax(0,1fr) 130px 130px var(--x,0px) 36px;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid #F1EDE8}
+.cpp-r.st{--x:280px}.cpp-r.hd{font:700 10.5px var(--sans);letter-spacing:.07em;text-transform:uppercase;color:#8a8496;padding:0 0 6px}
+.cpp-r input{height:40px;width:100%;margin:0}.cpp-r .two{display:grid;grid-template-columns:120px 1fr;gap:10px;align-items:center}
+.cpp-r label.off{display:flex;gap:6px;align-items:center;font-size:13px;color:#5d5869;cursor:pointer}.cpp-r label.off input{width:16px;height:16px;accent-color:#B23B2E}
+.cpp-x{border:0;background:none;color:#B23B2E;font-size:22px;cursor:pointer}
+@media(max-width:760px){.cpp-r,.cpp-r.st{grid-template-columns:1fr 1fr 36px}.cpp-r>:first-child{grid-column:1/-1}.cpp-r .two{grid-column:1/-1}.cpp-r.hd{display:none}}
 </style>
-<form method="post" class="cp-f" id="cpf" onsubmit="cpIdx()">
-<div class="row between" style="gap:10px;flex-wrap:wrap"><div><div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a> · Співробітники</div><h1>% від продажу косметики</h1></div>
+<form method="post" class="cpp-f" id="cpf" onsubmit="cpIdx()">
+<div class="cpp-h"><div><div class="eyebrow"><a href="/settings" style="text-decoration:none">Налаштування</a> · Співробітники</div><h1>% від продажу косметики</h1>
+  <p>Скільки лікар отримує з проданої косметики. Лікар — ініціатор позиції в чеку каси.</p></div>
   <div class="row" style="gap:8px"><a class="btn ghost" href="/reports?r=cosmetics">Звіт нарахувань</a><button class="btn">Зберегти</button></div></div>
 {% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok);margin:0">{{ qp.get('msg') }}</div>{% endif %}
-<div class="cp-info" style="margin:0">Скільки відсотків лікар отримує з проданої косметики. Лікар — ініціатор позиції в чеку (спеціаліст у продажі каси).
-  Порядок перевірки: <b>свій % товару</b> → <b>свій % бренду</b> → <b>поріг ціни</b> → <b>свій % лікаря</b> → <b>загальне правило</b>. Порожнє поле у винятку — береться загальне значення. За цими правилами рахується звіт «Нарахування % по косметиці».</div>
+<div class="cpp-pri">Порядок перевірки:<b class="x">лікар «не нараховувати»</b><i>→</i><b>велика знижка</b><i>→</i><b>свій % товару</b><i>→</i><b>бренду</b><i>→</i><b>поріг ціни</b><i>→</i><b>свій % лікаря</b><i>→</i><b>загальне правило</b></div>
 
-<div class="cp-c"><h3>Загальне правило</h3><p>Діє для всіх лікарів і товарів, якщо нижче не задано інше.</p>
-  <div class="cp-g">
-    <label class="cp-l">Без знижки<span class="pc" data-u="%"><input name="full" inputmode="decimal" value="{{ '%g'|format(c.full) }}"></span></label>
-    <label class="cp-l">Зі знижкою<span class="pc" data-u="%"><input name="disc" inputmode="decimal" value="{{ '%g'|format(c.disc) }}"></span></label>
-    <label class="cp-l">Зі знижкою, якщо знижка більше<span class="pc" data-u="%"><input name="disc_from" inputmode="decimal" value="{{ '%g'|format(c.disc_from) }}"></span></label>
-    <label class="cp-l">Поріг ціни товару<span class="pc" data-u="₴"><input name="min_price" inputmode="decimal" value="{{ '%g'|format(c.min_price) }}"></span></label>
-    <label class="cp-l">% для товарів дешевших за поріг<span class="pc" data-u="%"><input name="low" inputmode="decimal" value="{{ '%g'|format(c.low) }}"></span></label>
-    <label class="cp-l">Рахувати<select name="base">{% for k, v in BASES.items() %}<option value="{{ k }}" {{ 'selected' if c.base == k }}>{{ v }}</option>{% endfor %}</select></label>
+<div class="cpp-c"><h3><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M19 5L5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/></svg></i>Загальне правило</h3><p>Діє для всіх лікарів і товарів, якщо нижче не задано інше.</p>
+  <div class="cpp-b">
+    <div class="cpp-k"><div class="t">Без знижки</div><div class="d">Товар продано за повною ціною</div>
+      <div class="cpp-in"><span class="pc" data-u="%"><input name="full" inputmode="decimal" value="{{ '%g'|format(c.full) }}"></span> лікарю</div></div>
+    <div class="cpp-k"><div class="t">Зі знижкою</div><div class="d">Знижка на позицію більша за вказану</div>
+      <div class="cpp-in"><span class="pc" data-u="%"><input name="disc" inputmode="decimal" value="{{ '%g'|format(c.disc) }}"></span> якщо знижка більше <span class="pc sm" data-u="%"><input name="disc_from" inputmode="decimal" value="{{ '%g'|format(c.disc_from) }}"></span></div></div>
+    <div class="cpp-k"><div class="t">Велика знижка</div><div class="d">Менший % або без нарахування — має пріоритет над товарами й брендами</div>
+      <div id="t-tier" style="display:grid;gap:6px">{% for t in c.tiers or [] %}<div class="cpp-tier {{ 'isoff' if not t.pct }}">знижка більше <span class="pc sm" data-u="%"><input name="tier_from" inputmode="decimal" value="{{ '%g'|format(t['from']) }}"></span> →
+        <span class="pc sm pcx" data-u="%"><input name="tier_pct" inputmode="decimal" value="{{ '%g'|format(t.pct) }}"></span>
+        <label class="off"><input type="checkbox" name="tier_off" {{ 'checked' if not t.pct }} onchange="this.closest('.cpp-tier').classList.toggle('isoff',this.checked);cpPr()">не нараховувати</label>
+        <button type="button" class="cpp-x" onclick="this.parentNode.remove();cpPr()">×</button></div>{% endfor %}</div>
+      <button type="button" class="cpp-add" onclick="cpTier()">＋ Поріг знижки</button></div>
+    <div class="cpp-k"><div class="t">Поріг ціни</div><div class="d">Для дешевих товарів — окремий %</div>
+      <div class="cpp-in">якщо ціна менше <span class="pc w" data-u="₴"><input name="min_price" inputmode="decimal" value="{{ '%g'|format(c.min_price) }}"></span></div>
+      <div class="cpp-in">→ <span class="pc" data-u="%"><input name="low" inputmode="decimal" value="{{ '%g'|format(c.low) }}"></span> лікарю</div></div>
+    <div class="cpp-k" style="grid-column:span 2"><div class="t">Від чого рахувати</div>
+      <div class="cpp-seg">{% for k, v in BASES.items() %}<label><input type="radio" name="base" value="{{ k }}" {{ 'checked' if c.base == k }} onchange="cpPr()"><span>{{ v }}</span></label>{% endfor %}</div></div>
   </div>
-  <div class="cp-pr" id="cp-pr"></div></div>
+  <div class="cpp-pr" id="cpp-pr"></div></div>
 
-<div class="cp-c"><h3>Лікарі</h3><p>Свій % для конкретного лікаря, свій поріг ціни або «не нараховувати» (наприклад, адміністратору).</p>
-  <div class="cp-t" id="t-staff"><div class="cp-r st hd"><span>Лікар</span><span>Без знижки, %</span><span>Зі знижкою, %</span><span>Поріг ціни, ₴ · без %</span><span></span></div>
-  {% for n, r in c.staff.items() %}<div class="cp-r st"><input name="staff_name" value="{{ n }}" list="dl-docs">
+<div class="cpp-c"><h3><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4.2 4.2-6.5 8-6.5s7 2.3 8 6.5"/></svg></i>Лікарі</h3><p>Свій % для конкретного лікаря, свій поріг ціни або «не нараховувати» (наприклад, адміністратору).</p>
+  <div class="cpp-t" id="t-staff"><div class="cpp-r st hd"><span>Лікар</span><span>Без знижки, %</span><span>Зі знижкою, %</span><span>Поріг ціни, ₴ · без %</span><span></span></div>
+  {% for n, r in c.staff.items() %}<div class="cpp-r st"><input name="staff_name" value="{{ n }}" list="dl-docs">
     <input name="staff_full" inputmode="decimal" value="{{ '%g'|format(r.full) if r.full is not none }}" placeholder="{{ '%g'|format(c.full) }}">
     <input name="staff_disc" inputmode="decimal" value="{{ '%g'|format(r.disc) if r.disc is not none }}" placeholder="{{ '%g'|format(c.disc) }}">
     <div class="two"><input name="staff_min_price" inputmode="decimal" value="{{ '%g'|format(r.min_price) if r.min_price is not none }}" placeholder="{{ '%g'|format(c.min_price) }}"><label class="off"><input type="checkbox" name="staff_off" {{ 'checked' if r.off }}>не нараховувати</label></div>
-    <button type="button" class="cp-x" onclick="this.parentNode.remove()">×</button></div>{% endfor %}</div>
-  <button type="button" class="btn ghost" style="margin-top:10px" onclick="cpAdd('staff')">＋ Лікар</button></div>
+    <button type="button" class="cpp-x" onclick="this.parentNode.remove()">×</button></div>{% endfor %}</div>
+  <button type="button" class="cpp-add" style="margin-top:10px;padding:0 16px" onclick="cpAdd('staff')">＋ Лікар</button></div>
 
-<div class="cp-c"><h3>Бренди</h3><p>Інший % на весь бренд (поріг ціни для бренду не діє).</p>
-  <div class="cp-t" id="t-brand"><div class="cp-r hd"><span>Бренд</span><span>Без знижки, %</span><span>Зі знижкою, %</span><span></span><span></span></div>
-  {% for n, r in c.brands.items() %}<div class="cp-r"><input name="brand_name" value="{{ n }}" list="dl-brands">
+<div class="cpp-c"><h3><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M20.5 12.5l-8 8-9-9V3.5h8z"/><circle cx="8" cy="8" r="1.5"/></svg></i>Бренди</h3><p>Інший % на весь бренд (поріг ціни для бренду не діє).</p>
+  <div class="cpp-t" id="t-brand"><div class="cpp-r hd"><span>Бренд</span><span>Без знижки, %</span><span>Зі знижкою, %</span><span></span><span></span></div>
+  {% for n, r in c.brands.items() %}<div class="cpp-r"><input name="brand_name" value="{{ n }}" list="dl-brands">
     <input name="brand_full" inputmode="decimal" value="{{ '%g'|format(r.full) if r.full is not none }}" placeholder="{{ '%g'|format(c.full) }}">
     <input name="brand_disc" inputmode="decimal" value="{{ '%g'|format(r.disc) if r.disc is not none }}" placeholder="{{ '%g'|format(c.disc) }}"><span></span>
-    <button type="button" class="cp-x" onclick="this.parentNode.remove()">×</button></div>{% endfor %}</div>
-  <button type="button" class="btn ghost" style="margin-top:10px" onclick="cpAdd('brand')">＋ Бренд</button></div>
+    <button type="button" class="cpp-x" onclick="this.parentNode.remove()">×</button></div>{% endfor %}</div>
+  <button type="button" class="cpp-add" style="margin-top:10px;padding:0 16px" onclick="cpAdd('brand')">＋ Бренд</button></div>
 
-<div class="cp-c"><h3>Товари</h3><p>Свій % на конкретний товар — найвищий пріоритет (поріг ціни не діє).</p>
-  <div class="cp-t" id="t-prod"><div class="cp-r hd"><span>Товар</span><span>Без знижки, %</span><span>Зі знижкою, %</span><span></span><span></span></div>
-  {% for n, r in c.products.items() %}<div class="cp-r"><input name="prod_name" value="{{ n }}" list="dl-prods">
+<div class="cpp-c"><h3><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg></i>Товари</h3><p>Свій % на конкретний товар — найвищий пріоритет (поріг ціни не діє).</p>
+  <div class="cpp-t" id="t-prod"><div class="cpp-r hd"><span>Товар</span><span>Без знижки, %</span><span>Зі знижкою, %</span><span></span><span></span></div>
+  {% for n, r in c.products.items() %}<div class="cpp-r"><input name="prod_name" value="{{ n }}" list="dl-prods">
     <input name="prod_full" inputmode="decimal" value="{{ '%g'|format(r.full) if r.full is not none }}" placeholder="{{ '%g'|format(c.full) }}">
     <input name="prod_disc" inputmode="decimal" value="{{ '%g'|format(r.disc) if r.disc is not none }}" placeholder="{{ '%g'|format(c.disc) }}"><span></span>
-    <button type="button" class="cp-x" onclick="this.parentNode.remove()">×</button></div>{% endfor %}</div>
-  <button type="button" class="btn ghost" style="margin-top:10px" onclick="cpAdd('prod')">＋ Товар</button></div>
+    <button type="button" class="cpp-x" onclick="this.parentNode.remove()">×</button></div>{% endfor %}</div>
+  <button type="button" class="cpp-add" style="margin-top:10px;padding:0 16px" onclick="cpAdd('prod')">＋ Товар</button></div>
 </form>
 <datalist id="dl-docs">{% for n in docs %}<option value="{{ n }}">{% endfor %}</datalist>
 <datalist id="dl-brands">{% for n in brands %}<option value="{{ n }}">{% endfor %}</datalist>
@@ -70,16 +92,31 @@
 <script>
 function cpAdd(t){var f=document.querySelector('[name=full]').value,d=document.querySelector('[name=disc]').value,m=document.querySelector('[name=min_price]').value;
   var dl={staff:'dl-docs',brand:'dl-brands',prod:'dl-prods'}[t],ph={staff:'Почніть вводити імʼя лікаря',brand:'Назва бренду',prod:'Почніть вводити назву товару'}[t];
-  var r=document.createElement('div');r.className='cp-r'+(t==='staff'?' st':'');
+  var r=document.createElement('div');r.className='cpp-r'+(t==='staff'?' st':'');
   r.innerHTML='<input name="'+t+'_name" list="'+dl+'" placeholder="'+ph+'" required><input name="'+t+'_full" inputmode="decimal" placeholder="'+f+'"><input name="'+t+'_disc" inputmode="decimal" placeholder="'+d+'">'+
     (t==='staff'?'<div class="two"><input name="staff_min_price" inputmode="decimal" placeholder="'+m+'"><label class="off"><input type="checkbox" name="staff_off">не нараховувати</label></div>':'<span></span>')+
-    '<button type="button" class="cp-x" onclick="this.parentNode.remove()">×</button>';
+    '<button type="button" class="cpp-x" onclick="this.parentNode.remove()">×</button>';
   document.getElementById('t-'+t).appendChild(r);r.querySelector('input').focus()}
-function cpIdx(){document.querySelectorAll('#t-staff .cp-r:not(.hd)').forEach(function(r,i){var c=r.querySelector('[name=staff_off]');if(c)c.value=i})}
-function cpPr(){var g=function(n){return parseFloat((document.querySelector('[name='+n+']').value||'0').replace(',','.'))||0};
-  var full=g('full'),disc=g('disc'),mp=g('min_price'),low=g('low'),p=1500;
-  document.getElementById('cp-pr').textContent='Приклад: крем за '+p+' ₴ без знижки → '+(p*full/100).toFixed(2)+' ₴ лікарю; зі знижкою 10% ('+(p*.9)+' ₴) → '+(p*.9*disc/100).toFixed(2)+' ₴'+
-    (mp?'; товар за '+Math.max(mp-100,1)+' ₴ (менше порогу) → '+(Math.max(mp-100,1)*low/100).toFixed(2)+' ₴':'')+'.'}
-document.querySelectorAll('.cp-g input').forEach(function(i){i.addEventListener('input',cpPr)});cpPr();
+function cpIdx(){document.querySelectorAll('#t-staff .cpp-r:not(.hd)').forEach(function(r,i){var c=r.querySelector('[name=staff_off]');if(c)c.value=i});
+  document.querySelectorAll('#t-tier .cpp-tier').forEach(function(r,i){var c=r.querySelector('[name=tier_off]');if(c)c.value=i})}
+function cpTier(){var last=[].map.call(document.querySelectorAll('[name=tier_from]'),function(i){return parseFloat(i.value)||0});var nx=last.length?Math.max.apply(null,last)+10:20;
+  var r=document.createElement('div');r.className='cpp-tier';
+  r.innerHTML='знижка більше <span class="pc sm" data-u="%"><input name="tier_from" inputmode="decimal" value="'+nx+'"></span> → <span class="pc sm pcx" data-u="%"><input name="tier_pct" inputmode="decimal" value="0"></span>'+
+    '<label class="off"><input type="checkbox" name="tier_off" onchange="this.closest(\'.cpp-tier\').classList.toggle(\'isoff\',this.checked);cpPr()">не нараховувати</label><button type="button" class="cpp-x" onclick="this.parentNode.remove();cpPr()">×</button>';
+  document.getElementById('t-tier').appendChild(r);r.querySelectorAll('input').forEach(function(i){i.addEventListener('input',cpPr)});cpPr()}
+function cpPr(){var g=function(n){var e=document.querySelector('[name='+n+']');return parseFloat(((e&&e.value)||'0').replace(',','.'))||0};
+  var full=g('full'),disc=g('disc'),df=g('disc_from'),mp=g('min_price'),low=g('low'),p=Math.max(1500,mp?mp+500:1500);
+  var base=(document.querySelector('[name=base]:checked')||{}).value||'paid';
+  var tiers=[].map.call(document.querySelectorAll('#t-tier .cpp-tier'),function(r){return {f:parseFloat((r.querySelector('[name=tier_from]').value||'0').replace(',','.'))||0,p:r.querySelector('[name=tier_off]').checked?0:(parseFloat((r.querySelector('[name=tier_pct]').value||'0').replace(',','.'))||0)}}).filter(function(t){return t.f>0}).sort(function(a,b){return a.f-b.f});
+  var f2=function(v){return v.toFixed(2).replace('.',',')+' ₴'};
+  var calc=function(d){var paid=p*(1-d/100),b=base==='paid'?paid:p,t=null;tiers.forEach(function(x){if(d>x.f)t=x});
+    var pct=t?t.p:(d>df?disc:full);return {pct:pct,sum:b*pct/100,t:t}};
+  var L=['<span class="h">Приклад: крем за '+f2(p)+'</span>'];
+  var a=calc(0);L.push('Без знижки → <b>'+a.pct+'%</b> = <b>'+f2(a.sum)+'</b>');
+  var d1=Math.max(df+5,10);var b1=calc(d1);L.push('Знижка '+d1+'% → <b>'+b1.pct+'%</b> = <b>'+f2(b1.sum)+'</b>');
+  tiers.forEach(function(t){var d=t.f+5,c=calc(d);L.push('Знижка '+d+'% → '+(c.pct?'<b>'+c.pct+'%</b> = <b>'+f2(c.sum)+'</b>':'<b style="color:#B23B2E">не нараховується</b>'))});
+  if(mp)L.push('Товар за '+f2(Math.max(mp-100,1))+' (менше порогу) → <b>'+low+'%</b> = <b>'+f2(Math.max(mp-100,1)*low/100)+'</b>');
+  document.getElementById('cpp-pr').innerHTML=L.join('<br>')}
+document.querySelectorAll('.cpp-b input').forEach(function(i){i.addEventListener('input',cpPr)});cpPr();
 </script>
 {% endblock %}
