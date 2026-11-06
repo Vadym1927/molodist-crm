@@ -21,7 +21,7 @@
 </style>
 {% set qp = request.query_params %}{% set bsel = qp.get('b', '') %}
 <div class="eyebrow"><a href="/reports" style="color:inherit;text-decoration:none">← Усі звіти · склад</a></div><h1>Звіти</h1>
-<nav class="rp-tabs">{% for k, v in REPORTS.items() %}<a href="?r={{ k }}" class="{{ 'on' if key==k }}">{{ v }}</a>{% endfor %}</nav>
+<nav class="rp-tabs">{% for k, v in REPORTS.items() if k != 'cash' or key == 'cash' %}<a href="?r={{ k }}" class="{{ 'on' if key==k }}">{{ v }}</a>{% endfor %}</nav>
 
 <div class="whs2"><a href="?r=expiry{{ ('&b=' ~ bsel) if bsel }}" class="{{ 'on' if not wh }}">Усі склади</a>
   {% for w in rep.warehouses %}<a href="?r=expiry&wh={{ w.key }}{{ ('&b=' ~ bsel) if bsel }}" class="{{ 'on' if wh == w.key }}">{{ w.name }} · {{ w.rows|length }}</a>{% endfor %}</div>

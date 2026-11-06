@@ -174,7 +174,7 @@ def _book_txn(db: Session, txn: BankTxn, amount: float, g) -> None:
 
 
 def revert_booked_without_supply(db: Session) -> int:
-    """Скасувати списання оплат «без поставки»: платіж знову чекає на поставку, різниця з банком видна у «Стан каси»."""
+    """Скасувати списання оплат «без поставки»: платіж знову чекає на поставку, різниця з банком видна у «Стан рахунків»."""
     from ..models import FinOp
     n = 0
     for t in db.scalars(select(BankTxn).where(BankTxn.status == "booked")).all():

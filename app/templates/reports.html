@@ -44,7 +44,7 @@
   {% set fq = namespace(s='') %}{% for f in rep.filters %}{% if f.value %}{% set fq.s = fq.s ~ '&' ~ f.name ~ '=' ~ (f.value|urlencode) %}{% endif %}{% endfor %}
   <a class="btn ghost" href="?r={{ key }}&df={{ d_from }}&dt_={{ d_to }}{{ fq.s }}&fmt=xlsx">⤓ Excel</a>
 </div>
-<nav class="rp-tabs">{% for k, v in REPORTS.items() %}<a href="?r={{ k }}&period={{ period if period != 'custom' else 'month' }}{% if period == 'custom' %}&df={{ d_from }}&dt_={{ d_to }}{% endif %}" class="{{ 'on' if key==k }}">{{ v }}</a>{% endfor %}</nav>
+<nav class="rp-tabs">{% for k, v in REPORTS.items() if k != 'cash' or key == 'cash' %}<a href="?r={{ k }}&period={{ period if period != 'custom' else 'month' }}{% if period == 'custom' %}&df={{ d_from }}&dt_={{ d_to }}{% endif %}" class="{{ 'on' if key==k }}">{{ v }}</a>{% endfor %}</nav>
 <div class="rp-per">
   {% for k, v in PERIODS.items() %}<a href="?r={{ key }}&period={{ k }}{{ fq.s }}" class="{{ 'on' if period==k }}">{{ v }}</a>{% endfor %}
   <form><input type="hidden" name="r" value="{{ key }}">{% for f in rep.filters %}<input type="hidden" name="{{ f.name }}" value="{{ f.value }}">{% endfor %}<input type="date" name="df" value="{{ d_from }}"><span class="muted">—</span><input type="date" name="dt_" value="{{ d_to }}"><button class="btn ghost" style="height:38px">OK</button></form>

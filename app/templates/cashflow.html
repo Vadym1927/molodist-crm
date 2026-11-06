@@ -34,7 +34,7 @@
     <div class="muted small">Рух грошових коштів: надходження, витрати, чистий рух і каса наростаючим підсумком.</div></div>
   <form class="row" style="gap:6px">{% for y in years %}<a class="btn {{ '' if y == year else 'ghost' }}" style="padding:6px 14px" href="?r=cashflow&year={{ y }}">{{ y }}</a>{% endfor %}</form>
 </div>
-<nav class="rp-tabs">{% for k, v in REPORTS.items() %}<a href="?r={{ k }}" class="{{ 'on' if key==k }}">{{ v }}</a>{% endfor %}</nav>
+<nav class="rp-tabs">{% for k, v in REPORTS.items() if k != 'cash' or key == 'cash' %}<a href="?r={{ k }}" class="{{ 'on' if key==k }}">{{ v }}</a>{% endfor %}</nav>
 
 {% if last %}<div class="alert" style="{{ '' if last.error else 'background:var(--ok-bg);color:var(--ok)' }}">{% if last.error %}{{ last.error }}{% else %}Звіт «Прибуток» імпортовано: {{ last.rows }} днів ({{ last.period }}), з них оновлено {{ last.updated }}.{% endif %}</div>{% endif %}
 

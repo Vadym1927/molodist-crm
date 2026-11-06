@@ -193,7 +193,7 @@ def test_supply_payment_books_finop_and_cash_report():
         monobank.disconnect(db, "Колган")
     with TestClient(app) as c:
         _login(c)
-        assert "Стан каси" in c.get("/reports?r=cash").text
+        assert "Стан рахунків" in c.get("/reports?r=cash").text
 
 
 def test_revert_booked_without_supply():

@@ -36,7 +36,7 @@
   <div class="row" style="gap:6px">{% if f.period %}<span class="pill" style="background:var(--lavender);color:var(--classic)">{{ f.period }}</span>{% endif %}
     {% for y in years %}<a class="btn {{ '' if y == year else 'ghost' }}" style="padding:6px 14px" href="?r=fop&year={{ y }}">{{ y }}</a>{% endfor %}</div>
 </div>
-<nav class="rp-tabs">{% for k, v in REPORTS.items() %}<a href="?r={{ k }}" class="{{ 'on' if key==k }}">{{ v }}</a>{% endfor %}</nav>
+<nav class="rp-tabs">{% for k, v in REPORTS.items() if k != 'cash' or key == 'cash' %}<a href="?r={{ k }}" class="{{ 'on' if key==k }}">{{ v }}</a>{% endfor %}</nav>
 {% if last %}<div class="alert" style="{{ '' if last.error else 'background:var(--ok-bg);color:var(--ok)' }}">{% if last.error %}{{ last.error }}{% else %}Таблицю імпортовано: {{ last.rows }} місяців{% if last.skipped %}, {{ last.skipped }} пропущено (вже є з Checkbox){% endif %}. {{ (last.errors or [])|join(' · ') }}{% endif %}</div>{% endif %}
 {% if job %}<div class="alert" style="background:var(--lavender);color:var(--classic)">{{ job.title }}: {{ 'виконується…' if job.status == 'running' else ('готово: ' ~ (job.result or {})|tojson if job.status == 'done' else 'помилка: ' ~ job.error) }} {% if job.status == 'running' %}<a href="?r=fop&job={{ job.id }}">оновити</a>{% endif %}</div>{% endif %}
 

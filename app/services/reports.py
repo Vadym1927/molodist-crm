@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from ..models import Check, Visit, BeautyPlan, Patient, Product, SupplierInvoice
 from ..parsers.observ import norm
 
-REPORTS = {"cash": "Стан каси", "cashflow": "Cashflow", "fop": "Ліміти ФОП", "expiry": "Терміни придатності", "revenue": "Виручка", "doctors": "Лікарі", "services": "Звіт з продажу послуг", "products": "Товари",
+REPORTS = {"cash": "Стан рахунків", "cashflow": "Cashflow", "fop": "Ліміти ФОП", "expiry": "Терміни придатності", "revenue": "Виручка", "doctors": "Лікарі", "services": "Звіт з продажу послуг", "products": "Товари",
            "patients": "Пацієнти", "plans": "Бюті-плани", "certificates": "Сертифікати й абонементи", "supply": "Поставки", "cosmetics": "% по косметиці", "sources": "Джерела запису"}
 
 
@@ -576,7 +576,7 @@ def cash(db: Session, d_from: date, d_to: date) -> Report:
             if box:
                 bank_by_box[box] = {"id": acc["id"], "fop": x["fop"], "bal": (bal.get(acc["id"]) or {}).get("balance"),
                                     "at": (bal.get(acc["id"]) or {}).get("at")}
-    r = Report("cash", "Стан каси", "Залишки кас і рахунків CRM на початок і кінець періоду. Для рахунків monobank — скільки на рахунку в банку зараз "
+    r = Report("cash", "Стан рахунків", "Залишки кас і рахунків CRM на початок і кінець періоду. Для рахунків monobank — скільки на рахунку в банку зараз "
                "і різниця з CRM: оплати, ще не привʼязані до поставок, або надходження, яких ще немає в CRM.",
                empty="Немає активних кас — Налаштування → Каси / рахунки.")
     r.cols = [Col("name", "Рахунок"), Col("start", "Залишок на початок", "uah", True), Col("in", "Прихід", "uah", True),

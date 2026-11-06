@@ -36,7 +36,7 @@ _FIN = [("/finance$", "fin_overview", "Огляд фінансів"), ("/finance
         ("/finance/sales", "fin_sales", "Продажі"), ("/finance/balances", "fin_balances", "Баланс пацієнтів"),
         ("/finance/bonuses", "fin_bonuses", "Рух бонусів"), ("/finance/pricing", "fin_pricing", "Планування ціни реалізації"),
         ("/payreq", "fin_payreq", "Рахунки на оплату")]
-_REP = [("cash", "Стан каси"), ("cashflow", "Cashflow"), ("fop", "Ліміти ФОП"), ("expiry", "Терміни придатності"), ("revenue", "Виручка"),
+_REP = [("cash", "Стан рахунків"), ("cashflow", "Cashflow"), ("fop", "Ліміти ФОП"), ("expiry", "Терміни придатності"), ("revenue", "Виручка"),
         ("doctors", "Лікарі"), ("services", "Звіт з продажу послуг"), ("products", "Товари"), ("patients", "Пацієнти"),
         ("plans", "Бюті-плани"), ("certificates", "Сертифікати й абонементи"), ("supply", "Поставки"), ("cosmetics", "% по косметиці"), ("sources", "Джерела запису")]
 
