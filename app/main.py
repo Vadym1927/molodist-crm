@@ -3924,16 +3924,98 @@ def services_page(request: Request, q: str = "", cat: str = "", user: User = Dep
                   cards=db.scalars(select(TechCard).order_by(TechCard.name)).all())
 
 
+SVC_TABS = {"about": "Про послугу", "price": "Ціна й маржа", "staff": "Персонал", "history": "Історія"}
+
+
+@app.get("/services/{sid:int}", response_class=HTMLResponse)
+def service_card_page(request: Request, sid: int, tab: str = "about", np: str = "", on: str = "",
+                      user: User = Depends(require("products|stock")), db: Session = Depends(db_dep)):
+    from .models import CbService, TechCard
+    from .services import service_card as sc
+    sv = db.get(CbService, sid)
+    if not sv:
+        raise HTTPException(404, "Послугу не знайдено")
+    tab = tab if tab in SVC_TABS else "about"
+    allrows = db.scalars(select(CbService)).all()
+    pl = sc.planner(db, sv, _day(on) if on else None, _num(np.replace(",", ".")) if np.strip() else None)
+    users = {u.id: u.name for u in db.scalars(select(User))}
+    return render(request, "service_card.html", nav="products", sv=sv, tab=tab, TABS=SVC_TABS, pl=pl, COLORS=sc.COLORS,
+                  FIELDS=sc.FIELDS, hist=sc.history(db, sid), users=users,
+                  doctors=db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)).all(),
+                  cards=db.scalars(select(TechCard).order_by(TechCard.name)).all(),
+                  cats=sorted({r.category for r in allrows if r.category}), dirs=sorted({r.direction for r in allrows if r.direction}))
+
+
+@app.post("/services/{sid:int}/card")
+async def service_card_save(request: Request, sid: int, user: User = Depends(require("products|stock")), db: Session = Depends(db_dep)):
+    from .models import CbService
+    from .services import service_card as sc
+    sv = db.get(CbService, sid)
+    if not sv:
+        raise HTTPException(404)
+    f = await request.form()
+    tab = str(f.get("tab") or "about")
+    g = lambda k: (str(f.get(k) or "").strip())  # noqa: E731
+    if tab == "about":
+        from .models import TechCard as _TC
+        _tcn = lambda i: (db.get(_TC, i).name if i and db.get(_TC, i) else None)  # noqa: E731
+        before = {"name": sv.name, "duration": sv.duration or sv.time_min, "techcard": _tcn(sv.techcard_id), "category": sv.category}
+        sv.name = g("name")[:300] or sv.name
+        sv.sms_name, sv.check_name = g("sms_name")[:300] or None, g("check_name")[:300] or None
+        sv.direction, sv.category = g("direction")[:200] or None, g("category")[:200] or None
+        d_ = int(g("duration")) if g("duration").isdigit() else None
+        sv.duration = d_
+        if d_:
+            sv.time_min = d_
+        sv.repeat_days = int(g("repeat_days")) if g("repeat_days").isdigit() else None
+        sv.techcard_id = int(g("techcard_id")) if g("techcard_id").isdigit() else None
+        sv.prepay = _num(g("prepay").replace(",", ".")) if g("prepay") else None
+        sv.color = g("color")[:10] or None
+        sv.online, sv.online_name = bool(f.get("online")), g("online_name")[:300] or None
+        sv.allow_price_change = bool(f.get("allow_price_change"))
+        sv.active = bool(f.get("active"))
+        sv.description, sv.specialist_note = g("description")[:5000] or None, g("specialist_note")[:10000] or None
+        after = {"name": sv.name, "duration": sv.duration or sv.time_min, "techcard": _tcn(sv.techcard_id), "category": sv.category}
+        for k in before:
+            if before[k] != after[k]:
+                sc.log(db, sv.id, k, before[k], after[k], user.id, commit=False)
+    elif tab == "staff":
+        sv.doctor_ids = sorted({int(x) for x in f.getlist("doctor") if str(x).isdigit()})
+    elif tab == "price":
+        np_ = _num(g("price").replace(",", ".")) if g("price") else None
+        day = _day(g("price_set_on")) if g("price_set_on") else None
+        if np_ is not None and np_ != sv.price:
+            sc.log(db, sv.id, "price", sv.price, np_, user.id, commit=False)
+            sv.price, sv.price_locked = np_, True
+            day = day or date.today()
+        if day and day != sv.price_set_on:
+            sc.log(db, sv.id, "price_set_on", sv.price_set_on.strftime("%d.%m.%Y") if sv.price_set_on else None, day.strftime("%d.%m.%Y"), user.id, commit=False)
+            sv.price_set_on = day
+        if f.get("unlock"):
+            sv.price_locked = False
+            if sv.cb_price is not None and sv.cb_price != sv.price:
+                sc.log(db, sv.id, "price", sv.price, sv.cb_price, user.id, commit=False)
+                sv.price = sv.cb_price
+    db.commit()
+    audit(db, "service.card", user=user, service=sv.id, tab=tab)
+    return RedirectResponse(_with_msg(f"/services/{sv.id}?tab={tab}", "Збережено"), 303)
+
+
 @app.post("/services")
 def service_save(id: str = Form(""), name: str = Form(...), category: str = Form(""), price: str = Form(""), duration: str = Form(""),
                  techcard_id: str = Form(""), active: str = Form(""), back: str = Form("/services"),
                  user: User = Depends(require("products|stock")), db: Session = Depends(db_dep)):
     from .models import CbService
+    from .services import service_card as _sc
     sv = db.get(CbService, int(id)) if id.isdigit() else None
+    created = sv is None
     if not sv:
         nid = max(9_000_000, (db.scalar(select(func.max(CbService.id))) or 0) + 1)   # послуги CRM — окремий діапазон ID
         sv = CbService(id=nid, name=name.strip()[:300], source="crm")
         db.add(sv)
+        db.flush()
+        _sc.log(db, sv.id, "created", None, sv.name, user.id, commit=False)
+    old_price = sv.price
     sv.name = name.strip()[:300] or sv.name
     sv.category = category.strip()[:200] or None
     sv.price = _num(price.replace(",", ".")) if price.strip() else sv.price
@@ -3943,8 +4025,15 @@ def service_save(id: str = Form(""), name: str = Form(...), category: str = Form
         sv.time_min = d_
     sv.techcard_id = int(techcard_id) if techcard_id.isdigit() else None
     sv.active = active != "0"
+    if not created and (old_price or 0) != (sv.price or 0):
+        _sc.log(db, sv.id, "price", old_price, sv.price, user.id, commit=False)
+        sv.price_locked, sv.price_set_on = True, date.today()
+    elif created and sv.price:
+        sv.price_locked, sv.price_set_on = True, date.today()
     db.commit()
     audit(db, "service.save", user=user, service=sv.id, name=sv.name, price=sv.price, techcard=sv.techcard_id)
+    if created:
+        return RedirectResponse(_with_msg(f"/services/{sv.id}", f"Послугу «{sv.name}» створено"), 303)
     return RedirectResponse(_with_msg(back if back.startswith("/services") else "/services", f"Послугу «{sv.name}» збережено"), 303)
 
 

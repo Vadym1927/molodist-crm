@@ -426,10 +426,28 @@ def _state(db: Session, key: str, value: str | None = None) -> str | None:
 def sync_services(db: Session, cb: CleverBox) -> int:
     n = 0
     for s in cb.services():
-        obj = db.get(CbService, int(s["id"])) or CbService(id=int(s["id"]))
+        obj = db.get(CbService, int(s["id"]))
+        is_new = obj is None
+        obj = obj or CbService(id=int(s["id"]))
+        old_name, old_price = obj.name, obj.price
         obj.name = s.get("name") or s.get("check_name") or ""
         obj.category = s.get("category_name")
-        obj.price = float(s["price"]) if s.get("price") not in (None, "") else None
+        cbp = float(s["price"]) if s.get("price") not in (None, "") else None
+        obj.cb_price = cbp
+        if not obj.price_locked:                       # ціну, задану в CRM (планувальник ціни), синк не чіпає
+            obj.price = cbp
+        try:
+            from ..services import service_card as _sc
+            if is_new:
+                _sc.log(db, obj.id, "created", None, obj.name, source="cleverbox", commit=False)
+            else:
+                if (old_price or 0) != (obj.price or 0):
+                    _sc.log(db, obj.id, "price", old_price, obj.price, source="cleverbox", commit=False)
+                    obj.price_set_on = date.today()
+                if old_name and old_name != obj.name:
+                    _sc.log(db, obj.id, "name", old_name, obj.name, source="cleverbox", commit=False)
+        except Exception:  # noqa: BLE001
+            pass
         obj.time_min = int(s["time"]) if s.get("time") else None
         db.merge(obj)
         n += 1

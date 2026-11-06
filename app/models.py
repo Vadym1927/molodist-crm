@@ -167,6 +167,32 @@ class CbService(Base):
     duration: Mapped[int | None] = mapped_column(Integer)            # тривалість, хв (редагується в CRM)
     active: Mapped[bool | None] = mapped_column(Boolean)              # False — прихована з каси й запису
     source: Mapped[str | None] = mapped_column(String(10))            # crm — створена в CRM
+    # картка послуги (як у CleverBox) + планувальник ціни
+    cb_price: Mapped[float | None] = mapped_column(Float)              # ціна в CleverBox (з останнього синку)
+    price_locked: Mapped[bool | None] = mapped_column(Boolean)         # ціну задано в CRM — синк CleverBox її не перезаписує
+    price_set_on: Mapped[date | None] = mapped_column(Date)            # дата формування ціни продажу
+    repeat_days: Mapped[int | None] = mapped_column(Integer)           # повторний візит через N днів
+    prepay: Mapped[float | None] = mapped_column(Float)                # фіксована передоплата, ₴
+    color: Mapped[str | None] = mapped_column(String(10))              # колір у календарі
+    online: Mapped[bool | None] = mapped_column(Boolean)               # доступна для онлайн-запису
+    online_name: Mapped[str | None] = mapped_column(String(300))
+    description: Mapped[str | None] = mapped_column(Text)              # опис для онлайн-запису
+    specialist_note: Mapped[str | None] = mapped_column(Text)          # інформація для спеціаліста
+    doctor_ids: Mapped[list | None] = mapped_column(JSON)              # хто надає послугу
+    allow_price_change: Mapped[bool | None] = mapped_column(Boolean)   # дозволити зміну ціни при оплаті
+
+
+class ServiceLog(Base):
+    """Історія послуги: зміни ціни, назви, техкарти, тривалості (CRM і синк CleverBox)."""
+    __tablename__ = "service_logs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    service_id: Mapped[int] = mapped_column(Integer, index=True)
+    at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    field: Mapped[str] = mapped_column(String(30))                     # price | name | techcard | duration | created | ...
+    old: Mapped[str | None] = mapped_column(String(300))
+    new: Mapped[str | None] = mapped_column(String(300))
+    user_id: Mapped[int | None] = mapped_column(Integer)
+    source: Mapped[str | None] = mapped_column(String(12))             # crm | cleverbox
 
 
 class Visit(Base):

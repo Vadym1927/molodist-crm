@@ -30,12 +30,12 @@ dialog.sv-d{border:0;border-radius:20px;padding:0;width:min(520px,96vw);box-shad
 <form class="sv-bar"><input name="q" value="{{ q }}" placeholder="Знайти послугу"><select name="cat" onchange="this.form.submit()"><option value="">Усі категорії</option>{% for c in cats %}<option {{ 'selected' if cat == c }}>{{ c }}</option>{% endfor %}</select><button class="btn ghost" style="height:44px">Знайти</button></form>
 <div class="sv-card"><table class="sv-tb"><thead><tr><th>Послуга</th><th class="r">Ціна</th><th class="r">Хв</th><th>Техкарта</th><th class="r">Собівартість</th><th class="r">Маржа</th><th></th></tr></thead><tbody>
 {% set cmap = {} %}{% for k in cards %}{% set _ = cmap.update({k.id: k}) %}{% endfor %}
-{% for r in rows %}{% set cst = cost.get(r.id, 0) %}<tr class="{{ 'off' if r.active is false }}">
-  <td class="nm"><b>{{ r.name }}</b><small>{{ r.category or '' }}{{ ' · створено в CRM' if r.source == 'crm' }}{{ ' · прихована' if r.active is false }}</small></td>
+{% for r in rows %}{% set cst = cost.get(r.id, 0) %}<tr class="{{ 'off' if r.active is false }}" style="cursor:pointer" onclick="if(!event.target.closest('a,button'))location.href='/services/{{ r.id }}'">
+  <td class="nm"><a href="/services/{{ r.id }}" style="color:inherit;text-decoration:none"><b>{{ r.name }}</b></a><small>{{ r.category or '' }}{{ ' · створено в CRM' if r.source == 'crm' }}{{ ' · прихована' if r.active is false }}</small></td>
   <td class="r">{{ r.price|uah if r.price else '—' }}</td><td class="r">{{ r.duration or r.time_min or '—' }}</td>
   <td>{% if r.techcard_id and cmap.get(r.techcard_id) %}<a class="sv-tc" href="/techcards?open={{ r.techcard_id }}">{{ cmap[r.techcard_id].name }}</a>{% else %}<span class="sv-tc no">немає</span>{% endif %}</td>
   <td class="r">{{ cst|uah if cst else '—' }}</td><td class="r">{{ ((100 * (r.price - cst) / r.price)|round(1) ~ '%') if r.price and cst else '—' }}</td>
-  <td class="r"><button class="sv-ed" type="button" onclick='svEdit({{ {"id": r.id, "name": r.name, "category": r.category or "", "price": r.price, "duration": r.duration or r.time_min, "techcard_id": r.techcard_id, "active": r.active is not false}|tojson }})'>Змінити</button></td></tr>
+  <td class="r"><a class="sv-ed" href="/services/{{ r.id }}" style="display:inline-grid;place-items:center;text-decoration:none">Картка</a> <button class="sv-ed" type="button" onclick='svEdit({{ {"id": r.id, "name": r.name, "category": r.category or "", "price": r.price, "duration": r.duration or r.time_min, "techcard_id": r.techcard_id, "active": r.active is not false}|tojson }})'>Змінити</button></td></tr>
 {% else %}<tr><td colspan="7" class="muted" style="padding:14px">Послуг не знайдено.</td></tr>{% endfor %}</tbody></table></div>
 <dialog class="sv-d" id="svd"><div class="h"><h3 id="svt">Послуга</h3><button type="button" class="btn ghost" style="padding:4px 10px" onclick="this.closest('dialog').close()">×</button></div>
   <form method="post" action="/services"><input type="hidden" name="id"><input type="hidden" name="back" value="{{ back }}">
