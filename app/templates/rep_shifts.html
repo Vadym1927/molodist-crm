@@ -37,6 +37,7 @@
 .pm{display:inline-block;background:#F3EFF9;color:#3B3050;border-radius:8px;padding:2px 8px;font-size:12px;margin:2px 4px 0 0;font-weight:600}
 .warn{color:#8a5b00;background:#FFF1D6;border-radius:8px;padding:2px 8px;font-weight:700;font-size:12px}
 .muted2{color:#8a8496}.pos{color:#2f6b3b;font-weight:700}.neg{color:#B23B2E;font-weight:700}
+.st{display:inline-block;border-radius:99px;padding:2px 9px;font:700 11px var(--sans);letter-spacing:.04em;text-transform:uppercase;margin-top:3px}.st.o{background:#DDF1E2;color:#2f6b3b}.st.c{background:#F9DEDC;color:#B23B2E}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:-1px}
 @media(max-width:1000px){.sh-k{grid-template-columns:1fr 1fr}.sh-2{grid-template-columns:1fr}}
 </style>
@@ -55,7 +56,7 @@
 </div>
 
 {% if r.open %}<div class="sh-open">{% for s in r.open %}<div class="o">
-  <div class="row between"><b class="n"><span class="live"></span>{{ s.opened_by }}</b><span class="muted small">відкрито {{ s.opened_at.strftime('%d.%m %H:%M') }} · {{ dur(s.minutes) }}</span></div>
+  <div class="row between"><b class="n"><span class="live"></span>{{ s.opened_by }} <span class="st o">Відкрита</span></b><span class="muted small">відкрито {{ s.opened_at.strftime('%d.%m %H:%M') }} · {{ dur(s.minutes) }}</span></div>
   <div class="bx">{% for b in s.boxes %}<span>{{ b.name }}: <b>{{ u(b.open) }}</b> → <b>{{ u(b.expected) }}</b> ₴</span>{% endfor %}</div>
   <div class="small" style="margin-top:8px">Продажі за зміну: <b>{{ u(s.total) }} ₴</b> · {{ s.checks }} чеків{% if s.cash_in %} · готівкою {{ u(s.cash_in) }} ₴{% endif %}</div>
 </div>{% endfor %}</div>{% endif %}
@@ -68,7 +69,7 @@
   <div class="{{ 'w' if r.late_n }}"><small>Внесено після закриття</small><b>{{ r.late_n }} {{ 'змін' if r.late_n != 1 else 'зміна' }}</b><span class="s">{% if r.late_n %}на {{ u(r.late_sum) }} ₴ — залишки змінені заднім числом{% else %}розбіжностей немає{% endif %}</span></div>
 </div>
 
-{% if not r.n %}<div class="card muted">За період закритих касових змін немає. Зміну відкривають і закривають через аватар угорі → «Відкрити зміну».</div>{% else %}
+{% if not r.n and not r.open %}<div class="card muted">За період касових змін немає. Зміну відкривають і закривають через аватар угорі → «Відкрити зміну».</div>{% else %}
 <div class="sh-2">
   <div class="sh-c"><h3>По касирах</h3><table><tr><th>Користувач</th><th>Змін</th><th>Чеків</th><th>Продажі</th><th>Середня зміна</th><th>Час у касі</th></tr>
     {% for x in r.by_user %}<tr><td><a href="?r=shifts{{ '&period=' ~ period ~ ('&df=' ~ d_from ~ '&dt_=' ~ d_to if period == 'custom' else '') }}&u={{ r.users|selectattr('name','equalto',x.name)|map(attribute='id')|first }}">{{ x.name }}</a></td><td>{{ x.n }}</td><td>{{ x.checks }}</td><td><b>{{ u(x.total) }}</b></td><td>{{ u(x.avg) }}</td><td>{{ dur(x.minutes) }}</td></tr>{% endfor %}</table></div>
@@ -78,13 +79,13 @@
 
 <div class="sh-w"><table class="sh-t">
   <tr><th class="l">Зміна</th><th class="l">Відкрито</th><th class="l">Закрито</th><th>Тривалість</th><th class="l">Каси</th><th>Чеків</th><th>Продажі</th><th>Готівкою</th><th>Після закриття</th></tr>
-  {% for s in r.rows %}
+  {% for s in r.open + r.rows %}
   <tr class="s" onclick="this.classList.toggle('on');this.nextElementSibling.classList.toggle('show')">
-    <td class="l"><b>№{{ s.id }}</b><div class="muted2" style="font-size:11.5px">{{ s.opened_at.strftime('%d.%m.%Y') }}</div></td>
+    <td class="l"><b>№{{ s.id }}</b> <span class="st {{ 'o' if s.open else 'c' }}">{{ 'Відкрита' if s.open else 'Закрита' }}</span><div class="muted2" style="font-size:11.5px">{{ s.opened_at.strftime('%d.%m.%Y') }}</div></td>
     <td class="l">{{ s.opened_at.strftime('%H:%M') }}<div class="muted2" style="font-size:12px">{{ s.opened_by }}</div></td>
-    <td class="l">{{ s.closed_at.strftime('%H:%M') }}{% if s.closed_at.date() != s.opened_at.date() %} <span class="muted2">({{ s.closed_at.strftime('%d.%m') }})</span>{% endif %}<div class="muted2" style="font-size:12px">{{ s.closed_by or s.opened_by }}</div></td>
+    <td class="l">{% if s.closed_at %}{{ s.closed_at.strftime('%H:%M') }}{% if s.closed_at.date() != s.opened_at.date() %} <span class="muted2">({{ s.closed_at.strftime('%d.%m') }})</span>{% endif %}<div class="muted2" style="font-size:12px">{{ s.closed_by or s.opened_by }}</div>{% else %}<span class="pos">триває</span>{% endif %}</td>
     <td>{{ dur(s.minutes) }}</td>
-    <td class="l" style="white-space:normal;max-width:360px">{% for b in s.boxes %}<span class="pm">{{ b.name }}: {{ u(b.open) }} → {{ u(b.close) }}</span>{% endfor %}</td>
+    <td class="l" style="white-space:normal;max-width:360px">{% for b in s.boxes %}<span class="pm">{{ b.name }}: {{ u(b.open) }} → {{ u(b.close if not s.open else b.expected) }}</span>{% endfor %}</td>
     <td>{{ s.checks }}{% if s.test %} <span class="muted2" title="тестових чеків">({{ s.test }} тест)</span>{% endif %}</td>
     <td><b>{{ u(s.total) }}</b></td><td>{{ u(s.cash_in) if s.cash_in else '—' }}</td>
     <td>{% if s.late %}<span class="warn">{{ u(s.late) }} ₴</span>{% else %}<span class="muted2">—</span>{% endif %}</td>
@@ -93,7 +94,7 @@
     <table class="bxt"><tr><th>Каса</th><th>На початок</th><th>Надходження</th><th>Видатки</th><th>Переміщення +</th><th>Переміщення −</th><th>Очікувано</th><th>На закритті</th><th>Після закриття</th></tr>
     {% for b in s.boxes %}<tr><td><span class="dot" style="background:{{ '#4EA86B' if b.type == 'cash' else ('#3B3050' if b.type == 'card' else '#C9BFE6') }}"></span><b>{{ b.name }}</b></td>
       <td>{{ u(b.open) }}</td><td class="{{ 'pos' if b.in else 'z' }}">{{ '+' if b.in }}{{ u(b.in) }}</td><td class="{{ 'neg' if b.out else 'z' }}">{{ '−' if b.out }}{{ u(b.out) }}</td>
-      <td class="{{ '' if b.tin else 'z' }}">{{ u(b.tin) }}</td><td class="{{ '' if b.tout else 'z' }}">{{ u(b.tout) }}</td><td>{{ u(b.expected) }}</td><td><b>{{ u(b.close) }}</b></td>
+      <td class="{{ '' if b.tin else 'z' }}">{{ u(b.tin) }}</td><td class="{{ '' if b.tout else 'z' }}">{{ u(b.tout) }}</td><td>{{ u(b.expected) }}</td><td><b>{{ u(b.close if not s.open else b.expected) }}</b></td>
       <td>{% if b.late %}<span class="warn">{{ '+' if b.late > 0 }}{{ u(b.late) }}</span>{% else %}<span class="muted2">—</span>{% endif %}</td></tr>
       {% for m in b.moves %}<tr class="mv"><td>{{ m.at.strftime('%H:%M') }} · {% if m.link %}<a href="{{ m.link }}">{{ m.what }}</a>{% else %}{{ m.what }}{% endif %}</td>
         <td></td><td class="{{ 'pos' if m.kind == 'in' and not m.transfer }}">{{ ('+' ~ u(m.amount)) if m.kind == 'in' and not m.transfer }}</td><td class="{{ 'neg' if m.kind == 'out' and not m.transfer }}">{{ ('−' ~ u(m.amount)) if m.kind == 'out' and not m.transfer }}</td>
@@ -104,7 +105,7 @@
       {% if s.note %}<span class="muted2">· Примітка: {{ s.note }}</span>{% endif %}</div>
   </td></tr>
   {% endfor %}
-  <tr class="tot"><td class="l" colspan="5">Разом · {{ r.n }} змін</td><td>{{ r.checks }}</td><td>{{ u(r.total) }}</td><td>{{ u(r.rows|sum(attribute='cash_in')) }}</td><td>{% if r.late_sum %}<span class="warn">{{ u(r.late_sum) }} ₴</span>{% else %}—{% endif %}</td></tr>
+  <tr class="tot"><td class="l" colspan="5">Разом · {{ r.n }} закритих{% if r.n_open %} + {{ r.n_open }} відкрита(і){% endif %}</td><td>{{ r.checks }}</td><td>{{ u(r.total) }}</td><td>{{ u(r.rows|sum(attribute='cash_in')) }}</td><td>{% if r.late_sum %}<span class="warn">{{ u(r.late_sum) }} ₴</span>{% else %}—{% endif %}</td></tr>
 </table></div>
 {% endif %}
 {% endblock %}
