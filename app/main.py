@@ -8362,6 +8362,20 @@ def reports_page(request: Request, r: str = "revenue", period: str = "month", df
     key = r if r in rp.REPORTS else "revenue"
     if key == "cashflow":
         return _cashflow_page(request, db, period, df)
+    if key == "pnl":
+        from .services import pnl as _pnl
+        _ys = _pnl.years(db)
+        try:
+            _y = int(request.query_params.get("year") or date.today().year)
+        except ValueError:
+            _y = date.today().year
+        _r = _pnl.build(db, _y)
+        if fmt == "xlsx":
+            audit(db, "reports.export", user=user, report="pnl", year=_y)
+            return Response(_pnl.to_xlsx(_r), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            headers={"Content-Disposition": f'attachment; filename="pnl-{_y}.xlsx"'})
+        return render(request, "rep_pnl.html", nav="reports", REPORTS=rp.REPORTS, key="pnl", r=_r, years=_ys, today=date.today(),
+                      MONTHS=_pnl.MONTHS, MONTHS_FULL=_pnl.MONTHS_FULL)
     if key == "fop":
         return _fop_page(request, db)
     if key == "expiry":

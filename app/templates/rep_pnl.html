@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Доходи і витрати за {{ r.year }} · Звіти{% endblock %}
+{% block body %}
+{% macro u(v) %}{{ (('{:,.0f}').format(v or 0)).replace(',', ' ') }}{% endmacro %}
+{% macro sgn(v) %}<span class="{{ 'pos' if v > 0 else ('neg' if v < 0) }}">{{ '+' if v > 0 }}{{ u(v) }}</span>{% endmacro %}
+{% macro pct(v) %}{% if v is none %}—{% else %}<span class="{{ 'pos' if v > 0 else ('neg' if v < 0) }}">{{ '+' if v > 0 }}{{ ('%g'|format(v)).replace('.', ',') }}%</span>{% endif %}{% endmacro %}
+<style>
+.rp-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 16px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.rp-tabs a{padding:8px 14px;border-radius:10px;text-decoration:none;color:#3a342f;font-weight:600;font-size:14px}.rp-tabs a:hover{background:var(--card)}.rp-tabs a.on{background:var(--deep);color:#fff}
+.pos{color:#2f6b3b;font-weight:700}.neg{color:#B23B2E;font-weight:700}
+.pl-y{display:flex;gap:6px;flex-wrap:wrap}.pl-y a{padding:8px 16px;border-radius:11px;background:#fff;border:1px solid #ECE7E1;text-decoration:none;font:700 14px var(--sans);color:#3B3050}.pl-y a.on{background:#3B3050;color:#fff;border-color:#3B3050}
+.pl-k{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.pl-k div{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:16px 18px;position:relative;overflow:hidden}
+.pl-k small{display:block;font:700 10.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#8a8496}.pl-k b{display:block;font:800 26px var(--sans);color:#2A2430;margin:6px 0 2px}.pl-k span.s{font-size:12.5px;color:#6b6575}
+.pl-k div.g{background:linear-gradient(135deg,#2A2430,#3B3050)}.pl-k div.g small{color:#C9BFE6}.pl-k div.g b{color:#fff}.pl-k div.g span.s{color:#E4DEEF}
+.pl-2{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:14px;margin-bottom:14px}
+.pl-c{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:16px 18px}.pl-c h3{margin:0 0 10px;font:700 17px var(--sans);text-transform:none;letter-spacing:0;color:#2A2430}
+.pl-ch{display:flex;gap:8px;align-items:flex-end;height:210px;padding:6px 4px 0;border-bottom:1px solid #ECE7E1}
+.pl-ch .m{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0}
+.pl-ch .bars{display:flex;gap:3px;align-items:flex-end;height:100%;width:100%;justify-content:center}.pl-ch .bars i{display:block;width:44%;max-width:30px;border-radius:6px 6px 2px 2px;min-height:2px}
+.pl-ch .in{background:#C9BFE6}.pl-ch .out{background:#3B3050}.pl-ch .pv{background:#ECE7E1}
+.pl-x{display:flex;gap:8px;padding:6px 4px 0}.pl-x span{flex:1;text-align:center;font-size:12px;font-weight:600;color:#8a8496}
+.pl-net{display:flex;gap:8px;height:110px;padding:0 4px;margin-top:10px;position:relative}.pl-net:before{content:"";position:absolute;left:0;right:0;top:50%;border-top:1px dashed #ECE7E1}
+.pl-net .m{flex:1;display:flex;flex-direction:column;min-width:0}.pl-net .up,.pl-net .dn{flex:1;display:flex;flex-direction:column;align-items:center}.pl-net .up{justify-content:flex-end}.pl-net .dn{justify-content:flex-start}
+.pl-net i{display:block;width:60%;max-width:40px;border-radius:5px}.pl-net .up i{background:#7FC8A0}.pl-net .dn i{background:#E38B8B}
+.lg{display:flex;gap:14px;font-size:12.5px;color:#6b6575;margin-top:8px}.lg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.pl-g{display:grid;gap:8px}.pl-g .r{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;font-size:13.5px}
+.pl-g .bar{height:8px;border-radius:99px;background:#F1EDE8;overflow:hidden;grid-column:1/-1;margin-top:-2px}.pl-g .bar i{display:block;height:100%;background:linear-gradient(90deg,#3B3050,#C9BFE6)}
+.pl-g b{font:700 14px var(--sans)}.pl-g small{color:#8a8496;margin-left:6px}
+.pl-w{overflow:auto;background:#fff;border:1px solid #ECE7E1;border-radius:20px;margin-bottom:14px}
+.pl-t{border-collapse:separate;border-spacing:0;font-size:13px;min-width:1300px;width:100%}
+.pl-t th{position:sticky;top:0;z-index:2;background:#F3EFF9;font:700 11px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:#5d5869;padding:9px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid #ECE7E1}
+.pl-t th:first-child,.pl-t td:first-child{position:sticky;left:0;z-index:1;background:#fff;text-align:left;min-width:260px;border-right:1px solid #F1EDE8}.pl-t th:first-child{z-index:3;background:#F3EFF9}
+.pl-t td{padding:7px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid #F6F3EF}
+.pl-t tr.sec td{background:#FBFAFE;font:700 12px var(--sans);color:#3B3050;letter-spacing:.06em;text-transform:uppercase;padding:9px 8px}
+.pl-t tr.grp td{background:#F8F6FC;font-weight:700;cursor:pointer}.pl-t tr.grp td:first-child:before{content:"▸ ";color:#9a93a6}.pl-t tr.grp.open td:first-child:before{content:"▾ "}
+.pl-t tr.ln td:first-child{padding-left:26px;color:#5d5869}.pl-t tr.ln{display:none}.pl-t tr.ln.show{display:table-row}
+.pl-t tr.tot td{font-weight:800;background:#F3EFF9;border-top:1px solid #E4DEEF}.pl-t tr.net td{font-weight:800;background:#FBF7EE;font-size:14px}
+.pl-t td.z{color:#C9C3BD}.pl-t .pc{color:#8a8496;font-weight:400;font-size:11.5px}
+.pl-t td.cur{background:#FFFBE6}
+.pl-cmp{width:100%;border-collapse:collapse;font-size:13.5px}.pl-cmp th{font:700 11px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:#8a8496;text-align:right;padding:8px;border-bottom:1px solid #ECE7E1}
+.pl-cmp th:first-child,.pl-cmp td:first-child{text-align:left}.pl-cmp td{padding:8px;text-align:right;border-bottom:1px solid #F6F3EF;white-space:nowrap}.pl-cmp tr.tot td{font-weight:800;background:#F3EFF9}
+.pl-note{font-size:12.5px;color:#6b6575;background:#F7F4F0;border-radius:12px;padding:10px 14px;line-height:1.5}
+@media(max-width:1000px){.pl-k{grid-template-columns:1fr 1fr}.pl-2{grid-template-columns:1fr}}
+</style>
+<div class="row between" style="align-items:flex-end;flex-wrap:wrap;gap:10px">
+  <div><div class="eyebrow"><a href="/reports" style="color:inherit;text-decoration:none">← Усі звіти · Фінанси</a></div><h1>Доходи і витрати за {{ r.year }}</h1>
+    <div class="muted small">Фінансовий аналіз за статтями: журнал фіноперацій (CleverBox з 2022 року + CRM). Без переміщень між рахунками, оплат бонусами / сертифікатами та статей «не в дохід».</div></div>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="pl-y">{% for y in years %}<a href="?r=pnl&year={{ y }}" class="{{ 'on' if y == r.year }}">{{ y }}</a>{% endfor %}</div>
+    <a class="btn ghost" href="?r=pnl&year={{ r.year }}&fmt=xlsx">⬇ Excel</a></div>
+</div>
+<nav class="rp-tabs">{% for k, v in REPORTS.items() if k != 'cash' %}<a href="?r={{ k }}" class="{{ 'on' if key==k }}">{{ v }}</a>{% endfor %}</nav>
+
+{% if not r.n %}<div class="card muted">За {{ r.year }} рік операцій у журналі немає.</div>{% else %}
+<div class="pl-k">
+  <div><small>Доходи</small><b>{{ u(r.sum_i) }} ₴</b><span class="s">{% if r.prev and r.yoy.same_i %}до того ж періоду {{ r.year - 1 }}: {{ pct(r.yoy.same_i_pct) }}{% else %}за {{ r.months_with_data|length }} міс.{% endif %}</span></div>
+  <div><small>Витрати</small><b>{{ u(r.sum_e) }} ₴</b><span class="s">{% if r.prev and r.yoy.same_e %}до того ж періоду {{ r.year - 1 }}: {{ pct(r.yoy.same_e_pct) }}{% else %}за {{ r.months_with_data|length }} міс.{% endif %}</span></div>
+  <div class="g"><small>Чистий результат</small><b>{{ '+' if r.sum_net > 0 }}{{ u(r.sum_net) }} ₴</b><span class="s">рентабельність {{ (('%g'|format(r.margin)).replace('.', ',') ~ '%') if r.margin is not none else '—' }} · у середньому {{ '+' if r.avg_net > 0 }}{{ u(r.avg_net) }} ₴/міс</span></div>
+  <div><small>Місяці</small><b>{{ r.neg_months }} збиткових</b><span class="s">{% if r.best %}найкращий — {{ MONTHS_FULL[r.best - 1]|lower }} ({{ sgn(r.net[r.best - 1]) }} ₴){% endif %}{% if r.worst and r.worst != r.best %}, найгірший — {{ MONTHS_FULL[r.worst - 1]|lower }} ({{ sgn(r.net[r.worst - 1]) }} ₴){% endif %}</span></div>
+</div>
+
+<div class="pl-2">
+  <div class="pl-c"><h3>Доходи й витрати по місяцях{% if r.prev %} <span class="muted small" style="font-weight:500">· сірим — доходи {{ r.year - 1 }}</span>{% endif %}</h3>
+    <div class="pl-ch">{% for i in range(12) %}<div class="m" title="{{ MONTHS_FULL[i] }}: доходи {{ u(r.ti[i]) }} ₴, витрати {{ u(r.te[i]) }} ₴{% if r.prev %}, {{ r.year - 1 }}: {{ u(r.prev.ti[i]) }} ₴{% endif %}"><div class="bars">
+      {% if r.prev %}<i class="pv" style="height:{{ (100 * r.prev.ti[i] / r.max)|round(1) }}%"></i>{% endif %}<i class="in" style="height:{{ (100 * r.ti[i] / r.max)|round(1) }}%"></i><i class="out" style="height:{{ (100 * r.te[i] / r.max)|round(1) }}%"></i></div></div>{% endfor %}</div>
+    <div class="pl-x">{% for mth in MONTHS %}<span>{{ mth }}</span>{% endfor %}</div>
+    <div class="pl-net">{% for i in range(12) %}{% set v = r.net[i] %}<div class="m" title="{{ MONTHS_FULL[i] }}: {{ '+' if v > 0 }}{{ u(v) }} ₴"><div class="up">{% if v > 0 %}<i style="height:{{ (100 * v / r.net_max)|round(1) }}%"></i>{% endif %}</div><div class="dn">{% if v < 0 %}<i style="height:{{ (100 * (-v) / r.net_max)|round(1) }}%"></i>{% endif %}</div></div>{% endfor %}</div>
+    <div class="lg"><span><i style="background:#C9BFE6"></i>Доходи</span><span><i style="background:#3B3050"></i>Витрати</span><span><i style="background:#7FC8A0"></i>Прибуток</span><span><i style="background:#E38B8B"></i>Збиток</span>{% if r.prev %}<span><i style="background:#ECE7E1"></i>Доходи {{ r.year - 1 }}</span>{% endif %}</div></div>
+  <div class="pl-c"><h3>Структура витрат</h3>
+    <div class="pl-g">{% for g in r.groups %}<div class="r"><span>{{ g.title }}<small>{{ g.lines|length }} ст.</small></span><b>{{ u(g.total) }} ₴ <small>{{ ('%g'|format(g.pct)).replace('.', ',') }}%</small></b><div class="bar"><i style="width:{{ g.pct }}%"></i></div></div>{% endfor %}</div>
+    <div class="pl-note" style="margin-top:12px">Групи — за назвами статей. Щоб стаття потрапила в потрібну групу, перейменуйте її в «Налаштування → Статті фінансових операцій».</div></div>
+</div>
+
+{% if r.prev %}
+<div class="pl-c" style="margin-bottom:14px"><h3>Порівняння з {{ r.year - 1 }} роком</h3>
+  <div style="overflow:auto"><table class="pl-cmp"><thead><tr><th>Місяць</th><th>Доходи {{ r.year }}</th><th>Доходи {{ r.year - 1 }}</th><th>Δ</th><th>Витрати {{ r.year }}</th><th>Витрати {{ r.year - 1 }}</th><th>Δ</th><th>Результат {{ r.year }}</th><th>Результат {{ r.year - 1 }}</th></tr></thead><tbody>
+  {% for i in range(12) if (r.ti[i] or r.te[i] or r.prev.ti[i] or r.prev.te[i]) and not (r.year == today.year and i + 1 > today.month) %}<tr><td>{{ MONTHS_FULL[i] }}</td><td>{{ u(r.ti[i]) }}</td><td class="muted">{{ u(r.prev.ti[i]) }}</td><td>{{ pct((100 * (r.ti[i] - r.prev.ti[i]) / r.prev.ti[i])|round(1) if r.prev.ti[i] else none) }}</td>
+    <td>{{ u(r.te[i]) }}</td><td class="muted">{{ u(r.prev.te[i]) }}</td><td>{{ pct((100 * (r.te[i] - r.prev.te[i]) / r.prev.te[i])|round(1) if r.prev.te[i] else none) }}</td><td>{{ sgn(r.net[i]) }}</td><td class="muted">{{ sgn(r.prev.net[i]) }}</td></tr>{% endfor %}
+  <tr class="tot"><td>Разом</td><td>{{ u(r.sum_i) }}</td><td>{{ u(r.prev.sum_i) }}</td><td>{{ pct(r.yoy.i) }}</td><td>{{ u(r.sum_e) }}</td><td>{{ u(r.prev.sum_e) }}</td><td>{{ pct(r.yoy.e) }}</td><td>{{ sgn(r.sum_net) }}</td><td>{{ sgn(r.prev.sum_i - r.prev.sum_e) }}</td></tr></tbody></table></div>
+  {% if r.year == today.year %}<div class="small muted" style="margin-top:8px">Поточний рік неповний: за ті самі місяці {{ r.year - 1 }} доходи були {{ u(r.yoy.same_i) }} ₴, витрати {{ u(r.yoy.same_e) }} ₴, результат {{ sgn(r.yoy.same_net) }} ₴.</div>{% endif %}</div>
+{% endif %}
+
+<div class="pl-w"><table class="pl-t"><thead><tr><th>Стаття</th>{% for mth in MONTHS %}<th>{{ mth }}</th>{% endfor %}<th>Разом</th><th>%</th></tr></thead><tbody>
+  <tr class="sec"><td colspan="15">Доходи</td></tr>
+  {% for l in r.income %}<tr><td>{{ l.article }}</td>{% for v in l.m %}<td class="{{ 'z' if not v }} {{ 'cur' if r.year == today.year and loop.index == today.month }}">{{ u(v) if v else '·' }}</td>{% endfor %}<td><b>{{ u(l.total) }}</b></td><td class="pc">{{ ('%g'|format(l.pct)).replace('.', ',') }}%</td></tr>{% endfor %}
+  <tr class="tot"><td>Разом доходи</td>{% for v in r.ti %}<td>{{ u(v) }}</td>{% endfor %}<td>{{ u(r.sum_i) }}</td><td></td></tr>
+  <tr class="sec"><td colspan="15">Витрати</td></tr>
+  {% for g in r.groups %}<tr class="grp" data-g="{{ g.key }}" onclick="plG(this)"><td>{{ g.title }}</td>{% for v in g.m %}<td class="{{ 'z' if not v }} {{ 'cur' if r.year == today.year and loop.index == today.month }}">{{ u(v) if v else '·' }}</td>{% endfor %}<td>{{ u(g.total) }}</td><td class="pc">{{ ('%g'|format(g.pct)).replace('.', ',') }}%</td></tr>
+    {% for l in g.lines %}<tr class="ln g-{{ g.key }}"><td>{{ l.article }}</td>{% for v in l.m %}<td class="{{ 'z' if not v }}">{{ u(v) if v else '·' }}</td>{% endfor %}<td>{{ u(l.total) }}</td><td class="pc">{{ ('%g'|format(l.pct)).replace('.', ',') }}%</td></tr>{% endfor %}{% endfor %}
+  <tr class="tot"><td>Разом витрати</td>{% for v in r.te %}<td>{{ u(v) }}</td>{% endfor %}<td>{{ u(r.sum_e) }}</td><td></td></tr>
+  <tr class="net"><td>Чистий результат</td>{% for v in r.net %}<td>{{ sgn(v) }}</td>{% endfor %}<td>{{ sgn(r.sum_net) }}</td><td class="pc">{{ (('%g'|format(r.margin)).replace('.', ',') ~ '%') if r.margin is not none else '' }}</td></tr>
+</tbody></table></div>
+<div class="pl-note">Не враховано: переміщення між рахунками {{ u(r.skipped.transfer) }} ₴, оплати не грошима (бонуси, сертифікати, баланс) {{ u(r.skipped.non_money) }} ₴{% if r.skipped.excluded %}, статті «не в дохід» {{ u(r.skipped.excluded) }} ₴{% endif %}. Операцій у журналі за рік: {{ r.n }}. Натисніть на групу витрат, щоб розгорнути статті.</div>
+{% endif %}
+<script>function plG(tr){tr.classList.toggle('open');document.querySelectorAll('tr.g-'+tr.dataset.g).forEach(function(x){x.classList.toggle('show')})}</script>
+{% endblock %}
