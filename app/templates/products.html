@@ -1,7 +1,37 @@
 {% extends "base.html" %}
-{% block title %}Продукти · MOLODIST CRM{% endblock %}
+{% block title %}Продукти · MOLODIST CRM<script>document.addEventListener('click',function(e){var m=document.getElementById('prm');if(m&&!m.contains(e.target))m.classList.remove('on')});</script>
+{% endblock %}
 {% block body %}
 <style>
+.pr-h{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px}.pr-h h1{margin:4px 0 0;font:700 40px var(--sans);text-transform:none;letter-spacing:0;color:#2A2430}
+.pr-h .eb{display:flex;gap:10px;align-items:center;font:600 12px var(--sans);letter-spacing:.2em;text-transform:uppercase;color:#3B3050}
+.pr-h .eb a{color:#3B3050;text-decoration:none;font-size:18px;letter-spacing:0}
+.pr-act{display:flex;gap:10px;align-items:center}.pr-act .btn{height:50px;padding:0 22px;display:inline-flex;gap:8px;align-items:center;font-size:15px;border-radius:14px}
+.pr-more{position:relative}.pr-more>button{width:52px;height:50px;border-radius:14px;border:1px solid #ECE7E1;background:#fff;font-size:20px;cursor:pointer;color:#3B3050}
+.pr-more .m{display:none;position:absolute;right:0;top:56px;background:#fff;border:1px solid #ECE7E1;border-radius:14px;box-shadow:0 20px 40px -20px rgba(42,36,48,.4);min-width:240px;z-index:20;padding:6px}
+.pr-more.on .m{display:block}.pr-more .m a,.pr-more .m button{display:block;width:100%;text-align:left;padding:10px 12px;border-radius:10px;border:0;background:none;font:600 13.5px var(--sans);color:#2A2430;text-decoration:none;cursor:pointer}.pr-more .m a:hover,.pr-more .m button:hover{background:#F3EFF9}
+.tabs.pr-tabs{display:flex;gap:4px;background:#fff;border:1px solid #ECE7E1;border-radius:16px;padding:6px;margin-bottom:14px;flex-wrap:wrap}
+.tabs.pr-tabs a{display:inline-flex;gap:9px;align-items:center;padding:10px 18px;border-radius:12px;font:600 14.5px var(--sans);color:#2A2430;text-decoration:none;border:0;background:none}
+.tabs.pr-tabs a.on{background:#3B3050;color:#fff}.tabs.pr-tabs a:hover:not(.on){background:#F3EFF9}
+.whs a{flex-direction:row !important;align-items:center;gap:12px !important;border-radius:16px !important;padding:12px 14px !important}
+.whs a svg{flex:none;color:#3B3050}.whs a.on{background:#ECE6F6 !important;border-color:#C9BFE6 !important;color:#2A2430 !important}.whs a.on em{color:#5d5869 !important}
+.whs b{font:700 15px var(--sans) !important;text-transform:none !important;letter-spacing:0 !important;display:block}.whs em{display:block}
+.pr-k{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.pr-k div{background:#fff;border:1px solid #ECE7E1;border-radius:16px;padding:14px 16px;display:flex;gap:14px;align-items:center}
+.pr-k .ib{width:46px;height:46px;border-radius:13px;background:#F3EFF9;color:#3B3050;display:grid;place-items:center;flex:none}
+.pr-k small{display:block;font-size:13.5px;color:#5d5869}.pr-k b{font:800 24px var(--sans);color:#2A2430}
+.pr-fc{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:14px 16px;margin-bottom:16px}
+.pr-fc .fl{margin-bottom:12px}.pr-fc .kf{margin:0;align-items:center}.pr-fc .kf .lb{font:600 14px var(--sans);color:#2A2430;margin-right:6px}
+.kf .more{display:none}.kf.all .more{display:inline-flex}.kf .tg{border:0;background:none;font:600 13.5px var(--sans);color:#5C4B82;text-decoration:underline;cursor:pointer;margin-left:auto}
+.kf a .dt{width:8px;height:8px;border-radius:50%;background:#9a93a6}.kf a.alert-f .dt{background:#D9534F}.kf a.warn-f .dt{background:#E0A43A}
+.bgrp{border-radius:18px !important;overflow:hidden}
+.bgrp h2{background:none !important;border:0 !important;padding:16px 18px 8px !important;font:700 22px var(--sans) !important;letter-spacing:.02em;color:#3B3050}
+.bgrp h2 .ga{margin-left:auto;display:flex;gap:8px}.bgrp h2 .ga .btn{font:600 13.5px var(--sans);text-transform:none;letter-spacing:0;padding:6px 14px}
+.pt th{background:#F8F6FC;font:700 12.5px var(--sans);color:#2A2430;text-transform:none;letter-spacing:0}
+.pt td.nm img{width:46px !important;height:46px !important;border-radius:10px !important}
+.mg{display:inline-block;min-width:52px;text-align:center;border-radius:99px;padding:3px 10px;background:#3B3050;color:#fff;font-weight:700}.mg.low{background:#FFF1D6;color:#8a5b00}.mg.na{background:#F2EFEA;color:#8a8496}
+.stk{display:inline-block;min-width:34px;text-align:center;border-radius:9px;padding:3px 8px;background:#E4DEEF;color:#2A2430}.stk.zero{background:#FDECEA;color:#B23B2E}.stk.low{background:#FFF1D6;color:#8a5b00}
+@media(max-width:900px){.pr-k{grid-template-columns:1fr 1fr}}
 .fl{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
 .fl input[name=q]{flex:1;min-width:220px;height:44px}.fl select{height:44px;font-weight:600;max-width:240px}
 .kf{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}
@@ -30,21 +60,47 @@
 .bulk{position:sticky;bottom:12px;z-index:5;display:none;flex-wrap:wrap;gap:10px;align-items:center;background:var(--graphite);color:#fff;border-radius:14px;padding:10px 14px;box-shadow:0 10px 30px -10px rgba(0,0,0,.4);margin-top:10px}
 .bulk.show{display:flex}.bulk input,.bulk select{height:38px}
 </style>
-<div class="row between" style="align-items:flex-end">
-  <div><div class="eyebrow">Склад і продажі</div><h1>Продукти</h1></div>
+{% set PI = {
+ 'layers': '<path d="M12 3 2 8l10 5 10-5z"/><path d="M2 13l10 5 10-5"/><path d="M2 18l10 5 10-5" opacity=".0"/>',
+ 'truck': '<path d="M3 6h11v10H3zM14 9h4l3 3v4h-7"/><circle cx="7" cy="17.5" r="1.8"/><circle cx="17.5" cy="17.5" r="1.8"/>',
+ 'clip': '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 14h6"/>',
+ 'tag': '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.4"/>',
+ 'swap': '<path d="M4 8h14l-3-3M20 16H6l3 3"/>',
+ 'cubes': '<path d="M12 2.5 7.5 5 12 7.5 16.5 5z"/><path d="M7.5 5v5L12 12.5V7.5M16.5 5v5L12 12.5"/><path d="M7.5 12 3 14.5 7.5 17l4.5-2.5zM16.5 12 12 14.5l4.5 2.5 4.5-2.5zM3 14.5v4.5L7.5 21.5V17M12 14.5V19l4.5 2.5V17M21 14.5V19l-4.5 2.5"/>',
+ 'shop': '<path d="M4 9h16l-1-5H5z"/><path d="M5 9v11h14V9M9 20v-6h6v6"/><path d="M4 9a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0 2.7 2.7 0 0 0 5.3 0"/>',
+ 'syr': '<path d="M18 2l4 4M20 4l-3 3M17 7 8 16l-3-3 9-9zM5 13l6 6M6.5 17.5 3 21"/>',
+ 'flask': '<path d="M9 3h6M10 3v6L4.5 19a1.5 1.5 0 0 0 1.3 2h12.4a1.5 1.5 0 0 0 1.3-2L14 9V3"/><path d="M7 15h10"/>',
+ 'db': '<ellipse cx="12" cy="6" rx="7" ry="2.8"/><path d="M5 6v6c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8V6M5 12v6c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8v-6"/>',
+ 'mon': '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
+ 'box': '<path d="M12 3 4 7v10l8 4 8-4V7z"/><path d="M4 7l8 4 8-4M12 11v10"/>',
+ 'coins': '<ellipse cx="9" cy="7" rx="5" ry="2.3"/><path d="M4 7v4c0 1.3 2.2 2.3 5 2.3s5-1 5-2.3V7M4 11v4c0 1.3 2.2 2.3 5 2.3M14 12.5c0-1.3 2.2-2.3 5-2.3s5 1 5 2.3v4c0 1.3-2.2 2.3-5 2.3s-5-1-5-2.3z" transform="translate(-2 0)"/>',
+ 'trend': '<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>',
+ 'plus': '<path d="M12 5v14M5 12h14"/>'} %}
+{% macro pic(k, s=22) %}<svg width="{{ s }}" height="{{ s }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">{{ PI[k]|safe }}</svg>{% endmacro %}
+<div class="pr-h"><div><div class="eb">Склад і продажі</div><h1>Продукти</h1></div>
+  {% if tab=='care' %}<div class="pr-act">{% if can(user,'products') %}<button type="button" class="btn" title="Додати товар{{ (' на склад «' ~ WAREHOUSES[wh] ~ '»') if wh in WAREHOUSES }}" onclick="document.getElementById('pnd').showModal()">{{ pic('plus', 20) }} Додати товар</button>{% endif %}
+    <div class="pr-more" id="prm"><button type="button" onclick="this.parentNode.classList.toggle('on')" title="Ще дії">⋯</button><div class="m">
+      <button type="button" onclick="xlOpen()">⬇ Вивантажити в Excel</button><button type="button" onclick="lbOpen()">🖨 Друк цінників</button>
+      <a href="#imp" onclick="document.getElementById('prm').classList.remove('on')">⬆ Імпорт товарів / руху</a><a href="/finance/pricing">Планування ціни реалізації</a></div></div></div>{% endif %}
 </div>
-<div class="tabs">
-  <a href="?tab=care" class="{{ 'on' if tab=='care' }}">Товари за складами</a>
-  <a href="?tab=suppliers" class="{{ 'on' if tab=='suppliers' }}">Постачальники</a>
-  <a href="?tab=procedures" class="{{ 'on' if tab=='procedures' }}">Процедури</a>
-  <a href="/services">Послуги (прайс)</a>
-  <a href="/mapping" class="{{ 'on' if nav=='mapping' }}">Зіставлення з CleverBox</a></div>
+<div class="tabs pr-tabs">
+  <a href="?tab=care" class="{{ 'on' if tab=='care' }}">{{ pic('layers') }} Товари за складами</a>
+  <a href="?tab=suppliers" class="{{ 'on' if tab=='suppliers' }}">{{ pic('truck') }} Постачальники</a>
+  <a href="?tab=procedures" class="{{ 'on' if tab=='procedures' }}">{{ pic('clip') }} Процедури</a>
+  <a href="/services">{{ pic('tag') }} Послуги (прайс)</a>
+  <a href="/mapping" class="{{ 'on' if nav=='mapping' }}">{{ pic('swap') }} Зіставлення з CleverBox</a></div>
 
 {% if tab=='care' %}
+{% set WI = {'vitrina':'shop','inject':'syr','classic':'flask','single':'db','equip':'mon'} %}
 <div class="whs">
-  {% for k, v in WAREHOUSES.items() %}<a href="?tab=care&wh={{ k }}" class="{{ 'on' if wh==k }}"><b>{{ v }}</b><em>{{ wh_counts.get(k, 0) }} поз.</em></a>{% endfor %}
-  <a href="?tab=care&wh=all" class="{{ 'on' if wh=='all' }}"><b>Усі склади</b><em>{{ total_all }} поз.</em></a>
-  <button type="button" class="pn-add" title="Додати товар{{ (' на склад «' ~ WAREHOUSES[wh] ~ '»') if wh in WAREHOUSES }}" onclick="document.getElementById('pnd').showModal()">＋ Додати товар</button>
+  <a href="?tab=care&wh=all" class="{{ 'on' if wh=='all' }}">{{ pic('cubes', 30) }}<span><b>Усі склади</b><em>{{ total_all }}</em></span></a>
+  {% for k, v in WAREHOUSES.items() %}<a href="?tab=care&wh={{ k }}" class="{{ 'on' if wh==k }}">{{ pic(WI.get(k, 'box'), 30) }}<span><b>{{ v }}</b><em>{{ wh_counts.get(k, 0) }}</em></span></a>{% endfor %}
+</div>
+<div class="pr-k">
+  <div><span class="ib">{{ pic('layers') }}</span><span><small>Позицій</small><b>{{ tot.n }}</b></span></div>
+  <div><span class="ib">{{ pic('box') }}</span><span><small>Залишок</small><b>{{ '%g'|format(tot.stock|round(1)) }} {{ 'шт' if wh=='vitrina' else 'од.' }}</b></span></div>
+  <div><span class="ib">{{ pic('coins') }}</span><span><small>Вартість за закупівлею</small><b>{{ tot.value|uah }}</b></span></div>
+  <div><span class="ib">{{ pic('trend') }}</span><span><small>Продано за 90 днів</small><b>{{ tot.sold|uah }}</b></span></div>
 </div>
 {% if request.query_params.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ request.query_params.get('msg') }}</div>{% endif %}
 {% if request.query_params.get('err') %}<div class="alert">{{ request.query_params.get('err') }}</div>{% endif %}
@@ -67,7 +123,7 @@ dialog.pn{border:0;border-radius:20px;padding:0;width:min(1040px,97vw);max-heigh
   {% if imported.error %}{{ imported.error }}{% elif imported.kind == 'turnover' %}Рух товарів за {{ imported.period }}: товарів з надходженням {{ imported.with_income }}, зіставлено {{ imported.matched }}, нових {{ imported.created }} — ціни закупівлі оновлено.
   {% if imported.not_found %}<details><summary>Не знайдено в каталозі (створено нові)</summary>{{ imported.not_found|join(' · ') }}</details>{% endif %}{% else %}Імпортовано {{ imported.rows }} рядків: нових {{ imported.created }}, оновлено {{ imported.updated }}, залишків {{ imported.stock }}, брендів {{ imported.brands }}.
   {% for k, n in imported.by_warehouse.items() %}{{ WAREHOUSES.get(k, 'без складу') }} — {{ n }}{{ '' if loop.last else ', ' }}{% endfor %}{% endif %}</div>{% endif %}
-<form class="fl" method="get">
+<div class="pr-fc"><form class="fl" method="get">
   <input type="hidden" name="tab" value="care"><input type="hidden" name="f" value="{{ f }}"><input type="hidden" name="wh" value="{{ wh }}">
   <input name="q" value="{{ q }}" placeholder="Назва, бренд або артикул">
   <select name="brand" onchange="this.form.submit()"><option value="">Усі бренди</option>
@@ -77,22 +133,24 @@ dialog.pn{border:0;border-radius:20px;padding:0;width:min(1040px,97vw);max-heigh
   <select name="sort" onchange="this.form.submit()">{% for k, v in SORTS.items() %}<option value="{{ k }}" {{ 'selected' if sort==k }}>{{ v }}</option>{% endfor %}</select>
   <button class="btn ghost" style="height:44px">Знайти</button>
 </form>
-<div class="kf">
-  {% set base = '?tab=care&wh=' ~ wh ~ '&q=' ~ q ~ '&brand=' ~ brand ~ '&supplier=' ~ supplier ~ '&sort=' ~ sort %}
-  <a href="{{ base }}" class="{{ 'on' if not f }}">Усі</a>
-  {% for k, v in FILTERS.items() %}<a href="{{ base }}&f={{ k }}" class="{{ 'on' if f==k }} {{ 'alert-f' if k in ('out','expired') else ('warn-f' if k in ('low','expiring','lowmargin') else '') }}">{{ v }} <em>{{ counts[k] }}</em></a>{% endfor %}
-</div>
-<div class="sum"><button type="button" class="btn ghost" style="padding:5px 14px" onclick="xlOpen()">⬇ Excel</button><button type="button" class="btn ghost" style="padding:5px 14px" onclick="lbOpen()">🖨 Друк цінників</button><span>Позицій: <b>{{ tot.n }}</b></span><span>Залишок: <b>{{ '%g'|format(tot.stock|round(1)) }} {{ 'шт' if wh=='vitrina' else 'од.' }}</b></span>
-  <span>Вартість залишку (за закупівлею): <b>{{ tot.value|uah }}</b></span><span>Продано за 90 дн: <b>{{ tot.sold|uah }}</b></span></div>
+{% set base = '?tab=care&wh=' ~ wh ~ '&q=' ~ q ~ '&brand=' ~ brand ~ '&supplier=' ~ supplier ~ '&sort=' ~ sort %}
+{% set QUICK = ['low', 'out', 'nosales'] %}
+<div class="kf {{ 'all' if f and f not in QUICK }}" id="prkf"><span class="lb">Швидкий відбір</span>
+  {% if f %}<a href="{{ base }}">Усі</a>{% endif %}
+  {% for k in QUICK %}{% if k in FILTERS %}<a href="{{ base }}&f={{ k }}" class="{{ 'on' if f==k }} {{ 'alert-f' if k in ('out','expired') else ('warn-f' if k in ('low','expiring','lowmargin') else '') }}"><i class="dt"></i>{{ FILTERS[k] }} <em>{{ counts[k] }}</em></a>{% endif %}{% endfor %}
+  {% for k, v in FILTERS.items() if k not in QUICK %}<a href="{{ base }}&f={{ k }}" class="more {{ 'on' if f==k }} {{ 'alert-f' if k in ('out','expired') else ('warn-f' if k in ('low','expiring','lowmargin') else '') }}"><i class="dt"></i>{{ v }} <em>{{ counts[k] }}</em></a>{% endfor %}
+  <button type="button" class="tg" onclick="var k=document.getElementById('prkf');k.classList.toggle('all');this.textContent=k.classList.contains('all')?'Згорнути':'Ще {{ (FILTERS|length) - 3 }} ⌄'">{{ 'Згорнути' if f and f not in QUICK else ('Ще ' ~ ((FILTERS|length) - 3) ~ ' ⌄') }}</button>
+</div></div>
 
 <form method="post" action="/products/bulk" id="bulkf">
 <input type="hidden" name="back" value="{{ request.url.path }}?{{ request.url.query }}">
 {% for bname, rows in groups %}
 <section class="bgrp">
-  {% if sort=='brand' %}<h2>{{ bname or 'Без бренду' }} <em>{{ rows|length }} поз. · залишок {{ '%g'|format((rows|map(attribute='stock')|select|sum)|round(1)) }} {{ 'шт' if wh=='vitrina' else 'од.' }} · {{ rows|sum(attribute='stock_value')|uah }}</em></h2>{% endif %}
+  {% if sort=='brand' %}<h2>{{ bname or 'Без бренду' }} <em>{{ rows|length }} позиції · {{ '%g'|format((rows|map(attribute='stock')|select|sum)|round(1)) }} {{ 'шт' if wh=='vitrina' else 'од.' }} · {{ rows|sum(attribute='stock_value')|uah }}</em>
+    {% if loop.first %}<span class="ga"><button type="button" class="btn ghost" onclick="xlOpen()">⬇ Excel</button><button type="button" class="btn ghost" onclick="lbOpen()">🖨 Друк цінників</button></span>{% endif %}</h2>{% endif %}
   <table class="pt"><thead><tr>
     {% if can(user,'products') %}<th class="cb"><input type="checkbox" onclick="for(const c of this.closest('table').querySelectorAll('tbody input[type=checkbox]')){c.checked=this.checked};bulkUi()"></th>{% endif %}
-    <th>Засіб</th><th>Постачальник</th><th class="r">Закупівля (остання)</th><th class="r">Продаж</th><th class="r">Націнка</th>
+    <th>Товар</th><th>Постачальник</th><th class="r">Закупівля</th><th class="r">Продаж</th><th class="r" title="Маржа: (продаж − закупівля) / продаж">Маржа</th>
     <th class="r">Залишок</th><th class="r" title="На скільки днів вистачить за темпом продажів 90 днів">Вистачить</th><th>Термін придатності</th><th class="r" title="Продано за 90 днів">Продано 90д</th></tr></thead><tbody>
   {% for r in rows %}{% set p = r.product %}{% set fl = flags[p.id] %}
     <tr>
@@ -102,7 +160,7 @@ dialog.pn{border:0;border-radius:20px;padding:0;width:min(1040px,97vw);max-heigh
       <td class="small">{% set _sn = p.supplier or r.last_supplier %}{% if _sn %}<a href="/stock?tab=suppliers&s={{ _sn|urlencode }}" data-sup-name="{{ _sn }}" style="color:inherit">{{ _sn }}</a>{% else %}—{% endif %}</td>
       <td class="r">{% if r.cost %}{{ r.cost|uah }}<div class="meta">{{ r.last_bought|dt('%d.%m.%y') if r.last_bought else (r.last_source or '') }}</div>{% else %}—{% endif %}</td>
       <td class="r">{{ r.sale_price|uah if r.sale_price else '—' }}</td>
-      <td class="r"><span class="mg {{ 'low' if 'lowmargin' in fl }}">{{ (r.margin ~ '%') if r.margin is not none else '—' }}</span></td>
+      <td class="r"><span class="mg {{ 'low' if 'lowmargin' in fl }} {{ 'na' if r.margin_pct is none }}" title="{{ ('націнка ' ~ r.margin ~ '%') if r.margin is not none else '' }}">{{ (('%g'|format(r.margin_pct|round(0))) ~ '%') if r.margin_pct is not none else '—' }}</span></td>
       <td class="r"><span class="stk {{ 'zero' if 'out' in fl else ('low' if 'low' in fl) }}">{{ ('%g'|format(r.stock)) if r.stock is not none else '—' }}{{ (' ' ~ p.unit) if p.unit and p.unit != 'шт' and r.stock is not none }}</span>{% if p.min_stock %}<div class="meta">мін {{ p.min_stock }}</div>{% endif %}</td>
       <td class="r small">{{ (r.days_left ~ ' дн') if r.days_left is not none else '—' }}</td>
       <td>{% if r.expiry %}<span class="exp {{ 'bad' if 'expired' in fl else ('warn' if 'expiring' in fl) }}">{{ r.expiry|dt('%d.%m.%Y') }}</span>
@@ -125,7 +183,7 @@ dialog.pn{border:0;border-radius:20px;padding:0;width:min(1040px,97vw);max-heigh
 {% endif %}
 </form>
 {% if can(user,'import') %}
-<form class="imp" method="post" action="/products/import" enctype="multipart/form-data">
+<span id="imp"></span><form class="imp" method="post" action="/products/import" enctype="multipart/form-data">
   <b style="color:var(--ink)">Імпорт товарів з CleverBox (Excel)</b> — склади, бренди, постачальники, артикули, ціни закупівлі й продажу, крит. залишок, кількість.
   <input type="file" name="file" accept=".xls,.xlsx" required><button class="btn ghost">Імпортувати</button></form>
 <form class="imp" method="post" action="/products/import-turnover" enctype="multipart/form-data">
@@ -242,4 +300,5 @@ document.getElementById('xlf').addEventListener('submit',function(e){var f=this;
   {% else %}<tr><td colspan="9" class="muted">Ще немає процедур у планах.</td></tr>{% endfor %}
   </tbody></table></div>
 {% endif %}
+<script>document.addEventListener('click',function(e){var m=document.getElementById('prm');if(m&&!m.contains(e.target))m.classList.remove('on')});</script>
 {% endblock %}

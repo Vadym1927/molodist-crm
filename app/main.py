@@ -4222,9 +4222,9 @@ def tasks_generate(user: User = Depends(require("reminders")), db: Session = Dep
 PRODUCT_FILTERS = {
     "low": "Закінчуються", "out": "Немає в наявності", "expiring": "Термін ≤ 90 дн", "expired": "Прострочені",
     "prescribed": "Призначені в планах", "selling": "Продаються (90 дн)", "nosales": "Без продажів 90 дн",
-    "lowmargin": "Націнка < 40%", "nocost": "Без ціни закупівлі", "nobrand": "Без бренду",
+    "lowmargin": "Маржа < 30%", "nocost": "Без ціни закупівлі", "nobrand": "Без бренду",
 }
-PRODUCT_SORTS = {"brand": "Бренд, назва", "stock": "Залишок ↑", "expiry": "Термін ↑", "margin": "Націнка ↓",
+PRODUCT_SORTS = {"brand": "Бренд, назва", "stock": "Залишок ↑", "expiry": "Термін ↑", "margin": "Маржа ↓",
                  "sold": "Продажі 90 дн ↓", "revenue": "Виручка з планів ↓", "value": "Вартість залишку ↓"}
 
 
@@ -4242,7 +4242,7 @@ def _product_flags(r) -> set[str]:
     if r.prescribed:
         f.add("prescribed")
     f.add("selling" if r.sold_90 else "nosales")
-    if r.margin is not None and r.margin < 40:
+    if r.margin_pct is not None and r.margin_pct < 30:
         f.add("lowmargin")
     if not r.cost:
         f.add("nocost")
@@ -4327,7 +4327,7 @@ def products_xlsx(request: Request, q: str = "", brand: str = "", supplier: str 
         if f in PRODUCT_FILTERS:
             rows = [r for r in rows if f in _product_flags(r)]
     keyf = {"stock": lambda r: (r.stock if r.stock is not None else 1e9), "expiry": lambda r: (r.expiry or date(2999, 1, 1)),
-            "margin": lambda r: -(r.margin or -1e9), "sold": lambda r: -r.sold_90, "revenue": lambda r: -r.revenue,
+            "margin": lambda r: -(r.margin_pct if r.margin_pct is not None else -1e9), "sold": lambda r: -r.sold_90, "revenue": lambda r: -r.revenue,
             "value": lambda r: -r.stock_value}.get(sort) or (lambda r: ((r.product.brand or "яяя").lower(), r.product.name.lower()))
     rows = sorted(rows, key=keyf)
     wb = Workbook()
@@ -4383,7 +4383,7 @@ def products_page(request: Request, tab: str = "care", q: str = "", brand: str =
         rows = [r for r in rows if f in flags[r.product.id]]
     keyf = {"stock": lambda r: (r.stock if r.stock is not None else 1e9),
             "expiry": lambda r: (r.expiry or date(2999, 1, 1)),
-            "margin": lambda r: -(r.margin or -1e9), "sold": lambda r: -r.sold_90,
+            "margin": lambda r: -(r.margin_pct if r.margin_pct is not None else -1e9), "sold": lambda r: -r.sold_90,
             "revenue": lambda r: -r.revenue, "value": lambda r: -r.stock_value}.get(sort)
     if keyf:
         rows = sorted(rows, key=keyf)
