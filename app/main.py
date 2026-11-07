@@ -8394,7 +8394,8 @@ def _owner(user: User = Depends(current_user)) -> User:
 
 
 @app.get("/deye", response_class=HTMLResponse)
-def deye_page(request: Request, p: str = "month", d: str = "", m: str = "", user: User = Depends(_owner), db: Session = Depends(db_dep)):
+def deye_page(request: Request, p: str = "month", d: str = "", m: str = "", tab: str = "overview", jm: str = "", ed: str = "", fmt: str = "",
+              user: User = Depends(_owner), db: Session = Depends(db_dep)):
     from .services import energy as en
     from .models import FuelPrice
     c = en.cfg(db)
@@ -8406,7 +8407,25 @@ def deye_page(request: Request, p: str = "month", d: str = "", m: str = "", user
     sel = [r for r in allr if (p == "all") or (p == "month" and r["month"] == mon) or (p == "day" and r["day"] == day)]
     prices = db.scalars(select(FuelPrice).order_by(FuelPrice.day.desc())).all()
     mp = [x.price for x in prices if f"{x.day:%Y-%m}" == date.today().strftime("%Y-%m")]
-    return render(request, "deye.html", nav="reports", c=c, p=p, mon=mon, day=day, sel=sel, sm=en.summary(sel), months=en.by_month(allr),
+    tab = tab if tab in ("overview", "log", "input") else "overview"
+    months_ = en.by_month(allr)
+    jm = jm or (months_[0]["month"] if months_ else date.today().strftime("%Y-%m"))
+    if fmt == "xlsx":
+        from openpyxl import Workbook
+        import io as _io
+        wb = Workbook(); ws = wb.active; ws.title = "Deye"
+        ws.append(["Дата", "Джерело", "З батарей, кВт·год", "На заряд, кВт·год", "Без світла за добу, год", "Без світла 09–21, год",
+                   "WOG, ₴/л", "Тариф, ₴/кВт·год", "Генератор, ₴", "Зарядка, ₴", "Економія, ₴"])
+        for r in sorted([x for x in allr if not jm or x["month"] == jm or jm == "all"], key=lambda x: x["day"]):
+            ws.append([r["day"], r["source"], r["discharge"], r["charge_kwh"], r["battery_hours"], r["business_hours"], r["fuel"], r["tariff"],
+                       r["gen_cost"], r["charge_cost"], r["savings"]])
+        bio = _io.BytesIO(); wb.save(bio)
+        return Response(bio.getvalue(), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        headers={"Content-Disposition": f'attachment; filename="deye-{jm}.xlsx"'})
+    edd = _day(ed) if ed else date.today()
+    ede = db.get(__import__("app.models", fromlist=["EnergyDay"]).EnergyDay, edd)
+    return render(request, "deye.html", nav="reports", c=c, p=p, tab=tab, jm=jm, edd=edd, ede=ede,
+                  fuel_on=en.fuel_for(db, edd), tariff_on=en.tariff(c, edd), mon=mon, day=day, sel=sel, sm=en.summary(sel), months=en.by_month(allr),
                   pb=en.payback(db, c, allr), fuel_today=today_fp or (prices[0] if prices else None),
                   fuel_avg=round(sum(mp) / len(mp), 2) if mp else None, fuel_n=len(mp), ready=en.deye_ready(c),
                   tariff_now=en.tariff(c, date.today()), chart=list(reversed(en.by_month(allr)))[-12:] if p == "all" else
@@ -8417,16 +8436,27 @@ def deye_page(request: Request, p: str = "month", d: str = "", m: str = "", user
 
 @app.post("/deye/day")
 def deye_day(day: str = Form(...), discharge_kwh: str = Form(""), charge_kwh: str = Form(""), battery_hours: str = Form(""),
-             business_hours: str = Form(""), fuel_price: str = Form(""), user: User = Depends(_owner), db: Session = Depends(db_dep)):
+             business_hours: str = Form(""), fuel_price: str = Form(""), tariff: str = Form(""), tariff_month: str = Form(""),
+             user: User = Depends(_owner), db: Session = Depends(db_dep)):
     from .services import energy as en
     dd = _day(day)
     if not dd:
-        return RedirectResponse(_with_msg("/deye", "Вкажіть дату", True), 303)
-    f = lambda v: _num(v.replace(",", ".")) if v.strip() else None  # noqa: E731
+        return RedirectResponse(_with_msg("/deye?tab=input", "Вкажіть дату", True), 303)
+    f = lambda v: _num(v.replace(",", ".").replace("₴", "").replace("/л", "").strip()) if v.strip() else None  # noqa: E731
+    fp = f(fuel_price)
+    if fp is not None and abs((en.fuel_for(db, dd) or 0) - fp) < 0.005:
+        fp = None                                         # ціну не змінювали — лишаємо зафіксовану WOG
     en.save_day(db, dd, {"discharge_kwh": f(discharge_kwh), "charge_kwh": f(charge_kwh), "battery_hours": f(battery_hours),
-                         "business_hours": f(business_hours), "fuel_price": f(fuel_price) if dd < date.today() else None})
+                         "business_hours": f(business_hours), "fuel_price": fp})
+    tv = f(tariff.replace("/кВт·год", ""))
+    if tv is not None:
+        c = en.cfg(db)
+        mk = (tariff_month or f"{dd:%Y-%m}")[:7]
+        if c["tariffs"].get(mk) != tv:
+            c["tariffs"][mk] = tv
+            en.save_cfg(db, c)
     audit(db, "deye.day", user=user, day=str(dd))
-    return RedirectResponse(_with_msg(f"/deye?p=day&d={dd}", f"День {dd:%d.%m.%Y} збережено"), 303)
+    return RedirectResponse(_with_msg(f"/deye?tab=log&jm={dd:%Y-%m}", f"День {dd:%d.%m.%Y} збережено"), 303)
 
 
 @app.post("/deye/tariff")
@@ -8438,7 +8468,7 @@ def deye_tariff(month: str = Form(...), value: str = Form(...), user: User = Dep
         c["tariffs"][month[:7]] = v
         en.save_cfg(db, c)
         audit(db, "deye.tariff", user=user, month=month[:7], value=v)
-    return RedirectResponse(_with_msg("/deye", f"Тариф {month[:7]}: {value} ₴/кВт·год"), 303)
+    return RedirectResponse(_with_msg("/deye", f"Тариф {month[:7]}: {value} ₴/кВт·год"), 303)  # noqa
 
 
 @app.post("/deye/settings")
@@ -8469,7 +8499,7 @@ async def deye_settings(request: Request, user: User = Depends(_owner), db: Sess
             msg = ("✅ " if r.get("ok") else "❌ ") + r.get("msg", "")
         except Exception as e:  # noqa: BLE001
             msg = f"❌ {str(e)[:200]}"
-    return RedirectResponse(_with_msg("/deye#set", msg, msg.startswith("❌")), 303)
+    return RedirectResponse(_with_msg("/deye?tab=input#set", msg, msg.startswith("❌")), 303)
 
 
 @app.post("/deye/sync")
