@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Касові зміни · Звіти{% endblock %}
+{% block body %}
+{% macro u(v) %}{% if v is none %}—{% else %}{{ (('{:,.2f}').format(v or 0)).replace(',', ' ').replace('.', ',') }}{% endif %}{% endmacro %}
+{% macro u0(v) %}{{ (('{:,.0f}').format(v or 0)).replace(',', ' ') }}{% endmacro %}
+<style>
+.rp-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 16px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.rp-tabs a{padding:8px 14px;border-radius:10px;text-decoration:none;color:#3a342f;font-weight:600;font-size:14px}.rp-tabs a:hover{background:var(--card)}.rp-tabs a.on{background:var(--deep);color:#fff}
+.rp-per{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.rp-per a{padding:6px 12px;border-radius:99px;border:1px solid var(--line);background:var(--card);text-decoration:none;font-size:13px;font-weight:600;color:var(--ink)}
+.rp-per a.on{background:var(--lavender);border-color:var(--lavender-2);color:var(--classic)}
+.rp-per form{display:flex;gap:6px;align-items:center;margin-left:auto}.rp-per input,.rp-per select{height:38px}
+.sh-k{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.sh-k div{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:16px 18px}
+.sh-k small{display:block;font:700 10.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#8a8496}.sh-k b{display:block;font:800 24px var(--sans);color:#2A2430;margin:6px 0 2px}.sh-k span.s{font-size:12.5px;color:#6b6575}
+.sh-k div.g{background:linear-gradient(135deg,#2A2430,#3B3050)}.sh-k div.g small{color:#C9BFE6}.sh-k div.g b{color:#fff}.sh-k div.g span.s{color:#E4DEEF}
+.sh-k div.w{background:#FFF7E8;border-color:#F3DFB5}.sh-k div.w b{color:#8a5b00}
+.sh-open{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin-bottom:14px}
+.sh-open .o{background:#fff;border:1px solid #D8EBDD;border-left:5px solid #4EA86B;border-radius:16px;padding:14px 16px}
+.sh-open .o b.n{font:700 15px var(--sans)}.sh-open .o .bx{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.sh-open .o .bx span{background:#F7F4F0;border-radius:8px;padding:3px 9px;font-size:12.5px}
+.live{display:inline-block;width:8px;height:8px;border-radius:50%;background:#4EA86B;margin-right:6px;box-shadow:0 0 0 3px #DDF1E2}
+.sh-2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-bottom:14px}
+.sh-c{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:16px 18px}.sh-c h3{margin:0 0 10px;font:700 16px var(--sans);text-transform:none;letter-spacing:0;color:#2A2430}
+.sh-c table{width:100%;border-collapse:collapse;font-size:13.5px}.sh-c th{font:700 11px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:#8a8496;text-align:right;padding:7px 8px;border-bottom:1px solid #ECE7E1}
+.sh-c th:first-child,.sh-c td:first-child{text-align:left}.sh-c td{padding:7px 8px;text-align:right;border-bottom:1px solid #F6F3EF;white-space:nowrap}
+.sh-w{overflow:auto;background:#fff;border:1px solid #ECE7E1;border-radius:20px;margin-bottom:14px}
+.sh-t{border-collapse:separate;border-spacing:0;font-size:13px;width:100%;min-width:1100px}
+.sh-t th{position:sticky;top:0;z-index:2;background:#F3EFF9;font:700 11px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:#5d5869;padding:9px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid #ECE7E1}
+.sh-t th.l,.sh-t td.l{text-align:left}.sh-t td{padding:8px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid #F6F3EF;vertical-align:top}
+.sh-t tr.s{cursor:pointer}.sh-t tr.s:hover td{background:#FBFAFE}.sh-t tr.s td.l:first-child:before{content:"▸ ";color:#9a93a6}.sh-t tr.s.on td.l:first-child:before{content:"▾ "}
+.sh-t tr.d{display:none}.sh-t tr.d.show{display:table-row}.sh-t tr.d>td{background:#FBFAF8;padding:12px 14px 14px 36px;white-space:normal}
+.sh-t tr.tot td{font-weight:800;background:#F3EFF9;border-top:1px solid #E4DEEF}
+.bxt{width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #ECE7E1}
+.bxt th{font:700 10.5px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:#8a8496;text-align:right;padding:7px 10px;background:#F7F4F0}
+.bxt th:first-child,.bxt td:first-child{text-align:left}.bxt td{padding:6px 10px;text-align:right;border-top:1px solid #F6F3EF;white-space:nowrap}
+.bxt td.z{color:#C9C3BD}.bxt tr.mv td{color:#5d5869;font-size:12px;border-top:1px dashed #F1EDE8}.bxt tr.mv td:first-child{padding-left:22px}
+.pm{display:inline-block;background:#F3EFF9;color:#3B3050;border-radius:8px;padding:2px 8px;font-size:12px;margin:2px 4px 0 0;font-weight:600}
+.warn{color:#8a5b00;background:#FFF1D6;border-radius:8px;padding:2px 8px;font-weight:700;font-size:12px}
+.muted2{color:#8a8496}.pos{color:#2f6b3b;font-weight:700}.neg{color:#B23B2E;font-weight:700}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+@media(max-width:1000px){.sh-k{grid-template-columns:1fr 1fr}.sh-2{grid-template-columns:1fr}}
+</style>
+{% set qs = '&period=' ~ period ~ ('&df=' ~ d_from ~ '&dt_=' ~ d_to if period == 'custom' else '') ~ ('&u=' ~ r.user_id if r.user_id else '') %}
+<div class="row between" style="align-items:flex-end;flex-wrap:wrap;gap:10px">
+  <div><div class="eyebrow"><a href="/reports" style="color:inherit;text-decoration:none">← Усі звіти · Фінанси</a></div><h1>Касові зміни</h1>
+    <div class="muted small">Хто й коли відкрив і закрив касу, залишки на початок і кінець по кожній касі, надходження, видатки й переміщення за зміну, продажі каси CRM. Жовтим — операції, внесені в касу після закриття зміни (змінили залишок заднім числом).</div></div>
+  <a class="btn ghost" href="?r=shifts{{ qs }}&fmt=xlsx">⬇ Excel</a>
+</div>
+<nav class="rp-tabs">{% for k, v in REPORTS.items() if k != 'cash' %}<a href="?r={{ k }}" class="{{ 'on' if key==k }}">{{ v }}</a>{% endfor %}</nav>
+<div class="rp-per">
+  {% for k, v in PERIODS.items() %}<a href="?r=shifts&period={{ k }}{{ '&u=' ~ r.user_id if r.user_id }}" class="{{ 'on' if period==k }}">{{ v }}</a>{% endfor %}
+  <form><input type="hidden" name="r" value="shifts">
+    <select name="u" onchange="this.form.submit()"><option value="">Усі користувачі</option>{% for x in r.users %}<option value="{{ x.id }}" {{ 'selected' if x.id == r.user_id }}>{{ x.name }}</option>{% endfor %}</select>
+    <input type="date" name="df" value="{{ d_from }}"><span class="muted">—</span><input type="date" name="dt_" value="{{ d_to }}"><button class="btn ghost" type="submit">Показати</button></form>
+</div>
+
+{% if r.open %}<div class="sh-open">{% for s in r.open %}<div class="o">
+  <div class="row between"><b class="n"><span class="live"></span>{{ s.opened_by }}</b><span class="muted small">відкрито {{ s.opened_at.strftime('%d.%m %H:%M') }} · {{ dur(s.minutes) }}</span></div>
+  <div class="bx">{% for b in s.boxes %}<span>{{ b.name }}: <b>{{ u(b.open) }}</b> → <b>{{ u(b.expected) }}</b> ₴</span>{% endfor %}</div>
+  <div class="small" style="margin-top:8px">Продажі за зміну: <b>{{ u(s.total) }} ₴</b> · {{ s.checks }} чеків{% if s.cash_in %} · готівкою {{ u(s.cash_in) }} ₴{% endif %}</div>
+</div>{% endfor %}</div>{% endif %}
+
+<div class="sh-k">
+  <div><small>Змін за період</small><b>{{ r.n }}</b><span class="s">{{ r.days|length }} днів з касою{% if r.n_open %} · зараз відкрито {{ r.n_open }}{% endif %}</span></div>
+  <div class="g"><small>Продажі за зміни</small><b>{{ u0(r.total) }} ₴</b><span class="s">{{ r.checks }} чеків · середня зміна {{ u0(r.avg) }} ₴</span></div>
+  <div><small>Середня тривалість</small><b>{{ dur(r.avg_min) }}</b><span class="s">від відкриття до закриття</span></div>
+  <div><small>Середній чек</small><b>{{ u0(r.total / r.checks if r.checks else 0) }} ₴</b><span class="s">за всі зміни періоду</span></div>
+  <div class="{{ 'w' if r.late_n }}"><small>Внесено після закриття</small><b>{{ r.late_n }} {{ 'змін' if r.late_n != 1 else 'зміна' }}</b><span class="s">{% if r.late_n %}на {{ u(r.late_sum) }} ₴ — залишки змінені заднім числом{% else %}розбіжностей немає{% endif %}</span></div>
+</div>
+
+{% if not r.n %}<div class="card muted">За період закритих касових змін немає. Зміну відкривають і закривають через аватар угорі → «Відкрити зміну».</div>{% else %}
+<div class="sh-2">
+  <div class="sh-c"><h3>По касирах</h3><table><tr><th>Користувач</th><th>Змін</th><th>Чеків</th><th>Продажі</th><th>Середня зміна</th><th>Час у касі</th></tr>
+    {% for x in r.by_user %}<tr><td><a href="?r=shifts{{ '&period=' ~ period ~ ('&df=' ~ d_from ~ '&dt_=' ~ d_to if period == 'custom' else '') }}&u={{ r.users|selectattr('name','equalto',x.name)|map(attribute='id')|first }}">{{ x.name }}</a></td><td>{{ x.n }}</td><td>{{ x.checks }}</td><td><b>{{ u(x.total) }}</b></td><td>{{ u(x.avg) }}</td><td>{{ dur(x.minutes) }}</td></tr>{% endfor %}</table></div>
+  <div class="sh-c"><h3>За способами оплати</h3><table><tr><th>Спосіб</th><th>Сума</th><th>Частка</th></tr>
+    {% for k, v in r.by_method %}<tr><td>{{ k }}</td><td><b>{{ u(v) }}</b></td><td>{{ ('%.1f'|format(100 * v / r.total if r.total else 0)).replace('.', ',') }}%</td></tr>{% else %}<tr><td colspan="3" class="muted2">Оплат через касу CRM за період не було</td></tr>{% endfor %}</table></div>
+</div>
+
+<div class="sh-w"><table class="sh-t">
+  <tr><th class="l">Зміна</th><th class="l">Відкрито</th><th class="l">Закрито</th><th>Тривалість</th><th class="l">Каси</th><th>Чеків</th><th>Продажі</th><th>Готівкою</th><th>Після закриття</th></tr>
+  {% for s in r.rows %}
+  <tr class="s" onclick="this.classList.toggle('on');this.nextElementSibling.classList.toggle('show')">
+    <td class="l"><b>№{{ s.id }}</b><div class="muted2" style="font-size:11.5px">{{ s.opened_at.strftime('%d.%m.%Y') }}</div></td>
+    <td class="l">{{ s.opened_at.strftime('%H:%M') }}<div class="muted2" style="font-size:12px">{{ s.opened_by }}</div></td>
+    <td class="l">{{ s.closed_at.strftime('%H:%M') }}{% if s.closed_at.date() != s.opened_at.date() %} <span class="muted2">({{ s.closed_at.strftime('%d.%m') }})</span>{% endif %}<div class="muted2" style="font-size:12px">{{ s.closed_by or s.opened_by }}</div></td>
+    <td>{{ dur(s.minutes) }}</td>
+    <td class="l" style="white-space:normal;max-width:360px">{% for b in s.boxes %}<span class="pm">{{ b.name }}: {{ u(b.open) }} → {{ u(b.close) }}</span>{% endfor %}</td>
+    <td>{{ s.checks }}{% if s.test %} <span class="muted2" title="тестових чеків">({{ s.test }} тест)</span>{% endif %}</td>
+    <td><b>{{ u(s.total) }}</b></td><td>{{ u(s.cash_in) if s.cash_in else '—' }}</td>
+    <td>{% if s.late %}<span class="warn">{{ u(s.late) }} ₴</span>{% else %}<span class="muted2">—</span>{% endif %}</td>
+  </tr>
+  <tr class="d"><td colspan="9">
+    <table class="bxt"><tr><th>Каса</th><th>На початок</th><th>Надходження</th><th>Видатки</th><th>Переміщення +</th><th>Переміщення −</th><th>Очікувано</th><th>На закритті</th><th>Після закриття</th></tr>
+    {% for b in s.boxes %}<tr><td><span class="dot" style="background:{{ '#4EA86B' if b.type == 'cash' else ('#3B3050' if b.type == 'card' else '#C9BFE6') }}"></span><b>{{ b.name }}</b></td>
+      <td>{{ u(b.open) }}</td><td class="{{ 'pos' if b.in else 'z' }}">{{ '+' if b.in }}{{ u(b.in) }}</td><td class="{{ 'neg' if b.out else 'z' }}">{{ '−' if b.out }}{{ u(b.out) }}</td>
+      <td class="{{ '' if b.tin else 'z' }}">{{ u(b.tin) }}</td><td class="{{ '' if b.tout else 'z' }}">{{ u(b.tout) }}</td><td>{{ u(b.expected) }}</td><td><b>{{ u(b.close) }}</b></td>
+      <td>{% if b.late %}<span class="warn">{{ '+' if b.late > 0 }}{{ u(b.late) }}</span>{% else %}<span class="muted2">—</span>{% endif %}</td></tr>
+      {% for m in b.moves %}<tr class="mv"><td>{{ m.at.strftime('%H:%M') }} · {% if m.link %}<a href="{{ m.link }}">{{ m.what }}</a>{% else %}{{ m.what }}{% endif %}</td>
+        <td></td><td class="{{ 'pos' if m.kind == 'in' and not m.transfer }}">{{ ('+' ~ u(m.amount)) if m.kind == 'in' and not m.transfer }}</td><td class="{{ 'neg' if m.kind == 'out' and not m.transfer }}">{{ ('−' ~ u(m.amount)) if m.kind == 'out' and not m.transfer }}</td>
+        <td>{{ u(m.amount) if m.kind == 'in' and m.transfer }}</td><td>{{ u(m.amount) if m.kind == 'out' and m.transfer }}</td><td colspan="3"></td></tr>{% endfor %}
+    {% endfor %}</table>
+    <div class="small" style="margin-top:10px;display:flex;gap:14px;flex-wrap:wrap;align-items:center">
+      <span>Оплати за зміну:</span>{% for k, v in s.by_method.items() %}<span class="pm">{{ k }} · {{ u(v) }}</span>{% else %}<span class="muted2">без оплат через касу CRM</span>{% endfor %}
+      {% if s.note %}<span class="muted2">· Примітка: {{ s.note }}</span>{% endif %}</div>
+  </td></tr>
+  {% endfor %}
+  <tr class="tot"><td class="l" colspan="5">Разом · {{ r.n }} змін</td><td>{{ r.checks }}</td><td>{{ u(r.total) }}</td><td>{{ u(r.rows|sum(attribute='cash_in')) }}</td><td>{% if r.late_sum %}<span class="warn">{{ u(r.late_sum) }} ₴</span>{% else %}—{% endif %}</td></tr>
+</table></div>
+{% endif %}
+{% endblock %}

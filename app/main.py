@@ -8376,6 +8376,17 @@ def reports_page(request: Request, r: str = "revenue", period: str = "month", df
                             headers={"Content-Disposition": f'attachment; filename="pnl-{_y}.xlsx"'})
         return render(request, "rep_pnl.html", nav="reports", REPORTS=rp.REPORTS, key="pnl", r=_r, years=_ys, today=date.today(),
                       MONTHS=_pnl.MONTHS, MONTHS_FULL=_pnl.MONTHS_FULL)
+    if key == "shifts":
+        from .services import shift_report as _shr
+        _df, _dt, period = _report_period(period, df, dt_)
+        _u = request.query_params.get("u") or ""
+        _r = _shr.build(db, _df, _dt, int(_u) if _u.isdigit() else None)
+        if fmt == "xlsx":
+            audit(db, "reports.export", user=user, report="shifts", d_from=str(_df), d_to=str(_dt))
+            return Response(_shr.to_xlsx(_r), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            headers={"Content-Disposition": f'attachment; filename="shifts-{_df}-{_dt}.xlsx"'})
+        return render(request, "rep_shifts.html", nav="reports", REPORTS=rp.REPORTS, PERIODS=REPORT_PERIODS, key="shifts", r=_r,
+                      period=period, d_from=_df, d_to=_dt, dur=_shr.dur_text)
     if key == "fop":
         return _fop_page(request, db)
     if key == "expiry":
