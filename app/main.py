@@ -8456,10 +8456,15 @@ async def deye_settings(request: Request, user: User = Depends(_owner), db: Sess
 
 
 @app.post("/deye/sync")
-async def deye_sync(days: int = Form(7), user: User = Depends(_owner), db: Session = Depends(db_dep)):
+async def deye_sync(days: int = Form(7), since: str = Form(""), overwrite: str = Form(""), user: User = Depends(_owner),
+                    db: Session = Depends(db_dep)):
     from .services import energy as en
+    sd = _day(since) if since else None
+    if sd and (date.today() - sd).days > 400:
+        sd = date.today() - timedelta(days=400)
     try:
-        r = await asyncio.to_thread(en.sync_deye, db, max(1, min(days, 60)))
+        r = await asyncio.to_thread(en.sync_deye, db, max(1, min(days, 60)), None, sd, overwrite == "1")
+        audit(db, "deye.sync", user=user, since=str(sd) if sd else None, overwrite=overwrite == "1")
         msg = ("✅ " if r.get("ok") else "❌ ") + r.get("msg", "")
     except Exception as e:  # noqa: BLE001
         msg = f"❌ {str(e)[:200]}"

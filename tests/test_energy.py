@@ -57,3 +57,28 @@ def test_page_owner_only():
         cf = en.cfg(db)
         assert en.deye_ready(cf) and en.secret(cf, "password") == __import__("hashlib").sha256(b"p").hexdigest()
         assert en.cfg(db)["tariffs"]["2026-11"] == 13.16
+
+
+def test_sync_deye_fake(monkeypatch):
+    from datetime import datetime, timedelta
+    class FakeDeye:
+        def __init__(self, d, http=None): pass
+        def stations(self): return [{"id": 77, "name": "MOLODIST"}]
+        def daily(self, sid, a, b):
+            out, x = [], a
+            while x <= b:
+                out.append({"year": x.year, "month": x.month, "day": x.day, "chargeValue": 5.5, "dischargeValue": 4.4}); x += timedelta(days=1)
+            return out
+        def frames(self, sid, day):
+            t0 = datetime(day.year, day.month, day.day, 10).timestamp()
+            return [{"timeStamp": t0 + i * 300, "purchasePower": 0, "consumptionPower": 500} for i in range(25)]
+    monkeypatch.setattr(en, "Deye", FakeDeye)
+    with SessionLocal() as db:
+        c = en.cfg(db); c["deye"].update(app_id="a"); [en.set_secret(c, k, "x") for k in en.SECRETS]; c["deye"]["station_id"] = ""; en.save_cfg(db, c)
+        d = date.today() - timedelta(days=1)
+        en.save_day(db, d, {"charge_kwh": 1, "business_hours": 1})          # вручну
+        r = en.sync_deye(db, 3)
+        assert r["ok"] and db.get(EnergyDay, d).charge_kwh == 1
+        en.sync_deye(db, since=d, overwrite=True)
+        e = db.get(EnergyDay, d); db.refresh(e)
+        assert e.source == "deye" and e.charge_kwh == 5.5 and e.business_hours == 2.0

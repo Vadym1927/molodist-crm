@@ -296,8 +296,9 @@ def hours_from_frames(fr: list[dict], w_from: int, w_to: int) -> tuple[float, fl
     return round(tot, 2), round(work, 2)
 
 
-def sync_deye(db: Session, days: int = 3, http: httpx.Client | None = None) -> dict:
-    """Підтягнути з Deye останні дні: кВт·год заряду / розряду (день) і години без мережі (5-хв дані)."""
+def sync_deye(db: Session, days: int = 3, http: httpx.Client | None = None, since: date | None = None, overwrite: bool = False) -> dict:
+    """Підтягнути з Deye дні (останні N або з дати since): кВт·год заряду / розряду і години без світла (5-хв дані).
+    overwrite — перезаписати й дні, внесені вручну / перенесені (для звірки старих ручних даних)."""
     d = cfg(db)
     if not deye_ready(d):
         return {"ok": False, "msg": "Deye Cloud не підключено"}
@@ -312,9 +313,15 @@ def sync_deye(db: Session, days: int = 3, http: httpx.Client | None = None) -> d
         d["deye"]["station_name"] = st[0].get("name")
         save_cfg(db, d)
     end = date.today()
-    start = end - timedelta(days=days - 1)
+    start = since or (end - timedelta(days=days - 1))
+    items = []
+    a = start
+    while a <= end:                                     # Deye віддає історію шматками — по 30 днів
+        b = min(a + timedelta(days=29), end)
+        items += cl.daily(sid, a, b)
+        a = b + timedelta(days=1)
     n = 0
-    for it in cl.daily(sid, start, end):
+    for it in items:
         ts = _num(it, "timeStamp")
         if it.get("year") and it.get("month") and it.get("day"):
             day = date(int(it["year"]), int(it["month"]), int(it["day"]))
@@ -325,7 +332,7 @@ def sync_deye(db: Session, days: int = 3, http: httpx.Client | None = None) -> d
         if not (start <= day <= end):
             continue
         e = db.get(EnergyDay, day)
-        if e and e.source == "manual":                  # внесене вручну Deye не перезаписує
+        if e and e.source == "manual" and not overwrite:   # внесене вручну Deye не перезаписує (хіба що просили)
             continue
         try:
             bh, wh = hours_from_frames(cl.frames(sid, day), int(d["work_from"]), int(d["work_to"]))

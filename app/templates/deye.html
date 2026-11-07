@@ -132,6 +132,12 @@
     <label>Без світла за добу, год<input name="battery_hours" inputmode="decimal"></label><label>Без світла {{ '%02d' % c.work_from }}–{{ '%02d' % c.work_to }}, год<input name="business_hours" inputmode="decimal"></label>
     <label>WOG А-95, ₴/л (минула дата)<input name="fuel_price" inputmode="decimal"></label><button class="btn" style="height:42px">Зберегти день</button></form></div>
 
+{% if ready %}<form class="dy-c dy-sec" method="post" action="/deye/sync" onsubmit="return !this.overwrite.checked || confirm('Замінити дані з {{ '' }}'+this.since.value+' даними Deye, зокрема внесені вручну?')"><h3>Звірити історію з Deye</h3>
+  <div class="sub">Ручні дані могли бути неточними — завантажте з Deye весь період і порівняйте. Стара версія днів не зберігається: позначка «перезаписати» замінює внесене вручну.</div>
+  <div class="dy-f"><label>З дати<input type="date" name="since" value="{{ (months[-1].rows[-1].day if months else today) }}" required></label>
+    <label style="text-transform:none;letter-spacing:0;font:600 13px var(--sans);color:#2A2430;display:flex;gap:8px;align-items:center"><input type="checkbox" name="overwrite" value="1" style="width:auto;height:auto"> перезаписати внесене вручну</label>
+    <button class="btn" style="height:42px">Завантажити з Deye</button></div></form>{% endif %}
+
 <div class="dy-c dy-sec"><h3>По місяцях</h3><div class="sub">Розкрийте місяць — розбивка по днях.</div>
   {% for mo in months %}<details class="dy-m" {{ 'open' if loop.first }}><summary><b>{{ mname(mo.month) }}</b><span class="sv">{{ u(mo.savings) }} ₴ економії</span><small>{{ n1(mo.business_hours) }} год · {{ mo.days }} дн.</small></summary>
     <div style="overflow-x:auto"><table class="dy-tb"><thead><tr><th>Дата</th><th>З батарей</th><th>На заряд</th><th>Без світла</th><th>з них {{ '%02d' % c.work_from }}–{{ '%02d' % c.work_to }}</th><th>WOG</th><th>Генератор</th><th>Зарядка</th><th>Економія</th></tr></thead><tbody>
