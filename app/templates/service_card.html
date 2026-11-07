@@ -3,154 +3,201 @@
 {% block body %}
 {% set qp = request.query_params %}
 {% macro money(v) %}{{ (v|uah) if v is not none else '—' }}{% endmacro %}
-{% macro delta(v, inv=False, pct=False) %}{% if v %}{% set bad = (v > 0) if inv else (v < 0) %}<span class="sc-dl {{ 'bad' if bad else 'ok' }}">{{ '+' if v > 0 }}{{ ('%.1f'|format(v) ~ ' п.п.') if pct else (v|uah) }}</span>{% else %}<span class="sc-dl">без змін</span>{% endif %}{% endmacro %}
+{% macro delta(v, inv=False, pct=False) %}{% if v %}{% set bad = (v > 0) if inv else (v < 0) %}<span class="sc-dl {{ 'bad' if bad else 'ok' }}">{{ '+' if v > 0 }}{{ ('%.1f'|format(v) ~ ' п.п.') if pct else (v|uah) }}</span>{% else %}<span class="sc-dl">Без змін</span>{% endif %}{% endmacro %}
+{% set I = {
+ 'info': '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
+ 'chart': '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+ 'users': '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 4.5a3 3 0 0 1 0 6M18 14.2c1.8.8 3 2.6 3 4.8"/>',
+ 'clock': '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+ 'tag': '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.4"/>',
+ 'db': '<ellipse cx="12" cy="6" rx="7" ry="2.8"/><path d="M5 6v6c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8V6M5 12v6c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8v-6"/>',
+ 'pct': '<path d="M19 5 5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/>',
+ 'layers': '<path d="M12 3 2 8l10 5 10-5z"/><path d="M2 13l10 5 10-5"/>',
+ 'cal': '<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+ 'calc': '<rect x="5" y="3" width="14" height="18" rx="2.5"/><path d="M8 7h8M8.5 11h.01M12 11h.01M15.5 11h.01M8.5 14.5h.01M12 14.5h.01M15.5 14.5h.01M8.5 18h.01M12 18h3.5"/>',
+ 'user': '<circle cx="12" cy="8" r="3.5"/><path d="M5 20c.9-3.8 3.6-6 7-6s6.1 2.2 7 6"/>',
+ 'face': '<circle cx="12" cy="12" r="8.5"/><path d="M8.5 14.5c1 1.3 2.2 2 3.5 2s2.5-.7 3.5-2M9 10h.01M15 10h.01"/><path d="M18 3l.8 1.7L20.5 5.5l-1.7.8L18 8l-.8-1.7-1.7-.8 1.7-.8z"/>',
+ 'vial': '<path d="M9 3h6M10 3v5l-4 9a2.5 2.5 0 0 0 2.3 3.5h7.4A2.5 2.5 0 0 0 18 17l-4-9V3"/><path d="M7.5 14h9"/>',
+ 'tool': '<path d="M14.5 6.5a4 4 0 0 0 5 5L12 19l-3 1 1-3 7.5-7.5"/><path d="M14.5 6.5 17 4l3 3-2.5 2.5"/>',
+ 'ext': '<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
+ 'check': '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+ 'down': '<path d="M6 9l6 6 6-6"/>'} %}
+{% macro ic(k, s=20) %}<svg width="{{ s }}" height="{{ s }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">{{ I[k]|safe }}</svg>{% endmacro %}
+{% set nm = sv.name or '' %}{% set title = (nm.split('(')[0]|trim) if '(' in nm else nm %}{% set sub = (nm[nm.index('(') + 1:].rstrip(')')|trim) if '(' in nm else '' %}
 <style>
-.sc-h{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
-.sc-h h1{margin:4px 0 2px;font-size:26px;text-transform:none;letter-spacing:0;font-weight:700;color:#2A2430}.sc-h p{margin:0;color:#8a8496;font-size:13px}
-.sc-h .dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:8px;vertical-align:2px}
-.sc{display:grid;grid-template-columns:210px minmax(0,1fr);gap:18px;align-items:start}
-.sc-nav{display:grid;gap:6px;position:sticky;top:12px}.sc-nav a{display:block;padding:11px 14px;border-radius:12px;background:#fff;border:1px solid #ECE7E1;text-decoration:none;color:#2A2430;font:600 13.5px var(--sans)}
-.sc-nav a.on{background:#3B3050;color:#fff;border-color:#3B3050}.sc-nav a:hover:not(.on){background:#F3EFF9}
+.sc-bc{display:flex;gap:8px;align-items:center;font:600 13px var(--sans);color:#6b6575;margin-bottom:8px}.sc-bc a{color:#3B3050;text-decoration:none;padding:4px 12px;border-radius:99px;background:#F3EFF9}.sc-bc a:hover{background:#E4DEEF}
+.sc-h{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+.sc-h .l{display:flex;gap:16px;align-items:flex-start}.sc-av{width:76px;height:76px;border-radius:20px;display:grid;place-items:center;background:#E4DEEF;color:#3B3050;flex:none;position:relative}
+.sc-av i{position:absolute;right:-3px;bottom:-3px;width:16px;height:16px;border-radius:50%;border:3px solid var(--bg);background:var(--c,#C9BFE6)}
+.sc-h h1{margin:0;font:700 30px var(--sans);text-transform:none;letter-spacing:0;color:#2A2430;line-height:1.15}
+.sc-h .sub{margin:4px 0 2px;color:#5d5869;font-size:16px}.sc-h .meta{color:#8a8496;font-size:13px}
+.sc-price{display:inline-flex;gap:10px;align-items:center;background:#E4DEEF;color:#3B3050;border-radius:16px;padding:12px 20px;font:800 24px var(--sans)}
+.sc-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));background:#fff;border:1px solid #ECE7E1;border-radius:16px;padding:5px;gap:4px;margin-bottom:14px}
+.sc-tabs a{display:flex;gap:9px;align-items:center;justify-content:center;padding:11px 14px;border-radius:12px;text-decoration:none;color:#3B3050;font:600 14.5px var(--sans)}
+.sc-tabs a.on{background:#3B3050;color:#fff}.sc-tabs a:hover:not(.on){background:#F3EFF9}
 .sc-g{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
-.sc-c{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:16px 18px;display:grid;gap:12px}
-.sc-c h3{margin:0;font:700 11px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#8a8496}
-.sc-c label{display:grid;gap:4px;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496}
-.sc-c input,.sc-c select,.sc-c textarea{margin:0}.sc-c textarea{min-height:110px;font-size:14px;line-height:1.5;resize:vertical}
-.sc-c .hint{font-size:12px;color:#6b6575;background:#F6F3FB;border-radius:10px;padding:7px 10px;line-height:1.45;text-transform:none;letter-spacing:0;font-weight:400}
-.sc-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.sc-sw{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid #ECE7E1;border-radius:14px;padding:12px 14px}
-.sc-sw b{font:600 14px var(--sans);color:#2A2430}.sc-sw small{display:block;color:#8a8496;font-size:12px}.sc-sw input{width:20px;height:20px;accent-color:#3B3050;flex:none}
-.sc-col{display:flex;flex-wrap:wrap;gap:8px}.sc-col label{width:38px;height:38px;border-radius:10px;cursor:pointer;position:relative}.sc-col input{position:absolute;opacity:0}
-.sc-col label:has(input:checked){outline:3px solid #2A2430;outline-offset:2px}
-.sc-save{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 30%);padding:14px 0 4px;display:flex;justify-content:flex-end;gap:8px;grid-column:1/-1}
+.sc-c{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:18px 20px;display:grid;gap:12px}
+.sc-hd{display:flex;gap:10px;align-items:center;font:700 18px var(--sans);color:#3B3050}.sc-hd span{color:#2A2430}.sc-hd a{margin-left:auto;font:600 13.5px var(--sans);color:#5C4B82;display:inline-flex;gap:6px;align-items:center}
+.sc-c label{display:grid;gap:5px;font:600 12.5px var(--sans);color:#5d5869}
+.sc-c input,.sc-c select,.sc-c textarea{margin:0;width:100%;box-sizing:border-box}.sc-c textarea{min-height:96px;font-size:14px;line-height:1.5;resize:vertical}
+.sc-hint{font-size:12.5px;color:#5d5869;background:#F3EFF9;border-radius:10px;padding:8px 12px;line-height:1.45;display:flex;gap:8px;align-items:center}
+.sc-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.sc-c label.sc-sw,.sc-sw{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid #ECE7E1;border-radius:14px;padding:10px 14px;cursor:pointer}
+.sc-sw b{font:600 14.5px var(--sans);color:#2A2430}.sc-sw small{display:block;color:#8a8496;font-size:12px}
+.sc-sw input{appearance:none;-webkit-appearance:none;width:44px !important;height:24px;border-radius:99px;background:#DCD6E4;position:relative;cursor:pointer;flex:none;transition:background .15s}
+.sc-sw input:before{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left .15s}
+.sc-sw input:checked{background:#3B3050}.sc-sw input:checked:before{left:23px}
+.sc-col{display:flex;flex-wrap:wrap;gap:8px}.sc-col label{width:40px;height:40px;border-radius:11px;cursor:pointer;position:relative;display:block}.sc-col input{position:absolute;opacity:0}
+.sc-col label:has(input:checked){outline:3px solid #3B3050;outline-offset:2px}
+.sc-tc{display:flex;align-items:center;gap:8px}.sc-tc select{flex:1}.sc-tc a{white-space:nowrap;font:600 13px var(--sans);color:#5C4B82;display:inline-flex;gap:4px;align-items:center}
+.sc-foot{position:sticky;bottom:0;z-index:5;grid-column:1/-1;display:flex;justify-content:flex-end;gap:10px;padding:12px 0 6px;background:linear-gradient(transparent,var(--bg) 35%)}
 /* ціна */
-.sc-k{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
-.sc-kp{background:#fff;border:1px solid #ECE7E1;border-radius:16px;padding:14px 16px}.sc-kp small{display:block;font:700 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496}
-.sc-kp .v2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}.sc-kp .v2 span{font-size:11.5px;color:#8a8496;display:block}
-.sc-kp .v2 b{font:700 17px var(--sans);color:#2A2430}.sc-kp .big{font:700 24px var(--sans);color:#3B3050;margin-top:6px}
-.sc-dl{font-size:12px;border-radius:7px;padding:1px 7px;background:#F2EFEA;color:#6b6575;white-space:nowrap}.sc-dl.ok{background:#E5F2E7;color:#3c6b45}.sc-dl.bad{background:#FDECEA;color:#B23B2E}
-.sc-tb{width:100%;border-collapse:collapse;font-size:13.5px}.sc-tb th{text-align:left;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496;padding:8px 8px;border-bottom:1px solid #ECE7E1}
-.sc-tb td{padding:9px 8px;border-bottom:1px solid #F4F0EB;vertical-align:top}.sc-tb .r{text-align:right;white-space:nowrap}.sc-tb small{display:block;color:#9a93a6;font-size:11px}
-.sc-tb tr.grp td{background:#F7F4F0;font:700 12px var(--sans);color:#3B3050;letter-spacing:.04em}.sc-tb tr.tot td{font-weight:700;background:#FBFAF8}
-.sc-pp{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:end}
-.sc-out{background:#F3EFF9;border-radius:14px;padding:12px 14px;font-size:14px;line-height:1.6}.sc-out b{color:#3B3050}
+.sc-k{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.sc-kp{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:16px;display:flex;gap:12px;align-items:flex-start}
+.sc-kp .ib,.sc-ib{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:#F3EFF9;color:#3B3050;flex:none}
+.sc-kp small{display:block;font:600 14px var(--sans);color:#2A2430}.sc-kp b{display:block;font:800 24px var(--sans);color:#2A2430;margin:4px 0 2px}
+.sc-kp .s{font-size:12.5px;color:#8a8496}.sc-kp .d{margin-top:6px}
+.sc-dl{display:inline-block;font-size:12px;border-radius:99px;padding:2px 10px;background:#F2EFEA;color:#5d5869;white-space:nowrap;font-weight:600}.sc-dl.ok{background:#E5F2E7;color:#2f6b3b}.sc-dl.bad{background:#FDECEA;color:#B23B2E}
+.sc-zp{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1fr) minmax(0,1fr);gap:14px;align-items:center}
+.sc-zp .v small{display:block;font-size:12.5px;color:#8a8496}.sc-zp .v b{font:700 20px var(--sans);color:#2A2430}
+.sc-tb{width:100%;border-collapse:separate;border-spacing:0;font-size:14px}
+.sc-tb th{font:700 13px var(--sans);color:#2A2430;padding:9px 10px;background:#F3EFF9;text-align:right}.sc-tb thead tr:nth-child(2) th{font:500 12px var(--sans);color:#6b6575;background:#F8F6FC}
+.sc-tb th.l,.sc-tb td.l{text-align:left}.sc-tb th:first-child{border-radius:12px 0 0 0}.sc-tb th:last-child{border-radius:0 12px 0 0}
+.sc-tb td{padding:9px 10px;border-bottom:1px solid #F4F0EB;text-align:right;white-space:nowrap;vertical-align:middle}
+.sc-tb td.l b{display:block;font:700 14px var(--sans);color:#2A2430;white-space:normal}.sc-tb td small{display:block;font-size:11.5px;color:#8a8496}
+.sc-tb .mi{display:flex;gap:10px;align-items:center}.sc-tb .mi .ib{width:36px;height:36px;border-radius:10px;background:#F3EFF9;color:#3B3050;display:grid;place-items:center;flex:none}
+.sc-tb tr.grp td{background:#FBFAFE;font:700 12.5px var(--sans);color:#5C4B82;text-align:left;letter-spacing:.04em;text-transform:uppercase}
+.sc-tb tr.tot td{font:700 14.5px var(--sans);background:#FBF7EE}.sc-tb tr.all td{font:800 16px var(--sans);background:#F3EFF9;border:0}
+.sc-tb tr:hover td{background:#FBFAFE}
+details.sc-how{background:#F3EFF9;border-radius:14px}details.sc-how summary{list-style:none;cursor:pointer;display:flex;gap:10px;align-items:center;padding:12px 14px;font:600 14px var(--sans);color:#2A2430}
+details.sc-how summary::-webkit-details-marker{display:none}details.sc-how summary svg:last-child{margin-left:auto;transition:transform .15s}details.sc-how[open] summary svg:last-child{transform:rotate(180deg)}
+details.sc-how div{padding:0 14px 12px 44px;font-size:13.5px;color:#5d5869;line-height:1.55}
+.sc-pp{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:end}
+.sc-res{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.sc-res div{display:flex;gap:12px;align-items:center;background:#F3EFF9;border-radius:16px;padding:12px 14px}
+.sc-res small{display:block;font:700 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#6b6575}.sc-res b{font:800 22px var(--sans);color:#2A2430}
+.sc-res .ib{background:#fff}
+.sc-note{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap}.sc-note .sc-hint{flex:1}
 .sc-warn{background:#FFF1D6;border:1px solid #F0D9A8;border-radius:14px;padding:10px 14px;color:#5a4300;font-size:13.5px}
 .sc-doc{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
-.sc-doc label{display:flex;gap:12px;align-items:center;border:1px solid #ECE7E1;border-radius:14px;padding:10px 12px;cursor:pointer;text-transform:none;letter-spacing:0;font:600 14px var(--sans);color:#2A2430}
+.sc-doc label{display:flex;gap:12px;align-items:center;border:1px solid #ECE7E1;border-radius:14px;padding:10px 12px;cursor:pointer;font:600 14px var(--sans);color:#2A2430}
 .sc-doc label:has(input:checked){border-color:#3B3050;background:#F3EFF9}.sc-doc img,.sc-doc .av{width:40px;height:40px;border-radius:50%;object-fit:cover;flex:none;background:#E4DEEF;display:grid;place-items:center;font:700 13px var(--sans);color:#3B3050}
-.sc-doc small{display:block;font:400 12px var(--sans);color:#8a8496}.sc-doc input{margin-left:auto;width:20px;height:20px;accent-color:#3B3050}
-.sc-hi{display:grid;gap:0}.sc-hi div{display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px;padding:10px 0;border-bottom:1px solid #F4F0EB;font-size:14px}
-.sc-hi small{color:#8a8496}
-@media(max-width:1000px){.sc{grid-template-columns:1fr}.sc-nav{position:static;grid-auto-flow:column;overflow-x:auto}.sc-g,.sc-k,.sc-pp{grid-template-columns:1fr}}
+.sc-doc small{display:block;font:400 12px var(--sans);color:#8a8496}.sc-doc input{margin-left:auto !important;width:20px !important;height:20px;accent-color:#3B3050}
+.sc-hi{display:grid;gap:0}.sc-hi div{display:grid;grid-template-columns:170px minmax(0,1fr);gap:12px;padding:11px 0;border-bottom:1px solid #F4F0EB;font-size:14px}.sc-hi small{color:#8a8496}
+@media(max-width:1000px){.sc-g,.sc-k,.sc-pp,.sc-res{grid-template-columns:1fr 1fr}.sc-zp{grid-template-columns:1fr 1fr}}
+@media(max-width:640px){.sc-g,.sc-k,.sc-pp,.sc-res,.sc-2,.sc-zp{grid-template-columns:1fr}.sc-tabs{grid-template-columns:1fr 1fr}}
 </style>
-<div class="sc-h"><div><div class="eyebrow"><a href="/products">Продукти</a> · <a href="/services">Послуги (прайс)</a></div>
-  <h1><span class="dot" style="background:{{ sv.color or '#C9BFE6' }}"></span>{{ sv.name }}</h1>
-  <p>ID {{ sv.id }}{{ ' · створено в CRM' if sv.source == 'crm' else ' · CleverBox' }}{{ ' · прихована' if sv.active is false }} · ціна {{ money(sv.price) }}</p></div>
-  <a class="btn ghost" href="/services">← До прайсу</a></div>
+<div class="sc-bc"><a href="/products">‹ Продукти</a> / <a href="/services">Послуги</a></div>
+<div class="sc-h"><div class="l"><span class="sc-av" style="--c:{{ sv.color or '#C9BFE6' }}">{{ ic('face', 38) }}<i></i></span>
+  <div><h1>{{ title }}</h1>{% if sub %}<div class="sub">{{ sub }}</div>{% endif %}
+    <div class="meta">ID {{ sv.id }} · {{ 'створено в CRM' if sv.source == 'crm' else 'CleverBox' }}{{ ' · прихована' if sv.active is false }}{% if sv.category %} · {{ sv.category }}{% endif %}</div></div></div>
+  <span class="sc-price">{{ ic('tag', 24) }} {{ money(sv.price) }}</span></div>
 {% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
-<div class="sc">
-  <nav class="sc-nav">{% for k, v in TABS.items() %}<a href="?tab={{ k }}" class="{{ 'on' if tab == k }}">{{ v }}</a>{% endfor %}</nav>
-  <div>
+{% set TI = {'about':'info','price':'chart','staff':'users','history':'clock'} %}
+<nav class="sc-tabs">{% for k, v in TABS.items() %}<a href="?tab={{ k }}" class="{{ 'on' if tab == k }}">{{ ic(TI[k]) }} {{ v }}</a>{% endfor %}</nav>
+
 {% if tab == 'about' %}
-  <form method="post" action="/services/{{ sv.id }}/card" class="sc-g"><input type="hidden" name="tab" value="about">
-    <div class="sc-c"><h3>Основна інформація</h3>
-      <label>Робоча назва<input name="name" value="{{ sv.name }}" required></label>
-      <label>Назва для SMS<input name="sms_name" value="{{ sv.sms_name or '' }}"></label>
-      <label>Назва у чеку<input name="check_name" value="{{ sv.check_name or '' }}"></label>
-      <div class="sc-2"><label>Напрям<input name="direction" value="{{ sv.direction or '' }}" list="sc-dirs"></label><label>Категорія<input name="category" value="{{ sv.category or '' }}" list="sc-cats"></label></div>
-      <div class="sc-2"><label>Тривалість, хв<input name="duration" inputmode="numeric" value="{{ sv.duration or sv.time_min or '' }}"></label>
-        <label>Повторний візит через, днів<input name="repeat_days" inputmode="numeric" value="{{ sv.repeat_days or '' }}"></label></div>
-      <label>Технологічна карта<select name="techcard_id"><option value="">— без техкарти —</option>{% for k in cards %}<option value="{{ k.id }}" {{ 'selected' if k.id == sv.techcard_id }}>{{ k.name }}</option>{% endfor %}</select>
-        <span class="hint">Списання матеріалів після послуги й собівартість у «Ціна й маржа».{% if sv.techcard_id %} <a href="/techcards?open={{ sv.techcard_id }}">Відкрити техкарту →</a>{% endif %}</span></label>
-      <label>Передоплата, ₴<input name="prepay" inputmode="decimal" value="{{ sv.prepay or '' }}"></label>
-    </div>
-    <div class="sc-c"><h3>Логіка й онлайн-запис</h3>
-      <div class="sc-sw"><div><b>Активна</b><small>Є в касі й у записі</small></div><input type="checkbox" name="active" value="1" {{ 'checked' if sv.active is not false }}></div>
-      <div class="sc-sw"><div><b>Дозволити зміну ціни</b><small>Адміністратор може змінити ціну при оплаті візиту</small></div><input type="checkbox" name="allow_price_change" value="1" {{ 'checked' if sv.allow_price_change }}></div>
-      <div class="sc-sw"><div><b>Доступна для онлайн-запису</b></div><input type="checkbox" name="online" value="1" {{ 'checked' if sv.online }}></div>
-      <label>Коротка назва для онлайн-запису<input name="online_name" value="{{ sv.online_name or '' }}"></label>
-      <label>Опис послуги (онлайн-запис)<textarea name="description">{{ sv.description or '' }}</textarea></label>
-      <label>Колір у календарі</label><div class="sc-col">{% for c in COLORS %}<label style="background:{{ c }}"><input type="radio" name="color" value="{{ c }}" {{ 'checked' if sv.color == c }}></label>{% endfor %}<label style="background:#fff;border:1px dashed #C9BFE6" title="Без кольору"><input type="radio" name="color" value="" {{ 'checked' if not sv.color }}></label></div>
-    </div>
-    <div class="sc-c" style="grid-column:1/-1"><h3>Для спеціаліста</h3>
-      <textarea name="specialist_note" style="min-height:180px" placeholder="Показання, протипоказання, етапи, рекомендації після процедури…">{{ sv.specialist_note or '' }}</textarea>
-      <span class="hint">Бачать спеціалісти в картці візиту.</span></div>
-    <div class="sc-save"><button class="btn">Зберегти</button></div>
-    <datalist id="sc-cats">{% for c in cats %}<option value="{{ c }}">{% endfor %}</datalist><datalist id="sc-dirs">{% for c in dirs %}<option value="{{ c }}">{% endfor %}</datalist>
-  </form>
+<form method="post" action="/services/{{ sv.id }}/card" class="sc-g" id="sc-f"><input type="hidden" name="tab" value="about">
+  <div class="sc-c"><div class="sc-hd">{{ ic('layers', 22) }}<span>Основна інформація</span></div>
+    <label>Робоча назва<textarea name="name" required style="min-height:56px">{{ sv.name }}</textarea></label>
+    <label>Назва для SMS<input name="sms_name" value="{{ sv.sms_name or '' }}"></label>
+    <label>Назва у чеку<input name="check_name" value="{{ sv.check_name or '' }}"></label>
+    <div class="sc-2"><label>Напрям<select name="direction"><option value="">—</option>{% for c in (dirs + ([sv.direction] if sv.direction and sv.direction not in dirs else [])) %}<option {{ 'selected' if c == sv.direction }}>{{ c }}</option>{% endfor %}</select></label>
+      <label>Категорія<select name="category"><option value="">—</option>{% for c in (cats + ([sv.category] if sv.category and sv.category not in cats else [])) %}<option {{ 'selected' if c == sv.category }}>{{ c }}</option>{% endfor %}</select></label></div>
+    <div class="sc-2"><label>Тривалість, хв<input name="duration" inputmode="numeric" value="{{ sv.duration or sv.time_min or '' }}"></label>
+      <label>Повторний візит через, днів<input name="repeat_days" inputmode="numeric" value="{{ sv.repeat_days or '' }}"></label></div>
+    <div class="sc-2"><label>Техкарта<span class="sc-tc"><select name="techcard_id"><option value="">— без техкарти —</option>{% for k in cards %}<option value="{{ k.id }}" {{ 'selected' if k.id == sv.techcard_id }}>{{ k.name }}</option>{% endfor %}</select>
+        {% if sv.techcard_id %}<a href="/techcards?open={{ sv.techcard_id }}">Відкрити {{ ic('ext', 15) }}</a>{% endif %}</span></label>
+      <label>Передоплата, ₴<input name="prepay" inputmode="decimal" value="{{ sv.prepay or '' }}"></label></div>
+  </div>
+  <div class="sc-c"><div class="sc-hd">{{ ic('cal', 22) }}<span>Налаштування та онлайн-запис</span></div>
+    <label class="sc-sw"><div><b>Активна</b><small>Є в касі й у записі</small></div><input type="checkbox" name="active" value="1" {{ 'checked' if sv.active is not false }}></label>
+    <label class="sc-sw"><div><b>Дозволити зміну ціни</b><small>Адміністратор може змінити ціну при оплаті візиту</small></div><input type="checkbox" name="allow_price_change" value="1" {{ 'checked' if sv.allow_price_change }}></label>
+    <label class="sc-sw"><div><b>Доступна для онлайн-запису</b></div><input type="checkbox" name="online" value="1" {{ 'checked' if sv.online }}></label>
+    <label>Коротка назва для онлайн-запису<input name="online_name" value="{{ sv.online_name or '' }}"></label>
+    <label>Опис послуги (онлайн-запис)<textarea name="description">{{ sv.description or '' }}</textarea></label>
+    <div><div style="font:600 12.5px var(--sans);color:#5d5869;margin-bottom:6px">Колір у календарі</div>
+      <div class="sc-col">{% for c in COLORS %}<label style="background:{{ c }}"><input type="radio" name="color" value="{{ c }}" {{ 'checked' if sv.color == c }}></label>{% endfor %}<label style="background:#fff;border:1px dashed #C9BFE6" title="Без кольору"><input type="radio" name="color" value="" {{ 'checked' if not sv.color }}></label></div></div>
+  </div>
+  <div class="sc-c" style="grid-column:1/-1"><div class="sc-hd">{{ ic('users', 22) }}<span>Для спеціаліста</span></div>
+    <textarea name="specialist_note" style="min-height:120px" placeholder="Показання, протипоказання, етапи та рекомендації після процедури…">{{ sv.specialist_note or '' }}</textarea>
+    <span class="sc-hint">{{ ic('info', 16) }} Видно спеціалістам у картці візиту.</span></div>
+  <div class="sc-foot"><a class="btn ghost" href="?tab=about">Скасувати</a><button class="btn">Зберегти зміни</button></div>
+</form>
 
 {% elif tab == 'price' %}
-  {% if not pl.card %}<div class="sc-warn">До послуги не привʼязано техкарту — собівартість невідома. Оберіть техкарту в «Про послугу».</div>
-  {% else %}
-  <div class="sc-k">
-    <div class="sc-kp"><small>Ціна продажу</small><div class="big">{{ money(pl.price) }}</div><span class="small muted">сформовано {{ pl.on.strftime('%d.%m.%Y') if pl.on else '— дату не задано' }}</span></div>
-    <div class="sc-kp"><small>Матеріали (техкарта)</small><div class="v2"><div><span>на дату ціни</span><b>{{ money(pl.cost_then) }}</b></div><div><span>зараз</span><b>{{ money(pl.cost_now) }}</b></div></div><div style="margin-top:6px">{{ delta(pl.cost_diff, True) }}</div></div>
-    <div class="sc-kp"><small>Валовий (ціна − матеріали)</small><div class="v2"><div><span>на дату ціни</span><b>{{ money(pl.gross_then) }}</b></div><div><span>зараз</span><b>{{ money(pl.gross_now) }}</b></div></div><div style="margin-top:6px">{{ delta(pl.gross_diff) }}</div></div>
-    <div class="sc-kp"><small>ЗП лікаря</small><div class="big" style="font-size:20px">{{ money(pl.zp_now) }}</div>
-      <span class="small muted">{% if pl.zp_manual %}задано вручну{% elif pl.zp_who %}за окладом: {{ pl.zp_who }}{% else %}оклад лікаря не налаштовано{% endif %}</span></div>
-    <div class="sc-kp"><small>Прибуток після ЗП</small><div class="v2"><div><span>на дату ціни</span><b>{{ money(pl.after_zp_then) }}</b></div><div><span>зараз</span><b>{{ money(pl.after_zp_now) }}</b></div></div><div style="margin-top:6px">{{ delta((pl.after_zp_now - pl.after_zp_then)|round(2)) }}</div></div>
-    <div class="sc-kp"><small>Маржа після ЗП</small><div class="v2"><div><span>на дату ціни</span><b>{{ pl.after_zp_m_then if pl.after_zp_m_then is not none else '—' }}%</b></div><div><span>зараз</span><b>{{ pl.after_zp_m_now if pl.after_zp_m_now is not none else '—' }}%</b></div></div>
-      <div style="margin-top:6px">{{ delta(((pl.after_zp_m_now or 0) - (pl.after_zp_m_then or 0))|round(1), False, True) }}</div></div>
-    {% if pl.ovh %}<div class="sc-kp"><small>Накладні · {{ pl.mins }} хв × {{ '%g'|format(pl.ovh_min) }} ₴</small><div class="big" style="font-size:20px">{{ money(pl.ovh) }}</div><span class="small muted">оренда, адміністратори, реклама…</span></div>
-    <div class="sc-kp"><small>Чистий прибуток · чиста маржа</small><div class="v2"><div><span>на дату ціни</span><b>{{ money(pl.net_then) }}</b><span>{{ pl.net_m_then }}%</span></div><div><span>зараз</span><b>{{ money(pl.net_now) }}</b><span>{{ pl.net_m_now }}%</span></div></div></div>{% endif %}
+{% if not pl.card %}<div class="sc-warn" style="margin-bottom:14px">До послуги не привʼязано техкарту — собівартість невідома. Оберіть техкарту в «Про послугу».</div>{% endif %}
+<div class="sc-k">
+  <div class="sc-kp"><span class="ib">{{ ic('tag', 22) }}</span><div><small>Ціна продажу</small><b>{{ money(pl.price) }}</b><span class="s">{{ ('сформовано ' ~ pl.on.strftime('%d.%m.%Y')) if pl.on else 'Дата не задана' }}</span></div></div>
+  <div class="sc-kp"><span class="ib">{{ ic('db', 22) }}</span><div><small>Собівартість</small><b>{{ money(pl.cost_now) }}</b><span class="s">{{ 'На дату ціни = Зараз' if not pl.cost_diff else ('на дату ціни ' ~ (pl.cost_then|uah)) }}</span><div class="d">{{ delta(pl.cost_diff, True) }}</div></div></div>
+  <div class="sc-kp"><span class="ib">{{ ic('chart', 22) }}</span><div><small>Валовий прибуток</small><b>{{ money(pl.after_zp_now) }}</b><span class="s">ціна − матеріали − ЗП{{ (' · на дату ' ~ (pl.after_zp_then|uah)) if pl.after_zp_now != pl.after_zp_then }}</span><div class="d">{{ delta((pl.after_zp_now - pl.after_zp_then)|round(2)) }}</div></div></div>
+  <div class="sc-kp"><span class="ib">{{ ic('pct', 22) }}</span><div><small>Маржа</small><b>{{ pl.after_zp_m_now if pl.after_zp_m_now is not none else '—' }}%</b><span class="s">{{ 'На дату ціни = Зараз' if pl.after_zp_m_now == pl.after_zp_m_then else ('на дату ціни ' ~ pl.after_zp_m_then ~ '%') }}</span>
+    <div class="d">{{ delta(((pl.after_zp_m_now or 0) - (pl.after_zp_m_then or 0))|round(1), False, True) }}</div></div></div>
+</div>
+<form class="sc-c sc-zp" method="get" style="margin-top:14px"><input type="hidden" name="tab" value="price">
+  <span class="sc-ib">{{ ic('user', 22) }}</span>
+  <div class="v"><small>ЗП лікаря</small><b>{{ money(pl.zp_now) }}</b> <span class="s" style="font-size:12.5px;color:#8a8496">{% if pl.zp_manual %}задано вручну{% elif pl.zp_who %}за окладом: {{ pl.zp_who }}{% else %}оклад не налаштовано{% endif %}</span></div>
+  <div class="v"><small>Матеріали без ЗП · валовий</small><b>{{ money(pl.gross_now) }}</b> <span style="font-size:12.5px;color:#8a8496">{{ pl.margin_now }}%</span></div>
+  <label>ЗП рахувати для лікаря<select name="doc" onchange="this.form.submit()"><option value="">Найбільша серед тих, хто надає послугу</option>{% for d in pl.zp_doctors %}<option value="{{ d.id }}" {{ 'selected' if pl.doctor_id == d.id }}>{{ d.name }}</option>{% endfor %}</select></label></form>
+{% if pl.card %}
+<div class="sc-c" style="margin-top:14px"><div class="sc-hd">{{ ic('layers', 22) }}<span>Техкарта {{ pl.card.name }}</span><a href="/techcards?open={{ pl.card.id }}">Відкрити техкарту {{ ic('ext', 15) }}</a></div>
+  <div style="overflow-x:auto"><table class="sc-tb"><thead><tr><th class="l" rowspan="2">Матеріал</th><th rowspan="2">Кількість</th><th colspan="2" style="text-align:center">Ціна одиниці</th><th colspan="2" style="text-align:center">Сума</th><th rowspan="2" style="text-align:center">Зміна</th></tr>
+    <tr><th>На дату ціни</th><th>Зараз</th><th>На дату ціни</th><th>Зараз</th></tr></thead><tbody>
+  {% for grp, title_, t_then, t_now in [(True, 'Препарат', pl.drug_then, pl.drug_now), (False, 'Розхідні матеріали й обладнання', pl.cons_then, pl.cons_now)] %}
+    {% set items = pl.rows|selectattr('drug', 'equalto', grp)|list %}{% if items %}
+    <tr class="grp"><td colspan="7">{{ title_ }}</td></tr>
+    {% for r in items %}<tr><td class="l"><span class="mi"><span class="ib">{{ ic('vial' if r.drug else ('tool' if 'обладн' in (r.cat or '')|lower or 'аморт' in r.name|lower else 'layers'), 18) }}</span><span><b>{{ r.name }}</b><small>{{ r.cat }}{{ (' · остання поставка ' ~ r.now_at.strftime('%d.%m.%Y')) if r.now_at }}{{ (' · ' ~ r.now_sup) if r.now_sup }}</small></span></span></td>
+      <td>{{ '%g'|format(r.qty) }} {{ r.unit }}</td><td>{{ money(r.then_u) }}{% if r.then_at %}<small>на {{ r.then_at.strftime('%d.%m.%Y') }}</small>{% endif %}</td><td>{{ money(r.now_u) }}</td>
+      <td>{{ money(r.then) }}</td><td>{{ money(r.now) }}</td><td style="text-align:center">{{ delta(r.diff, True) }}</td></tr>{% endfor %}
+    <tr class="tot"><td class="l" colspan="4">Разом · {{ title_|lower }}</td><td>{{ money(t_then) }}</td><td>{{ money(t_now) }}</td><td style="text-align:center">{{ delta((t_now - t_then)|round(2), True) }}</td></tr>
+    {% endif %}{% endfor %}
+    <tr class="all"><td class="l" colspan="4">Собівартість послуги</td><td>{{ money(pl.cost_then) }}</td><td>{{ money(pl.cost_now) }}</td><td style="text-align:center">{{ delta(pl.cost_diff, True) }}</td></tr>
+  </tbody></table></div>
+  <details class="sc-how"><summary>{{ ic('info', 18) }} Як визначається собівартість?{{ ic('down', 18) }}</summary>
+    <div>«На дату ціни» — остання закупівля матеріалу не пізніше дати формування ціни (якщо закупівель тоді ще не було — найраніша відома). «Зараз» — остання поставка. Кількість — з техкарти; амортизація обладнання — за ставкою з техкарти. Маржа рахується після ЗП лікаря (оклад або сума, задана вручну).</div></details>
+</div>
+{% endif %}
+<form method="post" action="/services/{{ sv.id }}/card" class="sc-c" style="margin-top:14px"><input type="hidden" name="tab" value="price">
+  <div class="sc-hd">{{ ic('calc', 22) }}<span style="font-size:22px">Планувальник ціни</span></div>
+  {% if sv.cb_price is not none and sv.cb_price != sv.price %}<div class="sc-warn">У CleverBox ціна {{ money(sv.cb_price) }}, у CRM — {{ money(sv.price) }}. CRM тримає свою ціну й не бере її з CleverBox{% if sv.price_locked %} · <button class="btn ghost" name="unlock" value="1" style="padding:2px 10px;font-size:12px">Повернути ціну CleverBox</button>{% endif %}</div>{% endif %}
+  <div class="sc-pp">
+    <label>Дата формування ціни<input type="date" name="price_set_on" value="{{ pl.on.isoformat() if pl.on else '' }}"></label>
+    <label>Нова ціна продажу, ₴<input name="price" id="sc-np" inputmode="decimal" value="{{ '%g'|format(sv.price) if sv.price else '' }}" oninput="scCalc('p')"></label>
+    <label>Цільова маржа, %<input id="sc-tm" inputmode="decimal" placeholder="{{ pl.after_zp_m_now or '' }}" oninput="scCalc('m')"></label>
   </div>
-  <form class="sc-c" style="margin-top:14px;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;align-items:end" method="get"><input type="hidden" name="tab" value="price">
-    <label>ЗП рахувати для лікаря<select name="doc" onchange="this.form.submit()"><option value="">Найбільша серед тих, хто надає послугу</option>{% for d in pl.zp_doctors %}<option value="{{ d.id }}" {{ 'selected' if pl.doctor_id == d.id }}>{{ d.name }}</option>{% endfor %}</select></label>
-    <span class="hint">ЗП — з «Налаштування окладів» лікаря (комісійні за послуги). Можна задати суму вручну нижче, у планувальнику.</span><span></span></form>
-  <div class="sc-c" style="margin-top:14px"><h3>Техкарта «{{ pl.card.name }}» · ціни матеріалів</h3>
-    <table class="sc-tb"><thead><tr><th>Матеріал</th><th class="r">К-сть</th><th class="r">Ціна од. на дату ціни</th><th class="r">Ціна од. зараз</th><th class="r">Сума на дату</th><th class="r">Сума зараз</th><th class="r">Зміна</th></tr></thead><tbody>
-    {% for grp, title, t_then, t_now in [(True, 'Препарат', pl.drug_then, pl.drug_now), (False, 'Розхідні матеріали й обладнання', pl.cons_then, pl.cons_now)] %}
-      {% set items = pl.rows|selectattr('drug', 'equalto', grp)|list %}{% if items %}
-      <tr class="grp"><td colspan="7">{{ title }}</td></tr>
-      {% for r in items %}<tr><td><b>{{ r.name }}</b><small>{{ r.cat }}</small></td><td class="r">{{ '%g'|format(r.qty) }} {{ r.unit }}</td>
-        <td class="r">{{ money(r.then_u) }}<small>{{ r.then_at.strftime('%d.%m.%Y') if r.then_at else 'ціна товару' }}</small></td>
-        <td class="r">{{ money(r.now_u) }}<small>{{ ('остання поставка ' ~ r.now_at.strftime('%d.%m.%Y')) if r.now_at else 'ціна товару' }}{{ (' · ' ~ r.now_sup) if r.now_sup }}</small></td>
-        <td class="r">{{ money(r.then) }}</td><td class="r">{{ money(r.now) }}</td><td class="r">{{ delta(r.diff, True) }}</td></tr>{% endfor %}
-      <tr class="tot"><td colspan="4">Разом · {{ title|lower }}</td><td class="r">{{ money(t_then) }}</td><td class="r">{{ money(t_now) }}</td><td class="r">{{ delta((t_now - t_then)|round(2), True) }}</td></tr>
-      {% endif %}{% endfor %}
-      <tr class="tot"><td colspan="4">Собівартість послуги</td><td class="r">{{ money(pl.cost_then) }}</td><td class="r">{{ money(pl.cost_now) }}</td><td class="r">{{ delta(pl.cost_diff, True) }}</td></tr>
-    </tbody></table>
-    <span class="hint">«На дату ціни» — остання закупівля не пізніше дати формування ціни (якщо закупівель тоді ще не було — найраніша відома). «Зараз» — остання поставка. Амортизація обладнання — за ставкою з техкарти.</span>
+  <div class="sc-res">
+    <div><span class="sc-ib ib">{{ ic('tag', 22) }}</span><span><small>Ціна</small><b id="r-p">—</b></span></div>
+    <div><span class="sc-ib ib">{{ ic('user', 22) }}</span><span><small>ЗП лікаря</small><b id="r-z">—</b></span></div>
+    <div><span class="sc-ib ib">{{ ic('db', 22) }}</span><span><small>Валовий прибуток</small><b id="r-g">—</b></span></div>
+    <div><span class="sc-ib ib">{{ ic('pct', 22) }}</span><span><small>Маржа</small><b id="r-m">—</b></span></div>
   </div>
-  {% endif %}
-  <form method="post" action="/services/{{ sv.id }}/card" class="sc-c" style="margin-top:14px"><input type="hidden" name="tab" value="price"><h3>Планувальник ціни</h3>
-    {% if sv.cb_price is not none and sv.cb_price != sv.price %}<div class="sc-warn">У CleverBox ціна {{ money(sv.cb_price) }}, у CRM — {{ money(sv.price) }}. CRM тримає свою ціну й не бере її з CleverBox{% if sv.price_locked %} · <button class="btn ghost" name="unlock" value="1" style="padding:2px 10px;font-size:12px">Повернути ціну CleverBox</button>{% endif %}</div>{% endif %}
-    <div class="sc-pp">
-      <label>Дата формування ціни<input type="date" name="price_set_on" value="{{ pl.on.isoformat() if pl.on else '' }}"></label>
-      <label>Нова ціна продажу, ₴<input name="price" id="sc-np" inputmode="decimal" value="{{ '%g'|format(sv.price) if sv.price else '' }}" oninput="scCalc('p')"></label>
-      <label>Цільова маржа після ЗП{{ ' і накладних' if pl.ovh }}, %<input id="sc-tm" inputmode="decimal" placeholder="{{ pl.net_m_then or '' }}" oninput="scCalc('m')"></label>
-    </div>
-    <div class="sc-pp"><label>ЗП лікаря вручну, ₴<input name="zp_fixed" inputmode="decimal" value="{{ '%g'|format(sv.zp_fixed) if sv.zp_fixed is not none else '' }}" placeholder="за окладом: {{ pl.zp_now|uah if not pl.zp_manual else '—' }}"></label><span class="hint" style="grid-column:span 2">Порожньо — ЗП рахується за окладом лікаря і змінюється разом із ціною (якщо оклад у % від вартості).</span></div>
-    <div class="sc-out" id="sc-out"></div>
-    {% if pl.keep_margin_price and pl.cost_diff > 0 %}<div class="small">Щоб зберегти маржу {{ pl.keep_margin }}% (після ЗП{{ ' і накладних' if pl.ovh }}) при нинішній собівартості, ціна має бути ≈ <b>{{ pl.keep_margin_price|uah }}</b> <button type="button" class="btn ghost" style="padding:2px 10px;font-size:12px" onclick="document.getElementById('sc-np').value='{{ '%g'|format(pl.keep_margin_price) }}';scCalc('p')">Підставити</button></div>{% endif %}
-    <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn">Зберегти ціну</button></div>
-    <span class="hint">Нова ціна діє в касі й записі CRM. У CleverBox її треба змінити окремо — CRM лише читає CleverBox. Дата формування ставиться сьогоднішня, якщо не вказати іншу.</span>
-  </form>
-  <script>
-  var SC={cost:{{ pl.cost_now or 0 }},price:{{ pl.price or 0 }},za:{{ pl.za or 0 }},zb:{{ pl.zb or 0 }},ovh:{{ pl.ovh or 0 }}};
-  function f2(v){return v.toLocaleString('uk-UA',{minimumFractionDigits:2,maximumFractionDigits:2})+' ₴'}
-  function scCalc(src){var np=document.getElementById('sc-np'),tm=document.getElementById('sc-tm'),o=document.getElementById('sc-out');
-    if(src==='m'){var m=parseFloat((tm.value||'').replace(',','.'))/100;var k=1-SC.zb-m;if(m>0&&k>0){np.value=Math.round((SC.cost+SC.za+SC.ovh)/k)}}
-    var p=parseFloat((np.value||'').replace(',','.'))||0;if(!p){o.innerHTML='Введіть ціну або цільову маржу.';return}
-    var zp=Math.max(0,SC.za+SC.zb*p),g=p-SC.cost,az=g-zp,net=az-SC.ovh,dp=p-SC.price;
-    o.innerHTML='При ціні <b>'+f2(p)+'</b> (матеріали зараз '+f2(SC.cost)+'): валовий <b>'+f2(g)+'</b> · ЗП лікаря '+f2(zp)+' · після ЗП <b>'+f2(az)+'</b>, маржа <b>'+(100*az/p).toFixed(1)+'%</b>'+
-      (SC.ovh?' · накладні '+f2(SC.ovh)+' · чистий <b>'+f2(net)+'</b> ('+(100*net/p).toFixed(1)+'%)':'')+(SC.price&&dp?' · '+(dp>0?'+':'')+f2(dp)+' до поточної ціни':'')}
-  scCalc('p');
-  </script>
+  <div class="sc-2"><div style="font-size:14px;color:#5d5869;align-self:center">Собівартість зараз <b style="color:#2A2430">{{ money(pl.cost_now) }}</b>{% if pl.keep_margin_price and pl.cost_diff > 0 %} · щоб зберегти маржу {{ pl.keep_margin }}%, ціна ≈ <b>{{ pl.keep_margin_price|uah }}</b> <button type="button" class="btn ghost" style="padding:2px 10px;font-size:12px" onclick="document.getElementById('sc-np').value='{{ '%g'|format(pl.keep_margin_price) }}';scCalc('p')">Підставити</button>{% endif %}</div>
+    <label>ЗП лікаря вручну, ₴<input name="zp_fixed" inputmode="decimal" value="{{ '%g'|format(sv.zp_fixed) if sv.zp_fixed is not none else '' }}" placeholder="порожньо — за окладом ({{ pl.zp_now|uah if not pl.zp_manual else '—' }})"></label></div>
+  <div class="sc-note"><span class="sc-hint">{{ ic('info', 16) }} Нова ціна застосовується в касі та записі CRM. У CleverBox змініть ціну окремо. Якщо дату не вказано, використовується сьогоднішня.</span>
+    <button class="btn" style="height:46px;padding:0 22px;display:inline-flex;gap:8px;align-items:center">{{ ic('check', 18) }} Зберегти ціну</button></div>
+</form>
+<script>
+var SC={cost:{{ pl.cost_now or 0 }},price:{{ pl.price or 0 }},za:{{ pl.za or 0 }},zb:{{ pl.zb or 0 }},ovh:{{ pl.ovh or 0 }}};
+function f2(v){return v.toLocaleString('uk-UA',{minimumFractionDigits:2,maximumFractionDigits:2})+' ₴'}
+function scCalc(src){var np=document.getElementById('sc-np'),tm=document.getElementById('sc-tm');
+  if(src==='m'){var m=parseFloat((tm.value||'').replace(',','.'))/100;var k=1-SC.zb-m;if(m>0&&k>0){np.value=Math.round((SC.cost+SC.za+SC.ovh)/k)}}
+  var p=parseFloat((np.value||'').replace(/\s/g,'').replace(',','.'))||0,el=function(i){return document.getElementById(i)};
+  if(!p){['r-p','r-z','r-g','r-m'].forEach(function(i){el(i).textContent='—'});return}
+  var zp=Math.max(0,SC.za+SC.zb*p),g=p-SC.cost-zp-SC.ovh;
+  el('r-p').textContent=f2(p);el('r-z').textContent=f2(zp);el('r-g').textContent=f2(g);el('r-m').textContent=(100*g/p).toFixed(1).replace('.',',')+'%'}
+scCalc('p');
+</script>
 
 {% elif tab == 'staff' %}
-  <form method="post" action="/services/{{ sv.id }}/card" class="sc-c"><input type="hidden" name="tab" value="staff">
-    <div class="row between" style="gap:10px;flex-wrap:wrap"><h3>Хто надає послугу</h3><input id="sc-dq" placeholder="Пошук спеціаліста" style="max-width:280px;height:38px" oninput="var q=this.value.toLowerCase();document.querySelectorAll('.sc-doc label').forEach(function(l){l.style.display=l.textContent.toLowerCase().indexOf(q)>=0?'':'none'})"></div>
-    <div class="sc-doc">{% for d in doctors %}<label>{% if d.photo_url %}<img src="{{ d.photo_url }}" alt="">{% else %}<span class="av">{{ (d.name.split()|map('first')|join)[:2]|upper }}</span>{% endif %}<span>{{ d.name }}<small>{{ d.position or '' }}</small></span><input type="checkbox" name="doctor" value="{{ d.id }}" {{ 'checked' if d.id in (sv.doctor_ids or []) }}></label>{% endfor %}</div>
-    <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn ghost" onclick="document.querySelectorAll('.sc-doc input').forEach(function(i){i.checked=true})">Виділити всіх</button><button class="btn">Зберегти</button></div>
-  </form>
+<form method="post" action="/services/{{ sv.id }}/card" class="sc-c"><input type="hidden" name="tab" value="staff">
+  <div class="sc-hd">{{ ic('users', 22) }}<span>Хто надає послугу</span><input id="sc-dq" placeholder="Пошук спеціаліста" style="margin-left:auto;max-width:280px;height:40px" oninput="var q=this.value.toLowerCase();document.querySelectorAll('.sc-doc label').forEach(function(l){l.style.display=l.textContent.toLowerCase().indexOf(q)>=0?'':'none'})"></div>
+  <div class="sc-doc">{% for d in doctors %}<label>{% if d.photo_url %}<img src="{{ d.photo_url }}" alt="">{% else %}<span class="av">{{ (d.name.split()|map('first')|join)[:2]|upper }}</span>{% endif %}<span>{{ d.name }}<small>{{ d.position or '' }}</small></span><input type="checkbox" name="doctor" value="{{ d.id }}" {{ 'checked' if d.id in (sv.doctor_ids or []) }}></label>{% endfor %}</div>
+  <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn ghost" onclick="document.querySelectorAll('.sc-doc input').forEach(function(i){i.checked=true})">Виділити всіх</button><button class="btn">Зберегти</button></div>
+</form>
 
 {% elif tab == 'history' %}
-  <div class="sc-c"><h3>Історія послуги</h3>
-    <div class="sc-hi">{% for h in hist %}<div><small>{{ h.at|local|dt('%d.%m.%Y %H:%M') }}<br>{{ users.get(h.user_id) or ('CleverBox' if h.source == 'cleverbox' else 'система') }}</small>
-      <span>{% if h.field == 'created' %}<b>Послугу створено</b> · {{ h.new }}{% else %}<b>{{ FIELDS.get(h.field, h.field) }}:</b> {{ h.old if h.old is not none else '—' }} → {{ h.new if h.new is not none else '—' }}{% if h.field == 'price' and h.old and h.new %}{% set o = h.old|float %}{% set n = h.new|float %}{% if o %} <span class="sc-dl {{ 'ok' if n > o else 'bad' }}">{{ '+' if n > o }}{{ '%.1f'|format(100 * (n - o) / o) }}%</span>{% endif %}{% endif %}{% endif %}</span></div>
-    {% else %}<div class="muted" style="display:block">Змін ще не було. Тут зʼявляться зміни ціни, назви, техкарти й тривалості — з CRM і з синку CleverBox.</div>{% endfor %}</div></div>
+<div class="sc-c"><div class="sc-hd">{{ ic('clock', 22) }}<span>Історія послуги</span></div>
+  <div class="sc-hi">{% for h in hist %}<div><small>{{ h.at|local|dt('%d.%m.%Y %H:%M') }}<br>{{ users.get(h.user_id) or ('CleverBox' if h.source == 'cleverbox' else 'система') }}</small>
+    <span>{% if h.field == 'created' %}<b>Послугу створено</b> · {{ h.new }}{% else %}<b>{{ FIELDS.get(h.field, h.field) }}:</b> {{ h.old if h.old is not none else '—' }} → {{ h.new if h.new is not none else '—' }}{% if h.field == 'price' and h.old and h.new %}{% set o = h.old|float %}{% set n = h.new|float %}{% if o %} <span class="sc-dl {{ 'ok' if n > o else 'bad' }}">{{ '+' if n > o }}{{ '%.1f'|format(100 * (n - o) / o) }}%</span>{% endif %}{% endif %}{% endif %}</span></div>
+  {% else %}<div class="muted" style="display:block">Змін ще не було. Тут зʼявляться зміни ціни, назви, техкарти й тривалості — з CRM і з синку CleverBox.</div>{% endfor %}</div></div>
 {% endif %}
-  </div>
-</div>
 {% endblock %}

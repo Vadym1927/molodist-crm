@@ -3996,7 +3996,7 @@ async def service_card_save(request: Request, sid: int, user: User = Depends(req
         from .models import TechCard as _TC
         _tcn = lambda i: (db.get(_TC, i).name if i and db.get(_TC, i) else None)  # noqa: E731
         before = {"name": sv.name, "duration": sv.duration or sv.time_min, "techcard": _tcn(sv.techcard_id), "category": sv.category}
-        sv.name = g("name")[:300] or sv.name
+        sv.name = " ".join(g("name").split())[:300] or sv.name
         sv.sms_name, sv.check_name = g("sms_name")[:300] or None, g("check_name")[:300] or None
         sv.direction, sv.category = g("direction")[:200] or None, g("category")[:200] or None
         d_ = int(g("duration")) if g("duration").isdigit() else None
