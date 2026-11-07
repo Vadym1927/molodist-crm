@@ -51,7 +51,7 @@
   <div><small>Без техкарти</small><b>{{ rows|rejectattr('card')|list|length }}</b></div>
 </div>
 <form class="spx-cfg" method="post" action="/finance/service-pricing/cfg"><input type="hidden" name="back" value="{{ request.url.query }}">
-  <label>Накладні, ₴ за хвилину<input name="ovh_min" value="{{ '%g'|format(c.ovh_min) }}" inputmode="decimal" style="width:120px" title="Оренда, адміністратори, реклама, комуналка… на хвилину роботи кабінету"></label>
+  <label>Накладні, ₴ за хвилину<input name="ovh_min" value="{{ '%g'|format(c.ovh_min) }}" inputmode="decimal" style="width:120px" title="Оренда, адміністратори, реклама, комуналка… на хвилину роботи кабінету. 0 — не закладати"></label>
   <label>Цільова чиста маржа, %<span class="mg">{% for x in MARGINS %}<button type="button" class="{{ 'on' if c.target|float == x }}" onclick="this.form.target.value={{ x }};this.form.submit()">{{ x }}</button>{% endfor %}<input name="target" value="{{ '%g'|format(c.target) }}" style="width:70px"></span></label>
   <label>Округлення<select name="rnd">{% for x in [1, 10, 50, 100, 500] %}<option value="{{ x }}" {{ 'selected' if c.round|int == x }}>{{ 'до 1 ₴' if x == 1 else ('до ' ~ x ~ ' ₴') }}</option>{% endfor %}</select></label>
   <label>ЗП рахувати для лікаря<select name="doctor"><option value="">Найбільша з тих, хто надає послугу</option>{% for d in doctors %}<option value="{{ d.id }}" {{ 'selected' if c.doctor|string == d.id|string }}>{{ d.name }}</option>{% endfor %}</select></label>

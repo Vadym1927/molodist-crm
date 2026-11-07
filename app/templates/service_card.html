@@ -96,7 +96,7 @@
   </div>
   <form class="sc-c" style="margin-top:14px;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;align-items:end" method="get"><input type="hidden" name="tab" value="price">
     <label>ЗП рахувати для лікаря<select name="doc" onchange="this.form.submit()"><option value="">Найбільша серед тих, хто надає послугу</option>{% for d in pl.zp_doctors %}<option value="{{ d.id }}" {{ 'selected' if pl.doctor_id == d.id }}>{{ d.name }}</option>{% endfor %}</select></label>
-    <span class="hint">ЗП — з «Налаштування окладів» лікаря (комісійні за послуги). Можна задати суму вручну нижче, у планувальнику. Накладні ₴/хв — у <a href="/finance/service-pricing">Плануванні ціни послуг</a>.</span><span></span></form>
+    <span class="hint">ЗП — з «Налаштування окладів» лікаря (комісійні за послуги). Можна задати суму вручну нижче, у планувальнику.</span><span></span></form>
   <div class="sc-c" style="margin-top:14px"><h3>Техкарта «{{ pl.card.name }}» · ціни матеріалів</h3>
     <table class="sc-tb"><thead><tr><th>Матеріал</th><th class="r">К-сть</th><th class="r">Ціна од. на дату ціни</th><th class="r">Ціна од. зараз</th><th class="r">Сума на дату</th><th class="r">Сума зараз</th><th class="r">Зміна</th></tr></thead><tbody>
     {% for grp, title, t_then, t_now in [(True, 'Препарат', pl.drug_then, pl.drug_now), (False, 'Розхідні матеріали й обладнання', pl.cons_then, pl.cons_now)] %}

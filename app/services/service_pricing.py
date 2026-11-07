@@ -29,7 +29,7 @@ def cfg(db: Session) -> dict:
         d = json.loads(st.value) if st and st.value else {}
     except ValueError:
         d = {}
-    d.setdefault("ovh_min", 25.0)        # накладні ₴ за хвилину (750 ₴ за 30 хв, як у таблиці)
+    d.setdefault("ovh_min", 0.0)         # накладні ₴ за хвилину — за замовчуванням не закладаємо (0)
     d.setdefault("target", 45.0)         # цільова чиста маржа, %
     d.setdefault("round", 100)           # округлення рекомендованої ціни
     d.setdefault("doctor", "")           # лікар для ЗП: "" — найдорожчий з тих, хто надає послугу

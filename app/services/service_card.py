@@ -105,7 +105,7 @@ def planner(db: Session, sv: CbService, on: date | None = None, new_price: float
     z_then, who = zp.calc(sv, price, c_then, doctor_id)
     z_now, _ = zp.calc(sv, price, c_now, doctor_id)
     mins = int(sv.duration or sv.time_min or 0)
-    ovh = round(mins * float(c.get("ovh_min") or 0), 2)
+    ovh = 0.0                                   # накладні в картці послуги не закладаємо — лише в Плануванні ціни послуг
     res.update(zp_then=z_then, zp_now=z_now, zp_who=who, zp_manual=sv.zp_fixed is not None, mins=mins, ovh=ovh, ovh_min=c.get("ovh_min"),
                after_zp_then=round(price - c_then - z_then, 2), after_zp_now=round(price - c_now - z_now, 2),
                net_then=round(price - c_then - z_then - ovh, 2), net_now=round(price - c_now - z_now - ovh, 2))
