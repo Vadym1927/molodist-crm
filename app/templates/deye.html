@@ -67,7 +67,7 @@
 <div class="dy">
 <div class="dy-hero"><div style="position:relative;z-index:1"><div class="eb">Звіт власника · енергія</div>
   <h1>{% if logo %}<img src="{{ logo }}" alt="Deye">{% else %}<span class="lg">DEYE</span>{% endif %} Окупність станції</h1>
-  <p>Інвертор проти генератора: 1 година роботи на інверторі в робочий час = 1 година роботи генератора ({{ n1(c.litres_per_hour) }} л WOG А-95).</p></div>
+  <p>Інвертор проти генератора: 1 година без світла з {{ '%02d' % c.work_from }}:00 до {{ '%02d' % c.work_to }}:00 = 1 година роботи генератора ({{ n1(c.litres_per_hour) }} л WOG А-95).</p></div>
   <div class="src">{% if ready %}<span class="dy-st ok">● Deye Cloud підключено</span><br>{% if c.deye.station_name %}<b>{{ c.deye.station_name }}</b><br>{% endif %}{% if c.deye.last_sync %}оновлено {{ c.deye.last_sync.replace('T', ' ') }}{% endif %}
     {% else %}<span class="dy-st">● Дані: ручне введення</span><br><a href="#set" style="color:#fff">Підключити Deye Cloud →</a>{% endif %}</div></div>
 {% if qp.get('msg') %}<div class="alert" style="{{ '' if qp.get('err') else 'background:var(--ok-bg);color:var(--ok)' }}">{{ qp.get('msg') }}</div>{% endif %}
@@ -89,8 +89,8 @@
 <div class="dy-k4">
   <div class="dy-t" style="--b:#D5EBDD"><span>З батарей</span><b>{{ n1(sm.discharge) }} кВт·год</b></div>
   <div class="dy-t" style="--b:#E4DEEF"><span>На заряд</span><b>{{ n1(sm.charge_kwh) }} кВт·год</b></div>
-  <div class="dy-t" style="--b:#F6D6C2"><span>Час на інверторі</span><b>{{ n1(sm.battery_hours) }} год</b></div>
-  <div class="dy-t" style="--b:#D3E3F7"><span>Робочий час {{ '%02d' % c.work_from }}:00–{{ '%02d' % c.work_to }}:00</span><b>{{ n1(sm.business_hours) }} год</b></div>
+  <div class="dy-t" style="--b:#F6D6C2"><span>Без світла за добу</span><b>{{ n1(sm.battery_hours) }} год</b></div>
+  <div class="dy-t" style="--b:#D3E3F7"><span>Без світла {{ '%02d' % c.work_from }}:00–{{ '%02d' % c.work_to }}:00</span><b>{{ n1(sm.business_hours) }} год</b></div>
 </div>
 
 <div class="dy-flow">
@@ -111,15 +111,15 @@
     {% set vals = chart|map(attribute='savings')|list %}{% set mx = ([1] + vals|map('abs')|list)|max %}
     <div class="dy-ch">{% set step = ((chart|length) / 12)|round(0, 'ceil')|int or 1 %}{% for x in chart %}<div title="{{ (mname(x.month) if p == 'all' else x.day.strftime('%d.%m')) }} · {{ u(x.savings) }} ₴"><i class="{{ 'neg' if x.savings < 0 }}" style="height:{{ (100 * (x.savings|abs) / mx)|round(1) }}%"></i><em>{% if (loop.index0 % step) == 0 %}{{ mname(x.month) if p == 'all' else x.day.strftime('%d.%m') }}{% else %}&nbsp;{% endif %}</em></div>{% else %}<div class="muted small" style="align-self:center">Немає даних за період</div>{% endfor %}</div></div>
   <div class="dy-c dy-lg"><small>Логіка розрахунку</small>
-    <div style="margin-top:10px"><b>Вартість зарядки</b><p>кВт·год на заряд × тариф відповідного місяця</p></div>
-    <div><b>Еквівалент генератора</b><p>години на інверторі з {{ '%02d' % c.work_from }}:00 до {{ '%02d' % c.work_to }}:00 × {{ n1(c.litres_per_hour) }} л × ціна WOG А-95 цього дня</p></div>
+    <div style="margin-top:10px"><b>Вартість зарядки</b><p>кВт·год, куплені з мережі в батареї за всю добу × тариф місяця</p></div>
+    <div><b>Еквівалент генератора</b><p>години без світла з {{ '%02d' % c.work_from }}:00 до {{ '%02d' % c.work_to }}:00 × {{ n1(c.litres_per_hour) }} л × ціна WOG А-95 цього дня (1 година = 1 година роботи генератора)</p></div>
     <div><b>Економія</b><p>вартість генератора − вартість зарядки</p></div>
     <div><b>Окупність</b><p>накопичена економія / вартість станції ({{ u(c.station_cost) }} ₴)</p></div></div>
 </div>
 
 <div class="dy-2">
   <div class="dy-c dy-sec"><h3>Калькулятор сценарію</h3><div class="sub">Скільки заощадить один день з такими цифрами.</div>
-    <div class="dy-f"><label>Годин на інверторі<input id="cH" value="1" inputmode="decimal" oninput="dyCalc()"></label><label>Заряджено, кВт·год<input id="cK" value="1" inputmode="decimal" oninput="dyCalc()"></label>
+    <div class="dy-f"><label>Годин без світла 09–21<input id="cH" value="1" inputmode="decimal" oninput="dyCalc()"></label><label>Заряджено, кВт·год<input id="cK" value="1" inputmode="decimal" oninput="dyCalc()"></label>
       <label>Тариф, ₴/кВт·год<input id="cT" value="{{ n2(tariff_now) }}" inputmode="decimal" oninput="dyCalc()"></label><label>WOG А-95, ₴/л<input id="cF" value="{{ n2(fuel_today.price if fuel_today else 0) }}" inputmode="decimal" oninput="dyCalc()"></label></div>
     <div class="dy-out" id="cO"></div></div>
   <div class="dy-c dy-sec"><h3>Тарифи</h3><div class="sub">Ціна 1 кВт·год, окремо для кожного місяця.</div>
@@ -128,13 +128,13 @@
 
 <div class="dy-c dy-sec"><div class="eb">Щоденний облік</div><h3>Ручне введення дня</h3><div class="sub">Поки Deye Cloud не підключено, або щоб виправити день. Внесене вручну Deye не перезаписує. Ціна WOG на сьогодні фіксується автоматично, для минулої дати — внесіть зі скрину чи чека.</div>
   <form method="post" action="/deye/day" class="dy-f"><label>Дата<input type="date" name="day" value="{{ today }}" required></label>
-    <label>З батарей, кВт·год<input name="discharge_kwh" inputmode="decimal"></label><label>На заряд, кВт·год<input name="charge_kwh" inputmode="decimal"></label>
-    <label>Час на інверторі, год<input name="battery_hours" inputmode="decimal"></label><label>З них {{ '%02d' % c.work_from }}–{{ '%02d' % c.work_to }}, год<input name="business_hours" inputmode="decimal"></label>
+    <label>З батарей, кВт·год<input name="discharge_kwh" inputmode="decimal"></label><label>Куплено в батареї, кВт·год<input name="charge_kwh" inputmode="decimal"></label>
+    <label>Без світла за добу, год<input name="battery_hours" inputmode="decimal"></label><label>Без світла {{ '%02d' % c.work_from }}–{{ '%02d' % c.work_to }}, год<input name="business_hours" inputmode="decimal"></label>
     <label>WOG А-95, ₴/л (минула дата)<input name="fuel_price" inputmode="decimal"></label><button class="btn" style="height:42px">Зберегти день</button></form></div>
 
 <div class="dy-c dy-sec"><h3>По місяцях</h3><div class="sub">Розкрийте місяць — розбивка по днях.</div>
   {% for mo in months %}<details class="dy-m" {{ 'open' if loop.first }}><summary><b>{{ mname(mo.month) }}</b><span class="sv">{{ u(mo.savings) }} ₴ економії</span><small>{{ n1(mo.business_hours) }} год · {{ mo.days }} дн.</small></summary>
-    <div style="overflow-x:auto"><table class="dy-tb"><thead><tr><th>Дата</th><th>З батарей</th><th>На заряд</th><th>На інверторі</th><th>{{ '%02d' % c.work_from }}–{{ '%02d' % c.work_to }}</th><th>WOG</th><th>Генератор</th><th>Зарядка</th><th>Економія</th></tr></thead><tbody>
+    <div style="overflow-x:auto"><table class="dy-tb"><thead><tr><th>Дата</th><th>З батарей</th><th>На заряд</th><th>Без світла</th><th>з них {{ '%02d' % c.work_from }}–{{ '%02d' % c.work_to }}</th><th>WOG</th><th>Генератор</th><th>Зарядка</th><th>Економія</th></tr></thead><tbody>
     {% for r in mo.rows %}<tr><td>{{ r.day.strftime('%d.%m.%Y') }}<span class="src">{{ {'deye':'Deye','manual':'вручну','import':'перенесено'}.get(r.source, '') }}</span></td><td>{{ n1(r.discharge) }} кВт·год</td><td>{{ n1(r.charge_kwh) }} кВт·год</td>
       <td>{{ n1(r.battery_hours) }} год</td><td>{{ n1(r.business_hours) }} год</td><td>{{ u(r.fuel) }}</td><td>{{ u(r.gen_cost) }} ₴</td><td>{{ u(r.charge_cost) }} ₴</td>
       <td class="{{ 'neg' if r.savings < 0 else 'pos' if r.savings > 0 }}">{{ u(r.savings) }} ₴</td></tr>{% endfor %}</tbody></table></div></details>
