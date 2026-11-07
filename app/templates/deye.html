@@ -145,9 +145,9 @@
     {% for r in mo.rows %}<tr><td>{{ r.day.strftime('%d.%m.%Y') }}<span class="src">{{ {'deye':'Deye','manual':'вручну','import':'перенесено'}.get(r.source, '') }}</span></td><td>{{ n1(r.discharge) }} кВт·год</td><td>{{ n1(r.charge_kwh) }} кВт·год</td>
       <td>{{ n1(r.battery_hours) }} год</td><td>{{ n1(r.business_hours) }} год</td><td>{{ u(r.fuel) }}</td><td>{{ u(r.gen_cost) }} ₴</td><td>{{ u(r.charge_cost) }} ₴</td>
       <td class="{{ 'neg' if r.savings < 0 else 'pos' if r.savings > 0 }}">{{ u(r.savings) }} ₴</td></tr>{% endfor %}</tbody></table></div></details>
-  {% else %}<div class="muted">Даних ще немає — внесіть день вручну, підключіть Deye Cloud або перенесіть дані з CEO Dashboard (нижче).</div>{% endfor %}</div>
+  {% else %}<div class="muted">Даних ще немає — підключіть Deye Cloud (нижче) або внесіть день вручну.</div>{% endfor %}</div>
 
-<div class="dy-2">
+<div>
   <form class="dy-c dy-sec" id="set" method="post" action="/deye/settings"><h3>Станція й Deye Cloud</h3><div class="sub">Ключі — з developer.deyecloud.com (App ID, App Secret) і вхід у Deye Cloud. Зберігаються зашифровано; пароль — лише як SHA-256.</div>
     <div class="dy-f"><label>Вартість станції, ₴<input name="station_cost" value="{{ '%.2f'|format(c.station_cost) }}" inputmode="decimal"></label><label>Генератор, л/год<input name="litres_per_hour" value="{{ n1(c.litres_per_hour) }}" inputmode="decimal"></label>
       <label>Робочий час з, год<input name="work_from" value="{{ c.work_from }}" inputmode="numeric"></label><label>до, год<input name="work_to" value="{{ c.work_to }}" inputmode="numeric"></label></div>
@@ -157,10 +157,7 @@
       <label>Пароль Deye Cloud<input name="password" type="password" placeholder="{{ '••••• збережено' if c.deye.secrets.password else '' }}" autocomplete="new-password"></label>
       <label>ID станції (порожньо — перша)<input name="station_id" value="{{ c.deye.station_id or '' }}"></label></div>
     <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button class="btn">Зберегти</button><button class="btn ghost" name="test" value="1">Зберегти й завантажити 7 днів</button></div></form>
-  <form class="dy-c dy-sec" id="imp" method="post" action="/deye/import" enctype="multipart/form-data"><h3>Перенести з CEO Dashboard</h3>
-    <div class="sub">Відкрийте landing.molodist.com.ua/ceo-dashboard/energy/api/data (увійшовши в кабінет), збережіть сторінку як файл або скопіюйте текст сюди. Перенесуться дні, тарифи, вартість станції й ціни пального.</div>
-    <input type="file" name="file" accept=".json,application/json,text/plain" style="margin:0 0 8px"><textarea name="json" rows="4" placeholder='{"days": [...], "tariffs": {...}}' style="margin:0;font-family:monospace;font-size:12px"></textarea>
-    <div style="margin-top:10px"><button class="btn ghost">Перенести дані</button></div></form>
+
 </div>
 </div>
 <script>
