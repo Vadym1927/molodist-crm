@@ -358,6 +358,22 @@ async def job_energy():
         log.warning("job_energy: %s", e)
 
 
+async def job_energy_report():
+    """08:00 — звіт Deye за вчора власнику в Telegram (перед цим оновити дані з Deye)."""
+    from .services import energy as en
+    def run():
+        with SessionLocal() as db:
+            try:
+                en.sync_deye(db, 3)
+            except Exception as e:  # noqa: BLE001
+                log.warning("energy report sync: %s", e)
+            return en.send_daily(db)
+    try:
+        await asyncio.to_thread(run)
+    except Exception as e:  # noqa: BLE001
+        log.warning("job_energy_report: %s", e)
+
+
 async def job_payreq():
     """Чернетки оплат у monobank: стан (підписано → у виписці / відхилено) — щогодини; картку в Telegram оновити."""
     from .services import pay_requests as prq
@@ -502,6 +518,7 @@ async def lifespan(app: FastAPI):
         sched.add_job(job_amort, "cron", day="1,16", hour=9, minute=10)
         sched.add_job(job_shop, "cron", hour=6, minute=40)
         sched.add_job(job_energy, "cron", hour="0,6,12,18", minute=7)
+        sched.add_job(job_energy_report, "cron", hour=8, minute=0)
         sched.start()
     except Exception as e:          # noqa: BLE001
         log.warning("scheduler not started: %s", e)
@@ -8469,6 +8486,14 @@ async def deye_sync(days: int = Form(7), since: str = Form(""), overwrite: str =
     except Exception as e:  # noqa: BLE001
         msg = f"❌ {str(e)[:200]}"
     return RedirectResponse(_with_msg("/deye", msg, msg.startswith("❌")), 303)
+
+
+@app.post("/deye/report-now")
+def deye_report_now(user: User = Depends(_owner), db: Session = Depends(db_dep)):
+    from .services import energy as en
+    n = en.send_daily(db)
+    return RedirectResponse(_with_msg("/deye", "Звіт за вчора надіслано в Telegram" if n else
+                                      "Не надіслано: немає даних за вчора або вашого Telegram ID у «Мій кабінет»", not n), 303)
 
 
 @app.post("/deye/import")

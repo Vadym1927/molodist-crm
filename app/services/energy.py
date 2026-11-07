@@ -347,3 +347,51 @@ def sync_deye(db: Session, days: int = 3, http: httpx.Client | None = None, sinc
     d["deye"]["last_sync"] = datetime.now().isoformat(timespec="minutes")
     save_cfg(db, d)
     return {"ok": True, "msg": f"Оновлено днів: {n}", "n": n}
+
+
+# ---------------- щоденний звіт у Telegram (лише власнику, особисто) ----------------
+
+def daily_text(db: Session, day: date | None = None) -> str | None:
+    """Звіт за вчора: години без світла, куплено в батареї, генератор / зарядка / економія, підсумок місяця й окупність."""
+    from html import escape  # noqa: F401
+    from ..config import settings
+    day = day or (date.today() - timedelta(days=1))
+    d = cfg(db)
+    allr = rows(db, d)
+    r = next((x for x in allr if x["day"] == day), None)
+    if not r:
+        return None
+    m = [x for x in allr if x["month"] == r["month"] and x["day"] <= day]
+    ms = summary(m)
+    pb = payback(db, d, allr)
+    u = lambda v: f"{v:,.2f}".replace(",", " ").replace(".", ",")  # noqa: E731
+    h = lambda v: f"{v:g}".replace(".", ",")  # noqa: E731
+    w = f"{int(d['work_from']):02d}–{int(d['work_to']):02d}"
+    sign = "🟢" if r["savings"] > 0 else ("⚪️" if r["savings"] == 0 else "🔻")
+    base = (settings.public_url or "").rstrip("/")
+    return "\n".join([
+        f"⚡️ <b>Deye · {day:%d.%m.%Y}</b>",
+        f"Без світла {w}: <b>{h(round(r['business_hours'], 1))} год</b> (за добу {h(round(r['battery_hours'], 1))} год)",
+        f"Куплено в батареї: {h(round(r['charge_kwh'], 1))} кВт·год · з батарей {h(round(r['discharge'], 1))} кВт·год",
+        f"Генератор: {u(r['gen_cost'])} ₴ ({h(r['litres'])} л × {u(r['fuel'])} ₴)",
+        f"Зарядка: {u(r['charge_cost'])} ₴ ({u(r['tariff'])} ₴/кВт·год)",
+        f"{sign} Економія: <b>{u(r['savings'])} ₴</b>",
+        "",
+        f"За {day:%m.%Y}: {u(ms['savings'])} ₴ · без світла {w} {h(round(ms['business_hours'], 1))} год",
+        f"Окупність: <b>{str(pb['pct'] or 0).replace('.', ',')}%</b> · {u(pb['total'])} з {u(pb['cost'])} ₴",
+        f'<a href="{base}/deye?p=day&d={day}">Звіт Deye</a>' if base else "",
+    ]).strip()
+
+
+def send_daily(db: Session, day: date | None = None) -> int:
+    """Надіслати звіт особисто власнику (Telegram ID у «Мій кабінет»), не в групи."""
+    from ..models import User
+    from . import alerts
+    txt = daily_text(db, day)
+    if not txt:
+        return 0
+    n = 0
+    for u in db.scalars(select(User).where(User.role == "owner", User.active.is_(True), User.telegram_chat_id.is_not(None))):
+        n += alerts._api("sendMessage", data={"chat_id": u.telegram_chat_id, "text": txt[:4000], "parse_mode": "HTML",
+                                              "disable_web_page_preview": "true"})
+    return n

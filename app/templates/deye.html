@@ -75,7 +75,8 @@
 <div class="dy-bar"><a href="?p=day&d={{ day }}" class="{{ 'on' if p == 'day' }}">День</a><a href="?p=month&m={{ mon }}" class="{{ 'on' if p == 'month' }}">Місяць</a><a href="?p=all" class="{{ 'on' if p == 'all' }}">Весь період</a>
   <form>{% if p == 'day' %}<input type="hidden" name="p" value="day"><input type="date" name="d" value="{{ day }}" onchange="this.form.submit()">
     {% elif p == 'month' %}<input type="hidden" name="p" value="month"><input type="month" name="m" value="{{ mon }}" onchange="this.form.submit()">{% endif %}</form>
-  {% if ready %}<form method="post" action="/deye/sync" style="margin-left:{{ '0' if p != 'all' else 'auto' }}"><input type="hidden" name="days" value="7"><button class="btn ghost">↻ Оновити з Deye</button></form>{% endif %}</div>
+  {% if ready %}<form method="post" action="/deye/sync" style="margin-left:{{ '0' if p != 'all' else 'auto' }}"><input type="hidden" name="days" value="7"><button class="btn ghost">↻ Оновити з Deye</button></form>{% endif %}
+  <form method="post" action="/deye/report-now" style="margin-left:0"><button class="btn ghost" title="Щодня о 08:00 бот надсилає вам звіт за вчора">📨 Звіт за вчора в Telegram</button></form></div>
 
 <div class="dy-k3">
   <div class="dy-c ac"><small>WOG А-95 · ціна сьогодні</small><div class="v">{{ u(fuel_today.price) if fuel_today else '—' }} ₴/л</div>

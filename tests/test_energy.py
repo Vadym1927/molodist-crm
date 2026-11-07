@@ -82,3 +82,11 @@ def test_sync_deye_fake(monkeypatch):
         en.sync_deye(db, since=d, overwrite=True)
         e = db.get(EnergyDay, d); db.refresh(e)
         assert e.source == "deye" and e.charge_kwh == 5.5 and e.business_hours == 2.0
+
+
+def test_daily_text():
+    with SessionLocal() as db:
+        en.save_day(db, date(2031, 2, 3), {"charge_kwh": 2, "discharge_kwh": 1.5, "battery_hours": 4, "business_hours": 3, "fuel_price": 90})
+        c = en.cfg(db); c["tariffs"]["2031-02"] = 10; en.save_cfg(db, c)
+        t = en.daily_text(db, date(2031, 2, 3))
+    assert "03.02.2031" in t and "Економія: <b>250,00 ₴</b>" in t and "Окупність" in t
