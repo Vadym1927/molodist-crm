@@ -99,15 +99,40 @@ async def pay_photo(msg: Message, bot: Bot):
 
 def _exp_text(msg: Message) -> bool:
     """Текст у групі бухгалтерії з сумою й назвою — видаток з каси (див. services/chat_expenses)."""
-    if not msg.text or msg.text.startswith("/") or not _is_pay_chat(msg):
+    if not msg.text or msg.text.startswith("/"):
         return False
     from ..services import chat_expenses as ce
     with SessionLocal() as db:
-        return ce.enabled(db) and ce.parse(db, msg.text) is not None
+        return ce.is_chat(db, msg.chat.id) and ce.enabled(db) and ce.parse(db, msg.text) is not None
+
+
+@pay_router.message(Command("rozhody"))
+async def cmd_bind_exp(msg: Message):
+    """Призначити цей чат чатом видатків і переміщень (лише власник). /rozhody off — відвʼязати."""
+    from ..services import pay_requests as prq, chat_expenses as ce
+    with SessionLocal() as db:
+        if str(msg.from_user.id if msg.from_user else "") not in prq.owner_tg_ids(db):
+            await msg.reply("Призначити чат видатків може лише власник (його Telegram ID — у «Мій кабінет» CRM).")
+            return
+        off = "off" in (msg.text or "").lower()
+        ce.set_chat(db, str(msg.chat.id), not off)
+    if off:
+        await msg.reply("Цей чат більше не вносить видатки в CRM.")
+        return
+    await msg.reply("✅ Цей чат — «Видатки й переміщення». Пишіть одним повідомленням суму, касу й статтю:\n"
+                    "• <code>350 готівка канцтовари папір А4</code> — видаток\n"
+                    "• <code>2000 переміщення з готівки на ФОП Бондар</code> — переміщення між касами\n"
+                    "Що не впізнаю — спитаю кнопками. Під кожним внесеним є «Скасувати».")
 
 
 def _exp_kb(key: str, d: dict) -> InlineKeyboardMarkup:
     rows = []
+    if d.get("kind") == "transfer":
+        act = "c" if not d.get("cashbox") else "t"
+        rows += [[InlineKeyboardButton(text=f"💳 {n}"[:60], callback_data=f"exp:{act}:{key}:{i}")]
+                 for i, n in enumerate(d.get("cash_all", [])[:8]) if n != (d.get("cashbox") if act == "t" else d.get("cashbox_to"))]
+        rows.append([InlineKeyboardButton(text="✖️ Не вносити", callback_data=f"exp:x:{key}:0")])
+        return InlineKeyboardMarkup(inline_keyboard=rows)
     if not d.get("cashbox"):
         rows += [[InlineKeyboardButton(text=f"💳 {n}"[:60], callback_data=f"exp:c:{key}:{i}")] for i, n in enumerate(d.get("cash_all", [])[:8])]
     elif not d.get("category"):
@@ -119,6 +144,11 @@ def _exp_kb(key: str, d: dict) -> InlineKeyboardMarkup:
 
 def _exp_ask(d: dict) -> str:
     from html import escape
+    if d.get("kind") == "transfer":
+        head = f"🔁 Переміщення <b>{d['amount']:,.2f} ₴</b>".replace(",", " ") + (f" · {escape(d['comment'])}" if d.get("comment") else "")
+        if not d.get("cashbox"):
+            return head + (f"\nНа: {escape(d['cashbox_to'])}" if d.get("cashbox_to") else "") + "\nЗ якої каси? Оберіть кнопкою:"
+        return head + f"\nЗ: {escape(d['cashbox'])}\nНа яку касу? Оберіть кнопкою:"
     head = f"🧾 Видаток <b>{d['amount']:,.2f} ₴</b>".replace(",", " ") + (f" · {escape(d['comment'])}" if d.get("comment") else "")
     if not d.get("cashbox"):
         return head + "\nЗ якої каси? Оберіть кнопкою:"
@@ -138,12 +168,12 @@ async def exp_message(msg: Message):
         d = ce.parse(db, msg.text)
         u = ce.user_by_tg(db, msg.from_user.id) if msg.from_user else None
         ref = f"tg:{msg.chat.id}:{msg.message_id}"
-        if d["cashbox"] and d["category"]:
+        if ce.ready(d):
             x = ce.create(db, d, who, u.id if u else None, ref)
             await msg.reply(ce.text_done(x), reply_markup=_undo_kb(x.id))
             return
         key = f"{msg.chat.id}_{msg.message_id}"
-        if not d["cat_top"]:
+        if not d["cat_top"] and d.get("kind") != "transfer":
             from ..services import fin_articles
             d["cat_top"] = fin_articles.names(db, "expense")[:6]
         d.update(author=who, uid=u.id if u else None, ref=ref, cash_all=d["cash_top"] or cashboxes.names(db)[:8])
@@ -160,7 +190,7 @@ async def exp_callback(cb: CallbackQuery):
             x = ce.cancel(db, int(key))
             await cb.answer("Скасовано")
             try:
-                await cb.message.edit_text(f"↩️ Видаток CRM-{key} скасовано" + (f" ({x.amount:,.2f} ₴ · {x.category})".replace(",", " ") if x else ""))
+                await cb.message.edit_text(f"↩️ Операцію CRM-{key} скасовано" + (f" ({x.amount:,.2f} ₴ · {x.category})".replace(",", " ") if x else ""))
             except Exception:  # noqa: BLE001
                 pass
             return
@@ -179,14 +209,16 @@ async def exp_callback(cb: CallbackQuery):
         i = int(idx) if idx.isdigit() else -1
         if act == "c" and 0 <= i < len(d.get("cash_all", [])):
             d["cashbox"] = d["cash_all"][i]
+        elif act == "t" and 0 <= i < len(d.get("cash_all", [])):
+            d["cashbox_to"] = d["cash_all"][i]
         elif act == "a" and 0 <= i < len(d.get("cat_top", [])):
             d["category"] = d["cat_top"][i]
-        if d.get("cashbox") and d.get("category"):
+        if ce.ready(d):
             x = ce.create(db, d, d.get("author"), d.get("uid"), d.get("ref"))
             ce.pend_del(db, key)
             text, kb = ce.text_done(x), _undo_kb(x.id)
         else:
-            if not d.get("cat_top"):
+            if not d.get("cat_top") and d.get("kind") != "transfer":
                 from ..services import fin_articles
                 d["cat_top"] = fin_articles.names(db, "expense")[:6]
             ce.pend_put(db, key, d)

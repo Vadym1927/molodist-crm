@@ -19,3 +19,22 @@ def test_parse_and_create(monkeypatch):
         ce.cancel(db, x.id)
         assert db.get(FinOp, x.id).deleted_at is not None
         ce.pend_put(db, "k1", {"amount": 5}); assert ce.pend_get(db, "k1")["amount"] == 5; ce.pend_del(db, "k1"); assert ce.pend_get(db, "k1") is None
+
+
+def test_transfer_and_chat_binding(monkeypatch):
+    monkeypatch.setattr(cashboxes, "names", lambda db, active_only=True: ["Готівка каса", "Термінал ФОП Бондар", "Термінал ФОП Колган"])
+    monkeypatch.setattr(fin_articles, "names", lambda db, kind, active_only=True: ["Канцтовари"])
+    with SessionLocal() as db:
+        d = ce.parse(db, "2000 переміщення з готівки на термінал Колган")
+        assert d["kind"] == "transfer" and d["cashbox"] == "Готівка каса" and d["cashbox_to"] == "Термінал ФОП Колган" and ce.ready(d)
+        d2 = ce.parse(db, "5 000 з готівка каса на термінал Бондар")
+        assert d2["kind"] == "transfer" and d2["amount"] == 5000 and d2["cashbox_to"] == "Термінал ФОП Бондар"
+        d3 = ce.parse(db, "3000 інкасація готівка")
+        assert d3["kind"] == "transfer" and d3["cashbox"] == "Готівка каса" and not d3["cashbox_to"] and not ce.ready(d3)
+        x = ce.create(db, d, "Адмін", None, "tg:9:9")
+        assert x.kind == "transfer" and x.cashbox_to == "Термінал ФОП Колган" and "Переміщення внесено" in ce.text_done(x)
+        assert ce.parse(db, "350 готівка канцтовари")["kind"] == "expense"
+        ce.set_chat(db, "-100777")
+        assert ce.is_chat(db, "-100777") and not ce.is_chat(db, "-1005")
+        ce.set_chat(db, "-100777", False)
+        assert not ce.is_chat(db, "-100777")

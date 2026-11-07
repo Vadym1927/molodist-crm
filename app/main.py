@@ -7505,7 +7505,7 @@ def payreq_list(request: Request, st: str = "", user: User = Depends(require("fi
     cnt = {k: db.scalar(select(func.count()).select_from(PayRequest).where(PayRequest.status == k)) or 0 for k in prq.STATUS}
     from .integrations import monobank
     from .services import chat_expenses as _ce
-    return render(request, "payreq.html", nav="finance", exp_on=_ce.enabled(db), rows=rows, st=st, STATUS=prq.STATUS, cnt=cnt, chat=prq.chat_id(db),
+    return render(request, "payreq.html", nav="finance", exp_on=_ce.enabled(db), exp_chats=_ce.chats(db), rows=rows, st=st, STATUS=prq.STATUS, cnt=cnt, chat=prq.chat_id(db),
                   sups={x.id: x.name for x in db.scalars(select(Supplier))}, fops=prq.fops(db), cfg=prq.cfg(db),
                   accs={f: prq.sender_accounts(db, f) for f in prq.fops(db)}, owners=prq.owner_tg_ids(db),
                   corp={m["fop"]: m.get("corp") for m in monobank.public(db)})
