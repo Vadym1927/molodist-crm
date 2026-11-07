@@ -221,6 +221,7 @@
 {% if view in ('day', 'week') %}
 {% set PX = 1.3 %}{% set EXTRA = 30 %}{% set H = (grid.h1 - grid.h0) * 60 * PX %}{% set n = grid.cols|length %}
 {% set GC = 'grid-template-columns:76px repeat(' ~ n ~ ',minmax(' ~ ('165px' if view == 'week' else '260px') ~ ',1fr))' %}
+{% set dayoff = view == 'day' and not (grid.cols|selectattr('col.doctor')|list) and not (grid.cols|map(attribute='blocks')|sum(start=[])) %}
 <div class="tg" id="tgw" style="--px:1.3px">
   <div class="tg-head" style="{{ GC }}">
     {% if view == 'week' and doc_prev %}<div class="tg-nav"><a href="?start={{ start }}&view=week&doc={{ doc_prev }}" title="Попередній спеціаліст">‹</a><a href="?start={{ start }}&view=week&doc={{ doc_next }}" title="Наступний спеціаліст">›</a></div>
@@ -233,6 +234,7 @@
     <div>{% if d %}<a href="/specialists/{{ d.id }}" title="Картка співробітника"><i class="av" style="{% if d.photo_url %}background-image:url('{{ d.photo_url }}');{% else %}background-color:{{ color(d) }};{% endif %}">{{ '' if d.photo_url else initials(d.name) }}</i></a>
       <div style="min-width:0"><a class="dn" href="?start={{ start }}&view=week&doc={{ d.id }}" title="Розклад на 7 днів">{{ d.name }}</a><span class="dpos">{{ d.position or ('звільнений' if not d.active else 'Спеціаліст') }}</span>
         {% set _s = g.shift %}{% if _s %}<span class="ds">{{ _s.start }}–{{ _s.end }}{{ (' · ' ~ _s.place) if _s.place }}</span>{% endif %}</div>
+      {% elif dayoff %}<div><b>🌴 Вихідний</b><span class="dpos">у графіку на цей день нікого немає</span></div>
       {% else %}<div><b>Без фахівця</b><span class="dpos">задачі, очікувані за планом</span></div>{% endif %}</div>
     {% endif %}{% endfor %}
   </div>
@@ -273,6 +275,11 @@
         {% if pi.get('hover') %}<div class="ext">{% for k, lb, v in pi.hover %}<div><span>{{ lb }}:</span> {{ v }}</div>{% endfor %}</div>{% endif %}</a>
       {% endif %}{% endfor %}
       {% if g.now_top is not none %}<div class="nowline" style="top:calc({{ g.now_top }} * var(--px))"></div>{% endif %}
+      {% if dayoff %}<div class="dayoff"><div class="do-c" onclick="event.stopPropagation()">
+        <div class="do-p"><span class="p1">🌴</span><span class="p2">🌴</span><span class="sun">☀️</span></div>
+        <b>Вихідний</b><span>{{ 'Сьогодні' if g.day == today else 'У цей день' }} в графіку нікого немає — команда відпочиває.</span>
+        <small>{% if can(user,'book') %}Потрібен запис? Натисніть на час або «Створити візит».{% endif %} <a href="/specialists/schedule" onclick="event.stopPropagation()">Графік роботи →</a></small>
+        <div class="do-w"></div></div></div>{% endif %}
     </div>
     {% endfor %}
   </div>
@@ -290,6 +297,18 @@
 {% if not specialists %}<p class="muted small" style="margin-top:12px">Спеціалісти і записи підтягуються з CleverBox під час синхронізації (записи — на 14 днів уперед).</p>{% endif %}
 {% include "_appt_modal.html" %}
 <style>
+.dayoff{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;z-index:2;
+  background:radial-gradient(120% 70% at 50% 110%,rgba(240,217,168,.55),transparent 60%),linear-gradient(180deg,rgba(228,222,239,.35),rgba(247,244,240,0) 45%)}
+.do-c{pointer-events:auto;cursor:default;text-align:center;background:rgba(255,255,255,.88);backdrop-filter:blur(4px);border:1px solid #ECE7E1;border-radius:24px;
+  padding:26px 34px 22px;box-shadow:0 24px 50px -30px rgba(42,36,48,.45);max-width:420px;position:relative;overflow:hidden}
+.do-c b{display:block;font:700 26px var(--sans);color:#2A2430;margin:4px 0 4px}.do-c span{display:block;color:#5d5869;font-size:15px;line-height:1.5}
+.do-c small{display:block;color:#8a8496;font-size:12.5px;margin-top:10px;line-height:1.5}.do-c small a{color:#5C4B82}
+.do-p{position:relative;height:84px;font-size:56px;line-height:1}.do-p .p1{position:absolute;left:calc(50% - 64px);bottom:0;font-size:62px;transform-origin:50% 100%;animation:sway 4s ease-in-out infinite}
+.do-p .p2{position:absolute;left:calc(50% + 2px);bottom:0;font-size:44px;transform-origin:50% 100%;animation:sway 5s ease-in-out infinite reverse}
+.do-p .sun{position:absolute;right:calc(50% - 82px);top:-4px;font-size:30px;animation:glow 6s ease-in-out infinite}
+.do-w{height:10px;margin:14px -34px -22px;background:repeating-radial-gradient(circle at 10px -4px,transparent 0 8px,#C9BFE6 9px 10px,transparent 11px) 0 0/20px 10px;opacity:.7}
+@keyframes sway{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(4deg)}}@keyframes glow{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+@media(prefers-reduced-motion:reduce){.do-p span{animation:none}}
 .vd-back{position:fixed;inset:0;background:rgba(42,36,48,.42);opacity:0;pointer-events:none;transition:opacity .2s;z-index:95}.vd-back.on{opacity:1;pointer-events:auto}
 .vd.wide{width:min(1280px,100vw)}.vd{position:fixed;top:0;right:0;bottom:0;width:min(880px,100vw);background:#F7F4F0;z-index:96;transform:translateX(102%);transition:transform .26s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column;box-shadow:-30px 0 70px -30px rgba(42,36,48,.55)}
 .vd.on{transform:none}
