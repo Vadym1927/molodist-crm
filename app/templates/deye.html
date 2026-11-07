@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}Deye · MOLODIST CRM{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+{% macro u(v, d=2) %}{{ (('{:,.' ~ d ~ 'f}').format(v or 0)).replace(',', ' ').replace('.', ',') }}{% endmacro %}
+{% macro n2(v) %}{{ ('%g'|format((v or 0)|round(2))).replace('.', ',') }}{% endmacro %}
+{% macro n1(v) %}{{ ('%g'|format((v or 0)|round(1))).replace('.', ',') }}{% endmacro %}
+{% set MONTHS = ['січень','лютий','березень','квітень','травень','червень','липень','серпень','вересень','жовтень','листопад','грудень'] %}
+{% macro mname(k) %}{{ MONTHS[k[5:7]|int - 1] }} {{ k[:4] }}{% endmacro %}
+<style>
+.dy{max-width:1240px;display:grid;gap:14px}
+.dy-hero{position:relative;overflow:hidden;border-radius:24px;padding:26px 28px;color:#fff;background:radial-gradient(120% 140% at 100% 0%,#5C4B82 0%,#3B3050 45%,#2A2430 100%);display:flex;justify-content:space-between;gap:20px;align-items:center;flex-wrap:wrap}
+.dy-hero:after{content:"";position:absolute;right:-60px;bottom:-90px;width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,rgba(201,191,230,.35),transparent 65%)}
+.dy-hero .eb{font:600 11px var(--sans);letter-spacing:.16em;text-transform:uppercase;color:#C9BFE6}
+.dy-hero h1{margin:6px 0 4px;font:700 34px var(--sans);letter-spacing:.02em;text-transform:none;color:#fff;display:flex;gap:14px;align-items:center}
+.dy-hero h1 img{height:34px;background:#fff;border-radius:8px;padding:4px 8px}
+.dy-hero .lg{display:inline-grid;place-items:center;height:38px;padding:0 12px;border-radius:10px;background:#fff;color:#2A2430;font:800 18px var(--sans);letter-spacing:.06em}
+.dy-hero p{margin:0;color:#E4DEEF;max-width:560px;line-height:1.5}
+.dy-hero .src{position:relative;z-index:1;text-align:right;font-size:13px;color:#E4DEEF;line-height:1.6}.dy-hero .src b{color:#fff}
+.dy-bar{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:10px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.dy-bar a{padding:9px 16px;border-radius:12px;text-decoration:none;font:600 13.5px var(--sans);color:#3B3050}.dy-bar a.on{background:#3B3050;color:#fff}
+.dy-bar form{display:flex;gap:8px;margin-left:auto}.dy-bar input{margin:0;height:40px}
+.dy-k3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.dy-c{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:18px 20px;position:relative;overflow:hidden}
+.dy-c small{display:block;font:700 10.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#8a8496}
+.dy-c .v{font:700 30px var(--sans);color:#2A2430;margin:8px 0 2px;letter-spacing:-.01em}.dy-c .s{font-size:12.5px;color:#8a8496}
+.dy-c.ac:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(#C9BFE6,#3B3050)}
+.dy-c form{display:flex;gap:8px;margin-top:10px}.dy-c form input{margin:0;height:40px}
+.dy-k4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.dy-t{border-radius:20px;padding:18px 20px;background:#F7F4F0;border:1px solid #ECE7E1;position:relative;overflow:hidden;min-height:120px}
+.dy-t:after{content:"";position:absolute;right:-26px;bottom:-26px;width:96px;height:96px;border-radius:50%;background:var(--b,#E4DEEF)}
+.dy-t span{font-size:13px;color:#6b6575}.dy-t b{display:block;font:700 30px var(--sans);color:#2A2430;margin-top:26px;position:relative;z-index:1}
+.dy-flow{border-radius:24px;padding:18px;background:linear-gradient(120deg,#2A2430,#3B3050 55%,#5C4B82);display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:12px;align-items:center}
+.dy-flow .f{border-radius:16px;padding:16px 18px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#fff}
+.dy-flow .f small{color:#C9BFE6;font:700 10.5px var(--sans);letter-spacing:.12em;text-transform:uppercase}.dy-flow .f b{display:block;font:700 30px var(--sans);margin:6px 0 2px}
+.dy-flow .f span{font-size:12.5px;color:#E4DEEF}.dy-flow .f.g{background:linear-gradient(135deg,#5E9F6E,#3E7D55);border-color:transparent}
+.dy-flow .ar{color:#C9BFE6;font-size:22px}
+.dy-pb .row1{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap}.dy-pb h2{margin:4px 0;font:700 22px var(--sans);text-transform:none;letter-spacing:0;color:#2A2430}
+.dy-pb .pct{font:800 46px var(--sans);color:#3E7D55;line-height:1}.dy-pb .of{text-align:right;color:#6b6575;font-size:13.5px}
+.dy-prog{height:18px;border-radius:99px;background:#F1EDE8;margin:16px 0 6px;overflow:hidden;position:relative}
+.dy-prog i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;background:linear-gradient(90deg,#3B3050,#C9BFE6);min-width:18px}
+.dy-prog:after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 calc(10% - 1px),rgba(255,255,255,.9) calc(10% - 1px) 10%)}
+.dy-pb .lab{display:flex;justify-content:space-between;font-size:11.5px;color:#9a93a6}
+.dy-2{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:14px}
+.dy-ch{display:flex;align-items:flex-end;gap:6px;height:200px;padding:10px 4px 0;border-bottom:1px solid #ECE7E1}
+.dy-ch div{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;min-width:0;height:100%}
+.dy-ch i{display:block;width:100%;border-radius:8px 8px 3px 3px;background:linear-gradient(180deg,#C9BFE6,#3B3050);min-height:2px}
+.dy-ch i.neg{background:#F5C6C1}.dy-ch em{font-style:normal;font-size:10.5px;color:#9a93a6;white-space:nowrap}
+.dy-lg div{margin-bottom:12px}.dy-lg b{display:inline-block;background:#F3EFF9;color:#3B3050;border-radius:9px;padding:3px 10px;font:700 12.5px var(--sans)}
+.dy-lg p{margin:6px 0 0;padding-left:10px;border-left:3px solid #E4DEEF;color:#5d5869;font-size:13.5px}
+.dy-f{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;align-items:end}
+.dy-f input{width:100%;box-sizing:border-box;min-width:0}.dy-f label{display:grid;gap:4px;min-width:0;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496}.dy-f input{margin:0;height:42px}
+.dy-out{background:#F3EFF9;border-radius:14px;padding:12px 14px;font:600 14px var(--sans);color:#3B3050;margin-top:10px}
+.dy-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.dy-tags span{background:#FFF6E0;border-radius:99px;padding:6px 12px;font-size:13px;color:#5a4300}
+.dy-m{border:1px solid #ECE7E1;border-radius:16px;margin-top:10px;overflow:hidden}.dy-m summary{list-style:none;cursor:pointer;display:flex;gap:12px;align-items:center;padding:14px 18px;background:#FBFAFE}
+.dy-m summary::-webkit-details-marker{display:none}.dy-m summary b{font:700 15px var(--sans);text-transform:capitalize}.dy-m summary .sv{margin-left:auto;color:#3E7D55;font-weight:700}
+.dy-m summary small{color:#8a8496}
+.dy-tb{width:100%;border-collapse:collapse;font-size:13.5px}.dy-tb th{text-align:right;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496;padding:10px 12px;border-bottom:1px solid #ECE7E1}
+.dy-tb th:first-child,.dy-tb td:first-child{text-align:left}.dy-tb td{text-align:right;padding:10px 12px;border-bottom:1px solid #F4F0EB;white-space:nowrap}
+.dy-tb td.neg{color:#B23B2E}.dy-tb td.pos{color:#3E7D55;font-weight:700}.dy-tb .src{font-size:10.5px;color:#9a93a6;margin-left:6px}
+.dy-sec h3{margin:0 0 4px;font:700 20px var(--sans);text-transform:none;letter-spacing:0;color:#2A2430}.dy-sec .sub{color:#6b6575;font-size:13.5px;margin-bottom:12px}
+.dy-sec .eb{font:700 10.5px var(--sans);letter-spacing:.12em;text-transform:uppercase;color:#8a8496}
+.dy-st{display:inline-flex;gap:6px;align-items:center;font-size:12.5px;border-radius:99px;padding:4px 10px;background:#FFF1D6;color:#7a5a00}.dy-st.ok{background:#E5F2E7;color:#2f6b3b}
+@media(max-width:1000px){.dy-k3,.dy-k4,.dy-2{grid-template-columns:1fr 1fr}.dy-flow{grid-template-columns:1fr}.dy-flow .ar{display:none}}
+@media(max-width:640px){.dy-k3,.dy-k4,.dy-2{grid-template-columns:1fr}}
+</style>
+<div class="dy">
+<div class="dy-hero"><div style="position:relative;z-index:1"><div class="eb">Звіт власника · енергія</div>
+  <h1>{% if logo %}<img src="{{ logo }}" alt="Deye">{% else %}<span class="lg">DEYE</span>{% endif %} Окупність станції</h1>
+  <p>Інвертор проти генератора: 1 година роботи на інверторі в робочий час = 1 година роботи генератора ({{ n1(c.litres_per_hour) }} л WOG А-95).</p></div>
+  <div class="src">{% if ready %}<span class="dy-st ok">● Deye Cloud підключено</span><br>{% if c.deye.station_name %}<b>{{ c.deye.station_name }}</b><br>{% endif %}{% if c.deye.last_sync %}оновлено {{ c.deye.last_sync.replace('T', ' ') }}{% endif %}
+    {% else %}<span class="dy-st">● Дані: ручне введення</span><br><a href="#set" style="color:#fff">Підключити Deye Cloud →</a>{% endif %}</div></div>
+{% if qp.get('msg') %}<div class="alert" style="{{ '' if qp.get('err') else 'background:var(--ok-bg);color:var(--ok)' }}">{{ qp.get('msg') }}</div>{% endif %}
+
+<div class="dy-bar"><a href="?p=day&d={{ day }}" class="{{ 'on' if p == 'day' }}">День</a><a href="?p=month&m={{ mon }}" class="{{ 'on' if p == 'month' }}">Місяць</a><a href="?p=all" class="{{ 'on' if p == 'all' }}">Весь період</a>
+  <form>{% if p == 'day' %}<input type="hidden" name="p" value="day"><input type="date" name="d" value="{{ day }}" onchange="this.form.submit()">
+    {% elif p == 'month' %}<input type="hidden" name="p" value="month"><input type="month" name="m" value="{{ mon }}" onchange="this.form.submit()">{% endif %}</form>
+  {% if ready %}<form method="post" action="/deye/sync" style="margin-left:{{ '0' if p != 'all' else 'auto' }}"><input type="hidden" name="days" value="7"><button class="btn ghost">↻ Оновити з Deye</button></form>{% endif %}</div>
+
+<div class="dy-k3">
+  <div class="dy-c ac"><small>WOG А-95 · ціна сьогодні</small><div class="v">{{ u(fuel_today.price) if fuel_today else '—' }} ₴/л</div>
+    <div class="s">{% if fuel_today %}за {{ fuel_today.day.strftime('%d.%m.%Y') }} · {{ fuel_today.source or 'WOG' }}{% else %}ще не отримано з api.wog.ua{% endif %}</div></div>
+  <div class="dy-c ac"><small>WOG А-95 · середня за місяць</small><div class="v">{{ u(fuel_avg) if fuel_avg else '—' }} ₴/л</div><div class="s">{{ today.strftime('%Y-%m') }} · {{ fuel_n }} дн. з ціною</div></div>
+  <div class="dy-c ac"><small>Електроенергія · тариф місяця</small>
+    <form method="post" action="/deye/tariff"><input type="month" name="month" value="{{ today.strftime('%Y-%m') }}" style="flex:1"><input name="value" value="{{ n2(tariff_now) if tariff_now else '' }}" inputmode="decimal" style="width:90px" placeholder="₴/кВт·год"><button class="btn">Зберегти</button></form>
+    <div class="s" style="margin-top:8px">Вноситься щомісяця, діє на весь місяць.</div></div>
+</div>
+
+<div class="dy-k4">
+  <div class="dy-t" style="--b:#D5EBDD"><span>З батарей</span><b>{{ n1(sm.discharge) }} кВт·год</b></div>
+  <div class="dy-t" style="--b:#E4DEEF"><span>На заряд</span><b>{{ n1(sm.charge_kwh) }} кВт·год</b></div>
+  <div class="dy-t" style="--b:#F6D6C2"><span>Час на інверторі</span><b>{{ n1(sm.battery_hours) }} год</b></div>
+  <div class="dy-t" style="--b:#D3E3F7"><span>Робочий час {{ '%02d' % c.work_from }}:00–{{ '%02d' % c.work_to }}:00</span><b>{{ n1(sm.business_hours) }} год</b></div>
+</div>
+
+<div class="dy-flow">
+  <div class="f"><small>Генератор</small><b>{{ u(sm.gen_cost) }} ₴</b><span>{{ n1(sm.litres) }} л — альтернативна вартість у робочий час</span></div><div class="ar">→</div>
+  <div class="f"><small>Зарядка станції</small><b>{{ u(sm.charge_cost) }} ₴</b><span>{{ n1(sm.charge_kwh) }} кВт·год × тариф</span></div><div class="ar">→</div>
+  <div class="f g"><small>Чиста економія</small><b>{{ u(sm.savings) }} ₴</b><span>генератор − вартість зарядки · {{ sm.days }} дн.</span></div>
+</div>
+
+<div class="dy-c dy-pb"><div class="row1"><div><small>Інвестиція у станцію</small><h2>Окупність станції</h2><div class="s">Накопичена економія від роботи інвертора порівняно з генератором.</div></div>
+  <div class="of"><div class="pct">{{ ('%.2f'|format(pb.pct or 0)).replace('.', ',') }}%</div>{{ u(pb.total) }} ₴ з {{ u(pb.cost) }} ₴</div></div>
+  <div class="dy-prog"><i style="width:{{ [pb.pct or 0, 100]|min }}%"></i></div>
+  <div class="lab"><span>0%</span><span>50%</span><span>100%</span></div>
+  <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:14px"><span><b>До повної окупності:</b> {{ u(pb.left) }} ₴</span>
+    {% if pb.per_day > 0 %}<span class="muted">Темп: ≈ {{ u(pb.per_day) }} ₴/день{% if pb.eta %} · окупиться ≈ {{ pb.eta.strftime('%m.%Y') }}{% endif %}</span>{% endif %}</div></div>
+
+<div class="dy-2">
+  <div class="dy-c"><small>Динаміка економії</small>
+    {% set vals = chart|map(attribute='savings')|list %}{% set mx = ([1] + vals|map('abs')|list)|max %}
+    <div class="dy-ch">{% set step = ((chart|length) / 12)|round(0, 'ceil')|int or 1 %}{% for x in chart %}<div title="{{ (mname(x.month) if p == 'all' else x.day.strftime('%d.%m')) }} · {{ u(x.savings) }} ₴"><i class="{{ 'neg' if x.savings < 0 }}" style="height:{{ (100 * (x.savings|abs) / mx)|round(1) }}%"></i><em>{% if (loop.index0 % step) == 0 %}{{ mname(x.month) if p == 'all' else x.day.strftime('%d.%m') }}{% else %}&nbsp;{% endif %}</em></div>{% else %}<div class="muted small" style="align-self:center">Немає даних за період</div>{% endfor %}</div></div>
+  <div class="dy-c dy-lg"><small>Логіка розрахунку</small>
+    <div style="margin-top:10px"><b>Вартість зарядки</b><p>кВт·год на заряд × тариф відповідного місяця</p></div>
+    <div><b>Еквівалент генератора</b><p>години на інверторі з {{ '%02d' % c.work_from }}:00 до {{ '%02d' % c.work_to }}:00 × {{ n1(c.litres_per_hour) }} л × ціна WOG А-95 цього дня</p></div>
+    <div><b>Економія</b><p>вартість генератора − вартість зарядки</p></div>
+    <div><b>Окупність</b><p>накопичена економія / вартість станції ({{ u(c.station_cost) }} ₴)</p></div></div>
+</div>
+
+<div class="dy-2">
+  <div class="dy-c dy-sec"><h3>Калькулятор сценарію</h3><div class="sub">Скільки заощадить один день з такими цифрами.</div>
+    <div class="dy-f"><label>Годин на інверторі<input id="cH" value="1" inputmode="decimal" oninput="dyCalc()"></label><label>Заряджено, кВт·год<input id="cK" value="1" inputmode="decimal" oninput="dyCalc()"></label>
+      <label>Тариф, ₴/кВт·год<input id="cT" value="{{ n2(tariff_now) }}" inputmode="decimal" oninput="dyCalc()"></label><label>WOG А-95, ₴/л<input id="cF" value="{{ n2(fuel_today.price if fuel_today else 0) }}" inputmode="decimal" oninput="dyCalc()"></label></div>
+    <div class="dy-out" id="cO"></div></div>
+  <div class="dy-c dy-sec"><h3>Тарифи</h3><div class="sub">Ціна 1 кВт·год, окремо для кожного місяця.</div>
+    <div class="dy-tags">{% for k, v in c.tariffs|dictsort|reverse %}<span>{{ k }}: {{ n2(v) }} ₴/кВт·год</span>{% else %}<span>Тарифів ще немає</span>{% endfor %}</div></div>
+</div>
+
+<div class="dy-c dy-sec"><div class="eb">Щоденний облік</div><h3>Ручне введення дня</h3><div class="sub">Поки Deye Cloud не підключено, або щоб виправити день. Внесене вручну Deye не перезаписує. Ціна WOG на сьогодні фіксується автоматично, для минулої дати — внесіть зі скрину чи чека.</div>
+  <form method="post" action="/deye/day" class="dy-f"><label>Дата<input type="date" name="day" value="{{ today }}" required></label>
+    <label>З батарей, кВт·год<input name="discharge_kwh" inputmode="decimal"></label><label>На заряд, кВт·год<input name="charge_kwh" inputmode="decimal"></label>
+    <label>Час на інверторі, год<input name="battery_hours" inputmode="decimal"></label><label>З них {{ '%02d' % c.work_from }}–{{ '%02d' % c.work_to }}, год<input name="business_hours" inputmode="decimal"></label>
+    <label>WOG А-95, ₴/л (минула дата)<input name="fuel_price" inputmode="decimal"></label><button class="btn" style="height:42px">Зберегти день</button></form></div>
+
+<div class="dy-c dy-sec"><h3>По місяцях</h3><div class="sub">Розкрийте місяць — розбивка по днях.</div>
+  {% for mo in months %}<details class="dy-m" {{ 'open' if loop.first }}><summary><b>{{ mname(mo.month) }}</b><span class="sv">{{ u(mo.savings) }} ₴ економії</span><small>{{ n1(mo.business_hours) }} год · {{ mo.days }} дн.</small></summary>
+    <div style="overflow-x:auto"><table class="dy-tb"><thead><tr><th>Дата</th><th>З батарей</th><th>На заряд</th><th>На інверторі</th><th>{{ '%02d' % c.work_from }}–{{ '%02d' % c.work_to }}</th><th>WOG</th><th>Генератор</th><th>Зарядка</th><th>Економія</th></tr></thead><tbody>
+    {% for r in mo.rows %}<tr><td>{{ r.day.strftime('%d.%m.%Y') }}<span class="src">{{ {'deye':'Deye','manual':'вручну','import':'перенесено'}.get(r.source, '') }}</span></td><td>{{ n1(r.discharge) }} кВт·год</td><td>{{ n1(r.charge_kwh) }} кВт·год</td>
+      <td>{{ n1(r.battery_hours) }} год</td><td>{{ n1(r.business_hours) }} год</td><td>{{ u(r.fuel) }}</td><td>{{ u(r.gen_cost) }} ₴</td><td>{{ u(r.charge_cost) }} ₴</td>
+      <td class="{{ 'neg' if r.savings < 0 else 'pos' if r.savings > 0 }}">{{ u(r.savings) }} ₴</td></tr>{% endfor %}</tbody></table></div></details>
+  {% else %}<div class="muted">Даних ще немає — внесіть день вручну, підключіть Deye Cloud або перенесіть дані з CEO Dashboard (нижче).</div>{% endfor %}</div>
+
+<div class="dy-2">
+  <form class="dy-c dy-sec" id="set" method="post" action="/deye/settings"><h3>Станція й Deye Cloud</h3><div class="sub">Ключі — з developer.deyecloud.com (App ID, App Secret) і вхід у Deye Cloud. Зберігаються зашифровано; пароль — лише як SHA-256.</div>
+    <div class="dy-f"><label>Вартість станції, ₴<input name="station_cost" value="{{ '%.2f'|format(c.station_cost) }}" inputmode="decimal"></label><label>Генератор, л/год<input name="litres_per_hour" value="{{ n1(c.litres_per_hour) }}" inputmode="decimal"></label>
+      <label>Робочий час з, год<input name="work_from" value="{{ c.work_from }}" inputmode="numeric"></label><label>до, год<input name="work_to" value="{{ c.work_to }}" inputmode="numeric"></label></div>
+    <div class="dy-f" style="margin-top:12px"><label>API (регіон)<input name="base" value="{{ c.deye.base }}"></label><label>App ID<input name="app_id" value="{{ c.deye.app_id }}" autocomplete="off"></label>
+      <label>App Secret<input name="app_secret" type="password" placeholder="{{ '••••• збережено' if c.deye.secrets.app_secret else '' }}" autocomplete="new-password"></label>
+      <label>Email Deye Cloud<input name="email" type="password" placeholder="{{ '••••• збережено' if c.deye.secrets.email else '' }}" autocomplete="off"></label>
+      <label>Пароль Deye Cloud<input name="password" type="password" placeholder="{{ '••••• збережено' if c.deye.secrets.password else '' }}" autocomplete="new-password"></label>
+      <label>ID станції (порожньо — перша)<input name="station_id" value="{{ c.deye.station_id or '' }}"></label></div>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button class="btn">Зберегти</button><button class="btn ghost" name="test" value="1">Зберегти й завантажити 7 днів</button></div></form>
+  <form class="dy-c dy-sec" id="imp" method="post" action="/deye/import" enctype="multipart/form-data"><h3>Перенести з CEO Dashboard</h3>
+    <div class="sub">Відкрийте landing.molodist.com.ua/ceo-dashboard/energy/api/data (увійшовши в кабінет), збережіть сторінку як файл або скопіюйте текст сюди. Перенесуться дні, тарифи, вартість станції й ціни пального.</div>
+    <input type="file" name="file" accept=".json,application/json,text/plain" style="margin:0 0 8px"><textarea name="json" rows="4" placeholder='{"days": [...], "tariffs": {...}}' style="margin:0;font-family:monospace;font-size:12px"></textarea>
+    <div style="margin-top:10px"><button class="btn ghost">Перенести дані</button></div></form>
+</div>
+</div>
+<script>
+function dyN(id){return parseFloat((document.getElementById(id).value||'0').replace(',','.'))||0}
+function dyF(v){return v.toLocaleString('uk-UA',{minimumFractionDigits:2,maximumFractionDigits:2})+' ₴'}
+function dyCalc(){var g=dyN('cH')*{{ c.litres_per_hour|float }}*dyN('cF'),z=dyN('cK')*dyN('cT');
+  document.getElementById('cO').textContent='Економія: '+dyF(g-z)+' · Генератор: '+dyF(g)+' · Зарядка: '+dyF(z)}
+dyCalc();
+</script>
+{% endblock %}

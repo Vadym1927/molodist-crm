@@ -340,6 +340,24 @@ async def job_mono():
         log.warning("monobank sync: %s", e)
 
 
+async def job_energy():
+    """Звіт Deye: ціна WOG А-95 на сьогодні (раз на день) і дані станції з Deye Cloud за останні 3 дні."""
+    from .services import energy as en
+    def run():
+        with SessionLocal() as db:
+            en.capture_fuel(db)
+            try:
+                return en.sync_deye(db)
+            except Exception as e:  # noqa: BLE001
+                return {"ok": False, "msg": str(e)[:200]}
+    try:
+        r = await asyncio.to_thread(run)
+        if not r.get("ok") and "не підключено" not in r.get("msg", ""):
+            log.warning("energy: %s", r.get("msg"))
+    except Exception as e:  # noqa: BLE001
+        log.warning("job_energy: %s", e)
+
+
 async def job_payreq():
     """Чернетки оплат у monobank: стан (підписано → у виписці / відхилено) — щогодини; картку в Telegram оновити."""
     from .services import pay_requests as prq
@@ -483,6 +501,7 @@ async def lifespan(app: FastAPI):
         sched.add_job(job_reconcile, "cron", hour=9, minute=0)
         sched.add_job(job_amort, "cron", day="1,16", hour=9, minute=10)
         sched.add_job(job_shop, "cron", hour=6, minute=40)
+        sched.add_job(job_energy, "cron", hour="0,6,12,18", minute=7)
         sched.start()
     except Exception as e:          # noqa: BLE001
         log.warning("scheduler not started: %s", e)
@@ -8319,7 +8338,10 @@ def reports_page(request: Request, r: str = "revenue", period: str = "month", df
     from .services import reports as rp
     if "r" not in request.query_params:                  # «Звіти» — сторінка з блоками
         from .services import report_hub
-        return render(request, "reports_hub.html", nav="reports", blocks=report_hub.blocks())
+        _bl = report_hub.blocks()
+        if user.role != "owner":                       # звіт Deye — лише власнику
+            _bl = [dict(b, items=[it for it in b["items"] if it["url"] != "/deye"]) for b in _bl]
+        return render(request, "reports_hub.html", nav="reports", blocks=_bl)
     key = r if r in rp.REPORTS else "revenue"
     if key == "cashflow":
         return _cashflow_page(request, db, period, df)
@@ -8345,6 +8367,120 @@ def reports_page(request: Request, r: str = "revenue", period: str = "month", df
     return render(request, "reports.html", rep=rep, REPORTS=rp.REPORTS, PERIODS=REPORT_PERIODS, key=key, period=period,
                   d_from=d_from, d_to=d_to, p_from=p_from, p_to=p_to,
                   c_max=max([v for _, v in rep.chart] + [1]))
+
+
+# ---------------- Звіт Deye (лише власник) ----------------
+def _owner(user: User = Depends(current_user)) -> User:
+    if user.role != "owner":
+        raise HTTPException(403, "Звіт Deye — лише для власника")
+    return user
+
+
+@app.get("/deye", response_class=HTMLResponse)
+def deye_page(request: Request, p: str = "month", d: str = "", m: str = "", user: User = Depends(_owner), db: Session = Depends(db_dep)):
+    from .services import energy as en
+    from .models import FuelPrice
+    c = en.cfg(db)
+    today_fp = en.capture_fuel(db)                    # ціна дня фіксується при першому відкритті, якщо job ще не встиг
+    allr = en.rows(db, c)
+    p = p if p in ("day", "month", "all") else "month"
+    mon = m or date.today().strftime("%Y-%m")
+    day = _day(d) or (allr[0]["day"] if allr else date.today())
+    sel = [r for r in allr if (p == "all") or (p == "month" and r["month"] == mon) or (p == "day" and r["day"] == day)]
+    prices = db.scalars(select(FuelPrice).order_by(FuelPrice.day.desc())).all()
+    mp = [x.price for x in prices if f"{x.day:%Y-%m}" == date.today().strftime("%Y-%m")]
+    return render(request, "deye.html", nav="reports", c=c, p=p, mon=mon, day=day, sel=sel, sm=en.summary(sel), months=en.by_month(allr),
+                  pb=en.payback(db, c, allr), fuel_today=today_fp or (prices[0] if prices else None),
+                  fuel_avg=round(sum(mp) / len(mp), 2) if mp else None, fuel_n=len(mp), ready=en.deye_ready(c),
+                  tariff_now=en.tariff(c, date.today()), chart=list(reversed(en.by_month(allr)))[-12:] if p == "all" else
+                  sorted(sel, key=lambda r: r["day"]), today=date.today(), has=bool(allr),
+                  logo=next((f"/static/img/{n}" for n in ("deye.png", "deye.svg", "deye.webp")
+                             if os.path.exists(os.path.join(os.path.dirname(__file__), "static", "img", n))), None))
+
+
+@app.post("/deye/day")
+def deye_day(day: str = Form(...), discharge_kwh: str = Form(""), charge_kwh: str = Form(""), battery_hours: str = Form(""),
+             business_hours: str = Form(""), fuel_price: str = Form(""), user: User = Depends(_owner), db: Session = Depends(db_dep)):
+    from .services import energy as en
+    dd = _day(day)
+    if not dd:
+        return RedirectResponse(_with_msg("/deye", "Вкажіть дату", True), 303)
+    f = lambda v: _num(v.replace(",", ".")) if v.strip() else None  # noqa: E731
+    en.save_day(db, dd, {"discharge_kwh": f(discharge_kwh), "charge_kwh": f(charge_kwh), "battery_hours": f(battery_hours),
+                         "business_hours": f(business_hours), "fuel_price": f(fuel_price) if dd < date.today() else None})
+    audit(db, "deye.day", user=user, day=str(dd))
+    return RedirectResponse(_with_msg(f"/deye?p=day&d={dd}", f"День {dd:%d.%m.%Y} збережено"), 303)
+
+
+@app.post("/deye/tariff")
+def deye_tariff(month: str = Form(...), value: str = Form(...), user: User = Depends(_owner), db: Session = Depends(db_dep)):
+    from .services import energy as en
+    c = en.cfg(db)
+    v = _num(value.replace(",", "."))
+    if v is not None and len(month) >= 7:
+        c["tariffs"][month[:7]] = v
+        en.save_cfg(db, c)
+        audit(db, "deye.tariff", user=user, month=month[:7], value=v)
+    return RedirectResponse(_with_msg("/deye", f"Тариф {month[:7]}: {value} ₴/кВт·год"), 303)
+
+
+@app.post("/deye/settings")
+async def deye_settings(request: Request, user: User = Depends(_owner), db: Session = Depends(db_dep)):
+    from .services import energy as en
+    f = await request.form()
+    c = en.cfg(db)
+    g = lambda k: str(f.get(k) or "").strip()  # noqa: E731
+    if g("station_cost"):
+        c["station_cost"] = _num(g("station_cost").replace(",", ".").replace(" ", "")) or c["station_cost"]
+    if g("litres_per_hour"):
+        c["litres_per_hour"] = _num(g("litres_per_hour").replace(",", ".")) or c["litres_per_hour"]
+    for k in ("work_from", "work_to"):
+        if g(k).isdigit():
+            c[k] = int(g(k))
+    for k in ("base", "app_id", "station_id"):
+        if k in f:
+            c["deye"][k] = g(k)
+    for k in en.SECRETS:
+        if g(k):
+            en.set_secret(c, k, g(k))
+    en.save_cfg(db, c)
+    audit(db, "deye.settings", user=user, secrets=[k for k in en.SECRETS if g(k)])
+    msg = "Налаштування збережено"
+    if f.get("test") and en.deye_ready(c):
+        try:
+            r = await asyncio.to_thread(en.sync_deye, db, 7)
+            msg = ("✅ " if r.get("ok") else "❌ ") + r.get("msg", "")
+        except Exception as e:  # noqa: BLE001
+            msg = f"❌ {str(e)[:200]}"
+    return RedirectResponse(_with_msg("/deye#set", msg, msg.startswith("❌")), 303)
+
+
+@app.post("/deye/sync")
+async def deye_sync(days: int = Form(7), user: User = Depends(_owner), db: Session = Depends(db_dep)):
+    from .services import energy as en
+    try:
+        r = await asyncio.to_thread(en.sync_deye, db, max(1, min(days, 60)))
+        msg = ("✅ " if r.get("ok") else "❌ ") + r.get("msg", "")
+    except Exception as e:  # noqa: BLE001
+        msg = f"❌ {str(e)[:200]}"
+    return RedirectResponse(_with_msg("/deye", msg, msg.startswith("❌")), 303)
+
+
+@app.post("/deye/import")
+async def deye_import(request: Request, user: User = Depends(_owner), db: Session = Depends(db_dep)):
+    from .services import energy as en
+    import json as _j
+    f = await request.form()
+    raw = str(f.get("json") or "")
+    up = f.get("file")
+    if up is not None and hasattr(up, "read"):
+        raw = (await up.read()).decode("utf-8", "ignore") or raw
+    try:
+        n = en.import_json(db, _j.loads(raw))
+    except ValueError:
+        return RedirectResponse(_with_msg("/deye#imp", "Не вдалося прочитати JSON", True), 303)
+    audit(db, "deye.import", user=user, days=n)
+    return RedirectResponse(_with_msg("/deye?p=all", f"Перенесено днів: {n}"), 303)
 
 
 # ---------------- Фінанси → Планування ціни послуг ----------------

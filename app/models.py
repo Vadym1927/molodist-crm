@@ -183,6 +183,29 @@ class CbService(Base):
     zp_fixed: Mapped[float | None] = mapped_column(Float)              # ЗП лікаря за послугу вручну (інакше — за окладом)
 
 
+class EnergyDay(Base):
+    """Звіт Deye (лише власник): день роботи станції — з Deye Cloud або вручну."""
+    __tablename__ = "energy_days"
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    discharge_kwh: Mapped[float | None] = mapped_column(Float)         # віддано з батарей
+    charge_kwh: Mapped[float | None] = mapped_column(Float)            # на заряд
+    battery_hours: Mapped[float | None] = mapped_column(Float)         # час на інверторі (без мережі)
+    business_hours: Mapped[float | None] = mapped_column(Float)        # з них у робочий час 09:00–21:00
+    fuel_price: Mapped[float | None] = mapped_column(Float)            # WOG А-95 на цей день, ₴/л (вручну для минулих дат)
+    source: Mapped[str | None] = mapped_column(String(12))             # manual | deye | import
+    raw: Mapped[dict | None] = mapped_column(JSON)                     # що віддав Deye (для перевірки)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class FuelPrice(Base):
+    """Ціна пального на день (WOG А-95 з api.wog.ua — фіксується щодня)."""
+    __tablename__ = "fuel_prices"
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    price: Mapped[float] = mapped_column(Float)
+    captured_at: Mapped[datetime | None] = mapped_column(DateTime, default=datetime.utcnow)
+    source: Mapped[str | None] = mapped_column(String(40))
+
+
 class ServiceLog(Base):
     """Історія послуги: зміни ціни, назви, техкарти, тривалості (CRM і синк CleverBox)."""
     __tablename__ = "service_logs"
