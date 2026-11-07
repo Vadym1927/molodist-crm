@@ -38,3 +38,17 @@ def test_transfer_and_chat_binding(monkeypatch):
         assert ce.is_chat(db, "-100777") and not ce.is_chat(db, "-1005")
         ce.set_chat(db, "-100777", False)
         assert not ce.is_chat(db, "-100777")
+
+
+REAL = ["Готівка ФОП Колган", "Термінал ФОП Колган", "Термінал ФОП Бондар", "Готівка ФОП Бондар", "Операційний Фонд",
+        "Амортизаційний + Операційний Фонд", "Готівка Cейф", "Банка OBSERV 520x"]
+
+
+def test_real_admin_messages(monkeypatch):
+    monkeypatch.setattr(cashboxes, "names", lambda db, active_only=True: REAL)
+    monkeypatch.setattr(fin_articles, "names", lambda db, kind, active_only=True: ["Доставка Нова Пошта", "Канцтовари"])
+    with SessionLocal() as db:
+        d = ce.parse(db, "8000 грн\nготівка з каси ФОП Бондар в сейф")
+        assert d["kind"] == "transfer" and d["amount"] == 8000 and d["cashbox"] == "Готівка ФОП Бондар" and d["cashbox_to"] == "Готівка Cейф"
+        e = ce.parse(db, "155 грн\nдоставка НП\nтермінал Бондар")
+        assert e["kind"] == "expense" and e["cashbox"] == "Термінал ФОП Бондар" and e["category"] == "Доставка Нова Пошта"

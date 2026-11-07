@@ -70,8 +70,11 @@ TRANSFER_RE = re.compile(r"переміщ|перемiщ|перекин|пере�
 TRANSFER_CAT = "Переміщення між рахунками"
 
 
+_HOMO = str.maketrans("acekmopxyitbh", "асекморхуітвн")   # латинські «двійники» → кирилиця («Готівка Cейф» з латинською C)
+
+
 def _words(t: str) -> list[str]:
-    return [w for w in norm(t or "").lower().split() if len(w) > 1]
+    return [w for w in norm(t or "").lower().translate(_HOMO).split() if len(w) > 1]
 
 
 def _stem(w: str) -> str:
@@ -111,12 +114,14 @@ def parse(db: Session, text: str) -> dict | None:
         return None
     words = _words(rest)
     names = cashboxes.names(db)
-    mt = re.search(r"(?:^|\s)(?:з|із|зі|from)\s+(.+?)\s+(?:на|в|у|to)\s+(.+)$", rest, re.I | re.S)
-    if TRANSFER_RE.search(rest) or (mt and _best(_words(mt.group(1)), names)[1] >= 0.5 and _best(_words(mt.group(2)), names)[1] >= 0.5):
+    mt = re.search(r"(?:^|\s)(?:з|із|зі|from)\s+(.+?)\s+(?:на|в|у|до|to)\s+(.+)$", rest, re.I | re.S)
+    # «звідки» — усе до «на / в …» (адміни пишуть «готівка з каси ФОП Бондар в сейф»: «готівка» стоїть перед «з»)
+    src_txt = rest[:mt.start(2)] if mt else ""
+    if TRANSFER_RE.search(rest) or (mt and _best(_words(src_txt), names)[1] >= 0.5 and _best(_words(mt.group(2)), names)[1] >= 0.5):
         # переміщення між касами: «2000 переміщення з готівки на ФОП Бондар»
         fr = to = None
         if mt:
-            f_, fs, _ = _best(_words(mt.group(1)), names)
+            f_, fs, _ = _best(_words(src_txt), names)
             t_, ts, _ = _best(_words(mt.group(2)), names)
             fr, to = (f_ if fs >= 0.5 else None), (t_ if ts >= 0.5 else None)
         if not (fr and to):
