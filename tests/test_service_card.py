@@ -91,3 +91,21 @@ def test_service_pricing_center():
         with SessionLocal() as db:
             assert db.get(CbService, sid).price != 15000
         assert cl.get(f"/services/{sid}?tab=price").status_code == 200
+
+
+def test_tg_today_plan_sum():
+    from datetime import datetime, timedelta
+    from app.models import Appointment, Patient, Doctor, User
+    from app.services import tg_notify as t
+    with SessionLocal() as db:
+        d = date(2031, 5, 5)
+        doc = Doctor(name="Тест-лікар План"); pat = Patient(full_name="Тест План Пацієнт")
+        db.add_all([doc, pat]); db.flush()
+        db.add_all([Appointment(patient_id=pat.id, doctor_id=doc.id, start=datetime(2031, 5, 5, 11), end=datetime(2031, 5, 5, 12),
+                                services=[{"name": "A", "price": 4100}, {"name": "B", "price": 900}], status="confirmed"),
+                    Appointment(patient_id=pat.id, doctor_id=doc.id, start=datetime(2031, 5, 5, 13), end=datetime(2031, 5, 5, 14),
+                                services=[{"name": "C", "price": 2500}], status="booked")])
+        db.commit()
+        u = db.scalars(__import__("sqlalchemy").select(User)).first()
+        txt = t.text_today(db, u, "owner", d)
+    assert "план <b>7 500 ₴</b>" in txt and "5 000 ₴" in txt and "2 500 ₴" in txt

@@ -203,15 +203,30 @@ def text_today(db: Session, u: User, role: str, d: date | None = None) -> str | 
     if not xs:
         return f"📅 <b>{d:%d.%m}</b>: записів немає" + (" (ваших)" if did else "") + "."
     docs = _docs(db)
-    lines = [f"📅 <b>Записи на {d:%d.%m}</b> · {len(xs)}"]
-    cur = None
-    for x in xs:
-        if not did and x.doctor_id != cur:
-            cur = x.doctor_id
-            lines.append(f"\n👩‍⚕️ <b>{escape(docs.get(cur, '—'))}</b>")
-        sv = ", ".join(s.get("name", "") for s in x.services or []) or (x.comment or "")
-        lines.append(f"{_t(x.start)} {_pat(x.patient, role != 'doctor')}" + (f" — {escape(sv[:80])}" if sv else "")
-                     + (" ✅" if x.status in ("confirmed", "arrived", "paid", "done") else ""))
+    from . import appointments as _ap
+    for x in xs:                                      # послуги без ціни (з CleverBox) — ціна з прайсу
+        try:
+            _ap.fill_prices(db, x)
+        except Exception:  # noqa: BLE001
+            pass
+    amt = lambda x: round(sum(float(s.get("price") or 0) * float(s.get("qty") or 1) for s in x.services or []), 2)  # noqa: E731
+    total = sum(amt(x) for x in xs)
+    lines = [f"📅 <b>Записи на {d:%d.%m}</b> · {len(xs)}" + (f" · план <b>{_uah(total)}</b>" if total else "")]
+    groups: dict = {}
+    for x in xs:                                      # по лікарях, усередині — за часом
+        groups.setdefault(x.doctor_id if not did else did, []).append(x)
+    for gid, items in groups.items():
+        if not did:
+            gs = sum(amt(x) for x in items)
+            lines.append(f"\n👩‍⚕️ <b>{escape(docs.get(gid, '—'))}</b> · {len(items)}" + (f" · {_uah(gs)}" if gs else ""))
+        for x in items:
+            sv = ", ".join(s.get("name", "") for s in x.services or []) or (x.comment or "")
+            a_ = amt(x)
+            lines.append(f"{_t(x.start)} {_pat(x.patient, role != 'doctor')}" + (f" — {escape(sv[:80])}" if sv else "")
+                         + (f" · <b>{_uah(a_)}</b>" if a_ else "")
+                         + (" ✅" if x.status in ("confirmed", "arrived", "paid", "done") else ""))
+    if total and len(groups) > 1:
+        lines.append(f"\n💰 <b>Разом за планом: {_uah(total)}</b>")
     lines.append(f'\n<a href="{_B}/calendar?start={d}">Календар</a>')
     return "\n".join(lines)
 
