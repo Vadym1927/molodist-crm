@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Фонд оплати праці · Звіти{% endblock %}
+{% block body %}
+{% macro u(v) %}{{ (('{:,.0f}').format(v or 0)).replace(',', ' ') }}{% endmacro %}
+{% macro pc(v) %}{% if v is none %}—{% else %}{{ ('%g'|format(v)).replace('.', ',') }}%{% endif %}{% endmacro %}
+{% macro cls(v) %}{% if v is none %}{% elif v <= 30 %}ok{% elif v <= 45 %}mid{% else %}hi{% endif %}{% endmacro %}
+<style>
+.rp-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 16px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.rp-tabs a{padding:8px 14px;border-radius:10px;text-decoration:none;color:#3a342f;font-weight:600;font-size:14px}.rp-tabs a:hover{background:var(--card)}.rp-tabs a.on{background:var(--deep);color:#fff}
+.pm-y{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.pm-y a{padding:8px 16px;border-radius:11px;background:#fff;border:1px solid #ECE7E1;text-decoration:none;font:700 14px var(--sans);color:#3B3050}.pm-y a.on{background:#3B3050;color:#fff;border-color:#3B3050}
+.pm-m{display:flex;gap:5px;flex-wrap:wrap;margin:10px 0 16px}.pm-m a{padding:6px 12px;border-radius:99px;border:1px solid var(--line);background:var(--card);text-decoration:none;font-size:13px;font-weight:600;color:var(--ink)}.pm-m a.on{background:var(--lavender);border-color:var(--lavender-2);color:var(--classic)}
+.psk{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.psk div{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:16px 18px}
+.psk small{display:block;font:700 10.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#8a8496}.psk b{display:block;font:800 24px var(--sans);color:#2A2430;margin:6px 0 2px}.psk span.s{font-size:12.5px;color:#6b6575}
+.psk div.g{background:linear-gradient(135deg,#2A2430,#3B3050)}.psk div.g small{color:#C9BFE6}.psk div.g b{color:#fff}.psk div.g span.s{color:#E4DEEF}
+.ps2{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:14px;margin-bottom:14px}
+.psc{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:16px 18px}.psc h3{margin:0 0 10px;font:700 16px var(--sans);text-transform:none;letter-spacing:0;color:#2A2430}
+.psch{display:flex;gap:6px;align-items:flex-end;height:170px;padding:6px 2px 0;border-bottom:1px solid #ECE7E1}.psch .m{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0;position:relative}
+.psch .m span{font-size:10.5px;font-weight:700;margin-bottom:3px;white-space:nowrap}.psch .st{width:70%;max-width:36px;display:flex;flex-direction:column-reverse;border-radius:6px 6px 2px 2px;overflow:hidden}
+.psch .st i{display:block;width:100%}.psch .st .r{background:#E4DEEF}.psch .st .d{background:#3B3050}.psch .st .a{background:#8a7bb0}.psch .st .o{background:#C9BFE6}
+.psx{display:flex;gap:6px;padding:6px 2px 0}.psx span{flex:1;text-align:center;font-size:11px;font-weight:600;color:#8a8496;white-space:nowrap;overflow:hidden}
+.lg{display:flex;gap:14px;font-size:12.5px;color:#6b6575;margin-top:8px;flex-wrap:wrap}.lg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.ok{color:#2f6b3b}.mid{color:#8a5b00}.hi{color:#B23B2E}
+.ptag{display:inline-block;border-radius:8px;padding:2px 9px;font:700 12.5px var(--sans)}.ptag.ok{background:#DDF1E2}.ptag.mid{background:#FFF1D6}.ptag.hi{background:#F9DEDC}
+.psw{overflow:auto;background:#fff;border:1px solid #ECE7E1;border-radius:20px;margin-bottom:14px}
+.pst{border-collapse:separate;border-spacing:0;font-size:13px;width:100%;min-width:900px}
+.pst th{position:sticky;top:0;z-index:2;background:#F3EFF9;font:700 11px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:#5d5869;padding:9px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid #ECE7E1}
+.pst th.l,.pst td.l{text-align:left}.pst td{padding:8px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid #F6F3EF;vertical-align:top}
+.pst tr.sec td{background:#FBFAFE;font:700 12px var(--sans);color:#3B3050;letter-spacing:.06em;text-transform:uppercase;padding:9px 10px}
+.pst tr.tot td{font-weight:800;background:#F3EFF9;border-top:1px solid #E4DEEF}.pst td.z{color:#C9C3BD}
+.pst tr.e{cursor:pointer}.pst tr.e:hover td{background:#FBFAFE}.pst tr.e td.l:before{content:"▸ ";color:#9a93a6}.pst tr.e.on td.l:before{content:"▾ "}
+.pst tr.d{display:none}.pst tr.d.show{display:table-row}.pst tr.d>td{background:#FBFAF8;padding:10px 14px 12px 32px;white-space:normal}
+.mini{display:flex;flex-wrap:wrap;gap:10px 18px;font-size:12px}.mini div{text-align:center}.mini b{display:block;font-size:12.5px}.mini small{color:#8a8496}
+.muted2{color:#8a8496}
+.ps-note{font-size:12.5px;color:#6b6575;background:#F7F4F0;border-radius:12px;padding:10px 14px;line-height:1.5;margin-bottom:14px}
+.fired{color:#8a8496;font-size:11px;background:#F2EFEA;border-radius:6px;padding:1px 6px;margin-left:6px}
+@media(max-width:1000px){.psk{grid-template-columns:1fr 1fr}.ps2{grid-template-columns:1fr}}
+</style>
+{% set base = '?r=payroll_share&year=' ~ (r.year or 0) %}
+<div class="row between" style="align-items:flex-end;flex-wrap:wrap;gap:10px">
+  <div><div class="eyebrow"><a href="/reports" style="color:inherit;text-decoration:none">← Усі звіти · Фінанси</a></div><h1>Фонд оплати праці</h1>
+    <div class="muted small">Зарплата як частка виручки: по місяцях і по співробітниках — хто скільки коштує відносно того, що приносить. Виручка — чеки CleverBox + каса CRM; зарплата — виплати з журналу фіноперацій (з 2022) і нарахування CRM.</div></div>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <div class="pm-y"><a href="?r=payroll_share&year=0" class="{{ 'on' if not r.year }}">Весь час</a>{% for y in years %}<a href="?r=payroll_share&year={{ y }}" class="{{ 'on' if y == r.year }}">{{ y }}</a>{% endfor %}</div>
+    <a class="btn ghost" href="{{ base }}{{ '&month=' ~ r.month if r.month }}&fmt=xlsx">⬇ Excel</a></div>
+</div>
+<nav class="rp-tabs">{% for k, v in REPORTS.items() if k != 'cash' %}<a href="?r={{ k }}" class="{{ 'on' if key==k }}">{{ v }}</a>{% endfor %}</nav>
+{% if r.year %}<div class="pm-m"><a href="{{ base }}" class="{{ 'on' if not r.month }}">Увесь рік</a>{% for m in range(1, 13) %}{% if r.year < today.year or m <= today.month %}<a href="{{ base }}&month={{ m }}" class="{{ 'on' if m == r.month }}">{{ r.MONTHS[m - 1] }}</a>{% endif %}{% endfor %}</div>{% endif %}
+
+{% if not r.rev and not r.fot %}<div class="card muted">За {{ r.label }} немає ні виручки, ні виплат зарплати.</div>{% else %}
+<div class="psk">
+  <div class="g"><small>ФОП · виплачено</small><b>{{ u(r.fot) }} ₴</b><span class="s">{{ r.label }}{% if r.accrued > 0 %} · нараховано в CRM {{ u(r.accrued) }} ₴{% endif %}</span></div>
+  <div><small>Виручка</small><b>{{ u(r.rev) }} ₴</b><span class="s">послуги й товари за чеками</span></div>
+  <div><small>% ФОП від виручки</small><b class="{{ cls(r.pct) }}">{{ pc(r.pct) }}</b><span class="s">лікарі {{ pc((100 * r.doctor / r.rev)|round(1) if r.rev else none) }} · адмін {{ pc((100 * r.admin / r.rev)|round(1) if r.rev else none) }}{% if r.other %} · не зіставлено {{ pc((100 * r.other / r.rev)|round(1) if r.rev else none) }}{% endif %}</span></div>
+  <div><small>Лікарі / адміністратори</small><b style="font-size:19px">{{ u(r.doctor) }} / {{ u(r.admin) }}</b><span class="s">₴ виплачено · {{ pc((100 * r.doctor / r.fot)|round(1) if r.fot else none) }} / {{ pc((100 * r.admin / r.fot)|round(1) if r.fot else none) }} ФОП</span></div>
+  <div><small>Розкид по місяцях</small><b>{% if r.best %}{{ pc(r.best.pct) }} – {{ pc(r.worst.pct) }}{% else %}—{% endif %}</b><span class="s">{% if r.best %}найкращий {{ r.MONTHS_FULL[(r.best.m[5:]|int) - 1]|lower }}, найважчий {{ r.MONTHS_FULL[(r.worst.m[5:]|int) - 1]|lower }}{% endif %}</span></div>
+</div>
+
+<div class="ps2">
+  <div class="psc"><h3>Виручка і ФОП по місяцях · {{ r.label }}</h3>
+    <div class="psch">{% for x in r.months %}<div class="m" title="{{ x.label }}: виручка {{ u(x.rev) }} ₴ · ФОП {{ u(x.fot) }} ₴ ({{ pc(x.pct) }})">{% if x.pct is not none %}<span class="{{ cls(x.pct) }}">{{ pc(x.pct) }}</span>{% endif %}
+      <div style="display:flex;gap:3px;align-items:flex-end;height:{{ (100 * ([x.rev, x.fot]|max) / r.max_rev)|round(1) }}%;width:100%;justify-content:center">
+        <div class="st" style="height:{{ (100 * x.rev / ([x.rev, x.fot]|max))|round(1) if (x.rev or x.fot) else 0 }}%"><i class="r" style="height:100%"></i></div>
+        <div class="st" style="height:{{ (100 * x.fot / ([x.rev, x.fot]|max))|round(1) if (x.rev or x.fot) else 0 }}%">{% if x.fot %}<i class="d" style="height:{{ (100 * x.doctor / x.fot)|round(1) }}%"></i><i class="a" style="height:{{ (100 * x.admin / x.fot)|round(1) }}%"></i><i class="o" style="height:{{ (100 * x.other / x.fot)|round(1) }}%"></i>{% endif %}</div>
+      </div></div>{% endfor %}</div>
+    <div class="psx">{% for x in r.months %}<span>{{ x.label }}{% if not r.year %} {{ x.m[2:4] }}{% endif %}</span>{% endfor %}</div>
+    <div class="lg"><span><i style="background:#E4DEEF"></i>виручка</span><span><i style="background:#3B3050"></i>ЗП лікарів</span><span><i style="background:#8a7bb0"></i>ЗП адміністраторів та інших</span><span><i style="background:#C9BFE6"></i>не зіставлено</span><span>над стовпчиком — % ФОП</span></div></div>
+  <div class="psc"><h3>Орієнтири</h3>
+    <div style="font-size:13.5px;line-height:1.7">
+      <div><span class="ptag ok">до 30%</span> здорова частка ФОП для естетичної клініки</div>
+      <div><span class="ptag mid">30–45%</span> напружено: перевірте оклади й % лікарям</div>
+      <div><span class="ptag hi">понад 45%</span> зарплата з'їдає маржу</div>
+      <div class="muted small" style="margin-top:8px">Середній % ФОП за період: <b class="{{ cls(r.avg_pct) }}">{{ pc(r.avg_pct) }}</b>.{% if r.rev_unassigned %} Виручка без ініціатора в чеку (не привʼязана до співробітника): {{ u(r.rev_unassigned) }} ₴.{% endif %}</div>
+      {% if r.other_names %}<div class="muted small" style="margin-top:8px">Виплати, які не вдалося зіставити зі співробітником: {% for n, v in r.other_names[:6] %}<span class="muted2">{{ n }} · {{ u(v) }} ₴</span>{{ '; ' if not loop.last }}{% endfor %}. Щоб вони лягли на людину — у фінопераціях вкажіть співробітника або назвіть контрагента як у картці.</div>{% endif %}
+    </div></div>
+</div>
+
+<div class="psw"><table class="pst">
+  <tr><th class="l">Місяць</th><th>Виручка</th><th>ФОП виплачено</th><th>% ФОП</th><th>Лікарі</th><th>% від виручки</th><th>Адміністратори та інші</th><th>% від виручки</th><th>Не зіставлено</th><th>Нараховано CRM</th></tr>
+  {% for x in r.months %}<tr><td class="l"><b>{{ r.MONTHS_FULL[(x.m[5:]|int) - 1] }}</b>{% if not r.year %} {{ x.m[:4] }}{% endif %}</td><td>{{ u(x.rev) }}</td><td><b>{{ u(x.fot) }}</b></td>
+    <td>{% if x.pct is not none %}<span class="ptag {{ cls(x.pct) }}">{{ pc(x.pct) }}</span>{% else %}<span class="muted2">—</span>{% endif %}</td>
+    <td class="{{ 'z' if not x.doctor }}">{{ u(x.doctor) }}</td><td class="muted2">{{ pc(x.pct_doc) }}</td><td class="{{ 'z' if not x.admin }}">{{ u(x.admin) }}</td><td class="muted2">{{ pc(x.pct_adm) }}</td>
+    <td class="{{ 'z' if not x.other }}">{{ u(x.other) if x.other else '·' }}</td><td class="{{ 'z' if not x.accrued > 0 }}">{{ u(x.accrued) if x.accrued > 0 else '·' }}</td></tr>{% endfor %}
+  <tr class="tot"><td class="l">Разом</td><td>{{ u(r.rev) }}</td><td>{{ u(r.fot) }}</td><td>{{ pc(r.pct) }}</td><td>{{ u(r.doctor) }}</td><td>{{ pc((100 * r.doctor / r.rev)|round(1) if r.rev else none) }}</td><td>{{ u(r.admin) }}</td><td>{{ pc((100 * r.admin / r.rev)|round(1) if r.rev else none) }}</td><td>{{ u(r.other) if r.other else '·' }}</td><td>{{ u(r.accrued) if r.accrued > 0 else '·' }}</td></tr>
+</table></div>
+
+<h2 style="margin:4px 0 10px">Хто скільки коштує · {{ r.n_emps }} співробітників</h2>
+<div class="psw"><table class="pst">
+  <tr><th class="l">Співробітник</th><th>Виручка</th><th>Послуги</th><th>Товари</th><th>Виплачено ЗП</th><th>Нараховано CRM</th><th>ЗП % від виручки</th><th>Виручка на 1 ₴ ЗП</th><th>Частка виручки</th><th>Частка ФОП</th></tr>
+  {% for g in r.groups %}
+  <tr class="sec"><td class="l">{{ g.title }} · {{ g.rows|length }}</td><td>{{ u(g.rev) }}</td><td colspan="2"></td><td>{{ u(g.paid) }}</td><td>{{ u(g.accrued) if g.accrued else '·' }}</td><td>{{ pc(g.pct) }}</td><td></td><td></td><td>{{ pc(g.fot_pct) }}</td></tr>
+  {% for e in g.rows %}
+  <tr class="e" onclick="this.classList.toggle('on');this.nextElementSibling.classList.toggle('show')">
+    <td class="l"><a href="/specialists/{{ e.id }}" onclick="event.stopPropagation()"><b>{{ e.name }}</b></a>{% if not e.active %}<span class="fired">звільнений</span>{% endif %}{% if e.position %}<div class="muted2" style="font-size:11.5px">{{ e.position }}</div>{% endif %}</td>
+    <td><b>{{ u(e.rev) }}</b></td><td class="{{ 'z' if not e.services }}">{{ u(e.services) }}</td><td class="{{ 'z' if not e.products }}">{{ u(e.products) }}</td>
+    <td><b>{{ u(e.paid) }}</b></td><td class="{{ 'z' if not e.accrued }}">{{ u(e.accrued) if e.accrued else '·' }}</td>
+    <td>{% if e.pct is not none %}<span class="ptag {{ cls(e.pct) }}">{{ pc(e.pct) }}</span>{% elif e.paid or e.accrued %}<span class="muted2" title="виручки за чеками немає — адміністратор або не вказаний ініціатор">без виручки</span>{% else %}<span class="muted2">—</span>{% endif %}</td>
+    <td>{% if e.per_uah is not none %}{{ ('%.2f'|format(e.per_uah)).replace('.', ',') }} ₴{% else %}<span class="muted2">—</span>{% endif %}</td>
+    <td class="muted2">{{ pc(e.rev_share) }}</td><td class="muted2">{{ pc(e.fot_share) }}</td>
+  </tr>
+  <tr class="d"><td colspan="10">{% set ms = (e.m_rev.keys()|list + e.m_paid.keys()|list)|unique|sort %}
+    <div class="mini">{% for mk in ms %}{% set rv = e.m_rev.get(mk, 0) %}{% set pdd = e.m_paid.get(mk, 0) %}<div><small>{{ r.MONTHS[(mk[5:]|int) - 1] }}{% if not r.year %} {{ mk[2:4] }}{% endif %}</small><b>{{ u(rv) }}</b><small>ЗП {{ u(pdd) }}{% if rv and pdd %} · <span class="{{ cls((100 * pdd / rv)|round(1)) }}">{{ pc((100 * pdd / rv)|round(1)) }}</span>{% endif %}</small></div>{% endfor %}</div>
+  </td></tr>
+  {% endfor %}{% endfor %}
+  <tr class="tot"><td class="l">Разом</td><td>{{ u(r.emps|sum(attribute='rev')) }}</td><td></td><td></td><td>{{ u(r.emps|sum(attribute='paid')) }}</td><td>{{ u(r.accrued) if r.accrued else '·' }}</td><td>{{ pc((100 * (r.emps|sum(attribute='paid')) / (r.emps|sum(attribute='rev')))|round(1) if r.emps|sum(attribute='rev') else none) }}</td><td colspan="3"></td></tr>
+</table></div>
+<div class="ps-note">«Виплачено» — витрати за статтями зарплати (зарплата, аванс, премія, відпускні) з журналу: CRM — за співробітником у фіноперації, CleverBox — за контрагентом, зіставленим із карткою спеціаліста. «Нараховано CRM» — за окладами й правилами з «ЗП за місяць» (з місяця старту обліку). Виручка співробітника — послуги й товари, де він ініціатор у чеку; адміністратори зазвичай без виручки — їх дивимось через частку ФОП. Роль визначається за посадою в картці спеціаліста (адміністратор, менеджер, маркетинг тощо — «Адміністратори та інші»).</div>
+{% endif %}
+{% endblock %}
