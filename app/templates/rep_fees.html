@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Комісії банків і еквайрингу · Звіти{% endblock %}
+{% block body %}
+{% macro u(v) %}{{ (('{:,.0f}').format(v or 0)).replace(',', ' ') }}{% endmacro %}
+{% macro u2(v) %}{{ (('{:,.2f}').format(v or 0)).replace(',', ' ').replace('.', ',') }}{% endmacro %}
+{% macro pc(v) %}{% if v is none %}—{% else %}{{ ('%g'|format(v)).replace('.', ',') }}%{% endif %}{% endmacro %}
+<style>
+.rp-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 16px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.rp-tabs a{padding:8px 14px;border-radius:10px;text-decoration:none;color:#3a342f;font-weight:600;font-size:14px}.rp-tabs a:hover{background:var(--card)}.rp-tabs a.on{background:var(--deep);color:#fff}
+.pm-y{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.pm-y a{padding:8px 16px;border-radius:11px;background:#fff;border:1px solid #ECE7E1;text-decoration:none;font:700 14px var(--sans);color:#3B3050}.pm-y a.on{background:#3B3050;color:#fff;border-color:#3B3050}
+.pm-m{display:flex;gap:5px;flex-wrap:wrap;margin:10px 0 16px}.pm-m a{padding:6px 12px;border-radius:99px;border:1px solid var(--line);background:var(--card);text-decoration:none;font-size:13px;font-weight:600;color:var(--ink)}.pm-m a.on{background:var(--lavender);border-color:var(--lavender-2);color:var(--classic)}
+.bfk{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.bfk div{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:16px 18px}
+.bfk small{display:block;font:700 10.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#8a8496}.bfk b{display:block;font:800 24px var(--sans);color:#2A2430;margin:6px 0 2px}.bfk span.s{font-size:12.5px;color:#6b6575}
+.bfk div.g{background:linear-gradient(135deg,#2A2430,#3B3050)}.bfk div.g small{color:#C9BFE6}.bfk div.g b{color:#fff}.bfk div.g span.s{color:#E4DEEF}
+.bf2{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:14px;margin-bottom:14px}
+.bfc{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:16px 18px}.bfc h3{margin:0 0 10px;font:700 16px var(--sans);text-transform:none;letter-spacing:0;color:#2A2430}
+.bfch{display:flex;gap:6px;align-items:flex-end;height:150px;padding:6px 2px 0;border-bottom:1px solid #ECE7E1}.bfch .m{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0}
+.bfch i{display:block;width:70%;max-width:34px;border-radius:6px 6px 2px 2px;background:#3B3050;min-height:2px}.bfch .m span{font-size:10.5px;color:#8a8496;margin-bottom:3px;white-space:nowrap}
+.bfx{display:flex;gap:6px;padding:6px 2px 0}.bfx span{flex:1;text-align:center;font-size:11px;font-weight:600;color:#8a8496;white-space:nowrap;overflow:hidden}
+.bfa{display:grid;gap:8px}.bfa .r{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;font-size:13.5px}
+.bfa .bar{height:8px;border-radius:99px;background:#F1EDE8;overflow:hidden;grid-column:1/-1;margin-top:-2px}.bfa .bar i{display:block;height:100%;background:linear-gradient(90deg,#3B3050,#C9BFE6)}
+.bfw{overflow:auto;background:#fff;border:1px solid #ECE7E1;border-radius:20px;margin-bottom:14px}
+.bft{border-collapse:separate;border-spacing:0;font-size:13px;width:100%;min-width:1000px}
+.bft th{position:sticky;top:0;z-index:2;background:#F3EFF9;font:700 11px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:#5d5869;padding:9px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid #ECE7E1}
+.bft th.l,.bft td.l{text-align:left}.bft td{padding:8px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid #F6F3EF;vertical-align:top}
+.bft tr.s{cursor:pointer}.bft tr.s:hover td{background:#FBFAFE}.bft tr.s td.l:before{content:"▸ ";color:#9a93a6}.bft tr.s.on td.l:before{content:"▾ "}
+.bft tr.d{display:none}.bft tr.d.show{display:table-row}.bft tr.d>td{background:#FBFAF8;padding:12px 14px 14px 32px;white-space:normal}.bft tr.d .in{position:sticky;left:16px;width:min(920px,calc(100vw - 360px))}
+.bft tr.tot td{font-weight:800;background:#F3EFF9;border-top:1px solid #E4DEEF}.bft td.z{color:#C9C3BD}
+.bfo{width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #ECE7E1}
+.bfo th{font:700 10.5px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:#8a8496;text-align:left;padding:7px 10px;background:#F7F4F0}.bfo td{padding:6px 10px;border-top:1px solid #F6F3EF;text-align:left;white-space:normal}.bfo td.r{text-align:right;white-space:nowrap}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+.pm{display:inline-block;background:#F3EFF9;color:#3B3050;border-radius:8px;padding:2px 8px;font-size:12px;margin:2px 4px 0 0;font-weight:600}
+.warn{color:#8a5b00;background:#FFF1D6;border-radius:8px;padding:2px 8px;font-weight:700;font-size:12px}
+.muted2{color:#8a8496}
+.f-note{font-size:12.5px;color:#6b6575;background:#F7F4F0;border-radius:12px;padding:10px 14px;line-height:1.5;margin-bottom:14px}
+@media(max-width:1000px){.bfk{grid-template-columns:1fr 1fr}.bf2{grid-template-columns:1fr}}
+</style>
+{% set base = '?r=fees&year=' ~ (r.year or 0) %}
+<div class="row between" style="align-items:flex-end;flex-wrap:wrap;gap:10px">
+  <div><div class="eyebrow"><a href="/reports" style="color:inherit;text-decoration:none">← Усі звіти · Фінанси</a></div><h1>Комісії банків і еквайрингу</h1>
+    <div class="muted small">Скільки забирають банки по кожній касі / рахунку: комісії проти обороту надходжень, ефективна ставка, по місяцях і статтях. CleverBox з 2022 + комісії, які CRM нараховує сама (Налаштування → Каси → % комісії).</div></div>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <div class="pm-y"><a href="?r=fees&year=0" class="{{ 'on' if not r.year }}">Весь час</a>{% for y in years %}<a href="?r=fees&year={{ y }}" class="{{ 'on' if y == r.year }}">{{ y }}</a>{% endfor %}</div>
+    <a class="btn ghost" href="{{ base }}{{ '&month=' ~ r.month if r.month }}&fmt=xlsx">⬇ Excel</a></div>
+</div>
+<nav class="rp-tabs">{% for k, v in REPORTS.items() if k != 'cash' %}<a href="?r={{ k }}" class="{{ 'on' if key==k }}">{{ v }}</a>{% endfor %}</nav>
+{% if r.year %}<div class="pm-m"><a href="{{ base }}" class="{{ 'on' if not r.month }}">Увесь рік</a>{% for m in range(1, 13) %}{% if r.year < today.year or m <= today.month %}<a href="{{ base }}&month={{ m }}" class="{{ 'on' if m == r.month }}">{{ r.MONTHS[m - 1] }}</a>{% endif %}{% endfor %}</div>{% endif %}
+
+{% if not r.rows %}<div class="card muted">За {{ r.label }} надходжень і комісій у журналі немає.</div>{% else %}
+<div class="bfk">
+  <div class="g"><small>Комісії банків</small><b>{{ u(r.fees) }} ₴</b><span class="s">{{ r.label }} · {{ r.n_ops }} списань{% if r.per_month and not r.month %} · ≈ {{ u(r.per_month) }} ₴ на місяць{% endif %}</span></div>
+  <div><small>Оборот надходжень</small><b>{{ u(r.turn) }} ₴</b><span class="s">грошима по всіх рахунках за період</span></div>
+  <div><small>Ефективна ставка</small><b>{{ pc(r.pct) }}</b><span class="s">комісії / оборот по всіх касах (готівка розбавляє)</span></div>
+  <div><small>Найдорожчий рахунок</small><b>{% if r.top %}{{ pc(r.top.pct) }}{% else %}—{% endif %}</b><span class="s">{% if r.top %}{{ r.top.name }} · {{ u(r.top.fees) }} ₴{% else %}комісій не було{% endif %}</span></div>
+</div>
+
+<div class="bf2">
+  <div class="bfc"><h3>Комісії по місяцях · {{ r.label }}</h3>
+    <div class="bfch">{% for m in r.months %}{% set v = r.bym_fee.get(m, 0) %}<div class="m" title="{{ m }} · комісії {{ u(v) }} ₴ · оборот {{ u(r.bym_turn.get(m, 0)) }} ₴">{% if r.bym_turn.get(m) and v %}<span>{{ pc((100 * v / r.bym_turn[m])|round(2)) }}</span>{% endif %}<i style="height:{{ (100 * v / r.bym_max)|round(1) }}%"></i></div>{% endfor %}</div>
+    <div class="bfx">{% for m in r.months %}<span>{{ r.MONTHS[(m[5:]|int) - 1] }}{% if not r.year %} {{ m[2:4] }}{% endif %}</span>{% endfor %}</div>
+    <div class="muted small" style="margin-top:6px">Над стовпчиком — ефективна ставка місяця (комісії / усі надходження).</div></div>
+  <div class="bfc"><h3>За статтями</h3><div class="bfa">
+    {% for a, v in r.arts %}<div class="r"><span>{{ a }}</span><b>{{ u(v) }} ₴ <small class="muted2">{{ pc((100 * v / r.fees)|round(1)) if r.fees }}</small></b><div class="bar"><i style="width:{{ (100 * v / r.fees)|round(1) if r.fees else 0 }}%"></i></div></div>
+    {% else %}<div class="muted small">Комісій за період не знайдено.</div>{% endfor %}</div></div>
+</div>
+
+<div class="bfw"><table class="bft">
+  <tr><th class="l">Рахунок / каса</th><th>Оборот</th><th>Комісії</th><th>Ставка факт</th><th>Налаштовано</th><th>Списань</th>{% for m in r.months %}<th>{{ r.MONTHS[(m[5:]|int) - 1] }}{% if not r.year %} {{ m[2:4] }}{% endif %}</th>{% endfor %}</tr>
+  {% for b in r.rows %}{% set c = r.cfg.get(b.name) %}
+  <tr class="s" onclick="this.classList.toggle('on');this.nextElementSibling.classList.toggle('show')">
+    <td class="l"><span class="dot" style="background:{{ '#4EA86B' if c and c.type == 'cash' else ('#3B3050' if c and c.type == 'card' else '#C9BFE6') }}"></span><b>{{ b.name }}</b></td>
+    <td>{{ u(b.turn) }}</td><td><b>{{ u2(b.fees) if b.fees else '—' }}</b></td>
+    <td>{% if b.pct is not none and b.fees %}<b>{{ pc(b.pct) }}</b>{% if c and c.pct and (b.pct - c.pct)|abs > 0.15 %} <span class="warn" title="фактична ставка відрізняється від налаштованої">≠</span>{% endif %}{% else %}<span class="muted2">—</span>{% endif %}</td>
+    <td class="muted2">{{ pc(c.pct) if c and c.pct else '—' }}</td><td>{{ b.n or '—' }}</td>
+    {% for m in r.months %}{% set v = b.m_fee.get(m, 0) %}<td class="{{ 'z' if not v }}">{{ u(v) if v else '·' }}</td>{% endfor %}
+  </tr>
+  <tr class="d"><td colspan="{{ 6 + r.months|length }}"><div class="in">
+    <div style="margin-bottom:8px">{% for a, v in b.arts.items() %}<span class="pm">{{ a }} · {{ u(v) }} ₴</span>{% endfor %}{% for s_, v in b.src.items() %}<span class="pm" style="background:#F2EFEA;color:#6b6575">{{ s_ }} · {{ u(v) }} ₴</span>{% endfor %}</div>
+    {% if b.ops %}<table class="bfo"><tr><th>Дата</th><th>№</th><th>Стаття</th><th>Коментар</th><th style="text-align:right">Сума</th></tr>
+      {% for o in b.ops[:60] %}<tr><td style="white-space:nowrap">{{ o.at.strftime('%d.%m.%Y %H:%M') }}</td><td>{{ o.num }}</td><td>{{ o.article }}</td><td class="muted2">{{ o.comment[:90] }}</td><td class="r">{{ u2(o.amount) }}</td></tr>{% endfor %}
+      {% if b.ops|length > 60 %}<tr><td colspan="5" class="muted2">… ще {{ b.ops|length - 60 }} — повний список в Excel</td></tr>{% endif %}</table>
+    {% else %}<span class="muted2">Комісій по цьому рахунку за період немає — лише надходження {{ u(b.turn) }} ₴.</span>{% endif %}
+  </div></td></tr>
+  {% endfor %}
+  <tr class="tot"><td class="l">Разом</td><td>{{ u(r.turn) }}</td><td>{{ u2(r.fees) }}</td><td>{{ pc(r.pct) }}</td><td></td><td>{{ r.n_ops }}</td>{% for m in r.months %}<td>{{ u(r.bym_fee.get(m, 0)) if r.bym_fee.get(m) else '·' }}</td>{% endfor %}</tr>
+</table></div>
+<div class="f-note">Комісії — витрати за статтями «Комісія банку», «Еквайринг», РКО, обслуговування рахунку; кредити й розтермінування не рахуються. Оборот — надходження грошима на рахунок (без бонусів, сертифікатів, переміщень). «Ставка факт» по касі = комісії / оборот цієї каси; «≠» — факт відрізняється від % у налаштуваннях каси більш ніж на 0,15 п.п. (банк змінив тариф або частина комісій записана на інший рахунок). Клік по рядку — список списань.</div>
+{% endif %}
+{% endblock %}

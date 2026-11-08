@@ -8459,6 +8459,23 @@ def reports_page(request: Request, r: str = "revenue", period: str = "month", df
                             headers={"Content-Disposition": f'attachment; filename="patient-money-{_y or "all"}{("-%02d" % _m) if _m else ""}.xlsx"'})
         return render(request, "rep_patient_money.html", nav="reports", REPORTS=rp.REPORTS, key="patient_money", r=_r, years=_ys,
                       today=date.today(), MONTHS=_pnl.MONTHS)
+    if key == "fees":
+        from .services import bank_fees as _bf
+        _ys = _bf.years(db)
+        _yq = request.query_params.get("year")
+        try:
+            _y = int(_yq) if _yq is not None else date.today().year
+        except ValueError:
+            _y = date.today().year
+        _y = _y if _y in _ys else (0 if _yq == "0" else (_ys[-1] if _ys else date.today().year))
+        _mq = request.query_params.get("month") or ""
+        _m = int(_mq) if _mq.isdigit() and 1 <= int(_mq) <= 12 and _y else None
+        _r = _bf.build(db, _y or None, _m)
+        if fmt == "xlsx":
+            audit(db, "reports.export", user=user, report="fees", year=_y, month=_m)
+            return Response(_bf.to_xlsx(_r), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            headers={"Content-Disposition": f'attachment; filename="bank-fees-{_y or "all"}{("-%02d" % _m) if _m else ""}.xlsx"'})
+        return render(request, "rep_fees.html", nav="reports", REPORTS=rp.REPORTS, key="fees", r=_r, years=_ys, today=date.today())
     if key == "shifts":
         from .services import shift_report as _shr
         _df, _dt, period = _report_period(period, df, dt_)
