@@ -527,11 +527,53 @@ def setup_hand_resource(db: Session) -> bool:
     return True
 
 
+COUNTERS_EQUIP_KEY = "amort_counters_equip_v1"
+
+
+def stock_ledger_ready(db: Session) -> bool:
+    from . import stock
+    try:
+        return stock.ledger_active(db)
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def counters_to_equip(db: Session) -> list:
+    """Один раз (попросив власник 08.11.2026): лічильники амортизації обліковуються лише на складі «Обладнання».
+    Залишки з інших складів переносяться документом «Переміщення» (плюс — на Обладнання, мінус — з Обладнання), склад товару = Обладнання.
+    На нарахування амортизації не впливає (рахуються лише списання)."""
+    from . import stock
+    from ..models import StockDocLine
+    if _flag(db, COUNTERS_EQUIP_KEY):
+        return []
+    pids = {a.product_id for a in db.scalars(select(AmortAsset)) if a.product_id}
+    docs = []
+    if pids:
+        for p in db.scalars(select(Product).where(Product.id.in_(pids))):
+            p.warehouse = "equip"
+        db.commit()
+        bal = stock.balances(db)
+        for (pid, wh), q in sorted(bal.items(), key=lambda x: (x[0][1], x[0][0])):
+            if pid not in pids or wh == "equip" or abs(q) < 1e-9:
+                continue
+            src, dst = (wh, "equip") if q > 0 else ("equip", wh)
+            doc = stock.new_doc(db, "transfer", wh_from=src, wh_to=dst,
+                                note="Лічильник амортизації — облік лише на складі «Обладнання» (перенос залишку)")
+            doc.lines.append(StockDocLine(product_id=pid, qty=abs(q)))
+            db.flush()
+            stock.post(db, doc)
+            docs.append(doc.number)
+    _set_flag(db, COUNTERS_EQUIP_KEY)
+    return docs
+
+
 def ensure_setup(db: Session) -> dict | None:
     """Один раз після оновлення: перенести позиції й історію з таблиці."""
     if _flag(db, MIGRATED_KEY) and _flag(db, SEEDED_KEY):
         setup_observ_jar(db)
         setup_hand_resource(db)
+        if stock_ledger_ready(db):
+            counters_to_equip(db)
         return None
     out = {}
     if not _flag(db, SEEDED_KEY):

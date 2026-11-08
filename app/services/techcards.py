@@ -82,6 +82,8 @@ def card_cost(card: TechCard, uc: dict[int, float]) -> float:
 
 
 def cat_wh(card: TechCard | None, cat: str, product: Product | None = None) -> str:
+    if product is not None and product.warehouse == "equip":       # обладнання й лічильники амортизації — лише зі складу «Обладнання»
+        return "equip"
     for c in (card.cats if card and card.cats else DEFAULT_CATS):
         if c.get("name") == cat and c.get("wh"):
             return c["wh"]
@@ -345,9 +347,10 @@ def close(db: Session, a: Appointment, user_id: int | None = None) -> list[Stock
     by_wh: dict[str, list] = defaultdict(list)
     rows = db.scalars(select(VisitMaterial).where(VisitMaterial.appt_id == a.id)).all()
     eff = effective(db, rows)
+    equip = {pid for (pid,) in db.execute(select(Product.id).where(Product.warehouse == "equip"))}
     for m in rows:
         if eff.get(m.id, m.qty):
-            by_wh[m.warehouse or "single"].append(m)
+            by_wh["equip" if m.product_id in equip else (m.warehouse or "single")].append(m)
     docs = []
     for wh, ms in sorted(by_wh.items()):
         doc = stock.new_doc(db, "writeoff", user_id=user_id, wh_from=wh, reason="Списання матеріалів", patient_id=a.patient_id,

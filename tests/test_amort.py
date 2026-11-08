@@ -130,3 +130,23 @@ def test_fund_part_ignores_purchases():
         db.commit()
         p2 = am.fund_part(db, box)
         assert p2["amort"] == base["amort"] and round(p2["oper"], 2) == round(base["oper"] - 18854.64, 2)
+
+
+def test_counters_to_equip():
+    from app.services import stock, techcards as tc
+    with SessionLocal() as db:
+        p1 = Product(name="Амортизація обладнання (виробнича) OBSERV тест", name_norm="obs-t", warehouse="single", price=50, active=True)
+        p2 = Product(name="Хвилини роботи мотору тест", name_norm="mot-t", warehouse="equip", price=2.5, active=True)
+        db.add_all([p1, p2]); db.flush()
+        db.add_all([AmortAsset(name="OBSERV тест", kind="device", product_id=p1.id), AmortAsset(name="Мотор тест", kind="consumable", product_id=p2.id)])
+        db.add_all([StockMove(product_id=p1.id, warehouse="single", qty=-12, kind="writeoff", at=datetime(2026, 11, 3)),
+                    StockMove(product_id=p1.id, warehouse="equip", qty=-10, kind="writeoff", at=datetime(2026, 11, 4)),
+                    StockMove(product_id=p2.id, warehouse="single", qty=1511, kind="opening", at=datetime(2026, 11, 1))])
+        db.execute(SyncState.__table__.delete().where(SyncState.key == am.COUNTERS_EQUIP_KEY)); db.commit()
+        docs = am.counters_to_equip(db)
+        assert len(docs) >= 2 and am.counters_to_equip(db) == []
+        b = stock.balances(db)
+        assert round(b.get((p1.id, "single"), 0), 4) == 0 and b[(p1.id, "equip")] == -22
+        assert round(b.get((p2.id, "single"), 0), 4) == 0 and b[(p2.id, "equip")] == 1511
+        db.refresh(p1)
+        assert p1.warehouse == "equip" and tc.cat_wh(None, "Одноразка", p1) == "equip"
