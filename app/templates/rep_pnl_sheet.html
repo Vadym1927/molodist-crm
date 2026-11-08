@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}P&L {{ 'гібрид' if src == 'hybrid' else 'таблиця власника' }} · {{ year }} · Звіти{% endblock %}
+{% block body %}
+{% macro u(v) %}{% if v is none %}—{% else %}{{ (('{:,.0f}').format(v or 0)).replace(',', ' ') }}{% endif %}{% endmacro %}
+{% macro s(v) %}{% if v is none %}—{% elif v < 0 %}<span class="neg">−{{ u(-v) }}</span>{% else %}{{ u(v) }}{% endif %}{% endmacro %}
+{% macro pc(v) %}{% if v is none %}—{% else %}{{ ('%g'|format(v)).replace('.', ',') }}%{% endif %}{% endmacro %}
+<style>
+.rp-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 16px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.rp-tabs a{padding:8px 14px;border-radius:10px;text-decoration:none;color:#3a342f;font-weight:600;font-size:14px}.rp-tabs a:hover{background:var(--card)}.rp-tabs a.on{background:var(--deep);color:#fff}
+.pm-y{display:flex;gap:6px;flex-wrap:wrap}.pm-y a{padding:8px 16px;border-radius:11px;background:#fff;border:1px solid #ECE7E1;text-decoration:none;font:700 14px var(--sans);color:#3B3050}.pm-y a.on{background:#3B3050;color:#fff;border-color:#3B3050}
+.src{display:flex;gap:4px;background:#F2EFEA;border-radius:12px;padding:4px}.src a{padding:7px 14px;border-radius:9px;text-decoration:none;font:700 13px var(--sans);color:#5d5869}.src a.on{background:#fff;color:#3B3050;box-shadow:0 2px 6px -3px rgba(0,0,0,.3)}
+.pos{color:#2f6b3b;font-weight:700}.neg{color:#B23B2E;font-weight:700}.muted2{color:#8a8496}
+.plk{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.plk div{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:14px 16px}
+.plk small{display:block;font:700 10.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#8a8496}.plk b{display:block;font:800 22px var(--sans);color:#2A2430;margin:6px 0 2px}.plk span.s{font-size:12px;color:#6b6575}
+.plk div.g{background:linear-gradient(135deg,#2A2430,#3B3050)}.plk div.g small{color:#C9BFE6}.plk div.g b{color:#fff}.plk div.g span.s{color:#E4DEEF}
+.plw{overflow:auto;background:#fff;border:1px solid #ECE7E1;border-radius:20px;margin-bottom:14px}
+.plt{border-collapse:separate;border-spacing:0;font-size:13px;min-width:1250px;width:100%}
+.plt th{position:sticky;top:0;z-index:2;background:#F3EFF9;font:700 11px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:#5d5869;padding:9px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid #ECE7E1}
+.plt th:first-child,.plt td:first-child{position:sticky;left:0;z-index:1;background:#fff;text-align:left;min-width:320px;border-right:1px solid #F1EDE8}.plt th:first-child{z-index:3;background:#F3EFF9}
+.plt td{padding:6px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid #F6F3EF}
+.plt tr.head td{background:#2A2430;color:#fff;font:800 12px var(--sans);letter-spacing:.06em;text-transform:uppercase;padding:9px 8px}.plt tr.head td:first-child{background:#2A2430}
+.plt tr.group td{font-weight:700;background:#F8F6FC}.plt tr.group td:first-child{background:#F8F6FC;padding-left:18px}
+.plt tr.line td{color:#5d5869;font-size:12.5px}.plt tr.line td:first-child{padding-left:34px}
+.plt tr.blank td{height:6px;padding:0;background:#FBFAF8}
+.plt td.z{color:#C9C3BD}.plt th.crm{background:#E4DEEF;color:#3B3050}.plt th .tag{display:inline-block;margin-left:4px;background:#3B3050;color:#fff;border-radius:6px;padding:0 5px;font-size:9px;vertical-align:1px}.plt td.crm{background:#FBFAFE}.plt td.na{color:#C9C3BD}
+.imp{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:14px 18px;margin-bottom:14px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+@media(max-width:1000px){.plk{grid-template-columns:1fr 1fr}}
+</style>
+<div class="row between" style="align-items:flex-end;flex-wrap:wrap;gap:10px">
+  <div><div class="eyebrow"><a href="/reports" style="color:inherit;text-decoration:none">← Усі звіти · Фінанси</a></div><h1>P&L по місяцях · {{ year }}{% if src == 'hybrid' %} <span style="font-size:18px;color:#8a8496">гібрид</span>{% endif %}</h1>
+    <div class="muted small">{% if src == 'hybrid' %}{% if sh and sh.crm_from %}Січень–{{ MONTHS[sh.crm_from - 2]|lower if sh.crm_from > 1 else '' }} — з Google-таблиці «{{ sh.sheet }}», з {{ MONTHS[sh.crm_from - 1]|lower }} — розрахунок CRM (облік у CRM з дати переходу). Рядки без відповідника в CRM за ці місяці порожні.{% else %}Увесь рік — з Google-таблиці «{{ sh.sheet if sh else 'PnL' }}» (у CRM за цей рік обліку не було).{% endif %}{% else %}Дані з Google-таблиці «{{ sh.sheet if sh else 'PnL' }}» як є — для порівняння з розрахунком CRM.{% endif %} {% if sh %}Імпортовано {{ sh.imported_at[:16]|replace('T', ' ') }}{{ ' (початкове вивантаження)' if sh.source == 'seed' }}.{% endif %}</div></div>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <div class="src"><a class="{{ 'on' if src == 'hybrid' }}" href="?r=pnlm&year={{ year }}&src=hybrid">Гібрид</a><a href="?r=pnlm&year={{ year }}&src=crm">Розрахунок CRM</a><a class="{{ 'on' if src == 'sheet' }}" href="?r=pnlm&year={{ year }}&src=sheet">Таблиця власника</a></div>
+    <div class="pm-y">{% for y in years %}<a href="?r=pnlm&year={{ y }}&src={{ src }}" class="{{ 'on' if y == year }}{{ ' muted2' if y not in sheet_years }}" title="{{ 'у таблиці немає' if y not in sheet_years }}">{{ y }}</a>{% endfor %}</div></div>
+</div>
+<nav class="rp-tabs">{% for k, v in REPORTS.items() if k != 'cash' %}<a href="?r={{ k }}" class="{{ 'on' if key==k }}">{{ v }}</a>{% endfor %}</nav>
+
+<form class="imp" method="post" action="/reports/pnlm/import" enctype="multipart/form-data">
+  <b>Оновити з таблиці:</b><input type="file" name="file" accept=".csv,.txt,.tsv" required><button class="btn">Імпортувати</button>
+  <span class="muted small">Google Таблиці → аркуш «PnL 20xx» → Файл → Завантажити → CSV. Можна й експорт усієї книги (кілька аркушів в одному файлі) — візьмуться аркуші P&L за роками. Повторний імпорт замінює рік.</span>
+</form>
+
+{% if not sh %}<div class="card muted">За {{ year }} рік у таблиці даних немає — завантажте CSV аркуша вище.</div>{% else %}
+{% set k = sh.key %}{% set n = (sh.n_months if sh.n_months is defined else sh.months|length) or 1 %}
+<div class="plk">
+  {% if k.rev %}<div><small>Дохід</small><b>{{ u(k.rev|sum) }} ₴</b><span class="s">{{ n }} міс. · ≈ {{ u((k.rev|sum) / n) }} на місяць</span></div>{% endif %}
+  {% if k.gross %}<div><small>Валовий прибуток</small><b>{{ u(k.gross|sum) }} ₴</b><span class="s">маржа {{ pc((100 * (k.gross|sum) / (k.rev|sum))|round(1) if k.rev and k.rev|sum else none) }}</span></div>{% endif %}
+  {% if k.opex %}<div><small>OPEX</small><b>{{ u(k.opex|sum) }} ₴</b><span class="s">{{ pc((100 * (k.opex|sum) / (k.rev|sum))|round(1) if k.rev and k.rev|sum else none) }} від доходу</span></div>{% endif %}
+  {% if k.op %}<div><small>Операційний прибуток</small><b>{{ s(k.op|sum) }} ₴</b><span class="s">{{ pc((100 * (k.op|sum) / (k.rev|sum))|round(1) if k.rev and k.rev|sum else none) }}</span></div>{% endif %}
+  {% if k.net %}<div class="g"><small>Чистий прибуток</small><b>{{ s(k.net|sum) }} ₴</b><span class="s">рентабельність {{ pc((100 * (k.net|sum) / (k.rev|sum))|round(1) if k.rev and k.rev|sum else none) }}</span></div>{% endif %}
+</div>
+<div class="plw"><table class="plt">
+  <tr><th>Показник</th>{% for i in range(12) %}<th class="{{ 'crm' if sh.months_src and sh.months_src[i] == 'crm' }}">{{ MONTHS[i] }}{% if sh.months_src and sh.months_src[i] == 'crm' %}<span class="tag">CRM</span>{% endif %}</th>{% endfor %}<th>Разом</th><th>Сер. / міс</th></tr>
+  {% for r in sh.rows %}<tr class="{{ r.kind }}"><td>{{ r.name }}</td>{% if r.kind == 'blank' %}<td colspan="14"></td>{% else %}{% for v in r.vals %}{% set sc = r.srcs[loop.index0] if r.srcs else 'sheet' %}<td class="{{ 'z' if not v }}{{ ' crm' if sc == 'crm' }}{{ ' na' if sc == 'na' }}" {% if sc == 'na' %}title="немає відповідника в CRM"{% endif %}>{{ s(v) if v else ('—' if sc == 'na' else '·') }}</td>{% endfor %}<td><b>{{ s(r.total) }}</b></td><td class="muted2">{{ s(r.total / n) if r.total and r.field not in ('cogs_pct','opex_pct','k_mkt_pct','k_mkt_gp','gross_pct','net_pct','gross_p_pct','k_vpp','k_avg','k_ltv','k_cpa','k_breakeven') else '' }}</td>{% endif %}</tr>{% endfor %}
+</table></div>
+{% if src == 'hybrid' %}<div class="muted small" style="margin:-6px 0 14px">Колонки з міткою CRM рахуються автоматично з чеків, техкарт і журналу фіноперацій; «—» — рядок таблиці, для якого в CRM немає окремого показника (напр. «Поповнення балансу» — у CRM це передоплата, а не дохід). Деталі CRM-місяців із групами витрат і статтями — у вкладці «Розрахунок CRM».</div>{% endif %}
+{% endif %}
+{% endblock %}

@@ -8460,15 +8460,28 @@ def reports_page(request: Request, r: str = "revenue", period: str = "month", df
         return render(request, "rep_patient_money.html", nav="reports", REPORTS=rp.REPORTS, key="patient_money", r=_r, years=_ys,
                       today=date.today(), MONTHS=_pnl.MONTHS)
     if key == "pnlm":
-        from .services import pnl_monthly as _pm2
-        _ys = _pm2.years(db)
+        from .services import pnl_monthly as _pm2, pnl_sheet as _psh
+        _psh.ensure_seed(db)
+        _sy = sorted(_psh.load(db))
+        _ys = sorted(set(_pm2.years(db)) | set(_sy))
         try:
             _y = int(request.query_params.get("year") or date.today().year)
         except ValueError:
             _y = date.today().year
         _y = _y if _y in _ys else (_ys[-1] if _ys else date.today().year)
+        _sheet = _psh.year_view(db, _y)
+        _src = request.query_params.get("src") or ("hybrid" if _sheet else "crm")
+        _M = __import__("app.services.pnl", fromlist=["x"]).MONTHS
+        if _src == "sheet" and fmt != "xlsx":
+            return render(request, "rep_pnl_sheet.html", nav="reports", REPORTS=rp.REPORTS, key="pnlm", sh=_sheet, year=_y, years=_ys,
+                          sheet_years=_sy, MONTHS=_M, src="sheet")
         try:
             _r = _pm2.build(db, _y)
+            _r["sheet"] = _sheet
+            if _src == "hybrid" and _sheet and fmt != "xlsx":
+                _hy = _psh.hybrid(db, _y, _r)
+                return render(request, "rep_pnl_sheet.html", nav="reports", REPORTS=rp.REPORTS, key="pnlm", sh=_hy, year=_y, years=_ys,
+                              sheet_years=_sy, MONTHS=_M, src="hybrid")
             if fmt == "xlsx":
                 audit(db, "reports.export", user=user, report="pnlm", year=_y)
                 return Response(_pm2.to_xlsx(_r), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -8549,6 +8562,26 @@ def reports_page(request: Request, r: str = "revenue", period: str = "month", df
     return render(request, "reports.html", rep=rep, REPORTS=rp.REPORTS, PERIODS=REPORT_PERIODS, key=key, period=period,
                   d_from=d_from, d_to=d_to, p_from=p_from, p_to=p_to,
                   c_max=max([v for _, v in rep.chart] + [1]))
+
+
+@app.post("/reports/pnlm/import")
+async def pnlm_import(request: Request, file: UploadFile = File(...), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Імпорт P&L з таблиці власника: CSV-експорт аркуша або текстовий експорт книги."""
+    from .services import pnl_sheet as _psh
+    raw = await file.read()
+    if len(raw) > 5 * 1024 * 1024:
+        return RedirectResponse(_with_err("/reports?r=pnlm&src=sheet", "Файл завеликий (до 5 МБ)"), 303)
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = raw.decode("cp1251", errors="replace")
+    try:
+        res = _psh.import_text(db, text, source=file.filename or "upload")
+    except ValueError as e:
+        return RedirectResponse(_with_err("/reports?r=pnlm&src=sheet", str(e)), 303)
+    audit(db, "reports.pnlm_import", user=user, years=list(res))
+    y = max(res)
+    return RedirectResponse(_with_msg(f"/reports?r=pnlm&src=sheet&year={y}", "Імпортовано: " + ", ".join(f"{k} — {v} рядків" for k, v in sorted(res.items()))), 303)
 
 
 @app.post("/reports/pnlm/plan")

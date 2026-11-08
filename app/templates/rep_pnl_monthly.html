@@ -10,6 +10,7 @@
 .rp-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 16px;padding-bottom:14px;border-bottom:1px solid var(--line)}
 .rp-tabs a{padding:8px 14px;border-radius:10px;text-decoration:none;color:#3a342f;font-weight:600;font-size:14px}.rp-tabs a:hover{background:var(--card)}.rp-tabs a.on{background:var(--deep);color:#fff}
 .pm-y{display:flex;gap:6px;flex-wrap:wrap}.pm-y a{padding:8px 16px;border-radius:11px;background:#fff;border:1px solid #ECE7E1;text-decoration:none;font:700 14px var(--sans);color:#3B3050}.pm-y a.on{background:#3B3050;color:#fff;border-color:#3B3050}
+.src{display:flex;gap:4px;background:#F2EFEA;border-radius:12px;padding:4px}.src a{padding:7px 14px;border-radius:9px;text-decoration:none;font:700 13px var(--sans);color:#5d5869}.src a.on{background:#fff;color:#3B3050;box-shadow:0 2px 6px -3px rgba(0,0,0,.3)}
 .pos{color:#2f6b3b;font-weight:700}.neg{color:#B23B2E;font-weight:700}.ok{color:#2f6b3b;font-weight:700}.bad{color:#B23B2E;font-weight:700}.muted2{color:#8a8496}
 .plk{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:12px;margin-bottom:14px}
 .plk div{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:14px 16px}
@@ -50,7 +51,9 @@
 <div class="row between" style="align-items:flex-end;flex-wrap:wrap;gap:10px">
   <div><div class="eyebrow"><a href="/reports" style="color:inherit;text-decoration:none">← Усі звіти · Фінанси</a></div><h1>P&L по місяцях · {{ r.year }}</h1>
     <div class="muted small">За моделлю «PnL Гібрид»: дохід за напрямками − собівартість (матеріали з амортизацією, оплата роботи лікарів, косметика) = валовий прибуток − OPEX за групами = операційний прибуток − капвитрати − разові = чистий прибуток, плюс KPI з цілями. Касовий звіт за статтями — <a href="?r=pnl&year={{ r.year }}">«Доходи і витрати за рік»</a>.</div></div>
-  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="pm-y">{% for y in years %}<a href="?r=pnlm&year={{ y }}" class="{{ 'on' if y == r.year }}">{{ y }}</a>{% endfor %}</div>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <div class="src">{% if r.sheet %}<a href="?r=pnlm&year={{ r.year }}&src=hybrid">Гібрид</a>{% endif %}<a class="on" href="?r=pnlm&year={{ r.year }}&src=crm">Розрахунок CRM</a><a href="?r=pnlm&year={{ r.year }}&src=sheet">Таблиця власника</a></div>
+    <div class="pm-y">{% for y in years %}<a href="?r=pnlm&year={{ y }}&src=crm" class="{{ 'on' if y == r.year }}">{{ y }}</a>{% endfor %}</div>
     <a class="btn ghost" href="?r=pnlm&year={{ r.year }}&fmt=xlsx">⬇ Excel</a></div>
 </div>
 <nav class="rp-tabs">{% for k, v in REPORTS.items() if k != 'cash' %}<a href="?r={{ k }}" class="{{ 'on' if key==k }}">{{ v }}</a>{% endfor %}</nav>
@@ -167,6 +170,10 @@
   <tr class="h"><td>Довідково · поза прибутком</td><td colspan="{{ W }}"></td></tr>
   <tr class="sub"><td>Закупівлі касові <span class="muted2">(у прибутку — через собівартість)</span></td>{{ cells('purchase') }}</tr>
   <tr class="sub"><td>Оплати не грошима (бонуси, сертифікати, баланс)</td>{{ cells('non_money') }}</tr>
+  {% if r.sheet and r.sheet.key %}{% set K = r.sheet.key %}
+  <tr class="h"><td>Таблиця власника · {{ r.sheet.sheet }} · різниця CRM − таблиця</td><td colspan="{{ W }}"></td></tr>
+  {% for kk, title, ck in [('rev', 'Дохід', 'rev'), ('cogs', 'Собівартість', 'cogs'), ('gross', 'Валовий прибуток', 'gross'), ('opex', 'OPEX', 'opex'), ('op', 'Операційний прибуток', 'op'), ('net', 'Чистий прибуток', 'net')] %}{% if K[kk] %}
+  <tr class="sub"><td>{{ title }} за таблицею</td>{% for x in r.rows %}{% set i = (x.m[5:]|int) - 1 %}{% set sv = K[kk][i] %}<td class="{{ 'cur' if x.current }}{{ ' z' if not sv }}">{{ s(sv) if sv else '·' }}{% if sv %}<span class="yy {{ 'pos' if (x[ck] - sv) >= 0 else 'neg' }}">{{ '+' if x[ck] - sv > 0 }}{{ u(x[ck] - sv) }}</span>{% endif %}</td>{% endfor %}{% set tot_ = K[kk]|sum %}<td>{{ s(tot_) }}<span class="yy {{ 'pos' if (t[ck] - tot_) >= 0 else 'neg' }}">{{ '+' if t[ck] - tot_ > 0 }}{{ u(t[ck] - tot_) }}</span></td><td></td></tr>{% endif %}{% endfor %}{% endif %}
   {% if r.prev %}<tr class="sub"><td>Дохід {{ r.year - 1 }}</td>{% for x in r.rows %}<td>{{ s(x.prev.rev) if x.prev else '—' }}</td>{% endfor %}<td>{{ s(r.pt.full_rev) }}</td><td></td></tr>
   <tr class="sub"><td>Чистий прибуток {{ r.year - 1 }}</td>{% for x in r.rows %}<td>{{ s(x.prev.net) if x.prev else '—' }}</td>{% endfor %}<td>{{ s(r.pt.full_net) }}</td><td></td></tr>{% endif %}
 </table></div>
