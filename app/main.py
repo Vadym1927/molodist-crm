@@ -8469,8 +8469,8 @@ def reports_page(request: Request, r: str = "revenue", period: str = "month", df
         except ValueError:
             _y = date.today().year
         _y = _y if _y in _ys else (_ys[-1] if _ys else date.today().year)
-        _sheet = _psh.year_view(db, _y)
-        _src = request.query_params.get("src") or ("hybrid" if _sheet else "crm")
+        _sheet = _psh.year_view(db, _y) if _y <= _psh.LAST_SHEET_YEAR else None     # з 2027 — лише метод CRM
+        _src = (request.query_params.get("src") or ("hybrid" if _sheet else "crm")) if _sheet else "crm"
         _M = __import__("app.services.pnl", fromlist=["x"]).MONTHS
         if _src == "sheet" and fmt != "xlsx":
             return render(request, "rep_pnl_sheet.html", nav="reports", REPORTS=rp.REPORTS, key="pnlm", sh=_sheet, year=_y, years=_ys,

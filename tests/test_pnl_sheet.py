@@ -106,3 +106,13 @@ def test_directions():
         for src in ("hybrid", "sheet"):
             t = c.get(f"/reports?r=pnlm&year=2022&src={src}").text
             assert "Валовий внесок напрямків" in t, src
+
+
+def test_only_crm_after_2026():
+    settings.admin_password = "owner-pass-1"
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        with SessionLocal() as db:
+            ps.import_text(db, CSV.replace("2024", "2027"), "y2027.csv")        # навіть якщо таблицю за 2027 завантажать — не показуємо
+        t = c.get("/reports?r=pnlm&year=2027&src=hybrid").text
+        assert "Таблиця власника" not in t and "гібрид" not in t.lower().split("<body")[-1][:3000]

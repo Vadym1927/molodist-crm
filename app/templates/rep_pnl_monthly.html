@@ -52,7 +52,7 @@
   <div><div class="eyebrow"><a href="/reports" style="color:inherit;text-decoration:none">← Усі звіти · Фінанси</a></div><h1>P&L по місяцях · {{ r.year }}</h1>
     <div class="muted small">За моделлю «PnL Гібрид»: дохід за напрямками − собівартість (матеріали з амортизацією, оплата роботи лікарів, косметика) = валовий прибуток − OPEX за групами = операційний прибуток − капвитрати − разові = чистий прибуток, плюс KPI з цілями. Касовий звіт за статтями — <a href="?r=pnl&year={{ r.year }}">«Доходи і витрати за рік»</a>.</div></div>
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-    <div class="src">{% if r.sheet %}<a href="?r=pnlm&year={{ r.year }}&src=hybrid">Гібрид</a>{% endif %}<a class="on" href="?r=pnlm&year={{ r.year }}&src=crm">Розрахунок CRM</a><a href="?r=pnlm&year={{ r.year }}&src=sheet">Таблиця власника</a></div>
+    {% if r.sheet %}<div class="src"><a href="?r=pnlm&year={{ r.year }}&src=hybrid">Гібрид</a><a class="on" href="?r=pnlm&year={{ r.year }}&src=crm">Розрахунок CRM</a><a href="?r=pnlm&year={{ r.year }}&src=sheet">Таблиця власника</a></div>{% endif %}
     <div class="pm-y">{% for y in years %}<a href="?r=pnlm&year={{ y }}&src=crm" class="{{ 'on' if y == r.year }}">{{ y }}</a>{% endfor %}</div>
     <a class="btn ghost" href="?r=pnlm&year={{ r.year }}&fmt=xlsx">⬇ Excel</a></div>
 </div>
