@@ -4865,9 +4865,11 @@ def stock_page(request: Request, tab: str = "balances", only: str = "", wh: str 
             rows.sort(key=lambda r: (order.get(r.product.warehouse or "vitrina", 9), (r.product.brand or "яяя").lower(), r.product.name))
         wh_tot = defaultdict(lambda: {"n": 0, "value": 0.0})
         costs = {r.product.id: (r.cost or 0) / (r.product.coef if r.product.coef and r.product.coef > 0 else 1) for r in rows}   # ціна флакона → за одиницю обліку (мл, шт)
+        from .models import AmortAsset as _AA
+        _amort_ids = {x for (x,) in db.execute(select(_AA.product_id).where(_AA.product_id.is_not(None)))}   # лічильники амортизації — не товар
         if ctx["active"]:
             for (pid, w), qty in per.items():
-                if qty and pid in costs:
+                if qty and pid in costs and pid not in _amort_ids:
                     wh_tot[w]["n"] += 1
                     wh_tot[w]["value"] += qty * costs[pid]
         ctx.update(rows=rows, per=per, wh_tot=dict(wh_tot), suggested=st.suggested_qty,

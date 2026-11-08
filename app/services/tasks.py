@@ -77,7 +77,7 @@ def generate_auto(db: Session, now: datetime | None = None) -> dict:
 
     deficits = [r for r in product_rows(db, statuses, now) if r.deficit]
     if deficits:                                   # одна зведена задача на тиждень, а не по кожному товару
-        lines = [f"• {r.product.name[:70]} — {r.deficit} шт (залишок {r.stock:g}, потреба {r.need_30})" for r in deficits]
+        lines = [f"• {r.product.name[:70]} — {r.deficit} шт (залишок {r.stock:g}, потреба за планами {r.need_30}" + (f", мін. залишок {r.product.min_stock:g}" if r.product.min_stock else "") + ")" for r in deficits]
         ensure("stock:", f"stock:{week}", kind="stock",
                title=f"Дозамовити товари для бюті-планів: {len(deficits)} поз.",
                description="\n".join(lines[:25]), assignee_role="owner", due_date=now.date())

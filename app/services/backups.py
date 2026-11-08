@@ -61,9 +61,20 @@ def decrypt_file(src: str, dst: str, password: str):
 # ---------------- копії ----------------
 
 def _rotate(folder: Path, keep: int):
+    """Лишаємо `keep` найновіших копій І по одній (найновішій) за кожен із `keep` останніх днів:
+    копії перед кожним оновленням CRM (їх буває десяток за день) не витісняють щоденні — відкат на позавчора можливий."""
     files = sorted(folder.glob(PREFIX + "*.zip"), key=lambda p: p.stat().st_mtime, reverse=True)
-    for old in files[keep:]:
-        old.unlink(missing_ok=True)
+    stay = set(files[:keep])
+    days: dict = {}
+    for f in files:
+        d = datetime.fromtimestamp(f.stat().st_mtime).date()
+        if d not in days:
+            days[d] = f
+    for d in sorted(days, reverse=True)[:keep]:
+        stay.add(days[d])
+    for old in files:
+        if old not in stay:
+            old.unlink(missing_ok=True)
 
 
 MIN_FREE_AFTER = 2 * 1024 ** 3        # після копіювання файлів на диску має лишатися ≥ 2 ГБ
