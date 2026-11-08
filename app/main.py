@@ -8469,17 +8469,19 @@ def reports_page(request: Request, r: str = "revenue", period: str = "month", df
         _y = _y if _y in _ys else (_ys[-1] if _ys else date.today().year)
         try:
             _r = _pm2.build(db, _y)
+            if fmt == "xlsx":
+                audit(db, "reports.export", user=user, report="pnlm", year=_y)
+                return Response(_pm2.to_xlsx(_r), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                headers={"Content-Disposition": f'attachment; filename="pnl-monthly-{_y}.xlsx"'})
+            resp = render(request, "rep_pnl_monthly.html", nav="reports", REPORTS=rp.REPORTS, key="pnlm", r=_r, years=_ys, today=date.today())
+            resp.body  # noqa: B018 — шаблон рендериться тут, щоб помилку шаблону теж перехопити
+            return resp
         except Exception as e:  # noqa: BLE001 — показати власнику, де саме впав розрахунок, замість порожньої 500
             import traceback
-            log.exception("pnlm build failed")
+            log.exception("pnlm failed")
             tb = traceback.extract_tb(e.__traceback__)
-            where = " ← ".join(f"{fr.name} ({fr.filename.rsplit('/', 1)[-1]}:{fr.lineno})" for fr in tb[-4:][::-1])
+            where = " ← ".join(f"{fr.name} ({fr.filename.rsplit('/', 1)[-1]}:{fr.lineno})" for fr in tb[-5:][::-1])
             return render(request, "reports_hub.html", nav="reports", blocks=[], error_box=f"P&L по місяцях за {_y}: {type(e).__name__}: {str(e)[:300]} · {where}")
-        if fmt == "xlsx":
-            audit(db, "reports.export", user=user, report="pnlm", year=_y)
-            return Response(_pm2.to_xlsx(_r), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            headers={"Content-Disposition": f'attachment; filename="pnl-monthly-{_y}.xlsx"'})
-        return render(request, "rep_pnl_monthly.html", nav="reports", REPORTS=rp.REPORTS, key="pnlm", r=_r, years=_ys, today=date.today())
     if key == "payroll_share":
         from .services import payroll_share as _ps
         _ys = _ps.years(db)
