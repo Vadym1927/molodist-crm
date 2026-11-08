@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Отримано грошей від пацієнтів · Звіти{% endblock %}
+{% block body %}
+{% macro u(v) %}{{ (('{:,.0f}').format(v or 0)).replace(',', ' ') }}{% endmacro %}
+{% macro u2(v) %}{{ (('{:,.2f}').format(v or 0)).replace(',', ' ').replace('.', ',') }}{% endmacro %}
+{% macro pc(v) %}{{ ('%g'|format(v)).replace('.', ',') }}%{% endmacro %}
+<style>
+.rp-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 16px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.rp-tabs a{padding:8px 14px;border-radius:10px;text-decoration:none;color:#3a342f;font-weight:600;font-size:14px}.rp-tabs a:hover{background:var(--card)}.rp-tabs a.on{background:var(--deep);color:#fff}
+.pm-y{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.pm-y a{padding:8px 16px;border-radius:11px;background:#fff;border:1px solid #ECE7E1;text-decoration:none;font:700 14px var(--sans);color:#3B3050}.pm-y a.on{background:#3B3050;color:#fff;border-color:#3B3050}
+.pm-m{display:flex;gap:5px;flex-wrap:wrap;margin:10px 0 16px}.pm-m a{padding:6px 12px;border-radius:99px;border:1px solid var(--line);background:var(--card);text-decoration:none;font-size:13px;font-weight:600;color:var(--ink)}.pm-m a.on{background:var(--lavender);border-color:var(--lavender-2);color:var(--classic)}
+.pm-k{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.pm-k div{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:16px 18px}
+.pm-k small{display:block;font:700 10.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#8a8496}.pm-k b{display:block;font:800 24px var(--sans);color:#2A2430;margin:6px 0 2px}.pm-k span.s{font-size:12.5px;color:#6b6575}
+.pm-k div.g{background:linear-gradient(135deg,#2A2430,#3B3050)}.pm-k div.g small{color:#C9BFE6}.pm-k div.g b{color:#fff}.pm-k div.g span.s{color:#E4DEEF}
+.pm-2{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:14px;margin-bottom:14px}
+.pm-c{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:16px 18px}.pm-c h3{margin:0 0 10px;font:700 16px var(--sans);text-transform:none;letter-spacing:0;color:#2A2430}
+.pm-ch{display:flex;gap:6px;align-items:flex-end;height:150px;padding:6px 2px 0;border-bottom:1px solid #ECE7E1}.pm-ch .m{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0}
+.pm-ch i{display:block;width:70%;max-width:34px;border-radius:6px 6px 2px 2px;background:#C9BFE6;min-height:2px}.pm-ch .m.cur i{background:#3B3050}
+.pm-x{display:flex;gap:6px;padding:6px 2px 0}.pm-x span{flex:1;text-align:center;font-size:11px;font-weight:600;color:#8a8496;white-space:nowrap;overflow:hidden}
+.abc{display:grid;gap:10px}.abc .r{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:10px;align-items:center;font-size:13.5px}
+.abc .tag{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font:800 15px var(--sans);color:#fff}.abc .A{background:#3B3050}.abc .B{background:#8a7bb0}.abc .C{background:#C9BFE6;color:#3B3050}
+.abc .bar{height:8px;border-radius:99px;background:#F1EDE8;overflow:hidden;margin-top:4px}.abc .bar i{display:block;height:100%;background:linear-gradient(90deg,#3B3050,#C9BFE6)}
+.pm-w{overflow:auto;background:#fff;border:1px solid #ECE7E1;border-radius:20px;margin-bottom:14px}
+.pm-t{border-collapse:separate;border-spacing:0;font-size:13px;width:100%;min-width:900px}
+.pm-t th{position:sticky;top:0;z-index:2;background:#F3EFF9;font:700 11px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:#5d5869;padding:9px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid #ECE7E1}
+.pm-t th.l,.pm-t td.l{text-align:left}.pm-t td{padding:8px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid #F6F3EF}
+.pm-t tr:hover td{background:#FBFAFE}.pm-t td.rk{color:#8a8496;width:44px}
+.pm-t .sh{display:inline-block;width:120px;height:7px;border-radius:99px;background:#F1EDE8;vertical-align:middle;margin-left:8px;overflow:hidden}.pm-t .sh i{display:block;height:100%;background:#3B3050;border-radius:99px}
+.pm-t .ab{display:inline-block;width:22px;height:22px;border-radius:7px;font:800 12px var(--sans);text-align:center;line-height:22px;color:#fff}.pm-t .ab.A{background:#3B3050}.pm-t .ab.B{background:#8a7bb0}.pm-t .ab.C{background:#E4DEEF;color:#3B3050}
+.pm-t tr.tot td{font-weight:800;background:#F3EFF9;border-top:1px solid #E4DEEF}
+.pm-t tr.more{display:none}.pm-t.all tr.more{display:table-row}
+.pm-srch{display:flex;gap:8px;align-items:center}.pm-srch input{height:38px;min-width:240px}
+.muted2{color:#8a8496}.neg{color:#B23B2E}
+.pm-note{font-size:12.5px;color:#6b6575;background:#F7F4F0;border-radius:12px;padding:10px 14px;line-height:1.5;margin-bottom:14px}
+@media(max-width:1000px){.pm-k{grid-template-columns:1fr 1fr}.pm-2{grid-template-columns:1fr}}
+</style>
+{% set base = '?r=patient_money' ~ ('&year=' ~ r.year if r.year else '&year=0') %}
+<div class="row between" style="align-items:flex-end;flex-wrap:wrap;gap:10px">
+  <div><div class="eyebrow"><a href="/reports" style="color:inherit;text-decoration:none">← Усі звіти · Фінанси</a></div><h1>Отримано грошей від пацієнтів</h1>
+    <div class="muted small">Скільки грошей приніс кожен пацієнт за період і його частка від загальної суми. Гроші від пацієнтів з журналу фіноперацій (CleverBox з 2022 + каса CRM), без бонусів / сертифікатів / балансу, повернення віднімаються.</div></div>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <div class="pm-y"><a href="?r=patient_money&year=0" class="{{ 'on' if not r.year }}">Весь час</a>{% for y in years %}<a href="?r=patient_money&year={{ y }}" class="{{ 'on' if y == r.year }}">{{ y }}</a>{% endfor %}</div>
+    <a class="btn ghost" href="{{ base }}{{ '&month=' ~ r.month if r.month }}&fmt=xlsx">⬇ Excel</a></div>
+</div>
+<nav class="rp-tabs">{% for k, v in REPORTS.items() if k != 'cash' %}<a href="?r={{ k }}" class="{{ 'on' if key==k }}">{{ v }}</a>{% endfor %}</nav>
+{% if r.year %}<div class="pm-m"><a href="{{ base }}" class="{{ 'on' if not r.month }}">Увесь рік</a>{% for m in range(1, 13) %}{% if r.year < today.year or m <= today.month %}<a href="{{ base }}&month={{ m }}" class="{{ 'on' if m == r.month }}">{{ MONTHS[m - 1] }}</a>{% endif %}{% endfor %}</div>{% endif %}
+
+{% if not r.patients %}<div class="card muted">За {{ r.label }} надходжень від пацієнтів немає.</div>{% else %}
+<div class="pm-k">
+  <div class="g"><small>Отримано від пацієнтів</small><b>{{ u(r.total) }} ₴</b><span class="s">{{ r.label }}{% if r.refunds %} · повернень −{{ u(r.refunds) }} ₴{% endif %}</span></div>
+  <div><small>Пацієнтів платили</small><b>{{ r.patients }}</b><span class="s">з них A-сегмент (80% грошей): {{ r.abc.A.n }}</span></div>
+  <div><small>Середній внесок</small><b>{{ u(r.avg) }} ₴</b><span class="s">медіана {{ u(r.median) }} ₴</span></div>
+  <div><small>Топ-10 пацієнтів</small><b>{{ pc(r.top10_pct) }}</b><span class="s">{{ u(r.top10) }} ₴ від усієї суми</span></div>
+  <div><small>Не від пацієнтів</small><b>{{ u(r.skipped.not_patient) }} ₴</b><span class="s">внесення, постачальники, без імені — не в звіті</span></div>
+</div>
+
+<div class="pm-2">
+  <div class="pm-c"><h3>По місяцях · {{ r.label }}</h3>
+    {% if r.months|length > 1 %}<div class="pm-ch">{% for m, v in r.months %}<div class="m {{ 'cur' if m == today.strftime('%Y-%m') }}" title="{{ m }} · {{ u(v) }} ₴"><i style="height:{{ (100 * v / r.months_max)|round(1) }}%"></i></div>{% endfor %}</div>
+    <div class="pm-x">{% for m, v in r.months %}<span>{{ MONTHS[(m[5:]|int) - 1] }}{% if not r.year %} {{ m[2:4] }}{% endif %}</span>{% endfor %}</div>
+    {% else %}<div class="muted small">Один місяць — {{ u(r.total) }} ₴</div>{% endif %}</div>
+  <div class="pm-c"><h3>ABC-сегменти</h3><div class="abc">
+    {% for k, t in [('A', 'дають 80% грошей'), ('B', 'наступні 15%'), ('C', 'решта 5%')] %}<div class="r"><span class="tag {{ k }}">{{ k }}</span>
+      <div><b>{{ r.abc[k].n }}</b> <span class="muted2">пацієнт(ів) · {{ t }}</span><div class="bar"><i style="width:{{ (100 * r.abc[k].sum / r.total)|round(1) if r.total else 0 }}%"></i></div></div>
+      <b>{{ u(r.abc[k].sum) }} ₴</b></div>{% endfor %}
+    </div><div class="muted small" style="margin-top:10px">A — ядро: їх варто вести персонально. C — разові або дрібні оплати.</div></div>
+</div>
+
+<div class="row between" style="margin-bottom:8px;flex-wrap:wrap;gap:8px">
+  <form class="pm-srch"><input type="hidden" name="r" value="patient_money"><input type="hidden" name="year" value="{{ r.year or 0 }}">{% if r.month %}<input type="hidden" name="month" value="{{ r.month }}">{% endif %}
+    <input name="q" value="{{ r.q }}" placeholder="Знайти пацієнта"><button class="btn ghost" type="submit">Знайти</button>{% if r.q %}<a class="btn ghost" href="{{ base }}{{ '&month=' ~ r.month if r.month }}">Скинути</a>{% endif %}</form>
+  <span class="muted small">{% if r.q %}Знайдено {{ r.rows|length }} з {{ r.all_n }}{% else %}Показано {{ [r.rows|length, 200]|min }} з {{ r.all_n }}{% endif %}</span>
+</div>
+<div class="pm-w"><table class="pm-t" id="pmt">
+  <tr><th>#</th><th class="l">Пацієнт</th><th>Отримано</th><th class="l">Частка</th><th>Накопичено</th><th>ABC</th><th>Оплат</th><th>Середня</th><th>Перша</th><th>Остання</th></tr>
+  {% for x in r.rows %}<tr class="{{ 'more' if loop.index > 200 and not r.q }}">
+    <td class="rk">{{ x.rank }}</td>
+    <td class="l">{% if x.pid %}<a href="/patients/{{ x.pid }}"><b>{{ x.name }}</b></a>{% else %}<b>{{ x.name }}</b> <span class="muted2" title="пацієнта з таким ПІБ у базі не знайдено">?</span>{% endif %}{% if x.refund %} <span class="neg small" title="повернення">−{{ u(x.refund) }}</span>{% endif %}</td>
+    <td><b>{{ u2(x.sum) }}</b></td>
+    <td class="l"><b>{{ pc(x.pct) }}</b><span class="sh"><i style="width:{{ [100, 100 * x.pct / (r.rows[0].pct or 1)]|min|round(1) }}%"></i></span></td>
+    <td class="muted2">{{ pc(x.cum_pct) }}</td><td><span class="ab {{ x.abc }}">{{ x.abc }}</span></td>
+    <td>{{ x.n }}</td><td>{{ u(x.avg) }}</td>
+    <td class="muted2">{{ x.first.strftime('%d.%m.%y') if x.first else '—' }}</td><td class="muted2">{{ x.last.strftime('%d.%m.%y') if x.last else '—' }}</td>
+  </tr>{% endfor %}
+  {% if r.rows|length > 200 and not r.q %}<tr id="pm-more"><td colspan="10" style="text-align:center;padding:12px"><a href="#" onclick="document.getElementById('pmt').classList.add('all');this.closest('tr').style.display='none';return false">Показати всіх {{ r.all_n }} →</a></td></tr>{% endif %}
+  <tr class="tot"><td></td><td class="l">Разом · {{ r.patients }} пацієнтів</td><td>{{ u2(r.total) }}</td><td class="l">100%</td><td colspan="6"></td></tr>
+</table></div>
+<div class="pm-note">Гроші = оплати грошима (готівка, термінал, рахунок ФОП, посилання на оплату). Бонуси, сертифікати й списання з балансу не рахуються — вони вже були оплачені раніше. Знак «?» — у CleverBox оплата записана на ПІБ, якого немає серед пацієнтів CRM. Не від пацієнтів за період: внесення в касу й інші надходження без пацієнта — {{ u(r.skipped.not_patient) }} ₴{% if r.skipped.excluded %}, статті «не в дохід» — {{ u(r.skipped.excluded) }} ₴{% endif %}.</div>
+{% endif %}
+{% endblock %}
