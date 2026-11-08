@@ -8542,6 +8542,30 @@ def reports_page(request: Request, r: str = "revenue", period: str = "month", df
                   c_max=max([v for _, v in rep.chart] + [1]))
 
 
+@app.post("/reports/pnlm/plan")
+async def pnlm_plan_save(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import pnl_monthly as _pm2
+    f = await request.form()
+    try:
+        year = int(f.get("year") or date.today().year)
+    except ValueError:
+        year = date.today().year
+    vals = {}
+    for m in range(1, 13):
+        row = {}
+        for fld in _pm2.PLAN_FIELDS:
+            v = str(f.get(f"{fld}_{m}") or "").replace(" ", "").replace(",", ".")
+            if v:
+                try:
+                    row[fld] = float(v)
+                except ValueError:
+                    pass
+        vals[f"{year}-{m:02d}"] = row
+    _pm2.plan_save(db, year, vals)
+    audit(db, "reports.pnlm_plan", user=user, year=year)
+    return RedirectResponse(f"/reports?r=pnlm&year={year}", 303)
+
+
 # ---------------- Звіт Deye (лише власник) ----------------
 def _owner(user: User = Depends(current_user)) -> User:
     if user.role != "owner":

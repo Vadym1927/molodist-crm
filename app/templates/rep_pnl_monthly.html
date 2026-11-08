@@ -11,7 +11,7 @@
 .rp-tabs a{padding:8px 14px;border-radius:10px;text-decoration:none;color:#3a342f;font-weight:600;font-size:14px}.rp-tabs a:hover{background:var(--card)}.rp-tabs a.on{background:var(--deep);color:#fff}
 .pm-y{display:flex;gap:6px;flex-wrap:wrap}.pm-y a{padding:8px 16px;border-radius:11px;background:#fff;border:1px solid #ECE7E1;text-decoration:none;font:700 14px var(--sans);color:#3B3050}.pm-y a.on{background:#3B3050;color:#fff;border-color:#3B3050}
 .pos{color:#2f6b3b;font-weight:700}.neg{color:#B23B2E;font-weight:700}.ok{color:#2f6b3b;font-weight:700}.bad{color:#B23B2E;font-weight:700}.muted2{color:#8a8496}
-.plk{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.plk{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:12px;margin-bottom:14px}
 .plk div{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:14px 16px}
 .plk small{display:block;font:700 10.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#8a8496}.plk b{display:block;font:800 22px var(--sans);color:#2A2430;margin:6px 0 2px}.plk span.s{font-size:12px;color:#6b6575}
 .plk div.g{background:linear-gradient(135deg,#2A2430,#3B3050)}.plk div.g small{color:#C9BFE6}.plk div.g b{color:#fff}.plk div.g span.s{color:#E4DEEF}
@@ -45,7 +45,7 @@
 .plt td .yy{display:block;font-size:10.5px;font-weight:600;margin-top:1px}
 .pl-note{font-size:12.5px;color:#6b6575;background:#F7F4F0;border-radius:12px;padding:10px 14px;line-height:1.5;margin-bottom:14px}
 .warn{color:#8a5b00;background:#FFF1D6;border-radius:8px;padding:2px 8px;font-weight:700;font-size:12px}
-@media(max-width:1100px){.plk{grid-template-columns:1fr 1fr 1fr}.pl2{grid-template-columns:1fr}}
+@media(max-width:1300px){.plk{grid-template-columns:repeat(4,1fr)}}@media(max-width:1100px){.plk{grid-template-columns:1fr 1fr 1fr}.pl2{grid-template-columns:1fr}}
 </style>
 <div class="row between" style="align-items:flex-end;flex-wrap:wrap;gap:10px">
   <div><div class="eyebrow"><a href="/reports" style="color:inherit;text-decoration:none">← Усі звіти · Фінанси</a></div><h1>P&L по місяцях · {{ r.year }}</h1>
@@ -63,6 +63,7 @@
   <div><small>OPEX</small><b>{{ u(t.opex) }} ₴</b><span class="s">{{ tgt(t.opex_pct, T.opex_pct, false) }} від доходу (ціль ≤ {{ T.opex_pct }}%)</span></div>
   <div><small>Операційний прибуток</small><b>{{ s(t.op) }} ₴</b><span class="s">{{ pc(t.op_pct) }} · капвитрати {{ u(t.capex) }} · разові {{ u(t.oneoff) }}</span></div>
   <div class="g"><small>Чистий прибуток</small><b>{{ '+' if t.net > 0 }}{{ s(t.net) }} ₴</b><span class="s">рентабельність {{ pc(t.net_pct) }} (ціль ≥ {{ T.net_pct }}%){% if r.pt and r.pt.net %} · до {{ r.year - 1 }}: {{ yoy(r.pt.yoy_net) }}{% endif %}</span></div>
+  <div><small>Грошовий результат</small><b>{{ s(t.cash_result) }} ₴</b><span class="s">чистий − кредити {{ u(t.finance) }} − вилучення {{ u(t.owner) }}{% if t.owner_pay %} · до ЗП власника {{ s(t.net_before_owner) }}{% endif %}</span></div>
   <div><small>Місяці</small><b>{{ r.pos }} <span style="font-size:13px;color:#8a8496">у плюсі</span> · {{ r.neg }} <span style="font-size:13px;color:#8a8496">у мінусі</span></b><span class="s">{% if r.best %}найкращий — {{ r.best.full|lower }} ({{ s(r.best.net) }}){% endif %}{% if r.worst and r.worst != r.best %}, найгірший — {{ r.worst.full|lower }} ({{ s(r.worst.net) }}){% endif %}</span></div>
 </div>
 
@@ -96,10 +97,10 @@
   <tr><th>Показник</th>{% for x in r.rows %}<th>{{ x.label }}</th>{% endfor %}<th>Разом</th><th>Сер. / міс</th></tr>
   <tr class="h"><td>Дохід (Revenue)</td><td colspan="{{ W }}"></td></tr>
   <tr class="tot"><td>Дохід</td>{{ cells('rev', yoykey='yoy_rev') }}</tr>
+  {% if t.plan.rev %}<tr class="pct"><td>план доходу · виконання</td>{% for x in r.rows %}<td class="{{ 'cur' if x.current }}">{% if x.plan.rev %}{{ u(x.plan.rev) }}<span class="yy">{{ yoy(x.plan_rev_pct) }}</span>{% else %}·{% endif %}</td>{% endfor %}<td>{{ u(t.plan.rev) }}<span class="yy">{{ yoy(t.plan_rev_pct) }}</span></td><td></td></tr>{% endif %}
   <tr class="sub grp" {{ togg() }}><td>Послуги загалом</td>{{ cells('rev_s') }}</tr>
   {% for c in r.cats %}<tr class="sub2 ln"><td>{{ c }}</td>{{ cells('rev_cat', c) }}</tr>{% endfor %}
   <tr class="sub"><td>Косметика</td>{{ cells('rev_p') }}</tr>
-  <tr class="sub"><td>Сертифікати / абонементи / інше</td>{{ cells('rev_o') }}</tr>
 
   <tr class="h"><td>Собівартість (Cost of Services)</td><td colspan="{{ W }}"></td></tr>
   <tr class="tot"><td>Собівартість разом</td>{{ cells('cogs') }}</tr>
@@ -108,8 +109,9 @@
   <tr class="sub grp" {{ togg() }}><td>1. Витратні матеріали з амортизацією</td>{{ cells('mat') }}</tr>
   {% for c in r.cats %}<tr class="sub2 ln"><td>{{ c }}</td>{{ cells('cogs_cat', c) }}</tr>{% endfor %}
   <tr class="sub2 ln"><td>амортизація апаратів (нарахування)</td>{{ cells('amort') }}</tr>
-  <tr class="sub grp" {{ togg() }}><td>2. Оплата роботи лікарів</td>{{ cells('labor') }}</tr>
+  <tr class="sub grp" {{ togg() }}><td>2. Оплата роботи лікарів <span class="muted2">(з податками на ЗП)</span></td>{{ cells('labor') }}</tr>
   {% for d in r.docs %}<tr class="sub2 ln"><td>{{ d }}</td>{{ cells('labor_doc', d) }}</tr>{% endfor %}
+  <tr class="sub2 ln"><td>податки з ЗП лікарів (ЄСВ, ПДФО, ВЗ — пропорційно)</td>{{ cells('labor_tax') }}</tr>
   <tr class="sub"><td>4. Косметика (закупівельна вартість)</td>{{ cells('cogs_p') }}</tr>
   <tr class="sub"><td>5. Відсоток по косметиці <span class="muted2">(довідково — уже у виплатах лікарям)</span></td>{{ cells('cosm_pct') }}</tr>
 
@@ -120,6 +122,7 @@
   <tr class="h"><td>Операційні витрати (OPEX)</td><td colspan="{{ W }}"></td></tr>
   <tr class="tot"><td>OPEX разом</td>{{ cells('opex') }}</tr>
   <tr class="pct"><td>OPEX / дохід (ціль ≤ {{ T.opex_pct }}%)</td>{{ cells('opex_pct', pct=True) }}</tr>
+  {% if t.plan.opex %}<tr class="pct"><td>план OPEX</td>{% for x in r.rows %}<td class="{{ 'cur' if x.current }}">{% if x.plan.opex %}{{ u(x.plan.opex) }}<span class="yy {{ 'neg' if x.opex > x.plan.opex else 'pos' }}">{{ '+' if x.opex > x.plan.opex }}{{ u(x.opex - x.plan.opex) }}</span>{% else %}·{% endif %}</td>{% endfor %}<td>{{ u(t.plan.opex) }}</td><td></td></tr>{% endif %}
   {% for k, title in r.OPEX %}{% if t.opex_g[k] %}
   <tr class="sub grp" {{ togg() }}><td>{{ title }}</td>{{ cells('opex_g', k) }}</tr>
   {% for a, mv, tot_ in r.opex_art.get(k) or [] %}<tr class="sub2 ln"><td>{{ a }}</td>{% for x in r.rows %}{% set v = mv.get(x.m, 0) %}<td class="{{ 'cur' if x.current }}{{ ' z' if not v }}">{{ s(v) if v else '·' }}</td>{% endfor %}<td>{{ s(tot_) }}</td><td></td></tr>{% endfor %}
@@ -136,6 +139,17 @@
 
   <tr class="res"><td>Чистий прибуток (Net Profit)</td>{{ cells('net', yoykey='yoy_net') }}</tr>
   <tr class="pct"><td>рентабельність бізнесу (ціль ≥ {{ T.net_pct }}%)</td>{{ cells('net_pct', pct=True) }}</tr>
+  {% if t.plan_net_diff is not none %}<tr class="pct"><td>план чистого прибутку · відхилення</td>{% for x in r.rows %}<td class="{{ 'cur' if x.current }}">{% if x.plan.net is defined and x.plan.net is not none %}{{ s(x.plan.net) }}<span class="yy {{ 'pos' if x.plan_net_diff >= 0 else 'neg' }}">{{ '+' if x.plan_net_diff > 0 }}{{ u(x.plan_net_diff) }}</span>{% else %}·{% endif %}</td>{% endfor %}<td>{{ s(t.plan.net) }}<span class="yy {{ 'pos' if t.plan_net_diff >= 0 else 'neg' }}">{{ '+' if t.plan_net_diff > 0 }}{{ u(t.plan_net_diff) }}</span></td><td></td></tr>{% endif %}
+  {% if t.owner_pay %}<tr class="sub"><td>у т.ч. зарплата керівника / власника (в OPEX)</td>{{ cells('owner_pay') }}</tr>
+  <tr class="sub"><td><b>Прибуток до зарплати власника</b></td>{{ cells('net_before_owner') }}</tr>
+  <tr class="pct"><td>рентабельність до ЗП власника</td>{{ cells('nbo_pct', pct=True) }}</tr>{% endif %}
+
+  <tr class="h"><td>Cashflow · поза P&L</td><td colspan="{{ W }}"></td></tr>
+  <tr class="sub grp" {{ togg() }}><td>Погашення кредитів і розтермінувань <span class="muted2">(повернення боргу, не витрата)</span></td>{{ cells('finance') }}</tr>
+  {% for a, mv, tot_ in r.finance_art %}<tr class="sub2 ln"><td>{{ a }}</td>{% for x in r.rows %}{% set v = mv.get(x.m, 0) %}<td class="{{ 'cur' if x.current }}{{ ' z' if not v }}">{{ s(v) if v else '·' }}</td>{% endfor %}<td>{{ s(tot_) }}</td><td></td></tr>{% endfor %}
+  <tr class="sub"><td>Вилучення власника / дивіденди</td>{{ cells('owner') }}</tr>
+  <tr class="tot"><td>Грошовий результат <span class="muted2">(чистий − кредити − вилучення)</span></td>{{ cells('cash_result') }}</tr>
+  <tr class="sub"><td>Передоплати: сертифікати, абонементи, поповнення балансу <span class="muted2">(дохід — коли використані)</span></td>{{ cells('prepaid') }}</tr>
 
   <tr class="h"><td>KPI</td><td colspan="{{ W }}"></td></tr>
   <tr class="sub"><td>Нові пацієнти</td>{{ cells('k_new') }}</tr>
@@ -151,14 +165,19 @@
   <tr class="sub"><td>Точка беззбитковості (OPEX / валова маржа)</td>{{ cells('k_breakeven') }}</tr>
 
   <tr class="h"><td>Довідково · поза прибутком</td><td colspan="{{ W }}"></td></tr>
-  <tr class="sub"><td>Вилучення власника / дивіденди</td>{{ cells('owner') }}</tr>
   <tr class="sub"><td>Закупівлі касові <span class="muted2">(у прибутку — через собівартість)</span></td>{{ cells('purchase') }}</tr>
   <tr class="sub"><td>Оплати не грошима (бонуси, сертифікати, баланс)</td>{{ cells('non_money') }}</tr>
   {% if r.prev %}<tr class="sub"><td>Дохід {{ r.year - 1 }}</td>{% for x in r.rows %}<td>{{ s(x.prev.rev) if x.prev else '—' }}</td>{% endfor %}<td>{{ s(r.pt.full_rev) }}</td><td></td></tr>
   <tr class="sub"><td>Чистий прибуток {{ r.year - 1 }}</td>{% for x in r.rows %}<td>{{ s(x.prev.net) if x.prev else '—' }}</td>{% endfor %}<td>{{ s(r.pt.full_net) }}</td><td></td></tr>{% endif %}
 </table></div>
+<details class="plc" style="margin-bottom:14px;padding:12px 18px"><summary style="cursor:pointer;font:700 15px var(--sans)">📋 План на {{ r.year }} — дохід, OPEX, чистий прибуток по місяцях</summary>
+  <form method="post" action="/reports/pnlm/plan" style="margin-top:10px;overflow:auto"><input type="hidden" name="year" value="{{ r.year }}">
+    <table style="border-collapse:collapse;font-size:13px"><tr><th style="text-align:left;padding:4px 8px"></th>{% for m in range(1, 13) %}<th style="padding:4px 6px;font:700 11px var(--sans);color:#8a8496">{{ r.MONTHS[m - 1] }}</th>{% endfor %}</tr>
+    {% for f, title in [('rev', 'Дохід'), ('opex', 'OPEX'), ('net', 'Чистий прибуток')] %}<tr><td style="padding:4px 8px;white-space:nowrap">{{ title }}</td>{% for m in range(1, 13) %}{% set mk = '%d-%02d'|format(r.year, m) %}<td style="padding:3px"><input name="{{ f }}_{{ m }}" value="{{ (r.plan.get(mk) or {}).get(f, '')|int if (r.plan.get(mk) or {}).get(f) is not none else '' }}" style="width:84px;height:32px;text-align:right;padding:0 6px" inputmode="numeric"></td>{% endfor %}</tr>{% endfor %}</table>
+    <div class="row" style="gap:10px;margin-top:10px;align-items:center"><button class="btn">Зберегти план</button><span class="muted small">Порожнє поле — без плану на місяць. План порівнюється з фактом у рядках «план доходу», «план OPEX», «план чистого прибутку».</span></div></form>
+</details>
 <div class="pl-note">
-  <b>Як рахується.</b> Дохід — послуги (за категорією послуги з прайсу), косметика й інше за чеками CleverBox + каси CRM. Матеріали — техкарти / норми списання (каса CRM — фактичні списання візиту) за напрямками + нарахування амортизації апаратів з модуля «Амортизація». Оплата роботи лікарів — виплати ЗП лікарям за журналом (CRM — за співробітником, CleverBox — за контрагентом); зарплата адміністраторів, бухгалтерії, керівника — в OPEX «Зарплата». Відсоток по косметиці — нараховано за правилами (довідково, бо вже входить у виплати лікарям). OPEX — грошові витрати журналу, розкладені за групами по назві статті; клік по групі — статті. Закупівлі товарів у витрати не йдуть (вони в собівартості проданого), капвитрати й разові — після операційного прибутку, вилучення власника — поза прибутком.
+  <b>Як рахується.</b> Дохід — послуги (за категорією послуги з прайсу), косметика й інше за чеками CleverBox + каси CRM. Матеріали — техкарти / норми списання (каса CRM — фактичні списання візиту) за напрямками + нарахування амортизації апаратів з модуля «Амортизація». Оплата роботи лікарів — виплати ЗП лікарям за журналом (CRM — за співробітником, CleverBox — за контрагентом) плюс частка податків із ЗП (ЄСВ, ПДФО, ВЗ розподіляються між лікарями й адміністраторами пропорційно виплатам); зарплата адміністраторів, бухгалтерії, керівника з їхньою часткою податків — в OPEX «Зарплата». Погашення кредитів і розтермінувань — повернення боргу, не витрата: воно у блоці Cashflow, а не в прибутку. Сертифікати, абонементи й поповнення балансу — передоплата: в дохід потрапляють, коли пацієнт ними оплатив послугу. Відсоток по косметиці — нараховано за правилами (довідково, бо вже входить у виплати лікарям). OPEX — грошові витрати журналу, розкладені за групами по назві статті; клік по групі — статті. Закупівлі товарів у витрати не йдуть (вони в собівартості проданого), капвитрати й разові — після операційного прибутку, вилучення власника — поза прибутком.
   {% if r.cov.cogs_months < r.cov.n %}<br><span class="warn">Матеріали є лише за {{ r.cov.cogs_months }} з {{ r.cov.n }} місяців</span> — для решти техкарти / закупівельні ціни відсутні, собівартість там занижена.{% endif %}
   {% if r.cov.journal_months %}<br>За {{ r.cov.journal_months }} міс. чеків у CRM немає — дохід узято з надходжень журналу, без поділу за напрямками й без KPI.{% endif %}
   {% if r.cov.rev_vs_journal|abs > 1000 %}<br>Дохід за чеками відрізняється від грошових надходжень у журналі на {{ s(r.cov.rev_vs_journal) }} ₴ (передоплати, депозити, різниця дат оплати й візиту).{% endif %}

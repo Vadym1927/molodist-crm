@@ -41,7 +41,11 @@ OPEX_GROUPS = [
     ("tax", "Податки", r"податк|єсв|єдиний|пдфо|військов|\bвз\b|\bєп\b"),
     ("staff", "Витрати на персонал", r"корпоратив|день народж|\bдр\b|подарун|тімбілд|персонал (інше|др|копоратив)"),
 ]
-CAPEX_RE = re.compile(r"капітальн|обладнан|ремонт|меблі|техніка|зобов|розтермін|кредит|лізинг|амортизац", re.I)
+CAPEX_RE = re.compile(r"капітальн|обладнан|ремонт|меблі|техніка|амортизац", re.I)
+FINANCE_RE = re.compile(r"зобов|розтермін|кредит|лізинг|позик|тіло кредит", re.I)           # погашення боргів — cashflow, не P&L
+PAYROLL_TAX_RE = re.compile(r"(єсв|пдфо|військов|\bвз\b).*(на зп|на з/п|зарплат|з/п)|(на зп|на з/п).*(єсв|пдфо|вз)", re.I)
+DEPOSIT_RE = re.compile(r"баланс|депозит|внесенн|передоплат|сертиф|абонем|подарунк", re.I)
+OWNER_PAY_RE = re.compile(r"керівник|власник|директор|засновник", re.I)
 ONEOFF_RE = re.compile(r"навчанн|курс|семінар|конференц|зсу|допомог|благодійн|волонтер|разов", re.I)
 OWNER_RE = re.compile(r"дивіденд|девіденд|власник|вилученн|особист", re.I)
 PURCHASE_RE = re.compile(r"закуп|постач|товар|препарат|розхідн|матеріал|косметик|накладн", re.I)
@@ -55,12 +59,16 @@ def classify(article: str, is_sal: bool, role: str | None) -> tuple[str, str]:
     a = article or ""
     if OWNER_RE.search(a):
         return "owner", "owner"
+    if PAYROLL_TAX_RE.search(a):
+        return "payroll_tax", "payroll_tax"
     if _STAFF_RX.search(a):
         return "opex", "staff"
     if is_sal:
         return ("cogs_labor", "doctor") if role == "doctor" else ("opex", "salary")
     if ONEOFF_RE.search(a):
         return "oneoff", "oneoff"
+    if FINANCE_RE.search(a):
+        return "finance", "finance"
     if CAPEX_RE.search(a):
         return "capex", "capex"
     if PURCHASE_RE.search(a):
@@ -73,6 +81,10 @@ def classify(article: str, is_sal: bool, role: str | None) -> tuple[str, str]:
 
 def _m(d: date | datetime) -> str:
     return d.strftime("%Y-%m")
+
+
+def _key(n: str) -> str:
+    return " ".join(sorted((n or "").lower().replace("ʼ", "'").split()[:2]))
 
 
 def _pct(a: float, b: float):
@@ -173,15 +185,22 @@ def _collect(db: Session, year: int) -> dict:
     opex["other"] = z()
     opex_art: dict[str, dict[str, dict]] = defaultdict(lambda: defaultdict(z))     # група → стаття → місяці
     capex, oneoff, owner, purchase, non_money, j_income = z(), z(), z(), z(), z(), z()
+    finance, payroll_tax, owner_pay, deposits_j = z(), z(), z(), z()
     capex_art: dict[str, dict] = defaultdict(z)
     oneoff_art: dict[str, dict] = defaultdict(z)
+    finance_art: dict[str, dict] = defaultdict(z)
+    from ..models import User
+    owner_names = {(_key(u.name)) for u in db.scalars(select(User).where(User.role == "owner")) if u.name}
     for r in fo.journal(db, d_from, d_to):
         mk = _m(r.at)
         if mk not in labor or r.kind == "transfer":
             continue
         if r.kind == "income":
             if r.money and (r.article or "").strip().lower() not in ex:
-                j_income[mk] += r.amount
+                if DEPOSIT_RE.search(r.article or ""):
+                    deposits_j[mk] += r.amount                 # поповнення балансу / сертифікати — передоплата, не дохід
+                else:
+                    j_income[mk] += r.amount
             elif not r.money:
                 non_money[mk] += r.amount
             continue
@@ -201,6 +220,8 @@ def _collect(db: Session, year: int) -> dict:
             role = role_of(dmap[did]) if did and did in dmap else "admin"
             if role == "doctor":
                 labor_doc[dmap[did].name][mk] += amt
+            elif OWNER_PAY_RE.search(r.article or "") or (r.who and _key(r.who) in owner_names):
+                owner_pay[mk] += amt
         block, grp = classify(r.article, is_sal, role)
         if block == "cogs_labor":
             labor[mk] += amt
@@ -217,6 +238,11 @@ def _collect(db: Session, year: int) -> dict:
             owner[mk] += amt
         elif block == "purchase":
             purchase[mk] += amt
+        elif block == "finance":
+            finance[mk] += amt
+            finance_art[(r.article or "Без статті").strip()][mk] += amt
+        elif block == "payroll_tax":
+            payroll_tax[mk] += amt
     # ---------------- нові пацієнти (перший чек в історії) ----------------
     first = {}
     for pid, d0 in db.execute(select(Check.patient_id, func.min(Check.date)).where(Check.deleted.is_(False), Check.patient_id.is_not(None))
@@ -233,16 +259,23 @@ def _collect(db: Session, year: int) -> dict:
     # ---------------- рядки по місяцях ----------------
     rows = []
     for mk in months:
-        rev = rev_s[mk] + rev_p[mk] + rev_o[mk]
+        rev = rev_s[mk] + rev_p[mk]                      # сертифікати / абонементи / поповнення — передоплата, не дохід (довідково)
         from_journal = False
         if not rev and j_income[mk]:
             rev, from_journal = j_income[mk], True
+        adm_sal = opex["salary"][mk]
+        tot_sal = labor[mk] + adm_sal
+        ptax_doc = payroll_tax[mk] * (labor[mk] / tot_sal) if tot_sal else 0.0      # податки з ЗП — пропорційно ЗП лікарів / адмінів
+        ptax_adm = payroll_tax[mk] - ptax_doc
+        labor_full = labor[mk] + ptax_doc
         mat = cogs_s[mk] + amort[mk]
-        cogs_serv = mat + labor[mk]
+        cogs_serv = mat + labor_full
         cogs = cogs_serv + cogs_p[mk]
         gross = rev - cogs
         gross_s = rev_s[mk] - cogs_serv
-        ox = sum(opex[k][mk] for k in opex)
+        opex_m = {k: opex[k][mk] for k in opex}
+        opex_m["salary"] += ptax_adm
+        ox = sum(opex_m.values())
         op = gross - ox
         net = op - capex[mk] - oneoff[mk]
         n_p, n_v, n_new = len(pats_m[mk]), len(visits_m[mk]), int(new_m[mk])
@@ -252,13 +285,16 @@ def _collect(db: Session, year: int) -> dict:
                      "rev": rev, "rev_s": rev_s[mk], "rev_p": rev_p[mk], "rev_o": rev_o[mk],
                      "rev_cat": {c_: v[mk] for c_, v in rev_cat.items()},
                      "mat": mat, "cogs_s": cogs_s[mk], "amort": amort[mk], "cogs_cat": {c_: v[mk] for c_, v in cogs_cat.items()},
-                     "labor": labor[mk], "labor_doc": {n: v[mk] for n, v in labor_doc.items()}, "cogs_p": cogs_p[mk], "cosm_pct": cosm_pct[mk],
+                     "labor": labor_full, "labor_pay": labor[mk], "labor_tax": ptax_doc, "adm_tax": ptax_adm, "payroll_tax": payroll_tax[mk],
+                     "labor_doc": {n: v[mk] for n, v in labor_doc.items()}, "cogs_p": cogs_p[mk], "cosm_pct": cosm_pct[mk],
                      "cogs_serv": cogs_serv, "cogs": cogs, "cogs_pct": _pct(cogs, rev),
                      "gross": gross, "gross_s": gross_s, "gross_pct": _pct(gross, rev), "gross_p": rev_p[mk] - cogs_p[mk],
                      "gross_p_pct": _pct(rev_p[mk] - cogs_p[mk], rev_p[mk]),
-                     "opex": ox, "opex_g": {k: opex[k][mk] for k in opex}, "opex_pct": _pct(ox, rev),
+                     "opex": ox, "opex_g": opex_m, "opex_pct": _pct(ox, rev),
                      "op": op, "op_pct": _pct(op, rev), "capex": capex[mk], "oneoff": oneoff[mk], "net": net, "net_pct": _pct(net, rev),
-                     "owner": owner[mk], "purchase": purchase[mk], "non_money": non_money[mk], "j_income": j_income[mk],
+                     "owner_pay": owner_pay[mk], "net_before_owner": net + owner_pay[mk], "finance": finance[mk],
+                     "cash_result": net - finance[mk] - owner[mk],
+                     "prepaid": rev_o[mk] + deposits_j[mk], "owner": owner[mk], "purchase": purchase[mk], "non_money": non_money[mk], "j_income": j_income[mk],
                      "k_new": n_new, "k_pat": n_p, "k_vis": n_v, "k_vpp": round(n_v / n_p, 2) if n_p else None,
                      "k_avg": round(rev_s[mk] / svc_items[mk]) if svc_items[mk] else None, "k_ltv": round(rev / n_p) if n_p else None,
                      "k_mkt_pct": _pct(mkt, rev), "k_cpa": round(mkt / n_new) if n_new else None, "k_mkt_gp": _pct(mkt, gross),
@@ -267,28 +303,67 @@ def _collect(db: Session, year: int) -> dict:
             "cats": sorted(set(rev_cat) | set(cogs_cat), key=lambda c_: -sum(rev_cat[c_].values())),
             "docs": sorted(labor_doc, key=lambda n: -sum(labor_doc[n].values())),
             "opex_art": {g: {a: dict(v) for a, v in arts.items()} for g, arts in opex_art.items()},
-            "capex_art": {a: dict(v) for a, v in capex_art.items()}, "oneoff_art": {a: dict(v) for a, v in oneoff_art.items()}}
+            "capex_art": {a: dict(v) for a, v in capex_art.items()}, "oneoff_art": {a: dict(v) for a, v in oneoff_art.items()},
+            "finance_art": {a: dict(v) for a, v in finance_art.items()}}
 
 
 def _sum(rows: list[dict], key: str, sub: str | None = None) -> float:
     return round(sum(((r[key].get(sub, 0.0) if isinstance(r[key], dict) else r[key][sub]) if sub else r[key]) for r in rows), 2)
 
 
+PLAN_KEY = "pnl_plan"
+PLAN_FIELDS = ("rev", "opex", "net")
+
+
+def plan_get(db: Session, year: int) -> dict:
+    """План по місяцях: {"2026-01": {"rev":…, "opex":…, "net":…}}."""
+    import json
+    from ..models import SyncState
+    st = db.get(SyncState, PLAN_KEY)
+    try:
+        d = json.loads(st.value) if st and st.value else {}
+    except ValueError:
+        d = {}
+    return {k: v for k, v in d.items() if k.startswith(f"{year}-")}
+
+
+def plan_save(db: Session, year: int, values: dict) -> None:
+    """values: {"2026-01": {"rev": 500000, "opex": 150000, "net": 100000}} — порожнє значення прибирає."""
+    import json
+    from ..models import SyncState
+    st = db.get(SyncState, PLAN_KEY) or SyncState(key=PLAN_KEY)
+    try:
+        d = json.loads(st.value) if st.value else {}
+    except ValueError:
+        d = {}
+    for mk, vals in values.items():
+        row = {f: float(v) for f, v in vals.items() if f in PLAN_FIELDS and v not in (None, "")}
+        if row:
+            d[mk] = row
+        else:
+            d.pop(mk, None)
+    st.value, st.updated_at = json.dumps(d), datetime.utcnow()
+    db.merge(st)
+    db.commit()
+
+
 def build(db: Session, year: int) -> dict:
     cur = _collect(db, year)
+    plan = plan_get(db, year)
     prev = _collect(db, year - 1) if year - 1 >= FIRST_YEAR else None
     rows = cur["rows"]
     done = [r for r in rows if r["rev"] or r["opex"] or r["labor"]]
     t: dict = {}
-    for k in ("rev", "rev_s", "rev_p", "rev_o", "mat", "cogs_s", "amort", "labor", "cogs_p", "cosm_pct", "cogs_serv", "cogs", "gross", "gross_s", "gross_p",
-              "opex", "op", "capex", "oneoff", "net", "owner", "purchase", "non_money", "j_income", "k_new", "k_pat", "k_vis"):
+    for k in ("rev", "rev_s", "rev_p", "rev_o", "mat", "cogs_s", "amort", "labor", "labor_pay", "labor_tax", "adm_tax", "payroll_tax", "cogs_p", "cosm_pct",
+              "cogs_serv", "cogs", "gross", "gross_s", "gross_p", "opex", "op", "capex", "oneoff", "net", "owner_pay", "net_before_owner", "finance",
+              "cash_result", "prepaid", "owner", "purchase", "non_money", "j_income", "k_new", "k_pat", "k_vis"):
         t[k] = _sum(rows, k)
     t["opex_g"] = {k: _sum(rows, "opex_g", k) for k in rows[0]["opex_g"]} if rows else {}
     t["rev_cat"] = {c: _sum(rows, "rev_cat", c) for c in cur["cats"]}
     t["cogs_cat"] = {c: _sum(rows, "cogs_cat", c) for c in cur["cats"]}
     t["labor_doc"] = {d: _sum(rows, "labor_doc", d) for d in cur["docs"]}
     for a, b, key in (("cogs", "rev", "cogs_pct"), ("gross", "rev", "gross_pct"), ("gross_p", "rev_p", "gross_p_pct"), ("opex", "rev", "opex_pct"),
-                      ("op", "rev", "op_pct"), ("net", "rev", "net_pct")):
+                      ("op", "rev", "op_pct"), ("net", "rev", "net_pct"), ("net_before_owner", "rev", "nbo_pct")):
         t[key] = _pct(t[a], t[b])
     mkt = t["opex_g"].get("marketing", 0) + t["opex_g"].get("ads", 0)
     t["k_vpp"] = round(t["k_vis"] / t["k_pat"], 2) if t["k_pat"] else None
@@ -302,6 +377,10 @@ def build(db: Session, year: int) -> dict:
     avg = {k: round(t[k] / n, 2) for k in ("rev", "cogs", "gross", "opex", "op", "net", "capex", "oneoff")}
     pm = {r["m"][5:]: r for r in prev["rows"]} if prev else {}
     for r in rows:
+        pl = plan.get(r["m"]) or {}
+        r["plan"] = pl
+        r["plan_rev_pct"] = _pct(r["rev"] - pl["rev"], pl["rev"]) if pl.get("rev") else None
+        r["plan_net_diff"] = round(r["net"] - pl["net"], 2) if pl.get("net") is not None else None
         p = pm.get(r["m"][5:])
         r["prev"] = p
         r["yoy_rev"] = _pct(r["rev"] - p["rev"], p["rev"]) if p and p["rev"] else None
@@ -312,6 +391,9 @@ def build(db: Session, year: int) -> dict:
         pt = {"rev": _sum(same, "rev"), "net": _sum(same, "net"), "full_rev": _sum(prev["rows"], "rev"), "full_net": _sum(prev["rows"], "net")}
         pt["yoy_rev"] = _pct(t["rev"] - pt["rev"], pt["rev"]) if pt["rev"] else None
         pt["yoy_net"] = _pct(t["net"] - pt["net"], abs(pt["net"])) if pt["net"] else None
+    t["plan"] = {f: round(sum(float((plan.get(r["m"]) or {}).get(f) or 0) for r in done), 2) for f in PLAN_FIELDS}
+    t["plan_rev_pct"] = _pct(t["rev"] - t["plan"]["rev"], t["plan"]["rev"]) if t["plan"]["rev"] else None
+    t["plan_net_diff"] = round(t["net"] - t["plan"]["net"], 2) if any((plan.get(r["m"]) or {}).get("net") is not None for r in done) else None
     pos = [r for r in done if r["net"] > 0]
     best = max(done, key=lambda r: r["net"]) if done else None
     worst = min(done, key=lambda r: r["net"]) if done else None
@@ -322,6 +404,7 @@ def build(db: Session, year: int) -> dict:
     return {"year": year, "rows": rows, "t": t, "avg": avg, "prev": prev, "pt": pt, "best": best, "worst": worst, "pos": len(pos),
             "neg": len(done) - len(pos), "cov": cov, "cats": cur["cats"], "docs": cur["docs"],
             "opex_art": {g: _arts(d) for g, d in cur["opex_art"].items()}, "capex_art": _arts(cur["capex_art"]), "oneoff_art": _arts(cur["oneoff_art"]),
+            "finance_art": _arts(cur["finance_art"]), "plan": plan,
             "OPEX": [(k, t_) for k, t_, _r in OPEX_GROUPS] + [("other", "Інші витрати")], "TARGETS": KPI_TARGETS, "MONTHS": MONTHS,
             "max_rev": max([r["rev"] for r in rows] + [1]), "max_abs": max([abs(r["net"]) for r in rows] + [1]), "has_data": bool(done)}
 
@@ -364,9 +447,11 @@ def to_xlsx(r: dict) -> bytes:
     for c_ in r["cats"]:
         line("  " + c_, "cogs_cat", c_)
     line("  амортизація апаратів (нарахування)", "amort")
-    line("2. Оплата роботи лікарів", "labor")
+    line("2. Оплата роботи лікарів (з податками на ЗП)", "labor")
+    line("  виплати лікарям", "labor_pay")
     for d in r["docs"]:
-        line("  " + d, "labor_doc", d)
+        line("    " + d, "labor_doc", d)
+    line("  податки з ЗП лікарів (ЄСВ, ПДФО, ВЗ — пропорційно)", "labor_tax")
     line("4. Косметика (закупівельна)", "cogs_p")
     line("5. Відсоток по косметиці (довідково, входить у виплати)", "cosm_pct")
     line("ВАЛОВИЙ ПРИБУТОК", "gross", bold=True)
@@ -385,6 +470,22 @@ def to_xlsx(r: dict) -> bytes:
     for a, mv, tot_ in r["oneoff_art"]:
         ws.append(["  " + a] + [round(mv.get(x["m"], 0.0), 2) for x in r["rows"]] + [tot_])
     line("ЧИСТИЙ ПРИБУТОК", "net", bold=True)
+    line("Рентабельність, %", "net_pct")
+    line("  у т.ч. зарплата керівника / власника", "owner_pay")
+    line("Прибуток до зарплати власника", "net_before_owner")
+    ws.append([])
+    ws.append(["Cashflow (поза P&L)"])
+    line("Погашення кредитів і розтермінувань", "finance")
+    for a, mv, tot_ in r["finance_art"]:
+        ws.append(["  " + a] + [round(mv.get(x["m"], 0.0), 2) for x in r["rows"]] + [tot_])
+    line("Вилучення власника / дивіденди", "owner")
+    line("Грошовий результат (чистий − кредити − вилучення)", "cash_result", bold=True)
+    line("Передоплати: сертифікати, абонементи, поповнення балансу", "prepaid")
+    ws.append([])
+    ws.append(["План"])
+    ws.append(["План: дохід"] + [((x["plan"] or {}).get("rev")) for x in r["rows"]] + [r["t"]["plan"]["rev"]])
+    ws.append(["План: OPEX"] + [((x["plan"] or {}).get("opex")) for x in r["rows"]] + [r["t"]["plan"]["opex"]])
+    ws.append(["План: чистий прибуток"] + [((x["plan"] or {}).get("net")) for x in r["rows"]] + [r["t"]["plan"]["net"]])
     ws.append([])
     ws.append(["KPI"])
     for title, key in (("Нові пацієнти", "k_new"), ("Кількість пацієнтів", "k_pat"), ("Кількість візитів", "k_vis"), ("Візитів на пацієнта", "k_vpp"),
@@ -395,7 +496,6 @@ def to_xlsx(r: dict) -> bytes:
         line(title, key)
     ws.append([])
     ws.append(["Довідково (поза прибутком)"])
-    line("Вилучення власника / дивіденди", "owner")
     line("Закупівлі (касові; у прибутку — через собівартість)", "purchase")
     line("Оплати не грошима (бонуси, сертифікати, баланс)", "non_money")
     ws.column_dimensions["A"].width = 52
