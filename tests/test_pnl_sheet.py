@@ -79,3 +79,10 @@ def test_hybrid(monkeypatch):
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
         t = c.get("/reports?r=pnlm&year=2022").text          # таблиця є → за замовчуванням гібрид
         assert "гібрид" in t and "Таблиця власника" in t
+
+
+def test_assign_many_to_one():
+    a = ps.assign(["Ботулінотерапія", "Лазерна епіляція", "IPL", "Софія", "Колган"],
+                  ["Ботулінотерапія (Xeomin, Botox, Dysport, Neuronox)", "Ботокс/Диспорт/Нейронокс (ботулінотерапія)",
+                   "Лазерна епіляція ( -50% на перший візит)", "IPL (видалення судин)", "Сирова Софія", "KPI Лікар Колган", "Щось нове"])
+    assert len(a["Ботулінотерапія"]) == 2 and a["Лазерна епіляція"] and a["IPL"] and a["Софія"] == ["Сирова Софія"] and a["Колган"] == ["KPI Лікар Колган"]

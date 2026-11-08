@@ -192,9 +192,10 @@ PCT_FIELDS = {"cogs_pct", "opex_pct", "k_mkt_pct", "k_mkt_gp", "gross_pct", "net
 SKIP_SECTIONS = {"opex_detail"}
 
 
-def _norm_name(s: str) -> str:
+def _norm_name(s: str, keep_paren: bool = False) -> str:
     s = unicodedata.normalize("NFKC", s or "").lower().replace("ʼ", "'").replace("’", "'")
-    s = re.sub(r"\(.*?\)", " ", s)
+    if not keep_paren:
+        s = re.sub(r"\(.*?\)", " ", s)
     return re.sub(r"[^a-zа-яіїєґ0-9]+", " ", s).strip()
 
 
@@ -218,6 +219,35 @@ def _match_dict(name: str, d: dict) -> str | None:
     return best if score and score >= max(1, len(toks) // 2) else None
 
 
+def _score(sheet_name: str, key: str) -> int:
+    n, kn0, kn = _norm_name(sheet_name), _norm_name(key), _norm_name(key, keep_paren=True)
+    if not n or not kn:
+        return 0
+    if kn0 == n:
+        return 100
+    if kn0.startswith(n) or n.startswith(kn0):
+        return 50
+    toks = [t for t in n.split() if len(t) > 2]
+    ktoks = set(kn.split())
+    sc = sum(1 for t in toks if t in ktoks or any(x.startswith(t[:5]) for x in ktoks if len(t) >= 5))
+    return sc if sc >= max(1, len(toks) // 2) else 0
+
+
+def assign(sheet_names: list[str], keys: list[str]) -> dict[str, list[str]]:
+    """Кожен ключ CRM (категорія / лікар) — до одного рядка таблиці з найкращим збігом; кілька ключів можуть лягти в один рядок
+    (напр. «Ботулінотерапія (Xeomin…)» і «Ботокс/Диспорт/Нейронокс» → «Ботулінотерапія»)."""
+    out: dict[str, list[str]] = {n: [] for n in sheet_names}
+    for k in keys:
+        best, bs = None, 0
+        for n in sheet_names:
+            sc = _score(n, k)
+            if sc > bs:
+                best, bs = n, sc
+        if best is not None and bs > 0:
+            out[best].append(k)
+    return out
+
+
 def hybrid(db: Session, year: int, crm: dict | None) -> dict | None:
     """Рядки таблиці власника, де місяці з дати старту обліку в CRM замінені розрахунком CRM.
     crm — результат pnl_monthly.build(db, year) (або None). Повертає None, якщо таблиці за рік немає."""
@@ -234,6 +264,27 @@ def hybrid(db: Session, year: int, crm: dict | None) -> dict | None:
     for i in range(12):
         mk = f"{year}-{i + 1:02d}"
         months_src.append("crm" if (crm_from and i + 1 >= crm_from and mk in crm_rows) else ("sheet" if i in sh["months"] else "none"))
+    # зіставлення рядків таблиці (напрямки / лікарі) з ключами CRM — один раз на рік
+    def _sec_names(start_rx: str, stop_rx: str) -> list[str]:
+        names, on = [], False
+        for rr in sh["rows"]:
+            nm = rr["name"].strip()
+            if re.search(start_rx, nm, re.I):
+                on = True
+                continue
+            if on and (re.search(stop_rx, nm, re.I) or rr["kind"] == "head"):
+                break
+            if on and rr["kind"] == "line" and nm:
+                names.append(rr["name"])
+        return names
+    keys_rev = sorted({k for x in crm_rows.values() for k in x.get("rev_cat", {})})
+    keys_cogs = sorted({k for x in crm_rows.values() for k in x.get("cogs_cat", {})})
+    keys_doc = sorted({k for x in crm_rows.values() for k in x.get("labor_doc", {})})
+    amap = {"rev_cat": assign(_sec_names(r"^послуги загалом", r"^косметика\s*$"), keys_rev),
+            "cogs_cat": assign(_sec_names(r"^1\.\s*витратні", r"^2\."), keys_cogs),
+            "labor_doc": assign(_sec_names(r"^2\.\s*оплата", r"^4\."), keys_doc)}
+    unmatched = {sec: [k for k in keys if not any(k in v for v in amap[sec].values())]
+                 for sec, keys in (("rev_cat", keys_rev), ("cogs_cat", keys_cogs), ("labor_doc", keys_doc))}
     section = None
     out_rows = []
     for r in sh["rows"]:
@@ -277,15 +328,9 @@ def hybrid(db: Session, year: int, crm: dict | None) -> dict | None:
                 v = x.get(field)
                 if sub is not None and isinstance(v, dict):
                     v = v.get(sub, 0.0)
-            elif r["kind"] == "line" and section == "rev_cat":
-                k = _match_dict(name, x["rev_cat"])
-                v = x["rev_cat"].get(k, 0.0) if k else 0.0
-            elif r["kind"] == "line" and section == "cogs_cat":
-                k = _match_dict(name, x["cogs_cat"])
-                v = x["cogs_cat"].get(k, 0.0) if k else 0.0
-            elif r["kind"] == "line" and section == "labor_doc":
-                k = _match_dict(name, x["labor_doc"])
-                v = x["labor_doc"].get(k, 0.0) if k else 0.0
+            elif r["kind"] == "line" and section in amap:
+                ks = amap[section].get(r["name"]) or []
+                v = sum(x[section].get(k, 0.0) for k in ks) if ks else 0.0
             if v is None:
                 vals[i] = 0.0
                 srcs.append("na")
@@ -303,5 +348,6 @@ def hybrid(db: Session, year: int, crm: dict | None) -> dict | None:
             if rr["field"] == f:
                 key[f] = rr["vals"]
                 break
-    return {"year": year, "rows": out_rows, "months_src": months_src, "crm_from": crm_from, "key": key, "sheet": sh["sheet"],
+    return {"year": year, "rows": out_rows, "months_src": months_src, "crm_from": crm_from, "key": key, "sheet": sh["sheet"], "amap": amap,
+            "unmatched": unmatched,
             "imported_at": sh["imported_at"], "source": sh["source"], "n_months": sum(1 for s in months_src if s != "none")}
