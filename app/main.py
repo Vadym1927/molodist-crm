@@ -3175,7 +3175,8 @@ def data_page(request: Request, user: User = Depends(require("export_reports")),
     cb_error = db.get(SyncState, "cleverbox_last_error")
     job = state.get("scheduler").get_job("cleverbox_sync") if state.get("scheduler") else None
     from .services import backups as bk
-    return render(request, "data.html", jobs=jobs.recent(), cb=bool(settings.cleverbox_token),
+    from .services import dropbox_backup as _dbx
+    return render(request, "data.html", dbx=_dbx.status(db) if can(user, "backup") else None, jobs=jobs.recent(), cb=bool(settings.cleverbox_token),
                   backups=bk.list_backups() if can(user, "backup") else [], settings=settings,
                   last_migration=last.value if last else None, reports=LAST_IMPORT.pop(user.id, None),
                   cb_last_success=cb_success.value if cb_success else None,
@@ -3388,6 +3389,68 @@ async def backup_now(request: Request, user: User = Depends(require("backup")), 
     except Exception as e:          # noqa: BLE001
         state["last_error"] = f"Бекап: {e}"
     return RedirectResponse("/data#backup", 303)
+
+
+# ---------------- Копія в Dropbox ----------------
+@app.post("/settings/dropbox/connect")
+def dropbox_connect(app_key: str = Form(""), user: User = Depends(require("backup")), db: Session = Depends(db_dep)):
+    from .services import dropbox_backup as dbx
+    try:
+        url = dbx.start_auth(db, app_key)
+    except dbx.DropboxError as e:
+        return RedirectResponse(_with_msg("/data", str(e), True) + "#dropbox", 303)
+    audit(db, "dropbox.connect_start", user=user)
+    return RedirectResponse(url, 303)
+
+
+@app.get("/settings/dropbox/callback")
+def dropbox_callback(code: str = "", state: str = "", error: str = "", user: User = Depends(require("backup")), db: Session = Depends(db_dep)):
+    from .services import dropbox_backup as dbx
+    if error:
+        return RedirectResponse(_with_msg("/data", "Dropbox: доступ не надано", True) + "#dropbox", 303)
+    try:
+        d = dbx.finish_auth(db, code, state)
+    except dbx.DropboxError as e:
+        return RedirectResponse(_with_msg("/data", str(e), True) + "#dropbox", 303)
+    audit(db, "dropbox.connected", user=user, account=d.get("account"))
+    return RedirectResponse(_with_msg("/data", "Dropbox підключено" + (f": {d.get('account')}" if d.get("account") else "")
+                                      + ("" if d["secrets"].get("password") else " — задайте пароль шифрування")) + "#dropbox", 303)
+
+
+@app.post("/settings/dropbox/password")
+def dropbox_password(password: str = Form(""), password2: str = Form(""), user: User = Depends(require("backup")), db: Session = Depends(db_dep)):
+    from .services import dropbox_backup as dbx
+    if password != password2:
+        return RedirectResponse(_with_msg("/data", "Паролі не збігаються", True) + "#dropbox", 303)
+    try:
+        dbx.set_password(db, password)
+    except dbx.DropboxError as e:
+        return RedirectResponse(_with_msg("/data", str(e), True) + "#dropbox", 303)
+    audit(db, "dropbox.password", user=user)
+    return RedirectResponse(_with_msg("/data", "Пароль шифрування збережено — запишіть його окремо, без нього копію не відновити") + "#dropbox", 303)
+
+
+@app.post("/settings/dropbox/disconnect")
+def dropbox_disconnect(user: User = Depends(require("backup")), db: Session = Depends(db_dep)):
+    from .services import dropbox_backup as dbx
+    dbx.disconnect(db)
+    audit(db, "dropbox.disconnect", user=user)
+    return RedirectResponse(_with_msg("/data", "Dropbox відключено") + "#dropbox", 303)
+
+
+@app.post("/settings/dropbox/now")
+async def dropbox_now(user: User = Depends(require("backup")), db: Session = Depends(db_dep)):
+    from .services import backups
+    audit(db, "dropbox.backup_now", user=user)
+
+    def _run():
+        try:
+            backups.run_backup("dropbox")
+        except Exception:  # noqa: BLE001
+            pass
+
+    __import__("threading").Thread(target=_run, daemon=True).start()
+    return RedirectResponse(_with_msg("/data", "Копію запущено у фоні: база — за хвилину, фото й PDF першого разу — довше (до 20 хв за раз, решта — вночі)") + "#dropbox", 303)
 
 
 @app.get("/backup/file/{name}")

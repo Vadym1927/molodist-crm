@@ -178,6 +178,10 @@ def run_backup(trigger: str = "auto") -> dict:
 
         # у Telegram — лише нічна копія (не перед кожним оновленням CRM і не ручні)
         rep["telegram"] = _offsite_telegram(dst) if trigger == "auto" else "лише для нічної копії"
+        if trigger in ("auto", "dropbox"):           # копія поза сервером — у Dropbox власника (якщо підключено)
+            from . import dropbox_backup
+            with SessionLocal() as db:
+                rep["dropbox"] = dropbox_backup.run(db, dst)
         alerts.success("backup", f"Остання копія: {name}, {rep['size_mb']} МБ")
         log.info("backup done: %s", rep)
         return rep
