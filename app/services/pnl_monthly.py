@@ -292,7 +292,7 @@ def _collect(db: Session, year: int) -> dict:
                      "gross_p_pct": _pct(rev_p[mk] - cogs_p[mk], rev_p[mk]),
                      "opex": ox, "opex_g": opex_m, "opex_pct": _pct(ox, rev),
                      "op": op, "op_pct": _pct(op, rev), "capex": capex[mk], "oneoff": oneoff[mk], "net": net, "net_pct": _pct(net, rev),
-                     "owner_pay": owner_pay[mk], "net_before_owner": net + owner_pay[mk], "finance": finance[mk],
+                     "owner_pay": owner_pay[mk], "net_before_owner": net + owner_pay[mk], "nbo_pct": _pct(net + owner_pay[mk], rev), "finance": finance[mk],
                      "cash_result": net - finance[mk] - owner[mk],
                      "prepaid": rev_o[mk] + deposits_j[mk], "owner": owner[mk], "purchase": purchase[mk], "non_money": non_money[mk], "j_income": j_income[mk],
                      "k_new": n_new, "k_pat": n_p, "k_vis": n_v, "k_vpp": round(n_v / n_p, 2) if n_p else None,

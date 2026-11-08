@@ -25,6 +25,7 @@ def test_pnl_monthly():
                         CbFinOp(id=860004, at=datetime(2022, 7, 23, 12), kind="expense", article="Дивіденди", amount=4000, account="Готівка", source="import"),
                         CbFinOp(id=860005, at=datetime(2022, 7, 24, 12), kind="expense", article="Реклама Google", amount=700, account="Готівка", source="import"),
                         CbFinOp(id=860006, at=datetime(2022, 7, 25, 12), kind="expense", article="Податки ЄСВ на ЗП ФОП Колган", amount=660, account="Готівка", source="import"),
+                        CbFinOp(id=860009, at=datetime(2022, 7, 25, 12), kind="expense", article="Зарплата Керівник", amount=2000, account="Готівка", source="import"),
                         CbFinOp(id=860007, at=datetime(2022, 7, 26, 12), kind="expense", article="Зобовʼязання Розтермінування MONOBANK", amount=7904, account="Готівка", source="import"),
                         CbFinOp(id=860008, at=datetime(2022, 7, 27, 12), kind="income", article="Поповнення балансу", amount=1500, counterparty="Пацієнт", account="Готівка", source="import"),
                         Check(id=7900002, date=datetime(2022, 7, 4, 12), amount=3000, items=[{"item_type": "certificate", "item_name": "Сертифікат", "quantity": 1, "payd_amount": 3000}], payments=[])])
@@ -33,11 +34,12 @@ def test_pnl_monthly():
             m7 = next(x for x in r["rows"] if x["m"] == "2022-07")
             assert m7["rev"] == 12000 and m7["rev_s"] == 10000 and m7["rev_p"] == 2000 and m7["cogs_p"] == 800
             assert m7["gross"] == 12000 - 800 - m7["cogs_s"] - m7["amort"]
-            assert m7["opex_g"]["rent"] == 2500 and m7["opex_g"]["ads"] == 700 and m7["opex_g"]["salary"] == 3660 and m7["opex"] == 6860   # податок з ЗП → до ЗП адмінів (лікарів немає)
+            assert m7["opex_g"]["rent"] == 2500 and m7["opex_g"]["ads"] == 700 and m7["opex_g"]["salary"] == 5660 and m7["opex"] == 8860   # податок з ЗП → до ЗП адмінів (лікарів немає)
             assert m7["purchase"] == 5000 and m7["owner"] == 4000 and m7["labor"] == 0 and m7["adm_tax"] == 660
             assert m7["finance"] == 7904 and m7["capex"] == 0 and m7["prepaid"] == 4500 and m7["rev"] == 12000   # кредит і передоплати — поза P&L
-            assert m7["op"] == m7["gross"] - 6860 and m7["net"] == m7["op"] - m7["capex"] - m7["oneoff"] and m7["net_pct"] is not None
+            assert m7["op"] == m7["gross"] - 8860 and m7["net"] == m7["op"] - m7["capex"] - m7["oneoff"] and m7["net_pct"] is not None
             assert m7["cash_result"] == m7["net"] - 7904 - 4000
+            assert m7["owner_pay"] == 2000 and m7["net_before_owner"] == m7["net"] + 2000 and m7["nbo_pct"] is not None
             assert m7["k_pat"] == 0 and m7["gross_p"] == 1200
             assert r["t"]["rev"] >= 12000 and r["has_data"] and r["prev"] is None
             r23 = pm.build(db, 2023)
@@ -52,7 +54,7 @@ def test_pnl_monthly():
         with SessionLocal() as db:
             assert pm.plan_get(db, 2022)["2022-07"] == {"rev": 11000.0, "opex": 6500.0}
         t = c.get("/reports?r=pnlm&year=2022").text
-        assert "план доходу" in t and "Cashflow · поза P&L" in t
+        assert "план доходу" in t and "Cashflow · поза P&L" in t and "Прибуток до зарплати власника" in t
         assert "P&L по місяцях" in t and "Валовий прибуток" in t and "Довідково" in t and "KPI" in t
         assert c.get("/reports?r=pnlm&year=2022&fmt=xlsx").status_code == 200
         assert 'href="/reports?r=pnlm"' in c.get("/reports").text
