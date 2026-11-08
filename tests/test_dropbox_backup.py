@@ -97,3 +97,22 @@ def test_dropbox_flow(tmp_path, monkeypatch):
         assert r.status_code == 303
         t = c.get("/data").text
         assert "Підключити Dropbox" in t and "/settings/dropbox/callback" in t
+
+
+def test_dropbox_retry_on_429(monkeypatch):
+    calls = {"n": 0}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if str(req.url) == dbx.TOKEN:
+            return httpx.Response(200, json={"access_token": "A1", "expires_in": 14400})
+        calls["n"] += 1
+        if calls["n"] <= 2:
+            return httpx.Response(429, json={"error": {"reason": {".tag": "too_many_write_operations"}, "retry_after": 1}})
+        return httpx.Response(200, json={"path_lower": "/db/x"})
+
+    slept = []
+    monkeypatch.setattr(dbx, "SLEEP", lambda s: slept.append(s))
+    c = dbx.Client({"app_key": "k", "secrets": {}}, httpx.Client(transport=httpx.MockTransport(handler)))
+    monkeypatch.setattr(dbx, "secret", lambda d, n: "R")
+    assert c.upload(b"data", "/db/x")["path_lower"] == "/db/x"
+    assert calls["n"] == 3 and len(slept) == 2

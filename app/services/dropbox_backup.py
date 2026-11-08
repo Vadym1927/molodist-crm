@@ -38,6 +38,11 @@ CHUNK = 8 * 1024 * 1024
 SIMPLE_LIMIT = 140 * 1024 * 1024
 FILES_BUDGET_S = 20 * 60          # за ніч на фото/PDF — не довше 20 хв, решта — наступної ночі
 MIN_PASSWORD = 10
+RETRIES = 6
+SLEEP = time.sleep
+PAUSE_S = 0.25                    # пауза між файлами: Dropbox обмежує кількість записів за секунду
+SAVE_EVERY = 25                   # прогрес вивантаження файлів зберігається кожні N файлів — після збою не починаємо спочатку
+_LOCK = __import__("threading").Lock()
 
 
 class DropboxError(RuntimeError):
@@ -177,10 +182,24 @@ class Client:
         self._tok, self._exp = j["access_token"], time.time() + float(j.get("expires_in") or 3600)
         return self._tok
 
+    def _post(self, url: str, headers: dict, content):
+        """POST з повтором: 429 (Dropbox просить зачекати, «too_many_write_operations») і 5xx — до RETRIES спроб."""
+        r = None
+        for i in range(RETRIES):
+            r = self.http.post(url, headers={"Authorization": f"Bearer {self.token()}", **headers}, content=content)
+            if r.status_code != 429 and r.status_code < 500:
+                return r
+            wait = 1.0
+            try:
+                wait = float(r.headers.get("Retry-After") or (r.json().get("error") or {}).get("retry_after") or r.json().get("retry_after") or 1)
+            except Exception:  # noqa: BLE001
+                pass
+            SLEEP(min(60.0, max(wait, 1.0) * (i + 1)))
+        return r
+
     def call(self, ep: str, body: dict | None):
-        r = self.http.post(f"{API}/{ep}", headers={"Authorization": f"Bearer {self.token()}",
-                                                    **({"Content-Type": "application/json"} if body is not None else {})},
-                           content=json.dumps(body) if body is not None else None)
+        r = self._post(f"{API}/{ep}", {**({"Content-Type": "application/json"} if body is not None else {})},
+                       json.dumps(body) if body is not None else None)
         if r.status_code == 409:
             return {"_conflict": r.text[:300]}
         if r.status_code >= 400:
@@ -188,9 +207,8 @@ class Client:
         return r.json() if r.content else {}
 
     def _content(self, ep: str, arg: dict, data: bytes):
-        r = self.http.post(f"{CONTENT}/{ep}", headers={"Authorization": f"Bearer {self.token()}",
-                                                        "Dropbox-API-Arg": json.dumps(arg, ensure_ascii=True),
-                                                        "Content-Type": "application/octet-stream"}, content=data)
+        r = self._post(f"{CONTENT}/{ep}", {"Dropbox-API-Arg": json.dumps(arg, ensure_ascii=True),
+                                           "Content-Type": "application/octet-stream"}, data)
         if r.status_code >= 400:
             raise DropboxError(f"Dropbox {ep}: {r.status_code} {r.text[:200]}")
         return r.json() if r.content else {}
@@ -246,6 +264,8 @@ def run(db: Session, src: Path, http: httpx.Client | None = None, with_files: bo
         alerts.failure("backup_dropbox", "Копія не вивантажена в Dropbox: не задано пароль шифрування",
                        "Задайте пароль у «Дані → Резервні копії → Dropbox».")
         return {"status": "немає пароля"}
+    if not _LOCK.acquire(blocking=False):            # уже вивантажується (кнопка + нічна копія одночасно)
+        return {"status": "уже виконується"}
     rep: dict = {"status": "ok"}
     try:
         c = Client(d, http)
@@ -258,7 +278,7 @@ def run(db: Session, src: Path, http: httpx.Client | None = None, with_files: bo
             c.delete(e["path_lower"])
         rep["kept"] = min(len(olds), KEEP)
         if with_files:
-            rep["files"] = _mirror(c, d, pw)
+            rep["files"] = _mirror(c, d, pw, db)
         d["last"] = {"at": datetime.now().isoformat(timespec="seconds"), "file": name, "ok": True,
                      "files": rep.get("files"), "error": None}
         save(db, d)
@@ -266,14 +286,18 @@ def run(db: Session, src: Path, http: httpx.Client | None = None, with_files: bo
         return rep
     except Exception as e:  # noqa: BLE001
         log.exception("dropbox backup failed")
+        files_done = d.get("files") or {}              # прогрес файлів, що вже вивантажені, — не втрачаємо
         d = cfg(db)
+        d["files"] = {**(d.get("files") or {}), **files_done}
         d["last"] = {**(d.get("last") or {}), "at": datetime.now().isoformat(timespec="seconds"), "ok": False, "error": str(e)[:300]}
         save(db, d)
         alerts.failure("backup_dropbox", f"Копія в Dropbox не вивантажена: {e}", "Перевірте підключення Dropbox у «Дані → Резервні копії».")
         return {"status": "помилка", "error": str(e)[:300]}
+    finally:
+        _LOCK.release()
 
 
-def _mirror(c: Client, d: dict, pw: str) -> dict:
+def _mirror(c: Client, d: dict, pw: str, db: Session | None = None) -> dict:
     src = Path(settings.files_dir)
     rep = {"uploaded": 0, "mb": 0.0, "left": 0}
     if not src.exists():
@@ -298,6 +322,10 @@ def _mirror(c: Client, d: dict, pw: str) -> dict:
         done[rel] = sz
         rep["uploaded"] += 1
         rep["mb"] += sz / 1024 ** 2
+        if db is not None and rep["uploaded"] % SAVE_EVERY == 0:
+            save(db, d)
+        if PAUSE_S:
+            SLEEP(PAUSE_S)
     rep["mb"] = round(rep["mb"], 1)
     rep["total"] = len(done)
     return rep
