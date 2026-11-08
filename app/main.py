@@ -8459,6 +8459,20 @@ def reports_page(request: Request, r: str = "revenue", period: str = "month", df
                             headers={"Content-Disposition": f'attachment; filename="patient-money-{_y or "all"}{("-%02d" % _m) if _m else ""}.xlsx"'})
         return render(request, "rep_patient_money.html", nav="reports", REPORTS=rp.REPORTS, key="patient_money", r=_r, years=_ys,
                       today=date.today(), MONTHS=_pnl.MONTHS)
+    if key == "pnlm":
+        from .services import pnl_monthly as _pm2
+        _ys = _pm2.years(db)
+        try:
+            _y = int(request.query_params.get("year") or date.today().year)
+        except ValueError:
+            _y = date.today().year
+        _y = _y if _y in _ys else (_ys[-1] if _ys else date.today().year)
+        _r = _pm2.build(db, _y)
+        if fmt == "xlsx":
+            audit(db, "reports.export", user=user, report="pnlm", year=_y)
+            return Response(_pm2.to_xlsx(_r), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            headers={"Content-Disposition": f'attachment; filename="pnl-monthly-{_y}.xlsx"'})
+        return render(request, "rep_pnl_monthly.html", nav="reports", REPORTS=rp.REPORTS, key="pnlm", r=_r, years=_ys, today=date.today())
     if key == "payroll_share":
         from .services import payroll_share as _ps
         _ys = _ps.years(db)

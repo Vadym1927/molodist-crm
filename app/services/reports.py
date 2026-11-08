@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from ..models import Check, Visit, BeautyPlan, Patient, Product, SupplierInvoice
 from ..parsers.observ import norm
 
-REPORTS = {"cash": "Стан рахунків", "cashflow": "Cashflow", "pnl": "Доходи і витрати за рік", "shifts": "Касові зміни", "patient_money": "Отримано від пацієнтів", "fees": "Комісії банків", "payroll_share": "Фонд оплати праці", "fop": "Ліміти ФОП", "expiry": "Терміни придатності", "revenue": "Виручка", "doctors": "Лікарі", "services": "Звіт з продажу послуг", "products": "Товари",
+REPORTS = {"cash": "Стан рахунків", "cashflow": "Cashflow", "pnl": "Доходи і витрати за рік", "pnlm": "P&L по місяцях", "shifts": "Касові зміни", "patient_money": "Отримано від пацієнтів", "fees": "Комісії банків", "payroll_share": "Фонд оплати праці", "fop": "Ліміти ФОП", "expiry": "Терміни придатності", "revenue": "Виручка", "doctors": "Лікарі", "services": "Звіт з продажу послуг", "products": "Товари",
            "patients": "Пацієнти", "plans": "Бюті-плани", "certificates": "Сертифікати й абонементи", "supply": "Поставки", "cosmetics": "Бонус за продаж косметики", "sources": "Джерела запису"}
 
 

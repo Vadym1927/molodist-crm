@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}P&L по місяцях · {{ r.year }} · Звіти{% endblock %}
+{% block body %}
+{% macro u(v) %}{% if v is none %}—{% else %}{{ (('{:,.0f}').format(v or 0)).replace(',', ' ') }}{% endif %}{% endmacro %}
+{% macro s(v) %}{% if v is none %}—{% elif v < 0 %}<span class="neg">−{{ u(-v) }}</span>{% else %}{{ u(v) }}{% endif %}{% endmacro %}
+{% macro pc(v) %}{% if v is none %}—{% else %}{{ ('%g'|format(v)).replace('.', ',') }}%{% endif %}{% endmacro %}
+{% macro yoy(v) %}{% if v is none %}{% else %}<span class="{{ 'pos' if v > 0 else ('neg' if v < 0) }}">{{ '+' if v > 0 }}{{ ('%g'|format(v)).replace('.', ',') }}%</span>{% endif %}{% endmacro %}
+<style>
+.rp-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 16px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.rp-tabs a{padding:8px 14px;border-radius:10px;text-decoration:none;color:#3a342f;font-weight:600;font-size:14px}.rp-tabs a:hover{background:var(--card)}.rp-tabs a.on{background:var(--deep);color:#fff}
+.pm-y{display:flex;gap:6px;flex-wrap:wrap}.pm-y a{padding:8px 16px;border-radius:11px;background:#fff;border:1px solid #ECE7E1;text-decoration:none;font:700 14px var(--sans);color:#3B3050}.pm-y a.on{background:#3B3050;color:#fff;border-color:#3B3050}
+.pos{color:#2f6b3b;font-weight:700}.neg{color:#B23B2E;font-weight:700}
+.plk{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.plk div{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:16px 18px}
+.plk small{display:block;font:700 10.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#8a8496}.plk b{display:block;font:800 24px var(--sans);color:#2A2430;margin:6px 0 2px}.plk span.s{font-size:12.5px;color:#6b6575}
+.plk div.g{background:linear-gradient(135deg,#2A2430,#3B3050)}.plk div.g small{color:#C9BFE6}.plk div.g b{color:#fff}.plk div.g span.s{color:#E4DEEF}
+.pl2{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:14px;margin-bottom:14px}
+.plc{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:16px 18px}.plc h3{margin:0 0 10px;font:700 16px var(--sans);text-transform:none;letter-spacing:0;color:#2A2430}
+.wf{display:grid;gap:6px;font-size:13.5px}.wf .r{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:4px 0;border-bottom:1px dashed #F1EDE8}
+.wf .r.t{font-weight:800;border-bottom:1px solid #E4DEEF;padding:7px 0}.wf .r small{color:#8a8496;margin-left:6px;font-weight:400}
+.wf .bar{height:7px;border-radius:99px;background:#F1EDE8;overflow:hidden;grid-column:1/-1;margin-top:-2px}.wf .bar i{display:block;height:100%}
+.ch{display:flex;gap:6px;align-items:flex-end;height:170px;padding:6px 2px 0;border-bottom:1px solid #ECE7E1}.ch .m{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:0}
+.ch .m span{font-size:10.5px;font-weight:700;margin-bottom:3px;white-space:nowrap}.ch .bars{display:flex;gap:3px;align-items:flex-end;height:100%;width:100%;justify-content:center}
+.ch .bars i{display:block;width:44%;max-width:30px;border-radius:6px 6px 2px 2px;min-height:2px}.ch .rv{background:#E4DEEF}.ch .gp{background:#8a7bb0}
+.chx{display:flex;gap:6px;padding:6px 2px 0}.chx span{flex:1;text-align:center;font-size:11px;font-weight:600;color:#8a8496}
+.net{display:flex;gap:6px;height:90px;padding:0 2px;margin-top:10px;position:relative}.net:before{content:"";position:absolute;left:0;right:0;top:50%;border-top:1px dashed #ECE7E1}
+.net .m{flex:1;display:flex;flex-direction:column;min-width:0}.net .up,.net .dn{flex:1;display:flex;flex-direction:column;align-items:center}.net .up{justify-content:flex-end}.net .dn{justify-content:flex-start}
+.net i{display:block;width:60%;max-width:40px;border-radius:5px}.net .up i{background:#7FC8A0}.net .dn i{background:#E38B8B}
+.lg{display:flex;gap:14px;font-size:12.5px;color:#6b6575;margin-top:8px;flex-wrap:wrap}.lg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.plw{overflow:auto;background:#fff;border:1px solid #ECE7E1;border-radius:20px;margin-bottom:14px}
+.plt{border-collapse:separate;border-spacing:0;font-size:13px;min-width:1250px;width:100%}
+.plt th{position:sticky;top:0;z-index:2;background:#F3EFF9;font:700 11px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:#5d5869;padding:9px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid #ECE7E1}
+.plt th:first-child,.plt td:first-child{position:sticky;left:0;z-index:1;background:#fff;text-align:left;min-width:280px;border-right:1px solid #F1EDE8}.plt th:first-child{z-index:3;background:#F3EFF9}
+.plt td{padding:7px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid #F6F3EF}
+.plt tr.sub td{color:#5d5869;font-size:12.5px}.plt tr.sub td:first-child{padding-left:26px}
+.plt tr.tot td{font-weight:800;background:#F3EFF9;border-top:1px solid #E4DEEF}.plt tr.tot td:first-child{background:#F3EFF9}
+.plt tr.res td{font-weight:800;background:#FBF7EE;font-size:13.5px}.plt tr.res td:first-child{background:#FBF7EE}
+.plt tr.pct td{color:#8a8496;font-size:11.5px;font-style:italic}.plt tr.pct td:first-child{padding-left:26px}
+.plt tr.grp td{cursor:pointer;background:#F8F6FC}.plt tr.grp td:first-child:before{content:"▸ ";color:#9a93a6}.plt tr.grp.open td:first-child:before{content:"▾ "}
+.plt tr.ln{display:none}.plt tr.ln.show{display:table-row}.plt tr.ln td:first-child{padding-left:26px;color:#5d5869}
+.plt tr.sec td{background:#FBFAFE;font:700 11.5px var(--sans);color:#3B3050;letter-spacing:.06em;text-transform:uppercase;padding:9px 8px}.plt tr.sec td:first-child{background:#FBFAFE}
+.plt td.z{color:#C9C3BD}.plt td.cur{background:#FFFBE6}.plt td.fut{color:#C9C3BD}
+.plt td .yy{display:block;font-size:10.5px;font-weight:600;margin-top:1px}
+.pl-note{font-size:12.5px;color:#6b6575;background:#F7F4F0;border-radius:12px;padding:10px 14px;line-height:1.5;margin-bottom:14px}
+.warn{color:#8a5b00;background:#FFF1D6;border-radius:8px;padding:2px 8px;font-weight:700;font-size:12px}
+@media(max-width:1000px){.plk{grid-template-columns:1fr 1fr}.pl2{grid-template-columns:1fr}}
+</style>
+<div class="row between" style="align-items:flex-end;flex-wrap:wrap;gap:10px">
+  <div><div class="eyebrow"><a href="/reports" style="color:inherit;text-decoration:none">← Усі звіти · Фінанси</a></div><h1>P&L по місяцях · {{ r.year }}</h1>
+    <div class="muted small">Управлінський звіт від виручки до операційного прибутку: виручка − собівартість = валовий прибуток − зарплата − операційні витрати − амортизація. Закупівлі, обладнання й вилучення власника — довідково внизу (не в прибутку). Касовий звіт за статтями — <a href="?r=pnl&year={{ r.year }}">«Доходи і витрати за рік»</a>.</div></div>
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div class="pm-y">{% for y in years %}<a href="?r=pnlm&year={{ y }}" class="{{ 'on' if y == r.year }}">{{ y }}</a>{% endfor %}</div>
+    <a class="btn ghost" href="?r=pnlm&year={{ r.year }}&fmt=xlsx">⬇ Excel</a></div>
+</div>
+<nav class="rp-tabs">{% for k, v in REPORTS.items() if k != 'cash' %}<a href="?r={{ k }}" class="{{ 'on' if key==k }}">{{ v }}</a>{% endfor %}</nav>
+
+{% if not r.has_data %}<div class="card muted">За {{ r.year }} рік даних немає.</div>{% else %}
+{% set t = r.t %}
+<div class="plk">
+  <div><small>Виручка</small><b>{{ u(t.rev) }} ₴</b><span class="s">{% if r.pt and r.pt.rev %}до тих самих місяців {{ r.year - 1 }}: {{ yoy(r.pt.yoy_rev) }}{% else %}послуги {{ u(t.rev_s) }} · товари {{ u(t.rev_p) }}{% endif %}</span></div>
+  <div><small>Валовий прибуток</small><b>{{ u(t.gross) }} ₴</b><span class="s">маржа {{ pc(t.gross_pct) }} · собівартість {{ u(t.cogs) }} ₴</span></div>
+  <div><small>Зарплата</small><b>{{ u(t.salary) }} ₴</b><span class="s">{{ pc(t.salary_pct) }} від виручки · після ЗП {{ s(t.after) }} ₴</span></div>
+  <div class="g"><small>Операційний прибуток</small><b>{{ '+' if t.op > 0 }}{{ s(t.op) }} ₴</b><span class="s">рентабельність {{ pc(t.op_pct) }}{% if r.pt and r.pt.op %} · до {{ r.year - 1 }}: {{ yoy(r.pt.yoy_op) }}{% endif %}</span></div>
+  <div><small>Місяці</small><b>{{ r.pos }} <span style="font-size:14px;color:#8a8496">у плюсі</span> · {{ r.neg }} <span style="font-size:14px;color:#8a8496">у мінусі</span></b><span class="s">{% if r.best %}найкращий — {{ r.best.full|lower }} ({{ s(r.best.op) }} ₴){% endif %}{% if r.worst and r.worst != r.best %}, найгірший — {{ r.worst.full|lower }} ({{ s(r.worst.op) }} ₴){% endif %}</span></div>
+</div>
+
+<div class="pl2">
+  <div class="plc"><h3>Виручка, валовий і операційний прибуток по місяцях</h3>
+    <div class="ch">{% for x in r.rows %}<div class="m" title="{{ x.full }}: виручка {{ u(x.rev) }} · валовий {{ u(x.gross) }} · операційний {{ u(x.op) }}">{% if x.gross_pct is not none %}<span style="color:#8a7bb0">{{ pc(x.gross_pct) }}</span>{% endif %}<div class="bars"><i class="rv" style="height:{{ (100 * x.rev / r.max_rev)|round(1) }}%"></i><i class="gp" style="height:{{ (100 * ([x.gross, 0]|max) / r.max_rev)|round(1) }}%"></i></div></div>{% endfor %}</div>
+    <div class="chx">{% for x in r.rows %}<span>{{ x.label }}</span>{% endfor %}</div>
+    <div class="net">{% for x in r.rows %}<div class="m" title="{{ x.full }}: операційний прибуток {{ u(x.op) }} ₴"><div class="up">{% if x.op > 0 %}<i style="height:{{ (100 * x.op / r.max_abs_op)|round(1) }}%"></i>{% endif %}</div><div class="dn">{% if x.op < 0 %}<i style="height:{{ (100 * -x.op / r.max_abs_op)|round(1) }}%"></i>{% endif %}</div></div>{% endfor %}</div>
+    <div class="lg"><span><i style="background:#E4DEEF"></i>виручка</span><span><i style="background:#8a7bb0"></i>валовий прибуток (над стовпчиком — маржа)</span><span><i style="background:#7FC8A0"></i>операційний +</span><span><i style="background:#E38B8B"></i>операційний −</span></div></div>
+  <div class="plc"><h3>Від виручки до прибутку · {{ r.year }}</h3><div class="wf">
+    <div class="r t"><span>Виручка</span><b>{{ u(t.rev) }}</b></div>
+    <div class="r"><span>− Собівартість<small>матеріали {{ u(t.cogs_s) }} · товари {{ u(t.cogs_p) }}</small></span><b class="neg">−{{ u(t.cogs) }}</b><div class="bar"><i style="width:{{ (100 * t.cogs / t.rev)|round(1) if t.rev else 0 }}%;background:#C9BFE6"></i></div></div>
+    <div class="r t"><span>= Валовий прибуток<small>{{ pc(t.gross_pct) }}</small></span><b>{{ s(t.gross) }}</b></div>
+    <div class="r"><span>− Зарплата<small>{{ pc(t.salary_pct) }}</small></span><b class="neg">−{{ u(t.salary) }}</b><div class="bar"><i style="width:{{ (100 * t.salary / t.rev)|round(1) if t.rev else 0 }}%;background:#8a7bb0"></i></div></div>
+    {% for k, title in r.OPEX %}{% if t.opex_g[k] %}<div class="r"><span>− {{ title }}<small>{{ pc((100 * t.opex_g[k] / t.rev)|round(1) if t.rev else none) }}</small></span><b class="neg">−{{ u(t.opex_g[k]) }}</b><div class="bar"><i style="width:{{ (100 * t.opex_g[k] / t.rev)|round(1) if t.rev else 0 }}%;background:#3B3050"></i></div></div>{% endif %}{% endfor %}
+    {% if t.amort %}<div class="r"><span>− Амортизація обладнання</span><b class="neg">−{{ u(t.amort) }}</b></div>{% endif %}
+    <div class="r t"><span>= Операційний прибуток<small>{{ pc(t.op_pct) }}</small></span><b class="{{ 'pos' if t.op > 0 else 'neg' }}">{{ s(t.op) }}</b></div>
+  </div></div>
+</div>
+
+<div class="plw"><table class="plt">
+  <tr><th>Показник</th>{% for x in r.rows %}<th>{{ x.label }}</th>{% endfor %}<th>Разом</th><th>Сер. / міс</th></tr>
+  {% macro row(title, key, cls='', sub=None, pct=False, yoykey=None) -%}
+  <tr class="{{ cls }}"><td>{{ title }}</td>{% for x in r.rows %}{% set v = x[key][sub] if sub else x[key] %}<td class="{{ 'cur' if x.current }}{{ ' z' if not v }}">{% if pct %}{{ pc(v) }}{% else %}{{ s(v) if v else '·' }}{% endif %}{% if yoykey and x[yoykey] is not none %}<span class="yy">{{ yoy(x[yoykey]) }}</span>{% endif %}</td>{% endfor %}
+    <td>{% if pct %}{{ pc(t[key][sub] if sub else t[key]) }}{% else %}{{ s(t[key][sub] if sub else t[key]) }}{% endif %}</td><td class="muted">{% if not pct and key in r.avg %}{{ s(r.avg[key]) }}{% endif %}</td></tr>
+  {%- endmacro %}
+  <tr class="tot"><td>Виручка</td>{% for x in r.rows %}<td class="{{ 'cur' if x.current }}{{ ' z' if not x.rev }}">{{ s(x.rev) if x.rev else '·' }}{% if x.from_journal %}<span class="yy" style="color:#8a8496" title="чеків за місяць немає — виручка з надходжень журналу">за журналом</span>{% elif x.yoy_rev is not none %}<span class="yy">{{ yoy(x.yoy_rev) }}</span>{% endif %}</td>{% endfor %}<td>{{ s(t.rev) }}</td><td class="muted">{{ s(r.avg.rev) }}</td></tr>
+  {{ row('послуги', 'rev_s', 'sub') }}
+  {{ row('товари й догляд', 'rev_p', 'sub') }}
+  {{ row('− Собівартість', 'cogs') }}
+  {{ row('матеріали послуг (техкарти)', 'cogs_s', 'sub') }}
+  {{ row('закупівельна вартість товарів', 'cogs_p', 'sub') }}
+  {{ row('= Валовий прибуток', 'gross', 'tot') }}
+  {{ row('валова маржа', 'gross_pct', 'pct', pct=True) }}
+  {{ row('− Зарплата (ФОП)', 'salary') }}
+  {{ row('% ФОП від виручки', 'salary_pct', 'pct', pct=True) }}
+  {{ row('= Прибуток після ЗП', 'after', 'tot') }}
+  <tr class="grp" onclick="this.classList.toggle('open');let n=this.nextElementSibling;while(n&&n.classList.contains('ln')){n.classList.toggle('show');n=n.nextElementSibling}"><td>− Операційні витрати</td>{% for x in r.rows %}<td class="{{ 'cur' if x.current }}{{ ' z' if not x.opex }}">{{ s(x.opex) if x.opex else '·' }}</td>{% endfor %}<td>{{ s(t.opex) }}</td><td class="muted">{{ s(r.avg.opex) }}</td></tr>
+  {% for k, title in r.OPEX %}<tr class="ln"><td>{{ title }}</td>{% for x in r.rows %}<td class="{{ 'cur' if x.current }}{{ ' z' if not x.opex_g[k] }}">{{ s(x.opex_g[k]) if x.opex_g[k] else '·' }}</td>{% endfor %}<td>{{ s(t.opex_g[k]) }}</td><td></td></tr>{% endfor %}
+  {{ row('− Амортизація обладнання (нарахування)', 'amort') }}
+  {{ row('= Операційний прибуток', 'op', 'res', yoykey='yoy_op') }}
+  {{ row('рентабельність', 'op_pct', 'pct', pct=True) }}
+  <tr class="sec"><td>Довідково · не в прибутку</td><td colspan="{{ r.rows|length + 2 }}"></td></tr>
+  {% for k, title in r.BELOW %}{{ row(title, 'below', 'sub', sub=k) }}{% endfor %}
+  {{ row('оплати не грошима (бонуси, сертифікати, баланс)', 'non_money', 'sub') }}
+  {% if r.prev %}<tr class="sec"><td>{{ r.year - 1 }} рік · для порівняння</td><td colspan="{{ r.rows|length + 2 }}"></td></tr>
+  <tr class="sub"><td>виручка {{ r.year - 1 }}</td>{% for x in r.rows %}<td>{{ s(x.prev.rev) if x.prev else '—' }}</td>{% endfor %}<td>{{ s(r.pt.full_rev) }}</td><td></td></tr>
+  <tr class="sub"><td>операційний прибуток {{ r.year - 1 }}</td>{% for x in r.rows %}<td>{{ s(x.prev.op) if x.prev else '—' }}</td>{% endfor %}<td>{{ s(r.pt.full_op) }}</td><td></td></tr>{% endif %}
+</table></div>
+<div class="pl-note">
+  <b>Як рахується.</b> Виручка — послуги й товари за чеками (CleverBox + каса CRM). Собівартість послуг — матеріали за техкартами / нормами списання (для каси CRM — фактичні списання візиту), товарів — остання закупівельна ціна × кількість. Зарплата — виплати за статтями зарплати з журналу. Операційні витрати — решта грошових витрат журналу за групами, <u>без закупівель</u> (вони вже враховані в собівартості проданого), без обладнання / капвкладень і без вилучень власника — ці три показані довідково. Амортизація — нарахування модуля «Амортизація обладнання».
+  {% if r.cov.cogs_months < r.cov.n %}<br><span class="warn">Собівартість є лише за {{ r.cov.cogs_months }} з {{ r.cov.n }} місяців</span> — для решти місяців техкарти / закупівельні ціни відсутні, валовий прибуток там дорівнює виручці; у ці місяці дивіться «Прибуток після ЗП» і закупівлі в довідковому блоці.{% endif %}
+  {% if r.cov.journal_months %}<br>За {{ r.cov.journal_months }} міс. чеків у CRM немає (історія до синхронізації чеків) — там виручка взята з грошових надходжень журналу, без поділу на послуги / товари й без собівартості.{% endif %}
+  {% if r.cov.rev_vs_journal|abs > 1000 %}<br>Виручка за чеками відрізняється від грошових надходжень у журналі на {{ s(r.cov.rev_vs_journal) }} ₴ (передоплати, депозити, різниця дат оплати й візиту).{% endif %}
+</div>
+{% endif %}
+{% endblock %}
