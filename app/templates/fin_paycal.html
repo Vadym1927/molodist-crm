@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}Платіжний календар · {{ v.MONTHS[v.m - 1] }} {{ v.y }}{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+{% macro u(x) %}{% if x is none %}—{% else %}{{ (('{:,.0f}').format(x or 0)).replace(',', ' ') }}{% endif %}{% endmacro %}
+{% macro u2(x) %}{% if x is none %}—{% else %}{{ (('{:,.2f}').format(x or 0)).replace(',', ' ').replace('.', ',') }}{% endif %}{% endmacro %}
+<style>
+.fin-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 16px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.fin-tabs a{padding:8px 14px;border-radius:10px;text-decoration:none;color:#3a342f;font-weight:600;font-size:14px}.fin-tabs a:hover{background:var(--card)}.fin-tabs a.on{background:var(--deep);color:#fff}
+.pc-nav{display:flex;gap:8px;align-items:center}.pc-nav a{padding:7px 12px;border-radius:10px;background:#fff;border:1px solid #ECE7E1;text-decoration:none;font:700 14px var(--sans);color:#3B3050}.pc-nav b{font:800 20px var(--sans);min-width:200px;text-align:center}
+.pck{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.pck div{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:14px 16px}
+.pck small{display:block;font:700 10.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#8a8496}.pck b{display:block;font:800 23px var(--sans);color:#2A2430;margin:6px 0 2px}.pck span.s{font-size:12px;color:#6b6575}
+.pck div.g{background:linear-gradient(135deg,#2A2430,#3B3050)}.pck div.g small{color:#C9BFE6}.pck div.g b{color:#fff}.pck div.g span.s{color:#E4DEEF}
+.pck div.w{background:#FFF7E8;border-color:#F3DFB5}.pck div.w b{color:#8a5b00}.pck div.ok b{color:#2f6b3b}.pck div.bad b{color:#B23B2E}
+.pc2{display:grid;grid-template-columns:minmax(0,1.9fr) minmax(0,1fr);gap:14px;align-items:start}
+.pcc{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:14px 18px;margin-bottom:14px}.pcc h3{margin:0 0 10px;font:700 16px var(--sans);text-transform:none;letter-spacing:0;color:#2A2430}
+.flt{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}.flt a{padding:6px 12px;border-radius:99px;border:1px solid var(--line);background:var(--card);text-decoration:none;font-size:12.5px;font-weight:600;color:var(--ink)}.flt a.on{background:var(--lavender);border-color:var(--lavender-2);color:var(--classic)}
+.wk{margin-bottom:10px;border:1px solid #ECE7E1;border-radius:16px;overflow:hidden}.wk.cur{border-color:#C9BFE6;box-shadow:0 0 0 3px #F3EFF9}
+.wk .h{display:flex;justify-content:space-between;align-items:center;padding:9px 14px;background:#F8F6FC;font:700 13px var(--sans)}.wk .h span{color:#8a8496;font-weight:600;font-size:12px}
+.wk table{width:100%;border-collapse:collapse;font-size:13px}.wk td{padding:7px 10px;border-top:1px solid #F6F3EF;vertical-align:middle}.wk td.r{text-align:right;white-space:nowrap}
+.wk tr.paid td{color:#8a8496}.wk tr.paid td.nm{text-decoration:line-through;text-decoration-color:#C9C3BD}.wk tr.skip td{color:#C9C3BD}.wk tr.over td{background:#FFF4F2}
+.dt{font:700 13px var(--sans);width:58px;white-space:nowrap}.dt small{display:block;font-size:10.5px;color:#8a8496;font-weight:600}
+.gt{display:inline-block;border-radius:7px;padding:1px 7px;font:700 10.5px var(--sans);letter-spacing:.04em;text-transform:uppercase;margin-left:6px;vertical-align:1px}
+.g-opex{background:#F2EFEA;color:#5d5869}.g-marketing{background:#E4DEEF;color:#3B3050}.g-fot{background:#DDF1E2;color:#2f6b3b}.g-tax{background:#FFF1D6;color:#8a5b00}.g-debt{background:#F9DEDC;color:#B23B2E}.g-purchase{background:#E8F0FA;color:#2c4f7c}.g-capex{background:#ECE7E1;color:#3a342f}
+.st{display:inline-block;border-radius:99px;padding:2px 9px;font:700 11px var(--sans)}.st.planned{background:#FFF1D6;color:#8a5b00}.st.approved{background:#E4DEEF;color:#3B3050}.st.paid{background:#DDF1E2;color:#2f6b3b}.st.skipped{background:#F2EFEA;color:#8a8496}
+.act{display:flex;gap:4px;justify-content:flex-end;flex-wrap:wrap}.act button,.act a.btn{height:28px;padding:0 10px;font-size:12px;border-radius:8px}
+.act form{display:inline}
+.mini{font-size:11.5px;color:#8a8496}
+.dev{font-size:11px;font-weight:700}.dev.p{color:#B23B2E}.dev.n{color:#2f6b3b}
+.bx{display:grid;gap:6px;font-size:13px}.bx .r{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px dashed #F1EDE8}.bx .r b{white-space:nowrap}
+.bar{height:7px;border-radius:99px;background:#F1EDE8;overflow:hidden;margin-top:3px}.bar i{display:block;height:100%;background:linear-gradient(90deg,#3B3050,#C9BFE6)}
+dialog.cs-d{border:0;border-radius:22px;padding:0;box-shadow:0 30px 80px -30px rgba(0,0,0,.5);width:min(720px,96vw)}.cs-dh{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #ECE7E1}.cs-dh h3{margin:0;font:700 17px var(--sans);text-transform:none;letter-spacing:0}
+.cs-x{width:32px;height:32px;border-radius:50%;background:#F2EFEA;border:0;font-size:18px;cursor:pointer}
+.frm{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:16px 20px}.frm label{display:grid;gap:4px;font-size:12px;color:#6b6575}.frm label.w2{grid-column:span 2}.frm label.w3{grid-column:span 3}.frm input,.frm select{height:38px}
+.plans{width:100%;border-collapse:collapse;font-size:12.5px}.plans th{text-align:left;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496;padding:6px 8px;border-bottom:1px solid #ECE7E1}.plans td{padding:6px 8px;border-bottom:1px solid #F6F3EF;vertical-align:middle}.plans tr.off td{color:#C9C3BD}
+.plans input,.plans select{height:30px;font-size:12.5px;padding:0 6px}.plans input.n{width:150px}.plans input.a{width:84px;text-align:right}.plans input.d{width:46px;text-align:center}
+@media(max-width:1100px){.pck{grid-template-columns:1fr 1fr}.pc2{grid-template-columns:1fr}.frm{grid-template-columns:1fr 1fr}}
+</style>
+<div class="row between" style="align-items:flex-end;flex-wrap:wrap;gap:10px">
+  <div><h1>Платіжний календар</h1><div class="muted small">Що і коли платити, звідки, чи погоджено і чи вистачить грошей. Оплата = фіноперація CRM (зіставляється сама за статтею й датою); залишки — з кас; очікувані надходження — із записів.</div></div>
+  <div class="pc-nav"><a href="?y={{ v.prev[0] }}&m={{ v.prev[1] }}">‹</a><b>{{ v.MONTHS[v.m - 1] }} {{ v.y }}</b><a href="?y={{ v.next[0] }}&m={{ v.next[1] }}">›</a>
+    {% if (v.y, v.m) != (v.today.year, v.today.month) %}<a href="/finance/calendar">Сьогодні</a>{% endif %}
+    <button class="btn" onclick="document.getElementById('dlg-add').showModal()">＋ Платіж</button><button class="btn ghost" onclick="document.getElementById('dlg-plans').showModal()">⚙ Регулярні</button></div>
+</div>
+<nav class="fin-tabs">{% for href, t in FIN_TABS %}<a href="{{ href }}" class="{{ 'on' if href == '/finance/calendar' }}">{{ t }}</a>{% endfor %}</nav>
+{% if qp.get('msg') %}<div class="alert ok">{{ qp.get('msg') }}</div>{% endif %}{% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+
+<div class="pck">
+  <div><small>На рахунках зараз</small><b>{{ u(v.cash) }} ₴</b><span class="s">{{ v.boxes|length }} кас · <a href="/settings/cashboxes">деталі</a></span></div>
+  <div class="{{ 'w' if v.overdue }}"><small>До оплати</small><b>{{ u(v.left) }} ₴</b><span class="s">{% if v.overdue %}у т.ч. прострочено {{ u(v.overdue_sum) }} ₴ ({{ v.overdue|length }}) · {% endif %}погоджено {{ u(v.approved) }}</span></div>
+  <div><small>Очікувані надходження</small><b>{{ u(v.income.total) }} ₴</b><span class="s">{{ v.income.n }} записів до кінця місяця × ціна послуг</span></div>
+  <div class="g {{ 'bad' if v.forecast < 0 }}"><small>Прогноз на кінець місяця</small><b>{{ '−' if v.forecast < 0 }}{{ u(v.forecast|abs) }} ₴</b><span class="s">рахунки − до оплати + надходження</span></div>
+  <div class="{{ 'w' if v.to_approve }}"><small>Чекають погодження</small><b>{{ v.to_approve|length }}</b><span class="s">{% if v.to_approve %}на {{ u(v.to_approve_sum) }} ₴{% else %}усе погоджено{% endif %} · оплачено за місяць {{ u(v.paid) }} ₴</span></div>
+</div>
+
+<div class="pc2">
+<div>
+  <div class="flt"><a href="?y={{ v.y }}&m={{ v.m }}" class="{{ 'on' if not v.group and not v.status }}">Усі</a>{% for k, t in v.GROUPS %}{% if v.by_group.get(k) %}<a href="?y={{ v.y }}&m={{ v.m }}&group={{ k }}" class="{{ 'on' if v.group == k }}">{{ t }} · {{ v.by_group[k].n }}</a>{% endif %}{% endfor %}
+    <span style="flex:1"></span><a href="?y={{ v.y }}&m={{ v.m }}&status=planned" class="{{ 'on' if v.status == 'planned' }}">Погодити</a><a href="?y={{ v.y }}&m={{ v.m }}&status=overdue" class="{{ 'on' if v.status == 'overdue' }}">Прострочені</a><a href="?y={{ v.y }}&m={{ v.m }}&status=paid" class="{{ 'on' if v.status == 'paid' }}">Оплачені</a></div>
+
+  {% macro item_row(i, over) -%}
+  <tr class="{{ i.status }}{{ ' over' if over and i.status in ('planned','approved') }}">
+    <td class="dt">{{ i.due.strftime('%d.%m') }}<small>{{ v.WEEKDAYS[i.due.weekday()] }}</small></td>
+    <td class="nm"><b>{{ i.name }}</b><span class="gt g-{{ i.group }}">{{ v.GROUP_T.get(i.group, i.group) }}</span>
+      <div class="mini">{% if i.article %}{{ i.article }}{% endif %}{% if i.cashbox %} · {{ i.cashbox }}{% endif %}{% if i.counterparty %} · {{ i.counterparty }}{% endif %}{% if i.note %} · {{ i.note }}{% endif %}{% if i.ref and i.ref.startswith('payreq:') %} · <a href="/payreq">рахунок</a>{% endif %}{% if i.finop_id %} · <a href="/finance/ops">CRM-{{ i.finop_id }}</a>{% endif %}</div></td>
+    <td class="r">{% if i.status == 'paid' %}<b>{{ u2(i.amount_fact) }}</b>{% set d = dev(i) %}{% if d %}<div class="dev {{ 'p' if d > 0 else 'n' }}">{{ '+' if d > 0 }}{{ u(d) }} до плану</div>{% endif %}{% else %}<b>{{ u2(i.amount) if i.amount else '—' }}</b>{% endif %}</td>
+    <td class="r"><span class="st {{ i.status }}">{{ v.STATUSES[i.status] }}</span></td>
+    <td class="r"><div class="act">
+      {% if i.status == 'planned' %}<form method="post" action="/finance/calendar/item/{{ i.id }}/approve"><button class="btn ghost" title="Дозволити оплату">✓ Погодити</button></form>{% endif %}
+      {% if i.status in ('planned', 'approved') %}<button class="btn" onclick="payDlg({{ i.id }}, {{ i.amount or 0 }}, '{{ (i.cashbox or '')|e }}', '{{ i.name|e }}')">Оплачено</button>
+        <button class="btn ghost" onclick="editDlg({{ i.id }}, {{ i.amount or 0 }}, '{{ i.due.isoformat() }}', '{{ (i.note or '')|e }}')">✎</button>
+        <form method="post" action="/finance/calendar/item/{{ i.id }}/skip" onsubmit="return confirm('Пропустити цей платіж у цьому місяці?')"><button class="btn ghost" title="Пропустити">✕</button></form>{% endif %}
+      {% if i.status in ('paid', 'skipped') and not (i.ref and i.ref.startswith('payreq:')) %}<form method="post" action="/finance/calendar/item/{{ i.id }}/reopen"><button class="btn ghost" title="Повернути в план">↺</button></form>{% endif %}
+    </div></td></tr>
+  {%- endmacro %}
+
+  {% if v.overdue and not v.group and v.status in ('', 'overdue') %}<div class="wk" style="border-color:#F3C9C4"><div class="h" style="background:#FFF4F2"><span style="color:#B23B2E;font-weight:800">Хвости з минулих місяців · {{ v.overdue|length }}</span><span>{{ u(v.overdue_sum) }} ₴</span></div>
+    <table>{% for i in v.overdue %}{{ item_row(i, true) }}{% endfor %}</table></div>{% endif %}
+
+  {% for w in v.weeks %}{% if w.rows or (not v.group and not v.status) %}
+  <div class="wk {{ 'cur' if w.current }}"><div class="h"><span style="color:#2A2430;font-weight:800">{{ w.start.strftime('%d.%m') }} – {{ w.end.strftime('%d.%m') }}{% if w.current %} · цей тиждень{% endif %}</span>
+      <span>план {{ u(w.plan) }} · оплачено {{ u(w.paid) }}{% if w.left %} · <b style="color:#8a5b00">лишилось {{ u(w.left) }}</b>{% endif %} ₴</span></div>
+    {% if w.rows %}<table>{% for i in w.rows %}{{ item_row(i, i.due < v.today) }}{% endfor %}</table>{% else %}<div class="muted small" style="padding:10px 14px">Платежів немає</div>{% endif %}</div>
+  {% endif %}{% endfor %}
+  {% if not v.rows %}<div class="card muted">На {{ v.MONTHS[v.m - 1]|lower }} платежів ще немає. Додайте регулярні платежі (⚙ Регулярні) — вони створяться на кожен місяць самі, або разовий платіж (＋ Платіж).</div>{% endif %}
+</div>
+
+<div>
+  <div class="pcc"><h3>За групами · {{ v.MONTHS[v.m - 1] }}</h3><div class="bx">
+    {% for k, t in v.GROUPS %}{% set g = v.by_group.get(k) %}{% if g %}<div class="r"><div style="flex:1"><span class="gt g-{{ k }}" style="margin:0 6px 0 0">{{ t }}</span><span class="mini">{{ g.n }}</span><div class="bar"><i style="width:{{ (100 * g.paid / g.plan)|round(1) if g.plan else 0 }}%"></i></div></div><b>{{ u(g.paid) }} / {{ u(g.plan) }}</b></div>{% endif %}{% endfor %}
+    <div class="r" style="border:0;font-weight:800"><span>Разом</span><b>{{ u(v.paid) }} / {{ u(v.plan) }} ₴</b></div></div></div>
+  <div class="pcc"><h3>Звідки платимо · до оплати</h3><div class="bx">
+    {% for name, amt in v.by_box.items() %}{% set b = v.boxes|selectattr('name', 'equalto', name)|first %}<div class="r"><span>{{ name }}<div class="mini">на рахунку {{ u(b.balance) if b else '—' }} ₴{% if b and b.balance < amt %} · <span style="color:#B23B2E;font-weight:700">не вистачає {{ u(amt - b.balance) }}</span>{% endif %}</div></span><b>{{ u(amt) }} ₴</b></div>{% else %}<div class="muted small">Нічого не заплановано</div>{% endfor %}</div></div>
+  <div class="pcc"><h3>Найближчі 7 днів</h3><div class="bx">{% for i in v.due_soon[:12] %}<div class="r"><span>{{ i.due.strftime('%d.%m') }} · {{ i.name }}{% if i.status == 'planned' %} <span class="st planned">погодити</span>{% endif %}</span><b>{{ u(i.amount) }}</b></div>{% else %}<div class="muted small">Тиждень чистий</div>{% endfor %}</div></div>
+  <div class="pcc"><h3>Очікувані надходження по днях</h3><div class="bx">{% for d, s in v.income.by_day.items()|sort %}{% if loop.index <= 10 %}<div class="r"><span>{{ d.strftime('%d.%m') }} · {{ v.WEEKDAYS[d.weekday()] }}</span><b>{{ u(s) }}</b></div>{% endif %}{% else %}<div class="muted small">Записів до кінця місяця немає</div>{% endfor %}</div><div class="mini" style="margin-top:8px">Сума цін послуг у записах, без знижок і товарів. Щоранку о 9:00 власнику в Telegram — що платити сьогодні й що прострочено.</div></div>
+</div>
+</div>
+
+<dialog class="cs-d" id="dlg-add"><div class="cs-dh"><h3>Разовий платіж</h3><button class="cs-x" onclick="this.closest('dialog').close()">×</button></div>
+  <form method="post" action="/finance/calendar/item" class="frm">
+    <label class="w2">Назва<input name="name" required maxlength="200" placeholder="Напр. Ремонт кондиціонера"></label>
+    <label>Група<select name="group">{% for k, t in v.GROUPS %}<option value="{{ k }}">{{ t }}</option>{% endfor %}</select></label>
+    <label>Сума, ₴<input name="amount" inputmode="decimal" placeholder="0"></label>
+    <label>Дата<input type="date" name="due" value="{{ v.today.isoformat() }}" required></label>
+    <label>Звідки платимо<select name="cashbox"><option value="">—</option>{% for b in v.boxes %}<option>{{ b.name }}</option>{% endfor %}</select></label>
+    <label class="w2">Стаття (для авто-зіставлення з оплатою)<input name="article" list="arts" maxlength="80"></label>
+    <label>Кому<input name="counterparty" maxlength="200"></label>
+    <label class="w2">Примітка<input name="note" maxlength="300"></label>
+    <label style="align-self:end"><span style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="needs_approval" value="1" style="height:auto"> потребує погодження</span></label>
+    <div class="w3" style="grid-column:span 3;display:flex;justify-content:flex-end;gap:8px"><button class="btn">Додати</button></div>
+  </form></dialog>
+<datalist id="arts">{% for a in articles %}<option value="{{ a }}">{% endfor %}</datalist>
+
+<dialog class="cs-d" id="dlg-pay"><div class="cs-dh"><h3 id="pay-title">Оплачено</h3><button class="cs-x" onclick="this.closest('dialog').close()">×</button></div>
+  <form method="post" id="pay-form" class="frm">
+    <label>Сума факт, ₴<input name="amount" id="pay-amount" inputmode="decimal" required></label>
+    <label>Дата оплати<input type="date" name="day" value="{{ v.today.isoformat() }}" required></label>
+    <label>Звідки<select name="cashbox" id="pay-box"><option value="">—</option>{% for b in v.boxes %}<option>{{ b.name }}</option>{% endfor %}</select></label>
+    <label class="w3">Коментар<input name="comment" maxlength="300"></label>
+    <div style="grid-column:span 3;display:flex;justify-content:space-between;gap:8px;align-items:center"><span class="mini">Створиться витрата в журналі фіноперацій за статтею платежу.</span><button class="btn">Записати оплату</button></div>
+  </form></dialog>
+
+<dialog class="cs-d" id="dlg-edit"><div class="cs-dh"><h3>Змінити платіж</h3><button class="cs-x" onclick="this.closest('dialog').close()">×</button></div>
+  <form method="post" id="edit-form" class="frm">
+    <label>Сума план, ₴<input name="amount" id="edit-amount" inputmode="decimal"></label>
+    <label>Дата<input type="date" name="due" id="edit-due" required></label>
+    <label>Примітка<input name="note" id="edit-note" maxlength="300"></label>
+    <div style="grid-column:span 3;display:flex;justify-content:flex-end;gap:8px"><button class="btn">Зберегти</button></div>
+  </form></dialog>
+
+<dialog class="cs-d" id="dlg-plans" style="width:min(1100px,97vw)"><div class="cs-dh"><h3>Регулярні платежі</h3><button class="cs-x" onclick="this.closest('dialog').close()">×</button></div>
+  <div style="padding:14px 20px;max-height:75vh;overflow:auto">
+    <div class="mini" style="margin-bottom:10px">Шаблони створюють платежі на кожен місяць самі. «Погодження» — платіж чекає вашого ✓ перед оплатою. Стаття потрібна, щоб оплата з журналу закривала платіж автоматично.</div>
+    {% for p in v.plans %}<form method="post" action="/finance/calendar/plan" id="pf{{ p.id }}"><input type="hidden" name="id" value="{{ p.id }}"></form>
+    <form method="post" action="/finance/calendar/plan/{{ p.id }}/toggle" id="pt{{ p.id }}"></form>
+    <form method="post" action="/finance/calendar/plan/{{ p.id }}/delete" id="pd{{ p.id }}" onsubmit="return confirm('Видалити шаблон? Незакриті майбутні платежі з нього теж зникнуть.')"></form>{% endfor %}
+    <form method="post" action="/finance/calendar/plan" id="pf0"></form>
+    <table class="plans"><tr><th>Назва</th><th>Група</th><th>Стаття</th><th>Звідки</th><th>Сума</th><th>Як часто</th><th>День</th><th>День 2 / день тижня</th><th>Погодж.</th><th></th></tr>
+    {% for p in v.plans %}{% set f = 'pf' ~ p.id %}<tr class="{{ '' if p.active else 'off' }}">
+      <td><input class="n" form="{{ f }}" name="name" value="{{ p.name }}" required></td>
+      <td><select form="{{ f }}" name="group">{% for k, t in v.GROUPS %}<option value="{{ k }}" {{ 'selected' if p.group == k }}>{{ t }}</option>{% endfor %}</select></td>
+      <td><input form="{{ f }}" name="article" value="{{ p.article or '' }}" list="arts" style="width:170px"></td>
+      <td><select form="{{ f }}" name="cashbox"><option value="">—</option>{% for b in v.boxes %}<option {{ 'selected' if p.cashbox == b.name }}>{{ b.name }}</option>{% endfor %}</select></td>
+      <td><input class="a" form="{{ f }}" name="amount" value="{{ ('%g'|format(p.amount)) if p.amount else '' }}"></td>
+      <td><select form="{{ f }}" name="schedule">{% for k, t in v.SCHEDULES.items() %}<option value="{{ k }}" {{ 'selected' if p.schedule == k }}>{{ t }}</option>{% endfor %}</select></td>
+      <td><input class="d" form="{{ f }}" name="day" value="{{ p.day or '' }}"></td>
+      <td><input class="d" form="{{ f }}" name="day2" value="{{ p.day2 or '' }}" title="другий день (двічі на місяць)"> <select form="{{ f }}" name="weekday" title="день тижня (щотижня)"><option value="">—</option>{% for w in v.WEEKDAYS %}<option value="{{ loop.index0 }}" {{ 'selected' if p.weekday == loop.index0 }}>{{ w }}</option>{% endfor %}</select></td>
+      <td style="text-align:center"><input type="checkbox" form="{{ f }}" name="needs_approval" value="1" {{ 'checked' if p.needs_approval }}></td>
+      <td style="white-space:nowrap"><button class="btn ghost" form="{{ f }}" style="height:30px;padding:0 10px;font-size:12px">Зберегти</button>
+        <button class="btn ghost" form="pt{{ p.id }}" style="height:30px;padding:0 10px;font-size:12px" title="{{ 'Вимкнути' if p.active else 'Увімкнути' }}">{{ '⏸' if p.active else '▶' }}</button>
+        <button class="btn ghost" form="pd{{ p.id }}" style="height:30px;padding:0 10px;font-size:12px">🗑</button></td></tr>{% endfor %}
+    <tr>
+      <td><input class="n" form="pf0" name="name" placeholder="Новий регулярний платіж" required></td>
+      <td><select form="pf0" name="group">{% for k, t in v.GROUPS %}<option value="{{ k }}">{{ t }}</option>{% endfor %}</select></td>
+      <td><input form="pf0" name="article" list="arts" style="width:170px"></td>
+      <td><select form="pf0" name="cashbox"><option value="">—</option>{% for b in v.boxes %}<option>{{ b.name }}</option>{% endfor %}</select></td>
+      <td><input class="a" form="pf0" name="amount"></td>
+      <td><select form="pf0" name="schedule">{% for k, t in v.SCHEDULES.items() %}<option value="{{ k }}">{{ t }}</option>{% endfor %}</select></td>
+      <td><input class="d" form="pf0" name="day" value="1"></td>
+      <td><input class="d" form="pf0" name="day2"> <select form="pf0" name="weekday"><option value="">—</option>{% for w in v.WEEKDAYS %}<option value="{{ loop.index0 }}">{{ w }}</option>{% endfor %}</select></td>
+      <td style="text-align:center"><input type="checkbox" form="pf0" name="needs_approval" value="1"></td>
+      <td><button class="btn" form="pf0" style="height:30px;padding:0 12px;font-size:12px">Додати</button></td></tr>
+    </table></div></dialog>
+<script>
+function payDlg(id, amt, box, name){const d=document.getElementById('dlg-pay');document.getElementById('pay-form').action='/finance/calendar/item/'+id+'/pay';document.getElementById('pay-amount').value=amt||'';document.getElementById('pay-title').textContent='Оплачено · '+name;const s=document.getElementById('pay-box');[...s.options].forEach(o=>o.selected=(o.value===box));d.showModal()}
+function editDlg(id, amt, due, note){const d=document.getElementById('dlg-edit');document.getElementById('edit-form').action='/finance/calendar/item/'+id+'/edit';document.getElementById('edit-amount').value=amt||'';document.getElementById('edit-due').value=due;document.getElementById('edit-note').value=note;d.showModal()}
+</script>
+{% endblock %}

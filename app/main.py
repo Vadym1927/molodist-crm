@@ -91,6 +91,7 @@ FIN_TABS = [("/finance", "Огляд"), ("/sales", "Каса CRM"), ("/finance/o
             ("/finance/payroll", "ЗП за місяць"),
             ("/finance/settle", "Взаєморозрахунки по з/п"), ("/finance/day", "Продажі за день"), ("/finance/sales", "Продажі"),
             ("/finance/balances", "Баланс пацієнтів"), ("/finance/bonuses", "Рух бонусів"), ("/payreq", "Рахунки на оплату"),
+            ("/finance/calendar", "Платіжний календар"),
             ("/finance/pricing", "Планування ціни реалізації"), ("/finance/service-pricing", "Планування ціни послуг"),
             ("/amort", "Амортизація обладнання")]
 def _site_url(request) -> str:
@@ -358,6 +359,20 @@ async def job_energy():
         log.warning("job_energy: %s", e)
 
 
+async def job_paycal():
+    """09:00 — платіжний календар: що платити сьогодні, прострочене, що чекає погодження — власнику в Telegram."""
+    from .services import paycal as _pc, alerts as _al
+    def run():
+        with SessionLocal() as db:
+            return _pc.digest_text(db)
+    try:
+        txt = await asyncio.to_thread(run)
+        if txt:
+            _al.send(txt)
+    except Exception as e:  # noqa: BLE001
+        log.warning("job_paycal: %s", e)
+
+
 async def job_energy_report():
     """08:00 — звіт Deye за вчора власнику в Telegram (перед цим оновити дані з Deye)."""
     from .services import energy as en
@@ -519,6 +534,7 @@ async def lifespan(app: FastAPI):
         sched.add_job(job_shop, "cron", hour=6, minute=40)
         sched.add_job(job_energy, "cron", hour="0,6,12,18", minute=7)
         sched.add_job(job_energy_report, "cron", hour=8, minute=0)
+        sched.add_job(job_paycal, "cron", hour=9, minute=0)
         sched.start()
     except Exception as e:          # noqa: BLE001
         log.warning("scheduler not started: %s", e)
@@ -8607,6 +8623,162 @@ async def pnlm_plan_save(request: Request, user: User = Depends(require("finance
     _pm2.plan_save(db, year, vals)
     audit(db, "reports.pnlm_plan", user=user, year=year)
     return RedirectResponse(f"/reports?r=pnlm&year={year}", 303)
+
+
+# ---------------- Платіжний календар ----------------
+@app.get("/finance/calendar", response_class=HTMLResponse)
+def paycal_page(request: Request, y: int = 0, m: int = 0, group: str = "", status: str = "", user: User = Depends(require("finance")),
+                db: Session = Depends(db_dep)):
+    from .services import paycal as _pc
+    _pc.seed_plans(db)
+    t = date.today()
+    y, m = (y or t.year), (m or t.month)
+    if not (1 <= m <= 12) or not (2020 <= y <= 2100):
+        y, m = t.year, t.month
+    v = _pc.month_view(db, y, m, group=group if group in _pc.GROUP_T else "", status=status if status in ("planned", "approved", "paid", "skipped", "overdue") else "")
+    return render(request, "fin_paycal.html", nav="finance", v=v, FIN_TABS=FIN_TABS, dev=_pc.deviation, articles=_fa().names(db, "expense"))
+
+
+def _pc_back(request: Request) -> str:
+    ref = request.headers.get("referer") or ""
+    return ref if "/finance/calendar" in ref else "/finance/calendar"
+
+
+@app.post("/finance/calendar/item")
+async def paycal_item_add(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .models import PayItem
+    from .services import paycal as _pc
+    f = await request.form()
+    name = str(f.get("name") or "").strip()[:200]
+    due = _day(str(f.get("due") or ""))
+    if not name or not due:
+        return RedirectResponse(_with_msg(_pc_back(request), "Вкажіть назву й дату", err=True), 303)
+    g = str(f.get("group") or "opex")
+    it = PayItem(due=due, name=name, group=g if g in _pc.GROUP_T else "opex", article=str(f.get("article") or "").strip()[:80] or None,
+                 cashbox=str(f.get("cashbox") or "").strip()[:100] or None, counterparty=str(f.get("counterparty") or "").strip()[:200] or None,
+                 amount=_num(str(f.get("amount") or "")), status="planned" if f.get("needs_approval") else "approved", source="manual",
+                 note=str(f.get("note") or "").strip()[:300] or None, created_by=user.id)
+    db.add(it)
+    db.commit()
+    audit(db, "paycal.item_add", "pay_item", it.id, user=user, name=it.name, amount=it.amount, due=str(it.due))
+    return RedirectResponse(_with_msg(f"/finance/calendar?y={due.year}&m={due.month}", f"Додано: {it.name}"), 303)
+
+
+@app.post("/finance/calendar/item/{iid:int}/{act}")
+async def paycal_item_act(iid: int, act: str, request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .models import PayItem
+    from .services import paycal as _pc
+    it = db.get(PayItem, iid)
+    back = _pc_back(request)
+    if not it:
+        return RedirectResponse(_with_msg(back, "Платіж не знайдено", err=True), 303)
+    f = await request.form()
+    if act == "approve":
+        if user.role != "owner" and it.status == "planned":
+            return RedirectResponse(_with_msg(back, "Погоджує власник", err=True), 303)
+        it.status, it.approved_by, it.approved_at = "approved", user.id, datetime.utcnow()
+        msg = f"Погоджено: {it.name}"
+    elif act == "pay":
+        amt = _num(str(f.get("amount") or ""))
+        if not amt or amt <= 0:
+            return RedirectResponse(_with_msg(back, "Вкажіть суму оплати", err=True), 303)
+        if it.status == "planned" and user.role != "owner":
+            return RedirectResponse(_with_msg(back, "Платіж ще не погоджено власником", err=True), 303)
+        op = _pc.pay(db, it, amt, _day(str(f.get("day") or "")) or date.today(), str(f.get("cashbox") or "").strip() or None, user.id,
+                     str(f.get("comment") or "").strip())
+        msg = f"Оплачено: {it.name} · CRM-{op.id}"
+    elif act == "skip":
+        it.status = "skipped"
+        msg = f"Пропущено: {it.name}"
+    elif act == "reopen":
+        if it.finop_id:
+            return RedirectResponse(_with_msg(back, "Платіж закритий фіноперацією — спершу видаліть її в журналі", err=True), 303)
+        it.status, it.paid_at, it.amount_fact = ("planned" if (it.plan and it.plan.needs_approval) else "approved"), None, None
+        msg = f"Повернуто в план: {it.name}"
+    elif act == "edit":
+        it.amount = _num(str(f.get("amount") or ""))
+        d = _day(str(f.get("due") or ""))
+        if d:
+            it.due = d
+        it.note = str(f.get("note") or "").strip()[:300] or None
+        msg = f"Змінено: {it.name}"
+    elif act == "delete":
+        if it.status == "paid" and it.finop_id:
+            return RedirectResponse(_with_msg(back, "Оплачений платіж не видаляється", err=True), 303)
+        db.delete(it)
+        db.commit()
+        audit(db, "paycal.item_delete", "pay_item", iid, user=user)
+        return RedirectResponse(_with_msg(back, "Видалено"), 303)
+    else:
+        return RedirectResponse(back, 303)
+    db.commit()
+    audit(db, f"paycal.{act}", "pay_item", it.id, user=user, name=it.name, amount=it.amount_fact or it.amount)
+    return RedirectResponse(_with_msg(back, msg), 303)
+
+
+@app.post("/finance/calendar/plan")
+async def paycal_plan_save(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .models import PayPlan
+    from .services import paycal as _pc
+    f = await request.form()
+    pid = str(f.get("id") or "")
+    p = db.get(PayPlan, int(pid)) if pid.isdigit() else PayPlan(start=date.today().replace(day=1))
+    name = str(f.get("name") or "").strip()[:200]
+    if not name:
+        return RedirectResponse(_with_msg("/finance/calendar", "Вкажіть назву", err=True), 303)
+    g = str(f.get("group") or "opex")
+    p.name, p.group = name, (g if g in _pc.GROUP_T else "opex")
+    p.article = str(f.get("article") or "").strip()[:80] or None
+    p.cashbox = str(f.get("cashbox") or "").strip()[:100] or None
+    p.amount = _num(str(f.get("amount") or ""))
+    sch = str(f.get("schedule") or "monthly")
+    p.schedule = sch if sch in _pc.SCHEDULES else "monthly"
+    d1, d2, wd = str(f.get("day") or ""), str(f.get("day2") or ""), str(f.get("weekday") or "")
+    p.day = int(d1) if d1.isdigit() and 1 <= int(d1) <= 31 else None
+    p.day2 = int(d2) if d2.isdigit() and 1 <= int(d2) <= 31 else None
+    p.weekday = int(wd) if wd.isdigit() and 0 <= int(wd) <= 6 else None
+    p.needs_approval = bool(f.get("needs_approval"))
+    if p.schedule == "once" and not p.start:
+        p.start = date.today()
+    if not pid.isdigit():
+        db.add(p)
+    db.flush()
+    # майбутні незакриті платежі з цього шаблону — перегенерувати під нові параметри
+    from .models import PayItem
+    for it in db.scalars(select(PayItem).where(PayItem.plan_id == p.id, PayItem.status.in_(("planned", "approved")), PayItem.due >= date.today())):
+        db.delete(it)
+    db.commit()
+    t = date.today()
+    _pc.ensure_month(db, t.year, t.month)
+    audit(db, "paycal.plan_save", "pay_plan", p.id, user=user, name=p.name, amount=p.amount, schedule=p.schedule)
+    return RedirectResponse(_with_msg("/finance/calendar", f"Шаблон збережено: {p.name}"), 303)
+
+
+@app.post("/finance/calendar/plan/{pid:int}/{act}")
+def paycal_plan_act(pid: int, act: str, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .models import PayPlan, PayItem
+    p = db.get(PayPlan, pid)
+    if not p:
+        return RedirectResponse("/finance/calendar", 303)
+    if act == "toggle":
+        p.active = not p.active
+        if not p.active:
+            for it in db.scalars(select(PayItem).where(PayItem.plan_id == p.id, PayItem.status.in_(("planned", "approved")), PayItem.due >= date.today())):
+                db.delete(it)
+        msg = f"{'Увімкнено' if p.active else 'Вимкнено'}: {p.name}"
+    elif act == "delete":
+        for it in db.scalars(select(PayItem).where(PayItem.plan_id == p.id)):
+            if it.status in ("planned", "approved", "skipped"):
+                db.delete(it)
+            else:
+                it.plan_id = None
+        db.delete(p)
+        msg = "Шаблон видалено"
+    else:
+        return RedirectResponse("/finance/calendar", 303)
+    db.commit()
+    audit(db, f"paycal.plan_{act}", "pay_plan", pid, user=user)
+    return RedirectResponse(_with_msg("/finance/calendar", msg), 303)
 
 
 # ---------------- Звіт Deye (лише власник) ----------------

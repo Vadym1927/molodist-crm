@@ -1614,3 +1614,55 @@ class CashShift(Base):
     boxes: Mapped[list | None] = mapped_column(JSON)          # [{id, name, type, open, close}]
     summary: Mapped[dict | None] = mapped_column(JSON)        # на закритті: чеків, сума, по способах оплати
     note: Mapped[str | None] = mapped_column(Text)
+
+
+class PayPlan(Base):
+    """Платіжний календар: регулярний платіж (шаблон) — оренда 13-го, ЄП 20-го, ЗП 15-го і 30-го, лізинг щомісяця.
+    schedule: monthly (day) | twice (day, day2) | weekly (weekday 0–6) | quarterly (day, місяці 1/4/7/10) | once (start)."""
+    __tablename__ = "pay_plans"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    group: Mapped[str] = mapped_column(String(20), default="opex", index=True)      # opex | marketing | fot | tax | debt | purchase | capex
+    article: Mapped[str | None] = mapped_column(String(80))                         # стаття фіноперацій (для авто-зіставлення з оплатою)
+    cashbox: Mapped[str | None] = mapped_column(String(100))                        # з якого рахунку платимо
+    counterparty: Mapped[str | None] = mapped_column(String(200))
+    amount: Mapped[float | None] = mapped_column(Float)                             # планова сума (None — змінна)
+    schedule: Mapped[str] = mapped_column(String(12), default="monthly")
+    day: Mapped[int | None] = mapped_column(Integer)
+    day2: Mapped[int | None] = mapped_column(Integer)
+    weekday: Mapped[int | None] = mapped_column(Integer)
+    start: Mapped[date | None] = mapped_column(Date)
+    end: Mapped[date | None] = mapped_column(Date)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    needs_approval: Mapped[bool] = mapped_column(Boolean, default=False)            # без «Погоджено» адмін не платить
+    note: Mapped[str | None] = mapped_column(String(300))
+    sort: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class PayItem(Base):
+    """Платіж на конкретну дату: з шаблону, разовий, з рахунку постачальника (payreq) або з нарахування ЗП."""
+    __tablename__ = "pay_items"
+    __table_args__ = (UniqueConstraint("plan_id", "due", name="uq_pay_item_plan_due"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    plan_id: Mapped[int | None] = mapped_column(ForeignKey("pay_plans.id"), index=True)
+    due: Mapped[date] = mapped_column(Date, index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    group: Mapped[str] = mapped_column(String(20), default="opex", index=True)
+    article: Mapped[str | None] = mapped_column(String(80))
+    cashbox: Mapped[str | None] = mapped_column(String(100))
+    counterparty: Mapped[str | None] = mapped_column(String(200))
+    amount: Mapped[float | None] = mapped_column(Float)                             # план
+    status: Mapped[str] = mapped_column(String(12), default="planned", index=True)  # planned | approved | paid | skipped
+    approved_by: Mapped[int | None] = mapped_column(Integer)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime)
+    finop_id: Mapped[int | None] = mapped_column(Integer, index=True)               # оплата — фіноперація CRM
+    paid_at: Mapped[date | None] = mapped_column(Date)
+    amount_fact: Mapped[float | None] = mapped_column(Float)
+    source: Mapped[str] = mapped_column(String(12), default="plan")                 # plan | manual | payreq | salary
+    ref: Mapped[str | None] = mapped_column(String(60), index=True)                 # payreq:<id>
+    note: Mapped[str | None] = mapped_column(String(300))
+    created_by: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    plan: Mapped[PayPlan | None] = relationship()
