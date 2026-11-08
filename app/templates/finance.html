@@ -9,6 +9,7 @@
      ("/reports?r=cash", "Стан рахунків", "Залишки кас і рахунків на початок і кінець періоду", '<rect x="4" y="9" width="21" height="16" rx="3"/><path d="M4 13h21M8 9l11-4 2 4"/><ellipse cx="24" cy="21" rx="4" ry="1.6"/><path d="M20 21v3c0 .9 1.8 1.6 4 1.6s4-.7 4-1.6v-3"/>')]),
   ("Гроші", 12, '<ellipse cx="9" cy="7" rx="6" ry="2.5"/><path d="M3 7v4c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5V7M3 11v4c0 1.4 2.7 2.5 6 2.5"/><ellipse cx="16" cy="15" rx="5" ry="2"/><path d="M11 15v3c0 1.1 2.2 2 5 2s5-.9 5-2v-3"/>', [
      ("/finance/ops", "Фіноперації", "Журнал: надходження, витрати, перекази", '<path d="M4 11h13l-3-3M26 21H13l3 3"/><circle cx="23" cy="10" r="4"/><path d="M23 8v4M21 10h4"/><circle cx="7" cy="21" r="4"/><path d="M5 21h4"/>'),
+     ("/finance/calendar", "Платіжний календар", "Що платити, погодження, прогноз грошей", '<rect x="4" y="6" width="22" height="20" rx="3"/><path d="M4 12h22M10 3v5M20 3v5"/><path d="M9 17h3M9 21h3"/><circle cx="20" cy="19" r="3.5"/><path d="M20 17.4v1.8l1.2.8"/>'),
      ("/payreq", "Рахунки на оплату", "Рахунки постачальників: Telegram → погодження → оплата", '<path d="M8 4h11l5 5v17H8z"/><path d="M19 4v5h5M12 13h8M12 17h5"/><circle cx="21" cy="22" r="4"/><path d="M19.3 22l1.2 1.2 2.3-2.4"/>'),
      ("/settings/cashboxes", "Каси й рахунки", "Залишки кас і рахунків, комісія банку", '<path d="M4 11L15 5l11 6M5 11h20M7 11v11M12 11v11M18 11v11M23 11v11M4 25h22"/>'),
      ("/reports?r=cashflow", "Cashflow", "Рух грошей по днях і місяцях", '<ellipse cx="10" cy="8" rx="6" ry="2.5"/><path d="M4 8v4c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5V8"/><ellipse cx="20" cy="20" rx="6" ry="2.5"/><path d="M14 20v3c0 1.4 2.7 2.5 6 2.5s6-1.1 6-2.5v-3M18 7c4 0 7 2.5 7 6l-2-1.5M12 24c-4 0-7-2.5-7-6l2 1.5"/>')]),
@@ -20,7 +21,9 @@
      ("/finance/balances", "Баланс пацієнтів", "Депозити й борги пацієнтів", '<circle cx="13" cy="10" r="5"/><path d="M4 26c1-5 4.6-8 9-8 1.7 0 3.3.4 4.6 1.2"/><rect x="18" y="19" width="10" height="7" rx="1.5"/><path d="M18 21.5h10M25 23.5h1"/>'),
      ("/finance/bonuses", "Рух бонусів", "Нарахування й списання бонусів", '<rect x="5" y="13" width="20" height="13" rx="2.5"/><path d="M4 13h22v-3H4zM15 10v16M15 10c-1-3-3-5-5-5a2.5 2.5 0 0 0 0 5h5zM15 10c1-3 3-5 5-5a2.5 2.5 0 0 1 0 5h-5zM25 3l.7 1.6L27 5l-1.3.6L25 7l-.7-1.4L23 5l1.3-.4z"/>')]),
   ("Ціни", 12, '<path d="M20.5 12.5l-8 8-9-9V3.5h8z"/><circle cx="8" cy="8" r="1.5"/>', [
-     ("/finance/pricing", "Планування ціни реалізації", "Закупівля, курс, націнка, ціна на вітрині", '<path d="M20 15l-8 8-9-9V6h8z"/><circle cx="8" cy="10" r="1.6"/><rect x="17" y="14" width="10" height="13" rx="2"/><path d="M19.5 17h5M19.5 20.5h1M22 20.5h1M24.5 20.5h0M19.5 23.5h1M22 23.5h1M24.5 23.5h0"/>')]),
+     ("/finance/pricing", "Планування ціни реалізації", "Закупівля, курс, націнка, ціна на вітрині", '<path d="M20 15l-8 8-9-9V6h8z"/><circle cx="8" cy="10" r="1.6"/><rect x="17" y="14" width="10" height="13" rx="2"/><path d="M19.5 17h5M19.5 20.5h1M22 20.5h1M24.5 20.5h0M19.5 23.5h1M22 23.5h1M24.5 23.5h0"/>'),
+     ("/finance/service-pricing", "Планування ціни послуг", "Техкарта, ЗП лікаря, маржа, нова ціна", '<path d="M20 15l-8 8-9-9V6h8z"/><circle cx="8" cy="10" r="1.6"/><path d="M19 4l7 7M22 4h4v4"/>'),
+     ("/amort", "Амортизація обладнання", "Нарахування за апаратами й розхідниками, фонд", '<rect x="4" y="9" width="22" height="14" rx="3"/><path d="M9 23v3M21 23v3M9 14h6M9 18h4"/><circle cx="21" cy="16" r="3"/>')]),
 ] %}
 <style>
 .fh{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:0 0 16px}
@@ -56,8 +59,8 @@
 <div class="fh"><div><span class="pill-e">Управління клінікою</span><h1>Фінанси</h1><p>Усі фінансові процеси — в одному місці.</p></div>
   <label class="fq"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input id="fb-q" placeholder="Знайти розділ…" autocomplete="off" oninput="fbFind(this.value)"></label></div>
 <div class="fb">{% for g, span, gi, items in FB %}<div class="fb-g {{ 'nar' if span < 12 }}" style="grid-column:span {{ span }}"><h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">{{ gi|safe }}</svg>{{ g }}</h3>
-  <div class="fb-row" style="--n:{{ [items|length, 4]|min if span == 12 else items|length }}">
-  {% for u, t, d, ic in items %}<a class="fb-c {{ 'hot' if u == '/payreq' }}" href="{{ u }}" onclick="return fwOpen(event, this)" data-t="{{ t }}" data-q="{{ (t ~ ' ' ~ d ~ ' ' ~ g)|lower }}"><i><svg viewBox="0 0 30 30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">{{ ic|safe }}</svg></i>
+  <div class="fb-row" style="--n:{{ [items|length, 5]|min if span == 12 else items|length }}">
+  {% for u, t, d, ic in items %}<a class="fb-c {{ 'hot' if u in ('/payreq', '/finance/calendar') }}" href="{{ u }}" onclick="return fwOpen(event, this)" data-t="{{ t }}" data-q="{{ (t ~ ' ' ~ d ~ ' ' ~ g)|lower }}"><i><svg viewBox="0 0 30 30" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">{{ ic|safe }}</svg></i>
     <div><b>{{ t }}</b><span>{{ d }}</span></div></a>{% endfor %}</div></div>{% endfor %}</div>
 <a class="fb-go" href="#fin-overview">Перейти до фінансового огляду <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg></a>
 <script>function fbFind(q){q=(q||'').toLowerCase().trim();document.querySelectorAll('.fb-g').forEach(function(g){var any=false;g.querySelectorAll('.fb-c').forEach(function(c){var ok=!q||c.dataset.q.indexOf(q)>=0;c.classList.toggle('hide',!ok);if(ok)any=true});g.classList.toggle('hide',!any)})}</script>
