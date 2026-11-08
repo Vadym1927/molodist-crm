@@ -81,3 +81,19 @@ def test_classify():
     assert classify("Девіденди", False, None) == ("owner", "owner")
     assert classify("Закупка косметика вітрина", False, None) == ("purchase", "purchase")
     assert classify("Щось дивне", False, None) == ("opex", "other")
+
+
+def test_history_from_visits():
+    from app.models import Visit, ProductSale, Patient, Product
+    with SessionLocal() as db:
+        p = Patient(full_name="Історична Пацієнтка", phone="+380000000777"); db.add(p); db.flush()
+        pr = Product(name="Крем Історія", name_norm="крем історія", warehouse="vitrina", price=1000, cost=400, active=True); db.add(pr); db.flush()
+        db.add_all([Visit(source="cb_service_sale", external_id="h1", patient_id=p.id, service_name="Пілінг Історичний", starts_at=datetime(2022, 2, 10, 12), status="done", amount=2500),
+                    Visit(source="cb_service_sale", external_id="h2", patient_id=p.id, service_name="Пілінг Історичний", starts_at=datetime(2022, 2, 20, 12), status="done", amount=2500),
+                    Visit(source="cb_service_sale", external_id="h3", patient_id=p.id, service_name="Скасований", starts_at=datetime(2022, 2, 21, 12), status="cancelled", amount=9999),
+                    ProductSale(external_id="hp1", patient_id=p.id, product_id=pr.id, product_name="Крем Історія", quantity=2, amount=2000, sold_at=datetime(2022, 2, 11, 12))])
+        db.commit()
+        r = pm.build(db, 2022)
+        m2 = next(x for x in r["rows"] if x["m"] == "2022-02")
+        assert m2["from_visits"] and m2["rev_s"] == 5000 and m2["rev_p"] == 2000 and m2["cogs_p"] == 800
+        assert m2["k_pat"] == 1 and m2["k_vis"] == 2 and m2["rev_cat"].get("Без категорії") == 5000

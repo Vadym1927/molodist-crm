@@ -156,10 +156,55 @@ def _collect(db: Session, year: int) -> dict:
                     pats_m[mk].add(c.patient_id)
             else:
                 rev_o[mk] += amt
+    # ---------------- місяці без чеків (історія CleverBox до синку чеків): візити + продажі товарів ----------------
+    unit_cost = rp._norm_costs(db)
+    no_checks = [mk for mk in months if not rev_s[mk] and not rev_p[mk]]
+    hist_cogs = z()
+    hist_cogs_cat: dict[str, dict] = defaultdict(z)
+    hist_months: set = set()
+    if no_checks:
+        from ..models import Visit, ProductSale
+        from .autonomy import since as _since
+        a0, b0 = datetime.combine(d_from, datetime.min.time()), datetime.combine(d_to, datetime.max.time())
+        s_ = _since(db)
+        for v in db.scalars(select(Visit).where(Visit.starts_at >= a0, Visit.starts_at <= b0, Visit.status == "done", Visit.source != "crm_sale")):
+            mk = _m(v.starts_at)
+            if mk not in no_checks or (s_ and v.starts_at.date() >= s_):
+                continue
+            amt = float(v.amount or 0)
+            if not amt:
+                continue
+            hist_months.add(mk)
+            rev_s[mk] += amt
+            rev_cat[cat_of(v.service_name or "")][mk] += amt
+            svc_items[mk] += 1
+            sv = idx.get(norm(v.service_name or ""))
+            cst = ((unit_cost.get(sv.id, 0.0) or float(sv.cost_fixed or 0)) if sv else 0.0)
+            hist_cogs[mk] += cst
+            hist_cogs_cat[cat_of(v.service_name or "")][mk] += cst
+            if v.patient_id:
+                pats_m[mk].add(v.patient_id)
+                visits_m[mk].add((v.patient_id, v.starts_at.date()))
+        for ps_ in db.scalars(select(ProductSale).where(ProductSale.sold_at >= a0, ProductSale.sold_at <= b0)):
+            mk = _m(ps_.sold_at)
+            if mk not in no_checks or (ps_.external_id or "").startswith("crm:") or (s_ and ps_.sold_at.date() >= s_):
+                continue
+            amt = float(ps_.amount or 0)
+            hist_months.add(mk)
+            rev_p[mk] += amt
+            pr = cat.get(norm(ps_.product_name or ""))
+            if pr and pr.cost:
+                cogs_p[mk] += float(pr.cost) * float(ps_.quantity or 1)
+            if ps_.patient_id:
+                pats_m[mk].add(ps_.patient_id)
     # ---------------- СОБІВАРТІСТЬ послуг (матеріали) ----------------
     cogs_s = z()
     cogs_cat: dict[str, dict] = defaultdict(z)
-    unit_cost = rp._norm_costs(db)
+    for mk in hist_months:
+        cogs_s[mk] += hist_cogs[mk]
+    for c_, mv in hist_cogs_cat.items():
+        for mk, v in mv.items():
+            cogs_cat[c_][mk] += v
     for ln in rp._service_lines(db, d_from, d_to):
         mk = _m(ln["day"])
         if mk not in cogs_s:
@@ -282,6 +327,7 @@ def _collect(db: Session, year: int) -> dict:
         mkt = opex["marketing"][mk] + opex["ads"][mk]
         gm = gross / rev if rev else 0
         rows.append({"m": mk, "label": MONTHS[int(mk[5:]) - 1], "full": MONTHS_FULL[int(mk[5:]) - 1], "current": mk == _m(today), "from_journal": from_journal,
+                     "from_visits": mk in hist_months,
                      "rev": rev, "rev_s": rev_s[mk], "rev_p": rev_p[mk], "rev_o": rev_o[mk],
                      "rev_cat": {c_: v[mk] for c_, v in rev_cat.items()},
                      "mat": mat, "cogs_s": cogs_s[mk], "amort": amort[mk], "cogs_cat": {c_: v[mk] for c_, v in cogs_cat.items()},
@@ -398,7 +444,8 @@ def build(db: Session, year: int) -> dict:
     best = max(done, key=lambda r: r["net"]) if done else None
     worst = min(done, key=lambda r: r["net"]) if done else None
     cov = {"cogs_months": sum(1 for r in rows if r["cogs_s"]), "n": len(done), "journal_months": sum(1 for r in rows if r["from_journal"]),
-           "rev_vs_journal": round(t["rev"] - t["j_income"], 2), "labor_months": sum(1 for r in rows if r["labor"])}
+           "rev_vs_journal": round(t["rev"] - t["j_income"], 2), "labor_months": sum(1 for r in rows if r["labor"]),
+           "visit_months": sum(1 for r in rows if r.get("from_visits"))}
     def _arts(d: dict) -> list:
         return sorted(((a, mv, round(sum(mv.values()), 2)) for a, mv in d.items()), key=lambda x: -x[2])
     return {"year": year, "rows": rows, "t": t, "avg": avg, "prev": prev, "pt": pt, "best": best, "worst": worst, "pos": len(pos),
