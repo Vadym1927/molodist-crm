@@ -63,7 +63,8 @@ def test_dropbox_flow(tmp_path, monkeypatch):
             pass
         d = dbx.finish_auth(db, "code", q["state"][0], http)
         assert dbx.connected(d) and d["account"] == "owner@example.com" and not dbx.ready(d)
-        assert "R1" not in json.dumps(dbx.cfg(db))                    # токен зберігається зашифрованим
+        _d = dbx.cfg(db)
+        assert _d["secrets"].get("refresh") and _d["secrets"]["refresh"] != "R1" and dbx.secret(_d, "refresh") == "R1"   # токен зберігається зашифрованим
         src = tmp_path / "MOLODIST_CRM_backup_2026-11-08_030000.zip"
         src.write_bytes(b"zipdata")
         assert dbx.run(db, src, http)["status"] == "немає пароля"
