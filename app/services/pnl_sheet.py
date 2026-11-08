@@ -351,3 +351,95 @@ def hybrid(db: Session, year: int, crm: dict | None) -> dict | None:
     return {"year": year, "rows": out_rows, "months_src": months_src, "crm_from": crm_from, "key": key, "sheet": sh["sheet"], "amap": amap,
             "unmatched": unmatched,
             "imported_at": sh["imported_at"], "source": sh["source"], "n_months": sum(1 for s in months_src if s != "none")}
+
+
+# ---------------- напрямки: частка в послугах, прибуток по напрямках, валовий внесок ----------------
+def directions(cats: list[dict], labor: list[float], cosm: list[tuple]) -> dict:
+    """cats — 12 словників {напрямок: (дохід, матеріали)}; labor — оплата роботи лікарів по місяцях (розподіляється між напрямками
+    пропорційно доходу); cosm — 12 кортежів (дохід косметики, закупівельна вартість, % лікарям).
+    Повертає рядки по напрямках: дохід, частка в послугах, матеріали, оплата роботи (розподіл), прибуток, маржа, внесок у валовий."""
+    names: list[str] = []
+    for d in cats:
+        for k in d:
+            if k not in names:
+                names.append(k)
+    svc_rev = [sum(v[0] for v in d.values()) for d in cats]
+    rows = []
+    for n in names:
+        rev = [float(cats[m].get(n, (0, 0))[0]) for m in range(12)]
+        mat = [float(cats[m].get(n, (0, 0))[1]) for m in range(12)]
+        lab = [round(labor[m] * rev[m] / svc_rev[m], 2) if svc_rev[m] else 0.0 for m in range(12)]
+        prof = [round(rev[m] - mat[m] - lab[m], 2) for m in range(12)]
+        rows.append({"name": n, "rev": rev, "mat": mat, "lab": lab, "profit": prof, "kind": "service"})
+    c_rev = [float(c[0]) for c in cosm]
+    c_cost = [float(c[1]) for c in cosm]
+    c_pct = [float(c[2]) for c in cosm]
+    rows.append({"name": "Косметика", "rev": c_rev, "mat": c_cost, "lab": c_pct, "profit": [round(c_rev[m] - c_cost[m] - c_pct[m], 2) for m in range(12)],
+                 "kind": "product"})
+    tot_rev = [svc_rev[m] + c_rev[m] for m in range(12)]
+    tot_prof = [sum(r["profit"][m] for r in rows) for m in range(12)]
+    for r in rows:
+        r["share"] = [round(100 * r["rev"][m] / tot_rev[m], 2) if tot_rev[m] else None for m in range(12)]        # частка в доході
+        r["margin"] = [round(100 * r["profit"][m] / r["rev"][m], 1) if r["rev"][m] else None for m in range(12)]  # маржа напрямку
+        r["contrib"] = [round(100 * r["profit"][m] / tot_prof[m], 2) if tot_prof[m] else None for m in range(12)]  # внесок у валовий
+        r["t_rev"], r["t_mat"], r["t_lab"], r["t_profit"] = (round(sum(r[k]), 2) for k in ("rev", "mat", "lab", "profit"))
+    T_rev, T_prof = round(sum(tot_rev), 2), round(sum(tot_prof), 2)
+    for r in rows:
+        r["t_share"] = round(100 * r["t_rev"] / T_rev, 2) if T_rev else None
+        r["t_margin"] = round(100 * r["t_profit"] / r["t_rev"], 1) if r["t_rev"] else None
+        r["t_contrib"] = round(100 * r["t_profit"] / T_prof, 2) if T_prof else None
+    rows.sort(key=lambda r: (r["kind"] == "product", -r["t_rev"]))
+    return {"rows": rows, "tot_rev": tot_rev, "tot_prof": tot_prof, "svc_rev": svc_rev, "T_rev": T_rev, "T_prof": T_prof,
+            "active": [m for m in range(12) if tot_rev[m]]}
+
+
+def directions_from_hybrid(hy: dict) -> dict:
+    """Напрямки з рядків гібриду: дохід — рядки під «Послуги загалом», матеріали — під «1. Витратні матеріали» (за назвою)."""
+    rows = hy["rows"]
+
+    def block(start_rx, stop_rx):
+        out, on = {}, False
+        for r in rows:
+            nm = r["name"].strip()
+            if re.search(start_rx, nm, re.I):
+                on = True
+                continue
+            if on and (re.search(stop_rx, nm, re.I) or r["kind"] == "head"):
+                break
+            if on and r["kind"] == "line" and nm and not re.search(r"абонемент|сертифік|поповненн|баланс", nm, re.I):
+                out[nm] = r["vals"]
+        return out
+    rev = block(r"^послуги загалом", r"^косметика\s*$")
+    mat = block(r"^1\.\s*витратні", r"^2\.")
+    mat_keys = list(mat)
+    cats = []
+    for m in range(12):
+        d = {}
+        for n, vals in rev.items():
+            mk = n if n in mat else next((k for k in mat_keys if _score(n, k) >= 50 or _score(k, n) >= 50), None)
+            d[n] = (vals[m], mat[mk][m] if mk else 0.0)
+        cats.append(d)
+
+    def vals(field):
+        for r in rows:
+            if r.get("field") == field:
+                return r["vals"]
+        return [0.0] * 12
+    labor, c_rev, c_cost, c_pct = vals("labor"), vals("rev_p"), vals("cogs_p"), vals("cosm_pct")
+    return directions(cats, labor, [(c_rev[m], c_cost[m], c_pct[m]) for m in range(12)])
+
+
+def directions_from_crm(crm: dict) -> dict:
+    """Напрямки з розрахунку CRM (pnl_monthly.build): rev_cat / cogs_cat по місяцях."""
+    by = {int(r["m"][5:]) - 1: r for r in crm["rows"]}
+    cats, labor, cosm = [], [], []
+    for m in range(12):
+        r = by.get(m)
+        if not r:
+            cats.append({}); labor.append(0.0); cosm.append((0.0, 0.0, 0.0))
+            continue
+        names = set(r["rev_cat"]) | set(r["cogs_cat"])
+        cats.append({n: (r["rev_cat"].get(n, 0.0), r["cogs_cat"].get(n, 0.0)) for n in names})
+        labor.append(float(r["labor_pay"] if "labor_pay" in r else r["labor"]))
+        cosm.append((r["rev_p"], r["cogs_p"], r["cosm_pct"]))
+    return directions(cats, labor, cosm)

@@ -1,0 +1,31 @@
+{# напрямки: частка в доході, прибуток по напрямках, валовий внесок — очікує dirs, MONTHS, active (список індексів місяців) #}
+{% macro u(v) %}{% if v is none %}—{% else %}{{ (('{:,.0f}').format(v or 0)).replace(',', ' ') }}{% endif %}{% endmacro %}
+{% macro s(v) %}{% if v is none %}—{% elif v < 0 %}<span class="neg">−{{ u(-v) }}</span>{% else %}{{ u(v) }}{% endif %}{% endmacro %}
+{% macro pc(v) %}{% if v is none %}—{% else %}{{ ('%g'|format(v)).replace('.', ',') }}%{% endif %}{% endmacro %}
+<style>
+.dr-tabs{display:flex;gap:4px;background:#F2EFEA;border-radius:12px;padding:4px;width:max-content;margin:0 0 10px}.dr-tabs a{padding:7px 14px;border-radius:9px;text-decoration:none;font:700 13px var(--sans);color:#5d5869;cursor:pointer}.dr-tabs a.on{background:#fff;color:#3B3050;box-shadow:0 2px 6px -3px rgba(0,0,0,.3)}
+.dr{display:none}.dr.on{display:block}
+.drt{border-collapse:separate;border-spacing:0;font-size:12.5px;min-width:1100px;width:100%}
+.drt th{position:sticky;top:0;z-index:2;background:#F3EFF9;font:700 11px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:#5d5869;padding:8px;text-align:right;white-space:nowrap;border-bottom:1px solid #ECE7E1}
+.drt th:first-child,.drt td:first-child{position:sticky;left:0;z-index:1;background:#fff;text-align:left;min-width:260px;border-right:1px solid #F1EDE8}.drt th:first-child{z-index:3;background:#F3EFF9}
+.drt td{padding:6px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid #F6F3EF}.drt td.z{color:#C9C3BD}
+.drt tr.tot td{font-weight:800;background:#F3EFF9}.drt tr.tot td:first-child{background:#F3EFF9}.drt tr.prod td{background:#FBFAF8}.drt tr.prod td:first-child{background:#FBFAF8}
+.drt .bar{display:inline-block;width:46px;height:6px;border-radius:99px;background:#F1EDE8;vertical-align:middle;margin-left:6px;overflow:hidden}.drt .bar i{display:block;height:100%;background:#3B3050}
+.neg{color:#B23B2E;font-weight:700}
+</style>
+<h2 style="margin:6px 0 8px">Напрямки · частка, прибуток, внесок</h2>
+<div class="dr-tabs"><a class="on" data-dr="share">Відсоток по напрямках</a><a data-dr="profit">Прибуток по напрямках</a><a data-dr="contrib">Валовий внесок напрямків</a><a data-dr="margin">Маржа напрямків</a></div>
+{% set M = active if active else range(12) %}
+{% for key, title, fmt in [('share', 'Частка напрямку в доході (послуги + косметика), %', 'pct'), ('profit', 'Прибуток напрямку = дохід − матеріали − оплата роботи (розподіл пропорційно доходу), ₴', 'uah'), ('contrib', 'Внесок напрямку у валовий прибуток до OPEX, %', 'pct'), ('margin', 'Маржа напрямку = прибуток / дохід, %', 'pct')] %}
+<div class="dr {{ 'on' if loop.first }}" id="dr-{{ key }}"><div class="muted small" style="margin-bottom:6px">{{ title }}</div>
+<div class="plw"><table class="drt">
+  <tr><th>Напрямок</th>{% for m in M %}<th>{{ MONTHS[m] }}</th>{% endfor %}<th>Разом / сер.</th>{% if key == 'profit' %}<th>Дохід</th><th>Матеріали</th><th>Оплата роботи</th>{% endif %}</tr>
+  {% for r in dirs.rows %}<tr class="{{ 'prod' if r.kind == 'product' }}"><td>{{ r.name }}</td>
+    {% for m in M %}{% set v = r[key][m] %}<td class="{{ 'z' if not v }}">{% if v is none or not v %}·{% elif fmt == 'pct' %}{{ pc(v) }}{% else %}{{ s(v) }}{% endif %}</td>{% endfor %}
+    <td><b>{% if key == 'share' %}{{ pc(r.t_share) }}<span class="bar"><i style="width:{{ [100, (r.t_share or 0) * 2]|min }}%"></i></span>{% elif key == 'contrib' %}{{ pc(r.t_contrib) }}<span class="bar"><i style="width:{{ [100, (r.t_contrib or 0) * 2]|min }}%"></i></span>{% elif key == 'margin' %}{{ pc(r.t_margin) }}{% else %}{{ s(r.t_profit) }}{% endif %}</b></td>
+    {% if key == 'profit' %}<td>{{ u(r.t_rev) }}</td><td>{{ u(r.t_mat) }}</td><td>{{ u(r.t_lab) }}</td>{% endif %}</tr>{% endfor %}
+  <tr class="tot"><td>Разом</td>{% for m in M %}<td>{% if key == 'profit' %}{{ s(dirs.tot_prof[m]) }}{% elif key == 'margin' %}{{ pc((100 * dirs.tot_prof[m] / dirs.tot_rev[m])|round(1) if dirs.tot_rev[m] else none) }}{% else %}100%{% endif %}</td>{% endfor %}
+    <td>{% if key == 'profit' %}{{ s(dirs.T_prof) }}{% elif key == 'margin' %}{{ pc((100 * dirs.T_prof / dirs.T_rev)|round(1) if dirs.T_rev else none) }}{% else %}100%{% endif %}</td>{% if key == 'profit' %}<td>{{ u(dirs.T_rev) }}</td><td colspan="2"></td>{% endif %}</tr>
+</table></div></div>
+{% endfor %}
+<script>document.querySelectorAll('.dr-tabs a').forEach(function(a){a.onclick=function(){document.querySelectorAll('.dr-tabs a').forEach(x=>x.classList.remove('on'));document.querySelectorAll('.dr').forEach(x=>x.classList.remove('on'));a.classList.add('on');document.getElementById('dr-'+a.dataset.dr).classList.add('on')}})</script>

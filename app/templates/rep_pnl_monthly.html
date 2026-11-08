@@ -177,6 +177,7 @@
   {% if r.prev %}<tr class="sub"><td>Дохід {{ r.year - 1 }}</td>{% for x in r.rows %}<td>{{ s(x.prev.rev) if x.prev else '—' }}</td>{% endfor %}<td>{{ s(r.pt.full_rev) }}</td><td></td></tr>
   <tr class="sub"><td>Чистий прибуток {{ r.year - 1 }}</td>{% for x in r.rows %}<td>{{ s(x.prev.net) if x.prev else '—' }}</td>{% endfor %}<td>{{ s(r.pt.full_net) }}</td><td></td></tr>{% endif %}
 </table></div>
+{% if r.dirs %}{% with dirs=r.dirs, MONTHS=r.MONTHS, active=r.dirs.active %}{% include "_pnl_directions.html" %}{% endwith %}{% endif %}
 <details class="plc" style="margin-bottom:14px;padding:12px 18px"><summary style="cursor:pointer;font:700 15px var(--sans)">📋 План на {{ r.year }} — дохід, OPEX, чистий прибуток по місяцях</summary>
   <form method="post" action="/reports/pnlm/plan" style="margin-top:10px;overflow:auto"><input type="hidden" name="year" value="{{ r.year }}">
     <table style="border-collapse:collapse;font-size:13px"><tr><th style="text-align:left;padding:4px 8px"></th>{% for m in range(1, 13) %}<th style="padding:4px 6px;font:700 11px var(--sans);color:#8a8496">{{ r.MONTHS[m - 1] }}</th>{% endfor %}</tr>

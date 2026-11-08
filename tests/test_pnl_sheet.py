@@ -86,3 +86,23 @@ def test_assign_many_to_one():
                   ["Ботулінотерапія (Xeomin, Botox, Dysport, Neuronox)", "Ботокс/Диспорт/Нейронокс (ботулінотерапія)",
                    "Лазерна епіляція ( -50% на перший візит)", "IPL (видалення судин)", "Сирова Софія", "KPI Лікар Колган", "Щось нове"])
     assert len(a["Ботулінотерапія"]) == 2 and a["Лазерна епіляція"] and a["IPL"] and a["Софія"] == ["Сирова Софія"] and a["Колган"] == ["KPI Лікар Колган"]
+
+
+def test_directions():
+    cats = [{"Лазер": (1000, 100), "Ботокс": (3000, 1500)}] + [{}] * 11
+    d = ps.directions(cats, [400] + [0] * 11, [(1000, 600, 50)] + [(0, 0, 0)] * 11)
+    by = {r["name"]: r for r in d["rows"]}
+    assert by["Лазер"]["lab"][0] == 100 and by["Лазер"]["profit"][0] == 800 and by["Ботокс"]["profit"][0] == 1200
+    assert by["Косметика"]["profit"][0] == 350 and by["Лазер"]["share"][0] == 20.0 and d["T_prof"] == 2350
+    assert abs(by["Лазер"]["contrib"][0] - 100 * 800 / 2350) < 0.01 and by["Лазер"]["margin"][0] == 80.0
+    with SessionLocal() as db:
+        ps.import_text(db, CSV.replace("2024", "2022"), "y2022.csv")
+        hy = ps.hybrid(db, 2022, None)
+        dd = ps.directions_from_hybrid(hy)
+        assert {r["name"] for r in dd["rows"]} == {"Лазерна епіляція", "Косметика"} and dd["rows"][0]["rev"][0] == 30000
+    settings.admin_password = "owner-pass-1"
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        for src in ("hybrid", "sheet"):
+            t = c.get(f"/reports?r=pnlm&year=2022&src={src}").text
+            assert "Валовий внесок напрямків" in t, src

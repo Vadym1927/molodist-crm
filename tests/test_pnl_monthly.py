@@ -54,7 +54,7 @@ def test_pnl_monthly():
         with SessionLocal() as db:
             assert pm.plan_get(db, 2022)["2022-07"] == {"rev": 11000.0, "opex": 6500.0}
         t = c.get("/reports?r=pnlm&year=2022").text
-        assert "план доходу" in t and "Cashflow · поза P&L" in t and "Прибуток до зарплати власника" in t
+        assert "план доходу" in t and "Cashflow · поза P&L" in t and "Прибуток до зарплати власника" in t and "Валовий внесок напрямків" in t
         assert "P&L по місяцях" in t and "Валовий прибуток" in t and "Довідково" in t and "KPI" in t
         assert c.get("/reports?r=pnlm&year=2022&fmt=xlsx").status_code == 200
         assert 'href="/reports?r=pnlm"' in c.get("/reports").text

@@ -8474,14 +8474,15 @@ def reports_page(request: Request, r: str = "revenue", period: str = "month", df
         _M = __import__("app.services.pnl", fromlist=["x"]).MONTHS
         if _src == "sheet" and fmt != "xlsx":
             return render(request, "rep_pnl_sheet.html", nav="reports", REPORTS=rp.REPORTS, key="pnlm", sh=_sheet, year=_y, years=_ys,
-                          sheet_years=_sy, MONTHS=_M, src="sheet")
+                          sheet_years=_sy, MONTHS=_M, src="sheet", dirs=_psh.directions_from_hybrid(_psh.hybrid(db, _y, None)) if _sheet else None)
         try:
             _r = _pm2.build(db, _y)
             _r["sheet"] = _sheet
             if _src == "hybrid" and _sheet and fmt != "xlsx":
                 _hy = _psh.hybrid(db, _y, _r)
                 return render(request, "rep_pnl_sheet.html", nav="reports", REPORTS=rp.REPORTS, key="pnlm", sh=_hy, year=_y, years=_ys,
-                              sheet_years=_sy, MONTHS=_M, src="hybrid")
+                              sheet_years=_sy, MONTHS=_M, src="hybrid", dirs=_psh.directions_from_hybrid(_hy))
+            _r["dirs"] = _psh.directions_from_crm(_r)
             if fmt == "xlsx":
                 audit(db, "reports.export", user=user, report="pnlm", year=_y)
                 return Response(_pm2.to_xlsx(_r), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
