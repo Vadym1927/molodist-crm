@@ -40,7 +40,7 @@ def period(year: int | None, month: int | None) -> tuple[date, date, str]:
     return date(year, 1, 1), min(date(year, 12, 31), today) if year == today.year else date(year, 12, 31), f"{year} рік"
 
 
-def build(db: Session, year: int | None, month: int | None = None, q: str = "") -> dict:
+def build(db: Session, year: int | None, month: int | None = None, q: str = "", abc_f: str = "") -> dict:
     from . import finops as fo, clinic
     from ..models import Patient
     d_from, d_to, label = period(year, month)
@@ -115,6 +115,9 @@ def build(db: Session, year: int | None, month: int | None = None, q: str = "") 
     if q:
         qk = _key(q)
         shown = [x for x in lst if qk in _key(x["name"])]
+    abc_f = abc_f.upper() if abc_f and abc_f.upper() in ("A", "B", "C") else ""
+    if abc_f:
+        shown = [x for x in shown if x["abc"] == abc_f]
     # помісячно за період — для графіка
     bym: dict[str, float] = defaultdict(float)
     for x in lst:
@@ -125,7 +128,8 @@ def build(db: Session, year: int | None, month: int | None = None, q: str = "") 
             "total": net, "gross": round(total, 2), "refunds": round(refunds, 2), "patients": n,
             "avg": round(net / n, 2) if n else 0.0, "median": _median([x["sum"] for x in lst]),
             "top10": top10, "top10_pct": round(100 * top10 / net, 1) if net else 0.0, "abc": abc, "skipped": skipped,
-            "months": months, "months_max": max([v for _, v in months] + [1]), "q": q, "n_ops": len(rows)}
+            "months": months, "months_max": max([v for _, v in months] + [1]), "q": q, "abc_f": abc_f, "n_ops": len(rows),
+            "shown_sum": round(sum(x["sum"] for x in shown), 2)}
 
 
 def _median(xs: list[float]) -> float:

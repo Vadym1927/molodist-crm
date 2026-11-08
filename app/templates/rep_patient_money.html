@@ -30,18 +30,20 @@
 .pm-t .ab{display:inline-block;width:22px;height:22px;border-radius:7px;font:800 12px var(--sans);text-align:center;line-height:22px;color:#fff}.pm-t .ab.A{background:#3B3050}.pm-t .ab.B{background:#8a7bb0}.pm-t .ab.C{background:#E4DEEF;color:#3B3050}
 .pm-t tr.tot td{font-weight:800;background:#F3EFF9;border-top:1px solid #E4DEEF}
 .pm-t tr.more{display:none}.pm-t.all tr.more{display:table-row}
+.pm-abc{display:flex;gap:5px}.pm-abc a{padding:7px 14px;border-radius:99px;border:1px solid var(--line);background:#fff;text-decoration:none;font:700 13px var(--sans);color:#3B3050}.pm-abc a.on{background:#3B3050;color:#fff;border-color:#3B3050}.pm-abc a.A.on{background:#3B3050}.pm-abc a.B.on{background:#8a7bb0;border-color:#8a7bb0}.pm-abc a.C.on{background:#C9BFE6;color:#3B3050;border-color:#C9BFE6}
 .pm-srch{display:flex;gap:8px;align-items:center}.pm-srch input{height:38px;min-width:240px}
 .muted2{color:#8a8496}.neg{color:#B23B2E}
 .pm-note{font-size:12.5px;color:#6b6575;background:#F7F4F0;border-radius:12px;padding:10px 14px;line-height:1.5;margin-bottom:14px}
 @media(max-width:1000px){.pm-k{grid-template-columns:1fr 1fr}.pm-2{grid-template-columns:1fr}}
 </style>
 {% set base = '?r=patient_money' ~ ('&year=' ~ r.year if r.year else '&year=0') %}
+{% set pbase = base ~ ('&month=' ~ r.month if r.month) ~ ('&q=' ~ r.q if r.q) %}
 <div class="row between" style="align-items:flex-end;flex-wrap:wrap;gap:10px">
   <div><div class="eyebrow"><a href="/reports" style="color:inherit;text-decoration:none">← Усі звіти · Фінанси</a></div><h1>Отримано грошей від пацієнтів</h1>
     <div class="muted small">Скільки грошей приніс кожен пацієнт за період і його частка від загальної суми. Гроші від пацієнтів з журналу фіноперацій (CleverBox з 2022 + каса CRM), без бонусів / сертифікатів / балансу, повернення віднімаються.</div></div>
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
     <div class="pm-y"><a href="?r=patient_money&year=0" class="{{ 'on' if not r.year }}">Весь час</a>{% for y in years %}<a href="?r=patient_money&year={{ y }}" class="{{ 'on' if y == r.year }}">{{ y }}</a>{% endfor %}</div>
-    <a class="btn ghost" href="{{ base }}{{ '&month=' ~ r.month if r.month }}&fmt=xlsx">⬇ Excel</a></div>
+    <a class="btn ghost" href="{{ pbase }}{{ '&abc=' ~ r.abc_f if r.abc_f }}&fmt=xlsx">⬇ Excel</a></div>
 </div>
 <nav class="rp-tabs">{% for k, v in REPORTS.items() if k != 'cash' %}<a href="?r={{ k }}" class="{{ 'on' if key==k }}">{{ v }}</a>{% endfor %}</nav>
 {% if r.year %}<div class="pm-m"><a href="{{ base }}" class="{{ 'on' if not r.month }}">Увесь рік</a>{% for m in range(1, 13) %}{% if r.year < today.year or m <= today.month %}<a href="{{ base }}&month={{ m }}" class="{{ 'on' if m == r.month }}">{{ MONTHS[m - 1] }}</a>{% endif %}{% endfor %}</div>{% endif %}
@@ -61,16 +63,19 @@
     <div class="pm-x">{% for m, v in r.months %}<span>{{ MONTHS[(m[5:]|int) - 1] }}{% if not r.year %} {{ m[2:4] }}{% endif %}</span>{% endfor %}</div>
     {% else %}<div class="muted small">Один місяць — {{ u(r.total) }} ₴</div>{% endif %}</div>
   <div class="pm-c"><h3>ABC-сегменти</h3><div class="abc">
-    {% for k, t in [('A', 'дають 80% грошей'), ('B', 'наступні 15%'), ('C', 'решта 5%')] %}<div class="r"><span class="tag {{ k }}">{{ k }}</span>
+    {% for k, t in [('A', 'дають 80% грошей'), ('B', 'наступні 15%'), ('C', 'решта 5%')] %}<a class="r" href="{{ pbase }}&abc={{ k }}" style="text-decoration:none;color:inherit"><span class="tag {{ k }}">{{ k }}</span>
       <div><b>{{ r.abc[k].n }}</b> <span class="muted2">пацієнт(ів) · {{ t }}</span><div class="bar"><i style="width:{{ (100 * r.abc[k].sum / r.total)|round(1) if r.total else 0 }}%"></i></div></div>
-      <b>{{ u(r.abc[k].sum) }} ₴</b></div>{% endfor %}
-    </div><div class="muted small" style="margin-top:10px">A — ядро: їх варто вести персонально. C — разові або дрібні оплати.</div></div>
+      <b>{{ u(r.abc[k].sum) }} ₴</b></a>{% endfor %}
+    </div><div class="muted small" style="margin-top:10px">A — ядро: їх варто вести персонально. C — разові або дрібні оплати. Клік по сегменту — лише ці пацієнти в таблиці.</div></div>
 </div>
 
-<div class="row between" style="margin-bottom:8px;flex-wrap:wrap;gap:8px">
-  <form class="pm-srch"><input type="hidden" name="r" value="patient_money"><input type="hidden" name="year" value="{{ r.year or 0 }}">{% if r.month %}<input type="hidden" name="month" value="{{ r.month }}">{% endif %}
-    <input name="q" value="{{ r.q }}" placeholder="Знайти пацієнта"><button class="btn ghost" type="submit">Знайти</button>{% if r.q %}<a class="btn ghost" href="{{ base }}{{ '&month=' ~ r.month if r.month }}">Скинути</a>{% endif %}</form>
-  <span class="muted small">{% if r.q %}Знайдено {{ r.rows|length }} з {{ r.all_n }}{% else %}Показано {{ [r.rows|length, 200]|min }} з {{ r.all_n }}{% endif %}</span>
+<div class="row between" style="margin-bottom:8px;flex-wrap:wrap;gap:8px;align-items:center">
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <div class="pm-abc"><a href="{{ pbase }}" class="{{ 'on' if not r.abc_f }}">Усі</a>{% for k, t in [('A', '80% грошей'), ('B', 'наступні 15%'), ('C', 'решта')] %}<a href="{{ pbase }}&abc={{ k }}" class="{{ k }} {{ 'on' if r.abc_f == k }}" title="{{ t }}">{{ k }} · {{ r.abc[k].n }}</a>{% endfor %}</div>
+    <form class="pm-srch"><input type="hidden" name="r" value="patient_money"><input type="hidden" name="year" value="{{ r.year or 0 }}">{% if r.month %}<input type="hidden" name="month" value="{{ r.month }}">{% endif %}{% if r.abc_f %}<input type="hidden" name="abc" value="{{ r.abc_f }}">{% endif %}
+      <input name="q" value="{{ r.q }}" placeholder="Знайти пацієнта"><button class="btn ghost" type="submit">Знайти</button>{% if r.q or r.abc_f %}<a class="btn ghost" href="{{ base }}{{ '&month=' ~ r.month if r.month }}">Скинути</a>{% endif %}</form>
+  </div>
+  <span class="muted small">{% if r.q or r.abc_f %}Відібрано {{ r.rows|length }} з {{ r.all_n }} · {{ u(r.shown_sum) }} ₴ ({{ pc((100 * r.shown_sum / r.total)|round(1) if r.total else 0) }}){% else %}Показано {{ [r.rows|length, 200]|min }} з {{ r.all_n }}{% endif %}</span>
 </div>
 <div class="pm-w"><table class="pm-t" id="pmt">
   <tr><th>#</th><th class="l">Пацієнт</th><th>Отримано</th><th class="l">Частка</th><th>Накопичено</th><th>ABC</th><th>Оплат</th><th>Середня</th><th>Перша</th><th>Остання</th></tr>
@@ -83,8 +88,9 @@
     <td>{{ x.n }}</td><td>{{ u(x.avg) }}</td>
     <td class="muted2">{{ x.first.strftime('%d.%m.%y') if x.first else '—' }}</td><td class="muted2">{{ x.last.strftime('%d.%m.%y') if x.last else '—' }}</td>
   </tr>{% endfor %}
-  {% if r.rows|length > 200 and not r.q %}<tr id="pm-more"><td colspan="10" style="text-align:center;padding:12px"><a href="#" onclick="document.getElementById('pmt').classList.add('all');this.closest('tr').style.display='none';return false">Показати всіх {{ r.all_n }} →</a></td></tr>{% endif %}
-  <tr class="tot"><td></td><td class="l">Разом · {{ r.patients }} пацієнтів</td><td>{{ u2(r.total) }}</td><td class="l">100%</td><td colspan="6"></td></tr>
+  {% if r.rows|length > 200 and not r.q and not r.abc_f %}<tr id="pm-more"><td colspan="10" style="text-align:center;padding:12px"><a href="#" onclick="document.getElementById('pmt').classList.add('all');this.closest('tr').style.display='none';return false">Показати всіх {{ r.all_n }} →</a></td></tr>{% endif %}
+  {% if r.q or r.abc_f %}<tr class="tot"><td></td><td class="l">Відібрано · {{ r.rows|length }} з {{ r.patients }}</td><td>{{ u2(r.shown_sum) }}</td><td class="l">{{ pc((100 * r.shown_sum / r.total)|round(1) if r.total else 0) }}</td><td colspan="6" class="muted2" style="text-align:left">з усіх {{ u2(r.total) }} ₴</td></tr>
+  {% else %}<tr class="tot"><td></td><td class="l">Разом · {{ r.patients }} пацієнтів</td><td>{{ u2(r.total) }}</td><td class="l">100%</td><td colspan="6"></td></tr>{% endif %}
 </table></div>
 <div class="pm-note">Гроші = оплати грошима (готівка, термінал, рахунок ФОП, посилання на оплату). Бонуси, сертифікати й списання з балансу не рахуються — вони вже були оплачені раніше. Знак «?» — у CleverBox оплата записана на ПІБ, якого немає серед пацієнтів CRM. Не від пацієнтів за період: внесення в касу й інші надходження без пацієнта — {{ u(r.skipped.not_patient) }} ₴{% if r.skipped.excluded %}, статті «не в дохід» — {{ u(r.skipped.excluded) }} ₴{% endif %}.</div>
 {% endif %}

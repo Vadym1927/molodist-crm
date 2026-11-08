@@ -8452,7 +8452,7 @@ def reports_page(request: Request, r: str = "revenue", period: str = "month", df
         _y = _y if _y in _ys else (0 if _yq == "0" else (_ys[-1] if _ys else date.today().year))
         _mq = request.query_params.get("month") or ""
         _m = int(_mq) if _mq.isdigit() and 1 <= int(_mq) <= 12 and _y else None
-        _r = _pm.build(db, _y or None, _m, (request.query_params.get("q") or "").strip()[:80])
+        _r = _pm.build(db, _y or None, _m, (request.query_params.get("q") or "").strip()[:80], request.query_params.get("abc") or "")
         if fmt == "xlsx":
             audit(db, "reports.export", user=user, report="patient_money", year=_y, month=_m)
             return Response(_pm.to_xlsx(_r), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

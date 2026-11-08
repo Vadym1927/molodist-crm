@@ -42,8 +42,12 @@ def test_patient_money():
             assert rm["total"] == 8000 + 300 - 500 and rm["label"] == "березень 2024"
             assert pm.build(db, None)["total"] >= r["total"]
             assert pm.build(db, 2024, q="богдан")["rows"][0]["name"] == "Тестовий Богдан Іванович"
+            rc = pm.build(db, 2024, abc_f="c")
+            assert [x["name"] for x in rc["rows"]] == ["Тестовий Богдан Іванович", "Невідома Особа Хтось"] and rc["abc_f"] == "C" and rc["shown_sum"] == 1800
             assert len(pm.to_xlsx(r)) > 1000
         t = c.get("/reports?r=patient_money&year=2024").text
         assert "Отримано грошей від пацієнтів" in t and "Тестова Анна Петрівна" in t and "ABC-сегменти" in t
         assert c.get("/reports?r=patient_money&year=2024&month=3&fmt=xlsx").status_code == 200
+        tb = c.get("/reports?r=patient_money&year=2024&abc=B").text
+        assert "Тестова Анна Петрівна" in tb and "Невідома Особа Хтось" not in tb
         assert 'href="/reports?r=patient_money"' in c.get("/reports").text
