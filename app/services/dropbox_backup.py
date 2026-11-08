@@ -335,4 +335,4 @@ def status(db: Session) -> dict:
     d = cfg(db)
     return {"app_key": d.get("app_key") or "", "connected": connected(d), "ready": ready(d), "has_password": bool(d["secrets"].get("password")),
             "account": d.get("account"), "connected_at": d.get("connected_at"), "last": d.get("last") or {},
-            "files": len(d.get("files") or {}), "redirect": redirect_uri()}
+            "files": len(d.get("files") or {}), "redirect": redirect_uri(), "running": _LOCK.locked()}
