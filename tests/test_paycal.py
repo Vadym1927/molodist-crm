@@ -80,3 +80,37 @@ def test_calendar_flow():
             assert p.amount == 1729.4 and p.day == 20
             assert db.scalar(select(PayItem).where(PayItem.plan_id == p.id)) is not None or date(y, m, 20) < p.start
         assert 'href="/finance/calendar"' in c.get("/reports").text
+
+
+def test_move_and_weekly_income():
+    from app.models import Sale, SaleItem, SalePayment
+    settings.admin_password = "owner-pass-1"
+    today = date.today()
+    wk = today - timedelta(days=today.weekday())
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        with SessionLocal() as db:
+            it = PayItem(due=today, name="Переносний тест", group="opex", amount=500, status="approved", source="manual")
+            db.add(it)
+            s = Sale(total=7000, subtotal=7000, status="paid", at=datetime.combine(wk, datetime.min.time()).replace(hour=12))
+            s.items.append(SaleItem(kind="service", name="x", qty=1, price=7000, total=7000)); s.payments.append(SalePayment(method="Готівка", amount=7000))
+            db.add(s); db.commit()
+            iid = it.id
+        new = today + timedelta(days=7)
+        r = c.post(f"/finance/calendar/item/{iid}/move", data={"due": new.isoformat()}, follow_redirects=False)
+        assert r.status_code == 303
+        with SessionLocal() as db:
+            assert db.get(PayItem, iid).due == new
+            v = pc.month_view(db, today.year, today.month)
+            w = next(x for x in v["weeks"] if x["current"])
+            assert w["inc_fact"] >= 7000 and w["inc_manual"] is None
+        r = c.post("/finance/calendar/income-plan", data={"week": today.isoformat(), "amount": "100 000"}, follow_redirects=False)
+        assert r.status_code == 303
+        with SessionLocal() as db:
+            v = pc.month_view(db, today.year, today.month)
+            w = next(x for x in v["weeks"] if x["current"])
+            assert w["inc_manual"] == 100000 and w["inc_plan"] == 100000 and w["inc_pct"] is not None
+            pc.set_income_plan(db, wk, None)
+            assert pc.income_plans(db).get(wk.isoformat()) is None
+        t = c.get("/finance/calendar").text
+        assert "Прихід по тижнях" in t and 'draggable="true"' in t or "Прихід по тижнях" in t

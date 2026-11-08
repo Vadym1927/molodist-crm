@@ -19,6 +19,14 @@
 .wk{margin-bottom:10px;border:1px solid #ECE7E1;border-radius:16px;overflow:hidden}.wk.cur{border-color:#C9BFE6;box-shadow:0 0 0 3px #F3EFF9}
 .wk .h{display:flex;justify-content:space-between;align-items:center;padding:9px 14px;background:#F8F6FC;font:700 13px var(--sans)}.wk .h span{color:#8a8496;font-weight:600;font-size:12px}
 .wk table{width:100%;border-collapse:collapse;font-size:13px}.wk td{padding:7px 10px;border-top:1px solid #F6F3EF;vertical-align:middle}.wk td.r{text-align:right;white-space:nowrap}
+.wk .inc{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:7px 14px;background:#FBFAF8;border-top:1px solid #F1EDE8;font-size:12.5px;color:#5d5869}
+.wk .inc .lbl{font:700 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#2f6b3b;background:#DDF1E2;border-radius:6px;padding:2px 7px}
+.wk .inc form.ip{display:inline}.wk .inc form.ip input{width:96px;height:26px;padding:0 6px;text-align:right;font:700 12.5px var(--sans);border-radius:7px;margin:0}
+.wk .inc .pct{font-size:11px;font-weight:700;color:#8a8496}.ok{color:#2f6b3b}.bad{color:#B23B2E}
+.wk tr.drag{cursor:grab}.wk tr.drag.dragging{opacity:.4}.wk.drop{outline:2px dashed #8a7bb0;outline-offset:-2px;background:#FBFAFE}
+.dmv{position:relative;cursor:pointer;display:block}.dmv:hover{color:#5C4B82}.dmv input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.iw{width:100%;border-collapse:collapse;font-size:12.5px}.iw th{text-align:right;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496;padding:5px 6px;border-bottom:1px solid #ECE7E1}.iw th:first-child,.iw td:first-child{text-align:left}
+.iw td{padding:6px;text-align:right;border-bottom:1px dashed #F1EDE8;white-space:nowrap}.iw tr.cur td{background:#F3EFF9;font-weight:700}.iw tr.tot td{font-weight:800;border-top:1px solid #E4DEEF;border-bottom:0}
 .wk tr.paid td{color:#8a8496}.wk tr.paid td.nm{text-decoration:line-through;text-decoration-color:#C9C3BD}.wk tr.skip td{color:#C9C3BD}.wk tr.over td{background:#FFF4F2}
 .dt{font:700 13px var(--sans);width:58px;white-space:nowrap}.dt small{display:block;font-size:10.5px;color:#8a8496;font-weight:600}
 .gt{display:inline-block;border-radius:7px;padding:1px 7px;font:700 10.5px var(--sans);letter-spacing:.04em;text-transform:uppercase;margin-left:6px;vertical-align:1px}
@@ -38,7 +46,7 @@ dialog.cs-d{border:0;border-radius:22px;padding:0;box-shadow:0 30px 80px -30px r
 @media(max-width:1100px){.pck{grid-template-columns:1fr 1fr}.pc2{grid-template-columns:1fr}.frm{grid-template-columns:1fr 1fr}}
 </style>
 <div class="row between" style="align-items:flex-end;flex-wrap:wrap;gap:10px">
-  <div><h1>Платіжний календар</h1><div class="muted small">Що і коли платити, звідки, чи погоджено і чи вистачить грошей. Оплата = фіноперація CRM (зіставляється сама за статтею й датою); залишки — з кас; очікувані надходження — із записів.</div></div>
+  <div><h1>Платіжний календар</h1><div class="muted small">Що і коли платити, звідки, чи погоджено і чи вистачить грошей. Оплата = фіноперація CRM (зіставляється сама за статтею й датою); залишки — з кас; прихід — план за записами (або свій) і факт по закритих касах. Дату платежу змінюйте кліком по даті або перетягніть рядок на інший тиждень.</div></div>
   <div class="pc-nav"><a href="?y={{ v.prev[0] }}&m={{ v.prev[1] }}">‹</a><b>{{ v.MONTHS[v.m - 1] }} {{ v.y }}</b><a href="?y={{ v.next[0] }}&m={{ v.next[1] }}">›</a>
     {% if (v.y, v.m) != (v.today.year, v.today.month) %}<a href="/finance/calendar">Сьогодні</a>{% endif %}
     <button class="btn" onclick="document.getElementById('dlg-add').showModal()">＋ Платіж</button><button class="btn ghost" onclick="document.getElementById('dlg-plans').showModal()">⚙ Регулярні</button></div>
@@ -49,7 +57,7 @@ dialog.cs-d{border:0;border-radius:22px;padding:0;box-shadow:0 30px 80px -30px r
 <div class="pck">
   <div><small>На рахунках зараз</small><b>{{ u(v.cash) }} ₴</b><span class="s">{{ v.boxes|length }} кас · <a href="/settings/cashboxes">деталі</a></span></div>
   <div class="{{ 'w' if v.overdue }}"><small>До оплати</small><b>{{ u(v.left) }} ₴</b><span class="s">{% if v.overdue %}у т.ч. прострочено {{ u(v.overdue_sum) }} ₴ ({{ v.overdue|length }}) · {% endif %}погоджено {{ u(v.approved) }}</span></div>
-  <div><small>Очікувані надходження</small><b>{{ u(v.income.total) }} ₴</b><span class="s">{{ v.income.n }} записів до кінця місяця × ціна послуг</span></div>
+  <div><small>Очікувані надходження</small><b>{{ u(v.income.total) }} ₴</b><span class="s">ще до кінця місяця · {{ v.income.n }} записів · факт за місяць {{ u(v.inc_month.fact) }}</span></div>
   <div class="g {{ 'bad' if v.forecast < 0 }}"><small>Прогноз на кінець місяця</small><b>{{ '−' if v.forecast < 0 }}{{ u(v.forecast|abs) }} ₴</b><span class="s">рахунки − до оплати + надходження</span></div>
   <div class="{{ 'w' if v.to_approve }}"><small>Чекають погодження</small><b>{{ v.to_approve|length }}</b><span class="s">{% if v.to_approve %}на {{ u(v.to_approve_sum) }} ₴{% else %}усе погоджено{% endif %} · оплачено за місяць {{ u(v.paid) }} ₴</span></div>
 </div>
@@ -60,8 +68,9 @@ dialog.cs-d{border:0;border-radius:22px;padding:0;box-shadow:0 30px 80px -30px r
     <span style="flex:1"></span><a href="?y={{ v.y }}&m={{ v.m }}&status=planned" class="{{ 'on' if v.status == 'planned' }}">Погодити</a><a href="?y={{ v.y }}&m={{ v.m }}&status=overdue" class="{{ 'on' if v.status == 'overdue' }}">Прострочені</a><a href="?y={{ v.y }}&m={{ v.m }}&status=paid" class="{{ 'on' if v.status == 'paid' }}">Оплачені</a></div>
 
   {% macro item_row(i, over) -%}
-  <tr class="{{ i.status }}{{ ' over' if over and i.status in ('planned','approved') }}">
-    <td class="dt">{{ i.due.strftime('%d.%m') }}<small>{{ v.WEEKDAYS[i.due.weekday()] }}</small></td>
+  {% set mv = i.status in ('planned', 'approved') %}
+  <tr class="{{ i.status }}{{ ' over' if over and mv }}{{ ' drag' if mv }}" {% if mv %}draggable="true" data-id="{{ i.id }}" data-due="{{ i.due.isoformat() }}"{% endif %}>
+    <td class="dt">{% if mv %}<label class="dmv" title="Перенести дату (або перетягніть рядок на інший тиждень)">{{ i.due.strftime('%d.%m') }}<small>{{ v.WEEKDAYS[i.due.weekday()] }}</small><input type="date" value="{{ i.due.isoformat() }}" onchange="pcMove({{ i.id }}, this.value)"></label>{% else %}{{ i.due.strftime('%d.%m') }}<small>{{ v.WEEKDAYS[i.due.weekday()] }}</small>{% endif %}</td>
     <td class="nm"><b>{{ i.name }}</b><span class="gt g-{{ i.group }}">{{ v.GROUP_T.get(i.group, i.group) }}</span>
       <div class="mini">{% if i.article %}{{ i.article }}{% endif %}{% if i.cashbox %} · {{ i.cashbox }}{% endif %}{% if i.counterparty %} · {{ i.counterparty }}{% endif %}{% if i.note %} · {{ i.note }}{% endif %}{% if i.ref and i.ref.startswith('payreq:') %} · <a href="/payreq">рахунок</a>{% endif %}{% if i.finop_id %} · <a href="/finance/ops">CRM-{{ i.finop_id }}</a>{% endif %}</div></td>
     <td class="r">{% if i.status == 'paid' %}<b>{{ u2(i.amount_fact) }}</b>{% set d = dev(i) %}{% if d %}<div class="dev {{ 'p' if d > 0 else 'n' }}">{{ '+' if d > 0 }}{{ u(d) }} до плану</div>{% endif %}{% else %}<b>{{ u2(i.amount) if i.amount else '—' }}</b>{% endif %}</td>
@@ -79,8 +88,14 @@ dialog.cs-d{border:0;border-radius:22px;padding:0;box-shadow:0 30px 80px -30px r
     <table>{% for i in v.overdue %}{{ item_row(i, true) }}{% endfor %}</table></div>{% endif %}
 
   {% for w in v.weeks %}{% if w.rows or (not v.group and not v.status) %}
-  <div class="wk {{ 'cur' if w.current }}"><div class="h"><span style="color:#2A2430;font-weight:800">{{ w.start.strftime('%d.%m') }} – {{ w.end.strftime('%d.%m') }}{% if w.current %} · цей тиждень{% endif %}</span>
-      <span>план {{ u(w.plan) }} · оплачено {{ u(w.paid) }}{% if w.left %} · <b style="color:#8a5b00">лишилось {{ u(w.left) }}</b>{% endif %} ₴</span></div>
+  <div class="wk {{ 'cur' if w.current }}" data-week="{{ w.start.isoformat() }}"><div class="h"><span style="color:#2A2430;font-weight:800">{{ w.start.strftime('%d.%m') }} – {{ w.end.strftime('%d.%m') }}{% if w.current %} · цей тиждень{% endif %}</span>
+      <span>витрати: план {{ u(w.plan) }} · оплачено {{ u(w.paid) }}{% if w.left %} · <b style="color:#8a5b00">лишилось {{ u(w.left) }}</b>{% endif %} ₴</span></div>
+    <div class="inc"><span class="lbl">Прихід</span>
+      <span>план <form method="post" action="/finance/calendar/income-plan" class="ip"><input type="hidden" name="week" value="{{ w.start.isoformat() }}"><input name="amount" value="{{ '%d'|format(w.inc_plan) if w.inc_plan else '' }}" placeholder="{{ '%d'|format(w.inc_auto) }}" title="Порожньо — за записами ({{ u(w.inc_auto) }} ₴). Введіть свою суму й Enter." inputmode="numeric" onchange="this.form.submit()"></form>{% if w.inc_manual is not none %}<span class="mini" title="план введено вручну; за записами — {{ u(w.inc_auto) }}">✎</span>{% else %}<span class="mini" title="план = записи в календарі × ціна послуг">за записами</span>{% endif %}</span>
+      {% if not w.future %}<span>факт <b class="{{ 'ok' if w.inc_pct and w.inc_pct >= 100 else ('bad' if w.past and w.inc_pct is not none and w.inc_pct < 90 else '') }}">{{ u(w.inc_fact) }}</b>{% if w.inc_pct is not none %} <span class="pct">{{ ('%g'|format(w.inc_pct)).replace('.', ',') }}%</span>{% endif %}</span>
+        <span class="mini">{% if w.shifts %}кас закрито {{ w.shifts }} · {{ u(w.shifts_total) }} ₴{% else %}кас ще не закривали{% endif %}</span>{% endif %}
+      {% if w.current and w.inc_left %}<span class="mini">ще очікується {{ u(w.inc_left) }}</span>{% endif %}
+      <span style="margin-left:auto">{% if w.net_fact is not none %}сальдо факт <b class="{{ 'ok' if w.net_fact >= 0 else 'bad' }}">{{ '+' if w.net_fact > 0 }}{{ u(w.net_fact) }}</b> · {% endif %}план <b class="{{ 'ok' if w.net_plan >= 0 else 'bad' }}">{{ '+' if w.net_plan > 0 }}{{ u(w.net_plan) }}</b></span></div>
     {% if w.rows %}<table>{% for i in w.rows %}{{ item_row(i, i.due < v.today) }}{% endfor %}</table>{% else %}<div class="muted small" style="padding:10px 14px">Платежів немає</div>{% endif %}</div>
   {% endif %}{% endfor %}
   {% if not v.rows %}<div class="card muted">На {{ v.MONTHS[v.m - 1]|lower }} платежів ще немає. Додайте регулярні платежі (⚙ Регулярні) — вони створяться на кожен місяць самі, або разовий платіж (＋ Платіж).</div>{% endif %}
@@ -93,7 +108,12 @@ dialog.cs-d{border:0;border-radius:22px;padding:0;box-shadow:0 30px 80px -30px r
   <div class="pcc"><h3>Звідки платимо · до оплати</h3><div class="bx">
     {% for name, amt in v.by_box.items() %}{% set b = v.boxes|selectattr('name', 'equalto', name)|first %}<div class="r"><span>{{ name }}<div class="mini">на рахунку {{ u(b.balance) if b else '—' }} ₴{% if b and b.balance < amt %} · <span style="color:#B23B2E;font-weight:700">не вистачає {{ u(amt - b.balance) }}</span>{% endif %}</div></span><b>{{ u(amt) }} ₴</b></div>{% else %}<div class="muted small">Нічого не заплановано</div>{% endfor %}</div></div>
   <div class="pcc"><h3>Найближчі 7 днів</h3><div class="bx">{% for i in v.due_soon[:12] %}<div class="r"><span>{{ i.due.strftime('%d.%m') }} · {{ i.name }}{% if i.status == 'planned' %} <span class="st planned">погодити</span>{% endif %}</span><b>{{ u(i.amount) }}</b></div>{% else %}<div class="muted small">Тиждень чистий</div>{% endfor %}</div></div>
-  <div class="pcc"><h3>Очікувані надходження по днях</h3><div class="bx">{% for d, s in v.income.by_day.items()|sort %}{% if loop.index <= 10 %}<div class="r"><span>{{ d.strftime('%d.%m') }} · {{ v.WEEKDAYS[d.weekday()] }}</span><b>{{ u(s) }}</b></div>{% endif %}{% else %}<div class="muted small">Записів до кінця місяця немає</div>{% endfor %}</div><div class="mini" style="margin-top:8px">Сума цін послуг у записах, без знижок і товарів. Щоранку о 9:00 власнику в Telegram — що платити сьогодні й що прострочено.</div></div>
+  <div class="pcc"><h3>Прихід по тижнях</h3>
+    <table class="iw"><tr><th>Тиждень</th><th>План</th><th>Факт</th><th>%</th></tr>
+    {% for w in v.weeks %}<tr class="{{ 'cur' if w.current }}"><td>{{ w.start.strftime('%d.%m') }}–{{ w.end.strftime('%d.%m') }}</td><td>{{ u(w.inc_plan) }}{% if w.inc_manual is not none %}<span class="mini"> ✎</span>{% endif %}</td>
+      <td>{% if w.future %}<span class="mini">—</span>{% else %}<b>{{ u(w.inc_fact) }}</b>{% endif %}</td><td>{% if w.inc_pct is not none %}<span class="{{ 'ok' if w.inc_pct >= 100 else ('bad' if w.past and w.inc_pct < 90 else '') }}">{{ ('%g'|format(w.inc_pct)).replace('.', ',') }}%</span>{% endif %}</td></tr>{% endfor %}
+    <tr class="tot"><td>Місяць</td><td>{{ u(v.inc_month.plan) }}</td><td>{{ u(v.inc_month.fact) }}</td><td>{% if v.inc_month.plan %}{{ ('%g'|format((100 * v.inc_month.fact / v.inc_month.plan)|round(1))).replace('.', ',') }}%{% endif %}</td></tr></table>
+    <div class="mini" style="margin-top:8px">План — записи в календарі × ціна послуг (або ваша сума — впишіть у рядку тижня). Факт — гроші, що надійшли в каси за тиждень (чеки й надходження журналу), видно по мірі закриття кас. Щоранку о 9:00 власнику в Telegram — що платити сьогодні й що прострочено.</div></div>
 </div>
 </div>
 
@@ -163,6 +183,12 @@ dialog.cs-d{border:0;border-radius:22px;padding:0;box-shadow:0 30px 80px -30px r
       <td><button class="btn" form="pf0" style="height:30px;padding:0 12px;font-size:12px">Додати</button></td></tr>
     </table></div></dialog>
 <script>
+function pcMove(id, due){if(!due)return;const f=document.createElement('form');f.method='post';f.action='/finance/calendar/item/'+id+'/move';const i=document.createElement('input');i.name='due';i.value=due;f.appendChild(i);document.body.appendChild(f);f.submit()}
+(function(){let drag=null;
+document.querySelectorAll('tr.drag').forEach(function(tr){tr.addEventListener('dragstart',function(e){drag=tr;tr.classList.add('dragging');e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',tr.dataset.id)});tr.addEventListener('dragend',function(){tr.classList.remove('dragging');document.querySelectorAll('.wk.drop').forEach(x=>x.classList.remove('drop'));drag=null})});
+document.querySelectorAll('.wk[data-week]').forEach(function(w){w.addEventListener('dragover',function(e){if(!drag)return;e.preventDefault();w.classList.add('drop')});w.addEventListener('dragleave',function(e){if(!w.contains(e.relatedTarget))w.classList.remove('drop')});
+ w.addEventListener('drop',function(e){e.preventDefault();w.classList.remove('drop');if(!drag)return;const old=new Date(drag.dataset.due+'T12:00:00');const ws=new Date(w.dataset.week+'T12:00:00');const wd=(old.getDay()+6)%7;ws.setDate(ws.getDate()+wd);const iso=ws.toISOString().slice(0,10);if(iso!==drag.dataset.due)pcMove(drag.dataset.id,iso)})});
+})();
 function payDlg(id, amt, box, name){const d=document.getElementById('dlg-pay');document.getElementById('pay-form').action='/finance/calendar/item/'+id+'/pay';document.getElementById('pay-amount').value=amt||'';document.getElementById('pay-title').textContent='Оплачено · '+name;const s=document.getElementById('pay-box');[...s.options].forEach(o=>o.selected=(o.value===box));d.showModal()}
 function editDlg(id, amt, due, note){const d=document.getElementById('dlg-edit');document.getElementById('edit-form').action='/finance/calendar/item/'+id+'/edit';document.getElementById('edit-amount').value=amt||'';document.getElementById('edit-due').value=due;document.getElementById('edit-note').value=note;d.showModal()}
 </script>

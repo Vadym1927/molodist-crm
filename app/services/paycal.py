@@ -169,6 +169,65 @@ def expected_income(db: Session, d_from: date, d_to: date) -> dict:
     return {"by_day": dict(by_day), "total": round(sum(by_day.values()), 2), "n": n}
 
 
+INC_PLAN_KEY = "paycal_income_plan"
+
+
+def income_plans(db: Session) -> dict[str, float]:
+    """Ручний план приходу на тиждень: {"2026-11-02": 250000} (ключ — понеділок тижня)."""
+    import json
+    from ..models import SyncState
+    st = db.get(SyncState, INC_PLAN_KEY)
+    try:
+        return {k: float(v) for k, v in (json.loads(st.value) if st and st.value else {}).items()}
+    except (ValueError, TypeError):
+        return {}
+
+
+def set_income_plan(db: Session, week_start: date, amount: float | None) -> None:
+    import json
+    from ..models import SyncState
+    d = income_plans(db)
+    k = week_start.isoformat()
+    if amount is None:
+        d.pop(k, None)
+    else:
+        d[k] = float(amount)
+    db.merge(SyncState(key=INC_PLAN_KEY, value=json.dumps(d), updated_at=datetime.utcnow()))
+    db.commit()
+
+
+def income_fact(db: Session, d_from: date, d_to: date) -> dict[date, float]:
+    """Фактичний прихід грошима по днях: надходження журналу (чеки CleverBox / каса CRM / доходи CRM), без переміщень,
+    оплат не грошима і статей «не в дохід»."""
+    from . import finops as fo, clinic
+    ex = clinic.excluded_income(db)
+    out: dict[date, float] = defaultdict(float)
+    for r in fo.journal(db, d_from, d_to):
+        if r.kind == "income" and r.money and (r.article or "").strip().lower() not in ex:
+            out[r.at.date()] += float(r.amount or 0)
+        elif r.kind == "storno" and r.money:
+            out[r.at.date()] -= float(r.amount or 0)
+    return dict(out)
+
+
+def shifts_by_day(db: Session, d_from: date, d_to: date) -> dict[date, dict]:
+    """Закриті касові зміни: день закриття → {n, total}."""
+    from ..models import CashShift
+    out: dict[date, dict] = defaultdict(lambda: {"n": 0, "total": 0.0})
+    for sh in db.scalars(select(CashShift).where(CashShift.closed_at.is_not(None), CashShift.closed_at >= datetime.combine(d_from, datetime.min.time()),
+                                                 CashShift.closed_at <= datetime.combine(d_to, datetime.max.time()))):
+        x = out[sh.closed_at.date()]
+        x["n"] += 1
+        x["total"] += float((sh.summary or {}).get("total") or 0)
+    return dict(out)
+
+
+def move(db: Session, it: PayItem, due: date) -> None:
+    """Перенести платіж на іншу дату (і в інший місяць): шаблон не змінюється, лише цей платіж."""
+    it.due = due
+    db.commit()
+
+
 def month_view(db: Session, y: int, m: int, group: str = "", status: str = "", today: date | None = None) -> dict:
     from . import cashboxes as cbx
     today = today or date.today()
@@ -183,21 +242,43 @@ def month_view(db: Session, y: int, m: int, group: str = "", status: str = "", t
         shown = [i for i in shown if i.group == group]
     if status:
         shown = [i for i in shown if (i.status == status if status != "overdue" else (i.status in ("planned", "approved") and i.due < today))]
-    # тижні
+    # тижні: витрати (план / оплачено / лишилось) і прихід (план / факт за закриттям кас)
+    w0 = first - timedelta(days=first.weekday())
+    w_end = last + timedelta(days=6 - last.weekday())
+    exp_all = expected_income(db, w0, w_end)["by_day"]                  # записи × ціна — план приходу (усі дні тижня, й минулі)
+    fact_all = income_fact(db, w0, min(w_end, today))
+    shifts_all = shifts_by_day(db, w0, min(w_end, today))
+    manual = income_plans(db)
     weeks: list[dict] = []
-    d = first - timedelta(days=first.weekday())
+    d = w0
     while d <= last:
-        wk_items = [i for i in shown if d <= i.due < d + timedelta(days=7)]
-        weeks.append({"start": d, "end": d + timedelta(days=6), "rows": wk_items,
+        e = d + timedelta(days=6)
+        wk_items = [i for i in shown if d <= i.due <= e]
+        days = [d + timedelta(days=k) for k in range(7)]
+        auto = round(sum(exp_all.get(x, 0.0) for x in days), 2)
+        man = manual.get(d.isoformat())
+        fact = round(sum(fact_all.get(x, 0.0) for x in days if x <= today), 2)
+        sh_n = sum(shifts_all.get(x, {}).get("n", 0) for x in days)
+        sh_t = round(sum(shifts_all.get(x, {}).get("total", 0.0) for x in days), 2)
+        inc_plan = man if man is not None else auto
+        weeks.append({"start": d, "end": e, "rows": wk_items,
                       "plan": round(sum(float(i.amount or 0) for i in wk_items if i.status != "skipped"), 2),
                       "paid": round(sum(float(i.amount_fact or i.amount or 0) for i in wk_items if i.status == "paid"), 2),
                       "left": round(sum(float(i.amount or 0) for i in wk_items if i.status in ("planned", "approved")), 2),
-                      "current": d <= today <= d + timedelta(days=6)})
+                      "current": d <= today <= e, "past": e < today, "future": d > today,
+                      "inc_auto": auto, "inc_manual": man, "inc_plan": round(inc_plan, 2), "inc_fact": fact,
+                      "inc_left": round(sum(exp_all.get(x, 0.0) for x in days if x > today), 2),
+                      "inc_pct": round(100 * fact / inc_plan, 1) if inc_plan and d <= today else None,
+                      "shifts": sh_n, "shifts_total": sh_t,
+                      "net_plan": round(inc_plan - sum(float(i.amount or 0) for i in wk_items if i.status != "skipped"), 2),
+                      "net_fact": round(fact - sum(float(i.amount_fact or i.amount or 0) for i in wk_items if i.status == "paid"), 2) if d <= today else None})
         d += timedelta(days=7)
+    inc_month = {"plan": round(sum(w["inc_plan"] for w in weeks), 2), "fact": round(sum(w["inc_fact"] for w in weeks), 2),
+                 "left": round(sum(w["inc_left"] for w in weeks if w["end"] >= today), 2)}
     boxes = [b for b in cbx.overview(db) if b.get("active", True) is not False and not b.get("deleted")]
     cash = round(sum(float(b["balance"] or 0) for b in boxes), 2)
     left = round(sum(float(i.amount or 0) for i in cur if i.status in ("planned", "approved")) + sum(float(i.amount or 0) for i in overdue), 2)
-    inc = expected_income(db, max(today, first), last) if last >= today else {"by_day": {}, "total": 0.0, "n": 0}
+    inc = expected_income(db, max(today + timedelta(days=1), first), last) if last > today else {"by_day": {}, "total": 0.0, "n": 0}
     by_group = defaultdict(lambda: {"plan": 0.0, "paid": 0.0, "left": 0.0, "n": 0})
     for i in cur:
         g = by_group[i.group]
@@ -214,7 +295,7 @@ def month_view(db: Session, y: int, m: int, group: str = "", status: str = "", t
             by_box[i.cashbox or "— не вказано"] += float(i.amount or 0)
     plans = db.scalars(select(PayPlan).order_by(PayPlan.active.desc(), PayPlan.group, PayPlan.sort, PayPlan.name)).all()
     return {"y": y, "m": m, "first": first, "last": last, "today": today, "rows": cur, "shown": shown, "overdue": overdue, "weeks": weeks,
-            "boxes": boxes, "cash": cash, "left": left, "income": inc,
+            "boxes": boxes, "cash": cash, "left": left, "income": inc, "inc_month": inc_month,
             "forecast": round(cash - left + inc["total"], 2),
             "paid": round(sum(float(i.amount_fact or i.amount or 0) for i in cur if i.status == "paid"), 2),
             "plan": round(sum(float(i.amount or 0) for i in cur if i.status != "skipped"), 2),

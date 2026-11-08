@@ -8695,6 +8695,16 @@ async def paycal_item_act(iid: int, act: str, request: Request, user: User = Dep
             return RedirectResponse(_with_msg(back, "Платіж закритий фіноперацією — спершу видаліть її в журналі", err=True), 303)
         it.status, it.paid_at, it.amount_fact = ("planned" if (it.plan and it.plan.needs_approval) else "approved"), None, None
         msg = f"Повернуто в план: {it.name}"
+    elif act == "move":
+        d = _day(str(f.get("due") or ""))
+        if not d or it.status not in ("planned", "approved"):
+            return RedirectResponse(_with_msg(back, "Перенести можна лише неоплачений платіж на коректну дату", err=True), 303)
+        old_due = it.due
+        _pc.move(db, it, d)
+        audit(db, "paycal.move", "pay_item", it.id, user=user, name=it.name, frm=str(old_due), to=str(d))
+        if (d.year, d.month) != (old_due.year, old_due.month):
+            return RedirectResponse(_with_msg(f"/finance/calendar?y={d.year}&m={d.month}", f"Перенесено: {it.name} → {d:%d.%m.%Y}"), 303)
+        return RedirectResponse(_with_msg(back, f"Перенесено: {it.name} → {d:%d.%m}"), 303)
     elif act == "edit":
         it.amount = _num(str(f.get("amount") or ""))
         d = _day(str(f.get("due") or ""))
@@ -8714,6 +8724,21 @@ async def paycal_item_act(iid: int, act: str, request: Request, user: User = Dep
     db.commit()
     audit(db, f"paycal.{act}", "pay_item", it.id, user=user, name=it.name, amount=it.amount_fact or it.amount)
     return RedirectResponse(_with_msg(back, msg), 303)
+
+
+@app.post("/finance/calendar/income-plan")
+async def paycal_income_plan(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import paycal as _pc
+    f = await request.form()
+    wk = _day(str(f.get("week") or ""))
+    if not wk:
+        return RedirectResponse(_pc_back(request), 303)
+    wk = wk - timedelta(days=wk.weekday())
+    raw = str(f.get("amount") or "").strip()
+    amt = _num(raw) if raw else None
+    _pc.set_income_plan(db, wk, amt)
+    audit(db, "paycal.income_plan", user=user, week=str(wk), amount=amt)
+    return RedirectResponse(_with_msg(_pc_back(request), f"План приходу на тиждень з {wk:%d.%m}: " + (f"{amt:,.0f} ₴".replace(",", " ") if amt is not None else "за записами")), 303)
 
 
 @app.post("/finance/calendar/plan")
