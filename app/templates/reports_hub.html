@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Звіти · MOLODIST CRM{% endblock %}
 {% block body %}
+{% if error_box %}<div class="alert" style="margin-bottom:14px;white-space:pre-wrap;word-break:break-word">⚠️ Звіт не сформувався: {{ error_box }}<br><a href="/reports">← Усі звіти</a></div>{% endif %}
 {% set ready = blocks|sum(attribute='ready') %}{% set total = blocks|sum(attribute='total') %}
 <style>
 .rh-hero{position:relative;overflow:hidden;border-radius:24px;padding:28px 30px;margin-bottom:22px;color:#fff;
