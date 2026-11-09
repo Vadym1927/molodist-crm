@@ -631,6 +631,11 @@ def replace(db: Session, old: AmortAsset, day: date, cost: float, resource: floa
                      life_years=old.life_years, resource=resource, unit=old.unit, rate=round(cost / resource, 6), avg_month=old.avg_month,
                      commissioned_at=day, cashbox=old.cashbox, jar=old.jar, accrued_before=0, used_before=0, active=True, sort=old.sort,
                      note=f"Замінено {day:%d.%m.%Y}: попередній — id {old.id}")
+    if old.product_id:                                    # ціна одиниці в техкартах і собівартості — нова ставка
+        prod = db.get(Product, old.product_id)
+        if prod:
+            prod.cost = round(cost / resource, 6)
+            prod.coef = None if (prod.coef or 1) != 1 else prod.coef
     old.active = False
     old.name = f"{old.name} (до {day:%d.%m.%Y})"[:200]
     old.note = ((old.note + " · ") if old.note else "") + f"замінено {day:%d.%m.%Y}"

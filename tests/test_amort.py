@@ -163,8 +163,13 @@ def test_replace_consumable():
         db.add(old)
         db.add(StockMove(product_id=p.id, warehouse="equip", qty=1200, kind="opening", at=datetime(2026, 11, 1)))
         db.commit()
+        p.cost = 1.2
+        db.commit()
         new = am.replace(db, old, date(2026, 11, 9), 72000, 120000, "Фонд тест", None, "нова маніпула")
         assert not old.active and "(до 09.11.2026)" in old.name and new.active and new.rate == 0.6 and new.product_id == p.id
         assert stock.balances(db)[(p.id, "equip")] == 120000
+        from app.services import techcards as tc
+        db.refresh(p)
+        assert p.cost == 0.6 and tc.unit_costs(db)[p.id] == 0.6
         t = db.query(AmortTxn).filter(AmortTxn.asset_id == old.id, AmortTxn.kind == "expense").one()
         assert t.amount == 72000 and db.get(FinOp, t.finop_id).cashbox == "Фонд тест"
