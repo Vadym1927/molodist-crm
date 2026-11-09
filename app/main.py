@@ -4901,9 +4901,148 @@ def _critical_rows(rows):
     return [r for r in rows if st.is_critical(r) or (r.deficit or 0) > 0]
 
 
+# ---------------- Реалізація (товар під реалізацію: TEBISKIN, AG SKIN) ----------------
+@app.get("/stock/consign", response_class=HTMLResponse)
+def consign_page(request: Request, s: str = "", df: str = "", dt_: str = "", user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .services import consign as cs
+    cs.ensure_setup(db)
+    sups = cs.suppliers(db)
+    sel = s if s in sups else (sups[0] if sups else "")
+    v = cs.overview(db, sel) if sel else None
+    draft = None
+    a, b = _day(df), _day(request.query_params.get("dt") or dt_)
+    if sel and a and b and a <= b:
+        draft = cs.build_report(db, sel, a, b)
+    rep = None
+    if request.query_params.get("r"):
+        from .models import ConsignReport
+        rep = db.get(ConsignReport, int(request.query_params.get("r") or 0))
+    products = cs.candidate_products(db, sel) if sel else []
+    from .services import cashboxes as _cbx
+    return render(request, "stock_consign.html", nav="stock", sups=sups, sel=sel, v=v, draft=draft, rep=rep, products=products,
+                  boxes=[x["name"] for x in _cbx.items(db) if x.get("active") and not x.get("deleted")],
+                  articles=[a for a in _fa().names(db, "expense") if "закуп" in a.lower()] or _fa().names(db, "expense"))
+
+
+@app.get("/stock/consign/export")
+def consign_export(s: str, df: str = "", dt: str = "", r: int = 0, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .services import consign as cs
+    from .models import ConsignReport
+    if r:
+        rep = db.get(ConsignReport, r)
+        if not rep:
+            raise HTTPException(404)
+        data, title = {"lines": rep.lines or [], "total": rep.total}, f"Реалізація {rep.supplier} · {rep.d_from:%d.%m.%Y}–{rep.d_to:%d.%m.%Y}"
+    else:
+        a, b = _day(df), _day(dt)
+        if not (a and b):
+            raise HTTPException(400)
+        data, title = cs.build_report(db, s, a, b), f"Реалізація {s} · {a:%d.%m.%Y}–{b:%d.%m.%Y}"
+    fn = "realizatsiya.xlsx"
+    return Response(cs.to_xlsx(data, title), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f"attachment; filename={fn}"})
+
+
+@app.post("/stock/consign/report")
+def consign_fix(s: str = Form(...), df: str = Form(...), dt: str = Form(...), user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .services import consign as cs
+    a, b = _day(df), _day(dt)
+    if not (a and b) or a > b:
+        return RedirectResponse(_with_msg(f"/stock/consign?s={quote(s)}", "Вкажіть період", err=True), 303)
+    rep = cs.fix_report(db, s, a, b, user.id)
+    audit(db, "consign.report", "consign_report", rep.id, user=user, supplier=s, total=rep.total)
+    return RedirectResponse(_with_msg(f"/stock/consign?s={quote(s)}&r={rep.id}", f"Звіт реалізації зафіксовано: {rep.total:,.2f} ₴".replace(",", " ")), 303)
+
+
+@app.post("/stock/consign/report/{rid:int}/cancel")
+def consign_cancel(rid: int, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import consign as cs
+    from .models import ConsignReport
+    rep = db.get(ConsignReport, rid)
+    if not rep:
+        raise HTTPException(404)
+    try:
+        cs.cancel_report(db, rep)
+    except ValueError as e:
+        return RedirectResponse(_with_msg(f"/stock/consign?s={quote(rep.supplier)}", str(e), err=True), 303)
+    audit(db, "consign.report_cancel", "consign_report", rid, user=user)
+    return RedirectResponse(_with_msg(f"/stock/consign?s={quote(rep.supplier)}", "Звіт скасовано — банки повернуто в поставки"), 303)
+
+
+@app.post("/stock/consign/pay")
+def consign_pay(s: str = Form(...), amount: str = Form(...), day: str = Form(""), cashbox: str = Form(""), article: str = Form(""),
+                note: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import consign as cs
+    amt = _num(amount)
+    if not amt or amt <= 0:
+        return RedirectResponse(_with_msg(f"/stock/consign?s={quote(s)}", "Вкажіть суму оплати", err=True), 303)
+    p = cs.pay(db, s, amt, _day(day) or date.today(), cashbox.strip() or None, article.strip() or None, user.id, note.strip())
+    audit(db, "consign.pay", "consign_pay", p.id, user=user, supplier=s, amount=amt)
+    return RedirectResponse(_with_msg(f"/stock/consign?s={quote(s)}#pays", f"Оплату {amt:,.2f} ₴ рознесено по поставках".replace(",", " ")), 303)
+
+
+@app.post("/stock/consign/pay/{pid:int}/cancel")
+def consign_pay_cancel(pid: int, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import consign as cs
+    from .models import ConsignPay
+    p = db.get(ConsignPay, pid)
+    if not p:
+        raise HTTPException(404)
+    sup = p.supplier
+    cs.cancel_pay(db, p)
+    audit(db, "consign.pay_cancel", "consign_pay", pid, user=user)
+    return RedirectResponse(_with_msg(f"/stock/consign?s={quote(sup)}#pays", "Оплату скасовано"), 303)
+
+
+@app.post("/stock/consign/lot")
+def consign_lot(s: str = Form(...), invoice: str = Form(""), inv_date: str = Form(...), product_id: int = Form(...), qty: str = Form(...),
+                cost: str = Form(...), user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .services import consign as cs
+    q, c, d = _num(qty), _num(cost), _day(inv_date)
+    if not (q and q > 0 and c is not None and d):
+        return RedirectResponse(_with_msg(f"/stock/consign?s={quote(s)}#lots", "Заповніть товар, к-сть, ціну й дату", err=True), 303)
+    cs.add_lot(db, s, invoice.strip(), d, product_id, q, c)
+    return RedirectResponse(_with_msg(f"/stock/consign?s={quote(s)}#lots", "Позицію поставки додано"), 303)
+
+
+@app.post("/stock/consign/lot/{lid:int}/map")
+def consign_lot_map(lid: int, product_id: int = Form(...), user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .models import ConsignLot
+    l = db.get(ConsignLot, lid)
+    if not l:
+        raise HTTPException(404)
+    l.product_id = product_id
+    db.commit()
+    return RedirectResponse(_with_msg(f"/stock/consign?s={quote(l.supplier)}#lots", "Товар зіставлено"), 303)
+
+
+@app.post("/stock/suppliers/{sid:int}/consign")
+def supplier_consign_toggle(sid: int, on: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .models import Supplier
+    x = db.get(Supplier, sid)
+    if not x:
+        raise HTTPException(404)
+    x.consignment = bool(on) or None
+    db.commit()
+    audit(db, "supplier.consignment", "supplier", sid, user=user, on=bool(on))
+    return RedirectResponse(_with_msg(f"/stock/consign?s={quote(x.name)}" if on else "/stock?tab=suppliers",
+                                      f"{x.name}: " + ("під реалізацію" if on else "звичайні закупівлі")), 303)
+
+
+@app.post("/stock/consign/start")
+def consign_start(s: str = Form(...), d: str = Form(...), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import consign as cs
+    dd = _day(d)
+    if dd:
+        cs.set_start(db, s, dd)
+    return RedirectResponse(_with_msg(f"/stock/consign?s={quote(s)}", "Дату старту збережено"), 303)
+
+
 @app.get("/stock", response_class=HTMLResponse)
 def stock_page(request: Request, tab: str = "balances", only: str = "", wh: str = "", q: str = "", sup: str = "",
                user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .services import consign as _cs
+    _cs.ensure_setup(db)
     from .services import stock as st
     from .models import Supplier, ProcedureNorm, StockMove
     if only == "deficit":

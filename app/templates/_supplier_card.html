@@ -4,6 +4,10 @@
   {% if x.terms %}<div class="small muted">{{ x.terms }}</div>{% endif %}</div>
   <button type="button" class="spm-x" onclick="supClose()" aria-label="Закрити">×</button></div>
 <div class="spm-b">
+  {% if x.consignment %}<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;background:#F3EFF9;border-radius:14px;padding:10px 14px;margin-bottom:12px">
+    <span><b>Під реалізацію</b> <span class="small muted">· платимо лише за продане</span></span>
+    <span style="display:flex;gap:6px"><a class="btn" href="/stock/consign?s={{ x.name|urlencode }}#new">Продажі за період</a><a class="btn ghost" href="/stock/consign?s={{ x.name|urlencode }}">Реалізація</a></span></div>
+  {% elif can(user,'finance') %}<form method="post" action="/stock/suppliers/{{ x.id }}/consign" style="margin:0 0 10px" onsubmit="return confirm('Перевести {{ x.name }} на «під реалізацію»? Платимо лише за продане, звіти — у Склад → Реалізація.')"><input type="hidden" name="on" value="1"><button class="btn ghost" style="height:30px">Під реалізацію</button></form>{% endif %}
   <div class="spm-k">
     <div><span>Борг</span><b style="color:{{ 'var(--bad)' if debt > 1 else 'inherit' }}">{{ debt|uah if debt > 1 else '—' }}</b></div>
     <div><span>Оборот (CleverBox)</span><b>{{ ss.turnover|uah if ss and ss.turnover else '—' }}</b><em>{{ ss.n if ss and ss.n else 0 }} пост.</em></div>

@@ -763,6 +763,55 @@ class Supplier(Base):
     fx_usd: Mapped[float | None] = mapped_column(Float)            # курс постачальника USD, ₴ (для «Планування ціни»)
     fx_eur: Mapped[float | None] = mapped_column(Float)            # курс постачальника EUR, ₴
     fx_at: Mapped[datetime | None] = mapped_column(DateTime)
+    consignment: Mapped[bool | None] = mapped_column(Boolean)      # товар під реалізацію: платимо за продане (звіти реалізації)
+
+
+class ConsignLot(Base):
+    """Реалізація: рядок поставки під реалізацію — товар, к-сть, ціна банки; sold — скільки вже включено у зафіксовані звіти."""
+    __tablename__ = "consign_lots"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    supplier: Mapped[str] = mapped_column(String(200), index=True)
+    invoice: Mapped[str | None] = mapped_column(String(40), index=True)      # № поставки CleverBox / CRM
+    inv_date: Mapped[date] = mapped_column(Date, index=True)
+    product_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    name: Mapped[str] = mapped_column(String(300))
+    sku: Mapped[str | None] = mapped_column(String(60))
+    qty: Mapped[float] = mapped_column(Float, default=0)
+    cost: Mapped[float] = mapped_column(Float, default=0)
+    sold: Mapped[float] = mapped_column(Float, default=0)
+    source: Mapped[str | None] = mapped_column(String(12))                   # seed | doc | manual
+    note: Mapped[str | None] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ConsignReport(Base):
+    """Звіт реалізації постачальнику: продажі за період, розписані по найстаріших поставках (FIFO)."""
+    __tablename__ = "consign_reports"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    supplier: Mapped[str] = mapped_column(String(200), index=True)
+    d_from: Mapped[date] = mapped_column(Date)
+    d_to: Mapped[date] = mapped_column(Date)
+    status: Mapped[str] = mapped_column(String(12), default="fixed")
+    lines: Mapped[list | None] = mapped_column(JSON)                       # [{pid, name, qty, sum, alloc:[{lot, invoice, date, qty, cost, sum}], short}]
+    total: Mapped[float] = mapped_column(Float, default=0)
+    paid: Mapped[float] = mapped_column(Float, default=0)
+    note: Mapped[str | None] = mapped_column(String(300))
+    created_by: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ConsignPay(Base):
+    """Оплата постачальнику за реалізацію однією сумою → рознесено по звітах і поставках (найстаріші першими)."""
+    __tablename__ = "consign_pays"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    supplier: Mapped[str] = mapped_column(String(200), index=True)
+    day: Mapped[date] = mapped_column(Date)
+    amount: Mapped[float] = mapped_column(Float)
+    alloc: Mapped[list | None] = mapped_column(JSON)                       # [{report, invoice, amount}]
+    finop_id: Mapped[int | None] = mapped_column(Integer)
+    note: Mapped[str | None] = mapped_column(String(300))
+    created_by: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class SupplierPrice(Base):
@@ -846,10 +895,13 @@ class SupplierInvoice(Base):
     comment: Mapped[str | None] = mapped_column(String(500))
     paid_note: Mapped[str | None] = mapped_column(String(300))       # відмітка в CRM: «оплачено готівкою 12.10» тощо
     imported_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    adjust: Mapped[float | None] = mapped_column(Float)              # знижка / повернення постачальнику — зменшує борг (CRM)
+    adjust_note: Mapped[str | None] = mapped_column(String(300))
+    crm_paid: Mapped[float | None] = mapped_column(Float)            # оплати реалізації, рознесені в CRM
 
     @property
     def debt(self) -> float:
-        return round(max(0.0, (self.amount or 0) - (self.paid or 0)), 2)
+        return round(max(0.0, (self.amount or 0) - (self.paid or 0) - (self.adjust or 0) - (self.crm_paid or 0)), 2)
 
 
 class StockDoc(Base):

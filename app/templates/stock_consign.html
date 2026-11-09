@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Реалізація · {{ sel }}{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+{% macro u(x) %}{% if x is none %}—{% else %}{{ (('{:,.2f}').format(x or 0)).replace(',', ' ').replace('.', ',') }}{% endif %}{% endmacro %}
+{% macro q(x) %}{{ ('%g' % x) if x is not none else '—' }}{% endmacro %}
+<style>
+.cs-sup{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 16px}.cs-sup a{padding:9px 16px;border-radius:12px;background:#fff;border:1.5px solid #ECE7E1;text-decoration:none;font:700 14px var(--sans);color:#3B3050}.cs-sup a.on{background:var(--deep);color:#fff;border-color:var(--deep)}
+.cs-k{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}.cs-k div{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:14px 16px}
+.cs-k small{display:block;font:700 10.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#8a8496}.cs-k b{display:block;font:800 23px var(--sans);margin:6px 0 2px}.cs-k span{font-size:12px;color:#6b6575}
+.cs-k div.g{background:linear-gradient(135deg,#2A2430,#3B3050);border:0}.cs-k div.g small{color:#C9BFE6}.cs-k div.g b{color:#fff}.cs-k div.g span{color:#E4DEEF}
+.cs-c{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:16px 18px;margin-bottom:14px}.cs-c h3{margin:0 0 10px;font:700 17px var(--sans);text-transform:none;letter-spacing:0}
+.ct{width:100%;border-collapse:collapse;font-size:13px}.ct th{text-align:right;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496;padding:6px 8px;border-bottom:1px solid #ECE7E1}
+.ct th:first-child,.ct td:first-child{text-align:left}.ct td{padding:7px 8px;text-align:right;border-bottom:1px solid #F6F3EF;vertical-align:top}.ct td:first-child{white-space:normal}
+.ct tr.gh td{background:#F8F6FC;font-weight:700}.ct tr.tot td{font-weight:800;border-top:1px solid #E4DEEF;border-bottom:0}.ct .mini{display:block;font-size:11.5px;color:#8a8496;font-weight:400}
+.frm{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}.frm label{display:grid;gap:4px;font-size:12px;color:#6b6575}.frm input,.frm select{height:38px}
+.warn{background:#FFF7E8;border:1px solid #F3DFB5;border-radius:14px;padding:10px 14px;font-size:13px;margin-bottom:12px}
+@media(max-width:1000px){.cs-k{grid-template-columns:1fr 1fr}}
+</style>
+<div class="row between" style="align-items:flex-end;flex-wrap:wrap;gap:10px">
+  <div><h1>Реалізація</h1><div class="muted small">Товар під реалізацію: постачальнику платимо лише за продане. Продаж списується з найстарішої поставки, де ще є непродані банки, — за ціною саме тієї поставки. Нові поставки оплат не отримують, доки з них нічого не продано.</div></div>
+  <a href="/stock?tab=suppliers" class="btn ghost">← Постачальники</a>
+</div>
+{% if qp.get('msg') %}<div class="alert ok">{{ qp.get('msg') }}</div>{% endif %}{% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+<div class="cs-sup">{% for x in sups %}<a href="?s={{ x|urlencode }}" class="{{ 'on' if x == sel }}">{{ x }}</a>{% else %}<span class="muted">Немає постачальників «під реалізацію» — увімкніть у картці постачальника.</span>{% endfor %}</div>
+{% if v %}
+<div class="cs-k">
+  <div class="g"><small>На реалізації</small><b>{{ u(v.on_hand) }} ₴</b><span>{{ q(v.on_hand_qty) }} шт. непроданих банок</span></div>
+  <div><small>Продано, ще не у звіті</small><b>{{ u(v.pending.total) if v.pending else '—' }} ₴</b><span>{% if v.since %}з {{ v.since.strftime('%d.%m.%Y') }}{% if v.pending %} · {{ q(v.pending.qty) }} шт.{% endif %}{% else %}вкажіть дату старту нижче{% endif %}</span></div>
+  <div><small>До оплати за звітами</small><b style="color:{{ '#B23B2E' if v.to_pay > 1 else 'inherit' }}">{{ u(v.to_pay) }} ₴</b><span>{{ v.reports|length }} звітів</span></div>
+  <div><small>Оплачено в CRM</small><b>{{ u(v.paid) }} ₴</b><span>{{ v.pays|length }} оплат</span></div>
+</div>
+{% if v.no_product %}<div class="warn">⚠ {{ v.no_product|length }} позицій поставок не зіставлено з товаром CRM — їх продажі не потраплять у звіт. Зіставте в таблиці поставок нижче.</div>{% endif %}
+{% if v.lots_without %}<div class="warn">⚠ Поставки з боргом без позицій у «Реалізації»: {% for x in v.lots_without %}№{{ x.cb_number }} від {{ x.inv_date.strftime('%d.%m.%Y') }} ({{ u(x.debt) }} ₴){{ ', ' if not loop.last }}{% endfor %}. Додайте їх товари внизу («Додати позицію поставки»).</div>{% endif %}
+
+<div class="cs-c" id="new"><h3>Продажі за період → звіт постачальнику</h3>
+  <form class="frm" method="get"><input type="hidden" name="s" value="{{ sel }}">
+    <label>З<input type="date" name="df" value="{{ qp.get('df') or (v.since.isoformat() if v.since else '') }}"></label>
+    <label>По<input type="date" name="dt" value="{{ qp.get('dt') or v.today.isoformat() }}"></label>
+    <button class="btn">Показати продажі</button>
+    {% for n, d2 in v.quick %}<a class="btn ghost" href="?s={{ sel|urlencode }}&df={{ v.since.isoformat() }}&dt={{ d2.isoformat() }}#new">{{ n }} днів</a>{% endfor %}
+  </form>
+  {% if draft %}
+  <table class="ct" style="margin-top:12px"><tr><th>Товар</th><th>Продано</th><th>З поставки</th><th>К-сть</th><th>Ціна банки</th><th>Сума</th></tr>
+    {% for ln in draft.lines %}{% for a in ln.alloc %}<tr><td>{% if loop.first %}<b>{{ ln.name }}</b>{% endif %}</td><td>{% if loop.first %}{{ q(ln.qty) }}{% endif %}</td>
+      <td>№{{ a.invoice or '—' }} · {{ a.date[8:10] }}.{{ a.date[5:7] }}.{{ a.date[:4] }}</td><td>{{ q(a.qty) }}</td><td>{{ u(a.cost) }}</td><td>{{ u(a.sum) }}</td></tr>
+    {% else %}<tr><td><b>{{ ln.name }}</b></td><td>{{ q(ln.qty) }}</td><td colspan="4" style="color:#B23B2E">немає непроданих банок у поставках — додайте позицію поставки</td></tr>{% endfor %}
+    {% if ln.short and ln.alloc %}<tr><td></td><td></td><td colspan="4" style="color:#B23B2E">ще {{ q(ln.short) }} шт. без поставки</td></tr>{% endif %}
+    {% else %}<tr><td colspan="6" class="muted">Продажів товарів {{ sel }} за період немає.</td></tr>{% endfor %}
+    <tr class="tot"><td>Разом до відшкодування</td><td>{{ q(draft.qty) }}</td><td></td><td></td><td></td><td>{{ u(draft.total) }} ₴</td></tr></table>
+  <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center">
+    <a class="btn ghost" href="/stock/consign/export?s={{ sel|urlencode }}&df={{ draft.d_from.isoformat() }}&dt={{ draft.d_to.isoformat() }}">⬇ Excel для постачальника</a>
+    {% if draft.lines %}<form method="post" action="/stock/consign/report" onsubmit="return confirm('Зафіксувати звіт реалізації {{ sel }} за {{ draft.d_from.strftime('%d.%m') }}–{{ draft.d_to.strftime('%d.%m.%Y') }} на {{ u(draft.total) }} ₴? Банки спишуться з поставок.')">
+      <input type="hidden" name="s" value="{{ sel }}"><input type="hidden" name="df" value="{{ draft.d_from.isoformat() }}"><input type="hidden" name="dt" value="{{ draft.d_to.isoformat() }}">
+      <button class="btn">Зафіксувати звіт</button></form>{% endif %}
+    <span class="mini muted">Продажі — з CleverBox і каси CRM (рухи складу «продаж»).</span></div>
+  {% endif %}
+  {% if not v.since %}<form class="frm" method="post" action="/stock/consign/start" style="margin-top:12px"><input type="hidden" name="s" value="{{ sel }}">
+    <label>Остання реалізація в таблиці закінчилась — рахувати продажі з<input type="date" name="d" required></label><button class="btn ghost">Зберегти</button></form>{% endif %}
+</div>
+
+{% if rep %}
+<div class="cs-c"><h3>Звіт №{{ rep.id }} · {{ rep.d_from.strftime('%d.%m') }}–{{ rep.d_to.strftime('%d.%m.%Y') }} · {{ u(rep.total) }} ₴</h3>
+  <table class="ct"><tr><th>Товар</th><th>З поставки</th><th>К-сть</th><th>Ціна</th><th>Сума</th></tr>
+  {% for ln in rep.lines %}{% for a in ln.alloc %}<tr><td>{% if loop.first %}{{ ln.name }}{% endif %}</td><td>№{{ a.invoice or '—' }} · {{ a.date[8:10] }}.{{ a.date[5:7] }}.{{ a.date[:4] }}</td><td>{{ q(a.qty) }}</td><td>{{ u(a.cost) }}</td><td>{{ u(a.sum) }}</td></tr>{% endfor %}{% endfor %}
+  </table>
+  <div style="margin-top:10px"><a class="btn ghost" href="/stock/consign/export?s={{ sel|urlencode }}&r={{ rep.id }}">⬇ Excel</a></div></div>
+{% endif %}
+
+<div class="cs-c" id="pays"><h3>Оплата постачальнику</h3>
+  <form class="frm" method="post" action="/stock/consign/pay"><input type="hidden" name="s" value="{{ sel }}">
+    <label>Сума, ₴<input name="amount" inputmode="decimal" value="{{ ('%.2f' % v.to_pay) if v.to_pay > 0 else '' }}" required style="width:130px"></label>
+    <label>Дата<input type="date" name="day" value="{{ v.today.isoformat() }}"></label>
+    <label>З каси / рахунку<select name="cashbox"><option value="">— не створювати фіноперацію</option>{% for b in boxes %}<option>{{ b }}</option>{% endfor %}</select></label>
+    <label>Стаття<select name="article">{% for a in articles %}<option>{{ a }}</option>{% endfor %}</select></label>
+    <label>Коментар<input name="note" style="width:200px"></label>
+    <button class="btn">Рознести оплату</button></form>
+  <div class="mini muted" style="margin-top:6px">Сума розноситься по зафіксованих звітах від найстарішого, усередині — по поставках від найстарішої. Більше, ніж до оплати, — аванс у наступні звіти.</div>
+  {% if v.reports %}<table class="ct" style="margin-top:12px"><tr><th>Звіт</th><th>Період</th><th>Сума</th><th>Оплачено</th><th>Лишилось</th><th></th></tr>
+    {% for r in v.reports %}<tr><td><a href="?s={{ sel|urlencode }}&r={{ r.id }}">№{{ r.id }}</a><span class="mini">{{ r.created_at.strftime('%d.%m.%Y') }}</span></td><td>{{ r.d_from.strftime('%d.%m') }}–{{ r.d_to.strftime('%d.%m.%Y') }}</td><td>{{ u(r.total) }}</td><td>{{ u(r.paid) }}</td>
+      <td style="{{ 'color:#B23B2E;font-weight:700' if r.total - r.paid > 1 }}">{{ u(r.total - r.paid) }}</td>
+      <td>{% if r.paid < 0.01 and can(user,'finance') %}<form method="post" action="/stock/consign/report/{{ r.id }}/cancel" onsubmit="return confirm('Скасувати звіт №{{ r.id }}? Банки повернуться в поставки.')"><button class="btn ghost" style="height:28px;padding:0 10px">Скасувати</button></form>{% endif %}</td></tr>{% endfor %}</table>{% endif %}
+  {% if v.pays %}<table class="ct" style="margin-top:12px"><tr><th>Оплата</th><th>Сума</th><th>Рознесено</th><th></th></tr>
+    {% for p in v.pays %}<tr><td>{{ p.day.strftime('%d.%m.%Y') }}{% if p.finop_id %}<span class="mini">CRM-{{ p.finop_id }}</span>{% endif %}</td><td>{{ u(p.amount) }}</td>
+      <td style="text-align:left">{% for a in p.alloc or [] %}<span class="mini">{% if a.invoice %}поставка №{{ a.invoice }}{% if a.report %} (звіт №{{ a.report }}){% endif %}{% else %}аванс{% endif %} — {{ u(a.amount) }} ₴</span>{% endfor %}</td>
+      <td>{% if can(user,'finance') %}<form method="post" action="/stock/consign/pay/{{ p.id }}/cancel" onsubmit="return confirm('Скасувати оплату {{ u(p.amount) }} ₴?')"><button class="btn ghost" style="height:28px;padding:0 10px">Скасувати</button></form>{% endif %}</td></tr>{% endfor %}</table>{% endif %}
+</div>
+
+<div class="cs-c" id="lots"><h3>Поставки з непроданим товаром · {{ u(v.on_hand) }} ₴</h3>
+  <table class="ct"><tr><th>Поставка / товар</th><th>Надійшло</th><th>Продано (звіти)</th><th>Лишилось</th><th>Ціна банки</th><th>Сума залишку</th></tr>
+    {% for g in v.groups %}<tr class="gh"><td>№{{ g.invoice or '—' }} від {{ g.date.strftime('%d.%m.%Y') }}{% if g.inv %}<span class="mini">борг у CRM {{ u(g.inv.debt) }} ₴{% if g.inv.adjust %} · {{ g.inv.adjust_note }} −{{ u(g.inv.adjust) }}{% endif %}</span>{% endif %}</td><td></td><td></td><td>{{ q(g.qty) }}</td><td></td><td>{{ u(g.left) }}</td></tr>
+      {% for l in g.lots if l.qty - l.sold > 0.0001 %}<tr><td>{{ l.name }}{% if l.note %} · <i>{{ l.note }}</i>{% endif %}
+        {% if not l.product_id %}<form method="post" action="/stock/consign/lot/{{ l.id }}/map" class="frm" style="margin-top:4px"><select name="product_id" style="height:30px;max-width:340px">{% for p in products %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}</select><button class="btn ghost" style="height:30px;padding:0 10px">Зіставити</button></form>{% endif %}</td>
+        <td>{{ q(l.qty) }}</td><td>{{ q(l.sold) if l.sold else '' }}</td><td>{{ q(l.qty - l.sold) }}</td><td>{{ u(l.cost) }}</td><td>{{ u((l.qty - l.sold) * l.cost) }}</td></tr>{% endfor %}
+    {% else %}<tr><td colspan="6" class="muted">Непроданих банок немає.</td></tr>{% endfor %}
+  </table>
+  <details style="margin-top:12px"><summary style="cursor:pointer;font:700 13px var(--sans)">＋ Додати позицію поставки</summary>
+    <form class="frm" method="post" action="/stock/consign/lot" style="margin-top:8px"><input type="hidden" name="s" value="{{ sel }}">
+      <label>№ поставки CleverBox<input name="invoice" style="width:110px"></label><label>Дата<input type="date" name="inv_date" required></label>
+      <label>Товар<select name="product_id" style="max-width:380px">{% for p in products %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}</select></label>
+      <label>К-сть<input name="qty" inputmode="decimal" style="width:70px" required></label><label>Ціна банки, ₴<input name="cost" inputmode="decimal" style="width:100px" required></label>
+      <button class="btn">Додати</button></form></details>
+  {% if v.closed %}<div class="mini muted" style="margin-top:8px">Повністю продано: {% for g in v.closed %}№{{ g.invoice }} ({{ g.date.strftime('%d.%m.%Y') }}){{ ', ' if not loop.last }}{% endfor %}</div>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

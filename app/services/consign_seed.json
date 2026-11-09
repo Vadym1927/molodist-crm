@@ -1,0 +1,680 @@
+{
+"lots": [
+{
+"supplier": "TEBISKIN",
+"invoice": "12087",
+"date": "2025-03-21",
+"name": "Висвітлюючий крем для боротьби з гіперпігментацією TEBISKIN LC 50 мл",
+"sku": null,
+"qty": 1.0,
+"cost": 1710.0
+},
+{
+"supplier": "TEBISKIN",
+"invoice": "14559",
+"date": "2025-08-27",
+"name": "Висвітлюючий крем для боротьби з гіперпігментацією TEBISKIN LC 50 мл",
+"sku": null,
+"qty": 1.0,
+"cost": 1862.0
+},
+{
+"supplier": "TEBISKIN",
+"invoice": "14559",
+"date": "2025-08-27",
+"name": "Сонцезахисний заспокійливий крем TEBISKIN UVSOOTH SPF 50+ 50 мл",
+"sku": null,
+"qty": 1.0,
+"cost": 1363.0
+},
+{
+"supplier": "TEBISKIN",
+"invoice": "14559",
+"date": "2025-08-27",
+"name": "Регенеруюча сироватка Laser Doctor",
+"sku": null,
+"qty": 1.0,
+"cost": 470.0
+},
+{
+"supplier": "TEBISKIN",
+"invoice": "14560",
+"date": "2025-08-27",
+"name": "Емульсія очищаюча з відлущуючим ефектом TEBISKIN GLY-CLEAN 200 мл",
+"sku": null,
+"qty": 1.0,
+"cost": 1176.0
+},
+{
+"supplier": "TEBISKIN",
+"invoice": "15234",
+"date": "2025-10-24",
+"name": "Емульсія очищаюча з відлущуючим ефектом TEBISKIN GLY-CLEAN 200 мл",
+"sku": null,
+"qty": 1.0,
+"cost": 1188.0
+},
+{
+"supplier": "TEBISKIN",
+"invoice": "15591",
+"date": "2025-11-21",
+"name": "Сонцезахисний відбілюючий крем / TEBISKIN UV-LC 50 ml",
+"sku": null,
+"qty": 1.0,
+"cost": 2030.0
+},
+{
+"supplier": "TEBISKIN",
+"invoice": "15591",
+"date": "2025-11-21",
+"name": "Регенеруюча сироватка Laser Doctor",
+"sku": null,
+"qty": 1.0,
+"cost": 396.0
+},
+{
+"supplier": "TEBISKIN",
+"invoice": "19550",
+"date": "2026-07-30",
+"name": "Емульсія очищаюча з заспокійливою дією TEBISKIN SOOTH-CLEAN 200 мл",
+"sku": null,
+"qty": 2.0,
+"cost": 988.0
+},
+{
+"supplier": "TEBISKIN",
+"invoice": "20076",
+"date": "2026-09-04",
+"name": "Емульсія очищаюча з заспокійливою дією TEBISKIN SOOTH-CLEAN 200 мл",
+"sku": null,
+"qty": 1.0,
+"cost": 988.0
+},
+{
+"supplier": "TEBISKIN",
+"invoice": "20076",
+"date": "2026-09-04",
+"name": "Заспокійливий пом’якшувальний крем TEBISKIN SOOTH CREAM 50 мл",
+"sku": null,
+"qty": 2.0,
+"cost": 1352.0
+},
+{
+"supplier": "TEBISKIN",
+"invoice": "20076",
+"date": "2026-09-04",
+"name": "Крем для жирної і проблемної шкіри TEBISKIN OSK CREAM 50 мл",
+"sku": null,
+"qty": 1.0,
+"cost": 1352.0
+},
+{
+"supplier": "TEBISKIN",
+"invoice": "20076",
+"date": "2026-09-04",
+"name": "Очищаючий засіб для жирної шкіри, схильної до акне TEBISKIN OSK-CLEAN CLEANSER 200 мл",
+"sku": null,
+"qty": 1.0,
+"cost": 1352.0
+},
+{
+"supplier": "TEBISKIN",
+"invoice": "20076",
+"date": "2026-09-04",
+"name": "Сонцезахисний крем для жирної і проблемної шкіри TEBISKIN UV-OSK CREAM 50 мл",
+"sku": null,
+"qty": 2.0,
+"cost": 1404.0
+},
+{
+"supplier": "TEBISKIN",
+"invoice": "20428",
+"date": "2026-09-30",
+"name": "Заспокійливий пом’якшувальний крем TEBISKIN SOOTH CREAM 50 мл",
+"sku": null,
+"qty": 5.0,
+"cost": 1352.0
+},
+{
+"supplier": "TEBISKIN",
+"invoice": "20428",
+"date": "2026-09-30",
+"name": "Крем для жирної і проблемної шкіри TEBISKIN OSK CREAM 50 мл",
+"sku": null,
+"qty": 1.0,
+"cost": 1352.0
+},
+{
+"supplier": "TEBISKIN",
+"invoice": "20428",
+"date": "2026-09-30",
+"name": "Очищаючий засіб для жирної шкіри, схильної до акне TEBISKIN OSK-CLEAN CLEANSER 200 мл",
+"sku": null,
+"qty": 1.0,
+"cost": 1352.0
+},
+{
+"supplier": "AG SKIN",
+"invoice": "13674",
+"date": "2025-06-23",
+"name": "AG For Acne Clear крем-гель з азелогліцином",
+"sku": "AG027",
+"qty": 1.0,
+"cost": 875.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "14870",
+"date": "2025-09-24",
+"name": "AG For Acne Clear крем-гель з азелогліцином",
+"sku": "AG027",
+"qty": 1.0,
+"cost": 875.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "15206",
+"date": "2025-10-22",
+"name": "AG For Acne крем-гель з азелогліцином та ретинолом",
+"sku": "AG003",
+"qty": 1.0,
+"cost": 930.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "15543",
+"date": "2025-11-17",
+"name": "AG For Acne крем-гель з азелогліцином та ретинолом",
+"sku": "AG003",
+"qty": 3.0,
+"cost": 930.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "15543",
+"date": "2025-11-17",
+"name": "AG Azelorosa крем-гель з азелаїновою кислотою",
+"sku": "AG006",
+"qty": 1.0,
+"cost": 940.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "16036",
+"date": "2025-12-19",
+"name": "AG For Acne Clear крем-гель з азелогліцином",
+"sku": "AG027",
+"qty": 1.0,
+"cost": 875.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "16036",
+"date": "2025-12-19",
+"name": "AG Azelorosa антиоксидантна маска з азелаїновою кислотою і вітаміном С",
+"sku": "AG007",
+"qty": 1.0,
+"cost": 785.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "16539",
+"date": "2026-01-27",
+"name": "AG For Acne крем-гель з азелогліцином та ретинолом",
+"sku": "AG003",
+"qty": 1.0,
+"cost": 930.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "17408",
+"date": "2026-03-25",
+"name": "AG For Acne крем-гель з азелогліцином та ретинолом",
+"sku": "AG003",
+"qty": 1.0,
+"cost": 930.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "18134",
+"date": "2026-04-30",
+"name": "AG Regular живильний крем з пептидами та біологічними фракціями канабісу",
+"sku": "AG014",
+"qty": 1.0,
+"cost": 885.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "18134",
+"date": "2026-04-30",
+"name": "AG Regular інтенсивний мультифункціональний крем для шкіри навколо очей",
+"sku": "AG009",
+"qty": 1.0,
+"cost": 750.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "18775",
+"date": "2026-06-04",
+"name": "AG SPF 50+ зволожуючий відновлюючий крем",
+"sku": "AG011",
+"qty": 2.0,
+"cost": 1000.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "18775",
+"date": "2026-06-04",
+"name": "AG Regular тонік 3 в 1 з пребіотиками",
+"sku": "AG008",
+"qty": 1.0,
+"cost": 690.0,
+"note": "списуємо"
+},
+{
+"supplier": "AG SKIN",
+"invoice": "18979",
+"date": "2026-06-18",
+"name": "AG Azelorosa крем-гель з азелаїновою кислотою",
+"sku": "AG006",
+"qty": 1.0,
+"cost": 940.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "19353",
+"date": "2026-07-17",
+"name": "AG SPF 50+ зволожуючий відновлюючий крем",
+"sku": "AG011",
+"qty": 1.0,
+"cost": 1000.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "19353",
+"date": "2026-07-17",
+"name": "AG Azelorosa крем-гель з азелаїновою кислотою",
+"sku": "AG006",
+"qty": 1.0,
+"cost": 940.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "19353",
+"date": "2026-07-17",
+"name": "Сонцезахисний флюїд для тіла AG SKIN Exorestoration body fluid SPF 50+ 200 мл",
+"sku": "AG036",
+"qty": 2.0,
+"cost": 1150.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "19704",
+"date": "2026-08-13",
+"name": "AG Azelorosa Rosy крем-гель з азелаїновою кислотою",
+"sku": "AG028",
+"qty": 2.0,
+"cost": 875.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "19704",
+"date": "2026-08-13",
+"name": "AG Regular тонік 3 в 1 з пребіотиками",
+"sku": "AG008",
+"qty": 1.0,
+"cost": 345.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "20039",
+"date": "2026-09-03",
+"name": "AG Regular зволожуючий гель для вмивання",
+"sku": "AG013",
+"qty": 1.0,
+"cost": 793.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "20039",
+"date": "2026-09-03",
+"name": "AG Regular тонік 3 в 1 з пребіотиками",
+"sku": "AG008",
+"qty": 1.0,
+"cost": 793.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "20039",
+"date": "2026-09-03",
+"name": "Інтенсивний дерматоконтроль крем-гель AG SKIN Intense Cream Gel 50 мл",
+"sku": "AG042",
+"qty": 2.0,
+"cost": 1207.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "20039",
+"date": "2026-09-03",
+"name": "Балансувальний крем‑гель при розацеа AG SKIN Redness Balance Cream Gel 50 м",
+"sku": "AG041",
+"qty": 2.0,
+"cost": 1288.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "20039",
+"date": "2026-09-03",
+"name": "Ензимна пудра AG SKIN Enzyme Glow Powder 30 г",
+"sku": "AG053",
+"qty": 2.0,
+"cost": 900.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "20079",
+"date": "2026-09-04",
+"name": "AG Azelorosa антиоксидантна маска з азелаїновою кислотою і вітаміном С",
+"sku": "AG007",
+"qty": 1.0,
+"cost": 865.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "20079",
+"date": "2026-09-04",
+"name": "AG Regular живильний крем з пептидами та біологічними фракціями канабісу",
+"sku": "AG014",
+"qty": 1.0,
+"cost": 1000.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "20079",
+"date": "2026-09-04",
+"name": "AG Regular зволожуючий гель для вмивання",
+"sku": "AG013",
+"qty": 1.0,
+"cost": 793.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "20079",
+"date": "2026-09-04",
+"name": "Сонцезахисний флюїд для тіла AG SKIN Exorestoration body fluid SPF 50+ 200 мл",
+"sku": "AG036",
+"qty": 1.0,
+"cost": 1150.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "20079",
+"date": "2026-09-04",
+"name": "AG Smart C сироватка з трьома видами вітаміну С",
+"sku": "AG019",
+"qty": 1.0,
+"cost": 1150.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "20231",
+"date": "2026-09-16",
+"name": "AG For Acne очищуючий гель з мигдалевою кислотою",
+"sku": "AG001",
+"qty": 2.0,
+"cost": 723.35,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "20231",
+"date": "2026-09-16",
+"name": "AG For Acne сироватка з азелогліцином та саліциовою кислотою",
+"sku": "AG004",
+"qty": 1.0,
+"cost": 977.5,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "20231",
+"date": "2026-09-16",
+"name": "AG Azelorosa Rosy крем-гель з азелаїновою кислотою",
+"sku": "AG028",
+"qty": 4.0,
+"cost": 850.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "20231",
+"date": "2026-09-16",
+"name": "AG Regular зволожуючий крем з церамідами та біологічними фракціями канабісу",
+"sku": "AG010",
+"qty": 2.0,
+"cost": 977.5,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "20231",
+"date": "2026-09-16",
+"name": "AG Regular інтенсивний мультифункціональний крем для шкіри навколо очей",
+"sku": "AG009",
+"qty": 2.0,
+"cost": 732.7,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "20231",
+"date": "2026-09-16",
+"name": "AG Regular тонік 3 в 1 з пребіотиками",
+"sku": "AG008",
+"qty": 1.0,
+"cost": 674.05,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "20231",
+"date": "2026-09-16",
+"name": "AG Smart C зволожуюче молочко для тіла",
+"sku": "AG016",
+"qty": 1.0,
+"cost": 518.5,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "20231",
+"date": "2026-09-16",
+"name": "Сонцезахисний флюїд для тіла AG SKIN Exorestoration body fluid SPF 50+ 200 мл",
+"sku": "AG036",
+"qty": 1.0,
+"cost": 977.5,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "20592",
+"date": "2026-10-14",
+"name": "AG For Acne очищуючий гель з мигдалевою кислотою",
+"sku": "AG001",
+"qty": 1.0,
+"cost": 425.5,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "20592",
+"date": "2026-10-14",
+"name": "AG For Acne сироватка з азелогліцином та саліциовою кислотою",
+"sku": "AG004",
+"qty": 1.0,
+"cost": 1150.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "20592",
+"date": "2026-10-14",
+"name": "AG Azelorosa Rosy крем-гель з азелаїновою кислотою",
+"sku": "AG028",
+"qty": 2.0,
+"cost": 1000.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "20592",
+"date": "2026-10-14",
+"name": "AG Regular зволожуючий гель для вмивання",
+"sku": "AG013",
+"qty": 1.0,
+"cost": 396.5,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "20592",
+"date": "2026-10-14",
+"name": "AG Regular зволожуючий крем з церамідами та біологічними фракціями канабісу",
+"sku": "AG010",
+"qty": 2.0,
+"cost": 1150.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "20592",
+"date": "2026-10-14",
+"name": "AG Regular інтенсивний мультифункціональний крем для шкіри навколо очей",
+"sku": "AG009",
+"qty": 1.0,
+"cost": 862.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "20592",
+"date": "2026-10-14",
+"name": "AG Regular тонік 3 в 1 з пребіотиками",
+"sku": "AG008",
+"qty": 1.0,
+"cost": 396.5,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "20592",
+"date": "2026-10-14",
+"name": "AG Smart C зволожуюче молочко для тіла",
+"sku": "AG016",
+"qty": 1.0,
+"cost": 305.0,
+"note": null
+},
+{
+"supplier": "AG SKIN",
+"invoice": "20592",
+"date": "2026-10-14",
+"name": "AG Azeloroza судинно зміцнююча сироватка",
+"sku": "AG043",
+"qty": 2.0,
+"cost": 1300.0,
+"note": null
+},
+{
+"supplier": "TEBISKIN",
+"invoice": "20707",
+"date": "2026-10-21",
+"name": "Заспокійливий пом’якшувальний крем TEBISKIN SOOTH CREAM 50 мл",
+"sku": null,
+"qty": 3,
+"cost": 1352
+},
+{
+"supplier": "TEBISKIN",
+"invoice": "20707",
+"date": "2026-10-21",
+"name": "Емульсія очищаюча з заспокійливою дією TEBISKIN SOOTH-CLEAN 200 мл",
+"sku": null,
+"qty": 1,
+"cost": 988
+}
+],
+"adjust": [
+{
+"invoice": "13465",
+"amount": 5502.5,
+"note": "повернено 2 набори (5 110 ₴) + знижка постачальника 392,50 ₴"
+},
+{
+"invoice": "15543",
+"amount": 267.6,
+"note": "знижка постачальника"
+},
+{
+"invoice": "16036",
+"amount": 293.5,
+"note": "знижка постачальника"
+},
+{
+"invoice": "18979",
+"amount": 286.5,
+"note": "знижка постачальника"
+},
+{
+"invoice": "19353",
+"amount": 645.8,
+"note": "знижка постачальника"
+},
+{
+"invoice": "20039",
+"amount": 515.45,
+"note": "знижка постачальника"
+},
+{
+"invoice": "20079",
+"amount": 127.65,
+"note": "знижка постачальника"
+},
+{
+"invoice": "20231",
+"amount": 102.85,
+"note": "знижка постачальника"
+}
+],
+"start": {
+"TEBISKIN": "2026-10-21"
+}
+}
