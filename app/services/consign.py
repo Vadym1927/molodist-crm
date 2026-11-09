@@ -114,15 +114,27 @@ def candidate_products(db: Session, supplier: str) -> list:
 
 
 def sales(db: Session, supplier: str, d_from: date, d_to: date) -> dict[int, float]:
-    """Продано за період (шт.) по товарах: рухи складу «продаж» (CleverBox + каса CRM) мінус повернення від пацієнтів."""
+    """Продано за період (шт.) по товарах. З дати старту обліку складу в CRM — рухи «продаж» (CleverBox + каса CRM);
+    до неї — продажі CleverBox (ProductSale), бо рухів складу тоді ще не було."""
+    from ..models import ProductSale
+    from . import stock as st
     ids = product_ids(db, supplier)
     if not ids:
         return {}
     a, b = datetime.combine(d_from, datetime.min.time()), datetime.combine(d_to + timedelta(days=1), datetime.min.time())
+    start = st.ledger_start(db)
+    split = min(max(start, a), b) if start else a
     out: dict = defaultdict(float)
-    for pid, q, kind in db.execute(select(StockMove.product_id, StockMove.qty, StockMove.kind)
-                                   .where(StockMove.product_id.in_(ids), StockMove.at >= a, StockMove.at < b, StockMove.kind.in_(("sale",)))):
-        out[pid] += -float(q or 0)
+    if split > a:                                            # до старту обліку CRM — продажі CleverBox
+        cb = {p.cb_product_id: p.id for p in db.scalars(select(Product).where(Product.id.in_(ids), Product.cb_product_id.is_not(None)))}
+        if cb:
+            for pid, q in db.execute(select(ProductSale.product_id, ProductSale.quantity)
+                                     .where(ProductSale.product_id.in_(list(cb)), ProductSale.sold_at >= a, ProductSale.sold_at < split)):
+                out[cb[pid]] += float(q or 1)
+    if split < b:
+        for pid, q in db.execute(select(StockMove.product_id, StockMove.qty)
+                                 .where(StockMove.product_id.in_(ids), StockMove.at >= split, StockMove.at < b, StockMove.kind == "sale")):
+            out[pid] += -float(q or 0)
     return {k: round(v, 3) for k, v in out.items() if abs(v) > 1e-9}
 
 

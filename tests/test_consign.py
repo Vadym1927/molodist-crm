@@ -92,3 +92,24 @@ def test_invoice_free_endpoint():
     with SessionLocal() as db:
         x = db.get(SupplierInvoice, iid)
         assert x.debt == 0 and x.adjust == 2244 and x.adjust_note.startswith("подарунок") and not x.paid
+
+
+def test_sales_before_ledger_from_cleverbox():
+    from app.models import Patient, ProductSale, SyncState
+    from app.services import stock as st
+    with SessionLocal() as db:
+        p = Product(name="Крем до старту", name_norm="крем до старту", supplier="ДО СТАРТУ", cb_product_id=777001)
+        pt = Patient(full_name="Тест Продаж", phone="+380000000777")
+        db.add_all([p, pt])
+        db.flush()
+        db.add(ProductSale(external_id="x777", patient_id=pt.id, product_id=777001, product_name=p.name, quantity=2, amount=100, sold_at=datetime(2026, 10, 15, 12)))
+        db.add(StockMove(product_id=p.id, warehouse="vitrina", qty=-1, kind="sale", at=datetime(2026, 11, 2, 12)))
+        old = st.ledger_start(db)
+        db.merge(SyncState(key="stock_ledger_start", value="2026-10-29T00:00:00", updated_at=datetime.utcnow()))
+        db.commit()
+        try:
+            assert cs.sales(db, "ДО СТАРТУ", date(2026, 10, 13), date(2026, 11, 9)) == {p.id: 3}
+        finally:
+            if old:
+                db.merge(SyncState(key="stock_ledger_start", value=old.isoformat(), updated_at=datetime.utcnow()))
+                db.commit()
