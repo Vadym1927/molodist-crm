@@ -26,6 +26,7 @@ DEFAULT = ("TEBISKIN", "AG SKIN")
 def _norm(s: str | None) -> str:
     s = (s or "").lower().replace("ʼ", "'").replace("’", "'")
     s = re.sub(r"[^\w]+", " ", s)
+    s = re.sub(r"(\d)([^\W\d_])", r"\1 \2", s)          # «50мл» → «50 мл»
     return " ".join(s.split())
 
 

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Акт звірки · {{ sel }}{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+{% macro u(x) %}{% if x is none %}—{% else %}{{ (('{:,.2f}').format(x or 0)).replace(',', ' ').replace('.', ',') }}{% endif %}{% endmacro %}
+{% macro q(x) %}{{ ('%g' % x) if x is not none else '—' }}{% endmacro %}
+<style>
+.cs-sup{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 16px}.cs-sup a{padding:9px 16px;border-radius:12px;background:#fff;border:1.5px solid #ECE7E1;text-decoration:none;font:700 14px var(--sans);color:#3B3050}.cs-sup a.on{background:var(--deep);color:#fff;border-color:var(--deep)}
+.cs-k{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}.cs-k div{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:14px 16px}
+.cs-k small{display:block;font:700 10.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#8a8496}.cs-k b{display:block;font:800 22px var(--sans);margin:6px 0 2px}.cs-k span{font-size:12px;color:#6b6575}
+.cs-k div.ok{background:#EAF6EE;border-color:#BFE3CB}.cs-k div.ok b{color:#2f6b3b}.cs-k div.bad{background:#FDF0EE;border-color:#F3C9C3}.cs-k div.bad b{color:#B23B2E}
+.cs-c{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:16px 18px;margin-bottom:14px}.cs-c h3{margin:0 0 10px;font:700 17px var(--sans);text-transform:none;letter-spacing:0}
+.ct{width:100%;border-collapse:collapse;font-size:13px}.ct th{text-align:right;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496;padding:6px 8px;border-bottom:1px solid #ECE7E1}
+.ct th:first-child,.ct td:first-child{text-align:left}.ct td{padding:7px 8px;text-align:right;border-bottom:1px solid #F6F3EF;vertical-align:top}.ct .mini{display:block;font-size:11.5px;color:#8a8496}
+.ct tr.bad td{background:#FDF0EE}.ct tr.tot td{font-weight:800;border-top:1px solid #E4DEEF;border-bottom:0}.d-bad{color:#B23B2E;font-weight:700}.d-ok{color:#2f6b3b;font-weight:700}
+.frm{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}.frm label{display:grid;gap:4px;font-size:12px;color:#6b6575}.frm input{height:38px}
+@media(max-width:1000px){.cs-k{grid-template-columns:1fr 1fr}}
+</style>
+<div class="row between" style="align-items:flex-end;flex-wrap:wrap;gap:10px">
+  <div><h1>Акт звірки</h1><div class="muted small">Звірка з постачальником під реалізацію: товар на вітрині поштучно (к-сть і сума по кожній позиції) і гроші по кожній поставці. Завантажте акт постачальника — CRM сама покаже розбіжності.</div></div>
+  <a href="/stock/consign?s={{ sel|urlencode }}" class="btn ghost">← Реалізація</a>
+</div>
+{% if qp.get('msg') %}<div class="alert ok">{{ qp.get('msg') }}</div>{% endif %}{% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+<div class="cs-sup">{% for x in sups %}<a href="?s={{ x|urlencode }}" class="{{ 'on' if x == sel }}">{{ x }}</a>{% endfor %}</div>
+{% if act %}
+<div class="cs-c"><h3>Завантажити акт постачальника</h3>
+  <form class="frm" method="post" action="/stock/consign/act" enctype="multipart/form-data"><input type="hidden" name="s" value="{{ sel }}">
+    <label>Станом на<input type="date" name="on" value="{{ act.on.isoformat() }}"></label>
+    <label>Файл акту (Excel / CSV)<input type="file" name="file" accept=".xlsx,.xls,.csv,.xlsm" required></label>
+    <button class="btn">Звірити</button>
+    <a class="btn ghost" href="/stock/consign/act.xlsx?s={{ sel|urlencode }}&on={{ act.on.isoformat() }}">⬇ Акт CRM (Excel)</a></form>
+  <div class="mini muted" style="margin-top:6px">CRM знаходить у файлі колонки «Товар / Найменування», «Артикул», «Кількість», «Ціна», «Сума» (залишок товару) і / або «Дата», «Документ», «Дебет», «Кредит» (рух грошей). Якщо акт у PDF — збережіть його як Excel або надішліть мені, підлаштую.</div>
+</div>
+
+{% if cmp %}
+<div class="cs-k">
+  <div class="{{ 'ok' if cmp.goods_ok else 'bad' }}"><small>Товар · поштучно</small><b>{{ 'Збігається' if cmp.goods_ok else ('Є розбіжності' if cmp.goods_ok is not none else 'немає в акті') }}</b><span>CRM {{ q(act.qty) }} шт. · постачальник {{ q(cmp.s_qty) }} шт.</span></div>
+  <div class="{{ 'ok' if (cmp.s_sum - act.sum)|abs < 0.01 else 'bad' }}"><small>Товар · сума</small><b>{{ u(cmp.s_sum - act.sum) }} ₴</b><span>CRM {{ u(act.sum) }} · постачальник {{ u(cmp.s_sum) }}</span></div>
+  <div class="{{ 'ok' if cmp.s_debt is not none and (cmp.s_debt - act.debt)|abs < 0.01 else ('bad' if cmp.s_debt is not none else '') }}"><small>Сальдо · гроші</small><b>{{ u(cmp.s_debt - act.debt) if cmp.s_debt is not none else '—' }}{{ ' ₴' if cmp.s_debt is not none }}</b><span>CRM борг {{ u(act.debt) }}{% if cmp.s_debt is not none %} · за актом {{ u(cmp.s_debt) }}{% endif %}</span></div>
+  <div><small>Файл</small><b style="font-size:15px">{{ fname }}</b><span>{{ cmp.n_goods }} рядків товару · {{ cmp.n_docs }} документів</span></div>
+</div>
+{% if cmp.goods %}
+<div class="cs-c"><h3>Товар: CRM ↔ постачальник</h3>
+  <table class="ct"><tr><th>Товар</th><th>CRM, шт</th><th>Акт, шт</th><th>Різниця</th><th>CRM, ₴</th><th>Акт, ₴</th><th>Різниця, ₴</th></tr>
+  {% for g in cmp.goods|sort(attribute='ok') %}<tr class="{{ '' if g.ok else 'bad' }}"><td>{{ g.name }}{% if g.missing_crm %}<span class="mini d-bad">немає в CRM на реалізації</span>{% elif g.s_names and g.s_names[0] != g.name %}<span class="mini">в акті: {{ g.s_names|join('; ') }}</span>{% endif %}
+      {% if g.by %}<span class="mini">{% for b in g.by %}№{{ b.invoice }} · {{ b.date.strftime('%d.%m.%Y') }} · {{ q(b.qty) }}×{{ u(b.cost) }}{{ '; ' if not loop.last }}{% endfor %}</span>{% endif %}</td>
+    <td>{{ q(g.qty) }}</td><td>{{ q(g.s_qty) }}</td><td class="{{ 'd-ok' if g.dq == 0 else 'd-bad' }}">{{ ('+' if g.dq > 0 else '') ~ q(g.dq) }}</td>
+    <td>{{ u(g.sum) }}</td><td>{{ u(g.s_sum) }}</td><td class="{{ 'd-ok' if g.ds|abs < 0.01 else 'd-bad' }}">{{ u(g.ds) }}</td></tr>{% endfor %}
+  <tr class="tot"><td>Разом</td><td>{{ q(act.qty) }}</td><td>{{ q(cmp.s_qty) }}</td><td>{{ q(cmp.s_qty - act.qty) }}</td><td>{{ u(act.sum) }}</td><td>{{ u(cmp.s_sum) }}</td><td>{{ u(cmp.s_sum - act.sum) }}</td></tr></table></div>
+{% endif %}
+{% if cmp.docs %}
+<div class="cs-c"><h3>Документи акту ↔ поставки CRM</h3>
+  <table class="ct"><tr><th>Дата</th><th>Документ в акті</th><th>Дебет</th><th>Кредит</th><th>У CRM</th></tr>
+  {% for d in cmp.docs %}<tr class="{{ '' if d.ok else 'bad' }}"><td>{{ d.date.strftime('%d.%m.%Y') }}</td><td style="text-align:left">{{ d.doc }}</td><td>{{ u(d.debit) if d.debit else '' }}</td><td>{{ u(d.credit) if d.credit else '' }}</td>
+    <td>{% if d.crm %}<span class="d-ok">№{{ d.crm.no }} від {{ d.crm.date.strftime('%d.%m.%Y') }}</span>{% else %}<span class="mini">не знайдено поставку на цю суму (оплата або розбіжність)</span>{% endif %}</td></tr>{% endfor %}</table>
+  {% if cmp.not_in_act %}<div class="mini d-bad" style="margin-top:8px">Поставки CRM, яких немає в акті: {% for m in cmp.not_in_act %}№{{ m.no }} від {{ m.date.strftime('%d.%m.%Y') }} — {{ u(m.amount) }} ₴{{ '; ' if not loop.last }}{% endfor %}</div>{% endif %}
+</div>
+{% endif %}
+{% if not cmp.goods and not cmp.docs %}<div class="alert">У файлі не знайдено ні рядків товару, ні документів. {{ parsed.error or '' }} Надішліть файл мені — підлаштую розпізнавання під формат постачальника.</div>{% endif %}
+{% endif %}
+
+<div class="cs-c"><h3>Акт CRM · товар на реалізації станом на {{ act.on.strftime('%d.%m.%Y') }} · {{ q(act.qty) }} шт. · {{ u(act.sum) }} ₴</h3>
+  <table class="ct"><tr><th>Товар</th><th>К-сть</th><th>Сума</th><th>Поставки</th></tr>
+  {% for g in act.goods %}<tr><td>{{ g.name }}{% if g.sku %}<span class="mini">{{ g.sku }}</span>{% endif %}</td><td>{{ q(g.qty) }}</td><td>{{ u(g.sum) }}</td>
+    <td><span class="mini">{% for b in g.by %}№{{ b.invoice }} · {{ b.date.strftime('%d.%m.%Y') }} · {{ q(b.qty) }}×{{ u(b.cost) }}{{ '; ' if not loop.last }}{% endfor %}</span></td></tr>{% endfor %}
+  <tr class="tot"><td>Разом</td><td>{{ q(act.qty) }}</td><td>{{ u(act.sum) }}</td><td></td></tr></table></div>
+<div class="cs-c"><h3>Поставки й оплати · борг {{ u(act.debt) }} ₴</h3>
+  <table class="ct"><tr><th>Дата</th><th>№</th><th>Поставка</th><th>Оплачено CleverBox</th><th>Оплачено CRM</th><th>Знижки / повернення</th><th>Борг</th></tr>
+  {% for m in act.money %}<tr><td>{{ m.date.strftime('%d.%m.%Y') }}</td><td>{{ m.no }}</td><td>{{ u(m.amount) }}</td><td>{{ u(m.paid) if m.paid else '' }}</td><td>{{ u(m.crm_paid) if m.crm_paid else '' }}</td>
+    <td>{% if m.adjust %}{{ u(m.adjust) }}<span class="mini">{{ m.adjust_note }}</span>{% endif %}</td><td class="{{ 'd-bad' if m.debt > 1 }}">{{ u(m.debt) if m.debt > 0.009 else '✓' }}</td></tr>{% endfor %}
+  <tr class="tot"><td>Разом</td><td></td><td>{{ u(act.supplied) }}</td><td colspan="2">{{ u(act.paid) }}</td><td>{{ u(act.adjust) }}</td><td>{{ u(act.debt) }}</td></tr></table></div>
+{% endif %}
+{% endblock %}

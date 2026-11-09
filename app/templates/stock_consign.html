@@ -19,7 +19,7 @@
 </style>
 <div class="row between" style="align-items:flex-end;flex-wrap:wrap;gap:10px">
   <div><h1>Реалізація</h1><div class="muted small">Товар під реалізацію: постачальнику платимо лише за продане. Продаж списується з найстарішої поставки, де ще є непродані банки, — за ціною саме тієї поставки. Нові поставки оплат не отримують, доки з них нічого не продано.</div></div>
-  <a href="/stock?tab=suppliers" class="btn ghost">← Постачальники</a>
+  <span style="display:flex;gap:8px"><a href="/stock/consign/act?s={{ sel|urlencode }}" class="btn">Акт звірки</a><a href="/stock?tab=suppliers" class="btn ghost">← Постачальники</a></span>
 </div>
 {% if qp.get('msg') %}<div class="alert ok">{{ qp.get('msg') }}</div>{% endif %}{% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
 <div class="cs-sup">{% for x in sups %}<a href="?s={{ x|urlencode }}" class="{{ 'on' if x == sel }}">{{ x }}</a>{% else %}<span class="muted">Немає постачальників «під реалізацію» — увімкніть у картці постачальника.</span>{% endfor %}</div>

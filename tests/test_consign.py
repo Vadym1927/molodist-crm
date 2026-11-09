@@ -42,3 +42,34 @@ def test_seed_file():
     tb = sum(x["qty"] * x["cost"] for x in d["lots"] if x["supplier"] == "TEBISKIN")
     ag = sum(x["qty"] * x["cost"] for x in d["lots"] if x["supplier"] == "AG SKIN")
     assert round(tb, 2) == 30839 + 5044 and round(ag, 2) == 56714.15
+
+
+def test_act_parse_and_compare(tmp_path):
+    from openpyxl import Workbook
+    from app.services import consign_act as ca
+    with SessionLocal() as db:
+        db.add(Supplier(name="АКТ ТЕСТ", consignment=True))
+        db.add(SupplierInvoice(cb_number="A1", inv_date=datetime(2026, 9, 4), supplier="АКТ ТЕСТ", amount=2704, paid=0))
+        db.add_all([ConsignLot(supplier="АКТ ТЕСТ", invoice="A1", inv_date=date(2026, 9, 4), name="Крем SOOTH CREAM 50 мл", qty=2, cost=1352),
+                    ConsignLot(supplier="АКТ ТЕСТ", invoice="A1", inv_date=date(2026, 9, 4), name="Емульсія SOOTH-CLEAN 200 мл", qty=1, cost=988)])
+        db.commit()
+        wb = Workbook()
+        ws = wb.active
+        ws.append(["Акт звірки взаєморозрахунків"])
+        ws.append([])
+        ws.append(["№", "Найменування товару", "Кількість", "Ціна", "Сума"])
+        ws.append([1, "Крем SOOTH CREAM 50мл", 2, 1352, 2704])
+        ws.append([2, "Емульсія SOOTH-CLEAN 200 мл", 2, 988, 1976])
+        ws.append([None, "Разом", 4, None, 4680])
+        f = tmp_path / "akt.xlsx"
+        wb.save(f)
+        parsed = ca.parse(ca.read_rows(str(f)))
+        assert len(parsed["goods"]) == 2
+        cmp = ca.compare(db, "АКТ ТЕСТ", parsed)
+        bad = [g for g in cmp["goods"] if not g["ok"]]
+        assert len(bad) == 1 and bad[0]["dq"] == 1 and bad[0]["ds"] == 988
+        assert ca.to_xlsx(cmp["act"])[:2] == b"PK"
+        rows = [["Дата", "Документ", "Дебет", "Кредит"], ["04.09.2026", "Видаткова накладна №5", "2704,00", ""], ["10.09.2026", "Оплата", "", "1000"]]
+        p2 = ca.parse(rows)
+        c2 = ca.compare(db, "АКТ ТЕСТ", p2)
+        assert c2["docs"][0]["ok"] and not c2["docs"][1]["ok"] and c2["s_debt"] == 1704

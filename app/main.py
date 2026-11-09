@@ -5029,6 +5029,48 @@ def supplier_consign_toggle(sid: int, on: str = Form(""), user: User = Depends(r
                                       f"{x.name}: " + ("під реалізацію" if on else "звичайні закупівлі")), 303)
 
 
+@app.get("/stock/consign/act", response_class=HTMLResponse)
+def consign_act_page(request: Request, s: str = "", on: str = "", user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .services import consign as cs, consign_act as ca
+    cs.ensure_setup(db)
+    sups = cs.suppliers(db)
+    sel = s if s in sups else (sups[0] if sups else "")
+    act = ca.crm_act(db, sel, _day(on) or date.today()) if sel else None
+    return render(request, "stock_consign_act.html", nav="stock", sups=sups, sel=sel, act=act, cmp=None)
+
+
+@app.get("/stock/consign/act.xlsx")
+def consign_act_xlsx(s: str, on: str = "", user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .services import consign_act as ca
+    act = ca.crm_act(db, s, _day(on) or date.today())
+    return Response(ca.to_xlsx(act), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": "attachment; filename=akt-zvirky.xlsx"})
+
+
+@app.post("/stock/consign/act", response_class=HTMLResponse)
+async def consign_act_upload(request: Request, s: str = Form(...), on: str = Form(""), file: UploadFile = File(...),
+                             user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    import tempfile
+    from .services import consign as cs, consign_act as ca
+    sups = cs.suppliers(db)
+    raw = await file.read()
+    suffix = os.path.splitext(file.filename or "")[1].lower() or ".xlsx"
+    if suffix not in (".xlsx", ".xls", ".csv", ".txt", ".xlsm"):
+        return RedirectResponse(_with_msg(f"/stock/consign/act?s={quote(s)}", "Потрібен Excel (.xlsx / .xls) або CSV. PDF — збережіть як Excel.", err=True), 303)
+    tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+    tmp.write(raw)
+    tmp.close()
+    try:
+        parsed = ca.parse(ca.read_rows(tmp.name, raw))
+    except Exception as e:  # noqa: BLE001
+        return RedirectResponse(_with_msg(f"/stock/consign/act?s={quote(s)}", f"Не вдалося прочитати файл: {str(e)[:150]}", err=True), 303)
+    finally:
+        os.unlink(tmp.name)
+    cmp = ca.compare(db, s, parsed, _day(on) or date.today())
+    audit(db, "consign.act_compare", user=user, supplier=s, file=file.filename, goods=cmp["n_goods"], docs=cmp["n_docs"])
+    return render(request, "stock_consign_act.html", nav="stock", sups=sups, sel=s, act=cmp["act"], cmp=cmp, parsed=parsed, fname=file.filename)
+
+
 @app.post("/stock/consign/start")
 def consign_start(s: str = Form(...), d: str = Form(...), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     from .services import consign as cs
