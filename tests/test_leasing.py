@@ -75,10 +75,10 @@ def test_custom_group_kind_and_observ_feeds():
             db.commit()
         assert ls.setup_feeds(db)
         plans = db.scalars(select(PayPlan).where(PayPlan.name.like("OBSERV → банка%"))).all()
-        assert sorted((p.day, p.amount) for p in plans) == [(8, 7904.0), (10, 4000.0), (14, 4000.0)] and all(p.start == date(2027, 3, 1) for p in plans)
+        assert sorted((p.day, p.amount) for p in plans) == [(8, 8000.0), (10, 4000.0), (14, 4000.0)] and all(p.start == date(2027, 3, 1) for p in plans)
         pc.ensure_month(db, 2027, 3)
         it = db.scalar(select(PayItem).where(PayItem.plan_id == plans[0].id))
         op = pc.pay(db, it, it.amount, it.due, "Готівка", None)
         assert op.kind == "transfer" and op.cashbox_to == "Банка OBSERV 520x"
         obs = next(r for r in ls.build(db, today=date(2027, 3, 20))["rows"] if r["kind"] == "fund")
-        assert obs["feed_month"] == 15904 and obs["feed_paid"] == it.amount and obs["feed_end"]
+        assert obs["feed_month"] == 16000 and obs["feed_paid"] == it.amount and obs["feed_end"]

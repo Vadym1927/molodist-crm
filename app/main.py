@@ -8635,6 +8635,7 @@ def paycal_page(request: Request, y: int = 0, m: int = 0, group: str = "", statu
     _ls.ensure_setup(db)
     _pc.setup_v2(db)
     _ls.setup_feeds(db)
+    _ls.round_feeds(db)
     t = date.today()
     y, m = (y or t.year), (m or t.month)
     if not (1 <= m <= 12) or not (2020 <= y <= 2100):
@@ -8827,6 +8828,7 @@ def leasing_page(request: Request, edit: int = 0, user: User = Depends(_owner), 
     _ls.ensure_setup(db)
     _pc.setup_v2(db)
     _ls.setup_feeds(db)
+    _ls.round_feeds(db)
     return render(request, "fin_leasing.html", nav="finance", v=_ls.build(db), edit=edit, FIN_TABS=FIN_TABS)
 
 

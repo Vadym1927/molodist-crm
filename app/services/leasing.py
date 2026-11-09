@@ -263,7 +263,7 @@ def build(db: Session, today: date | None = None) -> dict:
 # ---------------- OBSERV: після закриття розтермінувань ті самі суми йдуть у банку OBSERV ----------------
 FEEDS_KEY = "leasing_observ_feeds_v1"
 FEEDS_FROM = date(2027, 3, 1)
-FEEDS = [("Інвертор Deye", 8, 7904.0), ("Батарея Deye · 1", 10, 4000.0), ("Батарея Deye · 2", 14, 4000.0)]
+FEEDS = [("Інвертор Deye", 8, 8000.0), ("Батарея Deye · 1", 10, 4000.0), ("Батарея Deye · 2", 14, 4000.0)]
 
 
 def setup_feeds(db: Session) -> bool:
@@ -305,3 +305,26 @@ def feeds_info(db: Session, c: dict, left: float, jar: float, today: date) -> di
     months = int(-(-need // per)) if per else None
     return {"feeds": feeds, "feed_month": per, "feed_from": _d(feeds[0].get("from")), "feed_paid": round(paid, 2),
             "feed_end": _add_months(start, months - 1, 15) if months else None, "feed_months": months}
+
+
+FEEDS_ROUND_KEY = "leasing_observ_feeds_8000"
+
+
+def round_feeds(db: Session) -> bool:
+    """Власник 09.11.2026: переказ у банку OBSERV після інвертора — округлено 7 904 → 8 000."""
+    if db.get(SyncState, FEEDS_ROUND_KEY):
+        return False
+    xs = contracts(db)
+    for c in xs:
+        for f in c.get("feeds") or []:
+            if f.get("src") == "Інвертор Deye":
+                f["amount"] = 8000.0
+                p = db.get(PayPlan, f.get("plan_id"))
+                if p:
+                    p.amount = 8000.0
+                    for it in db.scalars(select(PayItem).where(PayItem.plan_id == p.id, PayItem.status.in_(("planned", "approved")))):
+                        it.amount = 8000.0
+    _save(db, xs)
+    db.merge(SyncState(key=FEEDS_ROUND_KEY, value=datetime.now().isoformat(timespec="minutes"), updated_at=datetime.utcnow()))
+    db.commit()
+    return True
