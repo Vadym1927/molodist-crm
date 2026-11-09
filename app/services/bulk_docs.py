@@ -15,7 +15,7 @@ from pathlib import PurePosixPath
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import Patient, PatientFile
+from ..models import BeautyPlan, Patient, PatientFile
 from ..parsers.observ import ObservParseError, parse_observ_pdf
 
 IMG = re.compile(r"\.(jpe?g|png|webp|heic|gif|bmp|tiff?)$", re.I)
@@ -147,6 +147,10 @@ def apply(db: Session, archives: list[tuple[str, bytes]], group: str = "other", 
                 parsed = None
                 if r["kind"] == "plan":
                     rep["plans_failed"].append({"name": r["name"], "patient": pat.full_name, "error": str(e)[:160]})
+            if parsed is not None and not parsed.session_at and db.scalar(select(BeautyPlan).where(
+                    BeautyPlan.patient_id == pat.id, BeautyPlan.session_at.is_(None), BeautyPlan.total_planned == parsed.total)):
+                rep["skipped_dup"] += 1                        # план без дати сесії вже є в картці — не дублюємо
+                continue
             if parsed is not None:
                 plan = import_plan(db, parsed, source_file=r["name"], patient=pat)
                 plan.source_file = path
@@ -163,3 +167,51 @@ def apply(db: Session, archives: list[tuple[str, bytes]], group: str = "other", 
         db.commit()
     rep["patients"] = len(rep["patients"])
     return rep
+
+
+NAME_RE = re.compile(r"^\d{10,12}__\d+__")
+
+
+def find_dups(db: Session) -> dict:
+    """Дублі після подвійного запису архіву: той самий файл (пацієнт + назва «телефон__№__…») двічі і той самий план двічі.
+    Лишаємо перший запис, решта — зайві."""
+    groups: dict = {}
+    for f in db.scalars(select(PatientFile).where(PatientFile.patient_id.is_not(None)).order_by(PatientFile.id)):
+        if f.caption and NAME_RE.match(f.caption):
+            groups.setdefault((f.patient_id, f.caption, f.kind), []).append(f)
+    files = [f for v in groups.values() for f in v[1:]]
+    pg: dict = {}
+    for pl in db.scalars(select(BeautyPlan).order_by(BeautyPlan.id)):
+        src = PurePosixPath(pl.source_file or "").name
+        if "__" in src:
+            pg.setdefault((pl.patient_id, pl.session_at, pl.total_planned, len(pl.items)), []).append(pl)
+    plans = [pl for v in pg.values() for pl in v[1:]]
+    return {"files": files, "plans": plans}
+
+
+def remove_dups(db: Session) -> dict:
+    """Зайві копії: файли → «_trash» (відновлювані), зайві плани-дублі видаляються (перший план лишається)."""
+    import shutil
+    from datetime import datetime
+    from pathlib import Path
+    from ..config import settings
+    d = find_dups(db)
+    trash = Path(settings.files_dir) / "_trash" / datetime.now().strftime("%Y-%m")
+    keep_paths = {f.path for f in db.scalars(select(PatientFile))} - {f.path for f in d["files"]}
+    n = 0
+    for f in d["files"]:
+        try:
+            src = Path(f.path)
+            if src.exists() and f.path not in keep_paths:
+                trash.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(src), str(trash / f"{f.id}_{src.name}"))
+        except OSError:
+            pass
+        db.delete(f)
+        n += 1
+    np = 0
+    for pl in d["plans"]:
+        db.delete(pl)
+        np += 1
+    db.commit()
+    return {"files": n, "plans": np}

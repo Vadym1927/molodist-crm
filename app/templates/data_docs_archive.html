@@ -21,7 +21,7 @@ tr.nop td{background:#FFF4F2}tr.dup td{color:#9a948f}
 {% if scan %}
 <div class="card"><h2>2. Перевірити й підтвердити</h2>
 <div class="bd-k"><div><small>Файлів</small><b>{{ scan.total }}</b></div><div><small>Пацієнтів</small><b>{{ scan.patients }}</b></div><div><small>Бюті-планів</small><b>{{ scan.plans }}</b></div><div><small>Документів / фото</small><b>{{ scan.docs }} / {{ scan.photos }}</b></div><div><small>Без пацієнта · дублі</small><b style="color:{{ '#B23B2E' if scan.no_patient else 'inherit' }}">{{ scan.no_patient }} · {{ scan.dup }}</b></div></div>
-<form method="post" action="/data/docs-archive/apply">
+<form method="post" action="/data/docs-archive/apply" onsubmit="if(this.dataset.sent)return false;this.dataset.sent=1;this.querySelector('button').disabled=true;this.querySelector('button').textContent='Записую… не закривайте сторінку'">
 <input type="hidden" name="token" value="{{ token }}"><input type="hidden" name="group" value="{{ group }}">
 <table class="bd-t"><tr><th>Файл</th><th>Телефон / №</th><th>Тип</th><th>Пацієнт</th><th>Інший пацієнт (№ картки CRM)</th><th></th></tr>
 {% for r in scan.rows %}<tr class="{{ 'nop' if not r.patient_id and not r.error }} {{ 'dup' if r.dup }}">

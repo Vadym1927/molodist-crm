@@ -41,3 +41,17 @@ def test_bulk_docs_scan_and_apply():
         assert rep3["plans"] == 1
         from app.models import BeautyPlan
         assert db.query(BeautyPlan).filter_by(patient_id=aid).count() == 1
+
+
+def test_bulk_docs_dups():
+    with SessionLocal() as db:
+        p = Patient(full_name="Дубль Тест", phone="+380000000811")
+        db.add(p); db.flush()
+        for _ in range(2):
+            db.add(PatientFile(patient_id=p.id, kind="doc", path="/nope/x.pdf", caption="380000000811__009__Дубль Тест 1.pdf"))
+        db.add(PatientFile(patient_id=p.id, kind="doc", path="/nope/y.pdf", caption="звичайний.pdf"))
+        db.add(PatientFile(patient_id=p.id, kind="doc", path="/nope/y.pdf", caption="звичайний.pdf"))
+        db.commit()
+        assert len([f for f in bulk_docs.find_dups(db)["files"] if f.patient_id == p.id]) == 1
+        bulk_docs.remove_dups(db)
+        assert db.query(PatientFile).filter_by(patient_id=p.id).count() == 3

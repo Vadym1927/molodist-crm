@@ -5760,6 +5760,12 @@ async def docs_archive_apply(request: Request, user: User = Depends(require("mig
     d = _bulk_dir(token)
     if not token or not d.exists():
         return RedirectResponse(_with_msg("/data/docs-archive", "Архів не знайдено — завантажте ще раз", True), 303)
+    work = d.with_name(d.name + ".work")
+    try:
+        d.rename(work)                     # захист від подвійного натискання: другий запит архіву вже не знайде
+    except OSError:
+        return RedirectResponse(_with_msg("/data/docs-archive", "Цей архів уже записується — зачекайте на результат", True), 303)
+    d = work
     arcs = [(p.name, p.read_bytes()) for p in sorted(d.iterdir()) if p.is_file()]
     overrides = {}
     for k, v in form.multi_items():
@@ -5771,6 +5777,25 @@ async def docs_archive_apply(request: Request, user: User = Depends(require("mig
     import shutil
     shutil.rmtree(d, ignore_errors=True)
     return render(request, "data_docs_archive.html", scan=None, rep=rep, token="", group=group)
+
+
+@app.get("/data/docs-archive/dups")
+def docs_archive_dups(user: User = Depends(_owner), db: Session = Depends(db_dep)):
+    """Дублі після подвійного запису архіву (лише перегляд)."""
+    from .services import bulk_docs
+    d = bulk_docs.find_dups(db)
+    return {"files": len(d["files"]), "plans": len(d["plans"]),
+            "file_list": [{"id": f.id, "patient": f.patient.full_name if f.patient else None, "name": f.caption, "kind": f.kind} for f in d["files"]],
+            "plan_list": [{"id": p.id, "patient": p.patient.full_name, "total": p.total_planned, "title": p.title} for p in d["plans"]]}
+
+
+@app.post("/data/docs-archive/dups/remove")
+def docs_archive_dups_remove(user: User = Depends(_owner), db: Session = Depends(db_dep)):
+    from .services import bulk_docs
+    rep = bulk_docs.remove_dups(db)
+    audit(db, "docs_archive.dedupe", user=user, **rep)
+    db.commit()
+    return rep
 
 
 @app.post("/patients/photos/audit-cb")
