@@ -141,8 +141,24 @@ def import_text(db: Session, text: str, source: str = "upload") -> dict:
 SEED = Path(__file__).with_name("pnl_sheet_seed.json")
 
 
+SEED_REFRESH = {"pnl_sheet_seed_20261109": 2026}   # власник доповнив жовтень 2026 у Google-таблиці (09.11.2026)
+
+
 def ensure_seed(db: Session) -> bool:
-    """Перший запуск: таблиця власника (вивантаження 08.11.2026) — якщо в БД ще нічого немає."""
+    """Перший запуск: таблиця власника — якщо в БД ще нічого немає. Оновлення seed — один раз за прапорцем (рік з таблиці)."""
+    if load(db) and SEED.exists():
+        for flag, year in SEED_REFRESH.items():
+            if db.get(SyncState, flag):
+                continue
+            try:
+                data = json.loads(SEED.read_text(encoding="utf-8"))
+            except ValueError:
+                return False
+            if str(year) in data:
+                save(db, {year: data[str(year)]}, source="Google-таблиця 09.11.2026")
+            db.merge(SyncState(key=flag, value=datetime.now().isoformat(timespec="minutes"), updated_at=datetime.utcnow()))
+            db.commit()
+        return False
     if load(db) or not SEED.exists():
         return False
     try:
