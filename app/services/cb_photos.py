@@ -132,6 +132,7 @@ def audit(files: list, by: str = "client") -> dict:
         have = {x: pid for x, pid in db.execute(select(PatientFile.cb_file_id, PatientFile.patient_id).where(PatientFile.cb_file_id.is_not(None)))}
     wrong: dict[int, list] = {}          # пацієнт CRM, у якого лежить чужий файл → [(fid, правильний пацієнт)]
     missing, no_patient, seen = 0, 0, set()
+    missing_fids, no_patient_cids = [], []
     for f in files:
         try:
             cid, fid = int(f[0]), int(f[1])
@@ -141,10 +142,12 @@ def audit(files: list, by: str = "client") -> dict:
         owner = by_cb.get(cid)
         if owner is None:
             no_patient += 1
+            no_patient_cids.append(cid)
             continue
         cur = have.get(fid)
         if cur is None:
             missing += 1
+            missing_fids.append(fid)
         elif cur != owner:
             wrong.setdefault(cur, []).append((fid, owner))
     unknown = [fid for fid in have if fid not in seen]
@@ -162,5 +165,6 @@ def audit(files: list, by: str = "client") -> dict:
                        "path": (f.path or "").rsplit("/", 1)[-1]} for f in unk[:12]]
     return {"files": len(files), "wrong_patients": len(rows), "wrong_files": sum(r["files"] for r in rows), "rows": rows,
             "missing_in_crm": missing, "no_patient": no_patient, "unknown_in_crm": len(unknown),
+            "missing_fids": missing_fids, "no_patient_cids": sorted(set(no_patient_cids)), "unknown_fids": unknown,
             "unknown_kinds": sorted(unk_kinds.items(), key=lambda x: -x[1])[:15], "unknown_sample": unk_sample}
 
