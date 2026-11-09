@@ -6092,6 +6092,18 @@ async def fop_schedule_weekly(request: Request, user: User = Depends(require("fi
     return RedirectResponse(_with_msg("/finance/fop-schedule", "Шаблон тижня збережено"), 303)
 
 
+@app.post("/finance/fop-schedule/targets")
+async def fop_schedule_targets(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import fop_schedule as fs
+    f = await request.form()
+    tg = fs.targets(db)
+    vals = {fop: (_num(str(f.get(f"t_{i}") or "")) or tg["targets"][fop]) for i, fop in enumerate(fs.FOPS)}
+    months = int(_num(str(f.get("months") or "")) or tg["months"])
+    fs.set_targets(db, vals, max(1, min(months, 24)), _day(str(f.get("from") or "")) or tg["from"])
+    audit(db, "finance.oper_fund_targets", user=user, targets=vals, months=months)
+    return RedirectResponse(_with_msg("/finance/fop-schedule#targets", "Норму операційних фондів збережено"), 303)
+
+
 @app.post("/finance/fop-schedule/day")
 async def fop_schedule_day(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     from .services import fop_schedule as fs

@@ -76,6 +76,7 @@ dialog.cs-d{border:0;border-radius:22px;padding:0;box-shadow:0 30px 80px -30px r
   <div class="g"><h4>Усього грошей</h4><div class="big">{{ u(mn.total) }} ₴</div><div class="mini">банк + готівка + сейф{% if not mn.mono_ok and mn.mono %} · залишок monobank недоступний{% endif %}</div></div>
 </div>
 
+{% if v.funds %}{% set funds = v.funds %}{% include "_oper_funds.html" %}{% endif %}
 <div class="pck">
   <div><small>На рахунках зараз</small><b>{{ u(v.cash) }} ₴</b><span class="s">{{ v.boxes|length }} кас · <a href="/settings/cashboxes">деталі</a></span></div>
   <div class="{{ 'w' if v.overdue }}"><small>До оплати</small><b>{{ u(v.left) }} ₴</b><span class="s">{% if v.overdue %}у т.ч. прострочено {{ u(v.overdue_sum) }} ₴ ({{ v.overdue|length }}) · {% endif %}погоджено {{ u(v.approved) }}</span></div>

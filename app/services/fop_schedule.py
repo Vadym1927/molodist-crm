@@ -87,11 +87,60 @@ def income_until(db: Session, d_to: date, today: date | None = None) -> dict[str
     return {k: round(v, 2) for k, v in out.items()}
 
 
+TARGET_KEY = "oper_fund_targets"
+TARGETS = {"ФОП Колган": 190000.0, "ФОП Бондар": 110000.0}     # норма операційного фонду (власник, 09.11.2026)
+DEFICIT_MONTHS = 3
+DEFICIT_FROM = date(2026, 11, 9)
+
+
+def targets(db: Session) -> dict:
+    st = db.get(SyncState, TARGET_KEY)
+    try:
+        d = json.loads(st.value) if st and st.value else {}
+    except ValueError:
+        d = {}
+    return {"targets": {f: float((d.get("targets") or {}).get(f, TARGETS[f])) for f in FOPS},
+            "months": int(d.get("months") or DEFICIT_MONTHS), "from": date.fromisoformat(d["from"]) if d.get("from") else DEFICIT_FROM}
+
+
+def set_targets(db: Session, tg: dict[str, float], months: int, start: date) -> None:
+    st = db.get(SyncState, TARGET_KEY) or SyncState(key=TARGET_KEY)
+    st.value, st.updated_at = json.dumps({"targets": tg, "months": months, "from": start.isoformat()}, ensure_ascii=False), datetime.utcnow()
+    db.merge(st)
+    db.commit()
+
+
 def fund_balances(db: Session) -> dict[str, float]:
-    """Поточні залишки рахунків, з яких платимо склад (CRM, за ФОП)."""
-    from . import cashboxes as cbx
+    """Операційні гроші, з яких платимо склад: «Операційний Фонд» (Колган) повністю; у спільному
+    «Амортизаційний + Операційний Фонд» (Бондар) — лише операційна частина (без грошей фонду амортизації)."""
+    return {f: x["oper"] for f, x in fund_state(db).items()}
+
+
+def fund_state(db: Session, today: date | None = None) -> dict:
+    """По ФОП: залишок рахунку, операційна частина, норма, дефіцит і план компенсації (дефіцит закриваємо за N місяців)."""
+    from . import amort, cashboxes as cbx
+    today = today or date.today()
+    tg = targets(db)
     boxes = {b["name"]: b for b in cbx.overview(db)}
-    return {f: round(float((boxes.get(name) or {}).get("balance") or 0), 2) for f, name in FUND.items()}
+    end = tg["from"]
+    y, m = divmod(end.month - 1 + tg["months"], 12)
+    import calendar as _cal
+    end = date(end.year + y, m + 1, min(end.day, _cal.monthrange(end.year + y, m + 1)[1]))
+    out = {}
+    for f, name in FUND.items():
+        box = boxes.get(name) or {}
+        total = round(float(box.get("balance") or 0), 2)
+        amort_part = amort.fund_part(db, box)["amort"] if box and "амортиз" in name.lower() else 0.0
+        oper = round(total - amort_part, 2)
+        target = tg["targets"][f]
+        deficit = round(max(target - oper, 0), 2)
+        days_left = max((end - today).days, 1)
+        weeks_left = max(days_left / 7, 1)
+        months_left = max(days_left / 30.4, 1)
+        out[f] = {"box": name, "total": total, "amort": round(amort_part, 2), "oper": oper, "target": target, "deficit": deficit,
+                  "pct": round(100 * oper / target, 1) if target else 100.0, "deadline": end,
+                  "per_month": round(deficit / months_left, 2), "per_week": round(deficit / weeks_left, 2)}
+    return out
 
 
 def view(db: Session, start: date | None = None, days: int = 14) -> dict:
@@ -112,5 +161,5 @@ def view(db: Session, start: date | None = None, days: int = 14) -> dict:
         for f, v in r["fop"].items():
             tot[f] += v
     return {"cfg": cfg, "docs": docs, "rows": rows, "tot": dict(tot), "FOPS": FOPS, "WEEKDAYS": WEEKDAYS, "start": start, "end": end,
-            "balances": fund_balances(db), "FUND": FUND,
+            "balances": fund_balances(db), "FUND": FUND, "funds": fund_state(db), "tg": targets(db),
             "prev": start - timedelta(days=days), "next": start + timedelta(days=days), "today": date.today()}

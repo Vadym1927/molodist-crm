@@ -1,0 +1,15 @@
+{# Операційні фонди: норма, факт, дефіцит і план компенсації. Потрібно: funds = fop_schedule.fund_state(db) #}
+{% macro _u(x) %}{{ (('{:,.0f}').format(x or 0)).replace(',', ' ') }}{% endmacro %}
+<div style="background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:14px 16px;margin-bottom:14px">
+  <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px"><b style="font:700 16px var(--sans)">Операційні фонди · дефіцит закриваємо до {{ (funds.values()|first).deadline.strftime('%d.%m.%Y') }}</b>
+    <a href="/finance/fop-schedule#targets" style="font-size:12px">норма й термін</a></div>
+  <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:10px">
+  {% for f, x in funds.items() %}<div style="background:{{ '#FDF0EE' if x.deficit > 0 else '#EAF6EE' }};border-radius:16px;padding:12px 14px">
+    <div style="display:flex;justify-content:space-between;gap:8px"><b>{{ f }}</b><span style="font-size:12px;color:#6b6575">{{ x.box }}</span></div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:6px;font-size:13px">
+      <span>зараз <b style="font-size:18px">{{ _u(x.oper) }}</b> ₴</span><span>норма <b>{{ _u(x.target) }}</b></span>
+      <span style="color:{{ '#B23B2E' if x.deficit > 0 else '#2f6b3b' }}">{{ 'не вистачає' if x.deficit > 0 else 'норма є' }} <b>{{ _u(x.deficit) if x.deficit > 0 else '' }}</b>{{ ' ₴' if x.deficit > 0 }}</span></div>
+    <div style="height:8px;border-radius:99px;background:rgba(0,0,0,.06);overflow:hidden;margin-top:8px"><i style="display:block;height:100%;width:{{ [x.pct, 100]|min }}%;background:{{ '#B23B2E' if x.pct < 70 else ('#C99A2E' if x.pct < 100 else '#2f6b3b') }}"></i></div>
+    <div style="font-size:12px;color:#6b6575;margin-top:6px">{% if x.amort %}на рахунку {{ _u(x.total) }} ₴, з них фонд амортизації {{ _u(x.amort) }} ₴ — його не чіпаємо · {% endif %}{% if x.deficit > 0 %}компенсувати з терміналів ≈ <b>{{ _u(x.per_week) }} ₴ / тиждень</b> ({{ _u(x.per_month) }} ₴ / міс){% endif %}</div>
+  </div>{% endfor %}</div>
+</div>

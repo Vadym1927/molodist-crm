@@ -48,3 +48,13 @@ def test_stock_paycal_flow():
         db.commit()
         row = next(x for k, t, rows in sp.build(db)["groups"] for x in rows if x["r"].supplier == "КАЛ ТЕСТ")
         assert row["status"] == "paid" and row["dev"] == 100 and row["r"].paid_ref == "bank:kal-bank-1"
+
+
+def test_fund_state_targets():
+    with SessionLocal() as db:
+        fs.set_targets(db, {"ФОП Колган": 190000, "ФОП Бондар": 110000}, 3, date(2026, 11, 9))
+        st = fs.fund_state(db, today=date(2026, 11, 9))
+        k = st["ФОП Колган"]
+        assert k["target"] == 190000 and k["deficit"] == max(190000 - k["oper"], 0) and k["deadline"] == date(2027, 2, 9)
+        if k["deficit"]:
+            assert 6000 < k["per_week"] * 13 / k["deficit"] * 1000 or k["per_week"] > 0

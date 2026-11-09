@@ -129,7 +129,15 @@ def build(db: Session, today: date | None = None) -> dict:
                          "dev": round((r.fact_amount or 0) - (plan or est or 0), 2) if r.fact_amount else None})
     db.commit()
     # рекомендований ФОП: баланс + прихід до дати − інші заплановані оплати з цього ФОП до дати
-    bal = fs.fund_balances(db)
+    from ..models import PayItem
+    funds = fs.fund_state(db, today)
+    bal = {f: v["oper"] for f, v in funds.items()}
+    box2fop = {v: k for k, v in fs.FUND.items()}
+    paycal_out: dict = defaultdict(list)          # платіжний календар: заплановані оплати з цих рахунків
+    for it in db.scalars(select(PayItem).where(PayItem.status.in_(("planned", "approved")), PayItem.due >= today - timedelta(days=30))):
+        f = box2fop.get(it.cashbox or "")
+        if f and it.amount:
+            paycal_out[f].append((it.due, float(it.amount)))
     planned = defaultdict(list)
     for x in rows_all:
         if x["status"] != "paid" and x["r"].fop in fs.FOPS and x["amount"]:
@@ -146,9 +154,10 @@ def build(db: Session, today: date | None = None) -> dict:
         proj = {}
         for f in fs.FOPS:
             others = sum(a for dd, a, rid in planned[f] if dd <= d and rid != r.id)
-            proj[f] = round(bal.get(f, 0) + inc_cache[d].get(f, 0) - others - x["amount"], 2)
+            cal = sum(a for dd, a in paycal_out.get(f, []) if dd <= d)
+            proj[f] = round(bal.get(f, 0) + inc_cache[d].get(f, 0) - others - cal - x["amount"], 2)
         x["proj"] = proj
-        x["rec"] = max(proj, key=proj.get)
+        x["rec"] = max(proj, key=lambda f: proj[f] - funds[f]["target"])     # де після оплати найменше «не дотягуємо» до норми
         out.setdefault(r.grp or "cosmetics", []).append(x)
     for x in rows_all:
         if x["status"] == "paid":
@@ -160,7 +169,8 @@ def build(db: Session, today: date | None = None) -> dict:
                "fact": round(sum(x["r"].fact_amount or 0 for x in v if x["status"] != "paid"), 2)} for k, v in out.items()}
     history = db.scalars(select(StockPayRow).where(StockPayRow.closed.is_(True)).order_by(StockPayRow.paid_at.desc()).limit(30)).all()
     return {"groups": [(k, t, out.get(k, [])) for k, t in GROUPS], "tot": tot, "balances": bal, "FUND": fs.FUND, "FOPS": FOP_CHOICES,
-            "GROUPS": GROUPS, "today": today, "history": history,
+            "GROUPS": GROUPS, "today": today, "history": history, "funds": funds,
+            "paycal_out": {f: round(sum(a for d_, a in v if d_ <= today + timedelta(days=30)), 2) for f, v in paycal_out.items()},
             "week": fs.income_until(db, today + timedelta(days=6), today)}
 
 

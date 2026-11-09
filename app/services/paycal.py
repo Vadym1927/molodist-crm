@@ -263,6 +263,14 @@ def _fop_of(name: str) -> str | None:
     return m.group(1) if m else None
 
 
+def _funds(db: Session) -> dict | None:
+    try:
+        from . import fop_schedule
+        return fop_schedule.fund_state(db)
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def money_now(db: Session, boxes: list[dict] | None = None, mono_balances=None) -> dict:
     """Гроші зараз для шапки календаря: рахунки monobank (залишок у банку), готівка по ФОП (каси CRM) і сейф."""
     from . import cashboxes as cbx
@@ -382,7 +390,7 @@ def month_view(db: Session, y: int, m: int, group: str = "", status: str = "", t
             by_box[i.cashbox or "— не вказано"] += float(i.amount or 0)
     plans = db.scalars(select(PayPlan).order_by(PayPlan.active.desc(), PayPlan.group, PayPlan.sort, PayPlan.name)).all()
     return {"y": y, "m": m, "first": first, "last": last, "today": today, "rows": cur, "shown": shown, "overdue": overdue, "weeks": weeks,
-            "boxes": boxes, "cash": cash, "left": left, "money": money_now(db, boxes), "purchases": purchases(db, first, last), "dyn_kind": dyn_kind, "income": inc, "inc_month": inc_month,
+            "boxes": boxes, "cash": cash, "left": left, "money": money_now(db, boxes), "funds": _funds(db), "purchases": purchases(db, first, last), "dyn_kind": dyn_kind, "income": inc, "inc_month": inc_month,
             "forecast": round(cash - left + inc["total"], 2),
             "paid": round(sum(float(i.amount_fact or i.amount or 0) for i in cur if i.status == "paid"), 2),
             "plan": round(sum(float(i.amount or 0) for i in cur if i.status != "skipped"), 2),

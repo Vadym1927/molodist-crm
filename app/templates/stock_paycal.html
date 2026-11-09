@@ -23,8 +23,9 @@
   <span style="display:flex;gap:8px"><a class="btn" href="/stock/order/build">⚡ Сформувати замовлення</a><a class="btn ghost" href="/stock?tab=order">Замовлення</a></span>
 </div>
 {% if qp.get('msg') %}<div class="alert ok">{{ qp.get('msg') }}</div>{% endif %}{% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+{% set funds = v.funds %}{% include "_oper_funds.html" %}
 <div class="sk">
-  {% for f, box in v.FUND.items() %}<div class="{{ 'bad' if v.balances.get(f, 0) < 0 }}"><small>{{ f }} · {{ box }}</small><b>{{ u(v.balances.get(f)) }} ₴</b><span>зайде за 7 днів за графіком: {{ u(v.week.get(f)) }} ₴</span></div>{% endfor %}
+  {% for f, box in v.FUND.items() %}<div class="{{ 'bad' if v.balances.get(f, 0) < 0 }}"><small>{{ f }} · операційні гроші</small><b>{{ u(v.balances.get(f)) }} ₴</b><span>+ зайде за 7 днів за графіком: {{ u(v.week.get(f)) }} ₴{% if v.paycal_out.get(f) %} · − платіжний календар 30 дн: {{ u(v.paycal_out.get(f)) }} ₴{% endif %}</span></div>{% endfor %}
   <div><small>До оплати (план)</small><b>{{ u(v.tot.values()|map(attribute='plan')|sum) }} ₴</b><span>усі групи, без оплачених</span></div>
   <div><small>Фактично за рахунками</small><b>{{ u(v.tot.values()|map(attribute='fact')|sum) }} ₴</b><span>сума від постачальників</span></div>
 </div>
