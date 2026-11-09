@@ -188,20 +188,26 @@ def build(db: Session, today: date | None = None) -> dict:
         rest = [s for s in sch if s["status"] in ("planned", "approved")]
         r = {**c, "paid": paid, "paid_crm": paid_crm, "left": left, "pct": round(100 * paid / c["total"], 1) if c.get("total") else 0,
              "sched": sch, "n_left": len(rest), "end": rest[-1]["due"] if rest else None, "next_pay": rest[0] if rest else None,
-             "overdue": [s for s in rest if s["overdue"]], "group_t": GROUPS.get(c.get("group"), c.get("group")), "kind_t": KINDS.get(c.get("kind"))}
+             "overdue": [s for s in rest if s["overdue"]], "group_t": GROUPS.get(c.get("group"), c.get("group")), "kind_t": KINDS.get(c.get("kind")),
+             "closed": bool(c.get("total")) and left <= 0 and not rest,
+             "closed_at": max((s["paid_at"] or s["due"] for s in sch if s["status"] == "paid"), default=None),
+             "payments": [{"day": s["paid_at"] or s["due"], "amount": float(s["fact"] or s["amount"] or 0), "due": s["due"], "id": s["id"]}
+                          for s in sch if s["status"] == "paid"]}
         if c.get("kind") == "fund":
             j = _jar_balance(db)
             r["jar"], r["jar_src"] = round(j["balance"], 2), j["src"]
             r["cover"] = round(100 * j["balance"] / left, 1) if left else 100.0
         rows.append(r)
+    history = sorted([r for r in rows if r["closed"]], key=lambda r: r["closed_at"] or date.min, reverse=True)
+    pay_hist = sorted([dict(p, name=r["name"], group_t=r["group_t"]) for r in rows for p in r["payments"]], key=lambda p: p["day"], reverse=True)
     groups = []
     for g, t in GROUPS.items():
-        gr = [r for r in rows if r.get("group") == g]
+        gr = [r for r in rows if r.get("group") == g and not r["closed"]]
         if gr:
             groups.append({"key": g, "title": t, "rows": gr, "total": round(sum(r["total"] for r in gr), 2), "paid": round(sum(r["paid"] for r in gr), 2),
                            "left": round(sum(r["left"] for r in gr), 2), "end": max((r["end"] for r in gr if r["end"]), default=None),
                            "fund": all(r.get("kind") == "fund" for r in gr)})
-    inst = [r for r in rows if r.get("kind") == "instalment"]
+    inst = [r for r in rows if r.get("kind") == "instalment" and not r["closed"]]
     months: dict = {}
     for r in inst:
         for s in r["sched"]:
@@ -215,4 +221,5 @@ def build(db: Session, today: date | None = None) -> dict:
             "left": round(sum(r["left"] for r in inst), 2), "left_fund": round(sum(r["left"] for r in rows if r.get("kind") == "fund"), 2),
             "paid": round(sum(r["paid"] for r in rows), 2), "total": round(sum(r["total"] for r in rows), 2),
             "end": max((r["end"] for r in inst if r["end"]), default=None),
-            "overdue": [(r, s) for r in inst for s in r["overdue"]], "today": today, "GROUPS": GROUPS, "KINDS": KINDS}
+            "overdue": [(r, s) for r in inst for s in r["overdue"]], "today": today, "GROUPS": GROUPS, "KINDS": KINDS,
+            "history": history, "pay_hist": pay_hist, "pay_hist_sum": round(sum(p["amount"] for p in pay_hist), 2)}

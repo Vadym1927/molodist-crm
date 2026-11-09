@@ -78,5 +78,21 @@
   </table></div></div>
 {% endif %}
 
+{% if v.history or v.pay_hist %}
+<div class="lg" id="history"><div class="hd"><h3>Історія</h3><div class="sm">закриті договори й платежі, оплачені через CRM</div></div>
+  {% if v.history %}
+  <table class="lt" style="margin-top:8px"><tr><th>Закритий договір</th><th>Група</th><th>Сума</th><th>Сплачено</th><th>Закрито</th></tr>
+    {% for r in v.history %}<tr><td><b>{{ r.name }}</b><div class="mini">{{ r.bank or r.kind_t }}</div></td><td>{{ r.group_t }}</td><td>{{ u(r.total) }}</td><td class="ok">{{ u(r.paid) }}</td><td>{{ r.closed_at.strftime('%d.%m.%Y') if r.closed_at else '—' }}</td></tr>{% endfor %}
+  </table>
+  {% else %}<div class="mini" style="margin-top:8px">Закритих договорів ще немає — договір потрапить сюди, щойно останній платіж буде оплачено в календарі.</div>{% endif %}
+  {% if v.pay_hist %}
+  <details style="margin-top:12px"{{ ' open' if not v.history }}><summary style="cursor:pointer;font:700 13px var(--sans)">Платежі через CRM · {{ v.pay_hist|length }} · {{ u(v.pay_hist_sum) }} ₴</summary>
+    <table class="lt" style="margin-top:6px"><tr><th>Дата оплати</th><th>Договір</th><th>За графіком</th><th>Сума</th></tr>
+      {% for p in v.pay_hist %}<tr><td>{{ p.day.strftime('%d.%m.%Y') }}</td><td>{{ p.name }}<div class="mini">{{ p.group_t }}</div></td><td>{{ p.due.strftime('%d.%m.%Y') }}</td><td><b>{{ u(p.amount) }}</b></td></tr>{% endfor %}
+    </table></details>
+  {% endif %}
+</div>
+{% endif %}
+
 {% if edit == -1 %}<div class="lg" id="new"><h3>Новий договір</h3>{% set c = {} %}{% include "_leasing_form.html" %}</div>{% endif %}
 {% endblock %}

@@ -36,3 +36,22 @@ def test_setup_and_build():
         open_ = [i for i in db.scalars(select(PayItem).where(PayItem.plan_id == c2["plan_id"])) if i.status in ("planned", "approved")]
         assert len(open_) == 6 and min(i.due for i in open_) == date(2026, 12, 14)
         assert ls.build(db)["rows"][3]["left"] == 25650
+
+
+def test_history_when_closed():
+    with SessionLocal() as db:
+        if not ls.contracts(db):
+            st = db.get(SyncState, ls.SEED_KEY)
+            if st:
+                db.delete(st)
+                db.commit()
+            ls.ensure_setup(db)
+        c = next(x for x in ls.contracts(db) if x["name"] == "Батарея Deye · 1")
+        for it in db.scalars(select(PayItem).where(PayItem.plan_id == c["plan_id"])):
+            if it.status in ("planned", "approved"):
+                it.status, it.amount_fact, it.paid_at = "paid", it.amount, it.due
+        db.commit()
+        v = ls.build(db)
+        assert any(r["name"] == "Батарея Deye · 1" for r in v["history"])
+        assert all(r["name"] != "Батарея Deye · 1" for g in v["groups"] for r in g["rows"])
+        assert sum(p["amount"] for p in v["pay_hist"] if p["name"] == "Батарея Deye · 1") == 12000
