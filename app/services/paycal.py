@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import calendar
+import re
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
@@ -228,6 +229,60 @@ def move(db: Session, it: PayItem, due: date) -> None:
     db.commit()
 
 
+def _fop_of(name: str) -> str | None:
+    m = re.search(r"ФОП\s+([А-ЯІЇЄҐA-Z][\wʼ'’-]+)", name or "")
+    return m.group(1) if m else None
+
+
+def money_now(db: Session, boxes: list[dict] | None = None, mono_balances=None) -> dict:
+    """Гроші зараз для шапки календаря: рахунки monobank (залишок у банку), готівка по ФОП (каси CRM) і сейф."""
+    from . import cashboxes as cbx
+    from ..integrations import monobank
+    boxes = boxes if boxes is not None else [b for b in cbx.overview(db) if b.get("active", True) is not False and not b.get("deleted")]
+    by_name = {b["name"]: b for b in boxes}
+    if mono_balances is None:
+        try:
+            mono_balances = monobank.balances(db)
+        except Exception:  # noqa: BLE001
+            mono_balances = {}
+    m = monobank.cashbox_map(db)
+    mono, seen = [], set()
+    for x in monobank.saved(db):
+        watch = set(x.get("watch") or [])
+        for a in x.get("accounts", []):
+            box = m.get(monobank.account_key(a)) or m.get(a.get("id"))
+            if a.get("id") in seen or (a.get("id") not in watch and not box) or a.get("currency", 980) != 980:
+                continue
+            seen.add(a.get("id"))
+            b = mono_balances.get(a.get("id")) or {}
+            crm = by_name.get(box, {}).get("balance") if box else None
+            bal = b.get("balance")
+            mono.append({"name": box or f"Рахунок …{(a.get('iban') or '')[-4:]}", "fop": x.get("fop"), "iban4": (a.get("iban") or "")[-4:],
+                         "balance": bal, "at": b.get("at"), "crm": crm,
+                         "diff": round(bal - crm, 2) if bal is not None and crm is not None and abs(bal - crm) >= 1 else None})
+    if not mono:                                   # monobank не підключено — рахунки за даними CRM
+        mono = [{"name": b["name"], "fop": _fop_of(b["name"]), "iban4": "", "balance": round(float(b.get("balance") or 0), 2), "at": None,
+                 "crm": None, "diff": None, "crm_only": True} for b in boxes if b.get("type") == "bank"]
+    cash_fop: dict = defaultdict(list)
+    safe = []
+    for b in boxes:
+        if b.get("type") != "cash":
+            continue
+        row = {"name": b["name"], "balance": round(float(b.get("balance") or 0), 2), "last": b.get("last")}
+        if re.search(r"[сc]ейф", b["name"], re.I):
+            safe.append(row)
+        else:
+            cash_fop[_fop_of(b["name"]) or "Інше"].append(row)
+    cash = [{"fop": k, "rows": v, "total": round(sum(r["balance"] for r in v), 2)} for k, v in sorted(cash_fop.items(), key=lambda kv: (kv[0] == "Інше", kv[0]))]
+    mono_total = round(sum(r["balance"] or 0 for r in mono), 2)
+    cash_total = round(sum(c["total"] for c in cash), 2)
+    safe_total = round(sum(r["balance"] for r in safe), 2)
+    return {"mono": mono, "mono_total": mono_total, "mono_ok": any(r["balance"] is not None for r in mono), "mono_crm": bool(mono) and all(r.get("crm_only") for r in mono),
+            "cash": cash, "cash_total": cash_total, "safe": safe, "safe_total": safe_total,
+            "total": round(mono_total + cash_total + safe_total, 2)}
+
+
+
 def month_view(db: Session, y: int, m: int, group: str = "", status: str = "", today: date | None = None) -> dict:
     from . import cashboxes as cbx
     today = today or date.today()
@@ -295,7 +350,7 @@ def month_view(db: Session, y: int, m: int, group: str = "", status: str = "", t
             by_box[i.cashbox or "— не вказано"] += float(i.amount or 0)
     plans = db.scalars(select(PayPlan).order_by(PayPlan.active.desc(), PayPlan.group, PayPlan.sort, PayPlan.name)).all()
     return {"y": y, "m": m, "first": first, "last": last, "today": today, "rows": cur, "shown": shown, "overdue": overdue, "weeks": weeks,
-            "boxes": boxes, "cash": cash, "left": left, "income": inc, "inc_month": inc_month,
+            "boxes": boxes, "cash": cash, "left": left, "money": money_now(db, boxes), "income": inc, "inc_month": inc_month,
             "forecast": round(cash - left + inc["total"], 2),
             "paid": round(sum(float(i.amount_fact or i.amount or 0) for i in cur if i.status == "paid"), 2),
             "plan": round(sum(float(i.amount or 0) for i in cur if i.status != "skipped"), 2),

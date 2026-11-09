@@ -114,3 +114,22 @@ def test_move_and_weekly_income():
             assert pc.income_plans(db).get(wk.isoformat()) is None
         t = c.get("/finance/calendar").text
         assert "Прихід по тижнях" in t and 'draggable="true"' in t or "Прихід по тижнях" in t
+
+
+def test_money_now(monkeypatch):
+    from app.integrations import monobank
+    monkeypatch.setattr(monobank, "saved", lambda db: [{"fop": "Тест", "watch": ["a1"], "accounts": [
+        {"id": "a1", "iban": "UA000000000000000000000001111", "currency": 980}, {"id": "a2", "iban": "UA9", "currency": 840}]}])
+    monkeypatch.setattr(monobank, "cashbox_map", lambda db: {"00001111": "Опер рахунок"})
+    boxes = [{"name": "Готівка ФОП Тест", "type": "cash", "balance": 1500.0}, {"name": "Готівка ФОП Інший", "type": "cash", "balance": 500.0},
+             {"name": "Готівка Сейф", "type": "cash", "balance": 7000.0}, {"name": "Опер рахунок", "type": "bank", "balance": 9000.0},
+             {"name": "Термінал ФОП Тест", "type": "card", "balance": 300.0}]
+    with SessionLocal() as db:
+        r = pc.money_now(db, boxes, mono_balances={"a1": {"balance": 10000.0, "at": "09.11 10:00"}})
+    assert [x["name"] for x in r["mono"]] == ["Опер рахунок"] and r["mono"][0]["diff"] == 1000.0
+    assert r["cash_total"] == 2000.0 and {c["fop"] for c in r["cash"]} == {"Тест", "Інший"}
+    assert r["safe_total"] == 7000.0 and r["total"] == 19000.0
+    with SessionLocal() as db:
+        monkeypatch.setattr(monobank, "saved", lambda db: [])
+        r = pc.money_now(db, boxes + [{"name": "Готівка Cейф", "type": "cash", "balance": 1.0}], mono_balances={})
+    assert r["mono_crm"] and r["mono_total"] == 9000.0 and r["safe_total"] == 7001.0
