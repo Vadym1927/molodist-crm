@@ -163,8 +163,16 @@ def audit(files: list, by: str = "client") -> dict:
             unk_kinds[k] = unk_kinds.get(k, 0) + 1
         unk_sample = [{"fid": f.cb_file_id, "patient": names.get(f.patient_id), "caption": f.caption, "kind": f.kind, "stage": f.stage,
                        "path": (f.path or "").rsplit("/", 1)[-1]} for f in unk[:12]]
+        unk_by_patient: dict = {}
+        for f in unk:
+            d = unk_by_patient.setdefault(f.patient_id, {"patient_id": f.patient_id, "name": names.get(f.patient_id), "n": 0, "dates": set(), "ids": []})
+            d["n"] += 1
+            d["ids"].append(f.id)
+            if f.taken_at:
+                d["dates"].add(f.taken_at.isoformat())
+        unk_list = sorted(({**d, "dates": sorted(d["dates"])} for d in unk_by_patient.values()), key=lambda d: -d["n"])
     return {"files": len(files), "wrong_patients": len(rows), "wrong_files": sum(r["files"] for r in rows), "rows": rows,
             "missing_in_crm": missing, "no_patient": no_patient, "unknown_in_crm": len(unknown),
             "missing_fids": missing_fids, "no_patient_cids": sorted(set(no_patient_cids)), "unknown_fids": unknown,
-            "unknown_kinds": sorted(unk_kinds.items(), key=lambda x: -x[1])[:15], "unknown_sample": unk_sample}
+            "unknown_kinds": sorted(unk_kinds.items(), key=lambda x: -x[1])[:15], "unknown_sample": unk_sample, "unknown_list": unk_list}
 
