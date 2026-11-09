@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Рознести архів документів{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+<style>
+.bd-t{width:100%;border-collapse:collapse;font-size:12.5px}.bd-t th{font:700 10px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496;padding:6px;border-bottom:1px solid #ECE7E1;text-align:left}
+.bd-t td{padding:5px 6px;border-bottom:1px solid #F6F3EF;vertical-align:middle}.bd-t input{height:30px;font-size:12px;width:90px;margin:0}
+.bd-k{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:12px 0}.bd-k div{background:#fff;border:1px solid #ECE7E1;border-radius:16px;padding:10px 14px}.bd-k small{display:block;font:700 10px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496}.bd-k b{font:800 20px var(--sans)}
+tr.nop td{background:#FFF4F2}tr.dup td{color:#9a948f}
+</style>
+<h1>Рознести архів документів по картках</h1>
+<p class="muted small">Zip-архіви з медичними висновками, бюті-планами (PDF OBSERV) та іншою документацією. Файл має бути підписаний номером пацієнта (№ клієнта CleverBox; можна в назві папки). PDF бюті-плану → створюється план у картці; решта → «Документи» картки. Спершу перегляд, запис — після підтвердження.</p>
+{% if qp.get('msg') %}<div class="alert ok">{{ qp.get('msg') }}</div>{% endif %}
+<div class="card"><h2>1. Завантажити архіви</h2>
+<form method="post" action="/data/docs-archive/scan" enctype="multipart/form-data" class="row" style="gap:10px;align-items:flex-end;flex-wrap:wrap">
+  <label style="display:grid;gap:4px;font-size:12px;color:#6b6575">Архіви (.zip, можна кілька)<input type="file" name="files" multiple accept=".zip" required></label>
+  <label style="display:grid;gap:4px;font-size:12px;color:#6b6575">Що в архіві<select name="group" style="height:38px"><option value="medical">Медичні висновки</option><option value="plans">Бюті-плани</option><option value="other">Інша документація</option></select></label>
+  <button class="btn">Переглянути</button></form>
+<div class="mini muted" style="margin-top:6px">Великі архіви: завантаження може тривати кілька хвилин — не закривайте сторінку.</div></div>
+
+{% if scan %}
+<div class="card"><h2>2. Перевірити й підтвердити</h2>
+<div class="bd-k"><div><small>Файлів</small><b>{{ scan.total }}</b></div><div><small>Пацієнтів</small><b>{{ scan.patients }}</b></div><div><small>Бюті-планів</small><b>{{ scan.plans }}</b></div><div><small>Документів / фото</small><b>{{ scan.docs }} / {{ scan.photos }}</b></div><div><small>Без пацієнта · дублі</small><b style="color:{{ '#B23B2E' if scan.no_patient else 'inherit' }}">{{ scan.no_patient }} · {{ scan.dup }}</b></div></div>
+<form method="post" action="/data/docs-archive/apply">
+<input type="hidden" name="token" value="{{ token }}"><input type="hidden" name="group" value="{{ group }}">
+<table class="bd-t"><tr><th>Файл</th><th>№</th><th>Тип</th><th>Пацієнт</th><th>Інший пацієнт (№ картки CRM)</th><th></th></tr>
+{% for r in scan.rows %}<tr class="{{ 'nop' if not r.patient_id and not r.error }} {{ 'dup' if r.dup }}">
+  <td title="{{ r.path }}">{{ r.name or r.path }}{% if r.error %} <span class="bad">{{ r.error }}</span>{% endif %}<div class="mini muted">{{ ((r.size or 0) / 1024)|round|int }} КБ</div></td>
+  <td>{{ r.num if r.num is not none else '—' }}<div class="mini muted">{{ {'file':'з назви','folder':'з папки','':''}[r.num_src] }}</div></td>
+  <td>{{ {'plan':'бюті-план','doc':'документ','photo':'фото'}.get(r.kind, '') }}{% if r.kind != 'plan' %}<div class="mini muted">{{ {'doc':'Документи','consent':'Згоди','face':'Обличчя','body':'Тіло'}.get(r.category,'') }}</div>{% endif %}</td>
+  <td>{% if r.patient_id %}<a href="/patients/{{ r.patient_id }}" target="_blank">{{ r.patient }}</a> <span class="mini muted">{{ 'CB' if r.via == 'cb' else '№ CRM' }}</span>{% else %}<span class="bad">не знайдено</span>{% endif %}</td>
+  <td><input name="ov:{{ r.path }}" inputmode="numeric" placeholder="№"></td>
+  <td class="mini muted">{{ 'уже є в картці — пропустимо' if r.dup }}</td></tr>{% endfor %}</table>
+<div class="row" style="gap:10px;margin-top:12px;align-items:center"><button class="btn" onclick="return confirm('Записати файли в картки пацієнтів?')">Записати в картки</button>
+<span class="mini muted">Файли без пацієнта пропускаються, якщо не вказати № картки CRM у колонці праворуч. Дублі (той самий файл у того ж пацієнта) не записуються повторно.</span></div></form></div>
+{% endif %}
+{% if rep %}
+<div class="card"><h2>Результат</h2>
+<ul class="small"><li>Створено бюті-планів: <b>{{ rep.plans }}</b></li><li>Файлів у картки: <b>{{ rep.files }}</b></li><li>Пацієнтів: <b>{{ rep.patients }}</b></li><li>Пропущено дублів: {{ rep.skipped_dup }} · без пацієнта: {{ rep.no_patient }}</li></ul>
+{% if rep.plans_failed %}<h3>PDF, які не розпізнались як план OBSERV (збережені як документи)</h3><ul class="small">{% for f in rep.plans_failed %}<li>{{ f.name }} — {{ f.patient }} <span class="muted">({{ f.error }})</span></li>{% endfor %}</ul>{% endif %}
+</div>
+{% endif %}
+{% endblock %}

@@ -5720,6 +5720,59 @@ async def patients_photos_import_cb(request: Request, user: User = Depends(requi
     return {"ok": True, "job": job.id, "files": len(files)}
 
 
+@app.get("/data/docs-archive", response_class=HTMLResponse)
+def docs_archive_page(request: Request, user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
+    """Дані → рознести архів документів (висновки, бюті-плани, документація) по картках пацієнтів."""
+    return render(request, "data_docs_archive.html", scan=None, rep=None, token="", group="")
+
+
+def _bulk_dir(token: str) -> Path:
+    d = Path(settings.files_dir) / "_bulk" / re.sub(r"[^a-f0-9]", "", token)[:16]
+    return d
+
+
+@app.post("/data/docs-archive/scan", response_class=HTMLResponse)
+async def docs_archive_scan(request: Request, files: list[UploadFile] = File(...), group: str = Form("other"),
+                            user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
+    from .services import bulk_docs
+    import uuid
+    token = uuid.uuid4().hex[:16]
+    d = _bulk_dir(token)
+    d.mkdir(parents=True, exist_ok=True)
+    arcs = []
+    for f in files:
+        data = await f.read()
+        name = re.sub(r"[^\w.\- ]+", "_", f.filename or "archive.zip")
+        (d / name).write_bytes(data)
+        arcs.append((name, data))
+    group = group if group in ("medical", "plans", "other") else "other"
+    scan = await asyncio.to_thread(bulk_docs.scan, db, arcs, group)
+    audit(db, "docs_archive.scan", user=user, files=scan["total"], group=group)
+    db.commit()
+    return render(request, "data_docs_archive.html", scan=scan, rep=None, token=token, group=group)
+
+
+@app.post("/data/docs-archive/apply", response_class=HTMLResponse)
+async def docs_archive_apply(request: Request, user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
+    from .services import bulk_docs
+    form = await request.form()
+    token, group = str(form.get("token") or ""), str(form.get("group") or "other")
+    d = _bulk_dir(token)
+    if not token or not d.exists():
+        return RedirectResponse(_with_msg("/data/docs-archive", "Архів не знайдено — завантажте ще раз", True), 303)
+    arcs = [(p.name, p.read_bytes()) for p in sorted(d.iterdir()) if p.is_file()]
+    overrides = {}
+    for k, v in form.multi_items():
+        if k.startswith("ov:") and str(v).strip().isdigit():
+            overrides[k[3:]] = int(str(v).strip())
+    rep = await asyncio.to_thread(bulk_docs.apply, db, arcs, group, overrides, user.id)
+    audit(db, "docs_archive.apply", user=user, plans=rep["plans"], files=rep["files"], patients=rep["patients"])
+    db.commit()
+    import shutil
+    shutil.rmtree(d, ignore_errors=True)
+    return render(request, "data_docs_archive.html", scan=None, rep=rep, token="", group=group)
+
+
 @app.post("/patients/photos/audit-cb")
 async def patients_photos_audit_cb(request: Request, user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
     """Звірка фото з CleverBox без змін: у кого в CRM лежать чужі файли (список зібрано у веб-кабінеті)."""
