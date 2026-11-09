@@ -110,14 +110,22 @@ def build(db: Session, today: date | None = None) -> dict:
             doc = open_order(db, name, r.created_at)
             r.order_doc_id = doc.id if doc else None
         plan = order_total(doc) if doc else None
-        est = None if doc or _low(name) not in with_min else estimate(db, name, sbal)
+        from . import order_builder as ob
+        prows = ob.rows(db, name, bal=sbal)
+        need_rows = [x for x in prows if x["need"] > 0]
+        no_min = sum(1 for x in prows if not x["min"])
+        est = None if doc or not need_rows else round(sum(x["sum"] for x in need_rows), 2)
+        lines = ([{"name": ln.product.name if ln.product else "—", "qty": ln.qty, "price": ln.unit_cost, "sum": round((ln.qty or 0) * (ln.unit_cost or 0), 2)}
+                  for ln in doc.lines] if doc else
+                 [{"name": x["p"].name, "qty": x["need"], "price": x["price"], "sum": x["sum"], "min": x["min"], "stock": x["stock"]} for x in need_rows])
         amount = r.fact_amount or plan or est or 0.0
         if not r.paid_at and (doc or r.fact_amount):
             m = _match_paid(db, r, amount)
             if m:
                 r.paid_at, r.paid_amount, r.paid_ref, r.paid_fop = m
         status = ("paid" if r.paid_at else "approved" if r.approved else "ordered" if doc else "waiting")
-        rows_all.append({"r": r, "doc": doc, "plan": plan, "est": est, "amount": amount, "status": status,
+        rows_all.append({"r": r, "doc": doc, "plan": plan, "est": est, "amount": amount, "status": status, "lines": lines,
+                         "n_prod": len(prows), "no_min": no_min,
                          "dev": round((r.fact_amount or 0) - (plan or est or 0), 2) if r.fact_amount else None})
     db.commit()
     # рекомендований ФОП: баланс + прихід до дати − інші заплановані оплати з цього ФОП до дати
