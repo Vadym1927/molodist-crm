@@ -1,8 +1,9 @@
 """Масове рознесення документів пацієнтів з архіву (медичні висновки, бюті-плани, інша документація).
 
-Файли підписані номером пацієнта: першим числом у назві файлу або в назві папки (№ клієнта CleverBox; якщо такого
-нема — № картки CRM). PDF бюті-плану OBSERV → створюється план (пацієнт — за номером, а не за ПІБ у PDF);
-інші файли → у картку: «Документи» (висновки, анкети, PDF) або «Обличчя» для фото. Повторне завантаження того ж файлу
+Файли підписані пацієнтом у назві: телефон (10–12 цифр, напр. «380671234567__012__Прізвище Імʼя.pdf») або номер
+(№ клієнта CleverBox, інакше № картки CRM) — у назві файлу чи папки. Кожен PDF пробуємо прочитати як бюті-план OBSERV:
+вийшло → створюється план (пацієнт — за телефоном/номером, а не за ПІБ у PDF); ні → документ картки («Документи»;
+анкети/згоди → «Згоди»); фото → «Обличчя». Повторне завантаження того ж файлу
 (той самий пацієнт + назва + розмір) не дублює. Спершу — перегляд (dry run), запис лише після підтвердження."""
 from __future__ import annotations
 
@@ -22,22 +23,27 @@ DOC = re.compile(r"\.(pdf|docx?|xlsx?|txt|rtf)$", re.I)
 SKIP = re.compile(r"(^|/)(__MACOSX|\.DS_Store|Thumbs\.db|\._)", re.I)
 
 
+def _phone(name: str) -> str | None:
+    m = re.search(r"(?<!\d)(\d{10,12})(?!\d)", name)
+    return m.group(1)[-9:] if m else None
+
+
 def _num(name: str) -> int | None:
     m = re.search(r"(?<!\d)(\d{1,6})(?!\d)", name)
     return int(m.group(1)) if m else None
 
 
-def _patient_num(path: str) -> tuple[int | None, str]:
-    """Номер пацієнта: з назви файлу, інакше — з найближчої папки. Повертає (номер, звідки)."""
+def _patient_key(path: str) -> tuple[str | None, int | None, str]:
+    """Ключ пацієнта: телефон або номер — з назви файлу, інакше з найближчої папки. (телефон, номер, звідки)."""
     p = PurePosixPath(path)
-    n = _num(p.stem)
-    if n is not None:
-        return n, "file"
-    for part in reversed(p.parts[:-1]):
+    for part, src in [(p.stem, "file")] + [(x, "folder") for x in reversed(p.parts[:-1])]:
+        ph = _phone(part)
+        if ph:
+            return ph, None, src
         n = _num(part)
         if n is not None:
-            return n, "folder"
-    return None, ""
+            return None, n, src
+    return None, None, ""
 
 
 def _kind(name: str, group: str) -> str:
@@ -61,6 +67,11 @@ def scan(db: Session, archives: list[tuple[str, bytes]], group: str = "other") -
     group: medical | plans | other — підказка з якого архіву (впливає на категорію/тип)."""
     by_cb = {p.cleverbox_id: p for p in db.scalars(select(Patient).where(Patient.cleverbox_id.is_not(None)))}
     by_id = {p.id: p for p in db.scalars(select(Patient))}
+    by_phone: dict[str, list] = {}
+    for p in by_id.values():
+        digits = re.sub(r"\D", "", p.phone or "")
+        if len(digits) >= 9:
+            by_phone.setdefault(digits[-9:], []).append(p)
     have = {(f.patient_id, (f.caption or "").lower()) for f in db.scalars(select(PatientFile).where(PatientFile.patient_id.is_not(None)))}
     rows, no_patient, dup = [], 0, 0
     for arc_name, data in archives:
@@ -77,13 +88,22 @@ def scan(db: Session, archives: list[tuple[str, bytes]], group: str = "other") -
                 fname_fixed = fname.encode("cp437").decode("cp866") if info.flag_bits & 0x800 == 0 else fname
             except (UnicodeEncodeError, UnicodeDecodeError):
                 fname_fixed = fname
-            num, src = _patient_num(info.filename if info.flag_bits & 0x800 else fname_fixed)
+            phone, num, src = _patient_key(info.filename if info.flag_bits & 0x800 else fname_fixed)
             kind = _kind(fname_fixed, group)
-            pat = by_cb.get(num) if num is not None else None
-            via = "cb" if pat else ""
-            if pat is None and num is not None and num in by_id and num not in by_cb:
-                pat, via = by_id[num], "crm"
-            r = {"archive": arc_name, "path": info.filename, "name": fname_fixed, "size": info.file_size, "num": num, "num_src": src,
+            pat, via = None, ""
+            if phone:
+                hits = by_phone.get(phone) or []
+                if len(hits) == 1:
+                    pat, via = hits[0], "phone"
+                elif len(hits) > 1:
+                    via = "ambiguous"
+            elif num is not None:
+                pat = by_cb.get(num)
+                via = "cb" if pat else ""
+                if pat is None and num in by_id:
+                    pat, via = by_id[num], "crm"
+            r = {"archive": arc_name, "path": info.filename, "name": fname_fixed, "size": info.file_size,
+                 "num": phone or (num if num is not None else None), "num_src": src,
                  "kind": kind, "category": _category(fname_fixed, group, kind) if kind != "plan" else "plan",
                  "patient_id": pat.id if pat else None, "patient": pat.full_name if pat else None, "via": via}
             if pat is None:
@@ -120,16 +140,20 @@ def apply(db: Session, archives: list[tuple[str, bytes]], group: str = "other", 
         pat = db.get(Patient, pid)
         data = zfs[r["archive"]].read(r["path"])
         path = ingest.store(data, r["name"])
-        if r["kind"] == "plan":
+        if r["name"].lower().endswith(".pdf"):
             try:
                 parsed = parse_observ_pdf(path)
+            except (ObservParseError, Exception) as e:          # не OBSERV-план → документ картки
+                parsed = None
+                if r["kind"] == "plan":
+                    rep["plans_failed"].append({"name": r["name"], "patient": pat.full_name, "error": str(e)[:160]})
+            if parsed is not None:
                 plan = import_plan(db, parsed, source_file=r["name"], patient=pat)
                 plan.source_file = path
                 db.add(PatientFile(patient_id=pat.id, kind="plan_pdf", path=path, caption=r["name"]))
                 rep["plans"] += 1
-            except ObservParseError as e:
-                db.add(PatientFile(patient_id=pat.id, kind="doc", path=path, caption=r["name"], category="doc"))
-                rep["plans_failed"].append({"name": r["name"], "patient": pat.full_name, "error": str(e)[:160]})
+            else:
+                db.add(PatientFile(patient_id=pat.id, kind="doc", path=path, caption=r["name"], category=r["category"] if r["kind"] != "plan" else "doc"))
                 rep["files"] += 1
         else:
             db.add(PatientFile(patient_id=pat.id, kind=("photo" if r["kind"] == "photo" else "doc"), path=path, caption=r["name"],

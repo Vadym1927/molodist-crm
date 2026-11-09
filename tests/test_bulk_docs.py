@@ -34,9 +34,9 @@ def test_bulk_docs_scan_and_apply():
         assert db.query(PatientFile).filter_by(patient_id=aid).count() == 1
         rep2 = bulk_docs.apply(db, [("a.zip", arc)], "medical")
         assert rep2["skipped_dup"] == 2
-        arc2 = _zip([("970001 BeautyPlan.pdf", pdf)])
+        arc2 = _zip([("380000000801__001__Архів Тест А Anti-age.pdf", pdf)])
         sc2 = bulk_docs.scan(db, [("p.zip", arc2)], "plans")
-        assert sc2["plans"] == 1
+        assert sc2["plans"] == 1 and sc2["rows"][0]["via"] == "phone" and sc2["rows"][0]["patient_id"] == aid
         rep3 = bulk_docs.apply(db, [("p.zip", arc2)], "plans")
         assert rep3["plans"] == 1
         from app.models import BeautyPlan
