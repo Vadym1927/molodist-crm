@@ -69,3 +69,10 @@ def test_bulk_docs_name_mismatch():
         assert sc["mismatch"] == 1
         rep = bulk_docs.apply(db, [("m.zip", arc)], "medical")
         assert rep["files"] == 0 and rep["no_patient"] == 1
+
+
+def test_plans_check_runs():
+    with SessionLocal() as db:
+        rows = bulk_docs.plans_check(db)
+        assert isinstance(rows, list)
+        assert isinstance(bulk_docs.fix_plan_dates(db), list)

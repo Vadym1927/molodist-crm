@@ -197,6 +197,8 @@ def parse_observ_pdf(path: str | Path, plan_title: str | None = None) -> ParsedP
         if p.lstrip().startswith("Розпорядок дня") and "КОМЕНТАРІ" in p:
             routine_comment = p.split("КОМЕНТАРІ", 1)[1].strip() or None
 
+    if session_at is None:                # дата сесії «злиплась» з текстом скарг — беремо дату створення PDF (звіт формують у день сесії)
+        session_at = pdf_created(path)
     return ParsedPlan(patient_name=patient, doctor_name=doctor, session_at=session_at,
                       complaints=complaints, comments=comments, routine_comment=routine_comment,
                       items=items, total=total, clinic_phone=clinic_phone,
@@ -300,3 +302,19 @@ if __name__ == "__main__":
     import json, sys
     plan = parse_observ_pdf(sys.argv[1])
     print(json.dumps(plan.to_dict(), ensure_ascii=False, indent=2))
+
+
+def pdf_created(path) -> datetime | None:
+    """Дата створення PDF з метаданих (D:YYYYMMDDHHMMSS…)."""
+    try:
+        import pdfplumber
+        with pdfplumber.open(path) as pdf:
+            raw = str((pdf.metadata or {}).get("CreationDate") or "")
+        m = re.search(r"(\d{4})(\d{2})(\d{2})(\d{2})?(\d{2})?", raw)
+        if not m:
+            return None
+        y, mo, d, h, mi = (int(x) if x else 0 for x in m.groups())
+        dt = datetime(y, mo, d, h, mi)
+        return dt if 2015 <= y <= datetime.now().year + 1 else None
+    except Exception:
+        return None

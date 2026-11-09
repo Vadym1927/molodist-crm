@@ -5799,6 +5799,21 @@ def docs_archive_check(user: User = Depends(require("migrate")), db: Session = D
     return c
 
 
+@app.post("/data/docs-archive/fix-dates")
+def docs_archive_fix_dates(user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
+    from .services import bulk_docs
+    rep = bulk_docs.fix_plan_dates(db)
+    audit(db, "docs_archive.fix_dates", user=user, plans=len(rep))
+    db.commit()
+    return {"fixed": rep}
+
+
+@app.get("/data/docs-archive/plans-check")
+def docs_archive_plans_check(user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
+    from .services import bulk_docs
+    return {"rows": bulk_docs.plans_check(db)}
+
+
 @app.post("/data/docs-archive/dups/remove")
 def docs_archive_dups_remove(user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
     from .services import bulk_docs

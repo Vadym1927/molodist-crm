@@ -268,3 +268,39 @@ def candidates(db: Session, filename: str) -> list[dict]:
         if n >= min(2, len(fw)) and n > 0:
             out.append({"id": p.id, "name": p.full_name, "phone_tail": re.sub(r"\D", "", p.phone or "")[-4:], "n": n})
     return sorted(out, key=lambda x: -x["n"])[:5]
+
+
+def fix_plan_dates(db: Session) -> list[dict]:
+    """Плани без дати сесії: беремо дату створення PDF плану (без неї план рахується від дня завантаження → реалізація 0)."""
+    from pathlib import Path
+    from ..parsers.observ import pdf_created
+    out = []
+    for pl in db.scalars(select(BeautyPlan).where(BeautyPlan.session_at.is_(None))):
+        if pl.source_file and Path(pl.source_file).exists():
+            dt = pdf_created(pl.source_file)
+            if dt:
+                pl.session_at = dt
+                out.append({"plan": pl.id, "patient": pl.patient.full_name, "session_at": dt.isoformat(timespec="minutes")})
+    db.commit()
+    return out
+
+
+def plans_check(db: Session) -> list[dict]:
+    """Усі плани: дата сесії, план / реалізовано / записано, к-сть візитів пацієнта після сесії — щоб побачити «нулі»."""
+    from datetime import timedelta
+    from ..models import Visit
+    from . import kpi
+    rows = []
+    for st in kpi.all_statuses(db):
+        pl = st.plan
+        since = (pl.session_at or pl.created_at) - timedelta(days=1)
+        vis = db.scalars(select(Visit).where(Visit.patient_id == pl.patient_id, Visit.starts_at >= since)).all()
+        done = [v for v in vis if v.status == "done"]
+        rows.append({"plan": pl.id, "patient_id": pl.patient_id, "patient": pl.patient.full_name,
+                     "session_at": pl.session_at.isoformat(timespec="minutes") if pl.session_at else None,
+                     "status": pl.status, "planned": round(st.planned_sum or 0), "realized": round(st.realized_sum or 0),
+                     "booked": round(st.booked_sum or 0), "pct": round(st.realization_pct or 0, 1),
+                     "proc": f"{st.proc_done}/{st.proc_planned}", "visits_after": len(vis), "visits_done": len(done),
+                     "visits_sum": round(sum(float(v.amount or 0) for v in done)),
+                     "from_archive": "__" in PurePosixPath(pl.source_file or "").name})
+    return rows
