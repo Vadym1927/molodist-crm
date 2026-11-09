@@ -1,0 +1,14 @@
+<form method="post" action="/finance/leasing/save" class="frm">
+  <input type="hidden" name="id" value="{{ c.id or '' }}">
+  <label class="w2">Назва<input name="name" value="{{ c.name or '' }}" required></label>
+  <label>Група<select name="group">{% for k, t in v.GROUPS.items() %}<option value="{{ k }}" {{ 'selected' if c.group == k }}>{{ t }}</option>{% endfor %}</select></label>
+  <label>Тип<select name="kind">{% for k, t in v.KINDS.items() %}<option value="{{ k }}" {{ 'selected' if c.kind == k }}>{{ t }}</option>{% endfor %}</select></label>
+  <label>Повна сума, ₴<input name="total" value="{{ c.total or '' }}" inputmode="decimal" required></label>
+  <label>Сплачено до CRM, ₴<input name="paid_before" value="{{ c.paid_before or 0 }}" inputmode="decimal"></label>
+  <label>Платіж / міс, ₴<input name="monthly" value="{{ c.monthly or '' }}" inputmode="decimal"></label>
+  <label>Наступний платіж<input type="date" name="next" value="{{ c.next or '' }}"></label>
+  <label class="w2">Банк / умови<input name="bank" value="{{ c.bank or '' }}" placeholder="monobank · 10 платежів"></label>
+  <label class="w2">Примітка<input name="note" value="{{ c.note or '' }}"></label>
+  <div style="grid-column:1/-1;display:flex;gap:8px;align-items:center"><button class="btn">Зберегти й оновити графік</button><a href="/finance/leasing" class="btn ghost">Скасувати</a>
+    <span class="mini">Неоплачені платежі в календарі перебудуються від дати наступного платежу: решта = сума − сплачено, по «платіж / міс».</span></div>
+</form>

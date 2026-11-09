@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Лізинг обладнання{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+{% macro u(x) %}{% if x is none %}—{% else %}{{ (('{:,.0f}').format(x or 0)).replace(',', ' ') }}{% endif %}{% endmacro %}
+{% set MON = ['січ','лют','бер','кві','тра','чер','лип','сер','вер','жов','лис','гру'] %}
+<style>
+.fin-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 16px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.fin-tabs a{padding:8px 14px;border-radius:10px;text-decoration:none;color:#3a342f;font-weight:600;font-size:14px}.fin-tabs a:hover{background:var(--card)}
+.lk{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.lk div{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:14px 16px}.lk small{display:block;font:700 10.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#8a8496}
+.lk b{display:block;font:800 24px var(--sans);color:#2A2430;margin:6px 0 2px}.lk span{font-size:12px;color:#6b6575}
+.lk div.g{background:linear-gradient(135deg,#2A2430,#3B3050);border:0}.lk div.g small{color:#C9BFE6}.lk div.g b{color:#fff}.lk div.g span{color:#E4DEEF}
+.lg{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:16px 18px;margin-bottom:14px}
+.lg .hd{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}.lg h3{margin:0;font:700 18px var(--sans);text-transform:none;letter-spacing:0}
+.lg .sm{font-size:13px;color:#6b6575}.lg .sm b{color:#2A2430}
+.bar{height:9px;border-radius:99px;background:#F1EDE8;overflow:hidden;margin:10px 0 12px}.bar i{display:block;height:100%;background:linear-gradient(90deg,#3B3050,#C9BFE6)}
+.lt{width:100%;border-collapse:collapse;font-size:13px}.lt th{text-align:right;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496;padding:6px 8px;border-bottom:1px solid #ECE7E1}
+.lt th:first-child,.lt td:first-child{text-align:left}.lt td{padding:8px;text-align:right;border-bottom:1px solid #F6F3EF;white-space:nowrap;vertical-align:middle}.lt td:first-child{white-space:normal}
+.lt tr.tot td{font-weight:800;background:#F8F6FC;border-bottom:0}.lt td.cur{background:#F3EFF9;font-weight:700}
+.mini{font-size:11.5px;color:#8a8496}.bad{color:#B23B2E;font-weight:700}.ok{color:#2f6b3b;font-weight:700}
+.chips{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}.ch{display:inline-block;border-radius:7px;padding:2px 7px;font:700 11px var(--sans)}
+.ch.p{background:#DDF1E2;color:#2f6b3b}.ch.a{background:#E4DEEF;color:#3B3050}.ch.o{background:#F9DEDC;color:#B23B2E}
+.fund{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:6px}.fund div{background:#F7F4F0;border-radius:14px;padding:10px 12px}.fund small{display:block;font:700 10px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496}.fund b{font:800 19px var(--sans)}
+.frm{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:10px;padding-top:12px;border-top:1px dashed #E4DEEF}.frm label{display:grid;gap:4px;font-size:12px;color:#6b6575}.frm label.w2{grid-column:span 2}.frm input,.frm select{height:36px}
+.scroll{overflow-x:auto}
+@media(max-width:1000px){.lk,.fund{grid-template-columns:1fr 1fr}.frm{grid-template-columns:1fr 1fr}}
+</style>
+<div class="row between" style="align-items:flex-end;flex-wrap:wrap;gap:10px">
+  <div><h1>Лізинг обладнання</h1><div class="muted small">Лише для власника. Розтермінування й лізинг: скільки сплачено, скільки лишилось і коли останній платіж. Майбутні платежі вже стоять у <a href="/finance/calendar">платіжному календарі</a> (група «Кредити»); оплата там — і звіт оновлюється сам.</div></div>
+  <a class="btn ghost" href="?edit=-1#new">＋ Договір</a>
+</div>
+<nav class="fin-tabs">{% for href, t in FIN_TABS %}<a href="{{ href }}">{{ t }}</a>{% endfor %}</nav>
+{% if qp.get('msg') %}<div class="alert ok">{{ qp.get('msg') }}</div>{% endif %}
+{% if v.overdue %}<div class="alert">Прострочено {{ v.overdue|length }}: {% for r, s in v.overdue %}{{ r.name }} — {{ u(s.amount) }} ₴ ({{ s.due.strftime('%d.%m') }}){{ ', ' if not loop.last }}{% endfor %}. Оплатіть у <a href="/finance/calendar">календарі</a>.</div>{% endif %}
+
+<div class="lk">
+  <div class="g"><small>Лишилось сплатити</small><b>{{ u(v.left) }} ₴</b><span>розтермінування й лізинг{% if v.end %} · до {{ v.end.strftime('%d.%m.%Y') }}{% endif %}</span></div>
+  <div><small>Цього місяця</small><b>{{ u(v.this_month) }} ₴</b><span>платежі {{ MON[v.today.month - 1] }} {{ v.today.year }}</span></div>
+  <div><small>Сплачено</small><b>{{ u(v.paid) }} ₴</b><span>з {{ u(v.total) }} ₴ усього</span></div>
+  <div><small>OBSERV · лишилось</small><b>{{ u(v.left_fund) }} ₴</b><span>з фонду амортизації</span></div>
+</div>
+
+{% for g in v.groups %}
+<div class="lg">
+  <div class="hd"><h3>{{ g.title }}</h3><div class="sm">усього <b>{{ u(g.total) }} ₴</b> · сплачено <b>{{ u(g.paid) }} ₴</b> · лишилось <b class="{{ 'bad' if g.left }}">{{ u(g.left) }} ₴</b>{% if g.end %} · останній платіж {{ g.end.strftime('%d.%m.%Y') }}{% endif %}</div></div>
+  <div class="bar"><i style="width:{{ (100 * g.paid / g.total) if g.total else 0 }}%"></i></div>
+  {% if g.fund %}
+    {% for r in g.rows %}
+    <div class="fund">
+      <div><small>Вартість</small><b>{{ u(r.total) }} ₴</b></div>
+      <div><small>Сплачено</small><b>{{ u(r.paid) }} ₴</b><div class="mini">{{ r.pct }}%</div></div>
+      <div><small>Лишилось</small><b class="bad">{{ u(r.left) }} ₴</b></div>
+      <div><small>Лежить у банці</small><b class="ok">{{ u(r.jar) }} ₴</b><div class="mini">{{ r.cover }}% залишку · {{ r.jar_src }}</div></div>
+    </div>
+    {% if r.note %}<div class="mini" style="margin-top:8px">{{ r.note }} · <a href="/amort">Амортизація</a> · <a href="?edit={{ r.id }}#c{{ r.id }}">змінити</a></div>{% endif %}
+    {% if edit == r.id %}{% set c = r %}{% include "_leasing_form.html" %}{% endif %}
+    {% endfor %}
+  {% else %}
+  <table class="lt"><tr><th>Договір</th><th>Сума</th><th>Сплачено</th><th>Лишилось</th><th>Платіж / міс</th><th>Наступний</th><th>Лишилось платежів</th><th>Останній</th><th></th></tr>
+    {% for r in g.rows %}
+    <tr id="c{{ r.id }}"><td><b>{{ r.name }}</b><div class="mini">{{ r.bank or r.kind_t }}{% if r.note %} · {{ r.note }}{% endif %}</div></td>
+      <td>{{ u(r.total) }}</td><td>{{ u(r.paid) }}<div class="mini">{{ r.pct }}%</div></td><td class="{{ 'bad' if r.left }}">{{ u(r.left) }}</td><td>{{ u(r.monthly) }}</td>
+      <td>{% if r.next_pay %}<span class="{{ 'bad' if r.next_pay.overdue }}">{{ r.next_pay.due.strftime('%d.%m') }}</span> · {{ u(r.next_pay.amount) }}{% else %}<span class="ok">сплачено</span>{% endif %}</td>
+      <td>{{ r.n_left }}</td><td>{{ r.end.strftime('%m.%Y') if r.end else '—' }}</td><td><a href="?edit={{ r.id }}#c{{ r.id }}" class="mini">змінити</a></td></tr>
+    {% if edit == r.id %}<tr><td colspan="9">{% set c = r %}{% include "_leasing_form.html" %}</td></tr>{% endif %}
+    {% endfor %}
+  </table>
+  {% endif %}
+</div>
+{% endfor %}
+
+{% if v.months %}
+<div class="lg"><div class="hd"><h3>Графік платежів</h3><div class="sm">по місяцях · ті самі платежі, що в календарі</div></div>
+  <div class="scroll"><table class="lt" style="margin-top:8px"><tr><th>Договір</th>{% for k, mth in v.months %}<th>{{ MON[k[1] - 1] }} {{ k[0] % 100 }}</th>{% endfor %}<th>Разом</th></tr>
+    {% for r in v.inst if r.n_left %}<tr><td>{{ r.name }}</td>{% for k, mth in v.months %}<td class="{{ 'cur' if k == (v.today.year, v.today.month) }}">{{ u(mth.by.get(r.id)) if mth.by.get(r.id) else '' }}</td>{% endfor %}<td><b>{{ u(r.left) }}</b></td></tr>{% endfor %}
+    <tr class="tot"><td>Разом за місяць</td>{% for k, mth in v.months %}<td>{{ u(mth.total) }}</td>{% endfor %}<td>{{ u(v.left) }}</td></tr>
+  </table></div></div>
+{% endif %}
+
+{% if edit == -1 %}<div class="lg" id="new"><h3>Новий договір</h3>{% set c = {} %}{% include "_leasing_form.html" %}</div>{% endif %}
+{% endblock %}

@@ -8437,8 +8437,8 @@ def reports_page(request: Request, r: str = "revenue", period: str = "month", df
     if "r" not in request.query_params:                  # «Звіти» — сторінка з блоками
         from .services import report_hub
         _bl = report_hub.blocks()
-        if user.role != "owner":                       # звіт Deye — лише власнику
-            _bl = [dict(b, items=[it for it in b["items"] if it["url"] != "/deye"]) for b in _bl]
+        if user.role != "owner":                       # звіти Deye і лізингу — лише власнику
+            _bl = [dict(b, items=[it for it in b["items"] if it["url"] not in ("/deye", "/finance/leasing")]) for b in _bl]
         return render(request, "reports_hub.html", nav="reports", blocks=_bl)
     key = r if r in rp.REPORTS else "revenue"
     if key == "cashflow":
@@ -8631,6 +8631,8 @@ def paycal_page(request: Request, y: int = 0, m: int = 0, group: str = "", statu
                 db: Session = Depends(db_dep)):
     from .services import paycal as _pc
     _pc.seed_plans(db)
+    from .services import leasing as _ls
+    _ls.ensure_setup(db)
     t = date.today()
     y, m = (y or t.year), (m or t.month)
     if not (1 <= m <= 12) or not (2020 <= y <= 2100):
@@ -8809,8 +8811,28 @@ def paycal_plan_act(pid: int, act: str, user: User = Depends(require("finance"))
 # ---------------- Звіт Deye (лише власник) ----------------
 def _owner(user: User = Depends(current_user)) -> User:
     if user.role != "owner":
-        raise HTTPException(403, "Звіт Deye — лише для власника")
+        raise HTTPException(403, "Цей звіт — лише для власника")
     return user
+
+
+@app.get("/finance/leasing", response_class=HTMLResponse)
+def leasing_page(request: Request, edit: int = 0, user: User = Depends(_owner), db: Session = Depends(db_dep)):
+    from .services import leasing as _ls, paycal as _pc
+    _pc.seed_plans(db)
+    _ls.ensure_setup(db)
+    return render(request, "fin_leasing.html", nav="finance", v=_ls.build(db), edit=edit, FIN_TABS=FIN_TABS)
+
+
+@app.post("/finance/leasing/save")
+async def leasing_save(request: Request, user: User = Depends(_owner), db: Session = Depends(db_dep)):
+    from .services import leasing as _ls
+    f = dict(await request.form())
+    try:
+        cid = int(f.get("id") or 0)
+    except ValueError:
+        cid = 0
+    c = _ls.save(db, cid or None, f)
+    return RedirectResponse(_with_msg("/finance/leasing", f"Збережено «{c['name']}» — графік оновлено в платіжному календарі"), 303)
 
 
 @app.get("/deye", response_class=HTMLResponse)
