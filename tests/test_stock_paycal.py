@@ -66,3 +66,20 @@ def test_fund_plan_weeks():
         p = fs.plan(db)
         k = p["fops"]["ФОП Колган"]
         assert len(p["weeks"]) >= 12 and abs(k["rows"][-1]["end"] - max(k["target"], k["oper"])) < 1
+
+
+def test_recommendation_spreads_between_fops(monkeypatch):
+    """Оплати не всі на один ФОП: кожна наступна «віртуально» списується з обраного й наступна йде на інший."""
+    st = {"ФОП Колган": {"oper": 100000.0, "target": 190000.0}, "ФОП Бондар": {"oper": 40000.0, "target": 110000.0}}
+    monkeypatch.setattr(fs, "fund_state", lambda db, today=None: {f: dict(v, box=fs.FUND[f], total=v["oper"], amort=0, deficit=0, pct=0,
+                                                                            deadline=date.today(), per_month=0, per_week=0) for f, v in st.items()})
+    monkeypatch.setattr(fs, "income_until", lambda db, d, today=None: {"ФОП Колган": 0.0, "ФОП Бондар": 0.0})
+    with SessionLocal() as db:
+        for i in range(4):
+            name = f"РОЗКЛАД ТЕСТ {i}"
+            db.add(Supplier(name=name))
+            db.add(Product(name=f"Препарат розклад {i}", name_norm=f"rozklad-{i}", supplier=name, min_stock=1, cost=900000 + i, warehouse="inject", active=True))
+        db.commit()
+        v = sp.build(db)
+        recs = [x["rec"] for k, t, rows in v["groups"] for x in rows if x["r"].supplier.startswith("РОЗКЛАД ТЕСТ")]
+        assert len(recs) == 4 and set(recs) == set(fs.FOPS)

@@ -5,7 +5,8 @@
 за критичними залишками: скільки доведеться дозамовити), фактична сума (з рахунку постачальника), відхилення,
 планова дата, дозвіл на оплату (власник), статус. Статус «Оплачено» — з банку (виписка monobank, привʼязана до
 постачальника) або з фінoперації; після оплати цикл закривається й починається новий.
-Рекомендований ФОП: залишок рахунку ФОП + прихід за графіком ФОПів до планової дати − уже заплановані оплати."""
+Рекомендований ФОП: по черзі розкладаємо оплати між ФОП — туди, де після оплати лишиться більша частка від норми
+(залишок + прихід за графіком ФОПів до планової дати − уже розподілені оплати − платіжний календар)."""
 from __future__ import annotations
 
 from collections import Counter, defaultdict
@@ -138,30 +139,37 @@ def build(db: Session, today: date | None = None) -> dict:
         f = box2fop.get(it.cashbox or "")
         if f and it.amount:
             paycal_out[f].append((it.due, float(it.amount)))
-    planned = defaultdict(list)
-    for x in rows_all:
-        if x["status"] != "paid" and x["r"].fop in fs.FOPS and x["amount"]:
-            planned[x["r"].fop].append((x["r"].plan_date or today, x["amount"], x["r"].id))
+    # Рекомендація — по черзі (за плановою датою, більші суми першими): кожна оплата «віртуально» списується з того ФОП,
+    # де після неї лишиться найбільша частка від норми (залишок + прихід за графіком до дати − уже розподілені оплати −
+    # платіжний календар). Так оплати розкладаються між ФОП, а не всі на один.
+    tgt = {f: (funds[f]["target"] or 1.0) for f in fs.FOPS}
+    alloc = {f: [] for f in fs.FOPS}                         # (дата, сума) — уже розподілені / вибрані вручну
     inc_cache: dict = {}
-    for x in rows_all:
-        r = x["r"]
-        if x["status"] == "paid" or not x["amount"]:
-            x["rec"], x["proj"] = None, {}
-            continue
-        d = max(r.plan_date or today, today)
+
+    def state(f, d):
         if d not in inc_cache:
             inc_cache[d] = fs.income_until(db, d, today)
-        proj = {}
-        for f in fs.FOPS:
-            others = sum(a for dd, a, rid in planned[f] if dd <= d and rid != r.id)
-            cal = sum(a for dd, a in paycal_out.get(f, []) if dd <= d)
-            proj[f] = round(bal.get(f, 0) + inc_cache[d].get(f, 0) - others - cal - x["amount"], 2)
+        return (bal.get(f, 0) + inc_cache[d].get(f, 0) - sum(a_ for dd, a_ in alloc[f] if dd <= d)
+                - sum(a_ for dd, a_ in paycal_out.get(f, []) if dd <= d))
+    live = [x for x in rows_all if x["status"] != "paid" and x["amount"]]
+    for x in live:                                           # вибрані вручну ФОП — спершу
+        if x["r"].fop in fs.FOPS:
+            alloc[x["r"].fop].append((max(x["r"].plan_date or today, today), x["amount"]))
+    for x in sorted(live, key=lambda x: (max(x["r"].plan_date or today, today), -x["amount"])):
+        r = x["r"]
+        d = max(r.plan_date or today, today)
+        if r.fop in fs.FOPS:                                 # уже враховано — показуємо стан без цієї оплати
+            proj = {f: round(state(f, d) + (x["amount"] if f == r.fop else 0) - x["amount"], 2) for f in fs.FOPS}
+        else:
+            proj = {f: round(state(f, d) - x["amount"], 2) for f in fs.FOPS}
         x["proj"] = proj
-        x["rec"] = max(proj, key=lambda f: proj[f] - funds[f]["target"])     # де після оплати найменше «не дотягуємо» до норми
-        out.setdefault(r.grp or "cosmetics", []).append(x)
+        x["rec"] = max(fs.FOPS, key=lambda f: proj[f] / tgt[f])
+        if r.fop not in fs.FOPS:
+            alloc[x["rec"]].append((d, x["amount"]))
     for x in rows_all:
-        if x["status"] == "paid":
-            out.setdefault(x["r"].grp or "cosmetics", []).append(x)
+        x.setdefault("rec", None)
+        x.setdefault("proj", {})
+        out.setdefault(x["r"].grp or "cosmetics", []).append(x)
     order = {"paid": 4, "approved": 1, "ordered": 0, "waiting": 2}
     for k in out:
         out[k].sort(key=lambda x: (order[x["status"]], -(x["amount"] or 0), x["r"].supplier.lower()))
