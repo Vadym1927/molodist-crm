@@ -546,6 +546,18 @@ async def lifespan(app: FastAPI):
             log.info("amort setup: %s", _r)
     except Exception as e:          # noqa: BLE001
         log.warning("amort setup failed: %s", e)
+    try:                              # разово: дублі після подвійного запису архіву 09.11.2026 (погоджено власником: 40 файлів + 1 план)
+        from .services import bulk_docs as _bd
+        with SessionLocal() as db:
+            if not db.get(SyncState, "docs_archive_dedupe_20261109"):
+                _d = _bd.find_dups(db)
+                _n = (len(_d["files"]), len(_d["plans"]))
+                _res = _bd.remove_dups(db) if _n == (40, 1) else {"skipped": list(_n)}
+                db.merge(SyncState(key="docs_archive_dedupe_20261109", value=json.dumps(_res), updated_at=datetime.utcnow()))
+                db.commit()
+                log.info("docs archive dedupe: %s", _res)
+    except Exception as e:          # noqa: BLE001
+        log.warning("docs archive dedupe failed: %s", e)
     if settings.telegram_bot_token:
         from .integrations.telegram_bot import make_bot
         bot, dp = make_bot()
