@@ -5780,7 +5780,7 @@ async def docs_archive_apply(request: Request, user: User = Depends(require("mig
 
 
 @app.get("/data/docs-archive/dups")
-def docs_archive_dups(user: User = Depends(_owner), db: Session = Depends(db_dep)):
+def docs_archive_dups(user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
     """Дублі після подвійного запису архіву (лише перегляд)."""
     from .services import bulk_docs
     d = bulk_docs.find_dups(db)
@@ -5790,7 +5790,7 @@ def docs_archive_dups(user: User = Depends(_owner), db: Session = Depends(db_dep
 
 
 @app.post("/data/docs-archive/dups/remove")
-def docs_archive_dups_remove(user: User = Depends(_owner), db: Session = Depends(db_dep)):
+def docs_archive_dups_remove(user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
     from .services import bulk_docs
     rep = bulk_docs.remove_dups(db)
     audit(db, "docs_archive.dedupe", user=user, **rep)
