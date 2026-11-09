@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Залишки препаратів{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+{% macro u(v) %}{% if v is none %}—{% else %}{{ (('{:,.2f}').format(v or 0)).replace(',', ' ').replace('.', ',') }}{% endif %}{% endmacro %}
+{% macro g(v) %}{{ ('%g' % v) if v is not none else '—' }}{% endmacro %}
+<style>
+.dg{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:14px 16px;margin-bottom:14px;overflow-x:auto}
+.dg-h{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}.dg-h h3{margin:0;font:700 17px var(--sans);text-transform:none;letter-spacing:0}
+.promo{display:flex;gap:6px;align-items:center;background:#FFF7E8;border:1px solid #F3DFB5;border-radius:12px;padding:6px 10px;font-size:12.5px;margin-bottom:8px}.promo input{height:30px;flex:1;margin:0;font-size:12.5px;background:transparent;border:0}
+.dt{width:100%;border-collapse:collapse;font-size:12.5px;min-width:1050px}.dt th{text-align:right;font:700 10px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:#8a8496;padding:6px;border-bottom:1px solid #ECE7E1;white-space:nowrap}
+.dt th:first-child,.dt td:first-child,.dt th.l,.dt td.l{text-align:left}.dt td{padding:6px;text-align:right;border-bottom:1px solid #F6F3EF;vertical-align:top}
+.dt input{width:64px;height:30px;text-align:right;padding:0 6px;margin:0;font-size:12.5px}.dt input.c{width:84px}.dt tr.need td{background:#FFFBF2}.dt td.low{color:#B23B2E;font-weight:700}
+.dt tr.tot td{font-weight:800;border-top:1px solid #E4DEEF;border-bottom:0}.pts{font-size:11px;color:#6b6575;text-align:left!important;max-width:260px}.mini{font-size:11px;color:#8a8496}
+.seg{display:flex;gap:6px}.seg a{padding:7px 12px;border-radius:10px;background:#fff;border:1px solid #ECE7E1;text-decoration:none;font:700 12.5px var(--sans);color:#3B3050}.seg a.on{background:var(--deep);color:#fff;border-color:var(--deep)}
+</style>
+<div class="row between" style="align-items:flex-end;flex-wrap:wrap;gap:10px">
+  <div><h1>Залишки препаратів</h1><div class="muted small">Ін'єкційний і класичний склад по постачальниках. Потрібно замовити = критичний залишок + потреба на місяць за записами (процедури × к-сть з техкарти) − в наявності. Ціна — з останньої поставки. Кількість і ціну можна змінити (акції, кратність флаконів) — «Сформувати замовлення» створить замовлення й суму в календарі оплат складу.</div></div>
+  <div class="seg"><span class="mini" style="align-self:center">пацієнти на:</span>{% for k in (1, 2, 3) %}<a href="?m={{ k }}{{ '&all=1' if v.show_all }}" class="{{ 'on' if v.months == k }}">{{ k }} міс.</a>{% endfor %}
+    <a href="?m={{ v.months }}{{ '' if v.show_all else '&all=1' }}">{{ 'лише потрібні' if v.show_all else 'усі препарати' }}</a><a href="/stock/paycal">Календар оплат</a></div>
+</div>
+{% if qp.get('msg') %}<div class="alert ok">{{ qp.get('msg') }}</div>{% endif %}{% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+<div class="muted small" style="margin:8px 0 12px">Разом до замовлення: <b>{{ u(v.total) }} ₴</b></div>
+{% for gr in v.groups %}
+<div class="dg" id="g-{{ gr.supplier }}">
+  <div class="dg-h"><h3>{{ gr.supplier }} <span class="mini">· {{ gr.rows|length }} препаратів{% if gr.need_n %} · замовити {{ gr.need_n }}{% endif %}</span></h3>
+    {% if gr.order %}<a class="mini" href="/stock/docs/{{ gr.order.id }}">є замовлення {{ gr.order.number }}</a>{% endif %}</div>
+  <form method="post" action="/stock/drugs/promo" class="promo"><span>🏷 Акції:</span><input type="hidden" name="s" value="{{ gr.supplier }}"><input name="text" value="{{ gr.promo or '' }}" placeholder="акційні пропозиції постачальника (−30% від 3 од., 4+1 …)" onchange="this.form.submit()"></form>
+  <form method="post" action="/stock/drugs/order" onsubmit="return confirm('Сформувати замовлення {{ gr.supplier }}?')"><input type="hidden" name="s" value="{{ gr.supplier }}">
+  <table class="dt"><tr><th>Препарат</th><th>На 1 проц.</th><th>Критичний</th><th>В наявності</th><th>Процедур / міс</th><th>Потрібно замовити</th><th>Ціна (остання поставка)</th><th>Сума</th><th class="l">Пацієнти на {{ v.months }} міс.</th></tr>
+  {% for r in gr.rows %}<tr class="{{ 'need' if r.need }}" data-pid="{{ r.p.id }}"><td><a href="/products/{{ r.p.id }}" target="_blank">{{ r.p.name }}</a></td>
+    <td>{{ g(r.per) if r.per else '—' }} <span class="mini">{{ r.unit }}</span></td><td>{{ r.min or '—' }}</td><td class="{{ 'low' if r.low }}">{{ g(r.stock) }}</td>
+    <td>{{ r.n1 or '' }}{% if r.q1 %} <span class="mini">({{ g(r.q1) }} {{ r.unit }})</span>{% endif %}</td>
+    <td><input name="q_{{ r.p.id }}" value="{{ r.need or '' }}" inputmode="decimal" oninput="dsSum(this)"></td>
+    <td><input class="c" name="c_{{ r.p.id }}" value="{{ ('%.2f' % r.price) if r.price else '' }}" inputmode="decimal" oninput="dsSum(this)">{% if r.pdate %}<div class="mini">{{ r.pdate.strftime('%d.%m.%Y') }}</div>{% endif %}</td>
+    <td class="sum">{{ u(r.sum) if r.sum else '' }}</td>
+    <td class="pts">{% for d, n in r.pts[:8] %}{{ d.strftime('%d.%m') }} {{ n }}{{ ', ' if not loop.last }}{% endfor %}{% if r.pts|length > 8 %} +{{ r.pts|length - 8 }}{% endif %}</td></tr>{% endfor %}
+  <tr class="tot"><td>Сума по постачальнику</td><td></td><td></td><td></td><td></td><td></td><td></td><td class="gsum">{{ u(gr.total) }}</td><td style="text-align:left"><button class="btn" style="height:32px">Сформувати замовлення</button></td></tr></table></form>
+</div>
+{% else %}<div class="muted">Немає препаратів на ін'єкційному / класичному складі.</div>{% endfor %}
+<script>
+const n=v=>{v=String(v||'').replace(/\s/g,'').replace(',','.');return parseFloat(v)||0};
+const f=x=>x.toLocaleString('uk-UA',{minimumFractionDigits:2,maximumFractionDigits:2});
+function dsSum(el){const tb=el.closest('table');let t=0;tb.querySelectorAll('tr[data-pid]').forEach(tr=>{const id=tr.dataset.pid,s=n(tr.querySelector(`[name=q_${id}]`).value)*n(tr.querySelector(`[name=c_${id}]`).value);tr.querySelector('.sum').textContent=s?f(s):'';t+=s});tb.querySelector('.gsum').textContent=f(t)}
+</script>
+{% endblock %}

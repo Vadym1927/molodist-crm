@@ -6030,6 +6030,40 @@ def stock_doc_pay(did: int, action: str = Form("paid"), fop: str = Form(""), amo
     return RedirectResponse(f"/stock/docs/{did}#pay", 303)
 
 
+@app.get("/stock/drugs", response_class=HTMLResponse)
+def stock_drugs_page(request: Request, m: int = 1, all: str = "", user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .services import drug_stock as ds
+    return render(request, "stock_drugs.html", nav="stock", v=ds.build(db, months=m if m in (1, 2, 3) else 1, show_all=bool(all)))
+
+
+@app.post("/stock/drugs/order")
+async def stock_drugs_order(request: Request, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .services import order_builder as ob
+    f = await request.form()
+    sup = str(f.get("s") or "").strip()
+    lines = []
+    for k, v in f.items():
+        if k.startswith("q_"):
+            pid = int(k[2:])
+            q, c = _num(str(v or "")), _num(str(f.get(f"c_{pid}") or ""))
+            if q and q > 0:
+                lines.append((pid, q, c))
+    doc = ob.create(db, sup, lines, user.id)
+    if not doc:
+        return RedirectResponse(_with_err("/stock/drugs", f"{sup}: нічого замовляти"), 303)
+    doc.note = "Сформовано із «Залишків препаратів» (критичний + потреба на місяць − в наявності)"
+    db.commit()
+    audit(db, "stock.drugs_order", "stock_doc", doc.id, user=user, supplier=sup, lines=len(lines))
+    return RedirectResponse(_with_msg("/stock/paycal", f"Замовлення {sup} ({doc.number}) сформовано — сума в календарі оплат складу"), 303)
+
+
+@app.post("/stock/drugs/promo")
+def stock_drugs_promo(s: str = Form(...), text: str = Form(""), user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .services import drug_stock as ds
+    ds.save_promo(db, s, text)
+    return RedirectResponse(f"/stock/drugs#g-{quote(s)}", 303)
+
+
 @app.get("/stock/paycal", response_class=HTMLResponse)
 def stock_paycal_page(request: Request, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
     from .services import stock_paycal as sp
