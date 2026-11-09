@@ -8088,6 +8088,21 @@ def stock_invoice_paid(iid: int, back: str = Form("/stock?tab=suppliers"), note:
     return RedirectResponse(back if back.startswith("/stock") else "/stock?tab=suppliers", 303)
 
 
+@app.post("/stock/invoices/{iid:int}/free")
+def stock_invoice_free(iid: int, back: str = Form("/stock?tab=suppliers"), note: str = Form(""),
+                       user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Безоплатно: подарунок / повернення / інвентаризація — борг поставки закривається без оплати (знижка на всю суму боргу)."""
+    from .models import SupplierInvoice
+    x = db.get(SupplierInvoice, iid)
+    if x and x.debt > 0:
+        d = x.debt
+        x.adjust = round((x.adjust or 0) + d, 2)
+        x.adjust_note = (note.strip() or "подарунок / без оплати")[:250] + f" · {user.name} {date.today():%d.%m.%Y}"
+        db.commit()
+        audit(db, "stock.invoice_free", user=user, invoice=x.cb_number, amount=d, note=x.adjust_note)
+    return RedirectResponse(back if back.startswith("/stock") else "/stock?tab=suppliers", 303)
+
+
 @app.post("/stock/norms")
 def stock_norm_add(service_id: int = Form(...), product: str = Form(...), qty: str = Form("1"), warehouse: str = Form(""),
                    techcard: str = Form(""), user: User = Depends(require("stock")), db: Session = Depends(db_dep)):

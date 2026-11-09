@@ -73,3 +73,22 @@ def test_act_parse_and_compare(tmp_path):
         p2 = ca.parse(rows)
         c2 = ca.compare(db, "АКТ ТЕСТ", p2)
         assert c2["docs"][0]["ok"] and not c2["docs"][1]["ok"] and c2["s_debt"] == 1704
+
+
+def test_invoice_free_endpoint():
+    from fastapi.testclient import TestClient
+    from app.config import settings
+    from app.main import app
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        x = SupplierInvoice(cb_number="GIFT1", inv_date=datetime(2026, 9, 14), supplier="ЕСТЕТ ТЕСТ", amount=2244, paid=0)
+        db.add(x)
+        db.commit()
+        iid = x.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        r = c.post(f"/stock/invoices/{iid}/free", data={"note": "подарунок", "back": "/stock?tab=suppliers"}, follow_redirects=False)
+        assert r.status_code == 303
+    with SessionLocal() as db:
+        x = db.get(SupplierInvoice, iid)
+        assert x.debt == 0 and x.adjust == 2244 and x.adjust_note.startswith("подарунок") and not x.paid

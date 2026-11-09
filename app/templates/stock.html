@@ -264,9 +264,11 @@ dialog.sk-imp{border:0;border-radius:20px;padding:0;width:min(560px,96vw);box-sh
   {% for x in invoices %}<tr><td class="small">{{ x.inv_date|dt('%d.%m.%Y %H:%M') }}</td><td>{{ x.cb_number }}</td>{% if not sel %}<td><a href="?tab=suppliers&s={{ x.supplier|urlencode }}">{{ x.supplier }}</a></td>{% endif %}
     <td class="small">{{ WAREHOUSES.get(x.warehouse) or x.warehouse_name or '—' }}</td><td class="r">{{ x.amount|uah }}</td><td class="r">{{ x.paid|uah if x.paid else '—' }}</td>
     <td class="r">{% if x.debt > 1 %}<b style="color:var(--bad)">{{ x.debt|uah }}</b>{% else %}<span style="color:var(--ok)">✓</span>{% endif %}</td>
-    <td class="small">{{ x.author or '' }}</td><td class="small">{{ x.paid_note or x.comment or '' }}{% if x.status == 'Чернетка' %} <span class="pill draft">чернетка</span>{% endif %}</td>
+    <td class="small">{{ x.author or '' }}</td><td class="small">{{ x.paid_note or x.comment or '' }}{% if x.adjust %}<div style="color:var(--ok)">без оплати {{ x.adjust|uah }} · {{ x.adjust_note }}</div>{% endif %}{% if x.status == 'Чернетка' %} <span class="pill draft">чернетка</span>{% endif %}</td>
     <td>{% if x.debt > 1 and can(user,'finance') %}<form method="post" action="/stock/invoices/{{ x.id }}/paid" onsubmit="return confirm('Відмітити поставку {{ x.cb_number }} як оплачену?')">
-      <input type="hidden" name="back" value="{{ request.url.path }}?{{ request.url.query }}#inv"><button class="btn ghost" style="padding:3px 10px">Оплачено</button></form>{% endif %}</td></tr>
+      <input type="hidden" name="back" value="{{ request.url.path }}?{{ request.url.query }}#inv"><button class="btn ghost" style="padding:3px 10px">Оплачено</button></form>
+      <form method="post" action="/stock/invoices/{{ x.id }}/free" style="margin-top:4px" onsubmit="var n=prompt('Без оплати: чому закриваємо борг поставки {{ x.cb_number }}?','подарунок'); if(n===null) return false; this.note.value=n; return true">
+      <input type="hidden" name="note"><input type="hidden" name="back" value="{{ request.url.path }}?{{ request.url.query }}#inv"><button class="btn ghost" style="padding:3px 10px">🎁 Безоплатно</button></form>{% endif %}</td></tr>
   {% else %}<tr><td colspan="10" class="muted">Поставок немає.</td></tr>{% endfor %}</tbody></table></div></div>
 {% endif %}
 
