@@ -67,7 +67,7 @@ def rows(db: Session, supplier: str, facts: dict[int, float] | None = None, bal:
         st = round(float(bal.get(p.id, 0.0)), 3)
         fact = facts.get(p.id, st)
         mn = p.min_stock or 0
-        need = max(0, int(round(mn - min(st, fact))))
+        need = max(0, int(round(mn - max(min(st, fact), 0)))) if mn > 0 else 0
         price = last_cost.get(p.id) or float(p.cost or 0) or None
         out.append({"p": p, "sku": p.sku or "", "min": mn, "stock": st, "fact": fact, "need": need, "price": price,
                     "sum": round(need * (price or 0), 2)})
