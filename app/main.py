@@ -5720,6 +5720,15 @@ async def patients_photos_import_cb(request: Request, user: User = Depends(requi
     return {"ok": True, "job": job.id, "files": len(files)}
 
 
+@app.post("/patients/photos/audit-cb")
+async def patients_photos_audit_cb(request: Request, user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
+    """Звірка фото з CleverBox без змін: у кого в CRM лежать чужі файли (список зібрано у веб-кабінеті)."""
+    from .services import cb_photos
+    data = await request.json()
+    by = "record" if data.get("by") == "record" else "client"
+    return await asyncio.to_thread(cb_photos.audit, data.get("files") or [], by)
+
+
 @app.post("/finance/ops/import-cb-web")
 async def finops_import_cb_web(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     """Журнал фіноперацій із веб-кабінету CleverBox (зібраний у браузері) → CbFinOp; в автономному режимі — лише до дати переходу."""

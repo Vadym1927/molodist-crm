@@ -118,3 +118,39 @@ def run(job, files: list, by: str = "client") -> dict:
             job.log(f"Завантажено {rep['saved']} з {len(todo)} ({rep['bytes'] // (1024 * 1024)} МБ), помилок {rep['failed']}")
     http.close()
     return rep
+
+
+def audit(files: list, by: str = "client") -> dict:
+    """Звірка без змін: у кого в CRM файл CleverBox лежить не в того пацієнта.
+    files — свіжий список з карток CleverBox [cb_client_id|record_id, cb_file_id, ...]. Повертає пацієнтів із чужими файлами,
+    файли CleverBox, яких у CRM немає, і файли CRM з cb_file_id, яких у списку немає (невідомо чиї)."""
+    with SessionLocal() as db:
+        by_cb = _by_record(db) if by == "record" else \
+            {p.cleverbox_id: p.id for p in db.scalars(select(Patient).where(Patient.cleverbox_id.is_not(None)))}
+        names = {p.id: (p.full_name or f"#{p.id}") for p in db.scalars(select(Patient))}
+        cbid = {p.id: p.cleverbox_id for p in db.scalars(select(Patient))}
+        have = {x: pid for x, pid in db.execute(select(PatientFile.cb_file_id, PatientFile.patient_id).where(PatientFile.cb_file_id.is_not(None)))}
+    wrong: dict[int, list] = {}          # пацієнт CRM, у якого лежить чужий файл → [(fid, правильний пацієнт)]
+    missing, no_patient, seen = 0, 0, set()
+    for f in files:
+        try:
+            cid, fid = int(f[0]), int(f[1])
+        except (TypeError, ValueError, IndexError):
+            continue
+        seen.add(fid)
+        owner = by_cb.get(cid)
+        if owner is None:
+            no_patient += 1
+            continue
+        cur = have.get(fid)
+        if cur is None:
+            missing += 1
+        elif cur != owner:
+            wrong.setdefault(cur, []).append((fid, owner))
+    unknown = [fid for fid in have if fid not in seen]
+    rows = sorted(({"patient_id": pid, "name": names.get(pid), "cb_id": cbid.get(pid), "files": len(v),
+                    "owners": sorted({names.get(o) or f"#{o}" for _, o in v})} for pid, v in wrong.items()),
+                  key=lambda r: -r["files"])
+    return {"files": len(files), "wrong_patients": len(rows), "wrong_files": sum(r["files"] for r in rows), "rows": rows,
+            "missing_in_crm": missing, "no_patient": no_patient, "unknown_in_crm": len(unknown)}
+
