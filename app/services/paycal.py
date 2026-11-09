@@ -138,7 +138,20 @@ def match_paid(db: Session, items: list[PayItem]) -> int:
 
 def pay(db: Session, it: PayItem, amount: float, day: date, cashbox: str | None, user_id: int | None, comment: str = "") -> FinOp:
     """Кнопка «Оплачено»: створює витрату в журналі й закриває платіж (амортизація / зарплата — окремо, див. pay_dynamic)."""
-    if dyn_kind(it) in ("amort_device", "amort_cons", "salary_doc", "salary_adm"):
+    if dyn_kind(it) == "salary_one":
+        from .fin_articles import salary_names
+        sal = it.article if it.article in salary_names(db) else salary_names(db)[0]
+        did = int((it.ref or "").split(":")[2])
+        op = FinOp(day=day, kind="expense", category=sal[:60], amount=round(float(amount), 2), cashbox=(cashbox or it.cashbox or None), doctor_id=did,
+                   counterparty=(it.counterparty or None), comment=(comment or f"Платіжний календар: {it.name}")[:500], created_by=user_id, ref=f"paycal:{it.id}")
+        db.add(op)
+        db.flush()
+        it.status, it.finop_id, it.paid_at, it.amount_fact = "paid", op.id, day, op.amount
+        if cashbox:
+            it.cashbox = cashbox
+        db.commit()
+        return op
+    if dyn_kind(it) in ("amort_device", "amort_cons"):
         op = pay_dynamic(db, it, amount, day, cashbox, user_id, comment)
         if op or it.status == "paid":
             return op
@@ -295,6 +308,8 @@ def month_view(db: Session, y: int, m: int, group: str = "", status: str = "", t
     items = db.scalars(select(PayItem).where(PayItem.due >= first - timedelta(days=45), PayItem.due <= last).order_by(PayItem.due, PayItem.id)).all()
     match_paid(db, [i for i in items if not dyn_kind(i)])
     refresh_dynamic(db, items, today)
+    items = db.scalars(select(PayItem).where(PayItem.due >= first - timedelta(days=45), PayItem.due <= last,
+                                             (PayItem.ref.is_(None)) | (PayItem.ref != "split-parent")).order_by(PayItem.due, PayItem.id)).all()
     overdue = [i for i in items if i.due < first and i.status in ("planned", "approved")]      # хвости минулих місяців
     cur = [i for i in items if first <= i.due <= last]
     shown = cur
@@ -467,6 +482,13 @@ DYN_NOTE = {"amort_device": "Нараховано й не погашено (ви
 
 
 def dyn_kind(it) -> str | None:
+    ref = it.ref or ""
+    if ref.startswith("sal:"):
+        return "salary_one"
+    if ref.startswith("cosm:"):
+        return "cosm_one"
+    if ref == "split-parent":
+        return "split"
     name = (it.plan.name if getattr(it, "plan", None) else None) or it.name or ""
     return next((k for k, rx in DYN_RE if rx.search(name)), None)
 
@@ -525,10 +547,14 @@ def refresh_dynamic(db: Session, items: list[PayItem], today: date | None = None
     """Суми амортизації / зарплати / % косметики рахуються наживо. Минулі неоплачені одного виду зводяться в останній
     (решта — «пропущено»), якщо борг уже погашено у вкладці — платіж закривається сам. Майбутній — прогноз."""
     today = today or date.today()
+    if split_people(db, items, today):
+        items = list(items) + db.scalars(select(PayItem).where(PayItem.ref.like("sal:%") | PayItem.ref.like("cosm:%"),
+                                                               PayItem.due >= min(i.due for i in items), PayItem.due <= max(i.due for i in items))).all()
+    refresh_people(db, items, today)
     by: dict = defaultdict(list)
     for it in items:
         k = dyn_kind(it)
-        if k and it.status in ("planned", "approved"):
+        if k and k.startswith("amort") and it.status in ("planned", "approved"):
             by[k].append(it)
     changed = False
     cache: dict = {}
@@ -699,3 +725,98 @@ def setup_v2(db: Session, today: date | None = None) -> bool:
                                    "monthly": "6500", "next": "2026-11-15" if today <= date(2026, 11, 15) else str(today.replace(day=15)),
                                    "note": "6 500 ₴ щомісяця 15-го"})
     return True
+
+
+# ---------------- зарплата й % косметики — окремим платежем на кожного співробітника ----------------
+SPLIT_KINDS = ("salary_doc", "salary_adm", "cosm")
+
+
+def _staff(db: Session, kind: str) -> list:
+    """Хто отримує: працюючі співробітники цієї ролі з окладом у картці або з боргом на балансі."""
+    from ..models import Doctor
+    from . import payroll_docs, payroll_share
+    want = "doctor" if kind == "salary_doc" else "admin"
+    bal = payroll_docs.balances(db)
+    out = []
+    for d in db.scalars(select(Doctor).order_by(Doctor.name)):
+        if payroll_share.role_of(d) != want:
+            continue
+        if (d.active and (d.extra or {}).get("salary")) or bal.get(d.id, 0) > 0.009:
+            out.append(d)
+    return out
+
+
+def split_people(db: Session, items: list[PayItem], today: date) -> bool:
+    """Загальний платіж «Зарплата спеціалістів» / «Виплати адміністраторам» / «Відсотки від косметики» → рядок на кожного."""
+    made = False
+    for it in items:
+        k = dyn_kind(it)
+        if k not in SPLIT_KINDS or it.status not in ("planned", "approved") or not it.plan_id:
+            continue
+        if not (today - timedelta(days=45) <= it.due <= today + timedelta(days=40)):
+            continue
+        if k == "cosm":
+            _amt, rows = _cosm_due(db, it.due)
+            people = [(n[:40], n, None) for n, _v in rows if n != "Без ініціатора"]
+            base = "% косметики"
+        else:
+            people = [(str(d.id), d.name, d.id) for d in _staff(db, k)]
+            base = "Зарплата" if k == "salary_doc" else "Виплата"
+        if not people:
+            continue
+        pre = ("cosm" if k == "cosm" else "sal")
+        have = {i.ref for i in db.scalars(select(PayItem).where(PayItem.due == it.due, PayItem.ref.like(f"{pre}:{it.plan_id}:%")))}
+        for key, name, _did in people:
+            ref = f"{pre}:{it.plan_id}:{key}"
+            if ref in have:
+                continue
+            db.add(PayItem(due=it.due, name=f"{base} · {name}"[:200], group=it.group, article=it.article, cashbox=it.cashbox, counterparty=name[:200],
+                           status=it.status, source="plan", ref=ref))
+            made = True
+        it.ref, it.status, it.amount, it.note = "split-parent", "skipped", None, "Розбито по співробітниках"
+        made = True
+    if made:
+        db.commit()
+    return made
+
+
+def refresh_people(db: Session, items: list[PayItem], today: date) -> None:
+    """Суми по кожному: зарплата — баланс співробітника (нараховано − виплачено), % косметики — за попередній місяць."""
+    from . import payroll_docs
+    bal = None
+    by: dict = defaultdict(list)
+    for it in items:
+        if dyn_kind(it) in ("salary_one", "cosm_one") and it.status in ("planned", "approved"):
+            by[it.ref].append(it)
+    if not by:
+        return
+    cosm_cache: dict = {}
+    for ref, its in by.items():
+        its.sort(key=lambda i: i.due)
+        if ref.startswith("cosm:"):
+            key = ref.split(":", 2)[2]
+            for it in its:
+                pm = it.due.replace(day=1) - timedelta(days=1)
+                if pm not in cosm_cache:
+                    cosm_cache[pm] = {n[:40]: v for n, v in _cosm_due(db, it.due)[1]}
+                it.amount = cosm_cache[pm].get(key) or None
+                it.note = f"% з продажу косметики за {MONTHS[pm.month - 1].lower()} — після ручного погодження"
+            continue
+        bal = bal if bal is not None else payroll_docs.balances(db)
+        did = int(ref.split(":")[2])
+        b = round(bal.get(did, 0.0), 2)
+        past = [i for i in its if i.due <= today]
+        fut = [i for i in its if i.due > today]
+        if past:
+            for it in past[:-1]:
+                it.status, it.note = "skipped", f"Сума перейшла в платіж {past[-1].due.strftime('%d.%m')}"
+            last = past[-1]
+            if b > 0.009:
+                last.amount, last.note = b, "Баланс: нараховано − виплачено"
+            elif _payroll_covered(db, last.due):
+                last.status, last.amount_fact, last.paid_at, last.note = "paid", 0.0, today, "Виплачено поза календарем"
+            else:
+                last.amount, last.note = None, "Нарахування за період ще немає — Фінанси → Нарахування зарплати → «На баланс»"
+        for it in fut:
+            it.amount, it.note = None, "Сума зʼявиться після нарахування за період"
+    db.commit()

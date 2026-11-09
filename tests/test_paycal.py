@@ -152,9 +152,12 @@ def test_dynamic_salary_and_setup_v2():
         db.commit()
         pc.ensure_month(db, 2026, 11)
         pc.month_view(db, 2026, 11, today=date(2026, 11, 17))
-        its = sorted(db.scalars(select(PayItem).where(PayItem.plan_id == p.id)).all(), key=lambda i: i.due)
-        assert its[0].status == "skipped" and its[1].amount == 12000 and "Лікар Дин" in its[1].note
-        pc.pay(db, its[1], 12000, date(2026, 11, 17), "Готівка", None)
+        parents = db.scalars(select(PayItem).where(PayItem.plan_id == p.id)).all()
+        assert all(i.ref == "split-parent" for i in parents)
+        mine = sorted(db.scalars(select(PayItem).where(PayItem.ref == f"sal:{p.id}:{d1.id}")).all(), key=lambda i: i.due)
+        assert mine[0].status == "skipped" and mine[1].amount == 12000 and mine[1].name == "Зарплата · Лікар Дин"
+        assert not db.scalars(select(PayItem).where(PayItem.ref == f"sal:{p.id}:{d2.id}")).all()      # адмін — у своєму платежі
+        pc.pay(db, mine[1], 12000, date(2026, 11, 17), "Готівка", None)
         from app.services import payroll_docs
         assert payroll_docs.balances(db)[d1.id] == 0 and payroll_docs.balances(db)[d2.id] == 5000
         # закупівлі
