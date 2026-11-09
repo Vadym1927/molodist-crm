@@ -766,6 +766,28 @@ class Supplier(Base):
     consignment: Mapped[bool | None] = mapped_column(Boolean)      # товар під реалізацію: платимо за продане (звіти реалізації)
 
 
+class StockPayRow(Base):
+    """Календар оплат складу: оплата постачальнику за цикл (замовлення → погодження → оплата з ФОП).
+    Планова сума — із замовлення (або оцінка за критичними залишками, поки замовлення немає)."""
+    __tablename__ = "stock_pay_rows"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    supplier: Mapped[str] = mapped_column(String(200), index=True)
+    grp: Mapped[str | None] = mapped_column(String(12))                     # inject | cosmetics | single
+    fop: Mapped[str | None] = mapped_column(String(40))                      # ФОП Колган | ФОП Бондар | Готівка | None — очікує вибору
+    fact_amount: Mapped[float | None] = mapped_column(Float)                 # сума з рахунку постачальника
+    plan_date: Mapped[date | None] = mapped_column(Date)
+    approved: Mapped[bool | None] = mapped_column(Boolean)
+    approved_by: Mapped[int | None] = mapped_column(Integer)
+    order_doc_id: Mapped[int | None] = mapped_column(Integer)
+    paid_at: Mapped[date | None] = mapped_column(Date)
+    paid_amount: Mapped[float | None] = mapped_column(Float)
+    paid_ref: Mapped[str | None] = mapped_column(String(80))                 # bank:<id> | finop:<id> | manual
+    paid_fop: Mapped[str | None] = mapped_column(String(100))
+    closed: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    note: Mapped[str | None] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class ConsignLot(Base):
     """Реалізація: рядок поставки під реалізацію — товар, к-сть, ціна банки; sold — скільки вже включено у зафіксовані звіти."""
     __tablename__ = "consign_lots"

@@ -91,7 +91,7 @@ FIN_TABS = [("/finance", "Огляд"), ("/sales", "Каса CRM"), ("/finance/o
             ("/finance/payroll", "ЗП за місяць"),
             ("/finance/settle", "Взаєморозрахунки по з/п"), ("/finance/day", "Продажі за день"), ("/finance/sales", "Продажі"),
             ("/finance/balances", "Баланс пацієнтів"), ("/finance/bonuses", "Рух бонусів"), ("/payreq", "Рахунки на оплату"),
-            ("/finance/calendar", "Платіжний календар"),
+            ("/finance/calendar", "Платіжний календар"), ("/finance/fop-schedule", "Графік ФОПів"),
             ("/finance/pricing", "Планування ціни реалізації"), ("/finance/service-pricing", "Планування ціни послуг"),
             ("/amort", "Амортизація обладнання")]
 def _site_url(request) -> str:
@@ -6030,6 +6030,91 @@ def stock_doc_pay(did: int, action: str = Form("paid"), fop: str = Form(""), amo
     return RedirectResponse(f"/stock/docs/{did}#pay", 303)
 
 
+@app.get("/stock/paycal", response_class=HTMLResponse)
+def stock_paycal_page(request: Request, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .services import stock_paycal as sp
+    sp.close_paid(db)
+    return render(request, "stock_paycal.html", nav="stock", v=sp.build(db))
+
+
+@app.post("/stock/paycal/{rid:int}")
+async def stock_paycal_edit(rid: int, request: Request, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .models import StockPayRow
+    from .services import stock_paycal as sp
+    r = db.get(StockPayRow, rid) or (_ for _ in ()).throw(HTTPException(404))
+    f = await request.form()
+    act = str(f.get("act") or "save")
+    if act == "approve":
+        if user.role != "owner":
+            return RedirectResponse(_with_err("/stock/paycal", "Дозвіл на оплату дає власник"), 303)
+        r.approved, r.approved_by = not r.approved, user.id
+    elif act == "paid":
+        r.paid_at, r.paid_amount, r.paid_ref = date.today(), r.fact_amount, "manual"
+    elif act == "unpaid":
+        r.paid_at = r.paid_amount = r.paid_ref = r.paid_fop = None
+    else:
+        if "fop" in f:
+            v = str(f.get("fop") or "")
+            r.fop = v if v in sp.FOP_CHOICES else None
+        if "fact" in f:
+            r.fact_amount = _num(str(f.get("fact") or ""))
+        if "plan_date" in f:
+            r.plan_date = _day(str(f.get("plan_date") or ""))
+        if "grp" in f and f.get("grp") in dict(sp.GROUPS):
+            r.grp = str(f.get("grp"))
+        if "note" in f:
+            r.note = str(f.get("note") or "").strip()[:300] or None
+    db.commit()
+    audit(db, f"stock.paycal.{act}", "stock_pay_row", rid, user=user, supplier=r.supplier)
+    return RedirectResponse(f"/stock/paycal#r{rid}", 303)
+
+
+@app.get("/finance/fop-schedule", response_class=HTMLResponse)
+def fop_schedule_page(request: Request, start: str = "", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import fop_schedule as fs
+    return render(request, "fin_fop_schedule.html", nav="finance", v=fs.view(db, _day(start) or date.today()), FIN_TABS=FIN_TABS)
+
+
+@app.post("/finance/fop-schedule/weekly")
+async def fop_schedule_weekly(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import fop_schedule as fs
+    f = await request.form()
+    cfg = fs.load(db)
+    weekly: dict = {}
+    for k, v in f.items():
+        if k.startswith("w_"):
+            _, wd, did = k.split("_")
+            if v in fs.FOPS:
+                weekly.setdefault(wd, {})[did] = v
+    cfg["weekly"] = weekly
+    fs.save(db, cfg)
+    audit(db, "finance.fop_schedule", user=user)
+    return RedirectResponse(_with_msg("/finance/fop-schedule", "Шаблон тижня збережено"), 303)
+
+
+@app.post("/finance/fop-schedule/day")
+async def fop_schedule_day(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import fop_schedule as fs
+    f = await request.form()
+    cfg = fs.load(db)
+    d = _day(str(f.get("day") or ""))
+    if d:
+        day = cfg["dates"].setdefault(d.isoformat(), {})
+        for k, v in f.items():
+            if k.startswith("d_"):
+                did = k[2:]
+                if v == "__tpl":
+                    day.pop(did, None)
+                else:
+                    day[did] = v if v in fs.FOPS else ""
+        if not day:
+            cfg["dates"].pop(d.isoformat(), None)
+        cutoff = (date.today() - timedelta(days=60)).isoformat()
+        cfg["dates"] = {k: v for k, v in cfg["dates"].items() if k >= cutoff}
+        fs.save(db, cfg)
+    return RedirectResponse(f"/finance/fop-schedule?start={quote(str(f.get('start') or ''))}#d{d.isoformat() if d else ''}", 303)
+
+
 @app.get("/stock/order/build", response_class=HTMLResponse)
 def stock_order_build(request: Request, s: str = "TEBISKIN", user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
     from .services import order_builder as ob
@@ -6056,7 +6141,7 @@ async def stock_order_build_post(request: Request, user: User = Depends(require(
     if not doc:
         return RedirectResponse(_with_err(f"/stock/order/build?s={quote(sup)}", "Нічого замовляти — всі позиції в нормі"), 303)
     audit(db, "stock.order_build", "stock_doc", doc.id, user=user, supplier=sup, lines=len(lines))
-    return RedirectResponse(f"/stock/docs/{doc.id}?msg=" + quote(f"Замовлення {sup} сформовано: {len(lines)} позицій"), 303)
+    return RedirectResponse(f"/stock/docs/{doc.id}?msg=" + quote(f"Замовлення {sup} сформовано: {len(lines)} позицій — сума вже в «Календарі оплат складу»"), 303)
 
 
 @app.post("/stock/order/min")

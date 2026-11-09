@@ -54,10 +54,10 @@ def supplier_products(db: Session, supplier: str) -> list[Product]:
     return out
 
 
-def rows(db: Session, supplier: str, facts: dict[int, float] | None = None) -> list[dict]:
+def rows(db: Session, supplier: str, facts: dict[int, float] | None = None, bal: dict | None = None) -> list[dict]:
     from . import stock
     facts = facts or {}
-    bal = stock.balance_by_product(db)
+    bal = bal if bal is not None else stock.balance_by_product(db)
     last_cost = {}
     for l in db.scalars(select(ConsignLot).where(ConsignLot.supplier == supplier).order_by(ConsignLot.inv_date, ConsignLot.id)):
         if l.product_id:

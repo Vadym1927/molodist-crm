@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Календар оплат складу{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+{% macro u(v) %}{% if v is none %}—{% else %}{{ (('{:,.0f}').format(v or 0)).replace(',', ' ') }}{% endif %}{% endmacro %}
+{% set ST = {'waiting': ('Очікує замовлення', 'p-g'), 'ordered': ('Замовлено', 'p-v'), 'approved': ('Дозвіл на оплату', 'p-w'), 'paid': ('Оплачено', 'p-ok')} %}
+<style>
+.sk{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:12px 0 16px}.sk div{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:12px 16px}
+.sk small{display:block;font:700 10.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#8a8496}.sk b{display:block;font:800 21px var(--sans);margin-top:4px}.sk span{font-size:12px;color:#6b6575}
+.sk div.bad b{color:#B23B2E}
+.pc{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:14px 16px;margin-bottom:14px;overflow-x:auto}.pc h3{margin:0 0 8px;font:700 16px var(--sans);text-transform:none;letter-spacing:0;display:flex;justify-content:space-between}
+.pt{width:100%;border-collapse:collapse;font-size:12.5px;min-width:1100px}.pt th{text-align:left;font:700 10px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496;padding:6px;border-bottom:1px solid #ECE7E1;white-space:nowrap}
+.pt td{padding:6px;border-bottom:1px solid #F6F3EF;vertical-align:middle}.pt td.r,.pt th.r{text-align:right;white-space:nowrap}
+.pt select,.pt input{height:30px;font-size:12.5px;padding:0 6px;margin:0}.pt input.n{width:90px;text-align:right}.pt input.d{width:128px}
+.pt tr.paid td{color:#8a8496;background:#FBFAF8}.pt tr.approved td{background:#FFFBF2}
+.pill{display:inline-block;border-radius:8px;padding:2px 8px;font:700 11px var(--sans);white-space:nowrap}.p-ok{background:#DDF1E2;color:#2f6b3b}.p-w{background:#FFF1D6;color:#8a5b00}.p-v{background:#E4DEEF;color:#3B3050}.p-g{background:#F2EFEA;color:#5d5869}
+.rec{font-size:11px;color:#5C4B82;font-weight:700}.mini{font-size:11px;color:#8a8496}.bad{color:#B23B2E;font-weight:700}.ok{color:#2f6b3b;font-weight:700}
+.btn.xs{height:28px;padding:0 9px;font-size:11.5px}
+@media(max-width:1000px){.sk{grid-template-columns:1fr 1fr}}
+</style>
+<div class="row between" style="align-items:flex-end;flex-wrap:wrap;gap:10px">
+  <div><h1>Календар оплат складу</h1><div class="muted small">Замовлення постачальникам → дозвіл на оплату → оплата з ФОП. Планова сума — із замовлення, а поки його немає — оцінка за критичними залишками (скільки доведеться дозамовити). «Оплачено» підтягується з банку. Склад оплачуємо з «Операційний Фонд» (ФОП Колган) і «Амортизаційний + Операційний Фонд» (ФОП Бондар); рекомендований ФОП — той, де з урахуванням приходу за <a href="/finance/fop-schedule">графіком ФОПів</a> і інших оплат грошей лишиться більше.</div></div>
+  <span style="display:flex;gap:8px"><a class="btn" href="/stock/order/build">⚡ Сформувати замовлення</a><a class="btn ghost" href="/stock?tab=order">Замовлення</a></span>
+</div>
+{% if qp.get('msg') %}<div class="alert ok">{{ qp.get('msg') }}</div>{% endif %}{% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+<div class="sk">
+  {% for f, box in v.FUND.items() %}<div class="{{ 'bad' if v.balances.get(f, 0) < 0 }}"><small>{{ f }} · {{ box }}</small><b>{{ u(v.balances.get(f)) }} ₴</b><span>зайде за 7 днів за графіком: {{ u(v.week.get(f)) }} ₴</span></div>{% endfor %}
+  <div><small>До оплати (план)</small><b>{{ u(v.tot.values()|map(attribute='plan')|sum) }} ₴</b><span>усі групи, без оплачених</span></div>
+  <div><small>Фактично за рахунками</small><b>{{ u(v.tot.values()|map(attribute='fact')|sum) }} ₴</b><span>сума від постачальників</span></div>
+</div>
+{% for key, title, rows in v.groups %}
+<div class="pc"><h3><span>{{ title }}</span><span class="mini">план {{ u(v.tot.get(key, {}).get('plan')) }} ₴ · факт {{ u(v.tot.get(key, {}).get('fact')) }} ₴</span></h3>
+  <table class="pt"><tr><th>Постачальник</th><th>ФОП</th><th class="r">Планова сума</th><th class="r">Фактична сума</th><th class="r">Відхилення</th><th>Планова дата</th><th>Дозвіл</th><th>Статус</th><th>Примітки</th><th></th></tr>
+  {% for x in rows %}{% set r = x.r %}<tr id="r{{ r.id }}" class="{{ x.status }}">
+    <td><form id="f{{ r.id }}" method="post" action="/stock/paycal/{{ r.id }}"></form><b>{{ r.supplier }}</b>{% if x.doc %}<div class="mini"><a href="/stock/docs/{{ x.doc.id }}">замовлення {{ x.doc.number }}</a></div>{% elif x.est %}<div class="mini">оцінка за критичними · <a href="/stock/order/build?s={{ r.supplier|urlencode }}">сформувати</a></div>{% endif %}</td>
+    <td><select form="f{{ r.id }}" name="fop" onchange="this.form.submit()"><option value="">Очікує вибору ФОП</option>{% for f in v.FOPS %}<option {{ 'selected' if r.fop == f }}>{{ f }}</option>{% endfor %}</select>
+      {% if x.rec and x.status != 'paid' %}<div class="rec" title="{% for f, p in x.proj.items() %}{{ f }}: після оплати ≈ {{ u(p) }} ₴; {% endfor %}">рекомендовано: {{ x.rec }}</div>{% endif %}</td>
+    <td class="r">{% if x.plan is not none %}<b>{{ u(x.plan) }}</b>{% elif x.est %}<span class="mini">≈</span> {{ u(x.est) }}{% else %}—{% endif %}</td>
+    <td class="r"><input form="f{{ r.id }}" class="n" name="fact" value="{{ ('%.2f' % r.fact_amount) if r.fact_amount else '' }}" inputmode="decimal" onchange="this.form.submit()"></td>
+    <td class="r">{% if x.dev is not none %}<span class="{{ 'bad' if x.dev > 0 else 'ok' }}">{{ u(x.dev) }}</span>{% endif %}</td>
+    <td><input form="f{{ r.id }}" class="d" type="date" name="plan_date" value="{{ r.plan_date.isoformat() if r.plan_date else '' }}" onchange="this.form.submit()"></td>
+    <td><form method="post" action="/stock/paycal/{{ r.id }}"><input type="hidden" name="act" value="approve"><label style="display:flex;gap:4px;align-items:center;margin:0"><input type="checkbox" {{ 'checked' if r.approved }} {{ 'disabled' if user.role != 'owner' }} onchange="this.form.submit()" style="width:auto;height:auto"></label></form></td>
+    <td><span class="pill {{ ST[x.status][1] }}">{{ ST[x.status][0] }}</span>{% if r.paid_at %}<div class="mini">{{ r.paid_at.strftime('%d.%m') }}{% if r.paid_amount %} · {{ u(r.paid_amount) }} ₴{% endif %}{% if r.paid_ref and r.paid_ref.startswith('bank') %} · банк{% endif %}{% if r.paid_fop %} · {{ r.paid_fop }}{% endif %}</div>{% endif %}</td>
+    <td><form method="post" action="/stock/paycal/{{ r.id }}"><input name="note" value="{{ r.note or '' }}" onchange="this.form.submit()" style="width:150px"><select name="grp" onchange="this.form.submit()" title="Група" style="width:34px">{% for k, t in v.GROUPS %}<option value="{{ k }}" {{ 'selected' if r.grp == k }}>{{ t }}</option>{% endfor %}</select></form></td>
+    <td>{% if x.status != 'paid' %}<form method="post" action="/stock/paycal/{{ r.id }}" onsubmit="return confirm('Відмітити оплату {{ r.supplier }} вручну?')"><input type="hidden" name="act" value="paid"><button class="btn ghost xs">Оплачено</button></form>
+        {% else %}<form method="post" action="/stock/paycal/{{ r.id }}"><input type="hidden" name="act" value="unpaid"><button class="btn ghost xs">↺</button></form>{% endif %}</td>
+  </tr>{% else %}<tr><td colspan="10" class="muted">Немає постачальників у цій групі.</td></tr>{% endfor %}</table></div>
+{% endfor %}
+{% if v.history %}<div class="pc"><h3>Оплачено раніше</h3><table class="pt"><tr><th>Постачальник</th><th>ФОП</th><th class="r">Сума</th><th>Дата оплати</th><th>Джерело</th></tr>
+  {% for r in v.history %}<tr class="paid"><td>{{ r.supplier }}</td><td>{{ r.paid_fop or r.fop or '—' }}</td><td class="r">{{ u(r.paid_amount or r.fact_amount) }}</td><td>{{ r.paid_at.strftime('%d.%m.%Y') if r.paid_at }}</td><td>{{ 'банк' if (r.paid_ref or '').startswith('bank') else ('фіноперація' if (r.paid_ref or '').startswith('finop') else 'вручну') }}</td></tr>{% endfor %}</table></div>{% endif %}
+{% endblock %}

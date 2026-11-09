@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Графік ФОПів для оплати{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+{% macro u(x) %}{% if not x %}—{% else %}{{ (('{:,.0f}').format(x)).replace(',', ' ') }}{% endif %}{% endmacro %}
+<style>
+.fin-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 16px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.fin-tabs a{padding:8px 14px;border-radius:10px;text-decoration:none;color:#3a342f;font-weight:600;font-size:14px}.fin-tabs a.on{background:var(--deep);color:#fff}
+.fpc{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:14px 16px;margin-bottom:14px;overflow-x:auto}.fpc h3{margin:0 0 8px;font:700 16px var(--sans);text-transform:none;letter-spacing:0}
+.fpt{width:100%;border-collapse:collapse;font-size:12.5px}.fpt th{font:700 10px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496;padding:6px;border-bottom:1px solid #ECE7E1;text-align:left;white-space:nowrap}
+.fpt td{padding:5px 6px;border-bottom:1px solid #F6F3EF;vertical-align:middle}.fpt td.r,.fpt th.r{text-align:right;white-space:nowrap}.fpt select{height:30px;font-size:12px;padding:0 4px;margin:0;min-width:110px}
+.fpt tr.we td{background:#FBFAF8}.fpt tr.today td{background:#F3EFF9}.f-k{color:#5C4B82;font-weight:700}.f-b{color:#2f6b3b;font-weight:700}.mini{font-size:11px;color:#8a8496}
+.fpk{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}.fpk div{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:12px 16px}
+.fpk small{display:block;font:700 10.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#8a8496}.fpk b{display:block;font:800 21px var(--sans);margin-top:4px}
+.ov{outline:2px solid #C9BFE6;border-radius:6px}
+@media(max-width:900px){.fpk{grid-template-columns:1fr 1fr}}
+</style>
+<div class="row between" style="align-items:flex-end;flex-wrap:wrap;gap:10px">
+  <div><h1>Графік ФОПів для оплати</h1><div class="muted small">Який лікар у який день працює на який ФОП — куди зайдуть гроші. Прогноз приходу = записи в календарі × ціни послуг. На основі цього <a href="/stock/paycal">календар оплат складу</a> рекомендує, з якого ФОП платити, щоб жоден рахунок не пішов у мінус.</div></div>
+  <div class="row" style="gap:6px"><a class="btn ghost" href="?start={{ v.prev.isoformat() }}">‹</a><a class="btn ghost" href="/finance/fop-schedule">Сьогодні</a><a class="btn ghost" href="?start={{ v.next.isoformat() }}">›</a></div>
+</div>
+<nav class="fin-tabs">{% for href, t in FIN_TABS %}<a href="{{ href }}" class="{{ 'on' if href == '/finance/fop-schedule' }}">{{ t }}</a>{% endfor %}</nav>
+{% if qp.get('msg') %}<div class="alert ok">{{ qp.get('msg') }}</div>{% endif %}
+<div class="fpk">
+  {% for f in v.FOPS %}<div><small>{{ f }} · прихід {{ v.start.strftime('%d.%m') }}–{{ v.end.strftime('%d.%m') }}</small><b class="{{ 'f-k' if 'Колган' in f else 'f-b' }}">{{ u(v.tot.get(f)) }} ₴</b><span class="mini">рахунок «{{ v.FUND[f] }}» зараз {{ u(v.balances.get(f)) }} ₴</span></div>{% endfor %}
+  <div><small>Без ФОП (не призначено)</small><b>{{ u(v.tot.get(None)) }} ₴</b><span class="mini">призначте лікарям ФОП у шаблоні</span></div>
+  <div><small>Разом за період</small><b>{{ u(v.tot.values()|sum) }} ₴</b></div>
+</div>
+
+<div class="fpc"><h3>Шаблон тижня: лікар → ФОП</h3>
+  <form method="post" action="/finance/fop-schedule/weekly">
+  <table class="fpt"><tr><th>Лікар</th>{% for wd in v.WEEKDAYS %}<th>{{ wd }}</th>{% endfor %}</tr>
+  {% for d in v.docs %}<tr><td><b>{{ d.name }}</b></td>{% for i in range(7) %}{% set cur = (v.cfg.weekly.get(i|string) or {}).get(d.id|string) %}
+    <td><select name="w_{{ i }}_{{ d.id }}"><option value="">—</option>{% for f in v.FOPS %}<option {{ 'selected' if cur == f }}>{{ f }}</option>{% endfor %}</select></td>{% endfor %}</tr>
+  {% else %}<tr><td colspan="8" class="muted">Немає лікарів.</td></tr>{% endfor %}</table>
+  <div style="margin-top:10px"><button class="btn">Зберегти шаблон</button></div></form>
+</div>
+
+<div class="fpc"><h3>По днях · {{ v.start.strftime('%d.%m') }}–{{ v.end.strftime('%d.%m.%Y') }}</h3>
+  <table class="fpt"><tr><th>День</th>{% for d in v.docs %}<th>{{ d.name }}</th>{% endfor %}<th class="r">ФОП Колган</th><th class="r">ФОП Бондар</th><th class="r">Без ФОП</th><th></th></tr>
+  {% for r in v.rows %}<tr id="d{{ r.day.isoformat() }}" class="{{ 'today' if r.day == v.today }} {{ 'we' if r.day.weekday() >= 5 }}">
+    <td><form id="fd{{ loop.index }}" method="post" action="/finance/fop-schedule/day"><input type="hidden" name="day" value="{{ r.day.isoformat() }}"><input type="hidden" name="start" value="{{ v.start.isoformat() }}"></form><b>{{ r.wd }} {{ r.day.strftime('%d.%m') }}</b></td>
+    {% for x in r.docs %}<td>{% if x.sum %}<div class="mini">{{ u(x.sum) }} ₴</div>{% endif %}
+      <select name="d_{{ x.d.id }}" class="{{ 'ov' if x.override }}" onchange="dSave(this)">
+        <option value="__tpl">{{ 'шаблон' }}</option>{% for f in v.FOPS %}<option {{ 'selected' if x.override and x.fop == f }}>{{ f }}</option>{% endfor %}<option value="" {{ 'selected' if x.override and not x.fop }}>не працює</option></select>
+      {% if not x.override %}<div class="mini">{{ x.fop or '—' }}</div>{% endif %}</td>{% endfor %}
+    <td class="r f-k">{{ u(r.fop.get('ФОП Колган')) }}</td><td class="r f-b">{{ u(r.fop.get('ФОП Бондар')) }}</td><td class="r">{{ u(r.fop.get(None)) }}</td><td></td></tr>{% endfor %}
+  </table>
+  <div class="mini" style="margin-top:6px">Зміна на конкретний день (обведена) має пріоритет над шаблоном тижня. «шаблон» — повернути як у шаблоні.</div>
+</div>
+<script>
+function dSave(sel){const tr=sel.closest('tr'),f=tr.querySelector('form');const fd=new FormData(f);tr.querySelectorAll('select[name^=d_]').forEach(s=>fd.append(s.name,s.value));
+  fetch(f.action,{method:'POST',body:fd}).then(()=>location.reload())}
+</script>
+{% endblock %}
