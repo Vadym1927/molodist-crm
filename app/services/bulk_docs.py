@@ -229,11 +229,22 @@ def _words(text: str) -> set[str]:
     return {w for w in re.findall(r"[a-zа-я]+", t) if len(w) >= 4}
 
 
+_PATR = re.compile(r"(вна|вич|iч|ич|кизи|огли)$")
+_NOISE = {"anti", "acne", "beauty", "beautyplan", "plan", "antiage", "antiacne", "консультативнии", "висновок", "лiкаря", "консультацiя",
+          "дерматолога", "консультативний"}
+
+
+def _name_words(text: str) -> set[str]:
+    return {w[:5] for w in _words(text) if not _PATR.search(w) and w not in _NOISE}
+
+
 def name_matches(filename: str, full_name: str | None) -> bool:
-    """Чи є в назві файлу хоч одне слово з ПІБ пацієнта (прізвище / імʼя; допускаємо різні закінчення — перші 5 літер)."""
+    """ПІБ у назві файлу збігається з пацієнтом: прізвище й імʼя (по-батькові не рахуємо — воно часто однакове в різних людей).
+    Якщо в назві або в картці лише одне слово — досить його."""
     stem = re.sub(r"^\d{6,12}__\d+__", "", PurePosixPath(filename).stem)
-    fw, pw = _words(stem.replace("_", " ")), _words(full_name or "")
-    return any(a[:5] == b[:5] for a in fw for b in pw)
+    fw, pw = _name_words(stem.replace("_", " ")), _name_words(full_name or "")
+    need = min(2, len(fw), len(pw))
+    return need > 0 and len(fw & pw) >= need
 
 
 def check(db: Session) -> dict:
@@ -250,10 +261,10 @@ def check(db: Session) -> dict:
 def candidates(db: Session, filename: str) -> list[dict]:
     """Пацієнти, чиє ПІБ збігається з назвою файлу щонайменше двома словами (для підказки правильної картки)."""
     stem = re.sub(r"^\d{6,12}__\d+__", "", PurePosixPath(filename).stem)
-    fw = {w[:5] for w in _words(stem.replace("_", " "))}
+    fw = _name_words(stem.replace("_", " "))
     out = []
     for p in db.scalars(select(Patient)):
-        n = len({w[:5] for w in _words(p.full_name)} & fw)
-        if n >= 2:
+        n = len(_name_words(p.full_name) & fw)
+        if n >= min(2, len(fw)) and n > 0:
             out.append({"id": p.id, "name": p.full_name, "phone_tail": re.sub(r"\D", "", p.phone or "")[-4:], "n": n})
     return sorted(out, key=lambda x: -x["n"])[:5]
