@@ -113,3 +113,30 @@ def test_sales_before_ledger_from_cleverbox():
             if old:
                 db.merge(SyncState(key="stock_ledger_start", value=old.isoformat(), updated_at=datetime.utcnow()))
                 db.commit()
+
+
+def test_invoice_view_and_items_upload(tmp_path):
+    from fastapi.testclient import TestClient
+    from openpyxl import Workbook
+    from app.config import settings
+    from app.main import app
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        x = SupplierInvoice(cb_number="VIEW1", inv_date=datetime(2026, 10, 21, 10), supplier="ПЕРЕГЛЯД ТЕСТ", amount=5044, paid=0)
+        db.add(x)
+        db.commit()
+        iid = x.id
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["Товар", "Кількість", "Ціна", "Сума"])
+    ws.append(["SOOTH CREAM 50 мл", 3, 1352, 4056])
+    ws.append(["SOOTH-CLEAN 200 мл", 1, 988, 988])
+    f = tmp_path / "p.xlsx"
+    wb.save(f)
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        assert c.get(f"/stock/invoices/{iid}").status_code == 200
+        r = c.post(f"/stock/invoices/{iid}/items", files={"file": ("p.xlsx", f.read_bytes())}, follow_redirects=False)
+        assert r.status_code == 303
+        page = c.get(f"/stock/invoices/{iid}").text
+        assert "SOOTH CREAM 50 мл" in page and "5 044,00" in page

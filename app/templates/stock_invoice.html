@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Поставка №{{ x.cb_number }} · {{ x.supplier }}{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+{% macro u(v) %}{% if v is none %}—{% else %}{{ (('{:,.2f}').format(v or 0)).replace(',', ' ').replace('.', ',') }}{% endif %}{% endmacro %}
+{% macro q(v) %}{{ ('%g' % v) if v is not none else '—' }}{% endmacro %}
+<style>
+.iv-k{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:12px 0 16px}.iv-k div{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:12px 16px}
+.iv-k small{display:block;font:700 10.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:#8a8496}.iv-k b{display:block;font:800 20px var(--sans);margin-top:4px}
+.iv-c{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:16px 18px;margin-bottom:14px}.iv-c h3{margin:0 0 10px;font:700 17px var(--sans);text-transform:none;letter-spacing:0}
+.ct{width:100%;border-collapse:collapse;font-size:13px}.ct th{text-align:right;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496;padding:6px 8px;border-bottom:1px solid #ECE7E1}
+.ct th:first-child,.ct td:first-child{text-align:left}.ct td{padding:7px 8px;text-align:right;border-bottom:1px solid #F6F3EF}.ct tr.tot td{font-weight:800;border-top:1px solid #E4DEEF;border-bottom:0}
+.mini{font-size:11.5px;color:#8a8496}.frm{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+@media(max-width:900px){.iv-k{grid-template-columns:1fr 1fr}}
+</style>
+<div class="row between" style="align-items:flex-end;flex-wrap:wrap;gap:10px">
+  <div><div class="eyebrow" style="margin:0">Поставка CleverBox</div><h1 style="margin:2px 0">№{{ x.cb_number }} · {{ x.supplier }}</h1>
+    <div class="muted small">{{ x.inv_date.strftime('%d.%m.%Y %H:%M') }} · {{ x.warehouse_name or '—' }} · {{ x.author or '' }}{% if x.comment %} · «{{ x.comment }}»{% endif %}</div></div>
+  <a class="btn ghost" href="/stock?tab=suppliers&s={{ x.supplier|urlencode }}#inv">← До постачальника</a>
+</div>
+{% if qp.get('msg') %}<div class="alert ok">{{ qp.get('msg') }}</div>{% endif %}{% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+<div class="iv-k">
+  <div><small>Сума поставки</small><b>{{ u(x.amount) }} ₴</b></div>
+  <div><small>Оплачено (CleverBox)</small><b>{{ u(x.paid) }} ₴</b>{% if x.paid_note %}<div class="mini">{{ x.paid_note }}</div>{% endif %}</div>
+  <div><small>Оплачено в CRM</small><b>{{ u(x.crm_paid) if x.crm_paid else '—' }}</b></div>
+  <div><small>Без оплати</small><b>{{ u(x.adjust) if x.adjust else '—' }}</b>{% if x.adjust_note %}<div class="mini">{{ x.adjust_note }}</div>{% endif %}</div>
+  <div><small>Борг</small><b style="color:{{ '#B23B2E' if x.debt > 1 else '#2f6b3b' }}">{{ u(x.debt) if x.debt > 0.009 else '✓ 0' }}</b></div>
+</div>
+
+<div class="iv-c"><h3>Що було в поставці</h3>
+  {% if x.items %}
+  <table class="ct"><tr><th>Товар</th><th>К-сть</th><th>Ціна</th><th>Сума</th></tr>
+    {% for it in x.items %}<tr><td>{{ it.name }}{% if it.sku %} <span class="mini">{{ it.sku }}</span>{% endif %}</td><td>{{ q(it.qty) }}</td><td>{{ u(it.price) }}</td><td>{{ u(it.sum) }}</td></tr>{% endfor %}
+    <tr class="tot"><td>Разом</td><td>{{ q(x.items|map(attribute='qty')|select|sum) }}</td><td></td><td>{{ u(x.items|map(attribute='sum')|select|sum) }}</td></tr></table>
+  <div class="mini" style="margin-top:6px">Джерело: {{ 'API CleverBox' if x.items_src == 'api' else 'Excel' }}{% if x.items_at %} · {{ x.items_at.strftime('%d.%m.%Y %H:%M') }}{% endif %}</div>
+  {% elif lots %}
+  <table class="ct"><tr><th>Товар (Реалізація)</th><th>Надійшло</th><th>Продано у звітах</th><th>Ціна банки</th><th>Сума</th></tr>
+    {% for l in lots %}<tr><td>{{ l.name }}</td><td>{{ q(l.qty) }}</td><td>{{ q(l.sold) if l.sold else '' }}</td><td>{{ u(l.cost) }}</td><td>{{ u(l.qty * l.cost) }}</td></tr>{% endfor %}</table>
+  <div class="mini" style="margin-top:6px">З «Реалізації» — непродані на старт банки й додані позиції (не обовʼязково вся поставка).</div>
+  {% elif docs %}
+  {% for dd in docs %}<table class="ct"><tr><th>Товар (документ CRM {{ dd.number }})</th><th>К-сть</th><th>Ціна</th><th>Сума</th></tr>
+    {% for ln in dd.lines %}<tr><td>{{ ln.product.name if ln.product else '—' }}</td><td>{{ q(ln.qty) }}</td><td>{{ u(ln.unit_cost) }}</td><td>{{ u((ln.unit_cost or 0) * ln.qty) }}</td></tr>{% endfor %}</table>{% endfor %}
+  {% else %}
+  <div class="muted small">Позицій цієї поставки в CRM ще немає: з CleverBox приходить лише «шапка» (дата, сума, оплата).</div>
+  {% endif %}
+  {% if job %}<div class="alert" style="background:var(--lavender);color:var(--classic);margin-top:10px">{{ job.progress[-1] if job.progress else 'Запущено…' }}
+    {% if job.status == 'running' %} · <a href="?job={{ job.id }}">оновити</a>{% elif job.status == 'done' %} · {{ (job.result or {}).get('msg') or ('знайдено позицій: ' ~ (job.result or {}).get('n')) }}{% else %} · помилка: {{ job.error }}{% endif %}</div>{% endif %}
+  <div class="frm" style="margin-top:12px">
+    <form method="post" action="/stock/invoices/{{ x.id }}/fetch"><button class="btn">↻ Підтягнути з CleverBox</button></form>
+    <form method="post" action="/stock/invoices/{{ x.id }}/items" enctype="multipart/form-data" class="frm"><input type="file" name="file" accept=".xlsx,.xls,.csv" required><button class="btn ghost">Завантажити Excel позицій</button></form>
+  </div>
+  <div class="mini" style="margin-top:6px">{% if api_method %}API CleverBox: {{ api_method }}.{% else %}Метод позицій у API CleverBox ще не знайдено — перша спроба шукає його (до хвилини).{% endif %} Excel: товар, кількість, ціна, сума.</div>
+</div>
+{% endblock %}

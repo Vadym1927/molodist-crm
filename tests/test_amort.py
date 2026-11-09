@@ -150,3 +150,21 @@ def test_counters_to_equip():
         assert round(b.get((p2.id, "single"), 0), 4) == 0 and b[(p2.id, "equip")] == 1511
         db.refresh(p1)
         assert p1.warehouse == "equip" and tc.cat_wh(None, "Одноразка", p1) == "equip"
+
+
+def test_replace_consumable():
+    from app.services import stock
+    from app.models import AmortTxn, FinOp
+    with SessionLocal() as db:
+        p = Product(name="Маніпула тест заміна", name_norm="man-rep", warehouse="equip", active=True)
+        db.add(p); db.flush()
+        old = AmortAsset(name="Маніпула IPL тест", kind="consumable", product_id=p.id, cost=60000, resource=100000, unit="імпульс", rate=0.6,
+                         cashbox="Фонд тест", active=True)
+        db.add(old)
+        db.add(StockMove(product_id=p.id, warehouse="equip", qty=1200, kind="opening", at=datetime(2026, 11, 1)))
+        db.commit()
+        new = am.replace(db, old, date(2026, 11, 9), 72000, 120000, "Фонд тест", None, "нова маніпула")
+        assert not old.active and "(до 09.11.2026)" in old.name and new.active and new.rate == 0.6 and new.product_id == p.id
+        assert stock.balances(db)[(p.id, "equip")] == 120000
+        t = db.query(AmortTxn).filter(AmortTxn.asset_id == old.id, AmortTxn.kind == "expense").one()
+        assert t.amount == 72000 and db.get(FinOp, t.finop_id).cashbox == "Фонд тест"

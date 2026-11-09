@@ -898,6 +898,9 @@ class SupplierInvoice(Base):
     adjust: Mapped[float | None] = mapped_column(Float)              # знижка / повернення постачальнику — зменшує борг (CRM)
     adjust_note: Mapped[str | None] = mapped_column(String(300))
     crm_paid: Mapped[float | None] = mapped_column(Float)            # оплати реалізації, рознесені в CRM
+    items: Mapped[list | None] = mapped_column(JSON)                 # позиції поставки [{name, qty, price, sum}] (API CleverBox / Excel)
+    items_src: Mapped[str | None] = mapped_column(String(20))        # api | excel
+    items_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     @property
     def debt(self) -> float:

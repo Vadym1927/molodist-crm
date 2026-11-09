@@ -261,7 +261,7 @@ dialog.sk-imp{border:0;border-radius:20px;padding:0;width:min(560px,96vw);box-sh
 {% if invoices is defined and invoices is not none %}
 <div class="card" id="inv"><h2>{{ ('Поставки: ' ~ sel) if sel else 'Неоплачені поставки' }}</h2>
   <div style="overflow:auto"><table class="tb"><thead><tr><th>Дата</th><th>№ CleverBox</th>{% if not sel %}<th>Постачальник</th>{% endif %}<th>Склад</th><th class="r">Сума</th><th class="r">Оплачено</th><th class="r">Борг</th><th>Автор</th><th>Коментар</th><th></th></tr></thead><tbody>
-  {% for x in invoices %}<tr><td class="small">{{ x.inv_date|dt('%d.%m.%Y %H:%M') }}</td><td>{{ x.cb_number }}</td>{% if not sel %}<td><a href="?tab=suppliers&s={{ x.supplier|urlencode }}">{{ x.supplier }}</a></td>{% endif %}
+  {% for x in invoices %}<tr><td class="small">{{ x.inv_date|dt('%d.%m.%Y %H:%M') }}</td><td><a href="/stock/invoices/{{ x.id }}" title="Що було в поставці" style="font-weight:700">{{ x.cb_number }}</a></td>{% if not sel %}<td><a href="?tab=suppliers&s={{ x.supplier|urlencode }}">{{ x.supplier }}</a></td>{% endif %}
     <td class="small">{{ WAREHOUSES.get(x.warehouse) or x.warehouse_name or '—' }}</td><td class="r">{{ x.amount|uah }}</td><td class="r">{{ x.paid|uah if x.paid else '—' }}</td>
     <td class="r">{% if x.debt > 1 %}<b style="color:var(--bad)">{{ x.debt|uah }}</b>{% else %}<span style="color:var(--ok)">✓</span>{% endif %}</td>
     <td class="small">{{ x.author or '' }}</td><td class="small">{{ x.paid_note or x.comment or '' }}{% if x.adjust %}<div style="color:var(--ok)">без оплати {{ x.adjust|uah }} · {{ x.adjust_note }}</div>{% endif %}{% if x.status == 'Чернетка' %} <span class="pill draft">чернетка</span>{% endif %}</td>

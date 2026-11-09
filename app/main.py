@@ -8074,6 +8074,72 @@ async def stock_invoices_import(file: UploadFile = File(...), user: User = Depen
     return RedirectResponse("/stock?tab=suppliers", 303)
 
 
+@app.get("/stock/invoices/{iid:int}", response_class=HTMLResponse)
+def stock_invoice_view(iid: int, request: Request, job: str = "", user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    """Поставка CleverBox: що в ній було — позиції з API / Excel, позиції «Реалізації», документ складу CRM з тим самим №."""
+    from .models import SupplierInvoice, ConsignLot
+    from .integrations import cb_supply
+    x = db.get(SupplierInvoice, iid)
+    if not x:
+        raise HTTPException(404)
+    lots = db.scalars(select(ConsignLot).where(ConsignLot.invoice == x.cb_number).order_by(ConsignLot.id)).all()
+    docs = db.scalars(select(StockDoc).where(StockDoc.ext_no == x.cb_number)).all()
+    j = jobs.JOBS.get(job) if job else None
+    return render(request, "stock_invoice.html", nav="stock", x=x, lots=lots, docs=docs, job=j, api_method=cb_supply.method(db))
+
+
+def _inv_items_job(job, iid: int):
+    from .models import SupplierInvoice
+    from .integrations import cb_supply
+    with SessionLocal() as db:
+        x = db.get(SupplierInvoice, iid)
+        if not cb_supply.method(db):
+            job.log("Шукаю в API CleverBox метод поставок (до хвилини — ліміт 1 запит/сек)…")
+            r = cb_supply.probe(db, log_=job.log)
+            if not r["chosen"]:
+                return {"found": False, "msg": "API CleverBox не віддає позиції поставок — завантажте Excel поставки"}
+        items = cb_supply.items_for(db, x)
+        if not items:
+            return {"found": False, "msg": f"У відповіді API не знайшов поставку №{x.cb_number}"}
+        x.items, x.items_src, x.items_at = items, "api", datetime.utcnow()
+        db.commit()
+        return {"found": True, "n": len(items)}
+
+
+@app.post("/stock/invoices/{iid:int}/fetch")
+def stock_invoice_fetch(iid: int, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    j = jobs.start(f"Позиції поставки {iid}", _inv_items_job, iid)
+    return RedirectResponse(f"/stock/invoices/{iid}?job={j.id}", 303)
+
+
+@app.post("/stock/invoices/{iid:int}/items")
+async def stock_invoice_items_upload(iid: int, file: UploadFile = File(...), user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    import tempfile
+    from .models import SupplierInvoice
+    from .services import consign_act as ca
+    x = db.get(SupplierInvoice, iid)
+    if not x:
+        raise HTTPException(404)
+    raw = await file.read()
+    suffix = os.path.splitext(file.filename or "")[1].lower() or ".xlsx"
+    tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+    tmp.write(raw)
+    tmp.close()
+    try:
+        parsed = ca.parse(ca.read_rows(tmp.name, raw))
+    except Exception as e:  # noqa: BLE001
+        return RedirectResponse(_with_msg(f"/stock/invoices/{iid}", f"Не вдалося прочитати файл: {str(e)[:150]}", err=True), 303)
+    finally:
+        os.unlink(tmp.name)
+    if not parsed["goods"]:
+        return RedirectResponse(_with_msg(f"/stock/invoices/{iid}", "У файлі не знайшов рядків товару (Товар / Кількість / Ціна / Сума)", err=True), 303)
+    x.items = [{"name": g["name"], "qty": g["qty"], "price": g["price"] if g["price"] is not None else (round(g["sum"] / g["qty"], 2) if g["sum"] and g["qty"] else None),
+                "sum": g["sum"], "sku": g.get("sku")} for g in parsed["goods"]]
+    x.items_src, x.items_at = "excel", datetime.utcnow()
+    db.commit()
+    return RedirectResponse(_with_msg(f"/stock/invoices/{iid}", f"Позицій завантажено: {len(x.items)}"), 303)
+
+
 @app.post("/stock/invoices/{iid:int}/paid")
 def stock_invoice_paid(iid: int, back: str = Form("/stock?tab=suppliers"), note: str = Form(""),
                        user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
@@ -9849,6 +9915,21 @@ def amort_expense(asset_id: str = Form(""), day: str = Form(""), amount: str = F
     t = am.expense(db, a, _day(day) or date.today(), amt, cashbox.strip(), note.strip(), user.id)
     audit(db, "amort.expense", "amort_txn", t.id, user=user, asset=a.name if a else None, amount=amt, note=note)
     return RedirectResponse(_with_msg(back or "/amort", f"Витрата з фонду {amt:,.2f} ₴ записана".replace(",", " ")), 303)
+
+
+@app.post("/amort/{aid:int}/replace")
+def amort_replace(aid: int, day: str = Form(""), cost: str = Form(...), resource: str = Form(...), cashbox: str = Form(""), note: str = Form(""),
+                  from_fund: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import amort as am
+    from .models import AmortAsset
+    a = db.get(AmortAsset, aid) or (_ for _ in ()).throw(HTTPException(404))
+    c, r = _num(cost), _num(resource)
+    try:
+        new = am.replace(db, a, _day(day) or date.today(), c or 0, r or 0, cashbox.strip() or None, user.id, note.strip() or None, bool(from_fund))
+    except (ValueError, Exception) as e:  # noqa: BLE001
+        return RedirectResponse(_with_err(f"/amort/{aid}", f"Заміна не вдалася: {str(e)[:150]}"), 303)
+    audit(db, "amort.replace", "amort_asset", new.id, user=user, old=aid, cost=c, resource=r)
+    return RedirectResponse(_with_msg(f"/amort/{new.id}", f"Новий «{new.name}»: {r:,.0f} за {c:,.2f} ₴ · ставка {new.rate:.4f} ₴".replace(",", " ")), 303)
 
 
 @app.post("/amort/txn/{tid:int}/delete")

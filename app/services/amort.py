@@ -599,3 +599,41 @@ def run_scheduled(db: Session, today: date | None = None) -> str:
              for r in done if r["period"].amount]
     return (f"🏭 <b>Амортизація за {label(y, m, h)}</b>: нараховано {total:,.0f} ₴\n".replace(",", " ") + "\n".join(lines)
             + ("\n(без руху за період)" if not lines else ""))
+
+
+# ---------------- заміна розхідника (нова маніпула, мотор…) ----------------
+def replace(db: Session, old: AmortAsset, day: date, cost: float, resource: float, cashbox: str | None, user_id: int | None = None,
+            note: str | None = None, pay_from_fund: bool = True) -> AmortAsset:
+    """Купили новий розхідник: оплата з фонду (витрата), старий — «замінено» (неактивний, залишок лічильника списується),
+    новий — та сама позиція в техкартах, вартість = заплачено, ресурс → ставка за одиницю; на склад «Обладнання» надходить ресурс."""
+    from . import stock
+    from ..models import StockDocLine
+    if cost <= 0 or resource <= 0:
+        raise ValueError("Вкажіть вартість і ресурс")
+    unit = UNITS.get(old.unit, "од.")
+    label = f"Заміна: {old.name} → нова ({resource:,.0f} {unit}, {cost:,.2f} ₴)".replace(",", " ")
+    if pay_from_fund:
+        expense(db, old, day, cost, cashbox or old.cashbox or "", (note or label)[:300], user_id)
+    if old.product_id:                                    # лічильник на складі «Обладнання»: старий залишок → 0, новий ресурс → прихід
+        bal = stock.balances(db).get((old.product_id, "equip"), 0.0)
+        if abs(bal) > 1e-9:
+            wo = stock.new_doc(db, "writeoff" if bal > 0 else "supply", user_id=user_id, wh_from="equip" if bal > 0 else None,
+                               wh_to="equip" if bal < 0 else None, reason="Заміна розхідника" if bal > 0 else None,
+                               note=f"Заміна розхідника: залишок старого ресурсу «{old.name}»")
+            wo.lines.append(StockDocLine(product_id=old.product_id, qty=abs(bal), unit_cost=old.rate or None))
+            db.flush()
+            stock.post(db, wo)
+        sup = stock.new_doc(db, "supply", user_id=user_id, wh_to="equip", note=f"Заміна розхідника: новий ресурс «{old.name}»")
+        sup.lines.append(StockDocLine(product_id=old.product_id, qty=resource, unit_cost=round(cost / resource, 6)))
+        db.flush()
+        stock.post(db, sup)
+    new = AmortAsset(name=old.name, kind=old.kind, product_id=old.product_id, parent_id=old.parent_id, cost=round(cost, 2),
+                     life_years=old.life_years, resource=resource, unit=old.unit, rate=round(cost / resource, 6), avg_month=old.avg_month,
+                     commissioned_at=day, cashbox=old.cashbox, jar=old.jar, accrued_before=0, used_before=0, active=True, sort=old.sort,
+                     note=f"Замінено {day:%d.%m.%Y}: попередній — id {old.id}")
+    old.active = False
+    old.name = f"{old.name} (до {day:%d.%m.%Y})"[:200]
+    old.note = ((old.note + " · ") if old.note else "") + f"замінено {day:%d.%m.%Y}"
+    db.add(new)
+    db.commit()
+    return new
