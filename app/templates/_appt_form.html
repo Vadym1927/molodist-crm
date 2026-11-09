@@ -37,7 +37,7 @@
   <div class="nv-row"><div class="nv-dw"><input type="hidden" name="day" value="{{ st.strftime('%Y-%m-%d') }}"><button type="button" class="nv-date" onclick="nvCal(event)"><span class="nv-dl"></span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg></button><div class="nv-cal" hidden></div></div>
     <button type="button" class="nv-add" onclick="nvGo('svc')">+ Додати послугу</button></div>
   <div class="nv-g3"><label>Лікар<select name="doctor_id" onchange="nvDoc()"><option value="">—</option>{% for d in doctors %}<option value="{{ d.id }}" {{ 'selected' if doc==d.id }}>{{ d.name }}</option>{% endfor %}</select></label>
-    <label>Початок<input type="time" name="time" step="300" value="{{ st.strftime('%H:%M') }}" required oninput="nvTimes()"></label>
+    <label>Початок<input type="time" name="time" step="1800" value="{{ st.strftime('%H:%M') }}" required oninput="nvTimes()"></label>
     <label>Тривалість, хв<input type="number" name="minutes" min="5" step="5" value="{{ a.minutes if a else '' }}" placeholder="за послугами" oninput="nvTimes()"></label></div>
   <div class="nv-g2"><label>Кабінет<select name="place"><option value="">—</option>{% for p in places %}<option {{ 'selected' if a and a.place==p }}>{{ p }}</option>{% endfor %}</select></label>
     <label>Апарат<select name="resource"><option value="">—</option>{% for r in resources %}<option {{ 'selected' if a and a.resource==r }}>{{ r }}</option>{% endfor %}</select></label></div>

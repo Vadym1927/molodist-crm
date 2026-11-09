@@ -75,9 +75,9 @@
           {% else %}<div class="vd-empty">Послуги не вказані</div>{% endfor %}
           {% if _edt %}<div class="vt-bg" id="vt" hidden onclick="if(event.target===this)this.hidden=true"><div class="vt">
             <h3>Час візиту</h3>
-            <div class="vt-r"><label>Дата<input type="date" id="vt-d" value="{{ c.start.strftime('%Y-%m-%d') }}"></label><label>Початок<input type="time" id="vt-t" step="300" value="{{ c.start.strftime('%H:%M') }}" oninput="vtCalc()"></label></div>
+            <div class="vt-r"><label>Дата<input type="date" id="vt-d" value="{{ c.start.strftime('%Y-%m-%d') }}"></label><label>Початок<input type="time" id="vt-t" step="1800" value="{{ c.start.strftime('%H:%M') }}" oninput="vtCalc()"></label></div>
             {% for s in c.services %}<div class="vt-s"><span>{{ s.name }}</span><label><input type="number" class="vt-m" min="5" max="600" step="5" value="{{ s.minutes }}" oninput="vtCalc()"> хв</label></div>{% endfor %}
-            <div class="vt-e"><label>Закінчення<input type="time" id="vt-endi" step="300" value="{{ c.end.strftime('%H:%M') }}" oninput="vtEnd()"></label><span id="vt-dur">{{ ((c.end - c.start).total_seconds() // 60)|int }} хв</span></div>
+            <div class="vt-e"><label>Закінчення<input type="time" id="vt-endi" step="1800" value="{{ c.end.strftime('%H:%M') }}" oninput="vtEnd()"></label><span id="vt-dur">{{ ((c.end - c.start).total_seconds() // 60)|int }} хв</span></div>
             <div class="vt-w" id="vt-w"></div>
             <div class="vt-a"><button type="button" class="vd-btn ghost" onclick="document.getElementById('vt').hidden=true">Скасувати</button><button type="button" class="vd-btn main" id="vt-ok" onclick="vtSave({{ a.id }})">Зберегти</button></div>
           </div></div>{% endif %}

@@ -28,6 +28,15 @@
 </div>
 
 {% set funds = v.funds %}{% include "_oper_funds.html" %}
+<div class="fpc" id="plan"><h3>План операційних фондів по тижнях · до {{ v.plan.deadline.strftime('%d.%m.%Y') if v.plan.deadline }}</h3>
+  <div class="mini" style="margin-bottom:8px">Гроші постійно крутяться: беремо з фонду на оплати (склад, платіжний календар з цього рахунку) і повертаємо з терміналів. «Повернути» — скільки треба переказати у фонд за тиждень, щоб покрити оплати й рівними кроками вийти на норму. «Прихід на ФОП» — що зайде на термінали / готівку цього ФОП за графіком (з чого повертати). «Повернули» — фактичні перекази у фонд.</div>
+  <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px">
+  {% for f, P in v.plan.fops.items() %}<div><b>{{ f }}</b> <span class="mini">· {{ P.box }} · повернути за період {{ u(P.need) }} ₴, оплати {{ u(P.out) }} ₴</span>
+    <table class="fpt" style="margin-top:6px"><tr><th>Тиждень</th><th class="r">Оплати</th><th class="r">Повернути</th><th class="r">Прихід на ФОП</th><th class="r">Повернули</th><th class="r">Залишок</th><th class="r">Ціль</th></tr>
+    {% for r in P.rows %}<tr class="{{ 'today' if r.cur }}"><td>{{ r.a.strftime('%d.%m') }}–{{ r.b.strftime('%d.%m') }}</td><td class="r">{{ u(r.out) }}</td>
+      <td class="r" style="font-weight:700;color:{{ '#B23B2E' if r.short else '#2A2430' }}" title="{{ 'Прихід за графіком менший — заповніть графік або перенесіть оплати' if r.short }}">{{ u(r.need) }}</td>
+      <td class="r">{{ u(r.inc) }}</td><td class="r">{{ u(r.fact) if r.fact is not none else '' }}</td><td class="r">{{ u(r.end) }}</td><td class="r mini">{{ u(r.target) }}</td></tr>{% endfor %}</table></div>{% endfor %}
+  </div></div>
 <div class="fpc" id="targets"><h3>Норма операційних фондів</h3>
   <form method="post" action="/finance/fop-schedule/targets" class="row" style="gap:10px;align-items:flex-end;flex-wrap:wrap">
     {% for f in v.FOPS %}<label style="display:grid;gap:4px;font-size:12px;color:#6b6575">{{ f }} · норма, ₴<input name="t_{{ loop.index0 }}" value="{{ '%.0f' % v.tg.targets[f] }}" inputmode="numeric" style="height:38px;width:150px"></label>{% endfor %}

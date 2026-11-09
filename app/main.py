@@ -1560,9 +1560,9 @@ def patient_avatar(pid: int, file_id: int = Form(0), back: str = Form(""), user:
 
 
 @app.get("/appointments/services")
-def appointment_services(doc: int = 0, user: User = Depends(require("book")), db: Session = Depends(db_dep)):
+def appointment_services(doc: int = 0, pt: int = 0, user: User = Depends(require("book")), db: Session = Depends(db_dep)):
     from .services import appointments as aps
-    return JSONResponse(aps.services_for(db, doc or None))
+    return JSONResponse(aps.services_for(db, doc or None, pt or None))
 
 
 @app.get("/appointments/calls")

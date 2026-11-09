@@ -52,6 +52,7 @@ dialog.apfd[open]{animation:nvIn .22s ease-out}@keyframes nvIn{from{transform:tr
 .nv-tabs button{border:0;background:#F4F2F6;padding:10px;font:700 13px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#2A2430;cursor:pointer}
 .nv-tabs button.on{background:#3B3050;color:#fff}
 .nv-cat{background:#fff;border-radius:12px;box-shadow:0 3px 14px rgba(42,36,48,.07);margin-bottom:12px;border:1px solid #F1EDE8}
+.nv-cat.nv-fav{border-color:#C9BFE6;background:#FBFAFE}.nv-cat.nv-fav>summary{color:#5C4B82}
 .nv-cat>summary{list-style:none;display:flex;justify-content:space-between;align-items:center;padding:18px 20px;font:600 16px var(--sans);color:#5d5869;cursor:pointer}
 .nv-cat>summary::-webkit-details-marker{display:none}.nv-cat>summary:after{content:"";width:9px;height:9px;border:solid #5C4B82;border-width:0 2px 2px 0;transform:rotate(45deg);margin-right:6px;transition:transform .15s}
 .nv-cat[open]>summary:after{transform:rotate(-135deg)}.nv-cat>summary small{color:#a9a3b4;font-weight:500;margin-left:8px}
@@ -123,8 +124,8 @@ dialog.apfd::backdrop{background:rgba(42,36,48,.45)}
     fetch('/appointments/calls').then(function(x){return x.json()}).then(function(js){
       r.innerHTML=js.map(function(c,i){return '<div class="it" data-i="'+i+'"><b>'+esc(c.name||c.phone||'—')+'</b><small>'+(c.dir==='out'?'↗ ':'↙ ')+esc(c.at)+(c.name?' · '+esc(c.phone):'')+(c.status==='missed'?' · пропущений':'')+'</small></div>'}).join('')||'<div class="nv-mut">Дзвінків ще немає — телефонія в розробці.</div>';
       r.querySelectorAll('.it').forEach(function(d){d.onclick=function(){var c=js[+d.dataset.i];if(c.patient_id){setPat(c.patient_id,c.name,c.phone,false)}else{nvNewOpen(c.phone)}}})})};
-  function svcLoad(cb){var f=F(),doc=f.doctor_id.value;fetch('/appointments/services?doc='+(doc||0)).then(function(x){return x.json()}).then(function(j){SV=j;SV.doc=doc;cb&&cb()})}
-  window.nvSvcLoad=function(){var f=F();if(!SV||SV.doc!==f.doctor_id.value){document.getElementById('nv-sl').innerHTML='<div class="nv-mut">Завантаження…</div>';svcLoad(function(){nvTab(f.doctor_id.value&&SV.mine.length?'mine':'all')})}else nvSvcDraw()};
+  function svcLoad(cb){var f=F(),doc=f.doctor_id.value,pt=f.patient_id.value||'';fetch('/appointments/services?doc='+(doc||0)+'&pt='+(pt||0)).then(function(x){return x.json()}).then(function(j){SV=j;SV.doc=doc;SV.pt=pt;cb&&cb()})}
+  window.nvSvcLoad=function(){var f=F();if(!SV||SV.doc!==f.doctor_id.value||SV.pt!==(f.patient_id.value||'')){document.getElementById('nv-sl').innerHTML='<div class="nv-mut">Завантаження…</div>';svcLoad(function(){nvTab(f.doctor_id.value&&SV.mine.length?'mine':'all')})}else nvSvcDraw()};
   window.nvTab=function(t){TAB=t;F().querySelectorAll('.nv-tabs button').forEach(function(b){b.classList.toggle('on',b.dataset.t===t)});nvSvcDraw()};
   window.nvDoc=function(){SV=null;nvValid()};
   window.nvSvcDraw=function(){var f=F(),el=document.getElementById('nv-sl');if(!SV)return;var q=f.querySelector('.nv-sq').value.trim().toLowerCase();
@@ -135,7 +136,10 @@ dialog.apfd::backdrop{background:rgba(42,36,48,.45)}
     if(!list.length){el.innerHTML='<div class="nv-mut">'+(TAB==='mine'?'У лікаря ще немає проведених послуг — оберіть у «Всі послуги».':'Нічого не знайдено')+'</div>';return}
     var order=[];list.forEach(function(s){if(!by[s.category]){by[s.category]=[];order.push(s.category)}by[s.category].push(s)});
     var open=!!q||TAB==='mine'||order.length===1;
-    el.innerHTML=order.map(function(c){return '<details class="nv-cat"'+(open?' open':'')+'><summary><span>'+esc(c)+'<small>'+by[c].length+'</small></span></summary>'+by[c].map(function(s){
+    var favH='';if(SV.fav&&SV.fav.length){var ix2={};SV.all.forEach(function(s){ix2[s.id]=s});var fl=SV.fav.map(function(p){var s=ix2[p[0]];return s?[s,p[1]]:null}).filter(function(x){return x&&(!q||x[0].name.toLowerCase().indexOf(q)>=0)});
+      if(fl.length)favH='<details class="nv-cat nv-fav" open><summary><span>★ Улюблені послуги пацієнта<small>'+fl.length+'</small></span></summary>'+fl.map(function(x){var s=x[0];
+        return '<div class="nv-sv'+(have[s.id]?' added':'')+'" data-id="'+s.id+'"><b>'+esc(s.name)+'</b><small>'+x[1]+' візитів · '+s.minutes+' хв · '+(+s.price).toLocaleString('uk-UA')+' ₴</small></div>'}).join('')+'</details>'}
+    el.innerHTML=favH+order.map(function(c){return '<details class="nv-cat"'+(open?' open':'')+'><summary><span>'+esc(c)+'<small>'+by[c].length+'</small></span></summary>'+by[c].map(function(s){
       return '<div class="nv-sv'+(have[s.id]?' added':'')+'" data-id="'+s.id+'"><b>'+esc(s.name)+'</b><small>'+s.minutes+' хв · '+(+s.price).toLocaleString('uk-UA')+' ₴</small></div>'}).join('')+'</details>'}).join('');
     el.querySelectorAll('.nv-sv').forEach(function(d){d.onclick=function(){var s=SV.all.filter(function(x){return String(x.id)===d.dataset.id})[0];if(s){add(s);nvGo('main')}}})};
   window.nvTimes=function(){var f=F();if(!f)return;var t=f.time.value||'00:00',p=t.split(':'),m=(+p[0])*60+(+p[1]);

@@ -58,3 +58,11 @@ def test_fund_state_targets():
         assert k["target"] == 190000 and k["deficit"] == max(190000 - k["oper"], 0) and k["deadline"] == date(2027, 2, 9)
         if k["deficit"]:
             assert 6000 < k["per_week"] * 13 / k["deficit"] * 1000 or k["per_week"] > 0
+
+
+def test_fund_plan_weeks():
+    with SessionLocal() as db:
+        fs.set_targets(db, {"ФОП Колган": 190000, "ФОП Бондар": 110000}, 3, date.today())
+        p = fs.plan(db)
+        k = p["fops"]["ФОП Колган"]
+        assert len(p["weeks"]) >= 12 and abs(k["rows"][-1]["end"] - max(k["target"], k["oper"])) < 1

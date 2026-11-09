@@ -25,3 +25,21 @@ def test_drug_need_from_appointments():
         r = g["rows"][0]
         assert r["per"] == 50 and r["n1"] == 2 and r["q1"] == 100 and r["stock"] == 40
         assert r["need"] == 110 and r["price"] == 62 and r["sum"] == 6820 and r["pts"][0][1] == "Коваль"
+
+
+def test_patient_favorite_services():
+    from app.models import Visit
+    from app.services import appointments as aps
+    with SessionLocal() as db:
+        sv = CbService(name="Біоревіталізація улюблена тест", price=4200)
+        sv2 = CbService(name="Пілінг рідко тест", price=2700)
+        pt = Patient(full_name="Улюблена Тест", phone="+380000000444")
+        db.add_all([sv, sv2, pt]); db.flush()
+        for i in range(3):
+            db.add(Visit(source="cb_visit", external_id=f"fav{i}", patient_id=pt.id, service_id=sv.id, service_name=sv.name,
+                         starts_at=datetime(2026, 1 + i, 5, 10), status="done"))
+        db.add(Visit(source="cb_visit", external_id="fav9", patient_id=pt.id, service_id=sv2.id, service_name=sv2.name,
+                     starts_at=datetime(2026, 5, 5, 10), status="done"))
+        db.commit()
+        r = aps.services_for(db, None, pt.id)
+        assert r["fav"] == [[sv.id, 3]]

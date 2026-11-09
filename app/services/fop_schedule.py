@@ -161,5 +161,60 @@ def view(db: Session, start: date | None = None, days: int = 14) -> dict:
         for f, v in r["fop"].items():
             tot[f] += v
     return {"cfg": cfg, "docs": docs, "rows": rows, "tot": dict(tot), "FOPS": FOPS, "WEEKDAYS": WEEKDAYS, "start": start, "end": end,
-            "balances": fund_balances(db), "FUND": FUND, "funds": fund_state(db), "tg": targets(db),
+            "balances": fund_balances(db), "FUND": FUND, "funds": fund_state(db), "tg": targets(db), "plan": plan(db),
             "prev": start - timedelta(days=days), "next": start + timedelta(days=days), "today": date.today()}
+
+
+def plan(db: Session, today: date | None = None) -> dict:
+    """План операційних фондів по тижнях до терміну: залишок → − оплати (склад + платіжний календар з цього рахунку)
+    + повернути з терміналів (щоб вийти на норму рівними кроками) = залишок на кінець; поруч — прихід на ФОП за графіком
+    (чи є з чого повертати) і фактичні перекази у фонд (для минулих / поточного тижня)."""
+    from ..models import FinOp, PayItem, StockPayRow
+    today = today or date.today()
+    st = fund_state(db, today)
+    deadline = next(iter(st.values()))["deadline"]
+    w0 = today - timedelta(days=today.weekday())
+    weeks = []
+    d = w0
+    while d <= deadline:
+        weeks.append((d, d + timedelta(days=6)))
+        d += timedelta(days=7)
+    if not weeks:
+        return {"weeks": [], "fops": {}}
+    box2fop = {v: k for k, v in FUND.items()}
+    outs: dict = defaultdict(float)
+    for it in db.scalars(select(PayItem).where(PayItem.status.in_(("planned", "approved")), PayItem.due >= w0, PayItem.due <= deadline)):
+        f = box2fop.get(it.cashbox or "")
+        if f and it.amount:
+            outs[(f, (it.due - w0).days // 7)] += float(it.amount)
+    for r in db.scalars(select(StockPayRow).where(StockPayRow.closed.is_(False), StockPayRow.paid_at.is_(None))):
+        if r.fop in FUND and (r.fact_amount or 0) > 0:
+            dd = max(r.plan_date or today, w0)
+            if dd <= deadline:
+                outs[(r.fop, (dd - w0).days // 7)] += float(r.fact_amount)
+    inc = defaultdict(float)
+    fc = forecast(db, w0, deadline)["by_day"]
+    for day, v in fc.items():
+        for f, amt in v.items():
+            if f in FUND:
+                inc[(f, (day - w0).days // 7)] += amt
+    fact_in = defaultdict(float)
+    for op in db.scalars(select(FinOp).where(FinOp.deleted_at.is_(None), FinOp.kind == "transfer", FinOp.day >= w0, FinOp.day <= today)):
+        f = box2fop.get(op.cashbox_to or "")
+        if f and box2fop.get(op.cashbox or "") != f:
+            fact_in[(f, (op.day - w0).days // 7)] += float(op.amount or 0)
+    n = len(weeks)
+    fops = {}
+    for f, x in st.items():
+        bal, rows = x["oper"], []
+        for i, (a, b) in enumerate(weeks):
+            target = round(x["oper"] + (x["target"] - x["oper"]) * (i + 1) / n, 2) if x["oper"] < x["target"] else x["target"]
+            out = round(outs.get((f, i), 0.0), 2)
+            need = round(max(target - (bal - out), 0), 2)
+            end = round(bal - out + need, 2)
+            rows.append({"a": a, "b": b, "start": round(bal, 2), "out": out, "need": need, "end": end, "target": target,
+                         "inc": round(inc.get((f, i), 0.0), 2), "fact": round(fact_in.get((f, i), 0.0), 2) if a <= today else None,
+                         "short": need > inc.get((f, i), 0.0) and inc.get((f, i), 0.0) > 0, "cur": a <= today <= b})
+            bal = end
+        fops[f] = {"rows": rows, "need": round(sum(r["need"] for r in rows), 2), "out": round(sum(r["out"] for r in rows), 2), **x}
+    return {"weeks": weeks, "fops": fops, "deadline": deadline}

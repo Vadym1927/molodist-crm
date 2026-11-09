@@ -125,7 +125,34 @@ def save_sources(db: Session, rows: list[dict]) -> None:
     db.commit()
 
 
-def services_for(db: Session, doctor_id: int | None) -> dict:
+FAV_MIN = 3
+
+
+def favorites(db: Session, patient_id: int, rows: list) -> list[tuple[int, int]]:
+    """Улюблені послуги пацієнта: послуги, які він робив у ≥ 3 різні дні (візити CleverBox + записи CRM). [(id, к-сть)]."""
+    from collections import defaultdict
+    from ..models import Visit
+    from ..parsers.observ import norm
+    by_name = {norm(s.name): s.id for s in rows}
+    days: dict = defaultdict(set)
+    for sid, nm, st, at in db.execute(select(Visit.service_id, Visit.service_name, Visit.status, Visit.starts_at)
+                                      .where(Visit.patient_id == patient_id)):
+        if (st or "").lower() in ("cancelled", "canceled", "deleted", "no_show"):
+            continue
+        k = sid if sid in by_name.values() else by_name.get(norm(nm or ""))
+        if k and at:
+            days[k].add(at.date())
+    for svcs, st, at in db.execute(select(Appointment.services, Appointment.status, Appointment.start)
+                                   .where(Appointment.patient_id == patient_id, Appointment.status.in_(("done", "arrived")))):
+        for x in svcs or []:
+            k = int(x["id"]) if str(x.get("id") or "").isdigit() and int(x["id"]) in by_name.values() else by_name.get(norm(x.get("name") or ""))
+            if k:
+                days[k].add(at.date())
+    fav = [(k, len(v)) for k, v in days.items() if len(v) >= FAV_MIN]
+    return sorted(fav, key=lambda x: -x[1])
+
+
+def services_for(db: Session, doctor_id: int | None, patient_id: int | None = None) -> dict:
     """Послуги для вікна запису: усі активні за категоріями + послуги лікаря (які він уже проводив, за частотою) + ціни лікаря."""
     from collections import Counter
     from . import price_cats
@@ -149,7 +176,8 @@ def services_for(db: Session, doctor_id: int | None) -> dict:
         pr = prices.get(str(s.id), prices.get(s.id))
         return {"id": s.id, "name": s.name, "price": float(pr if pr not in (None, "") else (s.price or 0)),
                 "minutes": int(s.duration or s.time_min or 30), "category": s.category or "Без категорії"}
-    return {"all": [one(s) for s in rows], "mine": [i for i, _ in mine.most_common() if i in ids]}
+    fav = favorites(db, patient_id, rows) if patient_id else []
+    return {"all": [one(s) for s in rows], "mine": [i for i, _ in mine.most_common() if i in ids], "fav": [[i, n] for i, n in fav if i in ids]}
 
 
 def fill_prices(db: Session, a: Appointment) -> bool:

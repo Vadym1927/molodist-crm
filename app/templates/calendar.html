@@ -598,7 +598,7 @@ calFit();window.addEventListener('resize',calFit);
 function calPage(d){var w=document.getElementById('tgw'),c=w&&w.querySelector('.tg-head>div:nth-child(2)');if(w&&c)w.scrollBy({left:d*c.offsetWidth,behavior:'smooth'})}
 (function(){var w=document.getElementById('tgw'),n=w&&w.querySelector('.nowline');if(w&&n&&window.innerWidth<860){var t=n.offsetTop-200;window.scrollTo({top:Math.max(0,w.getBoundingClientRect().top+window.scrollY+t-120)})}})();
 function tgNew(e,col,doc,day){if(e.target.closest('a,.blk'))return;var r=col.getBoundingClientRect(),y=e.clientY-r.top,
-  m=Math.max(0,Math.round(y/calPx()/15)*15)+{{ (grid.h0 if grid else 9) * 60 }},h=Math.floor(m/60),mi=m%60;
+  m=Math.max(0,Math.floor(y/calPx()/30)*30)+{{ (grid.h0 if grid else 9) * 60 }},h=Math.floor(m/60),mi=m%60;
   apOpenNew(doc,(day||'{{ start }}')+'T'+String(h).padStart(2,'0')+':'+String(mi).padStart(2,'0'))}</script>
 {% if request.query_params.get('msg') %}<div class="dp-toast" style="background:var(--ok-bg);color:var(--ok);border-color:#BFE3CD" onclick="this.remove()">{{ request.query_params.get('msg') }}</div>{% endif %}
 {% endblock %}
