@@ -133,3 +133,44 @@ def test_money_now(monkeypatch):
         monkeypatch.setattr(monobank, "saved", lambda db: [])
         r = pc.money_now(db, boxes + [{"name": "Готівка Cейф", "type": "cash", "balance": 1.0}], mono_balances={})
     assert r["mono_crm"] and r["mono_total"] == 9000.0 and r["safe_total"] == 7001.0
+
+
+def test_dynamic_salary_and_setup_v2():
+    from app.models import Doctor, PayrollDoc, PayrollLine, SyncState
+    from app.services import leasing as ls
+    with SessionLocal() as db:
+        d1 = Doctor(name="Лікар Дин", position="Лікар-косметолог")
+        d2 = Doctor(name="Адмін Дин", position="Адміністратор")
+        db.add_all([d1, d2])
+        db.flush()
+        doc = PayrollDoc(d_from=date(2026, 11, 1), d_to=date(2026, 11, 15))
+        doc.lines = [PayrollLine(doctor_id=d1.id, amount=12000, posted=True), PayrollLine(doctor_id=d2.id, amount=5000, posted=True)]
+        db.add(doc)
+        p = PayPlan(name="Зарплата спеціалістів", group="fot", article="Персонал Зарплата", schedule="twice", day=1, day2=16,
+                    needs_approval=True, start=date(2026, 11, 1))
+        db.add(p)
+        db.commit()
+        pc.ensure_month(db, 2026, 11)
+        pc.month_view(db, 2026, 11, today=date(2026, 11, 17))
+        its = sorted(db.scalars(select(PayItem).where(PayItem.plan_id == p.id)).all(), key=lambda i: i.due)
+        assert its[0].status == "skipped" and its[1].amount == 12000 and "Лікар Дин" in its[1].note
+        pc.pay(db, its[1], 12000, date(2026, 11, 17), "Готівка", None)
+        from app.services import payroll_docs
+        assert payroll_docs.balances(db)[d1.id] == 0 and payroll_docs.balances(db)[d2.id] == 5000
+        # закупівлі
+        db.add(FinOp(day=date(2026, 11, 5), kind="expense", category="Закупівля косметики", amount=7000))
+        db.commit()
+        assert pc.purchases(db, date(2026, 11, 1), date(2026, 11, 30))["total"] >= 7000
+        # налаштування v2 + планшет 6 500 / міс
+        st = db.get(SyncState, pc.SETUP2_KEY)
+        if st:
+            db.delete(st)
+            db.commit()
+        if not ls.contracts(db):
+            ls.ensure_setup(db)
+        assert pc.setup_v2(db, today=date(2026, 11, 9))
+        names = {x.name for x in db.scalars(select(PayPlan))}
+        assert {"Оренда робочих місць", "Checkbox ФОП Колган", "Ringostat", "Домени", "Військовий збір ФОП Бондар"} <= names
+        tab = next(r for r in ls.build(db, today=date(2026, 11, 9))["rows"] if r["group"] == "tablet")
+        assert [s["amount"] for s in tab["sched"] if s["status"] != "paid"] == [6500, 6500, 6500, 6500, 4000]
+        assert tab["sched"][0]["due"] == date(2026, 11, 15)

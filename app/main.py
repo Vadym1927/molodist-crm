@@ -8633,6 +8633,7 @@ def paycal_page(request: Request, y: int = 0, m: int = 0, group: str = "", statu
     _pc.seed_plans(db)
     from .services import leasing as _ls
     _ls.ensure_setup(db)
+    _pc.setup_v2(db)
     t = date.today()
     y, m = (y or t.year), (m or t.month)
     if not (1 <= m <= 12) or not (2020 <= y <= 2100):
@@ -8686,9 +8687,12 @@ async def paycal_item_act(iid: int, act: str, request: Request, user: User = Dep
             return RedirectResponse(_with_msg(back, "Вкажіть суму оплати", err=True), 303)
         if it.status == "planned" and user.role != "owner":
             return RedirectResponse(_with_msg(back, "Платіж ще не погоджено власником", err=True), 303)
-        op = _pc.pay(db, it, amt, _day(str(f.get("day") or "")) or date.today(), str(f.get("cashbox") or "").strip() or None, user.id,
-                     str(f.get("comment") or "").strip())
-        msg = f"Оплачено: {it.name} · CRM-{op.id}"
+        try:
+            op = _pc.pay(db, it, amt, _day(str(f.get("day") or "")) or date.today(), str(f.get("cashbox") or "").strip() or None, user.id,
+                         str(f.get("comment") or "").strip())
+        except ValueError as e:
+            return RedirectResponse(_with_msg(back, str(e), err=True), 303)
+        msg = f"Оплачено: {it.name}" + (f" · CRM-{op.id}" if op else "")
     elif act == "skip":
         it.status = "skipped"
         msg = f"Пропущено: {it.name}"

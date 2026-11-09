@@ -137,7 +137,11 @@ def match_paid(db: Session, items: list[PayItem]) -> int:
 
 
 def pay(db: Session, it: PayItem, amount: float, day: date, cashbox: str | None, user_id: int | None, comment: str = "") -> FinOp:
-    """Кнопка «Оплачено»: створює витрату в журналі й закриває платіж."""
+    """Кнопка «Оплачено»: створює витрату в журналі й закриває платіж (амортизація / зарплата — окремо, див. pay_dynamic)."""
+    if dyn_kind(it) in ("amort_device", "amort_cons", "salary_doc", "salary_adm"):
+        op = pay_dynamic(db, it, amount, day, cashbox, user_id, comment)
+        if op or it.status == "paid":
+            return op
     op = FinOp(day=day, kind="expense", category=(it.article or "Інше")[:60], amount=round(float(amount), 2), cashbox=(cashbox or it.cashbox or None),
                counterparty=(it.counterparty or None), comment=(comment or f"Платіжний календар: {it.name}")[:500], created_by=user_id,
                ref=f"paycal:{it.id}")
@@ -289,7 +293,8 @@ def month_view(db: Session, y: int, m: int, group: str = "", status: str = "", t
     ensure_month(db, y, m)
     first, last = date(y, m, 1), date(y, m, calendar.monthrange(y, m)[1])
     items = db.scalars(select(PayItem).where(PayItem.due >= first - timedelta(days=45), PayItem.due <= last).order_by(PayItem.due, PayItem.id)).all()
-    match_paid(db, items)
+    match_paid(db, [i for i in items if not dyn_kind(i)])
+    refresh_dynamic(db, items, today)
     overdue = [i for i in items if i.due < first and i.status in ("planned", "approved")]      # хвости минулих місяців
     cur = [i for i in items if first <= i.due <= last]
     shown = cur
@@ -350,7 +355,7 @@ def month_view(db: Session, y: int, m: int, group: str = "", status: str = "", t
             by_box[i.cashbox or "— не вказано"] += float(i.amount or 0)
     plans = db.scalars(select(PayPlan).order_by(PayPlan.active.desc(), PayPlan.group, PayPlan.sort, PayPlan.name)).all()
     return {"y": y, "m": m, "first": first, "last": last, "today": today, "rows": cur, "shown": shown, "overdue": overdue, "weeks": weeks,
-            "boxes": boxes, "cash": cash, "left": left, "money": money_now(db, boxes), "income": inc, "inc_month": inc_month,
+            "boxes": boxes, "cash": cash, "left": left, "money": money_now(db, boxes), "purchases": purchases(db, first, last), "dyn_kind": dyn_kind, "income": inc, "inc_month": inc_month,
             "forecast": round(cash - left + inc["total"], 2),
             "paid": round(sum(float(i.amount_fact or i.amount or 0) for i in cur if i.status == "paid"), 2),
             "plan": round(sum(float(i.amount or 0) for i in cur if i.status != "skipped"), 2),
@@ -432,8 +437,8 @@ def seed_plans(db: Session) -> int:
         ("Хімчистка", "opex", art("Господарські Хімчистка", "Господарські"), "twice", 7, 27, 1140.0, False),
         ("Google Ads", "marketing", art("Реклама Google Ads", "Реклама"), "monthly", 1, None, None, True),
         ("Таргет Instagram", "marketing", art("Таргет Instagram", "Реклама"), "monthly", 1, None, None, True),
-        ("Зарплата спеціалістів", "fot", art("Персонал Зарплата", "Зарплата"), "twice", 15, 30, None, True),
-        ("Виплати адміністраторам", "fot", art("Персонал Зарплата", "Зарплата"), "twice", 15, 30, None, True),
+        ("Зарплата спеціалістів", "fot", art("Персонал Зарплата", "Зарплата"), "twice", 1, 16, None, True),
+        ("Виплати адміністраторам", "fot", art("Персонал Зарплата", "Зарплата"), "twice", 1, 16, None, True),
         ("Відсотки від косметики", "fot", art("Персонал Зарплата", "Зарплата"), "monthly", 1, None, None, True),
         ("Бухгалтер", "tax", art("Бухгалтерія", "Персонал Зарплата"), "monthly", 15, None, 18000.0, False),
         ("Податки з ЗП (ЄСВ, ПДФО, ВЗ)", "tax", art("Податки ЄСВ на ЗП", "Податки"), "twice", 15, 30, None, True),
@@ -441,11 +446,256 @@ def seed_plans(db: Session) -> int:
         ("Єдиний податок ФОП Бондар", "tax", art("Податки ЄП ФОП Бондар", "Податки"), "monthly", 15, None, 1729.4, False),
         ("ЄСВ ФОП Колган", "tax", art("Податки ЄСВ ФОП Колган", "Податки"), "quarterly", 15, None, 5707.0, False),
         ("Військовий збір ФОП", "tax", art("Податки ВЗ ФОП Колган", "Податки"), "monthly", 15, None, 1729.4, False),
-        ("Амортизація виробнича → фонд", "capex", art("Амортизація обладнання"), "twice", 7, 22, None, False),
-        ("Амортизація розхідника → фонд", "capex", art("Амортизація обладнання"), "twice", 14, 22, None, False),
+        ("Амортизація виробнича → фонд", "capex", art("Амортизація обладнання"), "twice", 1, 16, None, False),
+        ("Амортизація розхідника → фонд", "capex", art("Амортизація обладнання"), "twice", 1, 16, None, False),
     ]
     for i, (name, g, a, sch, d1, d2, amt, appr) in enumerate(rows):
         db.add(PayPlan(name=name, group=g, article=a, schedule=sch, day=d1, day2=d2, amount=amt, needs_approval=appr, sort=i, start=date.today().replace(day=1)))
     db.merge(SyncState(key=SEED_KEY, value=date.today().isoformat(), updated_at=datetime.utcnow()))
     db.commit()
     return len(rows)
+
+
+# ---------------- «живі» суми: амортизація, зарплата, % косметики ----------------
+DYN_RE = [("amort_device", re.compile(r"амортизац\w*\s+виробн", re.I)), ("amort_cons", re.compile(r"амортизац\w*\s+розхідн", re.I)),
+          ("salary_doc", re.compile(r"зарплата\s+спеціаліст", re.I)), ("salary_adm", re.compile(r"виплати\s+адмін", re.I)),
+          ("cosm", re.compile(r"відсотки\s+від\s+косметик", re.I))]
+DYN_NOTE = {"amort_device": "Нараховано й не погашено (виробнича) — вкладка «Амортизація»",
+            "amort_cons": "Нараховано й не погашено (розхідники) — вкладка «Амортизація»",
+            "salary_doc": "Баланс лікарів: нараховано − виплачено", "salary_adm": "Баланс адміністраторів: нараховано − виплачено",
+            "cosm": "% з продажу косметики за попередній місяць — після ручного погодження"}
+
+
+def dyn_kind(it) -> str | None:
+    name = (it.plan.name if getattr(it, "plan", None) else None) or it.name or ""
+    return next((k for k, rx in DYN_RE if rx.search(name)), None)
+
+
+def _amort_due(db: Session, kind: str, today: date) -> tuple[float, float, list]:
+    """(не погашено, живий півмісяць, [(asset, diff)])."""
+    from ..models import AmortAsset
+    from . import amort
+    k = "device" if kind == "amort_device" else "consumable"
+    rows, due, live = [], 0.0, 0.0
+    for a in db.scalars(select(AmortAsset).where(AmortAsset.active.is_(True), AmortAsset.kind == k)):
+        t = amort.totals(db, a, today)
+        if t["diff"] > 0.009:
+            rows.append((a, t["diff"]))
+            due += t["diff"]
+        live += float(t["live"].get("amount") or 0)
+    return round(due, 2), round(live, 2), rows
+
+
+def _salary_due(db: Session, kind: str) -> tuple[float, list]:
+    from ..models import Doctor
+    from . import payroll_docs, payroll_share
+    want = "doctor" if kind == "salary_doc" else "admin"
+    bal = payroll_docs.balances(db)
+    rows = []
+    for d in db.scalars(select(Doctor).where(Doctor.id.in_(list(bal) or [0]))):
+        if payroll_share.role_of(d) == want and bal.get(d.id, 0) > 0.009:
+            rows.append((d, bal[d.id]))
+    return round(sum(v for _, v in rows), 2), sorted(rows, key=lambda x: -x[1])
+
+
+def _payroll_covered(db: Session, due: date) -> bool:
+    """Чи є проведене нарахування за півмісяць перед датою виплати (1-го — за 16–кінець, 16-го — за 1–15)."""
+    from ..models import PayrollDoc
+    end = due - timedelta(days=1)
+    return any(d.d_to >= end - timedelta(days=3) and any(ln.posted for ln in d.lines)
+               for d in db.scalars(select(PayrollDoc).where(PayrollDoc.deleted_at.is_(None), PayrollDoc.d_to >= end - timedelta(days=20))))
+
+
+def _cosm_due(db: Session, due: date) -> tuple[float, list]:
+    from . import reports
+    pm_last = due.replace(day=1) - timedelta(days=1)
+    try:
+        r = reports.cosmetics(db, pm_last.replace(day=1), pm_last)
+    except Exception:  # noqa: BLE001
+        return 0.0, []
+    rows = [(x["name"], x["sum"]) for x in r.rows if x.get("_group") and x.get("sum")]
+    return round(sum(v for _, v in rows), 2), rows
+
+
+def _fmt(v: float) -> str:
+    return f"{v:,.0f}".replace(",", " ")
+
+
+def refresh_dynamic(db: Session, items: list[PayItem], today: date | None = None) -> None:
+    """Суми амортизації / зарплати / % косметики рахуються наживо. Минулі неоплачені одного виду зводяться в останній
+    (решта — «пропущено»), якщо борг уже погашено у вкладці — платіж закривається сам. Майбутній — прогноз."""
+    today = today or date.today()
+    by: dict = defaultdict(list)
+    for it in items:
+        k = dyn_kind(it)
+        if k and it.status in ("planned", "approved"):
+            by[k].append(it)
+    changed = False
+    cache: dict = {}
+    for k, its in by.items():
+        its.sort(key=lambda i: i.due)
+        past = [i for i in its if i.due <= today]
+        fut = [i for i in its if i.due > today]
+        if k == "cosm":
+            for it in its:
+                if it.due <= today + timedelta(days=31):
+                    amt, rows = _cosm_due(db, it.due)
+                    it.amount = amt or None
+                    it.note = (DYN_NOTE[k] + (": " + " · ".join(f"{n} {_fmt(v)}" for n, v in rows[:6]) if rows else ""))[:300]
+                    changed = True
+            continue
+        if k not in cache:
+            cache[k] = _amort_due(db, k, today) if k.startswith("amort") else (*_salary_due(db, k)[:1], 0.0, _salary_due(db, k)[1])
+        due, live, rows = cache[k]
+        detail = " · ".join(f"{getattr(o, 'name', o)} {_fmt(v)}" for o, v in rows[:6])
+        if past:
+            for it in past[:-1]:
+                it.status, it.note = "skipped", f"Сума перейшла в платіж {past[-1].due.strftime('%d.%m')}"
+            last = past[-1]
+            if due <= 0.5 and k.startswith("salary") and not _payroll_covered(db, last.due):
+                last.amount, last.note = None, "Нарахування за період ще немає — Фінанси → Нарахування зарплати → «На баланс»"
+            elif due <= 0.5:
+                last.status, last.amount_fact, last.paid_at = "paid", 0.0, today
+                last.note = "Погашено поза календарем" + (" (вкладка «Амортизація»)" if k.startswith("amort") else " (виплати зарплати)")
+            else:
+                last.amount = due
+                last.note = (DYN_NOTE[k] + (": " + detail if detail else ""))[:300]
+            changed = True
+        if fut:
+            nxt = fut[0]
+            nxt.amount = (round(live, 2) or None) if k.startswith("amort") else None
+            nxt.note = ("Прогноз за поточний півмісяць — точна сума в день нарахування" if k.startswith("amort")
+                        else "Сума зʼявиться після нарахування зарплати за період")
+            changed = True
+    if changed:
+        db.commit()
+
+
+def pay_dynamic(db: Session, it: PayItem, amount: float, day: date, cashbox: str | None, user_id: int | None, comment: str = ""):
+    """Оплата амортизації — погашення у фонд по кожному апарату / розхіднику (як у вкладці «Амортизація»);
+    зарплати — виплата кожному співробітнику (зменшує його баланс). Повертає першу фіноперацію."""
+    from . import amort
+    from .fin_articles import salary_names
+    k = dyn_kind(it)
+    if k and k.startswith("amort"):
+        _due, _live, rows = _amort_due(db, k, day)
+    elif k in ("salary_doc", "salary_adm"):
+        _due, rows = _salary_due(db, k)
+    else:
+        return None
+    total = sum(v for _, v in rows)
+    if not rows or total <= 0:
+        if k.startswith("amort"):
+            raise ValueError("Немає непогашеної амортизації — усе вже в фонді")
+        return None
+    left, first = round(float(amount), 2), None
+    for n, (obj, v) in enumerate(rows):
+        part = round(min(v, left) if amount >= total else (left if n == len(rows) - 1 else round(amount * v / total, 2)), 2)
+        if part <= 0:
+            continue
+        left = round(left - part, 2)
+        if k.startswith("amort"):
+            t = amort.pay(db, obj, day, part, cashbox or "", user_id, note=comment or f"Платіжний календар: {it.name}")
+            fid = t.finop_id
+        else:
+            sal = it.article if it.article in salary_names(db) else salary_names(db)[0]
+            op = FinOp(day=day, kind="expense", category=sal[:60], amount=part, cashbox=cashbox or it.cashbox or None, doctor_id=obj.id,
+                       counterparty=obj.name[:200], comment=(comment or f"Платіжний календар: {it.name}")[:500], created_by=user_id, ref=f"paycal:{it.id}")
+            db.add(op)
+            db.flush()
+            fid = op.id
+        first = first or fid
+    it.status, it.finop_id, it.paid_at, it.amount_fact = "paid", first, day, round(float(amount) - max(left, 0), 2)
+    if cashbox:
+        it.cashbox = cashbox
+    db.commit()
+    return db.get(FinOp, first) if first else None
+
+
+PURCHASE_RE = re.compile(r"закуп", re.I)
+
+
+def purchases(db: Session, first: date, last: date) -> dict:
+    """Закупівельні фонди: скільки витрачено за місяць по статтях «Закупівля …» (окремої структури поки немає)."""
+    by: dict = defaultdict(float)
+    for op in db.scalars(select(FinOp).where(FinOp.deleted_at.is_(None), FinOp.kind == "expense", FinOp.storno_of.is_(None),
+                                             FinOp.day >= first, FinOp.day <= last)):
+        if PURCHASE_RE.search(op.category or ""):
+            by[op.category] += float(op.amount or 0)
+    rows = sorted(((k, round(v, 2)) for k, v in by.items()), key=lambda x: -x[1])
+    return {"rows": rows, "total": round(sum(v for _, v in rows), 2)}
+
+
+# ---------------- налаштування календаря з голосових побажань власника (09.11.2026) ----------------
+SETUP2_KEY = "paycal_setup_v2"
+
+
+def setup_v2(db: Session, today: date | None = None) -> bool:
+    from ..models import SyncState
+    from .fin_articles import names as _names
+    if db.get(SyncState, SETUP2_KEY) or not db.scalar(select(PayPlan.id).limit(1)):
+        return False
+    today = today or date.today()
+    m0 = today.replace(day=1)
+    arts = set(_names(db, "expense", active_only=False))
+
+    def art(*c):
+        return next((x for x in c if x in arts), c[0])
+    plans = {p.name: p for p in db.scalars(select(PayPlan))}
+
+    def add(name, g, a, sch, d1=None, d2=None, amt=None, appr=False, start=None, cp=None, note=None):
+        if name in plans:
+            return plans[name]
+        p = PayPlan(name=name, group=g, article=a, schedule=sch, day=d1, day2=d2, amount=amt, needs_approval=appr,
+                    start=start or m0, counterparty=cp, note=note, sort=len(plans) + 1)
+        db.add(p)
+        plans[name] = p
+        return p
+    add("Оренда робочих місць", "opex", art("Оренда"), "monthly", 12, amt=650.0, cp="ФОП Бондар")
+    add("Інша оренда 2", "opex", art("Оренда", "Інша оренда"), "monthly", 26, amt=3000.0, note="2–3 тис. ₴, готівка")
+    add("Checkbox ФОП Колган", "opex", art("Програми Checkbox", "Сервіси та підписки"), "once", amt=2988.0, start=date(2027, 10, 1), note="Оплачено на рік")
+    add("Checkbox ФОП Бондар", "opex", art("Програми Checkbox", "Сервіси та підписки"), "once", amt=2988.0, start=date(2027, 10, 1), note="Оплачено на рік")
+    add("Ringostat", "opex", art("Сервіси та підписки Ringostat", "Сервіси та підписки"), "once", start=date(2027, 3, 1),
+        note="Перевірити залишок балансу й вирішити, чи продовжуємо")
+    add("Домени", "opex", art("Сервіси та підписки", "Програми"), "once", start=date(2027, 8, 1), note="Оплата доменів на рік")
+
+    def resched(name_rx, d1, d2, sch="twice", appr=None, amt=..., rename=None):
+        for p in list(plans.values()):
+            if re.search(name_rx, p.name, re.I):
+                p.schedule, p.day, p.day2 = sch, d1, d2
+                if appr is not None:
+                    p.needs_approval = appr
+                if amt is not ...:
+                    p.amount = amt
+                if rename:
+                    p.name = rename
+                keep = {d1, d2}
+                for it in db.scalars(select(PayItem).where(PayItem.plan_id == p.id, PayItem.due >= m0, PayItem.status.in_(("planned", "approved")))):
+                    if it.due.day in keep or (sch == "twice" and d2 and d2 >= 28 and it.due.day == calendar.monthrange(it.due.year, it.due.month)[1]):
+                        if amt is not ...:
+                            it.amount = amt
+                        continue
+                    it.status, it.note = "skipped", "Графік змінено"
+    resched(r"амортизац\w*\s+(виробн|розхідн)", 1, 16, amt=None)
+    resched(r"зарплата\s+спеціаліст|виплати\s+адмін", 1, 16, appr=True, amt=None)
+    resched(r"^бухгалтер", 15, 31, amt=9250.0)
+    for p in plans.values():
+        if re.search(r"хімчистк", p.name, re.I):
+            p.active = False
+            p.note = "Плаваюча дата — додавайте разовим платежем"
+        if p.name == "Військовий збір ФОП":
+            p.name = "Військовий збір ФОП Колган"
+            for it in db.scalars(select(PayItem).where(PayItem.plan_id == p.id, PayItem.status.in_(("planned", "approved")))):
+                it.name = p.name
+    add("Військовий збір ФОП Бондар", "tax", art("Податки ВЗ ФОП Бондар", "Податки"), "monthly", 15)
+    db.merge(SyncState(key=SETUP2_KEY, value=today.isoformat(), updated_at=datetime.utcnow()))
+    db.commit()
+    # планшет: 6 500 ₴ щомісяця 15-го, поки не закриємо 30 000
+    from . import leasing
+    xs = leasing.contracts(db)
+    c = next((x for x in xs if x.get("group") == "tablet"), None)
+    if c:
+        leasing.save(db, c["id"], {**{k: str(c.get(k) or "") for k in ("name", "group", "kind", "total", "paid_before", "bank")},
+                                   "monthly": "6500", "next": "2026-11-15" if today <= date(2026, 11, 15) else str(today.replace(day=15)),
+                                   "note": "6 500 ₴ щомісяця 15-го"})
+    return True
