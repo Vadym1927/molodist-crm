@@ -20,15 +20,15 @@ tr.nop td{background:#FFF4F2}tr.dup td{color:#9a948f}
 
 {% if scan %}
 <div class="card"><h2>2. Перевірити й підтвердити</h2>
-<div class="bd-k"><div><small>Файлів</small><b>{{ scan.total }}</b></div><div><small>Пацієнтів</small><b>{{ scan.patients }}</b></div><div><small>Бюті-планів</small><b>{{ scan.plans }}</b></div><div><small>Документів / фото</small><b>{{ scan.docs }} / {{ scan.photos }}</b></div><div><small>Без пацієнта · дублі</small><b style="color:{{ '#B23B2E' if scan.no_patient else 'inherit' }}">{{ scan.no_patient }} · {{ scan.dup }}</b></div></div>
+<div class="bd-k"><div><small>Файлів</small><b>{{ scan.total }}</b></div><div><small>Пацієнтів</small><b>{{ scan.patients }}</b></div><div><small>Бюті-планів</small><b>{{ scan.plans }}</b></div><div><small>Документів / фото</small><b>{{ scan.docs }} / {{ scan.photos }}</b></div><div><small>Без пацієнта · ПІБ не збігається · дублі</small><b style="color:{{ '#B23B2E' if scan.no_patient or scan.mismatch else 'inherit' }}">{{ scan.no_patient }} · {{ scan.mismatch }} · {{ scan.dup }}</b></div></div>
 <form method="post" action="/data/docs-archive/apply" onsubmit="if(this.dataset.sent)return false;this.dataset.sent=1;this.querySelector('button').disabled=true;this.querySelector('button').textContent='Записую… не закривайте сторінку'">
 <input type="hidden" name="token" value="{{ token }}"><input type="hidden" name="group" value="{{ group }}">
 <table class="bd-t"><tr><th>Файл</th><th>Телефон / №</th><th>Тип</th><th>Пацієнт</th><th>Інший пацієнт (№ картки CRM)</th><th></th></tr>
-{% for r in scan.rows %}<tr class="{{ 'nop' if not r.patient_id and not r.error }} {{ 'dup' if r.dup }}">
+{% for r in scan.rows %}<tr class="{{ 'nop' if (not r.patient_id and not r.error) or r.mismatch }} {{ 'dup' if r.dup }}">
   <td title="{{ r.path }}">{{ r.name or r.path }}{% if r.error %} <span class="bad">{{ r.error }}</span>{% endif %}<div class="mini muted">{{ ((r.size or 0) / 1024)|round|int }} КБ</div></td>
   <td>{{ r.num if r.num is not none else '—' }}<div class="mini muted">{{ {'file':'з назви','folder':'з папки','':''}[r.num_src] }}</div></td>
   <td>{{ {'plan':'бюті-план','doc':'документ','photo':'фото'}.get(r.kind, '') }}{% if r.kind != 'plan' %}<div class="mini muted">{{ {'doc':'Документи','consent':'Згоди','face':'Обличчя','body':'Тіло'}.get(r.category,'') }}</div>{% endif %}</td>
-  <td>{% if r.patient_id %}<a href="/patients/{{ r.patient_id }}" target="_blank">{{ r.patient }}</a> <span class="mini muted">{{ {'phone':'за телефоном','cb':'№ CB','crm':'№ CRM'}.get(r.via, '') }}</span>{% else %}<span class="bad">{{ 'кілька пацієнтів з таким телефоном' if r.via == 'ambiguous' else 'не знайдено' }}</span>{% endif %}</td>
+  <td>{% if r.patient_id %}<a href="/patients/{{ r.patient_id }}" target="_blank">{{ r.patient }}</a> <span class="mini muted">{{ {'phone':'за телефоном','cb':'№ CB','crm':'№ CRM'}.get(r.via, '') }}</span>{% if r.mismatch %}<div class="bad">ПІБ у назві файлу не збігається — не запишеться, доки не вкажете № картки{% if r.cands %}. Схожі: {% for c in r.cands %}<a href="/patients/{{ c.id }}" target="_blank">{{ c.name }} (№ {{ c.id }})</a>{{ ', ' if not loop.last }}{% endfor %}{% endif %}</div>{% endif %}{% else %}<span class="bad">{{ 'кілька пацієнтів з таким телефоном' if r.via == 'ambiguous' else 'не знайдено' }}</span>{% endif %}</td>
   <td><input name="ov:{{ r.path }}" inputmode="numeric" placeholder="№"></td>
   <td class="mini muted">{{ 'уже є в картці — пропустимо' if r.dup }}</td></tr>{% endfor %}</table>
 <div class="row" style="gap:10px;margin-top:12px;align-items:center"><button class="btn" onclick="return confirm('Записати файли в картки пацієнтів?')">Записати в картки</button>

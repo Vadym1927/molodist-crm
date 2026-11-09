@@ -55,3 +55,17 @@ def test_bulk_docs_dups():
         assert len([f for f in bulk_docs.find_dups(db)["files"] if f.patient_id == p.id]) == 1
         bulk_docs.remove_dups(db)
         assert db.query(PatientFile).filter_by(patient_id=p.id).count() == 3
+
+
+def test_bulk_docs_name_mismatch():
+    assert bulk_docs.name_matches("380975010540__028__Калишенко Софія Сергіївна 09.2025.pdf", "Калишенко Софія Сергіївна")
+    assert bulk_docs.name_matches("380630247170__052__Солом_яна_Ольга_Володимирівна_03_2026.pdf", "Ольга Солом'яна")
+    assert not bulk_docs.name_matches("380975010540__028__Калишенко Софія Сергіївна 09.2025.pdf", "Мартинюк Лариса Борисівна")
+    with SessionLocal() as db:
+        m = Patient(full_name="Невідповідна Лариса", phone="+380000000821")
+        db.add(m); db.commit()
+        arc = _zip([("380000000821__001__Інша Особа Петрівна.pdf", b"%PDF fake")])
+        sc = bulk_docs.scan(db, [("m.zip", arc)], "medical")
+        assert sc["mismatch"] == 1
+        rep = bulk_docs.apply(db, [("m.zip", arc)], "medical")
+        assert rep["files"] == 0 and rep["no_patient"] == 1

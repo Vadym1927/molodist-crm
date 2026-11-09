@@ -5789,6 +5789,16 @@ def docs_archive_dups(user: User = Depends(require("migrate")), db: Session = De
             "plan_list": [{"id": p.id, "patient": p.patient.full_name, "total": p.total_planned, "title": p.title} for p in d["plans"]]}
 
 
+@app.get("/data/docs-archive/check")
+def docs_archive_check(user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
+    """Записані з архівів файли, де ПІБ у назві не збігається з пацієнтом картки (лише перегляд) + підказки правильної картки."""
+    from .services import bulk_docs
+    c = bulk_docs.check(db)
+    for r in c["mismatch"]:
+        r["cands"] = bulk_docs.candidates(db, r["name"])
+    return c
+
+
 @app.post("/data/docs-archive/dups/remove")
 def docs_archive_dups_remove(user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
     from .services import bulk_docs

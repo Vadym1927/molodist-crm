@@ -93,7 +93,10 @@ def scan(db: Session, archives: list[tuple[str, bytes]], group: str = "other") -
             pat, via = None, ""
             if phone:
                 hits = by_phone.get(phone) or []
-                if len(hits) == 1:
+                named = [h for h in hits if name_matches(fname_fixed, h.full_name)]
+                if len(named) == 1:
+                    pat, via = named[0], "phone"
+                elif len(hits) == 1:
                     pat, via = hits[0], "phone"
                 elif len(hits) > 1:
                     via = "ambiguous"
@@ -106,13 +109,16 @@ def scan(db: Session, archives: list[tuple[str, bytes]], group: str = "other") -
                  "num": phone or (num if num is not None else None), "num_src": src,
                  "kind": kind, "category": _category(fname_fixed, group, kind) if kind != "plan" else "plan",
                  "patient_id": pat.id if pat else None, "patient": pat.full_name if pat else None, "via": via}
+            if pat is not None and via == "phone" and not name_matches(fname_fixed, pat.full_name):
+                r["mismatch"] = True                      # телефон збігся, а ПІБ у назві файлу — ні: не записуємо без підтвердження
+                r["cands"] = candidates(db, fname_fixed)
             if pat is None:
                 no_patient += 1
             elif (pat.id, fname_fixed.lower()) in have:
                 r["dup"] = True
                 dup += 1
             rows.append(r)
-    return {"rows": rows, "total": len(rows), "no_patient": no_patient, "dup": dup,
+    return {"rows": rows, "total": len(rows), "no_patient": no_patient, "dup": dup, "mismatch": sum(1 for r in rows if r.get("mismatch")),
             "plans": sum(1 for r in rows if r.get("kind") == "plan"), "docs": sum(1 for r in rows if r.get("kind") == "doc"),
             "photos": sum(1 for r in rows if r.get("kind") == "photo"),
             "patients": len({r["patient_id"] for r in rows if r.get("patient_id")})}
@@ -130,7 +136,7 @@ def apply(db: Session, archives: list[tuple[str, bytes]], group: str = "other", 
     for r in plan_["rows"]:
         if r.get("error"):
             continue
-        pid = overrides.get(r["path"]) or r.get("patient_id")
+        pid = overrides.get(r["path"]) or (None if r.get("mismatch") else r.get("patient_id"))
         if not pid:
             rep["no_patient"] += 1
             continue
@@ -215,3 +221,39 @@ def remove_dups(db: Session) -> dict:
         np += 1
     db.commit()
     return {"files": n, "plans": np}
+
+
+def _words(text: str) -> set[str]:
+    t = (text or "").lower().replace("ʼ", "").replace("'", "").replace("`", "").replace("’", "")
+    t = t.replace("ё", "е").replace("і", "i").replace("ї", "i").replace("й", "и").replace("є", "е").replace("ґ", "г")
+    return {w for w in re.findall(r"[a-zа-я]+", t) if len(w) >= 4}
+
+
+def name_matches(filename: str, full_name: str | None) -> bool:
+    """Чи є в назві файлу хоч одне слово з ПІБ пацієнта (прізвище / імʼя; допускаємо різні закінчення — перші 5 літер)."""
+    stem = re.sub(r"^\d{6,12}__\d+__", "", PurePosixPath(filename).stem)
+    fw, pw = _words(stem.replace("_", " ")), _words(full_name or "")
+    return any(a[:5] == b[:5] for a in fw for b in pw)
+
+
+def check(db: Session) -> dict:
+    """Усі файли й плани, записані з архівів («телефон__№__ПІБ»): чи збігається ПІБ у назві з пацієнтом картки."""
+    rows = []
+    for f in db.scalars(select(PatientFile).where(PatientFile.patient_id.is_not(None)).order_by(PatientFile.id)):
+        if f.caption and NAME_RE.match(f.caption):
+            ok = name_matches(f.caption, f.patient.full_name if f.patient else "")
+            rows.append({"id": f.id, "kind": f.kind, "name": f.caption, "patient_id": f.patient_id,
+                         "patient": f.patient.full_name if f.patient else None, "ok": ok})
+    return {"total": len(rows), "mismatch": [r for r in rows if not r["ok"]]}
+
+
+def candidates(db: Session, filename: str) -> list[dict]:
+    """Пацієнти, чиє ПІБ збігається з назвою файлу щонайменше двома словами (для підказки правильної картки)."""
+    stem = re.sub(r"^\d{6,12}__\d+__", "", PurePosixPath(filename).stem)
+    fw = {w[:5] for w in _words(stem.replace("_", " "))}
+    out = []
+    for p in db.scalars(select(Patient)):
+        n = len({w[:5] for w in _words(p.full_name)} & fw)
+        if n >= 2:
+            out.append({"id": p.id, "name": p.full_name, "phone_tail": re.sub(r"\D", "", p.phone or "")[-4:], "n": n})
+    return sorted(out, key=lambda x: -x["n"])[:5]
