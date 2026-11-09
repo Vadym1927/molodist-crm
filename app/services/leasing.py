@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import calendar
+import hashlib
 import json
 from datetime import date, datetime
 
@@ -19,7 +20,23 @@ KEY = "leasing"
 SEED_KEY = "leasing_seed_v1"
 ARTICLE = "Зобовʼязання Розтермінування MONOBANK"
 GROUPS = {"inverter": "Інвертор Deye", "tablet": "Планшет", "observ": "OBSERV 520x", "other": "Інше обладнання"}
-KINDS = {"instalment": "Розтермінування / лізинг", "fund": "Погашення з фонду амортизації"}
+KINDS = {"instalment": "Розтермінування", "credit": "Кредит", "leasing": "Лізинг", "fund": "Погашення з фонду (банка)"}
+SCHED_KINDS = ("instalment", "credit", "leasing")
+FEED_PREFIX = "OBSERV → банка"
+
+
+def group_title(c: dict) -> str:
+    g = c.get("group") or "other"
+    return c.get("group_title") or GROUPS.get(g, g)
+
+
+def all_groups(xs: list[dict]) -> dict:
+    """Стандартні групи + власні (створені у формі договору), у порядку появи."""
+    out = dict(GROUPS)
+    for c in xs:
+        if c.get("group") and c["group"] not in out:
+            out[c["group"]] = group_title(c)
+    return out
 OLD_PLANS = ("Лізинг обладнання · інвертор", "Лізинг обладнання · батареї")
 
 # Дані з таблиці власника «Інвектор» (09.11.2026): сплачено до CRM і наступний платіж.
@@ -78,7 +95,7 @@ def schedule(total: float, paid: float, monthly: float | None, first: date | Non
 
 def sync_calendar(db: Session, c: dict, today: date | None = None) -> int:
     """Шаблон у платіжному календарі + усі майбутні платежі договору (без дублів; оплачені не чіпає)."""
-    if c.get("kind") != "instalment":
+    if c.get("kind") not in SCHED_KINDS:
         return 0
     today = today or date.today()
     plan = db.get(PayPlan, c.get("plan_id")) if c.get("plan_id") else None
@@ -152,10 +169,18 @@ def save(db: Session, cid: int | None, f: dict) -> dict:
             return round(float(str(f.get(k) or "").replace(" ", "").replace(",", ".")), 2) if str(f.get(k) or "").strip() else None
         except ValueError:
             return None
-    c.update(name=(f.get("name") or c.get("name") or "Договір").strip()[:120], group=f.get("group") if f.get("group") in GROUPS else c.get("group", "other"),
+    groups = all_groups(xs)
+    new_g = " ".join(str(f.get("group_new") or "").split())[:60]
+    if new_g:
+        hit = next((k for k, t in groups.items() if t.lower() == new_g.lower()), None)
+        g, gt = (hit, None if hit in GROUPS else groups[hit]) if hit else ("g" + hashlib.md5(new_g.lower().encode()).hexdigest()[:8], new_g)
+    else:
+        g = f.get("group") if f.get("group") in groups else c.get("group", "other")
+        gt = None if g in GROUPS else groups.get(g)
+    c.update(name=(f.get("name") or c.get("name") or "Договір").strip()[:120], group=g, group_title=gt,
              kind=f.get("kind") if f.get("kind") in KINDS else c.get("kind", "instalment"), total=num("total") or 0, paid_before=num("paid_before") or 0,
              monthly=num("monthly"), next=(_d(f.get("next")) or None) and str(_d(f.get("next"))), bank=(f.get("bank") or "").strip()[:80],
-             note=(f.get("note") or "").strip()[:300], start=c.get("start"))
+             terms=(f.get("terms") or "").strip()[:200], rate=num("rate"), note=(f.get("note") or "").strip()[:300], start=c.get("start"))
     sync_calendar(db, c)
     _save(db, xs)
     return c
@@ -188,7 +213,7 @@ def build(db: Session, today: date | None = None) -> dict:
         rest = [s for s in sch if s["status"] in ("planned", "approved")]
         r = {**c, "paid": paid, "paid_crm": paid_crm, "left": left, "pct": round(100 * paid / c["total"], 1) if c.get("total") else 0,
              "sched": sch, "n_left": len(rest), "end": rest[-1]["due"] if rest else None, "next_pay": rest[0] if rest else None,
-             "overdue": [s for s in rest if s["overdue"]], "group_t": GROUPS.get(c.get("group"), c.get("group")), "kind_t": KINDS.get(c.get("kind")),
+             "overdue": [s for s in rest if s["overdue"]], "group_t": group_title(c), "kind_t": KINDS.get(c.get("kind")),
              "closed": bool(c.get("total")) and left <= 0 and not rest,
              "closed_at": max((s["paid_at"] or s["due"] for s in sch if s["status"] == "paid"), default=None),
              "payments": [{"day": s["paid_at"] or s["due"], "amount": float(s["fact"] or s["amount"] or 0), "due": s["due"], "id": s["id"]}
@@ -197,17 +222,18 @@ def build(db: Session, today: date | None = None) -> dict:
             j = _jar_balance(db)
             r["jar"], r["jar_src"] = round(j["balance"], 2), j["src"]
             r["cover"] = round(100 * j["balance"] / left, 1) if left else 100.0
+            r.update(feeds_info(db, c, left, j["balance"], today))
         rows.append(r)
     history = sorted([r for r in rows if r["closed"]], key=lambda r: r["closed_at"] or date.min, reverse=True)
     pay_hist = sorted([dict(p, name=r["name"], group_t=r["group_t"]) for r in rows for p in r["payments"]], key=lambda p: p["day"], reverse=True)
     groups = []
-    for g, t in GROUPS.items():
+    for g, t in all_groups(contracts(db)).items():
         gr = [r for r in rows if r.get("group") == g and not r["closed"]]
         if gr:
             groups.append({"key": g, "title": t, "rows": gr, "total": round(sum(r["total"] for r in gr), 2), "paid": round(sum(r["paid"] for r in gr), 2),
                            "left": round(sum(r["left"] for r in gr), 2), "end": max((r["end"] for r in gr if r["end"]), default=None),
                            "fund": all(r.get("kind") == "fund" for r in gr)})
-    inst = [r for r in rows if r.get("kind") == "instalment" and not r["closed"]]
+    inst = [r for r in rows if r.get("kind") in SCHED_KINDS and not r["closed"]]
     months: dict = {}
     for r in inst:
         for s in r["sched"]:
@@ -216,10 +242,66 @@ def build(db: Session, today: date | None = None) -> dict:
                 months.setdefault(k, {"total": 0.0, "by": {}})
                 months[k]["total"] += s["amount"]
                 months[k]["by"][r["id"]] = months[k]["by"].get(r["id"], 0) + s["amount"]
+    feed_row = None
+    obs = next((r for r in rows if r.get("feeds")), None)
+    if obs and months:
+        f0, per = obs.get("feed_from"), obs.get("feed_month") or 0
+        feed_row = {}
+        for k in months:
+            if f0 and (k[0], k[1]) >= (f0.year, f0.month) and per:
+                feed_row[k] = per
+                months[k]["total"] += per
     this = months.get((today.year, today.month), {}).get("total", 0.0)
     return {"rows": rows, "groups": groups, "inst": inst, "months": sorted(months.items()), "this_month": round(this, 2),
             "left": round(sum(r["left"] for r in inst), 2), "left_fund": round(sum(r["left"] for r in rows if r.get("kind") == "fund"), 2),
             "paid": round(sum(r["paid"] for r in rows), 2), "total": round(sum(r["total"] for r in rows), 2),
             "end": max((r["end"] for r in inst if r["end"]), default=None),
-            "overdue": [(r, s) for r in inst for s in r["overdue"]], "today": today, "GROUPS": GROUPS, "KINDS": KINDS,
-            "history": history, "pay_hist": pay_hist, "pay_hist_sum": round(sum(p["amount"] for p in pay_hist), 2)}
+            "overdue": [(r, s) for r in inst for s in r["overdue"]], "today": today, "GROUPS": all_groups(contracts(db)), "KINDS": KINDS,
+            "feed_row": feed_row, "history": history, "pay_hist": pay_hist, "pay_hist_sum": round(sum(p["amount"] for p in pay_hist), 2)}
+
+
+# ---------------- OBSERV: після закриття розтермінувань ті самі суми йдуть у банку OBSERV ----------------
+FEEDS_KEY = "leasing_observ_feeds_v1"
+FEEDS_FROM = date(2027, 3, 1)
+FEEDS = [("Інвертор Deye", 8, 7904.0), ("Батарея Deye · 1", 10, 4000.0), ("Батарея Deye · 2", 14, 4000.0)]
+
+
+def setup_feeds(db: Session) -> bool:
+    """З березня 2027 платежі інвертора й батарей 1–2 стають погашенням OBSERV: щомісяця в ті самі дати переказ у банку OBSERV."""
+    from . import amort
+    if db.get(SyncState, FEEDS_KEY):
+        return False
+    xs = contracts(db)
+    obs = next((x for x in xs if x.get("kind") == "fund"), None)
+    if not obs:
+        return False
+    feeds = []
+    for i, (src, day, amt) in enumerate(FEEDS):
+        name = f"{FEED_PREFIX} · з {src}"
+        p = db.scalar(select(PayPlan).where(PayPlan.name == name))
+        if not p:
+            p = PayPlan(name=name, group="debt", article="Погашення OBSERV", cashbox=None, counterparty=amort.OBSERV_BOX, amount=amt,
+                        schedule="monthly", day=day, start=FEEDS_FROM, active=True, needs_approval=False, sort=950 + i,
+                        note=f"Переказ у «{amort.OBSERV_BOX}» — сума, що звільнилась після «{src}»")
+            db.add(p)
+            db.flush()
+        feeds.append({"src": src, "day": day, "amount": amt, "plan_id": p.id, "from": str(FEEDS_FROM)})
+    obs["feeds"] = feeds
+    _save(db, xs)
+    db.merge(SyncState(key=FEEDS_KEY, value=datetime.now().isoformat(timespec="minutes"), updated_at=datetime.utcnow()))
+    db.commit()
+    return True
+
+
+def feeds_info(db: Session, c: dict, left: float, jar: float, today: date) -> dict:
+    feeds = c.get("feeds") or []
+    if not feeds:
+        return {"feeds": [], "feed_month": 0.0}
+    ids = [f["plan_id"] for f in feeds]
+    paid = float(sum(float(i.amount_fact or i.amount or 0) for i in db.scalars(select(PayItem).where(PayItem.plan_id.in_(ids), PayItem.status == "paid"))))
+    per = round(sum(float(f["amount"]) for f in feeds), 2)
+    start = max(_d(feeds[0].get("from")) or today, today.replace(day=1))
+    need = max(left - jar, 0)
+    months = int(-(-need // per)) if per else None
+    return {"feeds": feeds, "feed_month": per, "feed_from": _d(feeds[0].get("from")), "feed_paid": round(paid, 2),
+            "feed_end": _add_months(start, months - 1, 15) if months else None, "feed_months": months}

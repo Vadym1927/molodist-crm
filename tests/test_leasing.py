@@ -55,3 +55,30 @@ def test_history_when_closed():
         assert any(r["name"] == "Батарея Deye · 1" for r in v["history"])
         assert all(r["name"] != "Батарея Deye · 1" for g in v["groups"] for r in g["rows"])
         assert sum(p["amount"] for p in v["pay_hist"] if p["name"] == "Батарея Deye · 1") == 12000
+
+
+def test_custom_group_kind_and_observ_feeds():
+    from app.models import FinOp
+    from app.services import paycal as pc
+    with SessionLocal() as db:
+        if not ls.contracts(db):
+            ls.ensure_setup(db)
+        c = ls.save(db, None, {"name": "Лазер тест", "group_new": "Лазери", "kind": "credit", "total": "120000", "paid_before": "0",
+                               "monthly": "10000", "next": "2026-12-05", "bank": "ПриватБанк", "terms": "12 міс · 1,9%"})
+        assert c["group_title"] == "Лазери" and c["kind"] == "credit"
+        v = ls.build(db, today=date(2026, 11, 9))
+        g = next(x for x in v["groups"] if x["title"] == "Лазери")
+        assert g["left"] == 120000 and len(g["rows"][0]["sched"]) == 12
+        st = db.get(SyncState, ls.FEEDS_KEY)
+        if st:
+            db.delete(st)
+            db.commit()
+        assert ls.setup_feeds(db)
+        plans = db.scalars(select(PayPlan).where(PayPlan.name.like("OBSERV → банка%"))).all()
+        assert sorted((p.day, p.amount) for p in plans) == [(8, 7904.0), (10, 4000.0), (14, 4000.0)] and all(p.start == date(2027, 3, 1) for p in plans)
+        pc.ensure_month(db, 2027, 3)
+        it = db.scalar(select(PayItem).where(PayItem.plan_id == plans[0].id))
+        op = pc.pay(db, it, it.amount, it.due, "Готівка", None)
+        assert op.kind == "transfer" and op.cashbox_to == "Банка OBSERV 520x"
+        obs = next(r for r in ls.build(db, today=date(2027, 3, 20))["rows"] if r["kind"] == "fund")
+        assert obs["feed_month"] == 15904 and obs["feed_paid"] == it.amount and obs["feed_end"]

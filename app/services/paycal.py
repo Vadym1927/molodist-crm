@@ -138,6 +138,18 @@ def match_paid(db: Session, items: list[PayItem]) -> int:
 
 def pay(db: Session, it: PayItem, amount: float, day: date, cashbox: str | None, user_id: int | None, comment: str = "") -> FinOp:
     """Кнопка «Оплачено»: створює витрату в журналі й закриває платіж (амортизація / зарплата — окремо, див. pay_dynamic)."""
+    if (it.name or "").startswith("OBSERV → банка"):
+        from . import amort
+        op = FinOp(day=day, kind="transfer", category="Погашення OBSERV", amount=round(float(amount), 2), cashbox=(cashbox or it.cashbox or None),
+                   cashbox_to=amort.OBSERV_BOX, counterparty=amort.OBSERV_BOX, comment=(comment or f"Платіжний календар: {it.name}")[:500],
+                   created_by=user_id, ref=f"paycal:{it.id}")
+        db.add(op)
+        db.flush()
+        it.status, it.finop_id, it.paid_at, it.amount_fact = "paid", op.id, day, op.amount
+        if cashbox:
+            it.cashbox = cashbox
+        db.commit()
+        return op
     if dyn_kind(it) == "salary_one":
         from .fin_articles import salary_names
         sal = it.article if it.article in salary_names(db) else salary_names(db)[0]

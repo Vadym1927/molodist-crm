@@ -22,7 +22,7 @@
 .chips{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}.ch{display:inline-block;border-radius:7px;padding:2px 7px;font:700 11px var(--sans)}
 .ch.p{background:#DDF1E2;color:#2f6b3b}.ch.a{background:#E4DEEF;color:#3B3050}.ch.o{background:#F9DEDC;color:#B23B2E}
 .fund{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:6px}.fund div{background:#F7F4F0;border-radius:14px;padding:10px 12px}.fund small{display:block;font:700 10px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496}.fund b{font:800 19px var(--sans)}
-.frm{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:10px;padding-top:12px;border-top:1px dashed #E4DEEF}.frm label{display:grid;gap:4px;font-size:12px;color:#6b6575}.frm label.w2{grid-column:span 2}.frm input,.frm select{height:36px}
+.frm{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:10px;padding-top:12px;border-top:1px dashed #E4DEEF}.frm label{display:grid;gap:4px;font-size:12px;color:#6b6575}.frm label.w2{grid-column:span 2}.frm input{height:36px}.frm select{height:40px}
 .scroll{overflow-x:auto}
 @media(max-width:1000px){.lk,.fund{grid-template-columns:1fr 1fr}.frm{grid-template-columns:1fr 1fr}}
 </style>
@@ -53,13 +53,19 @@
       <div><small>Лишилось</small><b class="bad">{{ u(r.left) }} ₴</b></div>
       <div><small>Лежить у банці</small><b class="ok">{{ u(r.jar) }} ₴</b><div class="mini">{{ r.cover }}% залишку · {{ r.jar_src }}</div></div>
     </div>
-    {% if r.note %}<div class="mini" style="margin-top:8px">{{ r.note }} · <a href="/amort">Амортизація</a> · <a href="?edit={{ r.id }}#c{{ r.id }}">змінити</a></div>{% endif %}
+    {% if r.feeds %}
+    <div style="margin-top:12px;background:#F3EFF9;border-radius:14px;padding:12px 14px">
+      <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><b style="font:700 14px var(--sans)">У банку з {{ r.feed_from.strftime('%m.%Y') if r.feed_from else '—' }} · {{ u(r.feed_month) }} ₴ / міс</b>
+        <span class="sm">переказано через календар <b>{{ u(r.feed_paid) }} ₴</b>{% if r.feed_end %} · з банкою покриємо залишок ≈ <b>{{ r.feed_end.strftime('%m.%Y') }}</b> ({{ r.feed_months }} міс.){% endif %}</span></div>
+      <div class="mini" style="margin-top:6px">{% for f in r.feeds %}{{ f.day }}-го · {{ u(f.amount) }} ₴ — звільнилось після «{{ f.src }}»{{ ' · ' if not loop.last }}{% endfor %}. У календарі — «OBSERV → банка», «Оплачено» = переказ у «Банка OBSERV 520x».</div>
+    </div>{% endif %}
+    <div class="mini" style="margin-top:8px">{% if r.note %}{{ r.note }} · {% endif %}<a href="/amort">Амортизація</a> · <a href="?edit={{ r.id }}#c{{ r.id }}">змінити</a></div>
     {% if edit == r.id %}{% set c = r %}{% include "_leasing_form.html" %}{% endif %}
     {% endfor %}
   {% else %}
   <table class="lt"><tr><th>Договір</th><th>Сума</th><th>Сплачено</th><th>Лишилось</th><th>Платіж / міс</th><th>Наступний</th><th>Лишилось платежів</th><th>Останній</th><th></th></tr>
     {% for r in g.rows %}
-    <tr id="c{{ r.id }}"><td><b>{{ r.name }}</b><div class="mini">{{ r.bank or r.kind_t }}{% if r.note %} · {{ r.note }}{% endif %}</div></td>
+    <tr id="c{{ r.id }}"><td><b>{{ r.name }}</b><div class="mini">{{ r.kind_t }}{% if r.bank %} · {{ r.bank }}{% endif %}{% if r.terms %} · {{ r.terms }}{% endif %}{% if r.rate %} · {{ r.rate }}%{% endif %}{% if r.note %} · {{ r.note }}{% endif %}</div></td>
       <td>{{ u(r.total) }}</td><td>{{ u(r.paid) }}<div class="mini">{{ r.pct }}%</div></td><td class="{{ 'bad' if r.left }}">{{ u(r.left) }}</td><td>{{ u(r.monthly) }}</td>
       <td>{% if r.next_pay %}<span class="{{ 'bad' if r.next_pay.overdue }}">{{ r.next_pay.due.strftime('%d.%m') }}</span> · {{ u(r.next_pay.amount) }}{% else %}<span class="ok">сплачено</span>{% endif %}</td>
       <td>{{ r.n_left }}</td><td>{{ r.end.strftime('%m.%Y') if r.end else '—' }}</td><td><a href="?edit={{ r.id }}#c{{ r.id }}" class="mini">змінити</a></td></tr>
@@ -74,6 +80,7 @@
 <div class="lg"><div class="hd"><h3>Графік платежів</h3><div class="sm">по місяцях · ті самі платежі, що в календарі</div></div>
   <div class="scroll"><table class="lt" style="margin-top:8px"><tr><th>Договір</th>{% for k, mth in v.months %}<th>{{ MON[k[1] - 1] }} {{ k[0] % 100 }}</th>{% endfor %}<th>Разом</th></tr>
     {% for r in v.inst if r.n_left %}<tr><td>{{ r.name }}</td>{% for k, mth in v.months %}<td class="{{ 'cur' if k == (v.today.year, v.today.month) }}">{{ u(mth.by.get(r.id)) if mth.by.get(r.id) else '' }}</td>{% endfor %}<td><b>{{ u(r.left) }}</b></td></tr>{% endfor %}
+    {% if v.feed_row %}<tr><td>OBSERV → банка <span class="mini">ті самі суми після закриття</span></td>{% for k, mth in v.months %}<td>{{ u(v.feed_row.get(k)) if v.feed_row.get(k) else '' }}</td>{% endfor %}<td class="mini">до покриття</td></tr>{% endif %}
     <tr class="tot"><td>Разом за місяць</td>{% for k, mth in v.months %}<td>{{ u(mth.total) }}</td>{% endfor %}<td>{{ u(v.left) }}</td></tr>
   </table></div></div>
 {% endif %}
