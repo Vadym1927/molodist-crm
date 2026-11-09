@@ -149,8 +149,18 @@ def audit(files: list, by: str = "client") -> dict:
             wrong.setdefault(cur, []).append((fid, owner))
     unknown = [fid for fid in have if fid not in seen]
     rows = sorted(({"patient_id": pid, "name": names.get(pid), "cb_id": cbid.get(pid), "files": len(v),
-                    "owners": sorted({names.get(o) or f"#{o}" for _, o in v})} for pid, v in wrong.items()),
+                    "owners": sorted({names.get(o) or f"#{o}" for _, o in v}),
+                    "owners_cb": sorted({cbid.get(o) or 0 for _, o in v}), "fids": sorted(f for f, _ in v)[:6]} for pid, v in wrong.items()),
                   key=lambda r: -r["files"])
+    with SessionLocal() as db:
+        unk = db.scalars(select(PatientFile).where(PatientFile.cb_file_id.in_(unknown[:4000] or [0]))).all()
+        unk_kinds = {}
+        for f in unk:
+            k = f"{f.kind}/{f.stage or '-'}/{(f.caption or '')[:22]}"
+            unk_kinds[k] = unk_kinds.get(k, 0) + 1
+        unk_sample = [{"fid": f.cb_file_id, "patient": names.get(f.patient_id), "caption": f.caption, "kind": f.kind, "stage": f.stage,
+                       "path": (f.path or "").rsplit("/", 1)[-1]} for f in unk[:12]]
     return {"files": len(files), "wrong_patients": len(rows), "wrong_files": sum(r["files"] for r in rows), "rows": rows,
-            "missing_in_crm": missing, "no_patient": no_patient, "unknown_in_crm": len(unknown)}
+            "missing_in_crm": missing, "no_patient": no_patient, "unknown_in_crm": len(unknown),
+            "unknown_kinds": sorted(unk_kinds.items(), key=lambda x: -x[1])[:15], "unknown_sample": unk_sample}
 
