@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Сформувати замовлення · {{ sel }}{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+{% macro u(v) %}{% if v is none %}—{% else %}{{ (('{:,.2f}').format(v or 0)).replace(',', ' ').replace('.', ',') }}{% endif %}{% endmacro %}
+<style>
+.ob{width:100%;border-collapse:collapse;font-size:13px}.ob th{text-align:right;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496;padding:7px 8px;border-bottom:1px solid #ECE7E1}
+.ob th:nth-child(-n+2),.ob td:nth-child(-n+2){text-align:left}.ob td{padding:6px 8px;text-align:right;border-bottom:1px solid #F6F3EF;vertical-align:middle}
+.ob input{width:70px;height:32px;text-align:right;padding:0 6px;margin:0}.ob input.c{width:90px}.ob tr.need td{background:#FFF7E8}.ob tr.zero td{color:#a39ea8}
+.ob tr.tot td{font-weight:800;border-top:1px solid #E4DEEF;border-bottom:0;background:#F8F6FC}
+.obc{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:16px 18px}
+</style>
+<div class="row between" style="align-items:flex-end;flex-wrap:wrap;gap:10px">
+  <div><h1>Сформувати замовлення</h1><div class="muted small">Потрібно замовити = критичний залишок − в обліку (якщо по факту на вітрині менше — від факту). Критичний залишок — у картці товару («мін. залишок»), його можна змінити прямо тут. Ціна — прайс постачальника (для реалізації — ціна банки з останньої поставки).</div></div>
+  <a class="btn ghost" href="/stock?tab=order">← Замовлення</a>
+</div>
+{% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
+<form method="get" class="row" style="gap:8px;margin:10px 0 14px"><select name="s" onchange="this.form.submit()" style="height:40px;min-width:260px">{% for x in sups %}<option {{ 'selected' if x == sel }}>{{ x }}</option>{% endfor %}</select></form>
+<form method="post" action="/stock/order/build" class="obc"><input type="hidden" name="s" value="{{ sel }}">
+  <table class="ob"><tr><th>Артикул</th><th>Назва</th><th>Критичний</th><th>В обліку</th><th>По факту</th><th>Потрібно замовити</th><th>Ціна за од.</th><th>Сума</th></tr>
+  {% for r in rows %}<tr class="{{ 'need' if r.need else ('zero' if not r.min else '') }}" data-pid="{{ r.p.id }}" data-stock="{{ r.stock }}">
+    <td>{{ r.sku }}</td><td><a href="/products/{{ r.p.id }}" target="_blank">{{ r.p.name }}</a></td>
+    <td><input name="min_{{ r.p.id }}" value="{{ r.min or 0 }}" inputmode="numeric" oninput="obCalc()" form="minform"></td>
+    <td>{{ '%g' % r.stock }}</td>
+    <td><input name="f_{{ r.p.id }}" value="{{ '%g' % r.fact }}" inputmode="decimal" oninput="obCalc()"></td>
+    <td><input name="q_{{ r.p.id }}" value="{{ r.need or '' }}" inputmode="decimal" oninput="obSum()"></td>
+    <td><input class="c" name="c_{{ r.p.id }}" value="{{ ('%.2f' % r.price) if r.price else '' }}" inputmode="decimal" oninput="obSum()"></td>
+    <td class="sum">{{ u(r.sum) if r.sum else '' }}</td></tr>
+  {% else %}<tr><td colspan="8" class="muted">У постачальника немає товарів (поле «Постачальник» у картці товару).</td></tr>{% endfor %}
+  <tr class="tot"><td></td><td>Разом до замовлення</td><td></td><td></td><td></td><td id="obQ"></td><td></td><td id="obS"></td></tr></table>
+  <div class="row" style="gap:8px;margin-top:12px;align-items:center"><button class="btn">Створити замовлення</button>
+    <button type="button" class="btn ghost" onclick="obSaveMin()">Зберегти критичні залишки</button><span class="small muted" id="obMsg"></span></div>
+</form>
+<form id="minform" method="post" action="/stock/order/min"><input type="hidden" name="s" value="{{ sel }}"></form>
+<script>
+const num=v=>{v=String(v||'').replace(/\s/g,'').replace(',','.');return v===''?NaN:parseFloat(v)};
+function obCalc(){document.querySelectorAll('.ob tr[data-pid]').forEach(tr=>{const id=tr.dataset.pid,st=parseFloat(tr.dataset.stock)||0;
+  const mn=num(tr.querySelector(`[name=min_${id}]`).value)||0,f=num(tr.querySelector(`[name=f_${id}]`).value);
+  const base=isNaN(f)?st:Math.min(st,f),need=Math.max(0,Math.round(mn-base));tr.querySelector(`[name=q_${id}]`).value=need||'';tr.classList.toggle('need',need>0)});obSum()}
+function obSum(){let Q=0,S=0;document.querySelectorAll('.ob tr[data-pid]').forEach(tr=>{const id=tr.dataset.pid,q=num(tr.querySelector(`[name=q_${id}]`).value)||0,c=num(tr.querySelector(`[name=c_${id}]`).value)||0;
+  tr.querySelector('.sum').textContent=q?(q*c).toLocaleString('uk-UA',{minimumFractionDigits:2,maximumFractionDigits:2}):'';Q+=q;S+=q*c});
+  document.getElementById('obQ').textContent=Q||'';document.getElementById('obS').textContent=S.toLocaleString('uk-UA',{minimumFractionDigits:2,maximumFractionDigits:2})+' ₴'}
+async function obSaveMin(){const fd=new FormData(document.getElementById('minform'));document.querySelectorAll('[form=minform]').forEach(i=>fd.append(i.name,i.value));
+  const r=await fetch('/stock/order/min',{method:'POST',body:fd});document.getElementById('obMsg').textContent=r.ok?'Критичні залишки збережено в картках товарів':'Не вдалося зберегти'}
+obSum();
+</script>
+{% endblock %}

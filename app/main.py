@@ -6030,6 +6030,51 @@ def stock_doc_pay(did: int, action: str = Form("paid"), fop: str = Form(""), amo
     return RedirectResponse(f"/stock/docs/{did}#pay", 303)
 
 
+@app.get("/stock/order/build", response_class=HTMLResponse)
+def stock_order_build(request: Request, s: str = "TEBISKIN", user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .services import order_builder as ob
+    from .models import Supplier
+    ob.ensure_seed(db)
+    sups = [x.name for x in db.scalars(select(Supplier).order_by(Supplier.name))]
+    return render(request, "stock_order_build.html", nav="stock", sups=sups, sel=s, rows=ob.rows(db, s) if s else [])
+
+
+@app.post("/stock/order/build")
+async def stock_order_build_post(request: Request, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .services import order_builder as ob
+    f = await request.form()
+    sup = str(f.get("s") or "").strip()
+    lines = []
+    for k, v in f.items():
+        if k.startswith("q_"):
+            pid = int(k[2:])
+            q = _num(str(v or ""))
+            c = _num(str(f.get(f"c_{pid}") or ""))
+            if q and q > 0:
+                lines.append((pid, q, c))
+    doc = ob.create(db, sup, lines, user.id)
+    if not doc:
+        return RedirectResponse(_with_err(f"/stock/order/build?s={quote(sup)}", "Нічого замовляти — всі позиції в нормі"), 303)
+    audit(db, "stock.order_build", "stock_doc", doc.id, user=user, supplier=sup, lines=len(lines))
+    return RedirectResponse(f"/stock/docs/{doc.id}?msg=" + quote(f"Замовлення {sup} сформовано: {len(lines)} позицій"), 303)
+
+
+@app.post("/stock/order/min")
+async def stock_order_min(request: Request, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    f = await request.form()
+    n = 0
+    for k, v in f.items():
+        if k.startswith("min_"):
+            p = db.get(Product, int(k[4:]))
+            val = _num(str(v or ""))
+            if p is not None and val is not None and (p.min_stock or 0) != int(val):
+                p.min_stock = int(val)
+                n += 1
+    db.commit()
+    audit(db, "stock.min_stock", user=user, n=n)
+    return JSONResponse({"ok": True, "changed": n})
+
+
 @app.post("/stock/order-from-critical")
 def stock_order_from_critical(supplier: str = Form(""), user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
     from .services import stock as st
