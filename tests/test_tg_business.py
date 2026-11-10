@@ -34,7 +34,7 @@ def test_business_flow():
 def test_meta_signature_two_keys(monkeypatch):
     import hashlib, hmac
     with SessionLocal() as db:
-        monkeypatch.setattr(mi, "_secrets", lambda db_: ["fb-secret", "ig-secret"])
+        monkeypatch.setattr(mi, "_sig_keys", lambda db_: ["fb-secret", "ig-secret"])
         body = b'{"object":"instagram","entry":[]}'
         sig = "sha256=" + hmac.new(b"ig-secret", body, hashlib.sha256).hexdigest()
         assert mi.check_signature(db, body, sig)

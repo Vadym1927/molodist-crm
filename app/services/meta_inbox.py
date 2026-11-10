@@ -45,7 +45,7 @@ def verify_token(db: Session) -> str:
     return tok
 
 
-def _secrets(db: Session) -> list[str]:
+def _sig_keys(db: Session) -> list[str]:
     c = _raw_meta(db)
     if not c:
         return []
@@ -55,7 +55,7 @@ def _secrets(db: Session) -> list[str]:
 def check_signature(db: Session, body: bytes, header: str | None) -> bool:
     """Підпис Meta: HMAC-SHA256 тіла ключем застосунку. Messenger підписує App Secret застосунку Meta,
     Instagram API з входом через Instagram — окремим Instagram App Secret; приймаємо будь-який із двох."""
-    keys = _secrets(db)
+    keys = _sig_keys(db)
     if not keys:
         log.warning("Meta webhook: App Secret не задано — підпис не перевіряється")
         return True
@@ -71,7 +71,7 @@ def signature_hint(db: Session, body: bytes) -> str:
         obj = (_j.loads(body or b"{}") or {}).get("object") or "?"
     except ValueError:
         obj = "?"
-    n = len(_secrets(db))
+    n = len(_sig_keys(db))
     if obj == "instagram":
         return f"подія Instagram, перевірено ключів: {n}. Для Instagram потрібен Instagram App Secret (застосунок → Instagram → API setup with Instagram login)"
     return f"подія {obj}, перевірено ключів: {n}. Потрібен App Secret того застосунку, де налаштовано вебхук (Налаштування застосунку → Основні)"
