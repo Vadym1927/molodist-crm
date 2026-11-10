@@ -10352,6 +10352,25 @@ def _kpi_month(m: str) -> tuple[date, date, str]:
     return a, b, mk
 
 
+@app.get("/reports/not-rebooked", response_class=HTMLResponse)
+def not_rebooked_page(request: Request, y: str = "", m: str = "", doc: str = "", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Звіт «Не перезаписані пацієнти»: по лікарях і місяцях з початку року."""
+    from .services import rebook
+    year = int(y) if y.isdigit() else date.today().year
+    month = int(m) if m.isdigit() and 1 <= int(m) <= 12 else None
+    v = rebook.build(db, year, month, int(doc) if doc.isdigit() else None)
+    return render(request, "not_rebooked.html", nav="reports", v=v)
+
+
+@app.get("/reports/not-rebooked.xlsx")
+def not_rebooked_xlsx(y: str = "", m: str = "", doc: str = "", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import rebook
+    year = int(y) if y.isdigit() else date.today().year
+    v = rebook.build(db, year, int(m) if m.isdigit() and 1 <= int(m) <= 12 else None, int(doc) if doc.isdigit() else None)
+    return Response(rebook.to_xlsx(v), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f'attachment; filename="not_rebooked_{year}{("_" + m) if m else ""}.xlsx"'})
+
+
 @app.get("/reports/doctors-kpi", response_class=HTMLResponse)
 def doctors_kpi_page(request: Request, m: str = "", doc: str = "", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     from .services import doctor_kpi as dk

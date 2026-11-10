@@ -163,7 +163,7 @@ details.nrb summary{cursor:pointer;font-weight:600;color:var(--classic);font-siz
     <div class="kb"><h3>Медична дисципліна</h3>
       {{ row('Візитів з нотаткою', m.card_pct, (p.card_pct if p else none), 'pct') }}{{ row('Пацієнтів з фото до/після', m.photo_pct, (p.photo_pct if p else none), 'pct') }}
       <div class="kr hl"><span>Дисципліна</span><b>{{ pct(m.discipline) }}</b>{{ delta(m.discipline, (p.discipline if p else none), 'pct') }}</div>
-      {{ row('Перезаписані', m.rebook_pct, (p.rebook_pct if p else none), 'pct') }}{{ row('Без наступного запису', m.not_rebooked, (p.not_rebooked if p else none), 'int', True) }}
+      {{ row('Перезаписані', m.rebook_pct, (p.rebook_pct if p else none), 'pct') }}{{ row('Нові: перезаписані', m.new_rebook_pct, (p.new_rebook_pct if p else none), 'pct') }}{{ row('Без наступного запису', m.not_rebooked, (p.not_rebooked if p else none), 'int', True) }}
       {% if m.premium.steps %}<div class="kr"><span>Премія</span><b class="pm">{{ m.premium.total|uah }}</b></div>{% for i in m.premium.steps %}<div class="small muted">{{ i.label }} {{ num(i.value) }}% ≥ {{ num(i.min) }}% → {{ i.amount|uah }}</div>{% endfor %}{% endif %}</div>
   </div>
 
@@ -179,7 +179,7 @@ details.nrb summary{cursor:pointer;font-weight:600;color:var(--classic);font-siz
       {% else %}<div class="small" style="color:#1E7A46;font-weight:600">Усі цілі виконано — тримати рівень.</div>{% endif %}</div>
   </div>
 
-  {% if m.not_rebooked_list %}<details class="nrb" style="margin-top:12px"><summary>Не перезаписані пацієнти · {{ m.not_rebooked_list|length }}</summary>
+  {% if m.not_rebooked_list %}<details class="nrb" style="margin-top:12px"><summary>Не перезаписані пацієнти · {{ m.not_rebooked_list|length }} <a href="/reports/not-rebooked?doc={{ m.doctor_id }}" style="font-weight:400;margin-left:8px">звіт з початку року →</a></summary>
     <table class="nr" style="margin-top:8px"><tbody>{% for n in m.not_rebooked_list %}<tr><td><a href="/patients/{{ n.id }}">{{ n.name }}</a></td><td>{{ n.phone }}</td>
       <td class="r">{% if n.last %}останній візит {{ n.last|dt('%d.%m.%Y') }}{% endif %}</td><td class="r">{% if n.days is not none %}<span class="{{ 'muted' if n.days < 30 else '' }}" style="{{ 'color:#B23B2E;font-weight:700' if n.days >= 45 }}">{{ n.days }} дн.</span>{% endif %}</td>
       <td class="r"><a class="btn ghost" style="padding:3px 10px" href="/calendar?view=day&newappt=1&patient={{ n.id }}&doc={{ m.doctor_id }}">Записати</a></td></tr>{% endfor %}</tbody></table></details>{% endif %}

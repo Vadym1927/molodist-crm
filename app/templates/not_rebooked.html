@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Не перезаписані пацієнти{% endblock %}
+{% block body %}
+{% macro u(x) %}{% if not x %}—{% else %}{{ (('{:,.0f}').format(x)).replace(',', ' ') }}{% endif %}{% endmacro %}
+{% macro pc(x) %}{% if x is none %}—{% else %}{{ '%.0f' % x }}%{% endif %}{% endmacro %}
+{% set q = ('&doc=' ~ v.doctor_id) if v.doctor_id else '' %}
+<style>
+.nb-h{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px}.nb-h h1{margin:0}
+.nb-k{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.nb-k>div{background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:12px 16px}.nb-k small{display:block;font:700 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496}
+.nb-k b{display:block;font:800 24px var(--sans);margin-top:4px}.nb-k span{font-size:12px;color:#6b6575}.nb-k .d{background:#3B3050;border-color:#3B3050}.nb-k .d small,.nb-k .d b,.nb-k .d span{color:#fff}
+.nb-c{background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:14px 16px;margin-bottom:14px;overflow-x:auto}.nb-c h3{margin:0 0 4px;font:800 17px var(--sans);text-transform:none;letter-spacing:0}
+.nb-t{width:100%;border-collapse:collapse;font-size:13px}.nb-t th{font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#6b6575;padding:7px 8px;background:#F7F4F0;text-align:left;white-space:nowrap}
+.nb-t td{padding:7px 8px;border-bottom:1px solid #F1EDE8;vertical-align:middle}.nb-t .r{text-align:right}.nb-t td.c,.nb-t th.c{text-align:center}
+.nb-t a.cell{display:inline-block;min-width:34px;padding:3px 8px;border-radius:8px;text-decoration:none;color:#2A2430;font-weight:700}.nb-t a.cell.on{background:#3B3050;color:#fff}
+.nb-t a.cell.z{color:#b9b3c4;font-weight:400}.nb-t .sub{font-size:11px;color:#8a8496}
+.bk{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:700;white-space:nowrap}
+.bk.hot{background:#E4F2EA;color:#2f7a55}.bk.warm{background:#FFF3D6;color:#9A6B00}.bk.cool{background:#FBE6D8;color:#B4581A}.bk.lost{background:#F9E5E2;color:#B23A32}
+.tagn{display:inline-block;padding:1px 7px;border-radius:6px;background:#E4DEEF;color:#3B3050;font-size:11px;font-weight:700;margin-left:6px}
+.nb-f{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.nb-f select{height:40px;margin:0}
+.mini{font-size:12px;color:#6b6575}
+@media(max-width:1000px){.nb-k{grid-template-columns:1fr 1fr}}
+</style>
+<div class="nb-h">
+  <div><h1>Не перезаписані пацієнти</h1><div class="mini">Останній візит у клініці був у цього лікаря, і зараз немає дійсного запису до жодного спеціаліста. Кожен пацієнт — один раз, у місяці останнього візиту. {{ v.year }} рік, станом на {{ v.today.strftime('%d.%m.%Y') }}.</div></div>
+  <form class="nb-f" method="get">
+    <select name="doc" onchange="this.form.submit()"><option value="">Усі лікарі</option>{% for d in v.doctors %}<option value="{{ d.id }}" {{ 'selected' if v.doctor_id == d.id }}>{{ d.name }}</option>{% endfor %}</select>
+    <select name="m" onchange="this.form.submit()"><option value="">З початку року</option>{% for i in range(v.last_m, 0, -1) %}<option value="{{ i }}" {{ 'selected' if v.month == i }}>{{ v.MONTHS[i-1] }}</option>{% endfor %}</select>
+    <a class="btn ghost" href="/reports/not-rebooked.xlsx?y={{ v.year }}{{ ('&m=' ~ v.month) if v.month }}{{ q }}">⬇ Excel</a></form>
+</div>
+<div class="nb-k">
+  <div class="d"><small>Не перезаписані зараз</small><b>{{ v.tot.lost }}</b><span>з {{ v.tot.patients }} пацієнтів року · із записом {{ pc(v.tot.booked_pct) }}</span></div>
+  <div><small>Гарячі · до 30 днів</small><b style="color:#2f7a55">{{ v.tot.by_bucket.hot }}</b><span>дзвонити в першу чергу</span></div>
+  <div><small>31–90 днів</small><b style="color:#B4581A">{{ v.tot.by_bucket.warm + v.tot.by_bucket.cool }}</b><span>31–60: {{ v.tot.by_bucket.warm }} · 61–90: {{ v.tot.by_bucket.cool }}</span></div>
+  <div><small>Втрачені · понад 90 днів</small><b style="color:#B23A32">{{ v.tot.by_bucket.lost }}</b><span>повернення розсилкою / акцією</span></div>
+  <div><small>Нові без другого візиту</small><b>{{ v.tot.new_lost }}</b><span>залишок бюті-планів {{ u(v.tot.plan_left) }} ₴</span></div>
+</div>
+
+<div class="nb-c"><h3>По лікарях і місяцях</h3>
+  <div class="mini" style="margin-bottom:8px">У клітинці — скільки пацієнтів «зависло» після візиту цього місяця; під нею — утримання когорти місяця (повернулись або записані) і окремо нових. Натисніть число, щоб побачити список.</div>
+  <table class="nb-t"><tr><th>Лікар</th>{% for i in range(1, v.last_m + 1) %}<th class="c">{{ v.MONTHS[i-1][:3] }}</th>{% endfor %}<th class="c">Разом</th><th class="c">до 30</th><th class="c">31–90</th><th class="c">90+</th><th class="r">Залишок планів</th></tr>
+  {% for d in v.docs %}<tr><td><a href="?doc={{ d.doctor.id }}{{ ('&m=' ~ v.month) if v.month }}"><b>{{ d.doctor.name }}</b></a><div class="sub">{{ d.patients }} пацієнтів за рік</div></td>
+    {% for x in d.months %}<td class="c"><a class="cell {{ 'on' if v.month == x.m }} {{ 'z' if not x.lost }}" href="?m={{ x.m }}&doc={{ d.doctor.id }}#list">{{ x.lost }}</a>
+      {% if x.patients %}<div class="sub" title="Було пацієнтів: {{ x.patients }}, повернулись або записані: {{ x.kept }}; нових {{ x.new }}, з них утримано {{ x.new_kept }}">{{ pc(x.kept_pct) }}{% if x.new %} · н {{ pc(x.new_kept_pct) }}{% endif %}</div>{% endif %}</td>{% endfor %}
+    <td class="c"><b>{{ d.lost }}</b></td><td class="c">{{ d.by_bucket.hot }}</td><td class="c">{{ d.by_bucket.warm + d.by_bucket.cool }}</td><td class="c">{{ d.by_bucket.lost }}</td><td class="r">{{ u(d.plan_left) }}</td></tr>
+  {% else %}<tr><td colspan="{{ v.last_m + 6 }}" class="muted">За рік візитів немає.</td></tr>{% endfor %}</table>
+  <div class="mini" style="margin-top:8px">«н» — утримання нових пацієнтів місяця: частка тих, хто після першого візиту повернувся або записаний. Цей показник є в KPI лікаря («Нові: перезаписані», ціль у Налаштування → KPI лікарів).</div>
+</div>
+
+<a id="list"></a>
+{% for d in v.docs %}{% if d.sel %}
+<div class="nb-c"><h3>{{ d.doctor.name }} · {{ v.MONTHS[v.month-1] if v.month else 'з початку року' }} · {{ d.sel|length }}</h3>
+  <table class="nb-t" style="margin-top:8px"><tr><th>Пацієнт</th><th>Телефон</th><th>Останній візит</th><th>Без запису</th><th class="c">Візитів у лікаря</th><th class="r">Залишок бюті-плану</th><th></th></tr>
+  {% for r in d.sel %}<tr><td><a href="/patients/{{ r.id }}">{{ r.name }}</a>{% if r.new %}<span class="tagn">новий</span>{% endif %}</td><td style="white-space:nowrap">{{ r.phone }}</td>
+    <td style="white-space:nowrap">{{ r.last.strftime('%d.%m.%Y') }}</td><td><span class="bk {{ r.bucket }}">{{ r.days }} дн.</span></td>
+    <td class="c">{{ r.visits }}{% if r.visits_all > r.visits %}<span class="sub"> / {{ r.visits_all }}</span>{% endif %}</td><td class="r">{{ u(r.plan_left) }}</td>
+    <td class="r"><a class="btn ghost" style="height:30px;padding:0 10px;font-size:12px" href="/calendar?view=day&newappt=1&patient={{ r.id }}&doc={{ d.doctor.id }}">Записати</a></td></tr>{% endfor %}</table></div>
+{% endif %}{% endfor %}
+{% endblock %}

@@ -35,15 +35,15 @@ DEFAULT_VISIT_MIN = 60          # тривалість візиту CleverBox, �
 # цілі (однакові для всіх, можна перевизначити по лікарю) і шкала премії
 DEFAULT = {
     "targets": {"load_pct": 70, "products_share_pct": 15, "retention_pct": 80, "cancel_pct": 10, "discipline_pct": 85,
-                "rebook_pct": 60, "margin_pct": 40, "plan_pct": 50},
+                "rebook_pct": 60, "new_rebook_pct": 50, "margin_pct": 40, "plan_pct": 50},
     "ladder": [{"metric": "card_pct", "min": 85, "amount": 1000}, {"metric": "card_pct", "min": 90, "amount": 2000}],
     "doctors": {},          # doctor_id → {"taxes": сума/міс, "targets": {...перевизначення}, "revenue_target": ₴}
 }
 TARGET_LABELS = {"load_pct": "Завантаження, %", "products_share_pct": "Частка догляду в обороті, %", "retention_pct": "Поверненість, %",
                  "cancel_pct": "Скасувань не більше, %", "discipline_pct": "Медична дисципліна, %", "rebook_pct": "Перезаписані, %",
-                 "margin_pct": "Чиста маржа, %", "plan_pct": "Реалізація бюті-планів, %"}
+                 "new_rebook_pct": "Нові пацієнти: перезаписані, %", "margin_pct": "Чиста маржа, %", "plan_pct": "Реалізація бюті-планів, %"}
 LADDER_METRICS = {"card_pct": "Заповнення карти (нотатки візитів), %", "photo_pct": "Фото до/після, %", "discipline_pct": "Дисципліна разом, %",
-                  "load_pct": "Завантаження, %", "retention_pct": "Поверненість, %", "rebook_pct": "Перезаписані, %",
+                  "load_pct": "Завантаження, %", "retention_pct": "Поверненість, %", "rebook_pct": "Перезаписані, %", "new_rebook_pct": "Нові пацієнти: перезаписані, %",
                   "revenue_pct": "Виконання плану обороту, %", "products_share_pct": "Частка догляду, %", "plan_pct": "Реалізація бюті-планів, %"}
 
 
@@ -368,6 +368,8 @@ def _metrics(db: Session, d: Doctor, x: dict, d_from: date, d_to: date, cfg: dic
     nb = _next_booked(db, pats, b) if with_lists else {}
     rebooked = {p for p in pats if p in nb}
     rebook_pct = _pct(len(rebooked), len(pats)) if pats else None
+    new_rebooked = new & rebooked                        # нові пацієнти місяця, що мають наступний візит / запис
+    new_rebook_pct = _pct(len(new_rebooked), len(new)) if new and with_lists else None
     cats = []
     for name, k in x["cats"].items():
         cats.append({"name": name, "n": k["n"], "sum": round(k["sum"], 2), "cost": round(k["cost"], 2),
@@ -403,6 +405,7 @@ def _metrics(db: Session, d: Doctor, x: dict, d_from: date, d_to: date, cfg: dic
         "cost_per_h": round((cost + sal + taxes + x["amort"]) / worked_h, 2) if worked_h else 0.0,
         "card_pct": card_pct, "photo_pct": photo_pct, "discipline": discipline,
         "rebooked": len(rebooked), "rebook_pct": rebook_pct, "not_rebooked": len(pats) - len(rebooked),
+        "new_rebooked": len(new_rebooked), "new_rebook_pct": new_rebook_pct, "new_not_rebooked": len(new) - len(new_rebooked),
         "cats": cats, "targets": tg, "no_show": x["no_show"], "certs": round(x["certs"], 2), "n_certs": x["n_certs"],
         "subs": round(x["subs"], 2), "n_subs": x["n_subs"],
         "visits_per_patient": round(done / len(pats), 2) if pats else 0.0,
@@ -454,6 +457,10 @@ def _zones(m: dict, prev: dict | None) -> list[dict]:
     if m["rebook_pct"] is not None and m["rebook_pct"] < t["rebook_pct"]:
         add(1, f"Перезаписано лише {m['rebook_pct']:.0f}% пацієнтів (ціль {t['rebook_pct']}%) — {m['not_rebooked']} без наступного візиту",
             "Записувати на наступний візит у кабінеті; список нижче — для адміністраторів")
+    if m.get("new_rebook_pct") is not None and m["new"] >= 3 and m["new_rebook_pct"] < t.get("new_rebook_pct", 50):
+        add(1, f"З {m['new']} нових пацієнтів перезаписано {m['new_rebooked']} ({m['new_rebook_pct']:.0f}%, ціль {t.get('new_rebook_pct', 50)}%) — "
+               f"{m['new_not_rebooked']} нових пішли без наступного візиту",
+            "На першому візиті — план лікування й запис на наступну процедуру; список у звіті «Не перезаписані пацієнти»")
     if m["patients"] and m["retention"] < t["retention_pct"]:
         add(2, f"Поверненість {m['retention']:.0f}% при цілі {t['retention_pct']}%",
             "Контроль нових пацієнтів: нагадування, бюті-план на першому візиті")
@@ -513,6 +520,7 @@ def _goals(m: dict) -> list[dict]:
     rows = [("load_pct", "Завантаження", m["load"], t["load_pct"], False), ("products_share_pct", "Догляд у обороті", m["products_share"], t["products_share_pct"], False),
             ("retention_pct", "Поверненість", m["retention"] if m["patients"] else None, t["retention_pct"], False),
             ("rebook_pct", "Перезаписані", m["rebook_pct"], t["rebook_pct"], False),
+            ("new_rebook_pct", "Нові: перезаписані", m.get("new_rebook_pct"), t.get("new_rebook_pct", 50), False),
             ("cancel_pct", "Скасування", m["cancel_pct"] if (m["done"] + m["cancelled"]) else None, t["cancel_pct"], True),
             ("discipline_pct", "Дисципліна", m["discipline"], t["discipline_pct"], False),
             ("margin_pct", "Чиста маржа", m["margin"], t["margin_pct"], False),
