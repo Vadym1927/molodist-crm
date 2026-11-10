@@ -5841,7 +5841,7 @@ def docs_archive_patient_rows(pid: int, user: User = Depends(require("migrate"))
     return {"visits": [{"id": v.id, "src": v.source, "ext": v.external_id, "at": v.starts_at.isoformat(timespec="minutes"), "sid": v.service_id,
                         "name": v.service_name, "status": v.status, "label": v.status_label, "amount": v.amount, "item": v.plan_item_id} for v in vs],
             "appts": [{"id": a.id, "at": a.start.isoformat(timespec="minutes"), "status": a.status, "cb": a.cb_record_id, "sale": a.sale_id,
-                       "src": a.source, "services": [{k: s_.get(k) for k in ("id", "cb_id", "name", "price")} for s_ in (a.services or [])]} for a in aps]}
+                       "src": a.source, "cb_status": a.cb_status, "cb_paid": a.cb_paid, "cb_check": a.cb_check_id, "comment": (a.comment or "")[:80], "services": [{k: s_.get(k) for k in ("id", "cb_id", "name", "price")} for s_ in (a.services or [])]} for a in aps]}
 
 
 @app.post("/data/docs-archive/dups/remove")
