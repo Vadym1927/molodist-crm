@@ -40,3 +40,24 @@ def test_meta_signature_two_keys(monkeypatch):
         assert mi.check_signature(db, body, sig)
         assert not mi.check_signature(db, body, "sha256=" + "0" * 64)
         assert "Instagram App Secret" in mi.signature_hint(db, body)
+
+
+def test_ig_login_token_names_reply(monkeypatch):
+    from app.services import meta_inbox as mi_
+    with SessionLocal() as db:
+        db.add(ChatMessage(channel="instagram", thread="IGS77", direction="in", text="Привіт", mid="igm-77"))
+        db.commit()
+        monkeypatch.setattr(mi_, "_ig_token", lambda db_: "IGTOK")
+        monkeypatch.setattr(mi_, "replies_enabled", lambda db_: True)
+
+        class H:
+            def get(self, url, params=None):
+                assert "graph.instagram.com" in url and params["access_token"] == "IGTOK"
+                return type("R", (), {"json": lambda s: {"username": "olia_k", "name": "Оля"}})()
+            def post(self, url, params=None, json=None):
+                assert url.endswith("/me/messages") and "graph.instagram.com" in url and json["recipient"]["id"] == "IGS77"
+                return type("R", (), {"json": lambda s: {"message_id": "m1"}})()
+        assert mi_.refresh_names(db, http=H()) >= 1
+        assert db.scalars(__import__("sqlalchemy").select(ChatMessage).where(ChatMessage.thread == "IGS77")).first().name == "@olia_k · Оля"
+        r = mi_.reply(db, "IGS77", "Вітаю!", None, http=H())
+        assert r.status == "sent" and r.mid == "m1"

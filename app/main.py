@@ -364,6 +364,12 @@ async def job_paycal():
     from .services import paycal as _pc, alerts as _al
     def run():
         with SessionLocal() as db:
+            try:                                         # Instagram: продовжити IG-токен (раз на тиждень), імена діалогів
+                from .services import meta_inbox as _mi
+                _mi.ig_refresh(db)
+                _mi.refresh_names(db)
+            except Exception as e:      # noqa: BLE001
+                log.warning("ig refresh: %s", e)
             try:                                         # баланс Google Ads: мало грошей → платіж у календарі
                 from .services import google_ads as _ga
                 if _ga.cfg(db).get("last_push") or _ga.cfg(db).get("balance_base"):
@@ -8300,13 +8306,19 @@ async def settings_channel_save(request: Request, cid: int, user: User = Depends
         params["ttl"] = int(params["ttl"]) if params["ttl"].isdigit() else 3600
     if "fallback_sms" in f or f.get("_has_fallback"):
         params["fallback_sms"] = bool(f.get("fallback_sms"))
-    secrets = {k: str(f.get(k) or "").strip() for k in ("token", "webhook_secret", "password", "page_token", "app_secret", "ig_app_secret") if f.get(k)}
-    secrets.update({f"clear_{k}": "1" for k in ("token", "webhook_secret", "password", "page_token", "app_secret", "ig_app_secret") if f.get(f"clear_{k}")})
+    secrets = {k: str(f.get(k) or "").strip() for k in ("token", "webhook_secret", "password", "page_token", "app_secret", "ig_app_secret", "ig_token") if f.get(k)}
+    secrets.update({f"clear_{k}": "1" for k in ("token", "webhook_secret", "password", "page_token", "app_secret", "ig_app_secret", "ig_token") if f.get(f"clear_{k}")})
     try:
         ch.update(db, cid, str(f.get("name") or "").strip(), bool(f.get("on")), params, secrets)
     except ValueError as e:
         return RedirectResponse(_with_msg("/settings/channels", str(e), True), 303)
     audit(db, "channels.save", user=user, channel=cid, on=bool(f.get("on")), params=params, secrets=sorted(secrets))
+    if secrets.get("ig_token"):                     # новий IG-токен → імена й фото в діалогах Instagram
+        from .services import meta_inbox as _mi_
+        try:
+            await asyncio.to_thread(_mi_.refresh_names, db)
+        except Exception as e:      # noqa: BLE001
+            log.warning("ig names: %s", e)
     if f.get("test"):
         ok, msg = await asyncio.to_thread(ch.test, db, cid)
         if ok and next((c for c in ch.channels(db) if c["id"] == cid and c["type"] == "meta"), None):

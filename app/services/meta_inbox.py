@@ -22,6 +22,7 @@ from . import channels as ch
 
 log = logging.getLogger("meta_inbox")
 GRAPH = "https://graph.facebook.com/v19.0"
+IGRAPH = "https://graph.instagram.com/v21.0"           # Instagram API з входом через Instagram (токен IG, не сторінки)
 CH_LABEL = {"facebook": "Facebook", "instagram": "Instagram", "telegram": "Telegram"}
 
 
@@ -82,7 +83,28 @@ def _page_token(db: Session) -> str:
     return ch.secret(c, "page_token") if c else ""
 
 
+def _ig_token(db: Session) -> str:
+    c = _raw_meta(db)
+    return (ch.secret(c, "ig_token") or "").strip() if c else ""
+
+
+def _ig_get(db: Session, sid: str, fields: str, http: httpx.Client | None = None) -> dict:
+    tok = _ig_token(db)
+    if not tok:
+        return {}
+    try:
+        js = (http or httpx.Client(timeout=10)).get(f"{IGRAPH}/{sid}", params={"access_token": tok, "fields": fields}).json()
+    except Exception:  # noqa: BLE001
+        return {}
+    return {} if js.get("error") else js
+
+
 def _profile(db: Session, channel: str, sid: str, http: httpx.Client | None = None) -> str | None:
+    if channel == "instagram" and _ig_token(db):
+        js = _ig_get(db, sid, "name,username", http)
+        u = js.get("username")
+        if u or js.get("name"):
+            return (f"@{u}" + (f" · {js['name']}" if js.get("name") else "")) if u else js.get("name")
     tok = _page_token(db)
     if not tok:
         return None
@@ -241,6 +263,16 @@ def reply(db: Session, thread: str, text: str, user_id: int | None = None, http:
         from . import tg_business as tb
         ok, mid, err = tb.send(db, thread, text, http)
         m.status, m.mid, m.error = ("sent" if ok else "failed"), mid, err
+    elif last.channel == "instagram" and _ig_token(db):     # Instagram API з входом через Instagram
+        try:
+            js = (http or httpx.Client(timeout=20)).post(f"{IGRAPH}/me/messages", params={"access_token": _ig_token(db)},
+                                                         json={"recipient": {"id": thread}, "message": {"text": text[:1000]}}).json()
+        except Exception as e:  # noqa: BLE001
+            js = {"error": {"message": str(e)[:200]}}
+        if js.get("error"):
+            m.status, m.error = "failed", (js["error"].get("message") or "помилка")[:300]
+        else:
+            m.status, m.mid = "sent", js.get("message_id")
     elif not _page_token(db):
         m.status, m.error = "failed", "Немає токена сторінки (Налаштування → Канали → Instagram та Facebook)"
     else:
@@ -367,11 +399,13 @@ def avatar(db: Session, thread: str, http: httpx.Client | None = None) -> tuple[
         return (hit[1], hit[2]) if hit[1] else None
     tok = _page_token(db)
     data, ctype = b"", ""
-    if tok:
+    if tok or _ig_token(db):
         cl = http or httpx.Client(timeout=10, follow_redirects=True)
         try:
-            js = cl.get(f"{GRAPH}/{thread}", params={"access_token": tok, "fields": "profile_pic"}).json()
-            url = js.get("profile_pic") if not js.get("error") else None
+            url = _ig_get(db, thread, "profile_pic", cl).get("profile_pic") if _ig_token(db) else None
+            if not url and tok:
+                js = cl.get(f"{GRAPH}/{thread}", params={"access_token": tok, "fields": "profile_pic"}).json()
+                url = js.get("profile_pic") if not js.get("error") else None
             if url:
                 r = cl.get(url)
                 if r.status_code == 200 and r.headers.get("content-type", "").startswith("image/") and len(r.content) < 2_000_000:
@@ -479,3 +513,52 @@ def sessions(msgs: list[ChatMessage], appeals: dict | None = None) -> list[dict]
             c.update(end=a.closed_at, closed=True, result=a.status)
     out.sort(key=lambda c: c["start"], reverse=True)
     return out
+
+
+def refresh_names(db: Session, limit: int = 50, http: httpx.Client | None = None) -> int:
+    """Діалоги Instagram без імені → @username та імʼя з Instagram API (після додавання IG-токена)."""
+    if not _ig_token(db):
+        return 0
+    named = {t for (t,) in db.execute(select(ChatMessage.thread).where(ChatMessage.channel == "instagram", ChatMessage.name.is_not(None)).distinct())}
+    todo = [t for (t,) in db.execute(select(ChatMessage.thread).where(ChatMessage.channel == "instagram").distinct()) if t not in named][:limit]
+    n = 0
+    for t in todo:
+        nm = _profile(db, "instagram", t, http)
+        if not nm:
+            continue
+        for m in db.scalars(select(ChatMessage).where(ChatMessage.thread == t)):
+            m.name = nm
+        p = _patient_for(db, "instagram", nm)
+        if p:
+            for m in db.scalars(select(ChatMessage).where(ChatMessage.thread == t, ChatMessage.patient_id.is_(None))):
+                m.patient_id = p.id
+        n += 1
+    db.commit()
+    return n
+
+
+IG_REFRESH_KEY = "ig_token_refreshed"
+
+
+def ig_refresh(db: Session, http: httpx.Client | None = None, force: bool = False) -> bool:
+    """Довгостроковий IG-токен живе 60 днів — продовжуємо раз на тиждень (GET refresh_access_token)."""
+    from ..models import SyncState
+    tok, c = _ig_token(db), _raw_meta(db)
+    if not tok or not c:
+        return False
+    st = db.get(SyncState, IG_REFRESH_KEY)
+    if not force and st and st.updated_at and (datetime.utcnow() - st.updated_at) < timedelta(days=7):
+        return False
+    try:
+        js = (http or httpx.Client(timeout=20)).get("https://graph.instagram.com/refresh_access_token",
+                                                    params={"grant_type": "ig_refresh_token", "access_token": tok}).json()
+    except Exception:  # noqa: BLE001
+        return False
+    new = js.get("access_token")
+    if not new:
+        log.warning("IG token refresh: %s", (js.get("error") or {}).get("message"))
+        return False
+    ch.update(db, c["id"], None, bool(c.get("on")), {}, {"ig_token": new})
+    db.merge(SyncState(key=IG_REFRESH_KEY, value="ok", updated_at=datetime.utcnow()))
+    db.commit()
+    return True
