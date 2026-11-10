@@ -5844,6 +5844,34 @@ def docs_archive_patient_rows(pid: int, user: User = Depends(require("migrate"))
                        "src": a.source, "cb_status": a.cb_status, "cb_paid": a.cb_paid, "cb_check": a.cb_check_id, "comment": (a.comment or "")[:80], "services": [{k: s_.get(k) for k in ("id", "cb_id", "name", "price")} for s_ in (a.services or [])]} for a in aps]}
 
 
+@app.get("/data/docs-archive/moved-appts")
+def docs_archive_moved_appts(user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
+    """Записи з історії CleverBox зі статусом «Перенесено», які в CRM стоять як виконані / записані (лише перегляд)."""
+    from .models import Appointment
+    rows = [a for a in db.scalars(select(Appointment).where(Appointment.source == "cleverbox", Appointment.status.in_(("done", "paid", "booked", "arrived"))))
+            if "перенес" in (a.cb_status or "").lower()]
+    by = {}
+    for a in rows:
+        by[a.status] = by.get(a.status, 0) + 1
+    return {"total": len(rows), "by_status": by, "patients": len({a.patient_id for a in rows}),
+            "with_money": sum(1 for a in rows if (a.cb_paid or 0) > 0 or a.sale_id or a.cb_check_id),
+            "years": {str(y): sum(1 for a in rows if a.start.year == y) for y in sorted({a.start.year for a in rows})}}
+
+
+@app.post("/data/docs-archive/moved-appts/fix")
+def docs_archive_moved_appts_fix(user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
+    """«Перенесено» без оплати → статус «скасовано» (візиту не було). Записи з оплатою / чеком не чіпаємо."""
+    from .models import Appointment
+    n = 0
+    for a in db.scalars(select(Appointment).where(Appointment.source == "cleverbox", Appointment.status.in_(("done", "paid", "booked", "arrived")))):
+        if "перенес" in (a.cb_status or "").lower() and not ((a.cb_paid or 0) > 0 or a.sale_id or a.cb_check_id):
+            a.status = "cancelled"
+            n += 1
+    audit(db, "appointments.moved_fix", user=user, n=n)
+    db.commit()
+    return {"fixed": n}
+
+
 @app.post("/data/docs-archive/dups/remove")
 def docs_archive_dups_remove(user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
     from .services import bulk_docs

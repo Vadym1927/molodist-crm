@@ -23,8 +23,8 @@ WH_PREF = ("inject", "classic", "single", "equip", "vitrina")
 
 def _status(title: str, typ) -> str:
     t = (title or "").lower()
-    if "скас" in t or "відмін" in t or "отмен" in t or "помилк" in t or "запізн" in t:
-        return "cancelled"
+    if "скас" in t or "відмін" in t or "отмен" in t or "помилк" in t or "запізн" in t or "перенес" in t:
+        return "cancelled"                      # «Візит Перенесено» — у цей день візиту не було (новий запис має свій рядок)
     if "не прийш" in t or "неявк" in t or "не з'яв" in t or "не зʼяв" in t:
         return "no_show"
     if str(typ) == "3" or "заверш" in t or "викон" in t or "оплач" in t:

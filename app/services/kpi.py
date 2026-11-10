@@ -183,6 +183,8 @@ def crm_rows(db: Session, patient_ids=None) -> dict:
     if patient_ids is not None:
         q = q.where(Appointment.patient_id.in_(list(patient_ids)))
     for a in db.scalars(q):
+        if "перенес" in (a.cb_status or "").lower():      # «Візит Перенесено» — запис перенесли, візиту в цей день не було
+            continue
         for i, s in enumerate(a.services or []):
             sid = s.get("cb_id") or s.get("id")
             if (a.patient_id, sid, a.start.date()) in sold:
