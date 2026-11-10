@@ -1801,3 +1801,27 @@ class GaEvent(Base):
     keyword: Mapped[str] = mapped_column(String(300), default="")
     count: Mapped[int] = mapped_column(Integer, default=0)
 
+
+class AdsChange(Base):
+    """Зміна в рекламному кабінеті: пропозиція → погодження власника (CRM / Telegram) → застосування скриптом Google Ads.
+    kind: negative | pause_keyword | enable_keyword | pause_campaign | enable_campaign | budget | add_keyword | rsa."""
+    __tablename__ = "ads_changes"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, index=True)
+    source: Mapped[str] = mapped_column(String(12), default="google")
+    kind: Mapped[str] = mapped_column(String(20), index=True)
+    key: Mapped[str] = mapped_column(String(400), index=True)            # щоб не пропонувати двічі те саме
+    campaign: Mapped[str | None] = mapped_column(String(300))
+    campaign_id: Mapped[str | None] = mapped_column(String(40))
+    target: Mapped[str | None] = mapped_column(String(400))              # мінус-слово / ключ / id
+    payload: Mapped[dict | None] = mapped_column(JSON)
+    reason: Mapped[str | None] = mapped_column(Text)
+    stats: Mapped[dict | None] = mapped_column(JSON)                      # витрати, кліки, конверсії, звернення
+    author: Mapped[str] = mapped_column(String(20), default="auto")      # auto | claude | user
+    status: Mapped[str] = mapped_column(String(12), default="proposed", index=True)   # proposed | approved | rejected | applied | failed
+    decided_by: Mapped[int | None] = mapped_column(Integer)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime)
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime)
+    result: Mapped[str | None] = mapped_column(String(500))
+    tg: Mapped[list | None] = mapped_column(JSON)                         # [[chat_id, message_id], …]
+

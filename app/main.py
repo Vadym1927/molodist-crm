@@ -369,6 +369,11 @@ async def job_paycal():
                 if _ga.cfg(db).get("last_push") or _ga.cfg(db).get("balance_base"):
                     _ga.refresh(db)
                     try:
+                        from .services import ads_changes as _ac
+                        _ac.run_daily(db)
+                    except Exception as e:      # noqa: BLE001
+                        log.warning("ads analyze: %s", e)
+                    try:
                         from .services import telephony as _tl
                         _tl.sync_utm(db, date.today() - timedelta(days=3), date.today())
                     except Exception as e:      # noqa: BLE001
@@ -7651,6 +7656,96 @@ def site_leads_save(source: str = Form(""), rehook: str = Form(""), user: User =
     return RedirectResponse(_with_msg("/settings/google-ads", "Збережено") + "#forms", 303)
 
 
+@app.get("/api/public/ads/google/{hook}/queue")
+def google_ads_queue(hook: str, db: Session = Depends(db_dep)):
+    """Скрипт Google Ads забирає погоджені зміни."""
+    from .services import google_ads as ga, ads_changes as ac
+    import hmac as _hm
+    if not _hm.compare_digest(hook, ga.cfg(db)["hook"]):
+        raise HTTPException(404)
+    return {"changes": ac.queue(db)}
+
+
+@app.post("/api/public/ads/google/{hook}/applied")
+async def google_ads_applied(request: Request, hook: str, db: Session = Depends(db_dep)):
+    from .services import google_ads as ga, ads_changes as ac
+    import hmac as _hm
+    if not _hm.compare_digest(hook, ga.cfg(db)["hook"]):
+        raise HTTPException(404)
+    try:
+        data = json.loads(await request.body() or b"{}")
+    except ValueError:
+        raise HTTPException(400)
+    return {"ok": True, "n": ac.applied(db, data.get("results") or [])}
+
+
+@app.post("/marketing/google/changes/{cid:int}")
+def google_ads_change_decide(cid: int, act: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import ads_changes as ac
+    from .models import AdsChange
+    if user.role != "owner":
+        raise HTTPException(403, "Погоджує зміни в рекламі лише власник")
+    ch = db.get(AdsChange, cid)
+    if not ch:
+        raise HTTPException(404)
+    ac.decide(db, ch, act == "ok", user.id)
+    audit(db, "ads.change." + ("ok" if act == "ok" else "no"), user=user, change=cid)
+    db.commit()
+    return RedirectResponse("/marketing/google#changes", 303)
+
+
+@app.post("/marketing/google/changes/bulk")
+async def google_ads_change_bulk(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import ads_changes as ac
+    from .models import AdsChange
+    if user.role != "owner":
+        raise HTTPException(403, "Погоджує зміни в рекламі лише власник")
+    f = await request.form()
+    ok = f.get("act") == "ok"
+    n = 0
+    for x in f.getlist("ids"):
+        ch = db.get(AdsChange, int(x)) if str(x).isdigit() else None
+        if ch:
+            n += ac.decide(db, ch, ok, user.id)
+    audit(db, "ads.change.bulk", user=user, ok=ok, n=n)
+    db.commit()
+    return RedirectResponse(_with_msg("/marketing/google", ("Погоджено" if ok else "Відхилено") + f": {n}") + "#changes", 303)
+
+
+@app.post("/marketing/google/analyze")
+def google_ads_analyze(user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import ads_changes as ac
+    r = ac.run_daily(db)
+    audit(db, "ads.analyze", user=user, **r)
+    db.commit()
+    return RedirectResponse(_with_msg("/marketing/google", f"Знайдено нових пропозицій: {r['new']}" + (" · надіслано в Telegram" if r["tg"] else "")) + "#changes", 303)
+
+
+@app.post("/marketing/google/changes/new")
+async def google_ads_change_new(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Пропозиції змін (JSON-список) — від аналізу Claude або вручну; потрапляють у чергу погодження й у Telegram."""
+    from .services import ads_changes as ac
+    if user.role != "owner":
+        raise HTTPException(403)
+    data = await request.json()
+    items = data.get("items") if isinstance(data, dict) else data
+    made, errors = [], []
+    for it in items or []:
+        try:
+            ch = ac.propose(db, str(it.get("kind")), it.get("campaign"), it.get("target"), str(it.get("reason") or "")[:1000],
+                            it.get("payload"), it.get("stats"), author=str(it.get("author") or "claude"), campaign_id=it.get("campaign_id"))
+            if ch:
+                made.append(ch)
+        except (ValueError, AttributeError) as e:
+            errors.append(str(e))
+    db.commit()
+    want_tg = data.get("notify", True) if isinstance(data, dict) else True
+    tg = ac.notify(db, made) if want_tg else 0
+    audit(db, "ads.change.new", user=user, n=len(made))
+    db.commit()
+    return {"created": len(made), "ids": [c.id for c in made], "telegram": tg, "errors": errors}
+
+
 @app.post("/api/public/ads/google/{hook}")
 async def google_ads_hook(request: Request, hook: str, db: Session = Depends(db_dep)):
     """Скрипт Google Ads надсилає статистику кабінету (кампанії, групи, ключі, запити…) — щогодини."""
@@ -7672,7 +7767,11 @@ def google_ads_page(request: Request, df: str = "", dt_: str = "", user: User = 
     from .services import google_ads as ga
     d_from, d_to = _period(df, dt_)
     ga.refresh(db)
-    return render(request, "google_ads.html", nav="reports", v=ga.dashboard(db, d_from, d_to), today=date.today(), can_set=can(user, "users"))
+    from .services import ads_changes as ac
+    from .models import AdsChange
+    chs = db.scalars(select(AdsChange).order_by(AdsChange.id.desc()).limit(150)).all()
+    return render(request, "google_ads.html", nav="reports", v=ga.dashboard(db, d_from, d_to), today=date.today(), can_set=can(user, "users"),
+                  chs=chs, AC=ac, ac_cfg=ac.cfg(db), is_owner=user.role == "owner")
 
 
 @app.post("/marketing/google/topup")

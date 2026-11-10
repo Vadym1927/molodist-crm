@@ -424,6 +424,7 @@ SCRIPT = r"""/**
  * MOLODIST CRM — вивантаження статистики Google Ads у CRM.
  * Встановлення: Google Ads → Інструменти → Масові дії → Скрипти → «+» → вставити цей код → Авторизувати → Зберегти.
  * Розклад: щогодини. Перший запуск вивантажує історію з початку року.
+ * Версія 2: також застосовує зміни, погоджені власником у CRM / Telegram (мінус-слова, паузи, бюджети, ключі, оголошення).
  */
 var HOOK = '__HOOK__';
 var DAYS_DETAIL = 30;   // групи, ключові слова, запити, пристрої, години — за останні N днів
@@ -486,5 +487,62 @@ function main() {
     sent += body.rows.length;
   }
   Logger.log('Надіслано рядків: ' + sent);
+  applyQueue();
+}
+
+/* Погоджені в CRM зміни (мінус-слова, паузи, бюджети, ключі, оголошення) → кабінет. Без погодження скрипт нічого не змінює. */
+function applyQueue() {
+  var res = UrlFetchApp.fetch(HOOK + '/queue', { muteHttpExceptions: true });
+  if (res.getResponseCode() >= 300) { Logger.log('Черга змін: ' + res.getResponseCode()); return; }
+  var list = (JSON.parse(res.getContentText()).changes) || [], out = [];
+  var camp = function (c) {
+    var it = c.campaign_id ? AdsApp.campaigns().withIds([Number(c.campaign_id)]).get() : AdsApp.campaigns().withCondition("campaign.name = '" + String(c.campaign).replace(/'/g, "\\'") + "'").get();
+    if (it.hasNext()) return it.next();
+    var p = c.campaign_id ? AdsApp.performanceMaxCampaigns().withIds([Number(c.campaign_id)]).get() : null;
+    return p && p.hasNext() ? p.next() : null;
+  };
+  var group = function (c) {
+    var it = c.adgroup_id ? AdsApp.adGroups().withIds([Number(c.adgroup_id)]).get()
+      : AdsApp.adGroups().withCondition("campaign.name = '" + String(c.campaign).replace(/'/g, "\\'") + "'").withCondition("ad_group.name = '" + String(c.adgroup || '').replace(/'/g, "\\'") + "'").get();
+    return it.hasNext() ? it.next() : null;
+  };
+  list.forEach(function (c) {
+    var r = { id: c.id, ok: false, note: '' };
+    try {
+      if (c.kind === 'negative') {
+        var cp = camp(c); if (!cp) throw new Error('кампанію не знайдено');
+        var t = c.match === 'EXACT' ? '[' + c.target + ']' : '"' + c.target + '"';
+        cp.createNegativeKeyword(t); r.ok = true; r.note = 'додано ' + t;
+      } else if (c.kind === 'pause_campaign' || c.kind === 'enable_campaign') {
+        var cp2 = camp(c); if (!cp2) throw new Error('кампанію не знайдено');
+        if (c.kind === 'pause_campaign') cp2.pause(); else cp2.enable(); r.ok = true;
+      } else if (c.kind === 'budget') {
+        var cp3 = camp(c); if (!cp3) throw new Error('кампанію не знайдено');
+        cp3.getBudget().setAmount(Number(c.amount)); r.ok = true; r.note = 'бюджет ' + c.amount;
+      } else if (c.kind === 'pause_keyword' || c.kind === 'enable_keyword') {
+        var ids = String(c.keyword_id || c.target).split('~');
+        var kw = AdsApp.keywords().withIds([[Number(ids[0]), Number(ids[1])]]).get();
+        if (!kw.hasNext()) throw new Error('ключ не знайдено');
+        var k = kw.next(); if (c.kind === 'pause_keyword') k.pause(); else k.enable(); r.ok = true;
+      } else if (c.kind === 'add_keyword') {
+        var g = group(c); if (!g) throw new Error('групу не знайдено');
+        var txt = c.match === 'EXACT' ? '[' + c.target + ']' : (c.match === 'BROAD' ? c.target : '"' + c.target + '"');
+        var op = g.newKeywordBuilder().withText(txt); if (c.final_url) op = op.withFinalUrl(c.final_url);
+        var kr = op.build(); r.ok = kr.isSuccessful(); r.note = r.ok ? 'додано ' + txt : kr.getErrors().join('; ');
+      } else if (c.kind === 'rsa') {
+        var g2 = group(c); if (!g2) throw new Error('групу не знайдено');
+        var b = g2.newAd().responsiveSearchAdBuilder().withHeadlines((c.headlines || []).map(function (h) { return { text: h }; }))
+          .withDescriptions((c.descriptions || []).map(function (d) { return { text: d }; })).withFinalUrl(c.final_url);
+        if (c.path1) b = b.withPath1(c.path1); if (c.path2) b = b.withPath2(c.path2);
+        var ar = b.build(); r.ok = ar.isSuccessful(); r.note = r.ok ? 'оголошення створено' + (c.paused ? ' (на паузі)' : '') : ar.getErrors().join('; ');
+        if (r.ok && c.paused) ar.getResult().pause();
+      } else { r.note = 'невідомий тип ' + c.kind; }
+    } catch (e) { r.ok = false; r.note = String(e).substring(0, 300); }
+    out.push(r);
+  });
+  if (out.length) {
+    UrlFetchApp.fetch(HOOK + '/applied', { method: 'post', contentType: 'application/json', payload: JSON.stringify({ results: out }), muteHttpExceptions: true });
+    Logger.log('Застосовано змін: ' + out.filter(function (x) { return x.ok; }).length + ' з ' + out.length);
+  }
 }
 """

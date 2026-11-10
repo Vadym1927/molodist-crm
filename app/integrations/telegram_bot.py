@@ -267,6 +267,34 @@ async def pay_callback(cb: CallbackQuery):
         pass
 
 
+@pay_router.callback_query(F.data.startswith("ads:"))
+async def ads_callback(cb: CallbackQuery):
+    """Погодження змін у Google Ads кнопками: ads:ok:<id> | ads:all:<id.id…> | ads:none:<id.id…>."""
+    import json as _json
+    from ..services import ads_changes as ac, pay_requests as prq
+    from ..models import AdsChange, User
+    parts = (cb.data or "").split(":")
+    act = parts[1] if len(parts) > 1 else ""
+    ids = [int(x) for x in (parts[2] if len(parts) > 2 else "").split(".") if x.isdigit()]
+    with SessionLocal() as db:
+        if str(cb.from_user.id) not in prq.owner_tg_ids(db):
+            await cb.answer("Погоджує лише власник", show_alert=True)
+            return
+        u = db.scalar(select(User).where(User.telegram_chat_id == str(cb.from_user.id)))
+        n = 0
+        for i in ids:
+            ch = db.get(AdsChange, i)
+            if ch:
+                n += ac.decide(db, ch, act in ("ok", "all"), u.id if u else None)
+        await cb.answer(("Погоджено" if act in ("ok", "all") else "Відхилено") + (f": {n}" if n > 1 else ""))
+        chs = ac.tg_refresh(db, str(cb.message.chat.id), cb.message.message_id)
+        text, kb = ac.tg_text(chs), ac.tg_kb(chs)
+    try:
+        await cb.message.edit_text(text, reply_markup=InlineKeyboardMarkup.model_validate(kb), parse_mode="HTML", disable_web_page_preview=True)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 async def pay_notify(bot: Bot, changed) -> None:
     """Зміна стану чернетки (оплачено / відхилено в monobank) — оновити картку в чаті."""
     from ..services import pay_requests as prq
