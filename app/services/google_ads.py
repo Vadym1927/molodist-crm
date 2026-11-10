@@ -12,6 +12,7 @@ import json
 import secrets as _secrets
 from collections import defaultdict
 from datetime import date, datetime, timedelta
+from urllib.parse import parse_qsl
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -23,7 +24,8 @@ KEY = "google_ads"
 SRC = "google"
 DEFAULT = {"hook": "", "account": {}, "last_push": None, "vat_pct": 20.0, "margin_pct": 60.0, "alert_days": 5, "alert_amount": 0.0,
            "topup_amount": 10000.0, "cashbox": "", "article": "Маркетинг", "balance_base": None,      # {"day": iso, "amount": float}
-           "lines": [], "appeal_sources": ["Google Ads"], "real_balance": None, "bank_words": ["google"]}
+           "lines": [], "appeal_sources": ["Google Ads"], "real_balance": None, "bank_words": ["google"],
+           "offline_on": False, "offline_name": "CRM — оплачений візит", "offline_sent": []}
 LEVELS = ("account", "campaign", "adgroup", "keyword", "term", "device", "hour")
 
 
@@ -175,6 +177,8 @@ def refresh(db: Session, today: date | None = None) -> dict:
     db.commit()
     try:                                               # GA4: свіжі кліки по номеру → мітки дзвінків
         from . import ga4 as _ga4
+        from . import site_leads as _sl                # кліки з тегу (gclid) — точніше за GA4, тому першими
+        _sl.match_clicks(db, today - timedelta(days=3), today)
         _ga4.refresh(db)
     except Exception:      # noqa: BLE001
         pass
@@ -207,15 +211,17 @@ def leads(db: Session, d_from: date, d_to: date, c: dict | None = None) -> list[
     raw = []
     for cl in db.scalars(select(Call).where(Call.at >= a, Call.at <= b, Call.direction == "in").order_by(Call.at)):
         if _is_google(cl.utm_source, cl.utm_medium, cl.gclid) or (lines and ap.phone_key(cl.line) in lines):
-            raw.append({"at": cl.at, "phone": cl.phone, "kind": "call", "campaign": cl.utm_campaign, "term": cl.utm_term, "status": cl.status, "attr": cl.attr,
+            raw.append({"at": cl.at, "phone": cl.phone, "kind": "call", "campaign": cl.utm_campaign, "term": cl.utm_term, "status": cl.status, "attr": cl.attr, "gclid": cl.gclid,
                         "patient_id": cl.patient_id, "call_id": cl.id, "appeal_id": cl.appeal_id, "duration": cl.duration, "landing": cl.landing})
     for x in db.scalars(select(Appeal).where(Appeal.created_at >= a, Appeal.created_at <= b, Appeal.deleted_at.is_(None)).order_by(Appeal.created_at)):
         u = (x.utm or "").lower()
         if (x.source or "").strip().lower() in srcs or ("google" in u and ("cpc" in u or "gclid" in u or "ppc" in u)) or "gclid=" in u:
             camp = next((p.split("=", 1)[1] for p in (x.utm or "").replace("?", "&").split("&") if p.lower().startswith("utm_campaign=")), None)
             term = next((p.split("=", 1)[1] for p in (x.utm or "").replace("?", "&").split("&") if p.lower().startswith("utm_term=")), None)
-            attr = "ga4?" if "attr=ga4?" in u else ("ga4" if "attr=ga4" in u else None)
+            q = dict(parse_qsl((x.utm or "").replace("?", "&")))
+            attr = q.get("attr") or None
             raw.append({"at": x.created_at, "phone": x.phone, "kind": "appeal", "campaign": camp, "term": term, "status": x.status, "attr": attr, "source": x.source,
+                        "gclid": q.get("gclid") or None,
                         "patient_id": x.patient_id, "call_id": None, "appeal_id": x.id, "duration": None, "landing": None})
     raw.sort(key=lambda r: r["at"])
     out, seen = [], {}
@@ -229,6 +235,7 @@ def leads(db: Session, d_from: date, d_to: date, c: dict | None = None) -> list[
             first["campaign"] = first["campaign"] or r["campaign"]
             first["term"] = first["term"] or r["term"]
             first["appeal_id"] = first["appeal_id"] or r["appeal_id"]
+            first["gclid"] = first.get("gclid") or r.get("gclid")
             continue
         r["touches"], r["answered"] = 1, (r["kind"] != "call" or r["status"] == "answered")
         seen[k] = r
@@ -424,6 +431,44 @@ def dashboard(db: Session, d_from: date, d_to: date, today: date | None = None) 
             "pay_item": db.scalar(select(PayItem).where(PayItem.ref.like("gads:topup%"), PayItem.status.in_(("planned", "approved"))))}
 
 
+# ---------------- офлайн-конверсії назад у Google Ads ----------------
+def _tz(dt: datetime) -> str:
+    off = datetime.now() - datetime.utcnow()
+    mins = round(off.total_seconds() / 60)
+    return dt.strftime("%Y-%m-%d %H:%M:%S") + ("+" if mins >= 0 else "-") + f"{abs(mins) // 60:02d}:{abs(mins) % 60:02d}"
+
+
+def offline_rows(db: Session, today: date | None = None) -> list[dict]:
+    """Ліди з gclid, які прийшли й заплатили → конверсія «CRM — оплачений візит» з цінністю = оплати за 30 днів від звернення
+    (надсилаємо, коли минув день візиту; один раз на gclid). Google навчається на реальних грошах, а не на кліках."""
+    c = cfg(db)
+    if not c.get("offline_on"):
+        return []
+    today = today or date.today()
+    sent = set(c.get("offline_sent") or [])
+    ls = funnel(db, leads(db, today - timedelta(days=88), today, c), today)
+    out = []
+    for r in ls:
+        g = r.get("gclid")
+        if not g or not r.get("came") or r["revenue30"] <= 0 or g in sent:
+            continue
+        came = r["came"] if isinstance(r["came"], datetime) else datetime.combine(r["came"], datetime.min.time()).replace(hour=12)
+        if came.date() >= today:                             # чекаємо, поки закриється день візиту
+            continue
+        out.append({"key": g, "gclid": g, "name": c.get("offline_name") or DEFAULT["offline_name"], "time": _tz(max(came, r["at"] + timedelta(minutes=1))),
+                    "value": round(r["revenue30"], 2), "currency": (c.get("account") or {}).get("currency") or "UAH"})
+    return out[:500]
+
+
+def offline_ack(db: Session, keys: list) -> int:
+    c = cfg(db)
+    sent = list(dict.fromkeys((c.get("offline_sent") or []) + [str(k)[:200] for k in keys or [] if k]))
+    c["offline_sent"] = sent[-5000:]
+    c["offline_last"] = {"at": datetime.now().isoformat(timespec="minutes"), "n": len(keys or [])}
+    save_cfg(db, c)
+    return len(keys or [])
+
+
 # ---------------- скрипт для кабінету Google Ads ----------------
 def script(hook_url: str) -> str:
     return SCRIPT.replace("__HOOK__", hook_url)
@@ -497,6 +542,26 @@ function main() {
   }
   Logger.log('Надіслано рядків: ' + sent);
   applyQueue();
+  uploadOffline();
+}
+
+/* Офлайн-конверсії з CRM: gclid пацієнтів, які прийшли й заплатили, з цінністю = оплати. Дія-конверсія з такою назвою
+   має бути створена в кабінеті («Цілі → Конверсії → Імпорт → Кліки / CRM»). */
+function uploadOffline() {
+  var res = UrlFetchApp.fetch(HOOK + '/offline', { muteHttpExceptions: true });
+  if (res.getResponseCode() >= 300) return;
+  var rows = (JSON.parse(res.getContentText()).rows) || [];
+  if (!rows.length) return;
+  var cols = ['Google Click ID', 'Conversion Name', 'Conversion Time', 'Conversion Value', 'Conversion Currency'];
+  var up = AdsApp.bulkUploads().newCsvUpload(cols, { moneyInMicros: false });
+  rows.forEach(function (r) { up.append({ 'Google Click ID': r.gclid, 'Conversion Name': r.name, 'Conversion Time': r.time,
+                                          'Conversion Value': r.value, 'Conversion Currency': r.currency }); });
+  up.forOfflineConversions();
+  up.setFileName('MOLODIST CRM ' + Utilities.formatDate(new Date(), 'Europe/Kyiv', 'yyyy-MM-dd HH:mm'));
+  up.apply();
+  UrlFetchApp.fetch(HOOK + '/offline', { method: 'post', contentType: 'application/json',
+                    payload: JSON.stringify({ keys: rows.map(function (r) { return r.key; }) }), muteHttpExceptions: true });
+  Logger.log('Офлайн-конверсій надіслано: ' + rows.length);
 }
 
 /* Погоджені в CRM зміни (мінус-слова, паузи, бюджети, ключі, оголошення) → кабінет. Без погодження скрипт нічого не змінює. */

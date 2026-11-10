@@ -7642,6 +7642,60 @@ async def site_lead_hook(request: Request, hook: str, db: Session = Depends(db_d
     return Response("ok" if r.get("ok") else json.dumps(r, ensure_ascii=False), media_type="text/plain", headers=_LEAD_CORS)
 
 
+@app.options("/api/public/click/{hook}")
+def site_click_options(hook: str):
+    return Response(status_code=204, headers=_LEAD_CORS)
+
+
+@app.post("/api/public/click/{hook}")
+async def site_click_hook(request: Request, hook: str, db: Session = Depends(db_dep)):
+    """Тег Tag Manager: клік з реклами по телефону / месенджеру / запису (з gclid) → привʼязка до дзвінка чи звернення."""
+    from .services import site_leads as sl
+    import hmac as _hm
+    if not _hm.compare_digest(hook, sl.cfg(db)["hook"]):
+        raise HTTPException(404)
+    raw = await request.body()
+    if len(raw) > 8_000:
+        raise HTTPException(413)
+    r = sl.click_ingest(db, sl.parse_body(raw, request.headers.get("content-type", "")))
+    return Response("ok" if r.get("ok") else json.dumps(r, ensure_ascii=False), media_type="text/plain", headers=_LEAD_CORS)
+
+
+@app.get("/api/public/ads/google/{hook}/offline")
+def google_ads_offline(hook: str, db: Session = Depends(db_dep)):
+    """Скрипт Google Ads забирає офлайн-конверсії (gclid + цінність оплат)."""
+    from .services import google_ads as ga
+    import hmac as _hm
+    if not _hm.compare_digest(hook, ga.cfg(db)["hook"]):
+        raise HTTPException(404)
+    return {"rows": ga.offline_rows(db)}
+
+
+@app.post("/api/public/ads/google/{hook}/offline")
+async def google_ads_offline_ack(request: Request, hook: str, db: Session = Depends(db_dep)):
+    from .services import google_ads as ga
+    import hmac as _hm
+    if not _hm.compare_digest(hook, ga.cfg(db)["hook"]):
+        raise HTTPException(404)
+    try:
+        data = json.loads(await request.body() or b"{}")
+    except ValueError:
+        raise HTTPException(400)
+    return {"ok": True, "n": ga.offline_ack(db, data.get("keys") or [])}
+
+
+@app.post("/settings/google-ads/offline")
+def google_ads_offline_save(on: str = Form(""), name: str = Form(""), user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import google_ads as ga
+    c = ga.cfg(db)
+    c["offline_on"] = bool(on)
+    c["offline_name"] = name.strip()[:100] or ga.DEFAULT["offline_name"]
+    ga.save_cfg(db, c)
+    audit(db, "google_ads.offline", user=user, on=bool(on))
+    db.commit()
+    return RedirectResponse(_with_msg("/settings/google-ads", "Збережено") + "#offline", 303)
+
+
 @app.post("/settings/google-ads/site-leads")
 def site_leads_save(source: str = Form(""), rehook: str = Form(""), user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     from .services import site_leads as sl

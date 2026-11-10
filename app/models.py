@@ -1802,6 +1802,25 @@ class GaEvent(Base):
     count: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class SiteClick(Base):
+    """Клік на сайті (телефон, Telegram, Viber, запис…) з мітками реклами й gclid — від тегу Tag Manager.
+    Привʼязується до дзвінка / звернення за часом; gclid потім іде назад у Google Ads як офлайн-конверсія."""
+    __tablename__ = "site_clicks"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    at: Mapped[datetime] = mapped_column(DateTime, index=True)          # місцевий час сервера (як Call.at)
+    kind: Mapped[str] = mapped_column(String(20), index=True)           # phone | telegram | viber | whatsapp | booking | form
+    href: Mapped[str | None] = mapped_column(String(300))
+    page: Mapped[str | None] = mapped_column(String(300))
+    gclid: Mapped[str | None] = mapped_column(String(200))
+    utm_source: Mapped[str | None] = mapped_column(String(120))
+    utm_medium: Mapped[str | None] = mapped_column(String(120))
+    utm_campaign: Mapped[str | None] = mapped_column(String(300))
+    utm_term: Mapped[str | None] = mapped_column(String(300))
+    client_id: Mapped[str | None] = mapped_column(String(80))
+    call_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    appeal_id: Mapped[int | None] = mapped_column(Integer, index=True)
+
+
 class AdsChange(Base):
     """Зміна в рекламному кабінеті: пропозиція → погодження власника (CRM / Telegram) → застосування скриптом Google Ads.
     kind: negative | pause_keyword | enable_keyword | pause_campaign | enable_campaign | budget | add_keyword | rsa."""

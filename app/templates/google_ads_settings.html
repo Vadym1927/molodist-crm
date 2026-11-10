@@ -41,12 +41,14 @@
     <button class="btn">Підтягнути з Ringostat</button></form>
 </div>
 {% set lead_url = base ~ '/api/public/lead/' ~ sl.hook %}
-<div class="gs" id="forms"><h2>Заявки з форм сайту → звернення</h2>
+<div class="gs" id="forms"><h2>Заявки з форм і кліки з реклами → звернення</h2>
   <div class="mini" style="margin-bottom:8px">Кожна відправлена форма стає зверненням у CRM (імʼя, телефон, текст, сторінка) з мітками реклами — utm і gclid з першої сторінки візиту.
     Є мітки — звернення одразу привʼязане до кампанії Google Ads; немає — його довʼяже GA4 за часом відправки форми. Повтор того самого телефону за 30 хв — коментар у тому ж зверненні.</div>
   <div class="row2">
     <div><b>Варіант A — Tilda</b><div class="mini">Tilda → Налаштування сайту → Форми → <b>Webhook</b> → вставити адресу → увімкнути «Передавати Cookies» (у них мітки utm) → у кожній формі сайту поставити галочку Webhook.</div></div>
-    <div><b>Варіант B — Tag Manager</b><div class="mini">Для будь-якого сайту: тег «Спеціальний HTML» нижче на всіх сторінках. Сам запамʼятовує utm / gclid і надсилає кожну форму в CRM.</div></div>
+    <div><b>Варіант B — Tag Manager (рекомендовано)</b><div class="mini">Тег «Спеціальний HTML» нижче на всіх сторінках. Запамʼятовує utm / gclid і надсилає в CRM кожну форму, а також кліки з реклами
+      по телефону, Telegram, Viber, WhatsApp і запису. Клік по номеру привʼязується до дзвінка, що почався за кілька хвилин; клік по месенджеру — до звернення
+      з цього месенджера, створеного протягом {{ '%g' % (sl.msg_window / 60) }} год. Так пацієнт і його оплати рахуються в кампанію, а gclid повертається в Google Ads.</div></div>
     <div><b>Обидва разом</b><div class="mini">Можна: та сама заявка від Tilda й від тегу обʼєднається в одне звернення за телефоном.</div></div>
   </div>
   <label style="margin-top:10px">Адреса прийому заявок<code class="h" id="leadurl">{{ lead_url }}</code></label>
@@ -58,6 +60,17 @@
     <label class="mini" style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="rehook" value="1" style="height:auto"> нова адреса (стару треба буде замінити в Tilda / тегу)</label>
     <button class="btn">Зберегти</button></form>
   {% if sl.log %}<div class="mini" style="margin-top:10px"><b>Останні заявки:</b> {% for x in sl.log[:8] %}{{ x.at[8:10] }}.{{ x.at[5:7] }} {{ x.at[11:16] }} · {{ x.form or 'форма' }} → <a href="/appeals?open={{ x.appeal }}">звернення</a>{{ ' (повтор)' if x.dup }}{{ ' · з мітками' if x.utm }}{{ '; ' if not loop.last }}{% endfor %}</div>{% endif %}
+</div>
+<div class="gs" id="offline"><h2>Зворотний звʼязок у Google Ads: офлайн-конверсії</h2>
+  <div class="mini" style="margin-bottom:8px">Коли пацієнт із реклами (є gclid — з форми або кліку на сайті) прийшов і заплатив, CRM через скрипт кабінету надсилає в Google Ads
+    конверсію з цінністю = його оплати за 30 днів від звернення. Так кампанії навчаються на реальних пацієнтах і грошах, а не на кліках.
+    Спершу створіть у кабінеті дію-конверсію: <b>Цілі → Конверсії → «+» → Імпорт → «CRM / інші джерела» → «Відстежувати конверсії з кліків»</b>, назва — точно як нижче,
+    категорія «Покупка», цінність — «Використовувати різні значення». Перші тижні — як <b>другорядну</b>, потім можна зробити основною.
+    {% if c.offline_last %}<br>Останнє надсилання: {{ c.offline_last.at.replace('T',' ') }} · {{ c.offline_last.n }} шт.; усього надіслано {{ c.offline_sent|length }}.{% endif %}</div>
+  <form method="post" action="/settings/google-ads/offline" class="row" style="gap:10px;align-items:flex-end;flex-wrap:wrap">
+    <label style="display:grid;gap:4px;font-size:12px;color:#6b6575">Назва дії-конверсії в Google Ads<input name="name" value="{{ c.offline_name }}" style="width:260px"></label>
+    <label class="mini" style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="on" value="1" style="height:auto" {{ 'checked' if c.offline_on }}> надсилати</label>
+    <button class="btn">Зберегти</button></form>
 </div>
 <div class="gs" id="ga4"><h2>GA4: привʼязка дзвінків до кампаній за кліком по номеру</h2>
   <div class="mini" style="margin-bottom:8px">CRM читає з GA4 події кліку по номеру (по хвилинах, з кампанією й ключем сеансу) і проставляє ці мітки вхідному дзвінку, що почався одразу після кліку. Доступ лише на читання.
