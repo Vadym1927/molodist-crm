@@ -4,39 +4,62 @@
 {% include "_fin_tabs.html" %}
 {% set qp = request.query_params %}
 <style>
-.jr{display:grid;grid-template-columns:300px minmax(0,1fr);gap:18px;align-items:start}
-.jr-f{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;position:sticky;top:88px}
-.jr-f h3{margin:0 0 10px;font:700 12px var(--head);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
-.jr-f details{border:1px solid var(--line);border-radius:12px;margin-bottom:10px;background:#fff}
-.jr-f summary{padding:11px 14px;font-weight:700;color:var(--ink);list-style:none;display:flex;justify-content:space-between}
-.jr-f summary::-webkit-details-marker{display:none}.jr-f summary:after{content:"⌄";color:var(--muted)}
-.jr-f .in{padding:0 14px 12px;display:grid;gap:8px}.jr-f .in input,.jr-f .in select{width:100%;height:40px}
-.jr-f .sum{display:grid;gap:6px;margin-top:4px}.jr-f .sum div{display:flex;justify-content:space-between;font-size:14px}
-.jr-h{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
-.jr-h h1{margin:0}.jr-b{display:flex;gap:8px;flex-wrap:wrap}
-.jb{border:0;border-radius:12px;padding:10px 16px;font:800 14px var(--sans);color:#fff;cursor:pointer;letter-spacing:.02em}
-.jb.out{background:#D9534F}.jb.mv{background:#3B82C4}.jb.inc{background:#4CAF50}.jb.st{background:#E9A93A}
-.jr-t{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:8px;overflow:auto}
-.jr-bar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 6px 10px}
-.jr-bar form{display:flex;gap:6px}.jr-bar input{height:40px;width:220px}
-.jt td{vertical-align:top;font-size:13.5px}.jt tr.r-expense td,.jt tr.r-storno td{background:#FDF4F3}.jt tr.r-transfer td{background:#F3F7FC}
-.jt .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
-.dot.income{background:#4CAF50}.dot.expense{background:#D9534F}.dot.transfer{background:#3B82C4}.dot.storno{background:#E9A93A}
-.k-income{color:#2f7a55;font-weight:700}.k-expense{color:#b23a32;font-weight:700}.k-transfer{color:#2f65a0;font-weight:700}.k-storno{color:#9A6B00;font-weight:700}
-.amt{display:inline-block;padding:2px 9px;border-radius:99px;font-weight:700;white-space:nowrap}
-.amt.income{background:#E4F2EA;color:#2f7a55}.amt.expense,.amt.storno{background:#F9E5E2;color:#b23a32}.amt.transfer{background:#E3EDF8;color:#2f65a0}
-.acc{display:inline-block;padding:3px 9px;border-radius:8px;background:var(--soft);border-left:3px solid #E9A93A;font-size:13px}
-.src{display:inline-block;font-size:10.5px;font-weight:800;padding:1px 6px;border-radius:6px;letter-spacing:.04em;margin-left:4px}
-.src.crm{background:var(--lavender);color:var(--classic)}.src.cb{background:#FDECEC;color:#C0392B}
+.fo-h{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:4px 0 16px}
+.fo-h h1{margin:0;font:800 34px var(--sans);letter-spacing:-.01em;text-transform:none;color:#2A2430}
+.fo-b{display:flex;gap:10px;flex-wrap:wrap}
+.fo-btn{display:inline-flex;align-items:center;gap:8px;height:46px;padding:0 20px;border-radius:12px;border:1px solid #E4DFD8;background:#fff;font:700 15px var(--sans);cursor:pointer;box-shadow:0 1px 2px rgba(42,36,48,.06)}
+.fo-btn svg{width:18px;height:18px}.fo-btn.exp{background:#3B3050;border-color:#3B3050;color:#fff}.fo-btn.inc{color:#2f7a55}.fo-btn.mv{color:#2f65a0}.fo-btn.st{color:#B7791F}
+.fo-k{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.fo-k>div{background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:14px 20px}
+.fo-k small{display:flex;align-items:center;gap:8px;font:600 15px var(--sans);color:#2A2430}.fo-k small svg{width:20px;height:20px}
+.fo-k b{display:block;font:800 28px var(--sans);margin-top:6px;white-space:nowrap}
+.fo-k .i b,.fo-k .i svg{color:#2f8f5b}.fo-k .e b,.fo-k .e svg{color:#D64545}
+.fo-k .d{background:#3B3050;border-color:#3B3050}.fo-k .d small,.fo-k .d b{color:#fff}
+.fo-nm{font-size:14px;color:#4a4453;margin:8px 0 14px 6px}
+.fo-f{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:10px 12px;margin-bottom:14px}
+.fo-f input,.fo-f select{height:42px;margin:0;border:1px solid #E4DFD8;border-radius:10px;background:#fff;font-size:14px;padding:0 12px}
+.fo-f .q{flex:1;min-width:220px;padding-left:38px;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232A2430' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E") 12px center/18px no-repeat}
+.fo-f .sep{color:#8a8496}.fo-f .go{height:42px;padding:0 22px;border-radius:10px;border:0;background:#3B3050;color:#fff;font:700 14px var(--sans);cursor:pointer}
+.fo-f .rs{padding:0 10px;color:#2A2430;text-decoration:none;font-size:14px}
+.fo-more{position:relative}.fo-more>summary{list-style:none;white-space:nowrap;display:inline-flex;align-items:center;gap:8px;height:42px;padding:0 14px;border:1px solid #E4DFD8;border-radius:10px;cursor:pointer;font-size:14px;background:#fff}
+.fo-more>summary::-webkit-details-marker{display:none}.fo-more.act>summary{border-color:#3B3050;background:#F3EFF9}
+.fo-more .pop{position:absolute;right:0;top:48px;z-index:7;background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:12px;width:280px;display:grid;gap:8px;box-shadow:0 18px 40px -12px rgba(30,20,50,.35)}
+.fo-more .pop select{width:100%}
+.fo-t{background:#fff;border:1px solid #ECE7E1;border-radius:14px;overflow:hidden}
+.fo-bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 14px}
+.fo-bar .n{font:800 16px var(--sans);margin-right:10px}
+.fo-tabs{display:inline-flex;border:1px solid #ECE7E1;border-radius:10px;overflow:hidden;background:#fff}
+.fo-tabs a{padding:9px 18px;font-size:14px;color:#2A2430;text-decoration:none}.fo-tabs a.on{background:#E4DEEF;color:#3B3050;font-weight:700;border-radius:8px}
+.fo-bar .sp{flex:1}.fo-bar .btn.ghost,.fo-bar summary.btn{height:40px;border-radius:10px;background:#fff;border:1px solid #E4DFD8;font-weight:600}
+.fo-tb{width:100%;border-collapse:collapse}
+.fo-tb th{font:700 11.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#4a4453;text-align:left;padding:10px 14px;background:#F7F4F0;border-top:1px solid #ECE7E1;border-bottom:1px solid #ECE7E1;white-space:nowrap}
+.fo-tb td{padding:10px 14px;border-bottom:1px solid #F1EDE8;vertical-align:middle;font-size:14.5px}.fo-tb th.r,.fo-tb td.r{text-align:right}
+.fo-tb tr:hover td{background:#FBFAF8}.fo-tb tr.r-transfer td{background:#F5F2FA}
+.fo-tb .tm{font-size:13px;color:#6b6575}.fo-tb .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px}
+.dot.income{background:#2f8f5b}.dot.expense{background:#D64545}.dot.transfer{background:#3B82C4}.dot.storno{background:#E9A93A}
+.k-income{color:#2f8f5b;font-weight:700}.k-expense{color:#D64545;font-weight:700}.k-transfer{color:#2f65a0;font-weight:700}.k-storno{color:#B7791F;font-weight:700}
+.fo-tb .num{margin-left:18px;font-size:13.5px;color:#2A2430;display:flex;align-items:center;gap:8px;margin-top:2px}
+.src{display:inline-block;font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:6px;letter-spacing:.04em}
+.src.crm{background:#E4DEEF;color:#3B3050}.src.cb{background:#FDECEC;color:#C0392B}
+.acc{display:inline-block;padding:5px 12px;border-radius:8px;background:#F7F4F0;border-left:3px solid #E9A93A;font-size:13.5px;white-space:nowrap}
+.acc.to{border-left:0;margin-top:4px}.acc.to:before{content:"→";color:#2f65a0;margin-right:8px}
+.fo-tb .am{font-weight:800;white-space:nowrap}.am.income{color:#2f8f5b}.am.expense,.am.storno{color:#D64545}.am.transfer{color:#1f4f9a}
+.fo-ft{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 14px;font-size:13.5px;color:#4a4453}
+.fo-ft .sp{flex:1}.fo-ft select{height:40px;margin:0;border:1px solid #E4DFD8;border-radius:10px;padding:0 10px;background:#fff}
+.fo-pg{display:inline-flex;gap:6px}.fo-pg button{min-width:38px;height:38px;border:1px solid #E4DFD8;border-radius:10px;background:#fff;cursor:pointer;font-size:14px}
+.fo-pg button.on{background:#3B3050;border-color:#3B3050;color:#fff;font-weight:700}.fo-pg button:disabled{opacity:.4;cursor:default}.fo-pg span{align-self:center;color:#8a8496}
 .jm-bg{position:fixed;inset:0;background:rgba(42,36,48,.45);z-index:90;display:none;align-items:flex-start;justify-content:center;padding:6vh 16px;overflow:auto}
 .jm-bg.on{display:flex}.jm{background:#fff;border-radius:18px;width:min(520px,100%);padding:20px 22px;box-shadow:0 30px 80px rgba(42,36,48,.35)}
 .jm h3{margin:0 0 12px;font-size:18px}.jm form{display:grid;gap:10px}.jm label{display:grid;gap:4px;font-size:12px;font-weight:700;color:var(--muted)}
 .jm .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-@media (max-width:1000px){.jr{grid-template-columns:1fr}.jr-f{position:static}.jr-f details:not([open]) .in{display:none}}
+@media (max-width:1000px){.fo-k{grid-template-columns:1fr 1fr}.fo-h h1{font-size:26px}.fo-t{overflow-x:auto}}
 </style>
-<div class="jr-h"><h1>{{ '🗄 Архів фіноперацій' if archive else 'Журнал фіноперацій' }}</h1>
-  {% if not archive %}<div class="jr-b"><button class="jb out" onclick="jmOpen('expense')">＋ ВИТРАТА</button><button class="jb mv" onclick="jmOpen('transfer')">＋ ПЕРЕМІЩЕННЯ</button>
-    <button class="jb inc" onclick="jmOpen('income')">＋ ДОХІД</button><button class="jb st" onclick="jmOpen('storno')">＋ СТОРНО</button></div>{% endif %}</div>
+{% macro qs(kind) %}?{% for k, v in request.query_params.items() if k != 'kind' %}{{ k }}={{ v|urlencode }}&{% endfor %}{{ ('kind=' ~ kind) if kind }}{% endmacro %}
+<div class="fo-h"><h1>{{ 'Архів фіноперацій' if archive else 'Журнал фіноперацій' }}</h1>
+  {% if not archive %}<div class="fo-b"><button class="fo-btn exp" onclick="jmOpen('expense')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> Витрата</button>
+    <button class="fo-btn inc" onclick="jmOpen('income')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> Дохід</button>
+    <button class="fo-btn mv" onclick="jmOpen('transfer')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h15l-3-3M20 16H5l3 3"/></svg> Переміщення</button>
+    <button class="fo-btn st" onclick="jmOpen('storno')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg> Сторно</button></div>{% endif %}</div>
 {% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
 {% if qp.get('err') %}<div class="alert">{{ qp.get('err') }}</div>{% endif %}
 {% if job %}<div class="alert" style="background:var(--lavender);color:var(--classic)">
@@ -44,51 +67,67 @@
   {% elif job.status == 'done' %}✅ Журнал CleverBox імпортовано: нових {{ job.result.created }}, оновлено {{ job.result.updated }}{{ (', пропущено ' ~ job.result.skipped) if job.result.skipped }}.
   {% else %}❌ Імпорт не вдався: {{ job.error }}{% endif %}</div>{% endif %}
 {% if cb_imported %}<div class="alert" style="{{ '' if cb_imported.error else 'background:var(--ok-bg);color:var(--ok)' }}">{{ cb_imported.error or ('Журнал CleverBox: нових ' ~ cb_imported.created ~ ', оновлено ' ~ cb_imported.updated ~ (', пропущено ' ~ cb_imported.skipped if cb_imported.skipped else '')) }}</div>{% endif %}
-<div class="jr">
-<form class="jr-f" method="get">{% if archive %}<input type="hidden" name="archive" value="1">{% endif %}
-  <h3>🔎 Фільтри</h3>
-  <details {{ 'open' if f.src }}><summary>📍 Джерело</summary><div class="in"><select name="src"><option value="">CRM і CleverBox</option><option value="crm" {{ 'selected' if f.src=='crm' }}>Лише CRM</option><option value="cb" {{ 'selected' if f.src=='cb' }}>Лише CleverBox</option></select></div></details>
-  <details open><summary>📅 Період</summary><div class="in"><input type="date" name="df" value="{{ d_from }}"><input type="date" name="dt_" value="{{ d_to }}"></div></details>
-  <details {{ 'open' if f.kind or f.account or f.article or f.author }}><summary>💰 Фінанси</summary><div class="in">
-    <select name="kind"><option value="">Усі типи</option>{% for k, v in KL.items() %}<option value="{{ k }}" {{ 'selected' if f.kind==k }}>{{ v }}</option>{% endfor %}</select>
-    <select name="account"><option value="">Усі рахунки</option>{% for x in opts.accounts %}<option {{ 'selected' if f.account==x }}>{{ x }}</option>{% endfor %}</select>
-    <select name="article"><option value="">Усі статті</option>{% for x in opts.articles %}<option {{ 'selected' if f.article==x }}>{{ x }}</option>{% endfor %}</select>
-    <select name="author"><option value="">Усі автори</option>{% for x in opts.authors %}<option {{ 'selected' if f.author==x }}>{{ x }}</option>{% endfor %}</select></div></details>
-  <input type="hidden" name="q" value="{{ f.q }}">
-  <div class="row" style="gap:6px"><button class="btn" style="flex:1;justify-content:center">Застосувати</button><a class="btn ghost" href="?{{ 'archive=1' if archive }}">Скинути</a></div>
-  <div class="sum" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
-    <div><span>Доходи</span><b class="k-income">{{ tot.income|uah }}</b></div><div><span>Витрати</span><b class="k-expense">{{ tot.expense|uah }}</b></div>
-    <div><span>Різниця</span><b>{{ tot.net|uah }}</b></div>{% if tot.transfer %}<div class="muted"><span>Переміщення</span><span>{{ tot.transfer|uah }}</span></div>{% endif %}
-    {% if tot.excluded %}<div class="muted" title="Налаштування → Налаштування звітів"><span>Не в доході (внесення в касу…)</span><span>{{ tot.excluded|uah }}</span></div>{% endif %}
-    {% if tot.non_money %}<div class="muted"><span>Не грошима (бонуси, баланс)</span><span>{{ tot.non_money|uah }}</span></div>{% endif %}</div>
+<div class="fo-k">
+  <div class="i"><small><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v15M6 13l6 6 6-6"/></svg> Доходи</small><b>{{ tot.income|uah }}</b></div>
+  <div class="e"><small><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17 10 11l4 4 6-7"/><path d="M15 8h5v5"/></svg> Витрати</small><b>{{ tot.expense|uah }}</b></div>
+  <div class="d"><small><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 11h2M12 11h2M16 11h0M8 15h2M12 15h2M16 15h0"/></svg> Різниця</small><b>{{ tot.net|uah }}</b></div>
+  <div><small><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h15l-3-3M20 16H5l3 3"/></svg> Переміщення</small><b>{{ tot.transfer|uah }}</b></div>
+</div>
+<div class="fo-nm">{% if tot.non_money %}Негрошові операції: {{ tot.non_money|uah }}{% endif %}{% if tot.excluded %}{{ ' · ' if tot.non_money }}<span title="Налаштування → Налаштування звітів">Не в доході (внесення в касу…): {{ tot.excluded|uah }}</span>{% endif %}&nbsp;</div>
+<form class="fo-f" method="get">{% if archive %}<input type="hidden" name="archive" value="1">{% endif %}{% if f.kind %}<input type="hidden" name="kind" value="{{ f.kind }}">{% endif %}
+  <input class="q" name="q" value="{{ f.q }}" placeholder="Документ, контрагент або призначення">
+  <input type="date" name="df" value="{{ d_from }}"><span class="sep">—</span><input type="date" name="dt_" value="{{ d_to }}">
+  <select name="src"><option value="">Джерело: Усі</option><option value="crm" {{ 'selected' if f.src=='crm' }}>Джерело: CRM</option><option value="cb" {{ 'selected' if f.src=='cb' }}>Джерело: CleverBox</option></select>
+  <details class="fo-more {{ 'act' if f.account or f.article or f.author }}"><summary><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg> Усі фільтри{{ ' •' if f.account or f.article or f.author }}</summary>
+    <div class="pop"><select name="account"><option value="">Усі рахунки</option>{% for x in opts.accounts %}<option {{ 'selected' if f.account==x }}>{{ x }}</option>{% endfor %}</select>
+      <select name="article"><option value="">Усі статті</option>{% for x in opts.articles %}<option {{ 'selected' if f.article==x }}>{{ x }}</option>{% endfor %}</select>
+      <select name="author"><option value="">Усі автори</option>{% for x in opts.authors %}<option {{ 'selected' if f.author==x }}>{{ x }}</option>{% endfor %}</select></div></details>
+  <button class="go">Застосувати</button><a class="rs" href="?{{ 'archive=1' if archive }}">Скинути</a>
 </form>
-<div class="jr-t">
-  <div class="jr-bar"><form method="get">{% for k, v in request.query_params.items() if k != 'q' %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
-      <input name="q" value="{{ f.q }}" placeholder="№ документа, від кого / кому…"><button class="btn ghost">🔍</button></form>
-    <div class="row" style="gap:6px"><details class="more-tools" style="position:relative"><summary class="btn ghost" style="list-style:none">🧰 Інструменти</summary>
+<div class="fo-t">
+  <div class="fo-bar"><span class="n">{{ n_all }} {{ 'операція' if n_all % 10 == 1 and n_all % 100 != 11 else ('операції' if 2 <= n_all % 10 <= 4 and not 12 <= n_all % 100 <= 14 else 'операцій') }}</span>
+    <span class="fo-tabs"><a href="{{ qs('') }}" class="{{ 'on' if not f.kind }}">Усі</a><a href="{{ qs('income') }}" class="{{ 'on' if f.kind=='income' }}">Доходи</a><a href="{{ qs('expense') }}" class="{{ 'on' if f.kind=='expense' }}">Витрати</a><a href="{{ qs('transfer') }}" class="{{ 'on' if f.kind=='transfer' }}">Переміщення</a><a href="{{ qs('storno') }}" class="{{ 'on' if f.kind=='storno' }}">Сторно</a></span>
+    <span class="sp"></span>
+    <details class="more-tools" style="position:relative"><summary class="btn ghost" style="list-style:none">Інструменти ⌄</summary>
         <div style="position:absolute;right:0;top:46px;z-index:6;background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px;width:300px;box-shadow:0 18px 40px -12px rgba(30,20,50,.35)">
           <a class="btn ghost" style="width:100%;justify-content:center;margin-bottom:8px" href="/finance/ops/export.xlsx?{{ request.url.query }}">⬇ Вивантажити в Excel</a>
           <form method="post" action="/finance/ops/import" enctype="multipart/form-data" class="grid" style="gap:6px"><input type="hidden" name="back" value="{{ request.url.path }}?{{ request.url.query }}">
             <div class="small" style="font-weight:700">Імпорт журналу CleverBox</div><div class="small muted">CleverBox → Фінанси → Фіноперації → Інструменти → Excel. Повторний імпорт не дублює.</div>
             <input type="file" name="file" accept=".xls,.xlsx" required><button class="btn">Імпортувати</button></form>
           {% if last_cb %}<div class="small muted" style="margin-top:6px">Журнал CleverBox оновлено {{ last_cb|local|dt('%d.%m.%Y %H:%M') }}</div>{% endif %}</div></details>
-      <a class="btn ghost" href="?{{ '' if archive else 'archive=1' }}">🗄 {{ 'До журналу' if archive else 'Архів' }}</a></div></div>
-  <div class="small muted" style="padding:0 6px 8px">Рядків: {{ rows|length }}{{ (' з ' ~ n_all) if n_all > rows|length }} · <span class="src crm">CRM</span> — внесено тут, <span class="src cb">CB</span> — CleverBox{% if not last_cb %} (поки з чеків; імпортуйте журнал CleverBox, щоб бачити й витрати){% endif %}</div>
-  <table class="tb jt"><thead><tr><th>Дата</th><th>Тип</th><th>Від кого / кому</th><th>Стаття</th><th>Рахунок</th><th>Вид</th><th>Автор</th><th class="r">Сума</th><th></th></tr></thead><tbody>
+    <a class="btn ghost" href="?{{ '' if archive else 'archive=1' }}">{{ 'До журналу' if archive else 'Архів' }}</a></div>
+  <table class="fo-tb" id="fo-rows"><thead><tr><th>Дата</th><th>Операція</th><th>Контрагент і призначення</th><th>Стаття</th><th>Рахунок</th><th class="r">Сума</th><th>Автор</th><th></th></tr></thead><tbody>
   {% for r in rows %}{% set k = 'storno' if r.is_storno else r.kind %}<tr class="r-{{ k }}">
-    <td style="white-space:nowrap"><span class="dot {{ k }}"></span>{{ r.at|dt('%d.%m.%Y') }}<div class="meta" style="padding-left:15px">{{ r.at|dt('%H:%M:%S') }}</div></td>
-    <td style="white-space:nowrap"><span class="k-{{ k }}">{{ KL[k] }}</span><span class="src {{ r.src }}">{{ 'CRM' if r.src=='crm' else 'CB' }}</span><div>{{ r.num }}{% if r.sale_id %} <a href="/sales/{{ r.sale_id }}" target="_top" title="Відкрити чек" style="text-decoration:none">🧾</a>{% endif %}</div>{% if r.storned %}<div class="meta" style="color:var(--bad)">сторновано</div>{% endif %}</td>
-    <td style="min-width:150px">{% if r.who_link %}<a href="{{ r.who_link }}">{{ r.who }}</a>{% else %}{{ r.who or '' }}{% endif %}{% if r.basis %}<div class="meta">підстава: {{ r.basis }}</div>{% endif %}{% if r.comment %}<div class="meta">{{ r.comment }}</div>{% endif %}</td>
+    <td style="white-space:nowrap">{{ r.at|dt('%d.%m.%Y') }}<div class="tm">{{ r.at|dt('%H:%M:%S') }}</div></td>
+    <td style="white-space:nowrap"><span class="dot {{ k }}"></span><span class="k-{{ k }}">{{ KL[k] }}</span><div class="num"><span class="src {{ r.src }}">{{ 'CRM' if r.src=='crm' else 'CB' }}</span>{{ r.num }}{% if r.sale_id %} <a href="/sales/{{ r.sale_id }}" target="_top" title="Відкрити чек" style="text-decoration:none">🧾</a>{% endif %}</div>{% if r.storned %}<div class="meta" style="color:var(--bad)">сторновано</div>{% endif %}</td>
+    <td style="min-width:170px">{% set w = r.who if r.who and r.who != '—' else '' %}{% if r.who_link and w %}<a href="{{ r.who_link }}">{{ w }}</a>{% else %}{{ w or ('—' if not (r.basis or r.comment) else '') }}{% endif %}{% if w and (r.basis or r.comment) %} /{% endif %}{% if r.basis %}<div>{{ r.basis }}</div>{% endif %}{% if r.comment %}<div>{{ r.comment }}</div>{% endif %}</td>
     <td style="min-width:140px">{{ r.article }}</td>
-    <td>{% if r.account %}<span class="acc">{{ r.account }}</span>{% endif %}</td>
-    <td>{% if r.vid and r.vid != r.account %}<span class="acc" style="border-left-color:#3B82C4">{{ ('→ ' if r.kind=='transfer') ~ r.vid }}</span>{% endif %}{% if not r.money and r.kind != 'transfer' %}<div class="meta">не гроші</div>{% endif %}</td>
+    <td>{% if r.account %}<span class="acc">{{ r.account }}</span>{% endif %}{% if r.vid and r.vid != r.account %}<div><span class="acc {{ 'to' if r.kind=='transfer' }}">{{ r.vid }}</span></div>{% endif %}{% if not r.money and r.kind != 'transfer' %}<div class="tm">не гроші</div>{% endif %}</td>
+    <td class="r"><span class="am {{ k }}">{{ '−' if r.sign < 0 else ('+' if r.sign > 0 and k != 'transfer' else '') }}{{ r.amount|uah }}</span></td>
     <td>{{ r.author }}</td>
-    <td class="r"><span class="amt {{ k }}">{{ '−' if r.sign < 0 else ('+' if r.sign > 0 else '') }}{{ r.amount|uah }}</span></td>
     <td>{% if r.sale_id and r.can_refund and can(user,'sale_refund') and not archive %}<form method="post" action="/sales/{{ r.sale_id }}/refund" data-delpw="Відмінити чек {{ r.num }} на {{ r.amount|uah }}? Гроші буде повернено (чек повернення)." style="margin:0"><input type="hidden" name="back" value="{{ request.url.path }}?{{ request.url.query }}"><input type="hidden" name="reason">
       <button title="Відмінити чек (повернення)" onclick="var v=prompt('Причина відміни чека {{ r.num }}:');if(!v||v.trim().length<3){if(v!==null)alert('Вкажіть причину (від 3 символів)');return false}this.form.reason.value=v.trim()" style="border:0;background:none;cursor:pointer;color:var(--muted);font-size:16px">×</button></form>
     {% elif r.src=='crm' and r.id and not archive %}<form method="post" action="/finance/ops/{{ r.id }}/delete" data-delpw="Видалити {{ r.num }} ({{ r.article }} {{ r.amount|uah }}) в архів?" style="margin:0"><input type="hidden" name="back" value="{{ request.url.path }}?{{ request.url.query }}"><button title="Видалити в архів" style="border:0;background:none;cursor:pointer;color:var(--muted);font-size:16px">×</button></form>{% endif %}</td></tr>
-  {% else %}<tr><td colspan="9" class="muted">{{ 'Архів порожній.' if archive else 'Операцій за період немає.' }}</td></tr>{% endfor %}</tbody></table>
-</div></div>
+  {% else %}<tr><td colspan="8" class="muted">{{ 'Архів порожній.' if archive else 'Операцій за період немає.' }}</td></tr>{% endfor %}</tbody></table>
+  <div class="fo-ft"><span class="src crm">CRM</span> — внесено в CRM · <span class="src cb">CB</span> — CleverBox{% if not last_cb %} (поки з чеків; імпортуйте журнал CleverBox, щоб бачити й витрати){% endif %}{% if n_all > rows|length %} · показано перші {{ rows|length }}{% endif %}
+    <span class="sp"></span><span id="fo-shown"></span>
+    <select id="fo-per"><option value="50">50 на сторінці</option><option value="100">100 на сторінці</option><option value="200">200 на сторінці</option><option value="100000">усі</option></select>
+    <span class="fo-pg" id="fo-pg"></span></div>
+</div>
+<script>
+(function(){var rows=[].slice.call(document.querySelectorAll('#fo-rows>tbody>tr')),per=50,page=1,sel=document.getElementById('fo-per');
+  try{var s=localStorage.getItem('foPer');if(s){per=+s;sel.value=s}}catch(e){}
+  function draw(){var n=rows.length,pages=Math.max(1,Math.ceil(n/per));page=Math.min(page,pages);var a=(page-1)*per,b=Math.min(a+per,n);
+    rows.forEach(function(r,i){r.style.display=(i>=a&&i<b)?'':'none'});
+    document.getElementById('fo-shown').textContent=n?('Показано '+(a+1)+'–'+b+' зі '+n):'';
+    var pg=document.getElementById('fo-pg'),h='',B=function(p,t,c,d){return '<button data-p="'+p+'" class="'+(c||'')+'" '+(d?'disabled':'')+'>'+t+'</button>'};
+    h+=B(page-1,'‹','',page<=1);var L=[1,2,3,page-1,page,page+1,pages].filter(function(p,i,x){return p>=1&&p<=pages&&x.indexOf(p)===i}).sort(function(x,y){return x-y}),prev=0;
+    L.forEach(function(p){if(p-prev>1)h+='<span>…</span>';h+=B(p,p,p===page?'on':'');prev=p});h+=B(page+1,'›','',page>=pages);pg.innerHTML=pages>1?h:'';}
+  document.getElementById('fo-pg').addEventListener('click',function(e){var b=e.target.closest('button');if(b&&!b.disabled){page=+b.dataset.p;draw();document.querySelector('.fo-t').scrollIntoView({block:'start'})}});
+  sel.addEventListener('change',function(){per=+sel.value;page=1;try{localStorage.setItem('foPer',sel.value)}catch(e){}draw()});draw();
+  document.addEventListener('click',function(e){document.querySelectorAll('.fo-more[open],.more-tools[open]').forEach(function(d){if(!d.contains(e.target))d.removeAttribute('open')})});
+})();
+</script>
 
 <div class="jm-bg" id="jm-bg" onclick="if(event.target===this)jmClose()"><div class="jm">
   <h3 id="jm-t"></h3>
