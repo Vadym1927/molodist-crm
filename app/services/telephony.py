@@ -833,6 +833,13 @@ def sync_utm(db: Session, d_from: date, d_to: date, http: httpx.Client | None = 
             raise ValueError(f"Ringostat API не віддав журнал дзвінків ({r.status_code}: {r.text[:120]})")
         rep["fields"] = fields
         rep["fetched"] += len(rows)
+        for x in rows:                                        # діагностика: які джерела й пули номерів узагалі є в журналі
+            if isinstance(x, dict):
+                rep.setdefault("keys", sorted(x.keys())[:30])
+                for f_, name in (("utm_source", "sources"), ("pool_name", "pools"), ("utm_medium", "mediums")):
+                    v = str(x.get(f_) if x.get(f_) is not None else "∅")[:40] or "(порожньо)"
+                    rep.setdefault(name, {})
+                    rep[name][v] = rep[name].get(v, 0) + 1
         t0, t1 = datetime.combine(a, datetime.min.time()) - timedelta(hours=1), datetime.combine(b, datetime.max.time()) + timedelta(hours=1)
         have = db.scalars(select(Call).where(Call.at >= t0, Call.at <= t1)).all()
         by_ext = {c.ext_id: c for c in have if c.ext_id}
