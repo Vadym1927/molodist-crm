@@ -114,3 +114,29 @@ def test_ga4_match_calls(monkeypatch):
             assert False
         except ValueError:
             pass
+
+
+def test_ga4_lead_events_and_appeals():
+    from app.models import GaEvent, Appeal
+    from app.services import ga4
+    today = date.today()
+    t = datetime.combine(today - timedelta(days=1), datetime.min.time()).replace(hour=11, minute=10)
+    with SessionLocal() as db:
+        c = ga4.cfg(db); c.update(property="123", events=["phone_click"], lead_events=["click_telegram", "click_booking"]); ga4.save_cfg(db, c)
+        db.add(GaEvent(at=t, event="click_telegram", source="google", medium="cpc", campaign="Поиск | Клініка", keyword="косметолог", count=1))
+        db.add(GaEvent(at=t, event="click_booking", source="google", medium="cpc", campaign="Поиск | Клініка", keyword="", count=3))
+        shift = datetime.now() - datetime.utcnow()
+        a1 = Appeal(created_at=t - shift + timedelta(minutes=3), phone="380500008811", source="Telegram-бот", status="Новий")
+        a2 = Appeal(created_at=t - shift + timedelta(minutes=3), phone="380500008812", source="Instagram", status="Новий")
+        db.add_all([a1, a2]); db.commit()
+        rep = ga4.match_appeals(db, today - timedelta(days=2), today)
+        assert rep["matched"] == 1 and "utm_campaign=Поиск | Клініка" in a1.utm and a2.utm is None
+        sm = ga4.summary(db, today - timedelta(days=2), today)
+        assert sm["paid_other"] == 4 and sm["by_event"]["click_booking"] == 3 and sm["paid"] == 0
+        # клік по месенджеру не привʼязується до дзвінка
+        cl = Call(provider="ringostat", at=t + timedelta(seconds=30), direction="in", phone="380500008813", status="answered")
+        db.add(cl); db.commit()
+        ga4.match_calls(db, today - timedelta(days=2), today)
+        assert cl.attr is None
+        ls = ga.leads(db, today - timedelta(days=2), today)
+        assert any(l["phone"] == "380500008811" and l["campaign"] == "Поиск | Клініка" and l["attr"] == "ga4" for l in ls)

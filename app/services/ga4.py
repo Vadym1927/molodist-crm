@@ -20,7 +20,7 @@ from ..models import Call, GaEvent, SyncState
 
 KEY = "ga4_cfg"
 SCOPE = "https://www.googleapis.com/auth/analytics.readonly"
-DEFAULT = {"property": "", "events": [], "key_enc": "", "email": "", "window_before": 4, "window_after": 1, "last_sync": None, "last_error": None}
+DEFAULT = {"property": "", "events": [], "lead_events": [], "window_msg": 15, "key_enc": "", "email": "", "window_before": 4, "window_after": 1, "last_sync": None, "last_error": None}
 HINT = ("phone", "tel", "call", "дзвін", "телефон", "click_to_call")
 
 
@@ -159,9 +159,9 @@ def _clean(v: str) -> str:
 def sync(db: Session, d_from: date, d_to: date, http: httpx.Client | None = None) -> dict:
     """Події з налаштувань (кліки по номеру тощо) по хвилинах з міткою сеансу → GaEvent."""
     c = cfg(db)
-    names = [e for e in c.get("events") or [] if e]
+    names = list(dict.fromkeys([e for e in (c.get("events") or []) + (c.get("lead_events") or []) if e]))
     if not names:
-        raise ValueError("Оберіть події GA4, які означають клік по номеру телефону")
+        raise ValueError("Оберіть події GA4: кліки по номеру телефону та / або інші звернення (месенджери, запис, форми)")
     rep = {"rows": 0, "new": 0}
     a = d_from
     while a <= d_to:
@@ -202,7 +202,8 @@ def match_calls(db: Session, d_from: date, d_to: date) -> dict:
     c = cfg(db)
     wb, wa = timedelta(minutes=float(c.get("window_before") or 4)), timedelta(minutes=float(c.get("window_after") or 1))
     t0, t1 = datetime.combine(d_from, datetime.min.time()), datetime.combine(d_to, datetime.max.time())
-    evs = db.scalars(select(GaEvent).where(GaEvent.at >= t0 - wb, GaEvent.at <= t1 + wa).order_by(GaEvent.at)).all()
+    phone_events = [e for e in c.get("events") or [] if e] or ["-"]
+    evs = db.scalars(select(GaEvent).where(GaEvent.at >= t0 - wb, GaEvent.at <= t1 + wa, GaEvent.event.in_(phone_events)).order_by(GaEvent.at)).all()
     left = {e.id: e.count for e in evs}
     by_min: dict = defaultdict(list)
     for e in evs:
@@ -238,15 +239,75 @@ def match_calls(db: Session, d_from: date, d_to: date) -> dict:
     return rep
 
 
+CHANNEL_WORDS = {"telegram": ("telegram", "телеграм", "tg"), "viber": ("viber", "вайбер"), "instagram": ("instagram", "інстаграм", "insta"),
+                 "whatsapp": ("whatsapp", "wa"), "facebook": ("facebook", "messenger", "fb")}
+
+
+def _event_channel(name: str) -> str | None:
+    low = name.lower()
+    return next((ch for ch, ws in CHANNEL_WORDS.items() if any(w in low for w in ws[:1] + (ch,))), None)
+
+
+def match_appeals(db: Session, d_from: date, d_to: date) -> dict:
+    """Звернення з месенджера (Telegram, Viber…) або форми, створене протягом кількох хвилин після кліку на сайті, отримує мітки сеансу.
+    Клік по месенджеру → звернення з джерелом цього месенджера; подія форми / ліда → звернення з джерелом «Сайт» / «форма»."""
+    from ..models import Appeal
+    c = cfg(db)
+    names = [e for e in c.get("lead_events") or [] if e]
+    rep = {"appeals": 0, "matched": 0, "uncertain": 0}
+    if not names:
+        return rep
+    win = timedelta(minutes=float(c.get("window_msg") or 15))
+    t0, t1 = datetime.combine(d_from, datetime.min.time()), datetime.combine(d_to, datetime.max.time())
+    evs = db.scalars(select(GaEvent).where(GaEvent.at >= t0 - win, GaEvent.at <= t1, GaEvent.event.in_(names)).order_by(GaEvent.at)).all()
+    left = {e.id: e.count for e in evs}
+    # Appeal.created_at — UTC; події GA4 — у часі ресурсу (Київ): зсув беремо з різниці now / utcnow
+    shift = datetime.now() - datetime.utcnow()
+    for a in db.scalars(select(Appeal).where(Appeal.created_at >= t0 - timedelta(hours=4), Appeal.created_at <= t1 + timedelta(hours=4),
+                                             Appeal.deleted_at.is_(None)).order_by(Appeal.created_at)):
+        if a.utm and "attr=ga4" not in a.utm:
+            continue
+        at = a.created_at + shift
+        if not (t0 <= at <= t1):
+            continue
+        src = (a.source or "").lower()
+        rep["appeals"] += 1
+        cand = []
+        for e in evs:
+            if left.get(e.id, 0) <= 0 or not (e.at - timedelta(minutes=1) <= at <= e.at + win + timedelta(minutes=1)):
+                continue
+            ch = _event_channel(e.event)
+            if ch:
+                ok = any(w in src for w in CHANNEL_WORDS[ch])
+            else:                                               # форма / лід / запис на сайті
+                ok = any(w in src for w in ("сайт", "форма", "site", "form", "онлайн", "запис"))
+            if ok:
+                cand.append(e)
+        if not cand:
+            if a.utm and "attr=ga4" in a.utm:
+                a.utm = None
+            continue
+        best = min(cand, key=lambda e: abs((at - e.at).total_seconds()))
+        left[best.id] -= 1
+        sure = len({(e.source, e.medium, e.campaign) for e in cand}) == 1
+        a.utm = (f"utm_source={best.source or '(direct)'}&utm_medium={best.medium or '(none)'}&utm_campaign={best.campaign}"
+                 f"&utm_term={best.keyword}&attr={'ga4' if sure else 'ga4?'}")[:300]
+        rep["matched"] += 1
+        rep["uncertain"] += not sure
+    db.commit()
+    return rep
+
+
 def refresh(db: Session, days: int = 2) -> dict | None:
     """Регулярне оновлення: останні дні подій + привʼязка дзвінків. Помилку зберігаємо в налаштуваннях, не падаємо."""
     c = cfg(db)
-    if not (c.get("property") and c.get("events")):
+    if not (c.get("property") and (c.get("events") or c.get("lead_events"))):
         return None
     today = date.today()
     try:
         s = sync(db, today - timedelta(days=days), today)
         m = match_calls(db, today - timedelta(days=days), today)
+        match_appeals(db, today - timedelta(days=days), today)
         return {**s, **m}
     except Exception as e:      # noqa: BLE001
         c = cfg(db)
@@ -256,12 +317,23 @@ def refresh(db: Session, days: int = 2) -> dict | None:
 
 
 def summary(db: Session, d_from: date, d_to: date) -> dict:
-    """Кліки по номеру за період: разом, з Google Ads, по кампаніях."""
+    """Події GA4 за період з Google Ads: кліки по номеру й інші звернення — разом, по подіях, по кампаніях."""
+    c = cfg(db)
+    phone = set(c.get("events") or [])
     t0, t1 = datetime.combine(d_from, datetime.min.time()), datetime.combine(d_to, datetime.max.time())
-    tot, paid, camps = 0, 0, defaultdict(int)
+    out = {"total": 0, "paid": 0, "paid_other": 0, "by_campaign": {}, "by_campaign_other": {}, "by_event": {}, "by_campaign_event": {}}
     for e in db.scalars(select(GaEvent).where(GaEvent.at >= t0, GaEvent.at <= t1)):
-        tot += e.count
-        if "google" in e.source.lower() and e.medium.lower() in ("cpc", "ppc", "paid"):
-            paid += e.count
-            camps[e.campaign.strip().lower()] += e.count
-    return {"total": tot, "paid": paid, "by_campaign": dict(camps)}
+        out["total"] += e.count
+        if not ("google" in e.source.lower() and e.medium.lower() in ("cpc", "ppc", "paid")):
+            continue
+        k = e.campaign.strip().lower()
+        if e.event in phone:
+            out["paid"] += e.count
+            out["by_campaign"][k] = out["by_campaign"].get(k, 0) + e.count
+        else:
+            out["paid_other"] += e.count
+            out["by_campaign_other"][k] = out["by_campaign_other"].get(k, 0) + e.count
+        out["by_event"][e.event] = out["by_event"].get(e.event, 0) + e.count
+        d = out["by_campaign_event"].setdefault(k, {})
+        d[e.event] = d.get(e.event, 0) + e.count
+    return out

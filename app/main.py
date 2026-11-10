@@ -7677,6 +7677,10 @@ async def google_ads_ga4_save(request: Request, user: User = Depends(require("us
         c["property"] = "".join(ch for ch in str(f.get("property") or "") if ch.isdigit())
         ev = [str(x) for x in f.getlist("events")] + [x.strip() for x in str(f.get("events_extra") or "").split(",") if x.strip()]
         c["events"] = list(dict.fromkeys(ev))
+        c["lead_events"] = [x for x in dict.fromkeys(str(x) for x in f.getlist("lead_events")) if x not in c["events"]]
+        wm = _num(str(f.get("window_msg") or ""))
+        if wm is not None:
+            c["window_msg"] = max(1.0, min(float(wm), 120.0))
         for k in ("window_before", "window_after"):
             v = _num(str(f.get(k) or ""))
             if v is not None:
@@ -7701,8 +7705,10 @@ def google_ads_ga4_sync(days: int = Form(90), user: User = Depends(require("user
             r1 = ga4.sync(s_, a, b)
             job.log(f"Подій (хвилина × кампанія): {r1['rows']}, нових {r1['new']}. Привʼязую дзвінки…")
             r2 = ga4.match_calls(s_, a, b)
-            job.log(f"Дзвінків без міток: {r2['calls']}, привʼязано до кліку: {r2['matched']} (з них імовірно: {r2['uncertain']})")
-            return {**r1, **r2}
+            r3 = ga4.match_appeals(s_, a, b)
+            job.log(f"Дзвінків без міток: {r2['calls']}, привʼязано до кліку: {r2['matched']} (імовірно: {r2['uncertain']}) · "
+                    f"звернень: {r3['appeals']}, привʼязано: {r3['matched']} (імовірно: {r3['uncertain']})")
+            return {**r1, **r2, "appeals": r3}
     job = jobs.start("GA4: кліки по номеру → дзвінки", run, max(1, min(int(days or 90), 420)))
     audit(db, "ga4.sync", user=user, job=job.id)
     db.commit()

@@ -214,7 +214,8 @@ def leads(db: Session, d_from: date, d_to: date, c: dict | None = None) -> list[
         if (x.source or "").strip().lower() in srcs or ("google" in u and ("cpc" in u or "gclid" in u or "ppc" in u)) or "gclid=" in u:
             camp = next((p.split("=", 1)[1] for p in (x.utm or "").replace("?", "&").split("&") if p.lower().startswith("utm_campaign=")), None)
             term = next((p.split("=", 1)[1] for p in (x.utm or "").replace("?", "&").split("&") if p.lower().startswith("utm_term=")), None)
-            raw.append({"at": x.created_at, "phone": x.phone, "kind": "appeal", "campaign": camp, "term": term, "status": x.status, "attr": None,
+            attr = "ga4?" if "attr=ga4?" in u else ("ga4" if "attr=ga4" in u else None)
+            raw.append({"at": x.created_at, "phone": x.phone, "kind": "appeal", "campaign": camp, "term": term, "status": x.status, "attr": attr, "source": x.source,
                         "patient_id": x.patient_id, "call_id": None, "appeal_id": x.id, "duration": None, "landing": None})
     raw.sort(key=lambda r: r["at"])
     out, seen = [], {}
@@ -329,7 +330,9 @@ def dashboard(db: Session, d_from: date, d_to: date, today: date | None = None) 
     from . import ga4 as _ga4
     gsum = _ga4.summary(db, d_from, d_to)
     gcfg = _ga4.cfg(db)
-    tot["ga_clicks"], tot["ga_all"] = gsum["paid"], gsum["total"]
+    tot["ga_clicks"], tot["ga_all"], tot["ga_other"], tot["ga_events"] = gsum["paid"], gsum["total"], gsum["paid_other"], gsum["by_event"]
+    _cash = tot["cash"]
+    tot["ga_cpa"] = round(_cash / (gsum["paid"] + gsum["paid_other"]), 2) if (gsum["paid"] + gsum["paid_other"]) else None
     tot["probable"] = sum(1 for r in ls if r.get("attr") == "ga4?")
     # кампанії
     camps: dict = {}
@@ -350,6 +353,8 @@ def dashboard(db: Session, d_from: date, d_to: date, today: date | None = None) 
     for key, k in camps.items():
         camp_list.append({"key": key, "name": k["name"], "status": k["status"], "budget": k["budget"], "type": k["type"],
                           "ga_clicks": gsum["by_campaign"].get((k["name"] or "").strip().lower(), 0),
+                          "ga_other": gsum["by_campaign_other"].get((k["name"] or "").strip().lower(), 0),
+                          "ga_events": gsum["by_campaign_event"].get((k["name"] or "").strip().lower(), {}),
                           **_ratios({**_agg(k["rows"]), **_lead_sums(by_c.get(key, []))}, vat, margin)})
     camp_list.sort(key=lambda x: -x["cost"])
     unmatched = by_c.get("", [])
@@ -406,7 +411,7 @@ def dashboard(db: Session, d_from: date, d_to: date, today: date | None = None) 
             "keywords": kws, "terms": top("term"), "devices": top("device", 6), "hours": hours, "lead_hours": lead_h,
             "balance": balance(db, c, today), "connected": bool(c.get("last_push")), "last_day": last,
             "has_utm": any(r["campaign"] for r in ls), "d_from": d_from, "d_to": d_to,
-            "ga4": {"on": bool(gcfg.get("property") and gcfg.get("events")), "last_sync": gcfg.get("last_sync"), "error": gcfg.get("last_error")},
+            "ga4": {"on": bool(gcfg.get("property") and (gcfg.get("events") or gcfg.get("lead_events"))), "last_sync": gcfg.get("last_sync"), "error": gcfg.get("last_error")},
             "pay_item": db.scalar(select(PayItem).where(PayItem.ref.like("gads:topup%"), PayItem.status.in_(("planned", "approved"))))}
 
 
