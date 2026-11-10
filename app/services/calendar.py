@@ -12,6 +12,9 @@ from ..parsers.observ import norm
 from .kpi import all_statuses
 from .tasks import visible_query
 
+# «Очікувані за планом» і задачі по пацієнтах у календарі — вимкнено власником 10.11.2026 (вони є в «Задачах» і в картці плану)
+SHOW_PLAN_HINTS = False
+
 
 @dataclass
 class Event:
@@ -138,7 +141,7 @@ def events(db: Session, user: User, start: date, days: int = 7, doctor_id: int |
                                 ckey="booked" if v.status == "booked" else ("paid" if _paid_on else "done")))
             merged[key] = out[d][-1]
 
-    if True:
+    if SHOW_PLAN_HINTS:
         for ps in statuses:
             if ps.plan.status != "active" or ps.is_booked or not ps.next_procedure or not ps.due_date:
                 continue

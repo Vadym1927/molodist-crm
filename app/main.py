@@ -2912,7 +2912,7 @@ async def mapping_save(request: Request, user: User = Depends(require("mapping")
         al.cb_names = [db.get(CbService, i).name for i in ids if db.get(CbService, i)]
         db.add(al)
     db.commit()
-    audit(db, "mapping.update", user=user, key=key, cb_ids=ids)
+    audit(db, "mapping.update", user=user, plan_key=key, cb_ids=ids)
     return RedirectResponse("/mapping", 303)
 
 
@@ -5830,6 +5830,18 @@ def docs_archive_plans_check(user: User = Depends(require("migrate")), db: Sessi
 def docs_archive_plans_unmatched(user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
     from .services import bulk_docs
     return {"rows": bulk_docs.plans_unmatched(db)}
+
+
+@app.get("/data/docs-archive/patient-rows")
+def docs_archive_patient_rows(pid: int, user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
+    """Діагностика: сирі рядки візитів CleverBox і записів CRM пацієнта (чому не лягають у план)."""
+    from .models import Appointment, Visit
+    vs = db.scalars(select(Visit).where(Visit.patient_id == pid).order_by(Visit.starts_at)).all()
+    aps = db.scalars(select(Appointment).where(Appointment.patient_id == pid).order_by(Appointment.start)).all()
+    return {"visits": [{"id": v.id, "src": v.source, "ext": v.external_id, "at": v.starts_at.isoformat(timespec="minutes"), "sid": v.service_id,
+                        "name": v.service_name, "status": v.status, "label": v.status_label, "amount": v.amount, "item": v.plan_item_id} for v in vs],
+            "appts": [{"id": a.id, "at": a.start.isoformat(timespec="minutes"), "status": a.status, "cb": a.cb_record_id, "sale": a.sale_id,
+                       "src": a.source, "services": [{k: s_.get(k) for k in ("id", "cb_id", "name", "price")} for s_ in (a.services or [])]} for a in aps]}
 
 
 @app.post("/data/docs-archive/dups/remove")
