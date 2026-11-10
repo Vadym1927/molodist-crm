@@ -529,13 +529,33 @@ function applyQueue() {
         var txt = c.match === 'EXACT' ? '[' + c.target + ']' : (c.match === 'BROAD' ? c.target : '"' + c.target + '"');
         var op = g.newKeywordBuilder().withText(txt); if (c.final_url) op = op.withFinalUrl(c.final_url);
         var kr = op.build(); r.ok = kr.isSuccessful(); r.note = r.ok ? 'додано ' + txt : kr.getErrors().join('; ');
+      } else if (c.kind === 'broad_to_phrase') {
+        var cp4 = camp(c); if (!cp4) throw new Error('кампанію не знайдено');
+        var ki = AdsApp.keywords().withCondition('campaign.id = ' + cp4.getId())
+          .withCondition('ad_group_criterion.keyword.match_type = BROAD').withCondition('ad_group_criterion.status = ENABLED').get();
+        var moved = 0, bad = 0;
+        while (ki.hasNext()) {
+          var kw2 = ki.next(), tx = kw2.getText().replace(/[\"\[\]+]/g, '').trim();
+          var kb = kw2.getAdGroup().newKeywordBuilder().withText('"' + tx + '"');
+          var fu = kw2.urls().getFinalUrl(); if (fu) kb = kb.withFinalUrl(fu);
+          var kres = kb.build();
+          if (kres.isSuccessful() || /DUPLICATE|already|існує/i.test(kres.getErrors().join(' '))) { kw2.pause(); moved++; } else { bad++; }
+        }
+        r.ok = moved > 0 || bad === 0; r.note = 'переведено ' + moved + (bad ? ', помилок ' + bad : '');
       } else if (c.kind === 'rsa') {
         var g2 = group(c); if (!g2) throw new Error('групу не знайдено');
+        var old = [];
+        if (c.pause_text) {
+          var ai = g2.ads().withCondition("ad_group_ad.status = ENABLED").get();
+          while (ai.hasNext()) { var ad = ai.next(); var t = ad.isType().responsiveSearchAd() ? JSON.stringify(ad.asType().responsiveSearchAd().getDescriptions()) : '';
+            if (t.indexOf(c.pause_text) >= 0) { old.push(ad); if (!c.final_url) c.final_url = ad.urls().getFinalUrl(); } }
+        }
         var b = g2.newAd().responsiveSearchAdBuilder().withHeadlines((c.headlines || []).map(function (h) { return { text: h }; }))
           .withDescriptions((c.descriptions || []).map(function (d) { return { text: d }; })).withFinalUrl(c.final_url);
         if (c.path1) b = b.withPath1(c.path1); if (c.path2) b = b.withPath2(c.path2);
         var ar = b.build(); r.ok = ar.isSuccessful(); r.note = r.ok ? 'оголошення створено' + (c.paused ? ' (на паузі)' : '') : ar.getErrors().join('; ');
         if (r.ok && c.paused) ar.getResult().pause();
+        if (r.ok && !c.paused && old.length) { old.forEach(function (a) { a.pause(); }); r.note += '; старих на паузу: ' + old.length; }
       } else { r.note = 'невідомий тип ' + c.kind; }
     } catch (e) { r.ok = false; r.note = String(e).substring(0, 300); }
     out.push(r);

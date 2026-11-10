@@ -15,7 +15,8 @@ from sqlalchemy.orm import Session
 from ..models import AdsChange, AdsStat, SyncState, User
 
 KINDS = {"negative": "Мінус-слово", "pause_keyword": "Пауза ключа", "enable_keyword": "Увімкнути ключ", "pause_campaign": "Пауза кампанії",
-         "enable_campaign": "Увімкнути кампанію", "budget": "Денний бюджет", "add_keyword": "Новий ключ", "rsa": "Нове оголошення"}
+         "enable_campaign": "Увімкнути кампанію", "budget": "Денний бюджет", "add_keyword": "Новий ключ", "rsa": "Нове оголошення",
+         "broad_to_phrase": "Широкі ключі → фразові"}
 STATUS = {"proposed": "чекає погодження", "approved": "погоджено, застосується протягом години", "rejected": "відхилено",
           "applied": "застосовано", "failed": "помилка"}
 CFG_KEY = "ads_changes_cfg"
@@ -130,6 +131,8 @@ def describe(ch: AdsChange) -> str:
         return f"{KINDS[ch.kind].lower()} «{ch.target}» у «{ch.campaign}»"
     if ch.kind == "add_keyword":
         return f"новий ключ «{ch.target}» ({p.get('match', 'PHRASE')}) у «{ch.campaign} / {p.get('adgroup', '')}»"
+    if ch.kind == "broad_to_phrase":
+        return f"усі ввімкнені ключі з широкою відповідністю в «{ch.campaign}» → фразова (широкі на паузу)"
     if ch.kind == "rsa":
         return f"нове оголошення в «{ch.campaign} / {p.get('adgroup', '')}»: {' | '.join((p.get('headlines') or [])[:3])}"
     return f"{KINDS.get(ch.kind, ch.kind)} «{ch.campaign or ch.target}»"

@@ -65,3 +65,12 @@ def test_endpoints_owner_and_script():
         assert x.status == "failed" and "не знайдено" in x.result
     s = ga.script("https://x/api/public/ads/google/h")
     assert "applyQueue()" in s and "createNegativeKeyword" in s and "/applied" in s
+
+
+def test_broad_to_phrase_and_rsa_replace():
+    with SessionLocal() as db:
+        ch = ac.propose(db, "broad_to_phrase", "Тест Широкі", None, "широка → фразова", campaign_id="777")
+        db.commit()
+        assert "фразова" in ac.describe(ch)
+    s = ga.script("https://x/h")
+    assert "broad_to_phrase" in s and "pause_text" in s and "match_type = BROAD" in s
