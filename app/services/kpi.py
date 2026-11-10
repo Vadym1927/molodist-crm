@@ -168,10 +168,30 @@ def crm_rows(db: Session, patient_ids=None) -> dict:
     from ..models import Appointment, Sale, Product
     s0 = autonomy.since(db)
     out: dict = {}
+    docs = {d.id: d.name for d in db.scalars(select(Doctor))}
+    d0 = datetime.combine(s0, datetime.min.time()) if s0 else None
+    # Виконані записи CleverBox (історія), по яких CleverBox не дав рядка «надано послугу» (оплата пакетом / депозитом / 0 ₴):
+    # процедуру зроблено — у плані вона має рахуватись. Лише пацієнти з планами.
+    from ..models import Visit as _V
+    plan_pids = select(BeautyPlan.patient_id)
+    sold = {(pid, sid, at.date()) for pid, sid, at in db.execute(
+        select(_V.patient_id, _V.service_id, _V.starts_at).where(_V.source == "cb_service_sale", _V.patient_id.in_(plan_pids)))}
+    q = select(Appointment).where(Appointment.source == "cleverbox", Appointment.status.in_(("done", "paid")),
+                                  Appointment.patient_id.in_(plan_pids))
+    if d0:
+        q = q.where(Appointment.start < d0)
+    if patient_ids is not None:
+        q = q.where(Appointment.patient_id.in_(list(patient_ids)))
+    for a in db.scalars(q):
+        for i, s in enumerate(a.services or []):
+            sid = s.get("cb_id") or s.get("id")
+            if (a.patient_id, sid, a.start.date()) in sold:
+                continue
+            out.setdefault(a.patient_id, {"visits": [], "sales": []})["visits"].append(NS(
+                id=f"h{a.id}:{i}", plan_item_id=None, service_id=sid, service_name=s.get("name"),
+                master_name=docs.get(a.doctor_id), starts_at=a.start, status="done", amount=float(s.get("price") or 0) or None))
     if not s0:
         return out
-    d0 = datetime.combine(s0, datetime.min.time())
-    docs = {d.id: d.name for d in db.scalars(select(Doctor))}
     q = select(Appointment).where(Appointment.start >= d0, Appointment.status.notin_(("cancelled", "no_show")))
     if patient_ids is not None:
         q = q.where(Appointment.patient_id.in_(list(patient_ids)))

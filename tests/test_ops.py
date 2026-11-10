@@ -147,6 +147,6 @@ def test_no_n_plus_one(monkeypatch):
         with SessionLocal() as db:
             sts = all_statuses(db)
             all_statuses(db, doctor_id=1)                          # повторний виклик — з памʼяті
-        assert len(sts) == 60 and n["q"] <= 10, n["q"]
+        assert len(sts) == 60 and n["q"] <= 12, n["q"]
     finally:
         event.remove(engine, "before_cursor_execute", listener)
