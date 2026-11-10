@@ -304,3 +304,29 @@ def plans_check(db: Session) -> list[dict]:
                      "visits_sum": round(sum(float(v.amount or 0) for v in done)),
                      "from_archive": "__" in PurePosixPath(pl.source_file or "").name})
     return rows
+
+
+def plans_unmatched(db: Session) -> list[dict]:
+    """Для «Зіставлення»: по кожному плану — незакриті позиції та візити / записи / покупки пацієнта після сесії,
+    які не зарахувались у жодну позицію (назви не збіглися)."""
+    from datetime import timedelta
+    from . import kpi
+    crm = kpi.crm_rows(db)
+    out = []
+    for st in kpi.all_statuses(db):
+        pl = st.plan
+        since = (pl.session_at or pl.created_at) - timedelta(days=1)
+        used = {(e[1], e[2]) for it in st.items for e in it.events}
+        extra = crm.get(pl.patient_id) or {"visits": [], "sales": []}
+        vis = [v for v in list(pl.patient.visits) + extra["visits"] if v.starts_at >= since and v.status in ("done", "booked")]
+        sales = [x for x in list(pl.patient.sales) + extra["sales"] if x.sold_at >= since]
+        free_v = [{"at": v.starts_at.isoformat(timespec="minutes"), "name": v.service_name, "sid": v.service_id, "status": v.status,
+                   "amount": float(v.amount or 0)} for v in vis if (v.starts_at, v.service_name) not in used]
+        free_s = [{"at": x.sold_at.isoformat(timespec="minutes"), "name": x.product_name, "pid": x.product_id, "amount": float(x.amount or 0)}
+                  for x in sales if (x.sold_at, x.product_name) not in used]
+        items = [{"id": it.item.id, "kind": it.item.kind, "name": it.item.name, "qty": it.item.qty, "done": it.done, "booked": it.booked,
+                  "price": it.item.unit_price} for it in st.items if it.done + it.booked < (it.item.qty or 0)]
+        if items and (free_v or free_s):
+            out.append({"plan": pl.id, "patient": pl.patient.full_name, "patient_id": pl.patient_id, "items": items,
+                        "visits": free_v, "sales": free_s})
+    return out

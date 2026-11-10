@@ -5826,6 +5826,12 @@ def docs_archive_plans_check(user: User = Depends(require("migrate")), db: Sessi
     return {"rows": bulk_docs.plans_check(db)}
 
 
+@app.get("/data/docs-archive/plans-unmatched")
+def docs_archive_plans_unmatched(user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
+    from .services import bulk_docs
+    return {"rows": bulk_docs.plans_unmatched(db)}
+
+
 @app.post("/data/docs-archive/dups/remove")
 def docs_archive_dups_remove(user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
     from .services import bulk_docs
