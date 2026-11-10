@@ -107,11 +107,15 @@
     <label>Попередити, коли лишається днів<input name="alert_days" value="{{ '%g' % c.alert_days }}" inputmode="numeric"></label>
     <label>…або коли баланс нижче<input name="alert_amount" value="{{ '%g' % c.alert_amount }}" inputmode="decimal"></label>
     <label>Сума поповнення в платіжний календар, ₴<input name="topup_amount" value="{{ '%g' % c.topup_amount }}" inputmode="decimal"></label>
+    <label>Щоденне поповнення з ПДВ, ₴ (0 — вимкнено)<input name="daily_topup" value="{{ '%g' % (c.daily_topup or 0) }}" inputmode="decimal"></label>
+    <div><div style="font-size:12px;color:#6b6575;margin-bottom:4px">Дні щоденного поповнення</div><input type="hidden" name="daily_days_sent" value="1">
+      {% for i, n in [(0,'Пн'),(1,'Вт'),(2,'Ср'),(3,'Чт'),(4,'Пт'),(5,'Сб'),(6,'Нд')] %}<label class="mini" style="display:inline-flex;gap:4px;align-items:center;margin-right:8px"><input type="checkbox" name="daily_days" value="{{ i }}" style="height:auto" {{ 'checked' if i in (c.daily_days or []) }}>{{ n }}</label>{% endfor %}</div>
     <label>З якого рахунку платимо<select name="cashbox"><option value="">—</option>{% for b in boxes %}<option {{ 'selected' if b == c.cashbox }}>{{ b }}</option>{% endfor %}</select></label>
     <label>Стаття витрат<select name="article"><option value="">—</option>{% for a in EXP %}<option {{ 'selected' if a == c.article }}>{{ a }}</option>{% endfor %}{% if c.article and c.article not in EXP %}<option selected>{{ c.article }}</option>{% endif %}</select></label>
     <label>Слова в банківській виписці (платежі Google)<input name="bank_words" value="{{ c.bank_words|join(', ') }}"></label>
   </div>
-  <div class="mini" style="margin-top:8px">Платежі на Google з виписки monobank стають поповненнями автоматично. Коли коштів лишається менше порога — у «Фінанси → Платіжний календар» зʼявляється платіж «Поповнення Google Ads»; після оплати з календаря він теж рахується як поповнення.</div>
+  <div class="mini" style="margin-top:8px">Платежі на Google з виписки monobank стають поповненнями автоматично. Коли коштів лишається менше порога — у «Фінанси → Платіжний календар» зʼявляється платіж «Поповнення Google Ads»; після оплати з календаря він теж рахується як поповнення.
+    Щоденне поповнення: у вибрані дні в календарі зʼявляється платіж на сьогодні (у пʼятницю — за пʼятницю й суботу), о 9:00 він приходить власнику в Telegram разом із дайджестом платежів.</div>
 </div>
 <div class="row" style="gap:10px"><button class="btn">Зберегти</button>
   <label class="mini" style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="rehook" value="1" style="height:auto"> згенерувати нову адресу прийому (скрипт у кабінеті треба буде оновити)</label></div>

@@ -7951,10 +7951,12 @@ async def google_ads_settings_save(request: Request, user: User = Depends(requir
     from .services import google_ads as ga
     f = await request.form()
     c = ga.cfg(db)
-    for k in ("vat_pct", "margin_pct", "alert_days", "alert_amount", "topup_amount"):
+    for k in ("vat_pct", "margin_pct", "alert_days", "alert_amount", "topup_amount", "daily_topup"):
         v = _num(str(f.get(k) or ""))
         if v is not None:
             c[k] = float(v)
+    if "daily_days_sent" in f:
+        c["daily_days"] = sorted({int(x) for x in f.getlist("daily_days") if str(x).isdigit() and 0 <= int(x) <= 6})
     c["cashbox"], c["article"] = str(f.get("cashbox") or ""), str(f.get("article") or "")
     c["lines"] = [x.strip() for x in str(f.get("lines") or "").replace(";", ",").split(",") if x.strip()]
     c["appeal_sources"] = [str(x) for x in f.getlist("appeal_sources")]

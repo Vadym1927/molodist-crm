@@ -140,3 +140,14 @@ def test_ga4_lead_events_and_appeals():
         assert cl.attr is None
         ls = ga.leads(db, today - timedelta(days=2), today)
         assert any(l["phone"] == "380500008811" and l["campaign"] == "Поиск | Клініка" and l["attr"] == "ga4" for l in ls)
+
+
+def test_daily_topup_item():
+    from datetime import date as _d
+    with SessionLocal() as db:
+        cf = ga.cfg(db); cf["daily_topup"] = 1800.0; cf["daily_days"] = [0, 1, 2, 3, 4, 5, 6]; ga.save_cfg(db, cf)
+        r = ga.refresh(db)
+        it = db.get(PayItem, r["pay_item"]) if r["pay_item"] else db.scalar(select(PayItem).where(PayItem.ref == f"gads:daily:{_d.today().isoformat()}"))
+        assert it and it.due == _d.today() and it.amount in (1800.0, 3600.0)
+        assert ga.refresh(db)["pay_item"] is None
+        cf = ga.cfg(db); cf["daily_topup"] = 0.0; ga.save_cfg(db, cf)

@@ -25,6 +25,7 @@ SRC = "google"
 DEFAULT = {"hook": "", "account": {}, "last_push": None, "vat_pct": 20.0, "margin_pct": 60.0, "alert_days": 5, "alert_amount": 0.0,
            "topup_amount": 10000.0, "cashbox": "", "article": "Маркетинг", "balance_base": None,      # {"day": iso, "amount": float}
            "lines": [], "appeal_sources": ["Google Ads"], "real_balance": None, "bank_words": ["google"],
+           "daily_topup": 0.0, "daily_days": [1, 2, 3, 4],      # щоденне поповнення з ПДВ; дні тижня (0 — пн); пт — за пт і сб
            "offline_on": False, "offline_name": "CRM — оплачений візит", "offline_sent": []}
 LEVELS = ("account", "campaign", "adgroup", "keyword", "term", "device", "hour")
 
@@ -184,6 +185,21 @@ def refresh(db: Session, today: date | None = None) -> dict:
         pass
     b = balance(db, c, today)
     made = None
+    daily = _f(c.get("daily_topup") or 0)
+    if daily > 0:                                       # щоденне поповнення: платіж на сьогодні в календарі (о 9:00 — у Telegram-дайджесті)
+        days = [int(x) for x in (c.get("daily_days") or [])]
+        ref = f"gads:daily:{today.isoformat()}"
+        if today.weekday() in days and not db.scalar(select(PayItem).where(PayItem.ref == ref)):
+            nxt = [d for d in range(today.weekday() + 1, today.weekday() + 8) if d % 7 in days]
+            cover = (nxt[0] - today.weekday()) if nxt else 1                      # пт → пт+сб (сб без поповнення)
+            cover = max(1, min(cover, 2 if today.weekday() == 4 else cover))
+            amt = round(daily * cover, 2)
+            made = PayItem(due=today, name="Поповнення Google Ads (щоденне)", group="marketing", article=c.get("article") or None,
+                           cashbox=c.get("cashbox") or None, counterparty="Google Ads", amount=amt, source="manual", ref=ref,
+                           note=f"До 10:00. Баланс ≈ {b['amount']:.0f} без ПДВ" + (" · на {} дні".format(cover) if cover > 1 else "") if b.get("known") else "До 10:00")
+            db.add(made)
+            db.commit()
+        return {"balance": b, "pay_item": made.id if made else None}
     if b["low"] and _f(c["topup_amount"]) > 0:
         open_ = db.scalar(select(PayItem).where(PayItem.ref.like("gads:topup%"), PayItem.status.in_(("planned", "approved"))))
         if not open_:
