@@ -5894,10 +5894,28 @@ def docs_archive_stale_booked(user: User = Depends(require("migrate")), db: Sess
             "oldest": min((v.starts_at for v in b), default=None), "rows": [[v.patient_id, v.starts_at.isoformat(timespec="minutes"), v.service_name] for v in a]}
 
 
+@app.get("/data/docs-archive/stale-booked/check")
+def docs_archive_stale_booked_check(user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
+    """Перевірка решти: чи був у день «завислого» запису справжній візит (надана послуга CleverBox / виконаний або оплачений запис CRM)."""
+    from .models import Appointment, Visit
+    rows = _stale_booked(db, False)
+    pids = list({v.patient_id for v in rows}) or [0]
+    real = {(pid, at.date()) for pid, at in db.execute(select(Visit.patient_id, Visit.starts_at).where(
+        Visit.patient_id.in_(pids), Visit.source == "cb_service_sale", Visit.status == "done"))}
+    real |= {(a.patient_id, a.start.date()) for a in db.scalars(select(Appointment).where(
+        Appointment.patient_id.in_(pids), Appointment.status.in_(("done", "paid", "arrived"))))
+        if "перенес" not in (a.cb_status or "").lower()}
+    happened = [v for v in rows if (v.patient_id, v.starts_at.date()) in real]
+    none = [v for v in rows if (v.patient_id, v.starts_at.date()) not in real]
+    return {"total": len(rows), "visit_happened_that_day": len(happened), "no_visit_that_day": len(none),
+            "no_visit_with_amount": sum(1 for v in none if (v.amount or 0) > 0), "no_visit_named": sum(1 for v in none if v.service_name),
+            "by_day": {d: sum(1 for v in rows if v.starts_at.date().isoformat() == d) for d in sorted({v.starts_at.date().isoformat() for v in rows})}}
+
+
 @app.post("/data/docs-archive/stale-booked/fix")
-def docs_archive_stale_booked_fix(user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
-    """Лише пацієнти з бюті-планами: минулі «записано» → «скасовано»."""
-    rows = _stale_booked(db, True)
+def docs_archive_stale_booked_fix(all: int = 0, user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
+    """Минулі «записано» → «скасовано»: пацієнти з бюті-планами, або всі (all=1)."""
+    rows = _stale_booked(db, not all)
     for v in rows:
         v.status, v.status_label = "cancelled", (v.status_label or "") or "минулий запис (не закритий у CleverBox)"
     audit(db, "visits.stale_booked_fix", user=user, n=len(rows))
