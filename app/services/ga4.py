@@ -115,8 +115,19 @@ def _report(db: Session, body: dict, http: httpx.Client | None = None, c: dict |
         r = http.post(f"https://analyticsdata.googleapis.com/v1beta/properties/{prop}:runReport", headers={"Authorization": f"Bearer {tok}"},
                       json={**body, "limit": 100000, "offset": offset})
         if r.status_code == 403:
-            raise ValueError(f"GA4 не дає доступу (403). Додайте {sa.get('client_email')} у ресурс GA4: Адміністратор → Керування доступом до ресурсу → роль «Читач». "
-                             "Також у Google Cloud проєкті сервісного акаунта має бути ввімкнено Google Analytics Data API.")
+            try:
+                gmsg = str((r.json().get("error") or {}).get("message") or "")
+            except ValueError:
+                gmsg = r.text[:200]
+            if "has not been used" in gmsg or "is disabled" in gmsg or "SERVICE_DISABLED" in r.text:
+                raise ValueError("GA4 (403): у проєкті Google Cloud сервісного акаунта не ввімкнено Google Analytics Data API. "
+                                 "Google Cloud Console → APIs & Services → Library → «Google Analytics Data API» → Enable. Після ввімкнення зачекайте 2–3 хв.")
+            if "sufficient permissions" in gmsg or "permission" in gmsg.lower():
+                raise ValueError(f"GA4 (403): акаунт {sa.get('client_email')} не має доступу до ресурсу {prop}. Перевірте: 1) це ідентифікатор РЕСУРСУ "
+                                 "(GA4 → Адміністратор → Параметри ресурсу → «Ідентифікатор ресурсу», лише цифри — не G-XXXX і не номер акаунта); "
+                                 "2) адресу додано саме в цей ресурс: Адміністратор → Керування доступом до ресурсу → «+» → роль «Читач».")
+            raise ValueError(f"GA4 (403): {gmsg[:200]} · Додайте {sa.get('client_email')} у ресурс GA4 (роль «Читач») "
+                             "і перевірте, що в проєкті Google Cloud увімкнено Google Analytics Data API.")
         if r.status_code >= 400:
             raise ValueError(f"GA4: {r.status_code} {r.text[:200]}")
         js = r.json()
