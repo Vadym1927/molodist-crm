@@ -284,6 +284,10 @@ def funnel(db: Session, ls: list[dict], today: date | None = None) -> list[dict]
     return ls
 
 
+EV_LABEL = {"phone_click": "клік по номеру", "click_telegram": "Telegram", "click_viber": "Viber", "click_booking": "запис онлайн",
+            "generate_lead": "форма заявки", "click_whatsapp": "WhatsApp", "click_instagram": "Instagram"}
+
+
 def _agg(rows) -> dict:
     t = {"clicks": 0.0, "impressions": 0.0, "cost": 0.0, "conversions": 0.0, "conv_value": 0.0}
     for s_ in rows:
@@ -300,6 +304,7 @@ def _ratios(t: dict, vat: float, margin: float) -> dict:
     t["cpc"] = round(t["cost"] / t["clicks"], 2) if t["clicks"] else None
     n = t.get("leads", 0)
     t["cpl"] = round(cash / n, 2) if n else None
+    t["cpa"] = round(cash / t["conversions"], 2) if t.get("conversions") else None
     t["cr_click_lead"] = round(100 * n / t["clicks"], 2) if t["clicks"] else None
     t["cr_lead_book"] = round(100 * t.get("booked", 0) / n, 1) if n else None
     t["cr_lead_came"] = round(100 * t.get("came", 0) / n, 1) if n else None
@@ -407,8 +412,12 @@ def dashboard(db: Session, d_from: date, d_to: date, today: date | None = None) 
     for r in ls:
         lead_h[r["at"].hour] += 1
     last = db.scalar(select(AdsStat.day).where(AdsStat.source == SRC).order_by(AdsStat.day.desc()).limit(1))
+    from ..models import GaEvent
+    ga_paid = [e for e in db.scalars(select(GaEvent).where(GaEvent.at >= datetime.combine(d_from, datetime.min.time()),
+                                                          GaEvent.at <= datetime.combine(d_to, datetime.max.time())).order_by(GaEvent.at.desc()))
+               if "google" in (e.source or "").lower() and (e.medium or "").lower() in ("cpc", "ppc", "paid")][:300]
     return {"cfg": c, "tot": tot, "camps": camp_list, "days": days, "leads": sorted(ls, key=lambda r: r["at"], reverse=True),
-            "keywords": kws, "terms": top("term"), "devices": top("device", 6), "hours": hours, "lead_hours": lead_h,
+            "keywords": kws, "terms": top("term"), "ga_paid": ga_paid, "ev_label": EV_LABEL, "devices": top("device", 6), "hours": hours, "lead_hours": lead_h,
             "balance": balance(db, c, today), "connected": bool(c.get("last_push")), "last_day": last,
             "has_utm": any(r["campaign"] for r in ls), "d_from": d_from, "d_to": d_to,
             "ga4": {"on": bool(gcfg.get("property") and (gcfg.get("events") or gcfg.get("lead_events"))), "last_sync": gcfg.get("last_sync"), "error": gcfg.get("last_error")},
