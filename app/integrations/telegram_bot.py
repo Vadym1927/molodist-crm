@@ -9,6 +9,7 @@
 """
 from __future__ import annotations
 
+import asyncio
 import io
 import logging
 
@@ -451,9 +452,39 @@ async def send_digest(bot: Bot, force_chat: str | None = None, only_new: bool = 
     return len(rems)
 
 
+biz_router = Router()
+
+
+@biz_router.business_connection()
+async def biz_connection(conn) -> None:
+    """Власник підключив / відключив бота в «Telegram для бізнесу» акаунта клініки."""
+    from ..services import tg_business as tb
+    data = conn.model_dump(mode="json", by_alias=True, exclude_none=True)
+    def run():
+        with SessionLocal() as db:
+            return tb.on_connection(db, data)
+    c = await asyncio.to_thread(run)
+    log.info("Telegram Business: %s", c.get("log", [{}])[0].get("note"))
+
+
+@biz_router.business_message()
+async def biz_message(message: Message) -> None:
+    """Повідомлення в особистих чатах акаунта клініки → центр спілкування CRM."""
+    from ..services import tg_business as tb
+    data = message.model_dump(mode="json", by_alias=True, exclude_none=True)
+    def run():
+        with SessionLocal() as db:
+            tb.ingest(db, data)
+    try:
+        await asyncio.to_thread(run)
+    except Exception as e:      # noqa: BLE001
+        log.warning("tg business ingest: %s", e)
+
+
 def make_bot() -> tuple[Bot, Dispatcher]:
     bot = Bot(settings.telegram_bot_token, default=DefaultBotProperties(parse_mode="HTML"))
     dp = Dispatcher()
     dp.include_router(pay_router)
+    dp.include_router(biz_router)
     dp.include_router(router)
     return bot, dp

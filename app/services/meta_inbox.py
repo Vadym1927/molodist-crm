@@ -22,7 +22,7 @@ from . import channels as ch
 
 log = logging.getLogger("meta_inbox")
 GRAPH = "https://graph.facebook.com/v19.0"
-CH_LABEL = {"facebook": "Facebook", "instagram": "Instagram"}
+CH_LABEL = {"facebook": "Facebook", "instagram": "Instagram", "telegram": "Telegram"}
 
 
 def meta_channel(db: Session) -> dict | None:
@@ -217,6 +217,10 @@ def reply(db: Session, thread: str, text: str, user_id: int | None = None, http:
                     patient_id=last.patient_id, appeal_id=last.appeal_id, name=last.name)
     if not replies_enabled(db):
         m.status, m.error = "paused", "Відповіді в чатах вимкнено (Налаштування → Канали)"
+    elif last.channel == "telegram":                    # Telegram Business — від імені акаунта клініки
+        from . import tg_business as tb
+        ok, mid, err = tb.send(db, thread, text, http)
+        m.status, m.mid, m.error = ("sent" if ok else "failed"), mid, err
     elif not _page_token(db):
         m.status, m.error = "failed", "Немає токена сторінки (Налаштування → Канали → Instagram та Facebook)"
     else:
@@ -336,6 +340,8 @@ _AV: dict[str, tuple[float, bytes, str]] = {}     # аватари співро�
 def avatar(db: Session, thread: str, http: httpx.Client | None = None) -> tuple[bytes, str] | None:
     """Фото профілю співрозмовника (profile_pic через Graph токеном сторінки). Посилання Meta тимчасові — тож кешуємо байти."""
     import time
+    if thread.startswith("tg:"):                         # Telegram Business — фото з Meta немає
+        return None
     hit = _AV.get(thread)
     if hit and time.time() - hit[0] < 12 * 3600:
         return (hit[1], hit[2]) if hit[1] else None

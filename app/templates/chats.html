@@ -67,13 +67,13 @@ dialog.cx-dl{border:0;border-radius:18px;padding:22px;width:min(420px,92vw);box-
     <div class="cx-f"><div class="cx-tabs"><a href="?" class="{{ 'on' if not ch_ }}">Усі</a><a href="?ch=instagram" class="{{ 'on' if ch_ == 'instagram' }}">Instagram</a><a href="?ch=facebook" class="{{ 'on' if ch_ == 'facebook' }}">Facebook</a></div>
       <form><input type="hidden" name="ch" value="{{ ch_ }}"><input name="q" value="{{ q }}" placeholder="Пошук: імʼя або текст"></form></div>
     <div class="cx-l">{% for x in threads %}<a class="cx-t {{ 'on' if cur and cur.thread == x.thread }}" href="?t={{ x.thread }}{{ ('&ch=' ~ ch_) if ch_ }}">
-      <span class="cx-av {{ 'fb' if x.channel == 'facebook' }}">{{ (x.name.lstrip('@')[:2])|upper }}<img src="/chats/{{ x.thread }}/avatar" alt="" loading="lazy" onerror="this.remove()"><span class="bd {{ 'ig' if x.channel == 'instagram' }}"></span></span>
+      <span class="cx-av {{ 'fb' if x.channel == 'facebook' }}">{{ (x.name.lstrip('@')[:2])|upper }}<img src="/chats/{{ x.thread }}/avatar" alt="" loading="lazy" onerror="this.remove()"><span class="bd {{ 'ig' if x.channel == 'instagram' }}"{% if x.channel == 'telegram' %} style="background:#2AABEE"{% endif %}></span></span>
       <span class="tx"><b>{{ x.name }}{% if x.closed %}<span class="cl">✓ закрито</span>{% endif %}</b><span>{{ '↪ ' if x.last.direction == 'out' }}{{ x.last.text or '[вкладення]' }}</span></span>
       <em>{{ x.last.at|local|dt('%d.%m %H:%M') }}</em>{% if x.unread and not (cur and cur.thread == x.thread) %}<i>{{ x.unread }}</i>{% endif %}</a>
     {% else %}<div class="cx-e">Повідомлень ще немає.<br>Щойно пацієнт напише в Instagram чи Messenger — діалог зʼявиться тут.</div>{% endfor %}</div>
   </div>
   <div>{% if cur %}
-    <div class="cx-hd"><span class="cx-av {{ 'fb' if cur.channel == 'facebook' }}">{{ (cur.name.lstrip('@')[:2])|upper }}<img src="/chats/{{ cur.thread }}/avatar" alt="" onerror="this.remove()"></span><div class="sp"><b>{{ cur.name }}</b><small>{{ 'Instagram Direct' if cur.channel == 'instagram' else 'Facebook Messenger' }}{% if cur.closed %} · ✓ закрито ({{ cur.appeal_status }}){% endif %}</small></div>
+    <div class="cx-hd"><span class="cx-av {{ 'fb' if cur.channel == 'facebook' }}">{{ (cur.name.lstrip('@')[:2])|upper }}<img src="/chats/{{ cur.thread }}/avatar" alt="" onerror="this.remove()"></span><div class="sp"><b>{{ cur.name }}</b><small>{{ {'instagram':'Instagram Direct','telegram':'Telegram · акаунт клініки'}.get(cur.channel, 'Facebook Messenger') }}{% if cur.closed %} · ✓ закрито ({{ cur.appeal_status }}){% endif %}</small></div>
       <button class="btn ghost" type="button" onclick="document.getElementById('cx-close').showModal()">✓ Закрити діалог</button></div>
     <div class="cx-m" id="cx-m">{% set ns = namespace(d='') %}{% for m in msgs %}{% set dd = (m.at|local|dt('%d.%m.%Y')) %}{% if dd != ns.d %}<div class="cx-d">{{ dd }}</div>{% set ns.d = dd %}{% endif %}
       {% if m.direction == 'sys' %}<div class="cx-sys">✓ {{ m.text }} · {{ m.at|local|dt('%H:%M') }}</div>{% else %}

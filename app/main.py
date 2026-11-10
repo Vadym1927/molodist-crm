@@ -8283,7 +8283,8 @@ def settings_channels(request: Request, user: User = Depends(require("users")), 
     _base = str(request.base_url).rstrip("/").replace("http://", "https://")
     return render(request, "channels.html", nav="settings", chs=ch.channels(db), T=ch.TYPES, open_=request.query_params.get("open", ""),
                   sending_on=_m_.sending_enabled(), meta_hook=_base + "/api/public/meta/webhook", meta_vt=_mi.verify_token(db) if _mi.meta_channel(db) else "",
-                  replies_on=_mi.replies_enabled(db), meta_log=_mi.hook_events(db),
+                  replies_on=_mi.replies_enabled(db), meta_log=_mi.hook_events(db), tgb=__import__("app.services.tg_business", fromlist=["cfg"]).cfg(db),
+                  tg_bot=settings.telegram_bot_username if hasattr(settings, "telegram_bot_username") else "",
                   dlr_url=str(request.base_url).rstrip("/").replace("http://", "https://") + "/api/public/turbosms/dlr")
 
 
