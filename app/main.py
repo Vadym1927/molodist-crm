@@ -7666,6 +7666,49 @@ def google_ads_ringostat_utm(days: int = Form(365), user: User = Depends(require
     return RedirectResponse(_with_msg("/settings/google-ads", "Запущено: мітки з журналу Ringostat підтягуються у фоні (1–3 хв)") + f"&job={job.id}", 303)
 
 
+@app.post("/settings/google-ads/ga4")
+async def google_ads_ga4_save(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import ga4
+    f = await request.form()
+    try:
+        if str(f.get("key_json") or "").strip():
+            ga4.set_key(db, str(f.get("key_json")))
+        c = ga4.cfg(db)
+        c["property"] = "".join(ch for ch in str(f.get("property") or "") if ch.isdigit())
+        ev = [str(x) for x in f.getlist("events")] + [x.strip() for x in str(f.get("events_extra") or "").split(",") if x.strip()]
+        c["events"] = list(dict.fromkeys(ev))
+        for k in ("window_before", "window_after"):
+            v = _num(str(f.get(k) or ""))
+            if v is not None:
+                c[k] = max(0.0, min(float(v), 15.0))
+        c["last_error"] = None
+        ga4.save_cfg(db, c)
+    except ValueError as e:
+        return RedirectResponse(_with_msg("/settings/google-ads", str(e), True) + "#ga4", 303)
+    audit(db, "ga4.settings", user=user)
+    db.commit()
+    return RedirectResponse(_with_msg("/settings/google-ads", "GA4 збережено") + "#ga4", 303)
+
+
+@app.post("/settings/google-ads/ga4/sync")
+def google_ads_ga4_sync(days: int = Form(90), user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import ga4
+
+    def run(job, n):
+        with SessionLocal() as s_:
+            a, b = date.today() - timedelta(days=n), date.today()
+            job.log("Забираю події GA4…")
+            r1 = ga4.sync(s_, a, b)
+            job.log(f"Подій (хвилина × кампанія): {r1['rows']}, нових {r1['new']}. Привʼязую дзвінки…")
+            r2 = ga4.match_calls(s_, a, b)
+            job.log(f"Дзвінків без міток: {r2['calls']}, привʼязано до кліку: {r2['matched']} (з них імовірно: {r2['uncertain']})")
+            return {**r1, **r2}
+    job = jobs.start("GA4: кліки по номеру → дзвінки", run, max(1, min(int(days or 90), 420)))
+    audit(db, "ga4.sync", user=user, job=job.id)
+    db.commit()
+    return RedirectResponse(_with_msg("/settings/google-ads", "Запущено: події GA4 і привʼязка дзвінків (1–2 хв)") + f"&job={job.id}#ga4", 303)
+
+
 @app.get("/settings/google-ads", response_class=HTMLResponse)
 def google_ads_settings(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     from .services import google_ads as ga, appeals as ap_
@@ -7674,7 +7717,19 @@ def google_ads_settings(request: Request, user: User = Depends(require("users"))
     hook = f"{base}/api/public/ads/google/{c['hook']}"
     return render(request, "google_ads_settings.html", nav="settings", c=c, hook=hook, script=ga.script(hook), boxes=_cashboxes(db),
                   sources=ap_.dirs(db)["sources"], bal=ga.balance(db, c), EXP=_fa().names(db, "expense"),
-                  job=jobs.JOBS.get(request.query_params.get("job") or ""))
+                  job=jobs.JOBS.get(request.query_params.get("job") or ""), **_ga4_ctx(db))
+
+
+def _ga4_ctx(db: Session) -> dict:
+    from .services import ga4
+    g = ga4.cfg(db)
+    evs, err = [], None
+    if g.get("property") and ga4.sa_email(db):
+        try:
+            evs = ga4.events_list(db)
+        except Exception as e:      # noqa: BLE001
+            err = str(e)[:400]
+    return {"g": g, "g_email": ga4.sa_email(db), "g_events": evs, "g_err": err}
 
 
 @app.post("/settings/google-ads")

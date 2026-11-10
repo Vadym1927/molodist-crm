@@ -500,6 +500,7 @@ class Call(Base):
     utm_content: Mapped[str | None] = mapped_column(String(300))
     gclid: Mapped[str | None] = mapped_column(String(300))
     landing: Mapped[str | None] = mapped_column(String(500))
+    attr: Mapped[str | None] = mapped_column(String(12))                       # звідки мітки: ringostat | ga4 (за часом кліку) | ga4? (неоднозначно)
 
 
 class AppealNote(Base):
@@ -1785,4 +1786,18 @@ class AdsTopup(Base):
     ref: Mapped[str | None] = mapped_column(String(80), index=True)
     note: Mapped[str | None] = mapped_column(String(300))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class GaEvent(Base):
+    """Подія GA4 по хвилинах (клік по номеру, форма…) з джерелом і кампанією сеансу — для привʼязки дзвінків до реклами."""
+    __tablename__ = "ga_events"
+    __table_args__ = (UniqueConstraint("at", "event", "source", "medium", "campaign", "keyword", name="uq_ga_event"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    at: Mapped[datetime] = mapped_column(DateTime, index=True)         # хвилина події (час ресурсу GA4)
+    event: Mapped[str] = mapped_column(String(80), index=True)
+    source: Mapped[str] = mapped_column(String(120), default="")
+    medium: Mapped[str] = mapped_column(String(120), default="")
+    campaign: Mapped[str] = mapped_column(String(300), default="")
+    keyword: Mapped[str] = mapped_column(String(300), default="")
+    count: Mapped[int] = mapped_column(Integer, default=0)
 

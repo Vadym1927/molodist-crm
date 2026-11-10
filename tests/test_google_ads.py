@@ -82,3 +82,35 @@ def test_ringostat_utm_sync(monkeypatch):
         assert c.utm_campaign == "Пошук | Клініка" and c.utm_source == "google" and rep["created"] == 1 and rep["updated"] >= 1
         ls = ga.leads(db, today - timedelta(days=2), today)
         assert any(l["campaign"] == "Пошук | Клініка" for l in ls)
+
+
+def test_ga4_match_calls(monkeypatch):
+    from app.models import GaEvent
+    from app.services import ga4
+    today = date.today()
+    t = datetime.combine(today - timedelta(days=1), datetime.min.time()).replace(hour=15, minute=20)
+    with SessionLocal() as db:
+        c = ga4.cfg(db); c.update(property="123", events=["click_phone"]); ga4.save_cfg(db, c)
+        monkeypatch.setattr(ga4, "_report", lambda db_, body, http=None, c=None: [
+            {"dateHourMinute": t.strftime("%Y%m%d%H%M"), "eventName": "click_phone", "sessionSource": "google", "sessionMedium": "cpc",
+             "sessionCampaignName": "Пошук | Клініка", "sessionGoogleAdsKeyword": "дерматолог київ", "eventCount": "1"},
+            {"dateHourMinute": (t + timedelta(hours=1)).strftime("%Y%m%d%H%M"), "eventName": "click_phone", "sessionSource": "google", "sessionMedium": "cpc",
+             "sessionCampaignName": "Пошук | Клініка", "sessionGoogleAdsKeyword": "", "eventCount": "1"},
+            {"dateHourMinute": (t + timedelta(hours=1)).strftime("%Y%m%d%H%M"), "eventName": "click_phone", "sessionSource": "(direct)", "sessionMedium": "(none)",
+             "sessionCampaignName": "(not set)", "sessionGoogleAdsKeyword": "(not set)", "eventCount": "1"}])
+        assert ga4.sync(db, today - timedelta(days=2), today)["new"] == 3
+        c1 = Call(provider="ringostat", at=t + timedelta(seconds=50), direction="in", phone="380500008801", status="answered")
+        c2 = Call(provider="ringostat", at=t + timedelta(hours=1, seconds=40), direction="in", phone="380500008802", status="answered")
+        c3 = Call(provider="ringostat", at=t + timedelta(hours=3), direction="in", phone="380500008803", status="answered")
+        db.add_all([c1, c2, c3]); db.commit()
+        rep = ga4.match_calls(db, today - timedelta(days=2), today)
+        assert rep["matched"] >= 2
+        assert c1.attr == "ga4" and c1.utm_campaign == "Пошук | Клініка" and c1.utm_term == "дерматолог київ"
+        assert c2.attr == "ga4?" and c3.attr is None and c3.utm_source is None
+        ls = ga.leads(db, today - timedelta(days=2), today)
+        assert any(l["phone"] == "380500008801" and l["attr"] == "ga4" for l in ls)
+        try:
+            ga4.set_key(db, "{}")
+            assert False
+        except ValueError:
+            pass

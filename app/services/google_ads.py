@@ -173,6 +173,11 @@ def refresh(db: Session, today: date | None = None) -> dict:
             continue
         db.add(AdsTopup(source=SRC, day=day, amount=amt, credited=round(amt / (1 + _f(c["vat_pct"]) / 100), 2), origin="paycal", ref=ref, note="з платіжного календаря"))
     db.commit()
+    try:                                               # GA4: свіжі кліки по номеру → мітки дзвінків
+        from . import ga4 as _ga4
+        _ga4.refresh(db)
+    except Exception:      # noqa: BLE001
+        pass
     b = balance(db, c, today)
     made = None
     if b["low"] and _f(c["topup_amount"]) > 0:
@@ -202,14 +207,14 @@ def leads(db: Session, d_from: date, d_to: date, c: dict | None = None) -> list[
     raw = []
     for cl in db.scalars(select(Call).where(Call.at >= a, Call.at <= b, Call.direction == "in").order_by(Call.at)):
         if _is_google(cl.utm_source, cl.utm_medium, cl.gclid) or (lines and ap.phone_key(cl.line) in lines):
-            raw.append({"at": cl.at, "phone": cl.phone, "kind": "call", "campaign": cl.utm_campaign, "term": cl.utm_term, "status": cl.status,
+            raw.append({"at": cl.at, "phone": cl.phone, "kind": "call", "campaign": cl.utm_campaign, "term": cl.utm_term, "status": cl.status, "attr": cl.attr,
                         "patient_id": cl.patient_id, "call_id": cl.id, "appeal_id": cl.appeal_id, "duration": cl.duration, "landing": cl.landing})
     for x in db.scalars(select(Appeal).where(Appeal.created_at >= a, Appeal.created_at <= b, Appeal.deleted_at.is_(None)).order_by(Appeal.created_at)):
         u = (x.utm or "").lower()
         if (x.source or "").strip().lower() in srcs or ("google" in u and ("cpc" in u or "gclid" in u or "ppc" in u)) or "gclid=" in u:
             camp = next((p.split("=", 1)[1] for p in (x.utm or "").replace("?", "&").split("&") if p.lower().startswith("utm_campaign=")), None)
             term = next((p.split("=", 1)[1] for p in (x.utm or "").replace("?", "&").split("&") if p.lower().startswith("utm_term=")), None)
-            raw.append({"at": x.created_at, "phone": x.phone, "kind": "appeal", "campaign": camp, "term": term, "status": x.status,
+            raw.append({"at": x.created_at, "phone": x.phone, "kind": "appeal", "campaign": camp, "term": term, "status": x.status, "attr": None,
                         "patient_id": x.patient_id, "call_id": None, "appeal_id": x.id, "duration": None, "landing": None})
     raw.sort(key=lambda r: r["at"])
     out, seen = [], {}
@@ -321,6 +326,11 @@ def dashboard(db: Session, d_from: date, d_to: date, today: date | None = None) 
     camp_rows = [s_ for s_ in stats if s_.level == "campaign"]
     ls = funnel(db, leads(db, d_from, d_to, c), today)
     tot = _ratios({**_agg(camp_rows), **_lead_sums(ls)}, vat, margin)
+    from . import ga4 as _ga4
+    gsum = _ga4.summary(db, d_from, d_to)
+    gcfg = _ga4.cfg(db)
+    tot["ga_clicks"], tot["ga_all"] = gsum["paid"], gsum["total"]
+    tot["probable"] = sum(1 for r in ls if r.get("attr") == "ga4?")
     # кампанії
     camps: dict = {}
     for s_ in camp_rows:
@@ -339,6 +349,7 @@ def dashboard(db: Session, d_from: date, d_to: date, today: date | None = None) 
     camp_list = []
     for key, k in camps.items():
         camp_list.append({"key": key, "name": k["name"], "status": k["status"], "budget": k["budget"], "type": k["type"],
+                          "ga_clicks": gsum["by_campaign"].get((k["name"] or "").strip().lower(), 0),
                           **_ratios({**_agg(k["rows"]), **_lead_sums(by_c.get(key, []))}, vat, margin)})
     camp_list.sort(key=lambda x: -x["cost"])
     unmatched = by_c.get("", [])
@@ -395,6 +406,7 @@ def dashboard(db: Session, d_from: date, d_to: date, today: date | None = None) 
             "keywords": kws, "terms": top("term"), "devices": top("device", 6), "hours": hours, "lead_hours": lead_h,
             "balance": balance(db, c, today), "connected": bool(c.get("last_push")), "last_day": last,
             "has_utm": any(r["campaign"] for r in ls), "d_from": d_from, "d_to": d_to,
+            "ga4": {"on": bool(gcfg.get("property") and gcfg.get("events")), "last_sync": gcfg.get("last_sync"), "error": gcfg.get("last_error")},
             "pay_item": db.scalar(select(PayItem).where(PayItem.ref.like("gads:topup%"), PayItem.status.in_(("planned", "approved"))))}
 
 

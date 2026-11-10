@@ -40,6 +40,25 @@
     <label style="display:grid;gap:4px;font-size:12px;color:#6b6575">За скільки днів<input name="days" value="365" inputmode="numeric" style="width:110px"></label>
     <button class="btn">Підтягнути з Ringostat</button></form>
 </div>
+<div class="gs" id="ga4"><h2>GA4: привʼязка дзвінків до кампаній за кліком по номеру</h2>
+  <div class="mini" style="margin-bottom:8px">CRM читає з GA4 події кліку по номеру (по хвилинах, з кампанією й ключем сеансу) і проставляє ці мітки вхідному дзвінку, що почався одразу після кліку. Доступ лише на читання.
+    {% if g.last_sync %}<br>Останнє оновлення: {{ g.last_sync.replace('T',' ') }}.{% endif %}</div>
+  {% if g_err %}<div class="alert">{{ g_err }}</div>{% endif %}
+  <ol><li>Сервісний акаунт Google: {% if g_email %}<b>{{ g_email }}</b> — додайте цю адресу в GA4: <b>Адміністратор → Керування доступом до ресурсу → «+» → роль «Читач»</b>.{% else %}створіть у Google Cloud (IAM → Service accounts → Keys → JSON), увімкніть там <b>Google Analytics Data API</b> і вставте вміст файлу ключа нижче.{% endif %}</li>
+    <li>Ідентифікатор ресурсу — число з GA4: Адміністратор → Параметри ресурсу.</li><li>Позначте події, які означають клік по номеру телефону, збережіть і натисніть «Підтягнути».</li></ol>
+  <form method="post" action="/settings/google-ads/ga4" style="margin-top:10px">
+    <div class="row2">
+      <label>Ідентифікатор ресурсу GA4<input name="property" value="{{ g.property }}" inputmode="numeric" placeholder="123456789"></label>
+      <label>Клік раніше дзвінка, до хв<input name="window_before" value="{{ '%g' % g.window_before }}" inputmode="decimal"></label>
+      <label>Додаткові події, через кому<input name="events_extra" value="{{ g.events|reject('in', g_events|map(attribute='name')|list)|join(', ') }}" placeholder="click_phone"></label>
+    </div>
+    {% if g_events %}<div style="margin-top:10px"><div class="mini" style="margin-bottom:4px">Події ресурсу за 30 днів — позначте кліки по номеру:</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px 14px;max-height:190px;overflow:auto">{% for e in g_events %}<label style="display:flex;gap:6px;align-items:center;font-size:13px;color:#2A2430;{{ 'font-weight:700' if e.hint }}"><input type="checkbox" name="events" value="{{ e.name }}" style="height:auto" {{ 'checked' if e.name in g.events }}>{{ e.name }} <span class="mini">{{ e.count }}</span></label>{% endfor %}</div></div>{% endif %}
+    <label style="margin-top:10px">{{ 'Замінити ключ сервісного акаунта (JSON)' if g.key_enc else 'Ключ сервісного акаунта (JSON) — якщо потрібен інший акаунт' if g_email else 'Ключ сервісного акаунта (JSON)' }}<textarea name="key_json" style="height:70px" placeholder='{ "type": "service_account", … } — зберігається зашифрованим, у журнали не потрапляє'></textarea></label>
+    <div class="row" style="gap:8px;margin-top:10px"><button class="btn">Зберегти GA4</button></div></form>
+  {% if g.property and g.events %}<form method="post" action="/settings/google-ads/ga4/sync" class="row" style="gap:8px;align-items:flex-end;margin-top:10px">
+    <label style="display:grid;gap:4px;font-size:12px;color:#6b6575">За скільки днів<input name="days" value="90" inputmode="numeric" style="width:110px"></label><button class="btn ghost">Підтягнути й привʼязати дзвінки</button></form>{% endif %}
+</div>
 <form method="post" action="/settings/google-ads">
 <div class="gs" id="balance"><h2>3. Баланс і поповнення</h2>
   <div class="mini" style="margin-bottom:8px">{% if bal.known %}Зараз: <b>{{ '%.0f' % bal.amount }}</b>{% if bal.days_left is not none %} · вистачить на {{ '%g' % bal.days_left }} дн.{% endif %}{% else %}Баланс невідомий — вкажіть залишок у кабінеті на сьогодні.{% endif %} Для кабінетів з передоплатою Google баланс не віддає, тому CRM рахує: залишок + поповнення − витрати.</div>
