@@ -5878,6 +5878,33 @@ def docs_archive_plans_audit(user: User = Depends(require("migrate")), db: Sessi
     return bulk_docs.plans_audit(db)
 
 
+def _stale_booked(db: Session, only_plans: bool):
+    """Рядки записів CleverBox (cb_visit) у статусі «записано» з датою в минулому (понад добу) — візит уже відбувся або не відбувся."""
+    from .models import Visit
+    q = select(Visit).where(Visit.source == "cb_visit", Visit.status == "booked", Visit.starts_at < datetime.now() - timedelta(days=1))
+    if only_plans:
+        q = q.where(Visit.patient_id.in_(select(BeautyPlan.patient_id)))
+    return db.scalars(q).all()
+
+
+@app.get("/data/docs-archive/stale-booked")
+def docs_archive_stale_booked(user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
+    a, b = _stale_booked(db, True), _stale_booked(db, False)
+    return {"plan_patients": len(a), "all": len(b), "all_patients": len({v.patient_id for v in b}),
+            "oldest": min((v.starts_at for v in b), default=None), "rows": [[v.patient_id, v.starts_at.isoformat(timespec="minutes"), v.service_name] for v in a]}
+
+
+@app.post("/data/docs-archive/stale-booked/fix")
+def docs_archive_stale_booked_fix(user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
+    """Лише пацієнти з бюті-планами: минулі «записано» → «скасовано»."""
+    rows = _stale_booked(db, True)
+    for v in rows:
+        v.status, v.status_label = "cancelled", (v.status_label or "") or "минулий запис (не закритий у CleverBox)"
+    audit(db, "visits.stale_booked_fix", user=user, n=len(rows))
+    db.commit()
+    return {"fixed": len(rows)}
+
+
 @app.post("/data/docs-archive/dups/remove")
 def docs_archive_dups_remove(user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
     from .services import bulk_docs
