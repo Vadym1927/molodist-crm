@@ -224,8 +224,8 @@ def compute_plan(db: Session, plan: BeautyPlan, aliases=None, now: datetime | No
 
     def matches(st: ItemStatus, cb_id, cb_name) -> bool:
         al = aliases.get((st.item.kind, norm(st.item.name)))
-        if al and al.cb_ids:
-            return cb_id in al.cb_ids
+        if al and al.cb_ids:              # зіставлено вручну: за id послуги або за точною назвою (записи CRM мають власні id)
+            return cb_id in al.cb_ids or (bool(cb_name) and norm(cb_name) in {norm(n) for n in (al.cb_names or [])})
         return bool(cb_name) and name_match(st.item.name, cb_name) >= 0.6
 
     used_visits: set[int] = set()
