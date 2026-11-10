@@ -7613,6 +7613,44 @@ async def settings_telephony_staff(request: Request, user: User = Depends(requir
 
 
 # ---------------- Google Ads: центр моніторингу ----------------
+# ---------------- заявки з форм сайту → звернення ----------------
+_LEAD_CORS = {"Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type"}
+
+
+@app.options("/api/public/lead/{hook}")
+def site_lead_options(hook: str):
+    return Response(status_code=204, headers=_LEAD_CORS)
+
+
+@app.post("/api/public/lead/{hook}")
+async def site_lead_hook(request: Request, hook: str, db: Session = Depends(db_dep)):
+    """Форма сайту (вебхук Tilda / скрипт Tag Manager / будь-який конструктор) → звернення з мітками реклами."""
+    from .services import site_leads as sl
+    import hmac as _hm
+    if not _hm.compare_digest(hook, sl.cfg(db)["hook"]):
+        raise HTTPException(404)
+    raw = await request.body()
+    if len(raw) > 64_000:
+        raise HTTPException(413)
+    data = sl.parse_body(raw, request.headers.get("content-type", ""))
+    r = await asyncio.to_thread(sl.ingest, db, data)
+    return Response("ok" if r.get("ok") else json.dumps(r, ensure_ascii=False), media_type="text/plain", headers=_LEAD_CORS)
+
+
+@app.post("/settings/google-ads/site-leads")
+def site_leads_save(source: str = Form(""), rehook: str = Form(""), user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import site_leads as sl
+    c = sl.cfg(db)
+    c["source"] = source.strip()[:80] or "Сайт · форма"
+    if rehook:
+        import secrets as _sec
+        c["hook"] = _sec.token_urlsafe(18)
+    sl.save_cfg(db, c)
+    audit(db, "site_leads.settings", user=user)
+    db.commit()
+    return RedirectResponse(_with_msg("/settings/google-ads", "Збережено") + "#forms", 303)
+
+
 @app.post("/api/public/ads/google/{hook}")
 async def google_ads_hook(request: Request, hook: str, db: Session = Depends(db_dep)):
     """Скрипт Google Ads надсилає статистику кабінету (кампанії, групи, ключі, запити…) — щогодини."""
@@ -7721,7 +7759,7 @@ def google_ads_settings(request: Request, user: User = Depends(require("users"))
     c = ga.cfg(db)
     base = str(request.base_url).rstrip("/").replace("http://", "https://")
     hook = f"{base}/api/public/ads/google/{c['hook']}"
-    return render(request, "google_ads_settings.html", nav="settings", c=c, hook=hook, script=ga.script(hook), boxes=_cashboxes(db),
+    return render(request, "google_ads_settings.html", nav="settings", c=c, hook=hook, script=ga.script(hook), boxes=_cashboxes(db), base=base,
                   sources=ap_.dirs(db)["sources"], bal=ga.balance(db, c), EXP=_fa().names(db, "expense"),
                   job=jobs.JOBS.get(request.query_params.get("job") or ""), **_ga4_ctx(db))
 
@@ -7735,7 +7773,8 @@ def _ga4_ctx(db: Session) -> dict:
             evs = ga4.events_list(db)
         except Exception as e:      # noqa: BLE001
             err = str(e)[:400]
-    return {"g": g, "g_email": ga4.sa_email(db), "g_events": evs, "g_err": err}
+    from .services import site_leads as sl
+    return {"g": g, "g_email": ga4.sa_email(db), "g_events": evs, "g_err": err, "sl": sl.cfg(db), "sl_gtm": sl.gtm_tag}
 
 
 @app.post("/settings/google-ads")
