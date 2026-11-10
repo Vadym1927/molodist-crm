@@ -317,6 +317,7 @@ def _ratios(t: dict, vat: float, margin: float) -> dict:
     t["cr_lead_came"] = round(100 * t.get("came", 0) / n, 1) if n else None
     t["cac"] = round(cash / t["new_patients"], 2) if t.get("new_patients") else None
     t["cost_per_visit"] = round(cash / t["came"], 2) if t.get("came") else None
+    t["cost_per_booking"] = round(cash / t["booked"], 2) if t.get("booked") else None
     rev = t.get("revenue", 0.0)
     t["roas"] = round(rev / cash, 2) if cash else None
     t["roi"] = round(100 * (rev - cash) / cash, 1) if cash else None

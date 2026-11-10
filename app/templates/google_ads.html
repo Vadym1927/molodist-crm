@@ -51,7 +51,7 @@
 <div class="ga-c"><h3>Воронка</h3>
   <div class="fn"><div><b>{{ u(t.impressions) }}</b><small>показів</small></div><div><b>{{ u(t.clicks) }}</b><small>кліків · CTR {{ pc(t.ctr) }}</small></div>
     <div><b>{{ t.leads }}</b><small>{% if v.ga4.on %}кліків по номеру {{ t.ga_clicks }} · {% endif %}звернень · дзвінків {{ t.calls }}{% if t.probable %} (імовірних {{ t.probable }}){% endif %}{% if t.missed %}, <span class="neg">пропущено {{ t.missed }}</span>{% endif %}</small></div>
-    <div><b>{{ t.booked }}</b><small>записались · {{ pc(t.cr_lead_book) }} від звернень</small></div>
+    <div><b>{{ t.booked }}</b><small>записались · {{ pc(t.cr_lead_book) }} від звернень · запис {{ u(t.cost_per_booking) }} ₴</small></div>
     <div><b>{{ t.came }}</b><small>прийшли · {{ pc(t.cr_lead_came) }} · візит {{ u(t.cost_per_visit) }} ₴</small></div>
     <div><b>{{ t.payers }}</b><small>оплатили · середній {{ u(t.avg_check) }} ₴</small></div></div>
 </div>
