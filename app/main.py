@@ -364,6 +364,12 @@ async def job_paycal():
     from .services import paycal as _pc, alerts as _al
     def run():
         with SessionLocal() as db:
+            try:                                         # баланс Google Ads: мало грошей → платіж у календарі
+                from .services import google_ads as _ga
+                if _ga.cfg(db).get("last_push") or _ga.cfg(db).get("balance_base"):
+                    _ga.refresh(db)
+            except Exception as e:      # noqa: BLE001
+                log.warning("google ads refresh: %s", e)
             return _pc.digest_text(db)
     try:
         txt = await asyncio.to_thread(run)
@@ -6773,6 +6779,7 @@ SETTINGS_BLOCKS = [
         ('Шаблони відповідей', 'Готові відповіді для Instagram, Facebook, SMS, Viber і Telegram зі змінними {імʼя}, {запис}… — вставляються в чат одним кліком', '/settings/reply-templates', 'users', None),
         ('Повідомлення пацієнтам · в розробці', 'Зараз нічого не надсилається пацієнтам. Розсилки й нагадування CRM; автоповідомлення — у CleverBox', '/campaigns', 'campaigns', 'messages'),
         ('IP-телефонія', 'Binotel, Stream Telecom, Ringostat: дзвінки → звернення', '/settings/telephony', 'users', 'cmarket/siphone/main'),
+        ('Google Ads', 'Реклама: статистика кабінету, ліди з колтрекінгу, окупність, баланс', '/settings/google-ads', 'users', ''),
     ]),
     ('Звернення', 'inbox', 'Довідники для заявок і дзвінків', [
         ('Джерела звернень', None, '/settings/appeals?open=sources', 'users', 'dirs/appeal_type'),
@@ -7598,6 +7605,80 @@ async def settings_telephony_staff(request: Request, user: User = Depends(requir
     n = tel.relink(db)
     audit(db, "telephony.staff", user=user, staff=len(staff), lines=len(lines), relinked=n)
     return RedirectResponse(_with_msg("/settings/telephony#staff", "Співробітників і лінії збережено" + (f" · перепривʼязано дзвінків: {n}" if n else "")), 303)
+
+
+# ---------------- Google Ads: центр моніторингу ----------------
+@app.post("/api/public/ads/google/{hook}")
+async def google_ads_hook(request: Request, hook: str, db: Session = Depends(db_dep)):
+    """Скрипт Google Ads надсилає статистику кабінету (кампанії, групи, ключі, запити…) — щогодини."""
+    from .services import google_ads as ga
+    import hmac as _hm
+    if not _hm.compare_digest(hook, ga.cfg(db)["hook"]):
+        raise HTTPException(404)
+    try:
+        data = json.loads(await request.body() or b"{}")
+    except ValueError:
+        raise HTTPException(400)
+    if not isinstance(data, dict):
+        raise HTTPException(400)
+    return await asyncio.to_thread(ga.ingest, db, data)
+
+
+@app.get("/marketing/google", response_class=HTMLResponse)
+def google_ads_page(request: Request, df: str = "", dt_: str = "", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import google_ads as ga
+    d_from, d_to = _period(df, dt_)
+    ga.refresh(db)
+    return render(request, "google_ads.html", nav="reports", v=ga.dashboard(db, d_from, d_to), today=date.today(), can_set=can(user, "users"))
+
+
+@app.post("/marketing/google/topup")
+def google_ads_topup(day: str = Form(""), amount: str = Form(""), note: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import google_ads as ga
+    amt = _num(amount)
+    if not amt or amt <= 0:
+        return RedirectResponse(_with_msg("/marketing/google", "Вкажіть суму поповнення", True), 303)
+    ga.add_topup(db, _day(day) or date.today(), float(amt), note)
+    audit(db, "google_ads.topup", user=user, amount=float(amt))
+    db.commit()
+    return RedirectResponse(_with_msg("/marketing/google", "Поповнення записано") + "#balance", 303)
+
+
+@app.get("/settings/google-ads", response_class=HTMLResponse)
+def google_ads_settings(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import google_ads as ga, appeals as ap_
+    c = ga.cfg(db)
+    base = str(request.base_url).rstrip("/").replace("http://", "https://")
+    hook = f"{base}/api/public/ads/google/{c['hook']}"
+    return render(request, "google_ads_settings.html", nav="settings", c=c, hook=hook, script=ga.script(hook), boxes=_cashboxes(db),
+                  sources=ap_.dirs(db)["sources"], bal=ga.balance(db, c), EXP=_fa().names(db, "expense"))
+
+
+@app.post("/settings/google-ads")
+async def google_ads_settings_save(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import google_ads as ga
+    f = await request.form()
+    c = ga.cfg(db)
+    for k in ("vat_pct", "margin_pct", "alert_days", "alert_amount", "topup_amount"):
+        v = _num(str(f.get(k) or ""))
+        if v is not None:
+            c[k] = float(v)
+    c["cashbox"], c["article"] = str(f.get("cashbox") or ""), str(f.get("article") or "")
+    c["lines"] = [x.strip() for x in str(f.get("lines") or "").replace(";", ",").split(",") if x.strip()]
+    c["appeal_sources"] = [str(x) for x in f.getlist("appeal_sources")]
+    c["bank_words"] = [x.strip() for x in str(f.get("bank_words") or "").split(",") if x.strip()]
+    bal = _num(str(f.get("balance_amount") or ""))
+    if bal is not None and str(f.get("balance_amount") or "").strip():
+        c["balance_base"] = {"day": (_day(str(f.get("balance_day") or "")) or date.today()).isoformat(), "amount": float(bal)}
+        c["real_balance"] = None
+    if f.get("rehook"):
+        import secrets as _sec
+        c["hook"] = _sec.token_urlsafe(24)
+    ga.save_cfg(db, c)
+    ga.refresh(db)
+    audit(db, "google_ads.settings", user=user)
+    db.commit()
+    return RedirectResponse(_with_msg("/settings/google-ads", "Збережено"), 303)
 
 
 @app.post("/api/public/telephony/{provider}/{hook}")

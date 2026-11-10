@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Google Ads · підключення{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+<style>.gs{background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:16px 18px;margin-bottom:14px}.gs h2{margin:0 0 8px}.gs ol{margin:6px 0 0 18px;padding:0;line-height:1.7}
+.gs textarea{width:100%;height:220px;font:12px/1.45 ui-monospace,Menlo,monospace;border:1px solid #E4DFD8;border-radius:10px;padding:10px;background:#FBFAF8}
+.gs .row2{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.gs label{display:grid;gap:4px;font-size:12px;color:#6b6575}.gs input,.gs select{height:40px;margin:0}
+.mini{font-size:12px;color:#6b6575}code.h{display:block;background:#F7F4F0;border-radius:8px;padding:8px 10px;word-break:break-all;font-size:12px}
+@media(max-width:900px){.gs .row2{grid-template-columns:1fr}}</style>
+<h1>Google Ads · підключення</h1>
+<p class="muted">Центр моніторингу: <a href="/marketing/google">Звіти → Маркетинг → Google Ads</a>.</p>
+{% if qp.get('msg') %}<div class="alert ok">{{ qp.get('msg') }}</div>{% endif %}
+
+<div class="gs"><h2>1. Статистика кабінету</h2>
+  <div class="mini">{% if c.last_push %}✅ Дані надходять · останнє оновлення {{ c.last_push.replace('T',' ') }}{% if c.account.name %} · {{ c.account.name }} ({{ c.account.id }}, {{ c.account.currency }}){% endif %}{% else %}Ще не підключено.{% endif %}</div>
+  <ol><li>Google Ads → <b>Інструменти → Масові дії → Скрипти</b> → «+» → «Новий скрипт».</li>
+    <li>Видаліть усе з редактора, вставте код нижче → <b>Авторизувати</b> → <b>Зберегти</b> → «Запустити» (перший запуск вивантажує історію з початку року).</li>
+    <li>Розклад скрипта: <b>Щогодини</b>.</li></ol>
+  <textarea readonly id="gscript" onclick="this.select()">{{ script }}</textarea>
+  <div class="row" style="gap:8px;margin-top:8px"><button type="button" class="btn" onclick="navigator.clipboard.writeText(document.getElementById('gscript').value);this.textContent='Скопійовано'">Скопіювати скрипт</button>
+    <span class="mini">Адреса прийому вже вписана в скрипт. Вона секретна — не публікуйте код скрипта. Developer-token і паролі не потрібні.</span></div>
+</div>
+
+<form method="post" action="/settings/google-ads">
+<div class="gs"><h2>2. Як визначати ліди з реклами</h2>
+  <div class="mini" style="margin-bottom:8px">Автоматично: вхідні дзвінки з міткою <b>utm_source=google + cpc</b> або з <b>gclid</b> (колтрекінг Ringostat) і звернення з такими utm. Додатково:</div>
+  <div class="row2">
+    <label>Рекламні номери (статичний колтрекінг), через кому<input name="lines" value="{{ c.lines|join(', ') }}" placeholder="380441234567"></label>
+    <label>Джерела звернень, що рахуються як Google Ads<select name="appeal_sources" multiple size="4" style="height:auto">{% for s in sources %}<option {{ 'selected' if s in c.appeal_sources }}>{{ s }}</option>{% endfor %}{% for s in c.appeal_sources if s not in sources %}<option selected>{{ s }}</option>{% endfor %}</select></label>
+    <label>Маржа для ROI, %<input name="margin_pct" value="{{ '%g' % c.margin_pct }}" inputmode="decimal"><span class="mini">ROI «за маржею» = (виручка × маржа − витрати) / витрати</span></label>
+  </div>
+  <div class="mini" style="margin-top:10px">Щоб дзвінок ніс кампанію й ключове слово, у тілі вебхука Ringostat мають бути поля utm. Актуальне тіло — у <a href="/settings/telephony">Налаштування → IP-телефонія</a> (після цього оновлення там уже додано <code>utm_source, utm_medium, utm_campaign, utm_term, utm_content, gclid, landing</code>) — скопіюйте його в кабінет Ringostat замість старого.</div>
+</div>
+
+<div class="gs" id="balance"><h2>3. Баланс і поповнення</h2>
+  <div class="mini" style="margin-bottom:8px">{% if bal.known %}Зараз: <b>{{ '%.0f' % bal.amount }}</b>{% if bal.days_left is not none %} · вистачить на {{ '%g' % bal.days_left }} дн.{% endif %}{% else %}Баланс невідомий — вкажіть залишок у кабінеті на сьогодні.{% endif %} Для кабінетів з передоплатою Google баланс не віддає, тому CRM рахує: залишок + поповнення − витрати.</div>
+  <div class="row2">
+    <label>Залишок у кабінеті (без ПДВ)<input name="balance_amount" inputmode="decimal" placeholder="{{ ('%.0f' % c.balance_base.amount) if c.balance_base else 'напр. 4200' }}"></label>
+    <label>…на початок дня<input type="date" name="balance_day" value="{{ c.balance_base.day if c.balance_base else '' }}"></label>
+    <label>ПДВ при поповненні, %<input name="vat_pct" value="{{ '%g' % c.vat_pct }}" inputmode="decimal"></label>
+    <label>Попередити, коли лишається днів<input name="alert_days" value="{{ '%g' % c.alert_days }}" inputmode="numeric"></label>
+    <label>…або коли баланс нижче<input name="alert_amount" value="{{ '%g' % c.alert_amount }}" inputmode="decimal"></label>
+    <label>Сума поповнення в платіжний календар, ₴<input name="topup_amount" value="{{ '%g' % c.topup_amount }}" inputmode="decimal"></label>
+    <label>З якого рахунку платимо<select name="cashbox"><option value="">—</option>{% for b in boxes %}<option {{ 'selected' if b == c.cashbox }}>{{ b }}</option>{% endfor %}</select></label>
+    <label>Стаття витрат<select name="article"><option value="">—</option>{% for a in EXP %}<option {{ 'selected' if a == c.article }}>{{ a }}</option>{% endfor %}{% if c.article and c.article not in EXP %}<option selected>{{ c.article }}</option>{% endif %}</select></label>
+    <label>Слова в банківській виписці (платежі Google)<input name="bank_words" value="{{ c.bank_words|join(', ') }}"></label>
+  </div>
+  <div class="mini" style="margin-top:8px">Платежі на Google з виписки monobank стають поповненнями автоматично. Коли коштів лишається менше порога — у «Фінанси → Платіжний календар» зʼявляється платіж «Поповнення Google Ads»; після оплати з календаря він теж рахується як поповнення.</div>
+</div>
+<div class="row" style="gap:10px"><button class="btn">Зберегти</button>
+  <label class="mini" style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="rehook" value="1" style="height:auto"> згенерувати нову адресу прийому (скрипт у кабінеті треба буде оновити)</label></div>
+</form>
+{% endblock %}

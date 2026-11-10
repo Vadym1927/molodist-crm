@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Google Ads · центр моніторингу{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}{% set t = v.tot %}{% set b = v.balance %}{% set cur = (v.cfg.account.currency or 'UAH') %}{% set sym = '₴' if cur == 'UAH' else cur %}
+{% macro u(x, d=0) %}{% if x is none %}—{% else %}{{ (('{:,.' ~ d ~ 'f}').format(x)).replace(',', ' ') }}{% endif %}{% endmacro %}
+{% macro pc(x) %}{% if x is none %}—{% else %}{{ ('%.1f' % x).rstrip('0').rstrip('.') }}%{% endif %}{% endmacro %}
+<style>
+.ga-h{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px}.ga-h h1{margin:0}
+.ga-f{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.ga-f input{height:40px;margin:0}
+.ga-k{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;margin-bottom:12px}
+.ga-k>div{background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:12px 16px}.ga-k small{display:block;font:700 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496}
+.ga-k b{display:block;font:800 22px var(--sans);margin-top:4px;white-space:nowrap}.ga-k span{font-size:12px;color:#6b6575}
+.ga-k .d{background:#3B3050;border-color:#3B3050}.ga-k .d small,.ga-k .d b,.ga-k .d span{color:#fff}
+.ga-c{background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:14px 16px;margin-bottom:14px;overflow-x:auto}.ga-c h3{margin:0 0 6px;font:800 17px var(--sans);text-transform:none;letter-spacing:0}
+.ga-t{width:100%;border-collapse:collapse;font-size:13px}.ga-t th{font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#6b6575;padding:7px 8px;background:#F7F4F0;text-align:left;white-space:nowrap}
+.ga-t td{padding:7px 8px;border-bottom:1px solid #F1EDE8;vertical-align:middle}.ga-t .r{text-align:right;white-space:nowrap}.ga-t tr.tot td{font-weight:800;background:#FBFAF8}
+.pos{color:#2f7a55;font-weight:700}.neg{color:#B23A32;font-weight:700}.mini{font-size:12px;color:#6b6575}
+.bal{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:14px}.bal .big{font:800 30px var(--sans)}.bal.low .big{color:#B23A32}
+.pill2{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:700}.pill2.ok{background:#E4F2EA;color:#2f7a55}.pill2.bad{background:#F9E5E2;color:#B23A32}.pill2.wait{background:#FFF3D6;color:#9A6B00}.pill2.mut{background:#F1EDE8;color:#6b6575}
+.bars{display:flex;align-items:flex-end;gap:2px;height:120px;margin-top:8px}.bars i{flex:1;background:#C9BFE6;border-radius:3px 3px 0 0;min-height:1px;position:relative}
+.bars i em{position:absolute;left:0;right:0;bottom:0;background:#3B3050;border-radius:3px 3px 0 0}.bars i:hover{background:#b3a6dd}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}.fn{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:8px}
+.fn div{background:#F7F4F0;border-radius:12px;padding:10px 12px}.fn b{display:block;font:800 20px var(--sans)}.fn small{font-size:11.5px;color:#6b6575}
+@media(max-width:1100px){.ga-k{grid-template-columns:repeat(3,1fr)}.g2,.bal{grid-template-columns:1fr}.fn{grid-template-columns:repeat(3,1fr)}}
+</style>
+<div class="ga-h">
+  <div><h1>Google Ads · центр моніторингу</h1><div class="mini">{% if v.cfg.account.name %}{{ v.cfg.account.name }} · {{ v.cfg.account.id }} · {% endif %}{% if v.connected %}дані кабінету оновлено {{ v.cfg.last_push.replace('T', ' ') }}{% if v.last_day %} · останній день {{ v.last_day.strftime('%d.%m.%Y') }}{% endif %}{% else %}кабінет ще не підключено{% endif %}</div></div>
+  <form class="ga-f" method="get"><input type="date" name="df" value="{{ v.d_from }}"><span>—</span><input type="date" name="dt_" value="{{ v.d_to }}"><button class="btn">Показати</button>
+    {% if can_set %}<a class="btn ghost" href="/settings/google-ads">⚙ Підключення</a>{% endif %}</form>
+</div>
+{% if qp.get('msg') %}<div class="alert ok">{{ qp.get('msg') }}</div>{% endif %}
+{% if not v.connected %}<div class="alert" style="background:#FFF3D6;color:#7a5600">Кабінет Google Ads ще не надсилає дані. {% if can_set %}<a href="/settings/google-ads"><b>Підключити</b></a> — потрібно вставити готовий скрипт у кабінет (5 хвилин).{% else %}Попросіть власника підключити (Налаштування → Google Ads).{% endif %} Ліди з колтрекінгу рахуються вже зараз.</div>{% endif %}
+{% if v.leads and not v.has_utm %}<div class="alert" style="background:#FFF3D6;color:#7a5600">Ліди є, але без назви кампанії: у вебхуку телефонії не передаються utm-мітки. Оновіть тіло вебхука Ringostat (Налаштування → IP-телефонія) — тоді буде розбивка по кампаніях і ключових словах.</div>{% endif %}
+
+<div class="ga-k">
+  <div class="d"><small>Витрати</small><b>{{ u(t.cash) }} ₴</b><span>кабінет {{ u(t.cost) }} {{ sym }} + ПДВ {{ '%g' % v.cfg.vat_pct }}%</span></div>
+  <div><small>Кліки</small><b>{{ u(t.clicks) }}</b><span>CTR {{ pc(t.ctr) }} · CPC {{ u(t.cpc, 2) }}</span></div>
+  <div><small>Звернення (ліди)</small><b>{{ t.leads }}</b><span>CPL {{ u(t.cpl) }} ₴ · з кліку {{ pc(t.cr_click_lead) }}</span></div>
+  <div><small>Нові пацієнти</small><b>{{ t.new_patients }}</b><span>вартість клієнта (CAC) {{ u(t.cac) }} ₴</span></div>
+  <div><small>Виручка з лідів</small><b>{{ u(t.revenue) }} ₴</b><span>за 30 днів після звернення {{ u(t.revenue30) }} ₴</span></div>
+  <div><small>ROAS / ROI</small><b class="{{ 'pos' if t.roas and t.roas >= 1 else ('neg' if t.roas is not none else '') }}">{% if t.roas is none %}—{% else %}{{ '%.2f' % t.roas }}×{% endif %}</b><span>ROI {{ pc(t.roi) }} · за маржею {{ '%g' % v.cfg.margin_pct }}%: {{ pc(t.roi_margin) }}</span></div>
+</div>
+
+<div class="ga-c"><h3>Воронка</h3>
+  <div class="fn"><div><b>{{ u(t.impressions) }}</b><small>показів</small></div><div><b>{{ u(t.clicks) }}</b><small>кліків · CTR {{ pc(t.ctr) }}</small></div>
+    <div><b>{{ t.leads }}</b><small>звернень · дзвінків {{ t.calls }}{% if t.missed %}, <span class="neg">пропущено {{ t.missed }}</span>{% endif %}</small></div>
+    <div><b>{{ t.booked }}</b><small>записались · {{ pc(t.cr_lead_book) }} від звернень</small></div>
+    <div><b>{{ t.came }}</b><small>прийшли · {{ pc(t.cr_lead_came) }} · візит {{ u(t.cost_per_visit) }} ₴</small></div>
+    <div><b>{{ t.payers }}</b><small>оплатили · середній {{ u(t.avg_check) }} ₴</small></div></div>
+</div>
+
+<div class="ga-c {{ 'low' if b.low }}" id="balance"><h3>Баланс кабінету</h3>
+  <div class="bal {{ 'low' if b.low }}">
+    <div>{% if b.known %}<div class="big">{{ u(b.amount) }} {{ sym }}</div>
+      <div class="mini">{% if b.source == 'google' %}з кабінету Google, {{ (b.at or '').replace('T',' ') }}{% else %}розрахунок: залишок {{ u(b.base.amount) }} на {{ b.base.day[8:10] }}.{{ b.base.day[5:7] }} + поповнення − витрати {{ u(b.spent) }}{% endif %}</div>
+      <div style="margin-top:8px">Середня витрата <b>{{ u(b.avg_day) }} {{ sym }}/день</b> · {% if b.days_left is not none %}вистачить на <b class="{{ 'neg' if b.low else 'pos' }}">{{ '%g' % b.days_left }} дн.</b>{% if b.until %} (до {{ b.until.strftime('%d.%m') }}){% endif %}{% else %}витрат за тиждень не було{% endif %}</div>
+      {% if v.pay_item %}<div style="margin-top:8px"><span class="pill2 wait">У платіжному календарі</span> поповнення {{ u(v.pay_item.amount) }} ₴ на {{ v.pay_item.due.strftime('%d.%m.%Y') }} — <a href="/finance/paycal">відкрити календар</a></div>
+      {% elif b.low %}<div style="margin-top:8px" class="neg">Мало коштів — платіж на поповнення зʼявиться в платіжному календарі (сума поповнення в налаштуваннях).</div>{% endif %}
+      {% else %}<div class="mini">Google не віддає баланс для кабінетів з передоплатою. Вкажіть поточний залишок один раз у <a href="/settings/google-ads#balance">налаштуваннях</a> — далі CRM рахує сама: залишок + поповнення (з банку та внесені тут) − витрати з кабінету.</div>{% endif %}</div>
+    <div><form method="post" action="/marketing/google/topup" class="row" style="gap:6px;flex-wrap:wrap;align-items:flex-end">
+        <label style="display:grid;gap:3px;font-size:12px;color:#6b6575">Поповнили, ₴ (з ПДВ)<input name="amount" inputmode="decimal" style="height:38px;width:130px;margin:0"></label>
+        <label style="display:grid;gap:3px;font-size:12px;color:#6b6575">Дата<input type="date" name="day" value="{{ today }}" style="height:38px;margin:0"></label>
+        <button class="btn ghost" style="height:38px">Записати</button></form>
+      {% if b.topups %}<table class="ga-t" style="margin-top:8px">{% for x in b.topups[:6] %}<tr><td>{{ x.day.strftime('%d.%m.%Y') }}</td><td class="r">{{ u(x.amount) }} ₴</td><td class="r mini">на баланс {{ u(x.credited) }}</td><td class="mini">{{ {'bank':'банк','manual':'вручну','paycal':'календар'}.get(x.origin, x.origin) }}</td></tr>{% endfor %}</table>{% endif %}</div>
+  </div></div>
+
+<div class="ga-c"><h3>Кампанії</h3>
+  <table class="ga-t"><tr><th>Кампанія</th><th class="r">Витрати, ₴</th><th class="r">Кліки</th><th class="r">CTR</th><th class="r">CPC</th><th class="r">Ліди</th><th class="r">CPL</th><th class="r">Записи</th><th class="r">Прийшли</th><th class="r">Нові</th><th class="r">CAC</th><th class="r">Виручка</th><th class="r">ROAS</th><th class="r">ROI</th></tr>
+  {% for c in v.camps %}<tr><td>{{ c.name }}{% if c.status and c.status != 'ENABLED' %} <span class="pill2 mut">{{ {'PAUSED':'пауза','REMOVED':'видалена'}.get(c.status, c.status) }}</span>{% endif %}{% if c.budget %}<div class="mini">бюджет {{ u(c.budget) }}/день</div>{% endif %}</td>
+    <td class="r">{{ u(c.cash) }}</td><td class="r">{{ u(c.clicks) }}</td><td class="r">{{ pc(c.ctr) }}</td><td class="r">{{ u(c.cpc, 2) }}</td><td class="r"><b>{{ c.leads or '—' }}</b></td><td class="r">{{ u(c.cpl) }}</td>
+    <td class="r">{{ c.booked or '—' }}</td><td class="r">{{ c.came or '—' }}</td><td class="r">{{ c.new_patients or '—' }}</td><td class="r">{{ u(c.cac) }}</td><td class="r">{{ u(c.revenue) if c.revenue else '—' }}</td>
+    <td class="r {{ 'pos' if c.roas and c.roas >= 1 else ('neg' if c.roas is not none and c.cash else '') }}">{% if c.roas is none %}—{% else %}{{ '%.2f' % c.roas }}×{% endif %}</td><td class="r">{{ pc(c.roi) }}</td></tr>
+  {% else %}<tr><td colspan="14" class="muted">За період даних кабінету немає.</td></tr>{% endfor %}
+  {% if v.camps %}<tr class="tot"><td>Разом</td><td class="r">{{ u(t.cash) }}</td><td class="r">{{ u(t.clicks) }}</td><td class="r">{{ pc(t.ctr) }}</td><td class="r">{{ u(t.cpc, 2) }}</td><td class="r">{{ t.leads }}</td><td class="r">{{ u(t.cpl) }}</td><td class="r">{{ t.booked }}</td><td class="r">{{ t.came }}</td><td class="r">{{ t.new_patients }}</td><td class="r">{{ u(t.cac) }}</td><td class="r">{{ u(t.revenue) }}</td><td class="r">{% if t.roas is not none %}{{ '%.2f' % t.roas }}×{% endif %}</td><td class="r">{{ pc(t.roi) }}</td></tr>{% endif %}</table>
+  <div class="mini" style="margin-top:6px">Витрати — з ПДВ (те, що реально сплачено). Виручка — усі оплати пацієнта після звернення з реклами. Ліди привʼязуються до кампанії за utm_campaign (назва або ID кампанії).</div>
+</div>
+
+{% set mx = (v.days|map(attribute='cost')|max) or 1 %}{% set mxl = (v.days|map(attribute='leads')|max) or 1 %}
+<div class="ga-c"><h3>По днях: витрати й ліди</h3>
+  <div class="bars">{% for d in v.days %}<i style="height:{{ (100 * d.cost / mx)|round(1) }}%" title="{{ d.day.strftime('%d.%m') }}: {{ u(d.cost) }} {{ sym }}, кліків {{ d.clicks }}, лідів {{ d.leads }}">{% if d.leads %}<em style="height:{{ [(100 * d.leads / mxl)|round(1), 6]|max }}%"></em>{% endif %}</i>{% endfor %}</div>
+  <div class="mini" style="margin-top:6px"><span style="display:inline-block;width:10px;height:10px;background:#C9BFE6;border-radius:2px"></span> витрати · <span style="display:inline-block;width:10px;height:10px;background:#3B3050;border-radius:2px"></span> ліди (наведіть на стовпчик)</div>
+</div>
+
+<div class="g2">
+  <div class="ga-c"><h3>Ключові слова</h3><table class="ga-t"><tr><th>Ключ</th><th class="r">Витрати</th><th class="r">Кліки</th><th class="r">CPC</th><th class="r">Ліди</th></tr>
+    {% for k in v.keywords %}<tr><td>{{ k.name }}<div class="mini">{{ k.parent }}</div></td><td class="r">{{ u(k.cost) }}</td><td class="r">{{ u(k.clicks) }}</td><td class="r">{{ u(k.cpc, 2) }}</td><td class="r">{{ k.leads or '—' }}</td></tr>{% else %}<tr><td colspan="5" class="muted">Немає даних.</td></tr>{% endfor %}</table></div>
+  <div class="ga-c"><h3>Пошукові запити</h3><table class="ga-t"><tr><th>Запит</th><th class="r">Витрати</th><th class="r">Кліки</th><th class="r">CPC</th><th class="r">Конв.</th></tr>
+    {% for k in v.terms %}<tr><td>{{ k.name }}<div class="mini">{{ k.parent }}</div></td><td class="r">{{ u(k.cost) }}</td><td class="r">{{ u(k.clicks) }}</td><td class="r">{{ u(k.cpc, 2) }}</td><td class="r">{{ ('%g' % k.conversions) if k.conversions else '—' }}</td></tr>{% else %}<tr><td colspan="5" class="muted">Немає даних.</td></tr>{% endfor %}</table></div>
+</div>
+
+<div class="ga-c"><h3>Ліди з реклами · {{ v.leads|length }}</h3>
+  <table class="ga-t"><tr><th>Коли</th><th>Пацієнт / телефон</th><th>Кампанія · ключ</th><th>Контакт</th><th>Запис</th><th>Візит</th><th class="r">Оплати</th></tr>
+  {% for r in v.leads[:300] %}<tr><td style="white-space:nowrap">{{ r.at.strftime('%d.%m %H:%M') }}</td>
+    <td>{% if r.patient %}<a href="/patients/{{ r.patient.id }}">{{ r.patient.full_name }}</a>{% if r.new %} <span class="pill2 ok">новий</span>{% endif %}{% else %}{{ r.phone or '—' }}{% endif %}{% if r.patient and r.phone %}<div class="mini">{{ r.phone }}</div>{% endif %}</td>
+    <td>{{ r.campaign or '—' }}{% if r.term %}<div class="mini">{{ r.term }}</div>{% endif %}</td>
+    <td>{% if r.kind == 'call' %}{% if r.answered %}<span class="pill2 ok">дзвінок</span>{% else %}<span class="pill2 bad">пропущений</span>{% endif %}{% else %}<span class="pill2 mut">звернення</span>{% endif %}{% if r.touches > 1 %}<span class="mini"> ×{{ r.touches }}</span>{% endif %}{% if r.appeal_id %} <a class="mini" href="/appeals?open={{ r.appeal_id }}">картка</a>{% endif %}</td>
+    <td>{% if r.booked %}{{ r.booked.strftime('%d.%m.%Y') }}{% else %}<span class="pill2 wait">не записаний</span>{% endif %}</td>
+    <td>{% if r.came %}{{ r.came.strftime('%d.%m.%Y') }}{% else %}—{% endif %}</td>
+    <td class="r">{% if r.revenue %}<b>{{ u(r.revenue) }} ₴</b>{% else %}—{% endif %}</td></tr>
+  {% else %}<tr><td colspan="7" class="muted">Лідів з Google Ads за період немає. Лід — це вхідний дзвінок із міткою реклами (utm_source=google, cpc або gclid), дзвінок на рекламний номер або звернення з джерелом «Google Ads».</td></tr>{% endfor %}</table>
+</div>
+{% endblock %}

@@ -303,7 +303,9 @@ def _pick(data: dict, *keys):
 # Тіло вебхука для Ringostat (Webhooks 2.0 → JSON, змінні з «$»). event: ringing (перед дзвінком), answer (підняття трубки), end (після дзвінка)
 RINGOSTAT_BODY = ('{"event":"%s","call_id":"$cdr_id","uid":"$uniqueid","caller":"$userfield","callee":"$dst","status":"$disposition",'
                   '"date":"$calldate","call_duration":"$duration","dialog":"$billsec","type":"$call_type","manager":"$staffid",'
-                  '"employee_fio":"$employee_fio","record_link":"$recording_wav"}')
+                  '"employee_fio":"$employee_fio","record_link":"$recording_wav",'
+                  '"utm_source":"$utm_source","utm_medium":"$utm_medium","utm_campaign":"$utm_campaign","utm_term":"$utm_term",'
+                  '"utm_content":"$utm_content","gclid":"$gclid","landing":"$landing","pool":"$pool_name"}')
 RINGOSTAT_EVENTS = [("ringing", "Перед дзвінком", "спливаюче вікно «Вхідний дзвінок» у CRM: хто дзвонить, картка пацієнта"),
                     ("answer", "У момент підняття трубки", "позначка, що дзвінок прийнято"),
                     ("end", "Після дзвінка", "журнал дзвінків, тривалість, запис розмови, звернення для нових номерів"),
@@ -319,6 +321,11 @@ def _emp(v) -> str | None:
     """Імʼя співробітника з вебхука; «0», «-», порожнє — ніхто не прийняв."""
     v = " ".join(str(v or "").split())[:120]
     return None if v in ("", "0", "-", "—", "null", "None") or v.startswith("$") else v
+
+
+def _utm(v, n: int = 120) -> str | None:
+    v = str(v or "").strip()
+    return None if not v or v.startswith("$") or v.lower() in ("null", "none", "undefined", "(not set)", "-") else v[:n]
 
 
 def parse(provider: str, data: dict) -> dict:
@@ -351,7 +358,12 @@ def parse(provider: str, data: dict) -> dict:
             "agent_ext": _emp(_pick(flat, "manager", "staffid", "staff_id", "employee_id", "internalNumber", "internal")),
             "line": _digits(_pick(flat, "callee", "dst", "did", "source", "recive_number", "receive_number", "pbxNumber", "line")
                             if direction == "in" else _pick(flat, "caller", "src", "pbxNumber", "line")),
-            "record_url": str(_pick(flat, "linkToCallRecordInMyBusiness", "recording", "recording_wav", "record_link", "record_url", "record") or "")[:500] or None}
+            "record_url": str(_pick(flat, "linkToCallRecordInMyBusiness", "recording", "recording_wav", "record_link", "record_url", "record") or "")[:500] or None,
+            # колтрекінг: джерело дзвінка (Ringostat підставляє utm-мітки сеансу; Binotel GetCall — utm у callDetails)
+            "utm_source": _utm(_pick(flat, "utm_source", "utmSource", "source_utm")), "utm_medium": _utm(_pick(flat, "utm_medium", "utmMedium")),
+            "utm_campaign": _utm(_pick(flat, "utm_campaign", "utmCampaign", "campaign"), 300), "utm_term": _utm(_pick(flat, "utm_term", "utmTerm", "keyword"), 300),
+            "utm_content": _utm(_pick(flat, "utm_content", "utmContent"), 300), "gclid": _utm(_pick(flat, "gclid", "clientid_google", "google_click_id"), 300),
+            "landing": _utm(_pick(flat, "landing", "landing_page", "fullUrl", "page"), 500)}
 
 
 def ingest(db: Session, provider: str, data: dict, event: str = "") -> Call:

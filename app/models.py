@@ -493,6 +493,13 @@ class Call(Base):
     ai_at: Mapped[datetime | None] = mapped_column(DateTime)
     line: Mapped[str | None] = mapped_column(String(64), index=True)           # номер лінії, на яку дзвонили (наш номер)
     agent_ext: Mapped[str | None] = mapped_column(String(64))                  # ID співробітника в телефонії (Ringostat staffid)
+    utm_source: Mapped[str | None] = mapped_column(String(120), index=True)     # звідки дзвінок (колтрекінг Ringostat)
+    utm_medium: Mapped[str | None] = mapped_column(String(120))
+    utm_campaign: Mapped[str | None] = mapped_column(String(300))
+    utm_term: Mapped[str | None] = mapped_column(String(300))
+    utm_content: Mapped[str | None] = mapped_column(String(300))
+    gclid: Mapped[str | None] = mapped_column(String(300))
+    landing: Mapped[str | None] = mapped_column(String(500))
 
 
 class AppealNote(Base):
@@ -1743,3 +1750,39 @@ class PayItem(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     plan: Mapped[PayPlan | None] = relationship()
+
+
+class AdsStat(Base):
+    """Статистика рекламного кабінету (Google Ads): день × рівень (account | campaign | adgroup | keyword | term | device | geo | hour)."""
+    __tablename__ = "ads_stats"
+    __table_args__ = (UniqueConstraint("source", "level", "day", "key", name="uq_ads_stat"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source: Mapped[str] = mapped_column(String(12), default="google", index=True)
+    level: Mapped[str] = mapped_column(String(12), index=True)
+    day: Mapped[date] = mapped_column(Date, index=True)
+    key: Mapped[str] = mapped_column(String(200))                     # id кампанії / групи / ключа, текст запиту…
+    name: Mapped[str | None] = mapped_column(String(400))
+    parent: Mapped[str | None] = mapped_column(String(400))           # кампанія (для груп, ключів, запитів)
+    status: Mapped[str | None] = mapped_column(String(30))
+    clicks: Mapped[float] = mapped_column(Float, default=0)
+    impressions: Mapped[float] = mapped_column(Float, default=0)
+    cost: Mapped[float] = mapped_column(Float, default=0)             # у валюті кабінету, без ПДВ
+    conversions: Mapped[float] = mapped_column(Float, default=0)
+    conv_value: Mapped[float] = mapped_column(Float, default=0)
+    extra: Mapped[dict | None] = mapped_column(JSON)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class AdsTopup(Base):
+    """Поповнення рекламного кабінету: вручну або з виписки банку. credited — скільки зайшло на баланс (без ПДВ)."""
+    __tablename__ = "ads_topups"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source: Mapped[str] = mapped_column(String(12), default="google", index=True)
+    day: Mapped[date] = mapped_column(Date, index=True)
+    amount: Mapped[float] = mapped_column(Float, default=0)           # сплачено (з ПДВ)
+    credited: Mapped[float] = mapped_column(Float, default=0)         # зараховано на баланс
+    origin: Mapped[str] = mapped_column(String(12), default="manual")  # manual | bank
+    ref: Mapped[str | None] = mapped_column(String(80), index=True)
+    note: Mapped[str | None] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
