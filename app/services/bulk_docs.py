@@ -330,3 +330,105 @@ def plans_unmatched(db: Session) -> list[dict]:
             out.append({"plan": pl.id, "patient": pl.patient.full_name, "patient_id": pl.patient_id, "items": items,
                         "visits": free_v, "sales": free_s})
     return out
+
+
+def plans_audit(db: Session) -> dict:
+    """Аналіз помилок: плани ↔ картки пацієнтів ↔ виконані / записані візити (лише читання)."""
+    from datetime import datetime, timedelta
+    from ..models import Appointment, Visit
+    from ..parsers.observ import norm
+    from . import kpi
+    now = datetime.now()
+    aliases = kpi._aliases(db)
+    crm = kpi.crm_rows(db)
+    adopted = crm.get("_adopted") or set()
+    sts = kpi.all_statuses(db)
+    pats = db.scalars(select(Patient)).all()
+    by_words: dict = {}
+    for p in pats:
+        by_words.setdefault(frozenset(_name_words(p.full_name)), []).append(p)
+    per_patient: dict = {}
+    for st in sts:
+        per_patient.setdefault(st.plan.patient_id, []).append(st.plan.id)
+
+    def item_for(items, sid, name):
+        """(позиція, причина): позиція, якій відповідає послуга, навіть якщо її кількість вичерпано."""
+        for it in items:
+            if it.item.kind != "procedure":
+                continue
+            al = aliases.get((it.item.kind, norm(it.item.name)))
+            if al and al.cb_ids:
+                ok = sid in al.cb_ids or (bool(name) and norm(name) in {norm(n) for n in (al.cb_names or [])})
+            else:
+                ok = bool(name) and kpi.name_match(it.item.name, name) >= 0.6
+            if ok:
+                return it
+        return None
+    out = []
+    for st in sts:
+        pl, pt = st.plan, st.plan.patient
+        since = (pl.session_at or pl.created_at) - timedelta(days=1)
+        issues = []
+        src = PurePosixPath(pl.source_file or "").name
+        cap = next((f.caption for f in pt.files if f.kind == "plan_pdf" and f.path == pl.source_file), None) or src
+        if cap and NAME_RE.match(cap) and not name_matches(cap, pt.full_name):
+            issues.append({"t": "name", "d": f"PDF «{cap}» у картці «{pt.full_name}»"})
+        if len(per_patient[pt.id]) > 1:
+            issues.append({"t": "two_plans", "d": f"у пацієнта планів: {len(per_patient[pt.id])} (№ {per_patient[pt.id]})"})
+        twins = [p for p in pats if p.id != pt.id and len(_name_words(p.full_name) & _name_words(pt.full_name)) >= 2] if len(_name_words(pt.full_name)) >= 2 else \
+                [p for p in pats if p.id != pt.id and _name_words(pt.full_name) and _name_words(pt.full_name) <= _name_words(p.full_name)]
+        if twins:
+            issues.append({"t": "twin_card", "d": "схожі картки: " + "; ".join(f"{p.full_name} №{p.id}" for p in twins[:4])})
+        if not pt.cleverbox_id:
+            issues.append({"t": "no_cb", "d": "картка не привʼязана до клієнта CleverBox"})
+        isum = round(sum(float(it.item.total or 0) for it in st.items), 2)
+        if abs(isum - float(pl.total_planned or 0)) > 1:
+            issues.append({"t": "total", "d": f"сума позицій {isum:.0f} ≠ сума плану {float(pl.total_planned or 0):.0f}"})
+        extra = crm.get(pt.id) or {"visits": [], "sales": []}
+        cbv = [v for v in pt.visits if not (adopted and v.source == "cb_visit" and any(v.external_id.startswith(x) for x in adopted))]
+        vis = [v for v in cbv + extra["visits"] if v.starts_at >= since]
+        allv = list(pt.visits)
+        cons = [v for v in allv if v.status == "done" and "beauty plan" in (v.service_name or "").lower()]
+        if pl.session_at:
+            near = min((abs((v.starts_at.date() - pl.session_at.date()).days) for v in cons), default=None)
+            if near is None:
+                issues.append({"t": "no_consult", "d": "у картці немає виконаної консультації Beauty plan"})
+            elif near > 3:
+                issues.append({"t": "consult_date", "d": f"найближча консультація Beauty plan за {near} дн. від дати сесії {pl.session_at:%d.%m.%Y}"})
+        if not allv and not extra["visits"]:
+            issues.append({"t": "no_visits", "d": "у картці немає жодного візиту"})
+        used = {(e[1], e[2]) for it in st.items for e in it.events}
+        for v in vis:
+            nm = v.service_name
+            if (v.starts_at, nm) in used or "консультац" in (nm or "").lower():
+                continue
+            if v.status == "booked" and v.starts_at < now - timedelta(hours=2):
+                issues.append({"t": "stale_booked", "d": f"{v.starts_at:%d.%m.%Y} «{nm}» — минулий запис у статусі «записано»"})
+                continue
+            if v.status not in ("done", "booked"):
+                continue
+            it = item_for(st.items, v.service_id, nm)
+            kind = "зроблено" if v.status == "done" else "записано"
+            if it is not None:
+                issues.append({"t": "over_qty", "d": f"{v.starts_at:%d.%m.%Y} «{nm}» ({kind}) — понад кількість у плані: «{it.item.name}» {it.done}+{it.booked}/{it.item.qty}"})
+            else:
+                issues.append({"t": "not_in_plan", "d": f"{v.starts_at:%d.%m.%Y} «{nm}» ({kind}, {float(v.amount or 0):.0f} ₴) — немає такої позиції в плані"})
+        out.append({"plan": pl.id, "patient_id": pt.id, "patient": pt.full_name, "session": pl.session_at.strftime("%d.%m.%Y") if pl.session_at else None,
+                    "planned": round(st.planned_sum or 0), "realized": round(st.realized_sum or 0), "booked": round(st.booked_sum or 0),
+                    "proc": f"{st.proc_done}/{st.proc_planned}", "issues": issues})
+    # консультація Beauty plan була, а плану в картці немає
+    have = set(per_patient)
+    missing: dict = {}
+    for v in db.scalars(select(Visit).where(Visit.status == "done", Visit.service_name.ilike("%beauty plan%"))):
+        if v.patient_id not in have:
+            m = missing.setdefault(v.patient_id, {"patient_id": v.patient_id, "dates": []})
+            m["dates"].append(v.starts_at.strftime("%d.%m.%Y"))
+    names = {p.id: p.full_name for p in pats}
+    files = {}
+    for f in db.scalars(select(PatientFile).where(PatientFile.patient_id.in_(list(missing) or [0]))):
+        low = (f.caption or "").lower()
+        if "anti" in low or "beauty" in low or "plan" in low:
+            files.setdefault(f.patient_id, []).append(f.caption)
+    miss = [{**m, "patient": names.get(pid), "dates": sorted(set(m["dates"]), key=lambda d: d[6:] + d[3:5] + d[:2]), "pdfs": files.get(pid, [])} for pid, m in missing.items()]
+    miss.sort(key=lambda m: m["dates"][-1][6:] + m["dates"][-1][3:5] + m["dates"][-1][:2], reverse=True)
+    return {"plans": out, "consult_without_plan": miss}

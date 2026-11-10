@@ -5872,6 +5872,12 @@ def docs_archive_moved_appts_fix(user: User = Depends(require("migrate")), db: S
     return {"fixed": n}
 
 
+@app.get("/data/docs-archive/plans-audit")
+def docs_archive_plans_audit(user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
+    from .services import bulk_docs
+    return bulk_docs.plans_audit(db)
+
+
 @app.post("/data/docs-archive/dups/remove")
 def docs_archive_dups_remove(user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
     from .services import bulk_docs

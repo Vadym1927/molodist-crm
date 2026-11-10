@@ -77,3 +77,5 @@ def test_plans_check_runs():
         assert isinstance(rows, list)
         assert isinstance(bulk_docs.fix_plan_dates(db), list)
         assert isinstance(bulk_docs.plans_unmatched(db), list)
+        a = bulk_docs.plans_audit(db)
+        assert "plans" in a and "consult_without_plan" in a
