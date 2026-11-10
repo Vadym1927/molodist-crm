@@ -29,3 +29,14 @@ def test_business_flow():
         r = mi.reply(db, "tg:555", "Записати вас на суботу?", None, http=H())
         assert r.status == "sent" and r.mid == "555:9"
         assert any(t["thread"] == "tg:555" and t["channel"] == "telegram" for t in mi.threads(db))
+
+
+def test_meta_signature_two_keys(monkeypatch):
+    import hashlib, hmac
+    with SessionLocal() as db:
+        monkeypatch.setattr(mi, "_secrets", lambda db_: ["fb-secret", "ig-secret"])
+        body = b'{"object":"instagram","entry":[]}'
+        sig = "sha256=" + hmac.new(b"ig-secret", body, hashlib.sha256).hexdigest()
+        assert mi.check_signature(db, body, sig)
+        assert not mi.check_signature(db, body, "sha256=" + "0" * 64)
+        assert "Instagram App Secret" in mi.signature_hint(db, body)

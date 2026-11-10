@@ -45,16 +45,36 @@ def verify_token(db: Session) -> str:
     return tok
 
 
-def check_signature(db: Session, body: bytes, header: str | None) -> bool:
+def _secrets(db: Session) -> list[str]:
     c = _raw_meta(db)
-    secret = ch.secret(c, "app_secret") if c else ""
-    if not secret:
+    if not c:
+        return []
+    return [v.strip() for v in (ch.secret(c, "app_secret"), ch.secret(c, "ig_app_secret")) if v and v.strip()]
+
+
+def check_signature(db: Session, body: bytes, header: str | None) -> bool:
+    """Підпис Meta: HMAC-SHA256 тіла ключем застосунку. Messenger підписує App Secret застосунку Meta,
+    Instagram API з входом через Instagram — окремим Instagram App Secret; приймаємо будь-який із двох."""
+    keys = _secrets(db)
+    if not keys:
         log.warning("Meta webhook: App Secret не задано — підпис не перевіряється")
         return True
     if not header or not header.startswith("sha256="):
         return False
-    want = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
-    return hmac.compare_digest(want, header[7:])
+    return any(hmac.compare_digest(hmac.new(k.encode(), body, hashlib.sha256).hexdigest(), header[7:]) for k in keys)
+
+
+def signature_hint(db: Session, body: bytes) -> str:
+    """Підказка в журнал: звідки подія і скільки ключів перевірено (самі ключі не показуємо)."""
+    import json as _j
+    try:
+        obj = (_j.loads(body or b"{}") or {}).get("object") or "?"
+    except ValueError:
+        obj = "?"
+    n = len(_secrets(db))
+    if obj == "instagram":
+        return f"подія Instagram, перевірено ключів: {n}. Для Instagram потрібен Instagram App Secret (застосунок → Instagram → API setup with Instagram login)"
+    return f"подія {obj}, перевірено ключів: {n}. Потрібен App Secret того застосунку, де налаштовано вебхук (Налаштування застосунку → Основні)"
 
 
 def _page_token(db: Session) -> str:

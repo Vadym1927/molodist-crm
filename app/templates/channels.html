@@ -157,6 +157,7 @@ details.cc-how[open] summary:after{transform:rotate(180deg)}details.cc-how summa
         <div class="cp"><input readonly value="{{ meta_vt }}" id="mv{{ c.id }}"><button class="ch-btn" type="button" onclick="navigator.clipboard.writeText(document.getElementById('mv{{ c.id }}').value);this.textContent='✓'">Копіювати</button></div>
         <div class="hint">Застосунок Meta → сценарій Messenger (і Instagram) → «Configure webhooks»: вставте Callback URL і Verify token → «Verify and save». Далі підпишіть сторінку на поля <b>messages</b>, <b>messaging_postbacks</b>.</div></div>
       {{ secret(c, 'app_secret', 'App Secret застосунку', 'App settings → Basic → App secret («Показати»). CRM перевіряє ним, що повідомлення справді від Meta.') }}
+      {{ secret(c, 'ig_app_secret', 'Instagram App Secret', 'Для Instagram API з входом через Instagram: застосунок → Instagram → API setup with Instagram login → «Instagram app secret». Messenger підписує App Secret вище, Instagram — цим ключем.') }}
       <div class="cs-f"><label>Журнал вебхука (останні виклики Meta)</label>
         {% for r in meta_log or [] %}<div class="hint" style="margin:2px 0">{{ {'verify':'✅','event':'📩','verify-bad':'⚠️','bad-signature':'⚠️','error':'❌'}.get(r.kind,'•') }} {{ (r.at|local|dt('%d.%m %H:%M:%S')) if r.at else '' }} — {{ r.note }}</div>
         {% else %}<div class="hint">Meta ще жодного разу не викликала вебхук. Перевірте «Configure webhooks» і підписку сторінки.</div>{% endfor %}

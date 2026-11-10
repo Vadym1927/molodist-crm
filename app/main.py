@@ -5670,7 +5670,7 @@ async def meta_webhook(request: Request, db: Session = Depends(db_dep)):
     from .services import meta_inbox as mi
     body = await request.body()
     if not mi.check_signature(db, body, request.headers.get("x-hub-signature-256")):
-        mi.hook_log(db, "bad-signature", "Підпис не збігається — перевірте App Secret у CRM")
+        mi.hook_log(db, "bad-signature", "Підпис не збігається — " + mi.signature_hint(db, body))
         raise HTTPException(403, "bad signature")
     try:
         import json as _j
@@ -8300,8 +8300,8 @@ async def settings_channel_save(request: Request, cid: int, user: User = Depends
         params["ttl"] = int(params["ttl"]) if params["ttl"].isdigit() else 3600
     if "fallback_sms" in f or f.get("_has_fallback"):
         params["fallback_sms"] = bool(f.get("fallback_sms"))
-    secrets = {k: str(f.get(k) or "").strip() for k in ("token", "webhook_secret", "password", "page_token", "app_secret") if f.get(k)}
-    secrets.update({f"clear_{k}": "1" for k in ("token", "webhook_secret", "password", "page_token", "app_secret") if f.get(f"clear_{k}")})
+    secrets = {k: str(f.get(k) or "").strip() for k in ("token", "webhook_secret", "password", "page_token", "app_secret", "ig_app_secret") if f.get(k)}
+    secrets.update({f"clear_{k}": "1" for k in ("token", "webhook_secret", "password", "page_token", "app_secret", "ig_app_secret") if f.get(f"clear_{k}")})
     try:
         ch.update(db, cid, str(f.get("name") or "").strip(), bool(f.get("on")), params, secrets)
     except ValueError as e:
