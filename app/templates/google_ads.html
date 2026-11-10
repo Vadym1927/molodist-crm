@@ -28,6 +28,8 @@
   <form class="ga-f" method="get"><input type="date" name="df" value="{{ v.d_from }}"><span>—</span><input type="date" name="dt_" value="{{ v.d_to }}"><button class="btn">Показати</button>
     {% if can_set %}<a class="btn ghost" href="/settings/google-ads">⚙ Підключення</a>{% endif %}</form>
 </div>
+<div class="ga-pr" style="display:flex;gap:6px;flex-wrap:wrap;margin:-6px 0 14px">{% for lbl, a, b in presets %}{% set on = (v.d_from == a and v.d_to == b) %}
+  <a href="?df={{ a }}&dt_={{ b }}" style="padding:6px 12px;border-radius:999px;font-size:13px;text-decoration:none;border:1px solid {{ '#3B3050' if on else '#E9E5DF' }};background:{{ '#3B3050' if on else '#fff' }};color:{{ '#fff' if on else '#2A2430' }}">{{ lbl }}</a>{% endfor %}</div>
 {% if qp.get('msg') %}<div class="alert ok">{{ qp.get('msg') }}</div>{% endif %}
 {% if not v.connected %}<div class="alert" style="background:#FFF3D6;color:#7a5600">Кабінет Google Ads ще не надсилає дані. {% if can_set %}<a href="/settings/google-ads"><b>Підключити</b></a> — потрібно вставити готовий скрипт у кабінет (5 хвилин).{% else %}Попросіть власника підключити (Налаштування → Google Ads).{% endif %} Ліди з колтрекінгу рахуються вже зараз.</div>{% endif %}
 {% if v.ga4.error %}<div class="alert">GA4: {{ v.ga4.error }}</div>{% endif %}

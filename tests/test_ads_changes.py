@@ -74,3 +74,19 @@ def test_broad_to_phrase_and_rsa_replace():
         assert "фразова" in ac.describe(ch)
     s = ga.script("https://x/h")
     assert "broad_to_phrase" in s and "pause_text" in s and "match_type = BROAD" in s
+
+
+def test_loader_and_remove_negative():
+    from fastapi.testclient import TestClient as _TC
+    with SessionLocal() as db:
+        hook = ga.cfg(db)["hook"]
+        ch = ac.propose(db, "remove_negative", "Тест Мінус", "днепровский", "район клініки")
+        db.commit()
+        assert "прибрати мінус" in ac.describe(ch)
+        assert ac.propose(db, "remove_negative", "Тест Мінус", "днепровский", "ще раз") is None
+        assert ac.propose(db, "remove_negative", "Тест Мінус", "днепровский", "ще раз", force=True) is not None
+    with _TC(app) as c:
+        body = c.get(f"/api/public/ads/google/{hook}/script").text
+        assert "function run()" in body and "function main()" not in body and hook in body
+        assert c.get("/api/public/ads/google/nope/script").status_code == 404
+    assert "eval(" in ga.loader("https://x/h") and "remove_negative" in ga.SCRIPT

@@ -16,7 +16,7 @@ from ..models import AdsChange, AdsStat, SyncState, User
 
 KINDS = {"negative": "Мінус-слово", "pause_keyword": "Пауза ключа", "enable_keyword": "Увімкнути ключ", "pause_campaign": "Пауза кампанії",
          "enable_campaign": "Увімкнути кампанію", "budget": "Денний бюджет", "add_keyword": "Новий ключ", "rsa": "Нове оголошення",
-         "broad_to_phrase": "Широкі ключі → фразові"}
+         "broad_to_phrase": "Широкі ключі → фразові", "remove_negative": "Прибрати мінус-слово"}
 STATUS = {"proposed": "чекає погодження", "approved": "погоджено, застосується протягом години", "rejected": "відхилено",
           "applied": "застосовано", "failed": "помилка"}
 CFG_KEY = "ads_changes_cfg"
@@ -30,7 +30,7 @@ JUNK = [
     (r"безкоштовн|бесплатн|даром|задарма", "безкоштовно"),
     (r"купити|купить|оптом|опт\b|інтернет.магазин|интернет.магазин|розетка|rozetka|prom\.ua|olx|аптек", "купити препарат / товар"),
     (r"що таке|что такое|вікіпед|википед|wiki|реферат|форум|наслідки|последствия|побічн|побочн|протипоказ|противопоказ|шкода|вред", "інформаційні запити"),
-    (r"харків|харьков|львів|львов|одес|дніпр|днепр|запоріж|запорож|вінниц|винниц|полтав|черкас|житомир|\bсуми\b|\bсумы\b|рівн|ровн|луцьк|луцк|"
+    (r"харків|харьков|львів|львов|одес|дніпр(?!овськ|овск)|днепр(?!овск)|запоріж|запорож|вінниц|винниц|полтав|черкас|житомир|\bсуми\b|\bсумы\b|рівн|ровн|луцьк|луцк|"
      r"тернопіл|тернопол|ужгород|франківськ|франковск|кропивн|миколаїв|николаев|херсон|чернівц|черновц|чернігів|чернигов|біла церква|белая церковь|бровар|ірпін|ирпен|буча", "інше місто / передмістя"),
     (r"ветеринар|для собак|для кішок|для кошек|тварин|животн", "тварини"),
 ]
@@ -56,12 +56,14 @@ def _known(db: Session) -> set[str]:
 
 
 def propose(db: Session, kind: str, campaign: str | None, target: str | None, reason: str, payload: dict | None = None,
-            stats: dict | None = None, author: str = "auto", campaign_id: str | None = None) -> AdsChange | None:
+            stats: dict | None = None, author: str = "auto", campaign_id: str | None = None, force: bool = False) -> AdsChange | None:
     if kind not in KINDS:
         raise ValueError(f"Невідомий тип зміни: {kind}")
     key = f"{kind}|{(campaign or '').strip().lower()}|{(target or '').strip().lower()}"
     if key in _known(db):
-        return None
+        if not force:
+            return None
+        key = f"{key}|{datetime.now():%Y%m%d%H%M%S}"
     ch = AdsChange(kind=kind, key=key[:400], campaign=campaign, campaign_id=campaign_id, target=(target or "")[:400] or None,
                    payload=payload, reason=reason, stats=stats, author=author)
     db.add(ch)
@@ -85,6 +87,9 @@ def analyze(db: Session, today: date | None = None) -> list[AdsChange]:
         a["clicks"] += s_.clicks
         a["conv"] += s_.conversions
         a["impr"] += s_.impressions
+    own: dict = defaultdict(set)                                  # власні ключі кампанії — їх не мінусуємо
+    for s_ in db.scalars(select(AdsStat).where(AdsStat.source == "google", AdsStat.level == "keyword", AdsStat.day >= d0 - timedelta(days=60))):
+        own[(s_.parent or "").strip()].add(re.sub(r'[\[\]"+]', "", (s_.name or "")).strip().lower())
     new = []
     marker_hits: dict = defaultdict(lambda: {"terms": [], "cost": 0.0, "clicks": 0.0, "why": ""})
     for (camp, term), a in agg.items():
@@ -95,6 +100,8 @@ def analyze(db: Session, today: date | None = None) -> list[AdsChange]:
                 word = next((w for w in re.findall(r"[\w'ʼ\-]+", term) if re.search(rx, w)), m.group(0)).strip()
                 hit = (word, why)
                 break
+        if term in own.get(camp, set()):
+            continue
         if hit:
             k = marker_hits[(camp, hit[0])]
             k["terms"].append(term)
@@ -107,7 +114,7 @@ def analyze(db: Session, today: date | None = None) -> list[AdsChange]:
             if ch:
                 new.append(ch)
     for (camp, word), k in marker_hits.items():
-        if len(word) < 3 or word in STOP:
+        if len(word) < 3 or word in STOP or any(word in kw.split() for kw in own.get(camp, set())):
             continue
         ch = propose(db, "negative", camp, word, f"Сміття: {k['why']}", {"match": "PHRASE"},
                      {"cost": round(k["cost"], 2), "clicks": k["clicks"], "terms": sorted(k["terms"])[:8]}, campaign_id=camp_ids.get(camp))
@@ -131,6 +138,8 @@ def describe(ch: AdsChange) -> str:
         return f"{KINDS[ch.kind].lower()} «{ch.target}» у «{ch.campaign}»"
     if ch.kind == "add_keyword":
         return f"новий ключ «{ch.target}» ({p.get('match', 'PHRASE')}) у «{ch.campaign} / {p.get('adgroup', '')}»"
+    if ch.kind == "remove_negative":
+        return f"прибрати мінус «{ch.target}» у «{ch.campaign}»"
     if ch.kind == "broad_to_phrase":
         return f"усі ввімкнені ключі з широкою відповідністю в «{ch.campaign}» → фразова (широкі на паузу)"
     if ch.kind == "rsa":

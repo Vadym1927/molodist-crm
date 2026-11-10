@@ -14,10 +14,12 @@
 <div class="gs"><h2>1. Статистика кабінету</h2>
   <div class="mini">{% if c.last_push %}✅ Дані надходять · останнє оновлення {{ c.last_push.replace('T',' ') }}{% if c.account.name %} · {{ c.account.name }} ({{ c.account.id }}, {{ c.account.currency }}){% endif %}{% else %}Ще не підключено.{% endif %}</div>
   <ol><li>Google Ads → <b>Інструменти → Масові дії → Скрипти</b> → «+» → «Новий скрипт».</li>
-    <li>Видаліть усе з редактора, вставте код нижче → <b>Авторизувати</b> → <b>Зберегти</b> → «Запустити» (перший запуск вивантажує історію з початку року).</li>
-    <li>Розклад скрипта: <b>Щогодини</b>.</li></ol>
-  <textarea readonly id="gscript" onclick="this.select()">{{ script }}</textarea>
-  <div class="row" style="gap:8px;margin-top:8px"><button type="button" class="btn" onclick="navigator.clipboard.writeText(document.getElementById('gscript').value);this.textContent='Скопійовано'">Скопіювати скрипт</button>
+    <li>Видаліть усе з редактора, вставте <b>завантажувач</b> нижче → <b>Авторизувати</b> → <b>Зберегти</b> → «Запустити».</li>
+    <li>Розклад скрипта: <b>Щогодини</b>. Завантажувач щоразу бере актуальну логіку з CRM — після оновлень CRM у кабінеті нічого міняти не треба.</li></ol>
+  <textarea readonly id="gloader" style="height:150px" onclick="this.select()">{{ loader }}</textarea>
+  <details style="margin-top:8px"><summary class="mini">Повний скрипт (якщо завантажувач не підходить)</summary><textarea readonly id="gscript" onclick="this.select()">{{ script }}</textarea>
+    <button type="button" class="btn ghost" style="margin-top:6px" onclick="navigator.clipboard.writeText(document.getElementById('gscript').value);this.textContent='Скопійовано'">Скопіювати повний скрипт</button></details>
+  <div class="row" style="gap:8px;margin-top:8px"><button type="button" class="btn" onclick="navigator.clipboard.writeText(document.getElementById('gloader').value);this.textContent='Скопійовано'">Скопіювати завантажувач</button>
     <span class="mini">Адреса прийому вже вписана в скрипт. Вона секретна — не публікуйте код скрипта. Developer-token і паролі не потрібні.</span></div>
 </div>
 

@@ -7661,6 +7661,17 @@ async def site_click_hook(request: Request, hook: str, db: Session = Depends(db_
     return Response("ok" if r.get("ok") else json.dumps(r, ensure_ascii=False), media_type="text/plain", headers=_LEAD_CORS)
 
 
+@app.get("/api/public/ads/google/{hook}/script")
+def google_ads_script_body(request: Request, hook: str, db: Session = Depends(db_dep)):
+    """Завантажувач у кабінеті Google Ads бере тут актуальну логіку скрипта."""
+    from .services import google_ads as ga
+    import hmac as _hm
+    if not _hm.compare_digest(hook, ga.cfg(db)["hook"]):
+        raise HTTPException(404)
+    base = str(request.base_url).rstrip("/").replace("http://", "https://")
+    return Response(ga.script_body(f"{base}/api/public/ads/google/{hook}"), media_type="text/plain; charset=utf-8")
+
+
 @app.get("/api/public/ads/google/{hook}/offline")
 def google_ads_offline(hook: str, db: Session = Depends(db_dep)):
     """Скрипт Google Ads забирає офлайн-конверсії (gclid + цінність оплат)."""
@@ -7787,7 +7798,8 @@ async def google_ads_change_new(request: Request, user: User = Depends(require("
     for it in items or []:
         try:
             ch = ac.propose(db, str(it.get("kind")), it.get("campaign"), it.get("target"), str(it.get("reason") or "")[:1000],
-                            it.get("payload"), it.get("stats"), author=str(it.get("author") or "claude"), campaign_id=it.get("campaign_id"))
+                            it.get("payload"), it.get("stats"), author=str(it.get("author") or "claude"), campaign_id=it.get("campaign_id"),
+                            force=bool(it.get("again")))
             if ch:
                 made.append(ch)
         except (ValueError, AttributeError) as e:
@@ -7824,7 +7836,11 @@ def google_ads_page(request: Request, df: str = "", dt_: str = "", user: User = 
     from .services import ads_changes as ac
     from .models import AdsChange
     chs = db.scalars(select(AdsChange).order_by(AdsChange.id.desc()).limit(150)).all()
-    return render(request, "google_ads.html", nav="reports", v=ga.dashboard(db, d_from, d_to), today=date.today(), can_set=can(user, "users"),
+    t_ = date.today()
+    presets = [("Сьогодні", t_, t_), ("Вчора", t_ - timedelta(days=1), t_ - timedelta(days=1)), ("7 днів", t_ - timedelta(days=6), t_),
+               ("14 днів", t_ - timedelta(days=13), t_), ("30 днів", t_ - timedelta(days=29), t_), ("Цей місяць", t_.replace(day=1), t_),
+               ("Минулий місяць", (t_.replace(day=1) - timedelta(days=1)).replace(day=1), t_.replace(day=1) - timedelta(days=1))]
+    return render(request, "google_ads.html", nav="reports", v=ga.dashboard(db, d_from, d_to), today=date.today(), can_set=can(user, "users"), presets=presets,
                   chs=chs, AC=ac, ac_cfg=ac.cfg(db), is_owner=user.role == "owner")
 
 
@@ -7912,7 +7928,7 @@ def google_ads_settings(request: Request, user: User = Depends(require("users"))
     c = ga.cfg(db)
     base = str(request.base_url).rstrip("/").replace("http://", "https://")
     hook = f"{base}/api/public/ads/google/{c['hook']}"
-    return render(request, "google_ads_settings.html", nav="settings", c=c, hook=hook, script=ga.script(hook), boxes=_cashboxes(db), base=base,
+    return render(request, "google_ads_settings.html", nav="settings", c=c, hook=hook, script=ga.script(hook), loader=ga.loader(hook), boxes=_cashboxes(db), base=base,
                   sources=ap_.dirs(db)["sources"], bal=ga.balance(db, c), EXP=_fa().names(db, "expense"),
                   job=jobs.JOBS.get(request.query_params.get("job") or ""), **_ga4_ctx(db))
 

@@ -474,6 +474,29 @@ def script(hook_url: str) -> str:
     return SCRIPT.replace("__HOOK__", hook_url)
 
 
+def script_body(hook_url: str) -> str:
+    """Актуальна логіка для завантажувача: та сама, що й повний скрипт, але головна функція зветься run()."""
+    return script(hook_url).replace("function main() {", "function run() {", 1)
+
+
+LOADER = r"""/**
+ * MOLODIST CRM — завантажувач. Вставляється в Google Ads один раз: актуальну логіку (статистика, погоджені зміни,
+ * офлайн-конверсії) щоразу бере з CRM, тож після оновлень CRM скрипт міняти не треба. Розклад: щогодини.
+ */
+var HOOK = '__HOOK__';
+function main() {
+  var res = UrlFetchApp.fetch(HOOK + '/script', { muteHttpExceptions: true });
+  if (res.getResponseCode() !== 200) throw new Error('CRM не віддала скрипт: ' + res.getResponseCode());
+  eval(res.getContentText());
+  run();
+}
+"""
+
+
+def loader(hook_url: str) -> str:
+    return LOADER.replace("__HOOK__", hook_url)
+
+
 SCRIPT = r"""/**
  * MOLODIST CRM — вивантаження статистики Google Ads у CRM.
  * Встановлення: Google Ads → Інструменти → Масові дії → Скрипти → «+» → вставити цей код → Авторизувати → Зберегти.
@@ -603,6 +626,11 @@ function applyQueue() {
         var txt = c.match === 'EXACT' ? '[' + c.target + ']' : (c.match === 'BROAD' ? c.target : '"' + c.target + '"');
         var op = g.newKeywordBuilder().withText(txt); if (c.final_url) op = op.withFinalUrl(c.final_url);
         var kr = op.build(); r.ok = kr.isSuccessful(); r.note = r.ok ? 'додано ' + txt : kr.getErrors().join('; ');
+      } else if (c.kind === 'remove_negative') {
+        var cp5 = camp(c); if (!cp5) throw new Error('кампанію не знайдено');
+        var ni = cp5.negativeKeywords().get(), rm = 0;
+        while (ni.hasNext()) { var nk = ni.next(); if (nk.getText().replace(/[\"\[\]+]/g, '').trim().toLowerCase() === String(c.target).toLowerCase()) { nk.remove(); rm++; } }
+        r.ok = rm > 0; r.note = rm ? 'прибрано ' + rm : 'мінус-слово не знайдено';
       } else if (c.kind === 'broad_to_phrase') {
         var cp4 = camp(c); if (!cp4) throw new Error('кампанію не знайдено');
         var ki = AdsApp.keywords().withCondition('campaign.id = ' + cp4.getId())
