@@ -784,3 +784,100 @@ def agent_result(db: Session, c: Call, data: dict) -> Call:
     db.commit()
     alert_low(db, c)
     return c
+
+
+# ---------------- Ringostat API: мітки реклами (utm) з журналу дзвінків ----------------
+UTM_FIELDS = ("utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content")
+_RS_FIELDS = ["calldate,caller,dst,disposition,billsec,uniqueid,call_type,recording," + ",".join(UTM_FIELDS) + ",landing,pool_name",
+              "calldate,caller,dst,disposition,billsec,uniqueid,call_type," + ",".join(UTM_FIELDS),
+              "calldate,caller,dst,disposition,billsec," + ",".join(UTM_FIELDS)]
+
+
+def _rs_get(http, params: dict, headers: dict):
+    try:
+        return http.get("https://api.ringostat.net/calls/list", params=params, headers=headers)
+    except httpx.ConnectError:
+        with httpx.Client(timeout=60, transport=httpx.HTTPTransport(local_address="0.0.0.0")) as h4:
+            return h4.get("https://api.ringostat.net/calls/list", params=params, headers=headers)
+
+
+def sync_utm(db: Session, d_from: date, d_to: date, http: httpx.Client | None = None, create: bool = True) -> dict:
+    """Журнал дзвінків Ringostat (API calls/list) → utm-мітки в дзвінках CRM. Дзвінки, яких у CRM немає (до підключення вебхуків),
+    створюються. Запит — по 7 днів (обмеження Ringostat: до 6500 дзвінків за запит)."""
+    d = _raw(db)
+    pid, key = secret(d, "ringostat", "project_id"), secret(d, "ringostat", "auth_key")
+    if not key:
+        raise ValueError("У Налаштування → IP-телефонія не вказано Auth-key Ringostat")
+    headers = {"Auth-key": key, "x-project-id": pid or "", "Content-Type": "application/json"}
+    http = http or httpx.Client(timeout=60)
+    rep = {"fetched": 0, "updated": 0, "created": 0, "with_utm": 0, "fields": None}
+    fields = None
+    a = d_from
+    while a <= d_to:
+        b = min(a + timedelta(days=6), d_to)
+        params = {"export_type": "json", "from": f"{a} 00:00:00", "to": f"{b + timedelta(days=1)} 00:00:00"}
+        rows = None
+        for fset in ([fields] if fields else _RS_FIELDS):
+            r = _rs_get(http, {**params, "fields": fset}, headers)
+            if r.status_code == 401:
+                raise ValueError("Ringostat: ключ не прийнято (401) — перевірте Auth-key")
+            if r.status_code < 400:
+                try:
+                    js = r.json()
+                except ValueError:
+                    js = None
+                if isinstance(js, list):
+                    rows, fields = js, fset
+                    break
+        if rows is None:
+            raise ValueError(f"Ringostat API не віддав журнал дзвінків ({r.status_code}: {r.text[:120]})")
+        rep["fields"] = fields
+        rep["fetched"] += len(rows)
+        t0, t1 = datetime.combine(a, datetime.min.time()) - timedelta(hours=1), datetime.combine(b, datetime.max.time()) + timedelta(hours=1)
+        have = db.scalars(select(Call).where(Call.at >= t0, Call.at <= t1)).all()
+        by_ext = {c.ext_id: c for c in have if c.ext_id}
+        by_phone: dict = {}
+        for c in have:
+            by_phone.setdefault(ap.phone_key(c.phone), []).append(c)
+        for x in rows:
+            if not isinstance(x, dict):
+                continue
+            utm = {k: _utm(x.get(k), 300 if k != "utm_source" and k != "utm_medium" else 120) for k in UTM_FIELDS}
+            try:
+                at = datetime.strptime(str(x.get("calldate"))[:19], "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                continue
+            out = str(x.get("call_type") or "").lower() in ("out", "outgoing", "callback")
+            phone = x.get("dst") if out else x.get("caller")
+            k = ap.phone_key(str(phone or ""))
+            c = by_ext.get(str(x.get("uniqueid") or "")) or min(
+                (z for z in by_phone.get(k, []) if abs((z.at - at).total_seconds()) <= 600 and (z.direction == "out") == out),
+                key=lambda z: abs((z.at - at).total_seconds()), default=None) if k else None
+            if c is None:
+                if not create or not k:
+                    continue
+                disp = str(x.get("disposition") or "").upper()
+                c = Call(provider="ringostat", at=at, ext_id=str(x.get("uniqueid") or "")[:120] or None, direction="out" if out else "in",
+                         phone=str(phone)[:64], status="answered" if disp in ("ANSWERED", "ANSWER", "PROPER") else "missed",
+                         duration=int(float(x.get("billsec") or 0)), line=_digits(x.get("dst") if not out else x.get("caller")),
+                         record_url=str(x.get("recording") or "")[:500] or None)
+                p = ap.find_patient(db, c.phone)
+                c.patient_id = p.id if p else None
+                db.add(c)
+                by_phone.setdefault(k, []).append(c)
+                rep["created"] += 1
+            changed = False
+            for f_, v in utm.items():
+                if v and getattr(c, f_) != v:
+                    setattr(c, f_, v)
+                    changed = True
+            land = _utm(x.get("landing"), 500)
+            if land and not c.landing:
+                c.landing = land
+            if any(utm.values()):
+                rep["with_utm"] += 1
+            rep["updated"] += changed
+        db.commit()
+        a = b + timedelta(days=1)
+    return rep
+

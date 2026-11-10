@@ -368,6 +368,11 @@ async def job_paycal():
                 from .services import google_ads as _ga
                 if _ga.cfg(db).get("last_push") or _ga.cfg(db).get("balance_base"):
                     _ga.refresh(db)
+                    try:
+                        from .services import telephony as _tl
+                        _tl.sync_utm(db, date.today() - timedelta(days=3), date.today())
+                    except Exception as e:      # noqa: BLE001
+                        log.warning("ringostat utm: %s", e)
             except Exception as e:      # noqa: BLE001
                 log.warning("google ads refresh: %s", e)
             return _pc.digest_text(db)
@@ -7644,6 +7649,23 @@ def google_ads_topup(day: str = Form(""), amount: str = Form(""), note: str = Fo
     return RedirectResponse(_with_msg("/marketing/google", "Поповнення записано") + "#balance", 303)
 
 
+@app.post("/settings/google-ads/ringostat-utm")
+def google_ads_ringostat_utm(days: int = Form(365), user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    """Історія дзвінків з мітками реклами — з API Ringostat (фоном)."""
+    from .services import telephony as tel
+
+    def run(job, n):
+        with SessionLocal() as s_:
+            job.log("Запитую журнал дзвінків Ringostat…")
+            rep = tel.sync_utm(s_, date.today() - timedelta(days=n), date.today())
+            job.log(f"Дзвінків у Ringostat: {rep['fetched']}, з мітками: {rep['with_utm']}, оновлено: {rep['updated']}, додано: {rep['created']}")
+            return rep
+    job = jobs.start("Мітки реклами з Ringostat", run, max(1, min(int(days or 365), 730)))
+    audit(db, "google_ads.ringostat_utm", user=user, job=job.id)
+    db.commit()
+    return RedirectResponse(_with_msg("/settings/google-ads", "Запущено: мітки з журналу Ringostat підтягуються у фоні (1–3 хв)") + f"&job={job.id}", 303)
+
+
 @app.get("/settings/google-ads", response_class=HTMLResponse)
 def google_ads_settings(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     from .services import google_ads as ga, appeals as ap_
@@ -7651,7 +7673,8 @@ def google_ads_settings(request: Request, user: User = Depends(require("users"))
     base = str(request.base_url).rstrip("/").replace("http://", "https://")
     hook = f"{base}/api/public/ads/google/{c['hook']}"
     return render(request, "google_ads_settings.html", nav="settings", c=c, hook=hook, script=ga.script(hook), boxes=_cashboxes(db),
-                  sources=ap_.dirs(db)["sources"], bal=ga.balance(db, c), EXP=_fa().names(db, "expense"))
+                  sources=ap_.dirs(db)["sources"], bal=ga.balance(db, c), EXP=_fa().names(db, "expense"),
+                  job=jobs.JOBS.get(request.query_params.get("job") or ""))
 
 
 @app.post("/settings/google-ads")

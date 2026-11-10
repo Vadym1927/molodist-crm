@@ -46,3 +46,39 @@ def test_google_ads_flow():
         b = ga.refresh(db)["balance"]
         assert b["amount"] == 100.0 + 10000.0 and not b["low"]
         assert "__HOOK__" not in ga.script("https://x/y") and "https://x/y" in ga.script("https://x/y")
+
+
+def test_ringostat_utm_sync(monkeypatch):
+    import httpx
+    from app.services import telephony as tel_
+    today = date.today()
+    at = datetime.combine(today - timedelta(days=1), datetime.min.time()).replace(hour=14, minute=5)
+    with SessionLocal() as db:
+        monkeypatch.setattr(tel_, "_raw", lambda db_: {"provider": "ringostat"})
+        monkeypatch.setattr(tel_, "secret", lambda d, prov, key: "k" if key == "auth_key" else "1")
+        c = Call(provider="ringostat", at=at + timedelta(minutes=2), direction="in", phone="380500007701", status="answered")
+        db.add(c); db.commit()
+
+        class R:
+            status_code = 200
+            text = ""
+            def __init__(self, rows): self._r = rows
+            def json(self): return self._r
+
+        class H:
+            def get(self, url, params=None, headers=None):
+                assert headers["Auth-key"] == "k"
+                if "landing" in params["fields"]:
+                    return type("E", (), {"status_code": 400, "text": "bad field", "json": lambda s: {}})()
+                day = params["from"][:10]
+                return R([{"calldate": at.strftime("%Y-%m-%d %H:%M:%S"), "caller": "380500007701", "dst": "380441112233", "disposition": "ANSWERED",
+                           "billsec": "40", "uniqueid": "u1", "call_type": "in", "utm_source": "google", "utm_medium": "cpc",
+                           "utm_campaign": "Пошук | Клініка", "utm_term": "косметолог київ", "utm_content": ""},
+                          {"calldate": at.strftime("%Y-%m-%d %H:%M:%S"), "caller": "380500007702", "dst": "380441112233", "disposition": "NO ANSWER",
+                           "billsec": "0", "uniqueid": "u2", "call_type": "in", "utm_source": "(direct)", "utm_medium": "(none)",
+                           "utm_campaign": "", "utm_term": "", "utm_content": ""}] if day <= at.strftime("%Y-%m-%d") < params["to"][:10] else [])
+        rep = tel_.sync_utm(db, today - timedelta(days=2), today, http=H())
+        db.refresh(c)
+        assert c.utm_campaign == "Пошук | Клініка" and c.utm_source == "google" and rep["created"] == 1 and rep["updated"] >= 1
+        ls = ga.leads(db, today - timedelta(days=2), today)
+        assert any(l["campaign"] == "Пошук | Клініка" for l in ls)
