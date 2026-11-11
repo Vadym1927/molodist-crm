@@ -238,6 +238,14 @@ def _echo(db: Session, channel: str, ev: dict, msg: dict, http: httpx.Client | N
     return 1
 
 
+def unread(db: Session) -> dict:
+    """Непрочитані вхідні в «Центрі спілкування»: кількість повідомлень, діалогів і id останнього (для звуку в шапці CRM)."""
+    q = select(func.count(), func.count(func.distinct(ChatMessage.thread)), func.max(ChatMessage.id)).where(
+        ChatMessage.direction == "in", ChatMessage.read_at.is_(None))
+    n, t, last = db.execute(q).one()
+    return {"n": int(n or 0), "threads": int(t or 0), "last": int(last or 0)}
+
+
 def threads(db: Session, channel: str = "", q: str = "") -> list[dict]:
     """Діалоги: останнє повідомлення, непрочитані, імʼя."""
     rows = db.execute(select(ChatMessage.thread, func.max(ChatMessage.id)).group_by(ChatMessage.thread)).all()

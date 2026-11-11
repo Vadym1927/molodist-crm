@@ -248,7 +248,32 @@ body.drw-on .drw{transform:none}body.drw-on .drw-bg{opacity:1;pointer-events:aut
   {% if can(user,'sales') %}<a class="bell" href="/sales/new" title="Новий продаж (каса)"><span class="ti" style="--ti:url(/static/icons/cart.png)"></span></a>{% endif %}
   {% if can(user,'stock') %}<a class="bell" href="/prices?tab=alerts" title="Центр моніторингу цін{{ (': ' ~ task_counts.prices ~ ' нових') if task_counts and task_counts.prices }}"><span class="ti" style="--ti:url(/static/icons/prices.png)"></span>{% if task_counts and task_counts.prices %}<b class="pbadge">{{ task_counts.prices }}</b>{% endif %}</a>{% endif %}
   {% if can(user,'appeals') %}<a class="bell" href="/telephony" title="Телефонія: пропущені, вхідні, дзвінки по пацієнтах"><span class="ti" style="--ti:url(/static/icons/phone.png)"></span></a>
-  <a class="bell" href="/chats" title="Центр спілкування з пацієнтами: Instagram, Viber, Telegram, WhatsApp"><span class="ti" style="--ti:url(/static/icons/chat.png)"></span></a>{% endif %}
+  <a class="bell" href="/chats" id="cx-bell" title="Центр спілкування з пацієнтами: Instagram, Viber, Telegram, WhatsApp"><span class="ti" style="--ti:url(/static/icons/chat.png)"></span><b class="pbadge" id="cx-badge" hidden></b></a>
+  <script>(function(){
+    /* Непрочитані повідомлення пацієнтів: лічильник на іконці «Центру спілкування» + звук, коли приходить нове. */
+    var K='cx_last', badge=document.getElementById('cx-badge'), bell=document.getElementById('cx-bell'), T0=document.title, ac=null, first=true;
+    function unlock(){ try{ ac=ac||new (window.AudioContext||window.webkitAudioContext)(); if(ac.state==='suspended') ac.resume(); }catch(e){} }
+    ['click','keydown','touchstart'].forEach(function(ev){ document.addEventListener(ev, unlock, {once:true, passive:true}); });
+    function ding(){ try{ unlock(); if(!ac) return; var t=ac.currentTime;
+      [[880,0],[1318.5,.16]].forEach(function(n){ var o=ac.createOscillator(), g=ac.createGain(); o.type='sine'; o.frequency.value=n[0];
+        g.gain.setValueAtTime(0.0001,t+n[1]); g.gain.exponentialRampToValueAtTime(0.25,t+n[1]+.02); g.gain.exponentialRampToValueAtTime(0.0001,t+n[1]+.45);
+        o.connect(g); g.connect(ac.destination); o.start(t+n[1]); o.stop(t+n[1]+.5); }); }catch(e){} }
+    function get(){ var s=0; try{ s=+localStorage.getItem(K)||0; }catch(e){} return s; }
+    function set(v){ try{ localStorage.setItem(K, v); }catch(e){} }
+    function poll(){
+      fetch('/chats/unread.json',{cache:'no-store',credentials:'same-origin'}).then(function(r){ return r.ok?r.json():null; }).then(function(d){
+        if(!d) return;
+        badge.hidden=!d.n; badge.textContent=d.n>99?'99+':d.n;
+        bell.title='Центр спілкування'+(d.n?(': непрочитаних '+d.n+' у '+d.threads+' діалогах'):'');
+        document.title=(d.n?'('+d.n+') ':'')+T0;
+        var seen=get();
+        if(d.last>seen){ if(!first || seen) ding(); set(d.last); }   // перший запуск у браузері — без звуку
+        first=false;
+      }).catch(function(){});
+    }
+    poll(); setInterval(poll, 20000);
+    document.addEventListener('visibilitychange', function(){ if(!document.hidden) poll(); });
+  })();</script>{% endif %}
   <span class="nt-w"><a class="bell" href="#" id="nt-bell" title="Сповіщення" onclick="return ntOpen(event)"><span class="ti" style="--ti:url(/static/icons/bell.png)"></span><b class="pbadge" id="nt-badge" hidden></b></a>
     <div class="nt" id="nt" hidden></div></span>
 </div>

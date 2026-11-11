@@ -202,3 +202,20 @@ def test_admin_echo_saved_as_outgoing():
         out = db.query(ChatMessage).filter(ChatMessage.mid == "e2").one()
         first = db.query(ChatMessage).filter(ChatMessage.mid == "e1").one()
         assert out.direction == "out" and out.thread == "U9" and out.appeal_id == first.appeal_id
+
+
+def test_unread_counter_endpoint():
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        db.add(ChatMessage(channel="instagram", thread="CNT1", direction="in", text="Привіт"))
+        db.add(ChatMessage(channel="instagram", thread="CNT1", direction="in", text="Є хто?"))
+        db.commit()
+        u = mi.unread(db)
+        assert u["n"] >= 2 and u["threads"] >= 1 and u["last"]
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        d = c.get("/chats/unread.json").json()
+        assert d["n"] >= 2
+        assert 'id="cx-badge"' in c.get("/tasks").text
+        c.get("/chats?t=CNT1")
+        assert c.get("/chats/unread.json").json()["n"] == d["n"] - 2

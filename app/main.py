@@ -5588,6 +5588,12 @@ def telephony_page(request: Request, f: str = "", user: User = Depends(require("
                   kpi=_tl2.kpi(db, d_to.replace(day=1), d_to), cur=request.query_params.get("call", ""))
 
 
+@app.get("/chats/unread.json")
+def chats_unread(user: User = Depends(require("appeals")), db: Session = Depends(db_dep)):
+    from .services import meta_inbox as mi
+    return JSONResponse(mi.unread(db), headers={"Cache-Control": "no-store"})
+
+
 @app.get("/chats", response_class=HTMLResponse)
 def chats_page(request: Request, t: str = "", ch: str = "", q: str = "", user: User = Depends(require("appeals")), db: Session = Depends(db_dep)):
     from .services import meta_inbox as mi
