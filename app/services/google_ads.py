@@ -760,7 +760,7 @@ function applyQueue() {
         var old = [];
         if (c.pause_text) {
           var ai = g2.ads().withCondition("ad_group_ad.status = ENABLED").get();
-          while (ai.hasNext()) { var ad = ai.next(); var t = ad.isType().responsiveSearchAd() ? JSON.stringify(ad.asType().responsiveSearchAd().getDescriptions()) : '';
+          while (ai.hasNext()) { var ad = ai.next(); var t = ad.isType().responsiveSearchAd() ? JSON.stringify(ad.asType().responsiveSearchAd().getDescriptions()) + JSON.stringify(ad.asType().responsiveSearchAd().getHeadlines()) : '';
             if (t.indexOf(c.pause_text) >= 0) { old.push(ad); if (!c.final_url) c.final_url = ad.urls().getFinalUrl(); } }
         }
         var b = g2.newAd().responsiveSearchAdBuilder().withHeadlines((c.headlines || []).map(function (h) { return { text: h }; }))
