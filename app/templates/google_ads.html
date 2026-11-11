@@ -112,6 +112,15 @@
     {% for k in v.terms %}<tr><td>{{ k.name }}<div class="mini">{{ k.parent }}</div></td><td class="r">{{ u(k.cost) }}</td><td class="r">{{ u(k.clicks) }}</td><td class="r">{{ u(k.cpc, 2) }}</td><td class="r">{{ ('%g' % k.conversions) if k.conversions else '—' }}</td></tr>{% else %}<tr><td colspan="5" class="muted">Немає даних.</td></tr>{% endfor %}</table></div>
 </div>
 
+<div class="ga-c"><h3>Конверсії Google Ads по діях</h3>
+  {% if v.conv_acts %}<table class="ga-t"><tr><th>Дія-конверсія</th><th class="r" title="Основні — ті, на яких навчаються кампанії">Основні</th><th class="r" title="Усі конверсії, включно з другорядними">Усі</th><th>Кампанії</th></tr>
+  {% for a in v.conv_acts %}<tr><td>{{ a.name }}</td><td class="r"><b>{{ ('%g' % a.conv) if a.conv else '—' }}</b></td><td class="r">{{ '%g' % a.all }}</td><td class="mini">{{ a.camps|join(', ') }}</td></tr>{% endfor %}</table>
+  {% if v.conv_terms %}<div class="mini" style="margin:10px 0 4px"><b>За якими запитами</b></div>
+  <table class="ga-t"><tr><th>Пошуковий запит</th><th>Дія</th><th class="r">Конв.</th><th>Дні</th></tr>
+  {% for t in v.conv_terms %}<tr><td>{{ t.term }}<div class="mini">{{ t.camp }}</div></td><td class="mini">{{ t.action }}</td><td class="r">{{ '%g' % (t.all or t.conv) }}</td><td class="mini">{% for d in t.days|sort %}{{ d.strftime('%d.%m') }}{{ ', ' if not loop.last }}{% endfor %}</td></tr>{% endfor %}</table>{% endif %}
+  {% else %}<div class="mini">Розбивка зʼявиться після наступного запуску скрипта в кабінеті (кожну годину).</div>{% endif %}
+</div>
+
 {% if v.ga4.on %}<div class="ga-c"><h3>Конверсії з реклами на сайті (GA4) · {{ v.ga_paid|sum(attribute='count') }}</h3>
   <table class="ga-t"><tr><th>Коли</th><th>Дія</th><th>Кампанія · ключ</th><th class="r">Кількість</th></tr>
   {% for e in v.ga_paid %}<tr><td style="white-space:nowrap">{{ e.at.strftime('%d.%m %H:%M') }}</td><td>{{ v.ev_label.get(e.event, e.event) }}</td>

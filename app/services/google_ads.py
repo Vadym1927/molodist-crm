@@ -27,7 +27,7 @@ DEFAULT = {"hook": "", "account": {}, "last_push": None, "vat_pct": 20.0, "margi
            "lines": [], "appeal_sources": ["Google Ads"], "real_balance": None, "bank_words": ["google"],
            "daily_topup": 0.0, "daily_days": [1, 2, 3, 4],      # щоденне поповнення з ПДВ; дні тижня (0 — пн); пт — за пт і сб
            "offline_on": False, "offline_name": "CRM — оплачений візит", "offline_sent": []}
-LEVELS = ("account", "campaign", "adgroup", "keyword", "term", "device", "hour")
+LEVELS = ("account", "campaign", "adgroup", "keyword", "term", "device", "hour", "conv", "tconv")   # conv/tconv — конверсії по діях
 
 
 def cfg(db: Session) -> dict:
@@ -436,12 +436,30 @@ def dashboard(db: Session, d_from: date, d_to: date, today: date | None = None) 
     for r in ls:
         lead_h[r["at"].hour] += 1
     last = db.scalar(select(AdsStat.day).where(AdsStat.source == SRC).order_by(AdsStat.day.desc()).limit(1))
+    conv_acts: dict = {}
+    conv_terms: dict = {}
+    for s_ in stats:
+        if s_.level == "conv":
+            a = conv_acts.setdefault(s_.name or "?", {"name": s_.name or "?", "conv": 0.0, "all": 0.0, "value": 0.0, "camps": set()})
+            a["conv"] += s_.conversions or 0
+            a["all"] += float((s_.extra or {}).get("all") or 0)
+            a["value"] += s_.conv_value or 0
+            a["camps"].add(s_.parent or "")
+        elif s_.level == "tconv":
+            act = (s_.extra or {}).get("action") or s_.status or "?"
+            k = (s_.name or "", act)
+            t = conv_terms.setdefault(k, {"term": s_.name, "action": act, "camp": s_.parent, "conv": 0.0, "all": 0.0, "days": set()})
+            t["conv"] += s_.conversions or 0
+            t["all"] += float((s_.extra or {}).get("all") or 0)
+            t["days"].add(s_.day)
+    conv_acts_l = sorted(conv_acts.values(), key=lambda x: -(x["all"] or x["conv"]))
+    conv_terms_l = sorted(conv_terms.values(), key=lambda x: -(x["all"] or x["conv"]))[:50]
     from ..models import GaEvent
     ga_paid = [e for e in db.scalars(select(GaEvent).where(GaEvent.at >= datetime.combine(d_from, datetime.min.time()),
                                                           GaEvent.at <= datetime.combine(d_to, datetime.max.time())).order_by(GaEvent.at.desc()))
                if "google" in (e.source or "").lower() and (e.medium or "").lower() in ("cpc", "ppc", "paid")][:300]
     return {"cfg": c, "tot": tot, "camps": camp_list, "days": days, "leads": sorted(ls, key=lambda r: r["at"], reverse=True),
-            "keywords": kws, "terms": top("term"), "ga_paid": ga_paid, "ev_label": EV_LABEL, "devices": top("device", 6), "hours": hours, "lead_hours": lead_h,
+            "keywords": kws, "terms": top("term"), "ga_paid": ga_paid, "ev_label": EV_LABEL, "conv_acts": conv_acts_l, "conv_terms": conv_terms_l, "devices": top("device", 6), "hours": hours, "lead_hours": lead_h,
             "balance": balance(db, c, today), "connected": bool(c.get("last_push")), "last_day": last,
             "has_utm": any(r["campaign"] for r in ls), "d_from": d_from, "d_to": d_to,
             "ga4": {"on": bool(gcfg.get("property") and (gcfg.get("events") or gcfg.get("lead_events"))), "last_sync": gcfg.get("last_sync"), "error": gcfg.get("last_error")},
@@ -555,6 +573,19 @@ function main() {
   run('SELECT search_term_view.search_term, campaign.name, segments.date, ' + m +
       " FROM search_term_view WHERE segments.date BETWEEN '" + detailStart + "' AND '" + end + "' AND metrics.clicks > 0", function (r) {
     rows.push(['term', r.segments.date, String(r.searchTermView.searchTerm).substring(0, 190), r.searchTermView.searchTerm, r.campaign.name, ''].concat(num(r)));
+  });
+  // конверсії по діях (дзвінок з оголошення, Telegram, форма…) — по кампаніях і по пошукових запитах
+  var cm = 'metrics.conversions, metrics.conversions_value, metrics.all_conversions';
+  var cnum = function (r) { return [0, 0, 0, Number(r.metrics.conversions || 0), Number(r.metrics.conversionsValue || 0)]; };
+  run('SELECT campaign.name, segments.conversion_action_name, segments.date, ' + cm +
+      " FROM campaign WHERE segments.date BETWEEN '" + detailStart + "' AND '" + end + "' AND metrics.all_conversions > 0", function (r) {
+    var a = r.segments.conversionActionName;
+    rows.push(['conv', r.segments.date, String(r.campaign.name + '|' + a).substring(0, 190), a, r.campaign.name, ''].concat(cnum(r), [{ all: Number(r.metrics.allConversions || 0) }]));
+  });
+  run('SELECT search_term_view.search_term, campaign.name, segments.conversion_action_name, segments.date, ' + cm +
+      " FROM search_term_view WHERE segments.date BETWEEN '" + detailStart + "' AND '" + end + "' AND metrics.all_conversions > 0", function (r) {
+    var a = r.segments.conversionActionName, t = r.searchTermView.searchTerm;
+    rows.push(['tconv', r.segments.date, String(t + '|' + a).substring(0, 190), t, r.campaign.name, String(a).substring(0, 30)].concat(cnum(r), [{ all: Number(r.metrics.allConversions || 0), action: a }]));
   });
   var dev = {}, hrs = {};
   run('SELECT segments.device, segments.date, ' + m + " FROM campaign WHERE segments.date BETWEEN '" + detailStart + "' AND '" + end + "' AND metrics.impressions > 0", function (r) {

@@ -151,3 +151,16 @@ def test_daily_topup_item():
         assert it and it.due == _d.today() and it.amount in (1800.0, 3600.0)
         assert ga.refresh(db)["pay_item"] is None
         cf = ga.cfg(db); cf["daily_topup"] = 0.0; ga.save_cfg(db, cf)
+
+
+def test_conv_breakdown():
+    from datetime import date as _d, timedelta as _td
+    d = (_d.today() - _td(days=1)).isoformat()
+    with SessionLocal() as db:
+        ga.ingest(db, {"rows": [["campaign", d, "880", "Конв Тест", "", "ENABLED", 10, 100, 100.0, 2, 0],
+                                ["conv", d, "Конв Тест|click_telegram", "click_telegram", "Конв Тест", "", 0, 0, 0, 2, 0, {"all": 2}],
+                                ["tconv", d, "масаж обличчя|click_telegram", "масаж обличчя", "Конв Тест", "click_telegram", 0, 0, 0, 1, 0, {"all": 1, "action": "click_telegram"}]]})
+        v = ga.dashboard(db, _d.today() - _td(days=3), _d.today())
+        assert any(a["name"] == "click_telegram" and a["all"] >= 2 for a in v["conv_acts"])
+        assert any(t["term"] == "масаж обличчя" for t in v["conv_terms"])
+    assert "conversion_action_name" in ga.SCRIPT
