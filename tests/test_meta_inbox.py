@@ -189,3 +189,16 @@ def _sess_http(c, p):
         assert [t["title"] for t in rt.for_channel(db, "instagram")] == ["Тест"] and not rt.for_channel(db, "sms")
     r = c.get("/chats?t=888001"); assert r.status_code == 200 and "Сесієнко" in r.text and "Шаблони" in r.text and "Діалог закрито" in r.text
     r = c.get(f"/patients/{p.id}"); assert r.status_code == 200 and "Діалоги Instagram" in r.text and "триває" in r.text
+
+
+def test_admin_echo_saved_as_outgoing():
+    with SessionLocal() as db:
+        fh = FakeHttp()
+        assert mi.ingest(db, _ev("U9", "e1", text="Добрий день, скільки коштує?"), http=fh) == 1
+        echo = {"object": "instagram", "entry": [{"id": "PAGE1", "messaging": [{"sender": {"id": "PAGE1"}, "recipient": {"id": "U9"},
+                "timestamp": 1762450100000, "message": {"mid": "e2", "text": "Від 1 200 ₴", "is_echo": True}}]}]}
+        assert mi.ingest(db, echo, http=fh) == 1
+        assert mi.ingest(db, echo, http=fh) == 0                      # дубль
+        out = db.query(ChatMessage).filter(ChatMessage.mid == "e2").one()
+        first = db.query(ChatMessage).filter(ChatMessage.mid == "e1").one()
+        assert out.direction == "out" and out.thread == "U9" and out.appeal_id == first.appeal_id

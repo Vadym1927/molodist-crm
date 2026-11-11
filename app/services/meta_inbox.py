@@ -177,7 +177,8 @@ def _appeal_for(db: Session, channel: str, sid: str, pat_id: int | None, name: s
 
 
 def ingest(db: Session, payload: dict, http: httpx.Client | None = None) -> int:
-    """Подія вебхука → нові ChatMessage (вхідні; «ехо» наших відповідей пропускаємо). Повертає кількість нових."""
+    """Подія вебхука → нові ChatMessage: вхідні від пацієнта й «ехо» — відповіді адміністратора, написані в самому Instagram /
+    Messenger (вихідні в тій самій переписці; власні відповіді з CRM не дублюються — той самий mid). Повертає кількість нових."""
     obj = payload.get("object")
     channel = "instagram" if obj == "instagram" else "facebook"
     n = 0
@@ -185,7 +186,10 @@ def ingest(db: Session, payload: dict, http: httpx.Client | None = None) -> int:
         own = str(entry.get("id") or "")
         for ev in entry.get("messaging") or []:
             msg = ev.get("message") or {}
-            if not msg or not is_direct(ev):          # реакції, лайки, сторіз, ехо адміна, прочитання — не Direct
+            if msg.get("is_echo") and not msg.get("is_deleted") and not msg.get("is_unsupported"):
+                n += _echo(db, channel, ev, msg, http, own)   # відповідь, яку адміністратор написав у самому Instagram / Messenger
+                continue
+            if not msg or not is_direct(ev):          # реакції, лайки, сторіз, прочитання — не Direct
                 continue
             sid = str((ev.get("sender") or {}).get("id") or "")
             if not sid or sid == own:
@@ -206,6 +210,32 @@ def ingest(db: Session, payload: dict, http: httpx.Client | None = None) -> int:
             db.commit()
             n += 1
     return n
+
+
+def _echo(db: Session, channel: str, ev: dict, msg: dict, http: httpx.Client | None = None, own: str = "") -> int:
+    rid = str((ev.get("recipient") or {}).get("id") or "")
+    if rid == own:                                       # ехо приходить від акаунта клініки до співрозмовника
+        return 0
+    mid = msg.get("mid")
+    text = (msg.get("text") or "").strip()
+    atts = [{"type": a.get("type"), "url": (a.get("payload") or {}).get("url")} for a in msg.get("attachments") or []
+            if (a.get("type") or "") not in IGNORE_ATT] or None
+    if not rid or not (text or atts):
+        return 0
+    if mid and db.scalar(select(ChatMessage.id).where(ChatMessage.mid == mid)):
+        return 0                                         # це наша відповідь з CRM — вже є
+    prev = db.scalars(select(ChatMessage).where(ChatMessage.thread == rid).order_by(ChatMessage.id.desc())).first()
+    if not prev:                                         # адміністратор першим написав людині — переписку все одно показуємо
+        name = _profile(db, channel, rid, http)
+    else:
+        name = prev.name
+    ts = ev.get("timestamp")
+    at = datetime.utcfromtimestamp(ts / 1000) if isinstance(ts, (int, float)) else datetime.utcnow()
+    db.add(ChatMessage(at=at, channel=channel, thread=rid, direction="out", text=text[:4000] or None, attachments=atts, mid=mid,
+                       name=name, patient_id=prev.patient_id if prev else None, appeal_id=prev.appeal_id if prev else None,
+                       status="sent", read_at=datetime.utcnow()))
+    db.commit()
+    return 1
 
 
 def threads(db: Session, channel: str = "", q: str = "") -> list[dict]:
