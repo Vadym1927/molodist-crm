@@ -172,8 +172,8 @@ def describe(ch: AdsChange) -> str:
 
 
 def edit(db: Session, ch: AdsChange, payload: dict) -> bool:
-    """Виправити пропозицію, поки її не погоджено (тексти оголошень, ключі, бюджет)."""
-    if ch.status != "proposed":
+    """Виправити пропозицію, поки скрипт її не застосував (тексти оголошень, ключі, бюджет). Погоджена лишається погодженою."""
+    if ch.status not in ("proposed", "approved"):
         return False
     check_texts(payload)
     ch.payload = payload
