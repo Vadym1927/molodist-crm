@@ -108,3 +108,15 @@ def test_new_campaign_kind_and_export():
         _login(c)
         r = c.get("/marketing/google/export.csv?level=keyword")
         assert r.status_code == 200 and "косметолог київ" in r.text
+
+
+def test_no_clinic_word_in_ad_texts():
+    import pytest
+    with SessionLocal() as db:
+        with pytest.raises(ValueError):
+            ac.propose(db, "rsa", "Тест Слова", "x", "тест", payload={"headlines": ["Клініка MOLODIST"], "descriptions": ["опис"]})
+        ch = ac.propose(db, "rsa", "Тест Слова", "y", "тест", payload={"headlines": ["Медичний простір MOLODIST"], "descriptions": ["опис"]})
+        db.commit()
+        with pytest.raises(ValueError):
+            ac.edit(db, ch, {"headlines": ["у медичній клініці"], "descriptions": ["x"]})
+        assert ac.edit(db, ch, {"headlines": ["Медичний простір"], "descriptions": ["x"]})

@@ -6,7 +6,7 @@
   <p class="lead-tx">Оберіть напрямок — на кожній сторінці актуальні ціни, лікарі та запис.</p>
 </div></section>
 <section class="sec"><div class="wrap"><div class="rel-g">{% for s in order %}<a class="rel-i" href="{{ base }}/{{ s }}"><span>{{ pages[s].nav }}</span><small>{{ pages[s].lead }}</small></a>{% endfor %}</div>
-<p style="margin-top:28px"><a class="link" href="{{ c.main_url }}">Усі послуги клініки →</a></p></div></section>
+<p style="margin-top:28px"><a class="link" href="{{ c.main_url }}">Усі послуги MOLODIST →</a></p></div></section>
 <section class="sec cta" id="zapys"><div class="wrap cta-in"><div><h2>Не знаєте, з чого почати?</h2><p class="big">Залиште номер — адміністратор підкаже лікаря й формат консультації.</p></div>
 <form class="lead dark" data-lead="home" novalidate><input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
 <label><span>Імʼя</span><input name="name" autocomplete="given-name"></label><label><span>Телефон</span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+380" required></label>

@@ -8026,6 +8026,25 @@ def google_ads_change_decide(cid: int, act: str = Form(""), user: User = Depends
     return RedirectResponse("/marketing/google#changes", 303)
 
 
+@app.post("/marketing/google/changes/{cid:int}/payload")
+async def google_ads_change_edit(cid: int, request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Виправити ще не погоджену пропозицію (JSON payload) — напр. тексти оголошень."""
+    from .services import ads_changes as ac
+    from .models import AdsChange
+    if user.role != "owner":
+        raise HTTPException(403)
+    ch = db.get(AdsChange, cid)
+    if not ch:
+        raise HTTPException(404)
+    try:
+        ok = ac.edit(db, ch, await request.json())
+    except ValueError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+    audit(db, "ads.change.edit", user=user, change=cid)
+    db.commit()
+    return {"ok": ok, "status": ch.status}
+
+
 @app.post("/marketing/google/changes/bulk")
 async def google_ads_change_bulk(request: Request, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     from .services import ads_changes as ac

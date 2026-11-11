@@ -56,10 +56,28 @@ def _known(db: Session) -> set[str]:
     return {k for (k,) in db.execute(select(AdsChange.key))}
 
 
+BANNED = re.compile(r"кл[іи]н[іи](к|ц)", re.I)      # у текстах реклами не «клініка», а «медичний простір» (ключі — можна)
+
+
+def ad_texts(payload: dict | None) -> list[str]:
+    p = payload or {}
+    out = list(p.get("headlines") or []) + list(p.get("descriptions") or [])
+    for g in p.get("groups") or []:
+        out += list(g.get("headlines") or []) + list(g.get("descriptions") or [])
+    return [str(x) for x in out]
+
+
+def check_texts(payload: dict | None) -> None:
+    bad = [t for t in ad_texts(payload) if BANNED.search(t)]
+    if bad:
+        raise ValueError("У заголовках і описах реклами не вживаємо «клініка» — пишемо «медичний простір»: " + "; ".join(bad[:3]))
+
+
 def propose(db: Session, kind: str, campaign: str | None, target: str | None, reason: str, payload: dict | None = None,
             stats: dict | None = None, author: str = "auto", campaign_id: str | None = None, force: bool = False) -> AdsChange | None:
     if kind not in KINDS:
         raise ValueError(f"Невідомий тип зміни: {kind}")
+    check_texts(payload)
     key = f"{kind}|{(campaign or '').strip().lower()}|{(target or '').strip().lower()}"
     if key in _known(db):
         if not force:
@@ -151,6 +169,16 @@ def describe(ch: AdsChange) -> str:
     if ch.kind == "rsa":
         return f"нове оголошення в «{ch.campaign} / {p.get('adgroup', '')}»: {' | '.join((p.get('headlines') or [])[:3])}"
     return f"{KINDS.get(ch.kind, ch.kind)} «{ch.campaign or ch.target}»"
+
+
+def edit(db: Session, ch: AdsChange, payload: dict) -> bool:
+    """Виправити пропозицію, поки її не погоджено (тексти оголошень, ключі, бюджет)."""
+    if ch.status != "proposed":
+        return False
+    check_texts(payload)
+    ch.payload = payload
+    db.flush()
+    return True
 
 
 def decide(db: Session, ch: AdsChange, ok: bool, user_id: int | None) -> bool:
