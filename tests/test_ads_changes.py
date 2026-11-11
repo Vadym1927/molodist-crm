@@ -90,3 +90,21 @@ def test_loader_and_remove_negative():
         assert "function run()" in body and "function main()" not in body and hook in body
         assert c.get("/api/public/ads/google/nope/script").status_code == 404
     assert "eval(" in ga.loader("https://x/h") and "remove_negative" in ga.SCRIPT
+
+
+def test_new_campaign_kind_and_export():
+    from datetime import date as _d
+    with SessionLocal() as db:
+        ch = ac.propose(db, "new_campaign", "Лазер | Тест", None, "нова сторінка", campaign_id=None,
+                        payload={"budget": 300, "copy_from_id": "20537117017", "copy_from": "Поиск | Клініка", "cpc_max": 40, "negatives": ["курси"],
+                                 "groups": [{"name": "Лазер", "final_url": "https://molodist.com.ua/laserepilation", "keywords": [["лазерна епіляція київ", "PHRASE"]],
+                                             "headlines": ["Лазерна епіляція"] * 3, "descriptions": ["Опис"] * 2}]})
+        db.commit()
+        assert "на паузі" in ac.describe(ch) and "ключів 1" in ac.describe(ch)
+        ga.ingest(db, {"rows": [["keyword", _d.today().isoformat(), "1~2", "косметолог київ", "Поиск | Клініка", "ENABLED", 10, 100, 170.0, 1, 0]]})
+    s = ga.script("https://x/h")
+    assert "function createCampaign" in s and "AdsApp.mutateAll" in s and "new_campaign" in s
+    with TestClient(app) as c:
+        _login(c)
+        r = c.get("/marketing/google/export.csv?level=keyword")
+        assert r.status_code == 200 and "косметолог київ" in r.text

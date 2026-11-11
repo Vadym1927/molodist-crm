@@ -8111,6 +8111,30 @@ def google_ads_page(request: Request, df: str = "", dt_: str = "", user: User = 
                   chs=chs, AC=ac, ac_cfg=ac.cfg(db), is_owner=user.role == "owner")
 
 
+@app.get("/marketing/google/export.csv")
+def google_ads_export(df: str = "", dt_: str = "", level: str = "keyword", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Статистика кабінету за період одним файлом: ключі / запити / групи / кампанії (сума по днях)."""
+    import csv as _csv
+    import io as _io
+    from .models import AdsStat
+    d_from, d_to = _period(df, dt_)
+    if level not in ("campaign", "adgroup", "keyword", "term", "device", "hour"):
+        raise HTTPException(400)
+    agg: dict = {}
+    for s_ in db.scalars(select(AdsStat).where(AdsStat.source == "google", AdsStat.level == level, AdsStat.day >= d_from, AdsStat.day <= d_to)):
+        a = agg.setdefault((s_.key, s_.parent), {"name": s_.name, "status": s_.status, "impr": 0.0, "clicks": 0.0, "cost": 0.0, "conv": 0.0, "days": 0})
+        a["impr"] += s_.impressions or 0; a["clicks"] += s_.clicks or 0; a["cost"] += s_.cost or 0; a["conv"] += s_.conversions or 0; a["days"] += 1
+        a["status"] = s_.status or a["status"]
+    buf = _io.StringIO()
+    w = _csv.writer(buf)
+    w.writerow(["key", "name", "campaign", "status", "impressions", "clicks", "cost_net", "conversions", "ctr_pct", "cpc", "days"])
+    for (k, par), a in sorted(agg.items(), key=lambda x: -x[1]["cost"]):
+        w.writerow([k, a["name"], par, a["status"], int(a["impr"]), int(a["clicks"]), round(a["cost"], 2), round(a["conv"], 2),
+                    round(100 * a["clicks"] / a["impr"], 2) if a["impr"] else "", round(a["cost"] / a["clicks"], 2) if a["clicks"] else "", a["days"]])
+    return Response("\ufeff" + buf.getvalue(), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="google-ads-{level}-{d_from}-{d_to}.csv"'})
+
+
 @app.post("/marketing/google/topup")
 def google_ads_topup(day: str = Form(""), amount: str = Form(""), note: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     from .services import google_ads as ga

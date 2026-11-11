@@ -636,6 +636,67 @@ function uploadOffline() {
 }
 
 /* Погоджені в CRM зміни (мінус-слова, паузи, бюджети, ключі, оголошення) → кабінет. Без погодження скрипт нічого не змінює. */
+function createCampaign(c, r) {
+  // Нова пошукова кампанія на паузі через Google Ads API (AdsApp.mutateAll): бюджет, кампанія, групи, ключі, RSA, мінус-слова;
+  // гео, мова, розклад, тип гео й мінус-слова — копія з кампанії-зразка (copy_from_id).
+  var cid = AdsApp.currentAccount().getCustomerId().replace(/-/g, ''), P = 'customers/' + cid + '/';
+  var ex = AdsApp.campaigns().withCondition("campaign.name = '" + String(c.campaign).replace(/'/g, "\\'") + "'").get();
+  if (ex.hasNext()) { r.ok = true; r.note = 'кампанія вже існує (id ' + ex.next().getId() + ')'; return r; }
+  var tmp = -1, ops = [], bud = P + 'campaignBudgets/' + (tmp--), cmp = P + 'campaigns/' + (tmp--);
+  ops.push({ campaignBudgetOperation: { create: { resourceName: bud, name: c.campaign + ' · бюджет', amountMicros: Math.round(Number(c.budget) * 1e6),
+    deliveryMethod: 'STANDARD', explicitlyShared: false } } });
+  var geoType = 'PRESENCE';
+  if (c.copy_from_id) {
+    var gs = AdsApp.search('SELECT campaign.geo_target_type_setting.positive_geo_target_type FROM campaign WHERE campaign.id = ' + Number(c.copy_from_id));
+    if (gs.hasNext()) { var gt = gs.next().campaign.geoTargetTypeSetting; if (gt && gt.positiveGeoTargetType) geoType = gt.positiveGeoTargetType; }
+  }
+  var camp = { resourceName: cmp, name: c.campaign, status: 'PAUSED', advertisingChannelType: 'SEARCH', campaignBudget: bud,
+    targetSpend: c.cpc_max ? { cpcBidCeilingMicros: Math.round(Number(c.cpc_max) * 1e6) } : {},
+    networkSettings: { targetGoogleSearch: true, targetSearchNetwork: false, targetContentNetwork: false, targetPartnerSearchNetwork: false },
+    geoTargetTypeSetting: { positiveGeoTargetType: geoType, negativeGeoTargetType: 'PRESENCE' },
+    containsEuPoliticalAdvertising: 'DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING' };
+  ops.push({ campaignOperation: { create: camp } });
+  var copied = 0;
+  if (c.copy_from_id) {
+    var q = 'SELECT campaign_criterion.type, campaign_criterion.negative, campaign_criterion.bid_modifier, campaign_criterion.location.geo_target_constant, ' +
+      'campaign_criterion.proximity.radius, campaign_criterion.proximity.radius_units, campaign_criterion.proximity.geo_point.latitude_in_micro_degrees, ' +
+      'campaign_criterion.proximity.geo_point.longitude_in_micro_degrees, campaign_criterion.language.language_constant, campaign_criterion.ad_schedule.day_of_week, ' +
+      'campaign_criterion.ad_schedule.start_hour, campaign_criterion.ad_schedule.end_hour, campaign_criterion.ad_schedule.start_minute, ' +
+      'campaign_criterion.ad_schedule.end_minute, campaign_criterion.keyword.text, campaign_criterion.keyword.match_type FROM campaign_criterion WHERE campaign.id = ' + Number(c.copy_from_id);
+    var it = AdsApp.search(q);
+    while (it.hasNext()) {
+      var cc = it.next().campaignCriterion, n = { campaign: cmp }, ty = cc.type;
+      if (cc.negative) n.negative = true;
+      if (ty === 'LOCATION' && cc.location) n.location = { geoTargetConstant: cc.location.geoTargetConstant };
+      else if (ty === 'PROXIMITY' && cc.proximity) n.proximity = { radius: cc.proximity.radius, radiusUnits: cc.proximity.radiusUnits, geoPoint: cc.proximity.geoPoint };
+      else if (ty === 'LANGUAGE' && cc.language) n.language = { languageConstant: cc.language.languageConstant };
+      else if (ty === 'AD_SCHEDULE' && cc.adSchedule) n.adSchedule = cc.adSchedule;
+      else if (ty === 'KEYWORD' && cc.keyword && cc.negative) n.keyword = { text: cc.keyword.text, matchType: cc.keyword.matchType };
+      else continue;
+      if (cc.bidModifier && !cc.negative && ty !== 'KEYWORD' && ty !== 'LANGUAGE') n.bidModifier = cc.bidModifier;
+      ops.push({ campaignCriterionOperation: { create: n } }); copied++;
+    }
+  }
+  (c.negatives || []).forEach(function (t) {
+    ops.push({ campaignCriterionOperation: { create: { campaign: cmp, negative: true, keyword: { text: t, matchType: 'PHRASE' } } } });
+  });
+  (c.groups || []).forEach(function (g) {
+    var ag = P + 'adGroups/' + (tmp--);
+    ops.push({ adGroupOperation: { create: { resourceName: ag, campaign: cmp, name: g.name, status: 'ENABLED', type: 'SEARCH_STANDARD' } } });
+    (g.keywords || []).forEach(function (k) {
+      ops.push({ adGroupCriterionOperation: { create: { adGroup: ag, status: 'ENABLED', keyword: { text: k[0], matchType: k[1] || 'PHRASE' } } } });
+    });
+    var rsa = { headlines: (g.headlines || []).map(function (h) { return { text: h }; }), descriptions: (g.descriptions || []).map(function (d) { return { text: d }; }) };
+    if (g.path1) rsa.path1 = g.path1; if (g.path2) rsa.path2 = g.path2;
+    ops.push({ adGroupAdOperation: { create: { adGroup: ag, status: 'ENABLED', ad: { finalUrls: [g.final_url], responsiveSearchAd: rsa } } } });
+  });
+  var res = AdsApp.mutateAll(ops, { partialFailure: false }), errs = [];
+  for (var i = 0; i < res.length; i++) if (!res[i].isSuccessful()) errs = errs.concat(res[i].getErrorMessages());
+  r.ok = errs.length === 0;
+  r.note = r.ok ? ('створено на паузі: груп ' + (c.groups || []).length + ', операцій ' + ops.length + ', скопійовано налаштувань ' + copied) : errs.slice(0, 3).join('; ').substring(0, 300);
+  return r;
+}
+
 function applyQueue() {
   var res = UrlFetchApp.fetch(HOOK + '/queue', { muteHttpExceptions: true });
   if (res.getResponseCode() >= 300) { Logger.log('Черга змін: ' + res.getResponseCode()); return; }
@@ -706,6 +767,8 @@ function applyQueue() {
         var ar = b.build(); r.ok = ar.isSuccessful(); r.note = r.ok ? 'оголошення створено' + (c.paused ? ' (на паузі)' : '') : ar.getErrors().join('; ');
         if (r.ok && c.paused) ar.getResult().pause();
         if (r.ok && !c.paused && old.length) { old.forEach(function (a) { a.pause(); }); r.note += '; старих на паузу: ' + old.length; }
+      } else if (c.kind === 'new_campaign') {
+        r = createCampaign(c, r);
       } else { r.note = 'невідомий тип ' + c.kind; }
     } catch (e) { r.ok = false; r.note = String(e).substring(0, 300); }
     out.push(r);
