@@ -24,6 +24,7 @@ TYPES = {
     "viber": {"label": "Viber", "icon": "📳", "service": "TurboSMS"},
     "telegram": {"label": "Telegram", "icon": "✈️", "service": "Telegram Bot API"},
     "meta": {"label": "Instagram та Facebook", "icon": "∞", "service": "Meta (Facebook Login)"},
+    "viber_bot": {"label": "Viber-бот", "icon": "🟣", "service": "Viber Bot API (діалоги в CRM)"},
 }
 DEFAULT = [
     {"id": 1, "type": "sms", "name": "Sms", "on": True, "params": {"sender": "", "allowed_from": "08:00", "allowed_to": "23:30", "login": ""}},
@@ -183,6 +184,9 @@ def test(db: Session, cid: int, http: httpx.Client | None = None) -> tuple[bool,
             if not js.get("ok"):
                 return False, f"Telegram: {js.get('description', 'помилка')}"
             return True, f"Підключено · @{js['result'].get('username')}"
+        if t == "viber_bot":
+            from . import viber_bot as vb
+            return vb.connect(db, settings.public_url.rstrip("/"), http)
         if t == "meta":
             tok = secret(ch, "page_token")
             if not tok:

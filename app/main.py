@@ -5697,6 +5697,34 @@ async def meta_webhook(request: Request, db: Session = Depends(db_dep)):
     return {"ok": True}
 
 
+@app.post("/api/public/viber/webhook/{hook}")
+async def viber_webhook(hook: str, request: Request, db: Session = Depends(db_dep)):
+    from .services import viber_bot as vb
+    if not vb.channel(db) or not hmac.compare_digest(hook, vb.hook_id(db) or "-"):
+        raise HTTPException(404)
+    body = await request.body()
+    if not vb.check_signature(db, body, request.headers.get("x-viber-content-signature")):
+        vb.log_event(db, "bad-signature", "Підпис Viber не збігається")
+        raise HTTPException(403, "bad signature")
+    ev = vb.parse(body)
+    m = None
+    try:
+        m = await asyncio.to_thread(vb.ingest, db, ev)
+        if ev.get("event") in ("webhook", "subscribed", "unsubscribed", "conversation_started", "failed"):
+            vb.log_event(db, ev.get("event"), (ev.get("desc") or "")[:120])
+    except Exception as e:                # noqa: BLE001 — Viber має отримати 200
+        logging.getLogger("viber_bot").exception("webhook")
+        db.rollback()
+        vb.log_event(db, "error", type(e).__name__)
+    if m:
+        try:
+            from .services import alerts as _al
+            _al.send(f"💬 Нове повідомлення у Viber — {settings.public_url.rstrip('/')}/chats")
+        except Exception:  # noqa: BLE001
+            pass
+    return {"status": 0}
+
+
 @app.post("/settings/channels/meta-subscribe")
 def settings_channels_meta_subscribe(user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     from .services import meta_inbox as mi

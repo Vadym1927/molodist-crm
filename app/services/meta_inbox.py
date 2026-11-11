@@ -23,7 +23,7 @@ from . import channels as ch
 log = logging.getLogger("meta_inbox")
 GRAPH = "https://graph.facebook.com/v19.0"
 IGRAPH = "https://graph.instagram.com/v21.0"           # Instagram API з входом через Instagram (токен IG, не сторінки)
-CH_LABEL = {"facebook": "Facebook", "instagram": "Instagram", "telegram": "Telegram"}
+CH_LABEL = {"facebook": "Facebook", "instagram": "Instagram", "telegram": "Telegram", "viber": "Viber"}
 
 
 def meta_channel(db: Session) -> dict | None:
@@ -293,6 +293,10 @@ def reply(db: Session, thread: str, text: str, user_id: int | None = None, http:
         from . import tg_business as tb
         ok, mid, err = tb.send(db, thread, text, http)
         m.status, m.mid, m.error = ("sent" if ok else "failed"), mid, err
+    elif last.channel == "viber":                       # Viber-бот клініки
+        from . import viber_bot as vb
+        ok, mid, err = vb.send(db, thread, text, http)
+        m.status, m.mid, m.error = ("sent" if ok else "failed"), mid, err
     elif last.channel == "instagram" and _ig_token(db):     # Instagram API з входом через Instagram
         try:
             js = (http or httpx.Client(timeout=20)).post(f"{IGRAPH}/me/messages", params={"access_token": _ig_token(db)},
@@ -422,7 +426,7 @@ _AV: dict[str, tuple[float, bytes, str]] = {}     # аватари співро�
 def avatar(db: Session, thread: str, http: httpx.Client | None = None) -> tuple[bytes, str] | None:
     """Фото профілю співрозмовника (profile_pic через Graph токеном сторінки). Посилання Meta тимчасові — тож кешуємо байти."""
     import time
-    if thread.startswith("tg:"):                         # Telegram Business — фото з Meta немає
+    if thread.startswith(("tg:", "vb:")):                         # Telegram Business — фото з Meta немає
         return None
     hit = _AV.get(thread)
     if hit and time.time() - hit[0] < 12 * 3600:

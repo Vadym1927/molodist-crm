@@ -105,8 +105,9 @@ details.cc-how[open] summary:after{transform:rotate(180deg)}details.cc-how summa
     <div class="cc-inf"><small>Канал</small><b title="{{ c.name }}">{{ c.name }}</b><small>Провайдер</small><span>{{ t.service }}</span>
       {% if c.type == 'meta' %}{% for p in c.params.pages or [] %}<em>{{ 'Facebook' if p.kind == 'facebook' else 'Instagram' }}: {{ p.name }}</em>{% endfor %}
       {% elif c.type == 'telegram' and c.params.username %}<em>@{{ c.params.username|replace('@', '') }}</em>
+      {% elif c.type == 'viber_bot' and c.params.bot_name %}<em>{{ c.params.bot_name }}</em>
       {% elif c.params.sender %}<em>Відправник: {{ c.params.sender }}</em>{% endif %}</div>
-    {% if c.on and not sending_on and c.type != 'meta' %}<span class="cc-st pz" title="Канал налаштований, але надсилання пацієнтам вимкнено">На паузі</span>{% else %}<span class="cc-st {{ 'on' if c.on else 'off' }}">{{ 'Активний' if c.on else 'Неактивний' }}</span>{% endif %}</div>
+    {% if c.on and not sending_on and c.type not in ('meta', 'viber_bot') %}<span class="cc-st pz" title="Канал налаштований, але надсилання пацієнтам вимкнено">На паузі</span>{% else %}<span class="cc-st {{ 'on' if c.on else 'off' }}">{{ 'Активний' if c.on else 'Неактивний' }}</span>{% endif %}</div>
     <div class="cc-ft"><span class="cc-tag">{{ 'Meta' if c.type == 'meta' else t.label }}</span>
       <button class="cc-btn" type="button" onclick="document.getElementById('chd{{ c.id }}').showModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2.500v3M12 18.500v3M2.500 12h3M18.500 12h3M5.300 5.300l2.100 2.100M16.600 16.600l2.100 2.100M5.300 18.700l2.100-2.100M16.600 7.400l2.100-2.100"/></svg>Налаштувати</button></div></div>
 {% endfor %}</div>
@@ -149,6 +150,11 @@ details.cc-how[open] summary:after{transform:rotate(180deg)}details.cc-how summa
     {% elif c.type == 'telegram' %}
       {{ secret(c, 'token', 'Токен бота (BotFather)', 'Бот пацієнтів. CRM лише надсилає повідомлення — вебхук не встановлюється, тож робота бота OpenClaw не зачіпається.') }}
       <div class="cs-f"><label>Імʼя бота</label><input name="username" value="{{ c.params.username or '' }}" placeholder="molodist_bot"></div>
+    {% elif c.type == 'viber_bot' %}
+      {{ secret(c, 'token', 'Токен Viber-бота', 'Viber Admin Panel (partners.viber.com) → ваш бот → Token. «Зберегти й перевірити» — CRM перевірить, що бот активний, і сама встановить вебхук. Особистий Viber на номері клініки підключити неможливо — у нього немає API.') }}
+      {% if c.params.bot_name %}<div class="cs-f"><label>Бот</label><div class="hint">«{{ c.params.bot_name }}» · {{ c.params.subscribers or 0 }} підписників · вебхук {{ '✅ встановлено' if c.params.webhook_ok else '❌ не встановлено' }}{% if c.params.webhook_at %} ({{ c.params.webhook_at[8:10] }}.{{ c.params.webhook_at[5:7] }} {{ c.params.webhook_at[11:16] }}){% endif %}</div>
+        {% if c.params.uri %}<div class="hint">Посилання для кнопки Viber на сайті: <b>viber://pa?chatURI={{ c.params.uri }}</b></div>{% endif %}</div>{% endif %}
+      {% if c.params.log %}<div class="cs-f"><label>Журнал вебхука</label>{% for r in c.params.log[:6] %}<div class="hint" style="margin:2px 0">{{ r.at[8:10] }}.{{ r.at[5:7] }} {{ r.at[11:16] }} — {{ r.kind }}{% if r.note %}: {{ r.note }}{% endif %}</div>{% endfor %}</div>{% endif %}
     {% elif c.type == 'meta' %}
       {{ secret(c, 'page_token', 'Токен сторінки (Page access token)', 'Messenger API Settings → Generate access tokens → «Молодість» → Generate. Починається з EAA.') }}
       <div class="cs-f"><label>Callback URL (вебхук)</label>
