@@ -91,3 +91,18 @@ def test_media_upload_and_page_images():
         assert 'class="hero-ph" src="/_site/media/laser-hero.webp?v=' in page
         assert "/_site/media/doc-kelner.webp" in cl.get("/_site/vydalennia-rodymok").text
         assert "laser-hero.webp" in cl.get("/settings/site").text
+
+
+def test_upload_key_external():
+    import io
+    from PIL import Image
+    settings.admin_password = "owner-pass-1"
+    buf = io.BytesIO(); Image.new("RGB", (30, 30)).save(buf, "WEBP"); data = buf.getvalue()
+    with TestClient(app) as cl:
+        assert cl.post("/api/public/site/media", files=[("files", ("clinic-1.webp", data, "image/webp"))]).status_code == 403
+        cl.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        key = cl.post("/settings/site/upload-key").json()["key"]
+    with TestClient(app) as cl2:
+        r = cl2.post("/api/public/site/media", files=[("files", ("clinic-1.webp", data, "image/webp"))], headers={"x-upload-key": key})
+        assert r.json()["ok"] == ["clinic-1.webp"] and r.headers["access-control-allow-origin"] == "*"
+        assert cl2.post("/api/public/site/media", files=[("files", ("clinic-1.webp", data, "image/webp"))], headers={"x-upload-key": "bad"}).status_code == 403

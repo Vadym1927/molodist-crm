@@ -35,6 +35,8 @@ DEFAULT = {
     "maps": "https://www.google.com/maps/search/?api=1&query=MOLODIST+%D0%9A%D0%BD%D1%8F%D0%B7%D1%8F+%D0%A0%D0%BE%D0%BC%D0%B0%D0%BD%D0%B0+%D0%9C%D1%81%D1%82%D0%B8%D1%81%D0%BB%D0%B0%D0%B2%D0%B8%D1%87%D0%B0+28%D0%90",
     "hours": "Вт–Сб, 10:00–20:00",
     "license": "Ліцензія МОЗ України, наказ №1769 від 17.10.2024",
+    "upload_key": "",                                 # тимчасовий ключ: завантаження фото з інших сервісів (2 год)
+    "upload_until": 0,
 }
 
 # ---------- лікарі: картка з CRM (Doctor: посада, фото, біо), тут — запасний текст ----------
@@ -355,6 +357,20 @@ def media_save(name: str, data: bytes) -> str:
         raise ValueError("Це не зображення jpg / png / webp")
     (media_dir() / n).write_bytes(data)
     return n
+
+
+def upload_key(db: Session) -> str:
+    import secrets as _s
+    c = cfg(db)
+    c["upload_key"], c["upload_until"] = _s.token_urlsafe(24), int(time.time()) + 7200
+    save_cfg(db, c)
+    return c["upload_key"]
+
+
+def upload_ok(db: Session, key: str) -> bool:
+    import hmac as _h
+    c = cfg(db)
+    return bool(key and c.get("upload_key")) and time.time() < float(c.get("upload_until") or 0) and _h.compare_digest(key, c["upload_key"])
 
 
 def media_list() -> list[dict]:

@@ -7796,6 +7796,35 @@ async def settings_site_media(request: Request, files: list[UploadFile] = File(.
     return RedirectResponse(_with_msg("/settings/site", f"Завантажено: {len(ok)}" + (f" · помилки: {'; '.join(err)}" if err else ""), bool(err)) + "#media", 303)
 
 
+@app.post("/settings/site/upload-key")
+def settings_site_upload_key(user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    """Тимчасовий ключ (2 год) — завантажити фото на сайт прямо з хмарного сховища / іншого сервісу."""
+    from .services import site_pages as sp
+    audit(db, "site.upload_key", user=user)
+    return {"key": sp.upload_key(db), "url": "/api/public/site/media"}
+
+
+@app.options("/api/public/site/media")
+def site_media_ext_options():
+    return Response(status_code=204, headers={**_LEAD_CORS, "Access-Control-Allow-Headers": "Content-Type, X-Upload-Key"})
+
+
+@app.post("/api/public/site/media")
+async def site_media_ext(request: Request, files: list[UploadFile] = File(...), db: Session = Depends(db_dep)):
+    from .services import site_pages as sp
+    h = {**_LEAD_CORS, "Access-Control-Allow-Headers": "Content-Type, X-Upload-Key"}
+    if not sp.upload_ok(db, request.headers.get("x-upload-key", "")):
+        return JSONResponse({"error": "key"}, status_code=403, headers=h)
+    ok, err = [], []
+    for f in files[:30]:
+        try:
+            ok.append(sp.media_save(f.filename or "", await f.read()))
+        except ValueError as e:
+            err.append(f"{f.filename}: {e}")
+    audit(db, "site.media", user=None, files=ok, via="upload_key")
+    return JSONResponse({"ok": ok, "errors": err}, headers=h)
+
+
 @app.get("/_site/{slug}", response_class=HTMLResponse)
 def site_page(request: Request, slug: str, db: Session = Depends(db_dep)):
     from .services import site_pages as sp
