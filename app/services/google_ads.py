@@ -690,10 +690,12 @@ function createCampaign(c, r) {
     if (g.path1) rsa.path1 = g.path1; if (g.path2) rsa.path2 = g.path2;
     ops.push({ adGroupAdOperation: { create: { adGroup: ag, status: 'ENABLED', ad: { finalUrls: [g.final_url], responsiveSearchAd: rsa } } } });
   });
-  var res = AdsApp.mutateAll(ops, { partialFailure: false }), errs = [];
-  for (var i = 0; i < res.length; i++) if (!res[i].isSuccessful()) errs = errs.concat(res[i].getErrorMessages());
-  r.ok = errs.length === 0;
-  r.note = r.ok ? ('створено на паузі: груп ' + (c.groups || []).length + ', операцій ' + ops.length + ', скопійовано налаштувань ' + copied) : errs.slice(0, 3).join('; ').substring(0, 300);
+  var res = AdsApp.mutateAll(ops, { partialFailure: true }), errs = [], bad = 0;
+  for (var i = 0; i < res.length; i++) if (!res[i].isSuccessful()) { bad++; errs = errs.concat(res[i].getErrorMessages()); }
+  r.ok = res.length > 1 && res[0].isSuccessful() && res[1].isSuccessful();      // бюджет і кампанія створені; окремі ключі можуть не пройти модерацію
+  r.note = (r.ok ? 'створено на паузі: груп ' + (c.groups || []).length + ', операцій ' + (ops.length - bad) + ' з ' + ops.length + ', скопійовано налаштувань ' + copied
+    : 'не створено') + (errs.length ? '; помилки (' + bad + '): ' + errs.slice(0, 3).join('; ') : '');
+  r.note = r.note.substring(0, 300);
   return r;
 }
 
