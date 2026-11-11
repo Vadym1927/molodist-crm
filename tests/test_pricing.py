@@ -23,6 +23,7 @@ def test_pricing_flow(monkeypatch):
             rt = pr.rates(db)
             assert rt["EUR"] == 47.9 and rt["source"] == "НБУ" and rt["round"] == 10
         page = c.get("/finance/pricing?brand=MediK8").text
+        assert "Закупівля в програмі зараз" in page
         assert "Medik8 C-Tetra" in page and "Ціна при маржі 47%" in page and "Рекомендована ціна продажу" in page
         r = c.post("/finance/pricing", data={"pid": [str(pid)], f"cur_{pid}": "EUR", f"cfx_{pid}": "25", f"rrp_{pid}": "60",
                                              f"plan_{pid}": "2900"}, follow_redirects=False)

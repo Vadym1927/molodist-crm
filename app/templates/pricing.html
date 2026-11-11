@@ -89,7 +89,7 @@ table.pt{border-collapse:separate;border-spacing:0;font-size:13px;min-width:1900
 <form method="post" action="/finance/pricing" id="pf">
 <input type="hidden" name="back" value="{{ request.url.path }}?{{ request.url.query }}">
 <div class="pwrap"><table class="pt"><thead><tr>
-  <th class="nm">Товар</th><th>Валюта</th><th>Закупівля у валюті</th><th>Закупівля, грн</th><th>РРЦ постачальника (вал.)</th>
+  <th class="nm">Товар</th><th>Валюта</th><th>Закупівля у валюті</th><th>Закупівля, грн</th><th title="Собівартість товару в CRM зараз (середня ціна закупівлі)">Закупівля в програмі зараз</th><th>РРЦ постачальника (вал.)</th>
   <th>Ціна в програмі зараз</th><th>Валовий прибуток, грн</th><th title="(ціна в програмі − закупівля) / ціна в програмі">Маржа, % (від ціни в програмі)</th>
   <th class="g" title="РРЦ постачальника × курс">Ціна продажу при курсі (РРЦ)</th><th class="g" title="(РРЦ × курс − закупівля) / (РРЦ × курс)">Маржа при РРЦ</th>
   {% for m in MARGINS %}<th>Ціна при маржі {{ m }}%</th>{% endfor %}
@@ -103,6 +103,7 @@ table.pt{border-collapse:separate;border-spacing:0;font-size:13px;min-width:1900
     <td class="r"><input name="cfx_{{ p.id }}" class="cfx" value="{{ '%g'|format(p.cost_fx) if p.cost_fx else '' }}" inputmode="decimal" placeholder="—">
       {% if pl %}<div class="meta" title="Прайс {{ pl.file }}">прайс {{ pl.date|dt('%d.%m') }}: <b class="{{ 'neg' if p.cost_fx and pl.cost > p.cost_fx + 0.005 else ('pos' if p.cost_fx and pl.cost < p.cost_fx - 0.005 else '') }}">{{ '%g'|format(pl.cost) }} {{ pl.cur }}</b></div>{% endif %}</td>
     <td class="r c-cost"></td>
+    <td class="r c-crm">{{ x.cost_uah_crm|uah if x.cost_uah_crm else '—' }}</td>
     <td class="r"><input name="rrp_{{ p.id }}" class="rrp" value="{{ '%g'|format(p.rrp_fx) if p.rrp_fx else '' }}" inputmode="decimal" placeholder="—">
       {% if pl and pl.rrp %}<div class="meta">прайс: <b>{{ '%g'|format(pl.rrp) }} {{ pl.cur }}</b></div>{% endif %}</td>
     <td class="r"><span class="pnow">{{ x.price_now|uah if x.price_now else '—' }}</span>{% if p.price_set_at %}<div class="meta" title="Задано в CRM {{ p.price_set_at|dt('%d.%m.%Y %H:%M') }}">CRM</div>{% endif %}
@@ -118,7 +119,7 @@ table.pt{border-collapse:separate;border-spacing:0;font-size:13px;min-width:1900
 </tbody></table></div>
 <div class="savebar"><span id="dirtyn">Змін немає</span><button class="btn">Зберегти зміни</button></div>
 </form>
-<p class="muted small" style="margin-top:12px">Закупівля, грн = закупівля у валюті × курс (курс постачальника з його картки, інакше загальний; якщо валютної ціни немає — остання закупівля з CRM).
+<p class="muted small" style="margin-top:12px">Закупівля, грн = закупівля у валюті × курс (курс постачальника з його картки, інакше загальний; якщо валютної ціни немає — остання закупівля з CRM). «Закупівля в програмі зараз» — собівартість товару в CRM (середня ціна закупівлі); під нею — на скільки нова закупівля за курсом дорожча (червоне) чи дешевша (зелене).
   «Маржа, %» (після ціни в програмі) = (ціна в програмі − закупівля) / ціна в програмі. «Маржа при курсі» = (РРЦ постачальника × курс − закупівля) / (РРЦ × курс) — що дає постачальник, якщо продавати за його РРЦ.
   Під полями «Закупівля у валюті» і «РРЦ» — значення з останнього прайсу постачальника (червоне — дорожче за поточне, зелене — дешевше). Маржа = (ціна − закупівля) / ціна. Націнка = (ціна − закупівля) / закупівля.
   «Ціна при маржі X%» = закупівля / (1 − X%). Рекомендована ціна — ваше рішення; ціну в CleverBox змінюєте за вивантаженням Excel.</p>
@@ -140,6 +141,8 @@ function calc(tr){
   tr._cost=cost; tr._at=at; tr._now=now;
   const own = cur!=='UAH' && num(tr.dataset['fx'+(cur==='USD'?'Usd':'Eur')]);
   tr.querySelector('.c-cost').innerHTML = cost==null?'—':money(cost)+(cfx==null&&cost!=null?'<div class="meta">з CRM</div>':(own?'<div class="meta" title="курс постачальника">курс пост. '+own+'</div>':''));
+  const crm=num(tr.dataset.crm), cc=tr.querySelector('.c-crm');
+  if(cc) cc.innerHTML = crm==null?'—':money(crm)+((cfx!=null&&cost!=null&&Math.abs(cost-crm)>=1)?'<div class="meta '+(cost>crm?'neg':'pos')+'" title="Різниця з закупівлею за ціною у валюті">'+(cost>crm?'+':'')+money(cost-crm)+' до нової</div>':'');
   tr.querySelector('.c-gp').innerHTML = (now&&cost!=null)?money(now-cost):'—';
   tr.querySelector('.c-m').innerHTML = pct(margin(now,cost));
   tr.querySelector('.c-at').innerHTML = money(at);
