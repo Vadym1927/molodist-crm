@@ -5712,13 +5712,7 @@ async def meta_webhook(request: Request, db: Session = Depends(db_dep)):
         db.rollback()
         mi.hook_log(db, "error", f"Помилка обробки: {type(e).__name__}")
         n = 0
-    if n:
-        try:
-            from .services import alerts as _al
-            _al.send(f"💬 Нове повідомлення в Instagram / Facebook ({n}) — {settings.public_url.rstrip('/')}/chats")
-        except Exception:  # noqa: BLE001
-            pass
-    return {"ok": True}
+    return {"ok": True}                  # власнику в Telegram про нові повідомлення не пишемо — вони в «Центрі спілкування»
 
 
 @app.post("/api/public/viber/webhook/{hook}")
@@ -5740,12 +5734,6 @@ async def viber_webhook(hook: str, request: Request, db: Session = Depends(db_de
         logging.getLogger("viber_bot").exception("webhook")
         db.rollback()
         vb.log_event(db, "error", type(e).__name__)
-    if m:
-        try:
-            from .services import alerts as _al
-            _al.send(f"💬 Нове повідомлення у Viber — {settings.public_url.rstrip('/')}/chats")
-        except Exception:  # noqa: BLE001
-            pass
     return {"status": 0}
 
 
