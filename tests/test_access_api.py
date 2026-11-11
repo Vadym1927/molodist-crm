@@ -93,3 +93,19 @@ def test_roles_and_api(client):
     k = c.get("/api/v1/kpi", headers=h).json()
     assert k["total"]["plans"] == 2 and len(k["by_doctor"]) == 2
     assert c.get("/api/docs").status_code in (303, 200)     # без сесії — редірект на вхід
+
+
+def test_schedule_page_with_schedule_perm_only():
+    """Роль без «Команда», але з «Змінювати графік» — відкриває графік роботи."""
+    from app.services import roles as rl
+    from app.models import User as _U
+    with SessionLocal() as db:
+        rl.save_role(db, None, "Графік-тест", ["schedule", "appeals"])
+        key = next(r["key"] for r in rl.roles(db) if r["name"] == "Графік-тест")
+        if not db.query(_U).filter_by(login="sched_t").first():
+            db.add(_U(login="sched_t", name="Графік Тест", role=key, password_hash=hash_password("sched-pass-1"), active=True))
+        db.commit()
+    with TestClient(app) as c:
+        c.post("/login", data={"login": "sched_t", "password": "sched-pass-1"})
+        assert c.get("/specialists/schedule").status_code == 200
+        assert c.get("/specialists").status_code in (403, 303)

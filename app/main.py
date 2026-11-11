@@ -11880,7 +11880,7 @@ def _places(db: Session) -> list[str]:
 
 
 @app.get("/specialists/schedule", response_class=HTMLResponse)
-def schedule_page(request: Request, m: str = "", doc: int = 0, user: User = Depends(require("specialists")),
+def schedule_page(request: Request, m: str = "", doc: int = 0, user: User = Depends(require("specialists|schedule")),
                   db: Session = Depends(db_dep)):
     """Графік співробітників на місяць (як у CleverBox): зміни, неробочі дні з причиною, записи по днях."""
     from .services import schedule as sch, clinic as _cl, calendar as _cal
