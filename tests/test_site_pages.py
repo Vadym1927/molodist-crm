@@ -83,13 +83,13 @@ def test_media_upload_and_page_images():
             or "login" in cl.post("/settings/site/media", files=[("files", ("laser-hero.webp", data, "image/webp"))]).url.path
         cl.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
         r = cl.post("/settings/site/media", files=[("files", ("laser-hero.webp", data, "image/webp")), ("files", ("x.svg", b"<svg/>", "image/svg+xml")),
-                                                   ("files", ("doc-kelner.webp", data, "image/webp"))], headers={"accept": "application/json"})
-        assert r.json()["ok"] == ["laser-hero.webp", "doc-kelner.webp"] and r.json()["errors"]
+                                                   ("files", ("doc-syrova.webp", data, "image/webp"))], headers={"accept": "application/json"})
+        assert r.json()["ok"] == ["laser-hero.webp", "doc-syrova.webp"] and r.json()["errors"]
         assert cl.get("/_site/media/laser-hero.webp").content == data
         assert cl.get("/_site/media/..%2F..%2Fetc%2Fpasswd").status_code == 404
         page = cl.get("/_site/laserepilation").text
         assert 'class="hero-ph" src="/_site/media/laser-hero.webp?v=' in page
-        assert "/_site/media/doc-kelner.webp" in cl.get("/_site/vydalennia-rodymok").text
+        assert "/_site/media/doc-syrova.webp" in cl.get("/_site/vydalennia-rodymok").text
         assert "laser-hero.webp" in cl.get("/settings/site").text
 
 
