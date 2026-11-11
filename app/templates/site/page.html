@@ -1,4 +1,5 @@
 {% extends "site/base.html" %}
+{% from "site/_icons.html" import icon %}
 {% macro form(id, btn='Записатися', dark=False) %}
 <form class="lead {{ 'dark' if dark }}" data-lead="{{ id }}" novalidate>
   <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
@@ -78,7 +79,8 @@
 
 <section class="sec cta" id="zapys"><div class="wrap cta-in">
   <div><h2>{{ p.cta.title }}</h2><p class="big">{{ p.cta.text }}</p>
-    <p class="alt">Або напишіть: <a href="{{ c.telegram }}" target="_blank" rel="noopener">Telegram</a> · <a href="{{ viber }}">Viber</a> · <a href="tel:{{ c.phone }}">{{ c.phone_text }}</a></p></div>
+    <p class="alt">Або звʼяжіться напряму:</p>
+    <p class="ico-row"><a class="ico" href="tel:{{ c.phone }}" aria-label="Подзвонити" title="Подзвонити">{{ icon('phone') }}</a><a class="ico" href="{{ c.telegram }}" target="_blank" rel="noopener" aria-label="Telegram" title="Telegram">{{ icon('telegram') }}</a><a class="ico" href="{{ viber }}" aria-label="Viber" title="Viber">{{ icon('viber') }}</a></p></div>
   {{ form('bottom', 'Записатися', True) }}
 </div></section>
 

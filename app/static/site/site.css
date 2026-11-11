@@ -109,3 +109,10 @@ p{margin:0 0 1em}.muted{color:var(--mut)}.small{font-size:13px}.big{font-size:18
 
 .logo .wm{height:18px;width:auto;display:block}
 .ft .logo .wm{height:20px;margin-bottom:14px}
+
+/* іконки звʼязку */
+.ico-row{display:flex;gap:12px;margin:0 0 12px}
+.ico{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;border:1px solid rgba(255,255,255,.35);color:#fff;transition:background .2s,color .2s}
+.ico:hover{background:#fff;color:var(--plum)}.ico svg{width:22px;height:22px}
+.bar{grid-template-columns:1fr 1fr 1fr 2fr}.bar a{display:grid;place-items:center}.bar a svg{width:24px;height:24px;color:var(--plum)}
+.bar a.go{font-size:13px}
