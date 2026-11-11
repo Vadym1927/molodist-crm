@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Сайт клініки{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+<style>.gs{background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:16px 18px;margin-bottom:14px}.gs h2{margin:0 0 8px}.gs ol{margin:6px 0 0 18px;padding:0;line-height:1.7}
+.gs .row2{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.gs label{display:grid;gap:4px;font-size:12px;color:#6b6575}.gs input{height:40px;margin:0}
+.mini{font-size:12px;color:#6b6575}code.h{display:inline-block;background:#F7F4F0;border-radius:8px;padding:2px 8px;font-size:12px;word-break:break-all}
+.sp-t{width:100%;border-collapse:collapse;font-size:13px}.sp-t td,.sp-t th{padding:6px 8px;border-top:1px solid #F0ECE6;text-align:left}.sp-t .r{text-align:right;white-space:nowrap}
+.sp-t th{font-size:11px;color:#6b6575;text-transform:uppercase;letter-spacing:.06em}.warn{color:#9a5b00}
+@media(max-width:900px){.gs .row2{grid-template-columns:1fr}}</style>
+<h1>Сайт клініки</h1>
+<p class="muted">Сторінки напрямків працюють на нашому сервері, а не на Tilda. Ціни беруться з <a href="/services">прайсу CRM</a>: змінили ціну або приховали послугу — сайт оновиться сам. Заявки з форм потрапляють у <a href="/appeals">Звернення</a> з мітками реклами.</p>
+{% if qp.get('msg') %}<div class="alert ok">{{ qp.get('msg') }}</div>{% endif %}
+
+<div class="gs"><h2>Сторінки</h2>
+  <table class="sp-t"><thead><tr><th>Сторінка</th><th>Перегляд у CRM</th><th>На сайті</th><th class="r">Позицій у прайсі</th><th>Перевірка</th></tr></thead><tbody>
+  {% for x in pages %}<tr><td><b>{{ x.p.nav }}</b><div class="mini">{{ x.p.title }}</div></td>
+    <td><a href="/_site/{{ x.slug }}" target="_blank">/_site/{{ x.slug }}</a></td>
+    <td><code class="h">{{ c.canonical.rstrip('/') }}/{{ x.slug }}</code></td>
+    <td class="r">{{ x.groups|sum(attribute='rows', start=[])|length }}</td>
+    <td>{% if x.missing %}<span class="warn">⚠ не показано {{ x.missing|length }}: {% for i in x.missing %}<a href="/services/{{ i }}">#{{ i }}</a>{{ ', ' if not loop.last }}{% endfor %}</span> <span class="mini">(немає в прайсі, приховано або без ціни)</span>{% else %}✅{% endif %}</td></tr>{% endfor %}
+  </tbody></table>
+</div>
+
+{% for x in pages %}<details class="gs"><summary><b>Ціни на сторінці «{{ x.p.nav }}»</b> <span class="mini">— звідки береться кожен рядок</span></summary>
+  <table class="sp-t" style="margin-top:8px"><thead><tr><th>На сайті</th><th>Послуга в CRM</th><th class="r">Ціна на сайті</th></tr></thead><tbody>
+  {% for g in x.groups %}<tr><td colspan="3" style="background:#FBFAF8"><b>{{ g.title }}</b></td></tr>
+    {% for r in g.rows %}<tr><td>{{ r.name }}</td><td><a href="/services/{{ r.id }}">{{ svc[r.id].name }}</a></td>
+      <td class="r">{% if r.old %}<s class="mini">{{ money(r.old) }}</s> {% endif %}{{ money(r.price) }}</td></tr>{% endfor %}{% endfor %}
+  </tbody></table></details>{% endfor %}
+
+<form method="post" action="/settings/site">
+<div class="gs"><h2>Налаштування</h2>
+  <div class="row2">
+    <label>Домени сайту (через кому)<input name="hosts" value="{{ c.hosts|join(', ') }}"><span class="mini">На цих доменах відкривається сайт, CRM там недоступна</span></label>
+    <label>Основна адреса (canonical, sitemap)<input name="canonical" value="{{ c.canonical }}"></label>
+    <label>Головна сторінка (поки Tilda)<input name="main_url" value="{{ c.main_url }}"></label>
+    <label>Google Tag Manager ID<input name="gtm_id" value="{{ c.gtm_id }}"><span class="mini">GA4 і конверсії Google Ads</span></label>
+    <label>Телефон (для дзвінка)<input name="phone" value="{{ c.phone }}"></label>
+    <label>Телефон (як показувати)<input name="phone_text" value="{{ c.phone_text }}"></label>
+    <label>Telegram<input name="telegram" value="{{ c.telegram }}"></label>
+    <label>Viber<input name="viber" value="{{ c.viber }}" placeholder="порожньо — Viber-бот з «Канали», інакше чат за номером"></label>
+    <label>Instagram<input name="instagram" value="{{ c.instagram }}"></label>
+    <label>Email<input name="email" value="{{ c.email }}"></label>
+    <label>Адреса<input name="address" value="{{ c.address }}"></label>
+    <label>Години роботи<input name="hours" value="{{ c.hours }}"></label>
+    <label>Ліцензія<input name="license" value="{{ c.license }}"></label>
+    <label>Посилання на карту<input name="maps" value="{{ c.maps }}"></label>
+  </div>
+  <button class="btn" style="margin-top:10px">Зберегти</button>
+</div></form>
+
+<div class="gs"><h2>Як запустити домен {{ c.hosts[0] if c.hosts else 'new.molodist.com.ua' }}</h2>
+  <ol>
+    <li><b>DNS</b>: у панелі, де керуєте molodist.com.ua, додайте A-запис <code class="h">{{ (c.hosts[0] if c.hosts else 'new.molodist.com.ua').split('.')[0] }}</code> → IP нашого VPS (той самий, що в crm.molodist.com.ua).</li>
+    <li><b>Nginx на VPS</b> (робить адміністратор сервера / агент OpenClaw): новий server-блок для домену з <code class="h">proxy_pass http://127.0.0.1:8010;</code>
+      і <code class="h">proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr;</code>, потім <code class="h">certbot --nginx -d {{ c.hosts[0] if c.hosts else 'new.molodist.com.ua' }}</code>.</li>
+    <li>Відкрийте домен — має зʼявитися сторінка напрямків. Тоді в Tilda на старих сторінках ставимо переадресацію на нові.</li>
+    <li>Tag Manager: замініть код тегу «MOLODIST CRM v2» на свіжий з <a href="/settings/google-ads#forms">Налаштування → Google Ads</a> і опублікуйте.
+      Новий тег пропускає сторінки на VPS (їхні форми й кліки CRM приймає напряму), інакше заявка прийде двічі (друга — коментарем у тому ж зверненні).</li>
+  </ol>
+</div>
+{% endblock %}

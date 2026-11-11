@@ -1,0 +1,86 @@
+{% extends "site/base.html" %}
+{% macro form(id, btn='Записатися', dark=False) %}
+<form class="lead {{ 'dark' if dark }}" data-lead="{{ id }}" novalidate>
+  <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+  <label><span>Імʼя</span><input name="name" autocomplete="given-name" placeholder="Як до вас звертатися"></label>
+  <label><span>Телефон</span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+380" required></label>
+  <button class="btn">{{ btn }}</button>
+  <p class="ok" hidden>Дякуємо! Адміністратор передзвонить вам найближчим часом.</p>
+  <p class="err" hidden></p>
+  <p class="fine">Натискаючи кнопку, ви погоджуєтеся на обробку персональних даних.</p>
+</form>
+{% endmacro %}
+{% block main %}
+<section class="hero"><div class="wrap hero-in">
+  <div class="hero-tx">
+    <p class="eyebrow">{{ p.eyebrow }}</p>
+    <h1>{{ p.h1 }}</h1>
+    <p class="lead-tx">{{ p.lead }}</p>
+    <ul class="ticks">{% for t in p.hero_points %}<li>{{ t }}</li>{% endfor %}</ul>
+    {% if promo %}<p class="promo">{{ promo.text }} · до {{ promo.until[8:10] }}.{{ promo.until[5:7] }}</p>{% endif %}
+  </div>
+  <div class="hero-card" id="zapys-top">
+    {% if hp %}<p class="hc-l">{{ hp.label }}</p><p class="hc-t">{% if hp.old %}<s>{{ money(hp.old) }}</s> {% endif %}<b>{{ money(hp.price) }}</b></p>
+    {% else %}<p class="hc-t">{% if lo %}Від <b>{{ money(lo) }}</b>{% else %}Консультація лікаря{% endif %}</p>{% endif %}
+    <p class="hc-s">Залиште номер — підберемо час і відповімо на запитання</p>
+    {{ form('hero') }}
+  </div>
+</div></section>
+
+<section class="sec pains"><div class="wrap">
+  <h2>{{ p.pains.title }}</h2>
+  <ul class="pain-list">{% for t in p.pains['items'] %}<li>{{ t }}</li>{% endfor %}</ul>
+</div></section>
+
+<section class="sec sol"><div class="wrap sol-in">
+  <div><h2>{{ p.solution.title }}</h2><p class="big">{{ p.solution.text }}</p></div>
+  <div class="cards3">{% for t, d in p.solution.points %}<div class="card"><h3>{{ t }}</h3><p>{{ d }}</p></div>{% endfor %}</div>
+</div></section>
+
+<section class="sec why"><div class="wrap">
+  <h2>Чому MOLODIST</h2>
+  <div class="grid4">{% for t, d in p.why %}<div class="why-i"><span class="n">0{{ loop.index }}</span><h3>{{ t }}</h3><p>{{ d }}</p></div>{% endfor %}</div>
+</div></section>
+
+<section class="sec steps"><div class="wrap">
+  <h2>Як це відбувається</h2>
+  <ol class="step-list">{% for t, d in p.steps %}<li><h3>{{ t }}</h3><p>{{ d }}</p></li>{% endfor %}</ol>
+</div></section>
+
+{% if groups %}<section class="sec prices" id="ciny"><div class="wrap">
+  <h2>Ціни</h2>
+  {% if promo %}<p class="promo">{{ promo.text }} — до {{ promo.until[8:10] }}.{{ promo.until[5:7] }}.{{ promo.until[:4] }}</p>{% endif %}
+  {% for g in groups %}<details class="pg" {{ 'open' if loop.first }}>
+    <summary><span>{{ g.title }}</span><small>{{ g.rows|length }} {{ 'позиція' if g.rows|length == 1 else ('позиції' if g.rows|length < 5 else 'позицій') }}</small></summary>
+    {% if g.note %}<p class="muted small">{{ g.note }}</p>{% endif %}
+    <ul class="plist">{% for r in g.rows %}<li><span class="pn">{{ r.name }}{% if r.note %}<small>{{ r.note }}</small>{% endif %}</span>
+      <span class="pp">{% if r.old %}<s>{{ money(r.old) }}</s> {% endif %}<b>{{ money(r.price) }}</b></span></li>{% endfor %}</ul>
+  </details>{% endfor %}
+  {% if p.price_note %}<p class="muted small">{{ p.price_note }}</p>{% endif %}
+  <p class="muted small">Ціни актуальні на {{ today }} і оновлюються автоматично з прайсу клініки.</p>
+</div></section>{% endif %}
+
+{% if docs %}<section class="sec docs"><div class="wrap">
+  <h2>Лікарі</h2>{% if p.doctor_note %}<p class="muted">{{ p.doctor_note }}</p>{% endif %}
+  <div class="doc-grid">{% for d in docs %}<article class="doc">
+    <div class="ph">{% if d.photo %}<img src="{{ d.photo }}" alt="{{ d.name }}" loading="lazy">{% else %}<span>{{ d.initials }}</span>{% endif %}</div>
+    <h3>{{ d.name }}</h3><p class="role">{{ d.role }}</p><p>{{ d.bio }}</p>
+    <a class="link" href="#zapys" data-doc="{{ d.name }}">Записатися до лікаря →</a></article>{% endfor %}</div>
+</div></section>{% endif %}
+
+<section class="sec faq"><div class="wrap faq-in">
+  <h2>Часті запитання</h2>
+  <div>{% for q, a in p.faq %}<details class="qa"><summary>{{ q }}</summary><p>{{ a }}</p></details>{% endfor %}</div>
+</div></section>
+
+<section class="sec cta" id="zapys"><div class="wrap cta-in">
+  <div><h2>{{ p.cta.title }}</h2><p class="big">{{ p.cta.text }}</p>
+    <p class="alt">Або напишіть: <a href="{{ c.telegram }}" target="_blank" rel="noopener">Telegram</a> · <a href="{{ viber }}">Viber</a> · <a href="tel:{{ c.phone }}">{{ c.phone_text }}</a></p></div>
+  {{ form('bottom', 'Записатися', True) }}
+</div></section>
+
+{% set rel = order|reject('equalto', slug)|list %}
+<section class="sec rel"><div class="wrap"><h2>Інші напрямки</h2>
+  <div class="rel-g">{% for s in rel %}<a class="rel-i" href="{{ base }}/{{ s }}"><span>{{ pages[s].nav }}</span><small>{{ pages[s].lead[:110] }}…</small></a>{% endfor %}</div>
+</div></section>
+{% endblock %}

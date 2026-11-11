@@ -1,0 +1,15 @@
+{% extends "site/base.html" %}
+{% block main %}
+<section class="hero"><div class="wrap">
+  <p class="eyebrow">Медичний простір · Київ</p>
+  <h1>Естетична медицина під контролем лікаря</h1>
+  <p class="lead-tx">Оберіть напрямок — на кожній сторінці актуальні ціни, лікарі та запис.</p>
+</div></section>
+<section class="sec"><div class="wrap"><div class="rel-g">{% for s in order %}<a class="rel-i" href="{{ base }}/{{ s }}"><span>{{ pages[s].nav }}</span><small>{{ pages[s].lead }}</small></a>{% endfor %}</div>
+<p style="margin-top:28px"><a class="link" href="{{ c.main_url }}">Усі послуги клініки →</a></p></div></section>
+<section class="sec cta" id="zapys"><div class="wrap cta-in"><div><h2>Не знаєте, з чого почати?</h2><p class="big">Залиште номер — адміністратор підкаже лікаря й формат консультації.</p></div>
+<form class="lead dark" data-lead="home" novalidate><input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+<label><span>Імʼя</span><input name="name" autocomplete="given-name"></label><label><span>Телефон</span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+380" required></label>
+<button class="btn">Записатися</button><p class="ok" hidden>Дякуємо! Адміністратор передзвонить вам найближчим часом.</p><p class="err" hidden></p>
+<p class="fine">Натискаючи кнопку, ви погоджуєтеся на обробку персональних даних.</p></form></div></section>
+{% endblock %}

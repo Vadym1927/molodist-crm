@@ -6,6 +6,7 @@ import hmac
 from collections import defaultdict
 import json
 import re
+import time
 import logging
 import mimetypes
 import shutil
@@ -650,6 +651,29 @@ app.add_middleware(_BankFees)
 app.add_middleware(_DropEmptyQuery)
 app.add_middleware(SessionMiddleware, secret_key=settings.secret_key, max_age=60 * 60 * 24 * 14,
                    https_only=settings.public_url.startswith("https"))
+
+
+class _SiteHost:
+    """Домен сайту клініки (Налаштування → Сайт): усі запити → /_site/…, CRM на цьому домені недоступна."""
+    def __init__(self, app_):
+        self.app = app_
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            host = ""
+            for k, v in scope.get("headers") or []:
+                if k == b"host":
+                    host = v.decode("latin-1").split(":")[0].lower()
+                    break
+            from .services import site_pages as _sp
+            if host and host in _sp.hosts() and not scope["path"].startswith(("/static/", "/_site")):
+                p = "/_site" + (scope["path"] if scope["path"] != "/" else "/")
+                scope = dict(scope, path=p, raw_path=p.encode())
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(_SiteHost)
+
 app.include_router(api_module.router)
 from fastapi.staticfiles import StaticFiles   # noqa: E402
 app.mount("/static", StaticFiles(directory=str(BASE / "static")), name="static")
@@ -6824,6 +6848,7 @@ SETTINGS_BLOCKS = [
         ('Повідомлення пацієнтам · в розробці', 'Зараз нічого не надсилається пацієнтам. Розсилки й нагадування CRM; автоповідомлення — у CleverBox', '/campaigns', 'campaigns', 'messages'),
         ('IP-телефонія', 'Binotel, Stream Telecom, Ringostat: дзвінки → звернення', '/settings/telephony', 'users', 'cmarket/siphone/main'),
         ('Google Ads', 'Реклама: статистика кабінету, ліди з колтрекінгу, окупність, баланс', '/settings/google-ads', 'users', ''),
+        ('Сайт клініки', 'Сторінки напрямків на власному сервері (замість Tilda): ціни з прайсу CRM, заявки й кліки з реклами → звернення', '/settings/site', 'users', ''),
     ]),
     ('Звернення', 'inbox', 'Довідники для заявок і дзвінків', [
         ('Джерела звернень', None, '/settings/appeals?open=sources', 'users', 'dirs/appeal_type'),
@@ -7652,6 +7677,140 @@ async def settings_telephony_staff(request: Request, user: User = Depends(requir
 
 
 # ---------------- Google Ads: центр моніторингу ----------------
+# ---------------- сайт клініки на VPS (замість Tilda): сторінки напрямків, ціни з CRM ----------------
+_SITE_RATE: dict = {}
+
+
+def _site_ctx(request: Request, db: Session, slug: str = "") -> dict:
+    from .services import site_pages as sp
+    c = sp.cfg(db)
+    host = (request.headers.get("host") or "").split(":")[0].lower()
+    on_site = host in sp.hosts()
+    return {"request": request, "c": c, "pages": sp.PAGES, "order": sp.ORDER, "slug": slug, "money": sp.money,
+            "base": "" if on_site else "/_site", "noindex": not on_site, "viber": sp.viber_link(db, c),
+            "canonical": c["canonical"].rstrip("/") + (f"/{slug}" if slug else "/"), "year": date.today().year,
+            "today": date.today().strftime("%d.%m.%Y"), "ver": str(APP_VERSION)[:8],
+            "privacy": settings.public_url.rstrip("/") + "/privacy", "interest": ""}
+
+
+def _site_resp(name: str, ctx: dict, status: int = 200):
+    r = templates.TemplateResponse(ctx["request"], name, ctx, status_code=status)
+    r.headers["Cache-Control"] = "public, max-age=300"
+    if ctx["noindex"]:
+        r.headers["X-Robots-Tag"] = "noindex, nofollow"
+    return r
+
+
+@app.get("/_site/", response_class=HTMLResponse)
+@app.get("/_site", response_class=HTMLResponse, include_in_schema=False)
+def site_home(request: Request, db: Session = Depends(db_dep)):
+    ctx = _site_ctx(request, db)
+    ctx.update(title="MOLODIST — медичний простір естетичної медицини в Києві",
+               desc="Лазерна епіляція, видалення новоутворень, інʼєкційна косметологія й BEAUTY PLAN під контролем лікаря. Ціни й запис онлайн.",
+               jsonld="")
+    return _site_resp("site/home.html", ctx)
+
+
+@app.get("/_site/robots.txt")
+def site_robots(request: Request, db: Session = Depends(db_dep)):
+    from .services import site_pages as sp
+    c = sp.cfg(db)
+    return Response(f"User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: {c['canonical'].rstrip('/')}/sitemap.xml\n", media_type="text/plain")
+
+
+@app.get("/_site/sitemap.xml")
+def site_sitemap(request: Request, db: Session = Depends(db_dep)):
+    from .services import site_pages as sp
+    b = sp.cfg(db)["canonical"].rstrip("/")
+    urls = "".join(f"<url><loc>{b}/{s_}</loc><lastmod>{date.today().isoformat()}</lastmod></url>" for s_ in sp.ORDER)
+    return Response(f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>',
+                    media_type="application/xml")
+
+
+@app.post("/_site/api/lead")
+async def site_api_lead(request: Request, db: Session = Depends(db_dep)):
+    """Форма сайту → звернення (з мітками реклами). Захист: приховане поле, мінімальний час на сторінці, ліміт з однієї IP."""
+    from .services import site_leads as sl
+    raw = await request.body()
+    if len(raw) > 16_000:
+        raise HTTPException(413)
+    d = sl.parse_body(raw, request.headers.get("content-type", ""))
+    ip = request.headers.get("x-real-ip") or (request.client.host if request.client else "")
+    now_ = time.time()
+    hits = [t for t in _SITE_RATE.get(ip, []) if now_ - t < 600]
+    bot = bool(str(d.pop("website", "") or "").strip()) or (str(d.get("t", "")).isdigit() and int(d["t"]) < 2) or len(hits) >= 6
+    d.pop("t", None)
+    _SITE_RATE[ip] = hits + [now_]
+    digits = re.sub(r"\D", "", str(d.get("phone") or ""))
+    if bot:
+        return {"ok": True}
+    if len(digits) < 10:
+        return JSONResponse({"ok": False, "error": "phone"}, status_code=400)
+    if not d.get("doctor"):
+        d.pop("doctor", None)
+    r = await asyncio.to_thread(sl.ingest, db, d)
+    if r.get("ok") and not r.get("duplicate"):
+        try:
+            from .services import alerts as _al
+            _al.send(f"📝 Заявка з сайту ({d.get('interest') or 'сайт'}) — {settings.public_url.rstrip('/')}/appeals")
+        except Exception:  # noqa: BLE001
+            pass
+    return {"ok": bool(r.get("ok"))}
+
+
+@app.post("/_site/api/click")
+async def site_api_click(request: Request, db: Session = Depends(db_dep)):
+    from .services import site_leads as sl
+    raw = await request.body()
+    if len(raw) > 8_000:
+        raise HTTPException(413)
+    r = sl.click_ingest(db, sl.parse_body(raw, request.headers.get("content-type", "")))
+    return {"ok": bool(r.get("ok"))}
+
+
+@app.get("/_site/{slug}", response_class=HTMLResponse)
+def site_page(request: Request, slug: str, db: Session = Depends(db_dep)):
+    from .services import site_pages as sp
+    p = sp.PAGES.get(slug.strip("/").lower())
+    if not p:
+        ctx = _site_ctx(request, db)
+        ctx.update(title="Сторінку не знайдено — MOLODIST", desc="", jsonld="", noindex=True)
+        return _site_resp("site/home.html", ctx, 404)
+    ctx = _site_ctx(request, db, slug)
+    groups = sp.prices(db, p)
+    hp = next(({"label": p["hero_price"][1], **r} for g in groups for r in g["rows"] if p.get("hero_price") and r["id"] == p["hero_price"][0]), None)
+    ctx.update(p=p, title=p["title"], desc=p["desc"], groups=groups, lo=sp.min_price(groups), interest=p["interest"], hp=hp,
+               promo=p.get("promo") if sp._promo_on(p.get("promo")) else None, docs=sp.doctors(db, p.get("doctors", [])))
+    ctx["jsonld"] = sp.jsonld(p, ctx["c"], ctx["canonical"], groups)
+    return _site_resp("site/page.html", ctx)
+
+
+@app.get("/settings/site", response_class=HTMLResponse)
+def settings_site(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import site_pages as sp
+    from .models import CbService
+    ids = {it[0] for p_ in sp.PAGES.values() for g in p_.get("prices", []) for it in g["items"]}
+    svc = {s_.id: s_ for s_ in db.scalars(select(CbService).where(CbService.id.in_(ids)))}
+    pages = [{"slug": k, "p": sp.PAGES[k], "groups": sp.prices(db, sp.PAGES[k]), "missing": sp.missing(db, k)} for k in sp.ORDER]
+    return render(request, "site_settings.html", nav="settings", c=sp.cfg(db), pages=pages, svc=svc, money=sp.money)
+
+
+@app.post("/settings/site")
+async def settings_site_save(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import site_pages as sp
+    f = await request.form()
+    c = sp.cfg(db)
+    for k in ("canonical", "main_url", "gtm_id", "phone", "phone_text", "telegram", "viber", "instagram", "email", "address", "hours", "license", "maps"):
+        if k in f:
+            c[k] = str(f.get(k) or "").strip()[:500]
+    if "hosts" in f:
+        c["hosts"] = [h.strip().lower() for h in re.split(r"[\s,;]+", str(f.get("hosts") or "")) if h.strip()
+                      and h.strip().lower() not in ("crm.molodist.com.ua", "localhost")][:5]
+    sp.save_cfg(db, c)
+    audit(db, "site.settings", user=user, hosts=c["hosts"])
+    return RedirectResponse(_with_msg("/settings/site", "Збережено"), 303)
+
+
 # ---------------- заявки з форм сайту → звернення ----------------
 _LEAD_CORS = {"Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type"}
 

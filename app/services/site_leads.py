@@ -242,6 +242,7 @@ GTM = r"""<script>
 /* MOLODIST CRM v2 — заявки з форм і кліки (телефон, Telegram, Viber, запис) з реклами → CRM з мітками й gclid.
    Tag Manager: Теги → Новий → «Спеціальний HTML» → вставити → тригер «All Pages» (Усі сторінки) → Опублікувати. */
 (function () {
+  if (document.documentElement.hasAttribute('data-mlds')) return;   // сторінки сайту на VPS — CRM обробляє сама
   var HOOK = '__HOOK__', CLICK = HOOK.replace('/lead/', '/click/'), K = 'mlds_utm';
   function ck(n) { var m = document.cookie.match(new RegExp('(?:^|; )' + n + '=([^;]*)')); return m ? decodeURIComponent(m[1]) : ''; }
   try {                                                     // запамʼятовуємо мітки з першої сторінки візиту (90 днів)

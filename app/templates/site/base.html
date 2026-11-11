@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="uk" data-mlds="1">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ title }}</title>
+<meta name="description" content="{{ desc }}">
+{% if noindex %}<meta name="robots" content="noindex, nofollow">{% endif %}
+<link rel="canonical" href="{{ canonical }}">
+<meta property="og:type" content="website"><meta property="og:title" content="{{ title }}"><meta property="og:description" content="{{ desc }}">
+<meta property="og:url" content="{{ canonical }}"><meta property="og:locale" content="uk_UA"><meta property="og:site_name" content="MOLODIST">
+<meta name="theme-color" content="#2A2430">
+<link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/img/icon-180.png">
+<link rel="preload" href="/static/fonts/montserrat-cyrillic-600-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/static/fonts/open-sans-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/static/fonts/fonts.css">
+<link rel="stylesheet" href="/static/site/site.css?v={{ ver }}">
+{% if jsonld %}<script type="application/ld+json">{{ jsonld|safe }}</script>{% endif %}
+{% if c.gtm_id and not noindex %}<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','{{ c.gtm_id }}');</script>{% endif %}
+</head>
+<body>
+{% if c.gtm_id and not noindex %}<noscript><iframe src="https://www.googletagmanager.com/ns.html?id={{ c.gtm_id }}" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>{% endif %}
+{% if noindex %}<div class="prev">Попередній перегляд у CRM · сторінка не індексується. Заявки з форми створюють справжні звернення.</div>{% endif %}
+<header class="hd"><div class="wrap hd-in">
+  <a class="logo" href="{{ c.main_url }}" aria-label="MOLODIST — головна"><span class="mono">M</span><span class="word">MOLODIST</span></a>
+  <nav class="nav" aria-label="Напрямки">{% for s in order %}<a href="{{ base }}/{{ s }}" {{ 'aria-current=page' if s == slug }}>{{ pages[s].nav }}</a>{% endfor %}</nav>
+  <a class="hd-tel" href="tel:{{ c.phone }}">{{ c.phone_text }}</a>
+  <a class="btn sm" href="#zapys">Записатися</a>
+</div></header>
+<main>{% block main %}{% endblock %}</main>
+<footer class="ft" id="kontakty"><div class="wrap ft-in">
+  <div><div class="logo light"><span class="mono">M</span><span class="word">MOLODIST</span></div>
+    <p class="muted">Медичний простір естетичної та профілактичної медицини.<br>{{ c.license }}</p></div>
+  <div><h4>Контакти</h4><p><a href="tel:{{ c.phone }}">{{ c.phone_text }}</a><br><a href="mailto:{{ c.email }}">{{ c.email }}</a><br>{{ c.hours }}</p></div>
+  <div><h4>Адреса</h4><p>{{ c.address }}<br><a href="{{ c.maps }}" target="_blank" rel="noopener">Як дістатися →</a></p></div>
+  <div><h4>Напишіть нам</h4><p class="soc"><a href="{{ c.telegram }}" target="_blank" rel="noopener">Telegram</a> · <a href="{{ viber }}">Viber</a> · <a href="{{ c.instagram }}" target="_blank" rel="noopener">Instagram</a></p>
+    <p class="muted small"><a href="{{ privacy }}">Політика конфіденційності</a></p></div>
+</div><div class="wrap ft-bot muted small">© {{ year }} MOLODIST. Є протипоказання, потрібна консультація лікаря.</div></footer>
+<nav class="bar" aria-label="Швидкий звʼязок">
+  <a href="tel:{{ c.phone }}">Подзвонити</a><a href="{{ c.telegram }}" target="_blank" rel="noopener">Telegram</a><a href="{{ viber }}">Viber</a><a class="go" href="#zapys">Записатися</a>
+</nav>
+<script>window.MLDS={base:'{{ base }}',slug:'{{ slug }}',interest:'{{ interest }}'};</script>
+<script src="/static/site/site.js?v={{ ver }}" defer></script>
+</body>
+</html>
