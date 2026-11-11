@@ -29,6 +29,14 @@
       <td class="r">{% if r.old %}<s class="mini">{{ money(r.old) }}</s> {% endif %}{{ money(r.price) }}</td></tr>{% endfor %}{% endfor %}
   </tbody></table></details>{% endfor %}
 
+<div class="gs" id="media"><h2>Фото й лого</h2>
+  <p class="mini">Назва файлу визначає місце на сайті. Потрібні: {% for n in slots %}<code class="h" style="{{ 'opacity:.55' if n in media|map(attribute='name')|list }}">{{ n }}</code> {% endfor %}
+    (напівпрозорі — вже завантажені). Формат jpg / png / webp, до 6 МБ; фото краще 1200–1600 px по довшій стороні.</p>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0">{% for m in media %}<figure style="margin:0;width:96px"><img src="/_site/media/{{ m.name }}?v={{ m.v }}" style="width:96px;height:96px;object-fit:cover;border-radius:10px;background:#F7F4F0" loading="lazy">
+    <figcaption class="mini" style="word-break:break-all">{{ m.name }}</figcaption></figure>{% else %}<span class="mini">Поки порожньо.</span>{% endfor %}</div>
+  <form method="post" action="/settings/site/media" enctype="multipart/form-data" class="row" style="gap:8px"><input type="file" name="files" multiple accept="image/jpeg,image/png,image/webp"><button class="btn ghost">Завантажити</button></form>
+</div>
+
 <form method="post" action="/settings/site">
 <div class="gs"><h2>Налаштування</h2>
   <div class="row2">

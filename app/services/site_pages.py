@@ -54,6 +54,7 @@ DOCTORS = {
 # prices: групи; items — [id послуги CRM, підпис на сайті | None (назва з CRM), примітка]; promo — знижка на перший візит
 PAGES: dict[str, dict] = {
     "laserepilation": {
+        "img": {"hero": "laser-hero.webp", "gallery": ['laser-1.webp', 'laser-2.webp', 'laser-3.webp', 'laser-4.webp']},
         "nav": "Лазерна епіляція",
         "title": "Лазерна епіляція в Києві — медична клініка MOLODIST",
         "desc": "Лазерна епіляція під контролем лікаря: гібридний лазер, медичні протоколи, закриті кабінети. −50% на комплекси на перший візит. Ціни на зони й комплекси.",
@@ -112,6 +113,7 @@ PAGES: dict[str, dict] = {
         "cta": {"title": "Запишіться на перший візит зі знижкою", "text": "Залиште номер — адміністратор підбере зручний час і порахує ваш комплекс."},
     },
     "vydalennia-rodymok": {
+        "img": {"hero": "derma-hero.webp", "gallery": ['derma-1.webp', 'derma-2.webp', 'clinic-1.webp']},
         "nav": "Видалення новоутворень",
         "title": "Видалення родимок і папілом у Києві — дерматолог MOLODIST",
         "desc": "Видалення родимок, папілом, кератом і кондилом після огляду дерматолога й дерматоскопії. Радіохвильовий метод, гістологія за показами. Ціни.",
@@ -167,6 +169,7 @@ PAGES: dict[str, dict] = {
         "cta": {"title": "Запишіться на огляд до дерматолога", "text": "Залиште номер — підберемо час і підкажемо, як підготуватися."},
     },
     "inyekczijna-kosmetologiya": {
+        "img": {"hero": "inject-hero.webp", "gallery": ['inject-1.webp', 'clinic-1.webp', 'clinic-2.webp']},
         "nav": "Інʼєкційна косметологія",
         "title": "Інʼєкційна косметологія в Києві — ботулінотерапія, філери, біоревіталізація | MOLODIST",
         "desc": "Ботулінотерапія, контурна пластика губ, колагеностимуляція, біоревіталізація в медичній клініці. Сертифіковані препарати, лікарі-дерматологи. Ціни.",
@@ -229,6 +232,7 @@ PAGES: dict[str, dict] = {
         "cta": {"title": "Запишіться на консультацію лікаря", "text": "Залиште номер — підберемо лікаря й час, відповімо на запитання."},
     },
     "beautyplan": {
+        "img": {"hero": "bp-hero.webp", "gallery": ['bp-1.webp', 'clinic-1.webp', 'clinic-2.webp']},
         "nav": "Beauty Plan",
         "title": "Консультація косметолога в Києві — персональний BEAUTY PLAN | MOLODIST",
         "desc": "Консультація лікаря-косметолога з персональним планом процедур і домашнього догляду. Діагностика шкіри, без навʼязування зайвих процедур. Ціни.",
@@ -324,6 +328,48 @@ def viber_link(db: Session, c: dict) -> str:
     return "viber://chat?number=%2B" + re.sub(r"\D", "", c["phone"])
 
 
+# ---------- медіатека сайту (фото, лого): файли в FILES_DIR/site, віддаються з /_site/media/<імʼя> ----------
+MEDIA_EXT = (".jpg", ".jpeg", ".png", ".webp")
+
+
+def media_dir():
+    from pathlib import Path
+    from ..config import settings
+    d = Path(settings.files_dir) / "site"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def media_name(name: str) -> str:
+    n = re.sub(r"[^a-z0-9._-]+", "-", (name or "").strip().lower()).strip("-.")
+    return n if n.endswith(MEDIA_EXT) and len(n) <= 80 else ""
+
+
+def media_save(name: str, data: bytes) -> str:
+    n = media_name(name)
+    if not n:
+        raise ValueError("Назва файлу: латиниця, цифри, дефіс; формат jpg, png або webp")
+    if len(data) > 6_000_000:
+        raise ValueError("Файл більший за 6 МБ")
+    if not (data[:3] == b"\xff\xd8\xff" or data[:8] == b"\x89PNG\r\n\x1a\n" or (data[:4] == b"RIFF" and data[8:12] == b"WEBP")):
+        raise ValueError("Це не зображення jpg / png / webp")
+    (media_dir() / n).write_bytes(data)
+    return n
+
+
+def media_list() -> list[dict]:
+    d = media_dir()
+    return sorted(({"name": f.name, "size": f.stat().st_size, "v": int(f.stat().st_mtime)} for f in d.iterdir()
+                   if f.is_file() and f.suffix.lower() in MEDIA_EXT), key=lambda x: x["name"])
+
+
+def media_url(name: str, base: str) -> str:
+    """Адреса фото, якщо файл є в медіатеці (з версією для кешу), інакше ''."""
+    n = media_name(name)
+    f = media_dir() / n if n else None
+    return f"{base}/media/{n}?v={int(f.stat().st_mtime)}" if f and f.is_file() else ""
+
+
 # ---------- ціни з CRM ----------
 def _promo_on(p: dict | None, today: date | None = None) -> bool:
     if not p:
@@ -368,13 +414,13 @@ def missing(db: Session, slug: str) -> list[int]:
     return [i for i in ids if i not in have or have[i].active is False or not have[i].price]
 
 
-def doctors(db: Session, keys: list[str]) -> list[dict]:
+def doctors(db: Session, keys: list[str], base: str = "/_site") -> list[dict]:
     rows = db.scalars(select(Doctor).where(Doctor.active.is_(True))).all()
     out = []
     for k in keys:
         d = DOCTORS[k]
         m = next((x for x in rows if d["match"] in (x.name or "").lower()), None)
-        photo = m.photo_url if m and (m.photo_url or "").startswith(("https://", "/")) else ""
+        photo = media_url(f"doc-{k}.webp", base) or (m.photo_url if m and (m.photo_url or "").startswith(("https://", "/")) else "")
         out.append({"name": d["name"], "role": d["role"], "bio": d["bio"], "photo": photo,
                     "initials": "".join(w[0] for w in d["name"].split()[:2]).upper()})
     return out

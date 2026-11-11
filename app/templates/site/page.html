@@ -11,7 +11,7 @@
 </form>
 {% endmacro %}
 {% block main %}
-<section class="hero"><div class="wrap hero-in">
+<section class="hero"><div class="wrap hero-in {{ 'has-img' if hero_img }}">
   <div class="hero-tx">
     <p class="eyebrow">{{ p.eyebrow }}</p>
     <h1>{{ p.h1 }}</h1>
@@ -19,12 +19,13 @@
     <ul class="ticks">{% for t in p.hero_points %}<li>{{ t }}</li>{% endfor %}</ul>
     {% if promo %}<p class="promo">{{ promo.text }} · до {{ promo.until[8:10] }}.{{ promo.until[5:7] }}</p>{% endif %}
   </div>
+  <div class="hero-side">{% if hero_img %}<img class="hero-ph" src="{{ hero_img }}" alt="{{ p.nav }} у медичному просторі MOLODIST" fetchpriority="high">{% endif %}
   <div class="hero-card" id="zapys-top">
     {% if hp %}<p class="hc-l">{{ hp.label }}</p><p class="hc-t">{% if hp.old %}<s>{{ money(hp.old) }}</s> {% endif %}<b>{{ money(hp.price) }}</b></p>
     {% else %}<p class="hc-t">{% if lo %}Від <b>{{ money(lo) }}</b>{% else %}Консультація лікаря{% endif %}</p>{% endif %}
     <p class="hc-s">Залиште номер — підберемо час і відповімо на запитання</p>
     {{ form('hero') }}
-  </div>
+  </div></div>
 </div></section>
 
 <section class="sec pains"><div class="wrap">
@@ -36,6 +37,8 @@
   <div><h2>{{ p.solution.title }}</h2><p class="big">{{ p.solution.text }}</p></div>
   <div class="cards3">{% for t, d in p.solution.points %}<div class="card"><h3>{{ t }}</h3><p>{{ d }}</p></div>{% endfor %}</div>
 </div></section>
+
+{% if gallery %}<section class="gal"><div class="wrap gal-in">{% for u in gallery %}<img src="{{ u }}" alt="MOLODIST — {{ p.nav }}" loading="lazy">{% endfor %}</div></section>{% endif %}
 
 <section class="sec why"><div class="wrap">
   <h2>Чому MOLODIST</h2>

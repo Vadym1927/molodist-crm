@@ -7690,7 +7690,8 @@ def _site_ctx(request: Request, db: Session, slug: str = "") -> dict:
             "base": "" if on_site else "/_site", "noindex": not on_site, "viber": sp.viber_link(db, c),
             "canonical": c["canonical"].rstrip("/") + (f"/{slug}" if slug else "/"), "year": date.today().year,
             "today": date.today().strftime("%d.%m.%Y"), "ver": str(APP_VERSION)[:8],
-            "privacy": settings.public_url.rstrip("/") + "/privacy", "interest": ""}
+            "privacy": settings.public_url.rstrip("/") + "/privacy", "interest": "",
+            "logo": sp.media_url("logo.png", "" if on_site else "/_site")}
 
 
 def _site_resp(name: str, ctx: dict, status: int = 200):
@@ -7768,6 +7769,33 @@ async def site_api_click(request: Request, db: Session = Depends(db_dep)):
     return {"ok": bool(r.get("ok"))}
 
 
+@app.get("/_site/media/{name}")
+def site_media(name: str):
+    from .services import site_pages as sp
+    n = sp.media_name(name)
+    f = sp.media_dir() / n if n else None
+    if not f or not f.is_file():
+        raise HTTPException(404)
+    return FileResponse(f, headers={"Cache-Control": "public, max-age=2592000"})
+
+
+@app.post("/settings/site/media")
+async def settings_site_media(request: Request, files: list[UploadFile] = File(...), user: User = Depends(require("users")),
+                              db: Session = Depends(db_dep)):
+    """Фото й лого для сайту → медіатека (назва файлу = місце на сторінці: laser-hero.webp, doc-kelner.webp, logo.png…)."""
+    from .services import site_pages as sp
+    ok, err = [], []
+    for f in files[:30]:
+        try:
+            ok.append(sp.media_save(f.filename or "", await f.read()))
+        except ValueError as e:
+            err.append(f"{f.filename}: {e}")
+    audit(db, "site.media", user=user, files=ok)
+    if request.headers.get("accept", "").startswith("application/json"):
+        return {"ok": ok, "errors": err}
+    return RedirectResponse(_with_msg("/settings/site", f"Завантажено: {len(ok)}" + (f" · помилки: {'; '.join(err)}" if err else ""), bool(err)) + "#media", 303)
+
+
 @app.get("/_site/{slug}", response_class=HTMLResponse)
 def site_page(request: Request, slug: str, db: Session = Depends(db_dep)):
     from .services import site_pages as sp
@@ -7780,7 +7808,9 @@ def site_page(request: Request, slug: str, db: Session = Depends(db_dep)):
     groups = sp.prices(db, p)
     hp = next(({"label": p["hero_price"][1], **r} for g in groups for r in g["rows"] if p.get("hero_price") and r["id"] == p["hero_price"][0]), None)
     ctx.update(p=p, title=p["title"], desc=p["desc"], groups=groups, lo=sp.min_price(groups), interest=p["interest"], hp=hp,
-               promo=p.get("promo") if sp._promo_on(p.get("promo")) else None, docs=sp.doctors(db, p.get("doctors", [])))
+               promo=p.get("promo") if sp._promo_on(p.get("promo")) else None, docs=sp.doctors(db, p.get("doctors", []), ctx["base"]),
+               hero_img=sp.media_url((p.get("img") or {}).get("hero", ""), ctx["base"]),
+               gallery=[u for u in (sp.media_url(n, ctx["base"]) for n in (p.get("img") or {}).get("gallery", [])) if u])
     ctx["jsonld"] = sp.jsonld(p, ctx["c"], ctx["canonical"], groups)
     return _site_resp("site/page.html", ctx)
 
@@ -7792,7 +7822,9 @@ def settings_site(request: Request, user: User = Depends(require("users")), db: 
     ids = {it[0] for p_ in sp.PAGES.values() for g in p_.get("prices", []) for it in g["items"]}
     svc = {s_.id: s_ for s_ in db.scalars(select(CbService).where(CbService.id.in_(ids)))}
     pages = [{"slug": k, "p": sp.PAGES[k], "groups": sp.prices(db, sp.PAGES[k]), "missing": sp.missing(db, k)} for k in sp.ORDER]
-    return render(request, "site_settings.html", nav="settings", c=sp.cfg(db), pages=pages, svc=svc, money=sp.money)
+    return render(request, "site_settings.html", nav="settings", c=sp.cfg(db), pages=pages, svc=svc, money=sp.money, media=sp.media_list(),
+                  slots=sorted({n for p_ in sp.PAGES.values() for n in [(p_.get("img") or {}).get("hero")] + (p_.get("img") or {}).get("gallery", []) if n}
+                               | {f"doc-{k}.webp" for k in sp.DOCTORS} | {"logo.png"}))
 
 
 @app.post("/settings/site")
