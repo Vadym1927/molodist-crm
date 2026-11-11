@@ -7825,6 +7825,15 @@ async def site_media_ext(request: Request, files: list[UploadFile] = File(...), 
     return JSONResponse({"ok": ok, "errors": err}, headers=h)
 
 
+@app.get("/_site/og/{slug}.jpg")
+def site_og(slug: str):
+    from .services import site_pages as sp
+    f = sp.og_image(slug)
+    if not f:
+        raise HTTPException(404)
+    return FileResponse(f, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
+
+
 @app.get("/_site/{slug}", response_class=HTMLResponse)
 def site_page(request: Request, slug: str, db: Session = Depends(db_dep)):
     from .services import site_pages as sp
@@ -7836,7 +7845,11 @@ def site_page(request: Request, slug: str, db: Session = Depends(db_dep)):
     ctx = _site_ctx(request, db, slug)
     groups = sp.prices(db, p)
     hp = next(({"label": p["hero_price"][1], **r} for g in groups for r in g["rows"] if p.get("hero_price") and r["id"] == p["hero_price"][0]), None)
-    ctx.update(p=p, title=p["title"], desc=p["desc"], groups=groups, lo=sp.min_price(groups), interest=p["interest"], hp=hp,
+    pr = hp["price"] if hp else sp.min_price(groups)
+    abs_base = ctx["c"]["canonical"].rstrip("/") if not ctx["noindex"] else str(request.base_url).rstrip("/").replace("http://", "https://") + "/_site"
+    ctx.update(og_title=sp.fill(p.get("og_title") or p["title"], pr), og_desc=sp.fill(p.get("og_desc") or p["desc"], pr),
+               og_img=f"{abs_base}/og/{slug}.jpg" if sp.og_image(slug) else "")
+    ctx.update(p=p, title=p["title"], desc=sp.fill(p["desc"], pr), groups=groups, lo=sp.min_price(groups), interest=p["interest"], hp=hp,
                promo=p.get("promo") if sp._promo_on(p.get("promo")) else None, docs=sp.doctors(db, p.get("doctors", []), ctx["base"]),
                hero_img=sp.media_url((p.get("img") or {}).get("hero", ""), ctx["base"]),
                gallery=[u for u in (sp.media_url(n, ctx["base"]) for n in (p.get("img") or {}).get("gallery", [])) if u])

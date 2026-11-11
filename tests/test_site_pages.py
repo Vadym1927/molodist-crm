@@ -106,3 +106,22 @@ def test_upload_key_external():
         r = cl2.post("/api/public/site/media", files=[("files", ("clinic-1.webp", data, "image/webp"))], headers={"x-upload-key": key})
         assert r.json()["ok"] == ["clinic-1.webp"] and r.headers["access-control-allow-origin"] == "*"
         assert cl2.post("/api/public/site/media", files=[("files", ("clinic-1.webp", data, "image/webp"))], headers={"x-upload-key": "bad"}).status_code == 403
+
+
+def test_seo_meta_and_og_image():
+    import io
+    from PIL import Image
+    settings.admin_password = "owner-pass-1"
+    buf = io.BytesIO(); Image.new("RGB", (900, 1200), (120, 90, 160)).save(buf, "WEBP"); data = buf.getvalue()
+    with SessionLocal() as db:
+        _svc(db, 387, "Консультація Beauty plan Anti Age", 2500); db.commit()
+    with TestClient(app) as cl:
+        cl.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        cl.post("/settings/site/media", files=[("files", ("bp-hero.webp", data, "image/webp"))], headers={"accept": "application/json"})
+        html = cl.get("/_site/beautyplan").text
+        assert "Консультація косметолога Київ — Beauty Plan | MOLODIST" in html and "— 2 500 ₴" in html       # жива ціна в описі
+        assert 'property="og:image" content="https://' in html and "/og/beautyplan.jpg" in html and "twitter:card" in html
+        assert "BreadcrumbList" in html and "OfferCatalog" in html
+        r = cl.get("/_site/og/beautyplan.jpg")
+        assert r.status_code == 200 and Image.open(io.BytesIO(r.content)).size == (1200, 630)
+        assert cl.get("/_site/og/nope.jpg").status_code == 404

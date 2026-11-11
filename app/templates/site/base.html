@@ -7,8 +7,10 @@
 <meta name="description" content="{{ desc }}">
 {% if noindex %}<meta name="robots" content="noindex, nofollow">{% endif %}
 <link rel="canonical" href="{{ canonical }}">
-<meta property="og:type" content="website"><meta property="og:title" content="{{ title }}"><meta property="og:description" content="{{ desc }}">
-<meta property="og:url" content="{{ canonical }}">{% if hero_img %}<meta property="og:image" content="{{ c.canonical.rstrip('/') if not noindex else '' }}{{ hero_img }}">{% endif %}<meta property="og:locale" content="uk_UA"><meta property="og:site_name" content="MOLODIST">
+<meta property="og:type" content="website"><meta property="og:title" content="{{ og_title or title }}"><meta property="og:description" content="{{ og_desc or desc }}">
+{% if og_img %}<meta property="og:image" content="{{ og_img }}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="{{ og_title or title }}">{% endif %}
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="{{ og_title or title }}"><meta name="twitter:description" content="{{ og_desc or desc }}">{% if og_img %}<meta name="twitter:image" content="{{ og_img }}">{% endif %}
+<meta property="og:url" content="{{ canonical }}"><meta property="og:locale" content="uk_UA"><meta property="og:site_name" content="MOLODIST">
 <meta name="theme-color" content="#2A2430">
 {% if logo %}<link rel="icon" href="{{ logo }}" type="image/png">{% else %}<link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">{% endif %}<link rel="apple-touch-icon" href="/static/img/icon-180.png">
 <link rel="preload" href="/static/fonts/montserrat-cyrillic-600-normal.woff2" as="font" type="font/woff2" crossorigin>

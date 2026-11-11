@@ -57,8 +57,10 @@ PAGES: dict[str, dict] = {
     "laserepilation": {
         "img": {"hero": "laser-hero.webp", "gallery": ['laser-1.webp', 'laser-2.webp', 'laser-3.webp', 'laser-4.webp']},
         "nav": "Лазерна епіляція",
-        "title": "Лазерна епіляція в Києві — медична клініка MOLODIST",
-        "desc": "Лазерна епіляція під контролем лікаря: гібридний лазер, медичні протоколи, закриті кабінети. −50% на комплекси на перший візит. Ціни на зони й комплекси.",
+        "title": "Лазерна епіляція в Києві — безпечне видалення волосся | MOLODIST",
+        "desc": "Лазерна епіляція в медичній клініці: процедуру проводить лікар, гібридний лазер з охолодженням. Пахви + глибоке бікіні — {price}. Ціни на всі зони.",
+        "og_title": "Лазерна епіляція в MOLODIST — гладка шкіра без щоденного гоління",
+        "og_desc": "Медична клініка, лікар і гібридний лазер. Пахви + глибоке бікіні — {price}. Київ, вул. Князя Романа Мстиславича, 28А.",
         "eyebrow": "Лазерна епіляція · Київ",
         "h1": "Гладка шкіра без щоденного гоління й подразнень",
         "lead": "Лазерна епіляція в медичній клініці: процедуру проводить лікар, параметри підбираються під вашу шкіру й тип волосся.",
@@ -116,8 +118,10 @@ PAGES: dict[str, dict] = {
     "vydalennia-rodymok": {
         "img": {"hero": "derma-hero.webp", "gallery": ['derma-1.webp', 'derma-2.webp', 'clinic-1.webp']},
         "nav": "Видалення новоутворень",
-        "title": "Видалення родимок і папілом у Києві — дерматолог MOLODIST",
-        "desc": "Видалення родимок, папілом, кератом і кондилом після огляду дерматолога й дерматоскопії. Радіохвильовий метод, гістологія за показами. Ціни.",
+        "title": "Видалення родимок у Києві — дерматолог і дерматоскопія | MOLODIST",
+        "desc": "Видалення родимок і папілом після огляду дерматолога й дерматоскопії. Радіохвильовий метод, місцева анестезія. Огляд — {price}. Ціни на видалення.",
+        "og_title": "Родимка турбує? Спершу — огляд дерматолога",
+        "og_desc": "Дерматоскопія і безпечне видалення родимок, папілом і кератом у медичній клініці MOLODIST, Київ.",
         "eyebrow": "Дерматологія · Київ",
         "h1": "Родимка турбує? Спершу — огляд дерматолога",
         "lead": "Оцінюємо новоутворення під дерматоскопом, пояснюємо, чи потрібно його видаляти, і робимо це акуратно — радіохвильовим методом.",
@@ -172,8 +176,10 @@ PAGES: dict[str, dict] = {
     "inyekczijna-kosmetologiya": {
         "img": {"hero": "inject-hero.webp", "gallery": ['inject-1.webp', 'clinic-1.webp', 'clinic-2.webp']},
         "nav": "Інʼєкційна косметологія",
-        "title": "Інʼєкційна косметологія в Києві — ботулінотерапія, філери, біоревіталізація | MOLODIST",
-        "desc": "Ботулінотерапія, контурна пластика губ, колагеностимуляція, біоревіталізація в медичній клініці. Сертифіковані препарати, лікарі-дерматологи. Ціни.",
+        "title": "Ін'єкційна косметологія в Києві — омолодження обличчя | MOLODIST",
+        "desc": "Ботулінотерапія від {price}, контурна пластика губ, біоревіталізація й колагеностимуляція. Лікарі-дерматологи, оригінальні препарати. Ціни.",
+        "og_title": "Свіже обличчя без «ефекту маски» — інʼєкційна косметологія MOLODIST",
+        "og_desc": "Ботулінотерапія, губи, біоревіталізація. Лікар підбирає препарат і дозування під ваше обличчя. Київ.",
         "eyebrow": "Інʼєкційна косметологія · Київ",
         "h1": "Свіже, відпочиле обличчя — природно, без «ефекту маски»",
         "lead": "Ботулінотерапія, контурна пластика, колагеностимуляція й біоревіталізація. Лікар підбирає препарат і дозування під ваше обличчя й запит.",
@@ -235,8 +241,10 @@ PAGES: dict[str, dict] = {
     "beautyplan": {
         "img": {"hero": "bp-hero.webp", "gallery": ['bp-1.webp', 'clinic-1.webp', 'clinic-2.webp']},
         "nav": "Beauty Plan",
-        "title": "Консультація косметолога в Києві — персональний BEAUTY PLAN | MOLODIST",
-        "desc": "Консультація лікаря-косметолога з персональним планом процедур і домашнього догляду. Діагностика шкіри, без навʼязування зайвих процедур. Ціни.",
+        "title": "Консультація косметолога Київ — Beauty Plan | MOLODIST",
+        "desc": "Консультація лікаря-косметолога з письмовим планом процедур і домашнього догляду — {price}. Без навʼязування зайвих процедур. Київ.",
+        "og_title": "BEAUTY PLAN — персональний план для вашої шкіри",
+        "og_desc": "Лікар розбирає ваш запит і стан шкіри та дає письмовий план процедур і догляду. Без зайвих витрат.",
         "eyebrow": "BEAUTY PLAN · консультація лікаря",
         "h1": "Персональний план для вашої шкіри — замість хаотичних процедур",
         "lead": "Лікар розбирає ваш запит, стан шкіри й попередній досвід і дає письмовий план: які процедури, в якому порядку, який домашній догляд — і чого робити не варто.",
@@ -441,6 +449,48 @@ def doctors(db: Session, keys: list[str], base: str = "/_site") -> list[dict]:
     return out
 
 
+def fill(text: str, price: float | None) -> str:
+    """{price} у SEO-описі → жива ціна з прайсу CRM (змінили ціну — змінився й сніпет у Google)."""
+    t = text.replace("{price}", money(price) if price else "за прайсом")
+    return t.replace("Ботулінотерапія від за прайсом", "Ботулінотерапія")
+
+
+def og_image(slug: str) -> "Path | None":
+    """Картинка для соцмереж 1200×630: фото першого екрана (або og-<slug> з медіатеки) + лого. Кеш у media/_og."""
+    from pathlib import Path  # noqa: F401
+    from PIL import Image, ImageDraw
+    p = PAGES.get(slug)
+    if not p:
+        return None
+    d = media_dir()
+    src = next((d / n for n in (f"og-{slug}.jpg", f"og-{slug}.webp", (p.get("img") or {}).get("hero", "")) if n and (d / n).is_file()), None)
+    if not src:
+        return None
+    logo = d / "logo.png"
+    key = f"{slug}-{int(src.stat().st_mtime)}-{int(logo.stat().st_mtime) if logo.is_file() else 0}.jpg"
+    out = d / "_og" / key
+    if out.is_file():
+        return out
+    out.parent.mkdir(exist_ok=True)
+    for old in out.parent.glob(f"{slug}-*.jpg"):
+        old.unlink(missing_ok=True)
+    W, H = 1200, 630
+    im = Image.open(src).convert("RGB")
+    r = max(W / im.width, H / im.height)
+    im = im.resize((round(im.width * r), round(im.height * r)), Image.LANCZOS)
+    top = max(0, min(im.height - H, int((im.height - H) * 0.3)))
+    left = (im.width - W) // 2
+    im = im.crop((left, top, left + W, top + H))
+    if logo.is_file():
+        lg = Image.open(logo).convert("RGBA").resize((116, 116), Image.LANCZOS)
+        ring = Image.new("RGBA", (128, 128), (0, 0, 0, 0))
+        ImageDraw.Draw(ring).ellipse((0, 0, 127, 127), fill=(255, 255, 255, 235))
+        ring.alpha_composite(lg, (6, 6))
+        im.paste(ring, (40, H - 168), ring)
+    im.save(out, "JPEG", quality=86, optimize=True, progressive=True)
+    return out
+
+
 def money(v: float | None) -> str:
     if v is None:
         return ""
@@ -454,5 +504,11 @@ def jsonld(page: dict, c: dict, url: str, groups: list[dict]) -> str:
     lo = min_price(groups)
     if lo:
         clinic["priceRange"] = f"від {money(lo)}"
+    offers = [{"@type": "Offer", "name": r["name"], "price": r["price"], "priceCurrency": "UAH"} for g in groups[:2] for r in g["rows"][:12]]
+    if offers:
+        clinic["hasOfferCatalog"] = {"@type": "OfferCatalog", "name": page["nav"], "itemListElement": offers}
+    crumbs = {"@type": "BreadcrumbList", "itemListElement": [
+        {"@type": "ListItem", "position": 1, "name": "MOLODIST", "item": c["main_url"]},
+        {"@type": "ListItem", "position": 2, "name": page["nav"], "item": url}]}
     faq = {"@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": a}} for q, a in page.get("faq", [])]}
-    return json.dumps({"@context": "https://schema.org", "@graph": [clinic, faq, {"@type": "WebPage", "url": url, "name": page["title"]}]}, ensure_ascii=False)
+    return json.dumps({"@context": "https://schema.org", "@graph": [clinic, crumbs, faq, {"@type": "WebPage", "url": url, "name": page["title"]}]}, ensure_ascii=False)
