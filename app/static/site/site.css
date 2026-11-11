@@ -106,3 +106,6 @@ p{margin:0 0 1em}.muted{color:var(--mut)}.small{font-size:13px}.big{font-size:18
   .hero-ph{aspect-ratio:16/10;border-radius:20px;order:-1}.hero-in.has-img .hero-card{position:static;order:1}
   .hero-in.has-img .hero-card .lead{grid-template-columns:1fr}
   .gal-in{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:10px;padding-bottom:4px}.gal-in img{flex:0 0 70%;scroll-snap-align:start}}
+
+.logo .wm{height:18px;width:auto;display:block}
+.ft .logo .wm{height:20px;margin-bottom:14px}

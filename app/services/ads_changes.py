@@ -67,10 +67,16 @@ def ad_texts(payload: dict | None) -> list[str]:
     return [str(x) for x in out]
 
 
+DRUGS = re.compile(r"botox|ботокс|xeomin|ксеомін|ксеомин|dysport|диспорт|neuronox|нейронокс", re.I)   # брендбук: назва процедури, не препарату
+
+
 def check_texts(payload: dict | None) -> None:
     bad = [t for t in ad_texts(payload) if BANNED.search(t)]
     if bad:
         raise ValueError("У заголовках і описах реклами не вживаємо «клініка» — пишемо «медичний простір»: " + "; ".join(bad[:3]))
+    bad = [t for t in ad_texts(payload) if DRUGS.search(t)]
+    if bad:
+        raise ValueError("У текстах реклами — «ботулінотерапія», без назв препаратів ботулотоксину (Botox, Xeomin, Dysport…): " + "; ".join(bad[:3]))
 
 
 def propose(db: Session, kind: str, campaign: str | None, target: str | None, reason: str, payload: dict | None = None,

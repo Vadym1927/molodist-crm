@@ -120,3 +120,10 @@ def test_no_clinic_word_in_ad_texts():
         with pytest.raises(ValueError):
             ac.edit(db, ch, {"headlines": ["у медичній клініці"], "descriptions": ["x"]})
         assert ac.edit(db, ch, {"headlines": ["Медичний простір"], "descriptions": ["x"]})
+
+
+def test_no_drug_names_in_ad_texts():
+    import pytest
+    with SessionLocal() as db:
+        with pytest.raises(ValueError):
+            ac.propose(db, "rsa", "Тест Препарати", "x", "тест", payload={"headlines": ["Botox, Xeomin, Dysport"], "descriptions": ["опис"]})

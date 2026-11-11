@@ -42,7 +42,7 @@ DEFAULT = {
 # ---------- лікарі: картка з CRM (Doctor: посада, фото, біо), тут — запасний текст ----------
 DOCTORS = {
     "kolgan": {"match": "колган", "name": "Дарʼя Колган", "role": "Лікар-дерматолог, косметолог, лікар УЗД. Головна лікарка й засновниця MOLODIST",
-               "bio": "7 років в естетичній медицині. Інʼєкційна, апаратна й класична косметологія, ботулінотерапія, домашній догляд. "
+               "bio": "8 років практики. Лікар-дерматолог. Інʼєкційна, апаратна й класична косметологія, ботулінотерапія, домашній догляд. "
                       "Автор методики BEAUTY PLAN: спершу діагностика й план, потім процедури."},
     "syrova": {"match": "сирова", "name": "Софія Сирова", "role": "Лікар-дерматовенеролог, косметолог",
                "bio": "Дерматоскопія й видалення доброякісних новоутворень, лікування акне, розацеа й дерматитів, підбір домашнього догляду. "
@@ -198,7 +198,7 @@ PAGES: dict[str, dict] = {
                      "points": [("Ботулінотерапія", "Розгладжує мімічні зморшки й лікує гіпергідроз"), ("Контурна пластика", "Обʼєм і контур губ, носослізна борозна, контур обличчя"),
                                 ("Біоревіталізація й колагеностимуляція", "Зволоження, щільність і пружність шкіри")]},
         "why": [("Лікар, не майстер", "Процедури проводять лікарі-дерматологи з медичною освітою та сертифікацією."),
-                ("Оригінальні препарати", "Botox, Xeomin, Dysport, Neuronox, Belotero, Restylane, Radiesse, Rejuran, Jalupro."),
+                ("Оригінальні препарати", "Сертифіковані препарати з офіційним постачанням: Belotero, Restylane, Radiesse, Rejuran, Jalupro."),
                 ("Безпека", "Збір анамнезу, асептика, контрольний огляд і корекція за показами."),
                 ("Чесні рекомендації", "Скажемо, якщо процедура вам не потрібна або краще почати з іншого.")],
         "steps": [("Консультація", "Лікар оцінює обличчя, збирає анамнез, пояснює варіанти й вартість."),
@@ -206,7 +206,7 @@ PAGES: dict[str, dict] = {
                   ("Процедура", "30–90 хв, з анестезією для чутливих зон."),
                   ("Контроль", "Огляд через 2 тижні; корекція — за показами.")],
         "prices": [
-            {"title": "Ботулінотерапія", "note": "Ціна однакова для Neuronox, Botox і Xeomin; препарат обирає лікар разом з вами.",
+            {"title": "Ботулінотерапія", "note": "Ціна однакова для всіх препаратів ботулотоксину; препарат обирає лікар разом з вами.",
              "items": [[27, "Міжбрівʼя"], [28, "Зона навколо очей"], [29, "Лоб + міжбрівʼя"], [30, "Лоб + міжбрівʼя + очі"],
                        [561, "Лоб + міжбрівʼя + очі + ніс"], [37, "Full Face"], [38, "Full Face + ліфтинг Нефертіті"], [36, "Ліфтинг Нефертіті (шия)"],
                        [35, "Жувальні мʼязи"], [33, "Опущені кутики рота"], [32, "Кисетні зморшки"], [31, "Зморшки на носі"], [34, "Підборіддя"],
@@ -458,7 +458,7 @@ def fill(text: str, price: float | None) -> str:
 def og_image(slug: str) -> "Path | None":
     """Картинка для соцмереж 1200×630: фото першого екрана (або og-<slug> з медіатеки) + лого. Кеш у media/_og."""
     from pathlib import Path  # noqa: F401
-    from PIL import Image, ImageDraw
+    from PIL import Image
     p = PAGES.get(slug)
     if not p:
         return None
@@ -466,27 +466,28 @@ def og_image(slug: str) -> "Path | None":
     src = next((d / n for n in (f"og-{slug}.jpg", f"og-{slug}.webp", (p.get("img") or {}).get("hero", "")) if n and (d / n).is_file()), None)
     if not src:
         return None
-    logo = d / "logo.png"
-    key = f"{slug}-{int(src.stat().st_mtime)}-{int(logo.stat().st_mtime) if logo.is_file() else 0}.jpg"
+    from pathlib import Path as _P
+    wm = _P(__file__).resolve().parent.parent / "static" / "site" / "brand" / "wordmark-graphite-600.png"
+    key = f"{slug}-{int(src.stat().st_mtime)}-b2.jpg"
     out = d / "_og" / key
     if out.is_file():
         return out
     out.parent.mkdir(exist_ok=True)
     for old in out.parent.glob(f"{slug}-*.jpg"):
         old.unlink(missing_ok=True)
-    W, H = 1200, 630
+    W, H, S = 1200, 630, 96                           # брендбук: «Бежева смуга» — фото + смуга з підписом MOLODIST
     im = Image.open(src).convert("RGB")
-    r = max(W / im.width, H / im.height)
+    r = max(W / im.width, (H - S) / im.height)
     im = im.resize((round(im.width * r), round(im.height * r)), Image.LANCZOS)
-    top = max(0, min(im.height - H, int((im.height - H) * 0.3)))
+    top = max(0, min(im.height - (H - S), int((im.height - (H - S)) * 0.3)))
     left = (im.width - W) // 2
-    im = im.crop((left, top, left + W, top + H))
-    if logo.is_file():
-        lg = Image.open(logo).convert("RGBA").resize((116, 116), Image.LANCZOS)
-        ring = Image.new("RGBA", (128, 128), (0, 0, 0, 0))
-        ImageDraw.Draw(ring).ellipse((0, 0, 127, 127), fill=(255, 255, 255, 235))
-        ring.alpha_composite(lg, (6, 6))
-        im.paste(ring, (40, H - 168), ring)
+    canvas = Image.new("RGB", (W, H), (247, 244, 240))
+    canvas.paste(im.crop((left, top, left + W, top + H - S)), (0, 0))
+    if wm.is_file():
+        lg = Image.open(wm).convert("RGBA")
+        lg = lg.resize((300, round(lg.height * 300 / lg.width)), Image.LANCZOS)
+        canvas.paste(lg, ((W - lg.width) // 2, H - S + (S - lg.height) // 2), lg)
+    im = canvas
     im.save(out, "JPEG", quality=86, optimize=True, progressive=True)
     return out
 

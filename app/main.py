@@ -7691,7 +7691,7 @@ def _site_ctx(request: Request, db: Session, slug: str = "") -> dict:
             "canonical": c["canonical"].rstrip("/") + (f"/{slug}" if slug else "/"), "year": date.today().year,
             "today": date.today().strftime("%d.%m.%Y"), "ver": str(APP_VERSION)[:8],
             "privacy": settings.public_url.rstrip("/") + "/privacy", "interest": "",
-            "logo": sp.media_url("logo.png", "" if on_site else "/_site")}
+            "logo": ""}
 
 
 def _site_resp(name: str, ctx: dict, status: int = 200):
@@ -7706,7 +7706,7 @@ def _site_resp(name: str, ctx: dict, status: int = 200):
 @app.get("/_site", response_class=HTMLResponse, include_in_schema=False)
 def site_home(request: Request, db: Session = Depends(db_dep)):
     ctx = _site_ctx(request, db)
-    ctx.update(title="MOLODIST — медичний простір естетичної медицини в Києві",
+    ctx.update(title="MOLODIST — медичний простір естетики та профілактики в Києві",
                desc="Лазерна епіляція, видалення новоутворень, інʼєкційна косметологія й BEAUTY PLAN під контролем лікаря. Ціни й запис онлайн.",
                jsonld="")
     return _site_resp("site/home.html", ctx)
@@ -7866,7 +7866,7 @@ def settings_site(request: Request, user: User = Depends(require("users")), db: 
     pages = [{"slug": k, "p": sp.PAGES[k], "groups": sp.prices(db, sp.PAGES[k]), "missing": sp.missing(db, k)} for k in sp.ORDER]
     return render(request, "site_settings.html", nav="settings", c=sp.cfg(db), pages=pages, svc=svc, money=sp.money, media=sp.media_list(),
                   slots=sorted({n for p_ in sp.PAGES.values() for n in [(p_.get("img") or {}).get("hero")] + (p_.get("img") or {}).get("gallery", []) if n}
-                               | {f"doc-{k}.webp" for k in sp.DOCTORS} | {"logo.png"}))
+                               | {f"doc-{k}.webp" for k in sp.DOCTORS}))
 
 
 @app.post("/settings/site")
