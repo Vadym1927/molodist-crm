@@ -154,3 +154,20 @@ def test_allergy_dialog_and_summary():
             assert db.get(Patient, pid).med_allergies == "Лідокаїн (набряк)"
             rid = m.id
         assert "набряк" in c.get(f"/patients/{pid}/medcard?edit={rid}").text
+
+
+def test_vaccine_dialog():
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        p = Patient(full_name="Щепленко Олег", phone="+380500009599"); db.add(p); db.commit(); pid = p.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        c.post("/settings/medcard/vaccines", data={"items": "Гепатит B\nГрип"})
+        assert 'id="mc-vc"' in c.get(f"/patients/{pid}/medcard").text
+        c.post(f"/patients/{pid}/medcard/record", data={"kind": "vaccine", "title": "Щеплення", "vc_d_0": "2026-11-12", "vc_n_0": "Грип",
+                                                         "vc_d_1": "2026-11-12", "vc_n_1": "", "vc_comment": "без реакцій", "at": "2026-11-12T09:00"})
+        with SessionLocal() as db:
+            m = db.query(MedRecord).filter_by(patient_id=pid, kind="vaccine").one()
+            assert m.extra["vaccines"] == [{"d": "2026-11-12", "n": "Грип"}] and m.extra["fields"][0]["v"] == "без реакцій"
+        t = c.get(f"/patients/{pid}/medcard").text
+        assert "12.11.2026 — <b>Грип</b>" in t

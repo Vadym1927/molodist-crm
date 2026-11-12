@@ -48,6 +48,7 @@
 .mc-nt input,.mc-nt textarea{width:100%;margin:0;box-sizing:border-box}.mc-nt textarea{resize:vertical;min-height:110px}
 .mc-an{width:min(860px,96vw)}.an-t{width:100%;border-collapse:collapse;font-size:13.5px}.an-t th{font:700 11.5px var(--sans);color:var(--muted);text-align:left;padding:4px 6px;text-transform:none}
 .an-t td{padding:4px 6px;border-top:1px solid var(--line)}.an-in td{border:0;padding:3px}.an-in input{height:38px;font-size:13.5px}.an-del{border:1px solid #F0C9C3;color:#B23B2E;background:#fff;border-radius:50%;width:30px;height:30px;cursor:pointer}
+.mc-vc{width:min(560px,94vw)}.vc-r{display:grid;grid-template-columns:160px minmax(0,1fr) 32px;gap:8px;align-items:center}.vc-r input{height:40px}
 .mc-pk .sub{padding:14px 18px 0;font-weight:600}.mc-pk .gr i{background:none;width:auto;height:auto;color:var(--plum,#3B3050)}.mc-pk .gr>*{background:#F4F1FA;border-color:transparent;padding:16px}
 .mc-pk .gr>*:hover{background:var(--lavender);border-color:transparent}.mc-pk .gr i.ic-al{color:#E0A100}
 @media (max-width:860px){.mc-tb{grid-template-columns:1fr}.mc-row{grid-template-columns:36px minmax(0,1fr) 22px!important}.mc-row .mc-doc,.mc-row .mc-dt{grid-column:2}}
@@ -81,6 +82,7 @@
       <div class="mc-doc">{% if _dn %}{% if _d and _d.photo_url %}<i class="mc-av" style="background-image:url('{{ _d.photo_url }}')"></i>{% else %}<i class="mc-docic">{{ li('stetho', 18) }}</i>{% endif %}<span>{{ _dn }}</span>{% else %}<span class="muted">—</span>{% endif %}</div>
       <div class="mc-dt">{{ li('calendar', 18) }}{{ r.at|dt('%d.%m.%Y · %H:%M') }}</div><span class="chev">{{ li('chev', 20) }}</span></div></summary>
     <div class="bd">
+      {% if r.extra and r.extra.vaccines %}<div><h4>Щеплення</h4>{% for v in r.extra.vaccines %}<p>{{ v.d[8:10] ~ '.' ~ v.d[5:7] ~ '.' ~ v.d[:4] if v.d|length == 10 else v.d }} — <b>{{ v.n }}</b></p>{% endfor %}</div>{% endif %}
       {% if r.extra and r.extra.indicators %}<div><table class="an-t"><thead><tr><th>Показник</th><th>Результат</th><th>Норма</th><th>Од. виміру</th><th>Коментар</th></tr></thead><tbody>
         {% for x in r.extra.indicators %}<tr><td>{{ x.n }}</td><td><b>{{ x.res }}</b></td><td>{{ x.norm }}</td><td>{{ x.unit }}</td><td>{{ x.com }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
       {% if r.extra and r.extra.fields is defined and r.extra.fields is not none %}
@@ -132,11 +134,23 @@
     <datalist id="al-l">{% for a in al_tpl %}<option value="{{ a.n }}">{% endfor %}</datalist>
     <label>Коментар<textarea name="al_comment" rows="3">{{ _alf.comment or '' }}</textarea></label>
     <div class="row" style="gap:8px;justify-content:flex-end"><button type="button" class="btn ghost" onclick="mcAlClose()">Скасувати</button><button class="btn">Зберегти</button></div></div></form></dialog>
+{% set _vc = r0 and r0.kind == 'vaccine' and not r0.cb_id %}
+<dialog class="mc-pk mc-nt mc-vc" id="mc-vc"><form method="post" action="/patients/{{ p.id }}/medcard/record">
+  <div class="hd"><b style="font-size:18px">{{ 'Щеплення' if _vc else 'Додавання щеплення' }}</b><button type="button" class="mc-x" style="position:static;color:#fff" onclick="mcVcClose()">{{ li('x', 22) }}</button></div>
+  <input type="hidden" name="kind" value="vaccine">{% if _vc %}<input type="hidden" name="rid" value="{{ r0.id }}">{% endif %}
+  <input type="hidden" name="at" value="{{ (r0.at if _vc else now).strftime('%Y-%m-%dT%H:%M') }}"><input type="hidden" name="doctor_id" value="{{ (r0.doctor_id if _vc else my_doctor) or '' }}">
+  <div class="nb"><label>Назва<input name="title" value="{{ r0.title or '' if _vc else 'Щеплення' }}" placeholder="Назва"></label>
+    <label>Щеплення</label><div id="vc-rows" style="display:grid;gap:8px"></div>
+    <datalist id="vc-l">{% for v in vc_tpl %}<option value="{{ v }}">{% endfor %}</datalist>
+    <div><button type="button" class="btn ghost" onclick="vcRow()">{{ li('plus', 16) }} Додати</button></div>
+    <label>Коментар<textarea name="vc_comment" rows="3">{{ (r0.extra.fields[0].v if _vc and r0.extra and r0.extra.fields else '') }}</textarea></label>
+    <div class="row" style="gap:8px;justify-content:flex-end"><button type="button" class="btn ghost" onclick="mcVcClose()">Скасувати</button><button class="btn">Зберегти</button></div></div></form></dialog>
+<script type="application/json" id="vc-cur">{{ ((r0.extra.vaccines if _vc and r0.extra and r0.extra.vaccines else [])|tojson) }}</script>
 <script type="application/json" id="al-tpl">{{ al_tpl|tojson }}</script>
 <script type="application/json" id="an-tpl">{{ an_tpl|tojson }}</script>
 <script type="application/json" id="an-cur">{{ ((r0.extra.indicators if _an and r0.extra and r0.extra.indicators else [])|tojson) }}</script>
-<div class="mc-sh {{ 'on' if r0 and not _nt and not _an and not _al }}" id="mc-sh" onclick="mcClose()"></div>
-<form class="card mc-f mc-dr {{ 'on' if r0 and not _nt and not _an and not _al }}" id="form" method="post" action="/patients/{{ p.id }}/medcard/record" enctype="multipart/form-data">
+<div class="mc-sh {{ 'on' if r0 and not _nt and not _an and not _al and not _vc }}" id="mc-sh" onclick="mcClose()"></div>
+<form class="card mc-f mc-dr {{ 'on' if r0 and not _nt and not _an and not _al and not _vc }}" id="form" method="post" action="/patients/{{ p.id }}/medcard/record" enctype="multipart/form-data">
   <button type="button" class="mc-x" onclick="mcClose()" aria-label="Закрити">{{ li('x', 22) }}</button>
   <h2 style="margin:0">{{ 'Редагувати запис' if r0 else 'Новий запис' }}</h2>{% if r0 %}<input type="hidden" name="rid" value="{{ r0.id }}">{% endif %}
   {% if templates_ and not r0 %}<label>Шаблон<select onchange="mcTpl(this)"><option value="">— заповнити з шаблону —</option>{% for t in templates_ %}<option value="{{ t.id }}" data-f='{{ (t.fields or {})|tojson }}' data-k="{{ t.kind }}">{{ t.name }}</option>{% endfor %}</select></label>{% endif %}
@@ -183,14 +197,19 @@ var anLast='';function anTpl(v){var t=JSON.parse(document.getElementById('an-tpl
   var tb=document.getElementById('an-rows');[].slice.call(tb.querySelectorAll('tr')).forEach(function(r){if(!r.querySelectorAll('input')[1].value)r.remove()});
   (t.items||[]).forEach(function(x){anRow({n:x.n,norm:x.norm,unit:x.unit})})}
 function mcAn(){var tb=document.getElementById('an-rows');if(!tb.children.length){var cur=JSON.parse(document.getElementById('an-cur').textContent||'[]');if(cur.length)cur.forEach(anRow);else{anRow();anRow();anRow()}}document.getElementById('mc-an').showModal()}
+var vcI=0;function vcRow(x){x=x||{};var i=vcI++,d=document.createElement('div');d.className='vc-r';
+  d.innerHTML='<input type="date" name="vc_d_'+i+'" value="'+mcEsc(x.d||new Date().toISOString().slice(0,10))+'"><input name="vc_n_'+i+'" list="vc-l" value="'+mcEsc(x.n||'')+'" placeholder="Назва щеплення" autocomplete="off"><button type="button" class="an-del" title="Прибрати" onclick="this.parentNode.remove()">×</button>';
+  document.getElementById('vc-rows').appendChild(d)}
+function mcVc(){var b=document.getElementById('vc-rows');if(!b.children.length){var cur=JSON.parse(document.getElementById('vc-cur').textContent||'[]');if(cur.length)cur.forEach(vcRow);else vcRow()}document.getElementById('mc-vc').showModal()}
+function mcVcClose(){document.getElementById('mc-vc').close();{% if _vc %}location.href='?';{% endif %}}
 function alTpl(i){var t=JSON.parse(document.getElementById('al-tpl').textContent||'[]').find(function(a){return a.n===i.value});var r=document.getElementById('al-r');if(t&&t.reaction&&!r.value)r.value=t.reaction}
 function mcAlClose(){document.getElementById('mc-al').close();{% if _al %}location.href='?';{% endif %}}
 function mcAnClose(){document.getElementById('mc-an').close();{% if _an %}location.href='?';{% endif %}}
 function mcNtClose(){document.getElementById('mc-nt').close();{% if _nt %}location.href='?';{% endif %}}
-function mcOpen(k){var pk=document.getElementById('mc-pk');if(pk.open)pk.close();if(k==='note'){document.getElementById('mc-nt').showModal();return}if(k==='analysis'){mcAn();return}if(k==='allergy'){document.getElementById('mc-al').showModal();return}var f=document.getElementById('form');if(k&&f.elements.kind)f.elements.kind.value=k;f.classList.add('on');document.getElementById('mc-sh').classList.add('on')}
+function mcOpen(k){var pk=document.getElementById('mc-pk');if(pk.open)pk.close();if(k==='note'){document.getElementById('mc-nt').showModal();return}if(k==='analysis'){mcAn();return}if(k==='allergy'){document.getElementById('mc-al').showModal();return}if(k==='vaccine'){mcVc();return}var f=document.getElementById('form');if(k&&f.elements.kind)f.elements.kind.value=k;f.classList.add('on');document.getElementById('mc-sh').classList.add('on')}
 function mcClose(){document.getElementById('form').classList.remove('on');document.getElementById('mc-sh').classList.remove('on');{% if r0 %}location.href='?';{% endif %}}
 function mcSum(){var f=document.getElementById('mc-sum');f.hidden=!f.hidden;if(!f.hidden)f.scrollIntoView({behavior:'smooth',block:'center'})}
-document.addEventListener('keydown',function(e){if(e.key==='Escape')mcClose()});{% if _nt %}document.getElementById('mc-nt').showModal();{% elif _an %}mcAn();{% elif _al %}document.getElementById('mc-al').showModal();{% else %}if(location.hash==='#form')mcOpen();{% endif %}
+document.addEventListener('keydown',function(e){if(e.key==='Escape')mcClose()});{% if _nt %}document.getElementById('mc-nt').showModal();{% elif _an %}mcAn();{% elif _al %}document.getElementById('mc-al').showModal();{% elif _vc %}mcVc();{% else %}if(location.hash==='#form')mcOpen();{% endif %}
 function mcTpl(s){var o=s.selectedOptions[0];if(!o||!o.dataset.f)return;var f=JSON.parse(o.dataset.f),fm=s.form;
   Object.keys(f).forEach(function(k){var el=fm.elements[k];if(el&&!el.value)el.value=f[k]});if(o.dataset.k)fm.elements.kind.value=o.dataset.k}</script>
 {% endblock %}

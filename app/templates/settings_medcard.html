@@ -4,6 +4,11 @@
   <textarea name="items" rows="{{ [als|length + 2, 6]|max }}" placeholder="Лідокаїн | набряк, кропивʼянка&#10;Латекс | контактний дерматит&#10;Пеніцилін">{% for a in als %}{{ a.n }}{% if a.reaction %} | {{ a.reaction }}{% endif %}
 {% endfor %}</textarea>
   <button class="btn" style="margin-top:10px">Зберегти список</button></form>
+<form class="gs" id="vc" method="post" action="/settings/medcard/vaccines"><h2>Щеплення · {{ vcs|length }}</h2>
+  <p class="mini">Список для запису «Щеплення»: лікар обирає назву зі списку й ставить дату. По одній назві в рядку.</p>
+  <textarea name="items" rows="{{ [vcs|length + 2, 5]|max }}" placeholder="Правець, дифтерія (АДП-М)&#10;Гепатит B&#10;Грип (сезонна)&#10;COVID-19">{% for v in vcs %}{{ v }}
+{% endfor %}</textarea>
+  <button class="btn" style="margin-top:10px">Зберегти список</button></form>
 <div class="gs" id="an"><h2>Аналізи · {{ ans|length }}</h2>
   <p class="mini">Список для запису «Аналізи» в медкартці: лікар обирає аналіз зі списку, і показники з нормами й одиницями підставляються самі — лишається вписати результат. Показники — по одному в рядку: <b>Показник | Норма | Од. виміру</b>.</p>
   {% for a in ans %}<details class="mf"><summary><span><b>{{ a.name }}</b> <span class="mini">· показників {{ (a['items'] or [])|length }}</span></span><span class="mini">⌄</span></summary>
@@ -29,7 +34,7 @@
 .mf form{padding:4px 14px 14px;display:grid;gap:10px}.mini{font-size:12px;color:#6b6575}
 @media(max-width:800px){.g2{grid-template-columns:1fr}}</style>
 <a class="btn ghost" href="/settings">‹ Налаштування</a>
-<h1>Медкартка: друк, форми, аналізи, алергії</h1>
+<h1>Медкартка: друк, форми, аналізи, алергії, щеплення</h1>
 {% if qp.get('msg') %}<div class="alert ok">{{ qp.get('msg') }}</div>{% endif %}{% if qp.get('err') %}<div class="alert err">{{ qp.get('err') }}</div>{% endif %}
 
 <form class="gs" method="post" action="/settings/medcard/print"><h2>Шаблон друку консультативного висновку</h2>

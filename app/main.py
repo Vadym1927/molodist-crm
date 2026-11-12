@@ -2816,6 +2816,7 @@ def medcard_page(request: Request, pid: int, edit: int = 0, user: User = Depends
     return render(request, "medcard.html", nav="patient", p=p, recs=recs, by_rec=by_rec, docs=docs, KINDS=MED_KINDS, STAGES=PHOTO_STAGES,
                   mforms=mforms, an_tpl=__import__("app.services.med_import", fromlist=["x"]).analyses(db),
                   al_tpl=__import__("app.services.med_import", fromlist=["x"]).allergens(db),
+                  vc_tpl=__import__("app.services.med_import", fromlist=["x"]).vaccines(db),
                   doctors=db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)).all(),
                   templates_=db.scalars(select(MedTemplate).order_by(MedTemplate.name)).all(), products=inject,
                   edit=next((r for r in recs if r.id == edit), None), now=datetime.now(), photos=photos,
@@ -2889,6 +2890,14 @@ async def medcard_record(request: Request, pid: int, user: User = Depends(curren
                              "unit": str(f.get(f"an_u_{i}") or "").strip()[:30], "com": str(f.get(f"an_c_{i}") or "").strip()[:200]})
         r.extra = {**(r.extra or {}), "indicators": rows}
         r.extra.pop("fields", None)
+    if r.kind == "vaccine" and "vc_n_0" in f and not mf:                  # щеплення: дата + назва (кілька), коментар
+        vs = []
+        for i in range(40):
+            nm, dd = str(f.get(f"vc_n_{i}") or "").strip()[:150], str(f.get(f"vc_d_{i}") or "").strip()[:10]
+            if nm:
+                vs.append({"d": dd, "n": nm})
+        com = str(f.get("vc_comment") or "").strip()[:1000]
+        r.extra = {**(r.extra or {}), "vaccines": vs, "fields": [{"n": "comment", "t": "Коментар", "v": com}] if com else []}
     if r.kind == "allergy" and "al_reaction" in f and not mf:             # алергія: алерген → реакція, коментар
         rea, com = str(f.get("al_reaction") or "").strip()[:300], str(f.get("al_comment") or "").strip()[:1000]
         r.extra = {**(r.extra or {}), "fields": [x for x in ({"n": "reaction", "t": "Реакція", "v": rea}, {"n": "comment", "t": "Коментар", "v": com}) if x["v"]]}
@@ -2969,7 +2978,15 @@ def settings_medcard(request: Request, user: User = Depends(require("users")), d
     from .services import med_import as mim
     from .models import MedForm
     forms = db.scalars(select(MedForm).order_by(MedForm.sort, MedForm.name)).all()
-    return render(request, "settings_medcard.html", nav="settings", pc=mim.print_cfg(db), forms=forms, KINDS=MED_KINDS, ans=mim.analyses(db), als=mim.allergens(db))
+    return render(request, "settings_medcard.html", nav="settings", pc=mim.print_cfg(db), forms=forms, KINDS=MED_KINDS, ans=mim.analyses(db), als=mim.allergens(db), vcs=mim.vaccines(db))
+
+
+@app.post("/settings/medcard/vaccines")
+def settings_medcard_vaccines(items: str = Form(""), user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import med_import as mim
+    n = len(mim.save_vaccines(db, items))
+    audit(db, "medcard.vaccines", user=user, n=n)
+    return RedirectResponse("/settings/medcard?msg=" + _q(f"Список щеплень збережено: {n}") + "#vc", 303)
 
 
 @app.post("/settings/medcard/allergens")
@@ -7105,6 +7122,7 @@ SETTINGS_BLOCKS = [
         ('Медкартка: друк, форми, аналізи, алергії', 'Шаблон друку консультативного висновку, види форм записів (поля як у CleverBox), список аналізів з нормами й список алергенів', '/settings/medcard', 'users', None),
         ('Медкартка: аналізи', 'Список аналізів для медкартки: назва, показники, норми й одиниці — лікар обирає аналіз і вписує лише результат', '/settings/medcard#an', 'users', None),
         ('Медкартка: алергії', 'Список алергенів з типовою реакцією для запису «Алергія»', '/settings/medcard#al', 'users', None),
+        ('Медкартка: щеплення', 'Список щеплень (вакцин) для запису «Щеплення»', '/settings/medcard#vc', 'users', None),
         ('Фото пацієнтів', 'Усі фото й файли пацієнтів: згоди, обличчя, тіло, документи — перегляд, перенесення між розділами, видалення', '/settings/patient-photos', 'upload', None),
         ('Персональні знижки', 'Знижка конкретному пацієнту: окремо % на товари і % на послуги; автозастосування й сумування з іншими знижками', '/settings/personal-discounts', 'loyalty_patient', None),
     ]),

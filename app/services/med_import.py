@@ -289,3 +289,28 @@ def save_allergens(db: Session, text: str) -> list:
     db.merge(SyncState(key=AL_KEY, value=json.dumps(out, ensure_ascii=False), updated_at=datetime.utcnow()))
     db.commit()
     return out
+
+
+VC_KEY = "med_vaccines"
+
+
+def vaccines(db: Session) -> list:
+    """Список щеплень (назви) для запису «Щеплення» (Налаштування → Медкартка → Щеплення)."""
+    st = db.get(SyncState, VC_KEY)
+    try:
+        d = json.loads(st.value) if st and st.value else []
+    except ValueError:
+        d = []
+    return d if isinstance(d, list) else []
+
+
+def save_vaccines(db: Session, text: str) -> list:
+    out, seen = [], set()
+    for line in (text or "").splitlines():
+        t = line.strip()[:150]
+        if t and t.lower() not in seen:
+            seen.add(t.lower())
+            out.append(t)
+    db.merge(SyncState(key=VC_KEY, value=json.dumps(out, ensure_ascii=False), updated_at=datetime.utcnow()))
+    db.commit()
+    return out
