@@ -100,3 +100,19 @@ def test_forms_print_and_form_record():
     with SessionLocal() as db:
         f2 = db.query(MedForm).filter_by(name="Моя форма").one()
         assert [x["type"] for x in f2.fields] == ["text", "textarea"]
+
+
+def test_note_quick_form():
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        p = db.query(Patient).filter_by(cleverbox_id=90597).first() or Patient(full_name="Медімпорт Аліна", phone="+380500009597", cleverbox_id=90597)
+        db.add(p); db.commit(); pid = p.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        c.post(f"/patients/{pid}/medcard/record", data={"kind": "note", "title": "Передзвонити", "note_text": "після 18:00", "at": "2026-11-12T14:00"})
+        with SessionLocal() as db:
+            m = db.query(MedRecord).filter_by(patient_id=pid, title="Передзвонити").one()
+            assert m.kind == "note" and m.extra["fields"][0]["v"] == "після 18:00"
+            rid = m.id
+        t = c.get(f"/patients/{pid}/medcard?edit={rid}").text
+        assert 'id="mc-nt"' in t and "після 18:00" in t and "Нова нотатка" in c.get(f"/patients/{pid}/medcard").text

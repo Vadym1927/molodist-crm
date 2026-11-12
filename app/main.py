@@ -2878,6 +2878,9 @@ async def medcard_record(request: Request, pid: int, user: User = Depends(curren
             if v:
                 new_f.append({**x, "v": v})
         r.extra = {**r.extra, "fields": new_f}
+    if r.kind == "note" and "note_text" in f and not mf:                 # коротка нотатка: назва + опис
+        txt = str(f.get("note_text") or "").strip()
+        r.extra = {**(r.extra or {}), "fields": [{"n": "note", "t": "Опис", "v": txt}] if txt else []}
     r.next_visit = _day(str(f.get("next_visit") or ""))
     r.consent = bool(f.get("consent"))
     if not new:

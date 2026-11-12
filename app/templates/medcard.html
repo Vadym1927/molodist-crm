@@ -44,6 +44,8 @@
 .mc-rec>summary .chev{color:var(--muted);transition:transform .15s}.mc-rec[open]>summary .chev{transform:rotate(180deg)}
 .mc-docic{width:34px;height:34px;border-radius:50%;background:var(--soft,#F7F4F0);display:grid;place-items:center;color:var(--plum,#3B3050);flex:none}
 .mc-act{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.mc-act .btn{display:inline-flex;align-items:center;gap:6px;padding:6px 14px}
+.mc-nt{width:min(480px,94vw)}.mc-nt .nb{display:grid;gap:12px;padding:16px 18px 18px}.mc-nt label{display:grid;gap:4px;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.mc-nt input,.mc-nt textarea{width:100%;margin:0;box-sizing:border-box}.mc-nt textarea{resize:vertical;min-height:110px}
 .mc-pk .sub{padding:14px 18px 0;font-weight:600}.mc-pk .gr i{background:none;width:auto;height:auto;color:var(--plum,#3B3050)}.mc-pk .gr>*{background:#F4F1FA;border-color:transparent;padding:16px}
 .mc-pk .gr>*:hover{background:var(--lavender);border-color:transparent}.mc-pk .gr i.ic-al{color:#E0A100}
 @media (max-width:860px){.mc-tb{grid-template-columns:1fr}.mc-row{grid-template-columns:36px minmax(0,1fr) 22px!important}.mc-row .mc-doc,.mc-row .mc-dt{grid-column:2}}
@@ -96,8 +98,16 @@
   <div class="sub">Оберіть тип запису</div>
   <div class="gr">{% for k in ['note','consultation','procedure','control','analysis','allergy','vaccine'] %}<button type="button" onclick="mcOpen('{{ k }}')"><i class="{{ 'ic-al' if k == 'allergy' }}">{{ li(k, 28) }}</i>{{ KINDS[k] }}</button>{% endfor %}
     <a href="/patients/{{ p.id }}#t-plan"><i>{{ li('plan', 28) }}</i>Бʼюті-план</a></div></dialog>
-<div class="mc-sh {{ 'on' if r0 }}" id="mc-sh" onclick="mcClose()"></div>
-<form class="card mc-f mc-dr {{ 'on' if r0 }}" id="form" method="post" action="/patients/{{ p.id }}/medcard/record" enctype="multipart/form-data">
+{% set _nt = r0 and r0.kind == 'note' and not r0.cb_id %}
+<dialog class="mc-pk mc-nt" id="mc-nt"><form method="post" action="/patients/{{ p.id }}/medcard/record">
+  <div class="hd"><b style="font-size:18px">{{ 'Нотатка' if _nt else 'Нова нотатка' }}</b><button type="button" class="mc-x" style="position:static;color:#fff" onclick="mcNtClose()">{{ li('x', 22) }}</button></div>
+  <input type="hidden" name="kind" value="note">{% if _nt %}<input type="hidden" name="rid" value="{{ r0.id }}">{% endif %}
+  <input type="hidden" name="at" value="{{ (r0.at if _nt else now).strftime('%Y-%m-%dT%H:%M') }}"><input type="hidden" name="doctor_id" value="{{ (r0.doctor_id if _nt else my_doctor) or '' }}">
+  <div class="nb"><label>Назва<input name="title" value="{{ r0.title or '' if _nt }}" placeholder="Назва нотатки" required></label>
+    <label>Опис<textarea name="note_text" rows="5" placeholder="Текст нотатки">{{ (r0.extra.fields[0].v if _nt and r0.extra and r0.extra.fields else '') }}</textarea></label>
+    <div class="row" style="gap:8px;justify-content:flex-end"><button type="button" class="btn ghost" onclick="mcNtClose()">Скасувати</button><button class="btn">Зберегти</button></div></div></form></dialog>
+<div class="mc-sh {{ 'on' if r0 and not _nt }}" id="mc-sh" onclick="mcClose()"></div>
+<form class="card mc-f mc-dr {{ 'on' if r0 and not _nt }}" id="form" method="post" action="/patients/{{ p.id }}/medcard/record" enctype="multipart/form-data">
   <button type="button" class="mc-x" onclick="mcClose()" aria-label="Закрити">{{ li('x', 22) }}</button>
   <h2 style="margin:0">{{ 'Редагувати запис' if r0 else 'Новий запис' }}</h2>{% if r0 %}<input type="hidden" name="rid" value="{{ r0.id }}">{% endif %}
   {% if templates_ and not r0 %}<label>Шаблон<select onchange="mcTpl(this)"><option value="">— заповнити з шаблону —</option>{% for t in templates_ %}<option value="{{ t.id }}" data-f='{{ (t.fields or {})|tojson }}' data-k="{{ t.kind }}">{{ t.name }}</option>{% endfor %}</select></label>{% endif %}
@@ -138,10 +148,11 @@ function mcFilter(){var q=(document.getElementById('mc-q')||{}).value||'',k=(doc
   document.querySelectorAll('.mc-rec').forEach(function(d){var ok=(!k||d.dataset.k===k)&&(!lim||d.dataset.t>=lim)&&(!q||d.textContent.toLowerCase().indexOf(q)>=0);d.hidden=!ok;if(ok)n++});
   var nn=document.getElementById('mc-none');if(nn)nn.hidden=n>0}
 function mcPick(){document.getElementById('mc-pk').showModal()}
-function mcOpen(k){var pk=document.getElementById('mc-pk');if(pk.open)pk.close();var f=document.getElementById('form');if(k&&f.elements.kind)f.elements.kind.value=k;f.classList.add('on');document.getElementById('mc-sh').classList.add('on')}
+function mcNtClose(){document.getElementById('mc-nt').close();{% if _nt %}location.href='?';{% endif %}}
+function mcOpen(k){var pk=document.getElementById('mc-pk');if(pk.open)pk.close();if(k==='note'){document.getElementById('mc-nt').showModal();return}var f=document.getElementById('form');if(k&&f.elements.kind)f.elements.kind.value=k;f.classList.add('on');document.getElementById('mc-sh').classList.add('on')}
 function mcClose(){document.getElementById('form').classList.remove('on');document.getElementById('mc-sh').classList.remove('on');{% if r0 %}location.href='?';{% endif %}}
 function mcSum(){var f=document.getElementById('mc-sum');f.hidden=!f.hidden;if(!f.hidden)f.scrollIntoView({behavior:'smooth',block:'center'})}
-document.addEventListener('keydown',function(e){if(e.key==='Escape')mcClose()});if(location.hash==='#form')mcOpen();
+document.addEventListener('keydown',function(e){if(e.key==='Escape')mcClose()});{% if _nt %}document.getElementById('mc-nt').showModal();{% else %}if(location.hash==='#form')mcOpen();{% endif %}
 function mcTpl(s){var o=s.selectedOptions[0];if(!o||!o.dataset.f)return;var f=JSON.parse(o.dataset.f),fm=s.form;
   Object.keys(f).forEach(function(k){var el=fm.elements[k];if(el&&!el.value)el.value=f[k]});if(o.dataset.k)fm.elements.kind.value=o.dataset.k}</script>
 {% endblock %}
