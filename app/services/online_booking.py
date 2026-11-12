@@ -73,6 +73,9 @@ DEFAULT = {
     "faq": FAQ_DEFAULT,
     "certs_on": True,
     "subs_on": True,
+    "preview_key": "",           # посилання для перегляду до публікації (без входу в CRM)
+    "og_title": "Онлайн-запис у MOLODIST — оберіть послугу, лікаря й час",
+    "og_desc": "Медичний простір естетики та профілактики в Києві. Запис онлайн за хвилину, подарункові сертифікати, гайди з догляду.",
 }
 WD = ["пн", "вт", "ср", "чт", "пт", "сб", "нд"]
 MON = ["січня", "лютого", "березня", "квітня", "травня", "червня", "липня", "серпня", "вересня", "жовтня", "листопада", "грудня"]
@@ -82,6 +85,31 @@ class BookingError(ValueError):
     def __init__(self, code: str, msg: str):
         super().__init__(msg)
         self.code = code
+
+
+def og_src(c: dict):
+    """Фото для картки в соцмережах: фото шапки з налаштувань або стандартне."""
+    from pathlib import Path
+    from . import site_pages as sp
+    n = sp.media_name(c.get("hero_img") or "") if c.get("hero_img") else ""
+    f = sp.media_dir() / n if n else None
+    return f if f and f.is_file() else Path(__file__).resolve().parent.parent / "static" / "site" / "img" / "zapys-hero.webp"
+
+
+def preview_key(db: Session, c: dict | None = None) -> str:
+    """Ключ посилання для перегляду неопублікованої сторінки без входу в CRM (створюється один раз; можна оновити)."""
+    c = c or cfg(db)
+    if not c.get("preview_key"):
+        c["preview_key"] = secrets.token_urlsafe(9)
+        save_cfg(db, c)
+    return c["preview_key"]
+
+
+def new_preview_key(db: Session) -> str:
+    c = cfg(db)
+    c["preview_key"] = secrets.token_urlsafe(9)
+    save_cfg(db, c)
+    return c["preview_key"]
 
 
 def now_local() -> datetime:
@@ -122,7 +150,7 @@ def save_form(db: Session, f) -> dict:
     c["cancel_h"] = _int(f.get("cancel_h"), 0, 168, 3)
     c["max_active"] = _int(f.get("max_active"), 1, 10, 2)
     c["certs_on"], c["subs_on"] = bool(f.get("certs_on")), bool(f.get("subs_on"))
-    for k, n in (("shop_url", 300), ("shop_text", 300), ("note", 300), ("hero_img", 120)):
+    for k, n in (("shop_url", 300), ("shop_text", 300), ("note", 300), ("hero_img", 120), ("og_title", 120), ("og_desc", 300)):
         c[k] = str(f.get(k) or "").strip()[:n]
     on_ids = {int(x) for x in f.getlist("doctor") if str(x).isdigit()}
     c["doctors_off"] = sorted(d.id for d in _staff(db) if d.id not in on_ids)
@@ -263,16 +291,45 @@ def _free(start: datetime, end: datetime, spans: list) -> bool:
     return not any(start < b[1] and b[0] < end for b in spans)
 
 
-def availability(db: Session, service_id: int, doctor_id: int | None, d_from: date | None = None, d_to: date | None = None,
+MAX_SERVICES = 5
+
+
+def service_ids(v) -> list[int]:
+    """«9701,9702», [9701, 9702] або 9701 → список id послуг без повторів (не більше MAX_SERVICES)."""
+    raw = v if isinstance(v, (list, tuple)) else re.split(r"[,\s;]+", str(v if v is not None else ""))
+    out: list[int] = []
+    for x in raw:
+        try:
+            i = int(x)
+        except (TypeError, ValueError):
+            continue
+        if i > 0 and i not in out:
+            out.append(i)
+    return out[:MAX_SERVICES]
+
+
+def pick(db: Session, ids, docs: list[Doctor]) -> tuple[list[CbService], list[int]]:
+    """Послуги візиту й спеціалісти, які надають їх усі (один візит — один спеціаліст)."""
+    svs = [db.get(CbService, i) for i in service_ids(ids)]
+    if not svs or any(not sv or not sv.online or sv.active is False or not sv.price for sv in svs):
+        return [], []
+    hist = performers(db)
+    common: set[int] | None = None
+    for sv in svs:
+        d = set(service_doctors(db, sv, docs, hist))
+        common = d if common is None else common & d
+    return svs, sorted(common or [])
+
+
+def availability(db: Session, service_id, doctor_id: int | None, d_from: date | None = None, d_to: date | None = None,
                  c: dict | None = None, now: datetime | None = None) -> dict[date, list[dict]]:
-    """День → [{t: «10:30», docs: [id, …]}] — вільні початки для послуги (усі її спеціалісти або один)."""
+    """День → [{t: «10:30», docs: [id, …]}] — вільні початки для послуги або кількох послуг поспіль (усі спеціалісти або один)."""
     c = c or cfg(db)
     now = now or now_local()
-    sv = db.get(CbService, service_id)
-    if not sv or not sv.online or sv.active is False:
-        return {}
     docs = online_doctors(db, c)
-    dids = service_doctors(db, sv, docs)
+    svs, dids = pick(db, service_id, docs)
+    if not svs:
+        return {}
     if doctor_id:
         dids = [i for i in dids if i == doctor_id]
     if not dids:
@@ -286,7 +343,7 @@ def availability(db: Session, service_id: int, doctor_id: int | None, d_from: da
                                                                                     StaffShift.doctor_id.in_(dids)))}
     offs = {(o.doctor_id, o.day) for o in db.scalars(select(DayOff).where(DayOff.day >= d_from, DayOff.day <= d_to, DayOff.doctor_id.in_(dids)))}
     by_doc, by_place = _busy(db, d_from, d_to, docs)
-    dur, step = timedelta(minutes=_mins(sv)), timedelta(minutes=int(c["step"]))
+    dur, step = timedelta(minutes=sum(_mins(sv) for sv in svs)), timedelta(minutes=int(c["step"]))
     out: dict[date, dict[str, list[int]]] = {}
     for (did, day), sh in shifts.items():
         if (did, day) in offs:
@@ -343,15 +400,16 @@ def book(db: Session, data: dict, c: dict | None = None, now: datetime | None = 
     if len(name) < 2:
         raise BookingError("name", "Вкажіть, будь ласка, імʼя.")
     try:
-        sid, did = int(data.get("service") or 0), int(data.get("doctor") or 0)
+        sids, did = service_ids(data.get("services") or data.get("service")), int(data.get("doctor") or 0)
         day = date.fromisoformat(str(data.get("day") or ""))
         tm = datetime.strptime(str(data.get("time") or ""), "%H:%M").strftime("%H:%M")
     except ValueError:
         raise BookingError("slot", "Оберіть послугу, день і час.") from None
-    sv = db.get(CbService, sid)
-    slots = availability(db, sid, did or None, day, day, c, now).get(day, [])
+    svs = [x for x in (db.get(CbService, i) for i in sids) if x]
+    total_min = sum(_mins(x) for x in svs)
+    slots = availability(db, sids, did or None, day, day, c, now).get(day, [])
     slot = next((s for s in slots if s["t"] == tm), None)
-    if not sv or not slot:
+    if not svs or not slot:
         raise BookingError("taken", "На жаль, цей час щойно зайняли. Оберіть, будь ласка, інший.")
     pat = ap.find_patient(db, phone)
     if pat:
@@ -360,7 +418,7 @@ def book(db: Session, data: dict, c: dict | None = None, now: datetime | None = 
         if n_act >= int(c["max_active"]):
             raise BookingError("limit", "У вас уже є активні онлайн-записи. Щоб додати ще один, зателефонуйте або напишіть нам.")
         start = _hm(day, tm)
-        if any(a.start < start + timedelta(minutes=_mins(sv)) and start < a.end for a in db.scalars(
+        if any(a.start < start + timedelta(minutes=total_min) and start < a.end for a in db.scalars(
                 select(Appointment).where(Appointment.patient_id == pat.id, Appointment.start >= datetime.combine(day, datetime.min.time()),
                                           Appointment.start <= datetime.combine(day, datetime.max.time()),
                                           Appointment.status.notin_(("cancelled", "no_show"))))):
@@ -381,12 +439,14 @@ def book(db: Session, data: dict, c: dict | None = None, now: datetime | None = 
         doc_id = min(load, key=lambda i: (load[i], i))
     from . import price_cats
     dp = (price_cats.doctor_prices(db).get(doc_id) or {})
-    price = dp.get(str(sv.id), dp.get(sv.id))
+
+    def _price(sv):
+        v = dp.get(str(sv.id), dp.get(sv.id))
+        return float(v if v not in (None, "") else (sv.price or 0))
     sh = db.scalar(select(StaffShift).where(StaffShift.doctor_id == doc_id, StaffShift.day == day))
     comment = " ".join(str(data.get("comment") or "").split())[:500]
     a = aps.save(db, {"patient_id": pat.id, "doctor_id": doc_id, "start": _hm(day, tm), "source": "online",
-                      "services": [{"id": sv.id, "name": sv.name, "price": float(price if price not in (None, "") else (sv.price or 0)),
-                                    "minutes": _mins(sv), "category": sv.category}],
+                      "services": [{"id": sv.id, "name": sv.name, "price": _price(sv), "minutes": _mins(sv), "category": sv.category} for sv in svs],
                       "place": sh.place if sh else None, "booking_source": "Сайт / онлайн-запис",
                       "comment": ("Онлайн-запис із сайту" + (f" · {name}" if name and name.lower() not in (pat.full_name or "").lower() else "")
                                   + (f". Коментар пацієнта: {comment}" if comment else ""))})
@@ -394,6 +454,10 @@ def book(db: Session, data: dict, c: dict | None = None, now: datetime | None = 
     db.commit()
     reset_cache()
     return a
+
+
+def svc_names(a: Appointment) -> str:
+    return ", ".join(str(x.get("name") or "") for x in a.services or [] if x.get("name"))
 
 
 def can_cancel(a: Appointment, c: dict, now: datetime | None = None) -> bool:
@@ -416,7 +480,7 @@ def view(db: Session, a: Appointment, c: dict | None = None) -> dict:
     c = c or cfg(db)
     d = db.get(Doctor, a.doctor_id) if a.doctor_id else None
     card = next(iter(doctor_cards(db, [d.id], c=c)), None) if d else None
-    svc = (a.services or [{}])[0]
+    svc = {"name": svc_names(a), "price": sum(float(x.get("price") or 0) for x in a.services or [])}
     return {"token": a.online_token, "when": f"{day_label(a.start.date())}, {a.start:%H:%M}", "date": a.start.strftime("%d.%m.%Y"),
             "time": a.start.strftime("%H:%M"), "end": a.end.strftime("%H:%M"), "service": svc.get("name") or "", "price": svc.get("price") or 0,
             "doctor": (card or {}).get("name") or (d.name if d else ""), "status": a.status, "can_cancel": can_cancel(a, c),
@@ -439,7 +503,7 @@ def ics(a: Appointment, v: dict, site: dict) -> str:
 def alert_text(db: Session, a: Appointment, base: str, cancelled: bool = False) -> str:
     from html import escape as e
     d = db.get(Doctor, a.doctor_id) if a.doctor_id else None
-    svc = (a.services or [{}])[0]
+    svc = {"name": svc_names(a)}
     p = a.patient
     return "\n".join([("❌ Онлайн-запис скасовано пацієнтом" if cancelled else "🗓 Новий онлайн-запис із сайту"),
                       f"👤 {e(p.full_name if p else '—')}", f"📞 {e(p.phone or '—') if p else '—'}",
@@ -462,7 +526,7 @@ def link_appeal(db: Session, a: Appointment, data: dict) -> int | None:
     """Звернення з мітками реклами (utm / gclid) для онлайн-запису — щоб запис було видно у воронці реклами."""
     from . import appeals as ap, site_leads as sl
     from ..models import Appeal
-    svc = (a.services or [{}])[0]
+    svc = {"name": svc_names(a)}
     p = a.patient
     d = {**{k: v for k, v in data.items() if k.startswith("utm_") or k in ("gclid", "cid", "page")},
          "name": p.full_name if p else "", "phone": p.phone if p else "", "interest": str(svc.get("name") or "")[:200],

@@ -455,16 +455,16 @@ def fill(text: str, price: float | None) -> str:
     return t.replace("Ботулінотерапія від за прайсом", "Ботулінотерапія")
 
 
-def og_image(slug: str) -> "Path | None":
+def og_image(slug: str, src=None) -> "Path | None":
     """Картинка для соцмереж 1200×630: фото першого екрана (або og-<slug> з медіатеки) + лого. Кеш у media/_og."""
     from pathlib import Path  # noqa: F401
     from PIL import Image
     p = PAGES.get(slug)
-    if not p:
+    if not p and src is None:
         return None
     d = media_dir()
-    src = next((d / n for n in (f"og-{slug}.jpg", f"og-{slug}.webp", (p.get("img") or {}).get("hero", "")) if n and (d / n).is_file()), None)
-    if not src:
+    src = next((d / n for n in (f"og-{slug}.jpg", f"og-{slug}.webp", ((p or {}).get("img") or {}).get("hero", "")) if n and (d / n).is_file()), None) or src
+    if not src or not src.is_file():
         return None
     from pathlib import Path as _P
     wm = _P(__file__).resolve().parent.parent / "static" / "site" / "brand" / "wordmark-graphite-600.png"

@@ -8060,6 +8060,11 @@ def _ob_open(request: Request, db: Session, c: dict) -> bool:
     """Сторінку опубліковано — або це перегляд співробітником у CRM (поки не опубліковано)."""
     if c.get("on"):
         return True
+    import hmac as _hm
+    k = str(c.get("preview_key") or "")
+    got = request.query_params.get("p") or request.cookies.get("ob_prev") or ""
+    if k and got and _hm.compare_digest(str(got).encode(), k.encode()):     # посилання для перегляду до публікації
+        return True
     uid = request.session.get("uid") if "session" in request.scope else None
     u = db.get(User, uid) if uid else None
     return bool(u and u.active)
@@ -8098,9 +8103,18 @@ def site_booking(request: Request, v: str = "", service: int = 0, doctor: int = 
                bad_token=bool(v and not appt), hero_img=sp.media_url(c.get("hero_img") or "", ctx["base"]) or f"/static/site/img/zapys-hero.webp?v={ctx['ver']}",
                pre={"service": service, "doctor": doctor}, preview=not c.get("on"),
                n_services=sum(len(x["items"]) for x in cat["cats"]))
+    abs_base = ctx["c"]["canonical"].rstrip("/") if not ctx["noindex"] else str(request.base_url).rstrip("/").replace("http://", "https://") + "/_site"
+    ctx.update(og_title=c.get("og_title") or ctx["title"], og_desc=c.get("og_desc") or ctx["desc"],
+               og_img=f"{abs_base}/og/{ob.SLUG}.jpg" if sp.og_image(ob.SLUG, ob.og_src(c)) else "")
+    if not c.get("on"):
+        ctx["noindex"] = True
     r = _site_resp("site/booking.html", ctx)
     if v or not c.get("on"):
         r.headers["Cache-Control"] = "no-store"
+    pk = request.query_params.get("p")
+    if pk and not c.get("on") and pk == c.get("preview_key"):      # далі на цьому пристрої сторінка й запис працюють без ключа в адресі
+        r.set_cookie("ob_prev", pk, max_age=14 * 86400, httponly=True, samesite="lax", path="/",
+                     secure=request.url.scheme == "https" or request.headers.get("x-forwarded-proto", "") == "https")
     return r
 
 
@@ -8115,7 +8129,7 @@ def site_booking_ics(v: str = "", db: Session = Depends(db_dep)):
 
 
 @app.get("/_site/api/booking/days")
-def site_booking_days(request: Request, service: int, doctor: int = 0, db: Session = Depends(db_dep)):
+def site_booking_days(request: Request, service: str, doctor: int = 0, db: Session = Depends(db_dep)):
     """Вільні дні й час для послуги (і спеціаліста): {days: [{d, label, slots: [{t, docs}]}]}."""
     from .services import online_booking as ob
     c = ob.cfg(db)
@@ -8123,7 +8137,7 @@ def site_booking_days(request: Request, service: int, doctor: int = 0, db: Sessi
         raise HTTPException(404)
     if not _ob_rate(request, "obq", 240):
         return _ob_json({"ok": False, "error": "rate"}, 429)
-    av = ob.availability(db, service, doctor or None, c=c)
+    av = ob.availability(db, ob.service_ids(service), doctor or None, c=c)
     return _ob_json({"ok": True, "days": [{"d": d.isoformat(), "label": ob.day_label(d), "wd": ob.WD[d.weekday()], "n": d.day,
                                            "m": ob.MON[d.month - 1], "slots": sl_} for d, sl_ in av.items()]})
 
@@ -8273,8 +8287,12 @@ async def site_media_ext(request: Request, files: list[UploadFile] = File(...), 
 
 @app.get("/_site/og/{slug}.jpg")
 def site_og(slug: str):
-    from .services import site_pages as sp
-    f = sp.og_image(slug)
+    from .services import site_pages as sp, online_booking as _ob
+    if slug == _ob.SLUG:
+        with SessionLocal() as _db:
+            f = sp.og_image(slug, _ob.og_src(_ob.cfg(_db)))
+    else:
+        f = sp.og_image(slug)
     if not f:
         raise HTTPException(404)
     return FileResponse(f, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
@@ -8341,6 +8359,7 @@ def settings_online(request: Request, user: User = Depends(require("users")), db
     return render(request, "settings_online.html", nav="settings", c=c, rows=rows, staff=ob._staff(db), media=sp.media_list(),
                   n_on=sum(x["on"] for x in rows), n_ok=sum(1 for x in rows for i in x["items"] if i["online"] and i["docs"] and i["price"]),
                   public_url=f"https://{host}/{ob.SLUG}" if host else "", offers=ob.offers(db, c),
+                  preview_url=(f"https://{host}/{ob.SLUG}" if host else settings.public_url.rstrip("/") + f"/_site/{ob.SLUG}") + f"?p={ob.preview_key(db, c)}",
                   pay_ready=bool(__import__("app.services.paylinks", fromlist=["x"]).public(db).get("ready")))
 
 
@@ -8351,6 +8370,14 @@ async def settings_online_save(request: Request, user: User = Depends(require("u
     c = ob.save_form(db, f)
     audit(db, "online.settings", user=user, on=c["on"])
     return RedirectResponse(_with_msg("/settings/online-booking", "Збережено"), 303)
+
+
+@app.post("/settings/online-booking/preview-key")
+def settings_online_preview_key(user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import online_booking as ob
+    ob.new_preview_key(db)
+    audit(db, "online.preview_key", user=user)
+    return RedirectResponse(_with_msg("/settings/online-booking", "Посилання для перегляду оновлено — старе більше не працює"), 303)
 
 
 @app.post("/settings/online-booking/services")

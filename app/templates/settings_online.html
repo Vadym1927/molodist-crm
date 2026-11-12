@@ -25,6 +25,10 @@
     {% if n_on > n_ok %}<span class="pill bad">Позначено, але без спеціаліста чи ціни: {{ n_on - n_ok }}</span>{% endif %}
     <a class="btn ghost" href="/_site/zapys" target="_blank">Переглянути сторінку ↗</a>
     {% if c.on and public_url %}<a href="{{ public_url }}" target="_blank">{{ public_url }}</a>{% endif %}</div>
+  {% if not c.on %}<div style="background:#F6F3FB;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:13.5px"><b>Посилання для перегляду без входу в CRM</b> (телефон, колеги, лікарі):<br>
+    <input type="text" readonly value="{{ preview_url }}" onclick="this.select()" style="width:100%;margin:6px 0;box-sizing:border-box">
+    <span class="mini">Працює, поки сторінку не опубліковано. Записи за цим посиланням — справжні (потрапляють у календар).</span>
+    <form method="post" action="/settings/online-booking/preview-key" style="display:inline"><button class="btn ghost" style="margin-left:8px">Оновити посилання</button></form></div>{% endif %}
   <p class="mini">Пацієнт обирає послугу, спеціаліста, день і час — у календарі CRM зʼявляється запис зі статусом «Записаний» і позначкою «Онлайн-запис», створюється звернення, а в Telegram-чат заявок приходить сповіщення.
     Вільний час рахується з <a href="/specialists/schedule">графіка роботи</a> мінус уже зайняті записи. Хто надає послугу — вкладка «Співробітники» в картці послуги; якщо там порожньо — ті, хто вже проводив її.</p>
 </div>
@@ -56,6 +60,12 @@
   </div>
   <p class="mini">{% if pay_ready %}Платіжну систему підключено: після заявки на сертифікат чи абонемент пацієнт одразу переходить на сторінку оплати.{% else %}Платіжну систему не підключено («Налаштування → Платіжні системи»): заявка на сертифікат чи абонемент приходить як звернення, оплату узгоджує адміністратор.{% endif %}
     Шаблони сертифікатів і абонементів — у розділі «Сертифікати й абонементи».</p>
+
+  <h2 style="margin-top:18px">Картка посилання в соцмережах і месенджерах</h2>
+  <p class="mini">Що бачать люди, коли посиланням на онлайн-запис діляться в Instagram, Telegram, Viber, Facebook: заголовок, опис і фото (фото шапки сторінки зі смугою MOLODIST).</p>
+  <div class="g2"><label>Заголовок<input type="text" name="og_title" value="{{ c.og_title }}" maxlength="120"></label>
+    <label>Опис<input type="text" name="og_desc" value="{{ c.og_desc }}" maxlength="300"></label></div>
+  <p class="mini"><a href="/_site/og/zapys.jpg" target="_blank">Переглянути картинку ↗</a></p>
 
   <h2 style="margin-top:18px">Гайди</h2>
   <p class="mini">Короткі памʼятки на сторінці запису. Текст — по одному пункту в рядку. Посилання (необовʼязково) — на повний гайд (PDF, сторінка). Щоб прибрати гайд — очистіть назву.</p>

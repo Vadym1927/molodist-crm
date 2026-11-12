@@ -44,6 +44,10 @@ def test_catalog_and_availability():
         assert slots["10:00"] == [a, b] and slots["10:30"] == [b] and slots["11:00"] == [b] and slots["11:30"] == [a, b] and "13:00" not in slots
         assert [s["t"] for s in ob.availability(db, 9702, a, now=NOW)[D1]] == ["11:30"]        # 90 хв: лише після зайнятого запису, до кінця зміни
         assert ob.availability(db, 9703, None, now=NOW) == {}
+        # кілька послуг за один візит: спільний спеціаліст і сумарна тривалість (30 + 90 хв)
+        assert ob.service_ids("9701, 9702,9701;x") == [9701, 9702] and ob.pick(db, [9701, 9702], ob.online_doctors(db))[1] == [a]
+        assert ob.availability(db, "9701,9702", None, now=NOW) == {}          # 120 хв поспіль у лікаря немає (зайнято 10:30–11:30)
+        assert ob.availability(db, [9701, 9703], None, now=NOW) == {}         # одна з послуг не онлайн
         late = datetime(2026, 11, 13, 9, 0)                                   # запас 3 год: найближчий початок — 12:00
         assert [s["t"] for s in ob.availability(db, 9701, b, now=late)[D1]] == ["12:00", "12:30"]
 
@@ -81,6 +85,19 @@ def test_book_cancel_and_limits():
         assert ap.status == "cancelled" and "10:30" in {s["t"] for s in ob.availability(db, 9701, b, now=NOW)[D1]}
 
 
+def test_book_several_services():
+    with SessionLocal() as db:
+        a, b = _seed(db)
+        db.query(Appointment).delete(); db.commit()
+        av = ob.availability(db, [9701, 9702], None, now=NOW)[D1]
+        assert [s["t"] for s in av] == ["10:00", "10:30", "11:00"] and all(s["docs"] == [a] for s in av)     # 120 хв у зміні 10–13, лише перша лікарка
+        ap = ob.book(db, {"services": "9701,9702", "doctor": 0, "day": D1.isoformat(), "time": "10:30", "name": "Дві Послуги", "phone": "0671114455"}, now=NOW)
+        assert ap.doctor_id == a and [x["id"] for x in ap.services] == [9701, 9702] and (ap.end - ap.start).seconds == 7200
+        v = ob.view(db, ap)
+        assert v["service"] == "Онлайн консультація, Онлайн чистка" and v["price"] == 2700 and v["end"] == "12:30"
+        assert "Онлайн консультація, Онлайн чистка" in ob.alert_text(db, ap, "https://crm")
+
+
 def test_site_page_api_and_publication(monkeypatch):
     sent = []
     from app.services import alerts
@@ -91,6 +108,18 @@ def test_site_page_api_and_publication(monkeypatch):
     with TestClient(app) as cl:
         assert cl.get("/_site/zapys").status_code == 404                      # не опубліковано — стороннім недоступно
         assert cl.get("/_site/api/booking/days?service=9701").status_code == 404
+        with SessionLocal() as db:
+            key = ob.preview_key(db)
+        assert cl.get("/_site/zapys?p=не-той").status_code == 404
+        r = cl.get(f"/_site/zapys?p={key}")                                   # посилання для перегляду без входу в CRM
+        assert r.status_code == 200 and "noindex" in r.text and 'property="og:image"' in r.text and "Онлайн-запис у MOLODIST" in r.text
+        assert cl.get("/_site/api/booking/days?service=9701").json()["ok"]   # далі на цьому пристрої — за cookie
+        og = cl.get("/_site/og/zapys.jpg")
+        assert og.status_code == 200 and og.headers["content-type"] == "image/jpeg" and len(og.content) > 20000
+        cl.cookies.clear()
+        with SessionLocal() as db:
+            assert ob.new_preview_key(db) != key
+        assert cl.get(f"/_site/zapys?p={key}").status_code == 404             # старе посилання після оновлення не працює
         with SessionLocal() as db:
             c = ob.cfg(db); c["on"] = True; ob.save_cfg(db, c)
         r = cl.get("/_site/zapys")

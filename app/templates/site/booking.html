@@ -50,26 +50,28 @@
   {% else %}
   <div class="ob" id="ob" data-step="1">
     <div class="ob-main">
-      <ol class="ob-steps" aria-label="Кроки запису"><li data-go="1" class="on"><b>1</b><span>Послуга</span></li><li data-go="2"><b>2</b><span>Спеціаліст</span></li><li data-go="3"><b>3</b><span>Час</span></li><li data-go="4"><b>4</b><span>Контакти</span></li></ol>
+      <ol class="ob-steps" aria-label="Кроки запису"><li data-go="1" class="on"><b>1</b><span>Послуги</span></li><li data-go="2"><b>2</b><span>Спеціаліст</span></li><li data-go="3"><b>3</b><span>Час</span></li><li data-go="4"><b>4</b><span>Контакти</span></li></ol>
 
       <div class="ob-pane" data-pane="1">
         <div class="ob-docsel" id="ob-docsel" hidden><span></span><button type="button" class="ob-x" data-ob-nodoc aria-label="Показати послуги всіх спеціалістів">Усі послуги ×</button></div>
         <label class="ob-search"><span class="hp">Пошук послуги</span><input type="search" id="ob-q" placeholder="Знайти послугу: чистка, ботулінотерапія, лазер…" autocomplete="off"></label>
         <div class="ob-cats" id="ob-cats" role="tablist"></div>
+        <p class="ob-multi">Можна обрати кілька послуг на один візит — вони пройдуть одна за одною в одного спеціаліста.</p>
         <div class="ob-list" id="ob-list"></div>
+        <div class="ob-next" id="ob-next" hidden><span></span><button type="button" class="btn sm">Далі</button></div>
       </div>
 
       <div class="ob-pane" data-pane="2" hidden>
         <p class="ob-hint">Хто проведе процедуру</p>
         <div class="ob-docs" id="ob-docs"></div>
-        <button type="button" class="ob-back" data-go="1">← Змінити послугу</button>
+        <button type="button" class="ob-back" data-go="1">← Змінити послуги</button>
       </div>
 
       <div class="ob-pane" data-pane="3" hidden>
         <p class="ob-hint">Оберіть день</p>
         <div class="ob-days" id="ob-days"></div>
         <div class="ob-slots" id="ob-slots"></div>
-        <button type="button" class="ob-back" data-go="2">← Змінити спеціаліста</button>
+        <button type="button" class="ob-back" data-go="2">← Назад</button>
       </div>
 
       <div class="ob-pane" data-pane="4" hidden>
@@ -99,7 +101,7 @@
     <aside class="ob-side" aria-live="polite">
       <p class="eyebrow">Ваш запис</p>
       <dl class="ob-sum">
-        <div><dt>Послуга</dt><dd id="s-svc">—</dd></div>
+        <div><dt>Послуги</dt><dd id="s-svc">—</dd></div>
         <div><dt>Спеціаліст</dt><dd id="s-doc">—</dd></div>
         <div><dt>Дата й час</dt><dd id="s-when">—</dd></div>
         <div class="tot"><dt>Вартість</dt><dd id="s-price">—</dd></div>

@@ -119,3 +119,15 @@
 .ob-mycard h2::first-letter{text-transform:uppercase}
 @media (max-width:640px){.ob-hero h1{font-size:28px}.ob-jump{max-width:calc(100vw - 16px)}}
 @media (max-width:640px){.ob-hero-ph{aspect-ratio:2/1;border-radius:20px;object-position:center 30%}}
+
+/* кілька послуг за один візит */
+.ob-multi{font-size:13.5px;color:var(--mut);margin:12px 0 0}
+.ob-svc{grid-template-columns:22px minmax(0,1fr) auto auto}
+.ob-svc .ck{width:22px;height:22px;border-radius:7px;border:1.5px solid var(--lav2);background:var(--w);display:block;flex:none}
+.ob-svc.on .ck{background:var(--plum) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5.5 10.5l3 3L14.5 7' fill='none' stroke='%23fff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/18px no-repeat;border-color:var(--plum)}
+.ob-svc.off{opacity:.5;cursor:not-allowed}.ob-svc.off:hover{background:none}.ob-svc .why{color:#8a5a00;opacity:1}
+.ob-next{position:sticky;bottom:0;z-index:2;display:flex;justify-content:space-between;align-items:center;gap:14px;background:var(--ink);color:#fff;border-radius:16px;padding:12px 14px 12px 20px;margin-top:14px;font-size:14.5px;box-shadow:0 14px 34px -16px rgba(42,36,48,.6)}
+.ob-next b{font-family:var(--hf);font-weight:600}.ob-next .btn{background:#fff;color:var(--plum);flex:none;padding:12px 26px}.ob-next .btn:hover{background:var(--lav)}
+.ob-sum dd span{display:block}.ob-sum dd span+span{margin-top:4px}
+@media (max-width:640px){.ob-svc{grid-template-columns:22px minmax(0,1fr) auto}.ob-svc .ck{grid-row:1/3;align-self:start;margin-top:2px}.ob-svc .m{grid-column:2;grid-row:2}.ob-svc .p{grid-column:3;grid-row:1/3}
+  .ob-next{bottom:70px;flex-wrap:wrap}.ob-next .btn{flex:1}}

@@ -99,17 +99,35 @@
     });
   }
 
-  /* ---------- запис ---------- */
+  /* ---------- запис: одна або кілька послуг за один візит ---------- */
   var root = $('#ob'); if (!root) return;
-  var D = JSON.parse($('#ob-data').textContent), SV = {}, DOC = {};
+  var D = JSON.parse($('#ob-data').textContent), SV = {}, DOC = {}, MAX = 5;
   D.cats.forEach(function (c) { c.items.forEach(function (s) { s.cat = c.name; SV[s.id] = s; }); });
   D.docs.forEach(function (d) { DOC[d.id] = d; });
-  var st = { svc: null, doc: null, anyDoc: false, day: null, time: null, onlyDoc: null, cat: '', days: [] };
-  var elList = $('#ob-list'), elCats = $('#ob-cats'), elQ = $('#ob-q'), elDocs = $('#ob-docs'), elDays = $('#ob-days'), elSlots = $('#ob-slots'), form = $('#ob-form');
+  var st = { svcs: [], doc: null, anyDoc: false, day: null, time: null, onlyDoc: null, cat: '', days: [] };
+  var elList = $('#ob-list'), elCats = $('#ob-cats'), elQ = $('#ob-q'), elDocs = $('#ob-docs'), elDays = $('#ob-days'), elSlots = $('#ob-slots'), form = $('#ob-form'),
+    elNext = $('#ob-next');
   telMask(form.phone);
 
+  function has(id) { return st.svcs.some(function (s) { return s.id === id; }); }
+  function common() {                                        // спеціалісти, які надають усі обрані послуги
+    var ids = null;
+    st.svcs.forEach(function (s) { ids = ids === null ? s.docs.slice() : ids.filter(function (i) { return s.docs.indexOf(i) >= 0; }); });
+    ids = (ids || []).filter(function (i) { return DOC[i]; });
+    return st.onlyDoc ? ids.filter(function (i) { return i === st.onlyDoc; }) : ids;
+  }
+  function fits(s) {                                         // послугу можна додати до вже обраних (є спільний спеціаліст)
+    if (!st.svcs.length || has(s.id)) return true;
+    var c = common(); return s.docs.some(function (i) { return c.indexOf(i) >= 0; });
+  }
+  function totMin() { return st.svcs.reduce(function (a, s) { return a + s.min; }, 0); }
+  function priceOf(s) { var p = st.doc && s.dp && s.dp[st.doc.id]; return p || s.price; }
+  function totPrice() { return st.svcs.reduce(function (a, s) { return a + priceOf(s); }, 0); }
+  function ids() { return st.svcs.map(function (s) { return s.id; }).join(','); }
+  function names() { return st.svcs.map(function (s) { return s.name; }).join(', '); }
+
   function go(n) {
-    if (n > 1 && !st.svc) n = 1;
+    if (n > 1 && !st.svcs.length) n = 1;
     if (n > 2 && !(st.doc || st.anyDoc)) n = 2;
     if (n > 3 && !st.time) n = 3;
     root.dataset.step = n;
@@ -118,13 +136,16 @@
     if (n === 5) $$('.ob-steps li', root).forEach(function (li) { li.classList.add('done'); li.classList.remove('on'); });
     summary();
   }
-  function price() { if (!st.svc) return null; var p = st.doc && st.svc.dp && st.svc.dp[st.doc.id]; return p || st.svc.price; }
   function summary() {
-    $('#s-svc').innerHTML = st.svc ? esc(st.svc.name) + '<small>' + mins(st.svc.min) + '</small>' : '—';
+    $('#s-svc').innerHTML = st.svcs.length ? st.svcs.map(function (s) { return '<span>' + esc(s.name) + '</span>'; }).join('') + '<small>' + mins(totMin()) + '</small>' : '—';
     $('#s-doc').textContent = st.doc ? st.doc.name : (st.anyDoc ? 'Будь-який вільний спеціаліст' : '—');
     var d = st.day && st.days.filter(function (x) { return x.d === st.day; })[0];
     $('#s-when').textContent = d && st.time ? d.label + ', ' + st.time : '—';
-    $('#s-price').textContent = st.svc ? money(price()) : '—';
+    $('#s-price').textContent = st.svcs.length ? money(totPrice()) : '—';
+    if (elNext) {
+      elNext.hidden = !st.svcs.length;
+      $('span', elNext).innerHTML = '<b>' + (st.svcs.length === 1 ? 'Обрано 1 послугу' : 'Обрано послуг: ' + st.svcs.length) + '</b> · ' + mins(totMin()) + ' · ' + money(totPrice());
+    }
   }
   function visible(s) { return !st.onlyDoc || s.docs.indexOf(st.onlyDoc) >= 0; }
   function renderCats() {
@@ -134,36 +155,39 @@
       return '<button type="button" class="' + (st.cat === c.name ? 'on' : '') + '" data-cat="' + esc(c.name) + '">' + esc(c.name) + '</button>'; }).join('');
   }
   function renderList() {
-    var q = (elQ.value || '').trim().toLowerCase(), h = '', n = 0;
+    var q = (elQ.value || '').trim().toLowerCase(), h = '', full = st.svcs.length >= MAX;
     D.cats.forEach(function (c) {
       if (st.cat && !q && c.name !== st.cat) return;
       var its = c.items.filter(function (s) { return visible(s) && (!q || (s.name + ' ' + c.name).toLowerCase().indexOf(q) >= 0); });
       if (!its.length) return;
-      n += its.length;
       h += '<div class="ob-cat"><h3>' + esc(c.name) + '</h3>' + its.map(function (s) {
-        return '<button type="button" class="ob-svc' + (st.svc && st.svc.id === s.id ? ' on' : '') + '" data-svc="' + s.id + '"><span><b>' + esc(s.name) + '</b>' +
-          (s.desc ? '<small>' + esc(s.desc) + '</small>' : '') + '</span><span class="m">' + mins(s.min) + '</span><span class="p">' + money(s.price) + '</span></button>'; }).join('') + '</div>';
+        var on = has(s.id), off = !on && (full || !fits(s));
+        return '<button type="button" class="ob-svc' + (on ? ' on' : '') + (off ? ' off' : '') + '" data-svc="' + s.id + '" aria-pressed="' + on + '"' + (off ? ' aria-disabled="true"' : '') + '>' +
+          '<i class="ck" aria-hidden="true"></i><span><b>' + esc(s.name) + '</b>' + (s.desc ? '<small>' + esc(s.desc) + '</small>' : '') +
+          (off && !full ? '<small class="why">Проводить інший спеціаліст — запишіться на цю послугу окремо</small>' : '') +
+          '</span><span class="m">' + mins(s.min) + '</span><span class="p">' + money(s.price) + '</span></button>'; }).join('') + '</div>';
     });
     elList.innerHTML = h || '<p class="muted">Нічого не знайдено. Спробуйте іншу назву або зателефонуйте нам — підкажемо.</p>';
   }
   function renderDocs() {
-    var ids = st.svc.docs.filter(function (i) { return DOC[i]; }), h = '';
-    if (ids.length > 1) h += '<button type="button" class="ob-doc any' + (st.anyDoc ? ' on' : '') + '" data-doc="0"><span class="ob-ph"><i>✦</i></span><span><b>Будь-який вільний спеціаліст</b><small>Більше вільного часу на вибір</small></span></button>';
-    h += ids.map(function (i) {
-      var d = DOC[i], p = st.svc.dp && st.svc.dp[i];
+    var c = common(), h = '';
+    if (c.length > 1) h += '<button type="button" class="ob-doc any' + (st.anyDoc ? ' on' : '') + '" data-doc="0"><span class="ob-ph"><i>✦</i></span><span><b>Будь-який вільний спеціаліст</b><small>Більше вільного часу на вибір</small></span></button>';
+    h += c.map(function (i) {
+      var d = DOC[i], p = st.svcs.reduce(function (a, s) { return a + ((s.dp && s.dp[i]) || s.price); }, 0), base = st.svcs.reduce(function (a, s) { return a + s.price; }, 0);
       return '<button type="button" class="ob-doc' + (st.doc && st.doc.id === i ? ' on' : '') + '" data-doc="' + i + '"><span class="ob-ph">' +
         (d.photo ? '<img src="' + esc(d.photo) + '" alt="">' : '<i>' + esc(d.initials) + '</i>') + '</span><span><b>' + esc(d.name) + '</b><small>' + esc(d.role) + '</small>' +
-        (p && p !== st.svc.price ? '<em>' + money(p) + '</em>' : '') + '</span></button>'; }).join('');
+        (p !== base ? '<em>' + money(p) + '</em>' : '') + '</span></button>'; }).join('');
     elDocs.innerHTML = h;
   }
+  function key() { return ids() + ':' + (st.doc ? st.doc.id : 0); }
   function loadDays() {
     elDays.innerHTML = '<p class="muted">Шукаємо вільний час…</p>'; elSlots.innerHTML = '';
-    var key = st.svc.id + ':' + (st.doc ? st.doc.id : 0);
-    api('/api/booking/days?service=' + st.svc.id + '&doctor=' + (st.doc ? st.doc.id : 0), null, function (j) {
-      if (key !== st.svc.id + ':' + (st.doc ? st.doc.id : 0)) return;
+    var k = key();
+    api('/api/booking/days?service=' + ids() + '&doctor=' + (st.doc ? st.doc.id : 0), null, function (j) {
+      if (k !== key()) return;
       st.days = (j && j.days) || [];
       if (!st.days.length) {
-        elDays.innerHTML = '<p class="ob-none">На найближчі тижні вільного часу онлайн немає. Напишіть або зателефонуйте нам — адміністратор підбере варіант.</p>';
+        elDays.innerHTML = '<p class="ob-none">На найближчі тижні вільного часу онлайн немає' + (st.svcs.length > 1 ? ' для всіх обраних послуг поспіль (' + mins(totMin()) + '). Спробуйте обрати менше послуг або напишіть нам' : '. Напишіть або зателефонуйте нам') + ' — адміністратор підбере варіант.</p>';
         return;
       }
       if (!st.day || !st.days.some(function (x) { return x.d === st.day; })) { st.day = st.days[0].d; st.time = null; }
@@ -183,57 +207,67 @@
       return '<div class="ob-sg"><span>' + x[0] + '</span><div>' + x[1].map(function (s) {
         return '<button type="button" class="' + (st.time === s.t ? 'on' : '') + '" data-time="' + s.t + '">' + s.t + '</button>'; }).join('') + '</div></div>'; }).join('');
   }
+  function resetTime() { st.time = null; st.day = null; st.days = []; }
   function pickDoc(id) {
     st.onlyDoc = id || null;
     var box = $('#ob-docsel');
     if (st.onlyDoc && DOC[id]) { box.hidden = false; $('span', box).textContent = 'Послуги, які проводить ' + DOC[id].name; } else box.hidden = true;
-    if (st.svc && !visible(st.svc)) { st.svc = null; st.doc = null; st.anyDoc = false; st.time = null; }
-    renderCats(); renderList();
+    st.svcs = st.svcs.filter(visible); st.doc = null; st.anyDoc = false; resetTime();
+    renderCats(); renderList(); summary();
+  }
+  function next() {                                          // від послуг — до спеціаліста або одразу до часу
+    if (!st.svcs.length) return;
+    var c = common(); resetTime();
+    if (c.length === 1) { st.doc = DOC[c[0]]; st.anyDoc = false; go(3); loadDays(); }
+    else { if (st.doc && c.indexOf(st.doc.id) < 0) st.doc = null; renderDocs(); go(2); }
+    root.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   elCats.addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; st.cat = b.dataset.cat; elQ.value = ''; renderCats(); renderList(); });
   elQ.addEventListener('input', renderList);
   elList.addEventListener('click', function (e) {
-    var b = e.target.closest('[data-svc]'); if (!b) return;
-    st.svc = SV[b.dataset.svc]; st.time = null; st.day = null; st.days = [];
-    window.dataLayer.push({ event: 'booking_service', item_name: st.svc.name, item_category: st.svc.cat, value: st.svc.price, currency: 'UAH' });
-    if (st.onlyDoc && st.svc.docs.indexOf(st.onlyDoc) >= 0) { st.doc = DOC[st.onlyDoc]; st.anyDoc = false; go(3); loadDays(); }
-    else if (st.svc.docs.length === 1) { st.doc = DOC[st.svc.docs[0]]; st.anyDoc = false; go(3); loadDays(); }
-    else { st.doc = null; st.anyDoc = false; renderDocs(); go(2); }
-    renderList(); root.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    var b = e.target.closest('[data-svc]'); if (!b || b.classList.contains('off')) return;
+    var s = SV[b.dataset.svc];
+    if (has(s.id)) st.svcs = st.svcs.filter(function (x) { return x.id !== s.id; });
+    else { st.svcs.push(s); window.dataLayer.push({ event: 'booking_service', item_name: s.name, item_category: s.cat, value: s.price, currency: 'UAH' }); }
+    st.doc = null; st.anyDoc = false; resetTime();
+    renderList(); summary();
   });
+  if (elNext) $('button', elNext).addEventListener('click', next);
   elDocs.addEventListener('click', function (e) {
     var b = e.target.closest('[data-doc]'); if (!b) return;
-    var id = +b.dataset.doc; st.doc = id ? DOC[id] : null; st.anyDoc = !id; st.time = null; st.day = null;
+    var id = +b.dataset.doc; st.doc = id ? DOC[id] : null; st.anyDoc = !id; resetTime();
     go(3); loadDays();
   });
   elDays.addEventListener('click', function (e) { var b = e.target.closest('[data-day]'); if (!b) return; st.day = b.dataset.day; st.time = null; renderDays(); renderSlots(); summary(); });
   elSlots.addEventListener('click', function (e) {
     var b = e.target.closest('[data-time]'); if (!b) return; st.time = b.dataset.time; go(4);
-    window.dataLayer.push({ event: 'booking_time', item_name: st.svc.name });
+    window.dataLayer.push({ event: 'booking_time', item_name: names() });
     setTimeout(function () { try { form.name.focus({ preventScroll: true }); } catch (x) {} }, 50);
   });
   root.addEventListener('click', function (e) {
     var b = e.target.closest('[data-go]'); if (!b || root.dataset.step === '5') return;
-    var n = +b.dataset.go; if (n === 2 && st.svc) renderDocs(); if (n === 3 && st.svc && (st.doc || st.anyDoc) && !st.days.length) loadDays();
+    var n = +b.dataset.go;
     if (b.tagName === 'LI' && n > +root.dataset.step) return;
+    if (n === 2 && st.svcs.length) { if (common().length < 2) n = 1; else renderDocs(); }
+    if (n === 3 && st.svcs.length && (st.doc || st.anyDoc) && !st.days.length) loadDays();
     go(n);
   });
   $('[data-ob-nodoc]').addEventListener('click', function () { pickDoc(null); });
-  $$('[data-ob-doc]').forEach(function (a) { a.addEventListener('click', function () { if (root.dataset.step === '5') return; pickDoc(+a.dataset.obDoc); st.doc = null; st.anyDoc = false; go(1); }); });
+  $$('[data-ob-doc]').forEach(function (a) { a.addEventListener('click', function () { if (root.dataset.step === '5') return; pickDoc(+a.dataset.obDoc); go(1); }); });
 
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     var er = $('.err', form), bt = $('button.btn', form); er.hidden = true;
     if ((form.name.value || '').trim().length < 2) { er.textContent = 'Вкажіть, будь ласка, імʼя.'; er.hidden = false; form.name.focus(); return; }
     if (!telOk(form.phone.value)) { er.textContent = 'Перевірте номер телефону: +380 і 9 цифр.'; er.hidden = false; form.phone.focus(); return; }
-    var d = marks(); d.service = st.svc.id; d.doctor = st.doc ? st.doc.id : 0; d.day = st.day; d.time = st.time;
+    var d = marks(); d.services = ids(); d.doctor = st.doc ? st.doc.id : 0; d.day = st.day; d.time = st.time;
     d.name = form.name.value.trim(); d.phone = form.phone.value; d.comment = form.comment.value.trim(); d.website = form.website.value;
     bt.disabled = true; bt.textContent = 'Записуємо…';
     api('/api/booking', d, function (j) {
       bt.disabled = false; bt.textContent = 'Записатися';
       if (j && j.ok) {
-        $('#ob-done-when').textContent = j.when.charAt(0).toUpperCase() + j.when.slice(1);
+        $('#ob-done-when').textContent = j.when.charAt(0).toUpperCase() + j.when.slice(1) + '–' + j.end;
         $('#ob-done-what').textContent = j.service + (j.doctor ? ' · ' + j.doctor : '') + (j.price ? ' · ' + money(j.price) : '');
         $('#ob-ics').href = B + '/zapys.ics?v=' + encodeURIComponent(j.token);
         $('#ob-mylink').href = B + '/zapys?v=' + encodeURIComponent(j.token);
@@ -252,5 +286,5 @@
   renderCats(); renderList(); summary();
   var pre = D.pre || {};
   if (pre.doctor && DOC[pre.doctor]) pickDoc(pre.doctor);
-  if (pre.service && SV[pre.service]) { var b0 = $('[data-svc="' + pre.service + '"]', elList); if (b0) b0.click(); }
+  if (pre.service && SV[pre.service] && visible(SV[pre.service])) { st.svcs = [SV[pre.service]]; renderList(); summary(); }
 })();
