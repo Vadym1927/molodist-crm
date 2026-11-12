@@ -5761,6 +5761,12 @@ def settings_channels_meta_subscribe(user: User = Depends(require("users")), db:
     return RedirectResponse(_with_msg(f"/settings/channels?open={c['id'] if c else ''}", ("✅ " if ok else "❌ ") + msg, not ok), 303)
 
 
+@app.get("/settings/channels/meta-apps", response_class=HTMLResponse)
+def settings_channels_meta_apps(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import meta_inbox as mi
+    return render(request, "meta_apps.html", nav="settings", r=mi.apps_report(db))
+
+
 @app.post("/settings/channels/replies")
 def settings_channels_replies(on: str = Form(""), user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     from .services import meta_inbox as mi

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Хто відповідає від імені MOLODIST{% endblock %}
+{% block body %}
+<a class="btn ghost" href="/settings/channels">‹ Канали</a>
+<h1>Хто відповідає в Instagram / Messenger</h1>
+<p class="muted">Щоб знайти автовідповідь («Я — бот команди MOLODIST…»): нижче — застосунки, які отримують повідомлення сторінки, і хто надсилав повідомлення від імені MOLODIST (за даними Meta з моменту оновлення CRM).</p>
+{% if r.error %}<div class="alert err">Meta: {{ r.error }}</div>{% endif %}
+<div class="card"><h3>Підписані на сторінку Facebook (отримують повідомлення)</h3>
+  {% for a in r.subscribed %}<div style="padding:6px 0;border-top:1px solid #F0ECE6"><b>{{ a.name or 'без назви' }}</b> <span class="muted small">id {{ a.id }}</span><div class="small muted">{{ a.fields|join(', ') or 'без полів' }}</div></div>
+  {% else %}<p class="muted">Немає даних (потрібен токен сторінки).</p>{% endfor %}
+</div>
+<div class="card" style="margin-top:12px"><h3>Хто надсилав повідомлення від імені MOLODIST</h3>
+  {% for x in r.senders %}<div style="padding:6px 0;border-top:1px solid #F0ECE6"><b>{{ x.name or ('застосунок ' ~ x.id) }}</b> <span class="muted small">{% if x.id != 'manual' %}app id {{ x.id }} · {% endif %}{{ x.channel }} · {{ x.n }} повідомл. · останнє {{ (x.last or '').replace('T', ' ') }}</span>
+    <div class="small muted">«{{ x.sample }}»</div></div>
+  {% else %}<p class="muted">Поки нічого — дані зʼявляться з наступної автовідповіді. Напишіть у Direct з іншого акаунта й відкрийте сторінку знову.</p>{% endfor %}
+</div>
+{% endblock %}

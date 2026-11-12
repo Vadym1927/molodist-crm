@@ -13,6 +13,8 @@ import logging
 import secrets as _secrets
 from datetime import datetime, timedelta
 
+import json
+
 import httpx
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
@@ -224,6 +226,7 @@ def _echo(db: Session, channel: str, ev: dict, msg: dict, http: httpx.Client | N
         return 0
     if mid and db.scalar(select(ChatMessage.id).where(ChatMessage.mid == mid)):
         return 0                                         # це наша відповідь з CRM — вже є
+    note_app(db, channel, msg.get("app_id") or ev.get("app_id"), text)
     prev = db.scalars(select(ChatMessage).where(ChatMessage.thread == rid).order_by(ChatMessage.id.desc())).first()
     if not prev:                                         # адміністратор першим написав людині — переписку все одно показуємо
         name = _profile(db, channel, rid, http)
@@ -426,6 +429,57 @@ def subscribe(db: Session, http: httpx.Client | None = None) -> tuple[bool, str]
             m += " — потрібен дозвіл pages_manage_metadata у токені сторінки"
         return False, f"Meta: {m}"
     return bool(js.get("success")), "Сторінку підписано на messages, messaging_postbacks" if js.get("success") else "Meta не підтвердила підписку"
+
+
+APPS_KEY = "meta_echo_apps"
+
+
+def note_app(db: Session, channel: str, app_id, text: str) -> None:
+    """Хто надсилає вихідні повідомлення від імені сторінки / Instagram: app_id з «ехо» Meta (без app_id — вручну з застосунку)."""
+    from ..models import SyncState
+    key = str(app_id or "manual")
+    st = db.get(SyncState, APPS_KEY)
+    try:
+        d = json.loads(st.value) if st and st.value else {}
+    except ValueError:
+        d = {}
+    x = d.get(key) or {"n": 0}
+    x.update(n=int(x.get("n") or 0) + 1, last=datetime.now().isoformat(timespec="minutes"), channel=channel, sample=(text or "")[:120])
+    d[key] = x
+    db.merge(SyncState(key=APPS_KEY, value=json.dumps(d, ensure_ascii=False), updated_at=datetime.utcnow()))
+
+
+def apps_report(db: Session, http: httpx.Client | None = None) -> dict:
+    """Застосунки, підписані на сторінку (отримують повідомлення), і застосунки, що надсилали повідомлення від імені клініки."""
+    from ..models import SyncState
+    cl = http or httpx.Client(timeout=15)
+    tok = _page_token(db)
+    out = {"subscribed": [], "senders": [], "error": None}
+    if tok:
+        try:
+            js = cl.get(f"{GRAPH}/me/subscribed_apps", params={"access_token": tok}).json()
+            if js.get("error"):
+                out["error"] = js["error"].get("message", "помилка")[:200]
+            for a in js.get("data") or []:
+                flds = sorted({(f.get("name") or "") if isinstance(f, dict) else str(f) for f in (a.get("subscribed_fields") or [])} - {""})
+                out["subscribed"].append({"id": a.get("id"), "name": a.get("name") or "", "fields": flds})
+        except Exception as e:  # noqa: BLE001
+            out["error"] = str(e)[:200]
+    st = db.get(SyncState, APPS_KEY)
+    try:
+        d = json.loads(st.value) if st and st.value else {}
+    except ValueError:
+        d = {}
+    names = {a["id"]: a["name"] for a in out["subscribed"]}
+    for k, x in sorted(d.items(), key=lambda kv: kv[1].get("last") or "", reverse=True):
+        nm = "вручну (застосунок Instagram / Meta Business Suite)" if k == "manual" else names.get(k, "")
+        if k != "manual" and not nm and tok:
+            try:
+                nm = cl.get(f"{GRAPH}/{k}", params={"access_token": tok, "fields": "name"}).json().get("name") or ""
+            except Exception:  # noqa: BLE001
+                nm = ""
+        out["senders"].append({"id": k, "name": nm, **x})
+    return out
 
 
 _AV: dict[str, tuple[float, bytes, str]] = {}     # аватари співрозмовників: thread → (час, байти, тип) — у памʼяті, 12 год

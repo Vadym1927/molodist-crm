@@ -168,7 +168,8 @@ details.cc-how[open] summary:after{transform:rotate(180deg)}details.cc-how summa
       <div class="cs-f"><label>Журнал вебхука (останні виклики Meta)</label>
         {% for r in meta_log or [] %}<div class="hint" style="margin:2px 0">{{ {'verify':'✅','event':'📩','verify-bad':'⚠️','bad-signature':'⚠️','error':'❌'}.get(r.kind,'•') }} {{ (r.at|local|dt('%d.%m %H:%M:%S')) if r.at else '' }} — {{ r.note }}</div>
         {% else %}<div class="hint">Meta ще жодного разу не викликала вебхук. Перевірте «Configure webhooks» і підписку сторінки.</div>{% endfor %}
-        <button class="ch-btn" type="submit" form="msub{{ c.id }}" style="margin-top:6px">Підписати сторінку на вебхук</button></div>
+        <button class="ch-btn" type="submit" form="msub{{ c.id }}" style="margin-top:6px">Підписати сторінку на вебхук</button>
+        <a class="ch-btn" href="/settings/channels/meta-apps" style="margin-top:6px;display:inline-block">Хто ще відповідає в Direct / Messenger</a></div>
       <div class="cs-f"><label>Підканали</label>{% for p in c.params.pages or [] %}<div class="it-row"><span>{{ '📘' if p.kind == 'facebook' else '📷' }}</span><span class="nm">{{ p.kind }} · {{ p.name }}</span></div>{% endfor %}</div>
     {% endif %}
     <div style="display:flex;gap:8px;flex-wrap:wrap">

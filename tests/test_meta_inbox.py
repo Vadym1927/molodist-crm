@@ -237,3 +237,30 @@ def test_reply_window_banner():
         assert "Вікно відповіді закрилось" in t1 and 'cx-win bad' in t1
         t2 = c.get("/chats?t=WIN2").text
         assert "cx-win bad" not in t2 and "Відповісти можна до" in t2
+
+
+def test_echo_app_report():
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        _setup(db)
+        db.add(ChatMessage(channel="instagram", thread="APP1", direction="in", text="Вітаю", name="x"))
+        db.commit()
+        mi.ingest(db, {"object": "instagram", "entry": [{"id": "IGOWN", "messaging": [
+            {"sender": {"id": "IGOWN"}, "recipient": {"id": "APP1"}, "timestamp": 1762450000000,
+             "message": {"mid": "m_bot_1", "is_echo": True, "app_id": 777, "text": "Добрий день! Я — бот команди MOLODIST"}}]}]})
+        db.commit()
+
+        class H:
+            def get(self, url, params=None):
+                class R:
+                    def json(s):
+                        if url.endswith("/me/subscribed_apps"):
+                            return {"data": [{"id": "777", "name": "SomeBot", "subscribed_fields": ["messages"]}]}
+                        return {"name": "?"}
+                return R()
+        r = mi.apps_report(db, H())
+        assert r["subscribed"][0]["name"] == "SomeBot"
+        assert any(x["id"] == "777" and x["name"] == "SomeBot" and "бот команди" in x["sample"] for x in r["senders"])
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        assert c.get("/settings/channels/meta-apps").status_code == 200
