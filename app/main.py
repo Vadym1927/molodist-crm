@@ -5629,7 +5629,13 @@ def chats_page(request: Request, t: str = "", ch: str = "", q: str = "", user: U
                 _ps = None
         _lastv = db.scalar(select(func.max(Visit.starts_at)).where(Visit.patient_id == pat.id, Visit.status.in_(("done", "attended")), Visit.starts_at <= datetime.now()))
         pinfo = {"upcoming": _rt.upcoming(db, pat.id, 3), "plan": _pl, "ps": _ps, "last_visit": _lastv}
-    return render(request, "chats.html", nav="chats", threads=th, cur=cur, msgs=msgs, pat=pat, ch_=ch, q=q, tpls=tpls, pinfo=pinfo,
+    win = None
+    if cur and cur["channel"] in ("facebook", "instagram"):    # Meta: відповідь лише 24 год після останнього вхідного
+        _li = max((m_.at for m_ in msgs if m_.direction == "in"), default=None)
+        if _li:
+            _end = _li + timedelta(hours=24)
+            win = {"end": _end, "closed": datetime.utcnow() >= _end, "soon": _end - datetime.utcnow() < timedelta(hours=3)}
+    return render(request, "chats.html", nav="chats", threads=th, cur=cur, msgs=msgs, pat=pat, ch_=ch, q=q, tpls=tpls, pinfo=pinfo, win=win,
                   connected=bool(c and c.get("has", {}).get("page_token")), replies_on=mi.replies_enabled(db),
                   suggest=mi.suggest(db, cur["name"]) if cur and not pat else [], close_st=close_st,
                   deny_reasons=_d.get("deny_reasons") or [], other_reasons=_d.get("other_reasons") or [],

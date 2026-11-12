@@ -219,3 +219,21 @@ def test_unread_counter_endpoint():
         assert 'id="cx-badge"' in c.get("/tasks").text
         c.get("/chats?t=CNT1")
         assert c.get("/chats/unread.json").json()["n"] == d["n"] - 2
+
+
+def test_reply_window_banner():
+    from datetime import datetime, timedelta
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        _setup(db)
+        db.add(ChatMessage(channel="instagram", thread="WIN1", direction="in", text="Старе", name="old",
+                           at=datetime.utcnow() - timedelta(hours=30)))
+        db.add(ChatMessage(channel="instagram", thread="WIN2", direction="in", text="Свіже", name="new",
+                           at=datetime.utcnow() - timedelta(hours=22)))
+        db.commit()
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        t1 = c.get("/chats?t=WIN1").text
+        assert "Вікно відповіді закрилось" in t1 and 'cx-win bad' in t1
+        t2 = c.get("/chats?t=WIN2").text
+        assert "cx-win bad" not in t2 and "Відповісти можна до" in t2

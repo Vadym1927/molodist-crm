@@ -36,6 +36,7 @@ dialog.cx-dl{border:0;border-radius:18px;padding:22px;width:min(420px,92vw);box-
 .cx-b.out{align-self:flex-end;background:#3B3050;color:#fff;border-bottom-right-radius:4px}.cx-b.out.bad{background:#FDECEA;color:#B23B2E;border:1px solid #F5C6C1}
 .cx-b small{display:block;font-size:10.5px;opacity:.65;margin-top:3px}.cx-b a{color:inherit}
 .cx-d{align-self:center;font-size:11.5px;color:#9a93a6;background:#F2EFEA;border-radius:8px;padding:2px 10px;margin:6px 0}
+.cx-win{margin:0 10px 8px;padding:8px 12px;border-radius:10px;background:#F4F1FA;color:#3B3050;font-size:13px}.cx-win.bad{background:#FBEFEA;color:#8a3a1f}
 .cx-in{border-top:1px solid #F1EDE8;padding:10px;display:flex;gap:8px;align-items:flex-end}.cx-in textarea{flex:1;margin:0;min-height:44px;max-height:140px;border-radius:12px;resize:vertical}
 .cx-e{flex:1;display:grid;place-items:center;text-align:center;color:#8a8496;padding:24px;font-size:14px;line-height:1.5}
 .cx-p{padding:14px;display:grid;gap:10px;overflow:auto;align-content:start}.cx-p h4{margin:0;font:700 11px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496}
@@ -79,11 +80,14 @@ dialog.cx-dl{border:0;border-radius:18px;padding:22px;width:min(420px,92vw);box-
       {% if m.direction == 'sys' %}<div class="cx-sys">✓ {{ m.text }} · {{ m.at|local|dt('%H:%M') }}</div>{% else %}
       <div class="cx-b {{ m.direction }} {{ 'bad' if m.direction == 'out' and m.status != 'sent' }}">{{ m.text or '' }}{% for a in m.attachments or [] %}{% if a.url %}<div><a href="{{ a.url }}" target="_blank" rel="noopener">📎 {{ a.type or 'файл' }}</a></div>{% endif %}{% endfor %}
         <small>{{ m.at|local|dt('%H:%M') }}{% if m.direction == 'out' %} · {{ {'sent':'надіслано','paused':'не надіслано — вимкнено','failed':'помилка'}.get(m.status, m.status) }}{% if m.error and m.status != 'sent' %}: {{ m.error }}{% endif %}{% endif %}</small></div>{% endif %}{% endfor %}</div>
+    {% if win and win.closed %}<div class="cx-win bad">⏳ Вікно відповіді закрилось {{ win.end|local|dt('%d.%m о %H:%M') }}. {{ 'Instagram' if cur.channel == 'instagram' else 'Messenger' }} дозволяє відповідати лише протягом 24 год після останнього повідомлення пацієнта. Зателефонуйте{% if pat and pat.phone %} ({{ pat.phone }}){% endif %} або дочекайтесь нового повідомлення — тоді відповісти можна знову.</div>
+    {% elif win and win.soon %}<div class="cx-win">⏳ Відповісти можна до {{ win.end|local|dt('%H:%M') }} — потім Meta закриє вікно на 24 год.</div>{% endif %}
+    {% set wclosed = win and win.closed %}
     <form class="cx-in" method="post" action="/chats/{{ cur.thread|urlencode }}/reply">
       <div class="cx-tp"><button type="button" class="cx-tb" onclick="cxTp()" title="Шаблони відповідей">📋 Шаблони</button>
         <div class="cx-tpp" id="cx-tpp"><div class="hd"><input id="cx-tq" placeholder="Пошук шаблону" oninput="cxTf(this.value)">{% if can(user,'users') %}<a href="/settings/reply-templates" target="_blank">Налаштувати</a>{% endif %}</div>
           <div class="ls" id="cx-tl">{% for g, items in tpls|groupby('cat') %}<div class="gr">{{ g or 'Інше' }}</div>{% for t in items %}<div class="it" data-n="{{ (t.title ~ ' ' ~ t.text)|lower }}" onclick="cxTi(this)"><b>{{ t.title }}</b><span>{{ t.out }}</span><textarea hidden>{{ t.out }}</textarea></div>{% endfor %}{% else %}<div class="cx-none" style="padding:12px">Шаблонів ще немає{% if can(user,'users') %} — <a href="/settings/reply-templates">додати</a>{% endif %}.</div>{% endfor %}</div></div></div>
-      <textarea id="cx-txt" name="text" required placeholder="{{ 'Відповідь пацієнту…' if replies_on else 'Відповіді вимкнено' }}" {{ 'disabled' if not replies_on or not connected }} onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){this.form.submit()}"></textarea><button class="btn" {{ 'disabled' if not replies_on or not connected }}>Надіслати</button></form>
+      <textarea id="cx-txt" name="text" required placeholder="{{ ('Вікно відповіді закрилось' if wclosed else 'Відповідь пацієнту…') if replies_on else 'Відповіді вимкнено' }}" {{ 'disabled' if not replies_on or not connected or wclosed }} onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){this.form.submit()}"></textarea><button class="btn" {{ 'disabled' if not replies_on or not connected or wclosed }}>Надіслати</button></form>
   {% else %}<div class="cx-e">Оберіть діалог зліва.</div>{% endif %}</div>
   <div class="cx-p">{% if cur %}
     <h4>Пацієнт</h4>
