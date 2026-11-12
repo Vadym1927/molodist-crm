@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "site/_icons.html" import icon as ci %}
 {% block title %}Центр спілкування · MOLODIST CRM{% endblock %}
 {% block body %}
 {% set qp = request.query_params %}
@@ -10,7 +11,8 @@
 .cx{display:grid;grid-template-columns:320px minmax(0,1fr) 300px;height:calc(100vh - 230px);min-height:480px;background:#fff;border:1px solid #ECE7E1;border-radius:20px;overflow:hidden;box-shadow:0 14px 34px -28px rgba(42,36,48,.35)}
 .cx>div{border-right:1px solid #F1EDE8;display:flex;flex-direction:column;min-width:0;min-height:0}.cx>div:last-child{border-right:0}
 .cx-f{padding:12px;border-bottom:1px solid #F1EDE8;display:grid;gap:8px}.cx-f form{display:grid;gap:8px}
-.cx-tabs{display:flex;gap:6px}.cx-tabs a{padding:6px 12px;border-radius:9px;background:#F7F4F0;font:600 12.5px var(--sans);color:#3B3050;text-decoration:none}.cx-tabs a.on{background:#3B3050;color:#fff}
+.cx-tabs{display:flex;gap:6px}.cx-tabs a{padding:6px 12px;border-radius:9px;background:#F7F4F0;font:600 12.5px var(--sans);color:#3B3050;text-decoration:none}.cx-tabs a.on{background:#3B3050;color:#fff}.cx-tabs{flex-wrap:wrap}.cx-tabs a{display:inline-flex;align-items:center;gap:5px;padding:6px 10px}.cx-tabs svg{width:15px;height:15px}
+.cx-aw{position:relative;flex:none;display:inline-block}.cx-ch{position:absolute;right:-3px;bottom:-3px;width:18px;height:18px;border-radius:5px;box-shadow:0 0 0 2px #fff;overflow:hidden;line-height:0}.cx-ch svg{width:18px;height:18px}
 .cx-f input{height:38px;margin:0;border-radius:10px}
 .cx-l{flex:1;overflow:auto}
 .cx-t{display:flex;gap:10px;align-items:center;padding:11px 14px;border-bottom:1px solid #F6F3EF;text-decoration:none;color:#2A2430}
@@ -65,10 +67,10 @@ dialog.cx-dl{border:0;border-radius:18px;padding:22px;width:min(420px,92vw);box-
 {% elif not replies_on %}<div class="cx-warn">Відповіді з CRM вимкнено — повідомлення лише читаються (Налаштування → Канали).</div>{% endif %}
 <div class="cx">
   <div>
-    <div class="cx-f"><div class="cx-tabs"><a href="?" class="{{ 'on' if not ch_ }}">Усі</a><a href="?ch=instagram" class="{{ 'on' if ch_ == 'instagram' }}">Instagram</a><a href="?ch=facebook" class="{{ 'on' if ch_ == 'facebook' }}">Facebook</a><a href="?ch=viber" class="{{ 'on' if ch_ == 'viber' }}">Viber</a></div>
+    <div class="cx-f"><div class="cx-tabs"><a href="?" class="{{ 'on' if not ch_ }}">Усі</a><a href="?ch=instagram" class="{{ 'on' if ch_ == 'instagram' }}">{{ ci('instagram') }}Instagram</a><a href="?ch=facebook" class="{{ 'on' if ch_ == 'facebook' }}">{{ ci('facebook') }}Facebook</a><a href="?ch=viber" class="{{ 'on' if ch_ == 'viber' }}">{{ ci('viber') }}Viber</a></div>
       <form><input type="hidden" name="ch" value="{{ ch_ }}"><input name="q" value="{{ q }}" placeholder="Пошук: імʼя або текст"></form></div>
     <div class="cx-l">{% for x in threads %}<a class="cx-t {{ 'on' if cur and cur.thread == x.thread }}" href="?t={{ x.thread|urlencode }}{{ ('&ch=' ~ ch_) if ch_ }}">
-      <span class="cx-av {{ 'fb' if x.channel == 'facebook' }}">{{ (x.name.lstrip('@')[:2])|upper }}<img src="/chats/{{ x.thread|urlencode }}/avatar" alt="" loading="lazy" onerror="this.remove()"><span class="bd {{ 'ig' if x.channel == 'instagram' }}"{% if x.channel == 'telegram' %} style="background:#2AABEE"{% elif x.channel == 'viber' %} style="background:#7360F2"{% endif %}></span></span>
+      <span class="cx-aw"><span class="cx-av {{ 'fb' if x.channel == 'facebook' }}">{{ (x.name.lstrip('@')[:2])|upper }}<img src="/chats/{{ x.thread|urlencode }}/avatar" alt="" loading="lazy" onerror="this.remove()"></span><span class="cx-ch">{{ ci(x.channel) }}</span></span>
       <span class="tx"><b>{{ x.name }}{% if x.closed %}<span class="cl">✓ закрито</span>{% endif %}</b><span>{{ '↪ ' if x.last.direction == 'out' }}{{ x.last.text or '[вкладення]' }}</span></span>
       <em>{{ x.last.at|local|dt('%d.%m %H:%M') }}</em>{% if x.unread and not (cur and cur.thread == x.thread) %}<i>{{ x.unread }}</i>{% endif %}</a>
     {% else %}<div class="cx-e">Повідомлень ще немає.<br>Щойно пацієнт напише в Instagram чи Messenger — діалог зʼявиться тут.</div>{% endfor %}</div>

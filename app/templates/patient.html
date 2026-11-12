@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "site/_icons.html" import icon as ci %}
 {% block title %}{{ p.full_name }} · Картка пацієнта · MOLODIST CRM{% endblock %}
 {% block body %}
 {% set _w = p.full_name.split() %}{% set qp_msg = request.query_params.get('msg') %}
@@ -449,18 +450,18 @@
     <div class="pe-s" style="margin:14px 0 6px">Написати пацієнтці</div>
     <textarea name="text" id="mc-t" rows="4" placeholder="Текст повідомлення… (або скопіюйте скрипт нижче)" {{ 'required' if can(user,'message') }}></textarea>
     <div class="mc-g">
-      <div class="mc-c"><b>✈ Telegram-бот</b>{% if 'telegram' in avail and can(user,'message') %}<button class="btn" name="channel" value="telegram">Надіслати</button>{% else %}<small>{{ 'пацієнтка не в боті' if not p.telegram_chat_id else 'немає дозволу' }}</small>{% endif %}</div>
-      <div class="mc-c"><b>💜 Viber</b>{% if 'viber' in avail and can(user,'message') %}<button class="btn" name="channel" value="viber">Надіслати (Viber → SMS)</button>{% endif %}
+      <div class="mc-c"><b class="mc-h">{{ ci('telegram') }} Telegram-бот</b>{% if 'telegram' in avail and can(user,'message') %}<button class="btn" name="channel" value="telegram">Надіслати</button>{% else %}<small>{{ 'пацієнтка не в боті' if not p.telegram_chat_id else 'немає дозволу' }}</small>{% endif %}</div>
+      <div class="mc-c"><b class="mc-h">{{ ci('viber') }} Viber</b>{% if 'viber' in avail and can(user,'message') %}<button class="btn" name="channel" value="viber">Надіслати (Viber → SMS)</button>{% endif %}
         {% if _ph %}<a class="btn ghost" href="viber://chat?number={{ _ph|urlencode }}" onclick="mcCopy()">Відкрити чат</a>{% elif 'viber' not in avail %}<small>немає телефону</small>{% endif %}</div>
-      <div class="mc-c"><b>💬 SMS</b>{% if 'sms' in avail and can(user,'message') %}<button class="btn" name="channel" value="sms">Надіслати SMS</button>{% elif _ph %}<a class="btn ghost" href="sms:{{ _ph }}" onclick="mcCopy()">З телефону</a><small>TurboSMS не підключено</small>{% else %}<small>немає телефону</small>{% endif %}</div>
-      <div class="mc-c"><b>📷 Instagram</b>{% if _ig %}<a class="btn ghost" href="https://www.instagram.com/{{ _ig }}/" data-ig="{{ _ig }}" target="_blank" rel="noopener" onclick="mcCopy();if(/Android|iPhone|iPad/i.test(navigator.userAgent))this.href='https://ig.me/m/'+this.dataset.ig">Відкрити Instagram</a><small>@{{ _ig }} · на компʼютері відкриється профіль → «Надіслати повідомлення»; текст скопіюється</small>{% else %}<small>Instagram не вказано</small>{% endif %}</div>
-      <div class="mc-c"><b>👤 Telegram особисто</b>{% if _tg %}<a class="btn ghost" href="https://t.me/{{ _tg }}" target="_blank" rel="noopener" onclick="mcCopy()">Відкрити чат</a><small>@{{ _tg }}</small>{% else %}<small>нік не вказано</small>{% endif %}</div>
-      <div class="mc-c"><b>📞 Дзвінок</b>{% if _ph %}<a class="btn ghost" href="tel:{{ _ph }}">Зателефонувати</a><small>{{ p.phone }}</small>{% else %}<small>немає телефону</small>{% endif %}</div>
+      <div class="mc-c"><b class="mc-h">{{ ci('sms') }} SMS</b>{% if 'sms' in avail and can(user,'message') %}<button class="btn" name="channel" value="sms">Надіслати SMS</button>{% elif _ph %}<a class="btn ghost" href="sms:{{ _ph }}" onclick="mcCopy()">З телефону</a><small>TurboSMS не підключено</small>{% else %}<small>немає телефону</small>{% endif %}</div>
+      <div class="mc-c"><b class="mc-h">{{ ci('instagram') }} Instagram</b>{% if _ig %}<a class="btn ghost" href="https://www.instagram.com/{{ _ig }}/" data-ig="{{ _ig }}" target="_blank" rel="noopener" onclick="mcCopy();if(/Android|iPhone|iPad/i.test(navigator.userAgent))this.href='https://ig.me/m/'+this.dataset.ig">Відкрити Instagram</a><small>@{{ _ig }} · на компʼютері відкриється профіль → «Надіслати повідомлення»; текст скопіюється</small>{% else %}<small>Instagram не вказано</small>{% endif %}</div>
+      <div class="mc-c"><b class="mc-h">{{ ci('telegram') }} Telegram особисто</b>{% if _tg %}<a class="btn ghost" href="https://t.me/{{ _tg }}" target="_blank" rel="noopener" onclick="mcCopy()">Відкрити чат</a><small>@{{ _tg }}</small>{% else %}<small>нік не вказано</small>{% endif %}</div>
+      <div class="mc-c"><b class="mc-h">{{ ci('phone') }} Дзвінок</b>{% if _ph %}<a class="btn ghost" href="tel:{{ _ph }}">Зателефонувати</a><small>{{ p.phone }}</small>{% else %}<small>немає телефону</small>{% endif %}</div>
     </div>
     {% if avail|length > 1 and can(user,'message') %}<div class="small muted" style="margin-top:6px">Або <button class="lnk" name="channel" value="auto">надіслати автоматично</button> ({{ avail|join(' → ')|replace('telegram','Telegram')|replace('viber','Viber')|replace('sms','SMS') }})</div>{% endif %}
   </form>
   <style>.mc textarea{width:100%;font:500 14.5px var(--sans)}.mc-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-top:10px}
-  .mc-c{border:1px solid #ECE7E1;border-radius:14px;padding:12px;display:grid;gap:8px;align-content:start;background:#fdfbf8}.mc-c small{color:#8a8496;font-size:12px}.mc-c .btn{justify-content:center}</style>
+  .mc-c{border:1px solid #ECE7E1;border-radius:14px;padding:12px;display:grid;gap:8px;align-content:start;background:#fdfbf8}.mc-c small{color:#8a8496;font-size:12px}.mc-h{display:flex;align-items:center;gap:8px}.mc-h svg{width:24px;height:24px;flex:none}.mc-c .btn{justify-content:center}</style>
   <script>function mcCopy(){var t=document.getElementById('mc-t').value;if(t)navigator.clipboard.writeText(t).catch(function(){})}
   document.addEventListener('click',function(e){var b=e.target.closest('.script-box button.copy');if(!b)return;var el=document.getElementById(b.dataset.copy),t=document.getElementById('mc-t');if(el&&t&&!t.value)t.value=el.value!==undefined?el.value:el.innerText});</script>
   {% if pscripts %}
