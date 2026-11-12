@@ -37,8 +37,11 @@
             {% set _tg = (p.telegram_contact or p.telegram_username or '')|replace('@','')|replace('https://t.me/','') %}
             <div class="vx-act">
               {% if dig %}<a href="tel:{{ dig }}" title="Подзвонити">{{ ci('phone') }}</a>
-              <a href="viber://chat?number={{ dig|replace('+','%2B') }}" title="Написати у Viber" class="vb">{{ ci('viber') }}</a>{% endif %}
-              {% if _tg or dig %}<a href="https://t.me/{{ _tg if _tg else dig }}" target="_blank" rel="noopener" title="Написати в Telegram{{ (' @' ~ _tg) if _tg else ' за номером' }}" class="tg">{{ ci('telegram') }}</a>{% endif %}
+              <a href="viber://chat?number={{ dig|replace('+','%2B') }}" title="Написати у Viber" class="vb">{{ ci('viber') }}</a>
+              {% else %}<a href="/patients/{{ p.id }}" title="Телефон не вказано — додайте в картці пацієнта" class="off">{{ ci('phone') }}</a>
+              <a href="/patients/{{ p.id }}" title="Viber: телефон не вказано" class="vb off">{{ ci('viber') }}</a>{% endif %}
+              {% if _tg %}<a href="https://t.me/{{ _tg }}" target="_blank" rel="noopener" title="Написати в Telegram @{{ _tg }}" class="tg">{{ ci('telegram') }}</a>
+              {% else %}<a href="/patients/{{ p.id }}" title="Telegram не вказано — додайте нік у картці пацієнта" class="tg off">{{ ci('telegram') }}</a>{% endif %}
               {% if _ig %}<a href="https://www.instagram.com/{{ _ig }}/" data-ig="{{ _ig }}" onclick="if(/Android|iPhone|iPad/i.test(navigator.userAgent))this.href='https://ig.me/m/'+this.dataset.ig" target="_blank" rel="noopener" title="Instagram @{{ _ig }}: на телефоні — одразу Direct, на компʼютері — профіль, далі «Надіслати повідомлення»" class="ig">{{ ci('instagram') }}</a>{% else %}<a href="/patients/{{ p.id }}" title="Instagram не вказано — додайте нік у картці пацієнта" class="ig off">{{ ci('instagram') }}</a>{% endif %}
             </div></div>
           <div class="vx-ln">{% if p.phone %}<a class="vx-phone" href="tel:{{ dig }}">{{ p.phone }}</a><button type="button" class="vx-cp" title="Скопіювати номер" onclick="vxCopy(this, '{{ p.phone|e }}')"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8.5" y="8.5" width="11" height="11" rx="2.2"/><path d="M15.5 8.5V6.2A1.7 1.7 0 0 0 13.8 4.5H6.2A1.7 1.7 0 0 0 4.5 6.2v7.6a1.7 1.7 0 0 0 1.7 1.7h2.3"/></svg></button><i></i>{% endif %}<a href="/patients/{{ p.id }}">Картка пацієнта</a>{% if can(user,'medical') %}<i></i><a href="/patients/{{ p.id }}/medcard">Медкарта</a>{% endif %}</div>
