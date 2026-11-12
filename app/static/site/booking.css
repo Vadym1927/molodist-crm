@@ -168,3 +168,16 @@
 .ob-price .pg summary{text-transform:none;letter-spacing:.01em;font-size:16px}.ob-price .pn small a{color:var(--act);font-weight:600}
 @media (max-width:640px){.ob-ggrid:not(.g){grid-template-columns:1fr 1fr;gap:10px}.ob-gcard{padding:16px 14px;border-radius:18px}.ob-gcard.cert h3{font-size:22px}.ob-gcard .tag{font-size:9px;letter-spacing:.08em}
   .ob-gcard .muted{font-size:12.5px}.ob-gcard.cert:after{font-size:110px}.ob-price .plist li{flex-direction:row}.ob-price .pp{text-align:right}}
+
+/* розділи сторінки — блоками з іконками */
+.ob-jump{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:10px;flex-wrap:initial;overflow:visible;max-width:760px;margin-top:26px}
+.ob-jump a{display:flex;flex-direction:column;align-items:flex-start;gap:3px;white-space:normal;text-transform:none;letter-spacing:0;border-radius:18px;padding:14px 14px 12px;background:var(--w);border:1.5px solid var(--greige);color:var(--ink)}
+.ob-jump a i{width:42px;height:42px;border-radius:13px;background:var(--lav);color:var(--plum);display:grid;place-items:center;margin-bottom:8px}
+.ob-jump a b{font:600 14px/1.2 var(--hf);letter-spacing:.02em}.ob-jump a small{font:400 12px/1.25 var(--bf);color:var(--mut)}
+.ob-jump a:hover{border-color:var(--act);transform:translateY(-1px)}.ob-jump a{transition:border-color .15s,transform .15s}
+.ob-jump a.on{background:var(--w);color:var(--ink);border-color:var(--greige)}
+.ob-jump a.main,.ob-jump a.main.on{background:var(--plum);border-color:var(--plum);color:#fff}.ob-jump a.main small{color:var(--lav2)}.ob-jump a.main i{background:rgba(255,255,255,.14);color:#fff}
+@media (max-width:640px){.ob-jump{grid-template-columns:1fr 1fr 1fr;gap:8px;max-width:none;margin-right:0;padding-right:0;overflow:visible;flex-wrap:initial}
+  .ob-jump a{padding:12px 10px 10px;border-radius:16px}.ob-jump a i{width:36px;height:36px;border-radius:11px;margin-bottom:6px}.ob-jump a i svg{width:20px;height:20px}
+  .ob-jump a b{font-size:12.5px}.ob-jump a small{font-size:11px}.ob-jump a.main{grid-column:1/-1;flex-direction:row;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px}
+  .ob-jump a.main i{margin:0}.ob-jump a.main b{font-size:15px}.ob-jump a.main small{flex-basis:auto;font-size:12.5px}}
