@@ -35,7 +35,7 @@
   <h2>Записи · {{ recs|length }}</h2>
   {% for r in recs %}<details class="mc-rec" id="r{{ r.id }}" {{ 'open' if loop.first }}>
     <summary><div><b>{{ r.at|dt('%d.%m.%Y %H:%M') }}</b> <span class="kd {{ r.kind }}">{{ KINDS[r.kind] }}</span> {{ r.title or '' }}
-      <div class="small muted">{{ docs[r.doctor_id].name if r.doctor_id and docs.get(r.doctor_id) else '—' }}{{ ' · згода ✓' if r.consent }}{{ (' · наступний візит ' ~ (r.next_visit|dt('%d.%m.%Y'))) if r.next_visit }}</div></div><span class="muted">⌄</span></summary>
+      <div class="small muted">{{ docs[r.doctor_id].name if r.doctor_id and docs.get(r.doctor_id) else '—' }}{{ ' · згода ✓' if r.consent }}{{ (' · наступний візит ' ~ (r.next_visit|dt('%d.%m.%Y'))) if r.next_visit }}{% if r.cb_id %} · з CleverBox{% if r.author and not r.doctor_id %} · {{ r.author }}{% endif %}{% if r.form_title and r.form_title != r.title %} · {{ r.form_title }}{% endif %}{% endif %}</div></div><span class="muted">⌄</span></summary>
     <div class="bd">
       {% for k, l in [('complaints','Скарги'),('anamnesis','Анамнез'),('objective','Обʼєктивно / огляд'),('diagnosis','Діагноз'),('protocol','Протокол процедури'),('recommendations','Рекомендації')] %}{% if r[k] %}<div><h4>{{ l }}</h4><p>{{ r[k] }}</p></div>{% endif %}{% endfor %}
       {% if r.drugs %}<div><h4>Препарати</h4><table class="tb small"><thead><tr><th>Препарат</th><th>Серія</th><th>Термін</th><th>Доза</th><th>Зона</th></tr></thead><tbody>{% for d in r.drugs %}<tr><td>{{ d.name }}</td><td>{{ d.batch }}</td><td>{{ d.expiry }}</td><td>{{ d.dose }}</td><td>{{ d.zone }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}

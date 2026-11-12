@@ -2691,7 +2691,8 @@ async def settings_personal_discounts_save(request: Request, user: User = Depend
 
 
 # ---------------- Медична картка й фото до/після ----------------
-MED_KINDS = {"consultation": "Консультація", "procedure": "Процедура", "control": "Контрольний огляд"}
+MED_KINDS = {"consultation": "Консультація", "procedure": "Процедура", "control": "Контрольний огляд", "note": "Нотатка",
+             "allergy": "Алергія", "analysis": "Аналізи", "vaccine": "Щеплення"}
 MED_FIELDS = ("title", "complaints", "anamnesis", "objective", "diagnosis", "protocol", "recommendations")
 PHOTO_STAGES = {"before": "До", "after": "Після", "progress": "У процесі"}
 
@@ -2700,6 +2701,59 @@ def _med_patient(db, user, pid) -> Patient:
     if not can(user, "medical"):
         raise HTTPException(403, "Медична картка доступна лише лікарям і власнику")
     return _patient_or_403(db, user, pid)
+
+
+_MED_CORS = {"Access-Control-Allow-Origin": "https://molodist.cbox.online", "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+             "Access-Control-Allow-Headers": "Content-Type, X-Import-Key", "Vary": "Origin"}
+
+
+@app.post("/data/medcard-import/key")
+def medcard_import_key(user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    """Тимчасовий ключ (3 год) для перенесення медкарт зі сторінки CleverBox (лише власник)."""
+    from .services import med_import as mim
+    if user.role != "owner":
+        raise HTTPException(403)
+    audit(db, "medcard.import_key", user=user)
+    return {"key": mim.new_key(db), "url": "/api/public/medcard/import", "status": mim.status(db)}
+
+
+@app.get("/data/medcard-import/status")
+def medcard_import_status(user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import med_import as mim
+    return mim.status(db)
+
+
+@app.options("/api/public/medcard/import")
+@app.options("/api/public/medcard/import/clients")
+def medcard_import_options():
+    return Response(status_code=204, headers=_MED_CORS)
+
+
+@app.get("/api/public/medcard/import/clients")
+def medcard_import_clients(request: Request, db: Session = Depends(db_dep)):
+    from .services import med_import as mim
+    if not mim.key_ok(db, request.headers.get("x-import-key", "")):
+        return JSONResponse({"error": "key"}, status_code=403, headers=_MED_CORS)
+    ids = [x for x in db.scalars(select(Patient.cleverbox_id).where(Patient.cleverbox_id.is_not(None)).order_by(Patient.cleverbox_id))]
+    return JSONResponse({"ids": ids}, headers=_MED_CORS)
+
+
+@app.post("/api/public/medcard/import")
+async def medcard_import(request: Request, db: Session = Depends(db_dep)):
+    from .services import med_import as mim
+    if not mim.key_ok(db, request.headers.get("x-import-key", "")):
+        return JSONResponse({"error": "key"}, status_code=403, headers=_MED_CORS)
+    raw = await request.body()
+    if len(raw) > 8_000_000:
+        return JSONResponse({"error": "too big"}, status_code=413, headers=_MED_CORS)
+    try:
+        d = json.loads(raw or b"{}")
+    except ValueError:
+        return JSONResponse({"error": "json"}, status_code=400, headers=_MED_CORS)
+    r = await asyncio.to_thread(mim.ingest, db, d.get("rows") or [], d.get("forms") or {})
+    audit(db, "medcard.import", user=None, new=r["new"], updated=r["updated"], no_patient=r["no_patient"])
+    db.commit()
+    return JSONResponse(r, headers=_MED_CORS)
 
 
 @app.get("/patients/{pid}/medcard", response_class=HTMLResponse)

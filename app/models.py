@@ -536,6 +536,10 @@ class MedRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime)
+    cb_id: Mapped[int | None] = mapped_column(Integer, index=True)       # id запису медкарти CleverBox (перенесено)
+    form_title: Mapped[str | None] = mapped_column(String(200))         # назва форми CleverBox («Щоденник (стратосфера)»)
+    author: Mapped[str | None] = mapped_column(String(120))             # хто заповнив у CleverBox
+    extra: Mapped[dict | None] = mapped_column(JSON)                    # усі поля форми [{t, v}], файли, сирі дані
 
 
 class MedTemplate(Base):
