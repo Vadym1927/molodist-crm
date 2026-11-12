@@ -600,7 +600,8 @@ def cash(db: Session, d_from: date, d_to: date) -> Report:
             q = select(BankTxn).where(BankTxn.account == bk["id"], BankTxn.amount < 0, BankTxn.status == "new")
             if since:
                 q = q.where(BankTxn.at >= datetime.combine(since, datetime.min.time()))
-            row["open"] = round(-sum(t.amount for t in db.scalars(q)), 2) or None
+            if "операційн" in (x["name"] or "").lower():      # з операційних рахунків платимо постачальникам; термінали — переміщення
+                row["open"] = round(-sum(t.amount for t in db.scalars(q)), 2) or None
             if bk["bal"] is not None:
                 row["bank"] = bk["bal"]
                 row["diff"] = round(bk["bal"] - (now_crm or 0), 2)
