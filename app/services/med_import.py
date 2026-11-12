@@ -115,7 +115,7 @@ def ingest(db: Session, rows: list, forms: dict | None = None) -> dict:
             v = _val(r.get(k))
             if not v:
                 continue
-            t = titles.get(k) or k
+            t = (titles.get(k) or k).strip().rstrip(":").strip() or k
             fields.append({"t": t, "v": v})
             col = SYS.get(k)
             if col:

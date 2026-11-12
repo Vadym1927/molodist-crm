@@ -10,7 +10,7 @@ ROW = {"id": "92697", "date_add": "1794398566", "client_id": "90597", "type": "c
        "subtitle": "", "cfl_109": "60%-100%", "anamnes": "без реакцій", "final": "SPF 50", "date": "11.11.2026", "time": "14:02",
        "author": {"id": "49", "title": "Чугунова Ганна"}, "_type": "Консультація", "_ctype": "Щоденник (стратосфера)", "files": False,
        "_doctor": {"id": "49", "title": "Чугунова Ганна"}}
-FORMS = {"15": [{"name": "cfl_109", "title": "Парамерти"}, {"name": "anamnes", "title": "Анамнез"}, {"name": "final", "title": "Висновки та рекомендації"}]}
+FORMS = {"15": [{"name": "cfl_109", "title": "Парамерти:"}, {"name": "anamnes", "title": "Анамнез"}, {"name": "final", "title": "Висновки та рекомендації"}]}
 
 
 def test_ingest_and_endpoint():
@@ -25,7 +25,7 @@ def test_ingest_and_endpoint():
         assert r["new"] == 1 and r["skipped_deleted"] == 1 and r["no_patient"] == 1
         m = db.query(MedRecord).filter_by(cb_id=92697).one()
         assert m.kind == "consultation" and m.anamnesis == "без реакцій" and m.recommendations == "SPF 50"
-        assert "Парамерти: 60%-100%" in m.protocol and m.title == "Щоденник (стратосфера)" and m.doctor_id
+        assert "Парамерти: 60%-100%" in m.protocol and "::" not in m.protocol and m.title == "Щоденник (стратосфера)" and m.doctor_id
         assert m.at.strftime("%d.%m.%Y %H:%M") == "11.11.2026 14:02"
         assert mim.ingest(db, [ROW], FORMS)["updated"] == 1 and db.query(MedRecord).filter_by(cb_id=92697).count() == 1
     with TestClient(app) as c:
