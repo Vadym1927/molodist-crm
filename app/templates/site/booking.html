@@ -11,7 +11,7 @@
     <h1>Запишіться у зручний для вас час</h1>
     <p class="lead-tx">Оберіть послугу, спеціаліста й вільне вікно — без дзвінків і очікування. {{ ob.note }}</p>
     <nav class="ob-jump" aria-label="Розділи сторінки">
-      <a href="#zapys" class="on">Запис</a><a href="#likari">Лікарі</a>
+      <a href="#zapys" class="on">Запис</a>{% if prices %}<a href="#prais">Прайс</a>{% endif %}<a href="#likari">Лікарі</a>
       {% if offers.certs or offers.subs %}<a href="#sertyfikaty">Сертифікати й абонементи</a>{% endif %}
       {% if guides %}<a href="#gaidy">Гайди</a>{% endif %}
       {% if ob.shop_url %}<a href="#magazyn">Магазин косметики</a>{% endif %}
@@ -113,6 +113,16 @@
   {% endif %}
 </div></section>
 
+{% if prices %}
+<section class="sec prices ob-price" id="prais"><div class="wrap">
+  <h2>Прайс</h2>
+  <p class="big ob-lead">Актуальні ціни на всі послуги MOLODIST. Остаточну вартість лікар підтверджує після огляду.</p>
+  {% for g in prices %}<details class="pg"><summary>{{ g.name }}<small>{{ g['items']|length }} · від {{ money(g.lo) }}</small></summary>
+    <ul class="plist">{% for x in g['items'] %}<li><span class="pn">{{ x.name }}<small>{{ x.min }} хв{% if x.online %} · <a href="#zapys" data-ob-svc="{{ x.id }}">записатися онлайн</a>{% endif %}</small></span><span class="pp"><b>{{ money(x.price) }}</b></span></li>{% endfor %}</ul>
+  </details>{% endfor %}
+</div></section>
+{% endif %}
+
 <section class="sec ob-docsec" id="likari"><div class="wrap">
   <h2>Наші лікарі</h2>
   <div class="ob-dgrid">{% for d in docs %}<article class="ob-dcard">
@@ -130,11 +140,16 @@
     {% for x in offers.certs %}<article class="ob-gcard cert"><p class="tag">Подарунковий сертифікат</p><h3>{{ money(x.nominal or x.price) }}</h3>
       <p class="muted">{{ x.desc or 'На будь-які послуги MOLODIST' }}{% if x.days %} · діє {{ x.days }} днів{% endif %}</p>
       <button class="btn sm" type="button" data-ob-buy="cert" data-id="{{ x.id }}" data-name="{{ x.name }}" data-price="{{ money(x.price) }}">Купити</button></article>{% endfor %}
-    {% for x in offers.subs %}<article class="ob-gcard sub"><p class="tag">Абонемент · {{ x.visits }} {{ 'візит' if x.visits == 1 else 'візити' if x.visits < 5 else 'візитів' }}</p><h3>{{ x.name }}</h3>
-      <p class="muted">{{ x.desc }}{% if x.days %}{{ ' · ' if x.desc }}діє {{ x.days }} днів{% endif %}</p>
-      <p class="pr">{{ money(x.price) }}</p>
-      <button class="btn sm" type="button" data-ob-buy="sub" data-id="{{ x.id }}" data-name="{{ x.name }}" data-price="{{ money(x.price) }}">Купити</button></article>{% endfor %}
   </div>
+  {% if offers.subs %}<details class="ob-subs">
+    <summary><span><b>Абонементи</b><small>Курси процедур за вигіднішою ціною · {{ offers.subs|length }}</small></span><i aria-hidden="true"></i></summary>
+    <div class="ob-subs-in">{% for g in offers.sub_groups %}<details class="ob-subg">
+      <summary><b>{{ g.name }}</b><small>{{ g['items']|length }}</small></summary>
+      <ul>{% for x in g['items'] %}<li><span><b>{{ x.name }}</b><small>{% if x.desc and x.desc != x.name %}{{ x.desc }}{% endif %}{% if x.visits > 1 %}{{ ' · ' if x.desc and x.desc != x.name }}{{ x.visits }} {{ 'візити' if x.visits < 5 else 'візитів' }}{% endif %}{% if x.days %}{{ ' · ' if (x.desc and x.desc != x.name) or x.visits > 1 }}діє {{ x.days }} днів{% endif %}</small></span>
+        <span class="pr">{{ money(x.price) }}</span>
+        <button class="btn sm" type="button" data-ob-buy="sub" data-id="{{ x.id }}" data-name="{{ x.name }}" data-price="{{ money(x.price) }}">Купити</button></li>{% endfor %}</ul>
+    </details>{% endfor %}</div>
+  </details>{% endif %}
 </div></section>
 <dialog class="ob-dlg" id="ob-buy"><form class="lead" id="ob-buy-form" novalidate>
   <button type="button" class="ob-dx" data-ob-close aria-label="Закрити">×</button>

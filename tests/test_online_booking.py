@@ -38,6 +38,12 @@ def test_catalog_and_availability():
         cat = ob.catalog(db)
         ids = {s["id"] for c in cat["cats"] for s in c["items"]}
         assert ids == {9701, 9702} and set(cat["doctor_ids"]) == {a, b}        # не онлайн і без спеціаліста — не показуються
+        assert [c["name"] for c in cat["cats"]] == ["Консультації", "Догляд"]             # розділи сайту: консультації — першими
+        g = lambda n, c: ob.site_group(CbService(name=n, category=c))  # noqa: E731
+        assert g("Консультація дерматовенеролога перед видаленням", "Видалення новоутворень (дерматохірургія)") == "Консультації"
+        assert g("Масаж Обличчя Мануальний 30 хв", "Доглядові процедури") == "Масаж" and g("Апаратний масаж STRATOSPHERE 50 хв", "Апаратний масаж STRATOSPHERE") == "Масаж"
+        assert g("Лоб", "Ботокс/Диспорт/Нейронокс (ботулінотерапія)") == "Ботулінотерапія" and g("Лоб", "Ботулінотерапія чоловіки") == "Ботулінотерапія для чоловіків"
+        assert g("Пахви", "Лазерна епіляція ( -50% на перший візит від повної вартості)") == "Лазерна епіляція" and g("IPL обличчя", "IPL  (видалення судин/пігментації/лікування акне)") == "IPL"
         av = ob.availability(db, 9701, None, now=NOW)
         assert list(av) == [D1]                                               # другий день — відпустка лікаря
         slots = {s["t"]: s["docs"] for s in av[D1]}
@@ -124,6 +130,7 @@ def test_site_page_api_and_publication(monkeypatch):
             c = ob.cfg(db); c["on"] = True; ob.save_cfg(db, c)
         r = cl.get("/_site/zapys")
         assert r.status_code == 200 and '"id": 9701' in r.text and "Наші лікарі" in r.text and "Сертифікат" in r.text and "Гайди" in r.text
+        assert 'id="prais"' in r.text and "Не онлайн" in r.text and 'data-ob-svc="9701"' in r.text and 'data-ob-svc="9703"' not in r.text     # прайс: усі активні послуги
         assert "molodist.store" in r.text and "booking.js" in r.text and "клінік" not in r.text.lower().split("<main>")[1].split("</main>")[0]
         js = cl.get("/_site/api/booking/days?service=9701&doctor=0").json()
         assert js["ok"] and js["days"][0]["d"] == D1.isoformat() and js["days"][0]["slots"][0] == {"t": "10:00", "docs": [a, b]}
@@ -159,6 +166,21 @@ def test_site_page_api_and_publication(monkeypatch):
         assert "/zapys" in cl.get("/sitemap.xml", headers=h).text and cl.get("/zapys", headers=h).status_code == 200
         with SessionLocal() as db:
             c = sp.cfg(db); c["hosts"] = ["new.molodist.com.ua"]; sp.save_cfg(db, c)
+
+
+def test_sub_groups():
+    assert ob.sub_group("Апаратний масаж STRATOSPHERE 50 хв курс 6") == "Масаж" and ob.sub_group("Абонемент RF - ліфтинг декольте курс 6") == "RF-ліфтинг"
+    assert ob.sub_group("IPL Все обличчя курс 4") == "IPL" and ob.sub_group("Лазер Пахви курс 8") == "Лазерна епіляція" and ob.sub_group("Курс краси") == "Інші абонементи"
+    from app.services import certificates as cert
+    with SessionLocal() as db:
+        _seed(db)
+        cert.package_new(db, {"name": "Апаратний масаж курс 6", "visits": 6, "days": 180, "price": 10200})
+        cert.package_new(db, {"name": "Абонемент RF - ліфтинг курс 6", "visits": 6, "days": 180, "price": 11880})
+        of = ob.offers(db)
+        assert [g["name"] for g in of["sub_groups"]] == ["Масаж", "RF-ліфтинг"] and len(of["subs"]) == 2
+    with TestClient(app) as cl:
+        h = cl.get("/_site/zapys").text
+        assert 'class="ob-subs"' in h and "RF-ліфтинг" in h and h.count('data-ob-buy="sub"') == 2
 
 
 def test_settings_online():

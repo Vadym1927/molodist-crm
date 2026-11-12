@@ -210,6 +210,30 @@ def service_doctors(db: Session, sv: CbService, docs: list[Doctor], hist: dict |
     return sorted(i for i in h if i in ids)
 
 
+GROUP_ORDER = ["Консультації", "Масаж", "Очищення шкіри", "Доглядові процедури", "Пілінги", "Ботулінотерапія", "Біоревіталізація й мезотерапія",
+               "Контурна пластика", "Лазерна епіляція", "Лазерна епіляція для чоловіків"]
+
+
+def site_group(sv: CbService) -> str:
+    """Розділ послуги на сторінці запису: споріднені категорії прайсу — в одному місці
+    (усі консультації разом, увесь масаж разом, ботулінотерапія з кількох категорій — разом)."""
+    name, cat = (sv.online_name or sv.name or "").lower(), (sv.category or "").strip()
+    low = cat.lower()
+    men = " для чоловіків" if "чолов" in low else ""
+    if "консультац" in name or "консультац" in low:
+        return "Консультації"
+    if "масаж" in name or "масаж" in low:
+        return "Масаж"
+    if any(k in low for k in ("ботул", "ботокс", "диспорт", "нейронокс")):
+        return "Ботулінотерапія" + men
+    if "лазерна епіляція" in low:
+        return "Лазерна епіляція" + men
+    if "біоревіт" in low or "мезотерап" in low:
+        return "Біоревіталізація й мезотерапія"
+    title = re.sub(r"\s*\(.*\)\s*$", "", cat).strip() or "Інші послуги"
+    return title[:1].upper() + title[1:]
+
+
 def _mins(sv: CbService) -> int:
     return int(sv.duration or sv.time_min or 30)
 
@@ -235,10 +259,29 @@ def catalog(db: Session, c: dict | None = None) -> dict:
             v = (dprices.get(i) or {}).get(str(sv.id), (dprices.get(i) or {}).get(sv.id))
             if v not in (None, ""):
                 dp[i] = float(v)
-        cats.setdefault(sv.category or "Інші послуги", []).append(
+        cats.setdefault(site_group(sv), []).append(
             {"id": sv.id, "name": (sv.online_name or sv.name).strip(), "price": float(sv.price), "min": _mins(sv),
              "desc": (sv.description or "").strip()[:600], "docs": dids, "dp": dp})
-    return {"cats": [{"name": k, "items": v} for k, v in cats.items()], "doctor_ids": sorted(used)}
+    order = {n: i for i, n in enumerate(GROUP_ORDER)}
+    return {"cats": [{"name": k, "items": sorted(v, key=lambda x: (x["price"], x["name"]))}
+                     for k, v in sorted(cats.items(), key=lambda kv: (order.get(kv[0], 100), kv[0]))], "doctor_ids": sorted(used)}
+
+
+PRICE_HIDE = ("співробітник", "модель", "тест")
+
+
+def pricelist(db: Session, online_ids: set[int] | None = None) -> list[dict]:
+    """Прайс для сторінки: усі активні послуги з ціною за розділами сайту (службові категорії приховано)."""
+    cats: dict[str, list] = {}
+    for sv in db.scalars(select(CbService).order_by(CbService.name)):
+        low = f"{sv.category or ''} {sv.name or ''}".lower()
+        if sv.active is False or not sv.price or any(k in low for k in PRICE_HIDE):
+            continue
+        cats.setdefault(site_group(sv), []).append({"id": sv.id, "name": (sv.online_name or sv.name).strip(), "price": float(sv.price), "min": _mins(sv),
+                                                    "online": bool(online_ids and sv.id in online_ids)})
+    order = {n: i for i, n in enumerate(GROUP_ORDER)}
+    return [{"name": k, "items": sorted(v, key=lambda x: (x["price"], x["name"])), "lo": min(x["price"] for x in v)}
+            for k, v in sorted(cats.items(), key=lambda kv: (order.get(kv[0], 100), kv[0]))]
 
 
 def doctor_cards(db: Session, ids: list[int] | None = None, base: str = "/_site", c: dict | None = None) -> list[dict]:
@@ -547,6 +590,21 @@ def link_appeal(db: Session, a: Appointment, data: dict) -> int | None:
 
 
 # ---------------- сертифікати й абонементи ----------------
+SUB_GROUPS = ["Масаж", "IPL", "RF-ліфтинг", "Лазерна епіляція", "Очищення шкіри", "Пілінги", "Доглядові процедури", "Інші абонементи"]
+_SUB_KEYS = [("Масаж", ("масаж", "stratosphere")), ("IPL", ("ipl",)), ("RF-ліфтинг", ("rf", "ліфтинг", "endymed")),
+             ("Лазерна епіляція", ("лазер", "епіляц")), ("Очищення шкіри", ("чистк", "очищен")), ("Пілінги", ("пілінг",)),
+             ("Доглядові процедури", ("догляд", "reset", "карбокс", "мікростр"))]
+
+
+def sub_group(text: str) -> str:
+    """Розділ абонемента на сторінці: за назвою (Масаж, IPL, RF-ліфтинг …)."""
+    low = (text or "").lower()
+    for name, keys in _SUB_KEYS:
+        if any(re.search(rf"(?<![a-zа-яіїєґ]){re.escape(k)}", low) for k in keys):
+            return name
+    return "Інші абонементи"
+
+
 def offers(db: Session, c: dict | None = None) -> dict:
     from . import certificates as cert, gift_types as gt
     c = c or cfg(db)
@@ -556,7 +614,13 @@ def offers(db: Session, c: dict | None = None) -> dict:
     subs = [{"id": x["id"], "name": x["name"], "price": float(x.get("price") or 0), "visits": int(x.get("visits") or 1),
              "days": int(x.get("days") or 0), "desc": (x.get("services") or "").strip()[:200]} for x in cert.package_items(db)
             if float(x.get("price") or 0) > 0] if c.get("subs_on") else []
-    return {"certs": sorted(certs, key=lambda x: x["price"]), "subs": sorted(subs, key=lambda x: x["price"])}
+    subs.sort(key=lambda x: (x["price"], x["name"]))
+    groups: dict[str, list] = {}
+    for x in subs:
+        groups.setdefault(sub_group(x["name"] + " " + x["desc"]), []).append(x)
+    order = {n: i for i, n in enumerate(SUB_GROUPS)}
+    return {"certs": sorted(certs, key=lambda x: x["price"]), "subs": subs,
+            "sub_groups": [{"name": k, "items": v} for k, v in sorted(groups.items(), key=lambda kv: (order.get(kv[0], 100), kv[0]))]}
 
 
 def order(db: Session, data: dict, base_url: str, c: dict | None = None) -> dict:

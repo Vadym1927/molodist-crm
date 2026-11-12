@@ -8102,7 +8102,8 @@ def site_booking(request: Request, v: str = "", service: int = 0, doctor: int = 
                guides=[g for g in c.get("guides") or [] if g.get("on", True) and g.get("title")], my=ob.view(db, appt, c) if appt else None,
                bad_token=bool(v and not appt), hero_img=sp.media_url(c.get("hero_img") or "", ctx["base"]) or f"/static/site/img/zapys-hero.webp?v={ctx['ver']}",
                pre={"service": service, "doctor": doctor}, preview=not c.get("on"),
-               n_services=sum(len(x["items"]) for x in cat["cats"]))
+               n_services=sum(len(x["items"]) for x in cat["cats"]),
+               prices=ob.pricelist(db, {i["id"] for x in cat["cats"] for i in x["items"]}))
     abs_base = ctx["c"]["canonical"].rstrip("/") if not ctx["noindex"] else str(request.base_url).rstrip("/").replace("http://", "https://") + "/_site"
     ctx.update(og_title=c.get("og_title") or ctx["title"], og_desc=c.get("og_desc") or ctx["desc"],
                og_img=f"{abs_base}/og/{ob.SLUG}.jpg" if sp.og_image(ob.SLUG, ob.og_src(c)) else "")

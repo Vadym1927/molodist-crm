@@ -148,19 +148,58 @@
     }
   }
   function visible(s) { return !st.onlyDoc || s.docs.indexOf(st.onlyDoc) >= 0; }
-  function renderCats() {
+  var ICO = {                                                // лінійні іконки категорій (за ключовими словами назви)
+    laser: '<path d="M4 20l9-9"/><path d="M13 11l3-3 3 3-3 3z"/><path d="M19 3v2M22 6h-2M16 3.5l1 1.5M21.5 10l-1.5-1"/>',
+    syringe: '<path d="M18 2l4 4"/><path d="M17 7l3-3"/><path d="M19 9L8.7 19.3a2.4 2.4 0 0 1-3.4 0l-.6-.6a2.4 2.4 0 0 1 0-3.4L15 5"/><path d="M9 11l4 4"/><path d="M5 19l-3 3"/><path d="M14 4l6 6"/>',
+    hands: '<path d="M7 11V5.5a1.5 1.5 0 0 1 3 0V10"/><path d="M10 10V4.5a1.5 1.5 0 0 1 3 0V10"/><path d="M13 10V5.5a1.5 1.5 0 0 1 3 0V11"/><path d="M16 11V8.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-1a6 6 0 0 1-5-2.6L3.3 14a1.6 1.6 0 0 1 2.5-2L7 13"/>',
+    stetho: '<path d="M5 3v5a5 5 0 0 0 10 0V3"/><path d="M5 3h2M13 3h2"/><path d="M10 13v2a5 5 0 0 0 10 0v-1"/><circle cx="20" cy="12" r="2"/>',
+    target: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>',
+    drop: '<path d="M12 3s6 6.2 6 10.5a6 6 0 0 1-12 0C6 9.2 12 3 12 3z"/><path d="M9.5 14a2.5 2.5 0 0 0 2.5 2.5"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/>',
+    wave: '<path d="M2 12c2.5-6 5-6 7.5 0s5 6 7.5 0 3.5-4 5-2"/><path d="M2 18c2.5-4 5-4 7.5 0s5 4 7.5 0"/>',
+    leaf: '<path d="M5 19c0-9 5-14 15-14 0 10-5 15-14 15"/><path d="M5 19c3-5 6-8 10-10"/>',
+    lips: '<path d="M2 12c3-4 6-5.5 8-4.5 1 .5 3 .5 4 0 2-1 5 .5 8 4.5-3 4-6.5 6-10 6s-7-2-10-6z"/><path d="M2 12c4 1.200 16 1.200 20 0"/>',
+    flask: '<path d="M9 3h6"/><path d="M10 3v6l-5 9a2 2 0 0 0 1.800 3h10.400a2 2 0 0 0 1.800-3l-5-9V3"/><path d="M7.500 15h9"/>',
+    lift: '<path d="M4 15l8-8 8 8"/><path d="M4 20l8-8 8 8"/>',
+    gift: '<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M5 12v8h14v-8M12 8v12"/><path d="M12 8c-2.500 0-4-1.200-4-2.800S9.500 3 12 8zM12 8c2.500 0 4-1.200 4-2.800S14.500 3 12 8z"/>',
+    plus: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
+    spark: '<path d="M12 3l1.900 5.800L20 11l-6.100 2.200L12 19l-1.900-5.800L4 11l6.100-2.200z"/><path d="M19 3v4M17 5h4"/>'
+  };
+  var IMAP = [[/лазерн|епіляц/i, 'laser'], [/ipl|судин|пігмент/i, 'sun'], [/ботул|ботокс|диспорт|нейронокс|xeomin/i, 'syringe'], [/контурн|губ/i, 'lips'],
+    [/біоревіт|мезо|інʼєкц|ін'єкц|ін’єкц/i, 'syringe'], [/масаж|reset|стратосфер|stratosphere/i, 'hands'], [/консультац|повторний огляд|корекц/i, 'stetho'],
+    [/видален|новоутвор|дерматохір/i, 'target'], [/пілінг|очищен|чистк/i, 'drop'], [/rf|ліфтинг|endymed/i, 'lift'], [/догляд/i, 'leaf'],
+    [/лаборат|лабарат|аналіз/i, 'flask'], [/сертиф|подарун/i, 'gift'], [/додатков/i, 'plus'], [/апарат/i, 'wave']];
+  function ico(name) {
+    var k = 'spark'; for (var i = 0; i < IMAP.length; i++) if (IMAP[i][0].test(name)) { k = IMAP[i][1]; break; }
+    return '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.600" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICO[k] + '</svg>';
+  }
+  function catTitle(n) { var m = /^(.*?)\s*\((.*)\)\s*$/.exec(n); return m ? [m[1].trim(), m[2].trim()] : [n, '']; }
+  function plural(n) { var a = n % 10, b = n % 100; return n + (a === 1 && b !== 11 ? ' послуга' : a >= 2 && a <= 4 && (b < 12 || b > 14) ? ' послуги' : ' послуг'); }
+  function renderCats() {                                    // категорії — плитками з іконками; обрана категорія — список послуг
     var cs = D.cats.filter(function (c) { return c.items.some(visible); });
     if (st.cat && !cs.some(function (c) { return c.name === st.cat; })) st.cat = '';
-    elCats.innerHTML = '<button type="button" class="' + (st.cat ? '' : 'on') + '" data-cat="">Усі</button>' + cs.map(function (c) {
-      return '<button type="button" class="' + (st.cat === c.name ? 'on' : '') + '" data-cat="' + esc(c.name) + '">' + esc(c.name) + '</button>'; }).join('');
+    var q = (elQ.value || '').trim();
+    if (cs.length < 2) { elCats.innerHTML = ''; elCats.className = 'ob-cats'; if (cs.length === 1 && !st.cat) st.cat = cs[0].name; return; }
+    if (st.cat || q) {
+      elCats.className = 'ob-cats back';
+      elCats.innerHTML = '<button type="button" class="ob-allcats" data-cat="">← Усі категорії</button>' + (st.cat && !q ? '<span>' + ico(st.cat) + esc(catTitle(st.cat)[0]) + '</span>' : '');
+      return;
+    }
+    elCats.className = 'ob-cats tiles';
+    elCats.innerHTML = cs.map(function (c) {
+      var t = catTitle(c.name), n = c.items.filter(visible).length, sel = c.items.filter(function (s) { return has(s.id); }).length;
+      return '<button type="button" class="ob-tile' + (sel ? ' has' : '') + '" data-cat="' + esc(c.name) + '"><i>' + ico(c.name) + '</i><b>' + esc(t[0]) + '</b>' +
+        (t[1] ? '<small class="note">' + esc(t[1]) + '</small>' : '') + '<small>' + plural(n) + '</small>' + (sel ? '<em>' + sel + '</em>' : '') + '</button>'; }).join('');
   }
   function renderList() {
-    var q = (elQ.value || '').trim().toLowerCase(), h = '', full = st.svcs.length >= MAX;
+    var q = (elQ.value || '').trim().toLowerCase(), h = '', full = st.svcs.length >= MAX, multi = D.cats.filter(function (c) { return c.items.some(visible); }).length > 1;
+    if (multi && !st.cat && !q) { elList.innerHTML = ''; elList.hidden = true; return; }
+    elList.hidden = false;
     D.cats.forEach(function (c) {
       if (st.cat && !q && c.name !== st.cat) return;
       var its = c.items.filter(function (s) { return visible(s) && (!q || (s.name + ' ' + c.name).toLowerCase().indexOf(q) >= 0); });
       if (!its.length) return;
-      h += '<div class="ob-cat"><h3>' + esc(c.name) + '</h3>' + its.map(function (s) {
+      h += '<div class="ob-cat">' + (q || !multi ? '<h3>' + esc(catTitle(c.name)[0]) + '</h3>' : '') + its.map(function (s) {
         var on = has(s.id), off = !on && (full || !fits(s));
         return '<button type="button" class="ob-svc' + (on ? ' on' : '') + (off ? ' off' : '') + '" data-svc="' + s.id + '" aria-pressed="' + on + '"' + (off ? ' aria-disabled="true"' : '') + '>' +
           '<i class="ck" aria-hidden="true"></i><span><b>' + esc(s.name) + '</b>' + (s.desc ? '<small>' + esc(s.desc) + '</small>' : '') +
@@ -223,8 +262,9 @@
     root.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  elCats.addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; st.cat = b.dataset.cat; elQ.value = ''; renderCats(); renderList(); });
-  elQ.addEventListener('input', renderList);
+  elCats.addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; st.cat = b.dataset.cat; elQ.value = ''; renderCats(); renderList();
+    if (st.cat) root.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+  elQ.addEventListener('input', function () { renderCats(); renderList(); });
   elList.addEventListener('click', function (e) {
     var b = e.target.closest('[data-svc]'); if (!b || b.classList.contains('off')) return;
     var s = SV[b.dataset.svc];
@@ -283,6 +323,12 @@
     });
   });
 
+  $$('[data-ob-svc]').forEach(function (a) { a.addEventListener('click', function () {      // з прайсу — одразу до запису на цю послугу
+    var s = SV[a.dataset.obSvc]; if (!s || root.dataset.step === '5') return;
+    if (st.onlyDoc && !visible(s)) pickDoc(null);
+    if (!has(s.id) && fits(s) && st.svcs.length < MAX) st.svcs.push(s); else if (!has(s.id)) st.svcs = [s];
+    st.cat = s.cat; st.doc = null; st.anyDoc = false; resetTime(); elQ.value = ''; go(1); renderCats(); renderList(); summary();
+  }); });
   renderCats(); renderList(); summary();
   var pre = D.pre || {};
   if (pre.doctor && DOC[pre.doctor]) pickDoc(pre.doctor);
