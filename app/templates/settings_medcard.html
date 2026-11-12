@@ -1,30 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Медкартка: друк і форми<form class="gs" id="al" method="post" action="/settings/medcard/allergens"><h2>Алергії · {{ als|length }}</h2>
-  <p class="mini">Список для запису «Алергія»: лікар обирає алерген, і типова реакція підставляється сама. По одному в рядку: <b>Алерген | Типова реакція</b> (реакцію можна не вказувати). Збережена алергія також дописується в «Важливо знати» пацієнта.</p>
-  <textarea name="items" rows="{{ [als|length + 2, 6]|max }}" placeholder="Лідокаїн | набряк, кропивʼянка&#10;Латекс | контактний дерматит&#10;Пеніцилін">{% for a in als %}{{ a.n }}{% if a.reaction %} | {{ a.reaction }}{% endif %}
-{% endfor %}</textarea>
-  <button class="btn" style="margin-top:10px">Зберегти список</button></form>
-<form class="gs" id="vc" method="post" action="/settings/medcard/vaccines"><h2>Щеплення · {{ vcs|length }}</h2>
-  <p class="mini">Список для запису «Щеплення»: лікар обирає назву зі списку й ставить дату. По одній назві в рядку.</p>
-  <textarea name="items" rows="{{ [vcs|length + 2, 5]|max }}" placeholder="Правець, дифтерія (АДП-М)&#10;Гепатит B&#10;Грип (сезонна)&#10;COVID-19">{% for v in vcs %}{{ v }}
-{% endfor %}</textarea>
-  <button class="btn" style="margin-top:10px">Зберегти список</button></form>
-<div class="gs" id="an"><h2>Аналізи · {{ ans|length }}</h2>
-  <p class="mini">Список для запису «Аналізи» в медкартці: лікар обирає аналіз зі списку, і показники з нормами й одиницями підставляються самі — лишається вписати результат. Показники — по одному в рядку: <b>Показник | Норма | Од. виміру</b>.</p>
-  {% for a in ans %}<details class="mf"><summary><span><b>{{ a.name }}</b> <span class="mini">· показників {{ (a['items'] or [])|length }}</span></span><span class="mini">⌄</span></summary>
-    <form method="post" action="/settings/medcard/analyses"><input type="hidden" name="idx" value="{{ loop.index0 }}">
-      <label>Назва<input type="text" name="name" value="{{ a.name }}"></label>
-      <label>Показники<textarea name="items" rows="{{ [((a['items'] or [])|length) + 1, 4]|max }}">{% for x in a['items'] or [] %}{{ x.n }} | {{ x.norm }} | {{ x.unit }}
-{% endfor %}</textarea></label>
-      <div class="row" style="gap:8px"><button class="btn">Зберегти</button><button class="btn danger" name="delete" value="1" onclick="return confirm('Видалити аналіз зі списку?')">Видалити</button></div>
-    </form></details>{% endfor %}
-  <details class="mf" {{ 'open' if not ans }}><summary><b>＋ Новий аналіз</b></summary>
-    <form method="post" action="/settings/medcard/analyses">
-      <label>Назва<input type="text" name="name" placeholder="Загальний аналіз крові"></label>
-      <label>Показники<textarea name="items" rows="5" placeholder="Гемоглобін | 120–160 | г/л&#10;Лейкоцити | 4–9 | ×10⁹/л&#10;Тромбоцити | 180–320 | ×10⁹/л"></textarea></label>
-      <button class="btn">Додати аналіз</button></form></details>
-</div>
-{% endblock %}
+{% block title %}Медкартка: друк і форми{% endblock %}
 {% block body %}
 {% set qp = request.query_params %}
 <style>.gs{background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:16px 18px;margin-bottom:14px}.gs h2{margin:0 0 10px}
@@ -80,5 +55,30 @@
       <label>Поля<textarea name="fields" rows="5" placeholder="*Дата народження&#10;Скарги / бажаний результат&#10;Висновок спеціаліста (встановлений діагноз)&#10;Рекомендації"></textarea></label>
       <label class="ck"><input type="checkbox" name="active" value="1" checked> Показувати лікарям</label>
       <button class="btn">Додати форму</button></form></details>
+</div>
+<form class="gs" id="al" method="post" action="/settings/medcard/allergens"><h2>Алергії · {{ als|length }}</h2>
+  <p class="mini">Список для запису «Алергія»: лікар обирає алерген, і типова реакція підставляється сама. По одному в рядку: <b>Алерген | Типова реакція</b> (реакцію можна не вказувати). Збережена алергія також дописується в «Важливо знати» пацієнта.</p>
+  <textarea name="items" rows="{{ [als|length + 2, 6]|max }}" placeholder="Лідокаїн | набряк, кропивʼянка&#10;Латекс | контактний дерматит&#10;Пеніцилін">{% for a in als %}{{ a.n }}{% if a.reaction %} | {{ a.reaction }}{% endif %}
+{% endfor %}</textarea>
+  <button class="btn" style="margin-top:10px">Зберегти список</button></form>
+<form class="gs" id="vc" method="post" action="/settings/medcard/vaccines"><h2>Щеплення · {{ vcs|length }}</h2>
+  <p class="mini">Список для запису «Щеплення»: лікар обирає назву зі списку й ставить дату. По одній назві в рядку.</p>
+  <textarea name="items" rows="{{ [vcs|length + 2, 5]|max }}" placeholder="Правець, дифтерія (АДП-М)&#10;Гепатит B&#10;Грип (сезонна)&#10;COVID-19">{% for v in vcs %}{{ v }}
+{% endfor %}</textarea>
+  <button class="btn" style="margin-top:10px">Зберегти список</button></form>
+<div class="gs" id="an"><h2>Аналізи · {{ ans|length }}</h2>
+  <p class="mini">Список для запису «Аналізи» в медкартці: лікар обирає аналіз зі списку, і показники з нормами й одиницями підставляються самі — лишається вписати результат. Показники — по одному в рядку: <b>Показник | Норма | Од. виміру</b>.</p>
+  {% for a in ans %}<details class="mf"><summary><span><b>{{ a.name }}</b> <span class="mini">· показників {{ (a['items'] or [])|length }}</span></span><span class="mini">⌄</span></summary>
+    <form method="post" action="/settings/medcard/analyses"><input type="hidden" name="idx" value="{{ loop.index0 }}">
+      <label>Назва<input type="text" name="name" value="{{ a.name }}"></label>
+      <label>Показники<textarea name="items" rows="{{ [((a['items'] or [])|length) + 1, 4]|max }}">{% for x in a['items'] or [] %}{{ x.n }} | {{ x.norm }} | {{ x.unit }}
+{% endfor %}</textarea></label>
+      <div class="row" style="gap:8px"><button class="btn">Зберегти</button><button class="btn danger" name="delete" value="1" onclick="return confirm('Видалити аналіз зі списку?')">Видалити</button></div>
+    </form></details>{% endfor %}
+  <details class="mf" {{ 'open' if not ans }}><summary><b>＋ Новий аналіз</b></summary>
+    <form method="post" action="/settings/medcard/analyses">
+      <label>Назва<input type="text" name="name" placeholder="Загальний аналіз крові"></label>
+      <label>Показники<textarea name="items" rows="5" placeholder="Гемоглобін | 120–160 | г/л&#10;Лейкоцити | 4–9 | ×10⁹/л&#10;Тромбоцити | 180–320 | ×10⁹/л"></textarea></label>
+      <button class="btn">Додати аналіз</button></form></details>
 </div>
 {% endblock %}

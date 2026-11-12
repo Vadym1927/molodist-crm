@@ -28,6 +28,9 @@ def _same_unit(a: str | None, b: str | None) -> bool:
     return bool(f(a)) and f(a) == f(b)
 
 
+OFF_RATIO = 5.0
+
+
 def unit_costs(db: Session) -> dict[int, float]:
     """Ціна одиниці обліку (шт., мл, МО, м) для собівартості — як у CleverBox: ціна закупівлі товару (Product.cost),
     якщо її немає — остання закупівля (ProductPurchase, уже за одиницю обліку), далі собівартість залишку.
@@ -36,11 +39,14 @@ def unit_costs(db: Session) -> dict[int, float]:
     Тому на коефіцієнт фасування ділимо, лише якщо:
       • є закупівлі й ціна «за упаковку / коеф.» ближча до ціни останньої закупівлі за одиницю, ніж ціна «як є»;
       • або закупівель немає, а одиниця приходу явно задана й відрізняється від одиниці обліку (уп. → шт.).
-    (Раніше ділилось завжди: Нейронокс 70 МО = 16,88 ₴ замість ~3 000 ₴, шприц 0,08 ₴ замість 3,86 ₴.)"""
+    (Раніше ділилось завжди: Нейронокс 70 МО = 16,88 ₴ замість ~3 000 ₴, шприц 0,08 ₴ замість 3,86 ₴.)
+    Якщо ж ціна картки відрізняється від закупівлі за одиницю більш ніж у OFF_RATIO разів (флакон 50 мл за 14,50 ₴ при
+    обліку в мл і коеф. 1 — «розпаковка» не налаштована), береться ціна закупівлі: 0,29 ₴ за мл, а не 14,50 ₴."""
     import math
     out: dict[int, float] = {}
     for pp in db.scalars(select(ProductPurchase).where(ProductPurchase.unit_cost > 0).order_by(ProductPurchase.bought_on, ProductPurchase.id)):
         out[pp.product_id] = float(pp.unit_cost)
+    ref_all = dict(out)
     for p in db.scalars(select(Product)):
         k = float(p.coef) if p.coef and p.coef > 1 else 1.0
         c = float(p.cost or 0)
@@ -54,6 +60,9 @@ def unit_costs(db: Session) -> dict[int, float]:
                 out[p.id] = c / k if per_pack else c
             else:
                 out[p.id] = c
+            ref = ref_all.get(p.id)
+            if ref and not (1 / OFF_RATIO < out[p.id] / ref < OFF_RATIO):     # ціна картки за упаковку без коеф. («розпаковка»):
+                out[p.id] = ref                                            # беремо ціну закупівлі за одиницю обліку
         elif p.id not in out:
             out[p.id] = float(p.stock_cost or 0) / k
     return out
@@ -74,6 +83,32 @@ def fix_unit_costs_v2(db: Session) -> int:
                 m.unit_cost, n = round(new, 4), n + 1
     db.merge(SyncState(key="visit_unit_cost_fix_v2", value=str(n)))
     db.commit()
+    return n
+
+
+def fix_unit_costs_v3(db: Session) -> int:
+    """Один раз: витратні візитів, де ціна одиниці взята за упаковку (коеф. 1, «розпаковка» не налаштована), — перерахувати
+    за ціною закупівлі одиниці обліку. Кількості й списання не змінюються — лише собівартість."""
+    if db.get(SyncState, "visit_unit_cost_fix_v3"):
+        return 0
+    n = refresh_costs(db)
+    db.merge(SyncState(key="visit_unit_cost_fix_v3", value=str(n)))
+    db.commit()
+    return n
+
+
+def refresh_costs(db: Session, product_ids: list[int] | None = None) -> int:
+    """Собівартість збережених витратних візитів, що відрізняється від поточної ціни одиниці в OFF_RATIO+ разів, — перерахувати."""
+    uc = unit_costs(db)
+    q = select(VisitMaterial)
+    if product_ids:
+        q = q.where(VisitMaterial.product_id.in_(product_ids))
+    n = 0
+    for m in db.scalars(q):
+        new, old = uc.get(m.product_id, 0.0), float(m.unit_cost or 0)
+        if new > 0 and old > 0 and not (1 / OFF_RATIO < old / new < OFF_RATIO):
+            m.unit_cost, n = round(new, 4), n + 1
+    db.flush()
     return n
 
 

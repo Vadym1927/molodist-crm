@@ -123,3 +123,19 @@ def test_unit_cost_cb_cost_per_unit_with_purchases():
         db.add(ProductPurchase(product_id=q.id, bought_on=date(2026, 9, 30), qty=50, unit_cost=1.6)); db.commit()
         uc = tc.unit_costs(db)
         assert uc[p.id] == 48.22 and uc[q.id] == 1.5
+
+
+def test_unit_cost_pack_price_without_unpacking():
+    """Хлоргексидин: облік у мл, коеф. 1, у картці ціна флакона 14,50 ₴ — собівартість за мл з закупівлі (0,29 ₴),
+    збережені витратні візитів перераховуються."""
+    from app.models import VisitMaterial
+    with SessionLocal() as db:
+        p = Product(name="Хлоргексидин тест", name_norm="хлоргексидин тест", warehouse="single", unit="мл", purchase_unit="мл", coef=1, cost=14.5)
+        db.add(p); db.flush()
+        db.add(ProductPurchase(product_id=p.id, bought_on=date(2026, 11, 7), qty=2600, unit_cost=0.29))
+        m = VisitMaterial(appt_id=999001, svc_idx=0, cat="Одноразка", product_id=p.id, qty=2.5, unit_cost=14.5)
+        db.add(m); db.commit()
+        assert tc.unit_costs(db)[p.id] == 0.29
+        assert tc.refresh_costs(db, [p.id]) == 1
+        db.commit()
+        assert db.get(VisitMaterial, m.id).unit_cost == 0.29

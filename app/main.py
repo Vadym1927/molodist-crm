@@ -511,9 +511,10 @@ async def lifespan(app: FastAPI):
             _n0 = _pay0.backfill_finops(db)
             db.merge(SyncState(key="supply_finops_backfill_v1", value=str(_n0)))
             db.commit()
-        from .services.techcards import migrate_from_norms as _tcm, fix_unit_costs_v2 as _tcf   # техкарти CRM з норм списання (один раз)
+        from .services.techcards import migrate_from_norms as _tcm, fix_unit_costs_v2 as _tcf, fix_unit_costs_v3 as _tcf3   # техкарти CRM з норм списання (один раз)
         _tcm(db)
         _tcf(db)                                                     # собівартість витратних: без подвійного ділення на коеф. (один раз)
+        _tcf3(db)                                                    # собівартість витратних: ціна за упаковку без «розпаковки» (один раз)
         if not db.get(SyncState, "cb_calendar_freeze_20261031"):   # 31.10.2026: календар — лише вручну в CRM (рішення власника)
             from .integrations.cleverbox import set_calendar_frozen as _fz
             _fz(db, True)
