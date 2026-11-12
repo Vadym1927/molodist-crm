@@ -423,7 +423,7 @@
 .pch-d{align-self:center;font-size:11px;color:#9a93a6;background:#F2EFEA;border-radius:8px;padding:1px 9px;margin:4px 0}</style>
 <div class="card" id="chats"><div class="row between"><h2 style="margin:0">Діалоги Instagram / Facebook · {{ pchats|length }}</h2><a class="btn ghost" href="/chats">Центр спілкування</a></div>
   {% for c in pchats %}{% set nm = c.name or (('Instagram' if c.channel == 'instagram' else 'Facebook') ~ ' …' ~ c.thread[-4:]) %}
-  <details class="pch-t" {{ 'open' if loop.first }}><summary><span class="pch-av {{ 'fb' if c.channel == 'facebook' }}">{{ nm.lstrip('@')[:2]|upper }}<img src="/chats/{{ c.thread }}/avatar" alt="" loading="lazy" onerror="this.remove()"></span>
+  <details class="pch-t" {{ 'open' if loop.first }}><summary><span class="pch-av {{ 'fb' if c.channel == 'facebook' }}">{{ nm.lstrip('@')[:2]|upper }}<img src="/chats/{{ c.thread|urlencode }}/avatar" alt="" loading="lazy" onerror="this.remove()"></span>
     <span><b>{{ 'Instagram Direct' if c.channel == 'instagram' else 'Facebook Messenger' }} · {{ c.start|local|dt('%d.%m.%Y %H:%M') }} — {% if c.closed %}{{ c.end|local|dt('%d.%m.%Y %H:%M' if (c.end|local|dt('%d.%m.%Y')) != (c.start|local|dt('%d.%m.%Y')) else '%H:%M') }}{% else %}триває{% endif %}</b><br>
       <span class="small muted">{{ nm }} · {{ c.msgs|length }} повідомл.</span></span>
     <small>{% if c.closed %}<span class="pch-st ok">✓ {{ c.result or 'закрито' }}</span>{% else %}<span class="pch-st">відкритий</span>{% endif %} · <a href="/chats?t={{ c.thread }}" onclick="event.stopPropagation()">відкрити</a></small></summary>

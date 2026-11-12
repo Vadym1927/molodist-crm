@@ -5594,6 +5594,9 @@ def chats_unread(user: User = Depends(require("appeals")), db: Session = Depends
     return JSONResponse(mi.unread(db), headers={"Cache-Control": "no-store"})
 
 
+from urllib.parse import quote as _qthr  # noqa: E402
+
+
 @app.get("/chats", response_class=HTMLResponse)
 def chats_page(request: Request, t: str = "", ch: str = "", q: str = "", user: User = Depends(require("appeals")), db: Session = Depends(db_dep)):
     from .services import meta_inbox as mi
@@ -5633,25 +5636,25 @@ def chats_page(request: Request, t: str = "", ch: str = "", q: str = "", user: U
                   appeal=db.get(__import__("app.models", fromlist=["Appeal"]).Appeal, msgs[-1].appeal_id) if msgs and msgs[-1].appeal_id else None)
 
 
-@app.get("/chats/{thread}/avatar")
+@app.get("/chats/{thread:path}/avatar")
 def chats_avatar(thread: str, user: User = Depends(require("appeals")), db: Session = Depends(db_dep)):
     from .services import meta_inbox as mi
-    av = mi.avatar(db, thread) if thread.isdigit() else None
+    av = mi.avatar(db, thread) if thread.isdigit() or thread.startswith("vb:") else None
     if not av:
         raise HTTPException(404)
     return Response(av[0], media_type=av[1], headers={"Cache-Control": "private, max-age=21600"})
 
 
-@app.post("/chats/{thread}/close")
+@app.post("/chats/{thread:path}/close")
 def chats_close(thread: str, status: str = Form(...), reason: str = Form(""), user: User = Depends(require("appeals")),
                 db: Session = Depends(db_dep)):
     from .services import meta_inbox as mi
     n = mi.close_thread(db, thread, status, reason.strip() or None, user.id)
     audit(db, "chats.close", user=user, thread=thread[-6:], status=status, appeals=n)
-    return RedirectResponse(_with_msg(f"/chats?t={thread}", f"Діалог закрито · {status}" + ("" if n else " (відкритих звернень не було)")), 303)
+    return RedirectResponse(_with_msg(f"/chats?t={_qthr(thread, safe='')}", f"Діалог закрито · {status}" + ("" if n else " (відкритих звернень не було)")), 303)
 
 
-@app.post("/chats/{thread}/reply")
+@app.post("/chats/{thread:path}/reply")
 def chats_reply(thread: str, text: str = Form(...), user: User = Depends(require("appeals")), db: Session = Depends(db_dep)):
     from .services import meta_inbox as mi
     try:
@@ -5659,11 +5662,11 @@ def chats_reply(thread: str, text: str = Form(...), user: User = Depends(require
     except ValueError as e:
         return RedirectResponse(_with_msg("/chats", str(e), True), 303)
     audit(db, "chats.reply", user=user, thread=thread[-6:], status=m.status)
-    url = f"/chats?t={thread}"
+    url = f"/chats?t={_qthr(thread, safe='')}"
     return RedirectResponse(url if m.status == "sent" else _with_msg(url, f"Не надіслано: {m.error}", True), 303)
 
 
-@app.post("/chats/{thread}/patient")
+@app.post("/chats/{thread:path}/patient")
 def chats_link_patient(thread: str, patient_id: str = Form(""), user: User = Depends(require("appeals")), db: Session = Depends(db_dep)):
     from .models import ChatMessage
     pid = int(patient_id) if patient_id.isdigit() else None
@@ -5677,7 +5680,7 @@ def chats_link_patient(thread: str, patient_id: str = Form(""), user: User = Dep
         a_.patient_id = pid                                    # звернення з цього діалогу — до картки пацієнта
     db.commit()
     audit(db, "chats.patient", user=user, thread=thread[-6:], patient=pid)
-    return RedirectResponse(f"/chats?t={thread}", 303)
+    return RedirectResponse(f"/chats?t={_qthr(thread, safe='')}", 303)
 
 
 @app.get("/privacy", response_class=HTMLResponse)

@@ -63,3 +63,23 @@ def test_connect_ingest_reply():
         assert cl.post(f"/api/public/viber/webhook/{hook}", content=body, headers={"X-Viber-Content-Signature": sig}).json()["status"] == 0
     with SessionLocal() as db:
         assert db.query(ChatMessage).filter_by(thread="vb:VB2").count() == 1
+
+
+def test_thread_with_slash_plus_reply_and_avatar(monkeypatch):
+    from app.config import settings
+    settings.admin_password = "owner-pass-1"
+    tid = "vb:Jd5/0kU+mRx=="
+    with SessionLocal() as db:
+        _setup(db)
+        vb.ingest(db, {"event": "message", "message_token": 2001, "sender": {"id": tid[3:], "name": "Вадим", "avatar": "https://x/av.jpg"},
+                       "message": {"type": "text", "text": "Тест"}})
+        assert vb.avatar_url(db, tid) == "https://x/av.jpg"
+    sent = []
+    monkeypatch.setattr(vb, "send", lambda db, th, text, http=None: (sent.append(th) or True, "vb:9", None))
+    with TestClient(app) as cl:
+        cl.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        page = cl.get("/chats?ch=viber").text
+        assert ">Viber</a>" in page and "Jd5/0kU%2BmRx%3D%3D" in page
+        r = cl.post("/chats/vb:Jd5/0kU%2BmRx%3D%3D/reply", data={"text": "Відповідь"}, follow_redirects=False)
+        assert r.status_code == 303 and "Не надіслано" not in r.headers["location"]
+    assert sent == [tid]

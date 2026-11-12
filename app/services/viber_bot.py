@@ -82,6 +82,12 @@ def check_signature(db: Session, body: bytes, sig: str | None) -> bool:
 def ingest(db: Session, ev: dict) -> ChatMessage | None:
     """Подія вебхука Viber → ChatMessage; нова розмова → звернення «Viber»."""
     from . import meta_inbox as mi, appeals as ap
+    if ev.get("event") in ("subscribed", "conversation_started"):          # фото профілю — і без повідомлення
+        u = ev.get("user") or {}
+        if u.get("id") and u.get("avatar"):
+            save_avatar(db, f"{PREFIX}{u['id']}", u["avatar"])
+            db.commit()
+        return None
     if ev.get("event") != "message":
         return None
     snd = ev.get("sender") or {}
@@ -101,6 +107,8 @@ def ingest(db: Session, ev: dict) -> ChatMessage | None:
         text = f"Контакт: {contact.get('name') or ''} {phone}".strip()
     atts = [{"type": typ, "url": msg.get("media")}] if msg.get("media") else None
     name = (snd.get("name") or "").strip() or f"Viber …{sid[-4:]}"
+    if snd.get("avatar"):
+        save_avatar(db, thread, snd["avatar"])
     prev = db.scalars(select(ChatMessage).where(ChatMessage.thread == thread).order_by(ChatMessage.id.desc())).first()
     pat_id = prev.patient_id if prev and prev.patient_id else None
     if not pat_id and phone:
@@ -129,6 +137,35 @@ def ingest(db: Session, ev: dict) -> ChatMessage | None:
     except Exception as e:      # noqa: BLE001
         log.warning("match_clicks: %s", e)
     return m
+
+
+AV_KEY = "viber_avatars"
+
+
+def save_avatar(db: Session, thread: str, url: str) -> None:
+    """Посилання на фото профілю з події Viber (sender.avatar) — для аватарки в центрі спілкування."""
+    from ..models import SyncState
+    st = db.get(SyncState, AV_KEY)
+    try:
+        d = json.loads(st.value) if st and st.value else {}
+    except ValueError:
+        d = {}
+    if d.get(thread) == url:
+        return
+    d.pop(thread, None)
+    d[thread] = str(url)[:500]
+    while len(d) > 2000:
+        d.pop(next(iter(d)))
+    db.merge(SyncState(key=AV_KEY, value=json.dumps(d), updated_at=datetime.utcnow()))
+
+
+def avatar_url(db: Session, thread: str) -> str:
+    from ..models import SyncState
+    st = db.get(SyncState, AV_KEY)
+    try:
+        return (json.loads(st.value) if st and st.value else {}).get(thread) or ""
+    except ValueError:
+        return ""
 
 
 def send(db: Session, thread: str, text: str, http: httpx.Client | None = None) -> tuple[bool, str | None, str | None]:

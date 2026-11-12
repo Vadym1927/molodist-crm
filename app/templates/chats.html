@@ -57,29 +57,29 @@ dialog.cx-dl{border:0;border-radius:18px;padding:22px;width:min(420px,92vw);box-
 @media(max-width:1100px){.cx{grid-template-columns:280px minmax(0,1fr)}.cx>div:last-child{display:none}}
 @media(max-width:720px){.cx{grid-template-columns:1fr;height:auto}.cx>div{border-right:0;border-bottom:1px solid #F1EDE8;min-height:260px}}
 </style>
-<div class="cx-h"><div><div class="eyebrow">Комунікації</div><h1>Центр спілкування</h1><p>Instagram Direct і Facebook Messenger — читайте й відповідайте з CRM.</p></div>
+<div class="cx-h"><div><div class="eyebrow">Комунікації</div><h1>Центр спілкування</h1><p>Instagram, Facebook і Viber — читайте й відповідайте з CRM.</p></div>
   {% if can(user,'users') %}<a class="btn ghost" href="/settings/channels?open={{ '' }}">⚙ Канали</a>{% endif %}</div>
 {% if qp.get('msg') %}<div class="alert" style="{{ '' if qp.get('err') else 'background:var(--ok-bg);color:var(--ok)' }}">{{ qp.get('msg') }}</div>{% endif %}
 {% if not connected %}<div class="cx-warn"><b>Канал не підключено.</b> Налаштування → Канали → «Instagram та Facebook»: токен сторінки й вебхук.</div>
 {% elif not replies_on %}<div class="cx-warn">Відповіді з CRM вимкнено — повідомлення лише читаються (Налаштування → Канали).</div>{% endif %}
 <div class="cx">
   <div>
-    <div class="cx-f"><div class="cx-tabs"><a href="?" class="{{ 'on' if not ch_ }}">Усі</a><a href="?ch=instagram" class="{{ 'on' if ch_ == 'instagram' }}">Instagram</a><a href="?ch=facebook" class="{{ 'on' if ch_ == 'facebook' }}">Facebook</a></div>
+    <div class="cx-f"><div class="cx-tabs"><a href="?" class="{{ 'on' if not ch_ }}">Усі</a><a href="?ch=instagram" class="{{ 'on' if ch_ == 'instagram' }}">Instagram</a><a href="?ch=facebook" class="{{ 'on' if ch_ == 'facebook' }}">Facebook</a><a href="?ch=viber" class="{{ 'on' if ch_ == 'viber' }}">Viber</a></div>
       <form><input type="hidden" name="ch" value="{{ ch_ }}"><input name="q" value="{{ q }}" placeholder="Пошук: імʼя або текст"></form></div>
-    <div class="cx-l">{% for x in threads %}<a class="cx-t {{ 'on' if cur and cur.thread == x.thread }}" href="?t={{ x.thread }}{{ ('&ch=' ~ ch_) if ch_ }}">
-      <span class="cx-av {{ 'fb' if x.channel == 'facebook' }}">{{ (x.name.lstrip('@')[:2])|upper }}<img src="/chats/{{ x.thread }}/avatar" alt="" loading="lazy" onerror="this.remove()"><span class="bd {{ 'ig' if x.channel == 'instagram' }}"{% if x.channel == 'telegram' %} style="background:#2AABEE"{% elif x.channel == 'viber' %} style="background:#7360F2"{% endif %}></span></span>
+    <div class="cx-l">{% for x in threads %}<a class="cx-t {{ 'on' if cur and cur.thread == x.thread }}" href="?t={{ x.thread|urlencode }}{{ ('&ch=' ~ ch_) if ch_ }}">
+      <span class="cx-av {{ 'fb' if x.channel == 'facebook' }}">{{ (x.name.lstrip('@')[:2])|upper }}<img src="/chats/{{ x.thread|urlencode }}/avatar" alt="" loading="lazy" onerror="this.remove()"><span class="bd {{ 'ig' if x.channel == 'instagram' }}"{% if x.channel == 'telegram' %} style="background:#2AABEE"{% elif x.channel == 'viber' %} style="background:#7360F2"{% endif %}></span></span>
       <span class="tx"><b>{{ x.name }}{% if x.closed %}<span class="cl">✓ закрито</span>{% endif %}</b><span>{{ '↪ ' if x.last.direction == 'out' }}{{ x.last.text or '[вкладення]' }}</span></span>
       <em>{{ x.last.at|local|dt('%d.%m %H:%M') }}</em>{% if x.unread and not (cur and cur.thread == x.thread) %}<i>{{ x.unread }}</i>{% endif %}</a>
     {% else %}<div class="cx-e">Повідомлень ще немає.<br>Щойно пацієнт напише в Instagram чи Messenger — діалог зʼявиться тут.</div>{% endfor %}</div>
   </div>
   <div>{% if cur %}
-    <div class="cx-hd"><span class="cx-av {{ 'fb' if cur.channel == 'facebook' }}">{{ (cur.name.lstrip('@')[:2])|upper }}<img src="/chats/{{ cur.thread }}/avatar" alt="" onerror="this.remove()"></span><div class="sp"><b>{{ cur.name }}</b><small>{{ {'instagram':'Instagram Direct','telegram':'Telegram · акаунт клініки','viber':'Viber · бот клініки'}.get(cur.channel, 'Facebook Messenger') }}{% if cur.closed %} · ✓ закрито ({{ cur.appeal_status }}){% endif %}</small></div>
+    <div class="cx-hd"><span class="cx-av {{ 'fb' if cur.channel == 'facebook' }}">{{ (cur.name.lstrip('@')[:2])|upper }}<img src="/chats/{{ cur.thread|urlencode }}/avatar" alt="" onerror="this.remove()"></span><div class="sp"><b>{{ cur.name }}</b><small>{{ {'instagram':'Instagram Direct','telegram':'Telegram · акаунт клініки','viber':'Viber · бот клініки'}.get(cur.channel, 'Facebook Messenger') }}{% if cur.closed %} · ✓ закрито ({{ cur.appeal_status }}){% endif %}</small></div>
       <button class="btn ghost" type="button" onclick="document.getElementById('cx-close').showModal()">✓ Закрити діалог</button></div>
     <div class="cx-m" id="cx-m">{% set ns = namespace(d='') %}{% for m in msgs %}{% set dd = (m.at|local|dt('%d.%m.%Y')) %}{% if dd != ns.d %}<div class="cx-d">{{ dd }}</div>{% set ns.d = dd %}{% endif %}
       {% if m.direction == 'sys' %}<div class="cx-sys">✓ {{ m.text }} · {{ m.at|local|dt('%H:%M') }}</div>{% else %}
       <div class="cx-b {{ m.direction }} {{ 'bad' if m.direction == 'out' and m.status != 'sent' }}">{{ m.text or '' }}{% for a in m.attachments or [] %}{% if a.url %}<div><a href="{{ a.url }}" target="_blank" rel="noopener">📎 {{ a.type or 'файл' }}</a></div>{% endif %}{% endfor %}
         <small>{{ m.at|local|dt('%H:%M') }}{% if m.direction == 'out' %} · {{ {'sent':'надіслано','paused':'не надіслано — вимкнено','failed':'помилка'}.get(m.status, m.status) }}{% if m.error and m.status != 'sent' %}: {{ m.error }}{% endif %}{% endif %}</small></div>{% endif %}{% endfor %}</div>
-    <form class="cx-in" method="post" action="/chats/{{ cur.thread }}/reply">
+    <form class="cx-in" method="post" action="/chats/{{ cur.thread|urlencode }}/reply">
       <div class="cx-tp"><button type="button" class="cx-tb" onclick="cxTp()" title="Шаблони відповідей">📋 Шаблони</button>
         <div class="cx-tpp" id="cx-tpp"><div class="hd"><input id="cx-tq" placeholder="Пошук шаблону" oninput="cxTf(this.value)">{% if can(user,'users') %}<a href="/settings/reply-templates" target="_blank">Налаштувати</a>{% endif %}</div>
           <div class="ls" id="cx-tl">{% for g, items in tpls|groupby('cat') %}<div class="gr">{{ g or 'Інше' }}</div>{% for t in items %}<div class="it" data-n="{{ (t.title ~ ' ' ~ t.text)|lower }}" onclick="cxTi(this)"><b>{{ t.title }}</b><span>{{ t.out }}</span><textarea hidden>{{ t.out }}</textarea></div>{% endfor %}{% else %}<div class="cx-none" style="padding:12px">Шаблонів ще немає{% if can(user,'users') %} — <a href="/settings/reply-templates">додати</a>{% endif %}.</div>{% endfor %}</div></div></div>
@@ -99,7 +99,7 @@ dialog.cx-dl{border:0;border-radius:18px;padding:22px;width:min(420px,92vw);box-
       <a class="btn ghost" href="/patients/{{ pat.id }}#t-plan">✨ Відкрити бʼюті-план</a>
     {% else %}<div class="cx-none">Бʼюті-плану немає.</div><a class="btn ghost" href="/patients/{{ pat.id }}#t-plan">Картка → Бʼюті-план</a>{% endif %}
     {% else %}<div class="small muted">Не привʼязано до картки.</div>{% endif %}
-    <form method="post" action="/chats/{{ cur.thread }}/patient" class="cx-lk" id="cx-lf"><input type="hidden" name="patient_id" id="cx-pid">
+    <form method="post" action="/chats/{{ cur.thread|urlencode }}/patient" class="cx-lk" id="cx-lf"><input type="hidden" name="patient_id" id="cx-pid">
       {% if suggest %}<div class="cx-sg"><small>Схожі пацієнти — натисніть, щоб привʼязати:</small>{% for p in suggest %}<button type="button" onclick="document.getElementById('cx-pid').value='{{ p.id }}';document.getElementById('cx-lf').submit()"><b>{{ p.full_name }}</b>{% if p.phone %} <small>· {{ p.phone }}</small>{% endif %}</button>{% endfor %}</div>{% endif %}
       <input id="cx-q" onkeydown="if(event.key==='Enter'){event.preventDefault();var f=document.querySelector('#cx-res div[data-id]');if(f)f.click()}" placeholder="{{ 'Змінити: імʼя або телефон' if pat else 'Імʼя або телефон (від 3 символів)' }}" autocomplete="off" style="margin:6px 0 0;height:40px;width:100%;box-sizing:border-box"><div class="res" id="cx-res"></div>
       {% if pat %}<button class="btn ghost" name="patient_id" value="" style="margin-top:6px;font-size:12.5px">Відвʼязати</button>{% endif %}</form>
@@ -107,7 +107,7 @@ dialog.cx-dl{border:0;border-radius:18px;padding:22px;width:min(420px,92vw);box-
     {% if can(user,'book') %}<a class="btn" href="/calendar?view=day&newappt=1{{ ('&appeal=' ~ appeal.id) if appeal }}">📅 Записати</a>{% endif %}
   {% endif %}</div>
 </div>
-{% if cur %}<dialog class="cx-dl" id="cx-close"><form method="post" action="/chats/{{ cur.thread }}/close">
+{% if cur %}<dialog class="cx-dl" id="cx-close"><form method="post" action="/chats/{{ cur.thread|urlencode }}/close">
   <h3>Закрити діалог</h3><p>Звернення з цього діалогу закриється з обраним результатом. Якщо пацієнт напише знову — створиться нове звернення.</p>
   <div class="opts">{% for s_ in close_st %}<label class="op"><input type="radio" name="status" value="{{ s_.name }}" data-t="{{ s_.type }}" {{ 'checked' if loop.first }} onchange="cxR()"><i style="background:{{ s_.color or '#999' }}"></i>{{ s_.name }}</label>{% endfor %}</div>
   <select name="reason" id="cx-rs-fail" style="display:none;margin:0 0 12px" disabled><option value="">Причина відмови…</option>{% for r in deny_reasons %}<option>{{ r }}</option>{% endfor %}</select>

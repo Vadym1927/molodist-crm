@@ -434,14 +434,24 @@ _AV: dict[str, tuple[float, bytes, str]] = {}     # аватари співро�
 def avatar(db: Session, thread: str, http: httpx.Client | None = None) -> tuple[bytes, str] | None:
     """Фото профілю співрозмовника (profile_pic через Graph токеном сторінки). Посилання Meta тимчасові — тож кешуємо байти."""
     import time
-    if thread.startswith(("tg:", "vb:")):                         # Telegram Business — фото з Meta немає
+    if thread.startswith("tg:"):                                  # Telegram Business — фото з Meta немає
         return None
     hit = _AV.get(thread)
     if hit and time.time() - hit[0] < 12 * 3600:
         return (hit[1], hit[2]) if hit[1] else None
     tok = _page_token(db)
     data, ctype = b"", ""
-    if tok or _ig_token(db):
+    if thread.startswith("vb:"):                                  # Viber: посилання з події вебхука (sender.avatar)
+        from . import viber_bot as vb
+        url = vb.avatar_url(db, thread)
+        if url:
+            try:
+                r = (http or httpx.Client(timeout=10, follow_redirects=True)).get(url)
+                if r.status_code == 200 and r.headers.get("content-type", "").startswith("image/") and len(r.content) < 2_000_000:
+                    data, ctype = r.content, r.headers["content-type"]
+            except Exception:  # noqa: BLE001
+                pass
+    elif tok or _ig_token(db):
         cl = http or httpx.Client(timeout=10, follow_redirects=True)
         try:
             url = _ig_get(db, thread, "profile_pic", cl).get("profile_pic") if _ig_token(db) else None
