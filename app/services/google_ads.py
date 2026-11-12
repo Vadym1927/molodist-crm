@@ -753,15 +753,15 @@ function applyQueue() {
         var cp4 = camp(c); if (!cp4) throw new Error('кампанію не знайдено');
         var ki = AdsApp.keywords().withCondition('campaign.id = ' + cp4.getId())
           .withCondition('ad_group_criterion.keyword.match_type = BROAD').withCondition('ad_group_criterion.status = ENABLED').get();
-        var moved = 0, bad = 0;
+        var moved = 0, bad = 0, badl = [];
         while (ki.hasNext()) {
           var kw2 = ki.next(), tx = kw2.getText().replace(/[\"\[\]+]/g, '').trim();
           var kb = kw2.getAdGroup().newKeywordBuilder().withText('"' + tx + '"');
           var fu = kw2.urls().getFinalUrl(); if (fu) kb = kb.withFinalUrl(fu);
           var kres = kb.build();
-          if (kres.isSuccessful() || /DUPLICATE|already|існує/i.test(kres.getErrors().join(' '))) { kw2.pause(); moved++; } else { bad++; }
+          if (kres.isSuccessful() || /DUPLICATE|already|існує/i.test(kres.getErrors().join(' '))) { kw2.pause(); moved++; } else { bad++; badl.push(tx + ': ' + kres.getErrors().join(' ').substring(0, 60)); }
         }
-        r.ok = moved > 0 || bad === 0; r.note = 'переведено ' + moved + (bad ? ', помилок ' + bad : '');
+        r.ok = moved > 0 || bad === 0; r.note = ('переведено ' + moved + (bad ? ', помилок ' + bad + ' — ' + badl.join('; ') : '')).substring(0, 480);
       } else if (c.kind === 'rsa') {
         var g2 = group(c); if (!g2) throw new Error('групу не знайдено');
         var old = [];
