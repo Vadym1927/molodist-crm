@@ -157,3 +157,33 @@ def ingest(db: Session, rows: list, forms: dict | None = None) -> dict:
     db.merge(SyncState(key=KEY, value=json.dumps(c, ensure_ascii=False), updated_at=datetime.utcnow()))
     db.commit()
     return out
+
+
+def run_files(job, files: list) -> dict:
+    """Файли записів медкарти: [[cb_record_id, cb_file_id, url, назва, дата, тип]] → файли пацієнта, привʼязані до запису."""
+    from . import cb_photos
+    from ..models import PatientFile, SessionLocal
+    with SessionLocal() as db:
+        recs = {m.cb_id: (m.id, m.patient_id) for m in db.scalars(select(MedRecord).where(MedRecord.cb_id.is_not(None)))}
+        cbid = {p.id: p.cleverbox_id for p in db.scalars(select(Patient).where(Patient.cleverbox_id.is_not(None)))}
+    conv, link = [], {}
+    for f in files or []:
+        try:
+            rid, fid = int(f[0]), int(f[1])
+        except (TypeError, ValueError, IndexError):
+            continue
+        if rid not in recs or recs[rid][1] not in cbid:
+            continue
+        link[fid] = recs[rid][0]
+        conv.append([cbid[recs[rid][1]], fid, f[2], f[3], f[4] if len(f) > 4 else "", f[5] if len(f) > 5 else ""])
+    rep = cb_photos.run(job, conv, "client")
+    with SessionLocal() as db:
+        n = 0
+        for pf in db.scalars(select(PatientFile).where(PatientFile.cb_file_id.in_(list(link) or [0]))):
+            if pf.record_id != link[pf.cb_file_id]:
+                pf.record_id = link[pf.cb_file_id]
+                n += 1
+        db.commit()
+    rep["linked"] = n
+    job.log(f"Привʼязано до записів медкарти: {n}")
+    return rep

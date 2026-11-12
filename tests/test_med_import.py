@@ -40,3 +40,30 @@ def test_ingest_and_endpoint():
         pid = SessionLocal().query(Patient).filter_by(cleverbox_id=90597).one().id
         t = c.get(f"/patients/{pid}/medcard").text
         assert "Щоденник (стратосфера)" in t and "з CleverBox" in t
+
+
+def test_run_files_links_record(monkeypatch):
+    from app.services import cb_photos
+    from app.models import PatientFile
+
+    class J:
+        def log(self, m):
+            pass
+
+    def fake_run(job, files, by):
+        with SessionLocal() as db:
+            for f in files:
+                p = db.query(Patient).filter_by(cleverbox_id=f[0]).one()
+                db.add(PatientFile(patient_id=p.id, kind="photo", path="x.jpg", cb_file_id=f[1]))
+            db.commit()
+        return {"saved": len(files)}
+    monkeypatch.setattr(cb_photos, "run", fake_run)
+    with SessionLocal() as db:
+        if not db.query(Patient).filter_by(cleverbox_id=90597).first():
+            db.add(Patient(full_name="Медімпорт Аліна", phone="+380500009597", cleverbox_id=90597)); db.commit()
+        mim.ingest(db, [ROW], FORMS)
+    rep = mim.run_files(J(), [[92697, 99565, "https://cbox.x.upcloudobjects.com/a.jpg", "IMG.jpeg", "16.03.2024 16:20", "img"], [1, 2, "u", "n"]])
+    assert rep["saved"] == 1 and rep["linked"] == 1
+    with SessionLocal() as db:
+        m = db.query(MedRecord).filter_by(cb_id=92697).one()
+        assert db.query(PatientFile).filter_by(cb_file_id=99565).one().record_id == m.id

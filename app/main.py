@@ -2756,6 +2756,28 @@ async def medcard_import(request: Request, db: Session = Depends(db_dep)):
     return JSONResponse(r, headers=_MED_CORS)
 
 
+@app.options("/api/public/medcard/files")
+def medcard_files_options():
+    return Response(status_code=204, headers=_MED_CORS)
+
+
+@app.post("/api/public/medcard/files")
+async def medcard_files(request: Request, db: Session = Depends(db_dep)):
+    """Файли записів медкарти CleverBox (тимчасові посилання сховища) → у фоні завантажуються й привʼязуються до записів."""
+    from .services import med_import as mim
+    if not mim.key_ok(db, request.headers.get("x-import-key", "")):
+        return JSONResponse({"error": "key"}, status_code=403, headers=_MED_CORS)
+    try:
+        d = json.loads(await request.body() or b"{}")
+    except ValueError:
+        return JSONResponse({"error": "json"}, status_code=400, headers=_MED_CORS)
+    files = d.get("files") or []
+    job = jobs.start("Файли медкарт з CleverBox", mim.run_files, files)
+    audit(db, "medcard.files", user=None, files=len(files), job=job.id)
+    db.commit()
+    return JSONResponse({"ok": True, "job": job.id, "files": len(files)}, headers=_MED_CORS)
+
+
 @app.get("/patients/{pid}/medcard", response_class=HTMLResponse)
 def medcard_page(request: Request, pid: int, edit: int = 0, user: User = Depends(current_user), db: Session = Depends(db_dep)):
     from .models import MedRecord, MedTemplate
@@ -2764,7 +2786,7 @@ def medcard_page(request: Request, pid: int, edit: int = 0, user: User = Depends
                       .order_by(MedRecord.at.desc())).all()
     photos = [f for f in p.files if f.kind == "photo"]
     by_rec: dict[int, list] = {}
-    for f in photos:
+    for f in p.files:
         if f.record_id:
             by_rec.setdefault(f.record_id, []).append(f)
     docs = {d_.id: d_ for d_ in db.scalars(select(Doctor))}
