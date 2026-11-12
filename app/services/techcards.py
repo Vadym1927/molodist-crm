@@ -407,15 +407,37 @@ def reopen(db: Session, a: Appointment) -> int:
     return n
 
 
+def ready(db: Session, a: Appointment, s: Sale | None = None) -> bool:
+    """Візит можна закрити (списати витратні й заблокувати): чек оплачено І адміністратор поставив «Візит завершено».
+    Після оплати до завершення витратні ще можна коригувати."""
+    s = s if s is not None else (db.get(Sale, a.sale_id) if a.sale_id else None)
+    return bool(s and s.status == "paid" and a.status == "done")
+
+
+def sync_one(db: Session, a: Appointment, user_id: int | None = None) -> str | None:
+    """Після зміни статусу візиту: «Візит завершено» + оплачено → списати; статус прибрали з «завершено» → відкрити назад."""
+    if a.id in editing(db) or getattr(a, "historic", False):
+        return None
+    if ready(db, a):
+        if not closed(db, a) and close(db, a, user_id):
+            db.commit()
+            return "closed"
+    elif _docs(db, a.id):
+        reopen(db, a)
+        db.commit()
+        return "reopened"
+    return None
+
+
 def sync(db: Session) -> dict:
-    """Оплачені візити — закрити (списати матеріали); повернені / скасовані чеки — відкрити назад."""
+    """Оплачені й завершені візити — закрити (списати матеріали); повернені / скасовані чеки — відкрити назад."""
     rep = {"closed": 0, "reopened": 0}
     ed = editing(db)
     for a in db.scalars(select(Appointment).where(Appointment.sale_id.is_not(None))):
         if a.id in ed:                     # витратні відкриті для виправлення — списання після «Списати зі складу»
             continue
         s = db.get(Sale, a.sale_id)
-        if s and s.status == "paid" and not closed(db, a):
+        if ready(db, a, s) and not closed(db, a):
             if close(db, a, s.created_by):
                 rep["closed"] += 1
     ids = {int(x.split(":")[1]) for (x,) in db.execute(select(StockDoc.ext_no).where(StockDoc.ext_no.like("visit:%"),

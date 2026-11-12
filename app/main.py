@@ -1813,6 +1813,11 @@ def appointment_status(aid: int, status: str = Form(...), reason: str = Form("")
             return JSONResponse({"error": _err}, status_code=400)
         return RedirectResponse(_with_msg(back or f"/calendar?start={a.start.date()}", _err, True), 303)
     audit(db, "appointment.status", "patient", a.patient_id, user=user, appt=aid, status=status, reason=reason or None)
+    try:                                   # «Візит завершено» + оплачено → списати витратні й заблокувати; зняли статус — відкрити
+        from .services import techcards as _tc1
+        _tc1.sync_one(db, a, user.id)
+    except Exception as e:  # noqa: BLE001
+        log.warning("Витратні візиту %s: %s", aid, e)
     if ajax:
         return JSONResponse({"ok": True})
     b = back if back.startswith("/calendar") or back.startswith("/patients/") else f"/calendar?start={a.start.date()}"
@@ -4191,7 +4196,7 @@ def visit_material_close(aid: int, user: User = Depends(require("book")), db: Se
     back = f"/calendar?start={a.start.strftime('%Y-%m-%d')}&open={a.id}"
     tc.set_editing(db, a.id, False)
     s_ = db.get(Sale, a.sale_id) if a.sale_id else None
-    docs = tc.close(db, a, user.id) if s_ and s_.status == "paid" else []
+    docs = tc.close(db, a, user.id) if tc.ready(db, a, s_) else []
     audit(db, "visit.materials_close", "patient", a.patient_id, user=user, appt=a.id, docs=len(docs))
     return RedirectResponse(back + "&tab=cost", 303)
 

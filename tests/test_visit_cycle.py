@@ -59,12 +59,16 @@ def test_visit_cycle():
                                    "payments": [{"method": "Готівка", "amount": 5000}]})
         assert r.status_code == 200, r.text
         sid = r.json()["id"]
+        with SessionLocal() as db:                         # оплачено, але не завершено — витратні ще редагуються
+            assert not db.query(StockDoc).filter(StockDoc.ext_no == f"visit:{aid}", StockDoc.status == "posted").count()
+        assert c.post(f"/appointments/{aid}/materials/{gid}", json={"qty": "4"}).status_code == 200
+        c.post(f"/appointments/{aid}/status", data={"status": "done"})      # «Візит завершено» → списання й блокування
         with SessionLocal() as db:
             docs = db.query(StockDoc).filter(StockDoc.ext_no == f"visit:{aid}", StockDoc.status == "posted").all()
             assert sorted(x.wh_from for x in docs) == ["inject", "single"]
             mv = {(m.product_id, m.warehouse): m.qty for m in db.query(StockMove).filter(StockMove.doc_id.in_([x.id for x in docs]))}
             assert mv[(ids["drug"], "inject")] == -1 and mv[(ids["glove"], "single")] == -4 and mv[(ids["cotton"], "single")] == -6
-            assert db.get(Appointment, aid).status == "paid"   # оплачено; «Завершено» — вручну
+            assert db.get(Appointment, aid).status == "done"   # оплачено й завершено вручну
             # з/п: 20% × (5000 − 1211) — собівартість з фактичних витратних візиту
             row = {r_["doctor"].name: r_ for r_ in pd.compute(db, start.date().replace(day=1), start.date())}
             dd = start.date()

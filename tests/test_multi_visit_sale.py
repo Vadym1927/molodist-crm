@@ -54,6 +54,9 @@ def test_two_visits_one_check():
     with SessionLocal() as db:
         assert db.get(Appointment, a1).sale_id == sid and db.get(Appointment, a2).sale_id == sid
         assert db.get(Appointment, a1).status == db.get(Appointment, a2).status == "paid"
+        assert not db.query(StockDoc).filter(StockDoc.ext_no == f"visit:{a1}", StockDoc.status == "posted").count()   # ще не завершено
+    c.post(f"/appointments/{a1}/status", data={"status": "done"})
+    with SessionLocal() as db:
         assert db.query(StockDoc).filter(StockDoc.ext_no == f"visit:{a1}", StockDoc.status == "posted").count() == 1
         rows = {r_["doctor"].name: r_ for r_ in pd.compute(db, date.today() - timedelta(days=1), date.today() + timedelta(days=1))}
         assert rows["Перша Лікарка"]["calc"] == 200 and rows["Друга Лікарка"]["calc"] == 300 + 150

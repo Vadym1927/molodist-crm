@@ -46,6 +46,7 @@ def test_shared_materials_and_unlock():
                                    "items": [{"kind": "service", "ref_id": 9611, "name": "Спільна послуга 1", "qty": 1, "price": 1000, "doctor_id": ids["d"]},
                                              {"kind": "service", "ref_id": 9612, "name": "Спільна послуга 2", "qty": 1, "price": 1000, "doctor_id": ids["d"]}]})
         assert r.status_code == 200, r.text
+        c.post(f"/appointments/{aid}/status", data={"status": "done"})      # «Візит завершено» → списання
 
         def moves():
             with SessionLocal() as db:
