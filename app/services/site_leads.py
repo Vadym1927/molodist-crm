@@ -145,6 +145,20 @@ def ingest(db: Session, d: dict, origin: str = "") -> dict:
     return {"ok": True, "appeal_id": a.id}
 
 
+def alert_text(d: dict, appeal_id, base: str) -> str:
+    """Telegram власнику: імʼя, телефон, сторінка (без utm), посилання на звернення."""
+    name, phone = _pick(d, NAME_KEYS)[:100], _pick(d, PHONE_KEYS)[:40]
+    page = str(d.get("page") or d.get("url") or d.get("referer") or "").strip().split("?")[0].split("#")[0][:300]
+    interest = _pick(d, INTEREST_KEYS)[:100]
+    b = (base or "").rstrip("/")
+    lines = [f"📝 Заявка з сайту{(' · ' + interest) if interest else ''}",
+             f"👤 {name or 'без імені'}", f"📞 {phone or '—'}"]
+    if page:
+        lines.append(f"🌐 {page}")
+    lines.append(f"{b}/appeals/{appeal_id}" if appeal_id else f"{b}/appeals")
+    return "\n".join(lines)
+
+
 def _log(db: Session, c: dict, form: str, dup: bool, appeal_id: int, has_utm: bool) -> None:
     c = cfg(db)
     c["log"] = ([{"at": datetime.now().isoformat(timespec="seconds"), "form": form, "appeal": appeal_id, "dup": dup, "utm": has_utm}]

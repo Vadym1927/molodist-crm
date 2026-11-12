@@ -7747,7 +7747,7 @@ async def site_api_lead(request: Request, db: Session = Depends(db_dep)):
     if r.get("ok") and not r.get("duplicate"):
         try:
             from .services import alerts as _al
-            _al.send(f"📝 Заявка з сайту ({d.get('interest') or 'сайт'}) — {settings.public_url.rstrip('/')}/appeals")
+            _al.send(sl.alert_text(d, r.get("appeal_id"), settings.public_url))
         except Exception:  # noqa: BLE001
             pass
     return {"ok": bool(r.get("ok"))}

@@ -125,3 +125,12 @@ def test_seo_meta_and_og_image():
         r = cl.get("/_site/og/beautyplan.jpg")
         assert r.status_code == 200 and Image.open(io.BytesIO(r.content)).size == (1200, 630)
         assert cl.get("/_site/og/nope.jpg").status_code == 404
+
+
+def test_site_lead_alert_text():
+    from app.services import site_leads as sl
+    t = sl.alert_text({"name": "Наталія", "phone": "+380931112233", "interest": "Інʼєкційна косметологія",
+                       "page": "https://new.molodist.com.ua/injection?utm_source=google&gclid=x"}, 42, "https://crm.molodist.com.ua/")
+    assert "Наталія" in t and "+380931112233" in t
+    assert "https://new.molodist.com.ua/injection" in t and "gclid" not in t
+    assert t.endswith("https://crm.molodist.com.ua/appeals/42")
