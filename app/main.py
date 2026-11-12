@@ -7097,7 +7097,7 @@ SETTINGS_BLOCKS = [
         ('Графік роботи', 'Зміни спеціалістів по днях і кабінетах', '/specialists/schedule', 'schedule', None),
         ('Джерела запису', 'Звідки пацієнт записався: дзвінок, Instagram, повторний…: список для вікна візиту й звіт', '/settings/booking-sources', 'users', None),
         ('Статуси візитів', 'Записаний, підтверджено, оплачено ₴, скасовано…: назви, кольори в календарі, свої статуси', '/settings/visit-statuses', 'users', None),
-        ('Онлайн-бронювання', 'Віджет запису на сайті', 'dev', None, None),
+        ('Онлайн-запис', 'Сторінка запису на сайті: послуги, спеціалісти, вільний час, сертифікати, гайди', '/settings/online-booking', 'users', None),
     ]),
     ('Співробітники', 'team', 'Посади, оклади, категорії й нарахування', [
         ('Посади співробітників', 'Директор, адміністратори, лікарі…: довідник посад для картки спеціаліста', '/settings/positions', 'specialists_edit', 'dirs/prof'),
@@ -7974,7 +7974,7 @@ def _site_ctx(request: Request, db: Session, slug: str = "") -> dict:
             "canonical": c["canonical"].rstrip("/") + (f"/{slug}" if slug else "/"), "year": date.today().year,
             "today": date.today().strftime("%d.%m.%Y"), "ver": str(APP_VERSION)[:8],
             "privacy": settings.public_url.rstrip("/") + "/privacy", "interest": "",
-            "logo": ""}
+            "logo": "", "ob_on": bool(__import__("app.services.online_booking", fromlist=["x"]).cfg(db).get("on"))}
 
 
 def _site_resp(name: str, ctx: dict, status: int = 200):
@@ -8006,7 +8006,9 @@ def site_robots(request: Request, db: Session = Depends(db_dep)):
 def site_sitemap(request: Request, db: Session = Depends(db_dep)):
     from .services import site_pages as sp
     b = sp.cfg(db)["canonical"].rstrip("/")
-    urls = "".join(f"<url><loc>{b}/{s_}</loc><lastmod>{date.today().isoformat()}</lastmod></url>" for s_ in sp.ORDER)
+    from .services import online_booking as _ob
+    urls = "".join(f"<url><loc>{b}/{s_}</loc><lastmod>{date.today().isoformat()}</lastmod></url>"
+                   for s_ in sp.ORDER + ([_ob.SLUG] if _ob.cfg(db).get("on") else []))
     return Response(f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>',
                     media_type="application/xml")
 
@@ -8051,6 +8053,166 @@ async def site_api_click(request: Request, db: Session = Depends(db_dep)):
         raise HTTPException(413)
     r = sl.click_ingest(db, sl.parse_body(raw, request.headers.get("content-type", "")))
     return {"ok": bool(r.get("ok"))}
+
+
+# ---------------- онлайн-запис на сайті (/zapys): послуга → спеціаліст → час ----------------
+def _ob_open(request: Request, db: Session, c: dict) -> bool:
+    """Сторінку опубліковано — або це перегляд співробітником у CRM (поки не опубліковано)."""
+    if c.get("on"):
+        return True
+    uid = request.session.get("uid") if "session" in request.scope else None
+    u = db.get(User, uid) if uid else None
+    return bool(u and u.active)
+
+
+def _ob_rate(request: Request, key: str, limit: int, window: int = 600) -> bool:
+    ip = request.headers.get("x-real-ip") or (request.client.host if request.client else "")
+    now_ = time.time()
+    k = f"{key}:{ip}"
+    hits = [t for t in _SITE_RATE.get(k, []) if now_ - t < window]
+    _SITE_RATE[k] = hits + [now_]
+    if len(_SITE_RATE) > 5000:
+        for kk in [x for x, v in _SITE_RATE.items() if not v or now_ - v[-1] > window]:
+            _SITE_RATE.pop(kk, None)
+    return len(hits) < limit
+
+
+def _ob_json(data: dict, status: int = 200) -> JSONResponse:
+    return JSONResponse(data, status_code=status, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/_site/zapys", response_class=HTMLResponse)
+def site_booking(request: Request, v: str = "", service: int = 0, doctor: int = 0, db: Session = Depends(db_dep)):
+    from .services import online_booking as ob, site_pages as sp
+    c = ob.cfg(db)
+    ctx = _site_ctx(request, db, ob.SLUG)
+    if not _ob_open(request, db, c):
+        ctx.update(title="Сторінку не знайдено — MOLODIST", desc="", jsonld="", noindex=True, slug="")
+        return _site_resp("site/home.html", ctx, 404)
+    cat = ob.catalog(db, c)
+    appt = ob.by_token(db, v) if v else None
+    ctx.update(title="Онлайн-запис — MOLODIST, медичний простір естетики та профілактики в Києві",
+               desc="Оберіть послугу, спеціаліста й зручний час онлайн. Подарункові сертифікати, абонементи, гайди з догляду й контакти MOLODIST.",
+               jsonld="", ob=c, cat=cat, docs=ob.doctor_cards(db, None, ctx["base"], c), offers=ob.offers(db, c),
+               guides=[g for g in c.get("guides") or [] if g.get("on", True) and g.get("title")], my=ob.view(db, appt, c) if appt else None,
+               bad_token=bool(v and not appt), hero_img=sp.media_url(c.get("hero_img") or "", ctx["base"]) or f"/static/site/img/zapys-hero.webp?v={ctx['ver']}",
+               pre={"service": service, "doctor": doctor}, preview=not c.get("on"),
+               n_services=sum(len(x["items"]) for x in cat["cats"]))
+    r = _site_resp("site/booking.html", ctx)
+    if v or not c.get("on"):
+        r.headers["Cache-Control"] = "no-store"
+    return r
+
+
+@app.get("/_site/zapys.ics")
+def site_booking_ics(v: str = "", db: Session = Depends(db_dep)):
+    from .services import online_booking as ob, site_pages as sp
+    a = ob.by_token(db, v)
+    if not a:
+        raise HTTPException(404)
+    return Response(ob.ics(a, ob.view(db, a), sp.cfg(db)), media_type="text/calendar; charset=utf-8",
+                    headers={"Content-Disposition": 'attachment; filename="molodist-visit.ics"', "Cache-Control": "no-store"})
+
+
+@app.get("/_site/api/booking/days")
+def site_booking_days(request: Request, service: int, doctor: int = 0, db: Session = Depends(db_dep)):
+    """Вільні дні й час для послуги (і спеціаліста): {days: [{d, label, slots: [{t, docs}]}]}."""
+    from .services import online_booking as ob
+    c = ob.cfg(db)
+    if not _ob_open(request, db, c):
+        raise HTTPException(404)
+    if not _ob_rate(request, "obq", 240):
+        return _ob_json({"ok": False, "error": "rate"}, 429)
+    av = ob.availability(db, service, doctor or None, c=c)
+    return _ob_json({"ok": True, "days": [{"d": d.isoformat(), "label": ob.day_label(d), "wd": ob.WD[d.weekday()], "n": d.day,
+                                           "m": ob.MON[d.month - 1], "slots": sl_} for d, sl_ in av.items()]})
+
+
+@app.post("/_site/api/booking")
+async def site_booking_save(request: Request, db: Session = Depends(db_dep)):
+    from .services import online_booking as ob, site_leads as sl
+    raw = await request.body()
+    if len(raw) > 16_000:
+        raise HTTPException(413)
+    c = ob.cfg(db)
+    if not _ob_open(request, db, c):
+        raise HTTPException(404)
+    d = sl.parse_body(raw, request.headers.get("content-type", ""))
+    bot = bool(str(d.pop("website", "") or "").strip()) or (str(d.get("t", "")).isdigit() and int(d["t"]) < 3)
+    d.pop("t", None)
+    if bot or not _ob_rate(request, "obp", 6):
+        return _ob_json({"ok": False, "error": "rate", "msg": "Забагато спроб. Зателефонуйте нам, будь ласка."}, 429)
+
+    def run():
+        a = ob.book(db, d, c)
+        try:
+            ob.link_appeal(db, a, d)
+        except Exception as e:  # noqa: BLE001
+            db.rollback()
+            log.warning("Онлайн-запис %s: звернення не створено: %s", a.id, e)
+        try:
+            ob.notify(db, a, settings.public_url)
+        except Exception as e:  # noqa: BLE001
+            log.warning("Онлайн-запис %s: сповіщення: %s", a.id, e)
+        audit(db, "online.booking", "patient", a.patient_id, user=None, appt=a.id, start=a.start.isoformat(timespec="minutes"))
+        return ob.view(db, a, c)
+    try:
+        v = await asyncio.to_thread(run)
+    except ob.BookingError as e:
+        return _ob_json({"ok": False, "error": e.code, "msg": str(e)}, 400)
+    return _ob_json({"ok": True, **v})
+
+
+@app.post("/_site/api/booking/cancel")
+async def site_booking_cancel(request: Request, db: Session = Depends(db_dep)):
+    from .services import online_booking as ob, site_leads as sl
+    raw = await request.body()
+    if len(raw) > 2_000:
+        raise HTTPException(413)
+    d = sl.parse_body(raw, request.headers.get("content-type", ""))
+    if not _ob_rate(request, "obc", 10):
+        return _ob_json({"ok": False, "error": "rate"}, 429)
+    a = ob.by_token(db, d.get("token"))
+    if not a:
+        return _ob_json({"ok": False, "error": "token", "msg": "Запис не знайдено."}, 404)
+    try:
+        was = a.status
+        ob.cancel(db, a)
+    except ob.BookingError as e:
+        return _ob_json({"ok": False, "error": e.code, "msg": str(e)}, 400)
+    if was != "cancelled":
+        audit(db, "online.cancel", "patient", a.patient_id, user=None, appt=a.id)
+        try:
+            await asyncio.to_thread(ob.notify, db, a, settings.public_url, True)
+        except Exception:  # noqa: BLE001
+            pass
+    return _ob_json({"ok": True, **ob.view(db, a)})
+
+
+@app.post("/_site/api/order")
+async def site_order(request: Request, db: Session = Depends(db_dep)):
+    """Сертифікат / абонемент із сайту: звернення + посилання на оплату (якщо підключено платіжну систему)."""
+    from .services import online_booking as ob, site_leads as sl
+    raw = await request.body()
+    if len(raw) > 16_000:
+        raise HTTPException(413)
+    c = ob.cfg(db)
+    if not _ob_open(request, db, c):
+        raise HTTPException(404)
+    d = sl.parse_body(raw, request.headers.get("content-type", ""))
+    bot = bool(str(d.pop("website", "") or "").strip()) or (str(d.get("t", "")).isdigit() and int(d["t"]) < 3)
+    d.pop("t", None)
+    if bot or not _ob_rate(request, "obo", 5):
+        return _ob_json({"ok": False, "error": "rate", "msg": "Забагато спроб. Зателефонуйте нам, будь ласка."}, 429)
+    try:
+        r = await asyncio.to_thread(ob.order, db, d, settings.public_url, c)
+    except ob.BookingError as e:
+        return _ob_json({"ok": False, "error": e.code, "msg": str(e)}, 400)
+    try:
+        await asyncio.to_thread(sl.notify, db, r["lead"], r["res"], settings.public_url)
+    except Exception:  # noqa: BLE001
+        pass
+    return _ob_json({"ok": r["ok"], "title": r["title"], "price": r["price"], "pay_url": r.get("pay_url")})
 
 
 @app.get("/_site/media/{name}")
@@ -8167,6 +8329,39 @@ async def settings_site_save(request: Request, user: User = Depends(require("use
     sp.save_cfg(db, c)
     audit(db, "site.settings", user=user, hosts=c["hosts"])
     return RedirectResponse(_with_msg("/settings/site", "Збережено"), 303)
+
+
+@app.get("/settings/online-booking", response_class=HTMLResponse)
+def settings_online(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import online_booking as ob, site_pages as sp
+    c = ob.cfg(db)
+    sc = sp.cfg(db)
+    rows = ob.service_rows(db, c)
+    host = (sc.get("hosts") or [""])[0]
+    return render(request, "settings_online.html", nav="settings", c=c, rows=rows, staff=ob._staff(db), media=sp.media_list(),
+                  n_on=sum(x["on"] for x in rows), n_ok=sum(1 for x in rows for i in x["items"] if i["online"] and i["docs"] and i["price"]),
+                  public_url=f"https://{host}/{ob.SLUG}" if host else "", offers=ob.offers(db, c),
+                  pay_ready=bool(__import__("app.services.paylinks", fromlist=["x"]).public(db).get("ready")))
+
+
+@app.post("/settings/online-booking")
+async def settings_online_save(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import online_booking as ob
+    f = await request.form()
+    c = ob.save_form(db, f)
+    audit(db, "online.settings", user=user, on=c["on"])
+    return RedirectResponse(_with_msg("/settings/online-booking", "Збережено"), 303)
+
+
+@app.post("/settings/online-booking/services")
+async def settings_online_services(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import online_booking as ob
+    f = await request.form()
+    shown = {int(x) for x in f.getlist("shown") if str(x).isdigit()}
+    n = ob.set_services(db, {int(x) for x in f.getlist("on") if str(x).isdigit()}, shown)
+    ob.reset_cache()
+    audit(db, "online.services", user=user, changed=n)
+    return RedirectResponse(_with_msg("/settings/online-booking", f"Послуги для онлайн-запису оновлено: змінено {n}") + "#services", 303)
 
 
 # ---------------- заявки з форм сайту → звернення ----------------

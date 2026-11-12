@@ -67,7 +67,7 @@
     if (/t\.me\/|telegram\.me|tg:\/\//.test(h)) return 'telegram';
     if (/viber:|viber\.com|vb\.me/.test(h)) return 'viber';
     if (/instagram\.com|ig\.me/.test(h)) return 'instagram';
-    if (h === '#zapys') return 'booking';
+    if (h === '#zapys' || /\/zapys(\?|#|$)/.test(h)) return 'booking';
     return null;
   }
   document.addEventListener('click', function (e) {

@@ -1,0 +1,193 @@
+{% extends "site/base.html" %}
+{% from "site/_icons.html" import icon %}
+{% block head %}<link rel="stylesheet" href="/static/site/booking.css?v={{ ver }}">{% endblock %}
+{% macro ph(d, cls='') %}<span class="ob-ph {{ cls }}">{% if d.photo %}<img src="{{ d.photo }}" alt="{{ d.name }}" loading="lazy">{% else %}<i>{{ d.initials }}</i>{% endif %}</span>{% endmacro %}
+{% block main %}
+{% if preview %}<div class="prev">Онлайн-запис ще не опубліковано: сторінку бачать лише співробітники, увійшовши в CRM. Увімкнути — «Налаштування → Онлайн-запис».</div>{% endif %}
+
+<section class="ob-hero"><div class="wrap ob-hero-in {{ 'has-img' if hero_img }}">
+  <div>
+    <p class="eyebrow">Онлайн-запис · Київ</p>
+    <h1>Запишіться у зручний для вас час</h1>
+    <p class="lead-tx">Оберіть послугу, спеціаліста й вільне вікно — без дзвінків і очікування. {{ ob.note }}</p>
+    <nav class="ob-jump" aria-label="Розділи сторінки">
+      <a href="#zapys" class="on">Запис</a><a href="#likari">Лікарі</a>
+      {% if offers.certs or offers.subs %}<a href="#sertyfikaty">Сертифікати й абонементи</a>{% endif %}
+      {% if guides %}<a href="#gaidy">Гайди</a>{% endif %}
+      {% if ob.shop_url %}<a href="#magazyn">Магазин косметики</a>{% endif %}
+      <a href="#zviazok">Звʼязок</a>
+    </nav>
+  </div>
+  {% if hero_img %}<img class="ob-hero-ph" src="{{ hero_img }}" alt="Медичний простір MOLODIST" fetchpriority="high">{% endif %}
+</div></section>
+
+{% if my %}
+<section class="ob-my" id="mii-zapys"><div class="wrap"><div class="ob-mycard {{ 'off' if my.status == 'cancelled' }}" data-token="{{ my.token }}">
+  <div>
+    <p class="eyebrow">{% if my.status == 'cancelled' %}Запис скасовано{% elif my.past %}Ваш візит{% else %}Ваш запис{% endif %}</p>
+    <h2>{{ my.when }}</h2>
+    <p class="ob-myl"><b>{{ my.service }}</b>{% if my.doctor %} · {{ my.doctor }}{% endif %}{% if my.price %} · {{ money(my.price) }}{% endif %}</p>
+    <p class="muted small">{{ c.address }} · <a href="{{ c.maps }}" target="_blank" rel="noopener">як дістатися</a></p>
+  </div>
+  <div class="ob-mya">
+    {% if my.status != 'cancelled' and not my.past %}<a class="btn sm" href="{{ base }}/zapys.ics?v={{ my.token }}">Додати в календар</a>{% endif %}
+    {% if my.can_cancel %}<button class="btn sm ghost" type="button" data-ob-cancel>Скасувати запис</button>
+    {% elif my.status != 'cancelled' and not my.past %}<p class="muted small">Щоб змінити чи скасувати запис, зателефонуйте: <a href="tel:{{ c.phone }}">{{ c.phone_text }}</a></p>{% endif %}
+    {% if my.status == 'cancelled' or my.past %}<a class="btn sm" href="{{ base }}/zapys#zapys">Записатися знову</a>{% endif %}
+    <p class="err" hidden></p>
+  </div>
+</div></div></section>
+{% elif bad_token %}
+<section class="ob-my"><div class="wrap"><div class="ob-mycard off"><div><p class="eyebrow">Мій запис</p><h2>Запис не знайдено</h2>
+  <p class="muted">Посилання застаріло або містить помилку. Зателефонуйте нам — адміністратор підкаже: <a href="tel:{{ c.phone }}">{{ c.phone_text }}</a></p></div></div></div></section>
+{% endif %}
+
+<section class="sec ob-sec" id="zapys"><div class="wrap">
+  <h2>Онлайн-запис</h2>
+  {% if not n_services %}
+  <div class="ob-empty"><p class="big">Онлайн-запис скоро запрацює. А поки — напишіть або зателефонуйте нам, і адміністратор підбере час.</p>
+    <p class="ico-row"><a class="ico" href="tel:{{ c.phone }}" aria-label="Подзвонити">{{ icon('phone') }}</a><a class="ico" href="{{ c.telegram }}" target="_blank" rel="noopener" aria-label="Telegram">{{ icon('telegram') }}</a><a class="ico" href="{{ viber }}" aria-label="Viber">{{ icon('viber') }}</a><a class="ico" href="{{ c.instagram }}" target="_blank" rel="noopener" aria-label="Instagram">{{ icon('instagram') }}</a></p></div>
+  {% else %}
+  <div class="ob" id="ob" data-step="1">
+    <div class="ob-main">
+      <ol class="ob-steps" aria-label="Кроки запису"><li data-go="1" class="on"><b>1</b><span>Послуга</span></li><li data-go="2"><b>2</b><span>Спеціаліст</span></li><li data-go="3"><b>3</b><span>Час</span></li><li data-go="4"><b>4</b><span>Контакти</span></li></ol>
+
+      <div class="ob-pane" data-pane="1">
+        <div class="ob-docsel" id="ob-docsel" hidden><span></span><button type="button" class="ob-x" data-ob-nodoc aria-label="Показати послуги всіх спеціалістів">Усі послуги ×</button></div>
+        <label class="ob-search"><span class="hp">Пошук послуги</span><input type="search" id="ob-q" placeholder="Знайти послугу: чистка, ботулінотерапія, лазер…" autocomplete="off"></label>
+        <div class="ob-cats" id="ob-cats" role="tablist"></div>
+        <div class="ob-list" id="ob-list"></div>
+      </div>
+
+      <div class="ob-pane" data-pane="2" hidden>
+        <p class="ob-hint">Хто проведе процедуру</p>
+        <div class="ob-docs" id="ob-docs"></div>
+        <button type="button" class="ob-back" data-go="1">← Змінити послугу</button>
+      </div>
+
+      <div class="ob-pane" data-pane="3" hidden>
+        <p class="ob-hint">Оберіть день</p>
+        <div class="ob-days" id="ob-days"></div>
+        <div class="ob-slots" id="ob-slots"></div>
+        <button type="button" class="ob-back" data-go="2">← Змінити спеціаліста</button>
+      </div>
+
+      <div class="ob-pane" data-pane="4" hidden>
+        <form class="lead ob-form" id="ob-form" novalidate>
+          <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+          <label><span>Імʼя та прізвище</span><input name="name" autocomplete="name" placeholder="Як до вас звертатися" required></label>
+          <label><span>Телефон</span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+380" required></label>
+          <label><span>Коментар (необовʼязково)</span><input name="comment" maxlength="300" placeholder="Наприклад: перший візит, є алергія на лідокаїн"></label>
+          <button class="btn">Записатися</button>
+          <p class="err" hidden></p>
+          <p class="fine">Натискаючи кнопку, ви погоджуєтеся на <a href="{{ privacy }}" target="_blank" rel="noopener">обробку персональних даних</a>. {{ ob.note }}</p>
+        </form>
+        <button type="button" class="ob-back" data-go="3">← Змінити час</button>
+      </div>
+
+      <div class="ob-pane ob-done" data-pane="5" hidden>
+        <div class="ob-ok"><svg viewBox="0 0 48 48" width="56" height="56" aria-hidden="true"><circle cx="24" cy="24" r="23" fill="#E4DEEF"/><path d="M15 24.5l6.2 6.2L33.5 18" fill="none" stroke="#3B3050" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <h3>Ви записані</h3>
+        <p class="big" id="ob-done-when"></p>
+        <p id="ob-done-what"></p>
+        <p class="muted">{{ ob.note }} Адреса: {{ c.address }}.</p>
+        <p class="ob-donea"><a class="btn sm" id="ob-ics" href="#">Додати в календар</a><a class="btn sm ghost" id="ob-mylink" href="#">Мій запис: переглянути чи скасувати</a></p>
+        <p class="muted small">Збережіть посилання «Мій запис» — за ним можна скасувати візит онлайн.</p>
+      </div>
+    </div>
+
+    <aside class="ob-side" aria-live="polite">
+      <p class="eyebrow">Ваш запис</p>
+      <dl class="ob-sum">
+        <div><dt>Послуга</dt><dd id="s-svc">—</dd></div>
+        <div><dt>Спеціаліст</dt><dd id="s-doc">—</dd></div>
+        <div><dt>Дата й час</dt><dd id="s-when">—</dd></div>
+        <div class="tot"><dt>Вартість</dt><dd id="s-price">—</dd></div>
+      </dl>
+      <p class="muted small">Оплата — після візиту. Остаточну вартість підтвердить лікар після огляду.</p>
+      <p class="ob-help">Потрібна допомога з вибором? <a href="tel:{{ c.phone }}">{{ c.phone_text }}</a></p>
+    </aside>
+  </div>
+  {% endif %}
+</div></section>
+
+<section class="sec ob-docsec" id="likari"><div class="wrap">
+  <h2>Наші лікарі</h2>
+  <div class="ob-dgrid">{% for d in docs %}<article class="ob-dcard">
+    {{ ph(d, 'lg') }}
+    <div><h3>{{ d.name }}</h3><p class="role">{{ d.role }}</p>{% if d.bio %}<p class="bio">{{ d.bio }}</p>{% endif %}
+    {% if d.id in cat.doctor_ids %}<a class="link" href="#zapys" data-ob-doc="{{ d.id }}">Записатися до лікаря →</a>{% endif %}</div>
+  </article>{% endfor %}</div>
+</div></section>
+
+{% if offers.certs or offers.subs %}
+<section class="sec ob-gift" id="sertyfikaty"><div class="wrap">
+  <h2>Сертифікати й абонементи</h2>
+  <p class="big ob-lead">Подарунок, який точно знадобиться: сертифікат на будь-які послуги або абонемент на курс процедур.</p>
+  <div class="ob-ggrid">
+    {% for x in offers.certs %}<article class="ob-gcard cert"><p class="tag">Подарунковий сертифікат</p><h3>{{ money(x.nominal or x.price) }}</h3>
+      <p class="muted">{{ x.desc or 'На будь-які послуги MOLODIST' }}{% if x.days %} · діє {{ x.days }} днів{% endif %}</p>
+      <button class="btn sm" type="button" data-ob-buy="cert" data-id="{{ x.id }}" data-name="{{ x.name }}" data-price="{{ money(x.price) }}">Купити</button></article>{% endfor %}
+    {% for x in offers.subs %}<article class="ob-gcard sub"><p class="tag">Абонемент · {{ x.visits }} {{ 'візит' if x.visits == 1 else 'візити' if x.visits < 5 else 'візитів' }}</p><h3>{{ x.name }}</h3>
+      <p class="muted">{{ x.desc }}{% if x.days %}{{ ' · ' if x.desc }}діє {{ x.days }} днів{% endif %}</p>
+      <p class="pr">{{ money(x.price) }}</p>
+      <button class="btn sm" type="button" data-ob-buy="sub" data-id="{{ x.id }}" data-name="{{ x.name }}" data-price="{{ money(x.price) }}">Купити</button></article>{% endfor %}
+  </div>
+</div></section>
+<dialog class="ob-dlg" id="ob-buy"><form class="lead" id="ob-buy-form" novalidate>
+  <button type="button" class="ob-dx" data-ob-close aria-label="Закрити">×</button>
+  <p class="eyebrow" id="ob-buy-kind">Сертифікат</p><h3 id="ob-buy-name"></h3><p class="big" id="ob-buy-price"></p>
+  <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+  <label><span>Ваше імʼя</span><input name="name" autocomplete="name" required></label>
+  <label><span>Телефон</span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+380" required></label>
+  <label><span>Для кого (необовʼязково)</span><input name="to" maxlength="100" placeholder="Імʼя отримувача"></label>
+  <button class="btn">Оформити</button>
+  <p class="ok" hidden>Дякуємо! Адміністратор звʼяжеться з вами, щоб узгодити оплату й отримання.</p>
+  <p class="err" hidden></p>
+  <p class="fine">Після оформлення ми звʼяжемося з вами. Якщо доступна онлайн-оплата — відкриється сторінка оплати.</p>
+</form></dialog>
+{% endif %}
+
+{% if guides %}
+<section class="sec ob-guides" id="gaidy"><div class="wrap">
+  <h2>Гайди</h2>
+  <p class="big ob-lead">Короткі памʼятки від наших лікарів: як підготуватися до візиту й доглядати за шкірою після процедур.</p>
+  <div class="ob-ggrid g">{% for g in guides %}<details class="ob-guide">
+    <summary>{% if g.tag %}<span class="tag">{{ g.tag }}</span>{% endif %}<b>{{ g.title }}</b><i>Читати</i></summary>
+    <ul>{% for ln in g.text.splitlines() if ln.strip() %}<li>{{ ln.strip() }}</li>{% endfor %}</ul>
+    {% if g.url %}<p><a class="link" href="{{ g.url }}" target="_blank" rel="noopener">Відкрити повний гайд →</a></p>{% endif %}
+  </details>{% endfor %}</div>
+  <p class="muted small">Памʼятки мають загальний характер і не замінюють консультацію. Індивідуальні рекомендації лікаря мають пріоритет.</p>
+</div></section>
+{% endif %}
+
+{% if ob.shop_url %}
+<section class="sec ob-shop" id="magazyn"><div class="wrap ob-shop-in">
+  <div><p class="eyebrow">molodist.store</p><h2>Магазин косметики</h2><p class="big">{{ ob.shop_text }}</p></div>
+  <a class="btn" href="{{ ob.shop_url }}" target="_blank" rel="noopener">Перейти в магазин</a>
+</div></section>
+{% endif %}
+
+{% if ob.faq %}
+<section class="sec faq"><div class="wrap faq-in">
+  <h2>Питання про запис</h2>
+  <div>{% for q, a in ob.faq %}<details class="qa"><summary>{{ q }}</summary><p>{{ a }}</p></details>{% endfor %}</div>
+</div></section>
+{% endif %}
+
+<section class="sec ob-contact" id="zviazok"><div class="wrap ob-contact-in">
+  <div><h2>Звʼязок</h2>
+    <p class="big">Зручніше поговорити? Напишіть або зателефонуйте — адміністратор відповість у робочий час.</p>
+    <div class="ob-ch">
+      <a href="tel:{{ c.phone }}"><span class="ico">{{ icon('phone') }}</span><b>Зателефонувати</b><small>{{ c.phone_text }}</small></a>
+      <a href="{{ c.telegram }}" target="_blank" rel="noopener"><span class="ico">{{ icon('telegram') }}</span><b>Telegram</b><small>написати в чат</small></a>
+      <a href="{{ viber }}"><span class="ico">{{ icon('viber') }}</span><b>Viber</b><small>написати в чат</small></a>
+      <a href="{{ c.instagram }}" target="_blank" rel="noopener"><span class="ico">{{ icon('instagram') }}</span><b>Instagram</b><small>Direct і новини</small></a>
+    </div></div>
+  <div class="ob-addr"><h4>Адреса</h4><p>{{ c.address }}</p><h4>Графік</h4><p>{{ c.hours }}</p>
+    <a class="btn sm" href="{{ c.maps }}" target="_blank" rel="noopener">Як дістатися</a></div>
+</div></section>
+
+<script type="application/json" id="ob-data">{{ {'cats': cat.cats, 'docs': docs, 'pre': pre}|tojson }}</script>
+{% endblock %}
+{% block scripts %}<script src="/static/site/booking.js?v={{ ver }}" defer></script>{% endblock %}

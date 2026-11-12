@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Онлайн-запис · налаштування{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+<style>.gs{background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:16px 18px;margin-bottom:14px}.gs h2{margin:0 0 10px}
+.g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.g5{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+.gs label{display:grid;gap:4px;font-size:12px;color:#6b6575}.gs input[type=text],.gs input[type=number],.gs textarea,.gs select{margin:0;width:100%;box-sizing:border-box}
+.ck{display:flex!important;align-items:center;gap:8px;color:var(--ink)!important;font-size:13.5px!important}.ck input{width:auto!important;height:auto}
+.mini{font-size:12px;color:#6b6575}.ob-st{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.pill{display:inline-block;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:700}.pill.ok{background:#E3F3E7;color:#256b3a}.pill.off{background:#FFF3D6;color:#7a5600}.pill.bad{background:#FDECEA;color:#B23B2E}
+.oc{border:1px solid #ECE7E1;border-radius:12px;margin-bottom:8px;background:#FBFAF8}.oc>summary{padding:10px 14px;cursor:pointer;display:flex;justify-content:space-between;gap:10px;align-items:center}
+.oc .bd{padding:2px 14px 12px}.oc .row1{display:grid;grid-template-columns:22px minmax(0,1fr) 70px 90px minmax(120px,240px);gap:10px;align-items:center;padding:6px 0;border-top:1px solid #F0ECE6;font-size:13.5px}
+.oc .row1 small{color:#8a8496}.oc .row1 .no{color:#B23B2E}.oc .r{text-align:right;white-space:nowrap}.oc .tools{display:flex;gap:10px;padding:6px 0 8px;font-size:12.5px}
+.oc .tools a{cursor:pointer}.docs{display:flex;gap:8px 18px;flex-wrap:wrap}
+.gd{border:1px solid #ECE7E1;border-radius:12px;padding:10px 12px;margin-bottom:8px;background:#FBFAF8;display:grid;gap:8px}
+.gd .top{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) auto;gap:10px;align-items:end}
+@media(max-width:800px){.g2,.g5{grid-template-columns:1fr}.oc .row1{grid-template-columns:22px minmax(0,1fr) 80px}.oc .row1 .mn,.oc .row1 .dc{display:none}.gd .top{grid-template-columns:1fr}}</style>
+<a class="btn ghost" href="/settings">‹ Налаштування</a>
+<h1>Онлайн-запис на сайті</h1>
+{% if qp.get('msg') %}<div class="alert ok">{{ qp.get('msg') }}</div>{% endif %}{% if qp.get('err') %}<div class="alert err">{{ qp.get('err') }}</div>{% endif %}
+
+<div class="gs">
+  <div class="ob-st">{% if c.on %}<span class="pill ok">Опубліковано</span>{% else %}<span class="pill off">Не опубліковано — бачать лише співробітники</span>{% endif %}
+    <span class="pill {{ 'ok' if n_ok else 'bad' }}">Послуг у записі: {{ n_ok }}</span>
+    {% if n_on > n_ok %}<span class="pill bad">Позначено, але без спеціаліста чи ціни: {{ n_on - n_ok }}</span>{% endif %}
+    <a class="btn ghost" href="/_site/zapys" target="_blank">Переглянути сторінку ↗</a>
+    {% if c.on and public_url %}<a href="{{ public_url }}" target="_blank">{{ public_url }}</a>{% endif %}</div>
+  <p class="mini">Пацієнт обирає послугу, спеціаліста, день і час — у календарі CRM зʼявляється запис зі статусом «Записаний» і позначкою «Онлайн-запис», створюється звернення, а в Telegram-чат заявок приходить сповіщення.
+    Вільний час рахується з <a href="/specialists/schedule">графіка роботи</a> мінус уже зайняті записи. Хто надає послугу — вкладка «Співробітники» в картці послуги; якщо там порожньо — ті, хто вже проводив її.</p>
+</div>
+
+<form class="gs" method="post" action="/settings/online-booking">
+  <h2>Правила й публікація</h2>
+  <label class="ck" style="margin-bottom:12px"><input type="checkbox" name="on" value="1" {{ 'checked' if c.on }}> <b>Опублікувати сторінку на сайті</b> (кнопки «Записатися» на сайті поведуть на онлайн-запис)</label>
+  <div class="g5">
+    <label>Крок часу, хв<input type="number" name="step" value="{{ c.step }}" min="5" max="120"></label>
+    <label>Найближчий запис — через, год<input type="number" name="lead_h" value="{{ c.lead_h }}" min="0" max="168"></label>
+    <label>Запис відкрито на, днів<input type="number" name="days" value="{{ c.days }}" min="1" max="120"></label>
+    <label>Скасувати онлайн — не пізніше, год<input type="number" name="cancel_h" value="{{ c.cancel_h }}" min="0" max="168"></label>
+    <label>Майбутніх записів з одного номера<input type="number" name="max_active" value="{{ c.max_active }}" min="1" max="10"></label>
+  </div>
+  <label style="margin-top:12px">Примітка для пацієнта (під заголовком і після запису)<input type="text" name="note" value="{{ c.note }}"></label>
+
+  <h2 style="margin-top:18px">Спеціалісти з онлайн-записом</h2>
+  <div class="docs">{% for d in staff %}<label class="ck"><input type="checkbox" name="doctor" value="{{ d.id }}" {{ 'checked' if d.id not in c.doctors_off }}> {{ d.name }}{% if d.position %} <span class="mini">· {{ d.position }}</span>{% endif %}</label>{% endfor %}</div>
+  <p class="mini">Фото, посада й опис лікаря на сайті — з «Сайт клініки → Фото» (doc-….webp) і картки спеціаліста.</p>
+
+  <h2 style="margin-top:18px">Сертифікати, абонементи, магазин</h2>
+  <div class="g2">
+    <label class="ck"><input type="checkbox" name="certs_on" value="1" {{ 'checked' if c.certs_on }}> Показувати подарункові сертифікати ({{ offers.certs|length }} у продажу)</label>
+    <label class="ck"><input type="checkbox" name="subs_on" value="1" {{ 'checked' if c.subs_on }}> Показувати абонементи ({{ offers.subs|length }} у продажу)</label>
+    <label>Посилання на магазин косметики<input type="text" name="shop_url" value="{{ c.shop_url }}"></label>
+    <label>Текст про магазин<input type="text" name="shop_text" value="{{ c.shop_text }}"></label>
+    <label>Фото в шапці сторінки<select name="hero_img"><option value="">— стандартне (діагностика OBSERV) —</option>{% for m in media %}<option value="{{ m.name }}" {{ 'selected' if c.hero_img == m.name }}>{{ m.name }}</option>{% endfor %}</select>
+      <span class="mini">Завантажити фото — «Сайт клініки → Фото»</span></label>
+  </div>
+  <p class="mini">{% if pay_ready %}Платіжну систему підключено: після заявки на сертифікат чи абонемент пацієнт одразу переходить на сторінку оплати.{% else %}Платіжну систему не підключено («Налаштування → Платіжні системи»): заявка на сертифікат чи абонемент приходить як звернення, оплату узгоджує адміністратор.{% endif %}
+    Шаблони сертифікатів і абонементів — у розділі «Сертифікати й абонементи».</p>
+
+  <h2 style="margin-top:18px">Гайди</h2>
+  <p class="mini">Короткі памʼятки на сторінці запису. Текст — по одному пункту в рядку. Посилання (необовʼязково) — на повний гайд (PDF, сторінка). Щоб прибрати гайд — очистіть назву.</p>
+  {% for g in c.guides + [{}] %}<div class="gd"><div class="top">
+      <label>Назва<input type="text" name="g_title_{{ loop.index0 }}" value="{{ g.title or '' }}" placeholder="{{ 'Новий гайд' if not g }}"></label>
+      <label>Мітка<input type="text" name="g_tag_{{ loop.index0 }}" value="{{ g.tag or '' }}" placeholder="Лазер, Догляд…"></label>
+      <label class="ck"><input type="checkbox" name="g_on_{{ loop.index0 }}" value="1" {{ 'checked' if g.get('on', True) }}> показувати</label></div>
+    <label>Пункти<textarea name="g_text_{{ loop.index0 }}" rows="{{ [(g.text or '').splitlines()|length + 1, 3]|max }}">{{ g.text or '' }}</textarea></label>
+    <label>Посилання на повний гайд<input type="text" name="g_url_{{ loop.index0 }}" value="{{ g.url or '' }}" placeholder="https://…"></label></div>{% endfor %}
+
+  <h2 style="margin-top:18px">Питання про запис</h2>
+  <label>По одному в рядку: <b>Питання | Відповідь</b><textarea name="faq" rows="{{ [c.faq|length + 1, 4]|max }}">{% for q, a in c.faq %}{{ q }} | {{ a }}
+{% endfor %}</textarea></label>
+  <button class="btn" style="margin-top:12px">Зберегти</button>
+</form>
+
+<form class="gs" id="services" method="post" action="/settings/online-booking/services">
+  <h2>Послуги в онлайн-записі · {{ n_on }}</h2>
+  <p class="mini">Позначте послуги, на які можна записатися онлайн. У записі зʼявляються лише позначені послуги з ціною, для яких є спеціаліст з графіком. Назву для сайту й опис можна задати в картці послуги («Коротка назва для онлайн-запису», «Опис»).</p>
+  {% for cat in rows %}<details class="oc" {{ 'open' if cat.on }}><summary><span><b>{{ cat.name }}</b> <span class="mini">· послуг {{ cat['items']|length }}</span></span>
+      <span class="pill {{ 'ok' if cat.on else 'off' }}">онлайн {{ cat.on }}</span></summary>
+    <div class="bd"><div class="tools"><a onclick="obAll(this,true)">позначити всі</a><a onclick="obAll(this,false)">зняти всі</a></div>
+    {% for s in cat['items'] %}<label class="row1"><input type="checkbox" name="on" value="{{ s.id }}" {{ 'checked' if s.online }}><input type="hidden" name="shown" value="{{ s.id }}">
+      <span>{{ s.name }}</span><span class="mn mini">{{ s.min }} хв</span><span class="r">{% if s.price %}{{ s.price|uah }}{% else %}<small class="no">без ціни</small>{% endif %}</span>
+      <span class="dc">{% if s.docs %}<small>{{ s.docs|join(', ') }}{{ '' if s.manual else ' · з історії' }}</small>{% else %}<small class="no">немає спеціаліста — <a href="/services/{{ s.id }}?tab=staff">вказати</a></small>{% endif %}</span></label>{% endfor %}</div></details>{% endfor %}
+  <button class="btn" style="margin-top:10px">Зберегти послуги</button>
+</form>
+<script>function obAll(a,on){a.closest('.bd').querySelectorAll('input[name=on]').forEach(function(x){x.checked=on})}</script>
+{% endblock %}

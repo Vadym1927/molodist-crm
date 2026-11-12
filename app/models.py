@@ -304,6 +304,7 @@ class Appointment(Base):
     cb_discount: Mapped[float | None] = mapped_column(Float)
     cb_author: Mapped[str | None] = mapped_column(String(120))
     cb_status: Mapped[str | None] = mapped_column(String(80))
+    online_token: Mapped[str | None] = mapped_column(String(40), index=True)   # онлайн-запис із сайту: посилання «Мій запис»
 
     patient: Mapped[Patient] = relationship()
 

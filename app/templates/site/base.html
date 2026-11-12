@@ -17,6 +17,7 @@
 <link rel="preload" href="/static/fonts/open-sans-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/static/fonts/fonts.css">
 <link rel="stylesheet" href="/static/site/site.css?v={{ ver }}">
+{% block head %}{% endblock %}
 {% if jsonld %}<script type="application/ld+json">{{ jsonld|safe }}</script>{% endif %}
 {% if c.gtm_id and not noindex %}<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','{{ c.gtm_id }}');</script>{% endif %}
 </head>
@@ -27,7 +28,7 @@
   <a class="logo" href="{{ c.main_url }}" aria-label="MOLODIST — головна"><img class="wm" src="/static/site/brand/wordmark-graphite.svg" alt="MOLODIST" width="150" height="18"></a>
   <nav class="nav" aria-label="Напрямки">{% for s in order %}<a href="{{ base }}/{{ s }}" {{ 'aria-current=page' if s == slug }}>{{ pages[s].nav }}</a>{% endfor %}</nav>
   <a class="hd-tel" href="tel:{{ c.phone }}">{{ c.phone_text }}</a>
-  <a class="btn sm" href="#zapys">Записатися</a>
+  <a class="btn sm" href="{{ (base ~ '/zapys') if ob_on and slug != 'zapys' else '#zapys' }}">{{ 'Онлайн-запис' if ob_on and slug != 'zapys' else 'Записатися' }}</a>
 </div></header>
 <main>{% block main %}{% endblock %}</main>
 <footer class="ft" id="kontakty"><div class="wrap ft-in">
@@ -39,9 +40,10 @@
     <p class="muted small"><a href="{{ privacy }}">Політика конфіденційності</a></p></div>
 </div><div class="wrap ft-bot muted small">© {{ year }} MOLODIST. Є протипоказання, потрібна консультація лікаря.</div></footer>
 <nav class="bar" aria-label="Швидкий звʼязок">
-  <a href="tel:{{ c.phone }}" aria-label="Подзвонити">{{ icon('phone') }}</a><a href="{{ c.telegram }}" target="_blank" rel="noopener" aria-label="Telegram">{{ icon('telegram') }}</a><a href="{{ viber }}" aria-label="Viber">{{ icon('viber') }}</a><a class="go" href="#zapys">Записатися</a>
+  <a href="tel:{{ c.phone }}" aria-label="Подзвонити">{{ icon('phone') }}</a><a href="{{ c.telegram }}" target="_blank" rel="noopener" aria-label="Telegram">{{ icon('telegram') }}</a><a href="{{ viber }}" aria-label="Viber">{{ icon('viber') }}</a><a class="go" href="{{ (base ~ '/zapys') if ob_on and slug != 'zapys' else '#zapys' }}">Записатися</a>
 </nav>
 <script>window.MLDS={base:'{{ base }}',slug:'{{ slug }}',interest:'{{ interest }}'};</script>
 <script src="/static/site/site.js?v={{ ver }}" defer></script>
+{% block scripts %}{% endblock %}
 </body>
 </html>
