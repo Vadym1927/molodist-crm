@@ -150,13 +150,33 @@ def alert_text(d: dict, appeal_id, base: str) -> str:
     name, phone = _pick(d, NAME_KEYS)[:100], _pick(d, PHONE_KEYS)[:40]
     page = str(d.get("page") or d.get("url") or d.get("referer") or "").strip().split("?")[0].split("#")[0][:300]
     interest = _pick(d, INTEREST_KEYS)[:100]
+    from html import escape as _e
     b = (base or "").rstrip("/")
-    lines = [f"📝 Заявка з сайту{(' · ' + interest) if interest else ''}",
-             f"👤 {name or 'без імені'}", f"📞 {phone or '—'}"]
+    lines = [f"📝 Заявка з сайту{(' · ' + _e(interest)) if interest else ''}",
+             f"👤 {_e(name) or 'без імені'}", f"📞 {_e(phone) or '—'}"]
     if page:
-        lines.append(f"🌐 {page}")
+        lines.append(f"🌐 {_e(page)}")
     lines.append(f"{b}/appeals/{appeal_id}" if appeal_id else f"{b}/appeals")
     return "\n".join(lines)
+
+
+def set_chat(db: Session, chat: str | None) -> None:
+    c = cfg(db)
+    c["tg_chat"] = chat or ""
+    save_cfg(db, c)
+
+
+def notify(db: Session, d: dict, r: dict, base: str) -> bool:
+    """Нова (не повторна) заявка → чат «Заявки Сайти» (команда /zayavky у групі); чат не призначено — власнику."""
+    if not r.get("ok") or r.get("duplicate") or r.get("test"):
+        return False
+    from . import alerts
+    text = alert_text(d, r.get("appeal_id"), base)
+    chat = str(cfg(db).get("tg_chat") or "").strip()
+    if chat:
+        return alerts._api("sendMessage", data={"chat_id": chat, "text": text[:4000], "parse_mode": "HTML",
+                                                "disable_web_page_preview": "true"})
+    return bool(alerts.send(text))
 
 
 def _log(db: Session, c: dict, form: str, dup: bool, appeal_id: int, has_utm: bool) -> None:

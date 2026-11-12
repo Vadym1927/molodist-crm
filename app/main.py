@@ -7744,12 +7744,10 @@ async def site_api_lead(request: Request, db: Session = Depends(db_dep)):
     if not d.get("doctor"):
         d.pop("doctor", None)
     r = await asyncio.to_thread(sl.ingest, db, d)
-    if r.get("ok") and not r.get("duplicate"):
-        try:
-            from .services import alerts as _al
-            _al.send(sl.alert_text(d, r.get("appeal_id"), settings.public_url))
-        except Exception:  # noqa: BLE001
-            pass
+    try:
+        await asyncio.to_thread(sl.notify, db, d, r, settings.public_url)
+    except Exception:  # noqa: BLE001
+        pass
     return {"ok": bool(r.get("ok"))}
 
 
@@ -7900,6 +7898,10 @@ async def site_lead_hook(request: Request, hook: str, db: Session = Depends(db_d
         raise HTTPException(413)
     data = sl.parse_body(raw, request.headers.get("content-type", ""))
     r = await asyncio.to_thread(sl.ingest, db, data)
+    try:
+        await asyncio.to_thread(sl.notify, db, data, r, settings.public_url)
+    except Exception:  # noqa: BLE001
+        pass
     return Response("ok" if r.get("ok") else json.dumps(r, ensure_ascii=False), media_type="text/plain", headers=_LEAD_CORS)
 
 

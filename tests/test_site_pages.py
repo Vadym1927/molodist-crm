@@ -134,3 +134,23 @@ def test_site_lead_alert_text():
     assert "Наталія" in t and "+380931112233" in t
     assert "https://new.molodist.com.ua/injection" in t and "gclid" not in t
     assert t.endswith("https://crm.molodist.com.ua/appeals/42")
+
+
+def test_site_lead_notify_chat(monkeypatch):
+    from app.models import SessionLocal
+    from app.services import site_leads as sl, alerts
+    sent = []
+    monkeypatch.setattr(alerts, "_api", lambda m, **kw: sent.append(("chat", kw["data"]["chat_id"], kw["data"]["text"])) or True)
+    monkeypatch.setattr(alerts, "send", lambda t: sent.append(("owner", None, t)) or 1)
+    d = {"name": "Іра <b>", "phone": "+380931112233", "page": "https://x/laser"}
+    with SessionLocal() as db:
+        sl.set_chat(db, None)
+        assert sl.notify(db, d, {"ok": True, "appeal_id": 5}, "https://crm")
+        assert sent[-1][0] == "owner"
+        sl.set_chat(db, "-100123")
+        sl.notify(db, d, {"ok": True, "appeal_id": 5}, "https://crm")
+        assert sent[-1][:2] == ("chat", "-100123") and "&lt;b&gt;" in sent[-1][2]
+        n = len(sent)
+        assert not sl.notify(db, d, {"ok": True, "appeal_id": 5, "duplicate": True}, "https://crm")
+        assert len(sent) == n
+        sl.set_chat(db, None)

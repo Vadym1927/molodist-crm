@@ -98,6 +98,22 @@ async def pay_photo(msg: Message, bot: Bot):
     await _pay_file(msg, bot, ph.file_id, f"rahunok_{ph.file_unique_id}.jpg", "image/jpeg")
 
 
+@pay_router.message(Command("zayavky"))
+async def cmd_bind_leads(msg: Message):
+    """Призначити цей чат чатом заявок із сайту (лише власник). /zayavky off — відвʼязати (заявки знову власнику)."""
+    from ..services import pay_requests as prq, site_leads as sl
+    with SessionLocal() as db:
+        if str(msg.from_user.id if msg.from_user else "") not in prq.owner_tg_ids(db):
+            await msg.reply("Призначити чат заявок може лише власник (його Telegram ID — у «Мій кабінет» CRM).")
+            return
+        off = "off" in (msg.text or "").lower()
+        sl.set_chat(db, None if off else str(msg.chat.id))
+    if off:
+        await msg.reply("Заявки з сайту більше не надходять у цей чат (знову — власнику).")
+        return
+    await msg.reply("✅ Цей чат — «Заявки з сайту». Сюди надходитимуть нові заявки: імʼя, телефон, сторінка й посилання на звернення в CRM.")
+
+
 def _exp_text(msg: Message) -> bool:
     """Текст у групі бухгалтерії з сумою й назвою — видаток з каси (див. services/chat_expenses)."""
     if not msg.text or msg.text.startswith("/"):
