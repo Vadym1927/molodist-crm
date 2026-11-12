@@ -5385,6 +5385,24 @@ def consign_start(s: str = Form(...), d: str = Form(...), user: User = Depends(r
     return RedirectResponse(_with_msg(f"/stock/consign?s={quote(s)}", "Дату старту збережено"), 303)
 
 
+def _oper_txns(db: Session) -> list:
+    """Списання monobank для рознесення на поставки — лише з операційних рахунків (Операційний, Амортизаційний + Операційний фонд):
+    з них платимо постачальникам; особисті картки й термінали сюди не потрапляють. Якщо рахунки ще не привʼязані до кас — усі."""
+    from .models import BankTxn
+    from .integrations import monobank
+    m = monobank.cashbox_map(db)
+    ids = set()
+    for x in monobank.saved(db):
+        for acc in x.get("accounts", []):
+            box = m.get(monobank.account_key(acc)) or m.get(acc.get("id"))
+            if box and "операційн" in str(box).lower():
+                ids.add(acc.get("id"))
+    q = select(BankTxn).where(BankTxn.at >= datetime.now() - timedelta(days=60))
+    if ids:
+        q = q.where(BankTxn.account.in_(ids))
+    return db.scalars(q.order_by(BankTxn.at.desc()).limit(200)).all()
+
+
 @app.get("/stock", response_class=HTMLResponse)
 def stock_page(request: Request, tab: str = "balances", only: str = "", wh: str = "", q: str = "", sup: str = "",
                user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
@@ -5480,8 +5498,7 @@ def stock_page(request: Request, tab: str = "balances", only: str = "", wh: str 
         from .integrations.checkbox import accounts as _cb_acc
         sel_sup = next((x for x in ctx["suppliers"] if x.name == ctx["sel"]), None)
         ctx.update(sel_sup=sel_sup, mono=monobank.public(db), fops=[a["name"] for a in _cb_acc(db)],
-                   txns=db.scalars(select(BankTxn).where(BankTxn.at >= datetime.now() - timedelta(days=60))
-                                   .order_by(BankTxn.at.desc()).limit(200)).all(),
+                   txns=_oper_txns(db),
                    open_groups=pay.groups(db, only_open=True), PAY=pay.PAY_LABELS,
                    weak_ids={w.id for w in pay.weak_auto(db)},
                    crm_groups=pay.groups(db, ctx["sel"]) if ctx["sel"] else [],

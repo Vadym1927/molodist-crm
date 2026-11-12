@@ -242,7 +242,7 @@ dialog.sk-imp{border:0;border-radius:20px;padding:0;width:min(560px,96vw);box-sh
       <button class="btn">Підключити</button></form></details>
   </div>
   {% if txns %}<div style="overflow-x:auto;margin-top:14px"><table class="tb small"><thead><tr><th>Дата</th><th>ФОП</th><th>Отримувач</th><th class="r">Сума</th><th>Призначення</th><th>Стан / рознесення</th></tr></thead><tbody>
-  {% for t in txns %}<tr><td>{{ t.at|dt('%d.%m %H:%M') }}</td><td>{{ t.fop }}</td>
+  {% for t in txns %}<tr {% if loop.index > 10 %}class="tx-more" hidden{% endif %}><td>{{ t.at|dt('%d.%m %H:%M') }}</td><td>{{ t.fop }}</td>
     <td>{{ t.counter_name or '—' }}<div class="meta">{{ (t.counter_iban or '')[-10:] }}{{ (' · ' ~ t.counter_edrpou) if t.counter_edrpou }}{% if t.supplier_id and sup_by_id.get(t.supplier_id) %} · <b>{{ sup_by_id[t.supplier_id].name }}</b>{% endif %}</div></td>
     <td class="r"><b>{{ (-t.amount)|uah }}</b></td><td style="max-width:280px">{{ t.description or '' }}</td>
     <td>{% if t.status in ('matched','partial') %}<span class="pill {{ 'ok' if t.status=='matched' else 'warn' }}">{{ 'рознесено' if t.status=='matched' else 'частково' }}</span>{% if t.id in weak_ids %} <span class="pill warn" title="Упізнано лише за назвою отримувача або дата платежу не відповідає накладній">⚠ перевірте</span>{% endif %} <span class="meta">{{ t.note or '' }}</span>
@@ -256,7 +256,8 @@ dialog.sk-imp{border:0;border-radius:20px;padding:0;width:min(560px,96vw);box-sh
             {% for g in open_groups %}{% if not t.supplier_id or not sup_by_id.get(t.supplier_id) or (g.supplier or '')|lower == sup_by_id[t.supplier_id].name|lower %}<option value="{{ g.key }}">{{ g.label }} · залишок {{ g.left|uah }}</option>{% endif %}{% endfor %}</select>
           <button class="btn" style="padding:2px 10px">OK</button></form>
         <form method="post" action="/stock/mono/txn/{{ t.id }}" style="display:inline"><input type="hidden" name="action" value="ignore"><button class="btn ghost" style="padding:1px 8px">не постачальник</button></form>{% endif %}</td></tr>{% endfor %}
-  </tbody></table></div>{% elif mono %}<p class="muted small" style="margin-top:12px">Списань за 60 днів ще немає — натисніть «За 31 день».</p>{% endif %}
+  </tbody></table>{% if txns|length > 10 %}<button type="button" class="btn ghost" style="margin-top:8px" onclick="document.querySelectorAll('.tx-more').forEach(function(r){r.hidden=false});this.remove()">Показати ще {{ txns|length - 10 }}</button>{% endif %}
+    <div class="small muted" style="margin-top:6px">Лише операційні рахунки (Операційний, Амортизаційний + Операційний фонд) — з них платимо постачальникам.</div></div>{% elif mono %}<p class="muted small" style="margin-top:12px">Списань за 60 днів ще немає — натисніть «За 31 день».</p>{% endif %}
 </div>
 
 {% if invoices is defined and invoices is not none %}
@@ -269,7 +270,9 @@ dialog.sk-imp{border:0;border-radius:20px;padding:0;width:min(560px,96vw);box-sh
     <td>{% if x.debt > 1 and can(user,'finance') %}<form method="post" action="/stock/invoices/{{ x.id }}/paid" onsubmit="return confirm('Відмітити поставку {{ x.cb_number }} як оплачену?')">
       <input type="hidden" name="back" value="{{ request.url.path }}?{{ request.url.query }}#inv"><button class="btn ghost" style="padding:3px 10px">Оплачено</button></form>
       <form method="post" action="/stock/invoices/{{ x.id }}/free" style="margin-top:4px" onsubmit="var n=prompt('Без оплати: чому закриваємо борг поставки {{ x.cb_number }}?','подарунок'); if(n===null) return false; this.note.value=n; return true">
-      <input type="hidden" name="note"><input type="hidden" name="back" value="{{ request.url.path }}?{{ request.url.query }}#inv"><button class="btn ghost" style="padding:3px 10px">🎁 Безоплатно</button></form>{% endif %}</td></tr>
+      <input type="hidden" name="note"><input type="hidden" name="back" value="{{ request.url.path }}?{{ request.url.query }}#inv"><button class="btn ghost" style="padding:3px 10px">🎁 Безоплатно</button></form>
+      <form method="post" action="/stock/invoices/{{ x.id }}/free" style="margin-top:4px" onsubmit="return confirm('Закрити борг поставки {{ x.cb_number }} як інвентаризацію (корекція залишків, без оплати)?')">
+      <input type="hidden" name="note" value="інвентаризація — корекція залишків"><input type="hidden" name="back" value="{{ request.url.path }}?{{ request.url.query }}#inv"><button class="btn ghost" style="padding:3px 10px">📋 Інвентаризація</button></form>{% endif %}</td></tr>
   {% else %}<tr><td colspan="10" class="muted">Поставок немає.</td></tr>{% endfor %}</tbody></table></div></div>
 {% endif %}
 
