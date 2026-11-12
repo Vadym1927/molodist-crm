@@ -194,6 +194,13 @@ def refresh(db: Session, today: date | None = None) -> dict:
             cover = (nxt[0] - today.weekday()) if nxt else 1                      # пт → пт+сб (сб без поповнення)
             cover = max(1, min(cover, 2 if today.weekday() == 4 else cover))
             amt = round(daily * cover, 2)
+            target = _f(c.get("target_balance") or 0)
+            if target > 0 and b.get("known"):          # доповнити до цільового залишку (з ПДВ); пт — ще й на суботу
+                vat_k = 1 + _f(c["vat_pct"]) / 100
+                need = target + daily * (cover - 1) - _f(b["amount"]) * vat_k
+                amt = float(-(-max(need, 0) // 100) * 100)              # вгору до 100 ₴
+                if amt < 100:
+                    return {"balance": b, "pay_item": None, "skip": "залишку вистачає"}
             made = PayItem(due=today, name="Поповнення Google Ads (щоденне)", group="marketing", article=c.get("article") or None,
                            cashbox=c.get("cashbox") or None, counterparty="Google Ads", amount=amt, source="manual", ref=ref,
                            note=f"До 10:00. Баланс ≈ {b['amount']:.0f} без ПДВ" + (" · на {} дні".format(cover) if cover > 1 else "") if b.get("known") else "До 10:00")

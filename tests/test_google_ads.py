@@ -164,3 +164,22 @@ def test_conv_breakdown():
         assert any(a["name"] == "click_telegram" and a["all"] >= 2 for a in v["conv_acts"])
         assert any(t["term"] == "масаж обличчя" for t in v["conv_terms"])
     assert "conversion_action_name" in ga.SCRIPT
+
+
+def test_daily_topup_to_target():
+    from datetime import date as _d, datetime as _dt
+    with SessionLocal() as db:
+        ref = f"gads:daily:{_d.today().isoformat()}"
+        for x in db.scalars(select(PayItem).where(PayItem.ref == ref)):
+            db.delete(x)
+        db.commit()
+        cf = ga.cfg(db); cf.update(daily_topup=1800.0, daily_days=[0, 1, 2, 3, 4, 5, 6], target_balance=5400.0, vat_pct=20.0,
+                                   real_balance={"amount": 2458.0, "at": _dt.now().isoformat()}); ga.save_cfg(db, cf)
+        r = ga.refresh(db)
+        it = db.scalar(select(PayItem).where(PayItem.ref == ref))
+        assert it and it.amount == 2500.0                 # 5400 − 2458×1.2 = 2450.4 → 2500
+        db.delete(it); db.commit()
+        cf = ga.cfg(db); cf["real_balance"] = {"amount": 5000.0, "at": _dt.now().isoformat()}; ga.save_cfg(db, cf)
+        r = ga.refresh(db)
+        assert r["pay_item"] is None and not db.scalar(select(PayItem).where(PayItem.ref == ref))
+        cf = ga.cfg(db); cf.update(daily_topup=0.0, target_balance=0.0, real_balance=None); ga.save_cfg(db, cf)

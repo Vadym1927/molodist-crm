@@ -8269,7 +8269,7 @@ async def google_ads_settings_save(request: Request, user: User = Depends(requir
     from .services import google_ads as ga
     f = await request.form()
     c = ga.cfg(db)
-    for k in ("vat_pct", "margin_pct", "alert_days", "alert_amount", "topup_amount", "daily_topup"):
+    for k in ("vat_pct", "margin_pct", "alert_days", "alert_amount", "topup_amount", "daily_topup", "target_balance"):
         v = _num(str(f.get(k) or ""))
         if v is not None:
             c[k] = float(v)

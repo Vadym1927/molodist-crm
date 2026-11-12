@@ -108,6 +108,7 @@
     <label>…або коли баланс нижче<input name="alert_amount" value="{{ '%g' % c.alert_amount }}" inputmode="decimal"></label>
     <label>Сума поповнення в платіжний календар, ₴<input name="topup_amount" value="{{ '%g' % c.topup_amount }}" inputmode="decimal"></label>
     <label>Щоденне поповнення з ПДВ, ₴ (0 — вимкнено)<input name="daily_topup" value="{{ '%g' % (c.daily_topup or 0) }}" inputmode="decimal"></label>
+    <label>Тримати в кабінеті на початок дня, з ПДВ, ₴<input name="target_balance" value="{{ '%g' % (c.target_balance or 0) }}" inputmode="decimal"><span class="mini">напр. 5400 = запас 3600 + 1800 на день; щоденний платіж = доповнити до цієї суми (0 — завжди фіксована сума)</span></label>
     <div><div style="font-size:12px;color:#6b6575;margin-bottom:4px">Дні щоденного поповнення</div><input type="hidden" name="daily_days_sent" value="1">
       {% for i, n in [(0,'Пн'),(1,'Вт'),(2,'Ср'),(3,'Чт'),(4,'Пт'),(5,'Сб'),(6,'Нд')] %}<label class="mini" style="display:inline-flex;gap:4px;align-items:center;margin-right:8px"><input type="checkbox" name="daily_days" value="{{ i }}" style="height:auto" {{ 'checked' if i in (c.daily_days or []) }}>{{ n }}</label>{% endfor %}</div>
     <label>З якого рахунку платимо<select name="cashbox"><option value="">—</option>{% for b in boxes %}<option {{ 'selected' if b == c.cashbox }}>{{ b }}</option>{% endfor %}</select></label>
