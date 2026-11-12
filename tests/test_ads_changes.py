@@ -127,3 +127,17 @@ def test_no_drug_names_in_ad_texts():
     with SessionLocal() as db:
         with pytest.raises(ValueError):
             ac.propose(db, "rsa", "Тест Препарати", "x", "тест", payload={"headlines": ["Botox, Xeomin, Dysport"], "descriptions": ["опис"]})
+
+
+def test_final_url_change_kind():
+    from app.models import SessionLocal
+    from app.services import ads_changes as ac, google_ads as ga
+    with SessionLocal() as db:
+        ch = ac.propose(db, "final_url", "Лазерна епіляція | Пошук", "molodist.com.ua → new", "сайт на VPS",
+                        {"from": "https://molodist.com.ua/", "to": "https://new.molodist.com.ua/"}, author="claude")
+        assert "new.molodist.com.ua" in ac.describe(ch)
+        ac.decide(db, ch, True, None)
+        q = [x for x in ac.queue(db) if x["id"] == ch.id][0]
+        assert q["from"] == "https://molodist.com.ua/" and q["to"] == "https://new.molodist.com.ua/"
+        db.rollback()
+    assert "c.kind === 'final_url'" in ga.script("https://x/hook")

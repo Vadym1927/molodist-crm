@@ -769,6 +769,22 @@ function applyQueue() {
         var ar = b.build(); r.ok = ar.isSuccessful(); r.note = r.ok ? 'оголошення створено' + (c.paused ? ' (на паузі)' : '') : ar.getErrors().join('; ');
         if (r.ok && c.paused) ar.getResult().pause();
         if (r.ok && !c.paused && old.length) { old.forEach(function (a) { a.pause(); }); r.note += '; старих на паузу: ' + old.length; }
+      } else if (c.kind === 'final_url') {
+        // заміна адреси (from → to) у кінцевих URL оголошень (Google Ads API, update final_urls) і ключів кампанії
+        var cp6 = camp(c); if (!cp6) throw new Error('кампанію не знайдено');
+        if (!c.from || !c.to) throw new Error('немає from / to');
+        var cid6 = AdsApp.currentAccount().getCustomerId().replace(/-/g, ''), uops = [];
+        var si = AdsApp.search("SELECT ad_group_ad.ad.id, ad_group_ad.ad.final_urls FROM ad_group_ad WHERE campaign.id = " + cp6.getId() + " AND ad_group_ad.status != 'REMOVED'");
+        while (si.hasNext()) {
+          var adr = si.next().adGroupAd.ad, fus = adr.finalUrls || [], nus = fus.map(function (u) { return String(u).split(c.from).join(c.to); });
+          if (JSON.stringify(nus) !== JSON.stringify(fus)) uops.push({ adOperation: { update: { resourceName: 'customers/' + cid6 + '/ads/' + adr.id, finalUrls: nus }, updateMask: 'final_urls' } });
+        }
+        var aok = 0, aerr = [];
+        if (uops.length) { var ures = AdsApp.mutateAll(uops, { partialFailure: true }); for (var ui = 0; ui < ures.length; ui++) { if (ures[ui].isSuccessful()) aok++; else aerr = aerr.concat(ures[ui].getErrorMessages()); } }
+        var kin = AdsApp.keywords().withCondition('campaign.id = ' + cp6.getId()).get(), kok = 0;
+        while (kin.hasNext()) { var kk = kin.next(), kf = kk.urls().getFinalUrl(); if (kf && kf.indexOf(c.from) >= 0) { kk.urls().setFinalUrl(kf.split(c.from).join(c.to)); kok++; } }
+        r.ok = aerr.length === 0 && (aok > 0 || uops.length === 0);
+        r.note = ('оголошень ' + aok + ' з ' + uops.length + ', ключів ' + kok + (aerr.length ? '; помилки: ' + aerr.slice(0, 2).join('; ') : '')).substring(0, 300);
       } else if (c.kind === 'new_campaign') {
         r = createCampaign(c, r);
       } else { r.note = 'невідомий тип ' + c.kind; }

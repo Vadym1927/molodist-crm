@@ -17,7 +17,7 @@ from ..models import AdsChange, AdsStat, SyncState, User
 KINDS = {"negative": "Мінус-слово", "pause_keyword": "Пауза ключа", "enable_keyword": "Увімкнути ключ", "pause_campaign": "Пауза кампанії",
          "enable_campaign": "Увімкнути кампанію", "budget": "Денний бюджет", "add_keyword": "Новий ключ", "rsa": "Нове оголошення",
          "broad_to_phrase": "Широкі ключі → фразові", "remove_negative": "Прибрати мінус-слово",
-         "new_campaign": "Нова кампанія (на паузі)"}
+         "new_campaign": "Нова кампанія (на паузі)", "final_url": "Адреса сторінки в оголошеннях"}
 STATUS = {"proposed": "чекає погодження", "approved": "погоджено, застосується протягом години", "rejected": "відхилено",
           "applied": "застосовано", "failed": "помилка"}
 CFG_KEY = "ads_changes_cfg"
@@ -168,6 +168,8 @@ def describe(ch: AdsChange) -> str:
         return (f"нова кампанія «{ch.campaign}» на паузі: бюджет {p.get('budget')} /день, груп {len(gs)}, "
                 f"ключів {sum(len(g.get('keywords') or []) for g in gs)}, мінус-слів {len(p.get('negatives') or [])}; "
                 f"налаштування гео й розкладу — як у «{p.get('copy_from') or 'основній'}»; сторінка {gs[0].get('final_url') if gs else '—'}")
+    if ch.kind == "final_url":
+        return f"адреса сторінки в оголошеннях і ключах «{ch.campaign}»: {p.get('from')} → {p.get('to')}"
     if ch.kind == "remove_negative":
         return f"прибрати мінус «{ch.target}» у «{ch.campaign}»"
     if ch.kind == "broad_to_phrase":
