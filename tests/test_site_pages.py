@@ -54,6 +54,7 @@ def test_site_host_routing_and_lead():
                                                     "formname": "vydalennia-rodymok:hero", "gclid": "Cj0TEST", "utm_source": "google", "t": 12})
         assert r.json()["ok"]
         assert cl.post("/api/lead", headers=h, json={"phone": "12", "t": 9}).status_code == 400
+        assert cl.post("/api/lead", headers=h, json={"phone": "+3803233223232323232323", "t": 9}).status_code == 400
     with SessionLocal() as db:
         a = db.query(Appeal).filter(Appeal.name == "Тест Сайт").one()
         assert "gclid=Cj0TEST" in (a.utm or "") and a.interest == "Видалення новоутворень"

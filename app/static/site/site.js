@@ -21,7 +21,23 @@
   function phone(v) { var d = (v || '').replace(/\D/g, ''); if (d.length === 9) d = '380' + d; if (d.length === 10 && d[0] === '0') d = '38' + d; return d; }
   document.querySelectorAll('form[data-lead]').forEach(function (f) {
     var tel = f.querySelector('[name=phone]');
-    tel && tel.addEventListener('focus', function () { if (!tel.value) tel.value = '+380'; });
+    function fmt(v) {                                       // +380 93 123 45 67 — не більше 12 цифр
+      var d = (v || '').replace(/\D/g, '');
+      if (d[0] === '0') d = '38' + d; else if (d && d.indexOf('380') !== 0 && '380'.indexOf(d) !== 0) d = '380' + d;
+      d = d.slice(0, 12);
+      var r = '+' + d.slice(0, 3);
+      if (d.length > 3) r += ' ' + d.slice(3, 5);
+      if (d.length > 5) r += ' ' + d.slice(5, 8);
+      if (d.length > 8) r += ' ' + d.slice(8, 10);
+      if (d.length > 10) r += ' ' + d.slice(10, 12);
+      return r;
+    }
+    if (tel) {
+      tel.setAttribute('maxlength', '17');
+      tel.addEventListener('focus', function () { if (!tel.value) tel.value = '+380 '; });
+      tel.addEventListener('input', function () { tel.value = fmt(tel.value); });
+      tel.addEventListener('blur', function () { if (/^\+?380\s*$/.test(tel.value)) tel.value = ''; });
+    }
     f.addEventListener('submit', function (e) {
       e.preventDefault();
       var ok = f.querySelector('.ok'), er = f.querySelector('.err'), bt = f.querySelector('button');

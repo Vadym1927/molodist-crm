@@ -7748,8 +7748,11 @@ async def site_api_lead(request: Request, db: Session = Depends(db_dep)):
     digits = re.sub(r"\D", "", str(d.get("phone") or ""))
     if bot:
         return {"ok": True}
-    if len(digits) < 10:
+    if len(digits) == 10 and digits.startswith("0"):
+        digits = "38" + digits
+    if len(digits) != 12 or not digits.startswith("380"):         # форма сайту: лише український номер, 12 цифр
         return JSONResponse({"ok": False, "error": "phone"}, status_code=400)
+    d["phone"] = "+" + digits
     if not d.get("doctor"):
         d.pop("doctor", None)
     r = await asyncio.to_thread(sl.ingest, db, d)
