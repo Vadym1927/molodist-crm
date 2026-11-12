@@ -9508,6 +9508,33 @@ def stock_invoice_paid(iid: int, back: str = Form("/stock?tab=suppliers"), note:
     return RedirectResponse(back if back.startswith("/stock") else "/stock?tab=suppliers", 303)
 
 
+@app.post("/stock/invoices/settle")
+def stock_invoice_settle(number: str = Form(...), amount: str = Form(...), kind: str = Form("paid"), note: str = Form(""),
+                         back: str = Form("/stock?tab=suppliers"), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Часткове закриття боргу поставки за актом звірки: kind=paid — оплачено раніше (без нової витрати в касі),
+    kind=price — різниця ціни / знижка постачальника. Борг не може стати відʼємним."""
+    from .models import SupplierInvoice
+    x = db.scalar(select(SupplierInvoice).where(SupplierInvoice.cb_number == number.strip()))
+    amt = _num(amount)
+    back = back if back.startswith("/stock") else "/stock?tab=suppliers"
+    if not x or not amt or amt <= 0:
+        return RedirectResponse(_with_msg(back, "Поставку не знайдено або сума невірна", err=True), 303)
+    amt = round(min(float(amt), max(x.debt, 0)), 2)
+    stamp = f" · {user.name} {date.today():%d.%m.%Y}"
+    if kind == "price":
+        x.adjust = round((x.adjust or 0) + amt, 2)
+        x.adjust_note = ((x.adjust_note + "; ") if x.adjust_note else "") + (note.strip() or "різниця ціни за актом постачальника")[:200] + stamp
+    else:
+        x.crm_paid = round((x.crm_paid or 0) + amt, 2)
+        x.paid_note = ((x.paid_note + "; ") if x.paid_note else "") + (note.strip() or f"оплачено раніше {amt:.2f}")[:200] + stamp
+        x.paid_note = x.paid_note[:300]
+    if x.adjust_note:
+        x.adjust_note = x.adjust_note[:300]
+    db.commit()
+    audit(db, "stock.invoice_settle", user=user, invoice=x.cb_number, amount=amt, kind=kind)
+    return RedirectResponse(_with_msg(back, f"Поставка №{x.cb_number}: закрито {amt:.2f} ₴"), 303)
+
+
 @app.post("/stock/invoices/{iid:int}/free")
 def stock_invoice_free(iid: int, back: str = Form("/stock?tab=suppliers"), note: str = Form(""),
                        user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
