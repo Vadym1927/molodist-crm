@@ -59,7 +59,7 @@
 <div class="ga-c {{ 'low' if b.low }}" id="balance"><h3>Баланс кабінету</h3>
   <div class="bal {{ 'low' if b.low }}">
     <div>{% if b.known %}<div class="big">{{ u(b.amount) }} {{ sym }}</div>
-      <div class="mini">{% if b.source == 'google' %}без ПДВ · ≈ {{ u(b.amount * (1 + (c.vat_pct or 0) / 100)) }} {{ sym }} з ПДВ · з кабінету Google, {{ (b.at or '').replace('T',' ') }}{% else %}розрахунок: залишок {{ u(b.base.amount) }} на {{ b.base.day[8:10] }}.{{ b.base.day[5:7] }} + поповнення − витрати {{ u(b.spent) }}{% endif %}</div>
+      <div class="mini">{% if b.source == 'google' %}без ПДВ · ≈ {{ u(b.amount * (1 + (v.cfg.vat_pct or 0) / 100)) }} {{ sym }} з ПДВ · з кабінету Google, {{ (b.at or '').replace('T',' ') }}{% else %}розрахунок: залишок {{ u(b.base.amount) }} на {{ b.base.day[8:10] }}.{{ b.base.day[5:7] }} + поповнення − витрати {{ u(b.spent) }}{% endif %}</div>
       <div style="margin-top:8px">Середня витрата <b>{{ u(b.avg_day) }} {{ sym }}/день</b> · {% if b.days_left is not none %}вистачить на <b class="{{ 'neg' if b.low else 'pos' }}">{{ '%g' % b.days_left }} дн.</b>{% if b.until %} (до {{ b.until.strftime('%d.%m') }}){% endif %}{% else %}витрат за тиждень не було{% endif %}</div>
       {% if v.pay_item %}<div style="margin-top:8px"><span class="pill2 wait">У платіжному календарі</span> поповнення {{ u(v.pay_item.amount) }} ₴ на {{ v.pay_item.due.strftime('%d.%m.%Y') }} — <a href="/finance/paycal">відкрити календар</a></div>
       {% elif b.low %}<div style="margin-top:8px" class="neg">Мало коштів — платіж на поповнення зʼявиться в платіжному календарі (сума поповнення в налаштуваннях).</div>{% endif %}

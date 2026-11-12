@@ -183,3 +183,19 @@ def test_daily_topup_to_target():
         r = ga.refresh(db)
         assert r["pay_item"] is None and not db.scalar(select(PayItem).where(PayItem.ref == ref))
         cf = ga.cfg(db); cf.update(daily_topup=0.0, target_balance=0.0, real_balance=None); ga.save_cfg(db, cf)
+
+
+def test_page_with_google_balance():
+    from datetime import datetime as _dt
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from app.config import settings
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        cf = ga.cfg(db); cf["real_balance"] = {"amount": 2458.0, "at": _dt.now().isoformat()}; ga.save_cfg(db, cf)
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        r = c.get("/marketing/google")
+        assert r.status_code == 200 and "з ПДВ" in r.text and "2" in r.text
+    with SessionLocal() as db:
+        cf = ga.cfg(db); cf["real_balance"] = None; ga.save_cfg(db, cf)
