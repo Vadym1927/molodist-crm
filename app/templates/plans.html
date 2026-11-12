@@ -62,7 +62,7 @@
     <div class="hint">{{ hint }}{% if sums[key] %} · {{ sums[key]|uah }}{% endif %}</div>
     {% for ps in cols[key][:60] %}{% set p = ps.plan.patient %}
     <a class="pc {{ 'sel' if sel and sel.plan.id == ps.plan.id }}" href="?plan={{ ps.plan.id }}{{ ('&doc=' ~ doc) if doc }}{{ ('&q=' ~ q) if q }}">
-      <div class="top1"><span class="av">{{ initials(p.full_name) }}</span>
+      <div class="top1"><span class="av" {% if p.avatar_file_id %}style="background:#ece9f3 url('/files/{{ p.avatar_file_id }}') center/cover"{% endif %}>{{ '' if p.avatar_file_id else initials(p.full_name) }}</span>
         <div style="min-width:0"><b>{{ p.full_name }}</b><span class="pt" style="display:block">{{ ps.plan.title or 'Бюті-план' }}{{ (' · ' ~ ps.plan.session_at.strftime('%d.%m.%Y')) if ps.plan.session_at }}</span></div></div>
       {% if ps.plan.doctor %}<div class="ln">{{ I_DOC }}{{ ps.plan.doctor.name }}</div>{% endif %}
       {% if key=='booked' %}<div class="ln">{{ I_CAL }}Наступний запис · {{ ps.next_booking|dt('%d.%m о %H:%M') }}</div>
@@ -81,7 +81,7 @@
     <a class="x" href="?{{ ('doc=' ~ doc) if doc }}{{ ('&q=' ~ q) if q }}" title="Закрити">×</a>
     <h2>{{ sel.plan.title or 'Бюті-план' }}</h2>
     <span class="pill done">консультація {{ sel.plan.session_at|dt('%d.%m.%Y') }}</span>
-    <div class="pp"><span class="av">{{ initials(p.full_name) }}</span><div><b>{{ p.full_name }}</b>
+    <div class="pp"><span class="av" {% if p.avatar_file_id %}style="background:#ece9f3 url('/files/{{ p.avatar_file_id }}') center/cover"{% endif %}>{{ '' if p.avatar_file_id else initials(p.full_name) }}</span><div><b>{{ p.full_name }}</b>
       <span class="muted small">{{ sel.plan.doctor.name if sel.plan.doctor else 'Без лікаря' }}{{ (' · ' ~ p.phone) if p.phone }}</span></div></div>
     <div class="sumrow"><span>Реалізовано {{ sel.realized_sum|uah }}</span><span class="muted">з {{ sel.planned_sum|uah }}</span></div>
     <div class="small" style="font-weight:800;margin-bottom:8px">Етапи плану</div>
