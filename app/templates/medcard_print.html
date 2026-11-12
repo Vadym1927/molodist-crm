@@ -12,6 +12,7 @@ table{border-collapse:collapse;width:100%;margin:6px 0}td,th{border:1px solid #9
 <div class="hd"><div><div class="brand">{{ pc.brand or 'MOLODIST' }}</div>{% if pc.subtitle %}<div class="sub">{{ pc.subtitle }}</div>{% endif %}{% if pc.legal %}<div class="sub">{{ pc.legal }}</div>{% endif %}</div>
   <div class="rq">{% if pc.address %}{{ pc.address }}<br>{% endif %}{% if pc.license %}{{ pc.license }}<br>{% endif %}{% if pc.contacts %}{{ pc.contacts }}{% endif %}</div></div>
 {% macro body(r) %}
+  {% if r.extra and r.extra.indicators %}<table><tr><th>Показник</th><th>Результат</th><th>Норма</th><th>Од. виміру</th><th>Коментар</th></tr>{% for x in r.extra.indicators %}<tr><td>{{ x.n }}</td><td><b>{{ x.res }}</b></td><td>{{ x.norm }}</td><td>{{ x.unit }}</td><td>{{ x.com }}</td></tr>{% endfor %}</table>{% endif %}
   {% if r.extra and r.extra.fields is defined and r.extra.fields is not none %}
     {% for x in r.extra.fields %}<div class="k">{{ x.t }}</div><div class="v">{{ x.v }}</div>{% endfor %}
   {% else %}

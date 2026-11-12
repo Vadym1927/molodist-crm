@@ -116,3 +116,41 @@ def test_note_quick_form():
             rid = m.id
         t = c.get(f"/patients/{pid}/medcard?edit={rid}").text
         assert 'id="mc-nt"' in t and "після 18:00" in t and "Нова нотатка" in c.get(f"/patients/{pid}/medcard").text
+
+
+def test_analysis_templates_and_record():
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        p = db.query(Patient).filter_by(cleverbox_id=90597).first() or Patient(full_name="Медімпорт Аліна", phone="+380500009597", cleverbox_id=90597)
+        db.add(p); db.commit(); pid = p.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        c.post("/settings/medcard/analyses", data={"name": "Загальний аналіз крові", "items": "Гемоглобін | 120–160 | г/л\nЛейкоцити | 4–9"})
+        assert "Загальний аналіз крові" in c.get("/settings/medcard").text
+        t = c.get(f"/patients/{pid}/medcard").text
+        assert 'id="mc-an"' in t and "Загальний аналіз крові" in t
+        c.post(f"/patients/{pid}/medcard/record", data={"kind": "analysis", "title": "Загальний аналіз крові", "at": "2026-11-12T09:00",
+                                                         "an_n_0": "Гемоглобін", "an_r_0": "135", "an_m_0": "120–160", "an_u_0": "г/л", "an_n_1": ""})
+        with SessionLocal() as db:
+            m = db.query(MedRecord).filter_by(patient_id=pid, kind="analysis", title="Загальний аналіз крові").one()
+            assert m.extra["indicators"] == [{"n": "Гемоглобін", "res": "135", "norm": "120–160", "unit": "г/л", "com": ""}]
+            rid = m.id
+        assert "135" in c.get(f"/patients/{pid}/medcard/print?rid={rid}").text
+
+
+def test_allergy_dialog_and_summary():
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        p = Patient(full_name="Алергенко Ірина", phone="+380500009598"); db.add(p); db.commit(); pid = p.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        c.post("/settings/medcard/allergens", data={"items": "Лідокаїн | набряк\nЛатекс"})
+        t = c.get(f"/patients/{pid}/medcard").text
+        assert 'id="mc-al"' in t and "Лідокаїн" in t
+        c.post(f"/patients/{pid}/medcard/record", data={"kind": "allergy", "title": "Лідокаїн", "al_reaction": "набряк", "al_comment": "", "at": "2026-11-12T09:00"})
+        with SessionLocal() as db:
+            m = db.query(MedRecord).filter_by(patient_id=pid, kind="allergy").one()
+            assert m.extra["fields"] == [{"n": "reaction", "t": "Реакція", "v": "набряк"}]
+            assert db.get(Patient, pid).med_allergies == "Лідокаїн (набряк)"
+            rid = m.id
+        assert "набряк" in c.get(f"/patients/{pid}/medcard?edit={rid}").text

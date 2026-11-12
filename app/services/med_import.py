@@ -236,3 +236,56 @@ def print_cfg(db: Session) -> dict:
 def save_print_cfg(db: Session, d: dict) -> None:
     db.merge(SyncState(key=PRINT_KEY, value=json.dumps(d, ensure_ascii=False), updated_at=datetime.utcnow()))
     db.commit()
+
+
+AN_KEY = "med_analyses"
+
+
+def analyses(db: Session) -> list:
+    """Шаблони аналізів: [{name, items: [{n, norm, unit}]}] (Налаштування → Медкартка → Аналізи)."""
+    st = db.get(SyncState, AN_KEY)
+    try:
+        d = json.loads(st.value) if st and st.value else []
+    except ValueError:
+        d = []
+    return d if isinstance(d, list) else []
+
+
+def save_analyses(db: Session, items: list) -> None:
+    db.merge(SyncState(key=AN_KEY, value=json.dumps(items, ensure_ascii=False), updated_at=datetime.utcnow()))
+    db.commit()
+
+
+def parse_an_lines(text: str) -> list:
+    """«Гемоглобін | 120–160 | г/л» → {n, norm, unit}."""
+    out = []
+    for line in (text or "").splitlines():
+        parts = [x.strip() for x in line.split("|")]
+        if parts and parts[0]:
+            out.append({"n": parts[0][:120], "norm": (parts[1] if len(parts) > 1 else "")[:60], "unit": (parts[2] if len(parts) > 2 else "")[:30]})
+    return out
+
+
+AL_KEY = "med_allergens"
+
+
+def allergens(db: Session) -> list:
+    """Шаблони алергій: [{n, reaction}] (Налаштування → Медкартка → Алергії)."""
+    st = db.get(SyncState, AL_KEY)
+    try:
+        d = json.loads(st.value) if st and st.value else []
+    except ValueError:
+        d = []
+    return d if isinstance(d, list) else []
+
+
+def save_allergens(db: Session, text: str) -> list:
+    out, seen = [], set()
+    for line in (text or "").splitlines():
+        parts = [x.strip() for x in line.split("|")]
+        if parts and parts[0] and parts[0].lower() not in seen:
+            seen.add(parts[0].lower())
+            out.append({"n": parts[0][:120], "reaction": (parts[1] if len(parts) > 1 else "")[:200]})
+    db.merge(SyncState(key=AL_KEY, value=json.dumps(out, ensure_ascii=False), updated_at=datetime.utcnow()))
+    db.commit()
+    return out
