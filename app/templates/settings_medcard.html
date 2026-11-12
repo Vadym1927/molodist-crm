@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Медкартка: друк і форми{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+<style>.gs{background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:16px 18px;margin-bottom:14px}.gs h2{margin:0 0 10px}
+.g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.gs label{display:grid;gap:4px;font-size:12px;color:#6b6575}.gs input[type=text],.gs textarea,.gs select{margin:0;width:100%}
+.ck{display:flex!important;align-items:center;gap:8px;color:var(--ink)!important;font-size:13.5px!important}.ck input{width:auto!important;height:auto}
+.mf{border:1px solid #ECE7E1;border-radius:12px;margin-bottom:8px;background:#FBFAF8}.mf>summary{padding:10px 14px;cursor:pointer;display:flex;justify-content:space-between;gap:10px}
+.mf form{padding:4px 14px 14px;display:grid;gap:10px}.mini{font-size:12px;color:#6b6575}
+@media(max-width:800px){.g2{grid-template-columns:1fr}}</style>
+<a class="btn ghost" href="/settings">‹ Налаштування</a>
+<h1>Медкартка: друк висновку й форми</h1>
+{% if qp.get('msg') %}<div class="alert ok">{{ qp.get('msg') }}</div>{% endif %}{% if qp.get('err') %}<div class="alert err">{{ qp.get('err') }}</div>{% endif %}
+
+<form class="gs" method="post" action="/settings/medcard/print"><h2>Шаблон друку консультативного висновку</h2>
+  <p class="mini">Кнопка «🖨 Друк висновку» в записі медкартки. Шапка й підвал однакові для висновку й друку всієї картки.</p>
+  <div class="g2">
+    <label>Назва (великими в шапці)<input type="text" name="brand" value="{{ pc.brand }}"></label>
+    <label>Підзаголовок<input type="text" name="subtitle" value="{{ pc.subtitle }}"></label>
+    <label>Юридична назва / вид діяльності<input type="text" name="legal" value="{{ pc.legal }}"></label>
+    <label>Адреса<input type="text" name="address" value="{{ pc.address }}"></label>
+    <label>Ліцензія<input type="text" name="license" value="{{ pc.license }}"></label>
+    <label>Контакти<input type="text" name="contacts" value="{{ pc.contacts }}"></label>
+    <label>Назва документа<input type="text" name="title" value="{{ pc.title }}"><span class="mini">якщо в записі немає виду форми або вимкнено пункт нижче</span></label>
+    <label>Підпис лікаря — підпис рядка<input type="text" name="sign_doctor" value="{{ pc.sign_doctor }}"></label>
+    <label>Підпис пацієнта — підпис рядка<input type="text" name="sign_patient" value="{{ pc.sign_patient }}"></label>
+    <label>Текст унизу документа<textarea name="footer" rows="2">{{ pc.footer }}</textarea></label>
+  </div>
+  <div class="g2" style="margin-top:10px">
+    <label class="ck"><input type="checkbox" name="use_form_title" value="1" {{ 'checked' if pc.use_form_title }}> Назва документа = вид форми запису</label>
+    <label class="ck"><input type="checkbox" name="show_birthday" value="1" {{ 'checked' if pc.show_birthday }}> Дата народження пацієнта</label>
+    <label class="ck"><input type="checkbox" name="show_phone" value="1" {{ 'checked' if pc.show_phone }}> Телефон пацієнта</label>
+    <label class="ck"><input type="checkbox" name="show_allergies" value="1" {{ 'checked' if pc.show_allergies }}> Алергії й протипоказання (якщо вказані)</label>
+    <label class="ck"><input type="checkbox" name="show_position" value="1" {{ 'checked' if pc.show_position }}> Посада лікаря</label>
+    <label class="ck"><input type="checkbox" name="stamp" value="1" {{ 'checked' if pc.stamp }}> Місце для печатки (М.П.)</label>
+  </div>
+  <button class="btn" style="margin-top:12px">Зберегти шаблон</button>
+</form>
+
+<div class="gs" id="forms"><h2>Види форм записів · {{ forms|length }}</h2>
+  <p class="mini">Як «Вид форми» в CleverBox: лікар обирає форму в новому записі, і з'являються її поля. Поля — по одному в рядку; «*» на початку рядка — коротке поле (одним рядком). Перенесені з CleverBox форми можна перейменувати, змінити поля або сховати.</p>
+  {% for mf in forms %}<details class="mf"><summary><span><b>{{ mf.name }}</b> <span class="mini">· {{ KINDS.get(mf.kind, mf.kind) }} · полів {{ (mf.fields or [])|length }}{{ ' · з CleverBox' if mf.cb_form_id }}{{ ' · приховано' if not mf.active }}</span></span><span class="mini">⌄</span></summary>
+    <form method="post" action="/settings/medcard/forms"><input type="hidden" name="id" value="{{ mf.id }}">
+      <div class="g2"><label>Назва<input type="text" name="name" value="{{ mf.name }}"></label>
+        <label>Тип запису<select name="kind">{% for k, v in KINDS.items() %}<option value="{{ k }}" {{ 'selected' if mf.kind == k }}>{{ v }}</option>{% endfor %}</select></label></div>
+      <label>Поля<textarea name="fields" rows="{{ [((mf.fields or [])|length) + 1, 4]|max }}">{% for x in mf.fields or [] %}{{ '*' if x.type == 'text' }}{{ x.title }}
+{% endfor %}</textarea></label>
+      <label class="ck"><input type="checkbox" name="active" value="1" {{ 'checked' if mf.active }}> Показувати лікарям</label>
+      <div class="row" style="gap:8px"><button class="btn">Зберегти</button>{% if not mf.cb_form_id %}<button class="btn danger" name="delete" value="1" onclick="return confirm('Видалити форму? Записи, створені за нею, лишаться.')">Видалити</button>{% endif %}</div>
+    </form></details>{% endfor %}
+  <details class="mf" {{ 'open' if not forms }}><summary><b>＋ Нова форма</b></summary>
+    <form method="post" action="/settings/medcard/forms">
+      <div class="g2"><label>Назва<input type="text" name="name" placeholder="Консультативний висновок спеціаліста (…)"></label>
+        <label>Тип запису<select name="kind">{% for k, v in KINDS.items() %}<option value="{{ k }}" {{ 'selected' if k == 'consultation' }}>{{ v }}</option>{% endfor %}</select></label></div>
+      <label>Поля<textarea name="fields" rows="5" placeholder="*Дата народження&#10;Скарги / бажаний результат&#10;Висновок спеціаліста (встановлений діагноз)&#10;Рекомендації"></textarea></label>
+      <label class="ck"><input type="checkbox" name="active" value="1" checked> Показувати лікарям</label>
+      <button class="btn">Додати форму</button></form></details>
+</div>
+{% endblock %}

@@ -150,7 +150,7 @@ def ingest(db: Session, rows: list, forms: dict | None = None) -> dict:
         for col in ("complaints", "anamnesis", "objective", "diagnosis", "recommendations"):
             setattr(m, col, mapped.get(col) or None)
         m.protocol = "\n".join(proto) or None
-        m.extra = {"source": "cleverbox", "fields": fields, "files": r.get("files") or None, "cb_type": _val(r.get("_type")),
+        m.extra = {"source": "cleverbox", "fields": fields, "cb_form_id": r.get("form_id"), "files": r.get("files") or None, "cb_type": _val(r.get("_type")),
                    "cb_client_id": r.get("client_id")}
     c = _cfg(db)
     c["last"] = {"at": datetime.now().isoformat(timespec="minutes"), **{k: v for k, v in out.items() if k != "no_patient_ids"}}
@@ -187,3 +187,52 @@ def run_files(job, files: list) -> dict:
     rep["linked"] = n
     job.log(f"Привʼязано до записів медкарти: {n}")
     return rep
+
+
+def import_forms(db: Session, forms: list) -> dict:
+    """Види форм CleverBox [{id, title, cname, fields:[{name, title, type}]}] → MedForm (оновлює за cb_form_id)."""
+    from ..models import MedForm
+    have = {f.cb_form_id: f for f in db.scalars(select(MedForm).where(MedForm.cb_form_id.is_not(None)))}
+    n_new = n_upd = 0
+    for i, f in enumerate(forms or []):
+        try:
+            fid = int(f.get("id"))
+        except (TypeError, ValueError):
+            continue
+        flds = [{"name": str(x.get("name") or "")[:40], "title": (str(x.get("title") or "").strip().rstrip(":").strip() or str(x.get("name")))[:200],
+                 "type": "textarea" if x.get("type") == "textarea" else "text"} for x in (f.get("fields") or []) if isinstance(x, dict) and x.get("name")]
+        m = have.get(fid)
+        if not m:
+            m = MedForm(cb_form_id=fid)
+            db.add(m)
+            n_new += 1
+        else:
+            n_upd += 1
+        m.name = str(f.get("title") or f"Форма {fid}")[:200]
+        m.kind = KIND.get(str(f.get("cname") or "consult"), "consultation")
+        m.fields, m.sort = flds, i
+    db.commit()
+    return {"new": n_new, "updated": n_upd}
+
+
+PRINT_KEY = "med_print"
+PRINT_DEFAULT = {"brand": "MOLODIST", "subtitle": "Медичний простір естетики та профілактики",
+                 "legal": "Клініка естетичної та профілактичної медицини", "address": "м. Київ, вул. Романа Мстиславича, 28А",
+                 "license": "Ліцензія МОЗ України, наказ №1769 від 17.10.2024", "contacts": "+380 93 375 64 37 · molodist.com.ua",
+                 "title": "Консультативний висновок спеціаліста", "use_form_title": True, "show_birthday": True, "show_phone": False,
+                 "show_allergies": True, "show_position": True, "sign_doctor": "Лікар", "sign_patient": "З висновком ознайомлений(а)",
+                 "stamp": True, "footer": "Висновок не є підставою для лікарняного. Консультація не замінює очного огляду в разі погіршення стану."}
+
+
+def print_cfg(db: Session) -> dict:
+    st = db.get(SyncState, PRINT_KEY)
+    try:
+        d = json.loads(st.value) if st and st.value else {}
+    except ValueError:
+        d = {}
+    return {**PRINT_DEFAULT, **d}
+
+
+def save_print_cfg(db: Session, d: dict) -> None:
+    db.merge(SyncState(key=PRINT_KEY, value=json.dumps(d, ensure_ascii=False), updated_at=datetime.utcnow()))
+    db.commit()

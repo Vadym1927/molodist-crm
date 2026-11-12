@@ -2756,6 +2756,26 @@ async def medcard_import(request: Request, db: Session = Depends(db_dep)):
     return JSONResponse(r, headers=_MED_CORS)
 
 
+@app.options("/api/public/medcard/forms")
+def medcard_forms_options():
+    return Response(status_code=204, headers=_MED_CORS)
+
+
+@app.post("/api/public/medcard/forms")
+async def medcard_forms_import(request: Request, db: Session = Depends(db_dep)):
+    from .services import med_import as mim
+    if not mim.key_ok(db, request.headers.get("x-import-key", "")):
+        return JSONResponse({"error": "key"}, status_code=403, headers=_MED_CORS)
+    try:
+        d = json.loads(await request.body() or b"{}")
+    except ValueError:
+        return JSONResponse({"error": "json"}, status_code=400, headers=_MED_CORS)
+    r = mim.import_forms(db, d.get("forms") or [])
+    audit(db, "medcard.forms_import", user=None, **r)
+    db.commit()
+    return JSONResponse(r, headers=_MED_CORS)
+
+
 @app.options("/api/public/medcard/files")
 def medcard_files_options():
     return Response(status_code=204, headers=_MED_CORS)
@@ -2791,7 +2811,10 @@ def medcard_page(request: Request, pid: int, edit: int = 0, user: User = Depends
             by_rec.setdefault(f.record_id, []).append(f)
     docs = {d_.id: d_ for d_ in db.scalars(select(Doctor))}
     inject = [x.name for x in db.scalars(select(Product).where(Product.warehouse.in_(("inject", "classic", "single"))).order_by(Product.name)).all()][:1500]
+    from .models import MedForm
+    mforms = db.scalars(select(MedForm).where(MedForm.active.is_(True)).order_by(MedForm.sort, MedForm.name)).all()
     return render(request, "medcard.html", nav="patient", p=p, recs=recs, by_rec=by_rec, docs=docs, KINDS=MED_KINDS, STAGES=PHOTO_STAGES,
+                  mforms=mforms,
                   doctors=db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)).all(),
                   templates_=db.scalars(select(MedTemplate).order_by(MedTemplate.name)).all(), products=inject,
                   edit=next((r for r in recs if r.id == edit), None), now=datetime.now(), photos=photos,
@@ -2837,6 +2860,24 @@ async def medcard_record(request: Request, pid: int, user: User = Depends(curren
         if nm:
             drugs.append({k: str(f.get(f"{k}_{i}") or "").strip()[:120] for k in ("batch", "expiry", "dose", "zone")} | {"name": nm[:200]})
     r.drugs = drugs or None
+    from .models import MedForm
+    fid = str(f.get("form_id") or "")
+    mf = db.get(MedForm, int(fid)) if fid.isdigit() else None
+    if mf:
+        vals = [{"n": x.get("name"), "t": x.get("title"), "v": str(f.get("f_" + str(x.get("name"))) or "").strip()} for x in (mf.fields or [])]
+        r.extra = {**(r.extra or {}), "form_id": mf.id, "fields": [v for v in vals if v["v"]]}
+        r.form_title = mf.name[:200]
+        r.title = r.title or mf.name[:200]
+    elif r.extra and r.extra.get("form_id") and not r.cb_id:
+        r.extra = {k: v for k, v in r.extra.items() if k not in ("form_id", "fields")} or None
+        r.form_title = None
+    elif r.cb_id and r.extra and r.extra.get("fields") is not None:     # перенесений запис: поля форми редагуються як є
+        new_f = []
+        for i, x in enumerate(r.extra.get("fields") or []):
+            v = str(f.get(f"cbf_{i}", x.get("v")) or "").strip()
+            if v:
+                new_f.append({**x, "v": v})
+        r.extra = {**r.extra, "fields": new_f}
     r.next_visit = _day(str(f.get("next_visit") or ""))
     r.consent = bool(f.get("consent"))
     if not new:
@@ -2898,8 +2939,67 @@ def medcard_print(request: Request, pid: int, rid: int = 0, user: User = Depends
         q = q.where(MedRecord.id == rid)
     recs = db.scalars(q.order_by(MedRecord.at)).all()
     audit(db, "medcard.print", "patient", pid, user=user, record=rid or None)
-    return render(request, "medcard_print.html", nav="print", p=p, recs=recs, KINDS=MED_KINDS,
+    from .services import med_import as mim
+    return render(request, "medcard_print.html", nav="print", p=p, recs=recs, KINDS=MED_KINDS, one=bool(rid), pc=mim.print_cfg(db),
                   docs={d_.id: d_ for d_ in db.scalars(select(Doctor))}, now=datetime.now())
+
+
+@app.get("/settings/medcard", response_class=HTMLResponse)
+def settings_medcard(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import med_import as mim
+    from .models import MedForm
+    forms = db.scalars(select(MedForm).order_by(MedForm.sort, MedForm.name)).all()
+    return render(request, "settings_medcard.html", nav="settings", pc=mim.print_cfg(db), forms=forms, KINDS=MED_KINDS)
+
+
+@app.post("/settings/medcard/print")
+async def settings_medcard_print(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import med_import as mim
+    f = await request.form()
+    d = {}
+    for k, v in mim.PRINT_DEFAULT.items():
+        d[k] = bool(f.get(k)) if isinstance(v, bool) else str(f.get(k) or "").strip()[:600]
+    mim.save_print_cfg(db, d)
+    audit(db, "medcard.print_settings", user=user)
+    return RedirectResponse("/settings/medcard?msg=" + _q("Шаблон друку збережено"), 303)
+
+
+@app.post("/settings/medcard/forms")
+async def settings_medcard_forms(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    """Види форм: назва, тип, поля (по одному в рядку; «*» на початку — коротке поле), показувати / сховати."""
+    from .models import MedForm
+    f = await request.form()
+    fid = str(f.get("id") or "")
+    m = db.get(MedForm, int(fid)) if fid.isdigit() else None
+    if f.get("delete") and m and not m.cb_form_id:
+        db.delete(m)
+        db.commit()
+        return RedirectResponse("/settings/medcard?msg=" + _q("Форму видалено") + "#forms", 303)
+    name = str(f.get("name") or "").strip()[:200]
+    if not name:
+        return RedirectResponse("/settings/medcard?err=" + _q("Вкажіть назву форми") + "#forms", 303)
+    if not m:
+        m = MedForm(sort=100)
+        db.add(m)
+    old = {x.get("title"): x.get("name") for x in (m.fields or [])}
+    flds, used = [], set()
+    for line in str(f.get("fields") or "").splitlines():
+        t = line.strip()
+        if not t:
+            continue
+        short = t.startswith("*")
+        t = t.lstrip("*").strip()[:200]
+        key = old.get(t) or "f" + __import__("hashlib").md5(t.encode()).hexdigest()[:8]
+        while key in used:
+            key += "x"
+        used.add(key)
+        flds.append({"name": key, "title": t, "type": "text" if short else "textarea"})
+    m.name, m.fields = name, flds
+    m.kind = str(f.get("kind") or "consultation") if str(f.get("kind")) in MED_KINDS else "consultation"
+    m.active = bool(f.get("active"))
+    db.commit()
+    audit(db, "medcard.form_save", user=user, form=m.id)
+    return RedirectResponse("/settings/medcard?msg=" + _q("Форму збережено") + "#forms", 303)
 
 
 @app.get("/patients/{pid}/photos", response_class=HTMLResponse)
@@ -6948,6 +7048,7 @@ SETTINGS_BLOCKS = [
         ('Дані пацієнта в календарі', 'Які поля картки пацієнта показувати в блоці візиту: завжди або при наведенні мишки', '/settings/patient-tags#cal', 'users', None),
         ('Амортизація обладнання', 'Апарати й розхідники з ресурсом: вартість, ставка за процедуру/імпульс, рахунок фонду; перенесення з таблиці', '/settings/amort', 'finance', None),
         ('Колонки списку пацієнтів', 'Які колонки видно в розділі «Пацієнти»: телефон, статус, групи, бонуси, ДН, джерело…', '/settings/patient-tags#cols', 'users', None),
+        ('Медкартка: друк висновку й форми', 'Шаблон друку консультативного висновку (шапка, реквізити, підписи) і види форм записів (поля як у CleverBox)', '/settings/medcard', 'users', None),
         ('Фото пацієнтів', 'Усі фото й файли пацієнтів: згоди, обличчя, тіло, документи — перегляд, перенесення між розділами, видалення', '/settings/patient-photos', 'upload', None),
         ('Персональні знижки', 'Знижка конкретному пацієнту: окремо % на товари і % на послуги; автозастосування й сумування з іншими знижками', '/settings/personal-discounts', 'loyalty_patient', None),
     ]),

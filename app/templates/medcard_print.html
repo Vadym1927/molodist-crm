@@ -1,20 +1,43 @@
-<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>Медична картка · {{ p.full_name }}</title>
-<style>body{font:13px/1.5 "Open Sans",Arial,sans-serif;color:#111;margin:24px 32px}h1{font-size:18px;margin:0 0 4px;text-transform:uppercase;letter-spacing:.04em}
-.hd{display:flex;justify-content:space-between;border-bottom:2px solid #111;padding-bottom:8px;margin-bottom:12px}.brand{font:400 20px Georgia,serif;letter-spacing:.16em}
-table{border-collapse:collapse;width:100%;margin:6px 0}td,th{border:1px solid #999;padding:4px 6px;text-align:left;vertical-align:top}th{background:#f1f1f1;font-size:12px}
-.rec{page-break-inside:avoid;border-top:1px solid #999;margin-top:14px;padding-top:8px}.k{font-weight:700;text-transform:uppercase;font-size:11px;color:#444;margin-top:6px}
-.sign{display:flex;justify-content:space-between;margin-top:26px}.sign div{border-top:1px solid #111;width:40%;padding-top:4px;font-size:12px}
-@media print{.np{display:none}body{margin:10mm}}</style></head><body>
+<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>{{ (pc.title if one else 'Медична картка') }} · {{ p.full_name }}</title>
+<style>body{font:13px/1.55 "Open Sans",Arial,sans-serif;color:#111;margin:24px 32px}h1{font-size:17px;margin:14px 0 8px;text-transform:uppercase;letter-spacing:.05em;text-align:center}
+.hd{display:flex;justify-content:space-between;gap:20px;border-bottom:2px solid #2A2430;padding-bottom:10px;margin-bottom:12px}.brand{font:400 22px Georgia,serif;letter-spacing:.16em;color:#2A2430}
+.hd .sub{font-size:12px;color:#444}.hd .rq{text-align:right;font-size:11.5px;color:#444;line-height:1.45}
+table{border-collapse:collapse;width:100%;margin:6px 0}td,th{border:1px solid #999;padding:4px 6px;text-align:left;vertical-align:top}th{background:#f1f1f1;font-size:12px;width:22%}
+.rec{page-break-inside:avoid;border-top:1px solid #999;margin-top:14px;padding-top:8px}.k{font-weight:700;text-transform:uppercase;font-size:11px;color:#444;margin-top:10px}
+.v{white-space:pre-line}.meta{display:flex;justify-content:space-between;gap:12px;font-size:12.5px;margin-bottom:6px}
+.sign{display:flex;justify-content:space-between;gap:30px;margin-top:34px}.sign div{border-top:1px solid #111;width:42%;padding-top:4px;font-size:12px}
+.stamp{margin-top:18px;font-size:12px;color:#444}.ft{margin-top:26px;border-top:1px solid #ccc;padding-top:6px;font-size:11px;color:#555}
+@media print{.np{display:none}body{margin:12mm}}</style></head><body>
 <div class="np" style="margin-bottom:12px"><button onclick="print()">🖨 Друкувати</button></div>
-<div class="hd"><div><div class="brand">MOLODIST</div><div>Медичний простір</div></div><div style="text-align:right">Медична картка пацієнта<br>сформовано {{ now|dt('%d.%m.%Y %H:%M') }}</div></div>
-<h1>{{ p.full_name }}</h1>
+<div class="hd"><div><div class="brand">{{ pc.brand or 'MOLODIST' }}</div>{% if pc.subtitle %}<div class="sub">{{ pc.subtitle }}</div>{% endif %}{% if pc.legal %}<div class="sub">{{ pc.legal }}</div>{% endif %}</div>
+  <div class="rq">{% if pc.address %}{{ pc.address }}<br>{% endif %}{% if pc.license %}{{ pc.license }}<br>{% endif %}{% if pc.contacts %}{{ pc.contacts }}{% endif %}</div></div>
+{% macro body(r) %}
+  {% if r.extra and r.extra.fields is defined and r.extra.fields is not none %}
+    {% for x in r.extra.fields %}<div class="k">{{ x.t }}</div><div class="v">{{ x.v }}</div>{% endfor %}
+  {% else %}
+    {% for k, l in [('complaints','Скарги'),('anamnesis','Анамнез'),('objective','Обʼєктивно'),('diagnosis','Діагноз'),('protocol','Протокол процедури'),('recommendations','Рекомендації')] %}{% if r[k] %}<div class="k">{{ l }}</div><div class="v">{{ r[k] }}</div>{% endif %}{% endfor %}
+  {% endif %}
+  {% if r.drugs %}<div class="k">Препарати</div><table><tr><th>Препарат</th><th>Серія</th><th>Термін</th><th>Доза</th><th>Зона</th></tr>{% for d in r.drugs %}<tr><td>{{ d.name }}</td><td>{{ d.batch }}</td><td>{{ d.expiry }}</td><td>{{ d.dose }}</td><td>{{ d.zone }}</td></tr>{% endfor %}</table>{% endif %}
+  {% if r.next_visit %}<div class="k">Наступний візит</div><div>{{ r.next_visit|dt('%d.%m.%Y') }}</div>{% endif %}
+{% endmacro %}
+{% if one and recs %}{% set r = recs[0] %}{% set d = docs.get(r.doctor_id) if r.doctor_id else None %}{% set dn = (d.name if d else r.author) or '' %}
+<h1>{{ (r.form_title if pc.use_form_title and r.form_title else pc.title) or 'Консультативний висновок' }}</h1>
+<div class="meta"><div>Пацієнт: <b>{{ p.full_name }}</b>{% if pc.show_birthday and p.birthday %} · дата народження {{ p.birthday|dt('%d.%m.%Y') }}{% endif %}{% if pc.show_phone and p.phone %} · {{ p.phone }}{% endif %}</div>
+  <div>Дата: <b>{{ r.at|dt('%d.%m.%Y %H:%M') }}</b></div></div>
+<div class="meta"><div>{{ pc.sign_doctor or 'Лікар' }}: <b>{{ dn or '—' }}</b>{% if pc.show_position and d and d.position %} · {{ d.position }}{% endif %}</div></div>
+{% if pc.show_allergies and (p.med_allergies or p.med_contra) %}<table>{% if p.med_allergies %}<tr><th>Алергії</th><td>{{ p.med_allergies }}</td></tr>{% endif %}{% if p.med_contra %}<tr><th>Протипоказання</th><td>{{ p.med_contra }}</td></tr>{% endif %}</table>{% endif %}
+{{ body(r) }}
+<div class="sign"><div>{{ pc.sign_doctor or 'Лікар' }} {{ dn }} (підпис)</div><div>{{ pc.sign_patient or 'Пацієнт' }} (підпис){{ ' · згоду підписано' if r.consent }}</div></div>
+{% if pc.stamp %}<div class="stamp">М.П.</div>{% endif %}
+{% else %}
+<h1>Медична картка пацієнта</h1>
+<div class="meta"><div><b>{{ p.full_name }}</b></div><div>сформовано {{ now|dt('%d.%m.%Y %H:%M') }}</div></div>
 <table><tr><th>Телефон</th><td>{{ p.phone or '—' }}</td><th>Дата народження</th><td>{{ p.birthday|dt('%d.%m.%Y') if p.birthday else '—' }}</td><th>Фототип</th><td>{{ p.phototype or '—' }}</td></tr>
 <tr><th>Алергії</th><td colspan="5">{{ p.med_allergies or 'не зазначено' }}</td></tr><tr><th>Протипоказання</th><td colspan="5">{{ p.med_contra or 'не зазначено' }}</td></tr>
 <tr><th>Хронічні захв., препарати</th><td colspan="5">{{ p.med_conditions or 'не зазначено' }}</td></tr></table>
-{% for r in recs %}<div class="rec"><b>{{ r.at|dt('%d.%m.%Y %H:%M') }} · {{ KINDS[r.kind] }}{{ (' · ' ~ r.title) if r.title }}</b> — лікар: {{ docs[r.doctor_id].name if r.doctor_id and docs.get(r.doctor_id) else '—' }}
-  {% for k, l in [('complaints','Скарги'),('anamnesis','Анамнез'),('objective','Обʼєктивно'),('diagnosis','Діагноз'),('protocol','Протокол процедури'),('recommendations','Рекомендації')] %}{% if r[k] %}<div class="k">{{ l }}</div><div style="white-space:pre-line">{{ r[k] }}</div>{% endif %}{% endfor %}
-  {% if r.drugs %}<div class="k">Препарати</div><table><tr><th>Препарат</th><th>Серія</th><th>Термін</th><th>Доза</th><th>Зона</th></tr>{% for d in r.drugs %}<tr><td>{{ d.name }}</td><td>{{ d.batch }}</td><td>{{ d.expiry }}</td><td>{{ d.dose }}</td><td>{{ d.zone }}</td></tr>{% endfor %}</table>{% endif %}
-  {% if r.next_visit %}<div class="k">Наступний візит</div><div>{{ r.next_visit|dt('%d.%m.%Y') }}</div>{% endif %}
-  <div class="sign"><div>Лікар (підпис)</div><div>Пацієнт (підпис){{ ' · згоду підписано' if r.consent }}</div></div></div>
+{% for r in recs %}{% set d = docs.get(r.doctor_id) if r.doctor_id else None %}<div class="rec"><b>{{ r.at|dt('%d.%m.%Y %H:%M') }} · {{ KINDS[r.kind] }}{{ (' · ' ~ (r.title or r.form_title)) if (r.title or r.form_title) }}</b> — {{ (pc.sign_doctor or 'лікар')|lower }}: {{ (d.name if d else r.author) or '—' }}
+  {{ body(r) }}</div>
 {% else %}<p>Записів немає.</p>{% endfor %}
+{% endif %}
+{% if pc.footer %}<div class="ft">{{ pc.footer }}</div>{% endif %}
 </body></html>

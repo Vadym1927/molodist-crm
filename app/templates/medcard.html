@@ -30,6 +30,7 @@
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .drugs td{padding:3px}.drugs input{width:100%;height:36px;font-size:13.5px}
 .med-sum{background:var(--bad-bg);border-radius:12px;padding:12px 14px;margin-bottom:14px}
+.mc-rec .bd .fld{border-bottom:1px solid var(--line);padding-bottom:8px}.mc-rec .bd .fld:last-of-type{border-bottom:0}
 .thumbs{display:flex;gap:6px;flex-wrap:wrap}.thumbs a{display:block;width:84px}.thumbs img{width:84px;height:84px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
 </style>
 <div class="row between" style="gap:10px;margin-bottom:10px"><div><div class="eyebrow"><a href="/patients/{{ p.id }}" style="text-decoration:none">{{ p.full_name }}</a></div><h1>🩺 Медична картка</h1>
@@ -57,10 +58,15 @@
       <div class="mc-doc">{% if _dn %}<i class="mc-av" style="{% if _d and _d.photo_url %}background-image:url('{{ _d.photo_url }}'){% endif %}">{% if not (_d and _d.photo_url) %}{{ (_dn.split()|map('first')|join)[:2]|upper }}{% endif %}</i><span>{{ _dn }}</span>{% else %}<span class="muted">—</span>{% endif %}</div>
       <div class="mc-dt">📅 {{ r.at|dt('%d.%m.%Y %H:%M') }}</div><span class="muted">⌄</span></div></summary>
     <div class="bd">
+      {% if r.extra and r.extra.fields is defined and r.extra.fields is not none %}
+        {% if r.form_title %}<div class="small muted">Вид форми: <b>{{ r.form_title }}</b>{% if _d and _d.position %} · {{ _d.position }}{% endif %}</div>{% endif %}
+        {% for x in r.extra.fields %}<div class="fld"><h4>{{ x.t }}</h4><p>{{ x.v }}</p></div>{% else %}<div class="muted small">Поля форми не заповнені.</div>{% endfor %}
+      {% else %}
       {% for k, l in [('complaints','Скарги'),('anamnesis','Анамнез'),('objective','Обʼєктивно / огляд'),('diagnosis','Діагноз'),('protocol','Протокол процедури'),('recommendations','Рекомендації')] %}{% if r[k] %}<div><h4>{{ l }}</h4><p>{{ r[k] }}</p></div>{% endif %}{% endfor %}
+      {% endif %}
       {% if r.drugs %}<div><h4>Препарати</h4><table class="tb small"><thead><tr><th>Препарат</th><th>Серія</th><th>Термін</th><th>Доза</th><th>Зона</th></tr></thead><tbody>{% for d in r.drugs %}<tr><td>{{ d.name }}</td><td>{{ d.batch }}</td><td>{{ d.expiry }}</td><td>{{ d.dose }}</td><td>{{ d.zone }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
       {% if by_rec.get(r.id) %}<div><h4>Фото й файли</h4><div class="thumbs">{% for f in by_rec[r.id] %}{% if f.kind == 'photo' %}<a href="/patients/{{ p.id }}/photos?a={{ f.id }}"><img src="/files/{{ f.id }}" loading="lazy" alt=""><span class="small muted">{{ STAGES.get(f.stage, '') }}</span></a>{% else %}<a href="/files/{{ f.id }}" target="_blank" class="small">📎 {{ (f.caption or 'файл').replace('З CleverBox: ', '') }}</a>{% endif %}{% endfor %}</div></div>{% endif %}
-      <div class="row" style="gap:6px"><a class="btn ghost" style="padding:3px 12px" href="?edit={{ r.id }}#form">Редагувати</a><a class="btn ghost" style="padding:3px 12px" target="_blank" href="/patients/{{ p.id }}/medcard/print?rid={{ r.id }}">🖨 Друк</a>
+      <div class="row" style="gap:6px"><a class="btn ghost" style="padding:3px 12px" href="?edit={{ r.id }}#form">Редагувати</a><a class="btn ghost" style="padding:3px 12px" target="_blank" href="/patients/{{ p.id }}/medcard/print?rid={{ r.id }}">🖨 Друк висновку</a>
         <form method="post" action="/patients/{{ p.id }}/medcard/record/{{ r.id }}/delete" data-delpw="Видалити запис медкартки від {{ r.at|dt('%d.%m.%Y') }}?" style="margin:0"><button class="btn danger" style="padding:3px 12px">Видалити</button></form>
         {% if r.updated_at %}<span class="small muted">змінено {{ r.updated_at|local|dt('%d.%m.%Y %H:%M') }}</span>{% endif %}</div>
     </div></details>
@@ -76,10 +82,15 @@
   {% if templates_ and not r0 %}<label>Шаблон<select onchange="mcTpl(this)"><option value="">— заповнити з шаблону —</option>{% for t in templates_ %}<option value="{{ t.id }}" data-f='{{ (t.fields or {})|tojson }}' data-k="{{ t.kind }}">{{ t.name }}</option>{% endfor %}</select></label>{% endif %}
   <div class="two"><label>Тип<select name="kind">{% for k, v in KINDS.items() %}<option value="{{ k }}" {{ 'selected' if (r0.kind if r0 else 'procedure')==k }}>{{ v }}</option>{% endfor %}</select></label>
     <label>Дата й час<input type="datetime-local" name="at" value="{{ (r0.at if r0 else now).strftime('%Y-%m-%dT%H:%M') }}"></label></div>
+  {% set _cbf = r0 and r0.cb_id and r0.extra and r0.extra.fields is defined and r0.extra.fields is not none %}
+  {% if not _cbf %}<label>Вид форми<select name="form_id" id="mc-fs" onchange="mcForm()"><option value="">— стандартні поля —</option>{% for mf in mforms %}<option value="{{ mf.id }}" data-k="{{ mf.kind }}" data-f='{{ (mf.fields or [])|tojson }}' {{ 'selected' if r0 and r0.extra and r0.extra.form_id == mf.id }}>{{ mf.name }}</option>{% endfor %}</select></label>
+  <script type="application/json" id="mc-fv">{{ ((r0.extra.fields if r0 and r0.extra and r0.extra.fields else [])|tojson) }}</script>{% endif %}
   <label>Лікар<select name="doctor_id"><option value="">—</option>{% for d in doctors %}<option value="{{ d.id }}" {{ 'selected' if (r0.doctor_id if r0 else my_doctor)==d.id }}>{{ d.name }}</option>{% endfor %}</select></label>
   <label>Процедура / привід<input name="title" value="{{ r0.title or '' if r0 }}" placeholder="Контурна пластика губ"></label>
+  <div id="mc-ff" style="display:grid;gap:10px">{% if _cbf %}<div class="small muted">Вид форми: <b>{{ r0.form_title }}</b> (з CleverBox)</div>{% for x in r0.extra.fields %}<label>{{ x.t }}<textarea name="cbf_{{ loop.index0 }}">{{ x.v }}</textarea></label>{% endfor %}{% endif %}</div>
+  <div id="mc-std" style="display:{{ 'none' if _cbf else 'grid' }};gap:10px">
   {% for k, l, ph in [('complaints','Скарги',''),('anamnesis','Анамнез','попередні процедури, реакції'),('objective','Обʼєктивно / огляд','стан шкіри, тургор, фототип'),('diagnosis','Діагноз',''),('protocol','Протокол процедури','техніка, канюля/голка, обʼєм, параметри апарата'),('recommendations','Рекомендації','догляд, обмеження, контроль')] %}
-  <label>{{ l }}<textarea name="{{ k }}" placeholder="{{ ph }}">{{ r0[k] or '' if r0 }}</textarea></label>{% endfor %}
+  <label>{{ l }}<textarea name="{{ k }}" placeholder="{{ ph }}">{{ r0[k] or '' if r0 }}</textarea></label>{% endfor %}</div>
   <div><div class="small" style="font-weight:700;color:var(--muted);margin-bottom:4px">ПРЕПАРАТИ</div>
     <table class="drugs" style="width:100%"><tbody>{% set dl = (r0.drugs if r0 and r0.drugs else []) %}{% for i in range([dl|length + 1, 3]|max) %}{% set d = dl[i] if i < dl|length else {} %}
       <tr><td style="width:40%"><input name="drug_{{ i }}" list="mc-prod" value="{{ d.name or '' }}" placeholder="Препарат"></td><td><input name="batch_{{ i }}" value="{{ d.batch or '' }}" placeholder="Серія"></td>
@@ -95,7 +106,13 @@
   {% if templates_ %}<details class="small"><summary>Шаблони · {{ templates_|length }}</summary>{% for t in templates_ %}<div class="row between" style="padding:4px 0">{{ t.name }}
     <form method="post" action="/medcard/templates/{{ t.id }}/delete" data-delpw="Видалити шаблон «{{ t.name }}»?" style="margin:0"><input type="hidden" name="back" value="/patients/{{ p.id }}/medcard"><button style="border:0;background:none;cursor:pointer;color:var(--muted)">×</button></form></div>{% endfor %}</details>{% endif %}
 </form></div>
-<script>function mcPick(){document.getElementById('mc-pk').showModal()}
+<script>function mcEsc(t){return String(t==null?'':t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function mcForm(){var s=document.getElementById('mc-fs');if(!s)return;var o=s.selectedOptions[0],box=document.getElementById('mc-ff'),std=document.getElementById('mc-std');
+  var fl=o&&o.dataset.f?JSON.parse(o.dataset.f):[];var prev={};try{JSON.parse(document.getElementById('mc-fv').textContent||'[]').forEach(function(x){prev[x.n||x.t]=x.v})}catch(e){}
+  box.innerHTML=fl.map(function(x){var v=prev[x.name]||prev[x.title]||'';return '<label>'+mcEsc(x.title)+(x.type==='text'?'<input name="f_'+mcEsc(x.name)+'" value="'+mcEsc(v)+'">':'<textarea name="f_'+mcEsc(x.name)+'">'+mcEsc(v)+'</textarea>')+'</label>'}).join('');
+  std.style.display=fl.length?'none':'grid';if(o&&o.dataset.k){var k=document.querySelector('#form [name=kind]');if(k&&!s.dataset.touched)k.value=o.dataset.k}}
+document.addEventListener('DOMContentLoaded',mcForm);
+function mcPick(){document.getElementById('mc-pk').showModal()}
 function mcOpen(k){var pk=document.getElementById('mc-pk');if(pk.open)pk.close();var f=document.getElementById('form');if(k&&f.elements.kind)f.elements.kind.value=k;f.classList.add('on');document.getElementById('mc-sh').classList.add('on')}
 function mcClose(){document.getElementById('form').classList.remove('on');document.getElementById('mc-sh').classList.remove('on');{% if r0 %}location.href='?';{% endif %}}
 function mcSum(){var f=document.getElementById('mc-sum');f.hidden=!f.hidden;if(!f.hidden)f.scrollIntoView({behavior:'smooth',block:'center'})}

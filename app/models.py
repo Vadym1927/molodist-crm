@@ -542,6 +542,19 @@ class MedRecord(Base):
     extra: Mapped[dict | None] = mapped_column(JSON)                    # усі поля форми [{t, v}], файли, сирі дані
 
 
+class MedForm(Base):
+    """Вид форми запису медкартки («Консультативний висновок спеціаліста (дерматолога)», «Щоденник (IPL)»…): свій набір полів.
+    Перенесені з CleverBox мають cb_form_id."""
+    __tablename__ = "med_forms"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    kind: Mapped[str] = mapped_column(String(20), default="consultation")
+    fields: Mapped[list | None] = mapped_column(JSON)                    # [{name, title, type: text|textarea}]
+    cb_form_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    sort: Mapped[int] = mapped_column(Integer, default=100)
+
+
 class MedTemplate(Base):
     """Шаблон запису медкартки (протокол процедури): підставляє текст у поля."""
     __tablename__ = "med_templates"

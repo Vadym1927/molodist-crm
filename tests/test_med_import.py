@@ -67,3 +67,36 @@ def test_run_files_links_record(monkeypatch):
     with SessionLocal() as db:
         m = db.query(MedRecord).filter_by(cb_id=92697).one()
         assert db.query(PatientFile).filter_by(cb_file_id=99565).one().record_id == m.id
+
+
+def test_forms_print_and_form_record():
+    from app.models import MedForm
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        r = mim.import_forms(db, [{"id": "9", "cname": "consult", "title": "Консультативний висновок спеціаліста (дерматолога)",
+                                   "fields": [{"name": "cfl_33", "title": "Проведено:", "type": "textarea"}, {"name": "cfl_31", "title": "Дата народження", "type": "text"}]}])
+        assert r["new"] + r["updated"] == 1
+        mf = db.query(MedForm).filter_by(cb_form_id=9).one()
+        assert mf.fields[0]["title"] == "Проведено" and mf.kind == "consultation"
+        pid = db.query(Patient).filter_by(cleverbox_id=90597).one().id if db.query(Patient).filter_by(cleverbox_id=90597).first() else None
+        if not pid:
+            p = Patient(full_name="Медімпорт Аліна", phone="+380500009597", cleverbox_id=90597); db.add(p); db.commit(); pid = p.id
+        mfid = mf.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        assert "Шаблон друку консультативного висновку" in c.get("/settings/medcard").text
+        assert c.post("/settings/medcard/print", data={"brand": "MOLODIST", "title": "Висновок", "license": "Ліцензія Х", "stamp": "1", "use_form_title": "1"},
+                      follow_redirects=False).status_code == 303
+        c.post(f"/patients/{pid}/medcard/record", data={"kind": "consultation", "form_id": str(mfid), "f_cfl_33": "Огляд шкіри", "at": "2026-11-12T10:00"})
+        with SessionLocal() as db:
+            m = db.query(MedRecord).filter(MedRecord.patient_id == pid, MedRecord.form_title.is_not(None), MedRecord.cb_id.is_(None)).order_by(MedRecord.id.desc()).first()
+            assert m.extra["fields"][0] == {"n": "cfl_33", "t": "Проведено", "v": "Огляд шкіри"} and m.title.startswith("Консультативний")
+            rid = m.id
+        t = c.get(f"/patients/{pid}/medcard/print?rid={rid}").text
+        assert "Консультативний висновок спеціаліста (дерматолога)" in t and "Огляд шкіри" in t and "Ліцензія Х" in t and "М.П." in t
+        assert "Проведено" in c.get(f"/patients/{pid}/medcard").text
+        r2 = c.post("/settings/medcard/forms", data={"name": "Моя форма", "kind": "procedure", "fields": "*Зона\nПротокол", "active": "1"}, follow_redirects=False)
+        assert r2.status_code == 303
+    with SessionLocal() as db:
+        f2 = db.query(MedForm).filter_by(name="Моя форма").one()
+        assert [x["type"] for x in f2.fields] == ["text", "textarea"]
