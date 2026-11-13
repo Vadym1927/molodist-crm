@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Розрахункові листи · Фінанси{% endblock %}
+{% block body %}
+{% include "_fin_tabs.html" %}
+{% set t = v.total %}
+<div class="row between" style="margin-bottom:12px;gap:10px;flex-wrap:wrap"><div><h1>Розрахункові листи</h1>
+  <div class="muted small">Нараховано (ставка + комісійні + премії) − податки − утримання = до виплати · виплачено на руки за {{ month }}</div></div>
+  <form class="fin-f" style="display:flex;gap:8px;align-items:center"><select name="m" onchange="this.form.submit()">{% for x in months %}<option {{ 'selected' if month==x }}>{{ x }}</option>{% endfor %}</select>
+    <label class="small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="all" value="1" {{ 'checked' if show_all }} onchange="this.form.submit()"> усі співробітники</label>
+    <a class="btn ghost" href="/finance/payslips?m={{ month }}&xlsx=1">⬇ Excel</a><button type="button" class="btn ghost" onclick="window.print()">🖨 Друк</button></form></div>
+<div class="fin-k">
+  <div class="tile"><span>Нараховано</span><b>{{ t.gross|uah }}</b><small class="muted">ставка {{ t.base|uah }} · комісійні {{ t.comm|uah }} · премії {{ t.bonus|uah }}</small></div>
+  <div class="tile"><span>Податки й утримання</span><b class="out">{{ (t.tax + t.hold)|uah }}</b><small class="muted">податки {{ t.tax|uah }} · утримання {{ t.hold|uah }}</small></div>
+  <div class="tile"><span>Виплачено на руки</span><b class="in">{{ t.paid|uah }}</b><small class="muted">до виплати за місяць {{ t.net|uah }}</small></div>
+  <div class="tile"><span>Залишок до виплати</span><b style="color:{{ 'var(--bad)' if t.closing > 0.01 else 'inherit' }}">{{ t.closing|uah }}</b><small class="muted">з боргом на початок {{ t.opening|uah }}</small></div>
+</div>
+<style>
+.ps-t{width:100%;border-collapse:collapse;font-size:13.5px}.ps-t th{font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#8a8496;text-align:right;padding:10px 10px;border-bottom:1px solid #ECE7E1;white-space:nowrap;vertical-align:bottom}
+.ps-t th:first-child{text-align:left}.ps-t td{padding:10px 10px;border-bottom:1px solid #F1EDE8;text-align:right;white-space:nowrap;vertical-align:middle}.ps-t td:first-child{text-align:left;white-space:normal}
+.ps-t tr.main{cursor:pointer}.ps-t tr.main:hover td{background:#FBFAF8}.ps-t tr.empty td{color:#b3adbb}.ps-t .neg{color:#B23B2E}.ps-t .pos{color:#1E7A46}.ps-t .gr{font-weight:700}
+.ps-t .nm b{display:block;color:#2A2430}.ps-t .nm small{color:#8a8496;font-size:12px}.ps-t .due{font-weight:700}.ps-t .due.bad{color:#B23B2E}
+.ps-t tfoot td{font-weight:800;border-top:2px solid #E4DEEF;border-bottom:0}.ps-t .sep{border-left:1px solid #F1EDE8}
+.ps-det td{background:#FBFAF8;padding:4px 14px 14px!important}.ps-det[hidden]{display:none}
+.ps-slip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;text-align:left;white-space:normal}
+.ps-slip h4{margin:10px 0 6px;font:700 11px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#5C4B82}
+.ps-slip dl{margin:0;display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:13px}.ps-slip dt{color:#6b6575}.ps-slip dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+.ps-slip dt.tot,.ps-slip dd.tot{font-weight:800;color:#2A2430;border-top:1px solid #ECE7E1;padding-top:4px}.ps-slip .muted{font-size:12.5px}
+@media(max-width:900px){.ps-slip{grid-template-columns:1fr}}
+@media print{.fin-tabs,.fin-f,.sidebar,header,nav{display:none!important}.ps-det{display:table-row!important}.ps-det[hidden]{display:table-row!important}}
+</style>
+<div class="card" style="padding:4px 6px;overflow:auto"><table class="ps-t"><thead><tr><th>Співробітник</th><th>Ставка /<br>оклад</th><th>Комісійні</th><th>Премії й<br>доплати</th><th class="sep">Нараховано</th>
+  <th>Податки</th><th>Утримання</th><th class="sep">До виплати</th><th>Виплачено<br>на руки</th><th class="sep">Борг на<br>початок</th><th>Залишок</th></tr></thead><tbody>
+{% for r in v.rows if show_all or not r.empty %}{% set d = r.doctor %}
+<tr class="main {{ 'empty' if r.empty }}" onclick="var n=this.nextElementSibling;n.hidden=!n.hidden"><td class="nm"><b>{{ d.name }}</b><small>{{ d.position or '' }}{% if r.plan %} · {{ r.plan }}{% endif %}</small></td>
+  <td>{{ r.base|uah if r.base else '—' }}</td><td>{{ r.comm|uah if r.comm else '—' }}</td><td class="{{ 'pos' if r.bonus > 0 }}">{{ r.bonus|uah if r.bonus else '—' }}</td>
+  <td class="sep gr">{{ r.gross|uah }}</td><td class="{{ 'neg' if r.tax }}">{{ r.tax|uah if r.tax else '—' }}</td><td class="{{ 'neg' if r.hold }}">{{ r.hold|uah if r.hold else '—' }}</td>
+  <td class="sep gr">{{ r.net|uah }}</td><td>{{ r.paid|uah if r.paid else '—' }}</td><td class="sep">{{ r.opening|uah if r.opening else '—' }}</td>
+  <td><span class="due {{ 'bad' if r.closing > 0.01 }}">{{ r.closing|uah }}</span></td></tr>
+<tr class="ps-det" hidden><td colspan="11"><div class="ps-slip">
+  <div><h4>Нараховано</h4><dl>
+    <dt>Ставка / оклад{% if r.days %} · змін {{ r.days }}{% endif %}</dt><dd>{{ r.base|uah }}</dd>
+    <dt>Комісійні з послуг{% if r.services %} (оборот {{ r.services|uah }}){% endif %}</dt><dd>{{ r.from_services|uah }}</dd>
+    <dt>Комісійні з товарів{% if r.products %} (оборот {{ r.products|uah }}){% endif %}</dt><dd>{{ r.from_products|uah }}</dd>
+    {% for x in r.adjs.bonus %}<dt>{{ x.article or 'Доплата' }}{% if x.comment %} · {{ x.comment }}{% endif %}</dt><dd class="pos">+{{ x.amount|uah }}</dd>{% endfor %}
+    <dt class="tot">Разом нараховано</dt><dd class="tot">{{ r.gross|uah }}</dd></dl></div>
+  <div><h4>Податки й утримання</h4><dl>
+    {% for x in r.adjs.tax %}<dt>{{ x.article }}{% if x.comment %} · {{ x.comment }}{% endif %}</dt><dd class="neg">{{ x.amount|uah }}</dd>{% endfor %}
+    {% for x in r.adjs.hold %}<dt>{{ x.article or 'Утримання' }}{% if x.comment %} · {{ x.comment }}{% endif %}</dt><dd class="neg">{{ x.amount|uah }}</dd>{% endfor %}
+    {% if not r.adjs.tax and not r.adjs.hold %}<dt class="muted">Немає</dt><dd></dd>{% endif %}
+    <dt class="tot">До виплати за місяць</dt><dd class="tot">{{ r.net|uah }}</dd></dl></div>
+  <div><h4>Виплачено на руки</h4><dl>
+    {% for p in r.pays %}<dt>{{ p.day|dt('%d.%m.%Y') }}{% if p.cashbox %} · {{ p.cashbox }}{% endif %}{% if p.comment %} · {{ p.comment }}{% endif %}</dt><dd>{{ (p.amount if p.kind == 'expense' else -p.amount)|uah }}</dd>{% endfor %}
+    {% if not r.pays %}<dt class="muted">Виплат ще немає</dt><dd></dd>{% endif %}
+    <dt class="tot">Разом виплачено</dt><dd class="tot">{{ r.paid|uah }}</dd>
+    {% if r.opening %}<dt>Борг на початок місяця</dt><dd>{{ r.opening|uah }}</dd>{% endif %}
+    <dt class="tot">Залишок до виплати</dt><dd class="tot {{ 'neg' if r.closing > 0.01 }}">{{ r.closing|uah }}</dd></dl></div>
+</div></td></tr>
+{% else %}<tr><td colspan="11" class="muted">За {{ month }} нарахувань і виплат немає.</td></tr>{% endfor %}
+</tbody><tfoot><tr><td>Разом</td><td>{{ t.base|uah }}</td><td>{{ t.comm|uah }}</td><td>{{ t.bonus|uah }}</td><td class="sep">{{ t.gross|uah }}</td><td>{{ t.tax|uah }}</td><td>{{ t.hold|uah }}</td>
+  <td class="sep">{{ t.net|uah }}</td><td>{{ t.paid|uah }}</td><td class="sep">{{ t.opening|uah }}</td><td>{{ t.closing|uah }}</td></tr></tfoot></table></div>
+<p class="small muted">Натисніть на рядок — відкриється розрахунковий лист співробітника. Премії, податки й утримання вносяться в «Взаєморозрахунки по з/п» кнопками «＋ Нарахувати» / «− Утримати»
+  зі статтею (статті — «Налаштування → Статті для нарахувань»; податки — статті зі словами «податки», «ПДФО», «ЄСВ», «військовий збір»). Виплати — «Виплатити» там само або фіноперація зі статтею зарплати.</p>
+{% endblock %}

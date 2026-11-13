@@ -90,7 +90,7 @@ def _call_who(calls) -> dict:
 templates.env.globals["call_who"] = _call_who
 FIN_TABS = [("/finance", "Огляд"), ("/sales", "Каса CRM"), ("/finance/ops", "Фіноперації"), ("/finance/accruals", "Нарахування зарплати"),
             ("/finance/payroll", "ЗП за місяць"),
-            ("/finance/settle", "Взаєморозрахунки по з/п"), ("/finance/day", "Продажі за день"), ("/finance/sales", "Продажі"),
+            ("/finance/settle", "Взаєморозрахунки по з/п"), ("/finance/payslips", "Розрахункові листи"), ("/finance/day", "Продажі за день"), ("/finance/sales", "Продажі"),
             ("/finance/balances", "Баланс пацієнтів"), ("/finance/bonuses", "Рух бонусів"), ("/payreq", "Рахунки на оплату"),
             ("/finance/calendar", "Платіжний календар"), ("/finance/fop-schedule", "Графік ФОПів"),
             ("/finance/pricing", "Планування ціни реалізації"), ("/finance/service-pricing", "Планування ціни послуг"),
@@ -11409,6 +11409,18 @@ def finance_accrual_delete(aid: int, del_password: str = Form(""), user: User = 
     db.commit()
     audit(db, "fin.payroll_doc_delete", user=user, doc=aid, total=doc.total)
     return RedirectResponse(_with_msg("/finance/accruals", f"Нарахування №{aid} видалено"), 303)
+
+
+@app.get("/finance/payslips", response_class=HTMLResponse)
+def finance_payslips(request: Request, m: str = "", xlsx: str = "", all: str = "", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Розрахункові листи: нараховано, премії, податки, утримання, до виплати й виплачено на руки за місяць."""
+    from .services import payslips as ps
+    month = _month(m)
+    v = ps.build(db, month)
+    if xlsx:
+        audit(db, "reports.export", user=user, report="payslips", month=month)
+        return Response(ps.to_xlsx(v), media_type=XLSX, headers={"Content-Disposition": f'attachment; filename="payslips-{month}.xlsx"'})
+    return render(request, "fin_payslips.html", nav="finance", v=v, month=month, months=_month_list(), show_all=bool(all))
 
 
 @app.get("/finance/settle", response_class=HTMLResponse)
