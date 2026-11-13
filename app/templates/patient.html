@@ -193,7 +193,7 @@
       <label>Улюблений лікар (з CleverBox)<input name="preferred_doctor" value="{{ p.preferred_doctor or '' }}"></label>
       <label>Джерело звернення<input name="source" value="{{ p.source or '' }}"></label></div>
     <div class="pe-s">У клініці</div>
-    <div class="pe-g3">{% if user.role != 'doctor' %}<label>Лікар пацієнта<select name="doctor_id"><option value="">—</option>{% for d in doctors %}<option value="{{ d.id }}" {{ 'selected' if p.doctor_id==d.id }}>{{ d.name }}</option>{% endfor %}</select></label>{% endif %}
+    <div class="pe-g3">{% if user.role != 'doctor' %}<label>Лікар пацієнта<select name="doctor_id"><option value="">—</option>{% if p.doctor_id and p.doctor_id not in plan_doc_ids %}<option value="{{ p.doctor_id }}" selected>{{ p.doctor.name if p.doctor else '—' }}</option>{% endif %}{% for d in doctors %}<option value="{{ d.id }}" {{ 'selected' if p.doctor_id==d.id }}>{{ d.name }}</option>{% endfor %}</select></label>{% endif %}
       <label>ID у CleverBox<input name="cleverbox_id" value="{{ p.cleverbox_id or '' }}" inputmode="numeric"></label>
       <label>Баланс, ₴<input name="cb_balance" value="{{ p.cb_balance if p.cb_balance is not none else '' }}" inputmode="decimal"></label>
       <label>Бонуси, ₴<input name="cb_bonus" value="{{ p.cb_bonus if p.cb_bonus is not none else '' }}" inputmode="decimal"></label></div>
@@ -393,7 +393,7 @@
     <div class="row between" style="margin-top:12px">
       <div class="row small"><span class="muted">Статус плану</span>
         <select name="status">{% for s,l in [('active','активний'),('completed','завершений'),('cancelled','скасований')] %}<option value="{{ s }}" {{ 'selected' if pl.status==s }}>{{ l }}</option>{% endfor %}</select>
-        {% if user.role != 'doctor' %}<span class="muted">Лікар</span><select name="doctor_id">{% for d in doctors %}<option value="{{ d.id }}" {{ 'selected' if pl.doctor_id==d.id }}>{{ d.name }}</option>{% endfor %}</select>{% endif %}</div>
+        {% if user.role != 'doctor' %}<span class="muted">Лікар</span><select name="doctor_id">{% if pl.doctor_id and pl.doctor_id not in plan_doc_ids %}<option value="{{ pl.doctor_id }}" selected>{{ pl.doctor.name if pl.doctor else '—' }}</option>{% endif %}{% for d in doctors %}<option value="{{ d.id }}" {{ 'selected' if pl.doctor_id==d.id }}>{{ d.name }}</option>{% endfor %}</select>{% endif %}</div>
       <div class="row"><button class="btn">Зберегти зміни</button></div>
     </div>
   </form>

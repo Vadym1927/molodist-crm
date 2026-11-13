@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Лікарі бюті-планів · налаштування{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+<style>.gs{background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:16px 18px;max-width:760px}
+.dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 18px}.dl label{display:flex;gap:10px;align-items:center;padding:7px 0;border-top:1px solid #F0ECE6;font-size:14px}
+.dl input{width:18px;height:18px;accent-color:#3B3050;margin:0}.dl small{color:#8a8496}.off{opacity:.55}.mini{font-size:12.5px;color:#6b6575}
+@media(max-width:700px){.dl{grid-template-columns:1fr}}</style>
+<a class="btn ghost" href="/settings">‹ Налаштування</a>
+<h1>Лікарі бюті-планів</h1>
+{% if qp.get('msg') %}<div class="alert ok">{{ qp.get('msg') }}</div>{% endif %}
+<div class="gs"><form method="post" action="/settings/plan-doctors">
+  <p class="mini" style="margin-top:0">Позначте, хто показується у виборі «Лікар» у бюті-плані та «Лікар пацієнта» в картці.
+  {% if not custom %}Зараз список визначено автоматично — за посадою (лікар, дерматолог, косметолог…). Перевірте й збережіть.{% endif %}
+  Якщо в плані вже стоїть лікар не з цього списку, він лишається вибраним у цьому плані.</p>
+  <div class="dl">{% for d in docs %}<label class="{{ 'off' if not d.active }}"><input type="checkbox" name="d" value="{{ d.id }}" {{ 'checked' if d.id in sel }}>
+    <span>{{ d.name }}<br><small>{{ d.position or 'посада не вказана' }}{{ ' · не працює' if not d.active }}</small></span></label>{% endfor %}</div>
+  <div style="margin-top:14px"><button class="btn">Зберегти</button></div>
+</form></div>
+{% endblock %}

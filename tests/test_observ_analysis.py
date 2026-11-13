@@ -88,3 +88,18 @@ def _tg_ingest_flow(client):
     from app.services import tg_ingest
     with SessionLocal() as db:
         assert "-100555" in tg_ingest.enabled(db)
+
+
+def test_plan_doctors():
+    from app.models import Doctor
+    from app.services import plan_doctors as pdx
+    with SessionLocal() as db:
+        a = Doctor(name="Тест Лікар", position="Лікар-косметолог", active=True)
+        b = Doctor(name="Лабараторія X", position="", active=True)
+        c = Doctor(name="Адмін Y", position="Адміністратор", active=True)
+        db.add_all([a, b, c])
+        db.commit()
+        assert pdx.ids(db) == {a.id}
+        assert [d.name for d in pdx.options(db)] == ["Тест Лікар"]
+        pdx.save(db, [a.id, c.id])
+        assert pdx.ids(db) == {a.id, c.id}

@@ -1050,7 +1050,8 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
                   pscripts=_sc.for_patient(db, p, kind, user.name) if can(user, "message") else [],
                   avail=_msg.available_channels(p),
                   users=db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all(),
-                  doctors=db.scalars(select(Doctor).order_by(Doctor.name)).all(),
+                  doctors=(_pdocs := __import__("app.services.plan_doctors", fromlist=["x"]).options(db)),
+                  plan_doc_ids={d_.id for d_ in _pdocs},
                   photos=[f for f in p.files if f.kind == "photo"],
                   docs=[f for f in p.files if f.kind != "photo"], now=datetime.now(),
                   items=_ph_items, counts=_ph_counts, CATS=_pp.CATS,
@@ -7107,6 +7108,7 @@ SETTINGS_BLOCKS = [
         ('Категорії спеціалістів', 'Ціни за категоріями: інші ціни на послуги для головного лікаря, топ-лікаря, стажера', '/settings/price-cats', 'finance', 'cmarket/customprice/main'),
         ('Статті для нарахувань', 'Премії, штрафи, лікарняні, податки, відпускні — для коригувань зарплати', '/settings/accrual-articles', 'finance', 'dirs/stype'),
         ('Бонус за продаж косметики', 'Відсоток лікарям з продажу товарів: без знижки, зі знижкою, поріг ціни; свої % для лікарів, брендів і товарів', '/settings/cosmetics-pct', 'finance', None),
+        ('Лікарі бюті-планів', 'Хто зʼявляється у виборі лікаря в бюті-плані та картці пацієнта — лише справжні лікарі', '/settings/plan-doctors', 'users', None),
         ('Telegram: файли з чатів', 'Робочі чати (консультації тощо): бюті-плани, аналізи OBSERV, консультативні висновки, документи й фото автоматично йдуть у картки пацієнтів', '/settings/tg-ingest', 'users', None),
         ('Сповіщення в Telegram', 'Бот для адміністраторів, лікарів, головного лікаря й власника: записи на день, нагадування по планах, ДН пацієнтів, задачі, підсумок дня / тижня / місяця — що й о котрій', '/settings/tg-notify', 'users', None),
         ('Застосунок для спеціаліста', 'Записи й нарахування у телефоні спеціаліста', 'dev', None, None),
@@ -7170,6 +7172,22 @@ SETTINGS_BLOCKS = [
         ('Зіставлення послуг', 'Позиції плану ↔ послуги CleverBox', '/mapping', 'mapping', None),
     ]),
 ]
+
+
+@app.get("/settings/plan-doctors", response_class=HTMLResponse)
+def plan_doctors_page(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import plan_doctors as pdx
+    docs = db.scalars(select(Doctor).order_by(Doctor.active.desc(), Doctor.name)).all()
+    return render(request, "settings_plan_doctors.html", nav="settings", docs=docs, sel=pdx.ids(db), custom=pdx.saved(db) is not None)
+
+
+@app.post("/settings/plan-doctors")
+async def plan_doctors_save(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import plan_doctors as pdx
+    f = await request.form()
+    pdx.save(db, [int(x) for x in f.getlist("d") if str(x).isdigit()])
+    audit(db, "settings.plan_doctors", user=user)
+    return RedirectResponse(_with_msg("/settings/plan-doctors", "Збережено"), 303)
 
 
 @app.get("/settings/tg-ingest", response_class=HTMLResponse)
