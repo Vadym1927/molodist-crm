@@ -76,6 +76,7 @@ deploy_to "$NEW"
 if healthy; then
   notify "✅ CRM оновлено: ${SUBJ} ($(git rev-parse --short HEAD))"
   docker image prune -f >/dev/null 2>&1 || true
+  docker builder prune -f --filter until=72h >/dev/null 2>&1 || true   # кеш збірки після кожного оновлення інакше росте на ГБ
   exit 0
 fi
 
