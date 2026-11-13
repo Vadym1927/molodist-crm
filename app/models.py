@@ -1862,3 +1862,23 @@ class AdsChange(Base):
     result: Mapped[str | None] = mapped_column(String(500))
     tg: Mapped[list | None] = mapped_column(JSON)                         # [[chat_id, message_id], …]
 
+
+
+class OpsTask(Base):
+    """Завдання для агента OpenClaw на сервері (канал «Claude / власник → OpenClaw» через API v1 /ops).
+    kind: check — лише перегляд (виконується одразу); change — зміна на сервері (спершу погодження власника в Telegram).
+    status: approval → pending → taken → done | error; rejected — власник відхилив."""
+    __tablename__ = "ops_tasks"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, index=True)
+    user_id: Mapped[int | None] = mapped_column(Integer)
+    title: Mapped[str] = mapped_column(String(200))
+    text: Mapped[str] = mapped_column(Text)
+    kind: Mapped[str] = mapped_column(String(10), default="check")
+    status: Mapped[str] = mapped_column(String(12), default="pending", index=True)
+    approved_by: Mapped[int | None] = mapped_column(Integer)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime)
+    taken_at: Mapped[datetime | None] = mapped_column(DateTime)
+    done_at: Mapped[datetime | None] = mapped_column(DateTime)
+    output: Mapped[str | None] = mapped_column(Text)
+    error: Mapped[str | None] = mapped_column(String(1000))

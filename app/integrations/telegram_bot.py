@@ -284,6 +284,32 @@ async def pay_callback(cb: CallbackQuery):
         pass
 
 
+@pay_router.callback_query(F.data.startswith("ops:"))
+async def ops_callback(cb: CallbackQuery):
+    """Погодження змін на сервері (завдання для OpenClaw): ops:ok:<id> | ops:no:<id> — лише власник."""
+    from ..services import ops_tasks, pay_requests as prq
+    from ..models import OpsTask, User
+    parts = (cb.data or "").split(":")
+    act, tid = (parts[1] if len(parts) > 1 else ""), (int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0)
+    with SessionLocal() as db:
+        if str(cb.from_user.id) not in prq.owner_tg_ids(db):
+            await cb.answer("Погоджує лише власник", show_alert=True)
+            return
+        u = db.scalar(select(User).where(User.telegram_chat_id == str(cb.from_user.id)))
+        t = db.get(OpsTask, tid)
+        if not t:
+            await cb.answer("Завдання не знайдено", show_alert=True)
+            return
+        changed = ops_tasks.decide(db, t, act == "ok", u.id if u else None)
+        note = ("✅ Погоджено — OpenClaw виконає протягом хвилини" if act == "ok" else "✖️ Відхилено") if changed else f"Уже: {ops_tasks.STATUS.get(t.status, t.status)}"
+        await cb.answer(note)
+        title = t.title
+    try:
+        await cb.message.edit_text(f"🛠 <b>{ops_tasks._h(title)}</b>\n{note}", parse_mode="HTML")
+    except Exception:  # noqa: BLE001
+        pass
+
+
 @pay_router.callback_query(F.data.startswith("ads:"))
 async def ads_callback(cb: CallbackQuery):
     """Погодження змін у Google Ads кнопками: ads:ok:<id> | ads:all:<id.id…> | ads:none:<id.id…>."""

@@ -3344,7 +3344,7 @@ def key_create(request: Request, name: str = Form(...), scopes: list[str] = Form
                user: User = Depends(require("api")), db: Session = Depends(db_dep)):
     raw, prefix, h = new_api_key()
     k = ApiKey(name=name.strip(), prefix=prefix, key_hash=h,
-               scopes=[s for s in scopes if s in ("read", "write", "medical", "bot", "calls", "invoices")] or ["read"], created_by=user.id)
+               scopes=[s for s in scopes if s in ("read", "write", "medical", "bot", "calls", "invoices", "ops")] or ["read"], created_by=user.id)
     db.add(k)
     db.commit()
     audit(db, "api_key.create", "api_key", k.id, user=user, name=k.name, scopes=k.scopes)
@@ -7108,6 +7108,7 @@ SETTINGS_BLOCKS = [
         ('Категорії спеціалістів', 'Ціни за категоріями: інші ціни на послуги для головного лікаря, топ-лікаря, стажера', '/settings/price-cats', 'finance', 'cmarket/customprice/main'),
         ('Статті для нарахувань', 'Премії, штрафи, лікарняні, податки, відпускні — для коригувань зарплати', '/settings/accrual-articles', 'finance', 'dirs/stype'),
         ('Бонус за продаж косметики', 'Відсоток лікарям з продажу товарів: без знижки, зі знижкою, поріг ціни; свої % для лікарів, брендів і товарів', '/settings/cosmetics-pct', 'finance', None),
+        ('Завдання для OpenClaw', 'Перевірки й зміни на сервері руками агента OpenClaw: завдання → вивід у CRM; зміни — лише після вашого погодження в Telegram', '/ops', 'users', None),
         ('Лікарі бюті-планів', 'Хто зʼявляється у виборі лікаря в бюті-плані та картці пацієнта — лише справжні лікарі', '/settings/plan-doctors', 'users', None),
         ('Telegram: файли з чатів', 'Робочі чати (консультації тощо): бюті-плани, аналізи OBSERV, консультативні висновки, документи й фото автоматично йдуть у картки пацієнтів', '/settings/tg-ingest', 'users', None),
         ('Сповіщення в Telegram', 'Бот для адміністраторів, лікарів, головного лікаря й власника: записи на день, нагадування по планах, ДН пацієнтів, задачі, підсумок дня / тижня / місяця — що й о котрій', '/settings/tg-notify', 'users', None),
@@ -7172,6 +7173,37 @@ SETTINGS_BLOCKS = [
         ('Зіставлення послуг', 'Позиції плану ↔ послуги CleverBox', '/mapping', 'mapping', None),
     ]),
 ]
+
+
+@app.get("/ops", response_class=HTMLResponse)
+def ops_page(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import ops_tasks
+    return render(request, "ops.html", nav="settings", tasks=ops_tasks.recent(db), KINDS=ops_tasks.KINDS, STATUS=ops_tasks.STATUS)
+
+
+@app.get("/ops/{tid:int}.json")
+def ops_task_json(tid: int, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .models import OpsTask
+    t = db.get(OpsTask, tid) or (_ for _ in ()).throw(HTTPException(404))
+    return {"id": t.id, "title": t.title, "kind": t.kind, "status": t.status, "output": t.output, "error": t.error,
+            "done_at": t.done_at.isoformat(timespec="seconds") if t.done_at else None}
+
+
+@app.post("/ops")
+async def ops_create(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import ops_tasks
+    f = await request.form()
+    if f.get("cancel"):
+        from .models import OpsTask
+        t = db.get(OpsTask, int(f.get("cancel") or 0))
+        if t and t.status in ("approval", "pending"):
+            t.status = "rejected"
+            db.commit()
+        return RedirectResponse(_with_msg("/ops", "Скасовано"), 303)
+    t = ops_tasks.create(db, str(f.get("title") or ""), str(f.get("text") or ""), str(f.get("kind") or "check"), user.id)
+    audit(db, "ops.create", "ops_task", t.id, user=user, kind=t.kind)
+    msg = "Завдання в черзі — OpenClaw забере протягом хвилини" if t.kind == "check" else "Надіслано вам у Telegram на погодження"
+    return RedirectResponse(_with_msg("/ops", msg) + f"#t{t.id}", 303)
 
 
 @app.get("/settings/plan-doctors", response_class=HTMLResponse)

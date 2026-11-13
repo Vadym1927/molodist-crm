@@ -493,6 +493,33 @@ def call_ai_result(cid: int, body: dict, key: ApiKey = Depends(CALLS), db: Sessi
     return {"ok": True, "id": c.id, "ai_score": c.ai_score}
 
 
+# ---------------- завдання для агента OpenClaw на сервері ----------------
+OPS = scope("ops")
+
+
+@router.get("/ops/pending", summary="Завдання для агента на сервері (позначаються як взяті) + правила виконання")
+def ops_pending(limit: int = 5, key: ApiKey = Depends(OPS), db: Session = Depends(db_dep)):
+    from .services import ops_tasks
+    rows = ops_tasks.pending(db, limit)
+    return {"rules": ops_tasks.RULES, "answer_format": {"output": "вивід команд як є", "exit_code": 0, "error": "або чому не виконано"},
+            "tasks": [ops_tasks.as_json(t) for t in rows]}
+
+
+@router.post("/ops/{tid}/result", summary="Результат завдання: {output, exit_code} або {error}")
+def ops_result(tid: int, body: dict, key: ApiKey = Depends(OPS), db: Session = Depends(db_dep)):
+    from .models import OpsTask
+    from .services import ops_tasks
+    t = db.get(OpsTask, tid) or (_ for _ in ()).throw(HTTPException(404))
+    if not (body.get("output") or body.get("error")):
+        raise HTTPException(422, "Потрібне output або error")
+    try:
+        ops_tasks.result(db, t, body.get("output"), body.get("error"), body.get("exit_code"))
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+    audit(db, "ops.result", "ops_task", t.id, key=key, status=t.status)
+    return {"ok": True, "id": t.id, "status": t.status}
+
+
 # ---------------- розпізнавання накладних (агент OpenClaw на VPS) ----------------
 INVOICES = scope("invoices")
 

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Завдання для OpenClaw{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+<style>.gs{background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:16px 18px;margin-bottom:14px}
+.of{display:grid;gap:10px}.of .r{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:10px}.of textarea{min-height:110px;font:13px ui-monospace,Menlo,monospace}
+.ot{border:1px solid #ECE7E1;border-radius:12px;margin-bottom:10px;background:#FBFAF8}.ot>summary{padding:10px 14px;cursor:pointer;display:flex;gap:10px;align-items:center;justify-content:space-between}
+.ot .b{padding:0 14px 12px}.ot pre{white-space:pre-wrap;word-break:break-word;background:#2A2430;color:#F7F4F0;border-radius:10px;padding:10px 12px;font-size:12.5px;max-height:520px;overflow:auto}
+.ot pre.cmd{background:#F4F1FA;color:#2A2430}.st{border-radius:999px;padding:3px 10px;font:700 11.5px var(--sans);white-space:nowrap}
+.st.done{background:#E3F1E6;color:#2E7D4F}.st.error,.st.rejected{background:#F8E1DE;color:#B23B2E}.st.approval{background:#FFF3D6;color:#7a5600}.st.pending,.st.taken{background:#E4DEEF;color:#3B3050}
+.mini{font-size:12.5px;color:#6b6575}@media(max-width:700px){.of .r{grid-template-columns:1fr}}</style>
+<a class="btn ghost" href="/settings">‹ Налаштування</a>
+<h1>Завдання для OpenClaw</h1>
+{% if qp.get('msg') %}<div class="alert ok">{{ qp.get('msg') }}</div>{% endif %}
+<div class="gs"><form method="post" action="/ops" class="of">
+  <div class="mini">Агент OpenClaw на сервері забирає завдання щохвилини, виконує й повертає вивід сюди. <b>Перевірка</b> — лише перегляд, виконується одразу.
+  <b>Зміна</b> (видалення, перезапуск, налаштування) — спершу приходить вам у Telegram із кнопками «Погодити / Відхилити». Секрети у виводі CRM приховує.</div>
+  <div class="r"><input name="title" placeholder="Назва (напр. «Що займає місце в /home/sgadmin»)" required>
+    <select name="kind">{% for k, l in KINDS.items() %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></div>
+  <textarea name="text" placeholder="Що виконати — команди або опис" required></textarea>
+  <div><button class="btn">Поставити завдання</button></div>
+</form></div>
+{% for t in tasks %}<details class="ot" id="t{{ t.id }}" {{ 'open' if loop.index <= 3 }}>
+  <summary><span><b>#{{ t.id }} {{ t.title }}</b> <span class="mini">· {{ 'зміна' if t.kind == 'change' else 'перевірка' }} · {{ t.created_at.strftime('%d.%m %H:%M') }}{{ (' → ' ~ t.done_at.strftime('%H:%M')) if t.done_at }}</span></span>
+    <span class="st {{ t.status }}">{{ STATUS.get(t.status, t.status) }}</span></summary>
+  <div class="b"><pre class="cmd">{{ t.text }}</pre>
+    {% if t.output %}<pre>{{ t.output }}</pre>{% endif %}{% if t.error %}<div class="alert err">{{ t.error }}</div>{% endif %}
+    {% if t.status in ('approval', 'pending') %}<form method="post" action="/ops" style="margin:0"><button class="btn ghost" name="cancel" value="{{ t.id }}" style="font-size:12.5px;padding:4px 12px">Скасувати</button></form>{% endif %}
+  </div></details>{% else %}<div class="mini">Завдань ще немає.</div>{% endfor %}
+{% endblock %}
