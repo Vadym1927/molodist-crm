@@ -10603,12 +10603,29 @@ async def paycal_item_act(iid: int, act: str, request: Request, user: User = Dep
             return RedirectResponse(_with_msg(f"/finance/calendar?y={d.year}&m={d.month}", f"Перенесено: {it.name} → {d:%d.%m.%Y}"), 303)
         return RedirectResponse(_with_msg(back, f"Перенесено: {it.name} → {d:%d.%m}"), 303)
     elif act == "edit":
+        if it.status not in ("planned", "approved"):
+            return RedirectResponse(_with_msg(back, "Змінити можна лише неоплачений платіж — або зробіть копію", err=True), 303)
+        nm = " ".join(str(f.get("name") or "").split())[:200]
+        if nm:
+            it.name = nm
         it.amount = _num(str(f.get("amount") or ""))
         d = _day(str(f.get("due") or ""))
         if d:
             it.due = d
         it.note = str(f.get("note") or "").strip()[:300] or None
         msg = f"Змінено: {it.name}"
+    elif act == "copy":
+        d = _day(str(f.get("due") or "")) or it.due
+        nm = " ".join(str(f.get("name") or "").split())[:200] or it.name
+        amt = _num(str(f.get("amount") or "")) if str(f.get("amount") or "").strip() else (it.amount if it.amount is not None else it.amount_fact)
+        cp = PayItem(due=d, name=nm, group=it.group, article=it.article, cashbox=it.cashbox, counterparty=it.counterparty, amount=amt,
+                     status="planned" if it.status == "planned" else "approved", source="manual",
+                     note=(str(f.get("note") or "").strip()[:300] if "note" in f else it.note) or None, created_by=user.id)
+        db.add(cp)
+        db.commit()
+        audit(db, "paycal.copy", "pay_item", cp.id, user=user, src=it.id, name=cp.name, amount=cp.amount, due=str(cp.due))
+        dest = f"/finance/calendar?y={d.year}&m={d.month}" if (d.year, d.month) != (it.due.year, it.due.month) else back
+        return RedirectResponse(_with_msg(dest, f"Скопійовано: {cp.name} → {d:%d.%m.%Y}"), 303)
     elif act == "delete":
         if it.status == "paid" and it.finop_id:
             return RedirectResponse(_with_msg(back, "Оплачений платіж не видаляється", err=True), 303)

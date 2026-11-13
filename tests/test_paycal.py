@@ -177,3 +177,31 @@ def test_dynamic_salary_and_setup_v2():
         tab = next(r for r in ls.build(db, today=date(2026, 11, 9))["rows"] if r["group"] == "tablet")
         assert [s["amount"] for s in tab["sched"] if s["status"] != "paid"] == [6500, 6500, 6500, 6500, 4000]
         assert tab["sched"][0]["due"] == date(2026, 11, 15)
+
+
+def test_edit_name_and_copy():
+    settings.admin_password = "owner-pass-1"
+    today = date.today()
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        with SessionLocal() as db:
+            it = PayItem(due=today, name="Оренда тест", group="opex", article="Оренда", cashbox="Готівка", amount=1000, status="approved", source="plan", note="н")
+            paid = PayItem(due=today, name="Оплачений тест", group="opex", amount=500, amount_fact=520, status="paid", source="manual")
+            db.add_all([it, paid]); db.commit()
+            iid, pid = it.id, paid.id
+        assert c.post(f"/finance/calendar/item/{iid}/edit", data={"name": "  Оренда  кабінету ", "amount": "1200", "due": today.isoformat(), "note": ""},
+                      follow_redirects=False).status_code == 303
+        nxt = today + timedelta(days=40)
+        assert c.post(f"/finance/calendar/item/{iid}/copy", data={"name": "Оренда кабінету (грудень)", "amount": "1300", "due": nxt.isoformat(), "note": "копія"},
+                      follow_redirects=False).status_code == 303
+        c.post(f"/finance/calendar/item/{pid}/copy", data={"due": today.isoformat()})                       # копія оплаченого — як новий план
+        c.post(f"/finance/calendar/item/{pid}/edit", data={"name": "Зламати", "amount": "1", "due": today.isoformat()})   # оплачений не редагується
+        with SessionLocal() as db:
+            assert db.get(PayItem, iid).name == "Оренда кабінету" and db.get(PayItem, iid).amount == 1200
+            cp = db.query(PayItem).filter(PayItem.name == "Оренда кабінету (грудень)").one()
+            assert cp.due == nxt and cp.amount == 1300 and cp.article == "Оренда" and cp.cashbox == "Готівка" and cp.status == "approved" and cp.source == "manual" and cp.plan_id is None
+            cp2 = db.query(PayItem).filter(PayItem.name == "Оплачений тест", PayItem.id != pid).one()
+            assert cp2.status == "approved" and cp2.amount == 500 and cp2.finop_id is None
+            assert db.get(PayItem, pid).name == "Оплачений тест"
+        t = c.get("/finance/calendar").text
+        assert "⧉" in t and 'id="edit-name"' in t

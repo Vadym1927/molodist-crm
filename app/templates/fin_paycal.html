@@ -101,8 +101,9 @@ dialog.cs-d{border:0;border-radius:22px;padding:0;box-shadow:0 30px 80px -30px r
     <td class="r"><div class="act">
       {% if i.status == 'planned' %}<form method="post" action="/finance/calendar/item/{{ i.id }}/approve"><button class="btn ghost" title="Дозволити оплату">✓ Погодити</button></form>{% endif %}
       {% if i.status in ('planned', 'approved') %}<button class="btn" onclick="payDlg({{ i.id }}, {{ i.amount or 0 }}, '{{ (i.cashbox or '')|e }}', '{{ i.name|e }}')">Оплачено</button>
-        <button class="btn ghost" onclick="editDlg({{ i.id }}, {{ i.amount or 0 }}, '{{ i.due.isoformat() }}', '{{ (i.note or '')|e }}')">✎</button>
+        <button class="btn ghost" title="Змінити назву, суму, дату" onclick="editDlg({{ i.id }}, {{ i.amount or 0 }}, '{{ i.due.isoformat() }}', '{{ (i.note or '')|e }}', '{{ i.name|e }}', false)">✎</button>
         <form method="post" action="/finance/calendar/item/{{ i.id }}/skip" onsubmit="return confirm('Пропустити цей платіж у цьому місяці?')"><button class="btn ghost" title="Пропустити">✕</button></form>{% endif %}
+      <button class="btn ghost" title="Зробити копію (інша дата, назва, сума)" onclick="editDlg({{ i.id }}, {{ i.amount or i.amount_fact or 0 }}, '{{ i.due.isoformat() }}', '{{ (i.note or '')|e }}', '{{ i.name|e }}', true)">⧉</button>
       {% if i.status in ('paid', 'skipped') and not (i.ref and i.ref.startswith('payreq:')) %}<form method="post" action="/finance/calendar/item/{{ i.id }}/reopen"><button class="btn ghost" title="Повернути в план">↺</button></form>{% endif %}
     </div></td></tr>
   {%- endmacro %}
@@ -168,12 +169,14 @@ dialog.cs-d{border:0;border-radius:22px;padding:0;box-shadow:0 30px 80px -30px r
     <div style="grid-column:span 3;display:flex;justify-content:space-between;gap:8px;align-items:center"><span class="mini">Створиться витрата в журналі фіноперацій за статтею платежу.</span><button class="btn">Записати оплату</button></div>
   </form></dialog>
 
-<dialog class="cs-d" id="dlg-edit"><div class="cs-dh"><h3>Змінити платіж</h3><button class="cs-x" onclick="this.closest('dialog').close()">×</button></div>
+<dialog class="cs-d" id="dlg-edit"><div class="cs-dh"><h3 id="edit-title">Змінити платіж</h3><button class="cs-x" onclick="this.closest('dialog').close()">×</button></div>
   <form method="post" id="edit-form" class="frm">
+    <label style="grid-column:span 3">Назва<input name="name" id="edit-name" maxlength="200" required></label>
     <label>Сума план, ₴<input name="amount" id="edit-amount" inputmode="decimal"></label>
     <label>Дата<input type="date" name="due" id="edit-due" required></label>
     <label>Примітка<input name="note" id="edit-note" maxlength="300"></label>
-    <div style="grid-column:span 3;display:flex;justify-content:flex-end;gap:8px"><button class="btn">Зберегти</button></div>
+    <div style="grid-column:span 3;display:flex;justify-content:flex-end;gap:8px">
+      <button class="btn ghost" type="submit" id="edit-copy" formaction="">⧉ Створити копію</button><button class="btn" id="edit-save">Зберегти</button></div>
   </form></dialog>
 
 <dialog class="cs-d" id="dlg-plans" style="width:min(1100px,97vw)"><div class="cs-dh"><h3>Регулярні платежі</h3><button class="cs-x" onclick="this.closest('dialog').close()">×</button></div>
@@ -217,6 +220,9 @@ document.querySelectorAll('.wk[data-week]').forEach(function(w){w.addEventListen
  w.addEventListener('drop',function(e){e.preventDefault();w.classList.remove('drop');if(!drag)return;const old=new Date(drag.dataset.due+'T12:00:00');const ws=new Date(w.dataset.week+'T12:00:00');const wd=(old.getDay()+6)%7;ws.setDate(ws.getDate()+wd);const iso=ws.toISOString().slice(0,10);if(iso!==drag.dataset.due)pcMove(drag.dataset.id,iso)})});
 })();
 function payDlg(id, amt, box, name){const d=document.getElementById('dlg-pay');document.getElementById('pay-form').action='/finance/calendar/item/'+id+'/pay';document.getElementById('pay-amount').value=amt||'';document.getElementById('pay-title').textContent='Оплачено · '+name;const s=document.getElementById('pay-box');[...s.options].forEach(o=>o.selected=(o.value===box));d.showModal()}
-function editDlg(id, amt, due, note){const d=document.getElementById('dlg-edit');document.getElementById('edit-form').action='/finance/calendar/item/'+id+'/edit';document.getElementById('edit-amount').value=amt||'';document.getElementById('edit-due').value=due;document.getElementById('edit-note').value=note;d.showModal()}
+function editDlg(id, amt, due, note, name, copy){const d=document.getElementById('dlg-edit'),g=function(x){return document.getElementById(x)};
+  g('edit-form').action='/finance/calendar/item/'+id+'/'+(copy?'copy':'edit');g('edit-copy').setAttribute('formaction','/finance/calendar/item/'+id+'/copy');
+  g('edit-name').value=name||'';g('edit-amount').value=amt||'';g('edit-due').value=due;g('edit-note').value=note;
+  g('edit-title').textContent=copy?'Копія платежу':'Змінити платіж';g('edit-save').textContent=copy?'Створити копію':'Зберегти';g('edit-copy').hidden=!!copy;d.showModal()}
 </script>
 {% endblock %}
