@@ -551,17 +551,24 @@ def invoice_result(jid: int, body: dict, key: ApiKey = Depends(INVOICES), db: Se
         audit(db, "invoice.agent", "invoice_job", j.id, key=key, status=j.status, kind="price")
         return {"ok": True, "id": j.id, "status": j.status, "supplier_price": sp.id if sp else None,
                 "rows": sp.n_rows if sp else 0, "matched": sp.n_matched if sp else 0}
-    if j.kind in ("payreq", "receipt"):                      # рахунок на оплату / квитанція — формат pay_requests.PROMPT / RECEIPT_PROMPT
+    # A bank receipt may arrive with an opaque filename and be initially queued
+    # as a payment request. The recognition worker can identify it from the
+    # document itself. Honour that explicit classification before touching the
+    # PayRequest, so a completed payment can never become a new approval.
+    effective_kind = body.get("document_type") if body.get("document_type") in ("payreq", "receipt") else j.kind
+    if effective_kind in ("payreq", "receipt"):              # рахунок на оплату / квитанція — формат pay_requests.PROMPT / RECEIPT_PROMPT
         from .models import PayRequest
         from .services import pay_requests
         err = str(body["error"])[:500] if body.get("error") and not body.get("result") else None
         res = body.get("result") if isinstance(body.get("result"), dict) else (None if err else body)
         pr = db.get(PayRequest, j.ref_id) if j.ref_id else None
+        j.kind = effective_kind
         j.status, j.result, j.error, j.done_at = ("error" if err else "done"), res, err, datetime.now()
         db.commit()
         if pr:
+            pr.kind = "receipt" if effective_kind == "receipt" else pr.kind
             pay_requests.apply_agent(db, pr, res, err)
-        audit(db, "invoice.agent", "invoice_job", j.id, key=key, status=j.status, kind=j.kind)
+        audit(db, "invoice.agent", "invoice_job", j.id, key=key, status=j.status, kind=effective_kind)
         return {"ok": True, "id": j.id, "status": j.status, "pay_request": pr.id if pr else None}
     if body.get("error") and not body.get("result"):
         j.status, j.error = "error", str(body["error"])[:500]
