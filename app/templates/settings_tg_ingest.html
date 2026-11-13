@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Telegram: файли з чатів · налаштування{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+<style>.gs{background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:16px 18px;margin-bottom:14px;max-width:860px}.gs h2{margin:0 0 6px}
+.tc{display:grid;grid-template-columns:24px minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid #F0ECE6;font-size:14px}
+.tc input[type=checkbox]{width:18px;height:18px;accent-color:#3B3050}.tc small{color:#8a8496;display:block}.mini{font-size:12.5px;color:#6b6575}
+.add{display:grid;grid-template-columns:200px minmax(0,1fr);gap:10px;margin-top:10px}.add input{margin:0}
+@media(max-width:700px){.add{grid-template-columns:1fr}.tc{grid-template-columns:24px minmax(0,1fr)}}</style>
+<a class="btn ghost" href="/settings">‹ Налаштування</a>
+<h1>Telegram: файли з чатів</h1>
+{% if qp.get('msg') %}<div class="alert ok">{{ qp.get('msg') }}</div>{% endif %}
+<div class="gs">
+  <p class="mini" style="margin-top:0">Увімкніть робочі чати (напр. чат консультацій) — усе, що туди скидають, бот CRM автоматично кладе в картки пацієнтів:
+  бюті-плани OBSERV → план; аналізи шкіри OBSERV → документ із датою сесії; консультативні висновки та інші PDF, Word, Excel → «Документи»;
+  фото → «Фото». Пацієнта бот шукає за підписом до файлу, назвою файлу або текстом документа (ПІБ чи телефон).
+  Якщо не знайшов — відповідайте на файл у чаті: <b>/to Прізвище Ім'я</b>, або привʼяжіть у «Нерозібрані файли».</p>
+  <p class="mini"><b>Важливо:</b> бот має бути <b>адміністратором</b> чату — інакше Telegram не показує йому файли.
+  Щойно бота додали в чат або він побачив там файл, чат з'являється в списку нижче.</p>
+  <form method="post" action="/settings/tg-ingest">
+    {% for cid, x in cfg.chats.items() %}<div class="tc">
+      <input type="checkbox" name="on" value="{{ cid }}" {{ 'checked' if x.on }} id="c{{ loop.index }}">
+      <label for="c{{ loop.index }}"><b>{{ x.title or cid }}</b><small>ID {{ cid }}{{ (' · востаннє ' ~ x.seen.replace('T', ' ')) if x.seen }}{{ ' · з .env' if cid in env_ids }}</small></label>
+      <span class="pill {{ 'ok' if x.on or cid in env_ids else 'off' }}" style="font-size:12px">{{ 'приймає файли' if x.on or cid in env_ids else 'вимкнено' }}</span>
+      <button class="btn ghost" name="remove" value="{{ cid }}" style="padding:4px 10px;font-size:12px" onclick="return confirm('Прибрати чат зі списку?')">×</button>
+    </div>{% else %}<div class="mini" style="padding:8px 0">Чатів ще немає. Додайте бота CRM у робочий чат і зробіть адміністратором — чат з'явиться тут. Або впишіть ID вручну (команда /id у чаті).</div>{% endfor %}
+    <div class="add"><input name="add_id" placeholder="ID чату (напр. -1001234567890)"><input name="add_title" placeholder="Назва (необовʼязково)"></div>
+    <label class="mini" style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" name="reply" value="1" {{ 'checked' if cfg.reply }} style="width:auto">
+      Бот відповідає в чаті, куди поклав файл («📄 … → прикріплено до картки …»)</label>
+    <div style="margin-top:12px"><button class="btn">Зберегти</button></div>
+  </form>
+</div>
+{% endblock %}

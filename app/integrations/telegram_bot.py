@@ -326,9 +326,50 @@ async def pay_notify(bot: Bot, changed) -> None:
             pass
 
 
+def _work_chats() -> set[str]:
+    from ..services import tg_ingest
+    with SessionLocal() as db:
+        return tg_ingest.enabled(db)
+
+
 def allowed(msg: Message) -> bool:
     chats = settings.allowed_chats | ({settings.telegram_admin_chat_id} if settings.telegram_admin_chat_id else set())
-    return not chats or str(msg.chat.id) in chats
+    return not chats or str(msg.chat.id) in chats or str(msg.chat.id) in _work_chats()
+
+
+def _remember(msg: Message) -> None:
+    """Груповий чат, з якого бот поки не приймає файли, — запам'ятати, щоб власник увімкнув його в налаштуваннях."""
+    if msg.chat.type not in ("group", "supergroup"):
+        return
+    from ..services import tg_ingest, alerts
+    with SessionLocal() as db:
+        new = tg_ingest.seen(db, msg.chat.id, msg.chat.title)
+    if new:
+        alerts.send(f"📥 Бот CRM бачить файли в чаті «{msg.chat.title}». Щоб вони автоматично йшли в картки пацієнтів — "
+                    f"увімкніть чат: Налаштування → Telegram: файли з чатів.")
+
+
+def _quiet(msg: Message) -> bool:
+    """Не відповідати в робочому чаті (налаштування «відповіді бота»)."""
+    from ..services import tg_ingest
+    if str(msg.chat.id) not in _work_chats():
+        return False
+    with SessionLocal() as db:
+        return not tg_ingest.cfg(db).get("reply", True)
+
+
+async def _reply(msg: Message, text: str, **kw) -> None:
+    if not _quiet(msg):
+        await msg.reply(text, **kw)
+
+
+async def _tag_unattached(msg: Message, db, err) -> None:
+    fid = getattr(err, "file_id", None)
+    if fid and not getattr(err, "patient_id", None):
+        f = db.get(PatientFile, fid)
+        if f:
+            f.caption = (f.caption or "") + f" [tg_msg:{msg.message_id}]"
+            db.commit()
 
 
 async def _download(bot: Bot, file_id: str) -> bytes:
@@ -364,31 +405,56 @@ async def cmd_start(msg: Message):
                      "/plan Прізвище — статус плану\n/digest — нагадування зараз\n/id — ID чату")
 
 
+@router.my_chat_member()
+async def on_added(ev):
+    """Бота додали в групу — запам'ятати чат і сказати власнику, де його увімкнути."""
+    try:
+        if ev.chat.type in ("group", "supergroup") and ev.new_chat_member.status in ("member", "administrator"):
+            from ..services import tg_ingest, alerts
+            with SessionLocal() as db:
+                tg_ingest.seen(db, ev.chat.id, ev.chat.title)
+            alerts.send(f"🤖 Бота CRM додано в чат «{ev.chat.title}». Щоб файли з нього автоматично йшли в картки пацієнтів — "
+                        f"увімкніть чат: Налаштування → Telegram: файли з чатів."
+                        + ("" if ev.new_chat_member.status == "administrator" else
+                           " Зробіть бота адміністратором чату — інакше Telegram не показує йому файли."))
+    except Exception as e:  # noqa: BLE001
+        log.warning("my_chat_member: %s", e)
+
+
+DOC_EXT = (".pdf", ".doc", ".docx", ".odt", ".rtf", ".txt", ".xls", ".xlsx", ".heic", ".jpg", ".jpeg", ".png")
+
+
 @router.message(F.document)
 async def on_document(msg: Message, bot: Bot):
     if not allowed(msg):
-        return
+        return _remember(msg)
     doc = msg.document
     name = doc.file_name or "file"
+    work = str(msg.chat.id) in _work_chats()
     data = await _download(bot, doc.file_id)
     with SessionLocal() as db:
         if name.lower().endswith(".pdf") or doc.mime_type == "application/pdf":
-            plan, _, err = ingest.ingest_pdf(db, data, name, str(msg.chat.id))
+            plan, _, err = ingest.ingest_pdf(db, data, name, str(msg.chat.id), caption=msg.caption, any_doc=work)
             if isinstance(err, ingest.Attached):
-                await msg.reply(str(err))
+                await _tag_unattached(msg, db, err)
+                await _reply(msg, str(err) + ("" if err.patient_id else ". Відповідайте на файл: /to Прізвище Ім'я"))
             elif err:
-                await msg.reply(f"⚠️ Файл збережено, але не розпізнано як бюті-план: {err}")
+                await _reply(msg, f"⚠️ Файл збережено, але не розпізнано як бюті-план: {err}")
             else:
-                await msg.reply(plan_summary(db, plan), disable_web_page_preview=True)
+                await _reply(msg, plan_summary(db, plan), disable_web_page_preview=True)
         elif (doc.mime_type or "").startswith("image/"):
             f = ingest.ingest_photo(db, data, name, msg.caption, str(msg.chat.id))
             await _photo_reply(msg, db, f)
+        elif work and name.lower().endswith(DOC_EXT):
+            err = ingest.ingest_doc(db, data, name, msg.caption, str(msg.chat.id))
+            await _tag_unattached(msg, db, err)
+            await _reply(msg, str(err) + ("" if err.patient_id else ". Відповідайте на файл: /to Прізвище Ім'я"))
 
 
 @router.message(F.photo)
 async def on_photo(msg: Message, bot: Bot):
     if not allowed(msg):
-        return
+        return _remember(msg)
     ph = msg.photo[-1]
     data = await _download(bot, ph.file_id)
     with SessionLocal() as db:
@@ -398,18 +464,18 @@ async def on_photo(msg: Message, bot: Bot):
 
 async def _photo_reply(msg: Message, db, f: PatientFile):
     if f.patient_id:
-        await msg.reply(f"📷 Додано в картку: {f.patient.full_name}")
+        await _reply(msg, f"📷 Додано в картку: {f.patient.full_name}")
     else:
-        await msg.reply("📷 Фото збережено, але пацієнта не визначено. Відповідайте на фото: /to Прізвище Ім'я "
-                        "(або привʼяжіть у веб-CRM → «Нерозібрані файли»).")
         f.caption = (f.caption or "") + f" [tg_msg:{msg.message_id}]"
         db.commit()
+        await _reply(msg, "📷 Фото збережено, але пацієнта не визначено. Відповідайте на фото: /to Прізвище Ім'я "
+                          "(або привʼяжіть у веб-CRM → «Нерозібрані файли»).")
 
 
 @router.message(Command("to"))
 async def cmd_to(msg: Message):
     if not allowed(msg) or not msg.reply_to_message:
-        return await msg.reply("Відповідайте командою /to Прізвище Ім'я на повідомлення з фото.")
+        return await msg.reply("Відповідайте командою /to Прізвище Ім'я на повідомлення з фото чи файлом.")
     query = (msg.text or "").split(maxsplit=1)[1:] or [""]
     with SessionLocal() as db:
         pat = ingest.guess_patient(db, query[0])
@@ -419,11 +485,11 @@ async def cmd_to(msg: Message):
         f = db.scalar(select(PatientFile).where(PatientFile.patient_id.is_(None),
                                                 PatientFile.caption.contains(tag)))
         if not f:
-            return await msg.reply("Не знайшов це фото серед нерозібраних.")
+            return await msg.reply("Не знайшов цей файл серед нерозібраних.")
         f.patient_id = pat.id
         f.caption = f.caption.replace(tag, "").strip() or None
         db.commit()
-        await msg.reply(f"📷 Привʼязано до: {pat.full_name}")
+        await msg.reply(f"{'📷' if f.kind == 'photo' else '📄'} Привʼязано до: {pat.full_name}")
 
 
 @router.message(Command("plan"))

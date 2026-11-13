@@ -49,3 +49,42 @@ def test_attach_analysis(tmp_path):
         r2 = ingest.attach_analysis(db, an, str(f2), "b.pdf")
         assert "вже є" in r2 and not f2.exists()
         assert db.query(PatientFile).filter_by(patient_id=p.id).count() == 1
+
+
+def test_attach_doc_by_caption_and_text(tmp_path, monkeypatch):
+    with SessionLocal() as db:
+        p = Patient(full_name="Висновченко Марта Іванівна", phone="+380671234567")
+        db.add(p)
+        db.commit()
+        f1 = tmp_path / "x.pdf"
+        f1.write_bytes(b"x")
+        r = ingest.attach_doc(db, str(f1), "Консультативний висновок.pdf", "Висновченко Марта", kind="pdf")
+        assert r.patient_id == p.id and "прикріплено" in r
+        monkeypatch.setattr(ingest, "_pdf_text", lambda path: "Консультативний висновок\nПацієнт: Марта Висновченко\nТел. 067 123 45 67")
+        f2 = tmp_path / "scan_001.pdf"
+        f2.write_bytes(b"x")
+        r2 = ingest.attach_doc(db, str(f2), "scan_001.pdf", None, kind="pdf")
+        assert r2.patient_id == p.id
+        r3 = ingest.ingest_doc(db, b"doc", "zzz.docx", "без імені")
+        assert r3.patient_id is None and r3.file_id
+
+
+def test_tg_ingest_settings():
+    from fastapi.testclient import TestClient
+    from app.config import settings
+    from app.main import app
+    settings.admin_password = "owner-pass-1"
+    with TestClient(app) as client:
+        client.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        _tg_ingest_flow(client)
+
+
+def _tg_ingest_flow(client):
+    r = client.get("/settings/tg-ingest")
+    import re
+    assert r.status_code == 200 and "файли з чатів" in r.text, re.findall(r"<title>.*?</title>", r.text)
+    r = client.post("/settings/tg-ingest", data={"add_id": "-100555", "add_title": "Консультації", "reply": "1"}, follow_redirects=False)
+    assert r.status_code == 303
+    from app.services import tg_ingest
+    with SessionLocal() as db:
+        assert "-100555" in tg_ingest.enabled(db)

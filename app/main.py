@@ -7107,6 +7107,7 @@ SETTINGS_BLOCKS = [
         ('Категорії спеціалістів', 'Ціни за категоріями: інші ціни на послуги для головного лікаря, топ-лікаря, стажера', '/settings/price-cats', 'finance', 'cmarket/customprice/main'),
         ('Статті для нарахувань', 'Премії, штрафи, лікарняні, податки, відпускні — для коригувань зарплати', '/settings/accrual-articles', 'finance', 'dirs/stype'),
         ('Бонус за продаж косметики', 'Відсоток лікарям з продажу товарів: без знижки, зі знижкою, поріг ціни; свої % для лікарів, брендів і товарів', '/settings/cosmetics-pct', 'finance', None),
+        ('Telegram: файли з чатів', 'Робочі чати (консультації тощо): бюті-плани, аналізи OBSERV, консультативні висновки, документи й фото автоматично йдуть у картки пацієнтів', '/settings/tg-ingest', 'users', None),
         ('Сповіщення в Telegram', 'Бот для адміністраторів, лікарів, головного лікаря й власника: записи на день, нагадування по планах, ДН пацієнтів, задачі, підсумок дня / тижня / місяця — що й о котрій', '/settings/tg-notify', 'users', None),
         ('Застосунок для спеціаліста', 'Записи й нарахування у телефоні спеціаліста', 'dev', None, None),
     ]),
@@ -7169,6 +7170,25 @@ SETTINGS_BLOCKS = [
         ('Зіставлення послуг', 'Позиції плану ↔ послуги CleverBox', '/mapping', 'mapping', None),
     ]),
 ]
+
+
+@app.get("/settings/tg-ingest", response_class=HTMLResponse)
+def tg_ingest_page(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import tg_ingest
+    return render(request, "settings_tg_ingest.html", nav="settings", cfg=tg_ingest.cfg(db), env_ids=settings.allowed_chats)
+
+
+@app.post("/settings/tg-ingest")
+async def tg_ingest_save(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import tg_ingest
+    f = await request.form()
+    if f.get("remove"):
+        tg_ingest.remove(db, str(f.get("remove")))
+        audit(db, "settings.tg_ingest_remove", user=user, chat=str(f.get("remove")))
+        return RedirectResponse(_with_msg("/settings/tg-ingest", "Чат прибрано зі списку"), 303)
+    tg_ingest.set_chats(db, [str(x) for x in f.getlist("on")], bool(f.get("reply")), str(f.get("add_id") or ""), str(f.get("add_title") or ""))
+    audit(db, "settings.tg_ingest", user=user)
+    return RedirectResponse(_with_msg("/settings/tg-ingest", "Збережено"), 303)
 
 
 @app.get("/settings/tg-notify", response_class=HTMLResponse)
