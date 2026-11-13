@@ -198,6 +198,9 @@ def create_plan(body: PlanIn, key: ApiKey = Depends(WRITE), db: Session = Depend
 @router.post("/plans/upload", summary="Завантажити PDF бюті-плану Observ")
 async def upload_plan(file: UploadFile = File(...), key: ApiKey = Depends(WRITE), db: Session = Depends(db_dep)):
     plan, _, err = ingest.ingest_pdf(db, await file.read(), file.filename or "plan.pdf")
+    if isinstance(err, ingest.Attached) and err.patient_id:
+        audit(db, "api.doc.attach", "patient", err.patient_id, key=key, file=file.filename)
+        return {"attached": True, "patient_id": err.patient_id, "message": str(err)}
     if err:
         raise HTTPException(422, err)
     audit(db, "api.plan.upload", "plan", plan.id, key=key, file=file.filename)

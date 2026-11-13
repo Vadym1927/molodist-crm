@@ -374,7 +374,9 @@ async def on_document(msg: Message, bot: Bot):
     with SessionLocal() as db:
         if name.lower().endswith(".pdf") or doc.mime_type == "application/pdf":
             plan, _, err = ingest.ingest_pdf(db, data, name, str(msg.chat.id))
-            if err:
+            if isinstance(err, ingest.Attached):
+                await msg.reply(str(err))
+            elif err:
                 await msg.reply(f"⚠️ Файл збережено, але не розпізнано як бюті-план: {err}")
             else:
                 await msg.reply(plan_summary(db, plan), disable_web_page_preview=True)

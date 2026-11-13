@@ -112,6 +112,8 @@
 .sw.on{background:#3B3050}.sw.on:after{left:23px}
 .bp0{display:grid;grid-template-columns:48px 1fr;gap:12px;align-items:start}.bp0 .ic{font-size:30px;color:#5C4B82}
 .pf3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.pf3 a{display:block;text-decoration:none;color:#5d5869;font-size:12.5px;text-align:center}
+.pf3 .doc{display:flex!important;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#5C4B82;background:#F4F1FA!important}.pf3 .doc b{font:700 12px var(--sans);letter-spacing:.06em}
+.pf3 .cap{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pf3 img,.pf3 .doc{width:100%;aspect-ratio:1/1.05;object-fit:cover;border-radius:12px;display:block;background:#F7F4F0;margin-bottom:4px}
 .pr2{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:14px}.pr2>div+div{border-left:1px solid #F1EDE8;padding-left:14px}
 .pr2 .kv{display:grid;grid-template-columns:20px 64px minmax(0,1fr);gap:6px;align-items:center;padding:6px 0;font-size:13.5px}.pr2 .kv .i{color:#5d5869}.pr2 .kv span{color:#5d5869}.pr2 .kv b{font-weight:600;overflow-wrap:anywhere;white-space:nowrap}.pr2 .kv b.no,.pr2 .kv b:not(.ph){white-space:normal}
@@ -145,14 +147,8 @@
       {% if p.marketing_opt_out %}<span class="pill bad">відписана від розсилок</span>{% endif %}</div>{% endif %}
     <div class="pc-meta">
       <span><span class="ic">📞</span><b>{{ p.phone or 'телефон не вказано' }}</b>{% if p.phone %} <button type="button" class="pc-cp" onclick="navigator.clipboard.writeText('{{ p.phone }}');this.textContent='✓'" title="Копіювати номер">⧉</button>{% endif %}</span>
-      {% if p.birthday %}<span>· {{ page_age }} {{ 'рік' if page_age % 10 == 1 and page_age % 100 != 11 else ('роки' if page_age % 10 in (2,3,4) and page_age % 100 not in (12,13,14) else 'років') }} ({{ p.birthday|dt('%d.%m.%Y') }})</span>{% endif %}
-    </div>
-    <div class="pc-meta" style="margin-top:6px">
-      <span><span class="ic">👤</span>Лікар: <b>{{ p.doctor.name if p.doctor else 'лікар не вказаний' }}</b></span>
-      <span>· {% if p.cleverbox_id %}CleverBox ID: #{{ p.cleverbox_id }}{% else %}<span class="pill warn">не привʼязано до CleverBox</span>{% endif %}</span>
-      {% if can(user,'patient_edit') %}<form method="post" action="/patients/{{ p.id }}/cb-sync" style="display:inline-flex;gap:4px;align-items:center;margin:0" onsubmit="this.querySelector('button').textContent='⏳ Синхронізую…'">
-        {% if not p.cleverbox_id %}<input name="cb_id" placeholder="ID у CB (необовʼязково)" inputmode="numeric" style="width:150px;height:30px;font-size:12.5px">{% endif %}
-        <button class="btn ghost" style="padding:3px 10px;font-size:12.5px">↻ {{ 'Оновити з CleverBox' if p.cleverbox_id else 'Синхронізувати з CleverBox' }}</button></form>{% endif %}
+      {% if p.birthday %}<span class="pc-sep"></span><span title="{{ p.birthday|dt('%d.%m.%Y') }}"><span class="ic">🎂</span>{{ page_age }} {{ 'рік' if page_age % 10 == 1 and page_age % 100 != 11 else ('роки' if page_age % 10 in (2,3,4) and page_age % 100 not in (12,13,14) else 'років') }}</span>{% endif %}
+      <span class="pc-sep"></span><span><span class="ic">👤</span>{{ p.doctor.name if p.doctor else 'Лікар не вказаний' }}</span>
     </div>
   </div>
   <div class="pc-act">
@@ -165,6 +161,9 @@
         <a href="/patients/{{ p.id }}/print" target="_blank">Друк / PDF</a>
         {% if p.files %}<a href="/patients/{{ p.id }}/files.zip">Файли ZIP</a>{% endif %}
         {% if can(user,'medical') %}<a href="/patients/{{ p.id }}/medcard">🩺 Медкартка</a>{% endif %}
+        {% if can(user,'patient_edit') %}<form method="post" action="/patients/{{ p.id }}/cb-sync" style="margin:0;border-top:1px solid #F1EDE8;padding-top:4px" onsubmit="this.querySelector('button').textContent='⏳ Синхронізую…'">
+          {% if not p.cleverbox_id %}<input name="cb_id" placeholder="ID у CleverBox (необовʼязково)" inputmode="numeric" style="margin:4px 8px;width:calc(100% - 16px);height:32px;font-size:12.5px">{% endif %}
+          <button>↻ {{ 'Оновити з CleverBox #' ~ p.cleverbox_id if p.cleverbox_id else 'Звʼязати з CleverBox' }}</button></form>{% endif %}
       </div></details>
     </div>
     <div class="row">
@@ -298,8 +297,10 @@
       </div>
       <div class="pcd"><div class="pcd-h"><h3 style="white-space:nowrap">Фото й документи <span class="muted" style="letter-spacing:0">{{ p.files|length }}</span></h3>
         <span class="row" style="gap:12px;font-size:13px">{% if can(user,'upload') %}<button type="button" class="lnk" onclick="ptGo('files')">＋ Додати</button>{% endif %}<button type="button" class="lnk" onclick="ptGo('files')">Відкрити галерею</button></span></div>
-        {% if photos %}<div class="pf3">{% for f in (photos|sort(attribute='id', reverse=True)|list)[:3] %}<a href="#t-files" onclick="ptGo('files');return false"><img src="/files/{{ f.id }}" loading="lazy" alt="">{{ (f.taken_at or f.created_at)|dt('%d.%m.%Y') }}</a>{% endfor %}</div>
-        {% else %}<div class="small muted">Фото ще немає</div>{% endif %}
+        {% set _lf = (p.files|sort(attribute='id', reverse=True)|list)[:3] %}
+        {% if _lf %}<div class="pf3">{% for f in _lf %}{% set _ext = (f.path or '').rsplit('.', 1)[-1]|lower %}{% set _img = f.kind == 'photo' or _ext in ('jpg','jpeg','png','webp','heic') %}
+          <a href="{{ '#t-files' if _img else '/files/' ~ f.id }}"{% if _img %} onclick="ptGo('files');return false"{% else %} target="_blank"{% endif %} title="{{ f.caption or '' }}">{% if _img %}<img src="/files/{{ f.id }}" loading="lazy" alt="">{% else %}<span class="doc"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg><b>{{ 'PDF' if _ext == 'pdf' else _ext|upper }}</b></span>{% endif %}<span class="cap">{{ (f.caption if f.caption and not _img and f.caption|length < 40 else ((f.taken_at or f.created_at)|dt('%d.%m.%Y'))) }}</span></a>{% endfor %}</div>
+        {% else %}<div class="small muted">Файлів ще немає</div>{% endif %}
       </div>
       <div class="pcd" id="info"><div class="pcd-h"><h3>Профіль</h3></div>
         {% set _pd = pdisc(p) %}

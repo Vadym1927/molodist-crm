@@ -316,6 +316,8 @@ def import_pdf_zip(db: Session, data: bytes) -> dict:
             plan, _, err = ingest_pdf(db, z.read(info), Path(info.filename).name)
             if plan:
                 rep["plans"] += 1
+            elif getattr(err, "patient_id", None):
+                rep["docs"] = rep.get("docs", 0) + 1
             else:
                 rep["errors"].append(f"{info.filename}: {err}")
     return rep
