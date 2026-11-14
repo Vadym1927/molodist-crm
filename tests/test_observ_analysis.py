@@ -103,3 +103,13 @@ def test_plan_doctors():
         assert [d.name for d in pdx.options(db)] == ["Тест Лікар"]
         pdx.save(db, [a.id, c.id])
         assert pdx.ids(db) == {a.id, c.id}
+
+
+def test_nickname_match():
+    from app.services.patient_match import best_match, score
+    assert score("Ольга Румянцева", "Румянцева Оля") == 100
+    with SessionLocal() as db:
+        p = Patient(full_name="Румянцева Оля", phone="+380501231231")
+        db.add(p)
+        db.commit()
+        assert best_match(db, "Ольга Румянцева").id == p.id

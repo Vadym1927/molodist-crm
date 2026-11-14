@@ -416,6 +416,15 @@ def plan_summary(db, plan) -> str:
                      + (f" (запис: {st.next_booked:%d.%m})" if st.next_booked else ""))
     lines.append(f"\nСума плану: <b>{ps.planned_sum:,.0f} ₴</b> · реалізовано {ps.realization_pct}%".replace(",", " "))
     lines.append(f"Записана: {'так, ' + ps.next_booking.strftime('%d.%m %H:%M') if ps.is_booked else 'ні'}")
+    if getattr(plan.patient, "_created", False):
+        from ..services.patient_match import suggestions
+        sg = [(sc, p) for sc, p in suggestions(db, plan.patient) if sc >= 60][:2]
+        if sg:
+            base = settings.public_url.rstrip("/")
+            lines.append("\n⚠️ Створено нову картку. Схоже, пацієнтка вже є: " + ", ".join(
+                f'<a href="{base}/patients/{p.id}">{p.full_name}</a>' for _, p in sg) + " — обʼєднайте в картці («Це вона — обʼєднати»).")
+        else:
+            lines.append("\n🆕 Створено нову картку пацієнта")
     lines.append(f'<a href="{settings.public_url.rstrip("/")}/patients/{plan.patient_id}">Відкрити картку</a>')
     return "\n".join(lines)
 

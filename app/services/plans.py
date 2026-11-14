@@ -86,6 +86,7 @@ def import_plan(db: Session, parsed: ParsedPlan, source_file: str | None = None,
                           doctor_id=doctor.id if doctor else None)
         db.add(patient)
         db.flush()
+        patient._created = True                       # нова картка — бот підкаже можливий дубль
     elif doctor and not patient.doctor_id:
         patient.doctor_id = doctor.id
 
