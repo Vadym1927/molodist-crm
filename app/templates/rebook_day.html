@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Перезапис за день · {{ v.day.strftime('%d.%m.%Y') }}{% endblock %}
+{% block body %}
+<style>.rk{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:12px 0 16px}.rk>div{background:#fff;border:1px solid #ECE7E1;border-radius:16px;padding:14px 16px}
+.rk span{display:block;font:700 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496}.rk b{display:block;font:700 24px var(--sans);margin-top:6px;color:#2A2430}
+.rk .ok b{color:#2E7D4F}.rk .bad b{color:#B23B2E}.rd{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.st{display:inline-block;padding:3px 10px;border-radius:999px;font:700 11.5px var(--sans);white-space:nowrap}.st.ok{background:#E3F1E6;color:#2E7D4F}.st.no{background:#F8E1DE;color:#B23B2E}
+table.rt td,table.rt th{padding:8px 10px;border-top:1px solid #F1EDE8;font-size:13.5px;text-align:left;vertical-align:top}table.rt small{color:#8a8496}
+@media(max-width:800px){.rk{grid-template-columns:repeat(2,1fr)}table.rt .hm{display:none}}</style>
+<a class="btn ghost" href="/reports">‹ Звіти</a>
+<div class="row between" style="margin-top:8px;flex-wrap:wrap;gap:10px"><h1 style="margin:0">Перезапис за день</h1>
+  <form class="rd" method="get"><a class="btn ghost" href="?d={{ (v.day - td1).strftime('%Y-%m-%d') }}">‹</a>
+    <input type="date" name="d" value="{{ v.day.strftime('%Y-%m-%d') }}" onchange="this.form.submit()" style="margin:0">
+    <a class="btn ghost" href="?d={{ (v.day + td1).strftime('%Y-%m-%d') }}">›</a></form></div>
+<div class="rk"><div><span>Були на прийомі</span><b>{{ v.total }}</b></div>
+  <div class="ok"><span>Перезаписались</span><b>{{ v.rebooked }} · {{ v.pct }}%</b></div>
+  <div class="bad"><span>Без наступного запису</span><b>{{ v.not_rebooked }}</b></div>
+  <div><span>Записали в день візиту</span><b>{{ v.same_day }}</b></div></div>
+{% if v.doctors %}<div class="card"><h2 style="margin:0 0 8px">По лікарях</h2><table class="rt" style="width:100%"><tr><th>Лікар</th><th>Були</th><th>Перезаписались</th><th>%</th><th class="hm">У день візиту</th></tr>
+  {% for g in v.doctors %}<tr><td>{{ g.doctor }}</td><td>{{ g.total }}</td><td>{{ g.rebooked }}</td><td><b>{{ g.pct }}%</b></td><td class="hm">{{ g.same_day }}</td></tr>{% endfor %}</table></div>{% endif %}
+<div class="card"><h2 style="margin:0 0 8px">Пацієнти</h2>
+{% if v.rows %}<table class="rt" style="width:100%"><tr><th>Пацієнт</th><th class="hm">Візит</th><th>Наступний запис</th></tr>
+{% for r in v.rows %}<tr><td><a href="/patients/{{ r.patient.id }}">{{ r.patient.full_name }}</a>{% if r.patient.phone %}<br><small>{{ r.patient.phone }}</small>{% endif %}</td>
+  <td class="hm">{{ r.appt.start.strftime('%H:%M') }} · {{ r.doctor }}{% if r.services %}<br><small>{{ r.services[:80] }}</small>{% endif %}</td>
+  <td>{% if r.next %}<span class="st ok">{{ r.next.start.strftime('%d.%m %H:%M') }}</span> <small>{{ r.next_doctor }}{{ ' · записали в день візиту' if r.same_day }}</small>
+      {% else %}<span class="st no">немає запису</span> <a class="small" href="/calendar?view=day&newappt=1&patient={{ r.patient.id }}">Записати</a>{% endif %}</td></tr>{% endfor %}</table>
+{% else %}<div class="muted">Цього дня ніхто не був на прийомі (або візити ще не позначені «прийшов / оплачено / завершено»).</div>{% endif %}</div>
+{% endblock %}

@@ -11686,6 +11686,14 @@ def _kpi_month(m: str) -> tuple[date, date, str]:
     return a, b, mk
 
 
+@app.get("/reports/rebook-day", response_class=HTMLResponse)
+def rebook_day_page(request: Request, d: str = "", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from datetime import timedelta as _td
+    from .services import rebook_day
+    day = _day(d) or date.today()
+    return render(request, "rebook_day.html", nav="reports", v=rebook_day.build(db, day), td1=_td(days=1))
+
+
 @app.get("/reports/not-rebooked", response_class=HTMLResponse)
 def not_rebooked_page(request: Request, y: str = "", m: str = "", doc: str = "", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     """Звіт «Не перезаписані пацієнти»: по лікарях і місяцях з початку року."""
