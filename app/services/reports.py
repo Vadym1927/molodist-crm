@@ -20,7 +20,7 @@ from ..parsers.observ import norm
 REPORTS = {"cash": "Стан рахунків", "cashflow": "Cashflow", "pnl": "Доходи і витрати за рік", "pnlm": "P&L по місяцях", "shifts": "Касові зміни", "patient_money": "Отримано від пацієнтів", "fees": "Комісії банків", "payroll_share": "Фонд оплати праці", "fop": "Ліміти ФОП", "expiry": "Терміни придатності", "revenue": "Виручка", "doctors": "Лікарі", "services": "Звіт з продажу послуг", "products": "Товари",
            "patients": "Пацієнти", "plans": "Бюті-плани", "certificates": "Сертифікати й абонементи", "supply": "Поставки", "cosmetics": "Бонус за продаж косметики", "sources": "Джерела запису",
            "discounts": "Використання знижок", "cross": "Крос-продажі догляду", "ltv": "LTV пацієнтів", "src_sales": "Продажі за джерелами", "abc": "ABC-аналіз",
-           "mat_use": "Витрата матеріалів", "inventory": "Інвентаризації", "dead": "Неліквіди", "stock_value": "Вартість складу", "turnover": "Оборотність складу"}
+           "lost": "Утримання: хто не повернувся", "mat_use": "Витрата матеріалів", "inventory": "Інвентаризації", "dead": "Неліквіди", "stock_value": "Вартість складу", "turnover": "Оборотність складу"}
 
 
 @dataclass
@@ -413,6 +413,11 @@ def patients(db: Session, d_from: date, d_to: date) -> Report:
     a, b = _rng(d_from, d_to)
     first = dict(db.execute(select(Check.patient_id, func.min(Check.date)).where(
         Check.deleted.is_(False), Check.patient_id.is_not(None)).group_by(Check.patient_id)).all())
+    from ..models import Sale as _Sale                      # перша оплата може бути вже в касі CRM (після переходу з CleverBox)
+    for pid, at in db.execute(select(_Sale.patient_id, func.min(_Sale.at)).where(_Sale.status == "paid", _Sale.patient_id.is_not(None))
+                              .group_by(_Sale.patient_id)):
+        if pid not in first or at < first[pid]:
+            first[pid] = at
     with_plan = {pid for (pid,) in db.execute(select(BeautyPlan.patient_id).where(BeautyPlan.status != "cancelled"))}
     agg = defaultdict(lambda: {"sum": 0.0, "checks": 0, "services": 0.0, "products": 0.0, "last": None})
     for c in _checks(db, d_from, d_to):
@@ -431,7 +436,7 @@ def patients(db: Session, d_from: date, d_to: date) -> Report:
     pa, pb = prev_period(d_from, d_to)
     prev_ids = {c.patient_id for c in _checks(db, pa, pb) if c.patient_id}
     names = {p.id: p.full_name for p in db.scalars(select(Patient).where(Patient.id.in_(list(agg) or [0])))}
-    r = Report("patients", "Пацієнти", "Пацієнти з оплатою за період. Нова — перша оплата в CleverBox припала на цей період.")
+    r = Report("patients", "Пацієнти", "Пацієнти з оплатою за період. Нова — найперша оплата (CleverBox або каса CRM) припала на цей період.")
     r.cols = [Col("name", "Пацієнт"), Col("type", "Тип"), Col("plan", "Бюті-план"), Col("checks", "Чеків", "int", True),
               Col("services", "Послуги", "uah", True), Col("products", "Догляд", "uah", True), Col("sum", "Разом", "uah", True),
               Col("last", "Остання оплата", "date")]
@@ -447,7 +452,7 @@ def patients(db: Session, d_from: date, d_to: date) -> Report:
                ("Нових", len(new), None, "int", f"{round(100 * len(new) / n)}%" if n else ""),
                ("Повторних", n - len(new), None, "int", f"повернулись з минулого періоду: {len(prev_ids & set(agg))}"),
                ("Виручка на пацієнта", round(tot / n) if n else 0, None, "uah", ""),
-               ("Пацієнти з бюті-планом", plan_sum, None, "uah", f"{round(100 * plan_sum / tot)}% виручки" if tot else "")]
+               ("Виручка від пацієнтів з бюті-планом", plan_sum, None, "uah", f"{round(100 * plan_sum / tot)}% виручки" if tot else "")]
     r.chart = [("нові", sum(agg[p]["sum"] for p in new)), ("повторні", tot - sum(agg[p]["sum"] for p in new))]
     r.chart_title = "Виручка: нові / повторні"
     return r.finish()
@@ -797,6 +802,9 @@ def build(db: Session, key: str, d_from: date, d_to: date, **opts) -> Report:
     if key in ("mat_use", "inventory", "dead", "stock_value", "turnover"):
         from . import reports_stock as _st
         return _st.BUILDERS[key](db, d_from, d_to, opts.get("cat") or "")
+    if key == "lost":
+        from .reports_sales import lost
+        return lost(db, d_from, d_to, opts.get("cat") or "")
     if key in ("ltv", "src_sales"):
         from . import reports_sales as _rs
         return getattr(_rs, key)(db, d_from, d_to)

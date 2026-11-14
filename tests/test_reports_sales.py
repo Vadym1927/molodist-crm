@@ -37,6 +37,9 @@ def test_cross_and_discounts():
         l = rp.build(db, "ltv", t, t)
         assert l.tiles[0][1] == 2 and l.rows[0]["patient"] == "Купила Догляд" and l.rows[0]["m12"] == 1500
         assert rp.build(db, "src_sales", t, t).rows[0]["src"] == "Не вказано"
+        pr = rp.build(db, "patients", t, t)
+        assert pr.tiles[1][1] == 2                           # перша оплата в касі CRM — «нові»
+        assert rp.build(db, "lost", t, t).rows == [] and len(rp.build(db, "lost", t, t, cat="60").filters) == 1
         ab = rp.build(db, "abc", t, t)
         assert ab.rows[0]["cls"] == "A" and ab.rows[0]["sum"] == 2000
         assert rp.build(db, "abc", t, t, cat="product").rows[0]["name"] == "Крем"
@@ -44,5 +47,5 @@ def test_cross_and_discounts():
     with TestClient(app) as c:
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
         for u in ("/reports?r=cross", "/reports?r=discounts&cat=rules", "/reports?r=certificates&cat=use", "/reports?r=cross&fmt=xlsx",
-                  "/reports?r=ltv", "/reports?r=src_sales", "/reports?r=abc&cat=product"):
+                  "/reports?r=ltv", "/reports?r=src_sales", "/reports?r=lost&cat=180", "/reports", "/reports?r=abc&cat=product"):
             assert c.get(u).status_code == 200, u

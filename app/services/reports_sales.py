@@ -297,3 +297,64 @@ def abc(db: Session, d_from: date, d_to: date, view: str = "") -> Report:
     r.chart = [(f"Клас {k}", round(cnt[k][1], 2)) for k in "ABC"]
     r.chart_title = "Виручка за класами"
     return r.finish()
+
+
+# ---------------- утримання: хто не повернувся ----------------
+
+def lost(db: Session, d_from: date, d_to: date, view: str = "") -> Report:
+    """Пацієнти без візиту й оплати понад N днів і без майбутнього запису — на сьогодні (період не впливає)."""
+    from sqlalchemy import func
+    from ..models import Appointment, Check
+    days = int(view) if view in ("60", "180", "365") else 90
+    now = datetime.now()
+    last: dict[int, datetime] = {}
+    total = defaultdict(float)
+    cnt = defaultdict(int)
+    for pid, mx, sm, n in db.execute(select(Check.patient_id, func.max(Check.date), func.sum(Check.amount), func.count(Check.id))
+                                     .where(Check.deleted.is_(False), Check.patient_id.is_not(None)).group_by(Check.patient_id)):
+        last[pid], total[pid], cnt[pid] = mx, float(sm or 0), n
+    from . import autonomy
+    since = autonomy.since(db)
+    q = select(Sale.patient_id, func.max(Sale.at), func.sum(Sale.total), func.count(Sale.id)).where(Sale.status == "paid", Sale.patient_id.is_not(None))
+    if since:
+        q = q.where(Sale.at >= datetime.combine(since, datetime.min.time()))
+    for pid, mx, sm, n in db.execute(q.group_by(Sale.patient_id)):
+        last[pid] = max(last.get(pid) or mx, mx)
+        total[pid] += float(sm or 0)
+        cnt[pid] += n
+    for pid, mx in db.execute(select(Appointment.patient_id, func.max(Appointment.start)).where(
+            Appointment.start <= now, Appointment.status.in_(("done", "paid", "arrived")), Appointment.patient_id.is_not(None)).group_by(Appointment.patient_id)):
+        last[pid] = max(last.get(pid) or mx, mx)
+    booked = {pid for (pid,) in db.execute(select(Appointment.patient_id).where(Appointment.start > now,
+                                                                                Appointment.status.notin_(("cancelled", "no_show"))))}
+    docs = {d.id: d.name for d in db.scalars(select(Doctor))}
+    r = Report("lost", "Утримання: хто не повернувся",
+               f"Пацієнти, які були в клініці, але не мають візиту чи оплати {days}+ днів і не записані на майбутнє — станом на сьогодні "
+               "(обраний період не впливає). Відсортовано за тим, скільки пацієнт приніс за весь час: згори — ті, кого найважливіше повернути.",
+               empty="Таких пацієнтів немає.")
+    r.filters = [{"name": "cat", "label": "Без візиту", "value": str(days) if view else "",
+                  "options": [("60", "60+ днів"), ("", "90+ днів"), ("180", "180+ днів"), ("365", "рік і більше")]}]
+    r.cols = [Col("patient", "Пацієнт"), Col("phone", "Телефон"), Col("doctor", "Лікар"), Col("last", "Останній візит", "date"),
+              Col("idle", "Днів без візиту", "int"), Col("checks", "Чеків", "int"), Col("total", "Приніс за весь час", "uah", True),
+              Col("avg", "Середній чек", "uah")]
+    cand = {pid: lt for pid, lt in last.items() if pid not in booked and (now - lt).days >= days}
+    pats = {p.id: p for p in db.scalars(select(Patient).where(Patient.id.in_(cand)))} if cand else {}
+    bk = {"до пів року": 0, "пів року – рік": 0, "понад рік": 0}
+    for pid, lt in cand.items():
+        p = pats.get(pid)
+        if not p:
+            continue
+        idle = (now - lt).days
+        bk["до пів року" if idle < 180 else ("пів року – рік" if idle < 365 else "понад рік")] += 1
+        r.rows.append({"patient": p.full_name, "phone": p.phone or "", "doctor": docs.get(p.doctor_id, ""), "last": lt, "idle": idle,
+                       "checks": cnt.get(pid, 0), "total": round(total.get(pid, 0), 2),
+                       "avg": round(total[pid] / cnt[pid], 2) if cnt.get(pid) else 0, "_href": f"/patients/{pid}"})
+    r.rows.sort(key=lambda x: -x["total"])
+    n = len(r.rows)
+    top = r.rows[:max(1, n // 10)] if n else []
+    r.tiles = [("Не повернулись", n, None, "int", f"без візиту {days}+ днів і без запису"),
+               ("До пів року", bk["до пів року"], None, "int", "ще «теплі» — повертати першими"),
+               ("Понад рік", bk["понад рік"], None, "int", ""),
+               ("Топ-10% з них принесли", round(sum(x["total"] for x in top), 2), None, "uah", f"{len(top)} пацієнтів — дзвонити особисто")]
+    r.chart, r.chart_title = list(bk.items()), "За давністю останнього візиту"
+    return r.finish()
