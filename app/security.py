@@ -117,8 +117,8 @@ def current_user(request: Request, db: Session = Depends(db_dep)) -> User:
     uid = request.session.get("uid")
     user = db.get(User, uid) if uid else None
     if not user or not user.active:
-        request.session.clear()
-        raise HTTPException(status_code=303, headers={"Location": "/login"})
+        request.session.pop("uid", None)          # не clear(): очікуваний код входу (p2fa) має пережити випадковий запит
+        raise HTTPException(status_code=303, headers={"Location": "/login/code" if request.session.get("p2fa") else "/login"})
     request.state.user = user
     now_ = datetime.utcnow()
     if not user.last_seen or now_ - user.last_seen > timedelta(minutes=2):   # «Зараз онлайн» у панелі профілю

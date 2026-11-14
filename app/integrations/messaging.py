@@ -132,9 +132,10 @@ def _ts(method: str, body: dict, timeout: float | None = None) -> dict:
     return r.json()
 
 
-def send_turbosms(phone: str, text: str, channels: list[str], sequence_id: str | None = None) -> SendResult:
-    """channels ⊂ {viber, sms}; обидва → гібрид Viber→SMS."""
-    if not sending_enabled():
+def send_turbosms(phone: str, text: str, channels: list[str], sequence_id: str | None = None, internal: bool = False) -> SendResult:
+    """channels ⊂ {viber, sms}; обидва → гібрид Viber→SMS. internal=True — службові SMS співробітникам (код входу):
+    не залежать від паузи розсилок пацієнтам."""
+    if not internal and not sending_enabled():
         log.info("patient message blocked (paused): turbosms")
         return SendResult(False, "viber" if "viber" in channels else "sms", error=PAUSED_ERROR)
     to = normalize_phone(phone)

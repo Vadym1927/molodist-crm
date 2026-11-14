@@ -18,6 +18,7 @@
         <form method="post" action="/access/users" class="grid" style="gap:6px;margin-top:6px;min-width:260px">
           <input type="hidden" name="uid" value="{{ u.id }}">
           <input name="name" value="{{ u.name }}" required><input name="login" value="{{ u.login }}" required>
+          <input name="phone" value="{{ u.phone or '' }}" placeholder="Телефон для SMS-коду входу (+380…)" inputmode="tel">
           <select name="role">{% for k,l in ROLES.items() %}<option value="{{ k }}" {{ 'selected' if u.role==k }}>{{ l }}</option>{% endfor %}</select>
           <select name="doctor_id"><option value="">— привʼязка до лікаря (для ролі «Лікар») —</option>{% for d in doctors %}<option value="{{ d.id }}" {{ 'selected' if u.doctor_id==d.id }}>{{ d.name }}</option>{% endfor %}</select>
           <input type="password" name="password" placeholder="Новий пароль (залиште порожнім)" autocomplete="new-password">
@@ -33,6 +34,7 @@
     <form method="post" action="/access/users" class="grid" style="gap:8px">
       <input name="name" placeholder="Імʼя та прізвище" required>
       <input name="login" placeholder="Логін (латиницею)" required autocomplete="off">
+      <input name="phone" placeholder="Телефон для SMS-коду входу (+380…)" inputmode="tel">
       <select name="role">{% for k,l in ROLES.items() %}<option value="{{ k }}" {{ 'selected' if k=='admin' }}>{{ l }}</option>{% endfor %}</select>
       <select name="doctor_id"><option value="">— привʼязка до лікаря (для ролі «Лікар») —</option>{% for d in doctors %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}</select>
       <input type="password" name="password" placeholder="Пароль (мін. 8 символів)" required autocomplete="new-password">

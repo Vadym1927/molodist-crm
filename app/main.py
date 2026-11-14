@@ -751,13 +751,83 @@ def login(request: Request, login: str = Form(...), password: str = Form(...), d
                           error=f"Забагато невдалих спроб. Вхід заблоковано на {settings.login_block_minutes} хв.")
         return render(request, "login.html", error="Невірний логін або пароль", login=login)
     login_limiter.reset(f"login:{lg}")
+    from .services import login2fa as _2f
+    if _2f.required(db, u) and not any(_2f.device_ok(u, t) for t in (request.cookies.get(_2f.COOKIE) or "").split("~")):
+        h, info = _2f.send(u)
+        request.session.clear()
+        if not h:
+            audit(db, "login.2fa_send_failed", user=u, error=info[:200])
+            return render(request, "login.html", login=login, error=f"Не вдалося надіслати код входу ({info}). Зверніться до власника.")
+        request.session["p2fa"] = {"uid": u.id, "h": h, "tries": 0, "sends": 1, "sent": int(__import__("time").time()), "to": info}
+        audit(db, "login.2fa_sent", user=u, to=info)
+        return RedirectResponse("/login/code", 303)
+    return _finish_login(request, db, u)
+
+
+def _finish_login(request: Request, db: Session, u: User, remember_days: int = 0):
     request.session.clear()
     request.session["uid"] = u.id
     u.last_login = datetime.utcnow()
     db.commit()
     audit(db, "login", user=u)
     from .services import ui_access as _ua                      # перше вікно після входу — календар (якщо роль його бачить)
-    return RedirectResponse("/" if _ua.blocked(u.role, "GET", "/calendar", {}) else "/calendar", 303)
+    r = RedirectResponse("/" if _ua.blocked(u.role, "GET", "/calendar", {}) else "/calendar", 303)
+    if remember_days:
+        from .services import login2fa as _2f
+        old = [t for t in (request.cookies.get(_2f.COOKIE) or "").split("~") if t and not t.startswith(f"{u.id}.")][-4:]
+        r.set_cookie(_2f.COOKIE, "~".join(old + [_2f.device_token(u, remember_days)]), max_age=remember_days * 86400,
+                     httponly=True, secure=request.url.scheme == "https", samesite="lax")
+    return r
+
+
+@app.get("/login/code", response_class=HTMLResponse)
+def login_code_page(request: Request, db: Session = Depends(db_dep)):
+    from .services import login2fa as _2f
+    p = request.session.get("p2fa")
+    if not p:
+        return RedirectResponse("/login", 303)
+    return render(request, "login_code.html", to=p.get("to"), remember=_2f.cfg(db)["remember_days"])
+
+
+@app.post("/login/code")
+def login_code(request: Request, code: str = Form(""), remember: str = Form(""), resend: str = Form(""), db: Session = Depends(db_dep)):
+    import time as _t
+    from .services import login2fa as _2f
+    p = request.session.get("p2fa")
+    if not p:
+        return RedirectResponse("/login", 303)
+    u = db.get(User, p["uid"])
+    if not u or not u.active:
+        request.session.clear()
+        return RedirectResponse("/login", 303)
+    rd = _2f.cfg(db)["remember_days"]
+    if resend:
+        wait = _2f.RESEND_AFTER - (int(_t.time()) - int(p.get("sent") or 0))
+        if wait > 0:
+            return render(request, "login_code.html", to=p.get("to"), remember=rd, error=f"Новий код можна надіслати через {wait} с")
+        if p.get("sends", 0) >= _2f.MAX_SENDS:
+            request.session.clear()
+            return render(request, "login.html", error="Забагато надсилань коду. Увійдіть ще раз пізніше.")
+        h, info = _2f.send(u)
+        if not h:
+            return render(request, "login_code.html", to=p.get("to"), remember=rd, error=f"Не вдалося надіслати: {info}")
+        p.update(h=h, sends=p.get("sends", 0) + 1, sent=int(_t.time()), to=info, tries=0)
+        request.session["p2fa"] = p
+        return render(request, "login_code.html", to=info, remember=rd, msg="Новий код надіслано")
+    if _2f.check(u.id, p["h"], code):
+        audit(db, "login.2fa_ok", user=u)
+        return _finish_login(request, db, u, rd if remember and rd else 0)
+    p["tries"] = p.get("tries", 0) + 1
+    audit(db, "login.2fa_failed", user=u, tries=p["tries"])
+    if p["tries"] >= _2f.MAX_TRIES:
+        request.session.clear()
+        import threading
+        from .services import alerts
+        threading.Thread(target=alerts.send, daemon=True, args=(
+            f"🔐 <b>Безпека: невірний код входу</b>\n{_2f.MAX_TRIES} спроби поспіль — «{u.name}» (логін {u.login}). Вхід скасовано.",)).start()
+        return render(request, "login.html", error="Забагато невірних кодів. Увійдіть ще раз.")
+    request.session["p2fa"] = p
+    return render(request, "login_code.html", to=p.get("to"), remember=rd, error=f"Невірний або прострочений код. Залишилось спроб: {_2f.MAX_TRIES - p['tries']}")
 
 
 @app.get("/logout")
@@ -866,10 +936,15 @@ def me(request: Request, user: User = Depends(current_user)):
 
 
 @app.post("/me")
-def me_save(request: Request, current: str = Form(""), new: str = Form(""), telegram_chat_id: str = Form(""),
+def me_save(request: Request, current: str = Form(""), new: str = Form(""), telegram_chat_id: str = Form(""), phone: str = Form(None),
             user: User = Depends(current_user), db: Session = Depends(db_dep)):
     u = db.get(User, user.id)
     u.telegram_chat_id = telegram_chat_id.strip() or None
+    if phone is not None and (phone.strip() or "") != (u.phone or ""):
+        from .services import login2fa as _2f
+        if u.role in _2f.cfg(db)["roles"] and u.phone:      # змінити телефон для коду — лише власник у «Доступ»
+            return render(request, "me.html", msg="Телефон для коду входу змінює власник у «Доступ»")
+        u.phone = phone.strip()[:32] or None
     msg = "Збережено"
     if new:
         if len(new) < 8:
@@ -3233,7 +3308,7 @@ def access(request: Request, user: User = Depends(require("users")), db: Session
 @app.post("/access/users")
 def user_save(request: Request, uid: str = Form(""), login: str = Form(...), name: str = Form(...),
               role: str = Form(...), doctor_id: str = Form(""), password: str = Form(""), active: str = Form(""),
-              delete_pw: str = Form(""), delete_pw_clear: str = Form(""),
+              delete_pw: str = Form(""), delete_pw_clear: str = Form(""), phone: str = Form(None),
               user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     if role not in ROLES:
         raise HTTPException(400, "Невідома роль")
@@ -3257,6 +3332,8 @@ def user_save(request: Request, uid: str = Form(""), login: str = Form(...), nam
                 raise HTTPException(400, "Пароль — щонайменше 8 символів")
             u.password_hash = hash_password(password)
     u.doctor_id = int(doctor_id) if role == "doctor" and doctor_id.isdigit() else None
+    if phone is not None:
+        u.phone = phone.strip()[:32] or None
     if delete_pw:
         if len(delete_pw) < 4:
             raise HTTPException(400, "Пароль для видалення — щонайменше 4 символи")
@@ -7113,6 +7190,7 @@ SETTINGS_BLOCKS = [
         ('Категорії спеціалістів', 'Ціни за категоріями: інші ціни на послуги для головного лікаря, топ-лікаря, стажера', '/settings/price-cats', 'finance', 'cmarket/customprice/main'),
         ('Статті для нарахувань', 'Премії, штрафи, лікарняні, податки, відпускні — для коригувань зарплати', '/settings/accrual-articles', 'finance', 'dirs/stype'),
         ('Бонус за продаж косметики', 'Відсоток лікарям з продажу товарів: без знижки, зі знижкою, поріг ціни; свої % для лікарів, брендів і товарів', '/settings/cosmetics-pct', 'finance', None),
+        ('Вхід із кодом (SMS)', 'Двоетапний вхід: після пароля — код у SMS (TurboSMS) або Telegram; для яких ролей, запамʼятати пристрій', '/settings/login-2fa', 'users', None),
         ('Завдання для OpenClaw', 'Перевірки й зміни на сервері руками агента OpenClaw: завдання → вивід у CRM; зміни — лише після вашого погодження в Telegram', '/ops', 'users', None),
         ('Лікарі бюті-планів', 'Хто зʼявляється у виборі лікаря в бюті-плані та картці пацієнта — лише справжні лікарі', '/settings/plan-doctors', 'users', None),
         ('Telegram: файли з чатів', 'Робочі чати (консультації тощо): бюті-плани, аналізи OBSERV, консультативні висновки, документи й фото автоматично йдуть у картки пацієнтів', '/settings/tg-ingest', 'users', None),
@@ -7209,6 +7287,32 @@ async def ops_create(request: Request, user: User = Depends(require("users")), d
     audit(db, "ops.create", "ops_task", t.id, user=user, kind=t.kind)
     msg = "Завдання в черзі — OpenClaw забере протягом хвилини" if t.kind == "check" else "Надіслано вам у Telegram на погодження"
     return RedirectResponse(_with_msg("/ops", msg) + f"#t{t.id}", 303)
+
+
+@app.get("/settings/login-2fa", response_class=HTMLResponse)
+def login2fa_page(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .integrations import messaging as _m
+    from .services import login2fa as _2f
+    from .models import ROLES as _R
+    us = db.scalars(select(User).where(User.active.is_(True)).order_by(User.role, User.name)).all()
+    return render(request, "settings_login2fa.html", nav="settings", cfg=_2f.cfg(db), ROLES=_R, users=us, ch={x.id: _2f.channels(x) for x in us},
+                  sms_ok=_m.turbosms_available() and bool(settings.turbosms_sender_sms))
+
+
+@app.post("/settings/login-2fa")
+async def login2fa_save(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import login2fa as _2f
+    from .models import ROLES as _R
+    f = await request.form()
+    if f.get("test"):
+        h, info = _2f.send(db.get(User, user.id))
+        return RedirectResponse(_with_msg("/settings/login-2fa", f"Тестовий код надіслано: {info}" if h else f"Не надіслано: {info}", err=not h), 303)
+    roles = [r for r in f.getlist("roles") if r in _R]
+    if roles and user.role in roles and not _2f.channels(db.get(User, user.id)):
+        return RedirectResponse(_with_err("/settings/login-2fa", "Спершу вкажіть свій телефон (або Telegram) — інакше код не буде куди надіслати"), 303)
+    _2f.save(db, roles, int(f.get("remember_days") or 0) if str(f.get("remember_days") or "0").isdigit() else 30)
+    audit(db, "settings.login_2fa", user=user, roles=roles)
+    return RedirectResponse(_with_msg("/settings/login-2fa", "Збережено"), 303)
 
 
 @app.get("/settings/plan-doctors", response_class=HTMLResponse)

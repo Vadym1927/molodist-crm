@@ -635,6 +635,7 @@ class User(Base):
     delete_pw_hash: Mapped[str | None] = mapped_column(String(300))   # окремий пароль для видалення (задає власник)
     doctor_id: Mapped[int | None] = mapped_column(ForeignKey("doctors.id"))   # для ролі «лікар»
     telegram_chat_id: Mapped[str | None] = mapped_column(String(64))
+    phone: Mapped[str | None] = mapped_column(String(32))                # для коду входу (SMS, двоетапний вхід)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_login: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

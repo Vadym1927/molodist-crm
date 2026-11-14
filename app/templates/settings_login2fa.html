@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Вхід із кодом · налаштування{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+<style>.gs{background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:16px 18px;margin-bottom:14px;max-width:860px}.gs h2{margin:0 0 8px}
+.ck{display:flex;gap:8px;align-items:center;font-size:14px;margin:6px 0}.ck input{width:18px;height:18px;accent-color:#3B3050;margin:0}
+table.ut td,table.ut th{padding:7px 10px;border-top:1px solid #F1EDE8;font-size:13.5px;text-align:left}.mini{font-size:12.5px;color:#6b6575}
+.st{display:inline-block;padding:2px 9px;border-radius:999px;font:700 11.5px var(--sans)}.st.ok{background:#E3F1E6;color:#2E7D4F}.st.no{background:#F8E1DE;color:#B23B2E}</style>
+<a class="btn ghost" href="/settings">‹ Налаштування</a>
+<h1>Вхід із кодом (SMS)</h1>
+{% if qp.get('msg') %}<div class="alert ok">{{ qp.get('msg') }}</div>{% endif %}{% if qp.get('err') %}<div class="alert err">{{ qp.get('err') }}</div>{% endif %}
+<div class="gs"><form method="post" action="/settings/login-2fa">
+  <p class="mini" style="margin-top:0">Після правильного пароля CRM надсилає 6-значний код у SMS через TurboSMS (якщо SMS не пройшла — у Telegram співробітника).
+  Без коду увійти не можна. Співробітник без телефону й Telegram поки входить лише за паролем — додайте телефон у «Доступ».</p>
+  {% if not sms_ok %}<div class="alert err">TurboSMS: не налаштовано відправника SMS — коди підуть лише в Telegram.</div>{% endif %}
+  <h2>Для кого обовʼязково</h2>
+  {% for k, l in ROLES.items() %}<label class="ck"><input type="checkbox" name="roles" value="{{ k }}" {{ 'checked' if k in cfg.roles }}> {{ l }}</label>{% endfor %}
+  <label class="ck" style="margin-top:10px">Запамʼятати пристрій на
+    <select name="remember_days" style="width:auto;margin:0 6px">{% for d in [0, 7, 14, 30] %}<option value="{{ d }}" {{ 'selected' if cfg.remember_days == d }}>{{ 'не запамʼятовувати' if d == 0 else d ~ ' дн.' }}</option>{% endfor %}</select>
+    <span class="mini">— на цьому браузері код не питатиме, доки не зміниться пароль</span></label>
+  <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn">Зберегти</button><button class="btn ghost" name="test" value="1">Надіслати тестовий код мені</button></div>
+</form></div>
+<div class="gs"><h2>Співробітники</h2><table class="ut" style="width:100%"><tr><th>Хто</th><th>Роль</th><th>Телефон</th><th>Код прийде</th></tr>
+{% for u in users %}<tr><td>{{ u.name }}</td><td>{{ ROLES.get(u.role, u.role) }}</td><td>{{ u.phone or '—' }}</td>
+  <td>{% if ch[u.id] %}<span class="st ok">{{ ch[u.id]|join(' / ')|replace('sms','SMS')|replace('telegram','Telegram') }}</span>{% else %}<span class="st no">нікуди — вхід лише за паролем</span>{% endif %}</td></tr>{% endfor %}</table>
+<p class="mini">Телефон співробітника — у «Доступ» (поле «Телефон для SMS-коду входу») або сам співробітник у «Мій кабінет».</p></div>
+{% endblock %}

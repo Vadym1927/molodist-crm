@@ -7,6 +7,8 @@
   <form method="post" class="grid" style="gap:10px">
     <label class="small muted">Telegram chat ID (для особистих сповіщень; дізнатися — команда /id у боті)</label>
     <input name="telegram_chat_id" value="{{ user.telegram_chat_id or '' }}">
+    <label class="small muted">Мобільний телефон — на нього приходить SMS-код входу (якщо двоетапний вхід увімкнено для вашої ролі)</label>
+    <input name="phone" value="{{ user.phone or '' }}" placeholder="+380…" inputmode="tel" autocomplete="tel">
     <h2 style="margin-top:12px">Змінити пароль</h2>
     <input type="password" name="current" placeholder="Поточний пароль" autocomplete="current-password">
     <input type="password" name="new" placeholder="Новий пароль (мін. 8 символів)" autocomplete="new-password">
