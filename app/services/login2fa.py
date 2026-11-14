@@ -34,27 +34,36 @@ def cfg(db: Session) -> dict:
         c = {}
     c.setdefault("roles", [])
     c.setdefault("remember_days", 30)
+    c.setdefault("via", "telegram")
     return c
 
 
-def save(db: Session, roles: list[str], remember_days: int) -> None:
-    db.merge(SyncState(key=KEY, value=json.dumps({"roles": roles, "remember_days": max(0, min(int(remember_days), 90))}),
-                       updated_at=datetime.utcnow()))
+VIA = {"telegram": "Лише Telegram (ID у картці співробітника)", "sms": "Лише SMS (TurboSMS)", "sms_tg": "SMS, якщо не вдалося — Telegram"}
+
+
+def save(db: Session, roles: list[str], remember_days: int, via: str = "telegram") -> None:
+    db.merge(SyncState(key=KEY, value=json.dumps({"roles": roles, "remember_days": max(0, min(int(remember_days), 90)),
+                                                  "via": via if via in VIA else "telegram"}), updated_at=datetime.utcnow()))
     db.commit()
 
 
-def channels(u: User) -> list[str]:
+def channels(u: User, via: str | None = None) -> list[str]:
     from ..integrations import messaging as m
+    if via is None:
+        from ..models import SessionLocal
+        with SessionLocal() as db:
+            via = cfg(db)["via"]
     out = []
-    if u.phone and m.normalize_phone(u.phone) and m.turbosms_available() and settings.turbosms_sender_sms:
+    if via in ("sms", "sms_tg") and u.phone and m.normalize_phone(u.phone) and m.turbosms_available() and settings.turbosms_sender_sms:
         out.append("sms")
-    if u.telegram_chat_id and settings.telegram_bot_token:
+    if via in ("telegram", "sms_tg") and u.telegram_chat_id and settings.telegram_bot_token:
         out.append("telegram")
     return out
 
 
 def required(db: Session, u: User) -> bool:
-    return u.role in cfg(db)["roles"] and bool(channels(u))
+    c = cfg(db)
+    return u.role in c["roles"] and bool(channels(u, c["via"]))
 
 
 def _sig(*parts) -> str:

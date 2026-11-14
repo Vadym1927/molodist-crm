@@ -11,7 +11,7 @@ from app.services import login2fa
 def test_login_with_sms_code(monkeypatch):
     settings.admin_password = "owner-pass-1"
     sent = []
-    monkeypatch.setattr(login2fa, "channels", lambda u: ["sms"])
+    monkeypatch.setattr(login2fa, "channels", lambda u, via=None: ["sms"])
 
     def fake_send(phone, text, channels, sequence_id=None, internal=False):
         from app.integrations.messaging import SendResult

@@ -7190,7 +7190,7 @@ SETTINGS_BLOCKS = [
         ('Категорії спеціалістів', 'Ціни за категоріями: інші ціни на послуги для головного лікаря, топ-лікаря, стажера', '/settings/price-cats', 'finance', 'cmarket/customprice/main'),
         ('Статті для нарахувань', 'Премії, штрафи, лікарняні, податки, відпускні — для коригувань зарплати', '/settings/accrual-articles', 'finance', 'dirs/stype'),
         ('Бонус за продаж косметики', 'Відсоток лікарям з продажу товарів: без знижки, зі знижкою, поріг ціни; свої % для лікарів, брендів і товарів', '/settings/cosmetics-pct', 'finance', None),
-        ('Вхід із кодом (SMS)', 'Двоетапний вхід: після пароля — код у SMS (TurboSMS) або Telegram; для яких ролей, запамʼятати пристрій', '/settings/login-2fa', 'users', None),
+        ('Вхід із кодом', 'Двоетапний вхід: після пароля — код у Telegram (ID у картці співробітника) або SMS; для яких ролей, запамʼятати пристрій', '/settings/login-2fa', 'users', None),
         ('Завдання для OpenClaw', 'Перевірки й зміни на сервері руками агента OpenClaw: завдання → вивід у CRM; зміни — лише після вашого погодження в Telegram', '/ops', 'users', None),
         ('Лікарі бюті-планів', 'Хто зʼявляється у виборі лікаря в бюті-плані та картці пацієнта — лише справжні лікарі', '/settings/plan-doctors', 'users', None),
         ('Telegram: файли з чатів', 'Робочі чати (консультації тощо): бюті-плани, аналізи OBSERV, консультативні висновки, документи й фото автоматично йдуть у картки пацієнтів', '/settings/tg-ingest', 'users', None),
@@ -7295,7 +7295,8 @@ def login2fa_page(request: Request, user: User = Depends(require("users")), db: 
     from .services import login2fa as _2f
     from .models import ROLES as _R
     us = db.scalars(select(User).where(User.active.is_(True)).order_by(User.role, User.name)).all()
-    return render(request, "settings_login2fa.html", nav="settings", cfg=_2f.cfg(db), ROLES=_R, users=us, ch={x.id: _2f.channels(x) for x in us},
+    _c2 = _2f.cfg(db)
+    return render(request, "settings_login2fa.html", nav="settings", cfg=_c2, ROLES=_R, users=us, ch={x.id: _2f.channels(x, _c2["via"]) for x in us}, VIA=_2f.VIA,
                   sms_ok=_m.turbosms_available() and bool(settings.turbosms_sender_sms))
 
 
@@ -7308,9 +7309,9 @@ async def login2fa_save(request: Request, user: User = Depends(require("users"))
         h, info = _2f.send(db.get(User, user.id))
         return RedirectResponse(_with_msg("/settings/login-2fa", f"Тестовий код надіслано: {info}" if h else f"Не надіслано: {info}", err=not h), 303)
     roles = [r for r in f.getlist("roles") if r in _R]
-    if roles and user.role in roles and not _2f.channels(db.get(User, user.id)):
-        return RedirectResponse(_with_err("/settings/login-2fa", "Спершу вкажіть свій телефон (або Telegram) — інакше код не буде куди надіслати"), 303)
-    _2f.save(db, roles, int(f.get("remember_days") or 0) if str(f.get("remember_days") or "0").isdigit() else 30)
+    if roles and user.role in roles and not _2f.channels(db.get(User, user.id), str(f.get("via") or "telegram")):
+        return RedirectResponse(_with_err("/settings/login-2fa", "Спершу вкажіть свій Telegram ID (або телефон для SMS) у «Мій кабінет» — інакше код не буде куди надіслати"), 303)
+    _2f.save(db, roles, int(f.get("remember_days") or 0) if str(f.get("remember_days") or "0").isdigit() else 30, str(f.get("via") or "telegram"))
     audit(db, "settings.login_2fa", user=user, roles=roles)
     return RedirectResponse(_with_msg("/settings/login-2fa", "Збережено"), 303)
 
