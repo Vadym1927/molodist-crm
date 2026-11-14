@@ -2047,7 +2047,8 @@ def _sale_payload(f: dict) -> dict:
             "cert_for": str(f.get("cert_for") or "")[:100],
             "manual_discount": float(f.get("manual_discount") or 0), "bonus_pay": float(f.get("bonus_pay") or 0),
             "fiscal_rro": (int(f["fiscal_rro"]) if str(f.get("fiscal_rro")).isdigit() else None) if "fiscal_rro" in f else None,
-            "payments": f.get("payments") or [], "comment": str(f.get("comment") or "")}
+            "payments": f.get("payments") or [], "comment": str(f.get("comment") or ""),
+            "overpay": f.get("overpay") if f.get("overpay") in ("balance", "change") else None}
 
 
 @app.post("/sales/quote")

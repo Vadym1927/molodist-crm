@@ -337,6 +337,7 @@ class Sale(Base):
     bonus_spent: Mapped[float] = mapped_column(Float, default=0)
     bonus_accrued: Mapped[float] = mapped_column(Float, default=0)
     rules: Mapped[list | None] = mapped_column(JSON)
+    balance_topup: Mapped[float | None] = mapped_column(Float)          # переплата готівкою → рахунок пацієнта (поза чеком)
     comment: Mapped[str | None] = mapped_column(String(500))
     created_by: Mapped[int | None] = mapped_column(Integer)
     refunded_at: Mapped[datetime | None] = mapped_column(DateTime)

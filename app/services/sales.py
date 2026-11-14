@@ -87,8 +87,27 @@ def create(db: Session, data: dict, user_id: int | None = None) -> Sale:
     if not items:
         raise SaleError("Додайте хоча б одну позицію")
     q = quote(db, items, patient, data.get("rule_ids"), float(data.get("manual_discount") or 0), float(data.get("bonus_pay") or 0))
-    pays = [p for p in data.get("payments") or [] if float(p.get("amount") or 0) > TOL and p.get("method") not in (BONUS,)]
+    pays = [dict(p) for p in data.get("payments") or [] if float(p.get("amount") or 0) > TOL and p.get("method") not in (BONUS,)]
     paid = round(sum(float(p["amount"]) for p in pays), 2)
+    excess, topup = round(paid - q["to_pay"], 2), 0.0
+    if excess > 0.01 and data.get("overpay") in ("balance", "change"):
+        # переплата готівкою: решта пацієнту або на його рахунок (поповнення — окремо від чека, у чек не йде)
+        cash = [p for p in pays if method_kind(str(p.get("method") or "")) == "cash"]
+        if sum(float(p["amount"]) for p in cash) + TOL < excess:
+            raise SaleError(f"Переплату {excess:.2f} ₴ можна видати рештою чи покласти на рахунок лише з готівки — "
+                            "карткою чи посиланням внесіть рівно суму до сплати")
+        if data["overpay"] == "balance" and not patient:
+            raise SaleError("Щоб покласти переплату на рахунок, оберіть пацієнта")
+        rest = excess
+        for p in reversed(cash):
+            take = min(rest, float(p["amount"]))
+            p["amount"], rest = round(float(p["amount"]) - take, 2), round(rest - take, 2)
+        topup_box = cash[-1]["method"]
+        pays = [p for p in pays if float(p["amount"]) > TOL]
+        topup = excess if data["overpay"] == "balance" else 0.0
+        note = f"Переплата {excess:.2f} ₴ → на рахунок пацієнта" if topup else f"Решта {excess:.2f} ₴ видана готівкою"
+        data["comment"] = (f"{data.get('comment') or ''} · {note}").strip(" ·")
+        paid = round(paid - excess, 2)
     if abs(paid - q["to_pay"]) > 0.01:
         raise SaleError(f"Оплата {paid:.2f} ₴ не дорівнює сумі до сплати {q['to_pay']:.2f} ₴")
     from ..models import Subscription
@@ -208,6 +227,14 @@ def create(db: Session, data: dict, user_id: int | None = None) -> Sale:
             else:
                 sb.balance = round((sb.balance or 0) - p.amount, 2)
     db.commit()
+    if topup > 0 and patient:                                 # переплата → рахунок пацієнта: окрема операція «Поповнення балансу»
+        from ..models import FinOp
+        patient.cb_balance = round((patient.cb_balance or 0) + topup, 2)
+        db.add(FinOp(day=sale.at.date(), kind="income", category="Поповнення балансу пацієнта", amount=topup, cashbox=topup_box,
+                     counterparty=patient.full_name[:200], ref=f"sale:{sale.id}:topup", created_by=user_id,
+                     comment=f"Переплата в чеку Ч-{sale.id} — на рахунок пацієнта"))
+        sale.balance_topup = topup
+        db.commit()
     if patient and q["bonus_pay"] > 0:
         ly.add(db, patient.id, -q["bonus_pay"], "spend", f"чек №{sale.id}", f"sale:{sale.id}", user_id)
     if patient and q["bonus_accrual"] > 0:

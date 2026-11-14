@@ -49,7 +49,9 @@ dialog.pd::backdrop{background:rgba(42,36,48,.35)}
 .payd .ps2 .ps-c b{display:block;margin-top:4px;font:500 19px var(--head);color:#fff}
 .payd .ps2 .ps-c.lft b{color:#F6D9A8}.payd .ps2.done .ps-c.lft b{color:#BFE6C5}
 .payd .ps2 div.ps-st{justify-content:flex-start;margin-top:12px;font:600 12.5px var(--sans);color:#F6D9A8 !important;display:flex;align-items:center;gap:7px}
-.payd .ps2.done div.ps-st{color:#BFE6C5 !important}.payd .ps2.over div.ps-st{color:#F5B8AE !important}
+.payd .ps2.done div.ps-st{color:#BFE6C5 !important}
+.ovp{margin-top:10px;padding:12px 14px;border:1px solid #E4DEEF;border-radius:14px;background:#F7F4FB}.ovp-c{display:flex!important;gap:10px;align-items:center;font:600 14.5px var(--sans);color:#2A2430;cursor:pointer}
+.ovp-c input{width:20px;height:20px;accent-color:#3B3050;margin:0}.ovp .small{margin-top:6px}.payd .ps2.over div.ps-st{color:#F5B8AE !important}
 .payd .ps2 div.ps-st:before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
 .tt-box{display:flex;gap:12px;align-items:flex-start;margin-top:12px;padding:14px;border-radius:16px;background:#F7F4F0;border:1px solid #ECE7E1}
 .tt-box .tt-i{width:42px;height:42px;border-radius:12px;background:#E4DEEF;color:#3B3050;display:flex;align-items:center;justify-content:center;flex:none}
@@ -285,6 +287,8 @@ dialog.payd::backdrop{background:rgba(42,36,48,.45)}
       <div class="ps-bar"><i id="ps-fill"></i></div>
       <div class="ps-row"><div class="ps-c"><span>Внесено</span><b id="p-in">0,00 ₴</b></div><div class="ps-c lft"><span>Залишилось</span><b id="p-left">0,00 ₴</b></div></div>
       <div class="ps-st" id="t-left"></div></div>
+    <div class="ovp" id="ovp" style="display:none"><label class="ovp-c"><input type="checkbox" id="ovp-bal" onchange="payLeft()"> <span>Покласти <b id="ovp-sum"></b> на рахунок пацієнта</span></label>
+      <div class="small muted" id="ovp-h"></div></div>
     <div class="ph" style="margin-top:4px">Оплата</div>
     <div id="pays"></div><input type="hidden" id="bp" value="0"><div id="bonus-row" style="display:none"></div><span id="t-bmax" hidden></span>
     <div class="small muted" id="t-link" style="display:none;margin-top:4px">🔗 Посилання на оплату буде створено й надіслано пацієнту після «Провести продаж»; чек стане «оплачено», коли пацієнт оплатить.</div>
@@ -493,7 +497,7 @@ function noRRO(){return {{ 'true' if rros else 'false' }}&&fisR()===0}
 function payload(){var r=document.getElementById('rule');return {patient_id:S.patient_id,appointment_id:S.appointment_id,appointment_ids:S.appointment_ids,items:S.items,
   rule_ids:r?[].map.call(r.selectedOptions,function(o){return +o.value}):[],manual_discount:0,
   bonus_pay:+(document.getElementById('bp').value||0)||0,comment:document.getElementById('cmt').value,fiscal_rro:fisR(),
-  payments:S.pays.map(function(p){return {method:p.method,amount:p.amount,cert_id:p.cert_id||null,sub_id:p.sub_id||null}})}}
+  payments:S.pays.map(function(p){return {method:p.method,amount:p.amount,cert_id:p.cert_id||null,sub_id:p.sub_id||null}}),overpay:overpay()}}
 function paidSum(){return S.pays.reduce(function(a,p){return a+(+p.amount||0)},0)}
 function remain(){return S.q?Math.max(0,Math.round((S.q.to_pay-paidSum())*100)/100):0}
 function renderPays(){var w=document.getElementById('pays');var bp=+document.getElementById('bp').value||0;
@@ -503,9 +507,19 @@ function renderPays(){var w=document.getElementById('pays');var bp=+document.get
   w.querySelectorAll('.x').forEach(function(x){x.onclick=function(){if(x.dataset.b){document.getElementById('bp').value=0;quote(1)}else{S.pays.splice(+x.dataset.i,1)}renderPays();payLeft()}});
   document.getElementById('t-link').style.display=S.pays.some(function(p){return p.method.indexOf('Посилання на оплату')===0})?'block':'none'}
 function left(){payLeft()}
+function cashIn(){return S.pays.reduce(function(a,p){return a+(/готів|сейф/i.test(p.method||'')?(+p.amount||0):0)},0)}
+function overpay(){if(!S.q)return null;var x=Math.round((paidSum()-S.q.to_pay)*100)/100;if(x<0.01)return null;
+  return cashIn()+0.005>=x?(document.getElementById('ovp-bal').checked&&S.patient_id?'balance':'change'):null}
 function payLeft(){if(!S.q)return;var paid=paidSum();document.getElementById('p-pay').textContent=f2(S.q.to_pay);document.getElementById('p-in').textContent=f2(paid);
   document.getElementById('p-left').textContent=f2(Math.max(0,S.q.to_pay-paid));var l=Math.round((S.q.to_pay-paid)*100)/100,el=document.getElementById('t-left');
-  el.textContent=Math.abs(l)<0.01?'✓ Оплата збігається':(l>0?'Залишилось внести '+f2(l):'Переплата '+f2(-l));el.style.color=Math.abs(l)<0.01?'var(--ok)':'var(--bad)';
+  var ov=document.getElementById('ovp'),cb=document.getElementById('ovp-bal'),okCash=l<-0.009&&cashIn()+0.005>=-l;
+  ov.style.display=l<-0.009?'block':'none';
+  if(l<-0.009){document.getElementById('ovp-sum').textContent=f2(-l);cb.disabled=!S.patient_id||!okCash;if(cb.disabled)cb.checked=false;
+    document.getElementById('ovp-h').textContent=!okCash?'Переплата можлива лише готівкою — карткою чи посиланням внесіть рівно суму до сплати':
+      (!S.patient_id?'Оберіть пацієнта, щоб покласти переплату на його рахунок. Інакше — решта готівкою':
+      (cb.checked?'Сума ляже на рахунок пацієнта окремим поповненням — у фіскальний чек не йде. Коли пацієнт оплатить з рахунку, у чеку це буде знижка':'Без галочки — видайте решту готівкою'))}
+  el.textContent=Math.abs(l)<0.01?'✓ Оплата збігається':(l>0?'Залишилось внести '+f2(l):(okCash?(cb.checked&&S.patient_id?'На рахунок пацієнта ':'Решта ')+f2(-l):'Переплата '+f2(-l)));
+  el.style.color=Math.abs(l)<0.01||okCash?'var(--ok)':'var(--bad)';
   var nr=noRRO();document.querySelectorAll('#pm-money .pt').forEach(function(b){var off=(nr&&b.dataset.k!=='cash')||(b.dataset.k!=='link'&&!rroAllows(b.dataset.m));
     b.classList.toggle('dis',off);b.title=nr&&b.dataset.k!=='cash'?'Без РРО — лише готівка':(off?'Ця каса РРО не приймає цей спосіб оплати':'')});
   var P=S.P||{},cs=(P.certs||{}),ss=(P.subs||{});
@@ -565,8 +579,9 @@ function goLabel(){var g=document.getElementById('go');if(TRM.busy)return;g.text
 var _payLeft0=payLeft;payLeft=function(){_payLeft0();goLabel();if(!S.q)return;
   var tp=+S.q.to_pay||0,pd=paidSum(),l=Math.round((tp-pd)*100)/100,c=document.getElementById('ps2');
   document.getElementById('ps-fill').style.width=(tp>0?Math.min(100,pd/tp*100):(pd>0?100:0))+'%';
-  c.classList.toggle('done',Math.abs(l)<0.01);c.classList.toggle('over',l<-0.009);
-  document.getElementById('t-left').textContent=Math.abs(l)<0.01?'Оплата збігається':(l>0?'Залишилось внести '+f2(l):'Переплата '+f2(-l))};
+  var oc=l<-0.009&&cashIn()+0.005>=-l,ob=oc&&document.getElementById('ovp-bal').checked&&S.patient_id;
+  c.classList.toggle('done',Math.abs(l)<0.01||oc);c.classList.toggle('over',l<-0.009&&!oc);
+  document.getElementById('t-left').textContent=Math.abs(l)<0.01?'Оплата збігається':(l>0?'Залишилось внести '+f2(l):(oc?(ob?'На рахунок пацієнта ':'Решта ')+f2(-l):'Переплата '+f2(-l)))};
 var _pay0=pay;pay=function(){if(!termPays().length)return _pay0();if(TRM.busy)return;
   var e=document.getElementById('err');e.textContent='';if(needDoc()){document.getElementById('payd').close();toPay();return}
   var g=document.getElementById('go'),sid=null;TRM.busy=true;g.disabled=true;g.textContent='Очікуємо оплату на терміналі…';
