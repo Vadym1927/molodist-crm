@@ -301,11 +301,11 @@ def abc(db: Session, d_from: date, d_to: date, view: str = "") -> Report:
 
 # ---------------- утримання: хто не повернувся ----------------
 
-def lost(db: Session, d_from: date, d_to: date, view: str = "") -> Report:
-    """Пацієнти без візиту й оплати понад N днів і без майбутнього запису — на сьогодні (період не впливає)."""
+def _activity(db: Session):
+    """→ (останній візит/оплата, сума за весь час, чеків, {записані на майбутнє}) по пацієнтах: чеки CleverBox + каса CRM + записи."""
     from sqlalchemy import func
     from ..models import Appointment, Check
-    days = int(view) if view in ("60", "180", "365") else 90
+    from . import autonomy
     now = datetime.now()
     last: dict[int, datetime] = {}
     total = defaultdict(float)
@@ -313,7 +313,6 @@ def lost(db: Session, d_from: date, d_to: date, view: str = "") -> Report:
     for pid, mx, sm, n in db.execute(select(Check.patient_id, func.max(Check.date), func.sum(Check.amount), func.count(Check.id))
                                      .where(Check.deleted.is_(False), Check.patient_id.is_not(None)).group_by(Check.patient_id)):
         last[pid], total[pid], cnt[pid] = mx, float(sm or 0), n
-    from . import autonomy
     since = autonomy.since(db)
     q = select(Sale.patient_id, func.max(Sale.at), func.sum(Sale.total), func.count(Sale.id)).where(Sale.status == "paid", Sale.patient_id.is_not(None))
     if since:
@@ -327,6 +326,14 @@ def lost(db: Session, d_from: date, d_to: date, view: str = "") -> Report:
         last[pid] = max(last.get(pid) or mx, mx)
     booked = {pid for (pid,) in db.execute(select(Appointment.patient_id).where(Appointment.start > now,
                                                                                 Appointment.status.notin_(("cancelled", "no_show"))))}
+    return last, total, cnt, booked
+
+
+def lost(db: Session, d_from: date, d_to: date, view: str = "") -> Report:
+    """Пацієнти без візиту й оплати понад N днів і без майбутнього запису — на сьогодні (період не впливає)."""
+    days = int(view) if view in ("60", "180", "365") else 90
+    now = datetime.now()
+    last, total, cnt, booked = _activity(db)
     docs = {d.id: d.name for d in db.scalars(select(Doctor))}
     r = Report("lost", "Утримання: хто не повернувся",
                f"Пацієнти, які були в клініці, але не мають візиту чи оплати {days}+ днів і не записані на майбутнє — станом на сьогодні "
@@ -357,4 +364,187 @@ def lost(db: Session, d_from: date, d_to: date, view: str = "") -> Report:
                ("Понад рік", bk["понад рік"], None, "int", ""),
                ("Топ-10% з них принесли", round(sum(x["total"] for x in top), 2), None, "uah", f"{len(top)} пацієнтів — дзвонити особисто")]
     r.chart, r.chart_title = list(bk.items()), "За давністю останнього візиту"
+    return r.finish()
+
+
+# ---------------- когорти нових, RFM, дні народження ----------------
+
+MON = ["січ", "лют", "бер", "кві", "тра", "чер", "лип", "сер", "вер", "жов", "лис", "гру"]
+
+
+def _first_pay(db: Session) -> dict[int, datetime]:
+    from sqlalchemy import func
+    from ..models import Check
+    first = dict(db.execute(select(Check.patient_id, func.min(Check.date)).where(Check.deleted.is_(False), Check.patient_id.is_not(None))
+                            .group_by(Check.patient_id)).all())
+    for pid, at in db.execute(select(Sale.patient_id, func.min(Sale.at)).where(Sale.status == "paid", Sale.patient_id.is_not(None)).group_by(Sale.patient_id)):
+        if pid not in first or at < first[pid]:
+            first[pid] = at
+    return first
+
+
+def cohorts(db: Session, d_from: date, d_to: date) -> Report:
+    """Когорти нових пацієнтів за місяцем першої оплати: скільки повернулись за 30 / 60 / 90 днів."""
+    from .reports import _checks
+    today = date.today()
+    y, m = d_to.year, d_to.month
+    months = []
+    for _ in range(12):
+        months.append((y, m))
+        y, m = (y, m - 1) if m > 1 else (y - 1, 12)
+    months.reverse()
+    start = date(months[0][0], months[0][1], 1)
+    first = {pid: at for pid, at in _first_pay(db).items() if at.date() >= start}
+    pays = defaultdict(list)
+    for c in _checks(db, start, today):
+        if c.patient_id in first:
+            pays[c.patient_id].append((c.date, float(c.amount or 0)))
+    r = Report("cohorts", "Когорти нових пацієнтів",
+               "Нові пацієнти за місяцем найпершої оплати (12 місяців до кінця періоду) і частка тих, хто заплатив удруге протягом "
+               "30 / 60 / 90 днів. «—» — стільки днів від кінця місяця ще не минуло. LTV 90 — у середньому приніс новий пацієнт за перші 90 днів.",
+               empty="Нових пацієнтів за 12 місяців немає.")
+    r.cols = [Col("month", "Місяць"), Col("new", "Нових", "int", True), Col("first", "Перший візит, сер.", "uah"), Col("r30", "Повернулись за 30 дн", "pct"),
+              Col("r60", "за 60 дн", "pct"), Col("r90", "за 90 дн", "pct"), Col("ltv90", "LTV 90 дн", "uah"), Col("rev", "Принесли всього", "uah", True)]
+    all_new = all_r90 = 0
+    for yy, mm in months:
+        ids = [pid for pid, at in first.items() if (at.year, at.month) == (yy, mm)]
+        if not ids:
+            continue
+        end = (date(yy + 1, 1, 1) if mm == 12 else date(yy, mm + 1, 1)) - timedelta(days=1)
+
+        def back(n):
+            if (today - end).days < n:
+                return None
+            k = sum(1 for pid in ids if any(first[pid].date() < d.date() <= first[pid].date() + timedelta(days=n) for d, _ in pays[pid]))
+            return round(100 * k / len(ids))
+        fsum = sum(a for pid in ids for d, a in pays[pid] if d.date() == first[pid].date())
+        l90 = sum(a for pid in ids for d, a in pays[pid] if d.date() <= first[pid].date() + timedelta(days=90))
+        r90 = back(90)
+        if r90 is not None:
+            all_new += len(ids)
+            all_r90 += round(r90 * len(ids) / 100)
+        r.rows.append({"month": f"{MON[mm - 1]} {yy}", "new": len(ids), "first": round(fsum / len(ids), 2), "r30": back(30), "r60": back(60), "r90": r90,
+                       "ltv90": round(l90 / len(ids), 2) if (today - end).days >= 90 else None,
+                       "rev": round(sum(a for pid in ids for _, a in pays[pid]), 2)})
+    n = sum(x["new"] for x in r.rows)
+    r.tiles = [("Нових за 12 міс", n, None, "int", f"у середньому {round(n / len(r.rows))} на місяць" if r.rows else ""),
+               ("Повертаються за 90 днів", round(100 * all_r90 / all_new) if all_new else 0, None, "pct", "за когортами, де 90 днів уже минуло"),
+               ("Принесли нові за 12 міс", round(sum(x["rev"] for x in r.rows), 2), None, "uah", "")]
+    r.chart, r.chart_title = [(x["month"], x["new"]) for x in r.rows], "Нових пацієнтів за місяцями"
+    return r.finish()
+
+
+SEGMENTS = [("new", "Нові", "перша оплата до 60 днів тому — довести до другого візиту"),
+            ("loyal", "Постійні", "були за останні 60 днів і мають 4+ візити за рік — берегти, пропонувати нове"),
+            ("active", "Активні", "були за останні 90 днів"),
+            ("risk", "Під загрозою", "не були 3–6 місяців — зателефонувати зараз"),
+            ("sleep", "Сплячі", "не були 6–12 місяців — акція на повернення"),
+            ("lost", "Втрачені", "не були понад рік")]
+
+
+def rfm(db: Session, d_from: date, d_to: date, view: str = "") -> Report:
+    """Сегменти бази за давністю, частотою й сумою оплат (на кінець періоду)."""
+    from .reports import _checks
+    end = datetime.combine(d_to, datetime.max.time())
+    y1 = end - timedelta(days=365)
+    first = _first_pay(db)
+    P = defaultdict(lambda: {"last": None, "days": set(), "m12": 0.0})
+    for c in _checks(db, d_to - timedelta(days=730), d_to):
+        if not c.patient_id:
+            continue
+        g = P[c.patient_id]
+        g["last"] = max(g["last"] or c.date, c.date)
+        if c.date >= y1:
+            g["days"].add(c.date.date())
+            g["m12"] += float(c.amount or 0)
+
+    def seg(pid, g):
+        rec = (end - g["last"]).days
+        if rec > 365:
+            return "lost"
+        if rec > 180:
+            return "sleep"
+        if rec > 90:
+            return "risk"
+        if pid in first and (end - first[pid]).days <= 60:
+            return "new"
+        return "loyal" if rec <= 60 and len(g["days"]) >= 4 else "active"
+    segs = {pid: seg(pid, g) for pid, g in P.items()}
+    view = view if view in dict((k, 1) for k, _, _ in SEGMENTS) else ""
+    r = Report("rfm", "Сегменти пацієнтів (RFM)",
+               "База за давністю останньої оплати, частотою й сумою за 12 місяців — на кінець періоду. Оберіть сегмент, щоб побачити список "
+               "пацієнтів з телефонами для дзвінків чи розсилки.", empty="Оплат за два роки немає.")
+    r.filters = [{"name": "cat", "label": "Сегмент", "value": view, "options": [("", "Усі сегменти")] + [(k, l) for k, l, _ in SEGMENTS]}]
+    agg = defaultdict(lambda: {"n": 0, "m12": 0.0})
+    for pid, sg in segs.items():
+        agg[sg]["n"] += 1
+        agg[sg]["m12"] += P[pid]["m12"]
+    tot_n, tot_m = len(segs), sum(g["m12"] for g in P.values())
+    if view:
+        ids = [pid for pid, sg in segs.items() if sg == view]
+        pats = {p.id: p for p in db.scalars(select(Patient).where(Patient.id.in_(ids)))} if ids else {}
+        r.cols = [Col("patient", "Пацієнт"), Col("phone", "Телефон"), Col("last", "Остання оплата", "date"), Col("idle", "Днів тому", "int"),
+                  Col("visits", "Візитів за рік", "int"), Col("m12", "Приніс за 12 міс", "uah", True)]
+        for pid in ids:
+            p, g = pats.get(pid), P[pid]
+            if p:
+                r.rows.append({"patient": p.full_name, "phone": p.phone or "", "last": g["last"], "idle": (end - g["last"]).days,
+                               "visits": len(g["days"]), "m12": round(g["m12"], 2), "_href": f"/patients/{pid}"})
+        r.rows.sort(key=lambda x: -x["m12"])
+    else:
+        r.cols = [Col("seg", "Сегмент"), Col("n", "Пацієнтів", "int", True), Col("share", "Частка бази", "pct"), Col("m12", "Виручка за 12 міс", "uah", True),
+                  Col("rev_share", "Частка виручки", "pct"), Col("avg", "На пацієнта", "uah"), Col("todo", "Що робити")]
+        for k, l, todo in SEGMENTS:
+            g = agg.get(k)
+            if g:
+                r.rows.append({"seg": l, "n": g["n"], "share": round(100 * g["n"] / tot_n, 1) if tot_n else 0, "m12": round(g["m12"], 2),
+                               "rev_share": round(100 * g["m12"] / tot_m, 1) if tot_m else 0, "avg": round(g["m12"] / g["n"], 2), "todo": todo,
+                               "_href": f"/reports?r=rfm&cat={k}"})
+    r.tiles = [("У базі з оплатами за 2 роки", tot_n, None, "int", ""),
+               ("Постійні + активні", agg["loyal"]["n"] + agg["active"]["n"] + agg["new"]["n"], None, "int", "були за останні 90 днів"),
+               ("Під загрозою", agg["risk"]["n"], None, "int", f"торік принесли {round(agg['risk']['m12']):,} ₴".replace(",", " ")),
+               ("Сплячі й втрачені", agg["sleep"]["n"] + agg["lost"]["n"], None, "int", "")]
+    r.chart, r.chart_title = [(l, agg[k]["n"]) for k, l, _ in SEGMENTS if k in agg], "Пацієнтів за сегментами"
+    return r.finish()
+
+
+def bdays(db: Session, d_from: date, d_to: date, view: str = "") -> Report:
+    """Дні народження в періоді — привід зателефонувати; окремо ті, хто давно не був."""
+    last, total, cnt, booked = _activity(db)
+    now = datetime.now()
+    view = "idle" if view == "idle" else ""
+    r = Report("bdays", "Дні народження", "Пацієнти, в яких день народження припадає на обраний період. «Давно не були» — без візиту 90+ днів "
+               "і без запису: привітання — найкращий привід повернути.", empty="У періоді немає днів народження (або дати народження не заповнені в картках).")
+    r.filters = [{"name": "cat", "label": "Показати", "value": view, "options": [("", "Усі іменинники"), ("idle", "Давно не були")]}]
+    r.cols = [Col("day", "Дата"), Col("patient", "Пацієнт"), Col("age", "Виповнюється", "int"), Col("phone", "Телефон"), Col("last", "Останній візит", "date"),
+              Col("idle", "Днів без візиту", "int"), Col("state", "Запис"), Col("total", "Приніс за весь час", "uah", True)]
+    span = (d_to - d_from).days
+    n_idle = 0
+    rows = []
+    for p in db.scalars(select(Patient).where(Patient.birthday.is_not(None))):
+        b = p.birthday
+        hit = None
+        for yr in {d_from.year, d_to.year}:
+            try:
+                d = date(yr, b.month, b.day)
+            except ValueError:
+                d = date(yr, 2, 28)
+            if d_from <= d <= d_to:
+                hit = d
+        if not hit or span > 370:
+            continue
+        lt = last.get(p.id)
+        idle = (now - lt).days if lt else None
+        is_idle = p.id not in booked and (idle is None or idle >= 90)
+        n_idle += is_idle
+        if view and not is_idle:
+            continue
+        rows.append({"_d": hit, "day": f"{hit:%d.%m}", "patient": p.full_name, "age": hit.year - b.year, "phone": p.phone or "", "last": lt,
+                     "idle": idle, "state": "записаний" if p.id in booked else ("давно не був" if is_idle else "—"),
+                     "total": round(total.get(p.id, 0), 2), "_href": f"/patients/{p.id}"})
+    rows.sort(key=lambda x: x["_d"])
+    r.rows = rows
+    r.tiles = [("Іменинників у списку", len(rows), None, "int", ""),
+               ("Давно не були", n_idle, None, "int", "без візиту 90+ днів і без запису"),
+               ("З телефоном", sum(1 for x in rows if x["phone"]), None, "int", "")]
     return r.finish()

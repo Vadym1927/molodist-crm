@@ -40,6 +40,17 @@ def test_cross_and_discounts():
         pr = rp.build(db, "patients", t, t)
         assert pr.tiles[1][1] == 2                           # перша оплата в касі CRM — «нові»
         assert rp.build(db, "lost", t, t).rows == [] and len(rp.build(db, "lost", t, t, cat="60").filters) == 1
+        co = rp.build(db, "cohorts", t, t)
+        assert co.rows[-1]["new"] == 2 and co.rows[-1]["r30"] is None
+        rf = rp.build(db, "rfm", t, t)
+        assert rf.tiles[0][1] == 2 and rf.rows[0]["seg"] == "Нові"
+        assert len(rp.build(db, "rfm", t, t, cat="new").rows) == 2
+        from app.models import Patient as _P
+        bp = db.query(_P).first()
+        bp.birthday = date(1990, t.month, t.day)
+        db.commit()
+        bd = rp.build(db, "bdays", t, t)
+        assert bd.rows[0]["age"] == t.year - 1990 and bd.tiles[0][1] == 1
         ab = rp.build(db, "abc", t, t)
         assert ab.rows[0]["cls"] == "A" and ab.rows[0]["sum"] == 2000
         assert rp.build(db, "abc", t, t, cat="product").rows[0]["name"] == "Крем"
@@ -47,5 +58,5 @@ def test_cross_and_discounts():
     with TestClient(app) as c:
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
         for u in ("/reports?r=cross", "/reports?r=discounts&cat=rules", "/reports?r=certificates&cat=use", "/reports?r=cross&fmt=xlsx",
-                  "/reports?r=ltv", "/reports?r=src_sales", "/reports?r=lost&cat=180", "/reports", "/reports?r=abc&cat=product"):
+                  "/reports?r=ltv", "/reports?r=src_sales", "/reports?r=lost&cat=180", "/reports?r=cohorts", "/reports?r=rfm&cat=risk", "/reports?r=bdays&cat=idle", "/reports", "/reports?r=abc&cat=product"):
             assert c.get(u).status_code == 200, u
