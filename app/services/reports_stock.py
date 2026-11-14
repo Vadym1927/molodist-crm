@@ -186,12 +186,26 @@ def dead(db: Session, d_from: date, d_to: date, view: str = "") -> Report:
     for m in db.scalars(select(StockMove).where(StockMove.kind.in_(OUT_KINDS), StockMove.qty < 0, StockMove.product_id.in_(stock))) if stock else []:
         if m.product_id not in last or m.at > last[m.product_id]:
             last[m.product_id] = m.at
+    # журнал складу ведеться недавно — історію продажів до нього беремо з чеків (CleverBox + каса CRM) за назвою товару
+    from .reports import _checks, _items
+    from .stock import ledger_start
+    from ..parsers.observ import norm
+    by_name = {norm(p.name): pid for pid, p in prods.items() if pid in stock}
+    for c in _checks(db, d_to - timedelta(days=400), d_to):
+        for kind, name, _q, _amt, _st in _items(c):
+            pid = by_name.get(norm(name)) if kind == "product" else None
+            if pid and (pid not in last or c.date > last[pid]):
+                last[pid] = c.date
+    ls = ledger_start(db)
+    ledger_days = (end - ls).days if ls else 0
     exp: dict[int, date] = {}
     for m in db.scalars(select(StockMove).where(StockMove.expiry_date.is_not(None), StockMove.product_id.in_(stock))) if stock else []:
         if m.expiry_date >= d_to and (m.product_id not in exp or m.expiry_date < exp[m.product_id]):
             exp[m.product_id] = m.expiry_date
     r = Report("dead", "Неліквіди", f"Товари, що є на складі, але не продавались і не списувались на процедури {days}+ днів (до кінця періоду). "
-               "Сума — залишок × ціна останньої поставки: гроші, заморожені на полицях. Обладнання не враховується.",
+               "Сума — залишок × ціна останньої поставки: гроші, заморожені на полицях. Обладнання не враховується. "
+               + (f"Облік складу в CRM ведеться {ledger_days} дн.: для товарів вітрини історія продажів береться з чеків за рік, "
+                  f"а витратні й препарати з'являться тут, коли облік стане довшим за {days} дн." if ledger_days < days else ""),
                empty="Неліквідів немає — усе, що є на складі, рухається.")
     r.filters = [{"name": "cat", "label": "Без руху", "value": str(days) if view else "",
                   "options": [("60", "60+ днів"), ("", "90+ днів"), ("180", "180+ днів")]}]
@@ -206,16 +220,18 @@ def dead(db: Session, d_from: date, d_to: date, view: str = "") -> Report:
         idle = (end - lt).days if lt else None
         if idle is not None and idle < days:
             continue
+        if idle is None and p.warehouse != "vitrina" and ledger_days < days:
+            continue                                          # витратні: списання до початку обліку складу невідомі — не вгадуємо
         val = q * uc.get(pid, 0.0)
         for w in whs[pid]:
             by_wh[w] += val / len(whs[pid])
         r.rows.append({"name": p.name, "brand": p.brand or "", "wh": ", ".join(sorted(whs[pid])), "qty": round(q, 3), "sum": round(val, 2),
-                       "last": lt, "idle": idle if idle is not None else 9999, "exp": exp.get(pid), "_href": f"/products/{pid}"})
+                       "last": lt, "idle": idle, "exp": exp.get(pid), "_href": f"/products/{pid}"})
     r.rows.sort(key=lambda x: -x["sum"])
     soon = [x for x in r.rows if x["exp"] and (x["exp"] - d_to).days <= 90]
     tot = sum(x["sum"] for x in r.rows)
     r.tiles = [("Заморожено в неліквідах", round(tot, 2), None, "uah", f"{len(r.rows)} позицій"),
-               ("Ніколи не рухались", sum(1 for x in r.rows if x["idle"] == 9999), None, "int", "немає жодного продажу чи списання"),
+               ("Без жодного продажу за рік", sum(1 for x in r.rows if x["idle"] is None), None, "int", "немає в чеках і в журналі складу"),
                ("Термін спливає за 90 дн", round(sum(x["sum"] for x in soon), 2), None, "uah", f"{len(soon)} позицій — розпродати першими")]
     r.chart, r.chart_title = sorted(((k, round(v, 2)) for k, v in by_wh.items()), key=lambda kv: -kv[1]), "Неліквіди за складами, ₴"
     return r.finish()
