@@ -97,7 +97,7 @@ def test_unit_cost_prefers_product_cost():
         p = Product(name="Бахіли ціна", name_norm="бахіли ціна", warehouse="single", unit="шт.", cost=1.14)
         db.add(p); db.flush()
         db.add(ProductPurchase(product_id=p.id, bought_on=date(2026, 9, 30), qty=100, unit_cost=1.41)); db.commit()
-        assert tc.unit_costs(db)[p.id] == 1.14            # як у CleverBox: ціна закупівлі з проведених поставок
+        assert tc.unit_costs(db)[p.id] == 1.41            # правило власника: ціна останньої поставки, а не картки
 
 
 def test_unit_cost_per_pack_divided_by_coef():
@@ -126,7 +126,7 @@ def test_unit_cost_cb_cost_per_unit_with_purchases():
         db.add(ProductPurchase(product_id=p.id, bought_on=date(2026, 9, 30), qty=200, unit_cost=44.04))
         db.add(ProductPurchase(product_id=q.id, bought_on=date(2026, 9, 30), qty=50, unit_cost=1.6)); db.commit()
         uc = tc.unit_costs(db)
-        assert uc[p.id] == 48.22 and uc[q.id] == 1.5
+        assert uc[p.id] == 44.04 and uc[q.id] == 1.6      # остання поставка (уже за одиницю обліку)
 
 
 def test_unit_cost_pack_price_without_unpacking():
@@ -146,7 +146,7 @@ def test_unit_cost_pack_price_without_unpacking():
 
 
 def test_unit_cost_stock_average():
-    """Ціна одиниці = середня ціна поставок, що покривають залишок (як у CleverBox), а не застаріла ціна картки."""
+    """Ціна одиниці = ціна останньої поставки, а не застаріла ціна картки."""
     from datetime import date, datetime
     from app.models import SessionLocal, Product, ProductPurchase, StockMove
     from app.services import techcards as tc
@@ -158,4 +158,4 @@ def test_unit_cost_stock_average():
         db.add(ProductPurchase(product_id=p.id, bought_on=date(2026, 10, 30), qty=2, unit_cost=655.2))
         db.add(StockMove(product_id=p.id, warehouse="inject", qty=3, at=datetime(2026, 11, 1), kind="start"))
         db.commit()
-        assert round(tc.unit_costs(db)[p.id], 2) == round((2 * 655.2 + 724.5) / 3, 2)
+        assert round(tc.unit_costs(db)[p.id], 2) == 655.2
