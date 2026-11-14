@@ -2221,7 +2221,11 @@ def sale_view(request: Request, sid: int, user: User = Depends(require("sales"))
     s_ = db.get(Sale, sid) or (_ for _ in ()).throw(HTTPException(404))
     docs = {d_.id: d_.name for d_ in db.scalars(select(Doctor))}
     from .services import fiscal as _fis
+    from .models import Appointment as _ApV
+    _ap = db.get(_ApV, s_.appointment_id) if s_.appointment_id else None
     return render(request, "sale_view.html", nav="finance", s=s_, docs=docs, author=db.get(User, s_.created_by) if s_.created_by else None,
+                  visit_url=(f"/calendar?start={_ap.start:%Y-%m-%d}&open={_ap.id}" if _ap and _ap.start else None),
+                  cal_url=f"/calendar?start={(_ap.start if _ap and _ap.start else s_.at):%Y-%m-%d}",
                   print_=bool(request.query_params.get("print")), rros=[r for r in _fis.rros(db) if r["on"]], fcfg=_fis.cfg(db),
                   links=db.scalars(select(__import__("app.models", fromlist=["PayLink"]).PayLink).where(
                       __import__("app.models", fromlist=["PayLink"]).PayLink.sale_id == s_.id)).all())
