@@ -36,7 +36,7 @@ def auto(d: Doctor) -> bool:
 def ids(db: Session) -> set[int]:
     s = saved(db)
     if s is not None:
-        return set(s)
+        return {d.id for d in db.scalars(select(Doctor).where(Doctor.id.in_(s), Doctor.active.is_(True)))}
     return {d.id for d in db.scalars(select(Doctor)) if auto(d)}
 
 

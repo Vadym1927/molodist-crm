@@ -12,9 +12,9 @@
 <div class="gs"><form method="post" action="/settings/plan-doctors">
   <p class="mini" style="margin-top:0">Позначте, хто показується у виборі «Лікар» у бюті-плані та «Лікар пацієнта» в картці.
   {% if not custom %}Зараз список визначено автоматично — за посадою (лікар, дерматолог, косметолог…). Перевірте й збережіть.{% endif %}
-  Якщо в плані вже стоїть лікар не з цього списку, він лишається вибраним у цьому плані.</p>
-  <div class="dl">{% for d in docs %}<label class="{{ 'off' if not d.active }}"><input type="checkbox" name="d" value="{{ d.id }}" {{ 'checked' if d.id in sel }}>
-    <span>{{ d.name }}<br><small>{{ d.position or 'посада не вказана' }}{{ ' · не працює' if not d.active }}</small></span></label>{% endfor %}</div>
+  Звільнені спеціалісти тут не показуються й зі списку зникають автоматично. Якщо в плані вже стоїть лікар не з цього списку, він лишається вибраним у цьому плані.</p>
+  <div class="dl">{% for d in docs %}<label><input type="checkbox" name="d" value="{{ d.id }}" {{ 'checked' if d.id in sel }}>
+    <span>{{ d.name }}<br><small>{{ d.position or 'посада не вказана' }}</small></span></label>{% endfor %}</div>
   <div style="margin-top:14px"><button class="btn">Зберегти</button></div>
 </form></div>
 {% endblock %}

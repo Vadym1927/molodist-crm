@@ -113,3 +113,15 @@ def test_nickname_match():
         db.add(p)
         db.commit()
         assert best_match(db, "Ольга Румянцева").id == p.id
+
+
+def test_plan_doctors_skip_fired():
+    from app.models import Doctor
+    from app.services import plan_doctors as pdx
+    with SessionLocal() as db:
+        a = Doctor(name="Працює", position="Лікар", active=True)
+        f = Doctor(name="Звільнена", position="Лікар", active=False)
+        db.add_all([a, f])
+        db.commit()
+        pdx.save(db, [a.id, f.id])
+        assert pdx.ids(db) == {a.id}

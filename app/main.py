@@ -7214,7 +7214,7 @@ async def ops_create(request: Request, user: User = Depends(require("users")), d
 @app.get("/settings/plan-doctors", response_class=HTMLResponse)
 def plan_doctors_page(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     from .services import plan_doctors as pdx
-    docs = db.scalars(select(Doctor).order_by(Doctor.active.desc(), Doctor.name)).all()
+    docs = db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)).all()      # звільнених не показуємо
     return render(request, "settings_plan_doctors.html", nav="settings", docs=docs, sel=pdx.ids(db), custom=pdx.saved(db) is not None)
 
 
