@@ -143,3 +143,19 @@ def test_unit_cost_pack_price_without_unpacking():
         assert tc.refresh_costs(db, [p.id]) == 1
         db.commit()
         assert db.get(VisitMaterial, m.id).unit_cost == 0.29
+
+
+def test_unit_cost_stock_average():
+    """Ціна одиниці = середня ціна поставок, що покривають залишок (як у CleverBox), а не застаріла ціна картки."""
+    from datetime import date, datetime
+    from app.models import SessionLocal, Product, ProductPurchase, StockMove
+    from app.services import techcards as tc
+    with SessionLocal() as db:
+        p = Product(name="Сироватка тест", name_norm="СИРОВАTКА TЕСT", unit="шт", cost=728, warehouse="inject")
+        db.add(p)
+        db.flush()
+        db.add(ProductPurchase(product_id=p.id, bought_on=date(2026, 9, 30), qty=4, unit_cost=724.5))
+        db.add(ProductPurchase(product_id=p.id, bought_on=date(2026, 10, 30), qty=2, unit_cost=655.2))
+        db.add(StockMove(product_id=p.id, warehouse="inject", qty=3, at=datetime(2026, 11, 1), kind="start"))
+        db.commit()
+        assert round(tc.unit_costs(db)[p.id], 2) == round((2 * 655.2 + 724.5) / 3, 2)

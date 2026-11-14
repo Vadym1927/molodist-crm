@@ -65,7 +65,43 @@ def unit_costs(db: Session) -> dict[int, float]:
                 out[p.id] = ref                                            # беремо ціну закупівлі за одиницю обліку
         elif p.id not in out:
             out[p.id] = float(p.stock_cost or 0) / k
+    _stock_average(db, out)
     return out
+
+
+def _stock_average(db: Session, out: dict[int, float]) -> None:
+    """Середня собівартість залишку — як у CleverBox: залишок складається з останніх поставок (за кожною — своя ціна),
+    тож ціна одиниці = середня зважена ціна тих поставок, що покривають поточний залишок. Те, що не покрите поставками,
+    рахується за ціною картки. Лише товари без фасування (коеф. 1) із залишком і поставками; ціна картки при цьому не змінюється.
+    (Сироватка SLIM: картка 728 ₴, остання поставка 2 шт по 655,20 ₴ → залишок 2 шт коштує 655,20 ₴, а не 728 ₴.)"""
+    from .stock import balances
+    stock: dict[int, float] = {}
+    for (pid, _wh), q in balances(db).items():
+        stock[pid] = stock.get(pid, 0.0) + float(q or 0)
+    if not stock:
+        return
+    layers: dict[int, list] = {}
+    for pp in db.scalars(select(ProductPurchase).where(ProductPurchase.unit_cost > 0, ProductPurchase.qty > 0)
+                         .order_by(ProductPurchase.bought_on.desc(), ProductPurchase.id.desc())):
+        layers.setdefault(pp.product_id, []).append((float(pp.qty), float(pp.unit_cost)))
+    simple = {p.id for p in db.scalars(select(Product)) if not (p.coef and p.coef > 1)}
+    for pid, ls in layers.items():
+        left, card = stock.get(pid, 0.0), out.get(pid, 0.0)
+        if pid not in simple or left <= 1e-6:
+            continue
+        total, need = 0.0, left
+        for q, c in ls:
+            take = min(q, need)
+            total, need = total + take * c, need - take
+            if need <= 1e-6:
+                break
+        if need > 1e-6:
+            if card <= 0:
+                continue
+            total += need * card
+        avg = total / left
+        if avg > 0 and (card <= 0 or 1 / OFF_RATIO < avg / card < OFF_RATIO):
+            out[pid] = round(avg, 4)
 
 
 def fix_unit_costs_v2(db: Session) -> int:
@@ -93,6 +129,24 @@ def fix_unit_costs_v3(db: Session) -> int:
         return 0
     n = refresh_costs(db)
     db.merge(SyncState(key="visit_unit_cost_fix_v3", value=str(n)))
+    db.commit()
+    return n
+
+
+def fix_unit_costs_v4(db: Session) -> int:
+    """Один раз: у незавершених візитах оновити ціну витратних до середньої собівартості залишку (як у CleverBox).
+    Завершені візити не чіпаємо — їхня собівартість уже в зарплаті й звітах."""
+    if db.get(SyncState, "visit_unit_cost_fix_v4"):
+        return 0
+    from ..models import Appointment
+    uc = unit_costs(db)
+    open_ids = {i for (i,) in db.execute(select(Appointment.id).where(Appointment.status != "done"))}
+    n = 0
+    for m in db.scalars(select(VisitMaterial)):
+        new = uc.get(m.product_id, 0.0)
+        if m.appt_id in open_ids and new > 0 and abs(new - float(m.unit_cost or 0)) > 0.005:
+            m.unit_cost, n = round(new, 4), n + 1
+    db.merge(SyncState(key="visit_unit_cost_fix_v4", value=str(n)))
     db.commit()
     return n
 
