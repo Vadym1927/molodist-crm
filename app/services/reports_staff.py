@@ -54,83 +54,96 @@ def _users(db: Session) -> dict[int, User]:
     return {u.id: u for u in db.scalars(select(User))}
 
 
-# ---------------- завантаження спеціалістів ----------------
+# ---------------- робочий час і завантаження ----------------
+
+def _hours(t: datetime, e: datetime):
+    """Інтервал → (дата, година, частка години) по годинних відрізках."""
+    while t < e:
+        nxt = min(e, t.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1))
+        yield t.date(), t.hour, (nxt - t).total_seconds() / 3600
+        t = nxt
+
 
 def load(db: Session, d_from: date, d_to: date, view: str = "") -> Report:
+    from ..models import TimeBlock
     a, b = _rng(d_from, d_to)
-    view = view if view in ("wd", "hours") else ""
+    view = view if view in ("wd", "days", "hours") else ""
     docs = _doctors(db)
-    shifts = list(db.scalars(select(StaffShift).where(StaffShift.day >= d_from, StaffShift.day <= d_to)))
+    shifts = {(s.doctor_id, s.day): s for s in db.scalars(select(StaffShift).where(StaffShift.day >= d_from, StaffShift.day <= d_to))}
     appts = list(db.scalars(select(Appointment).where(Appointment.start >= a, Appointment.start <= b,
                                                       Appointment.status.notin_(LOST), Appointment.doctor_id.is_not(None))))
-    r = Report("load", "Завантаження спеціалістів",
-               "Години за графіком («Спеціалісти → Графік») проти годин у записах (без скасованих і неявок). "
-               "Завантаження = зайняті години ÷ години графіка. Якщо графік не заповнений — завантаження не рахується, "
-               "а записи показані як «поза графіком».",
+    blocks = list(db.scalars(select(TimeBlock).where(TimeBlock.start <= b, TimeBlock.end >= a)))
+    r = Report("load", "Робочий час і завантаження",
+               "Години за графіком («Спеціалісти → Графік») мінус заблокований час (блокування в календарі в межах зміни) = доступні години. "
+               "«У записах» — години записів без скасованих і неявок у дні зі зміною. Простій = доступні − у записах; "
+               "зайнятість = у записах ÷ доступні. Записи в дні без зміни показані окремо як «поза графіком».",
                empty="За період немає ні змін у графіку, ні записів.")
     r.filters = [{"name": "cat", "label": "Показати", "value": view,
-                  "options": [("", "За спеціалістами"), ("wd", "За днями тижня"), ("hours", "За годинами дня")]}]
-
-    def dur(ap):
-        return max(0.0, ((ap.end or ap.start) - ap.start).total_seconds() / 3600)
-
-    sh_total = sum(max(0.0, _hm(s.end) - _hm(s.start)) for s in shifts)
-    shift_keys = {(s.doctor_id, s.day) for s in shifts}
-    busy_in = sum(dur(x) for x in appts if (x.doctor_id, x.start.date()) in shift_keys)
-    busy_out = sum(dur(x) for x in appts if (x.doctor_id, x.start.date()) not in shift_keys)
-    r.tiles = [("Завантаження", _pct(busy_in, sh_total) or 0, None, "pct", "зайняті години ÷ графік"),
-               ("Години за графіком", round(sh_total, 1), None, "num", f"{len(shift_keys)} змін"),
-               ("Зайнято годин", round(busy_in, 1), None, "num", f"{len(appts)} записів"),
-               ("Вільно годин", round(max(0.0, sh_total - busy_in), 1), None, "num",
-                f"поза графіком: {round(busy_out, 1)} год" if busy_out else "")]
-    if view == "hours":
-        H = defaultdict(lambda: {"sh": 0.0, "busy": 0.0})
-        for s in shifts:
-            x, y = _hm(s.start), _hm(s.end)
-            for h in range(int(x), int(y + 0.999)):
-                H[h]["sh"] += max(0.0, min(y, h + 1) - max(x, h))
-        for ap in appts:
-            t, e = ap.start, ap.end or ap.start
-            while t < e:
-                nxt = min(e, t.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1))
-                H[t.hour]["busy"] += (nxt - t).total_seconds() / 3600
-                t = nxt
-        r.cols = [Col("name", "Година"), Col("sh", "Годин графіка", "num", True), Col("busy", "Зайнято", "num", True),
-                  Col("load", "Завантаження", "pct"), Col("free", "Вільно", "num", True)]
-        for h in sorted(H):
-            g = H[h]
-            r.rows.append({"name": f"{h:02d}:00–{h + 1:02d}:00", "sh": round(g["sh"], 1), "busy": round(g["busy"], 1),
-                           "load": _pct(g["busy"], g["sh"]), "free": round(max(0.0, g["sh"] - g["busy"]), 1)})
-        r.chart = [(f"{h:02d}", round(H[h]["busy"], 1)) for h in sorted(H)]
-        r.chart_title = "Зайняті години за часом доби"
-    else:
-        G = defaultdict(lambda: {"sh": 0.0, "busy": 0.0, "out": 0.0, "days": set(), "n": 0, "sum": 0.0})
-        key = (lambda did, day: day.weekday()) if view == "wd" else (lambda did, day: did)
-        for s in shifts:
-            g = G[key(s.doctor_id, s.day)]
-            g["sh"] += max(0.0, _hm(s.end) - _hm(s.start))
-            g["days"].add((s.doctor_id, s.day))
-        for ap in appts:
-            g = G[key(ap.doctor_id, ap.start.date())]
-            g["busy" if (ap.doctor_id, ap.start.date()) in shift_keys else "out"] += dur(ap)
-            g["n"] += 1
-            g["sum"] += _price(ap)
-        r.cols = [Col("name", "День тижня" if view == "wd" else "Спеціаліст"), Col("days", "Змін", "int", True),
-                  Col("sh", "Годин графіка", "num", True), Col("busy", "Зайнято", "num", True), Col("load", "Завантаження", "pct"),
-                  Col("free", "Вільно", "num", True), Col("out", "Поза графіком", "num", True), Col("n", "Записів", "int", True),
-                  Col("sum", "Сума записів", "uah", True), Col("per_h", "₴ за год графіка", "uah")]
-        for k, g in G.items():
-            if view != "wd" and k in docs and docs[k].active is False and not g["n"]:
-                continue
-            r.rows.append({"name": WD[k] if view == "wd" else (docs[k].name if k in docs else f"#{k}"), "_k": k,
-                           "days": len(g["days"]), "sh": round(g["sh"], 1), "busy": round(g["busy"], 1),
-                           "load": _pct(g["busy"], g["sh"]), "free": round(max(0.0, g["sh"] - g["busy"]), 1),
-                           "out": round(g["out"], 1), "n": g["n"], "sum": round(g["sum"]),
-                           "per_h": round(g["sum"] / g["sh"]) if g["sh"] else None,
-                           "_href": None if view == "wd" else f"/reports/doctors-kpi?doctor={k}"})
-        r.rows.sort(key=(lambda x: x["_k"]) if view == "wd" else (lambda x: -(x["load"] or 0)))
-        r.chart = [(x["name"], x["load"] or 0) for x in r.rows]
-        r.chart_title = "Завантаження, %"
+                  "options": [("", "За спеціалістами"), ("wd", "За днями тижня"), ("days", "За датами"), ("hours", "За годинами дня")]}]
+    # клітинка (спеціаліст, дата, година) → графік / блок / записи
+    C = defaultdict(lambda: {"sh": 0.0, "blk": 0.0, "busy": 0.0, "out": 0.0, "n": 0, "sum": 0.0})
+    for (did, day), s in shifts.items():
+        x, y = _hm(s.start), _hm(s.end)
+        for h in range(int(x), int(y + 0.999)):
+            C[(did, day, h)]["sh"] += max(0.0, min(y, h + 1) - max(x, h))
+    for bl in blocks:
+        for did in ([bl.doctor_id] if bl.doctor_id else {k[0] for k in shifts}):
+            for day, h, part in _hours(max(bl.start, a), min(bl.end, b)):
+                c = C.get((did, day, h))
+                if c and c["sh"]:
+                    c["blk"] = min(c["sh"], c["blk"] + part)
+    for ap in appts:
+        on = (ap.doctor_id, ap.start.date()) in shifts
+        first = True
+        for day, h, part in _hours(ap.start, ap.end or ap.start):
+            c = C[(ap.doctor_id, day, h)]
+            c["busy" if on else "out"] += part
+            if first:
+                c["n"] += 1
+                c["sum"] += _price(ap)
+                first = False
+    key = {"wd": lambda k: k[1].weekday(), "days": lambda k: k[1], "hours": lambda k: k[2]}.get(view, lambda k: k[0])
+    G = defaultdict(lambda: defaultdict(float))
+    days = defaultdict(set)
+    for k, c in C.items():
+        g = G[key(k)]
+        for f in ("sh", "blk", "busy", "out", "n", "sum"):
+            g[f] += c[f]
+        if c["sh"]:
+            days[key(k)].add((k[0], k[1]))
+    tot = {f: sum(g[f] for g in G.values()) for f in ("sh", "blk", "busy", "out", "n")}
+    avail = max(0.0, tot["sh"] - tot["blk"])
+    W = defaultdict(lambda: [0.0, 0.0])               # день тижня → [доступно, зайнято]
+    for k, c in C.items():
+        W[k[1].weekday()][0] += c["sh"] - c["blk"]
+        W[k[1].weekday()][1] += c["busy"]
+    wl = sorted(((v[1] / v[0], w) for w, v in W.items() if v[0] > 0))
+    r.tiles = [("Зайнятість", _pct(tot["busy"], avail) or 0, None, "pct", f"{round(tot['busy'], 1)} з {round(avail, 1)} доступних год"),
+               ("Години за графіком", round(tot["sh"], 1), None, "num", f"{len(shifts)} змін · заблоковано {round(tot['blk'], 1)} год"),
+               ("Простій", round(max(0.0, avail - tot["busy"]), 1), None, "num",
+                f"годин · {_pct(max(0.0, avail - tot['busy']), avail) or 0}% вільного часу"),
+               ("Найвільніший день", round(100 - 100 * wl[0][0], 1) if wl else 0, None, "pct",
+                (f"вільно в {WD[wl[0][1]]} · найзайнятіший — {WD[wl[-1][1]]} ({round(100 * wl[-1][0])}%)" if wl else "") +
+                (f" · поза графіком {round(tot['out'], 1)} год" if tot["out"] else ""))]
+    r.cols = [Col("name", {"wd": "День тижня", "days": "Дата", "hours": "Година"}.get(view, "Спеціаліст")), Col("days", "Змін", "int", True),
+              Col("sh", "За графіком", "num", True), Col("blk", "Заблоковано", "num", True), Col("avail", "Доступно", "num", True),
+              Col("busy", "У записах", "num", True), Col("load", "Зайнятість", "pct"), Col("free", "Простій", "num", True),
+              Col("free_pct", "Вільно", "pct"), Col("out", "Поза графіком", "num", True), Col("n", "Записів", "int", True),
+              Col("sum", "Сума записів", "uah", True), Col("per_h", "₴ за доступну год", "uah")]
+    for k, g in G.items():
+        if not view and k in docs and docs[k].active is False and not g["n"]:
+            continue
+        av = max(0.0, g["sh"] - g["blk"])
+        name = {"wd": lambda: WD[k], "days": lambda: f"{k:%d.%m} {WD[k.weekday()]}", "hours": lambda: f"{k:02d}:00–{k + 1:02d}:00"}.get(
+            view, lambda: docs[k].name if k in docs else f"#{k}")()
+        r.rows.append({"name": name, "_k": k, "days": len(days[k]), "sh": round(g["sh"], 1), "blk": round(g["blk"], 1), "avail": round(av, 1),
+                       "busy": round(g["busy"], 1), "load": _pct(g["busy"], av), "free": round(max(0.0, av - g["busy"]), 1),
+                       "free_pct": _pct(max(0.0, av - g["busy"]), av), "out": round(g["out"], 1), "n": int(g["n"]), "sum": round(g["sum"]),
+                       "per_h": round(g["sum"] / av) if av else None,
+                       "_href": f"/reports/doctors-kpi?doctor={k}" if not view else None})
+    r.rows.sort(key=(lambda x: x["_k"]) if view else (lambda x: -(x["load"] or 0)))
+    r.chart = [(x["name"], x["load"] or 0) for x in r.rows] if view != "days" or len(r.rows) <= 31 else []
+    r.chart_title = "Зайнятість, %"
     r.total = {c.key: round(sum(x.get(c.key) or 0 for x in r.rows), 1) for c in r.cols if c.total}
     return r
 

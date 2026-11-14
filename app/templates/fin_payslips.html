@@ -4,10 +4,11 @@
 {% include "_fin_tabs.html" %}
 {% set t = v.total %}
 <div class="row between" style="margin-bottom:12px;gap:10px;flex-wrap:wrap"><div><h1>Розрахункові листи</h1>
-  <div class="muted small">Нараховано (ставка + комісійні + премії) − податки − утримання = до виплати · виплачено на руки за {{ month }}</div></div>
+  <div class="muted small">Нараховано (ставка + комісійні + премії) − податки − утримання = до виплати · виплачено на руки за {{ v.label }}</div></div>
   <form class="fin-f" style="display:flex;gap:8px;align-items:center"><select name="m" onchange="this.form.submit()">{% for x in months %}<option {{ 'selected' if month==x }}>{{ x }}</option>{% endfor %}</select>
+    <select name="h" onchange="this.form.submit()" title="Період місяця">{% for k, l in halves.items() %}<option value="{{ k }}" {{ 'selected' if v.half==k }}>{{ l }}</option>{% endfor %}</select>
     <label class="small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="all" value="1" {{ 'checked' if show_all }} onchange="this.form.submit()"> усі співробітники</label>
-    <a class="btn ghost" href="/finance/payslips?m={{ month }}&xlsx=1">⬇ Excel</a><button type="button" class="btn ghost" onclick="window.print()">🖨 Друк</button></form></div>
+    <a class="btn ghost" href="/finance/payslips?m={{ month }}&h={{ v.half }}&xlsx=1">⬇ Excel</a><a class="btn ghost" target="_blank" href="/finance/payslips/slip?m={{ month }}&h={{ v.half }}">🖨 Усі листи</a></form></div>
 <div class="fin-k">
   <div class="tile"><span>Нараховано</span><b>{{ t.gross|uah }}</b><small class="muted">ставка {{ t.base|uah }} · комісійні {{ t.comm|uah }} · премії {{ t.bonus|uah }}</small></div>
   <div class="tile"><span>Податки й утримання</span><b class="out">{{ (t.tax + t.hold)|uah }}</b><small class="muted">податки {{ t.tax|uah }} · утримання {{ t.hold|uah }}</small></div>
@@ -36,7 +37,7 @@
   <td class="sep gr">{{ r.gross|uah }}</td><td class="{{ 'neg' if r.tax }}">{{ r.tax|uah if r.tax else '—' }}</td><td class="{{ 'neg' if r.hold }}">{{ r.hold|uah if r.hold else '—' }}</td>
   <td class="sep gr">{{ r.net|uah }}</td><td>{{ r.paid|uah if r.paid else '—' }}</td><td class="sep">{{ r.opening|uah if r.opening else '—' }}</td>
   <td><span class="due {{ 'bad' if r.closing > 0.01 }}">{{ r.closing|uah }}</span></td></tr>
-<tr class="ps-det" hidden><td colspan="11"><div class="ps-slip">
+<tr class="ps-det" hidden><td colspan="11"><div style="text-align:right;margin:8px 0 0"><a class="btn ghost" target="_blank" href="/finance/payslips/slip?m={{ month }}&h={{ v.half }}&doctor={{ d.id }}">🖨 Друк / PDF — {{ v.label }}</a></div><div class="ps-slip">
   <div><h4>Нараховано</h4><dl>
     <dt>Ставка / оклад{% if r.days %} · змін {{ r.days }}{% endif %}</dt><dd>{{ r.base|uah }}</dd>
     <dt>Комісійні з послуг{% if r.services %} (оборот {{ r.services|uah }}){% endif %}</dt><dd>{{ r.from_services|uah }}</dd>
@@ -47,17 +48,17 @@
     {% for x in r.adjs.tax %}<dt>{{ x.article }}{% if x.comment %} · {{ x.comment }}{% endif %}</dt><dd class="neg">{{ x.amount|uah }}</dd>{% endfor %}
     {% for x in r.adjs.hold %}<dt>{{ x.article or 'Утримання' }}{% if x.comment %} · {{ x.comment }}{% endif %}</dt><dd class="neg">{{ x.amount|uah }}</dd>{% endfor %}
     {% if not r.adjs.tax and not r.adjs.hold %}<dt class="muted">Немає</dt><dd></dd>{% endif %}
-    <dt class="tot">До виплати за місяць</dt><dd class="tot">{{ r.net|uah }}</dd></dl></div>
+    <dt class="tot">До виплати за період</dt><dd class="tot">{{ r.net|uah }}</dd></dl></div>
   <div><h4>Виплачено на руки</h4><dl>
     {% for p in r.pays %}<dt>{{ p.day|dt('%d.%m.%Y') }}{% if p.cashbox %} · {{ p.cashbox }}{% endif %}{% if p.comment %} · {{ p.comment }}{% endif %}</dt><dd>{{ (p.amount if p.kind == 'expense' else -p.amount)|uah }}</dd>{% endfor %}
     {% if not r.pays %}<dt class="muted">Виплат ще немає</dt><dd></dd>{% endif %}
     <dt class="tot">Разом виплачено</dt><dd class="tot">{{ r.paid|uah }}</dd>
-    {% if r.opening %}<dt>Борг на початок місяця</dt><dd>{{ r.opening|uah }}</dd>{% endif %}
+    {% if r.opening %}<dt>Борг на початок періоду</dt><dd>{{ r.opening|uah }}</dd>{% endif %}
     <dt class="tot">Залишок до виплати</dt><dd class="tot {{ 'neg' if r.closing > 0.01 }}">{{ r.closing|uah }}</dd></dl></div>
 </div></td></tr>
-{% else %}<tr><td colspan="11" class="muted">За {{ month }} нарахувань і виплат немає.</td></tr>{% endfor %}
+{% else %}<tr><td colspan="11" class="muted">За {{ v.label }} нарахувань і виплат немає.</td></tr>{% endfor %}
 </tbody><tfoot><tr><td>Разом</td><td>{{ t.base|uah }}</td><td>{{ t.comm|uah }}</td><td>{{ t.bonus|uah }}</td><td class="sep">{{ t.gross|uah }}</td><td>{{ t.tax|uah }}</td><td>{{ t.hold|uah }}</td>
   <td class="sep">{{ t.net|uah }}</td><td>{{ t.paid|uah }}</td><td class="sep">{{ t.opening|uah }}</td><td>{{ t.closing|uah }}</td></tr></tfoot></table></div>
-<p class="small muted">Натисніть на рядок — відкриється розрахунковий лист співробітника. Премії, податки й утримання вносяться в «Взаєморозрахунки по з/п» кнопками «＋ Нарахувати» / «− Утримати»
+<p class="small muted">Натисніть на рядок — відкриється розрахунковий лист співробітника з кнопкою «Друк / PDF» (у вікні друку оберіть «Зберегти як PDF»). Половини місяця: оклад «за місяць» ділиться навпіл, комісійні й ставка за зміни — за фактом 1–15 числа, друга половина = місяць − перша. Премії, податки й утримання вносяться в «Взаєморозрахунки по з/п» кнопками «＋ Нарахувати» / «− Утримати»
   зі статтею (статті — «Налаштування → Статті для нарахувань»; податки — статті зі словами «податки», «ПДФО», «ЄСВ», «військовий збір»). Виплати — «Виплатити» там само або фіноперація зі статтею зарплати.</p>
 {% endblock %}

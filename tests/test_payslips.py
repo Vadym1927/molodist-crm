@@ -26,6 +26,11 @@ def test_payslip_month():
         v = ps.build(db, mk)
         r = next(x for x in v["rows"] if x["doctor"].id == d.id)
         assert (r["base"], r["bonus"], r["gross"], r["tax"], r["hold"], r["net"], r["paid"], r["closing"]) == (20000, 3000, 23000, -2500, -500, 20000, 15000, 5000)
+        m, a, b = (next(x for x in ps.build(db, mk, h)["rows"] if x["doctor"].id == d.id) for h in (0, 1, 2))
+        assert a["base"] == 10000 and b["base"] == 10000
+        for k in ("gross", "tax", "hold", "net", "paid"):
+            assert round(a[k] + b[k], 2) == m[k], k
+        assert a["opening"] == m["opening"] and b["opening"] == a["closing"] and b["closing"] == m["closing"]
         assert v["total"]["gross"] >= 23000 and ps.to_xlsx(v)[:2] == b"PK"
     with TestClient(app) as c:
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
@@ -33,3 +38,9 @@ def test_payslip_month():
         assert "Розрахункові листи" in h and "Розрахунок Тест" in h and "запізнення" in h and "Виплачено на руки" in h
         x = c.get(f"/finance/payslips?m={mk}&xlsx=1")
         assert x.status_code == 200 and x.content[:2] == b"PK"
+        did = next(x["doctor"].id for x in v["rows"] if x["doctor"].name == "Розрахунок Тест")
+        s = c.get(f"/finance/payslips/slip?m={mk}&h=1&doctor={did}")
+        assert s.status_code == 200 and "Розрахунковий лист" in s.text and "Розрахунок Тест" in s.text and "15." in s.text
+        assert c.get(f"/finance/payslips/slip?m={mk}").status_code == 200
+        assert "16–кінець" in c.get(f"/finance/payslips?m={mk}&h=2").text
+

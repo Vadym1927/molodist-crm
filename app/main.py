@@ -11599,15 +11599,27 @@ def finance_accrual_delete(aid: int, del_password: str = Form(""), user: User = 
 
 
 @app.get("/finance/payslips", response_class=HTMLResponse)
-def finance_payslips(request: Request, m: str = "", xlsx: str = "", all: str = "", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
-    """Розрахункові листи: нараховано, премії, податки, утримання, до виплати й виплачено на руки за місяць."""
+def finance_payslips(request: Request, m: str = "", h: int = 0, xlsx: str = "", all: str = "", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     from .services import payslips as ps
     month = _month(m)
-    v = ps.build(db, month)
+    v = ps.build(db, month, h)
     if xlsx:
         audit(db, "reports.export", user=user, report="payslips", month=month)
-        return Response(ps.to_xlsx(v), media_type=XLSX, headers={"Content-Disposition": f'attachment; filename="payslips-{month}.xlsx"'})
-    return render(request, "fin_payslips.html", nav="finance", v=v, month=month, months=_month_list(), show_all=bool(all))
+        return Response(ps.to_xlsx(v), media_type=XLSX, headers={"Content-Disposition": f'attachment; filename="payslips-{month}{("-" + str(v["half"])) if v["half"] else ""}.xlsx"'})
+    return render(request, "fin_payslips.html", nav="finance", v=v, month=month, months=_month_list(), show_all=bool(all), halves=ps.HALVES)
+
+
+@app.get("/finance/payslips/slip", response_class=HTMLResponse)
+def finance_payslip_print(request: Request, m: str = "", h: int = 0, doctor: int = 0, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Розрахунковий лист одного співробітника (або всіх — по одному на сторінку) для друку / збереження в PDF."""
+    from .services import payslips as ps
+    month = _month(m)
+    v = ps.build(db, month, h)
+    rows = [r for r in v["rows"] if (r["doctor"].id == doctor if doctor else not r["empty"])]
+    if not rows:
+        raise HTTPException(404)
+    audit(db, "reports.export", user=user, report="payslip", month=month, doctor=doctor or None)
+    return templates.TemplateResponse(request, "fin_payslip_print.html", {"v": v, "rows": rows, "month": month, "now": datetime.now()})
 
 
 @app.get("/finance/settle", response_class=HTMLResponse)

@@ -1,0 +1,35 @@
+<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>Розрахунковий лист · {{ rows[0].doctor.name if rows|length == 1 else 'усі' }} · {{ v.label }}</title>
+<style>body{font:13px/1.5 "Open Sans",Arial,sans-serif;color:#2A2430;margin:24px 32px;max-width:760px}
+.brand{font:400 22px Belleza,Georgia,serif;letter-spacing:.16em}.hd{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #2A2430;padding-bottom:8px}
+h1{font:700 15px Montserrat,Arial,sans-serif;text-transform:uppercase;letter-spacing:.06em;margin:16px 0 4px}.who{font-size:15px;font-weight:700}.sub{color:#6b6575;font-size:12.5px}
+table{width:100%;border-collapse:collapse;margin:8px 0 2px}td{padding:5px 2px;border-bottom:1px solid #ECE7E1;vertical-align:top}td:last-child{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+h2{font:700 11px Montserrat,Arial,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#3B3050;margin:16px 0 0}
+tr.tot td{font-weight:800;border-top:1.5px solid #2A2430;border-bottom:0}.big{font-size:16px}
+.sign{display:flex;justify-content:space-between;gap:30px;margin-top:36px}.sign div{border-top:1px solid #2A2430;width:42%;padding-top:4px;font-size:12px}
+.slip{page-break-after:always}.slip:last-child{page-break-after:auto}.ft{margin-top:14px;font-size:11px;color:#8a8496}
+@media print{.np{display:none}body{margin:10mm 12mm}}</style></head><body>
+<div class="np" style="margin-bottom:14px"><button onclick="print()">🖨 Друкувати / зберегти PDF</button> <span class="sub">у вікні друку оберіть «Зберегти як PDF»</span></div>
+{% for r in rows %}{% set d = r.doctor %}<div class="slip">
+<div class="hd"><div class="brand">MOLODIST</div><div class="sub">сформовано {{ now|dt('%d.%m.%Y') }}</div></div>
+<h1>Розрахунковий лист</h1>
+<div class="who">{{ d.name }}</div><div class="sub">{{ d.position or '' }}{% if r.plan %} · {{ r.plan }}{% endif %} · період {{ v.label }}</div>
+<h2>Нараховано</h2><table>
+  <tr><td>Ставка / оклад{% if r.days %} · змін {{ r.days }}{% endif %}</td><td>{{ r.base|uah }}</td></tr>
+  <tr><td>Комісійні з послуг{% if r.services %} (оборот {{ r.services|uah }}){% endif %}</td><td>{{ r.from_services|uah }}</td></tr>
+  <tr><td>Комісійні з товарів{% if r.products %} (оборот {{ r.products|uah }}){% endif %}</td><td>{{ r.from_products|uah }}</td></tr>
+  {% for x in r.adjs.bonus %}<tr><td>{{ x.article or 'Доплата' }}{% if x.comment %} · {{ x.comment }}{% endif %}</td><td>+{{ x.amount|uah }}</td></tr>{% endfor %}
+  <tr class="tot"><td>Разом нараховано</td><td>{{ r.gross|uah }}</td></tr></table>
+<h2>Податки й утримання</h2><table>
+  {% for x in r.adjs.tax %}<tr><td>{{ x.article }}{% if x.comment %} · {{ x.comment }}{% endif %}</td><td>{{ x.amount|uah }}</td></tr>{% endfor %}
+  {% for x in r.adjs.hold %}<tr><td>{{ x.article or 'Утримання' }}{% if x.comment %} · {{ x.comment }}{% endif %}</td><td>{{ x.amount|uah }}</td></tr>{% endfor %}
+  {% if not r.adjs.tax and not r.adjs.hold %}<tr><td class="sub">Немає</td><td></td></tr>{% endif %}
+  <tr class="tot"><td>Податки: {{ r.tax|uah }} · утримання: {{ r.hold|uah }} · до виплати на руки</td><td class="big">{{ r.net|uah }}</td></tr></table>
+<h2>Виплачено</h2><table>
+  {% for p in r.pays %}<tr><td>{{ p.day|dt('%d.%m.%Y') }}{% if p.cashbox %} · {{ p.cashbox }}{% endif %}{% if p.comment %} · {{ p.comment }}{% endif %}</td><td>{{ (p.amount if p.kind == 'expense' else -p.amount)|uah }}</td></tr>{% endfor %}
+  {% if not r.pays %}<tr><td class="sub">Виплат за період немає</td><td></td></tr>{% endif %}
+  <tr class="tot"><td>Разом виплачено</td><td>{{ r.paid|uah }}</td></tr>
+  {% if r.opening %}<tr><td>Залишок на початок періоду</td><td>{{ r.opening|uah }}</td></tr>{% endif %}
+  <tr class="tot"><td>Залишок до виплати на кінець періоду</td><td class="big">{{ r.closing|uah }}</td></tr></table>
+<div class="sign"><div>Видав</div><div>Отримав: {{ d.name }}</div></div>
+<div class="ft">MOLODIST · розрахунковий лист за {{ v.label }}</div></div>{% endfor %}
+</body></html>

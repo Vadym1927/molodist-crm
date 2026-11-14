@@ -1,6 +1,6 @@
 from datetime import date, datetime, timedelta
 
-from app.models import (SessionLocal, Appeal, Appointment, AuditLog, Call, ChatMessage, Doctor, Patient, StaffShift, Task, User)
+from app.models import (SessionLocal, Appeal, Appointment, AuditLog, Call, ChatMessage, Doctor, Patient, StaffShift, Task, TimeBlock, User)
 from app.services import reports as rp
 
 
@@ -24,6 +24,7 @@ def test_staff_reports():
                            services=svc))
         db.add(Appointment(patient_id=pat.id, doctor_id=doc.id, start=day + timedelta(days=3, hours=10), end=day + timedelta(days=3, hours=11),
                            status="booked", services=svc))
+        db.add(TimeBlock(doctor_id=doc.id, start=day.replace(hour=11), end=day.replace(hour=12), title="Навчання"))
         db.add(Call(at=now, provider="t", direction="in", status="answered", duration=120, user_id=adm.id, ai_score=80, phone="380501112233"))
         db.add(Call(at=now, provider="t", direction="in", status="missed", phone="380509998877"))
         db.add(Appeal(name="Зв 1", status="Записаний", responsible_id=adm.id))
@@ -39,9 +40,10 @@ def test_staff_reports():
 
         r = rp.build(db, "load", t, t)
         row = next(x for x in r.rows if x["name"] == "Лікар Завантаження")
-        assert row["sh"] == 4 and row["busy"] == 1 and row["load"] == 25 and row["free"] == 3 and row["per_h"] == 250
+        assert row["sh"] == 4 and row["blk"] == 1 and row["avail"] == 3 and row["busy"] == 1 and row["free"] == 2
+        assert row["load"] == 33.3 and row["per_h"] == 333
         assert any(x["name"] == "10:00–11:00" and x["busy"] >= 1 for x in rp.build(db, "load", t, t, cat="hours").rows)
-        assert rp.build(db, "load", t, t, cat="wd").rows
+        assert rp.build(db, "load", t, t, cat="wd").rows and rp.build(db, "load", t, t, cat="days").rows
 
         k = rp.build(db, "admin_kpi", t, t)
         row = next(x for x in k.rows if x["name"] == "Адмін КПІ")
