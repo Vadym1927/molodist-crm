@@ -516,6 +516,12 @@ async def lifespan(app: FastAPI):
         _tcf(db)                                                     # собівартість витратних: без подвійного ділення на коеф. (один раз)
         _tcf3(db)                                                    # собівартість витратних: ціна за упаковку без «розпаковки» (один раз)
         _tcf4(db)                                                    # незавершені візити: середня собівартість залишку (один раз)
+        try:                                                         # плани, де ціна злиплась із назвою в PDF (один раз)
+            from .services.plans import repair_glued_prices as _rgp
+            _rgp(db)
+        except Exception as _e:  # noqa: BLE001
+            log.warning("repair_glued_prices: %s", _e)
+            db.rollback()
         if not db.get(SyncState, "cb_calendar_freeze_20261031"):   # 31.10.2026: календар — лише вручну в CRM (рішення власника)
             from .integrations.cleverbox import set_calendar_frozen as _fz
             _fz(db, True)

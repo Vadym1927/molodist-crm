@@ -128,3 +128,46 @@ def _title_from_file(path: str | None) -> str | None:
         return None
     m = re.search(r"BeautyPlan[ _]*([^/\\]+?)\.pdf$", path, re.I)
     return ("Beauty Plan " + m.group(1).replace("_", " ").strip()) if m else None
+
+
+def repair_glued_prices(db: Session) -> int:
+    """Один раз: плани з PDF, де ціна злиплася з назвою («…MEDIK84 000,00 ₴» → 84 000 ₴ замість «…MEDIK8» за 4 000 ₴)
+    або позиція без ціни загубилась. Перечитуємо збережений PDF; правимо лише такі позиції, решту (правки лікаря) не чіпаємо."""
+    from pathlib import Path
+    from ..models import SyncState
+    from ..parsers.observ import parse_observ_pdf
+    if db.get(SyncState, "plan_glued_price_fix_v1"):
+        return 0
+    n = 0
+    for plan in db.scalars(select(BeautyPlan).where(BeautyPlan.source_file.is_not(None))):
+        if not any(i.kind == "product" and (i.total or 0) >= 10000 for i in plan.items) and \
+                abs(sum(i.total or 0 for i in plan.items) - (plan.total_planned or 0)) < 1:
+            continue
+        try:
+            if not Path(plan.source_file).exists():
+                continue
+            parsed = parse_observ_pdf(plan.source_file)
+        except Exception:  # noqa: BLE001
+            continue
+        if abs(sum(i.total for i in parsed.items) - (parsed.total or 0)) > 0.01:
+            continue                                        # новий розбір теж не сходиться з «Загалом» — не чіпаємо
+        have = {i.name: i for i in plan.items}
+        changed = False
+        for it in parsed.items:
+            old = have.get(it.name[:-1]) if it.name not in have else None      # стара назва — без останньої цифри
+            if old is not None and abs((old.total or 0) - it.total) > 0.01 and old.qty == it.qty:
+                old.name, old.unit_price, old.total, changed = it.name, it.unit_price, it.total, True
+            elif it.name not in have and old is None and it.kind == "product":
+                plan.items.append(PlanItem(kind=it.kind, name=it.name, qty=it.qty, unit_price=it.unit_price, total=it.total,
+                                           volume=it.volume, usage=it.usage, url=it.url,
+                                           supply_days=default_supply_days(it.name, it.volume, it.usage)))
+                changed = True
+        if changed:
+            plan.total_planned = round(sum(i.total or 0 for i in plan.items), 2)
+            db.flush()
+            from .catalog import link_plan
+            link_plan(db, plan)
+            n += 1
+    db.merge(SyncState(key="plan_glued_price_fix_v1", value=str(n)))
+    db.commit()
+    return n

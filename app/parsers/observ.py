@@ -87,6 +87,85 @@ def _after(lines: list[str], label: str, start: int = 0) -> tuple[str | None, in
     return None, start
 
 
+NOPRICE_RE = re.compile(r"^(\d+)\s+(\S.*\S)$")
+
+
+def _detail_price(pages: list[str], name: str) -> float | None:
+    """Ціна засобу з його картки: «РЕЦЕПТ / 50 ml 4 000,00 ₴ 1»."""
+    care = "\n".join(pages)
+    pos = care.upper().find(name.upper()[:30])
+    if pos < 0:
+        return None
+    r = re.search(r"РЕЦЕПТ\n[^\n]*?(\d{1,3}(?: \d{3})*,\d{2})\s*₴", care[pos:pos + 4000])
+    return money(r.group(1)) if r else None
+
+
+def parse_items(lines: list[str], pages: list[str] | None = None) -> tuple[list[PlanItem], float | None]:
+    """Позиції блоку «Загальні витрати». Два відомі збої тексту PDF:
+    • назва, що закінчується цифрою, злипається з ціною: «…MEDIK84 000,00 ₴» = «…MEDIK8» + «4 000,00 ₴» (а не 84 000);
+    • у довгої назви ціна не вміщується в рядок — позиція без ціни.
+    Звіряємось із рядком «Загалом»: підбираємо варіант, де сума позицій дорівнює підсумку; ціну без рядка беремо з різниці
+    або з картки засобу."""
+    raw, kind, total = [], None, None
+    for i, ln in enumerate(lines):
+        s = ln.strip()
+        if s == "МЕТОДИ ЛІКУВАННЯ":
+            kind = "procedure"; continue
+        if s == "ДОМАШНІЙ ДОГЛЯД":
+            kind = "product"; continue
+        if s == "Загалом":
+            m = PRICE_RE.search(lines[i + 1]) if i + 1 < len(lines) else None
+            total = money(m.group(1)) if m else None
+            kind = None; continue
+        if not kind:
+            continue
+        m = ITEM_RE.match(s)
+        if m:
+            name, price = m.group(2).strip(), m.group(3)
+            alt = None
+            head = price.split(" ")[0].split(",")[0]
+            if s[m.start(3) - 1] != " " and len(head) >= 2:
+                alt = (name + price[0], price[1:])              # одна цифра ціни насправді належить назві
+                if not re.fullmatch(r"\d{1,3}(?: \d{3})*,\d{2}", alt[1]):
+                    alt = None
+            raw.append({"kind": kind, "qty": int(m.group(1)), "name": name, "sum": money(price),
+                        "alt": (alt[0], money(alt[1])) if alt else None})
+        elif "₴" not in s:
+            m2 = NOPRICE_RE.match(s)
+            if m2 and kind == "product":
+                raw.append({"kind": kind, "qty": int(m2.group(1)), "name": m2.group(2).strip(), "sum": None, "alt": None})
+    glued = [r for r in raw if r["alt"]]
+    missing = [r for r in raw if r["sum"] is None]
+    chosen = None
+    if total is not None and (glued or missing):
+        from itertools import product as _prod
+        for mask in sorted(_prod((0, 1), repeat=len(glued)), key=lambda t: -sum(t)):       # спершу — «всі злиплі розклеїти»
+            sm = sum(r["sum"] for r in raw if r["sum"] is not None and not r["alt"])
+            sm += sum((g["alt"][1] if on else g["sum"]) for g, on in zip(glued, mask))
+            diff = round(total - sm, 2)
+            if (not missing and abs(diff) < 0.01) or (len(missing) == 1 and diff > 0.009) or (len(missing) > 1 and diff > 0.009 and all(mask)):
+                chosen = (mask, diff)
+                break
+    mask = chosen[0] if chosen else tuple(1 for _ in glued)       # без підсумку: ціна впритул до назви — завжди злипання
+    for g, on in zip(glued, mask):
+        if on:
+            g["name"], g["sum"] = g["alt"]
+    if missing:
+        diff = chosen[1] if chosen else None
+        for r in missing:
+            dp = _detail_price(pages or [], r["name"])
+            r["sum"] = (dp * r["qty"] if dp else None)
+        unknown = [r for r in missing if r["sum"] is None]
+        if len(missing) == 1 and diff is not None:
+            missing[0]["sum"] = diff                              # підсумок точніший за картку
+        elif len(unknown) == 1 and diff is not None:
+            unknown[0]["sum"] = round(diff - sum(r["sum"] or 0 for r in missing), 2)
+        for r in missing:
+            r["sum"] = max(r["sum"] or 0.0, 0.0)
+    items = [PlanItem(kind=r["kind"], name=r["name"], qty=r["qty"], unit_price=round(r["sum"] / r["qty"], 2), total=r["sum"]) for r in raw]
+    return items, total
+
+
 def parse_observ_pdf(path: str | Path, plan_title: str | None = None) -> ParsedPlan:
     with pdfplumber.open(str(path)) as pdf:
         pages = [(p.extract_text() or "") for p in pdf.pages]
@@ -162,25 +241,7 @@ def parse_observ_pdf(path: str | Path, plan_title: str | None = None) -> ParsedP
     # --- Загальні витрати
     summary_page = next(p for p in pages if p.lstrip().startswith("Загальні витрати") or "Загальні витрати" in p)
     lines = summary_page.splitlines()
-    items: list[PlanItem] = []
-    kind = None
-    total = None
-    for i, ln in enumerate(lines):
-        s = ln.strip()
-        if s == "МЕТОДИ ЛІКУВАННЯ":
-            kind = "procedure"; continue
-        if s == "ДОМАШНІЙ ДОГЛЯД":
-            kind = "product"; continue
-        if s == "Загалом":
-            m = PRICE_RE.search(lines[i + 1]) if i + 1 < len(lines) else None
-            total = money(m.group(1)) if m else None
-            kind = None; continue
-        if kind:
-            m = ITEM_RE.match(s)
-            if m:
-                qty = int(m.group(1)); name = m.group(2).strip(); line_total = money(m.group(3))
-                items.append(PlanItem(kind=kind, name=name, qty=qty,
-                                      unit_price=round(line_total / qty, 2), total=line_total))
+    items, total = parse_items(lines, pages)
 
     if not items:
         raise ObservParseError("Не знайшов жодної позиції у «Загальні витрати»")

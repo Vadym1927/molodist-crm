@@ -125,3 +125,24 @@ def test_plan_doctors_skip_fired():
         db.commit()
         pdx.save(db, [a.id, f.id])
         assert pdx.ids(db) == {a.id}
+
+
+def test_observ_glued_price_and_missing():
+    from app.parsers.observ import parse_items
+    lines = """Загальні витрати
+МЕТОДИ ЛІКУВАННЯ
+4 IPL -терапія обличчя 15 600,00 ₴
+ДОМАШНІЙ ДОГЛЯД
+1 Очищувальний гель AG SKIN Cleansing Gel Mandelic Acid 230 мл
+1 ZO Skin Health Exfoliating Polish 1 285,00 ₴
+1 КРЕМ DAILY RADIANCE VITAMIN C™ MEDIK84 000,00 ₴
+1 КРЕМ TOTAL MOISTURE™ MEDIK82 800,00 ₴
+Загалом
+25 135,00 ₴""".splitlines()
+    items, total = parse_items(lines)
+    by = {i.name: i.total for i in items}
+    assert total == 25135 and round(sum(by.values()), 2) == 25135
+    assert by["КРЕМ DAILY RADIANCE VITAMIN C™ MEDIK8"] == 4000 and by["КРЕМ TOTAL MOISTURE™ MEDIK8"] == 2800
+    assert by["Очищувальний гель AG SKIN Cleansing Gel Mandelic Acid 230 мл"] == 1450
+    ok, t2 = parse_items("МЕТОДИ ЛІКУВАННЯ\n2 Мікроголковий RF ліфтинг 32 000,00 ₴\nЗагалом\n32 000,00 ₴".splitlines())
+    assert ok[0].total == 32000 and ok[0].unit_price == 16000
