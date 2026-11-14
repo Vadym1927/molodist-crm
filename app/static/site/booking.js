@@ -313,7 +313,7 @@
         $('#ob-mylink').href = B + '/zapys?v=' + encodeURIComponent(j.token);
         $('#s-doc').textContent = j.doctor || $('#s-doc').textContent;
         try { localStorage.setItem('mlds_booking', JSON.stringify({ v: j.token, at: Date.now() })); } catch (x) {}
-        window.dataLayer.push({ event: 'booking_complete', form_id: 'zapys:booking', lead_interest: j.service, value: j.price || 0, currency: 'UAH' });
+        window.dataLayer.push({ event: 'booking_complete', form_id: 'zapys:booking', lead_interest: j.service, value: j.price || 0, currency: 'UAH', transaction_id: 'zapys-' + String(j.token || '').slice(0, 16) });
         window.dataLayer.push({ event: 'generate_lead', form_id: 'zapys:booking', lead_interest: j.service });
         go(5); root.scrollIntoView({ behavior: 'smooth', block: 'start' });
       } else {
