@@ -9,6 +9,8 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 
+import re
+
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
@@ -16,7 +18,8 @@ from ..models import Check, Visit, BeautyPlan, Patient, Product, SupplierInvoice
 from ..parsers.observ import norm
 
 REPORTS = {"cash": "Стан рахунків", "cashflow": "Cashflow", "pnl": "Доходи і витрати за рік", "pnlm": "P&L по місяцях", "shifts": "Касові зміни", "patient_money": "Отримано від пацієнтів", "fees": "Комісії банків", "payroll_share": "Фонд оплати праці", "fop": "Ліміти ФОП", "expiry": "Терміни придатності", "revenue": "Виручка", "doctors": "Лікарі", "services": "Звіт з продажу послуг", "products": "Товари",
-           "patients": "Пацієнти", "plans": "Бюті-плани", "certificates": "Сертифікати й абонементи", "supply": "Поставки", "cosmetics": "Бонус за продаж косметики", "sources": "Джерела запису"}
+           "patients": "Пацієнти", "plans": "Бюті-плани", "certificates": "Сертифікати й абонементи", "supply": "Поставки", "cosmetics": "Бонус за продаж косметики", "sources": "Джерела запису",
+           "discounts": "Використання знижок", "cross": "Крос-продажі догляду", "ltv": "LTV пацієнтів", "src_sales": "Продажі за джерелами", "abc": "ABC-аналіз"}
 
 
 @dataclass
@@ -778,6 +781,27 @@ def build(db: Session, key: str, d_from: date, d_to: date, **opts) -> Report:
         return cosmetics(db, d_from, d_to, staff=opts.get("staff") or "")
     if key == "sources":
         return sources(db, d_from, d_to, src=opts.get("src") or "")
+    if key == "certificates" and opts.get("cat") == "use":
+        from .reports_sales import cert_use
+        r = cert_use(db, d_from, d_to)
+        r.filters = [{"name": "cat", "label": "Показати", "value": "use", "options": [("", "Реєстр"), ("use", "Використання")]}]
+        return r
+    if key == "certificates":
+        r = certificates(db, d_from, d_to)
+        r.filters = [{"name": "cat", "label": "Показати", "value": "", "options": [("", "Реєстр"), ("use", "Використання")]}]
+        return r
+    if key == "discounts":
+        from .reports_sales import discounts
+        return discounts(db, d_from, d_to, opts.get("cat") or "")
+    if key in ("ltv", "src_sales"):
+        from . import reports_sales as _rs
+        return getattr(_rs, key)(db, d_from, d_to)
+    if key == "abc":
+        from .reports_sales import abc
+        return abc(db, d_from, d_to, opts.get("cat") or "")
+    if key == "cross":
+        from .reports_sales import cross
+        return cross(db, d_from, d_to, opts.get("cat") or "")
     return BUILDERS.get(key, revenue)(db, d_from, d_to)
 
 
@@ -787,7 +811,7 @@ def to_xlsx(rep: Report, d_from: date, d_to: date) -> bytes:
     from openpyxl.styles import Font, PatternFill
     wb = Workbook()
     ws = wb.active
-    ws.title = rep.title[:30]
+    ws.title = re.sub(r"[:\\/?*\[\]]", " ", rep.title)[:30]
     ws.append([f"{rep.title} · {d_from:%d.%m.%Y} — {d_to:%d.%m.%Y}"])
     ws["A1"].font = Font(bold=True, size=13)
     ws.append([])
