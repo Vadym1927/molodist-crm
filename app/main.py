@@ -11609,6 +11609,31 @@ def finance_payslips(request: Request, m: str = "", h: int = 0, xlsx: str = "", 
     return render(request, "fin_payslips.html", nav="finance", v=v, month=month, months=_month_list(), show_all=bool(all), halves=ps.HALVES)
 
 
+@app.get("/finance/payslips/tg")
+def finance_payslip_tg_preview(m: str = "", h: int = 0, doctor: int = 0, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Попередній перегляд листа, який піде співробітнику в Telegram."""
+    from .services import payslips as ps
+    v = ps.build(db, _month(m), h)
+    r = next((x for x in v["rows"] if x["doctor"].id == doctor), None) or (_ for _ in ()).throw(HTTPException(404))
+    return {"name": r["doctor"].name, "text": ps.tg_text(v, r), "chat": bool(ps.tg_chat(db, r["doctor"]))}
+
+
+@app.post("/finance/payslips/tg")
+def finance_payslip_tg_send(m: str = Form(""), h: int = Form(0), doctor: int = Form(0), user: User = Depends(require("finance")),
+                            db: Session = Depends(db_dep)):
+    from .services import payslips as ps, tg_notify
+    month = _month(m)
+    v = ps.build(db, month, h)
+    r = next((x for x in v["rows"] if x["doctor"].id == doctor), None) or (_ for _ in ()).throw(HTTPException(404))
+    chat = ps.tg_chat(db, r["doctor"])
+    if not chat:
+        return JSONResponse({"ok": False, "error": "У співробітника не привʼязаний Telegram"}, status_code=400)
+    ok = bool(tg_notify.send_text(chat, ps.tg_text(v, r)))
+    audit(db, "payslip.send", "doctor", doctor, user=user, month=month, half=v["half"], ok=ok)
+    return JSONResponse({"ok": ok, "error": None if ok else "Telegram не прийняв повідомлення — перевірте, чи співробітник запустив бота"},
+                        status_code=200 if ok else 502)
+
+
 @app.get("/finance/payslips/slip", response_class=HTMLResponse)
 def finance_payslip_print(request: Request, m: str = "", h: int = 0, doctor: int = 0, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     """Розрахунковий лист одного співробітника (або всіх — по одному на сторінку) для друку / збереження в PDF."""

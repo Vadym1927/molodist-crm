@@ -37,7 +37,7 @@
   <td class="sep gr">{{ r.gross|uah }}</td><td class="{{ 'neg' if r.tax }}">{{ r.tax|uah if r.tax else '—' }}</td><td class="{{ 'neg' if r.hold }}">{{ r.hold|uah if r.hold else '—' }}</td>
   <td class="sep gr">{{ r.net|uah }}</td><td>{{ r.paid|uah if r.paid else '—' }}</td><td class="sep">{{ r.opening|uah if r.opening else '—' }}</td>
   <td><span class="due {{ 'bad' if r.closing > 0.01 }}">{{ r.closing|uah }}</span></td></tr>
-<tr class="ps-det" hidden><td colspan="11"><div style="text-align:right;margin:8px 0 0"><a class="btn ghost" target="_blank" href="/finance/payslips/slip?m={{ month }}&h={{ v.half }}&doctor={{ d.id }}">🖨 Друк / PDF — {{ v.label }}</a></div><div class="ps-slip">
+<tr class="ps-det" hidden><td colspan="11"><div style="text-align:right;margin:8px 0 0"><a class="btn ghost" target="_blank" href="/finance/payslips/slip?m={{ month }}&h={{ v.half }}&doctor={{ d.id }}">🖨 Друк / PDF — {{ v.label }}</a> <button type="button" class="btn ghost" onclick="psTg({{ d.id }})">✈ Надіслати в Telegram</button></div><div class="ps-slip">
   <div><h4>Нараховано</h4><dl>
     <dt>Ставка / оклад{% if r.days %} · змін {{ r.days }}{% endif %}</dt><dd>{{ r.base|uah }}</dd>
     <dt>Комісійні з послуг{% if r.services %} (оборот {{ r.services|uah }}){% endif %}</dt><dd>{{ r.from_services|uah }}</dd>
@@ -61,4 +61,24 @@
   <td class="sep">{{ t.net|uah }}</td><td>{{ t.paid|uah }}</td><td class="sep">{{ t.opening|uah }}</td><td>{{ t.closing|uah }}</td></tr></tfoot></table></div>
 <p class="small muted">Натисніть на рядок — відкриється розрахунковий лист співробітника з кнопкою «Друк / PDF» (у вікні друку оберіть «Зберегти як PDF»). Половини місяця: оклад «за місяць» ділиться навпіл, комісійні й ставка за зміни — за фактом 1–15 числа, друга половина = місяць − перша. Премії, податки й утримання вносяться в «Взаєморозрахунки по з/п» кнопками «＋ Нарахувати» / «− Утримати»
   зі статтею (статті — «Налаштування → Статті для нарахувань»; податки — статті зі словами «податки», «ПДФО», «ЄСВ», «військовий збір»). Виплати — «Виплатити» там само або фіноперація зі статтею зарплати.</p>
+<dialog id="ps-tg" style="border:0;border-radius:18px;padding:18px 20px;width:min(520px,calc(100vw - 32px));box-shadow:0 30px 80px rgba(42,36,48,.35)">
+  <h3 style="margin:0 0 4px;font:600 15px var(--head);letter-spacing:.06em;text-transform:uppercase">Лист у Telegram</h3>
+  <div class="muted small" id="ps-tg-who"></div>
+  <div id="ps-tg-text" style="white-space:pre-wrap;background:#F7F4F0;border-radius:12px;padding:12px 14px;margin:10px 0;font-size:13.5px;max-height:55vh;overflow:auto"></div>
+  <div class="small" id="ps-tg-msg" style="margin-bottom:10px"></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end"><button type="button" class="btn ghost" onclick="document.getElementById('ps-tg').close()">Закрити</button>
+    <button type="button" class="btn" id="ps-tg-go" onclick="psTgSend()">Надіслати</button></div></dialog>
+<script>
+var PS_M={{ month|tojson }},PS_H={{ v.half }},PS_D=0;
+function psTg(id){PS_D=id;var g=document.getElementById('ps-tg-go'),m=document.getElementById('ps-tg-msg');m.textContent='';m.style.color='';g.disabled=true;
+  fetch('/finance/payslips/tg?m='+PS_M+'&h='+PS_H+'&doctor='+id).then(function(r){return r.json()}).then(function(j){
+    document.getElementById('ps-tg-who').textContent='Отримає лише '+j.name+' — в особистому чаті з ботом';
+    document.getElementById('ps-tg-text').innerHTML=j.text;g.disabled=!j.chat;
+    if(!j.chat){m.textContent='У співробітника не привʼязаний Telegram (ID чату — у картці спеціаліста або в його користувачі в «Команда»).';m.style.color='#B23B2E'}
+    document.getElementById('ps-tg').showModal()})}
+function psTgSend(){var g=document.getElementById('ps-tg-go'),m=document.getElementById('ps-tg-msg');g.disabled=true;
+  var f=new FormData();f.append('m',PS_M);f.append('h',PS_H);f.append('doctor',PS_D);
+  fetch('/finance/payslips/tg',{method:'POST',body:f}).then(function(r){return r.json()}).then(function(j){
+    m.textContent=j.ok?'Надіслано ✓':(j.error||'Не вдалося надіслати');m.style.color=j.ok?'#1E7A46':'#B23B2E';g.disabled=j.ok})}
+</script>
 {% endblock %}

@@ -44,3 +44,14 @@ def test_payslip_month():
         assert c.get(f"/finance/payslips/slip?m={mk}").status_code == 200
         assert "16–кінець" in c.get(f"/finance/payslips?m={mk}&h=2").text
 
+        j = c.get(f"/finance/payslips/tg?m={mk}&h=0&doctor={did}").json()
+        assert j["chat"] is False and "Розрахунковий лист" in j["text"] and "20 000,00" in j["text"] and "запізнення" in j["text"]
+        assert c.post("/finance/payslips/tg", data={"m": mk, "h": 0, "doctor": did}).status_code == 400
+        with SessionLocal() as db:
+            db.get(Doctor, did).telegram_chat_id = "777"
+            db.commit()
+        from app.services import tg_notify
+        sent, orig = [], tg_notify.send_text
+        tg_notify.send_text = lambda chat, text: sent.append((chat, text)) or True
+        assert c.post("/finance/payslips/tg", data={"m": mk, "h": 0, "doctor": did}).json()["ok"] and sent[0][0] == "777"
+        tg_notify.send_text = orig

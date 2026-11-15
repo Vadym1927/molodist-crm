@@ -138,6 +138,52 @@ def build(db: Session, month: str, half: int = 0) -> dict:
             "label": f"{d_from:%d.%m.%Y} – {d_to:%d.%m.%Y}", "rows": rows, "total": {k: round(sum(x[k] for x in rows), 2) for k in keys}}
 
 
+def tg_chat(db: Session, doctor) -> str | None:
+    """Telegram співробітника: з картки спеціаліста, інакше — з його користувача CRM (привʼязаного або з тим самим імʼям)."""
+    from ..models import User
+    if doctor.telegram_chat_id:
+        return doctor.telegram_chat_id
+    us = db.scalars(select(User).where(User.active.is_(True), User.telegram_chat_id.is_not(None))).all()
+    for u in us:
+        if u.doctor_id == doctor.id:
+            return u.telegram_chat_id
+    nm = (doctor.name or "").strip().lower()
+    return next((u.telegram_chat_id for u in us if (u.name or "").strip().lower() == nm), None)
+
+
+def tg_text(v: dict, r: dict) -> str:
+    """Текст розрахункового листа для Telegram (HTML) — те саме, що в друкованому листі."""
+    from html import escape as e
+
+    def u(x) -> str:
+        return f"{x:,.2f}".replace(",", " ").replace(".", ",") + " ₴"
+
+    L = [f"🧾 <b>Розрахунковий лист</b>", f"{e(r['doctor'].name)} · {v['label']}", "", "<b>Нараховано</b>"]
+    if r["base"]:
+        L.append(f"Ставка / оклад{(' · змін ' + str(r['days'])) if r['days'] else ''}: {u(r['base'])}")
+    if r["from_services"]:
+        L.append(f"Комісійні з послуг (оборот {u(r['services'])}): {u(r['from_services'])}")
+    if r["from_products"]:
+        L.append(f"Комісійні з товарів (оборот {u(r['products'])}): {u(r['from_products'])}")
+    for x in r["adjs"]["bonus"]:
+        L.append(f"{e(x.article or 'Доплата')}{(' · ' + e(x.comment)) if x.comment else ''}: +{u(x.amount)}")
+    L.append(f"Разом нараховано: <b>{u(r['gross'])}</b>")
+    if r["adjs"]["tax"] or r["adjs"]["hold"]:
+        L += ["", "<b>Податки й утримання</b>"]
+        for x in r["adjs"]["tax"] + r["adjs"]["hold"]:
+            L.append(f"{e(x.article or 'Утримання')}{(' · ' + e(x.comment)) if x.comment else ''}: {u(x.amount)}")
+    L += ["", f"💰 До виплати на руки: <b>{u(r['net'])}</b>"]
+    if r["pays"]:
+        L += ["", "<b>Виплачено</b>"]
+        for p in r["pays"]:
+            L.append(f"{p.day:%d.%m.%Y}{(' · ' + e(p.cashbox)) if p.cashbox else ''}: {u(p.amount if p.kind == 'expense' else -p.amount)}")
+        L.append(f"Разом виплачено: {u(r['paid'])}")
+    if r["opening"]:
+        L.append(f"Залишок на початок періоду: {u(r['opening'])}")
+    L += ["", f"Залишок до виплати: <b>{u(r['closing'])}</b>", "", "Питання щодо розрахунку — до керівника."]
+    return "\n".join(L)
+
+
 def to_xlsx(v: dict) -> bytes:
     from io import BytesIO
     from openpyxl import Workbook
