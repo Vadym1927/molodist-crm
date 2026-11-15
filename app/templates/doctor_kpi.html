@@ -163,6 +163,7 @@ details.nrb summary{cursor:pointer;font-weight:600;color:var(--classic);font-siz
     <div class="kb"><h3>Медична дисципліна</h3>
       {{ row('Візитів з нотаткою', m.card_pct, (p.card_pct if p else none), 'pct') }}{{ row('Пацієнтів з фото до/після', m.photo_pct, (p.photo_pct if p else none), 'pct') }}
       <div class="kr hl"><span>Дисципліна</span><b>{{ pct(m.discipline) }}</b>{{ delta(m.discipline, (p.discipline if p else none), 'pct') }}</div>
+      <div class="kr"><span>Відгуки пацієнтів</span><b>{% if m.review_avg is not none %}★ {{ '%g'|format(m.review_avg) }} з 5{% else %}—{% endif %}</b><small class="muted" style="margin-left:6px">{{ m.review_n or 0 }} відгуків{% if m.review_nps is not none %} · NPS {{ '%g'|format(m.review_nps) }}{% endif %}{% if m.complaints %} · рекламацій {{ m.complaints }}{% endif %}</small></div>
       {{ row('Перезаписані', m.rebook_pct, (p.rebook_pct if p else none), 'pct') }}{{ row('Нові: перезаписані', m.new_rebook_pct, (p.new_rebook_pct if p else none), 'pct') }}{{ row('Без наступного запису', m.not_rebooked, (p.not_rebooked if p else none), 'int', True) }}
       {% if m.premium.steps %}<div class="kr"><span>Премія</span><b class="pm">{{ m.premium.total|uah }}</b></div>{% for i in m.premium.steps %}<div class="small muted">{{ i.label }} {{ num(i.value) }}% ≥ {{ num(i.min) }}% → {{ i.amount|uah }}</div>{% endfor %}{% endif %}</div>
   </div>

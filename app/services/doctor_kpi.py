@@ -44,7 +44,8 @@ TARGET_LABELS = {"load_pct": "Завантаження, %", "products_share_pct"
                  "new_rebook_pct": "Нові пацієнти: перезаписані, %", "margin_pct": "Чиста маржа, %", "plan_pct": "Реалізація бюті-планів, %"}
 LADDER_METRICS = {"card_pct": "Заповнення карти (нотатки візитів), %", "photo_pct": "Фото до/після, %", "discipline_pct": "Дисципліна разом, %",
                   "load_pct": "Завантаження, %", "retention_pct": "Поверненість, %", "rebook_pct": "Перезаписані, %", "new_rebook_pct": "Нові пацієнти: перезаписані, %",
-                  "revenue_pct": "Виконання плану обороту, %", "products_share_pct": "Частка догляду, %", "plan_pct": "Реалізація бюті-планів, %"}
+                  "revenue_pct": "Виконання плану обороту, %", "products_share_pct": "Частка догляду, %", "plan_pct": "Реалізація бюті-планів, %",
+                  "review_avg": "Середня оцінка відгуків (з 5, напр. 4.5 або 5)"}
 
 
 # ---------------- налаштування ----------------
@@ -417,6 +418,11 @@ def _metrics(db: Session, d: Doctor, x: dict, d_from: date, d_to: date, cfg: dic
                  {"n": 0, "sum": 0.0, "realized": 0.0, "pct": 0.0, "conv": 0.0, "booked": 0, "red": 0, "started": 0},
         "_new": new, "_pats": pats,
     }
+    try:
+        from . import reviews as _rv
+        m.update(_rv.doctor_stats(db, d.id, a, b))
+    except Exception:      # noqa: BLE001 — відгуки не мають ламати KPI
+        m.update(review_n=0, review_asked=0, review_avg=None, review_nps=None, complaints=0)
     m["plan_cover_pct"] = _pct(m["plans"]["n"], len(pats)) if pats else None
     m["revenue_pct"] = _pct(total, m["revenue_target"]) if m["revenue_target"] else None
     if with_lists:

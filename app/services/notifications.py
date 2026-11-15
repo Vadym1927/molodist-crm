@@ -131,6 +131,12 @@ def items(db: Session, user: User) -> list[dict]:
             res += calls(db, datetime.utcnow() - timedelta(days=2))
     except Exception:  # noqa: BLE001
         pass
+    try:
+        if user.role in ("owner", "admin") or can(user, "patients_all"):
+            from . import reviews as _rv
+            res += _rv.bell(db, datetime.utcnow() - timedelta(days=14))
+    except Exception:  # noqa: BLE001
+        pass
     res += [dict(x) for x in _summary(db) if not x.get("perm") or can(user, x["perm"])]
     hid = _hidden(db, user)
     for x in res:

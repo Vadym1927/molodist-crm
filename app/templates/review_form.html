@@ -1,0 +1,42 @@
+<!doctype html><html lang="uk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>Ваш відгук · MOLODIST</title>
+<style>
+@font-face{font-family:Belleza;src:url(/static/fonts/belleza-latin-400-normal.woff2) format("woff2");font-display:swap}
+*{box-sizing:border-box}body{margin:0;background:#F7F4F0;color:#2A2430;font:16px/1.5 "Open Sans",system-ui,Arial,sans-serif}
+.w{max-width:520px;margin:0 auto;padding:28px 18px 40px}.br{font:400 26px Belleza,Georgia,serif;letter-spacing:.16em;text-align:center;margin-bottom:4px}
+.sub{text-align:center;color:#6b6575;font-size:12px;letter-spacing:.2em;text-transform:uppercase;margin-bottom:22px}
+.c{background:#fff;border-radius:18px;padding:20px 18px;box-shadow:0 6px 24px rgba(42,36,48,.06);margin-bottom:14px}
+h1{font:700 18px Montserrat,Arial,sans-serif;text-transform:uppercase;letter-spacing:.05em;margin:0 0 6px}p{margin:6px 0 0;color:#5d5869}
+.q{padding:14px 0;border-bottom:1px solid #F1EDE8}.q:last-child{border:0}.q b{display:block;font-size:15px;margin-bottom:8px}
+.st{display:flex;gap:6px;flex-direction:row-reverse;justify-content:flex-end}.st input{position:absolute;opacity:0}
+.st label{font-size:38px;line-height:1;color:#E4DEEF;cursor:pointer;padding:0 2px}.st input:checked~label,.st label:hover,.st label:hover~label{color:#5C4B82}
+.nps{display:grid;grid-template-columns:repeat(11,1fr);gap:4px;margin-top:6px}.nps input{position:absolute;opacity:0}
+.nps label{display:block;text-align:center;padding:9px 0;border-radius:10px;background:#F1EDE8;font-weight:700;font-size:14px;cursor:pointer}.nps input:checked+label{background:#3B3050;color:#fff}
+textarea{width:100%;min-height:110px;border:1px solid #E9E5DF;border-radius:12px;padding:12px;font:inherit;resize:vertical}
+.btn{display:block;width:100%;border:0;border-radius:14px;background:#5C4B82;color:#fff;font:700 16px Montserrat,Arial,sans-serif;padding:15px;cursor:pointer;text-align:center;text-decoration:none}
+.btn.g{background:#fff;color:#3B3050;border:1px solid #C9BFE6;margin-top:10px}.err{background:#F9E5E2;color:#B23A32;border-radius:12px;padding:10px 14px;margin-bottom:12px}
+.big{font-size:46px;text-align:center;margin:6px 0}.small{font-size:13px;color:#8a8496;text-align:center;margin-top:12px}
+</style></head><body><div class="w">
+<div class="br">MOLODIST</div><div class="sub">медичний простір</div>
+{% if state == 'none' %}<div class="c"><h1>Посилання не діє</h1><p>Схоже, посилання застаріле. Якщо хочете поділитися враженням — напишіть нам, будь ласка.</p></div>
+{% elif state == 'form' %}
+<form method="post" class="c">{% if err %}<div class="err">{{ err }}</div>{% endif %}
+  <h1>Як минув ваш візит?</h1><p>{{ name }}, оцініть, будь ласка, від 1 до 5 — це займе хвилину.{% if doctor %} Ви були в лікаря {{ doctor }}.{% endif %}</p>
+  {% for q in questions %}<div class="q"><b>{{ q.title }}</b><div class="st">{% for n in [5,4,3,2,1] %}<input type="radio" name="s_{{ q.key }}" id="s_{{ q.key }}_{{ n }}" value="{{ n }}" required><label for="s_{{ q.key }}_{{ n }}" title="{{ n }}">★</label>{% endfor %}</div></div>{% endfor %}
+  <div class="q"><b>Чи порадите MOLODIST друзям? (0 — точно ні, 10 — обовʼязково)</b><div class="nps">{% for n in range(11) %}<span><input type="radio" name="nps" id="n{{ n }}" value="{{ n }}"><label for="n{{ n }}">{{ n }}</label></span>{% endfor %}</div></div>
+  <div class="q"><b>Ваші враження</b><textarea name="text" placeholder="Що сподобалось, що варто покращити" maxlength="3000"></textarea></div>
+  <button class="btn" {{ 'type=button disabled' if demo }}>Надіслати відгук</button>{% if demo %}<div class="small">Це попередній перегляд — відгук не зберігається.</div>{% endif %}
+</form>
+{% elif state == 'google' %}
+<div class="c"><div class="big">🤍</div><h1 style="text-align:center">Дякуємо за найвищу оцінку!</h1>
+  <p style="text-align:center">Нам буде дуже приємно, якщо ви поділитесь цим відгуком у Google — це допомагає іншим знайти нас.</p></div>
+<div class="c"><textarea id="rt">{{ text }}</textarea>
+  <p class="small" style="text-align:left;margin:6px 0 12px">Натисніть кнопку: текст скопіюється, відкриється сторінка відгуку Google. Там поставте зірки, вставте текст і натисніть «Опублікувати».</p>
+  <button class="btn" onclick="go()">Скопіювати й відкрити Google</button><a class="btn g" href="?done=1">Іншим разом</a></div>
+<script>function go(){var t=document.getElementById('rt');try{navigator.clipboard.writeText(t.value)}catch(e){t.select();try{document.execCommand('copy')}catch(_){}}
+  fetch(location.pathname+'/google',{method:'POST'}).finally(function(){location.href={{ google_url|tojson }}})}</script>
+{% else %}
+<div class="c"><div class="big">{{ '🤍' if not complaint else '🙏' }}</div><h1 style="text-align:center">Дякуємо за відгук!</h1>
+  <p style="text-align:center">{% if complaint %}Нам важливо зробити ваш досвід бездоганним. Керівник простору звʼяжеться з вами найближчим часом.{% else %}Ми цінуємо вашу довіру й чекаємо на вас знову.{% endif %}</p></div>
+{% endif %}
+</div></body></html>

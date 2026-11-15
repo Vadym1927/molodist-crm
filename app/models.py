@@ -1583,6 +1583,31 @@ class Check(Base):
     deleted: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
+class Review(Base):
+    """Відгук пацієнта після візиту: запит (посилання з токеном) → оцінки → за потреби рекламація."""
+    __tablename__ = "reviews"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    token: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), index=True)
+    appointment_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    doctor_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime)
+    channel: Mapped[str | None] = mapped_column(String(20))
+    send_error: Mapped[str | None] = mapped_column(String(300))
+    opened_at: Mapped[datetime | None] = mapped_column(DateTime)
+    answered_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+    scores: Mapped[dict | None] = mapped_column(JSON)                  # {ключ питання: 1–5}
+    avg: Mapped[float | None] = mapped_column(Float)
+    nps: Mapped[int | None] = mapped_column(Integer)                   # 0–10: чи порадите друзям
+    text: Mapped[str | None] = mapped_column(Text)
+    google_at: Mapped[datetime | None] = mapped_column(DateTime)       # перейшов залишити відгук у Google
+    complaint: Mapped[bool | None] = mapped_column(Boolean)            # не «все на 5» — рекламація
+    task_id: Mapped[int | None] = mapped_column(Integer)
+
+    patient: Mapped[Patient] = relationship()
+
+
 class Task(Base):
     __tablename__ = "tasks"
     id: Mapped[int] = mapped_column(primary_key=True)

@@ -236,6 +236,7 @@
   <a href="#t-comm" data-t="comm">Комунікації{% if pcalls or pchats %} <em>{{ (pcalls|length) + (pchats|default([])|length) }}</em>{% endif %}</a>
   <a href="#t-files" data-t="files">Фото й документи <em>{{ p.files|length }}</em></a>
   <a href="#t-sales" data-t="sales">Продажі{% if p.sales %} <em>{{ p.sales|length }}</em>{% endif %}</a>
+  <a href="#t-reviews" data-t="reviews">Відгуки{% if previews %} <em>{{ previews|length }}</em>{% endif %}</a>
   <a href="#t-hist" data-t="hist">Історія</a>
 </nav>
 
@@ -568,6 +569,28 @@
 </section>
 
 {# ================= ІСТОРІЯ ================= #}
+{# ================= ВІДГУКИ ================= #}
+<section class="pt-p" data-t="reviews"><div class="pcd" id="reviews">
+  <style>.rv{border:1px solid #ECE7E1;border-radius:16px;padding:16px 18px;margin-bottom:12px;background:#fff}.rv.bad{border-color:#E9B8B2;background:#FDF6F5}
+  .rv-h{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center}.rv-s{color:#5C4B82;font-size:20px;letter-spacing:2px}.rv-s i{color:#E4DEEF;font-style:normal}
+  .rv-t{font-size:15.5px;line-height:1.6;margin:10px 0 8px;white-space:pre-line}.rv-q{display:flex;gap:6px 14px;flex-wrap:wrap;font-size:12.5px;color:#6b6575}
+  .rv-tag{display:inline-block;padding:2px 10px;border-radius:99px;font-size:12px;font-weight:700;background:#F1EDE8;color:#5d5869}.rv-tag.ok{background:#E4F2EA;color:#2f7a55}.rv-tag.bad{background:#F9E5E2;color:#B23A32}
+  .rv.anon .rv-who{filter:blur(7px);user-select:none}.rv.anon .rv-hide{display:none}</style>
+  <h2 style="margin-top:0">Відгуки пацієнта</h2>
+  {% for r in previews %}<div class="rv {{ 'bad' if r.complaint }}" id="rv{{ r.id }}">
+    <div class="rv-h"><div><span class="rv-s">{% for n in range(5) %}{% if n < (r.avg or 0)|round|int %}★{% else %}<i>★</i>{% endif %}{% endfor %}</span> <b>{{ '%g'|format(r.avg or 0) }} з 5</b>
+        {% if r.nps is not none %}<span class="rv-tag">порадить друзям: {{ r.nps }} з 10</span>{% endif %}
+        {% if r.complaint %}<span class="rv-tag bad">рекламація{% if r.task_id %} · <a href="/tasks?open={{ r.task_id }}" style="color:inherit">задача</a>{% endif %}</span>{% endif %}
+        <span class="rv-tag {{ 'ok' if r.google_at }}">{{ ('перейшов у Google ' ~ (r.google_at|local|dt('%d.%m'))) if r.google_at else 'у Google не дублювався' }}</span></div>
+      <div class="small muted"><span class="rv-who">{{ p.full_name }}</span> · {{ r.answered_at|local|dt('%d.%m.%Y %H:%M') }}
+        <button type="button" class="btn ghost rv-hide" style="height:30px;padding:0 10px;margin-left:6px" onclick="this.closest('.rv').classList.add('anon')">Анонімно</button>
+        <button type="button" class="btn ghost" style="height:30px;padding:0 10px" onclick="this.closest('.rv').classList.remove('anon')" title="Показати імʼя">👁</button></div></div>
+    {% if r.text %}<div class="rv-t">«{{ r.text }}»</div>{% endif %}
+    <div class="rv-q">{% for k, v in (r.scores or {}).items() %}<span>{{ rv_q.get(k, k) }}: <b style="color:{{ '#B23A32' if v < 5 else '#2A2430' }}">{{ v }}</b></span>{% endfor %}</div>
+  </div>{% else %}<p class="muted">Відгуків ще немає. Опитування надсилається після візиту — «Налаштування → Відгуки й NPS».</p>{% endfor %}
+  {% if previews %}<p class="small muted">«Анонімно» розмиває імʼя на екрані — можна зробити скріншот для соцмереж. «Перейшов у Google» означає, що пацієнт натиснув кнопку й відкрив форму відгуку Google; чи опублікував він відгук, CRM не знає.</p>{% endif %}
+</div></section>
+
 <section class="pt-p" data-t="hist"><div class="pcd" id="history"><div class="pcd-h"><h3>Візити, продажі та історія з CleverBox · {{ phist|length }}</h3>
   <div class="ph-ch" data-ph="hi"><span class="ph-sum" data-ph="hi"></span><button type="button" class="on" data-f="all">Усе</button><button type="button" data-f="visit">Візити</button><button type="button" data-f="sale">Покупки</button></div></div>
   <div class="ph-list" data-ph="hi">{% for r in phist %}{{ hrow2(r) }}{% else %}<div class="muted small">Історії ще немає</div>{% endfor %}</div>

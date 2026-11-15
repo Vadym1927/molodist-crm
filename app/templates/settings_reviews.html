@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Відгуки й NPS · Налаштування{% endblock %}
+{% block body %}
+<div class="eyebrow"><a href="/settings">‹ Налаштування</a></div><h1>Відгуки й NPS</h1>
+{% if request.query_params.get('msg') %}<div class="alert ok">{{ request.query_params.get('msg') }}</div>{% endif %}
+<style>.rvs label{display:grid;gap:5px;font-weight:600;font-size:13.5px}.rvs label input,.rvs label textarea,.rvs label select,.rvs .qs input{width:100%;margin:0;font-weight:400}.rvs label span{font-weight:400}.rvs .qs{display:grid;grid-template-columns:1fr 1fr;gap:8px}@media(max-width:700px){.rvs .qs{grid-template-columns:1fr}}</style>
+<form method="post" class="card rvs" style="display:grid;gap:16px;max-width:820px">
+  <label style="display:flex;gap:10px;align-items:center;font-weight:700;font-size:15px"><input type="checkbox" name="on" style="width:auto" value="1" {{ 'checked' if c.on }}> Надсилати пацієнтам опитування після візиту</label>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
+    <label>Через скільки хвилин після візиту<input name="delay_min" inputmode="numeric" value="{{ c.delay_min }}"></label>
+    <label>Не частіше ніж раз на, днів<input name="min_days" inputmode="numeric" value="{{ c.min_days }}"><span class="small muted">0 — після кожного візиту</span></label>
+    <label>Куди надсилати<select name="order">{% for k, v in ORDERS.items() %}<option value="{{ k }}" {{ 'selected' if c.order == k }}>{{ v[0] }}</option>{% endfor %}</select>
+      <span class="small muted">береться перший доступний пацієнту канал</span></label>
+  </div>
+  <label>Текст повідомлення<textarea name="text" rows="3">{{ c.text }}</textarea><span class="small muted">{name} — імʼя пацієнта, {link} — посилання на опитування</span></label>
+  <div><b>Питання (оцінка 1–5 зірок)</b><div class="small muted" style="margin-bottom:6px">Порожнє поле — питання не показується. Рекламація створюється, якщо хоч одна оцінка нижча за 5.</div>
+    <div class="qs">{% for i in range(6) %}<input name="q" value="{{ c.questions[i].title if i < c.questions|length else '' }}" placeholder="Питання {{ i + 1 }}">{% endfor %}</div></div>
+  <label>Посилання на відгук у Google<input name="google_url" value="{{ c.google_url }}" placeholder="https://g.page/r/…/review">
+    <span class="small muted">Google Business Profile → «Попросити відгуки» → скопіювати посилання. Коли всі оцінки «5», пацієнту пропонується продублювати відгук там.</span></label>
+  <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn">Зберегти</button><a class="btn ghost" target="_blank" href="/settings/reviews/preview">Переглянути опитування</a>
+    <a class="btn ghost" href="/reports?r=nps">Звіт «Відгуки й NPS»</a><a class="btn ghost" href="/settings/doctor-kpi">Премія лікарям за оцінку</a></div>
+</form>
+<div class="card" style="max-width:820px"><h2 style="margin-top:0">Як це працює</h2>
+<ol class="small" style="line-height:1.7;margin:0;padding-left:18px">
+  <li>Візит відбувся (статус «відбувся» або є оплата) — через вказаний час пацієнт отримує повідомлення з посиланням.</li>
+  <li>Пацієнт ставить зірки, оцінку «чи порадите друзям» (0–10, з неї рахується NPS) і пише враження.</li>
+  <li>Усі «5» — пропонуємо продублювати відгук у Google: текст копіюється, відкривається форма Google. У картці видно, чи пацієнт туди перейшов.</li>
+  <li>Є оцінка нижча за 5 — рекламація: задача адміністраторам і сповіщення в Telegram власнику, головному лікарю й адміністраторам (без тексту відгуку).</li>
+  <li>Відгуки — у картці пацієнта (вкладка «Відгуки»), у дзвіночку й у KPI лікаря. Премію за середню оцінку задає шкала в «KPI лікарів → Налаштування»: метрика «Середня оцінка відгуків», наприклад від 4.5 і від 5.</li>
+</ol></div>
+{% endblock %}

@@ -344,6 +344,18 @@ async def job_rematch():
         log.warning("rematch: %s", e)
 
 
+async def job_reviews():
+    """Опитування після візиту: кожні 5 хв — надіслати посилання тим, у кого візит закінчився понад N хв тому."""
+    from .services import reviews as rv
+    def run():
+        with SessionLocal() as db:
+            return rv.run(db)
+    try:
+        await asyncio.to_thread(run)
+    except Exception as e:      # noqa: BLE001
+        log.warning("reviews: %s", e)
+
+
 async def job_meta_ads():
     """Meta Ads: щогодини — статистика кабінету за 7 днів (якщо підключено токен)."""
     from .services import meta_ads as ma
@@ -585,6 +597,7 @@ async def lifespan(app: FastAPI):
         sched.add_job(job_checkbox, "cron", hour="8,14,23", minute=50)
         sched.add_job(job_mono, "cron", minute=20)
         sched.add_job(job_meta_ads, "cron", minute=50)
+        sched.add_job(job_reviews, "cron", minute="*/5")
         sched.add_job(job_payreq, "cron", minute=35)
         sched.add_job(job_tg_notify, "cron", minute="*/5")
         sched.add_job(job_rematch, "date", run_date=datetime.now() + timedelta(seconds=40))   # після оновлення — одразу
@@ -1154,7 +1167,9 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
     from .models import CbService as _CbS
     pe_services = sorted({(n_, pr_) for n_, pr_ in db.execute(select(_CbS.name, _CbS.price).where(_CbS.active.is_not(False))) if n_}, key=lambda x: x[0])
     pe_products = sorted({(n_, pr_) for n_, pr_ in db.execute(select(Product.name, Product.price).where(Product.active.is_not(False))) if n_}, key=lambda x: x[0])
-    return render(request, "patient.html", p=p, statuses=statuses, pe_services=pe_services, pe_products=pe_products, ptasks=ptasks, msgs=msgs, dupes=dupes, paylinks=paylinks, pcalls=pcalls, pchats=pchats,
+    from .services import reviews as _rvw
+    _rv_cfg = _rvw.cfg(db)
+    return render(request, "patient.html", previews=_rvw.for_patient(db, p.id), rv_q={q["key"]: q["title"] for q in _rv_cfg["questions"]}, p=p, statuses=statuses, pe_services=pe_services, pe_products=pe_products, ptasks=ptasks, msgs=msgs, dupes=dupes, paylinks=paylinks, pcalls=pcalls, pchats=pchats,
                   call_thr=float(__import__("app.services.telephony", fromlist=["x"]).public(db).get("ai_alert_below") or 0),
                   certs=_cert.for_patient(db, p.id), CERT_STATES=_cert.STATES, today=date.today(),
                   subs=_cert.subs_for_patient(db, p.id), SUB_STATES=_cert.SUB_STATES, packages=_cert.package_items(db),
@@ -7227,6 +7242,7 @@ SETTINGS_BLOCKS = [
         ('Категорії спеціалістів', 'Ціни за категоріями: інші ціни на послуги для головного лікаря, топ-лікаря, стажера', '/settings/price-cats', 'finance', 'cmarket/customprice/main'),
         ('Статті для нарахувань', 'Премії, штрафи, лікарняні, податки, відпускні — для коригувань зарплати', '/settings/accrual-articles', 'finance', 'dirs/stype'),
         ('Бонус за продаж косметики', 'Відсоток лікарям з продажу товарів: без знижки, зі знижкою, поріг ціни; свої % для лікарів, брендів і товарів', '/settings/cosmetics-pct', 'finance', None),
+        ('Відгуки й NPS', 'Опитування пацієнта після візиту: питання, канал, посилання на відгук у Google, рекламації', '/settings/reviews', 'users', ''),
         ('Вхід із кодом', 'Двоетапний вхід: після пароля — код у Telegram (ID у картці співробітника) або SMS; для яких ролей, запамʼятати пристрій', '/settings/login-2fa', 'users', None),
         ('Завдання для OpenClaw', 'Перевірки й зміни на сервері руками агента OpenClaw: завдання → вивід у CRM; зміни — лише після вашого погодження в Telegram', '/ops', 'users', None),
         ('Лікарі бюті-планів', 'Хто зʼявляється у виборі лікаря в бюті-плані та картці пацієнта — лише справжні лікарі', '/settings/plan-doctors', 'users', None),
@@ -7324,6 +7340,96 @@ async def ops_create(request: Request, user: User = Depends(require("users")), d
     audit(db, "ops.create", "ops_task", t.id, user=user, kind=t.kind)
     msg = "Завдання в черзі — OpenClaw забере протягом хвилини" if t.kind == "check" else "Надіслано вам у Telegram на погодження"
     return RedirectResponse(_with_msg("/ops", msg) + f"#t{t.id}", 303)
+
+
+# ---------------- відгуки й NPS ----------------
+def _review_ctx(db, r):
+    from .services import reviews as rv
+    c = rv.cfg(db)
+    p = r.patient
+    parts = (p.full_name or "").split() if p else []
+    d = db.get(Doctor, r.doctor_id) if r.doctor_id else None
+    return {"questions": c["questions"], "name": parts[1] if len(parts) > 1 else (parts[0] if parts else "Вітаємо"), "doctor": d.name if d else "",
+            "google_url": c.get("google_url") or "", "text": r.text or "", "complaint": bool(r.complaint), "demo": False, "err": ""}
+
+
+@app.get("/r/{token}", response_class=HTMLResponse)
+def review_form(request: Request, token: str, done: str = "", db: Session = Depends(db_dep)):
+    """Публічна сторінка опитування після візиту (за посиланням із повідомлення)."""
+    from .services import reviews as rv
+    r = rv.by_token(db, token)
+    if not r:
+        return templates.TemplateResponse(request, "review_form.html", {"state": "none"}, status_code=404)
+    ctx = _review_ctx(db, r)
+    if not r.answered_at:
+        if not r.opened_at:
+            r.opened_at = datetime.utcnow()
+            db.commit()
+        state = "form"
+    else:
+        state = "google" if (not r.complaint and ctx["google_url"] and r.text and not r.google_at and not done) else "thanks"
+    return templates.TemplateResponse(request, "review_form.html", {**ctx, "state": state})
+
+
+@app.post("/r/{token}", response_class=HTMLResponse)
+async def review_submit(request: Request, token: str, db: Session = Depends(db_dep)):
+    from .services import reviews as rv
+    r = rv.by_token(db, token)
+    if not r:
+        return templates.TemplateResponse(request, "review_form.html", {"state": "none"}, status_code=404)
+    f = await request.form()
+    try:
+        nps = f.get("nps")
+        rv.submit(db, r, {k[2:]: v for k, v in f.items() if k.startswith("s_")}, int(nps) if str(nps or "").isdigit() else None, str(f.get("text") or ""))
+    except ValueError as e:
+        return templates.TemplateResponse(request, "review_form.html", {**_review_ctx(db, r), "state": "form", "err": str(e)})
+    return RedirectResponse(f"/r/{token}", 303)
+
+
+@app.post("/r/{token}/google")
+def review_google(token: str, db: Session = Depends(db_dep)):
+    from .services import reviews as rv
+    r = rv.by_token(db, token)
+    if r:
+        rv.mark_google(db, r)
+    return {"ok": bool(r)}
+
+
+@app.get("/settings/reviews", response_class=HTMLResponse)
+def settings_reviews(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import reviews as rv
+    return render(request, "settings_reviews.html", nav="settings", c=rv.cfg(db), ORDERS=rv.ORDERS)
+
+
+@app.get("/settings/reviews/preview", response_class=HTMLResponse)
+def settings_reviews_preview(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import reviews as rv
+    return templates.TemplateResponse(request, "review_form.html", {"state": "form", "questions": rv.cfg(db)["questions"], "name": "Олено", "doctor": "",
+                                                                    "demo": True, "err": ""})
+
+
+@app.post("/settings/reviews")
+async def settings_reviews_save(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import reviews as rv
+    f = await request.form()
+    c = rv.cfg(db)
+    old = {q["title"]: q["key"] for q in c["questions"]}
+    qs, used = [], set()
+    for i, t in enumerate(x.strip()[:120] for x in f.getlist("q")):
+        if not t:
+            continue
+        k = old.get(t) or (rv.QUESTIONS[i]["key"] if i < len(rv.QUESTIONS) and rv.QUESTIONS[i]["key"] not in used else f"q{i + 1}")
+        used.add(k)
+        qs.append({"key": k, "title": t})
+    def num(v, d):
+        return int(v) if str(v or "").strip().isdigit() else d
+    url = str(f.get("google_url") or "").strip()[:400]
+    c.update(on=bool(f.get("on")), delay_min=max(5, num(f.get("delay_min"), 30)), min_days=num(f.get("min_days"), 7),
+             order=f.get("order") if f.get("order") in rv.ORDERS else "tg", text=str(f.get("text") or "").strip()[:600] or rv.DEFAULT["text"],
+             questions=qs or rv.QUESTIONS, google_url=url if url.startswith("https://") else "")
+    rv.save_cfg(db, c)
+    audit(db, "reviews.settings", user=user, on=c["on"])
+    return RedirectResponse(_with_msg("/settings/reviews", "Збережено"), 303)
 
 
 @app.get("/settings/login-2fa", response_class=HTMLResponse)
