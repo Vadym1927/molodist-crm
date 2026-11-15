@@ -73,10 +73,16 @@ def load(db: Session, d_from: date, d_to: date, view: str = "") -> Report:
     appts = list(db.scalars(select(Appointment).where(Appointment.start >= a, Appointment.start <= b,
                                                       Appointment.status.notin_(LOST), Appointment.doctor_id.is_not(None))))
     blocks = list(db.scalars(select(TimeBlock).where(TimeBlock.start <= b, TimeBlock.end >= a)))
+    # лише ті, хто веде прийом: адміністратори, прибирання тощо мають зміни, але не мають записів — вони б занижували зайнятість
+    seen = {did for (did,) in db.execute(select(Appointment.doctor_id).where(
+        Appointment.start >= a - timedelta(days=90), Appointment.start <= b, Appointment.status.notin_(LOST),
+        Appointment.doctor_id.is_not(None)).distinct())}
+    shifts = {k: v for k, v in shifts.items() if k[0] in seen}
     r = Report("load", "Робочий час і завантаження",
                "Години за графіком («Спеціалісти → Графік») мінус заблокований час (блокування в календарі в межах зміни) = доступні години. "
                "«У записах» — години записів без скасованих і неявок у дні зі зміною. Простій = доступні − у записах; "
-               "зайнятість = у записах ÷ доступні. Записи в дні без зміни показані окремо як «поза графіком».",
+               "зайнятість = у записах ÷ доступні. Записи в дні без зміни показані окремо як «поза графіком». "
+               "У звіті лише ті, хто веде прийом (мав записи за останні 90 днів) — зміни адміністраторів і прибирання не враховуються.",
                empty="За період немає ні змін у графіку, ні записів.")
     r.filters = [{"name": "cat", "label": "Показати", "value": view,
                   "options": [("", "За спеціалістами"), ("wd", "За днями тижня"), ("days", "За датами"), ("hours", "За годинами дня")]}]
@@ -183,7 +189,7 @@ def admin_kpi(db: Session, d_from: date, d_to: date, view: str = "") -> Report:
     calls = list(db.scalars(select(Call).where(Call.at >= a, Call.at <= b)))
     scores = defaultdict(list)
     c_in = [c for c in calls if c.direction == "in"]
-    missed = [c for c in c_in if (c.status or "") != "answered"]
+    missed = [c for c in c_in if c.status == "missed"]
     back = 0                                      # пропущені, яким передзвонили (вихідний на той самий номер пізніше)
     outs = defaultdict(list)
     for c in calls:
@@ -192,14 +198,17 @@ def admin_kpi(db: Session, d_from: date, d_to: date, view: str = "") -> Report:
     for c in missed:
         if c.phone and any(t > c.at for t in outs.get(c.phone[-9:], ())):
             back += 1
+    from .telephony import _emp
+    by_name = {(u.name or "").strip().lower(): u.id for u in users.values()}
     for c in calls:
-        if not c.user_id or (c.status or "") != "answered":
+        uid = c.user_id or by_name.get((_emp(c.employee) or "").strip().lower())   # як у «Телефонія → KPI»: за користувачем або імʼям
+        if not uid or c.status == "missed":
             continue
-        g = G[c.user_id]
+        g = G[uid]
         g["c_in" if c.direction == "in" else "c_out"] += 1
         g["talk"] += (c.duration or 0) / 60
         if c.ai_score is not None:
-            scores[c.user_id].append(float(c.ai_score))
+            scores[uid].append(float(c.ai_score))
     d = dirs(db)
     appeals = list(db.scalars(select(Appeal).where(Appeal.created_at >= ua, Appeal.created_at <= ub, Appeal.deleted_at.is_(None))))
     ok_all = 0
