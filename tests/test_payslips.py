@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from app.config import settings
 from app.main import app
-from app.models import SessionLocal, Doctor, FinOp, SalaryAdj, SalaryRule
+from app.models import SessionLocal, Doctor, FinOp, PayrollDoc, PayrollLine, SalaryAdj, SalaryRule
 from app.services import payslips as ps, finops as fo
 
 
@@ -15,7 +15,13 @@ def test_payslip_month():
     with SessionLocal() as db:
         d = Doctor(name="Розрахунок Тест", active=True, position="Адміністратор")
         db.add(d); db.flush()
-        db.add(SalaryRule(doctor_id=d.id, base=20000))
+        db.add(SalaryRule(doctor_id=d.id, base=99000))             # авторозрахунок у листи не потрапляє
+        a0 = date.today().replace(day=1)
+        for x, y in ((1, 15), (16, 28)):
+            db.add(PayrollDoc(d_from=a0.replace(day=x), d_to=a0.replace(day=y), posted=True, total=10000, lines=[
+                PayrollLine(doctor_id=d.id, calc=10000, amount=10000, days=5, posted=True, detail={"fixed": 10000.0})]))
+        db.add(PayrollDoc(d_from=a0, d_to=a0.replace(day=15), posted=False, total=5000, lines=[
+            PayrollLine(doctor_id=d.id, calc=5000, amount=5000, posted=False, detail={"fixed": 5000.0})]))   # не на балансі
         db.add_all([SalaryAdj(doctor_id=d.id, month=mk, amount=3000, article="Премія", comment="план"),
                     SalaryAdj(doctor_id=d.id, month=mk, amount=-2500, article="Податки"),
                     SalaryAdj(doctor_id=d.id, month=mk, amount=-500, article="Штраф", comment="запізнення")])

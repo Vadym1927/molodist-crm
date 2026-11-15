@@ -42,6 +42,7 @@
     <dt>Ставка / оклад{% if r.days %} · змін {{ r.days }}{% endif %}</dt><dd>{{ r.base|uah }}</dd>
     <dt>Комісійні з послуг{% if r.services %} (оборот {{ r.services|uah }}){% endif %}</dt><dd>{{ r.from_services|uah }}</dd>
     <dt>Комісійні з товарів{% if r.products %} (оборот {{ r.products|uah }}){% endif %}</dt><dd>{{ r.from_products|uah }}</dd>
+    {% if r.corr %}<dt>Коригування в документі нарахування</dt><dd>{{ r.corr|uah }}</dd>{% endif %}
     {% for x in r.adjs.bonus %}<dt>{{ x.article or 'Доплата' }}{% if x.comment %} · {{ x.comment }}{% endif %}</dt><dd class="pos">+{{ x.amount|uah }}</dd>{% endfor %}
     <dt class="tot">Разом нараховано</dt><dd class="tot">{{ r.gross|uah }}</dd></dl></div>
   <div><h4>Податки й утримання</h4><dl>
@@ -59,7 +60,7 @@
 {% else %}<tr><td colspan="11" class="muted">За {{ v.label }} нарахувань і виплат немає.</td></tr>{% endfor %}
 </tbody><tfoot><tr><td>Разом</td><td>{{ t.base|uah }}</td><td>{{ t.comm|uah }}</td><td>{{ t.bonus|uah }}</td><td class="sep">{{ t.gross|uah }}</td><td>{{ t.tax|uah }}</td><td>{{ t.hold|uah }}</td>
   <td class="sep">{{ t.net|uah }}</td><td>{{ t.paid|uah }}</td><td class="sep">{{ t.opening|uah }}</td><td>{{ t.closing|uah }}</td></tr></tfoot></table></div>
-<p class="small muted">Натисніть на рядок — відкриється розрахунковий лист співробітника з кнопкою «Друк / PDF» (у вікні друку оберіть «Зберегти як PDF»). Половини місяця: оклад «за місяць» ділиться навпіл, комісійні й ставка за зміни — за фактом 1–15 числа, друга половина = місяць − перша. Премії, податки й утримання вносяться в «Взаєморозрахунки по з/п» кнопками «＋ Нарахувати» / «− Утримати»
+<p class="small muted">Натисніть на рядок — відкриється розрахунковий лист співробітника з кнопкою «Друк / PDF» (у вікні друку оберіть «Зберегти як PDF»). Суми тут — лише те, що нараховано вручну: документи «Нарахування зарплати», переведені «На баланс», і коригування; автоматичного розрахунку немає. Половини місяця: документ потрапляє в половину за кінцем свого періоду, коригування — за датою внесення, виплати — за датою. Премії, податки й утримання вносяться в «Взаєморозрахунки по з/п» кнопками «＋ Нарахувати» / «− Утримати»
   зі статтею (статті — «Налаштування → Статті для нарахувань»; податки — статті зі словами «податки», «ПДФО», «ЄСВ», «військовий збір»). Виплати — «Виплатити» там само або фіноперація зі статтею зарплати.</p>
 <dialog id="ps-tg" style="border:0;border-radius:18px;padding:18px 20px;width:min(520px,calc(100vw - 32px));box-shadow:0 30px 80px rgba(42,36,48,.35)">
   <h3 style="margin:0 0 4px;font:600 15px var(--head);letter-spacing:.06em;text-transform:uppercase">Лист у Telegram</h3>

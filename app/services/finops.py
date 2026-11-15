@@ -409,6 +409,7 @@ def payroll(db: Session, month: str, upto_from: str | None = None) -> list[dict]
         lines, clinic = _staff_lines(db, d_from, d_to, doctors)
         shifts_ = _shifts(db, d_from, d_to)
     rows = []
+    today_ = date.today()
     for d in doctors:
         r = rules.get(d.id)
         pl = plans.get(d.id)
@@ -419,8 +420,9 @@ def payroll(db: Session, month: str, upto_from: str | None = None) -> list[dict]
             s = sales.get((mk, d.id), {"services": 0.0, "products": 0.0, "n": 0})
             if pl:
                 lns = lines.get((mk, d.id), [])
-                days = {dd for (did, dd) in shifts_ if did == d.id and month_key(dd) == mk}   # ставка — лише за графіком
-                hours = sum(sh.minutes for (did, dd), sh in shifts_.items() if did == d.id and month_key(dd) == mk) / 60
+                # ставка — лише за графіком і лише за зміни, що вже настали (майбутні зміни місяця наперед не нараховуються)
+                days = {dd for (did, dd) in shifts_ if did == d.id and month_key(dd) == mk and dd <= today_}
+                hours = sum(sh.minutes for (did, dd), sh in shifts_.items() if did == d.id and month_key(dd) == mk and dd <= today_) / 60
                 res = spl.accrue(pl, lns, days, hours, clinic.get(mk, []))
                 adj = sum(x.amount for x in adjs.get((mk, d.id), []))
                 per[mk] = {"services": round(s["services"], 2), "products": round(s["products"], 2), "n": s["n"], "base": res["fixed"],
@@ -455,17 +457,65 @@ def paid_salary(db: Session, months: list[str]) -> dict[tuple[str, int], float]:
     return out
 
 
+def manual_accruals(db: Session, months: list[str]) -> dict[tuple[str, int], dict]:
+    """(місяць, співробітник) → нараховане ВРУЧНУ: рядки документів «Нарахування зарплати», переведені «На баланс»
+    (місяць — за кінцем періоду документа), і коригування «＋ Нарахувати» / «− Утримати». Автоматичного розрахунку тут немає."""
+    from ..models import PayrollDoc
+    from .payroll_docs import line_posted
+    out: dict = {}
+
+    def cell(mk, did):
+        return out.setdefault((mk, did), {"services": 0.0, "products": 0.0, "n": 0, "base": 0.0, "from_services": 0.0, "from_products": 0.0,
+                                          "corr": 0.0, "adj": 0.0, "adjs": [], "accrued": 0.0, "days": 0, "lines": []})
+    for doc in db.scalars(select(PayrollDoc).where(PayrollDoc.deleted_at.is_(None))):
+        mk = month_key(doc.d_to)
+        if mk not in months:
+            continue
+        for ln in doc.lines:
+            if not line_posted(ln):
+                continue
+            c, det = cell(mk, ln.doctor_id), ln.detail or {}
+            fx, cs = float(det.get("fixed") or 0), float(det.get("comm_services") or 0)
+            cp = float(det.get("comm_products") or 0) + float(det.get("turn") or 0)
+            c["base"] += fx
+            c["from_services"] += cs
+            c["from_products"] += cp
+            c["corr"] += float(ln.amount or 0) - (fx + cs + cp)          # сума, виправлена вручну в документі
+            c["services"] += float(det.get("services") or 0)
+            c["products"] += float(det.get("products") or 0)
+            c["days"] += int(ln.days or 0)
+            c["accrued"] += float(ln.amount or 0)
+            c["lines"].append((doc, ln))
+    for a in db.scalars(select(SalaryAdj).where(SalaryAdj.month.in_(months))):
+        c = cell(a.month, a.doctor_id)
+        c["adjs"].append(a)
+        c["adj"] += a.amount
+        c["accrued"] += a.amount
+    for c in out.values():
+        for k in ("base", "from_services", "from_products", "corr", "adj", "accrued", "services", "products"):
+            c[k] = round(c[k], 2)
+    return out
+
+
 def settlements(db: Session, month: str) -> list[dict]:
+    """Взаєморозрахунки: борг на початок + нараховано вручну (документи «На баланс» і коригування) − виплачено."""
+    from . import salary_plans as spl
     start = min(payroll_start(db), month)
     months = months_between(start, month)
-    rows = payroll(db, month, upto_from=start)
+    acc = manual_accruals(db, months)
     paid = paid_salary(db, months)
+    empty = {"services": 0.0, "products": 0.0, "n": 0, "base": 0.0, "from_services": 0.0, "from_products": 0.0, "corr": 0.0,
+             "adj": 0.0, "adjs": [], "accrued": 0.0, "days": 0, "lines": []}
+    has = {did for (_, did) in acc} | {did for (_, did) in paid}
     out = []
-    for r in rows:
-        did = r["doctor"].id
-        opening = round(sum(r["per"][mk]["accrued"] - paid.get((mk, did), 0) for mk in months[:-1]), 2)
-        acc, pd = r["m"]["accrued"], round(paid.get((month, did), 0), 2)
-        out.append({**r, "opening": opening, "accrued": acc, "paid": pd, "closing": round(opening + acc - pd, 2)})
+    for d in db.scalars(select(Doctor).order_by(Doctor.name)):
+        if not d.active and d.id not in has:
+            continue
+        per = {mk: acc.get((mk, d.id), empty) for mk in months}
+        opening = round(sum(per[mk]["accrued"] - paid.get((mk, d.id), 0) for mk in months[:-1]), 2)
+        a, pd = per[month]["accrued"], round(paid.get((month, d.id), 0), 2)
+        out.append({"doctor": d, "rule": None, "plan": spl.by_name(db, (d.extra or {}).get("salary")), "m": per[month], "per": per,
+                    "opening": opening, "accrued": a, "paid": pd, "closing": round(opening + a - pd, 2)})
     return out
 
 

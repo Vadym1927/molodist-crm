@@ -37,12 +37,12 @@ def test_finance_sections():
         c.post("/finance/ops", data={"kind": "expense", "category": "Зарплата", "doctor_id": str(did), "salary_month": mk,
                                      "amount": "2000", "cashbox": "Готівка", "day": str(today), "back": f"/finance/settle?m={mk}"})
         st = c.get(f"/finance/settle?m={mk}").text
-        assert "4 200,00 ₴" in st                                                 # 6200 − 2000
+        assert "-1 700,00 ₴" in st                    # взаєморозрахунки — лише вручну нараховане: 300 − 2000 (без авторозрахунку)
         assert "1 500,00 ₴" in c.get("/finance/balances").text and "200,00 ₴" in c.get("/finance/bonuses").text
     with SessionLocal() as db:
         rows = fo.settlements(db, mk)
         r = next(x for x in rows if x["doctor"].id == did)
-        assert r["accrued"] == 6200 and r["paid"] == 2000 and r["closing"] == 4200
+        assert r["accrued"] == 300 and r["paid"] == 2000 and r["closing"] == -1700
         assert db.query(FinOp).filter_by(doctor_id=did, category="Зарплата").count() == 1
 
 

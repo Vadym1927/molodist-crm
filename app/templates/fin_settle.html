@@ -2,7 +2,7 @@
 {% block title %}Взаєморозрахунки по з/п · Фінанси{% endblock %}
 {% block body %}
 {% include "_fin_tabs.html" %}
-<div class="row between" style="margin-bottom:12px;gap:10px"><div><h1>Взаєморозрахунки по з/п</h1><div class="muted small">Борг на початок + нараховано − виплачено = до виплати · облік з {{ start }}</div></div>
+<div class="row between" style="margin-bottom:12px;gap:10px"><div><h1>Взаєморозрахунки по з/п</h1><div class="muted small">Борг на початок + нараховано вручну (документи «На баланс» і коригування) − виплачено = до виплати · облік з {{ start }}</div></div>
   <form class="fin-f"><select name="m" onchange="this.form.submit()">{% for x in months %}<option {{ 'selected' if month==x }}>{{ x }}</option>{% endfor %}</select></form></div>
 <div class="fin-k">
   <div class="tile"><span>Борг на початок</span><b>{{ total.opening|uah }}</b></div>
@@ -31,6 +31,7 @@ dialog.st-d{border:0;border-radius:18px;padding:0;width:min(440px,calc(100vw - 3
 <div class="card" style="padding:4px 6px;overflow:auto"><table class="st-t"><thead><tr><th>Співробітник</th><th>Борг на початок</th><th>Нараховано</th><th>Виплачено</th><th>До виплати</th><th></th></tr></thead><tbody>
 {% for r in rows %}{% set d = r.doctor %}{% set zero = not (r.opening or r.accrued or r.paid or r.closing) %}
 <tr class="{{ 'zero' if zero }}"><td><div class="st-n">{{ av(d) }}<div><b>{{ d.name }}</b><small>{{ d.position or '' }}</small>
+    {% if r.m.lines %}<div class="st-adj">{% for doc_, ln_ in r.m.lines %}<span style="color:#3B3050">+{{ ln_.amount|uah }} нарахування {{ doc_.d_from|dt('%d.%m') }}–{{ doc_.d_to|dt('%d.%m') }}</span>{% endfor %}</div>{% endif %}
     {% if adj_by.get(d.id) %}<div class="st-adj">{% for a_ in adj_by[d.id] %}<span style="color:{{ '#1E7A46' if a_.amount > 0 else '#B23B2E' }}">{{ '+' if a_.amount > 0 }}{{ a_.amount|uah }} {{ a_.article or a_.comment or '' }}</span>{% endfor %}</div>{% endif %}</div></div></td>
   <td>{{ r.opening|uah }}</td><td>{{ r.accrued|uah }}</td><td>{{ r.paid|uah if r.paid else '—' }}</td>
   <td><span class="st-due {{ 'bad' if r.closing > 0.01 else ('ok' if r.closing < -0.01) }}">{{ r.closing|uah }}</span>{% if r.closing < -0.01 %}<div class="meta">переплата</div>{% endif %}</td>

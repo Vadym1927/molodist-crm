@@ -31,41 +31,6 @@ def _kind(a, kinds: dict[str, str]) -> str:
 HALVES = {0: "весь місяць", 1: "1–15", 2: "16–кінець місяця"}
 
 
-def _first_half(db: Session, month: str, rows_in: list[dict]) -> dict[int, dict]:
-    """Нарахування за 1–15 число тими самими правилами, що й за місяць (оклад «за місяць» — навпіл).
-    Друга половина = місяць − перша, тож дві половини завжди сходяться з місячним листом."""
-    from datetime import timedelta
-    from . import finops as fo
-    from .schedule import shifts as _shifts
-    from . import salary_plans as spl
-    a, _ = fo.month_bounds(month)
-    b = a + timedelta(days=14)
-    doctors = [r["doctor"] for r in rows_in]
-    sales = fo._staff_sales(db, a, b, doctors)
-    lines, clinic, sh = ({}, {}, {})
-    if any(r.get("plan") for r in rows_in):
-        lines, clinic = fo._staff_lines(db, a, b, doctors)
-        sh = _shifts(db, a, b)
-    out = {}
-    for r in rows_in:
-        d, pl, rule = r["doctor"], r.get("plan"), r.get("rule")
-        s = sales.get((month, d.id), {"services": 0.0, "products": 0.0})
-        if pl:
-            days = {dd for (did, dd) in sh if did == d.id}
-            hours = sum(x.minutes for (did, dd), x in sh.items() if did == d.id) / 60
-            res = spl.accrue(pl, lines.get((month, d.id), []), days, hours, clinic.get(month, []))
-            fx = pl.get("fixed") or {}
-            base = res["fixed"] / 2 if fx.get("on") and fx.get("period") == "month" else res["fixed"]
-            out[d.id] = {"base": base, "from_services": res["comm_services"],
-                         "from_products": res["comm"] - res["comm_services"] + res["turn"], "days": len(days)}
-        else:
-            out[d.id] = {"base": ((rule.base or 0) if rule else 0) / 2,
-                         "from_services": s["services"] * ((rule.pct_services or 0) if rule else 0) / 100,
-                         "from_products": s["products"] * ((rule.pct_products or 0) if rule else 0) / 100, "days": None}
-        out[d.id].update(services=s["services"], products=s["products"])
-    return out
-
-
 def build(db: Session, month: str, half: int = 0) -> dict:
     """half: 0 — місяць, 1 — 1–15 число, 2 — 16–кінець. Коригування потрапляють у половину за датою внесення, виплати — за датою."""
     from datetime import timedelta, timezone
@@ -78,12 +43,29 @@ def build(db: Session, month: str, half: int = 0) -> dict:
     rows_in = fo.settlements(db, month)
     a, b = fo.month_bounds(month)
     mid = a + timedelta(days=14)
-    h1 = _first_half(db, month, rows_in) if half else {}
     z = ZoneInfo(settings.timezone)
 
     def adj_half(x) -> int:
         d = x.created_at.replace(tzinfo=timezone.utc).astimezone(z).date() if x.created_at else b
         return 1 if d <= mid else 2
+
+    def part(m: dict, h: int) -> dict:
+        """Нараховане документами за половину місяця: документ потрапляє в половину за кінцем свого періоду."""
+        o = {"base": 0.0, "from_services": 0.0, "from_products": 0.0, "corr": 0.0, "services": 0.0, "products": 0.0, "days": 0}
+        for doc, ln in m.get("lines") or []:
+            if (1 if doc.d_to <= mid else 2) != h:
+                continue
+            det = ln.detail or {}
+            fx, cs = float(det.get("fixed") or 0), float(det.get("comm_services") or 0)
+            cp = float(det.get("comm_products") or 0) + float(det.get("turn") or 0)
+            o["base"] += fx
+            o["from_services"] += cs
+            o["from_products"] += cp
+            o["corr"] += float(ln.amount or 0) - (fx + cs + cp)
+            o["services"] += float(det.get("services") or 0)
+            o["products"] += float(det.get("products") or 0)
+            o["days"] += int(ln.days or 0)
+        return o
 
     pays = defaultdict(list)
     for x in db.scalars(select(FinOp).where(FinOp.deleted_at.is_(None), FinOp.category.in_(salary_names(db)), FinOp.doctor_id.is_not(None))
@@ -98,20 +80,20 @@ def build(db: Session, month: str, half: int = 0) -> dict:
     for r in rows_in:
         m = r["m"]
         did = r["doctor"].id
-        vals = {k: float(m.get(k) or 0) for k in ("base", "from_services", "from_products", "services", "products")}
+        keys_ = ("base", "from_services", "from_products", "corr", "services", "products")
+        vals = {k: float(m.get(k) or 0) for k in keys_}
         days, adjs, ps, opening = m.get("days"), list(m.get("adjs") or []), pays.get(did, []), r["opening"]
         if half:
-            f = h1[did]
+            f = part(m, 1)
             ps1 = [x for x in ps if x.day <= mid]
             adj1 = [x for x in adjs if adj_half(x) == 1]
             if half == 1:
-                vals = {k: float(f[k]) for k in vals}
-                days, adjs, ps = f["days"], adj1, ps1
+                vals, days, adjs, ps = {k: f[k] for k in keys_}, f["days"], adj1, ps1
             else:
-                net1 = f["base"] + f["from_services"] + f["from_products"] + sum(x.amount for x in adj1)
+                net1 = f["base"] + f["from_services"] + f["from_products"] + f["corr"] + sum(x.amount for x in adj1)
                 opening = round(opening + net1 - signed(ps1), 2)             # залишок після першої половини
-                vals = {k: vals[k] - float(f[k]) for k in vals}
-                days = (days - f["days"]) if days is not None and f["days"] is not None else days
+                f2 = part(m, 2)
+                vals, days = {k: f2[k] for k in keys_}, f2["days"]
                 adjs, ps = [x for x in adjs if adj_half(x) == 2], [x for x in ps if x.day > mid]
         parts = {"bonus": [], "tax": [], "hold": []}
         for adj in adjs:
@@ -119,12 +101,13 @@ def build(db: Session, month: str, half: int = 0) -> dict:
         s = {k: round(sum(x.amount for x in v), 2) for k, v in parts.items()}
         base = round(vals["base"], 2)
         comm = round(vals["from_services"] + vals["from_products"], 2)
-        gross = round(base + comm + s["bonus"], 2)
+        corr = round(vals["corr"], 2)
+        gross = round(base + comm + corr + s["bonus"], 2)
         net = round(gross + s["tax"] + s["hold"], 2)              # = нараховано до виплати (m["accrued"])
         paid = signed(ps)
         row = {"doctor": r["doctor"], "plan": (r.get("plan") or {}).get("name") if isinstance(r.get("plan"), dict) else None,
                "days": days, "services": round(vals["services"], 2), "products": round(vals["products"], 2),
-               "base": base, "comm": comm, "from_services": round(vals["from_services"], 2),
+               "base": base, "comm": comm, "corr": corr, "from_services": round(vals["from_services"], 2),
                "from_products": round(vals["from_products"], 2),
                "bonus": s["bonus"], "gross": gross, "tax": s["tax"], "hold": s["hold"], "net": net,
                "paid": paid, "opening": opening, "closing": round(opening + net - paid, 2),
@@ -165,6 +148,8 @@ def tg_text(v: dict, r: dict) -> str:
         L.append(f"Комісійні з послуг (оборот {u(r['services'])}): {u(r['from_services'])}")
     if r["from_products"]:
         L.append(f"Комісійні з товарів (оборот {u(r['products'])}): {u(r['from_products'])}")
+    if r.get("corr"):
+        L.append(f"Коригування нарахування: {u(r['corr'])}")
     for x in r["adjs"]["bonus"]:
         L.append(f"{e(x.article or 'Доплата')}{(' · ' + e(x.comment)) if x.comment else ''}: +{u(x.amount)}")
     L.append(f"Разом нараховано: <b>{u(r['gross'])}</b>")

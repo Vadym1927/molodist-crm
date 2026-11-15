@@ -17,7 +17,8 @@ tr.tot td{font-weight:800;border-top:1.5px solid #2A2430;border-bottom:0}.big{fo
   <tr><td>Ставка / оклад{% if r.days %} · змін {{ r.days }}{% endif %}</td><td>{{ r.base|uah }}</td></tr>
   <tr><td>Комісійні з послуг{% if r.services %} (оборот {{ r.services|uah }}){% endif %}</td><td>{{ r.from_services|uah }}</td></tr>
   <tr><td>Комісійні з товарів{% if r.products %} (оборот {{ r.products|uah }}){% endif %}</td><td>{{ r.from_products|uah }}</td></tr>
-  {% for x in r.adjs.bonus %}<tr><td>{{ x.article or 'Доплата' }}{% if x.comment %} · {{ x.comment }}{% endif %}</td><td>+{{ x.amount|uah }}</td></tr>{% endfor %}
+  {% if r.corr %}<tr><td>Коригування в документі нарахування</td><td>{{ r.corr|uah }}</td></tr>{% endif %}
+    {% for x in r.adjs.bonus %}<tr><td>{{ x.article or 'Доплата' }}{% if x.comment %} · {{ x.comment }}{% endif %}</td><td>+{{ x.amount|uah }}</td></tr>{% endfor %}
   <tr class="tot"><td>Разом нараховано</td><td>{{ r.gross|uah }}</td></tr></table>
 <h2>Податки й утримання</h2><table>
   {% for x in r.adjs.tax %}<tr><td>{{ x.article }}{% if x.comment %} · {{ x.comment }}{% endif %}</td><td>{{ x.amount|uah }}</td></tr>{% endfor %}
