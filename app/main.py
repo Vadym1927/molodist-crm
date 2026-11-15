@@ -329,6 +329,20 @@ async def job_rematch():
         log.warning("rematch: %s", e)
 
 
+async def job_meta_ads():
+    """Meta Ads: щогодини — статистика кабінету за 7 днів (якщо підключено токен)."""
+    from .services import meta_ads as ma
+    def run():
+        with SessionLocal() as db:
+            c = ma.cfg(db)
+            if c.get("token") and c.get("account"):
+                return ma.pull(db, days=7)
+    try:
+        await asyncio.to_thread(run)
+    except Exception as e:      # noqa: BLE001
+        log.warning("meta ads pull failed: %s", e)
+
+
 async def job_mono():
     """monobank: щогодини — списання за 2 доби, рознесення оплат постачальникам."""
     from .integrations import monobank
@@ -555,6 +569,7 @@ async def lifespan(app: FastAPI):
         sched.add_job(job_price_monitor, "cron", minute=40)
         sched.add_job(job_checkbox, "cron", hour="8,14,23", minute=50)
         sched.add_job(job_mono, "cron", minute=20)
+        sched.add_job(job_meta_ads, "cron", minute=50)
         sched.add_job(job_payreq, "cron", minute=35)
         sched.add_job(job_tg_notify, "cron", minute="*/5")
         sched.add_job(job_rematch, "date", run_date=datetime.now() + timedelta(seconds=40))   # після оновлення — одразу
@@ -8810,6 +8825,58 @@ async def google_ads_hook(request: Request, hook: str, db: Session = Depends(db_
     if not isinstance(data, dict):
         raise HTTPException(400)
     return await asyncio.to_thread(ga.ingest, db, data)
+
+
+@app.post("/api/public/ads/meta/{hook}")
+async def meta_ads_hook(request: Request, hook: str, db: Session = Depends(db_dep)):
+    """Агент на сервері надсилає статистику рекламного кабінету Meta: {"rows": [{day, ad_id, ad_name, adset, campaign, impressions, clicks, spend, views3}], "rate"?}."""
+    from .services import meta_ads as ma
+    import hmac as _hm
+    if not _hm.compare_digest(hook, ma.cfg(db)["hook"]):
+        raise HTTPException(404)
+    try:
+        data = json.loads(await request.body() or b"{}")
+    except ValueError:
+        raise HTTPException(400)
+    if not isinstance(data, dict) or not isinstance(data.get("rows"), list):
+        raise HTTPException(400)
+    return await asyncio.to_thread(ma.ingest, db, [r for r in data["rows"] if isinstance(r, dict)][:5000], float(data.get("rate") or 0) or None)
+
+
+@app.get("/marketing/meta", response_class=HTMLResponse)
+def meta_ads_page(request: Request, df: str = "", dt_: str = "", ad: str = "", campaign: str = "", group: str = "ad",
+                  user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import meta_ads as ma
+    d_from, d_to = _period(df, dt_, default_days=29)
+    t_ = date.today()
+    presets = [("Сьогодні", t_, t_), ("Вчора", t_ - timedelta(days=1), t_ - timedelta(days=1)), ("7 днів", t_ - timedelta(days=6), t_),
+               ("14 днів", t_ - timedelta(days=13), t_), ("30 днів", t_ - timedelta(days=29), t_), ("90 днів", t_ - timedelta(days=89), t_),
+               ("Цей місяць", t_.replace(day=1), t_)]
+    return render(request, "meta_ads.html", nav="reports", v=ma.dashboard(db, d_from, d_to, ad=ad, campaign=campaign, group=group),
+                  presets=presets, is_owner=user.role == "owner", hook_url=f"{_site_url(request)}/api/public/ads/meta/{ma.cfg(db)['hook']}")
+
+
+@app.post("/marketing/meta/settings")
+def meta_ads_settings(token: str = Form(""), account: str = Form(""), user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import meta_ads as ma
+    if user.role != "owner":
+        raise HTTPException(403)
+    c = ma.cfg(db)
+    if token.strip():
+        c["token"] = token.strip()[:600]
+    c["account"] = re.sub(r"\D", "", account)[:30]
+    ma.save_cfg(db, c)
+    audit(db, "meta_ads.settings", user=user)
+    db.commit()
+    r = ma.pull(db, days=30) if c["token"] and c["account"] else {"ok": False, "error": "Вкажіть токен і номер кабінету"}
+    return RedirectResponse(_with_msg("/marketing/meta", f"Підключено: рядків {r.get('new', 0) + r.get('updated', 0)}" if r.get("ok") else f"Помилка: {r.get('error')}"), 303)
+
+
+@app.post("/marketing/meta/pull")
+def meta_ads_pull(user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import meta_ads as ma
+    r = ma.pull(db, days=30)
+    return RedirectResponse(_with_msg("/marketing/meta", f"Оновлено: рядків {r.get('new', 0) + r.get('updated', 0)}" if r.get("ok") else f"Помилка: {r.get('error')}"), 303)
 
 
 @app.get("/marketing/google", response_class=HTMLResponse)

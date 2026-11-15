@@ -1686,6 +1686,7 @@ class ChatMessage(Base):
     status: Mapped[str | None] = mapped_column(String(20))                # out: sent | failed | paused
     error: Mapped[str | None] = mapped_column(String(300))
     read_at: Mapped[datetime | None] = mapped_column(DateTime)
+    ad: Mapped[dict | None] = mapped_column(JSON)                     # прийшов з реклами Meta: {ad_id, title, ref, source}
 
 
 class MessageLog(Base):

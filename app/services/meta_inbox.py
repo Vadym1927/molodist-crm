@@ -191,11 +191,16 @@ def ingest(db: Session, payload: dict, http: httpx.Client | None = None) -> int:
             if msg.get("is_echo") and not msg.get("is_deleted") and not msg.get("is_unsupported"):
                 n += _echo(db, channel, ev, msg, http, own)   # відповідь, яку адміністратор написав у самому Instagram / Messenger
                 continue
+            from . import meta_ads
+            sid = str((ev.get("sender") or {}).get("id") or "")
+            ad = meta_ads.referral_of(ev)
+            if ad and sid and sid != own and not msg:  # клік по рекламі без тексту — запамʼятати до першого повідомлення
+                meta_ads.remember(db, sid, ad)
             if not msg or not is_direct(ev):          # реакції, лайки, сторіз, прочитання — не Direct
                 continue
-            sid = str((ev.get("sender") or {}).get("id") or "")
             if not sid or sid == own:
                 continue
+            ad = ad or meta_ads.recall(db, sid)
             mid = msg.get("mid")
             if mid and db.scalar(select(ChatMessage.id).where(ChatMessage.mid == mid)):
                 continue
@@ -208,6 +213,9 @@ def ingest(db: Session, payload: dict, http: httpx.Client | None = None) -> int:
             m = ChatMessage(at=at, channel=channel, thread=sid, direction="in", text=(msg.get("text") or "")[:4000] or None,
                             attachments=atts, mid=mid, name=name, patient_id=pat_id)
             m.appeal_id = _appeal_for(db, channel, sid, pat_id, name, m.text)
+            if ad and not db.scalar(select(ChatMessage.id).where(ChatMessage.thread == sid, ChatMessage.ad.is_not(None))):
+                m.ad = ad                              # перше повідомлення з реклами — це й є лід
+                meta_ads.mark_appeal(db, m.appeal_id, ad)
             db.add(m)
             db.commit()
             n += 1

@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Meta Ads · центр моніторингу{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}{% set t = v.tot %}{% set cur = '$' if v.cfg.currency == 'USD' else v.cfg.currency %}
+{% macro u(x, d=0) %}{% if x is none %}—{% else %}{{ (('{:,.' ~ d ~ 'f}').format(x)).replace(',', ' ') }}{% endif %}{% endmacro %}
+{% macro pc(x) %}{% if x is none %}—{% else %}{{ ('%.2f' % x).rstrip('0').rstrip('.') }}%{% endif %}{% endmacro %}
+{% macro q(df, dt_, group=v.group, ad=v.ad, campaign=v.campaign) %}/marketing/meta?df={{ df }}&dt_={{ dt_ }}&group={{ group }}{% if ad %}&ad={{ ad|urlencode }}{% endif %}{% if campaign %}&campaign={{ campaign|urlencode }}{% endif %}{% endmacro %}
+<style>
+.ma-h{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:12px}.ma-h h1{margin:0}
+.ma-p{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}.ma-p a{padding:8px 13px;border-radius:10px;background:#fff;border:1px solid #ECE7E1;font:600 13px var(--sans);color:#2A2430;text-decoration:none}
+.ma-p a.on{background:#3B3050;color:#fff;border-color:#3B3050}
+.ma-f{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}.ma-f input,.ma-f select{height:40px;margin:0;max-width:260px}
+.ma-k{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.ma-k>div{background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:12px 16px}.ma-k small{display:block;font:700 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496}
+.ma-k b{display:block;font:800 21px var(--sans);margin-top:4px;white-space:nowrap}.ma-k span{font-size:12px;color:#6b6575}
+.ma-k .d{background:#3B3050;border-color:#3B3050}.ma-k .d small,.ma-k .d b,.ma-k .d span{color:#fff}
+.ma-c{background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:14px 16px;margin-bottom:14px;overflow-x:auto}.ma-c h3{margin:0 0 6px;font:800 16px var(--sans);text-transform:none;letter-spacing:0}
+.ma-t{width:100%;border-collapse:collapse;font-size:13px}.ma-t th{font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#6b6575;padding:7px 8px;background:#F7F4F0;text-align:right;white-space:nowrap}
+.ma-t th:first-child,.ma-t th.l{text-align:left}.ma-t td{padding:7px 8px;border-bottom:1px solid #F1EDE8;text-align:right;white-space:nowrap;vertical-align:top}
+.ma-t td.l{text-align:left;white-space:normal;min-width:220px}.ma-t tr.tot td{font-weight:800;background:#FBFAF8}.ma-t small{color:#8a8496;display:block;font-size:11.5px}
+.pl{display:inline-block;padding:1px 8px;border-radius:99px;font-weight:700}.pl.g{background:#E4F2EA;color:#2f7a55}.pl.y{background:#FFF3D6;color:#9A6B00}.pl.r{background:#F9E5E2;color:#B23A32}
+@media(max-width:1000px){.ma-k{grid-template-columns:repeat(2,1fr)}}
+</style>
+<div class="ma-h"><div><h1>Meta Ads · центр моніторингу</h1>
+  <div class="small muted">{{ v.d_from|dt('%d.%m.%Y') }} — {{ v.d_to|dt('%d.%m.%Y') }} ·
+    {% if v.cfg.last_pull %}статистику кабінету оновлено {{ v.cfg.last_pull.replace('T', ' ') }}{% else %}статистика кабінету ще не надходила{% endif %} · курс {{ u(v.rate, 2) }} ₴/{{ cur }}</div></div>
+  <form method="post" action="/marketing/meta/pull">{% if v.connected %}<button class="btn ghost">↻ Оновити з Meta</button>{% endif %}</form></div>
+{% if qp.get('msg') %}<div class="alert ok">{{ qp.get('msg') }}</div>{% endif %}
+{% if v.cfg.last_error %}<div class="alert" style="background:#F9E5E2;color:#B23A32">Meta не віддала статистику: {{ v.cfg.last_error }}</div>{% endif %}
+
+<div class="ma-p">{% for n, a, b in presets %}<a class="{{ 'on' if a == v.d_from and b == v.d_to }}" href="{{ q(a, b) }}">{{ n }}</a>{% endfor %}</div>
+<form class="ma-f" method="get"><input type="date" name="df" value="{{ v.d_from }}"><span>—</span><input type="date" name="dt_" value="{{ v.d_to }}">
+  <select name="ad"><option value="">Усі креативи</option>{% for k, n in v.ads %}<option value="{{ k }}" {{ 'selected' if v.ad == k }}>{{ n[:70] }}</option>{% endfor %}</select>
+  <select name="campaign"><option value="">Усі кампанії</option>{% for n in v.campaigns %}<option {{ 'selected' if v.campaign == n }}>{{ n }}</option>{% endfor %}</select>
+  <select name="group">{% for k, n in [('ad', 'По креативах'), ('day', 'Щоденний реєстр'), ('campaign', 'По кампаніях')] %}<option value="{{ k }}" {{ 'selected' if v.group == k }}>{{ n }}</option>{% endfor %}</select>
+  <button class="btn">Застосувати</button></form>
+
+<div class="ma-k">
+  <div class="d"><small>Дохід</small><b>{{ u(t.revenue) }} ₴</b><span>оплати пацієнтів, що прийшли з реклами</span></div>
+  <div><small>Бюджет Ads</small><b>{{ u(t.cost, 2) }} {{ cur }}</b><span>витрати кабінету</span></div>
+  <div><small>Витрати грн</small><b>{{ u(t.uah) }} ₴</b><span>за курсом на день</span></div>
+  <div><small>ROAS</small><b><span class="pl {{ 'g' if t.roas and t.roas >= 3 else ('y' if t.roas and t.roas >= 1 else 'r') }}" style="font-size:19px">{{ u(t.roas, 2) }}×</span></b><span>дохід ÷ витрати</span></div>
+  <div><small>Покази</small><b>{{ u(t.impressions) }}</b></div>
+  <div><small>3-сек. перегляди</small><b>{{ u(t.views3) }}</b><span>Hook rate {{ pc(t.hook) }}</span></div>
+  <div><small>CPM</small><b>{{ u(t.cpm, 2) }} {{ cur }}</b></div>
+  <div><small>CTR · CPC</small><b>{{ pc(t.ctr) }} · {{ u(t.cpc, 2) }} {{ cur }}</b><span>{{ u(t.clicks) }} кліків</span></div>
+  <div><small>Заявки</small><b>{{ t.leads }}</b><span>написали в Direct / Messenger з реклами</span></div>
+  <div><small>Ціна заявки</small><b>{{ u(t.cpl) }} ₴</b><span>клік → заявка {{ pc(t.cr_click_lead) }}</span></div>
+  <div><small>Записи</small><b>{{ t.booked }}</b><span>заявка → запис {{ pc(t.cr_lead_book) }} · прийшли {{ t.came }}</span></div>
+  <div><small>Ціна запису</small><b>{{ u(t.cost_booking) }} ₴</b></div>
+  <div><small>Продажі</small><b>{{ t.payers }}</b><span>пацієнтів з оплатою · заявка → продаж {{ pc(t.cr_lead_sale) }}</span></div>
+  <div><small>Ціна продажу</small><b>{{ u(t.cost_sale) }} ₴</b></div>
+</div>
+
+<div class="ma-c"><h3>{{ {'ad': 'Креативи', 'day': 'Щоденний реєстр', 'campaign': 'Кампанії'}[v.group] }}</h3>
+<table class="ma-t"><thead><tr>{% if v.group == 'day' %}<th>Дата</th>{% endif %}<th class="l">{{ 'Кампанія' if v.group == 'campaign' else 'Креатив' }}</th><th>Бюджет {{ cur }}</th><th>Витрати ₴</th><th>CPM</th><th>Кліки</th><th>CTR</th><th>CPC</th>
+  <th>Покази</th><th>3 сек.</th><th>Hook rate</th><th>Заявки</th><th>Ціна заявки</th><th>Записи</th><th>Ціна запису</th><th>Продажі</th><th>Сума продажів</th><th>Клік → заявка</th><th>Заявка → запис</th><th>ROAS</th></tr></thead><tbody>
+{% for r in v.rows %}<tr>{% if v.group == 'day' %}<td>{{ r.day|dt('%d.%m.%Y') }}</td>{% endif %}
+  <td class="l">{% if r.ad_id and r.ad_id != '—' %}<a href="{{ q(v.d_from, v.d_to, v.group, r.ad_id, '') }}" style="font-weight:600;text-decoration:none">{{ r.name }}</a>{% else %}<b>{{ r.name }}</b>{% endif %}
+    {% if v.group != 'campaign' and (r.campaign or r.adset) %}<small>{{ r.campaign or '' }}{% if r.adset %} · {{ r.adset }}{% endif %}</small>{% endif %}</td>
+  <td>{{ u(r.cost, 2) }}</td><td>{{ u(r.uah) }}</td><td>{{ u(r.cpm, 2) }}</td><td>{{ u(r.clicks) }}</td>
+  <td>{% if r.ctr is not none %}<span class="pl {{ 'g' if r.ctr >= 1.5 else ('y' if r.ctr >= 0.8 else 'r') }}">{{ pc(r.ctr) }}</span>{% else %}—{% endif %}</td><td>{{ u(r.cpc, 2) }}</td>
+  <td>{{ u(r.impressions) }}</td><td>{{ u(r.views3) }}</td>
+  <td>{% if r.hook is not none %}<span class="pl {{ 'g' if r.hook >= 30 else ('y' if r.hook >= 20 else 'r') }}">{{ pc(r.hook) }}</span>{% else %}—{% endif %}</td>
+  <td><b>{{ r.leads or '—' }}</b></td><td>{{ u(r.cpl) }}</td><td>{{ r.booked or '—' }}</td><td>{{ u(r.cost_booking) }}</td><td>{{ r.payers or '—' }}</td><td>{{ u(r.revenue) if r.revenue else '—' }}</td>
+  <td>{{ pc(r.cr_click_lead) }}</td><td>{{ pc(r.cr_lead_book) }}</td><td>{{ (u(r.roas, 2) ~ '×') if r.roas is not none else '—' }}</td></tr>
+{% else %}<tr><td colspan="20" class="l muted" style="text-align:left">За період даних немає. {% if not v.connected %}Підключіть рекламний кабінет нижче.{% endif %}</td></tr>{% endfor %}
+{% if v.rows %}<tr class="tot">{% if v.group == 'day' %}<td></td>{% endif %}<td class="l">Разом</td><td>{{ u(t.cost, 2) }}</td><td>{{ u(t.uah) }}</td><td>{{ u(t.cpm, 2) }}</td><td>{{ u(t.clicks) }}</td><td>{{ pc(t.ctr) }}</td><td>{{ u(t.cpc, 2) }}</td>
+  <td>{{ u(t.impressions) }}</td><td>{{ u(t.views3) }}</td><td>{{ pc(t.hook) }}</td><td>{{ t.leads }}</td><td>{{ u(t.cpl) }}</td><td>{{ t.booked }}</td><td>{{ u(t.cost_booking) }}</td><td>{{ t.payers }}</td><td>{{ u(t.revenue) }}</td>
+  <td>{{ pc(t.cr_click_lead) }}</td><td>{{ pc(t.cr_lead_book) }}</td><td>{{ (u(t.roas, 2) ~ '×') if t.roas is not none else '—' }}</td></tr>{% endif %}
+</tbody></table></div>
+
+<div class="ma-c"><h3>Заявки з реклами — {{ v.leads|length }}</h3>
+<p class="small muted" style="margin:0 0 8px">Людина натиснула «Написати» в рекламі й написала в Direct / Messenger — Meta передає номер оголошення, CRM привʼязує переписку до креативу. Запис, візит і оплати підтягуються з картки пацієнта (після привʼязки переписки до пацієнта).</p>
+<table class="ma-t"><thead><tr><th>Коли</th><th class="l">Хто</th><th class="l">Креатив</th><th class="l">Статус звернення</th><th>Запис</th><th>Візит</th><th>Оплат</th><th>Сума</th></tr></thead><tbody>
+{% for r in v.leads[:300] %}<tr><td>{{ r.at|dt('%d.%m %H:%M') }}</td>
+  <td class="l">{% if r.patient %}<a href="/patients/{{ r.patient.id }}">{{ r.patient.full_name }}</a>{% else %}{{ r.name or 'Без імені' }}{% endif %}<small>{{ 'Instagram' if r.channel == 'instagram' else 'Facebook' }}{% if r.new %} · новий пацієнт{% endif %}</small></td>
+  <td class="l">{{ r.ad_title or r.ad_id or '—' }}</td><td class="l">{{ r.status or '—' }}</td>
+  <td>{{ r.booked|dt('%d.%m') if r.booked else '—' }}</td><td>{{ r.came|dt('%d.%m') if r.came else '—' }}</td><td>{{ r.n_pay or '—' }}</td><td>{{ (u(r.revenue) ~ ' ₴') if r.revenue else '—' }}</td></tr>
+{% else %}<tr><td colspan="8" class="l muted" style="text-align:left">Заявок з рекламною міткою за період ще немає.</td></tr>{% endfor %}</tbody></table></div>
+
+{% if is_owner %}<details class="ma-c" {{ 'open' if not v.connected }}><summary style="cursor:pointer;font:800 16px var(--sans)">⚙ Підключення рекламного кабінету</summary>
+  <p class="small muted">CRM щогодини читає статистику з Meta. Потрібен токен із правом <b>ads_read</b> (Business Settings → System Users → Generate token) і номер рекламного кабінету (цифри з act_…). Токен зберігається в CRM і ніде не показується.</p>
+  <form method="post" action="/marketing/meta/settings" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <input type="password" name="token" autocomplete="off" placeholder="{{ 'Токен збережено — вставте новий, щоб замінити' if v.has_token else 'Токен доступу (ads_read)' }}" style="min-width:320px;margin:0">
+    <input name="account" value="{{ v.cfg.account }}" placeholder="Номер кабінету, напр. 1234567890" style="max-width:240px;margin:0">
+    <button class="btn">Зберегти й завантажити</button></form>
+  <p class="small muted" style="margin-top:10px">Інший шлях — агент на сервері надсилає ті самі дані POST-запитом (JSON <code>{"rows": [{day, ad_id, ad_name, adset, campaign, impressions, clicks, spend, views3}]}</code>) на адресу:<br><code style="word-break:break-all">{{ hook_url }}</code></p>
+  <p class="small muted">Щоб заявки привʼязувались до оголошень: у застосунку Meta для вебхука Instagram / Messenger має бути ввімкнене поле <b>messaging_referral</b>; реклама — з ціллю «Повідомлення» (кнопка «Написати»).</p>
+</details>{% endif %}
+{% endblock %}
