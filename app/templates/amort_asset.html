@@ -45,6 +45,11 @@ dialog.am-d{border:0;border-radius:18px;padding:0;width:min(460px,calc(100vw - 3
   <div class="card"><span>Витрати на апарат</span><b>{{ t.spent|uah }}</b><small>з фонду</small></div>{% endif %}
   <div class="card"><span>{{ t.live.label }}</span><b>{{ t.live.amount|uah }}</b><small>{{ t.live.procs }} проц. · {{ '%g'|format(t.live.qty) }} {{ UNITS.get(a.unit, '') }} · ще не зафіксовано</small></div>
 </div>
+{% if unposted.paid %}<div class="card" style="margin-bottom:14px;padding:12px 16px;{{ 'border-left:4px solid #B23B2E' if unposted.rows }}">
+  <b>{{ unposted.d_from|dt('%d.%m') }}–{{ unposted.d_to|dt('%d.%m') }}: оплачено {{ unposted.paid }} процедур · списано {{ unposted.written }}</b>
+  {% if unposted.rows %}<div class="small muted" style="margin:4px 0 6px">Візити нижче оплачені, але не закриті — витратні не списані, тому процедура не потрапила в амортизацію. Закрийте візит — нарахування додасться.</div>
+  {% for x in unposted.rows %}<div class="small"><a href="/calendar?start={{ x.appt.start|dt('%Y-%m-%d') }}&open={{ x.appt.id }}">{{ x.appt.start|dt('%d.%m %H:%M') }} · {{ x.patient }}</a> — {{ x.service }}</div>{% endfor %}
+  {% else %}<span class="small muted"> — усі оплачені візити закриті.</span>{% endif %}</div>{% endif %}
 <div class="am-bar" style="margin-bottom:14px" title="{{ t.pct }}%"><i class="{{ 'over' if t.pct > 100 else ('warn' if t.pct > 85) }}" style="width:{{ [t.pct, 100]|min }}%"></i></div>
 
 <div class="aa-g {{ 'one' if not year }}"><div>

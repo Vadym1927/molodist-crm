@@ -11751,6 +11751,7 @@ def amort_asset_page(aid: int, request: Request, year: int = 0, user: User = Dep
                   years=sorted({r_["year"] for r_ in all_rows} | set(am.years(db)), reverse=True), am=am, all_rows=all_rows,
                   ytot=am.by_year_totals(all_rows),
                   jar=__import__("app.integrations.monobank", fromlist=["jar"]).jar(db, a.jar) if a.jar else None,
+                  unposted=am.unposted(db, a, today),
                   cards=am.techcards_for(db, a), txns=am.txns(db, a.id), boxes=[b["name"] for b in cbx.items(db) if b.get("active", True)],
                   children=[(c, am.totals(db, c, today)) for c in children], parent=db.get(AmortAsset, a.parent_id) if a.parent_id else None,
                   today=today, UNITS=am.UNITS)

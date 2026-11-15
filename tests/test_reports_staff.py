@@ -1,6 +1,6 @@
 from datetime import date, datetime, timedelta
 
-from app.models import (SessionLocal, Appeal, Appointment, AuditLog, Call, ChatMessage, Doctor, Patient, StaffShift, Task, TimeBlock, User)
+from app.models import (SessionLocal, Appeal, Appointment, AuditLog, Call, ChatMessage, Doctor, Patient, StaffShift, Task, TimeBlock, User, Visit)
 from app.services import reports as rp
 
 
@@ -34,6 +34,8 @@ def test_staff_reports():
         db.add(ChatMessage(at=u - timedelta(minutes=20), channel="instagram", thread="kpi_t1", direction="out", text="Вітаю", user_id=adm.id, status="sent"))
         db.add(ChatMessage(at=u - timedelta(minutes=5), channel="instagram", thread="kpi_t2", direction="in", text="?"))
         db.add(AuditLog(action="appointment.status", user_id=adm.id, details={"status": "confirmed"}))
+        db.add(Visit(patient_id=pat.id, source="cb_visit", external_id="rs-ret-1", starts_at=now - timedelta(minutes=5), status="done",
+                     service_name="Чистка", master_name="Лікар Завантаження"))
         db.add(Task(title="Зроблена КПІ", assignee_id=adm.id, status="done", done_at=u, due_date=t))
         db.add(Task(title="Прострочена КПІ", assignee_id=adm.id, status="open", due_date=t - timedelta(days=2)))
         db.commit()
@@ -62,3 +64,8 @@ def test_staff_reports():
         assert row["all"] == 3 and row["c"] == 1 and row["n"] == 1 and row["sum"] == 2000 and row["re"] == 2
         assert {"Захворіла", "Неявка"} <= {x["name"] for x in rp.build(db, "cancels", t, t, cat="reasons").rows}
         assert len([x for x in rp.build(db, "cancels", t, t, cat="list").rows if x["name"] == "Пацієнт Зрив"]) == 2
+
+        rt = rp.build(db, "returns", t, t)
+        row = next(x for x in rt.rows if x["name"] == "Лікар Завантаження")
+        assert row["pat"] == 1 and row["same"] == 1 and row["same_pct"] == 100 and row["clinic"] == 1 and row["lost"] == 0
+        assert rp.build(db, "returns", t, t, cat="flow").cols and rp.build(db, "returns", t, t, cat="lost").cols

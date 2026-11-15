@@ -237,6 +237,42 @@ def fund_summary(db: Session, rows: list[dict]) -> dict:
 
 
 # ---------------- техкарти ----------------
+def unposted(db: Session, asset: AmortAsset, today: date | None = None, back_halves: int = 1) -> dict:
+    """Оплачені процедури з апаратом, у яких візит не закрито (витратні не списані) — вони не потрапили в амортизацію.
+    Дивимось поточний півмісяць і попередній. Повертає {paid, written, rows [{appt, patient, service}]}."""
+    from ..models import Appointment, CbService, Patient
+    from . import techcards as tc
+    if not asset.product_id:
+        return {"paid": 0, "written": 0, "rows": []}
+    card_ids = {ln.card_id for ln in db.scalars(select(TechCardLine).where(TechCardLine.product_id == asset.product_id))}
+    if not card_ids:
+        return {"paid": 0, "written": 0, "rows": []}
+    y, m, h = half_of(today or date.today())
+    _, b = bounds(y, m, h)
+    for _i in range(back_halves):
+        y, m, h = prev_half(bounds(y, m, h)[0].date())
+    a, _ = bounds(y, m, h)
+    cache: dict = {}
+
+    def uses(s) -> bool:
+        k = (s.get("id"), s.get("name"))
+        if k not in cache:
+            sv = tc.resolve_service(db, s.get("id"), s.get("name"))
+            cache[k] = bool(sv and sv.techcard_id in card_ids)
+        return cache[k]
+    paid, rows = 0, []
+    for ap in db.scalars(select(Appointment).where(Appointment.start >= a, Appointment.start < b, Appointment.sale_id.is_not(None),
+                                                   Appointment.status.notin_(("cancelled", "no_show"))).order_by(Appointment.start)):
+        names = [s.get("name") or "" for s in (ap.services or []) if isinstance(s, dict) and uses(s)]
+        if not names:
+            continue
+        paid += 1
+        if not tc.closed(db, ap):
+            pt = db.get(Patient, ap.patient_id)
+            rows.append({"appt": ap, "patient": pt.full_name if pt else f"#{ap.patient_id}", "service": ", ".join(names)})
+    return {"paid": paid, "written": paid - len(rows), "rows": rows, "d_from": a.date(), "d_to": (b - timedelta(days=1)).date()}
+
+
 def techcards_for(db: Session, asset: AmortAsset) -> list[dict]:
     if not asset.product_id:
         return []

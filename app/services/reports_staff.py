@@ -413,4 +413,118 @@ def cancels(db: Session, d_from: date, d_to: date, view: str = "") -> Report:
     return r
 
 
-BUILDERS = {"load": load, "admin_kpi": admin_kpi, "tasks": tasks, "cancels": cancels}
+# ---------------- поверненість пацієнтів по спеціалістах ----------------
+
+def returns(db: Session, d_from: date, d_to: date, view: str = "") -> Report:
+    """Когорта — пацієнти, які були в спеціаліста в періоді. Чи повернулись після цього: до нього ж, до іншого, взагалі в клініку."""
+    from . import doctor_kpi as dk
+    view = view if view in ("flow", "lost") else ""
+    today = date.today()
+    docs = _doctors(db)
+    hist_from = d_from - timedelta(days=365)                       # рік історії — звідки пацієнт прийшов
+    agg = dk._collect(db, hist_from, max(today, d_to), list(docs.values()))
+    V: dict[int, list] = defaultdict(list)                         # пацієнт → [(час, лікар)]
+    for did, x in agg.items():
+        for v in x["visits"]:
+            if v["patient_id"] and v["at"].date() <= today:
+                V[v["patient_id"]].append((v["at"], did))
+    for lst in V.values():
+        lst.sort()
+    cohort = {pid for pid, lst in V.items() if any(d_from <= at.date() <= d_to for at, _ in lst)}
+    nb = dk._next_booked(db, cohort, datetime.now())
+    first = dk._first_activity(db, cohort)
+    nb_doc: dict[int, set] = defaultdict(set)                      # майбутні записи: пацієнт → лікарі
+    if cohort:
+        for pid, did in db.execute(select(Appointment.patient_id, Appointment.doctor_id).where(
+                Appointment.patient_id.in_(cohort), Appointment.start > datetime.now(), Appointment.status.notin_(LOST))):
+            nb_doc[pid].add(did)
+    G = defaultdict(lambda: {"pat": set(), "new": set(), "same": set(), "other": set(), "clinic": set(), "new_back": set(),
+                             "from_other": set(), "days": [], "visits": 0})
+    flow = defaultdict(set)                                        # (від лікаря, до лікаря) → пацієнти
+    lost_rows = []
+    for pid in cohort:
+        lst = V[pid]
+        for did in {d for at, d in lst if d_from <= at.date() <= d_to}:
+            g = G[did]
+            mine = [at for at, d in lst if d == did and d_from <= at.date() <= d_to]
+            t0 = mine[0]                                           # перший візит до цього лікаря в періоді
+            g["pat"].add(pid)
+            g["visits"] += len(mine)
+            is_new = bool(first.get(pid) and first[pid] >= d_from)
+            if is_new:
+                g["new"].add(pid)
+            prev = [d for at, d in lst if at < t0]
+            if prev and prev[-1] != did:
+                g["from_other"].add(pid)                           # прийшов від іншого спеціаліста клініки
+                flow[(prev[-1], did)].add(pid)
+            later = [(at, d) for at, d in lst if at.date() > t0.date()]
+            same = any(d == did for _, d in later) or did in nb_doc.get(pid, ())
+            other = any(d != did for _, d in later) or bool(nb_doc.get(pid, set()) - {did})
+            back = bool(later) or pid in nb
+            if same:
+                g["same"].add(pid)
+            if other:
+                g["other"].add(pid)
+            if back:
+                g["clinic"].add(pid)
+                if is_new:
+                    g["new_back"].add(pid)
+                if later:
+                    g["days"].append((later[0][0].date() - t0.date()).days)
+            elif view == "lost":
+                lost_rows.append((pid, did, mine[-1], is_new))
+    n_all, n_back = len(cohort), len({p for g in G.values() for p in g["clinic"]})
+    n_new = {p for g in G.values() for p in g["new"]}
+    n_new_back = {p for g in G.values() for p in g["new_back"]}
+    same_all = sum(len(g["same"]) for g in G.values())
+    pat_all = sum(len(g["pat"]) for g in G.values())
+    r = Report("returns", "Поверненість по спеціалістах",
+               "Когорта — пацієнти, які були в спеціаліста в обраному періоді. «Повернулись» — після першого візиту в періоді був ще візит "
+               "в інший день або є майбутній запис: до цього ж спеціаліста, до іншого чи взагалі в клініку. «Прийшли від колег» — попередній "
+               "візит пацієнта (за рік до періоду) був в іншого спеціаліста клініки. Свіжі періоди показують занижену поверненість — "
+               "пацієнти ще не встигли повернутись; для висновків беріть період, що закінчився 1–2 місяці тому.",
+               empty="За період візитів не було.")
+    r.filters = [{"name": "cat", "label": "Показати", "value": view,
+                  "options": [("", "За спеціалістами"), ("flow", "Переходи між спеціалістами"), ("lost", "Хто не повернувся")]}]
+    r.tiles = [("Поверненість у клініку", _pct(n_back, n_all) or 0, None, "pct", f"{n_back} з {n_all} пацієнтів періоду"),
+               ("До того ж спеціаліста", _pct(same_all, pat_all) or 0, None, "pct", f"{same_all} з {pat_all}"),
+               ("Поверненість нових", _pct(len(n_new_back), len(n_new)) or 0, None, "pct", f"{len(n_new_back)} з {len(n_new)} нових"),
+               ("Переходів між спеціалістами", sum(len(v) for v in flow.values()), None, "int", "пацієнтів прийшли від колег")]
+    name = lambda k: docs[k].name if k in docs else "Без спеціаліста"
+    if view == "flow":
+        r.cols = [Col("name", "Від кого"), Col("to", "До кого"), Col("n", "Пацієнтів", "int", True)]
+        r.rows = sorted(({"name": name(a_), "to": name(b_), "n": len(v)} for (a_, b_), v in flow.items()), key=lambda x: -x["n"])
+        r.total = {"n": sum(x["n"] for x in r.rows)}
+        r.empty = "Переходів між спеціалістами за період не було."
+        return r
+    if view == "lost":
+        pn = {p.id: p for p in db.scalars(select(Patient).where(Patient.id.in_({x[0] for x in lost_rows} or {0})))}
+        r.cols = [Col("name", "Пацієнт"), Col("phone", "Телефон"), Col("doc", "Спеціаліст"), Col("last", "Останній візит", "date"),
+                  Col("days", "Днів тому", "int"), Col("kind", "Тип")]
+        for pid, did, at, is_new in sorted(lost_rows, key=lambda x: x[2], reverse=True):
+            p = pn.get(pid)
+            r.rows.append({"name": p.full_name if p else f"#{pid}", "phone": (p.phone or "") if p else "", "doc": name(did), "last": at,
+                           "days": (today - at.date()).days, "kind": "новий" if is_new else "постійний", "_href": f"/patients/{pid}"})
+        r.empty = "Усі пацієнти періоду повернулись або записані."
+        return r
+    r.cols = [Col("name", "Спеціаліст"), Col("pat", "Пацієнтів", "int", True), Col("new", "з них нових", "int", True),
+              Col("same", "Повернулись до нього", "int", True), Col("same_pct", "% до нього", "pct"),
+              Col("other", "Пішли до інших", "int", True), Col("clinic", "Повернулись у клініку", "int", True),
+              Col("clinic_pct", "% у клініку", "pct"), Col("new_pct", "% нових повернулось", "pct"),
+              Col("lost", "Не повернулись", "int", True), Col("from_other", "Прийшли від колег", "int", True),
+              Col("days", "Днів до повернення", "int"), Col("vpp", "Візитів на пацієнта", "num")]
+    for did, g in G.items():
+        n = len(g["pat"])
+        r.rows.append({"name": name(did), "pat": n, "new": len(g["new"]), "same": len(g["same"]), "same_pct": _pct(len(g["same"]), n),
+                       "other": len(g["other"]), "clinic": len(g["clinic"]), "clinic_pct": _pct(len(g["clinic"]), n),
+                       "new_pct": _pct(len(g["new_back"]), len(g["new"])), "lost": n - len(g["clinic"]),
+                       "from_other": len(g["from_other"]), "days": round(median(g["days"])) if g["days"] else None,
+                       "vpp": round(g["visits"] / n, 1) if n else None, "_href": f"/reports/doctors-kpi?doctor={did}"})
+    r.rows.sort(key=lambda x: -x["pat"])
+    r.chart = [(x["name"], x["same_pct"] or 0) for x in r.rows]
+    r.chart_title = "Поверненість до того ж спеціаліста, %"
+    r.total = {c.key: sum(x.get(c.key) or 0 for x in r.rows) for c in r.cols if c.total}
+    return r
+
+
+BUILDERS = {"load": load, "admin_kpi": admin_kpi, "tasks": tasks, "cancels": cancels, "returns": returns}
