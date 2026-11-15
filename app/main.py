@@ -133,6 +133,21 @@ def _work_mode() -> dict:
 
 
 templates.env.globals["work_mode"] = _work_mode
+
+
+def _report_nav(request, user=None):
+    """Шапка звітів (блоки → звіти блоку) — на сторінках розділу «Звіти»."""
+    try:
+        p = request.url.path
+        if not (p.startswith("/reports") or p.startswith("/marketing")):
+            return None
+        from .services import report_hub
+        return report_hub.nav_for(p, dict(request.query_params), owner=bool(user and user.role == "owner"))
+    except Exception:      # noqa: BLE001 — шапка не має ламати сторінку
+        return None
+
+
+templates.env.globals["report_nav"] = _report_nav
 templates.env.globals["user_photo"] = lambda u: __import__("app.services.shifts", fromlist=["x"]).photo_url(u) if u else None
 templates.env.globals["ui_rules"] = lambda role: __import__("app.services.ui_access", fromlist=["x"]).client_rules(role)
 templates.env.globals["pdisc"] = lambda p: __import__("app.services.personal_discounts", fromlist=["x"]).pcts(p)

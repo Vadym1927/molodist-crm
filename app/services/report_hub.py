@@ -123,3 +123,25 @@ def blocks() -> list[dict]:
         items = [{"title": t, "url": u, "src": s, "hint": h} for t, u, s, h in b["items"]]
         out.append({**b, "icon": ICONS[b["key"]], "items": items, "ready": sum(1 for i in items if i["url"]), "total": len(items)})
     return out
+
+
+def nav_for(path: str, params: dict, owner: bool = True) -> dict | None:
+    """Шапка звітів: блоки й звіти активного блоку для сторінки path?params. None — сторінка не зі звітів."""
+    from urllib.parse import parse_qsl, urlsplit
+    best, best_n = None, -1
+    out = []
+    for b in blocks():
+        items = [i for i in b["items"] if i["url"] and (owner or i["url"] not in ("/deye", "/finance/leasing"))]
+        if not items:
+            continue
+        out.append({"key": b["key"], "title": b["title"], "icon": b["icon"], "items": items})
+        for i in items:
+            u = urlsplit(i["url"])
+            q = dict(parse_qsl(u.query))
+            if u.path == path and all(params.get(k) == v for k, v in q.items()) and len(q) > best_n:
+                best, best_n = (b["key"], i["url"]), len(q)
+    in_reports = path == "/reports" and "r" in params
+    if not best and not in_reports:
+        return None
+    return {"blocks": out, "block": best[0] if best else out[0]["key"], "url": best[1] if best else None,
+            "title": next((("Команда" if b["key"] == "staff" else b["title"]) for b in out if best and b["key"] == best[0]), "Звіти")}

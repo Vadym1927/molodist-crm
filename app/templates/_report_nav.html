@@ -1,0 +1,29 @@
+{# Шапка звітів: рядок блоків → рядок звітів активного блоку. Клік по блоку показує його звіти без переходу. #}
+{% set qp = request.query_params %}{% set keep = ('&df=' ~ qp.get('df') ~ '&dt_=' ~ qp.get('dt_')) if qp.get('df') and qp.get('dt_') else '' %}
+<style>
+.rn-bc{display:flex;align-items:center;gap:10px;font:500 15px var(--sans);color:#6b6575;margin:0 0 12px}.rn-bc a{color:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:8px}
+.rn-bc a:hover{color:#3B3050}.rn-bc b{color:#2A2430;font-weight:700}.rn-bc svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.rn{background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:12px 14px 4px;margin-bottom:20px;box-shadow:0 6px 24px rgba(42,36,48,.05)}
+.rn-b{display:flex;gap:4px;overflow-x:auto;padding-bottom:10px;border-bottom:1px solid #F1EDE8;scrollbar-width:thin}
+.rn-b button{flex:1 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 11px;border:0;background:none;border-radius:12px;
+  font:500 14.5px var(--sans);color:#2A2430;cursor:pointer;white-space:nowrap;position:relative}
+.rn-b button+button:before{content:"";position:absolute;left:-2px;top:22%;bottom:22%;width:1px;background:#ECE7E1}
+.rn-b button svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.rn-b button:hover{background:#F7F4F0}.rn-b button.on{background:#5C4B82;color:#fff;box-shadow:0 6px 16px rgba(92,75,130,.28)}
+.rn-b button.on:before,.rn-b button.on+button:before{display:none}
+.rn-r{display:none;gap:2px 6px;flex-wrap:wrap;padding:6px 2px 4px}.rn-r.on{display:flex}
+.rn-r a{padding:9px 12px 10px;font:500 14px var(--sans);color:#2A2430;text-decoration:none;border-bottom:3px solid transparent;white-space:nowrap}
+.rn-r a{background:none!important;border-radius:0!important}.rn-r a:hover{color:#5C4B82}.rn-r a.on{color:#5C4B82;font-weight:700;border-bottom-color:#5C4B82}
+.rp-tabs{display:none!important}
+@media(max-width:720px){.rn{padding:10px 10px 2px;border-radius:14px}.rn-b button{padding:9px 13px;font-size:14px;flex:0 0 auto}.rn-r{flex-wrap:nowrap;overflow-x:auto}.rn-r a{padding:8px 10px}}
+@media print{.rn,.rn-bc{display:none!important}}
+</style>
+<div class="rn-bc"><a href="/reports"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Звіти</a><span>/</span><b id="rn-cur">{{ rn.title }}</b></div>
+<div class="rn">
+  <div class="rn-b" role="tablist">{% for b in rn.blocks %}<button type="button" role="tab" data-b="{{ b.key }}" class="{{ 'on' if b.key == rn.block }}" onclick="rnShow('{{ b.key }}')"><svg viewBox="0 0 24 24">{{ b.icon|safe }}</svg>{{ "Команда" if b.key == "staff" else b.title }}</button>{% endfor %}</div>
+  {% for b in rn.blocks %}<nav class="rn-r {{ 'on' if b.key == rn.block }}" data-b="{{ b.key }}">{% for i in b['items'] %}<a href="{{ i.url }}{{ keep if i.url.startswith('/reports?r=') and rn.url and rn.url.startswith('/reports?r=') else '' }}" class="{{ 'on' if i.url == rn.url }}" title="{{ i.hint }}">{{ i.title }}</a>{% endfor %}</nav>{% endfor %}
+</div>
+<script>function rnShow(k){document.querySelectorAll('.rn-b button').forEach(function(x){x.classList.toggle('on',x.dataset.b===k)});
+  document.querySelectorAll('.rn-r').forEach(function(x){x.classList.toggle('on',x.dataset.b===k)});
+  var b=document.querySelector('.rn-b button.on');if(b)document.getElementById('rn-cur').textContent=b.textContent.trim()}
+(function(){['.rn-b button.on','.rn-r.on a.on'].forEach(function(q){var e=document.querySelector(q),p=e&&e.parentNode;if(p&&p.scrollWidth>p.clientWidth)p.scrollLeft=e.offsetLeft-(p.clientWidth-e.offsetWidth)/2})})();</script>

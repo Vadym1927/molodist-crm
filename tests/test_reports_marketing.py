@@ -52,3 +52,11 @@ def test_marketing_reports():
         cc = rp.build(db, "cac", t, t)
         last = cc.rows[-1]
         assert last["name"] == f"{t.year}-{t.month:02d}" and last["ads"] == 520 and last["other"] == 300 and last["new"] >= 2 and last["r30"] >= 2500
+
+
+def test_report_nav():
+    from app.services import report_hub as rh
+    n = rh.nav_for("/reports", {"r": "turnover"})
+    assert n["block"] == "stock" and n["url"] == "/reports?r=turnover" and len(n["blocks"]) >= 6
+    assert rh.nav_for("/reports", {"r": "discounts", "cat": "admins"})["block"] == "staff"
+    assert rh.nav_for("/marketing/meta", {})["title"] == "Маркетинг" and rh.nav_for("/patients", {}) is None

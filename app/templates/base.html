@@ -278,7 +278,7 @@ body.drw-on .drw{transform:none}body.drw-on .drw-bg{opacity:1;pointer-events:aut
     <div class="nt" id="nt" hidden></div></span>
 </div>
 {% endif %}
-<main>{% block body %}{% endblock %}</main>
+<main>{% if request is defined and user %}{% set rn = report_nav(request, user) %}{% if rn %}{% include "_report_nav.html" %}{% endif %}{% endif %}{% block body %}{% endblock %}</main>
 {% if user and nav not in ('login','print') %}<script>(function(){
   /* «← Назад» на всіх внутрішніх сторінках CRM: повертає у попереднє вікно (історія браузера),
      а якщо зайшли за прямим посиланням — у батьківський розділ (посилання в «eyebrow» або на рівень вище). */
