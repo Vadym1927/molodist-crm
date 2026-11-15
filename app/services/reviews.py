@@ -21,6 +21,8 @@ QUESTIONS = [{"key": "doctor", "title": "Лікар: увага й поясне�
 ORDERS = {"tg": ("Telegram-бот → Viber → SMS", ["telegram", "viber", "sms"]), "viber": ("Viber → Telegram-бот → SMS", ["viber", "telegram", "sms"]),
           "sms": ("Лише SMS", ["sms"])}
 DEFAULT = {"on": False, "delay_min": 30, "min_days": 7, "google_url": "", "questions": QUESTIONS, "order": "tg",
+           "ttl_hours": 24,                 # посилання діє стільки годин після надсилання
+           "base_count": 0, "base_avg": 5.0,   # відгуки, зібрані до CRM (CleverBox): кількість і середня оцінка — для рейтингу в шапці
            "text": "{name}, дякуємо, що були в MOLODIST сьогодні 🤍 Будь ласка, оцініть візит — це займе хвилину: {link}"}
 DONE = ("done", "paid")
 
@@ -101,6 +103,25 @@ def run(db: Session) -> dict:
 
 def by_token(db: Session, token: str) -> Review | None:
     return db.scalar(select(Review).where(Review.token == token)) if token else None
+
+
+def expired(db: Session, r: Review, now: datetime | None = None) -> bool:
+    """Посилання індивідуальне й діє обмежений час (за замовчуванням 24 години від надсилання)."""
+    ttl = float(cfg(db).get("ttl_hours") or 0)
+    if not ttl:
+        return False
+    return (now or datetime.utcnow()) > (r.sent_at or r.created_at) + timedelta(hours=ttl)
+
+
+def rating(db: Session) -> dict:
+    """Рейтинг для шапки опитування: відгуки до CRM (кількість і середня з налаштувань) + відгуки, зібрані в CRM."""
+    from sqlalchemy import func
+    c = cfg(db)
+    n, sm = db.execute(select(func.count(Review.id), func.sum(Review.avg)).where(Review.answered_at.is_not(None))).one()
+    bn, ba = int(c.get("base_count") or 0), float(c.get("base_avg") or 5)
+    tot = bn + int(n or 0)
+    avg = (bn * ba + float(sm or 0)) / tot if tot else None
+    return {"count": tot, "avg": round(avg, 1) if avg is not None else None}
 
 
 def submit(db: Session, r: Review, scores: dict, nps: int | None, text: str) -> Review:

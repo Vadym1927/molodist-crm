@@ -9,6 +9,7 @@
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
     <label>Через скільки хвилин після візиту<input name="delay_min" inputmode="numeric" value="{{ c.delay_min }}"></label>
     <label>Не частіше ніж раз на, днів<input name="min_days" inputmode="numeric" value="{{ c.min_days }}"><span class="small muted">0 — після кожного візиту</span></label>
+    <label>Посилання діє, годин<input name="ttl_hours" inputmode="numeric" value="{{ c.ttl_hours }}"><span class="small muted">індивідуальне для кожного візиту; після цього анулюється</span></label>
     <label>Куди надсилати<select name="order">{% for k, v in ORDERS.items() %}<option value="{{ k }}" {{ 'selected' if c.order == k }}>{{ v[0] }}</option>{% endfor %}</select>
       <span class="small muted">береться перший доступний пацієнту канал</span></label>
   </div>
@@ -17,6 +18,10 @@
     <div class="qs">{% for i in range(6) %}<input name="q" value="{{ c.questions[i].title if i < c.questions|length else '' }}" placeholder="Питання {{ i + 1 }}">{% endfor %}</div></div>
   <label>Посилання на відгук у Google<input name="google_url" value="{{ c.google_url }}" placeholder="https://g.page/r/…/review">
     <span class="small muted">Google Business Profile → «Попросити відгуки» → скопіювати посилання. Коли всі оцінки «5», пацієнту пропонується продублювати відгук там.</span></label>
+  <div><b>Рейтинг у шапці опитування</b><div class="small muted" style="margin-bottom:6px">Показується під «MOLODIST · медичний простір»: зірки, середня оцінка й кількість відгуків. Рахується з відгуків до CRM (поля нижче) разом із тими, що зібрані в CRM. Зараз: {{ ('%.1f'|format(rt.avg) ~ ' · ' ~ rt.count ~ ' відгуків') if rt.count else 'не показується — немає відгуків' }}.</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
+      <label>Відгуків до CRM (CleverBox), шт<input name="base_count" inputmode="numeric" value="{{ c.base_count }}"></label>
+      <label>Їхня середня оцінка<input name="base_avg" inputmode="decimal" value="{{ '%g'|format(c.base_avg) }}"></label></div></div>
   <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn">Зберегти</button><a class="btn ghost" target="_blank" href="/settings/reviews/preview">Переглянути опитування</a>
     <a class="btn ghost" href="/reports?r=nps">Звіт «Відгуки й NPS»</a><a class="btn ghost" href="/settings/doctor-kpi">Премія лікарям за оцінку</a></div>
 </form>

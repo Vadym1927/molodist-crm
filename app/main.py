@@ -7350,7 +7350,8 @@ def _review_ctx(db, r):
     parts = (p.full_name or "").split() if p else []
     d = db.get(Doctor, r.doctor_id) if r.doctor_id else None
     return {"questions": c["questions"], "name": parts[1] if len(parts) > 1 else (parts[0] if parts else "Вітаємо"), "doctor": d.name if d else "",
-            "google_url": c.get("google_url") or "", "text": r.text or "", "complaint": bool(r.complaint), "demo": False, "err": ""}
+            "google_url": c.get("google_url") or "", "text": r.text or "", "complaint": bool(r.complaint), "demo": False, "err": "",
+            "rating": rv.rating(db)}
 
 
 @app.get("/r/{token}", response_class=HTMLResponse)
@@ -7359,7 +7360,9 @@ def review_form(request: Request, token: str, done: str = "", db: Session = Depe
     from .services import reviews as rv
     r = rv.by_token(db, token)
     if not r:
-        return templates.TemplateResponse(request, "review_form.html", {"state": "none"}, status_code=404)
+        return templates.TemplateResponse(request, "review_form.html", {"state": "none", "rating": rv.rating(db)}, status_code=404)
+    if rv.expired(db, r):
+        return templates.TemplateResponse(request, "review_form.html", {"state": "expired", "rating": rv.rating(db)}, status_code=410)
     ctx = _review_ctx(db, r)
     if not r.answered_at:
         if not r.opened_at:
@@ -7376,7 +7379,9 @@ async def review_submit(request: Request, token: str, db: Session = Depends(db_d
     from .services import reviews as rv
     r = rv.by_token(db, token)
     if not r:
-        return templates.TemplateResponse(request, "review_form.html", {"state": "none"}, status_code=404)
+        return templates.TemplateResponse(request, "review_form.html", {"state": "none", "rating": rv.rating(db)}, status_code=404)
+    if rv.expired(db, r):
+        return templates.TemplateResponse(request, "review_form.html", {"state": "expired", "rating": rv.rating(db)}, status_code=410)
     f = await request.form()
     try:
         nps = f.get("nps")
@@ -7390,7 +7395,7 @@ async def review_submit(request: Request, token: str, db: Session = Depends(db_d
 def review_google(token: str, db: Session = Depends(db_dep)):
     from .services import reviews as rv
     r = rv.by_token(db, token)
-    if r:
+    if r and not rv.expired(db, r):
         rv.mark_google(db, r)
     return {"ok": bool(r)}
 
@@ -7398,14 +7403,14 @@ def review_google(token: str, db: Session = Depends(db_dep)):
 @app.get("/settings/reviews", response_class=HTMLResponse)
 def settings_reviews(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     from .services import reviews as rv
-    return render(request, "settings_reviews.html", nav="settings", c=rv.cfg(db), ORDERS=rv.ORDERS)
+    return render(request, "settings_reviews.html", nav="settings", c=rv.cfg(db), ORDERS=rv.ORDERS, rt=rv.rating(db))
 
 
 @app.get("/settings/reviews/preview", response_class=HTMLResponse)
 def settings_reviews_preview(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     from .services import reviews as rv
     return templates.TemplateResponse(request, "review_form.html", {"state": "form", "questions": rv.cfg(db)["questions"], "name": "Олено", "doctor": "",
-                                                                    "demo": True, "err": ""})
+                                                                    "demo": True, "err": "", "rating": rv.rating(db)})
 
 
 @app.post("/settings/reviews")
@@ -7424,6 +7429,11 @@ async def settings_reviews_save(request: Request, user: User = Depends(require("
     def num(v, d):
         return int(v) if str(v or "").strip().isdigit() else d
     url = str(f.get("google_url") or "").strip()[:400]
+    try:
+        ba = min(5.0, max(1.0, float(str(f.get("base_avg") or "5").replace(",", "."))))
+    except ValueError:
+        ba = 5.0
+    c.update(ttl_hours=num(f.get("ttl_hours"), 24), base_count=num(f.get("base_count"), 0), base_avg=ba)
     c.update(on=bool(f.get("on")), delay_min=max(5, num(f.get("delay_min"), 30)), min_days=num(f.get("min_days"), 7),
              order=f.get("order") if f.get("order") in rv.ORDERS else "tg", text=str(f.get("text") or "").strip()[:600] or rv.DEFAULT["text"],
              questions=qs or rv.QUESTIONS, google_url=url if url.startswith("https://") else "")

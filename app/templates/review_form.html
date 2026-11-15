@@ -4,7 +4,8 @@
 @font-face{font-family:Belleza;src:url(/static/fonts/belleza-latin-400-normal.woff2) format("woff2");font-display:swap}
 *{box-sizing:border-box}body{margin:0;background:#F7F4F0;color:#2A2430;font:16px/1.5 "Open Sans",system-ui,Arial,sans-serif}
 .w{max-width:520px;margin:0 auto;padding:28px 18px 40px}.br{font:400 26px Belleza,Georgia,serif;letter-spacing:.16em;text-align:center;margin-bottom:4px}
-.sub{text-align:center;color:#6b6575;font-size:12px;letter-spacing:.2em;text-transform:uppercase;margin-bottom:22px}
+.sub{text-align:center;color:#6b6575;font-size:12px;letter-spacing:.2em;text-transform:uppercase;margin-bottom:12px}
+.rt{display:flex;justify-content:center;align-items:center;gap:8px;font-size:14px;color:#5d5869;margin:0 0 20px}.rt .rs{color:#5C4B82;letter-spacing:2px;font-size:16px}.rt b{color:#2A2430;font-size:16px}
 .c{background:#fff;border-radius:18px;padding:20px 18px;box-shadow:0 6px 24px rgba(42,36,48,.06);margin-bottom:14px}
 h1{font:700 18px Montserrat,Arial,sans-serif;text-transform:uppercase;letter-spacing:.05em;margin:0 0 6px}p{margin:6px 0 0;color:#5d5869}
 .q{padding:14px 0;border-bottom:1px solid #F1EDE8}.q:last-child{border:0}.q b{display:block;font-size:15px;margin-bottom:8px}
@@ -18,7 +19,9 @@ textarea{width:100%;min-height:110px;border:1px solid #E9E5DF;border-radius:12px
 .big{font-size:46px;text-align:center;margin:6px 0}.small{font-size:13px;color:#8a8496;text-align:center;margin-top:12px}
 </style></head><body><div class="w">
 <div class="br">MOLODIST</div><div class="sub">медичний простір</div>
+{% if rating and rating.count %}<div class="rt"><span class="rs">★★★★★</span><b>{{ '%.1f'|format(rating.avg) }}</b><span>·</span><span>{{ '{:,}'.format(rating.count).replace(',', ' ') }} відгуків пацієнтів</span></div>{% endif %}
 {% if state == 'none' %}<div class="c"><h1>Посилання не діє</h1><p>Схоже, посилання застаріле. Якщо хочете поділитися враженням — напишіть нам, будь ласка.</p></div>
+{% elif state == 'expired' %}<div class="c"><h1>Термін посилання минув</h1><p>Посилання на опитування діє добу після візиту. Якщо хочете поділитися враженням — напишіть нам, будь ласка, ми будемо раді.</p></div>
 {% elif state == 'form' %}
 <form method="post" class="c">{% if err %}<div class="err">{{ err }}</div>{% endif %}
   <h1>Як минув ваш візит?</h1><p>{{ name }}, оцініть, будь ласка, від 1 до 5 — це займе хвилину.{% if doctor %} Ви були в лікаря {{ doctor }}.{% endif %}</p>

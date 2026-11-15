@@ -81,3 +81,15 @@ def test_review_flow(monkeypatch):
         assert rp.build(db, "nps", t_ - timedelta(days=1), t_, cat="complaints").rows[0]["name"] == "Відгук Ірина Чотири"
         assert rp.build(db, "nps", t_ - timedelta(days=1), t_, cat="questions").rows and rp.build(db, "nps", t_ - timedelta(days=1), t_, cat="list").rows
         assert rp.build(db, "rooms", t_ - timedelta(days=1), t_).rows and rp.build(db, "rooms", t_ - timedelta(days=1), t_, cat="hours").rows
+        c0 = rv.cfg(db)
+        c0.update(base_count=614, base_avg=5.0)
+        rv.save_cfg(db, c0)
+        rt = rv.rating(db)
+        assert rt["count"] == 616 and rt["avg"] == 5.0                  # 614 «пʼятірок» + два нові (5 і 4.75) — усе ще 5.0
+        r1.sent_at = datetime.utcnow() - timedelta(hours=25)
+        db.commit()
+        assert rv.expired(db, r1) and not rv.expired(db, r2)
+        tok = r1.token
+    with TestClient(app) as c:
+        x = c.get(f"/r/{tok}")
+        assert x.status_code == 410 and "Термін посилання минув" in x.text and "616 відгуків" in x.text
