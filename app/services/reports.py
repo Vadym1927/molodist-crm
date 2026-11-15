@@ -20,7 +20,7 @@ from ..parsers.observ import norm
 REPORTS = {"cash": "Стан рахунків", "cashflow": "Cashflow", "pnl": "Доходи і витрати за рік", "pnlm": "P&L по місяцях", "shifts": "Касові зміни", "patient_money": "Отримано від пацієнтів", "fees": "Комісії банків", "payroll_share": "Фонд оплати праці", "fop": "Ліміти ФОП", "expiry": "Терміни придатності", "revenue": "Виручка", "doctors": "Лікарі", "services": "Звіт з продажу послуг", "products": "Товари",
            "patients": "Пацієнти", "plans": "Бюті-плани", "certificates": "Сертифікати й абонементи", "supply": "Поставки", "cosmetics": "Бонус за продаж косметики", "sources": "Джерела запису",
            "discounts": "Використання знижок", "cross": "Крос-продажі догляду", "ltv": "LTV пацієнтів", "src_sales": "Продажі за джерелами", "abc": "ABC-аналіз",
-           "lost": "Утримання: хто не повернувся", "cohorts": "Когорти нових", "rfm": "Сегменти (RFM)", "bdays": "Дні народження", "mat_use": "Витрата матеріалів", "inventory": "Інвентаризації", "dead": "Неліквіди", "stock_value": "Вартість складу", "turnover": "Оборотність складу", "load": "Робочий час і завантаження", "admin_kpi": "KPI адміністраторів", "tasks": "Звіт по задачах", "cancels": "Скасування й неявки", "returns": "Поверненість по спеціалістах", "channels": "Зведення по каналах", "appeals_conv": "Звернення: конверсія в запис", "mailings": "Розсилки: ефективність", "cac": "Вартість залучення й окупність", "chat_stats": "Статистика по чатах", "messages": "Повідомлення пацієнтам"}
+           "lost": "Утримання: хто не повернувся", "cohorts": "Когорти нових", "rfm": "Сегменти (RFM)", "bdays": "Дні народження", "mat_use": "Витрата матеріалів", "inventory": "Інвентаризації", "dead": "Неліквіди", "stock_value": "Вартість складу", "turnover": "Оборотність складу", "load": "Робочий час і завантаження", "admin_kpi": "KPI адміністраторів", "tasks": "Звіт по задачах", "cancels": "Скасування й неявки", "returns": "Поверненість по спеціалістах", "channels": "Зведення по каналах", "appeals_conv": "Звернення: конверсія в запис", "mailings": "Розсилки: ефективність", "cac": "Вартість залучення й окупність", "chat_stats": "Статистика по чатах", "messages": "Повідомлення пацієнтам", "devices": "Віддача й завантаження апаратів", "consumables": "Прогноз ресурсу розхідників"}
 
 
 @dataclass
@@ -802,6 +802,9 @@ def build(db: Session, key: str, d_from: date, d_to: date, **opts) -> Report:
     if key in ("mat_use", "inventory", "dead", "stock_value", "turnover"):
         from . import reports_stock as _st
         return _st.BUILDERS[key](db, d_from, d_to, opts.get("cat") or "")
+    if key in ("devices", "consumables"):
+        from . import reports_amort as _am
+        return _am.BUILDERS[key](db, d_from, d_to, opts.get("cat") or "")
     if key in ("chat_stats", "messages"):
         from . import reports_comm as _cm
         return _cm.BUILDERS[key](db, d_from, d_to, opts.get("cat") or "")
