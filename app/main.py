@@ -8864,10 +8864,21 @@ def meta_ads_settings(token: str = Form(""), account: str = Form(""), user: User
     c = ma.cfg(db)
     if token.strip():
         c["token"] = token.strip()[:600]
-    c["account"] = re.sub(r"\D", "", account)[:30]
+    c["account"] = re.sub(r"\D", "", account)[:30] or c.get("account") or ""
     ma.save_cfg(db, c)
     audit(db, "meta_ads.settings", user=user)
     db.commit()
+    if c["token"] and not c["account"]:              # номер не вказано — беремо кабінети, доступні токену
+        accs = ma.accounts(db)
+        c["accounts"] = accs
+        if len(accs) == 1:
+            c["account"] = accs[0]["id"]
+        ma.save_cfg(db, c)
+        db.commit()
+        if len(accs) > 1:
+            return RedirectResponse(_with_msg("/marketing/meta", f"Токен збережено. Знайдено кабінетів: {len(accs)} — оберіть потрібний у «Підключенні»"), 303)
+        if not accs:
+            return RedirectResponse(_with_msg("/marketing/meta", "Токен збережено, але кабінетів за ним не знайдено — перевірте право ads_read або вкажіть номер вручну"), 303)
     r = ma.pull(db, days=30) if c["token"] and c["account"] else {"ok": False, "error": "Вкажіть токен і номер кабінету"}
     return RedirectResponse(_with_msg("/marketing/meta", f"Підключено: рядків {r.get('new', 0) + r.get('updated', 0)}" if r.get("ok") else f"Помилка: {r.get('error')}"), 303)
 

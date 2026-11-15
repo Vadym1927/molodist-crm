@@ -63,3 +63,16 @@ def test_meta_ads_flow(monkeypatch):
         h = c.get("/marketing/meta").text
         assert "Meta Ads" in h and "Акне банер" in h and "Реклама Пацієнт" in h and "Підключення рекламного кабінету" in h
         assert "/marketing/meta" in c.get("/reports").text
+
+
+def test_meta_ads_account_autodetect(monkeypatch):
+    settings.admin_password = "owner-pass-1"
+    monkeypatch.setattr(ma, "accounts", lambda db, http=None: [{"id": "555", "name": "Molodist"}])
+    monkeypatch.setattr(ma, "pull", lambda db, days=7, http=None: {"ok": True, "new": 0, "updated": 0})
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        with SessionLocal() as db:
+            x = ma.cfg(db); x["account"] = ""; ma.save_cfg(db, x); db.commit()
+        c.post("/marketing/meta/settings", data={"token": "T", "account": ""})
+    with SessionLocal() as db:
+        assert ma.cfg(db)["account"] == "555"

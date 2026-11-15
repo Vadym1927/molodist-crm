@@ -80,10 +80,11 @@
 {% else %}<tr><td colspan="8" class="l muted" style="text-align:left">Заявок з рекламною міткою за період ще немає.</td></tr>{% endfor %}</tbody></table></div>
 
 {% if is_owner %}<details class="ma-c" {{ 'open' if not v.connected }}><summary style="cursor:pointer;font:800 16px var(--sans)">⚙ Підключення рекламного кабінету</summary>
-  <p class="small muted">CRM щогодини читає статистику з Meta. Потрібен токен із правом <b>ads_read</b> (Business Settings → System Users → Generate token) і номер рекламного кабінету (цифри з act_…). Токен зберігається в CRM і ніде не показується.</p>
+  <p class="small muted">CRM щогодини читає статистику з Meta. Потрібен токен із правом <b>ads_read</b> (Business Settings → System Users → Generate token) Номер кабінету можна не вказувати — CRM сама знайде кабінети, доступні токену. Токен зберігається в CRM і ніде не показується.</p>
   <form method="post" action="/marketing/meta/settings" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
     <input type="password" name="token" autocomplete="off" placeholder="{{ 'Токен збережено — вставте новий, щоб замінити' if v.has_token else 'Токен доступу (ads_read)' }}" style="min-width:320px;margin:0">
-    <input name="account" value="{{ v.cfg.account }}" placeholder="Номер кабінету, напр. 1234567890" style="max-width:240px;margin:0">
+    {% if v.cfg.accounts and v.cfg.accounts|length > 1 %}<select name="account" style="max-width:300px;margin:0"><option value="">— оберіть кабінет —</option>{% for a in v.cfg.accounts %}<option value="{{ a.id }}" {{ 'selected' if v.cfg.account == a.id }}>{{ a.name }} · {{ a.id }}</option>{% endfor %}</select>
+    {% else %}<input name="account" value="{{ v.cfg.account }}" placeholder="Номер кабінету — можна лишити порожнім" style="max-width:280px;margin:0">{% endif %}
     <button class="btn">Зберегти й завантажити</button></form>
   <p class="small muted" style="margin-top:10px">Інший шлях — агент на сервері надсилає ті самі дані POST-запитом (JSON <code>{"rows": [{day, ad_id, ad_name, adset, campaign, impressions, clicks, spend, views3}]}</code>) на адресу:<br><code style="word-break:break-all">{{ hook_url }}</code></p>
   <p class="small muted">Щоб заявки привʼязувались до оголошень: у застосунку Meta для вебхука Instagram / Messenger має бути ввімкнене поле <b>messaging_referral</b>; реклама — з ціллю «Повідомлення» (кнопка «Написати»).</p>

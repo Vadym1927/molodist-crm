@@ -152,6 +152,23 @@ def pull(db: Session, days: int = 7, http: httpx.Client | None = None) -> dict:
     return ingest(db, rows)
 
 
+def accounts(db: Session, http: httpx.Client | None = None) -> list[dict]:
+    """Рекламні кабінети, доступні токену: [{id, name}] — щоб не шукати номер кабінету вручну."""
+    tok = (cfg(db).get("token") or "").strip()
+    if not tok:
+        return []
+    own = http is None
+    http = http or httpx.Client(timeout=30)
+    try:
+        js = http.get(f"{GRAPH}/me/adaccounts", params={"access_token": tok, "fields": "account_id,name,account_status", "limit": 100}).json()
+    except (httpx.HTTPError, ValueError):
+        return []
+    finally:
+        if own:
+            http.close()
+    return [{"id": str(x.get("account_id") or ""), "name": str(x.get("name") or "")[:120]} for x in js.get("data") or [] if x.get("account_id")]
+
+
 # ---------------- ліди з реклами (referral у повідомленнях) ----------------
 
 def referral_of(ev: dict) -> dict | None:
