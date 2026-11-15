@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..config import settings
-from ..models import Appointment, Doctor, Patient, Review, SyncState, Task, User
+from ..models import Appointment, Doctor, Patient, Review, ReviewArchive, SyncState, Task, User
 
 KEY = "reviews"
 QUESTIONS = [{"key": "doctor", "title": "Лікар: увага й пояснення"}, {"key": "result", "title": "Процедура й результат"},
@@ -118,9 +118,14 @@ def rating(db: Session) -> dict:
     from sqlalchemy import func
     c = cfg(db)
     n, sm = db.execute(select(func.count(Review.id), func.sum(Review.avg)).where(Review.answered_at.is_not(None))).one()
-    bn, ba = int(c.get("base_count") or 0), float(c.get("base_avg") or 5)
+    an, asm = db.execute(select(func.count(ReviewArchive.id), func.sum(ReviewArchive.avg))).one()
+    if an:                                     # архів завантажено — рахуємо з нього, а не з цифр у налаштуваннях
+        bn, bs = int(an), float(asm or 0)
+    else:
+        bn = int(c.get("base_count") or 0)
+        bs = bn * float(c.get("base_avg") or 5)
     tot = bn + int(n or 0)
-    avg = (bn * ba + float(sm or 0)) / tot if tot else None
+    avg = (bs + float(sm or 0)) / tot if tot else None
     return {"count": tot, "avg": round(avg, 1) if avg is not None else None}
 
 
@@ -219,3 +224,88 @@ def doctor_stats(db: Session, doctor_id: int, a: datetime, b: datetime) -> dict:
                                                Review.created_at <= b + timedelta(hours=4))).all()
     return {"review_n": len(rs), "review_asked": len(asked), "review_avg": round(sum(r.avg or 0 for r in rs) / len(rs), 2) if rs else None,
             "review_nps": nps_of(rs), "complaints": sum(1 for r in rs if r.complaint)}
+
+
+# ---------------- відгуки до CRM (звіт CleverBox «Feedback») ----------------
+
+def _sheet_rows(data: bytes) -> list[list]:
+    import io
+    import xlrd
+    sh = xlrd.open_workbook(file_contents=data, ignore_workbook_corruption=True, logfile=io.StringIO()).sheet_by_index(0)
+    return [sh.row_values(i) for i in range(sh.nrows)]
+
+
+def import_feedback(db: Session, data: bytes) -> dict:
+    """Файл Feedback_*.xls з CleverBox: №, дата відгуку, філія, клієнт, дата візиту, хто надавав, хто оформлював, оцінки, коментар, середня.
+    Повторне завантаження оновлює за №. Пацієнт привʼязується лише за точним збігом ПІБ з одним пацієнтом."""
+    import re
+    from ..integrations.cleverbox import match_doctor
+    rows = _sheet_rows(data)
+    if not rows:
+        raise ValueError("Файл порожній")
+    head = [str(x).strip().lower() for x in rows[0]]
+
+    def col(*names):
+        return next((i for i, h in enumerate(head) if any(n in h for n in names)), None)
+    c_no, c_at, c_pat, c_vis, c_doc = col("№"), col("дата створення"), col("клієнт", "пацієнт"), col("дата візиту"), col("хто надавав")
+    c_sc, c_txt, c_avg = col("оцінки"), col("коментар"), col("середня")
+    if None in (c_no, c_pat, c_avg):
+        raise ValueError("Це не звіт «Відгуки» з CleverBox: немає колонок №, Клієнт, Середня оцінка")
+    doctors = db.scalars(select(Doctor)).all()
+    by_name: dict[str, list[int]] = {}
+    for pid, nm in db.execute(select(Patient.id, Patient.full_name)):
+        by_name.setdefault(" ".join((nm or "").lower().split()), []).append(pid)
+    have = {x.ext: x for x in db.scalars(select(ReviewArchive))}
+    new = upd = linked = 0
+
+    def day(v, fmt):
+        try:
+            return datetime.strptime(str(v).strip(), fmt)
+        except ValueError:
+            return None
+    for row in rows[1:]:
+        no = str(row[c_no]).strip().split(".")[0]
+        if not no.isdigit():
+            continue
+        ext = f"cb:{no}"
+        x = have.get(ext)
+        if x is None:
+            x = ReviewArchive(ext=ext)
+            db.add(x)
+            have[ext] = x
+            new += 1
+        else:
+            upd += 1
+        nm = " ".join(str(row[c_pat]).split())
+        ids = by_name.get(nm.lower(), [])
+        d_at = day(row[c_at], "%d.%m.%Y") if c_at is not None else None
+        x.at = d_at.date() if d_at else None
+        x.visit_at = day(row[c_vis], "%d.%m.%y %H:%M") if c_vis is not None else None
+        x.patient_name, x.patient_id = nm[:200] or None, (ids[0] if len(ids) == 1 else None)
+        linked += x.patient_id is not None
+        dn = " ".join(str(row[c_doc]).split()) if c_doc is not None else ""
+        doc = match_doctor(dn, doctors) if dn else None
+        x.doctor_name, x.doctor_id = dn[:200] or None, (doc.id if doc else None)
+        sc = [[m.group(1).strip(), int(m.group(2))] for m in re.finditer(r"([^\n=]+?)\s*=\s*(\d+)", str(row[c_sc]))] if c_sc is not None else []
+        x.scores = sc or None
+        try:
+            x.avg = float(str(row[c_avg]).replace(",", "."))
+        except ValueError:
+            x.avg = round(sum(v for _, v in sc) / len(sc), 2) if sc else None
+        x.text = (" ".join(str(row[c_txt]).split()) or None) if c_txt is not None else None
+    db.commit()
+    return {"new": new, "updated": upd, "linked": linked, "total": len(have)}
+
+
+def archive_public(db: Session, limit: int = 12) -> dict:
+    """Для сторінки опитування: анонімні відгуки з текстом на «5» (найсвіжіші) і скільки ще оцінок без коментаря."""
+    from sqlalchemy import func
+    q = select(ReviewArchive).where(ReviewArchive.text.is_not(None), ReviewArchive.avg >= 5, ReviewArchive.hidden.is_not(True))
+    rows = db.scalars(q.order_by(ReviewArchive.at.desc().nullslast(), ReviewArchive.id.desc()).limit(limit)).all()
+    total = db.scalar(select(func.count(ReviewArchive.id))) or 0
+    with_text = db.scalar(select(func.count(ReviewArchive.id)).where(ReviewArchive.text.is_not(None))) or 0
+    return {"rows": rows, "total": total, "no_text": total - with_text}
+
+
+def archive_for_patient(db: Session, patient_id: int) -> list[ReviewArchive]:
+    return db.scalars(select(ReviewArchive).where(ReviewArchive.patient_id == patient_id).order_by(ReviewArchive.at.desc())).all()

@@ -42,4 +42,9 @@ textarea{width:100%;min-height:110px;border:1px solid #E9E5DF;border-radius:12px
 <div class="c"><div class="big">{{ '🤍' if not complaint else '🙏' }}</div><h1 style="text-align:center">Дякуємо за відгук!</h1>
   <p style="text-align:center">{% if complaint %}Нам важливо зробити ваш досвід бездоганним. Керівник простору звʼяжеться з вами найближчим часом.{% else %}Ми цінуємо вашу довіру й чекаємо на вас знову.{% endif %}</p></div>
 {% endif %}
+{% if wall and wall.rows and state in ('form', 'thanks') %}
+<div class="sub" style="margin:22px 0 10px">Відгуки наших пацієнтів</div>
+{% for x in wall.rows %}<div class="c" style="padding:14px 16px"><div class="rs" style="color:#5C4B82;letter-spacing:2px">★★★★★</div><p style="color:#2A2430;margin-top:6px">{{ x.text }}</p>
+  {% if x.at %}<div class="small" style="text-align:left;margin-top:6px">{{ x.at|dt('%m.%Y') }}</div>{% endif %}</div>{% endfor %}
+{% if wall.no_text %}<div class="small">і ще {{ wall.no_text }} оцінок без коментаря</div>{% endif %}{% endif %}
 </div></body></html>

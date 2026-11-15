@@ -93,3 +93,39 @@ def test_review_flow(monkeypatch):
     with TestClient(app) as c:
         x = c.get(f"/r/{tok}")
         assert x.status_code == 410 and "Термін посилання минув" in x.text and "616 відгуків" in x.text
+
+
+def test_feedback_archive(monkeypatch):
+    settings.admin_password = "owner-pass-1"
+    head = ["№", "Дата створення відгуку", "філія", "Клієнт", "Дата візиту", "Хто надавав послугу", "Хто оформлював", "Анкетні оцінки якості ",
+            "Коментар клієнта", "Середня оцінка", "Service ID"]
+    q5 = "Яке Ваше загальне враження від візиту? = 5 \nЯк Ви оцінюєте атмосферу в клініці? = 5 \n"
+    rows = [head,
+            ["3", "15.11.2026", "M", "Архів Пацієнтка Одна", "14.11.26 12:30", "Архівна Лікарка", "Адмін", q5, "Дуже сподобалось", "5.0", "1"],
+            ["2", "14.11.2026", "M", "Невідома Людина", "14.11.26 13:30", "Архівна Лікарка", "Адмін", q5, "", "5.0", "2"],
+            ["1", "13.11.2026", "M", "Архів Пацієнтка Одна", "13.11.26 10:00", "Архівна Лікарка", "Адмін", q5.replace("= 5 \nЯк", "= 3 \nЯк"), "Довго", "4.0", "3"]]
+    monkeypatch.setattr(rv, "_sheet_rows", lambda data: rows)
+    with TestClient(app):
+        pass
+    with SessionLocal() as db:
+        d, p = Doctor(name="Архівна Лікарка"), Patient(full_name="Архів Пацієнтка Одна")
+        db.add_all([d, p])
+        db.commit()
+        base = rv.rating(db)["count"]
+        r = rv.import_feedback(db, b"x")
+        assert r["new"] == 3 and r["linked"] == 2 and rv.import_feedback(db, b"x")["updated"] == 3      # повторно — без дублів
+        w = rv.archive_public(db)
+        assert [x.text for x in w["rows"]] == ["Дуже сподобалось"] and w["no_text"] == 1                 # лише «5» з текстом; «4» не показуємо
+        rt = rv.rating(db)
+        assert rt["count"] == base + 3
+        a = rv.archive_for_patient(db, p.id)
+        assert len(a) == 2 and a[0].doctor_id == d.id and a[1].scores[0][1] == 3
+        pid, rid = p.id, w["rows"][0].id
+        tok = rv.request(db, Appointment(patient_id=p.id, start=datetime.now(), end=datetime.now(), status="done", services=[]), send=False).token
+    with TestClient(app) as c:
+        h = c.get(f"/r/{tok}").text
+        assert "Дуже сподобалось" in h and "Архів Пацієнтка" not in h and "оцінок без коментаря" in h    # анонімно
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        assert "з CleverBox" in c.get(f"/patients/{pid}").text and "Відгуки до CRM" in c.get("/settings/reviews").text
+        c.post(f"/settings/reviews/archive/{rid}/hide", data={"on": "1"})
+        assert "Дуже сподобалось" not in c.get(f"/r/{tok}").text

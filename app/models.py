@@ -1608,6 +1608,23 @@ class Review(Base):
     patient: Mapped[Patient] = relationship()
 
 
+class ReviewArchive(Base):
+    """Відгуки, зібрані до CRM (звіт CleverBox «Feedback»): для рейтингу, картки пацієнта й показу на сторінці опитування (анонімно)."""
+    __tablename__ = "review_archive"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ext: Mapped[str] = mapped_column(String(40), unique=True, index=True)      # cb:<№ у звіті>
+    at: Mapped[date | None] = mapped_column(Date, index=True)                  # дата відгуку
+    visit_at: Mapped[datetime | None] = mapped_column(DateTime)
+    patient_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    patient_name: Mapped[str | None] = mapped_column(String(200))
+    doctor_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    doctor_name: Mapped[str | None] = mapped_column(String(200))
+    scores: Mapped[list | None] = mapped_column(JSON)                          # [[питання, оцінка], …]
+    avg: Mapped[float | None] = mapped_column(Float)
+    text: Mapped[str | None] = mapped_column(Text)
+    hidden: Mapped[bool | None] = mapped_column(Boolean)                       # не показувати на сторінці опитування
+
+
 class Task(Base):
     __tablename__ = "tasks"
     id: Mapped[int] = mapped_column(primary_key=True)

@@ -236,7 +236,7 @@
   <a href="#t-comm" data-t="comm">Комунікації{% if pcalls or pchats %} <em>{{ (pcalls|length) + (pchats|default([])|length) }}</em>{% endif %}</a>
   <a href="#t-files" data-t="files">Фото й документи <em>{{ p.files|length }}</em></a>
   <a href="#t-sales" data-t="sales">Продажі{% if p.sales %} <em>{{ p.sales|length }}</em>{% endif %}</a>
-  <a href="#t-reviews" data-t="reviews">Відгуки{% if previews %} <em>{{ previews|length }}</em>{% endif %}</a>
+  <a href="#t-reviews" data-t="reviews">Відгуки{% if previews or parch %} <em>{{ (previews|length) + (parch|length) }}</em>{% endif %}</a>
   <a href="#t-hist" data-t="hist">Історія</a>
 </nav>
 
@@ -587,7 +587,14 @@
         <button type="button" class="btn ghost" style="height:30px;padding:0 10px" onclick="this.closest('.rv').classList.remove('anon')" title="Показати імʼя">👁</button></div></div>
     {% if r.text %}<div class="rv-t">«{{ r.text }}»</div>{% endif %}
     <div class="rv-q">{% for k, v in (r.scores or {}).items() %}<span>{{ rv_q.get(k, k) }}: <b style="color:{{ '#B23A32' if v < 5 else '#2A2430' }}">{{ v }}</b></span>{% endfor %}</div>
-  </div>{% else %}<p class="muted">Відгуків ще немає. Опитування надсилається після візиту — «Налаштування → Відгуки й NPS».</p>{% endfor %}
+  </div>{% else %}{% if not parch %}<p class="muted">Відгуків ще немає. Опитування надсилається після візиту — «Налаштування → Відгуки й NPS».</p>{% endif %}{% endfor %}
+  {% for x in parch %}<div class="rv {{ 'bad' if (x.avg or 0) < 5 }}">
+    <div class="rv-h"><div><span class="rv-s">{% for n in range(5) %}{% if n < (x.avg or 0)|round|int %}★{% else %}<i>★</i>{% endif %}{% endfor %}</span> <b>{{ '%g'|format(x.avg or 0) }} з 5</b> <span class="rv-tag">з CleverBox</span></div>
+      <div class="small muted"><span class="rv-who">{{ p.full_name }}</span>{% if x.at %} · {{ x.at|dt('%d.%m.%Y') }}{% endif %}{% if x.doctor_name %} · {{ x.doctor_name }}{% endif %}
+        <button type="button" class="btn ghost rv-hide" style="height:30px;padding:0 10px;margin-left:6px" onclick="this.closest('.rv').classList.add('anon')">Анонімно</button>
+        <button type="button" class="btn ghost" style="height:30px;padding:0 10px" onclick="this.closest('.rv').classList.remove('anon')" title="Показати імʼя">👁</button></div></div>
+    {% if x.text %}<div class="rv-t">«{{ x.text }}»</div>{% endif %}
+    <div class="rv-q">{% for q, v in (x.scores or []) %}<span>{{ q[:60] }}: <b style="color:{{ '#B23A32' if v < 5 else '#2A2430' }}">{{ v }}</b></span>{% endfor %}</div></div>{% endfor %}
   {% if previews %}<p class="small muted">«Анонімно» розмиває імʼя на екрані — можна зробити скріншот для соцмереж. «Перейшов у Google» означає, що пацієнт натиснув кнопку й відкрив форму відгуку Google; чи опублікував він відгук, CRM не знає.</p>{% endif %}
 </div></section>
 

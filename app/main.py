@@ -1169,7 +1169,7 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
     pe_products = sorted({(n_, pr_) for n_, pr_ in db.execute(select(Product.name, Product.price).where(Product.active.is_not(False))) if n_}, key=lambda x: x[0])
     from .services import reviews as _rvw
     _rv_cfg = _rvw.cfg(db)
-    return render(request, "patient.html", previews=_rvw.for_patient(db, p.id), rv_q={q["key"]: q["title"] for q in _rv_cfg["questions"]}, p=p, statuses=statuses, pe_services=pe_services, pe_products=pe_products, ptasks=ptasks, msgs=msgs, dupes=dupes, paylinks=paylinks, pcalls=pcalls, pchats=pchats,
+    return render(request, "patient.html", previews=_rvw.for_patient(db, p.id), parch=_rvw.archive_for_patient(db, p.id), rv_q={q["key"]: q["title"] for q in _rv_cfg["questions"]}, p=p, statuses=statuses, pe_services=pe_services, pe_products=pe_products, ptasks=ptasks, msgs=msgs, dupes=dupes, paylinks=paylinks, pcalls=pcalls, pchats=pchats,
                   call_thr=float(__import__("app.services.telephony", fromlist=["x"]).public(db).get("ai_alert_below") or 0),
                   certs=_cert.for_patient(db, p.id), CERT_STATES=_cert.STATES, today=date.today(),
                   subs=_cert.subs_for_patient(db, p.id), SUB_STATES=_cert.SUB_STATES, packages=_cert.package_items(db),
@@ -7351,7 +7351,7 @@ def _review_ctx(db, r):
     d = db.get(Doctor, r.doctor_id) if r.doctor_id else None
     return {"questions": c["questions"], "name": parts[1] if len(parts) > 1 else (parts[0] if parts else "Вітаємо"), "doctor": d.name if d else "",
             "google_url": c.get("google_url") or "", "text": r.text or "", "complaint": bool(r.complaint), "demo": False, "err": "",
-            "rating": rv.rating(db)}
+            "rating": rv.rating(db), "wall": rv.archive_public(db) if c.get("show_wall", True) else None}
 
 
 @app.get("/r/{token}", response_class=HTMLResponse)
@@ -7403,14 +7403,42 @@ def review_google(token: str, db: Session = Depends(db_dep)):
 @app.get("/settings/reviews", response_class=HTMLResponse)
 def settings_reviews(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     from .services import reviews as rv
-    return render(request, "settings_reviews.html", nav="settings", c=rv.cfg(db), ORDERS=rv.ORDERS, rt=rv.rating(db))
+    from .models import ReviewArchive
+    arch = db.scalars(select(ReviewArchive).where(ReviewArchive.text.is_not(None), ReviewArchive.avg >= 5)
+                      .order_by(ReviewArchive.at.desc().nullslast(), ReviewArchive.id.desc()).limit(40)).all()
+    return render(request, "settings_reviews.html", nav="settings", c=rv.cfg(db), ORDERS=rv.ORDERS, rt=rv.rating(db), wall=rv.archive_public(db), arch=arch)
+
+
+@app.post("/settings/reviews/import")
+async def settings_reviews_import(request: Request, file: UploadFile = File(...), user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    """Звіт CleverBox «Відгуки» (Feedback_*.xls) → архів відгуків до CRM."""
+    from .services import reviews as rv
+    data = await file.read()
+    if len(data) > 10 * 1024 * 1024:
+        return RedirectResponse(_with_msg("/settings/reviews", "Файл завеликий (до 10 МБ)", True), 303)
+    try:
+        r = await asyncio.to_thread(rv.import_feedback, db, data)
+    except Exception as e:      # noqa: BLE001
+        return RedirectResponse(_with_msg("/settings/reviews", f"Не вдалося прочитати файл: {str(e)[:150]}", True), 303)
+    audit(db, "reviews.import", user=user, **r)
+    return RedirectResponse(_with_msg("/settings/reviews", f"Завантажено: нових {r['new']}, оновлено {r['updated']}; привʼязано до пацієнтів {r['linked']} з {r['total']}"), 303)
+
+
+@app.post("/settings/reviews/archive/{rid:int}/hide")
+def settings_reviews_hide(rid: int, on: str = Form(""), user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .models import ReviewArchive
+    x = db.get(ReviewArchive, rid) or (_ for _ in ()).throw(HTTPException(404))
+    x.hidden = bool(on)
+    db.commit()
+    return RedirectResponse("/settings/reviews#wall", 303)
 
 
 @app.get("/settings/reviews/preview", response_class=HTMLResponse)
 def settings_reviews_preview(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     from .services import reviews as rv
     return templates.TemplateResponse(request, "review_form.html", {"state": "form", "questions": rv.cfg(db)["questions"], "name": "Олено", "doctor": "",
-                                                                    "demo": True, "err": "", "rating": rv.rating(db)})
+                                                                    "demo": True, "err": "", "rating": rv.rating(db),
+                                                                    "wall": rv.archive_public(db) if rv.cfg(db).get("show_wall", True) else None})
 
 
 @app.post("/settings/reviews")
@@ -7433,7 +7461,7 @@ async def settings_reviews_save(request: Request, user: User = Depends(require("
         ba = min(5.0, max(1.0, float(str(f.get("base_avg") or "5").replace(",", "."))))
     except ValueError:
         ba = 5.0
-    c.update(ttl_hours=num(f.get("ttl_hours"), 24), base_count=num(f.get("base_count"), 0), base_avg=ba)
+    c.update(ttl_hours=num(f.get("ttl_hours"), 24), base_count=num(f.get("base_count"), 0), base_avg=ba, show_wall=bool(f.get("show_wall")))
     c.update(on=bool(f.get("on")), delay_min=max(5, num(f.get("delay_min"), 30)), min_days=num(f.get("min_days"), 7),
              order=f.get("order") if f.get("order") in rv.ORDERS else "tg", text=str(f.get("text") or "").strip()[:600] or rv.DEFAULT["text"],
              questions=qs or rv.QUESTIONS, google_url=url if url.startswith("https://") else "")
