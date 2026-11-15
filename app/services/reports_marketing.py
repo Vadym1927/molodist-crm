@@ -114,7 +114,9 @@ def channels(db: Session, d_from: date, d_to: date, view: str = "") -> Report:
     g = ga.funnel(db, ga.leads(db, d_from, d_to))
     m = ga.funnel(db, ma.leads(db, d_from, d_to))
     used = {r["appeal_id"] for r in g + m if r.get("appeal_id")}
-    rest = ga.funnel(db, _appeal_leads(db, d_from, d_to, used))
+    from . import appeals as ap
+    dd = ap.dirs(db)
+    rest = ga.funnel(db, [x for x in _appeal_leads(db, d_from, d_to, used) if ap.status_type(dd, x["status"]) != "other"])   # без «не пацієнтів»
     by_src = defaultdict(list)
     for r in rest:
         by_src[r["source"]].append(r)
