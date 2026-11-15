@@ -12,7 +12,7 @@
 <div class="fin-k">
   <div class="tile"><span>Нараховано</span><b>{{ t.gross|uah }}</b><small class="muted">ставка {{ t.base|uah }} · комісійні {{ t.comm|uah }} · премії {{ t.bonus|uah }}</small></div>
   <div class="tile"><span>Податки й утримання</span><b class="out">{{ (t.tax + t.hold)|uah }}</b><small class="muted">податки {{ t.tax|uah }} · утримання {{ t.hold|uah }}</small></div>
-  <div class="tile"><span>Виплачено на руки</span><b class="in">{{ t.paid|uah }}</b><small class="muted">до виплати за місяць {{ t.net|uah }}</small></div>
+  <div class="tile"><span>Виплачено на руки</span><b class="in">{{ t.paid|uah }}</b><small class="muted">до виплати за {{ 'період' if v.half else 'місяць' }} {{ t.net|uah }}</small></div>
   <div class="tile"><span>Залишок до виплати</span><b style="color:{{ 'var(--bad)' if t.closing > 0.01 else 'inherit' }}">{{ t.closing|uah }}</b><small class="muted">з боргом на початок {{ t.opening|uah }}</small></div>
 </div>
 <style>
