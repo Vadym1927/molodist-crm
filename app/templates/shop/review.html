@@ -1,0 +1,28 @@
+{% extends "shop/base.html" %}
+{% block main %}<section class="sec lst"><div class="wrap narrow rvf">
+  <h1>{{ rname }}, як вам покупка?</h1>
+  <p class="mut">Замовлення №{{ order.number }}. Оцініть товари — відгук зʼявиться на сайті після перевірки. Ваш телефон і прізвище не показуємо.</p>
+  {% for i in ritems %}<form class="rv-form card" data-rv="{{ i.id }}">
+    <div class="rv-it">{% if i.img %}<img src="{{ base }}/img/{{ i.img }}?w=200" alt="" width="72" height="72">{% endif %}<b>{{ i.name }}</b></div>
+    {% if i.review and i.review.status == 'ok' %}<p class="ok">Ваш відгук опубліковано. Дякуємо!</p>
+    {% else %}
+    <div class="rate" role="radiogroup" aria-label="Оцінка">{% for n in range(5, 0, -1) %}<input type="radio" id="r{{ i.id }}-{{ n }}" name="rating" value="{{ n }}" {{ 'checked' if i.review and i.review.rating == n }}><label for="r{{ i.id }}-{{ n }}" title="{{ n }}">★</label>{% endfor %}</div>
+    <textarea name="text" rows="3" maxlength="2000" placeholder="Що сподобалось, як працює, кому порадите?">{{ i.review.text if i.review and i.review.text }}</textarea>
+    <input name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+    <div class="rv-row"><label class="small">Імʼя на сайті<input name="name" value="{{ (i.review.name if i.review) or rname }}" maxlength="60"></label>
+      <button class="btn" type="submit">{{ 'Оновити відгук' if i.review else 'Надіслати відгук' }}</button></div>
+    <p class="err" hidden></p><p class="ok" hidden>Дякуємо! Відгук зʼявиться після перевірки.</p>
+    {% endif %}
+  </form>{% endfor %}
+  <p><a class="btn ghost" href="{{ base }}/shop/">До каталогу</a></p>
+</div></section>{% endblock %}
+{% block scripts %}<script>
+document.querySelectorAll('[data-rv]').forEach(function(f){f.addEventListener('submit',function(e){e.preventDefault();
+  var er=f.querySelector('.err'),ok=f.querySelector('p.ok'),bt=f.querySelector('button');er.hidden=true;
+  var r=f.querySelector('[name=rating]:checked');if(!r){er.textContent='Поставте, будь ласка, оцінку (зірочки).';er.hidden=false;return}
+  bt.disabled=true;
+  fetch('{{ base }}/api/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:{{ tok|tojson }},product_id:+f.getAttribute('data-rv'),rating:+r.value,text:f.text.value,name:f.name.value,website:f.website.value})})
+  .then(function(x){return x.json()}).then(function(j){bt.disabled=false;if(j&&j.ok){ok.hidden=false;bt.textContent='Оновити відгук'}else{er.textContent=(j&&j.msg)||'Не вдалося зберегти.';er.hidden=false}})
+  .catch(function(){bt.disabled=false;er.textContent='Немає звʼязку. Спробуйте ще раз.';er.hidden=false});
+});});
+</script>{% endblock %}

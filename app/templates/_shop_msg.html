@@ -1,0 +1,1 @@
+{% set _m = request.query_params.get('msg') or request.query_params.get('err') %}{% if _m %}<div class="alert {{ 'err' if request.query_params.get('err') else 'ok' }}" style="margin-bottom:12px">{{ _m }}</div>{% endif %}

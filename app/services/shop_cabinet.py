@@ -51,14 +51,14 @@ def sms_text(c: dict, code: str) -> str:
     return (t if "{code}" in t else t + " {code}").replace("{code}", code)[:300]
 
 
-def _deliver(db: Session, phone: str, text: str) -> str:
+def _deliver(db: Session, phone: str, text: str, icon: str = "🔐 ") -> str:
     """Код: спершу в Telegram (якщо пацієнт підключив бот турботи), інакше SMS. Повертає канал або кидає CabError."""
     from ..integrations import messaging as m
     from . import appeals as ap
     p = ap.find_patient(db, phone)
     if p and p.telegram_chat_id and m.telegram_available():
         try:
-            if m.send_telegram(p.telegram_chat_id, "🔐 " + text).ok:
+            if m.send_telegram(p.telegram_chat_id, icon + text).ok:
                 return "telegram"
         except Exception:  # noqa: BLE001 — не вийшло в Telegram → SMS
             pass
@@ -301,7 +301,7 @@ def notify_send(db: Session, c: dict, data: dict, site_root: str) -> dict:
         it = by_id[r.product_id][0]
         text = tpl.replace("{name}", it["name"][:60]).replace("{url}", f"{site_root}/shop/{it['slug']}/")[:300]
         try:
-            ch = _deliver(db, r.phone, text)
+            ch = _deliver(db, r.phone, text, "🔔 ")
         except CabError:
             rep["failed"] += 1
             continue
@@ -345,7 +345,7 @@ def order_notice(db: Session, c: dict, o: SiteOrder, event: str) -> bool:
     ttn = raw.get("ttn") or ""
     text = ORDER_MSG[event].replace("{n}", o.number or "").replace("{ttn}", f", ТТН {ttn}" if ttn else "")
     try:
-        _deliver(db, _phone(o.phone), text)
+        _deliver(db, _phone(o.phone), text, "📦 ")
     except CabError:
         return False
     raw["cust_msgs"] = done + [event]

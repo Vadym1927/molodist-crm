@@ -35,6 +35,10 @@ DEFAULT = {
     "hero": [],                  # [{img, title, text, url}]
     "coin_on": True, "coin_spend_on": False, "coin_start": "", "order_login": True, "coin_earn_pct": 3.0, "coin_max_pct": 10.0, "coin_days": 180, "coin_wait_days": 3,   # MOLODIST Coins у магазині
     "seller_req": "ФОП Бондар Вадим Миколайович\nАдреса: м. Київ, вул. Князя Романа Мстиславича, 28А\nТелефон: +38 (093) 375 64 37\nE-mail: info.molodostua@gmail.com",
+    "ticker": "Безкоштовна доставка від 3 000 ₴ по всій Україні\nВідправляємо в день замовлення до 18:00\nZO Skin Health і ClearChoice — після консультації лікаря, звертайтеся до адміністратора\nMOLODIST Coins за реєстрацію та кожну покупку",
+    "gtm_id": "", "ga4_id": "", "ads_id": "", "ads_label": "",
+    "review_on": False, "review_days": 5, "review_text": "", "review_test_phone": "",
+    "cart_task_hours": 2, "cart_auto_on": False, "cart_auto_hours": 3, "cart_text": "",
     "order_msg_on": False,       # повідомлення покупцю: оплачено / відправлено (з ТТН) / скасовано
     "notify_on": False, "notify_text": "{name} знову в наявності в магазині MOLODIST: {url}",
     "cab_on": True, "cab_sms": "{code} — код входу в магазин MOLODIST", "cab_sms_day": 150, "cab_coin_signup": 100, "cab_coin_ref": 200,
@@ -62,8 +66,9 @@ def cfg(db: Session) -> dict:
         except ValueError:
             pass
     c["cod"] = False                                  # післяплати немає (рішення власника 16.11.2026)
-    if "18:00" in str(c.get("benefits") or ""):
-        c["benefits"] = c["benefits"].replace("18:00", "18:00")
+    _t15 = "15" + ":00"
+    if _t15 in str(c.get("benefits") or ""):
+        c["benefits"] = c["benefits"].replace(_t15, "18" + ":00")
     if "molodist.clinic" in str(c.get("instagram") or ""):
         c["instagram"] = DEFAULT["instagram"]
     return c
@@ -923,6 +928,11 @@ def set_status(db: Session, o: SiteOrder, status: str, user: User | None = None,
         o.paid = paid
         raw["log"] = (raw.get("log") or []) + [{"at": datetime.now().isoformat(timespec="minutes"), "by": who, "text": "Оплату позначено вручну: " + ("оплачено" if paid else "не оплачено")}]
     o.raw = raw
+    try:
+        from . import shop_reviews as _rv
+        _rv.mark_due(o, cfg(db))
+    except Exception:  # noqa: BLE001
+        pass
     db.flush()
     try:
         from . import coins as cn

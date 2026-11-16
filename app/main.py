@@ -373,6 +373,11 @@ async def job_mono_parts():
                 _sc.notify_send(db, _c, _sf.catalog(db), _c["canonical"].rstrip("/") if _c.get("on") else settings.public_url.rstrip("/") + "/_shop")
                 from .services import coins as _cn
                 _cn.post_due(db, _c)
+                from .services import shop_reviews as _rv, shop_carts as _ct
+                _root = _c["canonical"].rstrip("/") if _c.get("on") else settings.public_url.rstrip("/") + "/_shop"
+                _cat = _sf.catalog(db)
+                _rv.send_due(db, _c, _root, _cat)
+                _ct.job(db, _c, _cat, _root)
                 from .services import insta_feed as _if
                 if _if.due(db):
                     _if.refresh(db)
@@ -9949,6 +9954,74 @@ def _shop_orders_job(job):
         return {k: rep.get(k) for k in ("orders", "new", "updated", "linked", "patients_new", "items_matched", "items")}
 
 
+def _shop_cnt(db) -> dict:
+    from .services import shop_reviews as _rv
+    from .models import ShopCart
+    edge = datetime.utcnow() - timedelta(hours=1)
+    try:
+        carts = db.scalar(select(func.count()).select_from(ShopCart).where(ShopCart.status == "open", ShopCart.updated_at < edge)) or 0
+        return {"reviews": _rv.count_new(db), "carts": carts}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _shop_root(db) -> str:
+    from .services import shop_front as sf
+    c_ = sf.cfg(db)
+    return c_["canonical"].rstrip("/") if c_.get("on") else settings.public_url.rstrip("/") + "/_shop"
+
+
+@app.get("/shop-reviews", response_class=HTMLResponse)
+def shop_reviews_page(request: Request, status: str = "new", user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    from .services import shop_reviews as rv, shop_front as sf
+    from .models import SiteOrder
+    rows = rv.admin_list(db, status if status != "all" else "")
+    d = sf.catalog(db)
+    names = {v["id"]: (v["name"], it["slug"]) for it in d["items"] for v in it["variants"]}
+    orders = {o.id: o for o in db.scalars(select(SiteOrder).where(SiteOrder.id.in_({r.order_id for r in rows if r.order_id} or {0})))}
+    return render(request, "shop_reviews.html", nav="shop", shop_tab="reviews", shop_cnt=_shop_cnt(db), rows=rows, names=names, orders=orders,
+                  status=status, STATUS=rv.STATUS, root=_shop_root(db))
+
+
+@app.post("/shop-reviews/{rid}")
+async def shop_reviews_save(rid: int, request: Request, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    from .services import shop_reviews as rv
+    f = await request.form()
+    r = rv.moderate(db, rid, str(f.get("status") or ""), f.get("answer"), user.id)
+    if r:
+        audit(db, "shop.review", "shop_review", rid, user=user, status=r.status)
+    db.commit()
+    return RedirectResponse(_with_msg(f"/shop-reviews?status={quote(str(f.get('back') or 'new'))}", "Збережено"), 303)
+
+
+@app.get("/shop-carts", response_class=HTMLResponse)
+def shop_carts_page(request: Request, status: str = "open", user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    from .services import shop_carts as ct, shop_front as sf
+    rows = ct.rows(db, sf.catalog(db), status if status in ct.STATUS else "open", 1 if status in ("", "open") else 0)
+    return render(request, "shop_carts.html", nav="shop", shop_tab="carts", shop_cnt=_shop_cnt(db), rows=rows, status=status, STATUS=ct.STATUS,
+                  c=sf.cfg(db), sum_open=sum(r["cart"].total or 0 for r in rows if r["cart"].status == "open"))
+
+
+@app.post("/shop-carts/{cid}")
+async def shop_carts_action(cid: int, request: Request, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    from .services import shop_carts as ct, shop_front as sf
+    f = await request.form()
+    who = user.name or user.login
+    try:
+        if f.get("action") == "remind":
+            ch = ct.remind(db, sf.cfg(db), cid, sf.catalog(db), _shop_root(db), who)
+            msg = "Нагадування надіслано (" + ("Telegram" if ch == "telegram" else "SMS") + ")"
+        else:
+            ct.mark_done(db, cid, str(f.get("note") or "").strip()[:300], who)
+            msg = "Позначено як опрацьований"
+    except Exception as e:  # noqa: BLE001
+        db.rollback()
+        return RedirectResponse(_with_msg("/shop-carts", str(e)[:200], True), 303)
+    audit(db, "shop.cart", "shop_cart", cid, user=user, action_=str(f.get("action") or "done"))
+    db.commit()
+    return RedirectResponse(_with_msg("/shop-carts", msg), 303)
+
+
 @app.get("/shop-orders", response_class=HTMLResponse)
 def shop_orders_page(request: Request, d1: str = "", d2: str = "", status: str = "", q: str = "", per: str = "", src: str = "", user: User = Depends(require("sales")),
                      db: Session = Depends(db_dep)):
@@ -9970,7 +10043,7 @@ def shop_orders_page(request: Request, d1: str = "", d2: str = "", status: str =
     pats = {p_.id: p_ for p_ in db.scalars(select(Patient).where(Patient.id.in_({o.patient_id for o in rows[:500] if o.patient_id} or {0})))}
     staff = {u_.id: (u_.name or u_.login) for u_ in db.scalars(select(User))}
     c_ = sf.cfg(db)
-    return render(request, "shop_orders.html", nav="shop", rows=rows[:500], n=len(rows), k=so.kpi(rows), arch_n=len(arch), src=src, per=per,
+    return render(request, "shop_orders.html", nav="shop", shop_tab="orders", shop_cnt=_shop_cnt(db), rows=rows[:500], n=len(rows), k=so.kpi(rows), arch_n=len(arch), src=src, per=per,
                   funnel=sf.funnel([o for o in every if o.source == "crm"]), photos=photos, pats=pats, staff=staff, PAY_FAIL=sf.PAY_FAIL,
                   shop_url=(c_["canonical"].rstrip("/") + "/") if c_.get("on") else f"/_shop/?p={sf.preview_key(db)}", shop_on=bool(c_.get("on")),
                   f={"d1": d1, "d2": d2, "status": status, "q": q})
@@ -9998,7 +10071,7 @@ def settings_shop(request: Request, user: User = Depends(require("users")), db: 
     d = sf.catalog(db, fresh=True)
     j = jobs.JOBS.get(request.query_params.get("job") or "")
     from .services import mono_parts as _mp
-    return render(request, "settings_shop.html", nav="settings", c=c, d=d, seo=sf.seo_coverage(db), insta=__import__("app.services.insta_feed", fromlist=["x"]).state(db), waiting=__import__("app.services.shop_cabinet", fromlist=["x"]).notify_waiting(db), cab=__import__("app.services.shop_cabinet", fromlist=["x"]).stats(db), accounts=pls.public(db)["accounts"], job=j, mp=_mp.public(db), MP_MODES=_mp.MODES,
+    return render(request, "settings_shop.html", nav="settings", rv_default=__import__("app.services.shop_reviews", fromlist=["x"]).DEFAULT_TEXT, cart_default=__import__("app.services.shop_carts", fromlist=["x"]).DEFAULT_TEXT, c=c, d=d, seo=sf.seo_coverage(db), insta=__import__("app.services.insta_feed", fromlist=["x"]).state(db), waiting=__import__("app.services.shop_cabinet", fromlist=["x"]).notify_waiting(db), cab=__import__("app.services.shop_cabinet", fromlist=["x"]).stats(db), accounts=pls.public(db)["accounts"], job=j, mp=_mp.public(db), MP_MODES=_mp.MODES,
                   preview=f"{settings.public_url.rstrip('/')}/_shop/?p={sf.preview_key(db)}",
                   stock=sum(1 for i in d["items"] if i["stock"]), nocat=sum(1 for i in d["items"] if not any(i["slug"] in x["slugs"] for x in d["cats"])))
 
@@ -10015,6 +10088,30 @@ async def settings_shop_save(request: Request, user: User = Depends(require("use
         from .services import insta_feed as _if
         st = _if.refresh(db)
         return RedirectResponse(_with_msg("/settings/shop", ("Instagram: " + st["error"]) if st.get("error") else f"Instagram: показуємо {len(st.get('items') or [])} публікацій", bool(st.get("error"))) + "#insta", 303)
+    if f.get("action") in ("rvcart", "rvtest"):
+        c = sf.cfg(db)
+        c["review_on"] = bool(f.get("review_on"))
+        c["cart_auto_on"] = bool(f.get("cart_auto_on"))
+        for _k, _lo, _hi in (("review_days", 0, 30), ("cart_task_hours", 0, 168), ("cart_auto_hours", 1, 72)):
+            try:
+                c[_k] = min(_hi, max(_lo, float(str(f.get(_k) or 0).replace(",", "."))))
+            except ValueError:
+                pass
+        c["review_days"] = int(c["review_days"])
+        c["review_text"] = str(f.get("review_text") or "").strip()[:400]
+        c["cart_text"] = str(f.get("cart_text") or "").strip()[:400]
+        c["review_test_phone"] = str(f.get("review_test_phone") or "").strip()[:20]
+        sf.save_cfg(db, c)
+        audit(db, "settings.shop_reviews", "settings", None, user=user)
+        db.commit()
+        if f.get("action") == "rvtest":
+            from .services import shop_reviews as _rv
+            try:
+                ch = _rv.send_test(db, c, c["review_test_phone"], _shop_root(db), sf.catalog(db))
+                return RedirectResponse(_with_msg("/settings/shop", "Тест надіслано (" + ("Telegram" if ch == "telegram" else "SMS") + ")") + "#reviews", 303)
+            except Exception as e:  # noqa: BLE001
+                return RedirectResponse(_with_msg("/settings/shop", f"Тест не надіслано: {e}"[:200], True) + "#reviews", 303)
+        return RedirectResponse(_with_msg("/settings/shop", "Збережено") + "#reviews", 303)
     if f.get("action") == "parts":
         from .services import mono_parts as _mp
         _mp.save(db, str(f.get("store_id") or ""), str(f.get("sign_key") or ""), str(f.get("mode") or "test"), str(f.get("parts") or ""),
@@ -10063,6 +10160,13 @@ async def settings_shop_save(request: Request, user: User = Depends(require("use
             pass
     c["notify_on"] = bool(f.get("notify_on"))
     c["order_msg_on"] = bool(f.get("order_msg_on"))
+    import re as _re_an
+    for _k, _pat in (("gtm_id", r"GTM-[A-Z0-9]{4,12}"), ("ga4_id", r"G-[A-Z0-9]{4,14}"), ("ads_id", r"AW-\d{6,14}"), ("ads_label", r"[A-Za-z0-9_-]{4,40}")):
+        if f.get(_k) is not None:
+            _v = str(f.get(_k) or "").strip()
+            c[_k] = _v if _re_an.fullmatch(_pat, _v) else ""
+    if f.get("ticker") is not None:
+        c["ticker"] = str(f.get("ticker") or "").strip()[:800]
     if f.get("seller_req") is not None:
         c["seller_req"] = str(f.get("seller_req") or "").strip()[:800]
     c["notify_text"] = str(f.get("notify_text") or "").strip()[:200]

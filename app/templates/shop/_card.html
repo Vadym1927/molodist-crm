@@ -4,7 +4,7 @@
     {% if i.pct %}<em class="bdg sale">−{{ i.pct }}%</em>{% endif %}{% if not i.stock %}<em class="bdg out">Немає в наявності</em>{% endif %}{{ pchb(i, pch, s, base) }}</a><button class="fav" type="button" data-fav="{{ i.variants[0].id }}" aria-label="Зберегти"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 20s-7-4.400-7-9.600A4 4 0 0 1 12 8a4 4 0 0 1 7 2.400C19 15.600 12 20 12 20z"/></svg></button>
   <div class="pc-b">{% if i.brand %}<span class="pc-br">{{ i.brand }}</span>{% endif %}<a class="pc-n" href="{{ base }}/shop/{{ i.slug }}/">{{ i.name }}</a>
     <div class="pc-p"><b>{{ money(i.price) }}</b>{% if i.old %}<s>{{ money(i.old) }}</s>{% endif %}</div>
-    {% if i.stock %}<button class="btn sm ghost" type="button" data-add="{{ i.variants[0].id }}" data-name="{{ i.name }}">У кошик</button>{% else %}<button class="btn sm ghost" type="button" data-notify="{{ i.variants[0].id }}">Повідомити про появу</button>{% endif %}</div>
+    {% if i.stock %}<button class="btn sm ghost" type="button" data-add="{{ i.variants[0].id }}" data-name="{{ i.name }}" data-price="{{ i.price }}" data-brand="{{ i.brand or '' }}">У кошик</button>{% else %}<button class="btn sm ghost" type="button" data-notify="{{ i.variants[0].id }}">Повідомити про появу</button>{% endif %}</div>
 </article>{% endmacro %}
 {% macro rowblock(title, items, base, money, more='', pch=none, s={}) %}{% if items %}<section class="sec"><div class="wrap"><div class="sec-h"><h2>{{ title }}</h2>{% if more %}<a href="{{ more }}">Дивитись усі</a>{% endif %}</div>
   <div class="scroller">{% for i in items %}{{ card(i, base, money, pch, s) }}{% endfor %}</div></div></section>{% endif %}{% endmacro %}

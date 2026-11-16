@@ -48,7 +48,9 @@
     {% if coins.pend %}<h3>Очікують</h3>{% for r in coins.pend %}<div class="cab-oi"><span>Замовлення №{{ r.n }}</span><small>{{ ('нарахуємо ' ~ r.due[8:10] ~ '.' ~ r.due[5:7]) if r.due else 'після отримання замовлення' }}</small><b>+{{ r.amount }}</b></div>{% endfor %}{% endif %}
     <h3>Історія</h3>{% for r in coins.rows %}<div class="cab-oi"><span>{{ r.label }}{{ (' · ' ~ r.note) if r.note }}</span><small>{{ r.at.strftime('%d.%m.%Y') if r.at else '' }}</small><b>{{ '+' if r.amount > 0 }}{{ '%g'|format(r.amount) }}</b></div>{% else %}<p class="mut">Операцій ще немає.</p>{% endfor %}
   {% elif t == 'reviews' %}<h1>Мої відгуки</h1>
-    <div class="soon"><b>Розділ у розробці</b><p>Після отримання замовлення ми попросимо вас оцінити товар. Тут зʼявляться ваші відгуки.</p></div>
+    {% for o in rv_orders %}<div class="cab-oi"><span>Замовлення №{{ o.number }}</span><small>{{ o.status }}</small><a class="btn sm" href="{{ base }}/review/{{ rv_tok(o) }}/">Оцінити товари</a></div>{% endfor %}
+    {% for r in my_reviews %}<div class="rv"><div class="rv-h"><b>{{ r.pname }}</b><span class="stars" style="--r:{{ r.rating }}"></span><small>{{ {'new': 'на перевірці', 'ok': 'опубліковано', 'hidden': 'не опубліковано'}[r.status] }}</small></div>{% if r.text %}<p>{{ r.text }}</p>{% endif %}{% if r.answer %}<p class="rv-ans"><b>MOLODIST:</b> {{ r.answer }}</p>{% endif %}</div>
+    {% else %}{% if not rv_orders %}<p class="mut">Після отримання замовлення тут можна буде оцінити товари. Відгуки публікуються після перевірки.</p>{% endif %}{% endfor %}
   {% elif t == 'invite' %}<h1>Запроси друга</h1>
     <p>Поділіться кодом або посиланням. Коли друг зареєструється в магазині — ви отримаєте <b>{{ s.cab_coin_ref }} MOLODIST Coins</b>, і друг теж <b>{{ s.cab_coin_ref }} MOLODIST Coins</b>.</p>
     <div class="ref"><div><small>Ваш реферальний код</small><b>{{ acc.ref_code }}</b></div><button type="button" class="btn sm ghost" data-copy="{{ acc.ref_code }}">Скопіювати код</button></div>

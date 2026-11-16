@@ -6,13 +6,13 @@
     <div class="gal">{% if it.imgs %}<img id="gal-main" src="{{ base }}/img/{{ it.imgs[0] }}?w=1200" alt="{{ it.name }}" width="900" height="900" fetchpriority="high">
       {% if it.imgs|length > 1 %}<div class="thumbs">{% for f in it.imgs %}<button type="button" data-img="{{ base }}/img/{{ f }}?w=1200" class="{{ 'on' if loop.first }}"><img src="{{ base }}/img/{{ f }}?w=300" alt="" loading="lazy"></button>{% endfor %}</div>{% endif %}
       {% else %}<span class="noimg big">M</span>{% endif %}</div>
-    <div class="info">{% if it.brand %}<p class="pc-br">{{ it.brand }}</p>{% endif %}<h1>{{ it.name }}</h1>
+    <div class="info">{% if it.brand %}<p class="pc-br">{{ it.brand }}</p>{% endif %}<h1>{{ it.name }}</h1>{% if rvs and rvs.n %}<a class="rv-mini" href="#reviews"><span class="stars" style="--r:{{ rvs.avg }}"></span> {{ '%.1f'|format(rvs.avg) }} · {{ rvs.n }} відгук{{ 'и' if rvs.n % 10 in [2,3,4] and rvs.n % 100 not in [12,13,14] else ('' if rvs.n % 10 == 1 and rvs.n % 100 != 11 else 'ів') }}</a>{% endif %}
       {% if it.sku %}<p class="mut small">Артикул: {{ it.sku }}</p>{% endif %}
       {% if it.variants|length > 1 %}<div class="vars">{% for v in it.variants %}<label><input type="radio" name="var" value="{{ v.id }}" data-price="{{ money(v.price) }}" {{ 'checked' if loop.first }} {{ 'disabled' if not v.stock }}><span>{{ v.label or v.name }} · {{ money(v.price) }}</span></label>{% endfor %}</div>{% endif %}
       <div class="price"><b id="p-price">{{ money(it.price) }}</b>{% if it.old %}<s>{{ money(it.old) }}</s><em class="bdg sale">−{{ it.pct }}%</em>{% endif %}</div>
       {% if it.stock %}<p class="ok">В наявності</p>
       <div class="buy"><div class="qty"><button type="button" data-q="-1">−</button><input id="p-qty" value="1" inputmode="numeric" aria-label="Кількість"><button type="button" data-q="1">+</button></div>
-        <button class="btn" type="button" id="p-add" data-add="{{ it.variants[0].id }}" data-name="{{ it.name }}">Додати в кошик</button></div>
+        <button class="btn" type="button" id="p-add" data-add="{{ it.variants[0].id }}" data-name="{{ it.name }}" data-price="{{ it.price }}" data-brand="{{ it.brand or '' }}">Додати в кошик</button></div>
       {% else %}<p class="out">Немає в наявності</p><button class="btn ghost" type="button" data-notify="{{ it.variants[0].id }}">Повідомити, коли зʼявиться</button>{% endif %}
       {% set ce = coin_earn(it.price, it.old) %}{% if ce and it.stock %}<p class="coin-line"><img src="/static/shop/coins/coin-purple.webp" alt="" width="26" height="26"><span><b>+{{ ce }} MOLODIST Coins</b> за цю покупку{{ '' if me else ' — у кабінеті' }}</span></p>{% endif %}
       <button type="button" class="fav-b" data-fav="{{ it.variants[0].id }}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 20s-7-4.400-7-9.600A4 4 0 0 1 12 8a4 4 0 0 1 7 2.400C19 15.600 12 20 12 20z"/></svg><span class="a">Додати у вішліст</span><span class="b">У вішлісті</span></button>
@@ -21,6 +21,12 @@
     </div>
   </div>
   {% if it.sections %}<div class="desc">{% for x in it.sections %}<details class="acc" {{ 'open' if loop.first }}><summary><h2>{{ x.title }}</h2></summary><div class="rte">{{ x.html|safe }}</div></details>{% endfor %}</div>{% endif %}
+  <div class="rvs" id="reviews"><h2>Відгуки{% if rvs.n %} <span class="rv-avg">{{ '%.1f'|format(rvs.avg) }} <span class="stars" style="--r:{{ rvs.avg }}"></span> · {{ rvs.n }}</span>{% endif %}</h2>
+    {% for r in rvs.rows %}<div class="rv"><div class="rv-h"><b>{{ r.name or 'Покупець' }}</b><span class="stars" style="--r:{{ r.rating }}" aria-label="Оцінка {{ r.rating }} з 5"></span><small>{{ r.created_at.strftime('%d.%m.%Y') if r.created_at }}</small><em class="rv-buy">купив(ла) у MOLODIST</em></div>
+      {% if r.text %}<p>{{ r.text }}</p>{% endif %}{% if r.answer %}<p class="rv-ans"><b>MOLODIST:</b> {{ r.answer }}</p>{% endif %}</div>
+    {% else %}<p class="mut">Відгуків ще немає. Після отримання замовлення ми надішлемо посилання, щоб ви могли оцінити товар.</p>{% endfor %}</div>
 </div></section>
 {{ rowblock('З цим товаром купують', rel, base, money, '', pch, s) }}
 {% endblock %}
+
+{% block ga %}<script>window.dataLayer=window.dataLayer||[];dataLayer.push({ecommerce:null});var e={currency:'UAH',value:{{ it.price|float }},items:[{item_id:'{{ it.variants[0].id }}',item_name:{{ it.name|tojson }},item_brand:{{ (it.brand or '')|tojson }},price:{{ it.price|float }},quantity:1}]};dataLayer.push({event:'view_item',ecommerce:e});if(typeof gtag==='function')gtag('event','view_item',e);</script>{% endblock %}

@@ -13,7 +13,8 @@ from .catalog import product_rows
 KINDS = {"manual": "Ручна", "not_booked": "Записати на процедуру", "care_ending": "Повторний догляд",
          "stock": "Дозамовити товар", "follow_up": "Звʼязатися з пацієнтом",
          "certificate": "Сертифікат / абонемент згорає", "expiry": "Терміни придатності",
-         "call_review": "Розібрати дзвінок", "complaint": "Рекламація (відгук не на 5)"}
+         "call_review": "Розібрати дзвінок", "complaint": "Рекламація (відгук не на 5)",
+         "shop_cart": "Покинутий кошик"}
 PRIORITY = {"high": "високий", "normal": "звичайний", "low": "низький"}
 
 

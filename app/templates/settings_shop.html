@@ -60,6 +60,15 @@
       <label>Строк дії, днів<input name="coin_days" value="{{ c.coin_days }}" inputmode="numeric"></label>
       <label>Нарахувати на N-й день після закриття<input name="coin_wait_days" value="{{ c.coin_wait_days }}" inputmode="numeric"></label></div>
     <div class="small muted" style="margin-top:4px">Акційні товари не беруть участі ні в нарахуванні, ні в ліміті знижки. Коїни за замовлення зʼявляються після статусу «Закрито» або «Отримано». Скасування чи повернення повертає списані коїни й знімає нараховані.</div></div>
+  <fieldset class="an"><legend>Аналітика: GTM · GA4 · Google Ads</legend>
+  <p class="small muted">Магазин надсилає події електронної комерції: view_item, add_to_cart, begin_checkout, purchase (з номером замовлення, сумою й товарами; без телефонів та імен).</p>
+  <label>Google Tag Manager ID<input name="gtm_id" value="{{ c.gtm_id }}" placeholder="GTM-XXXXXXX (порожньо — контейнер сайту клініки)"></label>
+  <label>GA4 Measurement ID<input name="ga4_id" value="{{ c.ga4_id }}" placeholder="G-XXXXXXXXXX"></label>
+  <label>Google Ads ID<input name="ads_id" value="{{ c.ads_id }}" placeholder="AW-1234567890"></label>
+  <label>Мітка конверсії «Покупка»<input name="ads_label" value="{{ c.ads_label }}" placeholder="AbCdEf123"></label>
+  <p class="small muted">Якщо GA4 і Google Ads уже підключені всередині GTM — залиште їх тут порожніми, інакше покупки порахуються двічі. Заповнені — сайт сам надсилає події напряму (gtag).</p>
+  </fieldset>
+  <label>Рухомий рядок угорі сайту<textarea name="ticker" rows="4">{{ c.ticker }}</textarea><span class="small muted">Кожен рядок — окреме повідомлення; вони рухаються по колу. Порожньо — показується «Смуга над шапкою».</span></label>
   <label>Реквізити продавця (показуються в договорі оферти)<textarea name="seller_req" rows="5">{{ c.seller_req }}</textarea>
     <span class="small muted">Кожен рядок — окремо. Додайте РНОКПП (ІПН) ФОП і, за потреби, IBAN.</span></label>
   <div><b>Повідомлення покупцю про замовлення</b>
@@ -88,6 +97,24 @@
       <input name="h_text_{{ i }}" value="{{ h.text or '' }}" placeholder="Текст"><input name="h_url_{{ i }}" value="{{ h.url or '' }}" placeholder="/shop/sale/"></div>{% endfor %}</div>
   <div><button class="btn">Зберегти</button></div>
 </form>
+<form method="post" class="card" id="reviews" style="max-width:860px;margin-top:14px"><b>Відгуки: запит після замовлення</b>
+  <div class="small muted">Коли замовлення стає «Отримано» або «Закрито», через вказану кількість днів покупцю йде повідомлення з посиланням на оцінку товарів
+    (бот турботи, якщо підключений, інакше SMS). Першим у формі — найдорожчий товар замовлення. Відгук публікується після модерації в «Магазин → Відгуки».</div>
+  <label class="ck" style="margin-top:8px"><input type="checkbox" name="review_on" value="1" {{ 'checked' if c.review_on }}> Надсилати запит відгуку автоматично</label>
+  <label>Через скільки днів після отримання<input type="number" name="review_days" min="0" max="30" value="{{ c.review_days }}" style="width:90px"></label>
+  <label>Текст<textarea name="review_text" rows="3" maxlength="400" placeholder="{{ rv_default }}">{{ c.review_text }}</textarea><span class="small muted">{name} — імʼя покупця, {product} — головний товар, {n} — номер замовлення, {link} — посилання на форму. Порожньо — текст за замовчуванням (у підказці).</span></label>
+  <div class="row" style="gap:8px;align-items:flex-end;margin-top:6px"><label style="flex:1">Тестове повідомлення на номер<input name="review_test_phone" value="{{ c.review_test_phone }}" placeholder="+380…"></label>
+    <button class="btn ghost" name="action" value="rvtest">Надіслати тест</button></div>
+  <button class="btn" name="action" value="rvcart" style="margin-top:8px">Зберегти</button>
+  <hr style="margin:16px 0;border:0;border-top:1px solid var(--line)">
+  <b id="carts">Покинуті кошики</b>
+  <div class="small muted">Кошик покупця, що увійшов у кабінет, зберігається в CRM. Якщо він не оформив — кошик зʼявляється в «Магазин → Покинуті кошики» (через 1 год),
+    адміністраторам ставиться задача «Покинутий кошик» (високий пріоритет від 3 000 ₴). Звідти — нагадування покупцю або дзвінок.</div>
+  <label>Задача адміністраторам через, год<input type="number" name="cart_task_hours" min="0" max="168" step="0.5" value="{{ c.cart_task_hours }}" style="width:90px"><span class="small muted">0 — не ставити.</span></label>
+  <label class="ck"><input type="checkbox" name="cart_auto_on" value="1" {{ 'checked' if c.cart_auto_on }}> Автоматичне нагадування покупцю (один раз)</label>
+  <label>через, год<input type="number" name="cart_auto_hours" min="1" max="72" step="0.5" value="{{ c.cart_auto_hours }}" style="width:90px"></label>
+  <label>Текст нагадування<textarea name="cart_text" rows="3" maxlength="400" placeholder="{{ cart_default }}">{{ c.cart_text }}</textarea><span class="small muted">{name}, {items} — товари, {sum} — сума, {link} — оформлення.</span></label>
+  <button class="btn" name="action" value="rvcart" style="margin-top:8px">Зберегти</button></form>
 <form method="post" class="card" id="insta" style="max-width:860px;margin-top:14px"><b>Instagram на головній</b>
   <p class="small muted" style="margin:6px 0">8 останніх публікацій вашого акаунта. Доступ — той самий, що підключений у «Канали → Instagram та Facebook»; окремий токен не потрібен. Оновлюється щогодини.</p>
   <p class="small" style="margin:6px 0">{% if insta.get('items') %}Показуємо {{ insta['items']|length }} публікацій{{ (' · оновлено ' ~ insta.at[8:10] ~ '.' ~ insta.at[5:7] ~ ' ' ~ insta.at[11:16] ~ ' UTC') if insta.get('at') }}.{% else %}Стрічку ще не завантажено.{% endif %}

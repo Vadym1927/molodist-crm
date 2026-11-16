@@ -5,12 +5,14 @@ import hmac
 import json
 import re
 import time
-from datetime import date
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from sqlalchemy.orm import Session
+from sqlalchemy import select
+from .models import SiteOrder
 
 from .config import settings
 from .models import ProductFile, User
@@ -68,7 +70,7 @@ def register(app, templates, version: str):
                 "pch": float(pp["min_sum"] or 0) if pp["ready"] else None, "pch_legal": sf.PARTS_LEGAL, "pch_show": bool(pp["ready"] or pp.get("on")), "request": request, "s": c, "c": site, "d": data, "base": "" if on_site else "/_shop", "noindex": not on_site,
                 "canonical": c["canonical"].rstrip("/") + path, "ver": str(version)[:8], "year": date.today().year, "money": sp.money,
                 "og_title": "", "og_desc": "", "og_img": (c["canonical"].rstrip("/") if on_site else settings.public_url.rstrip("/")) + "/static/shop/og/default.jpg", "abs": (c["canonical"].rstrip("/") if on_site else settings.public_url.rstrip("/")),
-                "benefits": sf.lines(c.get("benefits")), "coin_earn": lambda price, sale=False: __import__("app.services.coins", fromlist=["x"]).earn_for(c, price, sale), "cat_icon": sf.cat_icon, "cert_url": _cert_url(db, site), "book_url": _book_url(db, site), "viber": sp.viber_link(db, site), "path": path, "q": "",
+                "benefits": sf.lines(c.get("benefits")), "coin_earn": lambda price, sale=False: __import__("app.services.coins", fromlist=["x"]).earn_for(c, price, sale), "cat_icon": sf.cat_icon, "brand_text": __import__("app.services.shop_seo", fromlist=["x"]).brand_text, "cert_url": _cert_url(db, site), "book_url": _book_url(db, site), "viber": sp.viber_link(db, site), "path": path, "q": "",
                 "pkey": request.query_params.get("p") or ""}
 
     def resp(request: Request, name: str, cx: dict, status: int = 200):
@@ -207,6 +209,13 @@ def register(app, templates, version: str):
             r = sf.create_order(db, body, settings.public_url)
         except sf.ShopError as e:
             return JSONResponse({"ok": False, "msg": str(e)}, status_code=400)
+        if got:
+            try:
+                from .services import shop_carts as _ct
+                _ct.ordered(db, got[1].id)
+                db.commit()
+            except Exception:  # noqa: BLE001
+                db.rollback()
         base = "" if host in sf.hosts() else "/_shop"
         r["done_url"] = f"{base}/checkout/done/?n={r['number']}"
         if r.get("parts"):
@@ -323,12 +332,51 @@ def register(app, templates, version: str):
                 sc.save_profile(db, acc, p, d)
             elif action == "address":
                 sc.save_address(db, acc, d)
+            elif action == "cart":
+                from .services import shop_carts as _ct
+                _ct.save(db, p.id, d.get("items") or [], cx_data(db))
+                db.commit()
             elif action == "wish":
                 return JSONResponse({"ok": True, "wish": sc.set_wish(db, acc, d.get("ids") or [], merge=bool(d.get("merge")))}, headers={"Cache-Control": "no-store"})
             else:
                 raise HTTPException(404)
         except sc.CabError as e:
             return JSONResponse({"ok": False, "msg": str(e)}, status_code=400)
+        return JSONResponse({"ok": True}, headers={"Cache-Control": "no-store"})
+
+    def cx_data(db):
+        return sf.catalog(db)
+
+    @app.get("/_shop/review/{tok}/", response_class=HTMLResponse)
+    def shop_review_page(tok: str, request: Request, db: Session = Depends(db_dep)):
+        from .services import shop_reviews as rv
+        cx = ctx(request, db, "/review/")
+        o = rv.by_token(db, tok)
+        if not o:
+            raise HTTPException(404)
+        cx.update(title="Ваш відгук — MOLODIST", desc="", noindex_page=True, private=True, tok=tok, order=o,
+                  ritems=rv.order_items(db, o, cx["d"]), rname=rv.first_name(o, db))
+        return resp(request, "shop/review.html", cx)
+
+    @app.post("/_shop/api/review")
+    async def shop_review_save(request: Request, db: Session = Depends(db_dep)):
+        from .services import shop_reviews as rv
+        d = _body(await request.body())
+        if d.get("website") or not _rate(request, "shoprv", 20):
+            return JSONResponse({"ok": False, "msg": "Забагато спроб. Спробуйте пізніше."}, status_code=429)
+        o = rv.by_token(db, str(d.get("token") or ""))
+        if not o:
+            return JSONResponse({"ok": False, "msg": "Посилання недійсне."}, status_code=404)
+        try:
+            rv.save(db, o, int(d.get("product_id") or 0), int(d.get("rating") or 0), str(d.get("text") or ""), str(d.get("name") or ""))
+        except (ValueError, TypeError) as e:
+            return JSONResponse({"ok": False, "msg": str(e)}, status_code=400)
+        db.commit()
+        try:
+            for ch in sf.order_chats(db):
+                sf._tg_send(ch, f"⭐ Новий відгук на товар (замовлення №{o.number}). Перевірте й опублікуйте: «Магазин → Відгуки».")
+        except Exception:  # noqa: BLE001
+            pass
         return JSONResponse({"ok": True}, headers={"Cache-Control": "no-store"})
 
     @app.get("/_shop/cabinet/", response_class=HTMLResponse)
@@ -343,6 +391,15 @@ def register(app, templates, version: str):
         site_root = cx["s"]["canonical"].rstrip("/") if not cx["noindex"] else settings.public_url.rstrip("/") + "/_shop"
         wi = sc.wish_items(cx["d"], acc.wishlist or [])
         cx.update(care=sc.doctor_care(db, p, cx["d"]) if t == "care" else None)
+        if t == "reviews":
+            from .services import shop_reviews as _rv
+            from .models import ShopReview as _SR
+            mine = list(db.scalars(select(_SR).where(_SR.patient_id == p.id).order_by(_SR.created_at.desc()).limit(50)))
+            names = {v["id"]: v["name"] for it in cx["d"]["items"] for v in it["variants"]}
+            for r in mine:
+                r.pname = names.get(r.product_id, "Товар")
+            got_o = {r.order_id for r in mine}
+            cx.update(my_reviews=mine, rv_tok=_rv.token, rv_orders=[o for o in sc.orders(db, p) if o.status in _rv.DONE and o.id not in got_o and o.source == "crm"][:5])
         cx.update(oimg={v["id"]: it["imgs"][0] for it in cx["d"]["items"] if it["imgs"] for v in it["variants"]})
         cx.update(t=t, acc=acc, p=p, coins=sc.coins(db, p.id), orders=sc.orders(db, p) if t == "orders" else [], wish=wi, wish_sum=sum(i["price"] for i in wi),
                   ref_url=f"{site_root}/?ref={acc.ref_code}", wish_url=f"{site_root}/wish/{acc.wish_token}/", STATUS_FAIL=sf.PAY_FAIL,
@@ -383,6 +440,11 @@ def register(app, templates, version: str):
         cx = ctx(request, db, "/checkout/done/")
         cx.update(title="Дякуємо за замовлення — MOLODIST", desc="", noindex_page=True, number=re.sub(r"[^\w-]", "", n)[:20])
         cx.update(parts=bool(request.query_params.get("parts")))
+        o = db.scalar(select(SiteOrder).where(SiteOrder.number == cx["number"], SiteOrder.source == "crm")) if cx["number"] else None
+        if o and o.created_at and (datetime.now() - o.created_at).total_seconds() < 86400:
+            cx["ga_purchase"] = {"transaction_id": o.number, "currency": "UAH", "value": float(o.total or 0), "shipping": float(o.delivery_price or 0),
+                                 "items": [{"item_id": str(i.get("product_id") or i.get("sku") or ""), "item_name": i.get("name") or "",
+                                            "price": float(i.get("price") or 0), "quantity": int(i.get("qty") or 1)} for i in o.items or []]}
         return resp(request, "shop/done.html", cx)
 
     # ---------- каталог ----------
@@ -422,7 +484,9 @@ def register(app, templates, version: str):
             cats = [c for c in d["cats"] if it["slug"] in c["slugs"] and not c["path"].startswith("/shop/brendi/")]
             cat = max(cats, key=lambda c: c["depth"]) if cats else None
             rel = [x for x in (d["by_slug"][s] for s in (cat["slugs"] if cat else [])) if x["slug"] != it["slug"] and x["stock"]][:8]
-            cx.update(canonical=cx["s"]["canonical"].rstrip("/") + f"/shop/{it['slug']}/", it=it, cat=cat, rel=rel,
+            from .services import shop_reviews as _rv
+            rvs = _rv.published(db, [v["id"] for v in it["variants"]])
+            cx.update(canonical=cx["s"]["canonical"].rstrip("/") + f"/shop/{it['slug']}/", it=it, cat=cat, rel=rel, rvs=rvs,
                       title=it["seo_title"] or f"{it['name']} — купити в MOLODIST", desc=it["seo_desc"] or it["name"],
                       jsonld=json.dumps({"@context": "https://schema.org/", "@type": "Product", "name": it["name"], "sku": it["sku"],
                                          "brand": {"@type": "Brand", "name": it["brand"]} if it["brand"] else None,
@@ -430,7 +494,12 @@ def register(app, templates, version: str):
                                          "description": it["seo_desc"] or it["name"],
                                          "offers": {"@type": "Offer", "priceCurrency": "UAH", "price": f"{it['price']:.0f}",
                                                     "url": cx["s"]["canonical"].rstrip("/") + f"/shop/{it['slug']}/",
-                                                    "availability": "https://schema.org/" + ("InStock" if it["stock"] else "OutOfStock")}}, ensure_ascii=False))
+                                                    "availability": "https://schema.org/" + ("InStock" if it["stock"] else "OutOfStock")},
+                                         **({"aggregateRating": {"@type": "AggregateRating", "ratingValue": rvs["avg"], "reviewCount": rvs["n"]},
+                                             "review": [{"@type": "Review", "author": {"@type": "Person", "name": r.name or "Покупець"},
+                                                         "reviewRating": {"@type": "Rating", "ratingValue": r.rating}, "reviewBody": r.text or "",
+                                                         "datePublished": r.created_at.strftime("%Y-%m-%d") if r.created_at else None} for r in rvs["rows"][:5]]}
+                                            if rvs["n"] else {})}, ensure_ascii=False))
             return resp(request, "shop/product.html", cx)
         path = "/shop/" + "/".join(segs) + "/"
         cat = d["by_path"].get(path)
@@ -451,7 +520,13 @@ def register(app, templates, version: str):
 
     def _resolve_links(html: str, d: dict, base: str, *db_req) -> str:
         from .services import shop_content as _sc
-        html = _sc.render(html, base, sf.cfg(db_req[0]).get("seller_req") if db_req else "")
+        book = ""
+        if db_req:
+            try:
+                book = _book_url(db_req[0], sp.cfg(db_req[0]))
+            except Exception:
+                book = ""
+        html = _sc.render(html, base, sf.cfg(db_req[0]).get("seller_req") if db_req else "", book)
         slugs = list(d["by_slug"])
 
         def fix(m):

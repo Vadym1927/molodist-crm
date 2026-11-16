@@ -2031,6 +2031,36 @@ class ShopNotify(Base):
     channel: Mapped[str | None] = mapped_column(String(20))
 
 
+class ShopReview(Base):
+    """Відгук покупця про товар магазину (лише справжні — з посилання після замовлення або з кабінету); публікується після модерації."""
+    __tablename__ = "shop_reviews"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), index=True)
+    patient_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    order_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    name: Mapped[str | None] = mapped_column(String(100))
+    rating: Mapped[int] = mapped_column(Integer)
+    text: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(20), default="new", index=True)   # new | ok | hidden
+    answer: Mapped[str | None] = mapped_column(Text)                              # відповідь магазину (публічна)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+    moderated_by: Mapped[int | None] = mapped_column(Integer)
+
+
+class ShopCart(Base):
+    """Кошик покупця, що увійшов у кабінет (для «покинутих кошиків»)."""
+    __tablename__ = "shop_carts"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), unique=True, index=True)
+    items: Mapped[list | None] = mapped_column(JSON)                              # [{id, qty}]
+    total: Mapped[float | None] = mapped_column(Float)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+    status: Mapped[str] = mapped_column(String(20), default="open", index=True)  # open | ordered | done | empty
+    reminded_at: Mapped[datetime | None] = mapped_column(DateTime)
+    task_id: Mapped[int | None] = mapped_column(Integer)
+    note: Mapped[str | None] = mapped_column(Text)
+
+
 class CoinTxn(Base):
     """MOLODIST Coins — окремий журнал (не бонуси, перенесені з CleverBox): нарахування (+), списання (−), повернення, згоряння."""
     __tablename__ = "coin_txns"

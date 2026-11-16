@@ -213,6 +213,22 @@ PRIVACY = """
 <p>Ми використовуємо cookies для входу в кабінет, кошика й аналітики відвідувань. Ви можете обмежити cookies у налаштуваннях браузера, але частина функцій може не працювати.</p>
 """
 
+CONTACTS = """
+<div class="info-cards contacts">
+ <div class="ic"><b>Звʼязатися</b><ul>
+  <li>Телефон: <a href="tel:+380933756437">+38 (093) 375 64 37</a></li>
+  <li>Telegram: <a href="https://t.me/molodist_ua" target="_blank" rel="noopener">@molodist_ua</a></li>
+  <li>Instagram: <a href="https://www.instagram.com/_molodist/" target="_blank" rel="noopener">@_molodist</a></li>
+  <li>E-mail: <a href="mailto:info.molodostua@gmail.com">info.molodostua@gmail.com</a></li></ul></div>
+ <div class="ic"><b>Самовивіз і консультації</b><ul>
+  <li>Київ, вул. Князя Романа Мстиславича, 28А (ЖК «Автограф»)</li>
+  <li>Вівторок–субота, 10:00–20:00; неділя й понеділок — вихідні</li>
+  <li>Замовлення з сайту приймаємо цілодобово</li></ul></div>
+</div>
+<p>Питання щодо замовлення, підбору догляду чи наявності — пишіть у Telegram або телефонуйте. Щоб отримати консультацію лікаря, <a href="{book}" target="_blank" rel="noopener">запишіться онлайн</a>.</p>
+<p class="mut">{seller}.</p>
+"""
+
 OWN = {
     "/for-customers/dostavka-i-oplata/": {"h1": "Оплата і доставка", "title": "Оплата і доставка — магазин професійної косметики MOLODIST",
                                           "desc": "Оплата карткою онлайн, Покупка Частинами monobank. Доставка «Новою поштою» по Україні за 1–4 дні, безкоштовно від 3 000 ₴. Відправка в день замовлення до 18:00.",
@@ -222,6 +238,8 @@ OWN = {
                                            "html": RETURNS},
     "/for-customers/pro-nas/": {"h1": "Про нас", "title": "Про MOLODIST — медичний простір і магазин професійної косметики",
                                 "desc": "MOLODIST — медичний простір естетики та профілактики в Києві й інтернет-магазин професійної косметики, яку призначають лікарі.", "html": ABOUT},
+    "/contacts/": {"h1": "Контакти", "title": "Контакти магазину MOLODIST — телефон, адреса, Telegram",
+                   "desc": "Магазин професійної косметики MOLODIST: +38 (093) 375 64 37, Telegram @molodist_ua, Київ, вул. Князя Романа Мстиславича, 28А. Самовивіз вт–сб 10:00–20:00.", "html": CONTACTS},
     "/for-customers/oferta/": {"h1": "Договір публічної оферти", "title": "Договір публічної оферти — магазин MOLODIST",
                                "desc": "Умови продажу товарів в інтернет-магазині molodist.store: замовлення, оплата, доставка, повернення.", "html": OFFER},
     "/for-customers/politika-konfidentsiynosti/": {"h1": "Політика конфіденційності", "title": "Політика конфіденційності — магазин MOLODIST",
@@ -247,10 +265,10 @@ def pages(imported: dict) -> dict:
     return out
 
 
-def render(html: str, base: str, req: str = "") -> str:
+def render(html: str, base: str, req: str = "", book: str = "") -> str:
     from html import escape
     from .shop_front import PARTS_LEGAL as L
     legal = (f'<div class="pch-legal"><b>{L["title"]}</b><p>Надавач послуг:</p><p>{L["provider"]}</p><p>Характеристики продукту:</p><p>'
              + "<br>".join("- " + x for x in L["items"]) + f'</p><p>{L["note"]} <a href="{L["url"]}" target="_blank" rel="noopener">{L["url_text"]}</a></p></div>')
     req_html = "<br>".join(escape(x) for x in (req or "").splitlines() if x.strip()) or escape(SELLER)
-    return (html or "").replace("{base}", base).replace("{parts_legal}", legal).replace("{seller}", SELLER).replace("{req}", req_html)
+    return (html or "").replace("{base}", base).replace("{parts_legal}", legal).replace("{seller}", SELLER).replace("{req}", req_html).replace("{book}", escape(book or "https://molodist.com.ua"))

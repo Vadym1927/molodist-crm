@@ -1,5 +1,8 @@
 /* Магазин MOLODIST: кошик (localStorage), бічна панель, пошук, товар, оформлення замовлення */
 (function () {
+  function ga(ev, ec) { try { window.dataLayer = window.dataLayer || []; window.dataLayer.push({ ecommerce: null }); window.dataLayer.push({ event: ev, ecommerce: ec });
+    if (typeof window.gtag === 'function') window.gtag('event', ev, ec); } catch (x) {} }
+  window.MSHOP_GA = ga;
   var S = window.MSHOP || {}, B = S.base || '', KEY = 'mshop_cart';
   function $(q, r) { return (r || document).querySelector(q); }
   function $$(q, r) { return Array.prototype.slice.call((r || document).querySelectorAll(q)); }
@@ -31,6 +34,9 @@
     api('/api/cart', { items: load(), coins: uc && uc.checked ? null : 0 }, function (j) {
       if (!j) return;
       last = j;
+      if (!window._mshBc && /\/checkout\/$/.test(location.pathname) && j.items.length) { window._mshBc = 1;
+        ga('begin_checkout', { currency: 'UAH', value: j.total, items: j.items.map(function (i) { return { item_id: String(i.id), item_name: i.name, price: i.price, quantity: i.qty }; }) }); }
+      if (S.me) { try { var sig = JSON.stringify(load()); if (sig !== sessionStorage.getItem('mshop_cs')) { sessionStorage.setItem('mshop_cs', sig); api('/api/cab/cart', { items: load() }, function () {}); } } catch (x) {} }
       var ids = j.items.map(function (i) { return i.id; });
       var c = load().filter(function (i) { return ids.indexOf(i.id) >= 0; });
       if (c.length !== load().length) save(c);
@@ -87,7 +93,8 @@
     if (t.hasAttribute('data-add')) {
       var q = $('#p-qty') && t.id === 'p-add' ? Math.max(1, parseInt($('#p-qty').value, 10) || 1) : 1;
       add(parseInt(t.getAttribute('data-add'), 10), q);
-      window.dataLayer = window.dataLayer || []; window.dataLayer.push({ event: 'add_to_cart', item_name: t.getAttribute('data-name') });
+      var pr = parseFloat(t.getAttribute('data-price')) || 0;
+      ga('add_to_cart', { currency: 'UAH', value: pr * q, items: [{ item_id: t.getAttribute('data-add'), item_name: t.getAttribute('data-name'), item_brand: t.getAttribute('data-brand') || undefined, price: pr, quantity: q }] });
       openCart();
     } else if (t.hasAttribute('data-cart-open')) openCart();
     else if (t.hasAttribute('data-cart-close') || t.hasAttribute('data-menu-close')) closeAll();
@@ -176,7 +183,7 @@
         bt.disabled = false; bt.textContent = 'Підтвердити замовлення';
         if (j && j.ok) {
           try { localStorage.setItem('mlds_me', JSON.stringify({ name: d.name, phone: d.phone })); localStorage.removeItem(KEY); } catch (x) {}
-          window.dataLayer = window.dataLayer || []; window.dataLayer.push({ event: 'purchase', transaction_id: j.number, value: j.total, currency: 'UAH' });
+          try { sessionStorage.setItem('mshop_pur', String(j.number)); } catch (x) {}
           if (j.parts_error) alert(j.parts_error);
           location.href = j.pay_url || j.done_url;
         } else { er.textContent = (j && j.msg) || 'Не вдалося оформити. Зателефонуйте нам, будь ласка.'; er.hidden = false; }

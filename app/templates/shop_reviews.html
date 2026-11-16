@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Відгуки магазину{% endblock %}
+{% block body %}
+<style>.chip{padding:7px 13px;border-radius:999px;border:1px solid var(--line);text-decoration:none;color:var(--ink);font-size:13px;background:#fff;white-space:nowrap}.chip.on{background:#3B3050;border-color:#3B3050;color:#fff}.chip b{margin-left:5px}
+.sc-f{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.rvc{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:10px;display:grid;gap:8px}
+.rvc .h{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.st{color:#3B3050;letter-spacing:2px}.rvc textarea{width:100%;min-height:54px}.rvc form{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}.rvc form label{flex:1;min-width:240px}</style>
+<h1 style="margin:0 0 4px">Центр керування магазином</h1><div class="muted small" style="margin-bottom:12px">Відгуки покупців: лише з посилання після замовлення. На сайті — після «Опублікувати».</div>
+{% include "_shop_tabs.html" %}{% include "_shop_msg.html" %}
+<div class="sc-f" style="margin-bottom:12px">{% for k, n in (('new','Нові'),('ok','Опубліковані'),('hidden','Приховані'),('all','Усі')) %}<a class="chip {{ 'on' if status == k }}" href="?status={{ k }}">{{ n }}</a>{% endfor %}
+  <a class="chip" href="/settings/shop#reviews">Налаштування запиту відгуку</a></div>
+{% for r in rows %}{% set nm = names.get(r.product_id) %}{% set o = orders.get(r.order_id) %}
+<div class="rvc"><div class="h"><b>{{ nm[0] if nm else 'Товар #' ~ r.product_id }}</b>{% if nm %}<a class="small" href="{{ root }}/shop/{{ nm[1] }}/" target="_blank" rel="noopener">на сайті ↗</a>{% endif %}
+  <span class="st">{{ '★' * r.rating }}{{ '☆' * (5 - r.rating) }}</span><span class="small muted">{{ r.name }} · {{ r.created_at|local if r.created_at }}{% if o %} · <a href="/shop-orders/{{ o.id }}">замовлення №{{ o.number }}</a>{% endif %}{% if r.patient_id %} · <a href="/patients/{{ r.patient_id }}">картка</a>{% endif %}</span>
+  <span class="badge">{{ STATUS[r.status] }}</span></div>
+  {% if r.text %}<div>{{ r.text }}</div>{% else %}<div class="muted small">Без тексту — лише оцінка.</div>{% endif %}
+  <form method="post" action="/shop-reviews/{{ r.id }}"><input type="hidden" name="back" value="{{ status }}">
+    <label class="small">Відповідь магазину (публічна, необовʼязково)<textarea name="answer">{{ r.answer or '' }}</textarea></label>
+    {% if r.status != 'ok' %}<button class="btn" name="status" value="ok">Опублікувати</button>{% endif %}
+    {% if r.status != 'hidden' %}<button class="btn ghost" name="status" value="hidden">Приховати</button>{% endif %}
+    <button class="btn ghost" name="status" value="">Зберегти відповідь</button></form>
+  {% if r.rating <= 3 %}<div class="small" style="color:#8C2F39">Низька оцінка — варто звʼязатися з покупцем і зʼясувати, що не так.</div>{% endif %}
+</div>{% else %}<p class="muted">Тут поки порожньо.</p>{% endfor %}
+{% endblock %}

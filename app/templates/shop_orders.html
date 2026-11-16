@@ -10,6 +10,7 @@
 tr.old td{opacity:.6}</style>
 <div class="sc-h"><div><h1 style="margin:0">Центр керування магазином</h1><div class="muted small">Замовлення інтернет-магазину MOLODIST · {{ n }} у списку</div></div>
   <a class="btn" href="{{ shop_url }}" target="_blank" rel="noopener">{{ 'Відкрити магазин' if shop_on else 'Перегляд магазину' }} ↗</a></div>
+{% include "_shop_tabs.html" %}
 {% set sq = ('&status=' ~ (f.status|urlencode)) if f.status else '' %}{% set aq = '&src=arch' if src == 'arch' else '' %}
 <form class="sc-f" style="margin-bottom:12px"><a class="chip {{ 'on' if not per and not f.d1 and not f.d2 }}" href="?{{ sq[1:] }}{{ aq }}">Увесь час</a>
   {% for k2, n2 in (('today','Сьогодні'),('7','7 днів'),('30','30 днів'),('month','Цей місяць')) %}<a class="chip {{ 'on' if per == k2 }}" href="?per={{ k2 }}{{ sq }}{{ aq }}">{{ n2 }}</a>{% endfor %}

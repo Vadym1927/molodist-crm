@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Покинуті кошики{% endblock %}
+{% block body %}
+<style>.chip{padding:7px 13px;border-radius:999px;border:1px solid var(--line);text-decoration:none;color:var(--ink);font-size:13px;background:#fff;white-space:nowrap}.chip.on{background:#3B3050;border-color:#3B3050;color:#fff}.chip b{margin-left:5px}
+.sc-f{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.ctc{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:10px;display:grid;gap:10px}
+.ctc .h{display:flex;gap:12px;flex-wrap:wrap;align-items:baseline;justify-content:space-between}.ctc .it{display:flex;gap:8px;flex-wrap:wrap}.ctc .it span{display:inline-flex;gap:6px;align-items:center;background:#F7F4F0;border-radius:10px;padding:4px 8px 4px 4px;font-size:13px}
+.ctc .it img{width:34px;height:34px;border-radius:6px;object-fit:contain;background:#fff}.ctc form{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.ctc input[name=note]{flex:1;min-width:200px}.age{font:600 13px var(--sans);color:#8C2F39}</style>
+<h1 style="margin:0 0 4px">Центр керування магазином</h1><div class="muted small" style="margin-bottom:12px">Кошики покупців, що увійшли в кабінет і не оформили замовлення. Задача адміністраторам — через {{ c.cart_task_hours or '—' }} год; авто-нагадування — {{ ('через ' ~ c.cart_auto_hours ~ ' год') if c.cart_auto_on else 'вимкнено' }} (<a href="/settings/shop#carts">налаштування</a>).</div>
+{% include "_shop_tabs.html" %}{% include "_shop_msg.html" %}
+<div class="sc-f" style="margin-bottom:12px">{% for k, n in STATUS.items() if k != 'empty' %}<a class="chip {{ 'on' if status == k }}" href="?status={{ k }}">{{ n }}</a>{% endfor %}
+  {% if status == 'open' %}<span class="muted small" style="margin-left:8px">{{ rows|length }} кошиків на {{ sum_open|uah }}</span>{% endif %}</div>
+{% for r in rows %}{% set ct = r.cart %}
+<div class="ctc"><div class="h"><div><b>{% if r.patient %}<a href="/patients/{{ r.patient.id }}">{{ r.name or 'Покупець' }}</a>{% else %}{{ r.name }}{% endif %}</b>
+    {% if r.phone %}<a class="small" href="tel:{{ r.phone }}" style="margin-left:8px">📞 {{ r.phone }}</a>{% endif %}</div>
+  <div><b>{{ (ct.total or 0)|uah }}</b> <span class="age" title="{{ ct.updated_at|local if ct.updated_at }}">висить {{ r.age }}</span></div></div>
+  <div class="it">{% for i in r.lines %}<span>{% if i.img %}<img src="/_shop/img/{{ i.img }}?w=100" alt="">{% endif %}{{ i.name }} × {{ i.qty }}{% if not i.stock %} <em class="muted">(немає)</em>{% endif %}</span>{% else %}<span class="muted">порожньо</span>{% endfor %}</div>
+  {% if r.task %}<div class="small">Задача: <a href="/tasks?open={{ r.task.id }}">{{ r.task.title }}</a> · {{ 'відкрита' if r.task.status == 'open' else 'виконана' }}</div>{% endif %}
+  {% if ct.note %}<div class="small muted" style="white-space:pre-line">{{ ct.note }}</div>{% endif %}
+  {% if ct.status == 'open' %}<form method="post" action="/shop-carts/{{ ct.id }}">
+    <button class="btn" name="action" value="remind" {{ 'disabled' if not r.phone }}>{{ 'Нагадати ще раз' if ct.reminded_at else 'Надіслати нагадування' }}</button>
+    {% if r.phone %}<a class="btn ghost" href="tel:{{ r.phone }}">Подзвонити</a>{% endif %}
+    <input name="note" placeholder="Результат: передзвонив, подумає / оформив по телефону / не цікаво"><button class="btn ghost" name="action" value="done">Опрацьовано</button></form>{% endif %}
+</div>{% else %}<p class="muted">Покинутих кошиків немає.</p>{% endfor %}
+{% endblock %}

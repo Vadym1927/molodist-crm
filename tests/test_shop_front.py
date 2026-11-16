@@ -236,7 +236,7 @@ def test_shop_cabinet_flow(monkeypatch):
     from app.models import ShopAccount, CoinTxn, BonusTxn, Patient
     codes = {}
 
-    def fake(db, phone, text):
+    def fake(db, phone, text, *a):
         codes[phone] = "".join(ch for ch in text if ch.isdigit())[:5]
         assert "магазин MOLODIST" in text
         return "sms"
@@ -294,7 +294,7 @@ def test_shop_notify_when_back(monkeypatch):
     from app.services import shop_cabinet as sc, shop_front as sf
     from app.models import ShopNotify
     out = []
-    monkeypatch.setattr(sc, "_deliver", lambda db, phone, text: (out.append((phone, text)) or "sms"))
+    monkeypatch.setattr(sc, "_deliver", lambda db, phone, text, *a: (out.append((phone, text)) or "sms"))
     monkeypatch.setattr("app.shop_web._rate", lambda *a, **k: True)
     monkeypatch.setattr("app.integrations.messaging.is_quiet_time", lambda *a, **k: False)
     with TestClient(app) as c:
@@ -326,7 +326,7 @@ def test_shop_care_and_order_notice(monkeypatch):
     from app.services import shop_cabinet as sc, shop_front as sf
     from app.models import Patient, BeautyPlan, PlanItem, SiteOrder
     out = []
-    monkeypatch.setattr(sc, "_deliver", lambda db, phone, text: (out.append(text) or "sms"))
+    monkeypatch.setattr(sc, "_deliver", lambda db, phone, text, *a: (out.append(text) or "sms"))
     monkeypatch.setattr(sf, "notify", lambda *a, **k: 0)
     with TestClient(app):
         with SessionLocal() as db:
@@ -480,3 +480,80 @@ def test_shop_content_search_delivery(monkeypatch):
         assert "molodist.store" in of and "Права інтелектуальної власності" in of and "{req}" not in of and "Адреса: м. Київ" in of
         assert "Медичні дані" in c.get("/_shop/for-customers/politika-konfidentsiynosti/").text and "OBSERV" in c.get("/_shop/for-customers/pro-nas/").text
         assert "› Molodist.shop" not in c.get("/_shop/").text
+
+
+def test_shop_reviews_carts_analytics(monkeypatch):
+    from app.services import shop_cabinet as sc, shop_front as sf, shop_reviews as rv, shop_carts as ct
+    from app.models import ShopReview, ShopCart, Task, ShopAccount, Patient
+    out = []
+    monkeypatch.setattr(sc, "_deliver", lambda db, phone, text, *a: (out.append((phone, text)) or "sms"))
+    monkeypatch.setattr(sf, "notify", lambda *a, **k: 0)
+    monkeypatch.setattr(sf, "_tg_send", lambda *a, **k: (True, 1))
+    monkeypatch.setattr("app.shop_web._rate", lambda *a, **k: True)
+    monkeypatch.setattr("app.integrations.messaging.is_quiet_time", lambda *a, **k: False)
+    settings.admin_password = "owner-pass-rv"
+    with TestClient(app) as c:
+        with SessionLocal() as db:
+            k = sf.preview_key(db)
+            p = Product(name="Review Cream", name_norm="review cream", price=4200, site_on=True, site_info={"slug": "review-cream", "title": "Review Cream", "presence": 1, "brand_name": "Medik8"})
+            db.add(p); db.commit(); pid = p.id
+            sf.catalog(db, fresh=True)
+            cfg = sf.cfg(db)
+            assert "18:00" in cfg["benefits"] and ("15" + ":00") not in cfg["benefits"]
+            r = sf.create_order(db, {"items": [{"id": pid, "qty": 1}], "name": "Відгук Марія", "phone": "+380501119988", "city": "Київ", "warehouse": "№1", "delivery": "np", "pay": "card"}, "http://x")
+            o = db.get(SiteOrder, r["id"]); num = o.number
+            cfg.update(review_on=True, review_days=0); sf.save_cfg(db, cfg); db.commit()
+            sf.set_status(db, o, "Отримано"); db.commit()
+            assert o.raw.get("review_due")
+            rep = rv.send_due(db, sf.cfg(db), "https://shop.test", sf.catalog(db)); db.commit()
+            assert rep["sent"] == 1 and "/review/" in out[-1][1] and "Review Cream" in out[-1][1]
+            assert rv.send_due(db, sf.cfg(db), "https://shop.test", sf.catalog(db))["sent"] == 0      # один раз
+            tok = rv.token(o)
+        c.cookies.set("shop_prev", k)
+        assert c.get("/_shop/review/1-bad/").status_code == 404
+        pg = c.get(f"/_shop/review/{tok}/").text
+        assert "Review Cream" in pg and "Надіслати відгук" in pg
+        assert c.post("/_shop/api/review", json={"token": tok, "product_id": pid, "rating": 0}).status_code == 400
+        assert c.post("/_shop/api/review", json={"token": tok, "product_id": 999999, "rating": 5}).status_code == 400
+        assert c.post("/_shop/api/review", json={"token": tok, "product_id": pid, "rating": 5, "text": "Чудовий крем", "name": "Марія"}).json()["ok"]
+        prod = c.get("/_shop/shop/review-cream/").text
+        assert "Чудовий крем" not in prod and "view_item" in prod                                       # до модерації не видно
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-rv"})
+        assert "Чудовий крем" in c.get("/shop-reviews").text
+        with SessionLocal() as db:
+            rid = db.scalars(select(ShopReview)).all()[-1].id
+        c.post(f"/shop-reviews/{rid}", data={"status": "ok", "answer": "Дякуємо!"})
+        prod = c.get("/_shop/shop/review-cream/").text
+        assert "Чудовий крем" in prod and "Дякуємо!" in prod and "aggregateRating" in prod
+        # done page — подія purchase лише для свіжого замовлення
+        d = c.get(f"/_shop/checkout/done/?n={num}").text
+        assert "'purchase'" in d and "Review Cream" in d
+        # покинутий кошик
+        with SessionLocal() as db:
+            pt = Patient(full_name="Кошик Тест", phone="380501117766"); db.add(pt); db.flush()
+            db.add(ShopAccount(patient_id=pt.id, first_name="Тест", created_at=datetime.utcnow())); db.commit()
+            cart = ct.save(db, pt.id, [{"id": pid, "qty": 2}, {"id": "x"}], sf.catalog(db)); db.commit()
+            assert cart.status == "open" and cart.total == 8400 and cart.items == [{"id": pid, "qty": 2}]
+            cart.updated_at = datetime.utcnow() - timedelta(hours=3); db.commit()
+            cfg = sf.cfg(db); cfg.update(cart_task_hours=2, cart_auto_on=False); sf.save_cfg(db, cfg); db.commit()
+            assert ct.job(db, sf.cfg(db), sf.catalog(db), "https://shop.test")["tasks"] == 1
+            assert ct.job(db, sf.cfg(db), sf.catalog(db), "https://shop.test")["tasks"] == 0
+            t = db.get(Task, db.get(ShopCart, cart.id).task_id)
+            assert t.kind == "shop_cart" and t.priority == "high"
+            cid = cart.id
+        page = c.get("/shop-carts").text
+        assert "Кошик Тест" in page and "Надіслати нагадування" in page
+        c.post(f"/shop-carts/{cid}", data={"action": "remind"})
+        assert "Review Cream" in out[-1][1] and "/checkout/" in out[-1][1]
+        with SessionLocal() as db:
+            ct.ordered(db, db.get(ShopCart, cid).patient_id); db.commit()
+            assert db.get(ShopCart, cid).status == "ordered" and db.get(Task, t.id).status == "done"
+        # контакти, рядок, аналітика в налаштуваннях
+        ctp = c.get("/_shop/contacts/").text
+        assert "375 64 37" in ctp and "Контакти" in c.get("/_shop/").text
+        r = c.post("/settings/shop", data={"action": "rvcart", "review_on": "1", "review_days": "4", "review_test_phone": "+380501119988"}, follow_redirects=False)
+        assert r.status_code == 303
+        with SessionLocal() as db:
+            assert sf.cfg(db)["review_days"] == 4
+        r = c.post("/settings/shop", data={"action": "rvtest", "review_test_phone": "+380501119988"}, follow_redirects=False)
+        assert "msg=" in r.headers["location"] and out[-1][1].startswith("[ТЕСТ]")
