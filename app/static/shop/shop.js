@@ -1,0 +1,128 @@
+/* Магазин MOLODIST: кошик (localStorage), бічна панель, пошук, товар, оформлення замовлення */
+(function () {
+  var S = window.MSHOP || {}, B = S.base || '', KEY = 'mshop_cart';
+  function $(q, r) { return (r || document).querySelector(q); }
+  function $$(q, r) { return Array.prototype.slice.call((r || document).querySelectorAll(q)); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function money(v) { return Math.round(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' ₴'; }
+  function load() { try { return JSON.parse(localStorage.getItem(KEY) || '[]') || []; } catch (e) { return []; } }
+  function save(c) { try { localStorage.setItem(KEY, JSON.stringify(c)); } catch (e) {} badge(c); }
+  function badge(c) { var n = (c || load()).reduce(function (a, x) { return a + x.qty; }, 0); $$('[data-cart-n]').forEach(function (e) { e.textContent = n; e.hidden = !n; }); }
+  function api(path, body, cb) {
+    fetch(B + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json(); }).then(cb).catch(function () { cb(null); });
+  }
+  function toast(t) { var e = document.createElement('div'); e.className = 'toast'; e.textContent = t; document.body.appendChild(e); setTimeout(function () { e.remove(); }, 2200); }
+  function add(id, qty) {
+    var c = load(), x = c.filter(function (i) { return i.id === id; })[0];
+    if (x) x.qty = Math.min(50, x.qty + qty); else c.push({ id: id, qty: qty });
+    save(c);
+  }
+  function setQty(id, qty) { var c = load().map(function (i) { if (i.id === id) i.qty = qty; return i; }).filter(function (i) { return i.qty > 0; }); save(c); }
+  function line(i, small) {
+    return '<div class="ci" data-id="' + i.id + '">' + (i.img ? '<img src="' + B + '/img/' + i.img + '?w=300" alt="">' : '<span class="noimg">M</span>') +
+      '<div><a href="' + B + '/shop/' + esc(i.slug) + '/">' + esc(i.name) + '</a><small>' + money(i.price) + '</small>' +
+      (small ? '<small> × ' + i.qty + '</small>' : '<div class="q"><button type="button" data-d="-1">−</button><b>' + i.qty + '</b><button type="button" data-d="1">+</button></div>') +
+      '</div>' + (small ? '<b>' + money(i.total) + '</b>' : '<button type="button" class="rm" aria-label="Прибрати">×</button>') + '</div>';
+  }
+  var cartEl = $('#cart'), last = null;
+  function render(cb) {
+    api('/api/cart', { items: load() }, function (j) {
+      if (!j) return;
+      last = j;
+      var ids = j.items.map(function (i) { return i.id; });
+      var c = load().filter(function (i) { return ids.indexOf(i.id) >= 0; });
+      if (c.length !== load().length) save(c);
+      var l = $('[data-cart-list]');
+      if (l) l.innerHTML = j.items.length ? j.items.map(function (i) { return line(i); }).join('') : '<p class="cart-empty">Кошик порожній</p>';
+      $$('[data-cart-total]').forEach(function (e) { e.textContent = money(j.total); });
+      var f = $('[data-cart-free]');
+      if (f) { f.hidden = !S.free || !j.items.length; f.textContent = j.free_delivery ? 'Доставка цього замовлення — безкоштовна' : 'До безкоштовної доставки лишилось ' + money(j.to_free); }
+      if (cb) cb(j);
+    });
+  }
+  function openCart() { if (!cartEl) return; cartEl.hidden = false; document.body.style.overflow = 'hidden'; render(); }
+  function closeAll() { [cartEl, $('#mnav')].forEach(function (e) { if (e) e.hidden = true; }); document.body.style.overflow = ''; }
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest ? e.target.closest('[data-add],[data-cart-open],[data-cart-close],[data-menu],[data-menu-close],[data-search],.ci button,[data-img],[data-q]') : null;
+    if (!t) return;
+    if (t.hasAttribute('data-add')) {
+      var q = $('#p-qty') && t.id === 'p-add' ? Math.max(1, parseInt($('#p-qty').value, 10) || 1) : 1;
+      add(parseInt(t.getAttribute('data-add'), 10), q);
+      window.dataLayer = window.dataLayer || []; window.dataLayer.push({ event: 'add_to_cart', item_name: t.getAttribute('data-name') });
+      openCart();
+    } else if (t.hasAttribute('data-cart-open')) openCart();
+    else if (t.hasAttribute('data-cart-close') || t.hasAttribute('data-menu-close')) closeAll();
+    else if (t.hasAttribute('data-menu')) { $('#mnav').hidden = false; document.body.style.overflow = 'hidden'; }
+    else if (t.hasAttribute('data-search')) { var f = $('.hd-search'); f.hidden = !f.hidden; if (!f.hidden) f.q.focus(); }
+    else if (t.hasAttribute('data-img')) { $('#gal-main').src = t.getAttribute('data-img'); $$('.thumbs button').forEach(function (b) { b.classList.toggle('on', b === t); }); }
+    else if (t.hasAttribute('data-q')) { var i = $('#p-qty'); i.value = Math.max(1, Math.min(50, (parseInt(i.value, 10) || 1) + parseInt(t.getAttribute('data-q'), 10))); }
+    else if (t.closest('.ci') && cartEl && cartEl.contains(t)) {
+      var id = parseInt(t.closest('.ci').getAttribute('data-id'), 10), cur = load().filter(function (x) { return x.id === id; })[0];
+      if (!cur) return;
+      setQty(id, t.classList.contains('rm') ? 0 : cur.qty + parseInt(t.getAttribute('data-d'), 10));
+      render(co ? renderCo : null);
+    }
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeAll(); });
+  $$('.vars input').forEach(function (r) { r.addEventListener('change', function () { $('#p-price').textContent = r.dataset.price; $('#p-add').setAttribute('data-add', r.value); }); });
+  badge();
+
+  /* ---------- оформлення ---------- */
+  var co = $('#co');
+  function renderCo(j) {
+    j = j || last; if (!j) return;
+    $('#co-items').innerHTML = j.items.length ? j.items.map(function (i) { return line(i, true); }).join('') : '<p class="mut">Кошик порожній. <a href="' + B + '/shop/">До каталогу</a></p>';
+    $('#co-sum').textContent = money(j.total); $('#co-tot').textContent = money(j.total);
+    var pick = $('[name=delivery]:checked', co);
+    $('#co-del').textContent = pick && pick.value === 'pickup' ? 'самовивіз — безкоштовно' : (j.free_delivery ? 'безкоштовно' : 'за тарифами Нової пошти');
+    var g = $('#co-gift'); g.hidden = !j.gifts.length;
+    if (j.gifts.length && !$('#co-gifts').children.length) $('#co-gifts').innerHTML = j.gifts.map(function (x, n) { return '<label><input type="radio" name="gift" value="' + esc(x) + '"' + (n ? '' : ' checked') + '><span><b>' + esc(x) + '</b></span></label>'; }).join('');
+  }
+  if (co) {
+    var form = $('#co-form'), cityRef = '';
+    render(renderCo);
+    $$('[name=delivery]', form).forEach(function (r) { r.addEventListener('change', function () { $('#co-np').hidden = r.value === 'pickup' && r.checked; renderCo(); }); });
+    form.phone.addEventListener('focus', function () { if (!form.phone.value) form.phone.value = '+380'; });
+    try { var me = JSON.parse(localStorage.getItem('mlds_me') || 'null'); if (me) { form.name.value = me.name || ''; form.phone.value = me.phone || ''; } } catch (e) {}
+    if (co.dataset.np) {
+      var timer;
+      function ac(input, url, pickCb) {
+        var box = input.parentNode.querySelector('.ac-l');
+        input.addEventListener('input', function () {
+          clearTimeout(timer);
+          timer = setTimeout(function () {
+            var u = url(input.value.trim()); if (!u) { box.hidden = true; return; }
+            fetch(B + u).then(function (r) { return r.json(); }).then(function (j) {
+              box.innerHTML = (j.rows || []).map(function (x) { return '<button type="button" data-ref="' + esc(x.ref) + '">' + esc(x.name) + '</button>'; }).join('');
+              box.hidden = !box.innerHTML;
+            });
+          }, 250);
+        });
+        box.addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; input.value = b.textContent; box.hidden = true; pickCb(b.getAttribute('data-ref')); });
+        document.addEventListener('click', function (e) { if (!input.parentNode.contains(e.target)) box.hidden = true; });
+      }
+      ac(form.city, function (q) { return q.length >= 2 ? '/api/np/cities?q=' + encodeURIComponent(q) : ''; }, function (ref) { cityRef = ref; form.warehouse.value = ''; form.warehouse.focus(); });
+      ac(form.warehouse, function (q) { return cityRef ? '/api/np/wh?city=' + encodeURIComponent(cityRef) + '&q=' + encodeURIComponent(q) : ''; }, function () {});
+      form.warehouse.addEventListener('focus', function () { if (cityRef && !form.warehouse.value) form.warehouse.dispatchEvent(new Event('input')); });
+    }
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var er = $('.err', form), bt = $('button.btn', form); er.hidden = true;
+      var d = { items: load(), name: form.name.value.trim(), phone: form.phone.value, email: form.email.value.trim(), city: form.city.value.trim(),
+        warehouse: form.warehouse.value.trim(), comment: form.comment.value.trim(), website: form.website.value,
+        delivery: ($('[name=delivery]:checked', form) || {}).value, pay: ($('[name=pay]:checked', form) || {}).value, gift: ($('[name=gift]:checked', form) || {}).value || '' };
+      try { var m = JSON.parse(localStorage.getItem('mlds_utm') || 'null'); if (m && m.m) for (var k in m.m) d[k] = m.m[k]; } catch (x) {}
+      if (!d.items.length) { er.textContent = 'Кошик порожній.'; er.hidden = false; return; }
+      bt.disabled = true; bt.textContent = 'Оформлюємо…';
+      api('/api/order', d, function (j) {
+        bt.disabled = false; bt.textContent = 'Підтвердити замовлення';
+        if (j && j.ok) {
+          try { localStorage.setItem('mlds_me', JSON.stringify({ name: d.name, phone: d.phone })); localStorage.removeItem(KEY); } catch (x) {}
+          window.dataLayer = window.dataLayer || []; window.dataLayer.push({ event: 'purchase', transaction_id: j.number, value: j.total, currency: 'UAH' });
+          location.href = j.pay_url || j.done_url;
+        } else { er.textContent = (j && j.msg) || 'Не вдалося оформити. Зателефонуйте нам, будь ласка.'; er.hidden = false; }
+      });
+    });
+  }
+})();

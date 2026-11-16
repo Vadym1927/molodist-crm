@@ -1,0 +1,23 @@
+{% extends "shop/base.html" %}{% from "shop/_card.html" import card, rowblock %}
+{% block main %}
+<section class="sec prod"><div class="wrap">
+  <nav class="crumbs"><a href="{{ base }}/">Головна</a><a href="{{ base }}/shop/">Магазин</a>{% if cat %}<a href="{{ base }}{{ cat.path }}">{{ cat.name }}</a>{% endif %}<span>{{ it.name }}</span></nav>
+  <div class="prod-in">
+    <div class="gal">{% if it.imgs %}<img id="gal-main" src="{{ base }}/img/{{ it.imgs[0] }}?w=1200" alt="{{ it.name }}" width="900" height="900" fetchpriority="high">
+      {% if it.imgs|length > 1 %}<div class="thumbs">{% for f in it.imgs %}<button type="button" data-img="{{ base }}/img/{{ f }}?w=1200" class="{{ 'on' if loop.first }}"><img src="{{ base }}/img/{{ f }}?w=300" alt="" loading="lazy"></button>{% endfor %}</div>{% endif %}
+      {% else %}<span class="noimg big">M</span>{% endif %}</div>
+    <div class="info">{% if it.brand %}<p class="pc-br">{{ it.brand }}</p>{% endif %}<h1>{{ it.name }}</h1>
+      {% if it.sku %}<p class="mut small">Артикул: {{ it.sku }}</p>{% endif %}
+      {% if it.variants|length > 1 %}<div class="vars">{% for v in it.variants %}<label><input type="radio" name="var" value="{{ v.id }}" data-price="{{ money(v.price) }}" {{ 'checked' if loop.first }} {{ 'disabled' if not v.stock }}><span>{{ v.label or v.name }} · {{ money(v.price) }}</span></label>{% endfor %}</div>{% endif %}
+      <div class="price"><b id="p-price">{{ money(it.price) }}</b>{% if it.old %}<s>{{ money(it.old) }}</s><em class="bdg sale">−{{ it.pct }}%</em>{% endif %}</div>
+      {% if it.stock %}<p class="ok">В наявності</p>
+      <div class="buy"><div class="qty"><button type="button" data-q="-1">−</button><input id="p-qty" value="1" inputmode="numeric" aria-label="Кількість"><button type="button" data-q="1">+</button></div>
+        <button class="btn" type="button" id="p-add" data-add="{{ it.variants[0].id }}" data-name="{{ it.name }}">Додати в кошик</button></div>
+      {% else %}<p class="out">Немає в наявності</p><a class="btn ghost" href="{{ c.telegram }}" target="_blank" rel="noopener">Повідомити, коли зʼявиться</a>{% endif %}
+      <ul class="perks"><li>Оплата частинами monobank — до 4 платежів</li><li>{{ ('Безкоштовна доставка від ' ~ money(s.free_from)) if s.free_from else 'Доставка Новою поштою' }}</li><li>Оригінальна продукція · підбір догляду лікарем</li></ul>
+    </div>
+  </div>
+  {% if it.desc %}<div class="desc"><h2>Опис</h2><div class="rte">{{ it.desc|safe }}</div></div>{% endif %}
+</div></section>
+{{ rowblock('З цим товаром купують', rel, base, money) }}
+{% endblock %}

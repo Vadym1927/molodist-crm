@@ -762,6 +762,11 @@ class _SiteHost:
             if host and host in _sp.hosts() and not scope["path"].startswith(("/static/", "/_site")):
                 p = "/_site" + (scope["path"] if scope["path"] != "/" else "/")
                 scope = dict(scope, path=p, raw_path=p.encode())
+            else:
+                from .services import shop_front as _sf
+                if host and host in _sf.hosts() and not scope["path"].startswith(("/static/", "/_shop", "/api/public/")):
+                    p = "/_shop" + (scope["path"] if scope["path"] != "/" else "/")
+                    scope = dict(scope, path=p, raw_path=p.encode())
         await self.app(scope, receive, send)
 
 
@@ -770,6 +775,15 @@ app.add_middleware(_SiteHost)
 app.include_router(api_module.router)
 from fastapi.staticfiles import StaticFiles   # noqa: E402
 app.mount("/static", StaticFiles(directory=str(BASE / "static")), name="static")
+
+
+def _register_shop():
+    from . import shop_web
+    vf = BASE / "VERSION"
+    shop_web.register(app, templates, vf.read_text().strip() if vf.exists() else "dev")
+
+
+_register_shop()
 
 
 @app.exception_handler(HTTPException)
@@ -7305,6 +7319,7 @@ SETTINGS_BLOCKS = [
         ('Графік роботи', 'Зміни спеціалістів по днях і кабінетах', '/specialists/schedule', 'schedule', None),
         ('Джерела запису', 'Звідки пацієнт записався: дзвінок, Instagram, повторний…: список для вікна візиту й звіт', '/settings/booking-sources', 'users', None),
         ('Статуси візитів', 'Записаний, підтверджено, оплачено ₴, скасовано…: назви, кольори в календарі, свої статуси', '/settings/visit-statuses', 'users', None),
+        ('Інтернет-магазин', 'Власний магазин косметики на CRM: публікація, домен, доставка, оплата, подарунки, структура й SEO з molodist.store', '/settings/shop', 'users', None),
         ('Онлайн-запис', 'Сторінка запису на сайті: послуги, спеціалісти, вільний час, сертифікати, гайди', '/settings/online-booking', 'users', None),
         ('Відгуки й NPS', 'Опитування пацієнта після візиту: питання, канал, посилання на відгук у Google, рекламації', '/settings/reviews', 'users', ''),
         ('Бот турботи', 'Telegram-бот пацієнтів: кабінет, аналізи, повідомлення, нагадування з кнопками — що ввімкнено', '/settings/care-bot', 'users', ''),
@@ -9885,6 +9900,76 @@ def shop_order_page(request: Request, oid: int, user: User = Depends(require("sa
     from .models import SiteOrder
     o = db.get(SiteOrder, oid) or (_ for _ in ()).throw(HTTPException(404))
     return render(request, "shop_order.html", nav="finance", o=o, pat=db.get(Patient, o.patient_id) if o.patient_id else None)
+
+
+def _shop_crawl_job(job):
+    from .services import shop_front as sf
+    with SessionLocal() as db:
+        return sf.crawl(db, job=job)
+
+
+@app.get("/settings/shop", response_class=HTMLResponse)
+def settings_shop(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import shop_front as sf, paylinks as pls
+    c = sf.cfg(db)
+    d = sf.catalog(db, fresh=True)
+    j = jobs.JOBS.get(request.query_params.get("job") or "")
+    return render(request, "settings_shop.html", nav="settings", c=c, d=d, accounts=pls.public(db)["accounts"], job=j,
+                  preview=f"{settings.public_url.rstrip('/')}/_shop/?p={sf.preview_key(db)}",
+                  stock=sum(1 for i in d["items"] if i["stock"]), nocat=sum(1 for i in d["items"] if not any(i["slug"] in x["slugs"] for x in d["cats"])))
+
+
+@app.post("/settings/shop")
+async def settings_shop_save(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import shop_front as sf
+    f = await request.form()
+    if f.get("action") == "crawl":
+        job = jobs.start("Структура й SEO з molodist.store", _shop_crawl_job)
+        audit(db, "shop.crawl", user=user)
+        return RedirectResponse(f"/settings/shop?job={job.id}", 303)
+    c = sf.cfg(db)
+    c["on"] = bool(f.get("on"))
+    c["hosts"] = [h.strip().lower() for h in str(f.get("hosts") or "").replace(",", " ").split() if h.strip()][:5]
+    for k, n in (("strip", 200), ("gifts", 1000), ("benefits", 1500), ("about", 3000), ("instagram", 200), ("canonical", 120)):
+        c[k] = str(f.get(k) or "").strip()[:n]
+    for k in ("free_from", "gift_from", "pay_account"):
+        try:
+            c[k] = int(float(str(f.get(k) or 0).replace(" ", "").replace(",", ".")))
+        except ValueError:
+            pass
+    c["cod"], c["pickup"] = bool(f.get("cod")), bool(f.get("pickup"))
+    if str(f.get("np_key") or "").strip():
+        c["np_key"] = str(f.get("np_key")).strip()[:120]
+    if f.get("np_clear"):
+        c["np_key"] = ""
+    hero = []
+    for i in range(6):
+        img = str(f.get(f"h_img_{i}") or "").strip()
+        if img:
+            hero.append({"img": img[:500], "title": str(f.get(f"h_title_{i}") or "").strip()[:120], "text": str(f.get(f"h_text_{i}") or "").strip()[:200],
+                         "url": str(f.get(f"h_url_{i}") or "").strip()[:300]})
+    c["hero"] = hero
+    sf.save_cfg(db, c)
+    audit(db, "settings.shop", "settings", None, user=user, on=c["on"])
+    return RedirectResponse(_with_msg("/settings/shop", "Збережено"), 303)
+
+
+@app.post("/shop-orders/{oid:int}/status")
+def shop_order_status(oid: int, status: str = Form(""), ttn: str = Form(""), paid: str = Form(""), user: User = Depends(require("sales")),
+                      db: Session = Depends(db_dep)):
+    from .models import SiteOrder
+    from .services import shop_front as sf
+    o = db.get(SiteOrder, oid) or (_ for _ in ()).throw(HTTPException(404))
+    if o.source != "crm":
+        return RedirectResponse(_with_msg(f"/shop-orders/{oid}", "Замовлення Shop-Express змінюються в адмінці Shop-Express", True), 303)
+    if status in sf.STATUSES:
+        o.status = status
+    o.raw = {**(o.raw or {}), "ttn": ttn.strip()[:40]}
+    if paid:
+        o.paid = paid == "1"
+    db.commit()
+    audit(db, "shop.order_status", "site_order", oid, user=user, status=o.status)
+    return RedirectResponse(_with_msg(f"/shop-orders/{oid}", "Збережено"), 303)
 
 
 @app.get("/settings/shop/raw")

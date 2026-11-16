@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Інтернет-магазин · Налаштування{% endblock %}
+{% block body %}
+<div class="eyebrow"><a href="/settings">‹ Налаштування</a></div><h1>Інтернет-магазин</h1>
+{% if request.query_params.get('msg') %}<div class="alert ok">{{ request.query_params.get('msg') }}</div>{% endif %}
+{% if job %}<div class="alert ok">{{ job.title }}: {{ ('виконується… ' ~ (job.progress[-1:]|join(''))) if job.status == 'running' else ('готово: ' ~ (job.result or {})|tojson if job.status == 'done' else 'помилка: ' ~ job.error) }} {% if job.status == 'running' %}<a href="?job={{ job.id }}">оновити</a>{% endif %}</div>{% endif %}
+<style>.shs label{display:grid;gap:5px;font-weight:600;font-size:13.5px}.shs input:not([type=checkbox]),.shs textarea,.shs select{width:100%;margin:0;font-weight:400}.shs .ck{display:flex;gap:8px;align-items:center;font-weight:400}.shs .ck input{width:auto}
+.shk{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}.shk div{background:var(--bg2,#F7F4F0);border-radius:12px;padding:12px}.shk b{font-size:22px;display:block}</style>
+<div class="shk"><div><b>{{ d['items']|length }}</b><span class="small muted">товарів у магазині</span></div><div><b>{{ stock }}</b><span class="small muted">у наявності</span></div>
+  <div><b>{{ d.cats|selectattr('n')|list|length }}</b><span class="small muted">категорій і брендів з товарами</span></div><div><b>{{ d.pages|length }}</b><span class="small muted">сторінок і статей</span></div>
+  <div><b>{{ nocat }}</b><span class="small muted">товарів без категорії</span></div></div>
+<div class="card" style="max-width:860px;margin-bottom:14px"><b>Перегляд до публікації</b>
+  <p class="small" style="margin:6px 0"><a href="{{ preview }}" target="_blank" rel="noopener">{{ preview }}</a></p>
+  <p class="small muted" style="margin:0 0 8px">Структура й SEO старого сайту (категорії з адресами, заголовками, описами; сторінки; блог){{ (' — знято ' ~ d.at[8:10] ~ '.' ~ d.at[5:7] ~ ' ' ~ d.at[11:16]) if d.at else ' — ще не знято' }}. Нові сторінки відкриваються за тими самими адресами.</p>
+  <form method="post"><button class="btn ghost" name="action" value="crawl">Зняти структуру й SEO з molodist.store</button> <a class="btn ghost" href="/shop-orders">Замовлення сайту</a></form></div>
+<form method="post" class="card shs" style="display:grid;gap:14px;max-width:860px">
+  <label class="ck" style="font-weight:700;font-size:15px"><input type="checkbox" name="on" value="1" {{ 'checked' if c.on }}> Магазин опубліковано</label>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
+    <label>Домени магазину<input name="hosts" value="{{ c.hosts|join(' ') }}" placeholder="molodist.store www.molodist.store"><span class="small muted">після перенесення домену на наш сервер</span></label>
+    <label>Основна адреса (canonical)<input name="canonical" value="{{ c.canonical }}"></label>
+    <label>Оплата онлайн — підключення<select name="pay_account"><option value="0">основне</option>{% for a in accounts %}<option value="{{ a.id }}" {{ 'selected' if c.pay_account == a.id }}>{{ a.name }}{{ '' if a.ready else ' (не готове)' }}</option>{% endfor %}</select></label>
+    <label>Безкоштовна доставка від, ₴<input name="free_from" inputmode="numeric" value="{{ c.free_from }}"><span class="small muted">0 — вимкнено</span></label>
+    <label>Подарунок до замовлення від, ₴<input name="gift_from" inputmode="numeric" value="{{ c.gift_from }}"><span class="small muted">0 — вимкнено</span></label>
+    <label>Ключ API Нової пошти<input name="np_key" type="password" autocomplete="new-password" placeholder="{{ 'збережено — введіть, щоб змінити' if c.np_key else 'кабінет НП → Налаштування → Безпека' }}">
+      <span class="small muted">{{ 'підключено: місто й відділення обираються зі списку' if c.np_key else 'без ключа покупець вписує місто й відділення текстом' }}</span></label>
+  </div>
+  <div style="display:flex;gap:18px;flex-wrap:wrap"><label class="ck"><input type="checkbox" name="cod" value="1" {{ 'checked' if c.cod }}> Оплата при отриманні</label>
+    <label class="ck"><input type="checkbox" name="pickup" value="1" {{ 'checked' if c.pickup }}> Самовивіз з MOLODIST</label></div>
+  <label>Смуга вгорі сайту<input name="strip" value="{{ c.strip }}"></label>
+  <label>Подарунки на вибір (кожен з нового рядка)<textarea name="gifts" rows="3">{{ c.gifts }}</textarea></label>
+  <label>Переваги (рядок: Заголовок | текст)<textarea name="benefits" rows="4">{{ c.benefits }}</textarea></label>
+  <label>Про нас<textarea name="about" rows="4">{{ c.about }}</textarea></label>
+  <label>Instagram<input name="instagram" value="{{ c.instagram }}"></label>
+  <div><b>Банери на головній</b><div class="small muted">Посилання на картинку (наприклад, із «Сайт клініки → Фото»), заголовок, текст, куди веде. Порожньо — стандартний блок.</div>
+    {% for i in range(4) %}{% set h = c.hero[i] if i < c.hero|length else {} %}<div style="display:grid;grid-template-columns:2fr 1.4fr 1.6fr 1.4fr;gap:6px;margin-top:6px">
+      <input name="h_img_{{ i }}" value="{{ h.img or '' }}" placeholder="https://…/banner.webp"><input name="h_title_{{ i }}" value="{{ h.title or '' }}" placeholder="Заголовок">
+      <input name="h_text_{{ i }}" value="{{ h.text or '' }}" placeholder="Текст"><input name="h_url_{{ i }}" value="{{ h.url or '' }}" placeholder="/shop/sale/"></div>{% endfor %}</div>
+  <div><button class="btn">Зберегти</button></div>
+</form>
+{% endblock %}

@@ -20,4 +20,9 @@
     <td class="small muted">{{ it.sku or '' }}</td><td style="text-align:right">{{ '%g'|format(it.qty or 0) }}</td><td style="text-align:right">{{ (it.price or 0)|uah }}</td><td style="text-align:right">{{ (it.total or 0)|uah }}</td></tr>{% endfor %}
   {% for a in o.extra or [] if a.on %}<tr><td colspan="4" class="small">+ {{ a.name }}</td><td style="text-align:right">{{ (a.price or 0)|uah }}</td></tr>{% endfor %}
   <tr><td colspan="4" style="text-align:right"><b>Разом</b>{% if o.total_full and o.total_full != o.total %} <span class="small muted">(без знижки {{ o.total_full|uah }})</span>{% endif %}</td><td style="text-align:right"><b>{{ (o.total or 0)|uah }}</b></td></tr></tbody></table></div>
+{% if o.source == 'crm' and can(user,'sales') %}<form method="post" action="/shop-orders/{{ o.id }}/status" class="card" style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+  <label class="small">Статус<select name="status">{% for x in ['Нове','В роботі','Очікує оплати','Оплачено','Відправлено','Виконано','Скасовано'] %}<option {{ 'selected' if o.status == x }}>{{ x }}</option>{% endfor %}</select></label>
+  <label class="small">ТТН Нової пошти<input name="ttn" value="{{ (o.raw or {}).get('ttn','') }}"></label>
+  <label class="small">Оплата<select name="paid"><option value="0" {{ 'selected' if not o.paid }}>не оплачено</option><option value="1" {{ 'selected' if o.paid }}>оплачено</option></select></label>
+  <button class="btn">Зберегти</button></form>{% endif %}
 {% endblock %}

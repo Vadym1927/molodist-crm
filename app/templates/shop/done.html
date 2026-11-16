@@ -1,0 +1,6 @@
+{% extends "shop/base.html" %}
+{% block main %}<section class="sec lst"><div class="wrap narrow done"><h1>Дякуємо за замовлення!</h1>
+  {% if number %}<p class="big">Номер замовлення: <b>{{ number }}</b></p>{% endif %}
+  <p>Ми вже отримали його. Адміністратор звʼяжеться з вами, щоб підтвердити деталі й відправку. Якщо ви обрали онлайн-оплату й не завершили її — напишіть нам, надішлемо посилання ще раз.</p>
+  <p><a class="btn" href="{{ base }}/shop/">Повернутися до каталогу</a></p></div></section>{% endblock %}
+{% block scripts %}<script>try{localStorage.removeItem('mshop_cart')}catch(e){}</script>{% endblock %}

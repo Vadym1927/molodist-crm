@@ -1,0 +1,26 @@
+{% extends "shop/base.html" %}
+{% block main %}<section class="sec lst"><div class="wrap"><h1>Оформлення замовлення</h1>
+<div class="co" id="co" data-np="{{ '1' if np }}">
+  <form class="co-f" id="co-form" novalidate>
+    <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+    <h3>Контакти</h3>
+    <div class="g2"><label><span>Імʼя та прізвище</span><input name="name" autocomplete="name" required></label>
+      <label><span>Телефон</span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+380" required></label></div>
+    <label><span>Email (для чека, необовʼязково)</span><input name="email" type="email" autocomplete="email"></label>
+    <h3>Доставка</h3>
+    <div class="opts"><label><input type="radio" name="delivery" value="np" checked><span><b>Нова пошта</b><small>відділення або поштомат{% if s.free_from %} · безкоштовно від {{ money(s.free_from) }}{% endif %}</small></span></label>
+      {% if s.pickup %}<label><input type="radio" name="delivery" value="pickup"><span><b>Самовивіз з MOLODIST</b><small>{{ c.address }}</small></span></label>{% endif %}</div>
+    <div id="co-np"><div class="g2"><label class="ac"><span>Місто</span><input name="city" autocomplete="off" placeholder="Почніть вводити назву"><div class="ac-l" hidden></div></label>
+      <label class="ac"><span>Відділення / поштомат</span><input name="warehouse" autocomplete="off" placeholder="{{ 'Номер або адреса' }}"><div class="ac-l" hidden></div></label></div></div>
+    <h3>Оплата</h3>
+    <div class="opts"><label><input type="radio" name="pay" value="online" checked><span><b>Онлайн карткою</b><small>Visa, Mastercard, Apple Pay, Google Pay · monobank</small></span></label>
+      {% if s.cod %}<label><input type="radio" name="pay" value="cod"><span><b>При отриманні</b><small>накладений платіж Нової пошти або оплата в MOLODIST</small></span></label>{% endif %}</div>
+    <div id="co-gift" hidden><h3>Подарунок до замовлення</h3><div class="opts" id="co-gifts"></div></div>
+    <label><span>Коментар (необовʼязково)</span><textarea name="comment" rows="2"></textarea></label>
+    <p class="err" hidden></p>
+    <button class="btn big">Підтвердити замовлення</button>
+    <p class="mut small">Натискаючи кнопку, ви погоджуєтесь з умовами {% if '/for-customers/oferta/' in d.pages %}<a href="{{ base }}/for-customers/oferta/" target="_blank">публічної оферти</a>{% else %}магазину{% endif %}.</p>
+  </form>
+  <aside class="co-s"><h3>Ваше замовлення</h3><div id="co-items"></div><div class="row"><span>Товари</span><b id="co-sum">—</b></div>
+    <div class="row"><span>Доставка</span><b id="co-del">за тарифами перевізника</b></div><div class="row tot"><span>До сплати</span><b id="co-tot">—</b></div></aside>
+</div></div></section>{% endblock %}

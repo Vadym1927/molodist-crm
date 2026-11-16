@@ -1,0 +1,3 @@
+{% extends "shop/base.html" %}
+{% block main %}<section class="sec lst"><div class="wrap"><nav class="crumbs"><a href="{{ base }}/">Головна</a><a href="{{ base }}/shop/">Магазин</a><span>Бренди</span></nav><h1>{{ h1 }}</h1>
+  <div class="cats">{% for b in d.brands %}<a class="cat" href="{{ base }}{{ b.path }}"><b>{{ b.name }}</b><small>{{ b.n }} товарів</small></a>{% endfor %}</div></div></section>{% endblock %}

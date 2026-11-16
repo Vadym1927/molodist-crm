@@ -1,0 +1,67 @@
+{% from "site/_icons.html" import icon %}<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ title }}</title>
+<meta name="description" content="{{ desc }}">
+{% if noindex or noindex_page %}<meta name="robots" content="noindex, nofollow">{% endif %}
+<link rel="canonical" href="{{ canonical }}">
+<meta property="og:type" content="{{ 'product' if it is defined and it else 'website' }}"><meta property="og:title" content="{{ title }}"><meta property="og:description" content="{{ desc }}">
+<meta property="og:url" content="{{ canonical }}"><meta property="og:locale" content="uk_UA"><meta property="og:site_name" content="MOLODIST">
+{% if it is defined and it and it.imgs %}<meta property="og:image" content="{{ s.canonical }}/img/{{ it.imgs[0] }}?w=1200">{% endif %}
+<meta name="theme-color" content="#2A2430">
+<link rel="icon" href="/static/site/brand/mono-violet.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/site/brand/mono-violet-180.png">
+<link rel="preload" href="/static/fonts/montserrat-cyrillic-600-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/static/fonts/fonts.css">
+<link rel="stylesheet" href="/static/shop/shop.css?v={{ ver }}">
+{% if jsonld is defined and jsonld %}<script type="application/ld+json">{{ jsonld|safe }}</script>{% endif %}
+{% if c.gtm_id and not noindex %}<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','{{ c.gtm_id }}');</script>{% endif %}
+</head>
+<body>
+{% macro ic(d, w=22) %}<svg viewBox="0 0 24 24" width="{{ w }}" height="{{ w }}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{{ d|safe }}</svg>{% endmacro %}
+{% if noindex %}<div class="prev">Попередній перегляд магазину · сторінка не індексується. Замовлення створюються справжні.</div>{% endif %}
+{% if s.strip %}<div class="strip">{{ s.strip }}</div>{% endif %}
+<header class="hd"><div class="wrap">
+  <div class="hd-top">
+    <button class="hd-burger" type="button" aria-label="Меню" data-menu>{{ ic('<path d="M4 7h16M4 12h16M4 17h16"/>') }}</button>
+    <a class="hd-logo" href="{{ base }}/" aria-label="MOLODIST — магазин"><img src="/static/site/brand/wordmark-graphite.svg" alt="MOLODIST" width="170" height="20"></a>
+    <div class="hd-ico">
+      <button type="button" aria-label="Пошук" data-search>{{ ic('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.500-3.500"/>') }}</button>
+      <a href="tel:{{ c.phone }}" aria-label="Подзвонити" class="hd-tel">{{ ic('<path d="M5 4h4l2 5-2.500 1.500a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>') }}</a>
+      <button type="button" aria-label="Кошик" data-cart-open class="hd-cart">{{ ic('<path d="M6 8h12l1.200 12H4.800z"/><path d="M9 8V6.500a3 3 0 0 1 6 0V8"/>') }}<em data-cart-n hidden>0</em></button>
+    </div>
+  </div>
+  <nav class="hd-nav" aria-label="Категорії">{% for m in d.menu %}<a href="{{ base }}{{ m.path }}" {{ 'aria-current=page' if path.startswith(m.path) }}>{{ m.name }}</a>{% endfor %}
+    <a href="{{ base }}/shop/?order=sale" class="acc">Акції</a>{% if d.brands %}<a href="{{ base }}/shop/brendi/" {{ 'aria-current=page' if path.startswith('/shop/brendi/') }}>Бренди</a>{% endif %}
+    {% if '/blog/' in d.pages %}<a href="{{ base }}/blog/">Блог</a>{% endif %}<a href="{{ c.main_url }}" target="_blank" rel="noopener">Косметологія</a></nav>
+  <form class="hd-search" action="{{ base }}/shop/" method="get" hidden><input name="q" value="{{ q }}" placeholder="Пошук: назва, бренд, артикул" autocomplete="off"><button class="btn sm">Знайти</button></form>
+</div></header>
+<main>{% block main %}{% endblock %}</main>
+<footer class="ft"><div class="wrap ft-in">
+  <div><img src="/static/site/brand/wordmark-white.svg" alt="MOLODIST" width="150" height="18">
+    <p class="mut">Медичний простір естетики та профілактики. Професійна косметика, яку призначають наші лікарі.</p>
+    <p class="ico-row"><a href="{{ c.telegram }}" target="_blank" rel="noopener" aria-label="Telegram">{{ icon('telegram') }}</a><a href="{{ viber }}" aria-label="Viber">{{ icon('viber') }}</a><a href="{{ s.instagram or c.instagram }}" target="_blank" rel="noopener" aria-label="Instagram">{{ icon('instagram') }}</a></p></div>
+  <div><h4>Каталог</h4>{% for m in d.menu %}<a href="{{ base }}{{ m.path }}">{{ m.name }}</a>{% endfor %}{% if d.brands %}<a href="{{ base }}/shop/brendi/">Бренди</a>{% endif %}</div>
+  <div><h4>Покупцям</h4>{% for p in d.pages.values() if p.path.startswith('/for-customers/') and p.path != '/for-customers/' %}<a href="{{ base }}{{ p.path }}">{{ p.h1 or p.title }}</a>{% endfor %}
+    {% if '/blog/' in d.pages %}<a href="{{ base }}/blog/">Блог</a>{% endif %}{% if '/contacts/' in d.pages %}<a href="{{ base }}/contacts/">Контакти</a>{% endif %}</div>
+  <div><h4>Контакти</h4><a href="tel:{{ c.phone }}">{{ c.phone_text }}</a><a href="mailto:{{ c.email }}">{{ c.email }}</a><p class="mut">{{ c.address }}<br>{{ c.hours }}</p>
+    <a href="{{ c.main_url }}" target="_blank" rel="noopener">Запис на процедури →</a></div>
+</div><div class="wrap ft-bot">© {{ year }} MOLODIST · Оплата: Visa, Mastercard, Apple Pay, Google Pay, оплата частинами monobank · Доставка: Нова пошта</div></footer>
+
+<aside class="cart" id="cart" hidden aria-label="Кошик"><div class="cart-bg" data-cart-close></div><div class="cart-in">
+  <div class="cart-h"><b>Кошик</b><button type="button" data-cart-close aria-label="Закрити">×</button></div>
+  <div class="cart-free" data-cart-free hidden></div>
+  <div class="cart-list" data-cart-list></div>
+  <div class="cart-f"><div class="row"><span>Разом</span><b data-cart-total>0 ₴</b></div><a class="btn" href="{{ base }}/checkout/">Оформити замовлення</a>
+    <button type="button" class="link" data-cart-close>Продовжити покупки</button></div>
+</div></aside>
+<nav class="mnav" id="mnav" hidden><div class="cart-bg" data-menu-close></div><div class="mnav-in"><button type="button" data-menu-close aria-label="Закрити" class="x">×</button>
+  {% for m in d.menu %}<a href="{{ base }}{{ m.path }}">{{ m.name }}</a>{% endfor %}<a href="{{ base }}/shop/?order=sale" class="acc">Акції</a>
+  {% if d.brands %}<a href="{{ base }}/shop/brendi/">Бренди</a>{% endif %}{% if '/blog/' in d.pages %}<a href="{{ base }}/blog/">Блог</a>{% endif %}
+  <a href="{{ c.main_url }}">Косметологія MOLODIST</a><a href="tel:{{ c.phone }}">{{ c.phone_text }}</a></div></nav>
+<script>window.MSHOP={base:'{{ base }}',free:{{ s.free_from or 0 }}};</script>
+<script src="/static/shop/shop.js?v={{ ver }}" defer></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

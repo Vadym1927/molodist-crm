@@ -1,0 +1,9 @@
+{% macro card(i, base, money) %}<article class="pc {{ 'off' if not i.stock }}">
+  <a class="pc-img" href="{{ base }}/shop/{{ i.slug }}/">{% if i.imgs %}<img src="{{ base }}/img/{{ i.imgs[0] }}?w=600" alt="{{ i.name }}" loading="lazy" width="600" height="600">{% else %}<span class="noimg">M</span>{% endif %}
+    {% if i.pct %}<em class="bdg sale">−{{ i.pct }}%</em>{% endif %}{% if not i.stock %}<em class="bdg out">Немає в наявності</em>{% endif %}</a>
+  <div class="pc-b">{% if i.brand %}<span class="pc-br">{{ i.brand }}</span>{% endif %}<a class="pc-n" href="{{ base }}/shop/{{ i.slug }}/">{{ i.name }}</a>
+    <div class="pc-p"><b>{{ money(i.price) }}</b>{% if i.old %}<s>{{ money(i.old) }}</s>{% endif %}</div>
+    {% if i.stock %}<button class="btn sm ghost" type="button" data-add="{{ i.variants[0].id }}" data-name="{{ i.name }}">У кошик</button>{% else %}<a class="btn sm ghost" href="{{ base }}/shop/{{ i.slug }}/">Детальніше</a>{% endif %}</div>
+</article>{% endmacro %}
+{% macro rowblock(title, items, base, money, more='') %}{% if items %}<section class="sec"><div class="wrap"><div class="sec-h"><h2>{{ title }}</h2>{% if more %}<a href="{{ more }}">Дивитись усі</a>{% endif %}</div>
+  <div class="scroller">{% for i in items %}{{ card(i, base, money) }}{% endfor %}</div></div></section>{% endif %}{% endmacro %}

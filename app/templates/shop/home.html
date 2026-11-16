@@ -1,0 +1,21 @@
+{% extends "shop/base.html" %}{% from "shop/_card.html" import card, rowblock %}
+{% block main %}
+<section class="hero"><div class="wrap">{% if s.hero %}<div class="scroller hero-sc">{% for h in s.hero %}<a class="hero-card" href="{{ h.url or (base ~ '/shop/') }}" style="background-image:url('{{ h.img }}')"><span><b>{{ h.title }}</b>{{ h.text }}</span></a>{% endfor %}</div>
+  {% else %}<div class="hero-def"><div><p class="eyebrow">Магазин MOLODIST</p><h1>Професійна косметика, яку призначають лікарі</h1>
+    <p>Оригінальна продукція від офіційних дистрибʼюторів. Допоможемо підібрати догляд під ваш тип шкіри.</p>
+    <p class="hero-a"><a class="btn" href="{{ base }}/shop/">До каталогу</a><a class="btn ghost" href="{{ c.telegram }}" target="_blank" rel="noopener">Підібрати догляд</a></p></div></div>{% endif %}
+</div></section>
+{% if benefits %}<section class="bens"><div class="wrap scroller">{% for b in benefits %}<div class="ben"><b>{{ b[0] }}</b><span>{{ b[1] }}</span></div>{% endfor %}</div></section>{% endif %}
+{% if d.brands %}<section class="sec"><div class="wrap"><div class="sec-h"><h2>Бренди</h2><a href="{{ base }}/shop/brendi/">Усі бренди</a></div>
+  <div class="scroller brs">{% for b in d.brands %}<a class="br" href="{{ base }}{{ b.path }}">{{ b.name }}</a>{% endfor %}</div></div></section>{% endif %}
+{% if d.menu %}<section class="sec"><div class="wrap"><div class="sec-h"><h2>Категорії</h2></div>
+  <div class="cats">{% for m in d.menu %}<a class="cat" href="{{ base }}{{ m.path }}"><b>{{ m.name }}</b><small>{{ m.n }} товарів</small></a>{% endfor %}</div></div></section>{% endif %}
+{{ rowblock('Акції', blocks.sale, base, money, base ~ '/shop/?order=sale') }}
+{{ rowblock('Новинки', blocks.new, base, money, base ~ '/shop/?order=new') }}
+{{ rowblock('Бестселери', blocks.best, base, money) }}
+{% if blog %}<section class="sec"><div class="wrap"><div class="sec-h"><h2>Блог</h2><a href="{{ base }}/blog/">Дивитись усі</a></div>
+  <div class="blog">{% for p in blog %}<a class="post" href="{{ base }}{{ p.path }}">{% if p.img %}<img src="{{ p.img }}" alt="" loading="lazy">{% endif %}<b>{{ p.h1 or p.title }}</b><span>{{ p.desc }}</span><i>Читати повністю</i></a>{% endfor %}</div></div></section>{% endif %}
+<section class="sec insta"><div class="wrap"><div class="insta-in"><div><h2>Наш Instagram</h2><p>Поради лікарів, новинки, результати процедур і догляду.</p></div>
+  <a class="btn" href="{{ s.instagram or c.instagram }}" target="_blank" rel="noopener">Підписатися</a></div></div></section>
+<section class="sec about"><div class="wrap"><h2>Про нас</h2><p>{{ s.about }}</p></div></section>
+{% endblock %}

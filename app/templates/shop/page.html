@@ -1,0 +1,5 @@
+{% extends "shop/base.html" %}
+{% block main %}<section class="sec lst"><div class="wrap narrow"><nav class="crumbs"><a href="{{ base }}/">Головна</a>{% if pg.path.startswith('/blog/') and pg.path != '/blog/' %}<a href="{{ base }}/blog/">Блог</a>{% endif %}<span>{{ pg.h1 or pg.title }}</span></nav>
+  <h1>{{ pg.h1 or pg.title }}</h1>
+  {% if posts %}<div class="blog">{% for p in posts %}<a class="post" href="{{ base }}{{ p.path }}">{% if p.img %}<img src="{{ p.img }}" alt="" loading="lazy">{% endif %}<b>{{ p.h1 or p.title }}</b><span>{{ p.desc }}</span><i>Читати повністю</i></a>{% endfor %}</div>
+  {% else %}<div class="rte">{{ pg.html|safe }}</div>{% endif %}</div></section>{% endblock %}
