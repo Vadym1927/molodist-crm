@@ -21,9 +21,9 @@
     <div class="hero-ph" aria-hidden="true"><img class="p1" src="/static/shop/hero/observ.webp?v={{ ver }}" alt="" width="1100" height="1056"><img class="p2" src="/static/shop/hero/bags.webp?v={{ ver }}" alt="" width="800" height="640" loading="lazy"></div></div>{% endif %}
 </div></section>
 {% if d.menu %}<section class="tiles"><div class="wrap tiles-in">{% for m in d.menu %}<a class="tile {{ 'acc' if m.path == '/shop/sale/' }}" href="{{ base }}{{ m.path }}">
-  {{ cico(cat_icon(m.path)) }}<b>{{ m.name }}</b><small>{{ m.n }} товарів</small></a>{% endfor %}
-  <a class="tile" href="{{ cert_url }}" target="_blank" rel="noopener">{{ cico('gift') }}<b>Подарункові сертифікати</b><small>MOLODIST</small></a></div></section>{% endif %}
-{% if benefits %}<section class="bens"><div class="wrap"><div class="bens-in">{% for b in benefits[:4] %}<div class="ben">{% if 'астинами' in b[0] and s.parts_paw_file %}<img src="{{ base }}/brand/{{ s.parts_paw_file }}" alt="" width="38" height="38">{% else %}{{ bico(loop.index0) }}{% endif %}<b>{{ b[0] }}</b><span>{{ b[1] }}</span></div>{% endfor %}</div></div></section>{% endif %}
+  {% if m.path == '/shop/sale/' %}{{ cico('sale') }}{% endif %}<b>{{ m.name }}</b><small>{{ m.n }} товарів</small></a>{% endfor %}
+  <a class="tile" href="{{ cert_url }}" target="_blank" rel="noopener"><b>Подарункові сертифікати</b><small>MOLODIST</small></a></div></section>{% endif %}
+{% if benefits %}<section class="bens"><div class="wrap"><div class="bens-in">{% for b in benefits[:4] %}<div class="ben"><div class="ben-h">{% if 'астинами' in b[0] and s.parts_paw_file %}<img src="{{ base }}/brand/{{ s.parts_paw_file }}" alt="" width="34" height="34">{% else %}{{ bico(loop.index0) }}{% endif %}<b>{{ b[0] }}</b></div><span>{{ b[1] }}</span></div>{% endfor %}</div></div></section>{% endif %}
 
 {% if d.brands %}<section class="sec"><div class="wrap"><div class="sec-h"><h2>Бренди</h2><a href="{{ base }}/shop/brendi/">Усі бренди</a></div>
   <div class="scroller brs">{% for b in d.brands %}<a class="br" href="{{ base }}{{ b.path }}">{{ b.name }}</a>{% endfor %}</div></div></section>{% endif %}
