@@ -200,11 +200,26 @@ def _jar_balance(db: Session) -> dict:
     return {"balance": float(box["balance"]) if box else 0.0, "src": "каса CRM «Банка OBSERV 520x»"}
 
 
+def _adopt_copies(db: Session) -> int:
+    """Копії платежів договору (⧉ у календарі), створені без привʼязки, — до свого договору за назвою; інакше звіт їх не бачить."""
+    plans = {p.name: p.id for p in db.scalars(select(PayPlan).where(PayPlan.group == "debt"))}
+    n = 0
+    for it in db.scalars(select(PayItem).where(PayItem.plan_id.is_(None), PayItem.group == "debt", PayItem.source == "manual")):
+        pid = plans.get(it.name)
+        if pid:
+            it.plan_id = pid
+            n += 1
+    if n:
+        db.commit()
+    return n
+
+
 def build(db: Session, today: date | None = None) -> dict:
     today = today or date.today()
     rows = []
     from . import paycal as _pc
     _pc.release_dead(db)                       # платежі зі скасованою фіноперацією — назад у план
+    _adopt_copies(db)
     for c in contracts(db):
         items = db.scalars(select(PayItem).where(PayItem.plan_id == c["plan_id"]).order_by(PayItem.due)).all() if c.get("plan_id") else []
         _pc.match_paid(db, items)              # нова операція тієї ж статті закриває платіж своєю сумою

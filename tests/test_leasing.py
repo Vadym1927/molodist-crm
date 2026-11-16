@@ -82,3 +82,15 @@ def test_custom_group_kind_and_observ_feeds():
         assert op.kind == "transfer" and op.cashbox_to == "Банка OBSERV 520x"
         obs = next(r for r in ls.build(db, today=date(2027, 3, 20))["rows"] if r["kind"] == "fund")
         assert obs["feed_month"] == 16000 and obs["feed_paid"] == it.amount and obs["feed_end"]
+
+
+def test_copy_adopted_by_contract():
+    with SessionLocal() as db:
+        ls.ensure_setup(db)
+        c = ls.contracts(db)[0]
+        plan = db.get(PayPlan, c["plan_id"])
+        db.add(PayItem(name=plan.name, group="debt", article=ls.ARTICLE, amount=500, amount_fact=500, status="paid", due=date(2026, 11, 15),
+                       source="manual"))
+        db.commit()
+        assert ls._adopt_copies(db) >= 1
+        assert db.scalar(select(PayItem).where(PayItem.amount_fact == 500, PayItem.name == plan.name)).plan_id == plan.id

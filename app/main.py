@@ -11046,7 +11046,8 @@ async def paycal_item_act(iid: int, act: str, request: Request, user: User = Dep
         d = _day(str(f.get("due") or "")) or it.due
         nm = " ".join(str(f.get("name") or "").split())[:200] or it.name
         amt = _num(str(f.get("amount") or "")) if str(f.get("amount") or "").strip() else (it.amount if it.amount is not None else it.amount_fact)
-        cp = PayItem(due=d, name=nm, group=it.group, article=it.article, cashbox=it.cashbox, counterparty=it.counterparty, amount=amt,
+        cp = PayItem(plan_id=it.plan_id if it.group == "debt" else None,          # копія платежу договору лізингу лишається в договорі
+                     due=d, name=nm, group=it.group, article=it.article, cashbox=it.cashbox, counterparty=it.counterparty, amount=amt,
                      status="planned" if it.status == "planned" else "approved", source="manual",
                      note=(str(f.get("note") or "").strip()[:300] if "note" in f else it.note) or None, created_by=user.id)
         db.add(cp)
