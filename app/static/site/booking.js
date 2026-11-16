@@ -40,14 +40,26 @@
   }
   function telOk(v) { var d = (v || '').replace(/\D/g, ''); return d.length === 12 && d.indexOf('380') === 0; }
 
-  /* ---------- розділи: підсвітка в навігації ---------- */
-  var jump = $$('.ob-jump a');
-  if (jump.length && 'IntersectionObserver' in window) {
-    var io = new IntersectionObserver(function (es) {
-      es.forEach(function (e) { if (e.isIntersecting) jump.forEach(function (a) { a.classList.toggle('on', a.getAttribute('href') === '#' + e.target.id); }); });
-    }, { rootMargin: '-40% 0px -55% 0px' });
-    jump.forEach(function (a) { var t = $(a.getAttribute('href')); if (t) io.observe(t); });
+  /* ---------- розділи під записом: відкриваються кнопками навігації (прайс, лікарі, акції…) ---------- */
+  var cols = $$('[data-col]'), jump = $$('.ob-jump a');
+  function openCol(id, scroll) {
+    var el = document.getElementById(id); if (!el || !el.hasAttribute('data-col')) return false;
+    var willOpen = !el.classList.contains('open');
+    cols.forEach(function (c) { c.classList.toggle('open', c === el && willOpen); });
+    jump.forEach(function (a) { a.classList.toggle('on', willOpen && a.getAttribute('href') === '#' + id); a.setAttribute('aria-expanded', willOpen && a.getAttribute('href') === '#' + id ? 'true' : 'false'); });
+    if (willOpen && scroll !== false) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return true;
   }
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest && e.target.closest('a[href^="#"]'); if (!a) return;
+    var id = a.getAttribute('href').slice(1), el = id && document.getElementById(id);
+    if (el && el.hasAttribute('data-col')) {
+      e.preventDefault();
+      if (!a.closest('.ob-jump') && el.classList.contains('open')) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+      openCol(id);
+    }
+  });
+  if (location.hash && document.getElementById(location.hash.slice(1))) openCol(location.hash.slice(1));
 
   /* ---------- мій запис: скасування ---------- */
   var my = $('.ob-mycard[data-token]');
@@ -120,8 +132,8 @@
     if (me && me.phone && !form.phone.value) form.phone.value = me.phone;
     var bk = null; try { bk = JSON.parse(localStorage.getItem('mlds_booking') || 'null'); } catch (x) {}
     if (bk && bk.v && !$('.ob-mycard') && Date.now() - bk.at < 60 * 864e5) {
-      var hero = $('.ob-jump'); if (hero) { var a = document.createElement('a'); a.className = 'ob-mybar'; a.href = B + '/zapys?v=' + encodeURIComponent(bk.v);
-        a.innerHTML = '<b>Мій запис</b><small>переглянути, додати в календар чи скасувати</small>'; hero.parentNode.insertBefore(a, hero); }
+      var hero = $('.ob-hero .lead-tx'); if (hero) { var a = document.createElement('a'); a.className = 'ob-mybar'; a.href = B + '/zapys?v=' + encodeURIComponent(bk.v);
+        a.innerHTML = '<b>Мій запис</b><small>переглянути, додати в календар чи скасувати</small>'; hero.parentNode.insertBefore(a, hero.nextSibling); }
     }
   })();
 
@@ -200,14 +212,14 @@
     if (cs.length < 2) { elCats.innerHTML = ''; elCats.className = 'ob-cats'; if (cs.length === 1 && !st.cat) st.cat = cs[0].name; return; }
     if (st.cat || q) {
       elCats.className = 'ob-cats back';
-      elCats.innerHTML = '<button type="button" class="ob-allcats" data-cat="">← Усі категорії</button>' + (st.cat && !q ? '<span>' + ico(st.cat) + esc(catTitle(st.cat)[0]) + '</span>' : '');
+      elCats.innerHTML = '<button type="button" class="ob-allcats" data-cat="">← Усі категорії</button>' + (st.cat && !q ? '<span>' + esc(catTitle(st.cat)[0]) + '</span>' : '');
       return;
     }
-    elCats.className = 'ob-cats tiles';
+    elCats.className = 'ob-cats rows';                        // категорії — рядками на всю ширину, текстом (як у CleverBox)
     elCats.innerHTML = cs.map(function (c) {
       var t = catTitle(c.name), n = c.items.filter(visible).length, sel = c.items.filter(function (s) { return has(s.id); }).length;
-      return '<button type="button" class="ob-tile' + (sel ? ' has' : '') + '" data-cat="' + esc(c.name) + '"><i>' + ico(c.name) + '</i><b>' + esc(t[0]) + '</b>' +
-        (t[1] ? '<small class="note">' + esc(t[1]) + '</small>' : '') + '<small>' + plural(n) + '</small>' + (sel ? '<em>' + sel + '</em>' : '') + '</button>'; }).join('');
+      return '<button type="button" class="ob-row' + (sel ? ' has' : '') + '" data-cat="' + esc(c.name) + '"><span><b>' + esc(t[0]) + '</b>' +
+        (t[1] ? '<small class="note">' + esc(t[1]) + '</small>' : '') + '</span><small class="n">' + n + '</small>' + (sel ? '<em>' + sel + '</em>' : '') + '<i aria-hidden="true">›</i></button>'; }).join('');
   }
   function renderList() {
     var q = (elQ.value || '').trim().toLowerCase(), h = '', full = st.svcs.length >= MAX, multi = D.cats.filter(function (c) { return c.items.some(visible); }).length > 1;
