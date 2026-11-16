@@ -663,6 +663,24 @@ def _visits_word(n: int) -> str:
     return "процедура" if a == 1 and b != 11 else "процедури" if 2 <= a <= 4 and not 12 <= b <= 14 else "процедур"
 
 
+def _toks(t: str) -> set[str]:
+    t = _low(t).replace("2 насадки", "дві насадки").replace("-", " ")
+    return {w for w in re.findall(r"[a-zа-яіїєґʼ0-9]+", t) if len(w) > 1 and w not in ("до", "та", "ресурс", "імпульсів", "1000", "2000")}
+
+
+def _closest(base: str, by_name: dict):
+    """Послуга прайсу для абонемента без точної назви: усі слова абонемента є в назві послуги, найменше зайвих."""
+    want = _toks(base)
+    best = None
+    for n, sv in by_name.items():
+        have = _toks(n)
+        if want and want <= have and ("екзосом" in n) == ("екзосом" in _low(base)):
+            extra = len(have - want)
+            if best is None or extra < best[0]:
+                best = (extra, sv)
+    return best[1] if best else None
+
+
 def sub_view(db: Session, x: dict, by_name: dict | None = None) -> dict:
     """Абонемент для пацієнта: зрозуміла назва («… — курс 6 процедур»), ціна однієї процедури й вигода проти разових візитів."""
     if by_name is None:
@@ -675,8 +693,9 @@ def sub_view(db: Session, x: dict, by_name: dict | None = None) -> dict:
     sv = by_name.get(_low(base)) or by_name.get(_low(base.split(",")[0]))
     if not base or not sv:
         base = re.sub(r"(?i)\bабонемент\b|курс\s*\d+", "", x["name"]).strip(" -·")
-        base = base[:1].upper() + base[1:].lower() if base.isupper() else base
-        sv = sv or by_name.get(_low(base))
+        if base.isupper():
+            base = re.sub(r"(?i)\b(rf|ipl|led)\b", lambda m: m.group(1).upper(), base[:1].upper() + base[1:].lower())
+        sv = sv or by_name.get(_low(base)) or _closest(base, by_name)
     one = float(sv.price) if sv and sv.price else 0.0
     full = one * visits
     price = float(x["price"])

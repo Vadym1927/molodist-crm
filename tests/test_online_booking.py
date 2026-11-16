@@ -228,3 +228,11 @@ def test_sub_view_saving():
     assert v["title"] == "Апаратний масаж STRATOSPHERE 50 хв — курс 6 процедур" and v["per"] == 1700 and v["save"] == 600 and v["pct"] == 6
     L = ob.loyalty(ob.DEFAULT)
     assert "не сумуються" in L["loyalty_note"][0] and len(L["cert_rules"]) == 4 and len(L["promos"]) == 4
+
+    by2 = {ob._low(n): S(name=n, price=p) for n, p in (("Мікроголковий RF одна насадка (ресурс до 1000 імпульсів)", 16000),
+           ("Мікроголковий RF-ліфтинг одна насадка (ресурс до 1000 імпульсів) + екзосоми", 24000), ("Мікроголковий RF - ліфтинг дві насадки (ресурс до 2000 імпульсів)", 26200))}
+    v1 = ob.sub_view(None, {"id": 2, "name": "АБОНЕМЕНТ МІКРОГОЛКОВИЙ RF ОДНА НАСАДКА КУРС 3", "price": 43200, "visits": 3, "desc": ""}, by2)
+    v2 = ob.sub_view(None, {"id": 3, "name": "АБОНЕМЕНТ МІКРОГОЛКОВИЙ RF 2 НАСАДКИ КУРС 3", "price": 70800, "visits": 3, "desc": ""}, by2)
+    v3 = ob.sub_view(None, {"id": 4, "name": "АБОНЕМЕНТ МІКРОГОЛКОВИЙ RF ОДНА НАСАДКА + ЕКЗОСОМИ КУРС 3", "price": 64800, "visits": 3, "desc": ""}, by2)
+    assert v1["title"].startswith("Мікроголковий RF одна насадка") and v1["one"] == 16000 and v1["pct"] == 10
+    assert v2["one"] == 26200 and v3["one"] == 24000
