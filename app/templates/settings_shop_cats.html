@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Категорії магазину · Налаштування{% endblock %}
+{% block body %}
+<div class="eyebrow"><a href="/settings/shop">‹ Інтернет-магазин</a></div><h1>Категорії магазину</h1>
+{% if request.query_params.get('msg') %}<div class="alert {{ 'err' if request.query_params.get('err') else 'ok' }}">{{ request.query_params.get('msg') }}</div>{% endif %}
+<p class="small muted">Категорії й бренди з адресами старого сайту{{ (' (знято ' ~ at[8:10] ~ '.' ~ at[5:7] ~ ' ' ~ at[11:16] ~ ')') if at }}. Адресу не змінюємо — це SEO. Товари в категорію додаються в «Товари магазину» або в картці товару.</p>
+<style>.sc{display:grid;grid-template-columns:1.2fr 1.6fr 2fr 70px auto auto auto;gap:6px;align-items:center;padding:8px 12px;border-top:1px solid var(--line)}.sc input[type=text],.sc input:not([type]){width:100%;margin:0}@media(max-width:900px){.sc{grid-template-columns:1fr}}</style>
+<div class="card" style="padding:0">
+{% for c2 in cats %}<form method="post" class="sc"><input type="hidden" name="path" value="{{ c2.path }}">
+  <div><input name="name" value="{{ c2.name }}"><div class="small muted">{{ c2.path }} · {{ c2.slugs|length }} товарів</div></div>
+  <input name="title" value="{{ c2.title or '' }}" placeholder="SEO title"><input name="desc" value="{{ c2.desc or '' }}" placeholder="SEO description">
+  <input name="sort" value="{{ c2.sort or 100 }}" title="Порядок у меню">
+  <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" name="in_menu" value="1" style="width:auto" {{ 'checked' if c2.get('in_menu', True) }}> меню</label>
+  <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" name="hidden" value="1" style="width:auto" {{ 'checked' if c2.hidden }}> сховати</label>
+  <button class="btn ghost" style="height:32px;padding:0 10px">OK</button></form>{% else %}<p class="muted" style="padding:14px">Категорій ще немає — структуру зі старого сайту не знято.</p>{% endfor %}</div>
+<form method="post" class="card" style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:end"><b style="width:100%">Нова категорія</b>
+  <label class="small">Адреса<input name="path" placeholder="/shop/nabory/"></label><label class="small">Назва<input name="name"></label>
+  <label class="small">SEO title<input name="title"></label><input type="hidden" name="in_menu" value="1"><button class="btn">Додати</button></form>
+{% endblock %}

@@ -10,9 +10,9 @@
   <div class="scroller brs">{% for b in d.brands %}<a class="br" href="{{ base }}{{ b.path }}">{{ b.name }}</a>{% endfor %}</div></div></section>{% endif %}
 {% if d.menu %}<section class="sec"><div class="wrap"><div class="sec-h"><h2>Категорії</h2></div>
   <div class="cats">{% for m in d.menu %}<a class="cat" href="{{ base }}{{ m.path }}"><b>{{ m.name }}</b><small>{{ m.n }} товарів</small></a>{% endfor %}</div></div></section>{% endif %}
-{{ rowblock('Акції', blocks.sale, base, money, base ~ ('/shop/sale/' if '/shop/sale/' in d.by_path else '/shop/?order=sale')) }}
-{{ rowblock('Новинки', blocks.new, base, money, base ~ '/shop/?order=new') }}
-{{ rowblock('Бестселери', blocks.best, base, money) }}
+{{ rowblock('Акції', blocks.sale, base, money, base ~ ('/shop/sale/' if '/shop/sale/' in d.by_path else '/shop/?order=sale'), pch, s) }}
+{{ rowblock('Новинки', blocks.new, base, money, base ~ '/shop/?order=new', pch, s) }}
+{{ rowblock('Бестселери', blocks.best, base, money, '', pch, s) }}
 {% if blog %}<section class="sec"><div class="wrap"><div class="sec-h"><h2>Блог</h2><a href="{{ base }}/blog/">Дивитись усі</a></div>
   <div class="blog">{% for p in blog %}<a class="post" href="{{ base }}{{ p.path }}">{% if p.img %}<img src="{{ p.img }}" alt="" loading="lazy">{% endif %}<b>{{ p.h1 or p.title }}</b><span>{{ p.desc }}</span><i>Читати повністю</i></a>{% endfor %}</div></div></section>{% endif %}
 <section class="sec insta"><div class="wrap"><div class="insta-in"><div><h2>Наш Instagram</h2><p>Поради лікарів, новинки, результати процедур і догляду.</p></div>

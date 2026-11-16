@@ -124,3 +124,41 @@ def test_mono_parts_flow(monkeypatch):
         assert mp.confirm(db, o, H()) and not mp.confirm(db, o, H()) and calls[-1][0].endswith("/api/order/confirm")
         mp.save(db, "", "", "test", "3 4", False, 500)
         assert not mp.public(db)["ready"] and mp.public(db)["has_keys"]
+
+
+def test_shop_admin_sections_bulk_import(monkeypatch):
+    from app.services import shop_front as sf
+    monkeypatch.setattr("app.services.tg_notify.send_text", lambda *a, **k: True)
+    sec = sf.sections('<div style="x"><div>Опис</div><div><p><span style="color:red">Гель очищує.</span></p></div><div><p></p></div>'
+                      '<h3>АКТИВНІ ІНГРЕДІЄНТИ</h3><p>— Кислота</p><p><strong>Спосіб застосування</strong></p><p>Нанести.</p></div>')
+    assert [x["title"] for x in sec] == ["Опис", "Активні інгредієнти", "Спосіб застосування"] and "style" not in sec[0]["html"] and "Гель очищує" in sec[0]["html"]
+    settings.admin_password = "owner-pass-sa"
+    with TestClient(app) as c:
+        with SessionLocal() as db:
+            a = Product(name="Bulk A", name_norm="bulk a", price=2000, site_on=True, site_info={"slug": "bulk-a", "title": "Bulk A", "presence": 1})
+            b = Product(name="Bulk B", name_norm="bulk b", price=1000, site_on=False, site_info={"slug": "bulk-b", "title": "Bulk B", "presence": 1})
+            db.add_all([a, b]); db.commit()
+            ia, ib = a.id, b.id
+            k = sf.preview_key(db)
+        bad = c.post("/api/public/shop-import", json={"k": "x", "cats": []})
+        assert bad.status_code == 403
+        r = c.post("/api/public/shop-import", json={"k": k, "cats": [{"path": "/shop/nabory/", "h1": "Набори", "title": "Набори T", "in_menu": True, "slugs": ["bulk-a", "nope"]},
+                                                                 {"path": "/shop/bulk-a/", "slugs": []}],
+                                                    "pages": [{"path": "/blog/x/", "h1": "Стаття", "html": "<p>t</p><script>1</script>"}]})
+        assert r.json()["cats"] == 1 and r.json()["products_in_cats"] == 1
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-sa"})
+        assert "Bulk A" in c.get("/settings/shop/products").text and c.get("/settings/shop/cats").status_code == 200
+        c.post("/settings/shop/products", data={"id": [ia, ib], "action": "sale", "pct": "20"}, follow_redirects=False)
+        c.post("/settings/shop/products", data={"id": [ib], "action": "show"}, follow_redirects=False)
+        c.post("/settings/shop/products", data={"id": [ib], "action": "cat_add", "bcat": "/shop/nabory/"}, follow_redirects=False)
+        c.post("/settings/shop/cats", data={"path": "/shop/nabory/", "name": "Набори догляду", "title": "T2", "in_menu": "1", "sort": "5"}, follow_redirects=False)
+        with SessionLocal() as db:
+            d = sf.catalog(db, fresh=True)
+            assert d["by_slug"]["bulk-a"]["price"] == 1600 and d["by_slug"]["bulk-a"]["old"] == 2000 and d["by_slug"]["bulk-a"]["pct"] == 20
+            cat = d["by_path"]["/shop/nabory/"]
+            assert cat["name"] == "Набори догляду" and set(cat["slugs"]) == {"bulk-a", "bulk-b"} and d["menu"][0]["path"] == "/shop/nabory/"
+        c.post(f"/products/{ia}/site", data={"site_on": "1", "short_description": "<p>x</p>", "sale_pct": "", "cats_form": "1"}, follow_redirects=False)
+        with SessionLocal() as db:
+            d = sf.catalog(db, fresh=True)
+            assert d["by_slug"]["bulk-a"]["price"] == 2000 and "bulk-a" not in d["by_path"]["/shop/nabory/"]["slugs"]
+        assert "Набори догляду" in c.get(f"/products/{ib}").text

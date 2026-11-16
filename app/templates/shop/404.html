@@ -1,3 +1,3 @@
 {% extends "shop/base.html" %}{% from "shop/_card.html" import rowblock %}
 {% block main %}<section class="sec lst"><div class="wrap narrow"><h1>Сторінку не знайдено</h1><p class="mut">Можливо, товар зняли з продажу або адреса змінилась. <a href="{{ base }}/shop/">Перейти до каталогу</a></p></div></section>
-{{ rowblock('Бестселери', items, base, money) }}{% endblock %}
+{{ rowblock('Бестселери', items, base, money, '', pch, s) }}{% endblock %}

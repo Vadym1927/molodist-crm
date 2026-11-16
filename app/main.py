@@ -5095,6 +5095,7 @@ def product_card(pid: int, request: Request, user: User = Depends(require("produ
                   m_max=max([m[1] for m in months] + [1]), stock_rows=stock_rows, today=today,
                   brands=sorted({x for (x,) in db.execute(select(Product.brand).where(Product.brand.is_not(None)).distinct())}),
                   suppliers=sorted({x for (x,) in db.execute(select(Product.supplier).where(Product.supplier.is_not(None)).distinct())}),
+                  shop_cats=sorted(__import__("app.services.shop_front", fromlist=["x"]).site(db)["cats"], key=lambda c: c["path"]),
                   pfiles=db.scalars(select(ProductFile).where(ProductFile.product_id == pid).order_by(ProductFile.kind.desc(), func.coalesce(ProductFile.sort, 999), ProductFile.uploaded_at.desc())).all())
 
 
@@ -5151,8 +5152,20 @@ async def product_site_save(pid: int, request: Request, user: User = Depends(req
     si["seo_title"] = str(f.get("seo_title") or "").strip()[:300]
     si["seo_description"] = str(f.get("seo_description") or "").strip()[:600]
     si["edited_at"] = datetime.now().isoformat(timespec="minutes")
+    try:
+        pct = float(str(f.get("sale_pct") or 0).replace(",", "."))
+    except ValueError:
+        pct = 0
+    if 1 <= pct <= 90:
+        si["sale"] = {"pct": pct, "until": str(f.get("sale_until") or "")[:10]}
+        si.pop("price_old", None)
+    elif f.get("sale_pct") is not None:
+        si.pop("sale", None)
     p.site_info = si
     db.commit()
+    if si.get("slug") and f.get("cats_form"):
+        from .services import shop_front as _sf
+        _sf.set_product_cats(db, si["slug"], {str(x) for x in f.getlist("cat")})
     audit(db, "product.site", "product", pid, user=user, on=p.site_on)
     return RedirectResponse(_with_msg(f"/products/{pid}#psite", "Збережено"), 303)
 
@@ -9951,7 +9964,7 @@ async def settings_shop_save(request: Request, user: User = Depends(require("use
     c = sf.cfg(db)
     c["on"] = bool(f.get("on"))
     c["hosts"] = [h.strip().lower() for h in str(f.get("hosts") or "").replace(",", " ").split() if h.strip()][:5]
-    for k, n in (("strip", 200), ("gifts", 1000), ("benefits", 1500), ("about", 3000), ("instagram", 200), ("canonical", 120)):
+    for k, n in (("strip", 200), ("gifts", 1000), ("benefits", 1500), ("about", 3000), ("instagram", 200), ("canonical", 120), ("parts_icon", 500)):
         c[k] = str(f.get(k) or "").strip()[:n]
     for k in ("free_from", "gift_from", "pay_account"):
         try:
@@ -9973,6 +9986,50 @@ async def settings_shop_save(request: Request, user: User = Depends(require("use
     sf.save_cfg(db, c)
     audit(db, "settings.shop", "settings", None, user=user, on=c["on"])
     return RedirectResponse(_with_msg("/settings/shop", "Збережено"), 303)
+
+
+@app.get("/settings/shop/products", response_class=HTMLResponse)
+def settings_shop_products(request: Request, q: str = "", cat: str = "", f: str = "", user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import shop_front as sf
+    rows = sf.admin_rows(db, q.strip(), cat, f)
+    st = sf.site(db)
+    return render(request, "settings_shop_products.html", nav="settings", rows=rows, cats=sorted(st["cats"], key=lambda c: c["path"]), q=q, cat=cat, f=f)
+
+
+@app.post("/settings/shop/products")
+async def settings_shop_products_bulk(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import shop_front as sf
+    f = await request.form()
+    ids = [int(x) for x in f.getlist("id") if str(x).isdigit()]
+    back = str(f.get("back") or "/settings/shop/products")
+    back = back if back.startswith("/settings/shop/products") else "/settings/shop/products"
+    if not ids:
+        return RedirectResponse(_with_msg(back, "Позначте товари", True), 303)
+    try:
+        n = sf.bulk(db, ids, str(f.get("action") or ""), {"pct": f.get("pct"), "until": f.get("until"), "cat": f.get("bcat")})
+    except sf.ShopError as e:
+        return RedirectResponse(_with_msg(back, str(e), True), 303)
+    audit(db, "shop.bulk", user=user, op=str(f.get("action")), n=n)
+    return RedirectResponse(_with_msg(back, f"Змінено товарів: {n}"), 303)
+
+
+@app.get("/settings/shop/cats", response_class=HTMLResponse)
+def settings_shop_cats(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import shop_front as sf
+    st = sf.site(db)
+    return render(request, "settings_shop_cats.html", nav="settings", cats=sorted(st["cats"], key=lambda c: c["path"]), at=st.get("at"))
+
+
+@app.post("/settings/shop/cats")
+async def settings_shop_cats_save(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import shop_front as sf
+    f = await request.form()
+    try:
+        sf.edit_cat(db, str(f.get("path") or "").strip(), {k: f.get(k) for k in ("name", "title", "desc", "in_menu", "hidden", "sort")})
+    except sf.ShopError as e:
+        return RedirectResponse(_with_msg("/settings/shop/cats", str(e), True), 303)
+    audit(db, "shop.cat", user=user, path=str(f.get("path"))[:100])
+    return RedirectResponse(_with_msg("/settings/shop/cats", "Збережено"), 303)
 
 
 @app.post("/shop-orders/{oid:int}/status")

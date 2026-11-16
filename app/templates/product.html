@@ -184,6 +184,10 @@
   {% if si.groups %}<details><summary class="small" style="cursor:pointer;font-weight:600">Категорії на сайті</summary><pre class="small" style="white-space:pre-wrap">{{ si.groups|tojson(indent=1) }}</pre></details>{% endif %}
   {% if can(user,'products') %}<form method="post" action="/products/{{ p.id }}/site" class="psform" style="display:grid;gap:8px;margin-top:10px">
     <label class="row" style="gap:8px;align-items:center"><input type="checkbox" name="site_on" value="1" style="width:auto" {{ 'checked' if p.site_on }}> Показувати товар на сайті</label>
+    <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px"><label class="small">Знижка на сайті, %<input name="sale_pct" inputmode="decimal" value="{{ '%g'|format(si.sale.pct) if si.sale and si.sale.pct else '' }}" placeholder="порожньо — без знижки"></label>
+      <label class="small">Діє до (необовʼязково)<input type="date" name="sale_until" value="{{ si.sale.until if si.sale else '' }}"></label></div>
+    {% if si.slug and shop_cats %}<input type="hidden" name="cats_form" value="1"><div class="small"><b>Категорії на сайті</b>
+      <div style="columns:2;margin-top:4px">{% for c2 in shop_cats %}<label class="row" style="gap:6px;align-items:center;display:flex"><input type="checkbox" name="cat" value="{{ c2.path }}" style="width:auto" {{ 'checked' if si.slug in c2.slugs }}> {{ c2.name }} <span class="muted">{{ c2.path }}</span></label>{% endfor %}</div></div>{% endif %}
     <label class="small">Опис (HTML)<textarea name="short_description" rows="6">{{ si.short_description or '' }}</textarea></label>
     <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px"><label class="small">SEO title<input name="seo_title" value="{{ si.seo_title or '' }}"></label>
       <label class="small">SEO description<input name="seo_description" value="{{ si.seo_description or '' }}"></label></div>

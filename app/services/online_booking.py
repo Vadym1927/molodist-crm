@@ -999,7 +999,7 @@ def attach_fiscal(db: Session, http=None) -> int:
     since = datetime.now() - timedelta(days=3)
     for p in db.scalars(select(PayLink).where(PayLink.status == "paid", PayLink.provider == "mono", PayLink.sale_id.isnot(None),
                                               PayLink.paid_at >= since)):
-        if not (p.info or {}).get("order"):
+        if not ((p.info or {}).get("order") or (p.info or {}).get("shop_order")):
             continue
         s = db.get(Sale, p.sale_id)
         if s and not (s.fiscal or {}).get("fiscal_code"):

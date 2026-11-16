@@ -12,7 +12,13 @@
 <div class="card" style="max-width:860px;margin-bottom:14px"><b>Перегляд до публікації</b>
   <p class="small" style="margin:6px 0"><a href="{{ preview }}" target="_blank" rel="noopener">{{ preview }}</a></p>
   <p class="small muted" style="margin:0 0 8px">Структура й SEO старого сайту (категорії з адресами, заголовками, описами; сторінки; блог){{ (' — знято ' ~ d.at[8:10] ~ '.' ~ d.at[5:7] ~ ' ' ~ d.at[11:16]) if d.at else ' — ще не знято' }}. Нові сторінки відкриваються за тими самими адресами.</p>
-  <form method="post"><button class="btn ghost" name="action" value="crawl">Зняти структуру й SEO з molodist.store</button> <a class="btn ghost" href="/shop-orders">Замовлення сайту</a></form></div>
+  <form method="post" style="display:flex;gap:6px;flex-wrap:wrap"><a class="btn" href="/settings/shop/products">Товари: показ, знижки, категорії</a><a class="btn ghost" href="/settings/shop/cats">Категорії</a>
+    <a class="btn ghost" href="/shop-orders">Замовлення сайту</a><button class="btn ghost" name="action" value="crawl">Зняти структуру й SEO з molodist.store</button></form></div>
+<div class="card" style="max-width:860px;margin-bottom:14px"><b>Фіскалізація замовлень</b>
+  <ul class="small" style="margin:6px 0 0;padding-left:18px">
+    <li><b>Онлайн карткою (посилання monobank)</b> — фіскальний чек видає monobank через свою інтеграцію з ПРРО; CRM сама створює чек продажу (товари списуються зі складу) і підтягує фіскальний чек monobank у цей чек — удруге не фіскалізує.</li>
+    <li><b>При отриманні</b> — оплату приймає адміністратор: продаж проводиться в касі CRM і фіскалізується через Checkbox того ФОП, чию касу обрано в чеку.</li>
+    <li><b>Покупка Частинами</b> — поки без фіскального чека з CRM (кошти надходять переказом від банку).</li></ul></div>
 <form method="post" class="card shs" style="display:grid;gap:14px;max-width:860px">
   <label class="ck" style="font-weight:700;font-size:15px"><input type="checkbox" name="on" value="1" {{ 'checked' if c.on }}> Магазин опубліковано</label>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
@@ -31,6 +37,8 @@
   <label>Переваги (рядок: Заголовок | текст)<textarea name="benefits" rows="4">{{ c.benefits }}</textarea></label>
   <label>Про нас<textarea name="about" rows="4">{{ c.about }}</textarea></label>
   <label>Instagram<input name="instagram" value="{{ c.instagram }}"></label>
+  <label>Значок «Покупка Частинами» (лапка) на фото товарів<input name="parts_icon" value="{{ c.parts_icon }}" placeholder="посилання на офіційний значок із матеріалів monobank (png / svg)">
+    <span class="small muted">Показується на товарах від мінімальної суми Покупки Частинами. Без значка — напис «Частинами».</span></label>
   <div><b>Банери на головній</b><div class="small muted">Посилання на картинку (наприклад, із «Сайт клініки → Фото»), заголовок, текст, куди веде. Порожньо — стандартний блок.</div>
     {% for i in range(4) %}{% set h = c.hero[i] if i < c.hero|length else {} %}<div style="display:grid;grid-template-columns:2fr 1.4fr 1.6fr 1.4fr;gap:6px;margin-top:6px">
       <input name="h_img_{{ i }}" value="{{ h.img or '' }}" placeholder="https://…/banner.webp"><input name="h_title_{{ i }}" value="{{ h.title or '' }}" placeholder="Заголовок">

@@ -9,7 +9,7 @@
     {% if brands|length > 1 %}<select name="brand" onchange="this.form.submit()"><option value="">Усі бренди</option>{% for b in brands %}<option {{ 'selected' if b == brand }}>{{ b }}</option>{% endfor %}</select>{% endif %}
     <select name="order" onchange="this.form.submit()"><option value="">Популярні</option><option value="cheap" {{ 'selected' if sort == 'cheap' }}>Спершу дешевші</option>
       <option value="expensive" {{ 'selected' if sort == 'expensive' }}>Спершу дорожчі</option><option value="new" {{ 'selected' if sort == 'new' }}>Новинки</option><option value="sale" {{ 'selected' if sort == 'sale' }}>Акційні</option></select></form>
-  {% if items %}<div class="grid">{% for i in items %}{{ card(i, base, money) }}{% endfor %}</div>{% else %}<p class="mut">Нічого не знайдено. Спробуйте іншу назву або <a href="{{ base }}/shop/">перегляньте каталог</a>.</p>{% endif %}
+  {% if items %}<div class="grid">{% for i in items %}{{ card(i, base, money, pch, s) }}{% endfor %}</div>{% else %}<p class="mut">Нічого не знайдено. Спробуйте іншу назву або <a href="{{ base }}/shop/">перегляньте каталог</a>.</p>{% endif %}
   {% if pages > 1 %}{% set qs = ('?' ~ ('q=' ~ q|urlencode ~ '&' if q else '') ~ ('order=' ~ sort ~ '&' if sort else '') ~ ('brand=' ~ brand|urlencode ~ '&' if brand else '')) %}
   <nav class="pager">{% for n in range(1, pages + 1) %}{% if n == page %}<b>{{ n }}</b>{% else %}<a href="{{ base }}{{ page_base }}{% if cat and not (sort or brand) %}{{ 'page-' ~ n ~ '/' if n > 1 }}{% else %}{{ qs }}page={{ n }}{% endif %}">{{ n }}</a>{% endif %}{% endfor %}</nav>{% endif %}
   {% if cat and cat.desc and page == 1 %}<p class="seo mut">{{ cat.desc }}</p>{% endif %}

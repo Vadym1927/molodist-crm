@@ -53,7 +53,9 @@ def register(app, templates, version: str):
         on_site = host in sf.hosts()
         data = sf.catalog(db)
         site = sp.cfg(db)
-        return {"request": request, "s": c, "c": site, "d": data, "base": "" if on_site else "/_shop", "noindex": not on_site,
+        from .services import mono_parts as _mp
+        pp = _mp.public(db)
+        return {"pch": float(pp["min_sum"] or 0) if pp["ready"] else None, "request": request, "s": c, "c": site, "d": data, "base": "" if on_site else "/_shop", "noindex": not on_site,
                 "canonical": c["canonical"].rstrip("/") + path, "ver": str(version)[:8], "year": date.today().year, "money": sp.money,
                 "benefits": sf.lines(c.get("benefits")), "viber": sp.viber_link(db, site), "path": path, "q": "",
                 "pkey": request.query_params.get("p") or ""}
@@ -161,6 +163,21 @@ def register(app, templates, version: str):
         from .services import mono_parts as mp
         ok = mp.callback(db, await request.body(), request.headers.get("signature") or "")
         return JSONResponse({"ok": ok}, status_code=200 if ok else 400)
+
+    @app.post("/api/public/shop-import")
+    async def shop_import(request: Request, db: Session = Depends(db_dep)):
+        """Структура старого сайту, знята в браузері власника: тіло — JSON {k: ключ перегляду, cats, pages, home}."""
+        try:
+            body = json.loads(await request.body() or b"{}")
+        except ValueError:
+            raise HTTPException(400) from None
+        k = str(sf.cfg(db).get("preview_key") or "")
+        if not k or not hmac.compare_digest(str(body.get("k") or "").encode(), k.encode()) or not _rate(request, "shopimp", 10):
+            raise HTTPException(403)
+        try:
+            return JSONResponse(sf.import_site(db, body))
+        except sf.ShopError as e:
+            return JSONResponse({"error": str(e)}, status_code=400)
 
     @app.get("/_shop/checkout/", response_class=HTMLResponse)
     @app.get("/_shop/shop/cart/", response_class=HTMLResponse, include_in_schema=False)

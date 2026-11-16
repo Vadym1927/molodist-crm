@@ -280,18 +280,18 @@ def _book(db: Session, pl: PayLink) -> None:
     """Оплачене посилання → надходження в журналі фіноперацій CRM (каса «Онлайн-оплати») + сповіщення власнику.
     Посилання з чека каси CRM — чек стає «оплачено» (гроші вже враховані оплатою чека, фіноперацію не дублюємо)."""
     from ..models import FinOp, Patient, Sale
+    if (pl.info or {}).get("shop_order") and not pl.sale_id:    # замовлення інтернет-магазину → «Оплачено» + чек CRM
+        try:
+            from . import shop_front as _sf
+            _sf.paid(db, pl)
+        except Exception as e:  # noqa: BLE001
+            pl.info = {**(pl.info or {}), "shop_error": str(e)[:300]}
     if (pl.info or {}).get("order") and not pl.sale_id:      # онлайн-покупка сертифіката / абонемента → продаж у CRM сам
         try:
             from . import online_booking as _ob
             _ob.fulfil(db, pl)
         except Exception as e:  # noqa: BLE001 — гроші вже прийшли: фіноперація нижче + адміністратор доробить вручну
             pl.info = {**(pl.info or {}), "order_error": str(e)[:300]}
-    if (pl.info or {}).get("shop_order"):                    # замовлення інтернет-магазину → «Оплачено»
-        try:
-            from . import shop_front as _sf
-            _sf.paid(db, pl)
-        except Exception as e:  # noqa: BLE001
-            pl.info = {**(pl.info or {}), "shop_error": str(e)[:300]}
     if pl.sale_id:
         s = db.get(Sale, pl.sale_id)
         if s and s.status == "awaiting" and not (s.fiscal or {}).get("term_wait"):

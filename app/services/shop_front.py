@@ -34,6 +34,7 @@ DEFAULT = {
              "лише оригінальна продукція від офіційних дистрибʼюторів. Допоможемо підібрати догляд під ваш тип шкіри.",
     "instagram": "https://www.instagram.com/molodist.clinic/",
     "hero": [],                  # [{img, title, text, url}]
+    "parts_icon": "",            # офіційний значок «Покупка Частинами» (лапка) — файл із матеріалів monobank
 }
 STATUSES = ["Нове", "В роботі", "Очікує оплати", "Оплачено", "Відправлено", "Виконано", "Скасовано"]
 _cache: dict = {"at": 0.0, "hosts": set(), "cat_at": 0.0, "cat": None}
@@ -261,6 +262,7 @@ def catalog(db: Session, fresh: bool = False) -> dict:
             if it.get("product_id"):
                 sold[it["product_id"]] += it.get("qty") or 0
     by_slug: dict[str, dict] = {}
+    today = datetime.now().date().isoformat()
     for p in db.scalars(select(Product).where(Product.site_info.is_not(None)).order_by(Product.id)):
         si = p.site_info or {}
         slug = si.get("slug")
@@ -270,6 +272,9 @@ def catalog(db: Session, fresh: bool = False) -> dict:
         if price <= 0:
             continue
         old = float(si.get("price_old") or 0)
+        sale = si.get("sale") or {}
+        if sale.get("pct") and (not sale.get("until") or str(sale["until"]) >= today):       # знижка на сайті, задана в CRM
+            old, price = price, float(round(price * (1 - float(sale["pct"]) / 100)))
         stock = str(si.get("presence", 1)).lower() not in ("0", "false", "not_available") and (si.get("quantity") is None or float(si.get("quantity") or 0) > 0)
         v = {"id": p.id, "name": si.get("title") or p.name, "price": price, "old": old if old > price else 0, "stock": stock,
              "sku": p.sku or si.get("sku") or "", "label": p.volume or ""}
@@ -284,6 +289,7 @@ def catalog(db: Session, fresh: bool = False) -> dict:
         brand = si.get("brand_name") or p.brand or ""
         by_slug[slug] = {"slug": slug, "id": p.id, "name": si.get("title") or p.name, "brand": brand, "price": price, "old": v["old"],
                          "stock": stock, "imgs": files.get(p.id, []), "desc": si.get("short_description") or "",
+                         "sections": sections(si.get("short_description") or ""),
                          "seo_title": si.get("seo_title") or "", "seo_desc": si.get("seo_description") or "", "sold": sold.get(p.id, 0),
                          "new": p.id, "variants": [v], "sku": v["sku"]}
     for it in by_slug.values():
@@ -291,15 +297,237 @@ def catalog(db: Session, fresh: bool = False) -> dict:
     st = site(db)
     cats = []
     for c in st["cats"]:
+        if c.get("hidden"):
+            continue
         sl = [s for s in c["slugs"] if s in by_slug]
         cats.append({**c, "slugs": sl, "n": len(sl), "depth": c["path"].strip("/").count("/"), "parent": "/".join(c["path"].rstrip("/").split("/")[:-1]) + "/"})
     brands_root = "/shop/brendi/"
     data = {"items": list(by_slug.values()), "by_slug": by_slug, "cats": cats, "by_path": {c["path"]: c for c in cats},
-            "menu": [c for c in cats if c["depth"] == 1 and c["path"] != brands_root and c["n"]],
+            "menu": sorted((c for c in cats if c["depth"] == 1 and c["path"] != brands_root and c["n"] and c.get("in_menu", True) is not False),
+                           key=lambda c: (c.get("sort") or 100)),
             "brands": sorted((c for c in cats if c["path"].startswith(brands_root) and c["path"] != brands_root and c["n"]), key=lambda c: c["name"].lower()),
             "pages": {p["path"]: p for p in st["pages"]}, "home": st.get("home") or {}, "at": st.get("at")}
     _cache["cat"], _cache["cat_at"] = data, time.time()
     return data
+
+
+# ---------------- опис товару: чистий HTML, розбитий на розділи ----------------
+_SEC = re.compile(r"(спосіб|метод|як)\s+(застосуван|використан|нанесен)|застосування|використання|склад|інгредієнт|ingredients|показання|результат|"
+                  r"переваги|дія|ефект|особливості|для кого|тип шкіри|увага|застереження|протипоказання|обʼєм|об'єм|зберігання|рекомендації", re.I)
+
+
+def sections(html: str) -> list[dict]:
+    """Опис із Shop-Express → розділи [{title, html}]: без стилів і порожніх блоків; заголовки розділів — справжні заголовки або
+    короткі рядки на кшталт «Спосіб застосування», «Склад», «Активні інгредієнти»."""
+    if not (html or "").strip():
+        return []
+    try:
+        s = _soup(html)
+    except Exception:  # noqa: BLE001
+        return [{"title": "Опис", "html": html}]
+    for t in s.find_all(["script", "style", "iframe", "form", "input", "button"]):
+        t.decompose()
+    for t in s.find_all(True):
+        t.attrs = {k: v for k, v in t.attrs.items() if k in ("href", "src", "alt")}
+        if t.name in ("span", "font", "section", "article"):
+            t.unwrap()
+    for t in s.find_all("div"):
+        if t.find(["p", "ul", "ol", "div", "h1", "h2", "h3", "h4", "table"]):
+            t.unwrap()
+        else:
+            t.name = "p"
+    for t in s.find_all(["p", "li", "h1", "h2", "h3", "h4", "strong", "b", "em"]):
+        if not t.get_text(strip=True) and not t.find("img"):
+            t.decompose()
+    out, cur = [], {"title": "Опис", "parts": []}
+
+    def head_of(t) -> str:
+        if getattr(t, "name", None) in ("h1", "h2", "h3", "h4"):
+            return t.get_text(" ", strip=True)
+        if getattr(t, "name", None) == "p":
+            txt = t.get_text(" ", strip=True)
+            bold = t.find(["strong", "b"])
+            only_bold = bool(bold) and bold.get_text(" ", strip=True) == txt
+            if txt and len(txt) <= 60 and (only_bold or (_SEC.search(txt) and len(txt.split()) <= 5 and not txt.endswith("."))):
+                return txt
+        return ""
+    for t in list(s.children):
+        txt = str(t).strip()
+        if not txt:
+            continue
+        h = head_of(t)
+        if h and h.lower().strip(" :") not in ("опис", "default"):
+            if cur["parts"]:
+                out.append(cur)
+            cur = {"title": h.strip(" :")[:80].capitalize() if h.isupper() else h.strip(" :")[:80], "parts": []}
+            continue
+        if h:
+            continue
+        cur["parts"].append(txt if getattr(t, "name", None) else f"<p>{txt}</p>")
+    if cur["parts"]:
+        out.append(cur)
+    return [{"title": x["title"], "html": "\n".join(x["parts"])} for x in out]
+
+
+# ---------------- структура: редагування в CRM ----------------
+def save_site(db: Session, st: dict) -> None:
+    db.merge(SyncState(key=SITE_KEY, value=json.dumps(st, ensure_ascii=False), updated_at=datetime.utcnow()))
+    db.commit()
+    _cache["cat_at"] = 0.0
+
+
+def import_site(db: Session, payload: dict) -> dict:
+    """Структура старого сайту, знята в браузері власника (коли сайт не віддає сторінки серверу): категорії й сторінки."""
+    from .shop_migrate import clean_html
+    slugs = {(p.site_info or {}).get("slug") for p in db.scalars(select(Product).where(Product.site_info.is_not(None)))} - {None, ""}
+    old = {c["path"]: c for c in site(db).get("cats") or []}
+    cats = []
+    for c in payload.get("cats") or []:
+        path = str(c.get("path") or "")
+        segs = path.strip("/").split("/")
+        if not re.match(r"^/shop/([^/]+/){1,3}$", path) or segs[1] in slugs or "Please wait" in str(c.get("title")):
+            continue
+        prev = old.get(path) or {}
+        cats.append({"path": path, "name": str(c.get("h1") or c.get("title") or segs[-1])[:200], "title": str(c.get("title") or "")[:300],
+                     "desc": str(c.get("desc") or "")[:1000], "img": str(c.get("img") or "")[:500], "in_menu": bool(c.get("in_menu")),
+                     "slugs": list(dict.fromkeys(x for x in c.get("slugs") or [] if x in slugs)),
+                     **{k: prev[k] for k in ("sort", "hidden") if k in prev}})
+    if not any(c["slugs"] for c in cats):
+        raise ShopError("У знятих категоріях немає товарів — дані не збережено")
+    pages = [{"path": str(p.get("path"))[:300], "title": str(p.get("title") or "")[:300], "desc": str(p.get("desc") or "")[:1000],
+              "h1": str(p.get("h1") or "")[:300], "img": str(p.get("img") or "")[:500], "html": clean_html(str(p.get("html") or ""))[:60000]}
+             for p in payload.get("pages") or [] if str(p.get("path") or "").startswith("/") and "мотор" not in str(p.get("h1") or "").lower()
+             and "Please wait" not in str(p.get("title"))]
+    st = {"at": datetime.now().isoformat(timespec="minutes"), "cats": cats, "pages": pages or site(db).get("pages") or [],
+          "home": payload.get("home") or site(db).get("home") or {}}
+    save_site(db, st)
+    return {"cats": len(cats), "with_products": sum(1 for c in cats if c["slugs"]), "products_in_cats": len({x for c in cats for x in c["slugs"]}),
+            "pages": len(st["pages"])}
+
+
+def edit_cat(db: Session, path: str, data: dict) -> None:
+    st = site(db)
+    c = next((x for x in st["cats"] if x["path"] == path), None)
+    if not c:
+        if not re.match(r"^/shop/([a-z0-9-]+/){1,3}$", path):
+            raise ShopError("Адреса категорії: /shop/nazva-latynytseiu/ (малі латинські літери, цифри, дефіс)")
+        c = {"path": path, "slugs": [], "img": "", "in_menu": True}
+        st["cats"].append(c)
+    if not str(data.get("name") or "").strip():
+        raise ShopError("Вкажіть назву категорії")
+    c.update(name=str(data["name"]).strip()[:200], title=str(data.get("title") or "").strip()[:300], desc=str(data.get("desc") or "").strip()[:1000],
+             in_menu=bool(data.get("in_menu")), hidden=bool(data.get("hidden")))
+    try:
+        c["sort"] = int(data.get("sort") or 100)
+    except ValueError:
+        c["sort"] = 100
+    save_site(db, st)
+
+
+def set_product_cats(db: Session, slug: str, paths: set[str], only: set[str] | None = None) -> None:
+    """Категорії товару: paths — де він має бути; only — які категорії взагалі чіпаємо (для масових дій)."""
+    st = site(db)
+    for c in st["cats"]:
+        if only is not None and c["path"] not in only:
+            continue
+        has = slug in c["slugs"]
+        if c["path"] in paths and not has:
+            c["slugs"].append(slug)
+        elif c["path"] not in paths and has:
+            c["slugs"].remove(slug)
+    save_site(db, st)
+
+
+def admin_rows(db: Session, q: str = "", cat: str = "", flt: str = "") -> list[dict]:
+    """Товари для «Налаштування → Інтернет-магазин → Товари»: усі картки з даними сайту (і приховані)."""
+    st = site(db)
+    in_cats = defaultdict(list)
+    for c in st["cats"]:
+        for sl in c["slugs"]:
+            in_cats[sl].append(c)
+    rows, today = [], datetime.now().date().isoformat()
+    for p in db.scalars(select(Product).where(Product.site_info.is_not(None)).order_by(Product.brand, Product.name)):
+        si = p.site_info or {}
+        if not si.get("slug"):
+            continue
+        sale = si.get("sale") or {}
+        live = bool(sale.get("pct")) and (not sale.get("until") or str(sale["until"]) >= today)
+        base = _price(p)
+        r = {"p": p, "slug": si["slug"], "name": si.get("title") or p.name, "brand": si.get("brand_name") or p.brand or "", "base": base,
+             "price": round(base * (1 - float(sale["pct"]) / 100)) if live else base, "sale": sale if sale.get("pct") else None, "live": live,
+             "on": p.site_on is not False and p.active is not False, "cats": in_cats.get(si["slug"], []),
+             "stock": str(si.get("presence", 1)).lower() not in ("0", "false", "not_available")}
+        if q and q.lower() not in f"{r['name']} {r['brand']} {p.sku or ''}".lower():
+            continue
+        if cat and not any(c["path"] == cat for c in r["cats"]):
+            continue
+        if (flt == "on" and not r["on"]) or (flt == "off" and r["on"]) or (flt == "sale" and not r["sale"]) or (flt == "nocat" and r["cats"]):
+            continue
+        rows.append(r)
+    return rows
+
+
+def bulk(db: Session, ids: list[int], action: str, data: dict) -> int:
+    n = 0
+    prods = db.scalars(select(Product).where(Product.id.in_(ids or [0]))).all()
+    if action in ("cat_add", "cat_del"):
+        path = str(data.get("cat") or "")
+        st = site(db)
+        c = next((x for x in st["cats"] if x["path"] == path), None)
+        if not c:
+            raise ShopError("Оберіть категорію")
+        for p in prods:
+            sl = (p.site_info or {}).get("slug")
+            if sl and action == "cat_add" and sl not in c["slugs"]:
+                c["slugs"].append(sl); n += 1
+            elif sl and action == "cat_del" and sl in c["slugs"]:
+                c["slugs"].remove(sl); n += 1
+        save_site(db, st)
+        return n
+    for p in prods:
+        si = dict(p.site_info or {})
+        if action == "sale":
+            try:
+                pct = float(str(data.get("pct") or 0).replace(",", "."))
+            except ValueError:
+                raise ShopError("Знижка — число від 1 до 90") from None
+            if not 1 <= pct <= 90:
+                raise ShopError("Знижка — число від 1 до 90")
+            si["sale"] = {"pct": pct, "until": str(data.get("until") or "")[:10]}
+            si.pop("price_old", None)
+        elif action == "sale_off":
+            si.pop("sale", None)
+            si.pop("price_old", None)
+        elif action == "show":
+            p.site_on = True
+        elif action == "hide":
+            p.site_on = False
+        else:
+            raise ShopError("Невідома дія")
+        p.site_info = si
+        n += 1
+    db.commit()
+    _cache["cat_at"] = 0.0
+    return n
+
+
+def make_sale(db: Session, o: SiteOrder, pl) -> int | None:
+    """Оплачене онлайн замовлення → чек у CRM (продаж товарів, списання зі складу); фіскальний чек — від monobank."""
+    from . import sales as sl, paylinks as pls
+    if (o.raw or {}).get("sale_id") or not o.patient_id:
+        return (o.raw or {}).get("sale_id")
+    acc = pls._acc_of(pls._raw(db), pl) or {}
+    items = [{"kind": "product", "ref_id": i["product_id"], "name": i["name"], "qty": i["qty"], "price": i["price"]} for i in o.items or [] if i.get("product_id")]
+    if not items:
+        return None
+    paid_sum = round(sum(i["qty"] * i["price"] for i in items), 2)
+    sale = sl.create(db, {"patient_id": o.patient_id, "no_discounts": True, "items": items,
+                          "payments": [{"method": sl.paylink_method(acc.get("name") or "monobank"), "amount": paid_sum}],
+                          "comment": f"Інтернет-магазин, замовлення {o.number}"})
+    pl.sale_id = sale.id
+    o.raw = {**(o.raw or {}), "sale_id": sale.id}
+    db.flush()
+    return sale.id
 
 
 def children(cat: dict, data: dict) -> list[dict]:
@@ -436,6 +664,14 @@ def paid(db: Session, pl) -> None:
     if o and not o.paid:
         o.paid, o.status = True, "Оплачено"
         db.flush()
+        try:
+            make_sale(db, o, pl)
+        except Exception as e:  # noqa: BLE001 — гроші прийшли: замовлення оплачене, чек адміністратор проведе вручну
+            db.rollback()
+            o = db.get(SiteOrder, oid)
+            o.paid, o.status = True, "Оплачено"
+            o.comment = ((o.comment or "") + f"\nЧек у CRM не створився автоматично: {str(e)[:150]}").strip()
+            db.flush()
         notify(db, o, paid_now=True)
 
 
