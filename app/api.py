@@ -457,13 +457,13 @@ def bot_wallet(chat_id: str, key: ApiKey = Depends(BOT), db: Session = Depends(d
     return cb.wallet(db, _cb(db, chat_id))
 
 
-@router.get("/bot/patient/{chat_id}/files", summary="Мої аналізи (файли категорії «Аналізи» з картки)")
-def bot_files(chat_id: str, key: ApiKey = Depends(BOT), db: Session = Depends(db_dep)):
+@router.get("/bot/patient/{chat_id}/files", summary="Мої документи: категорії CRM (Обличчя, Тіло, Згоди, Документи, Аналізи) і файли; ?category=lab")
+def bot_files(chat_id: str, category: str | None = None, key: ApiKey = Depends(BOT), db: Session = Depends(db_dep)):
     from .services import care_bot as cb
-    return {"files": cb.files(db, _cb(db, chat_id))}
+    return cb.files(db, _cb(db, chat_id), category)
 
 
-@router.get("/bot/patient/{chat_id}/files/{fid}", summary="Завантажити свій аналіз (щоб надіслати пацієнту документом)")
+@router.get("/bot/patient/{chat_id}/files/{fid}", summary="Файл зі своєї картки (щоб надіслати пацієнту документом / фото)")
 def bot_file(chat_id: str, fid: int, key: ApiKey = Depends(BOT), db: Session = Depends(db_dep)):
     from pathlib import Path
     from fastapi.responses import FileResponse
@@ -474,12 +474,12 @@ def bot_file(chat_id: str, fid: int, key: ApiKey = Depends(BOT), db: Session = D
     return FileResponse(f.path, filename=Path(f.path).name.split("_", 1)[-1])
 
 
-@router.post("/bot/patient/{chat_id}/files", summary="Пацієнт надіслав аналізи → картка, категорія «Аналізи» (дублікати не додаються)")
-async def bot_file_add(chat_id: str, file: UploadFile = File(...), caption: str | None = Query(None),
+@router.post("/bot/patient/{chat_id}/files", summary="Пацієнт надіслав файл → картка (?category=lab за замовчуванням; дублікати не додаються)")
+async def bot_file_add(chat_id: str, file: UploadFile = File(...), caption: str | None = Query(None), category: str = Query("lab"),
                        key: ApiKey = Depends(BOT), db: Session = Depends(db_dep)):
     from .services import care_bot as cb
     p = _cb(db, chat_id)
-    r = _cb_call(cb.add_file, db, p, await file.read(), file.filename or "analysis", caption)
+    r = _cb_call(cb.add_file, db, p, await file.read(), file.filename or "analysis", caption, category)
     audit(db, "bot.file", "patient", p.id, key=key, file=r.get("file_id"), duplicate=r.get("duplicate"))
     return r
 
@@ -487,15 +487,30 @@ async def bot_file_add(chat_id: str, file: UploadFile = File(...), caption: str 
 class BotMessage(BaseModel):
     to: str = Field("admin", description="admin | chief (головний лікар)")
     text: str
+    kind: str = Field("message", description="message | review («Відправити відгук головному лікарю»)")
 
 
 @router.post("/bot/patient/{chat_id}/message", summary="«Написати адміністратору / головному лікарю» → задача й Telegram адресатам")
 def bot_message(chat_id: str, body: BotMessage, key: ApiKey = Depends(BOT), db: Session = Depends(db_dep)):
     from .services import care_bot as cb
     p = _cb(db, chat_id)
-    r = _cb_call(cb.message, db, p, body.to, body.text)
+    r = _cb_call(cb.message, db, p, body.to, body.text, body.kind)
     audit(db, "bot.message", "patient", p.id, key=key, to=body.to, task=r.get("task_id"))
     return r
+
+
+@router.get("/bot/guides", summary="«Корисні матеріали»: гайди PDF, як на сторінці запису")
+def bot_guides(key: ApiKey = Depends(BOT), db: Session = Depends(db_dep)):
+    from .config import settings
+    from .services import care_bot as cb, site_pages as sp
+    hosts = sp.cfg(db).get("hosts") or []
+    return {"guides": cb.guides(db, f"https://{hosts[0]}" if hosts else settings.public_url)}
+
+
+@router.get("/bot/doctors", summary="«Про лікарів»: як на сайті, головна лікарка першою")
+def bot_doctors(key: ApiKey = Depends(BOT), db: Session = Depends(db_dep)):
+    from .services import care_bot as cb
+    return {"doctors": cb.doctors(db)}
 
 
 @router.get("/bot/offers", summary="Сертифікати й абонементи для продажу в боті (ті самі, що на сайті)")

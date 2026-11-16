@@ -143,23 +143,27 @@ def wallet(db: Session, p: Patient, today: date | None = None) -> dict:
     }
 
 
-def files(db: Session, p: Patient) -> list[dict]:
+def files(db: Session, p: Patient, category: str | None = None) -> dict:
+    """«Мої документи» в боті: файли картки за категоріями CRM (Обличчя, Тіло, Згоди, Документи, Аналізи)."""
     from . import patient_photos as pp
-    return [{"id": f.id, "name": (f.caption or Path(f.path).name)[:200], "date": (f.taken_at or f.created_at.date()).isoformat(),
-             "type": Path(f.path).suffix.lower().lstrip(".")}
-            for f in pp.all_files(db, p.id) if pp.cat(f) == "lab"]
+    rows = [f for f in pp.all_files(db, p.id) if not category or pp.cat(f) == category]
+    allf = pp.all_files(db, p.id)
+    return {"categories": [{"key": k, "title": t, "count": sum(1 for f in allf if pp.cat(f) == k)} for k, t in pp.CATS.items()],
+            "files": [{"id": f.id, "category": pp.cat(f), "name": (f.caption or Path(f.path).name)[:200],
+                       "date": (f.taken_at or f.created_at.date()).isoformat(), "type": Path(f.path).suffix.lower().lstrip(".")} for f in rows]}
 
 
 def file_of(db: Session, p: Patient, fid: int) -> PatientFile:
-    from . import patient_photos as pp
     f = db.get(PatientFile, fid)
-    if not f or f.patient_id != p.id or pp.cat(f) != "lab":
+    if not f or f.patient_id != p.id or f.kind == "plan_pdf":
         raise BotError("Файл не знайдено")
     return f
 
 
-def add_file(db: Session, p: Patient, data: bytes, filename: str, caption: str | None = None) -> dict:
-    """Аналіз від пацієнта → картка (категорія «Аналізи»). Той самий файл удруге не додається."""
+def add_file(db: Session, p: Patient, data: bytes, filename: str, caption: str | None = None, category: str = "lab") -> dict:
+    """Файл від пацієнта → картка (за замовчуванням «Аналізи»). Той самий файл удруге не додається."""
+    from . import patient_photos as pp
+    category = category if category in pp.CATS else "lab"
     from . import ingest
     if not data:
         raise BotError("Порожній файл")
@@ -174,21 +178,21 @@ def add_file(db: Session, p: Patient, data: bytes, filename: str, caption: str |
             continue
     path = ingest.store(data, filename or "analysis")
     is_img = Path(filename or "").suffix.lower() in (".jpg", ".jpeg", ".png", ".webp", ".heic")
-    f = PatientFile(patient_id=p.id, kind="photo" if is_img else "doc", path=path, category="lab", tg_chat=p.telegram_chat_id,
-                    caption=((caption or "").strip() or f"Аналізи від пацієнта (бот) · {Path(filename or '').name}")[:500],
+    f = PatientFile(patient_id=p.id, kind="photo" if is_img else "doc", path=path, category=category, tg_chat=p.telegram_chat_id,
+                    caption=((caption or "").strip() or f"{pp.CATS[category]} від пацієнта (бот) · {Path(filename or '').name}")[:500],
                     taken_at=date.today())
     db.add(f)
     db.flush()
-    t = Task(title=f"Нові аналізи від пацієнта в боті — {p.full_name}"[:300], kind="bot", priority="normal", patient_id=p.id,
+    t = Task(title=f"{'Нові аналізи' if category == 'lab' else 'Новий файл'} від пацієнта в боті — {p.full_name}"[:300], kind="bot", priority="normal", patient_id=p.id,
              assignee_role="admin", due_date=date.today(), source_key=f"botfile:{f.id}",
-             description="Пацієнт надіслав аналізи через Бот турботи. Файл — у картці, вкладка «Фото й документи» → «Аналізи». "
+             description=f"Пацієнт надіслав файл через Бот турботи. Файл — у картці, вкладка «Фото й документи» → «{pp.CATS[category]}». "
                          "Передати лікарю.")
     db.add(t)
     db.commit()
     return {"ok": True, "duplicate": False, "file_id": f.id}
 
 
-def message(db: Session, p: Patient, to: str, text: str) -> dict:
+def message(db: Session, p: Patient, to: str, text: str, kind: str = "message") -> dict:
     """«Написати адміністратору / головному лікарю» → задача в CRM + Telegram адресатам (без медичних подробиць у сповіщенні)."""
     from . import tg_notify
     from html import escape
@@ -198,13 +202,14 @@ def message(db: Session, p: Patient, to: str, text: str) -> dict:
     role = "chief" if to in ("chief", "head_doctor", "doctor") else "admin"
     who = "головному лікарю" if role == "chief" else "адміністратору"
     chiefs = tg_notify.recipients(db, "chief") if role == "chief" else []
-    t = Task(title=f"Повідомлення {who} з бота — {p.full_name}"[:300], kind="bot", priority="high", patient_id=p.id,
+    what = "Відгук" if kind == "review" else "Повідомлення"
+    t = Task(title=f"{what} {who} з бота — {p.full_name}"[:300], kind="bot", priority="high", patient_id=p.id,
              assignee_id=chiefs[0].id if chiefs else None, assignee_role=None if chiefs else ("owner" if role == "chief" else "admin"),
              due_date=date.today(), description=text[:4000])
     db.add(t)
     db.commit()
     from ..config import settings
-    note = (f"💬 <b>Пацієнт написав {who} в Бот турботи</b>\n{escape(p.full_name)}\n"
+    note = (f"💬 <b>{'Відгук' if kind == 'review' else 'Пацієнт написав'} {who} в Бот турботи</b>\n{escape(p.full_name)}\n"
             f"{settings.public_url.rstrip('/')}/patients/{p.id}")
     n = 0
     for u in tg_notify.recipients(db, role):
@@ -330,3 +335,18 @@ def config_json(db: Session) -> dict:
     c = cfg(db)
     return {"features": c["features"], "callback_format": f"{CB_PREFIX}:<confirm|reschedule|cancel>:<appointment_id>",
             "actions": ACTIONS}
+
+
+def guides(db: Session, base_url: str) -> list[dict]:
+    """«Корисні матеріали»: ті самі гайди, що на сторінці запису (PDF із описом)."""
+    from . import online_booking as ob
+    b = base_url.rstrip("/")
+    return [{"title": g["title"], "tag": g.get("tag") or "", "text": g.get("text") or "",
+             "url": (b + g["url"]) if (g.get("url") or "").startswith("/") else g.get("url") or ""}
+            for g in ob.cfg(db).get("guides") or [] if g.get("on", True) and g.get("title")]
+
+
+def doctors(db: Session) -> list[dict]:
+    """«Про лікарів»: як на сайті (головна лікарка першою), без контактів."""
+    from . import online_booking as ob
+    return [{"name": d["name"], "role": d["role"], "bio": d["bio"]} for d in ob.team_cards(db, "")]

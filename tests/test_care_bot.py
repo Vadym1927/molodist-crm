@@ -46,7 +46,10 @@ def test_care_bot_cabinet_and_answers(monkeypatch):
         r = c.post("/api/v1/bot/patient/777001/files", headers=h, files={"file": ("analiz.pdf", b"%PDF-1.4 test", "application/pdf")})
         assert r.json()["ok"] and not r.json()["duplicate"]
         assert c.post("/api/v1/bot/patient/777001/files", headers=h, files={"file": ("x.pdf", b"%PDF-1.4 test", "application/pdf")}).json()["duplicate"]
-        fl = c.get("/api/v1/bot/patient/777001/files", headers=h).json()["files"]
+        fj = c.get("/api/v1/bot/patient/777001/files", headers=h, params={"category": "lab"}).json()
+        fl = fj["files"]
+        assert [x["key"] for x in fj["categories"]] == ["face", "body", "consent", "doc", "lab"]
+        assert c.get("/api/v1/bot/guides", headers=h).status_code == 200 and "doctors" in c.get("/api/v1/bot/doctors", headers=h).json()
         assert len(fl) == 1 and c.get(f"/api/v1/bot/patient/777001/files/{fl[0]['id']}", headers=h).content == b"%PDF-1.4 test"
         m = c.post("/api/v1/bot/patient/777001/message", headers=h, json={"to": "admin", "text": "Можна перенести на пʼятницю?"}).json()
         assert m["ok"] and m["task_id"]
