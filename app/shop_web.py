@@ -117,7 +117,7 @@ def register(app, templates, version: str):
     @app.get("/_shop/contentsitemap.xml", include_in_schema=False)
     def shop_sitemap(db: Session = Depends(db_dep)):
         b, d = sf.cfg(db)["canonical"].rstrip("/"), sf.catalog(db)
-        urls = ["/", "/shop/"] + [c["path"] for c in d["cats"] if c["n"]] + [f"/shop/{i['slug']}/" for i in d["items"]] + list(d["pages"])
+        urls = ["/", "/shop/"] + [c["path"] for c in d["cats"] if c["n"] or c.get("notice")] + [f"/shop/{i['slug']}/" for i in d["items"]] + list(d["pages"])
         body = "".join(f"<url><loc>{b}{u}</loc></url>" for u in dict.fromkeys(urls))
         return Response(f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{body}</urlset>', media_type="application/xml")
 

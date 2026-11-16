@@ -171,3 +171,7 @@ img{max-width:100%;height:auto}a{color:var(--act)}h1,h2,h3,h4{font-family:var(--
 
 .tile-img{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:104px;height:auto;transition:transform .3s}.tile.gift:hover .tile-img{transform:translateY(-50%) scale(1.06) rotate(-3deg)}.tile.gift b{max-width:58%}
 @media (max-width:900px){.tile-img{width:76px}}
+
+.insta-av img{border:2px solid #fff;object-fit:contain;background:#3B3050}
+.cat-note{display:flex;gap:20px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:var(--cream);border-left:4px solid var(--plum);border-radius:18px;padding:20px 24px;margin:6px 0 22px}
+.cat-note b{font:600 15px var(--hf);text-transform:uppercase;letter-spacing:.04em}.cat-note p{margin:8px 0 0;max-width:720px;color:#4A4352;font-size:14.5px}

@@ -12,7 +12,9 @@
   <input name="sort" value="{{ c2.sort or 100 }}" title="Порядок у меню">
   <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" name="in_menu" value="1" style="width:auto" {{ 'checked' if c2.get('in_menu', True) }}> меню</label>
   <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" name="hidden" value="1" style="width:auto" {{ 'checked' if c2.hidden }}> сховати</label>
-  <button class="btn ghost" style="height:32px;padding:0 10px">OK</button></form>{% else %}<p class="muted" style="padding:14px">Категорій ще немає — структуру зі старого сайту не знято.</p>{% endfor %}</div>
+  <button class="btn ghost" style="height:32px;padding:0 10px">OK</button>
+  <details style="grid-column:1/-1"{{ ' open' if c2.notice }}><summary class="small muted">Повідомлення на сторінці{{ ' · є' if c2.notice }}</summary>
+    <textarea name="notice" rows="3" style="width:100%;margin-top:4px" placeholder="Напр.: засоби бренду підбираються лише після консультації лікаря… Перший рядок — заголовок. Під текстом зʼявиться кнопка «Звернутися до адміністратора».">{{ c2.notice or '' }}</textarea></details></form>{% else %}<p class="muted" style="padding:14px">Категорій ще немає — структуру зі старого сайту не знято.</p>{% endfor %}</div>
 <form method="post" class="card" style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:end"><b style="width:100%">Нова категорія</b>
   <label class="small">Адреса<input name="path" placeholder="/shop/nabory/"></label><label class="small">Назва<input name="name"></label>
   <label class="small">SEO title<input name="title"></label><input type="hidden" name="in_menu" value="1"><button class="btn">Додати</button></form>

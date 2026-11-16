@@ -31,7 +31,7 @@ DEFAULT = {
     "benefits": "Оригінальна продукція|Лише від офіційних дистрибʼюторів брендів\nПідбір догляду лікарем|Безкоштовна консультація лікаря MOLODIST щодо домашнього догляду\n"
                 "Швидка відправка|Замовлення до 15:00 відправляємо того ж дня\nПокупка Частинами monobank|Безкоштовна розстрочка: до 4 платежів без комісій",
     "about": "MOLODIST — медичний простір естетики та профілактики в Києві. В інтернет-магазині зібрана професійна косметика для домашнього догляду, з якою щодня працюють наші лікарі-дерматологи: ZO Skin Health, Medik8, Medicare, Demax, AG SKIN, Tebiskin, Image Skincare, Rejuran та інші бренди.\nМи продаємо лише оригінальну продукцію від офіційних дистрибʼюторів і зберігаємо її з дотриманням умов виробника. У каталозі — засоби для очищення й тонізації, активні сироватки з ретинолом, вітаміном C і кислотами, зволожувальні та анти-ейдж креми, сонцезахист SPF, догляд за шкірою навколо очей, тілом і волоссям.\nНе впевнені, що підійде саме вам? Напишіть нам — лікар MOLODIST безкоштовно підбере домашній догляд під тип і стан вашої шкіри: акне, пігментація, чутливість, вікові зміни, відновлення після процедур. Так домашній догляд підтримує результат лікування, а не працює проти нього.\nДоставляємо Новою поштою по всій Україні, у Києві замовлення можна забрати в MOLODIST. Оплата карткою онлайн, при отриманні або Покупка Частинами monobank.",
-    "instagram": "https://www.instagram.com/molodist.clinic/",
+    "instagram": "https://www.instagram.com/_molodist/",
     "hero": [],                  # [{img, title, text, url}]
     "coin_on": True, "coin_spend_on": False, "coin_start": "", "order_login": True, "coin_earn_pct": 3.0, "coin_max_pct": 10.0, "coin_days": 180, "coin_wait_days": 3,   # MOLODIST Coins у магазині
     "order_msg_on": False,       # повідомлення покупцю: оплачено / відправлено (з ТТН) / скасовано
@@ -60,6 +60,8 @@ def cfg(db: Session) -> dict:
             c.update(json.loads(st.value))
         except ValueError:
             pass
+    if "molodist.clinic" in str(c.get("instagram") or ""):
+        c["instagram"] = DEFAULT["instagram"]
     return c
 
 
@@ -357,7 +359,7 @@ def catalog(db: Session, fresh: bool = False) -> dict:
     data = {"items": list(by_slug.values()), "by_slug": by_slug, "cats": cats, "by_path": {c["path"]: c for c in cats},
             "menu": sorted((c for c in cats if c["depth"] == 1 and c["path"] != brands_root and c["n"] and c.get("in_menu", True) is not False),
                            key=lambda c: (c.get("sort") or 100)),
-            "brands": sorted((c for c in cats if c["path"].startswith(brands_root) and c["path"] != brands_root and c["n"]), key=lambda c: c["name"].lower()),
+            "brands": sorted((c for c in cats if c["path"].startswith(brands_root) and c["path"] != brands_root and (c["n"] or c.get("notice"))), key=lambda c: c["name"].lower()),
             "pages": {p["path"]: p for p in st["pages"]}, "home": st.get("home") or {}, "at": st.get("at")}
     _cache["cat"], _cache["cat_at"] = data, time.time()
     return data
@@ -469,6 +471,8 @@ def edit_cat(db: Session, path: str, data: dict) -> None:
         raise ShopError("Вкажіть назву категорії")
     c.update(name=str(data["name"]).strip()[:200], title=str(data.get("title") or "").strip()[:300], desc=str(data.get("desc") or "").strip()[:1000],
              in_menu=bool(data.get("in_menu")), hidden=bool(data.get("hidden")))
+    if "notice" in data:
+        c["notice"] = str(data.get("notice") or "").strip()[:1500]
     try:
         c["sort"] = int(data.get("sort") or 100)
     except ValueError:

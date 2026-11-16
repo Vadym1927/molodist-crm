@@ -32,9 +32,9 @@
 {{ rowblock('Бестселери', blocks.best, base, money, '', pch, s) }}
 {% if blog %}<section class="sec"><div class="wrap"><div class="sec-h"><h2>Блог</h2><a href="{{ base }}/blog/">Дивитись усі</a></div>
   <div class="blog">{% for p in blog %}<a class="post" href="{{ base }}{{ p.path }}">{% if p.img %}<img src="{{ p.img }}" alt="" loading="lazy">{% endif %}<b>{{ p.h1 or p.title }}</b><span>{{ p.desc }}</span><i>Читати повністю</i></a>{% endfor %}</div></div></section>{% endif %}
-<section class="sec insta"><div class="wrap">{% set iu = s.instagram or c.instagram %}
+<section class="sec insta"><div class="wrap">{% set iu = (s.instagram if s.instagram and 'molodist.clinic' not in s.instagram else c.instagram) or 'https://www.instagram.com/_molodist/' %}
   <div class="insta-in"><a class="insta-p" href="{{ iu }}" target="_blank" rel="noopener">
-      <span class="insta-av">{% if insta_p.avatar %}<img src="{{ base }}/insta/{{ insta_p.avatar }}" alt="" width="72" height="72">{% else %}<i>M</i>{% endif %}</span>
+      <span class="insta-av"><img src="/static/shop/insta-logo.png?v={{ ver }}" alt="MOLODIST" width="72" height="72"></span>
       <span class="insta-t"><b>{{ ('@' ~ insta_p.username) if insta_p.username else 'Наш Instagram' }}</b><small>{{ insta_p.name or 'MOLODIST' }}{% if insta_p.followers %} · {{ '{:,}'.format(insta_p.followers).replace(',', ' ') }} підписників{% endif %}{% if insta_p.posts %} · {{ insta_p.posts }} публікацій{% endif %}</small>
         <em>Поради лікарів, новинки, результати процедур і догляду</em></span></a>
     <a class="btn insta-btn" href="{{ iu }}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3.500" y="3.500" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.200" cy="6.800" r=".800" fill="currentColor"/></svg>Підписатися</a></div>

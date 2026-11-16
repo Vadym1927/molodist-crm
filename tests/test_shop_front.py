@@ -429,3 +429,20 @@ def test_shop_seo_seed():
             assert c["/shop/brendi/medik8/"]["title"].startswith("Medik8 — купити косметику") and "вітаміном A" in c["/shop/brendi/medik8/"]["desc"]
             assert "SPF 50" in c["/shop/oblichchya/spf/"]["title"] and c["/shop/brendi/novyi/"]["title"] == "Свій заголовок | MOLODIST"
             assert all(len(t) <= 75 for t, _ in [seo.brand_seo(k, v[0]) for k, v in seo.BRANDS.items()])
+
+
+def test_brand_notice():
+    from app.services import shop_front as sf
+    with TestClient(app) as c:
+        with SessionLocal() as db:
+            k = sf.preview_key(db)
+            st = sf.site(db)
+            st["cats"] = [x for x in st["cats"] if x["path"] != "/shop/brendi/zo-test/"] + [{"path": "/shop/brendi/zo-test/", "name": "ZO Test", "title": "ZO Test | MOLODIST", "desc": "d", "slugs": [], "in_menu": False, "img": ""}]
+            sf.save_site(db, st)
+            sf.edit_cat(db, "/shop/brendi/zo-test/", {"name": "ZO Test", "title": "ZO Test | MOLODIST", "desc": "d", "notice": "ZO Test\nЗасоби підбираються виключно після консультації лікаря."})
+            d = sf.catalog(db, fresh=True)
+            assert any(b["path"] == "/shop/brendi/zo-test/" for b in d["brands"])
+        c.cookies.set("shop_prev", k)
+        h = c.get("/_shop/shop/brendi/zo-test/").text
+        assert "виключно після консультації" in h and "Звернутися до адміністратора" in h
+        assert "_molodist" in c.get("/_shop/").text and "molodist.clinic" not in c.get("/_shop/").text

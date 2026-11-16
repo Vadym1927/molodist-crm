@@ -3,6 +3,8 @@
 <section class="sec lst"><div class="wrap">
   <nav class="crumbs"><a href="{{ base }}/">Головна</a><a href="{{ base }}/shop/">Магазин</a>{% for c2 in crumbs %}<a href="{{ base }}{{ c2.path }}">{{ c2.name }}</a>{% endfor %}{% if cat %}<span>{{ cat.name }}</span>{% endif %}</nav>
   <h1>{{ h1 }}</h1>
+  {% if cat and cat.notice %}<div class="cat-note"><div><b>{{ cat.notice.split('\n')[0] }}</b>{% for line in cat.notice.split('\n')[1:] if line.strip() %}<p>{{ line }}</p>{% endfor %}</div>
+    <a class="btn" href="{{ c.telegram }}" target="_blank" rel="noopener">Звернутися до адміністратора</a></div>{% endif %}
   {% if subs %}<div class="chips">{% for x in subs %}<a href="{{ base }}{{ x.path }}">{{ x.name }} <small>{{ x.n }}</small></a>{% endfor %}</div>{% endif %}
   <form class="tools" method="get" action="{{ base }}{{ page_base }}">{% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
     <span class="mut">{{ total }} товарів</span>

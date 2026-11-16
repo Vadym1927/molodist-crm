@@ -10123,7 +10123,7 @@ async def settings_shop_cats_save(request: Request, user: User = Depends(require
     from .services import shop_front as sf
     f = await request.form()
     try:
-        sf.edit_cat(db, str(f.get("path") or "").strip(), {k: f.get(k) for k in ("name", "title", "desc", "in_menu", "hidden", "sort")})
+        sf.edit_cat(db, str(f.get("path") or "").strip(), {k: f.get(k) for k in ("name", "title", "desc", "in_menu", "hidden", "sort", "notice") if k != "notice" or k in f})
     except sf.ShopError as e:
         return RedirectResponse(_with_msg("/settings/shop/cats", str(e), True), 303)
     audit(db, "shop.cat", user=user, path=str(f.get("path"))[:100])
