@@ -13,7 +13,7 @@
 {% if qp.get('mono') == 'ok' %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">monobank ФОП {{ qp.get('fop') }} підключено. Перевірте рахунки нижче й натисніть «Завантажити за 31 день».</div>
 {% elif qp.get('mono') == 'err' %}<div class="alert">monobank не прийняв токен ФОП {{ qp.get('fop') }}: {{ (mono.get(qp.get('fop')) or {}).error or 'перевірте токен' }}</div>{% endif %}
 {% if qp.get('saved') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">Збережено.</div>{% endif %}
-{% if job %}<div class="alert" style="background:var(--lavender);color:var(--classic)">{{ job.title }}: {{ 'виконується… monobank дозволяє 1 запит на хвилину на рахунок' if job.status == 'running' else ('готово: ' ~ (job.result or {})|tojson if job.status == 'done' else 'помилка: ' ~ job.error) }} {% if job.status == 'running' %}<a href="?job={{ job.id }}#mono">оновити</a>{% endif %}</div>{% endif %}
+{% if job %}<div class="alert" style="background:var(--lavender);color:var(--classic)">{{ job.title }}: {{ ('виконується…' ~ (' monobank дозволяє 1 запит на хвилину на рахунок' if 'monobank' in job.title else ' ' ~ ((job.progress or [])[-1:]|join('')))) if job.status == 'running' else ('готово: ' ~ (job.result or {})|tojson if job.status == 'done' else 'помилка: ' ~ job.error) }} {% if job.status == 'running' %}<a href="?{{ 's=shop&' if 'molodist.store' in job.title }}job={{ job.id }}#{{ 'shop' if 'molodist.store' in job.title else 'mono' }}">оновити</a>{% endif %}</div>{% endif %}
 
 {% if not sec or sec == 'mono' %}<div class="card" id="mono"><h2 style="margin-top:0">monobank — оплати постачальникам</h2>
   <details class="small" style="margin-bottom:12px"><summary style="cursor:pointer;font-weight:600">Де взяти токен</summary>
@@ -87,6 +87,13 @@
     {% if shop_rep.unmatched %}<details class="small" style="margin-top:6px"><summary style="cursor:pointer">Не знайдено в CRM ({{ shop_rep.unmatched|length }}{{ '+' if shop_rep.unmatched|length >= 30 }}) — додайте артикул у картку товару</summary>
       <div style="columns:2;margin-top:6px">{% for x in shop_rep.unmatched %}<div>{{ x }}</div>{% endfor %}</div></details>{% endif %}
     <details class="small" style="margin-top:6px"><summary style="cursor:pointer">Поля, які віддає сайт (для діагностики)</summary><div class="muted" style="margin-top:4px">{{ shop_rep['keys']|join(', ') }}</div></details>{% endif %}
+  {% if shop.login %}<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)"><b>Перенос у CRM перед відключенням Shop-Express</b>
+    <p class="small muted" style="margin:4px 0 8px">Усі фото товарів (на наш сервер), опис, SEO, характеристики, категорії, стара ціна, показ на сайті — у картки товарів. Плюс повна копія каталогу файлом. Повторний запуск лише докачує нове, нічого не видаляє.</p>
+    <form method="post" action="/settings/keys/shop"><button class="btn" name="action" value="migrate">Перенести все з molodist.store</button></form>
+    {% if mig_cov %}<div class="small" style="margin-top:8px">Товарів сайту в CRM: <b>{{ mig_cov.site_products }}</b> · фото на нашому сервері: <b>{{ mig_cov.local_photo }}</b> · фото ще з сайту: <b>{{ mig_cov.remote_photo }}</b> · з описом: <b>{{ mig_cov.with_desc }}</b></div>{% endif %}
+    {% if mig %}<div class="small" style="margin-top:4px">Останній перенос {{ mig.at[8:10] }}.{{ mig.at[5:7] }} {{ mig.at[11:16] }}: товарів сайту {{ mig.rows }}, оновлено карток {{ mig.products }}, нових фото {{ mig.photos_new }}{% if mig.photos_failed %}, не завантажилось {{ mig.photos_failed }}{% endif %}{% if mig.no_match %}, без пари в CRM {{ mig.no_match }}{% endif %} · копія: {{ mig.backup }}{% if mig.disk_stop %} · <b>зупинено: мало місця на диску</b>{% endif %}</div>
+      {% if mig.no_match_list %}<details class="small" style="margin-top:4px"><summary style="cursor:pointer">Без пари в CRM</summary><div style="columns:2">{% for x in mig.no_match_list %}<div>{{ x }}</div>{% endfor %}</div></details>{% endif %}{% endif %}
+  </div>{% endif %}
 </div>{% endif %}
 
 {% if not sec %}<div class="k-grid">

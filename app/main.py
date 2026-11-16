@@ -5061,7 +5061,7 @@ def product_card(pid: int, request: Request, user: User = Depends(require("produ
                   m_max=max([m[1] for m in months] + [1]), stock_rows=stock_rows, today=today,
                   brands=sorted({x for (x,) in db.execute(select(Product.brand).where(Product.brand.is_not(None)).distinct())}),
                   suppliers=sorted({x for (x,) in db.execute(select(Product.supplier).where(Product.supplier.is_not(None)).distinct())}),
-                  pfiles=db.scalars(select(ProductFile).where(ProductFile.product_id == pid).order_by(ProductFile.kind.desc(), ProductFile.uploaded_at.desc())).all())
+                  pfiles=db.scalars(select(ProductFile).where(ProductFile.product_id == pid).order_by(ProductFile.kind.desc(), func.coalesce(ProductFile.sort, 999), ProductFile.uploaded_at.desc())).all())
 
 
 # ---------------- Фото й документи товару ----------------
@@ -5096,6 +5096,31 @@ async def product_files_upload(pid: int, files: list[UploadFile] = File(...), us
     db.commit()
     audit(db, "product.files_upload", "product", pid, user=user, n=n)
     return RedirectResponse(_with_msg(f"/products/{pid}#pfiles", f"Додано файлів: {n}"), 303)
+
+
+@app.post("/products/files/{fid:int}/site")
+def product_file_site(fid: int, user: User = Depends(require("products")), db: Session = Depends(db_dep)):
+    f = db.get(ProductFile, fid) or (_ for _ in ()).throw(HTTPException(404))
+    f.site = not bool(f.site)
+    db.commit()
+    return RedirectResponse(_with_msg(f"/products/{f.product_id}#pfiles", "Показується на сайті" if f.site else "Прибрано з сайту"), 303)
+
+
+@app.post("/products/{pid:int}/site")
+async def product_site_save(pid: int, request: Request, user: User = Depends(require("products")), db: Session = Depends(db_dep)):
+    from .services import shop_migrate as sm
+    p = db.get(Product, pid) or (_ for _ in ()).throw(HTTPException(404))
+    f = await request.form()
+    p.site_on = bool(f.get("site_on"))
+    si = dict(p.site_info or {})
+    si["short_description"] = sm.clean_html(str(f.get("short_description") or ""))[:30000]
+    si["seo_title"] = str(f.get("seo_title") or "").strip()[:300]
+    si["seo_description"] = str(f.get("seo_description") or "").strip()[:600]
+    si["edited_at"] = datetime.now().isoformat(timespec="minutes")
+    p.site_info = si
+    db.commit()
+    audit(db, "product.site", "product", pid, user=user, on=p.site_on)
+    return RedirectResponse(_with_msg(f"/products/{pid}#psite", "Збережено"), 303)
 
 
 @app.post("/products/files/{fid:int}/main")
@@ -9819,7 +9844,8 @@ def settings_keys(request: Request, user: User = Depends(require("finance")), db
                   ai_engine=__import__("app.services.invoice_ai", fromlist=["x"]).engine(db),
                   ai_jobs=db.scalars(select(__import__("app.models", fromlist=["x"]).InvoiceJob).order_by(__import__("app.models", fromlist=["x"]).InvoiceJob.id.desc()).limit(8)).all(),
                   shop=__import__("app.integrations.shop_express", fromlist=["x"]).creds(db),
-                  shop_rep=__import__("app.integrations.shop_express", fromlist=["x"]).last_report(db))
+                  shop_rep=__import__("app.integrations.shop_express", fromlist=["x"]).last_report(db),
+                  mig=__import__("app.services.shop_migrate", fromlist=["x"]).last(db), mig_cov=__import__("app.services.shop_migrate", fromlist=["x"]).coverage(db))
 
 
 def _shop_job(job):
@@ -9828,6 +9854,13 @@ def _shop_job(job):
         job.log("Завантажую каталог molodist.store…")
         rep = sx.sync(db)
         return {k: rep[k] for k in ("rows", "matched", "urls", "photos")}
+
+
+def _shop_migrate_job(job):
+    from .services import shop_migrate as sm
+    with SessionLocal() as db:
+        rep = sm.migrate(db, job=job)
+        return {k: rep[k] for k in ("rows", "products", "no_match", "photos_new", "photos_skipped", "photos_failed")}
 
 
 @app.post("/settings/keys/shop")
@@ -9839,6 +9872,10 @@ def settings_keys_shop(site: str = Form(""), login: str = Form(""), password: st
         sx.clear(db)
         audit(db, "keys.shop", user=user, op="clear")
         return RedirectResponse("/settings/keys#shop", 303)
+    if action == "migrate":
+        audit(db, "keys.shop", user=user, op="migrate")
+        job = jobs.start("Перенос усього з molodist.store у CRM", _shop_migrate_job)
+        return RedirectResponse(f"/settings/keys?s=shop&job={job.id}#shop", 303)
     if action == "save":
         sx.save_creds(db, site, login, password)
         c = sx.creds(db)

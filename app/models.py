@@ -740,6 +740,9 @@ class Product(Base):
     price_set_at: Mapped[datetime | None] = mapped_column(DateTime)        # ціну продажу задано в CRM — синк CleverBox її не перезаписує
     stock_cost: Mapped[float | None] = mapped_column(Float)                 # собівартість залишку CleverBox за од. приходу
     stock_cost_at: Mapped[date | None] = mapped_column(Date)
+    # картка товару для власного магазину (перенос із Shop-Express / molodist.store)
+    site_on: Mapped[bool | None] = mapped_column(Boolean)                   # показувати на сайті
+    site_info: Mapped[dict | None] = mapped_column(JSON)                    # опис, SEO, характеристики, категорії сайту, стара ціна…
 
 
 class ProductPurchase(Base):
@@ -1465,6 +1468,9 @@ class ProductFile(Base):
     cb_file_id: Mapped[int | None] = mapped_column(Integer, index=True)
     uploaded_by: Mapped[int | None] = mapped_column(Integer)
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    src_url: Mapped[str | None] = mapped_column(String(500), index=True)    # звідки завантажено (molodist.store) — без дублів
+    site: Mapped[bool | None] = mapped_column(Boolean)                      # фото показується на сайті
+    sort: Mapped[int | None] = mapped_column(Integer)
 
 
 class StockDocFile(Base):

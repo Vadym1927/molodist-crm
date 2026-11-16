@@ -165,8 +165,9 @@
 
 <div class="card" id="pfiles"><h2>Фото й документи</h2>
   {% set _ph = pfiles|selectattr('kind','equalto','photo')|list %}{% set _dc = pfiles|rejectattr('kind','equalto','photo')|list %}
-  {% if _ph %}<div class="pfg">{% for f in _ph %}<div class="pfi {{ 'main' if p.photo_url == '/products/files/' ~ f.id }}"><a href="/products/files/{{ f.id }}" target="_blank"><img src="/products/files/{{ f.id }}" loading="lazy" alt=""></a>
+  {% if _ph %}<div class="pfg">{% for f in _ph %}<div class="pfi {{ 'main' if p.photo_url == '/products/files/' ~ f.id }}"><a href="/products/files/{{ f.id }}" target="_blank"><img src="/products/files/{{ f.id }}" loading="lazy" alt=""></a>{% if f.site %}<span class="pfsite" title="Показується на сайті">сайт</span>{% endif %}
     {% if can(user,'products') %}<div class="pfa">{% if p.photo_url != '/products/files/' ~ f.id %}<form method="post" action="/products/files/{{ f.id }}/main"><button title="Зробити головним">★</button></form>{% else %}<span title="Головне фото">★</span>{% endif %}
+      <form method="post" action="/products/files/{{ f.id }}/site"><button title="{{ 'Прибрати з сайту' if f.site else 'Показувати на сайті' }}">{{ '◉' if f.site else '○' }}</button></form>
       <form method="post" action="/products/files/{{ f.id }}/delete" data-delpw="Видалити фото товару?"><button title="Видалити">🗑</button></form></div>{% endif %}</div>{% endfor %}</div>{% endif %}
   {% for f in _dc %}<div class="row between pfd"><a href="/products/files/{{ f.id }}" target="_blank">📄 {{ f.name }}</a><span class="row" style="gap:8px"><span class="muted small">{{ f.uploaded_at|dt('%d.%m.%Y') }}</span><a class="small" href="/products/files/{{ f.id }}?dl=1">завантажити</a>
     {% if can(user,'products') %}<form method="post" action="/products/files/{{ f.id }}/delete" data-delpw="Видалити документ товару?" style="display:inline"><button class="pfx" title="Видалити">🗑</button></form>{% endif %}</span></div>{% endfor %}
@@ -174,6 +175,22 @@
   {% if can(user,'products') %}<form method="post" action="/products/{{ p.id }}/files" enctype="multipart/form-data" class="row" style="gap:8px;margin-top:12px;flex-wrap:wrap">
     <input type="file" name="files" multiple required accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx"><button class="btn ghost">Додати</button></form>{% endif %}
 </div>
+{% set si = p.site_info or {} %}
+<div class="card" id="psite"><div class="row between"><h2 style="margin:0">На сайті</h2>
+  {% if p.site_on %}<span class="pill ok">показується</span>{% elif p.site_on is not none %}<span class="pill warn">не показується</span>{% else %}<span class="pill">не налаштовано</span>{% endif %}</div>
+  {% if si %}<div class="small muted" style="margin:6px 0">{% if si.link %}<a href="{{ si.link if si.link.startswith('http') else 'https://molodist.store' ~ si.link }}" target="_blank" rel="noopener">сторінка на molodist.store</a> · {% endif %}{% if si.brand %}бренд {{ si.brand if si.brand is string else (si.brand.title or si.brand.name or '') }} · {% endif %}{% if si.price %}ціна {{ si.price }} ₴{% endif %}{% if si.price_old %} · стара {{ si.price_old }} ₴{% endif %}{% if si.migrated_at %} · перенесено {{ si.migrated_at[8:10] }}.{{ si.migrated_at[5:7] }}{% endif %}</div>{% endif %}
+  {% if si.short_description %}<details open><summary class="small" style="cursor:pointer;font-weight:600">Опис</summary><div class="psdesc">{{ si.short_description|safe }}</div></details>{% endif %}
+  {% if si.characteristics %}<details><summary class="small" style="cursor:pointer;font-weight:600">Характеристики</summary><pre class="small" style="white-space:pre-wrap">{{ si.characteristics|tojson(indent=1) }}</pre></details>{% endif %}
+  {% if si.groups %}<details><summary class="small" style="cursor:pointer;font-weight:600">Категорії на сайті</summary><pre class="small" style="white-space:pre-wrap">{{ si.groups|tojson(indent=1) }}</pre></details>{% endif %}
+  {% if can(user,'products') %}<form method="post" action="/products/{{ p.id }}/site" style="display:grid;gap:8px;margin-top:10px">
+    <label class="row" style="gap:8px;align-items:center"><input type="checkbox" name="site_on" value="1" style="width:auto" {{ 'checked' if p.site_on }}> Показувати товар на сайті</label>
+    <label class="small">Опис (HTML)<textarea name="short_description" rows="6">{{ si.short_description or '' }}</textarea></label>
+    <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px"><label class="small">SEO title<input name="seo_title" value="{{ si.seo_title or '' }}"></label>
+      <label class="small">SEO description<input name="seo_description" value="{{ si.seo_description or '' }}"></label></div>
+    <div><button class="btn ghost">Зберегти</button></div></form>{% endif %}
+  {% if not si %}<p class="small muted" style="margin:6px 0 0">Даних із сайту ще немає. «Налаштування → molodist.store → Перенести все з molodist.store».</p>{% endif %}
+</div>
+<style>.pfsite{position:absolute;left:6px;top:6px;background:var(--classic,#5C4B82);color:#fff;font-size:10px;border-radius:8px;padding:1px 6px}.pfi{position:relative}.psdesc{font-size:13.5px;line-height:1.5;max-height:340px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-top:6px}.psdesc img{max-width:100%;height:auto}</style>
 <style>.pfg{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;margin-bottom:12px}
 .pfi{position:relative;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}.pfi.main{border-color:#3B3050;box-shadow:0 0 0 2px #C9BFE6}
 .pfi img{width:100%;aspect-ratio:1;object-fit:contain;display:block}.pfa{position:absolute;top:5px;right:5px;display:flex;gap:4px}

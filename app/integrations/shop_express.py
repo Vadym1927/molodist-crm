@@ -224,7 +224,7 @@ def sync(db: Session, client: ShopExpress | None = None) -> dict:
                     filled_url += 1
                 p.url = full[:500]
         img = _img(_first(row, IMG_KEYS), client.root)
-        if img:
+        if img and not (p.photo_url or "").startswith("/products/files/"):      # своє фото (перенесене) не підміняємо посиланням
             if p.photo_url != img:
                 filled_img += 1
             p.photo_url = img[:500]
