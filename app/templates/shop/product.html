@@ -14,7 +14,7 @@
       <div class="buy"><div class="qty"><button type="button" data-q="-1">−</button><input id="p-qty" value="1" inputmode="numeric" aria-label="Кількість"><button type="button" data-q="1">+</button></div>
         <button class="btn" type="button" id="p-add" data-add="{{ it.variants[0].id }}" data-name="{{ it.name }}">Додати в кошик</button></div>
       {% else %}<p class="out">Немає в наявності</p><a class="btn ghost" href="{{ c.telegram }}" target="_blank" rel="noopener">Повідомити, коли зʼявиться</a>{% endif %}
-      <ul class="perks"><li>Оплата частинами monobank — до 4 платежів</li><li>{{ ('Безкоштовна доставка від ' ~ money(s.free_from)) if s.free_from else 'Доставка Новою поштою' }}</li><li>Оригінальна продукція · підбір догляду лікарем</li></ul>
+      <ul class="perks"><li>Покупка Частинами monobank — до 4 платежів без комісій</li><li>{{ ('Безкоштовна доставка від ' ~ money(s.free_from)) if s.free_from else 'Доставка Новою поштою' }}</li><li>Оригінальна продукція · підбір догляду лікарем</li></ul>
     </div>
   </div>
   {% if it.desc %}<div class="desc"><h2>Опис</h2><div class="rte">{{ it.desc|safe }}</div></div>{% endif %}

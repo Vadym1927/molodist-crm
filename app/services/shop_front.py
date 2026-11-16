@@ -29,7 +29,7 @@ DEFAULT = {
     "strip": "Безкоштовна доставка від 3 000 ₴ по всій Україні",
     "free_from": 3000, "gift_from": 0, "gifts": "", "pay_account": 0, "cod": True, "pickup": True, "np_key": "",
     "benefits": "Оригінальна продукція|Лише від офіційних дистрибʼюторів брендів\nПідбір догляду лікарем|Безкоштовна консультація лікаря MOLODIST щодо домашнього догляду\n"
-                "Швидка відправка|Замовлення до 15:00 відправляємо того ж дня\nОплата частинами|monobank: до 4 платежів без переплат",
+                "Швидка відправка|Замовлення до 15:00 відправляємо того ж дня\nПокупка Частинами monobank|Безкоштовна розстрочка: до 4 платежів без комісій",
     "about": "MOLODIST — медичний простір естетики та профілактики в Києві. У магазині — професійна косметика, яку призначають наші лікарі: "
              "лише оригінальна продукція від офіційних дистрибʼюторів. Допоможемо підібрати догляд під ваш тип шкіри.",
     "instagram": "https://www.instagram.com/molodist.clinic/",
@@ -136,9 +136,16 @@ def crawl(db: Session, http: httpx.Client | None = None, job=None) -> dict:
     http = http or httpx.Client(timeout=40, follow_redirects=True, headers={"User-Agent": "MOLODIST-CRM/1.0 (site migration)"})
     slugs = {(p.site_info or {}).get("slug") for p in db.scalars(select(Product).where(Product.site_info.is_not(None)))} - {None, ""}
 
+    pause = 0.0 if job is None and http is not None and not isinstance(http, httpx.Client) else 1.5
+
     def get(path: str) -> str:
+        if pause:
+            time.sleep(pause)                               # повільно, як звичайний відвідувач: сайт обмежує часті запити
         r = http.get(urljoin(OLD, path.lstrip("/")))
-        return r.text if r.status_code == 200 else ""
+        t = r.text if r.status_code == 200 else ""
+        if "<title>Please wait" in t[:3000] or (r.status_code in (403, 429, 503)):
+            raise ShopError("molodist.store тимчасово обмежив запити з сервера (сторінка «Please wait»). Нічого не змінено — повторіть за 15–30 хвилин.")
+        return t
 
     skip = ("cart", "filters", "order", "search", "compare", "wishlist")
     cat_re = re.compile(r"^/shop/((?:[^/]+/){1,3})$")
@@ -224,6 +231,8 @@ def crawl(db: Session, http: httpx.Client | None = None, job=None) -> dict:
         og = s.find("meta", attrs={"property": "og:image"})
         pages.append({"path": u if u.endswith("/") else u + "/", **m, "img": (og.get("content") if og else "") or "", "html": _content_html(s)})
     hm = _meta(home)
+    if not any(c["slugs"] for c in cats.values()) and site(db).get("cats"):
+        raise ShopError("У категоріях не знайдено жодного товару — схоже, сайт віддав не ті сторінки. Збережені дані не змінено.")
     data = {"at": datetime.now().isoformat(timespec="minutes"), "cats": list(cats.values()), "pages": pages, "home": hm}
     db.merge(SyncState(key=SITE_KEY, value=json.dumps(data, ensure_ascii=False), updated_at=datetime.utcnow()))
     db.commit()
@@ -371,7 +380,7 @@ def create_order(db: Session, data: dict, base_url: str) -> dict:
     o = SiteOrder(source="crm", ext_id=no, number=no, created_at=datetime.now(), status="Очікує оплати" if pay != "cod" else "Нове", paid=False,
                   total=cart["total"], total_full=cart["total"], delivery_price=0,
                   delivery="Самовивіз з MOLODIST" if delivery == "pickup" else "Нова пошта",
-                  payment={"online": "Онлайн карткою (monobank)", "cod": "При отриманні", "parts": "Покупка частинами monobank"}[pay],
+                  payment={"online": "Онлайн карткою (monobank)", "cod": "При отриманні", "parts": "Покупка Частинами monobank"}[pay],
                   name=name, phone=phone, email=str(data.get("email") or "").strip()[:200] or None, city=city or None, address=wh or None,
                   comment=(str(data.get("comment") or "").strip()[:1000] + (f"\nПодарунок: {gift}" if gift else "")).strip() or None,
                   items=[{"product_id": i["id"], "name": i["name"], "sku": i["sku"], "qty": i["qty"], "price": i["price"], "total": i["total"]} for i in cart["items"]],
