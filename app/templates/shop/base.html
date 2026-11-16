@@ -22,10 +22,11 @@
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}
 window.MSHOP_T={direct:{{ 'true' if direct else 'false' }},cookie:{{ 'true' if s.cookie_on else 'false' }},px:{{ (s.fb_pixel if track else '')|tojson }},ads:{{ ({'id': s.ads_id, 'label': s.ads_label} if direct and s.ads_id and s.ads_label else None)|tojson }},rmk:{{ 'true' if s.remarketing_on else 'false' }}};
 (function(T){var cc=null;try{cc=JSON.parse(localStorage.getItem('mshop_cc')||'null')}catch(e){}
-T.cc=cc||(T.cookie?null:{a:1,m:1});
+T.cc=cc||(T.cookie?null:{a:1,s:1,u:1,p:1});
 gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied',functionality_storage:'granted',security_storage:'granted',wait_for_update:500});
-T.apply=function(c){T.cc=c;gtag('consent','update',{analytics_storage:c.a?'granted':'denied',ad_storage:c.m?'granted':'denied',ad_user_data:c.m?'granted':'denied',ad_personalization:c.m?'granted':'denied'});
-  if(c.m&&T.px&&!window.fbq){!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init',T.px);fbq('track','PageView');}};
+T.apply=function(c){if(c.m!==undefined&&c.s===undefined){c.s=c.u=c.p=c.m}T.cc=c;var g=function(x){return x?'granted':'denied'};
+  gtag('consent','update',{analytics_storage:g(c.a),ad_storage:g(c.s),ad_user_data:g(c.u),ad_personalization:g(c.p)});
+  if(c.s&&T.px&&!window.fbq){!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init',T.px);fbq('track','PageView');}};
 if(T.cc)T.apply(T.cc);
 var FB={view_item:'ViewContent',add_to_cart:'AddToCart',begin_checkout:'InitiateCheckout',purchase:'Purchase'};
 window.mshopTrack=function(ev,ec){try{ec=ec||{};var it=(ec.items||[]).map(function(i){var o={};for(var k in i)o[k]=i[k];if(T.rmk)o.google_business_vertical='retail';return o});ec.items=it;
@@ -101,12 +102,24 @@ window.mshopTrack=function(ev,ec){try{ec=ec||{};var it=(ec.items||[]).map(functi
   <a href="{{ cert_url }}">Подарункові сертифікати</a>{% for p in d.pages.values() if p.path.startswith('/for-customers/') and p.path != '/for-customers/' %}<a href="{{ base }}{{ p.path }}">{{ (p.h1 or p.title).replace(' › Molodist.shop', '') }}</a>{% endfor %}
   <a href="{{ c.main_url }}">Косметологія MOLODIST</a><a href="tel:{{ c.phone }}">{{ c.phone_text }}</a></div></nav>
 <script>window.MSHOP={base:'{{ base }}',free:{{ s.free_from or 0 }},me:{{ 'true' if me else 'false' }},wish:{{ (me.wishlist or [])|tojson if me else 'null' }}};</script>
-{% if s.cookie_on %}<div class="ckb" id="ckb" hidden role="dialog" aria-label="Файли cookie"><div class="ckb-in"><p><b>Файли cookie.</b> Ми використовуємо необхідні cookie для роботи кошика й кабінету, а з вашої згоди — аналітичні й маркетингові, щоб покращувати сайт і показувати доречну рекламу. <a href="{{ base }}/for-customers/politika-konfidentsiynosti/">Детальніше</a></p>
-  <div class="ckb-o"><label><input type="checkbox" checked disabled> Необхідні</label><label><input type="checkbox" id="ck-a" checked> Аналітика</label><label><input type="checkbox" id="ck-m" checked> Маркетинг</label></div>
-  <div class="ckb-b"><button type="button" class="btn sm ghost" data-ck="sel">Зберегти вибір</button><button type="button" class="btn sm ghost" data-ck="no">Лише необхідні</button><button type="button" class="btn sm" data-ck="all">Прийняти всі</button></div></div></div>
-<script>(function(){var b=document.getElementById('ckb');if(!b)return;if(!MSHOP_T.cc)b.hidden=false;b.addEventListener('click',function(e){var k=e.target.getAttribute&&e.target.getAttribute('data-ck');if(!k)return;
-var c=k==='all'?{a:1,m:1}:k==='no'?{a:0,m:0}:{a:document.getElementById('ck-a').checked?1:0,m:document.getElementById('ck-m').checked?1:0};c.t=Date.now();try{localStorage.setItem('mshop_cc',JSON.stringify(c))}catch(x){}MSHOP_T.apply(c);b.hidden=true;});
-document.addEventListener('click',function(e){if(e.target.closest&&e.target.closest('[data-ck-open]')){e.preventDefault();b.hidden=false;}});})();</script>{% endif %}
+{% if s.cookie_on %}<div class="ckb" id="ckb" hidden role="dialog" aria-modal="true" aria-labelledby="ckb-t"><div class="ckb-in">
+  <h2 id="ckb-t">Налаштування файлів cookie</h2>
+  <p>Cookie допомагають кошику й кабінету працювати, показують нам, що зручно на сайті, і роблять рекламу доречнішою. Оберіть, на що ви погоджуєтесь — змінити вибір можна будь-коли внизу сайту. <a href="{{ base }}/for-customers/politika-konfidentsiynosti/">Детальніше</a></p>
+  <div class="ckb-o">
+    <label><input type="checkbox" checked disabled><span><b>Необхідні</b><small>кошик, вхід у кабінет, безпека</small></span></label>
+    <label><input type="checkbox" data-k="a" checked><span><b>Аналітика</b><small>статистика відвідувань (analytics_storage)</small></span></label>
+    <label><input type="checkbox" data-k="s" checked><span><b>Рекламні cookie</b><small>вимірювання реклами (ad_storage)</small></span></label>
+    <label><input type="checkbox" data-k="u" checked><span><b>Передача рекламних даних</b><small>Google і Meta (ad_user_data)</small></span></label>
+    <label><input type="checkbox" data-k="p" checked><span><b>Персоналізація реклами</b><small>реклама за інтересами (ad_personalization)</small></span></label></div>
+  <div class="ckb-b"><button type="button" class="btn sm ghost" data-ck="no">Відхилити необовʼязкові</button><button type="button" class="btn sm ghost" data-ck="sel">Зберегти вибір</button><button type="button" class="btn sm" data-ck="all">Прийняти всі</button></div></div></div>
+<script>(function(){var b=document.getElementById('ckb');if(!b)return;var K=['a','s','u','p'];
+function box(k){return b.querySelector('[data-k="'+k+'"]')}
+function sync(){var c=MSHOP_T.cc;if(c)K.forEach(function(k){box(k).checked=!!c[k]})}
+if(!MSHOP_T.cc)b.hidden=false;
+b.addEventListener('click',function(e){var k=e.target.getAttribute&&e.target.getAttribute('data-ck');if(!k)return;var c={};
+K.forEach(function(x){c[x]=k==='all'?1:k==='no'?0:(box(x).checked?1:0)});c.t=Date.now();
+try{localStorage.setItem('mshop_cc',JSON.stringify(c))}catch(x){}MSHOP_T.apply(c);b.hidden=true;});
+document.addEventListener('click',function(e){if(e.target.closest&&e.target.closest('[data-ck-open]')){e.preventDefault();sync();b.hidden=false;}});})();</script>{% endif %}
 {% if s.ts_site %}<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>{% endif %}
 <script src="/static/shop/shop.js?v={{ ver }}" defer></script>
 {% block ga %}{% endblock %}{% block scripts %}{% endblock %}
