@@ -73,6 +73,18 @@ DEFAULT = {
     "faq": FAQ_DEFAULT,
     "certs_on": True,
     "subs_on": True,
+    # правила програми лояльності (як в онлайн-записі CleverBox, 16.11.2026)
+    "promos": "Лазерна епіляція: −50% на перший візит від основної вартості, комплекси зон — зі знижкою 15%\n"
+              "Апаратний масаж STRATOSPHERE: перший візит — 1 500 ₴, щоб ви могли оцінити результат на оригінальному апараті\n"
+              "−15% для військовослужбовців ЗСУ — постійно, за наявності документа\n"
+              "−10% до дня народження — одноразово, за 7 днів до і 7 днів після",
+    "cert_rules": "Номінал — 2 000, 3 000, 5 000 або 10 000 ₴\n"
+                  "Використати можна за один візит, не пізніше ніж через 2 місяці з дати покупки\n"
+                  "На будь-які послуги й товари MOLODIST\n"
+                  "Сертифікат іменний: активується на отримувача в момент покупки, не передається іншим і не ділиться на кількох осіб",
+    "sub_rules": "Абонемент — для процедур, які дають найкращий результат курсом: оплата курсу одразу вигідніша, ніж поодинці.\n"
+                 "Термін дії — 180 днів з дати покупки.",
+    "loyalty_note": "Програми лояльності між собою не сумуються.",
     "preview_key": "",           # посилання для перегляду до публікації (без входу в CRM)
     "og_title": "Онлайн-запис у MOLODIST — оберіть послугу, лікаря й час",
     "og_desc": "Медичний простір естетики та профілактики в Києві. Запис онлайн за хвилину, подарункові сертифікати, гайди з догляду.",
@@ -152,6 +164,9 @@ def save_form(db: Session, f) -> dict:
     c["certs_on"], c["subs_on"] = bool(f.get("certs_on")), bool(f.get("subs_on"))
     for k, n in (("shop_url", 300), ("shop_text", 300), ("note", 300), ("hero_img", 120), ("og_title", 120), ("og_desc", 300)):
         c[k] = str(f.get(k) or "").strip()[:n]
+    for k in ("promos", "cert_rules", "sub_rules", "loyalty_note"):
+        if f.get(k) is not None:
+            c[k] = "\n".join(text_lines(str(f.get(k))))[:2000]
     on_ids = {int(x) for x in f.getlist("doctor") if str(x).isdigit()}
     c["doctors_off"] = sorted(d.id for d in _staff(db) if d.id not in on_ids)
     c["faq"] = [[a.strip()[:200], b.strip()[:800]] for a, _, b in (ln.partition("|") for ln in str(f.get("faq") or "").splitlines()) if a.strip() and b.strip()][:20]
@@ -230,8 +245,46 @@ def site_group(sv: CbService) -> str:
         return "Лазерна епіляція" + men
     if "біоревіт" in low or "мезотерап" in low:
         return "Біоревіталізація й мезотерапія"
+    if low.startswith("ipl") or name.startswith("ipl"):
+        return IPL_GROUP
     title = re.sub(r"\s*\(.*\)\s*$", "", cat).strip() or "Інші послуги"
     return title[:1].upper() + title[1:]
+
+
+# прибрано з прайсу й запису на сайті (рішення власника 16.11.2026)
+HIDE_NAMES = ("масаж обличчя мануальний", "масаж обличчя міофасціальний", "масаж обличчя класичний + карбокс",
+              "міофасціальний масаж обличчя + ферментотерап")
+HIDE_CATS = ("molodist reset", "корекції/повторний огляд")
+PRICE_ONLY_HIDE_CATS = ("корекц", "повторний огляд")
+HEAD_DOCTOR = "Дарʼя Колган"
+IPL_GROUP = "IPL-терапія (судини, пігментація, акне)"
+
+
+def _low(t: str | None) -> str:
+    return " ".join((t or "").lower().replace("’", "ʼ").replace("'", "ʼ").split())
+
+
+def hidden(sv: CbService, price: bool = False) -> bool:
+    """Послуга не показується на сайті: окремі масажі обличчя й MOLODIST RESET; корекції — лише в прайсі."""
+    name, cat = _low(sv.online_name or sv.name), _low(sv.category)
+    if any(k in name for k in HIDE_NAMES) or any(cat.startswith(k) for k in HIDE_CATS):
+        return True
+    return price and any(k in cat for k in PRICE_ONLY_HIDE_CATS)
+
+
+def disp_name(sv: CbService) -> str:
+    """Назва для пацієнта: без службових позначок «(ВИТРАТНІ)»; консультації головного лікаря — з іменем лікаря."""
+    n = re.sub(r"\s*\(\s*витратн[іи]\s*\)", "", (sv.online_name or sv.name or ""), flags=re.I)
+    n = " ".join(n.split())
+    if "головного лікаря" in n.lower() and HEAD_DOCTOR.split()[1] not in n:
+        n += f" — {HEAD_DOCTOR}"
+    return n
+
+
+def group_sex(name: str) -> str:
+    """Позначка для іконки розділу: m — для чоловіків, f — лазерна епіляція (жіноча)."""
+    low = (name or "").lower()
+    return "m" if "чоловік" in low else "f" if "лазерна епіляція" in low else ""
 
 
 def _mins(sv: CbService) -> int:
@@ -248,7 +301,7 @@ def catalog(db: Session, c: dict | None = None) -> dict:
     cats: dict[str, list] = {}
     used: set[int] = set()
     for sv in db.scalars(select(CbService).where(CbService.online.is_(True)).order_by(CbService.category, CbService.name)):
-        if sv.active is False or not sv.price:
+        if sv.active is False or not sv.price or hidden(sv):
             continue
         dids = service_doctors(db, sv, docs, hist)
         if not dids:
@@ -260,7 +313,7 @@ def catalog(db: Session, c: dict | None = None) -> dict:
             if v not in (None, ""):
                 dp[i] = float(v)
         cats.setdefault(site_group(sv), []).append(
-            {"id": sv.id, "name": (sv.online_name or sv.name).strip(), "price": float(sv.price), "min": _mins(sv),
+            {"id": sv.id, "name": disp_name(sv), "price": float(sv.price), "min": _mins(sv),
              "desc": (sv.description or "").strip()[:600], "docs": dids, "dp": dp})
     order = {n: i for i, n in enumerate(GROUP_ORDER)}
     return {"cats": [{"name": k, "items": sorted(v, key=lambda x: (x["price"], x["name"]))}
@@ -275,12 +328,12 @@ def pricelist(db: Session, online_ids: set[int] | None = None) -> list[dict]:
     cats: dict[str, list] = {}
     for sv in db.scalars(select(CbService).order_by(CbService.name)):
         low = f"{sv.category or ''} {sv.name or ''}".lower()
-        if sv.active is False or not sv.price or any(k in low for k in PRICE_HIDE):
+        if sv.active is False or not sv.price or any(k in low for k in PRICE_HIDE) or hidden(sv, price=True):
             continue
-        cats.setdefault(site_group(sv), []).append({"id": sv.id, "name": (sv.online_name or sv.name).strip(), "price": float(sv.price), "min": _mins(sv),
+        cats.setdefault(site_group(sv), []).append({"id": sv.id, "name": disp_name(sv), "price": float(sv.price), "min": _mins(sv),
                                                     "online": bool(online_ids and sv.id in online_ids)})
     order = {n: i for i, n in enumerate(GROUP_ORDER)}
-    return [{"name": k, "items": sorted(v, key=lambda x: (x["price"], x["name"])), "lo": min(x["price"] for x in v)}
+    return [{"name": k, "items": sorted(v, key=lambda x: (x["price"], x["name"])), "lo": min(x["price"] for x in v), "sex": group_sex(k)}
             for k, v in sorted(cats.items(), key=lambda kv: (order.get(kv[0], 100), kv[0]))]
 
 
@@ -605,6 +658,43 @@ def sub_group(text: str) -> str:
     return "Інші абонементи"
 
 
+def _visits_word(n: int) -> str:
+    a, b = n % 10, n % 100
+    return "процедура" if a == 1 and b != 11 else "процедури" if 2 <= a <= 4 and not 12 <= b <= 14 else "процедур"
+
+
+def sub_view(db: Session, x: dict, by_name: dict | None = None) -> dict:
+    """Абонемент для пацієнта: зрозуміла назва («… — курс 6 процедур»), ціна однієї процедури й вигода проти разових візитів."""
+    if by_name is None:
+        by_name = {_low(sv.name): sv for sv in db.scalars(select(CbService)) if sv.price}
+    visits = int(x.get("visits") or 1)
+    m = re.search(r"курс\s*(\d+)", x["name"], flags=re.I)
+    if visits <= 1 and m:
+        visits = int(m.group(1))
+    base = (x.get("desc") or "").strip()
+    sv = by_name.get(_low(base)) or by_name.get(_low(base.split(",")[0]))
+    if not base or not sv:
+        base = re.sub(r"(?i)\bабонемент\b|курс\s*\d+", "", x["name"]).strip(" -·")
+        base = base[:1].upper() + base[1:].lower() if base.isupper() else base
+        sv = sv or by_name.get(_low(base))
+    one = float(sv.price) if sv and sv.price else 0.0
+    full = one * visits
+    price = float(x["price"])
+    save = full - price if one and visits > 1 and full > price else 0.0
+    return {**x, "visits": visits, "title": f"{base} — курс {visits} {_visits_word(visits)}" if visits > 1 else base,
+            "per": round(price / visits) if visits > 1 else 0, "one": one if save else 0,
+            "save": round(save), "pct": round(save / full * 100) if save else 0}
+
+
+def text_lines(t: str | None) -> list[str]:
+    return [ln.strip(" •-–") for ln in (t or "").splitlines() if ln.strip(" •-–")]
+
+
+def loyalty(c: dict) -> dict:
+    """Тексти програми лояльності для сторінки: постійні акції, правила сертифікатів і абонементів, загальне правило."""
+    return {k: text_lines(c.get(k) if c.get(k) is not None else DEFAULT[k]) for k in ("promos", "cert_rules", "sub_rules", "loyalty_note")}
+
+
 def offers(db: Session, c: dict | None = None) -> dict:
     from . import certificates as cert, gift_types as gt
     c = c or cfg(db)
@@ -614,12 +704,14 @@ def offers(db: Session, c: dict | None = None) -> dict:
     subs = [{"id": x["id"], "name": x["name"], "price": float(x.get("price") or 0), "visits": int(x.get("visits") or 1),
              "days": int(x.get("days") or 0), "desc": (x.get("services") or "").strip()[:200]} for x in cert.package_items(db)
             if float(x.get("price") or 0) > 0] if c.get("subs_on") else []
+    by_name = {_low(sv.name): sv for sv in db.scalars(select(CbService)) if sv.price}
+    subs = [sub_view(db, x, by_name) for x in subs]
     subs.sort(key=lambda x: (x["price"], x["name"]))
     groups: dict[str, list] = {}
     for x in subs:
         groups.setdefault(sub_group(x["name"] + " " + x["desc"]), []).append(x)
     order = {n: i for i, n in enumerate(SUB_GROUPS)}
-    return {"certs": sorted(certs, key=lambda x: x["price"]), "subs": subs,
+    return {"certs": sorted(certs, key=lambda x: x["price"]), "subs": subs, "loyalty": loyalty(c),
             "sub_groups": [{"name": k, "items": v} for k, v in sorted(groups.items(), key=lambda kv: (order.get(kv[0], 100), kv[0]))]}
 
 
@@ -638,15 +730,23 @@ def order(db: Session, data: dict, base_url: str, c: dict | None = None) -> dict
         raise BookingError("item", "Оберіть сертифікат або абонемент зі списку.")
     title = ("Абонемент" if kind == "sub" else "Подарунковий сертифікат") + f": {it['name']}"
     to = " ".join(str(data.get("to") or "").split())[:120]
+    to_phone = norm_phone(data.get("to_phone")) if data.get("to_phone") else ""
+    if kind == "cert":
+        if len(to) < 2:
+            raise BookingError("to", "Вкажіть імʼя отримувача сертифіката.")
+        if not to_phone:
+            raise BookingError("to_phone", "Перевірте телефон отримувача: +380 і 9 цифр.")
     d = {**{k: v for k, v in data.items() if k.startswith("utm_") or k in ("gclid", "cid", "page")},
          "name": name, "phone": phone, "interest": title, "formname": f"{SLUG}:{kind}",
-         "comment": f"{title} · {it['price']:.0f} ₴" + (f" · для кого: {to}" if to else "")}
+         "comment": f"{title} · {it['price']:.0f} ₴" + (f" · для кого: {to}" if to else "") + (f", {to_phone}" if to_phone else "")}
+    nominal = float(it.get("nominal") or it["price"])
+    purpose = (f"Послуги краси, номінал {nominal:,.0f} ₴".replace(",", " ") if kind == "cert" else f"{title} (MOLODIST)")
     r = sl.ingest(db, d)
     out = {"ok": bool(r.get("ok")), "title": title, "price": it["price"], "appeal_id": r.get("appeal_id"), "lead": d, "res": r}
     try:
         if pl.public(db).get("ready"):
             pat = __import__("app.services.appeals", fromlist=["x"]).find_patient(db, phone)
-            link = pl.create(db, it["price"], f"{title} (MOLODIST)", base_url, patient_id=pat.id if pat else None)
+            link = pl.create(db, it["price"], purpose, base_url, patient_id=pat.id if pat else None)
             out["pay_url"] = link.url
     except Exception:  # noqa: BLE001 — оплата недоступна: лишається заявка, адміністратор звʼяжеться
         db.rollback()

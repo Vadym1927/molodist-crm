@@ -43,7 +43,7 @@ def test_catalog_and_availability():
         assert g("Консультація дерматовенеролога перед видаленням", "Видалення новоутворень (дерматохірургія)") == "Консультації"
         assert g("Масаж Обличчя Мануальний 30 хв", "Доглядові процедури") == "Масаж" and g("Апаратний масаж STRATOSPHERE 50 хв", "Апаратний масаж STRATOSPHERE") == "Масаж"
         assert g("Лоб", "Ботокс/Диспорт/Нейронокс (ботулінотерапія)") == "Ботулінотерапія" and g("Лоб", "Ботулінотерапія чоловіки") == "Ботулінотерапія для чоловіків"
-        assert g("Пахви", "Лазерна епіляція ( -50% на перший візит від повної вартості)") == "Лазерна епіляція" and g("IPL обличчя", "IPL  (видалення судин/пігментації/лікування акне)") == "IPL"
+        assert g("Пахви", "Лазерна епіляція ( -50% на перший візит від повної вартості)") == "Лазерна епіляція" and g("IPL обличчя", "IPL  (видалення судин/пігментації/лікування акне)") == ob.IPL_GROUP
         av = ob.availability(db, 9701, None, now=NOW)
         assert list(av) == [D1]                                               # другий день — відпустка лікаря
         slots = {s["t"]: s["docs"] for s in av[D1]}
@@ -152,11 +152,12 @@ def test_site_page_api_and_publication(monkeypatch):
         r = cl.post("/_site/api/booking/cancel", json={"token": tok})
         assert r.json()["ok"] and r.json()["status"] == "cancelled" and any("скасовано" in t for t in sent)
         # сертифікат: заявка-звернення (платіжну систему не підключено)
-        r = cl.post("/_site/api/order", json={"kind": "cert", "id": 2, "name": "Дарувальник", "phone": "0672223355", "to": "Мамі", "t": 15})
+        assert cl.post("/_site/api/order", json={"kind": "cert", "id": 2, "name": "Дарувальник", "phone": "0672223355", "to": "Мамі", "t": 15}).status_code == 400  # без телефону отримувача
+        r = cl.post("/_site/api/order", json={"kind": "cert", "id": 2, "name": "Дарувальник", "phone": "0672223355", "to": "Мамі", "to_phone": "0501112233", "t": 15})
         assert r.json()["ok"] and r.json()["price"] == 3000 and not r.json().get("pay_url")
         with SessionLocal() as db:
             al = db.query(Appeal).filter(Appeal.phone == "+380672223355").one()
-            assert "Сертифікат 3000" in al.interest and "Мамі" in al.comment
+            assert "Сертифікат 3000" in al.interest and "Мамі" in al.comment and "+380501112233" in al.comment
         assert cl.post("/_site/api/order", json={"kind": "cert", "id": 999, "name": "X Y", "phone": "0672223355", "t": 15}).status_code == 400
         # сайт: кнопки ведуть на онлайн-запис, сторінка в sitemap
         from app.services import site_pages as sp
@@ -204,3 +205,26 @@ def test_settings_online():
         assert c["on"] and c["step"] == 20 and c["days"] == 14 and c["doctors_off"] == [b] and c["guides"][0]["title"] == "Мій гайд"
         assert c["faq"] == [["Питання?", "Відповідь."]] and not c["subs_on"]
         assert set(ob.catalog(db)["doctor_ids"]) == {a}
+
+
+def test_site_names_and_hidden():
+    from app.models import CbService as S
+    assert ob.disp_name(S(name="Корекція Ботокс (ВИТРАТНІ)")) == "Корекція Ботокс"
+    assert ob.disp_name(S(name="Консультація головного лікаря Beauty plan Anti Age")).endswith("— Дарʼя Колган")
+    assert ob.hidden(S(name="Масаж Обличчя Мануальний 30 хв", category="Масаж"))
+    assert ob.hidden(S(name="Міофасціальний масаж обличчя + ферментотерапія (обличяя+шия+декольте)", category="Масаж"))
+    assert ob.hidden(S(name="Щось", category="MOLODIST RESET - Комплексний догляд"))
+    assert ob.hidden(S(name="Корекція Губи", category="Корекції/повторний огляд"), price=True)
+    assert not ob.hidden(S(name="Апаратний масаж STRATOSPHERE 50 хв", category="Масаж"), price=True)
+    assert ob.site_group(S(name="IPL Обличчя", category="IPL")) == ob.IPL_GROUP
+    assert ob.group_sex("Лазерна епіляція для чоловіків") == "m" and ob.group_sex("Лазерна епіляція") == "f" and ob.group_sex("Масаж") == ""
+
+
+def test_sub_view_saving():
+    from app.models import CbService as S
+    by = {"апаратний масаж stratosphere 50 хв": S(name="Апаратний масаж STRATOSPHERE 50 хв", price=1800)}
+    v = ob.sub_view(None, {"id": 1, "name": "Апаратний масаж STRATOSPHERE 50 хв Курс 6", "price": 10200, "visits": 1,
+                           "desc": "Апаратний масаж STRATOSPHERE 50 хв"}, by)
+    assert v["title"] == "Апаратний масаж STRATOSPHERE 50 хв — курс 6 процедур" and v["per"] == 1700 and v["save"] == 600 and v["pct"] == 6
+    L = ob.loyalty(ob.DEFAULT)
+    assert "не сумуються" in L["loyalty_note"][0] and len(L["cert_rules"]) == 4 and len(L["promos"]) == 4

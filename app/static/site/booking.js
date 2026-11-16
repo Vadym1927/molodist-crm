@@ -67,7 +67,7 @@
   var dlg = $('#ob-buy');
   if (dlg) {
     var bf = $('#ob-buy-form'), cur = null;
-    telMask(bf.phone);
+    telMask(bf.phone); if (bf.to_phone) telMask(bf.to_phone);
     $$('[data-ob-buy]').forEach(function (b) {
       b.addEventListener('click', function () {
         cur = { kind: b.dataset.obBuy, id: b.dataset.id };
@@ -75,6 +75,7 @@
         $('#ob-buy-name').textContent = b.dataset.name; $('#ob-buy-price').textContent = b.dataset.price;
         $('.ok', bf).hidden = true; $('.err', bf).hidden = true;
         $$('label,button.btn', bf).forEach(function (x) { x.style.display = ''; });
+        var tw = $('#ob-to'); if (tw) tw.style.display = cur.kind === 'sub' ? 'none' : '';
         if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
         window.dataLayer.push({ event: 'select_item', item_category: cur.kind, item_name: b.dataset.name });
       });
@@ -86,14 +87,19 @@
       var er = $('.err', bf), bt = $('button.btn', bf); er.hidden = true;
       if ((bf.name.value || '').trim().length < 2) { er.textContent = 'Вкажіть, будь ласка, імʼя.'; er.hidden = false; bf.name.focus(); return; }
       if (!telOk(bf.phone.value)) { er.textContent = 'Перевірте номер телефону: +380 і 9 цифр.'; er.hidden = false; bf.phone.focus(); return; }
-      var d = marks(); d.kind = cur.kind; d.id = cur.id; d.name = bf.name.value.trim(); d.phone = bf.phone.value; d.to = bf.to.value.trim(); d.website = bf.website.value;
+      if (cur.kind !== 'sub') {
+        if ((bf.to.value || '').trim().length < 2) { er.textContent = 'Вкажіть імʼя отримувача сертифіката.'; er.hidden = false; bf.to.focus(); return; }
+        if (!telOk(bf.to_phone.value)) { er.textContent = 'Перевірте телефон отримувача: +380 і 9 цифр.'; er.hidden = false; bf.to_phone.focus(); return; }
+      }
+      var d = marks(); d.kind = cur.kind; d.id = cur.id; d.name = bf.name.value.trim(); d.phone = bf.phone.value; d.website = bf.website.value;
+      if (cur.kind !== 'sub') { d.to = bf.to.value.trim(); d.to_phone = bf.to_phone.value; }
       bt.disabled = true;
       api('/api/order', d, function (j) {
         bt.disabled = false;
         if (j && j.ok) {
           window.dataLayer.push({ event: 'generate_lead', form_id: 'zapys:' + cur.kind, lead_interest: j.title, value: j.price, currency: 'UAH' });
           if (j.pay_url) { location.href = j.pay_url; return; }
-          $('.ok', bf).hidden = false; $$('label,button.btn', bf).forEach(function (x) { x.style.display = 'none'; });
+          $('.ok', bf).hidden = false; $$('label,button.btn,#ob-to', bf).forEach(function (x) { x.style.display = 'none'; });
         } else { er.textContent = (j && j.msg) || 'Не вдалося надіслати. Зателефонуйте нам або напишіть у Telegram.'; er.hidden = false; }
       });
     });
@@ -163,9 +169,11 @@
     lift: '<path d="M4 15l8-8 8 8"/><path d="M4 20l8-8 8 8"/>',
     gift: '<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M5 12v8h14v-8M12 8v12"/><path d="M12 8c-2.500 0-4-1.200-4-2.800S9.500 3 12 8zM12 8c2.500 0 4-1.200 4-2.800S14.500 3 12 8z"/>',
     plus: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
+    male: '<circle cx="10" cy="14" r="6"/><path d="M14.500 9.500L20 4M15 4h5v5"/>',
+    female: '<circle cx="12" cy="9" r="6"/><path d="M12 15v7M9 19h6"/>',
     spark: '<path d="M12 3l1.900 5.800L20 11l-6.100 2.200L12 19l-1.900-5.800L4 11l6.100-2.200z"/><path d="M19 3v4M17 5h4"/>'
   };
-  var IMAP = [[/лазерн|епіляц/i, 'laser'], [/ipl|судин|пігмент/i, 'sun'], [/ботул|ботокс|диспорт|нейронокс|xeomin/i, 'syringe'], [/контурн|губ/i, 'lips'],
+  var IMAP = [[/для чоловіків/i, 'male'], [/лазерна епіляція/i, 'female'], [/лазерн|епіляц/i, 'laser'], [/ipl|судин|пігмент/i, 'sun'], [/ботул|ботокс|диспорт|нейронокс|xeomin/i, 'syringe'], [/контурн|губ/i, 'lips'],
     [/біоревіт|мезо|інʼєкц|ін'єкц|ін’єкц/i, 'syringe'], [/масаж|reset|стратосфер|stratosphere/i, 'hands'], [/консультац|повторний огляд|корекц/i, 'stetho'],
     [/видален|новоутвор|дерматохір/i, 'target'], [/пілінг|очищен|чистк/i, 'drop'], [/rf|ліфтинг|endymed/i, 'lift'], [/догляд/i, 'leaf'],
     [/лаборат|лабарат|аналіз/i, 'flask'], [/сертиф|подарун/i, 'gift'], [/додатков/i, 'plus'], [/апарат/i, 'wave']];

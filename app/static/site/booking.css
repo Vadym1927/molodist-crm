@@ -181,3 +181,13 @@
   .ob-jump a{padding:12px 10px 10px;border-radius:16px}.ob-jump a i{width:36px;height:36px;border-radius:11px;margin-bottom:6px}.ob-jump a i svg{width:20px;height:20px}
   .ob-jump a b{font-size:12.5px}.ob-jump a small{font-size:11px}.ob-jump a.main{grid-column:1/-1;flex-direction:row;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px}
   .ob-jump a.main i{margin:0}.ob-jump a.main b{font-size:15px}.ob-jump a.main small{flex-basis:auto;font-size:12.5px}}
+.ob-price .pg summary .sx{display:inline-flex;margin-right:8px;color:var(--act)}.ob-to{display:grid;gap:inherit;border-top:1px solid var(--line,#E9E5DF);padding-top:10px}.ob-to p{margin:0}
+/* програма лояльності: правила сертифікатів, вигода абонементів, постійні акції */
+.ob-rules{list-style:none;margin:16px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px 18px}
+.ob-rules li,.ob-promo li{position:relative;padding-left:18px;font-size:14px;line-height:1.45;color:var(--ink)}
+.ob-rules li:before,.ob-promo li:before{content:"";position:absolute;left:0;top:.55em;width:7px;height:7px;border-radius:50%;background:var(--lav2,#C9BFE6)}
+.ob-subnote{margin:0 4px 4px;font-size:14px;color:var(--mut)}
+.ob-save{display:inline-block;margin-top:6px;font-style:normal;font:600 12px/1 var(--bf);color:var(--plum);background:var(--lav);border-radius:20px;padding:5px 10px}
+.ob-promo{margin-top:18px;background:var(--w);border:1px solid var(--greige);border-radius:22px;padding:22px 24px}
+.ob-promo h3{margin:0 0 12px;font:600 20px/1.2 var(--hf);text-transform:uppercase;letter-spacing:.02em}.ob-promo ul{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.ob-lnote{margin:14px 0 0;font-weight:600;color:var(--plum)}
