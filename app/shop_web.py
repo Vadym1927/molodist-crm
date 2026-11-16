@@ -45,6 +45,10 @@ def register(app, templates, version: str):
         u = db.get(User, uid) if uid else None
         return bool(u and u.active)
 
+    def _cert_url(db, site) -> str:
+        from .services import online_booking as ob
+        return ((site.get("canonical") or "").rstrip("/") if ob.cfg(db).get("on") else "/_site") + f"/{ob.SLUG}/#sertyfikaty"
+
     def ctx(request: Request, db: Session, path: str = "/") -> dict:
         c = sf.cfg(db)
         if not opened(request, db, c):
@@ -57,7 +61,7 @@ def register(app, templates, version: str):
         pp = _mp.public(db)
         return {"pch": float(pp["min_sum"] or 0) if pp["ready"] else None, "pch_legal": sf.PARTS_LEGAL, "pch_show": bool(pp["ready"] or pp.get("on")), "request": request, "s": c, "c": site, "d": data, "base": "" if on_site else "/_shop", "noindex": not on_site,
                 "canonical": c["canonical"].rstrip("/") + path, "ver": str(version)[:8], "year": date.today().year, "money": sp.money,
-                "benefits": sf.lines(c.get("benefits")), "viber": sp.viber_link(db, site), "path": path, "q": "",
+                "benefits": sf.lines(c.get("benefits")), "cat_icon": sf.cat_icon, "cert_url": _cert_url(db, site), "viber": sp.viber_link(db, site), "path": path, "q": "",
                 "pkey": request.query_params.get("p") or ""}
 
     def resp(request: Request, name: str, cx: dict, status: int = 200):

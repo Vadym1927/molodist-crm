@@ -94,3 +94,13 @@ img{max-width:100%;height:auto}a{color:var(--act)}h1,h2,h3,h4{font-family:var(--
 .ft-pch-l{flex:none;display:grid;gap:8px;justify-items:center;text-align:center;font:600 12px var(--hf);letter-spacing:.06em;text-transform:uppercase;color:#fff}.ft-pch-l img{width:230px;max-width:100%;height:auto;display:block}
 .ft-pch b{color:#fff;font-size:13px}.ft-pch p{margin:8px 0 0}.ft .ft-pch a{display:inline;padding:0;color:var(--lav2);text-decoration:underline;font-size:inherit}.ft-pch+.ft-bot{margin-top:22px}
 @media (max-width:560px){.ft-pch{flex-direction:column;align-items:flex-start}.pc-img img.pch-paw{width:32px;height:32px;right:6px;bottom:6px}}
+
+.hd-burger{display:grid}.bdg.sale{background:var(--plum)}.hd-nav a.acc,.mnav a.acc{color:var(--act);font-weight:700}.pc-p s{color:var(--mut);font-weight:400}.mnav a.sub{font-size:13.5px;color:var(--mut)}
+.tiles{padding:8px 0 4px}.tiles-in{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}
+.tile{display:grid;justify-items:center;text-align:center;gap:6px;padding:22px 14px 18px;border-radius:22px;background:var(--cream);color:var(--ink);text-decoration:none;transition:transform .2s,box-shadow .2s,background .2s}
+.tile:hover{transform:translateY(-4px);background:var(--lav);box-shadow:0 10px 26px rgba(59,48,80,.12)}.tile-i{width:62px;height:62px;border-radius:50%;background:#fff;color:var(--plum);display:grid;place-items:center;transition:background .2s,color .2s}
+.tile:hover .tile-i{background:var(--plum);color:#fff}.tile b{font:600 13px var(--hf);letter-spacing:.08em;text-transform:uppercase}.tile small{color:var(--mut);font-size:12.5px}.tile.acc .tile-i{background:var(--plum);color:#fff}
+.pc{position:relative}.fav{position:absolute;right:8px;top:8px;width:34px;height:34px;border-radius:50%;border:0;background:rgba(255,255,255,.92);color:var(--ink);display:grid;place-items:center;cursor:pointer;z-index:2;box-shadow:0 2px 8px rgba(42,36,48,.1)}
+.fav:hover{color:var(--act)}.fav.on{color:var(--plum)}.fav.on svg{fill:var(--plum)}.bdg.out{right:50px}.ci .tocart{width:auto;height:28px;border-radius:999px;padding:0 12px;font:600 11px var(--hf);text-transform:uppercase;letter-spacing:.06em}
+.about p{margin:0 0 12px}
+@media (max-width:560px){.tiles-in{grid-template-columns:1fr 1fr;gap:10px}.tile{padding:16px 8px 14px}.tile-i{width:50px;height:50px}}

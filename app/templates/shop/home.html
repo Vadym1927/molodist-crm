@@ -1,21 +1,31 @@
 {% extends "shop/base.html" %}{% from "shop/_card.html" import card, rowblock %}
+{% macro cico(n) %}<svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{%
+  if n == 'face' %}<path d="M9 13c0-5 3-8 7-8s7 3 7 8v3c0 6-3 11-7 11s-7-5-7-11z"/><path d="M12.500 15h2M17.500 15h2M13.500 21c1.600 1.200 3.400 1.200 5 0"/>{%
+  elif n == 'body' %}<circle cx="16" cy="6" r="3"/><path d="M11 13c2-2 8-2 10 0l2 8M9 21l2-8M13 13v6l-1.500 9M19 13v6l1.500 9"/>{%
+  elif n == 'hair' %}<path d="M8 27c-2-9-1-21 8-21s10 12 8 21"/><path d="M12 27c-1-6-.500-13 4-13s5 7 4 13"/>{%
+  elif n == 'sale' %}<circle cx="11" cy="11" r="3"/><circle cx="21" cy="21" r="3"/><path d="M23 9L9 23"/>{%
+  elif n == 'gift' %}<rect x="5" y="12" width="22" height="5" rx="1"/><path d="M7 17v10h18V17M16 12v15"/><path d="M16 12c-3.500 0-5.500-1.600-5.500-3.700S12.500 5 16 12zM16 12c3.500 0 5.500-1.600 5.500-3.700S19.500 5 16 12z"/>{%
+  elif n == 'eye' %}<path d="M4 16s4.500-7 12-7 12 7 12 7-4.500 7-12 7S4 16 4 16z"/><circle cx="16" cy="16" r="3"/>{%
+  elif n == 'sun' %}<circle cx="16" cy="16" r="5"/><path d="M16 4v3M16 25v3M4 16h3M25 16h3M7.500 7.500l2 2M22.500 22.500l2 2M7.500 24.500l2-2M22.500 9.500l2-2"/>{%
+  else %}<path d="M12 5h8v4h-8z"/><path d="M10 9h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V11a2 2 0 0 1 2-2zM8 15h16"/>{% endif %}</svg>{% endmacro %}
 {% block main %}
 <section class="hero"><div class="wrap">{% if s.hero %}<div class="scroller hero-sc">{% for h in s.hero %}<a class="hero-card" href="{{ h.url or (base ~ '/shop/') }}" style="background-image:url('{{ h.img }}')"><span><b>{{ h.title }}</b>{{ h.text }}</span></a>{% endfor %}</div>
   {% else %}<div class="hero-def"><div><p class="eyebrow">Магазин MOLODIST</p><h1>Професійна косметика, яку призначають лікарі</h1>
     <p>Оригінальна продукція від офіційних дистрибʼюторів. Допоможемо підібрати догляд під ваш тип шкіри.</p>
     <p class="hero-a"><a class="btn" href="{{ base }}/shop/">До каталогу</a><a class="btn ghost" href="{{ c.telegram }}" target="_blank" rel="noopener">Підібрати догляд</a></p></div></div>{% endif %}
 </div></section>
+{% if d.menu %}<section class="tiles"><div class="wrap tiles-in">{% for m in d.menu %}<a class="tile {{ 'acc' if m.path == '/shop/sale/' }}" href="{{ base }}{{ m.path }}">
+  <span class="tile-i">{{ cico(cat_icon(m.path)) }}</span><b>{{ m.name }}</b><small>{{ m.n }} товарів</small></a>{% endfor %}
+  <a class="tile" href="{{ cert_url }}" target="_blank" rel="noopener"><span class="tile-i">{{ cico('gift') }}</span><b>Подарункові сертифікати</b><small>MOLODIST</small></a></div></section>{% endif %}
 {% if benefits %}<section class="bens"><div class="wrap scroller">{% for b in benefits %}<div class="ben"><b>{{ b[0] }}</b><span>{{ b[1] }}</span></div>{% endfor %}</div></section>{% endif %}
-{% if d.brands %}<section class="sec"><div class="wrap"><div class="sec-h"><h2>Бренди</h2><a href="{{ base }}/shop/brendi/">Усі бренди</a></div>
-  <div class="scroller brs">{% for b in d.brands %}<a class="br" href="{{ base }}{{ b.path }}">{{ b.name }}</a>{% endfor %}</div></div></section>{% endif %}
-{% if d.menu %}<section class="sec"><div class="wrap"><div class="sec-h"><h2>Категорії</h2></div>
-  <div class="cats">{% for m in d.menu %}<a class="cat" href="{{ base }}{{ m.path }}"><b>{{ m.name }}</b><small>{{ m.n }} товарів</small></a>{% endfor %}</div></div></section>{% endif %}
 {{ rowblock('Акції', blocks.sale, base, money, base ~ ('/shop/sale/' if '/shop/sale/' in d.by_path else '/shop/?order=sale'), pch, s) }}
 {{ rowblock('Новинки', blocks.new, base, money, base ~ '/shop/?order=new', pch, s) }}
 {{ rowblock('Бестселери', blocks.best, base, money, '', pch, s) }}
+{% if d.brands %}<section class="sec"><div class="wrap"><div class="sec-h"><h2>Бренди</h2><a href="{{ base }}/shop/brendi/">Усі бренди</a></div>
+  <div class="scroller brs">{% for b in d.brands %}<a class="br" href="{{ base }}{{ b.path }}">{{ b.name }}</a>{% endfor %}</div></div></section>{% endif %}
 {% if blog %}<section class="sec"><div class="wrap"><div class="sec-h"><h2>Блог</h2><a href="{{ base }}/blog/">Дивитись усі</a></div>
   <div class="blog">{% for p in blog %}<a class="post" href="{{ base }}{{ p.path }}">{% if p.img %}<img src="{{ p.img }}" alt="" loading="lazy">{% endif %}<b>{{ p.h1 or p.title }}</b><span>{{ p.desc }}</span><i>Читати повністю</i></a>{% endfor %}</div></div></section>{% endif %}
 <section class="sec insta"><div class="wrap"><div class="insta-in"><div><h2>Наш Instagram</h2><p>Поради лікарів, новинки, результати процедур і догляду.</p></div>
   <a class="btn" href="{{ s.instagram or c.instagram }}" target="_blank" rel="noopener">Підписатися</a></div></div></section>
-<section class="sec about"><div class="wrap"><h2>Про нас</h2><p>{{ s.about }}</p></div></section>
+<section class="sec about"><div class="wrap"><h2>Про магазин MOLODIST</h2>{% for line in s.about.split('\n') if line.strip() %}<p>{{ line }}</p>{% endfor %}</div></section>
 {% endblock %}

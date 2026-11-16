@@ -29,12 +29,13 @@
     <div class="hd-ico">
       <button type="button" aria-label="Пошук" data-search>{{ ic('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.500-3.500"/>') }}</button>
       <a href="tel:{{ c.phone }}" aria-label="Подзвонити" class="hd-tel">{{ ic('<path d="M5 4h4l2 5-2.500 1.500a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>') }}</a>
+      <button type="button" aria-label="Збережене" data-fav-open class="hd-cart">{{ ic('<path d="M12 20s-7-4.400-7-9.600A4 4 0 0 1 12 8a4 4 0 0 1 7 2.400C19 15.600 12 20 12 20z"/>') }}<em data-fav-n hidden>0</em></button>
       <button type="button" aria-label="Кошик" data-cart-open class="hd-cart">{{ ic('<path d="M6 8h12l1.200 12H4.800z"/><path d="M9 8V6.500a3 3 0 0 1 6 0V8"/>') }}<em data-cart-n hidden>0</em></button>
     </div>
   </div>
   <nav class="hd-nav" aria-label="Категорії">{% for m in d.menu %}<a href="{{ base }}{{ m.path }}" class="{{ 'acc' if m.path == '/shop/sale/' }}" {{ 'aria-current=page' if path.startswith(m.path) }}>{{ m.name }}</a>{% endfor %}
     {% if '/shop/sale/' not in d.by_path %}<a href="{{ base }}/shop/?order=sale" class="acc">Акції</a>{% endif %}{% if d.brands %}<a href="{{ base }}/shop/brendi/" {{ 'aria-current=page' if path.startswith('/shop/brendi/') }}>Бренди</a>{% endif %}
-    {% if '/blog/' in d.pages %}<a href="{{ base }}/blog/">Блог</a>{% endif %}<a href="{{ c.main_url }}" target="_blank" rel="noopener">Косметологія</a></nav>
+    {% if '/blog/' in d.pages %}<a href="{{ base }}/blog/">Блог</a>{% endif %}<a href="{{ cert_url }}" target="_blank" rel="noopener">Сертифікати</a><a href="{{ c.main_url }}" target="_blank" rel="noopener">Косметологія</a></nav>
   <form class="hd-search" action="{{ base }}/shop/" method="get" hidden><input name="q" value="{{ q }}" placeholder="Пошук: назва, бренд, артикул" autocomplete="off"><button class="btn sm">Знайти</button></form>
 </div></header>
 <main>{% block main %}{% endblock %}</main>
@@ -53,6 +54,10 @@
     <p>{{ pch_legal.note }} <a href="{{ pch_legal.url }}" target="_blank" rel="noopener">{{ pch_legal.url_text }}</a></p></div></div>{% endif %}
 <div class="wrap ft-bot">© {{ year }} MOLODIST · Оплата: Visa, Mastercard, Apple Pay, Google Pay, Покупка Частинами monobank · Доставка: Нова пошта</div></footer>
 
+<aside class="cart" id="fav" hidden aria-label="Збережене"><div class="cart-bg" data-cart-close></div><div class="cart-in">
+  <div class="cart-h"><b>Збережене</b><button type="button" data-cart-close aria-label="Закрити">×</button></div>
+  <div class="cart-list" data-fav-list></div>
+  <div class="cart-f"><button type="button" class="link" data-cart-close>Продовжити покупки</button></div></div></aside>
 <aside class="cart" id="cart" hidden aria-label="Кошик"><div class="cart-bg" data-cart-close></div><div class="cart-in">
   <div class="cart-h"><b>Кошик</b><button type="button" data-cart-close aria-label="Закрити">×</button></div>
   <div class="cart-free" data-cart-free hidden></div>
@@ -63,6 +68,7 @@
 <nav class="mnav" id="mnav" hidden><div class="cart-bg" data-menu-close></div><div class="mnav-in"><button type="button" data-menu-close aria-label="Закрити" class="x">×</button>
   {% for m in d.menu %}<a href="{{ base }}{{ m.path }}" class="{{ 'acc' if m.path == '/shop/sale/' }}">{{ m.name }}</a>{% endfor %}
   {% if d.brands %}<a href="{{ base }}/shop/brendi/">Бренди</a>{% endif %}{% if '/blog/' in d.pages %}<a href="{{ base }}/blog/">Блог</a>{% endif %}
+  <a href="{{ cert_url }}">Подарункові сертифікати</a>{% for p in d.pages.values() if p.path.startswith('/for-customers/') and p.path != '/for-customers/' %}<a class="sub" href="{{ base }}{{ p.path }}">{{ p.h1 or p.title }}</a>{% endfor %}
   <a href="{{ c.main_url }}">Косметологія MOLODIST</a><a href="tel:{{ c.phone }}">{{ c.phone_text }}</a></div></nav>
 <script>window.MSHOP={base:'{{ base }}',free:{{ s.free_from or 0 }}};</script>
 <script src="/static/shop/shop.js?v={{ ver }}" defer></script>

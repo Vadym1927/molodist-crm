@@ -9,6 +9,11 @@
 <div class="shk"><div><b>{{ d['items']|length }}</b><span class="small muted">товарів у магазині</span></div><div><b>{{ stock }}</b><span class="small muted">у наявності</span></div>
   <div><b>{{ d.cats|selectattr('n')|list|length }}</b><span class="small muted">категорій і брендів з товарами</span></div><div><b>{{ d.pages|length }}</b><span class="small muted">сторінок і статей</span></div>
   <div><b>{{ nocat }}</b><span class="small muted">товарів без категорії</span></div></div>
+<div class="card" style="max-width:860px;margin-bottom:14px"><b>SEO, перенесене з Shop-Express</b>
+  <p class="small" style="margin:6px 0 0">Товарів з адресою старого сайту: <b>{{ seo.products }}</b> (показуються {{ seo.on }}) · SEO title: <b>{{ seo.title }}</b> · SEO description: <b>{{ seo.desc }}</b> ·
+    опис: <b>{{ seo.text }}</b> · фото на нашому сервері: <b>{{ seo.photo }}</b><br>Категорій і брендів: <b>{{ seo.cats }}</b> (title {{ seo.cats_title }}, description {{ seo.cats_desc }}) ·
+    товарів у категоріях: <b>{{ seo.in_cats }}</b> · сторінок і статей: <b>{{ seo.pages }}</b></p>
+  {% if seo.no_title %}<p class="small muted" style="margin:6px 0 0">На сайті без SEO title (підставляється назва товару): {{ seo.no_title|join('; ') }}</p>{% endif %}</div>
 <div class="card" style="max-width:860px;margin-bottom:14px"><b>Перегляд до публікації</b>
   <p class="small" style="margin:6px 0"><a href="{{ preview }}" target="_blank" rel="noopener">{{ preview }}</a></p>
   <p class="small muted" style="margin:0 0 8px">Структура й SEO старого сайту (категорії з адресами, заголовками, описами; сторінки; блог){{ (' — знято ' ~ d.at[8:10] ~ '.' ~ d.at[5:7] ~ ' ' ~ d.at[11:16]) if d.at else ' — ще не знято' }}. Нові сторінки відкриваються за тими самими адресами.</p>

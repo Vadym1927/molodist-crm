@@ -9941,7 +9941,7 @@ def settings_shop(request: Request, user: User = Depends(require("users")), db: 
     d = sf.catalog(db, fresh=True)
     j = jobs.JOBS.get(request.query_params.get("job") or "")
     from .services import mono_parts as _mp
-    return render(request, "settings_shop.html", nav="settings", c=c, d=d, accounts=pls.public(db)["accounts"], job=j, mp=_mp.public(db), MP_MODES=_mp.MODES,
+    return render(request, "settings_shop.html", nav="settings", c=c, d=d, seo=sf.seo_coverage(db), accounts=pls.public(db)["accounts"], job=j, mp=_mp.public(db), MP_MODES=_mp.MODES,
                   preview=f"{settings.public_url.rstrip('/')}/_shop/?p={sf.preview_key(db)}",
                   stock=sum(1 for i in d["items"] if i["stock"]), nocat=sum(1 for i in d["items"] if not any(i["slug"] in x["slugs"] for x in d["cats"])))
 

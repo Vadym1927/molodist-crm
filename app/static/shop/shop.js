@@ -41,9 +41,43 @@
       if (cb) cb(j);
     });
   }
+  var FK = 'mshop_fav', favEl = $('#fav');
+  function favs() { try { return JSON.parse(localStorage.getItem(FK) || '[]') || []; } catch (e) { return []; } }
+  function favMark() {
+    var f = favs();
+    $$('[data-fav]').forEach(function (b) { b.classList.toggle('on', f.indexOf(parseInt(b.getAttribute('data-fav'), 10)) >= 0); });
+    $$('[data-fav-n]').forEach(function (e) { e.textContent = f.length; e.hidden = !f.length; });
+  }
+  function favToggle(id) {
+    var f = favs(), i = f.indexOf(id);
+    if (i >= 0) f.splice(i, 1); else f.push(id);
+    try { localStorage.setItem(FK, JSON.stringify(f.slice(-60))); } catch (e) {}
+    favMark(); if (i < 0) toast('Збережено');
+  }
+  function favRender() {
+    var f = favs(), l = $('[data-fav-list]');
+    if (!f.length) { l.innerHTML = '<p class="cart-empty">Тут будуть товари, які ви зберегли — натисніть на сердечко на фото товару.</p>'; return; }
+    api('/api/cart', { items: f.map(function (id) { return { id: id, qty: 1 }; }) }, function (j) {
+      if (!j) return;
+      l.innerHTML = j.items.map(function (i) {
+        return '<div class="ci" data-id="' + i.id + '">' + (i.img ? '<img src="' + B + '/img/' + i.img + '?w=300" alt="">' : '<span class="noimg">M</span>') +
+          '<div><a href="' + B + '/shop/' + esc(i.slug) + '/">' + esc(i.name) + '</a><small>' + money(i.price) + '</small>' +
+          '<div class="q"><button type="button" class="tocart" data-add="' + i.id + '">У кошик</button></div></div><button type="button" class="rm" data-unfav="' + i.id + '" aria-label="Прибрати">×</button></div>';
+      }).join('') || '<p class="cart-empty">Збережених товарів зараз немає в наявності.</p>';
+    });
+  }
+  favMark();
   function openCart() { if (!cartEl) return; cartEl.hidden = false; document.body.style.overflow = 'hidden'; render(); }
-  function closeAll() { [cartEl, $('#mnav')].forEach(function (e) { if (e) e.hidden = true; }); document.body.style.overflow = ''; }
+  function closeAll() { [cartEl, favEl, $('#mnav')].forEach(function (e) { if (e) e.hidden = true; }); document.body.style.overflow = ''; }
   document.addEventListener('click', function (e) {
+    var fv = e.target.closest ? e.target.closest('[data-fav],[data-fav-open],[data-unfav]') : null;
+    if (fv) {
+      e.preventDefault();
+      if (fv.hasAttribute('data-fav')) favToggle(parseInt(fv.getAttribute('data-fav'), 10));
+      else if (fv.hasAttribute('data-unfav')) { favToggle(parseInt(fv.getAttribute('data-unfav'), 10)); favRender(); }
+      else { favEl.hidden = false; document.body.style.overflow = 'hidden'; favRender(); }
+      return;
+    }
     var t = e.target.closest ? e.target.closest('[data-add],[data-cart-open],[data-cart-close],[data-menu],[data-menu-close],[data-search],.ci button,[data-img],[data-q]') : null;
     if (!t) return;
     if (t.hasAttribute('data-add')) {

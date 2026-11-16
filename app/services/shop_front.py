@@ -30,8 +30,7 @@ DEFAULT = {
     "free_from": 3000, "gift_from": 0, "gifts": "", "pay_account": 0, "cod": True, "pickup": True, "np_key": "",
     "benefits": "Оригінальна продукція|Лише від офіційних дистрибʼюторів брендів\nПідбір догляду лікарем|Безкоштовна консультація лікаря MOLODIST щодо домашнього догляду\n"
                 "Швидка відправка|Замовлення до 15:00 відправляємо того ж дня\nПокупка Частинами monobank|Безкоштовна розстрочка: до 4 платежів без комісій",
-    "about": "MOLODIST — медичний простір естетики та профілактики в Києві. У магазині — професійна косметика, яку призначають наші лікарі: "
-             "лише оригінальна продукція від офіційних дистрибʼюторів. Допоможемо підібрати догляд під ваш тип шкіри.",
+    "about": "MOLODIST — медичний простір естетики та профілактики в Києві. В інтернет-магазині зібрана професійна косметика для домашнього догляду, з якою щодня працюють наші лікарі-дерматологи: ZO Skin Health, Medik8, Medicare, Demax, AG SKIN, Tebiskin, Image Skincare, Rejuran та інші бренди.\nМи продаємо лише оригінальну продукцію від офіційних дистрибʼюторів і зберігаємо її з дотриманням умов виробника. У каталозі — засоби для очищення й тонізації, активні сироватки з ретинолом, вітаміном C і кислотами, зволожувальні та анти-ейдж креми, сонцезахист SPF, догляд за шкірою навколо очей, тілом і волоссям.\nНе впевнені, що підійде саме вам? Напишіть нам — лікар MOLODIST безкоштовно підбере домашній догляд під тип і стан вашої шкіри: акне, пігментація, чутливість, вікові зміни, відновлення після процедур. Так домашній догляд підтримує результат лікування, а не працює проти нього.\nДоставляємо Новою поштою по всій Україні, у Києві замовлення можна забрати в MOLODIST. Оплата карткою онлайн, при отриманні або Покупка Частинами monobank.",
     "instagram": "https://www.instagram.com/molodist.clinic/",
     "hero": [],                  # [{img, title, text, url}]
     "parts_file": "",            # локальна копія шильдика для низу сайту (files/shop_brand/…)
@@ -594,6 +593,27 @@ def search(data: dict, q: str) -> list[dict]:
     if not words:
         return []
     return [i for i in data["items"] if all(w in f"{i['name']} {i['brand']} {i['sku']}".lower() for w in words)]
+
+
+CAT_ICONS = (("sale", "sale"), ("volos", "hair"), ("aksesuar", "hair"), ("oblich", "face"), ("til", "body"), ("ochi", "eye"), ("spf", "sun"))
+
+
+def cat_icon(path: str) -> str:
+    seg = path.strip("/").split("/")[-1]
+    return next((ic for key, ic in CAT_ICONS if key in seg), "jar")
+
+
+def seo_coverage(db: Session) -> dict:
+    """Чи все SEO з Shop-Express на місці: скільки товарів сайту мають адресу, title, description, опис, фото."""
+    rows = [p for p in db.scalars(select(Product).where(Product.site_info.is_not(None))) if (p.site_info or {}).get("slug")]
+    g = lambda k: sum(1 for p in rows if (p.site_info or {}).get(k))
+    st = site(db)
+    cats = st.get("cats") or []
+    return {"products": len(rows), "on": sum(1 for p in rows if p.site_on), "title": g("seo_title"), "desc": g("seo_description"), "text": g("short_description"),
+            "photo": sum(1 for p in rows if (p.photo_url or "").startswith("/products/files/")),
+            "no_title": [p.name for p in rows if p.site_on and not (p.site_info or {}).get("seo_title")][:15],
+            "cats": len(cats), "cats_title": sum(1 for c in cats if c.get("title")), "cats_desc": sum(1 for c in cats if c.get("desc")),
+            "pages": len(st.get("pages") or []), "in_cats": len({x for c in cats for x in c.get("slugs") or []})}
 
 
 def home_blocks(data: dict) -> dict:
