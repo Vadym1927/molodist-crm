@@ -9,7 +9,8 @@ class FakeClient:
 
     def products(self):
         yield {"id": 9101, "sku": "MIG-1", "title": "Крем міграційний 50 мл", "link": "/shop/krem/9101/", "slug": "krem",
-               "short_description": "<p>Опис <b>крему</b></p><script>alert(1)</script><a href=x onclick=y>x</a>",
+               "short_description": [{"name": {"uk": "Default"}, "description": {"uk": "<p>Опис <b>крему</b></p><script>alert(1)</script><a href=x onclick=y>x</a>"}},
+                                     {"name": {"uk": "Склад"}, "description": {"uk": "<p>Вода</p>"}}],
                "seo_title": "Крем SEO", "brand": {"title": "Ag Skin"}, "price": 1950, "price_old": 2100,
                "images": ["/Media/shop-1/a.webp", {"original": "https://molodist.store/Media/shop-1/b.webp"}],
                "gallery_common": [], "characteristics": [{"name": "Обʼєм", "value": "50 мл"}], "display_in_showcase": True}
@@ -48,6 +49,7 @@ def test_migrate_photos_texts_and_no_dupes(monkeypatch, tmp_path):
         assert p.photo_url.startswith("/products/files/") and p.site_on is True
         si = p.site_info
         assert "<script" not in si["short_description"] and "onclick" not in si["short_description"] and "<b>крему</b>" in si["short_description"]
+        assert "<h3>Склад</h3><p>Вода</p>" in si["short_description"] and "Default" not in si["short_description"] and si["brand_name"] == "Ag Skin"
         assert si["seo_title"] == "Крем SEO" and si["price_old"] == 2100 and len(si["images"]) == 2
         fs = db.query(ProductFile).filter(ProductFile.product_id == pid).order_by(ProductFile.sort).all()
         assert [f.site for f in fs] == [True, True] and Path(fs[0].path).read_bytes().startswith(b"IMG")

@@ -81,13 +81,29 @@ def _download(http: httpx.Client, url: str, root_host: str) -> tuple[bytes, str]
     return r.content, ctype
 
 
+def _txt(v) -> str:
+    """Текст поля Shop-Express: рядок, {uk/ua/ru} або список вкладок [{name: {uk}, description: {uk}}] → HTML."""
+    if v is None:
+        return ""
+    if isinstance(v, str):
+        return v
+    if isinstance(v, dict):
+        if "description" in v or "name" in v:
+            name, desc = _txt(v.get("name")), _txt(v.get("description"))
+            return (f"<h3>{name}</h3>" if name and name.lower() not in ("default", "опис") else "") + desc
+        return _txt(v.get("uk") or v.get("ua") or v.get("ru") or next(iter(v.values()), ""))
+    if isinstance(v, list):
+        return "\n".join(x for x in (_txt(i) for i in v) if x)
+    return str(v)
+
+
 def info_of(row: dict) -> dict:
     d = {k: row.get(k) for k in TEXT_KEYS if row.get(k) not in (None, "", [], {})}
-    if isinstance(d.get("title"), dict):
-        d["title"] = d["title"].get("ua") or d["title"].get("uk") or next(iter(d["title"].values()), "")
-    for k in ("short_description", "seo_title", "seo_description", "seo_keywords", "link", "slug"):
-        if isinstance(d.get(k), dict):
-            d[k] = d[k].get("ua") or d[k].get("uk") or next(iter(d[k].values()), "")
+    for k in ("title", "short_description", "seo_title", "seo_description", "seo_keywords", "link", "slug"):
+        if k in d and not isinstance(d[k], str):
+            d[k] = _txt(d[k])
+    if isinstance(d.get("brand"), (dict, list)):
+        d["brand_name"] = _txt(d["brand"].get("title") if isinstance(d["brand"], dict) else d["brand"])
     if d.get("short_description"):
         d["short_description"] = clean_html(str(d["short_description"]))
     return d
