@@ -395,3 +395,19 @@ def test_molodist_coins_shop_flow(monkeypatch):
             assert cn.balance(db, pt.id) == 250
             c["coin_spend_on"] = False; sf.save_cfg(db, c)
             assert [t.kind for t in db.scalars(select(CoinTxn).where(CoinTxn.patient_id == pt.id).order_by(CoinTxn.id))] == ["welcome", "manual", "spend", "accrual", "restore", "reverse"]
+
+
+def test_coins_unfile_from_bonuses_keeps_cleverbox():
+    from app.services import coins as cn, loyalty as ly
+    from app.models import Patient, BonusTxn
+    with TestClient(app):
+        with SessionLocal() as db:
+            pt = Patient(full_name="Бонус Тест", phone="380501239999")
+            db.add(pt); db.flush()
+            db.add_all([BonusTxn(patient_id=pt.id, amount=730, kind="import", comment="CleverBox"),
+                        BonusTxn(patient_id=pt.id, amount=100, kind="welcome", ref="cab:signup")])
+            db.commit()
+            assert cn.unfile_from_bonuses(db) == 0 and ly.balance(db, pt.id) == 830           # копії в Coins ще немає — нічого не видаляємо
+            assert cn.split_from_bonuses(db) >= 1 and cn.balance(db, pt.id) == 100
+            assert cn.unfile_from_bonuses(db) >= 1 and ly.balance(db, pt.id) == 730 and cn.balance(db, pt.id) == 100
+            assert cn.unfile_from_bonuses(db) == 0

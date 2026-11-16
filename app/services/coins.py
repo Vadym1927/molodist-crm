@@ -110,6 +110,20 @@ def summary(db: Session, pid: int) -> dict:
             "invited": sum(1 for t in rows if t.kind == "ref_inviter"), "ref": int(sum(t.amount for t in rows if t.kind == "ref_inviter"))}
 
 
+def unfile_from_bonuses(db: Session) -> int:
+    """16.11.2026, рішення власника: записи MOLODIST Coins, що помилково потрапили в журнал бонусів CleverBox, прибрати звідти.
+    Видаляються лише записи з позначками Coins (cab: / shopcoin: / shoporder: / shopearn:) і лише якщо копія вже є в журналі Coins.
+    Стартові залишки CleverBox та інші бонуси не зачіпаються."""
+    n = 0
+    for t in db.scalars(select(BonusTxn).where(BonusTxn.ref.is_not(None))).all():
+        if (t.ref or "").startswith(("cab:", "shopcoin:", "shoporder:", "shopearn:")) and \
+                db.scalars(select(CoinTxn.id).where(CoinTxn.patient_id == t.patient_id, CoinTxn.kind == t.kind, CoinTxn.ref == t.ref)).first():
+            db.delete(t)
+            n += 1
+    db.commit()
+    return n
+
+
 # ---------------- магазин ----------------
 def eligible(items: list[dict]) -> float:
     """Сума товарів, що беруть участь (акційні — ні)."""

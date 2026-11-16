@@ -630,6 +630,7 @@ async def lifespan(app: FastAPI):
             from .services import coins as _cn0
             log.info("coins split: %s", _cn0.split_from_bonuses(db))
             log.info("coins migrate: %s", _cn0.migrate_shop_coins(db))
+            log.info("coins unfile from bonuses: %s", _cn0.unfile_from_bonuses(db))
         except Exception as _e:  # noqa: BLE001
             log.warning("coins migrate: %s", _e)
             db.rollback()
@@ -841,6 +842,12 @@ def render(request: Request, name: str, **ctx):
                 try:
                     from .services.price_monitor import unseen as _pu
                     counts = dict(counts or {}, prices=_pu(db))
+                except Exception:  # noqa: BLE001
+                    pass
+            if can(user, "sales"):
+                try:
+                    from .models import SiteOrder as _So
+                    counts = dict(counts or {}, shop=db.scalar(select(func.count()).select_from(_So).where(_So.source == "crm", _So.status.in_(("Нове", "Оплачено", "Опрацьовується")))) or 0)
                 except Exception:  # noqa: BLE001
                     pass
             if can(user, "appeals"):
@@ -9946,6 +9953,8 @@ def shop_orders_page(request: Request, d1: str = "", d2: str = "", status: str =
     staff = {u_.id: (u_.name or u_.login) for u_ in db.scalars(select(User))}
     return render(request, "shop_orders.html", nav="finance", rows=rows[:500], n=len(rows), k=so.kpi(rows), statuses=so.statuses(db),
                   funnel=sf.funnel(allr), photos=photos, pats=pats, staff=staff, PAY_FAIL=sf.PAY_FAIL,
+                  hub={"waiting": sum(w["n"] for w in __import__("app.services.shop_cabinet", fromlist=["x"]).notify_waiting(db)),
+                       "accounts": __import__("app.services.shop_cabinet", fromlist=["x"]).stats(db)["accounts"], "preview": f"/_shop/?p={sf.preview_key(db)}", "on": sf.cfg(db).get("on")},
                   f={"d1": d1, "d2": d2, "status": status, "q": q}, last=so.last(db))
 
 

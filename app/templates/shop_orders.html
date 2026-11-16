@@ -2,7 +2,7 @@
 {% block title %}Замовлення сайту · Фінанси{% endblock %}
 {% block body %}
 {% include "_fin_tabs.html" %}{% set qp = request.query_params %}
-<div class="row between" style="margin-bottom:12px;gap:10px;flex-wrap:wrap"><div><h1>Замовлення сайту</h1>
+<div class="row between" style="margin-bottom:12px;gap:10px;flex-wrap:wrap"><div><h1>Центр керування магазином</h1>
   <div class="muted small">molodist.store · {{ n }} замовлень{% if last %} · оновлено {{ last.at[8:10] }}.{{ last.at[5:7] }} {{ last.at[11:16] }}{% endif %}</div></div>
   <form class="fin-f"><input type="date" name="d1" value="{{ f.d1 }}"><span class="muted">—</span><input type="date" name="d2" value="{{ f.d2 }}">
     <input type="hidden" name="status" value="{{ f.status }}">
@@ -14,7 +14,10 @@
   <div class="tile"><span>Оплачено онлайн</span><b>{{ k.paid }}</b></div>
   <div class="tile"><span>Скасовано / повернуто</span><b>{{ k.lost }}</b></div>
 </div>
-<div class="row" style="gap:8px;margin:8px 0 12px;flex-wrap:wrap"><a class="btn ghost" href="/reports?r=shop">Звіт «Інтернет-магазин»</a>
+<div class="row" style="gap:8px;margin:8px 0 12px;flex-wrap:wrap">{% if can(user,'users') %}<a class="btn" href="/settings/shop/products">Товари, знижки, показ</a><a class="btn ghost" href="/settings/shop/cats">Категорії й бренди</a>
+  <a class="btn ghost" href="/settings/shop">Налаштування магазину{{ (' · чекають на товар: ' ~ hub.waiting) if hub.waiting }}</a>{% endif %}
+  <a class="btn ghost" href="{{ hub.preview }}" target="_blank" rel="noopener">{{ 'Відкрити магазин' if hub.on else 'Перегляд магазину' }}</a><span class="muted small" style="align-self:center">кабінетів покупців: {{ hub.accounts }}</span>
+  <a class="btn ghost" href="/reports?r=shop">Звіт «Інтернет-магазин»</a>
   {% if can(user,'finance') %}<form method="post" action="/shop-orders/sync"><button class="btn ghost">Оновити з molodist.store</button></form>{% endif %}</div>
 <style>.sof{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}.sof a{padding:7px 12px;border-radius:999px;border:1px solid var(--line);text-decoration:none;color:var(--ink);font-size:13px;background:#fff}
 .sof a.on{background:#3B3050;border-color:#3B3050;color:#fff}.sof a b{margin-left:4px}.sot{display:flex;gap:4px}.sot img,.sot span{width:38px;height:38px;border-radius:8px;border:1px solid var(--line);object-fit:contain;background:#fff}
