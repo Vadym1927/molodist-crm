@@ -271,7 +271,7 @@ def test_shop_cabinet_flow(monkeypatch):
         co = c.get("/_shop/checkout/").text
         assert "data-me=" in co and "&#34;city_ref&#34;: &#34;r1&#34;" in co and "no-store" in c.get("/_shop/checkout/").headers["cache-control"]
         assert "Wish A" in c.get("/_shop/cabinet/?t=wish").text and ref in c.get("/_shop/cabinet/?t=invite").text
-        assert "100" in c.get("/_shop/cabinet/?t=loyalty").text and "1 коїн = 1 ₴" in c.get("/_shop/cabinet/?t=loyalty").text
+        assert "100" in c.get("/_shop/cabinet/?t=loyalty").text and "1 Coin = 1 ₴" in c.get("/_shop/cabinet/?t=loyalty").text
         c.post("/_shop/api/cab/logout", json={})
         assert "Отримати код" in c.get("/_shop/cabinet/").text
         w = c.get(f"/_shop/wish/{wt}/")
