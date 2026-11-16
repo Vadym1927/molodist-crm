@@ -9887,6 +9887,27 @@ def shop_order_page(request: Request, oid: int, user: User = Depends(require("sa
     return render(request, "shop_order.html", nav="finance", o=o, pat=db.get(Patient, o.patient_id) if o.patient_id else None)
 
 
+@app.get("/settings/shop/raw")
+def shop_raw(what: str = "categories", n: int = 3, sid: str = "", user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    """Власнику: сирі дані, перенесені з Shop-Express (категорії, бренди, приклад товару з копії каталогу) — для побудови магазину."""
+    import json as _json
+    from pathlib import Path as _P
+    if what in ("categories", "brands"):
+        st = db.get(SyncState, f"shop_{what}")
+        rows = _json.loads(st.value) if st and st.value else []
+        return {"count": len(rows), "rows": rows if n <= 0 else rows[:n]}
+    files = sorted((_P(settings.files_dir) / "shop_express").glob("export-*.json"))
+    if not files:
+        return {"count": 0, "rows": []}
+    rows = _json.loads(files[-1].read_text(encoding="utf-8"))
+    for r in rows:
+        if isinstance(r.get("short_description"), (list, dict, str)):
+            r["short_description"] = str(r["short_description"])[:200]
+    if sid:
+        rows = [r for r in rows if str(r.get("id")) == sid or str(r.get("parent_id")) == sid]
+    return {"count": len(rows), "rows": rows if n <= 0 else rows[:n]}
+
+
 @app.post("/shop-orders/sync")
 def shop_orders_sync(user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     audit(db, "shop.orders_sync", user=user)
