@@ -22,7 +22,7 @@ REF_COOKIE = "mshop_ref"
 CODE_TTL = 5 * 60
 DAYS_REMEMBER, DAYS_SHORT = 180, 1
 COIN_KINDS = {"signup": "За реєстрацію", "ref_inviter": "За запрошеного друга", "ref_friend": "Бонус за запрошенням друга"}
-TABS = [("profile", "Контактні дані"), ("orders", "Мої замовлення"), ("care", "Рекомендації лікаря"), ("loyalty", "Система лояльності"), ("reviews", "Мої відгуки"),
+TABS = [("profile", "Контактні дані"), ("orders", "Мої замовлення"), ("care", "Рекомендації лікаря"), ("loyalty", "MOLODIST Coins"), ("reviews", "Мої відгуки"),
         ("invite", "Запроси друга"), ("wish", "Вішліст"), ("gifts", "Подарунки від друзів і партнерів"), ("addr", "Адреси доставки")]
 
 

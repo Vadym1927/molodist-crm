@@ -37,11 +37,10 @@
         {% for n in care.other %}<div class="cab-oi"><span>{{ n }}</span></div>{% endfor %}{% endif %}
     {% else %}<div class="soon"><b>Рекомендацій ще немає</b><p>Після консультації лікар MOLODIST складе бюті-план — і засоби домашнього догляду з нього зʼявляться тут.</p>
       <a class="btn sm ghost" href="{{ c.main_url }}" target="_blank" rel="noopener">Записатися на консультацію</a></div>{% endif %}
-  {% elif t == 'loyalty' %}<h1>Система лояльності</h1>
-    <div class="coin-card"><small>Доступний баланс</small><b>{{ coins.total }}</b><span>MOLODIST коїнів</span><em>У розробці</em></div>
-    <p class="mut">MOLODIST коїни — програма лояльності магазину. Ми вже нараховуємо коїни, а оплачувати ними замовлення можна буде після запуску програми — повідомимо окремо.</p>
-    <h3>Нарахування</h3>{% for r in coins.rows %}<div class="cab-oi"><span>{{ r.note or r.kind }}</span><small>{{ r.created_at.strftime('%d.%m.%Y') if r.created_at else '' }}</small><b>+{{ r.amount }}</b></div>{% else %}<p class="mut">Нарахувань ще немає.</p>{% endfor %}
-    <p class="mut small">За реєстрацію — {{ s.cab_coin_signup }} коїнів. За кожного запрошеного друга — {{ s.cab_coin_ref }} вам і {{ s.cab_coin_ref }} другу. Поки що коїни не можна використати.</p>
+  {% elif t == 'loyalty' %}<h1>MOLODIST Coins</h1>
+    <div class="coin-card"><img src="/static/shop/coins/coin-white.webp" alt="MOLODIST Coins" width="120" height="120"><div><small>На вашому рахунку</small><b>{{ coins.total }}</b><span>MOLODIST Coins · очікують запуску програми</span></div><em>У розробці</em></div>
+    <p class="mut">MOLODIST Coins — єдина програма лояльності магазину й медичного простору MOLODIST. Коїни даватимуть знижку на косметику та послуги. Програма готується до запуску: коїни вже нараховуються, а використати їх можна буде після старту — умови опублікуємо тут.</p>
+    <h3>Історія</h3>{% for r in coins.rows %}<div class="cab-oi"><span>{{ r.note or r.kind }}</span><small>{{ r.created_at.strftime('%d.%m.%Y') if r.created_at else '' }}</small><b>+{{ r.amount }}</b></div>{% else %}<p class="mut">Нарахувань ще немає.</p>{% endfor %}
   {% elif t == 'reviews' %}<h1>Мої відгуки</h1>
     <div class="soon"><b>Розділ у розробці</b><p>Після отримання замовлення ми попросимо вас оцінити товар. Тут зʼявляться ваші відгуки.</p></div>
   {% elif t == 'invite' %}<h1>Запроси друга</h1>
