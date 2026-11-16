@@ -140,6 +140,8 @@ def register(app, templates, version: str):
             return JSONResponse({"ok": False, "msg": str(e)}, status_code=400)
         base = "" if host in sf.hosts() else "/_shop"
         r["done_url"] = f"{base}/checkout/done/?n={r['number']}"
+        if r.get("parts"):
+            r["done_url"] += "&parts=1"
         return JSONResponse(r, headers={"Cache-Control": "no-store"})
 
     @app.get("/_shop/api/np/cities")
@@ -154,10 +156,18 @@ def register(app, templates, version: str):
             return JSONResponse({"rows": []})
         return JSONResponse({"rows": sf.np_warehouses(sf.cfg(db), city, q.strip())}, headers={"Cache-Control": "public, max-age=600"})
 
+    @app.post("/api/public/monoparts")
+    async def shop_monoparts(request: Request, db: Session = Depends(db_dep)):
+        from .services import mono_parts as mp
+        ok = mp.callback(db, await request.body(), request.headers.get("signature") or "")
+        return JSONResponse({"ok": ok}, status_code=200 if ok else 400)
+
     @app.get("/_shop/checkout/", response_class=HTMLResponse)
     @app.get("/_shop/shop/cart/", response_class=HTMLResponse, include_in_schema=False)
     def shop_checkout(request: Request, db: Session = Depends(db_dep)):
         cx = ctx(request, db, "/checkout/")
+        from .services import mono_parts as mp
+        cx.update(parts=mp.public(db))
         cx.update(title="Оформлення замовлення — MOLODIST", desc="", noindex_page=True, np=bool((cx["s"].get("np_key") or "").strip()),
                   gifts=[g[0] for g in sf.lines(cx["s"].get("gifts"))])
         return resp(request, "shop/checkout.html", cx)
@@ -166,6 +176,7 @@ def register(app, templates, version: str):
     def shop_done(request: Request, n: str = "", db: Session = Depends(db_dep)):
         cx = ctx(request, db, "/checkout/done/")
         cx.update(title="Дякуємо за замовлення — MOLODIST", desc="", noindex_page=True, number=re.sub(r"[^\w-]", "", n)[:20])
+        cx.update(parts=bool(request.query_params.get("parts")))
         return resp(request, "shop/done.html", cx)
 
     # ---------- каталог ----------

@@ -14,6 +14,8 @@
       <label class="ac"><span>Відділення / поштомат</span><input name="warehouse" autocomplete="off" placeholder="{{ 'Номер або адреса' }}"><div class="ac-l" hidden></div></label></div></div>
     <h3>Оплата</h3>
     <div class="opts"><label><input type="radio" name="pay" value="online" checked><span><b>Онлайн карткою</b><small>Visa, Mastercard, Apple Pay, Google Pay · monobank</small></span></label>
+      {% if parts.ready %}<label><input type="radio" name="pay" value="parts"><span><b>Покупка Частинами monobank</b><small>безкоштовна розстрочка без комісій · від {{ money(parts.min_sum) }} · для клієнтів monobank</small>
+        <select name="parts" class="pp">{% for n in parts.parts %}<option value="{{ n }}">{{ n }} платежі{{ 'в' if n > 4 }}</option>{% endfor %}</select></span></label>{% endif %}
       {% if s.cod %}<label><input type="radio" name="pay" value="cod"><span><b>При отриманні</b><small>накладений платіж Нової пошти або оплата в MOLODIST</small></span></label>{% endif %}</div>
     <div id="co-gift" hidden><h3>Подарунок до замовлення</h3><div class="opts" id="co-gifts"></div></div>
     <label><span>Коментар (необовʼязково)</span><textarea name="comment" rows="2"></textarea></label>

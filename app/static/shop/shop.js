@@ -111,7 +111,7 @@
       var er = $('.err', form), bt = $('button.btn', form); er.hidden = true;
       var d = { items: load(), name: form.name.value.trim(), phone: form.phone.value, email: form.email.value.trim(), city: form.city.value.trim(),
         warehouse: form.warehouse.value.trim(), comment: form.comment.value.trim(), website: form.website.value,
-        delivery: ($('[name=delivery]:checked', form) || {}).value, pay: ($('[name=pay]:checked', form) || {}).value, gift: ($('[name=gift]:checked', form) || {}).value || '' };
+        delivery: ($('[name=delivery]:checked', form) || {}).value, pay: ($('[name=pay]:checked', form) || {}).value, gift: ($('[name=gift]:checked', form) || {}).value || '', parts: form.parts ? form.parts.value : '' };
       try { var m = JSON.parse(localStorage.getItem('mlds_utm') || 'null'); if (m && m.m) for (var k in m.m) d[k] = m.m[k]; } catch (x) {}
       if (!d.items.length) { er.textContent = 'Кошик порожній.'; er.hidden = false; return; }
       bt.disabled = true; bt.textContent = 'Оформлюємо…';
@@ -120,6 +120,7 @@
         if (j && j.ok) {
           try { localStorage.setItem('mlds_me', JSON.stringify({ name: d.name, phone: d.phone })); localStorage.removeItem(KEY); } catch (x) {}
           window.dataLayer = window.dataLayer || []; window.dataLayer.push({ event: 'purchase', transaction_id: j.number, value: j.total, currency: 'UAH' });
+          if (j.parts_error) alert(j.parts_error);
           location.href = j.pay_url || j.done_url;
         } else { er.textContent = (j && j.msg) || 'Не вдалося оформити. Зателефонуйте нам, будь ласка.'; er.hidden = false; }
       });

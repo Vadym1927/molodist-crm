@@ -373,6 +373,11 @@ def create_order(db: Session, data: dict, base_url: str) -> dict:
     if delivery == "np" and (len(city) < 2 or len(wh) < 1):
         raise ShopError("Вкажіть місто й відділення Нової пошти.")
     pay = data.get("pay") if data.get("pay") in ("online", "cod", "parts") else "online"
+    if pay == "parts":
+        from . import mono_parts as _mp
+        _pp = _mp.public(db)
+        if not _pp["ready"] or cart["total"] < float(_pp["min_sum"] or 0):
+            pay = "online"
     if pay == "cod" and not c.get("cod"):
         pay = "online"
     gift = str(data.get("gift") or "")[:200] if str(data.get("gift") or "") in cart["gifts"] else ""
@@ -393,7 +398,20 @@ def create_order(db: Session, data: dict, base_url: str) -> dict:
         o.patient_id = pat.id
     db.commit()
     out = {"ok": True, "number": no, "total": cart["total"], "id": o.id}
-    if pay in ("online", "parts"):
+    if pay == "parts":
+        from . import mono_parts as mp
+        from ..config import settings as _st
+        try:
+            mp.create(db, db.get(SiteOrder, out["id"]), int(data.get("parts") or 0), _st.public_url.rstrip("/") + "/api/public/monoparts")
+            out["parts"] = True
+        except mp.PartsError as e:
+            db.rollback()
+            o = db.get(SiteOrder, out["id"])
+            o.status = "Нове"
+            o.comment = ((o.comment or "") + f"\nПокупка Частинами не оформилась: {str(e)[:150]}").strip()
+            db.commit()
+            out["parts_error"] = "Не вдалося оформити Покупку Частинами: " + str(e)[:120] + ". Замовлення збережено — адміністратор запропонує іншу оплату."
+    if pay == "online":
         try:
             from . import paylinks as pl
             link = pl.create(db, cart["total"], f"Замовлення {no}", base_url, patient_id=o.patient_id, account_id=int(c.get("pay_account") or 0) or None,

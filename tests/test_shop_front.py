@@ -93,3 +93,34 @@ def test_shop_front_crawl_catalog_order(monkeypatch, tmp_path):
             oid = so.id
         assert c.post(f"/shop-orders/{oid}/status", data={"status": "Відправлено", "ttn": "20450000000000", "paid": "1"}, follow_redirects=False).status_code == 303
         assert "20450000000000" in c.get(f"/shop-orders/{oid}").text
+
+
+def test_mono_parts_flow(monkeypatch):
+    import json as _j
+    from app.services import mono_parts as mp, shop_front as sf
+    monkeypatch.setattr("app.services.tg_notify.send_text", lambda *a, **k: True)
+    calls = []
+
+    class H:
+        def post(self, url, content=None, headers=None, **k):
+            calls.append((url, _j.loads(content), headers))
+            body = {"order_id": "PCH-1"} if url.endswith("/create") else {"state": "IN_PROCESS", "order_sub_state": "WAITING_FOR_STORE_CONFIRM"} if url.endswith("/state") else {}
+            return type("R", (), {"status_code": 200, "content": b"x", "json": lambda s: body})()
+    with SessionLocal() as db:
+        mp.save(db, "store-1", "key-1", "test", "3, 4, 99", True, 500)
+        p = mp.public(db)
+        assert p["ready"] and p["parts"] == [3, 4] and "key-1" not in db.get(SyncState, mp.KEY).value
+        o = SiteOrder(source="crm", ext_id="M1", number="M1", status="Очікує оплати", total=3900, phone="+380671112233", created_at=__import__("datetime").datetime.now(),
+                      items=[{"name": "Крем", "qty": 2, "price": 1950, "total": 3900}])
+        db.add(o); db.commit()
+        assert mp.create(db, o, 4, "https://crm/cb", H()) == "PCH-1"
+        url, body, hd = calls[0]
+        assert url.startswith("https://u2-demo-ext") and body["available_programs"][0]["available_parts_count"] == [4] and hd["store-id"] == "store-1"
+        assert hd["signature"] == mp.sign(_j.dumps(body, ensure_ascii=False, separators=(",", ":")).encode(), "key-1")
+        raw = _j.dumps({"order_id": "PCH-1", "state": "IN_PROCESS", "order_sub_state": "WAITING_FOR_STORE_CONFIRM"}).encode()
+        assert not mp.callback(db, raw, "bad") and mp.callback(db, raw, mp.sign(raw, "key-1"))
+        db.refresh(o)
+        assert o.paid and o.status == "Оплачено"
+        assert mp.confirm(db, o, H()) and not mp.confirm(db, o, H()) and calls[-1][0].endswith("/api/order/confirm")
+        mp.save(db, "", "", "test", "3 4", False, 500)
+        assert not mp.public(db)["ready"] and mp.public(db)["has_keys"]

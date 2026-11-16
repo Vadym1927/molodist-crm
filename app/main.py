@@ -362,6 +362,18 @@ async def job_care_bot():
         log.warning("care_bot: %s", e)
 
 
+async def job_mono_parts():
+    """Покупка Частинами: раз на 5 хв перепитати заявки, які чекають підтвердження покупця."""
+    from .services import mono_parts as mp
+    def run():
+        with SessionLocal() as db:
+            return mp.poll(db)
+    try:
+        await asyncio.to_thread(run)
+    except Exception as e:      # noqa: BLE001
+        log.warning("mono_parts: %s", e)
+
+
 async def job_online_fiscal():
     """Онлайн-покупки сертифікатів / абонементів: кожні 15 хв підтягнути фіскальний чек monobank у чек CRM."""
     from .services import online_booking as ob
@@ -639,6 +651,7 @@ async def lifespan(app: FastAPI):
         sched.add_job(job_meta_ads, "cron", minute=50)
         sched.add_job(job_reviews, "cron", minute="*/5")
         sched.add_job(job_online_fiscal, "cron", minute="7,22,37,52")
+        sched.add_job(job_mono_parts, "cron", minute="*/5")
         sched.add_job(job_care_bot, "cron", minute=3)
         sched.add_job(job_payreq, "cron", minute=35)
         sched.add_job(job_tg_notify, "cron", minute="*/5")
@@ -9914,7 +9927,8 @@ def settings_shop(request: Request, user: User = Depends(require("users")), db: 
     c = sf.cfg(db)
     d = sf.catalog(db, fresh=True)
     j = jobs.JOBS.get(request.query_params.get("job") or "")
-    return render(request, "settings_shop.html", nav="settings", c=c, d=d, accounts=pls.public(db)["accounts"], job=j,
+    from .services import mono_parts as _mp
+    return render(request, "settings_shop.html", nav="settings", c=c, d=d, accounts=pls.public(db)["accounts"], job=j, mp=_mp.public(db), MP_MODES=_mp.MODES,
                   preview=f"{settings.public_url.rstrip('/')}/_shop/?p={sf.preview_key(db)}",
                   stock=sum(1 for i in d["items"] if i["stock"]), nocat=sum(1 for i in d["items"] if not any(i["slug"] in x["slugs"] for x in d["cats"])))
 
@@ -9927,6 +9941,13 @@ async def settings_shop_save(request: Request, user: User = Depends(require("use
         job = jobs.start("Структура й SEO з molodist.store", _shop_crawl_job)
         audit(db, "shop.crawl", user=user)
         return RedirectResponse(f"/settings/shop?job={job.id}", 303)
+    if f.get("action") == "parts":
+        from .services import mono_parts as _mp
+        _mp.save(db, str(f.get("store_id") or ""), str(f.get("sign_key") or ""), str(f.get("mode") or "test"), str(f.get("parts") or ""),
+                 bool(f.get("parts_on")), float(str(f.get("min_sum") or 0).replace(",", ".") or 0), clear=bool(f.get("parts_clear")))
+        ok, msg = _mp.test(db) if _mp.public(db)["has_keys"] else (False, "ключі не задано")
+        audit(db, "settings.mono_parts", "settings", None, user=user, ok=ok)
+        return RedirectResponse(_with_msg("/settings/shop", f"Покупка Частинами: збережено · перевірка: {msg}", not ok) + "#parts", 303)
     c = sf.cfg(db)
     c["on"] = bool(f.get("on"))
     c["hosts"] = [h.strip().lower() for h in str(f.get("hosts") or "").replace(",", " ").split() if h.strip()][:5]
@@ -9962,6 +9983,16 @@ def shop_order_status(oid: int, status: str = Form(""), ttn: str = Form(""), pai
     o = db.get(SiteOrder, oid) or (_ for _ in ()).throw(HTTPException(404))
     if o.source != "crm":
         return RedirectResponse(_with_msg(f"/shop-orders/{oid}", "Замовлення Shop-Express змінюються в адмінці Shop-Express", True), 303)
+    note = ""
+    if ((o.raw or {}).get("parts") or {}).get("order_id"):
+        from .services import mono_parts as _mp
+        try:
+            if status in ("Відправлено", "Виконано") and _mp.confirm(db, o):
+                note = " · видачу підтверджено в monobank"
+            elif status == "Скасовано" and _mp.reject(db, o):
+                note = " · заявку в monobank скасовано"
+        except _mp.PartsError as e:
+            return RedirectResponse(_with_msg(f"/shop-orders/{oid}", f"monobank: {e}", True), 303)
     if status in sf.STATUSES:
         o.status = status
     o.raw = {**(o.raw or {}), "ttn": ttn.strip()[:40]}
@@ -9969,7 +10000,7 @@ def shop_order_status(oid: int, status: str = Form(""), ttn: str = Form(""), pai
         o.paid = paid == "1"
     db.commit()
     audit(db, "shop.order_status", "site_order", oid, user=user, status=o.status)
-    return RedirectResponse(_with_msg(f"/shop-orders/{oid}", "Збережено"), 303)
+    return RedirectResponse(_with_msg(f"/shop-orders/{oid}", "Збережено" + note), 303)
 
 
 @app.get("/settings/shop/raw")

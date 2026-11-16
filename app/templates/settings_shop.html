@@ -37,4 +37,17 @@
       <input name="h_text_{{ i }}" value="{{ h.text or '' }}" placeholder="Текст"><input name="h_url_{{ i }}" value="{{ h.url or '' }}" placeholder="/shop/sale/"></div>{% endfor %}</div>
   <div><button class="btn">Зберегти</button></div>
 </form>
+<form method="post" class="card shs" id="parts" style="display:grid;gap:12px;max-width:860px;margin-top:14px" autocomplete="off">
+  <div class="row between"><b>Покупка Частинами monobank</b>{% if mp.ready %}<span class="pill ok">увімкнено · {{ MP_MODES[mp.mode] }}</span>{% elif mp.has_keys %}<span class="pill warn">ключі збережено, вимкнено</span>{% else %}<span class="pill">не підключено</span>{% endif %}</div>
+  <p class="small muted" style="margin:0">storeID і signKey видає monobank. Зберігаються зашифрованими й після збереження не показуються. Після відправки замовлення (статус «Відправлено») CRM сама підтверджує видачу в monobank — без цього розстрочка не активується.</p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
+    <label>storeID<input name="store_id" type="password" autocomplete="new-password" placeholder="{{ 'збережено — введіть, щоб змінити' if mp.has_keys else 'storeID' }}"></label>
+    <label>signKey<input name="sign_key" type="password" autocomplete="new-password" placeholder="{{ 'збережено — введіть, щоб змінити' if mp.has_keys else 'signKey' }}"></label>
+    <label>Режим<select name="mode">{% for k, v in MP_MODES.items() %}<option value="{{ k }}" {{ 'selected' if mp.mode == k }}>{{ v }}</option>{% endfor %}</select></label>
+    <label>Кількість платежів на вибір<input name="parts" value="{{ mp.parts|join(', ') }}" placeholder="3, 4"></label>
+    <label>Мінімальна сума, ₴<input name="min_sum" inputmode="numeric" value="{{ '%g'|format(mp.min_sum) }}"></label>
+  </div>
+  <label class="ck"><input type="checkbox" name="parts_on" value="1" {{ 'checked' if mp.on }}> Показувати «Покупку Частинами» при оформленні замовлення</label>
+  <div><button class="btn" name="action" value="parts">Зберегти й перевірити ключі</button></div>
+</form>
 {% endblock %}
