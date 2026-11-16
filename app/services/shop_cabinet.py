@@ -15,14 +15,14 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..config import settings
-from ..models import Patient, ShopAccount, ShopCode, ShopCoin, ShopSession, SiteOrder
+from ..models import Patient, Product, ShopAccount, ShopCode, ShopCoin, ShopNotify, ShopSession, SiteOrder
 
 COOKIE = "mshop_s"
 REF_COOKIE = "mshop_ref"
 CODE_TTL = 5 * 60
 DAYS_REMEMBER, DAYS_SHORT = 180, 1
 COIN_KINDS = {"signup": "За реєстрацію", "ref_inviter": "За запрошеного друга", "ref_friend": "Бонус за запрошенням друга"}
-TABS = [("profile", "Контактні дані"), ("orders", "Мої замовлення"), ("loyalty", "Система лояльності"), ("reviews", "Мої відгуки"),
+TABS = [("profile", "Контактні дані"), ("orders", "Мої замовлення"), ("care", "Рекомендації лікаря"), ("loyalty", "Система лояльності"), ("reviews", "Мої відгуки"),
         ("invite", "Запроси друга"), ("wish", "Вішліст"), ("gifts", "Подарунки від друзів і партнерів"), ("addr", "Адреси доставки")]
 
 
@@ -256,3 +256,99 @@ def stats(db: Session) -> dict:
     return {"accounts": db.scalar(select(func.count(ShopAccount.id))) or 0,
             "sms_day": db.scalar(select(func.count(ShopCode.id)).where(ShopCode.channel == "sms", ShopCode.created_at >= datetime.utcnow() - timedelta(days=1))) or 0,
             "coins": db.scalar(select(func.coalesce(func.sum(ShopCoin.amount), 0))) or 0}
+
+
+# ---------------- «Повідомити, коли зʼявиться» ----------------
+def notify_add(db: Session, product_id: int, raw_phone: str, data: dict) -> dict:
+    """Підписка на появу товару. Один номер — один запис на товар; уже в наявності — підписка не потрібна."""
+    phone = _phone(raw_phone)
+    by_id = {v["id"]: (it, v) for it in data["items"] for v in it["variants"]}
+    if product_id not in by_id:
+        raise CabError("Товар не знайдено.")
+    if by_id[product_id][1]["stock"]:
+        raise CabError("Цей товар уже є в наявності — його можна замовити.")
+    if not db.scalars(select(ShopNotify.id).where(ShopNotify.product_id == product_id, ShopNotify.phone == phone, ShopNotify.sent_at.is_(None))).first():
+        from . import appeals as ap
+        p = ap.find_patient(db, phone)
+        db.add(ShopNotify(product_id=product_id, phone=phone, patient_id=p.id if p else None, created_at=datetime.utcnow()))
+        db.commit()
+    return {"ok": True, "to": mask(phone)}
+
+
+def notify_waiting(db: Session) -> list[dict]:
+    """Для CRM: на які товари чекають і скільки людей."""
+    rows = db.execute(select(ShopNotify.product_id, func.count(ShopNotify.id), func.min(ShopNotify.created_at)).where(ShopNotify.sent_at.is_(None))
+                      .group_by(ShopNotify.product_id)).all()
+    names = {p.id: p for p in db.scalars(select(Product).where(Product.id.in_([r[0] for r in rows] or [0])))}
+    out = [{"id": r[0], "name": ((names[r[0]].site_info or {}).get("title") or names[r[0]].name) if r[0] in names else f"Товар {r[0]}", "n": r[1], "since": r[2]} for r in rows]
+    return sorted(out, key=lambda x: -x["n"])
+
+
+def notify_send(db: Session, c: dict, data: dict, site_root: str) -> dict:
+    """Товар знову в наявності → повідомлення тим, хто чекав (Telegram-бот → SMS). Працює лише коли ввімкнено в налаштуваннях."""
+    rep = {"sent": 0, "failed": 0, "ready": 0}
+    by_id = {v["id"]: (it, v) for it in data["items"] for v in it["variants"]}
+    rows = db.scalars(select(ShopNotify).where(ShopNotify.sent_at.is_(None)).order_by(ShopNotify.id).limit(300)).all()
+    ready = [r for r in rows if r.product_id in by_id and by_id[r.product_id][1]["stock"]]
+    rep["ready"] = len(ready)
+    if not ready or not c.get("notify_on"):
+        return rep
+    from ..integrations import messaging as m
+    if m.is_quiet_time():
+        return rep
+    tpl = (c.get("notify_text") or "").strip() or "{name} знову в наявності в магазині MOLODIST: {url}"
+    for r in ready[:40]:
+        it = by_id[r.product_id][0]
+        text = tpl.replace("{name}", it["name"][:60]).replace("{url}", f"{site_root}/shop/{it['slug']}/")[:300]
+        try:
+            ch = _deliver(db, r.phone, text)
+        except CabError:
+            rep["failed"] += 1
+            continue
+        r.sent_at, r.channel = datetime.utcnow(), ch
+        rep["sent"] += 1
+        db.commit()
+    return rep
+
+
+# ---------------- рекомендації лікаря (домашній догляд із бюті-плану) ----------------
+def doctor_care(db: Session, p: Patient, data: dict) -> dict:
+    """Засоби домашнього догляду з останнього бюті-плану пацієнта: що є в магазині — картками, решта — назвами.
+    Лише назви засобів: без діагнозів, нотаток лікаря й процедур."""
+    from ..models import BeautyPlan, PlanItem
+    plan = db.scalars(select(BeautyPlan).where(BeautyPlan.patient_id == p.id).order_by(BeautyPlan.session_at.desc().nullslast(), BeautyPlan.id.desc()).limit(1)).first()
+    if not plan:
+        return {"items": [], "other": [], "date": None}
+    by_id = {v["id"]: it for it in data["items"] for v in it["variants"]}
+    items, other = [], []
+    for it in db.scalars(select(PlanItem).where(PlanItem.plan_id == plan.id, PlanItem.kind == "product").order_by(PlanItem.id)):
+        card = by_id.get(it.product_id) if it.product_id else None
+        if card and card not in items:
+            items.append(card)
+        elif not card and it.name not in other:
+            other.append(it.name)
+    return {"items": items, "other": other[:30], "date": plan.session_at, "sum": sum(i["price"] for i in items if i["stock"])}
+
+
+# ---------------- сповіщення покупцю про замовлення ----------------
+ORDER_MSG = {"paid": "Замовлення №{n} оплачено. Дякуємо! Готуємо до відправлення. MOLODIST",
+             "sent": "Замовлення №{n} відправлено Новою поштою{ttn}. MOLODIST",
+             "cancel": "Замовлення №{n} скасовано. Якщо це помилка — зателефонуйте нам. MOLODIST"}
+
+
+def order_notice(db: Session, c: dict, o: SiteOrder, event: str) -> bool:
+    """Повідомлення покупцю про оплату / відправлення / скасування (бот турботи → SMS). Раз на подію; лише коли ввімкнено."""
+    raw = dict(o.raw or {})
+    done = raw.get("cust_msgs") or []
+    if not c.get("order_msg_on") or event not in ORDER_MSG or event in done or not o.phone or o.source != "crm":
+        return False
+    ttn = raw.get("ttn") or ""
+    text = ORDER_MSG[event].replace("{n}", o.number or "").replace("{ttn}", f", ТТН {ttn}" if ttn else "")
+    try:
+        _deliver(db, _phone(o.phone), text)
+    except CabError:
+        return False
+    raw["cust_msgs"] = done + [event]
+    o.raw = raw
+    db.flush()
+    return True

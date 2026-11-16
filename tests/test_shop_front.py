@@ -283,3 +283,65 @@ def test_shop_cabinet_flow(monkeypatch):
             assert sc.coins(db, pid1)["total"] == 300 and sc.coins(db, pid1)["invited"] == 1
             fr = db.scalars(select(ShopAccount).where(ShopAccount.referred_by == pid1)).first()
             assert sc.coins(db, fr.patient_id)["total"] == 300
+
+
+def test_shop_notify_when_back(monkeypatch):
+    from app.services import shop_cabinet as sc, shop_front as sf
+    from app.models import ShopNotify
+    out = []
+    monkeypatch.setattr(sc, "_deliver", lambda db, phone, text: (out.append((phone, text)) or "sms"))
+    monkeypatch.setattr("app.shop_web._rate", lambda *a, **k: True)
+    monkeypatch.setattr("app.integrations.messaging.is_quiet_time", lambda *a, **k: False)
+    with TestClient(app) as c:
+        with SessionLocal() as db:
+            k = sf.preview_key(db)
+            p = Product(name="Out A", name_norm="out a", price=900, site_on=True, site_info={"slug": "out-a", "title": "Out A", "presence": 0})
+            db.add(p); db.commit(); pid = p.id
+            sf.catalog(db, fresh=True)
+        c.cookies.set("shop_prev", k)
+        assert 'data-notify="%d"' % pid in c.get("/_shop/shop/out-a/").text
+        assert c.post("/_shop/api/notify", json={"id": pid, "phone": "12"}).status_code == 400
+        assert c.post("/_shop/api/notify", json={"id": pid, "phone": "+380507778899"}).json()["ok"]
+        assert c.post("/_shop/api/notify", json={"id": pid, "phone": "+380507778899"}).json()["ok"]
+        with SessionLocal() as db:
+            assert len(db.scalars(select(ShopNotify).where(ShopNotify.product_id == pid)).all()) == 1
+            assert sc.notify_waiting(db)[0]["n"] == 1
+            cfg = sf.cfg(db)
+            assert sc.notify_send(db, {**cfg, "notify_on": True}, sf.catalog(db, fresh=True), "https://x")["ready"] == 0
+            pr = db.get(Product, pid); pr.site_info = {**pr.site_info, "presence": 1}; db.commit()
+            d = sf.catalog(db, fresh=True)
+            assert sc.notify_send(db, cfg, d, "https://x") == {"sent": 0, "failed": 0, "ready": 1} and not out      # вимкнено — нічого не надсилаємо
+            assert sc.notify_send(db, {**cfg, "notify_on": True}, d, "https://x")["sent"] == 1
+            assert out == [("380507778899", "Out A знову в наявності в магазині MOLODIST: https://x/shop/out-a/")]
+            assert sc.notify_send(db, {**cfg, "notify_on": True}, d, "https://x")["ready"] == 0
+        assert c.post("/_shop/api/notify", json={"id": pid, "phone": "+380507778899"}).status_code == 400
+
+
+def test_shop_care_and_order_notice(monkeypatch):
+    from app.services import shop_cabinet as sc, shop_front as sf
+    from app.models import Patient, BeautyPlan, PlanItem, SiteOrder
+    out = []
+    monkeypatch.setattr(sc, "_deliver", lambda db, phone, text: (out.append(text) or "sms"))
+    monkeypatch.setattr(sf, "notify", lambda *a, **k: 0)
+    with TestClient(app):
+        with SessionLocal() as db:
+            pr = Product(name="Care A", name_norm="care a", price=700, site_on=True, site_info={"slug": "care-a", "title": "Care A", "presence": 1})
+            pt = Patient(full_name="Догляд Тест", phone="380509990011")
+            db.add_all([pr, pt]); db.flush()
+            pl = BeautyPlan(patient_id=pt.id, session_at=datetime.now(), medical_notes="секретна нотатка")
+            db.add(pl); db.flush()
+            db.add_all([PlanItem(plan_id=pl.id, kind="product", name="Care A крем", product_id=pr.id), PlanItem(plan_id=pl.id, kind="product", name="Рідкісний засіб"),
+                        PlanItem(plan_id=pl.id, kind="procedure", name="Пілінг")])
+            db.commit()
+            care = sc.doctor_care(db, pt, sf.catalog(db, fresh=True))
+            assert [i["slug"] for i in care["items"]] == ["care-a"] and care["other"] == ["Рідкісний засіб"] and "секрет" not in str(care)
+            o = SiteOrder(source="crm", ext_id="N1", number="N1", created_at=datetime.now(), status="Оплачено", paid=True, total=700, name="Т", phone=pt.phone, items=[])
+            db.add(o); db.commit()
+            sf.set_status(db, o, "Відправлено", ttn="204500001")
+            assert not out                                                     # вимкнено — покупцю нічого не йде
+            c = sf.cfg(db); c["order_msg_on"] = True; sf.save_cfg(db, c)
+            sf.set_status(db, o, "Відправлено", ttn="204500001"); db.commit()
+            assert out == ["Замовлення №N1 відправлено Новою поштою, ТТН 204500001. MOLODIST"]
+            sf.set_status(db, o, "Відправлено", ttn="204500001")
+            assert len(out) == 1
+            c["order_msg_on"] = False; sf.save_cfg(db, c)

@@ -191,6 +191,22 @@
     bind(form.warehouse, function (q) { return ref ? '/api/np/wh?city=' + encodeURIComponent(ref) + '&q=' + encodeURIComponent(q) : ''; }, function () {});
     form.warehouse.addEventListener('focus', function () { if (ref && !form.warehouse.value) form.warehouse.dispatchEvent(new Event('input')); });
   }
+  var nt = $('#ntf'), ntId = 0;
+  function ntSend(phone, cb) { post('/api/notify', { id: ntId, phone: phone, website: nt ? $('[name=website]', nt).value : '' }, cb); }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('[data-notify],[data-ntf-close]') : null;
+    if (!b || !nt) return;
+    e.preventDefault();
+    if (b.hasAttribute('data-ntf-close')) { nt.hidden = true; return; }
+    ntId = parseInt(b.getAttribute('data-notify'), 10);
+    if (S.me) return ntSend('', function (j) { toast(j.ok ? 'Повідомимо, щойно товар зʼявиться' : j.msg); });
+    $('.err', nt).hidden = true; nt.hidden = false; var ph = $('[name=phone]', nt); if (!ph.value) ph.value = '+380'; ph.focus();
+  });
+  if (nt) $('form', nt).addEventListener('submit', function (e) {
+    e.preventDefault();
+    var er = $('.err', nt);
+    ntSend($('[name=phone]', nt).value, function (j) { if (!j.ok) { er.textContent = j.msg; er.hidden = false; return; } nt.hidden = true; toast('Повідомимо на ' + j.to); });
+  });
   var lf = $('#cab-login');
   if (lf) {
     var er = $('.err', lf), s1 = $('[data-step="1"]', lf), s2 = $('[data-step="2"]', lf);

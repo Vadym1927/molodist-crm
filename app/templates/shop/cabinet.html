@@ -18,6 +18,13 @@
         {% if it.product_id in in_cat %}<button type="button" class="btn sm ghost" data-add="{{ it.product_id }}" data-name="{{ it.name }}">Купити ще</button>{% endif %}</div>{% endfor %}
       <footer class="mut small">{{ o.delivery or '' }}{{ (' · ' ~ o.city) if o.city }}{{ (', ' ~ o.address) if o.address }}{% if raw.get('ttn') %} · ТТН Нової пошти <b>{{ raw.ttn }}</b>{% endif %}</footer></article>
     {% else %}<p class="mut">Замовлень ще немає. <a href="{{ base }}/shop/">До каталогу</a></p>{% endfor %}
+  {% elif t == 'care' %}<h1>Рекомендації лікаря</h1>
+    {% if care['items'] or care.other %}<p class="mut">Засоби домашнього догляду з вашого бюті-плану{{ (' від ' ~ care.date.strftime('%d.%m.%Y')) if care.date }}. Додайте потрібне в кошик — доставимо Новою поштою.</p>
+      {% if care['items'] %}<div class="grid">{% for i in care['items'] %}{{ card(i, base, money, pch, s) }}{% endfor %}</div>{% endif %}
+      {% if care.other %}<h3>Ще з вашого плану</h3><p class="mut small">Цих засобів зараз немає в інтернет-магазині — запитайте в адміністратора MOLODIST.</p>
+        {% for n in care.other %}<div class="cab-oi"><span>{{ n }}</span></div>{% endfor %}{% endif %}
+    {% else %}<div class="soon"><b>Рекомендацій ще немає</b><p>Після консультації лікар MOLODIST складе бюті-план — і засоби домашнього догляду з нього зʼявляться тут.</p>
+      <a class="btn sm ghost" href="{{ c.main_url }}" target="_blank" rel="noopener">Записатися на консультацію</a></div>{% endif %}
   {% elif t == 'loyalty' %}<h1>Система лояльності</h1>
     <div class="coin-card"><small>Доступний баланс</small><b>{{ coins.total }}</b><span>MOLODIST коїнів</span><em>У розробці</em></div>
     <p class="mut">MOLODIST коїни — програма лояльності магазину. Ми вже нараховуємо коїни, а оплачувати ними замовлення можна буде після запуску програми — повідомимо окремо.</p>

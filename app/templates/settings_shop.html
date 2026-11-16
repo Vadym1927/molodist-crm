@@ -50,6 +50,15 @@
     <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px"><label>Ліміт SMS із кодом на добу<input name="cab_sms_day" value="{{ c.cab_sms_day }}" inputmode="numeric"></label>
       <label>Коїнів за реєстрацію<input name="cab_coin_signup" value="{{ c.cab_coin_signup }}" inputmode="numeric"></label>
       <label>Коїнів за запрошення (обом)<input name="cab_coin_ref" value="{{ c.cab_coin_ref }}" inputmode="numeric"></label></div></div>
+  <div><b>Повідомлення покупцю про замовлення</b>
+    <div class="small muted">«Оплачено», «Відправлено Новою поштою, ТТН …», «Скасовано» — у бот турботи, а якщо покупець його не підключив — SMS. Одне повідомлення на подію.
+      «Відправлено» йде, коли адміністратор ставить цей статус, — ТТН краще вписати одразу.</div>
+    <label class="ck" style="margin-top:6px"><input type="checkbox" name="order_msg_on" value="1" {{ 'checked' if c.order_msg_on }}> Надсилати покупцю повідомлення про статус замовлення</label></div>
+  <div><b>«Повідомити, коли зʼявиться»</b> <span class="small muted">· чекають зараз: {{ waiting|sum(attribute='n') }}</span>
+    <div class="small muted">Покупець залишає номер на товарі, якого немає в наявності. Нижче видно, на що чекають. Коли товар зʼявиться, можна надсилати повідомлення автоматично (бот турботи → SMS, не вночі).</div>
+    {% if waiting %}<div class="small" style="margin-top:6px">{% for w in waiting %}<div><a href="/products/{{ w.id }}">{{ w.name }}</a> — <b>{{ w.n }}</b> {{ 'людина' if w.n == 1 else 'людей' }}</div>{% endfor %}</div>{% endif %}
+    <label class="ck" style="margin-top:6px"><input type="checkbox" name="notify_on" value="1" {{ 'checked' if c.notify_on }}> Надсилати повідомлення автоматично, коли товар зʼявився</label>
+    <label style="margin-top:6px">Текст повідомлення<input name="notify_text" value="{{ c.notify_text }}" maxlength="200"><span class="small muted">{name} — назва товару, {url} — посилання на нього.</span></label></div>
   <div><b>Покупка Частинами monobank: лапка й шильдик</b>
     <div class="small muted">Офіційні файли з матеріалів monobank (Guideline → Завантажити). Лапку й шильдик не можна перефарбовувати, обертати чи обрізати — вони показуються як є.
       Цифра в лапці та «до N платежів» мають відповідати найбільшій кількості платежів нижче в «Покупка Частинами».</div>

@@ -245,6 +245,18 @@ def register(app, templates, version: str):
         r.delete_cookie(sc.REF_COOKIE)
         return r
 
+    @app.post("/_shop/api/notify")
+    async def shop_notify(request: Request, db: Session = Depends(db_dep)):
+        _cab_guard(request, db)
+        d = _body(await request.body())
+        if d.get("website") or not _rate(request, "shopntf", 12):
+            return JSONResponse({"ok": False, "msg": "Забагато спроб. Спробуйте пізніше."}, status_code=429)
+        got = sc.me(db, request.cookies.get(sc.COOKIE))
+        try:
+            return JSONResponse(sc.notify_add(db, int(d.get("id") or 0), got[1].phone if got else d.get("phone"), sf.catalog(db)), headers={"Cache-Control": "no-store"})
+        except (sc.CabError, ValueError, TypeError) as e:
+            return JSONResponse({"ok": False, "msg": str(e) if isinstance(e, sc.CabError) else "Товар не знайдено."}, status_code=400)
+
     @app.post("/_shop/api/cab/{action}")
     async def cab_action(action: str, request: Request, db: Session = Depends(db_dep)):
         _cab_guard(request, db)
@@ -282,6 +294,7 @@ def register(app, templates, version: str):
         t = t if t in dict(sc.TABS) else "profile"
         site_root = cx["s"]["canonical"].rstrip("/") if not cx["noindex"] else settings.public_url.rstrip("/") + "/_shop"
         wi = sc.wish_items(cx["d"], acc.wishlist or [])
+        cx.update(care=sc.doctor_care(db, p, cx["d"]) if t == "care" else None)
         cx.update(t=t, acc=acc, p=p, coins=sc.coins(db, p.id), orders=sc.orders(db, p) if t == "orders" else [], wish=wi, wish_sum=sum(i["price"] for i in wi),
                   ref_url=f"{site_root}/?ref={acc.ref_code}", wish_url=f"{site_root}/wish/{acc.wish_token}/", STATUS_FAIL=sf.PAY_FAIL,
                   in_cat={v["id"] for it in cx["d"]["items"] for v in it["variants"] if v["stock"]})

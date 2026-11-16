@@ -2017,3 +2017,15 @@ class ShopCoin(Base):
     note: Mapped[str | None] = mapped_column(String(200))
     ref: Mapped[str | None] = mapped_column(String(60), index=True)
     created_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class ShopNotify(Base):
+    """«Повідомити, коли зʼявиться»: покупець чекає на товар, якого немає в наявності."""
+    __tablename__ = "shop_notify"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"), index=True)
+    phone: Mapped[str] = mapped_column(String(40), index=True)
+    patient_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+    channel: Mapped[str | None] = mapped_column(String(20))

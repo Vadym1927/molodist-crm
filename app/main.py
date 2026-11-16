@@ -367,6 +367,12 @@ async def job_mono_parts():
     from .services import mono_parts as mp
     def run():
         with SessionLocal() as db:
+            try:
+                from .services import shop_cabinet as _sc, shop_front as _sf
+                _c = _sf.cfg(db)
+                _sc.notify_send(db, _c, _sf.catalog(db), _c["canonical"].rstrip("/") if _c.get("on") else settings.public_url.rstrip("/") + "/_shop")
+            except Exception as e:  # noqa: BLE001
+                log.warning("shop notify: %s", e)
             return mp.poll(db)
     try:
         await asyncio.to_thread(run)
@@ -9953,7 +9959,7 @@ def settings_shop(request: Request, user: User = Depends(require("users")), db: 
     d = sf.catalog(db, fresh=True)
     j = jobs.JOBS.get(request.query_params.get("job") or "")
     from .services import mono_parts as _mp
-    return render(request, "settings_shop.html", nav="settings", c=c, d=d, seo=sf.seo_coverage(db), cab=__import__("app.services.shop_cabinet", fromlist=["x"]).stats(db), accounts=pls.public(db)["accounts"], job=j, mp=_mp.public(db), MP_MODES=_mp.MODES,
+    return render(request, "settings_shop.html", nav="settings", c=c, d=d, seo=sf.seo_coverage(db), waiting=__import__("app.services.shop_cabinet", fromlist=["x"]).notify_waiting(db), cab=__import__("app.services.shop_cabinet", fromlist=["x"]).stats(db), accounts=pls.public(db)["accounts"], job=j, mp=_mp.public(db), MP_MODES=_mp.MODES,
                   preview=f"{settings.public_url.rstrip('/')}/_shop/?p={sf.preview_key(db)}",
                   stock=sum(1 for i in d["items"] if i["stock"]), nocat=sum(1 for i in d["items"] if not any(i["slug"] in x["slugs"] for x in d["cats"])))
 
@@ -9998,6 +10004,9 @@ async def settings_shop_save(request: Request, user: User = Depends(require("use
             warn = str(e)
     c["cod"], c["pickup"] = bool(f.get("cod")), bool(f.get("pickup"))
     c["cab_on"] = bool(f.get("cab_on"))
+    c["notify_on"] = bool(f.get("notify_on"))
+    c["order_msg_on"] = bool(f.get("order_msg_on"))
+    c["notify_text"] = str(f.get("notify_text") or "").strip()[:200]
     c["cab_sms"] = str(f.get("cab_sms") or "").strip()[:200]
     for k in ("cab_sms_day", "cab_coin_signup", "cab_coin_ref"):
         try:

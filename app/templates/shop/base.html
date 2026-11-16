@@ -55,6 +55,12 @@
     <p>{{ pch_legal.note }} <a href="{{ pch_legal.url }}" target="_blank" rel="noopener">{{ pch_legal.url_text }}</a></p></div></div>{% endif %}
 <div class="wrap ft-bot">© {{ year }} MOLODIST · Оплата: Visa, Mastercard, Apple Pay, Google Pay, Покупка Частинами monobank · Доставка: Нова пошта</div></footer>
 
+<div class="ntf" id="ntf" hidden><div class="cart-bg" data-ntf-close></div><form class="ntf-in" novalidate>
+  <button type="button" class="x" data-ntf-close aria-label="Закрити">×</button><b>Повідомити, коли зʼявиться</b>
+  <p class="mut small">Залиште номер — напишемо, щойно товар знову буде в наявності.</p>
+  <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+  <input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+380" required>
+  <p class="err" hidden></p><button class="btn">Повідомити мене</button></form></div>
 <aside class="cart" id="fav" hidden aria-label="Збережене"><div class="cart-bg" data-cart-close></div><div class="cart-in">
   <div class="cart-h"><b>Збережене</b><button type="button" data-cart-close aria-label="Закрити">×</button></div>
   <div class="cart-list" data-fav-list></div>

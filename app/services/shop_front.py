@@ -33,6 +33,8 @@ DEFAULT = {
     "about": "MOLODIST — медичний простір естетики та профілактики в Києві. В інтернет-магазині зібрана професійна косметика для домашнього догляду, з якою щодня працюють наші лікарі-дерматологи: ZO Skin Health, Medik8, Medicare, Demax, AG SKIN, Tebiskin, Image Skincare, Rejuran та інші бренди.\nМи продаємо лише оригінальну продукцію від офіційних дистрибʼюторів і зберігаємо її з дотриманням умов виробника. У каталозі — засоби для очищення й тонізації, активні сироватки з ретинолом, вітаміном C і кислотами, зволожувальні та анти-ейдж креми, сонцезахист SPF, догляд за шкірою навколо очей, тілом і волоссям.\nНе впевнені, що підійде саме вам? Напишіть нам — лікар MOLODIST безкоштовно підбере домашній догляд під тип і стан вашої шкіри: акне, пігментація, чутливість, вікові зміни, відновлення після процедур. Так домашній догляд підтримує результат лікування, а не працює проти нього.\nДоставляємо Новою поштою по всій Україні, у Києві замовлення можна забрати в MOLODIST. Оплата карткою онлайн, при отриманні або Покупка Частинами monobank.",
     "instagram": "https://www.instagram.com/molodist.clinic/",
     "hero": [],                  # [{img, title, text, url}]
+    "order_msg_on": False,       # повідомлення покупцю: оплачено / відправлено (з ТТН) / скасовано
+    "notify_on": False, "notify_text": "{name} знову в наявності в магазині MOLODIST: {url}",
     "cab_on": True, "cab_sms": "{code} — код входу в магазин MOLODIST", "cab_sms_day": 150, "cab_coin_signup": 100, "cab_coin_ref": 200,
     "parts_file": "",            # локальна копія шильдика для низу сайту (files/shop_brand/…)
     "parts_paw": "", "parts_paw_file": "",   # офіційна лапка (з цифрою) — у куті фото товару
@@ -745,6 +747,16 @@ def paid(db: Session, pl) -> None:
             o.comment = ((o.comment or "") + f"\nЧек у CRM не створився автоматично: {str(e)[:150]}").strip()
             db.flush()
         notify(db, o, paid_now=True)
+        _cust(db, o, "paid")
+
+
+def _cust(db: Session, o: SiteOrder, event: str) -> None:
+    try:
+        from . import shop_cabinet as sc
+        if sc.order_notice(db, cfg(db), o, event):
+            log(o, {"paid": "Покупцю надіслано: оплачено", "sent": "Покупцю надіслано: відправлено", "cancel": "Покупцю надіслано: скасовано"}[event])
+    except Exception:  # noqa: BLE001 — повідомлення покупцю не має ламати обробку замовлення
+        pass
 
 
 def _tg_send(chat: str, text: str, reply_to: int | None = None) -> tuple[bool, int | None]:
@@ -854,6 +866,12 @@ def set_status(db: Session, o: SiteOrder, status: str, user: User | None = None,
         raw["log"] = (raw.get("log") or []) + [{"at": datetime.now().isoformat(timespec="minutes"), "by": who, "text": "Оплату позначено вручну: " + ("оплачено" if paid else "не оплачено")}]
     o.raw = raw
     db.flush()
+    if o.status == "Відправлено":
+        _cust(db, o, "sent")
+    elif o.status == "Скасовано":
+        _cust(db, o, "cancel")
+    elif o.paid and o.status == "Оплачено":
+        _cust(db, o, "paid")
 
 
 def funnel(rows: list) -> list[dict]:
