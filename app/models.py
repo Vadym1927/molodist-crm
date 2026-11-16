@@ -2029,3 +2029,17 @@ class ShopNotify(Base):
     created_at: Mapped[datetime | None] = mapped_column(DateTime)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
     channel: Mapped[str | None] = mapped_column(String(20))
+
+
+class CoinTxn(Base):
+    """MOLODIST Coins — окремий журнал (не бонуси, перенесені з CleverBox): нарахування (+), списання (−), повернення, згоряння."""
+    __tablename__ = "coin_txns"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), index=True)
+    at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, index=True)
+    amount: Mapped[float] = mapped_column(Float)
+    kind: Mapped[str] = mapped_column(String(12), index=True)             # welcome | ref_inviter | ref_friend | accrual | spend | restore | reverse | expire | manual
+    expires_at: Mapped[date | None] = mapped_column(Date)                 # порожньо, поки програму не запущено: відлік строку — з дня запуску
+    ref: Mapped[str | None] = mapped_column(String(60), index=True)
+    comment: Mapped[str | None] = mapped_column(String(300))
+    user_id: Mapped[int | None] = mapped_column(Integer)

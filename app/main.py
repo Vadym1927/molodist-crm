@@ -625,6 +625,7 @@ async def lifespan(app: FastAPI):
             db.rollback()
         try:                                                         # 16.11.2026: коїни кабінету магазину → єдиний журнал MOLODIST Coins
             from .services import coins as _cn0
+            log.info("coins split: %s", _cn0.split_from_bonuses(db))
             log.info("coins migrate: %s", _cn0.migrate_shop_coins(db))
         except Exception as _e:  # noqa: BLE001
             log.warning("coins migrate: %s", _e)
@@ -10013,6 +10014,13 @@ async def settings_shop_save(request: Request, user: User = Depends(require("use
     c["cod"], c["pickup"] = bool(f.get("cod")), bool(f.get("pickup"))
     c["cab_on"] = bool(f.get("cab_on"))
     c["coin_on"] = bool(f.get("coin_on"))
+    c["order_login"] = bool(f.get("order_login"))
+    if bool(f.get("coin_spend_on")) and not c.get("coin_spend_on"):
+        from .services import coins as _cnl
+        c["coin_spend_on"], c["coin_start"] = True, date.today().isoformat()
+        _cnl.launch(db, c)
+    elif not f.get("coin_spend_on"):
+        c["coin_spend_on"] = False
     for k, hi in (("coin_earn_pct", 50), ("coin_max_pct", 100), ("coin_days", 3650), ("coin_wait_days", 60)):
         try:
             v = float(str(f.get(k) or 0).replace(",", "."))

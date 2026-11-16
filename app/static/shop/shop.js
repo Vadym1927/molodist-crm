@@ -116,7 +116,7 @@
     $('#co-sum').textContent = money(j.total); $('#co-tot').textContent = money(j.total - useC);
     var cb = $('#co-coins');
     if (cb) {
-      cb.hidden = !(cn.on && cn.me && cn.balance > 0) || parts;
+      cb.hidden = !(cn.on && cn.spend && cn.me && cn.balance > 0) || parts;
       var mx = $('[name=use_coins]').checked ? cn.use : cn.max;
       $('[data-coin-max]').textContent = mx; $('[data-coin-sum]').textContent = money(mx);
       $('[data-coin-note]').textContent = 'На рахунку ' + cn.balance + ' MOLODIST Coins. Знижка — до ' + cn.max + ' ₴ на це замовлення' + (cn.max < cn.balance ? ' (ліміт від вартості неакційних товарів)' : '') + '.';

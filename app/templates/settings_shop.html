@@ -45,19 +45,21 @@
   <div><b>Кабінет покупця</b> <span class="small muted">· кабінетів: {{ cab.accounts }} · SMS із кодом за добу: {{ cab.sms_day }} · нараховано коїнів: {{ cab.coins }}</span>
     <div class="small muted">Вхід за номером телефону й кодом: якщо покупець підключив бот турботи — код приходить у Telegram, інакше — SMS. «Запамʼятати мене» — на 180 днів.</div>
     <label class="ck" style="margin-top:6px"><input type="checkbox" name="cab_on" value="1" {{ 'checked' if c.cab_on }}> Вхід у кабінет увімкнено</label>
+    <label class="ck" style="margin-top:6px"><input type="checkbox" name="order_login" value="1" {{ 'checked' if c.order_login }}> Замовлення — лише після входу або реєстрації (кошик зберігається)</label>
     <label style="margin-top:6px">Текст SMS / повідомлення з кодом<input name="cab_sms" value="{{ c.cab_sms }}" maxlength="200">
       <span class="small muted">{code} — місце для коду. Кирилицею в одну SMS вміщується до 70 символів.</span></label>
     <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px"><label>Ліміт SMS із кодом на добу<input name="cab_sms_day" value="{{ c.cab_sms_day }}" inputmode="numeric"></label>
       <label>Коїнів за реєстрацію<input name="cab_coin_signup" value="{{ c.cab_coin_signup }}" inputmode="numeric"></label>
       <label>Коїнів за запрошення (обом)<input name="cab_coin_ref" value="{{ c.cab_coin_ref }}" inputmode="numeric"></label></div></div>
-  <div><b>MOLODIST Coins у магазині</b> <span class="small muted">· 1 коїн = 1 ₴ знижки · єдиний рахунок із карткою пацієнта, касою CRM і ботом турботи</span>
-    <label class="ck" style="margin-top:6px"><input type="checkbox" name="coin_on" value="1" {{ 'checked' if c.coin_on }}> Нараховувати й приймати коїни в магазині</label>
+  <div><b>MOLODIST Coins у магазині</b> <span class="small muted">· 1 Coin = 1 ₴ знижки після запуску програми</span>
+    <label class="ck" style="margin-top:6px"><input type="checkbox" name="coin_on" value="1" {{ 'checked' if c.coin_on }}> Нараховувати MOLODIST Coins у магазині (реєстрація, запрошення друга, оплачені замовлення)</label>
+    <label class="ck" style="margin-top:6px"><input type="checkbox" name="coin_spend_on" value="1" {{ 'checked' if c.coin_spend_on }}> <b>Програму запущено</b>: покупці можуть використовувати Coins як знижку{{ (' · запущено ' ~ c.coin_start[8:10] ~ '.' ~ c.coin_start[5:7] ~ '.' ~ c.coin_start[:4]) if c.coin_spend_on and c.coin_start }}</label>
+    <div class="small muted">Поки не запущено — Coins лише накопичуються, без строку дії. У день запуску в усіх накопичених починається відлік строку дії. Це окрема система: бонуси, перенесені з CleverBox, сюди не входять.</div>
     <div class="grid" style="grid-template-columns:repeat(4,1fr);gap:8px;margin-top:6px"><label>Нарахування, % від сплаченого<input name="coin_earn_pct" value="{{ '%g'|format(c.coin_earn_pct) }}" inputmode="decimal"></label>
       <label>Знижка коїнами, до % кошика<input name="coin_max_pct" value="{{ '%g'|format(c.coin_max_pct) }}" inputmode="decimal"></label>
       <label>Строк дії, днів<input name="coin_days" value="{{ c.coin_days }}" inputmode="numeric"></label>
       <label>Нарахувати на N-й день після закриття<input name="coin_wait_days" value="{{ c.coin_wait_days }}" inputmode="numeric"></label></div>
-    <div class="small muted" style="margin-top:4px">Акційні товари не беруть участі ні в нарахуванні, ні в ліміті знижки. Коїни за замовлення зʼявляються після статусу «Закрито» або «Отримано». Скасування чи повернення повертає списані коїни й знімає нараховані.
-      Нарахування за послуги й товари в касі CRM — у «Налаштування → Бонусна програма».</div></div>
+    <div class="small muted" style="margin-top:4px">Акційні товари не беруть участі ні в нарахуванні, ні в ліміті знижки. Коїни за замовлення зʼявляються після статусу «Закрито» або «Отримано». Скасування чи повернення повертає списані коїни й знімає нараховані.</div></div>
   <div><b>Повідомлення покупцю про замовлення</b>
     <div class="small muted">«Оплачено», «Відправлено Новою поштою, ТТН …», «Скасовано» — у бот турботи, а якщо покупець його не підключив — SMS. Одне повідомлення на подію.
       «Відправлено» йде, коли адміністратор ставить цей статус, — ТТН краще вписати одразу.</div>

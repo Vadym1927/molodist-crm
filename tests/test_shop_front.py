@@ -76,6 +76,10 @@ def test_shop_front_crawl_catalog_order(monkeypatch, tmp_path):
         assert "Текст умов" in c.get("/_shop/for-customers/dostavka-i-oplata/").text
         assert c.get(f"/_shop/img/{fid}?w=300").headers["content-type"] == "image/webp"
         assert "krem-test-sf" in c.get("/_shop/sitemap.xml").text and "Крем" in c.get("/_shop/shop/?q=крем").text
+        assert "Залишився один крок" in c.get("/_shop/checkout/").text                # без входу — спершу реєстрація
+        assert c.post("/_shop/api/order", json={"items": [{"id": aid, "qty": 1}]}).status_code == 401
+        with SessionLocal() as db:
+            c0 = sf.cfg(db); c0["order_login"] = False; sf.save_cfg(db, c0)
         assert c.get("/_shop/checkout/").status_code == 200 and c.get("/settings/shop").status_code == 200
         cart = c.post("/_shop/api/cart", json={"items": [{"id": aid, "qty": 2}, {"id": 999999, "qty": 1}]}).json()
         assert cart["total"] == 3900 and cart["free_delivery"] and len(cart["items"]) == 1
@@ -229,7 +233,7 @@ def test_shop_order_flow_notifications(monkeypatch):
 
 def test_shop_cabinet_flow(monkeypatch):
     from app.services import shop_cabinet as sc, shop_front as sf
-    from app.models import ShopAccount, BonusTxn, Patient
+    from app.models import ShopAccount, CoinTxn, BonusTxn, Patient
     codes = {}
 
     def fake(db, phone, text):
@@ -260,7 +264,8 @@ def test_shop_cabinet_flow(monkeypatch):
         with SessionLocal() as db:
             acc = db.scalars(select(ShopAccount)).all()[-1]
             assert acc.first_name == "Олена" and acc.last_name == "Тестова" and acc.ref_code and db.get(Patient, acc.patient_id).phone == "380501112233"
-            assert [x.amount for x in db.scalars(select(BonusTxn).where(BonusTxn.patient_id == acc.patient_id))] == [100]
+            assert [(x.amount, x.expires_at) for x in db.scalars(select(CoinTxn).where(CoinTxn.patient_id == acc.patient_id))] == [(100, None)]
+            assert not db.scalars(select(BonusTxn).where(BonusTxn.patient_id == acc.patient_id)).all()            # бонуси CleverBox — окремо
             ref, wt, pid1 = acc.ref_code, acc.wish_token, acc.patient_id
         page = c.get("/_shop/cabinet/").text
         assert "Контактні дані" in page and "Олена" in page and "Вийти" in page
@@ -271,7 +276,7 @@ def test_shop_cabinet_flow(monkeypatch):
         co = c.get("/_shop/checkout/").text
         assert "data-me=" in co and "&#34;city_ref&#34;: &#34;r1&#34;" in co and "no-store" in c.get("/_shop/checkout/").headers["cache-control"]
         assert "Wish A" in c.get("/_shop/cabinet/?t=wish").text and ref in c.get("/_shop/cabinet/?t=invite").text
-        assert "100" in c.get("/_shop/cabinet/?t=loyalty").text and "1 Coin = 1 ₴" in c.get("/_shop/cabinet/?t=loyalty").text
+        assert "100" in c.get("/_shop/cabinet/?t=loyalty").text and "після запуску програми" in c.get("/_shop/cabinet/?t=loyalty").text
         c.post("/_shop/api/cab/logout", json={})
         assert "Отримати код" in c.get("/_shop/cabinet/").text
         w = c.get(f"/_shop/wish/{wt}/")
@@ -349,7 +354,7 @@ def test_shop_care_and_order_notice(monkeypatch):
 
 def test_molodist_coins_shop_flow(monkeypatch):
     from app.services import coins as cn, shop_front as sf, loyalty as ly, shop_cabinet as sc
-    from app.models import Patient, SiteOrder, BonusTxn, ShopCoin
+    from app.models import Patient, SiteOrder, CoinTxn, ShopCoin
     monkeypatch.setattr(sf, "notify", lambda *a, **k: 0)
     assert sf.split_discount([{"total": 100, "sale": False}, {"total": 200, "sale": False}, {"total": 500, "sale": True}], 10) == [3.33, 6.67, 0.0]
     with TestClient(app):
@@ -360,17 +365,21 @@ def test_molodist_coins_shop_flow(monkeypatch):
             pt = Patient(full_name="Коїн Тест", phone="380501230001")
             db.add_all([a, b, pt]); db.flush()
             db.add(ShopCoin(patient_id=pt.id, amount=100, kind="signup")); db.commit()
-            assert cn.migrate_shop_coins(db) >= 1 and cn.migrate_shop_coins(db) == 0 and ly.balance(db, pt.id) == 100
+            assert cn.migrate_shop_coins(db) >= 1 and cn.migrate_shop_coins(db) == 0 and cn.balance(db, pt.id) == 100 and ly.balance(db, pt.id) == 0
             cn.add(db, pt.id, 150, "manual", "t1", days=180); db.commit()
             sf.catalog(db, fresh=True)
             items = [{"id": a.id, "qty": 1}, {"id": b.id, "qty": 1}]
+            q0 = cn.quote(db, c, sf.price_cart(db, items)["items"], pt.id)
+            assert q0["max"] == 0 and q0["use"] == 0 and q0["earn"] == 60 and q0["balance"] == 250       # програму не запущено: лише накопичення
+            c["coin_spend_on"] = True; sf.save_cfg(db, c)
+            assert cn.launch(db, c) == 2 and cn.summary(db, pt.id)["soon"]["amount"] == 250             # запуск: у накопичених почався строк дії
             q = cn.quote(db, c, sf.price_cart(db, items)["items"], pt.id)
             assert q["balance"] == 250 and q["max"] == 200 and q["use"] == 200 and q["earn"] == 54        # контрольний приклад ТЗ; акційний товар не рахується
             base = {"items": items, "name": "Коїн Тест", "phone": "+380501230001", "city": "Київ", "warehouse": "№1", "pay": "cod"}
             c["cod"] = True; sf.save_cfg(db, c)
             r = sf.create_order(db, {**base, "coins": 999, "_patient_id": pt.id}, "http://x")
             o = db.get(SiteOrder, r["id"])
-            assert o.total == 2700 and o.total_full == 2900 and o.raw["coins"]["used"] == 200 and ly.balance(db, pt.id) == 50
+            assert o.total == 2700 and o.total_full == 2900 and o.raw["coins"]["used"] == 200 and cn.balance(db, pt.id) == 50
             assert sf.create_order(db, {**base, "coins": 999}, "http://x")["total"] == 2900                # без кабінету коїни не списуються
             sf.set_status(db, o, "Закрито", paid=True); db.commit()
             ce = db.get(SiteOrder, o.id).raw["coins_earn"]
@@ -378,10 +387,11 @@ def test_molodist_coins_shop_flow(monkeypatch):
             assert cn.post_due(db, c) == 0
             from datetime import date as _d
             assert cn.post_due(db, c, _d.today() + timedelta(days=3)) == 1 and cn.post_due(db, c, _d.today() + timedelta(days=4)) == 0
-            assert ly.balance(db, pt.id) == 104 and cn.summary(db, pt.id)["pending"] == 0 and cn.summary(db, pt.id)["soon"]["amount"] > 0
+            assert cn.balance(db, pt.id) == 104 and cn.summary(db, pt.id)["pending"] == 0 and cn.summary(db, pt.id)["soon"]["amount"] > 0
             o = db.get(SiteOrder, o.id)
             sf.set_status(db, o, "Повернення"); db.commit()
-            assert ly.balance(db, pt.id) == 250                                                             # знято 54 нарахованих, повернено 200 списаних
+            assert cn.balance(db, pt.id) == 250                                                             # знято 54 нарахованих, повернено 200 списаних
             sf.set_status(db, o, "Повернення"); db.commit()
-            assert ly.balance(db, pt.id) == 250
-            assert [t.kind for t in db.scalars(select(BonusTxn).where(BonusTxn.patient_id == pt.id).order_by(BonusTxn.id))] == ["welcome", "manual", "spend", "accrual", "restore", "reverse"]
+            assert cn.balance(db, pt.id) == 250
+            c["coin_spend_on"] = False; sf.save_cfg(db, c)
+            assert [t.kind for t in db.scalars(select(CoinTxn).where(CoinTxn.patient_id == pt.id).order_by(CoinTxn.id))] == ["welcome", "manual", "spend", "accrual", "restore", "reverse"]

@@ -92,7 +92,7 @@ def register(app, templates, version: str):
         cx.update(title=h.get("title") or "Професійна косметика для обличчя та тіла | MOLODIST",
                   desc=h.get("desc") or "Професійна косметика від лікарів MOLODIST: оригінальна продукція, підбір догляду, доставка по Україні.",
                   **({"og_title": f"Вам подарунок: {cx['s'].get('cab_coin_ref')} MOLODIST Coins на професійну косметику",
-                      "og_desc": f"Зареєструйтесь у магазині MOLODIST за запрошенням друга й отримайте {cx['s'].get('cab_coin_ref')} MOLODIST Coins — це {cx['s'].get('cab_coin_ref')} ₴ знижки на косметику, яку призначають лікарі.",
+                      "og_desc": f"Зареєструйтесь у магазині MOLODIST за запрошенням друга й отримайте {cx['s'].get('cab_coin_ref')} MOLODIST Coins. Професійна косметика, яку призначають лікарі.",
                       "og_img": f"{cx['abs']}/static/shop/og/invite.jpg"} if cx["ref_in"] else {}),
                   blocks=sf.home_blocks(cx["d"]), blog=[p for p in cx["d"]["pages"].values() if p["path"].startswith("/blog/") and p["path"] != "/blog/"][:3])
         return resp(request, "shop/home.html", cx)
@@ -168,6 +168,8 @@ def register(app, templates, version: str):
         host = (request.headers.get("host") or "").split(":")[0].lower()
         body = {k: v for k, v in body.items() if not str(k).startswith("_")}
         got = sc.me(db, request.cookies.get(sc.COOKIE))
+        if not got and c.get("order_login", True) and c.get("cab_on", True):
+            return JSONResponse({"ok": False, "msg": "Щоб оформити замовлення, увійдіть або зареєструйтесь.", "login": True}, status_code=401)
         if got:
             body["_patient_id"] = got[1].id
         try:
@@ -334,6 +336,10 @@ def register(app, templates, version: str):
     @app.get("/_shop/shop/cart/", response_class=HTMLResponse, include_in_schema=False)
     def shop_checkout(request: Request, db: Session = Depends(db_dep)):
         cx = ctx(request, db, "/checkout/")
+        if not cx["me"] and cx["s"].get("order_login", True) and cx["s"].get("cab_on", True):
+            cx.update(title="Вхід — оформлення замовлення — MOLODIST", desc="", noindex_page=True, private=True, tabs=sc.TABS, for_order=True,
+                      ref_pre=(cx["ref_in"] or request.cookies.get(sc.REF_COOKIE) or "").upper()[:20])
+            return resp(request, "shop/cab_login.html", cx)
         from .services import mono_parts as mp
         cx.update(parts=mp.public(db))
         cx.update(title="Оформлення замовлення — MOLODIST", desc="", noindex_page=True, np=bool((cx["s"].get("np_key") or "").strip()),

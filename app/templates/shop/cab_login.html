@@ -1,6 +1,7 @@
 {% extends "shop/base.html" %}
 {% block main %}<section class="sec lst"><div class="wrap"><div class="cabl">
-  <h1>Особистий кабінет</h1>
+  <h1>{{ 'Оформлення замовлення' if for_order else 'Особистий кабінет' }}</h1>
+  {% if for_order %}<p><b>Залишився один крок.</b> Увійдіть або зареєструйтесь за номером телефону — ваш кошик збережено, після входу одразу продовжите оформлення.</p>{% endif %}
   <p class="mut">Вхід і реєстрація — за номером телефону. Надішлемо код у SMS, а якщо ви підключили бот турботи MOLODIST — у Telegram.</p>
   {% if not s.cab_on %}<p class="err">Вхід у кабінет тимчасово вимкнено.</p>{% else %}
   <form id="cab-login" novalidate>
@@ -19,5 +20,5 @@
     <p class="err" hidden></p>
   </form>
   <ul class="perks"><li>Мої замовлення і статус доставки</li><li>Адреси доставки підставляються самі</li><li>Вішліст, яким можна поділитися</li>
-    <li>{{ s.cab_coin_signup }} MOLODIST Coins за реєстрацію</li></ul>{% endif %}
+    <li>{{ s.cab_coin_signup }} MOLODIST Coins за реєстрацію і Coins за кожну покупку</li></ul>{% endif %}
 </div></div></section>{% endblock %}

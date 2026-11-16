@@ -15,7 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..config import settings
-from ..models import BonusTxn, Patient, Product, ShopAccount, ShopCode, ShopCoin, ShopNotify, ShopSession, SiteOrder
+from ..models import CoinTxn, Patient, Product, ShopAccount, ShopCode, ShopCoin, ShopNotify, ShopSession, SiteOrder
 
 COOKIE = "mshop_s"
 REF_COOKIE = "mshop_ref"
@@ -105,10 +105,10 @@ def _ref_code(db: Session) -> str:
             return code
 
 
-def coin(db: Session, pid: int, amount: int, kind: str, ref: str = "", days: int = 180) -> None:
-    """Нарахування в єдиний журнал MOLODIST Coins (services/coins.py)."""
+def coin(db: Session, pid: int, amount: int, kind: str, ref: str = "", days: int = 180, live: bool = False) -> None:
+    """Нарахування в журнал MOLODIST Coins (services/coins.py)."""
     from . import coins as cn
-    cn.add(db, pid, int(amount or 0), "welcome" if kind == "signup" else kind, f"cab:{ref or kind}", days=days)
+    cn.add(db, pid, int(amount or 0), "welcome" if kind == "signup" else kind, f"cab:{ref or kind}", days=days, live=live)
 
 
 def verify(db: Session, c: dict, raw_phone: str, code: str, name: str = "", remember: bool = True, ref: str = "", ua: str = "") -> tuple[str, int, ShopAccount]:
@@ -140,12 +140,12 @@ def verify(db: Session, c: dict, raw_phone: str, code: str, name: str = "", reme
                           last_name=(parts[0] if len(parts) > 1 else "")[:100] or None, email=getattr(p, "email", None))
         db.add(acc)
         db.flush()
-        coin(db, p.id, int(c.get("cab_coin_signup") or 0), "signup", days=int(c.get("coin_days") or 180))
+        coin(db, p.id, int(c.get("cab_coin_signup") or 0), "signup", days=int(c.get("coin_days") or 180), live=bool(c.get("coin_spend_on")))
         inv = db.scalars(select(ShopAccount).where(ShopAccount.ref_code == str(ref or "").strip().upper()[:20])).first() if ref else None
         if inv and inv.patient_id != p.id:
             acc.referred_by = inv.patient_id
-            coin(db, p.id, int(c.get("cab_coin_ref") or 0), "ref_friend", f"from:{inv.patient_id}", int(c.get("coin_days") or 180))
-            coin(db, inv.patient_id, int(c.get("cab_coin_ref") or 0), "ref_inviter", f"friend:{p.id}", int(c.get("coin_days") or 180))
+            coin(db, p.id, int(c.get("cab_coin_ref") or 0), "ref_friend", f"from:{inv.patient_id}", int(c.get("coin_days") or 180), bool(c.get("coin_spend_on")))
+            coin(db, inv.patient_id, int(c.get("cab_coin_ref") or 0), "ref_inviter", f"friend:{p.id}", int(c.get("coin_days") or 180), bool(c.get("coin_spend_on")))
     acc.last_login = now
     token = secrets.token_urlsafe(32)
     days = DAYS_REMEMBER if remember else DAYS_SHORT
@@ -255,7 +255,7 @@ def by_wish_token(db: Session, token: str) -> ShopAccount | None:
 def stats(db: Session) -> dict:
     return {"accounts": db.scalar(select(func.count(ShopAccount.id))) or 0,
             "sms_day": db.scalar(select(func.count(ShopCode.id)).where(ShopCode.channel == "sms", ShopCode.created_at >= datetime.utcnow() - timedelta(days=1))) or 0,
-            "coins": int(db.scalar(select(func.coalesce(func.sum(BonusTxn.amount), 0))) or 0)}
+            "coins": int(db.scalar(select(func.coalesce(func.sum(CoinTxn.amount), 0))) or 0)}
 
 
 # ---------------- «Повідомити, коли зʼявиться» ----------------

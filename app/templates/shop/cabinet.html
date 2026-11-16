@@ -39,20 +39,20 @@
     {% else %}<div class="soon"><b>Рекомендацій ще немає</b><p>Після консультації лікар MOLODIST складе бюті-план — і засоби домашнього догляду з нього зʼявляться тут.</p>
       <a class="btn sm ghost" href="{{ c.main_url }}" target="_blank" rel="noopener">Записатися на консультацію</a></div>{% endif %}
   {% elif t == 'loyalty' %}<h1>MOLODIST Coins</h1>
-    <div class="coin-card"><img src="/static/shop/coins/coin-white.webp" alt="MOLODIST Coins" width="120" height="120"><div><small>Доступно</small><b>{{ coins.total }}</b><span>1 Coin = 1 ₴ знижки</span></div></div>
+    <div class="coin-card"><img src="/static/shop/coins/coin-white.webp" alt="MOLODIST Coins" width="120" height="120"><div><small>{{ 'Доступно' if s.coin_spend_on else 'Накопичено' }}</small><b>{{ coins.total }}</b><span>MOLODIST Coins</span></div>{% if not s.coin_spend_on %}<em>Накопичуйте вже зараз</em>{% endif %}</div>
     <div class="kpis" style="margin:0 0 18px"><div><b>{{ coins.pending }}</b><span>очікують нарахування</span></div>
-      <div><b>{{ coins.soon.amount if coins.soon else '—' }}</b><span>{{ ('згорять ' ~ coins.soon.date.strftime('%d.%m.%Y')) if coins.soon else 'найближче згорання' }}</span></div></div>
-    <p class="mut">MOLODIST Coins — єдиний рахунок у магазині й медичному просторі MOLODIST. За кожні 100 ₴ покупки — {{ '%g'|format(s.coin_earn_pct) }} MOLODIST Coins; ними можна отримати знижку до {{ '%g'|format(s.coin_max_pct) }}% вартості замовлення.
-      MOLODIST Coins за замовлення нараховуються на {{ s.coin_wait_days }}-й день після його отримання й діють {{ s.coin_days }} днів. Акційні товари участі не беруть.</p>
+      {% if s.coin_spend_on %}<div><b>{{ coins.soon.amount if coins.soon else '—' }}</b><span>{{ ('згорять ' ~ coins.soon.date.strftime('%d.%m.%Y')) if coins.soon else 'найближче згорання' }}</span></div>{% endif %}</div>
+    <p class="mut">MOLODIST Coins — програма лояльності MOLODIST. Ви отримуєте {{ s.cab_coin_signup }} Coins за реєстрацію, {{ s.cab_coin_ref }} за кожного запрошеного друга і {{ '%g'|format(s.coin_earn_pct) }} Coins за кожні 100 ₴ покупки (нараховуємо на {{ s.coin_wait_days }}-й день після отримання замовлення; акційні товари участі не беруть).
+      {% if s.coin_spend_on %}1 Coin = 1 ₴ знижки, до {{ '%g'|format(s.coin_max_pct) }}% вартості замовлення; Coins діють {{ s.coin_days }} днів.{% else %}Використовувати Coins можна буде після запуску програми — повідомимо окремо. Строк дії почне відлічуватися лише з дня запуску, тож накопичене не згорить.{% endif %}</p>
     {% if coins.pend %}<h3>Очікують</h3>{% for r in coins.pend %}<div class="cab-oi"><span>Замовлення №{{ r.n }}</span><small>{{ ('нарахуємо ' ~ r.due[8:10] ~ '.' ~ r.due[5:7]) if r.due else 'після отримання замовлення' }}</small><b>+{{ r.amount }}</b></div>{% endfor %}{% endif %}
     <h3>Історія</h3>{% for r in coins.rows %}<div class="cab-oi"><span>{{ r.label }}{{ (' · ' ~ r.note) if r.note }}</span><small>{{ r.at.strftime('%d.%m.%Y') if r.at else '' }}</small><b>{{ '+' if r.amount > 0 }}{{ '%g'|format(r.amount) }}</b></div>{% else %}<p class="mut">Операцій ще немає.</p>{% endfor %}
   {% elif t == 'reviews' %}<h1>Мої відгуки</h1>
     <div class="soon"><b>Розділ у розробці</b><p>Після отримання замовлення ми попросимо вас оцінити товар. Тут зʼявляться ваші відгуки.</p></div>
   {% elif t == 'invite' %}<h1>Запроси друга</h1>
-    <p>Поділіться кодом або посиланням. Коли друг зареєструється в магазині — ви отримаєте <b>{{ s.cab_coin_ref }} MOLODIST Coins</b>, і друг теж <b>{{ s.cab_coin_ref }} MOLODIST Coins</b>. 1 Coin = 1 ₴ знижки.</p>
+    <p>Поділіться кодом або посиланням. Коли друг зареєструється в магазині — ви отримаєте <b>{{ s.cab_coin_ref }} MOLODIST Coins</b>, і друг теж <b>{{ s.cab_coin_ref }} MOLODIST Coins</b>.</p>
     <div class="ref"><div><small>Ваш реферальний код</small><b>{{ acc.ref_code }}</b></div><button type="button" class="btn sm ghost" data-copy="{{ acc.ref_code }}">Скопіювати код</button></div>
     <div class="ref"><div><small>Посилання для друга</small><span class="lnk">{{ ref_url }}</span></div><button type="button" class="btn sm ghost" data-copy="{{ ref_url }}">Скопіювати</button></div>
-    {% set msg = 'Дарую ' ~ s.cab_coin_ref ~ ' MOLODIST Coins — це ' ~ s.cab_coin_ref ~ ' ₴ знижки на професійну косметику, яку призначають лікарі MOLODIST. Зареєструйся за моїм посиланням: ' %}
+    {% set msg = 'Дарую ' ~ s.cab_coin_ref ~ ' MOLODIST Coins у магазині професійної косметики, яку призначають лікарі MOLODIST. Зареєструйся за моїм посиланням: ' %}
     <div class="share"><a href="https://t.me/share/url?url={{ ref_url|urlencode }}&text={{ msg|urlencode }}" target="_blank" rel="noopener">{{ icon('telegram') }}<span>Telegram</span></a>
       <a href="viber://forward?text={{ (msg ~ ref_url)|urlencode }}">{{ icon('viber') }}<span>Viber</span></a>
       <a href="https://wa.me/?text={{ (msg ~ ref_url)|urlencode }}" target="_blank" rel="noopener">{{ wa() }}<span>WhatsApp</span></a>
