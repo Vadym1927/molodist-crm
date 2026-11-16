@@ -1964,3 +1964,56 @@ class SiteOrder(Base):
     extra: Mapped[list | None] = mapped_column(JSON)                            # доповнення до замовлення
     raw: Mapped[dict | None] = mapped_column(JSON)
     synced_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class ShopAccount(Base):
+    """Кабінет покупця інтернет-магазину — один на картку пацієнта (вхід кодом на телефон)."""
+    __tablename__ = "shop_accounts"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), unique=True, index=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_login: Mapped[datetime | None] = mapped_column(DateTime)
+    first_name: Mapped[str | None] = mapped_column(String(100))
+    last_name: Mapped[str | None] = mapped_column(String(100))
+    email: Mapped[str | None] = mapped_column(String(200))
+    ref_code: Mapped[str | None] = mapped_column(String(20), unique=True, index=True)
+    referred_by: Mapped[int | None] = mapped_column(Integer, index=True)          # patient_id того, хто запросив
+    wish_token: Mapped[str | None] = mapped_column(String(40), unique=True, index=True)
+    wishlist: Mapped[list | None] = mapped_column(JSON)                           # [product_id]
+    addresses: Mapped[list | None] = mapped_column(JSON)                          # [{id, name, phone, city, city_ref, warehouse, main}]
+
+
+class ShopSession(Base):
+    __tablename__ = "shop_sessions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), index=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+    ua: Mapped[str | None] = mapped_column(String(200))
+
+
+class ShopCode(Base):
+    """Одноразовий код входу в кабінет магазину (зберігається лише хеш)."""
+    __tablename__ = "shop_codes"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    phone: Mapped[str] = mapped_column(String(40), index=True)
+    code_hash: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime)
+    tries: Mapped[int | None] = mapped_column(Integer, default=0)
+    used: Mapped[bool | None] = mapped_column(Boolean, default=False)
+    ip: Mapped[str | None] = mapped_column(String(64), index=True)
+    channel: Mapped[str | None] = mapped_column(String(20))
+
+
+class ShopCoin(Base):
+    """MOLODIST коїни (програма лояльності магазину, у розробці): нарахування; витрачати поки не можна."""
+    __tablename__ = "shop_coins"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), index=True)
+    amount: Mapped[int] = mapped_column(Integer)
+    kind: Mapped[str] = mapped_column(String(30), index=True)                     # signup | ref_inviter | ref_friend
+    note: Mapped[str | None] = mapped_column(String(200))
+    ref: Mapped[str | None] = mapped_column(String(60), index=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime)

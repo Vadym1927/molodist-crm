@@ -43,6 +43,8 @@
   }
   var FK = 'mshop_fav', favEl = $('#fav');
   function favs() { try { return JSON.parse(localStorage.getItem(FK) || '[]') || []; } catch (e) { return []; } }
+  if (S.me && S.wish) { try { var loc = favs(), un = S.wish.concat(loc.filter(function (x) { return S.wish.indexOf(x) < 0; })); localStorage.setItem(FK, JSON.stringify(un));
+    if (un.length !== S.wish.length) api('/api/cab/wish', { ids: un }, function () {}); } catch (e) {} }
   function favMark() {
     var f = favs();
     $$('[data-fav]').forEach(function (b) { b.classList.toggle('on', f.indexOf(parseInt(b.getAttribute('data-fav'), 10)) >= 0); });
@@ -52,6 +54,7 @@
     var f = favs(), i = f.indexOf(id);
     if (i >= 0) f.splice(i, 1); else f.push(id);
     try { localStorage.setItem(FK, JSON.stringify(f.slice(-60))); } catch (e) {}
+    if (S.me) api('/api/cab/wish', { ids: f.slice(-60) }, function () {});
     favMark(); if (i < 0) toast('Збережено');
   }
   function favRender() {
@@ -119,6 +122,7 @@
     $$('[name=delivery]', form).forEach(function (r) { r.addEventListener('change', function () { $('#co-np').hidden = r.value === 'pickup' && r.checked; renderCo(); }); });
     form.phone.addEventListener('focus', function () { if (!form.phone.value) form.phone.value = '+380'; });
     try { var me = JSON.parse(localStorage.getItem('mlds_me') || 'null'); if (me) { form.name.value = me.name || ''; form.phone.value = me.phone || ''; } } catch (e) {}
+    if (co.dataset.me) { try { var cm = JSON.parse(co.dataset.me); ['name', 'phone', 'email', 'city', 'warehouse'].forEach(function (k) { if (cm[k] && cm[k] !== '+') form[k].value = cm[k]; }); cityRef = cm.city_ref || ''; } catch (e) {} }
     if (co.dataset.np) {
       var timer;
       function ac(input, url, pickCb) {
@@ -160,4 +164,77 @@
       });
     });
   }
+
+  /* ---------- кабінет ---------- */
+  function post(path, body, cb) {
+    fetch(B + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify(body) })
+      .then(function (r) { return r.json().catch(function () { return { ok: false, msg: 'Помилка. Спробуйте ще раз.' }; }); }).then(cb).catch(function () { cb({ ok: false, msg: 'Немає звʼязку. Спробуйте ще раз.' }); });
+  }
+  function npBind(form) {
+    var tm, ref = form.city_ref ? form.city_ref.value : '';
+    function bind(input, url, pick) {
+      var box = input.parentNode.querySelector('.ac-l');
+      input.addEventListener('input', function () {
+        clearTimeout(tm);
+        tm = setTimeout(function () {
+          var u = url(input.value.trim()); if (!u) { box.hidden = true; return; }
+          fetch(B + u).then(function (r) { return r.json(); }).then(function (j) {
+            box.innerHTML = (j.rows || []).map(function (x) { return '<button type="button" data-ref="' + esc(x.ref) + '">' + esc(x.name) + '</button>'; }).join('');
+            box.hidden = !box.innerHTML;
+          });
+        }, 250);
+      });
+      box.addEventListener('click', function (e) { var b = e.target.closest('button'); if (!b) return; input.value = b.textContent; box.hidden = true; pick(b.getAttribute('data-ref')); });
+      document.addEventListener('click', function (e) { if (!input.parentNode.contains(e.target)) box.hidden = true; });
+    }
+    bind(form.city, function (q) { return q.length >= 2 ? '/api/np/cities?q=' + encodeURIComponent(q) : ''; }, function (r) { ref = r; if (form.city_ref) form.city_ref.value = r; form.warehouse.value = ''; form.warehouse.focus(); });
+    bind(form.warehouse, function (q) { return ref ? '/api/np/wh?city=' + encodeURIComponent(ref) + '&q=' + encodeURIComponent(q) : ''; }, function () {});
+    form.warehouse.addEventListener('focus', function () { if (ref && !form.warehouse.value) form.warehouse.dispatchEvent(new Event('input')); });
+  }
+  var lf = $('#cab-login');
+  if (lf) {
+    var er = $('.err', lf), s1 = $('[data-step="1"]', lf), s2 = $('[data-step="2"]', lf);
+    function fail(m) { er.textContent = m; er.hidden = false; }
+    function send() {
+      er.hidden = true;
+      post('/api/cab/start', { phone: lf.phone.value, website: lf.website.value }, function (j) {
+        if (!j.ok) return fail(j.msg);
+        s1.hidden = true; s2.hidden = false; $('[data-new]', lf).hidden = !j.new;
+        $('[data-sent]', lf).textContent = 'Код надіслано ' + (j.channel === 'telegram' ? 'у Telegram (бот турботи MOLODIST)' : 'в SMS на ' + j.to) + '. Діє 5 хвилин.';
+        lf.code.value = ''; lf.code.focus();
+      });
+    }
+    lf.phone.addEventListener('focus', function () { if (!lf.phone.value) lf.phone.value = '+380'; });
+    lf.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (s2.hidden) return send();
+      er.hidden = true;
+      post('/api/cab/verify', { phone: lf.phone.value, code: lf.code.value, name: lf.name.value, remember: lf.remember.checked, wish: favs() }, function (j) {
+        if (!j.ok) return fail(j.msg);
+        try { localStorage.setItem(FK, JSON.stringify(j.wish || [])); } catch (x) {}
+        location.reload();
+      });
+    });
+    $('[data-again]', lf).addEventListener('click', send);
+    $('[data-back]', lf).addEventListener('click', function () { s2.hidden = true; s1.hidden = false; er.hidden = true; });
+  }
+  $$('form[data-cab]').forEach(function (f) {
+    if (f.dataset.np) npBind(f);
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var d = {}, er = $('.err', f);
+      $$('input[name],textarea[name]', f).forEach(function (i) { d[i.name] = i.type === 'checkbox' ? i.checked : i.value; });
+      post('/api/cab/' + f.dataset.cab, d, function (j) { if (!j.ok) { er.textContent = j.msg; er.hidden = false; return; } toast('Збережено'); setTimeout(function () { location.reload(); }, 500); });
+    });
+  });
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest ? e.target.closest('[data-cab-logout],[data-addr-del],[data-addr-main],[data-copy]') : null;
+    if (!t) return;
+    if (t.hasAttribute('data-copy')) {
+      var v = t.getAttribute('data-copy');
+      (navigator.clipboard ? navigator.clipboard.writeText(v) : Promise.reject()).then(function () { toast(t.getAttribute('data-copied') || 'Скопійовано'); }, function () { window.prompt('Скопіюйте:', v); });
+    } else if (t.hasAttribute('data-cab-logout')) post('/api/cab/logout', {}, function () { location.href = B + '/'; });
+    else if (t.hasAttribute('data-addr-del')) { if (window.confirm('Видалити цю адресу?')) post('/api/cab/address', { delete: t.getAttribute('data-addr-del') }, function () { location.reload(); }); }
+    else post('/api/cab/address', { main: t.getAttribute('data-addr-main') }, function () { location.reload(); });
+  });
 })();

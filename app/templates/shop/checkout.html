@@ -1,6 +1,7 @@
 {% extends "shop/base.html" %}
 {% block main %}<section class="sec lst"><div class="wrap"><h1>Оформлення замовлення</h1>
-<div class="co" id="co" data-np="{{ '1' if np }}">
+{% if not me and s.cab_on %}<p class="mut small" style="margin:-6px 0 14px"><a href="{{ base }}/cabinet/">Увійдіть у кабінет</a> — контакти й адреса доставки підставляться самі.</p>{% endif %}
+<div class="co" id="co" data-np="{{ '1' if np }}"{% if me %} data-me='{{ {"name": (addr.name if addr else ((me.first_name or "") ~ " " ~ (me.last_name or "")).strip()), "phone": "+" ~ ((addr.phone if addr and addr.phone else me_p.phone) or ""), "email": me.email or "", "city": addr.city if addr else "", "city_ref": addr.city_ref if addr else "", "warehouse": addr.warehouse if addr else ""}|tojson|forceescape }}'{% endif %}>
   <form class="co-f" id="co-form" novalidate>
     <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
     <h3>Контакти</h3>

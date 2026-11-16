@@ -225,3 +225,61 @@ def test_shop_order_flow_notifications(monkeypatch):
         assert "Статус: Очікує оплати → Відправлено" in page and "20450000000000" in page and "Історія" in page
         lst = c.get("/shop-orders").text
         assert "Опрацьовується" in lst and "Повернення" in lst and "Відповідальний" in lst
+
+
+def test_shop_cabinet_flow(monkeypatch):
+    from app.services import shop_cabinet as sc, shop_front as sf
+    from app.models import ShopAccount, ShopCoin, Patient
+    codes = {}
+
+    def fake(db, phone, text):
+        codes[phone] = "".join(ch for ch in text if ch.isdigit())[:5]
+        assert "магазин MOLODIST" in text
+        return "sms"
+    monkeypatch.setattr(sc, "_deliver", fake)
+    monkeypatch.setattr("app.shop_web._rate", lambda *a, **k: True)
+    settings.admin_password = "owner-pass-cb"
+    H = {"Content-Type": "application/json"}
+    with TestClient(app) as c:
+        with SessionLocal() as db:
+            k = sf.preview_key(db)
+            db.add(Product(name="Wish A", name_norm="wish a", price=900, site_on=True, site_info={"slug": "wish-a", "title": "Wish A", "presence": 1}))
+            db.commit()
+            wid = db.scalars(select(Product).where(Product.name == "Wish A")).first().id
+            sf.catalog(db, fresh=True)
+        c.cookies.set("shop_prev", k)
+        assert "Отримати код" in c.get("/_shop/cabinet/").text
+        assert c.post("/_shop/api/cab/start", data="phone=1").status_code == 404                      # лише JSON
+        assert c.post("/_shop/api/cab/start", json={"phone": "123"}).status_code == 400
+        r = c.post("/_shop/api/cab/start", json={"phone": "+380 50 111 22 33"}).json()
+        assert r["ok"] and r["new"] and r["channel"] == "sms"
+        assert c.post("/_shop/api/cab/start", json={"phone": "+380501112233"}).status_code == 400     # не частіше раза на хвилину
+        assert c.post("/_shop/api/cab/verify", json={"phone": "+380501112233", "code": "00000" if codes["380501112233"] != "00000" else "11111"}).status_code == 400
+        v = c.post("/_shop/api/cab/verify", json={"phone": "+380501112233", "code": codes["380501112233"], "name": "Тестова Олена", "remember": True, "wish": [wid]})
+        assert v.json()["ok"] and v.json()["wish"] == [wid] and "mshop_s" in v.cookies
+        with SessionLocal() as db:
+            acc = db.scalars(select(ShopAccount)).all()[-1]
+            assert acc.first_name == "Олена" and acc.last_name == "Тестова" and acc.ref_code and db.get(Patient, acc.patient_id).phone == "380501112233"
+            assert [x.amount for x in db.scalars(select(ShopCoin).where(ShopCoin.patient_id == acc.patient_id))] == [100]
+            ref, wt, pid1 = acc.ref_code, acc.wish_token, acc.patient_id
+        page = c.get("/_shop/cabinet/").text
+        assert "Контактні дані" in page and "Олена" in page and "Вийти" in page
+        assert c.post("/_shop/api/cab/profile", json={"first_name": "Олена", "last_name": "Нова", "email": "bad"}).status_code == 400
+        assert c.post("/_shop/api/cab/profile", json={"first_name": "Олена", "last_name": "Нова", "email": "o@example.com"}).json()["ok"]
+        assert c.post("/_shop/api/cab/address", json={"name": "Олена Нова", "phone": "+380501112233", "city": "Київ", "warehouse": "Відділення №1", "city_ref": "r1"}).json()["ok"]
+        assert "Відділення №1" in c.get("/_shop/cabinet/?t=addr").text
+        co = c.get("/_shop/checkout/").text
+        assert "data-me=" in co and "&#34;city_ref&#34;: &#34;r1&#34;" in co and "no-store" in c.get("/_shop/checkout/").headers["cache-control"]
+        assert "Wish A" in c.get("/_shop/cabinet/?t=wish").text and ref in c.get("/_shop/cabinet/?t=invite").text
+        assert "100" in c.get("/_shop/cabinet/?t=loyalty").text and "У розробці" in c.get("/_shop/cabinet/?t=loyalty").text
+        c.post("/_shop/api/cab/logout", json={})
+        assert "Отримати код" in c.get("/_shop/cabinet/").text
+        w = c.get(f"/_shop/wish/{wt}/")
+        assert w.status_code == 200 and "Wish A" in w.text and "Олена" in w.text and c.get("/_shop/wish/nope/").status_code == 404
+        c.get(f"/_shop/?ref={ref}")                                                                      # друг прийшов за посиланням
+        c.post("/_shop/api/cab/start", json={"phone": "+380502223344"})
+        assert c.post("/_shop/api/cab/verify", json={"phone": "+380502223344", "code": codes["380502223344"], "name": "Друг Іван"}).json()["ok"]
+        with SessionLocal() as db:
+            assert sc.coins(db, pid1)["total"] == 300 and sc.coins(db, pid1)["invited"] == 1
+            fr = db.scalars(select(ShopAccount).where(ShopAccount.referred_by == pid1)).first()
+            assert sc.coins(db, fr.patient_id)["total"] == 300

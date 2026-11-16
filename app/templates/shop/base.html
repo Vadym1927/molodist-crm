@@ -29,6 +29,7 @@
     <div class="hd-ico">
       <button type="button" aria-label="Пошук" data-search>{{ ic('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.500-3.500"/>') }}</button>
       <a href="tel:{{ c.phone }}" aria-label="Подзвонити" class="hd-tel">{{ ic('<path d="M5 4h4l2 5-2.500 1.500a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>') }}</a>
+      <a href="{{ base }}/cabinet/" aria-label="Кабінет" class="hd-acc {{ 'in' if me }}">{{ ic('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.400 3.600-7 8-7s8 2.600 8 7"/>') }}</a>
       <button type="button" aria-label="Збережене" data-fav-open class="hd-cart">{{ ic('<path d="M12 20s-7-4.400-7-9.600A4 4 0 0 1 12 8a4 4 0 0 1 7 2.400C19 15.600 12 20 12 20z"/>') }}<em data-fav-n hidden>0</em></button>
       <button type="button" aria-label="Кошик" data-cart-open class="hd-cart">{{ ic('<path d="M6 8h12l1.200 12H4.800z"/><path d="M9 8V6.500a3 3 0 0 1 6 0V8"/>') }}<em data-cart-n hidden>0</em></button>
     </div>
@@ -68,9 +69,10 @@
 <nav class="mnav" id="mnav" hidden><div class="cart-bg" data-menu-close></div><div class="mnav-in"><button type="button" data-menu-close aria-label="Закрити" class="x">×</button>
   {% for m in d.menu %}<a href="{{ base }}{{ m.path }}" class="{{ 'acc' if m.path == '/shop/sale/' }}">{{ m.name }}</a>{% endfor %}
   {% if d.brands %}<a href="{{ base }}/shop/brendi/">Бренди</a>{% endif %}{% if '/blog/' in d.pages %}<a href="{{ base }}/blog/">Блог</a>{% endif %}
+  <a href="{{ base }}/cabinet/">{{ 'Мій кабінет' if me else 'Вхід у кабінет' }}</a>
   <a href="{{ cert_url }}">Подарункові сертифікати</a>{% for p in d.pages.values() if p.path.startswith('/for-customers/') and p.path != '/for-customers/' %}<a class="sub" href="{{ base }}{{ p.path }}">{{ p.h1 or p.title }}</a>{% endfor %}
   <a href="{{ c.main_url }}">Косметологія MOLODIST</a><a href="tel:{{ c.phone }}">{{ c.phone_text }}</a></div></nav>
-<script>window.MSHOP={base:'{{ base }}',free:{{ s.free_from or 0 }}};</script>
+<script>window.MSHOP={base:'{{ base }}',free:{{ s.free_from or 0 }},me:{{ 'true' if me else 'false' }},wish:{{ (me.wishlist or [])|tojson if me else 'null' }}};</script>
 <script src="/static/shop/shop.js?v={{ ver }}" defer></script>
 {% block scripts %}{% endblock %}
 </body>

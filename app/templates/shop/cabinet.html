@@ -1,0 +1,59 @@
+{% extends "shop/base.html" %}{% from "shop/_card.html" import card %}
+{% block main %}<section class="sec lst"><div class="wrap cab">
+  <aside class="cab-m"><div class="cab-u"><span>{{ (acc.first_name or p.full_name or '?')[:1] }}</span><div><b>{{ ((acc.first_name or '') ~ ' ' ~ (acc.last_name or '')).strip() or p.full_name }}</b><small>+{{ p.phone }}</small></div></div>
+    {% for k, n in tabs %}<a href="{{ base }}/cabinet/?t={{ k }}" class="{{ 'on' if t == k }}">{{ n }}{% if k == 'wish' and wish %}<em>{{ wish|length }}</em>{% endif %}</a>{% endfor %}
+    <button type="button" class="link" data-cab-logout>Вийти</button></aside>
+  <div class="cab-b">
+  {% if t == 'profile' %}<h1>Контактні дані</h1>
+    <form class="cab-f" data-cab="profile"><div class="g2"><label><span>Прізвище</span><input name="last_name" value="{{ acc.last_name or '' }}" autocomplete="family-name"></label>
+      <label><span>Імʼя</span><input name="first_name" value="{{ acc.first_name or '' }}" autocomplete="given-name" required></label></div>
+      <div class="g2"><label><span>Телефон</span><input value="+{{ p.phone }}" disabled></label>
+      <label><span>Email (для чеків)</span><input name="email" type="email" value="{{ acc.email or '' }}" autocomplete="email"></label></div>
+      <p class="mut small">Телефон — це ваш вхід у кабінет. Щоб змінити номер, напишіть нам.</p>
+      <p class="err" hidden></p><button class="btn">Зберегти</button></form>
+  {% elif t == 'orders' %}<h1>Мої замовлення</h1>
+    {% for o in orders %}{% set raw = o.raw or {} %}<article class="cab-o"><header><div><b>№{{ o.number or o.ext_id }}</b><small>{{ o.created_at.strftime('%d.%m.%Y') if o.created_at else '' }}</small></div>
+        <div><span class="st">{{ o.status or '' }}</span>{% if o.paid %}<span class="st ok">оплачено</span>{% elif raw.get('pay_state') in STATUS_FAIL %}<span class="st bad">не оплачено</span>{% endif %}</div><b>{{ money(o.total or 0) }}</b></header>
+      {% for it in o['items'] or [] %}<div class="cab-oi"><span>{{ it.name }}</span><small>{{ '%g'|format(it.qty or 1) }} × {{ money(it.price or 0) }}</small>
+        {% if it.product_id in in_cat %}<button type="button" class="btn sm ghost" data-add="{{ it.product_id }}" data-name="{{ it.name }}">Купити ще</button>{% endif %}</div>{% endfor %}
+      <footer class="mut small">{{ o.delivery or '' }}{{ (' · ' ~ o.city) if o.city }}{{ (', ' ~ o.address) if o.address }}{% if raw.get('ttn') %} · ТТН Нової пошти <b>{{ raw.ttn }}</b>{% endif %}</footer></article>
+    {% else %}<p class="mut">Замовлень ще немає. <a href="{{ base }}/shop/">До каталогу</a></p>{% endfor %}
+  {% elif t == 'loyalty' %}<h1>Система лояльності</h1>
+    <div class="coin-card"><small>Доступний баланс</small><b>{{ coins.total }}</b><span>MOLODIST коїнів</span><em>У розробці</em></div>
+    <p class="mut">MOLODIST коїни — програма лояльності магазину. Ми вже нараховуємо коїни, а оплачувати ними замовлення можна буде після запуску програми — повідомимо окремо.</p>
+    <h3>Нарахування</h3>{% for r in coins.rows %}<div class="cab-oi"><span>{{ r.note or r.kind }}</span><small>{{ r.created_at.strftime('%d.%m.%Y') if r.created_at else '' }}</small><b>+{{ r.amount }}</b></div>{% else %}<p class="mut">Нарахувань ще немає.</p>{% endfor %}
+    <p class="mut small">За реєстрацію — {{ s.cab_coin_signup }} коїнів. За кожного запрошеного друга — {{ s.cab_coin_ref }} вам і {{ s.cab_coin_ref }} другу. Поки що коїни не можна використати.</p>
+  {% elif t == 'reviews' %}<h1>Мої відгуки</h1>
+    <div class="soon"><b>Розділ у розробці</b><p>Після отримання замовлення ми попросимо вас оцінити товар. Тут зʼявляться ваші відгуки.</p></div>
+  {% elif t == 'invite' %}<h1>Запроси друга</h1>
+    <p>Поділіться кодом або посиланням. Коли друг зареєструється в магазині — ви отримаєте <b>{{ s.cab_coin_ref }} коїнів</b>, і друг теж <b>{{ s.cab_coin_ref }} коїнів</b>.</p>
+    <div class="ref"><div><small>Ваш реферальний код</small><b>{{ acc.ref_code }}</b></div><button type="button" class="btn sm ghost" data-copy="{{ acc.ref_code }}">Скопіювати код</button></div>
+    <div class="ref"><div><small>Посилання для друга</small><span class="lnk">{{ ref_url }}</span></div><button type="button" class="btn sm ghost" data-copy="{{ ref_url }}">Скопіювати</button></div>
+    {% set msg = 'Раджу магазин професійної косметики MOLODIST. Зареєструйся за моїм посиланням і отримай ' ~ s.cab_coin_ref ~ ' коїнів: ' %}
+    <div class="share"><a class="btn sm" href="https://t.me/share/url?url={{ ref_url|urlencode }}&text={{ msg|urlencode }}" target="_blank" rel="noopener">Telegram</a>
+      <a class="btn sm" href="viber://forward?text={{ (msg ~ ref_url)|urlencode }}">Viber</a>
+      <a class="btn sm" href="https://wa.me/?text={{ (msg ~ ref_url)|urlencode }}" target="_blank" rel="noopener">WhatsApp</a>
+      <button type="button" class="btn sm" data-copy="{{ msg ~ ref_url }}" data-copied="Скопійовано — вставте в Instagram">Instagram</button></div>
+    <div class="kpis"><div><b>{{ coins.invited }}</b><span>друзів зареєструвалось</span></div><div><b>{{ coins.ref }}</b><span>коїнів за запрошення</span></div></div>
+  {% elif t == 'wish' %}<h1>Вішліст</h1>
+    {% if wish %}<div class="ref"><div><small>{{ wish|length }} товарів на {{ money(wish_sum) }} · посилання на ваш вішліст</small><span class="lnk">{{ wish_url }}</span></div>
+      <button type="button" class="btn sm ghost" data-copy="{{ wish_url }}">Поділитися</button></div>
+    <p class="mut small">Надішліть посилання близьким — вони побачать, що ви хочете, і зможуть замовити подарунок.</p>
+    <div class="grid">{% for i in wish %}{{ card(i, base, money, pch, s) }}{% endfor %}</div>
+    {% else %}<p class="mut">У вішлісті ще порожньо. Натискайте на сердечко на фото товару — він зʼявиться тут.</p><a class="btn" href="{{ base }}/shop/">До каталогу</a>{% endif %}
+  {% elif t == 'gifts' %}<h1>Подарунки від друзів і партнерів</h1>
+    <div class="soon"><b>Розділ у розробці</b><p>Тут зʼявляться подарунки й пропозиції від партнерів MOLODIST — ті самі, що в боті турботи.</p>
+      <a class="btn sm ghost" href="https://t.me/molodist_assistant_bot" target="_blank" rel="noopener">Відкрити бот турботи</a></div>
+  {% elif t == 'addr' %}<h1>Адреси доставки</h1>
+    {% for a in acc.addresses or [] %}<div class="cab-a {{ 'main' if a.main }}"><div><b>{{ a.city }}</b><span>{{ a.warehouse }}</span><small>{{ a.name }}{{ (' · +' ~ a.phone) if a.phone }}</small></div>
+      <div>{% if a.main %}<span class="st ok">основна</span>{% else %}<button type="button" class="link" data-addr-main="{{ a.id }}">Зробити основною</button>{% endif %}
+        <button type="button" class="link" data-addr-del="{{ a.id }}">Видалити</button></div></div>{% else %}<p class="mut">Збережених адрес немає. Додайте — і вона сама підставиться під час оформлення замовлення.</p>{% endfor %}
+    <h3>Нова адреса</h3>
+    <form class="cab-f" data-cab="address" data-np="{{ '1' if np }}"><div class="g2"><label><span>Отримувач (імʼя та прізвище)</span><input name="name" value="{{ ((acc.first_name or '') ~ ' ' ~ (acc.last_name or '')).strip() }}" required></label>
+        <label><span>Телефон отримувача</span><input name="phone" type="tel" value="+{{ p.phone }}"></label></div>
+      <div class="g2"><label class="ac"><span>Місто</span><input name="city" autocomplete="off" placeholder="Почніть вводити назву" required><div class="ac-l" hidden></div></label>
+        <label class="ac"><span>Відділення / поштомат Нової пошти</span><input name="warehouse" autocomplete="off" placeholder="Номер або адреса" required><div class="ac-l" hidden></div></label></div>
+      <input type="hidden" name="city_ref"><label class="ck"><input type="checkbox" name="as_main" checked> Зробити основною</label>
+      <p class="err" hidden></p><button class="btn">Додати адресу</button></form>
+  {% endif %}</div>
+</div></section>{% endblock %}

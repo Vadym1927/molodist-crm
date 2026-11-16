@@ -9953,7 +9953,7 @@ def settings_shop(request: Request, user: User = Depends(require("users")), db: 
     d = sf.catalog(db, fresh=True)
     j = jobs.JOBS.get(request.query_params.get("job") or "")
     from .services import mono_parts as _mp
-    return render(request, "settings_shop.html", nav="settings", c=c, d=d, seo=sf.seo_coverage(db), accounts=pls.public(db)["accounts"], job=j, mp=_mp.public(db), MP_MODES=_mp.MODES,
+    return render(request, "settings_shop.html", nav="settings", c=c, d=d, seo=sf.seo_coverage(db), cab=__import__("app.services.shop_cabinet", fromlist=["x"]).stats(db), accounts=pls.public(db)["accounts"], job=j, mp=_mp.public(db), MP_MODES=_mp.MODES,
                   preview=f"{settings.public_url.rstrip('/')}/_shop/?p={sf.preview_key(db)}",
                   stock=sum(1 for i in d["items"] if i["stock"]), nocat=sum(1 for i in d["items"] if not any(i["slug"] in x["slugs"] for x in d["cats"])))
 
@@ -9997,6 +9997,13 @@ async def settings_shop_save(request: Request, user: User = Depends(require("use
         except sf.ShopError as e:
             warn = str(e)
     c["cod"], c["pickup"] = bool(f.get("cod")), bool(f.get("pickup"))
+    c["cab_on"] = bool(f.get("cab_on"))
+    c["cab_sms"] = str(f.get("cab_sms") or "").strip()[:200]
+    for k in ("cab_sms_day", "cab_coin_signup", "cab_coin_ref"):
+        try:
+            c[k] = max(0, min(100000, int(float(str(f.get(k) or 0)))))
+        except ValueError:
+            pass
     if str(f.get("np_key") or "").strip():
         c["np_key"] = str(f.get("np_key")).strip()[:120]
     if f.get("np_clear"):

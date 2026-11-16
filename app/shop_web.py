@@ -32,7 +32,7 @@ def _rate(request: Request, key: str, limit: int, window: int = 600) -> bool:
 
 
 def register(app, templates, version: str):
-    from .services import shop_front as sf, site_pages as sp
+    from .services import shop_front as sf, site_pages as sp, shop_cabinet as sc
 
     def opened(request: Request, db: Session, c: dict) -> bool:
         if c.get("on"):
@@ -59,14 +59,20 @@ def register(app, templates, version: str):
         site = sp.cfg(db)
         from .services import mono_parts as _mp
         pp = _mp.public(db)
-        return {"pch": float(pp["min_sum"] or 0) if pp["ready"] else None, "pch_legal": sf.PARTS_LEGAL, "pch_show": bool(pp["ready"] or pp.get("on")), "request": request, "s": c, "c": site, "d": data, "base": "" if on_site else "/_shop", "noindex": not on_site,
+        got = sc.me(db, request.cookies.get(sc.COOKIE))
+        return {"me": got[0] if got else None, "me_p": got[1] if got else None, "ref_in": (request.query_params.get("ref") or "")[:20],
+                "pch": float(pp["min_sum"] or 0) if pp["ready"] else None, "pch_legal": sf.PARTS_LEGAL, "pch_show": bool(pp["ready"] or pp.get("on")), "request": request, "s": c, "c": site, "d": data, "base": "" if on_site else "/_shop", "noindex": not on_site,
                 "canonical": c["canonical"].rstrip("/") + path, "ver": str(version)[:8], "year": date.today().year, "money": sp.money,
                 "benefits": sf.lines(c.get("benefits")), "cat_icon": sf.cat_icon, "cert_url": _cert_url(db, site), "viber": sp.viber_link(db, site), "path": path, "q": "",
                 "pkey": request.query_params.get("p") or ""}
 
     def resp(request: Request, name: str, cx: dict, status: int = 200):
         r = templates.TemplateResponse(request, name, cx, status_code=status)
-        r.headers["Cache-Control"] = "public, max-age=120" if not cx["noindex"] else "no-store"
+        r.headers["Cache-Control"] = "public, max-age=120" if not (cx["noindex"] or cx.get("me") or cx.get("private")) else "no-store"
+        if cx.get("me") or cx.get("private"):
+            r.headers["Vary"] = "Cookie"
+        if cx.get("ref_in") and not cx.get("me"):
+            r.set_cookie(sc.REF_COOKIE, cx["ref_in"].upper(), max_age=30 * 86400, httponly=True, samesite="lax")
         if cx["noindex"]:
             r.headers["X-Robots-Tag"] = "noindex, nofollow"
         if cx.get("pkey"):
@@ -193,6 +199,105 @@ def register(app, templates, version: str):
         except sf.ShopError as e:
             return JSONResponse({"error": str(e)}, status_code=400)
 
+    def _body(raw: bytes) -> dict:
+        try:
+            d = json.loads(raw or b"{}")
+            return d if isinstance(d, dict) else {}
+        except ValueError:
+            return {}
+
+    def _ip(request: Request) -> str:
+        return (request.headers.get("x-real-ip") or request.headers.get("x-forwarded-for") or (request.client.host if request.client else "") or "").split(",")[0].strip()
+
+    def _cab_guard(request: Request, db: Session) -> dict:
+        c = sf.cfg(db)
+        if not opened(request, db, c) or "json" not in (request.headers.get("content-type") or ""):
+            raise HTTPException(404)
+        return c
+
+    @app.post("/_shop/api/cab/start")
+    async def cab_start(request: Request, db: Session = Depends(db_dep)):
+        c = _cab_guard(request, db)
+        d = _body(await request.body())
+        if d.get("website") or not _rate(request, "cabcode", 10):
+            return JSONResponse({"ok": False, "msg": "Забагато спроб. Спробуйте пізніше."}, status_code=429)
+        try:
+            return JSONResponse(sc.start(db, c, d.get("phone"), _ip(request)), headers={"Cache-Control": "no-store"})
+        except sc.CabError as e:
+            return JSONResponse({"ok": False, "msg": str(e)}, status_code=400)
+
+    @app.post("/_shop/api/cab/verify")
+    async def cab_verify(request: Request, db: Session = Depends(db_dep)):
+        c = _cab_guard(request, db)
+        d = _body(await request.body())
+        if not _rate(request, "cabver", 30):
+            return JSONResponse({"ok": False, "msg": "Забагато спроб. Спробуйте пізніше."}, status_code=429)
+        try:
+            token, days, acc = sc.verify(db, c, d.get("phone"), d.get("code"), d.get("name") or "", bool(d.get("remember", True)),
+                                         request.cookies.get(sc.REF_COOKIE) or "", request.headers.get("user-agent") or "")
+        except sc.CabError as e:
+            return JSONResponse({"ok": False, "msg": str(e)}, status_code=400)
+        if d.get("wish"):
+            sc.set_wish(db, acc, d.get("wish"), merge=True)
+        r = JSONResponse({"ok": True, "wish": acc.wishlist or []}, headers={"Cache-Control": "no-store"})
+        r.set_cookie(sc.COOKIE, token, max_age=days * 86400 if d.get("remember", True) else None, httponly=True, samesite="lax",
+                     secure=request.url.scheme == "https" or (request.headers.get("x-forwarded-proto") == "https"))
+        r.delete_cookie(sc.REF_COOKIE)
+        return r
+
+    @app.post("/_shop/api/cab/{action}")
+    async def cab_action(action: str, request: Request, db: Session = Depends(db_dep)):
+        _cab_guard(request, db)
+        d = _body(await request.body())
+        tok = request.cookies.get(sc.COOKIE)
+        if action == "logout":
+            sc.logout(db, tok)
+            r = JSONResponse({"ok": True})
+            r.delete_cookie(sc.COOKIE)
+            return r
+        got = sc.me(db, tok)
+        if not got:
+            return JSONResponse({"ok": False, "msg": "Увійдіть у кабінет."}, status_code=401)
+        acc, p = got
+        try:
+            if action == "profile":
+                sc.save_profile(db, acc, p, d)
+            elif action == "address":
+                sc.save_address(db, acc, d)
+            elif action == "wish":
+                return JSONResponse({"ok": True, "wish": sc.set_wish(db, acc, d.get("ids") or [], merge=bool(d.get("merge")))}, headers={"Cache-Control": "no-store"})
+            else:
+                raise HTTPException(404)
+        except sc.CabError as e:
+            return JSONResponse({"ok": False, "msg": str(e)}, status_code=400)
+        return JSONResponse({"ok": True}, headers={"Cache-Control": "no-store"})
+
+    @app.get("/_shop/cabinet/", response_class=HTMLResponse)
+    def cab_page(request: Request, t: str = "profile", db: Session = Depends(db_dep)):
+        cx = ctx(request, db, "/cabinet/")
+        cx.update(title="Особистий кабінет — MOLODIST", desc="", noindex_page=True, private=True, tabs=sc.TABS, np=bool((cx["s"].get("np_key") or "").strip()))
+        if not cx["me"]:
+            return resp(request, "shop/cab_login.html", cx)
+        acc, p = cx["me"], cx["me_p"]
+        t = t if t in dict(sc.TABS) else "profile"
+        site_root = cx["s"]["canonical"].rstrip("/") if not cx["noindex"] else settings.public_url.rstrip("/") + "/_shop"
+        wi = sc.wish_items(cx["d"], acc.wishlist or [])
+        cx.update(t=t, acc=acc, p=p, coins=sc.coins(db, p.id), orders=sc.orders(db, p) if t == "orders" else [], wish=wi, wish_sum=sum(i["price"] for i in wi),
+                  ref_url=f"{site_root}/?ref={acc.ref_code}", wish_url=f"{site_root}/wish/{acc.wish_token}/", STATUS_FAIL=sf.PAY_FAIL,
+                  in_cat={v["id"] for it in cx["d"]["items"] for v in it["variants"] if v["stock"]})
+        return resp(request, "shop/cabinet.html", cx)
+
+    @app.get("/_shop/wish/{token}/", response_class=HTMLResponse)
+    def wish_page(token: str, request: Request, db: Session = Depends(db_dep)):
+        cx = ctx(request, db, f"/wish/{token}/")
+        acc = sc.by_wish_token(db, token)
+        if not acc:
+            return not_found(request, cx)
+        wi = sc.wish_items(cx["d"], acc.wishlist or [])
+        cx.update(title=f"Вішліст {acc.first_name or ''} — MOLODIST".replace("  ", " "), desc="", noindex_page=True, private=True, owner=acc.first_name or "", items=wi,
+                  wish_sum=sum(i["price"] for i in wi))
+        return resp(request, "shop/wish.html", cx)
+
     @app.get("/_shop/checkout/", response_class=HTMLResponse)
     @app.get("/_shop/shop/cart/", response_class=HTMLResponse, include_in_schema=False)
     def shop_checkout(request: Request, db: Session = Depends(db_dep)):
@@ -201,6 +306,7 @@ def register(app, templates, version: str):
         cx.update(parts=mp.public(db))
         cx.update(title="Оформлення замовлення — MOLODIST", desc="", noindex_page=True, np=bool((cx["s"].get("np_key") or "").strip()),
                   gifts=[g[0] for g in sf.lines(cx["s"].get("gifts"))])
+        cx.update(private=True, addr=sc.main_address(cx["me"]) if cx["me"] else None)
         return resp(request, "shop/checkout.html", cx)
 
     @app.get("/_shop/checkout/done/", response_class=HTMLResponse)

@@ -42,6 +42,14 @@
   <label>Переваги (рядок: Заголовок | текст)<textarea name="benefits" rows="4">{{ c.benefits }}</textarea></label>
   <label>Про нас<textarea name="about" rows="4">{{ c.about }}</textarea></label>
   <label>Instagram<input name="instagram" value="{{ c.instagram }}"></label>
+  <div><b>Кабінет покупця</b> <span class="small muted">· кабінетів: {{ cab.accounts }} · SMS із кодом за добу: {{ cab.sms_day }} · нараховано коїнів: {{ cab.coins }}</span>
+    <div class="small muted">Вхід за номером телефону й кодом: якщо покупець підключив бот турботи — код приходить у Telegram, інакше — SMS. «Запамʼятати мене» — на 180 днів.</div>
+    <label class="ck" style="margin-top:6px"><input type="checkbox" name="cab_on" value="1" {{ 'checked' if c.cab_on }}> Вхід у кабінет увімкнено</label>
+    <label style="margin-top:6px">Текст SMS / повідомлення з кодом<input name="cab_sms" value="{{ c.cab_sms }}" maxlength="200">
+      <span class="small muted">{code} — місце для коду. Кирилицею в одну SMS вміщується до 70 символів.</span></label>
+    <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px"><label>Ліміт SMS із кодом на добу<input name="cab_sms_day" value="{{ c.cab_sms_day }}" inputmode="numeric"></label>
+      <label>Коїнів за реєстрацію<input name="cab_coin_signup" value="{{ c.cab_coin_signup }}" inputmode="numeric"></label>
+      <label>Коїнів за запрошення (обом)<input name="cab_coin_ref" value="{{ c.cab_coin_ref }}" inputmode="numeric"></label></div></div>
   <div><b>Покупка Частинами monobank: лапка й шильдик</b>
     <div class="small muted">Офіційні файли з матеріалів monobank (Guideline → Завантажити). Лапку й шильдик не можна перефарбовувати, обертати чи обрізати — вони показуються як є.
       Цифра в лапці та «до N платежів» мають відповідати найбільшій кількості платежів нижче в «Покупка Частинами».</div>
