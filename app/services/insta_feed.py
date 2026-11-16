@@ -97,13 +97,35 @@ def refresh(db: Session, http=None, n: int = 8) -> dict:
                 continue
         out.append({"id": mid, "file": f.name, "url": m["permalink"], "video": m.get("media_type") == "VIDEO",
                     "alt": " ".join(str(m.get("caption") or "").split())[:120]})
-    st = {"items": out or old.get("items") or [], "via": via, "at": datetime.utcnow().isoformat(timespec="seconds"), "checked_at": datetime.utcnow().isoformat(timespec="seconds"),
+    prof = old.get("profile") or {}
+    try:                                                              # шапка профілю: імʼя, аватар, лічильники
+        from . import meta_inbox as mi
+        if via == "instagram":
+            pj = http.get(f"{mi.IGRAPH}/me", params={"access_token": mi._ig_token(db), "fields": "username,name,profile_picture_url,followers_count,media_count"}).json()
+        else:
+            me = http.get(f"{mi.GRAPH}/me", params={"access_token": mi._page_token(db), "fields": "instagram_business_account{username,name,profile_picture_url,followers_count,media_count}"}).json()
+            pj = me.get("instagram_business_account") or {}
+        if pj.get("username"):
+            prof = {"username": str(pj["username"])[:60], "name": str(pj.get("name") or "")[:80], "followers": int(pj.get("followers_count") or 0), "posts": int(pj.get("media_count") or 0),
+                    "avatar": prof.get("avatar") or ""}
+            if pj.get("profile_picture_url"):
+                r = http.get(pj["profile_picture_url"])
+                if r.status_code == 200 and (r.headers.get("content-type") or "").startswith("image/"):
+                    from io import BytesIO
+                    from PIL import Image
+                    im = Image.open(BytesIO(r.content)).convert("RGB")
+                    im.thumbnail((240, 240))
+                    im.save(folder() / "0.jpg", "JPEG", quality=86)
+                    prof["avatar"] = "0.jpg"
+    except Exception:  # noqa: BLE001 — шапка необовʼязкова
+        pass
+    st = {"items": out or old.get("items") or [], "via": via, "profile": prof, "at": datetime.utcnow().isoformat(timespec="seconds"), "checked_at": datetime.utcnow().isoformat(timespec="seconds"),
           "error": "" if out else "публікацій із фото не знайдено"}
     db.merge(SyncState(key=KEY, value=json.dumps(st, ensure_ascii=False), updated_at=datetime.utcnow()))
     db.commit()
     keep = {x["file"] for x in st["items"]}
     for f in folder().glob("*.jpg"):
-        if f.name not in keep:
+        if f.name not in keep and f.name != "0.jpg":
             f.unlink(missing_ok=True)
     return st
 

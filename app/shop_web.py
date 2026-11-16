@@ -99,6 +99,7 @@ def register(app, templates, version: str):
                       "og_desc": f"Зареєструйтесь у магазині MOLODIST за запрошенням друга й отримайте {cx['s'].get('cab_coin_ref')} MOLODIST Coins. Професійна косметика, яку призначають лікарі.",
                       "og_img": f"{cx['abs']}/static/shop/og/invite.jpg"} if cx["ref_in"] else {}),
                   insta=__import__("app.services.insta_feed", fromlist=["x"]).items(db),
+                  insta_p=__import__("app.services.insta_feed", fromlist=["x"]).state(db).get("profile") or {},
                   blocks=sf.home_blocks(cx["d"]), blog=[p for p in cx["d"]["pages"].values() if p["path"].startswith("/blog/") and p["path"] != "/blog/"][:3])
         return resp(request, "shop/home.html", cx)
 
