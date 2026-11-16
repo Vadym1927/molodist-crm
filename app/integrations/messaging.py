@@ -98,7 +98,7 @@ def telegram_available() -> bool:
     return bool(settings.patient_bot_token)
 
 
-def send_telegram(chat_id: str, text: str) -> SendResult:
+def send_telegram(chat_id: str, text: str, reply_markup: dict | None = None) -> SendResult:
     if not sending_enabled():
         log.info("patient message blocked (paused): telegram")
         return SendResult(False, "telegram", error=PAUSED_ERROR)
@@ -106,7 +106,8 @@ def send_telegram(chat_id: str, text: str) -> SendResult:
         return SendResult(False, "telegram", error="PATIENT_BOT_TOKEN не задано")
     try:
         r = httpx.post(f"https://api.telegram.org/bot{settings.patient_bot_token}/sendMessage", timeout=30,
-                       data={"chat_id": chat_id, "text": text[:4096], "disable_web_page_preview": "true"})
+                       data={"chat_id": chat_id, "text": text[:4096], "disable_web_page_preview": "true",
+                             **({"reply_markup": __import__("json").dumps(reply_markup, ensure_ascii=False)} if reply_markup else {})})
         js = r.json()
     except Exception as e:      # noqa: BLE001
         return SendResult(False, "telegram", error=str(e)[:300])

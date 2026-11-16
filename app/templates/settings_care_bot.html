@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Бот турботи · Налаштування{% endblock %}
+{% block body %}
+<div class="eyebrow"><a href="/settings">‹ Налаштування</a></div><h1>Бот турботи</h1>
+{% if request.query_params.get('msg') %}<div class="alert ok">{{ request.query_params.get('msg') }}</div>{% endif %}
+<style>.cbs label{display:grid;gap:5px;font-weight:600;font-size:13.5px}.cbs label textarea,.cbs label select{width:100%;margin:0;font-weight:400}
+.cbs .ft{display:flex;gap:10px;align-items:flex-start;font-weight:400}.cbs .ft input{width:auto;margin-top:3px}.cbs .ft b{display:block}
+.cbk{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px}.cbk div{background:var(--bg2,#F7F4F0);border-radius:12px;padding:12px}.cbk b{font-size:22px;display:block}</style>
+<div class="cbk">
+  <div><b>{{ st.linked }}</b><span class="small muted">пацієнтів підписані на бот</span></div>
+  <div><b>{{ st.opted_out }}</b><span class="small muted">з них відписались від розсилок</span></div>
+  <div><b>{{ due }}</b><span class="small muted">візитів завтра — є кому нагадати в бот</span></div>
+  <div><a href="{{ url }}" target="_blank" rel="noopener">@molodist_assistant_bot</a><span class="small muted" style="display:block">{{ 'токен бота підключено' if token else 'PATIENT_BOT_TOKEN не задано' }}</span></div>
+</div>
+{% if paused %}<div class="alert err">Повідомлення пацієнтам зараз на паузі («Налаштування → Канали»). Навіть увімкнені тут нагадування не надсилаються, доки пауза діє.</div>{% endif %}
+<form method="post" class="card cbs" style="display:grid;gap:14px;max-width:820px">
+  <div><b>Що ввімкнено</b><div class="small muted">Усе вимкнено, доки ви не ввімкнете. Вимкнені функції бот не показує в меню (бот бере цей список з CRM).</div></div>
+  {% for k, t in F.items() %}<label class="ft"><input type="checkbox" name="f_{{ k }}" value="1" {{ 'checked' if c.features.get(k) }}><span><b>{{ t }}</b></span></label>{% endfor %}
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
+    <label>Нагадування надсилати о<select name="remind_hour">{% for h in range(8, 21) %}<option value="{{ h }}" {{ 'selected' if c.remind_hour == h }}>{{ h }}:00</option>{% endfor %}</select><span class="small muted">напередодні візиту</span></label>
+  </div>
+  <label>Текст нагадування<textarea name="remind_text" rows="5">{{ c.remind_text }}</textarea><span class="small muted">{when} — день і час, {service} — послуга, {doctor} — рядок з лікарем. Під текстом — кнопки «Підтвердити», «Перенести», «Скасувати».</span></label>
+  <div><button class="btn">Зберегти</button></div>
+</form>
+<div class="card" style="max-width:820px;margin-top:14px">
+  <b>Як це працює</b>
+  <ul class="small" style="margin:8px 0 0;padding-left:18px">
+    <li>Позначка «Telegram-бот ✓» у картці — пацієнт поділився контактом у боті й привʼязаний за телефоном.</li>
+    <li>Розсилки через бот — «Розсилки», канал Telegram; індивідуальне повідомлення — у картці пацієнта.</li>
+    <li>Підтвердження в боті: візит стає «Підтверджено», в історії — «через Бот турботи», адміністраторам — сповіщення в Telegram. Скасування — статус «Скасовано» з причиною. Перенесення — задача адміністратору з бажаним часом.</li>
+    <li>Аналізи від пацієнта — у картку (вкладка фото й документів → «Аналізи») + задача адміністратору. Той самий файл удруге не додається.</li>
+    <li>«Написати адміністратору / головному лікарю» — задача в CRM і сповіщення в Telegram без тексту повідомлення.</li>
+    <li>Сертифікат чи абонемент у боті — посилання на оплату; після оплати продаж проводиться в CRM сам (як на сайті).</li>
+  </ul>
+</div>
+{% if st.recent %}<div class="card" style="max-width:820px;margin-top:14px"><b>Останні дії бота (30 днів)</b>
+  <table class="small" style="width:100%;margin-top:8px">{% for a in st.recent %}<tr><td class="muted">{{ a.at|local|dt('%d.%m %H:%M') }}</td><td>{{ a.action }}</td><td>{% if a.entity == 'patient' and a.entity_id %}<a href="/patients/{{ a.entity_id }}">картка</a>{% endif %}</td></tr>{% endfor %}</table></div>{% endif %}
+{% endblock %}

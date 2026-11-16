@@ -422,6 +422,123 @@ def bot_patient(chat_id: str, key: ApiKey = Depends(BOT), db: Session = Depends(
     return out
 
 
+# ---------------- Бот турботи: кабінет пацієнта, аналізи, повідомлення, нагадування ----------------
+def _cb(db: Session, chat_id: str):
+    from .services import care_bot as cb
+    try:
+        return cb.patient(db, chat_id)
+    except cb.BotError as e:
+        raise HTTPException(404, str(e)) from e
+
+
+def _cb_call(fn, *a, **k):
+    from .services import care_bot as cb
+    try:
+        return fn(*a, **k)
+    except cb.BotError as e:
+        raise HTTPException(400, str(e)) from e
+
+
+@router.get("/bot/config", summary="Бот турботи: які функції ввімкнено власником (вимкнені — не показувати в меню) і формат кнопок")
+def bot_config(key: ApiKey = Depends(BOT), db: Session = Depends(db_dep)):
+    from .services import care_bot as cb
+    return cb.config_json(db)
+
+
+@router.get("/bot/patient/{chat_id}/records", summary="Мої записи: майбутні (з діями) і останні візити")
+def bot_records(chat_id: str, key: ApiKey = Depends(BOT), db: Session = Depends(db_dep)):
+    from .services import care_bot as cb
+    return cb.records(db, _cb(db, chat_id))
+
+
+@router.get("/bot/patient/{chat_id}/wallet", summary="Мій баланс (гроші, не бонуси), абонементи, сертифікати, знижка, бонуси")
+def bot_wallet(chat_id: str, key: ApiKey = Depends(BOT), db: Session = Depends(db_dep)):
+    from .services import care_bot as cb
+    return cb.wallet(db, _cb(db, chat_id))
+
+
+@router.get("/bot/patient/{chat_id}/files", summary="Мої аналізи (файли категорії «Аналізи» з картки)")
+def bot_files(chat_id: str, key: ApiKey = Depends(BOT), db: Session = Depends(db_dep)):
+    from .services import care_bot as cb
+    return {"files": cb.files(db, _cb(db, chat_id))}
+
+
+@router.get("/bot/patient/{chat_id}/files/{fid}", summary="Завантажити свій аналіз (щоб надіслати пацієнту документом)")
+def bot_file(chat_id: str, fid: int, key: ApiKey = Depends(BOT), db: Session = Depends(db_dep)):
+    from pathlib import Path
+    from fastapi.responses import FileResponse
+    from .services import care_bot as cb
+    f = _cb_call(cb.file_of, db, _cb(db, chat_id), fid)
+    if not Path(f.path).exists():
+        raise HTTPException(404, "Файл відсутній на диску")
+    return FileResponse(f.path, filename=Path(f.path).name.split("_", 1)[-1])
+
+
+@router.post("/bot/patient/{chat_id}/files", summary="Пацієнт надіслав аналізи → картка, категорія «Аналізи» (дублікати не додаються)")
+async def bot_file_add(chat_id: str, file: UploadFile = File(...), caption: str | None = Query(None),
+                       key: ApiKey = Depends(BOT), db: Session = Depends(db_dep)):
+    from .services import care_bot as cb
+    p = _cb(db, chat_id)
+    r = _cb_call(cb.add_file, db, p, await file.read(), file.filename or "analysis", caption)
+    audit(db, "bot.file", "patient", p.id, key=key, file=r.get("file_id"), duplicate=r.get("duplicate"))
+    return r
+
+
+class BotMessage(BaseModel):
+    to: str = Field("admin", description="admin | chief (головний лікар)")
+    text: str
+
+
+@router.post("/bot/patient/{chat_id}/message", summary="«Написати адміністратору / головному лікарю» → задача й Telegram адресатам")
+def bot_message(chat_id: str, body: BotMessage, key: ApiKey = Depends(BOT), db: Session = Depends(db_dep)):
+    from .services import care_bot as cb
+    p = _cb(db, chat_id)
+    r = _cb_call(cb.message, db, p, body.to, body.text)
+    audit(db, "bot.message", "patient", p.id, key=key, to=body.to, task=r.get("task_id"))
+    return r
+
+
+@router.get("/bot/offers", summary="Сертифікати й абонементи для продажу в боті (ті самі, що на сайті)")
+def bot_offers(key: ApiKey = Depends(BOT), db: Session = Depends(db_dep)):
+    from .services import online_booking as ob
+    of = ob.offers(db)
+    return {"certs": [{"id": x["id"], "name": x["name"], "price": x["price"], "nominal": x["nominal"], "days": x["days"]} for x in of["certs"]],
+            "subs": [{"id": x["id"], "name": x["title"], "price": x["price"], "visits": x["visits"], "per": x["per"], "save": x["save"],
+                      "pct": x["pct"], "days": x["days"]} for x in of["subs"]],
+            "rules": of["loyalty"]}
+
+
+class BotOrder(BaseModel):
+    kind: str = Field(..., description="cert | sub")
+    id: int
+    to: str | None = Field(None, description="сертифікат: імʼя отримувача (обовʼязково)")
+    to_phone: str | None = Field(None, description="сертифікат: телефон отримувача (обовʼязково)")
+
+
+@router.post("/bot/patient/{chat_id}/order", summary="Купити сертифікат / абонемент: посилання на оплату; після оплати продаж у CRM сам")
+def bot_order(chat_id: str, body: BotOrder, key: ApiKey = Depends(BOT), db: Session = Depends(db_dep)):
+    from .config import settings
+    from .services import care_bot as cb
+    p = _cb(db, chat_id)
+    r = _cb_call(cb.order, db, p, body.model_dump(), settings.public_url)
+    audit(db, "bot.order", "patient", p.id, key=key, kind=body.kind, item=body.id)
+    return r
+
+
+class BotAnswer(BaseModel):
+    chat_id: str
+    action: str = Field(..., description="confirm | reschedule | cancel")
+    reason: str | None = Field(None, description="скасування: чому")
+    wish: str | None = Field(None, description="перенесення: на коли зручно")
+
+
+@router.post("/bot/appointment/{aid}/answer", summary="Кнопка під нагадуванням: підтвердити / перенести / скасувати візит")
+def bot_answer(aid: int, body: BotAnswer, key: ApiKey = Depends(BOT), db: Session = Depends(db_dep)):
+    from .services import care_bot as cb
+    _cb(db, body.chat_id)
+    return _cb_call(cb.answer, db, body.chat_id, aid, body.action, body.reason, body.wish)
+
+
 # ---------------- AI-розбір дзвінків (агент OpenClaw на VPS) ----------------
 CALLS = scope("calls")
 

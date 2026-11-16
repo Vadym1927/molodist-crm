@@ -344,6 +344,18 @@ async def job_rematch():
         log.warning("rematch: %s", e)
 
 
+async def job_care_bot():
+    """Бот турботи: щогодини — нагадування на завтра з кнопками (лише якщо ввімкнено, о годині з налаштувань)."""
+    from .services import care_bot as cb
+    def run():
+        with SessionLocal() as db:
+            return cb.send_reminders(db)
+    try:
+        await asyncio.to_thread(run)
+    except Exception as e:      # noqa: BLE001
+        log.warning("care_bot: %s", e)
+
+
 async def job_online_fiscal():
     """Онлайн-покупки сертифікатів / абонементів: кожні 15 хв підтягнути фіскальний чек monobank у чек CRM."""
     from .services import online_booking as ob
@@ -621,6 +633,7 @@ async def lifespan(app: FastAPI):
         sched.add_job(job_meta_ads, "cron", minute=50)
         sched.add_job(job_reviews, "cron", minute="*/5")
         sched.add_job(job_online_fiscal, "cron", minute="7,22,37,52")
+        sched.add_job(job_care_bot, "cron", minute=3)
         sched.add_job(job_payreq, "cron", minute=35)
         sched.add_job(job_tg_notify, "cron", minute="*/5")
         sched.add_job(job_rematch, "date", run_date=datetime.now() + timedelta(seconds=40))   # після оновлення — одразу
@@ -1437,6 +1450,11 @@ async def upload(request: Request, files: list[UploadFile] = File(...), user: Us
     return render(request, "upload_result.html", results=results)
 
 
+def _pp_cats():
+    from .services import patient_photos as _pp_
+    return tuple(_pp_.CATS)
+
+
 @app.post("/patients/{pid}/photos")
 async def upload_photos(pid: int, files: list[UploadFile] = File(...), caption: str = Form(""), stage: str = Form(""),
                         zone: str = Form(""), back: str = Form(""), category: str = Form(""), user: User = Depends(require("upload")),
@@ -1444,7 +1462,7 @@ async def upload_photos(pid: int, files: list[UploadFile] = File(...), caption: 
     p = _patient_or_403(db, user, pid)
     for f in files:
         pf = ingest.ingest_photo(db, await f.read(), f.filename or "photo.jpg", caption or None, patient=p)
-        if category in ("face", "body", "consent", "doc"):
+        if category in _pp_cats():
             pf.category = category
             db.commit()
         if stage in ("before", "after", "progress") or zone.strip():
@@ -7266,6 +7284,7 @@ SETTINGS_BLOCKS = [
         ('Статті для нарахувань', 'Премії, штрафи, лікарняні, податки, відпускні — для коригувань зарплати', '/settings/accrual-articles', 'finance', 'dirs/stype'),
         ('Бонус за продаж косметики', 'Відсоток лікарям з продажу товарів: без знижки, зі знижкою, поріг ціни; свої % для лікарів, брендів і товарів', '/settings/cosmetics-pct', 'finance', None),
         ('Відгуки й NPS', 'Опитування пацієнта після візиту: питання, канал, посилання на відгук у Google, рекламації', '/settings/reviews', 'users', ''),
+        ('Бот турботи', 'Telegram-бот пацієнтів: кабінет, аналізи, повідомлення, нагадування з кнопками — що ввімкнено', '/settings/care-bot', 'users', ''),
         ('Вхід із кодом', 'Двоетапний вхід: після пароля — код у Telegram (ID у картці співробітника) або SMS; для яких ролей, запамʼятати пристрій', '/settings/login-2fa', 'users', None),
         ('Завдання для OpenClaw', 'Перевірки й зміни на сервері руками агента OpenClaw: завдання → вивід у CRM; зміни — лише після вашого погодження в Telegram', '/ops', 'users', None),
         ('Лікарі бюті-планів', 'Хто зʼявляється у виборі лікаря в бюті-плані та картці пацієнта — лише справжні лікарі', '/settings/plan-doctors', 'users', None),
@@ -7421,6 +7440,23 @@ def review_google(token: str, db: Session = Depends(db_dep)):
     if r and not rv.expired(db, r):
         rv.mark_google(db, r)
     return {"ok": bool(r)}
+
+
+@app.get("/settings/care-bot", response_class=HTMLResponse)
+def settings_care_bot(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import care_bot as cb
+    from .integrations import messaging as _msg
+    return render(request, "settings_care_bot.html", nav="settings", c=cb.cfg(db), F=cb.FEATURES, st=cb.stats(db), url=cb.BOT_URL,
+                  paused=not _msg.sending_enabled(), token=_msg.telegram_available(), due=len(cb.due_reminders(db)))
+
+
+@app.post("/settings/care-bot")
+async def settings_care_bot_save(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import care_bot as cb
+    f = await request.form()
+    c = cb.save_form(db, f)
+    audit(db, "settings.care_bot", "settings", None, user=user, on=[k for k, v in c["features"].items() if v])
+    return RedirectResponse(_with_msg("/settings/care-bot", "Збережено"), 303)
 
 
 @app.get("/settings/reviews", response_class=HTMLResponse)

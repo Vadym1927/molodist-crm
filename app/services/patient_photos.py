@@ -1,4 +1,4 @@
-"""Фото й документи пацієнтів за категоріями: згоди, обличчя, тіло, документи.
+"""Фото й документи пацієнтів за категоріями: обличчя, тіло, згоди, документи, аналізи.
 Категорію можна задати вручну (PatientFile.category); якщо не задано — визначається з типу файлу, підпису й зони."""
 from __future__ import annotations
 
@@ -13,7 +13,8 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..models import Patient, PatientFile
 
-CATS = {"face": "Обличчя", "body": "Тіло", "consent": "Згоди", "doc": "Документи"}
+CATS = {"face": "Обличчя", "body": "Тіло", "consent": "Згоди", "doc": "Документи", "lab": "Аналізи"}
+_LAB = re.compile(r"аналіз|analiz|analys|лаборатор|синево|synevo|\bdila\b|\bділа\b|есколаб|біохім|гормон", re.I)
 _CONSENT = re.compile(r"згод|згід|consent|догов|анкет|інформ", re.I)
 _DOC = re.compile(r"паспорт|документ|аналіз|довідк|висновок|рецепт|\.pdf$|\.docx?$|\.xlsx?$", re.I)
 _BODY = re.compile(r"тіл|body|живіт|живот|ноги|нога|стегн|сідниц|спин|рук[аи]|плеч|груд|талі|колін|целюліт|пахв", re.I)
@@ -33,6 +34,8 @@ def guess(f: PatientFile) -> str:
     text = " ".join(x for x in (f.caption, f.zone, Path(f.path or "").name) if x)
     if _CONSENT.search(text):
         return "consent"
+    if _LAB.search(text):
+        return "lab"
     if not is_image(f) or _DOC.search(text):
         return "doc"
     if _BODY.search(text):

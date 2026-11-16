@@ -16,7 +16,8 @@ def _png() -> bytes:
 
 def test_guess():
     assert pp.guess(PatientFile(kind="photo", path="x/1_zgoda.jpg", caption="Згода на процедуру")) == "consent"
-    assert pp.guess(PatientFile(kind="doc", path="x/analiz.pdf")) == "doc"
+    assert pp.guess(PatientFile(kind="doc", path="x/analiz.pdf")) == "lab" and pp.guess(PatientFile(kind="doc", path="x/pasport.pdf")) == "doc"
+    assert pp.guess(PatientFile(kind="photo", path="x/a.jpg", caption="Аналізи крові Синево")) == "lab"
     assert pp.guess(PatientFile(kind="photo", path="x/a.jpg", zone="Живіт")) == "body"
     assert pp.guess(PatientFile(kind="photo", path="x/a.jpg")) == "face"
 
