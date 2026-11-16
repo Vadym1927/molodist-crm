@@ -11012,6 +11012,10 @@ async def paycal_item_act(iid: int, act: str, request: Request, user: User = Dep
         it.status = "skipped"
         msg = f"Пропущено: {it.name}"
     elif act == "reopen":
+        _pc.release_dead(db, it.finop_id) if it.finop_id else None      # операцію вже видалено / сторновано — платіж вільний
+        db.refresh(it)
+        if it.status in ("planned", "approved") and not it.finop_id:
+            return RedirectResponse(_with_msg(back, f"Повернуто в план: {it.name}"), 303)
         if it.finop_id:
             return RedirectResponse(_with_msg(back, "Платіж закритий фіноперацією — спершу видаліть її в журналі", err=True), 303)
         it.status, it.paid_at, it.amount_fact = ("planned" if (it.plan and it.plan.needs_approval) else "approved"), None, None
@@ -11606,6 +11610,7 @@ def finance_op_storno(num: str = Form(...), comment: str = Form(""), back: str =
               comment=comment.strip()[:500], created_by=user.id)
     db.add(y)
     db.commit()
+    __import__("app.services.paycal", fromlist=["release_dead"]).release_dead(db, x.id)     # платіж календаря повертається в план
     audit(db, "fin.op_storno", "fin_op", x.id, user=user, storno=y.id, amount=x.amount, comment=y.comment)
     return RedirectResponse(_with_msg(back, f"Сторно CRM-{x.id} записано як CRM-{y.id}"), 303)
 
@@ -11622,6 +11627,7 @@ def finance_op_delete(oid: int, del_password: str = Form(""), back: str = Form("
     if x and not x.deleted_at:
         x.deleted_at = datetime.utcnow()
         db.commit()
+        __import__("app.services.paycal", fromlist=["release_dead"]).release_dead(db, oid)     # платіж календаря повертається в план
         audit(db, "fin.op_delete", "fin_op", oid, user=user, category=x.category, amount=x.amount)
     return RedirectResponse(_with_msg(back, "Операцію видалено"), 303)
 

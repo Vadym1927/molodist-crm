@@ -57,6 +57,18 @@ def test_calendar_flow():
             op = pc.pay(db, zp[0], 12000, date(y, m, 15), "Готівка", None)
             assert op.kind == "expense" and op.category == "Персонал Зарплата" and op.ref == f"paycal:{zp[0].id}"
             assert db.get(PayItem, zp[0].id).status == "paid"
+            # операцію видалено → платіж повертається в план; нова менша операція закриває його своєю сумою
+            fid = db.get(PayItem, rent.id).finop_id
+            db.get(FinOp, fid).deleted_at = datetime.utcnow()
+            db.commit()
+            assert pc.release_dead(db) >= 1
+            rent = db.get(PayItem, rent.id)
+            assert rent.status == "approved" and rent.finop_id is None and rent.amount_fact is None
+            db.add(FinOp(day=date(y, m, 14), kind="expense", category="Оренда тест", amount=5000, cashbox="Готівка"))
+            db.commit()
+            pc.match_paid(db, [rent])
+            rent = db.get(PayItem, rent.id)
+            assert rent.status == "paid" and rent.amount_fact == 5000
             # дайджест
             txt = pc.digest_text(db, today=date(y, m, 30))
             assert txt and "ЗП тест" in txt

@@ -103,6 +103,27 @@ def _pull_payreqs(db: Session) -> int:
     return n
 
 
+def release_dead(db: Session, finop_id: int | None = None) -> int:
+    """Оплачені платежі, чию фіноперацію видалено або сторновано, повертаються в план (щоб їх можна було оплатити заново
+    або щоб до них привʼязалась нова операція). finop_id — лише платежі цієї операції; None — перевірити всі."""
+    q = select(PayItem).where(PayItem.finop_id.is_not(None))
+    if finop_id is not None:
+        q = q.where(PayItem.finop_id == finop_id)
+    n = 0
+    for it in db.scalars(q).all():
+        op = db.get(FinOp, it.finop_id)
+        dead = op is None or op.deleted_at is not None or bool(
+            db.scalar(select(FinOp.id).where(FinOp.storno_of == it.finop_id, FinOp.deleted_at.is_(None))))
+        if not dead:
+            continue
+        it.finop_id, it.paid_at, it.amount_fact = None, None, None
+        it.status = "planned" if (it.plan and it.plan.needs_approval and not it.approved_at) else "approved"
+        n += 1
+    if n:
+        db.commit()
+    return n
+
+
 def match_paid(db: Session, items: list[PayItem]) -> int:
     """Незакриті платежі ↔ фіноперації CRM: та сама стаття (і рахунок, якщо вказано) у вікні дат, одна операція — один платіж."""
     used = {i.finop_id for i in db.scalars(select(PayItem).where(PayItem.finop_id.is_not(None)))}
@@ -326,6 +347,7 @@ def month_view(db: Session, y: int, m: int, group: str = "", status: str = "", t
     ensure_month(db, y, m)
     first, last = date(y, m, 1), date(y, m, calendar.monthrange(y, m)[1])
     items = db.scalars(select(PayItem).where(PayItem.due >= first - timedelta(days=45), PayItem.due <= last).order_by(PayItem.due, PayItem.id)).all()
+    release_dead(db)
     match_paid(db, [i for i in items if not dyn_kind(i)])
     refresh_dynamic(db, items, today)
     items = db.scalars(select(PayItem).where(PayItem.due >= first - timedelta(days=45), PayItem.due <= last,
@@ -417,6 +439,7 @@ def digest_text(db: Session, today: date | None = None) -> str | None:
     ensure_month(db, today.year, today.month)
     items = db.scalars(select(PayItem).where(PayItem.due <= today + timedelta(days=2), PayItem.due >= today - timedelta(days=60),
                                              PayItem.status.in_(("planned", "approved"))).order_by(PayItem.due)).all()
+    release_dead(db)
     match_paid(db, items)
     items = [i for i in items if i.status in ("planned", "approved")]
     if not items:

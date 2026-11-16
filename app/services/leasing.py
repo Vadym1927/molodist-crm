@@ -203,8 +203,11 @@ def _jar_balance(db: Session) -> dict:
 def build(db: Session, today: date | None = None) -> dict:
     today = today or date.today()
     rows = []
+    from . import paycal as _pc
+    _pc.release_dead(db)                       # платежі зі скасованою фіноперацією — назад у план
     for c in contracts(db):
         items = db.scalars(select(PayItem).where(PayItem.plan_id == c["plan_id"]).order_by(PayItem.due)).all() if c.get("plan_id") else []
+        _pc.match_paid(db, items)              # нова операція тієї ж статті закриває платіж своєю сумою
         paid_crm = round(sum(float(i.amount_fact or i.amount or 0) for i in items if i.status == "paid"), 2)
         paid = round(float(c.get("paid_before") or 0) + paid_crm, 2)
         left = round(max(float(c.get("total") or 0) - paid, 0), 2)
