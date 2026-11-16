@@ -67,6 +67,7 @@
     <label>Правила подарункових сертифікатів<textarea name="cert_rules" rows="5">{{ c.cert_rules }}</textarea></label>
     <label>Про абонементи<textarea name="sub_rules" rows="3">{{ c.sub_rules }}</textarea></label>
     <label>Загальне правило<textarea name="loyalty_note" rows="2">{{ c.loyalty_note }}</textarea></label>
+    <label>Бот турботи (посилання на Telegram-бот)<input type="text" name="care_bot" value="{{ c.care_bot }}" placeholder="https://t.me/…"></label>
   </div>
 
   <h2 style="margin-top:18px">Картка посилання в соцмережах і месенджерах</h2>
@@ -82,7 +83,8 @@
       <label>Мітка<input type="text" name="g_tag_{{ loop.index0 }}" value="{{ g.tag or '' }}" placeholder="Лазер, Догляд…"></label>
       <label class="ck"><input type="checkbox" name="g_on_{{ loop.index0 }}" value="1" {{ 'checked' if g.get('on', True) }}> показувати</label></div>
     <label>Пункти<textarea name="g_text_{{ loop.index0 }}" rows="{{ [(g.text or '').splitlines()|length + 1, 3]|max }}">{{ g.text or '' }}</textarea></label>
-    <label>Посилання на повний гайд<input type="text" name="g_url_{{ loop.index0 }}" value="{{ g.url or '' }}" placeholder="https://…"></label></div>{% endfor %}
+    <label>Посилання на повний гайд (PDF — кнопка «Завантажити»)<input type="text" name="g_url_{{ loop.index0 }}" value="{{ g.url or '' }}" placeholder="https://… або /static/site/guides/….pdf"></label>
+    <label>Обкладинка<input type="text" name="g_img_{{ loop.index0 }}" value="{{ g.img or '' }}" placeholder="/static/site/guides/….webp"></label></div>{% endfor %}
 
   <h2 style="margin-top:18px">Питання про запис</h2>
   <label>По одному в рядку: <b>Питання | Відповідь</b><textarea name="faq" rows="{{ [c.faq|length + 1, 4]|max }}">{% for q, a in c.faq %}{{ q }} | {{ a }}

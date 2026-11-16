@@ -28,35 +28,72 @@ from ..models import Appointment, CbService, DayOff, Doctor, Patient, StaffShift
 KEY = "online_booking"
 SLUG = "zapys"
 GUIDES_DEFAULT = [
-    {"title": "Перший візит у MOLODIST", "tag": "Знайомство", "on": True,
+    {"title": "Тарілка здорового харчування 360", "tag": "Харчування", "on": True,
+     "url": "/static/site/guides/tarilka-360.pdf", "img": "/static/site/guides/tarilka-360.webp",
+     "text": "Проста інфографіка за матеріалами Гарвардської школи громадського здоровʼя: як скласти збалансовану тарілку — "
+             "½ овочі й фрукти, ¼ цільнозернові продукти, ¼ білок і трохи корисних рослинних олій. "
+             "Збалансоване харчування — основа здорової шкіри й профілактики передчасного старіння. "
+             "Роздрукуйте памʼятку й прикріпіть на холодильник — вона щодня нагадуватиме про правильний вибір."},
+    {"title": "Самодіагностика молочних залоз", "tag": "Профілактика", "on": True,
+     "url": "/static/site/guides/samodiahnostyka-molochnykh-zaloz.pdf", "img": "/static/site/guides/samodiahnostyka-molochnykh-zaloz.webp",
+     "text": "Рак молочної залози, виявлений на ранній стадії, добре лікується: пʼятирічна виживаність перевищує 90%. "
+             "У гайді — покроковий самоогляд: перед дзеркалом, стоячи й лежачи, з ілюстраціями до кожного кроку. "
+             "Оглядайте груди щомісяця на 5–10 день циклу, у менопаузі — в одну й ту саму дату. "
+             "Самоогляд не замінює УЗД і мамографію: будь-яку зміну покажіть лікарю."},
+    {"title": "Як зрозуміти, що родимку потрібно перевірити", "tag": "Профілактика", "on": True,
+     "url": "/static/site/guides/kontrol-rodymok.pdf", "img": "/static/site/guides/kontrol-rodymok.webp",
+     "text": "Більшість родимок доброякісні, але деякі з часом змінюються — і важливо помітити це вчасно. "
+             "Гайд пояснює правило ABCDE: асиметрія, нерівні краї, неоднорідний колір, діаметр понад 6 мм і зміни з часом. "
+             "Окремо — чого не робити з новоутвореннями і коли показати родимку лікарю найближчим часом. "
+             "Регулярний самоогляд і профілактична дерматоскопія допомагають виявити небезпечні зміни на ранній стадії."},
+
+    {"title": "Перший візит у MOLODIST", "tag": "Знайомство", "on": False,
      "text": "Прийдіть за 5–10 хвилин до початку — адміністратор зустріне вас і допоможе заповнити анкету.\n"
              "Візьміть із собою результати аналізів і список засобів домашнього догляду, якщо вони є.\n"
              "Розкажіть лікарю про алергії, хронічні стани й препарати, які приймаєте, — це впливає на вибір методик.\n"
              "Консультація починається з огляду й діагностики: лікар пояснить варіанти й складе план, а рішення завжди за вами."},
-    {"title": "Підготовка до лазерної епіляції", "tag": "Лазер", "on": True,
+    {"title": "Підготовка до лазерної епіляції", "tag": "Лазер", "on": False,
      "text": "За 2 тижні до процедури не засмагайте й не відвідуйте солярій.\n"
              "За 4 тижні не видаляйте волосся воском, шугарингом чи епілятором — лише гоління.\n"
              "За добу до візиту поголіть зону процедури.\n"
              "У день процедури не наносьте на шкіру креми, дезодоранти й олії.\n"
              "Попередьте лікаря про прийом ліків і загострення шкірних станів — процедуру, можливо, варто перенести."},
-    {"title": "Після інʼєкційних процедур", "tag": "Інʼєкції", "on": True,
+    {"title": "Після інʼєкційних процедур", "tag": "Інʼєкції", "on": False,
      "text": "У перші години не торкайтеся зони процедури й не наносьте декоративну косметику.\n"
              "1–2 тижні уникайте сауни, лазні, солярію та активної засмаги; кілька днів — інтенсивних тренувань.\n"
              "Легкий набряк чи синець у місці інʼєкції — можлива реакція, яка зазвичай минає за кілька днів.\n"
              "Дотримуйтеся індивідуальних рекомендацій лікаря — вони мають пріоритет над загальними.\n"
              "Якщо щось турбує — напишіть або зателефонуйте нам, ми на звʼязку."},
-    {"title": "Домашній догляд між візитами", "tag": "Догляд", "on": True,
+    {"title": "Домашній догляд між візитами", "tag": "Догляд", "on": False,
      "text": "Базовий догляд — це очищення, зволоження й сонцезахист щодня, незалежно від сезону.\n"
              "Активні засоби (кислоти, ретиноїди) підбирає лікар — не поєднуйте їх самостійно.\n"
              "SPF наносьте вранці як останній етап догляду й оновлюйте протягом дня на відкритому сонці.\n"
              "Засоби, призначені лікарем, можна придбати в нашому магазині косметики з доставкою."},
+]
+FAQ_SEO = [
+    ["Як записатися до косметолога чи дерматолога в Києві онлайн?",
+     "Оберіть послугу на цій сторінці, лікаря та вільний час — запис займає хвилину і не потребує дзвінка. Підтвердження надійде одразу, "
+     "а напередодні візиту адміністратор нагадає про запис. Записатися можна на консультацію дерматокосметолога, ботулінотерапію, "
+     "контурну пластику, біоревіталізацію, лазерну епіляцію, IPL-терапію, RF-ліфтинг, апаратний масаж STRATOSPHERE, пілінги й очищення шкіри."],
+    ["З чого почати, якщо я вперше в MOLODIST?",
+     "З консультації Beauty Plan: лікар проводить діагностику шкіри, визначає тип старіння й складає персональний план процедур і домашнього догляду. "
+     "Так ви отримуєте результат курсом, а не випадковими процедурами, і точно знаєте, що, коли і навіщо робити."],
+    ["Де знаходиться MOLODIST і як доїхати?",
+     "Медичний простір MOLODIST — у Києві на лівому березі: вул. Князя Романа Мстиславича, 28А, ЖК «Автограф», поруч зі станціями метро "
+     "«Дарниця» та «Чернігівська». Для входу на територію — домофон 15#. Працюємо з вівторка по суботу, 10:00–20:00."],
+    ["Скільки коштують послуги?",
+     "Актуальні ціни на всі послуги — у розділі «Прайс» на цій сторінці. Остаточну вартість лікар підтверджує після огляду, "
+     "бо обсяг процедури залежить від стану шкіри та зони. Курси процедур вигідніше брати абонементом."],
+    ["Чи діють знижки й акції?",
+     "Так: −50% на перший візит з лазерної епіляції, перший апаратний масаж STRATOSPHERE за 1 500 ₴, −15% для військовослужбовців ЗСУ "
+     "та −10% до дня народження. Програми лояльності між собою не сумуються."],
 ]
 FAQ_DEFAULT = [
     ["Чи потрібна передоплата?", "Ні, запис безкоштовний. Оплата — після візиту: карткою або готівкою."],
     ["Як перенести або скасувати запис?", "За посиланням «Мій запис», яке ви отримаєте після запису, або зателефонуйте чи напишіть нам. Будь ласка, попереджайте щонайменше за 3 години."],
     ["Не знаю, яку процедуру обрати. Що робити?", "Запишіться на консультацію лікаря — він огляне шкіру, пояснить варіанти й складе план. Або залиште номер, і адміністратор допоможе з вибором."],
     ["Чи підтверджують запис?", "Так, адміністратор звʼяжеться з вами напередодні візиту, щоб підтвердити час."],
-]
+] + FAQ_SEO
 DEFAULT = {
     "on": False,                 # сторінка опублікована на сайті (поки вимкнено — лише перегляд у CRM)
     "step": 30,                  # крок сітки часу, хв
@@ -73,6 +110,7 @@ DEFAULT = {
     "faq": FAQ_DEFAULT,
     "certs_on": True,
     "subs_on": True,
+    "care_bot": "",             # посилання на Бот турботи (Telegram)
     # правила програми лояльності (як в онлайн-записі CleverBox, 16.11.2026)
     "promos": "Лазерна епіляція: −50% на перший візит від основної вартості, комплекси зон — зі знижкою 15%\n"
               "Апаратний масаж STRATOSPHERE: перший візит — 1 500 ₴, щоб ви могли оцінити результат на оригінальному апараті\n"
@@ -162,7 +200,7 @@ def save_form(db: Session, f) -> dict:
     c["cancel_h"] = _int(f.get("cancel_h"), 0, 168, 3)
     c["max_active"] = _int(f.get("max_active"), 1, 10, 2)
     c["certs_on"], c["subs_on"] = bool(f.get("certs_on")), bool(f.get("subs_on"))
-    for k, n in (("shop_url", 300), ("shop_text", 300), ("note", 300), ("hero_img", 120), ("og_title", 120), ("og_desc", 300)):
+    for k, n in (("care_bot", 200), ("shop_url", 300), ("shop_text", 300), ("note", 300), ("hero_img", 120), ("og_title", 120), ("og_desc", 300)):
         c[k] = str(f.get(k) or "").strip()[:n]
     for k in ("promos", "cert_rules", "sub_rules", "loyalty_note"):
         if f.get(k) is not None:
@@ -176,7 +214,8 @@ def save_form(db: Session, f) -> dict:
         if not t:
             continue
         guides.append({"title": t[:120], "tag": str(f.get(f"g_tag_{i}") or "").strip()[:40], "on": bool(f.get(f"g_on_{i}")),
-                       "text": str(f.get(f"g_text_{i}") or "").strip()[:4000], "url": str(f.get(f"g_url_{i}") or "").strip()[:500]})
+                       "text": str(f.get(f"g_text_{i}") or "").strip()[:4000], "url": str(f.get(f"g_url_{i}") or "").strip()[:500],
+                       "img": str(f.get(f"g_img_{i}") or "").strip()[:500]})
     c["guides"] = guides
     save_cfg(db, c)
     return c
@@ -337,12 +376,28 @@ def pricelist(db: Session, online_ids: set[int] | None = None) -> list[dict]:
             for k, v in sorted(cats.items(), key=lambda kv: (order.get(kv[0], 100), kv[0]))]
 
 
-def doctor_cards(db: Session, ids: list[int] | None = None, base: str = "/_site", c: dict | None = None) -> list[dict]:
+def team_cards(db: Session, base: str = "/_site", c: dict | None = None) -> list[dict]:
+    """Блок «Наші лікарі»: головна лікарка, далі лікарі в порядку сайту (Колган, Сирова, Чугунова) — зокрема ті,
+    до кого немає онлайн-запису; потім інші спеціалісти з онлайн-записом."""
+    from . import site_pages as sp
+    keys = list(sp.DOCTORS)
+    staff = {d.id: d for d in _staff(db)}
+    extra = [d.id for d in staff.values() if any(v["match"] in (d.name or "").lower() for v in sp.DOCTORS.values())]
+    cards = doctor_cards(db, None, base, c, include=set(extra))
+
+    def rank(x):
+        low = (staff[x["id"]].name or "").lower() if x["id"] in staff else ""
+        return next((i for i, k in enumerate(keys) if sp.DOCTORS[k]["match"] in low), len(keys))
+    return sorted(cards, key=rank)
+
+
+def doctor_cards(db: Session, ids: list[int] | None = None, base: str = "/_site", c: dict | None = None, include: set | None = None) -> list[dict]:
     """Короткі картки лікарів: текст сайту (site_pages.DOCTORS) або посада й біо з картки спеціаліста CRM."""
     from . import site_pages as sp
     out = []
-    for d in online_doctors(db, c):
-        if ids is not None and d.id not in ids:
+    on = {d.id for d in online_doctors(db, c)} | set(include or ())
+    for d in _staff(db):
+        if d.id not in on or (ids is not None and d.id not in ids):
             continue
         low = (d.name or "").lower()
         key, sd = next(((k, v) for k, v in sp.DOCTORS.items() if v["match"] in low), (None, None))
@@ -758,8 +813,7 @@ def order(db: Session, data: dict, base_url: str, c: dict | None = None) -> dict
     d = {**{k: v for k, v in data.items() if k.startswith("utm_") or k in ("gclid", "cid", "page")},
          "name": name, "phone": phone, "interest": title, "formname": f"{SLUG}:{kind}",
          "comment": f"{title} · {it['price']:.0f} ₴" + (f" · для кого: {to}" if to else "") + (f", {to_phone}" if to_phone else "")}
-    nominal = float(it.get("nominal") or it["price"])
-    purpose = (f"Послуги краси, номінал {nominal:,.0f} ₴".replace(",", " ") if kind == "cert" else f"{title} (MOLODIST)")
+    purpose = "Послуги краси" if kind == "cert" else f"{title} (MOLODIST)"
     r = sl.ingest(db, d)
     out = {"ok": bool(r.get("ok")), "title": title, "price": it["price"], "appeal_id": r.get("appeal_id"), "lead": d, "res": r}
     try:
@@ -843,3 +897,36 @@ def apply_cb_seed(db: Session, force: bool = False) -> dict:
     db.commit()
     reset_cache()
     return {"online": on, "not_in_crm": missing, "doctors": sorted(used)}
+
+
+def apply_guides_20261116(db: Session) -> dict:
+    """Один раз (рішення власника 16.11.2026): гайди — три PDF (тарілка 360, молочні залози, родимки); старі чотири — вимкнено."""
+    flag = "online_guides_20261116"
+    if db.get(SyncState, flag):
+        return {"skipped": True}
+    c = cfg(db)
+    c["guides"] = json.loads(json.dumps(GUIDES_DEFAULT))
+    have = {q for q, _ in c.get("faq") or []}
+    c["faq"] = list(c.get("faq") or []) + [x for x in FAQ_SEO if x[0] not in have]
+    save_cfg(db, c)
+    db.merge(SyncState(key=flag, value="1", updated_at=datetime.utcnow()))
+    db.commit()
+    return {"ok": True, "guides": len(c["guides"])}
+
+
+def jsonld(site_c: dict, c: dict, url: str, prices: list[dict]) -> str:
+    """Розмітка schema.org для сторінки запису: медичний заклад (адреса, графік, геопозиція) + FAQ."""
+    clinic = {"@type": "MedicalClinic", "name": "MOLODIST", "url": site_c.get("main_url") or url, "telephone": site_c.get("phone"),
+              "description": "Медичний простір естетики та профілактики в Києві: дерматокосметологія, ботулінотерапія, контурна пластика, "
+                             "біоревіталізація, лазерна епіляція, IPL-терапія, RF-ліфтинг.",
+              "address": {"@type": "PostalAddress", "streetAddress": "вул. Князя Романа Мстиславича, 28А", "addressLocality": "Київ",
+                          "addressCountry": "UA"},
+              "openingHoursSpecification": [{"@type": "OpeningHoursSpecification", "dayOfWeek": ["Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+                                             "opens": "10:00", "closes": "20:00"}],
+              "potentialAction": {"@type": "ReserveAction", "target": url}}
+    lo = min((g["lo"] for g in prices), default=0)
+    if lo:
+        clinic["priceRange"] = f"від {lo:,.0f} ₴".replace(",", " ")
+    faq = {"@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": a}}
+                                              for q, a in (c.get("faq") or [])]}
+    return json.dumps({"@context": "https://schema.org", "@graph": [clinic, faq]}, ensure_ascii=False)

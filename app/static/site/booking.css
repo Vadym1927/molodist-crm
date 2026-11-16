@@ -191,3 +191,16 @@
 .ob-promo{margin-top:18px;background:var(--w);border:1px solid var(--greige);border-radius:22px;padding:22px 24px}
 .ob-promo h3{margin:0 0 12px;font:600 20px/1.2 var(--hf);text-transform:uppercase;letter-spacing:.02em}.ob-promo ul{list-style:none;margin:0;padding:0;display:grid;gap:10px}
 .ob-lnote{margin:14px 0 0;font-weight:600;color:var(--plum)}
+/* акції — окремим блоком вище */
+.ob-akc{background:var(--cream)}.ob-promo-grid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+.ob-promo-grid li{background:var(--w);border:1px solid var(--greige);border-radius:20px;padding:20px 22px;font-size:15px;line-height:1.45}
+.ob-promo-grid li:first-line{font-weight:600}
+/* гайди PDF */
+.ob-gpdf{background:var(--cream);border-radius:20px;padding:18px;display:grid;grid-template-columns:120px minmax(0,1fr);gap:18px;align-items:start}
+.ob-gpdf .cov img{width:100%;height:auto;border-radius:10px;display:block;box-shadow:0 6px 18px rgba(42,36,48,.12)}
+.ob-gpdf h3{font:600 17px/1.25 var(--hf);margin:6px 0 8px;text-transform:none}.ob-gpdf p{margin:0 0 8px;font-size:14px;line-height:1.5;color:#4A4352}
+.ob-gpdf .act{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:12px}
+@media (max-width:640px){.ob-gpdf{grid-template-columns:90px minmax(0,1fr);gap:14px}}
+/* карта */
+.ob-map{margin-top:28px;border-radius:22px;overflow:hidden;border:1px solid var(--greige);aspect-ratio:16/7;background:var(--greige)}
+.ob-map iframe{width:100%;height:100%;border:0;display:block}@media (max-width:640px){.ob-map{aspect-ratio:4/3}}

@@ -1,4 +1,5 @@
 """Онлайн-запис на сайті (/zapys): каталог, вільний час з графіка, запис, скасування, сертифікати, публікація."""
+import json
 from datetime import date, datetime, timedelta
 
 from fastapi.testclient import TestClient
@@ -236,3 +237,38 @@ def test_sub_view_saving():
     v3 = ob.sub_view(None, {"id": 4, "name": "АБОНЕМЕНТ МІКРОГОЛКОВИЙ RF ОДНА НАСАДКА + ЕКЗОСОМИ КУРС 3", "price": 64800, "visits": 3, "desc": ""}, by2)
     assert v1["title"].startswith("Мікроголковий RF одна насадка") and v1["one"] == 16000 and v1["pct"] == 10
     assert v2["one"] == 26200 and v3["one"] == 24000
+
+
+def test_guides_pdf_and_faq_migration():
+    from app.models import SyncState
+    with SessionLocal() as db:
+        st = db.get(SyncState, "online_guides_20261116")
+        if st:
+            db.delete(st); db.commit()
+        r = ob.apply_guides_20261116(db)
+        assert r.get("ok") and ob.apply_guides_20261116(db).get("skipped")
+        c = ob.cfg(db)
+        on = [g for g in c["guides"] if g.get("on")]
+        assert [g["url"].endswith(".pdf") for g in on] == [True, True, True] and len(c["guides"]) == 7
+        assert any("Де знаходиться MOLODIST" in q for q, _ in c["faq"])
+        js = json.loads(ob.jsonld({"phone": "+380", "main_url": "https://x"}, c, "https://x/zapys", [{"lo": 250}]))
+        assert js["@graph"][0]["@type"] == "MedicalClinic" and js["@graph"][1]["mainEntity"]
+    import os
+    for g in on:
+        assert os.path.exists("app" + g["url"]) and os.path.exists("app" + g["img"])
+
+
+def test_team_order_head_doctor_first():
+    from app.models import Doctor
+    with SessionLocal() as db:
+        ids = []
+        for n in ("Чугунова Анна Тест", "Колган Дарʼя Тест", "Сирова Софія Тест"):
+            d = Doctor(name=n, active=True); db.add(d); db.flush(); ids.append(d.id)
+        db.commit()
+        c = ob.cfg(db); c["doctors_off"] = [ids[1]]
+        t = [x for x in ob.team_cards(db, "/_site", c) if x["id"] in ids]
+        assert [x["name"] for x in t] == ["Дарʼя Колган", "Софія Сирова", "Анна Чугунова"]
+        assert ids[1] not in {x["id"] for x in ob.doctor_cards(db, None, "/_site", c)}
+        for i in ids:
+            db.delete(db.get(Doctor, i))
+        db.commit()
