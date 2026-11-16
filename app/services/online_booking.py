@@ -679,3 +679,48 @@ def set_services(db: Session, on_ids: set[int], shown_ids: set[int]) -> int:
             sv.online, n = want, n + 1
     db.commit()
     return n
+
+
+def apply_cb_seed(db: Session, force: bool = False) -> dict:
+    """Один раз: послуги й спеціалісти — як в онлайн-записі CleverBox (online_cb_seed.json, 16.11.2026, рішення власника).
+    Послуги зі списку — «онлайн», решта — ні; «хто надає» — зі списку (лікар за імʼям); без лікаря — за історією записів.
+    Спеціалісти, яких немає в онлайн-записі CleverBox, — вимкнені з онлайн-запису."""
+    from pathlib import Path
+    flag = "online_cb_seed_20261116"
+    if db.get(SyncState, flag) and not force:
+        return {"skipped": True}
+    data = json.loads((Path(__file__).with_name("online_cb_seed.json")).read_text(encoding="utf-8"))["services"]
+    have = {str(i) for (i,) in db.execute(select(CbService.id))}
+    if not force and len(have & set(data)) < len(data) // 2:
+        return {"skipped": True, "reason": "прайс CleverBox ще не завантажено"}       # інша база (порожня / тестова) — не чіпаємо
+    docs = {" ".join((d.name or "").lower().split()): d for d in db.scalars(select(Doctor))}
+
+    def doc(name: str):
+        k = " ".join(name.lower().split())
+        if k in docs:
+            return docs[k]
+        a = set(k.split())
+        return next((d for n, d in docs.items() if a == set(n.split())), None)
+    on = missing = 0
+    used: set[int] = set()
+    for sv in db.scalars(select(CbService)):
+        names = data.get(str(sv.id))
+        if names is None:
+            sv.online = False
+            continue
+        sv.online = True
+        on += 1
+        ids = [d.id for d in (doc(n) for n in names) if d]
+        sv.doctor_ids = ids or None
+        used |= set(ids)
+    missing = len(set(data) - {str(i) for (i,) in db.execute(select(CbService.id))})
+    c = cfg(db)
+    if used:
+        c["doctors_off"] = sorted(d.id for d in _staff(db) if d.id not in used)
+        st = db.get(SyncState, KEY) or SyncState(key=KEY)
+        st.value, st.updated_at = json.dumps(c, ensure_ascii=False), datetime.utcnow()
+        db.merge(st)
+    db.merge(SyncState(key=flag, value=datetime.now().isoformat(timespec="minutes"), updated_at=datetime.utcnow()))
+    db.commit()
+    reset_cache()
+    return {"online": on, "not_in_crm": missing, "doctors": sorted(used)}
