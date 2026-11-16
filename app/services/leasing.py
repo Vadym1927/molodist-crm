@@ -200,18 +200,17 @@ def _jar_balance(db: Session) -> dict:
     return {"balance": float(box["balance"]) if box else 0.0, "src": "каса CRM «Банка OBSERV 520x»"}
 
 
-def _adopt_copies(db: Session) -> int:
-    """Копії платежів договору (⧉ у календарі), створені без привʼязки, — до свого договору за назвою; інакше звіт їх не бачить."""
-    plans = {p.name: p.id for p in db.scalars(select(PayPlan).where(PayPlan.group == "debt"))}
-    n = 0
-    for it in db.scalars(select(PayItem).where(PayItem.plan_id.is_(None), PayItem.group == "debt", PayItem.source == "manual")):
-        pid = plans.get(it.name)
-        if pid:
-            it.plan_id = pid
-            n += 1
-    if n:
-        db.commit()
-    return n
+def _items(db: Session, plan_id: int | None) -> list[PayItem]:
+    """Платежі договору: за графіком + копії (⧉ у календарі) з тією ж назвою без привʼязки до договору.
+    plan_id копіям не ставимо — у календарі унікальність (договір, дата), а копія часто на ту саму дату."""
+    if not plan_id:
+        return []
+    plan = db.get(PayPlan, plan_id)
+    q = select(PayItem).where(PayItem.plan_id == plan_id)
+    out = list(db.scalars(q))
+    if plan:
+        out += list(db.scalars(select(PayItem).where(PayItem.plan_id.is_(None), PayItem.group == "debt", PayItem.name == plan.name)))
+    return sorted(out, key=lambda i: (i.due, i.id))
 
 
 def build(db: Session, today: date | None = None) -> dict:
@@ -219,9 +218,9 @@ def build(db: Session, today: date | None = None) -> dict:
     rows = []
     from . import paycal as _pc
     _pc.release_dead(db)                       # платежі зі скасованою фіноперацією — назад у план
-    _adopt_copies(db)
+
     for c in contracts(db):
-        items = db.scalars(select(PayItem).where(PayItem.plan_id == c["plan_id"]).order_by(PayItem.due)).all() if c.get("plan_id") else []
+        items = _items(db, c.get("plan_id"))
         _pc.match_paid(db, items)              # нова операція тієї ж статті закриває платіж своєю сумою
         paid_crm = round(sum(float(i.amount_fact or i.amount or 0) for i in items if i.status == "paid"), 2)
         paid = round(float(c.get("paid_before") or 0) + paid_crm, 2)
