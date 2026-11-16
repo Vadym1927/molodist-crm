@@ -215,7 +215,7 @@
       er.hidden = true;
       post('/api/cab/start', { phone: lf.phone.value, website: lf.website.value }, function (j) {
         if (!j.ok) return fail(j.msg);
-        s1.hidden = true; s2.hidden = false; $('[data-new]', lf).hidden = !j.new;
+        s1.hidden = true; s2.hidden = false; $$('[data-new]', lf).forEach(function (x) { x.hidden = !j.new; });
         $('[data-sent]', lf).textContent = 'Код надіслано ' + (j.channel === 'telegram' ? 'у Telegram (бот турботи MOLODIST)' : 'в SMS на ' + j.to) + '. Діє 5 хвилин.';
         lf.code.value = ''; lf.code.focus();
       });
@@ -227,7 +227,7 @@
       er.hidden = true;
       var nw = !$('[data-new]', lf).hidden, ln = lf.last_name.value.trim(), fn = lf.first_name.value.trim();
       if (nw && (ln.length < 2 || fn.length < 2)) return fail('Вкажіть прізвище та імʼя.');
-      post('/api/cab/verify', { phone: lf.phone.value, code: lf.code.value, name: (ln + ' ' + fn).trim(), remember: lf.remember.checked, wish: favs() }, function (j) {
+      post('/api/cab/verify', { phone: lf.phone.value, code: lf.code.value, name: (ln + ' ' + fn).trim(), ref: lf.ref.value.trim(), remember: lf.remember.checked, wish: favs() }, function (j) {
         if (!j.ok) return fail(j.msg);
         try { localStorage.setItem(FK, JSON.stringify(j.wish || [])); } catch (x) {}
         location.reload();

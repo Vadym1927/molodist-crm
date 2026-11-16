@@ -234,7 +234,7 @@ def register(app, templates, version: str):
             return JSONResponse({"ok": False, "msg": "Забагато спроб. Спробуйте пізніше."}, status_code=429)
         try:
             token, days, acc = sc.verify(db, c, d.get("phone"), d.get("code"), d.get("name") or "", bool(d.get("remember", True)),
-                                         request.cookies.get(sc.REF_COOKIE) or "", request.headers.get("user-agent") or "")
+                                         str(d.get("ref") or "").strip() or request.cookies.get(sc.REF_COOKIE) or "", request.headers.get("user-agent") or "")
         except sc.CabError as e:
             return JSONResponse({"ok": False, "msg": str(e)}, status_code=400)
         if d.get("wish"):
@@ -289,12 +289,14 @@ def register(app, templates, version: str):
         cx = ctx(request, db, "/cabinet/")
         cx.update(title="Особистий кабінет — MOLODIST", desc="", noindex_page=True, private=True, tabs=sc.TABS, np=bool((cx["s"].get("np_key") or "").strip()))
         if not cx["me"]:
+            cx.update(ref_pre=(cx["ref_in"] or request.cookies.get(sc.REF_COOKIE) or "").upper()[:20])
             return resp(request, "shop/cab_login.html", cx)
         acc, p = cx["me"], cx["me_p"]
         t = t if t in dict(sc.TABS) else "profile"
         site_root = cx["s"]["canonical"].rstrip("/") if not cx["noindex"] else settings.public_url.rstrip("/") + "/_shop"
         wi = sc.wish_items(cx["d"], acc.wishlist or [])
         cx.update(care=sc.doctor_care(db, p, cx["d"]) if t == "care" else None)
+        cx.update(oimg={v["id"]: it["imgs"][0] for it in cx["d"]["items"] if it["imgs"] for v in it["variants"]})
         cx.update(t=t, acc=acc, p=p, coins=sc.coins(db, p.id), orders=sc.orders(db, p) if t == "orders" else [], wish=wi, wish_sum=sum(i["price"] for i in wi),
                   ref_url=f"{site_root}/?ref={acc.ref_code}", wish_url=f"{site_root}/wish/{acc.wish_token}/", STATUS_FAIL=sf.PAY_FAIL,
                   in_cat={v["id"] for it in cx["d"]["items"] for v in it["variants"] if v["stock"]})
