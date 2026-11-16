@@ -60,14 +60,7 @@
       <label>Строк дії, днів<input name="coin_days" value="{{ c.coin_days }}" inputmode="numeric"></label>
       <label>Нарахувати на N-й день після закриття<input name="coin_wait_days" value="{{ c.coin_wait_days }}" inputmode="numeric"></label></div>
     <div class="small muted" style="margin-top:4px">Акційні товари не беруть участі ні в нарахуванні, ні в ліміті знижки. Коїни за замовлення зʼявляються після статусу «Закрито» або «Отримано». Скасування чи повернення повертає списані коїни й знімає нараховані.</div></div>
-  <fieldset class="an"><legend>Аналітика: GTM · GA4 · Google Ads</legend>
-  <p class="small muted">Магазин надсилає події електронної комерції: view_item, add_to_cart, begin_checkout, purchase (з номером замовлення, сумою й товарами; без телефонів та імен).</p>
-  <label>Google Tag Manager ID<input name="gtm_id" value="{{ c.gtm_id }}" placeholder="GTM-XXXXXXX (порожньо — контейнер сайту клініки)"></label>
-  <label>GA4 Measurement ID<input name="ga4_id" value="{{ c.ga4_id }}" placeholder="G-XXXXXXXXXX"></label>
-  <label>Google Ads ID<input name="ads_id" value="{{ c.ads_id }}" placeholder="AW-1234567890"></label>
-  <label>Мітка конверсії «Покупка»<input name="ads_label" value="{{ c.ads_label }}" placeholder="AbCdEf123"></label>
-  <p class="small muted">Якщо GA4 і Google Ads уже підключені всередині GTM — залиште їх тут порожніми, інакше покупки порахуються двічі. Заповнені — сайт сам надсилає події напряму (gtag).</p>
-  </fieldset>
+  <p class="small"><a href="/settings/shop/integrations">Інтеграції: GTM, GA4, Google Ads, Meta, фіди Google Shopping / Facebook / Hotline, llms.txt, кукі, захист від спаму →</a></p>
   <label>Рухомий рядок угорі сайту<textarea name="ticker" rows="4">{{ c.ticker }}</textarea><span class="small muted">Кожен рядок — окреме повідомлення; вони рухаються по колу. Порожньо — показується «Смуга над шапкою».</span></label>
   <label>Реквізити продавця (показуються в договорі оферти)<textarea name="seller_req" rows="5">{{ c.seller_req }}</textarea>
     <span class="small muted">Кожен рядок — окремо. Додайте РНОКПП (ІПН) ФОП і, за потреби, IBAN.</span></label>

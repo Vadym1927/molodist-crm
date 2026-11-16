@@ -1,0 +1,153 @@
+"""Фіди товарів і дані для ШІ: Google Merchant Center (Shopping + динамічний ремаркетинг), Meta (Facebook / Instagram Shopping),
+Hotline.ua, а також llms.txt / llms-full.txt для пошукових ШІ-сервісів.
+
+Ідентифікатор товару у фідах = id варіанта в CRM — той самий, що йде в події GA4 / Pixel (view_item, add_to_cart, purchase),
+тож динамічний ремаркетинг Google Ads і Meta зіставляє перегляди з фідом.
+"""
+from __future__ import annotations
+
+import html
+import re
+from datetime import datetime
+from xml.sax.saxutils import escape as x
+
+
+FEED_KEYS = ("google", "facebook", "hotline")
+
+
+def _strip(h: str, n: int = 4900) -> str:
+    t = re.sub(r"<[^>]+>", " ", h or "")
+    t = html.unescape(re.sub(r"\s+", " ", t)).strip()
+    return t[:n]
+
+
+def _cats_of(data: dict) -> dict[str, list[dict]]:
+    """slug → категорії товару (без брендів), найглибша першою."""
+    out: dict[str, list[dict]] = {}
+    for c in data["cats"]:
+        if c["path"].startswith("/shop/brendi/") or c["path"] in ("/shop/sale/", "/shop/blog/"):
+            continue
+        for s in c["slugs"]:
+            out.setdefault(s, []).append(c)
+    for v in out.values():
+        v.sort(key=lambda c: -c["depth"])
+    return out
+
+
+def _ptype(cats: list[dict], data: dict) -> str:
+    if not cats:
+        return ""
+    by = {c["path"]: c for c in data["cats"]}
+    chain, c = [], cats[0]
+    while c:
+        chain.append(c["name"])
+        c = by.get(c.get("parent") or "")
+    return " > ".join(reversed(chain))
+
+
+def items(data: dict, root: str, notice_brands: set[str] | None = None) -> list[dict]:
+    """Плоский список варіантів для фідів (лише видимі на сайті)."""
+    cats = _cats_of(data)
+    out = []
+    for it in data["items"]:
+        ptype = _ptype(cats.get(it["slug"], []), data)
+        desc = _strip(" ".join(s["html"] for s in it.get("sections") or []) or it.get("desc") or "") or it["name"]
+        imgs = [f"{root}/img/{f}?w=1200" for f in it["imgs"][:10]]
+        for v in it["variants"]:
+            title = v["name"] if len(it["variants"]) == 1 or not v.get("label") else f"{it['name']} {v['label']}"
+            out.append({"id": str(v["id"]), "group": str(it["id"]) if len(it["variants"]) > 1 else "", "title": title[:150], "desc": desc,
+                        "link": f"{root}/shop/{it['slug']}/", "imgs": imgs, "brand": it["brand"] or "MOLODIST", "sku": v.get("sku") or "",
+                        "price": float(v["old"] or v["price"]), "sale": float(v["price"]) if v.get("old") else 0.0, "stock": bool(v["stock"]),
+                        "ptype": ptype, "cat": cats.get(it["slug"], [None])[0], "consult": bool(notice_brands and it["brand"] in notice_brands)})
+    return out
+
+
+def google(data: dict, root: str, title: str = "MOLODIST", notice_brands: set[str] | None = None) -> str:
+    """RSS 2.0 з простором імен g: — формат, який приймають Google Merchant Center і Meta Commerce Manager."""
+    rows = []
+    for i in items(data, root, notice_brands):
+        if not i["imgs"]:
+            continue                                                         # без фото Merchant Center товар відхиляє
+        parts = [f"<g:id>{x(i['id'])}</g:id>", f"<title>{x(i['title'])}</title>", f"<description>{x(i['desc'])}</description>",
+                 f"<link>{x(i['link'])}</link>", f"<g:image_link>{x(i['imgs'][0])}</g:image_link>"]
+        parts += [f"<g:additional_image_link>{x(u)}</g:additional_image_link>" for u in i["imgs"][1:10]]
+        parts += [f"<g:availability>{'in_stock' if i['stock'] else 'out_of_stock'}</g:availability>",
+                  f"<g:price>{i['price']:.2f} UAH</g:price>", "<g:condition>new</g:condition>", f"<g:brand>{x(i['brand'])}</g:brand>",
+                  "<g:google_product_category>567</g:google_product_category>"]   # Health & Beauty > Personal Care > Cosmetics > Skin Care
+        if i["sale"]:
+            parts.append(f"<g:sale_price>{i['sale']:.2f} UAH</g:sale_price>")
+        if i["sku"]:
+            parts.append(f"<g:mpn>{x(i['sku'])}</g:mpn>")
+        parts.append("<g:identifier_exists>no</g:identifier_exists>" if not i["sku"] else "")
+        if i["group"]:
+            parts.append(f"<g:item_group_id>{i['group']}</g:item_group_id>")
+        if i["ptype"]:
+            parts.append(f"<g:product_type>{x(i['ptype'])}</g:product_type>")
+        if i["consult"]:
+            parts.append("<g:custom_label_0>consultation</g:custom_label_0>")
+        if i["sale"]:
+            parts.append("<g:custom_label_1>sale</g:custom_label_1>")
+        rows.append("<item>" + "".join(p for p in parts if p) + "</item>")
+    return ('<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0"><channel>'
+            f"<title>{x(title)}</title><link>{x(root)}/</link><description>Професійна косметика MOLODIST</description>"
+            + "".join(rows) + "</channel></rss>")
+
+
+def hotline(data: dict, root: str, firm_id: str, firm_name: str = "MOLODIST") -> str:
+    """XML-прайс у форматі Hotline.ua (price → categories → items)."""
+    cats = {}
+    for c in data["cats"]:
+        if c["path"].startswith("/shop/brendi/") or c["path"] in ("/shop/sale/", "/shop/blog/") or not c.get("n"):
+            continue
+        cats[c["path"]] = c
+    ids = {p: n + 1 for n, p in enumerate(sorted(cats))}
+    cx = []
+    for p, c in sorted(cats.items()):
+        par = ids.get(c.get("parent") or "")
+        cx.append(f"<category><id>{ids[p]}</id>" + (f"<parentId>{par}</parentId>" if par else "") + f"<name>{x(c['name'])}</name></category>")
+    ix = []
+    for i in items(data, root):
+        if not i["imgs"] or not i["cat"] or i["cat"]["path"] not in ids:
+            continue
+        ix.append("<item>" + f"<id>{i['id']}</id><categoryId>{ids[i['cat']['path']]}</categoryId>"
+                  + (f"<code>{x(i['sku'])}</code>" if i["sku"] else "") + f"<vendor>{x(i['brand'])}</vendor><name>{x(i['title'])}</name>"
+                  + f"<description>{x(i['desc'][:2500])}</description><url>{x(i['link'])}</url><image>{x(i['imgs'][0])}</image>"
+                  + f"<priceRUAH>{(i['sale'] or i['price']):.0f}</priceRUAH>" + (f"<oldprice>{i['price']:.0f}</oldprice>" if i["sale"] else "")
+                  + f"<stock>{'В наявності' if i['stock'] else 'Немає в наявності'}</stock><guarantee type=\"shop\">14</guarantee></item>")
+    return ('<?xml version="1.0" encoding="UTF-8"?>\n<price>' + f"<date>{datetime.now():%Y-%m-%d %H:%M}</date>"
+            + f"<firmName>{x(firm_name)}</firmName><firmId>{x(firm_id or '')}</firmId><rate>1</rate>"
+            + "<categories>" + "".join(cx) + "</categories><items>" + "".join(ix) + "</items></price>")
+
+
+def llms(data: dict, root: str, c: dict, site: dict, full: bool = False) -> str:
+    """llms.txt (https://llmstxt.org): коротко про магазин, ключові сторінки, бренди, категорії; повна версія — з усіма товарами й цінами."""
+    brands = sorted({it["brand"] for it in data["items"] if it["brand"]})
+    about = (c.get("ai_about") or "").strip() or (
+        "MOLODIST — інтернет-магазин професійної косметики при медичному просторі естетики та профілактики MOLODIST у Києві. "
+        "Продаємо оригінальну космецевтику від офіційних постачальників, яку лікарі MOLODIST призначають для домашнього догляду. "
+        "Доставка Новою поштою по всій Україні, безкоштовно від 3 000 ₴; самовивіз у Києві.")
+    L = [f"# MOLODIST — магазин професійної косметики", "", f"> {about}", ""]
+    L += ["## Основне", f"- Каталог: {root}/shop/", f"- Бренди: {root}/shop/brendi/", f"- Акції: {root}/shop/sale/",
+          f"- Доставка й оплата: {root}/for-customers/dostavka-i-oplata/", f"- Повернення: {root}/for-customers/povernennya-tovaru/",
+          f"- Про нас: {root}/for-customers/pro-nas/", f"- Контакти: {root}/contacts/", f"- Блог: {root}/blog/", ""]
+    L += ["## Контакти", f"- Телефон: {site.get('phone_text') or ''}", f"- Адреса: {site.get('address') or ''}", f"- Графік: {site.get('hours') or ''}",
+          f"- Telegram: {site.get('telegram') or ''}", f"- Instagram: {site.get('instagram') or ''}", ""]
+    L += ["## Оплата й доставка", "- Онлайн карткою (Visa, Mastercard, Apple Pay, Google Pay) через monobank; Покупка Частинами monobank.",
+          "- Нова пошта: відділення, поштомат, курʼєр. Відправка в день замовлення до 18:00. Накладеного платежу немає.",
+          "- Програма лояльності MOLODIST Coins: бали за реєстрацію, запрошення друзів і покупки.", ""]
+    L += ["## Бренди"]
+    for b in brands:
+        seg = next((c2["path"] for c2 in data["cats"] if c2["path"].startswith("/shop/brendi/") and c2["name"].lower() == b.lower()), None)
+        L.append(f"- [{b}]({root}{seg})" if seg else f"- {b}")
+    L += ["", "## Категорії"]
+    for c2 in data["cats"]:
+        if c2.get("n") and not c2["path"].startswith("/shop/brendi/") and c2["path"] not in ("/shop/blog/",) and c2["depth"] <= 2:
+            L.append(f"- [{c2['name']}]({root}{c2['path']})")
+    if full:
+        L += ["", "## Товари (назва — бренд — ціна, грн — наявність)"]
+        for it in sorted(data["items"], key=lambda i: (i["brand"] or "", i["name"])):
+            pr = f"{it['price']:.0f}" + (f" (було {it['old']:.0f})" if it.get("old") else "")
+            L.append(f"- [{it['name']}]({root}/shop/{it['slug']}/) — {it['brand'] or '—'} — {pr} — {'є' if it['stock'] else 'немає'}")
+    else:
+        L += ["", "## Optional", f"- [Повний перелік товарів із цінами]({root}/llms-full.txt)", f"- [Фід товарів (Google Merchant XML)]({root}/feeds/google.xml)"]
+    return "\n".join(L) + "\n"

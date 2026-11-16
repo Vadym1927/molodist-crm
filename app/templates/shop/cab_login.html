@@ -7,6 +7,7 @@
   <form id="cab-login" novalidate>
     <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
     <div data-step="1"><label><span>Телефон</span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+380" required></label>
+{% if s.ts_site %}<div class="cf-turnstile" data-sitekey="{{ s.ts_site }}" data-language="uk"></div>{% endif %}
       <button class="btn big" type="submit">Отримати код</button></div>
     <div data-step="2" hidden><p class="mut small" data-sent></p>
       <label><span>Код із повідомлення</span><input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="5" placeholder="•••••" class="code"></label>

@@ -6,7 +6,14 @@
   {% if pg.path == '/blog/' %}<div class="blog">{% for p in posts %}<a class="post" href="{{ base }}{{ p.path }}">{% if p.img_fid %}<img src="{{ base }}/img/{{ p.img_fid }}?w=600" alt="" loading="lazy">{% elif p.cover_img %}<img src="{{ p.cover_img }}" alt="" loading="lazy">{% elif p.img %}<img src="{{ p.img }}" alt="" loading="lazy">{% endif %}<b>{{ p.h1 or p.title }}</b><span>{{ p.desc }}</span><i>Читати повністю</i></a>{% endfor %}</div>
   {% else %}<div class="rte">{{ pg.html|safe }}</div>{% endif %}
   {% if pg.path == '/contacts/' %}<div class="map"><iframe title="MOLODIST на карті" loading="lazy" referrerpolicy="no-referrer-when-downgrade"
-    src="https://maps.google.com/maps?q={{ 'MOLODIST, вул. Князя Романа Мстиславича 28А, Київ'|urlencode }}&hl=uk&z=16&output=embed"></iframe></div>{% endif %}
+    src="https://maps.google.com/maps?q={{ 'MOLODIST, вул. Князя Романа Мстиславича 28А, Київ'|urlencode }}&hl=uk&z=16&output=embed"></iframe></div>
+  <form class="ctf" id="ctf"><h2>Напишіть нам</h2><p class="mut small">Відповімо в робочий час — телефоном або в месенджері.</p>
+    <div class="ctf-r"><label><span>Імʼя</span><input name="name" required maxlength="100" autocomplete="name"></label><label><span>Телефон</span><input name="phone" required inputmode="tel" autocomplete="tel" placeholder="+380"></label></div>
+    <label><span>Повідомлення</span><textarea name="message" rows="4" maxlength="1500" placeholder="Питання щодо товару, замовлення чи підбору догляду"></textarea></label>
+    <input name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+    {% if s.ts_site %}<div class="cf-turnstile" data-sitekey="{{ s.ts_site }}" data-language="uk"></div>{% endif %}
+    <p class="err" hidden></p><p class="ok" hidden>Дякуємо! Ми звʼяжемося з вами найближчим часом.</p>
+    <button class="btn" type="submit">Надіслати</button><p class="mut small">Надсилаючи форму, ви погоджуєтесь з <a href="{{ base }}/for-customers/politika-konfidentsiynosti/">політикою конфіденційності</a>.</p></form>{% endif %}
   {% if prods %}<h2>Засоби зі статті</h2><div class="grid">{% for i in prods %}{{ card(i, base, money, pch, s) }}{% endfor %}</div>{% endif %}
   {% if pg.post %}<div class="cat-note" style="margin-top:26px"><div><b>Підібрати догляд з лікарем</b><p>Діагностика шкіри на OBSERV і бюті-план від лікаря MOLODIST.</p></div><a class="btn" href="{{ book_url }}" target="_blank" rel="noopener">Записатися на консультацію</a></div>{% endif %}
   {% if more %}<h2>Читайте також</h2><div class="blog">{% for p in more %}<a class="post" href="{{ base }}{{ p.path }}">{% if p.img_fid %}<img src="{{ base }}/img/{{ p.img_fid }}?w=600" alt="" loading="lazy">{% elif p.cover_img %}<img src="{{ p.cover_img }}" alt="" loading="lazy">{% endif %}<b>{{ p.h1 }}</b><span>{{ p.desc }}</span><i>Читати повністю</i></a>{% endfor %}</div>{% endif %}

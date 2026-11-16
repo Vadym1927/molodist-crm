@@ -1,9 +1,17 @@
 /* Магазин MOLODIST: кошик (localStorage), бічна панель, пошук, товар, оформлення замовлення */
 (function () {
-  function ga(ev, ec) { try { window.dataLayer = window.dataLayer || []; window.dataLayer.push({ ecommerce: null }); window.dataLayer.push({ event: ev, ecommerce: ec });
-    if (typeof window.gtag === 'function') window.gtag('event', ev, ec); } catch (x) {} }
+  function ga(ev, ec) { if (window.mshopTrack) window.mshopTrack(ev, ec); }
   window.MSHOP_GA = ga;
   var S = window.MSHOP || {}, B = S.base || '', KEY = 'mshop_cart';
+  /* джерело візиту: UTM / gclid / fbclid / зовнішній реферер → у замовлення й заявки (останній непрямий перехід, 90 днів) */
+  (function () { try {
+    var q = new URLSearchParams(location.search), m = {}, keys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'gclid', 'fbclid', 'gbraid', 'wbraid'];
+    keys.forEach(function (k) { var v = q.get(k); if (v) m[k] = v.slice(0, 150); });
+    var r = document.referrer ? new URL(document.referrer).hostname : '';
+    if (!Object.keys(m).length && r && r !== location.hostname && !/molodist/.test(r)) { m.utm_source = r.replace(/^www\./, ''); m.utm_medium = /google|bing|duckduckgo|yahoo/.test(r) ? 'organic' : 'referral'; }
+    if (Object.keys(m).length) { m.landing = location.pathname.slice(0, 150); localStorage.setItem('mlds_utm', JSON.stringify({ m: m, t: Date.now() })); }
+    else { var o = JSON.parse(localStorage.getItem('mlds_utm') || 'null'); if (o && Date.now() - o.t > 90 * 864e5) localStorage.removeItem('mlds_utm'); }
+  } catch (e) {} })();
   function $(q, r) { return (r || document).querySelector(q); }
   function $$(q, r) { return Array.prototype.slice.call((r || document).querySelectorAll(q)); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -12,6 +20,7 @@
   function save(c) { try { localStorage.setItem(KEY, JSON.stringify(c)); } catch (e) {} badge(c); }
   function badge(c) { var n = (c || load()).reduce(function (a, x) { return a + x.qty; }, 0); $$('[data-cart-n]').forEach(function (e) { e.textContent = n; e.hidden = !n; }); }
   function api(path, body, cb) {
+    var ts = document.querySelector('[name="cf-turnstile-response"]'); if (ts && body && typeof body === 'object' && !Array.isArray(body)) body.cft = ts.value;
     fetch(B + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       .then(function (r) { return r.json(); }).then(cb).catch(function () { cb(null); });
   }
@@ -31,7 +40,8 @@
   var cartEl = $('#cart'), last = null;
   function render(cb) {
     var uc = $('[name=use_coins]');
-    api('/api/cart', { items: load(), coins: uc && uc.checked ? null : 0 }, function (j) {
+    var pf = $('#co-form [name=promo]'), pv = pf && pf.getAttribute('data-ok') ? pf.value.trim() : '';
+    api('/api/cart', { items: load(), coins: uc && uc.checked ? null : 0, promo: pv }, function (j) {
       if (!j) return;
       last = j;
       if (!window._mshBc && /\/checkout\/$/.test(location.pathname) && j.items.length) { window._mshBc = 1;
@@ -113,6 +123,13 @@
   $$('.vars input').forEach(function (r) { r.addEventListener('change', function () { $('#p-price').textContent = r.dataset.price; $('#p-add').setAttribute('data-add', r.value); }); });
   badge();
 
+  var ctf = $('#ctf');
+  if (ctf) ctf.addEventListener('submit', function (e) {
+    e.preventDefault(); var er = $('.err', ctf), ok = $('.ok', ctf), bt = $('button', ctf); er.hidden = true; bt.disabled = true;
+    var d = { name: ctf.name.value, phone: ctf.phone.value, message: ctf.message.value, website: ctf.website.value, page: location.href };
+    try { var m = JSON.parse(localStorage.getItem('mlds_utm') || 'null'); if (m && m.m) for (var k in m.m) d[k] = m.m[k]; } catch (x) {}
+    api('/api/contact', d, function (j) { bt.disabled = false; if (j && j.ok) { ok.hidden = false; ctf.reset(); } else { er.textContent = (j && j.msg) || 'Не вдалося надіслати. Зателефонуйте нам.'; er.hidden = false; } });
+  });
   /* ---------- оформлення ---------- */
   var co = $('#co');
   function renderCo(j) {
@@ -120,7 +137,9 @@
     $('#co-items').innerHTML = j.items.length ? j.items.map(function (i) { return line(i, true); }).join('') : '<p class="mut">Кошик порожній. <a href="' + B + '/shop/">До каталогу</a></p>';
     var cn = j.coins || {}, useC = cn.use || 0, parts = ($('[name=pay]:checked') || {}).value === 'parts';
     if (parts) useC = 0;
-    $('#co-sum').textContent = money(j.total); $('#co-tot').textContent = money(j.total - useC);
+    var pa = j.promo && j.promo.ok ? j.promo.amount : 0;
+    $('#co-sum').textContent = money(j.total); $('#co-tot').textContent = money(j.total - useC - pa);
+    var pr = $('#co-promo-row'); if (pr) { pr.hidden = !pa; $('#co-promo').textContent = '−' + money(pa); if (pa) $('[data-promo-name]').textContent = 'Промокод ' + j.promo.code; }
     var cb = $('#co-coins');
     if (cb) {
       cb.hidden = !(cn.on && cn.spend && cn.me && cn.balance > 0) || parts;
@@ -132,7 +151,7 @@
       var ce = $('#co-earn'); ce.hidden = !(cn.on && cn.earn); ce.textContent = cn.me ? 'За це замовлення отримаєте +' + cn.earn + ' MOLODIST Coins.' : 'Увійдіть у кабінет — і отримаєте +' + cn.earn + ' MOLODIST Coins за це замовлення.';
     }
     var pick = $('[name=delivery]:checked', co);
-    var freeNow = S.free && (j.total - (j.coins && $('[name=use_coins]') && $('[name=use_coins]').checked ? (j.coins.use || 0) : 0)) >= S.free;
+    var freeNow = S.free && (j.total - pa - (j.coins && $('[name=use_coins]') && $('[name=use_coins]').checked ? (j.coins.use || 0) : 0)) >= S.free;
     $('#co-del').textContent = pick && pick.value === 'pickup' ? 'самовивіз — безкоштовно' : (freeNow ? 'безкоштовно' : 'за тарифами Нової пошти, при отриманні');
     var g = $('#co-gift'); g.hidden = !j.gifts.length;
     if (j.gifts.length && !$('#co-gifts').children.length) $('#co-gifts').innerHTML = j.gifts.map(function (x, n) { return '<label><input type="radio" name="gift" value="' + esc(x) + '"' + (n ? '' : ' checked') + '><span><b>' + esc(x) + '</b></span></label>'; }).join('');
@@ -141,6 +160,12 @@
     var form = $('#co-form'), cityRef = '';
     render(renderCo);
     if (form.use_coins) form.use_coins.addEventListener('change', function () { render(renderCo); });
+    var pb = $('[data-promo]', form);
+    if (pb) pb.addEventListener('click', function () {
+      var m = $('[data-promo-msg]', form); form.promo.setAttribute('data-ok', '1');
+      render(function (j) { renderCo(j); var p = j.promo || {}; m.hidden = !form.promo.value.trim(); m.textContent = p.msg || ''; m.style.color = p.ok ? '#256B37' : '#8C2F39';
+        if (!p.ok) form.promo.removeAttribute('data-ok'); });
+    });
     $$('[name=pay]', form).forEach(function (r) { r.addEventListener('change', function () { renderCo(); }); });
     $$('[name=delivery]', form).forEach(function (r) { r.addEventListener('change', function () {
       var v = ($('[name=delivery]:checked', form) || {}).value; $('#co-np').hidden = v === 'pickup';
@@ -175,7 +200,8 @@
       var er = $('.err', form), bt = $('button.btn', form); er.hidden = true;
       var d = { items: load(), name: form.name.value.trim(), phone: form.phone.value, email: form.email.value.trim(), city: form.city.value.trim(),
         warehouse: form.warehouse.value.trim(), addr: form.addr ? form.addr.value.trim() : '', comment: form.comment.value.trim(), website: form.website.value,
-        delivery: ($('[name=delivery]:checked', form) || {}).value, pay: ($('[name=pay]:checked', form) || {}).value, gift: ($('[name=gift]:checked', form) || {}).value || '', coins: form.use_coins && form.use_coins.checked && last && last.coins ? last.coins.use : 0, parts: form.parts ? form.parts.value : '' };
+        delivery: ($('[name=delivery]:checked', form) || {}).value, pay: ($('[name=pay]:checked', form) || {}).value, gift: ($('[name=gift]:checked', form) || {}).value || '', coins: form.use_coins && form.use_coins.checked && last && last.coins ? last.coins.use : 0, parts: form.parts ? form.parts.value : '',
+        promo: form.promo && form.promo.getAttribute('data-ok') ? form.promo.value.trim() : '' };
       try { var m = JSON.parse(localStorage.getItem('mlds_utm') || 'null'); if (m && m.m) for (var k in m.m) d[k] = m.m[k]; } catch (x) {}
       if (!d.items.length) { er.textContent = 'Кошик порожній.'; er.hidden = false; return; }
       bt.disabled = true; bt.textContent = 'Оформлюємо…';

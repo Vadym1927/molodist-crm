@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Промокоди{% endblock %}
+{% block body %}
+<style>.chip{padding:7px 13px;border-radius:999px;border:1px solid var(--line);text-decoration:none;color:var(--ink);font-size:13px;background:#fff;white-space:nowrap}.chip.on{background:#3B3050;border-color:#3B3050;color:#fff}.chip b{margin-left:5px}
+.sc-f{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.pf label:not(.ck){display:grid;gap:4px;font-size:13px}.pf{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;align-items:end}.pf .ck{display:flex;gap:6px;align-items:center}.pf .ck input{width:auto}
+.off td{opacity:.55}</style>
+<h1 style="margin:0 0 4px">Центр керування магазином</h1><div class="muted small" style="margin-bottom:12px">Промокоди діють у кошику на сайті. Знижка ділиться між товарами (як і MOLODIST Coins) і потрапляє в чек як знижка.</div>
+{% include "_shop_tabs.html" %}{% include "_shop_msg.html" %}
+<form method="post" class="card" style="margin-bottom:14px"><b>{{ 'Редагувати ' ~ ed.code if ed else 'Новий промокод' }}</b>{% if ed %}<input type="hidden" name="id" value="{{ ed.id }}">{% endif %}
+  <div class="pf" style="margin-top:8px">
+    <label>Код<input name="code" value="{{ ed.code if ed }}" placeholder="WELCOME10" required style="text-transform:uppercase"></label>
+    <label>Тип<select name="kind"><option value="pct">Відсоток</option><option value="sum" {{ 'selected' if ed and ed.kind == 'sum' }}>Сума, ₴</option></select></label>
+    <label>Знижка<input name="value" value="{{ '%g'|format(ed.value) if ed else '' }}" placeholder="10" required></label>
+    <label>Від суми, ₴<input name="min_sum" value="{{ '%g'|format(ed.min_sum) if ed and ed.min_sum else '' }}" placeholder="без обмежень"></label>
+    <label>Діє з<input type="date" name="starts" value="{{ ed.starts if ed and ed.starts else '' }}"></label>
+    <label>Діє до<input type="date" name="ends" value="{{ ed.ends if ed and ed.ends else '' }}"></label>
+    <label>Ліміт використань<input name="max_uses" value="{{ ed.max_uses if ed and ed.max_uses else '' }}" placeholder="без ліміту"></label>
+    <label>Лише бренди<input name="brands" value="{{ ed.brands if ed and ed.brands else '' }}" placeholder="Medik8, AG SKIN"></label>
+    <label>Нотатка<input name="note" value="{{ ed.note if ed and ed.note else '' }}" placeholder="Для кого / звідки"></label>
+    <label class="ck"><input type="checkbox" name="once_per_phone" value="1" {{ 'checked' if not ed or ed.once_per_phone }}> Один раз на покупця</label>
+    <label class="ck"><input type="checkbox" name="with_sale" value="1" {{ 'checked' if ed and ed.with_sale }}> Діє й на товари зі знижкою</label>
+    <label class="ck"><input type="checkbox" name="active" value="1" {{ 'checked' if not ed or ed.active }}> Активний</label>
+  </div><div style="margin-top:10px"><button class="btn">Зберегти</button>{% if ed %} <a class="btn ghost" href="/shop-promos">Скасувати</a>{% endif %}</div></form>
+<table class="tbl"><thead><tr><th>Код</th><th>Знижка</th><th>Умови</th><th>Термін</th><th>Використано</th><th>Замовлень / виручка</th><th></th></tr></thead><tbody>
+{% for p in rows %}{% set s = st.get(p.code) %}<tr class="{{ 'off' if not p.active or (p.ends and p.ends < today) }}"><td><b>{{ p.code }}</b>{% if p.note %}<div class="small muted">{{ p.note }}</div>{% endif %}</td>
+  <td>{{ ('−' ~ '%g'|format(p.value) ~ '%') if p.kind == 'pct' else ('−' ~ p.value|uah) }}</td>
+  <td class="small">{{ ('від ' ~ (p.min_sum|uah)) if p.min_sum }}{{ ' · один раз' if p.once_per_phone }}{{ ' · і на акційні' if p.with_sale else ' · без акційних' }}{{ (' · ' ~ p.brands) if p.brands }}</td>
+  <td class="small">{{ p.starts.strftime('%d.%m.%y') if p.starts else '…' }} — {{ p.ends.strftime('%d.%m.%y') if p.ends else '…' }}</td>
+  <td>{{ p.used or 0 }}{{ (' / ' ~ p.max_uses) if p.max_uses }}</td><td>{{ s.n if s else 0 }} · {{ (s.sum if s else 0)|uah }}{% if s %}<div class="small muted">знижок {{ s.disc|uah }}</div>{% endif %}</td>
+  <td style="white-space:nowrap"><a class="btn sm ghost" href="?edit={{ p.id }}">Змінити</a><form method="post" style="display:inline"><button class="btn sm ghost" name="toggle" value="{{ p.id }}">{{ 'Вимкнути' if p.active else 'Увімкнути' }}</button></form></td></tr>
+{% else %}<tr><td colspan="7" class="muted">Промокодів ще немає.</td></tr>{% endfor %}</tbody></table>
+{% endblock %}

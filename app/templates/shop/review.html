@@ -2,6 +2,7 @@
 {% block main %}<section class="sec lst"><div class="wrap narrow rvf">
   <h1>{{ rname }}, як вам покупка?</h1>
   <p class="mut">Замовлення №{{ order.number }}. Оцініть товари — відгук зʼявиться на сайті після перевірки. Ваш телефон і прізвище не показуємо.</p>
+  {{ ('<div class="cf-turnstile" data-sitekey="' ~ s.ts_site ~ '" data-language="uk"></div>')|safe if s.ts_site }}
   {% for i in ritems %}<form class="rv-form card" data-rv="{{ i.id }}">
     <div class="rv-it">{% if i.img %}<img src="{{ base }}/img/{{ i.img }}?w=200" alt="" width="72" height="72">{% endif %}<b>{{ i.name }}</b></div>
     {% if i.review and i.review.status == 'ok' %}<p class="ok">Ваш відгук опубліковано. Дякуємо!</p>
@@ -21,7 +22,7 @@ document.querySelectorAll('[data-rv]').forEach(function(f){f.addEventListener('s
   var er=f.querySelector('.err'),ok=f.querySelector('p.ok'),bt=f.querySelector('button');er.hidden=true;
   var r=f.querySelector('[name=rating]:checked');if(!r){er.textContent='Поставте, будь ласка, оцінку (зірочки).';er.hidden=false;return}
   bt.disabled=true;
-  fetch('{{ base }}/api/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:{{ tok|tojson }},product_id:+f.getAttribute('data-rv'),rating:+r.value,text:f.text.value,name:f.name.value,website:f.website.value})})
+  fetch('{{ base }}/api/review',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:{{ tok|tojson }},product_id:+f.getAttribute('data-rv'),rating:+r.value,text:f.text.value,name:f.name.value,website:f.website.value,cft:(document.querySelector('[name="cf-turnstile-response"]')||{}).value||''})})
   .then(function(x){return x.json()}).then(function(j){bt.disabled=false;if(j&&j.ok){ok.hidden=false;bt.textContent='Оновити відгук'}else{er.textContent=(j&&j.msg)||'Не вдалося зберегти.';er.hidden=false}})
   .catch(function(){bt.disabled=false;er.textContent='Немає звʼязку. Спробуйте ще раз.';er.hidden=false});
 });});

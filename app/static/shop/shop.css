@@ -202,3 +202,12 @@ img{max-width:100%;height:auto}a{color:var(--act)}h1,h2,h3,h4{font-family:var(--
 .rate{display:inline-flex;flex-direction:row-reverse;justify-content:flex-end;gap:2px}.rate input{position:absolute;opacity:0;width:1px;height:1px}.rate label{font-size:32px;color:#C9BFE6;cursor:pointer;line-height:1}.rate input:checked~label,.rate label:hover,.rate label:hover~label{color:#3B3050}.rate input:focus-visible+label{outline:2px solid #5C4B82}
 .rvf textarea,.rvf input[name=name]{width:100%;box-sizing:border-box;border:1px solid #E9E5DF;border-radius:10px;padding:10px;font:inherit}.rv-row{display:flex;gap:12px;align-items:end;flex-wrap:wrap}.rv-row label{flex:1;min-width:180px;display:grid;gap:4px}.hp{position:absolute;left:-9999px}
 .seo-txt{max-width:860px;margin:36px 0 8px;color:#4a4350;font-size:15px;line-height:1.65}.seo-txt h2{font-family:Montserrat,sans-serif;text-transform:uppercase;font-size:17px;letter-spacing:.04em;color:#2A2430}
+.promo-in{display:flex;gap:8px}.promo-in input{flex:1}
+.ckb{position:fixed;left:12px;right:12px;bottom:12px;z-index:90;display:flex;justify-content:center}.ckb[hidden]{display:none}
+.ckb-in{max-width:760px;background:#fff;border:1px solid #E9E5DF;border-radius:16px;box-shadow:0 10px 40px rgba(42,36,48,.18);padding:16px 18px;display:grid;gap:10px;font-size:14px}
+.ckb-in p{margin:0}.ckb-o{display:flex;gap:14px;flex-wrap:wrap}.ckb-o label{display:flex;gap:6px;align-items:center}.ckb-b{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.ctf{max-width:640px;margin:28px 0;display:grid;gap:12px;background:#F7F4F0;border-radius:16px;padding:18px}.ctf h2{margin:0;font-family:Montserrat,sans-serif;text-transform:uppercase;font-size:18px}
+.ctf label{display:grid;gap:4px}.ctf input,.ctf textarea{border:1px solid #E9E5DF;border-radius:10px;padding:10px;font:inherit;background:#fff}.ctf-r{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:560px){.ctf-r{grid-template-columns:1fr}}
+.noimg img{width:58%;height:auto;opacity:.55}.noimg{background:var(--cream)}
+.bdg.stk{background:#3B3050;color:#fff}
+@media (max-width:560px){.ckb{left:8px;right:8px;bottom:8px}.ckb-in{font-size:12.5px;padding:12px;gap:8px;line-height:1.45}.ckb-o{gap:10px}.ckb-b{justify-content:stretch}.ckb-b .btn{flex:1;padding:9px 8px;font-size:10.5px;min-height:0}}

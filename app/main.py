@@ -362,6 +362,9 @@ async def job_care_bot():
         log.warning("care_bot: %s", e)
 
 
+_BRANDS_AT = [0.0]
+
+
 async def job_mono_parts():
     """Покупка Частинами: раз на 5 хв перепитати заявки, які чекають підтвердження покупця."""
     from .services import mono_parts as mp
@@ -377,6 +380,11 @@ async def job_mono_parts():
                 _root = _c["canonical"].rstrip("/") if _c.get("on") else settings.public_url.rstrip("/") + "/_shop"
                 _cat = _sf.catalog(db)
                 _rv.send_due(db, _c, _root, _cat)
+                if time.time() - _BRANDS_AT[0] > 3600:
+                    _BRANDS_AT[0] = time.time()
+                    _bs = _sf.brands_sync(db)
+                    if _bs["new"]:
+                        log.info("shop brands: нові сторінки брендів %s", _bs["new"])
                 _ct.job(db, _c, _cat, _root)
                 from .services import insta_feed as _if
                 if _if.due(db):
@@ -9994,6 +10002,95 @@ async def shop_reviews_save(rid: int, request: Request, user: User = Depends(req
     return RedirectResponse(_with_msg(f"/shop-reviews?status={quote(str(f.get('back') or 'new'))}", "Збережено"), 303)
 
 
+@app.get("/settings/shop/integrations", response_class=HTMLResponse)
+def settings_shop_integrations(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import shop_front as sf
+    import socket
+    c_ = sf.cfg(db)
+    dns = []
+    for h in [x for x in (c_.get("hosts") or []) if x.strip()][:4] + [settings.public_url.split("//")[-1].split("/")[0]]:
+        try:
+            dns.append((h, socket.gethostbyname(h)))
+        except OSError:
+            dns.append((h, ""))
+    srv = dns[-1][1] if dns else ""
+    return render(request, "settings_shop_integr.html", nav="shop", shop_tab="integr", shop_cnt=_shop_cnt(db), c=c_, root=c_["canonical"].rstrip("/"),
+                  dns=dns[:-1], srv=srv, has_secret=bool(str(c_.get("ts_secret") or "").strip()))
+
+
+@app.post("/settings/shop/integrations")
+async def settings_shop_integrations_save(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import shop_front as sf
+    import re as _re
+    f = await request.form()
+    c = sf.cfg(db)
+    for k, pat in (("gtm_id", r"GTM-[A-Z0-9]{4,12}"), ("ga4_id", r"G-[A-Z0-9]{4,14}"), ("ads_id", r"AW-\d{6,14}"), ("ads_label", r"[A-Za-z0-9_-]{4,40}"),
+                   ("fb_pixel", r"\d{8,20}"), ("hotline_id", r"\d{1,12}"), ("ts_site", r"[0-9A-Za-z_-]{10,80}")):
+        v = str(f.get(k) or "").strip()
+        c[k] = v if _re.fullmatch(pat, v) else ""
+    sec = str(f.get("ts_secret") or "").strip()
+    if sec:
+        c["ts_secret"] = sec[:200]
+    if f.get("ts_clear"):
+        c["ts_secret"], c["ts_site"] = "", ""
+    for k in ("remarketing_on", "feed_google", "feed_facebook", "feed_hotline", "llms_on", "cookie_on", "tg_order", "tg_pay", "tg_review", "tg_cart"):
+        c[k] = bool(f.get(k))
+    c["ai_about"] = str(f.get("ai_about") or "").strip()[:1500]
+    sf.save_cfg(db, c)
+    audit(db, "settings.shop_integrations", "settings", None, user=user)
+    db.commit()
+    return RedirectResponse(_with_msg("/settings/shop/integrations", "Збережено"), 303)
+
+
+@app.get("/shop-kpi", response_class=HTMLResponse)
+def shop_kpi_page(request: Request, per: str = "30", d1: str = "", d2: str = "", user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    from .services import shop_kpi as sk, shop_front as sf
+    today = date.today()
+    if d1 and d2:
+        a, b = _day(d1) or today, _day(d2) or today
+        per = ""
+    else:
+        per = per if per in ("7", "30", "90", "month", "year") else "30"
+        a = {"7": today - timedelta(days=6), "30": today - timedelta(days=29), "90": today - timedelta(days=89), "month": today.replace(day=1),
+             "year": today.replace(month=1, day=1)}[per]
+        b = today
+    c_ = sf.cfg(db)
+    root = c_["canonical"].rstrip("/")
+    return render(request, "shop_kpi.html", nav="shop", shop_tab="kpi", shop_cnt=_shop_cnt(db), r=sk.report(db, a, b, sf.catalog(db)), per=per,
+                  d1=a.isoformat(), d2=b.isoformat(), root=root, c=c_)
+
+
+@app.get("/shop-promos", response_class=HTMLResponse)
+def shop_promos_page(request: Request, edit: int = 0, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    from .services import shop_promo as pr
+    from .models import ShopPromo
+    rows = list(db.scalars(select(ShopPromo).order_by(ShopPromo.active.desc(), ShopPromo.id.desc())))
+    return render(request, "shop_promos.html", nav="shop", shop_tab="promos", shop_cnt=_shop_cnt(db), rows=rows, st=pr.stats(db),
+                  ed=db.get(ShopPromo, edit) if edit else None, today=date.today())
+
+
+@app.post("/shop-promos")
+async def shop_promos_save(request: Request, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    from .services import shop_promo as pr
+    from .models import ShopPromo
+    f = await request.form()
+    if f.get("toggle"):
+        p = db.get(ShopPromo, int(f.get("toggle")))
+        if p:
+            p.active = not p.active
+            audit(db, "shop.promo", "shop_promo", p.id, user=user, active=p.active)
+            db.commit()
+        return RedirectResponse("/shop-promos", 303)
+    try:
+        p = pr.save(db, dict(f), int(f.get("id") or 0) or None)
+    except ValueError as e:
+        db.rollback()
+        return RedirectResponse(_with_msg("/shop-promos", str(e), True), 303)
+    audit(db, "shop.promo", "shop_promo", p.id, user=user, code=p.code)
+    db.commit()
+    return RedirectResponse(_with_msg("/shop-promos", f"Промокод {p.code} збережено"), 303)
+
+
 @app.get("/shop-carts", response_class=HTMLResponse)
 def shop_carts_page(request: Request, status: str = "open", user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
     from .services import shop_carts as ct, shop_front as sf
@@ -10160,11 +10257,6 @@ async def settings_shop_save(request: Request, user: User = Depends(require("use
             pass
     c["notify_on"] = bool(f.get("notify_on"))
     c["order_msg_on"] = bool(f.get("order_msg_on"))
-    import re as _re_an
-    for _k, _pat in (("gtm_id", r"GTM-[A-Z0-9]{4,12}"), ("ga4_id", r"G-[A-Z0-9]{4,14}"), ("ads_id", r"AW-\d{6,14}"), ("ads_label", r"[A-Za-z0-9_-]{4,40}")):
-        if f.get(_k) is not None:
-            _v = str(f.get(_k) or "").strip()
-            c[_k] = _v if _re_an.fullmatch(_pat, _v) else ""
     if f.get("ticker") is not None:
         c["ticker"] = str(f.get("ticker") or "").strip()[:800]
     if f.get("seller_req") is not None:
@@ -10197,7 +10289,7 @@ def settings_shop_products(request: Request, q: str = "", cat: str = "", f: str 
     from .services import shop_front as sf
     rows = sf.admin_rows(db, q.strip(), cat, f)
     st = sf.site(db)
-    return render(request, "settings_shop_products.html", nav="settings", rows=rows, cats=sorted(st["cats"], key=lambda c: c["path"]), q=q, cat=cat, f=f)
+    return render(request, "settings_shop_products.html", nav="shop", shop_tab="products", shop_cnt=_shop_cnt(db), rows=rows, stickers=sorted({r["sticker"] for r in (rows if not (q or cat or f) else sf.admin_rows(db)) if r["sticker"]}), cats=sorted(st["cats"], key=lambda c: c["path"]), q=q, cat=cat, f=f)
 
 
 @app.post("/settings/shop/products")
@@ -10210,7 +10302,7 @@ async def settings_shop_products_bulk(request: Request, user: User = Depends(req
     if not ids:
         return RedirectResponse(_with_msg(back, "Позначте товари", True), 303)
     try:
-        n = sf.bulk(db, ids, str(f.get("action") or ""), {"pct": f.get("pct"), "until": f.get("until"), "cat": f.get("bcat")})
+        n = sf.bulk(db, ids, str(f.get("action") or ""), {"pct": f.get("pct"), "until": f.get("until"), "cat": f.get("bcat"), "sticker": f.get("sticker")})
     except sf.ShopError as e:
         return RedirectResponse(_with_msg(back, str(e), True), 303)
     audit(db, "shop.bulk", user=user, op=str(f.get("action")), n=n)

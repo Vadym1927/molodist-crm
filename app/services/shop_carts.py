@@ -164,6 +164,13 @@ def job(db: Session, cfg: dict, data: dict, root: str) -> dict:
             db.flush()
             c.task_id = t.id
             rep["tasks"] += 1
+            if cfg.get("tg_cart"):
+                try:
+                    from . import shop_front as sf
+                    for ch in sf.order_chats(db):
+                        sf._tg_send(ch, f"🛒 Покинутий кошик: {int(c.total or 0)} ₴ — {(p.full_name if p else '')[:60]}. Задача адміністраторам створена.")
+                except Exception:  # noqa: BLE001
+                    pass
         if cfg.get("cart_auto_on") and auto and age >= auto and not c.reminded_at and not quiet and age < 24 * 7:
             try:
                 remind(db, cfg, c.id, data, root, "авто")

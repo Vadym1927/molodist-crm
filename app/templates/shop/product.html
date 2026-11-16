@@ -5,7 +5,7 @@
   <div class="prod-in">
     <div class="gal">{% if it.imgs %}<img id="gal-main" src="{{ base }}/img/{{ it.imgs[0] }}?w=1200" alt="{{ it.name }}" width="900" height="900" fetchpriority="high">
       {% if it.imgs|length > 1 %}<div class="thumbs">{% for f in it.imgs %}<button type="button" data-img="{{ base }}/img/{{ f }}?w=1200" class="{{ 'on' if loop.first }}"><img src="{{ base }}/img/{{ f }}?w=300" alt="" loading="lazy"></button>{% endfor %}</div>{% endif %}
-      {% else %}<span class="noimg big">M</span>{% endif %}</div>
+      {% else %}<span class="noimg big"><img src="/static/site/brand/wordmark-graphite.svg" alt="MOLODIST" width="260" height="48"></span>{% endif %}</div>
     <div class="info">{% if it.brand %}<p class="pc-br">{{ it.brand }}</p>{% endif %}<h1>{{ it.name }}</h1>{% if rvs and rvs.n %}<a class="rv-mini" href="#reviews"><span class="stars" style="--r:{{ rvs.avg }}"></span> {{ '%.1f'|format(rvs.avg) }} · {{ rvs.n }} відгук{{ 'и' if rvs.n % 10 in [2,3,4] and rvs.n % 100 not in [12,13,14] else ('' if rvs.n % 10 == 1 and rvs.n % 100 != 11 else 'ів') }}</a>{% endif %}
       {% if it.sku %}<p class="mut small">Артикул: {{ it.sku }}</p>{% endif %}
       {% if it.variants|length > 1 %}<div class="vars">{% for v in it.variants %}<label><input type="radio" name="var" value="{{ v.id }}" data-price="{{ money(v.price) }}" {{ 'checked' if loop.first }} {{ 'disabled' if not v.stock }}><span>{{ v.label or v.name }} · {{ money(v.price) }}</span></label>{% endfor %}</div>{% endif %}
@@ -29,4 +29,4 @@
 {{ rowblock('З цим товаром купують', rel, base, money, '', pch, s) }}
 {% endblock %}
 
-{% block ga %}<script>window.dataLayer=window.dataLayer||[];dataLayer.push({ecommerce:null});var e={currency:'UAH',value:{{ it.price|float }},items:[{item_id:'{{ it.variants[0].id }}',item_name:{{ it.name|tojson }},item_brand:{{ (it.brand or '')|tojson }},price:{{ it.price|float }},quantity:1}]};dataLayer.push({event:'view_item',ecommerce:e});if(typeof gtag==='function')gtag('event','view_item',e);</script>{% endblock %}
+{% block ga %}<script>mshopTrack('view_item',{currency:'UAH',value:{{ it.price|float }},items:[{item_id:'{{ it.variants[0].id }}',item_name:{{ it.name|tojson }},item_brand:{{ (it.brand or '')|tojson }},price:{{ it.price|float }},quantity:1}]});</script>{% endblock %}

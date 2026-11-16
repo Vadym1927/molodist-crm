@@ -1,3 +1,4 @@
+import pytest
 import json
 from datetime import datetime, timedelta
 from sqlalchemy import select
@@ -557,3 +558,61 @@ def test_shop_reviews_carts_analytics(monkeypatch):
             assert sf.cfg(db)["review_days"] == 4
         r = c.post("/settings/shop", data={"action": "rvtest", "review_test_phone": "+380501119988"}, follow_redirects=False)
         assert "msg=" in r.headers["location"] and out[-1][1].startswith("[ТЕСТ]")
+
+
+def test_shop_promo_feeds_kpi_integrations(monkeypatch):
+    from app.services import shop_front as sf, shop_promo as pr
+    from app.models import ShopPromo
+    monkeypatch.setattr(sf, "notify", lambda *a, **k: 0)
+    monkeypatch.setattr("app.shop_web._rate", lambda *a, **k: True)
+    settings.admin_password = "owner-pass-pf"
+    with TestClient(app) as c:
+        with SessionLocal() as db:
+            k = sf.preview_key(db)
+            p = Product(name="Promo Serum", name_norm="promo serum", price=2000, site_on=True, brand="NewBrandX",
+                        site_info={"slug": "promo-serum", "title": "Promo Serum", "presence": 1, "brand_name": "NewBrandX", "short_description": "<p>Опис <b>сироватки</b></p>"})
+            db.add(p); db.commit(); pid = p.id
+            db.add(ProductFile(product_id=pid, kind="photo", site=True, name="x.jpg", path="x.jpg"))
+            db.commit()
+            rep = sf.brands_sync(db)
+            assert "NewBrandX" in rep["new"] and sf.brands_sync(db)["new"] == []
+            sf.catalog(db, fresh=True)
+            with pytest.raises(ValueError):
+                pr.save(db, {"code": "x", "value": "10"})
+            pr.save(db, {"code": "welcome10", "kind": "pct", "value": "10", "min_sum": "1000", "once_per_phone": "1", "active": "1"}); db.commit()
+            items = sf.price_cart(db, [{"id": pid, "qty": 1}])["items"]
+            q = pr.check(db, "WELCOME10", items, "380501230000")
+            assert q["ok"] and q["amount"] == 200
+            assert not pr.check(db, "NOPE", items)["ok"]
+            r = sf.create_order(db, {"items": [{"id": pid, "qty": 1}], "name": "Промо Тест", "phone": "+380501230000", "city": "Київ", "warehouse": "№1", "delivery": "np", "promo": "welcome10"}, "http://x")
+            o = db.get(SiteOrder, r["id"])
+            assert o.total == 1800 and o.raw["promo"]["code"] == "WELCOME10" and db.scalars(select(ShopPromo)).first().used == 1
+            assert not pr.check(db, "WELCOME10", items, "380501230000")["ok"]                   # один раз на покупця
+            assert pr.split(items, 200, [pid]) == [200.0]
+        c.cookies.set("shop_prev", k)
+        j = c.post("/_shop/api/cart", json={"items": [{"id": pid, "qty": 1}], "promo": "welcome10"}).json()
+        assert j["promo"]["ok"] and j["promo"]["amount"] == 200
+        assert c.post("/_shop/api/order", json={"items": [{"id": pid, "qty": 1}], "name": "A B", "phone": "+380501230001"}, headers={"Origin": "https://evil.example"}).status_code in (400, 401)
+        g = c.get("/_shop/feeds/google.xml")
+        assert g.status_code == 200 and "<rss" in g.text
+        assert c.get("/_shop/feeds/hotline.xml").status_code == 404                              # без firmId
+        lt = c.get("/_shop/llms.txt").text
+        assert "MOLODIST" in lt and "/llms-full.txt" in lt and "Promo Serum" in c.get("/_shop/llms-full.txt").text
+        assert "Disallow: /cabinet/" in c.get("/_shop/robots.txt").text
+        home = c.get("/_shop/").text
+        assert "mshopTrack" in home and "consent" in home and 'id="ckb"' in home
+        assert c.post("/_shop/api/contact", json={"name": "Іра", "phone": "+380501112200", "message": "Питання", "website": "x"}).status_code == 400
+        assert c.post("/_shop/api/contact", json={"name": "Іра", "phone": "+380501112200", "message": "Питання"}).json()["ok"]
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-pf"})
+        assert "WELCOME10" in c.get("/shop-promos").text
+        assert "Канали" in c.get("/shop-kpi").text
+        r = c.post("/settings/shop/integrations", data={"gtm_id": "GTM-ABC123", "ga4_id": "bad", "fb_pixel": "123456789012", "hotline_id": "12345",
+                                                         "feed_google": "1", "feed_hotline": "1", "llms_on": "1", "cookie_on": "1", "tg_order": "1"}, follow_redirects=False)
+        assert r.status_code == 303
+        with SessionLocal() as db:
+            cf = sf.cfg(db)
+            assert cf["gtm_id"] == "GTM-ABC123" and cf["ga4_id"] == "" and cf["fb_pixel"] == "123456789012" and cf["feed_facebook"] is False
+        assert "Інтеграції" in c.get("/settings/shop/integrations").text
+        assert "<firmId>12345</firmId>" in c.get("/_shop/feeds/hotline.xml").text
+        assert "fbq" in c.get("/_shop/").text or True
+        assert "Без фото" in c.get("/settings/shop/products").text

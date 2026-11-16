@@ -2061,6 +2061,26 @@ class ShopCart(Base):
     note: Mapped[str | None] = mapped_column(Text)
 
 
+class ShopPromo(Base):
+    """Промокод інтернет-магазину: % або сума, мінімальна сума, термін, ліміт використань."""
+    __tablename__ = "shop_promos"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    kind: Mapped[str] = mapped_column(String(10), default="pct")                  # pct | sum
+    value: Mapped[float] = mapped_column(Float)
+    min_sum: Mapped[float | None] = mapped_column(Float)
+    starts: Mapped[date | None] = mapped_column(Date)
+    ends: Mapped[date | None] = mapped_column(Date)
+    max_uses: Mapped[int | None] = mapped_column(Integer)
+    used: Mapped[int | None] = mapped_column(Integer, default=0)
+    once_per_phone: Mapped[bool | None] = mapped_column(Boolean, default=True)
+    with_sale: Mapped[bool | None] = mapped_column(Boolean, default=False)       # чи діє на товари зі знижкою
+    brands: Mapped[str | None] = mapped_column(String(300))                       # через кому; порожньо — усі
+    active: Mapped[bool | None] = mapped_column(Boolean, default=True)
+    note: Mapped[str | None] = mapped_column(String(200))
+    created_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
 class CoinTxn(Base):
     """MOLODIST Coins — окремий журнал (не бонуси, перенесені з CleverBox): нарахування (+), списання (−), повернення, згоряння."""
     __tablename__ = "coin_txns"

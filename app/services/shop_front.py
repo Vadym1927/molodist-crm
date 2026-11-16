@@ -36,7 +36,9 @@ DEFAULT = {
     "coin_on": True, "coin_spend_on": False, "coin_start": "", "order_login": True, "coin_earn_pct": 3.0, "coin_max_pct": 10.0, "coin_days": 180, "coin_wait_days": 3,   # MOLODIST Coins у магазині
     "seller_req": "ФОП Бондар Вадим Миколайович\nАдреса: м. Київ, вул. Князя Романа Мстиславича, 28А\nТелефон: +38 (093) 375 64 37\nE-mail: info.molodostua@gmail.com",
     "ticker": "Безкоштовна доставка від 3 000 ₴ по всій Україні\nВідправляємо в день замовлення до 18:00\nZO Skin Health і ClearChoice — після консультації лікаря, звертайтеся до адміністратора\nMOLODIST Coins за реєстрацію та кожну покупку",
-    "gtm_id": "", "ga4_id": "", "ads_id": "", "ads_label": "",
+    "gtm_id": "", "ga4_id": "", "ads_id": "", "ads_label": "", "remarketing_on": True, "fb_pixel": "",
+    "feed_google": True, "feed_facebook": True, "feed_hotline": True, "hotline_id": "", "llms_on": True, "ai_about": "",
+    "cookie_on": True, "ts_site": "", "ts_secret": "", "tg_order": True, "tg_pay": True, "tg_review": True, "tg_cart": False,
     "review_on": False, "review_days": 5, "review_text": "", "review_test_phone": "",
     "cart_task_hours": 2, "cart_auto_on": False, "cart_auto_hours": 3, "cart_text": "",
     "order_msg_on": False,       # повідомлення покупцю: оплачено / відправлено (з ТТН) / скасовано
@@ -354,7 +356,7 @@ def catalog(db: Session, fresh: bool = False) -> dict:
                          "stock": stock, "imgs": files.get(p.id, []), "desc": si.get("short_description") or "",
                          "sections": sections(si.get("short_description") or ""),
                          "seo_title": si.get("seo_title") or "", "seo_desc": si.get("seo_description") or "", "sold": sold.get(p.id, 0),
-                         "new": p.id, "variants": [v], "sku": v["sku"]}
+                         "new": p.id, "variants": [v], "sku": v["sku"], "sticker": si.get("sticker") or ""}
     for it in by_slug.values():
         it["pct"] = round(100 * (1 - it["price"] / it["old"])) if it["old"] else 0
     st = site(db)
@@ -511,6 +513,9 @@ def admin_rows(db: Session, q: str = "", cat: str = "", flt: str = "") -> list[d
         for sl in c["slugs"]:
             in_cats[sl].append(c)
     rows, today = [], datetime.now().date().isoformat()
+    files = defaultdict(list)
+    for f in db.scalars(select(ProductFile).where(ProductFile.kind == "photo", ProductFile.site.is_(True)).order_by(ProductFile.sort, ProductFile.id)):
+        files[f.product_id].append(f.id)
     for p in db.scalars(select(Product).where(Product.site_info.is_not(None)).order_by(Product.brand, Product.name)):
         si = p.site_info or {}
         if not si.get("slug"):
@@ -520,13 +525,15 @@ def admin_rows(db: Session, q: str = "", cat: str = "", flt: str = "") -> list[d
         base = _price(p)
         r = {"p": p, "slug": si["slug"], "name": si.get("title") or p.name, "brand": si.get("brand_name") or p.brand or "", "base": base,
              "price": round(base * (1 - float(sale["pct"]) / 100)) if live else base, "sale": sale if sale.get("pct") else None, "live": live,
-             "on": p.site_on is not False and p.active is not False, "cats": in_cats.get(si["slug"], []),
+             "on": p.site_on is not False and p.active is not False, "cats": in_cats.get(si["slug"], []), "img": (files.get(p.id) or [None])[0],
+             "sticker": si.get("sticker") or "",
              "stock": str(si.get("presence", 1)).lower() not in ("0", "false", "not_available")}
         if q and q.lower() not in f"{r['name']} {r['brand']} {p.sku or ''}".lower():
             continue
         if cat and not any(c["path"] == cat for c in r["cats"]):
             continue
-        if (flt == "on" and not r["on"]) or (flt == "off" and r["on"]) or (flt == "sale" and not r["sale"]) or (flt == "nocat" and r["cats"]):
+        if (flt == "on" and not r["on"]) or (flt == "off" and r["on"]) or (flt == "sale" and not r["sale"]) or (flt == "nocat" and r["cats"]) \
+                or (flt == "nophoto" and r["img"]) or (flt == "sticker" and not r["sticker"]):
             continue
         rows.append(r)
     return rows
@@ -563,6 +570,13 @@ def bulk(db: Session, ids: list[int], action: str, data: dict) -> int:
         elif action == "sale_off":
             si.pop("sale", None)
             si.pop("price_old", None)
+        elif action == "sticker":
+            t = " ".join(str(data.get("sticker") or "").split())[:24]
+            if not t:
+                raise ShopError("Вкажіть текст стікера")
+            si["sticker"] = t
+        elif action == "sticker_off":
+            si.pop("sticker", None)
         elif action == "show":
             p.site_on = True
         elif action == "hide":
@@ -586,8 +600,12 @@ def make_sale(db: Session, o: SiteOrder, pl) -> int | None:
     if not items:
         return None
     used = float(((o.raw or {}).get("coins") or {}).get("used") or 0)
+    promo = (o.raw or {}).get("promo") or {}
+    pamt = float(promo.get("amount") or 0)
+    label = " + ".join(x for x in (("MOLODIST Coins" if used else ""), (f"промокод {promo.get('code')}" if pamt else "")) if x) or "MOLODIST Coins"
+    used += pamt
     paid_sum = round(sum(i["qty"] * i["price"] for i in items) - used, 2)
-    sale = sl.create(db, {"patient_id": o.patient_id, "no_discounts": True, "no_accrual": True, "manual_discount": used, "discount_label": "MOLODIST Coins", "items": items,
+    sale = sl.create(db, {"patient_id": o.patient_id, "no_discounts": True, "no_accrual": True, "manual_discount": used, "discount_label": label, "items": items,
                           "payments": [{"method": sl.paylink_method(acc.get("name") or "monobank"), "amount": paid_sum}],
                           "comment": f"Інтернет-магазин, замовлення {o.number}"})
     pl.sale_id = sale.id
@@ -705,8 +723,13 @@ def create_order(db: Session, data: dict, base_url: str) -> dict:
     cq = cn.quote(db, c, cart["items"], acc_pid, int(data.get("coins") or 0)) if acc_pid and pay != "parts" else {"use": 0}
     use = cq["use"]
     full = cart["total"]
-    if use:
-        cart = {**cart, "total": round(full - use, 2)}
+    from . import shop_promo as _pr
+    pr = _pr.check(db, data.get("promo"), cart["items"], phone, use) if _pr.norm(data.get("promo")) else None
+    if pr and not pr["ok"]:
+        raise ShopError(pr["msg"])
+    pamt = pr["amount"] if pr else 0
+    if use or pamt:
+        cart = {**cart, "total": round(full - use - pamt, 2)}
     fr = float(c.get("free_from") or 0)
     cart["free_delivery"] = bool(fr and cart["total"] >= fr)          # безкоштовна доставка — від кінцевої суми після знижок і Coins
     no = f"M{datetime.now():%y%m%d}-{secrets.randbelow(9000) + 1000}"
@@ -718,7 +741,8 @@ def create_order(db: Session, data: dict, base_url: str) -> dict:
                   comment=(str(data.get("comment") or "").strip()[:1000] + (f"\nПодарунок: {gift}" if gift else "")).strip() or None,
                   items=[{"product_id": i["id"], "name": i["name"], "sku": i["sku"], "qty": i["qty"], "price": i["price"], "total": i["total"], "sale": i.get("sale", False)} for i in cart["items"]],
                   extra=[{"name": f"Подарунок: {gift}", "price": 0, "on": True}] if gift else None,
-                  raw={"utm": {k: v for k, v in data.items() if k.startswith("utm_") or k in ("gclid", "fbclid")}, "free_delivery": cart["free_delivery"]},
+                  raw={"utm": {k: str(v)[:150] for k, v in data.items() if k.startswith("utm_") or k in ("gclid", "fbclid", "gbraid", "wbraid", "landing")},
+                       "free_delivery": cart["free_delivery"]},
                   synced_at=datetime.now())
     db.add(o)
     pat = so._patient(db, name, phone, o.email, {})
@@ -732,6 +756,10 @@ def create_order(db: Session, data: dict, base_url: str) -> dict:
         raise ShopError("Не вдалося застосувати MOLODIST Coins — оновіть сторінку й спробуйте ще раз.")
     if use:
         o.extra = (o.extra or []) + [{"name": f"Знижка MOLODIST Coins: {use}", "price": -use, "on": True}]
+    if pamt:
+        o.raw = {**(o.raw or {}), "promo": {"code": pr["code"], "amount": pamt, "lines": pr["lines"]}}
+        o.extra = (o.extra or []) + [{"name": f"Промокод {pr['code']}", "price": -pamt, "on": True}]
+        _pr.used(db, pr["id"])
     db.commit()
     out = {"ok": True, "number": no, "total": cart["total"], "id": o.id}
     if pay == "parts":
@@ -751,7 +779,7 @@ def create_order(db: Session, data: dict, base_url: str) -> dict:
         try:
             from . import paylinks as pl
             link = pl.create(db, cart["total"], f"Замовлення {no}", base_url, patient_id=o.patient_id, account_id=int(c.get("pay_account") or 0) or None,
-                             basket=_basket(cart["items"], use))
+                             basket=_basket(cart["items"], use, (pamt, pr["lines"]) if pamt else None))
             link.info = {**(link.info or {}), "shop_order": o.id}
             db.commit()
             out["pay_url"] = link.url
@@ -779,8 +807,11 @@ def split_discount(items: list[dict], disc: float) -> list[float]:
     return [x / 100 for x in out]
 
 
-def _basket(items: list[dict], use: int) -> list[dict]:
+def _basket(items: list[dict], use: int, promo: tuple | None = None) -> list[dict]:
     d = split_discount(items, use)
+    if promo:
+        from . import shop_promo as _pr
+        d = [round(a + b, 2) for a, b in zip(d, _pr.split(items, promo[0], promo[1]))]
     return [{"name": i["name"][:128], "qty": i["qty"], "total": round(i["total"] - x, 2), "code": str(i["sku"] or i["id"])} for i, x in zip(items, d)]
 
 
@@ -869,6 +900,11 @@ def notify(db: Session, o: SiteOrder, paid_now: bool = False, fail: str = "") ->
     raw = dict(o.raw or {})
     sent = raw.get("tg") or []
     n = 0
+    c_ = cfg(db)
+    if (paid_now or fail) and not c_.get("tg_pay", True):
+        return 0
+    if not (paid_now or fail) and not c_.get("tg_order", True):
+        return 0
     if paid_now or fail:
         head = f"✅ <b>Оплачено</b> — замовлення №{e(o.number or '')}, {o.total:,.0f} ₴".replace(",", " ") if paid_now else \
             f"⚠️ <b>Не оплачено</b> — замовлення №{e(o.number or '')}: {PAY_FAIL.get(fail, fail)}. Звʼяжіться з покупцем."
@@ -990,3 +1026,54 @@ def np_warehouses(c: dict, city_ref: str, q: str = "") -> list[dict]:
 def path_of_old(url: str) -> str:
     u = urlparse(url)
     return u.path if u.netloc.endswith("molodist.store") else url
+
+
+_TR = dict(zip("абвгґдеєжзиіїйклмнопрстуфхцчшщьюяыэё", ["a", "b", "v", "h", "g", "d", "e", "ie", "zh", "z", "y", "i", "i", "i", "k", "l", "m", "n", "o", "p", "r", "s", "t",
+                                                       "u", "f", "kh", "ts", "ch", "sh", "shch", "", "iu", "ia", "y", "e", "e"]))
+
+
+def slugify(s: str) -> str:
+    s = "".join(_TR.get(ch, ch) for ch in str(s or "").lower())
+    return re.sub(r"[^a-z0-9]+", "-", s).strip("-")[:60] or "brand"
+
+
+def brands_sync(db: Session) -> dict:
+    """Бренди → сторінки /shop/brendi/<бренд>/: новий бренд на сайті отримує сторінку автоматично,
+    нові товари бренду додаються до його сторінки. Ручні налаштування сторінки (назва, SEO, приховано) не чіпаємо."""
+    st = site(db)
+    by_brand: dict[str, list[str]] = defaultdict(list)
+    shown: dict[str, str] = {}
+    for p in db.scalars(select(Product).where(Product.site_info.is_not(None))):
+        si = p.site_info or {}
+        b = (si.get("brand_name") or p.brand or "").strip()
+        if not b or not si.get("slug") or p.site_on is False or p.active is False:
+            continue
+        by_brand[b.lower()].append(si["slug"])
+        shown.setdefault(b.lower(), b)
+    cats = {c["path"]: c for c in st["cats"]}
+    bcats = {c["name"].strip().lower(): c for c in st["cats"] if c["path"].startswith("/shop/brendi/") and c["path"] != "/shop/brendi/"}
+    try:
+        from .shop_seo import BRANDS
+        alias = {v[0].lower(): k for k, v in BRANDS.items()}
+    except Exception:  # noqa: BLE001
+        alias = {}
+    rep = {"new": [], "added": 0}
+    for key, slugs in by_brand.items():
+        c = bcats.get(key) or next((x for n, x in bcats.items() if n.split(" (")[0] == key or key.split(" (")[0] == n.split(" (")[0]), None)
+        if not c:
+            seg = alias.get(key) or slugify(shown[key])
+            path = f"/shop/brendi/{seg}/"
+            if path in cats:
+                c = cats[path]
+            else:
+                c = {"path": path, "name": shown[key], "title": "", "desc": "", "img": "", "in_menu": False, "slugs": [], "auto": True}
+                st["cats"].append(c)
+                cats[path] = c
+                rep["new"].append(shown[key])
+        for sl in slugs:
+            if sl not in c["slugs"]:
+                c["slugs"].append(sl)
+                rep["added"] += 1
+    if rep["new"] or rep["added"]:
+        save_site(db, st)
+    return rep

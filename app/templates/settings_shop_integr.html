@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Інтеграції магазину{% endblock %}
+{% block body %}
+<style>.chip{padding:7px 13px;border-radius:999px;border:1px solid var(--line);text-decoration:none;color:var(--ink);font-size:13px;background:#fff;white-space:nowrap}.chip.on{background:#3B3050;border-color:#3B3050;color:#fff}.chip b{margin-left:5px}
+.sc-f{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.ig{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:12px}.ig .card{display:grid;gap:8px;align-content:start}.ig .ck{display:flex;gap:8px;align-items:center}.ig .ck input{width:auto}
+.ig label:not(.ck){display:grid;gap:4px;font-size:13px}.ig label:not(.ck) input,.ig textarea{width:100%;box-sizing:border-box}.code{font-family:monospace;background:#F7F4F0;padding:2px 6px;border-radius:6px;word-break:break-all}.ok{color:#256B37}.bad{color:#8C2F39}</style>
+<h1 style="margin:0 0 4px">Центр керування магазином</h1><div class="muted small" style="margin-bottom:12px">Інтеграції: аналітика, реклама, фіди товарів, ШІ, сповіщення, кукі, захист від спаму, домен</div>
+{% include "_shop_tabs.html" %}{% include "_shop_msg.html" %}
+<form method="post"><div class="ig">
+ <div class="card"><b>Google: Tag Manager · GA4 · Ads</b>
+  <label>Google Tag Manager ID<input name="gtm_id" value="{{ c.gtm_id }}" placeholder="GTM-XXXXXXX (порожньо — контейнер сайту клініки)"></label>
+  <label>GA4 Measurement ID<input name="ga4_id" value="{{ c.ga4_id }}" placeholder="G-XXXXXXXXXX"></label>
+  <label>Google Ads ID<input name="ads_id" value="{{ c.ads_id }}" placeholder="AW-1234567890"></label>
+  <label>Мітка конверсії «Покупка»<input name="ads_label" value="{{ c.ads_label }}" placeholder="AbCdEf123"></label>
+  <label class="ck"><input type="checkbox" name="remarketing_on" value="1" {{ 'checked' if c.remarketing_on }}> Динамічний ремаркетинг (id товарів = id у фіді)</label>
+  <p class="small muted">Події: view_item, add_to_cart, begin_checkout, purchase — з товарами, сумою й номером замовлення; без імен і телефонів. Якщо GA4 / Ads уже налаштовані всередині GTM — тут їх не вказуйте, інакше покупки порахуються двічі.</p></div>
+ <div class="card"><b>Meta: Facebook / Instagram</b>
+  <label>Meta Pixel ID<input name="fb_pixel" value="{{ c.fb_pixel }}" placeholder="123456789012345"></label>
+  <p class="small muted">Pixel завантажується лише після згоди покупця на маркетингові cookie. Події: ViewContent, AddToCart, InitiateCheckout, Purchase.</p>
+  <label class="ck"><input type="checkbox" name="feed_facebook" value="1" {{ 'checked' if c.feed_facebook }}> Каталог для Facebook / Instagram Shopping</label>
+  <div class="small">Фід для Commerce Manager: <span class="code">{{ root }}/feeds/facebook.xml</span></div></div>
+ <div class="card"><b>Фіди товарів</b>
+  <label class="ck"><input type="checkbox" name="feed_google" value="1" {{ 'checked' if c.feed_google }}> Google Merchant Center (Shopping, Performance Max)</label>
+  <div class="small"><span class="code">{{ root }}/feeds/google.xml</span></div>
+  <label class="ck"><input type="checkbox" name="feed_hotline" value="1" {{ 'checked' if c.feed_hotline }}> Hotline.ua</label>
+  <label>Hotline firmId<input name="hotline_id" value="{{ c.hotline_id }}" placeholder="видає Hotline після реєстрації магазину"></label>
+  {% if c.hotline_id %}<div class="small"><span class="code">{{ root }}/feeds/hotline.xml</span></div>{% endif %}
+  <p class="small muted">Hotline — порівняльник цін: товар показується поруч з іншими магазинами, оплата за переходи. Має сенс для брендів, які продає багато магазинів, і коли наша ціна не вища.
+   У фідах — лише товари, видимі на сайті; без фото Google їх не приймає.</p></div>
+ <div class="card"><b>ШІ-пошук: llms.txt</b>
+  <label class="ck"><input type="checkbox" name="llms_on" value="1" {{ 'checked' if c.llms_on }}> Публікувати дані магазину для ШІ-сервісів (ChatGPT, Perplexity, Gemini, Claude)</label>
+  <div class="small"><span class="code">{{ root }}/llms.txt</span> · <span class="code">{{ root }}/llms-full.txt</span> (усі товари з цінами)</div>
+  <label>Опис магазину для ШІ<textarea name="ai_about" rows="4" maxlength="1500" placeholder="Порожньо — стандартний опис MOLODIST">{{ c.ai_about }}</textarea></label>
+  <p class="small muted">Плюс на сторінках товарів — розмітка schema.org (Product, Offer, рейтинг із відгуків), sitemap.xml і фід — усе це ШІ-сервіси читають, щоб рекомендувати магазин.</p></div>
+ <div class="card"><b>Сповіщення в Telegram</b><p class="small muted">У чат заявок і адміністраторам.</p>
+  <label class="ck"><input type="checkbox" name="tg_order" value="1" {{ 'checked' if c.tg_order }}> Нове замовлення</label>
+  <label class="ck"><input type="checkbox" name="tg_pay" value="1" {{ 'checked' if c.tg_pay }}> Оплата / несплата (відповіддю на замовлення)</label>
+  <label class="ck"><input type="checkbox" name="tg_review" value="1" {{ 'checked' if c.tg_review }}> Новий відгук на модерацію</label>
+  <label class="ck"><input type="checkbox" name="tg_cart" value="1" {{ 'checked' if c.tg_cart }}> Покинутий кошик (разом із задачею)</label></div>
+ <div class="card"><b>Cookie та захист від спаму</b>
+  <label class="ck"><input type="checkbox" name="cookie_on" value="1" {{ 'checked' if c.cookie_on }}> Банер згоди на cookie (Google Consent Mode v2)</label>
+  <p class="small muted">Захист уже працює: поле-пастка для ботів, обмеження частоти з однієї адреси, перевірка, що запит іде з нашого сайту, ліміт посилань у повідомленнях.
+   Для максимального захисту — Cloudflare Turnstile (безкоштовно, без «знайди світлофори»): створіть віджет на dash.cloudflare.com → Turnstile і вставте ключі тут.</p>
+  <label>Turnstile Site Key<input name="ts_site" value="{{ c.ts_site }}"></label>
+  <label>Turnstile Secret Key<input name="ts_secret" type="password" autocomplete="off" placeholder="{{ 'збережено — залиште порожнім' if has_secret else '' }}"></label>
+  {% if has_secret %}<label class="ck"><input type="checkbox" name="ts_clear" value="1"> Вимкнути Turnstile</label>{% endif %}</div>
+ <div class="card"><b>Домен</b>
+  <div class="small">Адреса магазину: <b>{{ c.canonical }}</b> · {{ 'опубліковано' if c.on else 'не опубліковано' }}. Домени й публікація — у <a href="/settings/shop">налаштуваннях магазину</a>.</div>
+  {% for h, ip in dns %}<div class="small">{{ h }} → {{ ip or 'не знайдено' }} {% if ip and ip == srv %}<span class="ok">✓ вказує на цей сервер</span>{% else %}<span class="bad">✗ має вказувати на {{ srv or 'IP сервера CRM' }}</span>{% endif %}</div>{% else %}<div class="small muted">Домени магазину ще не вказано.</div>{% endfor %}
+  <p class="small muted">Щоб підключити домен: A-запис домену → IP сервера CRM; на сервері — Nginx і сертифікат (робить адміністратор сервера); потім тут увімкнути «Магазин опубліковано».</p></div>
+</div><div style="margin-top:12px"><button class="btn">Зберегти</button></div></form>
+{% endblock %}

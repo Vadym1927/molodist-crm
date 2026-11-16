@@ -1,3 +1,8 @@
 <div class="sc-f" style="margin:0 0 14px;gap:8px"><a class="chip {{ 'on' if shop_tab == 'orders' }}" href="/shop-orders">Замовлення</a>
   <a class="chip {{ 'on' if shop_tab == 'carts' }}" href="/shop-carts">Покинуті кошики{% if shop_cnt and shop_cnt.carts %}<b>{{ shop_cnt.carts }}</b>{% endif %}</a>
-  <a class="chip {{ 'on' if shop_tab == 'reviews' }}" href="/shop-reviews">Відгуки{% if shop_cnt and shop_cnt.reviews %}<b>{{ shop_cnt.reviews }}</b>{% endif %}</a></div>
+  <a class="chip {{ 'on' if shop_tab == 'reviews' }}" href="/shop-reviews">Відгуки{% if shop_cnt and shop_cnt.reviews %}<b>{{ shop_cnt.reviews }}</b>{% endif %}</a>
+  <a class="chip {{ 'on' if shop_tab == 'promos' }}" href="/shop-promos">Промокоди</a>
+  <a class="chip {{ 'on' if shop_tab == 'kpi' }}" href="/shop-kpi">KPI і реклама</a>
+  <a class="chip" href="/settings/shop/products">Товари</a>
+  <a class="chip {{ 'on' if shop_tab == 'integr' }}" href="/settings/shop/integrations">Інтеграції</a>
+  <a class="chip" href="/settings/shop">Налаштування</a></div>

@@ -6,4 +6,4 @@
   <p><a class="btn" href="{{ base }}/shop/">Повернутися до каталогу</a></p></div></section>{% endblock %}
 {% block scripts %}<script>try{localStorage.removeItem('mshop_cart')}catch(e){}</script>
 {% if ga_purchase %}<script>(function(){var p={{ ga_purchase|tojson }};try{var k='mshop_ga_'+p.transaction_id;if(localStorage.getItem(k))return;if(sessionStorage.getItem('mshop_pur')!==p.transaction_id)return;localStorage.setItem(k,'1');sessionStorage.removeItem('mshop_pur')}catch(e){return}
-window.dataLayer=window.dataLayer||[];dataLayer.push({ecommerce:null});dataLayer.push({event:'purchase',ecommerce:p});if(typeof gtag==='function'){gtag('event','purchase',p);var a=window.MSHOP_ADS;if(a)gtag('event','conversion',{send_to:a.id+'/'+a.label,value:p.value,currency:'UAH',transaction_id:p.transaction_id});}})();</script>{% endif %}{% endblock %}
+mshopTrack('purchase',p);})();</script>{% endif %}{% endblock %}

@@ -24,12 +24,14 @@
     <div id="co-coins" hidden><h3>MOLODIST Coins</h3>
       <label class="ck coin-ck"><input type="checkbox" name="use_coins"><span>Використати <b data-coin-max>0</b> MOLODIST Coins — знижка <b data-coin-sum>0 ₴</b></span></label>
       <p class="mut small" data-coin-note></p></div>
+    <div class="promo"><label><span>Промокод</span><span class="promo-in"><input name="promo" autocomplete="off" maxlength="40" placeholder="Якщо є"><button type="button" class="btn sm ghost" data-promo>Застосувати</button></span></label><p class="small" data-promo-msg hidden></p></div>
     <div id="co-gift" hidden><h3>Подарунок до замовлення</h3><div class="opts" id="co-gifts"></div></div>
     <label><span>Коментар (необовʼязково)</span><textarea name="comment" rows="2"></textarea></label>
     <p class="err" hidden></p>
+    {% if s.ts_site %}<div class="cf-turnstile" data-sitekey="{{ s.ts_site }}" data-language="uk"></div>{% endif %}
     <button class="btn big">Підтвердити замовлення</button>
     <p class="mut small">Натискаючи кнопку, ви погоджуєтесь з умовами {% if '/for-customers/oferta/' in d.pages %}<a href="{{ base }}/for-customers/oferta/" target="_blank">публічної оферти</a>{% else %}магазину{% endif %}.</p>
   </form>
   <aside class="co-s"><h3>Ваше замовлення</h3><div id="co-items"></div><div class="row"><span>Товари</span><b id="co-sum">—</b></div>
-    <div class="row" id="co-coin-row" hidden><span>Знижка MOLODIST Coins</span><b id="co-coin">—</b></div><div class="row"><span>Доставка</span><b id="co-del">за тарифами перевізника</b></div><div class="row tot"><span>До сплати</span><b id="co-tot">—</b></div><p class="mut small" id="co-earn" hidden></p></aside>
+    <div class="row" id="co-coin-row" hidden><span>Знижка MOLODIST Coins</span><b id="co-coin">—</b></div><div class="row" id="co-promo-row" hidden><span data-promo-name>Промокод</span><b id="co-promo">—</b></div><div class="row"><span>Доставка</span><b id="co-del">за тарифами перевізника</b></div><div class="row tot"><span>До сплати</span><b id="co-tot">—</b></div><p class="mut small" id="co-earn" hidden></p></aside>
 </div></div></section>{% endblock %}

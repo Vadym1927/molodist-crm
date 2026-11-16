@@ -33,6 +33,42 @@ def _rate(request: Request, key: str, limit: int, window: int = 600) -> bool:
     return len(hits) < limit
 
 
+def _same_origin(request: Request) -> bool:
+    """POST з чужого сайту (Origin / Referer іншого домену) — відхиляємо; без заголовків (тести, старі браузери) — пропускаємо."""
+    from urllib.parse import urlparse
+    host = (request.headers.get("host") or "").split(":")[0].lower()
+    src = request.headers.get("origin") or request.headers.get("referer") or ""
+    if not src or src == "null":
+        return not src
+    return (urlparse(src).hostname or "").lower() == host
+
+
+def turnstile_ok(c: dict, token: str, ip: str = "") -> bool:
+    """Cloudflare Turnstile (якщо ключі задано в «Інтеграції»): перевірка токена на сервері."""
+    secret = str(c.get("ts_secret") or "").strip()
+    if not secret or not str(c.get("ts_site") or "").strip():
+        return True
+    if not token:
+        return False
+    try:
+        import httpx
+        r = httpx.post("https://challenges.cloudflare.com/turnstile/v0/siteverify", data={"secret": secret, "response": token, "remoteip": ip}, timeout=8)
+        return bool(r.json().get("success"))
+    except Exception:  # noqa: BLE001 — сервіс недоступний: не блокуємо покупців
+        return True
+
+
+def human(request: Request, body: dict, c: dict) -> str:
+    """'' — ок; інакше текст помилки. Пастка-поле, той самий сайт, Turnstile."""
+    if body.get("website"):
+        return "Заявку відхилено."
+    if not _same_origin(request):
+        return "Заявку відхилено."
+    if not turnstile_ok(c, str(body.get("cft") or ""), request.headers.get("x-real-ip") or ""):
+        return "Підтвердіть, будь ласка, що ви не робот (галочка над кнопкою)."
+    return ""
+
+
 def register(app, templates, version: str):
     from .services import shop_front as sf, site_pages as sp, shop_cabinet as sc
 
@@ -110,10 +146,39 @@ def register(app, templates, version: str):
                   blocks=sf.home_blocks(cx["d"]), blog=_blog(cx["d"], 4))
         return resp(request, "shop/home.html", cx)
 
+    def _feed_root(db, c):
+        return c["canonical"].rstrip("/")
+
+    @app.get("/_shop/feeds/{name}.xml", include_in_schema=False)
+    def shop_feed(name: str, db: Session = Depends(db_dep)):
+        from .services import shop_feeds as fd
+        c = sf.cfg(db)
+        if name not in fd.FEED_KEYS or not c.get(f"feed_{name}", True):
+            raise HTTPException(404)
+        d = sf.catalog(db)
+        nb = {x["name"] for x in d["cats"] if x.get("notice") and x["path"].startswith("/shop/brendi/")}
+        if name == "hotline":
+            if not str(c.get("hotline_id") or "").strip():
+                raise HTTPException(404)
+            body = fd.hotline(d, _feed_root(db, c), str(c.get("hotline_id")), "MOLODIST")
+        else:
+            body = fd.google(d, _feed_root(db, c), "MOLODIST", nb)
+        return Response(body, media_type="application/xml", headers={"Cache-Control": "public, max-age=1800"})
+
+    @app.get("/_shop/llms.txt", include_in_schema=False)
+    @app.get("/_shop/llms-full.txt", include_in_schema=False)
+    def shop_llms(request: Request, db: Session = Depends(db_dep)):
+        from .services import shop_feeds as fd
+        c = sf.cfg(db)
+        if not c.get("llms_on", True):
+            raise HTTPException(404)
+        body = fd.llms(sf.catalog(db), _feed_root(db, c), c, sp.cfg(db), full=request.url.path.endswith("-full.txt"))
+        return Response(body, media_type="text/plain; charset=utf-8", headers={"Cache-Control": "public, max-age=3600"})
+
     @app.get("/_shop/robots.txt")
     def shop_robots(db: Session = Depends(db_dep)):
         b = sf.cfg(db)["canonical"].rstrip("/")
-        return Response(f"User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /checkout/\nDisallow: /shop/cart/\nSitemap: {b}/sitemap.xml\n", media_type="text/plain")
+        return Response(f"User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /checkout/\nDisallow: /shop/cart/\nDisallow: /cabinet/\nDisallow: /review/\nDisallow: /wish/\nDisallow: /*?*order=\nDisallow: /*?*brand=\nSitemap: {b}/sitemap.xml\n", media_type="text/plain")
 
     @app.get("/_shop/sitemap.xml")
     @app.get("/_shop/contentsitemap.xml", include_in_schema=False)
@@ -185,6 +250,13 @@ def register(app, templates, version: str):
         want = body.get("coins")
         cart["coins"] = cn.quote(db, sf.cfg(db), cart["items"], got[1].id if got else None, None if want is None else int(want or 0))
         cart["coins"]["me"] = bool(got)
+        if body.get("promo"):
+            from .services import shop_promo as _pr
+            if not _rate(request, "promo", 40):
+                cart["promo"] = {"ok": False, "msg": "Забагато спроб. Спробуйте пізніше.", "amount": 0}
+            else:
+                pr = _pr.check(db, body.get("promo"), cart["items"], got[1].phone if got else "")
+                cart["promo"] = {k: pr.get(k) for k in ("ok", "code", "amount", "msg")}
         return JSONResponse(cart, headers={"Cache-Control": "no-store"})
 
     @app.post("/_shop/api/order")
@@ -198,6 +270,9 @@ def register(app, templates, version: str):
             body = {}
         if body.get("website") or not _rate(request, "shopord", 8):
             return JSONResponse({"ok": False, "msg": "Забагато спроб. Зателефонуйте нам, будь ласка."}, status_code=429)
+        bad = human(request, body, c)
+        if bad:
+            return JSONResponse({"ok": False, "msg": bad}, status_code=400)
         host = (request.headers.get("host") or "").split(":")[0].lower()
         body = {k: v for k, v in body.items() if not str(k).startswith("_")}
         got = sc.me(db, request.cookies.get(sc.COOKIE))
@@ -277,6 +352,9 @@ def register(app, templates, version: str):
         d = _body(await request.body())
         if d.get("website") or not _rate(request, "cabcode", 10):
             return JSONResponse({"ok": False, "msg": "Забагато спроб. Спробуйте пізніше."}, status_code=429)
+        bad = human(request, d, c)
+        if bad:
+            return JSONResponse({"ok": False, "msg": bad}, status_code=400)
         try:
             return JSONResponse(sc.start(db, c, d.get("phone"), _ip(request)), headers={"Cache-Control": "no-store"})
         except sc.CabError as e:
@@ -347,6 +425,34 @@ def register(app, templates, version: str):
     def cx_data(db):
         return sf.catalog(db)
 
+    @app.post("/_shop/api/contact")
+    async def shop_contact(request: Request, db: Session = Depends(db_dep)):
+        c = sf.cfg(db)
+        if not opened(request, db, c):
+            raise HTTPException(404)
+        d = _body(await request.body())
+        if not _rate(request, "shopct", 5, 3600):
+            return JSONResponse({"ok": False, "msg": "Забагато повідомлень. Зателефонуйте нам, будь ласка."}, status_code=429)
+        bad = human(request, d, c)
+        if bad:
+            return JSONResponse({"ok": False, "msg": bad}, status_code=400)
+        from .integrations.messaging import normalize_phone
+        name, msg = " ".join(str(d.get("name") or "").split())[:100], str(d.get("message") or "").strip()[:1500]
+        phone = normalize_phone(str(d.get("phone") or ""))
+        if len(name) < 2 or not phone:
+            return JSONResponse({"ok": False, "msg": "Вкажіть імʼя й телефон (+380…)."}, status_code=400)
+        if len(re.findall(r"https?://", msg)) > 1:
+            return JSONResponse({"ok": False, "msg": "Приберіть, будь ласка, посилання з повідомлення."}, status_code=400)
+        from .services import site_leads as sl
+        lead = {"name": name, "phone": phone, "message": msg, "formname": "Магазин · Контакти", "page": str(d.get("page") or "")[:300]}
+        lead.update({k: str(v)[:200] for k, v in d.items() if str(k).startswith("utm_") or k in ("gclid", "fbclid")})
+        r = sl.ingest(db, lead)
+        try:
+            sl.notify(db, lead, r, settings.public_url)
+        except Exception:  # noqa: BLE001
+            pass
+        return JSONResponse({"ok": bool(r.get("ok"))}, headers={"Cache-Control": "no-store"})
+
     @app.get("/_shop/review/{tok}/", response_class=HTMLResponse)
     def shop_review_page(tok: str, request: Request, db: Session = Depends(db_dep)):
         from .services import shop_reviews as rv
@@ -364,6 +470,9 @@ def register(app, templates, version: str):
         d = _body(await request.body())
         if d.get("website") or not _rate(request, "shoprv", 20):
             return JSONResponse({"ok": False, "msg": "Забагато спроб. Спробуйте пізніше."}, status_code=429)
+        bad = human(request, d, sf.cfg(db))
+        if bad:
+            return JSONResponse({"ok": False, "msg": bad}, status_code=400)
         o = rv.by_token(db, str(d.get("token") or ""))
         if not o:
             return JSONResponse({"ok": False, "msg": "Посилання недійсне."}, status_code=404)
@@ -373,6 +482,8 @@ def register(app, templates, version: str):
             return JSONResponse({"ok": False, "msg": str(e)}, status_code=400)
         db.commit()
         try:
+            if not sf.cfg(db).get("tg_review", True):
+                raise RuntimeError("off")
             for ch in sf.order_chats(db):
                 sf._tg_send(ch, f"⭐ Новий відгук на товар (замовлення №{o.number}). Перевірте й опублікуйте: «Магазин → Відгуки».")
         except Exception:  # noqa: BLE001

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}KPI магазину{% endblock %}
+{% block body %}
+<style>.chip{padding:7px 13px;border-radius:999px;border:1px solid var(--line);text-decoration:none;color:var(--ink);font-size:13px;background:#fff;white-space:nowrap}.chip.on{background:#3B3050;border-color:#3B3050;color:#fff}.chip b{margin-left:5px}
+.sc-f{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.sc-k{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin:12px 0}.sc-k div{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.sc-k span{display:block;font-size:11.5px;color:var(--muted,#7B7484);text-transform:uppercase;letter-spacing:.05em}.sc-k b{font-size:20px}.sc-k small{display:block;color:var(--muted,#7B7484)}
+.g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px}.g2 .card{overflow:auto}.bar{height:6px;background:#E4DEEF;border-radius:4px}.bar i{display:block;height:6px;background:#3B3050;border-radius:4px}
+.spark{display:flex;align-items:flex-end;gap:2px;height:70px;margin-top:8px}.spark i{flex:1;background:#C9BFE6;border-radius:2px 2px 0 0;min-height:1px}.spark i:hover{background:#3B3050}
+.ads li{margin:6px 0}.code{font-family:monospace;background:#F7F4F0;padding:2px 6px;border-radius:6px;word-break:break-all}</style>
+<h1 style="margin:0 0 4px">Центр керування магазином</h1><div class="muted small" style="margin-bottom:12px">KPI, джерела продажів і запуск реклами на товари</div>
+{% include "_shop_tabs.html" %}
+<form class="sc-f">{% for k2, n2 in (('7','7 днів'),('30','30 днів'),('90','90 днів'),('month','Цей місяць'),('year','Цей рік')) %}<a class="chip {{ 'on' if per == k2 }}" href="?per={{ k2 }}">{{ n2 }}</a>{% endfor %}
+  <input type="date" name="d1" value="{{ d1 }}"><span class="muted">—</span><input type="date" name="d2" value="{{ d2 }}"><button class="btn ghost">Показати</button></form>
+{% set k = r.k %}
+<div class="sc-k"><div><span>Виручка</span><b>{{ k.revenue|uah }}</b>{% if k.prev_revenue %}<small>{{ '%+d'|format(((k.revenue - k.prev_revenue) / k.prev_revenue * 100)|round|int) }}% до попереднього періоду</small>{% endif %}</div>
+  <div><span>Замовлень</span><b>{{ k.ok }}</b><small>попередній період: {{ k.prev_ok }}</small></div><div><span>Середній чек</span><b>{{ k.avg|uah }}</b></div>
+  <div><span>Покупців</span><b>{{ k.buyers }}</b><small>повторних: {{ k.repeat }}</small></div><div><span>Оплачено онлайн</span><b>{{ k.paid_share }}%</b></div>
+  <div><span>Скасовано / повернення</span><b>{{ k.lost }}</b></div>
+  <div><span>Покинуті кошики</span><b>{{ r.carts.n }}</b><small>на {{ r.carts.sum|uah }} · повернули після нагадування: {{ r.carts.back }}</small></div>
+  <div><span>Відгуки</span><b>{{ r.reviews.avg or '—' }}</b><small>опубліковано: {{ r.reviews.n }}</small></div></div>
+<div class="card" style="margin-bottom:12px"><b>Виручка по днях</b>{% set mx = (r.series|max) or 1 %}<div class="spark">{% for v in r.series %}<i style="height:{{ (v / mx * 100)|round(1) }}%" title="{{ r.days[loop.index0][8:10] }}.{{ r.days[loop.index0][5:7] }} — {{ v|uah }}"></i>{% endfor %}</div></div>
+<div class="g2">
+  <div class="card"><b>Канали</b>{% set mx = (r.channels|map(attribute='sum')|max) if r.channels else 1 %}
+    <table class="tbl"><tbody>{% for x in r.channels %}<tr><td>{{ x.key }}<div class="bar"><i style="width:{{ (x.sum / mx * 100)|round }}%"></i></div></td><td>{{ x.n }}</td><td>{{ x.sum|uah }}</td></tr>{% else %}<tr><td class="muted">Ще немає замовлень за період.</td></tr>{% endfor %}</tbody></table></div>
+  <div class="card"><b>Джерело / канал (UTM)</b><table class="tbl"><tbody>{% for x in r.sources %}<tr><td>{{ x.key }}</td><td>{{ x.n }}</td><td>{{ x.sum|uah }}</td></tr>{% else %}<tr><td class="muted">—</td></tr>{% endfor %}</tbody></table></div>
+  <div class="card"><b>Рекламні кампанії (utm_campaign)</b><table class="tbl"><tbody>{% for x in r.campaigns %}<tr><td>{{ x.key }}</td><td>{{ x.n }}</td><td>{{ x.sum|uah }}</td></tr>{% else %}<tr><td class="muted">Позначте посилання в рекламі UTM-мітками — і тут буде видно, яка кампанія продає.</td></tr>{% endfor %}</tbody></table></div>
+  <div class="card"><b>Товари — топ</b><table class="tbl"><tbody>{% for x in r.products %}<tr><td>{{ x.name }}</td><td>{{ x.n }} шт</td><td>{{ x.sum|uah }}</td></tr>{% else %}<tr><td class="muted">—</td></tr>{% endfor %}</tbody></table></div>
+  <div class="card"><b>Бренди</b><table class="tbl"><tbody>{% for x in r.brands %}<tr><td>{{ x.key }}</td><td>{{ x.n }} шт</td><td>{{ x.sum|uah }}</td></tr>{% else %}<tr><td class="muted">—</td></tr>{% endfor %}</tbody></table></div>
+  <div class="card ads"><b>Запустити рекламу на товари</b><ol class="small">
+    <li><b>Google Shopping / Performance Max:</b> у Google Merchant Center додайте фід <span class="code">{{ root }}/feeds/google.xml</span> (оновлюється автоматично), звʼяжіть Merchant Center з Google Ads і створіть кампанію Performance Max на товари.</li>
+    <li><b>Динамічний ремаркетинг:</b> {% if c.ads_id %}Google Ads ID задано — події з id товарів уже йдуть.{% else %}вкажіть Google Ads ID і мітку покупки в <a href="/settings/shop/integrations">Інтеграціях</a>.{% endif %}</li>
+    <li><b>Facebook / Instagram Shopping:</b> у Meta Commerce Manager → Каталог → Джерела даних → «Запланований фід»: <span class="code">{{ root }}/feeds/facebook.xml</span>{% if not c.fb_pixel %}; вкажіть Meta Pixel ID в Інтеграціях{% endif %}.</li>
+    <li><b>Hotline.ua:</b> {% if c.hotline_id %}прайс <span class="code">{{ root }}/feeds/hotline.xml</span>{% else %}після реєстрації магазину на Hotline вкажіть firmId в Інтеграціях{% endif %}.</li>
+    <li><b>UTM-мітки:</b> <span class="code">{{ root }}/shop/…?utm_source=instagram&amp;utm_medium=paid&amp;utm_campaign=назва</span> — джерело зберігається в замовленні й видно в таблицях вище.</li></ol></div>
+</div>
+{% endblock %}
