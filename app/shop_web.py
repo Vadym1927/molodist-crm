@@ -55,7 +55,7 @@ def register(app, templates, version: str):
         site = sp.cfg(db)
         from .services import mono_parts as _mp
         pp = _mp.public(db)
-        return {"pch": float(pp["min_sum"] or 0) if pp["ready"] else None, "request": request, "s": c, "c": site, "d": data, "base": "" if on_site else "/_shop", "noindex": not on_site,
+        return {"pch": float(pp["min_sum"] or 0) if pp["ready"] else None, "pch_legal": sf.PARTS_LEGAL, "pch_show": bool(pp["ready"] or pp.get("on")), "request": request, "s": c, "c": site, "d": data, "base": "" if on_site else "/_shop", "noindex": not on_site,
                 "canonical": c["canonical"].rstrip("/") + path, "ver": str(version)[:8], "year": date.today().year, "money": sp.money,
                 "benefits": sf.lines(c.get("benefits")), "viber": sp.viber_link(db, site), "path": path, "q": "",
                 "pkey": request.query_params.get("p") or ""}
@@ -95,6 +95,16 @@ def register(app, templates, version: str):
         urls = ["/", "/shop/"] + [c["path"] for c in d["cats"] if c["n"]] + [f"/shop/{i['slug']}/" for i in d["items"]] + list(d["pages"])
         body = "".join(f"<url><loc>{b}{u}</loc></url>" for u in dict.fromkeys(urls))
         return Response(f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{body}</urlset>', media_type="application/xml")
+
+    @app.get("/_shop/brand/{name}")
+    def shop_brand(name: str):
+        import re as _re
+        from fastapi.responses import FileResponse as _FR
+        f = sf.brand_dir() / name
+        if not _re.fullmatch(r"[a-z0-9-]+\.(png|svg|webp|jpg)", name) or not f.is_file():
+            raise HTTPException(404)
+        return _FR(f, headers={"Cache-Control": "public, max-age=2592000", "X-Content-Type-Options": "nosniff",
+                               "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'"})
 
     @app.get("/_shop/img/{fid:int}")
     def shop_img(fid: int, w: int = 600, db: Session = Depends(db_dep)):

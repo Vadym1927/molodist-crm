@@ -19,7 +19,7 @@
     <li><b>Онлайн карткою (посилання monobank)</b> — фіскальний чек видає monobank через свою інтеграцію з ПРРО; CRM сама створює чек продажу (товари списуються зі складу) і підтягує фіскальний чек monobank у цей чек — удруге не фіскалізує.</li>
     <li><b>При отриманні</b> — оплату приймає адміністратор: продаж проводиться в касі CRM і фіскалізується через Checkbox того ФОП, чию касу обрано в чеку.</li>
     <li><b>Покупка Частинами</b> — поки без фіскального чека з CRM (кошти надходять переказом від банку).</li></ul></div>
-<form method="post" class="card shs" style="display:grid;gap:14px;max-width:860px">
+<form method="post" enctype="multipart/form-data" class="card shs" style="display:grid;gap:14px;max-width:860px">
   <label class="ck" style="font-weight:700;font-size:15px"><input type="checkbox" name="on" value="1" {{ 'checked' if c.on }}> Магазин опубліковано</label>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
     <label>Домени магазину<input name="hosts" value="{{ c.hosts|join(' ') }}" placeholder="molodist.store www.molodist.store"><span class="small muted">після перенесення домену на наш сервер</span></label>
@@ -37,8 +37,14 @@
   <label>Переваги (рядок: Заголовок | текст)<textarea name="benefits" rows="4">{{ c.benefits }}</textarea></label>
   <label>Про нас<textarea name="about" rows="4">{{ c.about }}</textarea></label>
   <label>Instagram<input name="instagram" value="{{ c.instagram }}"></label>
-  <label>Значок «Покупка Частинами» (лапка) на фото товарів<input name="parts_icon" value="{{ c.parts_icon }}" placeholder="посилання на офіційний значок із матеріалів monobank (png / svg)">
-    <span class="small muted">Показується на товарах від мінімальної суми Покупки Частинами. Без значка — напис «Частинами».</span></label>
+  <div><b>Шильдик «Покупка Частинами» monobank</b>
+    <div class="small muted">Офіційний круглий шильдик із матеріалів monobank (Guideline → Шильдики → Завантажити). Показується на фото товарів від мінімальної суми Покупки Частинами,
+      у картці товару та внизу сайту разом з обовʼязковим текстом банку (текст не редагується). Шильдик не можна перефарбовувати, обертати чи обрізати.</div>
+    <div class="row" style="gap:12px;align-items:center;margin-top:6px">{% if c.parts_file %}<img src="/_shop/brand/{{ c.parts_file }}" alt="" style="width:64px;height:64px;object-fit:contain">{% endif %}
+      <label style="flex:1">Файл (png / svg)<input type="file" name="parts_upload" accept="image/png,image/svg+xml,image/webp"></label>
+      <label style="flex:1">або посилання на файл<input name="parts_icon" value="{{ c.parts_icon }}" placeholder="https://…/Label_black_800_px.png"></label></div>
+    {% if c.parts_file %}<label class="row small" style="gap:6px;align-items:center"><input type="checkbox" name="parts_label_clear" value="1" style="width:auto"> прибрати шильдик</label>{% endif %}</div>
+
   <div><b>Банери на головній</b><div class="small muted">Посилання на картинку (наприклад, із «Сайт клініки → Фото»), заголовок, текст, куди веде. Порожньо — стандартний блок.</div>
     {% for i in range(4) %}{% set h = c.hero[i] if i < c.hero|length else {} %}<div style="display:grid;grid-template-columns:2fr 1.4fr 1.6fr 1.4fr;gap:6px;margin-top:6px">
       <input name="h_img_{{ i }}" value="{{ h.img or '' }}" placeholder="https://…/banner.webp"><input name="h_title_{{ i }}" value="{{ h.title or '' }}" placeholder="Заголовок">

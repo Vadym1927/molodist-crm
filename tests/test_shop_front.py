@@ -162,3 +162,27 @@ def test_shop_admin_sections_bulk_import(monkeypatch):
             d = sf.catalog(db, fresh=True)
             assert d["by_slug"]["bulk-a"]["price"] == 2000 and "bulk-a" not in d["by_path"]["/shop/nabory/"]["slugs"]
         assert "Набори догляду" in c.get(f"/products/{ib}").text
+
+
+def test_shop_parts_label_and_legal():
+    from app.services import shop_front as sf, mono_parts as mp
+    settings.admin_password = "owner-pass-pl"
+    png = b"\x89PNG\r\n\x1a\n" + b"0" * 64
+    with TestClient(app) as c:
+        with SessionLocal() as db:
+            mp.save(db, "store-x", "key-x", "test", "3 4", True, 3000)
+            db.add(Product(name="Label A", name_norm="label a", price=3500, site_on=True, site_info={"slug": "label-a", "title": "Label A", "presence": 1}))
+            db.commit()
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-pl"})
+        r = c.post("/settings/shop", data={"on": "1"}, files={"parts_upload": ("l.png", png, "image/png")}, follow_redirects=False)
+        assert r.status_code == 303
+        with SessionLocal() as db:
+            name = sf.cfg(db)["parts_file"]
+            sf.catalog(db, fresh=True)
+        assert name.startswith("parts-label-") and c.get(f"/_shop/brand/{name}").content == png
+        assert c.get("/_shop/brand/..%2Fx.png").status_code == 404
+        h = c.get("/_shop/shop/label-a/").text
+        assert "АТ «УНІВЕРСАЛ БАНК» ліцензія НБУ No92 від 20.01.1994, номер у держреєстрі банків No 226." in h
+        assert "Реальна річна процентна ставка: 0,000001%" in h and f"/brand/{name}" in h and "chast.monobank.ua" in h
+        bad = c.post("/settings/shop", data={"on": "1"}, files={"parts_upload": ("l.exe", b"MZ", "application/octet-stream")}, follow_redirects=False)
+        assert "err" in bad.headers["location"]

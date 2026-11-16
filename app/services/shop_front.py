@@ -34,6 +34,7 @@ DEFAULT = {
              "лише оригінальна продукція від офіційних дистрибʼюторів. Допоможемо підібрати догляд під ваш тип шкіри.",
     "instagram": "https://www.instagram.com/molodist.clinic/",
     "hero": [],                  # [{img, title, text, url}]
+    "parts_file": "",            # локальна копія шильдика (files/shop_brand/…)
     "parts_icon": "",            # офіційний значок «Покупка Частинами» (лапка) — файл із матеріалів monobank
 }
 STATUSES = ["Нове", "В роботі", "Очікує оплати", "Оплачено", "Відправлено", "Виконано", "Скасовано"]
@@ -54,6 +55,49 @@ def cfg(db: Session) -> dict:
         except ValueError:
             pass
     return c
+
+
+# Обовʼязковий текст банку для сайтів, де є «Покупка Частинами» — дослівно, не редагувати.
+PARTS_LEGAL = {
+    "title": "Покупка частинами monobank | Universal Bank",
+    "provider": "АТ «УНІВЕРСАЛ БАНК» ліцензія НБУ No92 від 20.01.1994, номер у держреєстрі банків No 226.",
+    "items": ["Мінімальна сума розстрочки: 1 грн", "Максимальна сума розстрочки: 400 000 грн", "Реальна річна процентна ставка: 0,000001%",
+              "Доступний строк, платежів: 3 — 25", "Порядок погашення: щомісячні платежі рівними частинами", "Перший платіж у момент оформлення покупки"],
+    "note": "Інформація про істотні характеристики продукту та попередження розміщені на сайті продукту",
+    "url": "https://chast.monobank.ua/", "url_text": "chast.monobank.ua",
+}
+_IMG_EXT = {"image/png": ".png", "image/svg+xml": ".svg", "image/webp": ".webp", "image/jpeg": ".jpg"}
+
+
+def brand_dir():
+    from pathlib import Path
+    from ..config import settings
+    d = Path(settings.files_dir) / "shop_brand"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def set_parts_label(c: dict, data: bytes, ctype: str) -> None:
+    """Офіційний шильдик monobank (файл із їхніх матеріалів) — зберігаємо в себе як є, без змін."""
+    ext = _IMG_EXT.get((ctype or "").split(";")[0].strip().lower())
+    if not ext or not data or len(data) > 3 * 1024 * 1024:
+        raise ShopError("Шильдик: потрібен файл png / svg / webp до 3 МБ")
+    name = f"parts-label-{int(time.time())}{ext}"
+    (brand_dir() / name).write_bytes(data)
+    c["parts_file"] = name
+
+
+def fetch_parts_label(c: dict, url: str, http=None) -> None:
+    import httpx
+    if not url.startswith("https://"):
+        raise ShopError("Шильдик: посилання має починатися з https://")
+    try:
+        r = (http or httpx).get(url, timeout=30, follow_redirects=True)
+    except httpx.HTTPError as e:
+        raise ShopError(f"Шильдик не завантажився: {e}") from e
+    if r.status_code != 200:
+        raise ShopError(f"Шильдик не завантажився: HTTP {r.status_code}")
+    set_parts_label(c, r.content, r.headers.get("content-type") or "")
 
 
 def save_cfg(db: Session, c: dict) -> None:
