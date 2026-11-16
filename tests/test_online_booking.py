@@ -305,3 +305,14 @@ def test_online_purchase_fulfil_cert_and_sub(monkeypatch):
         sb = db.query(Subscription).filter(Subscription.patient_id == buyer.id).one()
         assert sb.visits_total == 6 and sb.paid == 10200
     assert pls._basket([{"name": "Апаратний масаж STRATOSPHERE 50 хв", "qty": 6, "total": 10200}], 10200, "x")[0]["qty"] == 6
+
+
+def test_care_bot_link():
+    from app.models import SyncState
+    with SessionLocal() as db:
+        st = db.get(SyncState, "online_care_bot_20261116")
+        if st:
+            db.delete(st); db.commit()
+        c = ob.cfg(db); c["care_bot"] = ""; ob.save_cfg(db, c)
+        assert ob.apply_care_bot_20261116(db)["ok"] and ob.cfg(db)["care_bot"] == "https://t.me/molodist_assistant_bot"
+        assert ob.apply_care_bot_20261116(db)["skipped"]

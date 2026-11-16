@@ -580,6 +580,8 @@ async def lifespan(app: FastAPI):
             log.info("online_cb_seed: %s", _obs(db))
             from .services.online_booking import apply_guides_20261116 as _obg
             log.info("online_guides: %s", _obg(db))
+            from .services.online_booking import apply_care_bot_20261116 as _obb
+            log.info("online_care_bot: %s", _obb(db))
         except Exception as _e:  # noqa: BLE001
             log.warning("online_cb_seed: %s", _e)
             db.rollback()

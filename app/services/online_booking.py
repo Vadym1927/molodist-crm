@@ -26,6 +26,7 @@ from ..config import settings
 from ..models import Appointment, CbService, DayOff, Doctor, Patient, StaffShift, SyncState, Visit
 
 KEY = "online_booking"
+CARE_BOT = "https://t.me/molodist_assistant_bot"
 SLUG = "zapys"
 GUIDES_DEFAULT = [
     {"title": "Тарілка здорового харчування 360", "tag": "Харчування", "on": True,
@@ -110,7 +111,7 @@ DEFAULT = {
     "faq": FAQ_DEFAULT,
     "certs_on": True,
     "subs_on": True,
-    "care_bot": "",             # посилання на Бот турботи (Telegram)
+    "care_bot": CARE_BOT,       # посилання на Бот турботи (Telegram)
     # правила програми лояльності (як в онлайн-записі CleverBox, 16.11.2026)
     "promos": "Лазерна епіляція: −50% на перший візит від основної вартості, комплекси зон — зі знижкою 15%\n"
               "Апаратний масаж STRATOSPHERE: перший візит — 1 500 ₴, щоб ви могли оцінити результат на оригінальному апараті\n"
@@ -1007,3 +1008,17 @@ def attach_fiscal(db: Session, http=None) -> int:
             except Exception:  # noqa: BLE001
                 db.rollback()
     return n
+
+
+def apply_care_bot_20261116(db: Session) -> dict:
+    """Один раз: посилання на Бот турботи у «Звʼязку» (від власника 16.11.2026), якщо поле ще порожнє."""
+    flag = "online_care_bot_20261116"
+    if db.get(SyncState, flag):
+        return {"skipped": True}
+    c = cfg(db)
+    if not c.get("care_bot"):
+        c["care_bot"] = CARE_BOT
+        save_cfg(db, c)
+    db.merge(SyncState(key=flag, value="1", updated_at=datetime.utcnow()))
+    db.commit()
+    return {"ok": True}
