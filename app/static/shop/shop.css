@@ -89,7 +89,8 @@ img{max-width:100%;height:auto}a{color:var(--act)}h1,h2,h3,h4{font-family:var(--
 .acc{border-top:1px solid var(--greige)}.acc:last-child{border-bottom:1px solid var(--greige)}.acc summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:18px 0}.acc summary::-webkit-details-marker{display:none}
 .acc summary h2{font:600 15px var(--hf);text-transform:uppercase;letter-spacing:.06em;margin:0}.acc summary:after{content:"+";font-size:22px;color:var(--act)}.acc[open] summary:after{content:"–"}.acc .rte{padding:0 0 20px}.rte p{margin:0 0 10px}.rte ul,.rte ol{margin:0 0 10px;padding-left:20px}
 
-.pch-lbl{position:absolute;right:8px;bottom:8px;width:56px;height:56px;object-fit:contain;pointer-events:none}.pch-line img{width:44px;height:44px}
-.ft-pch{display:flex;gap:24px;align-items:center;background:var(--cream);color:var(--ink);border-radius:20px;margin-top:36px;padding:22px 26px;font-size:12.5px;line-height:1.5}.ft-pch img{width:120px;height:120px;object-fit:contain;flex:none}
-.ft-pch b{font-size:13px}.ft-pch p{margin:8px 0 0}.ft .ft-pch a{display:inline;padding:0;color:#5C4B82;text-decoration:underline;font-size:inherit}.ft-pch+.ft-bot{margin-top:22px}
-@media (max-width:560px){.ft-pch{flex-direction:column;align-items:center}.ft-pch img{width:96px;height:96px}.pch-lbl{width:44px;height:44px}}
+.pc-img img.pch-paw{position:absolute;right:8px;bottom:8px;left:auto;top:auto;width:40px;height:40px;object-fit:contain;pointer-events:none;mix-blend-mode:normal;opacity:1!important}.pc:hover .pc-img img.pch-paw{transform:none}.pch-line img{width:40px;height:40px}
+.ft-pch{display:flex;gap:28px;align-items:center;border-top:1px solid rgba(255,255,255,.12);margin-top:36px;padding-top:28px;font-size:12.5px;line-height:1.5;color:#D8D2E0}
+.ft-pch-l{flex:none;display:grid;gap:8px;justify-items:center;text-align:center;font:600 12px var(--hf);letter-spacing:.06em;text-transform:uppercase;color:#fff}.ft-pch-l img{width:230px;max-width:100%;height:auto;display:block}
+.ft-pch b{color:#fff;font-size:13px}.ft-pch p{margin:8px 0 0}.ft .ft-pch a{display:inline;padding:0;color:var(--lav2);text-decoration:underline;font-size:inherit}.ft-pch+.ft-bot{margin-top:22px}
+@media (max-width:560px){.ft-pch{flex-direction:column;align-items:flex-start}.pc-img img.pch-paw{width:32px;height:32px;right:6px;bottom:6px}}

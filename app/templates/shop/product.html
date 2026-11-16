@@ -14,7 +14,7 @@
       <div class="buy"><div class="qty"><button type="button" data-q="-1">−</button><input id="p-qty" value="1" inputmode="numeric" aria-label="Кількість"><button type="button" data-q="1">+</button></div>
         <button class="btn" type="button" id="p-add" data-add="{{ it.variants[0].id }}" data-name="{{ it.name }}">Додати в кошик</button></div>
       {% else %}<p class="out">Немає в наявності</p><a class="btn ghost" href="{{ c.telegram }}" target="_blank" rel="noopener">Повідомити, коли зʼявиться</a>{% endif %}
-      {% if pch is not none and it.stock and it.price >= pch %}<p class="pch-line">{% if s.parts_file %}<img src="{{ base }}/brand/{{ s.parts_file }}" alt="">{% endif %}<span><b>Покупка Частинами monobank</b> — безкоштовна розстрочка без комісій. Оберіть при оформленні замовлення.</span></p>{% endif %}
+      {% if pch is not none and it.stock and it.price >= pch %}<p class="pch-line">{% if s.parts_paw_file %}<img src="{{ base }}/brand/{{ s.parts_paw_file }}" alt="">{% endif %}<span><b>Покупка Частинами monobank</b> — безкоштовна розстрочка без комісій. Оберіть при оформленні замовлення.</span></p>{% endif %}
       <ul class="perks"><li>{{ ('Безкоштовна доставка від ' ~ money(s.free_from)) if s.free_from else 'Доставка Новою поштою' }}</li><li>Оригінальна продукція · підбір догляду лікарем</li></ul>
     </div>
   </div>

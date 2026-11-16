@@ -9962,10 +9962,10 @@ async def settings_shop_save(request: Request, user: User = Depends(require("use
         audit(db, "settings.mono_parts", "settings", None, user=user, ok=ok)
         return RedirectResponse(_with_msg("/settings/shop", f"Покупка Частинами: збережено · перевірка: {msg}", not ok) + "#parts", 303)
     c = sf.cfg(db)
-    _old_icon = c.get("parts_icon") or ""
+    _old = {"parts_icon": c.get("parts_icon") or "", "parts_paw": c.get("parts_paw") or ""}
     c["on"] = bool(f.get("on"))
     c["hosts"] = [h.strip().lower() for h in str(f.get("hosts") or "").replace(",", " ").split() if h.strip()][:5]
-    for k, n in (("strip", 200), ("gifts", 1000), ("benefits", 1500), ("about", 3000), ("instagram", 200), ("canonical", 120), ("parts_icon", 500)):
+    for k, n in (("strip", 200), ("gifts", 1000), ("benefits", 1500), ("about", 3000), ("instagram", 200), ("canonical", 120), ("parts_icon", 500), ("parts_paw", 500)):
         c[k] = str(f.get(k) or "").strip()[:n]
     for k in ("free_from", "gift_from", "pay_account"):
         try:
@@ -9973,16 +9973,17 @@ async def settings_shop_save(request: Request, user: User = Depends(require("use
         except ValueError:
             pass
     warn = ""
-    try:
-        up = f.get("parts_upload")
-        if up is not None and getattr(up, "filename", ""):
-            sf.set_parts_label(c, await up.read(), up.content_type or "")
-        elif c["parts_icon"] and (c["parts_icon"] != _old_icon or not c.get("parts_file")):
-            sf.fetch_parts_label(c, c["parts_icon"])
-        if f.get("parts_label_clear"):
-            c["parts_file"], c["parts_icon"] = "", ""
-    except sf.ShopError as e:
-        warn = str(e)
+    for fld, urlk, filek in (("parts_upload", "parts_icon", "parts_file"), ("paw_upload", "parts_paw", "parts_paw_file")):
+        try:
+            up = f.get(fld)
+            if up is not None and getattr(up, "filename", ""):
+                sf.set_parts_label(c, await up.read(), up.content_type or "", filek)
+            elif c[urlk] and (c[urlk] != _old[urlk] or not c.get(filek)):
+                sf.fetch_parts_label(c, c[urlk], key=filek)
+            if f.get(filek + "_clear"):
+                c[filek], c[urlk] = "", ""
+        except sf.ShopError as e:
+            warn = str(e)
     c["cod"], c["pickup"] = bool(f.get("cod")), bool(f.get("pickup"))
     if str(f.get("np_key") or "").strip():
         c["np_key"] = str(f.get("np_key")).strip()[:120]

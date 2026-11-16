@@ -174,7 +174,7 @@ def test_shop_parts_label_and_legal():
             db.add(Product(name="Label A", name_norm="label a", price=3500, site_on=True, site_info={"slug": "label-a", "title": "Label A", "presence": 1}))
             db.commit()
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-pl"})
-        r = c.post("/settings/shop", data={"on": "1"}, files={"parts_upload": ("l.png", png, "image/png")}, follow_redirects=False)
+        r = c.post("/settings/shop", data={"on": "1"}, files={"parts_upload": ("l.png", png, "image/png"), "paw_upload": ("p.png", png, "image/png")}, follow_redirects=False)
         assert r.status_code == 303
         with SessionLocal() as db:
             name = sf.cfg(db)["parts_file"]
@@ -184,5 +184,8 @@ def test_shop_parts_label_and_legal():
         h = c.get("/_shop/shop/label-a/").text
         assert "АТ «УНІВЕРСАЛ БАНК» ліцензія НБУ No92 від 20.01.1994, номер у держреєстрі банків No 226." in h
         assert "Реальна річна процентна ставка: 0,000001%" in h and f"/brand/{name}" in h and "chast.monobank.ua" in h
+        with SessionLocal() as db:
+            paw = sf.cfg(db)["parts_paw_file"]
+        assert paw.startswith("parts-paw-") and f'class="pch-paw" src="/_shop/brand/{paw}"' in c.get("/_shop/shop/").text
         bad = c.post("/settings/shop", data={"on": "1"}, files={"parts_upload": ("l.exe", b"MZ", "application/octet-stream")}, follow_redirects=False)
         assert "err" in bad.headers["location"]

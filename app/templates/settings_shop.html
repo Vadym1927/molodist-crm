@@ -37,14 +37,17 @@
   <label>Переваги (рядок: Заголовок | текст)<textarea name="benefits" rows="4">{{ c.benefits }}</textarea></label>
   <label>Про нас<textarea name="about" rows="4">{{ c.about }}</textarea></label>
   <label>Instagram<input name="instagram" value="{{ c.instagram }}"></label>
-  <div><b>Шильдик «Покупка Частинами» monobank</b>
-    <div class="small muted">Офіційний круглий шильдик із матеріалів monobank (Guideline → Шильдики → Завантажити). Показується на фото товарів від мінімальної суми Покупки Частинами,
-      у картці товару та внизу сайту разом з обовʼязковим текстом банку (текст не редагується). Шильдик не можна перефарбовувати, обертати чи обрізати.</div>
-    <div class="row" style="gap:12px;align-items:center;margin-top:6px">{% if c.parts_file %}<img src="/_shop/brand/{{ c.parts_file }}" alt="" style="width:64px;height:64px;object-fit:contain">{% endif %}
-      <label style="flex:1">Файл (png / svg)<input type="file" name="parts_upload" accept="image/png,image/svg+xml,image/webp"></label>
-      <label style="flex:1">або посилання на файл<input name="parts_icon" value="{{ c.parts_icon }}" placeholder="https://…/Label_black_800_px.png"></label></div>
-    {% if c.parts_file %}<label class="row small" style="gap:6px;align-items:center"><input type="checkbox" name="parts_label_clear" value="1" style="width:auto"> прибрати шильдик</label>{% endif %}</div>
-
+  <div><b>Покупка Частинами monobank: лапка й шильдик</b>
+    <div class="small muted">Офіційні файли з матеріалів monobank (Guideline → Завантажити). Лапку й шильдик не можна перефарбовувати, обертати чи обрізати — вони показуються як є.
+      Цифра в лапці та «до N платежів» мають відповідати найбільшій кількості платежів нижче в «Покупка Частинами».</div>
+    <div class="row" style="gap:12px;align-items:center;margin-top:8px">{% if c.parts_paw_file %}<img src="/_shop/brand/{{ c.parts_paw_file }}" alt="" style="width:48px;height:48px;object-fit:contain">{% endif %}
+      <label style="flex:1"><b>Лапка</b> — у правому нижньому куті фото товарів від мінімальної суми<input type="file" name="paw_upload" accept="image/png,image/svg+xml,image/webp"></label>
+      <label style="flex:1">або посилання на файл<input name="parts_paw" value="{{ c.parts_paw }}" placeholder="https://…/paw_4_400_px.png"></label>
+      {% if c.parts_paw_file %}<label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" name="parts_paw_file_clear" value="1" style="width:auto"> прибрати</label>{% endif %}</div>
+    <div class="row" style="gap:12px;align-items:center;margin-top:8px">{% if c.parts_file %}<img src="/_shop/brand/{{ c.parts_file }}" alt="" style="height:48px;max-width:150px;object-fit:contain">{% endif %}
+      <label style="flex:1"><b>Шильдик</b> — внизу сайту поруч з обовʼязковим текстом банку<input type="file" name="parts_upload" accept="image/png,image/svg+xml,image/webp"></label>
+      <label style="flex:1">або посилання на файл<input name="parts_icon" value="{{ c.parts_icon }}" placeholder="https://…/Label_white_800_px.png"></label>
+      {% if c.parts_file %}<label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" name="parts_file_clear" value="1" style="width:auto"> прибрати</label>{% endif %}</div></div>
   <div><b>Банери на головній</b><div class="small muted">Посилання на картинку (наприклад, із «Сайт клініки → Фото»), заголовок, текст, куди веде. Порожньо — стандартний блок.</div>
     {% for i in range(4) %}{% set h = c.hero[i] if i < c.hero|length else {} %}<div style="display:grid;grid-template-columns:2fr 1.4fr 1.6fr 1.4fr;gap:6px;margin-top:6px">
       <input name="h_img_{{ i }}" value="{{ h.img or '' }}" placeholder="https://…/banner.webp"><input name="h_title_{{ i }}" value="{{ h.title or '' }}" placeholder="Заголовок">

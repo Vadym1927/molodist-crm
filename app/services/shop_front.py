@@ -34,7 +34,8 @@ DEFAULT = {
              "лише оригінальна продукція від офіційних дистрибʼюторів. Допоможемо підібрати догляд під ваш тип шкіри.",
     "instagram": "https://www.instagram.com/molodist.clinic/",
     "hero": [],                  # [{img, title, text, url}]
-    "parts_file": "",            # локальна копія шильдика (files/shop_brand/…)
+    "parts_file": "",            # локальна копія шильдика для низу сайту (files/shop_brand/…)
+    "parts_paw": "", "parts_paw_file": "",   # офіційна лапка (з цифрою) — у куті фото товару
     "parts_icon": "",            # офіційний значок «Покупка Частинами» (лапка) — файл із матеріалів monobank
 }
 STATUSES = ["Нове", "В роботі", "Очікує оплати", "Оплачено", "Відправлено", "Виконано", "Скасовано"]
@@ -77,17 +78,19 @@ def brand_dir():
     return d
 
 
-def set_parts_label(c: dict, data: bytes, ctype: str) -> None:
-    """Офіційний шильдик monobank (файл із їхніх матеріалів) — зберігаємо в себе як є, без змін."""
+def set_parts_label(c: dict, data: bytes, ctype: str, key: str = "parts_file") -> None:
+    """Офіційний шильдик / лапка monobank (файл із їхніх матеріалів) — зберігаємо в себе як є, без змін."""
     ext = _IMG_EXT.get((ctype or "").split(";")[0].strip().lower())
+    if not ext and data[:8] == b"\x89PNG\r\n\x1a\n":
+        ext = ".png"
     if not ext or not data or len(data) > 3 * 1024 * 1024:
         raise ShopError("Шильдик: потрібен файл png / svg / webp до 3 МБ")
-    name = f"parts-label-{int(time.time())}{ext}"
+    name = f"{'parts-paw' if key == 'parts_paw_file' else 'parts-label'}-{int(time.time())}{ext}"
     (brand_dir() / name).write_bytes(data)
-    c["parts_file"] = name
+    c[key] = name
 
 
-def fetch_parts_label(c: dict, url: str, http=None) -> None:
+def fetch_parts_label(c: dict, url: str, http=None, key: str = "parts_file") -> None:
     import httpx
     if not url.startswith("https://"):
         raise ShopError("Шильдик: посилання має починатися з https://")
@@ -97,7 +100,7 @@ def fetch_parts_label(c: dict, url: str, http=None) -> None:
         raise ShopError(f"Шильдик не завантажився: {e}") from e
     if r.status_code != 200:
         raise ShopError(f"Шильдик не завантажився: HTTP {r.status_code}")
-    set_parts_label(c, r.content, r.headers.get("content-type") or "")
+    set_parts_label(c, r.content, r.headers.get("content-type") or "", key)
 
 
 def save_cfg(db: Session, c: dict) -> None:
