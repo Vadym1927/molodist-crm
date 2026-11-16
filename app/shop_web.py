@@ -45,6 +45,10 @@ def register(app, templates, version: str):
         u = db.get(User, uid) if uid else None
         return bool(u and u.active)
 
+    def _book_url(db, site) -> str:
+        from .services import online_booking as ob
+        return ((site.get("canonical") or "").rstrip("/") if ob.cfg(db).get("on") else "/_site") + f"/{ob.SLUG}?g=" + "Консультації"
+
     def _cert_url(db, site) -> str:
         from .services import online_booking as ob
         return ((site.get("canonical") or "").rstrip("/") if ob.cfg(db).get("on") else "/_site") + f"/{ob.SLUG}/#sertyfikaty"
@@ -64,7 +68,7 @@ def register(app, templates, version: str):
                 "pch": float(pp["min_sum"] or 0) if pp["ready"] else None, "pch_legal": sf.PARTS_LEGAL, "pch_show": bool(pp["ready"] or pp.get("on")), "request": request, "s": c, "c": site, "d": data, "base": "" if on_site else "/_shop", "noindex": not on_site,
                 "canonical": c["canonical"].rstrip("/") + path, "ver": str(version)[:8], "year": date.today().year, "money": sp.money,
                 "og_title": "", "og_desc": "", "og_img": (c["canonical"].rstrip("/") if on_site else settings.public_url.rstrip("/")) + "/static/shop/og/default.jpg", "abs": (c["canonical"].rstrip("/") if on_site else settings.public_url.rstrip("/")),
-                "benefits": sf.lines(c.get("benefits")), "coin_earn": lambda price, sale=False: __import__("app.services.coins", fromlist=["x"]).earn_for(c, price, sale), "cat_icon": sf.cat_icon, "cert_url": _cert_url(db, site), "viber": sp.viber_link(db, site), "path": path, "q": "",
+                "benefits": sf.lines(c.get("benefits")), "coin_earn": lambda price, sale=False: __import__("app.services.coins", fromlist=["x"]).earn_for(c, price, sale), "cat_icon": sf.cat_icon, "cert_url": _cert_url(db, site), "book_url": _book_url(db, site), "viber": sp.viber_link(db, site), "path": path, "q": "",
                 "pkey": request.query_params.get("p") or ""}
 
     def resp(request: Request, name: str, cx: dict, status: int = 200):

@@ -364,6 +364,7 @@
   }); });
   renderCats(); renderList(); summary();
   var pre = D.pre || {};
+  try { var qg = new URLSearchParams(location.search).get('g'); if (qg) { st.cat = qg; renderCats(); renderList(); setTimeout(function () { root.scrollIntoView({ block: 'start' }); }, 50); } } catch (x) {}
   if (pre.doctor && DOC[pre.doctor]) pickDoc(pre.doctor);
   if (pre.service && SV[pre.service] && visible(SV[pre.service])) { st.svcs = [SV[pre.service]]; renderList(); summary(); }
 })();
