@@ -209,7 +209,9 @@
       e.preventDefault();
       if (s2.hidden) return send();
       er.hidden = true;
-      post('/api/cab/verify', { phone: lf.phone.value, code: lf.code.value, name: lf.name.value, remember: lf.remember.checked, wish: favs() }, function (j) {
+      var nw = !$('[data-new]', lf).hidden, ln = lf.last_name.value.trim(), fn = lf.first_name.value.trim();
+      if (nw && (ln.length < 2 || fn.length < 2)) return fail('Вкажіть прізвище та імʼя.');
+      post('/api/cab/verify', { phone: lf.phone.value, code: lf.code.value, name: (ln + ' ' + fn).trim(), remember: lf.remember.checked, wish: favs() }, function (j) {
         if (!j.ok) return fail(j.msg);
         try { localStorage.setItem(FK, JSON.stringify(j.wish || [])); } catch (x) {}
         location.reload();

@@ -9,7 +9,8 @@
       <button class="btn big" type="submit">Отримати код</button></div>
     <div data-step="2" hidden><p class="mut small" data-sent></p>
       <label><span>Код із повідомлення</span><input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="5" placeholder="•••••" class="code"></label>
-      <label data-new hidden><span>Імʼя та прізвище</span><input name="name" autocomplete="name"></label>
+      <div class="g2" data-new hidden><label><span>Прізвище</span><input name="last_name" autocomplete="family-name"></label>
+        <label><span>Імʼя</span><input name="first_name" autocomplete="given-name"></label></div>
       <label class="ck"><input type="checkbox" name="remember" checked> Запамʼятати мене на цьому пристрої</label>
       <button class="btn big" type="submit">Увійти</button>
       <p class="small"><button type="button" class="link" data-again>Надіслати код ще раз</button> · <button type="button" class="link" data-back>Змінити номер</button></p></div>
