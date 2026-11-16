@@ -10063,6 +10063,8 @@ async def settings_shop_save(request: Request, user: User = Depends(require("use
             pass
     c["notify_on"] = bool(f.get("notify_on"))
     c["order_msg_on"] = bool(f.get("order_msg_on"))
+    if f.get("seller_req") is not None:
+        c["seller_req"] = str(f.get("seller_req") or "").strip()[:800]
     c["notify_text"] = str(f.get("notify_text") or "").strip()[:200]
     c["cab_sms"] = str(f.get("cab_sms") or "").strip()[:200]
     for k in ("cab_sms_day", "cab_coin_signup", "cab_coin_ref"):

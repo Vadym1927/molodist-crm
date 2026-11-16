@@ -475,3 +475,8 @@ def test_shop_content_search_delivery(monkeypatch):
         assert "До 18:00" in d and "Безготівков" not in d and "(післяплати) немає" in d
         rt = c.get("/_shop/for-customers/povernennya-tovaru/").text
         assert "№172" in rt and "ФОП Бондар" in rt and "наказ №1769" in c.get("/_shop/").text
+        assert "АТ «УНІВЕРСАЛ БАНК»" in d and "{parts_legal}" not in d
+        of = c.get("/_shop/for-customers/oferta/").text
+        assert "molodist.store" in of and "Права інтелектуальної власності" in of and "{req}" not in of and "Адреса: м. Київ" in of
+        assert "Медичні дані" in c.get("/_shop/for-customers/politika-konfidentsiynosti/").text and "OBSERV" in c.get("/_shop/for-customers/pro-nas/").text
+        assert "› Molodist.shop" not in c.get("/_shop/").text

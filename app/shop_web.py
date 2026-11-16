@@ -449,9 +449,9 @@ def register(app, templates, version: str):
         return render_list(request, cx, [d["by_slug"][s] for s in cat["slugs"]], page, order, brand, h1=cat["name"], cat=cat,
                            subs=sf.children(cat, d), crumbs=crumbs, page_base=path)
 
-    def _resolve_links(html: str, d: dict, base: str) -> str:
+    def _resolve_links(html: str, d: dict, base: str, *db_req) -> str:
         from .services import shop_content as _sc
-        html = _sc.render(html, base)
+        html = _sc.render(html, base, sf.cfg(db_req[0]).get("seller_req") if db_req else "")
         slugs = list(d["by_slug"])
 
         def fix(m):
@@ -480,7 +480,7 @@ def register(app, templates, version: str):
         if not pg:
             return not_found(request, cx)
         d = cx["d"]
-        pg = {**pg, "html": _resolve_links(pg.get("html") or "", d, cx["base"])}
+        pg = {**pg, "html": _resolve_links(pg.get("html") or "", d, cx["base"], db)}
         prods = []
         for sl in pg.get("products") or []:
             it = d["by_slug"].get(sl) or next((v for k, v in d["by_slug"].items() if k.startswith(sl[:40])), None)

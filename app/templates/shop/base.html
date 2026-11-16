@@ -79,7 +79,7 @@
   {% for m in d.menu %}<a href="{{ base }}{{ m.path }}" class="{{ 'acc' if m.path == '/shop/sale/' }}">{{ m.name }}</a>{% endfor %}
   {% if d.brands %}<a href="{{ base }}/shop/brendi/">Бренди</a>{% endif %}{% if '/blog/' in d.pages %}<a href="{{ base }}/blog/">Блог</a>{% endif %}
   <a href="{{ base }}/cabinet/">{{ 'Мій кабінет' if me else 'Вхід у кабінет' }}</a>
-  <a href="{{ cert_url }}">Подарункові сертифікати</a>{% for p in d.pages.values() if p.path.startswith('/for-customers/') and p.path != '/for-customers/' %}<a class="sub" href="{{ base }}{{ p.path }}">{{ p.h1 or p.title }}</a>{% endfor %}
+  <a href="{{ cert_url }}">Подарункові сертифікати</a>{% for p in d.pages.values() if p.path.startswith('/for-customers/') and p.path != '/for-customers/' %}<a href="{{ base }}{{ p.path }}">{{ (p.h1 or p.title).replace(' › Molodist.shop', '') }}</a>{% endfor %}
   <a href="{{ c.main_url }}">Косметологія MOLODIST</a><a href="tel:{{ c.phone }}">{{ c.phone_text }}</a></div></nav>
 <script>window.MSHOP={base:'{{ base }}',free:{{ s.free_from or 0 }},me:{{ 'true' if me else 'false' }},wish:{{ (me.wishlist or [])|tojson if me else 'null' }}};</script>
 <script src="/static/shop/shop.js?v={{ ver }}" defer></script>
