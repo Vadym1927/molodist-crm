@@ -86,6 +86,11 @@
       <input name="h_text_{{ i }}" value="{{ h.text or '' }}" placeholder="Текст"><input name="h_url_{{ i }}" value="{{ h.url or '' }}" placeholder="/shop/sale/"></div>{% endfor %}</div>
   <div><button class="btn">Зберегти</button></div>
 </form>
+<form method="post" class="card" id="insta" style="max-width:860px;margin-top:14px"><b>Instagram на головній</b>
+  <p class="small muted" style="margin:6px 0">8 останніх публікацій вашого акаунта. Доступ — той самий, що підключений у «Канали → Instagram та Facebook»; окремий токен не потрібен. Оновлюється щогодини.</p>
+  <p class="small" style="margin:6px 0">{% if insta.get('items') %}Показуємо {{ insta['items']|length }} публікацій{{ (' · оновлено ' ~ insta.at[8:10] ~ '.' ~ insta.at[5:7] ~ ' ' ~ insta.at[11:16] ~ ' UTC') if insta.get('at') }}.{% else %}Стрічку ще не завантажено.{% endif %}
+    {% if insta.get('error') %}<br><span style="color:#8C2F39">Остання спроба: {{ insta.error }}</span>{% endif %}</p>
+  <button class="btn ghost" name="action" value="insta">Оновити зараз</button></form>
 <form method="post" class="card shs" id="parts" style="display:grid;gap:12px;max-width:860px;margin-top:14px" autocomplete="off">
   <div class="row between"><b>Покупка Частинами monobank</b>{% if mp.ready %}<span class="pill ok">увімкнено · {{ MP_MODES[mp.mode] }}</span>{% elif mp.has_keys %}<span class="pill warn">ключі збережено, вимкнено</span>{% else %}<span class="pill">не підключено</span>{% endif %}</div>
   <p class="small muted" style="margin:0">storeID і signKey видає monobank. Зберігаються зашифрованими й після збереження не показуються. Після відправки замовлення (статус «Відправлено») CRM сама підтверджує видачу в monobank — без цього розстрочка не активується.</p>

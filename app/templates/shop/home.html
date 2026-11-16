@@ -1,13 +1,18 @@
 {% extends "shop/base.html" %}{% from "shop/_card.html" import card, rowblock %}
-{% macro cico(n) %}<svg viewBox="0 0 32 32" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{%
-  if n == 'face' %}<path d="M9 13c0-5 3-8 7-8s7 3 7 8v3c0 6-3 11-7 11s-7-5-7-11z"/><path d="M12.500 15h2M17.500 15h2M13.500 21c1.600 1.200 3.400 1.200 5 0"/>{%
-  elif n == 'body' %}<circle cx="16" cy="6" r="3"/><path d="M11 13c2-2 8-2 10 0l2 8M9 21l2-8M13 13v6l-1.500 9M19 13v6l1.500 9"/>{%
-  elif n == 'hair' %}<path d="M8 27c-2-9-1-21 8-21s10 12 8 21"/><path d="M12 27c-1-6-.500-13 4-13s5 7 4 13"/>{%
-  elif n == 'sale' %}<circle cx="11" cy="11" r="3"/><circle cx="21" cy="21" r="3"/><path d="M23 9L9 23"/>{%
-  elif n == 'gift' %}<rect x="5" y="12" width="22" height="5" rx="1"/><path d="M7 17v10h18V17M16 12v15"/><path d="M16 12c-3.500 0-5.500-1.600-5.500-3.700S12.500 5 16 12zM16 12c3.500 0 5.500-1.600 5.500-3.700S19.500 5 16 12z"/>{%
-  elif n == 'eye' %}<path d="M4 16s4.500-7 12-7 12 7 12 7-4.500 7-12 7S4 16 4 16z"/><circle cx="16" cy="16" r="3"/>{%
-  elif n == 'sun' %}<circle cx="16" cy="16" r="5"/><path d="M16 4v3M16 25v3M4 16h3M25 16h3M7.500 7.500l2 2M22.500 22.500l2 2M7.500 24.500l2-2M22.500 9.500l2-2"/>{%
-  else %}<path d="M12 5h8v4h-8z"/><path d="M10 9h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V11a2 2 0 0 1 2-2zM8 15h16"/>{% endif %}</svg>{% endmacro %}
+{% macro cico(n) %}<svg class="tile-art" viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{%
+  if n == 'face' %}<path d="M80 12C62 11 51 24 51 39c0 6-4 10-8 16-2 3 0 5 4 6-1 3 0 5 2 6-2 3-1 5 2 6 0 7 4 13 12 13 6 0 10-2 14-4l4 24"/><path d="M80 12c18 2 30 18 26 40-2 12-9 20-9 34"/><path d="M57 45q4 3 9 0"/><path d="M38 90c-5 8-7 11-7 14a7 7 0 0 0 14 0c0-3-2-6-7-14z"/>{%
+  elif n == 'body' %}<path d="M50 8c2 14-2 24-16 30C20 44 12 56 10 78"/><path d="M72 8c-2 14 2 24 16 30 13 6 21 18 22 40"/><path d="M36 50q12 8 24 2M86 50q-12 8-24 2"/><path d="M46 70c8 10 12 24 11 42M78 70c-8 10-12 24-11 42"/>{%
+  elif n == 'hair' %}<path d="M8 62C40 20 68 78 112 22"/><path d="M10 80C44 38 72 96 114 42"/><path d="M16 98c32-40 60 14 98-36"/><path d="M30 112c26-30 50 6 82-30"/>{%
+  elif n == 'sale' %}<circle cx="38" cy="34" r="19"/><circle cx="84" cy="88" r="19"/><path d="M98 12L24 110"/>{%
+  elif n == 'gift' %}<g transform="rotate(-9 58 52)"><rect x="14" y="26" width="88" height="54" rx="6"/><text x="58" y="50" text-anchor="middle" font-family="Belleza,serif" font-size="10" letter-spacing="2.4" fill="currentColor" stroke="none">MOLODIST</text></g><path d="M84 78c-6-12 8-20 12-8 2 6-4 10-12 8zM84 78c12-6 20 6 10 12-5 3-10-2-10-12z"/><path d="M84 78c-6 10-16 16-28 20M84 78c4 12 4 22-2 34"/>{%
+  elif n == 'eye' %}<path d="M8 60s20-30 52-30 52 30 52 30-20 30-52 30S8 60 8 60z"/><circle cx="60" cy="60" r="14"/>{%
+  elif n == 'sun' %}<circle cx="60" cy="60" r="22"/><path d="M60 14v12M60 94v12M14 60h12M94 60h12M28 28l8 8M84 84l8 8M28 92l8-8M84 36l8-8"/>{%
+  else %}<path d="M46 14h28v16H46z"/><path d="M38 30h44a8 8 0 0 1 8 8v60a8 8 0 0 1-8 8H38a8 8 0 0 1-8-8V38a8 8 0 0 1 8-8zM30 56h60"/>{% endif %}</svg>{% endmacro %}
+{% macro bico(n) %}<svg viewBox="0 0 40 40" width="38" height="38" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{%
+  if n == 0 %}<path d="M20 5l3.200 2.400 4-.300 1.200 3.800 3.400 2.100-1.300 3.800 1.300 3.800-3.400 2.100-1.200 3.800-4-.300L20 28.600l-3.200-2.400-4 .300-1.200-3.800-3.400-2.100 1.300-3.800-1.300-3.800 3.400-2.100 1.200-3.800 4 .300z"/><path d="M15.500 16.800l3.200 3.200 5.800-6"/><path d="M14 27.500V36l6-3 6 3v-8.500"/>{%
+  elif n == 1 %}<path d="M5 12a4 4 0 0 1 4-4h12a4 4 0 0 1 4 4v8a4 4 0 0 1-4 4h-7l-6 5v-5.200A4 4 0 0 1 5 20z"/><circle cx="29" cy="15" r="7.500" fill="#F7F4F0"/><path d="M29 11.500v7M25.500 15h7"/>{%
+  elif n == 2 %}<path d="M16 13l11-4 9 4v14l-9 4-11-4z"/><path d="M16 13l11 4 9-4M27 17v14"/><path d="M4 16h8M2 21h10M6 26h6"/>{%
+  else %}<rect x="5" y="9" width="30" height="22" rx="4"/><path d="M5 16h30M10 24h6M22 24h2M27 24h2"/>{% endif %}</svg>{% endmacro %}
 {% block main %}
 <section class="hero"><div class="wrap">{% if s.hero %}<div class="scroller hero-sc">{% for h in s.hero %}<a class="hero-card" href="{{ h.url or (base ~ '/shop/') }}" style="background-image:url('{{ h.img }}')"><span><b>{{ h.title }}</b>{{ h.text }}</span></a>{% endfor %}</div>
   {% else %}<div class="hero-def"><div><p class="eyebrow">Магазин MOLODIST</p><h1>Професійна косметика, яку призначають лікарі</h1>
@@ -16,17 +21,19 @@
     <div class="hero-ph" aria-hidden="true"><img class="p1" src="/static/shop/hero/observ.webp?v={{ ver }}" alt="" width="1100" height="1056"><img class="p2" src="/static/shop/hero/bags.webp?v={{ ver }}" alt="" width="800" height="640" loading="lazy"></div></div>{% endif %}
 </div></section>
 {% if d.menu %}<section class="tiles"><div class="wrap tiles-in">{% for m in d.menu %}<a class="tile {{ 'acc' if m.path == '/shop/sale/' }}" href="{{ base }}{{ m.path }}">
-  <span class="tile-i">{{ cico(cat_icon(m.path)) }}</span><b>{{ m.name }}</b><small>{{ m.n }} товарів</small></a>{% endfor %}
-  <a class="tile" href="{{ cert_url }}" target="_blank" rel="noopener"><span class="tile-i">{{ cico('gift') }}</span><b>Подарункові сертифікати</b><small>MOLODIST</small></a></div></section>{% endif %}
-{% if benefits %}<section class="bens"><div class="wrap scroller">{% for b in benefits %}<div class="ben"><b>{{ b[0] }}</b><span>{{ b[1] }}</span></div>{% endfor %}</div></section>{% endif %}
+  {{ cico(cat_icon(m.path)) }}<b>{{ m.name }}</b><small>{{ m.n }} товарів</small></a>{% endfor %}
+  <a class="tile" href="{{ cert_url }}" target="_blank" rel="noopener">{{ cico('gift') }}<b>Подарункові сертифікати</b><small>MOLODIST</small></a></div></section>{% endif %}
+{% if benefits %}<section class="bens"><div class="wrap"><div class="bens-in">{% for b in benefits[:4] %}<div class="ben">{% if 'астинами' in b[0] and s.parts_paw_file %}<img src="{{ base }}/brand/{{ s.parts_paw_file }}" alt="" width="38" height="38">{% else %}{{ bico(loop.index0) }}{% endif %}<b>{{ b[0] }}</b><span>{{ b[1] }}</span></div>{% endfor %}</div></div></section>{% endif %}
+
+{% if d.brands %}<section class="sec"><div class="wrap"><div class="sec-h"><h2>Бренди</h2><a href="{{ base }}/shop/brendi/">Усі бренди</a></div>
+  <div class="scroller brs">{% for b in d.brands %}<a class="br" href="{{ base }}{{ b.path }}">{{ b.name }}</a>{% endfor %}</div></div></section>{% endif %}
 {{ rowblock('Акції', blocks.sale, base, money, base ~ ('/shop/sale/' if '/shop/sale/' in d.by_path else '/shop/?order=sale'), pch, s) }}
 {{ rowblock('Новинки', blocks.new, base, money, base ~ '/shop/?order=new', pch, s) }}
 {{ rowblock('Бестселери', blocks.best, base, money, '', pch, s) }}
-{% if d.brands %}<section class="sec"><div class="wrap"><div class="sec-h"><h2>Бренди</h2><a href="{{ base }}/shop/brendi/">Усі бренди</a></div>
-  <div class="scroller brs">{% for b in d.brands %}<a class="br" href="{{ base }}{{ b.path }}">{{ b.name }}</a>{% endfor %}</div></div></section>{% endif %}
 {% if blog %}<section class="sec"><div class="wrap"><div class="sec-h"><h2>Блог</h2><a href="{{ base }}/blog/">Дивитись усі</a></div>
   <div class="blog">{% for p in blog %}<a class="post" href="{{ base }}{{ p.path }}">{% if p.img %}<img src="{{ p.img }}" alt="" loading="lazy">{% endif %}<b>{{ p.h1 or p.title }}</b><span>{{ p.desc }}</span><i>Читати повністю</i></a>{% endfor %}</div></div></section>{% endif %}
 <section class="sec insta"><div class="wrap"><div class="insta-in"><div><h2>Наш Instagram</h2><p>Поради лікарів, новинки, результати процедур і догляду.</p></div>
-  <a class="btn" href="{{ s.instagram or c.instagram }}" target="_blank" rel="noopener">Підписатися</a></div></div></section>
+  <a class="btn" href="{{ s.instagram or c.instagram }}" target="_blank" rel="noopener">Підписатися</a></div>
+  {% if insta %}<div class="insta-g">{% for x in insta %}<a href="{{ x.url }}" target="_blank" rel="noopener" aria-label="Публікація в Instagram"><img src="{{ base }}/insta/{{ x.file }}" alt="{{ x.alt }}" loading="lazy" width="640" height="640">{% if x.video %}<i></i>{% endif %}</a>{% endfor %}</div>{% endif %}</div></section>
 <section class="sec about"><div class="wrap"><h2>Про магазин MOLODIST</h2>{% for line in s.about.split('\n') if line.strip() %}<p>{{ line }}</p>{% endfor %}</div></section>
 {% endblock %}

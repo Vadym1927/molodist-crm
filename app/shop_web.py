@@ -63,7 +63,7 @@ def register(app, templates, version: str):
         return {"me": got[0] if got else None, "me_p": got[1] if got else None, "ref_in": (request.query_params.get("ref") or "")[:20],
                 "pch": float(pp["min_sum"] or 0) if pp["ready"] else None, "pch_legal": sf.PARTS_LEGAL, "pch_show": bool(pp["ready"] or pp.get("on")), "request": request, "s": c, "c": site, "d": data, "base": "" if on_site else "/_shop", "noindex": not on_site,
                 "canonical": c["canonical"].rstrip("/") + path, "ver": str(version)[:8], "year": date.today().year, "money": sp.money,
-                "og_title": "", "og_desc": "", "og_img": "", "abs": (c["canonical"].rstrip("/") if on_site else settings.public_url.rstrip("/")),
+                "og_title": "", "og_desc": "", "og_img": (c["canonical"].rstrip("/") if on_site else settings.public_url.rstrip("/")) + "/static/shop/og/default.jpg", "abs": (c["canonical"].rstrip("/") if on_site else settings.public_url.rstrip("/")),
                 "benefits": sf.lines(c.get("benefits")), "coin_earn": lambda price, sale=False: __import__("app.services.coins", fromlist=["x"]).earn_for(c, price, sale), "cat_icon": sf.cat_icon, "cert_url": _cert_url(db, site), "viber": sp.viber_link(db, site), "path": path, "q": "",
                 "pkey": request.query_params.get("p") or ""}
 
@@ -94,6 +94,7 @@ def register(app, templates, version: str):
                   **({"og_title": f"Вам подарунок: {cx['s'].get('cab_coin_ref')} MOLODIST Coins на професійну косметику",
                       "og_desc": f"Зареєструйтесь у магазині MOLODIST за запрошенням друга й отримайте {cx['s'].get('cab_coin_ref')} MOLODIST Coins. Професійна косметика, яку призначають лікарі.",
                       "og_img": f"{cx['abs']}/static/shop/og/invite.jpg"} if cx["ref_in"] else {}),
+                  insta=__import__("app.services.insta_feed", fromlist=["x"]).items(db),
                   blocks=sf.home_blocks(cx["d"]), blog=[p for p in cx["d"]["pages"].values() if p["path"].startswith("/blog/") and p["path"] != "/blog/"][:3])
         return resp(request, "shop/home.html", cx)
 
@@ -109,6 +110,15 @@ def register(app, templates, version: str):
         urls = ["/", "/shop/"] + [c["path"] for c in d["cats"] if c["n"]] + [f"/shop/{i['slug']}/" for i in d["items"]] + list(d["pages"])
         body = "".join(f"<url><loc>{b}{u}</loc></url>" for u in dict.fromkeys(urls))
         return Response(f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{body}</urlset>', media_type="application/xml")
+
+    @app.get("/_shop/insta/{name}")
+    def shop_insta(name: str):
+        from fastapi.responses import FileResponse as _FR
+        from .services import insta_feed as _if
+        f = _if.folder() / name
+        if not re.fullmatch(r"\d+\.jpg", name) or not f.is_file():
+            raise HTTPException(404)
+        return _FR(f, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=604800"})
 
     @app.get("/_shop/brand/{name}")
     def shop_brand(name: str):

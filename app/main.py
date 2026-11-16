@@ -373,6 +373,9 @@ async def job_mono_parts():
                 _sc.notify_send(db, _c, _sf.catalog(db), _c["canonical"].rstrip("/") if _c.get("on") else settings.public_url.rstrip("/") + "/_shop")
                 from .services import coins as _cn
                 _cn.post_due(db, _c)
+                from .services import insta_feed as _if
+                if _if.due(db):
+                    _if.refresh(db)
             except Exception as e:  # noqa: BLE001
                 log.warning("shop notify: %s", e)
             return mp.poll(db)
@@ -9968,7 +9971,7 @@ def settings_shop(request: Request, user: User = Depends(require("users")), db: 
     d = sf.catalog(db, fresh=True)
     j = jobs.JOBS.get(request.query_params.get("job") or "")
     from .services import mono_parts as _mp
-    return render(request, "settings_shop.html", nav="settings", c=c, d=d, seo=sf.seo_coverage(db), waiting=__import__("app.services.shop_cabinet", fromlist=["x"]).notify_waiting(db), cab=__import__("app.services.shop_cabinet", fromlist=["x"]).stats(db), accounts=pls.public(db)["accounts"], job=j, mp=_mp.public(db), MP_MODES=_mp.MODES,
+    return render(request, "settings_shop.html", nav="settings", c=c, d=d, seo=sf.seo_coverage(db), insta=__import__("app.services.insta_feed", fromlist=["x"]).state(db), waiting=__import__("app.services.shop_cabinet", fromlist=["x"]).notify_waiting(db), cab=__import__("app.services.shop_cabinet", fromlist=["x"]).stats(db), accounts=pls.public(db)["accounts"], job=j, mp=_mp.public(db), MP_MODES=_mp.MODES,
                   preview=f"{settings.public_url.rstrip('/')}/_shop/?p={sf.preview_key(db)}",
                   stock=sum(1 for i in d["items"] if i["stock"]), nocat=sum(1 for i in d["items"] if not any(i["slug"] in x["slugs"] for x in d["cats"])))
 
@@ -9981,6 +9984,10 @@ async def settings_shop_save(request: Request, user: User = Depends(require("use
         job = jobs.start("Структура й SEO з molodist.store", _shop_crawl_job)
         audit(db, "shop.crawl", user=user)
         return RedirectResponse(f"/settings/shop?job={job.id}", 303)
+    if f.get("action") == "insta":
+        from .services import insta_feed as _if
+        st = _if.refresh(db)
+        return RedirectResponse(_with_msg("/settings/shop", ("Instagram: " + st["error"]) if st.get("error") else f"Instagram: показуємо {len(st.get('items') or [])} публікацій", bool(st.get("error"))) + "#insta", 303)
     if f.get("action") == "parts":
         from .services import mono_parts as _mp
         _mp.save(db, str(f.get("store_id") or ""), str(f.get("sign_key") or ""), str(f.get("mode") or "test"), str(f.get("parts") or ""),

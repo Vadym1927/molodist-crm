@@ -8,7 +8,8 @@
 {% if noindex or noindex_page %}<meta name="robots" content="noindex, nofollow">{% endif %}
 <link rel="canonical" href="{{ canonical }}">
 <meta property="og:type" content="{{ 'product' if it is defined and it else 'website' }}"><meta property="og:title" content="{{ og_title or title }}"><meta property="og:description" content="{{ og_desc or desc }}">
-{% if og_img %}<meta property="og:image" content="{{ og_img }}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image">{% endif %}
+{% if not (it is defined and it and it.imgs) and items is defined and items and items[0].imgs and not og_title %}<meta property="og:image" content="{{ abs }}{{ base }}/img/{{ items[0].imgs[0] }}?w=1200">
+{% elif og_img and not (it is defined and it and it.imgs) %}<meta property="og:image" content="{{ og_img }}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image">{% endif %}
 <meta property="og:url" content="{{ canonical }}"><meta property="og:locale" content="uk_UA"><meta property="og:site_name" content="MOLODIST">
 {% if it is defined and it and it.imgs %}<meta property="og:image" content="{{ s.canonical }}/img/{{ it.imgs[0] }}?w=1200">{% endif %}
 <meta name="theme-color" content="#2A2430">
