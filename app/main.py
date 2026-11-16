@@ -6083,6 +6083,8 @@ def notifications_poll(since: str = "", user: User = Depends(current_user), db: 
     except ValueError:
         s_ = datetime.utcnow() - timedelta(minutes=2)
     new = nt.online(db, s_) if can(user, "book") else []
+    if can(user, "sales"):
+        new = new + nt.shop(db, s_)
     return {"now": datetime.utcnow().isoformat(timespec="seconds"), "unseen": nt.unseen(db, user),
             "toasts": [{"title": x["title"], "text": x["text"], "url": x["url"]} for x in new][:5]}
 
@@ -9916,8 +9918,16 @@ def shop_orders_page(request: Request, d1: str = "", d2: str = "", status: str =
                      db: Session = Depends(db_dep)):
     from .services import shop_orders as so
     a, b = _day(d1), _day(d2)
-    rows = so.listing(db, a, b, status, q)
+    from .services import shop_front as sf
+    allr = so.listing(db, a, b, "", q)
+    legacy = {v: k for k, v in sf.LEGACY_STATUS.items()}
+    rows = [o for o in allr if not status or o.status == status or o.status == legacy.get(status)]
+    pids = {i.get("product_id") for o in rows[:500] for i in (o.items or [])[:3] if i.get("product_id")}
+    photos = {p_.id: p_.photo_url for p_ in db.scalars(select(Product).where(Product.id.in_(pids or {0})))}
+    pats = {p_.id: p_ for p_ in db.scalars(select(Patient).where(Patient.id.in_({o.patient_id for o in rows[:500] if o.patient_id} or {0})))}
+    staff = {u_.id: (u_.name or u_.login) for u_ in db.scalars(select(User))}
     return render(request, "shop_orders.html", nav="finance", rows=rows[:500], n=len(rows), k=so.kpi(rows), statuses=so.statuses(db),
+                  funnel=sf.funnel(allr), photos=photos, pats=pats, staff=staff, PAY_FAIL=sf.PAY_FAIL,
                   f={"d1": d1, "d2": d2, "status": status, "q": q}, last=so.last(db))
 
 
@@ -9925,7 +9935,9 @@ def shop_orders_page(request: Request, d1: str = "", d2: str = "", status: str =
 def shop_order_page(request: Request, oid: int, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
     from .models import SiteOrder
     o = db.get(SiteOrder, oid) or (_ for _ in ()).throw(HTTPException(404))
-    return render(request, "shop_order.html", nav="finance", o=o, pat=db.get(Patient, o.patient_id) if o.patient_id else None)
+    from .services import shop_front as sf
+    return render(request, "shop_order.html", nav="finance", o=o, pat=db.get(Patient, o.patient_id) if o.patient_id else None, v=sf.order_view(db, o),
+                  STATUSES=sf.STATUSES, staff=[u_ for u_ in db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)) if can(u_, "sales")])
 
 
 def _shop_crawl_job(job):
@@ -10046,7 +10058,7 @@ async def settings_shop_cats_save(request: Request, user: User = Depends(require
 
 
 @app.post("/shop-orders/{oid:int}/status")
-def shop_order_status(oid: int, status: str = Form(""), ttn: str = Form(""), paid: str = Form(""), user: User = Depends(require("sales")),
+def shop_order_status(oid: int, status: str = Form(""), ttn: str = Form(""), paid: str = Form(""), resp: str = Form(""), user: User = Depends(require("sales")),
                       db: Session = Depends(db_dep)):
     from .models import SiteOrder
     from .services import shop_front as sf
@@ -10057,17 +10069,13 @@ def shop_order_status(oid: int, status: str = Form(""), ttn: str = Form(""), pai
     if ((o.raw or {}).get("parts") or {}).get("order_id"):
         from .services import mono_parts as _mp
         try:
-            if status in ("Відправлено", "Виконано") and _mp.confirm(db, o):
+            if status in ("Відправлено", "Виконано", "Отримано", "Закрито") and _mp.confirm(db, o):
                 note = " · видачу підтверджено в monobank"
-            elif status == "Скасовано" and _mp.reject(db, o):
+            elif status in ("Скасовано", "Повернення") and _mp.reject(db, o):
                 note = " · заявку в monobank скасовано"
         except _mp.PartsError as e:
             return RedirectResponse(_with_msg(f"/shop-orders/{oid}", f"monobank: {e}", True), 303)
-    if status in sf.STATUSES:
-        o.status = status
-    o.raw = {**(o.raw or {}), "ttn": ttn.strip()[:40]}
-    if paid:
-        o.paid = paid == "1"
+    sf.set_status(db, o, status, user, ttn=ttn, paid=(paid == "1") if paid else None, resp=int(resp) if resp.isdigit() else None)
     db.commit()
     audit(db, "shop.order_status", "site_order", oid, user=user, status=o.status)
     return RedirectResponse(_with_msg(f"/shop-orders/{oid}", "Збережено" + note), 303)

@@ -267,6 +267,12 @@ def _mark(db: Session, pl: PayLink, status: str, paid_amount: float | None = Non
         pl.paid_at = datetime.now()
         pl.paid_amount = paid_amount if paid_amount is not None else pl.amount
         _book(db, pl)
+    if status in ("failed", "expired", "cancelled") and was != status and (pl.info or {}).get("shop_order"):
+        try:
+            from . import shop_front as _sf
+            _sf.pay_event(db, pl, status)
+        except Exception:  # noqa: BLE001 — сповіщення не мають ламати статус оплати
+            pass
     db.commit()
     if status == "paid" and was != "paid":
         try:

@@ -31,6 +31,28 @@ def online(db: Session, since: datetime) -> list[dict]:
     return out
 
 
+def shop(db: Session, since: datetime) -> list[dict]:
+    """Замовлення власного інтернет-магазину: нове, оплачено, не оплачено (since — UTC)."""
+    from ..models import SiteOrder
+    from .day_stats import _tz_shift
+    sh = timedelta(hours=_tz_shift())
+    out = []
+    for o in db.scalars(select(SiteOrder).where(SiteOrder.source == "crm", SiteOrder.created_at >= since + sh - timedelta(days=3))
+                        .order_by(SiteOrder.created_at.desc()).limit(80)):
+        raw = o.raw or {}
+        what = ", ".join(str(i.get("name") or "")[:40] for i in (o.items or [])[:2])
+        base = f"{o.name or '—'} · {o.total or 0:,.0f} ₴ · {what}".replace(",", " ")
+        ev = [("shop", o.created_at - sh if o.created_at else None, "info", "Нове замовлення магазину")]
+        if raw.get("paid_at"):
+            ev.append(("shoppaid", datetime.fromisoformat(raw["paid_at"]), "ok", "Замовлення магазину оплачено"))
+        elif raw.get("pay_state") in ("failed", "expired", "cancelled") and raw.get("pay_state_at"):
+            ev.append(("shopfail", datetime.fromisoformat(raw["pay_state_at"]), "bad", "Замовлення магазину не оплачено"))
+        for kind, at, level, title in ev:
+            if at and at >= since:
+                out.append({"kind": kind, "id": o.id, "at": at, "level": level, "title": f"{title} №{o.number or o.id}", "text": base, "url": f"/shop-orders/{o.id}"})
+    return out
+
+
 def calls(db: Session, since: datetime) -> list[dict]:
     """Вхідні дзвінки (пропущені — червоні) з моменту since (UTC). Call.at — київський час."""
     from ..models import Call, Patient
@@ -135,6 +157,11 @@ def items(db: Session, user: User) -> list[dict]:
         if user.role in ("owner", "admin") or can(user, "patients_all"):
             from . import reviews as _rv
             res += _rv.bell(db, datetime.utcnow() - timedelta(days=14))
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        if can(user, "sales"):
+            res += shop(db, datetime.utcnow() - timedelta(days=7))
     except Exception:  # noqa: BLE001
         pass
     res += [dict(x) for x in _summary(db) if not x.get("perm") or can(user, x["perm"])]

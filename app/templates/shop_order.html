@@ -6,23 +6,27 @@
 <div class="muted small" style="margin-bottom:12px">{{ o.created_at|dt('%d.%m.%Y %H:%M') if o.created_at else '' }} · {{ o.status or '' }}{{ ' · оплачено' if o.paid }} · {{ 'molodist.store (Shop-Express)' if o.source == 'shop_express' else 'сайт MOLODIST' }}</div>
 <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px">
   <div class="card"><h3 style="margin-top:0">Покупець</h3>
-    <div><b>{{ o.name or '—' }}</b></div><div class="small">{{ o.phone or '' }}{{ ' · ' ~ o.email if o.email }}</div>
+    <div style="display:flex;gap:12px;align-items:center">{% if pat and pat.avatar_file_id %}<span style="width:56px;height:56px;border-radius:50%;background:#E4DEEF url('/files/{{ pat.avatar_file_id }}') center/cover;flex:none"></span>{% endif %}<b>{{ o.name or '—' }}</b></div><div class="small">{{ o.phone or '' }}{{ ' · ' ~ o.email if o.email }}</div>
     {% if pat %}<div style="margin-top:8px"><a class="btn ghost" href="/patients/{{ pat.id }}#t-shop">Картка: {{ pat.full_name }}</a></div>{% endif %}</div>
   <div class="card"><h3 style="margin-top:0">Доставка й оплата</h3>
     <div class="small">{{ o.delivery or '—' }}{% if o.delivery_price %} · {{ o.delivery_price|uah }}{% endif %}</div>
     <div class="small">{{ o.city or '' }}{{ ', ' ~ o.address if o.address }}</div>
-    <div class="small">{{ o.payment or '' }}{{ ' · оплачено' if o.paid }}</div>
+    <div class="small">{{ o.payment or '' }} {% if o.paid %}<span class="pill ok">оплачено</span>{% elif v.pay_fail %}<span class="pill warn">не оплачено: {{ v.pay_fail }}</span>{% elif o.source == 'crm' %}<span class="pill">оплата не підтверджена</span>{% endif %}</div>
+    {% if v.ttn %}<div class="small">ТТН Нової пошти: <b>{{ v.ttn }}</b></div>{% endif %}{% if v.sale_id %}<div class="small"><a href="/sales/{{ v.sale_id }}">Чек продажу в CRM №{{ v.sale_id }}</a></div>{% endif %}
     {% if o.comment %}<div class="small muted" style="margin-top:6px">Коментар: {{ o.comment }}</div>{% endif %}</div>
 </div>
 <div class="card" style="margin-top:12px;padding:0;overflow:auto"><table class="tbl" style="width:100%">
   <thead><tr><th>Товар</th><th>Артикул</th><th style="text-align:right">К-сть</th><th style="text-align:right">Ціна</th><th style="text-align:right">Сума</th></tr></thead>
-  <tbody>{% for it in o['items'] or [] %}<tr><td>{% if it.product_id %}<a href="/products/{{ it.product_id }}">{{ it.name }}</a>{% else %}{{ it.name }}{% endif %}</td>
+  <tbody>{% for it in o['items'] or [] %}<tr><td><div style="display:flex;gap:10px;align-items:center">{% if v.photo.get(it.product_id) %}<img src="{{ v.photo[it.product_id] }}" alt="" loading="lazy" style="width:52px;height:52px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:10px">{% endif %}
+      <span>{% if it.product_id %}<a href="/products/{{ it.product_id }}">{{ it.name }}</a>{% else %}{{ it.name }}{% endif %}</span></div></td>
     <td class="small muted">{{ it.sku or '' }}</td><td style="text-align:right">{{ '%g'|format(it.qty or 0) }}</td><td style="text-align:right">{{ (it.price or 0)|uah }}</td><td style="text-align:right">{{ (it.total or 0)|uah }}</td></tr>{% endfor %}
   {% for a in o.extra or [] if a.on %}<tr><td colspan="4" class="small">+ {{ a.name }}</td><td style="text-align:right">{{ (a.price or 0)|uah }}</td></tr>{% endfor %}
   <tr><td colspan="4" style="text-align:right"><b>Разом</b>{% if o.total_full and o.total_full != o.total %} <span class="small muted">(без знижки {{ o.total_full|uah }})</span>{% endif %}</td><td style="text-align:right"><b>{{ (o.total or 0)|uah }}</b></td></tr></tbody></table></div>
 {% if o.source == 'crm' and can(user,'sales') %}<form method="post" action="/shop-orders/{{ o.id }}/status" class="card" style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:end">
-  <label class="small">Статус<select name="status">{% for x in ['Нове','В роботі','Очікує оплати','Оплачено','Відправлено','Виконано','Скасовано'] %}<option {{ 'selected' if o.status == x }}>{{ x }}</option>{% endfor %}</select></label>
-  <label class="small">ТТН Нової пошти<input name="ttn" value="{{ (o.raw or {}).get('ttn','') }}"></label>
+  <label class="small">Статус<select name="status">{% if o.status not in STATUSES %}<option selected>{{ o.status }}</option>{% endif %}{% for x in STATUSES %}<option {{ 'selected' if o.status == x }}>{{ x }}</option>{% endfor %}</select></label>
+  <label class="small">Відповідальний<select name="resp"><option value="0">не призначено</option>{% for u2 in staff %}<option value="{{ u2.id }}" {{ 'selected' if v.resp == u2.id }}>{{ u2.name or u2.login }}</option>{% endfor %}</select></label>
+  <label class="small">ТТН Нової пошти<input name="ttn" value="{{ v.ttn }}"></label>
   <label class="small">Оплата<select name="paid"><option value="0" {{ 'selected' if not o.paid }}>не оплачено</option><option value="1" {{ 'selected' if o.paid }}>оплачено</option></select></label>
   <button class="btn">Зберегти</button></form>{% endif %}
+{% if v.log %}<div class="card" style="margin-top:12px"><h3 style="margin-top:0">Історія</h3>{% for l in v.log %}<div class="small" style="padding:4px 0;border-top:1px solid var(--line)"><span class="muted">{{ l.at[8:10] }}.{{ l.at[5:7] }} {{ l.at[11:16] }}</span> · {{ l.text }}{% if l.by %} <span class="muted">— {{ l.by }}</span>{% endif %}</div>{% endfor %}</div>{% endif %}
 {% endblock %}

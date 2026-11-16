@@ -20,7 +20,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import Patient, Product, ProductFile, SiteOrder, SyncState
+from ..models import Patient, Product, ProductFile, SiteOrder, SyncState, User
 
 KEY, SITE_KEY = "shop_front", "shop_site"
 OLD = "https://molodist.store/"
@@ -37,7 +37,9 @@ DEFAULT = {
     "parts_paw": "", "parts_paw_file": "",   # офіційна лапка (з цифрою) — у куті фото товару
     "parts_icon": "",            # офіційний значок «Покупка Частинами» (лапка) — файл із матеріалів monobank
 }
-STATUSES = ["Нове", "В роботі", "Очікує оплати", "Оплачено", "Відправлено", "Виконано", "Скасовано"]
+STATUSES = ["Нове", "Опрацьовується", "Очікує оплати", "Оплачено", "Відправлено", "Отримано", "Закрито", "Скасовано", "Повернення"]
+LEGACY_STATUS = {"В роботі": "Опрацьовується", "Виконано": "Закрито"}
+PAY_FAIL = {"failed": "оплата не пройшла", "expired": "час на оплату минув (прострочено)", "cancelled": "рахунок скасовано"}
 _cache: dict = {"at": 0.0, "hosts": set(), "cat_at": 0.0, "cat": None}
 
 
@@ -730,6 +732,8 @@ def paid(db: Session, pl) -> None:
     o = db.get(SiteOrder, oid) if oid else None
     if o and not o.paid:
         o.paid, o.status = True, "Оплачено"
+        o.raw = {**(o.raw or {}), "pay_state": "paid", "paid_at": datetime.utcnow().isoformat(timespec="seconds")}
+        log(o, "Оплачено онлайн")
         db.flush()
         try:
             make_sale(db, o, pl)
@@ -742,23 +746,128 @@ def paid(db: Session, pl) -> None:
         notify(db, o, paid_now=True)
 
 
-def notify(db: Session, o: SiteOrder, paid_now: bool = False) -> int:
-    from html import escape as e
+def _tg_send(chat: str, text: str, reply_to: int | None = None) -> tuple[bool, int | None]:
+    """Повідомлення в Telegram; повертає id повідомлення — щоб статус оплати приходив відповіддю на нього."""
     from . import tg_notify
     from ..config import settings
-    head = "💳 Замовлення сайту оплачено" if paid_now else "🛍 Нове замовлення в інтернет-магазині"
-    text = "\n".join([f"<b>{head}</b> №{e(o.number or '')}", f"{e(o.name or '')} · {e(o.phone or '')}",
-                      "; ".join(f"{e(i['name'][:60])} × {i['qty']:g}" for i in (o.items or [])[:8]),
-                      f"Сума: {o.total:,.0f} ₴ · {e(o.payment or '')} · {e(o.delivery or '')}".replace(",", " "),
-                      f"{settings.public_url.rstrip('/')}/shop-orders/{o.id}"])
+    if not settings.telegram_bot_token:
+        return bool(tg_notify.send_text(chat, text)), None
+    data = {"chat_id": chat, "text": text[:4000], "parse_mode": "HTML", "disable_web_page_preview": "true"}
+    if reply_to:
+        data.update(reply_to_message_id=str(reply_to), allow_sending_without_reply="true")
+    try:
+        r = httpx.post(f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage", data=data, timeout=20)
+        return r.status_code == 200, ((r.json().get("result") or {}).get("message_id") if r.status_code == 200 else None)
+    except (httpx.HTTPError, ValueError):
+        return False, None
+
+
+def order_chats(db: Session) -> list[str]:
+    """Кому йдуть замовлення магазину: чат заявок (/zayavky) + адміністратори й власник."""
+    from . import tg_notify, site_leads
+    out = []
+    lead = str(site_leads.cfg(db).get("tg_chat") or "").strip()
+    if lead:
+        out.append(lead)
+    for role in ("admin", "owner"):
+        for u in tg_notify.recipients(db, role):
+            if u.telegram_chat_id and str(u.telegram_chat_id) not in out:
+                out.append(str(u.telegram_chat_id))
+    return out
+
+
+def log(o: SiteOrder, text: str, user: str = "") -> None:
+    raw = dict(o.raw or {})
+    raw["log"] = ((raw.get("log") or []) + [{"at": datetime.now().isoformat(timespec="minutes"), "by": user[:80], "text": text[:300]}])[-60:]
+    o.raw = raw
+
+
+def _order_lines(o: SiteOrder) -> list[str]:
+    from html import escape as e
+    from ..config import settings
+    return [f"{e(o.name or '')} · {e(o.phone or '')}", "; ".join(f"{e(i['name'][:60])} × {i['qty']:g}" for i in (o.items or [])[:8]),
+            f"Сума: {o.total:,.0f} ₴ · {e(o.payment or '')} · {e(o.delivery or '')}".replace(",", " "),
+            f"{settings.public_url.rstrip('/')}/shop-orders/{o.id}"]
+
+
+def notify(db: Session, o: SiteOrder, paid_now: bool = False, fail: str = "") -> int:
+    """Нове замовлення → повідомлення в чат заявок і адміністраторам. Оплата / несплата — відповіддю на те саме повідомлення."""
+    from html import escape as e
+    raw = dict(o.raw or {})
+    sent = raw.get("tg") or []
     n = 0
-    chats = {u.telegram_chat_id for role in ("admin", "owner") for u in tg_notify.recipients(db, role)}
-    for ch in chats:
-        try:
-            n += bool(tg_notify.send_text(ch, text))
-        except Exception:  # noqa: BLE001
-            pass
+    if paid_now or fail:
+        head = f"✅ <b>Оплачено</b> — замовлення №{e(o.number or '')}, {o.total:,.0f} ₴".replace(",", " ") if paid_now else \
+            f"⚠️ <b>Не оплачено</b> — замовлення №{e(o.number or '')}: {PAY_FAIL.get(fail, fail)}. Звʼяжіться з покупцем."
+        if sent:
+            for ch, mid in sent:
+                n += _tg_send(str(ch), head, mid)[0]
+            return n
+        text = "\n".join([head] + _order_lines(o))
+        for ch in order_chats(db):
+            n += _tg_send(ch, text)[0]
+        return n
+    wait = "" if (o.payment or "").lower().startswith("при отриманні") or o.paid else "\n⏳ <i>Оплата ще не підтверджена — статус прийде відповіддю на це повідомлення.</i>"
+    text = "\n".join([f"<b>🛍 Нове замовлення в інтернет-магазині</b> №{e(o.number or '')}"] + _order_lines(o)) + wait
+    for ch in order_chats(db):
+        ok, mid = _tg_send(ch, text)
+        n += ok
+        if mid:
+            sent.append([ch, mid])
+    if sent:
+        raw["tg"] = sent
+        o.raw = raw
+        db.flush()
     return n
+
+
+def pay_event(db: Session, pl, status: str) -> None:
+    """Посилання на оплату не оплачене (помилка / прострочено / скасовано) → позначка в замовленні й відповідь у чат."""
+    oid = (pl.info or {}).get("shop_order")
+    o = db.get(SiteOrder, oid) if oid else None
+    if not o or o.paid or status not in PAY_FAIL or (o.raw or {}).get("pay_state") == status:
+        return
+    o.raw = {**(o.raw or {}), "pay_state": status, "pay_state_at": datetime.utcnow().isoformat(timespec="seconds")}
+    log(o, f"Оплата: {PAY_FAIL[status]}")
+    db.flush()
+    notify(db, o, fail=status)
+
+
+def set_status(db: Session, o: SiteOrder, status: str, user: User | None = None, ttn: str | None = None, paid: bool | None = None,
+               resp: int | None = None) -> None:
+    who = (user.name or user.login) if user else ""
+    raw = dict(o.raw or {})
+    if status in STATUSES and status != o.status:
+        log(o, f"Статус: {o.status or '—'} → {status}", who)
+        raw = dict(o.raw or {})
+        o.status = status
+    if ttn is not None and ttn.strip()[:40] != (raw.get("ttn") or ""):
+        raw["ttn"] = ttn.strip()[:40]
+        raw["log"] = (raw.get("log") or []) + [{"at": datetime.now().isoformat(timespec="minutes"), "by": who, "text": f"ТТН: {raw['ttn'] or 'прибрано'}"}]
+    if resp is not None and resp != (raw.get("resp") or 0):
+        raw["resp"] = resp or None
+        u = db.get(User, resp) if resp else None
+        raw["log"] = (raw.get("log") or []) + [{"at": datetime.now().isoformat(timespec="minutes"), "by": who, "text": f"Відповідальний: {(u.name or u.login) if u else 'не призначено'}"}]
+    if paid is not None and bool(o.paid) != paid:
+        o.paid = paid
+        raw["log"] = (raw.get("log") or []) + [{"at": datetime.now().isoformat(timespec="minutes"), "by": who, "text": "Оплату позначено вручну: " + ("оплачено" if paid else "не оплачено")}]
+    o.raw = raw
+    db.flush()
+
+
+def funnel(rows: list) -> list[dict]:
+    cnt = defaultdict(int)
+    for o in rows:
+        cnt[LEGACY_STATUS.get(o.status or "", o.status or "")] += 1
+    return [{"name": x, "n": cnt.get(x, 0)} for x in STATUSES]
+
+
+def order_view(db: Session, o: SiteOrder) -> dict:
+    ids = [i.get("product_id") for i in o.items or [] if i.get("product_id")]
+    photo = {p.id: p.photo_url for p in db.scalars(select(Product).where(Product.id.in_(ids or [0])))}
+    raw = o.raw or {}
+    return {"photo": photo, "ttn": raw.get("ttn") or "", "resp": raw.get("resp"), "log": list(reversed(raw.get("log") or [])), "pay_state": raw.get("pay_state"),
+            "pay_fail": PAY_FAIL.get(raw.get("pay_state") or ""), "sale_id": raw.get("sale_id")}
 
 
 # ---------------- Нова пошта ----------------

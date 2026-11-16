@@ -1,4 +1,6 @@
 import json
+from datetime import datetime, timedelta
+from sqlalchemy import select
 
 from fastapi.testclient import TestClient
 
@@ -189,3 +191,37 @@ def test_shop_parts_label_and_legal():
         assert paw.startswith("parts-paw-") and f'class="pch-paw" src="/_shop/brand/{paw}"' in c.get("/_shop/shop/").text
         bad = c.post("/settings/shop", data={"on": "1"}, files={"parts_upload": ("l.exe", b"MZ", "application/octet-stream")}, follow_redirects=False)
         assert "err" in bad.headers["location"]
+
+
+def test_shop_order_flow_notifications(monkeypatch):
+    from app.services import shop_front as sf, notifications as nt
+    from app.models import SiteOrder, User
+    sent = []
+    monkeypatch.setattr(sf, "_tg_send", lambda chat, text, reply_to=None: (sent.append((chat, text, reply_to)) or True, 700 + len(sent)))
+    monkeypatch.setattr(sf, "order_chats", lambda db: ["-100leads", "111"])
+    settings.admin_password = "owner-pass-of"
+    with TestClient(app) as c:
+        with SessionLocal() as db:
+            o = SiteOrder(source="crm", ext_id="T1", number="T1", created_at=datetime.now(), status="Очікує оплати", paid=False, total=5470, name="Тест Покупець",
+                          phone="380500000001", payment="Онлайн карткою (monobank)", delivery="Нова пошта", items=[{"name": "Serum", "qty": 1, "price": 5470, "total": 5470}])
+            db.add(o); db.commit()
+            sf.notify(db, o); db.commit()
+            oid = o.id
+            assert len(sent) == 2 and "не підтверджена" in sent[0][1] and o.raw["tg"] == [["-100leads", 701], ["111", 702]]
+
+            class PL:
+                info = {"shop_order": oid}
+            sf.pay_event(db, PL(), "expired"); db.commit()
+            assert sent[2][2] == 701 and "Не оплачено" in sent[2][1] and "прострочено" in sent[2][1] and len(sent) == 4
+            sf.pay_event(db, PL(), "expired")
+            assert len(sent) == 4
+            u = db.scalars(select(User)).first()
+            kinds = {x["kind"] for x in nt.shop(db, datetime.utcnow() - timedelta(days=1))}
+            assert {"shop", "shopfail"} <= kinds
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-of"})
+        r = c.post(f"/shop-orders/{oid}/status", data={"status": "Відправлено", "ttn": "20450000000000", "paid": "1", "resp": "1"}, follow_redirects=False)
+        assert r.status_code == 303
+        page = c.get(f"/shop-orders/{oid}").text
+        assert "Статус: Очікує оплати → Відправлено" in page and "20450000000000" in page and "Історія" in page
+        lst = c.get("/shop-orders").text
+        assert "Опрацьовується" in lst and "Повернення" in lst and "Відповідальний" in lst
