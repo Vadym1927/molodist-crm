@@ -386,6 +386,9 @@ async def job_mono_parts():
                     if _bs["new"]:
                         log.info("shop brands: нові сторінки брендів %s", _bs["new"])
                 _ct.job(db, _c, _cat, _root)
+                from .services import google_reviews as _gr
+                if _gr.due(db, _c):
+                    _gr.refresh(db, _c)
                 from .services import shop_extra as _sx
                 _sx.send_reorders(db, _c, _cat, _root)
                 from .services import insta_feed as _if
@@ -10024,7 +10027,8 @@ def settings_shop_integrations(request: Request, user: User = Depends(require("u
             dns.append((h, ""))
     srv = dns[-1][1] if dns else ""
     return render(request, "settings_shop_integr.html", nav="shop", shop_tab="integr", shop_cnt=_shop_cnt(db), c=c_, root=c_["canonical"].rstrip("/"),
-                  dns=dns[:-1], srv=srv, has_secret=bool(str(c_.get("ts_secret") or "").strip()))
+                  dns=dns[:-1], srv=srv, has_secret=bool(str(c_.get("ts_secret") or "").strip()),
+                  has_gkey=bool(str(c_.get("gplaces_key") or "").strip()), gr=__import__("app.services.google_reviews", fromlist=["x"]).state(db))
 
 
 @app.post("/settings/shop/integrations")
@@ -10037,6 +10041,14 @@ async def settings_shop_integrations_save(request: Request, user: User = Depends
                    ("fb_pixel", r"\d{8,20}"), ("hotline_id", r"\d{1,12}"), ("ts_site", r"[0-9A-Za-z_-]{10,80}")):
         v = str(f.get(k) or "").strip()
         c[k] = v if _re.fullmatch(pat, v) else ""
+    gk = str(f.get("gplaces_key") or "").strip()
+    if gk:
+        c["gplaces_key"] = gk[:200]
+    if f.get("gplaces_clear"):
+        c["gplaces_key"] = ""
+    gp = str(f.get("gplace_id") or "").strip()
+    c["gplace_id"] = gp if _re.fullmatch(r"[A-Za-z0-9_-]{10,200}", gp) else ""
+    c["greviews_on"] = bool(f.get("greviews_on"))
     sec = str(f.get("ts_secret") or "").strip()
     if sec:
         c["ts_secret"] = sec[:200]
@@ -10048,6 +10060,12 @@ async def settings_shop_integrations_save(request: Request, user: User = Depends
     sf.save_cfg(db, c)
     audit(db, "settings.shop_integrations", "settings", None, user=user)
     db.commit()
+    if c.get("gplaces_key") and c.get("gplace_id") and (gk or gp):
+        from .services import google_reviews as _gr
+        st = _gr.refresh(db, c)
+        if st.get("error"):
+            return RedirectResponse(_with_msg("/settings/shop/integrations", "Збережено. Google Карти: " + st["error"], True) + "#greviews", 303)
+        return RedirectResponse(_with_msg("/settings/shop/integrations", f"Збережено. Google Карти: {st.get('rating')} ★, {st.get('count')} відгуків") + "#greviews", 303)
     return RedirectResponse(_with_msg("/settings/shop/integrations", "Збережено"), 303)
 
 

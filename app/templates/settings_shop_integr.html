@@ -44,6 +44,15 @@
   <label>Turnstile Site Key<input name="ts_site" value="{{ c.ts_site }}"></label>
   <label>Turnstile Secret Key<input name="ts_secret" type="password" autocomplete="off" placeholder="{{ 'збережено — залиште порожнім' if has_secret else '' }}"></label>
   {% if has_secret %}<label class="ck"><input type="checkbox" name="ts_clear" value="1"> Вимкнути Turnstile</label>{% endif %}</div>
+ <div class="card" id="greviews"><b>Відгуки з Google Карт</b>
+  <p class="small muted">Рейтинг і останні відгуки про MOLODIST з Google Карт — блок довіри на головній і в «Контактах». Потрібен ключ Google Places API (Google Cloud → API і сервіси → увімкнути «Places API (New)» → Облікові дані → Ключ API, обмежити ключ лише Places API) і Place ID медичного простору (developers.google.com/maps/documentation/places/web-service/place-id).
+   Оновлення двічі на добу — у межах безкоштовного ліміту Google. Зірок у пошуку ці відгуки не дають (правило Google), але додають довіри на сторінці.</p>
+  <label class="ck"><input type="checkbox" name="greviews_on" value="1" {{ 'checked' if c.greviews_on }}> Показувати на сайті</label>
+  <label>Place ID<input name="gplace_id" value="{{ c.gplace_id }}" placeholder="ChIJ…"></label>
+  <label>Ключ Places API<input name="gplaces_key" type="password" autocomplete="off" placeholder="{{ 'збережено — залиште порожнім' if has_gkey else 'AIza…' }}"></label>
+  {% if has_gkey %}<label class="ck"><input type="checkbox" name="gplaces_clear" value="1"> Видалити ключ</label>{% endif %}
+  {% if gr.rating %}<div class="small ok">Зараз: {{ gr.rating }} ★ · {{ gr.count }} відгуків · показуємо {{ gr.reviews|length }} · оновлено {{ gr.at[8:10] }}.{{ gr.at[5:7] }} {{ gr.at[11:16] }} UTC</div>{% endif %}
+  {% if gr.error %}<div class="small bad">Остання спроба: {{ gr.error }}</div>{% endif %}</div>
  <div class="card"><b>Домен</b>
   <div class="small">Адреса магазину: <b>{{ c.canonical }}</b> · {{ 'опубліковано' if c.on else 'не опубліковано' }}. Домени й публікація — у <a href="/settings/shop">налаштуваннях магазину</a>.</div>
   {% for h, ip in dns %}<div class="small">{{ h }} → {{ ip or 'не знайдено' }} {% if ip and ip == srv %}<span class="ok">✓ вказує на цей сервер</span>{% else %}<span class="bad">✗ має вказувати на {{ srv or 'IP сервера CRM' }}</span>{% endif %}</div>{% else %}<div class="small muted">Домени магазину ще не вказано.</div>{% endfor %}

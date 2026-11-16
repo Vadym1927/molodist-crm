@@ -1,0 +1,6 @@
+{% if grev %}<section class="sec grv"><div class="wrap"><div class="sec-h"><h2>Відгуки про MOLODIST</h2><a href="{{ grev.url }}" target="_blank" rel="noopener">Усі відгуки в Google</a></div>
+  <div class="grv-top"><span class="grv-g" aria-hidden="true">G</span><b>{{ '%.1f'|format(grev.rating) }}</b><span class="stars" style="--r:{{ grev.rating }}"></span><span class="mut">{{ grev.count }} відгуків на Google Картах</span></div>
+  {% if grev.reviews %}<div class="grv-l">{% for r in grev.reviews %}<div class="grv-c"><div class="grv-h">{% if r.photo %}<img src="{{ r.photo }}" alt="" width="36" height="36" loading="lazy" referrerpolicy="no-referrer">{% else %}<i>{{ r.author[:1] }}</i>{% endif %}
+    <div><b>{% if r.url %}<a href="{{ r.url }}" target="_blank" rel="noopener nofollow">{{ r.author }}</a>{% else %}{{ r.author }}{% endif %}</b><small>{{ r.when }}</small></div></div>
+    <span class="stars" style="--r:{{ r.rating }}" aria-label="Оцінка {{ r.rating }} з 5"></span><p>{{ r.text }}</p></div>{% endfor %}</div>{% endif %}
+  <p class="small mut">Відгуки з Google</p></div></section>{% endif %}

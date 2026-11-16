@@ -107,7 +107,7 @@ def register(app, templates, version: str):
                 "canonical": c["canonical"].rstrip("/") + path, "ver": str(version)[:8], "year": date.today().year, "money": sp.money,
                 "og_title": "", "og_desc": "", "og_img": (c["canonical"].rstrip("/") if on_site else settings.public_url.rstrip("/")) + "/static/shop/og/default.jpg", "abs": (c["canonical"].rstrip("/") if on_site else settings.public_url.rstrip("/")),
                 "benefits": sf.lines(c.get("benefits")), "coin_earn": lambda price, sale=False: __import__("app.services.coins", fromlist=["x"]).earn_for(c, price, sale), "cat_icon": sf.cat_icon, "brand_text": __import__("app.services.shop_seo", fromlist=["x"]).brand_text, "cert_url": _cert_url(db, site), "book_url": _book_url(db, site), "viber": sp.viber_link(db, site), "path": path, "q": "",
-                "pkey": request.query_params.get("p") or ""}
+                "pkey": request.query_params.get("p") or "", "grev": __import__("app.services.google_reviews", fromlist=["x"]).public(db, c)}
 
     def resp(request: Request, name: str, cx: dict, status: int = 200):
         from .services import shop_seo as _seo

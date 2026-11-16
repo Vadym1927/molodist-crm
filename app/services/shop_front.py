@@ -39,6 +39,7 @@ DEFAULT = {
     "gtm_id": "", "ga4_id": "", "ads_id": "", "ads_label": "", "remarketing_on": True, "fb_pixel": "",
     "feed_google": True, "feed_facebook": True, "feed_hotline": True, "hotline_id": "", "llms_on": True, "ai_about": "",
     "cookie_on": True, "ts_site": "", "ts_secret": "", "tg_order": True, "tg_pay": True, "tg_review": True, "tg_cart": False,
+    "gplaces_key": "", "gplace_id": "", "greviews_on": True, "greviews_min": 4,
     "reorder_on": False, "reorder_lead": 7, "reorder_text": "", "quiz_on": True, "oneclick_on": True,
     "review_on": False, "review_days": 5, "review_text": "", "review_test_phone": "",
     "cart_task_hours": 2, "cart_auto_on": False, "cart_auto_hours": 3, "cart_text": "",
@@ -1068,7 +1069,9 @@ def brands_sync(db: Session) -> dict:
             if path in cats:
                 c = cats[path]
             else:
-                c = {"path": path, "name": shown[key], "title": "", "desc": "", "img": "", "in_menu": False, "slugs": [], "auto": True}
+                from .shop_seo import brand_seo
+                t_, d_ = brand_seo(seg, shown[key])
+                c = {"path": path, "name": shown[key], "title": t_, "desc": d_, "img": "", "in_menu": False, "slugs": [], "auto": True}
                 st["cats"].append(c)
                 cats[path] = c
                 rep["new"].append(shown[key])

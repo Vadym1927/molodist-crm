@@ -129,6 +129,61 @@ POSTS = [
 <h2>Записатися на консультацію</h2>
 <p>Не впевнені, що підійде саме вам? Запишіться на консультацію онлайн — лікар підбере догляд під тип і стан вашої шкіри. Адреса: Київ, вул. Князя Романа Мстиславича, 28А (ЖК «Автограф»).</p>
 """},
+    {"path": "/blog/yakyi-spf-obraty-dlia-zhyrnoi-shkiry/", "date": "2026-11-16", "brand": "",
+     "h1": "Який SPF обрати для жирної шкіри, щоб не блищала й не забивались пори",
+     "title": "Який SPF обрати для жирної та проблемної шкіри | Блог MOLODIST",
+     "desc": "Сонцезахист для жирної й схильної до акне шкіри: на що дивитись у складі й текстурі, скільки наносити, як оновлювати вдень і чи потрібен SPF узимку. Поради лікарів MOLODIST.",
+     "cover": "sontsezahisniy-krem-dlya-zhirnoi-shkiri-spf-50-innoaesthetics-inno-derma-sun-defense-oily-skin-spf-50-60-g",
+     "products": ["sontsezahisniy-krem-dlya-zhirnoi-shkiri-spf-50-innoaesthetics-inno-derma-sun-defense-oily-skin-spf-50-60-g",
+                  "sontsezahisniy-krem-dlya-zhirnoi-i-problemnoi-shkiri-tebiskin-uv-osk-cream-50-ml",
+                  "zvolozhuyuchiy-sontsezahisniy-krem-ag-skin-dna-repair--spf-shield-moisturising-cream-spf-50-50-ml",
+                  "rejuran-skinglow-cushion-spf-50-multifunktsionalniy-kushon-z-polinukleotidami"],
+     "html": """
+<p>Жирна шкіра часто «уникає» сонцезахисту: крем здається важким, обличчя блищить уже до обіду, а після кількох днів зʼявляються нові висипання. Через це SPF пропускають — і отримують постакне-плями, які від ультрафіолету темнішають і тримаються місяцями. Добра новина: сучасні засоби для жирної шкіри легкі й матові, а правильно підібраний SPF шкіру не перевантажує.</p>
+<h2>На що дивитись при виборі</h2>
+<ul><li><b>Широкий спектр і SPF 50.</b> Захист і від UVB, і від UVA — саме UVA-промені провокують пігментацію і старіння, і вони проходять крізь хмари та скло.</li>
+<li><b>Текстура: флюїд, гель-крем, матувальний крем.</b> Позначки «oily skin», «matt», «oil control» — добрий орієнтир.</li>
+<li><b>Некомедогенність.</b> Засоби, створені для жирної та проблемної шкіри, тестують на здатність не забивати пори.</li>
+<li><b>Корисні додатки:</b> себорегулювальні й заспокійливі компоненти, ніацинамід, цинк — вони працюють разом із захистом.</li></ul>
+<h2>Що підійде</h2>
+<ul><li><a href="{base}/shop/sontsezahisniy-krem-dlya-zhirnoi-shkiri-spf-50-innoaesthetics-inno-derma-sun-defense-oily-skin-spf-50-60-g/">INNOAESTHETICS Sun Defense Oily Skin SPF 50+</a> — легка текстура спеціально для жирної шкіри, добре лягає під макіяж.</li>
+<li><a href="{base}/shop/sontsezahisniy-krem-dlya-zhirnoi-i-problemnoi-shkiri-tebiskin-uv-osk-cream-50-ml/">Tebiskin UV-OSK Cream</a> — сонцезахист для жирної шкіри, схильної до висипань.</li>
+<li><a href="{base}/shop/zvolozhuyuchiy-sontsezahisniy-krem-ag-skin-dna-repair--spf-shield-moisturising-cream-spf-50-50-ml/">AG SKIN DNA Repair &amp; SPF Shield SPF 50+</a> — коли жирна шкіра водночас зневоднена й потребує зволоження.</li>
+<li><a href="{base}/shop/rejuran-skinglow-cushion-spf-50-multifunktsionalniy-kushon-z-polinukleotidami/">Rejuran Skinglow Cushion SPF 50+</a> — кушон із тоном: зручно оновлювати захист удень поверх макіяжу.</li></ul>
+<h2>Як наносити, щоб захист працював</h2>
+<ol><li><b>Кількість.</b> Для обличчя — приблизно дві довжини пальця засобу. Тонкий шар знижує реальний захист у кілька разів.</li>
+<li><b>Останній крок ранкового догляду</b>, за 15 хвилин до виходу на вулицю.</li>
+<li><b>Оновлення</b> — кожні 2–3 години на сонці, після спорту й купання. Зручно кушоном або спреєм поверх макіяжу.</li>
+<li><b>Цілий рік.</b> Узимку UVA нікуди не зникає, а в горах і біля снігу інтенсивність випромінювання навіть вища.</li></ol>
+<h2>Коли варто до лікаря</h2>
+<p>Якщо висипання не минають попри правильний догляд, залишають плями або супроводжуються почервонінням — варто зʼясувати причину. Лікар MOLODIST проведе діагностику шкіри на апараті OBSERV і складе догляд, у якому SPF, очищення й активні засоби працюють разом.</p>
+"""},
+    {"path": "/blog/chym-zaminyty-retynol/", "date": "2026-11-16", "brand": "",
+     "h1": "Чим замінити ретинол: мʼякші альтернативи для чутливої шкіри",
+     "title": "Чим замінити ретинол: ретиналь, пептиди, азелаїнова кислота, вітамін C | Блог MOLODIST",
+     "desc": "Ретинол подразнює або його не можна використовувати? Розбираємо альтернативи: мʼякі ретиноїди, пептиди, азелаїнова кислота, вітамін C і ніацинамід — кому що підходить. Поради лікарів MOLODIST.",
+     "cover": "medicare-professional-multipeptidnaya-podtyagivayuschaya-syvorotka-dlya-litsa-dlya-uprugosti-i-elastichnosti-kozhi-30-ml",
+     "products": ["medicare-professional-multipeptidnaya-podtyagivayuschaya-syvorotka-dlya-litsa-dlya-uprugosti-i-elastichnosti-kozhi-30-ml",
+                  "krem-gel-z-azelainovoyu-kislotoyu-ta-retinolom-ag-skin-azelorosa-cream-gel-azelaic-acid-50-ml",
+                  "medik8-c-tetra---antioksidantna-sirovatka-z-vitaminom-s-30ml",
+                  "medicare-professional-barerna-zvolozhuyucha-sirovatka-dlya-oblichchya-z-4-formami-gialuronovoi-kisloti-niatsinamidom-ta-pantenolom-30-ml"],
+     "html": """
+<p>Ретинол — один із найдосліджених компонентів для оновлення шкіри, але підходить не всім. Він може викликати сухість, лущення й почервоніння, особливо на чутливій шкірі. А під час вагітності й годування ретиноїди не використовують зовсім. Добре те, що для кожної задачі ретинолу є альтернатива — головне розуміти, чого саме ви хочете досягти.</p>
+<h2>Якщо ретинол подразнює: мʼякші ретиноїди</h2>
+<p>Інколи справа не в самому вітаміні A, а в концентрації й темпі. Ретиналь у низькій концентрації, як <a href="{base}/shop/medik8-crystal-retinal-3---nichniy-krem-z-retinalem-30ml/">Medik8 Crystal Retinal 3</a>, шкіра часто переносить краще: починають через вечір і поступово збільшують частоту. Це варіант, коли хочеться результату ретиноїдів без «ретинізації».</p>
+<h2>Для пружності: пептиди</h2>
+<p>Пептиди — сигнальні молекули, які підтримують пружність і щільність шкіри. Вони не подразнюють і поєднуються майже з усім. Приклад — <a href="{base}/shop/medicare-professional-multipeptidnaya-podtyagivayuschaya-syvorotka-dlya-litsa-dlya-uprugosti-i-elastichnosti-kozhi-30-ml/">мультипептидна сироватка Medicare Professional</a>.</p>
+<h2>Для висипань і почервонінь: азелаїнова кислота</h2>
+<p>Азелаїнова кислота працює з висипаннями, постакне й нерівним тоном і зазвичай добре переноситься чутливою шкірою, схильною до почервонінь. Наприклад, <a href="{base}/shop/krem-gel-z-azelainovoyu-kislotoyu-ta-retinolom-ag-skin-azelorosa-cream-gel-azelaic-acid-50-ml/">AG SKIN Azelorosa</a> (у складі є й ретинол — якщо ретиноїди протипоказані, лікар підбере засіб без нього).</p>
+<h2>Для сяйва й тону: вітамін C</h2>
+<p>Антиоксидантна сироватка зранку — <a href="{base}/shop/medik8-c-tetra---antioksidantna-sirovatka-z-vitaminom-s-30ml/">Medik8 C-Tetra</a> — допомагає вирівнювати тон і захищає шкіру від оксидативного стресу. Працює в парі з SPF.</p>
+<h2>Для барʼєра й пор: ніацинамід</h2>
+<p>Ніацинамід зміцнює захисний барʼєр, допомагає контролювати жирність і робить пори менш помітними. <a href="{base}/shop/medicare-professional-barerna-zvolozhuyucha-sirovatka-dlya-oblichchya-z-4-formami-gialuronovoi-kisloti-niatsinamidom-ta-pantenolom-30-ml/">Барʼєрна сироватка Medicare Professional</a> поєднує його з гіалуроновою кислотою й пантенолом.</p>
+<h2>Вагітність і годування</h2>
+<p>У цей період будь-які активні засоби варто погоджувати з лікарем: навіть «мʼякі» компоненти підбирають індивідуально. Лікар MOLODIST допоможе скласти безпечний догляд на цей час.</p>
+<h2>Як не помилитись</h2>
+<p>Альтернативи працюють, коли їх обирають під задачу шкіри, а не «замість ретинолу взагалі». Найпростіший шлях — консультація з діагностикою шкіри на OBSERV: лікар підбере активні компоненти, концентрації й порядок нанесення.</p>
+"""},
 ]
 
 ABOUT = """

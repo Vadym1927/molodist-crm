@@ -670,3 +670,32 @@ def test_shop_quiz_reorder_oneclick_tip(monkeypatch):
         assert r.status_code == 303
         with SessionLocal() as db:
             assert db.get(Product, ids["qz-cream"]).site_info["tip"]["text"] == "Для сухої шкіри."
+
+
+def test_google_reviews_and_new_posts(monkeypatch):
+    from app.services import shop_front as sf, google_reviews as gr
+
+    class Resp:
+        status_code = 200
+
+        def json(self):
+            return {"rating": 4.9, "userRatingCount": 120, "googleMapsUri": "https://maps.google.com/?cid=1", "reviews": [
+                {"rating": 5, "text": {"text": "Чудовий медичний простір"}, "authorAttribution": {"displayName": "Олена"}, "relativePublishTimeDescription": "тиждень тому"},
+                {"rating": 2, "text": {"text": "Погано"}, "authorAttribution": {"displayName": "Х"}}]}
+
+    class H:
+        def get(self, *a, **k):
+            assert k["headers"]["X-Goog-FieldMask"]
+            return Resp()
+    with TestClient(app) as c:
+        with SessionLocal() as db:
+            k = sf.preview_key(db)
+            cf = sf.cfg(db); cf.update(gplaces_key="AIzaTEST", gplace_id="ChIJtest1234567"); sf.save_cfg(db, cf); db.commit()
+            st = gr.refresh(db, sf.cfg(db), H())
+            assert st["rating"] == 4.9 and len(st["reviews"]) == 1 and not gr.due(db, sf.cfg(db))
+        c.cookies.set("shop_prev", k)
+        h = c.get("/_shop/").text
+        assert "Відгуки про MOLODIST" in h and "Чудовий медичний простір" in h and "Погано" not in h
+        assert "Відгуки про MOLODIST" in c.get("/_shop/contacts/").text
+        assert "Чим замінити ретинол" in c.get("/_shop/blog/").text
+        assert c.get("/_shop/blog/yakyi-spf-obraty-dlia-zhyrnoi-shkiry/").status_code == 200
