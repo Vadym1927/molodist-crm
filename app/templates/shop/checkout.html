@@ -9,16 +9,18 @@
       <label><span>Телефон</span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+380" required></label></div>
     <label><span>Email (для чека, необовʼязково)</span><input name="email" type="email" autocomplete="email"></label>
     <h3>Доставка</h3>
-    <div class="opts"><label><input type="radio" name="delivery" value="np" checked><span><b>Нова пошта</b><small>відділення або поштомат{% if s.free_from %} · безкоштовно від {{ money(s.free_from) }}{% endif %}</small></span></label>
+    <div class="opts"><label><input type="radio" name="delivery" value="np" checked><span><b>Нова пошта — відділення або поштомат</b><small>1–4 робочі дні{% if s.free_from %} · безкоштовно від {{ money(s.free_from) }}{% endif %}</small></span></label>
+      <label><input type="radio" name="delivery" value="np_courier"><span><b>Нова пошта — курʼєр на адресу</b><small>по Україні, 1–4 робочі дні{% if s.free_from %} · безкоштовно від {{ money(s.free_from) }}{% endif %}</small></span></label>
       {% if s.pickup %}<label><input type="radio" name="delivery" value="pickup"><span><b>Самовивіз з MOLODIST</b><small>{{ c.address }}</small></span></label>{% endif %}</div>
     <div id="co-np"><div class="g2"><label class="ac"><span>Місто</span><input name="city" autocomplete="off" placeholder="Почніть вводити назву"><div class="ac-l" hidden></div>
         <span class="chips">{% for x in ['Київ','Львів','Одеса','Дніпро','Харків','Запоріжжя','Вінниця','Луцьк'] %}<button type="button" data-city="{{ x }}">{{ x }}</button>{% endfor %}</span></label>
-      <label class="ac"><span>Відділення / поштомат</span><input name="warehouse" autocomplete="off" placeholder="{{ 'Номер або адреса' }}"><div class="ac-l" hidden></div></label></div></div>
+      <label data-courier hidden style="grid-column:1/-1"><span>Адреса: вулиця, будинок, квартира</span><input name="addr" autocomplete="street-address" placeholder="вул. Хрещатик, 1, кв. 10"></label>
+      <label class="ac" data-wh><span>Відділення / поштомат</span><input name="warehouse" autocomplete="off" placeholder="{{ 'Номер або адреса' }}"><div class="ac-l" hidden></div></label></div></div>
     <h3>Оплата</h3>
     <div class="opts"><label><input type="radio" name="pay" value="online" checked><span><b>Онлайн карткою</b><small>Visa, Mastercard, Apple Pay, Google Pay · monobank</small></span></label>
       {% if parts.ready %}<label><input type="radio" name="pay" value="parts"><span><b>Покупка Частинами monobank</b><small>безкоштовна розстрочка без комісій · від {{ money(parts.min_sum) }} · для клієнтів monobank</small>
         <select name="parts" class="pp">{% for n in parts.parts %}<option value="{{ n }}">{{ n }} платежі{{ 'в' if n > 4 }}</option>{% endfor %}</select></span></label>{% endif %}
-      {% if s.cod %}<label><input type="radio" name="pay" value="cod"><span><b>При отриманні</b><small>накладений платіж Нової пошти або оплата в MOLODIST</small></span></label>{% endif %}</div>
+</div>
     <div id="co-coins" hidden><h3>MOLODIST Coins</h3>
       <label class="ck coin-ck"><input type="checkbox" name="use_coins"><span>Використати <b data-coin-max>0</b> MOLODIST Coins — знижка <b data-coin-sum>0 ₴</b></span></label>
       <p class="mut small" data-coin-note></p></div>

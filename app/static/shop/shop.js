@@ -125,7 +125,8 @@
       var ce = $('#co-earn'); ce.hidden = !(cn.on && cn.earn); ce.textContent = cn.me ? 'За це замовлення отримаєте +' + cn.earn + ' MOLODIST Coins.' : 'Увійдіть у кабінет — і отримаєте +' + cn.earn + ' MOLODIST Coins за це замовлення.';
     }
     var pick = $('[name=delivery]:checked', co);
-    $('#co-del').textContent = pick && pick.value === 'pickup' ? 'самовивіз — безкоштовно' : (j.free_delivery ? 'безкоштовно' : 'за тарифами Нової пошти');
+    var freeNow = S.free && (j.total - (j.coins && $('[name=use_coins]') && $('[name=use_coins]').checked ? (j.coins.use || 0) : 0)) >= S.free;
+    $('#co-del').textContent = pick && pick.value === 'pickup' ? 'самовивіз — безкоштовно' : (freeNow ? 'безкоштовно' : 'за тарифами Нової пошти, при отриманні');
     var g = $('#co-gift'); g.hidden = !j.gifts.length;
     if (j.gifts.length && !$('#co-gifts').children.length) $('#co-gifts').innerHTML = j.gifts.map(function (x, n) { return '<label><input type="radio" name="gift" value="' + esc(x) + '"' + (n ? '' : ' checked') + '><span><b>' + esc(x) + '</b></span></label>'; }).join('');
   }
@@ -134,7 +135,9 @@
     render(renderCo);
     if (form.use_coins) form.use_coins.addEventListener('change', function () { render(renderCo); });
     $$('[name=pay]', form).forEach(function (r) { r.addEventListener('change', function () { renderCo(); }); });
-    $$('[name=delivery]', form).forEach(function (r) { r.addEventListener('change', function () { $('#co-np').hidden = r.value === 'pickup' && r.checked; renderCo(); }); });
+    $$('[name=delivery]', form).forEach(function (r) { r.addEventListener('change', function () {
+      var v = ($('[name=delivery]:checked', form) || {}).value; $('#co-np').hidden = v === 'pickup';
+      $('[data-courier]', form).hidden = v !== 'np_courier'; $('[data-wh]', form).hidden = v === 'np_courier'; renderCo(); }); });
     form.phone.addEventListener('focus', function () { if (!form.phone.value) form.phone.value = '+380'; });
     try { var me = JSON.parse(localStorage.getItem('mlds_me') || 'null'); if (me) { form.name.value = me.name || ''; form.phone.value = me.phone || ''; } } catch (e) {}
     if (co.dataset.me) { try { var cm = JSON.parse(co.dataset.me); ['name', 'phone', 'email', 'city', 'warehouse'].forEach(function (k) { if (cm[k] && cm[k] !== '+') form[k].value = cm[k]; }); cityRef = cm.city_ref || ''; } catch (e) {} }
@@ -164,7 +167,7 @@
       e.preventDefault();
       var er = $('.err', form), bt = $('button.btn', form); er.hidden = true;
       var d = { items: load(), name: form.name.value.trim(), phone: form.phone.value, email: form.email.value.trim(), city: form.city.value.trim(),
-        warehouse: form.warehouse.value.trim(), comment: form.comment.value.trim(), website: form.website.value,
+        warehouse: form.warehouse.value.trim(), addr: form.addr ? form.addr.value.trim() : '', comment: form.comment.value.trim(), website: form.website.value,
         delivery: ($('[name=delivery]:checked', form) || {}).value, pay: ($('[name=pay]:checked', form) || {}).value, gift: ($('[name=gift]:checked', form) || {}).value || '', coins: form.use_coins && form.use_coins.checked && last && last.coins ? last.coins.use : 0, parts: form.parts ? form.parts.value : '' };
       try { var m = JSON.parse(localStorage.getItem('mlds_utm') || 'null'); if (m && m.m) for (var k in m.m) d[k] = m.m[k]; } catch (x) {}
       if (!d.items.length) { er.textContent = 'Кошик порожній.'; er.hidden = false; return; }
@@ -286,4 +289,26 @@
     else if (t.hasAttribute('data-addr-del')) { if (window.confirm('Видалити цю адресу?')) post('/api/cab/address', { delete: t.getAttribute('data-addr-del') }, function () { location.reload(); }); }
     else post('/api/cab/address', { main: t.getAttribute('data-addr-main') }, function () { location.reload(); });
   });
+
+  /* ---------- пошук з підказками ---------- */
+  var sf = $('.hd-search');
+  if (sf) {
+    var si = sf.q, sr = $('.sr', sf), st;
+    si.addEventListener('input', function () {
+      clearTimeout(st);
+      var q = si.value.trim();
+      if (q.length < 3) { sr.hidden = true; return; }
+      st = setTimeout(function () {
+        fetch(B + '/api/search?q=' + encodeURIComponent(q)).then(function (r) { return r.json(); }).then(function (j) {
+          if (si.value.trim() !== q) return;
+          sr.innerHTML = j.rows.length ? j.rows.map(function (i) {
+            return '<a href="' + B + '/shop/' + esc(i.slug) + '/">' + (i.img ? '<img src="' + B + '/img/' + i.img + '?w=120" alt="">' : '<i class="noimg">M</i>') +
+              '<span><small>' + esc(i.brand || '') + '</small>' + esc(i.name) + '</span><b>' + money(i.price) + (i.old ? '<s>' + money(i.old) + '</s>' : '') + '</b></a>';
+          }).join('') + (j.n > j.rows.length ? '<button class="sr-all">Усі результати: ' + j.n + '</button>' : '') : '<p class="mut">Нічого не знайдено</p>';
+          sr.hidden = false;
+        });
+      }, 220);
+    });
+    document.addEventListener('click', function (e) { if (!sf.contains(e.target)) sr.hidden = true; });
+  }
 })();

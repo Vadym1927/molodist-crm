@@ -29,7 +29,7 @@ DEFAULT = {
     "strip": "Безкоштовна доставка від 3 000 ₴ по всій Україні",
     "free_from": 3000, "gift_from": 0, "gifts": "", "pay_account": 0, "cod": True, "pickup": True, "np_key": "",
     "benefits": "Оригінальна продукція|Лише від офіційних дистрибʼюторів брендів\nПідбір догляду лікарем|Безкоштовна консультація лікаря MOLODIST щодо домашнього догляду\n"
-                "Швидка відправка|Замовлення до 15:00 відправляємо того ж дня\nПокупка Частинами monobank|Безкоштовна розстрочка: до 4 платежів без комісій",
+                "Швидка відправка|Замовлення до 18:00 відправляємо того ж дня\nПокупка Частинами monobank|Безкоштовна розстрочка: до 4 платежів без комісій",
     "about": "MOLODIST — медичний простір естетики та профілактики в Києві. В інтернет-магазині зібрана професійна косметика для домашнього догляду, з якою щодня працюють наші лікарі-дерматологи: ZO Skin Health, Medik8, Medicare, Demax, AG SKIN, Tebiskin, Image Skincare, Rejuran та інші бренди.\nМи продаємо лише оригінальну продукцію від офіційних дистрибʼюторів і зберігаємо її з дотриманням умов виробника. У каталозі — засоби для очищення й тонізації, активні сироватки з ретинолом, вітаміном C і кислотами, зволожувальні та анти-ейдж креми, сонцезахист SPF, догляд за шкірою навколо очей, тілом і волоссям.\nНе впевнені, що підійде саме вам? Напишіть нам — лікар MOLODIST безкоштовно підбере домашній догляд під тип і стан вашої шкіри: акне, пігментація, чутливість, вікові зміни, відновлення після процедур. Так домашній догляд підтримує результат лікування, а не працює проти нього.\nДоставляємо Новою поштою по всій Україні, у Києві замовлення можна забрати в MOLODIST. Оплата карткою онлайн, при отриманні або Покупка Частинами monobank.",
     "instagram": "https://www.instagram.com/_molodist/",
     "hero": [],                  # [{img, title, text, url}]
@@ -60,6 +60,9 @@ def cfg(db: Session) -> dict:
             c.update(json.loads(st.value))
         except ValueError:
             pass
+    c["cod"] = False                                  # післяплати немає (рішення власника 16.11.2026)
+    if "18:00" in str(c.get("benefits") or ""):
+        c["benefits"] = c["benefits"].replace("18:00", "18:00")
     if "molodist.clinic" in str(c.get("instagram") or ""):
         c["instagram"] = DEFAULT["instagram"]
     return c
@@ -360,7 +363,7 @@ def catalog(db: Session, fresh: bool = False) -> dict:
             "menu": sorted((c for c in cats if c["depth"] == 1 and c["path"] != brands_root and c["n"] and c.get("in_menu", True) is not False),
                            key=lambda c: (c.get("sort") or 100)),
             "brands": sorted((c for c in cats if c["path"].startswith(brands_root) and c["path"] != brands_root and (c["n"] or c.get("notice"))), key=lambda c: c["name"].lower()),
-            "pages": {p["path"]: p for p in st["pages"]}, "home": st.get("home") or {}, "at": st.get("at")}
+            "pages": __import__("app.services.shop_content", fromlist=["x"]).pages({p["path"]: p for p in st["pages"]}), "home": st.get("home") or {}, "at": st.get("at")}
     _cache["cat"], _cache["cat_at"] = data, time.time()
     return data
 
@@ -674,9 +677,13 @@ def create_order(db: Session, data: dict, base_url: str) -> dict:
         raise ShopError("Вкажіть імʼя та прізвище.")
     if not phone:
         raise ShopError("Перевірте номер телефону: +380 і 9 цифр.")
-    delivery = "pickup" if data.get("delivery") == "pickup" and c.get("pickup") else "np"
+    delivery = data.get("delivery") if data.get("delivery") in ("np", "np_courier") else ("pickup" if data.get("delivery") == "pickup" and c.get("pickup") else "np")
     city, wh = str(data.get("city") or "").strip()[:120], str(data.get("warehouse") or "").strip()[:300]
-    if delivery == "np" and (len(city) < 2 or len(wh) < 1):
+    if delivery == "np_courier":
+        wh = str(data.get("addr") or "").strip()[:300]
+        if len(city) < 2 or len(wh) < 5:
+            raise ShopError("Вкажіть місто й адресу доставки курʼєром: вулиця, будинок, квартира.")
+    elif delivery == "np" and (len(city) < 2 or len(wh) < 1):
         raise ShopError("Вкажіть місто й відділення Нової пошти.")
     pay = data.get("pay") if data.get("pay") in ("online", "cod", "parts") else "online"
     if pay == "parts":
@@ -694,10 +701,12 @@ def create_order(db: Session, data: dict, base_url: str) -> dict:
     full = cart["total"]
     if use:
         cart = {**cart, "total": round(full - use, 2)}
+    fr = float(c.get("free_from") or 0)
+    cart["free_delivery"] = bool(fr and cart["total"] >= fr)          # безкоштовна доставка — від кінцевої суми після знижок і Coins
     no = f"M{datetime.now():%y%m%d}-{secrets.randbelow(9000) + 1000}"
     o = SiteOrder(source="crm", ext_id=no, number=no, created_at=datetime.now(), status="Очікує оплати" if pay != "cod" else "Нове", paid=False,
                   total=cart["total"], total_full=full, delivery_price=0,
-                  delivery="Самовивіз з MOLODIST" if delivery == "pickup" else "Нова пошта",
+                  delivery={"pickup": "Самовивіз з MOLODIST", "np_courier": "Нова пошта — курʼєр"}.get(delivery, "Нова пошта"),
                   payment={"online": "Онлайн карткою (monobank)", "cod": "При отриманні", "parts": "Покупка Частинами monobank"}[pay],
                   name=name, phone=phone, email=str(data.get("email") or "").strip()[:200] or None, city=city or None, address=wh or None,
                   comment=(str(data.get("comment") or "").strip()[:1000] + (f"\nПодарунок: {gift}" if gift else "")).strip() or None,

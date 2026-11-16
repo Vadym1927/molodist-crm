@@ -31,7 +31,7 @@
 {{ rowblock('Новинки', blocks.new, base, money, base ~ '/shop/?order=new', pch, s) }}
 {{ rowblock('Бестселери', blocks.best, base, money, '', pch, s) }}
 {% if blog %}<section class="sec"><div class="wrap"><div class="sec-h"><h2>Блог</h2><a href="{{ base }}/blog/">Дивитись усі</a></div>
-  <div class="blog">{% for p in blog %}<a class="post" href="{{ base }}{{ p.path }}">{% if p.img %}<img src="{{ p.img }}" alt="" loading="lazy">{% endif %}<b>{{ p.h1 or p.title }}</b><span>{{ p.desc }}</span><i>Читати повністю</i></a>{% endfor %}</div></div></section>{% endif %}
+  <div class="blog">{% for p in blog %}<a class="post" href="{{ base }}{{ p.path }}">{% if p.img_fid %}<img src="{{ base }}/img/{{ p.img_fid }}?w=600" alt="" loading="lazy">{% elif p.cover_img %}<img src="{{ p.cover_img }}" alt="" loading="lazy">{% elif p.img %}<img src="{{ p.img }}" alt="" loading="lazy">{% endif %}<b>{{ p.h1 or p.title }}</b><span>{{ p.desc }}</span><i>Читати повністю</i></a>{% endfor %}</div></div></section>{% endif %}
 <section class="sec insta"><div class="wrap">{% set iu = (s.instagram if s.instagram and 'molodist.clinic' not in s.instagram else c.instagram) or 'https://www.instagram.com/_molodist/' %}
   <div class="insta-in"><a class="insta-p" href="{{ iu }}" target="_blank" rel="noopener">
       <span class="insta-av"><img src="/static/shop/insta-logo.png?v={{ ver }}" alt="MOLODIST" width="72" height="72"></span>

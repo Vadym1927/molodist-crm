@@ -73,7 +73,7 @@ def test_shop_front_crawl_catalog_order(monkeypatch, tmp_path):
         assert p.status_code == 200 and "Крем SEO title" in p.text and "Опис крему" in p.text and '"@type": "Product"' in p.text
         assert c.get("/_shop/shop/krem-test-sf/900001/", follow_redirects=False).status_code == 301
         assert c.get("/_shop/shop/nema-takoho/").status_code == 404
-        assert "Текст умов" in c.get("/_shop/for-customers/dostavka-i-oplata/").text
+        assert "Оплата і доставка" in c.get("/_shop/for-customers/dostavka-i-oplata/").text
         assert c.get(f"/_shop/img/{fid}?w=300").headers["content-type"] == "image/webp"
         assert "krem-test-sf" in c.get("/_shop/sitemap.xml").text and "Крем" in c.get("/_shop/shop/?q=крем").text
         assert "Залишився один крок" in c.get("/_shop/checkout/").text                # без входу — спершу реєстрація
@@ -446,3 +446,32 @@ def test_brand_notice():
         h = c.get("/_shop/shop/brendi/zo-test/").text
         assert "виключно після консультації" in h and "Звернутися до адміністратора" in h
         assert "_molodist" in c.get("/_shop/").text and "molodist.clinic" not in c.get("/_shop/").text
+
+
+def test_shop_content_search_delivery(monkeypatch):
+    from app.services import shop_front as sf
+    monkeypatch.setattr(sf, "notify", lambda *a, **k: 0)
+    with TestClient(app) as c:
+        with SessionLocal() as db:
+            k = sf.preview_key(db)
+            p = Product(name="Medik8 C-Tetra Serum", name_norm="medik8 c-tetra serum", price=3200, site_on=True,
+                        site_info={"slug": "medik8-c-tetra---antioksidantna-sirovatka-z-vitaminom-s-30ml", "title": "MEDIK8 C-TETRA", "presence": 1, "brand_name": "Medik8"})
+            db.add(p); db.commit(); pid = p.id
+            sf.catalog(db, fresh=True)
+            cfg = sf.cfg(db)
+            assert cfg["cod"] is False and "15:00" not in cfg["benefits"]
+            r = sf.create_order(db, {"items": [{"id": pid, "qty": 1}], "name": "Кур Єр", "phone": "+380501110099", "city": "Київ", "delivery": "np_courier", "addr": "вул. Хрещатик, 1, кв. 2", "pay": "cod"}, "http://x")
+            from app.models import SiteOrder
+            o = db.get(SiteOrder, r["id"])
+            assert o.delivery == "Нова пошта — курʼєр" and o.address.startswith("вул. Хрещатик") and o.payment != "При отриманні" and o.raw["free_delivery"] is True
+        c.cookies.set("shop_prev", k)
+        j = c.get("/_shop/api/search?q=med").json()
+        assert j["n"] >= 1 and j["rows"][0]["slug"].startswith("medik8") and c.get("/_shop/api/search?q=me").json()["n"] == 0
+        b = c.get("/_shop/blog/").text
+        assert "Medik8: вітамін C" in b and "AG SKIN" in b and "INNOAESTHETICS" in b and "MOLODIST: косметика" in b
+        post = c.get("/_shop/blog/medik8-vitamin-a-c-ta-spf/").text
+        assert 'href="/_shop/shop/medik8-c-tetra---antioksidantna-sirovatka-z-vitaminom-s-30ml/"' in post and "Засоби зі статті" in post and "{base}" not in post
+        d = c.get("/_shop/for-customers/dostavka-i-oplata/").text
+        assert "До 18:00" in d and "Безготівков" not in d and "(післяплати) немає" in d
+        rt = c.get("/_shop/for-customers/povernennya-tovaru/").text
+        assert "№172" in rt and "ФОП Бондар" in rt and "наказ №1769" in c.get("/_shop/").text

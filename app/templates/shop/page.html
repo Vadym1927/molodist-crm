@@ -1,5 +1,13 @@
-{% extends "shop/base.html" %}
+{% extends "shop/base.html" %}{% from "shop/_card.html" import card %}
 {% block main %}<section class="sec lst"><div class="wrap narrow"><nav class="crumbs"><a href="{{ base }}/">Головна</a>{% if pg.path.startswith('/blog/') and pg.path != '/blog/' %}<a href="{{ base }}/blog/">Блог</a>{% endif %}<span>{{ pg.h1 or pg.title }}</span></nav>
   <h1>{{ pg.h1 or pg.title }}</h1>
-  {% if posts %}<div class="blog">{% for p in posts %}<a class="post" href="{{ base }}{{ p.path }}">{% if p.img %}<img src="{{ p.img }}" alt="" loading="lazy">{% endif %}<b>{{ p.h1 or p.title }}</b><span>{{ p.desc }}</span><i>Читати повністю</i></a>{% endfor %}</div>
-  {% else %}<div class="rte">{{ pg.html|safe }}</div>{% endif %}</div></section>{% endblock %}
+  {% if pg.post %}<p class="mut small">{{ pg.date[8:10] }}.{{ pg.date[5:7] }}.{{ pg.date[:4] }} · Блог MOLODIST</p>
+    {% if pg.img_fid %}<img class="post-cover" src="{{ base }}/img/{{ pg.img_fid }}?w=1200" alt="{{ pg.h1 }}">{% elif pg.cover_img %}<img class="post-cover" src="{{ pg.cover_img }}" alt="{{ pg.h1 }}">{% endif %}{% endif %}
+  {% if pg.path == '/blog/' %}<div class="blog">{% for p in posts %}<a class="post" href="{{ base }}{{ p.path }}">{% if p.img_fid %}<img src="{{ base }}/img/{{ p.img_fid }}?w=600" alt="" loading="lazy">{% elif p.cover_img %}<img src="{{ p.cover_img }}" alt="" loading="lazy">{% elif p.img %}<img src="{{ p.img }}" alt="" loading="lazy">{% endif %}<b>{{ p.h1 or p.title }}</b><span>{{ p.desc }}</span><i>Читати повністю</i></a>{% endfor %}</div>
+  {% else %}<div class="rte">{{ pg.html|safe }}</div>{% endif %}
+  {% if pg.path == '/contacts/' %}<div class="map"><iframe title="MOLODIST на карті" loading="lazy" referrerpolicy="no-referrer-when-downgrade"
+    src="https://maps.google.com/maps?q={{ 'MOLODIST, вул. Князя Романа Мстиславича 28А, Київ'|urlencode }}&hl=uk&z=16&output=embed"></iframe></div>{% endif %}
+  {% if prods %}<h2>Засоби зі статті</h2><div class="grid">{% for i in prods %}{{ card(i, base, money, pch, s) }}{% endfor %}</div>{% endif %}
+  {% if pg.post %}<div class="cat-note" style="margin-top:26px"><div><b>Підібрати догляд з лікарем</b><p>Діагностика шкіри на OBSERV і бюті-план від лікаря MOLODIST.</p></div><a class="btn" href="{{ book_url }}" target="_blank" rel="noopener">Записатися на консультацію</a></div>{% endif %}
+  {% if more %}<h2>Читайте також</h2><div class="blog">{% for p in more %}<a class="post" href="{{ base }}{{ p.path }}">{% if p.img_fid %}<img src="{{ base }}/img/{{ p.img_fid }}?w=600" alt="" loading="lazy">{% elif p.cover_img %}<img src="{{ p.cover_img }}" alt="" loading="lazy">{% endif %}<b>{{ p.h1 }}</b><span>{{ p.desc }}</span><i>Читати повністю</i></a>{% endfor %}</div>{% endif %}
+</div></section>{% endblock %}

@@ -105,7 +105,7 @@ def register(app, templates, version: str):
                       "og_img": f"{cx['abs']}/static/shop/og/invite.jpg"} if cx["ref_in"] else {}),
                   insta=__import__("app.services.insta_feed", fromlist=["x"]).items(db),
                   insta_p=__import__("app.services.insta_feed", fromlist=["x"]).state(db).get("profile") or {},
-                  blocks=sf.home_blocks(cx["d"]), blog=[p for p in cx["d"]["pages"].values() if p["path"].startswith("/blog/") and p["path"] != "/blog/"][:3])
+                  blocks=sf.home_blocks(cx["d"]), blog=_blog(cx["d"], 4))
         return resp(request, "shop/home.html", cx)
 
     @app.get("/_shop/robots.txt")
@@ -160,6 +160,17 @@ def register(app, templates, version: str):
         return FileResponse(cache, media_type="image/webp", headers={"Cache-Control": "public, max-age=2592000, immutable"})
 
     # ---------- API: кошик, замовлення, Нова пошта ----------
+    @app.get("/_shop/api/search")
+    def shop_search_api(request: Request, q: str = "", db: Session = Depends(db_dep)):
+        c = sf.cfg(db)
+        if not opened(request, db, c) or len(q.strip()) < 3:
+            return JSONResponse({"rows": [], "n": 0})
+        hits = sf.search(sf.catalog(db), q[:60])
+        hits.sort(key=lambda i: (not i["stock"], -i["sold"]))
+        return JSONResponse({"n": len(hits), "rows": [{"name": i["name"], "brand": i["brand"], "price": i["price"], "old": i["old"], "slug": i["slug"],
+                                                       "img": i["imgs"][0] if i["imgs"] else None, "stock": i["stock"]} for i in hits[:8]]},
+                            headers={"Cache-Control": "no-store"})
+
     @app.post("/_shop/api/cart")
     async def shop_cart(request: Request, db: Session = Depends(db_dep)):
         try:
@@ -438,6 +449,29 @@ def register(app, templates, version: str):
         return render_list(request, cx, [d["by_slug"][s] for s in cat["slugs"]], page, order, brand, h1=cat["name"], cat=cat,
                            subs=sf.children(cat, d), crumbs=crumbs, page_base=path)
 
+    def _resolve_links(html: str, d: dict, base: str) -> str:
+        from .services import shop_content as _sc
+        html = _sc.render(html, base)
+        slugs = list(d["by_slug"])
+
+        def fix(m):
+            sl = m.group(2)
+            if sl in d["by_slug"]:
+                return m.group(0)
+            hit = next((x for x in slugs if x.startswith(sl[:40])), None)
+            return f'{m.group(1)}{hit}/"' if hit else m.group(0)
+        return re.sub(r'(href="' + re.escape(base) + r'/shop/)([^"/]+)/"', fix, html)
+
+    def _blog(d: dict, n: int | None = None) -> list[dict]:
+        posts = [p for p in d["pages"].values() if p["path"].startswith("/blog/") and p["path"] != "/blog/" and not p.get("unlisted")]
+        posts.sort(key=lambda p: p.get("date") or "", reverse=True)
+        for p in posts:
+            if p.get("cover") and not p.get("img"):
+                it = d["by_slug"].get(p["cover"]) or next((v for k, v in d["by_slug"].items() if k.startswith(p["cover"][:40])), None)
+                if it and it["imgs"]:
+                    p["img_fid"] = it["imgs"][0]
+        return posts[:n] if n else posts
+
     @app.get("/_shop/{rest:path}", response_class=HTMLResponse)
     def shop_page(request: Request, rest: str, db: Session = Depends(db_dep)):
         path = "/" + "/".join(x for x in rest.split("/") if x) + "/"
@@ -445,6 +479,19 @@ def register(app, templates, version: str):
         pg = cx["d"]["pages"].get(path)
         if not pg:
             return not_found(request, cx)
-        cx.update(title=pg.get("title") or pg.get("h1") or "MOLODIST", desc=pg.get("desc") or "", pg=pg,
-                  posts=[p for p in cx["d"]["pages"].values() if p["path"].startswith("/blog/") and p["path"] != "/blog/"] if path == "/blog/" else [])
+        d = cx["d"]
+        pg = {**pg, "html": _resolve_links(pg.get("html") or "", d, cx["base"])}
+        prods = []
+        for sl in pg.get("products") or []:
+            it = d["by_slug"].get(sl) or next((v for k, v in d["by_slug"].items() if k.startswith(sl[:40])), None)
+            if it and it not in prods:
+                prods.append(it)
+        if pg.get("post"):
+            _blog(d)
+            pg["img_fid"] = next((p.get("img_fid") for p in _blog(d) if p["path"] == path), None)
+        cx.update(title=pg.get("title") or pg.get("h1") or "MOLODIST", desc=pg.get("desc") or "", pg=pg, prods=prods,
+                  posts=_blog(d) if path == "/blog/" else [], more=[p for p in _blog(d) if p["path"] != path][:3] if pg.get("post") else [])
+        if pg.get("post"):
+            img = (f"{cx['abs']}{cx['base']}/img/{pg['img_fid']}?w=1200" if pg.get("img_fid") else f"{cx['abs']}{pg.get('cover_img') or '/static/shop/og/default.jpg'}")
+            cx.update(og_img=img)
         return resp(request, "shop/page.html", cx)
