@@ -32,8 +32,8 @@
       <button type="button" aria-label="Кошик" data-cart-open class="hd-cart">{{ ic('<path d="M6 8h12l1.200 12H4.800z"/><path d="M9 8V6.500a3 3 0 0 1 6 0V8"/>') }}<em data-cart-n hidden>0</em></button>
     </div>
   </div>
-  <nav class="hd-nav" aria-label="Категорії">{% for m in d.menu %}<a href="{{ base }}{{ m.path }}" {{ 'aria-current=page' if path.startswith(m.path) }}>{{ m.name }}</a>{% endfor %}
-    <a href="{{ base }}/shop/?order=sale" class="acc">Акції</a>{% if d.brands %}<a href="{{ base }}/shop/brendi/" {{ 'aria-current=page' if path.startswith('/shop/brendi/') }}>Бренди</a>{% endif %}
+  <nav class="hd-nav" aria-label="Категорії">{% for m in d.menu %}<a href="{{ base }}{{ m.path }}" class="{{ 'acc' if m.path == '/shop/sale/' }}" {{ 'aria-current=page' if path.startswith(m.path) }}>{{ m.name }}</a>{% endfor %}
+    {% if '/shop/sale/' not in d.by_path %}<a href="{{ base }}/shop/?order=sale" class="acc">Акції</a>{% endif %}{% if d.brands %}<a href="{{ base }}/shop/brendi/" {{ 'aria-current=page' if path.startswith('/shop/brendi/') }}>Бренди</a>{% endif %}
     {% if '/blog/' in d.pages %}<a href="{{ base }}/blog/">Блог</a>{% endif %}<a href="{{ c.main_url }}" target="_blank" rel="noopener">Косметологія</a></nav>
   <form class="hd-search" action="{{ base }}/shop/" method="get" hidden><input name="q" value="{{ q }}" placeholder="Пошук: назва, бренд, артикул" autocomplete="off"><button class="btn sm">Знайти</button></form>
 </div></header>
@@ -57,7 +57,7 @@
     <button type="button" class="link" data-cart-close>Продовжити покупки</button></div>
 </div></aside>
 <nav class="mnav" id="mnav" hidden><div class="cart-bg" data-menu-close></div><div class="mnav-in"><button type="button" data-menu-close aria-label="Закрити" class="x">×</button>
-  {% for m in d.menu %}<a href="{{ base }}{{ m.path }}">{{ m.name }}</a>{% endfor %}<a href="{{ base }}/shop/?order=sale" class="acc">Акції</a>
+  {% for m in d.menu %}<a href="{{ base }}{{ m.path }}" class="{{ 'acc' if m.path == '/shop/sale/' }}">{{ m.name }}</a>{% endfor %}
   {% if d.brands %}<a href="{{ base }}/shop/brendi/">Бренди</a>{% endif %}{% if '/blog/' in d.pages %}<a href="{{ base }}/blog/">Блог</a>{% endif %}
   <a href="{{ c.main_url }}">Косметологія MOLODIST</a><a href="tel:{{ c.phone }}">{{ c.phone_text }}</a></div></nav>
 <script>window.MSHOP={base:'{{ base }}',free:{{ s.free_from or 0 }}};</script>

@@ -151,19 +151,20 @@ def crawl(db: Session, http: httpx.Client | None = None, job=None) -> dict:
         return not (segs[-1].isdigit() or segs[-1].startswith("page-") or any(x in skip for x in segs) or (len(segs) == 1 and segs[0] in slugs)
                     or segs[0] in slugs)
 
-    def links(s) -> list[str]:
+    def links(html: str) -> list[str]:
+        """Посилання зі сторінки — регулярним виразом по сирому HTML (розбір деревом губить хвіст великих сторінок)."""
         out = []
-        for a in s.find_all("a", href=True):
-            h = a["href"]
-            if h.startswith(OLD):
-                h = h[len(OLD) - 1:]
-            h = h.split("?")[0].split("#")[0]
-            if h.startswith("/") and h not in out:
-                out.append(h if h.endswith("/") else h + "/")
+        for h in re.findall(r"""href\s*=\s*["']([^"'#?]+)""", html or ""):
+            h = re.sub(r"^https?://(www\.)?molodist\.store", "", h.strip())
+            if h.startswith("/") and not h.startswith("//"):
+                h = h if h.endswith("/") else h + "/"
+                if h not in out:
+                    out.append(h)
         return out
 
-    home = _soup(get("/"))
-    menu = [l for l in links(home) if is_cat(l)]
+    home_html = get("/")
+    home = _soup(home_html)
+    menu = [l for l in links(home_html) if is_cat(l)]
     queue, cats, seen = list(dict.fromkeys(["/shop/brendi/"] + menu)), {}, set()
     while queue and len(cats) < 300:
         path = queue.pop(0)
@@ -176,7 +177,7 @@ def crawl(db: Session, http: httpx.Client | None = None, job=None) -> dict:
         s = _soup(html)
         m = _meta(s)
         prod, pages = [], 1
-        ls = links(s)
+        ls = links(html)
         for l in ls:
             pm = re.match(rf"^{re.escape(path)}page-(\d+)/$", l)
             if pm:
@@ -189,10 +190,16 @@ def crawl(db: Session, http: httpx.Client | None = None, job=None) -> dict:
                 pm2 = re.match(r"^/shop/([^/]+)/(?:\d+/)?$", l)
                 if pm2 and pm2.group(1) in slugs and pm2.group(1) not in prod:
                     prod.append(pm2.group(1))
-        body = s.find("main") or s
-        take(links(body))
-        for n in range(2, min(pages, 40) + 1):
-            take(links(_soup(get(f"{path}page-{n}/"))))
+        take(ls)
+        n = 2
+        while n <= min(pages, 60):
+            more = links(get(f"{path}page-{n}/"))
+            take(more)
+            for l in more:
+                pm = re.match(rf"^{re.escape(path)}page-(\d+)/$", l)
+                if pm:
+                    pages = max(pages, int(pm.group(1)))
+            n += 1
         img = s.find("meta", attrs={"property": "og:image"})
         cats[path] = {"path": path, "name": m["h1"] or m["title"], "title": m["title"], "desc": m["desc"], "slugs": prod,
                       "in_menu": path in menu, "img": (img.get("content") if img else "") or ""}

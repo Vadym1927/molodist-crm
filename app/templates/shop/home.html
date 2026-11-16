@@ -10,7 +10,7 @@
   <div class="scroller brs">{% for b in d.brands %}<a class="br" href="{{ base }}{{ b.path }}">{{ b.name }}</a>{% endfor %}</div></div></section>{% endif %}
 {% if d.menu %}<section class="sec"><div class="wrap"><div class="sec-h"><h2>Категорії</h2></div>
   <div class="cats">{% for m in d.menu %}<a class="cat" href="{{ base }}{{ m.path }}"><b>{{ m.name }}</b><small>{{ m.n }} товарів</small></a>{% endfor %}</div></div></section>{% endif %}
-{{ rowblock('Акції', blocks.sale, base, money, base ~ '/shop/?order=sale') }}
+{{ rowblock('Акції', blocks.sale, base, money, base ~ ('/shop/sale/' if '/shop/sale/' in d.by_path else '/shop/?order=sale')) }}
 {{ rowblock('Новинки', blocks.new, base, money, base ~ '/shop/?order=new') }}
 {{ rowblock('Бестселери', blocks.best, base, money) }}
 {% if blog %}<section class="sec"><div class="wrap"><div class="sec-h"><h2>Блог</h2><a href="{{ base }}/blog/">Дивитись усі</a></div>
