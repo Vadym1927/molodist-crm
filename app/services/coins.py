@@ -20,7 +20,7 @@ LABELS = {"welcome": "За реєстрацію", "ref_inviter": "За запр�
           "import": "Стартовий залишок", "birthday": "До дня народження"}
 DEFAULT = {"coin_on": True, "coin_spend_on": False, "coin_start": "", "coin_earn_pct": 3.0, "coin_max_pct": 10.0, "coin_days": 180, "coin_wait_days": 3}
 CLOSED = ("Закрито", "Отримано")
-LOST = ("Скасовано", "Повернення")
+LOST = ("Скасовано", "Повернення", "Фейкове")
 
 
 def balance(db: Session, pid: int) -> float:

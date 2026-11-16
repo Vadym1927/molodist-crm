@@ -1,9 +1,22 @@
 {% extends "base.html" %}
 {% block title %}Замовлення сайту №{{ o.number or o.ext_id }}{% endblock %}
 {% block body %}
-<div class="eyebrow"><a href="/shop-orders">‹ Замовлення сайту</a></div>
-<h1>Замовлення №{{ o.number or o.ext_id }}</h1>
-<div class="muted small" style="margin-bottom:12px">{{ o.created_at|dt('%d.%m.%Y %H:%M') if o.created_at else '' }} · {{ o.status or '' }}{{ ' · оплачено' if o.paid }} · {{ 'molodist.store (Shop-Express)' if o.source == 'shop_express' else 'сайт MOLODIST' }}</div>
+<style>.stp{display:inline-block;padding:6px 14px;border-radius:999px;font:600 13px var(--sans);background:#F1EEF6;color:#3B3050}.stp.new{background:#3B3050;color:#fff}.stp.ok{background:#E3F1E6;color:#256B37}.stp.bad{background:#F3E3E3;color:#8C2F39}.stp.wait{background:#FBF1D9;color:#7A5A12}
+.so-h{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;align-items:center;background:#fff;border:1px solid var(--line);border-radius:18px;padding:18px 22px;margin-bottom:12px}.so-h h1{margin:0;font-size:26px}.so-h .sum{font:600 28px var(--head);white-space:nowrap}
+.so-m{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}.so-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;align-items:end}.so-form label{display:grid;gap:5px;font-size:12.5px;color:var(--muted,#7B7484)}.so-form select,.so-form input{width:100%;margin:0}</style>
+<div class="eyebrow"><a href="/shop-orders">‹ Центр керування магазином</a></div>
+<div class="so-h"><div><h1>Замовлення №{{ o.number or o.ext_id }}</h1>
+  <div class="so-m"><span class="stp {{ 'new' if o.status == 'Нове' else ('ok' if o.status in ('Отримано','Закрито') else ('bad' if o.status in ('Скасовано','Повернення','Фейкове') else '')) }}">{{ o.status or '—' }}</span>
+    {% if o.paid %}<span class="stp ok">оплачено</span>{% elif v.pay_fail %}<span class="stp bad">не оплачено: {{ v.pay_fail }}</span>{% elif o.source == 'crm' %}<span class="stp wait">оплата не підтверджена</span>{% endif %}
+    <span class="muted small">{{ o.created_at|dt('%d.%m.%Y %H:%M') if o.created_at else '' }} · {{ 'архів Shop-Express — лише перегляд' if o.source == 'shop_express' else 'інтернет-магазин MOLODIST' }}</span></div></div>
+  <div class="sum">{{ (o.total or 0)|uah }}</div></div>
+{% if request.query_params.get('msg') %}<div class="alert {{ 'err' if request.query_params.get('err') else 'ok' }}">{{ request.query_params.get('msg') }}</div>{% endif %}
+{% if o.source == 'crm' and can(user,'sales') %}<form method="post" action="/shop-orders/{{ o.id }}/status" class="card so-form" style="margin-bottom:12px">
+  <label>Статус<select name="status">{% if o.status not in STATUSES %}<option selected>{{ o.status }}</option>{% endif %}{% for x in STATUSES %}<option {{ 'selected' if o.status == x }}>{{ x }}</option>{% endfor %}</select></label>
+  <label>Відповідальний<select name="resp"><option value="0">не призначено</option>{% for u2 in staff %}<option value="{{ u2.id }}" {{ 'selected' if v.resp == u2.id }}>{{ u2.name or u2.login }}</option>{% endfor %}</select></label>
+  <label>ТТН Нової пошти<input name="ttn" value="{{ v.ttn }}" placeholder="20 4500 0000 0000"></label>
+  <label>Оплата<select name="paid"><option value="0" {{ 'selected' if not o.paid }}>не оплачено</option><option value="1" {{ 'selected' if o.paid }}>оплачено</option></select></label>
+  <button class="btn">Зберегти</button></form>{% endif %}
 <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px">
   <div class="card"><h3 style="margin-top:0">Покупець</h3>
     <div style="display:flex;gap:12px;align-items:center">{% if pat and pat.avatar_file_id %}<span style="width:56px;height:56px;border-radius:50%;background:#E4DEEF url('/files/{{ pat.avatar_file_id }}') center/cover;flex:none"></span>{% endif %}<b>{{ o.name or '—' }}</b></div><div class="small">{{ o.phone or '' }}{{ ' · ' ~ o.email if o.email }}</div>
@@ -22,11 +35,6 @@
     <td class="small muted">{{ it.sku or '' }}</td><td style="text-align:right">{{ '%g'|format(it.qty or 0) }}</td><td style="text-align:right">{{ (it.price or 0)|uah }}</td><td style="text-align:right">{{ (it.total or 0)|uah }}</td></tr>{% endfor %}
   {% for a in o.extra or [] if a.on %}<tr><td colspan="4" class="small">+ {{ a.name }}</td><td style="text-align:right">{{ (a.price or 0)|uah }}</td></tr>{% endfor %}
   <tr><td colspan="4" style="text-align:right"><b>Разом</b>{% if o.total_full and o.total_full != o.total %} <span class="small muted">(без знижки {{ o.total_full|uah }})</span>{% endif %}</td><td style="text-align:right"><b>{{ (o.total or 0)|uah }}</b></td></tr></tbody></table></div>
-{% if o.source == 'crm' and can(user,'sales') %}<form method="post" action="/shop-orders/{{ o.id }}/status" class="card" style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:end">
-  <label class="small">Статус<select name="status">{% if o.status not in STATUSES %}<option selected>{{ o.status }}</option>{% endif %}{% for x in STATUSES %}<option {{ 'selected' if o.status == x }}>{{ x }}</option>{% endfor %}</select></label>
-  <label class="small">Відповідальний<select name="resp"><option value="0">не призначено</option>{% for u2 in staff %}<option value="{{ u2.id }}" {{ 'selected' if v.resp == u2.id }}>{{ u2.name or u2.login }}</option>{% endfor %}</select></label>
-  <label class="small">ТТН Нової пошти<input name="ttn" value="{{ v.ttn }}"></label>
-  <label class="small">Оплата<select name="paid"><option value="0" {{ 'selected' if not o.paid }}>не оплачено</option><option value="1" {{ 'selected' if o.paid }}>оплачено</option></select></label>
-  <button class="btn">Зберегти</button></form>{% endif %}
+
 {% if v.log %}<div class="card" style="margin-top:12px"><h3 style="margin-top:0">Історія</h3>{% for l in v.log %}<div class="small" style="padding:4px 0;border-top:1px solid var(--line)"><span class="muted">{{ l.at[8:10] }}.{{ l.at[5:7] }} {{ l.at[11:16] }}</span> · {{ l.text }}{% if l.by %} <span class="muted">— {{ l.by }}</span>{% endif %}</div>{% endfor %}</div>{% endif %}
 {% endblock %}

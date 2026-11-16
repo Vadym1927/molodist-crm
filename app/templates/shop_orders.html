@@ -1,40 +1,39 @@
 {% extends "base.html" %}
-{% block title %}Замовлення сайту · Фінанси{% endblock %}
+{% block title %}Центр керування магазином{% endblock %}
 {% block body %}
-{% include "_fin_tabs.html" %}{% set qp = request.query_params %}
-<div class="row between" style="margin-bottom:12px;gap:10px;flex-wrap:wrap"><div><h1>Центр керування магазином</h1>
-  <div class="muted small">molodist.store · {{ n }} замовлень{% if last %} · оновлено {{ last.at[8:10] }}.{{ last.at[5:7] }} {{ last.at[11:16] }}{% endif %}</div></div>
-  <form class="fin-f"><input type="date" name="d1" value="{{ f.d1 }}"><span class="muted">—</span><input type="date" name="d2" value="{{ f.d2 }}">
-    <input type="hidden" name="status" value="{{ f.status }}">
-    <input name="q" value="{{ f.q }}" placeholder="№, імʼя, телефон, місто" style="width:220px"><button class="btn ghost">OK</button></form></div>
-{% if qp.get('job') %}<div class="alert ok">Перенос замовлень запущено — оновіть сторінку за хвилину. <a href="?">оновити</a></div>{% endif %}
-<div class="fin-k">
-  <div class="tile"><span>Виручка</span><b>{{ k.revenue|uah }}</b><div class="muted small">{{ k.ok }} замовлень · сер. {{ k.avg|uah }}</div></div>
-  <div class="tile"><span>Покупців</span><b>{{ k.buyers }}</b><div class="muted small">повторних {{ k.repeat }}</div></div>
-  <div class="tile"><span>Оплачено онлайн</span><b>{{ k.paid }}</b></div>
-  <div class="tile"><span>Скасовано / повернуто</span><b>{{ k.lost }}</b></div>
-</div>
-<div class="row" style="gap:8px;margin:8px 0 12px;flex-wrap:wrap">{% if can(user,'users') %}<a class="btn" href="/settings/shop/products">Товари, знижки, показ</a><a class="btn ghost" href="/settings/shop/cats">Категорії й бренди</a>
-  <a class="btn ghost" href="/settings/shop">Налаштування магазину{{ (' · чекають на товар: ' ~ hub.waiting) if hub.waiting }}</a>{% endif %}
-  <a class="btn ghost" href="{{ hub.preview }}" target="_blank" rel="noopener">{{ 'Відкрити магазин' if hub.on else 'Перегляд магазину' }}</a><span class="muted small" style="align-self:center">кабінетів покупців: {{ hub.accounts }}</span>
-  <a class="btn ghost" href="/reports?r=shop">Звіт «Інтернет-магазин»</a>
-  {% if can(user,'finance') %}<form method="post" action="/shop-orders/sync"><button class="btn ghost">Оновити з molodist.store</button></form>{% endif %}</div>
-<style>.sof{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}.sof a{padding:7px 12px;border-radius:999px;border:1px solid var(--line);text-decoration:none;color:var(--ink);font-size:13px;background:#fff}
-.sof a.on{background:#3B3050;border-color:#3B3050;color:#fff}.sof a b{margin-left:4px}.sot{display:flex;gap:4px}.sot img,.sot span{width:38px;height:38px;border-radius:8px;border:1px solid var(--line);object-fit:contain;background:#fff}
-.soa{width:34px;height:34px;border-radius:50%;background:#E4DEEF center/cover;display:inline-grid;place-items:center;font:600 12px var(--sans);color:#3B3050;vertical-align:middle;margin-right:8px;flex:none}</style>
-<div class="sof">{% set base_q = 'd1=' ~ f.d1 ~ '&d2=' ~ f.d2 ~ '&q=' ~ (f.q|urlencode) %}<a href="?{{ base_q }}" class="{{ 'on' if not f.status }}">Усі</a>
-  {% for x in funnel %}<a href="?{{ base_q }}&status={{ x.name|urlencode }}" class="{{ 'on' if f.status == x.name }}">{{ x.name }}<b>{{ x.n }}</b></a>{% endfor %}</div>
+<style>.sc-h{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px}.sc-f{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chip{padding:7px 13px;border-radius:999px;border:1px solid var(--line);text-decoration:none;color:var(--ink);font-size:13px;background:#fff;white-space:nowrap}.chip.on{background:#3B3050;border-color:#3B3050;color:#fff}.chip b{margin-left:5px}
+.sc-k{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:14px}.sc-k div{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px}.sc-k span{display:block;font-size:12px;color:var(--muted,#7B7484);text-transform:uppercase;letter-spacing:.06em}.sc-k b{font:600 22px var(--head)}
+.sot{display:flex;gap:4px}.sot img{width:40px;height:40px;border-radius:8px;border:1px solid var(--line);object-fit:contain;background:#fff}
+.soa{width:36px;height:36px;border-radius:50%;background:#E4DEEF center/cover;display:inline-grid;place-items:center;font:600 13px var(--sans);color:#3B3050;margin-right:10px;flex:none}
+.stp{display:inline-block;padding:4px 10px;border-radius:999px;font:600 11.5px var(--sans);background:#F1EEF6;color:#3B3050;white-space:nowrap}.stp.new{background:#3B3050;color:#fff}.stp.ok{background:#E3F1E6;color:#256B37}.stp.bad{background:#F3E3E3;color:#8C2F39}.stp.wait{background:#FBF1D9;color:#7A5A12}
+tr.old td{opacity:.6}</style>
+<div class="sc-h"><div><h1 style="margin:0">Центр керування магазином</h1><div class="muted small">Замовлення інтернет-магазину MOLODIST · {{ n }} у списку</div></div>
+  <a class="btn" href="{{ shop_url }}" target="_blank" rel="noopener">{{ 'Відкрити магазин' if shop_on else 'Перегляд магазину' }} ↗</a></div>
+{% set sq = ('&status=' ~ (f.status|urlencode)) if f.status else '' %}{% set aq = '&src=arch' if src == 'arch' else '' %}
+<form class="sc-f" style="margin-bottom:12px"><a class="chip {{ 'on' if not per and not f.d1 and not f.d2 }}" href="?{{ sq[1:] }}{{ aq }}">Увесь час</a>
+  {% for k2, n2 in (('today','Сьогодні'),('7','7 днів'),('30','30 днів'),('month','Цей місяць')) %}<a class="chip {{ 'on' if per == k2 }}" href="?per={{ k2 }}{{ sq }}{{ aq }}">{{ n2 }}</a>{% endfor %}
+  <span class="muted small" style="margin-left:6px">або</span><input type="date" name="d1" value="{{ f.d1 if not per }}"><span class="muted">—</span><input type="date" name="d2" value="{{ f.d2 if not per }}">
+  <input type="hidden" name="status" value="{{ f.status }}">{% if src %}<input type="hidden" name="src" value="{{ src }}">{% endif %}
+  <input name="q" value="{{ f.q }}" placeholder="№, імʼя, телефон, місто" style="width:220px"><button class="btn ghost">Знайти</button></form>
+<div class="sc-k"><div><span>Виручка</span><b>{{ k.revenue|uah }}</b></div><div><span>Замовлень</span><b>{{ k.ok }}</b></div><div><span>Середній чек</span><b>{{ k.avg|uah }}</b></div>
+  <div><span>Покупців</span><b>{{ k.buyers }}</b></div><div><span>Скасовано / повернуто</span><b>{{ k.lost }}</b></div></div>
+{% set pq = ('per=' ~ per) if per else ('d1=' ~ f.d1 ~ '&d2=' ~ f.d2) %}{% set base_q = pq ~ '&q=' ~ (f.q|urlencode) %}
+<div class="sc-f" style="margin-bottom:12px"><a href="?{{ base_q }}" class="chip {{ 'on' if not f.status and src != 'arch' }}">Усі</a>
+  {% for x in funnel %}<a href="?{{ base_q }}&status={{ x.name|urlencode }}" class="chip {{ 'on' if f.status == x.name and src != 'arch' }}">{{ x.name }}<b>{{ x.n }}</b></a>{% endfor %}
+  {% if arch_n %}<a href="?{{ base_q }}&src=arch" class="chip {{ 'on' if src == 'arch' }}" style="margin-left:auto" title="Старі замовлення з Shop-Express — лише перегляд">Архів Shop-Express<b>{{ arch_n }}</b></a>{% endif %}</div>
 <div class="card" style="padding:0;overflow:auto"><table class="tbl" style="width:100%">
-  <thead><tr><th>№</th><th>Дата</th><th>Покупець</th><th>Товари</th><th>Доставка / оплата</th><th>Статус</th><th>Відповідальний</th><th style="text-align:right">Сума</th></tr></thead>
-  <tbody>{% for o in rows %}{% set raw = o.raw or {} %}{% set pt = pats.get(o.patient_id) %}<tr onclick="location.href='/shop-orders/{{ o.id }}'" style="cursor:pointer">
-    <td>{{ o.number or o.ext_id }}</td><td class="small">{{ o.created_at|dt('%d.%m.%Y %H:%M') if o.created_at else '' }}</td>
+  <thead><tr><th>№</th><th>Дата</th><th>Покупець</th><th>Товари</th><th>Доставка</th><th>Оплата</th><th>Статус</th><th>Відповідальний</th><th style="text-align:right">Сума</th></tr></thead>
+  <tbody>{% for o in rows %}{% set raw = o.raw or {} %}{% set pt = pats.get(o.patient_id) %}<tr class="{{ 'old' if o.source != 'crm' }}" onclick="location.href='/shop-orders/{{ o.id }}'" style="cursor:pointer">
+    <td><b>{{ o.number or o.ext_id }}</b></td><td class="small">{{ o.created_at|dt('%d.%m.%Y') if o.created_at else '' }}<div class="muted">{{ o.created_at|dt('%H:%M') if o.created_at else '' }}</div></td>
     <td><div style="display:flex;align-items:center"><span class="soa" {% if pt and pt.avatar_file_id %}style="background-image:url('/files/{{ pt.avatar_file_id }}')"{% endif %}>{{ '' if pt and pt.avatar_file_id else (o.name or '?')[:1] }}</span>
-      <div>{{ o.name or '—' }}{% if o.patient_id %} <span class="pill ok small">картка</span>{% endif %}<div class="small muted">{{ o.city or '' }}</div></div></div></td>
+      <div>{{ o.name or '—' }}<div class="small muted">{{ o.phone or '' }}</div></div></div></td>
     <td class="small"><div class="sot">{% for it in (o['items'] or [])[:3] %}{% if photos.get(it.product_id) %}<img src="{{ photos[it.product_id] }}" alt="" title="{{ it.name }}" loading="lazy">{% endif %}{% endfor %}</div>
-      {{ (o['items'] or [])|map(attribute='name')|join(', ')|truncate(70) }}</td>
-    <td class="small">{{ o.delivery or '' }}{% if raw.get('ttn') %} · ТТН {{ raw.ttn }}{% endif %}<div class="muted">{{ o.payment or '' }}
-      {% if o.paid %}· <span class="pill ok">оплачено</span>{% elif raw.get('pay_state') in PAY_FAIL %}· <span class="pill warn">{{ PAY_FAIL[raw.pay_state] }}</span>{% elif o.source == 'crm' and o.status == 'Очікує оплати' %}· <span class="pill">очікує оплату</span>{% endif %}</div></td>
-    <td class="small">{{ o.status or '' }}</td><td class="small">{{ staff.get(raw.get('resp')) or '—' }}</td><td style="text-align:right"><b>{{ (o.total or 0)|uah }}</b></td></tr>
-  {% else %}<tr><td colspan="8" class="muted">Замовлень немає.</td></tr>{% endfor %}</tbody></table></div>
+      {{ (o['items'] or [])|map(attribute='name')|join(', ')|truncate(60) }}</td>
+    <td class="small">{{ o.delivery or '' }}<div class="muted">{{ o.city or '' }}</div>{% if raw.get('ttn') %}<div>ТТН {{ raw.ttn }}</div>{% endif %}</td>
+    <td class="small">{{ (o.payment or '')|truncate(34) }}<div style="margin-top:3px">{% if o.paid %}<span class="stp ok">оплачено</span>{% elif raw.get('pay_state') in PAY_FAIL %}<span class="stp bad">не оплачено</span>{% elif o.source == 'crm' %}<span class="stp wait">не оплачено</span>{% endif %}</div></td>
+    <td><span class="stp {{ 'new' if o.status == 'Нове' else ('ok' if o.status in ('Отримано','Закрито') else ('bad' if o.status in ('Скасовано','Повернення','Фейкове') else '')) }}">{{ o.status or '—' }}</span></td>
+    <td class="small">{{ staff.get(raw.get('resp')) or '—' }}</td><td style="text-align:right;white-space:nowrap"><b>{{ (o.total or 0)|uah }}</b></td></tr>
+  {% else %}<tr><td colspan="9" class="muted" style="padding:22px">Замовлень за цими умовами немає.</td></tr>{% endfor %}</tbody></table></div>
 {% if n > rows|length %}<p class="small muted">Показано {{ rows|length }} з {{ n }} — звузьте період або пошук.</p>{% endif %}
 {% endblock %}

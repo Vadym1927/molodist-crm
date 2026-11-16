@@ -22,7 +22,7 @@
 </div></section>
 {% if d.menu %}<section class="tiles"><div class="wrap tiles-in">{% for m in d.menu %}<a class="tile {{ 'acc' if m.path == '/shop/sale/' }}" href="{{ base }}{{ m.path }}">
   {% if m.path == '/shop/sale/' %}{{ cico('sale') }}{% endif %}<b>{{ m.name }}</b><small>{{ m.n }} товарів</small></a>{% endfor %}
-  <a class="tile gift" href="{{ cert_url }}" target="_blank" rel="noopener"><img class="tile-img" src="/static/shop/gift.png?v={{ ver }}" alt="" width="360" height="262" loading="lazy"><b>Подарункові сертифікати</b><small>MOLODIST</small></a></div></section>{% endif %}
+  <a class="tile" href="{{ cert_url }}" target="_blank" rel="noopener"><b>Подарункові сертифікати</b><small>MOLODIST</small></a></div></section>{% endif %}
 {% if benefits %}<section class="bens"><div class="wrap"><div class="bens-in">{% for b in benefits[:4] %}<div class="ben"><div class="ben-h">{% if 'астинами' in b[0] and s.parts_paw_file %}<img src="{{ base }}/brand/{{ s.parts_paw_file }}" alt="" width="34" height="34">{% else %}{{ bico(loop.index0) }}{% endif %}<b>{{ b[0] }}</b></div><span>{{ b[1] }}</span></div>{% endfor %}</div></div></section>{% endif %}
 
 {% if d.brands %}<section class="sec"><div class="wrap"><div class="sec-h"><h2>Бренди</h2><a href="{{ base }}/shop/brendi/">Усі бренди</a></div>

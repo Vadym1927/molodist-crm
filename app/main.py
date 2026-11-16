@@ -1279,6 +1279,7 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
                   certs=_cert.for_patient(db, p.id), CERT_STATES=_cert.STATES, today=date.today(),
                   subs=_cert.subs_for_patient(db, p.id), SUB_STATES=_cert.SUB_STATES, packages=_cert.package_items(db),
                   CB_LABELS=CB_LABELS, loyal=_loyal_ctx(db, p),
+                  coin_summary=lambda pid: __import__("app.services.coins", fromlist=["x"]).summary(db, pid),
                   pscripts=_sc.for_patient(db, p, kind, user.name) if can(user, "message") else [],
                   avail=_msg.available_channels(p),
                   users=db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all(),
@@ -9949,23 +9950,30 @@ def _shop_orders_job(job):
 
 
 @app.get("/shop-orders", response_class=HTMLResponse)
-def shop_orders_page(request: Request, d1: str = "", d2: str = "", status: str = "", q: str = "", user: User = Depends(require("sales")),
+def shop_orders_page(request: Request, d1: str = "", d2: str = "", status: str = "", q: str = "", per: str = "", src: str = "", user: User = Depends(require("sales")),
                      db: Session = Depends(db_dep)):
     from .services import shop_orders as so
-    a, b = _day(d1), _day(d2)
     from .services import shop_front as sf
-    allr = so.listing(db, a, b, "", q)
+    today = date.today()
+    if per in ("today", "7", "30", "month"):
+        a = {"today": today, "7": today - timedelta(days=6), "30": today - timedelta(days=29), "month": today.replace(day=1)}[per]
+        b, d1, d2 = today, a.isoformat(), today.isoformat()
+    else:
+        a, b = _day(d1), _day(d2)
+    every = so.listing(db, a, b, "", q)
+    arch = [o for o in every if o.source != "crm"]                       # історія Shop-Express: лише перегляд, у воронці не беруть участі
+    allr = arch if src == "arch" else [o for o in every if o.source == "crm"]
     legacy = {v: k for k, v in sf.LEGACY_STATUS.items()}
-    rows = [o for o in allr if not status or o.status == status or o.status == legacy.get(status)]
+    rows = [o for o in allr if src == "arch" or not status or o.status == status or o.status == legacy.get(status)]
     pids = {i.get("product_id") for o in rows[:500] for i in (o.items or [])[:3] if i.get("product_id")}
     photos = {p_.id: p_.photo_url for p_ in db.scalars(select(Product).where(Product.id.in_(pids or {0})))}
     pats = {p_.id: p_ for p_ in db.scalars(select(Patient).where(Patient.id.in_({o.patient_id for o in rows[:500] if o.patient_id} or {0})))}
     staff = {u_.id: (u_.name or u_.login) for u_ in db.scalars(select(User))}
-    return render(request, "shop_orders.html", nav="finance", rows=rows[:500], n=len(rows), k=so.kpi(rows), statuses=so.statuses(db),
-                  funnel=sf.funnel(allr), photos=photos, pats=pats, staff=staff, PAY_FAIL=sf.PAY_FAIL,
-                  hub={"waiting": sum(w["n"] for w in __import__("app.services.shop_cabinet", fromlist=["x"]).notify_waiting(db)),
-                       "accounts": __import__("app.services.shop_cabinet", fromlist=["x"]).stats(db)["accounts"], "preview": f"/_shop/?p={sf.preview_key(db)}", "on": sf.cfg(db).get("on")},
-                  f={"d1": d1, "d2": d2, "status": status, "q": q}, last=so.last(db))
+    c_ = sf.cfg(db)
+    return render(request, "shop_orders.html", nav="shop", rows=rows[:500], n=len(rows), k=so.kpi(rows), arch_n=len(arch), src=src, per=per,
+                  funnel=sf.funnel([o for o in every if o.source == "crm"]), photos=photos, pats=pats, staff=staff, PAY_FAIL=sf.PAY_FAIL,
+                  shop_url=(c_["canonical"].rstrip("/") + "/") if c_.get("on") else f"/_shop/?p={sf.preview_key(db)}", shop_on=bool(c_.get("on")),
+                  f={"d1": d1, "d2": d2, "status": status, "q": q})
 
 
 @app.get("/shop-orders/{oid:int}", response_class=HTMLResponse)
@@ -9973,7 +9981,7 @@ def shop_order_page(request: Request, oid: int, user: User = Depends(require("sa
     from .models import SiteOrder
     o = db.get(SiteOrder, oid) or (_ for _ in ()).throw(HTTPException(404))
     from .services import shop_front as sf
-    return render(request, "shop_order.html", nav="finance", o=o, pat=db.get(Patient, o.patient_id) if o.patient_id else None, v=sf.order_view(db, o),
+    return render(request, "shop_order.html", nav="shop", o=o, pat=db.get(Patient, o.patient_id) if o.patient_id else None, v=sf.order_view(db, o),
                   STATUSES=sf.STATUSES, staff=[u_ for u_ in db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)) if can(u_, "sales")])
 
 
