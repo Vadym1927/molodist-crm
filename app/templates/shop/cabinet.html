@@ -11,6 +11,7 @@
   elif k == 'addr' %}<path d="M12 21s-7-6.200-7-11a7 7 0 0 1 14 0c0 4.800-7 11-7 11z"/><circle cx="12" cy="10" r="2.500"/>{%
   elif k == 'exit' %}<path d="M10 4H5v16h5M14 8l4 4-4 4M18 12H9"/>{% endif %}</svg>{% endmacro %}
 {% from "site/_icons.html" import icon %}
+{% macro wa() %}<svg viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="11" fill="#2BB741"/><path fill="none" stroke="#fff" stroke-width="2.600" stroke-linejoin="round" d="M24 11a13 13 0 0 0-11 19.800L11.500 37l6.400-1.600A13 13 0 1 0 24 11z"/><path fill="#fff" d="M19.300 17.500c-.400 0-1 .200-1.500.800-.500.600-1.800 1.800-1.800 4.200s1.900 4.900 2.200 5.200c.300.300 3.600 5.600 8.900 7.500 4.400 1.600 5.300 1.300 6.200 1.200 1-.100 3-1.200 3.500-2.400.400-1.200.400-2.200.300-2.400l-3.900-1.900c-.500-.200-.900-.300-1.300.300l-1.700 2.100c-.300.400-.600.400-1.100.200-.500-.300-2.200-.800-4.200-2.600-1.600-1.400-2.600-3.100-2.900-3.600-.300-.500 0-.800.200-1.100l.800-.900c.300-.300.300-.500.500-.900.200-.300.100-.700 0-.900l-1.700-4.100c-.400-.900-.800-.800-1.100-.800z" transform="translate(-2.500,-2.500) scale(.86) translate(5,4)"/></svg>{% endmacro %}
 {% block main %}<section class="sec lst"><div class="wrap cab">
   <aside class="cab-m"><button type="button" class="cab-tg" data-cab-menu><span>{{ mi(t) }}{{ dict(tabs)[t] }}</span><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button><div class="cab-u"><span>{{ (acc.first_name or p.full_name or '?')[:1] }}</span><div><b>{{ ((acc.first_name or '') ~ ' ' ~ (acc.last_name or '')).strip() or p.full_name }}</b><small>+{{ p.phone }}</small></div></div>
     {% for k, n in tabs %}<a href="{{ base }}/cabinet/?t={{ k }}" class="{{ 'on' if t == k }}"><span>{{ mi(k) }}{{ n }}</span>{% if k == 'wish' and wish %}<em>{{ wish|length }}</em>{% endif %}</a>{% endfor %}
@@ -38,28 +39,33 @@
     {% else %}<div class="soon"><b>Рекомендацій ще немає</b><p>Після консультації лікар MOLODIST складе бюті-план — і засоби домашнього догляду з нього зʼявляться тут.</p>
       <a class="btn sm ghost" href="{{ c.main_url }}" target="_blank" rel="noopener">Записатися на консультацію</a></div>{% endif %}
   {% elif t == 'loyalty' %}<h1>MOLODIST Coins</h1>
-    <div class="coin-card"><img src="/static/shop/coins/coin-white.webp" alt="MOLODIST Coins" width="120" height="120"><div><small>Доступно</small><b>{{ coins.total }}</b><span>1 коїн = 1 ₴ знижки</span></div></div>
+    <div class="coin-card"><img src="/static/shop/coins/coin-white.webp" alt="MOLODIST Coins" width="120" height="120"><div><small>Доступно</small><b>{{ coins.total }}</b><span>1 Coin = 1 ₴ знижки</span></div></div>
     <div class="kpis" style="margin:0 0 18px"><div><b>{{ coins.pending }}</b><span>очікують нарахування</span></div>
       <div><b>{{ coins.soon.amount if coins.soon else '—' }}</b><span>{{ ('згорять ' ~ coins.soon.date.strftime('%d.%m.%Y')) if coins.soon else 'найближче згорання' }}</span></div></div>
-    <p class="mut">MOLODIST Coins — єдиний рахунок у магазині й медичному просторі MOLODIST. За кожні 100 ₴ покупки — {{ '%g'|format(s.coin_earn_pct) }} коїни; коїнами можна отримати знижку до {{ '%g'|format(s.coin_max_pct) }}% вартості замовлення.
-      Коїни за замовлення нараховуються на {{ s.coin_wait_days }}-й день після його отримання й діють {{ s.coin_days }} днів. Акційні товари участі не беруть.</p>
+    <p class="mut">MOLODIST Coins — єдиний рахунок у магазині й медичному просторі MOLODIST. За кожні 100 ₴ покупки — {{ '%g'|format(s.coin_earn_pct) }} MOLODIST Coins; ними можна отримати знижку до {{ '%g'|format(s.coin_max_pct) }}% вартості замовлення.
+      MOLODIST Coins за замовлення нараховуються на {{ s.coin_wait_days }}-й день після його отримання й діють {{ s.coin_days }} днів. Акційні товари участі не беруть.</p>
     {% if coins.pend %}<h3>Очікують</h3>{% for r in coins.pend %}<div class="cab-oi"><span>Замовлення №{{ r.n }}</span><small>{{ ('нарахуємо ' ~ r.due[8:10] ~ '.' ~ r.due[5:7]) if r.due else 'після отримання замовлення' }}</small><b>+{{ r.amount }}</b></div>{% endfor %}{% endif %}
     <h3>Історія</h3>{% for r in coins.rows %}<div class="cab-oi"><span>{{ r.label }}{{ (' · ' ~ r.note) if r.note }}</span><small>{{ r.at.strftime('%d.%m.%Y') if r.at else '' }}</small><b>{{ '+' if r.amount > 0 }}{{ '%g'|format(r.amount) }}</b></div>{% else %}<p class="mut">Операцій ще немає.</p>{% endfor %}
   {% elif t == 'reviews' %}<h1>Мої відгуки</h1>
     <div class="soon"><b>Розділ у розробці</b><p>Після отримання замовлення ми попросимо вас оцінити товар. Тут зʼявляться ваші відгуки.</p></div>
   {% elif t == 'invite' %}<h1>Запроси друга</h1>
-    <p>Поділіться кодом або посиланням. Коли друг зареєструється в магазині — ви отримаєте <b>{{ s.cab_coin_ref }} коїнів</b>, і друг теж <b>{{ s.cab_coin_ref }} коїнів</b>.</p>
+    <p>Поділіться кодом або посиланням. Коли друг зареєструється в магазині — ви отримаєте <b>{{ s.cab_coin_ref }} MOLODIST Coins</b>, і друг теж <b>{{ s.cab_coin_ref }} MOLODIST Coins</b>. 1 Coin = 1 ₴ знижки.</p>
     <div class="ref"><div><small>Ваш реферальний код</small><b>{{ acc.ref_code }}</b></div><button type="button" class="btn sm ghost" data-copy="{{ acc.ref_code }}">Скопіювати код</button></div>
     <div class="ref"><div><small>Посилання для друга</small><span class="lnk">{{ ref_url }}</span></div><button type="button" class="btn sm ghost" data-copy="{{ ref_url }}">Скопіювати</button></div>
-    {% set msg = 'Раджу магазин професійної косметики MOLODIST. Зареєструйся за моїм посиланням і отримай ' ~ s.cab_coin_ref ~ ' коїнів: ' %}
+    {% set msg = 'Дарую ' ~ s.cab_coin_ref ~ ' MOLODIST Coins — це ' ~ s.cab_coin_ref ~ ' ₴ знижки на професійну косметику, яку призначають лікарі MOLODIST. Зареєструйся за моїм посиланням: ' %}
     <div class="share"><a href="https://t.me/share/url?url={{ ref_url|urlencode }}&text={{ msg|urlencode }}" target="_blank" rel="noopener">{{ icon('telegram') }}<span>Telegram</span></a>
       <a href="viber://forward?text={{ (msg ~ ref_url)|urlencode }}">{{ icon('viber') }}<span>Viber</span></a>
-      <a href="https://wa.me/?text={{ (msg ~ ref_url)|urlencode }}" target="_blank" rel="noopener"><svg viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="11" fill="#2BB741"/><path fill="none" stroke="#fff" stroke-width="2.600" stroke-linejoin="round" d="M24 11a13 13 0 0 0-11 19.800L11.500 37l6.400-1.600A13 13 0 1 0 24 11z"/><path fill="#fff" d="M19.300 17.500c-.400 0-1 .200-1.500.800-.500.600-1.800 1.800-1.800 4.200s1.900 4.900 2.200 5.200c.300.300 3.600 5.600 8.900 7.500 4.400 1.600 5.300 1.300 6.200 1.200 1-.100 3-1.200 3.500-2.400.400-1.200.400-2.200.300-2.400l-3.900-1.900c-.500-.200-.900-.300-1.300.300l-1.700 2.100c-.300.400-.600.400-1.100.200-.500-.300-2.200-.800-4.200-2.600-1.600-1.400-2.600-3.100-2.900-3.600-.300-.500 0-.800.200-1.100l.800-.900c.300-.300.300-.500.500-.900.200-.300.100-.700 0-.900l-1.700-4.100c-.400-.900-.800-.800-1.100-.800z" transform="translate(-2.500,-2.500) scale(.86) translate(5,4)"/></svg><span>WhatsApp</span></a>
+      <a href="https://wa.me/?text={{ (msg ~ ref_url)|urlencode }}" target="_blank" rel="noopener">{{ wa() }}<span>WhatsApp</span></a>
       <button type="button" data-copy="{{ msg ~ ref_url }}" data-copied="Скопійовано — вставте в Instagram">{{ icon('instagram') }}<span>Instagram</span></button></div>
-    <div class="kpis"><div><b>{{ coins.invited }}</b><span>друзів зареєструвалось</span></div><div><b>{{ coins.ref }}</b><span>коїнів за запрошення</span></div></div>
+    <div class="kpis"><div><b>{{ coins.invited }}</b><span>друзів зареєструвалось</span></div><div><b>{{ coins.ref }}</b><span>MOLODIST Coins за запрошення</span></div></div>
   {% elif t == 'wish' %}<h1>Вішліст</h1>
     {% if wish %}<div class="ref"><div><small>{{ wish|length }} товарів на {{ money(wish_sum) }} · посилання на ваш вішліст</small><span class="lnk">{{ wish_url }}</span></div>
-      <button type="button" class="btn sm ghost" data-copy="{{ wish_url }}">Поділитися</button></div>
+      <button type="button" class="btn sm ghost" data-copy="{{ wish_url }}">Скопіювати</button></div>
+    {% set wmsg = 'Мій вішліст у магазині MOLODIST — якщо шукаєш, що мені подарувати, тут точно вгадаєш: ' %}
+    <div class="share"><a href="https://t.me/share/url?url={{ wish_url|urlencode }}&text={{ wmsg|urlencode }}" target="_blank" rel="noopener">{{ icon('telegram') }}<span>Telegram</span></a>
+      <a href="viber://forward?text={{ (wmsg ~ wish_url)|urlencode }}">{{ icon('viber') }}<span>Viber</span></a>
+      <a href="https://wa.me/?text={{ (wmsg ~ wish_url)|urlencode }}" target="_blank" rel="noopener">{{ wa() }}<span>WhatsApp</span></a>
+      <button type="button" data-copy="{{ wmsg ~ wish_url }}" data-copied="Скопійовано — вставте в Instagram">{{ icon('instagram') }}<span>Instagram</span></button></div>
     <p class="mut small">Надішліть посилання близьким — вони побачать, що ви хочете, і зможуть замовити подарунок.</p>
     <div class="grid">{% for i in wish %}{{ card(i, base, money, pch, s) }}{% endfor %}</div>
     {% else %}<p class="mut">У вішлісті ще порожньо. Натискайте на сердечко на фото товару — він зʼявиться тут.</p><a class="btn" href="{{ base }}/shop/">До каталогу</a>{% endif %}

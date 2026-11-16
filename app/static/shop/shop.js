@@ -119,7 +119,7 @@
       cb.hidden = !(cn.on && cn.me && cn.balance > 0) || parts;
       var mx = $('[name=use_coins]').checked ? cn.use : cn.max;
       $('[data-coin-max]').textContent = mx; $('[data-coin-sum]').textContent = money(mx);
-      $('[data-coin-note]').textContent = 'На рахунку ' + cn.balance + ' коїнів. Знижка — до ' + cn.max + ' ₴ на це замовлення' + (cn.max < cn.balance ? ' (ліміт від вартості неакційних товарів)' : '') + '.';
+      $('[data-coin-note]').textContent = 'На рахунку ' + cn.balance + ' MOLODIST Coins. Знижка — до ' + cn.max + ' ₴ на це замовлення' + (cn.max < cn.balance ? ' (ліміт від вартості неакційних товарів)' : '') + '.';
       $('[name=use_coins]').disabled = !cn.max;
       $('#co-coin-row').hidden = !useC; $('#co-coin').textContent = '−' + money(useC);
       var ce = $('#co-earn'); ce.hidden = !(cn.on && cn.earn); ce.textContent = cn.me ? 'За це замовлення отримаєте +' + cn.earn + ' MOLODIST Coins.' : 'Увійдіть у кабінет — і отримаєте +' + cn.earn + ' MOLODIST Coins за це замовлення.';

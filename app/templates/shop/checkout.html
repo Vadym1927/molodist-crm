@@ -20,7 +20,7 @@
         <select name="parts" class="pp">{% for n in parts.parts %}<option value="{{ n }}">{{ n }} платежі{{ 'в' if n > 4 }}</option>{% endfor %}</select></span></label>{% endif %}
       {% if s.cod %}<label><input type="radio" name="pay" value="cod"><span><b>При отриманні</b><small>накладений платіж Нової пошти або оплата в MOLODIST</small></span></label>{% endif %}</div>
     <div id="co-coins" hidden><h3>MOLODIST Coins</h3>
-      <label class="ck coin-ck"><input type="checkbox" name="use_coins"><span>Використати <b data-coin-max>0</b> коїнів — знижка <b data-coin-sum>0 ₴</b></span></label>
+      <label class="ck coin-ck"><input type="checkbox" name="use_coins"><span>Використати <b data-coin-max>0</b> MOLODIST Coins — знижка <b data-coin-sum>0 ₴</b></span></label>
       <p class="mut small" data-coin-note></p></div>
     <div id="co-gift" hidden><h3>Подарунок до замовлення</h3><div class="opts" id="co-gifts"></div></div>
     <label><span>Коментар (необовʼязково)</span><textarea name="comment" rows="2"></textarea></label>

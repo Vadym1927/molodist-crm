@@ -63,6 +63,7 @@ def register(app, templates, version: str):
         return {"me": got[0] if got else None, "me_p": got[1] if got else None, "ref_in": (request.query_params.get("ref") or "")[:20],
                 "pch": float(pp["min_sum"] or 0) if pp["ready"] else None, "pch_legal": sf.PARTS_LEGAL, "pch_show": bool(pp["ready"] or pp.get("on")), "request": request, "s": c, "c": site, "d": data, "base": "" if on_site else "/_shop", "noindex": not on_site,
                 "canonical": c["canonical"].rstrip("/") + path, "ver": str(version)[:8], "year": date.today().year, "money": sp.money,
+                "og_title": "", "og_desc": "", "og_img": "", "abs": (c["canonical"].rstrip("/") if on_site else settings.public_url.rstrip("/")),
                 "benefits": sf.lines(c.get("benefits")), "coin_earn": lambda price, sale=False: __import__("app.services.coins", fromlist=["x"]).earn_for(c, price, sale), "cat_icon": sf.cat_icon, "cert_url": _cert_url(db, site), "viber": sp.viber_link(db, site), "path": path, "q": "",
                 "pkey": request.query_params.get("p") or ""}
 
@@ -90,6 +91,9 @@ def register(app, templates, version: str):
         h = cx["d"]["home"]
         cx.update(title=h.get("title") or "Професійна косметика для обличчя та тіла | MOLODIST",
                   desc=h.get("desc") or "Професійна косметика від лікарів MOLODIST: оригінальна продукція, підбір догляду, доставка по Україні.",
+                  **({"og_title": f"Вам подарунок: {cx['s'].get('cab_coin_ref')} MOLODIST Coins на професійну косметику",
+                      "og_desc": f"Зареєструйтесь у магазині MOLODIST за запрошенням друга й отримайте {cx['s'].get('cab_coin_ref')} MOLODIST Coins — це {cx['s'].get('cab_coin_ref')} ₴ знижки на косметику, яку призначають лікарі.",
+                      "og_img": f"{cx['abs']}/static/shop/og/invite.jpg"} if cx["ref_in"] else {}),
                   blocks=sf.home_blocks(cx["d"]), blog=[p for p in cx["d"]["pages"].values() if p["path"].startswith("/blog/") and p["path"] != "/blog/"][:3])
         return resp(request, "shop/home.html", cx)
 
@@ -320,6 +324,9 @@ def register(app, templates, version: str):
             return not_found(request, cx)
         wi = sc.wish_items(cx["d"], acc.wishlist or [])
         cx.update(title="Вішліст — MOLODIST", desc="", noindex_page=True, private=True, owner=" ".join(x for x in (acc.last_name, acc.first_name) if x), items=wi,
+                  og_title=f"Вішліст: {' '.join(x for x in (acc.first_name, acc.last_name) if x)} · MOLODIST".replace(":  ·", " ·"),
+                  og_desc=(f"{len(wi)} бажань у магазині професійної косметики MOLODIST. Оберіть подарунок — доставимо Новою поштою." if wi else "Список бажань у магазині професійної косметики MOLODIST."),
+                  og_img=f"{cx['abs']}/static/shop/og/wish.jpg",
                   wish_sum=sum(i["price"] for i in wi))
         return resp(request, "shop/wish.html", cx)
 

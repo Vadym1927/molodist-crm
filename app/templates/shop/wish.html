@@ -1,7 +1,7 @@
 {% extends "shop/base.html" %}{% from "shop/_card.html" import card %}
 {% block main %}<section class="sec lst"><div class="wrap">
   <p class="eyebrow">Вішліст</p><h1>{{ ('Вішліст: ' ~ owner) if owner else 'Вішліст' }}</h1>
-  <p class="mut">Список бажань у магазині MOLODIST. Оберіть подарунок і додайте в кошик — доставимо Новою поштою.</p>
+  <p class="mut">Це список бажань у магазині MOLODIST — професійна косметика, яку призначають лікарі. Оберіть подарунок, додайте в кошик і вкажіть адресу отримувача: доставимо Новою поштою.</p>
   {% if items %}<div class="grid">{% for i in items %}{{ card(i, base, money, pch, s) }}{% endfor %}</div>
   <p class="mut" style="margin-top:18px">У списку {{ items|length }} товарів на {{ money(wish_sum) }}.</p>{% else %}<p class="mut">Список поки порожній.</p>{% endif %}
 </div></section>{% endblock %}

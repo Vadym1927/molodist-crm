@@ -18,7 +18,7 @@ from ..models import BonusTxn, ShopCoin, SiteOrder
 from . import loyalty as ly
 
 LABELS = {"welcome": "За реєстрацію", "ref_inviter": "За запрошеного друга", "ref_friend": "Бонус за запрошенням друга", "accrual": "За покупку",
-          "spend": "Знижка коїнами", "restore": "Повернено коїни", "reverse": "Скасовано нарахування", "expire": "Згоріли", "manual": "Нараховано вручну",
+          "spend": "Знижка MOLODIST Coins", "restore": "Повернено MOLODIST Coins", "reverse": "Скасовано нарахування", "expire": "Згоріли", "manual": "Нараховано вручну",
           "import": "Стартовий залишок", "birthday": "До дня народження"}
 DEFAULT = {"coin_on": True, "coin_earn_pct": 3.0, "coin_max_pct": 10.0, "coin_days": 180, "coin_wait_days": 3}
 CLOSED = ("Закрито", "Отримано")
