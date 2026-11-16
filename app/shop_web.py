@@ -72,6 +72,11 @@ def register(app, templates, version: str):
                 "pkey": request.query_params.get("p") or ""}
 
     def resp(request: Request, name: str, cx: dict, status: int = 200):
+        from .services import shop_seo as _seo
+        if cx.get("title"):
+            cx["title"] = _seo.clean_title(cx["title"])
+            if "desc" in cx and not cx.get("noindex_page"):
+                cx["desc"] = _seo.clean_desc(cx.get("desc") or "", cx["title"])
         r = templates.TemplateResponse(request, name, cx, status_code=status)
         r.headers["Cache-Control"] = "public, max-age=120" if not (cx["noindex"] or cx.get("me") or cx.get("private")) else "no-store"
         if cx.get("me") or cx.get("private"):

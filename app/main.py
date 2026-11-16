@@ -626,6 +626,16 @@ async def lifespan(app: FastAPI):
         except Exception as _e:  # noqa: BLE001
             log.warning("online_cb_seed: %s", _e)
             db.rollback()
+        try:                                                         # 16.11.2026: SEO категорій і брендів магазину замість автозаглушок Shop-Express
+            if not db.get(SyncState, "shop_seo_20261116"):
+                from .services import shop_seo as _seo0, shop_front as _sf0
+                if _sf0.site(db).get("cats"):
+                    log.info("shop seo: %s", _seo0.apply(db))
+                    db.merge(SyncState(key="shop_seo_20261116", value="1"))
+                    db.commit()
+        except Exception as _e:  # noqa: BLE001
+            log.warning("shop seo: %s", _e)
+            db.rollback()
         try:                                                         # 16.11.2026: коїни кабінету магазину → єдиний журнал MOLODIST Coins
             from .services import coins as _cn0
             log.info("coins split: %s", _cn0.split_from_bonuses(db))

@@ -411,3 +411,21 @@ def test_coins_unfile_from_bonuses_keeps_cleverbox():
             assert cn.split_from_bonuses(db) >= 1 and cn.balance(db, pt.id) == 100
             assert cn.unfile_from_bonuses(db) >= 1 and ly.balance(db, pt.id) == 730 and cn.balance(db, pt.id) == 100
             assert cn.unfile_from_bonuses(db) == 0
+
+
+def test_shop_seo_seed():
+    from app.services import shop_seo as seo, shop_front as sf
+    assert seo.clean_title("Demax › Molodist.shop") == "Demax | MOLODIST" and seo.clean_title("Крем X | MOLODIST › Molodist.shop") == "Крем X | MOLODIST"
+    assert "Demax" in seo.clean_desc("Demax — Molodist.shop", "Demax › Molodist.shop") and "Molodist.shop" not in seo.clean_desc("Demax — Molodist.shop", "Demax")
+    with TestClient(app):
+        with SessionLocal() as db:
+            st = sf.site(db)
+            st["cats"] = [{"path": "/shop/brendi/medik8/", "name": "Medik8", "title": "Medik8 › Molodist.shop", "desc": "Medik8 — Molodist.shop", "slugs": [], "in_menu": False, "img": ""},
+                          {"path": "/shop/oblichchya/spf/", "name": "SPF", "title": "SPF › Molodist.shop", "desc": "", "slugs": [], "in_menu": True, "img": ""},
+                          {"path": "/shop/brendi/novyi/", "name": "Novyi", "title": "Свій заголовок | MOLODIST", "desc": "Свій опис", "slugs": [], "in_menu": False, "img": ""}]
+            sf.save_site(db, st)
+            assert seo.apply(db) == 2 and seo.apply(db) == 0
+            c = {x["path"]: x for x in sf.site(db)["cats"]}
+            assert c["/shop/brendi/medik8/"]["title"].startswith("Medik8 — купити косметику") and "вітаміном A" in c["/shop/brendi/medik8/"]["desc"]
+            assert "SPF 50" in c["/shop/oblichchya/spf/"]["title"] and c["/shop/brendi/novyi/"]["title"] == "Свій заголовок | MOLODIST"
+            assert all(len(t) <= 75 for t, _ in [seo.brand_seo(k, v[0]) for k, v in seo.BRANDS.items()])
