@@ -371,6 +371,8 @@ async def job_mono_parts():
                 from .services import shop_cabinet as _sc, shop_front as _sf
                 _c = _sf.cfg(db)
                 _sc.notify_send(db, _c, _sf.catalog(db), _c["canonical"].rstrip("/") if _c.get("on") else settings.public_url.rstrip("/") + "/_shop")
+                from .services import coins as _cn
+                _cn.post_due(db, _c)
             except Exception as e:  # noqa: BLE001
                 log.warning("shop notify: %s", e)
             return mp.poll(db)
@@ -620,6 +622,12 @@ async def lifespan(app: FastAPI):
             log.info("online_care_bot: %s", _obb(db))
         except Exception as _e:  # noqa: BLE001
             log.warning("online_cb_seed: %s", _e)
+            db.rollback()
+        try:                                                         # 16.11.2026: коїни кабінету магазину → єдиний журнал MOLODIST Coins
+            from .services import coins as _cn0
+            log.info("coins migrate: %s", _cn0.migrate_shop_coins(db))
+        except Exception as _e:  # noqa: BLE001
+            log.warning("coins migrate: %s", _e)
             db.rollback()
         if not db.get(SyncState, "cb_calendar_freeze_20261031"):   # 31.10.2026: календар — лише вручну в CRM (рішення власника)
             from .integrations.cleverbox import set_calendar_frozen as _fz
@@ -10004,6 +10012,13 @@ async def settings_shop_save(request: Request, user: User = Depends(require("use
             warn = str(e)
     c["cod"], c["pickup"] = bool(f.get("cod")), bool(f.get("pickup"))
     c["cab_on"] = bool(f.get("cab_on"))
+    c["coin_on"] = bool(f.get("coin_on"))
+    for k, hi in (("coin_earn_pct", 50), ("coin_max_pct", 100), ("coin_days", 3650), ("coin_wait_days", 60)):
+        try:
+            v = float(str(f.get(k) or 0).replace(",", "."))
+            c[k] = max(0, min(hi, v if k.endswith("pct") else int(v)))
+        except ValueError:
+            pass
     c["notify_on"] = bool(f.get("notify_on"))
     c["order_msg_on"] = bool(f.get("order_msg_on"))
     c["notify_text"] = str(f.get("notify_text") or "").strip()[:200]

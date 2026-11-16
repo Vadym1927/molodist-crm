@@ -134,3 +134,5 @@ img{max-width:100%;height:auto}a{color:var(--act)}h1,h2,h3,h4{font-family:var(--
 
 .coin-card{display:flex;gap:20px;align-items:center;max-width:520px}.coin-card img{width:110px;height:110px;flex:none;filter:drop-shadow(0 8px 18px rgba(0,0,0,.28))}.coin-card>div{display:grid;gap:2px}
 @media (max-width:560px){.coin-card{flex-direction:column;align-items:flex-start}}
+
+.coin-line{display:flex;gap:10px;align-items:center;margin:14px 0 0;font-size:14px}.coin-line img{width:26px;height:26px}.coin-ck{background:var(--cream);border-radius:14px;padding:14px 16px}.coin-ck span{font-size:14.5px}

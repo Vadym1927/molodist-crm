@@ -33,6 +33,7 @@ DEFAULT = {
     "about": "MOLODIST — медичний простір естетики та профілактики в Києві. В інтернет-магазині зібрана професійна косметика для домашнього догляду, з якою щодня працюють наші лікарі-дерматологи: ZO Skin Health, Medik8, Medicare, Demax, AG SKIN, Tebiskin, Image Skincare, Rejuran та інші бренди.\nМи продаємо лише оригінальну продукцію від офіційних дистрибʼюторів і зберігаємо її з дотриманням умов виробника. У каталозі — засоби для очищення й тонізації, активні сироватки з ретинолом, вітаміном C і кислотами, зволожувальні та анти-ейдж креми, сонцезахист SPF, догляд за шкірою навколо очей, тілом і волоссям.\nНе впевнені, що підійде саме вам? Напишіть нам — лікар MOLODIST безкоштовно підбере домашній догляд під тип і стан вашої шкіри: акне, пігментація, чутливість, вікові зміни, відновлення після процедур. Так домашній догляд підтримує результат лікування, а не працює проти нього.\nДоставляємо Новою поштою по всій Україні, у Києві замовлення можна забрати в MOLODIST. Оплата карткою онлайн, при отриманні або Покупка Частинами monobank.",
     "instagram": "https://www.instagram.com/molodist.clinic/",
     "hero": [],                  # [{img, title, text, url}]
+    "coin_on": True, "coin_earn_pct": 3.0, "coin_max_pct": 10.0, "coin_days": 180, "coin_wait_days": 3,   # MOLODIST Coins у магазині
     "order_msg_on": False,       # повідомлення покупцю: оплачено / відправлено (з ТТН) / скасовано
     "notify_on": False, "notify_text": "{name} знову в наявності в магазині MOLODIST: {url}",
     "cab_on": True, "cab_sms": "{code} — код входу в магазин MOLODIST", "cab_sms_day": 150, "cab_coin_signup": 100, "cab_coin_ref": 200,
@@ -571,8 +572,9 @@ def make_sale(db: Session, o: SiteOrder, pl) -> int | None:
     items = [{"kind": "product", "ref_id": i["product_id"], "name": i["name"], "qty": i["qty"], "price": i["price"]} for i in o.items or [] if i.get("product_id")]
     if not items:
         return None
-    paid_sum = round(sum(i["qty"] * i["price"] for i in items), 2)
-    sale = sl.create(db, {"patient_id": o.patient_id, "no_discounts": True, "items": items,
+    used = float(((o.raw or {}).get("coins") or {}).get("used") or 0)
+    paid_sum = round(sum(i["qty"] * i["price"] for i in items) - used, 2)
+    sale = sl.create(db, {"patient_id": o.patient_id, "no_discounts": True, "no_accrual": True, "manual_discount": used, "discount_label": "MOLODIST Coins", "items": items,
                           "payments": [{"method": sl.paylink_method(acc.get("name") or "monobank"), "amount": paid_sum}],
                           "comment": f"Інтернет-магазин, замовлення {o.number}"})
     pl.sale_id = sale.id
@@ -647,7 +649,7 @@ def price_cart(db: Session, rows: list[dict], c: dict | None = None) -> dict:
             continue
         line = round(v["price"] * qty, 2)
         total += line
-        out.append({"id": pid, "slug": it["slug"], "name": v["name"], "brand": it["brand"], "qty": qty, "price": v["price"], "total": line,
+        out.append({"id": pid, "slug": it["slug"], "name": v["name"], "brand": it["brand"], "qty": qty, "price": v["price"], "total": line, "sale": bool(v.get("old")),
                     "img": it["imgs"][0] if it["imgs"] else None, "sku": v["sku"]})
     free_from = float(c.get("free_from") or 0)
     gifts = [g[0] for g in lines(c.get("gifts"))] if c.get("gift_from") and total >= float(c["gift_from"]) else []
@@ -681,14 +683,21 @@ def create_order(db: Session, data: dict, base_url: str) -> dict:
     if pay == "cod" and not c.get("cod"):
         pay = "online"
     gift = str(data.get("gift") or "")[:200] if str(data.get("gift") or "") in cart["gifts"] else ""
+    from . import coins as cn
+    acc_pid = data.get("_patient_id")                       # покупець увійшов у кабінет — можна списати MOLODIST Coins
+    cq = cn.quote(db, c, cart["items"], acc_pid, int(data.get("coins") or 0)) if acc_pid and pay != "parts" else {"use": 0}
+    use = cq["use"]
+    full = cart["total"]
+    if use:
+        cart = {**cart, "total": round(full - use, 2)}
     no = f"M{datetime.now():%y%m%d}-{secrets.randbelow(9000) + 1000}"
     o = SiteOrder(source="crm", ext_id=no, number=no, created_at=datetime.now(), status="Очікує оплати" if pay != "cod" else "Нове", paid=False,
-                  total=cart["total"], total_full=cart["total"], delivery_price=0,
+                  total=cart["total"], total_full=full, delivery_price=0,
                   delivery="Самовивіз з MOLODIST" if delivery == "pickup" else "Нова пошта",
                   payment={"online": "Онлайн карткою (monobank)", "cod": "При отриманні", "parts": "Покупка Частинами monobank"}[pay],
                   name=name, phone=phone, email=str(data.get("email") or "").strip()[:200] or None, city=city or None, address=wh or None,
                   comment=(str(data.get("comment") or "").strip()[:1000] + (f"\nПодарунок: {gift}" if gift else "")).strip() or None,
-                  items=[{"product_id": i["id"], "name": i["name"], "sku": i["sku"], "qty": i["qty"], "price": i["price"], "total": i["total"]} for i in cart["items"]],
+                  items=[{"product_id": i["id"], "name": i["name"], "sku": i["sku"], "qty": i["qty"], "price": i["price"], "total": i["total"], "sale": i.get("sale", False)} for i in cart["items"]],
                   extra=[{"name": f"Подарунок: {gift}", "price": 0, "on": True}] if gift else None,
                   raw={"utm": {k: v for k, v in data.items() if k.startswith("utm_") or k in ("gclid", "fbclid")}, "free_delivery": cart["free_delivery"]},
                   synced_at=datetime.now())
@@ -696,6 +705,14 @@ def create_order(db: Session, data: dict, base_url: str) -> dict:
     pat = so._patient(db, name, phone, o.email, {})
     if pat:
         o.patient_id = pat.id
+    if acc_pid:
+        o.patient_id = acc_pid                               # замовлення з кабінету — завжди в картку власника кабінету
+    db.flush()
+    if use and cn.reserve(db, o, use) != use:
+        db.rollback()
+        raise ShopError("Не вдалося застосувати MOLODIST Coins — оновіть сторінку й спробуйте ще раз.")
+    if use:
+        o.extra = (o.extra or []) + [{"name": f"Знижка MOLODIST Coins: {use}", "price": -use, "on": True}]
     db.commit()
     out = {"ok": True, "number": no, "total": cart["total"], "id": o.id}
     if pay == "parts":
@@ -715,7 +732,7 @@ def create_order(db: Session, data: dict, base_url: str) -> dict:
         try:
             from . import paylinks as pl
             link = pl.create(db, cart["total"], f"Замовлення {no}", base_url, patient_id=o.patient_id, account_id=int(c.get("pay_account") or 0) or None,
-                             basket=[{"name": i["name"][:128], "qty": i["qty"], "total": i["total"], "code": str(i["sku"] or i["id"])} for i in cart["items"]])
+                             basket=_basket(cart["items"], use))
             link.info = {**(link.info or {}), "shop_order": o.id}
             db.commit()
             out["pay_url"] = link.url
@@ -729,6 +746,25 @@ def create_order(db: Session, data: dict, base_url: str) -> dict:
     return out
 
 
+def split_discount(items: list[dict], disc: float) -> list[float]:
+    """Знижку коїнами — пропорційно між неакційними рядками, залишок копійок — методом найбільших залишків. Сума точно = disc."""
+    base = [float(i["total"]) if not i.get("sale") else 0.0 for i in items]
+    tot = sum(base)
+    if disc <= 0 or tot <= 0:
+        return [0.0] * len(items)
+    kop = int(round(disc * 100))
+    raw = [b * kop / tot for b in base]
+    out = [int(x) for x in raw]
+    for i in sorted(range(len(raw)), key=lambda i: -(raw[i] - out[i]))[:kop - sum(out)]:
+        out[i] += 1
+    return [x / 100 for x in out]
+
+
+def _basket(items: list[dict], use: int) -> list[dict]:
+    d = split_discount(items, use)
+    return [{"name": i["name"][:128], "qty": i["qty"], "total": round(i["total"] - x, 2), "code": str(i["sku"] or i["id"])} for i, x in zip(items, d)]
+
+
 def paid(db: Session, pl) -> None:
     """Оплачене посилання → замовлення «Оплачено»."""
     oid = (pl.info or {}).get("shop_order")
@@ -738,6 +774,11 @@ def paid(db: Session, pl) -> None:
         o.raw = {**(o.raw or {}), "pay_state": "paid", "paid_at": datetime.utcnow().isoformat(timespec="seconds")}
         log(o, "Оплачено онлайн")
         db.flush()
+        try:
+            from . import coins as cn
+            cn.plan_earn(db, o, cfg(db))
+        except Exception:  # noqa: BLE001
+            pass
         try:
             make_sale(db, o, pl)
         except Exception as e:  # noqa: BLE001 — гроші прийшли: замовлення оплачене, чек адміністратор проведе вручну
@@ -842,6 +883,9 @@ def pay_event(db: Session, pl, status: str) -> None:
         return
     o.raw = {**(o.raw or {}), "pay_state": status, "pay_state_at": datetime.utcnow().isoformat(timespec="seconds")}
     log(o, f"Оплата: {PAY_FAIL[status]}")
+    from . import coins as cn
+    if cn.release(db, o, cfg(db)):
+        log(o, "MOLODIST Coins повернено покупцю")
     db.flush()
     notify(db, o, fail=status)
 
@@ -866,6 +910,11 @@ def set_status(db: Session, o: SiteOrder, status: str, user: User | None = None,
         raw["log"] = (raw.get("log") or []) + [{"at": datetime.now().isoformat(timespec="minutes"), "by": who, "text": "Оплату позначено вручну: " + ("оплачено" if paid else "не оплачено")}]
     o.raw = raw
     db.flush()
+    try:
+        from . import coins as cn
+        cn.on_status(db, o, cfg(db))
+    except Exception:  # noqa: BLE001
+        pass
     if o.status == "Відправлено":
         _cust(db, o, "sent")
     elif o.status == "Скасовано":

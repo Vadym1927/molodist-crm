@@ -27,7 +27,8 @@
   }
   var cartEl = $('#cart'), last = null;
   function render(cb) {
-    api('/api/cart', { items: load() }, function (j) {
+    var uc = $('[name=use_coins]');
+    api('/api/cart', { items: load(), coins: uc && uc.checked ? null : 0 }, function (j) {
       if (!j) return;
       last = j;
       var ids = j.items.map(function (i) { return i.id; });
@@ -110,7 +111,19 @@
   function renderCo(j) {
     j = j || last; if (!j) return;
     $('#co-items').innerHTML = j.items.length ? j.items.map(function (i) { return line(i, true); }).join('') : '<p class="mut">Кошик порожній. <a href="' + B + '/shop/">До каталогу</a></p>';
-    $('#co-sum').textContent = money(j.total); $('#co-tot').textContent = money(j.total);
+    var cn = j.coins || {}, useC = cn.use || 0, parts = ($('[name=pay]:checked') || {}).value === 'parts';
+    if (parts) useC = 0;
+    $('#co-sum').textContent = money(j.total); $('#co-tot').textContent = money(j.total - useC);
+    var cb = $('#co-coins');
+    if (cb) {
+      cb.hidden = !(cn.on && cn.me && cn.balance > 0) || parts;
+      var mx = $('[name=use_coins]').checked ? cn.use : cn.max;
+      $('[data-coin-max]').textContent = mx; $('[data-coin-sum]').textContent = money(mx);
+      $('[data-coin-note]').textContent = 'На рахунку ' + cn.balance + ' коїнів. Знижка — до ' + cn.max + ' ₴ на це замовлення' + (cn.max < cn.balance ? ' (ліміт від вартості неакційних товарів)' : '') + '.';
+      $('[name=use_coins]').disabled = !cn.max;
+      $('#co-coin-row').hidden = !useC; $('#co-coin').textContent = '−' + money(useC);
+      var ce = $('#co-earn'); ce.hidden = !(cn.on && cn.earn); ce.textContent = cn.me ? 'За це замовлення отримаєте +' + cn.earn + ' MOLODIST Coins.' : 'Увійдіть у кабінет — і отримаєте +' + cn.earn + ' MOLODIST Coins за це замовлення.';
+    }
     var pick = $('[name=delivery]:checked', co);
     $('#co-del').textContent = pick && pick.value === 'pickup' ? 'самовивіз — безкоштовно' : (j.free_delivery ? 'безкоштовно' : 'за тарифами Нової пошти');
     var g = $('#co-gift'); g.hidden = !j.gifts.length;
@@ -119,6 +132,8 @@
   if (co) {
     var form = $('#co-form'), cityRef = '';
     render(renderCo);
+    if (form.use_coins) form.use_coins.addEventListener('change', function () { render(renderCo); });
+    $$('[name=pay]', form).forEach(function (r) { r.addEventListener('change', function () { renderCo(); }); });
     $$('[name=delivery]', form).forEach(function (r) { r.addEventListener('change', function () { $('#co-np').hidden = r.value === 'pickup' && r.checked; renderCo(); }); });
     form.phone.addEventListener('focus', function () { if (!form.phone.value) form.phone.value = '+380'; });
     try { var me = JSON.parse(localStorage.getItem('mlds_me') || 'null'); if (me) { form.name.value = me.name || ''; form.phone.value = me.phone || ''; } } catch (e) {}
@@ -149,7 +164,7 @@
       var er = $('.err', form), bt = $('button.btn', form); er.hidden = true;
       var d = { items: load(), name: form.name.value.trim(), phone: form.phone.value, email: form.email.value.trim(), city: form.city.value.trim(),
         warehouse: form.warehouse.value.trim(), comment: form.comment.value.trim(), website: form.website.value,
-        delivery: ($('[name=delivery]:checked', form) || {}).value, pay: ($('[name=pay]:checked', form) || {}).value, gift: ($('[name=gift]:checked', form) || {}).value || '', parts: form.parts ? form.parts.value : '' };
+        delivery: ($('[name=delivery]:checked', form) || {}).value, pay: ($('[name=pay]:checked', form) || {}).value, gift: ($('[name=gift]:checked', form) || {}).value || '', coins: form.use_coins && form.use_coins.checked && last && last.coins ? last.coins.use : 0, parts: form.parts ? form.parts.value : '' };
       try { var m = JSON.parse(localStorage.getItem('mlds_utm') || 'null'); if (m && m.m) for (var k in m.m) d[k] = m.m[k]; } catch (x) {}
       if (!d.items.length) { er.textContent = 'Кошик порожній.'; er.hidden = false; return; }
       bt.disabled = true; bt.textContent = 'Оформлюємо…';

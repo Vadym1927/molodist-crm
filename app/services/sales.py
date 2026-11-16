@@ -89,6 +89,10 @@ def create(db: Session, data: dict, user_id: int | None = None) -> Sale:
         raise SaleError("Додайте хоча б одну позицію")
     q = quote(db, items, patient, data.get("rule_ids"), float(data.get("manual_discount") or 0), float(data.get("bonus_pay") or 0),
               no_discounts=bool(data.get("no_discounts")))
+    if data.get("discount_label") and "Ручна знижка" in q["rules"]:
+        q["rules"] = [data["discount_label"] if r == "Ручна знижка" else r for r in q["rules"]]
+    if data.get("no_accrual"):
+        q["bonus_accrual"] = 0.0
     pays = [dict(p) for p in data.get("payments") or [] if float(p.get("amount") or 0) > TOL and p.get("method") not in (BONUS,)]
     paid = round(sum(float(p["amount"]) for p in pays), 2)
     excess, topup = round(paid - q["to_pay"], 2), 0.0
@@ -239,7 +243,7 @@ def create(db: Session, data: dict, user_id: int | None = None) -> Sale:
         db.commit()
     if patient and q["bonus_pay"] > 0:
         ly.add(db, patient.id, -q["bonus_pay"], "spend", f"чек №{sale.id}", f"sale:{sale.id}", user_id)
-    if patient and q["bonus_accrual"] > 0:
+    if patient and q["bonus_accrual"] > 0 and not data.get("no_accrual"):
         ly.add(db, patient.id, q["bonus_accrual"], "accrual", f"чек №{sale.id}", f"sale:{sale.id}", user_id)
     sale.appt_ids = aids or None
     for aid_ in aids:                                          # усі візити чека — закрити

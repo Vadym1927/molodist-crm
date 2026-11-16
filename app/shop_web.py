@@ -63,7 +63,7 @@ def register(app, templates, version: str):
         return {"me": got[0] if got else None, "me_p": got[1] if got else None, "ref_in": (request.query_params.get("ref") or "")[:20],
                 "pch": float(pp["min_sum"] or 0) if pp["ready"] else None, "pch_legal": sf.PARTS_LEGAL, "pch_show": bool(pp["ready"] or pp.get("on")), "request": request, "s": c, "c": site, "d": data, "base": "" if on_site else "/_shop", "noindex": not on_site,
                 "canonical": c["canonical"].rstrip("/") + path, "ver": str(version)[:8], "year": date.today().year, "money": sp.money,
-                "benefits": sf.lines(c.get("benefits")), "cat_icon": sf.cat_icon, "cert_url": _cert_url(db, site), "viber": sp.viber_link(db, site), "path": path, "q": "",
+                "benefits": sf.lines(c.get("benefits")), "coin_earn": lambda price, sale=False: __import__("app.services.coins", fromlist=["x"]).earn_for(c, price, sale), "cat_icon": sf.cat_icon, "cert_url": _cert_url(db, site), "viber": sp.viber_link(db, site), "path": path, "q": "",
                 "pkey": request.query_params.get("p") or ""}
 
     def resp(request: Request, name: str, cx: dict, status: int = 200):
@@ -142,7 +142,13 @@ def register(app, templates, version: str):
             body = json.loads(await request.body() or b"{}")
         except ValueError:
             body = {}
-        return JSONResponse(sf.price_cart(db, body.get("items") or []), headers={"Cache-Control": "no-store"})
+        cart = sf.price_cart(db, body.get("items") or [])
+        from .services import coins as cn
+        got = sc.me(db, request.cookies.get(sc.COOKIE))
+        want = body.get("coins")
+        cart["coins"] = cn.quote(db, sf.cfg(db), cart["items"], got[1].id if got else None, None if want is None else int(want or 0))
+        cart["coins"]["me"] = bool(got)
+        return JSONResponse(cart, headers={"Cache-Control": "no-store"})
 
     @app.post("/_shop/api/order")
     async def shop_order(request: Request, db: Session = Depends(db_dep)):
@@ -156,6 +162,10 @@ def register(app, templates, version: str):
         if body.get("website") or not _rate(request, "shopord", 8):
             return JSONResponse({"ok": False, "msg": "Забагато спроб. Зателефонуйте нам, будь ласка."}, status_code=429)
         host = (request.headers.get("host") or "").split(":")[0].lower()
+        body = {k: v for k, v in body.items() if not str(k).startswith("_")}
+        got = sc.me(db, request.cookies.get(sc.COOKIE))
+        if got:
+            body["_patient_id"] = got[1].id
         try:
             r = sf.create_order(db, body, settings.public_url)
         except sf.ShopError as e:
