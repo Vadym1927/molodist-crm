@@ -386,6 +386,8 @@ async def job_mono_parts():
                     if _bs["new"]:
                         log.info("shop brands: нові сторінки брендів %s", _bs["new"])
                 _ct.job(db, _c, _cat, _root)
+                from .services import shop_extra as _sx
+                _sx.send_reorders(db, _c, _cat, _root)
                 from .services import insta_feed as _if
                 if _if.due(db):
                     _if.refresh(db)
@@ -5138,7 +5140,8 @@ def product_card(pid: int, request: Request, user: User = Depends(require("produ
     for m in out_moves:                              # поточний термін руху теж має бути в списку
         if m.expiry_date not in batch_opts.setdefault(m.warehouse, []):
             batch_opts[m.warehouse].append(m.expiry_date)
-    return render(request, "product.html", dirs=catalog.product_dirs(db), wh=prod.warehouse,
+    shop_doctors = list(db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)))
+    return render(request, "product.html", shop_doctors=shop_doctors, dirs=catalog.product_dirs(db), wh=prod.warehouse,
                   WAREHOUSES=catalog.WAREHOUSES, p=prod, r=row, purchases=purchases, buys=buys, buy_stats=buy_stats,
                   batches=batches, out_moves=out_moves, batch_opts=batch_opts, wh_tot=wh_tot, ledger_on=ledger_on, sales=sales, plans=plans, months=months,
                   m_max=max([m[1] for m in months] + [1]), stock_rows=stock_rows, today=today,
@@ -5210,6 +5213,12 @@ async def product_site_save(pid: int, request: Request, user: User = Depends(req
         si.pop("price_old", None)
     elif f.get("sale_pct") is not None:
         si.pop("sale", None)
+    if f.get("tip_form"):
+        tt = str(f.get("tip_text") or "").strip()[:600]
+        if tt:
+            si["tip"] = {"text": tt, "doctor_id": int(f.get("tip_doctor") or 0) or None}
+        else:
+            si.pop("tip", None)
     p.site_info = si
     db.commit()
     if si.get("slug") and f.get("cats_form"):
@@ -10168,7 +10177,7 @@ def settings_shop(request: Request, user: User = Depends(require("users")), db: 
     d = sf.catalog(db, fresh=True)
     j = jobs.JOBS.get(request.query_params.get("job") or "")
     from .services import mono_parts as _mp
-    return render(request, "settings_shop.html", nav="settings", rv_default=__import__("app.services.shop_reviews", fromlist=["x"]).DEFAULT_TEXT, cart_default=__import__("app.services.shop_carts", fromlist=["x"]).DEFAULT_TEXT, c=c, d=d, seo=sf.seo_coverage(db), insta=__import__("app.services.insta_feed", fromlist=["x"]).state(db), waiting=__import__("app.services.shop_cabinet", fromlist=["x"]).notify_waiting(db), cab=__import__("app.services.shop_cabinet", fromlist=["x"]).stats(db), accounts=pls.public(db)["accounts"], job=j, mp=_mp.public(db), MP_MODES=_mp.MODES,
+    return render(request, "settings_shop.html", nav="settings", rv_default=__import__("app.services.shop_reviews", fromlist=["x"]).DEFAULT_TEXT, cart_default=__import__("app.services.shop_carts", fromlist=["x"]).DEFAULT_TEXT, reorder_default=__import__("app.services.shop_extra", fromlist=["x"]).REORDER_TEXT, c=c, d=d, seo=sf.seo_coverage(db), insta=__import__("app.services.insta_feed", fromlist=["x"]).state(db), waiting=__import__("app.services.shop_cabinet", fromlist=["x"]).notify_waiting(db), cab=__import__("app.services.shop_cabinet", fromlist=["x"]).stats(db), accounts=pls.public(db)["accounts"], job=j, mp=_mp.public(db), MP_MODES=_mp.MODES,
                   preview=f"{settings.public_url.rstrip('/')}/_shop/?p={sf.preview_key(db)}",
                   stock=sum(1 for i in d["items"] if i["stock"]), nocat=sum(1 for i in d["items"] if not any(i["slug"] in x["slugs"] for x in d["cats"])))
 
@@ -10189,6 +10198,13 @@ async def settings_shop_save(request: Request, user: User = Depends(require("use
         c = sf.cfg(db)
         c["review_on"] = bool(f.get("review_on"))
         c["cart_auto_on"] = bool(f.get("cart_auto_on"))
+        for _b in ("reorder_on", "quiz_on", "oneclick_on"):
+            c[_b] = bool(f.get(_b))
+        try:
+            c["reorder_lead"] = min(30, max(0, int(f.get("reorder_lead") or 7)))
+        except ValueError:
+            pass
+        c["reorder_text"] = str(f.get("reorder_text") or "").strip()[:400]
         for _k, _lo, _hi in (("review_days", 0, 30), ("cart_task_hours", 0, 168), ("cart_auto_hours", 1, 72)):
             try:
                 c[_k] = min(_hi, max(_lo, float(str(f.get(_k) or 0).replace(",", "."))))

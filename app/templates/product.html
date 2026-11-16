@@ -188,6 +188,9 @@
       <label class="small">Діє до (необовʼязково)<input type="date" name="sale_until" value="{{ si.sale.until if si.sale else '' }}"></label></div>
     {% if si.slug and shop_cats %}<input type="hidden" name="cats_form" value="1"><div class="small"><b>Категорії на сайті</b>
       <div style="columns:2;margin-top:4px">{% for c2 in shop_cats %}<label class="row" style="gap:6px;align-items:center;display:flex"><input type="checkbox" name="cat" value="{{ c2.path }}" style="width:auto" {{ 'checked' if si.slug in c2.slugs }}> {{ c2.name }} <span class="muted">{{ c2.path }}</span></label>{% endfor %}</div></div>{% endif %}
+    <input type="hidden" name="tip_form" value="1"><div class="grid" style="grid-template-columns:2fr 1fr;gap:8px">
+      <label class="small"><b>Рекомендує лікар</b> — коротка порада на сторінці товару (як і кому підходить)<textarea name="tip_text" rows="3" maxlength="600" placeholder="Наприклад: «Підходить для жирної шкіри з висипаннями. Наносьте ввечері 2–3 рази на тиждень, вранці — обовʼязково SPF.»">{{ (si.tip or {}).text or '' }}</textarea></label>
+      <label class="small">Лікар<select name="tip_doctor"><option value="">—</option>{% for d in shop_doctors or [] %}<option value="{{ d.id }}" {{ 'selected' if (si.tip or {}).doctor_id == d.id }}>{{ d.name }}</option>{% endfor %}</select></label></div>
     <label class="small">Опис (HTML)<textarea name="short_description" rows="6">{{ si.short_description or '' }}</textarea></label>
     <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px"><label class="small">SEO title<input name="seo_title" value="{{ si.seo_title or '' }}"></label>
       <label class="small">SEO description<input name="seo_description" value="{{ si.seo_description or '' }}"></label></div>

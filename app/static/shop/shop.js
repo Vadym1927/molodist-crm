@@ -123,6 +123,26 @@
   $$('.vars input').forEach(function (r) { r.addEventListener('change', function () { $('#p-price').textContent = r.dataset.price; $('#p-add').setAttribute('data-add', r.value); }); });
   badge();
 
+  /* ---------- купити в 1 клік ---------- */
+  var ocm = $('#ocm'), ocf = $('#ocf');
+  if (ocm) {
+    document.addEventListener('click', function (e) {
+      var b = e.target.closest && e.target.closest('[data-oneclick]');
+      if (b) { ocm.hidden = false; ocf.setAttribute('data-id', b.getAttribute('data-oneclick')); ocf.phone.focus(); }
+      if (e.target === ocm || (e.target.closest && e.target.closest('[data-oc-close]'))) ocm.hidden = true;
+    });
+    ocf.addEventListener('submit', function (e) {
+      e.preventDefault(); var er = $('.err', ocf), ok = $('.ok', ocf), bt = $('button[type=submit]', ocf); er.hidden = true; bt.disabled = true;
+      var d = { id: +ocf.getAttribute('data-id'), qty: $('#p-qty') ? (+$('#p-qty').value || 1) : 1, phone: ocf.phone.value, name: ocf.name.value, website: ocf.website.value };
+      try { var m = JSON.parse(localStorage.getItem('mlds_utm') || 'null'); if (m && m.m) for (var k in m.m) d[k] = m.m[k]; } catch (x) {}
+      api('/api/oneclick', d, function (j) {
+        bt.disabled = false;
+        if (j && j.ok) { ok.textContent = 'Дякуємо! Замовлення №' + j.number + ' прийнято — передзвонимо найближчим часом.'; ok.hidden = false; bt.hidden = true;
+          ga('generate_lead', { currency: 'UAH', value: j.total, lead_source: 'one_click', items: [{ item_id: String(d.id), quantity: d.qty }] }); }
+        else { er.textContent = (j && j.msg) || 'Не вдалося. Зателефонуйте нам.'; er.hidden = false; }
+      });
+    });
+  }
   var ctf = $('#ctf');
   if (ctf) ctf.addEventListener('submit', function (e) {
     e.preventDefault(); var er = $('.err', ctf), ok = $('.ok', ctf), bt = $('button', ctf); er.hidden = true; bt.disabled = true;

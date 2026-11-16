@@ -184,7 +184,7 @@ def register(app, templates, version: str):
     @app.get("/_shop/contentsitemap.xml", include_in_schema=False)
     def shop_sitemap(db: Session = Depends(db_dep)):
         b, d = sf.cfg(db)["canonical"].rstrip("/"), sf.catalog(db)
-        urls = ["/", "/shop/"] + [c["path"] for c in d["cats"] if c["n"] or c.get("notice")] + [f"/shop/{i['slug']}/" for i in d["items"]] + list(d["pages"])
+        urls = ["/", "/shop/", "/pidbir/"] + [c["path"] for c in d["cats"] if c["n"] or c.get("notice")] + [f"/shop/{i['slug']}/" for i in d["items"]] + list(d["pages"])
         body = "".join(f"<url><loc>{b}{u}</loc></url>" for u in dict.fromkeys(urls))
         return Response(f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{body}</urlset>', media_type="application/xml")
 
@@ -425,6 +425,54 @@ def register(app, templates, version: str):
     def cx_data(db):
         return sf.catalog(db)
 
+    @app.get("/_shop/pidbir/", response_class=HTMLResponse)
+    def shop_quiz(request: Request, db: Session = Depends(db_dep)):
+        from .services import shop_extra as sx
+        cx = ctx(request, db, "/pidbir/")
+        if not cx["s"].get("quiz_on", True):
+            raise HTTPException(404)
+        qp = request.query_params
+        ans = {q["key"]: qp.get(q["key"]) for q in sx.QUIZ if qp.get(q["key"]) in dict(q["opts"])}
+        res = sx.pick(cx["d"], ans) if len(ans) == len(sx.QUIZ) else None
+        cx.update(title="Підбір догляду онлайн — MOLODIST", desc="Дайте відповідь на 5 запитань — і отримайте домашній догляд під ваш тип шкіри й запит від магазину професійної косметики MOLODIST.",
+                  quiz=sx.QUIZ, ans=ans, res=res, noindex_page=bool(ans))
+        if res:
+            cx["private"] = False
+        return resp(request, "shop/quiz.html", cx)
+
+    @app.get("/_shop/reorder/{tok}/", response_class=HTMLResponse)
+    def shop_reorder(tok: str, request: Request, db: Session = Depends(db_dep)):
+        from .services import shop_reviews as rv
+        cx = ctx(request, db, "/reorder/")
+        o = rv.by_token(db, tok)
+        if not o:
+            raise HTTPException(404)
+        by_id = {v["id"]: (it, v) for it in cx["d"]["items"] for v in it["variants"]}
+        rows = [{"id": i["product_id"], "qty": int(i.get("qty") or 1), "it": by_id[i["product_id"]][0], "v": by_id[i["product_id"]][1]}
+                for i in o.items or [] if i.get("product_id") in by_id]
+        cx.update(title="Повторити замовлення — MOLODIST", desc="", noindex_page=True, private=True, order=o, rows=rows)
+        return resp(request, "shop/reorder.html", cx)
+
+    @app.post("/_shop/api/oneclick")
+    async def shop_oneclick(request: Request, db: Session = Depends(db_dep)):
+        from .services import shop_extra as sx
+        c = sf.cfg(db)
+        if not opened(request, db, c) or not c.get("oneclick_on", True):
+            raise HTTPException(404)
+        d = _body(await request.body())
+        if not _rate(request, "oneclick", 5, 3600):
+            return JSONResponse({"ok": False, "msg": "Забагато спроб. Зателефонуйте нам, будь ласка."}, status_code=429)
+        bad = human(request, d, c)
+        if bad:
+            return JSONResponse({"ok": False, "msg": bad}, status_code=400)
+        got = sc.me(db, request.cookies.get(sc.COOKIE))
+        try:
+            r = sx.quick_order(db, int(d.get("id") or 0), int(d.get("qty") or 1), str(d.get("phone") or ""), str(d.get("name") or ""),
+                               {k: v for k, v in d.items() if str(k).startswith("utm_") or k in ("gclid", "fbclid", "landing")}, got[1].id if got else None)
+        except (sf.ShopError, ValueError) as e:
+            return JSONResponse({"ok": False, "msg": str(e)}, status_code=400)
+        return JSONResponse(r, headers={"Cache-Control": "no-store"})
+
     @app.post("/_shop/api/contact")
     async def shop_contact(request: Request, db: Session = Depends(db_dep)):
         c = sf.cfg(db)
@@ -597,6 +645,11 @@ def register(app, templates, version: str):
             rel = [x for x in (d["by_slug"][s] for s in (cat["slugs"] if cat else [])) if x["slug"] != it["slug"] and x["stock"]][:8]
             from .services import shop_reviews as _rv
             rvs = _rv.published(db, [v["id"] for v in it["variants"]])
+            tip_doc = None
+            if it.get("tip") and it["tip"].get("doctor_id"):
+                from .models import Doctor as _Dr
+                tip_doc = db.get(_Dr, it["tip"]["doctor_id"])
+            cx["tip_doc"] = tip_doc
             cx.update(canonical=cx["s"]["canonical"].rstrip("/") + f"/shop/{it['slug']}/", it=it, cat=cat, rel=rel, rvs=rvs,
                       title=it["seo_title"] or f"{it['name']} — купити в MOLODIST", desc=it["seo_desc"] or it["name"],
                       jsonld=json.dumps({"@context": "https://schema.org/", "@type": "Product", "name": it["name"], "sku": it["sku"],

@@ -106,8 +106,19 @@
   <label>Задача адміністраторам через, год<input type="number" name="cart_task_hours" min="0" max="168" step="0.5" value="{{ c.cart_task_hours }}" style="width:90px"><span class="small muted">0 — не ставити.</span></label>
   <label class="ck"><input type="checkbox" name="cart_auto_on" value="1" {{ 'checked' if c.cart_auto_on }}> Автоматичне нагадування покупцю (один раз)</label>
   <label>через, год<input type="number" name="cart_auto_hours" min="1" max="72" step="0.5" value="{{ c.cart_auto_hours }}" style="width:90px"></label>
-  <label>Текст нагадування<textarea name="cart_text" rows="3" maxlength="400" placeholder="{{ cart_default }}">{{ c.cart_text }}</textarea><span class="small muted">{name}, {items} — товари, {sum} — сума, {link} — оформлення.</span></label>
-  <button class="btn" name="action" value="rvcart" style="margin-top:8px">Зберегти</button></form>
+  <label>Текст нагадування (кошик)<textarea name="cart_text" rows="3" maxlength="400" placeholder="{{ cart_default }}">{{ c.cart_text }}</textarea><span class="small muted">{name}, {items} — товари, {sum} — сума, {link} — оформлення.</span></label>
+  <button class="btn" name="action" value="rvcart" style="margin-top:8px">Зберегти</button>  <hr style="margin:16px 0;border:0;border-top:1px solid var(--line)">
+  <b id="reorder">«Засіб закінчується» — нагадування про повторну покупку</b>
+  <div class="small muted">За обʼємом засобу: «Вистачає на, днів» у картці товару, або за типом (SPF — 45, сироватка й крем — 60, очищення й тонік — 75 днів; маски й декоративну не нагадуємо).
+    За N днів до кінця покупцю приходить повідомлення з посиланням «повторити замовлення» (бот турботи → SMS). Не частіше раза на 14 днів одній людині.</div>
+  <label class="ck" style="margin-top:6px"><input type="checkbox" name="reorder_on" value="1" {{ 'checked' if c.reorder_on }}> Надсилати автоматично</label>
+  <label>За скільки днів до кінця<input type="number" name="reorder_lead" min="0" max="30" value="{{ c.reorder_lead }}" style="width:90px"></label>
+  <label>Текст<textarea name="reorder_text" rows="2" maxlength="400" placeholder="{{ reorder_default }}">{{ c.reorder_text }}</textarea><span class="small muted">{name}, {product}, {link}.</span></label>
+  <hr style="margin:16px 0;border:0;border-top:1px solid var(--line)">
+  <label class="ck"><input type="checkbox" name="quiz_on" value="1" {{ 'checked' if c.quiz_on }}> «Підбір догляду» — онлайн-тест на сайті (/pidbir/)</label>
+  <label class="ck"><input type="checkbox" name="oneclick_on" value="1" {{ 'checked' if c.oneclick_on }}> «Купити в 1 клік» на сторінці товару</label>
+  <button class="btn" name="action" value="rvcart" style="margin-top:8px">Зберегти</button>
+</form>
 <form method="post" class="card" id="insta" style="max-width:860px;margin-top:14px"><b>Instagram на головній</b>
   <p class="small muted" style="margin:6px 0">8 останніх публікацій вашого акаунта. Доступ — той самий, що підключений у «Канали → Instagram та Facebook»; окремий токен не потрібен. Оновлюється щогодини.</p>
   <p class="small" style="margin:6px 0">{% if insta.get('items') %}Показуємо {{ insta['items']|length }} публікацій{{ (' · оновлено ' ~ insta.at[8:10] ~ '.' ~ insta.at[5:7] ~ ' ' ~ insta.at[11:16] ~ ' UTC') if insta.get('at') }}.{% else %}Стрічку ще не завантажено.{% endif %}

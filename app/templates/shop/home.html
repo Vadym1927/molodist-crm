@@ -17,7 +17,7 @@
 <section class="hero"><div class="wrap">{% if s.hero %}<div class="scroller hero-sc">{% for h in s.hero %}<a class="hero-card" href="{{ h.url or (base ~ '/shop/') }}" style="background-image:url('{{ h.img }}')"><span><b>{{ h.title }}</b>{{ h.text }}</span></a>{% endfor %}</div>
   {% else %}<div class="hero-def"><div><p class="eyebrow">Магазин MOLODIST</p><h1>Професійна косметика, яку призначають лікарі</h1>
     <p>Оригінальна продукція від офіційних дистрибʼюторів. Допоможемо підібрати догляд під ваш тип шкіри.</p>
-    <p class="hero-a"><a class="btn" href="{{ base }}/shop/">До каталогу</a><a class="btn ghost" href="{{ c.telegram }}" target="_blank" rel="noopener">Підібрати догляд</a></p></div>
+    <p class="hero-a"><a class="btn" href="{{ base }}/shop/">До каталогу</a><a class="btn ghost" href="{{ (base ~ '/pidbir/') if s.quiz_on else c.telegram }}" {{ '' if s.quiz_on else 'target=_blank rel=noopener' }}>Підібрати догляд</a></p></div>
     <div class="hero-ph" aria-hidden="true"><img class="p1" src="/static/shop/hero/observ.webp?v={{ ver }}" alt="" width="1100" height="1056"><img class="p2" src="/static/shop/hero/bags.webp?v={{ ver }}" alt="" width="800" height="640" loading="lazy"></div></div>{% endif %}
 </div></section>
 {% if d.menu %}<section class="tiles"><div class="wrap tiles-in">{% for m in d.menu %}<a class="tile {{ 'acc' if m.path == '/shop/sale/' }}" href="{{ base }}{{ m.path }}">

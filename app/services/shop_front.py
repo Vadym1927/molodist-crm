@@ -39,6 +39,7 @@ DEFAULT = {
     "gtm_id": "", "ga4_id": "", "ads_id": "", "ads_label": "", "remarketing_on": True, "fb_pixel": "",
     "feed_google": True, "feed_facebook": True, "feed_hotline": True, "hotline_id": "", "llms_on": True, "ai_about": "",
     "cookie_on": True, "ts_site": "", "ts_secret": "", "tg_order": True, "tg_pay": True, "tg_review": True, "tg_cart": False,
+    "reorder_on": False, "reorder_lead": 7, "reorder_text": "", "quiz_on": True, "oneclick_on": True,
     "review_on": False, "review_days": 5, "review_text": "", "review_test_phone": "",
     "cart_task_hours": 2, "cart_auto_on": False, "cart_auto_hours": 3, "cart_text": "",
     "order_msg_on": False,       # повідомлення покупцю: оплачено / відправлено (з ТТН) / скасовано
@@ -356,7 +357,8 @@ def catalog(db: Session, fresh: bool = False) -> dict:
                          "stock": stock, "imgs": files.get(p.id, []), "desc": si.get("short_description") or "",
                          "sections": sections(si.get("short_description") or ""),
                          "seo_title": si.get("seo_title") or "", "seo_desc": si.get("seo_description") or "", "sold": sold.get(p.id, 0),
-                         "new": p.id, "variants": [v], "sku": v["sku"], "sticker": si.get("sticker") or ""}
+                         "new": p.id, "variants": [v], "sku": v["sku"], "sticker": si.get("sticker") or "",
+                         "tip": si.get("tip") if (si.get("tip") or {}).get("text") else None}
     for it in by_slug.values():
         it["pct"] = round(100 * (1 - it["price"] / it["old"])) if it["old"] else 0
     st = site(db)

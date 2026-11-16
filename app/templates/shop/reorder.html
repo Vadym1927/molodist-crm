@@ -1,0 +1,13 @@
+{% extends "shop/base.html" %}
+{% block main %}<section class="sec lst"><div class="wrap narrow">
+  <h1>Повторити замовлення</h1>
+  <p class="mut">Замовлення №{{ order.number }} від {{ order.created_at.strftime('%d.%m.%Y') if order.created_at }}. Ціни — актуальні.</p>
+  {% for r in rows %}<div class="cab-oi">{% if r.it.imgs %}<img src="{{ base }}/img/{{ r.it.imgs[0] }}?w=300" alt="" loading="lazy">{% else %}<i class="noimg">M</i>{% endif %}
+    <span><a href="{{ base }}/shop/{{ r.it.slug }}/">{{ r.v.name }}</a>{% if not r.v.stock %} <em class="mut">— немає в наявності</em>{% endif %}</span><small>{{ r.qty }} × {{ money(r.v.price) }}</small></div>{% endfor %}
+  {% set ok = rows|selectattr('v.stock')|list %}
+  {% if ok %}<p style="margin-top:18px"><button class="btn big" type="button" data-reorder="{% for r in ok %}{{ r.id }}:{{ r.qty }}{{ ',' if not loop.last }}{% endfor %}">Додати в кошик і оформити</button></p>{% endif %}
+</div></section>{% endblock %}
+{% block scripts %}<script>(function(){var b=document.querySelector('[data-reorder]');if(!b)return;b.addEventListener('click',function(){
+var c=[];try{c=JSON.parse(localStorage.getItem('mshop_cart')||'[]')||[]}catch(x){}
+b.getAttribute('data-reorder').split(',').forEach(function(p){var a=p.split(':'),id=+a[0],q=+a[1]||1,h=c.filter(function(x){return x.id===id})[0];if(h)h.qty=Math.max(h.qty,q);else c.push({id:id,qty:q})});
+try{localStorage.setItem('mshop_cart',JSON.stringify(c))}catch(x){}location.href='{{ base }}/checkout/';});})();</script>{% endblock %}

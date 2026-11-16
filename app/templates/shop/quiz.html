@@ -1,0 +1,31 @@
+{% extends "shop/base.html" %}{% from "shop/_card.html" import card %}
+{% block main %}<section class="sec lst"><div class="wrap qz">
+  <nav class="crumbs"><a href="{{ base }}/">Головна</a><span>Підбір догляду</span></nav>
+  {% if not res %}
+  <h1>Підбір догляду за 1 хвилину</h1>
+  <p class="mut">5 запитань — і ми складемо домашній ритуал із професійної косметики під ваш тип шкіри й запит. Підбір орієнтовний: точний догляд призначає лікар після діагностики шкіри.</p>
+  <form class="qz-f" method="get" action="{{ base }}/pidbir/" id="qzf">
+    <div class="qz-bar"><i style="width:20%"></i></div>
+    {% for q in quiz %}<fieldset class="qz-s" data-step="{{ loop.index0 }}" {{ 'hidden' if not loop.first }}><legend><small>Крок {{ loop.index }} / {{ quiz|length }}</small>{{ q.q }}</legend>
+      <div class="qz-o">{% for v, t in q.opts %}<label><input type="radio" name="{{ q.key }}" value="{{ v }}" {{ 'checked' if ans.get(q.key) == v }} required><span>{{ t }}</span></label>{% endfor %}</div>
+      {% if not loop.first %}<button type="button" class="btn sm ghost" data-qz-back>Назад</button>{% endif %}</fieldset>{% endfor %}
+  </form>
+  {% else %}
+  <h1>Ваш домашній догляд</h1>
+  <p class="mut">{{ res.skin }} · {{ res.goal }}. {{ res.steps|length }} кроків на {{ money(res.total) }}{% if s.free_from and res.total >= s.free_from %} — доставка безкоштовна{% endif %}.</p>
+  <div class="qz-r">{% for x in res.steps %}<div class="qz-step"><div class="qz-n"><b>{{ loop.index }}. {{ x.title }}</b><small>{{ x.when }}</small></div>{{ card(x.item, base, money, pch, s) }}</div>{% endfor %}</div>
+  {% if res.steps %}<div class="qz-a"><button class="btn big" type="button" data-qz-all="{{ res.steps|map(attribute='item')|map(attribute='variants')|map('first')|map(attribute='id')|join(',') }}">Усе в кошик · {{ money(res.total) }}</button>
+    <a class="btn ghost" href="{{ base }}/pidbir/">Пройти ще раз</a></div>{% else %}<p>Не знайшли засобів у наявності під ці відповіді — напишіть нам, лікар підбере вручну.</p>{% endif %}
+  <div class="qz-doc"><b>Хочете точний підбір?</b><p>Лікар MOLODIST проведе діагностику шкіри й складе бюті-план: процедури й домашній догляд, які працюють разом.</p>
+    <a class="btn" href="{{ book_url }}" target="_blank" rel="noopener">Записатися на консультацію</a> <a class="btn ghost" href="{{ c.telegram }}" target="_blank" rel="noopener">Запитати в Telegram</a></div>
+  {% endif %}
+</div></section>{% endblock %}
+{% block scripts %}<script>(function(){var f=document.getElementById('qzf');
+if(f){var st=[].slice.call(f.querySelectorAll('.qz-s')),bar=f.querySelector('.qz-bar i'),n=st.length;
+ function go(i){st.forEach(function(s,k){s.hidden=k!==i});bar.style.width=((i+1)/n*100)+'%';window.scrollTo({top:0,behavior:'smooth'})}
+ f.addEventListener('change',function(e){var s=e.target.closest('.qz-s'),i=+s.getAttribute('data-step');if(i<n-1)go(i+1);else{try{mshopTrack('quiz_complete',{})}catch(x){}f.submit()}});
+ f.addEventListener('click',function(e){if(e.target.hasAttribute('data-qz-back')){var i=+e.target.closest('.qz-s').getAttribute('data-step');go(i-1)}});}
+var a=document.querySelector('[data-qz-all]');if(a)a.addEventListener('click',function(){var ids=a.getAttribute('data-qz-all').split(',');
+ var c=[];try{c=JSON.parse(localStorage.getItem('mshop_cart')||'[]')||[]}catch(x){}
+ ids.forEach(function(id){id=+id;var h=c.filter(function(x){return x.id===id})[0];if(h)h.qty+=1;else c.push({id:id,qty:1})});
+ try{localStorage.setItem('mshop_cart',JSON.stringify(c))}catch(x){}location.href='{{ base }}/checkout/';});})();</script>{% endblock %}

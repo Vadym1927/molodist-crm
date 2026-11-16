@@ -616,3 +616,57 @@ def test_shop_promo_feeds_kpi_integrations(monkeypatch):
         assert "<firmId>12345</firmId>" in c.get("/_shop/feeds/hotline.xml").text
         assert "fbq" in c.get("/_shop/").text or True
         assert "Без фото" in c.get("/settings/shop/products").text
+
+
+def test_shop_quiz_reorder_oneclick_tip(monkeypatch):
+    from app.services import shop_front as sf, shop_extra as sx, shop_cabinet as sc
+    from app.models import Doctor
+    out = []
+    monkeypatch.setattr(sc, "_deliver", lambda db, phone, text, *a: (out.append((phone, text)) or "sms"))
+    monkeypatch.setattr(sf, "notify", lambda *a, **k: 0)
+    monkeypatch.setattr("app.shop_web._rate", lambda *a, **k: True)
+    monkeypatch.setattr("app.integrations.messaging.is_quiet_time", lambda *a, **k: False)
+    settings.admin_password = "owner-pass-qz"
+    with TestClient(app) as c:
+        with SessionLocal() as db:
+            k = sf.preview_key(db)
+            dr = Doctor(name="Лікар Тест Квіз", position="Лікар-дерматолог", active=True); db.add(dr); db.flush()
+            mk = lambda n, slug, price, extra=None: Product(name=n, name_norm=n.lower(), price=price, site_on=True, supply_days=None,
+                                                            site_info={"slug": slug, "title": n, "presence": 1, **(extra or {})})
+            ps = [mk("Гель для вмивання проблемної шкіри Quiz", "qz-gel", 900), mk("Сироватка з азелаїновою кислотою від акне Quiz", "qz-serum", 1400,
+                                                                                   {"tip": {"text": "Ввечері через день.", "doctor_id": dr.id}}),
+                  mk("Сонцезахисний флюїд SPF 50 Quiz", "qz-spf", 1200), mk("Крем зволожуючий Quiz", "qz-cream", 1300)]
+            db.add_all(ps); db.commit()
+            ids = {p.site_info["slug"]: p.id for p in ps}
+            d = sf.catalog(db, fresh=True)
+            r = sx.pick(d, {"skin": "oily", "goal": "acne", "age": "30", "level": "min", "budget": "1500"})
+            names = [x["item"]["name"] for x in r["steps"]]
+            assert any("SPF" in n for n in names) and any("Сироватка" in n for n in names) and r["total"] > 0
+            o = SiteOrder(source="crm", ext_id="RO1", number="RO1", created_at=datetime.now() - timedelta(days=40), status="Отримано", phone="380501239999",
+                          name="Повтор Анна", items=[{"product_id": ids["qz-spf"], "name": "Сонцезахисний флюїд SPF 50 Quiz", "qty": 1, "price": 1200}])
+            db.add(o); db.commit()
+            assert sx.reorder_due(db, d) and sx.send_reorders(db, sf.cfg(db), d, "https://s.test")["sent"] == 0      # вимкнено
+            cf = sf.cfg(db); cf["reorder_on"] = True; sf.save_cfg(db, cf); db.commit()
+            assert sx.send_reorders(db, sf.cfg(db), d, "https://s.test")["sent"] == 1 and "/reorder/" in out[-1][1]
+            assert sx.send_reorders(db, sf.cfg(db), d, "https://s.test")["sent"] == 0
+            from app.services import shop_reviews as rv
+            tok = rv.token(o)
+        c.cookies.set("shop_prev", k)
+        q = c.get("/_shop/pidbir/")
+        assert q.status_code == 200 and "Підбір догляду за 1 хвилину" in q.text
+        res = c.get("/_shop/pidbir/?skin=oily&goal=acne&age=30&level=full&budget=any").text
+        assert "Ваш домашній догляд" in res and "Усе в кошик" in res
+        assert "Додати в кошик і оформити" in c.get(f"/_shop/reorder/{tok}/").text
+        pg = c.get("/_shop/shop/qz-serum/").text
+        assert "Рекомендує лікар" in pg and "Ввечері через день." in pg and "Лікар Тест Квіз" in pg and "Купити в 1 клік" in pg
+        assert c.post("/_shop/api/oneclick", json={"id": ids["qz-gel"], "phone": "123"}).status_code == 400
+        j = c.post("/_shop/api/oneclick", json={"id": ids["qz-gel"], "phone": "+380501238888", "name": "Клік"}).json()
+        assert j["ok"]
+        with SessionLocal() as db:
+            oo = db.get(SiteOrder, j["id"])
+            assert oo.status == "Нове" and oo.raw["one_click"] and oo.total == 900
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-qz"})
+        r = c.post(f"/products/{ids['qz-cream']}/site", data={"site_on": "1", "tip_form": "1", "tip_text": "Для сухої шкіри.", "tip_doctor": ""}, follow_redirects=False)
+        assert r.status_code == 303
+        with SessionLocal() as db:
+            assert db.get(Product, ids["qz-cream"]).site_info["tip"]["text"] == "Для сухої шкіри."
