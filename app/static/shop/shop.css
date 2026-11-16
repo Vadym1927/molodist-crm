@@ -168,3 +168,6 @@ img{max-width:100%;height:auto}a{color:var(--act)}h1,h2,h3,h4{font-family:var(--
 .insta-t{display:grid;gap:2px;min-width:0}.insta-t b{font:600 18px var(--hf)}.insta-t small{opacity:.85;font-size:13px}.insta-t em{font-style:normal;opacity:.75;font-size:13px}.insta-btn{display:inline-flex;gap:8px;align-items:center;flex:none}
 @media (max-width:900px){.insta-g{grid-template-columns:repeat(2,1fr);gap:10px}.insta-in{flex-direction:column;align-items:flex-start;gap:16px}.insta-btn{width:100%;justify-content:center}}
 .insta-in{padding:24px 28px}
+
+.tile-img{position:absolute;right:10px;top:50%;transform:translateY(-50%);width:104px;height:auto;transition:transform .3s}.tile.gift:hover .tile-img{transform:translateY(-50%) scale(1.06) rotate(-3deg)}.tile.gift b{max-width:58%}
+@media (max-width:900px){.tile-img{width:76px}}
