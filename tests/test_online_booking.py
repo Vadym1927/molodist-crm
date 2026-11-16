@@ -143,7 +143,7 @@ def test_site_page_api_and_publication(monkeypatch):
         tok = r.json()["token"]
         r2 = cl.post("/_site/api/booking", json=body)
         assert r2.status_code == 400 and r2.json()["error"] == "taken"
-        assert "Ваш запис" in cl.get(f"/_site/zapys?v={tok}").text and cl.get(f"/_site/zapys.ics?v={tok}").text.startswith("BEGIN:VCALENDAR")
+        assert "Ваш запис" in cl.get(f"/_site/zapys?v={tok}").text and "calendar.google.com" in cl.get(f"/_site/zapys?v={tok}").text and cl.get(f"/_site/zapys.ics?v={tok}").text.startswith("BEGIN:VCALENDAR")
         assert "Запис не знайдено" in cl.get("/_site/zapys?v=abcdefghijkl").text
         assert any("Новий онлайн-запис" in t and "Ірина Сайт" in t for t in sent)
         with SessionLocal() as db:
@@ -272,3 +272,36 @@ def test_team_order_head_doctor_first():
         for i in ids:
             db.delete(db.get(Doctor, i))
         db.commit()
+
+
+def test_online_purchase_fulfil_cert_and_sub(monkeypatch):
+    import json as _j
+    from app.models import PayLink, Sale, GiftCertificate, Subscription, Patient, SyncState
+    from app.services import gift_types as gt, paylinks as pls, certificates as cs
+    monkeypatch.setattr("app.services.alerts.send", lambda *a, **k: True)
+    with SessionLocal() as db:
+        t = gt.save(db, None, {"name": "Онлайн тест 2000", "nominal": 2000, "price": 2000, "days": 60})
+        db.merge(SyncState(key=cs.PKG_KEY, value=_j.dumps([{"id": 77, "name": "Апаратний масаж STRATOSPHERE 50 хв Курс 6", "price": 10200,
+                                                             "visits": 6, "days": 180, "services": "Апаратний масаж STRATOSPHERE 50 хв", "active": True}])))
+        db.commit()
+        pl = PayLink(provider="mono", amount=2000, purpose="Послуги краси", status="created",
+                     info={"order": {"kind": "cert", "id": t["id"], "name": "Дарувальник", "phone": "+380671110001",
+                                     "to": "Олена Отримувачка", "to_phone": "+380671110002", "title": "Подарунковий сертифікат"}})
+        db.add(pl); db.commit()
+        pls._mark(db, pl, "paid", 2000)
+        db.refresh(pl)
+        s = db.get(Sale, pl.sale_id)
+        assert s and s.status == "paid" and not (s.fiscal or {}).get("fiscal_code")
+        rec = db.query(Patient).filter(Patient.phone == "+380671110002").one()
+        c = db.query(GiftCertificate).filter(GiftCertificate.patient_id == rec.id).one()
+        assert c.nominal == 2000 and "Олена" in (c.comment or "")
+        pls._mark(db, pl, "paid", 2000)                  # повторний вебхук — без другого продажу
+        assert db.query(GiftCertificate).filter(GiftCertificate.patient_id == rec.id).count() == 1
+        pl2 = PayLink(provider="mono", amount=10200, purpose="Апаратний масаж STRATOSPHERE 50 хв", status="created",
+                      info={"order": {"kind": "sub", "id": 77, "name": "Покупець Абонемента", "phone": "+380671110003", "title": "Абонемент"}})
+        db.add(pl2); db.commit()
+        pls._mark(db, pl2, "paid", 10200)
+        buyer = db.query(Patient).filter(Patient.phone == "+380671110003").one()
+        sb = db.query(Subscription).filter(Subscription.patient_id == buyer.id).one()
+        assert sb.visits_total == 6 and sb.paid == 10200
+    assert pls._basket([{"name": "Апаратний масаж STRATOSPHERE 50 хв", "qty": 6, "total": 10200}], 10200, "x")[0]["qty"] == 6

@@ -344,6 +344,18 @@ async def job_rematch():
         log.warning("rematch: %s", e)
 
 
+async def job_online_fiscal():
+    """Онлайн-покупки сертифікатів / абонементів: кожні 15 хв підтягнути фіскальний чек monobank у чек CRM."""
+    from .services import online_booking as ob
+    def run():
+        with SessionLocal() as db:
+            return ob.attach_fiscal(db)
+    try:
+        await asyncio.to_thread(run)
+    except Exception as e:      # noqa: BLE001
+        log.warning("online_fiscal: %s", e)
+
+
 async def job_reviews():
     """Опитування після візиту: кожні 5 хв — надіслати посилання тим, у кого візит закінчився понад N хв тому."""
     from .services import reviews as rv
@@ -606,6 +618,7 @@ async def lifespan(app: FastAPI):
         sched.add_job(job_mono, "cron", minute=20)
         sched.add_job(job_meta_ads, "cron", minute=50)
         sched.add_job(job_reviews, "cron", minute="*/5")
+        sched.add_job(job_online_fiscal, "cron", minute="7,22,37,52")
         sched.add_job(job_payreq, "cron", minute=35)
         sched.add_job(job_tg_notify, "cron", minute="*/5")
         sched.add_job(job_rematch, "date", run_date=datetime.now() + timedelta(seconds=40))   # після оновлення — одразу
@@ -8497,7 +8510,7 @@ def site_booking_ics(v: str = "", db: Session = Depends(db_dep)):
     if not a:
         raise HTTPException(404)
     return Response(ob.ics(a, ob.view(db, a), sp.cfg(db)), media_type="text/calendar; charset=utf-8",
-                    headers={"Content-Disposition": 'attachment; filename="molodist-visit.ics"', "Cache-Control": "no-store"})
+                    headers={"Content-Disposition": 'inline; filename="molodist-visit.ics"', "Cache-Control": "no-store"})
 
 
 @app.get("/_site/api/booking/days")

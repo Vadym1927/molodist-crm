@@ -52,12 +52,13 @@ def method_kind(m: str) -> str:
 
 
 def quote(db: Session, items: list[dict], patient: Patient | None, rule_ids: list[int] | None = None,
-          manual_discount: float = 0.0, bonus_pay: float = 0.0) -> dict:
+          manual_discount: float = 0.0, bonus_pay: float = 0.0, no_discounts: bool = False) -> dict:
     """items: [{kind, ref_id, name, category, qty, price}] → знижки по рядках, підсумки, бонуси."""
     li = [{"type": it["kind"], "price": float(it["price"]), "qty": float(it.get("qty") or 1), "category": it.get("category") or "",
            "name": it.get("name") or "", "rule_id": it.get("rule_id")}
           for it in items]
-    d = ly.discount_for(db, li, patient, rule_ids=rule_ids, at=_kyiv_now()) if items else {"lines": [], "total": 0.0, "rules": [], "subtotal": 0.0}
+    d = ly.discount_for(db, li, patient, rule_ids=rule_ids, at=_kyiv_now()) if items and not no_discounts else \
+        {"lines": [0.0] * len(li), "total": 0.0, "rules": [], "subtotal": 0.0}
     lines = list(d["lines"])
     sub = round(sum(x["price"] * x["qty"] for x in li), 2)
     md = round(min(max(manual_discount or 0, 0), sub - sum(lines)), 2)
@@ -86,7 +87,8 @@ def create(db: Session, data: dict, user_id: int | None = None) -> Sale:
     items = [it for it in data.get("items") or [] if float(it.get("qty") or 0) > 0 and float(it.get("price") or 0) >= 0]
     if not items:
         raise SaleError("Додайте хоча б одну позицію")
-    q = quote(db, items, patient, data.get("rule_ids"), float(data.get("manual_discount") or 0), float(data.get("bonus_pay") or 0))
+    q = quote(db, items, patient, data.get("rule_ids"), float(data.get("manual_discount") or 0), float(data.get("bonus_pay") or 0),
+              no_discounts=bool(data.get("no_discounts")))
     pays = [dict(p) for p in data.get("payments") or [] if float(p.get("amount") or 0) > TOL and p.get("method") not in (BONUS,)]
     paid = round(sum(float(p["amount"]) for p in pays), 2)
     excess, topup = round(paid - q["to_pay"], 2), 0.0

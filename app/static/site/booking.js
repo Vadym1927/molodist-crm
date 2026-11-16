@@ -114,6 +114,16 @@
   var elList = $('#ob-list'), elCats = $('#ob-cats'), elQ = $('#ob-q'), elDocs = $('#ob-docs'), elDays = $('#ob-days'), elSlots = $('#ob-slots'), form = $('#ob-form'),
     elNext = $('#ob-next');
   telMask(form.phone);
+  (function () {                                            // повторний візит: імʼя й телефон — з попереднього запису на цьому пристрої
+    var me = null; try { me = JSON.parse(localStorage.getItem('mlds_me') || 'null'); } catch (x) {}
+    if (me && me.name && !form.name.value) form.name.value = me.name;
+    if (me && me.phone && !form.phone.value) form.phone.value = me.phone;
+    var bk = null; try { bk = JSON.parse(localStorage.getItem('mlds_booking') || 'null'); } catch (x) {}
+    if (bk && bk.v && !$('.ob-mycard') && Date.now() - bk.at < 60 * 864e5) {
+      var hero = $('.ob-jump'); if (hero) { var a = document.createElement('a'); a.className = 'ob-mybar'; a.href = B + '/zapys?v=' + encodeURIComponent(bk.v);
+        a.innerHTML = '<b>Мій запис</b><small>переглянути, додати в календар чи скасувати</small>'; hero.parentNode.insertBefore(a, hero); }
+    }
+  })();
 
   function has(id) { return st.svcs.some(function (s) { return s.id === id; }); }
   function common() {                                        // спеціалісти, які надають усі обрані послуги
@@ -311,6 +321,7 @@
     if (!telOk(form.phone.value)) { er.textContent = 'Перевірте номер телефону: +380 і 9 цифр.'; er.hidden = false; form.phone.focus(); return; }
     var d = marks(); d.services = ids(); d.doctor = st.doc ? st.doc.id : 0; d.day = st.day; d.time = st.time;
     d.name = form.name.value.trim(); d.phone = form.phone.value; d.comment = form.comment.value.trim(); d.website = form.website.value;
+    try { localStorage.setItem('mlds_me', JSON.stringify({ name: d.name, phone: d.phone })); } catch (x) {}
     bt.disabled = true; bt.textContent = 'Записуємо…';
     api('/api/booking', d, function (j) {
       bt.disabled = false; bt.textContent = 'Записатися';
@@ -318,6 +329,8 @@
         $('#ob-done-when').textContent = j.when.charAt(0).toUpperCase() + j.when.slice(1) + '–' + j.end;
         $('#ob-done-what').textContent = j.service + (j.doctor ? ' · ' + j.doctor : '') + (j.price ? ' · ' + money(j.price) : '');
         $('#ob-ics').href = B + '/zapys.ics?v=' + encodeURIComponent(j.token);
+        if (j.gcal) $('#ob-gcal').href = j.gcal;
+        try { history.replaceState(null, '', location.pathname + '?' + (location.search.replace(/^\?/, '').split('&').filter(function (x) { return x && x.indexOf('v=') !== 0; }).concat('v=' + encodeURIComponent(j.token)).join('&'))); } catch (x) {}
         $('#ob-mylink').href = B + '/zapys?v=' + encodeURIComponent(j.token);
         $('#s-doc').textContent = j.doctor || $('#s-doc').textContent;
         try { localStorage.setItem('mlds_booking', JSON.stringify({ v: j.token, at: Date.now() })); } catch (x) {}

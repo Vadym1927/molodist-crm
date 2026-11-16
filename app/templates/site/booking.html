@@ -34,7 +34,7 @@
     <p class="muted small">{{ c.address }} · <a href="{{ c.maps }}" target="_blank" rel="noopener">як дістатися</a></p>
   </div>
   <div class="ob-mya">
-    {% if my.status != 'cancelled' and not my.past %}<a class="btn sm" href="{{ base }}/zapys.ics?v={{ my.token }}">Додати в календар</a>{% endif %}
+    {% if my.status != 'cancelled' and not my.past %}<p class="ob-cal"><span>Додати в календар:</span><a class="btn sm" href="{{ my.gcal }}" target="_blank" rel="noopener">Google</a><a class="btn sm" href="{{ base }}/zapys.ics?v={{ my.token }}">Apple / iPhone</a></p>{% endif %}
     {% if my.can_cancel %}<button class="btn sm ghost" type="button" data-ob-cancel>Скасувати запис</button>
     {% elif my.status != 'cancelled' and not my.past %}<p class="muted small">Щоб змінити чи скасувати запис, зателефонуйте: <a href="tel:{{ c.phone }}">{{ c.phone_text }}</a></p>{% endif %}
     {% if my.status == 'cancelled' or my.past %}<a class="btn sm" href="{{ base }}/zapys#zapys">Записатися знову</a>{% endif %}
@@ -97,7 +97,8 @@
         <p class="big" id="ob-done-when"></p>
         <p id="ob-done-what"></p>
         <p class="muted">{{ ob.note }} Адреса: {{ c.address }}.</p>
-        <p class="ob-donea"><a class="btn sm" id="ob-ics" href="#">Додати в календар</a><a class="btn sm ghost" id="ob-mylink" href="#">Мій запис: переглянути чи скасувати</a></p>
+        <p class="ob-cal"><span>Додати в календар:</span><a class="btn sm" id="ob-gcal" href="#" target="_blank" rel="noopener">Google</a><a class="btn sm" id="ob-ics" href="#">Apple / iPhone</a></p>
+        <p class="ob-donea"><a class="btn sm ghost" id="ob-mylink" href="#">Мій запис: переглянути чи скасувати</a></p>
         <p class="muted small">Збережіть посилання «Мій запис» — за ним можна скасувати візит онлайн.</p>
       </div>
     </div>

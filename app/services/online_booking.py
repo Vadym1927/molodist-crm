@@ -635,7 +635,20 @@ def view(db: Session, a: Appointment, c: dict | None = None) -> dict:
     return {"token": a.online_token, "when": f"{day_label(a.start.date())}, {a.start:%H:%M}", "date": a.start.strftime("%d.%m.%Y"),
             "time": a.start.strftime("%H:%M"), "end": a.end.strftime("%H:%M"), "service": svc.get("name") or "", "price": svc.get("price") or 0,
             "doctor": (card or {}).get("name") or (d.name if d else ""), "status": a.status, "can_cancel": can_cancel(a, c),
-            "past": a.start < now_local()}
+            "past": a.start < now_local(), "gcal": gcal_url(a, (card or {}).get("name") or (d.name if d else ""), svc.get("name") or "")}
+
+
+def gcal_url(a: Appointment, doctor: str, service: str) -> str:
+    """Посилання «Додати в Google Календар» — подія відкривається одразу, без завантаження файлу."""
+    from urllib.parse import urlencode
+    from . import site_pages as sp
+    tz = ZoneInfo(settings.timezone)
+    f = lambda x: x.replace(tzinfo=tz).astimezone(ZoneInfo("UTC")).strftime("%Y%m%dT%H%M%SZ")  # noqa: E731
+    site = sp.DEFAULT if hasattr(sp, "DEFAULT") else {}
+    return "https://calendar.google.com/calendar/render?" + urlencode({
+        "action": "TEMPLATE", "text": f"MOLODIST: {service}", "dates": f"{f(a.start)}/{f(a.end)}",
+        "details": (f"Спеціаліст: {doctor}. " if doctor else "") + f"Телефон: {site.get('phone_text') or ''}",
+        "location": site.get("address") or "м. Київ, вул. Князя Романа Мстиславича, 28А", "ctz": settings.timezone})
 
 
 def ics(a: Appointment, v: dict, site: dict) -> str:
@@ -813,13 +826,20 @@ def order(db: Session, data: dict, base_url: str, c: dict | None = None) -> dict
     d = {**{k: v for k, v in data.items() if k.startswith("utm_") or k in ("gclid", "cid", "page")},
          "name": name, "phone": phone, "interest": title, "formname": f"{SLUG}:{kind}",
          "comment": f"{title} · {it['price']:.0f} ₴" + (f" · для кого: {to}" if to else "") + (f", {to_phone}" if to_phone else "")}
-    purpose = "Послуги краси" if kind == "cert" else f"{title} (MOLODIST)"
+    if kind == "cert":
+        purpose, basket = "Послуги краси", [{"name": "Послуги краси", "qty": 1, "total": it["price"]}]
+    else:                                   # у кошику monobank: «Апаратний масаж STRATOSPHERE 50 хв» × 6
+        base = re.sub(r"\s*—\s*курс.*$", "", it.get("title") or it["name"]).strip()
+        purpose, basket = base, [{"name": base, "qty": int(it.get("visits") or 1), "total": it["price"]}]
     r = sl.ingest(db, d)
     out = {"ok": bool(r.get("ok")), "title": title, "price": it["price"], "appeal_id": r.get("appeal_id"), "lead": d, "res": r}
     try:
         if pl.public(db).get("ready"):
             pat = __import__("app.services.appeals", fromlist=["x"]).find_patient(db, phone)
-            link = pl.create(db, it["price"], purpose, base_url, patient_id=pat.id if pat else None)
+            link = pl.create(db, it["price"], purpose, base_url, patient_id=pat.id if pat else None, basket=basket)
+            link.info = {**(link.info or {}), "order": {"kind": kind, "id": it["id"], "name": name, "phone": phone, "to": to,
+                                                       "to_phone": to_phone, "appeal_id": r.get("appeal_id"), "title": title}}
+            db.commit()
             out["pay_url"] = link.url
     except Exception:  # noqa: BLE001 — оплата недоступна: лишається заявка, адміністратор звʼяжеться
         db.rollback()
@@ -930,3 +950,60 @@ def jsonld(site_c: dict, c: dict, url: str, prices: list[dict]) -> str:
     faq = {"@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": a}}
                                               for q, a in (c.get("faq") or [])]}
     return json.dumps({"@context": "https://schema.org", "@graph": [clinic, faq]}, ensure_ascii=False)
+
+
+def _patient_for(db: Session, name: str, phone: str, note: str):
+    from . import appeals as ap
+    pat = ap.find_patient(db, phone)
+    if not pat:
+        pat = Patient(full_name=name or phone, phone=phone, notes=note, source="Сайт / онлайн-покупка")
+        db.add(pat)
+        db.flush()
+    return pat
+
+
+def fulfil(db: Session, pl) -> int | None:
+    """Оплачена онлайн-покупка → продаж у CRM без участі адміністратора: сертифікат — на отримувача (його номер),
+    абонемент — на номер покупця; чек «оплачено» посиланням, фіскальний чек — від monobank (CRM сама не фіскалізує)."""
+    from . import sales as sl, paylinks as pls
+    o = (pl.info or {}).get("order") or {}
+    if not o or pl.sale_id:
+        return pl.sale_id
+    kind = o.get("kind")
+    buyer = f"{o.get('name') or ''} {o.get('phone') or ''}".strip()
+    if kind == "cert":
+        pat = _patient_for(db, o.get("to") or "", o.get("to_phone") or o.get("phone"), f"Картку створено: подарунковий сертифікат від {buyer}")
+    else:
+        pat = _patient_for(db, o.get("name") or "", o.get("phone"), "Картку створено: онлайн-покупка абонемента на сайті")
+    acc = pls._acc_of(pls._raw(db), pl) or {}
+    paid = float(pl.paid_amount or pl.amount)
+    sale = sl.create(db, {"patient_id": pat.id, "no_discounts": True, "cert_for": o.get("to") if kind == "cert" else None,
+                          "items": [{"kind": "certificate" if kind == "cert" else "subscription", "ref_id": o.get("id"),
+                                     "name": o.get("title") or pl.purpose, "qty": 1, "price": paid}],
+                          "payments": [{"method": sl.paylink_method(acc.get("name") or "monobank"), "amount": paid}],
+                          "comment": f"Онлайн-покупка на сайті, посилання №{pl.id}" + (f" · купив(ла): {buyer}" if kind == "cert" else "")})
+    pl.sale_id = sale.id
+    pl.patient_id = pl.patient_id or pat.id
+    pl.info = {**(pl.info or {}), "order": {**o, "sale_id": sale.id, "patient_id": pat.id}}
+    db.flush()
+    return sale.id
+
+
+def attach_fiscal(db: Session, http=None) -> int:
+    """Фіскальні чеки monobank для онлайн-покупок за 3 дні — у чек CRM (щоб не фіскалізувати вдруге)."""
+    from ..models import PayLink, Sale
+    from . import paylinks as pls
+    n = 0
+    since = datetime.now() - timedelta(days=3)
+    for p in db.scalars(select(PayLink).where(PayLink.status == "paid", PayLink.provider == "mono", PayLink.sale_id.isnot(None),
+                                              PayLink.paid_at >= since)):
+        if not (p.info or {}).get("order"):
+            continue
+        s = db.get(Sale, p.sale_id)
+        if s and not (s.fiscal or {}).get("fiscal_code"):
+            try:
+                pls.mono_fiscal(db, p, http)
+                n += 1
+            except Exception:  # noqa: BLE001
+                db.rollback()
+    return n
