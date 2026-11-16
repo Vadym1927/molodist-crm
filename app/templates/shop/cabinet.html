@@ -12,7 +12,7 @@
   elif k == 'exit' %}<path d="M10 4H5v16h5M14 8l4 4-4 4M18 12H9"/>{% endif %}</svg>{% endmacro %}
 {% from "site/_icons.html" import icon %}
 {% block main %}<section class="sec lst"><div class="wrap cab">
-  <aside class="cab-m"><div class="cab-u"><span>{{ (acc.first_name or p.full_name or '?')[:1] }}</span><div><b>{{ ((acc.first_name or '') ~ ' ' ~ (acc.last_name or '')).strip() or p.full_name }}</b><small>+{{ p.phone }}</small></div></div>
+  <aside class="cab-m"><button type="button" class="cab-tg" data-cab-menu><span>{{ mi(t) }}{{ dict(tabs)[t] }}</span><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button><div class="cab-u"><span>{{ (acc.first_name or p.full_name or '?')[:1] }}</span><div><b>{{ ((acc.first_name or '') ~ ' ' ~ (acc.last_name or '')).strip() or p.full_name }}</b><small>+{{ p.phone }}</small></div></div>
     {% for k, n in tabs %}<a href="{{ base }}/cabinet/?t={{ k }}" class="{{ 'on' if t == k }}"><span>{{ mi(k) }}{{ n }}</span>{% if k == 'wish' and wish %}<em>{{ wish|length }}</em>{% endif %}</a>{% endfor %}
     <button type="button" class="link" data-cab-logout><span>{{ mi('exit') }}Вийти</span></button></aside>
   <div class="cab-b">
@@ -72,7 +72,8 @@
     <h3>Нова адреса</h3>
     <form class="cab-f" data-cab="address" data-np="{{ '1' if np }}"><div class="g2"><label><span>Отримувач (імʼя та прізвище)</span><input name="name" value="{{ ((acc.first_name or '') ~ ' ' ~ (acc.last_name or '')).strip() }}" required></label>
         <label><span>Телефон отримувача</span><input name="phone" type="tel" value="+{{ p.phone }}"></label></div>
-      <div class="g2"><label class="ac"><span>Місто</span><input name="city" autocomplete="off" placeholder="Почніть вводити назву" required><div class="ac-l" hidden></div></label>
+      <div class="g2"><label class="ac"><span>Місто</span><input name="city" autocomplete="off" placeholder="Почніть вводити назву" required><div class="ac-l" hidden></div>
+          <span class="chips">{% for x in ['Київ','Львів','Одеса','Дніпро','Харків','Запоріжжя','Вінниця','Луцьк'] %}<button type="button" data-city="{{ x }}">{{ x }}</button>{% endfor %}</span></label>
         <label class="ac"><span>Відділення / поштомат Нової пошти</span><input name="warehouse" autocomplete="off" placeholder="Номер або адреса" required><div class="ac-l" hidden></div></label></div>
       <input type="hidden" name="city_ref"><label class="ck"><input type="checkbox" name="as_main" checked> Зробити основною</label>
       <p class="err" hidden></p><button class="btn">Додати адресу</button></form>

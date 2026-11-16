@@ -319,7 +319,7 @@ def register(app, templates, version: str):
         if not acc:
             return not_found(request, cx)
         wi = sc.wish_items(cx["d"], acc.wishlist or [])
-        cx.update(title=f"Вішліст {acc.first_name or ''} — MOLODIST".replace("  ", " "), desc="", noindex_page=True, private=True, owner=acc.first_name or "", items=wi,
+        cx.update(title="Вішліст — MOLODIST", desc="", noindex_page=True, private=True, owner=" ".join(x for x in (acc.last_name, acc.first_name) if x), items=wi,
                   wish_sum=sum(i["price"] for i in wi))
         return resp(request, "shop/wish.html", cx)
 

@@ -158,6 +158,7 @@
       ac(form.city, function (q) { return q.length >= 2 ? '/api/np/cities?q=' + encodeURIComponent(q) : ''; }, function (ref) { cityRef = ref; form.warehouse.value = ''; form.warehouse.focus(); });
       ac(form.warehouse, function (q) { return cityRef ? '/api/np/wh?city=' + encodeURIComponent(cityRef) + '&q=' + encodeURIComponent(q) : ''; }, function () {});
       form.warehouse.addEventListener('focus', function () { if (cityRef && !form.warehouse.value) form.warehouse.dispatchEvent(new Event('input')); });
+      chips(form, function (r) { cityRef = r; });
     }
     form.addEventListener('submit', function (e) {
       e.preventDefault();
@@ -185,6 +186,18 @@
     fetch(B + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify(body) })
       .then(function (r) { return r.json().catch(function () { return { ok: false, msg: 'Помилка. Спробуйте ще раз.' }; }); }).then(cb).catch(function () { cb({ ok: false, msg: 'Немає звʼязку. Спробуйте ще раз.' }); });
   }
+  function chips(form, setRef) {
+    $$('[data-city]', form).forEach(function (b) {
+      b.addEventListener('click', function () {
+        var name = b.getAttribute('data-city');
+        fetch(B + '/api/np/cities?q=' + encodeURIComponent(name)).then(function (r) { return r.json(); }).then(function (j) {
+          var rows = j.rows || [], hit = rows.filter(function (x) { return x.name.indexOf('м. ' + name) === 0; })[0] || rows[0];
+          form.city.value = hit ? hit.name : name; setRef(hit ? hit.ref : ''); if (form.city_ref) form.city_ref.value = hit ? hit.ref : '';
+          form.warehouse.value = ''; form.warehouse.focus();
+        });
+      });
+    });
+  }
   function npBind(form) {
     var tm, ref = form.city_ref ? form.city_ref.value : '';
     function bind(input, url, pick) {
@@ -205,6 +218,7 @@
     bind(form.city, function (q) { return q.length >= 2 ? '/api/np/cities?q=' + encodeURIComponent(q) : ''; }, function (r) { ref = r; if (form.city_ref) form.city_ref.value = r; form.warehouse.value = ''; form.warehouse.focus(); });
     bind(form.warehouse, function (q) { return ref ? '/api/np/wh?city=' + encodeURIComponent(ref) + '&q=' + encodeURIComponent(q) : ''; }, function () {});
     form.warehouse.addEventListener('focus', function () { if (ref && !form.warehouse.value) form.warehouse.dispatchEvent(new Event('input')); });
+    chips(form, function (r) { ref = r; });
   }
   var nt = $('#ntf'), ntId = 0;
   function ntSend(phone, cb) { post('/api/notify', { id: ntId, phone: phone, website: nt ? $('[name=website]', nt).value : '' }, cb); }
@@ -261,6 +275,8 @@
     });
   });
   document.addEventListener('click', function (e) {
+    var mb = e.target.closest ? e.target.closest('[data-cab-menu]') : null;
+    if (mb) { mb.parentNode.classList.toggle('open'); return; }
     var t = e.target.closest ? e.target.closest('[data-cab-logout],[data-addr-del],[data-addr-main],[data-copy]') : null;
     if (!t) return;
     if (t.hasAttribute('data-copy')) {
