@@ -63,6 +63,24 @@ GET /bot/patient/123456789
 і для вимкненої функції працює як раніше (старий текст / старе сховище). Повідомлення пацієнтам від CRM додатково блокує
 загальна пауза в CRM.
 
+## Що є в боті зараз (перевірка 16.11.2026) і що змінити
+Бот: `/home/sgadmin/.openclaw/workspace/projects/molodist-clinic-bot/molodist_clinic_bot.py`, сервіс `molodist-clinic-bot`, polling.
+Дані — у локальних JSON (`data/profiles.json`, `analyses.json`, `consultation_documents.json`, `beauty_plans.json`, `leads.json`),
+CRM API зараз **не викликається взагалі**. Порядок робіт:
+
+1. **Привʼязка.** Після «Поділитися контактом» — `POST /bot/link` (chat_id, phone, username, name). Один раз пройти
+   `data/profiles.json` і привʼязати всіх, у кого є телефон (`create_if_missing: false`). Результат (скільки привʼязано / не знайдено) —
+   у звіт власнику. Без привʼязки кабінет не працює (CRM шукає пацієнта за chat_id).
+2. **Заявки (leads).** Кожну заявку з бота (запис, консультація, зворотний звʼязок) — у CRM: `POST /appeals`
+   `{"name", "phone", "source": "Telegram-бот", "interest", "comment"}`. Telegram-група й Google Sheets — як зараз, паралельно.
+3. **Файли.** Один раз перенести `analyses.json` → `POST /bot/patient/{chat_id}/files?category=lab`, `consultation_documents.json` →
+   `?category=doc` (згоди — `consent`, фото — `face`/`body`). Дублікати CRM відкине. Далі нові файли — одразу в CRM.
+4. **Бюті-плани.** Джерело — CRM (`GET /bot/patient/{chat_id}`). `beauty_plans.json` більше не наповнювати; якщо там є плани,
+   яких немає в CRM, — список (імʼя, дата) у звіт власнику, не переносити самостійно.
+5. **Кнопки кабінету й інші** — за таблицею нижче, кожна лише коли її функцію ввімкнено в CRM (`/bot/config`).
+6. **Подарунковий сертифікат.** Наявний сценарій (сума → формат → доставка НП) лишається; в кінці замість ручної оплати —
+   `POST /bot/patient/{chat_id}/order` з `note` = формат і доставка, пацієнту — `pay_url`.
+
 ## Відповідність кнопок бота і методів CRM (база `https://crm.molodist.com.ua/api/v1`, заголовок `X-API-Key`)
 
 | Кнопка в боті | Функція (`features`) | Метод CRM |

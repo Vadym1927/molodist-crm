@@ -826,7 +826,8 @@ def order(db: Session, data: dict, base_url: str, c: dict | None = None) -> dict
             raise BookingError("to_phone", "Перевірте телефон отримувача: +380 і 9 цифр.")
     d = {**{k: v for k, v in data.items() if k.startswith("utm_") or k in ("gclid", "cid", "page")},
          "name": name, "phone": phone, "interest": title, "formname": f"{SLUG}:{kind}",
-         "comment": f"{title} · {it['price']:.0f} ₴" + (f" · для кого: {to}" if to else "") + (f", {to_phone}" if to_phone else "")}
+         "comment": f"{title} · {it['price']:.0f} ₴" + (f" · для кого: {to}" if to else "") + (f", {to_phone}" if to_phone else "")
+                    + (f" · {' '.join(str(data.get('note')).split())[:300]}" if data.get("note") else "")}
     if kind == "cert":
         purpose, basket = "Послуги краси", [{"name": "Послуги краси", "qty": 1, "total": it["price"]}]
     else:                                   # у кошику monobank: «Апаратний масаж STRATOSPHERE 50 хв» × 6

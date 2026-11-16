@@ -224,7 +224,7 @@ def order(db: Session, p: Patient, data: dict, base_url: str) -> dict:
     """Сертифікат / абонемент з бота: той самий процес, що на сайті (звернення + посилання на оплату; після оплати — продаж сам)."""
     from . import online_booking as ob
     d = {"kind": data.get("kind"), "id": data.get("id"), "name": p.full_name, "phone": p.phone, "to": data.get("to"),
-         "to_phone": data.get("to_phone"), "utm_source": "telegram", "utm_medium": "care_bot"}
+         "to_phone": data.get("to_phone"), "note": data.get("note"), "utm_source": "telegram", "utm_medium": "care_bot"}
     try:
         r = ob.order(db, d, base_url)
     except ob.BookingError as e:

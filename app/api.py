@@ -528,6 +528,7 @@ class BotOrder(BaseModel):
     id: int
     to: str | None = Field(None, description="сертифікат: імʼя отримувача (обовʼязково)")
     to_phone: str | None = Field(None, description="сертифікат: телефон отримувача (обовʼязково)")
+    note: str | None = Field(None, description="формат і доставка: «електронний» / «друкований, Нова пошта: Київ, відділення 12»")
 
 
 @router.post("/bot/patient/{chat_id}/order", summary="Купити сертифікат / абонемент: посилання на оплату; після оплати продаж у CRM сам")
