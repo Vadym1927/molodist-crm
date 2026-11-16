@@ -29,7 +29,7 @@ def test_amort_reports():
             s.items.append(SaleItem(kind="service", ref_id=sv.id, name=sv.name, qty=1, price=1800, total=1800))
             db.add(s)
         db.add(StockMove(product_id=pr.id, warehouse="equip", qty=-1, kind="procedure", at=now - timedelta(hours=1), ref="visit:1"))
-        db.add(StockMove(product_id=pm.id, warehouse="equip", qty=-150, kind="procedure", at=now - timedelta(days=10), ref="visit:2"))
+        db.add(StockMove(product_id=pm.id, warehouse="equip", qty=-150, kind="procedure", at=now - timedelta(minutes=30), ref="visit:2"))
         db.commit()
         d = rp.build(db, "devices", t, t)
         row = next(x for x in d.rows if x["name"] == "Тест-апарат")
