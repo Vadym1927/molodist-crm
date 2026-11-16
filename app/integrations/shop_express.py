@@ -163,6 +163,26 @@ class ShopExpress:
                 break
 
 
+def export(client: "ShopExpress", path: str, key: str, body: dict | None = None, page: int = 200):
+    """Будь-який експорт API 1.0 Shop-Express з посторінковим читанням: /api/orders/export → «orders», /api/users/export → «users»…
+    (токен — там, де його прийняв експорт каталогу)."""
+    how = getattr(client, "how", None) or "body"
+    offset = 0
+    while True:
+        r = client._post(path, {**(body or {}), "limit": page, "offset": offset}, how)
+        if r.status_code >= 400:
+            raise ShopError(f"{path}: {r.status_code} {r.text[:150]}")
+        j = _resp(r.json())
+        rows = (j.get(key) if isinstance(j, dict) else j) or []
+        if isinstance(rows, dict):
+            rows = list(rows.values())
+        rows = [x for x in rows if isinstance(x, dict)]
+        yield from rows
+        offset += len(rows)
+        if len(rows) < page or not rows:
+            break
+
+
 def _first(row: dict, keys):
     for k in keys:
         v = row.get(k)

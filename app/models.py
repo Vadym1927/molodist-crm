@@ -1934,3 +1934,33 @@ class OpsTask(Base):
     done_at: Mapped[datetime | None] = mapped_column(DateTime)
     output: Mapped[str | None] = mapped_column(Text)
     error: Mapped[str | None] = mapped_column(String(1000))
+
+
+class SiteOrder(Base):
+    """Замовлення інтернет-магазину (molodist.store / Shop-Express, далі — власний магазин CRM)."""
+    __tablename__ = "site_orders"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source: Mapped[str] = mapped_column(String(20), default="shop_express", index=True)
+    ext_id: Mapped[str] = mapped_column(String(40), index=True)                 # order_id у Shop-Express
+    number: Mapped[str | None] = mapped_column(String(40), index=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+    status_id: Mapped[int | None] = mapped_column(Integer)
+    status: Mapped[str | None] = mapped_column(String(80), index=True)
+    paid: Mapped[bool | None] = mapped_column(Boolean)
+    total: Mapped[float | None] = mapped_column(Float)                          # до сплати
+    total_full: Mapped[float | None] = mapped_column(Float)                     # без знижок
+    delivery_price: Mapped[float | None] = mapped_column(Float)
+    delivery: Mapped[str | None] = mapped_column(String(120))
+    payment: Mapped[str | None] = mapped_column(String(120))
+    name: Mapped[str | None] = mapped_column(String(200))
+    phone: Mapped[str | None] = mapped_column(String(40), index=True)
+    email: Mapped[str | None] = mapped_column(String(200))
+    city: Mapped[str | None] = mapped_column(String(120))
+    address: Mapped[str | None] = mapped_column(String(500))
+    comment: Mapped[str | None] = mapped_column(Text)
+    shop_user: Mapped[str | None] = mapped_column(String(40), index=True)
+    patient_id: Mapped[int | None] = mapped_column(ForeignKey("patients.id"), index=True)
+    items: Mapped[list | None] = mapped_column(JSON)                            # [{shop_id, parent_id, sku, name, qty, price, total, product_id}]
+    extra: Mapped[list | None] = mapped_column(JSON)                            # доповнення до замовлення
+    raw: Mapped[dict | None] = mapped_column(JSON)
+    synced_at: Mapped[datetime | None] = mapped_column(DateTime)

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Замовлення сайту №{{ o.number or o.ext_id }}{% endblock %}
+{% block body %}
+<div class="eyebrow"><a href="/shop-orders">‹ Замовлення сайту</a></div>
+<h1>Замовлення №{{ o.number or o.ext_id }}</h1>
+<div class="muted small" style="margin-bottom:12px">{{ o.created_at|dt('%d.%m.%Y %H:%M') if o.created_at else '' }} · {{ o.status or '' }}{{ ' · оплачено' if o.paid }} · {{ 'molodist.store (Shop-Express)' if o.source == 'shop_express' else 'сайт MOLODIST' }}</div>
+<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px">
+  <div class="card"><h3 style="margin-top:0">Покупець</h3>
+    <div><b>{{ o.name or '—' }}</b></div><div class="small">{{ o.phone or '' }}{{ ' · ' ~ o.email if o.email }}</div>
+    {% if pat %}<div style="margin-top:8px"><a class="btn ghost" href="/patients/{{ pat.id }}#t-shop">Картка: {{ pat.full_name }}</a></div>{% endif %}</div>
+  <div class="card"><h3 style="margin-top:0">Доставка й оплата</h3>
+    <div class="small">{{ o.delivery or '—' }}{% if o.delivery_price %} · {{ o.delivery_price|uah }}{% endif %}</div>
+    <div class="small">{{ o.city or '' }}{{ ', ' ~ o.address if o.address }}</div>
+    <div class="small">{{ o.payment or '' }}{{ ' · оплачено' if o.paid }}</div>
+    {% if o.comment %}<div class="small muted" style="margin-top:6px">Коментар: {{ o.comment }}</div>{% endif %}</div>
+</div>
+<div class="card" style="margin-top:12px;padding:0;overflow:auto"><table class="tbl" style="width:100%">
+  <thead><tr><th>Товар</th><th>Артикул</th><th style="text-align:right">К-сть</th><th style="text-align:right">Ціна</th><th style="text-align:right">Сума</th></tr></thead>
+  <tbody>{% for it in o['items'] or [] %}<tr><td>{% if it.product_id %}<a href="/products/{{ it.product_id }}">{{ it.name }}</a>{% else %}{{ it.name }}{% endif %}</td>
+    <td class="small muted">{{ it.sku or '' }}</td><td style="text-align:right">{{ '%g'|format(it.qty or 0) }}</td><td style="text-align:right">{{ (it.price or 0)|uah }}</td><td style="text-align:right">{{ (it.total or 0)|uah }}</td></tr>{% endfor %}
+  {% for a in o.extra or [] if a.on %}<tr><td colspan="4" class="small">+ {{ a.name }}</td><td style="text-align:right">{{ (a.price or 0)|uah }}</td></tr>{% endfor %}
+  <tr><td colspan="4" style="text-align:right"><b>Разом</b>{% if o.total_full and o.total_full != o.total %} <span class="small muted">(без знижки {{ o.total_full|uah }})</span>{% endif %}</td><td style="text-align:right"><b>{{ (o.total or 0)|uah }}</b></td></tr></tbody></table></div>
+{% endblock %}

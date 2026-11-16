@@ -90,7 +90,7 @@ def _call_who(calls) -> dict:
 templates.env.globals["call_who"] = _call_who
 FIN_TABS = [("/finance", "Огляд"), ("/sales", "Каса CRM"), ("/finance/ops", "Фіноперації"), ("/finance/accruals", "Нарахування зарплати"),
             ("/finance/payroll", "ЗП за місяць"),
-            ("/finance/settle", "Взаєморозрахунки по з/п"), ("/finance/payslips", "Розрахункові листи"), ("/finance/day", "Продажі за день"), ("/finance/sales", "Продажі"),
+            ("/finance/settle", "Взаєморозрахунки по з/п"), ("/finance/payslips", "Розрахункові листи"), ("/finance/day", "Продажі за день"), ("/finance/sales", "Продажі"), ("/shop-orders", "Замовлення сайту"),
             ("/finance/balances", "Баланс пацієнтів"), ("/finance/bonuses", "Рух бонусів"), ("/payreq", "Рахунки на оплату"),
             ("/finance/calendar", "Платіжний календар"), ("/finance/fop-schedule", "Графік ФОПів"),
             ("/finance/pricing", "Планування ціни реалізації"), ("/finance/service-pricing", "Планування ціни послуг"),
@@ -282,12 +282,18 @@ async def job_message_statuses():
 
 
 async def job_shop():
-    """molodist.store (Shop-Express): щоранку — посилання, фото й ціни товарів у картки CRM."""
+    """molodist.store (Shop-Express): щоранку — посилання, фото й ціни товарів у картки CRM + замовлення за 60 днів."""
     from .integrations import shop_express as sx
     def run():
         with SessionLocal() as db:
             if sx.creds(db).get("login"):
-                return sx.sync(db)
+                rep = sx.sync(db)
+                try:
+                    from .services import shop_orders as so
+                    so.sync(db)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("shop orders sync: %s", e)
+                return rep
     try:
         await asyncio.to_thread(run)
     except Exception as e:  # noqa: BLE001
@@ -1205,7 +1211,8 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
     pe_products = sorted({(n_, pr_) for n_, pr_ in db.execute(select(Product.name, Product.price).where(Product.active.is_not(False))) if n_}, key=lambda x: x[0])
     from .services import reviews as _rvw
     _rv_cfg = _rvw.cfg(db)
-    return render(request, "patient.html", previews=_rvw.for_patient(db, p.id), parch=_rvw.archive_for_patient(db, p.id), rv_q={q["key"]: q["title"] for q in _rv_cfg["questions"]}, p=p, statuses=statuses, pe_services=pe_services, pe_products=pe_products, ptasks=ptasks, msgs=msgs, dupes=dupes, paylinks=paylinks, pcalls=pcalls, pchats=pchats,
+    from .services import shop_orders as _sho
+    return render(request, "patient.html", shop_orders=_sho.for_patient(db, p.id), previews=_rvw.for_patient(db, p.id), parch=_rvw.archive_for_patient(db, p.id), rv_q={q["key"]: q["title"] for q in _rv_cfg["questions"]}, p=p, statuses=statuses, pe_services=pe_services, pe_products=pe_products, ptasks=ptasks, msgs=msgs, dupes=dupes, paylinks=paylinks, pcalls=pcalls, pchats=pchats,
                   call_thr=float(__import__("app.services.telephony", fromlist=["x"]).public(db).get("ai_alert_below") or 0),
                   certs=_cert.for_patient(db, p.id), CERT_STATES=_cert.STATES, today=date.today(),
                   subs=_cert.subs_for_patient(db, p.id), SUB_STATES=_cert.SUB_STATES, packages=_cert.package_items(db),
@@ -9854,6 +9861,37 @@ def _shop_job(job):
         job.log("Завантажую каталог molodist.store…")
         rep = sx.sync(db)
         return {k: rep[k] for k in ("rows", "matched", "urls", "photos")}
+
+
+def _shop_orders_job(job):
+    from .services import shop_orders as so
+    with SessionLocal() as db:
+        rep = so.sync(db, full=True, job=job)
+        return {k: rep.get(k) for k in ("orders", "new", "updated", "linked", "patients_new", "items_matched", "items")}
+
+
+@app.get("/shop-orders", response_class=HTMLResponse)
+def shop_orders_page(request: Request, d1: str = "", d2: str = "", status: str = "", q: str = "", user: User = Depends(require("sales")),
+                     db: Session = Depends(db_dep)):
+    from .services import shop_orders as so
+    a, b = _day(d1), _day(d2)
+    rows = so.listing(db, a, b, status, q)
+    return render(request, "shop_orders.html", nav="finance", rows=rows[:500], n=len(rows), k=so.kpi(rows), statuses=so.statuses(db),
+                  f={"d1": d1, "d2": d2, "status": status, "q": q}, last=so.last(db))
+
+
+@app.get("/shop-orders/{oid:int}", response_class=HTMLResponse)
+def shop_order_page(request: Request, oid: int, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    from .models import SiteOrder
+    o = db.get(SiteOrder, oid) or (_ for _ in ()).throw(HTTPException(404))
+    return render(request, "shop_order.html", nav="finance", o=o, pat=db.get(Patient, o.patient_id) if o.patient_id else None)
+
+
+@app.post("/shop-orders/sync")
+def shop_orders_sync(user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    audit(db, "shop.orders_sync", user=user)
+    job = jobs.start("Замовлення molodist.store: перенос у CRM", _shop_orders_job)
+    return RedirectResponse(f"/shop-orders?job={job.id}", 303)
 
 
 def _shop_migrate_job(job):

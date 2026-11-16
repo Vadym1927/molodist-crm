@@ -499,6 +499,10 @@
 
 {# ================= ПРОДАЖІ ================= #}
 <section class="pt-p" data-t="sales"><span id="sales"></span>
+  {% if shop_orders %}<div class="pcd" style="margin-bottom:16px" id="t-shop"><div class="pcd-h"><h3>Замовлення з сайту · {{ shop_orders|length }}</h3></div>
+    {% for o in shop_orders %}<a class="row between small" style="padding:6px 0;border-top:1px solid var(--line);gap:8px;text-decoration:none;color:inherit" href="/shop-orders/{{ o.id }}">
+      <span>№{{ o.number or o.ext_id }} · {{ o.created_at|dt('%d.%m.%Y') if o.created_at else '' }} · {{ (o['items'] or [])|map(attribute='name')|join(', ')|truncate(90) }}</span>
+      <span class="row" style="gap:8px"><span class="muted">{{ o.status or '' }}</span><b>{{ (o.total or 0)|uah }}</b></span></a>{% endfor %}</div>{% endif %}
   <div class="pcd" style="margin-bottom:16px"><div class="pcd-h"><h3>Покупки товарів · {{ p.sales|length }} · <span style="color:#3B3050">разом {{ patient_kpi.product_revenue|uah }}</span></h3>{% if can(user,'sales') %}<a class="btn" href="/sales/new?patient={{ p.id }}">💳 Продаж</a>{% endif %}</div>
     {% for r in phist if r.kind == 'sale' %}{{ hrow2(r) }}{% else %}<div class="muted small">Покупок ще немає</div>{% endfor %}</div>
   {% if can(user,'sales') %}{% if paylinks %}<div class="card small" style="padding:10px 14px;margin-bottom:8px"><b>Посилання на оплату</b>
