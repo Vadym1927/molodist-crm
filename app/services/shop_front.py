@@ -340,7 +340,7 @@ def catalog(db: Session, fresh: bool = False) -> dict:
         hidden = p.site_on is False or p.active is False         # прихований товар: сторінка лишається (архів), без каталогу й кошика
         target = arch if hidden else by_slug
         price = _price(p)
-        if price <= 0:
+        if price <= 0 and not hidden:
             continue
         old = float(si.get("price_old") or 0)
         sale = si.get("sale") or {}

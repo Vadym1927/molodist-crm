@@ -722,7 +722,7 @@ def test_old_links_report_and_hidden_redirect():
         with SessionLocal() as db:
             k = sf.preview_key(db)
             db.add(Product(name="Old Vis", name_norm="old vis", price=100, site_on=True, site_info={"slug": "old-vis", "title": "Old Vis", "presence": 1, "link": "/shop/old-vis/5555/"}))
-            db.add(Product(name="Old Hid", name_norm="old hid", price=100, site_on=False, site_info={"slug": "old-hid", "title": "Old Hid", "link": "https://molodist.store/shop/old-hid/6666/"}))
+            db.add(Product(name="Old Hid", name_norm="old hid", price=0, site_on=False, site_info={"slug": "old-hid", "title": "Old Hid", "link": "https://molodist.store/shop/old-hid/6666/"}))
             db.commit()
             sf.catalog(db, fresh=True)
             rep = sf.old_links_report(db)

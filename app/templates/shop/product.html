@@ -9,7 +9,7 @@
     <div class="info">{% if it.brand %}<p class="pc-br">{{ it.brand }}</p>{% endif %}<h1>{{ it.name }}</h1>{% if rvs and rvs.n %}<a class="rv-mini" href="#reviews"><span class="stars" style="--r:{{ rvs.avg }}"></span> {{ '%.1f'|format(rvs.avg) }} · {{ rvs.n }} відгук{{ 'и' if rvs.n % 10 in [2,3,4] and rvs.n % 100 not in [12,13,14] else ('' if rvs.n % 10 == 1 and rvs.n % 100 != 11 else 'ів') }}</a>{% endif %}
       {% if it.sku %}<p class="mut small">Артикул: {{ it.sku }}</p>{% endif %}
       {% if it.variants|length > 1 %}<div class="vars">{% for v in it.variants %}<label><input type="radio" name="var" value="{{ v.id }}" data-price="{{ money(v.price) }}" {{ 'checked' if loop.first }} {{ 'disabled' if not v.stock }}><span>{{ v.label or v.name }} · {{ money(v.price) }}</span></label>{% endfor %}</div>{% endif %}
-      <div class="price"><b id="p-price">{{ money(it.price) }}</b>{% if it.old %}<s>{{ money(it.old) }}</s><em class="bdg sale">−{{ it.pct }}%</em>{% endif %}</div>
+      {% if it.price > 0 %}<div class="price"><b id="p-price">{{ money(it.price) }}</b>{% if it.old %}<s>{{ money(it.old) }}</s><em class="bdg sale">−{{ it.pct }}%</em>{% endif %}</div>{% endif %}
       {% if it.stock %}<p class="ok">В наявності</p>
       <div class="buy"><div class="qty"><button type="button" data-q="-1">−</button><input id="p-qty" value="1" inputmode="numeric" aria-label="Кількість"><button type="button" data-q="1">+</button></div>
         <button class="btn" type="button" id="p-add" data-add="{{ it.variants[0].id }}" data-name="{{ it.name }}" data-price="{{ it.price }}" data-brand="{{ it.brand or '' }}">Додати в кошик</button></div>
