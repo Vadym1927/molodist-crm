@@ -36,7 +36,7 @@ window.mshopTrack=function(ev,ec){try{ec=ec||{};var it=(ec.items||[]).map(functi
   if(T.direct&&ev==='purchase'&&T.ads)gtag('event','conversion',{send_to:T.ads.id+'/'+T.ads.label,value:ec.value,currency:'UAH',transaction_id:ec.transaction_id});
   if(window.fbq&&FB[ev])fbq('track',FB[ev],{content_ids:it.map(function(i){return i.item_id}),content_type:'product',value:ec.value,currency:'UAH',num_items:it.length},ev==='purchase'?{eventID:'p-'+ec.transaction_id}:undefined);
 }catch(e){}};})(window.MSHOP_T);</script>
-{% set gtm = s.gtm_id or c.gtm_id %}{% if gtm and not noindex %}<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','{{ gtm }}');</script>{% endif %}
+{% set gtm = s.gtm_id or ('' if (s.ga4_id or s.ads_id) else c.gtm_id) %}{% if gtm and not noindex %}<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','{{ gtm }}');</script>{% endif %}
 {% if direct %}<script async src="https://www.googletagmanager.com/gtag/js?id={{ s.ga4_id or s.ads_id }}"></script>
 <script>gtag('js',new Date());{% if s.ga4_id %}gtag('config','{{ s.ga4_id }}');{% endif %}{% if s.ads_id %}gtag('config','{{ s.ads_id }}');{% endif %}</script>{% endif %}
 </head>

@@ -8,7 +8,7 @@
 {% include "_shop_tabs.html" %}{% include "_shop_msg.html" %}
 <form method="post"><div class="ig">
  <div class="card"><b>Google: Tag Manager · GA4 · Ads</b>
-  <label>Google Tag Manager ID<input name="gtm_id" value="{{ c.gtm_id }}" placeholder="GTM-XXXXXXX (порожньо — контейнер сайту клініки)"></label>
+  <label>Google Tag Manager ID<input name="gtm_id" value="{{ c.gtm_id }}" placeholder="GTM-XXXXXXX (порожньо: контейнер сайту клініки, якщо не задано GA4 / Ads)"></label>
   <label>GA4 Measurement ID<input name="ga4_id" value="{{ c.ga4_id }}" placeholder="G-XXXXXXXXXX"></label>
   <label>Google Ads ID<input name="ads_id" value="{{ c.ads_id }}" placeholder="AW-1234567890"></label>
   <label>Мітка конверсії «Покупка»<input name="ads_label" value="{{ c.ads_label }}" placeholder="AbCdEf123"></label>
