@@ -38,6 +38,58 @@ def channel(src: str, med: str) -> str:
     return "Інші сайти"
 
 
+SHOP_WORDS = ("store", "pmax", "shopping", "товар", "магазин")      # кампанії Google Ads, що рекламують магазин
+DEF_MARGIN = 35.0                                                   # % валової маржі, якщо в товару немає ціни закупівлі
+
+
+def _is_google_order(o: SiteOrder) -> bool:
+    s, m, _ = source_of(o)
+    return s == "google" and m in ("cpc", "ppc", "paid", "shopping", "pmax", "display")
+
+
+def ads(db: Session, d1: date, d2: date, ok: list[SiteOrder]) -> dict:
+    """Окупність реклами Google для магазину: витрати кампаній магазину (з ПДВ) проти замовлень із Google.
+    CPA — скільки коштує один продаж; ROAS — виручка на 1 ₴ реклами; прибуток після реклами = валова маржа − реклама."""
+    from ..models import AdsStat, Product
+    from . import google_ads as ga
+    vat = float(ga.cfg(db).get("vat_pct") or 0)
+    camps: dict = defaultdict(lambda: {"cost": 0.0, "clicks": 0.0, "impr": 0.0, "conv": 0.0, "value": 0.0})
+    for st in db.scalars(select(AdsStat).where(AdsStat.source == "google", AdsStat.level == "campaign", AdsStat.day >= d1, AdsStat.day <= d2)):
+        nm = st.name or st.key
+        if any(w in nm.lower() for w in SHOP_WORDS):
+            c = camps[nm]
+            c["cost"] += st.cost or 0
+            c["clicks"] += st.clicks or 0
+            c["impr"] += st.impressions or 0
+            c["conv"] += st.conversions or 0
+            c["value"] += st.conv_value or 0
+    cost_net = sum(c["cost"] for c in camps.values())
+    cost = round(cost_net * (1 + vat / 100), 2)
+    clicks = sum(c["clicks"] for c in camps.values())
+    g = [o for o in ok if _is_google_order(o)]
+    rev = round(sum(float(o.total or 0) for o in g), 2)
+    cogs, est = 0.0, False
+    for o in g:
+        for i in o.items or []:
+            pr = db.get(Product, i.get("product_id")) if str(i.get("product_id") or "").isdigit() else None
+            t = float(i.get("total") or 0)
+            if pr and pr.cost:
+                cogs += float(pr.cost) * int(i.get("qty") or 1)
+            else:
+                cogs += t * (1 - DEF_MARGIN / 100)
+                est = True
+    gross = round(rev - cogs, 2)
+    n = len(g)
+    out = {"campaigns": sorted(({"name": k, **v} for k, v in camps.items()), key=lambda x: -x["cost"]), "cost": cost, "cost_net": round(cost_net, 2),
+           "vat": vat, "clicks": int(clicks), "impr": int(sum(c["impr"] for c in camps.values())), "orders": n, "revenue": rev, "gross": gross,
+           "est": est, "g_conv": round(sum(c["conv"] for c in camps.values()), 1), "g_value": round(sum(c["value"] for c in camps.values()), 2),
+           "cpa": round(cost / n, 2) if n else None, "roas": round(rev / cost, 2) if cost else None,
+           "cpc": round(cost / clicks, 2) if clicks else None, "cr": round(n / clicks * 100, 2) if clicks else None,
+           "be_cpa": round(gross / n, 2) if n else None, "profit": round(gross - cost, 2)}
+    out["verdict"] = None if not cost else ("ok" if out["profit"] > 0 else "bad")
+    return out
+
+
 def report(db: Session, d1: date, d2: date, data: dict | None = None) -> dict:
     a, b = datetime.combine(d1, datetime.min.time()), datetime.combine(d2 + timedelta(days=1), datetime.min.time())
     rows = list(db.scalars(select(SiteOrder).where(SiteOrder.source == "crm", SiteOrder.created_at >= a, SiteOrder.created_at < b)))
@@ -84,7 +136,11 @@ def report(db: Session, d1: date, d2: date, data: dict | None = None) -> dict:
 
     def top(dct, n=15):
         return sorted(({"key": kk, **vv} for kk, vv in dct.items()), key=lambda x: -x["sum"])[:n]
-    return {"k": k, "sources": top(srcs, 20), "channels": top(chans), "campaigns": top(camps), "products": top(prods, 15), "brands": top(brands),
+    try:
+        ad = ads(db, d1, d2, ok)
+    except Exception:  # noqa: BLE001 — блок реклами не має ламати KPI
+        ad = None
+    return {"ads": ad, "k": k, "sources": top(srcs, 20), "channels": top(chans), "campaigns": top(camps), "products": top(prods, 15), "brands": top(brands),
             "carts": {"n": len(carts_open), "sum": round(sum(c.total or 0 for c in carts_open), 2), "back": carts_back},
             "reviews": {"n": rv[0] or 0, "avg": round(float(rv[1]), 1) if rv and rv[1] else 0},
             "days": days, "series": [round(by_day.get(x, 0)) for x in days]}

@@ -18,6 +18,23 @@
   <div><span>Скасовано / повернення</span><b>{{ k.lost }}</b></div>
   <div><span>Покинуті кошики</span><b>{{ r.carts.n }}</b><small>на {{ r.carts.sum|uah }} · повернули після нагадування: {{ r.carts.back }}</small></div>
   <div><span>Відгуки</span><b>{{ r.reviews.avg or '—' }}</b><small>опубліковано: {{ r.reviews.n }}</small></div></div>
+{% set a = r.ads %}{% if a %}
+<div class="card" style="margin-bottom:12px"><div class="row" style="justify-content:space-between;gap:8px;flex-wrap:wrap"><b>Реклама Google → продажі магазину</b>
+  {% if a.verdict == 'ok' %}<span class="pill" style="background:#E7F5EA;color:#2E6B2E;font-weight:700">✓ Окупається: +{{ a.profit|uah }} після реклами</span>
+  {% elif a.verdict == 'bad' %}<span class="pill" style="background:#FBE9E7;color:#B3261E;font-weight:700">✗ Не окупається: {{ a.profit|uah }} після реклами</span>
+  {% else %}<span class="muted small">Витрат за період ще немає — дані з кабінету приходять щогодини</span>{% endif %}</div>
+  <div class="sc-k" style="margin:10px 0 4px">
+    <div><span>Витрати на рекламу</span><b>{{ a.cost|uah }}</b><small>з ПДВ {{ a.vat|round|int }}% · без ПДВ {{ a.cost_net|uah }}</small></div>
+    <div><span>Продажів з Google</span><b>{{ a.orders }}</b><small>на {{ a.revenue|uah }}</small></div>
+    <div><span>Ціна одного продажу (CPA)</span><b>{{ a.cpa|uah if a.cpa is not none else '—' }}</b><small>межа окупності: {{ a.be_cpa|uah if a.be_cpa is not none else '—' }}</small></div>
+    <div><span>ROAS</span><b>{{ a.roas if a.roas is not none else '—' }}</b><small>₴ виручки на 1 ₴ реклами</small></div>
+    <div><span>Валова маржа продажів</span><b>{{ a.gross|uah }}</b><small>{{ 'частково оцінено ' ~ 35 ~ '% (немає закупівлі)' if a.est else 'за цінами закупівлі' }}</small></div>
+    <div><span>Кліки · CPC · конверсія</span><b>{{ a.clicks }}</b><small>{{ a.cpc|uah if a.cpc else '—' }} за клік · {{ a.cr if a.cr is not none else '—' }}% у продаж</small></div></div>
+  <div class="small muted">Продажі з Google — замовлення, що прийшли з реклами (мітка gclid / utm). Google у кабінеті рахує {{ a.g_conv }} покупок на {{ a.g_value|uah }}.
+    Окупається, коли валова маржа більша за витрати на рекламу; межа окупності — скільки максимум можна платити за один продаж.</div>
+  {% if a.campaigns %}<table class="tbl small" style="margin-top:8px"><thead><tr><th>Кампанія</th><th>Витрати без ПДВ</th><th>Кліки</th><th>Покази</th><th>Покупки (Google)</th></tr></thead><tbody>
+  {% for c in a.campaigns %}<tr><td>{{ c.name }}</td><td>{{ c.cost|uah }}</td><td>{{ c.clicks|int }}</td><td>{{ c.impr|int }}</td><td>{{ c.conv|round(1) }}</td></tr>{% endfor %}</tbody></table>{% endif %}
+</div>{% endif %}
 <div class="card" style="margin-bottom:12px"><b>Виручка по днях</b>{% set mx = (r.series|max) or 1 %}<div class="spark">{% for v in r.series %}<i style="height:{{ (v / mx * 100)|round(1) }}%" title="{{ r.days[loop.index0][8:10] }}.{{ r.days[loop.index0][5:7] }} — {{ v|uah }}"></i>{% endfor %}</div></div>
 <div class="g2">
   <div class="card"><b>Канали</b>{% set mx = (r.channels|map(attribute='sum')|max) if r.channels else 1 %}
