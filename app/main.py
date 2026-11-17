@@ -10107,6 +10107,15 @@ def settings_shop_old_links(request: Request, user: User = Depends(require("user
     return render(request, "settings_shop_oldlinks.html", nav="shop", shop_tab="integr", shop_cnt=_shop_cnt(db), r=r)
 
 
+@app.get("/shop-customers", response_class=HTMLResponse)
+def shop_customers_page(request: Request, q: str = "", sort: str = "new", f: str = "", user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    from .services import shop_customers as sc
+    sort = sort if sort in sc.SORTS else "new"
+    f = f if f in sc.FILTERS else ""
+    return render(request, "shop_customers.html", nav="shop", shop_tab="customers", shop_cnt=_shop_cnt(db), r=sc.rows(db, q, sort, f),
+                  q=q, sort=sort, f=f, SORTS=sc.SORTS, FILTERS=sc.FILTERS)
+
+
 @app.get("/shop-kpi", response_class=HTMLResponse)
 def shop_kpi_page(request: Request, per: str = "30", d1: str = "", d2: str = "", user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
     from .services import shop_kpi as sk, shop_front as sf

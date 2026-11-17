@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Покупці магазину{% endblock %}
+{% block body %}
+<style>.chip{padding:7px 13px;border-radius:999px;border:1px solid var(--line);text-decoration:none;color:var(--ink);font-size:13px;background:#fff;white-space:nowrap}.chip.on{background:#3B3050;border-color:#3B3050;color:#fff}.chip b{margin-left:5px}
+.sc-f{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.kp{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin:0 0 14px}
+.kp div{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px}.kp b{display:block;font:600 22px var(--sans);color:#2A2430}.kp span{font-size:12px;color:var(--muted)}
+.ctab{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;font-size:13px}.ctab th,.ctab td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.ctab th{background:#F7F4F0;font-weight:600;white-space:nowrap}.ctab td.n{text-align:right;white-space:nowrap}.cw{overflow-x:auto}</style>
+<h1 style="margin:0 0 4px">Центр керування магазином</h1>
+<div class="muted small" style="margin-bottom:12px">Покупці, що зареєструвалися в кабінеті molodist.store (вхід кодом на телефон). Покупки — замовлення з сайту, без скасованих і повернень.</div>
+{% include "_shop_tabs.html" %}
+{% set k = r.kpi %}
+<div class="kp">
+  <div><b>{{ k.total }}</b><span>зареєстровано всього</span></div>
+  <div><b>{{ k.new }}</b><span>нових за 30 днів</span></div>
+  <div><b>{{ k.active }}</b><span>заходили за 30 днів</span></div>
+  <div><b>{{ k.buyers }}</b><span>купували · {{ k.conv }}% від зареєстрованих</span></div>
+  <div><b>{{ k.repeat }}</b><span>купували 2+ рази</span></div>
+  <div><b>{{ k.revenue|uah }}</b><span>сума покупок</span></div>
+  <div><b>{{ k.ltv|uah }}</b><span>в середньому на покупця</span></div>
+  <div><b>{{ k.carts }}</b><span>з відкритим кошиком</span></div>
+  <div><b>{{ k.coins }}</b><span>MOLODIST Coins на рахунках</span></div>
+</div>
+<form class="sc-f" method="get" style="margin-bottom:12px">
+  {% for key, n in FILTERS.items() %}<a class="chip {{ 'on' if f == key }}" href="?f={{ key }}&sort={{ sort }}&q={{ q|urlencode }}">{{ n }}</a>{% endfor %}
+  <input name="q" value="{{ q }}" placeholder="Імʼя, телефон, email" style="max-width:220px;margin:0 0 0 8px"><input type="hidden" name="f" value="{{ f }}">
+  <select name="sort" onchange="this.form.submit()" style="max-width:200px;margin:0">{% for key, n in SORTS.items() %}<option value="{{ key }}" {{ 'selected' if sort == key }}>{{ n }}</option>{% endfor %}</select>
+  <button class="btn ghost">Знайти</button><span class="muted small">{{ r.rows|length }} у списку</span>
+</form>
+<div class="cw"><table class="ctab"><thead><tr><th>Покупець</th><th>Телефон</th><th>Реєстрація</th><th>Останній вхід</th><th class="n">Замовлень</th><th class="n">Сума</th><th class="n">Сер. чек</th><th>Остання покупка</th><th class="n">Coins</th><th class="n">Кошик</th><th class="n">♡</th><th>Запросив / запрошених</th></tr></thead><tbody>
+{% for x in r.rows %}<tr>
+  <td>{% if x.patient %}<a href="/patients/{{ x.patient.id }}">{{ x.name }}</a>{% else %}{{ x.name }}{% endif %}{% if x.acc.email %}<div class="muted small">{{ x.acc.email }}</div>{% endif %}</td>
+  <td>{% if x.phone %}<a href="tel:{{ x.phone }}">{{ x.phone }}</a>{% endif %}</td>
+  <td>{{ x.acc.created_at|local if x.acc.created_at else '—' }}</td>
+  <td>{{ x.acc.last_login|local if x.acc.last_login else '—' }}</td>
+  <td class="n">{{ x.paid }}{% if x.orders > x.paid %} <span class="muted">(+{{ x.orders - x.paid }})</span>{% endif %}</td>
+  <td class="n">{{ x.sum|uah if x.sum else '—' }}</td><td class="n">{{ x.avg|uah if x.avg else '—' }}</td>
+  <td>{{ x.last_order.strftime('%d.%m.%Y') if x.last_order else '—' }}</td>
+  <td class="n">{{ x.coins or '—' }}</td><td class="n">{% if x.cart %}<a href="/shop-carts">{{ x.cart|uah }}</a>{% else %}—{% endif %}</td>
+  <td class="n">{{ x.wish or '—' }}</td>
+  <td>{% if x.by %}<a href="/patients/{{ x.by.id }}">{{ x.by.full_name }}</a>{% endif %}{% if x.invited %}{{ ' · ' if x.by }}запросив {{ x.invited }}{% endif %}</td>
+</tr>{% else %}<tr><td colspan="12" class="muted">Поки нікого.</td></tr>{% endfor %}
+</tbody></table></div>
+<div class="muted small" style="margin-top:8px">«Замовлень» — оплачені / виконані; у дужках — ще не оплачені. ♡ — товарів у списку бажань.</div>
+{% endblock %}
