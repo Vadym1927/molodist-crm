@@ -684,6 +684,7 @@ def register(app, templates, version: str):
             cx.update(canonical=cx["s"]["canonical"].rstrip("/") + f"/shop/{it['slug']}/", it=it, cat=cat, rel=rel, rvs=rvs,
                       title=it["seo_title"] or f"{it['name']} — купити в MOLODIST", desc=it["seo_desc"] or it["name"],
                       jsonld=json.dumps({"@context": "https://schema.org/", "@type": "Product", "name": it["name"], "sku": it["sku"],
+                                         **({"gtin": it["variants"][0]["gtin"]} if it["variants"][0].get("gtin") else {}),
                                          "brand": {"@type": "Brand", "name": it["brand"]} if it["brand"] else None,
                                          "image": [f"{cx['s']['canonical'].rstrip('/')}/img/{i}?w=1200" for i in it["imgs"][:4]],
                                          "description": it["seo_desc"] or it["name"],

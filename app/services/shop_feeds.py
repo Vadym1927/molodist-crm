@@ -56,7 +56,7 @@ def items(data: dict, root: str, notice_brands: set[str] | None = None) -> list[
         for v in it["variants"]:
             title = v["name"] if len(it["variants"]) == 1 or not v.get("label") else f"{it['name']} {v['label']}"
             out.append({"id": str(v["id"]), "group": str(it["id"]) if len(it["variants"]) > 1 else "", "title": title[:150], "desc": desc,
-                        "link": f"{root}/shop/{it['slug']}/", "imgs": imgs, "brand": it["brand"] or "MOLODIST", "sku": v.get("sku") or "",
+                        "link": f"{root}/shop/{it['slug']}/", "imgs": imgs, "brand": it["brand"] or "MOLODIST", "sku": v.get("sku") or "", "gtin": v.get("gtin") or "",
                         "price": float(v["old"] or v["price"]), "sale": float(v["price"]) if v.get("old") else 0.0, "stock": bool(v["stock"]),
                         "ptype": ptype, "cat": cats.get(it["slug"], [None])[0], "consult": bool(notice_brands and it["brand"] in notice_brands)})
     return out
@@ -76,9 +76,11 @@ def google(data: dict, root: str, title: str = "MOLODIST", notice_brands: set[st
                   "<g:google_product_category>567</g:google_product_category>"]   # Health & Beauty > Personal Care > Cosmetics > Skin Care
         if i["sale"]:
             parts.append(f"<g:sale_price>{i['sale']:.2f} UAH</g:sale_price>")
+        if i["gtin"]:
+            parts.append(f"<g:gtin>{i['gtin']}</g:gtin>")
         if i["sku"]:
             parts.append(f"<g:mpn>{x(i['sku'])}</g:mpn>")
-        parts.append("<g:identifier_exists>no</g:identifier_exists>" if not i["sku"] else "")
+        parts.append("<g:identifier_exists>no</g:identifier_exists>" if not (i["sku"] or i["gtin"]) else "")
         if i["group"]:
             parts.append(f"<g:item_group_id>{i['group']}</g:item_group_id>")
         if i["ptype"]:
@@ -110,7 +112,7 @@ def hotline(data: dict, root: str, firm_id: str, firm_name: str = "MOLODIST") ->
         if not i["imgs"] or not i["cat"] or i["cat"]["path"] not in ids:
             continue
         ix.append("<item>" + f"<id>{i['id']}</id><categoryId>{ids[i['cat']['path']]}</categoryId>"
-                  + (f"<code>{x(i['sku'])}</code>" if i["sku"] else "") + f"<vendor>{x(i['brand'])}</vendor><name>{x(i['title'])}</name>"
+                  + (f"<code>{x(i['sku'])}</code>" if i["sku"] else "") + (f"<barcode>{i['gtin']}</barcode>" if i["gtin"] else "") + f"<vendor>{x(i['brand'])}</vendor><name>{x(i['title'])}</name>"
                   + f"<description>{x(i['desc'][:2500])}</description><url>{x(i['link'])}</url><image>{x(i['imgs'][0])}</image>"
                   + f"<priceRUAH>{(i['sale'] or i['price']):.0f}</priceRUAH>" + (f"<oldprice>{i['price']:.0f}</oldprice>" if i["sale"] else "")
                   + f"<stock>{'В наявності' if i['stock'] else 'Немає в наявності'}</stock><guarantee type=\"shop\">14</guarantee></item>")
@@ -126,7 +128,7 @@ def llms(data: dict, root: str, c: dict, site: dict, full: bool = False) -> str:
         "MOLODIST — інтернет-магазин професійної косметики при медичному просторі естетики та профілактики MOLODIST у Києві. "
         "Продаємо оригінальну космецевтику від офіційних постачальників, яку лікарі MOLODIST призначають для домашнього догляду. "
         "Доставка Новою поштою по всій Україні, безкоштовно від 3 000 ₴; самовивіз у Києві.")
-    L = [f"# MOLODIST — магазин професійної косметики", "", f"> {about}", ""]
+    L = ["# MOLODIST — магазин професійної косметики", "", "\n".join(f"> {ln}" if ln.strip() else ">" for ln in about.splitlines()), ""]
     L += ["## Основне", f"- Каталог: {root}/shop/", f"- Бренди: {root}/shop/brendi/", f"- Акції: {root}/shop/sale/",
           f"- Доставка й оплата: {root}/for-customers/dostavka-i-oplata/", f"- Повернення: {root}/for-customers/povernennya-tovaru/",
           f"- Про нас: {root}/for-customers/pro-nas/", f"- Контакти: {root}/contacts/", f"- Блог: {root}/blog/", ""]

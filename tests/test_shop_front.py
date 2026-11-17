@@ -737,3 +737,14 @@ def test_old_links_report_and_hidden_redirect():
         assert c.get("/_shop/shop/brendi/nemaie/", follow_redirects=False).status_code == 301
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-ol"})
         assert "Старі посилання" in c.get("/settings/shop/old-links").text
+
+
+def test_gtin_in_google_feed():
+    from app.services import shop_feeds
+    from app.services.shop_front import gtin
+    assert gtin("5901234123457") == "5901234123457"
+    assert gtin("5901234123458") == "" and gtin("530419") == "" and gtin("") == ""
+    data = {"cats": [], "items": [{"id": 1, "slug": "a", "name": "A", "brand": "B", "imgs": ["1"], "sections": [], "desc": "d",
+                                   "variants": [{"id": 7, "name": "A", "label": "", "price": 100, "old": 0, "stock": True, "sku": "", "gtin": "5901234123457"}]}]}
+    xml = shop_feeds.google(data, "https://x")
+    assert "<g:gtin>5901234123457</g:gtin>" in xml and "identifier_exists" not in xml

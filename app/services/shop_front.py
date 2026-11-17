@@ -62,6 +62,16 @@ class ShopError(ValueError):
 
 
 # ---------------- налаштування ----------------
+
+def gtin(code: str) -> str:
+    """Штрихкод → GTIN (8/12/13/14 цифр із правильною контрольною цифрою), інакше порожньо."""
+    c = re.sub(r"\D", "", str(code or ""))
+    if len(c) not in (8, 12, 13, 14) or set(c) == {"0"}:
+        return ""
+    body, chk = c[:-1], int(c[-1])
+    tot = sum(int(d) * (3 if i % 2 == 0 else 1) for i, d in enumerate(reversed(body)))
+    return c if (10 - tot % 10) % 10 == chk else ""
+
 def cfg(db: Session) -> dict:
     c = json.loads(json.dumps(DEFAULT))
     st = db.get(SyncState, KEY)
@@ -348,7 +358,7 @@ def catalog(db: Session, fresh: bool = False) -> dict:
             old, price = price, float(round(price * (1 - float(sale["pct"]) / 100)))
         stock = not hidden and str(si.get("presence", 1)).lower() not in ("0", "false", "not_available") and (si.get("quantity") is None or float(si.get("quantity") or 0) > 0)
         v = {"id": p.id, "name": si.get("title") or p.name, "price": price, "old": old if old > price else 0, "stock": stock,
-             "sku": p.sku or si.get("sku") or "", "label": p.volume or ""}
+             "sku": p.sku or si.get("sku") or "", "label": p.volume or "", "gtin": gtin(p.barcode or si.get("barcode") or "")}
         it = target.get(slug)
         if it:
             it["variants"].append(v)
