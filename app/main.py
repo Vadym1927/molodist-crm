@@ -10028,7 +10028,9 @@ def settings_shop_integrations(request: Request, user: User = Depends(require("u
     srv = dns[-1][1] if dns else ""
     return render(request, "settings_shop_integr.html", nav="shop", shop_tab="integr", shop_cnt=_shop_cnt(db), c=c_, root=c_["canonical"].rstrip("/"),
                   dns=dns[:-1], srv=srv, has_secret=bool(str(c_.get("ts_secret") or "").strip()),
-                  has_gkey=bool(str(c_.get("gplaces_key") or "").strip()), gr=__import__("app.services.google_reviews", fromlist=["x"]).state(db))
+                  has_gkey=bool(str(c_.get("gplaces_key") or "").strip()),
+                  svc_redirects=list(__import__("app.services.shop_content", fromlist=["x"]).SERVICE_REDIRECTS.items()),
+                  main_url=(__import__("app.services.site_pages", fromlist=["x"]).cfg(db).get("main_url") or "https://molodist.com.ua").rstrip("/"), gr=__import__("app.services.google_reviews", fromlist=["x"]).state(db))
 
 
 @app.post("/settings/shop/integrations")
@@ -10057,6 +10059,12 @@ async def settings_shop_integrations_save(request: Request, user: User = Depends
     for k in ("remarketing_on", "feed_google", "feed_facebook", "feed_hotline", "llms_on", "cookie_on", "tg_order", "tg_pay", "tg_review", "tg_cart"):
         c[k] = bool(f.get(k))
     c["ai_about"] = str(f.get("ai_about") or "").strip()[:1500]
+    gv = str(f.get("gsc_verify") or "").strip()
+    _m = _re.search(r'content="([^"]+)"', gv)
+    gv = _m.group(1) if _m else gv
+    c["gsc_verify"] = gv if _re.fullmatch(r"[A-Za-z0-9_-]{20,80}", gv) else ""
+    if f.get("redirects") is not None:
+        c["redirects"] = "\n".join(l.strip() for l in str(f.get("redirects") or "").splitlines() if len(l.split()) == 2 and l.strip().startswith("/"))[:8000]
     sf.save_cfg(db, c)
     audit(db, "settings.shop_integrations", "settings", None, user=user)
     db.commit()
@@ -10067,6 +10075,13 @@ async def settings_shop_integrations_save(request: Request, user: User = Depends
             return RedirectResponse(_with_msg("/settings/shop/integrations", "Збережено. Google Карти: " + st["error"], True) + "#greviews", 303)
         return RedirectResponse(_with_msg("/settings/shop/integrations", f"Збережено. Google Карти: {st.get('rating')} ★, {st.get('count')} відгуків") + "#greviews", 303)
     return RedirectResponse(_with_msg("/settings/shop/integrations", "Збережено"), 303)
+
+
+@app.get("/settings/shop/old-links", response_class=HTMLResponse)
+def settings_shop_old_links(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import shop_front as sf
+    r = sf.old_links_report(db)
+    return render(request, "settings_shop_oldlinks.html", nav="shop", shop_tab="integr", shop_cnt=_shop_cnt(db), r=r)
 
 
 @app.get("/shop-kpi", response_class=HTMLResponse)

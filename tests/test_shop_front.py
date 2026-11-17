@@ -699,3 +699,37 @@ def test_google_reviews_and_new_posts(monkeypatch):
         assert "Відгуки про MOLODIST" in c.get("/_shop/contacts/").text
         assert "Чим замінити ретинол" in c.get("/_shop/blog/").text
         assert c.get("/_shop/blog/yakyi-spf-obraty-dlia-zhyrnoi-shkiry/").status_code == 200
+
+
+def test_old_service_pages_redirect():
+    from app.services import shop_front as sf
+    with TestClient(app) as c:
+        with SessionLocal() as db:
+            k = sf.preview_key(db)
+        c.cookies.set("shop_prev", k)
+        r = c.get("/_shop/poslugi/ipl-terapiya/", follow_redirects=False)
+        assert r.status_code == 301 and r.headers["location"].endswith("/ipl-therapy")
+        r = c.get("/_shop/poslugi/shchos-nove", follow_redirects=False)
+        assert r.status_code == 301
+        assert c.get("/_shop/blog/yak-pravilno-pidibrati-motorne-maslo-dlya-vashogo-avto/", follow_redirects=False).status_code == 410
+        assert "/poslugi/" not in c.get("/_shop/sitemap.xml").text
+
+
+def test_old_links_report_and_hidden_redirect():
+    from app.services import shop_front as sf
+    settings.admin_password = "owner-pass-ol"
+    with TestClient(app) as c:
+        with SessionLocal() as db:
+            k = sf.preview_key(db)
+            db.add(Product(name="Old Vis", name_norm="old vis", price=100, site_on=True, site_info={"slug": "old-vis", "title": "Old Vis", "presence": 1, "link": "/shop/old-vis/5555/"}))
+            db.add(Product(name="Old Hid", name_norm="old hid", price=100, site_on=False, site_info={"slug": "old-hid", "title": "Old Hid", "link": "https://molodist.store/shop/old-hid/6666/"}))
+            db.commit()
+            sf.catalog(db, fresh=True)
+            rep = sf.old_links_report(db)
+            assert any(x["name"] == "Old Vis" for x in rep["ok"]) and any(x["name"] == "Old Hid" for x in rep["redirect"])
+        c.cookies.set("shop_prev", k)
+        assert c.get("/_shop/shop/old-vis/5555/", follow_redirects=False).headers["location"].endswith("/shop/old-vis/")
+        r = c.get("/_shop/shop/old-hid/6666/", follow_redirects=False)
+        assert r.status_code == 301 and r.headers["location"].endswith("/shop/")
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-ol"})
+        assert "Старі посилання" in c.get("/settings/shop/old-links").text

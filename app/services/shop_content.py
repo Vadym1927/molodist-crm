@@ -302,10 +302,46 @@ OWN = {
 }
 
 
+# Старі сторінки послуг зі старого сайту магазину (Shop-Express) добре ранжувались у Google —
+# ведемо їх постійним редиректом (301) на відповідні сторінки основного сайту косметології, щоб не втратити SEO.
+SERVICE_REDIRECTS = {
+    "/poslugi/": "/",
+    "/poslugi/inektsiyna-kosmetologiya/": "/inyekczijna-kosmetologiya",
+    "/poslugi/klasichna--kosmetologiya/": "/kosmetologiya",
+    "/poslugi/aparatnyy-masazh-stratosphere/": "/aparatnyy-masazh-stratosphere",
+    "/poslugi/lazerna-epilyatsiya/": "/laserepilation",
+    "/poslugi/ipl-terapiya/": "/ipl-therapy",
+    "/poslugi/rf-lifting-endymed/": "/rf-lifting-endymed",
+    "/poslugi/aparatna-kosmetologiya/": "/hardwarecosmetology",
+    "/blog/ipl/": "/ipl-therapy",
+    "/blog/aparatniy--masazh--stratosphere/": "/aparatnyy-masazh-stratosphere",
+}
+GONE = {"/blog/yak-pravilno-pidibrati-motorne-maslo-dlya-vashogo-avto/"}      # чужий спам-допис старого сайту — 410
+
+
+def redirect_for(path: str, main_url: str, extra: str = "") -> str | None:
+    """Куди вести стару адресу: власні правила з налаштувань («/стара/ https://нова»), потім послуги → сайт косметології."""
+    p = path if path.endswith("/") else path + "/"
+    for line in (extra or "").splitlines():
+        parts = line.split()
+        if len(parts) == 2 and parts[0].startswith("/"):
+            src = parts[0] if parts[0].endswith("/") else parts[0] + "/"
+            if src == p:
+                return parts[1]
+    base = (main_url or "https://molodist.com.ua").rstrip("/")
+    if p in SERVICE_REDIRECTS:
+        return base + SERVICE_REDIRECTS[p]
+    if p.startswith("/poslugi/"):
+        return base + "/"
+    return None
+
+
 def pages(imported: dict) -> dict:
     """Перенесені сторінки + власні. Старі статті блогу про послуги — доступні за адресою, але без показу в списках."""
     out = {}
     for p, v in imported.items():
+        if p in SERVICE_REDIRECTS or p in GONE or p.startswith("/poslugi/"):
+            continue
         v = dict(v)
         if p.startswith("/blog/") and p != "/blog/":
             v["unlisted"] = True

@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Старі посилання{% endblock %}
+{% block body %}
+<style>.chip{padding:7px 13px;border-radius:999px;border:1px solid var(--line);text-decoration:none;color:var(--ink);font-size:13px;background:#fff;white-space:nowrap}.chip.on{background:#3B3050;border-color:#3B3050;color:#fff}.chip b{margin-left:5px}.sc-f{display:flex;gap:6px;flex-wrap:wrap;align-items:center}</style>
+<h1 style="margin:0 0 4px">Старі посилання на товари</h1><div class="muted small" style="margin-bottom:12px">Посилання molodist.store зі старого сайту (вони збережені в картках товарів, ними користуються в OBSERV і бюті-планах): чи відкривається товар на новому сайті.</div>
+{% include "_shop_tabs.html" %}
+<div class="card" style="margin-bottom:12px"><b>Відкривається товар: {{ r.ok|length }}</b> · <b>Товар прихований — веде на сторінку бренду: {{ r.redirect|length }}</b> · <b style="color:#8C2F39">Не знайдено: {{ r.missing|length }}</b></div>
+{% if r.missing %}<div class="card" style="margin-bottom:12px"><b>Не знайдено</b><table class="tbl">{% for x in r.missing %}<tr><td><a href="/products/{{ x.id }}#psite">{{ x.name }}</a></td><td class="small"><a href="{{ x.link }}" target="_blank" rel="noopener">{{ x.link }}</a></td></tr>{% endfor %}</table></div>{% endif %}
+{% if r.redirect %}<div class="card" style="margin-bottom:12px"><b>Приховані товари → бренд</b><table class="tbl">{% for x in r.redirect %}<tr><td><a href="/products/{{ x.id }}#psite">{{ x.name }}</a></td><td class="small">{{ x.link }} → {{ x.to }}</td></tr>{% endfor %}</table></div>{% endif %}
+<details class="card"><summary><b>Відкриваються ({{ r.ok|length }})</b></summary><table class="tbl">{% for x in r.ok %}<tr><td>{{ x.name }}</td><td class="small"><a href="{{ x.link }}" target="_blank" rel="noopener">{{ x.link }}</a></td></tr>{% endfor %}</table></details>
+{% endblock %}

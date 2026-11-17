@@ -17,6 +17,7 @@
 <link rel="preload" href="/static/fonts/montserrat-cyrillic-600-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/static/fonts/fonts.css">
 <link rel="stylesheet" href="/static/shop/shop.css?v={{ ver }}">
+{% if s.gsc_verify and not noindex %}<meta name="google-site-verification" content="{{ s.gsc_verify }}">{% endif %}
 {% if jsonld is defined and jsonld %}<script type="application/ld+json">{{ jsonld|safe }}</script>{% endif %}
 {% set track = not noindex %}{% set direct = (s.ga4_id or s.ads_id) and track %}
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}

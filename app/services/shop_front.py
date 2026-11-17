@@ -39,6 +39,7 @@ DEFAULT = {
     "gtm_id": "", "ga4_id": "", "ads_id": "", "ads_label": "", "remarketing_on": True, "fb_pixel": "",
     "feed_google": True, "feed_facebook": True, "feed_hotline": True, "hotline_id": "", "llms_on": True, "ai_about": "",
     "cookie_on": True, "ts_site": "", "ts_secret": "", "tg_order": True, "tg_pay": True, "tg_review": True, "tg_cart": False,
+    "redirects": "", "gsc_verify": "",
     "gplaces_key": "", "gplace_id": "", "greviews_on": True, "greviews_min": 4,
     "reorder_on": False, "reorder_lead": 7, "reorder_text": "", "quiz_on": True, "oneclick_on": True,
     "review_on": False, "review_days": 5, "review_text": "", "review_test_phone": "",
@@ -1082,3 +1083,38 @@ def brands_sync(db: Session) -> dict:
     if rep["new"] or rep["added"]:
         save_site(db, st)
     return rep
+
+
+def hidden_target(db: Session, data: dict, slug: str) -> str | None:
+    """Товар є в CRM, але прихований із сайту: куди вести старе посилання (бренд → магазин)."""
+    if not re.fullmatch(r"[a-z0-9-]{3,200}", slug or ""):
+        return None
+    p = next((x for x in db.scalars(select(Product).where(Product.site_info.is_not(None))) if (x.site_info or {}).get("slug") == slug), None)
+    if not p:
+        return None
+    brand = ((p.site_info or {}).get("brand_name") or p.brand or "").strip().lower()
+    for c in data["cats"]:
+        if c["path"].startswith("/shop/brendi/") and c["name"].strip().lower().split(" (")[0] == brand.split(" (")[0] and c.get("n"):
+            return c["path"]
+    return "/shop/"
+
+
+def old_links_report(db: Session) -> dict:
+    """Перевірка старих посилань molodist.store (з карток товарів CRM): чи відкривається товар на новому сайті."""
+    from urllib.parse import urlparse
+    data = catalog(db)
+    rows = {"ok": [], "redirect": [], "missing": []}
+    for p in db.scalars(select(Product).where(Product.site_info.is_not(None)).order_by(Product.name)):
+        si = p.site_info or {}
+        links = {x for x in (si.get("link"), p.url) if x and ("molodist.store" in x or x.startswith("/"))}
+        for ln in links:
+            path = urlparse(ln if ln.startswith("http") else "https://molodist.store" + ln).path
+            segs = [x for x in path.split("/") if x]
+            row = {"id": p.id, "name": si.get("title") or p.name, "link": "https://molodist.store" + (path if path.endswith("/") else path + "/")}
+            if len(segs) >= 2 and segs[0] == "shop" and segs[1] in data["by_slug"]:
+                rows["ok"].append(row)
+            elif len(segs) >= 2 and segs[0] == "shop" and hidden_target(db, data, segs[1]):
+                rows["redirect"].append({**row, "to": hidden_target(db, data, segs[1])})
+            else:
+                rows["missing"].append(row)
+    return rows

@@ -637,6 +637,10 @@ def register(app, templates, version: str):
         if segs[-1].startswith("page-") and segs[-1][5:].isdigit():
             page, segs = int(segs[-1][5:]), segs[:-1]
         it = d["by_slug"].get(segs[0])
+        if not it and len(segs) <= 2 and "/shop/" + "/".join(segs) + "/" not in d["by_path"]:
+            gone = sf.hidden_target(db, d, segs[0])          # старе посилання на прихований товар → сторінка бренду, а не 404
+            if gone:
+                return RedirectResponse(cx["base"] + gone, 301)
         if it and len(segs) <= 2:
             if len(segs) == 2:                                    # /shop/<slug>/<id>/ → канонічна адреса товару
                 return RedirectResponse(f"{cx['base']}/shop/{it['slug']}/", 301)
@@ -714,6 +718,12 @@ def register(app, templates, version: str):
     @app.get("/_shop/{rest:path}", response_class=HTMLResponse)
     def shop_page(request: Request, rest: str, db: Session = Depends(db_dep)):
         path = "/" + "/".join(x for x in rest.split("/") if x) + "/"
+        from .services import shop_content as _scn
+        if path in _scn.GONE:
+            return Response("Сторінку видалено", status_code=410, media_type="text/plain; charset=utf-8")
+        _to = _scn.redirect_for(path, sp.cfg(db).get("main_url") or "", sf.cfg(db).get("redirects") or "")
+        if _to:
+            return RedirectResponse(_to, 301)
         cx = ctx(request, db, path)
         pg = cx["d"]["pages"].get(path)
         if not pg:
