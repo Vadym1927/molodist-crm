@@ -314,6 +314,9 @@ SERVICE_REDIRECTS = {
     "/poslugi/rf-lifting-endymed/": "/rf-lifting-endymed",
     "/poslugi/aparatna-kosmetologiya/": "/hardwarecosmetology",
     "/blog/ipl/": "/ipl-therapy",
+    "/poslugi/dermatologiya/": "/dermatology",
+    "/poslugi/masazh/": "/aparatnyy-masazh-stratosphere",
+    "/poslugi/trihologiya/": "/mezoterapiya-volos",
     "/blog/aparatniy--masazh--stratosphere/": "/aparatnyy-masazh-stratosphere",
 }
 GONE = {"/blog/yak-pravilno-pidibrati-motorne-maslo-dlya-vashogo-avto/"}      # чужий спам-допис старого сайту — 410
