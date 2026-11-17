@@ -65,7 +65,7 @@ window.tStart=function(m,force){if(!confirm('Передати суму на те
   {% for l in links %}<div class="pl"><img alt="QR" src="https://api.qrserver.com/v1/create-qr-code/?size=264x264&margin=8&data={{ l.url|urlencode }}">
     <div><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b class="am">{{ l.amount|uah }}</b>
       <span class="st {{ l.status }}" data-l="{{ l.id }}"><i></i>{{ {'created':'очікує оплати','paid':'оплачено','failed':'помилка','expired':'прострочено','cancelled':'скасовано'}.get(l.status, l.status) }}</span></div>
-      <div class="small muted" style="margin:4px 0 8px">{{ (l.info or {}).get('account') or '' }}{% if (l.info or {}).get('sent') %} · надіслано {{ l.info.sent.channel }} {{ l.info.sent.at }}{% endif %}</div>
+      <div class="small muted" style="margin:4px 0 8px">{{ (l.info or {}).get('account') or '' }}{% if (l.info or {}).get('sent') %}{% if l.info.sent.ok %} · надіслано {{ l.info.sent.channel }} {{ l.info.sent.at }}{% else %} · <span style="color:#8C2F39">не надіслано {{ l.info.sent.at }} — надішліть посилання або покажіть QR</span>{% endif %}{% endif %}</div>
       {% if l.url %}<div class="u"><input readonly value="{{ l.url }}"><button class="btn ghost" type="button" onclick="navigator.clipboard.writeText('{{ l.url }}');this.textContent='✓'">Копіювати</button></div>{% endif %}
       <div class="row" style="gap:6px;margin-top:8px"><a class="btn ghost" style="padding:5px 12px" href="{{ l.url }}" target="_blank" rel="noopener">Відкрити</a>
         <form method="post" action="/paylinks/{{ l.id }}/check" style="margin:0"><input type="hidden" name="back" value="/sales/{{ s.id }}"><button class="btn ghost" style="padding:5px 12px">Перевірити</button></form></div></div></div>
