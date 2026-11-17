@@ -77,13 +77,29 @@ def g_title(name: str, brand: str, label: str = "") -> str:
     return t[:150]
 
 
+def g_desc(desc: str, name: str, brand: str, ptype: str = "") -> str:
+    """Опис для Google: без повтору назви капсом на початку; якщо опису майже немає — короткий текст з бренду й категорії."""
+    d = (desc or "").strip()
+    n = " ".join((name or "").split())
+    if n and d[:len(n)].upper() == n.upper() and sum(ch.isupper() for ch in d[:len(n)] if ch.isalpha()) > 0.7 * max(1, sum(ch.isalpha() for ch in d[:len(n)])):
+        d = d[len(n):].lstrip(" .,:;–—-")                      # «REJURAN … 19ГР Активно захищає…» → «Активно захищає…»
+    if len(d) < 150:
+        t = g_title(n, brand)
+        kind = ptype.split(" > ")[-1].lower() if ptype else "професійна косметика для догляду за шкірою"
+        extra = f"{t} — {kind}" + (f" бренду {brand}" if brand and brand.lower() != "molodist" else "") + "."
+        d = " ".join(x for x in (extra, d if d.upper() != d or not d else "",
+                                  "Оригінальна продукція від MOLODIST (Київ): лікар допоможе підібрати домашній догляд, "
+                                  "доставка Новою поштою по Україні.") if x)
+    return d[:4900]
+
+
 def items(data: dict, root: str, notice_brands: set[str] | None = None) -> list[dict]:
     """Плоский список варіантів для фідів (лише видимі на сайті)."""
     cats = _cats_of(data)
     out = []
     for it in data["items"]:
         ptype = _ptype(cats.get(it["slug"], []), data)
-        desc = _strip(" ".join(s["html"] for s in it.get("sections") or []) or it.get("desc") or "") or it["name"]
+        desc = g_desc(_strip(" ".join(s["html"] for s in it.get("sections") or []) or it.get("desc") or ""), it["name"], it["brand"], ptype)
         imgs = [f"{root}/img/{f}?w=1200" for f in it["imgs"][:10]]
         for v in it["variants"]:
             title = v["name"] if len(it["variants"]) == 1 or not v.get("label") else f"{it['name']} {v['label']}"

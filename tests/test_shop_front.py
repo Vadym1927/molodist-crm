@@ -755,3 +755,11 @@ def test_google_titles():
     assert g_title("DEMAX ОЧИЩУЮЧИЙ ГЕЛЬ 250МЛ AHA BHA", "Demax") == "Demax очищуючий гель 250 мл AHA BHA"
     assert g_title("Крем для обличчя", "Medik8", "30 мл") == "Medik8 Крем для обличчя, 30 мл"
     assert g_title("Medik8 Crystal Retinal 6, 30 мл", "Medik8") == "Medik8 Crystal Retinal 6, 30 мл"
+
+
+def test_google_desc_cleanup():
+    from app.services.shop_feeds import g_desc
+    d = g_desc("REJURAN HEALER UV BALM 19ГР Активно захищає шкіру від ультрафіолету " + "х" * 200, "Rejuran Healer UV balm 19гр", "Rejuran")
+    assert d.startswith("Активно захищає")
+    s = g_desc("REJURAN МАСКА 38ML", "REJURAN МАСКА 38ML", "Rejuran", "Догляд > Маски")
+    assert "маски бренду Rejuran" in s and "лікар" in s and len(s) >= 150 - 40
