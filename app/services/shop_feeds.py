@@ -93,6 +93,48 @@ def g_desc(desc: str, name: str, brand: str, ptype: str = "") -> str:
     return d[:4900]
 
 
+_SKIN = (("всіх типів", "усіх типів шкіри"), ("сух", "суха"), ("жирн", "жирна"), ("комбінован", "комбінована"),
+         ("чутлив", "чутлива"), ("проблемн", "проблемна"), ("нормальн", "нормальна"), ("зневоднен", "зневоднена"),
+         ("зріл", "зріла"), ("купероз", "схильна до почервонінь"), ("розац", "схильна до почервонінь"))
+_GOAL = (("зволож", "зволоження"), ("гідрат", "зволоження"), ("зморш", "anti-age"), ("старін", "anti-age"), ("ліфт", "ліфтинг"),
+         ("пружн", "пружність"), ("пігмент", "вирівнювання тону"), ("сяйв", "сяйво"), ("бар", "відновлення бар'єру"),
+         ("відновл", "відновлення"), ("заспок", "заспокоєння"), ("почервон", "зменшення почервонінь"), ("пор", "звуження пор"),
+         ("себум", "контроль себуму"), ("блиск", "контроль себуму"), ("ультрафіолет", "захист від сонця"), ("spf", "захист від сонця"),
+         ("очищ", "очищення"), ("живлен", "живлення"), ("антиоксид", "антиоксидантний захист"))
+_ACT = (("гіалурон", "гіалуронова кислота"), ("ніацинамід", "ніацинамід"), ("ретинал", "ретинал"), ("ретинол", "ретинол"),
+        ("вітамін c", "вітамін C"), ("вітаміном c", "вітамін C"), ("пантенол", "пантенол"), ("керамід", "кераміди"), ("пептид", "пептиди"),
+        ("азелаїн", "азелаїнова кислота"), ("азелоглі", "азелогліцин"), ("саліцил", "саліцилова кислота"), ("мигдал", "мигдальна кислота"),
+        ("екзосом", "екзосоми"), ("pdrn", "PDRN"), ("полінуклеотид", "полінуклеотиди"), ("пребіот", "пребіотики"), ("сквалан", "сквалан"),
+        ("центел", "центела азіатська"), ("бакучіол", "бакучіол"))
+
+
+def g_details(name: str, desc: str, ptype: str = "") -> tuple[list[tuple[str, str, str]], list[str]]:
+    """Атрибути для Google (product_detail) і короткі переваги (product_highlight) — з назви, категорії й опису.
+    Лише те, що прямо згадано в тексті картки; нічого не вигадуємо."""
+    t = f"{name} {ptype} {desc}".lower().replace("’", "'").replace("ʼ", "'")
+    def found(pairs, limit):
+        out = []
+        for k, v in pairs:
+            if k in t and v not in out:
+                out.append(v)
+        return out[:limit]
+    det = []
+    for sec, attr, vals in (("Догляд", "Тип шкіри", found(_SKIN, 4)), ("Догляд", "Призначення", found(_GOAL, 4)),
+                            ("Склад", "Активні компоненти", found(_ACT, 5))):
+        if vals:
+            det.append((sec, attr, ", ".join(vals)))
+    if ptype:
+        det.append(("Загальне", "Категорія", ptype.split(" > ")[-1]))
+    hl = []
+    for part in re.split(r"\s*[•●▪]\s*|\n", desc or ""):
+        part = part.strip(" .;")
+        if 15 <= len(part) <= 150 and part[:1].isupper() and part.upper() != part:
+            hl.append(part)
+        if len(hl) >= 6:
+            break
+    return det, hl
+
+
 def items(data: dict, root: str, notice_brands: set[str] | None = None) -> list[dict]:
     """Плоский список варіантів для фідів (лише видимі на сайті)."""
     cats = _cats_of(data)
@@ -107,7 +149,7 @@ def items(data: dict, root: str, notice_brands: set[str] | None = None) -> list[
             out.append({"id": str(v["id"]), "group": str(it["id"]) if len(it["variants"]) > 1 else "", "title": title[:150], "desc": desc,
                         "link": f"{root}/shop/{it['slug']}/", "imgs": imgs, "brand": it["brand"] or "MOLODIST", "sku": v.get("sku") or "", "gtin": v.get("gtin") or "",
                         "price": float(v["old"] or v["price"]), "sale": float(v["price"]) if v.get("old") else 0.0, "stock": bool(v["stock"]),
-                        "ptype": ptype, "cat": cats.get(it["slug"], [None])[0], "consult": bool(notice_brands and it["brand"] in notice_brands)})
+                        "ptype": ptype, "det": g_details(it["name"], desc, ptype), "cat": cats.get(it["slug"], [None])[0], "consult": bool(notice_brands and it["brand"] in notice_brands)})
     return out
 
 
@@ -134,6 +176,10 @@ def google(data: dict, root: str, title: str = "MOLODIST", notice_brands: set[st
             parts.append(f"<g:item_group_id>{i['group']}</g:item_group_id>")
         if i["ptype"]:
             parts.append(f"<g:product_type>{x(i['ptype'])}</g:product_type>")
+        det, hl = i.get("det") or ([], [])
+        parts += [f"<g:product_detail><g:section_name>{x(a)}</g:section_name><g:attribute_name>{x(b)}</g:attribute_name>"
+                  f"<g:attribute_value>{x(c)}</g:attribute_value></g:product_detail>" for a, b, c in det]
+        parts += [f"<g:product_highlight>{x(h)}</g:product_highlight>" for h in hl]
         if i["consult"]:
             parts.append("<g:custom_label_0>consultation</g:custom_label_0>")
         if i["sale"]:

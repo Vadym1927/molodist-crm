@@ -763,3 +763,12 @@ def test_google_desc_cleanup():
     assert d.startswith("Активно захищає")
     s = g_desc("REJURAN МАСКА 38ML", "REJURAN МАСКА 38ML", "Rejuran", "Догляд > Маски")
     assert "маски бренду Rejuran" in s and "лікар" in s and len(s) >= 150 - 40
+
+
+def test_google_details():
+    from app.services.shop_feeds import g_details
+    det, hl = g_details("Demax гідро-тонер з орхідеєю", "Динамічне зволоження • Забезпечує оптимальний рівень гідратації. • Відновлює бар’єрну функцію шкіри. Для сухої та чутливої шкіри. Містить гіалуронову кислоту і пантенол.", "Догляд > Тоніки")
+    d = {b: c for a, b, c in det}
+    assert "суха" in d["Тип шкіри"] and "чутлива" in d["Тип шкіри"]
+    assert "зволоження" in d["Призначення"] and "гіалуронова кислота" in d["Активні компоненти"]
+    assert d["Категорія"] == "Тоніки" and any("гідратації" in h for h in hl)
