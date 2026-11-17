@@ -286,6 +286,9 @@ async def job_shop():
     from .integrations import shop_express as sx
     def run():
         with SessionLocal() as db:
+            from .services import shop_front as _sf
+            if _sf.cfg(db).get("on"):                      # магазин переїхав на власний сайт CRM — Shop-Express більше не синхронізуємо
+                return None
             if sx.creds(db).get("login"):
                 rep = sx.sync(db)
                 try:
@@ -9955,6 +9958,7 @@ def settings_keys(request: Request, user: User = Depends(require("finance")), db
                   ai_engine=__import__("app.services.invoice_ai", fromlist=["x"]).engine(db),
                   ai_jobs=db.scalars(select(__import__("app.models", fromlist=["x"]).InvoiceJob).order_by(__import__("app.models", fromlist=["x"]).InvoiceJob.id.desc()).limit(8)).all(),
                   shop=__import__("app.integrations.shop_express", fromlist=["x"]).creds(db),
+                  shop_on=bool(__import__("app.services.shop_front", fromlist=["x"]).cfg(db).get("on")),
                   shop_rep=__import__("app.integrations.shop_express", fromlist=["x"]).last_report(db),
                   mig=__import__("app.services.shop_migrate", fromlist=["x"]).last(db), mig_cov=__import__("app.services.shop_migrate", fromlist=["x"]).coverage(db))
 

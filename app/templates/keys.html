@@ -73,7 +73,8 @@
 </div>{% endif %}
 
 {% if not sec or sec == 'shop' %}<div class="card" id="shop"><div class="row between"><h2 style="margin:0">molodist.store (Shop-Express) — посилання й фото товарів</h2>
-  {% if shop.login %}<span class="pill ok">підключено</span>{% else %}<span class="pill warn">не підключено</span>{% endif %}</div>
+  {% if shop_on %}<span class="pill">вимкнено — магазин на власному сайті</span>{% elif shop.login %}<span class="pill ok">підключено</span>{% else %}<span class="pill warn">не підключено</span>{% endif %}</div>
+  {% if shop_on %}<div class="alert" style="margin-top:8px">molodist.store працює на сайті CRM, тому щоденна синхронізація з Shop-Express вимкнена: ціни, фото й описи товарів змінюються лише в CRM. Історія старих замовлень лишається в архіві центру магазину.</div>{% endif %}
   {% if qp.get('shoperr') %}<div class="alert" style="margin-top:8px">{{ qp.get('shoperr') }}</div>{% endif %}
   <p class="small muted" style="margin:6px 0 10px">В адмінці магазину <a href="https://molodist.store/eco/ukr/api/users" target="_blank" rel="noopener">API → Користувачі</a> створіть API-користувача (email і пароль) і внесіть його тут. Щоранку CRM бере каталог сайту й заповнює в картках товарів посилання на товар, фото й ціну на сайті (зіставлення за артикулом, штрихкодом, назвою). Ручні посилання на інші сайти не затираються.</p>
   <form method="post" action="/settings/keys/shop" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px" autocomplete="off">
