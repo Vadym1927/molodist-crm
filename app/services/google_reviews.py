@@ -63,8 +63,27 @@ def refresh(db: Session, c: dict, http=None) -> dict:
         rows.append({"author": a.get("displayName") or "Користувач Google", "url": a.get("uri") or "", "photo": a.get("photoUri") or "",
                      "rating": int(x.get("rating") or 0), "text": txt[:700], "when": x.get("relativePublishTimeDescription") or "",
                      "time": (x.get("publishTime") or "")[:10]})
+    try:                                    # Places API (New) віддає лише 5 відгуків — добираємо найновіші зі звичайного Places API
+        r2 = (http or httpx).get("https://maps.googleapis.com/maps/api/place/details/json", timeout=15,
+                                 params={"place_id": pid, "fields": "reviews", "reviews_sort": "newest", "language": "uk", "key": key})
+        for x in ((r2.json() or {}).get("result") or {}).get("reviews") or []:
+            txt = (x.get("text") or "").strip()
+            if txt:
+                rows.append({"author": x.get("author_name") or "Користувач Google", "url": x.get("author_url") or "",
+                             "photo": x.get("profile_photo_url") or "", "rating": int(x.get("rating") or 0), "text": txt[:700],
+                             "when": x.get("relative_time_description") or "",
+                             "time": datetime.utcfromtimestamp(int(x.get("time") or 0)).strftime("%Y-%m-%d") if x.get("time") else ""})
+    except Exception:  # noqa: BLE001
+        pass
+    seen, uniq = set(), []
+    for x in rows:
+        k = (x["author"].strip().lower(), x["text"][:40].strip().lower())
+        if k not in seen and (x["author"].strip().lower(), x["time"]) not in seen:
+            seen.update({k, (x["author"].strip().lower(), x["time"])})
+            uniq.append(x)
+    rows = uniq
     st = {"rating": d.get("rating"), "count": d.get("userRatingCount"), "url": d.get("googleMapsUri") or "", "name": (d.get("displayName") or {}).get("text") or "",
-          "reviews": [x for x in rows if x["rating"] >= int(c.get("greviews_min") or 4)][:6], "at": datetime.utcnow().isoformat(timespec="minutes"), "error": ""}
+          "reviews": [x for x in rows if x["rating"] >= int(c.get("greviews_min") or 4)][:8], "at": datetime.utcnow().isoformat(timespec="minutes"), "error": ""}
     _save(db, st)
     return st
 
