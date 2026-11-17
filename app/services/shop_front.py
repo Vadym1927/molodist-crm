@@ -330,12 +330,15 @@ def catalog(db: Session, fresh: bool = False) -> dict:
             if it.get("product_id"):
                 sold[it["product_id"]] += it.get("qty") or 0
     by_slug: dict[str, dict] = {}
+    arch: dict[str, dict] = {}
     today = datetime.now().date().isoformat()
     for p in db.scalars(select(Product).where(Product.site_info.is_not(None)).order_by(Product.id)):
         si = p.site_info or {}
         slug = si.get("slug")
-        if not slug or p.site_on is False or p.active is False:
+        if not slug:
             continue
+        hidden = p.site_on is False or p.active is False         # прихований товар: сторінка лишається (архів), без каталогу й кошика
+        target = arch if hidden else by_slug
         price = _price(p)
         if price <= 0:
             continue
@@ -343,10 +346,10 @@ def catalog(db: Session, fresh: bool = False) -> dict:
         sale = si.get("sale") or {}
         if sale.get("pct") and (not sale.get("until") or str(sale["until"]) >= today):       # знижка на сайті, задана в CRM
             old, price = price, float(round(price * (1 - float(sale["pct"]) / 100)))
-        stock = str(si.get("presence", 1)).lower() not in ("0", "false", "not_available") and (si.get("quantity") is None or float(si.get("quantity") or 0) > 0)
+        stock = not hidden and str(si.get("presence", 1)).lower() not in ("0", "false", "not_available") and (si.get("quantity") is None or float(si.get("quantity") or 0) > 0)
         v = {"id": p.id, "name": si.get("title") or p.name, "price": price, "old": old if old > price else 0, "stock": stock,
              "sku": p.sku or si.get("sku") or "", "label": p.volume or ""}
-        it = by_slug.get(slug)
+        it = target.get(slug)
         if it:
             it["variants"].append(v)
             it["sold"] += sold.get(p.id, 0)
@@ -355,13 +358,17 @@ def catalog(db: Session, fresh: bool = False) -> dict:
             it["stock"] = it["stock"] or stock
             continue
         brand = si.get("brand_name") or p.brand or ""
-        by_slug[slug] = {"slug": slug, "id": p.id, "name": si.get("title") or p.name, "brand": brand, "price": price, "old": v["old"],
+        target[slug] = {"slug": slug, "id": p.id, "name": si.get("title") or p.name, "brand": brand, "price": price, "old": v["old"],
                          "stock": stock, "imgs": files.get(p.id, []), "desc": si.get("short_description") or "",
                          "sections": sections(si.get("short_description") or ""),
                          "seo_title": si.get("seo_title") or "", "seo_desc": si.get("seo_description") or "", "sold": sold.get(p.id, 0),
                          "new": p.id, "variants": [v], "sku": v["sku"], "sticker": si.get("sticker") or "",
                          "tip": si.get("tip") if (si.get("tip") or {}).get("text") else None}
     for it in by_slug.values():
+        it["archived"] = False
+    for it in arch.values():
+        it["archived"] = True
+    for it in list(by_slug.values()) + list(arch.values()):
         it["pct"] = round(100 * (1 - it["price"] / it["old"])) if it["old"] else 0
     st = site(db)
     cats = []
@@ -371,7 +378,7 @@ def catalog(db: Session, fresh: bool = False) -> dict:
         sl = [s for s in c["slugs"] if s in by_slug]
         cats.append({**c, "slugs": sl, "n": len(sl), "depth": c["path"].strip("/").count("/"), "parent": "/".join(c["path"].rstrip("/").split("/")[:-1]) + "/"})
     brands_root = "/shop/brendi/"
-    data = {"items": list(by_slug.values()), "by_slug": by_slug, "cats": cats, "by_path": {c["path"]: c for c in cats},
+    data = {"items": list(by_slug.values()), "by_slug": by_slug, "archive": {k: v for k, v in arch.items() if k not in by_slug}, "cats": cats, "by_path": {c["path"]: c for c in cats},
             "menu": sorted((c for c in cats if c["depth"] == 1 and c["path"] != brands_root and c["n"] and c.get("in_menu", True) is not False),
                            key=lambda c: (c.get("sort") or 100)),
             "brands": sorted((c for c in cats if c["path"].startswith(brands_root) and c["path"] != brands_root and (c["n"] or c.get("notice"))), key=lambda c: c["name"].lower()),
@@ -1113,6 +1120,8 @@ def old_links_report(db: Session) -> dict:
             row = {"id": p.id, "name": si.get("title") or p.name, "link": "https://molodist.store" + (path if path.endswith("/") else path + "/")}
             if len(segs) >= 2 and segs[0] == "shop" and segs[1] in data["by_slug"]:
                 rows["ok"].append(row)
+            elif len(segs) >= 2 and segs[0] == "shop" and segs[1] in (data.get("archive") or {}):
+                rows["redirect"].append({**row, "to": "сторінка товару «зараз немає в продажу онлайн»"})
             elif len(segs) >= 2 and segs[0] == "shop" and hidden_target(db, data, segs[1]):
                 rows["redirect"].append({**row, "to": hidden_target(db, data, segs[1])})
             else:

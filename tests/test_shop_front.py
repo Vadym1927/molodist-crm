@@ -730,6 +730,10 @@ def test_old_links_report_and_hidden_redirect():
         c.cookies.set("shop_prev", k)
         assert c.get("/_shop/shop/old-vis/5555/", follow_redirects=False).headers["location"].endswith("/shop/old-vis/")
         r = c.get("/_shop/shop/old-hid/6666/", follow_redirects=False)
-        assert r.status_code == 301 and r.headers["location"].endswith("/shop/")
+        assert r.status_code == 301 and r.headers["location"].endswith("/shop/old-hid/")
+        pg = c.get("/_shop/shop/old-hid/")
+        assert pg.status_code == 200 and "Зараз немає в продажу онлайн" in pg.text
+        assert c.get("/_shop/shop/filters/brand/zzz/", follow_redirects=False).headers["location"].endswith("/shop/brendi/")
+        assert c.get("/_shop/shop/brendi/nemaie/", follow_redirects=False).status_code == 301
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-ol"})
         assert "Старі посилання" in c.get("/settings/shop/old-links").text

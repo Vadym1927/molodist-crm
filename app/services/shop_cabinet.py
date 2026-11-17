@@ -262,7 +262,7 @@ def stats(db: Session) -> dict:
 def notify_add(db: Session, product_id: int, raw_phone: str, data: dict) -> dict:
     """Підписка на появу товару. Один номер — один запис на товар; уже в наявності — підписка не потрібна."""
     phone = _phone(raw_phone)
-    by_id = {v["id"]: (it, v) for it in data["items"] for v in it["variants"]}
+    by_id = {v["id"]: (it, v) for it in list(data["items"]) + list((data.get("archive") or {}).values()) for v in it["variants"]}
     if product_id not in by_id:
         raise CabError("Товар не знайдено.")
     if by_id[product_id][1]["stock"]:

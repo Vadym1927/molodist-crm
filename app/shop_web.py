@@ -184,7 +184,7 @@ def register(app, templates, version: str):
     @app.get("/_shop/contentsitemap.xml", include_in_schema=False)
     def shop_sitemap(db: Session = Depends(db_dep)):
         b, d = sf.cfg(db)["canonical"].rstrip("/"), sf.catalog(db)
-        urls = ["/", "/shop/"] + (["/pidbir/"] if sf.cfg(db).get("quiz_on", True) else []) + [c["path"] for c in d["cats"] if c["n"] or c.get("notice")] + [f"/shop/{i['slug']}/" for i in d["items"]] + list(d["pages"])
+        urls = ["/", "/shop/"] + (["/pidbir/"] if sf.cfg(db).get("quiz_on", True) else []) + [c["path"] for c in d["cats"] if c["n"] or c.get("notice")] + [f"/shop/{i['slug']}/" for i in d["items"]] + [f"/shop/{s}/" for s in d.get("archive") or {}] + list(d["pages"])
         body = "".join(f"<url><loc>{b}{u}</loc></url>" for u in dict.fromkeys(urls))
         return Response(f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{body}</urlset>', media_type="application/xml")
 
@@ -632,11 +632,22 @@ def register(app, templates, version: str):
         d = cx["d"]
         if not segs:
             return RedirectResponse(cx["base"] + "/shop/", 301)
-        if "filters" in segs:                                    # старі адреси фільтрів → категорія
-            return RedirectResponse(cx["base"] + "/shop/" + "/".join(segs[:segs.index("filters")]) + "/", 301)
+        if "filters" in segs:                                    # старі адреси фільтрів → категорія / бренд
+            i = segs.index("filters")
+            if i + 2 < len(segs) and segs[i + 1] == "brand":
+                b = segs[i + 2].lower()
+                hit = next((c["path"] for c in d["cats"] if c["path"].startswith("/shop/brendi/") and (c["path"].rstrip("/").rsplit("/", 1)[-1] == b
+                            or sf.slugify(c["name"]).startswith(b) or b.startswith(sf.slugify(c["name"].split(" (")[0])))), None)
+                return RedirectResponse(cx["base"] + (hit or "/shop/brendi/"), 301)
+            return RedirectResponse(cx["base"] + "/shop/" + "/".join(segs[:i]) + ("/" if i else ""), 301)
+        _old = {"nabori": "/shop/", "rotova-porozhnina": "/shop/", "dietichni-ta-harchovi-dobavki": "/shop/brendi/jalupro/"}
+        if len(segs) == 1 and segs[0] in _old and "/shop/" + segs[0] + "/" not in d["by_path"]:
+            return RedirectResponse(cx["base"] + _old[segs[0]], 301)
+        if len(segs) == 2 and segs[0] == "brendi" and "/shop/brendi/" + segs[1] + "/" not in d["by_path"]:
+            return RedirectResponse(cx["base"] + "/shop/brendi/", 301)
         if segs[-1].startswith("page-") and segs[-1][5:].isdigit():
             page, segs = int(segs[-1][5:]), segs[:-1]
-        it = d["by_slug"].get(segs[0])
+        it = d["by_slug"].get(segs[0]) or (d.get("archive") or {}).get(segs[0])
         if not it and len(segs) <= 2 and "/shop/" + "/".join(segs) + "/" not in d["by_path"]:
             gone = sf.hidden_target(db, d, segs[0])          # старе посилання на прихований товар → сторінка бренду, а не 404
             if gone:
@@ -646,7 +657,9 @@ def register(app, templates, version: str):
                 return RedirectResponse(f"{cx['base']}/shop/{it['slug']}/", 301)
             cats = [c for c in d["cats"] if it["slug"] in c["slugs"] and not c["path"].startswith("/shop/brendi/")]
             cat = max(cats, key=lambda c: c["depth"]) if cats else None
-            rel = [x for x in (d["by_slug"][s] for s in (cat["slugs"] if cat else [])) if x["slug"] != it["slug"] and x["stock"]][:8]
+            rel = [x for x in (d["by_slug"][s] for s in (cat["slugs"] if cat else []) if s in d["by_slug"]) if x["slug"] != it["slug"] and x["stock"]][:8]
+            if it.get("archived") and len(rel) < 4:
+                rel += [x for x in d["items"] if x["brand"] == it["brand"] and x["stock"] and x not in rel][:8 - len(rel)]
             from .services import shop_reviews as _rv
             rvs = _rv.published(db, [v["id"] for v in it["variants"]])
             tip_doc = None
