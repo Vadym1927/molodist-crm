@@ -182,6 +182,7 @@ def register(app, templates, version: str):
 
     @app.get("/_shop/sitemap.xml")
     @app.get("/_shop/contentsitemap.xml", include_in_schema=False)
+    @app.get("/_shop/productcatalogsitemap.xml", include_in_schema=False)
     def shop_sitemap(db: Session = Depends(db_dep)):
         b, d = sf.cfg(db)["canonical"].rstrip("/"), sf.catalog(db)
         urls = ["/", "/shop/"] + (["/pidbir/"] if sf.cfg(db).get("quiz_on", True) else []) + [c["path"] for c in d["cats"] if c["n"] or c.get("notice")] + [f"/shop/{i['slug']}/" for i in d["items"]] + [f"/shop/{s}/" for s in d.get("archive") or {}] + list(d["pages"])
