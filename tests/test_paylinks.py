@@ -279,3 +279,42 @@ def test_sale_page_manual_channels_and_mark_sent(monkeypatch):
         assert c.post(f"/paylinks/{lid}/mark-sent", data={"ch": "viber"}).json()["ok"]
     with SessionLocal() as db:
         assert db.get(PayLink, lid).info["sent"]["channel"] == "Viber"
+
+
+def test_paid_once_webhook_and_poll_race(monkeypatch):
+    """Вебхук і опитування статусу одночасно: фіскальний чек і сповіщення — рівно один раз."""
+    from app.models import Sale, PayLink
+    from app.services import sales as sl, cashboxes as cbx, fiscal as fis, alerts, notifications as nt
+    calls, sent = [], []
+
+    def fake_fis(db, s, rid=None, *a, **k):
+        calls.append(s.id)
+        s.fiscal = {**(s.fiscal or {}), "fiscal_code": "F%d" % len(calls)}; db.commit()
+        return {"fiscal_code": "F1"}
+    monkeypatch.setattr(fis, "fiscalize", fake_fis)
+    monkeypatch.setattr(fis, "send_receipt", lambda db, s: None)
+    monkeypatch.setattr(alerts, "send", lambda text, *a, **k: sent.append(text) or True)
+    with SessionLocal() as db:
+        cbx.apply_seed(db)
+        a = pls.save_account(db, None, "mono", "monobank ФОП Дубль", {"token": "MTOK"}, "Термінал ФОП Бондар", True)
+        m = sl.paylink_method("monobank ФОП Дубль")
+        p = Patient(full_name="Дубль Оплата", phone="+380671234588"); db.add(p); db.commit()
+        s = sl.create(db, {"patient_id": p.id, "items": [{"kind": "other", "name": "X", "qty": 1, "price": 1500.5}],
+                           "payments": [{"method": m, "amount": 1500.5}]})
+        s.fiscal = {"rro_pending": 7}; db.commit()
+        http, st = _mono()
+        pl = pls.create(db, 1500.5, f"Чек Ч-{s.id}", "https://crm.molodist.com.ua", p.id, http=http, account_id=a["id"])
+        pl.sale_id = s.id; db.commit()
+        lid, sid = pl.id, s.id
+    st["status"] = "success"
+    with SessionLocal() as d1, SessionLocal() as d2:
+        p1, p2 = d1.get(PayLink, lid), d2.get(PayLink, lid)      # обидва запити бачать «created»
+        pls.check_status(d1, p1, http)
+        pls.check_status(d2, p2, http)
+    assert calls == [sid]
+    paid_msgs = [x for x in sent if "Оплачено онлайн" in x]
+    assert len(paid_msgs) == 1 and "✅" in paid_msgs[0] and "Дубль Оплата" in paid_msgs[0] and f"Ч-{sid}" in paid_msgs[0]
+    with SessionLocal() as db:
+        from datetime import datetime, timedelta
+        it = [x for x in nt.payments(db, datetime.utcnow() - timedelta(hours=30)) if x["id"] == lid]
+        assert it and it[0]["kind"] == "paid" and it[0]["url"] == f"/sales/{sid}" and "1 500 ₴" in it[0]["title"]

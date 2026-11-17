@@ -9,6 +9,7 @@ import hashlib
 import hmac
 import json
 import secrets as _secrets
+import threading
 import time
 from datetime import datetime, timedelta
 
@@ -258,7 +259,21 @@ def message(db: Session, pl: PayLink) -> str:
     return (d.get("text") or DEFAULT_TEXT).replace("{url}", pl.url or "").replace("{sum}", f"{pl.amount:.2f}").replace("{purpose}", pl.purpose)
 
 
+_PAY_LOCK = threading.RLock()     # вебхук і опитування статусу приходять одночасно → оплату обробляємо рівно один раз
+
+
 def _mark(db: Session, pl: PayLink, status: str, paid_amount: float | None = None, extra: dict | None = None) -> None:
+    with _PAY_LOCK:
+        _mark_locked(db, pl, status, paid_amount, extra)
+
+
+def _mark_locked(db: Session, pl: PayLink, status: str, paid_amount: float | None, extra: dict | None) -> None:
+    try:
+        db.refresh(pl)          # свіжий статус з бази: інший запит міг щойно провести цю оплату
+    except Exception:  # noqa: BLE001
+        pass
+    if pl.status == "paid" and status != "paid":
+        return                  # оплачене посилання не відкочуємо пізнім «expired/failed»
     was = pl.status
     pl.status = status
     if extra:
@@ -309,11 +324,7 @@ def _book(db: Session, pl: PayLink) -> None:
             others = db.query(PayLink).filter(PayLink.sale_id == s.id, PayLink.id != pl.id, PayLink.status != "paid").count()
             if not others:
                 s.status = "paid"
-        try:
-            from . import alerts
-            alerts.send(f"💳 Онлайн-оплата {pl.paid_amount or pl.amount:.2f} ₴ · чек Ч-{pl.sale_id} · {pl.purpose}")
-        except Exception:  # noqa: BLE001
-            pass
+        paid_alert(db, pl)
         return
     d = _raw(db)
     a = _acc_of(d, pl)
@@ -321,27 +332,66 @@ def _book(db: Session, pl: PayLink) -> None:
     db.add(FinOp(day=datetime.now().date(), kind="income", category="Онлайн-оплата", amount=pl.paid_amount or pl.amount,
                  cashbox=(a or {}).get("cashbox") or "Онлайн-оплати", counterparty=who,
                  comment=f"Посилання на оплату №{pl.id} ({(a or {}).get('name') or PROVIDERS[pl.provider]['label']}): {pl.purpose}"[:500]))
+    paid_alert(db, pl)
+
+
+def _money(x: float) -> str:
+    return f"{x:,.2f}".replace(",", " ").replace(".00", "") + " ₴"
+
+
+def paid_text(db: Session, pl: PayLink) -> str:
+    """Зрозуміле повідомлення про оплату: ✅ сума, пацієнт, чек, ФОП, посилання на чек / картку."""
+    import html as _h
+    from ..config import settings
+    from ..models import Patient
+    base = settings.public_url.rstrip("/")
+    p = db.get(Patient, pl.patient_id) if pl.patient_id else None
+    acc = (pl.info or {}).get("account") or PROVIDERS.get(pl.provider, {}).get("label", "")
+    lines = ["✅ <b>Оплачено онлайн</b>", f"💳 <b>{_money(pl.paid_amount or pl.amount)}</b>" + (f" · {_h.escape(acc)}" if acc else "")]
+    if p:
+        lines.append(f"👤 <a href=\"{base}/patients/{p.id}\">{_h.escape(p.full_name or '')}</a>" + (f" · {_h.escape(p.phone)}" if p.phone else ""))
+    if pl.sale_id:
+        lines.append(f"🧾 <a href=\"{base}/sales/{pl.sale_id}\">Чек Ч-{pl.sale_id}</a>")
+    elif (pl.info or {}).get("shop_order"):
+        lines.append(f"🛍 Замовлення магазину · {_h.escape(pl.purpose)}")
+    else:
+        lines.append(f"📝 {_h.escape(pl.purpose)}")
+    lines.append(f"🕒 {(pl.paid_at or datetime.now()):%d.%m.%Y %H:%M}")
+    return "\n".join(lines)
+
+
+def paid_alert(db: Session, pl: PayLink) -> None:
+    """Оплата за посиланням → чат «Заявки Сайти» (той, що призначено командою /zayavky); не призначено — власнику."""
     try:
-        from . import alerts
-        alerts.send(f"💳 Онлайн-оплата {pl.paid_amount or pl.amount:.2f} ₴ · {who or 'без пацієнта'} · {pl.purpose}")
-    except Exception:  # noqa: BLE001
+        from . import alerts, site_leads
+        text = paid_text(db, pl)
+        chat = str(site_leads.cfg(db).get("tg_chat") or "").strip()
+        if not (chat and alerts._api("sendMessage", data={"chat_id": chat, "text": text[:4000], "parse_mode": "HTML",
+                                                          "disable_web_page_preview": "true"})):
+            alerts.send(text)
+    except Exception:  # noqa: BLE001 — сповіщення не мають ламати оплату
         pass
 
 
 def _fiscal_after_pay(db: Session, s) -> None:
     """Чек каси CRM, оплачений за посиланням: фіскалізувати в касі, обраній у POS (або за замовчуванням, якщо авто-фіскалізація)."""
     from . import autonomy, fiscal as fis
+    db.refresh(s)
     f = dict(s.fiscal or {})
-    if f.get("fiscal_code") or f.get("test_sale") or f.get("skipped") or autonomy.test_mode(db):
+    if f.get("fiscal_code") or f.get("fiscalizing") or f.get("test_sale") or f.get("skipped") or autonomy.test_mode(db):
         return
     rro = f.get("rro_pending") or (None if not fis.cfg(db).get("auto") else 0)
     if rro is None:
         return
+    s.fiscal = {**f, "fiscalizing": datetime.now().isoformat(timespec="seconds")}
+    db.commit()
     try:
         fis.fiscalize(db, s, rro or None)
+        s.fiscal = {k: v for k, v in (s.fiscal or {}).items() if k != "fiscalizing"}
+        db.commit()
         fis.send_receipt(db, s)
     except Exception as e:  # noqa: BLE001 — гроші вже прийшли; помилку видно в чеку, фіскалізувати можна вручну
-        f2 = dict(s.fiscal or {})
+        f2 = {k: v for k, v in (s.fiscal or {}).items() if k != "fiscalizing"}
         f2["error"] = str(e)[:200]
         s.fiscal = f2
         db.commit()

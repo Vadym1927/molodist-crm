@@ -6167,9 +6167,10 @@ def notifications_poll(since: str = "", user: User = Depends(current_user), db: 
         s_ = datetime.utcnow() - timedelta(minutes=2)
     new = nt.online(db, s_) if can(user, "book") else []
     if can(user, "sales"):
-        new = new + nt.shop(db, s_)
+        new = new + nt.shop(db, s_) + nt.payments(db, s_)
     return {"now": datetime.utcnow().isoformat(timespec="seconds"), "unseen": nt.unseen(db, user),
-            "toasts": [{"title": x["title"], "text": x["text"], "url": x["url"]} for x in new][:5]}
+            "toasts": [{"title": x["title"], "text": x["text"], "url": x["url"], "kind": x["kind"], "amount": x.get("amount"),
+                        "who": x.get("who"), "what": x.get("what")} for x in new][:5]}
 
 
 @app.get("/telephony", response_class=HTMLResponse)

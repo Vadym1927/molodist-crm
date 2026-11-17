@@ -316,11 +316,23 @@ window.ntHide=function(btn){var body=btn?{keys:[btn.closest('.nt-r').dataset.k]}
     if(btn){btn.closest('.nt-r').remove();if(!box.querySelector('.nt-r'))box.querySelector('.nt-l').innerHTML='<div class="nt-e">Нових сповіщень немає</div>'}
     else{box.querySelector('.nt-l').innerHTML='<div class="nt-e">Нових сповіщень немає</div>';var c=box.querySelector('.nt-clr');if(c)c.remove()}})};
 document.addEventListener('click',function(e){if(!box.hidden&&!e.target.closest('.nt-w'))box.hidden=true});
-function toast(t){var w=document.querySelector('.nt-toast');if(!w){w=document.createElement('div');w.className='nt-toast';document.body.appendChild(w)}
+function payPop(t){var w=document.getElementById('paypop');if(!w){w=document.createElement('div');w.id='paypop';w.className='pay-pop';document.body.appendChild(w)}
+  var c=document.createElement('div');c.className='pp-c';c.innerHTML='<button class="x" title="Закрити">×</button><div class="ok"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div class="t">Оплачено</div><div class="a"></div><div class="w"></div><div class="s"></div><a class="go">Відкрити чек</a>';
+  c.querySelector('.a').textContent=t.amount||'';c.querySelector('.w').textContent=t.who||'';c.querySelector('.s').textContent=(t.what||'')+' · онлайн-оплата';
+  var g=c.querySelector('.go');g.href=t.url;if(!/\/sales\//.test(t.url))g.textContent='Відкрити';c.querySelector('.x').onclick=function(){c.remove()};w.appendChild(c);setTimeout(function(){c.remove()},120000)}
+function toast(t){if(t.kind==='paid'){payPop(t);return}var w=document.querySelector('.nt-toast');if(!w){w=document.createElement('div');w.className='nt-toast';document.body.appendChild(w)}
   var a=document.createElement('a');a.href=t.url;a.innerHTML='<b></b><span></span>';a.querySelector('b').textContent=t.title;a.querySelector('span').textContent=t.text;w.appendChild(a);setTimeout(function(){a.remove()},15000)}
 function poll(){if(document.hidden)return;fetch('/notifications/poll'+(since?'?since='+encodeURIComponent(since):''),{credentials:'same-origin'}).then(function(r){return r.ok?r.json():null}).then(function(j){if(!j)return;
   if(since)(j.toasts||[]).forEach(toast);since=j.now;bd.textContent=j.unseen;bd.hidden=!j.unseen}).catch(function(){})}
-poll();setInterval(poll,60000)})();</script>
+poll();setInterval(poll,20000)})();</script>
+<style>.pay-pop{position:fixed;left:50%;top:22px;transform:translateX(-50%);z-index:125;display:grid;gap:10px}
+.pay-pop .pp-c{position:relative;width:340px;background:#fff;border:2px solid #4CAF50;border-radius:22px;padding:22px 20px 18px;text-align:center;box-shadow:0 24px 60px -12px rgba(42,36,48,.45);animation:cpIn .25s ease-out}
+.pay-pop .ok{width:64px;height:64px;margin:0 auto 8px;border-radius:50%;background:#4CAF50;display:grid;place-items:center;box-shadow:0 0 0 10px rgba(76,175,80,.15)}.pay-pop .ok svg{width:34px;height:34px}
+.pay-pop .t{font:700 13px var(--sans);letter-spacing:.14em;text-transform:uppercase;color:#2F7A4C}.pay-pop .a{font:700 30px var(--sans);color:#2A2430;margin:4px 0 2px}
+.pay-pop .w{font:600 15px var(--sans);color:#2A2430}.pay-pop .s{font-size:12.5px;color:#8a8496;margin-top:2px}
+.pay-pop .go{display:block;margin-top:14px;padding:11px;border-radius:12px;background:#3B3050;color:#fff;text-decoration:none;font:700 13.5px var(--sans)}
+.pay-pop .x{position:absolute;top:8px;right:12px;border:0;background:none;color:#8a8496;font-size:22px;cursor:pointer}
+@keyframes cpIn{from{transform:translateY(-14px);opacity:0}to{transform:none;opacity:1}}</style>
 {% if telephony_on() %}{% if True %}<style>
 .call-pop{position:fixed;right:22px;bottom:22px;z-index:120;display:grid;gap:10px;max-height:calc(100vh - 44px);overflow:auto}
 .cp-c{position:relative;overflow:hidden;width:360px;background:#2A2430;color:#fff;border-radius:20px;padding:16px 18px 18px;box-shadow:0 24px 60px -12px rgba(42,36,48,.55);animation:cpIn .25s ease-out}

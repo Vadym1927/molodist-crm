@@ -53,6 +53,23 @@ def shop(db: Session, since: datetime) -> list[dict]:
     return out
 
 
+def payments(db: Session, since: datetime) -> list[dict]:
+    """Оплати за посиланням (since — UTC; PayLink.paid_at — київський час)."""
+    from ..models import Patient, PayLink
+    from .day_stats import _tz_shift
+    sh = timedelta(hours=_tz_shift())
+    out = []
+    for pl in db.scalars(select(PayLink).where(PayLink.status == "paid", PayLink.paid_at >= since + sh)
+                         .order_by(PayLink.paid_at.desc()).limit(50)):
+        p = db.get(Patient, pl.patient_id) if pl.patient_id else None
+        amt = f"{(pl.paid_amount or pl.amount or 0):,.0f} ₴".replace(",", " ")
+        what = f"чек Ч-{pl.sale_id}" if pl.sale_id else pl.purpose
+        out.append({"kind": "paid", "id": pl.id, "at": pl.paid_at - sh, "level": "ok", "title": f"Оплачено онлайн · {amt}",
+                    "text": f"{p.full_name if p else 'без пацієнта'} · {what}", "amount": amt, "who": p.full_name if p else "",
+                    "what": what, "url": f"/sales/{pl.sale_id}" if pl.sale_id else (f"/patients/{p.id}" if p else "/settings/payments")})
+    return out
+
+
 def calls(db: Session, since: datetime) -> list[dict]:
     """Вхідні дзвінки (пропущені — червоні) з моменту since (UTC). Call.at — київський час."""
     from ..models import Call, Patient
@@ -157,6 +174,11 @@ def items(db: Session, user: User) -> list[dict]:
         if user.role in ("owner", "admin") or can(user, "patients_all"):
             from . import reviews as _rv
             res += _rv.bell(db, datetime.utcnow() - timedelta(days=14))
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        if can(user, "sales"):
+            res += payments(db, datetime.utcnow() - timedelta(days=7))
     except Exception:  # noqa: BLE001
         pass
     try:
