@@ -398,6 +398,8 @@ def catalog(db: Session, fresh: bool = False) -> dict:
         if c.get("hidden"):
             continue
         sl = [s for s in c["slugs"] if s in by_slug]
+        if c["path"] == "/shop/sale/":                  # SALE — лише товари, що зараз справді зі знижкою (ручною чи «короткий термін»)
+            sl = [k for k, it in sorted(by_slug.items(), key=lambda kv: -kv[1]["pct"]) if it["old"] and it["stock"]]
         cats.append({**c, "slugs": sl, "n": len(sl), "depth": c["path"].strip("/").count("/"), "parent": "/".join(c["path"].rstrip("/").split("/")[:-1]) + "/"})
     brands_root = "/shop/brendi/"
     data = {"items": list(by_slug.values()), "by_slug": by_slug, "archive": {k: v for k, v in arch.items() if k not in by_slug}, "cats": cats, "by_path": {c["path"]: c for c in cats},

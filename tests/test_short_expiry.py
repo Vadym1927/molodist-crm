@@ -72,3 +72,12 @@ def test_tg_plan_without_phone_does_not_create_card():
         plan, _, err = ingest.ingest_pdf(db, pdf.read_bytes(), "plan.pdf", "-100777")
         assert plan is None and isinstance(err, ingest.Attached) and "не створено" in err and err.file_id
         assert db.query(Patient).count() == n0
+
+
+def test_sale_category_only_discounted():
+    from app.services import shop_front as sf
+    with SessionLocal() as db:
+        data = sf.catalog(db, fresh=True)
+        sale = data["by_path"].get("/shop/sale/")
+        if sale:
+            assert all(data["by_slug"][s]["old"] for s in sale["slugs"])
