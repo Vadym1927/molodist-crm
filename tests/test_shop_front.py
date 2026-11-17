@@ -748,3 +748,10 @@ def test_gtin_in_google_feed():
                                    "variants": [{"id": 7, "name": "A", "label": "", "price": 100, "old": 0, "stock": True, "sku": "", "gtin": "5901234123457"}]}]}
     xml = shop_feeds.google(data, "https://x")
     assert "<g:gtin>5901234123457</g:gtin>" in xml and "identifier_exists" not in xml
+
+
+def test_google_titles():
+    from app.services.shop_feeds import g_title
+    assert g_title("DEMAX ОЧИЩУЮЧИЙ ГЕЛЬ 250МЛ AHA BHA", "Demax") == "Demax очищуючий гель 250 мл AHA BHA"
+    assert g_title("Крем для обличчя", "Medik8", "30 мл") == "Medik8 Крем для обличчя, 30 мл"
+    assert g_title("Medik8 Crystal Retinal 6, 30 мл", "Medik8") == "Medik8 Crystal Retinal 6, 30 мл"

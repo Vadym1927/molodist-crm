@@ -224,7 +224,7 @@ def register(app, templates, version: str):
         if not f or f.kind != "photo" or not f.site or not Path(f.path).exists():
             raise HTTPException(404)
         w = min((300, 600, 1200), key=lambda x: abs(x - w))
-        cache = Path(settings.files_dir) / "_thumbs" / f"{fid}_{w}.webp"
+        cache = Path(settings.files_dir) / "_thumbs" / f"{fid}_{w}{'m' if w >= 1200 else ''}.webp"
         if not cache.exists():
             try:
                 from PIL import Image
@@ -232,6 +232,9 @@ def register(app, templates, version: str):
                 im = Image.open(f.path)
                 im = im.convert("RGBA" if im.mode in ("RGBA", "LA", "P") else "RGB")
                 im.thumbnail((w, w * 2))
+                if w >= 1200 and min(im.size) < 600:          # фід Google: фото ≥ 500×500 — маленькі збільшуємо до 600 по меншій стороні
+                    k = 600 / min(im.size)
+                    im = im.resize((round(im.size[0] * k), round(im.size[1] * k)), Image.LANCZOS)
                 im.save(cache, "WEBP", quality=82)
             except Exception:  # noqa: BLE001
                 return FileResponse(f.path, headers={"Cache-Control": "public, max-age=604800"})

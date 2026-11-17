@@ -45,6 +45,38 @@ def _ptype(cats: list[dict], data: dict) -> str:
     return " > ".join(reversed(chain))
 
 
+_CYR = re.compile(r"[А-ЯЄІЇҐа-яєіїґʼ']")
+_VOL = re.compile(r"(\d+(?:[.,]\d+)?)\s*(ML|МЛ|G|Г|ГР|PCS|ШТ)\b", re.I)
+
+
+def g_title(name: str, brand: str, label: str = "") -> str:
+    """Назва для Google: «Бренд + назва + обʼєм», без КРИКУ капсом (кириличні слова — звичайними літерами,
+    латинські назви ліній лишаються як є), обʼєм — «50 мл»."""
+    t = " ".join((name or "").split())
+    letters = [ch for ch in t if ch.isalpha()]
+    if letters and sum(ch.isupper() for ch in letters) / len(letters) > 0.7:     # усе капсом
+        words = []
+        keep = {"SPF", "AHA", "BHA", "PHA", "NMF", "ZO", "PDRN", "PN", "HA", "UV", "LED", "MHC", "CBD"}
+        for w in t.split(" "):
+            if _CYR.search(w):
+                words.append(w.lower())
+            elif w.isupper() and len(w) >= 4 and w.strip("+-()\"'.,") not in keep:
+                words.append("-".join(x.capitalize() for x in w.split("-")))
+            else:
+                words.append(w)
+        t = " ".join(words)
+        t = t[:1].upper() + t[1:]
+    t = _VOL.sub(lambda m: f"{m.group(1)} " + {"ml": "мл", "мл": "мл", "g": "г", "г": "г", "гр": "г", "pcs": "шт", "шт": "шт"}[m.group(2).lower()], t)
+    b = (brand or "").strip()
+    if b and t.lower().startswith(b.lower()):
+        t = b + t[len(b):]                                  # «DEMAX …» → «Demax …» (як у назві бренду)
+    if b and b.lower() not in t.lower() and b.lower() != "molodist":
+        t = f"{b} {t}"
+    if label and not _VOL.search(t) and label.lower() not in t.lower():
+        t = f"{t}, {label}"
+    return t[:150]
+
+
 def items(data: dict, root: str, notice_brands: set[str] | None = None) -> list[dict]:
     """Плоский список варіантів для фідів (лише видимі на сайті)."""
     cats = _cats_of(data)
@@ -55,6 +87,7 @@ def items(data: dict, root: str, notice_brands: set[str] | None = None) -> list[
         imgs = [f"{root}/img/{f}?w=1200" for f in it["imgs"][:10]]
         for v in it["variants"]:
             title = v["name"] if len(it["variants"]) == 1 or not v.get("label") else f"{it['name']} {v['label']}"
+            title = g_title(title, it["brand"], v.get("label") or "")
             out.append({"id": str(v["id"]), "group": str(it["id"]) if len(it["variants"]) > 1 else "", "title": title[:150], "desc": desc,
                         "link": f"{root}/shop/{it['slug']}/", "imgs": imgs, "brand": it["brand"] or "MOLODIST", "sku": v.get("sku") or "", "gtin": v.get("gtin") or "",
                         "price": float(v["old"] or v["price"]), "sale": float(v["price"]) if v.get("old") else 0.0, "stock": bool(v["stock"]),
