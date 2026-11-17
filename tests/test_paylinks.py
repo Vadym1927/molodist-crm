@@ -337,7 +337,7 @@ def test_sale_fiscal_relink(monkeypatch):
             if req.url.path.endswith("/signinPinCode"):
                 return _hx.Response(200, json={"access_token": "T"})
             assert req.url.params["fiscal_code"] == "DfZ1GzhF54Y"
-            return _hx.Response(200, json={"results": [{"id": "new-id", "fiscal_code": "DfZ1GzhF54Y", "fiscal_date": "2026-11-17T17:13:04+02:00"}]})
+            return _hx.Response(200, json={"results": [{"id": "new-id", "fiscal_code": "DfZ1GzhF54Y", "fiscal_date": "2026-11-17T15:13:04"}]})
         f = fis.relink(db, s, "DfZ1GzhF54Y", _hx.Client(transport=_hx.MockTransport(h)))
         assert f["fiscal_code"] == "DfZ1GzhF54Y" and f["id"] == "new-id" and f["url"].endswith("new-id")
         assert f["replaced"][0]["fiscal_code"] == "QjTi_XyAaZk" and f["at"] == "17.11.2026 17:13"

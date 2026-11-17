@@ -456,7 +456,11 @@ def relink(db: Session, sale: Sale, code: str, http: httpx.Client | None = None)
               "rro": r["id"], "rro_name": r["name"], "test": bool(r.get("test"))})
     if rc.get("fiscal_date") or rc.get("created_at"):
         try:
-            f["at"] = datetime.fromisoformat(str(rc.get("fiscal_date") or rc.get("created_at")).replace("Z", "+00:00")).strftime("%d.%m.%Y %H:%M")
+            from datetime import timezone
+            from zoneinfo import ZoneInfo
+            t = datetime.fromisoformat(str(rc.get("fiscal_date") or rc.get("created_at")).replace("Z", "+00:00"))
+            t = t if t.tzinfo else t.replace(tzinfo=timezone.utc)        # Checkbox віддає час в UTC
+            f["at"] = t.astimezone(ZoneInfo("Europe/Kyiv")).strftime("%d.%m.%Y %H:%M")
         except ValueError:
             pass
     f.pop("error", None)
