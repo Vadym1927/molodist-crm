@@ -374,3 +374,26 @@ def test_fiscal_receipt_id_is_stable_no_duplicate(monkeypatch):
         s.fiscal = {k: v for k, v in s.fiscal.items() if k not in ("fiscal_code",)}; db.commit()   # «забули», що чек є
         b = fis.fiscalize(db, s, 7, cl, 0)
         assert len(store) == 1 and a["id"] == b["id"] == fis.receipt_uuid(s.id) and b["fiscal_code"] == "FC1"
+
+
+def test_sale_receipt_manual_channels(monkeypatch):
+    from app import security
+    from app.models import Sale
+    from app.services import sales as sl, cashboxes as cbx
+    security.login_limiter.fails.clear(); security.ip_limiter.fails.clear()
+    monkeypatch.setattr(settings, "admin_password", "owner-pass-1")
+    with SessionLocal() as db:
+        cbx.apply_seed(db)
+        p = Patient(full_name="Чек Канали", phone="+380671230777", communication_channel="Telegram", telegram_username="chek_k"); db.add(p); db.commit()
+        s = sl.create(db, {"patient_id": p.id, "items": [{"kind": "other", "name": "X", "qty": 1, "price": 100}],
+                           "payments": [{"method": "Готівка", "amount": 100}]})
+        s.fiscal = {"fiscal_code": "FC9", "id": "rid9", "url": "https://check.checkbox.ua/rid9", "rro": 1, "rro_name": "ФОП"}; db.commit()
+        sid = s.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        h = c.get(f"/sales/{sid}").text
+        assert "Надіслати чек пацієнту" in h and 'data-mark="/sales/%d/receipt-sent"' % sid in h and "check.checkbox.ua/rid9" in h
+        assert 'class="main " href="https://t.me/chek_k"' in h and 'data-ch="whatsapp"' in h and ".ckr,.ckr *" in h
+        assert c.post(f"/sales/{sid}/receipt-sent", data={"ch": "whatsapp"}).json()["ok"]
+    with SessionLocal() as db:
+        assert db.get(Sale, sid).fiscal["sent"]["channel"] == "WhatsApp"

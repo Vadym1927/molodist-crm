@@ -130,6 +130,8 @@ def verify(db: Session, c: dict, raw_phone: str, code: str, name: str = "", reme
     name = " ".join(str(name or "").split())[:120]
     if not p:
         p = Patient(full_name=name or phone, phone=phone, source="Інтернет-магазин", notes="Картку створено при реєстрації в кабінеті інтернет-магазину")
+        from .shop_orders import mark_shop
+        mark_shop(p)
         db.add(p)
         db.flush()
     acc = db.scalars(select(ShopAccount).where(ShopAccount.patient_id == p.id)).first()

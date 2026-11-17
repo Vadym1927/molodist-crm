@@ -49,3 +49,15 @@ def test_shop_ads_roi():
         a = sk.ads(db, t, t, ok)
         assert a["cost_net"] == 500 and a["cost"] == 600 and a["orders"] == 2 and a["revenue"] == 3000
         assert a["gross"] == 1800 and a["cpa"] == 300 and a["roas"] == 5 and a["be_cpa"] == 900 and a["profit"] == 1200 and a["verdict"] == "ok"
+
+
+def test_shop_patient_gets_group():
+    from app.services import shop_orders as so
+    with SessionLocal() as db:
+        p = so._patient(db, "Онлайн Покупець", "+380671239901", None, {})
+        db.commit()
+        assert "Інтернет-магазин" in (p.client_groups or [])
+        old = Patient(full_name="Старий Магазин", phone="+380671239902", source="Інтернет-магазин", client_groups=["VIP"]); db.add(old); db.commit()
+        so.backfill_shop_group(db)
+        db.refresh(old)
+        assert old.client_groups == ["VIP", "Інтернет-магазин"]

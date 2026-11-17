@@ -70,6 +70,27 @@ def _backup(name: str, rows) -> str:
     return f.name
 
 
+SHOP_GROUP = "Інтернет-магазин"      # група нових карток, створених магазином: лише покупець косметики, не пацієнт клініки
+
+
+def mark_shop(p: Patient) -> None:
+    from .patient_tags import group_name
+    names = [group_name(g) for g in (p.client_groups or [])]
+    if SHOP_GROUP.lower() not in {n.lower() for n in names}:
+        p.client_groups = [*(p.client_groups or []), SHOP_GROUP]
+
+
+def backfill_shop_group(db: Session) -> int:
+    """Один раз: картки, створені магазином (джерело «Інтернет-магазин»), отримують групу «Інтернет-магазин»."""
+    n = 0
+    for p in db.scalars(select(Patient).where(Patient.source == "Інтернет-магазин")):
+        before = list(p.client_groups or [])
+        mark_shop(p)
+        n += (p.client_groups or []) != before
+    db.commit()
+    return n
+
+
 def _patient(db: Session, name: str, phone: str | None, email: str | None, cache: dict, create: bool = True) -> Patient | None:
     from . import appeals as ap
     from ..integrations.messaging import normalize_phone
@@ -84,6 +105,7 @@ def _patient(db: Session, name: str, phone: str | None, email: str | None, cache
                     notes="Картку створено з замовлення інтернет-магазину molodist.store")
         if email and hasattr(p, "email"):
             p.email = email[:200]
+        mark_shop(p)
         db.add(p)
         db.flush()
     cache[ph] = p

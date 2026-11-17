@@ -626,6 +626,15 @@ async def lifespan(app: FastAPI):
             _n0 = _pay0.backfill_finops(db)
             db.merge(SyncState(key="supply_finops_backfill_v1", value=str(_n0)))
             db.commit()
+        if not db.get(SyncState, "shop_group_backfill_v1"):          # картки з магазину → група «Інтернет-магазин» (один раз)
+            try:
+                from .services.shop_orders import backfill_shop_group as _bsg
+                _nsg = _bsg(db)
+                db.merge(SyncState(key="shop_group_backfill_v1", value=str(_nsg)))
+                db.commit()
+            except Exception as _e:  # noqa: BLE001
+                log.warning("shop_group_backfill: %s", _e)
+                db.rollback()
         from .services.techcards import migrate_from_norms as _tcm, fix_unit_costs_v2 as _tcf, fix_unit_costs_v3 as _tcf3, fix_unit_costs_v4 as _tcf4   # техкарти CRM з норм списання (один раз)
         _tcm(db)
         _tcf(db)                                                     # собівартість витратних: без подвійного ділення на коеф. (один раз)
@@ -2226,6 +2235,16 @@ def sales_list(request: Request, df: str = "", dt_: str = "", q: str = "", d: st
                        "refunded": round(sum(s_.total for s_ in rows if s_.status == "refunded"), 2)})
 
 
+def _rc_msg(db: Session, s_) -> str:
+    """Текст повідомлення з посиланням на фіскальний чек (той самий шаблон, що й для автоматичного надсилання)."""
+    from .services import fiscal as _fis
+    f = s_.fiscal or {}
+    if not f.get("url"):
+        return ""
+    t = (_fis.cfg(db)["send"].get("text") or _fis.DEFAULT["send"]["text"])
+    return t.replace("{url}", f["url"]).replace("{sum}", f"{s_.total:.2f}").replace("{name}", ((s_.patient.full_name if s_.patient else "") or "").split(" ")[0])
+
+
 @app.get("/sales/new", response_class=HTMLResponse)
 def sale_new(request: Request, appt: str = "", patient: int = 0, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
     from .models import Appointment, DiscountRule, GiftCertificate
@@ -2492,7 +2511,7 @@ def sale_view(request: Request, sid: int, user: User = Depends(require("sales"))
                   print_=bool(request.query_params.get("print")), rros=[r for r in _fis.rros(db) if r["on"]], fcfg=_fis.cfg(db),
                   links=(_lk := db.scalars(select(__import__("app.models", fromlist=["PayLink"]).PayLink).where(
                       __import__("app.models", fromlist=["PayLink"]).PayLink.sale_id == s_.id)).all()),
-                  can_finance=can(user, "finance"), pl_msgs={l_.id: __import__("app.services.paylinks", fromlist=["message"]).message(db, l_) for l_ in _lk})
+                  can_finance=can(user, "finance"), rc_msg=_rc_msg(db, s_), pl_msgs={l_.id: __import__("app.services.paylinks", fromlist=["message"]).message(db, l_) for l_ in _lk})
 
 
 def _term_has_data(r) -> bool:
@@ -8465,6 +8484,21 @@ async def paylink_send(lid: int, ch: str = Form(...), back: str = Form("/setting
         db.commit()
     audit(db, "paylink.send", "paylink", lid, user=user, channel=ch, ok=res.ok)
     return RedirectResponse(_with_msg(back, f"Посилання надіслано в {lbl}" if res.ok else f"{lbl}: не надіслано — {res.error}", not res.ok), 303)
+
+
+@app.post("/sales/{sid:int}/receipt-sent")
+def sale_receipt_sent(sid: int, ch: str = Form(""), user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    """Адміністратор надіслав фіскальний чек вручну обраним каналом — записати канал і час."""
+    from .models import Sale
+    s_ = db.get(Sale, sid) or (_ for _ in ()).throw(HTTPException(404))
+    lbl = {"viber": "Viber", "telegram": "Telegram", "sms": "SMS", "whatsapp": "WhatsApp", "instagram": "Instagram", "email": "Email"}.get(ch)
+    if not lbl:
+        raise HTTPException(400)
+    s_.fiscal = {**(s_.fiscal or {}), "sent": {"ok": True, "channel": lbl, "at": datetime.now().strftime("%d.%m.%Y %H:%M"),
+                                               "by": user.name or user.login, "manual": True}}
+    db.commit()
+    audit(db, "sale.send_receipt", "sale", sid, user=user, channel=ch, manual=True)
+    return {"ok": True}
 
 
 @app.post("/paylinks/{lid:int}/mark-sent")
