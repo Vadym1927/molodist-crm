@@ -7,6 +7,8 @@
   {% else %}<div class="rte">{{ pg.html|safe }}</div>{% endif %}
   {% if pg.path == '/contacts/' %}<div class="map"><iframe title="MOLODIST на карті" loading="lazy" referrerpolicy="no-referrer-when-downgrade"
     src="https://maps.google.com/maps?q={{ 'MOLODIST, вул. Князя Романа Мстиславича 28А, Київ'|urlencode }}&hl=uk&z=16&output=embed"></iframe></div>
+  <p class="map-act"><a class="btn" href="https://www.google.com/maps/dir/?api=1&destination=50.469639%2C30.6115763" target="_blank" rel="noopener">Прокласти маршрут</a>
+    <a class="btn ghost" href="https://maps.google.com/?cid=13361081901720226446" target="_blank" rel="noopener">MOLODIST на Google Картах</a></p>
   {% include "shop/_grev.html" %}
   <form class="ctf" id="ctf"><h2>Напишіть нам</h2><p class="mut small">Відповімо в робочий час — телефоном або в месенджері.</p>
     <div class="ctf-r"><label><span>Імʼя</span><input name="name" required maxlength="100" autocomplete="name"></label><label><span>Телефон</span><input name="phone" required inputmode="tel" autocomplete="tel" placeholder="+380"></label></div>

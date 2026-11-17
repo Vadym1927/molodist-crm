@@ -32,7 +32,7 @@ DEFAULT = {
     "viber": "",                                      # порожнє — бот з «Канали → Viber-бот», інакше чат за номером
     "email": "info.molodostua@gmail.com",
     "address": "м. Київ, вул. Князя Романа Мстиславича, 28А (ЖК «Автограф»)",
-    "maps": "https://www.google.com/maps/search/?api=1&query=MOLODIST+%D0%9A%D0%BD%D1%8F%D0%B7%D1%8F+%D0%A0%D0%BE%D0%BC%D0%B0%D0%BD%D0%B0+%D0%9C%D1%81%D1%82%D0%B8%D1%81%D0%BB%D0%B0%D0%B2%D0%B8%D1%87%D0%B0+28%D0%90",
+    "maps": "https://maps.google.com/?cid=13361081901720226446",   # картка MOLODIST у Google Картах (маршрут, фото, відгуки)
     "hours": "Вт–Сб, 10:00–20:00",
     "license": "Ліцензія МОЗ України, наказ №1769 від 17.10.2024",
     "upload_key": "",                                 # тимчасовий ключ: завантаження фото з інших сервісів (2 год)
