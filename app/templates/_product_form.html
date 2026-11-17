@@ -7,6 +7,8 @@
       <label>Назва<input name="name" required value="{{ p.name if p else '' }}" placeholder="Назва товару, як на упаковці"></label>
       <small>Так товар відображається в системі.</small>
       <div class="pf-2"><label>Артикул<input name="sku" value="{{ p.sku or '' if p else '' }}"></label>
+        <label>Штрихкод (EAN)<input name="barcode" inputmode="numeric" value="{{ p.barcode or '' if p else '' }}" placeholder="13 цифр під штрихкодом на упаковці"></label></div>
+      <div class="pf-2">
         <label>Склад<select name="warehouse">{% for k, v in WAREHOUSES.items() %}<option value="{{ k }}" {{ 'selected' if (p.warehouse if p else (wh if wh in WAREHOUSES else 'vitrina')) == k }}>{{ v }}</option>{% endfor %}</select></label></div>
     </section>
     <section class="pf-s"><span class="pf-t">Призначення товару</span>

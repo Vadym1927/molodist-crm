@@ -209,6 +209,7 @@
   <form class="form" method="post" action="/products/{{ p.id }}">
     <div class="two"><label>Бренд<input name="brand" list="brandl" value="{{ p.brand or '' }}"></label>
       <label>Артикул<input name="sku" value="{{ p.sku or '' }}"></label></div>
+    <label>Штрихкод (EAN) — 13 цифр під штрихкодом на упаковці<input name="barcode" inputmode="numeric" value="{{ p.barcode or '' }}" placeholder="напр. 8809540512345"></label>
     <div class="two"><label>Основний постачальник<input name="supplier" list="suppl" value="{{ p.supplier or '' }}"></label>
       <label>Склад<select name="warehouse">{% for k, v in WAREHOUSES.items() %}<option value="{{ k }}" {{ 'selected' if (p.warehouse or 'vitrina')==k }}>{{ v }}</option>{% endfor %}</select></label></div>
     <div class="two"><label>Ціна продажу, ₴{% if p.price %} <span style="font-weight:400">(CleverBox: {{ p.price|uah }})</span>{% endif %}<input name="price_manual" value="{{ p.price_manual or '' }}" placeholder="{{ 'з CleverBox' if p.price else '' }}" {{ 'disabled' if p.price }}></label>

@@ -5330,7 +5330,7 @@ async def product_full_save(pid: int, request: Request, user: User = Depends(req
 
 @app.post("/products/{pid:int}")
 def product_update(pid: int, supply_days: str = Form(""), min_stock: str = Form(""), url: str = Form(""),
-                   apply: str = Form(""), brand: str = Form(None), supplier: str = Form(None), sku: str = Form(None),
+                   apply: str = Form(""), brand: str = Form(None), supplier: str = Form(None), sku: str = Form(None), barcode: str = Form(None),
                    expiry_date: str = Form(None), price_manual: str = Form(None), back: str = Form(""),
                    warehouse: str = Form(None),
                    user: User = Depends(require("products")), db: Session = Depends(db_dep)):
@@ -5344,6 +5344,8 @@ def product_update(pid: int, supply_days: str = Form(""), min_stock: str = Form(
         prod.supplier = supplier.strip()[:200] or None
     if sku is not None:
         prod.sku = sku.strip()[:100] or None
+    if barcode is not None:
+        prod.barcode = re.sub(r"\s", "", barcode)[:64] or None
     if expiry_date is not None:
         prod.expiry_date = _day(expiry_date)
     if price_manual is not None:

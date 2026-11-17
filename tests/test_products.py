@@ -161,3 +161,16 @@ def test_purchase_history_in_card():
     with SessionLocal() as db:
         last = db.query(ProductPurchase).filter_by(product_id=pid, bought_on=date(2026, 10, 1)).one()
         assert last.qty == 60 and last.unit_cost == 60
+
+
+def test_product_barcode_saved():
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        p = Product(name="Barcode test cream", name_norm="barcode test cream", price=100)
+        db.add(p); db.commit(); pid = p.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        assert 'name="barcode"' in c.get(f"/products/{pid}").text
+        c.post(f"/products/{pid}", data={"barcode": " 5901234 123457 "})
+    with SessionLocal() as db:
+        assert db.get(Product, pid).barcode == "5901234123457"

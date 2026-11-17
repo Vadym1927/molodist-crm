@@ -694,6 +694,8 @@ def apply_form(p, f) -> None:
         p.name_norm = norm(p.name)
     p.short_name = g("short_name")[:128] or None
     p.sku = g("sku")[:100] or None
+    if "barcode" in f:
+        p.barcode = re.sub(r"\s", "", g("barcode"))[:64] or None
     if g("warehouse") in WAREHOUSES:
         p.warehouse = g("warehouse")
     p.for_sale, p.for_expense = g("for_sale") == "1", g("for_expense") == "1"
