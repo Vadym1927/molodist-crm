@@ -13,7 +13,7 @@ import re
 import secrets
 import time
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from urllib.parse import urljoin, urlparse
 
 import httpx
@@ -342,6 +342,12 @@ def catalog(db: Session, fresh: bool = False) -> dict:
     by_slug: dict[str, dict] = {}
     arch: dict[str, dict] = {}
     today = datetime.now().date().isoformat()
+    from . import short_expiry as _sx
+    sxc = _sx.cfg(db)
+    try:
+        short = _sx.short_stock(db, sxc)
+    except Exception:  # noqa: BLE001
+        short = {}
     for p in db.scalars(select(Product).where(Product.site_info.is_not(None)).order_by(Product.id)):
         si = p.site_info or {}
         slug = si.get("slug")
@@ -356,9 +362,14 @@ def catalog(db: Session, fresh: bool = False) -> dict:
         sale = si.get("sale") or {}
         if sale.get("pct") and (not sale.get("until") or str(sale["until"]) >= today):       # знижка на сайті, задана в CRM
             old, price = price, float(round(price * (1 - float(sale["pct"]) / 100)))
+        sx_ = short.get(p.id) if not hidden and not (old > price) else None
+        if sx_:                                             # короткий термін придатності: знижка лише на к-сть короткої партії
+            old, price = price, _sx.price(sxc, price)
         stock = not hidden and str(si.get("presence", 1)).lower() not in ("0", "false", "not_available") and (si.get("quantity") is None or float(si.get("quantity") or 0) > 0)
         v = {"id": p.id, "name": si.get("title") or p.name, "price": price, "old": old if old > price else 0, "stock": stock,
              "sku": p.sku or si.get("sku") or "", "label": p.volume or "", "gtin": gtin(p.barcode or si.get("barcode") or "")}
+        if sx_:
+            v.update(short=sx_["qty"], short_exp=sx_["expiry"].isoformat(), full=old)
         it = target.get(slug)
         if it:
             it["variants"].append(v)
@@ -373,7 +384,8 @@ def catalog(db: Session, fresh: bool = False) -> dict:
                          "sections": sections(si.get("short_description") or ""),
                          "seo_title": si.get("seo_title") or "", "seo_desc": si.get("seo_description") or "", "sold": sold.get(p.id, 0),
                          "new": p.id, "variants": [v], "sku": v["sku"], "sticker": si.get("sticker") or "",
-                         "tip": si.get("tip") if (si.get("tip") or {}).get("text") else None}
+                         "tip": si.get("tip") if (si.get("tip") or {}).get("text") else None,
+                         "short": v.get("short"), "short_exp": v.get("short_exp")}
     for it in by_slug.values():
         it["archived"] = False
     for it in arch.values():
@@ -617,7 +629,18 @@ def make_sale(db: Session, o: SiteOrder, pl) -> int | None:
     if (o.raw or {}).get("sale_id") or not o.patient_id:
         return (o.raw or {}).get("sale_id")
     acc = pls._acc_of(pls._raw(db), pl) or {}
-    items = [{"kind": "product", "ref_id": i["product_id"], "name": i["name"], "qty": i["qty"], "price": i["price"]} for i in o.items or [] if i.get("product_id")]
+    items = []
+    for i in o.items or []:
+        if not i.get("product_id"):
+            continue
+        sq = int(i.get("short") or 0)
+        if sq:                                          # короткий термін: окремий рядок зі знижкою — списується саме коротка партія
+            items.append({"kind": "product", "ref_id": i["product_id"], "name": i["name"], "qty": sq, "price": float(i["short_price"]),
+                          "expiry": date.fromisoformat(i["short_exp"]) if i.get("short_exp") else None})
+            if i["qty"] - sq > 0:
+                items.append({"kind": "product", "ref_id": i["product_id"], "name": i["name"], "qty": i["qty"] - sq, "price": float(i["full"])})
+        else:
+            items.append({"kind": "product", "ref_id": i["product_id"], "name": i["name"], "qty": i["qty"], "price": i["price"]})
     if not items:
         return None
     used = float(((o.raw or {}).get("coins") or {}).get("used") or 0)
@@ -699,10 +722,16 @@ def price_cart(db: Session, rows: list[dict], c: dict | None = None) -> dict:
         it, v = by_id[pid]
         if not v["stock"]:
             continue
-        line = round(v["price"] * qty, 2)
+        sq = min(qty, int(v.get("short") or 0))
+        if sq:                                          # знижка «короткий термін» — лише на одиниці короткої партії
+            line = round(v["price"] * sq + float(v["full"]) * (qty - sq), 2)
+        else:
+            line = round(v["price"] * qty, 2)
         total += line
-        out.append({"id": pid, "slug": it["slug"], "name": v["name"], "brand": it["brand"], "qty": qty, "price": v["price"], "total": line, "sale": bool(v.get("old")),
-                    "img": it["imgs"][0] if it["imgs"] else None, "sku": v["sku"]})
+        out.append({"id": pid, "slug": it["slug"], "name": v["name"], "brand": it["brand"], "qty": qty, "price": round(line / qty, 2), "total": line,
+                    "sale": bool(v.get("old")),
+                    "img": it["imgs"][0] if it["imgs"] else None, "sku": v["sku"],
+                    **({"short": sq, "short_price": v["price"], "short_exp": v["short_exp"], "full": v["full"]} if sq else {})})
     free_from = float(c.get("free_from") or 0)
     gifts = [g[0] for g in lines(c.get("gifts"))] if c.get("gift_from") and total >= float(c["gift_from"]) else []
     return {"items": out, "total": round(total, 2), "free_delivery": bool(free_from and total >= free_from),
@@ -760,7 +789,8 @@ def create_order(db: Session, data: dict, base_url: str) -> dict:
                   payment={"online": "Онлайн карткою (monobank)", "cod": "При отриманні", "parts": "Покупка Частинами monobank"}[pay],
                   name=name, phone=phone, email=str(data.get("email") or "").strip()[:200] or None, city=city or None, address=wh or None,
                   comment=(str(data.get("comment") or "").strip()[:1000] + (f"\nПодарунок: {gift}" if gift else "")).strip() or None,
-                  items=[{"product_id": i["id"], "name": i["name"], "sku": i["sku"], "qty": i["qty"], "price": i["price"], "total": i["total"], "sale": i.get("sale", False)} for i in cart["items"]],
+                  items=[{"product_id": i["id"], "name": i["name"], "sku": i["sku"], "qty": i["qty"], "price": i["price"], "total": i["total"], "sale": i.get("sale", False),
+                          **({k: i[k] for k in ("short", "short_price", "short_exp", "full")} if i.get("short") else {})} for i in cart["items"]],
                   extra=[{"name": f"Подарунок: {gift}", "price": 0, "on": True}] if gift else None,
                   raw={"utm": {k: str(v)[:150] for k, v in data.items() if k.startswith("utm_") or k in ("gclid", "fbclid", "gbraid", "wbraid", "landing")},
                        "free_delivery": cart["free_delivery"]},

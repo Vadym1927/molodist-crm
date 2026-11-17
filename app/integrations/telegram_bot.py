@@ -472,7 +472,7 @@ async def on_document(msg: Message, bot: Bot):
             plan, _, err = ingest.ingest_pdf(db, data, name, str(msg.chat.id), caption=msg.caption, any_doc=work)
             if isinstance(err, ingest.Attached):
                 await _tag_unattached(msg, db, err)
-                await _reply(msg, str(err) + ("" if err.patient_id else ". Відповідайте на файл: /to Прізвище Ім'я"))
+                await _reply(msg, str(err) + ("" if err.patient_id else ". Відповідайте на файл: /to телефон або /to Прізвище Ім'я — план додам у її картку"))
             elif err:
                 await _reply(msg, f"⚠️ Файл збережено, але не розпізнано як бюті-план: {err}")
             else:
@@ -524,6 +524,16 @@ async def cmd_to(msg: Message):
         f.patient_id = pat.id
         f.caption = f.caption.replace(tag, "").strip() or None
         db.commit()
+        if f.kind == "plan_pdf":                     # план, що чекав на картку: імпортуємо у вибрану пацієнтку
+            from ..parsers.observ import parse_observ_pdf
+            from ..services.plans import import_plan
+            try:
+                plan = import_plan(db, parse_observ_pdf(f.path), source_file=f.caption, patient=pat)
+                plan.source_file = f.path
+                db.commit()
+                return await msg.reply(plan_summary(db, plan), disable_web_page_preview=True)
+            except Exception as e:  # noqa: BLE001
+                return await msg.reply(f"📄 Файл привʼязано до: {pat.full_name}, але план не імпортовано: {e}")
         await msg.reply(f"{'📷' if f.kind == 'photo' else '📄'} Привʼязано до: {pat.full_name}")
 
 

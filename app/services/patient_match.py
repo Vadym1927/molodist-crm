@@ -78,6 +78,30 @@ def best_match(db: Session, name: str, phone: str | None = None, exclude_id: int
     return pool[0] if len(pool) == 1 else None
 
 
+def by_visit_day(db: Session, name: str, day, doctor_id: int | None = None) -> Patient | None:
+    """План з OBSERV без телефону: шукаємо серед пацієнтів, записаних на день сесії (календар CRM або візит CleverBox),
+    картку, чиє ім'я збігається з PDF (у картці може бути лише ім'я: «Олена» ↔ «Олена Кирилюк»). Лише якщо така одна."""
+    from datetime import datetime as _dt, timedelta as _td
+    from ..models import Appointment
+    q = set(_tokens(name))
+    if not q or not day:
+        return None
+    a = _dt.combine(day, _dt.min.time())
+    b = a + _td(days=1)
+    pids = {pid for (pid,) in db.execute(select(Appointment.patient_id).where(Appointment.start >= a, Appointment.start < b,
+                                                                              Appointment.status != "cancelled"))}
+    pids |= {pid for (pid,) in db.execute(select(Visit.patient_id).where(Visit.starts_at >= a, Visit.starts_at < b))}
+    hits = []
+    for p in db.scalars(select(Patient).where(Patient.id.in_(pids or {0}))):
+        c = set(_tokens(p.full_name))
+        if c and (c <= q or q <= c or score(name, p.full_name) >= 76):
+            hits.append(p)
+    if len(hits) > 1 and doctor_id:
+        mine = [p for p in hits if p.doctor_id == doctor_id]
+        hits = mine or hits
+    return hits[0] if len(hits) == 1 else None
+
+
 def suggestions(db: Session, patient: Patient, limit: int = 5) -> list[tuple[int, Patient]]:
     """Схожі картки (для «CB?» — ймовірні дублікати з CleverBox)."""
     out = []

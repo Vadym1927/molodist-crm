@@ -133,6 +133,13 @@
       <p class="small muted" style="margin:10px 0 0">Ручні знижки вибирає адміністратор у касі — там показуються лише ті, що діють сьогодні й не вичерпали ліміт. Автоматичні застосовуються самі; з кількох береться найвигідніша, плюс ті, що «сумуються».</p></div>
 
     <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:#FBFAF8"><div><b>🎁 Бонусна програма</b> <span class="pill" style="background:#FFF1D6;color:#9A6A00">в розробці</span><div class="small muted">Налаштовується окремо від знижок.</div></div><a class="btn ghost" href="/settings/bonuses">Відкрити →</a></div>
+    {% set sx = short_expiry %}<form class="card" id="short" method="post" action="/settings/short-expiry" style="display:grid;gap:8px"><h2 style="margin:0">⏳ Короткий термін придатності</h2>
+      <p class="small muted" style="margin:0">Автознижка на одиниці, яким до кінця терміну менше N місяців: у касі — коли обрано таку партію, на сайті — лише на кількість цієї партії (після викупу знижка зникає сама). Протерміновані — без знижки.</p>
+      <label class="row" style="gap:8px"><input type="checkbox" name="on" value="1" {{ 'checked' if sx.on }}> Увімкнено</label>
+      <div class="row" style="gap:10px;flex-wrap:wrap"><label class="small">Термін менше, міс<input name="months" value="{{ sx.months }}" inputmode="numeric" style="width:80px"></label>
+        <label class="small">Знижка, %<input name="pct" value="{{ '%g'|format(sx.pct) }}" inputmode="decimal" style="width:80px"></label></div>
+      <div class="row small" style="gap:10px;flex-wrap:wrap">{% for k, v in WAREHOUSES.items() %}<label><input type="checkbox" name="whs" value="{{ k }}" {{ 'checked' if k in sx.whs }}> {{ v }}</label>{% endfor %}</div>
+      <div><button class="btn">Зберегти</button></div></form>
     {% if personal %}<div class="card"><h2 style="margin-top:0">Персональні знижки · {{ personal|length }} <a class="small" href="/settings/personal-discounts" style="font-weight:600;text-transform:none;letter-spacing:0">керувати →</a></h2><table class="tb small"><tbody>{% for p in personal %}<tr><td><a href="/patients/{{ p.id }}#loyal">{{ p.full_name }}</a></td>{% set _pd = pdisc(p) %}<td class="r">товари <b>{{ '%g'|format(_pd[0]) }}%</b> · послуги <b>{{ '%g'|format(_pd[1]) }}%</b></td></tr>{% endfor %}</tbody></table>
       <p class="small muted" style="margin:6px 0 0">Персональну знижку задають у картці пацієнта (блок «Бонуси й знижка»).</p></div>{% endif %}
     <form class="card" method="get" style="display:grid;gap:8px;max-width:560px"><h2 style="margin:0">🧮 Перевірити автознижки на прикладі</h2><input type="hidden" name="calc" value="1">

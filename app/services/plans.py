@@ -76,11 +76,20 @@ def find_patient(db: Session, name: str, phone: str | None = None) -> Patient | 
     return best_match(db, name, phone)
 
 
+class PatientNeeded(ValueError):
+    """Пацієнтку не знайдено, а телефону в плані немає — картку без телефону не створюємо."""
+
+
 def import_plan(db: Session, parsed: ParsedPlan, source_file: str | None = None,
-                patient: Patient | None = None) -> BeautyPlan:
+                patient: Patient | None = None, require_phone: bool = False) -> BeautyPlan:
     doctor = get_or_create_doctor(db, parsed.doctor_name)
     if patient is None:
         patient = find_patient(db, parsed.patient_name, parsed.patient_phone)
+    if patient is None and parsed.session_at:                 # без телефону в PDF: пацієнтка, записана на день сесії
+        from .patient_match import by_visit_day
+        patient = by_visit_day(db, parsed.patient_name, parsed.session_at.date(), doctor.id if doctor else None)
+    if patient is None and require_phone and not (parsed.patient_phone or "").strip():
+        raise PatientNeeded(f"Пацієнтку «{parsed.patient_name}» не знайдено в CRM, а в PDF немає телефону — картку не створено")
     if patient is None:
         patient = Patient(full_name=parsed.patient_name, phone=parsed.patient_phone,
                           doctor_id=doctor.id if doctor else None)

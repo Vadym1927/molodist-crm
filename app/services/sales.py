@@ -60,6 +60,12 @@ def quote(db: Session, items: list[dict], patient: Patient | None, rule_ids: lis
     d = ly.discount_for(db, li, patient, rule_ids=rule_ids, at=_kyiv_now()) if items and not no_discounts else \
         {"lines": [0.0] * len(li), "total": 0.0, "rules": [], "subtotal": 0.0}
     lines = list(d["lines"])
+    if items and not no_discounts:                  # короткий термін придатності: знижка на рядок з короткою партією (найвигідніша з двох)
+        from . import short_expiry as sx
+        se = sx.pos_lines(db, items)
+        if any(v > lines[i] + 0.005 for i, v in enumerate(se)):
+            lines = [max(a, b) for a, b in zip(lines, se)]
+            d = {**d, "rules": list(d["rules"]) + [sx.label(sx.cfg(db))]}
     sub = round(sum(x["price"] * x["qty"] for x in li), 2)
     md = round(min(max(manual_discount or 0, 0), sub - sum(lines)), 2)
     if md > 0:                                      # ручна знижка — пропорційно

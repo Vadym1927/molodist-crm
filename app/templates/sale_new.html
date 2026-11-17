@@ -333,9 +333,9 @@ function render(){var tb=document.getElementById('rows');tb.innerHTML='';documen
   document.getElementById('ck-n').textContent=S.items.length?S.items.length+' поз.':'';
   S.items.forEach(function(it,i){applyCat(it);var d=document.createElement('div'),lots='';d.className='cr';
     if(it.kind==='product'&&it.lots&&it.lots.length){var dd=function(x){return x.split('-').reverse().join('.')};
-      if(it.lots.length===1){it.expiry=it.lots[0].expiry;lots='<label class="ini exp"><i>Термін дії</i><span class="ex1">до '+dd(it.expiry)+'</span></label>'}
+      if(it.lots.length===1){it.expiry=it.lots[0].expiry;lots='<label class="ini exp"><i>Термін дії</i><span class="ex1">до '+dd(it.expiry)+(it.lots[0].short?' · −'+it.lots[0].short+'%':'')+'</span></label>'}
       else{if(it.expiry&&!it.lots.some(function(l){return l.expiry==it.expiry}))it.expiry=null;
-        lots='<label class="ini exp"><i>Термін дії</i><select class="e'+(it.expiry?'':' empty')+'"><option value="">Оберіть термін</option>'+it.lots.map(function(l){return '<option value="'+l.expiry+'"'+(it.expiry==l.expiry?' selected':'')+'>до '+dd(l.expiry)+' · '+l.qty+' шт</option>'}).join('')+'</select></label>'}}
+        lots='<label class="ini exp"><i>Термін дії</i><select class="e'+(it.expiry?'':' empty')+'"><option value="">Оберіть термін</option>'+it.lots.map(function(l){return '<option value="'+l.expiry+'"'+(it.expiry==l.expiry?' selected':'')+'>до '+dd(l.expiry)+' · '+l.qty+' шт'+(l.short?' · −'+l.short+'%':'')+'</option>'}).join('')+'</select></label>'}}
     d.innerHTML='<div class="l1">'+(it.kind==='product'?'<span class="th">'+(it.photo?'<img src="'+esc(it.photo)+'" alt="" onerror="this.remove()">':'')+'</span>':'')+'<span class="kd '+it.kind+'">'+KL[it.kind]+'</span><div class="nm">'+(it.kind==='other'?'<input class="n" value="'+esc(it.name)+'" placeholder="Назва позиції">':'<b>'+esc(it.name)+'</b>')+
       ((it.sku||it.stock!=null)?'<small>'+(it.sku?'Арт. '+esc(it.sku):'')+(it.kind==='product'&&it.stock!=null?'<span class="stk '+((+it.stock)<(+it.qty||1)?'no':'')+'">'+((+it.stock)>0?'на складі '+it.stock:'немає на складі')+'</span>':'')+'</small>':'')+'</div><div class="sm"><b class="sum"></b><small class="disc"></small></div><button type="button" class="x" title="Прибрати">×</button></div>'+
       '<div class="l2"><label class="ini"><i>Ініціатор</i>'+docSel(it.doctor_id)+'</label>'+lots+(DZ.mode==='items'?'<label class="ini rdw"><i>Знижка</i>'+rowSel(it,i)+'</label>':'')+'<div class="qty"><button type="button" class="m">−</button><input class="q" inputmode="decimal" value="'+(it.qty||1)+'"><button type="button" class="pl">+</button></div>'+
@@ -346,7 +346,7 @@ function render(){var tb=document.getElementById('rows');tb.innerHTML='';documen
     d.querySelector('.p').oninput=function(){it.price=+String(this.value).replace(',','.')||0;quote(1)};
     d.querySelector('.d').onchange=function(){it.doctor_id=this.value?+this.value:null;this.classList.toggle('need',!it.doctor_id);this.classList.toggle('empty',!it.doctor_id);
       if(it.kind==='service'){var was=it.price;applyCat(it);if(it.price!==was){d.querySelector('.p').value=(+it.price).toFixed(2);quote(1)}}};var n=d.querySelector('.n');if(n)n.oninput=function(){it.name=this.value};
-    var e=d.querySelector('.e');if(e)e.onchange=function(){it.expiry=this.value||null;this.classList.toggle('empty',!it.expiry);if(it.expiry)this.classList.remove('need')};
+    var e=d.querySelector('.e');if(e)e.onchange=function(){it.expiry=this.value||null;this.classList.toggle('empty',!it.expiry);if(it.expiry)this.classList.remove('need');quote(1)};
     d.querySelector('.d').classList.toggle('empty',!it.doctor_id);
     var rd=d.querySelector('select.rd');if(rd)rd.onchange=function(){it.rule_id=this.value?+this.value:null;this.classList.toggle('on',!!it.rule_id);quote(1)};
     d.querySelector('.x').onclick=function(){S.items.splice(i,1);quote()};tb.appendChild(d)});sums()}

@@ -182,7 +182,11 @@ def create_plan(body: PlanIn, key: ApiKey = Depends(WRITE), db: Session = Depend
         items=[ParsedItem(kind=i.kind, name=i.name, qty=i.qty, unit_price=i.unit_price, total=i.qty * i.unit_price,
                           volume=i.volume, usage=i.usage, url=i.url) for i in body.items],
         total=sum(i.qty * i.unit_price for i in body.items))
-    plan = import_plan(db, parsed, patient=patient)
+    from .services.plans import PatientNeeded
+    try:
+        plan = import_plan(db, parsed, patient=patient)
+    except PatientNeeded as e:
+        raise HTTPException(422, f"{e}. Передайте patient.phone або cleverbox_id.")
     if body.patient.cleverbox_id and not plan.patient.cleverbox_id:
         plan.patient.cleverbox_id = body.patient.cleverbox_id
     for it, src in zip(plan.items, body.items):

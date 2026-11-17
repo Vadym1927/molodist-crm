@@ -116,7 +116,17 @@ def ingest_pdf(db: Session, data: bytes, filename: str, tg_chat: str | None = No
         db.add(PatientFile(kind="pdf", path=path, caption=filename, tg_chat=tg_chat))
         db.commit()
         return None, path, str(e)
-    plan = import_plan(db, parsed, source_file=filename)
+    from .plans import PatientNeeded
+    try:
+        plan = import_plan(db, parsed, source_file=filename, patient=guess_patient(db, caption) if caption else None,
+                           require_phone=bool(tg_chat))
+    except PatientNeeded as e:                       # без телефону нову картку не створюємо — чекаємо, до кого привʼязати
+        f = PatientFile(kind="plan_pdf", path=path, caption=filename, tg_chat=tg_chat)
+        db.add(f); db.commit()
+        a = Attached(f"📋 Бюті-план «{parsed.patient_name}» ({parsed.total:,.0f} ₴) розпізнано, але такої пацієнтки в CRM не знайдено, "
+                     f"а телефону в PDF немає — нову картку не створено".replace(",", " ", 1))
+        a.file_id = f.id
+        return None, path, a
     plan.source_file = path
     db.add(PatientFile(patient_id=plan.patient_id, kind="plan_pdf", path=path, caption=filename, tg_chat=tg_chat))
     db.commit()

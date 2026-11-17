@@ -2161,8 +2161,10 @@ def pos_lots(pid: int, user: User = Depends(require("sales")), db: Session = Dep
     wh = p_.warehouse or "vitrina"
     lots = []
     if st.ledger_active(db):
-        lots = sorted([{"expiry": e.isoformat(), "qty": round(qq, 3)} for (pid_, w_, e), qq in st.batch_balances(db, p_.id, wh).items()
-                       if e and qq > 1e-6], key=lambda x: x["expiry"])
+        from .services import short_expiry as _sx
+        _c = _sx.cfg(db)
+        lots = sorted([{"expiry": e.isoformat(), "qty": round(qq, 3), "short": _c["pct"] if wh in _c["whs"] and _sx.is_short(_c, e) else 0}
+                       for (pid_, w_, e), qq in st.batch_balances(db, p_.id, wh).items() if e and qq > 1e-6], key=lambda x: x["expiry"])
     return JSONResponse(lots)
 
 
@@ -2174,6 +2176,8 @@ def lookup_sale_products(q: str = "", user: User = Depends(require("sales")), db
         return JSONResponse([])
     words, ql = set(norm(q).split()), q.lower()
     led = st.ledger_active(db)
+    from .services import short_expiry as _sx
+    _sxc = _sx.cfg(db)
     out = []
     for r in catalog.product_rows(db, []):
         p_ = r.product
@@ -2186,7 +2190,8 @@ def lookup_sale_products(q: str = "", user: User = Depends(require("sales")), db
         wh = p_.warehouse or "vitrina"
         lots = []
         if led:
-            lots = [{"expiry": e.isoformat(), "qty": round(qq, 3)} for (pid_, w_, e), qq in st.batch_balances(db, p_.id, wh).items() if e and qq > 1e-6]
+            lots = [{"expiry": e.isoformat(), "qty": round(qq, 3), "short": _sxc["pct"] if wh in _sxc["whs"] and _sx.is_short(_sxc, e) else 0}
+                    for (pid_, w_, e), qq in st.batch_balances(db, p_.id, wh).items() if e and qq > 1e-6]
             lots.sort(key=lambda x: x["expiry"])
         out.append((0 if exact else (0 if wh == "vitrina" else 1), {"id": p_.id, "name": p_.name, "brand": p_.brand or "", "sku": p_.sku or "", "photo": p_.photo_url or "", "category": p_.brand or p_.category or "",
                     "price": p_.price or p_.price_manual or p_.shop_price or 0, "stock": r.stock, "warehouse": wh,
@@ -2731,7 +2736,9 @@ def settings_loyalty(request: Request, user: User = Depends(require("finance")),
                 it["net"] = it["price"] - dl
             calc = {**dsc, "bonus": ly.bonus_accrual(db, items), "patient": pt,
                     "max_pay": ly.max_bonus_pay(db, dsc["subtotal"] - dsc["total"], pt.id) if pt else None}
+    from .services import short_expiry as _sx
     return render(request, "loyalty.html", nav="settings", s=ly.settings(db), rules=rules, cats=cats, ly=ly, calc=calc,
+                  short_expiry=_sx.cfg(db), WAREHOUSES=catalog.WAREHOUSES,
                   n_holders=sum(1 for v in bal.values() if v > 0.005), total_bonus=round(sum(v for v in bal.values() if v > 0), 2),
                   n_txns=db.scalar(select(func.count(BonusTxn.id))) or 0,
                   n_cb=db.scalar(select(func.count(Patient.id)).where(Patient.cb_bonus > 0)) or 0,
@@ -2928,6 +2935,16 @@ async def personal_discounts_import_cb(request: Request, user: User = Depends(re
     db.commit()
     audit(db, "loyalty.personal_import_cb", user=user, saved=rep["saved"], items=rep["items"])
     return rep
+
+
+@app.post("/settings/short-expiry")
+async def short_expiry_save(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import short_expiry as _sx, shop_front as _sf
+    f = await request.form()
+    c = _sx.save(db, {"on": f.get("on"), "months": f.get("months"), "pct": f.get("pct"), "whs": f.getlist("whs")})
+    _sf._cache["cat_at"] = 0.0
+    audit(db, "short_expiry.save", user=user, **c)
+    return RedirectResponse(_with_msg("/settings/loyalty#short", "Збережено"), 303)
 
 
 @app.get("/settings/personal-discounts", response_class=HTMLResponse)
