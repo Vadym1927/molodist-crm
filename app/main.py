@@ -2347,11 +2347,7 @@ async def _sale_links(request: Request, db: Session, s_, user: User) -> list[str
             continue
         pl.sale_id = s_.id
         db.commit()
-        if s_.patient:
-            res = await asyncio.to_thread(send_to_patient, s_.patient, _pls.message(db, pl))
-            pl.info = {**(pl.info or {}), "sent": {"ok": res.ok, "channel": res.channel, "at": datetime.now().strftime("%d.%m.%Y %H:%M")}}
-            db.commit()
-            msgs.append(f"посилання на {pl.amount:.2f} ₴ " + (f"надіслано ({res.channel})" if res.ok else f"створено, не надіслано: {res.error}"))
+        msgs.append(f"посилання на {pl.amount:.2f} ₴ створено — надішліть пацієнту обраним каналом або покажіть QR")
     return msgs
 
 
@@ -2494,8 +2490,9 @@ def sale_view(request: Request, sid: int, user: User = Depends(require("sales"))
                   visit_url=(f"/calendar?start={_ap.start:%Y-%m-%d}&open={_ap.id}" if _ap and _ap.start else None),
                   cal_url=f"/calendar?start={(_ap.start if _ap and _ap.start else s_.at):%Y-%m-%d}",
                   print_=bool(request.query_params.get("print")), rros=[r for r in _fis.rros(db) if r["on"]], fcfg=_fis.cfg(db),
-                  links=db.scalars(select(__import__("app.models", fromlist=["PayLink"]).PayLink).where(
-                      __import__("app.models", fromlist=["PayLink"]).PayLink.sale_id == s_.id)).all())
+                  links=(_lk := db.scalars(select(__import__("app.models", fromlist=["PayLink"]).PayLink).where(
+                      __import__("app.models", fromlist=["PayLink"]).PayLink.sale_id == s_.id)).all()),
+                  pl_msgs={l_.id: __import__("app.services.paylinks", fromlist=["message"]).message(db, l_) for l_ in _lk})
 
 
 def _term_has_data(r) -> bool:
@@ -8452,6 +8449,21 @@ async def paylink_send(lid: int, ch: str = Form(...), back: str = Form("/setting
         db.commit()
     audit(db, "paylink.send", "paylink", lid, user=user, channel=ch, ok=res.ok)
     return RedirectResponse(_with_msg(back, f"Посилання надіслано в {lbl}" if res.ok else f"{lbl}: не надіслано — {res.error}", not res.ok), 303)
+
+
+@app.post("/paylinks/{lid:int}/mark-sent")
+def paylink_mark_sent(lid: int, ch: str = Form(""), user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    """Адміністратор надіслав посилання вручну (Viber / Telegram / SMS / WhatsApp / Instagram / Email) — записати канал і час."""
+    from .models import PayLink
+    pl = db.get(PayLink, lid) or (_ for _ in ()).throw(HTTPException(404))
+    lbl = {"viber": "Viber", "telegram": "Telegram", "sms": "SMS", "whatsapp": "WhatsApp", "instagram": "Instagram", "email": "Email"}.get(ch)
+    if not lbl:
+        raise HTTPException(400)
+    pl.info = {**(pl.info or {}), "sent": {"ok": True, "channel": lbl, "at": datetime.now().strftime("%d.%m.%Y %H:%M"),
+                                           "by": user.name or user.login, "manual": True}}
+    db.commit()
+    audit(db, "paylink.send", "paylink", lid, user=user, channel=ch, manual=True)
+    return {"ok": True}
 
 
 @app.post("/paylinks/{lid:int}/cancel")

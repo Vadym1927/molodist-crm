@@ -253,3 +253,29 @@ def test_sale_paid_by_link_is_fiscalized(monkeypatch):
         pls.check_status(db, pl, http)
         db.refresh(s)
         assert s.status == "paid" and calls == [(s.id, 7)]
+
+
+def test_sale_page_manual_channels_and_mark_sent(monkeypatch):
+    from app import security
+    from app.models import PayLink
+    from app.services import sales as sl, cashboxes as cbx
+    security.login_limiter.fails.clear(); security.ip_limiter.fails.clear()
+    monkeypatch.setattr(settings, "admin_password", "owner-pass-1")
+    with SessionLocal() as db:
+        cbx.apply_seed(db)
+        a = pls.save_account(db, None, "mono", "monobank ФОП Тест", {"token": "MTOK"}, "Термінал ФОП Колган", True)
+        m = sl.paylink_method("monobank ФОП Тест")
+        p = Patient(full_name="Канал Пацієнтка", phone="+380671230099", communication_channel="Viber", instagram="@kanal.p"); db.add(p); db.commit()
+        s = sl.create(db, {"patient_id": p.id, "items": [{"kind": "other", "name": "X", "qty": 1, "price": 1500.5}],
+                           "payments": [{"method": m, "amount": 1500.5}]})
+        http, st = _mono()
+        pl = pls.create(db, 1500.5, f"Чек Ч-{s.id}", "https://crm.molodist.com.ua", p.id, http=http, account_id=a["id"])
+        pl.sale_id = s.id; db.commit()
+        sid, lid = s.id, pl.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        h = c.get(f"/sales/{sid}").text
+        assert 'class="sch"' in h and 'data-ch="whatsapp"' in h and 'class="main " href="viber://' in h and "instagram.com/kanal.p" in h
+        assert c.post(f"/paylinks/{lid}/mark-sent", data={"ch": "viber"}).json()["ok"]
+    with SessionLocal() as db:
+        assert db.get(PayLink, lid).info["sent"]["channel"] == "Viber"
