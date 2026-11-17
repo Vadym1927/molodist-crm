@@ -2492,7 +2492,7 @@ def sale_view(request: Request, sid: int, user: User = Depends(require("sales"))
                   print_=bool(request.query_params.get("print")), rros=[r for r in _fis.rros(db) if r["on"]], fcfg=_fis.cfg(db),
                   links=(_lk := db.scalars(select(__import__("app.models", fromlist=["PayLink"]).PayLink).where(
                       __import__("app.models", fromlist=["PayLink"]).PayLink.sale_id == s_.id)).all()),
-                  pl_msgs={l_.id: __import__("app.services.paylinks", fromlist=["message"]).message(db, l_) for l_ in _lk})
+                  can_finance=can(user, "finance"), pl_msgs={l_.id: __import__("app.services.paylinks", fromlist=["message"]).message(db, l_) for l_ in _lk})
 
 
 def _term_has_data(r) -> bool:
@@ -2597,6 +2597,21 @@ async def sale_fiscalize(sid: int, rro: int = Form(0), ret: str = Form(""), user
     if not is_ret and _fis.cfg(db)["send"].get("on"):
         await asyncio.to_thread(_fis.send_receipt, db, s_)
     return RedirectResponse(_with_msg(f"/sales/{sid}", ("Чек повернення" if is_ret else "Фіскальний чек") + f" № {info.get('fiscal_code') or info.get('id')}"), 303)
+
+
+@app.post("/sales/{sid:int}/fiscal/relink")
+async def sale_fiscal_relink(sid: int, code: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Власник: привʼязати до чека інший фіскальний чек Checkbox (за фіскальним номером), напр. після дубля."""
+    from .services import fiscal as _fis
+    from .models import Sale
+    s_ = db.get(Sale, sid) or (_ for _ in ()).throw(HTTPException(404))
+    old_ = (s_.fiscal or {}).get("fiscal_code")
+    try:
+        await asyncio.to_thread(_fis.relink, db, s_, code)
+    except (_fis.FiscalError, httpx.HTTPError) as e:
+        return RedirectResponse(_with_msg(f"/sales/{sid}", f"Checkbox: {e}", True), 303)
+    audit(db, "sale.fiscal_relink", "sale", sid, user=user, old=old_, new=code.strip())
+    return RedirectResponse(_with_msg(f"/sales/{sid}", f"Привʼязано фіскальний чек № {code.strip()}"), 303)
 
 
 @app.post("/sales/{sid:int}/send-receipt")

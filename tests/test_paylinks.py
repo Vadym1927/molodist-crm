@@ -318,3 +318,26 @@ def test_paid_once_webhook_and_poll_race(monkeypatch):
         from datetime import datetime, timedelta
         it = [x for x in nt.payments(db, datetime.utcnow() - timedelta(hours=30)) if x["id"] == lid]
         assert it and it[0]["kind"] == "paid" and it[0]["url"] == f"/sales/{sid}" and "1 500 ₴" in it[0]["title"]
+
+
+def test_sale_fiscal_relink(monkeypatch):
+    """Дубль у Checkbox: власник привʼязує до чека правильний фіскальний номер."""
+    import httpx as _hx
+    from app.models import Sale
+    from app.services import sales as sl, cashboxes as cbx, fiscal as fis
+    with SessionLocal() as db:
+        cbx.apply_seed(db)
+        p = Patient(full_name="Релінк", phone="+380671234599"); db.add(p); db.commit()
+        s = sl.create(db, {"patient_id": p.id, "items": [{"kind": "other", "name": "X", "qty": 1, "price": 100}],
+                           "payments": [{"method": "Готівка", "amount": 100}]})
+        s.fiscal = {"fiscal_code": "QjTi_XyAaZk", "id": "old-id", "rro": 7, "rro_name": "ФОП"}; db.commit()
+        monkeypatch.setattr(fis, "_rro", lambda db, rid: {"id": 7, "name": "ФОП БОНДАР", "license_key": "L", "pin": "1"})
+
+        def h(req):
+            if req.url.path.endswith("/signinPinCode"):
+                return _hx.Response(200, json={"access_token": "T"})
+            assert req.url.params["fiscal_code"] == "DfZ1GzhF54Y"
+            return _hx.Response(200, json={"results": [{"id": "new-id", "fiscal_code": "DfZ1GzhF54Y", "fiscal_date": "2026-11-17T17:13:04+02:00"}]})
+        f = fis.relink(db, s, "DfZ1GzhF54Y", _hx.Client(transport=_hx.MockTransport(h)))
+        assert f["fiscal_code"] == "DfZ1GzhF54Y" and f["id"] == "new-id" and f["url"].endswith("new-id")
+        assert f["replaced"][0]["fiscal_code"] == "QjTi_XyAaZk" and f["at"] == "17.11.2026 17:13"

@@ -435,6 +435,36 @@ def fiscalize(db: Session, sale: Sale, rid: int | None = None, http: httpx.Clien
     return info
 
 
+def relink(db: Session, sale: Sale, code: str, http: httpx.Client | None = None) -> dict:
+    """Привʼязати до чека CRM інший фіскальний чек цієї ж каси (напр. після дубля): шукаємо в Checkbox за фіскальним номером."""
+    code = (code or "").strip()
+    if not code:
+        raise FiscalError("Вкажіть фіскальний номер чека")
+    f = dict(sale.fiscal or {})
+    r = _rro(db, f.get("rro"))
+    k = Kasa(r, http)
+    from urllib.parse import quote
+    js = k._req("GET", f"receipts/search?fiscal_code={quote(code)}&limit=5")
+    rows = js.get("results") if isinstance(js, dict) else js
+    rc = next((x for x in rows or [] if str(x.get("fiscal_code")) == code), None)
+    if not rc:
+        raise FiscalError(f"Чек {code} не знайдено в касі {r['name']}")
+    if f.get("fiscal_code") and f.get("fiscal_code") != code:
+        f["replaced"] = [*(f.get("replaced") or []), {"fiscal_code": f.get("fiscal_code"), "id": f.get("id"), "url": f.get("url"),
+                                                      "at": datetime.now().strftime("%d.%m.%Y %H:%M")}]
+    f.update({"id": rc.get("id"), "fiscal_code": code, "number": code, "url": CHECK_URL.format(id=rc.get("id")),
+              "rro": r["id"], "rro_name": r["name"], "test": bool(r.get("test"))})
+    if rc.get("fiscal_date") or rc.get("created_at"):
+        try:
+            f["at"] = datetime.fromisoformat(str(rc.get("fiscal_date") or rc.get("created_at")).replace("Z", "+00:00")).strftime("%d.%m.%Y %H:%M")
+        except ValueError:
+            pass
+    f.pop("error", None)
+    sale.fiscal = f
+    db.commit()
+    return f
+
+
 def receipt_png(db: Session, f: dict, http: httpx.Client | None = None) -> bytes | None:
     """PNG фіскального чека з Checkbox: спершу без авторизації, далі — з входом касира тієї каси."""
     base = DEV if f.get("test") else PROD
