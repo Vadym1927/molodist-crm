@@ -2457,6 +2457,9 @@ async def sale_create(request: Request, user: User = Depends(require("sales")), 
     if term_wait:
         s_.fiscal = {**(s_.fiscal or {}), "term_wait": term_wait, "rro_pending": d_.get("fiscal_rro")}
         db.commit()
+    elif s_.status == "awaiting" and d_.get("fiscal_rro") and not _test:     # посилання на оплату: чек фіскалізується після оплати
+        s_.fiscal = {**(s_.fiscal or {}), "rro_pending": d_.get("fiscal_rro")}
+        db.commit()
     if _test:
         s_.fiscal = {**(s_.fiscal or {}), "test_sale": True}
         db.commit()

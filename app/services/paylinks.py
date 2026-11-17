@@ -274,6 +274,11 @@ def _mark(db: Session, pl: PayLink, status: str, paid_amount: float | None = Non
         except Exception:  # noqa: BLE001 — сповіщення не мають ламати статус оплати
             pass
     db.commit()
+    if status == "paid" and was != "paid" and pl.sale_id:      # чек каси CRM оплачено за посиланням → фіскалізація
+        from ..models import Sale
+        s = db.get(Sale, pl.sale_id)
+        if s and s.status == "paid":
+            _fiscal_after_pay(db, s)
     if status == "paid" and was != "paid":
         try:
             from . import cashboxes
@@ -321,6 +326,25 @@ def _book(db: Session, pl: PayLink) -> None:
         alerts.send(f"💳 Онлайн-оплата {pl.paid_amount or pl.amount:.2f} ₴ · {who or 'без пацієнта'} · {pl.purpose}")
     except Exception:  # noqa: BLE001
         pass
+
+
+def _fiscal_after_pay(db: Session, s) -> None:
+    """Чек каси CRM, оплачений за посиланням: фіскалізувати в касі, обраній у POS (або за замовчуванням, якщо авто-фіскалізація)."""
+    from . import autonomy, fiscal as fis
+    f = dict(s.fiscal or {})
+    if f.get("fiscal_code") or f.get("test_sale") or f.get("skipped") or autonomy.test_mode(db):
+        return
+    rro = f.get("rro_pending") or (None if not fis.cfg(db).get("auto") else 0)
+    if rro is None:
+        return
+    try:
+        fis.fiscalize(db, s, rro or None)
+        fis.send_receipt(db, s)
+    except Exception as e:  # noqa: BLE001 — гроші вже прийшли; помилку видно в чеку, фіскалізувати можна вручну
+        f2 = dict(s.fiscal or {})
+        f2["error"] = str(e)[:200]
+        s.fiscal = f2
+        db.commit()
 
 
 def _acc_of(d: dict, pl: PayLink) -> dict | None:

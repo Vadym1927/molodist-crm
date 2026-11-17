@@ -230,3 +230,26 @@ def test_awaiting_sale_cancel_and_archive():
         c.post(f"/sales/{sid}/archive", data={"on": "0"})
         with SessionLocal() as db:
             assert db.get(Sale, sid).archived_at is None
+
+
+def test_sale_paid_by_link_is_fiscalized(monkeypatch):
+    from app.models import Sale
+    from app.services import sales as sl, cashboxes as cbx, fiscal as fis
+    calls = []
+    monkeypatch.setattr(fis, "fiscalize", lambda db, s, rid=None, *a, **k: calls.append((s.id, rid)) or {"fiscal_code": "F1"})
+    monkeypatch.setattr(fis, "send_receipt", lambda db, s: None)
+    with SessionLocal() as db:
+        cbx.apply_seed(db)
+        a = pls.save_account(db, None, "mono", "monobank ФОП Бондар", {"token": "MTOK"}, "Термінал ФОП Бондар", True)
+        m = sl.paylink_method("monobank ФОП Бондар")
+        p = Patient(full_name="Фіскал Лінк", phone="+380671234577"); db.add(p); db.commit()
+        s = sl.create(db, {"patient_id": p.id, "items": [{"kind": "other", "name": "X", "qty": 1, "price": 1500.5}],
+                           "payments": [{"method": m, "amount": 1500.5}]})
+        s.fiscal = {"rro_pending": 7}; db.commit()
+        http, st = _mono()
+        pl = pls.create(db, 1500.5, f"Чек Ч-{s.id}", "https://crm.molodist.com.ua", p.id, http=http, account_id=a["id"])
+        pl.sale_id = s.id; db.commit()
+        st["status"] = "success"
+        pls.check_status(db, pl, http)
+        db.refresh(s)
+        assert s.status == "paid" and calls == [(s.id, 7)]
