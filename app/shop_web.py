@@ -678,6 +678,9 @@ def register(app, templates, version: str):
                 from .models import Doctor as _Dr
                 tip_doc = db.get(_Dr, it["tip"]["doctor_id"])
             cx["tip_doc"] = tip_doc
+            _bn = (it.get("brand") or "").strip().lower().split(" (")[0]
+            cx["brand_path"] = next((c["path"] for c in d["cats"] if c["path"].startswith("/shop/brendi/") and c.get("n")
+                                     and c["name"].strip().lower().split(" (")[0] == _bn), None) if _bn else None
             cx.update(canonical=cx["s"]["canonical"].rstrip("/") + f"/shop/{it['slug']}/", it=it, cat=cat, rel=rel, rvs=rvs,
                       title=it["seo_title"] or f"{it['name']} — купити в MOLODIST", desc=it["seo_desc"] or it["name"],
                       jsonld=json.dumps({"@context": "https://schema.org/", "@type": "Product", "name": it["name"], "sku": it["sku"],
