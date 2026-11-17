@@ -105,6 +105,9 @@ def marks(d: dict) -> dict:
     return {k: v[:200] for k, v in out.items() if v}
 
 
+SERVICE_PATHS = ("/cabinet", "/checkout", "/review/", "/reorder/", "/wish")
+
+
 def ingest(db: Session, d: dict, origin: str = "") -> dict:
     c = cfg(db)
     if not d or set(k.lower() for k in d) <= {"test"}:       # перевірка вебхука Tilda («test=test»)
@@ -115,9 +118,12 @@ def ingest(db: Session, d: dict, origin: str = "") -> dict:
     page = str(d.get("page") or d.get("url") or d.get("referer") or "").strip()[:300]
     if not (phone or name or msg):
         return {"ok": False, "error": "порожня заявка"}
+    path = urlparse(page).path if page else ""
+    if form.lower().startswith(("cab-", "shop-")) or any(path.startswith(x) for x in SERVICE_PATHS):
+        return {"ok": True, "skipped": "службова форма магазину (вхід у кабінет, оформлення, відгук) — не звернення"}
     mk = marks(d)
     utm = "&".join(f"{k}={v}" for k, v in mk.items())
-    extra = {k: v for k, v in d.items() if k.lower() not in SKIP and k.lower() not in UTM and str(v).strip()
+    extra = {k: v for k, v in d.items() if k.lower() not in SKIP and k.lower() not in ("code", "otp", "password", "pass", "pin") and k.lower() not in UTM and str(v).strip()
              and str(v).strip() not in (name, phone, msg, interest) and not k.lower().startswith("utm")}
     lines = [f"Заявка з сайту{(' · ' + form) if form else ''}"]
     if msg:

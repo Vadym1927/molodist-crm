@@ -146,3 +146,20 @@ def test_observ_glued_price_and_missing():
     assert by["Очищувальний гель AG SKIN Cleansing Gel Mandelic Acid 230 мл"] == 1450
     ok, t2 = parse_items("МЕТОДИ ЛІКУВАННЯ\n2 Мікроголковий RF ліфтинг 32 000,00 ₴\nЗагалом\n32 000,00 ₴".splitlines())
     assert ok[0].total == 32000 and ok[0].unit_price == 16000
+
+
+def test_observ_spf_digits_glued_after_space():
+    """«…SPF 501 750,00 ₴» = «SPF 50» + «1 750,00 ₴» (а не 501 750): розв'язуємо за рядком «Загалом»."""
+    from app.parsers.observ import parse_items
+    lines = """МЕТОДИ ЛІКУВАННЯ
+1 Бланшинг ( заповнення зморшок) 10 900,00 ₴
+1 Ботулінотерапія Full Face 13 000,00 ₴
+ДОМАШНІЙ ДОГЛЯД
+1 Сонцезахисний крем SUN DEFENSE OILY SKIN SPF 501 750,00 ₴
+1 Крем для повік Eye Cream 15 ml 4 000,00 ₴
+Загалом
+29 650,00 ₴""".splitlines()
+    items, total = parse_items(lines)
+    by = {i.name: i.total for i in items}
+    assert by["Сонцезахисний крем SUN DEFENSE OILY SKIN SPF 50"] == 1750
+    assert by["Ботулінотерапія Full Face"] == 13000 and round(sum(by.values()), 2) == total == 29650

@@ -26,3 +26,12 @@ def test_site_lead_tilda_and_gtm():
         ls = ga.leads(db, date.today() - timedelta(days=1), date.today())
         assert any(l["phone"] == a.phone and l["campaign"] == "Поиск | Клініка" for l in ls)
         assert "__HOOK__" not in sl.gtm_tag("https://x/l") and "https://x/l" in sl.gtm_tag("https://x/l")
+
+
+def test_shop_cabinet_login_is_not_appeal():
+    with SessionLocal() as db:
+        r = sl.ingest(db, {"phone": "+380501112299", "form": "cab-login", "code": "75874", "page": "https://molodist.store/cabinet/"})
+        assert r.get("skipped")
+        r = sl.ingest(db, {"phone": "+380501112298", "name": "X", "page": "https://molodist.store/checkout/?a=1"})
+        assert r.get("skipped")
+        assert not [a for a in db.query(Appeal).all() if a.phone and a.phone.endswith(("1112299", "1112298"))]

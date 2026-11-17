@@ -122,34 +122,39 @@ def parse_items(lines: list[str], pages: list[str] | None = None) -> tuple[list[
         m = ITEM_RE.match(s)
         if m:
             name, price = m.group(2).strip(), m.group(3)
-            alt = None
+            tight = s[m.start(3) - 1] != " "
             head = price.split(" ")[0].split(",")[0]
-            if s[m.start(3) - 1] != " " and len(head) >= 2:
-                alt = (name + price[0], price[1:])              # одна цифра ціни насправді належить назві
-                if not re.fullmatch(r"\d{1,3}(?: \d{3})*,\d{2}", alt[1]):
-                    alt = None
-            raw.append({"kind": kind, "qty": int(m.group(1)), "name": name, "sum": money(price),
-                        "alt": (alt[0], money(alt[1])) if alt else None})
+            alts = []                                           # кілька перших цифр ціни насправді належать назві
+            for k in range(1, len(head)):
+                rest = price[k:].lstrip()
+                if re.fullmatch(r"[1-9]\d{0,2}(?: \d{3})*,\d{2}", rest):
+                    alts.append(((name + price[:k]) if tight else f"{name} {price[:k]}", money(rest)))
+            alts.sort(key=lambda a: -a[1])                     # спершу відрізаємо найменше цифр
+            raw.append({"kind": kind, "qty": int(m.group(1)), "name": name, "sum": money(price), "alts": alts, "tight": tight})
         elif "₴" not in s:
             m2 = NOPRICE_RE.match(s)
             if m2 and kind == "product":
-                raw.append({"kind": kind, "qty": int(m2.group(1)), "name": m2.group(2).strip(), "sum": None, "alt": None})
-    glued = [r for r in raw if r["alt"]]
+                raw.append({"kind": kind, "qty": int(m2.group(1)), "name": m2.group(2).strip(), "sum": None, "alts": [], "tight": False})
+    glued = [r for r in raw if r["alts"]]
     missing = [r for r in raw if r["sum"] is None]
+
+    def _opts(g):                                               # варіанти: None = як є, 0.. = розклеїти
+        o = list(range(len(g["alts"])))
+        return o + [None] if g["tight"] else [None] + o
     chosen = None
     if total is not None and (glued or missing):
         from itertools import product as _prod
-        for mask in sorted(_prod((0, 1), repeat=len(glued)), key=lambda t: -sum(t)):       # спершу — «всі злиплі розклеїти»
-            sm = sum(r["sum"] for r in raw if r["sum"] is not None and not r["alt"])
-            sm += sum((g["alt"][1] if on else g["sum"]) for g, on in zip(glued, mask))
+        for combo in _prod(*[_opts(g) for g in glued]):
+            sm = sum(r["sum"] for r in raw if r["sum"] is not None and not r["alts"])
+            sm += sum((g["alts"][c][1] if c is not None else g["sum"]) for g, c in zip(glued, combo))
             diff = round(total - sm, 2)
-            if (not missing and abs(diff) < 0.01) or (len(missing) == 1 and diff > 0.009) or (len(missing) > 1 and diff > 0.009 and all(mask)):
-                chosen = (mask, diff)
+            if (not missing and abs(diff) < 0.01) or (len(missing) == 1 and diff > 0.009) or (len(missing) > 1 and diff > 0.009):
+                chosen = (combo, diff)
                 break
-    mask = chosen[0] if chosen else tuple(1 for _ in glued)       # без підсумку: ціна впритул до назви — завжди злипання
-    for g, on in zip(glued, mask):
-        if on:
-            g["name"], g["sum"] = g["alt"]
+    combo = chosen[0] if chosen else tuple(_opts(g)[0] for g in glued)   # без підсумку: ціна впритул до назви — злипання
+    for g, c in zip(glued, combo):
+        if c is not None:
+            g["name"], g["sum"] = g["alts"][c]
     if missing:
         diff = chosen[1] if chosen else None
         for r in missing:
