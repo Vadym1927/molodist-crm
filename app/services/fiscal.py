@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import time
+import threading
 import uuid
 from datetime import datetime
 
@@ -242,7 +243,16 @@ class Kasa:
 
 
     def sell(self, body: dict) -> dict:
-        rc = self._req("POST", "receipts/sell", body)
+        try:
+            rc = self._req("POST", "receipts/sell", body)
+        except FiscalError as e:
+            # чек з цим id уже є в Checkbox (повторний запит) → беремо наявний, другий не створюємо
+            try:
+                rc = self._req("GET", f"receipts/{body['id']}")
+            except FiscalError:
+                raise e from None
+            if rc.get("status") == "ERROR":
+                raise FiscalError("Checkbox відхилив чек: " + str(rc.get("transaction", {}).get("response_error_message") or "")[:150])
         for _ in range(15):
             if rc.get("status") in ("DONE", "ERROR"):
                 break
@@ -397,7 +407,9 @@ def build(db: Session, sale: Sale, is_return: bool = False, rro: dict | None = N
         if is_return:
             g["is_return"] = True
         goods.append(g)
-    body = {"id": str(uuid.uuid4()), "goods": goods, "payments": pays}
+    # id чека — сталий для чека CRM: повторна відправка того ж чека в Checkbox не створить дубль (штраф ДПС)
+    att = int((sale.fiscal or {}).get("ret_attempt" if is_return else "attempt") or 0)
+    body = {"id": receipt_uuid(sale.id, is_return, att), "goods": goods, "payments": pays}
     if disc:
         body["discounts"] = [{"type": "DISCOUNT", "mode": "VALUE", "value": disc, "name": "Бонуси / сертифікат"}]
     if is_return and sale.fiscal and sale.fiscal.get("id"):
@@ -405,8 +417,21 @@ def build(db: Session, sale: Sale, is_return: bool = False, rro: dict | None = N
     return body
 
 
+_NS = uuid.UUID("6f1c2a52-5b8e-4d55-9a4e-4d4f4c4f4449")
+_FIS_LOCK = threading.RLock()
+
+
+def receipt_uuid(sale_id: int, is_return: bool = False, attempt: int = 0) -> str:
+    return str(uuid.uuid5(_NS, f"molodist-sale-{sale_id}-{'return' if is_return else 'sell'}-{attempt}"))
+
+
 def fiscalize(db: Session, sale: Sale, rid: int | None = None, http: httpx.Client | None = None, wait: float = 1.0,
               is_return: bool = False) -> dict:
+    with _FIS_LOCK:             # фіскалізація по одному чеку за раз — ніяких паралельних дублів
+        return _fiscalize(db, sale, rid, http, wait, is_return)
+
+
+def _fiscalize(db: Session, sale: Sale, rid: int | None, http: httpx.Client | None, wait: float, is_return: bool) -> dict:
     from . import autonomy
     try:
         db.refresh(sale)        # інший запит міг щойно фіскалізувати цей чек
@@ -416,11 +441,20 @@ def fiscalize(db: Session, sale: Sale, rid: int | None = None, http: httpx.Clien
         raise FiscalError("Тестовий режим: фіскалізацію відв'язано — тестові чеки в Checkbox не надсилаються")
     if not is_return and sale.fiscal and sale.fiscal.get("fiscal_code"):
         raise FiscalError("Чек уже фіскалізовано")
+    if is_return and (sale.fiscal or {}).get("return", {}).get("fiscal_code"):
+        raise FiscalError("Повернення вже фіскалізовано")
     r = _rro(db, rid or ((sale.fiscal or {}).get("rro") if is_return else None))
     body = build(db, sale, is_return, r)
     k = Kasa(r, http, wait)
     k.ensure_shift()
-    rc = k.sell(body)
+    try:
+        rc = k.sell(body)
+    except FiscalError as e:
+        if "відхилив" in str(e):        # Checkbox остаточно відхилив цей id → наступна спроба піде з новим id
+            key = "ret_attempt" if is_return else "attempt"
+            sale.fiscal = {**(sale.fiscal or {}), key: int((sale.fiscal or {}).get(key) or 0) + 1}
+            db.commit()
+        raise
     info = {"id": rc.get("id"), "fiscal_code": rc.get("fiscal_code"), "url": CHECK_URL.format(id=rc.get("id")),
             "rro": r["id"], "rro_name": r["name"], "test": bool(r.get("test")), "at": datetime.now().strftime("%d.%m.%Y %H:%M"),
             "number": rc.get("fiscal_code")}

@@ -341,3 +341,36 @@ def test_sale_fiscal_relink(monkeypatch):
         f = fis.relink(db, s, "DfZ1GzhF54Y", _hx.Client(transport=_hx.MockTransport(h)))
         assert f["fiscal_code"] == "DfZ1GzhF54Y" and f["id"] == "new-id" and f["url"].endswith("new-id")
         assert f["replaced"][0]["fiscal_code"] == "QjTi_XyAaZk" and f["at"] == "17.11.2026 17:13"
+
+
+def test_fiscal_receipt_id_is_stable_no_duplicate(monkeypatch):
+    """Повторна відправка того ж чека в Checkbox (той самий id) не створює другий фіскальний чек."""
+    import httpx as _hx
+    from app.services import sales as sl, cashboxes as cbx, fiscal as fis
+    store = {}
+
+    def h(req):
+        pth = req.url.path
+        if pth.endswith("/signinPinCode"):
+            return _hx.Response(200, json={"access_token": "T"})
+        if pth.endswith("/cashier/shift"):
+            return _hx.Response(200, json={"id": "sh", "status": "OPENED"})
+        if pth.endswith("/receipts/sell"):
+            b = json.loads(req.content)
+            if b["id"] in store:
+                return _hx.Response(400, json={"message": "Чек з таким ID вже існує"})
+            store[b["id"]] = {"id": b["id"], "status": "DONE", "fiscal_code": "FC%d" % (len(store) + 1)}
+            return _hx.Response(200, json=store[b["id"]])
+        rid = pth.rsplit("/", 1)[-1]
+        return _hx.Response(200, json=store[rid]) if rid in store else _hx.Response(404, json={"message": "nf"})
+    monkeypatch.setattr(fis, "_rro", lambda db, rid: {"id": 7, "name": "ФОП", "license_key": "L", "pin": "1"})
+    with SessionLocal() as db:
+        cbx.apply_seed(db)
+        p = Patient(full_name="Стабільний Ід", phone="+380671234511"); db.add(p); db.commit()
+        s = sl.create(db, {"patient_id": p.id, "items": [{"kind": "other", "name": "X", "qty": 1, "price": 100}],
+                           "payments": [{"method": "Готівка", "amount": 100}]})
+        cl = _hx.Client(transport=_hx.MockTransport(h))
+        a = fis.fiscalize(db, s, 7, cl, 0)
+        s.fiscal = {k: v for k, v in s.fiscal.items() if k not in ("fiscal_code",)}; db.commit()   # «забули», що чек є
+        b = fis.fiscalize(db, s, 7, cl, 0)
+        assert len(store) == 1 and a["id"] == b["id"] == fis.receipt_uuid(s.id) and b["fiscal_code"] == "FC1"
