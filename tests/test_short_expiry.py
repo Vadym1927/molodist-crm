@@ -81,3 +81,28 @@ def test_sale_category_only_discounted():
         sale = data["by_path"].get("/shop/sale/")
         if sale:
             assert all(data["by_slug"][s]["old"] for s in sale["slugs"])
+
+
+def test_shop_stock_follows_crm_ledger_and_short_capped():
+    """Сайт: наявність — за залишком CRM на вітрині; «короткий термін» не висить на товарі з нульовим залишком."""
+    from app.models import StockMove
+    today = date.today()
+    with SessionLocal() as db:
+        db.query(SyncState).filter(SyncState.key.in_(("stock_ledger_start", sx.KEY))).delete(); db.commit()
+        p = Product(name="Скраб ZO SX2", name_norm="скраб zo sx2", warehouse="vitrina", price=4210, site_on=True,
+                    site_info={"slug": "zo-sx2", "title": "Скраб ZO SX2", "presence": 1, "quantity": 5})
+        db.add(p); db.commit()
+        st.start_ledger(db)
+        doc = st.new_doc(db, "supply", wh_to="vitrina", supplier="ZO")
+        doc.lines.append(st.StockDocLine(product_id=p.id, qty=1, unit_cost=1860, expiry_date=today + timedelta(days=100)))
+        db.commit(); st.post(db, doc)
+        v = next(v for i in sf.catalog(db, fresh=True)["items"] for v in i["variants"] if v["id"] == p.id)
+        assert v["stock"] and v["left"] == 1 and v["short"] == 1
+        assert sf.price_cart(db, [{"id": p.id, "qty": 3}])["items"][0]["qty"] == 1      # не більше, ніж на вітрині
+        # продаж без партії: партія без терміну −1, коротка +1 → фактично 0
+        db.add(StockMove(product_id=p.id, warehouse="vitrina", qty=-1, kind="sale", ref="sale:test-sx2", at=datetime.now())); db.commit()
+        assert p.id not in sx.short_stock(db)
+        v = next(v for i in sf.catalog(db, fresh=True)["items"] for v in i["variants"] if v["id"] == p.id)
+        assert not v["stock"] and not v.get("short") and v["price"] == 4210
+        assert sf.price_cart(db, [{"id": p.id, "qty": 1}])["items"] == []
+        db.query(SyncState).filter(SyncState.key.in_(("stock_ledger_start", sx.KEY))).delete(); db.commit()

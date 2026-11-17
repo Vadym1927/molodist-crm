@@ -3,7 +3,7 @@
 • Товари — картки CRM із блоком «На сайті» (site_on + site_info.slug): фото на нашому сервері, опис, SEO.
 • Структура й SEO старого сайту (категорії з адресами, заголовками й описами, склад категорій, сторінки, блог) — один раз
   знімається з molodist.store (crawl) у SyncState «shop_site»; нові сторінки відкриваються за ТИМИ САМИМИ адресами.
-• Ціна — з CRM (ціна продажу), наявність і показ — як стояло на сайті (site_info.presence / quantity), далі керується в картці.
+• Ціна — з CRM (ціна продажу); наявність — фактичний залишок CRM на складах SHOP_WHS (журнал складу), показ і ручне «немає» — у картці.
 • Замовлення → SiteOrder(source="crm") + картка пацієнта за телефоном + сповіщення адміністраторам; оплата — посилання monobank.
 Поки магазин не опубліковано — сторінки бачать лише співробітники CRM або за посиланням перегляду."""
 from __future__ import annotations
@@ -62,6 +62,9 @@ class ShopError(ValueError):
 
 
 # ---------------- налаштування ----------------
+
+
+SHOP_WHS = ("vitrina",)                                  # склади, з яких продає інтернет-магазин
 
 def gtin(code: str) -> str:
     """Штрихкод → GTIN (8/12/13/14 цифр із правильною контрольною цифрою), інакше порожньо."""
@@ -348,6 +351,16 @@ def catalog(db: Session, fresh: bool = False) -> dict:
         short = _sx.short_stock(db, sxc)
     except Exception:  # noqa: BLE001
         short = {}
+    onhand: dict[int, float] | None = None
+    try:                                                    # наявність — за фактичним залишком CRM на вітрині (журнал складу)
+        from .stock import balances, ledger_active
+        if ledger_active(db):
+            onhand = defaultdict(float)
+            for (pid_, wh_), q_ in balances(db).items():
+                if wh_ in SHOP_WHS:
+                    onhand[pid_] += q_
+    except Exception:  # noqa: BLE001
+        onhand = None
     for p in db.scalars(select(Product).where(Product.site_info.is_not(None)).order_by(Product.id)):
         si = p.site_info or {}
         slug = si.get("slug")
@@ -365,8 +378,13 @@ def catalog(db: Session, fresh: bool = False) -> dict:
         sx_ = short.get(p.id) if not hidden and not (old > price) else None
         if sx_:                                             # короткий термін придатності: знижка лише на к-сть короткої партії
             old, price = price, _sx.price(sxc, price)
-        stock = not hidden and str(si.get("presence", 1)).lower() not in ("0", "false", "not_available") and (si.get("quantity") is None or float(si.get("quantity") or 0) > 0)
-        v = {"id": p.id, "name": si.get("title") or p.name, "price": price, "old": old if old > price else 0, "stock": stock,
+        if onhand is not None:
+            left_ = int(max(0.0, onhand.get(p.id, 0.0)) + 1e-6)
+            stock = not hidden and str(si.get("presence", 1)).lower() not in ("0", "false", "not_available") and left_ >= 1
+        else:
+            left_ = None
+            stock = not hidden and str(si.get("presence", 1)).lower() not in ("0", "false", "not_available") and (si.get("quantity") is None or float(si.get("quantity") or 0) > 0)
+        v = {"id": p.id, "left": left_, "name": si.get("title") or p.name, "price": price, "old": old if old > price else 0, "stock": stock,
              "sku": p.sku or si.get("sku") or "", "label": p.volume or "", "gtin": gtin(p.barcode or si.get("barcode") or "")}
         if sx_:
             v.update(short=sx_["qty"], short_exp=sx_["expiry"].isoformat(), full=old)
@@ -724,6 +742,10 @@ def price_cart(db: Session, rows: list[dict], c: dict | None = None) -> dict:
         it, v = by_id[pid]
         if not v["stock"]:
             continue
+        if v.get("left") is not None:                   # не більше, ніж є на вітрині
+            qty = min(qty, int(v["left"]))
+            if qty < 1:
+                continue
         sq = min(qty, int(v.get("short") or 0))
         if sq:                                          # знижка «короткий термін» — лише на одиниці короткої партії
             line = round(v["price"] * sq + float(v["full"]) * (qty - sq), 2)

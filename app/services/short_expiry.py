@@ -65,9 +65,21 @@ def short_stock(db: Session, c: dict | None = None) -> dict[int, dict]:
     c = c or cfg(db)
     if not c.get("on") or not ledger_active(db):
         return {}
+    bb = batch_balances(db)
+    total: dict = {}
+    for (pid, wh, e), q in bb.items():
+        total[(pid, wh)] = total.get((pid, wh), 0.0) + q
     out: dict[int, dict] = {}
-    for (pid, wh, e), q in batch_balances(db).items():
+    left: dict = {}
+    for (pid, wh, e), q in sorted(bb.items(), key=lambda kv: (kv[0][0], kv[0][1], kv[0][2] is None, kv[0][2] or date.min)):
         if wh in c["whs"] and q > 1e-6 and is_short(c, e):
+            # не більше, ніж фізично є на складі: продаж без партії дає «мінус» у партії без терміну,
+            # а коротка партія лишається «плюс» — без цієї межі знижка висіла б на товарі з нульовим залишком
+            cap = left.setdefault((pid, wh), max(0.0, total.get((pid, wh), 0.0)))
+            q = min(q, cap)
+            if q <= 1e-6:
+                continue
+            left[(pid, wh)] = cap - q
             r = out.setdefault(pid, {"qty": 0.0, "expiry": e, "lots": []})
             r["qty"] = round(r["qty"] + q, 3)
             r["lots"].append((e, q))
