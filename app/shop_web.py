@@ -136,8 +136,8 @@ def register(app, templates, version: str):
     def shop_home(request: Request, db: Session = Depends(db_dep)):
         cx = ctx(request, db, "/")
         h = cx["d"]["home"]
-        cx.update(title=h.get("title") or "Професійна косметика для обличчя та тіла | MOLODIST",
-                  desc=h.get("desc") or "Професійна косметика від лікарів MOLODIST: оригінальна продукція, підбір догляду, доставка по Україні.",
+        cx.update(title="MOLODIST — професійна косметика, яку призначають лікарі",
+                  desc="Medik8, AG SKIN, Image Skincare, Rejuran та інші бренди від лікарів MOLODIST. Оригінал, Покупка Частинами monobank, доставка по Україні — безкоштовно від 3 000 ₴.",
                   **({"og_title": f"Вам подарунок: {cx['s'].get('cab_coin_ref')} MOLODIST Coins на професійну косметику",
                       "og_desc": f"Зареєструйтесь у магазині MOLODIST за запрошенням друга й отримайте {cx['s'].get('cab_coin_ref')} MOLODIST Coins. Професійна косметика, яку призначають лікарі.",
                       "og_img": f"{cx['abs']}/static/shop/og/invite.jpg"} if cx["ref_in"] else {}),
