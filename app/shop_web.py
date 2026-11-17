@@ -144,6 +144,16 @@ def register(app, templates, version: str):
                   insta=__import__("app.services.insta_feed", fromlist=["x"]).items(db),
                   insta_p=__import__("app.services.insta_feed", fromlist=["x"]).state(db).get("profile") or {},
                   blocks=sf.home_blocks(cx["d"]), blog=_blog(cx["d"], 4))
+        _root = cx["s"]["canonical"].rstrip("/")
+        cx["jsonld"] = json.dumps({"@context": "https://schema.org", "@graph": [
+            {"@type": "OnlineStore", "@id": _root + "/#store", "name": "MOLODIST", "url": _root + "/",
+             "logo": _root + "/static/site/brand/wordmark-graphite-600.png", "description": cx.get("desc") or "",
+             "telephone": cx["c"].get("phone_text") or "", "email": cx["c"].get("email") or "",
+             "address": {"@type": "PostalAddress", "streetAddress": "вул. Князя Романа Мстиславича, 28А", "addressLocality": "Київ", "addressCountry": "UA"},
+             "sameAs": [x for x in (cx["c"].get("instagram"), cx["c"].get("telegram"), cx["c"].get("main_url")) if x]},
+            {"@type": "WebSite", "url": _root + "/", "name": "MOLODIST",
+             "potentialAction": {"@type": "SearchAction", "target": _root + "/shop/?q={search_term_string}", "query-input": "required name=search_term_string"}}]},
+            ensure_ascii=False)
         return resp(request, "shop/home.html", cx)
 
     def _feed_root(db, c):
@@ -676,7 +686,20 @@ def register(app, templates, version: str):
                                          "description": it["seo_desc"] or it["name"],
                                          **({} if it["price"] <= 0 else {"offers": {"@type": "Offer", "priceCurrency": "UAH", "price": f"{it['price']:.0f}",
                                                     "url": cx["s"]["canonical"].rstrip("/") + f"/shop/{it['slug']}/",
-                                                    "availability": "https://schema.org/" + ("InStock" if it["stock"] else "OutOfStock")}}),
+                                                    "availability": "https://schema.org/" + ("InStock" if it["stock"] else "OutOfStock"),
+                                                    "itemCondition": "https://schema.org/NewCondition",
+                                                    "priceValidUntil": f"{date.today().year + 1}-12-31",
+                                                    "seller": {"@type": "Organization", "name": "MOLODIST"},
+                                                    **({} if it["price"] < float(cx["s"].get("free_from") or 10 ** 9) else {"shippingDetails": {"@type": "OfferShippingDetails",
+                                                                        "shippingRate": {"@type": "MonetaryAmount", "value": 0, "currency": "UAH"},
+                                                                        "shippingDestination": {"@type": "DefinedRegion", "addressCountry": "UA"},
+                                                                        "deliveryTime": {"@type": "ShippingDeliveryTime",
+                                                                                         "handlingTime": {"@type": "QuantitativeValue", "minValue": 0, "maxValue": 1, "unitCode": "DAY"},
+                                                                                         "transitTime": {"@type": "QuantitativeValue", "minValue": 1, "maxValue": 3, "unitCode": "DAY"}}}}),
+                                                    "hasMerchantReturnPolicy": {"@type": "MerchantReturnPolicy", "applicableCountry": "UA",
+                                                                                "returnPolicyCategory": "https://schema.org/MerchantReturnFiniteReturnWindow",
+                                                                                "merchantReturnDays": 7, "returnMethod": "https://schema.org/ReturnByMail",
+                                                                                "returnFees": "https://schema.org/ReturnShippingFees"}}}),
                                          **({"aggregateRating": {"@type": "AggregateRating", "ratingValue": rvs["avg"], "reviewCount": rvs["n"]},
                                              "review": [{"@type": "Review", "author": {"@type": "Person", "name": r.name or "Покупець"},
                                                          "reviewRating": {"@type": "Rating", "ratingValue": r.rating}, "reviewBody": r.text or "",
