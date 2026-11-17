@@ -10178,7 +10178,11 @@ def shop_order_page(request: Request, oid: int, user: User = Depends(require("sa
     from .models import SiteOrder
     o = db.get(SiteOrder, oid) or (_ for _ in ()).throw(HTTPException(404))
     from .services import shop_front as sf
-    return render(request, "shop_order.html", nav="shop", o=o, pat=db.get(Patient, o.patient_id) if o.patient_id else None, v=sf.order_view(db, o),
+    _rvu = None
+    if o.source == "crm" and o.items:
+        from .services import shop_reviews as _rv
+        _rvu = _rv.link(o, _shop_root(db))
+    return render(request, "shop_order.html", nav="shop", review_url=_rvu, o=o, pat=db.get(Patient, o.patient_id) if o.patient_id else None, v=sf.order_view(db, o),
                   STATUSES=sf.STATUSES, staff=[u_ for u_ in db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)) if can(u_, "sales")])
 
 

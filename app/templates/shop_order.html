@@ -26,6 +26,7 @@
     <div class="small">{{ o.city or '' }}{{ ', ' ~ o.address if o.address }}</div>
     <div class="small">{{ o.payment or '' }} {% if o.paid %}<span class="pill ok">оплачено</span>{% elif v.pay_fail %}<span class="pill warn">не оплачено: {{ v.pay_fail }}</span>{% elif o.source == 'crm' %}<span class="pill">оплата не підтверджена</span>{% endif %}</div>
     {% if v.ttn %}<div class="small">ТТН Нової пошти: <b>{{ v.ttn }}</b></div>{% endif %}{% if v.sale_id %}<div class="small"><a href="/sales/{{ v.sale_id }}">Чек продажу в CRM №{{ v.sale_id }}</a></div>{% endif %}
+    {% if review_url %}<div class="small">Посилання на відгук для покупця: <a href="{{ review_url }}" target="_blank" rel="noopener">{{ review_url }}</a></div>{% endif %}
     {% if o.comment %}<div class="small muted" style="margin-top:6px">Коментар: {{ o.comment }}</div>{% endif %}</div>
 </div>
 <div class="card" style="margin-top:12px;padding:0;overflow:auto"><table class="tbl" style="width:100%">
