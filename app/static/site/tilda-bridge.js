@@ -33,9 +33,10 @@
     d.t = Math.round((Date.now() - T0) / 1000);
     var pk = ['Phone', 'phone', 'tel', 'Телефон'].filter(function (k) { return d[k]; })[0] || '';
     var ph = (d[pk] || '').replace(/\D/g, '');
-    var cc = '';                                              // маска Tilda з прапорцем: код країни в окремому полі tildaspec-phone-part
-    fd.forEach(function (v, k) { if (k.indexOf('tildaspec-phone-part') === 0 && /^\+?\d{1,4}$/.test(String(v).trim())) cc = String(v).replace(/\D/g, ''); });
-    if (ph.length === 9) ph = (cc || '380') + ph;
+    if (ph.length < 9) {                                      // маска Tilda з прапорцем: номер у видимому полі tildaspec-phone-part[], «Phone» Tilda заповнює лише своїм обробником
+      var part = f.querySelector('[name="tildaspec-phone-part[]"]'); if (part) ph = (part.value || '').replace(/\D/g, '');
+    }
+    if (ph.length === 9) ph = '380' + ph;
     else if (ph.length === 10 && ph[0] === '0') ph = '38' + ph;
     if (ph.length < 11) { alert('Вкажіть, будь ласка, номер телефону.'); return; }
     if (pk) delete d[pk];
