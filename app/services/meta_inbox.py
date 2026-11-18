@@ -496,14 +496,32 @@ _AV: dict[str, tuple[float, bytes, str]] = {}     # аватари співро�
 def avatar(db: Session, thread: str, http: httpx.Client | None = None) -> tuple[bytes, str] | None:
     """Фото профілю співрозмовника (profile_pic через Graph токеном сторінки). Посилання Meta тимчасові — тож кешуємо байти."""
     import time
-    if thread.startswith("tg:"):                                  # Telegram Business — фото з Meta немає
-        return None
     hit = _AV.get(thread)
     if hit and time.time() - hit[0] < 12 * 3600:
         return (hit[1], hit[2]) if hit[1] else None
-    tok = _page_token(db)
+    tok = _page_token(db) if not thread.startswith("tg:") else None
     data, ctype = b"", ""
-    if thread.startswith("vb:"):                                  # Viber: посилання з події вебхука (sender.avatar)
+    if thread.startswith("tg:"):                                  # Telegram (акаунт клініки): фото профілю через Bot API бота CRM
+        from ..config import settings
+        uid = thread.removeprefix("tg:")
+        if settings.telegram_bot_token and uid.lstrip("-").isdigit():
+            cl = http or httpx.Client(timeout=10, follow_redirects=True)
+            api = f"https://api.telegram.org/bot{settings.telegram_bot_token}"
+            try:
+                ph = (cl.get(f"{api}/getUserProfilePhotos", params={"user_id": uid, "limit": 1}).json().get("result") or {}).get("photos") or []
+                if ph:
+                    sz = sorted(ph[0], key=lambda x: x.get("width", 0))
+                    pick = next((x for x in sz if x.get("width", 0) >= 160), sz[-1])
+                    fp = (cl.get(f"{api}/getFile", params={"file_id": pick["file_id"]}).json().get("result") or {}).get("file_path")
+                    if fp:
+                        r = cl.get(f"https://api.telegram.org/file/bot{settings.telegram_bot_token}/{fp}")
+                        if r.status_code == 200 and len(r.content) < 2_000_000:
+                            data, ctype = r.content, (r.headers.get("content-type") or "").split(";")[0]
+                            if not ctype.startswith("image/"):
+                                ctype = "image/jpeg"
+            except Exception:  # noqa: BLE001
+                pass
+    elif thread.startswith("vb:"):                                  # Viber: посилання з події вебхука (sender.avatar)
         from . import viber_bot as vb
         url = vb.avatar_url(db, thread)
         if url:

@@ -28,3 +28,22 @@ def test_service_messages_go_to_clinic_telegram_first(monkeypatch):
             assert sc._deliver(db, "380731119900", "Код: 1234") == "telegram" and sent[-1] == ("tg:5551", "Код: 1234")
             assert sc._deliver(db, "380731119901", "Код: 5678") == "sms" and sent[-1] == ("sms", "Код: 5678")
             tb.save_cfg(db, {**tb.cfg(db), "enabled": False})
+
+
+def test_tg_avatar(monkeypatch):
+    import httpx
+    from app.services import meta_inbox as mi
+    from app.config import settings
+    monkeypatch.setattr(settings, "telegram_bot_token", "x")
+    mi._AV.pop("tg:777", None)
+    def h(req):
+        u = str(req.url)
+        if "getUserProfilePhotos" in u:
+            return httpx.Response(200, json={"ok": True, "result": {"photos": [[{"file_id": "s", "width": 160}, {"file_id": "b", "width": 640}]]}})
+        if "getFile" in u:
+            assert "file_id=s" in u
+            return httpx.Response(200, json={"ok": True, "result": {"file_path": "photos/a.jpg"}})
+        return httpx.Response(200, content=b"\xff\xd8jpg", headers={"content-type": "application/octet-stream"})
+    with SessionLocal() as db:
+        res = mi.avatar(db, "tg:777", httpx.Client(transport=httpx.MockTransport(h)))
+    assert res == (b"\xff\xd8jpg", "image/jpeg")

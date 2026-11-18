@@ -60,14 +60,14 @@ dialog.cx-dl{border:0;border-radius:18px;padding:22px;width:min(420px,92vw);box-
 @media(max-width:1100px){.cx{grid-template-columns:280px minmax(0,1fr)}.cx>div:last-child{display:none}}
 @media(max-width:720px){.cx{grid-template-columns:1fr;height:auto}.cx>div{border-right:0;border-bottom:1px solid #F1EDE8;min-height:260px}}
 </style>
-<div class="cx-h"><div><div class="eyebrow">Комунікації</div><h1>Центр спілкування</h1><p>Instagram, Facebook і Viber — читайте й відповідайте з CRM.</p></div>
+<div class="cx-h"><div><div class="eyebrow">Комунікації</div><h1>Центр спілкування</h1><p>Instagram, Facebook, Viber і Telegram — читайте й відповідайте з CRM.</p></div>
   {% if can(user,'users') %}<a class="btn ghost" href="/settings/channels?open={{ '' }}">⚙ Канали</a>{% endif %}</div>
 {% if qp.get('msg') %}<div class="alert" style="{{ '' if qp.get('err') else 'background:var(--ok-bg);color:var(--ok)' }}">{{ qp.get('msg') }}</div>{% endif %}
 {% if not connected %}<div class="cx-warn"><b>Канал не підключено.</b> Налаштування → Канали → «Instagram та Facebook»: токен сторінки й вебхук.</div>
 {% elif not replies_on %}<div class="cx-warn">Відповіді з CRM вимкнено — повідомлення лише читаються (Налаштування → Канали).</div>{% endif %}
 <div class="cx">
   <div>
-    <div class="cx-f"><div class="cx-tabs"><a href="?" class="{{ 'on' if not ch_ }}">Усі</a><a href="?ch=instagram" class="{{ 'on' if ch_ == 'instagram' }}">{{ ci('instagram') }}Instagram</a><a href="?ch=facebook" class="{{ 'on' if ch_ == 'facebook' }}">{{ ci('facebook') }}Facebook</a><a href="?ch=viber" class="{{ 'on' if ch_ == 'viber' }}">{{ ci('viber') }}Viber</a></div>
+    <div class="cx-f"><div class="cx-tabs"><a href="?" class="{{ 'on' if not ch_ }}">Усі</a><a href="?ch=instagram" class="{{ 'on' if ch_ == 'instagram' }}">{{ ci('instagram') }}Instagram</a><a href="?ch=facebook" class="{{ 'on' if ch_ == 'facebook' }}">{{ ci('facebook') }}Facebook</a><a href="?ch=viber" class="{{ 'on' if ch_ == 'viber' }}">{{ ci('viber') }}Viber</a><a href="?ch=telegram" class="{{ 'on' if ch_ == 'telegram' }}">{{ ci('telegram') }}Telegram</a></div>
       <form><input type="hidden" name="ch" value="{{ ch_ }}"><input name="q" value="{{ q }}" placeholder="Пошук: імʼя або текст"></form></div>
     <div class="cx-l">{% for x in threads %}<a class="cx-t {{ 'on' if cur and cur.thread == x.thread }}" href="?t={{ x.thread|urlencode }}{{ ('&ch=' ~ ch_) if ch_ }}">
       <span class="cx-aw"><span class="cx-av {{ 'fb' if x.channel == 'facebook' }}">{{ (x.name.lstrip('@')[:2])|upper }}<img src="/chats/{{ x.thread|urlencode }}/avatar" alt="" loading="lazy" onerror="this.remove()"></span><span class="cx-ch">{{ ci(x.channel) }}</span></span>
