@@ -29,6 +29,24 @@
       <td class="r">{% if r.old %}<s class="mini">{{ money(r.old) }}</s> {% endif %}{{ money(r.price) }}</td></tr>{% endfor %}{% endfor %}
   </tbody></table></details>{% endfor %}
 
+<div class="gs" id="tilda"><h2>Сторінки з Tilda (перехід)</h2>
+  {% if qmsg %}<div class="alert ok">{{ qmsg }}</div>{% endif %}{% if qerr %}<div class="alert">{{ qerr }}</div>{% endif %}
+  <p class="small muted">Архів експорту Tilda (Tilda → Налаштування сайту → Експорт → ZIP). CRM віддає ці сторінки за тими самими адресами на домені сайту; сторінки, переписані в CRM (вище), мають пріоритет. Форми Tilda надсилають заявки в «Звернення» CRM з мітками реклами.</p>
+  {% if tc.at %}<p><b>Завантажено {{ tc.at }}</b> · сторінок: {{ tc.pages }}{% if not tc.on %} · <span style="color:#C0392B">вимкнено</span>{% endif %}</p>{% endif %}
+  <form method="post" action="/settings/site/tilda" enctype="multipart/form-data" style="display:grid;gap:8px;max-width:640px">
+    <label class="small">Посилання на архів (з листа / сторінки експорту Tilda)<input name="url" placeholder="https://export.tildacdn.com/export/zips/….zip"></label>
+    <label class="small">або ZIP-файл <input type="file" name="zip" accept=".zip"></label>
+    <div><button class="btn">Завантажити архів</button></div>
+  </form>
+  {% if tc.at %}
+  <form method="post" action="/settings/site/tilda" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:10px"><input type="hidden" name="action" value="settings">
+    <label><input type="checkbox" name="on" {{ 'checked' if tc.on }}> Показувати сторінки Tilda</label>
+    <label>Головна сторінка: <select name="home"><option value="tilda" {{ 'selected' if tc.home == 'tilda' }}>з Tilda</option><option value="crm" {{ 'selected' if tc.home != 'tilda' }}>CRM (напрямки)</option></select></label>
+    <button class="btn">Зберегти</button></form>
+  <details style="margin-top:10px"><summary>Сторінки з Tilda ({{ tpages|length }}) — перегляд</summary>
+    <div style="columns:3 220px;font-size:13px;margin-top:6px"><div><a href="/_site/" target="_blank">/ (головна)</a></div>{% for k, v in tpages %}<div><a href="/_site/{{ k }}" target="_blank">/{{ k }}</a></div>{% endfor %}</div></details>
+  {% endif %}
+</div>
 <div class="gs" id="media"><h2>Фото й лого</h2>
   <p class="mini">Назва файлу визначає місце на сайті. Потрібні: {% for n in slots %}<code class="h" style="{{ 'opacity:.55' if n in media|map(attribute='name')|list }}">{{ n }}</code> {% endfor %}
     (напівпрозорі — вже завантажені). Формат jpg / png / webp, до 6 МБ; фото краще 1200–1600 px по довшій стороні.</p>

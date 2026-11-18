@@ -219,11 +219,25 @@ def register(app, templates, version: str):
                                "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'"})
 
     @app.get("/_shop/img/{fid:int}")
-    def shop_img(fid: int, w: int = 600, db: Session = Depends(db_dep)):
+    def shop_img(fid: int, w: int = 600, bg: str = "", db: Session = Depends(db_dep)):
         f = db.get(ProductFile, fid)
         if not f or f.kind != "photo" or not f.site or not Path(f.path).exists():
             raise HTTPException(404)
         w = min((300, 600, 1200), key=lambda x: abs(x - w))
+        if re.fullmatch(r"[0-9a-fA-F]{6}", bg or ""):             # для email: прозорий фон → суцільний колір, JPEG (Gmail робить прозоре чорним)
+            cache = Path(settings.files_dir) / "_thumbs" / f"{fid}_{w}_{bg.lower()}.jpg"
+            if not cache.exists():
+                try:
+                    from PIL import Image
+                    cache.parent.mkdir(parents=True, exist_ok=True)
+                    im = Image.open(f.path).convert("RGBA")
+                    im.thumbnail((w, w * 2))
+                    out = Image.new("RGB", im.size, tuple(int(bg[i:i + 2], 16) for i in (0, 2, 4)))
+                    out.paste(im, mask=im.split()[3])
+                    out.save(cache, "JPEG", quality=85)
+                except Exception:  # noqa: BLE001
+                    return FileResponse(f.path)
+            return FileResponse(cache, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=2592000, immutable"})
         cache = Path(settings.files_dir) / "_thumbs" / f"{fid}_{w}{'m' if w >= 1200 else ''}.webp"
         if not cache.exists():
             try:

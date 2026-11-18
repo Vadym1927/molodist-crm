@@ -134,12 +134,12 @@ def email_body(db: Session, c: ShopCart | None, data: dict, root: str, name: str
         price, old = float(v.get("price") or 0), float(v.get("old") or 0)
         total += price * q
         lines.append(f"• {v['name']} × {q} — {int(price * q)} ₴")
-        img = f"{root}/img/{it['imgs'][0]}?w=240" if it.get("imgs") else ""
+        img = f"{root}/img/{it['imgs'][0]}?w=300&bg=ffffff" if it.get("imgs") else ""
         url = f"{root}/shop/{it['slug']}/" if it.get('slug') else link_
         pr = (f'<s style="color:#9a93a6;font-weight:400">{int(old)} ₴</s> ' if old > price else "") + f"{int(price)} ₴"
         rows.append(
             '<tr><td style="padding:12px 0;border-bottom:1px solid #EFEAE4;width:92px;vertical-align:top">'
-            + (f'<a href="{url}"><img src="{img}" width="80" height="80" alt="" style="display:block;border-radius:12px;background:#F7F4F0;object-fit:cover"></a>' if img else "")
+            + (f'<a href="{url}"><img src="{img}" width="80" height="80" alt="" style="display:block;border-radius:12px;background:#fff;border:1px solid #EFEAE4;object-fit:contain"></a>' if img else "")
             + f'</td><td style="padding:12px 0 12px 14px;border-bottom:1px solid #EFEAE4;vertical-align:top">'
             f'<a href="{url}" style="color:#2A2430;text-decoration:none;font-weight:600;font-size:14px;line-height:1.4">{_h.escape(v["name"])}</a>'
             f'<div style="color:#8a8494;font-size:13px;margin-top:4px">Кількість: {q}</div></td>'
@@ -160,9 +160,9 @@ def email_body(db: Session, c: ShopCart | None, data: dict, root: str, name: str
     body = (
         '<div style="background:#F7F4F0;padding:28px 10px;font-family:\'Open Sans\',Arial,sans-serif;color:#2A2430">'
         '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;background:#fff;border-radius:18px;overflow:hidden">'
-        '<tr><td style="background:#2A2430;padding:22px 26px;text-align:center">'
-        '<div style="font:400 24px Georgia,serif;letter-spacing:.18em;color:#fff">MOLODIST</div>'
-        '<div style="font-size:10px;letter-spacing:.24em;color:#C9BFE6;margin-top:4px">МЕДИЧНИЙ ПРОСТІР</div></td></tr>'
+        '<tr><td style="padding:26px 26px 18px;text-align:center;border-bottom:1px solid #EFEAE4">'
+        f'<a href="{root}"><img src="{root}/static/site/brand/wordmark-graphite-600.png" width="190" alt="MOLODIST" style="display:inline-block;width:190px;height:auto;border:0"></a>'
+        '<div style="font-size:10px;letter-spacing:.26em;color:#8a8494;margin-top:8px">МЕДИЧНИЙ ПРОСТІР</div></td></tr>'
         '<tr><td style="padding:28px 26px 6px">'
         f'<div style="font:700 21px Montserrat,Arial,sans-serif;line-height:1.3;margin-bottom:8px">{_h.escape(hi)} 🤍</div>'
         '<div style="font-size:14px;line-height:1.6;color:#5f586a">Ми зберегли товари, які ви обрали. Щоб оформити замовлення, достатньо одного кліку — '

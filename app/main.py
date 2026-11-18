@@ -8660,6 +8660,10 @@ def _site_resp(name: str, ctx: dict, status: int = 200):
 @app.get("/_site/", response_class=HTMLResponse)
 @app.get("/_site", response_class=HTMLResponse, include_in_schema=False)
 def site_home(request: Request, db: Session = Depends(db_dep)):
+    from .services import tilda_site as ts
+    tp = ts.page_file(db, "") if ts.cfg(db).get("home") == "tilda" else None
+    if tp:
+        return _tilda_resp(request, db, tp)
     ctx = _site_ctx(request, db)
     ctx.update(title="MOLODIST — медичний простір естетики та профілактики в Києві",
                desc="Лазерна епіляція, видалення новоутворень, інʼєкційна косметологія й BEAUTY PLAN під контролем лікаря. Ціни й запис онлайн.",
@@ -8973,11 +8977,64 @@ def site_og(slug: str):
     return FileResponse(f, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
 
 
+def _tilda_resp(request: Request, db: Session, path, status: int = 200):
+    """Сторінка з архіву Tilda. На домені сайту — як є; у CRM (/_site/…) — перегляд без індексації."""
+    from .services import tilda_site as ts, site_pages as sp
+    on_site = (request.headers.get("host") or "").split(":")[0].lower() in sp.hosts()
+    r = HTMLResponse(ts.render(db, path, "" if on_site else "/_site"), status_code=status)
+    if not on_site:
+        r.headers["X-Robots-Tag"] = "noindex, nofollow"
+    return r
+
+
+@app.get("/_site/{folder}/{path:path}", include_in_schema=False)
+def site_tilda_asset(folder: str, path: str):
+    from .services import tilda_site as ts
+    f = ts.asset(folder, path)
+    if not f:
+        raise HTTPException(404)
+    return FileResponse(f, headers={"Cache-Control": "public, max-age=604800"})
+
+
+@app.post("/settings/site/tilda")
+async def settings_site_tilda(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    """Архів Tilda: файл ZIP або посилання export.tildacdn.com; також головна (Tilda / CRM) і вимкнення."""
+    from .services import tilda_site as ts
+    f = await request.form()
+    try:
+        if f.get("action") == "settings":
+            c = ts.cfg(db)
+            c["home"] = "tilda" if f.get("home") == "tilda" else "crm"
+            c["on"] = bool(f.get("on"))
+            ts.save(db, c)
+            msg = "Збережено"
+        else:
+            up = f.get("zip")
+            data = await up.read() if up is not None and getattr(up, "filename", "") else b""
+            if not data and str(f.get("url") or "").strip():
+                data = await asyncio.to_thread(ts.fetch, str(f.get("url")))
+            if not data:
+                raise ts.TildaError("Оберіть ZIP-файл або вставте посилання на архів.")
+            c = await asyncio.to_thread(ts.import_zip, db, data)
+            msg = f"Архів Tilda завантажено: {c['pages']} сторінок"
+        audit(db, "site.tilda", user=user, msg=msg)
+        return RedirectResponse("/settings/site?msg=" + quote(msg) + "#tilda", status_code=303)
+    except ts.TildaError as e:
+        return RedirectResponse("/settings/site?err=" + quote(str(e)) + "#tilda", status_code=303)
+
+
 @app.get("/_site/{slug}", response_class=HTMLResponse)
 def site_page(request: Request, slug: str, db: Session = Depends(db_dep)):
     from .services import site_pages as sp
     p = sp.PAGES.get(slug.strip("/").lower())
     if not p:
+        from .services import tilda_site as ts
+        tp = ts.page_file(db, slug)
+        if tp:
+            return _tilda_resp(request, db, tp)
+        nf = ts.not_found(db)
+        if nf:
+            return _tilda_resp(request, db, nf, 404)
         ctx = _site_ctx(request, db)
         ctx.update(title="Сторінку не знайдено — MOLODIST", desc="", jsonld="", noindex=True)
         return _site_resp("site/home.html", ctx, 404)
@@ -9003,7 +9060,11 @@ def settings_site(request: Request, user: User = Depends(require("users")), db: 
     ids = {it[0] for p_ in sp.PAGES.values() for g in p_.get("prices", []) for it in g["items"]}
     svc = {s_.id: s_ for s_ in db.scalars(select(CbService).where(CbService.id.in_(ids)))}
     pages = [{"slug": k, "p": sp.PAGES[k], "groups": sp.prices(db, sp.PAGES[k]), "missing": sp.missing(db, k)} for k in sp.ORDER]
+    from .services import tilda_site as ts
+    tc = ts.cfg(db)
+    tpages = sorted((k, v) for k, v in tc.get("map", {}).items() if k not in sp.PAGES)
     return render(request, "site_settings.html", nav="settings", c=sp.cfg(db), pages=pages, svc=svc, money=sp.money, media=sp.media_list(),
+                  tc=tc, tpages=tpages, qmsg=request.query_params.get("msg", ""), qerr=request.query_params.get("err", ""),
                   slots=sorted({n for p_ in sp.PAGES.values() for n in [(p_.get("img") or {}).get("hero")] + (p_.get("img") or {}).get("gallery", []) if n}
                                | {f"doc-{k}.webp" for k in sp.DOCTORS}))
 
