@@ -10252,6 +10252,83 @@ def settings_email_test(request: Request, user: User = Depends(require("users"))
     return RedirectResponse("/settings/email?msg=" + quote(f"Тестовий лист надіслано на {to} (акаунт Brevo: {info['company'] or info['email']})"), status_code=303)
 
 
+def _gbp_redirect() -> str:
+    return settings.public_url.rstrip("/") + "/settings/google-profile/callback"
+
+
+@app.get("/settings/google-profile", response_class=HTMLResponse)
+def settings_gbp(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .integrations import gbp
+    c = gbp.cfg(db)
+    st = gbp.status(c)
+    rows, err = [], request.query_params.get("err", "")
+    flt = request.query_params.get("f", "noreply")
+    if st["connected"] and st["location"]:
+        try:
+            rows = gbp.reviews(db)
+            c = gbp.cfg(db)
+        except gbp.GbpError as e:
+            err = err or str(e)
+    allrows = rows
+    if flt == "noreply":
+        rows = [r for r in rows if not r["reply"]]
+    elif flt == "low":
+        rows = [r for r in rows if r["stars"] and r["stars"] <= 3]
+    return render(request, "settings_gbp.html", nav="settings", c=c, st=st, rows=rows, f=flt, redirect=_gbp_redirect(),
+                  n_all=len(allrows), n_noreply=sum(1 for r in allrows if not r["reply"]), n_low=sum(1 for r in allrows if r["stars"] and r["stars"] <= 3),
+                  msg=request.query_params.get("msg", ""), err=err)
+
+
+@app.post("/settings/google-profile")
+async def settings_gbp_save(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .integrations import gbp
+    f = await request.form()
+    if f.get("disconnect"):
+        gbp.disconnect(db)
+        audit(db, "gbp.disconnect", user=user)
+        return RedirectResponse("/settings/google-profile?msg=" + quote("Відключено"), status_code=303)
+    gbp.set_client(db, str(f.get("client_id") or ""), str(f.get("client_secret") or ""))
+    audit(db, "gbp.client", user=user, secret_changed=bool(str(f.get("client_secret") or "").strip()))
+    return RedirectResponse("/settings/google-profile?msg=Збережено", status_code=303)
+
+
+@app.get("/settings/google-profile/connect")
+def settings_gbp_connect(user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .integrations import gbp
+    try:
+        return RedirectResponse(gbp.auth_url(db, _gbp_redirect()), status_code=303)
+    except gbp.GbpError as e:
+        return RedirectResponse("/settings/google-profile?err=" + quote(str(e)), status_code=303)
+
+
+@app.get("/settings/google-profile/callback")
+def settings_gbp_callback(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .integrations import gbp
+    q = request.query_params
+    if q.get("error"):
+        return RedirectResponse("/settings/google-profile?err=" + quote("Google: доступ не надано (" + q.get("error", "")[:60] + ")"), status_code=303)
+    try:
+        st = gbp.callback(db, q.get("code", ""), q.get("state", ""), _gbp_redirect())
+    except (gbp.GbpError, httpx.HTTPError) as e:
+        return RedirectResponse("/settings/google-profile?err=" + quote(str(e)[:300]), status_code=303)
+    audit(db, "gbp.connect", user=user, location=st.get("title"))
+    return RedirectResponse("/settings/google-profile?msg=" + quote(f"Підключено: {st.get('title') or 'профіль Google'}"), status_code=303)
+
+
+@app.post("/settings/google-profile/reply")
+async def settings_gbp_reply(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .integrations import gbp
+    f = await request.form()
+    rid, text = str(f.get("rid") or ""), str(f.get("text") or "")
+    back = "/settings/google-profile?f=" + quote(str(f.get("f") or "noreply"))
+    try:
+        gbp.reply(db, rid, text)
+    except (gbp.GbpError, httpx.HTTPError) as e:
+        return RedirectResponse(back + "&err=" + quote(str(e)[:300]), status_code=303)
+    audit(db, "gbp.reply", user=user, review=rid[:60], chars=len(text))
+    return RedirectResponse(back + "&msg=" + quote("Відповідь опубліковано в Google"), status_code=303)
+
+
 @app.get("/settings/shop/integrations", response_class=HTMLResponse)
 def settings_shop_integrations(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     from .services import shop_front as sf

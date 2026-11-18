@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Профіль Google{% endblock %}
+{% block body %}
+<div style="max-width:860px">
+<h1>Профіль Google · відгуки</h1>
+{% if msg %}<div class="alert ok">{{ msg }}</div>{% endif %}{% if err %}<div class="alert">{{ err }}</div>{% endif %}
+
+{% if st.connected and st.location %}
+<div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+  <div><b>{{ st.title or 'Профіль підключено' }}</b>
+    {% if c.avg %}<span class="small"> · ★ {{ '%.1f'|format(c.avg) }} · {{ c.total }} відгуків</span>{% endif %}
+    <div class="small muted">Оновлено {{ c.at|replace('T', ' ') }}</div></div>
+  <form method="post" onsubmit="return confirm('Відключити профіль Google від CRM?')"><input type="hidden" name="disconnect" value="1"><button class="btn secondary">Відключити</button></form>
+</div>
+<div style="display:flex;gap:8px;margin:14px 0;flex-wrap:wrap">
+  <a class="chip {{ 'on' if f == 'noreply' }}" href="?f=noreply">Без відповіді · {{ n_noreply }}</a>
+  <a class="chip {{ 'on' if f == 'low' }}" href="?f=low">1–3 ★ · {{ n_low }}</a>
+  <a class="chip {{ 'on' if f == 'all' }}" href="?f=all">Усі · {{ n_all }}</a>
+</div>
+<p class="small muted">Відповідь публікується в Google одразу й видна всім. Пишіть від імені MOLODIST, на «ви», без медичних подробиць про пацієнта.</p>
+{% for r in rows %}
+<div class="card" style="margin-bottom:10px">
+  <div style="display:flex;justify-content:space-between;gap:8px"><b>{{ r.name }}</b><span class="small muted">{{ r.at }}</span></div>
+  <div style="color:#5C4B82;letter-spacing:2px">{{ '★' * r.stars }}<span style="color:#d8d2e2">{{ '★' * (5 - r.stars) }}</span></div>
+  {% if r.text %}<p style="white-space:pre-line;margin:6px 0">{{ r.text }}</p>{% else %}<p class="small muted">Лише оцінка, без тексту</p>{% endif %}
+  {% if r.reply %}
+  <div style="background:#F7F4F0;border-radius:10px;padding:10px 12px;margin-top:6px"><span class="small muted">Відповідь MOLODIST · {{ r.reply_at }}</span><div style="white-space:pre-line">{{ r.reply }}</div></div>
+  <details style="margin-top:6px"><summary class="small">Змінити відповідь</summary>
+  {% endif %}
+  <form method="post" action="/settings/google-profile/reply" style="display:grid;gap:8px;margin-top:8px">
+    <input type="hidden" name="rid" value="{{ r.id }}"><input type="hidden" name="f" value="{{ f }}">
+    <textarea name="text" rows="3" maxlength="4000" required placeholder="Відповідь від MOLODIST">{{ r.reply }}</textarea>
+    <div><button class="btn" onclick="return confirm('Опублікувати відповідь у Google? Її побачать усі.')">{{ 'Оновити відповідь' if r.reply else 'Опублікувати відповідь' }}</button></div>
+  </form>
+  {% if r.reply %}</details>{% endif %}
+</div>
+{% else %}
+<p class="muted">{{ 'Усі відгуки мають відповідь.' if f == 'noreply' else 'Немає відгуків.' }}</p>
+{% endfor %}
+
+{% else %}
+<div class="card" style="display:grid;gap:10px">
+  <b>Як підключити (один раз)</b>
+  <ol class="small" style="margin:0;padding-left:18px;line-height:1.7">
+    <li>Google Cloud → <b>Google Auth Platform → Clients → Create client</b>, тип <b>Web application</b>, назва «MOLODIST CRM».</li>
+    <li>Authorized redirect URIs — додайте рівно: <code>{{ redirect }}</code></li>
+    <li>Скопіюйте <b>Client ID</b> і <b>Client secret</b> сюди й збережіть.</li>
+    <li>Натисніть «Підключити Google» і увійдіть акаунтом, який керує профілем MOLODIST.</li>
+  </ol>
+</div>
+<form method="post" class="card" style="display:grid;gap:12px;margin-top:12px">
+  <label>Client ID <input name="client_id" value="{{ c.client_id or '' }}" placeholder="…apps.googleusercontent.com"></label>
+  <label>Client secret <input type="password" name="client_secret" autocomplete="new-password" placeholder="{{ '•••••••• збережено' if st.client else 'GOCSPX-…' }}"></label>
+  <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn">Зберегти</button>
+  {% if st.client %}<a class="btn secondary" href="/settings/google-profile/connect">Підключити Google</a>{% endif %}</div>
+  <p class="small muted">Секрет і доступ зберігаються зашифрованими й після збереження не показуються.</p>
+</form>
+{% endif %}
+</div>
+{% endblock %}
