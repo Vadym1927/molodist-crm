@@ -421,3 +421,30 @@ def test_supply_price_check():
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
         h = c.get(f"/stock/docs/{did}")
         assert h.status_code == 200 and "перевірте одиниці" in h.text
+
+
+def test_inventory_brand_tools_and_print():
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        a = Product(name="AG інв крем", name_norm="ag інв крем", brand="Ag Skin", warehouse="vitrina", active=True)
+        b = Product(name="Інший бренд інв", name_norm="інший бренд інв", brand="Medik8", warehouse="vitrina", active=True)
+        db.add_all([a, b]); db.commit()
+        doc = st.new_doc(db, "inventory", wh_from="vitrina")
+        db.commit()
+        n = st.inventory_prefill(db, doc, ["ag skin"])
+        assert n >= 1 and all((ln.product.brand or "").lower() == "ag skin" for ln in doc.lines)
+        st.inventory_prefill(db, doc)
+        assert any(ln.product_id == b.id for ln in doc.lines)
+        assert st.inventory_keep(db, doc, ["Ag Skin"]) >= 1 and all((ln.product.brand or "").lower() == "ag skin" for ln in doc.lines)
+        did, lid = doc.id, doc.lines[0].id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        h = c.get(f"/stock/docs/{did}")
+        assert h.status_code == 200 and "Друк" in h.text and 'name="inv_brand"' in h.text
+        pr = c.get(f"/stock/docs/{did}/print")
+        assert pr.status_code == 200 and "Фактично" in pr.text and "AG інв крем" in pr.text and "Облік" in pr.text
+        assert "Облік</th>" not in c.get(f"/stock/docs/{did}/print?blind=1").text
+        r = c.post(f"/stock/docs/{did}", data={"action": "del_sel", "sel": [str(lid)]}, follow_redirects=False)
+        assert r.status_code == 303
+    with SessionLocal() as db:
+        assert lid not in [ln.id for ln in db.get(StockDoc, did).lines]

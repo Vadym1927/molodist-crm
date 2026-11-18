@@ -366,18 +366,37 @@ def receive_order(db: Session, order: StockDoc, user_id: int | None = None) -> S
     return sup
 
 
-def inventory_prefill(db: Session, doc: StockDoc) -> int:
-    """Інвентаризація: усі товари складу з обліковою к-стю (фактичну вводять поверх)."""
+def inventory_prefill(db: Session, doc: StockDoc, brands: list[str] | None = None, only_stock: bool = False) -> int:
+    """Інвентаризація: товари складу з обліковою к-стю (фактичну вводять поверх). brands — лише ці бренди; only_stock — лише з залишком."""
     bal = balances(db, doc.wh_from)
     have = {ln.product_id for ln in doc.lines}
     pids = {pid for (pid, _), q in bal.items() if q}
-    pids |= {p.id for p in db.scalars(select(Product).where(Product.warehouse == doc.wh_from))}
+    if not only_stock:
+        pids |= {p.id for p in db.scalars(select(Product).where(Product.warehouse == doc.wh_from, Product.active.is_not(False)))}
+    if brands:
+        bl = {b.strip().lower() for b in brands if b.strip()}
+        pids = {p.id for p in db.scalars(select(Product).where(Product.id.in_(list(pids) or [0]))) if (p.brand or "").strip().lower() in bl}
     n = 0
     for pid in sorted(pids - have):
         q = bal.get((pid, doc.wh_from), 0.0)
         doc.lines.append(StockDocLine(product_id=pid, qty=q, sys_qty=q))
         n += 1
     db.commit()
+    return n
+
+
+def inventory_keep(db: Session, doc: StockDoc, brands: list[str] | None = None, drop_zero: bool = False) -> int:
+    """Чернетка інвентаризації: прибрати рядки інших брендів і/або з нульовим обліковим залишком. → скільки прибрано."""
+    bal = balances(db, doc.wh_from)
+    bl = {b.strip().lower() for b in brands or [] if b.strip()}
+    n = 0
+    for ln in list(doc.lines):
+        p = ln.product
+        if (bl and (p.brand or "").strip().lower() not in bl) or (drop_zero and abs(bal.get((ln.product_id, doc.wh_from), 0.0)) < 1e-9):
+            db.delete(ln)
+            n += 1
+    db.commit()
+    db.refresh(doc)
     return n
 
 

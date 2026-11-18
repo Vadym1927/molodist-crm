@@ -41,15 +41,20 @@
   </div>
 </div>
 
+{% if d.kind=='inventory' and editable and wh_brands %}<div class="card" style="padding:10px 12px;margin-bottom:10px;display:grid;gap:8px">
+  <div class="small"><b>Що рахуємо:</b> відмітьте бренди (порожньо — усі) → «Додати товари складу» або «Лишити лише вибране». Фільтр списку нижче — лише для перегляду.</div>
+  <div style="display:flex;flex-wrap:wrap;gap:6px 12px;max-height:150px;overflow:auto">{% for b in wh_brands %}<label class="small" style="display:flex;gap:4px;align-items:center;cursor:pointer"><input type="checkbox" name="inv_brand" value="{{ b }}" style="width:auto;height:auto" onchange="invFilter()">{{ b }}</label>{% endfor %}</div>
+  <label class="small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="inv_only_stock" value="1" style="width:auto;height:auto">лише товари з обліковим залишком (без нульових)</label>
+</div>{% endif %}
 <div class="card" style="padding:6px 8px;overflow:auto">
-  <table class="ln"><thead><tr><th>Товар</th>
+  <table class="ln"><thead><tr><th>{% if editable and d.lines %}<input type="checkbox" title="Позначити всі видимі" onchange="document.querySelectorAll('tr.lnr:not([hidden]) input[name=sel]').forEach(c=>c.checked=this.checked)" style="width:auto;height:auto;margin-right:6px">{% endif %}Товар</th>
     {% if d.kind=='inventory' %}<th class="r">Облік</th><th class="r">Фактично</th><th class="r">Різниця</th>
     {% else %}{% if active and d.kind in ('transfer','writeoff','return') %}<th class="r">На складі</th>{% endif %}<th class="r">К-сть</th>{% endif %}
     {% if d.kind in ('supply','order','opening','return') %}<th class="r">Ціна закупівлі</th><th class="r">Сума</th>{% endif %}
     {% if d.kind=='supply' %}<th>Придатний до</th>{% endif %}{% if d.kind in ('transfer','writeoff') or (d.kind=='return' and d.reason!='patient') %}<th>Партія (термін)</th>{% endif %}{% if editable %}<th></th>{% endif %}</tr></thead><tbody>
   {% set ns = namespace(total=0, qty=0) %}
   {% for ln in d.lines %}{% set p = ln.product %}{% set ns.total = ns.total + (ln.qty or 0) * (ln.unit_cost or 0) %}{% set ns.qty = ns.qty + (ln.qty or 0) %}
-    <tr><td><a href="/products/{{ p.id }}" style="font-weight:600;text-decoration:none">{{ p.name }}</a><div class="meta">{{ p.brand or '' }}{{ (' · арт. ' ~ p.sku) if p.sku }} · {{ p.unit or 'шт' }}</div></td>
+    <tr class="lnr" data-brand="{{ (p.brand or '')|lower }}"><td>{% if editable %}<input type="checkbox" name="sel" value="{{ ln.id }}" style="width:auto;height:auto;margin-right:6px">{% endif %}<a href="/products/{{ p.id }}" style="font-weight:600;text-decoration:none">{{ p.name }}</a><div class="meta">{{ p.brand or '' }}{{ (' · арт. ' ~ p.sku) if p.sku }} · {{ p.unit or 'шт' }}</div></td>
       {% if d.kind=='inventory' %}{% set sysq = ln.sys_qty if d.status=='posted' else bal.get((p.id, d.wh_from), 0) %}
         <td class="r">{{ '%g'|format((sysq or 0)|round(3)) }}</td>
         <td class="r">{% if editable %}<input class="q" name="qty_{{ ln.id }}" value="{{ '%g'|format(ln.qty or 0) }}" inputmode="decimal">{% else %}{{ '%g'|format(ln.qty or 0) }}{% endif %}</td>
@@ -89,7 +94,10 @@
 
 <div class="acts">
   {% if editable %}<button class="btn ghost" name="action" value="save">Зберегти чернетку</button>{% endif %}
-  {% if d.kind=='inventory' and editable %}<button class="btn ghost" name="action" value="prefill">Додати всі товари складу</button>{% endif %}
+  {% if d.kind=='inventory' and editable %}<button class="btn ghost" name="action" value="prefill">Додати товари складу{{ ' (вибрані бренди)' if wh_brands }}</button>
+    {% if d.lines %}<button class="btn ghost" name="action" value="keep" onclick="return confirm('Прибрати з листа рядки, що не підходять під вибрані бренди / нульовий залишок?')">Лишити лише вибране</button>{% endif %}{% endif %}
+  {% if d.lines and editable %}<button class="btn ghost" name="action" value="del_sel" onclick="if(!document.querySelector('input[name=sel]:checked')){alert('Позначте рядки галочками');return false}return confirm('Прибрати позначені рядки?')">Прибрати позначені</button>{% endif %}
+  {% if d.lines %}<a class="btn ghost" href="/stock/docs/{{ d.id }}/print" target="_blank">🖨 Друк</a>{% if d.kind=='inventory' %}<a class="btn ghost" href="/stock/docs/{{ d.id }}/print?blind=1" target="_blank" title="Без облікової кількості — рахують «наосліп»">🖨 Друк без обліку</a>{% endif %}{% endif %}
   {% if d.kind=='order' %}
     {% if d.status=='draft' %}<button class="btn ghost" name="action" value="send">Позначити відправленим</button>{% endif %}
     {% if d.status in ('draft','sent') %}<button class="btn" name="action" value="receive" onclick="return confirm('Створити поставку з цього замовлення?')">Отримано → створити поставку</button>{% endif %}
@@ -166,4 +174,8 @@
 <style>.pay-m{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11.5px;font-weight:600;white-space:nowrap}
 .pay-m.auto{background:var(--ok-bg);color:var(--ok)}.pay-m.mono_manual{background:var(--lavender);color:var(--classic)}.pay-m.manual{background:#FFF4D6;color:#9A6B00}</style>
 {% include "_doc_delete.html" %}
+<script>
+function invFilter(){const sel=[...document.querySelectorAll('input[name=inv_brand]:checked')].map(c=>c.value.toLowerCase());
+  document.querySelectorAll('tr.lnr').forEach(tr=>{tr.hidden=sel.length>0&&!sel.includes(tr.dataset.brand)});}
+</script>
 {% endblock %}

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="uk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ KINDS[d.kind] }} {{ d.number }} — друк</title>
+<style>
+@page{size:A4;margin:12mm}
+body{font-family:"Open Sans",Arial,sans-serif;color:#2A2430;font-size:12px;margin:0;background:#fff}
+.wrap{max-width:190mm;margin:0 auto;padding:10px}
+h1{font:700 17px Montserrat,Arial,sans-serif;margin:0 0 2px;letter-spacing:.02em}
+.sub{color:#5f586a;margin-bottom:10px}
+table{width:100%;border-collapse:collapse}
+th,td{border:1px solid #cfc9d6;padding:5px 6px;vertical-align:top}
+th{background:#F1EEF6;font-size:11px;text-align:left}
+td.r,th.r{text-align:right;white-space:nowrap}
+td.fact{width:22mm}td.note{width:38mm}
+tr.br td{background:#F7F4F0;font-weight:700;font-size:11.5px}
+.meta{color:#7b7486;font-size:10.5px}
+.sign{display:flex;gap:30px;margin-top:18px}.sign div{flex:1;border-top:1px solid #2A2430;padding-top:4px;font-size:11px;color:#5f586a}
+.bar{display:flex;gap:8px;margin:0 0 10px}.bar button,.bar a{font:600 13px Arial;padding:8px 14px;border-radius:10px;border:1px solid #cfc9d6;background:#fff;color:#2A2430;text-decoration:none;cursor:pointer}
+.bar button{background:#5C4B82;color:#fff;border-color:#5C4B82}
+@media print{.bar{display:none}.wrap{padding:0}tr{page-break-inside:avoid}}
+</style></head>
+<body><div class="wrap">
+<div class="bar"><button onclick="print()">🖨 Друкувати</button>{% if d.kind == 'inventory' %}<a href="?blind={{ 0 if blind else 1 }}">{{ 'Показати облік' if blind else 'Без облікової кількості' }}</a>{% endif %}</div>
+<h1>MOLODIST · {{ KINDS[d.kind] }} № {{ d.number }}</h1>
+<div class="sub">Склад: <b>{{ WAREHOUSES.get(d.wh_from or d.wh_to, '—') }}</b> · дата документа {{ d.doc_date|dt('%d.%m.%Y') if d.doc_date else '—' }} · надруковано {{ now|dt('%d.%m.%Y %H:%M') }} · позицій: {{ rows|length }}</div>
+<table><thead><tr><th style="width:7mm">№</th><th>Товар</th><th style="width:22mm">Артикул</th><th style="width:12mm">Од.</th>
+  {% if d.kind == 'inventory' %}{% if not blind %}<th class="r" style="width:16mm">Облік</th>{% endif %}<th class="r">Фактично</th><th>Примітка / термін</th>
+  {% else %}<th class="r">К-сть</th><th>Примітка</th>{% endif %}</tr></thead><tbody>
+{% set ns = namespace(br=None, i=0) %}
+{% for ln in rows %}{% set p = ln.product %}{% set b = p.brand or 'Без бренду' %}
+  {% if b != ns.br %}{% set ns.br = b %}<tr class="br"><td colspan="{{ (7 if not blind else 6) if d.kind == 'inventory' else 6 }}">{{ b }}</td></tr>{% endif %}
+  {% set ns.i = ns.i + 1 %}
+  <tr><td>{{ ns.i }}</td><td>{{ p.name }}{% if p.barcode %}<div class="meta">EAN {{ p.barcode }}</div>{% endif %}</td><td>{{ p.sku or '' }}</td><td>{{ p.unit or 'шт' }}</td>
+  {% if d.kind == 'inventory' %}{% if not blind %}<td class="r">{{ '%g'|format((bal.get((p.id, d.wh_from), 0))|round(3)) }}</td>{% endif %}<td class="fact"></td><td class="note"></td>
+  {% else %}<td class="r">{{ '%g'|format(ln.qty or 0) }}</td><td class="note"></td>{% endif %}</tr>
+{% endfor %}
+</tbody></table>
+<div class="sign"><div>Рахував(ла): ПІБ, підпис</div><div>Перевірив(ла): ПІБ, підпис</div></div>
+</div></body></html>

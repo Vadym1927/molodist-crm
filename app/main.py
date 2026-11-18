@@ -7216,10 +7216,22 @@ def stock_doc_page(did: int, request: Request, user: User = Depends(require("sto
                   cash_boxes=pay.cash_boxes(db), sup_arts=pay.supply_articles(db), CASH_PREFIX=pay.CASH_PREFIX,
                   group_docs=[x for x in (grp.docs if grp else []) if x.id != doc.id],
                   REASONS=st.WRITEOFF_REASONS, products=_product_options(db), bal=bal, active=st.ledger_active(db),
-                  pchk=pchk,
+                  pchk=pchk, doc_brands=sorted({(ln.product.brand or "").strip() for ln in doc.lines if ln.product and (ln.product.brand or "").strip()}),
+                  wh_brands=sorted({(p_.brand or "").strip() for p_ in db.scalars(select(Product).where(Product.warehouse == (doc.wh_from or doc.wh_to))) if (p_.brand or "").strip()}),
                   suppliers=[x.name for x in db.scalars(select(Supplier).order_by(Supplier.name))],
                   history=__import__("app.services.doc_history", fromlist=["history"]).history(db, doc),
                   editable=doc.status in ("draft", "sent"))
+
+
+@app.get("/stock/docs/{did:int}/print", response_class=HTMLResponse)
+def stock_doc_print(did: int, request: Request, blind: int = 0, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    """Друк документа (інвентаризаційний лист): товари за брендом і назвою, порожня колонка «Фактично». blind=1 — без облікової к-сті."""
+    from .services import stock as st
+    doc = db.get(StockDoc, did) or (_ for _ in ()).throw(HTTPException(404))
+    bal = st.balances(db, doc.wh_from) if doc.kind == "inventory" else {}
+    rows = sorted(doc.lines, key=lambda ln: ((ln.product.brand or "яяя").lower(), (ln.product.name or "").lower()))
+    return render(request, "stock_doc_print.html", d=doc, rows=rows, bal=bal, blind=bool(blind), KINDS=st.DOC_KINDS,
+                  WAREHOUSES=catalog.WAREHOUSES, now=datetime.now())
 
 
 @app.post("/stock/docs/{did:int}")
@@ -7295,8 +7307,22 @@ async def stock_doc_save(did: int, request: Request, user: User = Depends(requir
             audit(db, "stock.cancel", "stock_doc", doc.id, user=user, kind=doc.kind)
             return RedirectResponse(f"/stock/docs/{did}?msg=Скасовано", 303)
         if action == "prefill" and doc.kind == "inventory":
-            n = st.inventory_prefill(db, doc)
+            brands = [b for b in f.getlist("inv_brand") if b] if hasattr(f, "getlist") else []
+            n = st.inventory_prefill(db, doc, brands or None, bool(f.get("inv_only_stock")))
             return RedirectResponse(f"/stock/docs/{did}?msg=Додано+{n}+товарів", 303)
+        if action == "keep" and doc.kind == "inventory" and doc.status == "draft":
+            brands = [b for b in f.getlist("inv_brand") if b]
+            n = st.inventory_keep(db, doc, brands or None, bool(f.get("inv_only_stock")))
+            return RedirectResponse(f"/stock/docs/{did}?msg=Прибрано+рядків:+{n}", 303)
+        if action == "del_sel" and doc.status in ("draft", "sent"):
+            ids = {int(x) for x in f.getlist("sel") if str(x).isdigit()}
+            n = 0
+            for ln in list(doc.lines):
+                if ln.id in ids:
+                    db.delete(ln)
+                    n += 1
+            db.commit()
+            return RedirectResponse(f"/stock/docs/{did}?msg=Прибрано+рядків:+{n}", 303)
     except st.StockError as e:
         return RedirectResponse(f"/stock/docs/{did}?err={e}", 303)
     return RedirectResponse(f"/stock/docs/{did}" + ("#add" if f.get("new_product") else ""), 303)
