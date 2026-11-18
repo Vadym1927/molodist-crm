@@ -153,13 +153,24 @@ def items(data: dict, root: str, notice_brands: set[str] | None = None) -> list[
     return out
 
 
+_MED = re.compile(r"лікуван|лікує|лікува|лікувальн|\bFDA\b|розацеа|купероз|дерматит|екзем|псоріаз|захворюван|хвороб|діагноз|рецепт|препарат|"
+                  r"медикамент|терапі|клінічн|протокол|запален|інфекц|антибакт|протизапальн|себоре|алопец|облисін|\bлікар", re.I)
+
+
+def clean_desc(text: str) -> str:
+    """Опис для Google Merchant: без медичних тверджень (через них косметику блокують як ліки). На сайті опис не змінюється."""
+    parts = re.split(r"(?<=[.!?…])\s+", re.sub(r"\s+", " ", text or "").strip())
+    keep = [p for p in parts if p and not _MED.search(p)]
+    return " ".join(keep)[:4900]
+
+
 def google(data: dict, root: str, title: str = "MOLODIST", notice_brands: set[str] | None = None) -> str:
     """RSS 2.0 з простором імен g: — формат, який приймають Google Merchant Center і Meta Commerce Manager."""
     rows = []
     for i in items(data, root, notice_brands):
         if not i["imgs"]:
             continue                                                         # без фото Merchant Center товар відхиляє
-        parts = [f"<g:id>{x(i['id'])}</g:id>", f"<title>{x(i['title'])}</title>", f"<description>{x(i['desc'])}</description>",
+        parts = [f"<g:id>{x(i['id'])}</g:id>", f"<title>{x(i['title'])}</title>", f"<description>{x(clean_desc(i['desc']) or i['title'])}</description>",
                  f"<link>{x(i['link'])}</link>", f"<g:image_link>{x(i['imgs'][0])}</g:image_link>"]
         parts += [f"<g:additional_image_link>{x(u)}</g:additional_image_link>" for u in i["imgs"][1:10]]
         parts += [f"<g:availability>{'in_stock' if i['stock'] else 'out_of_stock'}</g:availability>",

@@ -42,3 +42,21 @@ def test_tilda_import_and_serve(tmp_path, monkeypatch):
         assert r.status_code == 404 and "NOT FOUND" in r.text
         assert "TILDA LASER" not in cl.get("/_site/laserepilation").text     # сторінка CRM має пріоритет
         assert "HOME" in cl.get("/_site/").text
+
+
+def test_google_feed_desc_without_medical_claims():
+    from app.services.shop_feeds import clean_desc
+    d = ("Glow Antioxidant Mask — ефективний засіб для боротьби з розацеа і куперозом. Маска зволожує і освітлює шкіру. "
+         "Склад відповідає рекомендованим протоколам лікування розацеа від FDA. Підходить для щоденного догляду.")
+    out = clean_desc(d)
+    assert "FDA" not in out and "розацеа" not in out and "зволожує" in out and "щоденного" in out
+
+
+def test_staging_host_noindex():
+    from fastapi.testclient import TestClient
+    with TestClient(app) as cl:
+        from app.services import site_pages as sp
+        sp._cache["hosts"], sp._cache["at"] = {"new.example.ua"}, 9e18
+        r = cl.get("/", headers={"host": "new.example.ua"})
+        assert "noindex" in r.headers.get("x-robots-tag", "")
+        sp._cache["at"] = 0

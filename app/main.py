@@ -8652,9 +8652,14 @@ def _site_ctx(request: Request, db: Session, slug: str = "") -> dict:
 def _site_resp(name: str, ctx: dict, status: int = 200):
     r = templates.TemplateResponse(ctx["request"], name, ctx, status_code=status)
     r.headers["Cache-Control"] = "public, max-age=300"
-    if ctx["noindex"]:
+    if ctx["noindex"] or _staging_host(ctx["request"]):
         r.headers["X-Robots-Tag"] = "noindex, nofollow"
     return r
+
+
+def _staging_host(request: Request) -> bool:
+    """Тестовий домен сайту (new.…) — не індексувати, щоб не було дублів з основним сайтом до переїзду."""
+    return (request.headers.get("host") or "").split(":")[0].lower().startswith(("new.", "staging.", "test."))
 
 
 @app.get("/_site/", response_class=HTMLResponse)
@@ -8982,7 +8987,7 @@ def _tilda_resp(request: Request, db: Session, path, status: int = 200):
     from .services import tilda_site as ts, site_pages as sp
     on_site = (request.headers.get("host") or "").split(":")[0].lower() in sp.hosts()
     r = HTMLResponse(ts.render(db, path, "" if on_site else "/_site"), status_code=status)
-    if not on_site:
+    if not on_site or _staging_host(request):
         r.headers["X-Robots-Tag"] = "noindex, nofollow"
     return r
 
