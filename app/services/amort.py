@@ -381,10 +381,13 @@ def fund_part(db: Session, box: dict) -> dict:
     name = box.get("name")
     assets = {a.id: a for a in db.scalars(select(AmortAsset))}
     inc = out = 0.0
-    kinds = {k: {"in": 0.0, "out": 0.0} for k in ("device", "consumable", "other")}   # розподіл фонду: апарати / розхідники / без привʼязки
+    kinds = {k: {"in": 0.0, "out": 0.0} for k in ("device", "consumable")}   # розподіл фонду: апарати / розхідники
+    unlinked = 0.0                                   # витрати без привʼязки (кредит, ремонт) — з частини апаратів
     for t in db.scalars(select(AmortTxn)):
         a = assets.get(t.asset_id)
-        k = (a.kind if a and a.kind in kinds else "other")
+        k = a.kind if a and a.kind in kinds else "device"
+        if not a and t.kind == "expense" and (t.source == "sheet" or (t.cashbox or name) == name):
+            unlinked += t.amount or 0
         if t.kind == "pay":
             if t.source == "sheet" or not a or (a.cashbox or name) == name:
                 inc += t.amount or 0
@@ -397,7 +400,8 @@ def fund_part(db: Session, box: dict) -> dict:
         kinds[k] = {"in": round(kinds[k]["in"], 2), "out": round(kinds[k]["out"], 2), "amort": round(kinds[k]["in"] - kinds[k]["out"], 2)}
     amort = round(inc - out, 2)
     total = cbx.balance(db, box)
-    return {"amort": amort, "in": round(inc, 2), "out": round(out, 2), "total": total, "oper": round(total - amort, 2), "kinds": kinds}
+    return {"amort": amort, "in": round(inc, 2), "out": round(out, 2), "total": total, "oper": round(total - amort, 2), "kinds": kinds,
+            "unlinked": round(unlinked, 2)}
 
 
 def set_operational(db: Session, amount: float) -> None:

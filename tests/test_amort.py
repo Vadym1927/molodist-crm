@@ -130,6 +130,8 @@ def test_fund_part_ignores_purchases():
         db.commit()
         p2 = am.fund_part(db, box)
         assert p2["amort"] == base["amort"] and round(p2["oper"], 2) == round(base["oper"] - 18854.64, 2)
+        k = p2["kinds"]                                    # дві частини фонду: апарати (разом з витратами без привʼязки) і розхідники
+        assert set(k) == {"device", "consumable"} and round(k["device"]["amort"] + k["consumable"]["amort"], 2) == p2["amort"]
 
 
 def test_counters_to_equip():
