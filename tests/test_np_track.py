@@ -10,7 +10,7 @@ from app.models import SessionLocal, SiteOrder, Task
 def test_np_track_flow(monkeypatch):
     from app.services import np_track as npt, shop_front as sf, shop_cabinet as sc
     out = []
-    monkeypatch.setattr(sc, "_deliver", lambda db, phone, text, *a: (out.append(text) or "sms"))
+    monkeypatch.setattr(sc, "_deliver", lambda db, phone, text, *a, **k: (out.append(text) or "sms"))
     monkeypatch.setattr(sf, "notify", lambda *a, **k: 0)
     codes = {}
     monkeypatch.setattr(npt, "_codes", lambda c, ttns, http=None: {t: codes[t] for t, _ in ttns if t in codes})
@@ -34,3 +34,14 @@ def test_np_track_flow(monkeypatch):
             b.raw = {**b.raw, "recv_at": (datetime.now() - timedelta(days=4)).isoformat(timespec="minutes")}; db.commit()
             assert npt.job(db, sf.cfg(db))["closed"] == 1 and b.status == "Закрито"
             c = sf.cfg(db); c.update(order_msg_on=False, np_key=""); sf.save_cfg(db, c)
+
+
+def test_cart_sms_short(monkeypatch):
+    from app.services import shop_cabinet as sc
+    from app.integrations import messaging as m
+    sent = []
+    monkeypatch.setattr(m, "send_turbosms", lambda phone, text, *a, **k: (sent.append(text) or type("R", (), {"ok": True})()))
+    with TestClient(app):
+        with SessionLocal() as db:
+            assert sc._deliver(db, "380501112299", "довгий текст для бота", "🛒 ", sms="Ваш кошик збережено. Оформити: molodist.store/checkout/") == "sms"
+    assert sent == ["Ваш кошик збережено. Оформити: molodist.store/checkout/"] and len(sent[0]) <= 70

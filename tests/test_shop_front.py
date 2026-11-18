@@ -295,7 +295,7 @@ def test_shop_notify_when_back(monkeypatch):
     from app.services import shop_cabinet as sc, shop_front as sf
     from app.models import ShopNotify
     out = []
-    monkeypatch.setattr(sc, "_deliver", lambda db, phone, text, *a: (out.append((phone, text)) or "sms"))
+    monkeypatch.setattr(sc, "_deliver", lambda db, phone, text, *a, **k: (out.append((phone, text)) or "sms"))
     monkeypatch.setattr("app.shop_web._rate", lambda *a, **k: True)
     monkeypatch.setattr("app.integrations.messaging.is_quiet_time", lambda *a, **k: False)
     with TestClient(app) as c:
@@ -327,7 +327,7 @@ def test_shop_care_and_order_notice(monkeypatch):
     from app.services import shop_cabinet as sc, shop_front as sf
     from app.models import Patient, BeautyPlan, PlanItem, SiteOrder
     out = []
-    monkeypatch.setattr(sc, "_deliver", lambda db, phone, text, *a: (out.append(text) or "sms"))
+    monkeypatch.setattr(sc, "_deliver", lambda db, phone, text, *a, **k: (out.append(text) or "sms"))
     monkeypatch.setattr(sf, "notify", lambda *a, **k: 0)
     with TestClient(app):
         with SessionLocal() as db:
@@ -487,7 +487,7 @@ def test_shop_reviews_carts_analytics(monkeypatch):
     from app.services import shop_cabinet as sc, shop_front as sf, shop_reviews as rv, shop_carts as ct
     from app.models import ShopReview, ShopCart, Task, ShopAccount, Patient
     out = []
-    monkeypatch.setattr(sc, "_deliver", lambda db, phone, text, *a: (out.append((phone, text)) or "sms"))
+    monkeypatch.setattr(sc, "_deliver", lambda db, phone, text, *a, **k: (out.append((phone, text)) or "sms"))
     monkeypatch.setattr(sf, "notify", lambda *a, **k: 0)
     monkeypatch.setattr(sf, "_tg_send", lambda *a, **k: (True, 1))
     monkeypatch.setattr("app.shop_web._rate", lambda *a, **k: True)
@@ -622,7 +622,7 @@ def test_shop_quiz_reorder_oneclick_tip(monkeypatch):
     from app.services import shop_front as sf, shop_extra as sx, shop_cabinet as sc
     from app.models import Doctor
     out = []
-    monkeypatch.setattr(sc, "_deliver", lambda db, phone, text, *a: (out.append((phone, text)) or "sms"))
+    monkeypatch.setattr(sc, "_deliver", lambda db, phone, text, *a, **k: (out.append((phone, text)) or "sms"))
     monkeypatch.setattr(sf, "notify", lambda *a, **k: 0)
     monkeypatch.setattr("app.shop_web._rate", lambda *a, **k: True)
     monkeypatch.setattr("app.integrations.messaging.is_quiet_time", lambda *a, **k: False)

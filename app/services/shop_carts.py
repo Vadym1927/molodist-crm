@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from ..models import Patient, ShopAccount, ShopCart, Task
 
 STATUS = {"open": "Не оформлено", "ordered": "Оформлено замовлення", "done": "Опрацьовано", "empty": "Очищено"}
+SMS_TEXT = "Ваш кошик збережено. Оформити: {link}"   # 1 SMS (≤ 70 символів); MOLODIST — в альфа-імені
 DEFAULT_TEXT = "{name}, ви залишили в кошику MOLODIST: {items}. Кошик збережено — оформити можна тут: {link}. Питання? Напишіть нам."
 
 
@@ -216,7 +217,8 @@ def remind(db: Session, cfg: dict, cart_id: int, data: dict, root: str, who: str
     if not ch:
         if not p or not getattr(p, "phone", None):
             raise ValueError("У картці немає телефону.")
-        ch = sc._deliver(db, sc._phone(p.phone), message(db, cfg, c, data, root), "🛒 ")
+        short = SMS_TEXT.replace("{link}", f"{root}/checkout/".replace("https://", "").replace("http://", ""))
+        ch = sc._deliver(db, sc._phone(p.phone), message(db, cfg, c, data, root), "🛒 ", sms=short)
     c.reminded_at = datetime.utcnow()
     c.note = ((c.note or "") + f"\n{datetime.now():%d.%m %H:%M} нагадування ({ch}){' — ' + who if who else ''}").strip()[-2000:]
     db.flush()

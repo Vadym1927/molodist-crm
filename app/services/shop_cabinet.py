@@ -51,7 +51,7 @@ def sms_text(c: dict, code: str) -> str:
     return (t if "{code}" in t else t + " {code}").replace("{code}", code)[:300]
 
 
-def _deliver(db: Session, phone: str, text: str, icon: str = "🔐 ") -> str:
+def _deliver(db: Session, phone: str, text: str, icon: str = "🔐 ", sms: str = "") -> str:
     """Код: спершу в Telegram (якщо пацієнт підключив бот турботи), інакше SMS. Повертає канал або кидає CabError."""
     from ..integrations import messaging as m
     from . import appeals as ap
@@ -62,7 +62,7 @@ def _deliver(db: Session, phone: str, text: str, icon: str = "🔐 ") -> str:
                 return "telegram"
         except Exception:  # noqa: BLE001 — не вийшло в Telegram → SMS
             pass
-    r = m.send_turbosms(phone, text, ["sms"], internal=True)
+    r = m.send_turbosms(phone, sms or text, ["sms"], internal=True)
     if not r.ok:
         raise CabError("Не вдалося надіслати код. Спробуйте за хвилину або зателефонуйте нам.")
     return "sms"
