@@ -124,3 +124,10 @@ def test_short_expiry_beats_smaller_site_sale():
         v = next(v for i in sf.catalog(db, fresh=True)["items"] for v in i["variants"] if v["id"] == p.id)
         assert v["price"] == 750 and v["old"] == 1000 and v["short"] == 1 and v["full"] == 900
         assert sf.price_cart(db, [{"id": p.id, "qty": 2}])["total"] == 1650
+
+
+def test_daybook_marks_site_sales():
+    from app.services import daybook
+    class S: created_by = None; comment = "Інтернет-магазин, замовлення M261118-1606"
+    class C: created_by = 5; comment = "Інтернет-магазин"
+    assert daybook.is_web(S()) and not daybook.is_web(C())

@@ -13,6 +13,14 @@ from . import cashboxes as cbx, finops as fo
 NON_MONEY_ROWS = [("Баланс пацієнта", ("баланс",)), ("Сертифікат", ("сертиф",)), ("Абонемент", ("абонем",)), ("Бонусний рахунок", ("бонус",))]
 
 
+
+WEB_MARK = "Інтернет-магазин"
+
+
+def is_web(s) -> bool:
+    """Чек створено з оплаченого замовлення сайту molodist.store (касир — «Сайт-магазин»)."""
+    return not s.created_by and (s.comment or "").startswith(WEB_MARK)
+
 def _non_money(name: str) -> str | None:
     n = (name or "").lower()
     for label, keys in NON_MONEY_ROWS:
@@ -53,8 +61,11 @@ def day(db: Session, d: date) -> dict:
     users = {u.id: u.name for u in db.scalars(select(User))}
     rows = []
     for s in sales:
-        rows.append({"at": s.at, "num": f"Ч-{s.id}", "link": f"/sales/{s.id}", "src": "CRM", "basis": "Продаж CRM" + (f" · запис №{s.appointment_id}" if s.appointment_id else ""),
-                     "patient": pats.get(s.patient_id), "staff": ", ".join(sorted({docs.get(i.doctor_id) for i in s.items if i.doctor_id and docs.get(i.doctor_id)})) or users.get(s.created_by, ""),
+        web = is_web(s)
+        rows.append({"at": s.at, "num": f"Ч-{s.id}", "link": f"/sales/{s.id}", "src": "Сайт" if web else "CRM",
+                     "basis": ("Інтернет-магазин · " + (s.comment or "").split("замовлення", 1)[-1].strip()) if web else "Продаж CRM" + (f" · запис №{s.appointment_id}" if s.appointment_id else ""),
+                     "patient": pats.get(s.patient_id), "web": web,
+                     "staff": ", ".join(sorted({docs.get(i.doctor_id) for i in s.items if i.doctor_id and docs.get(i.doctor_id)})) or ("Сайт-магазин" if web else users.get(s.created_by, "")),
                      "lines": [f"{i.name}" + (f" × {i.qty:g}" if i.qty != 1 else "") for i in s.items], "cost": s.subtotal, "discount": s.discount,
                      "to_pay": s.total, "status": {"refunded": "Повернено", "awaiting": "Очікує оплати", "cancelled": "Скасовано"}.get(s.status, "Оплачено"),
                      "sid": s.id, "st": s.status,
