@@ -21,6 +21,25 @@ def is_web(s) -> bool:
     """Чек створено з оплаченого замовлення сайту molodist.store (касир — «Сайт-магазин»)."""
     return not s.created_by and (s.comment or "").startswith(WEB_MARK)
 
+
+WEB_SELLER = "MOLODIST shop"
+
+
+def web_item_discount(db, it) -> float:
+    """Знижка сайту на рядок чека: акція / короткий термін «вшиті» в ціну сайту → різниця зі звичайною ціною товару в CRM."""
+    if float(it.discount or 0) > 0 or it.kind != "product" or not it.ref_id:
+        return float(it.discount or 0)
+    from ..models import Product
+    p = db.get(Product, it.ref_id)
+    reg = float((p.price_manual or p.price or 0) if p else 0)
+    q = float(it.qty or 1)
+    return round(max(0.0, reg * q - float(it.total or 0)), 2) if reg else 0.0
+
+
+def web_discount(db, s) -> float:
+    """Повна знижка чека з сайту: знижки сайту в цінах + коїни / промокод (знижка чека)."""
+    return round(sum(web_item_discount(db, i) for i in s.items) + float(s.discount or 0), 2)
+
 def _non_money(name: str) -> str | None:
     n = (name or "").lower()
     for label, keys in NON_MONEY_ROWS:
@@ -65,8 +84,9 @@ def day(db: Session, d: date) -> dict:
         rows.append({"at": s.at, "num": f"Ч-{s.id}", "link": f"/sales/{s.id}", "src": "Сайт" if web else "CRM",
                      "basis": ("Інтернет-магазин · " + (s.comment or "").split("замовлення", 1)[-1].strip()) if web else "Продаж CRM" + (f" · запис №{s.appointment_id}" if s.appointment_id else ""),
                      "patient": pats.get(s.patient_id), "web": web,
-                     "staff": ", ".join(sorted({docs.get(i.doctor_id) for i in s.items if i.doctor_id and docs.get(i.doctor_id)})) or ("Сайт-магазин" if web else users.get(s.created_by, "")),
-                     "lines": [f"{i.name}" + (f" × {i.qty:g}" if i.qty != 1 else "") for i in s.items], "cost": s.subtotal, "discount": s.discount,
+                     "staff": ", ".join(sorted({docs.get(i.doctor_id) for i in s.items if i.doctor_id and docs.get(i.doctor_id)})) or (WEB_SELLER if web else users.get(s.created_by, "")),
+                     "lines": [f"{i.name}" + (f" × {i.qty:g}" if i.qty != 1 else "") for i in s.items], "cost": (round(float(s.total or 0) + web_discount(db, s), 2) if web else s.subtotal),
+                     "discount": (web_discount(db, s) if web else s.discount),
                      "to_pay": s.total, "status": {"refunded": "Повернено", "awaiting": "Очікує оплати", "cancelled": "Скасовано"}.get(s.status, "Оплачено"),
                      "sid": s.id, "st": s.status,
                      "fiscal": bool(s.fiscal and s.fiscal.get("fiscal_code"))})

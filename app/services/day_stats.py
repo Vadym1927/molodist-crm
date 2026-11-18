@@ -203,10 +203,12 @@ def _details(db: Session, d: date, docs: dict, live, done, new_p, created, cance
                           discount=round(float(sale_by[a.sale_id].discount or 0), 2) if a.sale_id in sale_by else None)
                      for a in sorted(live, key=lambda x: x.start)]
     # чеки
+    from . import daybook as _db
     def sale_row(s):
         p = s.patient
         return {"id": s.id, "at": s.at, "patient": p.full_name if p else "—", "pid": s.patient_id, "total": round(float(s.total or 0), 2),
-                "discount": round(float(s.discount or 0), 2), "author": users.get(s.created_by, "—"),
+                "discount": _db.web_discount(db, s) if _db.is_web(s) else round(float(s.discount or 0), 2),
+                "author": _db.WEB_SELLER if _db.is_web(s) else users.get(s.created_by, "—"),
                 "pay": ", ".join(f"{x.method} {float(x.amount or 0):,.2f}".replace(",", " ") for x in s.payments),
                 "items": ", ".join(f"{i.name}{(' ×%g' % i.qty) if (i.qty or 1) != 1 else ''}" for i in s.items),
                 "test": bool((s.fiscal or {}).get("test_sale")), "reason": s.refund_reason or "",
@@ -238,7 +240,10 @@ def _details(db: Session, d: date, docs: dict, live, done, new_p, created, cance
                 continue
             g["qty"] += q
             g["sum"] += float(it.total or 0)
-            g["discount"] += float(it.discount or 0)
+            web = _db.is_web(s)
+            g["discount"] += _db.web_item_discount(db, it) if web else float(it.discount or 0)
+            if web:
+                g["doctors"].add(_db.WEB_SELLER)
             if c is None:
                 g["cost_known"] = False
             else:
