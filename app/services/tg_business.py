@@ -154,3 +154,29 @@ def send(db: Session, thread: str, text: str, http: httpx.Client | None = None) 
         return False, None, (js.get("description") or "помилка Telegram")[:300]
     r = js.get("result") or {}
     return True, f"{r.get('chat', {}).get('id')}:{r.get('message_id')}", None
+
+
+def thread_for(db: Session, patient_id: int | None) -> str | None:
+    """Особистий чат пацієнта з акаунтом клініки (пацієнт уже писав сюди) — для службових повідомлень замість SMS."""
+    if not patient_id:
+        return None
+    c = cfg(db)
+    if not (c.get("connection_id") and c.get("enabled") and c.get("can_reply")):
+        return None
+    m = db.scalars(select(ChatMessage).where(ChatMessage.channel == "telegram", ChatMessage.patient_id == patient_id,
+                                             ChatMessage.thread.like(f"{PREFIX}%"), ChatMessage.direction == "in")
+                   .order_by(ChatMessage.id.desc())).first()
+    return m.thread if m else None
+
+
+def send_service(db: Session, patient_id: int | None, text: str, http: httpx.Client | None = None) -> tuple[bool, str | None]:
+    """Службове повідомлення (нагадування, чек, код, статус замовлення) від імені акаунта клініки, якщо є чат.
+    Повідомлення записується в переписку центру спілкування. → (ok, помилка)."""
+    th = thread_for(db, patient_id)
+    if not th:
+        return False, "немає чату з акаунтом клініки"
+    ok, mid, err = send(db, th, text, http)
+    db.add(ChatMessage(channel="telegram", thread=th, direction="out", text=text[:4000], mid=mid, patient_id=patient_id,
+                       status="sent" if ok else "failed", error=(err or None) and err[:300], name=None))
+    db.commit()
+    return ok, err

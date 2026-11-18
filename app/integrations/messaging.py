@@ -200,10 +200,32 @@ def available_channels(patient) -> list[str]:
     return out
 
 
+def send_tg_business(patient_id: int | None, text: str, internal: bool = False) -> SendResult:
+    """Службове повідомлення від акаунта клініки в Telegram (Telegram Business), якщо пацієнт уже має з ним чат.
+    Пріоритет перед ботом / Viber / SMS для нагадувань, чеків, кодів і статусів; розсилок (маркетингу) не стосується."""
+    if not patient_id or not settings.telegram_bot_token:
+        return SendResult(False, "tg_business", error="недоступно")
+    if not internal and not sending_enabled():
+        return SendResult(False, "tg_business", error=PAUSED_ERROR)
+    try:
+        from ..models import SessionLocal
+        from ..services import tg_business as tb
+        with SessionLocal() as db:
+            ok, err = tb.send_service(db, patient_id, text)
+    except Exception as e:      # noqa: BLE001
+        return SendResult(False, "tg_business", error=str(e)[:300])
+    return SendResult(ok, "tg_business", error=err)
+
+
 def send_to_patient(patient, text: str, prefer: list[str] | None = None, marketing: bool = False,
                     sequence_id: str | None = None) -> SendResult:
     """Перший доступний канал з prefer (за замовчуванням telegram → viber → sms).
+    Службові (не маркетинг): спершу особистий Telegram акаунта клініки, якщо пацієнт уже писав туди.
     Viber і SMS, якщо обидва дозволені, ідуть одним гібридним повідомленням."""
+    if not marketing and getattr(patient, "id", None):
+        r0 = send_tg_business(patient.id, text)
+        if r0.ok:
+            return r0
     prefer = prefer or ["telegram", "viber", "sms"]
     avail = available_channels(patient)
     for ch in prefer:

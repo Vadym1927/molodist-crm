@@ -56,6 +56,9 @@ def _deliver(db: Session, phone: str, text: str, icon: str = "🔐 ", sms: str =
     from ..integrations import messaging as m
     from . import appeals as ap
     p = ap.find_patient(db, phone)
+    if p:                                               # особистий Telegram акаунта клініки (пацієнт уже писав туди) — першим
+        if m.send_tg_business(p.id, text, internal=True).ok:
+            return "telegram"
     if p and p.telegram_chat_id and m.telegram_available():
         try:
             if m.send_telegram(p.telegram_chat_id, icon + text).ok:
