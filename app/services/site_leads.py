@@ -279,7 +279,7 @@ def gtm_tag(hook_url: str) -> str:
 
 
 GTM = r"""<script>
-/* MOLODIST CRM v2 — заявки з форм і кліки (телефон, Telegram, Viber, запис) з реклами → CRM з мітками й gclid.
+/* MOLODIST CRM v3 — заявки з форм і кліки (телефон, Telegram, Viber, запис) з реклами → CRM з мітками й gclid.
    Tag Manager: Теги → Новий → «Спеціальний HTML» → вставити → тригер «All Pages» (Усі сторінки) → Опублікувати. */
 (function () {
   if (document.documentElement.hasAttribute('data-mlds')) return;   // сторінки сайту на VPS — CRM обробляє сама
@@ -301,6 +301,7 @@ GTM = r"""<script>
     fetch(url, { method: 'POST', body: JSON.stringify(d), headers: { 'Content-Type': 'text/plain' }, keepalive: true });
   }
   function send(form) {
+    if (document.documentElement.hasAttribute('data-mlds-forms')) return;   // сторінки Tilda на нашому сервері: форми шле CRM сама
     var d = {}, fd = new FormData(form);
     fd.forEach(function (v, k) { if (typeof v === 'string' && v.trim() && !/^(g-recaptcha|tildaspec|form-spec|_)/i.test(k)) d[k] = v.trim(); });
     if (!Object.keys(d).length) return;

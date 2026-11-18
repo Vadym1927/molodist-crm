@@ -83,7 +83,7 @@
     <li><b>Nginx на VPS</b> (робить адміністратор сервера / агент OpenClaw): новий server-блок для домену з <code class="h">proxy_pass http://127.0.0.1:8010;</code>
       і <code class="h">proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr;</code>, потім <code class="h">certbot --nginx -d {{ c.hosts[0] if c.hosts else 'new.molodist.com.ua' }}</code>.</li>
     <li>Відкрийте домен — має зʼявитися сторінка напрямків. Тоді в Tilda на старих сторінках ставимо переадресацію на нові.</li>
-    <li>Tag Manager: замініть код тегу «MOLODIST CRM v2» на свіжий з <a href="/settings/google-ads#forms">Налаштування → Google Ads</a> і опублікуйте.
+    <li>Tag Manager: замініть код тегу «MOLODIST CRM v2/v3» на свіжий з <a href="/settings/google-ads#forms">Налаштування → Google Ads</a> і опублікуйте.
       Новий тег пропускає сторінки на VPS (їхні форми й кліки CRM приймає напряму), інакше заявка прийде двічі (друга — коментарем у тому ж зверненні).</li>
   </ol>
 </div>
