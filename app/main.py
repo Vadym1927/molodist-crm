@@ -7266,6 +7266,10 @@ async def stock_doc_save(did: int, request: Request, user: User = Depends(requir
             sup = st.receive_order(db, doc, user.id)
             audit(db, "stock.receive", "stock_doc", sup.id, user=user, order=doc.number)
             return RedirectResponse(f"/stock/docs/{sup.id}?msg=Перевірте+кількості+й+ціни+та+проведіть+поставку", 303)
+        if action == "reopen":
+            st.reopen(db, doc)
+            audit(db, "stock.reopen", "stock_doc", doc.id, user=user, kind=doc.kind)
+            return RedirectResponse(f"/stock/docs/{did}?msg=Документ+знову+чернетка+—+виправте+й+проведіть", 303)
         if action == "cancel":
             st.cancel(db, doc)
             audit(db, "stock.cancel", "stock_doc", doc.id, user=user, kind=doc.kind)

@@ -95,6 +95,7 @@
     <button class="btn" name="action" value="post" onclick="return confirm('Провести документ? Залишки зміняться.')">Провести</button>
   {% endif %}
   {% if d.kind != 'opening' and not d.archived_at %}<button type="button" class="btn ghost" onclick="ddOpen({{ d.id }}, '{{ d.number }}', '{{ d.status }}')">Видалити</button>{% endif %}
+  {% if d.status == 'posted' and d.kind not in ('opening', 'order') %}<button class="btn secondary" name="action" value="reopen" onclick="return confirm('Повернути документ у чернетку, щоб виправити кількість чи ціну? Рухи по складу тимчасово приберуться — після виправлення проведіть знову.')">Виправити</button>{% endif %}
   {% if d.status in ('posted','draft','sent') and d.kind != 'opening' %}<button class="btn danger" name="action" value="cancel" onclick="return confirm('Скасувати документ?{{ ' Рухи по складу буде прибрано.' if d.status=='posted' }}')">Скасувати</button>{% endif %}
 </div>
 </form>

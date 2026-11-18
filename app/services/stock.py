@@ -291,6 +291,19 @@ def cancel(db: Session, doc: StockDoc) -> None:
     db.commit()
 
 
+def reopen(db: Session, doc: StockDoc) -> None:
+    """Виправити проведений документ: рухи й закупівлі прибираються, документ знову чернетка (номер, файли, накладна лишаються).
+    Документ з рознесеною оплатою не відкривається — спершу скасуйте рознесення."""
+    from ..models import PaymentAlloc
+    if doc.status != "posted" or doc.kind in ("opening", "order"):
+        raise StockError("Повернути в чернетку можна лише проведений документ")
+    if db.scalar(select(PaymentAlloc.id).where(PaymentAlloc.doc_id == doc.id).limit(1)):
+        raise StockError("На документ рознесено оплату — спершу скасуйте рознесення платежу")
+    cancel(db, doc)
+    doc.status = "draft"
+    db.commit()
+
+
 def archive(db: Session, doc: StockDoc, user_id: int | None = None, note: str | None = None) -> None:
     """«Видалити» документ: проведений спершу скасовується (рухи прибираються), потім іде в архів.
     Документ із оплатою (рознесені платежі) не видаляється — спершу скасуйте рознесення."""

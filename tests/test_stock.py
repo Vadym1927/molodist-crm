@@ -377,3 +377,23 @@ def test_supply_list_payment_author_and_history():
         assert "частково" in lst and "термінова" in lst
         h = c.get(f"/stock/docs/{did}").text
         assert "Історія документа" in h and "Створено у вікні поставки" in h and "к-сть 2 → 3" in h and "Відмічено оплату" in h
+
+
+def test_supply_reopen_fix_qty():
+    import pytest
+    """Проведену поставку можна повернути в чернетку (без оплати), виправити кількість/ціну й провести знову."""
+    from app.models import ProductPurchase
+    with SessionLocal() as db:
+        p = Product(name="Пілінг 15 мл тест", name_norm="пілінг 15 мл тест", warehouse="classic", unit="мл", coef=15)
+        db.add(p); db.commit()
+        doc = st.new_doc(db, "supply", wh_to="classic", supplier="Totis тест")
+        doc.lines.append(st.StockDocLine(product_id=p.id, qty=1, unit_cost=3601.71))
+        db.commit(); st.post(db, doc)
+        st.reopen(db, doc)
+        assert doc.status == "draft" and not db.query(ProductPurchase).filter(ProductPurchase.note == f"stockdoc:{doc.id}").count()
+        doc.lines[0].qty, doc.lines[0].unit_cost = 15, round(3601.71 / 15, 4)
+        db.commit(); st.post(db, doc)
+        pp = db.query(ProductPurchase).filter(ProductPurchase.note == f"stockdoc:{doc.id}").one()
+        assert pp.qty == 15 and abs(pp.unit_cost * 15 - 3601.71) < 0.01
+        with pytest.raises(st.StockError):
+            st.reopen(db, st.new_doc(db, "supply", wh_to="classic"))
