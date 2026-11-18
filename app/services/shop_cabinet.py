@@ -335,7 +335,8 @@ def doctor_care(db: Session, p: Patient, data: dict) -> dict:
 # ---------------- сповіщення покупцю про замовлення ----------------
 ORDER_MSG = {"paid": "Замовлення {n} оплачено. Дякуємо!",   # ≤ 70 символів — 1 SMS; MOLODIST — в альфа-імені
              "sent": "Замовлення {n} відправлено НП{ttn}",
-             "cancel": "Замовлення {n} скасовано. Питання: 0933756437"}
+             "cancel": "Замовлення {n} скасовано. Питання: 0933756437",
+             "arrived": "Замовлення {n} чекає у відділенні НП{wh}"}
 
 
 def order_notice(db: Session, c: dict, o: SiteOrder, event: str) -> bool:
@@ -345,7 +346,9 @@ def order_notice(db: Session, c: dict, o: SiteOrder, event: str) -> bool:
     if not c.get("order_msg_on") or event not in ORDER_MSG or event in done or not o.phone or o.source != "crm":
         return False
     ttn = raw.get("ttn") or ""
-    text = ORDER_MSG[event].replace("{n}", o.number or "").replace("{ttn}", f", ТТН {ttn}" if ttn else "")
+    wh = str(raw.get("np_wh") or "")
+    text = ORDER_MSG[event].replace("{n}", o.number or "").replace("{ttn}", f", ТТН {ttn}" if ttn else "") \
+        .replace("{wh}", f" №{wh}" if wh.isdigit() else "")
     try:
         _deliver(db, _phone(o.phone), text, "📦 ")
     except CabError:

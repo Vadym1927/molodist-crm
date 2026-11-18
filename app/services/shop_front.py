@@ -924,7 +924,8 @@ def _cust(db: Session, o: SiteOrder, event: str) -> None:
     try:
         from . import shop_cabinet as sc
         if sc.order_notice(db, cfg(db), o, event):
-            log(o, {"paid": "Покупцю надіслано: оплачено", "sent": "Покупцю надіслано: відправлено", "cancel": "Покупцю надіслано: скасовано"}[event])
+            log(o, {"paid": "Покупцю надіслано: оплачено", "sent": "Покупцю надіслано: відправлено", "cancel": "Покупцю надіслано: скасовано",
+                  "arrived": "Покупцю надіслано: прибуло у відділення"}[event])
     except Exception:  # noqa: BLE001 — повідомлення покупцю не має ламати обробку замовлення
         pass
 
@@ -1032,6 +1033,8 @@ def set_status(db: Session, o: SiteOrder, status: str, user: User | None = None,
         log(o, f"Статус: {o.status or '—'} → {status}", who)
         raw = dict(o.raw or {})
         o.status = status
+        if status == "Отримано":
+            raw["recv_at"] = datetime.now().isoformat(timespec="minutes")
     if ttn is not None and ttn.strip()[:40] != (raw.get("ttn") or ""):
         raw["ttn"] = ttn.strip()[:40]
         raw["log"] = (raw.get("log") or []) + [{"at": datetime.now().isoformat(timespec="minutes"), "by": who, "text": f"ТТН: {raw['ttn'] or 'прибрано'}"}]

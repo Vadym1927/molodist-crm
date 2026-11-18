@@ -366,6 +366,7 @@ async def job_care_bot():
 
 
 _BRANDS_AT = [0.0]
+_NP_AT = [0.0]
 
 
 async def job_mono_parts():
@@ -389,6 +390,13 @@ async def job_mono_parts():
                     if _bs["new"]:
                         log.info("shop brands: нові сторінки брендів %s", _bs["new"])
                 _ct.job(db, _c, _cat, _root)
+                if time.time() - _NP_AT[0] > 3600:
+                    _NP_AT[0] = time.time()
+                    from .services import np_track as _np
+                    _npr = _np.job(db, _c)
+                    db.commit()
+                    if any(_npr.values()):
+                        log.info("np_track: %s", _npr)
                 from .services import google_reviews as _gr
                 if _gr.due(db, _c):
                     _gr.refresh(db, _c)
