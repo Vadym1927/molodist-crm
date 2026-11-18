@@ -10131,6 +10131,53 @@ async def shop_reviews_save(rid: int, request: Request, user: User = Depends(req
     return RedirectResponse(_with_msg(f"/shop-reviews?status={quote(str(f.get('back') or 'new'))}", "Збережено"), 303)
 
 
+@app.get("/settings/email", response_class=HTMLResponse)
+def settings_email(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .integrations import brevo
+    c = brevo.cfg(db)
+    return render(request, "settings_email.html", nav="shop", c=c, has_key=brevo.has_key(c),
+                  msg=request.query_params.get("msg", ""), err=request.query_params.get("err", ""))
+
+
+@app.post("/settings/email")
+async def settings_email_save(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .integrations import brevo
+    import re as _re
+    f = await request.form()
+    c = brevo.cfg(db)
+    for k in ("sender", "reply_to", "test_to"):
+        v = str(f.get(k) or "").strip()
+        c[k] = v if _re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", v) else ("" if k != "sender" else c.get("sender"))
+    c["sender_name"] = str(f.get("sender_name") or "MOLODIST").strip()[:60]
+    c["cart_subject"] = str(f.get("cart_subject") or brevo.DEFAULT["cart_subject"]).strip()[:150]
+    c["on"], c["cart_on"] = bool(f.get("on")), bool(f.get("cart_on"))
+    brevo.save(db, c)
+    k = str(f.get("api_key") or "").strip()
+    if k:
+        brevo.set_key(db, k)
+    if f.get("key_clear"):
+        brevo.set_key(db, "")
+    audit(db, "email.settings", user=user, on=c["on"], cart_on=c["cart_on"], key_changed=bool(k or f.get("key_clear")))
+    return RedirectResponse("/settings/email?msg=Збережено", status_code=303)
+
+
+@app.post("/settings/email/test")
+def settings_email_test(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .integrations import brevo
+    from .services import shop_carts as scr, shop_front as sf
+    c = brevo.cfg(db)
+    to = c.get("test_to") or ""
+    try:
+        info = brevo.account(db)
+        root = sf.cfg(db)["canonical"].rstrip("/")
+        subj, text, body = scr.email_body(db, None, {"items": []}, root, name=(user.name or "").split()[0] if user.name else "")
+        brevo.send(db, to, "[Тест] " + subj, text, body, force=True)
+    except brevo.EmailError as e:
+        return RedirectResponse("/settings/email?err=" + quote(str(e)), status_code=303)
+    audit(db, "email.test", user=user, to=to)
+    return RedirectResponse("/settings/email?msg=" + quote(f"Тестовий лист надіслано на {to} (акаунт Brevo: {info['company'] or info['email']})"), status_code=303)
+
+
 @app.get("/settings/shop/integrations", response_class=HTMLResponse)
 def settings_shop_integrations(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     from .services import shop_front as sf

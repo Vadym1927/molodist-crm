@@ -115,15 +115,46 @@ def message(db: Session, cfg: dict, c: ShopCart, data: dict, root: str) -> str:
     return tpl.replace("{name}", nm).replace("{items}", _items_text(c, data)).replace("{sum}", f"{int(c.total or 0)} ₴").replace("{link}", f"{root}/checkout/")[:480]
 
 
+def email_body(db: Session, c: ShopCart | None, data: dict, root: str, name: str = "") -> tuple[str, str, str]:
+    """Лист про покинутий кошик: (тема, текст, html). Без кошика — зразок для тестового листа."""
+    from ..integrations import brevo
+    ec = brevo.cfg(db)
+    if c:
+        a = db.scalar(select(ShopAccount).where(ShopAccount.patient_id == c.patient_id))
+        name = name or (a.first_name if a and a.first_name else "")
+        by_id = {v["id"]: v for it in data["items"] for v in it["variants"]}
+        lines = [f"• {by_id[i['id']]['name']} × {i['qty']}" for i in c.items or [] if i["id"] in by_id]
+        total = int(c.total or 0)
+    else:
+        lines, total = ["• Пілінг для шкіри голови Good Hair 100 мл × 1"], 1575
+    hi = f"{name}, вітаємо!" if name else "Вітаємо!"
+    text = (f"{hi}\n\nВи залишили товари в кошику MOLODIST — ми їх зберегли:\n" + "\n".join(lines[:10]) +
+            f"\n\nРазом: {total} ₴\n\nОформити замовлення можна в один клік. Якщо маєте питання щодо догляду чи вибору засобу — "
+            "просто дайте відповідь на цей лист, лікар або адміністратор підкаже.")
+    return ec.get("cart_subject") or brevo.DEFAULT["cart_subject"], text + f"\n\n{root}/checkout/", brevo.wrap(text, ("Оформити замовлення", f"{root}/checkout/"))
+
+
 def remind(db: Session, cfg: dict, cart_id: int, data: dict, root: str, who: str = "") -> str:
     from . import shop_cabinet as sc
     c = db.get(ShopCart, cart_id)
     if not c or c.status != "open" or not c.items:
         raise ValueError("Кошик уже не активний.")
     p = db.get(Patient, c.patient_id)
-    if not p or not getattr(p, "phone", None):
-        raise ValueError("У картці немає телефону.")
-    ch = sc._deliver(db, sc._phone(p.phone), message(db, cfg, c, data, root), "🛒 ")
+    from ..integrations import brevo
+    a = db.scalar(select(ShopAccount).where(ShopAccount.patient_id == c.patient_id))
+    mail = (a.email if a and a.email else "") or (getattr(p, "email", "") or "")
+    ch = ""
+    if mail and brevo.ready(db) and brevo.cfg(db).get("cart_on"):          # email (Brevo) — основний канал для кошика
+        subj, text, body = email_body(db, c, data, root)
+        try:
+            brevo.send(db, mail, subj, text, body)
+            ch = "email"
+        except brevo.EmailError:
+            ch = ""
+    if not ch:
+        if not p or not getattr(p, "phone", None):
+            raise ValueError("У картці немає телефону.")
+        ch = sc._deliver(db, sc._phone(p.phone), message(db, cfg, c, data, root), "🛒 ")
     c.reminded_at = datetime.utcnow()
     c.note = ((c.note or "") + f"\n{datetime.now():%d.%m %H:%M} нагадування ({ch}){' — ' + who if who else ''}").strip()[-2000:]
     db.flush()

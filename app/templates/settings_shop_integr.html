@@ -6,6 +6,7 @@
 .ig label:not(.ck){display:grid;gap:4px;font-size:13px}.ig label:not(.ck) input,.ig textarea{width:100%;box-sizing:border-box}.code{font-family:monospace;background:#F7F4F0;padding:2px 6px;border-radius:6px;word-break:break-all}.ok{color:#256B37}.bad{color:#8C2F39}</style>
 <h1 style="margin:0 0 4px">Центр керування магазином</h1><div class="muted small" style="margin-bottom:12px">Інтеграції: аналітика, реклама, фіди товарів, ШІ, сповіщення, кукі, захист від спаму, домен</div>
 {% include "_shop_tabs.html" %}{% include "_shop_msg.html" %}
+<div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px"><span><b>Email-листи покупцям (Brevo)</b> <span class="small muted">— нагадування про кошик, тестовий лист</span></span><a class="chip" href="/settings/email">Налаштувати ›</a></div>
 <form method="post"><div class="ig">
  <div class="card"><b>Google: Tag Manager · GA4 · Ads</b>
   <label>Google Tag Manager ID<input name="gtm_id" value="{{ c.gtm_id }}" placeholder="GTM-XXXXXXX (порожньо: контейнер сайту клініки, якщо не задано GA4 / Ads)"></label>

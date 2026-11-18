@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Email · Brevo{% endblock %}
+{% block body %}
+<div style="max-width:720px">
+<p><a href="/settings/shop/integrations">‹ Інтеграції магазину</a></p>
+<h1>Email-листи (Brevo)</h1>
+<p class="small muted">Листи покупцям від імені MOLODIST: нагадування про покинутий кошик (покупцям, які вказали email). Сервіс — Brevo (Франція), безкоштовно до 300 листів на день.
+Ключ API: Brevo → профіль (праворуч угорі) → <b>SMTP &amp; API</b> → <b>API Keys</b> → «Generate a new API key». Вставте його тут — після збереження ключ не показується.</p>
+{% if msg %}<div class="alert ok">{{ msg }}</div>{% endif %}{% if err %}<div class="alert">{{ err }}</div>{% endif %}
+<form method="post" class="card" style="display:grid;gap:12px">
+  <label>Ключ API Brevo <input type="password" name="api_key" autocomplete="new-password" placeholder="{{ '•••••••• збережено' if has_key else 'вставте ключ xkeysib-…' }}"></label>
+  {% if has_key %}<label class="small"><input type="checkbox" name="key_clear"> видалити збережений ключ</label>{% endif %}
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <label>Відправник (email) <input name="sender" value="{{ c.sender }}"></label>
+    <label>Імʼя відправника <input name="sender_name" value="{{ c.sender_name }}"></label>
+    <label>Відповіді надходять на <input name="reply_to" value="{{ c.reply_to }}"></label>
+    <label>Тестові листи на <input name="test_to" value="{{ c.test_to }}" placeholder="ваш email"></label>
+  </div>
+  <label>Тема листа про кошик <input name="cart_subject" value="{{ c.cart_subject }}"></label>
+  <label><input type="checkbox" name="on" {{ 'checked' if c.on }}> <b>Надсилання email увімкнено</b></label>
+  <label><input type="checkbox" name="cart_on" {{ 'checked' if c.cart_on }}> Нагадування про покинутий кошик — на email (якщо email є; інакше бот / SMS, як раніше)</label>
+  <div><button class="btn">Зберегти</button></div>
+</form>
+<form method="post" action="/settings/email/test" class="card" style="margin-top:12px">
+  <b>Тест</b><p class="small muted">Надішле зразок листа про кошик на «Тестові листи на». Працює навіть коли надсилання вимкнене. Спершу збережіть ключ і адресу.</p>
+  <button class="btn" {{ 'disabled' if not has_key }}>Надіслати тестовий лист</button>
+  {% if c.last %}<p class="small muted">Останній лист: {{ c.last }}</p>{% endif %}
+</form>
+<p class="small muted">Щоб листи не потрапляли в спам, домен molodist.com.ua має бути підтверджений у Brevo (Senders, Domains &amp; IPs → Domains → записи DNS).</p>
+</div>
+{% endblock %}
