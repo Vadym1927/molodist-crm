@@ -56,6 +56,10 @@ def test_care_bot_cabinet_and_answers(monkeypatch):
         # нагадування: вимкнено → не шле; примусово — з кнопками
         with SessionLocal() as db:
             assert cb.send_reminders(db)["skipped"]
+            assert cb.send_reminders(db, force=True)["sent"] == 0                      # тестовий режим, тестувальників немає
+            c_ = cb.cfg(db); c_["testers"] = "+380679990011, +380500000000"; cb.save_cfg(db, c_)
+        assert c.get("/api/v1/bot/config", headers=h).json()["testers"] == ["777001"]
+        with SessionLocal() as db:
             r = cb.send_reminders(db, force=True)
             assert r["sent"] == 1 and "mcrm:confirm:" in sent[-1]["reply_markup"]
             assert cb.send_reminders(db, force=True)["sent"] == 0                      # двічі не нагадуємо

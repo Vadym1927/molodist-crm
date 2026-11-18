@@ -30,7 +30,7 @@ FEATURES = {
     "reminders": "Нагадування про візит напередодні з кнопками «Підтвердити / Перенести / Скасувати»",
     "login": "Код для входу в кабінет на сайті — у бот, потім SMS (готується разом із кабінетом)",
 }
-DEFAULT = {"features": {k: False for k in FEATURES}, "remind_hour": 10, "remind_days": 1,
+DEFAULT = {"features": {k: False for k in FEATURES}, "remind_hour": 10, "remind_days": 1, "test_only": True, "testers": "",
            "remind_text": "Нагадуємо про ваш візит у MOLODIST: {when}\n{service}{doctor}\n\nАдреса: вул. Князя Романа Мстиславича, 28А (ЖК «Автограф»), "
                           "домофон 15#.\nБудь ласка, підтвердьте візит кнопкою нижче."}
 ACTIONS = {"confirm": "Підтвердити", "reschedule": "Перенести", "cancel": "Скасувати"}
@@ -74,6 +74,8 @@ def save_form(db: Session, f) -> dict:
     except ValueError:
         pass
     c["remind_text"] = str(f.get("remind_text") or DEFAULT["remind_text"]).strip()[:1000]
+    c["test_only"] = bool(f.get("test_only"))
+    c["testers"] = str(f.get("testers") or "").strip()[:500]
     save_cfg(db, c)
     return c
 
@@ -246,17 +248,37 @@ def remind_text(db: Session, a: Appointment, c: dict | None = None) -> str:
         .replace("{doctor}", f"\nЛікар: {doc}" if doc else "")
 
 
+def tester_ids(db: Session, c: dict | None = None) -> set[int]:
+    """Тестовий режим: пацієнти (за телефонами з налаштувань), яким бот показує нові функції. Решта бачить бот як раніше."""
+    import re
+    from . import appeals as ap
+    c = c or cfg(db)
+    out = set()
+    for ph in re.split(r"[\s,;]+", c.get("testers") or ""):
+        if len(re.sub(r"\D", "", ph)) >= 9:
+            p = ap.find_patient(db, ph)
+            if p:
+                out.add(p.id)
+    return out
+
+
+def allowed(db: Session, p: Patient, c: dict | None = None) -> bool:
+    c = c or cfg(db)
+    return not c.get("test_only") or p.id in tester_ids(db, c)
+
+
 def due_reminders(db: Session, now: datetime | None = None) -> list[Appointment]:
     c = cfg(db)
     now = now or datetime.now()
     day = (now + timedelta(days=int(c.get("remind_days") or 1))).date()
+    testers = tester_ids(db, c) if c.get("test_only") else set()
     rows = db.scalars(select(Appointment).where(Appointment.start >= datetime.combine(day, datetime.min.time()),
                                                 Appointment.start <= datetime.combine(day, datetime.max.time()),
                                                 Appointment.status == "booked")).all()
     out = []
     for a in rows:
         p = a.patient
-        if p and p.telegram_chat_id and not (a.bot_remind_at if hasattr(a, "bot_remind_at") else None):
+        if p and p.telegram_chat_id and not (a.bot_remind_at if hasattr(a, "bot_remind_at") else None) and (not c.get("test_only") or p.id in testers):
             out.append(a)
     return out
 
@@ -333,7 +355,9 @@ def answer(db: Session, chat_id: str, aid: int, action: str, reason: str | None 
 def config_json(db: Session) -> dict:
     """Для бота: які функції ввімкнено (вимкнені — не показувати в меню) і формат кнопок нагадувань."""
     c = cfg(db)
-    return {"features": c["features"], "callback_format": f"{CB_PREFIX}:<confirm|reschedule|cancel>:<appointment_id>",
+    tids = tester_ids(db, c) if c.get("test_only") else set()
+    chats = [str(x) for (x,) in db.execute(select(Patient.telegram_chat_id).where(Patient.id.in_(list(tids) or [0]))) if x]
+    return {"features": c["features"], "test_only": bool(c.get("test_only")), "testers": chats, "callback_format": f"{CB_PREFIX}:<confirm|reschedule|cancel>:<appointment_id>",
             "actions": ACTIONS}
 
 
