@@ -375,9 +375,13 @@ def catalog(db: Session, fresh: bool = False) -> dict:
         sale = si.get("sale") or {}
         if sale.get("pct") and (not sale.get("until") or str(sale["until"]) >= today):       # знижка на сайті, задана в CRM
             old, price = price, float(round(price * (1 - float(sale["pct"]) / 100)))
-        sx_ = short.get(p.id) if not hidden and not (old > price) else None
-        if sx_:                                             # короткий термін придатності: знижка лише на к-сть короткої партії
-            old, price = price, _sx.price(sxc, price)
+        full_ = old if old > price else price
+        sx_ = short.get(p.id) if not hidden else None
+        if sx_ and _sx.price(sxc, full_) >= price:           # інша знижка вже більша — коротку не застосовуємо
+            sx_ = None
+        rest_ = price                                       # ціна решти (не коротких) одиниць — з іншою знижкою, якщо є
+        if sx_:                                             # короткий термін придатності: −N% від повної ціни, лише на к-сть короткої партії
+            old, price = full_, _sx.price(sxc, full_)
         if onhand is not None:
             left_ = int(max(0.0, onhand.get(p.id, 0.0)) + 1e-6)
             stock = not hidden and str(si.get("presence", 1)).lower() not in ("0", "false", "not_available") and left_ >= 1
@@ -387,7 +391,7 @@ def catalog(db: Session, fresh: bool = False) -> dict:
         v = {"id": p.id, "left": left_, "name": si.get("title") or p.name, "price": price, "old": old if old > price else 0, "stock": stock,
              "sku": p.sku or si.get("sku") or "", "label": p.volume or "", "gtin": gtin(p.barcode or si.get("barcode") or "")}
         if sx_:
-            v.update(short=sx_["qty"], short_exp=sx_["expiry"].isoformat(), full=old)
+            v.update(short=sx_["qty"], short_exp=sx_["expiry"].isoformat(), full=rest_)
         it = target.get(slug)
         if it:
             it["variants"].append(v)

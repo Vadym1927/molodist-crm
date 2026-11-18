@@ -106,3 +106,21 @@ def test_shop_stock_follows_crm_ledger_and_short_capped():
         assert not v["stock"] and not v.get("short") and v["price"] == 4210
         assert sf.price_cart(db, [{"id": p.id, "qty": 1}])["items"] == []
         db.query(SyncState).filter(SyncState.key.in_(("stock_ledger_start", sx.KEY))).delete(); db.commit()
+
+
+
+def test_short_expiry_beats_smaller_site_sale():
+    """Товар з невеликою знижкою на сайті (−10%) і короткою партією: діє −25% від повної ціни на коротку одиницю, решта — −10%."""
+    today = date.today()
+    with SessionLocal() as db:
+        p = Product(name="Пілінг SX", name_norm="пілінг sx", price=1000, site_on=True,
+                    site_info={"slug": "piling-sx", "title": "Пілінг SX", "presence": 1, "sale": {"pct": 10}})
+        db.add(p); db.commit()
+        st.start_ledger(db)
+        doc = st.new_doc(db, "supply", wh_to="vitrina", supplier="SX")
+        doc.lines.append(st.StockDocLine(product_id=p.id, qty=1, unit_cost=300, expiry_date=today + timedelta(days=43)))
+        doc.lines.append(st.StockDocLine(product_id=p.id, qty=1, unit_cost=300, expiry_date=today + timedelta(days=500)))
+        db.commit(); st.post(db, doc)
+        v = next(v for i in sf.catalog(db, fresh=True)["items"] for v in i["variants"] if v["id"] == p.id)
+        assert v["price"] == 750 and v["old"] == 1000 and v["short"] == 1 and v["full"] == 900
+        assert sf.price_cart(db, [{"id": p.id, "qty": 2}])["total"] == 1650
