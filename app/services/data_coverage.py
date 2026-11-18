@@ -207,3 +207,18 @@ def summary(db: Session) -> dict:
     h, q = history(db), quality(db)
     return {"history": h, "quality": q, "at": datetime.now(), "bad": sum(1 for r in h["rows"] if r["status"] == "bad") + sum(1 for x in q if x["level"] == "bad"),
             "warn": sum(1 for r in h["rows"] if r["status"] == "warn") + sum(1 for x in q if x["level"] == "warn")}
+
+
+def product_sale_dups(db: Session) -> list[dict]:
+    """Можливі дублі продажів товарів: той самий пацієнт, товар, день і сума — для перевірки спеціалістом (нічого не видаляє)."""
+    from ..models import Patient, ProductSale
+    groups: dict = defaultdict(list)
+    for r in db.scalars(select(ProductSale)):
+        groups[(r.patient_id, r.product_name, r.sold_at.date() if r.sold_at else None, round(float(r.amount or 0), 2))].append(r)
+    out = []
+    for (pid, name, d, amt), rows in groups.items():
+        if len(rows) > 1:
+            p = db.get(Patient, pid) if pid else None
+            out.append({"patient_id": pid, "patient": p.full_name if p else "—", "product": name, "date": d, "amount": amt,
+                        "n": len(rows), "rows": [{"id": r.id, "ext": r.external_id, "qty": r.quantity, "at": r.sold_at} for r in rows]})
+    return sorted(out, key=lambda x: (x["date"] or date.min), reverse=True)

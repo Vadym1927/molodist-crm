@@ -131,3 +131,16 @@ def test_daybook_marks_site_sales():
     class S: created_by = None; comment = "Інтернет-магазин, замовлення M261118-1606"
     class C: created_by = 5; comment = "Інтернет-магазин"
     assert daybook.is_web(S()) and not daybook.is_web(C())
+
+
+def test_product_sale_dups_listing():
+    from app.models import ProductSale
+    from app.services import data_coverage as dc
+    with SessionLocal() as db:
+        p = Patient(full_name="Дубль Тест"); db.add(p); db.commit()
+        for i in range(2):
+            db.add(ProductSale(external_id=f"x-{i}", patient_id=p.id, product_name="Крем", amount=500, sold_at=datetime(2026, 3, 1, 12)))
+        db.add(ProductSale(external_id="y", patient_id=p.id, product_name="Крем", amount=500, sold_at=datetime(2026, 3, 2, 12)))
+        db.commit()
+        d = dc.product_sale_dups(db)
+        assert len(d) == 1 and d[0]["n"] == 2 and d[0]["patient"] == "Дубль Тест"

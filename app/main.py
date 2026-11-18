@@ -3810,7 +3810,7 @@ def work_mode_save(autonomous: str = Form(""), since: str = Form(""), test: str 
 @app.get("/data/coverage", response_class=HTMLResponse)
 def data_coverage(request: Request, user: User = Depends(require("migrate")), db: Session = Depends(db_dep)):
     from .services import data_coverage as dc
-    return render(request, "data_coverage.html", nav="data", s=dc.summary(db))
+    return render(request, "data_coverage.html", nav="data", s=dc.summary(db), dups=dc.product_sale_dups(db))
 
 
 @app.get("/data", response_class=HTMLResponse)

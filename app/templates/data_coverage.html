@@ -37,4 +37,11 @@
 {% for x in s.quality %}<tr><td>{{ x.group }}</td><td><span class="dc-st {{ x.level }}"></span>{{ x.name }}</td><td class="r"><b>{{ x.n }}</b></td><td class="r">{{ x.total }}</td>
   <td>{% if x.sample %}<small>{{ x.sample|join('; ') }}{{ '…' if x.n > x.sample|length }}</small>{% else %}—{% endif %}</td><td class="dc-src">{{ x.hint }}</td></tr>{% endfor %}
 </tbody></table></div>
+{% if dups %}<h3 id="dups" style="margin-top:22px">Можливі дублі продажів товарів — перевірити</h3>
+<div class="small muted" style="margin-bottom:6px">Той самий пацієнт, товар, день і сума. Це може бути й справжня покупка двох одиниць — звірте з чеком CleverBox. Нічого не видаляється автоматично.</div>
+<div class="card" style="overflow:auto"><table class="dc-tb"><thead><tr><th>Дата</th><th>Пацієнт</th><th>Товар</th><th class="r">Сума</th><th class="r">Рядків</th><th>Рядки (ID · код CleverBox · к-сть · час)</th></tr></thead><tbody>
+{% for d in dups %}<tr><td>{{ d.date.strftime('%d.%m.%Y') if d.date else '—' }}</td><td>{% if d.patient_id %}<a href="/patients/{{ d.patient_id }}">{{ d.patient }}</a>{% else %}—{% endif %}</td>
+  <td>{{ d.product }}</td><td class="r">{{ d.amount|uah }}</td><td class="r"><b>{{ d.n }}</b></td>
+  <td><small>{% for r in d.rows %}<div>#{{ r.id }} · {{ r.ext }} · {{ r.qty }} шт · {{ r.at.strftime('%H:%M') if r.at else '' }}</div>{% endfor %}</small></td></tr>{% endfor %}
+</tbody></table></div>{% endif %}
 {% endblock %}
