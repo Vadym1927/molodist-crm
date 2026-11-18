@@ -218,11 +218,11 @@ def send_tg_business(patient_id: int | None, text: str, internal: bool = False) 
 
 
 def send_to_patient(patient, text: str, prefer: list[str] | None = None, marketing: bool = False,
-                    sequence_id: str | None = None) -> SendResult:
+                    sequence_id: str | None = None, biz: bool = True) -> SendResult:
     """Перший доступний канал з prefer (за замовчуванням telegram → viber → sms).
     Службові (не маркетинг): спершу особистий Telegram акаунта клініки, якщо пацієнт уже писав туди.
     Viber і SMS, якщо обидва дозволені, ідуть одним гібридним повідомленням."""
-    if not marketing and getattr(patient, "id", None):
+    if biz and not marketing and getattr(patient, "id", None):
         r0 = send_tg_business(patient.id, text)
         if r0.ok:
             return r0

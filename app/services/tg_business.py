@@ -180,3 +180,18 @@ def send_service(db: Session, patient_id: int | None, text: str, http: httpx.Cli
                        status="sent" if ok else "failed", error=(err or None) and err[:300], name=None))
     db.commit()
     return ok, err
+
+
+def window(db: Session, patient_id: int | None) -> dict:
+    """Чат пацієнта з акаунтом клініки: thread і чи відкрите 24-годинне вікно Telegram (можна писати з CRM)."""
+    from datetime import timedelta
+    if not patient_id:
+        return {}
+    m = db.scalars(select(ChatMessage).where(ChatMessage.channel == "telegram", ChatMessage.patient_id == patient_id,
+                                             ChatMessage.thread.like(f"{PREFIX}%"), ChatMessage.direction == "in")
+                   .order_by(ChatMessage.at.desc())).first()
+    if not m:
+        return {}
+    c = cfg(db)
+    ready = bool(c.get("connection_id") and c.get("enabled") and c.get("can_reply"))
+    return {"thread": m.thread, "last": m.at, "open": ready and m.at >= datetime.utcnow() - timedelta(hours=24)}

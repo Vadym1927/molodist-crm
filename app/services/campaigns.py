@@ -111,8 +111,12 @@ def log_message(db: Session, patient: Patient, channel: str, text: str, res, use
 
 def send_single(db: Session, patient: Patient, text: str, channel: str, user, task_id: int | None = None):
     """Повідомлення з задачі/картки (сервісне, не маркетинг: без футера і без перевірки частоти)."""
-    prefer = ["telegram", "viber", "sms"] if channel == "auto" else (["viber", "sms"] if channel == "viber" else [channel])
-    res = messaging.send_to_patient(patient, text, prefer=prefer, marketing=False)
+    # «Авто» — лише Telegram: акаунт клініки (якщо пацієнт писав за 24 год) → бот турботи. Viber і SMS — тільки явною кнопкою.
+    if channel == "tgbiz":
+        res = messaging.send_tg_business(patient.id, text)
+    else:
+        prefer = ["telegram"] if channel == "auto" else (["viber", "sms"] if channel == "viber" else [channel])
+        res = messaging.send_to_patient(patient, text, prefer=prefer, marketing=False, biz=channel == "auto")
     log_message(db, patient, channel, text, res, user_id=user.id, task_id=task_id)
     db.commit()
     return res

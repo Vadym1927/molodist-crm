@@ -451,16 +451,20 @@
   <form method="post" action="/patients/{{ p.id }}/message" class="mc" id="compose" onsubmit="return confirm('Надіслати пацієнтці?')">
     <div class="pe-s" style="margin:14px 0 6px">Написати пацієнтці</div>
     <textarea name="text" id="mc-t" rows="4" placeholder="Текст повідомлення… (або скопіюйте скрипт нижче)" {{ 'required' if can(user,'message') }}></textarea>
+    {% set _phd = _ph|replace('+','') %}
     <div class="mc-g">
+      <div class="mc-c" style="border-color:#C9BFE6"><b class="mc-h">{{ ci('telegram') }} Telegram · акаунт клініки</b>
+        {% if tgw.open and can(user,'message') %}<button class="btn" name="channel" value="tgbiz">Надіслати з CRM</button><a class="btn ghost" href="/chats?t={{ tgw.thread|urlencode }}">Відкрити чат у CRM</a><small>пацієнтка писала {{ tgw.last|local|dt('%d.%m %H:%M') }} — вікно 24 год відкрите</small>
+        {% else %}{% if tgw.thread %}<a class="btn ghost" href="/chats?t={{ tgw.thread|urlencode }}">Історія чату в CRM</a>{% endif %}
+          {% if _tg or _phd %}<a class="btn" href="{{ ('https://t.me/' ~ _tg) if _tg else ('https://t.me/+' ~ _phd) }}" target="_blank" rel="noopener" onclick="mcCopy()">Написати в Telegram</a>{% endif %}
+          <small>{{ 'Минуло понад 24 год від її повідомлення' if tgw.thread else 'Ще не писала акаунту' }} — відкрийте Telegram акаунта @molodist_ua і напишіть вручну, текст скопіюється.{{ '' if _tg or _phd else ' Немає ніка й телефону.' }}</small>{% endif %}</div>
       <div class="mc-c"><b class="mc-h">{{ ci('telegram') }} Telegram-бот</b>{% if 'telegram' in avail and can(user,'message') %}<button class="btn" name="channel" value="telegram">Надіслати</button>{% else %}<small>{{ 'пацієнтка не в боті' if not p.telegram_chat_id else 'немає дозволу' }}</small>{% endif %}</div>
-      <div class="mc-c"><b class="mc-h">{{ ci('viber') }} Viber</b>{% if 'viber' in avail and can(user,'message') %}<button class="btn" name="channel" value="viber">Надіслати (Viber → SMS)</button>{% endif %}
-        {% if _ph %}<a class="btn ghost" href="viber://chat?number={{ _ph|urlencode }}" onclick="mcCopy()">Відкрити чат</a>{% elif 'viber' not in avail %}<small>немає телефону</small>{% endif %}</div>
-      <div class="mc-c"><b class="mc-h">{{ ci('sms') }} SMS</b>{% if 'sms' in avail and can(user,'message') %}<button class="btn" name="channel" value="sms">Надіслати SMS</button>{% elif _ph %}<a class="btn ghost" href="sms:{{ _ph }}" onclick="mcCopy()">З телефону</a><small>TurboSMS не підключено</small>{% else %}<small>немає телефону</small>{% endif %}</div>
+      <div class="mc-c"><b class="mc-h">{{ ci('viber') }} Viber</b>{% if _ph %}<a class="btn ghost" href="viber://chat?number={{ _ph|urlencode }}" onclick="mcCopy()">Відкрити чат</a><small>вручну, текст скопіюється</small>{% else %}<small>немає телефону</small>{% endif %}</div>
       <div class="mc-c"><b class="mc-h">{{ ci('instagram') }} Instagram</b>{% if _ig %}<a class="btn ghost" href="https://www.instagram.com/{{ _ig }}/" data-ig="{{ _ig }}" target="_blank" rel="noopener" onclick="mcCopy();if(/Android|iPhone|iPad/i.test(navigator.userAgent))this.href='https://ig.me/m/'+this.dataset.ig">Відкрити Instagram</a><small>@{{ _ig }} · на компʼютері відкриється профіль → «Надіслати повідомлення»; текст скопіюється</small>{% else %}<small>Instagram не вказано</small>{% endif %}</div>
-      <div class="mc-c"><b class="mc-h">{{ ci('telegram') }} Telegram особисто</b>{% if _tg %}<a class="btn ghost" href="https://t.me/{{ _tg }}" target="_blank" rel="noopener" onclick="mcCopy()">Відкрити чат</a><small>@{{ _tg }}</small>{% else %}<small>нік не вказано</small>{% endif %}</div>
       <div class="mc-c"><b class="mc-h">{{ ci('phone') }} Дзвінок</b>{% if _ph %}<a class="btn ghost" href="tel:{{ _ph }}">Зателефонувати</a><small>{{ p.phone }}</small>{% else %}<small>немає телефону</small>{% endif %}</div>
+      <div class="mc-c"><b class="mc-h">{{ ci('sms') }} SMS <span class="small muted" style="font-weight:400">· платно, в останню чергу</span></b>{% if 'sms' in avail and can(user,'message') %}<button class="btn ghost" name="channel" value="sms" onclick="return confirm('SMS платне. Надіслати саме SMS?')">Надіслати SMS</button>{% elif _ph %}<a class="btn ghost" href="sms:{{ _ph }}" onclick="mcCopy()">З телефону</a><small>TurboSMS не підключено</small>{% else %}<small>немає телефону</small>{% endif %}</div>
     </div>
-    {% if avail|length > 1 and can(user,'message') %}<div class="small muted" style="margin-top:6px">Або <button class="lnk" name="channel" value="auto">надіслати автоматично</button> ({{ avail|join(' → ')|replace('telegram','Telegram')|replace('viber','Viber')|replace('sms','SMS') }})</div>{% endif %}
+    {% if (tgw.open or 'telegram' in avail) and can(user,'message') %}<div class="small muted" style="margin-top:6px">Або <button class="lnk" name="channel" value="auto">надіслати автоматично</button> (Telegram: акаунт клініки → бот; Viber і SMS автоматично не йдуть)</div>{% endif %}
   </form>
   <style>.mc textarea{width:100%;font:500 14.5px var(--sans)}.mc-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-top:10px}
   .mc-c{border:1px solid #ECE7E1;border-radius:14px;padding:12px;display:grid;gap:8px;align-content:start;background:#fdfbf8}.mc-c small{color:#8a8496;font-size:12px}.mc-h{display:flex;align-items:center;gap:8px}.mc-h svg{width:24px;height:24px;flex:none}.mc-c .btn{justify-content:center}</style>
@@ -475,8 +479,8 @@
       {% if sc.channel == 'call' %}<div id="ps{{ loop.index }}" class="small" style="white-space:pre-line;margin-top:4px">{{ sc.text }}</div>
       {% else %}<form method="post" action="/patients/{{ p.id }}/message" class="grid" style="gap:6px;margin-top:4px">
         <textarea id="ps{{ loop.index }}" name="text" rows="5" class="small">{{ sc.text }}</textarea>
-        {% if avail %}<div class="row small"><select name="channel" style="padding:4px 6px"><option value="auto">Авто: {{ avail|join(' → ')|replace('telegram','Telegram')|replace('viber','Viber')|replace('sms','SMS') }}</option>
-          {% if 'telegram' in avail %}<option value="telegram">Telegram</option>{% endif %}{% if 'viber' in avail %}<option value="viber">Viber → SMS</option>{% endif %}{% if 'sms' in avail %}<option value="sms">SMS</option>{% endif %}</select>
+        {% if avail or tgw.open %}<div class="row small"><select name="channel" style="padding:4px 6px">{% if tgw.open or 'telegram' in avail %}<option value="auto">Авто: Telegram (акаунт клініки → бот)</option>{% endif %}
+          {% if tgw.open %}<option value="tgbiz">Telegram · акаунт клініки</option>{% endif %}{% if 'telegram' in avail %}<option value="telegram">Telegram-бот</option>{% endif %}{% if 'sms' in avail %}<option value="sms">SMS (платно)</option>{% endif %}</select>
           <button class="btn" style="padding:3px 10px" onclick="return confirm('Надіслати пацієнтці?')">Надіслати</button></div>
         {% else %}<div class="small muted">Немає каналу: пацієнтка не в боті{{ ', немає телефону' if not p.phone }}{{ ', TurboSMS не підключено' if p.phone }}. Скопіюйте текст.</div>{% endif %}
       </form>{% endif %}

@@ -100,8 +100,10 @@ def test_task_script_and_send(c, net):
     assert "Дарʼя Колган" in call and "курс" in call.lower()
     assert not re.search(r"\{[^}]+\}", call + msg)                   # усі підстановки заповнені
     assert "Пролактин" not in call + msg and "Достінекс" not in call + msg   # мед. нотатки не потрапляють
-    # відправка з задачі: пацієнтка не в боті → Viber з резервом SMS, без маркетингового футера
-    r = c.post(f"/tasks/{tid}/send", data={"text": msg, "channel": "auto", "close": "1"}, follow_redirects=False)
+    # «Авто» — лише Telegram; пацієнтка не в боті → автоматично нічого (Viber / SMS лише явно)
+    assert c.post(f"/tasks/{tid}/send", data={"text": msg, "channel": "auto"}, follow_redirects=False).status_code == 400
+    # явно Viber → Viber з резервом SMS, без маркетингового футера
+    r = c.post(f"/tasks/{tid}/send", data={"text": msg, "channel": "viber", "close": "1"}, follow_redirects=False)
     assert r.status_code == 303
     body = net.of("send.json")[-1]["json"]
     assert body["recipients"] == ["380671112233"] and "viber" in body and body["sms"]["hybrid_ttl"] > body["viber"]["ttl"]
@@ -110,8 +112,8 @@ def test_task_script_and_send(c, net):
     with SessionLocal() as db:
         t = db.get(Task, tid)
         assert t.status == "done" and "Надіслано повідомлення (viber)" in t.result
-        log = db.query(MessageLog).one()
-        assert log.status == "sent" and log.marketing is False and log.task_id == tid
+        log = db.query(MessageLog).filter(MessageLog.status == "sent").one()
+        assert log.marketing is False and log.task_id == tid
     assert "Звʼязок з пацієнткою" in c.get(f"/patients/{plan.patient_id}").text
 
 

@@ -27,10 +27,9 @@
                   {% set av = avail.get(t.id, []) %}
                   {% if av %}<div class="row small" style="gap:6px">
                     <select name="channel" style="padding:4px 6px">
-                      <option value="auto">Авто: {{ av|join(' → ')|replace('telegram','Telegram')|replace('viber','Viber')|replace('sms','SMS') }}</option>
+                      <option value="auto">Авто: Telegram (акаунт клініки → бот)</option>
                       {% if 'telegram' in av %}<option value="telegram">Telegram (бот)</option>{% endif %}
-                      {% if 'viber' in av %}<option value="viber">Viber → SMS</option>{% endif %}
-                      {% if 'sms' in av %}<option value="sms">SMS</option>{% endif %}</select>
+                      {% if 'sms' in av %}<option value="sms">SMS (платно)</option>{% endif %}</select>
                     <label><input type="checkbox" name="close" value="1"> закрити задачу</label>
                     <button class="btn" style="padding:3px 10px" onclick="return confirm('Надіслати пацієнтці?')">Надіслати</button></div>
                   {% else %}<div class="small muted">Пацієнтка не привʼязана до бота і {{ 'немає телефону' if not t.patient.phone else 'TurboSMS не підключено' }} — скопіюйте текст у месенджер.</div>{% endif %}
