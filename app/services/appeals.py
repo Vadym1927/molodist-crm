@@ -19,7 +19,7 @@ IGNORE_KEY = "appeal_ignore_phones"          # {phone_key: {reason, at, by, name
 OTHER_DEFAULT = {"name": "Не цільове", "type": "other", "color": "#8a8496"}
 DEFAULT = {
     "sources": ["Instagram", "Facebook", "Google", "Сайт", "Telegram-бот", "Viber", "Дзвінок", "Рекомендація", "Повторний пацієнт", "Інше"],
-    "marks": ["Гаряча", "Тепла", "Холодна", "VIP", "Акція"],
+    "marks": ["Гаряча", "Тепла", "Холодна", "VIP", "Акція", "Повтор"],
     "statuses": [{"name": "Новий", "type": "new", "color": "#3B82C4"}, {"name": "В роботі", "type": "work", "color": "#E9A93A"},
                  {"name": "Передзвонити", "type": "work", "color": "#8e7cc3"}, {"name": "Записаний", "type": "success", "color": "#4CAF50"},
                  {"name": "Відмова", "type": "fail", "color": "#D9534F"}, dict(OTHER_DEFAULT)],
@@ -111,8 +111,59 @@ def note(db: Session, a: Appeal, text: str, user_id: int | None = None, kind: st
     db.add(AppealNote(appeal_id=a.id, text=text[:4000], user_id=user_id, kind=kind))
 
 
+REPEAT_DAYS = 30
+REPEAT_MARK = "Повтор"
+
+
+def open_dup(db: Session, phone: str | None, exclude: int | None = None) -> Appeal | None:
+    """Відкрите (не закрите, не видалене) звернення з тим самим телефоном за останні REPEAT_DAYS днів — найстаріше."""
+    k = phone_key(phone)
+    if len(k) < 9:
+        return None
+    since = datetime.utcnow() - timedelta(days=REPEAT_DAYS)
+    rows = db.scalars(select(Appeal).where(Appeal.deleted_at.is_(None), Appeal.closed_at.is_(None), Appeal.created_at >= since,
+                                           Appeal.phone.like(f"%{k[-7:]}%")).order_by(Appeal.created_at)).all()
+    return next((a for a in rows if phone_key(a.phone) == k and a.id != exclude), None)
+
+
+def _repeat_into(db: Session, a: Appeal, src: dict, user_id: int | None) -> None:
+    parts = [x for x in (src.get("source"), src.get("cause"), src.get("interest"), (src.get("comment") or "").strip()) if x]
+    note(db, a, "Повторне звернення" + (": " + " · ".join(parts) if parts else ""), user_id, "system")
+    a.marks = list(dict.fromkeys((a.marks or []) + [REPEAT_MARK]))
+    if not a.interest and src.get("interest"):
+        a.interest = str(src["interest"])[:200]
+    if not a.utm and src.get("utm"):
+        a.utm = str(src["utm"])[:300]
+    a.updated_at = datetime.utcnow()
+
+
+def merge_repeats(db: Session, a: Appeal, user_id: int | None = None) -> int:
+    """Інші відкриті звернення з цим телефоном → у це (нотатки переносяться, дублікати прибираються з дошки)."""
+    k = phone_key(a.phone)
+    if len(k) < 9:
+        return 0
+    rows = [x for x in db.scalars(select(Appeal).where(Appeal.deleted_at.is_(None), Appeal.closed_at.is_(None), Appeal.id != a.id,
+                                                       Appeal.phone.like(f"%{k[-7:]}%"))) if phone_key(x.phone) == k]
+    for x in rows:
+        _repeat_into(db, a, {"source": x.source, "cause": x.cause, "interest": x.interest,
+                             "comment": f"(№{x.id} від {x.created_at:%d.%m %H:%M}) {x.comment or ''}"}, user_id)
+        for n in db.scalars(select(AppealNote).where(AppealNote.appeal_id == x.id)):
+            n.appeal_id = a.id
+        x.deleted_at = datetime.utcnow()
+        x.comment = ((x.comment or "") + f"\nОбʼєднано у №{a.id}").strip()
+    if rows:
+        db.commit()
+    return len(rows)
+
+
 def create(db: Session, data: dict, user_id: int | None = None) -> Appeal:
     d = dirs(db)
+    dup = None if data.get("force_new") else open_dup(db, data.get("phone"))
+    if dup:                                  # пацієнт звертається вдруге, поки перше звернення ще відкрите → одна картка з позначкою «Повтор»
+        _repeat_into(db, dup, data, user_id)
+        db.commit()
+        dup.repeat = True
+        return dup
     a = Appeal(name=(data.get("name") or "").strip()[:200] or None, phone=(data.get("phone") or "").strip()[:64] or None,
                source=(data.get("source") or "").strip()[:80] or None, cause=(data.get("cause") or "").strip()[:120] or None,
                interest=(data.get("interest") or "").strip()[:200] or None, comment=(data.get("comment") or "").strip() or None,

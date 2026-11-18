@@ -1670,6 +1670,9 @@ async def appeal_save(request: Request, user: User = Depends(require("appeals"))
         if not (data["name"].strip() or data["phone"].strip()):
             return RedirectResponse(_with_msg(back, "Вкажіть імʼя або телефон", True), 303)
         a = ap.create(db, data, user.id)
+        if getattr(a, "repeat", False):
+            audit(db, "appeal.repeat", "appeal", a.id, user=user, source=data.get("source"))
+            return RedirectResponse(_with_msg(f"/appeals?open={a.id}", f"Повторне звернення — додано в №{a.id} (позначка «Повтор»)"), 303)
         if data["status"] and ap.status_type(ap.dirs(db), data["status"]) == "fail" and f.get("deny_reason"):
             a.deny_reason = str(f.get("deny_reason"))[:120]
             db.commit()
@@ -1734,6 +1737,18 @@ def appeal_to_patient(aid: int, user: User = Depends(require("appeals")), db: Se
     db.commit()
     audit(db, "appeal.patient", "appeal", aid, user=user, patient=p.id, created=created)
     return RedirectResponse(f"/patients/{p.id}", 303)
+
+
+@app.post("/appeals/{aid:int}/merge")
+def appeal_merge(aid: int, user: User = Depends(require("appeals")), db: Session = Depends(db_dep)):
+    from .services import appeals as ap
+    from .models import Appeal
+    a = db.get(Appeal, aid)
+    if not a or a.deleted_at:
+        raise HTTPException(404)
+    n = ap.merge_repeats(db, a, user.id)
+    audit(db, "appeal.merge", "appeal", aid, user=user, merged=n)
+    return RedirectResponse(_with_msg(f"/appeals?open={aid}", f"Обʼєднано повторів: {n}"), 303)
 
 
 @app.post("/appeals/{aid:int}/delete")
