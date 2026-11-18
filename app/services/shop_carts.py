@@ -116,22 +116,84 @@ def message(db: Session, cfg: dict, c: ShopCart, data: dict, root: str) -> str:
 
 
 def email_body(db: Session, c: ShopCart | None, data: dict, root: str, name: str = "") -> tuple[str, str, str]:
-    """Лист про покинутий кошик: (тема, текст, html). Без кошика — зразок для тестового листа."""
+    """Лист про покинутий кошик: (тема, текст, html). Без кошика — зразок з 2 товарів каталогу (тестовий лист)."""
+    import html as _h
     from ..integrations import brevo
-    ec = brevo.cfg(db)
+    from . import site_pages
+    ec, sc_ = brevo.cfg(db), site_pages.cfg(db)
+    by_id = {v["id"]: (it, v) for it in data.get("items") or [] for v in it["variants"]}
     if c:
         a = db.scalar(select(ShopAccount).where(ShopAccount.patient_id == c.patient_id))
         name = name or (a.first_name if a and a.first_name else "")
-        by_id = {v["id"]: v for it in data["items"] for v in it["variants"]}
-        lines = [f"• {by_id[i['id']]['name']} × {i['qty']}" for i in c.items or [] if i["id"] in by_id]
-        total = int(c.total or 0)
+        pick = [(by_id[i["id"]], i["qty"]) for i in c.items or [] if i["id"] in by_id]
     else:
-        lines, total = ["• Пілінг для шкіри голови Good Hair 100 мл × 1"], 1575
-    hi = f"{name}, вітаємо!" if name else "Вітаємо!"
-    text = (f"{hi}\n\nВи залишили товари в кошику MOLODIST — ми їх зберегли:\n" + "\n".join(lines[:10]) +
-            f"\n\nРазом: {total} ₴\n\nОформити замовлення можна в один клік. Якщо маєте питання щодо догляду чи вибору засобу — "
-            "просто дайте відповідь на цей лист, лікар або адміністратор підкаже.")
-    return ec.get("cart_subject") or brevo.DEFAULT["cart_subject"], text + f"\n\n{root}/checkout/", brevo.wrap(text, ("Оформити замовлення", f"{root}/checkout/"))
+        pick = [((it, v), 1) for it in data.get("items") or [] for v in it["variants"][:1] if v.get("stock") and it.get("imgs")][:2]
+    lines, rows, total = [], [], 0.0
+    link_ = f"{root}/checkout/"
+    for (it, v), q in pick[:8]:
+        price, old = float(v.get("price") or 0), float(v.get("old") or 0)
+        total += price * q
+        lines.append(f"• {v['name']} × {q} — {int(price * q)} ₴")
+        img = f"{root}/img/{it['imgs'][0]}?w=240" if it.get("imgs") else ""
+        url = f"{root}/shop/{it['slug']}/" if it.get('slug') else link_
+        pr = (f'<s style="color:#9a93a6;font-weight:400">{int(old)} ₴</s> ' if old > price else "") + f"{int(price)} ₴"
+        rows.append(
+            '<tr><td style="padding:12px 0;border-bottom:1px solid #EFEAE4;width:92px;vertical-align:top">'
+            + (f'<a href="{url}"><img src="{img}" width="80" height="80" alt="" style="display:block;border-radius:12px;background:#F7F4F0;object-fit:cover"></a>' if img else "")
+            + f'</td><td style="padding:12px 0 12px 14px;border-bottom:1px solid #EFEAE4;vertical-align:top">'
+            f'<a href="{url}" style="color:#2A2430;text-decoration:none;font-weight:600;font-size:14px;line-height:1.4">{_h.escape(v["name"])}</a>'
+            f'<div style="color:#8a8494;font-size:13px;margin-top:4px">Кількість: {q}</div></td>'
+            f'<td style="padding:12px 0;border-bottom:1px solid #EFEAE4;text-align:right;vertical-align:top;white-space:nowrap;font-weight:700;font-size:14px">{pr}</td></tr>')
+    if c and c.total:
+        total = float(c.total)
+    coins = int(total * 0.03) if total else 0
+    hi = f"{name}, ваш кошик чекає на вас" if name else "Ваш кошик чекає на вас"
+    link = f"{root}/checkout/"
+    phone, phone_t = sc_.get("phone") or "+380933756437", sc_.get("phone_text") or "+38 (093) 375 64 37"
+    tg, ig = sc_.get("telegram") or "", sc_.get("instagram") or ""
+    text = (f"{hi}.\n\nМи зберегли товари, які ви обрали:\n" + "\n".join(lines) + f"\n\nРазом: {int(total)} ₴"
+            + (f"\n+{coins} MOLODIST Coins на ваш рахунок після покупки." if coins else "")
+            + f"\n\nОформити замовлення: {link}\n\nНе впевнені, що засіб вам підходить? Дайте відповідь на цей лист або зателефонуйте {phone_t} — "
+              "лікар чи адміністратор MOLODIST підкаже.\n\nMOLODIST · медичний простір естетики та профілактики · Київ")
+    benefit = ('<td style="width:33%;padding:0 6px;text-align:center;vertical-align:top;font-size:12px;color:#5f586a;line-height:1.45">'
+               '<div style="font-size:20px;margin-bottom:6px">{0}</div>{1}</td>')
+    body = (
+        '<div style="background:#F7F4F0;padding:28px 10px;font-family:\'Open Sans\',Arial,sans-serif;color:#2A2430">'
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;background:#fff;border-radius:18px;overflow:hidden">'
+        '<tr><td style="background:#2A2430;padding:22px 26px;text-align:center">'
+        '<div style="font:400 24px Georgia,serif;letter-spacing:.18em;color:#fff">MOLODIST</div>'
+        '<div style="font-size:10px;letter-spacing:.24em;color:#C9BFE6;margin-top:4px">МЕДИЧНИЙ ПРОСТІР</div></td></tr>'
+        '<tr><td style="padding:28px 26px 6px">'
+        f'<div style="font:700 21px Montserrat,Arial,sans-serif;line-height:1.3;margin-bottom:8px">{_h.escape(hi)} 🤍</div>'
+        '<div style="font-size:14px;line-height:1.6;color:#5f586a">Ми зберегли товари, які ви обрали. Щоб оформити замовлення, достатньо одного кліку — '
+        'дані доставки підставляться самі.</div></td></tr>'
+        '<tr><td style="padding:8px 26px 0"><table role="presentation" width="100%" cellpadding="0" cellspacing="0">' + "".join(rows) + '</table></td></tr>'
+        '<tr><td style="padding:14px 26px 0"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>'
+        '<td style="font-size:15px;font-weight:600">Разом</td>'
+        f'<td style="text-align:right;font:700 20px Montserrat,Arial,sans-serif">{int(total)} ₴</td></tr></table>'
+        + (f'<div style="margin-top:10px;background:#F1EEF6;border-radius:10px;padding:10px 12px;font-size:13px;color:#3B3050">'
+           f'✦ +{coins} MOLODIST Coins на ваш рахунок після покупки</div>' if coins else "")
+        + '</td></tr>'
+        f'<tr><td style="padding:22px 26px 6px;text-align:center"><a href="{link}" style="display:inline-block;background:#5C4B82;color:#fff;text-decoration:none;'
+        'font-weight:700;font-size:15px;padding:14px 34px;border-radius:12px">Оформити замовлення</a></td></tr>'
+        '<tr><td style="padding:22px 20px 6px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>'
+        + benefit.format("✓", "Оригінальна професійна косметика від офіційних постачальників")
+        + benefit.format("⚕", "Засоби, які призначають лікарі MOLODIST")
+        + benefit.format("📦", "Доставка Новою поштою по всій Україні")
+        + '</tr></table></td></tr>'
+        '<tr><td style="padding:18px 26px 4px"><div style="border:1px solid #E9E5DF;border-radius:14px;padding:14px 16px;font-size:13.5px;line-height:1.6">'
+        '<b>Не впевнені, що засіб вам підходить?</b><br>Дайте відповідь на цей лист або напишіть нам — лікар чи адміністратор MOLODIST підкаже, '
+        'що обрати під ваш тип шкіри.<div style="margin-top:8px">'
+        f'<a href="tel:{phone}" style="color:#5C4B82;font-weight:600;text-decoration:none">{_h.escape(phone_t)}</a>'
+        + (f' &nbsp;·&nbsp; <a href="{tg}" style="color:#5C4B82;font-weight:600;text-decoration:none">Telegram</a>' if tg else "")
+        + (f' &nbsp;·&nbsp; <a href="{ig}" style="color:#5C4B82;font-weight:600;text-decoration:none">Instagram</a>' if ig else "")
+        + '</div></div></td></tr>'
+        '<tr><td style="padding:20px 26px 24px;font-size:11.5px;line-height:1.6;color:#9a93a6;text-align:center">'
+        f'MOLODIST · медичний простір естетики та профілактики<br>{_h.escape(sc_.get("address") or "м. Київ, вул. Князя Романа Мстиславича, 28А")}'
+        f'<br><a href="{root}" style="color:#9a93a6">molodist.store</a><br>'
+        'Ви отримали цей лист, бо залишили товари в кошику на molodist.store.</td></tr>'
+        '</table></div>')
+    return ec.get("cart_subject") or brevo.DEFAULT["cart_subject"], text, body
 
 
 def remind(db: Session, cfg: dict, cart_id: int, data: dict, root: str, who: str = "") -> str:

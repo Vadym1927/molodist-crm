@@ -10170,7 +10170,7 @@ def settings_email_test(request: Request, user: User = Depends(require("users"))
     try:
         info = brevo.account(db)
         root = sf.cfg(db)["canonical"].rstrip("/")
-        subj, text, body = scr.email_body(db, None, {"items": []}, root, name=(user.name or "").split()[0] if user.name else "")
+        subj, text, body = scr.email_body(db, None, sf.catalog(db), root, name=(user.name or "").split()[0] if user.name else "")
         brevo.send(db, to, "[Тест] " + subj, text, body, force=True)
     except brevo.EmailError as e:
         return RedirectResponse("/settings/email?err=" + quote(str(e)), status_code=303)
