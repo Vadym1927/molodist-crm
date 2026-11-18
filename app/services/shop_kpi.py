@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..models import ShopCart, ShopReview, SiteOrder
+from ..models import AdsStat, ShopCart, ShopReview, SiteOrder
 from . import shop_orders as so
 
 
