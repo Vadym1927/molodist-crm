@@ -23,7 +23,13 @@ ORDERS = {"tg": ("Telegram-бот → Viber → SMS", ["telegram", "viber", "sms
 DEFAULT = {"on": False, "delay_min": 30, "min_days": 7, "google_url": "", "questions": QUESTIONS, "order": "tg",
            "ttl_hours": 24,                 # посилання діє стільки годин після надсилання
            "base_count": 0, "base_avg": 5.0,   # відгуки, зібрані до CRM (CleverBox): кількість і середня оцінка — для рейтингу в шапці
-           "text": "{name}, дякуємо, що були в MOLODIST сьогодні 🤍 Будь ласка, оцініть візит — це займе хвилину: {link}"}
+           "text": "{name}, дякуємо, що були в MOLODIST сьогодні 🤍 Будь ласка, оцініть візит — це займе хвилину: {link}",
+           # шаблони для ручного надсилання адміністратором (кнопка «Надіслати опитування» у закритому візиті)
+           "templates": [
+               {"name": "Після візиту", "text": "{name}, дякуємо, що були в MOLODIST сьогодні 🤍 Будь ласка, оцініть візит — це займе хвилину: {link}"},
+               {"name": "Після курсу процедур", "text": "{name}, ви завершили курс у MOLODIST — дякуємо за довіру 🤍 Поділіться, будь ласка, враженнями: {link}"},
+               {"name": "Коротко", "text": "{name}, оцініть, будь ласка, ваш візит у MOLODIST: {link} Дякуємо 🤍"},
+           ]}
 DONE = ("done", "paid")
 
 
@@ -88,6 +94,37 @@ def request(db: Session, ap: Appointment, send: bool = True) -> Review:
         r.sent_at = datetime.utcnow() if res.ok else None
     db.commit()
     return r
+
+
+def templates_of(c: dict) -> list[dict]:
+    return [t for t in (c.get("templates") or []) if (t.get("text") or "").strip()] or DEFAULT["templates"]
+
+
+def first_name(p: Patient | None) -> str:
+    """ПІБ пишеться «Прізвище Ім'я По батькові» — звертаємось на ім'я."""
+    parts = (p.full_name or "").split() if p else []
+    return parts[1] if len(parts) > 1 else (parts[0] if parts else "")
+
+
+def manual(db: Session, ap: Appointment) -> tuple[Review, list[dict]]:
+    """Ручне надсилання адміністратором: індивідуальне посилання для візиту (одне на візит, поки не відповіли)
+    і тексти за шаблонами. Надсилання — вручну обраним каналом; позначка «надіслано» — mark_sent."""
+    c = cfg(db)
+    r = db.scalar(select(Review).where(Review.appointment_id == ap.id).order_by(Review.id.desc()))
+    if not r or r.answered_at or (r.sent_at and expired(db, r)):
+        r = Review(token=secrets.token_urlsafe(12), patient_id=ap.patient_id, appointment_id=ap.id, doctor_id=ap.doctor_id)
+        db.add(r)
+        db.commit()
+    name = first_name(db.get(Patient, ap.patient_id)) or "Вітаємо"
+    texts = [{"name": t.get("name") or f"Шаблон {i + 1}", "text": t["text"].replace("{name}", name).replace("{link}", link(r))}
+             for i, t in enumerate(templates_of(c))]
+    return r, texts
+
+
+def mark_sent(db: Session, r: Review, channel: str) -> None:
+    r.channel, r.send_error = (channel or "manual")[:20], None
+    r.sent_at = r.sent_at or datetime.utcnow()
+    db.commit()
 
 
 def run(db: Session) -> dict:

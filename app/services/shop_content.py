@@ -35,7 +35,7 @@ DELIVERY = """
 
 RETURNS = """
 <p>Звернення щодо обміну та повернення приймаємо в Telegram <a href="https://t.me/molodist_ua" target="_blank" rel="noopener">@molodist_ua</a>, за телефоном
-<a href="tel:+380933756437">+38 (093) 375 64 37</a> або на пошту <a href="mailto:info.molodostua@gmail.com">info.molodostua@gmail.com</a>. Вкажіть номер замовлення.</p>
+<a href="tel:+380933756437">+38 (093) 375 64 37</a> або на пошту <a href="mailto:info@molodist.com.ua">info@molodist.com.ua</a>. Вкажіть номер замовлення.</p>
 <h2>Що не підлягає поверненню</h2>
 <p>Відповідно до Закону України «Про захист прав споживачів» і Переліку непродовольчих товарів належної якості, що не підлягають обміну
 (Постанова КМУ №172 від 19.03.1994), <b>косметичні та парфумерні засоби належної якості обміну й поверненню не підлягають</b>.
@@ -263,7 +263,7 @@ PRIVACY = """
 <h2>Медичні дані</h2>
 <p>Інтернет-магазин не збирає медичних даних. Якщо ви пацієнт медичного простору MOLODIST, у кабінеті показуються лише назви рекомендованих засобів із бюті-плану, без діагнозів і нотаток лікаря.</p>
 <h2>Строк зберігання й ваші права</h2>
-<p>Дані зберігаються, доки існує кабінет або цього вимагає законодавство (зокрема бухгалтерський облік). Ви можете отримати, виправити чи видалити свої дані, відкликати згоду — напишіть на <a href="mailto:info.molodostua@gmail.com">info.molodostua@gmail.com</a> або в Telegram <a href="https://t.me/molodist_ua">@molodist_ua</a>. Ваші права визначає Закон України «Про захист персональних даних».</p>
+<p>Дані зберігаються, доки існує кабінет або цього вимагає законодавство (зокрема бухгалтерський облік). Ви можете отримати, виправити чи видалити свої дані, відкликати згоду — напишіть на <a href="mailto:info@molodist.com.ua">info@molodist.com.ua</a> або в Telegram <a href="https://t.me/molodist_ua">@molodist_ua</a>. Ваші права визначає Закон України «Про захист персональних даних».</p>
 <h2>Cookies</h2>
 <p>Ми використовуємо cookies для входу в кабінет, кошика й аналітики відвідувань. Ви можете обмежити cookies у налаштуваннях браузера, але частина функцій може не працювати.</p>
 """
@@ -274,7 +274,7 @@ CONTACTS = """
   <li>Телефон: <a href="tel:+380933756437">+38 (093) 375 64 37</a></li>
   <li>Telegram: <a href="https://t.me/molodist_ua" target="_blank" rel="noopener">@molodist_ua</a></li>
   <li>Instagram: <a href="https://www.instagram.com/_molodist/" target="_blank" rel="noopener">@_molodist</a></li>
-  <li>E-mail: <a href="mailto:info.molodostua@gmail.com">info.molodostua@gmail.com</a></li></ul></div>
+  <li>E-mail: <a href="mailto:info@molodist.com.ua">info@molodist.com.ua</a></li></ul></div>
  <div class="ic"><b>Самовивіз і консультації</b><ul>
   <li>Київ, вул. Князя Романа Мстиславича, 28А (ЖК «Автограф»)</li>
   <li>Вівторок–субота, 10:00–20:00; неділя й понеділок — вихідні</li>

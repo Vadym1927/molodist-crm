@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Опитування після візиту · {{ p.full_name }}{% endblock %}
+{% block body %}
+{% from "_send_channels.html" import send_channels, send_channels_assets %}{{ send_channels_assets() }}
+<style>.sv{max-width:640px;margin:0 auto}.sv .tp{border:1px solid var(--line);border-radius:14px;background:#fff;padding:14px 16px;margin-bottom:12px}
+.sv .tp>summary{cursor:pointer;font:600 14px var(--sans);list-style:none;display:flex;justify-content:space-between}.sv .tp>summary::after{content:"Обрати ›";color:#5C4B82;font-weight:600}
+.sv .tp[open]>summary::after{content:""}.sv .tx{white-space:pre-wrap;background:#F7F4F0;border-radius:10px;padding:10px 12px;margin:10px 0;font-size:13.5px}</style>
+<div class="sv">
+  <p><a href="/patients/{{ p.id }}">← {{ p.full_name }}</a></p>
+  <h1>Надіслати опитування</h1>
+  <p class="muted small">Візит {{ ap.start.strftime('%d.%m.%Y %H:%M') if ap.start }}{% if r and r.sent_at %} · вже надсилали {{ r.sent_at|local }}{% if r.channel %} ({{ r.channel }}){% endif %}{% endif %}</p>
+  {% if not closed %}
+    <div class="card">Опитування можна надіслати після закриття візиту (виконано / оплачено).</div>
+  {% elif answered %}
+    <div class="card">Пацієнт уже відповів на опитування за цей візит.</div>
+  {% else %}
+    <p class="small muted">Оберіть шаблон, потім канал — текст скопіюється, відкриється чат пацієнта, CRM позначить, що опитування надіслано.</p>
+    {% for t in texts %}
+    <details class="tp"{% if loop.first %} open{% endif %}><summary>{{ t.name }}</summary>
+      <div class="tx">{{ t.text }}</div>
+      {{ send_channels(p, t.text, '/reviews/' ~ r.id ~ '/sent', 'Опитування MOLODIST') }}
+    </details>
+    {% endfor %}
+    <p class="small muted">Посилання: <a href="{{ link }}" target="_blank" rel="noopener">{{ link }}</a> · шаблони — <a href="/settings/reviews">Налаштування → Відгуки</a></p>
+  {% endif %}
+</div>
+{% endblock %}

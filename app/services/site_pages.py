@@ -30,7 +30,7 @@ DEFAULT = {
     "telegram": "https://t.me/molodist_ua",
     "instagram": "https://www.instagram.com/_molodist/",
     "viber": "",                                      # порожнє — бот з «Канали → Viber-бот», інакше чат за номером
-    "email": "info.molodostua@gmail.com",
+    "email": "info@molodist.com.ua",
     "address": "м. Київ, вул. Князя Романа Мстиславича, 28А (ЖК «Автограф»)",
     "maps": "https://maps.google.com/?cid=13361081901720226446",   # картка MOLODIST у Google Картах (маршрут, фото, відгуки)
     "hours": "Вт–Сб, 10:00–20:00",

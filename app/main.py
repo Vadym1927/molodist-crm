@@ -7685,6 +7685,31 @@ def settings_reviews_hide(rid: int, on: str = Form(""), user: User = Depends(req
     return RedirectResponse("/settings/reviews#wall", 303)
 
 
+@app.get("/appointments/{aid:int}/survey", response_class=HTMLResponse)
+def appointment_survey(aid: int, request: Request, user: User = Depends(require("book")), db: Session = Depends(db_dep)):
+    """Ручне надсилання опитування після закритого візиту: шаблон → канал (як посилання на оплату)."""
+    from .services import reviews as rv
+    from .models import Appointment
+    ap = db.get(Appointment, aid) or (_ for _ in ()).throw(HTTPException(404))
+    p_ = db.get(Patient, ap.patient_id) if ap.patient_id else None
+    if not p_:
+        raise HTTPException(404)
+    closed = ap.status in rv.DONE or bool(ap.sale_id) or ap.cb_paid is not None
+    r, texts = rv.manual(db, ap) if closed else (None, [])
+    return render(request, "survey_send.html", nav="calendar", ap=ap, p=p_, r=r, texts=texts, closed=closed,
+                  link=rv.link(r) if r else "", answered=bool(r and r.answered_at))
+
+
+@app.post("/reviews/{rid:int}/sent")
+def review_mark_sent(rid: int, ch: str = Form(""), user: User = Depends(require("book")), db: Session = Depends(db_dep)):
+    from .services import reviews as rv
+    from .models import Review
+    r = db.get(Review, rid) or (_ for _ in ()).throw(HTTPException(404))
+    rv.mark_sent(db, r, ch)
+    audit(db, "review.sent", user=user, review=r.id, appointment=r.appointment_id, channel=r.channel)
+    return JSONResponse({"ok": True})
+
+
 @app.get("/settings/reviews/preview", response_class=HTMLResponse)
 def settings_reviews_preview(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     from .services import reviews as rv
@@ -7714,6 +7739,10 @@ async def settings_reviews_save(request: Request, user: User = Depends(require("
     except ValueError:
         ba = 5.0
     c.update(ttl_hours=num(f.get("ttl_hours"), 24), base_count=num(f.get("base_count"), 0), base_avg=ba, show_wall=bool(f.get("show_wall")))
+    if "tpl_text" in f:
+        tps = [{"name": str(n or "").strip()[:60] or f"Шаблон {i + 1}", "text": str(t or "").strip()[:600]}
+               for i, (n, t) in enumerate(zip(f.getlist("tpl_name"), f.getlist("tpl_text"))) if str(t or "").strip()]
+        c["templates"] = tps or rv.DEFAULT["templates"]
     c.update(on=bool(f.get("on")), delay_min=max(5, num(f.get("delay_min"), 30)), min_days=num(f.get("min_days"), 7),
              order=f.get("order") if f.get("order") in rv.ORDERS else "tg", text=str(f.get("text") or "").strip()[:600] or rv.DEFAULT["text"],
              questions=qs or rv.QUESTIONS, google_url=url if url.startswith("https://") else "")

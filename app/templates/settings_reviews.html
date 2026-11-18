@@ -14,6 +14,9 @@
       <span class="small muted">береться перший доступний пацієнту канал</span></label>
   </div>
   <label>Текст повідомлення<textarea name="text" rows="3">{{ c.text }}</textarea><span class="small muted">{name} — імʼя пацієнта, {link} — посилання на опитування</span></label>
+  <div><b>Шаблони для ручного надсилання</b><div class="small muted" style="margin-bottom:6px">Кнопка «Надіслати опитування» в закритому візиті: адміністратор обирає шаблон і канал (Viber, Telegram, SMS, WhatsApp, Instagram, Email). Працює й тоді, коли автоматичне надсилання вимкнене. {name} — імʼя, {link} — посилання.</div>
+    {% set tps = c.templates or [] %}
+    {% for i in range(5) %}<div style="display:grid;grid-template-columns:200px 1fr;gap:8px;margin-bottom:8px"><input name="tpl_name" value="{{ tps[i].name if i < tps|length else '' }}" placeholder="Назва шаблону {{ i + 1 }}"><textarea name="tpl_text" rows="2" placeholder="Текст шаблону {{ i + 1 }}">{{ tps[i].text if i < tps|length else '' }}</textarea></div>{% endfor %}</div>
   <div><b>Питання (оцінка 1–5 зірок)</b><div class="small muted" style="margin-bottom:6px">Порожнє поле — питання не показується. Рекламація створюється, якщо хоч одна оцінка нижча за 5.</div>
     <div class="qs">{% for i in range(6) %}<input name="q" value="{{ c.questions[i].title if i < c.questions|length else '' }}" placeholder="Питання {{ i + 1 }}">{% endfor %}</div></div>
   <label>Посилання на відгук у Google<input name="google_url" value="{{ c.google_url }}" placeholder="https://g.page/r/…/review">
