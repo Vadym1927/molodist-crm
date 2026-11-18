@@ -347,7 +347,7 @@ def test_shop_care_and_order_notice(monkeypatch):
             assert not out                                                     # вимкнено — покупцю нічого не йде
             c = sf.cfg(db); c["order_msg_on"] = True; sf.save_cfg(db, c)
             sf.set_status(db, o, "Відправлено", ttn="204500001"); db.commit()
-            assert out == ["MOLODIST: N1 відправлено НП, ТТН 204500001"]
+            assert out == ["Замовлення N1 відправлено Новою поштою, ТТН 204500001"]
             sf.set_status(db, o, "Відправлено", ttn="204500001")
             assert len(out) == 1
             c["order_msg_on"] = False; sf.save_cfg(db, c)
