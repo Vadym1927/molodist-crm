@@ -60,3 +60,18 @@ def test_staging_host_noindex():
         r = cl.get("/", headers={"host": "new.example.ua"})
         assert "noindex" in r.headers.get("x-robots-tag", "")
         sp._cache["at"] = 0
+
+
+def test_tilda_cdn_localized(tmp_path, monkeypatch):
+    from app.services import tilda_site as ts
+    import httpx
+    monkeypatch.setattr(ts, "root", lambda: tmp_path)
+    html = '<script src="https://neo.tildacdn.com/js/tilda-fallback-1.0.min.js"></script><img src="https://static.tildacdn.one/lib/flags/flags7.png">'
+    out = ts.localize(html)
+    assert "https://" not in out and "/_site/_tcdn/neo.tildacdn.com/js/tilda-fallback-1.0.min.js" in out
+    calls = []
+    cl = httpx.Client(transport=httpx.MockTransport(lambda r: calls.append(str(r.url)) or httpx.Response(200, text="var a='https://static.tildacdn.one/lib/flags/flags7.png';")))
+    f = ts.cdn("static.tildacdn.one/js/tilda-forms-dict-1.0.min.js", cl)
+    assert f and "_tcdn/static.tildacdn.one/lib/flags" in f.read_text() and len(calls) == 1
+    assert ts.cdn("static.tildacdn.one/js/tilda-forms-dict-1.0.min.js", cl) == f and len(calls) == 1      # з кешу
+    assert ts.cdn("evil.com/js/x.js", cl) is None and ts.cdn("static.tildacdn.one/js/../../x.js", cl) is None

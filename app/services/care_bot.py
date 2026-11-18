@@ -292,7 +292,8 @@ def send_reminders(db: Session, now: datetime | None = None, force: bool = False
         return {"skipped": True}
     sent = failed = 0
     for a in due_reminders(db, now):
-        res = messaging.send_telegram(a.patient.telegram_chat_id, remind_text(db, a, c), reply_markup=keyboard(a.id))
+        res = messaging.send_telegram(a.patient.telegram_chat_id, remind_text(db, a, c), reply_markup=keyboard(a.id),
+                                      internal=bool(c.get("test_only")))          # тестовий режим: лише тестувальникам, пауза не заважає
         if res.ok:
             a.bot_remind_at = datetime.utcnow()
             sent += 1

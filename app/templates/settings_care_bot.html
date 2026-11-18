@@ -17,7 +17,7 @@
   <div><b>Що ввімкнено</b><div class="small muted">Усе вимкнено, доки ви не ввімкнете. Вимкнені функції бот не показує в меню (бот бере цей список з CRM).</div></div>
   {% for k, t in F.items() %}<label class="ft"><input type="checkbox" name="f_{{ k }}" value="1" {{ 'checked' if c.features.get(k) }}><span><b>{{ t }}</b></span></label>{% endfor %}
   <div style="background:#F1EEF6;border-radius:12px;padding:12px 14px;display:grid;gap:8px">
-    <label class="ft"><input type="checkbox" name="test_only" value="1" {{ 'checked' if c.test_only }}><span><b>Тестовий режим</b> — увімкнені функції бачать лише тестувальники, решта пацієнтів — бот як раніше</span></label>
+    <label class="ft"><input type="checkbox" name="test_only" value="1" {{ 'checked' if c.test_only }}><span><b>Тестовий режим</b> — увімкнені функції бачать лише тестувальники, решта пацієнтів — бот як раніше. Тестувальникам нагадування йдуть навіть під загальною паузою повідомлень.</span></label>
     <label>Тестувальники (телефони через кому)<input name="testers" value="{{ c.testers }}" placeholder="+380731247400"><span class="small muted">Пацієнт має бути в CRM з цим телефоном і натиснути в боті «Поділитися контактом».</span></label>
   </div>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">

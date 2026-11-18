@@ -149,12 +149,45 @@ def asset(folder: str, path: str) -> Path | None:
     return p if base in p.parents and p.is_file() else None
 
 
+CDN_RE = re.compile(r"https://(neo\.tildacdn\.com|static\.tildacdn\.(?:one|com))/((?:js|lib|css)/[\w./-]+?\.(?:js|css|png|svg|woff2?))")
+CDN_LOCAL = "/_site/_tcdn"
+
+
+def localize(text: str) -> str:
+    """Посилання на CDN Tilda (скрипти, прапорці маски телефону) → локальна копія на нашому сервері: сайт не залежить від Tilda."""
+    return CDN_RE.sub(lambda m: f"{CDN_LOCAL}/{m[1]}/{m[2]}", text)
+
+
+def cdn(path: str, http=None) -> Path | None:
+    """Файл з CDN Tilda: перший запит завантажує й кешує, далі — лише локальна копія."""
+    m = re.fullmatch(r"(neo\.tildacdn\.com|static\.tildacdn\.(?:one|com))/((?:js|lib|css)/[\w./-]+\.(?:js|css|png|svg|woff2?))", path or "")
+    if not m or ".." in path:
+        return None
+    base = (root() / "_cdn").resolve()
+    f = (base / path).resolve()
+    if base not in f.parents:
+        return None
+    if f.is_file():
+        return f
+    import httpx
+    try:
+        r = (http or httpx.Client(timeout=20, follow_redirects=True)).get(f"https://{path}")
+    except httpx.HTTPError:
+        return None
+    if r.status_code != 200 or len(r.content) > 3_000_000:
+        return None
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_bytes(localize(r.text).encode() if f.suffix in (".js", ".css") else r.content)
+    return f
+
+
 def render(db: Session, p: Path, base: str = "") -> str:
     """HTML сторінки Tilda: стара пошта → нова, міст форм у CRM, базова адреса для перегляду в CRM."""
     from . import site_pages
     html = p.read_text("utf-8", "replace")
     email = site_pages.cfg(db).get("email") or "info@molodist.com.ua"
     html = html.replace("info.molodostua@gmail.com", email)
+    html = localize(html)
     inj = (f'<script>window.MLDS_TILDA={{"base":{json.dumps(base)}}};</script>'
            f'<script src="/static/site/tilda-bridge.js?v=4" defer></script>')
     return html.replace("</body>", inj + "</body>", 1) if "</body>" in html else html + inj

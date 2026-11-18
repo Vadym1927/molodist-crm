@@ -9012,9 +9012,19 @@ def _tilda_resp(request: Request, db: Session, path, status: int = 200):
 @app.get("/_site/{folder}/{path:path}", include_in_schema=False)
 def site_tilda_asset(folder: str, path: str):
     from .services import tilda_site as ts
+    if folder == "_tcdn":                                   # копія файлу з CDN Tilda (сайт не залежить від Tilda)
+        f = ts.cdn(path)
+        if not f:
+            raise HTTPException(404)
+        return FileResponse(f, headers={"Cache-Control": "public, max-age=2592000"})
     f = ts.asset(folder, path)
     if not f:
         raise HTTPException(404)
+    if f.suffix in (".js", ".css"):
+        txt = f.read_text("utf-8", "replace")
+        if "tildacdn" in txt:
+            return Response(ts.localize(txt), media_type="text/css" if f.suffix == ".css" else "application/javascript",
+                            headers={"Cache-Control": "public, max-age=604800"})
     return FileResponse(f, headers={"Cache-Control": "public, max-age=604800"})
 
 

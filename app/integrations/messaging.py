@@ -98,8 +98,9 @@ def telegram_available() -> bool:
     return bool(settings.patient_bot_token)
 
 
-def send_telegram(chat_id: str, text: str, reply_markup: dict | None = None) -> SendResult:
-    if not sending_enabled():
+def send_telegram(chat_id: str, text: str, reply_markup: dict | None = None, internal: bool = False) -> SendResult:
+    """internal=True — службове (тест бота турботи на тестувальниках): загальна пауза повідомлень пацієнтам не діє."""
+    if not internal and not sending_enabled():
         log.info("patient message blocked (paused): telegram")
         return SendResult(False, "telegram", error=PAUSED_ERROR)
     if not settings.patient_bot_token:
