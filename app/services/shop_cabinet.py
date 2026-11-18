@@ -333,9 +333,9 @@ def doctor_care(db: Session, p: Patient, data: dict) -> dict:
 
 
 # ---------------- сповіщення покупцю про замовлення ----------------
-ORDER_MSG = {"paid": "Замовлення №{n} оплачено. Дякуємо! Готуємо до відправлення. MOLODIST",
-             "sent": "Замовлення №{n} відправлено Новою поштою{ttn}. MOLODIST",
-             "cancel": "Замовлення №{n} скасовано. Якщо це помилка — зателефонуйте нам. MOLODIST"}
+ORDER_MSG = {"paid": "Замовлення {n} оплачено, готуємо відправку. MOLODIST",           # ≤ 70 символів — 1 SMS
+             "sent": "MOLODIST: {n} відправлено НП{ttn}",
+             "cancel": "Замовлення {n} скасовано. Питання: 0933756437. MOLODIST"}
 
 
 def order_notice(db: Session, c: dict, o: SiteOrder, event: str) -> bool:
