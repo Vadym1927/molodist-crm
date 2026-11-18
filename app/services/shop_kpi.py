@@ -105,8 +105,10 @@ def report(db: Session, d1: date, d2: date, data: dict | None = None) -> dict:
     srcs: dict = defaultdict(lambda: {"n": 0, "sum": 0.0})
     chans: dict = defaultdict(lambda: {"n": 0, "sum": 0.0})
     camps: dict = defaultdict(lambda: {"n": 0, "sum": 0.0})
+    cname = {st.key: st.name for st in db.scalars(select(AdsStat).where(AdsStat.level == "campaign")) if st.key and st.name}
     for o in ok:
         s, m, c = source_of(o)
+        c = cname.get(c, c)                             # utm_campaign={campaignid} → назва кампанії
         for bucket, key in ((srcs, f"{s} / {m}"), (chans, channel(s, m)), (camps, c)):
             if key:
                 bucket[key]["n"] += 1
