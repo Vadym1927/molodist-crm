@@ -3,7 +3,7 @@
 <div class="ds" id="ds-main">
   <div class="ds-g">
     <div class="ds-t dk" onclick="dsOpen(this)" data-k="new"><span>Нові пацієнти</span><b>{{ s.patients.new }}</b><small>Всього пацієнтів: {{ s.patients.total }} · прийшли: {{ s.patients.came }}</small></div>
-    {% if money %}<div class="ds-t dk" onclick="dsOpen(this)" data-k="income"><span>Дохід</span><b>{{ s.income.fact|uah }}</b><small>Плановий дохід: {{ s.income.plan|uah }}<br>Зі знижкою: {{ s.income.with_discount }} чек(ів) · знижки {{ s.income.discount|uah }}</small></div>{% endif %}
+    {% if money %}<div class="ds-t dk hero" onclick="dsOpen(this)" data-k="income"><span>Дохід</span><b>{{ s.income.fact|uah }}</b><small>Плановий дохід: {{ s.income.plan|uah }}<br>Зі знижкою: {{ s.income.with_discount }} чек(ів) · знижки {{ s.income.discount|uah }}</small></div>{% endif %}
     <div class="ds-t dk" onclick="dsOpen(this)" data-k="created"><span>Записів створено</span><b>{{ s.created.n }}</b><small>Онлайн-запис: {{ s.created.online }}<br>Адміністратор: {{ s.created.admin }}</small></div>
     <div class="ds-t dk" onclick="dsOpen(this)" data-k="visits"><span>Візитів на день</span><b>{{ s.visits.n }}</b><small>Відбулось / розраховано: {{ s.visits.done }}{% if money and s.income.unpaid %}<br>Не розраховано: {{ s.income.unpaid|uah }}{% endif %}</small></div>
     <div class="ds-t warn dk" onclick="dsOpen(this)" data-k="cancel_day"><span>Скасувань на цей день</span><b>{{ s.cancel_day.n }}</b><small>На суму: {{ s.cancel_day.sum|uah }}</small></div>
@@ -24,9 +24,11 @@
     {% if k.other %}<div class="ds-t"><span>Інше</span><b>{{ k.other.sum|uah }}</b><small>Позицій: {{ k.other.n|int }}</small></div>{% endif %}
     <div class="ds-t bad dk" onclick="dsOpen(this)" data-k="refunds"><span>Повернення</span><b>{{ s.checks.refunded }}</b><small>На суму: {{ s.checks.refund_sum|uah }}</small></div>
   </div>
-  {% if s.pay %}<h4>Оплати</h4><div class="ds-l">{% for m, v in s.pay.items() %}<div><span>{{ m }}</span><b>{{ v|uah }}</b></div>{% endfor %}</div>{% endif %}
+  {% if s.pay %}{% set ptot = s.pay.values()|sum %}<h4>Оплати</h4><div class="ds-l">{% for m, v in s.pay.items()|sort(attribute='1', reverse=true) %}<div><span>{{ m }}</span><b>{{ v|uah }}{% if ptot %}<span class="pct">{{ (100 * v / ptot)|round|int }}%</span>{% endif %}</b>{% if ptot and v > 0 %}<span class="pbar"><i style="width:{{ (100 * v / ptot)|round(1) }}%"></i></span>{% endif %}</div>{% endfor %}
+    <div class="hd" style="background:#FBFAF8"><span>Разом</span><b style="color:#2A2430;font-size:13.5px;letter-spacing:0;text-transform:none">{{ ptot|uah }}</b></div></div>{% endif %}
   {% if s.doctors %}<h4>Спеціалісти</h4><div class="ds-l c4"><div class="hd"><span>Спеціаліст</span><span>Візитів</span><span>Послуги</span><span>Товари</span></div>
-    {% for x in s.doctors %}<div><span>{{ x.name }}</span><span>{{ x.visits }}</span><b>{{ x.services|uah }}</b><b>{{ x.products|uah }}</b></div>{% endfor %}</div>{% endif %}
+    {% set dmax = (s.doctors|map(attribute='services')|max) or 0 %}
+    {% for x in s.doctors|sort(attribute='services', reverse=true) %}<div><span>{{ x.name }}</span><span>{{ x.visits }}</span><b>{{ x.services|uah }}</b><b>{{ x.products|uah }}</b>{% if dmax %}<span class="pbar"><i style="width:{{ (100 * x.services / dmax)|round(1) }}%"></i></span>{% endif %}</div>{% endfor %}</div>{% endif %}
   {% endif %}
 </div>
 
