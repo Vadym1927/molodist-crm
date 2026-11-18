@@ -291,6 +291,28 @@ def cancel(db: Session, doc: StockDoc) -> None:
     db.commit()
 
 
+def prev_costs(db: Session, pids: list[int], exclude_doc: int | None = None, until: date | None = None) -> dict[int, float]:
+    """Попередня ціна закупівлі за одиницю обліку (остання закупівля до дати, без цього документа) — для контролю цін у поставці."""
+    q = select(ProductPurchase).where(ProductPurchase.product_id.in_(list(pids) or [0]), ProductPurchase.unit_cost > 0)
+    if exclude_doc:
+        q = q.where((ProductPurchase.note.is_(None)) | (ProductPurchase.note != f"stockdoc:{exclude_doc}"))
+    if until:
+        q = q.where(ProductPurchase.bought_on <= until)
+    out: dict[int, float] = {}
+    for pp in db.scalars(q.order_by(ProductPurchase.bought_on, ProductPurchase.id)):
+        out[pp.product_id] = float(pp.unit_cost)
+    return out
+
+
+def price_check(new: float | None, old: float | None) -> dict | None:
+    """Порівняння ціни з попередньою: різниця, %, і «підозріло» — у 3+ рази більше чи менше (схоже на помилку одиниць)."""
+    if not new or not old:
+        return None
+    d = round(new - old, 2)
+    r = new / old
+    return {"old": old, "diff": d, "pct": round(100 * d / old, 1), "x": round(r if r >= 1 else 1 / r, 1), "bad": r >= 3 or r <= 1 / 3}
+
+
 def reopen(db: Session, doc: StockDoc) -> None:
     """Виправити проведений документ: рухи й закупівлі прибираються, документ знову чернетка (номер, файли, накладна лишаються).
     Документ з рознесеною оплатою не відкривається — спершу скасуйте рознесення."""

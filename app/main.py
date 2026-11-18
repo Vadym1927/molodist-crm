@@ -6777,7 +6777,7 @@ def stock_lookup_products(q: str = "", wh: str = "", user: User = Depends(requir
         k = p_.coef if p_.coef and p_.coef > 0 else 1
         rows.append((0 if exact else (1 if (p_.warehouse or "vitrina") == wh else 2), {
             "id": p_.id, "name": p_.name, "sku": p_.sku or "", "barcode": p_.barcode or "", "brand": p_.brand or "",
-            "unit": "шт" if k == 1 else f"уп. ({k:g} {p_.unit or 'од.'})", "coef": k,
+            "unit": (p_.unit or "шт") if k == 1 else f"уп. ({k:g} {p_.unit or 'од.'})", "coef": k, "acc_unit": p_.unit or "шт",
             "price": r.cost or p_.cost or 0, "stock": r.stock,
             "wh": catalog.WAREHOUSES.get(p_.warehouse or "vitrina"), "supplier": p_.supplier or r.last_supplier or ""}))
     rows.sort(key=lambda x: (x[0], x[1]["name"].lower()))
@@ -7187,6 +7187,10 @@ def stock_doc_page(did: int, request: Request, user: User = Depends(require("sto
     allocs = db.scalars(select(PaymentAlloc).where(PaymentAlloc.doc_id == doc.id).order_by(PaymentAlloc.at)).all()
     txns = {t.id: t for t in db.scalars(select(BankTxn).where(BankTxn.id.in_([a.txn_id for a in allocs if a.txn_id] or [""])))}
     sup = next((x for x in db.scalars(select(Supplier)) if x.name.lower() == (doc.supplier or "").lower()), None) if doc.supplier else None
+    pchk = {}
+    if doc.kind in ("supply", "order"):
+        pc_ = st.prev_costs(db, [ln.product_id for ln in doc.lines], doc.id, doc.doc_date)
+        pchk = {ln.id: st.price_check(ln.unit_cost, pc_.get(ln.product_id)) for ln in doc.lines}
     return render(request, "stock_doc.html", d=doc, KINDS=st.DOC_KINDS, STATUS=st.STATUS, WAREHOUSES=catalog.WAREHOUSES,
                   files=db.scalars(select(StockDocFile).where(StockDocFile.doc_id == doc.id).order_by(StockDocFile.id)).all(),
                   grp=grp, allocs=allocs, txns=txns, PAY=pay.PAY_LABELS, MODES=pay.MODE_LABELS,
@@ -7197,6 +7201,7 @@ def stock_doc_page(did: int, request: Request, user: User = Depends(require("sto
                   cash_boxes=pay.cash_boxes(db), sup_arts=pay.supply_articles(db), CASH_PREFIX=pay.CASH_PREFIX,
                   group_docs=[x for x in (grp.docs if grp else []) if x.id != doc.id],
                   REASONS=st.WRITEOFF_REASONS, products=_product_options(db), bal=bal, active=st.ledger_active(db),
+                  pchk=pchk,
                   suppliers=[x.name for x in db.scalars(select(Supplier).order_by(Supplier.name))],
                   history=__import__("app.services.doc_history", fromlist=["history"]).history(db, doc),
                   editable=doc.status in ("draft", "sent"))

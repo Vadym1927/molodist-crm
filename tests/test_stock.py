@@ -397,3 +397,27 @@ def test_supply_reopen_fix_qty():
         assert pp.qty == 15 and abs(pp.unit_cost * 15 - 3601.71) < 0.01
         with pytest.raises(st.StockError):
             st.reopen(db, st.new_doc(db, "supply", wh_to="classic"))
+
+
+def test_supply_price_check():
+    from datetime import date as _d
+    assert st.price_check(3601.71, 221.63)["bad"] and st.price_check(3601.71, 221.63)["x"] == 16.3
+    c = st.price_check(2425.76, 2216.25)
+    assert not c["bad"] and c["diff"] == 209.51 and c["pct"] == 9.5
+    assert st.price_check(None, 10) is None and st.price_check(10, None) is None
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        p = Product(name="Контроль ціни тест", name_norm="контроль ціни тест", warehouse="classic", unit="мл")
+        db.add(p); db.commit()
+        d1 = st.new_doc(db, "supply", wh_to="classic", doc_date=_d(2026, 10, 1))
+        d1.lines.append(st.StockDocLine(product_id=p.id, qty=15, unit_cost=220))
+        db.commit(); st.post(db, d1)
+        d2 = st.new_doc(db, "supply", wh_to="classic", doc_date=_d(2026, 11, 18))
+        d2.lines.append(st.StockDocLine(product_id=p.id, qty=1, unit_cost=3600))
+        db.commit()
+        assert st.prev_costs(db, [p.id], d2.id, d2.doc_date) == {p.id: 220.0}
+        did = d2.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        h = c.get(f"/stock/docs/{did}")
+        assert h.status_code == 200 and "перевірте одиниці" in h.text

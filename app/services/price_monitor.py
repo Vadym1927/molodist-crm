@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from collections import defaultdict
 from datetime import date, datetime
 
@@ -128,8 +129,22 @@ def services(db: Session, d: dict | None = None) -> list[dict]:
     return out
 
 
+_SCAN_LOCK = threading.Lock()
+
+
 def scan(db: Session, notify: bool = True) -> int:
-    """Фіксує стартові знімки послуг і створює сповіщення при переході у вищу зону."""
+    """Фіксує стартові знімки послуг і створює сповіщення при переході у вищу зону.
+    Один перегляд за раз: сторінка «Моніторинг цін» і планувальник не дублюють сповіщення."""
+    if not _SCAN_LOCK.acquire(blocking=False):
+        return 0
+    try:
+        return _scan(db, notify)
+    finally:
+        _SCAN_LOCK.release()
+
+
+def _scan(db: Session, notify: bool = True) -> int:
+    db.expire_all()
     d = cfg(db)
     changed, new = False, []
     today = date.today().isoformat()
