@@ -156,5 +156,5 @@ def render(db: Session, p: Path, base: str = "") -> str:
     email = site_pages.cfg(db).get("email") or "info@molodist.com.ua"
     html = html.replace("info.molodostua@gmail.com", email)
     inj = (f'<script>window.MLDS_TILDA={{"base":{json.dumps(base)}}};</script>'
-           f'<script src="/static/site/tilda-bridge.js?v=1" defer></script>')
+           f'<script src="/static/site/tilda-bridge.js?v=2" defer></script>')
     return html.replace("</body>", inj + "</body>", 1) if "</body>" in html else html + inj

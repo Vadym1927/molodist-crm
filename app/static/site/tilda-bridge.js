@@ -26,7 +26,7 @@
   function send(f) {
     var d = {}, fd = new FormData(f);
     fd.forEach(function (v, k) { if (typeof v === 'string' && k.indexOf('tilda') !== 0 && k !== 'form-spec-comments') d[k] = d[k] ? d[k] + ', ' + v : v; });
-    var hp = f.querySelector('[name="form-spec-comments"]'); if (hp && hp.value) d.website = hp.value;
+    var hp = f.querySelector('[name="form-spec-comments"]'); if (hp && hp.value && hp.value !== 'Its good') d.website = hp.value;   // Tilda ставить «Its good»; бот змінює
     var mk = marks(); for (var k in mk) if (!d[k]) d[k] = mk[k];
     d.page = location.href.split('?')[0]; d.formname = f.getAttribute('data-tilda-formname') || f.getAttribute('name') || 'Tilda';
     d.interest = d.interest || document.title.split('|')[0].split('—')[0].trim();
