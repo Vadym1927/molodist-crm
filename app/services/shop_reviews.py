@@ -141,7 +141,10 @@ def message(db: Session, c: dict, o: SiteOrder, root: str, data: dict) -> str:
     if len(prod) > 45:
         prod = prod[:44].rstrip() + "…"
     tpl = (c.get("review_text") or "").strip() or DEFAULT_TEXT
-    return tpl.replace("{name}", first_name(o, db)).replace("{product}", prod).replace("{n}", o.number or "").replace("{link}", link(o, root))[:480]
+    bonus = int(float(c.get("coin_review") or 0)) if c.get("coin_on", True) else 0
+    if bonus and "{coins}" not in tpl and "Coins" not in tpl:
+        tpl += " За відгук — +{coins} MOLODIST Coins."
+    return tpl.replace("{coins}", str(bonus)).replace("{name}", first_name(o, db)).replace("{product}", prod).replace("{n}", o.number or "").replace("{link}", link(o, root))[:480]
 
 
 def send_due(db: Session, c: dict, root: str, data: dict) -> dict:

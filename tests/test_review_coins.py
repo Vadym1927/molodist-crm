@@ -17,3 +17,12 @@ def test_coins_for_published_review_once():
         rv.moderate(db, r.id, "ok", None, None)
         assert rv.award(db, r, c) and not rv.award(db, r, c)   # раз на відгук, за будь-яку оцінку
         assert cn.balance(db, p.id) == 25
+
+
+def test_review_message_mentions_coins():
+    from app.services import shop_front as sf, shop_reviews as rv
+    with SessionLocal() as db:
+        o = SiteOrder(source="crm", ext_id="RVC2", number="RVC2", created_at=datetime.now(), status="Отримано", name="Ірина")
+        db.add(o); db.flush()
+        t = rv.message(db, sf.cfg(db), o, "https://x.test", {"items": []})
+        assert "+25 MOLODIST Coins" in t

@@ -1,7 +1,7 @@
 {% extends "shop/base.html" %}
 {% block main %}<section class="sec lst"><div class="wrap narrow rvf">
   <h1>{{ rname }}, як вам покупка?</h1>
-  <p class="mut">Замовлення №{{ order.number }}. Оцініть товари — відгук зʼявиться на сайті після перевірки. Ваш телефон і прізвище не показуємо.</p>
+  <p class="mut">Замовлення №{{ order.number }}. Оцініть товари — відгук зʼявиться на сайті після перевірки. Ваш телефон і прізвище не показуємо.{% if s.coin_review and s.coin_on %} За кожен опублікований відгук — <b>+{{ s.coin_review }} MOLODIST Coins</b>.{% endif %}</p>
   {{ ('<div class="cf-turnstile" data-sitekey="' ~ s.ts_site ~ '" data-language="uk"></div>')|safe if s.ts_site }}
   {% for i in ritems %}<form class="rv-form card" data-rv="{{ i.id }}">
     <div class="rv-it">{% if i.img %}<img src="{{ base }}/img/{{ i.img }}?w=200" alt="" width="72" height="72">{% endif %}<b>{{ i.name }}</b></div>
