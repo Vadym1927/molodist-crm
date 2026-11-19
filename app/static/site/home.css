@@ -453,3 +453,7 @@ html.h-lock{overflow:hidden}
 @media (max-width:560px){.h-ccard.pic .h-ctt{font-size:12.5px}}
 h2.lbl{font-weight:600}
 .vh{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;margin:-1px;padding:0;border:0}
+/* фото з width/height: висоту рахує aspect-ratio, а не атрибут */
+.h-hero .im img,.h-facts.pics img,.h-car img{height:auto}
+/* магазин на телефоні — одна колонка, фото на всю ширину */
+@media (max-width:860px){.h-shop2-in{grid-template-columns:1fr;gap:24px}.h-scol{height:300px}}
