@@ -20,6 +20,7 @@
 {% if rich %}<link rel="preload" as="image" href="{{ img.hero }}" fetchpriority="high">{% endif %}
 {% if org_ld %}<script type="application/ld+json">{{ org_ld|safe }}</script>{% endif %}
 {% if faq_ld %}<script type="application/ld+json">{{ faq_ld|safe }}</script>{% endif %}
+{% if c.gtm_id and not noindex and not proto %}<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','{{ c.gtm_id }}');</script>{% endif %}
 </head>
 {% set zap = '#zapys' %}{% set rich = v.rich %}
 {% macro form(id, btn='Записатися', dark=False) %}
@@ -67,6 +68,7 @@
 {% endmacro %}
 
 <body class="hv hv-{{ vk }}">
+{% if c.gtm_id and not noindex and not proto %}<noscript><iframe src="https://www.googletagmanager.com/ns.html?id={{ c.gtm_id }}" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>{% endif %}
 {% if proto %}<div class="h-proto"><span>Прототип головної · варіант {{ vk|upper }} «{{ v.name }}»</span>
   <nav>{% for k, x in variants.items() %}<a href="{{ base }}/proto/{{ k }}" {{ 'aria-current=page' if k == vk }}>{{ k|upper }}</a>{% endfor %}<a href="{{ base }}/proto">усі</a></nav></div>{% endif %}
 

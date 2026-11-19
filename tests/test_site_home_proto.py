@@ -58,12 +58,13 @@ def test_new_home_as_site_home():
             assert r.status_code == 200 and "Естетична медицина й косметологія в Києві" in t
             assert 'rel="canonical"' in t and 'name="robots"' not in t and "h-proto" not in t
             assert 'property="og:title" content="MOLODIST — медичний простір естетики та профілактики"' in t
+            assert "googletagmanager.com/gtm.js" in t           # аналітика, як на інших сторінках сайту
             assert "og/home.jpg" in t and '"MedicalClinic"' in t and '"FAQPage"' in t
             assert t.count("s-") >= 10 and "data-car" in t
             assert cl.get("/og/home.jpg", headers={"host": host}).status_code == 200
             assert f"<loc>{sp.cfg(SessionLocal())['canonical'].rstrip('/')}/</loc>" in cl.get("/sitemap.xml", headers={"host": host}).text
             p = cl.get("/_site/proto/a").text                       # перегляд у CRM лишається без індексації
-            assert 'name="robots" content="noindex' in p and "h-proto" in p
+            assert 'name="robots" content="noindex' in p and "h-proto" in p and "googletagmanager" not in p
     finally:
         with SessionLocal() as db:
             c = ts.cfg(db); c["home"] = old or "tilda"; ts.save(db, c)
