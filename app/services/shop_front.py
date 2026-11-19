@@ -389,7 +389,7 @@ def catalog(db: Session, fresh: bool = False) -> dict:
             left_ = None
             stock = not hidden and str(si.get("presence", 1)).lower() not in ("0", "false", "not_available") and (si.get("quantity") is None or float(si.get("quantity") or 0) > 0)
         wait_ = False
-        if si.get("backorder") and not stock and not hidden and str(si.get("presence", 1)).lower() not in ("0", "false", "not_available"):
+        if si.get("backorder") and not stock and not hidden:   # позначка власника сильніша за стару «presence» з імпорту
             stock, left_, wait_ = True, None, True          # «під замовлення»: продаємо без залишку на вітрині, відправка за 1–3 дні
         v = {"id": p.id, "left": left_, "name": si.get("title") or p.name, "price": price, "old": old if old > price else 0, "stock": stock, "wait": wait_,
              "sku": p.sku or si.get("sku") or "", "label": p.volume or "", "gtin": gtin(p.barcode or si.get("barcode") or "")}
