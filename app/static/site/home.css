@@ -429,3 +429,7 @@ html.h-lock{overflow:hidden}
 .h-fab-list .tile.cal{background:linear-gradient(180deg,#4B4156,#2A2430)}
 .h-fab-list .tile svg{width:20px;height:20px;padding:0;background:none;color:#fff;stroke-width:1.7}
 @media (max-width:860px){.h-shop2{padding:44px 0}.h-scol{height:260px}}
+
+/* «Увесь каталог»: спокійне наведення без заливки */
+.h-pshd .btn.sm:hover{background:var(--lav);color:var(--plum);border-color:var(--act)}
+.h-cgrid.rich .h-cimg img{object-position:center 40%}
