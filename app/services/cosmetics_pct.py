@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from ..models import SyncState
 
 KEY = "cosmetics_pct"
-DEFAULT = {"full": 10.0, "disc": 5.0, "min_price": 1000.0, "low": 0.0, "disc_from": 0.0, "base": "paid",
+DEFAULT = {"full": 10.0, "disc": 5.0, "min_price": 1000.0, "low": 0.0, "disc_from": 0.0, "base": "paid", "web_pack": 50.0,
            "staff": {}, "brands": {}, "products": {}, "tiers": []}
 BASES = {"paid": "від суми продажу (після знижки)", "price": "від ціни товару (без знижки)"}
 
@@ -41,7 +41,7 @@ def cfg(db: Session) -> dict:
 
 
 def save(db: Session, c: dict) -> None:
-    out = {k: _num(c.get(k), DEFAULT[k]) for k in ("full", "disc", "min_price", "low", "disc_from")}
+    out = {k: _num(c.get(k), DEFAULT[k]) for k in ("full", "disc", "min_price", "low", "disc_from", "web_pack")}
     out["base"] = c.get("base") if c.get("base") in BASES else "paid"
     tiers = []                                              # велика знижка: «знижка більше X% → Y%» (Y = 0 — не нараховувати)
     for t in c.get("tiers") or []:

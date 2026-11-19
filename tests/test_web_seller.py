@@ -20,7 +20,7 @@ def test_web_sale_initiator_is_order_responsible():
         assert dbk.is_web(s) and dbk.web_seller(db, s) == "Пакувальниця Тест"
         r = rp.cosmetics(db, date.today(), date.today())
         g = next(x for x in r.extra["groups"] if x["staff"] == "Пакувальниця Тест")
-        row = g["rows"][0]
-        assert row["price"] == 1500 and row["disc_pct"] == 20.0 and "сайт" in row["ref"]
+        assert len(g["rows"]) == 1 and g["sum"] == 50                 # фікс за пакування одного замовлення, не % від товарів
+        assert "WS1" in g["rows"][0]["name"] and "сайт" in g["rows"][0]["ref"]
         o.raw = {}; db.commit()
         assert dbk.web_seller(db, s) == dbk.WEB_SELLER

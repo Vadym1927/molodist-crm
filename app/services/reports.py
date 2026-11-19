@@ -662,9 +662,20 @@ def cosmetics(db: Session, d_from: date, d_to: date, staff: str = "") -> Report:
     a, b = _rng(d_from, d_to)
     docs = {d.id: d.name for d in db.scalars(select(Doctor))}
     from . import daybook as _dbk
+    from .cosmetics_pct import cfg as _cpc
+    web_pack = float(_cpc(db).get("web_pack") or 0)
     for sl in db.scalars(select(Sale).where(Sale.status == "paid", Sale.at >= a, Sale.at <= b)):
         web = _dbk.is_web(sl)
-        seller = _dbk.web_seller(db, sl) if web else None      # сайт: ініціатор — відповідальний за замовлення
+        if web:                                                 # сайт: відповідальному за замовлення — фіксовано за пакування
+            o = _dbk.web_order(db, sl)
+            prods = [it for it in sl.items if it.kind == "product"]
+            if prods:
+                rows.append({"at": sl.at, "staff": _dbk.web_seller(db, sl), "name": f"Пакування замовлення №{(o.number if o else '') or sl.id}",
+                             "qty": 1, "price": round(sum(float(it.total or 0) for it in prods), 2),
+                             "paid": round(sum(float(it.total or 0) for it in prods), 2), "product_id": None, "disc_pct": 0,
+                             "ref": f"чек CRM Ч-{sl.id} · сайт", "_fixed": web_pack})
+            continue
+        seller = None
         for it in sl.items:
             if it.kind != "product":
                 continue
@@ -685,9 +696,13 @@ def cosmetics(db: Session, d_from: date, d_to: date, staff: str = "") -> Report:
     from .cosmetics_pct import Rules
     rules = Rules(db)
     for x in rows:
-        rules.apply(x)
+        if "_fixed" in x:
+            x["rule"], x["pct"], x["sum"] = "пакування замовлення сайту (фікс)", 0, round(x["_fixed"], 2)
+        else:
+            rules.apply(x)
     r = Report("cosmetics", "Бонус за продаж косметики",
-               rules.describe() + " Лікар — ініціатор позиції в чеку CleverBox або спеціаліст у продажі каси CRM; продаж із сайту — відповідальний за замовлення.")
+               rules.describe() + f" Лікар — ініціатор позиції в чеку CleverBox або спеціаліст у продажі каси CRM; замовлення з сайту — "
+               f"відповідальному за замовлення фіксовано {web_pack:g} ₴ за пакування одного замовлення.")
     r.grouped = True
     r.cols = [Col("name", "Товар / лікар"), Col("day", "Дата", "date"), Col("qty", "К-сть", "num", True), Col("price", "Ціна", "uah"),
               Col("paid", "Продано на", "uah", True), Col("rule", "Умова"), Col("pct", "%", "pct"), Col("sum", "Нараховано", "uah", True)]

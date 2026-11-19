@@ -56,6 +56,8 @@
     <div class="cpp-k"><div class="t">Поріг ціни</div><div class="d">Для дешевих товарів — окремий %</div>
       <div class="cpp-in">якщо ціна менше <span class="pc w" data-u="₴"><input name="min_price" inputmode="decimal" value="{{ '%g'|format(c.min_price) }}"></span></div>
       <div class="cpp-in">→ <span class="pc" data-u="%"><input name="low" inputmode="decimal" value="{{ '%g'|format(c.low) }}"></span> лікарю</div></div>
+    <div class="cpp-k"><div class="t">Замовлення з сайту</div><div class="d">Відповідальному за замовлення — фіксовано за пакування, а не % від товарів</div>
+      <div class="cpp-in"><span class="pc w" data-u="₴"><input name="web_pack" inputmode="decimal" value="{{ '%g'|format(c.web_pack or 0) }}"></span> за одне замовлення</div></div>
     <div class="cpp-k" style="grid-column:span 2"><div class="t">Від чого рахувати</div>
       <div class="cpp-seg">{% for k, v in BASES.items() %}<label><input type="radio" name="base" value="{{ k }}" {{ 'checked' if c.base == k }} onchange="cpPr()"><span>{{ v }}</span></label>{% endfor %}</div></div>
   </div>
