@@ -10263,6 +10263,8 @@ async def shop_reviews_save(rid: int, request: Request, user: User = Depends(req
     f = await request.form()
     r = rv.moderate(db, rid, str(f.get("status") or ""), f.get("answer"), user.id)
     if r:
+        from .services import shop_front as _sfr
+        rv.award(db, r, _sfr.cfg(db))                          # коїни за опублікований відгук (раз на відгук)
         audit(db, "shop.review", "shop_review", rid, user=user, status=r.status)
     db.commit()
     return RedirectResponse(_with_msg(f"/shop-reviews?status={quote(str(f.get('back') or 'new'))}", "Збережено"), 303)
@@ -10689,7 +10691,7 @@ async def settings_shop_save(request: Request, user: User = Depends(require("use
         _cnl.launch(db, c)
     elif not f.get("coin_spend_on"):
         c["coin_spend_on"] = False
-    for k, hi in (("coin_earn_pct", 50), ("coin_max_pct", 100), ("coin_days", 3650), ("coin_wait_days", 60)):
+    for k, hi in (("coin_earn_pct", 50), ("coin_max_pct", 100), ("coin_days", 3650), ("coin_wait_days", 60), ("coin_review", 1000)):
         try:
             v = float(str(f.get(k) or 0).replace(",", "."))
             c[k] = max(0, min(hi, v if k.endswith("pct") else int(v)))

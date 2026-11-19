@@ -117,6 +117,16 @@ def moderate(db: Session, rid: int, status: str, answer: str | None, user_id: in
     return r
 
 
+def award(db: Session, r: ShopReview, c: dict) -> bool:
+    """MOLODIST Coins за опублікований відгук — один раз на відгук, за будь-яку оцінку (не лише позитивну)."""
+    from . import coins as cn
+    rl = cn.rules(c)
+    amt = int(float(rl.get("coin_review") or 0))
+    if r.status != "ok" or not r.patient_id or not amt or not rl.get("coin_on"):
+        return False
+    return cn.add(db, r.patient_id, amt, "review", f"rv:{r.id}", days=int(rl["coin_days"]), live=bool(rl["coin_spend_on"]))
+
+
 def mark_due(o: SiteOrder, c: dict) -> None:
     """Замовлення отримано / закрито → запланувати запит відгуку через N днів (лише один раз)."""
     raw = dict(o.raw or {})

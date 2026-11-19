@@ -55,10 +55,11 @@
     <label class="ck" style="margin-top:6px"><input type="checkbox" name="coin_on" value="1" {{ 'checked' if c.coin_on }}> Нараховувати MOLODIST Coins у магазині (реєстрація, запрошення друга, оплачені замовлення)</label>
     <label class="ck" style="margin-top:6px"><input type="checkbox" name="coin_spend_on" value="1" {{ 'checked' if c.coin_spend_on }}> <b>Програму запущено</b>: покупці можуть використовувати Coins як знижку{{ (' · запущено ' ~ c.coin_start[8:10] ~ '.' ~ c.coin_start[5:7] ~ '.' ~ c.coin_start[:4]) if c.coin_spend_on and c.coin_start }}</label>
     <div class="small muted">Поки не запущено — Coins лише накопичуються, без строку дії. У день запуску в усіх накопичених починається відлік строку дії. Це окрема система: бонуси, перенесені з CleverBox, сюди не входять.</div>
-    <div class="grid" style="grid-template-columns:repeat(4,1fr);gap:8px;margin-top:6px"><label>Нарахування, % від сплаченого<input name="coin_earn_pct" value="{{ '%g'|format(c.coin_earn_pct) }}" inputmode="decimal"></label>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-top:6px"><label>Нарахування, % від сплаченого<input name="coin_earn_pct" value="{{ '%g'|format(c.coin_earn_pct) }}" inputmode="decimal"></label>
       <label>Знижка коїнами, до % кошика<input name="coin_max_pct" value="{{ '%g'|format(c.coin_max_pct) }}" inputmode="decimal"></label>
       <label>Строк дії, днів<input name="coin_days" value="{{ c.coin_days }}" inputmode="numeric"></label>
-      <label>Нарахувати на N-й день після закриття<input name="coin_wait_days" value="{{ c.coin_wait_days }}" inputmode="numeric"></label></div>
+      <label>Нарахувати на N-й день після закриття<input name="coin_wait_days" value="{{ c.coin_wait_days }}" inputmode="numeric"></label>
+      <label>За відгук про товар, Coins<input name="coin_review" value="{{ c.coin_review if c.coin_review is defined else 25 }}" inputmode="numeric"></label></div>
     <div class="small muted" style="margin-top:4px">Акційні товари не беруть участі ні в нарахуванні, ні в ліміті знижки. Коїни за замовлення зʼявляються після статусу «Закрито» або «Отримано». Скасування чи повернення повертає списані коїни й знімає нараховані.</div></div>
   <p class="small"><a href="/settings/shop/integrations">Інтеграції: GTM, GA4, Google Ads, Meta, фіди Google Shopping / Facebook / Hotline, llms.txt, кукі, захист від спаму →</a></p>
   <label>Рухомий рядок угорі сайту<textarea name="ticker" rows="4">{{ c.ticker }}</textarea><span class="small muted">Кожен рядок — окреме повідомлення; вони рухаються по колу. Порожньо — показується «Смуга над шапкою».</span></label>

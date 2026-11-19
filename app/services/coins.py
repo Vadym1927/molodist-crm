@@ -17,8 +17,8 @@ from ..models import BonusTxn, CoinTxn, ShopCoin, SiteOrder
 
 LABELS = {"welcome": "За реєстрацію", "ref_inviter": "За запрошеного друга", "ref_friend": "Бонус за запрошенням друга", "accrual": "За покупку",
           "spend": "Знижка MOLODIST Coins", "restore": "Повернено MOLODIST Coins", "reverse": "Скасовано нарахування", "expire": "Згоріли", "manual": "Нараховано вручну",
-          "import": "Стартовий залишок", "birthday": "До дня народження"}
-DEFAULT = {"coin_on": True, "coin_spend_on": False, "coin_start": "", "coin_earn_pct": 3.0, "coin_max_pct": 10.0, "coin_days": 180, "coin_wait_days": 3}
+          "import": "Стартовий залишок", "birthday": "До дня народження", "review": "За відгук про товар"}
+DEFAULT = {"coin_on": True, "coin_spend_on": False, "coin_start": "", "coin_earn_pct": 3.0, "coin_max_pct": 10.0, "coin_days": 180, "coin_wait_days": 3, "coin_review": 25}
 CLOSED = ("Закрито", "Отримано")
 LOST = ("Скасовано", "Повернення", "Фейкове")
 
