@@ -24,7 +24,7 @@
   <fieldset class="h-topics" data-pick="topic"><legend>Що вас цікавить</legend>
     {% for t in ['Beauty Plan', 'Зморшки й вікові зміни', 'Акне й постакне', 'Пігментація й судини', 'Лазерна епіляція', 'Видалення новоутворень', 'Масаж', 'Інше'] %}<button type="button" aria-pressed="false"><i>{{ ic('check') }}</i><span>{{ t }}</span></button>{% endfor %}</fieldset>
   <fieldset class="h-seg" data-pick="channel"><legend>Як зручніше звʼязатися</legend>
-    {% for t, n in [('Дзвінок', 'phone'), ('Telegram', 'tg'), ('Viber', 'viber')] %}<button type="button" aria-pressed="{{ 'true' if loop.first else 'false' }}" data-val="{{ t }}">{{ ic(n) }}<span>{{ t }}</span></button>{% endfor %}</fieldset>
+    {% for t, n in [('Дзвінок', 'phone'), ('Telegram', 'telegram'), ('Viber', 'viber')] %}<button type="button" aria-pressed="{{ 'true' if loop.first else 'false' }}" data-val="{{ t }}"><i class="bi">{{ icon(n) }}</i><span>{{ t }}</span></button>{% endfor %}</fieldset>
   <button class="btn">{{ btn }}</button>
   <p class="ok" hidden>Дякуємо! Адміністратор звʼяжеться з вами в робочий час.</p>
   <p class="err" hidden></p>
@@ -44,8 +44,8 @@
   </div>
   <div class="h-tabp" id="{{ uid }}-c" role="tabpanel">
     {% if rich %}<div class="h-cgrid rich">{% for x in concerns %}<a class="h-ccard pic" href="#zapys" data-interest="{{ x.interest }}">
-      {% if x.ba %}<span class="h-ba"><span><img src="{{ st(x.ba[0]) }}" alt="{{ x.t }} — до" loading="lazy"><em>До</em></span><span><img src="{{ st(x.ba[1]) }}" alt="{{ x.t }} — після" loading="lazy"><em>Після</em></span></span>
-      {% elif x.img %}<span class="h-cimg"><img src="{{ st(x.img) }}" alt="{{ x.t }}" loading="lazy"></span>
+      {% if x.ba %}<span class="h-ba {{ 'v' if x.ba_v }}"><span><img src="{{ st(x.ba[0]) }}" alt="{{ x.t }} — до" loading="lazy"><em>До</em></span><span><img src="{{ st(x.ba[1]) }}" alt="{{ x.t }} — після" loading="lazy"><em>Після</em></span></span>
+      {% elif x.img_url %}<span class="h-cimg"><img src="{{ x.img_url }}" alt="{{ x.t }}" loading="lazy"></span>
       {% else %}<span class="h-cimg none"><b>0{{ loop.index }}</b><small>{{ x.t }}</small></span>{% endif %}
       <span class="h-cb"><b>{{ x.t }}</b><small>{{ x.d }}</small><span class="how">{{ x.how }}</span></span><i>{{ arrow() }}</i></a>{% endfor %}</div>
     <p class="h-note">Фото «до / після» опубліковано за згодою пацієнтів. Результат індивідуальний і залежить від стану шкіри.</p>
@@ -92,15 +92,13 @@
 {% endif %}
 
 {# ---------- бургер-меню ---------- #}
-<div class="h-menu" id="h-menu" hidden><div class="h-menu-in">
-  <div class="h-menu-hd"><span></span><img class="wm" src="/static/site/brand/wordmark-white.svg" alt="MOLODIST" width="200" height="24"><button aria-label="Закрити меню" data-menu-close>×</button></div>
-  <div class="h-menu-cols">
-    <nav class="h-menu-nav"><p class="lbl">Розділи</p>{% for t, h in menu %}<a href="{{ h }}" data-menu-close>{{ t }}</a>{% endfor %}</nav>
-    <div class="h-menu-sub"><p class="lbl">Напрямки</p>{% for x in concerns %}<span>{{ x.t }}</span>{% endfor %}
-      <a class="shop" href="{{ shop.url }}" target="_blank" rel="noopener">{{ ic('bag') }}Магазин косметики</a></div>
-  </div>
+<div class="h-menu side" id="h-menu" hidden><div class="h-menu-in">
+  <div class="h-menu-hd"><img class="wm" src="/static/site/brand/wordmark-white.svg" alt="MOLODIST" width="170" height="20"><button aria-label="Закрити меню" data-menu-close>×</button></div>
+  <nav class="h-menu-nav">{% for t, h in menu %}<a href="{{ h }}" data-menu-close>{{ t }}</a>{% endfor %}
+    <details class="h-macc"><summary>Напрямки</summary><div>{% for x in concerns %}<span>{{ x.t }}</span>{% endfor %}</div></details></nav>
+  <a class="h-mshop" href="{{ shop.url }}" target="_blank" rel="noopener">{{ ic('bag') }}Магазин косметики</a>
   <div class="h-menu-ft"><a class="btn" href="{{ zap }}" data-menu-close>Записатися</a>
-    <p><a href="tel:{{ c.phone }}">{{ c.phone_text }}</a> · {{ c.hours }}<br>{{ c.address }}</p>
+    <p><a href="tel:{{ c.phone }}">{{ c.phone_text }}</a><br>{{ c.hours }}<br>{{ c.address }}</p>
     <p class="ico-row"><a class="ico" href="{{ c.telegram }}" target="_blank" rel="noopener" aria-label="Telegram">{{ icon('telegram') }}</a><a class="ico" href="{{ viber }}" aria-label="Viber">{{ icon('viber') }}</a><a class="ico" href="{{ c.instagram }}" target="_blank" rel="noopener" aria-label="Instagram">{{ icon('instagram') }}</a></p></div>
 </div></div>
 
@@ -165,7 +163,7 @@
 {% elif sec == 'doctors' %}
   <section class="sec h-sec h-docs" id="likari"><div class="wrap">
     <div class="h-shd"><h2>Лікарі MOLODIST</h2><p>Ви знаєте, хто саме вас прийматиме, ще до візиту — і записуєтеся до конкретного лікаря.</p></div>
-    <div class="h-dgrid">{% for d in team %}<article class="h-dcard">{{ ph(d) }}
+    <div class="h-dgrid">{% for d in team %}<article class="h-dcard {{ ('fx-' ~ d.fx) if d.fx }}">{{ ph(d) }}
       <h3>{{ d.name }}</h3><p class="role">{{ d.role }}</p>{% if d.bio %}<p class="bio">{{ d.bio }}</p>{% endif %}
       <a class="h-ghost" href="{{ (base ~ '/zapys?doctor=' ~ d.id) if (ob_on and d.id) else '#zapys' }}" data-doc="{{ d.name }}">{{ 'Обрати час онлайн' if (ob_on and d.id) else 'Записатися до лікаря' }} {{ arrow() }}</a></article>{% endfor %}</div>
   </div></section>
@@ -208,7 +206,7 @@
       <ul class="h-gets dk">{% for g in shop.points %}<li>{{ g }}</li>{% endfor %}</ul>
       <p class="h-btns"><a class="btn" href="{{ shop.url }}" target="_blank" rel="noopener">{{ shop.btn }}</a></p></div>
     <div class="h-scol">{% for n in shop.imgs %}<img src="{{ st(n) }}" alt="Професійна косметика в MOLODIST" loading="lazy">{% endfor %}</div>
-  </div>{% if products %}<div class="wrap"><div class="h-shd row h-pshd"><div><h3>Хіти магазину</h3></div><a class="h-ghost" href="{{ shop.url }}" target="_blank" rel="noopener">Увесь каталог {{ arrow() }}</a></div>
+  </div>{% if products %}<div class="wrap"><div class="h-shd row h-pshd"><div><h3>Хіти магазину</h3></div><a class="btn sm" href="{{ shop.url }}" target="_blank" rel="noopener">Увесь каталог</a></div>
     <div class="h-prods">{% for i in products %}<article class="h-pc">
     <a class="pc-img" href="{{ shop_base }}/shop/{{ i.slug }}/" target="_blank" rel="noopener"><img src="{{ shop_base }}/img/{{ i.imgs[0] }}?w=600" alt="{{ i.name }}" loading="lazy" width="600" height="600">{% if i.pct %}<em class="bdg sale">−{{ i.pct }}%</em>{% elif i.tip %}<em class="bdg">Рекомендує лікар</em>{% endif %}</a>
     <div class="pc-b">{% if i.brand %}<span class="pc-br">{{ i.brand }}</span>{% endif %}<a class="pc-n" href="{{ shop_base }}/shop/{{ i.slug }}/" target="_blank" rel="noopener">{{ i.name }}</a>
@@ -259,7 +257,7 @@
 
 {# ---------- плаваючі кнопки: звʼязок і «вгору» ---------- #}
 <div class="h-fab" data-fab>
-  <div class="h-fab-list" hidden><a href="#zapys" data-fab-close>{{ ic('form') }}<span>Залишити заявку</span></a>{% if ob_on %}<a href="{{ base }}/zapys">{{ ic('cal') }}<span>Онлайн-запис</span></a>{% endif %}<a href="tel:{{ c.phone }}" aria-label="Подзвонити">{{ icon('phone') }}<span>Подзвонити</span></a><a href="{{ c.telegram }}" target="_blank" rel="noopener" aria-label="Telegram">{{ icon('telegram') }}<span>Telegram</span></a><a href="{{ viber }}" aria-label="Viber">{{ icon('viber') }}<span>Viber</span></a></div>
+  <div class="h-fab-list" hidden><a href="#zapys" data-fab-close><i class="tile">{{ ic('form') }}</i><span>Залишити заявку</span></a>{% if ob_on %}<a href="{{ base }}/zapys"><i class="tile cal">{{ ic('cal') }}</i><span>Онлайн-запис</span></a>{% endif %}<a href="tel:{{ c.phone }}" aria-label="Подзвонити">{{ icon('phone') }}<span>Подзвонити</span></a><a href="{{ c.telegram }}" target="_blank" rel="noopener" aria-label="Telegram">{{ icon('telegram') }}<span>Telegram</span></a><a href="{{ viber }}" aria-label="Viber">{{ icon('viber') }}<span>Viber</span></a></div>
   <button class="h-fab-btn" aria-label="Звʼязатися з нами" aria-expanded="false"><span class="pulse" aria-hidden="true"></span><span class="pulse p2" aria-hidden="true"></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v9a1.5 1.5 0 0 1-1.5 1.5H10l-4.5 4v-4h0A1.5 1.5 0 0 1 4 14.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></button>
 </div>
 <a class="h-up" href="#top" aria-label="Вгору" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></a>

@@ -73,17 +73,17 @@ FACTS = [("Лише лікарі", "Процедури проводять фах
 # ba — пара «до / після» (файли в static/site/home), img — одне фото; interest — що підставити у форму запису
 CONCERNS = [
     {"t": "Зморшки й вікові зміни", "d": "Мімічні зморшки, втрата обʼєму й чіткості овалу", "slug": "inyekczijna-kosmetologiya",
-     "how": "Ботулінотерапія, контурна пластика, біоревіталізація", "ba": ["ba-wrinkles-1.webp", "ba-wrinkles-2.webp"], "interest": "Зморшки й вікові зміни"},
+     "how": "Ботулінотерапія, контурна пластика, біоревіталізація", "ba": ["ba-wrinkles-1.webp", "ba-wrinkles-2.webp"], "ba_v": True, "interest": "Зморшки й вікові зміни"},
     {"t": "Акне й постакне", "d": "Висипання, сліди й рубці після них", "slug": "beautyplan",
      "how": "BEAUTY PLAN Anti Acne: лікування, догляд, процедури", "ba": ["ba-acne-1.webp", "ba-acne-2.webp"], "interest": "Акне й постакне"},
     {"t": "Пігментація й судини", "d": "Плями, почервоніння, нерівний тон", "slug": "",
-     "how": "IPL-терапія, пілінги, домашній догляд", "ba": ["ba-pigment-1.webp", "ba-pigment-2.webp"], "interest": "Пігментація й судини"},
+     "how": "IPL-терапія, пілінги, домашній догляд", "ba": ["ba-pigment-1.webp", "ba-pigment-2.webp"], "ba_v": True, "interest": "Пігментація й судини"},
     {"t": "Тьмяна, зневоднена шкіра", "d": "Сухість, втома, розширені пори", "slug": "",
      "how": "Очищення, доглядові процедури, біоревіталізація", "img": "c-skin.webp", "interest": "Якість шкіри"},
     {"t": "Небажане волосся", "d": "Подразнення й вросле волосся після гоління", "slug": "laserepilation",
      "how": "Лазерна епіляція гібридним лазером", "img": "c-laser.webp", "interest": "Лазерна епіляція"},
     {"t": "Родимки й новоутворення", "d": "Хочете перевірити або видалити", "slug": "vydalennia-rodymok",
-     "how": "Дерматоскопія й видалення доброякісних новоутворень", "interest": "Видалення новоутворень"},
+     "how": "Дерматоскопія й видалення доброякісних новоутворень", "media": ["derma-2.webp", "derma-hero.webp"], "interest": "Видалення новоутворень"},
     {"t": "Напруга, набряки, втома", "d": "Хочеться розслабити мʼязи обличчя й тіла", "slug": "",
      "how": "Масаж обличчя й тіла, апаратні методики", "img": "c-massage.webp", "interest": "Масаж"},
     {"t": "Не знаю, з чого почати", "d": "Запитів кілька або процедури не дали результату", "slug": "beautyplan",
@@ -232,7 +232,11 @@ def data(db: Session, base: str, ver: str) -> dict:
                 products += [i for i in pool if i not in products][:8 - len(products)]
     except Exception:  # noqa: BLE001
         products = []
-    return {"cats": cats, "team": team, "rev": rev, "dirs": pages, "plan_price": plan_price, "ob": c, "directions": directions,
+    concerns = [{**x, "img_url": (_first_media(x["media"], base) if x.get("media") else "") or (st(x["img"]) if x.get("img") else "")} for x in CONCERNS]
+    for d_ in team:                                 # квадратні портрети в картці 4:5 — обличчя на одній висоті
+        low = (d_.get("name") or "").lower()
+        d_["fx"] = "ch" if "чугунова" in low else ("sy" if "сирова" in low else "")
+    return {"cats": cats, "team": team, "rev": rev, "dirs": pages, "plan_price": plan_price, "ob": c, "directions": directions, "concerns": concerns,
             "insta": insta, "insta_p": insta_p, "products": products, "shop_base": shop_base, "st": st,
             "legal": {"name": LEGAL_NAME, "code": (sp.cfg(db).get("legal_code") or sp.DEFAULT["legal_code"]).strip()},
             "img": {"hero": _first_media(["home-hero.webp"], base) or st("hero.webp"),

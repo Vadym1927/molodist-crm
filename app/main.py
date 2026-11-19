@@ -9071,9 +9071,9 @@ def site_proto(request: Request, variant: str = "", db: Session = Depends(db_dep
     elif vk not in sh.VARIANTS:
         raise HTTPException(404)
     else:
-        ctx.update(sh.data(db, ctx["base"], ctx["ver"]))
-        ctx.update(vk=vk, v=sh.VARIANTS[vk], menu=sh.MENU, facts=sh.FACTS, concerns=sh.CONCERNS, plan=sh.PLAN, space=sh.SPACE, shop=sh.SHOP,
+        ctx.update(vk=vk, v=sh.VARIANTS[vk], menu=sh.MENU, facts=sh.FACTS, plan=sh.PLAN, space=sh.SPACE, shop=sh.SHOP,
                    insta_t=sh.INSTA, faq=sh.faq(ctx["c"]), faq_ld=sh.faq_jsonld(ctx["c"]), title=sh.SEO["title"], desc=sh.SEO["desc"])
+        ctx.update(sh.data(db, ctx["base"], ctx["ver"]))
         r = _site_resp("site/proto_home.html", ctx)
     r.headers["Cache-Control"] = "no-store"
     return r
