@@ -193,12 +193,28 @@ def fix_report(db: Session, supplier: str, d_from: date, d_to: date, user_id: in
     return rep
 
 
+def add_debt(db: Session, supplier: str, amount: float, day: date, note: str, user_id: int | None = None) -> ConsignReport:
+    """Борг за даними постачальника, якого немає в продажах CRM (недоплати / знижки, які постачальник не визнає).
+    Окремий зафіксований звіт без банок — потрапляє в «до оплати» й закривається оплатою, як звичайний звіт."""
+    amount = round(float(amount), 2)
+    if amount <= 0:
+        raise ValueError("Сума боргу має бути більше нуля")
+    note = (note or "Борг за даними постачальника").strip()[:300]
+    ln = {"pid": None, "name": note, "qty": 0, "sum": amount, "short": 0,
+          "alloc": [{"lot": None, "invoice": None, "date": day.isoformat(), "qty": 0, "cost": 0, "sum": amount}]}
+    rep = ConsignReport(supplier=supplier, d_from=day, d_to=day, status="fixed", lines=[ln], total=amount, paid=0.0,
+                        note=note, created_by=user_id)
+    db.add(rep)
+    db.commit()
+    return rep
+
+
 def cancel_report(db: Session, rep: ConsignReport) -> None:
     if rep.paid > 0.009:
         raise ValueError("За звітом уже є оплата — спершу скасуйте оплату")
     for ln in rep.lines or []:
         for a in ln.get("alloc", []):
-            lot = db.get(ConsignLot, a["lot"])
+            lot = db.get(ConsignLot, a["lot"]) if a.get("lot") else None
             if lot:
                 lot.sold = round(max((lot.sold or 0) - a["qty"], 0), 3)
     rep.status = "cancelled"

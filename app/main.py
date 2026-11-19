@@ -5663,6 +5663,18 @@ def consign_fix(s: str = Form(...), df: str = Form(...), dt: str = Form(...), us
     return RedirectResponse(_with_msg(f"/stock/consign?s={quote(s)}&r={rep.id}", f"Звіт реалізації зафіксовано: {rep.total:,.2f} ₴".replace(",", " ")), 303)
 
 
+@app.post("/stock/consign/debt")
+def consign_debt(s: str = Form(...), amount: str = Form(...), day: str = Form(""), note: str = Form(""),
+                 user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import consign as cs
+    try:
+        rep = cs.add_debt(db, s, float(str(amount).replace(" ", "").replace(",", ".") or 0), _day(day) or date.today(), note, user.id)
+    except ValueError as e:
+        return RedirectResponse(_with_msg(f"/stock/consign?s={quote(s)}", str(e), err=True), 303)
+    audit(db, "consign.debt", "consign_report", rep.id, user=user, supplier=s, total=rep.total)
+    return RedirectResponse(_with_msg(f"/stock/consign?s={quote(s)}", f"Борг додано: {rep.total:,.2f} ₴".replace(",", " ")), 303)
+
+
 @app.post("/stock/consign/report/{rid:int}/cancel")
 def consign_cancel(rid: int, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     from .services import consign as cs

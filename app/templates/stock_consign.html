@@ -67,6 +67,12 @@
   <div style="margin-top:10px"><a class="btn ghost" href="/stock/consign/export?s={{ sel|urlencode }}&r={{ rep.id }}">⬇ Excel</a></div></div>
 {% endif %}
 
+<details class="cs-c" style="margin-bottom:12px"><summary><b>Борг за даними постачальника</b> <span class="small muted">недоплати / знижки, яких немає в продажах CRM</span></summary>
+  <form class="frm" method="post" action="/stock/consign/debt" style="margin-top:8px" onsubmit="return confirm('Додати борг постачальнику {{ sel }}? Сума піде в «До оплати».')"><input type="hidden" name="s" value="{{ sel }}">
+    <label>Сума, ₴<input name="amount" inputmode="decimal" required style="width:130px"></label>
+    <label>Дата<input type="date" name="day" value="{{ v.today.isoformat() }}"></label>
+    <label style="flex:1;min-width:240px">За що<input name="note" maxlength="300" placeholder="напр. недоплати за поставками (знижки), за таблицею постачальника"></label>
+    <button class="btn">Додати борг</button></form></details>
 <div class="cs-c" id="pays"><h3>Оплата постачальнику</h3>
   <form class="frm" method="post" action="/stock/consign/pay"><input type="hidden" name="s" value="{{ sel }}">
     <label>Сума, ₴<input name="amount" inputmode="decimal" value="{{ ('%.2f' % v.to_pay) if v.to_pay > 0 else '' }}" required style="width:130px"></label>

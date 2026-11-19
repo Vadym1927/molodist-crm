@@ -140,3 +140,15 @@ def test_invoice_view_and_items_upload(tmp_path):
         assert r.status_code == 303
         page = c.get(f"/stock/invoices/{iid}").text
         assert "SOOTH CREAM 50 мл" in page and "5 044,00" in page
+
+
+def test_supplier_debt_report():
+    with SessionLocal() as db:
+        db.add(Supplier(name="КОНС БОРГ", consignment=True)); db.commit()
+        rep = cs.add_debt(db, "КОНС БОРГ", 2479.35, date(2026, 11, 19), "Недоплати (знижки) за таблицею постачальника")
+        assert cs.overview(db, "КОНС БОРГ")["to_pay"] == 2479.35
+        p = cs.pay(db, "КОНС БОРГ", 1000, date(2026, 11, 20))
+        assert db.get(ConsignReport, rep.id).paid == 1000 and cs.overview(db, "КОНС БОРГ")["to_pay"] == 1479.35
+        cs.cancel_pay(db, p)
+        cs.cancel_report(db, db.get(ConsignReport, rep.id))
+        assert cs.overview(db, "КОНС БОРГ")["to_pay"] == 0
