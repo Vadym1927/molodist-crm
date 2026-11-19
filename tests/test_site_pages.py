@@ -132,9 +132,18 @@ def test_site_lead_alert_text():
     from app.services import site_leads as sl
     t = sl.alert_text({"name": "Наталія", "phone": "+380931112233", "interest": "Інʼєкційна косметологія",
                        "page": "https://new.molodist.com.ua/injection?utm_source=google&gclid=x"}, 42, "https://crm.molodist.com.ua/")
-    assert "Наталія" in t and "+380931112233" in t
-    assert "https://new.molodist.com.ua/injection" in t and "gclid" not in t
-    assert t.endswith("https://crm.molodist.com.ua/appeals/42")
+    assert "Наталія" in t and "+380 93 111 22 33" in t
+    assert "new.molodist.com.ua/injection" in t and "gclid" not in t
+    assert 'href="https://crm.molodist.com.ua/appeals/42"' in t
+    t = sl.alert_text({"name": "ТЕСТ", "phone": "+380731247400", "interest": "Видалення новоутворень · звʼязок: Telegram",
+                       "page": "https://molodist.com.ua/", "gclid": "abc", "utm_campaign": "Родимки",
+                       "device": sl.device("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile/15E148")}, 95, "https://crm")
+    assert "Запит: <b>Видалення новоутворень</b>" in t and "Звʼязатися: <b>Telegram</b>" in t
+    assert "РЕКЛАМА" in t and "Google Ads" in t and "Родимки" in t and "телефон (iPhone)" in t and "(головна)" in t
+    t = sl.alert_text({"name": "А", "phone": "+380731247400", "ref": "https://www.google.com/",
+                       "device": sl.device("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130")}, 1, "https://crm")
+    assert "Не реклама · пошук Google" in t and "компʼютер (Windows)" in t and "💻" in t
+    assert "прямий захід" in sl.alert_text({"name": "А", "phone": "+380731247400"}, 1, "")
 
 
 def test_site_lead_notify_chat(monkeypatch):

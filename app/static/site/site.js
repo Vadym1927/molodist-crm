@@ -8,6 +8,7 @@
     ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'gclid'].forEach(function (k) { var v = q.get(k); if (v) { m[k] = v; any = true; } });
     if (any) localStorage.setItem(K, JSON.stringify({ m: m, t: Date.now(), ref: document.referrer }));
   } catch (e) {}
+  try { if (sessionStorage.getItem('mlds_ref') === null) sessionStorage.setItem('mlds_ref', document.referrer || ''); } catch (e) {}
   function saved() {
     var s = {}; try { var x = JSON.parse(localStorage.getItem(K) || 'null'); if (x && Date.now() - x.t < 90 * 864e5) s = x.m; } catch (e) {}
     if (!s.gclid) { var g = ck('_gcl_aw').split('.'); if (g.length > 2) s.gclid = g.slice(2).join('.'); }
@@ -46,7 +47,8 @@
       if (p.length !== 12 || p.indexOf('380') !== 0) { er.textContent = 'Перевірте номер телефону: +380 і 9 цифр.'; er.hidden = false; tel.focus(); return; }
       var d = saved(); d.name = (f.name && f.name.value || '').trim(); d.phone = '+' + p; d.interest = M.interest || '';
       d.formname = (M.slug || 'home') + ':' + f.getAttribute('data-lead'); d.page = location.href; d.website = f.website ? f.website.value : '';
-      d.doctor = f.getAttribute('data-doctor') || ''; d.t = Math.round((Date.now() - T0) / 1000);
+      d.doctor = f.getAttribute('data-doctor') || '';
+      try { d.ref = sessionStorage.getItem('mlds_ref') || document.referrer || ''; } catch (e) { d.ref = document.referrer || ''; } d.t = Math.round((Date.now() - T0) / 1000);
       bt.disabled = true;
       post('/api/lead', d, function (j) {
         bt.disabled = false;

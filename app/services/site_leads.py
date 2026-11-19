@@ -34,7 +34,7 @@ NAME_KEYS = ("name", "імя", "імʼя", "ім'я", "имя", "fio", "піб",
 PHONE_KEYS = ("phone", "tel", "телефон", "mobile", "your-phone", "phone_number")
 MSG_KEYS = ("textarea", "message", "comment", "comments", "коментар", "повідомлення", "питання", "question", "text", "your-message")
 INTEREST_KEYS = ("service", "послуга", "procedure", "процедура", "interest", "direction", "напрямок")
-SKIP = {"formid", "formname", "tranid", "cookies", "test", "page", "referer", "referrer", "url", "ga_client_id", "client_id", "form", "hook"}
+SKIP = {"device", "ref", "ua", "cid", "formid", "formname", "tranid", "cookies", "test", "page", "referer", "referrer", "url", "ga_client_id", "client_id", "form", "hook"}
 
 
 def cfg(db: Session) -> dict:
@@ -130,6 +130,10 @@ def ingest(db: Session, d: dict, origin: str = "") -> dict:
         lines.append(msg[:1500])
     for k, v in list(extra.items())[:12]:
         lines.append(f"{k}: {str(v)[:200]}")
+    if d.get("device"):
+        lines.append(f"Пристрій: {str(d['device'])[:60]}")
+    paid_, src_ = traffic(d)
+    lines.append(("Реклама: " if paid_ else "Джерело: ") + src_)
     if page:
         lines.append(f"Сторінка: {page.split('?')[0]}")
     text = "\n".join(lines)
@@ -151,19 +155,79 @@ def ingest(db: Session, d: dict, origin: str = "") -> dict:
     return {"ok": True, "appeal_id": a.id}
 
 
+def device(ua: str) -> str:
+    """Пристрій за User-Agent: «телефон (iPhone)», «комп’ютер (Windows)» тощо."""
+    u = (ua or "").lower()
+    if not u:
+        return ""
+    os_ = next((n for k, n in (("iphone", "iPhone"), ("ipad", "iPad"), ("android", "Android"), ("windows", "Windows"),
+                               ("mac os", "Mac"), ("cros", "Chromebook"), ("linux", "Linux")) if k in u), "")
+    if "ipad" in u or ("android" in u and "mobile" not in u) or "tablet" in u:
+        kind = "планшет"
+    elif "mobi" in u or "iphone" in u:
+        kind = "телефон"
+    else:
+        kind = "компʼютер"
+    return f"{kind} ({os_})" if os_ else kind
+
+
+def traffic(d: dict) -> tuple[bool, str]:
+    """(реклама?, звідки): мітки utm / gclid, інакше сайт, з якого прийшли."""
+    low = {k.lower(): str(v or "").strip() for k, v in d.items()}
+    src, med, camp, gclid = low.get("utm_source"), low.get("utm_medium"), low.get("utm_campaign"), low.get("gclid")
+    paid = is_paid(src, med, gclid) or med in ("cpc", "ppc", "paid", "paid_social", "cpm")
+    if paid:
+        who = "Google Ads" if (gclid or "google" in (src or "")) else (src or "реклама")
+        if "facebook" in (src or "") or "instagram" in (src or "") or src in ("fb", "ig", "meta"):
+            who = "Meta (Facebook / Instagram)"
+        return True, who + (f" · кампанія «{camp}»" if camp else "")
+    if src:
+        return False, f"мітка {src}" + (f" / {med}" if med else "") + (f" · «{camp}»" if camp else "")
+    ref = (low.get("ref") or "").lower()
+    host = urlparse(ref).netloc.replace("www.", "") if ref else ""
+    if not host or "molodist" in host:
+        return False, "прямий захід (набрали адресу, закладка або месенджер)"
+    for k, n in (("google", "пошук Google"), ("bing", "пошук Bing"), ("instagram", "Instagram"), ("facebook", "Facebook"),
+                 ("t.me", "Telegram"), ("telegram", "Telegram"), ("tiktok", "TikTok"), ("youtube", "YouTube")):
+        if k in host:
+            return False, n
+    return False, host
+
+
+def _fmt_phone(p: str) -> str:
+    d = re.sub(r"\D", "", p or "")
+    return f"+{d[:3]} {d[3:5]} {d[5:8]} {d[8:10]} {d[10:12]}" if len(d) == 12 else (p or "")
+
+
 def alert_text(d: dict, appeal_id, base: str) -> str:
-    """Telegram власнику: імʼя, телефон, сторінка (без utm), посилання на звернення."""
+    """Telegram у чат заявок: хто, як звʼязатися, що цікавить, реклама чи ні, пристрій, сторінка, посилання на звернення."""
+    from html import escape as _e
     name, phone = _pick(d, NAME_KEYS)[:100], _pick(d, PHONE_KEYS)[:40]
     page = str(d.get("page") or d.get("url") or d.get("referer") or "").strip().split("?")[0].split("#")[0][:300]
-    interest = _pick(d, INTEREST_KEYS)[:100]
-    from html import escape as _e
+    raw = _pick(d, INTEREST_KEYS)[:200]
+    parts = [x.strip() for x in raw.split(" · ") if x.strip()]
+    channel = next((x.split(":", 1)[1].strip() for x in parts if x.lower().startswith("звʼязок:") or x.lower().startswith("зв'язок:")), "")
+    topic = ", ".join(x for x in parts if not x.lower().startswith(("звʼязок:", "зв'язок:")))
+    doctor = str(d.get("doctor") or "").strip()[:100]
+    paid, src = traffic(d)
+    dev = str(d.get("device") or "").strip()[:60]
     b = (base or "").rstrip("/")
-    lines = [f"📝 Заявка з сайту{(' · ' + _e(interest)) if interest else ''}",
-             f"👤 {_e(name) or 'без імені'}", f"📞 {_e(phone) or '—'}"]
+    L = ["📝 <b>Нова заявка з сайту</b>", "",
+         f"👤 <b>{_e(name) or 'без імені'}</b>",
+         f"📞 {_e(_fmt_phone(phone)) or '—'}",
+         f"💬 Звʼязатися: <b>{_e(channel) if channel else 'дзвінок (не вказано)'}</b>", ""]
+    if topic:
+        L.append(f"🎯 Запит: <b>{_e(topic)}</b>")
+    if doctor:
+        L.append(f"👩‍⚕️ Лікар: {_e(doctor)}")
+    L.append(("💰 <b>РЕКЛАМА</b> · " if paid else "🌱 Не реклама · ") + _e(src))
+    if dev:
+        L.append(f"{'📱' if not dev.startswith('компʼютер') else '💻'} Пристрій: {_e(dev)}")
     if page:
-        lines.append(f"🌐 {_e(page)}")
-    lines.append(f"{b}/appeals/{appeal_id}" if appeal_id else f"{b}/appeals")
-    return "\n".join(lines)
+        pth = urlparse(page).path or "/"
+        L.append(f"🌐 Сторінка: {_e(urlparse(page).netloc.replace('www.', '') + pth)}" + (" (головна)" if pth in ("", "/") else ""))
+    L += ["", f"➡️ <a href=\"{b}/appeals/{appeal_id}\">Відкрити звернення №{appeal_id}</a>" if appeal_id else f"{b}/appeals"]
+    return "\n".join(L)
 
 
 def set_chat(db: Session, chat: str | None) -> None:
