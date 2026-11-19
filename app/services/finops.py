@@ -16,7 +16,7 @@ EXPENSE_CATS = ["Зарплата", "Оренда", "Комунальні пос
                 "Податки й збори", "Банк і еквайринг", "Обладнання й ремонт", "Навчання", "Господарські витрати", "Інше"]
 INCOME_CATS = ["Внесення в касу", "Повернення від постачальника", "Інше надходження"]
 NON_MONEY = ("бонус", "баланс", "депозит", "сертиф", "абонем", "подар")      # оплата не грошима
-ITEM_TYPES = {"service": "Послуги", "product": "Товари", "certificate": "Сертифікати", "subscription": "Абонементи"}
+ITEM_TYPES = {"service": "Послуги", "product": "Товари", "certificate": "Сертифікати", "subscription": "Абонементи", "topup": "Поповнення балансу"}
 
 
 
@@ -216,16 +216,19 @@ def sales_summary(cs: list[Check]) -> dict:
 
 class CrmCheck:
     """Продаж каси CRM у вигляді чека CleverBox — щоб рахувати разом у «Продажі за день / Продажі»."""
-    def __init__(self, sale, docs: dict, users: dict):
+    def __init__(self, sale, docs: dict, users: dict, revenue: bool = False):
         self.sale, self.crm = sale, True
         self.id, self.date, self.amount, self.discount = f"Ч-{sale.id}", sale.at, sale.total, sale.discount
         self.patient_id, self.author, self.deleted = sale.patient_id, users.get(sale.created_by, ""), False
+        its = [i for i in sale.items if not (revenue and i.kind == "topup")]      # поповнення балансу — аванс, не виручка
+        if revenue:
+            self.amount = round(float(sale.total or 0) - sum(float(i.total or 0) for i in sale.items if i.kind == "topup"), 2)
         self.items = [{"item_type": i.kind if i.kind in ITEM_TYPES else "other", "item_name": i.name, "payd_amount": i.total,
-                       "quantity": i.qty, "initiator_name": docs.get(i.doctor_id) or users.get(sale.created_by, "")} for i in sale.items]
+                       "quantity": i.qty, "initiator_name": docs.get(i.doctor_id) or users.get(sale.created_by, "")} for i in its]
         self.payments = [{"payment_name": p.method, "amount": p.amount} for p in sale.payments]
 
 
-def crm_checks(db: Session, d_from: date, d_to: date, paid_only: bool = True) -> list:
+def crm_checks(db: Session, d_from: date, d_to: date, paid_only: bool = True, revenue: bool = False) -> list:
     from ..models import Sale, User
     a, b = _range(d_from, d_to)
     q = select(Sale).where(Sale.at >= a, Sale.at <= b)
@@ -233,7 +236,8 @@ def crm_checks(db: Session, d_from: date, d_to: date, paid_only: bool = True) ->
         q = q.where(Sale.status == "paid")
     docs = {d.id: d.name for d in db.scalars(select(Doctor))}
     users = {u.id: u.name for u in db.scalars(select(User))}
-    return [CrmCheck(s, docs, users) for s in db.scalars(q.order_by(Sale.at.desc()))]
+    out = [CrmCheck(s, docs, users, revenue) for s in db.scalars(q.order_by(Sale.at.desc()))]
+    return [c for c in out if c.items or c.amount] if revenue else out
 
 
 def revenue_checks(db: Session, a: datetime, b: datetime) -> list:
@@ -244,7 +248,7 @@ def revenue_checks(db: Session, a: datetime, b: datetime) -> list:
     if s:
         a2 = max(a, datetime.combine(s, datetime.min.time()))
         if a2 <= b:
-            out += crm_checks(db, a2.date(), b.date())
+            out += crm_checks(db, a2.date(), b.date(), revenue=True)
     return out
 
 

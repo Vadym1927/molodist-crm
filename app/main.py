@@ -2556,6 +2556,7 @@ def _term_done(db: Session, s_, method: str, result: dict, user) -> dict:
     if s_.status == "awaiting" and not wait and not open_links:
         s_.status = "paid"
         db.commit()
+        __import__("app.services.sales", fromlist=["x"]).apply_topup(db, s_)   # чек «Поповнення балансу» — гроші на рахунок пацієнта
         audit(db, "sale.terminal_paid", "sale", s_.id, user=user, method=method, rrn=result.get("rrn"))
         rro_ = f.get("rro_pending")
         if rro_ and not f.get("fiscal_code"):

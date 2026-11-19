@@ -324,6 +324,8 @@ def _book(db: Session, pl: PayLink) -> None:
             others = db.query(PayLink).filter(PayLink.sale_id == s.id, PayLink.id != pl.id, PayLink.status != "paid").count()
             if not others:
                 s.status = "paid"
+                from .sales import apply_topup
+                apply_topup(db, s)
         paid_alert(db, pl)
         return
     d = _raw(db)

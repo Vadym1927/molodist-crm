@@ -54,6 +54,8 @@ def method_kind(m: str) -> str:
 def quote(db: Session, items: list[dict], patient: Patient | None, rule_ids: list[int] | None = None,
           manual_discount: float = 0.0, bonus_pay: float = 0.0, no_discounts: bool = False) -> dict:
     """items: [{kind, ref_id, name, category, qty, price}] → знижки по рядках, підсумки, бонуси."""
+    if items and any(it.get("kind") == "topup" for it in items):     # поповнення балансу: без знижок і бонусів
+        no_discounts, manual_discount, bonus_pay = True, 0.0, 0.0
     li = [{"type": it["kind"], "price": float(it["price"]), "qty": float(it.get("qty") or 1), "category": it.get("category") or "",
            "name": it.get("name") or "", "rule_id": it.get("rule_id")}
           for it in items]
@@ -78,7 +80,7 @@ def quote(db: Session, items: list[dict], patient: Patient | None, rule_ids: lis
     nets = [{"type": x["type"], "price": x["price"], "qty": x["qty"], "net": round(x["price"] * x["qty"] - l, 2)} for x, l in zip(li, lines)]
     accr = 0.0
     s = ly.settings(db)
-    if patient and s.get("enabled") and total + TOL >= float(s.get("min_check") or 0):
+    if patient and s.get("enabled") and total + TOL >= float(s.get("min_check") or 0) and not any(x["type"] == "topup" for x in li):
         accr = ly.bonus_accrual(db, nets, bp)
     return {"applicable": d.get("applicable", {}), "lines": lines, "subtotal": sub, "discount": disc, "total": total, "rules": d["rules"] + (["Ручна знижка"] if md > 0 else []),
             "bonus_max": max_b, "bonus_pay": bp, "bonus_accrual": accr, "to_pay": round(total - bp, 2),
@@ -93,6 +95,17 @@ def create(db: Session, data: dict, user_id: int | None = None) -> Sale:
     items = [it for it in data.get("items") or [] if float(it.get("qty") or 0) > 0 and float(it.get("price") or 0) >= 0]
     if not items:
         raise SaleError("Додайте хоча б одну позицію")
+    if any(it.get("kind") == "topup" for it in items):        # поповнення рахунку пацієнта — окремим чеком, лише грошима
+        if not patient:
+            raise SaleError("Поповнити баланс можна лише пацієнту — оберіть пацієнта")
+        if any(it.get("kind") != "topup" for it in items):
+            raise SaleError("Поповнення балансу оформіть окремим чеком, без послуг і товарів")
+        if any(str(p.get("method") or "") in NON_MONEY for p in data.get("payments") or [] if float(p.get("amount") or 0) > TOL) \
+                or float(data.get("bonus_pay") or 0) > 0:
+            raise SaleError("Баланс поповнюється лише грошима — готівкою, карткою або посиланням")
+        for it in items:
+            it["qty"], it["name"], it["category"] = 1, it.get("name") or "Поповнення балансу", "Поповнення балансу"
+        data["no_discounts"], data["no_accrual"], data["manual_discount"], data["overpay"] = True, True, 0, None
     q = quote(db, items, patient, data.get("rule_ids"), float(data.get("manual_discount") or 0), float(data.get("bonus_pay") or 0),
               no_discounts=bool(data.get("no_discounts")))
     if data.get("discount_label") and "Ручна знижка" in q["rules"]:
@@ -247,6 +260,8 @@ def create(db: Session, data: dict, user_id: int | None = None) -> Sale:
                      comment=f"Переплата в чеку Ч-{sale.id} — на рахунок пацієнта"))
         sale.balance_topup = topup
         db.commit()
+    if sale.status == "paid":
+        apply_topup(db, sale)
     if patient and q["bonus_pay"] > 0:
         ly.add(db, patient.id, -q["bonus_pay"], "spend", f"чек №{sale.id}", f"sale:{sale.id}", user_id)
     if patient and q["bonus_accrual"] > 0 and not data.get("no_accrual"):
@@ -261,10 +276,30 @@ def create(db: Session, data: dict, user_id: int | None = None) -> Sale:
     return sale
 
 
+def topup_sum(sale: Sale) -> float:
+    return round(sum(float(i.total or 0) for i in sale.items if i.kind == "topup"), 2)
+
+
+def apply_topup(db: Session, sale: Sale) -> float:
+    """Оплачений чек «Поповнення балансу» → гроші на рахунок пацієнта (раз на чек)."""
+    amt = topup_sum(sale)
+    if amt <= 0 or not sale.patient or (sale.fiscal or {}).get("topup_done"):
+        return 0.0
+    sale.patient.cb_balance = round((sale.patient.cb_balance or 0) + amt, 2)
+    sale.fiscal = {**(sale.fiscal or {}), "topup_done": True}
+    db.commit()
+    return amt
+
+
 def refund(db: Session, sale: Sale, reason: str, user_id: int | None = None) -> None:
     from ..models import BonusTxn
     if sale.status not in ("paid", "awaiting"):
         raise SaleError("Чек уже повернено")
+    if (sale.fiscal or {}).get("topup_done") and sale.patient:   # повернення поповнення — зняти з рахунку
+        amt = topup_sum(sale)
+        if (sale.patient.cb_balance or 0) + TOL < amt:
+            raise SaleError(f"На рахунку пацієнта лише {(sale.patient.cb_balance or 0):.2f} ₴ — частину поповнення вже витрачено")
+        sale.patient.cb_balance = round((sale.patient.cb_balance or 0) - amt, 2)
     db.execute(StockMove.__table__.delete().where(StockMove.ref.like(f"crmsale:{sale.id}:%")))
     db.execute(Visit.__table__.delete().where(Visit.external_id.like(f"crm:{sale.id}:%")))
     db.execute(ProductSale.__table__.delete().where(ProductSale.external_id.like(f"crm:{sale.id}:%")))
