@@ -444,6 +444,7 @@ def test_inventory_brand_tools_and_print():
         pr = c.get(f"/stock/docs/{did}/print")
         assert pr.status_code == 200 and "Фактично" in pr.text and "AG інв крем" in pr.text and "Облік" in pr.text
         assert "Облік</th>" not in c.get(f"/stock/docs/{did}/print?blind=1").text
+        assert "AG інв крем" not in c.get(f"/stock/docs/{did}/print?brand=Medik8").text
         r = c.post(f"/stock/docs/{did}", data={"action": "del_sel", "sel": [str(lid)]}, follow_redirects=False)
         assert r.status_code == 303
     with SessionLocal() as db:

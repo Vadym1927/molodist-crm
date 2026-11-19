@@ -97,7 +97,7 @@
   {% if d.kind=='inventory' and editable %}<button class="btn ghost" name="action" value="prefill">Додати товари складу{{ ' (вибрані бренди)' if wh_brands }}</button>
     {% if d.lines %}<button class="btn ghost" name="action" value="keep" onclick="return confirm('Прибрати з листа рядки, що не підходять під вибрані бренди / нульовий залишок?')">Лишити лише вибране</button>{% endif %}{% endif %}
   {% if d.lines and editable %}<button class="btn ghost" name="action" value="del_sel" onclick="if(!document.querySelector('input[name=sel]:checked')){alert('Позначте рядки галочками');return false}return confirm('Прибрати позначені рядки?')">Прибрати позначені</button>{% endif %}
-  {% if d.lines %}<a class="btn ghost" href="/stock/docs/{{ d.id }}/print" target="_blank">🖨 Друк</a>{% if d.kind=='inventory' %}<a class="btn ghost" href="/stock/docs/{{ d.id }}/print?blind=1" target="_blank" title="Без облікової кількості — рахують «наосліп»">🖨 Друк без обліку</a>{% endif %}{% endif %}
+  {% if d.lines %}<a class="btn ghost" href="/stock/docs/{{ d.id }}/print" target="_blank" onclick="return invPrint(this)">🖨 Друк</a>{% if d.kind=='inventory' %}<a class="btn ghost" href="/stock/docs/{{ d.id }}/print?blind=1" target="_blank" title="Без облікової кількості — рахують «наосліп»" onclick="return invPrint(this)">🖨 Друк без обліку</a>{% endif %}{% endif %}
   {% if d.kind=='order' %}
     {% if d.status=='draft' %}<button class="btn ghost" name="action" value="send">Позначити відправленим</button>{% endif %}
     {% if d.status in ('draft','sent') %}<button class="btn" name="action" value="receive" onclick="return confirm('Створити поставку з цього замовлення?')">Отримано → створити поставку</button>{% endif %}
@@ -175,6 +175,8 @@
 .pay-m.auto{background:var(--ok-bg);color:var(--ok)}.pay-m.mono_manual{background:var(--lavender);color:var(--classic)}.pay-m.manual{background:#FFF4D6;color:#9A6B00}</style>
 {% include "_doc_delete.html" %}
 <script>
+function invPrint(a){const sel=[...document.querySelectorAll('input[name=inv_brand]:checked')].map(c=>c.value);
+  const u=new URL(a.href,location.href);u.searchParams.delete('brand');sel.forEach(b=>u.searchParams.append('brand',b));window.open(u.toString(),'_blank');return false;}
 function invFilter(){const sel=[...document.querySelectorAll('input[name=inv_brand]:checked')].map(c=>c.value.toLowerCase());
   document.querySelectorAll('tr.lnr').forEach(tr=>{tr.hidden=sel.length>0&&!sel.includes(tr.dataset.brand)});}
 </script>

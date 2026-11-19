@@ -7230,6 +7230,9 @@ def stock_doc_print(did: int, request: Request, blind: int = 0, user: User = Dep
     doc = db.get(StockDoc, did) or (_ for _ in ()).throw(HTTPException(404))
     bal = st.balances(db, doc.wh_from) if doc.kind == "inventory" else {}
     rows = sorted(doc.lines, key=lambda ln: ((ln.product.brand or "яяя").lower(), (ln.product.name or "").lower()))
+    brands = {b.strip().lower() for b in request.query_params.getlist("brand") if b.strip()}
+    if brands:                                              # друк лише вибраних брендів (як фільтр на сторінці)
+        rows = [ln for ln in rows if (ln.product.brand or "").strip().lower() in brands]
     return render(request, "stock_doc_print.html", d=doc, rows=rows, bal=bal, blind=bool(blind), KINDS=st.DOC_KINDS,
                   WAREHOUSES=catalog.WAREHOUSES, now=datetime.now())
 

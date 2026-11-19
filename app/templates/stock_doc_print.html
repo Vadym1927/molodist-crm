@@ -20,7 +20,7 @@ tr.br td{background:#F7F4F0;font-weight:700;font-size:11.5px}
 @media print{.bar{display:none}.wrap{padding:0}tr{page-break-inside:avoid}}
 </style></head>
 <body><div class="wrap">
-<div class="bar"><button onclick="print()">🖨 Друкувати</button>{% if d.kind == 'inventory' %}<a href="?blind={{ 0 if blind else 1 }}">{{ 'Показати облік' if blind else 'Без облікової кількості' }}</a>{% endif %}</div>
+<div class="bar"><button onclick="print()">🖨 Друкувати</button>{% if d.kind == 'inventory' %}<a href="?blind={{ 0 if blind else 1 }}{% for b in request.query_params.getlist('brand') %}&brand={{ b|urlencode }}{% endfor %}">{{ 'Показати облік' if blind else 'Без облікової кількості' }}</a>{% endif %}</div>
 <h1>MOLODIST · {{ KINDS[d.kind] }} № {{ d.number }}</h1>
 <div class="sub">Склад: <b>{{ WAREHOUSES.get(d.wh_from or d.wh_to, '—') }}</b> · дата документа {{ d.doc_date|dt('%d.%m.%Y') if d.doc_date else '—' }} · надруковано {{ now|dt('%d.%m.%Y %H:%M') }} · позицій: {{ rows|length }}</div>
 <table><thead><tr><th style="width:7mm">№</th><th>Товар</th><th style="width:22mm">Артикул</th><th style="width:12mm">Од.</th>
