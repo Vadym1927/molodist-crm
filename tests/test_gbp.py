@@ -22,6 +22,9 @@ def _http(log):
                 {"reviewId": "r1", "reviewer": {"displayName": "Олена"}, "starRating": "FIVE", "comment": "Дякую!", "createTime": "2026-11-01T10:00:00Z"},
                 {"reviewId": "r2", "reviewer": {"displayName": "Іра"}, "starRating": "THREE", "createTime": "2026-11-02T10:00:00Z",
                  "reviewReply": {"comment": "Дякуємо", "updateTime": "2026-11-03T10:00:00Z"}}]})
+        if req.method == "PATCH" and "mybusinessbusinessinformation" in u and "locations/9" in u:
+            assert "profile.description" in u and json.loads(req.content)["profile"]["description"] == "Опис MOLODIST"
+            return httpx.Response(200, json={"name": "locations/9"})
         if req.method == "PUT" and u.endswith("/reviews/r1/reply"):
             assert json.loads(req.content)["comment"] == "Дякуємо за довіру!"
             return httpx.Response(200, json={"comment": "Дякуємо за довіру!"})
@@ -51,6 +54,13 @@ def test_gbp_flow():
             assert [r["stars"] for r in rows] == [5, 3] and rows[1]["reply"] == "Дякуємо" and gbp.cfg(db)["avg"] == 4.8
             gbp.reply(db, "r1", "Дякуємо за довіру!", _http(log))
             assert ("PUT", "https://mybusiness.googleapis.com/v4/accounts/1/locations/9/reviews/r1/reply") in log
+            gbp.set_description(db, "Опис MOLODIST", _http(log))
+            assert gbp.cfg(db)["description"] == "Опис MOLODIST"
+            try:
+                gbp.set_description(db, "x" * 751, _http(log))
+                assert False
+            except gbp.GbpError:
+                pass
             gbp.disconnect(db)
             assert not gbp.status(gbp.cfg(db))["connected"]
 

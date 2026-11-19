@@ -10473,6 +10473,19 @@ async def settings_gbp_reply(request: Request, user: User = Depends(require("use
     return RedirectResponse(back + "&msg=" + quote("Відповідь опубліковано в Google"), status_code=303)
 
 
+@app.post("/settings/google-profile/description")
+async def settings_gbp_description(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .integrations import gbp
+    f = await request.form()
+    text = str(f.get("description") or "")
+    try:
+        gbp.set_description(db, text)
+    except (gbp.GbpError, httpx.HTTPError) as e:
+        return RedirectResponse("/settings/google-profile?err=" + quote(str(e)[:300]), status_code=303)
+    audit(db, "gbp.description", user=user, chars=len(text.strip()))
+    return RedirectResponse("/settings/google-profile?msg=" + quote("Опис профілю оновлено в Google"), status_code=303)
+
+
 @app.get("/settings/shop/integrations", response_class=HTMLResponse)
 def settings_shop_integrations(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     from .services import shop_front as sf

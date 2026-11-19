@@ -12,6 +12,12 @@
     <div class="small muted">Оновлено {{ c.at|replace('T', ' ') }}</div></div>
   <form method="post" onsubmit="return confirm('Відключити профіль Google від CRM?')"><input type="hidden" name="disconnect" value="1"><button class="btn secondary">Відключити</button></form>
 </div>
+<details class="card" style="margin-top:12px"><summary><b>Опис профілю</b> <span class="small muted">до 750 символів, без посилань і телефонів</span></summary>
+  <form method="post" action="/settings/google-profile/description" style="display:grid;gap:8px;margin-top:8px">
+    <textarea name="description" rows="6" maxlength="750" required oninput="this.nextElementSibling.firstChild.textContent=this.value.length">{{ c.description or '' }}</textarea>
+    <div class="small muted"><span>{{ (c.description or '')|length }}</span> / 750</div>
+    <div><button class="btn" onclick="return confirm('Опублікувати опис у Google? Його побачать усі.')">Оновити опис у Google</button></div>
+  </form></details>
 <div style="display:flex;gap:8px;margin:14px 0;flex-wrap:wrap">
   <a class="chip {{ 'on' if f == 'noreply' }}" href="?f=noreply">Без відповіді · {{ n_noreply }}</a>
   <a class="chip {{ 'on' if f == 'low' }}" href="?f=low">1–3 ★ · {{ n_low }}</a>

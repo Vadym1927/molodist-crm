@@ -182,3 +182,20 @@ def disconnect(db: Session) -> None:
     for k in ("refresh_enc", "_at", "_exp", "state"):
         c.pop(k, None)
     save(db, c)
+
+
+def set_description(db: Session, text: str, http: httpx.Client | None = None) -> None:
+    """Опис профілю компанії (до 750 символів, без посилань) — публікується в Google одразу."""
+    text = (text or "").strip()
+    if not text:
+        raise GbpError("Порожній опис.")
+    if len(text) > 750:
+        raise GbpError(f"Задовгий опис: {len(text)} символів, Google дозволяє до 750.")
+    c = cfg(db)
+    if not c.get("location"):
+        raise GbpError("Не вибрано точку профілю.")
+    _call(db, "PATCH", f"{INFO}/{c['location']}", http, params={"updateMask": "profile.description"},
+          json={"profile": {"description": text}})
+    c = cfg(db)
+    c["description"] = text
+    save(db, c)
