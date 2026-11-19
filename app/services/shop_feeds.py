@@ -149,18 +149,30 @@ def items(data: dict, root: str, notice_brands: set[str] | None = None) -> list[
             out.append({"id": str(v["id"]), "group": str(it["id"]) if len(it["variants"]) > 1 else "", "title": title[:150], "desc": desc,
                         "link": f"{root}/shop/{it['slug']}/", "imgs": imgs, "brand": it["brand"] or "MOLODIST", "sku": v.get("sku") or "", "gtin": v.get("gtin") or "",
                         "price": float(v["old"] or v["price"]), "sale": float(v["price"]) if v.get("old") else 0.0, "stock": bool(v["stock"]),
-                        "ptype": ptype, "det": g_details(it["name"], desc, ptype), "cat": cats.get(it["slug"], [None])[0], "consult": bool(notice_brands and it["brand"] in notice_brands)})
+                        "ptype": ptype, "det": g_details(it["name"], desc, ptype), "cat": cats.get(it["slug"], [None])[0], "consult": bool(notice_brands and it["brand"] in notice_brands), "nofeed": bool(v.get("nofeed"))})
     return out
 
 
 _MED = re.compile(r"лікуван|лікує|лікува|лікувальн|\bFDA\b|розацеа|купероз|дерматит|екзем|псоріаз|захворюван|хвороб|діагноз|рецепт|препарат|"
-                  r"медикамент|терапі|клінічн|протокол|запален|інфекц|антибакт|протизапальн|себоре|алопец|облисін|\bлікар", re.I)
+                  r"медикамент|терапі|клінічн|протокол|запален|запальн|інфекц|антибакт|антибіот|протизапальн|себоре|алопец|облисін|\bлікар|"
+                  r"акне|\bacne\b|бактері|канаб|cannabis|метронідазол|азела|транексам|глутатіон|опік|харчов\w* добавк|біологічно активн", re.I)
+_T_MED = re.compile(r"\s*(?:for acne|від акне|проти акне|anti\s*-\s*inflammatory(?:\s*\+\s*keratolytic)?|\bacne\b)", re.I)
+
+
+def _inci(part: str) -> bool:
+    """Повний склад (INCI): довгий перелік латиницею через кому — для реклами не потрібен, а Google чіпляється за окремі назви."""
+    lat = len(re.findall(r"[A-Za-z]", part))
+    return part.count(",") >= 8 and lat > 0.6 * max(1, len(re.findall(r"[A-Za-zА-Яа-яІіЇїЄєҐґ]", part)))
+
+
+def clean_title(t: str) -> str:
+    return re.sub(r"\s{2,}", " ", _T_MED.sub("", t or "")).strip() or t
 
 
 def clean_desc(text: str) -> str:
     """Опис для Google Merchant: без медичних тверджень (через них косметику блокують як ліки). На сайті опис не змінюється."""
     parts = re.split(r"(?<=[.!?…])\s+", re.sub(r"\s+", " ", text or "").strip())
-    keep = [p for p in parts if p and not _MED.search(p)]
+    keep = [p for p in parts if p and not _MED.search(p) and not _inci(p)]
     return " ".join(keep)[:4900]
 
 
@@ -168,9 +180,11 @@ def google(data: dict, root: str, title: str = "MOLODIST", notice_brands: set[st
     """RSS 2.0 з простором імен g: — формат, який приймають Google Merchant Center і Meta Commerce Manager."""
     rows = []
     for i in items(data, root, notice_brands):
+        if i.get("nofeed"):
+            continue                                                         # власник прибрав товар з реклами (БАДи, засоби з лікарськими складниками)
         if not i["imgs"]:
             continue                                                         # без фото Merchant Center товар відхиляє
-        parts = [f"<g:id>{x(i['id'])}</g:id>", f"<title>{x(i['title'])}</title>", f"<description>{x(clean_desc(i['desc']) or i['title'])}</description>",
+        parts = [f"<g:id>{x(i['id'])}</g:id>", f"<title>{x(clean_title(i['title']))}</title>", f"<description>{x(clean_desc(i['desc']) or clean_title(i['title']))}</description>",
                  f"<link>{x(i['link'])}</link>", f"<g:image_link>{x(i['imgs'][0])}</g:image_link>"]
         parts += [f"<g:additional_image_link>{x(u)}</g:additional_image_link>" for u in i["imgs"][1:10]]
         parts += [f"<g:availability>{'in_stock' if i['stock'] else 'out_of_stock'}</g:availability>",
@@ -188,6 +202,8 @@ def google(data: dict, root: str, title: str = "MOLODIST", notice_brands: set[st
         if i["ptype"]:
             parts.append(f"<g:product_type>{x(i['ptype'])}</g:product_type>")
         det, hl = i.get("det") or ([], [])
+        det = [(a, b, ", ".join(v for v in c.split(", ") if not _MED.search(v))) for a, b, c in det]
+        det, hl = [d for d in det if d[2]], [h for h in hl if not _MED.search(h) and not _inci(h)]
         parts += [f"<g:product_detail><g:section_name>{x(a)}</g:section_name><g:attribute_name>{x(b)}</g:attribute_name>"
                   f"<g:attribute_value>{x(c)}</g:attribute_value></g:product_detail>" for a, b, c in det]
         parts += [f"<g:product_highlight>{x(h)}</g:product_highlight>" for h in hl]

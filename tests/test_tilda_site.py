@@ -75,3 +75,12 @@ def test_tilda_cdn_localized(tmp_path, monkeypatch):
     assert f and "_tcdn/static.tildacdn.one/lib/flags" in f.read_text() and len(calls) == 1
     assert ts.cdn("static.tildacdn.one/js/tilda-forms-dict-1.0.min.js", cl) == f and len(calls) == 1      # з кешу
     assert ts.cdn("evil.com/js/x.js", cl) is None and ts.cdn("static.tildacdn.one/js/../../x.js", cl) is None
+
+
+def test_feed_clean_google_triggers():
+    from app.services.shop_feeds import clean_desc, clean_title
+    d = ("Крем зволожує шкіру. Допомагає при акне. Містить олію насіння канабісу. "
+         "Aqua, Glycerin, Cannabis Sativa Seed Oil, Squalane, Tocopherol, Panthenol, Betaine, Allantoin, Sodium Benzoate, Citric Acid.")
+    out = clean_desc(d)
+    assert "зволожує" in out and "акне" not in out and "канабіс" not in out and "Cannabis" not in out and "Glycerin" not in out
+    assert clean_title("Гель AG SKIN 3 Step Acid System For Acne 150 мл") == "Гель AG SKIN 3 Step Acid System 150 мл"

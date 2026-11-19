@@ -391,7 +391,7 @@ def catalog(db: Session, fresh: bool = False) -> dict:
         wait_ = False
         if si.get("backorder") and not stock and not hidden:   # позначка власника сильніша за стару «presence» з імпорту
             stock, left_, wait_ = True, None, True          # «під замовлення»: продаємо без залишку на вітрині, відправка за 1–3 дні
-        v = {"id": p.id, "left": left_, "name": si.get("title") or p.name, "price": price, "old": old if old > price else 0, "stock": stock, "wait": wait_,
+        v = {"id": p.id, "left": left_, "name": si.get("title") or p.name, "price": price, "old": old if old > price else 0, "stock": stock, "wait": wait_, "nofeed": bool(si.get("no_feed")),
              "sku": p.sku or si.get("sku") or "", "label": p.volume or "", "gtin": gtin(p.barcode or si.get("barcode") or "")}
         if sx_:
             v.update(short=sx_["qty"], short_exp=sx_["expiry"].isoformat(), full=rest_)

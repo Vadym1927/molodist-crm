@@ -187,6 +187,7 @@
     <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px"><label class="small">Знижка на сайті, %<input name="sale_pct" inputmode="decimal" value="{{ '%g'|format(si.sale.pct) if si.sale and si.sale.pct else '' }}" placeholder="порожньо — без знижки"></label>
       <label class="small">Діє до (необовʼязково)<input type="date" name="sale_until" value="{{ si.sale.until if si.sale else '' }}"></label></div>
     <input type="hidden" name="bo_form" value="1"><label class="row" style="gap:8px;align-items:center"><input type="checkbox" name="backorder" value="1" style="width:auto" {{ 'checked' if si.backorder }}> Під замовлення: показувати «в наявності» без залишку на вітрині (відправка за 1–3 дні)</label>
+    <label class="row" style="gap:8px;align-items:center"><input type="checkbox" name="no_feed" value="1" style="width:auto" {{ 'checked' if si.no_feed }}> Не передавати в рекламні фіди (Google, Facebook) — на сайті товар лишається</label>
     {% if si.slug and shop_cats %}<input type="hidden" name="cats_form" value="1"><div class="small"><b>Категорії на сайті</b>
       <div style="columns:2;margin-top:4px">{% for c2 in shop_cats %}<label class="row" style="gap:6px;align-items:center;display:flex"><input type="checkbox" name="cat" value="{{ c2.path }}" style="width:auto" {{ 'checked' if si.slug in c2.slugs }}> {{ c2.name }} <span class="muted">{{ c2.path }}</span></label>{% endfor %}</div></div>{% endif %}
     <input type="hidden" name="tip_form" value="1"><div class="grid" style="grid-template-columns:2fr 1fr;gap:8px">

@@ -5298,6 +5298,10 @@ async def product_site_save(pid: int, request: Request, user: User = Depends(req
             si["backorder"] = True
         else:
             si.pop("backorder", None)
+        if f.get("no_feed"):
+            si["no_feed"] = True
+        else:
+            si.pop("no_feed", None)
     if f.get("tip_form"):
         tt = str(f.get("tip_text") or "").strip()[:600]
         if tt:
