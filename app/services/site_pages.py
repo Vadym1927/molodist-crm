@@ -25,6 +25,9 @@ DEFAULT = {
     "canonical": "https://new.molodist.com.ua",      # адреса для canonical / sitemap
     "main_url": "https://molodist.com.ua",           # головна (поки на Tilda)
     "gtm_id": "GTM-TPVFN2W2",
+    "ads_id": "AW-11285493987",                       # Google Ads: конверсії сайту напряму (gtag), окремо від GTM
+    "conv_lead": "aFzHCMri0LsdEOPxq4Uq",              # мітка конверсії «Сайт клініки — заявка з форми»
+    "conv_call": "AkcDCM3i0LsdEOPxq4Uq",              # мітка конверсії «Сайт клініки — клік по телефону»
     "phone": "+380933756437",
     "phone_text": "+38 (093) 375 64 37",
     "telegram": "https://t.me/molodist_ua",

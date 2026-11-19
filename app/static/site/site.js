@@ -55,6 +55,7 @@
         if (j && j.ok) {
           ok.hidden = false; f.querySelectorAll('label,button').forEach(function (x) { x.style.display = 'none'; });
           window.dataLayer.push({ event: 'generate_lead', form_id: d.formname, lead_interest: d.interest });
+          if (window.mldsConv) window.mldsConv('lead');
         } else { er.textContent = 'Не вдалося надіслати. Зателефонуйте нам або напишіть у Telegram.'; er.hidden = false; }
       });
     });
@@ -76,6 +77,7 @@
     var a = e.target && e.target.closest ? e.target.closest('a') : null; if (!a) return;
     var k = kind(a); if (!k) return;
     window.dataLayer.push({ event: EV[k], link_url: a.href, page_slug: M.slug });
+    if (k === 'phone' && window.mldsConv) window.mldsConv('call');
     if (k === 'booking') return;
     var d = saved(); if (!d.gclid && !/google/i.test(d.utm_source || '')) return;   // у CRM — лише кліки з реклами
     d.kind = k; d.href = a.href; d.page = location.href;

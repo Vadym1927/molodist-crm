@@ -109,7 +109,7 @@
       api('/api/order', d, function (j) {
         bt.disabled = false;
         if (j && j.ok) {
-          window.dataLayer.push({ event: 'generate_lead', form_id: 'zapys:' + cur.kind, lead_interest: j.title, value: j.price, currency: 'UAH' });
+          window.dataLayer.push({ event: 'generate_lead', form_id: 'zapys:' + cur.kind, lead_interest: j.title, value: j.price, currency: 'UAH' }); if (window.mldsConv) window.mldsConv('lead');
           if (j.pay_url) { location.href = j.pay_url; return; }
           $('.ok', bf).hidden = false; $$('label,button.btn,#ob-to', bf).forEach(function (x) { x.style.display = 'none'; });
         } else { er.textContent = (j && j.msg) || 'Не вдалося надіслати. Зателефонуйте нам або напишіть у Telegram.'; er.hidden = false; }
@@ -347,7 +347,7 @@
         $('#s-doc').textContent = j.doctor || $('#s-doc').textContent;
         try { localStorage.setItem('mlds_booking', JSON.stringify({ v: j.token, at: Date.now() })); } catch (x) {}
         window.dataLayer.push({ event: 'booking_complete', form_id: 'zapys:booking', lead_interest: j.service, value: j.price || 0, currency: 'UAH', transaction_id: 'zapys-' + String(j.token || '').slice(0, 16) });
-        window.dataLayer.push({ event: 'generate_lead', form_id: 'zapys:booking', lead_interest: j.service });
+        window.dataLayer.push({ event: 'generate_lead', form_id: 'zapys:booking', lead_interest: j.service }); if (window.mldsConv) window.mldsConv('lead');
         go(5); root.scrollIntoView({ behavior: 'smooth', block: 'start' });
       } else {
         er.textContent = (j && j.msg) || 'Не вдалося записати. Зателефонуйте нам або напишіть у Telegram.'; er.hidden = false;

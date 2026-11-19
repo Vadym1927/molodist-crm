@@ -61,6 +61,7 @@ def test_new_home_as_site_home():
             assert 'id="h-modal"' in t and 'data-lead="modal"' in t and 'data-mode="bp"' in t   # спливаюча форма
             assert 'id="h-pop"' in t and "Не знаєте, з чого почати?" in t                      # банер
             assert "googletagmanager.com/gtm.js" in t           # аналітика, як на інших сторінках сайту
+            assert "gtag/js?id=AW-11285493987" in t and "aFzHCMri0LsdEOPxq4Uq" in t and "AkcDCM3i0LsdEOPxq4Uq" in t   # конверсії Google Ads
             assert "og/home.jpg" in t and '"MedicalClinic"' in t and '"FAQPage"' in t
             assert t.count("s-") >= 10 and "data-car" in t
             assert cl.get("/og/home.jpg", headers={"host": host}).status_code == 200

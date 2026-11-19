@@ -9218,6 +9218,11 @@ async def settings_site_save(request: Request, user: User = Depends(require("use
     from .services import site_pages as sp
     f = await request.form()
     c = sp.cfg(db)
+    import re as _re
+    for k, pat in (("ads_id", r"AW-\d{6,14}"), ("conv_lead", r"[A-Za-z0-9_-]{4,40}"), ("conv_call", r"[A-Za-z0-9_-]{4,40}")):
+        if k in f:
+            v_ = str(f.get(k) or "").strip()
+            c[k] = v_ if _re.fullmatch(pat, v_) else ""
     for k in ("canonical", "main_url", "gtm_id", "phone", "phone_text", "telegram", "viber", "instagram", "email", "address", "hours", "license", "maps", "legal_code"):
         if k in f:
             c[k] = str(f.get(k) or "").strip()[:500]
