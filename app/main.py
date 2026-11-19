@@ -7223,7 +7223,7 @@ def stock_doc_page(did: int, request: Request, user: User = Depends(require("sto
                   win=(pay.PREPAY_DAYS, pay.POSTPAY_DAYS),
                   alloc_users={u_.id: u_.name for u_ in db.scalars(select(User))}, line_paid=pay.by_product(db, [doc.id]),
                   fops=[a["name"] for a in _cb_acc(db)], sup=sup, lot_opts=lot_opts, today=date.today(),
-                  cash_boxes=pay.cash_boxes(db), sup_arts=pay.supply_articles(db), CASH_PREFIX=pay.CASH_PREFIX,
+                  cash_boxes=pay.cash_boxes(db), other_boxes=pay.other_boxes(db), sup_arts=pay.supply_articles(db), CASH_PREFIX=pay.CASH_PREFIX,
                   group_docs=[x for x in (grp.docs if grp else []) if x.id != doc.id],
                   REASONS=st.WRITEOFF_REASONS, products=_product_options(db), bal=bal, active=st.ledger_active(db),
                   pchk=pchk, doc_brands=sorted({(ln.product.brand or "").strip() for ln in doc.lines if ln.product and (ln.product.brand or "").strip()}),

@@ -247,6 +247,12 @@ def cash_boxes(db: Session) -> list[str]:
     return [x["name"] for x in cb.items(db) if not x.get("deleted") and x.get("active", True) and x.get("type") == "cash"]
 
 
+def other_boxes(db: Session) -> list[str]:
+    """Термінали й інші каси (не monobank-рахунки): оплату постачальнику з них теж списуємо витратою з цієї каси."""
+    from . import cashboxes as cb
+    return [x["name"] for x in cb.items(db) if not x.get("deleted") and x.get("active", True) and x.get("type") in ("card", "other")]
+
+
 def supply_articles(db: Session) -> list[str]:
     """Статті витрат для оплати поставки: спершу «закуп…»."""
     from . import fin_articles as fa
@@ -267,7 +273,7 @@ def cash_expense(db: Session, g: Group, amount: float, fop: str | None, user_id:
     d0 = g.docs[0]
     x = FinOp(day=_date.today(), kind="expense", category=cat[:60], amount=round(amount, 2), cashbox=box[:100],
               counterparty=(g.supplier or "")[:200] or None, ref=f"stockpay:{d0.id}", created_by=user_id,
-              comment=f"Оплата поставки готівкою · накладна {g.ext_no or ('№' + str(d0.id))}"[:500])
+              comment=f"Оплата поставки з каси «{box}» · накладна {g.ext_no or ('№' + str(d0.id))}"[:500])
     db.add(x)
     db.commit()
     return x
