@@ -84,7 +84,56 @@
     c.classList.add('auto');
   });
 
+  /* спливаюча форма: усі «Записатися» відкривають її на місці, без перескоку вниз */
+  var modal = d.getElementById('h-modal'), pop = d.getElementById('h-pop'), lastFocus = null;
+  function setModal(on, mode) {
+    if (!modal) return;
+    if (on) {
+      modal.querySelectorAll('[data-mode]').forEach(function (x) { x.hidden = x.getAttribute('data-mode') !== mode; });
+      lastFocus = d.activeElement; modal.hidden = false; d.documentElement.classList.add('h-lock');
+      setTimeout(function () { var n = modal.querySelector('[name=name]'); if (n && window.innerWidth > 860) n.focus(); }, 60);
+      (window.dataLayer = window.dataLayer || []).push({ event: 'booking_popup_open', popup_mode: mode });
+    } else {
+      modal.hidden = true; d.documentElement.classList.remove('h-lock'); if (lastFocus && lastFocus.focus) lastFocus.focus();
+    }
+  }
+  d.addEventListener('click', function (e) {
+    var a = e.target.closest ? e.target.closest('a[href="#zapys"]') : null;
+    if (!a || !modal || modal.contains(a)) return;
+    e.preventDefault(); setFab(false); setMenu(false); if (pop) pop.hidden = true;
+    setModal(true, a.getAttribute('data-interest') === 'Beauty Plan' ? 'bp' : 'std');
+  });
+  if (modal) {
+    modal.addEventListener('click', function (e) { if (e.target === modal || (e.target.closest && e.target.closest('[data-modal-close]'))) setModal(false); });
+    d.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !modal.hidden) setModal(false); });
+  }
+  d.addEventListener('submit', function (e) {                            // заявку залишили — банер більше не показуємо
+    var f = e.target; if (!f.matches || !f.matches('form[data-lead]')) return;
+    setTimeout(function () { var ok = f.querySelector('.ok'); if (ok && !ok.hidden) { try { localStorage.setItem('mlds_lead', String(Date.now())); } catch (x) {} } }, 2500);
+  });
+
+  /* банер: через N секунд або коли курсор іде закривати вкладку (ПК); раз на 3 дні, не після заявки */
+  if (pop) {
+    var force = /[?&]pop(=|&|$)/.test(location.search), T0 = Date.now(), shown = false;
+    var can = function () {
+      if (force) return true;
+      try { if (localStorage.getItem('mlds_lead')) return false; return Date.now() - (+localStorage.getItem('mlds_pop') || 0) > 3 * 864e5; } catch (x) { return false; }
+    };
+    var show = function (why) {
+      if (shown || !can() || (modal && !modal.hidden) || (menu && !menu.hidden)) return;
+      shown = true; pop.hidden = false; requestAnimationFrame(function () { pop.classList.add('on'); });
+      try { localStorage.setItem('mlds_pop', String(Date.now())); } catch (x) {}
+      (window.dataLayer = window.dataLayer || []).push({ event: 'promo_popup_show', popup_reason: why });
+    };
+    setTimeout(function () { show('timer'); }, force ? 1200 : (+pop.getAttribute('data-delay') || 25) * 1000);
+    d.addEventListener('mouseout', function (e) { if (!e.relatedTarget && e.clientY <= 0 && Date.now() - T0 > 6000) show('exit'); });
+    pop.addEventListener('click', function (e) {
+      if (e.target.closest && e.target.closest('[data-pop-close]')) { pop.hidden = true; pop.classList.remove('on'); }
+    });
+  }
+
   var up = d.querySelector('.h-up'), hd = d.querySelector('.h-hd');
+  if (up) up.addEventListener('click', function (e) { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
   function onScroll() {
     var y = window.scrollY || 0;
     if (up) up.hidden = y < 700;

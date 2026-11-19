@@ -58,6 +58,8 @@ def test_new_home_as_site_home():
             assert r.status_code == 200 and "Естетична медицина й косметологія в Києві" in t
             assert 'rel="canonical"' in t and 'name="robots"' not in t and "h-proto" not in t
             assert 'property="og:title" content="MOLODIST — медичний простір естетики та профілактики"' in t
+            assert 'id="h-modal"' in t and 'data-lead="modal"' in t and 'data-mode="bp"' in t   # спливаюча форма
+            assert 'id="h-pop"' in t and "Не знаєте, з чого почати?" in t                      # банер
             assert "googletagmanager.com/gtm.js" in t           # аналітика, як на інших сторінках сайту
             assert "og/home.jpg" in t and '"MedicalClinic"' in t and '"FAQPage"' in t
             assert t.count("s-") >= 10 and "data-car" in t

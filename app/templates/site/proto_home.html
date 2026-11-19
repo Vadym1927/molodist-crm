@@ -270,6 +270,21 @@
   <div class="h-fab-list" hidden><a href="#zapys" data-fab-close><i class="tile">{{ ic('form') }}</i><span>Залишити заявку</span></a>{% if ob_on %}<a href="{{ base }}/zapys"><i class="tile cal">{{ ic('cal') }}</i><span>Онлайн-запис</span></a>{% endif %}<a href="tel:{{ c.phone }}" aria-label="Подзвонити">{{ icon('phone') }}<span>Подзвонити</span></a><a href="{{ c.telegram }}" target="_blank" rel="noopener" aria-label="Telegram">{{ icon('telegram') }}<span>Telegram</span></a><a href="{{ viber }}" aria-label="Viber">{{ icon('viber') }}<span>Viber</span></a></div>
   <button class="h-fab-btn" aria-label="Звʼязатися з нами" aria-expanded="false"><span class="pulse" aria-hidden="true"></span><span class="pulse p2" aria-hidden="true"></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v9a1.5 1.5 0 0 1-1.5 1.5H10l-4.5 4v-4h0A1.5 1.5 0 0 1 4 14.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></button>
 </div>
+{# ---------- спливаюча форма запису (усі «Записатися») і банер ---------- #}
+<div class="h-modal" id="h-modal" hidden role="dialog" aria-modal="true" aria-label="Запис у MOLODIST"><div class="h-modal-box">
+  <button type="button" class="h-x" data-modal-close aria-label="Закрити"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+  <div class="h-mbp" data-mode="bp" hidden><img src="{{ st('bp-poster.webp') }}" alt="Консультація BEAUTY PLAN у MOLODIST" width="1280" height="720" loading="lazy">
+    <div><p class="eyebrow">BEAUTY PLAN</p><p class="h-mh">Консультація лікаря й письмовий план</p>
+    <p class="sm">Діагностика шкіри на OBSERV 520x, план процедур за пріоритетами з цінами й схема домашнього догляду. До 2 годин{% if plan_price %} · <b>{{ money(plan_price) }}</b>{% endif %}.</p></div></div>
+  <div class="h-mstd" data-mode="std"><p class="h-mh">Залиште заявку — підберемо лікаря й час</p><p class="sm">Адміністратор звʼяжеться з вами тим способом, який ви оберете. {{ c.hours }}.</p></div>
+  {{ form('modal', 'Надіслати заявку') }}
+</div></div>
+{% if c.exit_on %}<div class="h-pop" id="h-pop" hidden data-delay="{{ c.exit_delay or 25 }}" role="dialog" aria-label="{{ c.exit_title }}">
+  <button type="button" class="h-x" data-pop-close aria-label="Закрити"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+  <img src="{{ st('s-5.webp') }}" alt="Діагностика шкіри в MOLODIST" width="700" height="875" loading="lazy">
+  <div>{% if c.exit_badge %}<span class="h-pbadge">{{ c.exit_badge }}</span>{% endif %}<p class="h-mh">{{ c.exit_title }}</p><p class="sm">{{ c.exit_text }}</p>
+    <a class="btn" href="#zapys" data-interest="Банер: {{ c.exit_badge or c.exit_title }}" data-pop-go>{{ c.exit_btn }}</a></div>
+</div>{% endif %}
 <a class="h-up" href="#top" aria-label="Вгору" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
 <nav class="bar" aria-label="Швидкий звʼязок">
   <a href="tel:{{ c.phone }}" aria-label="Подзвонити">{{ icon('phone') }}</a><a href="{{ c.telegram }}" target="_blank" rel="noopener" aria-label="Telegram">{{ icon('telegram') }}</a><a href="{{ viber }}" aria-label="Viber">{{ icon('viber') }}</a><a class="go" href="{{ zap }}">Записатися</a>

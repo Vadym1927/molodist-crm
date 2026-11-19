@@ -9221,6 +9221,12 @@ async def settings_site_save(request: Request, user: User = Depends(require("use
     for k in ("canonical", "main_url", "gtm_id", "phone", "phone_text", "telegram", "viber", "instagram", "email", "address", "hours", "license", "maps", "legal_code"):
         if k in f:
             c[k] = str(f.get(k) or "").strip()[:500]
+    for k in ("exit_title", "exit_text", "exit_badge", "exit_btn"):
+        if k in f:
+            c[k] = str(f.get(k) or "").strip()[:400]
+    if "exit_delay" in f:
+        c["exit_on"] = bool(f.get("exit_on"))
+        c["exit_delay"] = max(5, min(180, int(f.get("exit_delay") or 25) if str(f.get("exit_delay") or "").isdigit() else 25))
     if "hosts" in f:
         c["hosts"] = [h.strip().lower() for h in re.split(r"[\s,;]+", str(f.get("hosts") or "")) if h.strip()
                       and h.strip().lower() not in ("crm.molodist.com.ua", "localhost")][:5]

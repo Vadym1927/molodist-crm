@@ -60,7 +60,7 @@
     });
   });
   document.querySelectorAll('[data-doc]').forEach(function (a) {          // «Записатися до лікаря» → лікар у заявці
-    a.addEventListener('click', function () { var f = document.querySelector('#zapys form'); if (f) f.setAttribute('data-doctor', a.getAttribute('data-doc')); });
+    a.addEventListener('click', function () { document.querySelectorAll('#zapys form, #h-modal form').forEach(function (f) { f.setAttribute('data-doctor', a.getAttribute('data-doc')); }); });
   });
   var EV = { phone: 'phone_click', telegram: 'click_telegram', viber: 'click_viber', instagram: 'click_instagram', booking: 'click_booking' };
   function kind(a) {

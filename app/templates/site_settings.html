@@ -76,6 +76,15 @@
     <label>Код ЄДРПОУ / РНОКПП (у контактах і підвалі головної)<input name="legal_code" value="{{ c.legal_code }}" inputmode="numeric"></label>
     <label>Посилання на карту<input name="maps" value="{{ c.maps }}"></label>
   </div>
+  <h3 style="margin:18px 0 6px">Банер на головній (коли людина довго дивиться або хоче закрити сторінку)</h3>
+  <div class="row2">
+    <label><span><input type="checkbox" name="exit_on" {{ 'checked' if c.exit_on }}> показувати банер</span><span class="mini">Раз на 3 дні одному відвідувачу; не показується, якщо заявку вже залишили</span></label>
+    <label>Через скільки секунд<input name="exit_delay" value="{{ c.exit_delay }}" inputmode="numeric"><span class="mini">На ПК — ще й коли курсор іде до закриття вкладки</span></label>
+    <label>Плашка (акція)<input name="exit_badge" value="{{ c.exit_badge }}" placeholder="напр. −10% на першу процедуру"><span class="mini">Порожньо — без плашки. Лише реальна акція</span></label>
+    <label>Заголовок<input name="exit_title" value="{{ c.exit_title }}"></label>
+    <label>Текст<input name="exit_text" value="{{ c.exit_text }}"></label>
+    <label>Кнопка<input name="exit_btn" value="{{ c.exit_btn }}"></label>
+  </div>
   <button class="btn" style="margin-top:10px">Зберегти</button>
 </div></form>
 
