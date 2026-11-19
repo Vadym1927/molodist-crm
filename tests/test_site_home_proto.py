@@ -26,13 +26,17 @@ def test_proto_variants_render_brand_rules():
                 assert f'id="{anchor}"' in t, (k, anchor)
             assert 'id="h-menu"' in t and 'class="h-up"' in t and "data-fab" in t and "maps.google.com/maps" in t
             assert 'data-lead="home-' in t and "Я знаю процедуру" in t
+            if k == "a":                                                             # основний варіант: усе веде на форму, онлайн-запис — лише під лікарями
+                assert "/zapys" not in t.replace("/zapys?doctor=", "") and 'data-pick="topic"' in t and "Масаж" in t
+                assert "ФОП Бондар Вадим Миколайович" in t and "FAQPage" in t and "bp.mp4" in t and "ba-wrinkles-1.webp" in t
+                assert 'class="pulse"' in t and "h-rsum" in t and "h-igrid" in t and "h-shop2" in t
             body = re.sub(r"<(script|style)[^>]*>.*?</\1>", "", t, flags=re.S)
             body = re.sub(r"<[^>]+>", " ", body).lower()                             # лише видимий текст
             assert "клінік" not in body and "клієнт" not in body and "ботокс" not in body and "салон" not in body, k
 
 
 def test_proto_texts_brandbook():
-    blob = " ".join(str(x) for x in (sh.VARIANTS, sh.FACTS, sh.CONCERNS, sh.PLAN, sh.SPACE, sh.SHOP, sh.FAQ, sh.SEO, sh.MENU)).lower()
+    blob = " ".join(str(x) for x in (sh.VARIANTS, sh.FACTS, sh.CONCERNS, sh.DIRECTIONS, sh.PLAN, sh.SPACE, sh.SHOP, sh.INSTA, sh.FAQ, sh.SEO, sh.MENU)).lower()
     for bad in ("клінік", "клієнт", "ботокс", "салон", "майстер"):
         assert bad not in blob
     assert "Molodist" not in " ".join(str(x) for x in (sh.VARIANTS, sh.FACTS, sh.PLAN, sh.FAQ, sh.SEO))

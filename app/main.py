@@ -9043,6 +9043,16 @@ def site_og(slug: str):
     return FileResponse(f, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
 
 
+@app.get("/_site/insta/{name}")
+def site_insta(name: str):
+    """Фото зі стрічки Instagram для головної сайту (ті самі файли, що й у магазині)."""
+    from .services import insta_feed as _if
+    f = _if.folder() / name
+    if not re.fullmatch(r"\d+\.jpg", name) or not f.is_file():
+        raise HTTPException(404)
+    return FileResponse(f, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=604800"})
+
+
 @app.get("/_site/proto", response_class=HTMLResponse)
 @app.get("/_site/proto/{variant}", response_class=HTMLResponse)
 def site_proto(request: Request, variant: str = "", db: Session = Depends(db_dep)):
@@ -9058,7 +9068,7 @@ def site_proto(request: Request, variant: str = "", db: Session = Depends(db_dep
     else:
         ctx.update(sh.data(db, ctx["base"], ctx["ver"]))
         ctx.update(vk=vk, v=sh.VARIANTS[vk], menu=sh.MENU, facts=sh.FACTS, concerns=sh.CONCERNS, plan=sh.PLAN, space=sh.SPACE, shop=sh.SHOP,
-                   faq=sh.faq(ctx["c"]), title=sh.SEO["title"], desc=sh.SEO["desc"])
+                   insta_t=sh.INSTA, faq=sh.faq(ctx["c"]), faq_ld=sh.faq_jsonld(ctx["c"]), title=sh.SEO["title"], desc=sh.SEO["desc"])
         r = _site_resp("site/proto_home.html", ctx)
     r.headers["Cache-Control"] = "no-store"
     return r
@@ -9171,7 +9181,7 @@ async def settings_site_save(request: Request, user: User = Depends(require("use
     from .services import site_pages as sp
     f = await request.form()
     c = sp.cfg(db)
-    for k in ("canonical", "main_url", "gtm_id", "phone", "phone_text", "telegram", "viber", "instagram", "email", "address", "hours", "license", "maps"):
+    for k in ("canonical", "main_url", "gtm_id", "phone", "phone_text", "telegram", "viber", "instagram", "email", "address", "hours", "license", "maps", "legal_code"):
         if k in f:
             c[k] = str(f.get(k) or "").strip()[:500]
     if "hosts" in f:

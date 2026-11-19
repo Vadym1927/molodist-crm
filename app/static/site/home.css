@@ -184,3 +184,97 @@ html.h-lock{overflow:hidden}
 .h-hero .im .h-fph{aspect-ratio:4/5;border-radius:28px;background:linear-gradient(160deg,var(--lav),var(--greige));display:grid;place-content:center;justify-items:center;gap:12px;color:var(--plum)}
 .h-fph b{font:500 64px/1 var(--hf);letter-spacing:.08em}.h-fph small{font-size:13px;color:var(--mut)}
 @media (max-width:860px){.h-hero .im .h-fph{aspect-ratio:1/1;border-radius:20px}}
+
+/* ================= варіант A, друга версія: фото, відео, до/після, форма, відгуки, магазин, Instagram ================= */
+.eyebrow.lt{color:var(--lav2)}
+/* принципи з фото */
+.h-facts.pics{border:0;padding:8px 0 0}.h-facts.pics .h-facts-in{gap:18px}
+.h-facts.pics .h-facts-in>div{padding:0;border:0!important}
+.h-facts.pics img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:18px;margin-bottom:18px;background:var(--greige)}
+/* картки запитів з фото */
+.h-cgrid.rich{grid-template-columns:repeat(4,1fr);gap:16px}
+.h-ccard.pic{padding:0;min-height:0;overflow:hidden;gap:0;background:var(--cream);border-color:transparent}
+.h-ccard.pic .h-cb{display:grid;gap:6px;padding:18px 20px 20px}.h-ccard.pic b{font-size:15px;padding-right:0}.h-ccard.pic small{font-size:14px}
+.h-ccard.pic .how{padding-top:8px}.h-ccard.pic i{top:auto;bottom:calc(100% - 0px);display:none}
+.h-cimg,.h-ba{display:block;aspect-ratio:4/3;background:var(--greige);position:relative;overflow:hidden}
+.h-cimg img{width:100%;height:100%;object-fit:cover;transition:transform .5s}.h-ccard.pic:hover .h-cimg img,.h-ccard.pic:hover .h-ba img{transform:scale(1.04)}
+.h-cimg.none{display:grid;align-content:end;gap:4px;padding:18px 20px;background:linear-gradient(150deg,var(--lav),var(--greige))}
+.h-cimg.none b{font:500 44px/1 var(--hf);color:var(--plum);letter-spacing:.04em}.h-cimg.none small{color:var(--plum);font-size:12px;letter-spacing:.1em;text-transform:uppercase;font-family:var(--hf);font-weight:600}
+.h-ba{display:grid;grid-template-columns:1fr 1fr;gap:2px}.h-ba>span{position:relative;overflow:hidden;display:block}
+.h-ba img{width:100%;height:100%;object-fit:cover;transition:transform .5s}
+.h-ba em{position:absolute;left:8px;bottom:8px;background:rgba(42,36,48,.82);color:#fff;font:600 10px/1 var(--hf);letter-spacing:.14em;text-transform:uppercase;font-style:normal;padding:6px 9px;border-radius:999px}
+.h-ba>span:last-child em{background:var(--act)}
+.h-plist span small{display:block;font:400 13.5px/1.4 var(--bf);text-transform:none;letter-spacing:0;color:var(--mut);margin-top:3px}
+/* BEAUTY PLAN: відео й кроки в ряд */
+.h-pvid{position:relative;border-radius:26px;overflow:hidden;background:var(--ink);aspect-ratio:16/10;box-shadow:0 30px 60px -36px rgba(42,36,48,.6)}
+.h-pvid video{width:100%;height:100%;object-fit:cover;display:block}
+.h-pvid .cap{position:absolute;left:16px;bottom:16px;background:rgba(42,36,48,.78);color:#fff;font:600 11px/1 var(--hf);letter-spacing:.12em;text-transform:uppercase;padding:9px 13px;border-radius:999px}
+.h-plan-in{align-items:center}
+.h-steps.row{grid-template-columns:repeat(4,1fr);gap:28px;margin-top:56px}
+.h-steps.row li{grid-template-columns:1fr;border:0!important;border-top:1px solid var(--lav2)!important;padding:20px 0 0}
+/* простір */
+.h-gal.five{grid-template-columns:repeat(4,1fr)}.h-gal.five img{height:auto;aspect-ratio:4/5}
+.h-gal.five img:first-child{grid-column:1/5;aspect-ratio:21/9;object-position:center 45%}
+/* відгуки */
+.h-rev2{background:var(--cream)}.h-rev2-in{display:grid;grid-template-columns:340px 1fr;gap:28px;align-items:stretch}
+.h-rsum{background:var(--plum);color:#fff;border-radius:26px;padding:34px 30px;display:grid;align-content:start;gap:6px}
+.h-rsum .lbl{font:600 12px/1 var(--hf);letter-spacing:.16em;text-transform:uppercase;color:var(--lav2);margin:0 0 14px}
+.h-rsum .sc{font:600 84px/1 var(--hf);margin:0;letter-spacing:-.01em}.h-rsum .st{color:#E7C65A;font-size:22px;letter-spacing:.16em;margin:6px 0 0}
+.h-rsum .cnt{margin:0;color:#E4DEEF;font-weight:600}.h-rsum .tx{margin:16px 0 0;color:#C9C2D2;font-size:14.5px}
+.h-rsum .acts{display:grid;gap:16px;justify-items:start;margin:22px 0 0}.h-ghost.lt{color:#fff}.h-ghost.lt:hover{color:var(--lav2)}
+.h-rwrap{min-width:0;display:grid;gap:16px;align-content:start}
+.h-rtrack{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;padding-bottom:2px}.h-rtrack::-webkit-scrollbar{display:none}
+.h-rtrack .h-rcard{flex:0 0 min(360px,84%);scroll-snap-align:start;background:#fff;border:1px solid var(--greige);min-height:270px}
+.h-rcard header{display:grid;grid-template-columns:44px 1fr 28px;gap:12px;align-items:center}
+.h-rcard .av{width:44px;height:44px;border-radius:50%;background:var(--lav);color:var(--plum);display:grid;place-items:center;font:600 17px var(--hf)}
+.h-rcard header b{display:block;font:600 14.5px/1.2 var(--hf)}.h-rcard header small{color:var(--mut);font-size:12.5px}
+.h-rcard .g{width:28px;height:28px;border-radius:50%;border:1px solid var(--greige);display:grid;place-items:center;font:700 13px var(--hf);color:var(--mut)}
+.h-rnav{display:flex;gap:10px;justify-content:flex-end}
+.h-rnav button{width:46px;height:46px;border-radius:50%;border:1px solid var(--lav2);background:#fff;color:var(--ink);cursor:pointer;display:grid;place-items:center}
+.h-rnav button:hover{border-color:var(--ink)}.h-rnav svg{width:18px;height:18px}.h-rnav button:first-child svg{transform:rotate(180deg)}
+/* запис: картка форми */
+.h-book .cta-in{align-items:start;grid-template-columns:1fr 1.05fr}
+.h-bsteps{list-style:none;padding:0;margin:26px 0;display:grid;gap:12px;counter-reset:b}
+.h-bsteps li{counter-increment:b;display:flex;gap:14px;align-items:center;color:#E4DEEF}
+.h-bsteps li:before{content:counter(b);flex:none;width:30px;height:30px;border-radius:50%;border:1px solid #6B5E86;display:grid;place-items:center;font:600 13px var(--hf);color:#fff}
+.h-fcard{background:#fff;color:var(--ink);border-radius:26px;padding:30px;box-shadow:0 40px 80px -40px #000}
+.h-form{gap:18px}.h-form fieldset{border:0;padding:0;margin:0;min-width:0}
+.h-form legend,.h-form label span{font:600 11px/1 var(--hf);letter-spacing:.12em;text-transform:uppercase;color:var(--mut);padding:0;margin-bottom:10px;display:block}
+.h-form label span{margin-bottom:0}
+.h-chips{display:flex;flex-wrap:wrap;gap:8px}.h-chips legend{width:100%;float:left}
+.h-chips button{border:1px solid var(--greige);background:var(--cream);color:var(--ink);border-radius:999px;padding:10px 15px;font:500 13.5px/1 var(--bf);cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+.h-chips button:hover{border-color:var(--lav2)}.h-chips button[aria-pressed=true]{background:var(--plum);border-color:var(--plum);color:#fff}
+.h-frow{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.h-form .fine a{color:var(--mut)}
+/* магазин */
+.h-shop2{background:var(--w)}.h-shop2-in{display:grid;grid-template-columns:1fr 1.1fr;gap:56px;align-items:center}
+.h-scol{display:grid;grid-template-columns:1.25fr 1fr;grid-template-rows:1fr 1fr;gap:14px;height:520px}
+.h-scol img{width:100%;height:100%;object-fit:cover;border-radius:20px;background:var(--greige)}.h-scol img:first-child{grid-row:1/3}
+.h-prods{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:40px}
+.h-prod{display:grid;gap:6px;text-decoration:none;color:var(--ink);align-content:start}
+.h-prod img{width:100%;aspect-ratio:1/1;object-fit:contain;background:var(--cream);border-radius:18px;margin-bottom:6px}
+.h-prod .br{font:600 11px/1 var(--hf);letter-spacing:.12em;text-transform:uppercase;color:var(--act)}.h-prod b{font:500 14.5px/1.35 var(--bf)}.h-prod em{font:600 16px var(--hf);font-style:normal;color:var(--plum)}
+/* Instagram */
+.h-igrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.h-igrid a{display:block;aspect-ratio:1/1;border-radius:16px;overflow:hidden;background:var(--cream)}
+.h-igrid img{width:100%;height:100%;object-fit:cover;transition:transform .5s}.h-igrid a:hover img{transform:scale(1.05)}
+.h-igrid.ph{grid-template-columns:repeat(6,1fr)}.h-igrid.ph a{display:grid;place-items:center;border:1px dashed var(--lav2);text-decoration:none}.h-igrid.ph span{font-size:12px;color:var(--mut);text-align:center;padding:8px}
+/* кнопка звʼязку: пульс */
+.h-fab-btn{position:relative}
+.h-fab-btn .pulse{position:absolute;inset:0;border-radius:50%;border:2px solid var(--act);opacity:0;animation:hpulse 2.6s ease-out infinite;pointer-events:none}
+.h-fab-btn .pulse.p2{animation-delay:1.3s}
+.h-fab-btn svg{animation:hwig 5.2s ease-in-out infinite;transform-origin:50% 60%}
+.h-fab.open .pulse,.h-fab.open svg{animation:none}
+@keyframes hpulse{0%{transform:scale(1);opacity:.75}100%{transform:scale(1.9);opacity:0}}
+@keyframes hwig{0%,86%,100%{transform:rotate(0)}89%{transform:rotate(-14deg)}92%{transform:rotate(12deg)}95%{transform:rotate(-8deg)}98%{transform:rotate(4deg)}}
+.bar a.go{position:relative;overflow:hidden}.bar a.go:after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,rgba(255,255,255,.28) 50%,transparent 70%);transform:translateX(-100%);animation:hshine 4s ease-in-out infinite}
+@keyframes hshine{0%,70%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+@media (prefers-reduced-motion:reduce){.h-fab-btn .pulse,.h-fab-btn svg,.bar a.go:after{animation:none}}
+@media (max-width:1000px){.h-cgrid.rich{grid-template-columns:1fr 1fr}.h-rev2-in{grid-template-columns:1fr}.h-rsum .sc{font-size:64px}.h-steps.row{grid-template-columns:1fr 1fr}
+  .h-prods{grid-template-columns:1fr 1fr}.h-igrid,.h-igrid.ph{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:860px){.h-shop2-in,.h-book .cta-in{grid-template-columns:1fr;gap:28px}.h-scol{height:380px}.h-fcard{padding:22px 18px}
+  .h-gal.five{grid-template-columns:1fr 1fr;gap:10px}.h-gal.five img:first-child{grid-column:1/3;aspect-ratio:3/2}
+  .h-steps.row{margin-top:34px;gap:18px}.h-facts.pics .h-facts-in{grid-template-columns:1fr 1fr;gap:14px}.h-facts.pics .h-facts-in>div{padding:0 0 10px}
+  .h-rtrack{margin:0 -16px;padding:0 16px 2px}}
+@media (max-width:560px){.h-cgrid.rich{grid-template-columns:1fr 1fr;gap:10px}.h-ccard.pic .h-cb{padding:12px 12px 14px}.h-ccard.pic b{font-size:12.5px}.h-ccard.pic .h-cb>small{display:none}.h-ccard.pic .how{font-size:12px;padding-top:2px}.h-ba em{font-size:8.5px;padding:5px 7px;left:5px;bottom:5px}.h-cimg.none b{font-size:30px}.h-cimg.none small{font-size:10px}.h-frow{grid-template-columns:1fr}
+  .h-steps.row{grid-template-columns:1fr}.h-igrid{grid-template-columns:1fr 1fr}.h-facts.pics .h-facts-in{grid-template-columns:1fr 1fr}.h-facts.pics .h-facts-in>div{border-top:0}}
