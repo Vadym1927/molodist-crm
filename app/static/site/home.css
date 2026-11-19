@@ -446,3 +446,10 @@ html.h-lock{overflow:hidden}
 .h-cont-in{grid-template-columns:minmax(300px,400px) 1fr;gap:40px}.h-dl{grid-template-columns:96px 1fr;gap:12px 8px;margin-bottom:20px}
 @media (max-width:980px){.h-cont-in{grid-template-columns:1fr;gap:26px}}
 @media (max-width:560px){.h-dl{grid-template-columns:1fr;gap:2px 0}}
+
+/* SEO-заголовки без зміни вигляду */
+.h-ctt{margin:0;font:600 17px/1.25 var(--hf);text-transform:uppercase;letter-spacing:.03em;padding-right:36px;color:inherit}
+.h-ccard.pic .h-ctt{font-size:15px;padding-right:0}
+@media (max-width:560px){.h-ccard.pic .h-ctt{font-size:12.5px}}
+h2.lbl{font-weight:600}
+.vh{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;margin:-1px;padding:0;border:0}

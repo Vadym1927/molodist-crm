@@ -124,7 +124,13 @@ PLAN = {
 # ---------- простір ----------
 SPACE = {"title": "Простір, у якому спокійно",
          "text": "Закриті кабінети, одноразові матеріали, сертифіковане обладнання. Без загальних залів і поспіху: на кожного пацієнта — стільки часу, скільки потрібно.",
-         "imgs": ["clinic-1.webp", "clinic-2.webp", "bp-1.webp", "derma-1.webp"]}
+         "imgs": ["clinic-1.webp", "clinic-2.webp", "bp-1.webp", "derma-1.webp"],
+         # підписи до фото каруселі — у порядку SPACE_ORDER
+         "alts": ["Рецепція MOLODIST у Києві — вітрина професійної косметики", "Фірмові пакети MOLODIST з доглядом після процедури",
+                  "Зона очікування медичного простору MOLODIST", "Кава для пацієнтів MOLODIST",
+                  "Пацієнтка MOLODIST перед консультацією лікаря", "Вхід у MOLODIST, вул. Князя Романа Мстиславича, 28А, Київ",
+                  "Кабінет апаратних процедур MOLODIST", "Фото шкіри після діагностики в MOLODIST",
+                  "Діагностика шкіри на апараті OBSERV у MOLODIST", "Рецепція медичного простору MOLODIST"]}
 
 # ---------- магазин ----------
 SHOP = {"title": "Домашній догляд, який призначає лікар",
@@ -171,8 +177,8 @@ FAQ = [
 ]
 
 SEO = {"title": "MOLODIST — естетична медицина й косметологія в Києві",
-       "desc": "Медичний простір естетики та профілактики в Києві. Діагностика шкіри, BEAUTY PLAN, інʼєкційна косметологія, "
-               "лазерна епіляція, видалення новоутворень. Запис до лікаря.",
+       "desc": "Медичний простір естетики та профілактики в Києві: діагностика шкіри, BEAUTY PLAN, інʼєкційна косметологія, "
+               "лазерна епіляція, видалення новоутворень.",
        "og_title": "MOLODIST — медичний простір естетики та профілактики",
        "og_desc": "Шкіра, якій не потрібні фільтри. Естетична медицина й косметологія в Києві: спершу діагностика й план, потім процедури."}
 SPACE_ORDER = [1, 7, 2, 8, 4, 9, 3, 10, 5, 6]          # карусель «Простір»: інтерʼєр упереміш із деталями
@@ -270,7 +276,7 @@ def faq(c: dict) -> list[tuple[str, str]]:
     return [(q, a.replace("{address}", c["address"]).replace("{hours}", c["hours"])) for q, a in FAQ]
 
 
-def org_jsonld(c: dict, url: str, og_img: str = "") -> str:
+def org_jsonld(c: dict, url: str, og_img: str = "", team: list | None = None) -> str:
     """Розмітка schema.org для головної: медичний заклад (адреса, графік, контакти), сайт і сторінка."""
     import json
     org = {"@type": "MedicalClinic", "@id": url.rstrip("/") + "/#org", "name": "MOLODIST", "url": url,
@@ -283,6 +289,11 @@ def org_jsonld(c: dict, url: str, og_img: str = "") -> str:
            "hasMap": c.get("maps") or "", "sameAs": [x for x in (c.get("instagram"), c.get("telegram")) if x], "currenciesAccepted": "UAH"}
     if og_img:
         org["image"] = og_img
+    org["logo"] = url.rstrip("/") + "/static/site/brand/mono-violet-180.png"
+    org["areaServed"] = {"@type": "City", "name": "Київ"}
+    if team:
+        org["employee"] = [{"@type": "Physician", "name": d["name"], **({"description": d["role"]} if d.get("role") else {})}
+                           for d in team if d.get("name")]
     site = {"@type": "WebSite", "@id": url.rstrip("/") + "/#site", "url": url, "name": "MOLODIST", "inLanguage": "uk",
             "publisher": {"@id": org["@id"]}}
     page = {"@type": "WebPage", "url": url, "name": SEO["title"], "description": SEO["desc"], "inLanguage": "uk",

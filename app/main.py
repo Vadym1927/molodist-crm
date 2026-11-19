@@ -8748,7 +8748,7 @@ def site_home(request: Request, db: Session = Depends(db_dep)):
         ctx.update(og_title=sh.SEO["og_title"], og_desc=sh.SEO["og_desc"],
                    og_img=f"{abs_base}/og/home.jpg" if sp_og("home", sh.og_src()) else "")
         if not ctx["noindex"]:
-            ctx["org_ld"] = sh.org_jsonld(ctx["c"], ctx["canonical"], ctx["og_img"])
+            ctx["org_ld"] = sh.org_jsonld(ctx["c"], ctx["canonical"], ctx["og_img"], ctx.get("team"))
         return _site_resp("site/proto_home.html", ctx)
     ctx.update(title="MOLODIST — медичний простір естетики та профілактики в Києві",
                desc="Лазерна епіляція, видалення новоутворень, інʼєкційна косметологія й BEAUTY PLAN під контролем лікаря. Ціни й запис онлайн.",

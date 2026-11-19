@@ -38,7 +38,7 @@
   <p class="fine">Відповідаємо {{ c.hours }}. Натискаючи кнопку, ви погоджуєтеся на <a href="{{ privacy }}">обробку персональних даних</a>.</p>
 </form>
 {% endmacro %}
-{% macro ph(d, cls='') %}<div class="h-ph {{ cls }}">{% if d.photo %}<img src="{{ d.photo }}" alt="{{ d.name }}" loading="lazy">{% else %}<span>{{ d.initials }}</span>{% endif %}</div>{% endmacro %}
+{% macro ph(d, cls='') %}<div class="h-ph {{ cls }}">{% if d.photo %}<img src="{{ d.photo }}" alt="{{ d.name }}{{ (', ' ~ d.role.split('.')[0]) if d.role }} — MOLODIST" loading="lazy" width="600" height="750">{% else %}<span>{{ d.initials }}</span>{% endif %}</div>{% endmacro %}
 {% macro ic(n) %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{% if n == 'scan' %}<path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="11" r="3.2"/><path d="M8.500 17c.8-1.500 2-2.200 3.500-2.200s2.700.7 3.500 2.200"/>{% elif n == 'plan' %}<rect x="5" y="3.500" width="14" height="17" rx="2"/><path d="M9 8h6M9 12h6M9 16h3.500"/>{% elif n == 'care' %}<path d="M9 8h6v11a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z"/><path d="M10.500 8V5h3v3M12 5V3"/><path d="M9 13h6"/>{% elif n == 'loop' %}<path d="M4 12a8 8 0 0 1 13.700-5.600L20 8.500"/><path d="M20 4.500v4h-4"/><path d="M20 12a8 8 0 0 1-13.700 5.600L4 15.500"/><path d="M4 19.500v-4h4"/>{% elif n == 'bag' %}<path d="M6 8h12l1 12H5z"/><path d="M9 8V7a3 3 0 0 1 6 0v1"/>{% elif n == 'phone' %}<path d="M6.500 4h3l1.500 4-2 1.500a11 11 0 0 0 5.500 5.500l1.500-2 4 1.500v3a2 2 0 0 1-2 2A15 15 0 0 1 4.500 6a2 2 0 0 1 2-2z"/>{% elif n == 'tg' %}<path d="M20.500 4.500 3.500 11l5.500 2 2 6 3-4 4.500 3.500z"/><path d="m9 13 7.500-5.500"/>{% elif n == 'viber' %}<path d="M5 5.500h14a1.500 1.500 0 0 1 1.500 1.500v8a1.500 1.500 0 0 1-1.500 1.500h-6l-4 3.500v-3.500H5A1.500 1.500 0 0 1 3.500 15V7A1.500 1.500 0 0 1 5 5.500z"/><path d="M9.500 9.500c.5 2 2 3.500 4 4"/>{% elif n == 'cal' %}<rect x="4" y="5.500" width="16" height="14.500" rx="2"/><path d="M4 10h16M8.500 3.500v4M15.500 3.500v4"/>{% elif n == 'form' %}<path d="M5 4h14v16H5z"/><path d="M8.500 9h7M8.500 13h7M8.500 17h4"/>{% elif n == 'check' %}<path d="m5 12.500 4.500 4.500L19 7.500"/>{% endif %}</svg>{% endmacro %}
 {% macro arrow() %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{% endmacro %}
 
@@ -51,10 +51,10 @@
   </div>
   <div class="h-tabp" id="{{ uid }}-c" role="tabpanel">
     {% if rich %}<div class="h-cgrid rich">{% for x in concerns %}<a class="h-ccard pic" href="#zapys" data-interest="{{ x.interest }}">
-      {% if x.ba %}<span class="h-ba {{ 'v' if x.ba_v }}"><span><img src="{{ st(x.ba[0]) }}" alt="{{ x.t }} — до" loading="lazy"><em>До</em></span><span><img src="{{ st(x.ba[1]) }}" alt="{{ x.t }} — після" loading="lazy"><em>Після</em></span></span>
-      {% elif x.img_url %}<span class="h-cimg"><img src="{{ x.img_url }}" alt="{{ x.t }}" loading="lazy"></span>
+      {% if x.ba %}<span class="h-ba {{ 'v' if x.ba_v }}"><span><img src="{{ st(x.ba[0]) }}" alt="{{ x.t }} — фото до лікування в MOLODIST" loading="lazy" width="{{ 800 if x.ba_v else 420 }}" height="{{ 400 if x.ba_v else 805 }}"><em>До</em></span><span><img src="{{ st(x.ba[1]) }}" alt="{{ x.t }} — результат після лікування в MOLODIST" loading="lazy" width="{{ 800 if x.ba_v else 420 }}" height="{{ 400 if x.ba_v else 805 }}"><em>Після</em></span></span>
+      {% elif x.img_url %}<span class="h-cimg"><img src="{{ x.img_url }}" alt="{{ x.t }} — MOLODIST, Київ" loading="lazy" width="720" height="720"></span>
       {% else %}<span class="h-cimg none"><b>0{{ loop.index }}</b><small>{{ x.t }}</small></span>{% endif %}
-      <span class="h-cb"><b>{{ x.t }}</b><small>{{ x.d }}</small><span class="how">{{ x.how }}</span></span><i>{{ arrow() }}</i></a>{% endfor %}</div>
+      <span class="h-cb"><h3 class="h-ctt">{{ x.t }}</h3><small>{{ x.d }}</small><span class="how">{{ x.how }}</span></span><i>{{ arrow() }}</i></a>{% endfor %}</div>
     <p class="h-note">Фото «до / після» опубліковано за згодою пацієнтів. Результат індивідуальний і залежить від стану шкіри.</p>
     {% else %}<div class="h-cgrid">{% for x in concerns[:6] %}<a class="h-ccard" href="{{ (base ~ '/' ~ x.slug) if x.slug else zap }}">
       <b>{{ x.t }}</b><small>{{ x.d }}</small><span class="how">{{ x.how }}</span><i>{{ arrow() }}</i></a>{% endfor %}</div>
@@ -77,7 +77,7 @@
   <div class="hs-top">
     <div class="hs-l"><button class="hs-ib" type="button" aria-label="Меню" aria-expanded="false" aria-controls="h-menu" data-menu-open><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
       <span class="hs-info">{{ c.hours }} · <a href="{{ c.maps }}" target="_blank" rel="noopener">Київ, Князя Романа Мстиславича, 28А</a></span></div>
-    <a class="logo" href="{{ base }}/proto/{{ vk }}" aria-label="MOLODIST — головна"><img class="wm" src="/static/site/brand/wordmark-graphite.svg" alt="MOLODIST" width="200" height="24"></a>
+    <a class="logo" href="{{ (base ~ '/proto/' ~ vk) if proto else (base ~ '/') }}" aria-label="MOLODIST — головна"><img class="wm" src="/static/site/brand/wordmark-graphite.svg" alt="MOLODIST" width="200" height="24"></a>
     <div class="hs-r"><a class="hs-tel" href="tel:{{ c.phone }}">{{ c.phone_text }}</a>
       <a class="hs-ib tel" href="tel:{{ c.phone }}" aria-label="Подзвонити">{{ ic('phone') }}</a>
       <a class="hs-ib" href="{{ shop.url }}" target="_blank" rel="noopener" aria-label="Магазин косметики" title="Магазин косметики">{{ ic('bag') }}</a>
@@ -92,7 +92,7 @@
 
 <header class="h-hd" id="top"><div class="wrap h-hd-in">
   <button class="h-burger" aria-label="Меню" aria-expanded="false" aria-controls="h-menu" data-menu-open><span class="ln"><i></i><i></i><i></i></span><b>Меню</b></button>
-  <a class="logo" href="{{ base }}/proto/{{ vk }}" aria-label="MOLODIST — головна"><img class="wm" src="/static/site/brand/wordmark-{{ 'white' if vk == 'c' else 'graphite' }}.svg" alt="MOLODIST" width="200" height="24"></a>
+  <a class="logo" href="{{ (base ~ '/proto/' ~ vk) if proto else (base ~ '/') }}" aria-label="MOLODIST — головна"><img class="wm" src="/static/site/brand/wordmark-{{ 'white' if vk == 'c' else 'graphite' }}.svg" alt="MOLODIST" width="200" height="24"></a>
   <nav class="h-nav" aria-label="Розділи">{% for t, h in menu %}<a href="{{ h }}">{{ t }}</a>{% endfor %}</nav>
   <a class="h-tel" href="tel:{{ c.phone }}">{{ c.phone_text }}</a>
   <a class="btn sm" href="{{ zap }}">Записатися</a>
@@ -118,7 +118,7 @@
   <section class="h-hero a"><div class="wrap h-hero-in">
     <div class="tx"><p class="eyebrow">{{ v.eyebrow }}</p><h1>{{ v.h1 }}</h1>{% if v.tagline %}<h2 class="h-tag">{{ v.tagline }}</h2>{% endif %}<p class="lead-tx">{{ v.lead }}</p>
       <p class="h-btns"><a class="btn" href="{{ zap }}">{{ v.cta }}</a><a class="h-ghost" href="#beauty-plan">{{ v.cta2 }} {{ arrow() }}</a></p></div>
-    <div class="im"><img src="{{ img.hero }}" alt="Лікарі медичного простору MOLODIST у Києві" fetchpriority="high">
+    <div class="im"><img src="{{ img.hero }}" alt="Лікарі медичного простору MOLODIST у Києві" fetchpriority="high" width="1100" height="1375">
       {% if rev %}<a class="h-rate" href="#vidhuky"><b>{{ '%.1f'|format(rev.rating) }}</b><span>★★★★★<small>{{ rev.count }} відгуків у Google</small></span></a>{% endif %}</div>
   </div><p class="h-word" aria-hidden="true">MOLODIST</p></section>
   {% elif vk == 'b' %}
@@ -145,7 +145,7 @@
   {% endif %}
 
 {% elif sec == 'facts' %}
-  <section class="h-facts {{ 'pics' if rich }}"><div class="wrap h-facts-in">{% for f in facts %}<div>{% if rich %}<img src="{{ st(f[2]) }}" alt="{{ f[0] }} — MOLODIST" loading="lazy">{% endif %}<span class="n">0{{ loop.index }}</span><h3>{{ f[0] }}</h3><p>{{ f[1] }}</p></div>{% endfor %}</div></section>
+  <section class="h-facts {{ 'pics' if rich }}"><div class="wrap h-facts-in">{% for f in facts %}<div>{% if rich %}<img src="{{ st(f[2]) }}" alt="{{ f[0] }} — MOLODIST" loading="lazy" width="640" height="480">{% endif %}<span class="n">0{{ loop.index }}</span><h3>{{ f[0] }}</h3><p>{{ f[1] }}</p></div>{% endfor %}</div></section>
 
 {% elif sec == 'entry' %}
   <section class="sec h-sec" id="poslugy"><div class="wrap">
@@ -179,14 +179,14 @@
 {% elif sec == 'space' %}
   <section class="sec h-space" id="prostir"><div class="wrap">
     <div class="h-shd lt"><h2>{{ space.title }}</h2><p>{{ space.text }}</p></div>
-    {% if rich %}<div class="h-car" data-car><div class="h-car-t">{% for u in img.space_a %}<img src="{{ u }}" alt="Медичний простір MOLODIST" loading="lazy" width="880" height="1100">{% endfor %}</div></div>{% else %}
+    {% if rich %}<div class="h-car" data-car><div class="h-car-t">{% for u in img.space_a %}<img src="{{ u }}" alt="{{ space.alts[loop.index0] if space.alts and loop.index0 < space.alts|length else 'Медичний простір MOLODIST у Києві' }}" loading="lazy" width="880" height="1100">{% endfor %}</div></div>{% else %}
     <div class="h-gal">{% for u in img.space %}<img src="{{ u }}" alt="Медичний простір MOLODIST" loading="lazy">{% else %}{% for i in range(4) %}<div class="h-galph"><img src="/static/site/brand/mono-white.svg" alt="" width="44" height="44"><small>фото простору</small></div>{% endfor %}{% endfor %}</div>{% endif %}
     <p class="h-lic">{{ c.license }}</p>
   </div></section>
 
 {% elif sec == 'reviews' %}
   <section class="sec h-rev2" id="vidhuky"><div class="wrap h-rev2-in">
-    <aside class="h-rsum"><p class="lbl">Відгуки пацієнтів</p>
+    <aside class="h-rsum"><h2 class="lbl">Відгуки пацієнтів MOLODIST</h2>
       <p class="sc">{{ ('%.1f'|format(rev.rating)).replace('.', ',') if rev else '5,0' }}</p><p class="st" aria-hidden="true">★★★★★</p>
       <p class="cnt">{% if rev %}{{ rev.count }} відгуків у Google{% else %}рейтинг у Google{% endif %}</p>
       <p class="tx">Справжні відгуки з профілю MOLODIST у Google — без редагування й відбору «найкращих».</p>
@@ -214,7 +214,7 @@
     <div class="tx"><p class="eyebrow">Магазин MOLODIST</p><h2>{{ shop.title }}</h2><p class="big">{{ shop.text }}</p>
       <ul class="h-gets dk">{% for g in shop.points %}<li>{{ g }}</li>{% endfor %}</ul>
       <p class="h-btns"><a class="btn" href="{{ shop.url }}" target="_blank" rel="noopener">{{ shop.btn }}</a></p></div>
-    <div class="h-scol">{% for n in shop.imgs %}<img src="{{ st(n) }}" alt="Професійна косметика в MOLODIST" loading="lazy">{% endfor %}</div>
+    <div class="h-scol">{% for n in shop.imgs %}<img src="{{ st(n) }}" alt="Професійна косметика в MOLODIST" loading="lazy" width="700" height="875">{% endfor %}</div>
   </div>{% if products %}<div class="wrap"><div class="h-shd row h-pshd"><div><h3>Хіти магазину</h3></div><a class="btn sm" href="{{ shop.url }}" target="_blank" rel="noopener">Увесь каталог</a></div>
     <div class="h-prods">{% for i in products %}<article class="h-pc">
     <a class="pc-img" href="{{ shop_base }}/shop/{{ i.slug }}/" target="_blank" rel="noopener"><img src="{{ shop_base }}/img/{{ i.imgs[0] }}?w=600" alt="{{ i.name }}" loading="lazy" width="600" height="600">{% if i.pct %}<em class="bdg sale">−{{ i.pct }}%</em>{% elif i.tip %}<em class="bdg">Рекомендує лікар</em>{% endif %}</a>
@@ -225,6 +225,7 @@
 
 {% elif sec == 'insta' %}
   <section class="sec h-sec h-insta"><div class="wrap">
+    <h2 class="vh">MOLODIST в Instagram</h2>
     <div class="h-ihd"><a class="pf" href="{{ c.instagram }}" target="_blank" rel="noopener"><span class="av"><img src="/static/shop/insta-logo.png?v={{ ver }}" alt="MOLODIST" width="76" height="76"></span>
         <span class="t"><b>{{ ('@' ~ insta_p.username) if insta_p.username else '@_molodist' }}</b><small>{{ insta_p.name or 'MOLODIST' }}{% if insta_p.followers %} · {{ '{:,}'.format(insta_p.followers).replace(',', ' ') }} підписників{% endif %}{% if insta_p.posts %} · {{ insta_p.posts }} публікацій{% endif %}</small><em>{{ insta_t.text }}</em></span></a>
       <a class="btn light" href="{{ c.instagram }}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3.500" y="3.500" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.200" cy="6.800" r=".8" fill="currentColor"/></svg>Підписатися</a></div>
