@@ -433,3 +433,16 @@ html.h-lock{overflow:hidden}
 /* «Увесь каталог»: спокійне наведення без заливки */
 .h-pshd .btn.sm:hover{background:var(--lav);color:var(--plum);border-color:var(--act)}
 .h-cgrid.rich .h-cimg img{object-position:center 40%}
+
+/* простір: карусель (на ПК — авторух, на телефоні — свайп) */
+.h-car{overflow:hidden;margin:0 calc(50% - 50vw);padding:0 24px}
+.h-car-t{display:flex;gap:14px;width:max-content}
+.h-car img{flex:none;width:clamp(220px,19vw,300px);height:auto;aspect-ratio:4/5;object-fit:cover;border-radius:20px;background:#352E3D}
+.h-car.auto .h-car-t{animation:hcar 70s linear infinite}.h-car.auto:hover .h-car-t{animation-play-state:paused}
+@keyframes hcar{to{transform:translateX(calc(-50% - 7px))}}
+@media (max-width:860px),(prefers-reduced-motion:reduce){.h-car{overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -16px;padding:0 16px;scrollbar-width:none}.h-car::-webkit-scrollbar{display:none}
+  .h-car-t{gap:10px}.h-car img{width:62vw;max-width:300px;scroll-snap-align:start}}
+/* контакти: текст щільніше, карта ширша */
+.h-cont-in{grid-template-columns:minmax(300px,400px) 1fr;gap:40px}.h-dl{grid-template-columns:96px 1fr;gap:12px 8px;margin-bottom:20px}
+@media (max-width:980px){.h-cont-in{grid-template-columns:1fr;gap:26px}}
+@media (max-width:560px){.h-dl{grid-template-columns:1fr;gap:2px 0}}

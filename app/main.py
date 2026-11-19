@@ -8741,10 +8741,32 @@ def site_home(request: Request, db: Session = Depends(db_dep)):
     if tp:
         return _tilda_resp(request, db, tp)
     ctx = _site_ctx(request, db)
+    if ts.cfg(db).get("home") == "new":
+        from .services import site_home as sh
+        _home_new_ctx(ctx, db, "a")
+        abs_base = ctx["c"]["canonical"].rstrip("/") if not ctx["noindex"] else str(request.base_url).rstrip("/").replace("http://", "https://") + "/_site"
+        ctx.update(og_title=sh.SEO["og_title"], og_desc=sh.SEO["og_desc"],
+                   og_img=f"{abs_base}/og/home.jpg" if sp_og("home", sh.og_src()) else "")
+        if not ctx["noindex"]:
+            ctx["org_ld"] = sh.org_jsonld(ctx["c"], ctx["canonical"], ctx["og_img"])
+        return _site_resp("site/proto_home.html", ctx)
     ctx.update(title="MOLODIST — медичний простір естетики та профілактики в Києві",
                desc="Лазерна епіляція, видалення новоутворень, інʼєкційна косметологія й BEAUTY PLAN під контролем лікаря. Ціни й запис онлайн.",
                jsonld="")
     return _site_resp("site/home.html", ctx)
+
+
+def sp_og(slug: str, src=None):
+    from .services import site_pages as sp
+    return sp.og_image(slug, src)
+
+
+def _home_new_ctx(ctx: dict, db: Session, vk: str) -> None:
+    """Контекст нової головної (site/proto_home.html): тексти, дані з CRM, SEO."""
+    from .services import site_home as sh
+    ctx.update(vk=vk, v=sh.VARIANTS[vk], menu=sh.MENU, facts=sh.FACTS, plan=sh.PLAN, space=sh.SPACE, shop=sh.SHOP, proto=False,
+               insta_t=sh.INSTA, faq=sh.faq(ctx["c"]), faq_ld=sh.faq_jsonld(ctx["c"]), title=sh.SEO["title"], desc=sh.SEO["desc"])
+    ctx.update(sh.data(db, ctx["base"], ctx["ver"]))
 
 
 @app.get("/_site/robots.txt")
@@ -8759,7 +8781,9 @@ def site_sitemap(request: Request, db: Session = Depends(db_dep)):
     from .services import site_pages as sp
     b = sp.cfg(db)["canonical"].rstrip("/")
     from .services import online_booking as _ob
-    urls = "".join(f"<url><loc>{b}/{s_}</loc><lastmod>{date.today().isoformat()}</lastmod></url>"
+    from .services import tilda_site as _ts
+    home = f"<url><loc>{b}/</loc><lastmod>{date.today().isoformat()}</lastmod><priority>1.0</priority></url>" if _ts.cfg(db).get("home") == "new" else ""
+    urls = home + "".join(f"<url><loc>{b}/{s_}</loc><lastmod>{date.today().isoformat()}</lastmod></url>"
                    for s_ in sp.ORDER + ([_ob.SLUG] if _ob.cfg(db).get("on") else []))
     return Response(f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>',
                     media_type="application/xml")
@@ -9043,7 +9067,10 @@ async def site_media_ext(request: Request, files: list[UploadFile] = File(...), 
 @app.get("/_site/og/{slug}.jpg")
 def site_og(slug: str):
     from .services import site_pages as sp, online_booking as _ob
-    if slug == _ob.SLUG:
+    if slug == "home":
+        from .services import site_home as _sh
+        f = sp.og_image(slug, _sh.og_src())
+    elif slug == _ob.SLUG:
         with SessionLocal() as _db:
             f = sp.og_image(slug, _ob.og_src(_ob.cfg(_db)))
     else:
@@ -9076,9 +9103,8 @@ def site_proto(request: Request, variant: str = "", db: Session = Depends(db_dep
     elif vk not in sh.VARIANTS:
         raise HTTPException(404)
     else:
-        ctx.update(vk=vk, v=sh.VARIANTS[vk], menu=sh.MENU, facts=sh.FACTS, plan=sh.PLAN, space=sh.SPACE, shop=sh.SHOP,
-                   insta_t=sh.INSTA, faq=sh.faq(ctx["c"]), faq_ld=sh.faq_jsonld(ctx["c"]), title=sh.SEO["title"], desc=sh.SEO["desc"])
-        ctx.update(sh.data(db, ctx["base"], ctx["ver"]))
+        _home_new_ctx(ctx, db, vk)
+        ctx["proto"] = True
         r = _site_resp("site/proto_home.html", ctx)
     r.headers["Cache-Control"] = "no-store"
     return r
@@ -9121,7 +9147,7 @@ async def settings_site_tilda(request: Request, user: User = Depends(require("us
     try:
         if f.get("action") == "settings":
             c = ts.cfg(db)
-            c["home"] = "tilda" if f.get("home") == "tilda" else "crm"
+            c["home"] = f.get("home") if f.get("home") in ("tilda", "new") else "crm"
             c["on"] = bool(f.get("on"))
             ts.save(db, c)
             msg = "Збережено"

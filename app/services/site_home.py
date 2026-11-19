@@ -170,9 +170,22 @@ FAQ = [
     ("Де ви знаходитеся і як працюєте?", "{address}. Працюємо {hours}; неділя й понеділок — вихідні."),
 ]
 
-SEO = {"title": "MOLODIST — медичний простір естетики та профілактики в Києві",
-       "desc": "Естетична медицина під контролем лікаря: BEAUTY PLAN, інʼєкційна косметологія, лазерна епіляція, видалення новоутворень. "
-               "Актуальні ціни й онлайн-запис."}
+SEO = {"title": "MOLODIST — естетична медицина й косметологія в Києві",
+       "desc": "Медичний простір естетики та профілактики в Києві. Діагностика шкіри, BEAUTY PLAN, інʼєкційна косметологія, "
+               "лазерна епіляція, видалення новоутворень. Запис до лікаря.",
+       "og_title": "MOLODIST — медичний простір естетики та профілактики",
+       "og_desc": "Шкіра, якій не потрібні фільтри. Естетична медицина й косметологія в Києві: спершу діагностика й план, потім процедури."}
+SPACE_ORDER = [1, 7, 2, 8, 4, 9, 3, 10, 5, 6]          # карусель «Простір»: інтерʼєр упереміш із деталями
+
+
+def og_src():
+    """Фото для картки в месенджерах і соцмережах: og-home з медіатеки або фото першого екрана."""
+    from pathlib import Path
+    for n in ("og-home.jpg", "og-home.webp"):
+        f = sp.media_dir() / n
+        if f.is_file():
+            return f
+    return Path(__file__).resolve().parent.parent / "static" / "site" / "home" / "og-home.webp"
 
 
 def _first_media(names: list[str], base: str) -> str:
@@ -243,7 +256,7 @@ def data(db: Session, base: str, ver: str) -> dict:
                     "plan": _first_media(["bp-hero.webp", "bp-1.webp"], base) or static_hero,
                     "founder": _first_media(["home-founder.webp", "doc-kolgan.webp"], base),
                     "space": [u for u in (sp.media_url(n, base) for n in SPACE["imgs"]) if u],
-                    "space_a": [st(f"s-{i}.webp") for i in range(1, 6)]}}
+                    "space_a": [st(f"s-{i}.webp") for i in SPACE_ORDER]}}
 
 
 def faq_jsonld(c: dict) -> str:
@@ -255,3 +268,23 @@ def faq_jsonld(c: dict) -> str:
 
 def faq(c: dict) -> list[tuple[str, str]]:
     return [(q, a.replace("{address}", c["address"]).replace("{hours}", c["hours"])) for q, a in FAQ]
+
+
+def org_jsonld(c: dict, url: str, og_img: str = "") -> str:
+    """Розмітка schema.org для головної: медичний заклад (адреса, графік, контакти), сайт і сторінка."""
+    import json
+    org = {"@type": "MedicalClinic", "@id": url.rstrip("/") + "/#org", "name": "MOLODIST", "url": url,
+           "description": "Медичний простір естетики та профілактики в Києві: дерматологія, косметологія, лазерні процедури.",
+           "telephone": c["phone"], "email": c["email"], "medicalSpecialty": "Dermatology",
+           "address": {"@type": "PostalAddress", "streetAddress": "вул. Князя Романа Мстиславича, 28А", "addressLocality": "Київ",
+                       "addressCountry": "UA"},
+           "openingHoursSpecification": [{"@type": "OpeningHoursSpecification", "opens": "10:00", "closes": "20:00",
+                                          "dayOfWeek": ["Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]}],
+           "hasMap": c.get("maps") or "", "sameAs": [x for x in (c.get("instagram"), c.get("telegram")) if x], "currenciesAccepted": "UAH"}
+    if og_img:
+        org["image"] = og_img
+    site = {"@type": "WebSite", "@id": url.rstrip("/") + "/#site", "url": url, "name": "MOLODIST", "inLanguage": "uk",
+            "publisher": {"@id": org["@id"]}}
+    page = {"@type": "WebPage", "url": url, "name": SEO["title"], "description": SEO["desc"], "inLanguage": "uk",
+            "isPartOf": {"@id": site["@id"]}, "about": {"@id": org["@id"]}}
+    return json.dumps({"@context": "https://schema.org", "@graph": [org, site, page]}, ensure_ascii=False)

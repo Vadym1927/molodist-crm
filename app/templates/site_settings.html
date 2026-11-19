@@ -43,7 +43,7 @@
   {% if tc.at %}
   <form method="post" action="/settings/site/tilda" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:10px"><input type="hidden" name="action" value="settings">
     <label><input type="checkbox" name="on" {{ 'checked' if tc.on }}> Показувати сторінки Tilda</label>
-    <label>Головна сторінка: <select name="home"><option value="tilda" {{ 'selected' if tc.home == 'tilda' }}>з Tilda</option><option value="crm" {{ 'selected' if tc.home != 'tilda' }}>CRM (напрямки)</option></select></label>
+    <label>Головна сторінка: <select name="home"><option value="tilda" {{ 'selected' if tc.home == 'tilda' }}>з Tilda</option><option value="new" {{ 'selected' if tc.home == 'new' }}>нова головна (варіант A)</option><option value="crm" {{ 'selected' if tc.home not in ('tilda', 'new') }}>CRM (напрямки)</option></select></label>
     <button class="btn">Зберегти</button></form>
   <details style="margin-top:10px"><summary>Сторінки з Tilda ({{ tpages|length }}) — перегляд</summary>
     <div style="columns:3 220px;font-size:13px;margin-top:6px"><div><a href="/_site/" target="_blank">/ (головна)</a></div>{% for k, v in tpages %}<div><a href="/_site/{{ k }}" target="_blank">/{{ k }}</a></div>{% endfor %}</div></details>

@@ -5,7 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{ title }}</title>
 <meta name="description" content="{{ desc }}">
-<meta name="robots" content="noindex, nofollow">
+{% if noindex or proto %}<meta name="robots" content="noindex, nofollow">{% else %}<link rel="canonical" href="{{ canonical }}">{% endif %}
+<meta property="og:type" content="website"><meta property="og:title" content="{{ og_title or title }}"><meta property="og:description" content="{{ og_desc or desc }}">
+{% if og_img %}<meta property="og:image" content="{{ og_img }}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="{{ og_title or title }}">{% endif %}
+<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="{{ og_title or title }}"><meta name="twitter:description" content="{{ og_desc or desc }}">{% if og_img %}<meta name="twitter:image" content="{{ og_img }}">{% endif %}
+<meta property="og:url" content="{{ canonical }}"><meta property="og:locale" content="uk_UA"><meta property="og:site_name" content="MOLODIST">
 <meta name="theme-color" content="#2A2430">
 <link rel="icon" href="/static/site/brand/mono-violet.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/site/brand/mono-violet-180.png">
 <link rel="preload" href="/static/fonts/montserrat-cyrillic-600-normal.woff2" as="font" type="font/woff2" crossorigin>
@@ -13,6 +17,8 @@
 <link rel="stylesheet" href="/static/fonts/fonts.css">
 <link rel="stylesheet" href="/static/site/site.css?v={{ ver }}">
 <link rel="stylesheet" href="/static/site/home.css?v={{ ver }}">
+{% if rich %}<link rel="preload" as="image" href="{{ img.hero }}" fetchpriority="high">{% endif %}
+{% if org_ld %}<script type="application/ld+json">{{ org_ld|safe }}</script>{% endif %}
 {% if faq_ld %}<script type="application/ld+json">{{ faq_ld|safe }}</script>{% endif %}
 </head>
 {% set zap = '#zapys' %}{% set rich = v.rich %}
@@ -61,8 +67,8 @@
 {% endmacro %}
 
 <body class="hv hv-{{ vk }}">
-<div class="h-proto"><span>Прототип головної · варіант {{ vk|upper }} «{{ v.name }}»</span>
-  <nav>{% for k, x in variants.items() %}<a href="{{ base }}/proto/{{ k }}" {{ 'aria-current=page' if k == vk }}>{{ k|upper }}</a>{% endfor %}<a href="{{ base }}/proto">усі</a></nav></div>
+{% if proto %}<div class="h-proto"><span>Прототип головної · варіант {{ vk|upper }} «{{ v.name }}»</span>
+  <nav>{% for k, x in variants.items() %}<a href="{{ base }}/proto/{{ k }}" {{ 'aria-current=page' if k == vk }}>{{ k|upper }}</a>{% endfor %}<a href="{{ base }}/proto">усі</a></nav></div>{% endif %}
 
 {% if rich %}{# шапка як у магазині molodist.store: біла, логотип по центру, меню другим рядком #}
 <header class="h-hd shop" id="top"><div class="wrap">
@@ -171,7 +177,8 @@
 {% elif sec == 'space' %}
   <section class="sec h-space" id="prostir"><div class="wrap">
     <div class="h-shd lt"><h2>{{ space.title }}</h2><p>{{ space.text }}</p></div>
-    <div class="h-gal {{ 'five' if rich }}">{% for u in (img.space_a if rich else img.space) %}<img src="{{ u }}" alt="Медичний простір MOLODIST" loading="lazy">{% else %}{% for i in range(4) %}<div class="h-galph"><img src="/static/site/brand/mono-white.svg" alt="" width="44" height="44"><small>фото простору</small></div>{% endfor %}{% endfor %}</div>
+    {% if rich %}<div class="h-car" data-car><div class="h-car-t">{% for u in img.space_a %}<img src="{{ u }}" alt="Медичний простір MOLODIST" loading="lazy" width="880" height="1100">{% endfor %}</div></div>{% else %}
+    <div class="h-gal">{% for u in img.space %}<img src="{{ u }}" alt="Медичний простір MOLODIST" loading="lazy">{% else %}{% for i in range(4) %}<div class="h-galph"><img src="/static/site/brand/mono-white.svg" alt="" width="44" height="44"><small>фото простору</small></div>{% endfor %}{% endfor %}</div>{% endif %}
     <p class="h-lic">{{ c.license }}</p>
   </div></section>
 

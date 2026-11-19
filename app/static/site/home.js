@@ -76,6 +76,14 @@
     });
   });
 
+  d.querySelectorAll('[data-car]').forEach(function (c) {                // простір: авторух лише на ПК
+    var mq = window.matchMedia && window.matchMedia('(min-width:861px) and (prefers-reduced-motion:no-preference)');
+    if (!mq || !mq.matches) return;
+    var t = c.firstElementChild; if (!t || t.children.length < 4) return;
+    Array.prototype.slice.call(t.children).forEach(function (n) { var k = n.cloneNode(true); k.alt = ''; k.setAttribute('aria-hidden', 'true'); k.loading = 'eager'; t.appendChild(k); });
+    c.classList.add('auto');
+  });
+
   var up = d.querySelector('.h-up'), hd = d.querySelector('.h-hd');
   function onScroll() {
     var y = window.scrollY || 0;

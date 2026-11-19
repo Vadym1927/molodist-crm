@@ -42,3 +42,28 @@ def test_proto_texts_brandbook():
     for bad in ("клінік", "клієнт", "ботокс", "салон", "майстер"):
         assert bad not in blob
     assert "Molodist" not in " ".join(str(x) for x in (sh.VARIANTS, sh.FACTS, sh.PLAN, sh.FAQ, sh.SEO))
+
+
+def test_new_home_as_site_home():
+    """Нова головна як основна сторінка сайту: індексується на домені сайту, має картку для месенджерів і розмітку."""
+    from app.services import tilda_site as ts, site_pages as sp
+    with SessionLocal() as db:
+        c = ts.cfg(db); old = c.get("home"); c["home"] = "new"; ts.save(db, c)
+        host = sorted(sp.cfg(db)["hosts"])[0]
+    sp._cache["at"] = 0
+    try:
+        with TestClient(app) as cl:
+            r = cl.get("/", headers={"host": host})
+            t = r.text
+            assert r.status_code == 200 and "Естетична медицина й косметологія в Києві" in t
+            assert 'rel="canonical"' in t and 'name="robots"' not in t and "h-proto" not in t
+            assert 'property="og:title" content="MOLODIST — медичний простір естетики та профілактики"' in t
+            assert "og/home.jpg" in t and '"MedicalClinic"' in t and '"FAQPage"' in t
+            assert t.count("s-") >= 10 and "data-car" in t
+            assert cl.get("/og/home.jpg", headers={"host": host}).status_code == 200
+            assert f"<loc>{sp.cfg(SessionLocal())['canonical'].rstrip('/')}/</loc>" in cl.get("/sitemap.xml", headers={"host": host}).text
+            p = cl.get("/_site/proto/a").text                       # перегляд у CRM лишається без індексації
+            assert 'name="robots" content="noindex' in p and "h-proto" in p
+    finally:
+        with SessionLocal() as db:
+            c = ts.cfg(db); c["home"] = old or "tilda"; ts.save(db, c)
