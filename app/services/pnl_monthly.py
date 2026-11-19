@@ -128,10 +128,15 @@ def _collect(db: Session, year: int) -> dict:
     svc_items = z()
     cat = {norm(pr.product.name): pr for pr in product_rows(db, [])}
     rules = Rules(db)
+    from . import daybook as _dbk
+    web_pack = float(rules.c.get("web_pack") or 0)
     for c in rp._checks(db, d_from, d_to):
         mk = _m(c.date)
         if mk not in rev_s:
             continue
+        web_ = bool(getattr(c, "crm", False) and _dbk.is_web(c.sale))
+        if web_ and any(k == "product" for k, *_ in rp._items(c)):
+            cosm_pct[mk] += web_pack                        # замовлення сайту: фікс за пакування, не % від товарів
         for kind, name, q, amt, staff in rp._items(c):
             if kind == "service":
                 rev_s[mk] += amt
@@ -148,8 +153,9 @@ def _collect(db: Session, year: int) -> dict:
                 x = {"staff": staff, "name": name, "price": (amt / float(q or 1)) if q else amt, "qty": q, "paid": amt, "disc_pct": 0,
                      "product_id": pr.product.id if pr else None}
                 try:
-                    rules.apply(x)
-                    cosm_pct[mk] += float(x.get("sum") or 0)
+                    if not web_:
+                        rules.apply(x)
+                        cosm_pct[mk] += float(x.get("sum") or 0)
                 except Exception:  # noqa: BLE001
                     pass
                 if c.patient_id:
