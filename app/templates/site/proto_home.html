@@ -171,7 +171,7 @@
 {% elif sec == 'doctors' %}
   <section class="sec h-sec h-docs" id="likari"><div class="wrap">
     <div class="h-shd"><h2>Лікарі MOLODIST</h2><p>Ви знаєте, хто саме вас прийматиме, ще до візиту — і записуєтеся до конкретного лікаря.</p></div>
-    <div class="h-dgrid">{% for d in team %}<article class="h-dcard {{ ('fx-' ~ d.fx) if d.fx }}">{{ ph(d) }}
+    <div class="h-dgrid" data-swipe>{% for d in team %}<article class="h-dcard {{ ('fx-' ~ d.fx) if d.fx }}">{{ ph(d) }}
       <h3>{{ d.name }}</h3><p class="role">{{ d.role }}</p>{% if d.bio %}<p class="bio">{{ d.bio }}</p>{% endif %}
       <a class="h-ghost" href="{{ (base ~ '/zapys?doctor=' ~ d.id) if (ob_on and d.id) else '#zapys' }}" data-doc="{{ d.name }}">{{ 'Обрати час онлайн' if (ob_on and d.id) else 'Записатися до лікаря' }} {{ arrow() }}</a></article>{% endfor %}</div>
   </div></section>
@@ -179,7 +179,7 @@
 {% elif sec == 'space' %}
   <section class="sec h-space" id="prostir"><div class="wrap">
     <div class="h-shd lt"><h2>{{ space.title }}</h2><p>{{ space.text }}</p></div>
-    {% if rich %}<div class="h-car" data-car><div class="h-car-t">{% for u in img.space_a %}<img src="{{ u }}" alt="{{ space.alts[loop.index0] if space.alts and loop.index0 < space.alts|length else 'Медичний простір MOLODIST у Києві' }}" loading="lazy" width="880" height="1100">{% endfor %}</div></div>{% else %}
+    {% if rich %}<div class="h-car" data-car data-swipe><div class="h-car-t">{% for u in img.space_a %}<img src="{{ u }}" alt="{{ space.alts[loop.index0] if space.alts and loop.index0 < space.alts|length else 'Медичний простір MOLODIST у Києві' }}" loading="lazy" width="880" height="1100">{% endfor %}</div></div>{% else %}
     <div class="h-gal">{% for u in img.space %}<img src="{{ u }}" alt="Медичний простір MOLODIST" loading="lazy">{% else %}{% for i in range(4) %}<div class="h-galph"><img src="/static/site/brand/mono-white.svg" alt="" width="44" height="44"><small>фото простору</small></div>{% endfor %}{% endfor %}</div>{% endif %}
     <p class="h-lic">{{ c.license }}</p>
   </div></section>
@@ -191,7 +191,7 @@
       <p class="cnt">{% if rev %}{{ rev.count }} відгуків у Google{% else %}рейтинг у Google{% endif %}</p>
       <p class="tx">Справжні відгуки з профілю MOLODIST у Google — без редагування й відбору «найкращих».</p>
       <p class="acts"><a class="btn light" href="{{ (rev.url if rev else '') or c.maps }}" target="_blank" rel="noopener">Усі відгуки в Google</a><a class="h-ghost lt" href="{{ (rev.url if rev else '') or c.maps }}" target="_blank" rel="noopener">Залишити відгук {{ arrow() }}</a></p></aside>
-    <div class="h-rwrap"><div class="h-rtrack grid" data-slider>
+    <div class="h-rwrap"><div class="h-rtrack grid" data-slider data-swipe>
       {% if rev and rev.reviews %}{% for r in rev.reviews[:6] %}<article class="h-rcard"><header><span class="av">{{ r.author[:1]|upper }}</span><span><b>{{ r.author }}</b><small>{{ r.when }}</small></span><span class="g" title="Відгук із Google">G</span></header>
         <p class="st">{{ '★' * r.rating }}</p><p class="tx">{{ r.text[:230] }}{{ '…' if r.text|length > 230 }}</p></article>{% endfor %}
       {% else %}{% for i in range(6) %}<article class="h-rcard ph"><header><span class="av">M</span><span><b>Імʼя пацієнта</b><small>дата відгуку</small></span><span class="g">G</span></header>
@@ -216,7 +216,7 @@
       <p class="h-btns"><a class="btn" href="{{ shop.url }}" target="_blank" rel="noopener">{{ shop.btn }}</a></p></div>
     <div class="h-scol">{% for n in shop.imgs %}<img src="{{ st(n) }}" alt="Професійна косметика в MOLODIST" loading="lazy" width="700" height="875">{% endfor %}</div>
   </div>{% if products %}<div class="wrap"><div class="h-shd row h-pshd"><div><h3>Хіти магазину</h3></div><a class="btn sm" href="{{ shop.url }}" target="_blank" rel="noopener">Увесь каталог</a></div>
-    <div class="h-prods">{% for i in products %}<article class="h-pc">
+    <div class="h-prods" data-swipe>{% for i in products %}<article class="h-pc">
     <a class="pc-img" href="{{ shop_base }}/shop/{{ i.slug }}/" target="_blank" rel="noopener"><img src="{{ shop_base }}/img/{{ i.imgs[0] }}?w=600" alt="{{ i.name }}" loading="lazy" width="600" height="600">{% if i.pct %}<em class="bdg sale">−{{ i.pct }}%</em>{% elif i.tip %}<em class="bdg">Рекомендує лікар</em>{% endif %}</a>
     <div class="pc-b">{% if i.brand %}<span class="pc-br">{{ i.brand }}</span>{% endif %}<a class="pc-n" href="{{ shop_base }}/shop/{{ i.slug }}/" target="_blank" rel="noopener">{{ i.name }}</a>
       <div class="pc-p"><b>{{ money(i.price) }}</b>{% if i.old %}<s>{{ money(i.old) }}</s>{% endif %}</div>
@@ -281,7 +281,7 @@
 </div></div>
 {% if c.exit_on %}<div class="h-pop" id="h-pop" hidden data-delay="{{ c.exit_delay or 25 }}" role="dialog" aria-label="{{ c.exit_title }}">
   <button type="button" class="h-x" data-pop-close aria-label="Закрити"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
-  <img src="{{ st('s-5.webp') }}" alt="Діагностика шкіри в MOLODIST" width="700" height="875" loading="lazy">
+  <img src="{{ st('pop.webp') }}" alt="Лікарі MOLODIST" width="480" height="480" loading="lazy">
   <div>{% if c.exit_badge %}<span class="h-pbadge">{{ c.exit_badge }}</span>{% endif %}<p class="h-mh">{{ c.exit_title }}</p><p class="sm">{{ c.exit_text }}</p>
     <a class="btn" href="#zapys" data-interest="Банер: {{ c.exit_badge or c.exit_title }}" data-pop-go>{{ c.exit_btn }}</a></div>
 </div>{% endif %}

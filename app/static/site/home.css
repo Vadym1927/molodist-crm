@@ -505,3 +505,25 @@ h2.lbl{font-weight:600}
   .h-up{bottom:calc(76px + env(safe-area-inset-bottom));right:14px}
   .bar{padding-bottom:env(safe-area-inset-bottom)}
 }
+
+/* банер: квадратне фото з обома лікарями */
+.h-pop img{height:auto;min-height:0;aspect-ratio:1/1;align-self:start}
+@media (max-width:860px){.h-pop img{min-height:0}}
+/* підказка «Гортайте →» під стрічками на телефоні */
+.h-swipe{display:none}
+@media (max-width:860px){
+  .h-swipe{display:flex;align-items:center;justify-content:flex-end;gap:6px;margin:10px 0 0;font:600 11px/1 var(--hf);letter-spacing:.14em;text-transform:uppercase;color:var(--act);transition:opacity .4s}
+  .h-swipe svg{width:18px;height:18px;animation:hswipe 1.4s ease-in-out infinite}
+  .h-swipe.gone{opacity:0}
+  .h-space .h-swipe,.h-rev2 .h-swipe{color:var(--lav2)}}
+@keyframes hswipe{0%,100%{transform:translateX(0)}50%{transform:translateX(6px)}}
+/* лікарі на телефоні: дві картки в кадрі, третя виглядає з-за краю */
+@media (max-width:560px){
+  .h-dgrid{gap:10px}.h-dgrid>.h-dcard{flex:0 0 43%}
+  .h-dcard{gap:4px}.h-dcard h3{font-size:14px;margin:10px 0 0;letter-spacing:.02em}
+  .h-dcard .role{font-size:12px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .h-dcard .bio{display:none}
+  .h-dcard .h-ghost{font-size:10.5px;letter-spacing:.08em;gap:6px;margin-top:4px}.h-dcard .h-ghost svg{width:14px;height:14px}
+  .h-dcard .h-ph{border-radius:16px}}
+@media (max-width:860px){[data-swipe]{scroll-padding-left:16px}}
+@media (max-width:560px){.h-dcard .h-ghost{white-space:nowrap;letter-spacing:.03em;font-size:10px}}

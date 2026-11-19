@@ -132,6 +132,30 @@
     });
   }
 
+  /* телефон: стрічки, які гортаються вбік, — підказка «Гортайте →» і легкий поштовх, коли стрічка вперше зʼявляється */
+  if (window.matchMedia && window.matchMedia('(max-width:860px)').matches) {
+    d.querySelectorAll('[data-swipe]').forEach(function (el) {
+      if (el.scrollWidth <= el.clientWidth + 8) return;
+      var h = d.createElement('p'); h.className = 'h-swipe'; h.setAttribute('aria-hidden', 'true');
+      h.innerHTML = 'Гортайте<svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      el.parentNode.insertBefore(h, el.nextSibling);
+      var done = false;
+      el.addEventListener('scroll', function () { if (el.scrollLeft > 20) { h.classList.add('gone'); done = true; } }, { passive: true });
+      if (!('IntersectionObserver' in window)) return;
+      var io = new IntersectionObserver(function (ents) {
+        ents.forEach(function (en) {
+          if (!en.isIntersecting || done) return; io.disconnect();
+          setTimeout(function () {
+            if (done || el.scrollLeft > 4) return;
+            el.style.scrollSnapType = 'none'; el.scrollTo({ left: 64, behavior: 'smooth' });
+            setTimeout(function () { el.scrollTo({ left: 0, behavior: 'smooth' }); setTimeout(function () { el.style.scrollSnapType = ''; }, 500); }, 650);
+          }, 400);
+        });
+      }, { threshold: 0.6 });
+      io.observe(el);
+    });
+  }
+
   var up = d.querySelector('.h-up'), hd = d.querySelector('.h-hd');
   if (up) up.addEventListener('click', function (e) {                   // плавно вгору; якщо браузер не прокрутив — одразу
     e.preventDefault(); var y0 = window.scrollY;
