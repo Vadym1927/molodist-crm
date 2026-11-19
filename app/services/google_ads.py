@@ -92,7 +92,7 @@ def ingest(db: Session, payload: dict) -> dict:
     if isinstance(payload.get("account"), dict) and payload["account"]:
         c["account"] = {k: str(v)[:120] for k, v in payload["account"].items()}
     b = payload.get("balance")
-    if isinstance(b, dict) and b.get("limit") is not None:
+    if isinstance(b, dict) and b.get("limit") is not None and not c.get("balance_base"):   # ручний залишок власника — пріоритет
         c["real_balance"] = {"amount": round(_f(b.get("limit")) - _f(b.get("served")), 2), "at": datetime.now().isoformat(timespec="minutes")}
     c["last_push"] = datetime.now().isoformat(timespec="minutes")
     save_cfg(db, c)
@@ -146,7 +146,7 @@ def balance(db: Session, c: dict | None = None, today: date | None = None) -> di
     base = c.get("balance_base")
     real = c.get("real_balance")
     out = {"known": False, "amount": None, "avg_day": avg, "days_left": None, "source": None, "topups": [], "spent": 0.0, "base": base}
-    if real and real.get("amount") is not None:
+    if real and real.get("amount") is not None and not (base and base.get("day")):
         out.update(known=True, amount=round(_f(real["amount"]), 2), source="google", at=real.get("at"))
     elif base and base.get("day"):
         b0 = date.fromisoformat(base["day"])

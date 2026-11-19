@@ -25,6 +25,24 @@ def is_web(s) -> bool:
 WEB_SELLER = "MOLODIST shop"
 
 
+def web_order(db, s):
+    """Замовлення сайту, з якого створено чек."""
+    from sqlalchemy import select as _sel
+    from ..models import SiteOrder
+    num = (s.comment or "").replace(WEB_MARK, "").replace(", замовлення", "").strip(" ,")
+    o = db.scalar(_sel(SiteOrder).where(SiteOrder.number == num)) if num else None
+    return o
+
+
+def web_seller(db, s) -> str:
+    """Ініціатор продажу з сайту — відповідальний за замовлення (хто опрацював і запакував); інакше «MOLODIST shop»."""
+    from ..models import User
+    o = web_order(db, s)
+    rid = (o.raw or {}).get("resp") if o else None
+    u = db.get(User, rid) if rid else None
+    return (u.name or u.login) if u else WEB_SELLER
+
+
 def web_item_discount(db, it) -> float:
     """Знижка сайту на рядок чека: акція / короткий термін «вшиті» в ціну сайту → різниця зі звичайною ціною товару в CRM."""
     if float(it.discount or 0) > 0 or it.kind != "product" or not it.ref_id:

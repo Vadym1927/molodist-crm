@@ -661,14 +661,24 @@ def cosmetics(db: Session, d_from: date, d_to: date, staff: str = "") -> Report:
                          "disc_pct": _disc_pct(price, q, paid, f(it.get("discount")) > 0), "ref": f"чек CleverBox {c.id}"})
     a, b = _rng(d_from, d_to)
     docs = {d.id: d.name for d in db.scalars(select(Doctor))}
+    from . import daybook as _dbk
     for sl in db.scalars(select(Sale).where(Sale.status == "paid", Sale.at >= a, Sale.at <= b)):
+        web = _dbk.is_web(sl)
+        seller = _dbk.web_seller(db, sl) if web else None      # сайт: ініціатор — відповідальний за замовлення
         for it in sl.items:
             if it.kind != "product":
                 continue
             q = it.qty or 1
-            rows.append({"at": sl.at, "staff": docs.get(it.doctor_id, "Без ініціатора"), "name": it.name, "qty": q,
-                         "price": float(it.price or 0), "paid": float(it.total or 0), "product_id": it.ref_id,
-                         "disc_pct": _disc_pct(float(it.price or 0), q, float(it.total or 0), bool(it.discount)), "ref": f"чек CRM Ч-{sl.id}"})
+            paid = float(it.total or 0)
+            if web:                                             # ціна сайту вже зі знижкою (акція / короткий термін) → звичайна ціна для правила
+                wd = _dbk.web_item_discount(db, it)
+                price = round((paid + wd) / q, 2) if q else float(it.price or 0)
+                has_disc = wd > 0
+            else:
+                price, has_disc = float(it.price or 0), bool(it.discount)
+            rows.append({"at": sl.at, "staff": seller or docs.get(it.doctor_id, "Без ініціатора"), "name": it.name, "qty": q,
+                         "price": price, "paid": paid, "product_id": it.ref_id,
+                         "disc_pct": _disc_pct(price, q, paid, has_disc), "ref": f"чек CRM Ч-{sl.id}" + (" · сайт" if web else "")})
     staff_all = sorted({x["staff"] for x in rows})
     if staff:
         rows = [x for x in rows if x["staff"] == staff]
@@ -677,7 +687,7 @@ def cosmetics(db: Session, d_from: date, d_to: date, staff: str = "") -> Report:
     for x in rows:
         rules.apply(x)
     r = Report("cosmetics", "Бонус за продаж косметики",
-               rules.describe() + " Лікар — ініціатор позиції в чеку CleverBox або спеціаліст у продажі каси CRM.")
+               rules.describe() + " Лікар — ініціатор позиції в чеку CleverBox або спеціаліст у продажі каси CRM; продаж із сайту — відповідальний за замовлення.")
     r.grouped = True
     r.cols = [Col("name", "Товар / лікар"), Col("day", "Дата", "date"), Col("qty", "К-сть", "num", True), Col("price", "Ціна", "uah"),
               Col("paid", "Продано на", "uah", True), Col("rule", "Умова"), Col("pct", "%", "pct"), Col("sum", "Нараховано", "uah", True)]

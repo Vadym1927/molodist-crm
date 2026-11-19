@@ -208,7 +208,7 @@ def _details(db: Session, d: date, docs: dict, live, done, new_p, created, cance
         p = s.patient
         return {"id": s.id, "at": s.at, "patient": p.full_name if p else "—", "pid": s.patient_id, "total": round(float(s.total or 0), 2),
                 "discount": _db.web_discount(db, s) if _db.is_web(s) else round(float(s.discount or 0), 2),
-                "author": _db.WEB_SELLER if _db.is_web(s) else users.get(s.created_by, "—"),
+                "author": _db.web_seller(db, s) if _db.is_web(s) else users.get(s.created_by, "—"),
                 "pay": ", ".join(f"{x.method} {float(x.amount or 0):,.2f}".replace(",", " ") for x in s.payments),
                 "items": ", ".join(f"{i.name}{(' ×%g' % i.qty) if (i.qty or 1) != 1 else ''}" for i in s.items),
                 "test": bool((s.fiscal or {}).get("test_sale")), "reason": s.refund_reason or "",
@@ -243,7 +243,7 @@ def _details(db: Session, d: date, docs: dict, live, done, new_p, created, cance
             web = _db.is_web(s)
             g["discount"] += _db.web_item_discount(db, it) if web else float(it.discount or 0)
             if web:
-                g["doctors"].add(_db.WEB_SELLER)
+                g["doctors"].add(_db.web_seller(db, s))
             if c is None:
                 g["cost_known"] = False
             else:
