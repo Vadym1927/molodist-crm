@@ -153,8 +153,15 @@ def set_start(db: Session, supplier: str, d: date, commit: bool = True) -> None:
         db.commit()
 
 
+def is_debt(rep: ConsignReport) -> bool:
+    """Борг за даними постачальника (не продажі) — не зсуває період продажів."""
+    return bool(rep.lines) and all(not ln.get("pid") for ln in rep.lines)
+
+
 def last_report_end(db: Session, supplier: str) -> date | None:
-    return db.scalar(select(func.max(ConsignReport.d_to)).where(ConsignReport.supplier == supplier, ConsignReport.status == "fixed"))
+    reps = db.scalars(select(ConsignReport).where(ConsignReport.supplier == supplier, ConsignReport.status == "fixed")).all()
+    ds = [r.d_to for r in reps if not is_debt(r)]
+    return max(ds) if ds else None
 
 
 def build_report(db: Session, supplier: str, d_from: date, d_to: date) -> dict:

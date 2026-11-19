@@ -146,7 +146,7 @@ def test_supplier_debt_report():
     with SessionLocal() as db:
         db.add(Supplier(name="КОНС БОРГ", consignment=True)); db.commit()
         rep = cs.add_debt(db, "КОНС БОРГ", 2479.35, date(2026, 11, 19), "Недоплати (знижки) за таблицею постачальника")
-        assert cs.overview(db, "КОНС БОРГ")["to_pay"] == 2479.35
+        assert cs.overview(db, "КОНС БОРГ")["to_pay"] == 2479.35 and cs.last_report_end(db, "КОНС БОРГ") is None
         p = cs.pay(db, "КОНС БОРГ", 1000, date(2026, 11, 20))
         assert db.get(ConsignReport, rep.id).paid == 1000 and cs.overview(db, "КОНС БОРГ")["to_pay"] == 1479.35
         cs.cancel_pay(db, p)
