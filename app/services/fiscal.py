@@ -389,6 +389,9 @@ def build(db: Session, sale: Sale, is_return: bool = False, rro: dict | None = N
         if i.kind == "certificate":                              # сертифікат — назва з шаблону («Послуги краси»)
             from .gift_types import fiscal_name
             g["good"]["name"] = fiscal_name(db, i.ref_id)[:250]
+        if i.kind == "topup":                                    # поповнення балансу — універсальна назва «Послуги краси»
+            from .gift_types import FISCAL_DEFAULT
+            g["good"]["name"] = FISCAL_DEFAULT
         if i.kind == "subscription":                             # абонемент — коротка назва з шаблону (для фіскального чека)
             from .certificates import package_fiscal_name
             fn = package_fiscal_name(db, i.ref_id)

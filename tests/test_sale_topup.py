@@ -20,7 +20,7 @@ def test_balance_topup_sale():
             sl.create(db, {"patient_id": p.id, "items": top, "payments": [{"method": sl.BALANCE, "amount": 3000}]})
         s = sl.create(db, {"patient_id": p.id, "items": top, "payments": [{"method": "Готівка", "amount": 3000}]})
         db.refresh(p)
-        assert p.cb_balance == 3000 and s.discount == 0 and not s.bonus_accrued
+        assert p.cb_balance == 3000 and s.discount == 0 and not s.bonus_accrued and s.items[0].name == "Послуги краси"
         sl.apply_topup(db, s); db.refresh(p)
         assert p.cb_balance == 3000                               # повторно не нараховує
         rev = [c for c in fo.crm_checks(db, date.today(), date.today(), revenue=True) if c.id == f"Ч-{s.id}"]

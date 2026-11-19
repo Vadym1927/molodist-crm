@@ -421,7 +421,7 @@ function brLoad(keepFocus){var br=document.getElementById('br');
     document.getElementById('tu-go').onclick=function(){var v=+String(document.getElementById('tu-a').value).replace(',','.');
       if(!S.patient_id){alert('Оберіть пацієнта');return}if(!(v>0)){alert('Вкажіть суму');return}
       if(S.items.some(function(x){return x.kind!=='topup'})){alert('Поповнення балансу оформіть окремим чеком — спершу проведіть або очистіть поточний чек');return}
-      S.items.push({kind:'topup',name:'Поповнення балансу',category:'Поповнення балансу',qty:1,price:v,doctor_id:null});quote()};
+      S.items.push({kind:'topup',name:'Послуги краси (поповнення балансу)',category:'Поповнення балансу',qty:1,price:v,doctor_id:null});quote()};
     return}
   if(B.s==='subs'){var pq=(S.pkq||'').toLowerCase(),PL=PKGS.map(function(g,i){g._i=i;return g}).filter(function(g){return !pq||(g.name+' '+g.services).toLowerCase().indexOf(pq)>=0});
     br.innerHTML='<input id="pkq" value="'+esc(S.pkq||'')+'" placeholder="Пошук абонемента (від 3 літер)" style="height:40px;width:100%;margin:0 0 10px">'+

@@ -104,7 +104,8 @@ def create(db: Session, data: dict, user_id: int | None = None) -> Sale:
                 or float(data.get("bonus_pay") or 0) > 0:
             raise SaleError("Баланс поповнюється лише грошима — готівкою, карткою або посиланням")
         for it in items:
-            it["qty"], it["name"], it["category"] = 1, it.get("name") or "Поповнення балансу", "Поповнення балансу"
+            from .gift_types import FISCAL_DEFAULT as _fd           # у чеку — універсальна назва «Послуги краси»
+            it["qty"], it["name"], it["category"] = 1, _fd, "Поповнення балансу"
         data["no_discounts"], data["no_accrual"], data["manual_discount"], data["overpay"] = True, True, 0, None
     q = quote(db, items, patient, data.get("rule_ids"), float(data.get("manual_discount") or 0), float(data.get("bonus_pay") or 0),
               no_discounts=bool(data.get("no_discounts")))
