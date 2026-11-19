@@ -49,3 +49,23 @@ def test_price_monitor(monkeypatch):
         c.post("/prices/alerts/seen")
         with SessionLocal() as db:
             assert pm.unseen(db) == 0
+
+
+def test_price_monitor_units_and_window():
+    from datetime import timedelta
+    t = date.today()
+    with SessionLocal() as db:
+        j = Product(name="Стіки нормалізація", name_norm="стіки нормалізація", warehouse="vitrina", cost=70.0, coef=30)
+        e = Product(name="Крем у євро", name_norm="крем у євро", warehouse="vitrina", cost=2775.0)
+        db.add_all([j, e]); db.flush()
+        # один запис за стік (67.7 × 30 = 2030), інші — ціна упаковки, записана як ціна одиниці
+        for days, u in ((900, 67.7), (500, 1672), (200, 1956), (30, 2201)):
+            db.add(ProductPurchase(product_id=j.id, bought_on=t - timedelta(days=days), qty=1, unit_cost=u))
+        for days, u in ((800, 55.74), (300, 2600), (20, 2775)):      # перший запис — у валюті
+            db.add(ProductPurchase(product_id=e.id, bought_on=t - timedelta(days=days), qty=1, unit_cost=u))
+        db.commit()
+        rows = {r["id"]: r for r in pm.products(db)}
+        rj, re_ = rows[j.id], rows[e.id]
+        assert rj["cur"] == 2201 and rj["base"] == 1956 and rj["zone"] == 2          # без ×30 і з вікном у рік
+        assert all(h["cost"] < 3000 for h in rj["hist"])
+        assert re_["skipped"] == 1 and re_["base"] == 2600 and re_["cur"] == 2775

@@ -63,6 +63,29 @@ def _k(p: Product) -> float:
     return p.coef if p.coef and p.coef > 0 else 1
 
 
+WINDOW_DAYS = 365      # стартова ціна за замовчуванням — перший прихід за останній рік (оперативний контроль)
+
+
+def _norm(rows: list, k: float) -> list[tuple]:
+    """Приводить ціни приходів до ціни за упаковку. Старі записи бувають у різних одиницях (за мл / за упаковку)
+    або в іншій валюті: беремо найщільніший кластер значень і відкидаємо записи, що не вкладаються в нього в 3 рази."""
+    if not rows:
+        return []
+    cands = [[float(r.unit_cost) * k] + ([float(r.unit_cost)] if k > 1 else []) for r in rows]
+    best, center = -1, 0.0
+    for i, cs in enumerate(cands):
+        for v in cs:
+            n = sum(1 for o in cands if any(v / 1.6 <= x <= v * 1.6 for x in o))
+            if n > best or (n == best and i == len(cands) - 1):
+                best, center = n, v
+    out = []
+    for r, cs in zip(rows, cands):
+        v = min(cs, key=lambda x: abs(x / center - 1) if x >= center else abs(center / x - 1))
+        if center / 3 <= v <= center * 3:
+            out.append((r, round(v, 2)))
+    return out
+
+
 def products(db: Session, d: dict | None = None) -> list[dict]:
     d = d or cfg(db)
     hist: dict[int, list] = defaultdict(list)
@@ -71,15 +94,17 @@ def products(db: Session, d: dict | None = None) -> list[dict]:
     out = []
     for p in db.scalars(select(Product).where(Product.warehouse.in_(list(WAREHOUSES)), Product.active.is_not(False)).order_by(Product.name)):
         k = _k(p)
-        arr = [{"at": pp.bought_on, "cost": round(pp.unit_cost * k, 2), "supplier": pp.supplier, "qty": pp.qty, "doc": pp.doc_no}
-               for pp in hist.get(p.id, [])]
+        raw = hist.get(p.id, [])
+        arr = [{"at": pp.bought_on, "cost": v, "supplier": pp.supplier, "qty": pp.qty, "doc": pp.doc_no} for pp, v in _norm(raw, k)]
         if not arr and not p.cost:
             continue
         b = d["base"].get(str(p.id))
+        since = date.fromordinal(date.today().toordinal() - WINDOW_DAYS)
         if b:
             base, base_at = float(b["cost"]), b.get("at")
         elif arr:
-            base, base_at = arr[0]["cost"], arr[0]["at"].isoformat()
+            f = next((x for x in arr if x["at"] and x["at"] >= since), arr[-1])
+            base, base_at = f["cost"], f["at"].isoformat()
         else:
             base, base_at = round(float(p.cost) * k, 2), None
         cur = arr[-1]["cost"] if arr else round(float(p.cost or 0) * k, 2)
@@ -87,7 +112,7 @@ def products(db: Session, d: dict | None = None) -> list[dict]:
         z = zone_of(diff, d["zones"].get(p.warehouse, DEFAULT_ZONES))
         out.append({"id": p.id, "name": p.name, "wh": p.warehouse, "brand": p.brand, "supplier": p.supplier, "base": base,
                     "base_at": base_at, "cur": cur, "diff": diff, "pct": round(100 * diff / base, 1) if base else None,
-                    "zone": z, "hist": arr[-12:], "n": len(arr), "last_at": arr[-1]["at"] if arr else None})
+                    "zone": z, "hist": arr[-12:], "n": len(arr), "skipped": len(raw) - len(arr), "last_at": arr[-1]["at"] if arr else None})
     return out
 
 
