@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Прототип головної — варіанти · MOLODIST</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="/static/site/brand/mono-violet.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/fonts/fonts.css">
+<link rel="stylesheet" href="/static/site/site.css?v={{ ver }}">
+<link rel="stylesheet" href="/static/site/home.css?v={{ ver }}">
+</head>
+<body class="h-hub"><div class="wrap">
+  <img src="/static/site/brand/wordmark-graphite.svg" alt="MOLODIST" width="170" height="20" style="margin-bottom:34px">
+  <p class="eyebrow">Новий сайт · прототип</p>
+  <h1>Головна сторінка — {{ variants|length }} варіанти подачі</h1>
+  <p class="lead-tx">Шапка, бургер-меню, кнопка звʼязку, стрілка вгору, відгуки, запитання, контакти з картою й футер — однакові. Відрізняються перший екран, акцент і порядок блоків. Сторінки не індексуються.</p>
+  <div class="h-hub-g">{% for k, x in variants.items() %}<a class="h-hub-c" href="{{ base }}/proto/{{ k }}">
+    <span class="k">ВАРІАНТ {{ k|upper }}</span><b>{{ x.name }}</b><span class="h1x">«{{ x.h1 }}»</span><p>{{ x.idea }}</p><p class="small">Опора: {{ x.ref }}</p></a>{% endfor %}</div>
+</div></body>
+</html>

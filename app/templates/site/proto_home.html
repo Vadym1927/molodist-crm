@@ -1,0 +1,211 @@
+{% from "site/_icons.html" import icon %}<!doctype html>
+<html lang="uk" data-mlds="1">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ title }}</title>
+<meta name="description" content="{{ desc }}">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#2A2430">
+<link rel="icon" href="/static/site/brand/mono-violet.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/site/brand/mono-violet-180.png">
+<link rel="preload" href="/static/fonts/montserrat-cyrillic-600-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/static/fonts/open-sans-cyrillic-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/static/fonts/fonts.css">
+<link rel="stylesheet" href="/static/site/site.css?v={{ ver }}">
+<link rel="stylesheet" href="/static/site/home.css?v={{ ver }}">
+</head>
+{% set zap = (base ~ '/zapys') if ob_on else '#zapys' %}
+{% macro form(id, btn='Записатися', dark=False) %}
+<form class="lead {{ 'dark' if dark }}" data-lead="{{ id }}" novalidate>
+  <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+  <label><span>Імʼя</span><input name="name" autocomplete="given-name" placeholder="Як до вас звертатися"></label>
+  <label><span>Телефон</span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+380" required></label>
+  <button class="btn">{{ btn }}</button>
+  <p class="ok" hidden>Дякуємо! Адміністратор передзвонить вам найближчим часом.</p>
+  <p class="err" hidden></p>
+  <p class="fine">Натискаючи кнопку, ви погоджуєтеся на <a href="{{ privacy }}">обробку персональних даних</a>.</p>
+</form>
+{% endmacro %}
+{% macro ph(d, cls='') %}<div class="h-ph {{ cls }}">{% if d.photo %}<img src="{{ d.photo }}" alt="{{ d.name }}" loading="lazy">{% else %}<span>{{ d.initials }}</span>{% endif %}</div>{% endmacro %}
+{% macro arrow() %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{% endmacro %}
+
+{# ---------- вхід у каталог: «Що вас турбує» / «Я знаю процедуру» ---------- #}
+{% macro entry_tabs(uid, compact=False) %}
+<div class="h-entry {{ 'compact' if compact }}" data-tabs>
+  <div class="h-tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="{{ uid }}-c">Що вас турбує</button>
+    <button role="tab" aria-selected="false" data-tab="{{ uid }}-p">Я знаю процедуру</button>
+  </div>
+  <div class="h-tabp" id="{{ uid }}-c" role="tabpanel">
+    <div class="h-cgrid">{% for x in concerns %}<a class="h-ccard" href="{{ (base ~ '/' ~ x.slug) if x.slug else zap }}">
+      <b>{{ x.t }}</b><small>{{ x.d }}</small><span class="how">{{ x.how }}</span><i>{{ arrow() }}</i></a>{% endfor %}</div>
+    <p class="h-note">Не знайшли свого запиту або їх кілька? <a href="#beauty-plan">Почніть із BEAUTY PLAN</a> — лікар розставить пріоритети.</p>
+  </div>
+  <div class="h-tabp" id="{{ uid }}-p" role="tabpanel" hidden>
+    <ul class="h-plist">{% for d in dirs %}<li><a href="{{ base }}/{{ d.slug }}"><span>{{ d.nav }}</span>{% if d.lo %}<em>від {{ money(d.lo) }}</em>{% endif %}{{ arrow() }}</a></li>{% endfor %}
+    {% for x in cats %}{% if x.name not in ['Консультації', 'Лазерна епіляція'] %}<li><a href="{{ zap }}"><span>{{ x.name }}</span><em>від {{ money(x.lo) }}</em>{{ arrow() }}</a></li>{% endif %}{% endfor %}</ul>
+    <p class="h-note">Ціни оновлюються автоматично з прайсу MOLODIST. <a href="{{ zap }}">Повний прайс і запис →</a></p>
+  </div>
+</div>
+{% endmacro %}
+
+<body class="hv hv-{{ vk }}">
+<div class="h-proto"><span>Прототип головної · варіант {{ vk|upper }} «{{ v.name }}»</span>
+  <nav>{% for k, x in variants.items() %}<a href="{{ base }}/proto/{{ k }}" {{ 'aria-current=page' if k == vk }}>{{ k|upper }}</a>{% endfor %}<a href="{{ base }}/proto">усі</a></nav></div>
+
+<div class="h-top"><div class="wrap h-top-in">
+  <span>{{ c.hours }}</span><a href="{{ c.maps }}" target="_blank" rel="noopener">{{ c.address }}</a>
+  <span class="sp"></span><a href="{{ shop.url }}" target="_blank" rel="noopener">Магазин косметики</a><a href="tel:{{ c.phone }}"><b>{{ c.phone_text }}</b></a>
+</div></div>
+
+<header class="h-hd" id="top"><div class="wrap h-hd-in">
+  <button class="h-burger" aria-label="Меню" aria-expanded="false" aria-controls="h-menu" data-menu-open><span></span><span></span></button>
+  <a class="logo" href="{{ base }}/proto/{{ vk }}" aria-label="MOLODIST — головна"><img class="wm" src="/static/site/brand/wordmark-{{ 'white' if vk == 'c' else 'graphite' }}.svg" alt="MOLODIST" width="170" height="20"></a>
+  <nav class="h-nav" aria-label="Розділи">{% for t, h in menu %}<a href="{{ h }}">{{ t }}</a>{% endfor %}</nav>
+  <a class="h-tel" href="tel:{{ c.phone }}">{{ c.phone_text }}</a>
+  <a class="btn sm" href="{{ zap }}">Записатися</a>
+</div></header>
+
+{# ---------- бургер-меню ---------- #}
+<div class="h-menu" id="h-menu" hidden><div class="h-menu-in">
+  <div class="h-menu-hd"><img class="wm" src="/static/site/brand/wordmark-white.svg" alt="MOLODIST" width="150" height="18"><button aria-label="Закрити меню" data-menu-close>×</button></div>
+  <nav class="h-menu-nav">{% for t, h in menu %}<a href="{{ h }}" data-menu-close>{{ t }}</a>{% endfor %}</nav>
+  <div class="h-menu-sub"><p class="lbl">Напрямки</p>{% for d in dirs %}<a href="{{ base }}/{{ d.slug }}">{{ d.nav }}</a>{% endfor %}<a href="{{ shop.url }}" target="_blank" rel="noopener">Магазин косметики ↗</a></div>
+  <div class="h-menu-ft"><a class="btn" href="{{ zap }}" data-menu-close>Записатися</a>
+    <p><a href="tel:{{ c.phone }}">{{ c.phone_text }}</a><br>{{ c.hours }}<br>{{ c.address }}</p>
+    <p class="ico-row"><a class="ico" href="{{ c.telegram }}" target="_blank" rel="noopener" aria-label="Telegram">{{ icon('telegram') }}</a><a class="ico" href="{{ viber }}" aria-label="Viber">{{ icon('viber') }}</a><a class="ico" href="{{ c.instagram }}" target="_blank" rel="noopener" aria-label="Instagram">{{ icon('instagram') }}</a></p></div>
+</div></div>
+
+<main>
+{% for sec in v.order %}
+
+{% if sec == 'hero' %}
+  {% if vk == 'a' %}
+  <section class="h-hero a"><div class="wrap h-hero-in">
+    <div class="tx"><p class="eyebrow">{{ v.eyebrow }}</p><h1>{{ v.h1 }}</h1><p class="lead-tx">{{ v.lead }}</p>
+      <p class="h-btns"><a class="btn" href="{{ zap }}">{{ v.cta }}</a><a class="h-ghost" href="#beauty-plan">{{ v.cta2 }} {{ arrow() }}</a></p></div>
+    <div class="im"><img src="{{ img.hero }}" alt="Діагностика шкіри в медичному просторі MOLODIST" fetchpriority="high">
+      {% if rev %}<a class="h-rate" href="#vidhuky"><b>{{ '%.1f'|format(rev.rating) }}</b><span>★★★★★<small>{{ rev.count }} відгуків у Google</small></span></a>{% endif %}</div>
+  </div><p class="h-word" aria-hidden="true">MOLODIST</p></section>
+  {% elif vk == 'b' %}
+  <section class="h-hero b"><div class="wrap">
+    <div class="h-hero-hd"><div><p class="eyebrow">{{ v.eyebrow }}</p><h1>{{ v.h1 }}</h1></div>
+      <div><p class="lead-tx">{{ v.lead }}</p><p class="h-btns"><a class="btn" href="{{ zap }}">{{ v.cta }}</a><a class="h-ghost" href="#beauty-plan">{{ v.cta2 }} {{ arrow() }}</a></p></div></div>
+    <div id="poslugy">{{ entry_tabs('hb') }}</div>
+  </div></section>
+  {% elif vk == 'c' %}
+  <section class="h-hero c"><div class="wrap h-hero-in">
+    <div class="tx"><p class="eyebrow">{{ v.eyebrow }}</p><h1>{{ v.h1 }}</h1><p class="lead-tx">{{ v.lead }}</p>
+      <ul class="h-gets">{% for g in plan.gets %}<li>{{ g }}</li>{% endfor %}</ul>
+      <p class="h-btns"><a class="btn light" href="{{ (base ~ '/zapys?service=' ~ plan.service_id) if ob_on else '#zapys' }}">{{ v.cta }}</a><a class="h-ghost" href="#beauty-plan">{{ v.cta2 }} {{ arrow() }}</a></p></div>
+    <div class="im"><img src="{{ img.plan }}" alt="Лікар складає BEAUTY PLAN після діагностики шкіри" fetchpriority="high">
+      <div class="h-pcard"><p class="lbl">Консультація BEAUTY PLAN</p><p class="pr">{% if plan_price %}{{ money(plan_price) }}{% else %}за прайсом{% endif %}</p><p class="sm">до 2 годин · письмовий план</p></div></div>
+  </div></section>
+  {% else %}
+  <section class="h-hero d"><div class="wrap h-hero-in">
+    <div class="im">{% if img.founder %}<img src="{{ img.founder }}" alt="Дарʼя Колган, лікар-дерматолог, засновниця MOLODIST" fetchpriority="high">{% else %}<div class="h-fph"><b>ДК</b><small>портрет Дарʼї Колган</small></div>{% endif %}</div>
+    <div class="tx"><p class="eyebrow">{{ v.eyebrow }}</p><h1>{{ v.h1 }}</h1><blockquote>{{ v.lead }}</blockquote>
+      <p class="h-btns"><a class="btn" href="{{ zap }}">{{ v.cta }}</a><a class="h-ghost" href="#likari">{{ v.cta2 }} {{ arrow() }}</a></p>
+      {% if rev %}<a class="h-rate inl" href="#vidhuky"><b>{{ '%.1f'|format(rev.rating) }}</b><span>★★★★★<small>{{ rev.count }} відгуків у Google</small></span></a>{% endif %}</div>
+  </div></section>
+  {% endif %}
+
+{% elif sec == 'facts' %}
+  <section class="h-facts"><div class="wrap h-facts-in">{% for t, d in facts %}<div><span class="n">0{{ loop.index }}</span><h3>{{ t }}</h3><p>{{ d }}</p></div>{% endfor %}</div></section>
+
+{% elif sec == 'entry' %}
+  <section class="sec h-sec" id="poslugy"><div class="wrap">
+    <div class="h-shd"><h2>Два шляхи до вашої процедури</h2><p>Почніть із того, що вас турбує, — або одразу оберіть процедуру, якщо вже знаєте, що потрібно.</p></div>
+    {{ entry_tabs('he') }}
+  </div></section>
+
+{% elif sec == 'plan' %}
+  <section class="sec h-plan" id="beauty-plan"><div class="wrap h-plan-in">
+    <div class="tx"><p class="eyebrow">Авторська методика</p><h2>{{ plan.title }}</h2><p class="big">{{ plan.text }}</p>
+      {% if vk != 'c' %}<ul class="h-gets dk">{% for g in plan.gets %}<li>{{ g }}</li>{% endfor %}</ul>{% endif %}
+      <p class="h-btns"><a class="btn" href="{{ (base ~ '/zapys?service=' ~ plan.service_id) if ob_on else '#zapys' }}">Записатися на BEAUTY PLAN</a><a class="h-ghost" href="{{ base }}/{{ plan.slug }}">Докладніше {{ arrow() }}</a></p>
+      {% if plan_price and vk != 'c' %}<p class="muted small">Консультація — {{ money(plan_price) }}. Ціна оновлюється автоматично з прайсу.</p>{% endif %}</div>
+    <ol class="h-steps">{% for t, d in plan.steps %}<li><span>0{{ loop.index }}</span><div><h3>{{ t }}</h3><p>{{ d }}</p></div></li>{% endfor %}</ol>
+  </div></section>
+
+{% elif sec == 'doctors' %}
+  <section class="sec h-sec h-docs" id="likari"><div class="wrap">
+    <div class="h-shd"><h2>Лікарі MOLODIST</h2><p>Ви знаєте, хто саме вас прийматиме, ще до візиту — і записуєтеся до конкретного лікаря.</p></div>
+    <div class="h-dgrid">{% for d in team %}<article class="h-dcard">{{ ph(d) }}
+      <h3>{{ d.name }}</h3><p class="role">{{ d.role }}</p>{% if d.bio %}<p class="bio">{{ d.bio }}</p>{% endif %}
+      <a class="h-ghost" href="{{ (base ~ '/zapys?doctor=' ~ d.id) if (ob_on and d.id) else '#zapys' }}" data-doc="{{ d.name }}">Записатися до лікаря {{ arrow() }}</a></article>{% endfor %}</div>
+  </div></section>
+
+{% elif sec == 'space' %}
+  <section class="sec h-space" id="prostir"><div class="wrap">
+    <div class="h-shd lt"><h2>{{ space.title }}</h2><p>{{ space.text }}</p></div>
+    <div class="h-gal">{% for u in img.space %}<img src="{{ u }}" alt="Медичний простір MOLODIST" loading="lazy">{% else %}{% for i in range(4) %}<div class="h-galph"><img src="/static/site/brand/mono-white.svg" alt="" width="44" height="44"><small>фото простору</small></div>{% endfor %}{% endfor %}</div>
+    <p class="h-lic">{{ c.license }}</p>
+  </div></section>
+
+{% elif sec == 'reviews' %}
+  <section class="sec h-sec h-rev" id="vidhuky"><div class="wrap">
+    <div class="h-shd row"><div><h2>Відгуки пацієнтів</h2><p>Справжні відгуки з Google — без редагування.</p></div>
+      {% if rev %}<a class="h-rate big" href="{{ rev.url or c.maps }}" target="_blank" rel="noopener"><b>{{ '%.1f'|format(rev.rating) }}</b><span>★★★★★<small>{{ rev.count }} відгуків у Google</small></span></a>{% endif %}</div>
+    {% if rev and rev.reviews %}<div class="h-rgrid" data-slider>{% for r in rev.reviews[:6] %}<article class="h-rcard"><p class="st">{{ '★' * r.rating }}</p><p class="tx">{{ r.text[:320] }}{{ '…' if r.text|length > 320 }}</p><p class="au"><b>{{ r.author }}</b><small>{{ r.when }}</small></p></article>{% endfor %}</div>
+    {% else %}<div class="h-rgrid">{% for i in range(3) %}<article class="h-rcard ph"><p class="st">★★★★★</p><p class="tx">Тут зʼявиться відгук із профілю MOLODIST у Google. Відгуки підтягуються автоматично, щойно підключено Google у налаштуваннях сайту.</p><p class="au"><b>Імʼя пацієнта</b><small>дата</small></p></article>{% endfor %}</div>{% endif %}
+    <p class="h-btns ctr"><a class="h-ghost" href="{{ (rev.url if rev else '') or c.maps }}" target="_blank" rel="noopener">Усі відгуки в Google {{ arrow() }}</a></p>
+  </div></section>
+
+{% elif sec == 'booking' %}
+  <section class="sec cta h-book" id="zapys"><div class="wrap cta-in">
+    <div><h2>Запис без дзвінків і очікування</h2>
+      <p class="big">{% if ob_on %}Оберіть послугу, лікаря й вільний час онлайн — або залиште номер, і адміністратор підбере все за вас.{% else %}Залиште номер — адміністратор підбере лікаря й зручний час.{% endif %}</p>
+      {% if ob_on %}<p><a class="btn light" href="{{ base }}/zapys">Обрати час онлайн</a></p>{% endif %}
+      <p class="alt">Або напишіть нам:</p>
+      <p class="ico-row"><a class="ico" href="tel:{{ c.phone }}" aria-label="Подзвонити">{{ icon('phone') }}</a><a class="ico" href="{{ c.telegram }}" target="_blank" rel="noopener" aria-label="Telegram">{{ icon('telegram') }}</a><a class="ico" href="{{ viber }}" aria-label="Viber">{{ icon('viber') }}</a><a class="ico" href="{{ c.instagram }}" target="_blank" rel="noopener" aria-label="Instagram">{{ icon('instagram') }}</a></p></div>
+    {{ form('home-' ~ vk, 'Передзвоніть мені', True) }}
+  </div></section>
+
+{% elif sec == 'shop' %}
+  <section class="h-shop"><div class="wrap h-shop-in"><div><h2>{{ shop.title }}</h2><p>{{ shop.text }}</p></div><a class="btn" href="{{ shop.url }}" target="_blank" rel="noopener">{{ shop.btn }}</a></div></section>
+
+{% elif sec == 'faq' %}
+  <section class="sec faq h-faq" id="zapytannia"><div class="wrap faq-in">
+    <div><h2>Часті запитання</h2><p class="muted">Не знайшли відповіді? <a href="{{ c.telegram }}" target="_blank" rel="noopener">Напишіть нам у Telegram</a> — відповімо в робочий час.</p></div>
+    <div>{% for q, a in faq %}<details class="qa" {{ 'open' if loop.first }}><summary>{{ q }}</summary><p>{{ a }}</p></details>{% endfor %}</div>
+  </div></section>
+
+{% elif sec == 'contacts' %}
+  <section class="sec h-sec h-cont" id="kontakty"><div class="wrap h-cont-in">
+    <div><h2>Контакти</h2>
+      <dl class="h-dl"><dt>Адреса</dt><dd>{{ c.address }}<br><a href="{{ c.maps }}" target="_blank" rel="noopener">Як дістатися →</a></dd>
+        <dt>Графік</dt><dd>{{ c.hours }}<br><span class="muted">Нд, Пн — вихідні</span></dd>
+        <dt>Телефон</dt><dd><a href="tel:{{ c.phone }}">{{ c.phone_text }}</a></dd>
+        <dt>Пошта</dt><dd><a href="mailto:{{ c.email }}">{{ c.email }}</a></dd></dl>
+      <p class="ico-row"><a class="ico" href="{{ c.telegram }}" target="_blank" rel="noopener" aria-label="Telegram">{{ icon('telegram') }}</a><a class="ico" href="{{ viber }}" aria-label="Viber">{{ icon('viber') }}</a><a class="ico" href="{{ c.instagram }}" target="_blank" rel="noopener" aria-label="Instagram">{{ icon('instagram') }}</a></p></div>
+    <div class="h-map"><iframe title="MOLODIST на карті" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen
+      src="https://maps.google.com/maps?q={{ 'MOLODIST, вул. Князя Романа Мстиславича 28А, Київ'|urlencode }}&hl=uk&z=16&output=embed"></iframe></div>
+  </div></section>
+{% endif %}
+{% endfor %}
+</main>
+
+<footer class="ft h-ft"><div class="wrap ft-in">
+  <div><div class="logo light"><img class="wm" src="/static/site/brand/wordmark-white.svg" alt="MOLODIST" width="150" height="18"></div>
+    <p class="muted">Медичний простір естетики та профілактики.<br>{{ c.license }}</p></div>
+  <div><h4>Розділи</h4><p>{% for t, h in menu %}<a href="{{ h }}">{{ t }}</a><br>{% endfor %}</p></div>
+  <div><h4>Напрямки</h4><p>{% for d in dirs %}<a href="{{ base }}/{{ d.slug }}">{{ d.nav }}</a><br>{% endfor %}<a href="{{ shop.url }}" target="_blank" rel="noopener">Магазин косметики</a></p></div>
+  <div><h4>Контакти</h4><p><a href="tel:{{ c.phone }}">{{ c.phone_text }}</a><br><a href="mailto:{{ c.email }}">{{ c.email }}</a><br>{{ c.hours }}<br>{{ c.address }}</p>
+    <p class="muted small"><a href="{{ privacy }}">Політика конфіденційності</a></p></div>
+</div><div class="wrap ft-bot muted small">© {{ year }} MOLODIST. Є протипоказання, потрібна консультація лікаря. Результат процедур індивідуальний.</div></footer>
+
+{# ---------- плаваючі кнопки: звʼязок і «вгору» ---------- #}
+<div class="h-fab" data-fab>
+  <div class="h-fab-list" hidden><a href="tel:{{ c.phone }}" aria-label="Подзвонити">{{ icon('phone') }}<span>Подзвонити</span></a><a href="{{ c.telegram }}" target="_blank" rel="noopener" aria-label="Telegram">{{ icon('telegram') }}<span>Telegram</span></a><a href="{{ viber }}" aria-label="Viber">{{ icon('viber') }}<span>Viber</span></a></div>
+  <button class="h-fab-btn" aria-label="Звʼязатися з нами" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v9a1.5 1.5 0 0 1-1.5 1.5H10l-4.5 4v-4h0A1.5 1.5 0 0 1 4 14.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg></button>
+</div>
+<a class="h-up" href="#top" aria-label="Вгору" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+<nav class="bar" aria-label="Швидкий звʼязок">
+  <a href="tel:{{ c.phone }}" aria-label="Подзвонити">{{ icon('phone') }}</a><a href="{{ c.telegram }}" target="_blank" rel="noopener" aria-label="Telegram">{{ icon('telegram') }}</a><a href="{{ viber }}" aria-label="Viber">{{ icon('viber') }}</a><a class="go" href="{{ zap }}">Записатися</a>
+</nav>
+<script>window.MLDS={base:'{{ base }}',slug:'home',interest:''};</script>
+<script src="/static/site/site.js?v={{ ver }}" defer></script>
+<script src="/static/site/home.js?v={{ ver }}" defer></script>
+</body>
+</html>

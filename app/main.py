@@ -9043,6 +9043,27 @@ def site_og(slug: str):
     return FileResponse(f, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
 
 
+@app.get("/_site/proto", response_class=HTMLResponse)
+@app.get("/_site/proto/{variant}", response_class=HTMLResponse)
+def site_proto(request: Request, variant: str = "", db: Session = Depends(db_dep)):
+    """Прототип нової головної (кілька варіантів на вибір власника) — лише перегляд, завжди без індексації."""
+    from .services import site_home as sh
+    ctx = _site_ctx(request, db)
+    ctx.update(noindex=True, variants=sh.VARIANTS)
+    vk = variant.strip("/").lower()
+    if not vk:
+        r = _site_resp("site/proto_hub.html", ctx)
+    elif vk not in sh.VARIANTS:
+        raise HTTPException(404)
+    else:
+        ctx.update(sh.data(db, ctx["base"], ctx["ver"]))
+        ctx.update(vk=vk, v=sh.VARIANTS[vk], menu=sh.MENU, facts=sh.FACTS, concerns=sh.CONCERNS, plan=sh.PLAN, space=sh.SPACE, shop=sh.SHOP,
+                   faq=sh.faq(ctx["c"]), title=sh.SEO["title"], desc=sh.SEO["desc"])
+        r = _site_resp("site/proto_home.html", ctx)
+    r.headers["Cache-Control"] = "no-store"
+    return r
+
+
 def _tilda_resp(request: Request, db: Session, path, status: int = 200):
     """Сторінка з архіву Tilda. На домені сайту — як є; у CRM (/_site/…) — перегляд без індексації."""
     from .services import tilda_site as ts, site_pages as sp
