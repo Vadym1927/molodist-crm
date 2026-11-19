@@ -24,7 +24,7 @@
 window.MSHOP_T={direct:{{ 'true' if direct else 'false' }},cookie:{{ 'true' if s.cookie_on else 'false' }},px:{{ (s.fb_pixel if track else '')|tojson }},ads:{{ ({'id': s.ads_id, 'label': s.ads_label} if direct and s.ads_id and s.ads_label else None)|tojson }},rmk:{{ 'true' if s.remarketing_on else 'false' }}};
 (function(T){var cc=null;try{cc=JSON.parse(localStorage.getItem('mshop_cc')||'null')}catch(e){}
 T.cc=cc||(T.cookie?null:{a:1,s:1,u:1,p:1});
-gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied',functionality_storage:'granted',security_storage:'granted',wait_for_update:500});
+var D=T.cookie?'denied':'granted';gtag('consent','default',{ad_storage:D,ad_user_data:D,ad_personalization:D,analytics_storage:D,functionality_storage:'granted',security_storage:'granted',wait_for_update:T.cookie?500:0});
 T.apply=function(c){if(c.m!==undefined&&c.s===undefined){c.s=c.u=c.p=c.m}T.cc=c;var g=function(x){return x?'granted':'denied'};
   gtag('consent','update',{analytics_storage:g(c.a),ad_storage:g(c.s),ad_user_data:g(c.u),ad_personalization:g(c.p)});
   if(c.s&&T.px&&!window.fbq){!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init',T.px);fbq('track','PageView');}};
