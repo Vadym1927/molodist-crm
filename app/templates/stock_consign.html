@@ -79,6 +79,7 @@
     <label>Дата<input type="date" name="day" value="{{ v.today.isoformat() }}"></label>
     <label>З каси / рахунку<select name="cashbox"><option value="">— не створювати фіноперацію</option>{% for b in boxes %}<option>{{ b }}</option>{% endfor %}</select></label>
     <label>Стаття<select name="article">{% for a in articles %}<option>{{ a }}</option>{% endfor %}</select></label>
+    <label>Знижка постачальника, ₴<input name="discount" inputmode="decimal" style="width:110px" title="Якщо постачальник дав знижку при розрахунку: закриває звіти, але з каси не списується"></label>
     <label>Коментар<input name="note" style="width:200px"></label>
     <button class="btn">Рознести оплату</button></form>
   <div class="mini muted" style="margin-top:6px">Сума розноситься по зафіксованих звітах від найстарішого, усередині — по поставках від найстарішої. Більше, ніж до оплати, — аванс у наступні звіти.</div>
@@ -97,7 +98,7 @@
     {% for g in v.groups %}<tr class="gh"><td>№{{ g.invoice or '—' }} від {{ g.date.strftime('%d.%m.%Y') }}{% if g.inv %}<span class="mini">борг у CRM {{ u(g.inv.debt) }} ₴{% if g.inv.adjust %} · {{ g.inv.adjust_note }} −{{ u(g.inv.adjust) }}{% endif %}</span>{% endif %}</td><td></td><td></td><td>{{ q(g.qty) }}</td><td></td><td>{{ u(g.left) }}</td></tr>
       {% for l in g.lots if l.qty - l.sold > 0.0001 %}<tr><td>{{ l.name }}{% if l.note %} · <i>{{ l.note }}</i>{% endif %}
         {% if not l.product_id %}<form method="post" action="/stock/consign/lot/{{ l.id }}/map" class="frm" style="margin-top:4px"><select name="product_id" style="height:30px;max-width:340px">{% for p in products %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}</select><button class="btn ghost" style="height:30px;padding:0 10px">Зіставити</button></form>{% endif %}</td>
-        <td>{{ q(l.qty) }}</td><td>{{ q(l.sold) if l.sold else '' }}</td><td>{{ q(l.qty - l.sold) }}</td><td>{{ u(l.cost) }}</td><td>{{ u((l.qty - l.sold) * l.cost) }}</td></tr>{% endfor %}
+        <td>{{ q(l.qty) }}</td><td>{{ q(l.sold) if l.sold else '' }}</td><td>{{ q(l.qty - l.sold) }}</td><td>{% if can(user,'finance') %}<form method="post" action="/stock/consign/lot/{{ l.id }}/cost" data-lot="{{ l.id }}" style="display:flex;gap:4px;align-items:center"><input name="cost" value="{{ '%.2f'|format(l.cost) }}" inputmode="decimal" style="width:84px;height:28px" onchange="this.form.querySelector('button').style.display=''"><button class="btn ghost" style="height:28px;padding:0 8px;display:none" title="Зберегти ціну">✓</button></form>{% else %}{{ u(l.cost) }}{% endif %}</td><td>{{ u((l.qty - l.sold) * l.cost) }}</td></tr>{% endfor %}
     {% else %}<tr><td colspan="6" class="muted">Непроданих банок немає.</td></tr>{% endfor %}
   </table>
   <details style="margin-top:12px"><summary style="cursor:pointer;font:700 13px var(--sans)">＋ Додати позицію поставки</summary>

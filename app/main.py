@@ -5692,12 +5692,13 @@ def consign_cancel(rid: int, user: User = Depends(require("finance")), db: Sessi
 
 @app.post("/stock/consign/pay")
 def consign_pay(s: str = Form(...), amount: str = Form(...), day: str = Form(""), cashbox: str = Form(""), article: str = Form(""),
-                note: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+                note: str = Form(""), discount: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     from .services import consign as cs
     amt = _num(amount)
     if not amt or amt <= 0:
         return RedirectResponse(_with_msg(f"/stock/consign?s={quote(s)}", "Вкажіть суму оплати", err=True), 303)
-    p = cs.pay(db, s, amt, _day(day) or date.today(), cashbox.strip() or None, article.strip() or None, user.id, note.strip())
+    p = cs.pay(db, s, amt, _day(day) or date.today(), cashbox.strip() or None, article.strip() or None, user.id, note.strip(),
+               discount=_num(discount) or 0)
     audit(db, "consign.pay", "consign_pay", p.id, user=user, supplier=s, amount=amt)
     return RedirectResponse(_with_msg(f"/stock/consign?s={quote(s)}#pays", f"Оплату {amt:,.2f} ₴ рознесено по поставках".replace(",", " ")), 303)
 
@@ -5724,6 +5725,20 @@ def consign_lot(s: str = Form(...), invoice: str = Form(""), inv_date: str = For
         return RedirectResponse(_with_msg(f"/stock/consign?s={quote(s)}#lots", "Заповніть товар, к-сть, ціну й дату", err=True), 303)
     cs.add_lot(db, s, invoice.strip(), d, product_id, q, c)
     return RedirectResponse(_with_msg(f"/stock/consign?s={quote(s)}#lots", "Позицію поставки додано"), 303)
+
+
+@app.post("/stock/consign/lot/{lid:int}/cost")
+def consign_lot_cost(lid: int, cost: str = Form(...), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .models import ConsignLot
+    from .services import consign as cs
+    l = db.get(ConsignLot, lid) or (_ for _ in ()).throw(HTTPException(404))
+    old = l.cost
+    try:
+        cs.set_cost(db, l, _num(cost) or 0)
+    except ValueError as e:
+        return RedirectResponse(_with_msg(f"/stock/consign?s={quote(l.supplier)}", str(e), err=True), 303)
+    audit(db, "consign.lot_cost", "consign_lot", lid, user=user, old=old, new=l.cost)
+    return RedirectResponse(_with_msg(f"/stock/consign?s={quote(l.supplier)}", "Ціну банки змінено"), 303)
 
 
 @app.post("/stock/consign/lot/{lid:int}/map")

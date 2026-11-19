@@ -229,9 +229,11 @@ def cancel_report(db: Session, rep: ConsignReport) -> None:
 
 
 def pay(db: Session, supplier: str, amount: float, day: date, cashbox: str | None = None, article: str | None = None,
-        user_id: int | None = None, note: str = "") -> ConsignPay:
-    """Оплата однією сумою → звіти від найстарішого, усередині звіту — поставки від найстарішої (SupplierInvoice.crm_paid)."""
-    left = round(float(amount), 2)
+        user_id: int | None = None, note: str = "", discount: float = 0.0) -> ConsignPay:
+    """Оплата однією сумою → звіти від найстарішого, усередині звіту — поставки від найстарішої (SupplierInvoice.crm_paid).
+    discount — знижка постачальника при розрахунку: закриває звіти разом з оплатою, але грошей з каси не списує."""
+    discount = round(max(float(discount or 0), 0.0), 2)
+    left = round(float(amount) + discount, 2)
     alloc = []
     reps = db.scalars(select(ConsignReport).where(ConsignReport.supplier == supplier, ConsignReport.status == "fixed")
                       .order_by(ConsignReport.d_to, ConsignReport.id)).all()
@@ -266,6 +268,9 @@ def pay(db: Session, supplier: str, amount: float, day: date, cashbox: str | Non
                     counterparty=supplier[:200], comment=(note or f"Оплата реалізації {supplier}")[:500], created_by=user_id, ref=f"consign:{supplier}")
         db.add(fin)
         db.flush()
+    if discount:
+        note = (f"знижка постачальника {discount:.2f} ₴ · " + (note or "")).strip(" ·")
+        alloc.append({"report": None, "invoice": None, "amount": 0, "discount": discount})
     p = ConsignPay(supplier=supplier, day=day, amount=round(float(amount), 2), alloc=alloc, finop_id=fin.id if fin else None,
                    note=note or None, created_by=user_id)
     db.add(p)
@@ -288,6 +293,19 @@ def cancel_pay(db: Session, p: ConsignPay) -> None:
         if f and not f.deleted_at:
             f.deleted_at = datetime.utcnow()
     db.delete(p)
+    db.commit()
+
+
+def set_cost(db: Session, lot: ConsignLot, cost: float) -> None:
+    """Ціна банки в поставці (напр. знижкову → нормальну). Попередня ціна пишеться в примітку; звіти, вже зафіксовані, не змінюються."""
+    cost = round(float(cost), 2)
+    if cost <= 0:
+        raise ValueError("Ціна має бути більше нуля")
+    if abs(cost - (lot.cost or 0)) < 0.005:
+        return
+    lot.note = (f"{lot.note} · " if lot.note else "") + f"ціна {lot.cost:.2f} → {cost:.2f}"
+    lot.note = lot.note[:300]
+    lot.cost = cost
     db.commit()
 
 

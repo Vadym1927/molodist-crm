@@ -152,3 +152,17 @@ def test_supplier_debt_report():
         cs.cancel_pay(db, p)
         cs.cancel_report(db, db.get(ConsignReport, rep.id))
         assert cs.overview(db, "КОНС БОРГ")["to_pay"] == 0
+
+
+def test_pay_with_supplier_discount_and_lot_cost():
+    with SessionLocal() as db:
+        db.add(Supplier(name="КОНС ЗН", consignment=True)); db.commit()
+        rep = cs.add_debt(db, "КОНС ЗН", 1000, date(2026, 11, 19), "тест")
+        p = cs.pay(db, "КОНС ЗН", 900, date(2026, 11, 20), discount=100)
+        assert db.get(ConsignReport, rep.id).paid == 1000 and p.amount == 900 and "знижка" in p.note
+        cs.cancel_pay(db, p)
+        assert db.get(ConsignReport, rep.id).paid == 0
+        l = ConsignLot(supplier="КОНС ЗН", invoice="Z1", inv_date=date(2026, 9, 16), name="x", qty=2, cost=850)
+        db.add(l); db.commit()
+        cs.set_cost(db, l, 1000)
+        assert l.cost == 1000 and "850.00 → 1000.00" in l.note
