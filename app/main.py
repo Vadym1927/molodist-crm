@@ -5293,6 +5293,11 @@ async def product_site_save(pid: int, request: Request, user: User = Depends(req
         si.pop("price_old", None)
     elif f.get("sale_pct") is not None:
         si.pop("sale", None)
+    if f.get("bo_form"):
+        if f.get("backorder"):
+            si["backorder"] = True
+        else:
+            si.pop("backorder", None)
     if f.get("tip_form"):
         tt = str(f.get("tip_text") or "").strip()[:600]
         if tt:

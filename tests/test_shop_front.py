@@ -670,6 +670,13 @@ def test_shop_quiz_reorder_oneclick_tip(monkeypatch):
         assert r.status_code == 303
         with SessionLocal() as db:
             assert db.get(Product, ids["qz-cream"]).site_info["tip"]["text"] == "Для сухої шкіри."
+        c.post(f"/products/{ids['qz-cream']}/site", data={"site_on": "1", "bo_form": "1", "backorder": "1"}, follow_redirects=False)
+        with SessionLocal() as db:                              # «під замовлення»: продаємо без залишку, відправка 1–3 дні
+            assert db.get(Product, ids["qz-cream"]).site_info["backorder"] is True
+        assert c.get("/_shop/shop/qz-cream/").status_code == 200
+        c.post(f"/products/{ids['qz-cream']}/site", data={"site_on": "1", "bo_form": "1"}, follow_redirects=False)
+        with SessionLocal() as db:
+            assert "backorder" not in db.get(Product, ids["qz-cream"]).site_info
 
 
 def test_google_reviews_and_new_posts(monkeypatch):

@@ -388,7 +388,10 @@ def catalog(db: Session, fresh: bool = False) -> dict:
         else:
             left_ = None
             stock = not hidden and str(si.get("presence", 1)).lower() not in ("0", "false", "not_available") and (si.get("quantity") is None or float(si.get("quantity") or 0) > 0)
-        v = {"id": p.id, "left": left_, "name": si.get("title") or p.name, "price": price, "old": old if old > price else 0, "stock": stock,
+        wait_ = False
+        if si.get("backorder") and not stock and not hidden and str(si.get("presence", 1)).lower() not in ("0", "false", "not_available"):
+            stock, left_, wait_ = True, None, True          # «під замовлення»: продаємо без залишку на вітрині, відправка за 1–3 дні
+        v = {"id": p.id, "left": left_, "name": si.get("title") or p.name, "price": price, "old": old if old > price else 0, "stock": stock, "wait": wait_,
              "sku": p.sku or si.get("sku") or "", "label": p.volume or "", "gtin": gtin(p.barcode or si.get("barcode") or "")}
         if sx_:
             v.update(short=sx_["qty"], short_exp=sx_["expiry"].isoformat(), full=rest_)
@@ -399,10 +402,11 @@ def catalog(db: Session, fresh: bool = False) -> dict:
             if not it["imgs"] and files.get(p.id):
                 it["imgs"] = files[p.id]
             it["stock"] = it["stock"] or stock
+            it["wait"] = it["wait"] and (wait_ or not stock)
             continue
         brand = si.get("brand_name") or p.brand or ""
         target[slug] = {"slug": slug, "id": p.id, "name": si.get("title") or p.name, "brand": brand, "price": price, "old": v["old"],
-                         "stock": stock, "imgs": files.get(p.id, []), "desc": si.get("short_description") or "",
+                         "stock": stock, "wait": wait_, "imgs": files.get(p.id, []), "desc": si.get("short_description") or "",
                          "sections": sections(si.get("short_description") or ""),
                          "seo_title": si.get("seo_title") or "", "seo_desc": si.get("seo_description") or "", "sold": sold.get(p.id, 0),
                          "new": p.id, "variants": [v], "sku": v["sku"], "sticker": si.get("sticker") or "",
