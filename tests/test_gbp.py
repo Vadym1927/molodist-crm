@@ -12,7 +12,7 @@ def _http(log):
         log.append((req.method, str(req.url)))
         u = str(req.url)
         if "oauth2.googleapis.com/token" in u:
-            return httpx.Response(200, json={"access_token": "AT", "refresh_token": "RT", "expires_in": 3600})
+            return httpx.Response(200, json={"access_token": "AT", "refresh_token": "RT-secret-refresh-xyz", "expires_in": 3600})
         if u.startswith("https://mybusinessaccountmanagement"):
             return httpx.Response(200, json={"accounts": [{"name": "accounts/1"}]})
         if "/locations" in u and "mybusinessbusinessinformation" in u:
@@ -46,7 +46,7 @@ def test_gbp_flow():
             except gbp.GbpError:
                 pass
             s = gbp.callback(db, "code", st, "https://crm/cb", _http(log))
-            assert s["connected"] and s["title"] == "MOLODIST" and "RT" not in db.get(SyncState, gbp.KEY).value
+            assert s["connected"] and s["title"] == "MOLODIST" and "RT-secret-refresh-xyz" not in db.get(SyncState, gbp.KEY).value
             rows = gbp.reviews(db, _http(log))
             assert [r["stars"] for r in rows] == [5, 3] and rows[1]["reply"] == "Дякуємо" and gbp.cfg(db)["avg"] == 4.8
             gbp.reply(db, "r1", "Дякуємо за довіру!", _http(log))
