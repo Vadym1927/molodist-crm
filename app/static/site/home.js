@@ -133,7 +133,11 @@
   }
 
   var up = d.querySelector('.h-up'), hd = d.querySelector('.h-hd');
-  if (up) up.addEventListener('click', function (e) { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  if (up) up.addEventListener('click', function (e) {                   // плавно вгору; якщо браузер не прокрутив — одразу
+    e.preventDefault(); var y0 = window.scrollY;
+    try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (x) { window.scrollTo(0, 0); }
+    setTimeout(function () { if (window.scrollY >= y0 - 5) { d.documentElement.style.scrollBehavior = 'auto'; window.scrollTo(0, 0); d.documentElement.style.scrollBehavior = ''; } }, 250);
+  });
   function onScroll() {
     var y = window.scrollY || 0;
     if (up) up.hidden = y < 700;
