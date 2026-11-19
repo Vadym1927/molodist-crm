@@ -278,3 +278,122 @@ html.h-lock{overflow:hidden}
   .h-rtrack{margin:0 -16px;padding:0 16px 2px}}
 @media (max-width:560px){.h-cgrid.rich{grid-template-columns:1fr 1fr;gap:10px}.h-ccard.pic .h-cb{padding:12px 12px 14px}.h-ccard.pic b{font-size:12.5px}.h-ccard.pic .h-cb>small{display:none}.h-ccard.pic .how{font-size:12px;padding-top:2px}.h-ba em{font-size:8.5px;padding:5px 7px;left:5px;bottom:5px}.h-cimg.none b{font-size:30px}.h-cimg.none small{font-size:10px}.h-frow{grid-template-columns:1fr}
   .h-steps.row{grid-template-columns:1fr}.h-igrid{grid-template-columns:1fr 1fr}.h-facts.pics .h-facts-in{grid-template-columns:1fr 1fr}.h-facts.pics .h-facts-in>div{border-top:0}}
+
+/* ================= третя версія (правки 19.11): шапка, меню, hero, кроки, відгуки, форма, товари, Instagram, FAQ ================= */
+/* шапка: логотип більший, бургер — пігулка «Меню» */
+.h-hd .logo .wm{height:24px}
+.h-burger{width:auto;height:44px;border-radius:999px;border:1px solid var(--greige);padding:0 18px 0 14px;display:inline-flex;align-items:center;gap:10px;place-content:normal}
+.h-burger .ln{display:grid;gap:5px;width:20px}.h-burger .ln i{display:block;height:1.5px;background:var(--ink);border-radius:2px;transition:width .2s}
+.h-burger .ln i:nth-child(2){width:14px}.h-burger:hover .ln i:nth-child(2){width:20px}
+.h-burger b{font:600 12px/1 var(--hf);letter-spacing:.1em;text-transform:uppercase;color:var(--ink)}
+.h-burger>span:not(.ln){display:none}
+.hv-c .h-burger .ln i{background:#fff}.hv-c .h-burger b{color:#fff}
+/* меню на весь екран, по центру */
+.h-menu{background:var(--ink)}
+.h-menu-in{width:100%;max-width:1160px;margin:0 auto;padding:26px 20px 34px;gap:0;animation:hm2 .25s ease}
+@keyframes hm2{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
+.h-menu-hd{display:grid;grid-template-columns:44px 1fr 44px;justify-items:center}.h-menu-hd .wm{height:24px;width:auto}
+.h-menu-cols{display:grid;grid-template-columns:1fr 1fr;gap:64px;max-width:820px;width:100%;margin:auto;padding:36px 0}
+.h-menu .lbl{font:600 11px/1 var(--hf);letter-spacing:.18em;text-transform:uppercase;color:var(--lav2);margin:0 0 14px}
+.h-menu-nav a{font-size:20px;padding:13px 0}
+.h-menu-sub{align-content:start;gap:0}.h-menu-sub span{display:block;color:#C9C2D2;font-size:15.5px;padding:10px 0;border-bottom:1px solid #352E3D}
+.h-menu-sub a.shop{display:inline-flex;align-items:center;gap:10px;margin-top:22px;color:#fff;font:600 13px/1 var(--hf);letter-spacing:.08em;text-transform:uppercase;border:1px solid #4A4254;border-radius:999px;padding:13px 20px;justify-self:start}
+.h-menu-sub a.shop:hover{border-color:#fff}.h-menu-sub a.shop svg{width:20px;height:20px}
+.h-menu-ft{margin:0 auto;justify-items:center;text-align:center;gap:14px;max-width:520px}.h-menu-ft .btn{width:auto;min-width:260px}.h-menu-ft .ico-row{justify-content:center;margin:0}
+/* перший екран: H1 під пошук + слоган */
+.h-hero.a h1{font-size:clamp(28px,3.5vw,46px);line-height:1.1;margin-bottom:.45em}
+.h-tag{font:500 clamp(19px,2vw,27px)/1.25 var(--hf);text-transform:none;letter-spacing:0;color:var(--act);margin:0 0 22px}
+/* BEAUTY PLAN: шлях з іконками й картка результату */
+.h-flow{list-style:none;padding:0;margin:60px 0 0;display:grid;grid-template-columns:repeat(4,1fr);gap:0;position:relative}
+.h-flow:before{content:"";position:absolute;left:32px;right:12.5%;top:32px;border-top:1.5px dashed var(--lav2)}
+.h-flow li{position:relative;padding-right:28px}
+.h-flow .ic{width:64px;height:64px;border-radius:50%;background:#fff;border:1px solid var(--lav2);color:var(--plum);display:grid;place-items:center;margin-bottom:18px;position:relative}
+.h-flow .ic svg{width:28px;height:28px}.h-flow li:first-child .ic{background:var(--plum);border-color:var(--plum);color:#fff}
+.h-flow .n{font:600 11px/1 var(--hf);letter-spacing:.16em;text-transform:uppercase;color:var(--act);display:block;margin-bottom:8px}
+.h-flow h3{font-size:16px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}.h-flow p{margin:0;color:var(--mut);font-size:14.5px}
+.h-offer{margin-top:44px;background:var(--plum);color:#fff;border-radius:26px;padding:32px 36px;display:grid;grid-template-columns:1fr auto;gap:10px 48px;align-items:center}
+.h-offer .lbl{font:600 12px/1 var(--hf);letter-spacing:.16em;text-transform:uppercase;color:var(--lav2);margin:0 0 16px}
+.h-offer ul{list-style:none;padding:0;margin:0;display:flex;flex-wrap:wrap;gap:10px 28px}.h-offer li{display:flex;gap:10px;align-items:center;font-size:16px}
+.h-offer li svg{width:20px;height:20px;color:var(--lav2);flex:none}
+.h-offer .pr{text-align:right;display:grid;gap:4px;justify-items:end}.h-offer .sum{font:600 34px/1 var(--hf);margin:0}.h-offer .sm{margin:0 0 12px;color:#C9C2D2;font-size:13px}
+.h-offer .note{grid-column:1/-1;margin:8px 0 0;padding-top:16px;border-top:1px solid #54496B;color:#C9C2D2;font-size:14px}
+/* відгуки: компактна сітка 3×2 */
+.h-rtrack.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;overflow:visible}
+.h-rtrack.grid .h-rcard{flex:none;min-height:0;padding:20px;gap:10px;border-radius:20px}
+.h-rtrack.grid .h-rcard header{grid-template-columns:36px 1fr 24px;gap:10px}.h-rtrack.grid .av{width:36px;height:36px;font-size:14px}
+.h-rtrack.grid .h-rcard header b{font-size:13.5px}.h-rtrack.grid .st{font-size:13px}
+.h-rtrack.grid .tx{font-size:13.5px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
+.h-rtrack.grid .g{width:24px;height:24px;font-size:11px}
+/* форма: теми — плитки з позначкою, звʼязок — перемикач з іконками */
+.h-form label span i{color:var(--act);font-style:normal}
+.h-topics{display:grid;grid-template-columns:1fr 1fr;gap:8px}.h-topics legend,.h-seg legend{grid-column:1/-1}
+.h-topics button{display:flex;align-items:center;gap:10px;text-align:left;border:1px solid var(--greige);background:#fff;border-radius:14px;padding:12px 14px;font:500 14px/1.25 var(--bf);color:var(--ink);cursor:pointer;transition:border-color .15s,background .15s}
+.h-topics button i{flex:none;width:20px;height:20px;border-radius:50%;border:1.5px solid var(--lav2);display:grid;place-items:center;color:transparent;transition:background .15s,border-color .15s}
+.h-topics button i svg{width:12px;height:12px;stroke-width:2.4}
+.h-topics button:hover{border-color:var(--lav2)}
+.h-topics button[aria-pressed=true]{border-color:var(--act);background:var(--lav)}.h-topics button[aria-pressed=true] i{background:var(--act);border-color:var(--act);color:#fff}
+.h-seg{display:grid;grid-template-columns:repeat(3,1fr);gap:0}
+.h-seg button{display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--greige);border-left-width:0;background:var(--cream);padding:13px 8px;font:600 13px/1 var(--hf);color:var(--ink);cursor:pointer}
+.h-seg button:first-of-type{border-left-width:1px;border-radius:12px 0 0 12px}.h-seg button:last-of-type{border-radius:0 12px 12px 0}
+.h-seg button svg{width:18px;height:18px}.h-seg button[aria-pressed=true]{background:var(--plum);border-color:var(--plum);color:#fff}
+/* магазин: картки товарів як на molodist.store */
+.h-pshd{margin:56px 0 22px}.h-pshd h3{font-size:20px;text-transform:uppercase;letter-spacing:.04em;margin:0}
+.h-prods{grid-template-columns:repeat(4,1fr);gap:26px 18px;margin-top:0}
+.h-pc{display:flex;flex-direction:column;gap:10px;position:relative}
+.h-pc .pc-img{position:relative;display:block;aspect-ratio:1;border-radius:20px;background:var(--cream);overflow:hidden}
+.h-pc .pc-img img{width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;transition:transform .25s}.h-pc:hover .pc-img img{transform:scale(1.04)}
+.h-pc .pc-b{display:flex;flex-direction:column;gap:5px;flex:1}
+.h-pc .pc-br{font:600 11px var(--hf);letter-spacing:.12em;text-transform:uppercase;color:var(--mut)}
+.h-pc .pc-n{font:400 14px/1.35 var(--bf);color:var(--ink);text-decoration:none;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;flex:1}
+.h-pc .pc-p{display:flex;gap:8px;align-items:baseline}.h-pc .pc-p b{font:600 16px var(--hf)}.h-pc .pc-p s{color:var(--mut);font-size:13px}
+.h-pc .bdg{position:absolute;left:10px;top:10px;font:600 11px/1 var(--hf);font-style:normal;padding:6px 9px;border-radius:999px;background:var(--ink);color:#fff}.h-pc .bdg.sale{background:#B23A48}
+.btn.ghost{background:transparent;color:var(--act);border:1px solid var(--lav2);width:100%;margin-top:4px}.btn.ghost:hover{background:var(--act);color:#fff;border-color:var(--act)}
+/* Instagram: шапка профілю й більші плитки */
+.h-ihd{background:var(--plum);color:#fff;border-radius:28px;padding:30px 36px;display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap;margin-bottom:18px}
+.h-ihd .pf{display:flex;gap:18px;align-items:center;text-decoration:none;color:inherit;min-width:0}
+.h-ihd .av{width:82px;height:82px;border-radius:50%;padding:3px;background:linear-gradient(45deg,#F9CE34,#EE2A7B,#6228D7);flex:none;display:grid}
+.h-ihd .av img{width:100%;height:100%;border-radius:50%;border:3px solid var(--plum);object-fit:cover;background:#fff}
+.h-ihd .t{display:grid;gap:4px}.h-ihd .t b{font:600 22px/1.1 var(--hf)}.h-ihd .t small{color:#E4DEEF;font-size:14px}.h-ihd .t em{font-style:normal;color:#C9C2D2;font-size:14px}
+.h-igrid{grid-template-columns:repeat(4,1fr);gap:14px}.h-igrid a{border-radius:20px;position:relative}.h-igrid.ph{grid-template-columns:repeat(4,1fr)}
+.h-igrid i{position:absolute;right:12px;top:12px;width:0;height:0;border-left:13px solid #fff;border-top:8px solid transparent;border-bottom:8px solid transparent;filter:drop-shadow(0 1px 3px rgba(0,0,0,.5))}
+/* запитання у дві колонки */
+.h-faq2{display:grid;grid-template-columns:1fr 1fr;gap:0 48px;align-items:start}.h-faq2 .qa summary{font-size:15.5px;padding:16px 30px 16px 0}
+.h-faq .h-shd.row{align-items:end;margin-bottom:26px}.h-faq .h-shd.row p{margin:0;font-size:15px}
+/* кнопка звʼязку: вище й лівіше, пункти заявки й онлайн-запису */
+.h-fab{right:36px;bottom:44px}.h-up{right:42px;bottom:116px}
+.h-fab-list a>svg[fill=none]{width:36px;height:36px;padding:8px;border-radius:9px;background:var(--lav);color:var(--plum);flex:none}
+@media (max-width:1100px){.h-hd .logo{margin-right:auto}}
+@media (max-width:1000px){.h-rtrack.grid{grid-template-columns:1fr 1fr}.h-flow{grid-template-columns:1fr 1fr;gap:30px 0}.h-flow:before{display:none}.h-prods{grid-template-columns:repeat(3,1fr)}.h-offer{grid-template-columns:1fr}.h-offer .pr{text-align:left;justify-items:start}}
+@media (max-width:860px){.h-burger{padding:0;width:42px;height:42px;justify-content:center;border-color:transparent}.h-burger b{display:none}.h-burger .ln{width:22px;gap:6px}.h-burger .ln i{height:2px}.h-burger .ln i:nth-child(2){width:22px}
+  .h-hd .logo .wm{height:19px}.h-hd .logo{margin:0 auto 0 4px}
+  .h-menu-cols{grid-template-columns:1fr;gap:26px;padding:24px 0}.h-menu-nav a{font-size:18px;padding:11px 0}.h-menu-sub span{padding:8px 0;font-size:15px}.h-menu-hd .wm{height:20px}
+  .h-rtrack.grid{display:flex;overflow-x:auto}.h-rtrack.grid .h-rcard{flex:0 0 78%}
+  .h-faq2{grid-template-columns:1fr}.h-ihd{padding:22px 20px}.h-ihd .av{width:64px;height:64px}.h-ihd .t b{font-size:18px}.h-ihd .btn{width:100%}
+  .h-offer{padding:24px 20px}.h-offer ul{display:grid}.h-offer .pr .btn{width:100%}.h-flow{margin-top:36px}
+  .h-prods{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:14px;margin:0 -16px;padding:0 16px 6px}.h-pc{flex:0 0 46%;scroll-snap-align:start}
+  .h-igrid,.h-igrid.ph{grid-template-columns:1fr 1fr;gap:10px}}
+@media (max-width:560px){.h-topics{grid-template-columns:1fr 1fr}.h-topics button{padding:10px 10px;font-size:13px;gap:8px}.h-flow{grid-template-columns:1fr}.h-flow li{display:grid;grid-template-columns:64px 1fr;column-gap:16px;padding:0}.h-flow .ic{grid-row:1/4;margin:0}.h-seg button span{font-size:12px}}
+
+.h-hd .wrap{max-width:1380px}.h-nav{gap:20px}
+.h-gal.five{grid-template-columns:repeat(5,1fr);gap:12px}.h-gal.five img,.h-gal.five img:first-child{grid-column:auto;aspect-ratio:4/5;height:auto;object-position:center}
+@media (max-width:860px){.h-gal.five{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:10px;margin:0 -16px;padding:0 16px}.h-gal.five img,.h-gal.five img:first-child{flex:0 0 62%;scroll-snap-align:start;aspect-ratio:4/5}}
+
+/* шапка як у магазині: біла, логотип по центру, розділи другим рядком */
+.h-hd.shop{background:rgba(255,255,255,.96);backdrop-filter:blur(8px);border-bottom:1px solid var(--greige)}
+.h-hd.shop .wrap{max-width:1160px}
+.hs-top{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;height:68px;gap:16px}
+.hs-l{display:flex;align-items:center;gap:12px;min-width:0}.hs-r{display:flex;align-items:center;gap:6px;justify-content:flex-end}
+.hs-ib{width:42px;height:42px;border-radius:50%;border:0;background:none;color:var(--ink);display:grid;place-items:center;cursor:pointer;flex:none}
+.hs-ib:hover{background:var(--cream)}.hs-ib svg{width:22px;height:22px}.hs-ib.tel{display:none}
+.hs-info{font-size:13px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.hs-info a{color:var(--mut);text-decoration:none}.hs-info a:hover{color:var(--ink)}
+.hs-tel{font:600 14px/1 var(--hf);color:var(--ink);text-decoration:none;white-space:nowrap;margin-right:6px}
+.h-hd.shop .logo{justify-self:center}.h-hd.shop .logo .wm{height:24px;width:auto}.h-hd.shop .btn.sm{margin-left:8px}
+.hs-nav{display:flex;gap:28px;justify-content:center;flex-wrap:wrap;padding:0 0 13px}
+.hs-nav a{font:600 12px/1.2 var(--hf);letter-spacing:.08em;text-transform:uppercase;text-decoration:none;color:var(--ink);padding:4px 0;border-bottom:2px solid transparent}
+.hs-nav a:hover{border-color:var(--act);color:var(--act)}
+.h-hd.shop.stuck .hs-nav{display:none}.h-hd.shop.stuck .hs-top{height:60px}
+@media (max-width:1100px){.hs-info{display:none}}
+@media (max-width:860px){.hs-nav{display:none}.hs-top{height:58px;grid-template-columns:auto 1fr auto;gap:6px}.h-hd.shop .logo{justify-self:start;margin:0}.h-hd.shop .logo .wm{height:18px}
+  .hs-tel{display:none}.hs-ib.tel{display:grid}.h-hd.shop .btn.sm{margin-left:2px;padding:10px 13px;font-size:11px}}
+@media (max-width:400px){.hs-r .hs-ib:not(.tel){display:none}}
+.h-hero.a h1,.h-tag,.hv h2{text-wrap:balance}

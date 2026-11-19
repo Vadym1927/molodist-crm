@@ -30,6 +30,8 @@ def test_proto_variants_render_brand_rules():
                 assert "/zapys" not in t.replace("/zapys?doctor=", "") and 'data-pick="topic"' in t and "Масаж" in t
                 assert "ФОП Бондар Вадим Миколайович" in t and "FAQPage" in t and "bp.mp4" in t and "ba-wrinkles-1.webp" in t
                 assert 'class="pulse"' in t and "h-rsum" in t and "h-igrid" in t and "h-shop2" in t
+                assert "<h1>Естетична медицина й косметологія в Києві</h1>" in t and "Шкіра, якій не потрібні фільтри" in t
+                assert "ЄДРПОУ 3457310591" in t and "data-need-name" in t and "ba-acne-1.webp" in t and "h-faq2" in t and "h-flow" in t
             body = re.sub(r"<(script|style)[^>]*>.*?</\1>", "", t, flags=re.S)
             body = re.sub(r"<[^>]+>", " ", body).lower()                             # лише видимий текст
             assert "клінік" not in body and "клієнт" not in body and "ботокс" not in body and "салон" not in body, k

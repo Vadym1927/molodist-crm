@@ -18,8 +18,9 @@ VARIANTS: dict[str, dict] = {
         "name": "Редакційний",
         "ref": "бренд-подача: великий заголовок, мінімум тексту, сильне фото",
         "idea": "Основний варіант. Перший екран продає принцип «спершу план», далі сторінка відповідає на всі запити: проблеми, процедури, лікарі, ціни, відгуки.",
-        "eyebrow": "Медичний простір естетики та профілактики · Київ",
-        "h1": "Шкіра, якій не потрібні фільтри",
+        "eyebrow": "MOLODIST · медичний простір естетики та профілактики",
+        "h1": "Естетична медицина й косметологія в Києві",
+        "tagline": "Шкіра, якій не потрібні фільтри",
         "lead": "У MOLODIST усе починається з діагностики й плану лікаря. Ви знаєте, що робимо, навіщо і скільки це коштує — ще до першої процедури.",
         "cta": "Записатися", "cta2": "Що таке BEAUTY PLAN",
         "order": ["hero", "facts", "entry", "plan", "doctors", "space", "reviews", "booking", "shop", "insta", "faq", "contacts"],
@@ -74,7 +75,7 @@ CONCERNS = [
     {"t": "Зморшки й вікові зміни", "d": "Мімічні зморшки, втрата обʼєму й чіткості овалу", "slug": "inyekczijna-kosmetologiya",
      "how": "Ботулінотерапія, контурна пластика, біоревіталізація", "ba": ["ba-wrinkles-1.webp", "ba-wrinkles-2.webp"], "interest": "Зморшки й вікові зміни"},
     {"t": "Акне й постакне", "d": "Висипання, сліди й рубці після них", "slug": "beautyplan",
-     "how": "BEAUTY PLAN Anti Acne: лікування, догляд, процедури", "interest": "Акне й постакне"},
+     "how": "BEAUTY PLAN Anti Acne: лікування, догляд, процедури", "ba": ["ba-acne-1.webp", "ba-acne-2.webp"], "interest": "Акне й постакне"},
     {"t": "Пігментація й судини", "d": "Плями, почервоніння, нерівний тон", "slug": "",
      "how": "IPL-терапія, пілінги, домашній догляд", "ba": ["ba-pigment-1.webp", "ba-pigment-2.webp"], "interest": "Пігментація й судини"},
     {"t": "Тьмяна, зневоднена шкіра", "d": "Сухість, втома, розширені пори", "slug": "",
@@ -114,6 +115,9 @@ PLAN = {
               ("Домашній догляд", "Підбір засобів і корекція того, чим ви вже користуєтеся"),
               ("Супровід", "Лікар бачить, як виконується план, і коригує його на наступних візитах")],
     "gets": ["Консультація лікаря — до 2 годин", "Письмовий план процедур і догляду", "Без навʼязування: лише те, що справді потрібно"],
+    "offer": {"title": "Після консультації у вас на руках",
+              "items": ["План процедур за пріоритетами — з цінами", "Схема домашнього догляду", "Список того, що вам не потрібно"],
+              "note": "План залишається у вас і в картці пацієнта: до нього легко повертатися на кожному візиті."},
     "slug": "beautyplan", "service_id": 387,
 }
 
@@ -214,12 +218,23 @@ def data(db: Session, base: str, ver: str) -> dict:
         from . import shop_front as sf
         shop_base = (sf.cfg(db).get("canonical") or "").rstrip("/")
         if shop_base:
-            products = [i for i in sf.home_blocks(sf.catalog(db))["best"] if i.get("imgs")][:4]
+            seen: set = set()                           # вісім хітів продажу, по одному від бренду — як вітрина магазину
+            pool = sorted((i for i in sf.catalog(db)["items"] if i.get("stock") and i.get("imgs")), key=lambda i: (-(i.get("sold") or 0), -i["new"]))
+            for i in pool:
+                b = (i.get("brand") or "").strip().lower()
+                if b and b in seen:
+                    continue
+                seen.add(b)
+                products.append(i)
+                if len(products) == 8:
+                    break
+            if len(products) < 8:                       # брендів менше восьми — добираємо хітами
+                products += [i for i in pool if i not in products][:8 - len(products)]
     except Exception:  # noqa: BLE001
         products = []
     return {"cats": cats, "team": team, "rev": rev, "dirs": pages, "plan_price": plan_price, "ob": c, "directions": directions,
             "insta": insta, "insta_p": insta_p, "products": products, "shop_base": shop_base, "st": st,
-            "legal": {"name": LEGAL_NAME, "code": (sp.cfg(db).get("legal_code") or "").strip()},
+            "legal": {"name": LEGAL_NAME, "code": (sp.cfg(db).get("legal_code") or sp.DEFAULT["legal_code"]).strip()},
             "img": {"hero": _first_media(["home-hero.webp"], base) or st("hero.webp"),
                     "plan": _first_media(["bp-hero.webp", "bp-1.webp"], base) or static_hero,
                     "founder": _first_media(["home-founder.webp", "doc-kolgan.webp"], base),

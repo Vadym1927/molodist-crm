@@ -58,6 +58,17 @@
     (window.dataLayer = window.dataLayer || []).push({ event: 'home_interest', interest: v });
   });
 
+  d.addEventListener('submit', function (e) {                            // імʼя — обовʼязкове (телефон перевіряє site.js)
+    var f = e.target; if (!f.matches || !f.matches('form[data-need-name]')) return;
+    var n = f.querySelector('[name=name]'), er = f.querySelector('.err');
+    if (n && n.value.trim().length < 2) {
+      e.preventDefault(); e.stopImmediatePropagation();
+      if (er) { er.textContent = 'Вкажіть, будь ласка, імʼя.'; er.hidden = false; }
+      n.focus();
+    }
+  }, true);
+  d.querySelectorAll('[data-fab-close]').forEach(function (a) { a.addEventListener('click', function () { setFab(false); }); });
+
   d.querySelectorAll('[data-slide]').forEach(function (b) {              // відгуки: стрілки
     b.addEventListener('click', function () {
       var t = b.closest('.h-rwrap').querySelector('[data-slider]'); if (!t) return;
