@@ -632,3 +632,17 @@ h2.lbl{font-weight:600}
 .l-pcol li b{white-space:nowrap}.l-pcol li s{font-weight:400;opacity:.5;margin-right:4px}
 .l-procs .h-btns.ctr{margin-top:28px}
 @media(max-width:700px){.l-agrid:not(:has(.pic)){grid-template-columns:1fr}.l-acard:not(.pic){min-width:0}}
+
+/* акція на сторінці болю: помітні знижки */
+.l-hpromo{display:inline-flex;align-items:center;gap:12px;background:#3B3050;color:#fff;border-radius:999px;padding:8px 20px 8px 8px;margin:22px 0 0;font-size:14.500px;max-width:100%}
+.l-hpromo b{flex:none;background:#fff;color:#3B3050;border-radius:999px;padding:8px 14px;font:700 17px/1 var(--hf)}
+.l-hpromo+.h-btns{margin-top:18px}
+div.l-promo{background:#3B3050;color:#fff;border-radius:24px;padding:20px 26px;gap:22px;margin:0 0 26px}
+div.l-promo b{font:700 44px/1 var(--hf);color:#fff}div.l-promo span{flex:1;font-size:15px;opacity:.92}
+div.l-promo strong{display:block;font:600 17px/1.2 var(--hf);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px;opacity:1}
+div.l-promo .btn{flex:none;background:#fff;color:#3B3050}
+.l-pcol li.sale{background:var(--lav);border-radius:14px;padding:12px 14px;margin:6px -14px;border-top-color:transparent}.l-pcol li.sale+li{border-top-color:transparent}
+.l-pcol li.sale em{display:block;font:600 11px/1 var(--hf);font-style:normal;letter-spacing:.06em;text-transform:uppercase;color:#5C4B82;margin-top:6px}
+.l-pcol li.sale b{font-size:17px;color:#3B3050;text-align:right}.l-pcol li.sale s{display:block;font-size:13px;margin:0 0 2px}
+.l-mpromo{display:inline-block;background:var(--lav);color:#3B3050;border-radius:999px;padding:6px 14px;margin:2px 0 8px;font-size:13.500px}.l-mpromo b{font-family:var(--hf)}
+@media(max-width:700px){div.l-promo{flex-wrap:wrap;padding:18px;gap:12px 16px}div.l-promo b{font-size:36px}div.l-promo .btn{width:100%;text-align:center}.l-hpromo{font-size:13px;border-radius:22px}}

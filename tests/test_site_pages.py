@@ -28,9 +28,9 @@ def test_prices_live_from_crm_and_promo():
         assert light["old"] == 1400 and light["price"] == 700                  # −50% на перший візит
         assert next(r for r in cx["rows"] if r["id"] == 114).get("old") is None
         assert not any(r["id"] == 86 for x in g for r in x["rows"])          # прихована послуга — не на сайті
-        assert next(r for r in sp.prices(db, p, today=date(2026, 12, 1))[0]["rows"] if r["id"] == 4)["price"] == 1400   # акція скінчилась
+        assert next(r for r in sp.prices(db, p, today=date(2026, 12, 1))[0]["rows"] if r["id"] == 4)["price"] == 700    # акція постійна — без дати завершення
         _svc(db, 4, "Лазер Light", 1500); db.commit()
-        assert next(r for x in sp.prices(db, p, today=date(2027, 1, 1)) for r in x["rows"] if r["id"] == 4)["price"] == 1500
+        assert next(r for x in sp.prices(db, p, today=date(2027, 1, 1)) for r in x["rows"] if r["id"] == 4)["price"] == 750
         assert 86 in sp.missing(db, "laserepilation")
 
 
@@ -89,7 +89,7 @@ def test_media_upload_and_page_images():
         assert cl.get("/_site/media/laser-hero.webp").content == data
         assert cl.get("/_site/media/..%2F..%2Fetc%2Fpasswd").status_code == 404
         page = cl.get("/_site/laserepilation").text
-        assert 'class="l-himg"' in page and "/_site/media/laser-hero.webp?v=" in page      # сторінка епіляції тепер на дизайні нової головної
+        assert 'class="l-himg"' in page and "laser-hero.webp" not in page          # фото з медіатеки на сторінці епіляції не показуємо
         assert "/_site/media/doc-syrova.webp" in cl.get("/_site/vydalennia-rodymok").text
         assert "laser-hero.webp" in cl.get("/settings/site").text
 
