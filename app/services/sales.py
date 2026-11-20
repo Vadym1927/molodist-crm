@@ -52,7 +52,7 @@ def method_kind(m: str) -> str:
 
 
 def quote(db: Session, items: list[dict], patient: Patient | None, rule_ids: list[int] | None = None,
-          manual_discount: float = 0.0, bonus_pay: float = 0.0, no_discounts: bool = False) -> dict:
+          manual_discount: float = 0.0, bonus_pay: float = 0.0, no_discounts: bool = False, round_total: bool = False) -> dict:
     """items: [{kind, ref_id, name, category, qty, price}] → знижки по рядках, підсумки, бонуси."""
     if items and any(it.get("kind") == "topup" for it in items):     # поповнення балансу: без знижок і бонусів
         no_discounts, manual_discount, bonus_pay = True, 0.0, 0.0
@@ -77,7 +77,7 @@ def quote(db: Session, items: list[dict], patient: Patient | None, rule_ids: lis
     total = round(sub - disc, 2)
     rounded = False
     kop = round(total - int(total + 1e-9), 2)
-    if 0 < kop < 1 and total >= 1 and li and disc > 0:   # копійки від знижки — заокруглюємо до гривні на користь пацієнта (у знижку найбільшого рядка)
+    if 0 < kop < 1 and total >= 1 and li and (disc > 0 or round_total):   # копійки від знижки — заокруглюємо до гривні на користь пацієнта (у знижку найбільшого рядка)
         i = max(range(len(li)), key=lambda k: li[k]["price"] * li[k]["qty"] - lines[k])
         lines[i] = round(lines[i] + kop, 2)
         disc, total, rounded = round(sum(lines), 2), round(sub - round(sum(lines), 2), 2), True
@@ -121,6 +121,12 @@ def create(db: Session, data: dict, user_id: int | None = None) -> Sale:
         q["bonus_accrual"] = 0.0
     pays = [dict(p) for p in data.get("payments") or [] if float(p.get("amount") or 0) > TOL and p.get("method") not in (BONUS,)]
     paid = round(sum(float(p["amount"]) for p in pays), 2)
+    short = round(q["to_pay"] - paid, 2)
+    if 0 < short < 1 and abs(paid - round(paid)) < 0.005:      # внесено рівно гривнями, бракує копійок (ціна з копійками) — заокруглюємо чек
+        q = quote(db, items, patient, data.get("rule_ids"), float(data.get("manual_discount") or 0), float(data.get("bonus_pay") or 0),
+                  no_discounts=bool(data.get("no_discounts")), round_total=True)
+        if data.get("no_accrual"):
+            q["bonus_accrual"] = 0.0
     excess, topup = round(paid - q["to_pay"], 2), 0.0
     if excess > 0.01 and data.get("overpay") in ("balance", "change"):
         # переплата готівкою: решта пацієнту або на його рахунок (поповнення — окремо від чека, у чек не йде)
