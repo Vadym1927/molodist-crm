@@ -22,7 +22,10 @@ KEY = "site_ig_assets"
 FIELDS = "id,media_type,media_url,thumbnail_url,permalink,caption,timestamp,children{media_type,media_url,thumbnail_url}"
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{2,60}\.(mp4|jpg)$")
 TOPICS = {"akne": {"reel": r"чотири фактор|4 фактор", "posts": r"акне|постакне|висипан",
-                   "ba": r"до\s*/?\s*(і\s*)?після|результат|кейс|динамік"}}
+                   "ba": r"до\s*/?\s*(і\s*)?після|результат|кейс|динамік"},
+          # сторінка «Пігментація й судини»: знайдене спершу приховане — власник вмикає рілс і фото сам (opt_in)
+          "pigment": {"reel": r"\bipl\b|фотоомолодж|пігмент|судин|купероз|розаце", "posts": r"\bipl\b|пігмент|судин|купероз|розаце|фотоомолодж",
+                      "ba": r"до\s*/?\s*(і\s*)?після|результат|кейс|динамік", "opt_in": True}}
 
 
 def folder() -> Path:
@@ -130,8 +133,11 @@ def refresh(db: Session, topic: str = "akne", http=None) -> dict:
                         cases.append({"file": f.name, "url": m.get("permalink"), "post": mid, "n": i + 1, "caption": cap[:200]})
                 except Exception:  # noqa: BLE001
                     continue
-    cur = {"reel": reel or cur.get("reel"), "cases": cases or cur.get("cases") or [], "checked_at": datetime.utcnow().isoformat(timespec="seconds"),
-           "error": "" if (reel or cases) else "у останніх публікаціях не знайдено рілс / фото за ключовими словами", "hide": cur.get("hide") or []}
+    hide0 = set(cur.get("hide") or [])
+    if t.get("opt_in"):                             # нові фото — приховані, доки власник не ввімкне
+        hide0 |= {c["file"] for c in cases} - {c["file"] for c in cur.get("cases") or []}
+    cur = {"reel_on": bool(cur.get("reel_on")), "reel": reel or cur.get("reel"), "cases": cases or cur.get("cases") or [], "checked_at": datetime.utcnow().isoformat(timespec="seconds"),
+           "error": "" if (reel or cases) else "у останніх публікаціях не знайдено рілс / фото за ключовими словами", "hide": sorted(hide0)}
     st[topic] = cur
     _save(db, st)
     return cur
@@ -142,6 +148,8 @@ def assets(db: Session, topic: str, base: str) -> dict:
     cur = state(db).get(topic) or {}
     d = folder()
     reel = cur.get("reel") if cur.get("reel") and (d / cur["reel"]["file"]).is_file() else None
+    if (TOPICS.get(topic) or {}).get("opt_in") and not cur.get("reel_on"):
+        reel = None
     if reel:
         reel = {**reel, "src": f"{base}/ig/{reel['file']}", "poster_src": f"{base}/ig/{reel['poster']}" if reel.get("poster") else ""}
     hide = set(cur.get("hide") or [])

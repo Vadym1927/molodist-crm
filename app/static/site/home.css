@@ -609,3 +609,19 @@ h2.lbl{font-weight:600}
 .l-doc+.l-doc{padding-top:0}
 @media(max-width:1100px){.l-agrid{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:700px){.l-agrid{grid-template-columns:1fr;gap:10px}.l-acard{padding:16px 18px;border-radius:18px;display:grid;grid-template-columns:auto 1fr;column-gap:12px}.l-acard h3{margin:0 0 4px}.l-acard p{grid-column:2}}
+
+/* сторінка болю: фото в картках методу, лікарі поруч, поле «що турбує», аватари лікарів у формі */
+.l-acard.pic{padding:0 0 18px;overflow:hidden}.l-acard.pic img{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;height:auto}
+.l-acard.pic .n,.l-acard.pic h3,.l-acard.pic p{margin-left:18px;margin-right:18px}.l-acard.pic .n{display:block;margin-top:14px}
+.l-case .h-ba.v{aspect-ratio:1/1}
+.l-dgrid{display:grid;grid-template-columns:1fr 1fr;gap:28px}
+.l-dcard{display:grid;grid-template-columns:minmax(150px,220px) 1fr;gap:24px;align-items:start;background:var(--w);border-radius:28px;padding:22px}
+.l-dcard h3{font-size:20px;margin:4px 0 6px;text-transform:uppercase;letter-spacing:.03em}.l-dcard .role{font-size:14px;margin:0 0 10px}.l-dcard .bio{font-size:14.500px;margin:0}
+.l-dcard .h-btns{margin-top:16px}
+.l-fmt .note{margin-top:14px}
+.h-ask{display:block;margin:0 0 14px}.h-ask textarea{width:100%;border:1px solid var(--greige);background:var(--cream,#F7F4F0);border-radius:16px;padding:12px 16px;font:400 15px/1.4 var(--bf);color:inherit;resize:vertical;min-height:58px}
+.h-mavs{display:flex;flex:none}.h-mavs img{width:56px;height:56px;border:2px solid #fff;margin-left:-14px}.h-mavs img:first-child{margin-left:0}
+@media(max-width:1000px){.l-dgrid{grid-template-columns:1fr}}
+@media(max-width:700px){.l-acard.pic{display:block}.l-agrid{grid-template-columns:1fr 1fr}.l-acard.pic:last-child{grid-column:auto}.l-dcard{grid-template-columns:110px 1fr;gap:14px;padding:14px;border-radius:20px}.l-dcard h3{font-size:16px}.l-dcard .bio{display:none}.l-dcard .btn{padding-left:16px;padding-right:16px;font-size:11px}.h-mavs img{width:46px;height:46px}}
+.l-acard.pic h3{font-size:14px;letter-spacing:.02em;overflow-wrap:anywhere}
+@media(max-width:700px){.l-acard.pic h3{font-size:12.500px}}

@@ -17,9 +17,15 @@ CARDS = {"pg1": _T.format("3738-3038-4733-a339-653439343832"),     # пігме�
          "ak8": _T.format("3839-3763-4135-a437-666532316461"),     # акне, IPL
          "ak9": _T.format("3238-3432-4361-b932-363061613261")}     # акне, IPL
 CROPS = {f"{k}-{n}.webp": (f, b) for k, f in CARDS.items() for n, b in ((1, B1), (2, B2))}
+_S = "images/tild{}.png"                          # сторіз «IPL-терапія · одна процедура»: «до» вгорі, «після» внизу
+for _k, _f in (("rz1", "3463-6364-4235-a631-306462386366__img_0546"), ("rz2", "6138-3765-4530-b036-383037356636__img_0549")):
+    CROPS[f"{_k}-1.webp"] = (_S.format(_f), (0.0, 0.162, 1.0, 0.438))
+    CROPS[f"{_k}-2.webp"] = (_S.format(_f), (0.0, 0.446, 1.0, 0.722))
+NO_WM = {"ipl-hero.webp", "ipl-hero2.webp", "rz1-1.webp", "rz1-2.webp", "rz2-1.webp", "rz2-2.webp"}   # на цих уже є знак або він не потрібен
+CROPS["ipl-hero2.webp"] = ("images/tild6439-6134-4335-b739-626562646263__photo_2024-02-15_110.jpeg", (0.0, 0.0, 1.0, 1.0))
 CROPS["ipl-hero.webp"] = ("images/tild6161-3430-4038-a233-396134326666__photo_2024-02-15_110.jpeg", (0.0, 0.02, 1.0, 0.98))
 NAME_RE = re.compile(r"^[a-z0-9-]{2,40}\.webp$")
-VER = "1"
+VER = "2"
 
 
 def folder() -> Path:
@@ -44,7 +50,7 @@ def path(name: str) -> Path | None:
     im = Image.open(src).convert("RGB")
     w, h = im.size
     im = im.crop((int(box[0] * w), int(box[1] * h), int(box[2] * w), int(box[3] * h)))
-    if name != "ipl-hero.webp":
+    if name not in NO_WM:
         wm_p = Path(__file__).resolve().parent.parent / "static" / "site" / "brand" / "wordmark-white-600.png"
         if wm_p.is_file():                                   # легкий водяний знак унизу праворуч
             wm = Image.open(wm_p).convert("RGBA")

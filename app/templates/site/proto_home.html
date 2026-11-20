@@ -27,13 +27,14 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
 {% if c.gtm_id and not noindex and not proto %}<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','{{ c.gtm_id }}');</script>{% endif %}
 </head>
 {% set zap = '#zapys' %}{% set rich = v.rich %}
-{% macro form(id, btn='Записатися', dark=False) %}
+{% macro form(id, btn='Записатися', dark=False, ask=False) %}
 <form class="lead h-form {{ 'dark' if dark }}" data-lead="{{ id }}" data-need-name novalidate>
   <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
   <div class="h-frow"><label><span>Імʼя <i>*</i></span><input name="name" autocomplete="given-name" placeholder="Як до вас звертатися" required></label>
     <label><span>Телефон <i>*</i></span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+380" required></label></div>
   <fieldset class="h-topics" data-pick="topic"><legend>Що вас цікавить</legend>
     {% for t in ['Beauty Plan', 'Зморшки й вікові зміни', 'Акне й постакне', 'Пігментація й судини', 'Лазерна епіляція', 'Видалення новоутворень', 'Масаж', 'Інше'] %}<button type="button" aria-pressed="false"><i>{{ ic('check') }}</i><span>{{ t }}</span></button>{% endfor %}</fieldset>
+  {% if ask %}<label class="h-ask"><span>Що саме вас турбує</span><textarea name="comment" rows="2" maxlength="400" placeholder="Наприклад: пігментні плями на щоках, судинні зірочки на носі"></textarea></label>{% endif %}
   <fieldset class="h-seg" data-pick="channel"><legend>Як зручніше звʼязатися</legend>
     {% for t, n in [('Дзвінок', 'phone'), ('Telegram', 'telegram'), ('Viber', 'viber')] %}<button type="button" aria-pressed="{{ 'true' if loop.first else 'false' }}" data-val="{{ t }}"><i class="bi">{{ icon(n) }}</i><span>{{ t }}</span></button>{% endfor %}</fieldset>
   <button class="btn">{{ btn }}</button>
@@ -43,7 +44,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
 </form>
 {% endmacro %}
 {% macro ph(d, cls='') %}<div class="h-ph {{ cls }}">{% if d.photo %}<img src="{{ d.photo }}" alt="{{ d.name }}{{ (', ' ~ d.role.split('.')[0]) if d.role }} — MOLODIST" loading="lazy" width="600" height="750">{% else %}<span>{{ d.initials }}</span>{% endif %}</div>{% endmacro %}
-{% macro ic(n) %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{% if n == 'scan' %}<path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="11" r="3.2"/><path d="M8.500 17c.8-1.500 2-2.200 3.500-2.200s2.700.7 3.500 2.200"/>{% elif n == 'plan' %}<rect x="5" y="3.500" width="14" height="17" rx="2"/><path d="M9 8h6M9 12h6M9 16h3.500"/>{% elif n == 'care' %}<path d="M9 8h6v11a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z"/><path d="M10.500 8V5h3v3M12 5V3"/><path d="M9 13h6"/>{% elif n == 'loop' %}<path d="M4 12a8 8 0 0 1 13.700-5.600L20 8.500"/><path d="M20 4.500v4h-4"/><path d="M20 12a8 8 0 0 1-13.700 5.600L4 15.500"/><path d="M4 19.500v-4h4"/>{% elif n == 'bag' %}<path d="M6 8h12l1 12H5z"/><path d="M9 8V7a3 3 0 0 1 6 0v1"/>{% elif n == 'phone' %}<path d="M6.500 4h3l1.500 4-2 1.500a11 11 0 0 0 5.500 5.500l1.500-2 4 1.500v3a2 2 0 0 1-2 2A15 15 0 0 1 4.500 6a2 2 0 0 1 2-2z"/>{% elif n == 'tg' %}<path d="M20.500 4.500 3.500 11l5.500 2 2 6 3-4 4.500 3.500z"/><path d="m9 13 7.500-5.500"/>{% elif n == 'viber' %}<path d="M5 5.500h14a1.500 1.500 0 0 1 1.500 1.500v8a1.500 1.500 0 0 1-1.500 1.500h-6l-4 3.500v-3.500H5A1.500 1.500 0 0 1 3.500 15V7A1.500 1.500 0 0 1 5 5.500z"/><path d="M9.500 9.500c.5 2 2 3.500 4 4"/>{% elif n == 'cal' %}<rect x="4" y="5.500" width="16" height="14.500" rx="2"/><path d="M4 10h16M8.500 3.500v4M15.500 3.500v4"/>{% elif n == 'form' %}<path d="M5 4h14v16H5z"/><path d="M8.500 9h7M8.500 13h7M8.500 17h4"/>{% elif n == 'check' %}<path d="m5 12.500 4.500 4.500L19 7.500"/>{% endif %}</svg>{% endmacro %}
+{% macro ic(n) %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{% if n == 'scan' %}<path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="11" r="3.2"/><path d="M8.500 17c.8-1.500 2-2.200 3.500-2.200s2.700.7 3.500 2.200"/>{% elif n == 'plan' %}<rect x="5" y="3.500" width="14" height="17" rx="2"/><path d="M9 8h6M9 12h6M9 16h3.500"/>{% elif n == 'care' %}<path d="M9 8h6v11a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z"/><path d="M10.500 8V5h3v3M12 5V3"/><path d="M9 13h6"/>{% elif n == 'flash' %}<path d="M13 2.500 5.500 13.500H11l-1 8 7.500-11H12z"/>{% elif n == 'loop' %}<path d="M4 12a8 8 0 0 1 13.700-5.600L20 8.500"/><path d="M20 4.500v4h-4"/><path d="M20 12a8 8 0 0 1-13.700 5.600L4 15.500"/><path d="M4 19.500v-4h4"/>{% elif n == 'bag' %}<path d="M6 8h12l1 12H5z"/><path d="M9 8V7a3 3 0 0 1 6 0v1"/>{% elif n == 'phone' %}<path d="M6.500 4h3l1.500 4-2 1.500a11 11 0 0 0 5.500 5.500l1.500-2 4 1.500v3a2 2 0 0 1-2 2A15 15 0 0 1 4.500 6a2 2 0 0 1 2-2z"/>{% elif n == 'tg' %}<path d="M20.500 4.500 3.500 11l5.500 2 2 6 3-4 4.500 3.500z"/><path d="m9 13 7.500-5.500"/>{% elif n == 'viber' %}<path d="M5 5.500h14a1.500 1.500 0 0 1 1.500 1.500v8a1.500 1.500 0 0 1-1.500 1.500h-6l-4 3.500v-3.500H5A1.500 1.500 0 0 1 3.500 15V7A1.500 1.500 0 0 1 5 5.500z"/><path d="M9.500 9.500c.5 2 2 3.500 4 4"/>{% elif n == 'cal' %}<rect x="4" y="5.500" width="16" height="14.500" rx="2"/><path d="M4 10h16M8.500 3.500v4M15.500 3.500v4"/>{% elif n == 'form' %}<path d="M5 4h14v16H5z"/><path d="M8.500 9h7M8.500 13h7M8.500 17h4"/>{% elif n == 'check' %}<path d="m5 12.500 4.500 4.500L19 7.500"/>{% endif %}</svg>{% endmacro %}
 {% macro arrow() %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{% endmacro %}
 
 {# ---------- вхід у каталог: «Що вас турбує» / «Я знаю процедуру» ---------- #}
@@ -167,23 +168,23 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
 {% elif sec == 'about' %}{% if lp.about %}
   <section class="sec h-sec l-about" id="{{ lp.about.id }}"><div class="wrap">
     <p class="eyebrow">{{ lp.about.eyebrow }}</p><div class="h-shd"><h2>{{ lp.about.title }}</h2><p>{{ lp.about.text }}</p></div>
-    <div class="l-agrid">{% for t, d in lp.about['items'] %}<div class="l-acard"><span class="n">{{ '%02d'|format(loop.index) }}</span><h3>{{ t }}</h3><p>{{ d }}</p></div>{% endfor %}</div>
-    <p class="h-btns ctr"><a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp">Записатися на консультацію</a></p>
+    <div class="l-agrid">{% for x in about_items %}{% set t, d = x.t, x.d %}<div class="l-acard {{ 'pic' if x.img }}">{% if x.img %}<img src="{{ x.img }}" alt="{{ t }} — фото пацієнта MOLODIST" loading="lazy" width="400" height="400">{% endif %}<span class="n">{{ '%02d'|format(loop.index) }}</span><h3>{{ t }}</h3><p>{{ d }}</p></div>{% endfor %}</div>
+    <p class="h-btns ctr"><a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp">Записатися на процедуру</a></p>
   </div></section>{% endif %}
 
 {% elif sec == 'reel' %}{% if reel %}
   <section class="sec l-reel"><div class="wrap l-reel-in">
-    <div class="tx"><p class="eyebrow">Відео від лікаря</p><h2>Чотири фактори, через які зʼявляється акне</h2>
-      <p class="big">Софія Сирова пояснює, що насправді запускає висипання — і чому догляд «від прищів» без лікаря часто не працює.</p>
-      <p class="h-btns"><a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp">Записатися на консультацію</a>{% if reel.url %}<a class="h-ghost" href="{{ reel.url }}" target="_blank" rel="noopener">Дивитися в Instagram {{ arrow() }}</a>{% endif %}</p></div>
-    <div class="l-vid"><video data-reel playsinline muted autoplay loop preload="metadata" {% if reel.poster_src %}poster="{{ reel.poster_src }}"{% endif %} aria-label="Софія Сирова: чотири фактори акне"><source src="{{ reel.src }}" type="video/mp4"></video>
+    <div class="tx"><p class="eyebrow">{{ lp.reel_tx.eyebrow if lp.reel_tx else 'Відео від лікаря' }}</p><h2>{{ lp.reel_tx.title if lp.reel_tx else 'Чотири фактори, через які зʼявляється акне' }}</h2>
+      <p class="big">{{ lp.reel_tx.text if lp.reel_tx else 'Софія Сирова пояснює, що насправді запускає висипання — і чому догляд «від прищів» без лікаря часто не працює.' }}</p>
+      <p class="h-btns"><a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp">{{ 'Записатися' if lp.reel_tx else 'Записатися на консультацію' }}</a>{% if reel.url %}<a class="h-ghost" href="{{ reel.url }}" target="_blank" rel="noopener">Дивитися в Instagram {{ arrow() }}</a>{% endif %}</p></div>
+    <div class="l-vid"><video data-reel playsinline muted autoplay loop preload="metadata" {% if reel.poster_src %}poster="{{ reel.poster_src }}"{% endif %} aria-label="{{ lp.reel_tx.title if lp.reel_tx else 'Софія Сирова: чотири фактори акне' }}"><source src="{{ reel.src }}" type="video/mp4"></video>
       <button type="button" class="l-snd" data-reel-sound><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.500-4H4z" fill="currentColor"/><path d="M15.500 9a4 4 0 0 1 0 6M18 6.500a7.500 7.500 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span>Увімкнути звук</span></button></div>
   </div></section>{% endif %}
 
 {% elif sec == 'cases' %}
   <section class="sec l-cases" id="rezultaty"><div class="wrap">
     <div class="h-shd"><h2>{{ lp.cases.title }}</h2><p>{{ lp.cases.text }}</p></div>
-    <div class="l-cgrid">{% for x in cases %}<figure class="l-case"><span class="h-ba"><span><img src="{{ x.src[0] }}" alt="{{ x.t }} — до {{ lp.cases.alt or 'лікування акне' }} в MOLODIST" loading="lazy" width="512" height="640"><em>До</em></span><span><img src="{{ x.src[1] }}" alt="{{ x.t }} — після {{ lp.cases.alt or 'лікування акне' }} в MOLODIST" loading="lazy" width="512" height="640"><em>Після</em></span></span>
+    <div class="l-cgrid">{% for x in cases %}<figure class="l-case"><span class="h-ba {{ 'v' if x.v }}"><span><img src="{{ x.src[0] }}" alt="{{ x.t }} — до {{ lp.cases.alt or 'лікування акне' }} в MOLODIST" loading="lazy" width="512" height="640"><em>До</em></span><span><img src="{{ x.src[1] }}" alt="{{ x.t }} — після {{ lp.cases.alt or 'лікування акне' }} в MOLODIST" loading="lazy" width="512" height="640"><em>Після</em></span></span>
       <figcaption><b>{{ x.t }}</b><small>{{ x.d }}</small></figcaption></figure>{% endfor %}
       {% for x in ig_cases %}<figure class="l-case ig"><a href="{{ x.url }}" target="_blank" rel="noopener"><img src="{{ x.src }}" alt="Результат лікування акне в MOLODIST — публікація в Instagram" loading="lazy" width="1080" height="1080"></a>
       <figcaption><b>Кейс із публікації</b><small>Відкрити в Instagram →</small></figcaption></figure>{% endfor %}</div>
@@ -201,7 +202,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
     <div class="tx"><p class="eyebrow">{{ lp.consult.eyebrow }}</p><h2>{{ lp.consult.title }}</h2><p class="big">{{ lp.consult.text }}</p>
       <ul class="h-gets dk">{% for g in lp.consult.gets %}<li>{{ g }}</li>{% endfor %}</ul>
       <p class="h-btns"><a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp">Записатися на консультацію</a></p></div>
-    <div class="l-fmt"><p class="lbl">Формати й ціни</p>{% for f in formats %}<div class="row"><div><b>{{ f.t }}</b><small>{{ f.d }}</small></div><span class="pr">{% if f.price %}{{ money(f.price) }}{% else %}—{% endif %}</span></div>{% endfor %}</div>
+    <div class="l-fmt"><p class="lbl">Формати й ціни</p>{% for f in formats %}<div class="row"><div><b>{{ f.t }}</b><small>{{ f.d }}</small></div><span class="pr">{% if f.price %}{{ money(f.price) }}{% else %}—{% endif %}</span></div>{% endfor %}{% if lp.consult.note %}<p class="note">{{ lp.consult.note }}</p>{% endif %}</div>
   </div></section>
 
 {% elif sec == 'procs' %}{% if procs|selectattr('items')|list %}
@@ -213,7 +214,13 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
   </div></section>{% endif %}
 
 {% elif sec == 'ldoctor' %}
-  {% for d in lp_doc %}<section class="sec l-doc"{% if loop.first %} id="likar"{% endif %}><div class="wrap l-doc-in">
+  {% if lp_doc|length > 1 %}<section class="sec l-doc l-docs" id="likar"><div class="wrap">
+    <div class="h-shd"><h2>{{ lp.doctor.title }}</h2><p>{{ lp.doctor.lead }}</p></div>
+    <div class="l-dgrid">{% for d in lp_doc %}<div class="l-dcard"><div class="h-dcard {{ ('fx-' ~ d.fx) if d.fx }}">{{ ph(d) }}</div>
+      <div><h3>{{ d.name }}</h3><p class="role">{{ d.role }}</p>{% if d.bio %}<p class="bio">{{ d.bio }}</p>{% endif %}
+        <p class="h-btns"><a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp" data-doc="{{ d.name }}">Записатися до лікаря</a></p></div></div>{% endfor %}</div>
+  </div></section>{% endif %}
+  {% for d in (lp_doc if lp_doc|length == 1 else []) %}<section class="sec l-doc"{% if loop.first %} id="likar"{% endif %}><div class="wrap l-doc-in">
     <div class="h-dcard {{ ('fx-' ~ d.fx) if d.fx }}">{{ ph(d) }}</div>
     <div><p class="eyebrow">{{ lp.doctor.title }}</p><h2>{{ d.name }}</h2><p class="role">{{ d.role }}</p>{% if loop.first %}<p class="big">{{ lp.doctor.lead }}</p>{% endif %}{% if d.bio %}<p>{{ d.bio }}</p>{% endif %}
       <p class="h-btns"><a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp" data-doc="{{ d.name }}">Записатися до лікаря</a>{% if ob_on and d.id %}<a class="h-ghost" href="{{ base }}/zapys?doctor={{ d.id }}">Обрати час онлайн {{ arrow() }}</a>{% endif %}</p></div>
@@ -352,11 +359,11 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
   <div class="h-mbp" data-mode="bp" hidden><img src="{{ st('bp-poster.webp') }}" alt="Консультація BEAUTY PLAN у MOLODIST" width="1280" height="720" loading="lazy">
     <div><p class="eyebrow">BEAUTY PLAN</p><p class="h-mh">Консультація лікаря й письмовий план</p>
     <p class="sm">Діагностика шкіри на OBSERV 520x, план процедур за пріоритетами з цінами й схема домашнього догляду. До 2 годин{% if plan_price %} · <b>{{ money(plan_price) }}</b>{% endif %}.</p></div></div>
-  {% if lp %}<div class="h-mlp" data-mode="lp" hidden>{% for d in lp_doc[:1] %}{% if d.photo and lp_doc|length == 1 %}<img src="{{ d.photo }}" alt="{{ d.name }}" width="72" height="72">{% endif %}{% endfor %}
+  {% if lp %}<div class="h-mlp" data-mode="lp" hidden>{% if lp_doc|length > 1 %}<span class="h-mavs">{% for d in lp_doc %}{% if d.photo %}<img src="{{ d.photo }}" alt="{{ d.name }}" width="56" height="56">{% endif %}{% endfor %}</span>{% endif %}{% for d in lp_doc[:1] %}{% if d.photo and lp_doc|length == 1 %}<img src="{{ d.photo }}" alt="{{ d.name }}" width="72" height="72">{% endif %}{% endfor %}
     {% if lp.modal %}<div><p class="eyebrow">{{ lp.modal.eyebrow }}</p><p class="h-mh">{{ lp.modal.title }}</p><p class="sm">{{ lp.modal.text }}</p>{% else %}<div><p class="eyebrow">{{ lp.consult.eyebrow }} · {{ (lp_doc[0].name if lp_doc and lp_doc|length == 1 else 'лікар MOLODIST') }}</p><p class="h-mh">{{ lp.consult.title }}</p>
     <p class="sm">{{ lp.consult.modal or 'Огляд лікаря, діагностика шкіри на OBSERV 520x і письмовий план лікування' }}{% if main_price %} · <b>{{ money(main_price) }}</b>{% endif %}</p>{% endif %}</div></div>{% endif %}
   <div class="h-mstd" data-mode="std"><p class="h-mh">Залиште заявку — підберемо лікаря й час</p><p class="sm">Адміністратор звʼяжеться з вами тим способом, який ви оберете. {{ c.hours }}.</p></div>
-  {{ form('modal', 'Надіслати заявку') }}
+  {{ form('modal', 'Надіслати заявку', ask=(lp and lp.ask)) }}
 </div></div>
 {% if c.exit_on %}{% set pp = lp.pop if lp and lp.pop else {'title': c.exit_title, 'text': c.exit_text, 'badge': c.exit_badge, 'btn': c.exit_btn, 'img': 'pop.webp'} %}<div class="h-pop" id="h-pop" hidden data-delay="{{ c.exit_delay or 12 }}" role="dialog" aria-label="{{ pp.title }}">
   <button type="button" class="h-x" data-pop-close aria-label="Закрити"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>

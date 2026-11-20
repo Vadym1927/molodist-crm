@@ -47,7 +47,7 @@
       if (p.length !== 12 || p.indexOf('380') !== 0) { er.textContent = 'Перевірте номер телефону: +380 і 9 цифр.'; er.hidden = false; tel.focus(); return; }
       var d = saved(); d.name = (f.name && f.name.value || '').trim(); d.phone = '+' + p; d.interest = M.interest || '';
       d.formname = (M.slug || 'home') + ':' + f.getAttribute('data-lead'); d.page = location.href; d.website = f.website ? f.website.value : '';
-      d.doctor = f.getAttribute('data-doctor') || '';
+      d.doctor = f.getAttribute('data-doctor') || ''; if (f.comment && f.comment.value.trim()) d.comment = f.comment.value.trim().slice(0, 400);
       try { d.ref = sessionStorage.getItem('mlds_ref') || document.referrer || ''; } catch (e) { d.ref = document.referrer || ''; } d.t = Math.round((Date.now() - T0) / 1000);
       bt.disabled = true;
       post('/api/lead', d, function (j) {

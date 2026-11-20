@@ -43,6 +43,19 @@
       <button class="btn sm ghost" style="margin-top:4px">{{ 'Показати' if x.file in (ig.hide or []) else 'Сховати' }}</button></form>{% endfor %}</div>{% endif %}
 </div>
 
+<div class="gs" id="ig-pg"><h2>Сторінка «Пігментація й судини» — рілс і фото з Instagram</h2>
+  <p class="mini">Шукаємо у власному Instagram рілс і публікації «до/після» про IPL, пігментацію, судини, розацеа. Знайдене спершу приховане — увімкніть те, що підходить.
+  {% if ig_pg.checked_at %}Перевірено {{ ig_pg.checked_at }} UTC.{% endif %} {% if ig_pg.error %}<b>{{ ig_pg.error }}</b>{% endif %}</p>
+  <form method="post" action="/settings/site/ig-assets"><input type="hidden" name="topic" value="pigment"><button class="btn">Знайти в Instagram</button></form>
+  {% if ig_pg.reel %}<form method="post" action="/settings/site/ig-assets" style="margin-top:10px"><input type="hidden" name="topic" value="pigment"><input type="hidden" name="act" value="reel"><input type="hidden" name="reel_on" value="{{ '0' if ig_pg.reel_on else '1' }}">
+    Рілс: <a href="/_site/ig/{{ ig_pg.reel.file }}" target="_blank">{{ ig_pg.reel.file }}</a> · <a href="{{ ig_pg.reel.url }}" target="_blank" rel="noopener">в Instagram</a> — <span class="mini">{{ ig_pg.reel.caption[:160] }}</span>
+    <button class="btn sm ghost">{{ 'Прибрати зі сторінки' if ig_pg.reel_on else 'Показати на сторінці' }}</button></form>{% endif %}
+  {% if ig_pg.cases %}<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px">{% for x in ig_pg.cases %}
+    <form method="post" action="/settings/site/ig-assets" style="width:150px;text-align:center"><input type="hidden" name="topic" value="pigment"><input type="hidden" name="toggle" value="{{ x.file }}">
+      <img src="/_site/ig/{{ x.file }}" style="width:150px;height:150px;object-fit:cover;border-radius:10px;{{ 'opacity:.3' if x.file in (ig_pg.hide or []) }}" alt="" title="{{ x.caption }}">
+      <button class="btn sm ghost" style="margin-top:4px">{{ 'Показати' if x.file in (ig_pg.hide or []) else 'Сховати' }}</button></form>{% endfor %}</div>{% endif %}
+</div>
+
 <div class="gs" id="tilda"><h2>Сторінки з Tilda (перехід)</h2>
   {% if qmsg %}<div class="alert ok">{{ qmsg }}</div>{% endif %}{% if qerr %}<div class="alert">{{ qerr }}</div>{% endif %}
   <p class="small muted">Архів експорту Tilda (Tilda → Налаштування сайту → Експорт → ZIP). CRM віддає ці сторінки за тими самими адресами на домені сайту; сторінки, переписані в CRM (вище), мають пріоритет. Форми Tilda надсилають заявки в «Звернення» CRM з мітками реклами.</p>

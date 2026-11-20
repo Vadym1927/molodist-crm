@@ -9298,6 +9298,13 @@ async def settings_site_ig_assets(request: Request, user: User = Depends(require
     topic = str(f.get("topic") or "akne")
     if topic not in sia.TOPICS:
         raise HTTPException(400)
+    if f.get("reel_on") is not None and not f.get("toggle") and f.get("act") == "reel":
+        st = sia.state(db)
+        cur = st.get(topic) or {}
+        cur["reel_on"] = f.get("reel_on") == "1"
+        st[topic] = cur
+        sia._save(db, st)
+        return RedirectResponse(_with_msg("/settings/site#ig", "Збережено"), 303)
     if f.get("toggle"):
         st = sia.state(db)
         cur = st.get(topic) or {}
@@ -9398,7 +9405,7 @@ def settings_site(request: Request, user: User = Depends(require("users")), db: 
     tpages = sorted((k, v) for k, v in tc.get("map", {}).items() if k not in sp.PAGES)
     from .services import site_ig_assets as _sia
     return render(request, "site_settings.html", nav="settings", c=sp.cfg(db), pages=pages, svc=svc, money=sp.money, media=sp.media_list(),
-                  ig=(_sia.state(db).get("akne") or {}),
+                  ig=(_sia.state(db).get("akne") or {}), ig_pg=(_sia.state(db).get("pigment") or {}),
                   tc=tc, tpages=tpages, qmsg=request.query_params.get("msg", ""), qerr=request.query_params.get("err", ""),
                   slots=sorted({n for p_ in sp.PAGES.values() for n in [(p_.get("img") or {}).get("hero")] + (p_.get("img") or {}).get("gallery", []) if n}
                                | {f"doc-{k}.webp" for k in sp.DOCTORS}))
