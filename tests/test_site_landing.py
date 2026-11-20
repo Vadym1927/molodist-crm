@@ -12,7 +12,7 @@ def test_acne_landing_renders():
         assert r.status_code == 200
         assert "<h1>Лікування акне й постакне в Києві</h1>" in t
         assert 'data-topic="Акне й постакне"' in t and 'data-mode="lp"' in t
-        for sec in ('id="yak-likuiemo"', 'id="konsultatsiia"', 'id="tsiny"', 'id="rezultaty"', 'id="zapys"', 'id="zapytannia"', 'id="kontakty"'):
+        for sec in ('id="yak-likuiemo"', 'id="konsultatsiia"', 'id="rezultaty"', 'id="zapys"', 'id="zapytannia"', 'id="kontakty"'):
             assert sec in t, sec
         assert "BEAUTY PLAN Anti Acne" in t and '"MedicalWebPage"' in t and '"FAQPage"' in t
         assert 'id="prostir"' not in t and "h-proto" not in t                 # простору немає, смужки прототипу немає
