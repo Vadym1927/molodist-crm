@@ -132,6 +132,10 @@ def import_clients(db: Session, rows: list[list], header: list) -> dict:
         for attr, c in (("cb_average", "Середній чек"), ("cb_total", "Заплачено грошей"),
                         ("cb_balance", "Баланс"), ("cb_bonus", "Бонус")):
             val = _n(g(row, c))
+            if attr == "cb_balance":
+                from ..models import apply_cb_balance
+                apply_cb_balance(p, val or 0.0)
+                continue
             setattr(p, attr, val if val is not None else (0.0 if attr in ("cb_balance", "cb_bonus") else getattr(p, attr)))
         st = _s(g(row, "Статус"))
         p.cb_status = st[:100] if st else p.cb_status

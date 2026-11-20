@@ -83,6 +83,7 @@ class Patient(Base):
     med_contra: Mapped[str | None] = mapped_column(Text)              # протипоказання
     phototype: Mapped[str | None] = mapped_column(String(10))         # фототип за Фіцпатриком
     cb_balance: Mapped[float | None] = mapped_column(Float)
+    cb_balance_src: Mapped[float | None] = mapped_column(Float)            # останній баланс, отриманий з CleverBox (для різниці)
     cb_bonus: Mapped[float | None] = mapped_column(Float)
     # звʼязок з ботом для пацієнтів (OpenClaw) і згода на розсилки
     telegram_chat_id: Mapped[str | None] = mapped_column(String(64), index=True)
@@ -599,6 +600,19 @@ def _engine():
 
 
 engine = _engine()
+
+def apply_cb_balance(p, v: float) -> None:
+    """Баланс із CleverBox (синк / імпорт) не затирає операції каси CRM: переносимо лише ЗМІНУ в CleverBox.
+    Перший раз (ще не знаємо попереднього значення CleverBox) — беремо як є, якщо в CRM баланс порожній."""
+    v = round(float(v or 0), 2)
+    if p.cb_balance_src is None:
+        if not p.cb_balance:
+            p.cb_balance = v
+    elif abs(v - p.cb_balance_src) > 0.004:
+        p.cb_balance = round((p.cb_balance or 0) + v - p.cb_balance_src, 2)
+    p.cb_balance_src = v
+
+
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 

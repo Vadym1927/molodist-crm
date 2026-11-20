@@ -12,5 +12,5 @@
 <div class="card" style="padding:6px 8px;overflow:auto"><table class="tb small"><thead><tr><th>Пацієнт</th><th>Телефон</th><th class="r">Баланс</th><th class="r">Бонуси</th><th class="r">Сума покупок</th></tr></thead><tbody>
 {% for p in rows %}<tr><td><a href="/patients/{{ p.id }}">{{ p.full_name }}</a></td><td>{{ p.phone or '' }}</td>
   <td class="r"><b class="{{ 'out' if p.cb_balance < 0 else '' }}">{{ p.cb_balance|uah }}</b></td><td class="r">{{ p.cb_bonus|uah if p.cb_bonus else '—' }}</td><td class="r">{{ p.cb_total|uah if p.cb_total else '—' }}</td></tr>
-{% else %}<tr><td colspan="5" class="muted">Немає пацієнтів з ненульовим балансом. Баланс приходить з карток CleverBox (синхронізація або імпорт «Клієнти»).</td></tr>{% endfor %}</tbody></table></div>
+{% else %}<tr><td colspan="5" class="muted">Немає пацієнтів з ненульовим балансом. Баланс — поповнення в касі CRM плюс зміни з карток CleverBox (синхронізація або імпорт «Клієнти»).</td></tr>{% endfor %}</tbody></table></div>
 {% endblock %}

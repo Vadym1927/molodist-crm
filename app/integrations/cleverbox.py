@@ -289,7 +289,11 @@ def apply_client_fields(p: Patient, c: dict) -> None:
                        ("cb_average", AVERAGE_KEYS)):
         v = _num_val(c, keys)
         if v is not None:
-            setattr(p, attr, v)
+            if attr == "cb_balance":
+                from ..models import apply_cb_balance
+                apply_cb_balance(p, v)
+            else:
+                setattr(p, attr, v)
     v = _num_val(c, VISITS_KEYS)
     if v is not None:
         p.cb_visits = int(v)
