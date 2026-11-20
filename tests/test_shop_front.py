@@ -847,3 +847,19 @@ def test_shop_sms_samples(monkeypatch):
                              items=[{"id": 1, "name": "Крем", "qty": 1}], raw={})); db.commit()
             out = rv.send_sms_samples(db, "+380731112233", "https://molodist.store", {"by_slug": {}, "items": [{"slug": "piling-dlya-shkiri-golovi-100-ml", "variants": []}]})
             assert len(sent) == 3 and all(len(t) <= 70 for t in sent) and all(o.startswith("✓") for o in out)
+
+
+def test_bf_mediceuticals_once():
+    from app.services import shop_front as sf
+    with TestClient(app):
+        with SessionLocal() as db:
+            db.query(Product).filter(Product.sku.in_(["52008", "52009"])).delete(); db.commit()
+            a = Product(name="Сироватка Cellagen для жінок, 125 мл", name_norm="cellagen bf", price=3050, sku="52008", brand="Mediceuticals", site_on=True,
+                        site_info={"slug": "cellagen-125-ml", "title": "Сироватка Cellagen для жінок, 125 мл", "seo_title": "Cellagen 125 мл | MOLODIST", "short_description": "<p>Об'єм 125 мл</p>"})
+            b = Product(name="Набір Mediceuticals", name_norm="nabir bf", price=4600, sku="52009", brand="Mediceuticals", site_on=True, site_info={"slug": "nabir-bf", "sale": {"pct": 10, "until": ""}})
+            db.add_all([a, b]); db.commit()
+            assert sf.bf_mediceuticals_20261120(db) == {"renamed": 1, "sale": 2}
+            db.refresh(a); db.refresh(b)
+            assert "250 мл" in a.name and a.site_info["slug"] == "cellagen-125-ml" and "250 мл" in a.site_info["short_description"] and "250 мл" in a.site_info["seo_title"]
+            assert a.site_info["sale"]["pct"] == 22 and b.site_info["sale"]["pct"] == 22
+            assert round(3050 * 0.78) == 2379 and round(4600 * 0.78) == 3588

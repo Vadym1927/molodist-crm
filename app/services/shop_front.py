@@ -1202,3 +1202,28 @@ def old_links_report(db: Session) -> dict:
             else:
                 rows["missing"].append(row)
     return rows
+
+
+def bf_mediceuticals_20261120(db: Session) -> dict:
+    """Разово (20.11.2026, рішення власника): Cellagen арт. 52008 — це 250 мл, не 125; знижка 22% на Cellagen і набір 52009."""
+    out = {"renamed": 0, "sale": 0}
+    prods = db.scalars(select(Product).where(Product.sku.in_(["52008", "52009"]))).all()
+    for p in prods:
+        if "mediceuticals" not in f"{p.brand or ''} {p.name or ''} {(p.site_info or {}).get('brand_name') or ''}".lower():
+            continue
+        si = dict(p.site_info or {})
+        if p.sku == "52008":
+            fix = lambda t: t.replace("125 мл", "250 мл").replace("125мл", "250мл").replace("125 ml", "250 ml") if isinstance(t, str) else t
+            keys = [k for k, v in si.items() if isinstance(v, str) and k != "slug" and any(w in k for w in ("title", "desc", "name", "h1"))]
+            if "125" in (p.name or "") or any("125" in si[k] for k in keys):
+                p.name = fix(p.name)
+                for k in keys:
+                    si[k] = fix(si[k])
+                out["renamed"] += 1
+        si["sale"] = {"pct": 22.0, "until": ""}
+        si.pop("price_old", None)
+        p.site_info = si
+        out["sale"] += 1
+    db.commit()
+    _cache["cat_at"] = 0.0
+    return out

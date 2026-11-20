@@ -696,6 +696,15 @@ async def lifespan(app: FastAPI):
         except Exception as _e:  # noqa: BLE001
             log.warning("coins migrate: %s", _e)
             db.rollback()
+        if not db.get(SyncState, "shop_bf_medic_20261120"):        # 20.11.2026: Mediceuticals — Cellagen 250 мл (не 125), знижка 22% (рішення власника)
+            try:
+                from .services import shop_front as _sfbf
+                log.info("shop bf mediceuticals: %s", _sfbf.bf_mediceuticals_20261120(db))
+                db.merge(SyncState(key="shop_bf_medic_20261120", value="1"))
+                db.commit()
+            except Exception as _e:  # noqa: BLE001
+                log.warning("shop bf mediceuticals: %s", _e)
+                db.rollback()
         if not db.get(SyncState, "cb_calendar_freeze_20261031"):   # 31.10.2026: календар — лише вручну в CRM (рішення власника)
             from .integrations.cleverbox import set_calendar_frozen as _fz
             _fz(db, True)
