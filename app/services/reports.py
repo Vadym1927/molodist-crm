@@ -20,7 +20,7 @@ from ..parsers.observ import norm
 REPORTS = {"cash": "Стан рахунків", "cashflow": "Cashflow", "pnl": "Доходи і витрати за рік", "pnlm": "P&L по місяцях", "shifts": "Касові зміни", "patient_money": "Отримано від пацієнтів", "fees": "Комісії банків", "payroll_share": "Фонд оплати праці", "fop": "Ліміти ФОП", "expiry": "Терміни придатності", "revenue": "Виручка", "doctors": "Лікарі", "services": "Звіт з продажу послуг", "products": "Товари",
            "patients": "Пацієнти", "plans": "Бюті-плани", "certificates": "Сертифікати й абонементи", "supply": "Поставки", "cosmetics": "Бонус за продаж косметики", "sources": "Джерела запису",
            "discounts": "Використання знижок", "cross": "Крос-продажі догляду", "ltv": "LTV пацієнтів", "src_sales": "Продажі за джерелами", "abc": "ABC-аналіз",
-           "lost": "Утримання: хто не повернувся", "cohorts": "Когорти нових", "rfm": "Сегменти (RFM)", "bdays": "Дні народження", "mat_use": "Витрата матеріалів", "inventory": "Інвентаризації", "dead": "Неліквіди", "stock_value": "Вартість складу", "turnover": "Оборотність складу", "load": "Робочий час і завантаження", "admin_kpi": "KPI адміністраторів", "tasks": "Звіт по задачах", "cancels": "Скасування й неявки", "returns": "Поверненість по спеціалістах", "channels": "Зведення по каналах", "appeals_conv": "Звернення: конверсія в запис", "mailings": "Розсилки: ефективність", "cac": "Вартість залучення й окупність", "chat_stats": "Статистика по чатах", "messages": "Повідомлення пацієнтам", "devices": "Віддача й завантаження апаратів", "consumables": "Прогноз ресурсу розхідників", "nps": "Відгуки й NPS", "rooms": "Завантаженість кабінетів і апаратів", "shop": "Інтернет-магазин"}
+           "lost": "Утримання: хто не повернувся", "cohorts": "Когорти нових", "rfm": "Сегменти (RFM)", "bdays": "Дні народження", "mat_use": "Витрата матеріалів", "inventory": "Інвентаризації", "dead": "Неліквіди", "stock_value": "Вартість складу", "turnover": "Оборотність складу", "load": "Робочий час і завантаження", "admin_kpi": "KPI адміністраторів", "tasks": "Звіт по задачах", "cancels": "Скасування й неявки", "returns": "Поверненість по спеціалістах", "channels": "Зведення по каналах", "appeals_conv": "Звернення: конверсія в запис", "mailings": "Розсилки: ефективність", "cac": "Вартість залучення й окупність", "chat_stats": "Статистика по чатах", "messages": "Повідомлення пацієнтам", "devices": "Віддача й завантаження апаратів", "consumables": "Прогноз ресурсу розхідників", "nps": "Відгуки й NPS", "rooms": "Завантаженість кабінетів і апаратів", "shop": "Інтернет-магазин", "dup_sales": "Дублі продажів товарів"}
 
 
 @dataclass
@@ -827,6 +827,8 @@ def build(db: Session, key: str, d_from: date, d_to: date, **opts) -> Report:
     if key in ("mat_use", "inventory", "dead", "stock_value", "turnover"):
         from . import reports_stock as _st
         return _st.BUILDERS[key](db, d_from, d_to, opts.get("cat") or "")
+    if key == "dup_sales":
+        return dup_sales(db, d_from, d_to)
     if key == "shop":
         from . import reports_shop as _sh
         return _sh.shop(db, d_from, d_to, opts.get("cat") or "")
@@ -864,6 +866,34 @@ def build(db: Session, key: str, d_from: date, d_to: date, **opts) -> Report:
         from .reports_sales import cross
         return cross(db, d_from, d_to, opts.get("cat") or "")
     return BUILDERS.get(key, revenue)(db, d_from, d_to)
+
+
+def dup_sales(db: Session, d_from: date, d_to: date) -> Report:
+    """Можливі дублі продажів товарів після перенесення з CleverBox частинами: той самий пацієнт, товар, день, к-сть і сума,
+    але різні external_id (кілька записів одного продажу)."""
+    from ..models import ProductSale
+    a, b = _rng(d_from, d_to)
+    groups: dict = defaultdict(list)
+    for x in db.scalars(select(ProductSale).where(ProductSale.sold_at >= a, ProductSale.sold_at <= b)):
+        k = (x.patient_id, norm(x.product_name or ""), x.sold_at.date(), int(x.quantity or 1), round(float(x.amount or 0), 2))
+        groups[k].append(x)
+    dups = [g for g in groups.values() if len(g) > 1]
+    pats = {p.id: p.full_name for p in db.scalars(select(Patient).where(Patient.id.in_({g[0].patient_id for g in dups} or {0})))}
+    r = Report("dup_sales", "Дублі продажів товарів",
+               "Записи продажів товарів, що збігаються за пацієнтом, товаром, днем, кількістю й сумою, але мають різні ідентифікатори. "
+               "Частина може бути справжніми повторними покупками того ж дня — перевірте за чеком.")
+    r.cols = [Col("day", "Дата", "date"), Col("patient", "Пацієнт"), Col("name", "Товар"), Col("qty", "К-сть", "num"),
+              Col("amount", "Сума", "uah"), Col("n", "Записів", "int", True), Col("extra", "Зайва сума", "uah", True), Col("ids", "Ідентифікатори")]
+    for g in sorted(dups, key=lambda g: g[0].sold_at, reverse=True):
+        x = g[0]
+        r.rows.append({"day": x.sold_at.date(), "patient": pats.get(x.patient_id, ""), "name": x.product_name, "qty": x.quantity,
+                       "amount": x.amount, "n": len(g), "extra": round(float(x.amount or 0) * (len(g) - 1), 2),
+                       "ids": ", ".join(y.external_id for y in g)[:300]})
+    r.finish()
+    t = r.total or {}
+    r.tiles = [("Груп дублів", len(dups), None, "int", ""), ("Зайвих записів", sum(len(g) - 1 for g in dups), None, "int", ""),
+               ("Зайва сума", t.get("extra", 0), None, "uah", "якщо всі — дублі")]
+    return r
 
 
 def to_xlsx(rep: Report, d_from: date, d_to: date) -> bytes:
