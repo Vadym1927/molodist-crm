@@ -62,6 +62,7 @@ def test_new_home_as_site_home():
             assert 'id="h-pop"' in t and "Не знаєте, з чого почати?" in t                      # банер
             assert "googletagmanager.com/gtm.js" in t           # аналітика, як на інших сторінках сайту
             assert "gtag/js?id=AW-11285493987" in t and "aFzHCMri0LsdEOPxq4Uq" in t and "AkcDCM3i0LsdEOPxq4Uq" in t   # конверсії Google Ads
+            assert "3J83CPrUjrwdEOPxq4Uq" in t and "gtag('config','G-SX9D23L6TB'" in t and "window.mldsEv" in t   # месенджери + поведінка в GA4
             assert "og/home.jpg" in t and '"MedicalClinic"' in t and '"FAQPage"' in t
             assert t.count("s-") >= 10 and "data-car" in t
             assert cl.get("/og/home.jpg", headers={"host": host}).status_code == 200

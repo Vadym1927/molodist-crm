@@ -78,9 +78,56 @@
     var k = kind(a); if (!k) return;
     window.dataLayer.push({ event: EV[k], link_url: a.href, page_slug: M.slug });
     if (k === 'phone' && window.mldsConv) window.mldsConv('call');
+    if ((k === 'telegram' || k === 'viber') && window.mldsConv) window.mldsConv('msg');
+    if (window.mldsEv) window.mldsEv(EV[k], { page_slug: M.slug || 'home' });
     if (k === 'booking') return;
     var d = saved(); if (!d.gclid && !/google/i.test(d.utm_source || '')) return;   // у CRM — лише кліки з реклами
     d.kind = k; d.href = a.href; d.page = location.href;
     post('/api/click', d);
   }, true);
+})();
+
+/* Поведінка на сторінці → GA4 (window.mldsEv): глибина скролу, перегляд секцій, старт форми, час на сторінці, кліки CTA і в магазин. */
+(function () {
+  var M = window.MLDS || {}, slug = M.slug || 'home', once = {};
+  function ev(n, p) { if (!window.mldsEv) return; p = p || {}; p.page_slug = slug; window.mldsEv(n, p); }
+  function first(k) { if (once[k]) return false; once[k] = 1; return true; }
+  var marks = [25, 50, 75, 90];
+  function onScroll() {
+    var h = document.documentElement, max = h.scrollHeight - h.clientHeight; if (max <= 0) return;
+    var pc = Math.round((h.scrollTop || document.body.scrollTop) / max * 100);
+    marks.forEach(function (m) { if (pc >= m && first('s' + m)) ev('scroll_depth', { percent: m }); });
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  function secName(s) {
+    if (s.id) return s.id;
+    var c = (s.className || '').toString();
+    var m = c.match(/\b(l-pain|h-shop2|h-insta|h-facts|l-hero|h-hero)\b/); return m ? m[1].replace(/^[lh]-/, '') : '';
+  }
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (es) {
+      es.forEach(function (e) {
+        if (!e.isIntersecting) return; var n = secName(e.target);
+        if (n && first('v' + n)) ev('section_view', { section: n });
+        io.unobserve(e.target);
+      });
+    }, { threshold: 0.4 });
+    document.querySelectorAll('main section, section.sec, section[id], [class*="h-hero"], [class*="h-facts"]').forEach(function (s) { if (secName(s)) io.observe(s); });
+  }
+  document.addEventListener('focusin', function (e) {
+    var f = e.target && e.target.closest ? e.target.closest('form') : null; if (!f) return;
+    var id = (f.getAttribute('data-lead') || f.id || 'form'); if (first('f' + id)) ev('form_start', { form_id: slug + ':' + id });
+  });
+  document.addEventListener('click', function (e) {
+    var a = e.target && e.target.closest ? e.target.closest('a,button') : null; if (!a) return;
+    var href = (a.getAttribute('href') || '');
+    if (/molodist\.(store|shop)/.test(href)) { ev('click_shop', { link_url: href }); return; }
+    if (a.hasAttribute('data-pop-go') || a.hasAttribute('data-interest') || href === '#zapys' || /\bbtn\b/.test(a.className || ''))
+      ev('cta_click', { cta_text: (a.textContent || '').trim().slice(0, 60), cta_interest: a.getAttribute('data-interest') || '' });
+  }, true);
+  var spent = 0, steps = [15, 30, 60, 120, 300];
+  setInterval(function () {
+    if (document.visibilityState !== 'visible') return; spent += 5;
+    steps.forEach(function (t) { if (spent >= t && first('t' + t)) ev('engaged_time', { seconds: t }); });
+  }, 5000);
 })();

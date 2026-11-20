@@ -21,8 +21,9 @@
 {% if org_ld %}<script type="application/ld+json">{{ org_ld|safe }}</script>{% endif %}
 {% if faq_ld %}<script type="application/ld+json">{{ faq_ld|safe }}</script>{% endif %}
 {% if c.ads_id and not noindex and not proto %}<script async src="https://www.googletagmanager.com/gtag/js?id={{ c.ads_id }}"></script>
-<script>window.dataLayer=window.dataLayer||[];window.gtag=window.gtag||function(){dataLayer.push(arguments)};gtag('js',new Date());gtag('config','{{ c.ads_id }}',{send_page_view:false});
-window.mldsConv=function(k){var l={lead:'{{ c.conv_lead }}',call:'{{ c.conv_call }}'}[k];if(l)try{gtag('event','conversion',{send_to:'{{ c.ads_id }}/'+l})}catch(e){}};</script>{% endif %}
+<script>window.dataLayer=window.dataLayer||[];window.gtag=window.gtag||function(){dataLayer.push(arguments)};gtag('js',new Date());gtag('config','{{ c.ads_id }}',{send_page_view:false});{% if c.ga4_id %}gtag('config','{{ c.ga4_id }}',{send_page_view:false});{% endif %}
+window.mldsConv=function(k){var l={lead:'{{ c.conv_lead }}',call:'{{ c.conv_call }}',msg:'{{ c.conv_msg }}'}[k];if(l)try{gtag('event','conversion',{send_to:'{{ c.ads_id }}/'+l})}catch(e){}};
+window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id }}';gtag('event',n,p)}catch(e){}{% endif %} };</script>{% endif %}
 {% if c.gtm_id and not noindex and not proto %}<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','{{ c.gtm_id }}');</script>{% endif %}
 </head>
 {% set zap = '#zapys' %}{% set rich = v.rich %}

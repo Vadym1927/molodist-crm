@@ -28,6 +28,8 @@ DEFAULT = {
     "ads_id": "AW-11285493987",                       # Google Ads: конверсії сайту напряму (gtag), окремо від GTM
     "conv_lead": "aFzHCMri0LsdEOPxq4Uq",              # мітка конверсії «Сайт клініки — заявка з форми»
     "conv_call": "AkcDCM3i0LsdEOPxq4Uq",              # мітка конверсії «Сайт клініки — клік по телефону»
+    "conv_msg": "3J83CPrUjrwdEOPxq4Uq",               # мітка конверсії «Сайт клініки — клік у месенджер» (додаткова)
+    "ga4_id": "G-SX9D23L6TB",                         # GA4: події поведінки (скрол, секції, форма, час) напряму, без GTM
     "phone": "+380933756437",
     "phone_text": "+38 (093) 375 64 37",
     "telegram": "https://t.me/molodist_ua",

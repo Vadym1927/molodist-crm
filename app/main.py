@@ -9283,7 +9283,8 @@ async def settings_site_save(request: Request, user: User = Depends(require("use
     f = await request.form()
     c = sp.cfg(db)
     import re as _re
-    for k, pat in (("ads_id", r"AW-\d{6,14}"), ("conv_lead", r"[A-Za-z0-9_-]{4,40}"), ("conv_call", r"[A-Za-z0-9_-]{4,40}")):
+    for k, pat in (("ads_id", r"AW-\d{6,14}"), ("conv_lead", r"[A-Za-z0-9_-]{4,40}"), ("conv_call", r"[A-Za-z0-9_-]{4,40}"),
+                   ("conv_msg", r"[A-Za-z0-9_-]{4,40}"), ("ga4_id", r"G-[A-Z0-9]{4,14}")):
         if k in f:
             v_ = str(f.get(k) or "").strip()
             c[k] = v_ if _re.fullmatch(pat, v_) else ""
