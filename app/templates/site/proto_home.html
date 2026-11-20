@@ -238,7 +238,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
   </div></section>{% endfor %}
 
 {% elif sec == 'facts' %}
-  <section class="h-facts {{ 'pics' if rich }}"><div class="wrap h-facts-in">{% for f in facts %}<div>{% if rich %}<img src="{{ f[2] if '/' in f[2] else st(f[2]) }}" alt="{{ f[0] }} — MOLODIST" loading="lazy" width="640" height="480">{% endif %}<span class="n">0{{ loop.index }}</span><h3>{{ f[0] }}</h3><p>{{ f[1] }}</p></div>{% endfor %}</div></section>
+  <section class="h-facts {{ 'pics' if rich }}"><div class="wrap h-facts-in">{% for f in facts %}<div>{% if rich %}<img src="{{ f[2] if '/' in f[2] else st(f[2]) }}" alt="{{ f[0] }} — MOLODIST" loading="lazy" width="640" height="480"{% if f[3] == 'contain' %} style="object-fit:contain;background:#F7F4F0"{% elif f[3] %} style="object-position:{{ f[3] }}"{% endif %}>{% endif %}<span class="n">0{{ loop.index }}</span><h3>{{ f[0] }}</h3><p>{{ f[1] }}</p></div>{% endfor %}</div></section>
 
 {% elif sec == 'entry' %}
   <section class="sec h-sec" id="poslugy"><div class="wrap">

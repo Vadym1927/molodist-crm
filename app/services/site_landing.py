@@ -295,10 +295,10 @@ LASER = {
              "media": [], "img": "c-laser.webp", "og": "c-laser.webp",        # фото з дівчиною в окулярах не використовуємо
              "price_id": 4, "price_label": "Пахви + глибоке бікіні",
              "img_alt": "Лазерна епіляція в MOLODIST, Київ"},
-    "facts": [("Процедуру проводить лікар", "Фахівець з медичною освітою, а не майстер після курсів", "media:doc-chuhunova.webp|f-doctors.webp"),
-              ("Гібридний лазер", "Кілька довжин хвиль: для темного, світлого, жорсткого й мʼякого волосся", "media:laser-3.webp|c-laser.webp"),
+    "facts": [("Процедуру проводить лікар", "Фахівець з медичною освітою, а не майстер після курсів", "media:doc-chuhunova.webp|f-doctors.webp", "center 12%"),
+              ("Гібридний лазер", "Кілька довжин хвиль: для темного, світлого, жорсткого й мʼякого волосся", "media:laser-3.webp|c-laser.webp", "center 92%"),
               ("Охолодження", "Комфортно навіть для чутливої шкіри й делікатних зон", "media:laser-4.webp|c-laser.webp"),
-              ("Приватність і стерильність", "Закриті кабінети, одноразові матеріали", "s-2.webp")],
+              ("Приватність і стерильність", "Закриті кабінети, одноразові матеріали", "s-3.webp")],
     "pain": {"title": "Знайомо?",
              "items": ["Бритва щодня — а вже до вечора знову колюче",
                        "Подразнення, червоні точки й вросле волосся після гоління та воску",
@@ -483,7 +483,7 @@ def data(db: Session, lp: dict, home: dict, base: str) -> dict:
             m, _, alt = i[6:].partition("|")
             return sp.media_url(m, base) or (st_(alt) if alt else "")
         return sc.url(i[5:], base) if i.startswith("crop:") else st_(i)
-    facts_r = [(t, d, _pic(i)) for t, d, i in lp["facts"]]
+    facts_r = [(f[0], f[1], _pic(f[2]), f[3] if len(f) > 3 else "") for f in lp["facts"]]   # 4-й елемент — кадрування фото
     about = [{"t": t, "d": d, "img": _pic(i) if i else ""}
              for t, d, *rest in (lp.get("about") or {}).get("items", []) for i in [rest[0] if rest else ""]]
     money = sp.money
