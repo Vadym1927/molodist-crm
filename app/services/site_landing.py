@@ -176,6 +176,14 @@ def data(db: Session, lp: dict, home: dict, base: str) -> dict:
              .order_by(ReviewArchive.at.desc().nullslast(), ReviewArchive.id.desc()).limit(12))
         own = [{"author": "Відгук після візиту", "when": x.at.strftime("%m.%Y") if x.at else "", "rating": 5, "src": "crm",
                 "text": " ".join((x.text or "").split())} for x in db.scalars(q) if len((x.text or "").strip()) >= 40]
+        # відгуки з опитування CRM після візиту: усі оцінки «5», є коментар, лікар — Сирова або текст про акне
+        from ..models import Review, Doctor
+        doc_ids = [d.id for d in db.scalars(select(Doctor)) if "сиров" in (d.name or "").lower()]
+        q2 = (select(Review).where(Review.text.is_not(None), Review.avg >= 5,
+                                   or_(Review.doctor_id.in_(doc_ids or [-1]), Review.text.ilike("%акне%"), Review.text.ilike("%софі%")))
+              .order_by(Review.answered_at.desc().nullslast()).limit(12))
+        own += [{"author": "Відгук після візиту", "when": x.answered_at.strftime("%m.%Y") if x.answered_at else "", "rating": 5, "src": "crm",
+                 "text": " ".join((x.text or "").split())} for x in db.scalars(q2) if len((x.text or "").strip()) >= 40]
     except Exception:  # noqa: BLE001
         own = []
     if own:
