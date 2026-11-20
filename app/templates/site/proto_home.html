@@ -216,7 +216,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
 {% elif sec == 'lprices' %}{% if pgroups %}
   <section class="sec h-sec l-procs" id="tsiny"><div class="wrap">
     <div class="h-shd"><h2>{{ lp.prices_t.title }}</h2><p>{{ lp.prices_t.text }}</p></div>
-    {% if lp_promo %}<p class="l-promo"><b>−{{ lp_promo.pct }}%</b><span>{{ lp_promo.text.replace('−' ~ lp_promo.pct ~ '% ', '')|capitalize }} · до {{ lp_promo.until[8:10] }}.{{ lp_promo.until[5:7] }}</span></p>{% endif %}
+    {% if lp_promo %}<p class="l-promo"><b>−{{ lp_promo.pct }}%</b><span>{{ lp_promo.text.replace('−' ~ lp_promo.pct ~ '% ', '') }} · до {{ lp_promo.until[8:10] }}.{{ lp_promo.until[5:7] }}</span></p>{% endif %}
     <div class="l-pgrid">{% for g in pgroups %}<div class="l-pcol"><h3>{{ g.title }}</h3>
       <ul>{% for i in g.rows %}<li><span>{{ i.name }}</span><b>{% if i.old %}<s>{{ money(i.old) }}</s> {% endif %}{{ money(i.price) }}</b></li>{% endfor %}</ul></div>{% endfor %}</div>
     <p class="h-btns ctr"><a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp">Записатися й порахувати мої зони</a></p>
