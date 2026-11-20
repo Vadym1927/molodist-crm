@@ -273,11 +273,108 @@ PIGMENT = {
     ],
 }
 
-LANDINGS = {ACNE["slug"]: ACNE, PIGMENT["slug"]: PIGMENT}
+LASER = {
+    "slug": "laserepilation",                         # та сама адреса, що й раніше — SEO не губиться
+    "key": "laser",
+    "topic": "Лазерна епіляція",
+    "page": "laserepilation",                         # ціни й акція — з налаштувань сторінки в site_pages
+    "order": ["lhero", "facts", "pain", "about", "process", "lprices", "ldoctor", "reviews", "booking", "insta", "faq", "contacts"],
+    "seo": {"title": "Лазерна епіляція в Києві — ціни, комплекси | MOLODIST",
+            "desc": "Лазерна епіляція в Києві під контролем лікаря: гібридний лазер з охолодженням, для світлого й темного волосся. "
+                    "Комплекси й ціни на всі зони.",
+            "og_title": "Лазерна епіляція в MOLODIST — гладка шкіра без щоденного гоління",
+            "og_desc": "Медичний простір, лікар і гібридний лазер з охолодженням. Комплекси й ціни на всі зони. Київ."},
+    "menu": [("Головна", "/"), ("Що змінюється", "#rezultat"), ("Як проходить", "#yak-likuiemo"), ("Ціни", "#tsiny"),
+             ("Лікарі", "#likar"), ("Відгуки", "#vidhuky"), ("Запитання", "#zapytannia"), ("Контакти", "#kontakty")],
+    "hero": {"eyebrow": "MOLODIST · лазерна епіляція",
+             "h1": "Лазерна епіляція в Києві",
+             "h2": "Гладка шкіра без щоденного гоління й подразнень",
+             "lead": "Забудьте про бритву, віск і вросле волосся. Процедуру проводить лікар на гібридному лазері з охолодженням — "
+                     "параметри підбираються під вашу шкіру й тип волосся.",
+             "cta": "Записатися на епіляцію", "cta2": "Дивитися ціни", "cta2_href": "#tsiny",
+             "media": ["laser-hero.webp", "laser-1.webp"], "img": "c-laser.webp", "og": "og-home.webp",
+             "price_id": 4, "price_label": "Пахви + глибоке бікіні",
+             "img_alt": "Лазерна епіляція в MOLODIST, Київ"},
+    "facts": [("Процедуру проводить лікар", "Фахівець з медичною освітою, а не майстер після курсів", "media:laser-1.webp|f-doctors.webp"),
+              ("Гібридний лазер", "Кілька довжин хвиль: для темного, світлого, жорсткого й мʼякого волосся", "media:laser-2.webp|c-laser.webp"),
+              ("Охолодження", "Комфортно навіть для чутливої шкіри й делікатних зон", "media:laser-3.webp|f-med.webp"),
+              ("Приватність і стерильність", "Закриті кабінети, одноразові матеріали", "media:laser-4.webp|f-plan.webp")],
+    "pain": {"title": "Знайомо?",
+             "items": ["Бритва щодня — а вже до вечора знову колюче",
+                       "Подразнення, червоні точки й вросле волосся після гоління та воску",
+                       "Воскова епіляція — боляче, і треба відрощувати волосся перед кожним разом",
+                       "Ніяково за пахви чи бікіні на пляжі, в басейні, на побаченні",
+                       "Були в студії «на потоці» — результату немає, а гроші витрачені"],
+             "why_t": "Чому бритва й віск не розвʼязують проблему",
+             "why": "Гоління зрізає волосину, а віск вириває її разом із цибулиною — але фолікул залишається живим, і волосся росте "
+                    "знову. Звідси подразнення, вросле волосся й щоденна рутина. Лазер діє на сам фолікул в активній фазі росту: "
+                    "після курсу волосся стає значно менше, воно тоншає і світлішає.",
+             "btn": "Записатися на перший візит"},
+    "about": {"id": "rezultat", "eyebrow": "Результат", "title": "Що змінюється після курсу",
+              "text": "Більшості пацієнтів після курсу достатньо підтримувальних процедур раз на кілька місяців.",
+              "btn": "Записатися на епіляцію",
+              "items": [("Без щоденних бритв", "Ранкова рутина коротша, шкіра гладка тижнями."),
+                        ("Без врослого волосся", "Лазер знімає причину, а не зрізає волосину."),
+                        ("Без подразнень", "Немає червоних точок і мікропорізів після гоління."),
+                        ("Прогнозований результат", "Лікар враховує цикл росту волосся, гормональний фон і фототип."),
+                        ("Для жінок і чоловіків", "Окремі протоколи й ціни для чоловічих зон.")]},
+    "process": {"title": "Як проходить лазерна епіляція",
+                "text": "Перший візит — це огляд, тест і процедура в один день.",
+                "steps": [("Огляд і тест", "Лікар оцінює шкіру й волосся, перевіряє протипоказання та підбирає параметри лазера."),
+                          ("Підготовка", "Напередодні волосся потрібно поголити — не воском і не епілятором."),
+                          ("Процедура", "15–90 хвилин залежно від зон. Охолодження робить її комфортною."),
+                          ("Догляд", "48 годин без гарячої ванни, сауни й сонця. Памʼятку лікар дає після процедури."),
+                          ("Курс", "Зазвичай 6–12 процедур з інтервалом 4–6 тижнів — залежно від зони й волосся.")],
+                "icons": ["scan", "plan", "flash", "care", "loop"]},
+    "prices_t": {"title": "Ціни на лазерну епіляцію", "text": "Комплекси вигідніші за окремі зони. Не знаєте, що обрати, — адміністратор порахує ваш варіант."},
+    "pop": {"title": "Набридло голитися щодня?", "badge": "",
+            "text": "Залиште номер — адміністратор підбере зручний час і порахує вартість ваших зон.",
+            "btn": "Записатися на епіляцію", "img": "c-laser.webp"},
+    "ask": True, "ask_label": "Які зони вас цікавлять", "ask_ph": "Наприклад: пахви, бікіні, гомілки",
+    "modal": {"eyebrow": "MOLODIST · лазерна епіляція", "title": "Запишіться на лазерну епіляцію",
+              "text": "Залиште номер — адміністратор передзвонить, підбере зручний час і порахує вартість ваших зон."},
+    "doctor": {"match": "чугунова|сирова", "n": 2, "title": "Процедуру проводять лікарі",
+               "lead": "Параметри лазера лікар підбирає під ваш фототип і тип волосся — тому результат прогнозований."},
+    "reviews_kw": r"епіляц|лазер|волосс",
+    "reviews_doc": r"чугунов",
+    "reviews_ilike": ["%епіляц%", "%лазер%"],
+    "products_kw": r"^$", "products_no": r"^$",
+    "shop": {},
+    "about_ld": {"type": "MedicalProcedure", "name": "Лазерна епіляція", "alt": ["Лазерне видалення волосся"]},
+    "faq": [
+        ("Чи це боляче?",
+         "Лазер має систему охолодження — більшість пацієнтів описують відчуття як легке поколювання. Для чутливих зон лікар зменшує параметри."),
+        ("Скільки потрібно процедур?",
+         "Зазвичай 6–12 з інтервалом 4–6 тижнів: волосся росте циклами, і за один сеанс лазер дістає лише активні фолікули. "
+         "Точну кількість лікар скаже після огляду."),
+        ("Чи підійде мені, якщо волосся світле або шкіра смаглява?",
+         "Гібридний лазер має кілька довжин хвиль, тому працює з ширшим діапазоном волосся й фототипів, ніж звичайний діодний. "
+         "Сиве та зовсім біле волосся лазер не бачить — про це скажемо чесно."),
+        ("Як підготуватися до процедури?",
+         "За день до візиту поголіть зону бритвою. За 2–4 тижні до процедури не користуйтеся воском, шугарингом та епілятором "
+         "і не засмагайте."),
+        ("Можна влітку?",
+         "Так, якщо шкіра не засмагла. Перед процедурою і 2 тижні після — без засмаги й солярію, з SPF."),
+        ("Які є протипоказання?",
+         "Вагітність, свіжа засмага, загострення шкірних захворювань у зоні процедури, онкологічні захворювання, прийом "
+         "фотосенсибілізувальних препаратів. Остаточно — на огляді лікаря."),
+        ("Як доглядати після процедури?",
+         "48 годин — без гарячої ванни, сауни, басейну й прямого сонця. Решту рекомендацій дасть лікар."),
+        ("Чи назавжди зникає волосся?",
+         "Після курсу волосся стає значно менше, воно тоншає і світлішає. Для стійкого результату більшості пацієнтів потрібні "
+         "підтримувальні процедури раз на кілька місяців."),
+        ("Чому дорожче, ніж у студії?",
+         "Ви платите за лікаря, медичні протоколи, сертифіковане обладнання й стерильність. Дешевий сеанс без результату виходить "
+         "дорожче, ніж курс, що працює."),
+    ],
+}
+
+LANDINGS = {ACNE["slug"]: ACNE, PIGMENT["slug"]: PIGMENT, LASER["slug"]: LASER}
 
 # Старі сторінки Tilda, які зібрано в одну нову: постійне перенаправлення (301) — Google переносить накопичену вагу на нову адресу.
 REDIRECTS = {"ipl-therapy": PIGMENT["slug"], "fotoomolodzhennya-ipl": PIGMENT["slug"], "lazerne-vydalennya-sudyn": PIGMENT["slug"],
-             "likuvannya-sudin": PIGMENT["slug"], "likuvannya-rozatsea": PIGMENT["slug"], "likuvannya-akne-ipl": PIGMENT["slug"]}
+             "likuvannya-sudin": PIGMENT["slug"], "likuvannya-rozatsea": PIGMENT["slug"], "likuvannya-akne-ipl": PIGMENT["slug"],
+             "consultation-lazerna-epilyatsiya": LASER["slug"]}
 
 
 def _rows(db: Session) -> dict[int, float]:
@@ -292,16 +389,27 @@ def data(db: Session, lp: dict, home: dict, base: str) -> dict:
     """Дані сторінки поверх даних головної: ціни, лікар, відгуки й товари про акне, FAQ."""
     from . import online_booking as ob
     prices = _rows(db)
-    c = lp["consult"]
+    c = lp.get("consult") or {"formats": [], "main_id": 0}
     formats = [{"id": i, "t": t, "d": d, "price": prices.get(i)} for i, t, d in c["formats"]]
     main_price = prices.get(c["main_id"])
+    # сторінка з власним прайсом (лазерна епіляція): групи цін і акція — як на сторінці послуги в site_pages
+    pgroups, promo = [], None
+    if lp.get("page") and lp["page"] in sp.PAGES:
+        pg = sp.PAGES[lp["page"]]
+        try:
+            pgroups = sp.prices(db, pg)
+        except Exception:  # noqa: BLE001
+            pgroups = []
+        promo = pg.get("promo") if sp._promo_on(pg.get("promo")) else None
+        hp = next((r_ for g_ in pgroups for r_ in g_["rows"] if r_["id"] == lp["hero"].get("price_id")), None)
+        main_price = hp["price"] if hp else None
     # процедури — позиції з прайсу CRM за розділами
     try:
         pl = ob.pricelist(db)
     except Exception:  # noqa: BLE001
         pl = []
     procs = []
-    for g in lp["procs"]["groups"]:
+    for g in (lp.get("procs") or {}).get("groups", []):
         items = [i for cat in pl if any(k in cat["name"].lower() for k in g["cat"]) for i in cat["items"]]
         if not items:
             items = [i for cat in pl for i in cat["items"] if any(k in i["name"].lower() for k in g["cat"])]
@@ -313,12 +421,14 @@ def data(db: Session, lp: dict, home: dict, base: str) -> dict:
         items = sorted({i["id"]: i for i in items}.values(), key=_rank)
         procs.append({**g, "items": items[:n], "more": max(0, len(items) - n), "lo": min((i["price"] for i in items), default=None)})
     # лікар
-    doc = [d for d in home.get("team") or [] if re.search(lp["doctor"]["match"], (d.get("name") or "").lower())][:lp["doctor"].get("n", 1)]
+    alts = lp["doctor"]["match"].split("|")           # порядок лікарів — як у переліку "match"
+    doc = sorted((d for d in home.get("team") or [] if re.search(lp["doctor"]["match"], (d.get("name") or "").lower())),
+                 key=lambda d: next((k for k, a in enumerate(alts) if a in (d.get("name") or "").lower()), 99))[:lp["doctor"].get("n", 1)]
     # кейси: файли сайту або фото, вирізані з карток архіву Tilda (немає оригіналу — кейс не показуємо)
     from . import site_crops as sc
     st_ = home.get("st") or (lambda n: n)
     cases = []
-    for x in lp["cases"]["items"]:
+    for x in (lp.get("cases") or {}).get("items", []):
         src = [sc.url(f"{x['crop']}-{i}.webp", base) for i in (1, 2)] if x.get("crop") else [st_(n) for n in x["ba"]]
         if all(src):
             cases.append({**x, "src": src})
@@ -367,7 +477,13 @@ def data(db: Session, lp: dict, home: dict, base: str) -> dict:
         products = hit[:8]                            # лише засоби для лікування й догляду при акне; немає — блок товарів сховано
     except Exception:  # noqa: BLE001
         pass
-    about = [{"t": t, "d": d, "img": (sc.url(i[5:], base) if i.startswith("crop:") else st_(i)) if i else ""}
+    def _pic(i: str) -> str:                         # "media:файл|запасний статичний", "crop:файл" або статичний файл сайту
+        if i.startswith("media:"):
+            m, _, alt = i[6:].partition("|")
+            return sp.media_url(m, base) or (st_(alt) if alt else "")
+        return sc.url(i[5:], base) if i.startswith("crop:") else st_(i)
+    facts_r = [(t, d, _pic(i)) for t, d, i in lp["facts"]]
+    about = [{"t": t, "d": d, "img": _pic(i) if i else ""}
              for t, d, *rest in (lp.get("about") or {}).get("items", []) for i in [rest[0] if rest else ""]]
     money = sp.money
     faq = [(q, a.format(price=money(main_price) if main_price else "за прайсом",
@@ -375,7 +491,7 @@ def data(db: Session, lp: dict, home: dict, base: str) -> dict:
     hero = next((u for u in (sp.media_url(n, base) for n in lp["hero"]["media"]) if u), "")
     if not hero and lp["hero"].get("crop"):
         hero = sc.url(lp["hero"]["crop"], base)
-    return {"hero_img": hero, "cases": cases, "about_items": about, "formats": formats, "main_price": main_price, "procs": procs, "lp_doc": doc, "rev": rev, "products": products, "faq": faq}
+    return {"hero_img": hero, "cases": cases, "about_items": about, "facts_r": facts_r, "pgroups": pgroups, "lp_promo": promo, "formats": formats, "main_price": main_price, "procs": procs, "lp_doc": doc, "rev": rev, "products": products, "faq": faq}
 
 
 def jsonld(lp: dict, c: dict, url: str, faq: list, formats: list) -> str:
@@ -386,7 +502,7 @@ def jsonld(lp: dict, c: dict, url: str, faq: list, formats: list) -> str:
                        "addressCountry": "UA"}}
     offers = [{"@type": "Offer", "name": f["t"], "price": f["price"], "priceCurrency": "UAH"} for f in formats if f["price"]]
     page = {"@type": "MedicalWebPage", "url": url, "name": lp["seo"]["title"], "description": lp["seo"]["desc"], "inLanguage": "uk",
-            "about": {"@type": "MedicalCondition", "name": (lp.get("about_ld") or {}).get("name", "Акне"),
+            "about": {"@type": (lp.get("about_ld") or {}).get("type", "MedicalCondition"), "name": (lp.get("about_ld") or {}).get("name", "Акне"),
                       "alternateName": (lp.get("about_ld") or {}).get("alt", ["Вугрова хвороба", "Постакне"])},
             "audience": {"@type": "Patient"}, "provider": {"@id": org["@id"]}}
     if offers:

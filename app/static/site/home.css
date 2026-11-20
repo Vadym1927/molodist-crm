@@ -625,3 +625,10 @@ h2.lbl{font-weight:600}
 @media(max-width:700px){.l-acard.pic{display:block}.l-agrid{grid-template-columns:1fr 1fr}.l-acard.pic:last-child{grid-column:auto}.l-dcard{grid-template-columns:110px 1fr;gap:14px;padding:14px;border-radius:20px}.l-dcard h3{font-size:16px}.l-dcard .bio{display:none}.l-dcard .btn{padding-left:16px;padding-right:16px;font-size:11px}.h-mavs img{width:46px;height:46px}}
 .l-acard.pic h3{font-size:14px;letter-spacing:.02em;overflow-wrap:anywhere}
 @media(max-width:700px){.l-acard.pic h3{font-size:12.500px}}
+
+/* сторінка болю: прайс з акцією */
+.l-promo{display:flex;align-items:center;gap:14px;background:var(--lav);border-radius:18px;padding:14px 20px;margin:0 0 22px;font-size:15px}
+.l-promo b{font:700 20px/1 var(--hf);color:#3B3050;white-space:nowrap}
+.l-pcol li b{white-space:nowrap}.l-pcol li s{font-weight:400;opacity:.5;margin-right:4px}
+.l-procs .h-btns.ctr{margin-top:28px}
+@media(max-width:700px){.l-agrid:not(:has(.pic)){grid-template-columns:1fr}.l-acard:not(.pic){min-width:0}}

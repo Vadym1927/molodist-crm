@@ -8847,7 +8847,7 @@ def _landing_resp(request: Request, db: Session, lp: dict):
     ctx.update(_sia.assets(db, lp["key"], ctx["base"]))
     if not ctx.get("reel") and lp.get("reel"):                # рілс у файлах сайту, якщо з Instagram ще не забрали
         ctx["reel"] = {"src": ctx["st"](lp["reel"]["file"]), "poster_src": ctx["st"](lp["reel"]["poster"]), "url": lp["reel"]["url"]}
-    ctx.update(lp=lp, vk=lp["key"], proto=False, menu=lp["menu"], facts=lp["facts"], shop={**sh.SHOP, **lp["shop"]},
+    ctx.update(lp=lp, vk=lp["key"], proto=False, menu=lp["menu"], facts=ctx.get("facts_r") or lp["facts"], shop={**sh.SHOP, **lp["shop"]},
                v={**sh.VARIANTS["a"], "order": lp.get("order") or ["lhero", "facts", "pain", "about", "reel", "cases", "process", "consult", "procs",
                                                                     "ldoctor", "reviews", "booking", "shop", "insta", "faq", "contacts"]},
                title=lp["seo"]["title"], desc=lp["seo"]["desc"], faq_ld="")
@@ -8895,7 +8895,7 @@ def site_sitemap(request: Request, db: Session = Depends(db_dep)):
     from .services import site_landing as _sl
     home += "".join(f"<url><loc>{b}/{s_}</loc><lastmod>{date.today().isoformat()}</lastmod><priority>0.9</priority></url>" for s_ in _sl.LANDINGS)
     urls = home + "".join(f"<url><loc>{b}/{s_}</loc><lastmod>{date.today().isoformat()}</lastmod></url>"
-                   for s_ in sp.ORDER + ([_ob.SLUG] if _ob.cfg(db).get("on") else []))
+                   for s_ in [x_ for x_ in sp.ORDER if x_ not in _sl.LANDINGS] + ([_ob.SLUG] if _ob.cfg(db).get("on") else []))
     return Response(f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>',
                     media_type="application/xml")
 

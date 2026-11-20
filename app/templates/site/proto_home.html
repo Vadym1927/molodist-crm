@@ -34,7 +34,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
     <label><span>Телефон <i>*</i></span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+380" required></label></div>
   <fieldset class="h-topics" data-pick="topic"><legend>Що вас цікавить</legend>
     {% for t in ['Beauty Plan', 'Зморшки й вікові зміни', 'Акне й постакне', 'Пігментація й судини', 'Лазерна епіляція', 'Видалення новоутворень', 'Масаж', 'Інше'] %}<button type="button" aria-pressed="false"><i>{{ ic('check') }}</i><span>{{ t }}</span></button>{% endfor %}</fieldset>
-  {% if ask %}<label class="h-ask"><span>Що саме вас турбує</span><textarea name="comment" rows="2" maxlength="400" placeholder="Наприклад: пігментні плями на щоках, судинні зірочки на носі"></textarea></label>{% endif %}
+  {% if ask %}<label class="h-ask"><span>{{ lp.ask_label or 'Що саме вас турбує' }}</span><textarea name="comment" rows="2" maxlength="400" placeholder="{{ lp.ask_ph or 'Наприклад: пігментні плями на щоках, судинні зірочки на носі' }}"></textarea></label>{% endif %}
   <fieldset class="h-seg" data-pick="channel"><legend>Як зручніше звʼязатися</legend>
     {% for t, n in [('Дзвінок', 'phone'), ('Telegram', 'telegram'), ('Viber', 'viber')] %}<button type="button" aria-pressed="{{ 'true' if loop.first else 'false' }}" data-val="{{ t }}"><i class="bi">{{ icon(n) }}</i><span>{{ t }}</span></button>{% endfor %}</fieldset>
   <button class="btn">{{ btn }}</button>
@@ -153,7 +153,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
   <section class="h-hero a l-hero"><div class="wrap h-hero-in">
     <div class="tx"><p class="eyebrow">{{ lp.hero.eyebrow }}</p><h1>{{ lp.hero.h1 }}</h1><h2 class="h-tag">{{ lp.hero.h2 }}</h2><p class="lead-tx">{{ lp.hero.lead }}</p>
       <p class="h-btns"><a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp">{{ lp.hero.cta }}</a><a class="h-ghost" href="{{ lp.hero.cta2_href or '#yak-likuiemo' }}">{{ lp.hero.cta2 }} {{ arrow() }}</a></p>
-      {% if main_price and not lp.hero.no_price %}<p class="muted small">{{ lp.hero.price_label or 'Консультація BEAUTY PLAN Anti Acne' }} — {{ money(main_price) }}</p>{% endif %}</div>
+      {% if main_price and not lp.hero.no_price %}<p class="muted small">{{ lp.hero.price_label or 'Консультація BEAUTY PLAN Anti Acne' }} — {{ money(main_price) }}{% if lp_promo %} · {{ lp_promo.text }}{% endif %}</p>{% endif %}</div>
     <div class="im"><img src="{{ hero_img or st(lp.hero.img) }}" alt="{{ lp.hero.img_alt }}" fetchpriority="high" width="600" height="750" class="l-himg">
       {% if rev %}<a class="h-rate" href="#vidhuky"><b>{{ '%.1f'|format(rev.rating) }}</b><span>★★★★★<small>{{ rev.count }} відгуків у Google</small></span></a>{% endif %}</div>
   </div><p class="h-word" aria-hidden="true">MOLODIST</p></section>
@@ -169,7 +169,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
   <section class="sec h-sec l-about" id="{{ lp.about.id }}"><div class="wrap">
     <p class="eyebrow">{{ lp.about.eyebrow }}</p><div class="h-shd"><h2>{{ lp.about.title }}</h2><p>{{ lp.about.text }}</p></div>
     <div class="l-agrid">{% for x in about_items %}{% set t, d = x.t, x.d %}<div class="l-acard {{ 'pic' if x.img }}">{% if x.img %}<img src="{{ x.img }}" alt="{{ t }} — фото пацієнта MOLODIST" loading="lazy" width="400" height="400">{% endif %}<span class="n">{{ '%02d'|format(loop.index) }}</span><h3>{{ t }}</h3><p>{{ d }}</p></div>{% endfor %}</div>
-    <p class="h-btns ctr"><a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp">Записатися на процедуру</a></p>
+    <p class="h-btns ctr"><a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp">{{ lp.about.btn or 'Записатися на процедуру' }}</a></p>
   </div></section>{% endif %}
 
 {% elif sec == 'reel' %}{% if reel %}
@@ -213,6 +213,15 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
       {% if g.more %}<p class="muted small">Ще {{ g.more }} позицій — у повному прайсі</p>{% endif %}</div>{% endif %}{% endfor %}</div>
   </div></section>{% endif %}
 
+{% elif sec == 'lprices' %}{% if pgroups %}
+  <section class="sec h-sec l-procs" id="tsiny"><div class="wrap">
+    <div class="h-shd"><h2>{{ lp.prices_t.title }}</h2><p>{{ lp.prices_t.text }}</p></div>
+    {% if lp_promo %}<p class="l-promo"><b>−{{ lp_promo.pct }}%</b><span>{{ lp_promo.text }}</span></p>{% endif %}
+    <div class="l-pgrid">{% for g in pgroups %}<div class="l-pcol"><h3>{{ g.title }}</h3>
+      <ul>{% for i in g.rows %}<li><span>{{ i.name }}</span><b>{% if i.old %}<s>{{ money(i.old) }}</s> {% endif %}{{ money(i.price) }}</b></li>{% endfor %}</ul></div>{% endfor %}</div>
+    <p class="h-btns ctr"><a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp">Записатися й порахувати мої зони</a></p>
+  </div></section>{% endif %}
+
 {% elif sec == 'ldoctor' %}
   {% if lp_doc|length > 1 %}<section class="sec l-doc l-docs" id="likar"><div class="wrap">
     <div class="h-shd"><h2>{{ lp.doctor.title }}</h2><p>{{ lp.doctor.lead }}</p></div>
@@ -227,7 +236,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
   </div></section>{% endfor %}
 
 {% elif sec == 'facts' %}
-  <section class="h-facts {{ 'pics' if rich }}"><div class="wrap h-facts-in">{% for f in facts %}<div>{% if rich %}<img src="{{ st(f[2]) }}" alt="{{ f[0] }} — MOLODIST" loading="lazy" width="640" height="480">{% endif %}<span class="n">0{{ loop.index }}</span><h3>{{ f[0] }}</h3><p>{{ f[1] }}</p></div>{% endfor %}</div></section>
+  <section class="h-facts {{ 'pics' if rich }}"><div class="wrap h-facts-in">{% for f in facts %}<div>{% if rich %}<img src="{{ f[2] if '/' in f[2] else st(f[2]) }}" alt="{{ f[0] }} — MOLODIST" loading="lazy" width="640" height="480">{% endif %}<span class="n">0{{ loop.index }}</span><h3>{{ f[0] }}</h3><p>{{ f[1] }}</p></div>{% endfor %}</div></section>
 
 {% elif sec == 'entry' %}
   <section class="sec h-sec" id="poslugy"><div class="wrap">

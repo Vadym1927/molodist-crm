@@ -112,3 +112,14 @@ def test_own_404_page():
     with TestClient(app) as cl:
         r = cl.get("/_site/nema-takoi-storinky")
         assert r.status_code == 404 and "Такої сторінки немає" in r.text and "Tilda" not in r.text
+
+
+def test_laser_landing():
+    with TestClient(app) as cl:
+        r = cl.get("/_site/laserepilation")
+        assert r.status_code == 200 and "Лазерна епіляція в Києві" in r.text and "Що змінюється після курсу" in r.text
+        assert "Які зони вас цікавлять" in r.text and "h-modal" in r.text
+        assert "клінік" not in r.text.lower().split("<main")[1].split("</main>")[0]
+        x = cl.get("/_site/consultation-lazerna-epilyatsiya", follow_redirects=False)
+        assert x.status_code == 301 and x.headers["location"].endswith("/laserepilation")
+        assert cl.get("/_site/sitemap.xml").text.count("/laserepilation<") == 1
