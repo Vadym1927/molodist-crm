@@ -179,7 +179,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
     <div class="l-cgrid">{% for x in lp.cases['items'] %}<figure class="l-case"><span class="h-ba"><span><img src="{{ st(x.ba[0]) }}" alt="{{ x.t }} — до лікування акне в MOLODIST" loading="lazy" width="512" height="640"><em>До</em></span><span><img src="{{ st(x.ba[1]) }}" alt="{{ x.t }} — після лікування акне в MOLODIST" loading="lazy" width="512" height="640"><em>Після</em></span></span>
       <figcaption><b>{{ x.t }}</b><small>{{ x.d }}</small></figcaption></figure>{% endfor %}
       {% for x in ig_cases %}<figure class="l-case ig"><a href="{{ x.url }}" target="_blank" rel="noopener"><img src="{{ x.src }}" alt="Результат лікування акне в MOLODIST — публікація в Instagram" loading="lazy" width="1080" height="1080"></a>
-      <figcaption><b>Кейс з Instagram</b><small>{{ (x.caption.split('.')[0])[:70] }}</small></figcaption></figure>{% endfor %}</div>
+      <figcaption><b>Кейс із публікації</b><small>Відкрити в Instagram →</small></figcaption></figure>{% endfor %}</div>
     <p class="h-note">{{ lp.cases.note }}</p>
   </div></section>
 
