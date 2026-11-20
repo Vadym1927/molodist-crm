@@ -10837,6 +10837,7 @@ async def settings_shop_save(request: Request, user: User = Depends(require("use
     if f.get("action") in ("rvcart", "rvtest"):
         c = sf.cfg(db)
         c["review_on"] = bool(f.get("review_on"))
+        c["review_sms"] = bool(f.get("review_sms"))
         c["cart_auto_on"] = bool(f.get("cart_auto_on"))
         for _b in ("reorder_on", "quiz_on", "oneclick_on"):
             c[_b] = bool(f.get(_b))
@@ -10861,6 +10862,8 @@ async def settings_shop_save(request: Request, user: User = Depends(require("use
             from .services import shop_reviews as _rv
             try:
                 ch = _rv.send_test(db, c, c["review_test_phone"], _shop_root(db), sf.catalog(db))
+                if ch == "none":
+                    return RedirectResponse(_with_msg("/settings/shop", "Не надіслано: у цього номера немає Telegram, а SMS для відгуків вимкнено", True) + "#reviews", 303)
                 return RedirectResponse(_with_msg("/settings/shop", "Тест надіслано (" + ("Telegram" if ch == "telegram" else "SMS") + ")") + "#reviews", 303)
             except Exception as e:  # noqa: BLE001
                 return RedirectResponse(_with_msg("/settings/shop", f"Тест не надіслано: {e}"[:200], True) + "#reviews", 303)

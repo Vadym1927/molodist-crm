@@ -164,7 +164,10 @@ def send_reorders(db: Session, c: dict, data: dict, root: str) -> dict:
         text = ((c.get("reorder_text") or "").strip() or REORDER_TEXT).replace("{name}", name).replace("{product}", prod) \
             .replace("{link}", f"{root}/reorder/{reorder_token(o)}/")[:480]
         try:
-            ch = sc._deliver(db, sc._phone(o.phone), text, "🔁 ")
+            url = f"{root}/reorder/{reorder_token(o)}/".split("://", 1)[-1]
+            opts = ([f"{name}, час поповнити догляд MOLODIST: {url}"] if name else []) + [f"Поповніть догляд MOLODIST: {url}", f"Поповніть догляд: {url}"]
+            short = next((t for t in opts if len(t) <= 70), url)
+            ch = sc._deliver(db, sc._phone(o.phone), text, "🔁 ", sms=short)   # SMS — 1 сегмент, повний текст лише в Telegram
         except Exception:  # noqa: BLE001
             continue
         raw = dict(o.raw or {})

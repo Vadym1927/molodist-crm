@@ -147,8 +147,23 @@ def message(db: Session, c: dict, o: SiteOrder, root: str, data: dict) -> str:
     return tpl.replace("{coins}", str(bonus)).replace("{name}", first_name(o, db)).replace("{product}", prod).replace("{n}", o.number or "").replace("{link}", link(o, root))[:480]
 
 
+def short_sms(o: SiteOrder, root: str, db: Session | None = None) -> str:
+    """Коротка SMS в 1 сегмент кирилиці (≤70 символів): без https:// і зайвих слів."""
+    url = link(o, root).split("://", 1)[-1]
+    nm = first_name(o, db) if db is not None else ""
+    for t in ((f"{nm}, оцініть покупку в MOLODIST: {url}" if nm else ""), f"Оцініть покупку в MOLODIST: {url}", f"Оцініть покупку: {url}", url):
+        if t and len(t) <= 70:
+            return t
+    return url
+
+
+def _send(db: Session, c: dict, o: SiteOrder, text: str, root: str, phone: str | None = None) -> str:
+    from . import shop_cabinet as sc
+    return sc._deliver(db, sc._phone(phone or o.phone), text, "⭐ ", sms=short_sms(o, root, db), sms_ok=bool(c.get("review_sms")))
+
+
 def send_due(db: Session, c: dict, root: str, data: dict) -> dict:
-    rep = {"sent": 0, "failed": 0}
+    rep = {"sent": 0, "failed": 0, "skipped": 0}
     if not c.get("review_on"):
         return rep
     from ..integrations import messaging as m
@@ -162,16 +177,20 @@ def send_due(db: Session, c: dict, root: str, data: dict) -> dict:
         if not raw.get("review_due") or raw.get("review_sent") or raw.get("review_got") or raw["review_due"] > now or not o.phone:
             continue
         try:
-            ch = sc._deliver(db, sc._phone(o.phone), message(db, c, o, root, data), "⭐ ")
+            ch = _send(db, c, o, message(db, c, o, root, data), root)
         except Exception:  # noqa: BLE001
             rep["failed"] += 1
             continue
         raw = dict(raw)
         raw["review_sent"] = now
-        raw["log"] = (raw.get("log") or []) + [{"at": now, "by": "", "text": f"Запит відгуку надіслано ({ch})"}]
+        if ch == "none":                                 # немає Telegram, SMS вимкнено — не надсилаємо й більше не пробуємо
+            raw["review_skip"] = True
+            raw["log"] = (raw.get("log") or []) + [{"at": now, "by": "", "text": "Запит відгуку не надіслано: у покупця немає Telegram, SMS вимкнено"}]
+        else:
+            raw["log"] = (raw.get("log") or []) + [{"at": now, "by": "", "text": f"Запит відгуку надіслано ({ch})"}]
         o.raw = raw
         db.commit()
-        rep["sent"] += 1
+        rep["skipped" if ch == "none" else "sent"] += 1
         if rep["sent"] >= 30:
             break
     return rep
@@ -185,7 +204,7 @@ def send_test(db: Session, c: dict, phone: str, root: str, data: dict) -> str:
         or db.scalar(select(SiteOrder).where(SiteOrder.source == "crm", SiteOrder.items.is_not(None)).order_by(SiteOrder.id.desc()).limit(1))
     if not o:
         raise ValueError("Ще немає жодного замовлення з сайту — тест буде після першого.")
-    return sc._deliver(db, ph, "[ТЕСТ] " + message(db, c, o, root, data), "⭐ ")
+    return _send(db, c, o, "[ТЕСТ] " + message(db, c, o, root, data), root, phone=ph)
 
 
 def admin_list(db: Session, status: str = "") -> list[ShopReview]:

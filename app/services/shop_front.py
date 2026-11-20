@@ -42,7 +42,7 @@ DEFAULT = {
     "redirects": "", "gsc_verify": "",
     "gplaces_key": "", "gplace_id": "", "greviews_on": True, "greviews_min": 4,
     "reorder_on": False, "reorder_lead": 7, "reorder_text": "", "quiz_on": True, "oneclick_on": True,
-    "review_on": False, "review_days": 5, "review_text": "", "review_test_phone": "",
+    "review_on": False, "review_sms": False, "review_days": 5, "review_text": "", "review_test_phone": "",
     "cart_task_hours": 2, "cart_auto_on": False, "cart_auto_hours": 3, "cart_text": "",
     "order_msg_on": False,       # повідомлення покупцю: оплачено / відправлено (з ТТН) / скасовано
     "notify_on": False, "notify_text": "{name} знову в наявності в магазині MOLODIST: {url}",

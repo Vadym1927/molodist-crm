@@ -812,3 +812,25 @@ def test_cert_link_and_zapys_slash():
         assert "zapys#sertyfikaty" in h and "zapys/#sertyfikaty" not in h
         r = c.get("/_site/zapys/?g=x", follow_redirects=False)
         assert r.status_code == 301 and r.headers["location"] == "../zapys?g=x"
+
+
+def test_review_request_no_paid_sms(monkeypatch):
+    from app.services import shop_reviews as rv
+    from app.integrations import messaging as m
+    sent = []
+    monkeypatch.setattr(m, "send_tg_business", lambda *a, **k: m.SendResult(False, "telegram"))
+    monkeypatch.setattr(m, "send_turbosms", lambda phone, text, ch, **k: (sent.append(text), m.SendResult(True, "sms"))[1])
+    monkeypatch.setattr(m, "is_quiet_time", lambda: False)
+    with TestClient(app):
+        with SessionLocal() as db:
+            o = SiteOrder(number="R-SMS-1", ext_id="R-SMS-1", source="crm", status="Отримано", phone="+380671112299", name="Юлія Тест",
+                          items=[{"id": 1, "name": "Пілінг для шкіри голови Good Hair (Regenera) Hair Peeling 100 мл", "qty": 1}],
+                          raw={"review_due": "2020-01-01T00:00"})
+            db.add(o); db.commit()
+            c = {"review_on": True, "coin_review": 25}
+            rep = rv.send_due(db, c, "https://molodist.store", {"by_slug": {}, "items": []})
+            db.refresh(o)
+            assert not sent and rep["skipped"] >= 1 and o.raw.get("review_skip"), (rep, o.raw)       # SMS вимкнено за замовчуванням
+            o.raw = {"review_due": "2020-01-01T00:00"}; db.commit()
+            rv.send_due(db, {**c, "review_sms": True}, "https://molodist.store", {"by_slug": {}, "items": []})
+            assert sent and len(sent[-1]) <= 70 and "https://" not in sent[-1] and "/review/" in sent[-1]

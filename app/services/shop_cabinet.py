@@ -51,7 +51,7 @@ def sms_text(c: dict, code: str) -> str:
     return (t if "{code}" in t else t + " {code}").replace("{code}", code)[:300]
 
 
-def _deliver(db: Session, phone: str, text: str, icon: str = "🔐 ", sms: str = "") -> str:
+def _deliver(db: Session, phone: str, text: str, icon: str = "🔐 ", sms: str = "", sms_ok: bool = True) -> str:
     """Код: спершу в Telegram (якщо пацієнт підключив бот турботи), інакше SMS. Повертає канал або кидає CabError."""
     from ..integrations import messaging as m
     from . import appeals as ap
@@ -65,6 +65,8 @@ def _deliver(db: Session, phone: str, text: str, icon: str = "🔐 ", sms: str =
                 return "telegram"
         except Exception:  # noqa: BLE001 — не вийшло в Telegram → SMS
             pass
+    if not sms_ok:                                      # SMS заборонено (платне) — лише Telegram
+        return "none"
     r = m.send_turbosms(phone, sms or text, ["sms"], internal=True)
     if not r.ok:
         raise CabError("Не вдалося надіслати код. Спробуйте за хвилину або зателефонуйте нам.")
@@ -306,7 +308,9 @@ def notify_send(db: Session, c: dict, data: dict, site_root: str) -> dict:
         it = by_id[r.product_id][0]
         text = tpl.replace("{name}", it["name"][:60]).replace("{url}", f"{site_root}/shop/{it['slug']}/")[:300]
         try:
-            ch = _deliver(db, r.phone, text, "🔔 ")
+            url = f"{site_root}/shop/{it['slug']}/".split("://", 1)[-1]
+            short = f"Знову в наявності: {url}" if len(url) <= 51 else url        # SMS — 1 сегмент
+            ch = _deliver(db, r.phone, text, "🔔 ", sms=short)
         except CabError:
             rep["failed"] += 1
             continue
