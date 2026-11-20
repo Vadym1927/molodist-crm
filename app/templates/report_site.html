@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Поведінка на сайті{% endblock %}
+{% block body %}
+<style>
+.ss-h{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px}.ss-h h1{margin:0}
+.ss-k{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:0 0 16px}.ss-k div{background:#fff;border:1px solid #E9E5DF;border-radius:12px;padding:12px 14px}
+.ss-k b{display:block;font-size:22px}.ss-k small{color:#6E6676}
+.ss-p{background:#fff;border:1px solid #E9E5DF;border-radius:14px;padding:16px 18px;margin-bottom:14px}
+.ss-p h2{margin:0 0 10px;font-size:18px}.ss-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.ss-bar{display:flex;align-items:center;gap:8px;font-size:13.5px;margin:4px 0}.ss-bar span:first-child{width:130px;flex:none}.ss-bar i{display:block;height:8px;background:#5C4B82;border-radius:4px}
+.ss-p table{width:100%;font-size:13.5px}.ss-p td{padding:3px 0}.ss-p td:last-child{text-align:right}
+</style>
+<div class="ss-h"><div><h1>Поведінка на сайті</h1><p class="mini">Що дивились, що клікали й де закривали вкладку — без персональних даних. Щодня о 09:05 цей звіт за вчора приходить у Telegram.</p></div>
+  <p><a class="btn sm ghost" href="?day={{ prev }}">‹ {{ prev.strftime('%d.%m') }}</a> <b>{{ d.strftime('%d.%m.%Y') }}</b> {% if nxt <= today %}<a class="btn sm ghost" href="?day={{ nxt }}">{{ nxt.strftime('%d.%m') }} ›</a>{% endif %}</p></div>
+<div class="ss-k"><div><b>{{ r.sessions }}</b><small>відвідувань</small></div><div><b>{{ r.paid }}</b><small>з реклами</small></div>
+  <div><b>{{ r.pages|sum(attribute='leads') }}</b><small>заявок з форм</small></div>
+  <div><small>Джерела</small><br>{% for k, v in r.sources %}{{ k }} — {{ v }}<br>{% endfor %}</div>
+  <div><small>Пристрої</small><br>{% for k, v in r.devices %}{{ {'phone': 'телефон', 'pc': 'компʼютер', 'tablet': 'планшет'}.get(k, k) }} — {{ v }}<br>{% endfor %}</div></div>
+{% for p in r.pages %}<div class="ss-p"><h2>{{ p.name }} <small class="mini">{{ p.page }}</small></h2>
+  <div class="ss-k"><div><b>{{ p.sessions }}</b><small>відвідувань (реклама {{ p.paid }})</small></div><div><b>{{ p.median_sec or 0 }} с</b><small>час на сторінці (медіана)</small></div>
+    <div><b>{{ p.bounce_10s }}</b><small>пішли до 10 секунд</small></div><div><b>{{ p.scroll or 0 }}%</b><small>середня прокрутка</small></div>
+    <div><b>{{ p.forms }}</b><small>відкрили форму</small></div><div><b>{{ p.leads }} · {{ p.conv }}%</b><small>заявки · конверсія</small></div></div>
+  <div class="ss-g"><div><h3>До якого блоку дійшли</h3>{% for k, v, pc in p.sections %}<div class="ss-bar"><span>{{ k }}</span><i style="width:{{ pc }}%"></i><small>{{ pc }}%</small></div>{% endfor %}</div>
+    <div><h3>Що клікали</h3><table>{% for k, v in p.clicks %}<tr><td>{{ k }}</td><td>{{ v }}</td></tr>{% else %}<tr><td class="mini">—</td></tr>{% endfor %}</table>
+      <h3>На якому блоці закрили вкладку</h3><table>{% for k, v in p.exits %}<tr><td>{{ k }}</td><td>{{ v }}</td></tr>{% else %}<tr><td class="mini">—</td></tr>{% endfor %}</table></div></div>
+</div>{% else %}<p class="mini">За цей день подій немає.</p>{% endfor %}
+{% endblock %}

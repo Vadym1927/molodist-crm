@@ -63,3 +63,21 @@ def test_ig_asset_served(tmp_path, monkeypatch):
     with TestClient(app) as cl:
         r = cl.get("/_site/ig/akne-ig-1-1.jpg")
         assert r.status_code == 200 and r.headers["content-type"] == "image/jpeg"
+
+
+def test_site_events_report():
+    from datetime import date
+    from app.models import SessionLocal
+    from app.services import site_stats as ss
+    with TestClient(app) as cl:
+        body = {"sid": "abc123", "page": "/_site/likuvannya-akne", "gclid": "x", "utm_campaign": "Акне",
+                "ev": [{"k": "view", "t": "t"}, {"k": "sec", "t": "rezultaty", "v": 40}, {"k": "click", "t": "Акне й постакне · lhero"},
+                       {"k": "form", "t": "m-lp"}, {"k": "exit", "t": "rezultaty", "v": 35}, {"k": "bad", "t": "x"}]}
+        import json
+        r = cl.post("/_site/api/ev", content=json.dumps(body), headers={"user-agent": "Mozilla/5.0 (iPhone) Mobile"})
+        assert r.json()["n"] == 5
+    with SessionLocal() as db:
+        rep = ss.report(db, date.today())
+        p = next(x for x in rep["pages"] if x["page"] == "/likuvannya-akne")
+        assert p["paid"] >= 1 and p["forms"] >= 1 and ("Результати", 1) in [(k, v) for k, v in p["exits"]] or p["exits"]
+        assert "Сайт за" in ss.text(rep)

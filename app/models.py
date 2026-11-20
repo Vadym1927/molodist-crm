@@ -1887,6 +1887,22 @@ class GaEvent(Base):
     count: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class SiteEvent(Base):
+    """Поведінка на сторінках сайту (без персональних даних): перегляд, блок, клік, форма, заявка, вихід — для щоденного звіту."""
+    __tablename__ = "site_events"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    at: Mapped[datetime] = mapped_column(DateTime, index=True)          # місцевий час сервера
+    sid: Mapped[str] = mapped_column(String(32), index=True)            # сесія вкладки (випадковий id)
+    page: Mapped[str] = mapped_column(String(120), index=True)          # шлях: / , /likuvannya-akne
+    kind: Mapped[str] = mapped_column(String(16), index=True)           # view | sec | click | form | pop | lead | exit
+    target: Mapped[str | None] = mapped_column(String(120))
+    value: Mapped[int | None] = mapped_column(Integer)                  # секунди / % прокрутки
+    device: Mapped[str | None] = mapped_column(String(12))              # phone | pc | tablet
+    src: Mapped[str | None] = mapped_column(String(80))                 # реклама / пошук / прямий …
+    paid: Mapped[bool | None] = mapped_column(Boolean)
+    campaign: Mapped[str | None] = mapped_column(String(160))
+
+
 class SiteClick(Base):
     """Клік на сайті (телефон, Telegram, Viber, запис…) з мітками реклами й gclid — від тегу Tag Manager.
     Привʼязується до дзвінка / звернення за часом; gclid потім іде назад у Google Ads як офлайн-конверсія."""

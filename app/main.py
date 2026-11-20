@@ -598,6 +598,18 @@ async def job_backup():
         pass                        # сповіщення вже надіслано в run_backup
 
 
+async def job_site_stats():
+    """Щодня зранку: поведінка на сайті за вчора — власнику в Telegram."""
+    from .services import site_stats as ss, alerts
+    def run():
+        with SessionLocal() as db:
+            r = ss.report(db, date.today() - timedelta(days=1))
+            ss.cleanup(db)
+        if r["sessions"]:
+            alerts.send(ss.text(r))
+    await asyncio.to_thread(run)
+
+
 async def job_digest():
     from .services.tasks import generate_auto
     from .services import alerts
@@ -726,6 +738,7 @@ async def lifespan(app: FastAPI):
         sched.add_job(job_tg_notify, "cron", minute="*/5")
         sched.add_job(job_rematch, "date", run_date=datetime.now() + timedelta(seconds=40))   # після оновлення — одразу
         sched.add_job(job_expiry, "cron", hour=9, minute=15)
+        sched.add_job(job_site_stats, "cron", hour=9, minute=5)
         sched.add_job(job_loyalty, "cron", hour=9, minute=5)
         sched.add_job(job_reconcile, "cron", hour=9, minute=0)
         sched.add_job(job_amort, "cron", day="1,16", hour=9, minute=10)
@@ -8894,6 +8907,17 @@ async def site_api_lead(request: Request, db: Session = Depends(db_dep)):
     return {"ok": bool(r.get("ok"))}
 
 
+@app.post("/_site/api/ev")
+async def site_api_ev(request: Request, db: Session = Depends(db_dep)):
+    """Події поведінки на сторінці (sendBeacon) — для щоденного звіту. Без персональних даних."""
+    from .services import site_leads as sl, site_stats as ss
+    raw = await request.body()
+    if len(raw) > 16_000 or not _ob_rate(request, "ev", 400):
+        return {"ok": False}
+    n = await asyncio.to_thread(ss.ingest, db, sl.parse_body(raw, request.headers.get("content-type", "")), request.headers.get("user-agent", ""))
+    return {"ok": True, "n": n}
+
+
 @app.post("/_site/api/click")
 async def site_api_click(request: Request, db: Session = Depends(db_dep)):
     from .services import site_leads as sl
@@ -13358,6 +13382,17 @@ def _kpi_month(m: str) -> tuple[date, date, str]:
     a = date(y, mm, 1)
     b = date(y + (mm == 12), (mm % 12) + 1, 1) - timedelta(days=1)
     return a, b, mk
+
+
+@app.get("/reports/site", response_class=HTMLResponse)
+def report_site(request: Request, day: str = "", user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    """Поведінка на сайті за день (за замовчуванням — вчора): джерела, блоки, кліки, форми, заявки, де закривали."""
+    from .services import site_stats as ss
+    try:
+        d = date.fromisoformat(day) if day else date.today() - timedelta(days=1)
+    except ValueError:
+        d = date.today() - timedelta(days=1)
+    return render(request, "report_site.html", nav="reports", r=ss.report(db, d), d=d, prev=d - timedelta(days=1), nxt=d + timedelta(days=1), today=date.today())
 
 
 @app.get("/reports/rebook-day", response_class=HTMLResponse)

@@ -351,11 +351,11 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
   <div class="h-mstd" data-mode="std"><p class="h-mh">Залиште заявку — підберемо лікаря й час</p><p class="sm">Адміністратор звʼяжеться з вами тим способом, який ви оберете. {{ c.hours }}.</p></div>
   {{ form('modal', 'Надіслати заявку') }}
 </div></div>
-{% if c.exit_on %}<div class="h-pop" id="h-pop" hidden data-delay="{{ c.exit_delay or 25 }}" role="dialog" aria-label="{{ c.exit_title }}">
+{% if c.exit_on %}{% set pp = lp.pop if lp and lp.pop else {'title': c.exit_title, 'text': c.exit_text, 'badge': c.exit_badge, 'btn': c.exit_btn, 'img': 'pop.webp'} %}<div class="h-pop" id="h-pop" hidden data-delay="{{ c.exit_delay or 12 }}" role="dialog" aria-label="{{ pp.title }}">
   <button type="button" class="h-x" data-pop-close aria-label="Закрити"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
-  <img src="{{ st('pop.webp') }}" alt="Лікарі MOLODIST" width="480" height="480" loading="lazy">
-  <div>{% if c.exit_badge %}<span class="h-pbadge">{{ c.exit_badge }}</span>{% endif %}<p class="h-mh">{{ c.exit_title }}</p><p class="sm">{{ c.exit_text }}</p>
-    <a class="btn" href="#zapys" data-interest="Банер: {{ c.exit_badge or c.exit_title }}" data-pop-go>{{ c.exit_btn }}</a></div>
+  <img src="{{ st(pp.img) }}" alt="MOLODIST" width="480" height="480" loading="lazy">
+  <div>{% if pp.badge %}<span class="h-pbadge">{{ pp.badge }}</span>{% endif %}<p class="h-mh">{{ pp.title }}</p><p class="sm">{{ pp.text }}</p>
+    <a class="btn" href="#zapys" data-interest="{{ lp.topic if lp else 'Банер: ' ~ (pp.badge or pp.title) }}" {% if lp %}data-modal="lp"{% endif %} data-pop-go>{{ pp.btn }}</a></div>
 </div>{% endif %}
 <a class="h-up" href="#top" aria-label="Вгору" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
 <nav class="bar" aria-label="Швидкий звʼязок">

@@ -600,3 +600,4 @@ h2.lbl{font-weight:600}
 .l-case.ig a{display:block;aspect-ratio:1/1;overflow:hidden}.l-case.ig img{width:100%;height:100%;object-fit:cover}
 @media (max-width:860px){.l-reel-in{grid-template-columns:1fr;gap:28px}.l-vid{max-width:340px;margin:0 auto;width:100%}}
 .l-case.ig a{aspect-ratio:8/5}.l-case.ig img{object-position:center 6%}
+.h-pop img{object-fit:cover;object-position:center 30%}
