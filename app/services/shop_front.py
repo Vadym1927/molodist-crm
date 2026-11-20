@@ -865,7 +865,8 @@ def create_order(db: Session, data: dict, base_url: str) -> dict:
         try:
             from . import paylinks as pl
             link = pl.create(db, cart["total"], f"Замовлення {no}", base_url, patient_id=o.patient_id, account_id=int(c.get("pay_account") or 0) or None,
-                             basket=_basket(cart["items"], use, (pamt, pr["lines"]) if pamt else None))
+                             basket=_basket(cart["items"], use, (pamt, pr["lines"]) if pamt else None),
+                             redirect_url=(data["_done_base"] + no) if data.get("_done_base") else None)   # після оплати — назад на «Дякуємо» (подія purchase → Google Ads)
             link.info = {**(link.info or {}), "shop_order": o.id}
             db.commit()
             out["pay_url"] = link.url

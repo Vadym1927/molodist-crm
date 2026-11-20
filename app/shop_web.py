@@ -303,6 +303,7 @@ def register(app, templates, version: str):
             return JSONResponse({"ok": False, "msg": bad}, status_code=400)
         host = (request.headers.get("host") or "").split(":")[0].lower()
         body = {k: v for k, v in body.items() if not str(k).startswith("_")}
+        body["_done_base"] = (f"https://{host}" if host in sf.hosts() else settings.public_url.rstrip("/") + "/_shop") + "/checkout/done/?n="
         got = sc.me(db, request.cookies.get(sc.COOKIE))
         if not got and c.get("order_login", True) and c.get("cab_on", True):
             return JSONResponse({"ok": False, "msg": "Щоб оформити замовлення, увійдіть або зареєструйтесь.", "login": True}, status_code=401)

@@ -175,7 +175,7 @@ def _liqpay_sig(priv: str, data: str) -> str:
 
 def create(db: Session, amount: float, purpose: str, base_url: str, patient_id: int | None = None, appointment_id: int | None = None,
            user_id: int | None = None, http: httpx.Client | None = None, account_id: int | None = None,
-           basket: list[dict] | None = None) -> PayLink:
+           basket: list[dict] | None = None, redirect_url: str | None = None) -> PayLink:
     d = _raw(db)
     a = account(d, account_id)
     if not a or not _ready(a):
@@ -197,6 +197,7 @@ def create(db: Session, amount: float, purpose: str, base_url: str, patient_id: 
         if prov == "mono":
             r = http.post("https://api.monobank.ua/api/merchant/invoice/create", headers={"X-Token": val(a, "token")},
                           json={"amount": int(round(amount * 100)), "ccy": 980, "validity": valid, "webHookUrl": hook,
+                                **({"redirectUrl": redirect_url} if redirect_url else {}),
                                 "merchantPaymInfo": {"reference": ref, "destination": purpose,
                                                      "basketOrder": _basket(basket, amount, purpose)}})
             js = r.json()
@@ -207,7 +208,8 @@ def create(db: Session, amount: float, purpose: str, base_url: str, patient_id: 
             pub, priv = val(a, "public_key"), val(a, "private_key")
             exp = (datetime.utcnow() + timedelta(seconds=valid)).strftime("%Y-%m-%d %H:%M:%S")
             data = base64.b64encode(json.dumps({"version": 3, "public_key": pub, "action": "pay", "amount": f"{amount:.2f}", "currency": "UAH",
-                                                "description": purpose, "order_id": ref, "server_url": hook, "expired_date": exp},
+                                                "description": purpose, "order_id": ref, "server_url": hook, "expired_date": exp,
+                                                **({"result_url": redirect_url} if redirect_url else {})},
                                                ensure_ascii=False).encode()).decode()
             pl.ext_id = ref
             pl.url = "https://www.liqpay.ua/api/3/checkout?" + httpx.QueryParams({"data": data, "signature": _liqpay_sig(priv, data)}).__str__()
@@ -219,7 +221,8 @@ def create(db: Session, amount: float, purpose: str, base_url: str, patient_id: 
             js = http.post("https://api.wayforpay.com/api", json={
                 "transactionType": "CREATE_INVOICE", "merchantAccount": m, "merchantAuthType": "SimpleSignature", "merchantDomainName": dom,
                 "merchantSignature": sig, "apiVersion": 1, "language": "UA", "serviceUrl": hook, "orderReference": ref, "orderDate": od,
-                "amount": amt, "currency": "UAH", "orderTimeout": valid, "productName": [purpose], "productPrice": [amt], "productCount": [1]}).json()
+                "amount": amt, "currency": "UAH", "orderTimeout": valid, "productName": [purpose], "productPrice": [amt], "productCount": [1],
+                **({"returnUrl": redirect_url} if redirect_url else {})}).json()
             if not js.get("invoiceUrl"):
                 raise PayError(f"WayForPay: {js.get('reason') or js.get('reasonCode') or 'помилка'}")
             pl.ext_id, pl.url = ref, js["invoiceUrl"]
