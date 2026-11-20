@@ -8853,6 +8853,9 @@ def _landing_resp(request: Request, db: Session, lp: dict):
                title=lp["seo"]["title"], desc=lp["seo"]["desc"], faq_ld="")
     abs_base = ctx["c"]["canonical"].rstrip("/") if not ctx["noindex"] else str(request.base_url).rstrip("/").replace("http://", "https://") + "/_site"
     src = Path(__file__).resolve().parent / "static" / "site" / "home" / lp["hero"]["og"]
+    if lp["hero"].get("crop"):                                # картка для месенджерів — з головного фото сторінки
+        from .services import site_crops as _sc
+        src = _sc.path(lp["hero"]["crop"]) or src
     ctx.update(og_title=lp["seo"]["og_title"], og_desc=lp["seo"]["og_desc"],
                og_img=f"{abs_base}/og/{lp['slug']}.jpg" if sp_og(lp["slug"], src) else "")
     ctx["org_ld"] = sl.jsonld(lp, ctx["c"], ctx["canonical"], ctx["faq"], ctx["formats"])
@@ -9200,7 +9203,11 @@ def site_og(slug: str):
         f = sp.og_image(slug, _sh.og_src())
     elif slug in _sl.LANDINGS:
         from pathlib import Path as _P
-        f = sp.og_image(slug, _P(__file__).resolve().parent / "static" / "site" / "home" / _sl.LANDINGS[slug]["hero"]["og"])
+        _src = _P(__file__).resolve().parent / "static" / "site" / "home" / _sl.LANDINGS[slug]["hero"]["og"]
+        if _sl.LANDINGS[slug]["hero"].get("crop"):
+            from .services import site_crops as _sc
+            _src = _sc.path(_sl.LANDINGS[slug]["hero"]["crop"]) or _src
+        f = sp.og_image(slug, _src)
     elif slug == _ob.SLUG:
         with SessionLocal() as _db:
             f = sp.og_image(slug, _ob.og_src(_ob.cfg(_db)))
