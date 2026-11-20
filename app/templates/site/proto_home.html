@@ -250,7 +250,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
       <p class="tx">Справжні відгуки з профілю MOLODIST у Google — без редагування й відбору «найкращих».</p>
       <p class="acts"><a class="btn light" href="{{ (rev.url if rev else '') or c.maps }}" target="_blank" rel="noopener">Усі відгуки в Google</a><a class="h-ghost lt" href="{{ (rev.url if rev else '') or c.maps }}" target="_blank" rel="noopener">Залишити відгук {{ arrow() }}</a></p></aside>
     <div class="h-rwrap"><div class="h-rtrack grid" data-slider data-swipe>
-      {% if rev and rev.reviews %}{% for r in rev.reviews[:6] %}<article class="h-rcard"><header><span class="av">{{ r.author[:1]|upper }}</span><span><b>{{ r.author }}</b><small>{{ r.when }}</small></span><span class="g" title="Відгук із Google">G</span></header>
+      {% if rev and rev.reviews %}{% for r in rev.reviews[:(9 if lp else 6)] %}<article class="h-rcard"><header><span class="av">{{ r.author[:1]|upper }}</span><span><b>{{ r.author }}</b><small>{{ r.when }}</small></span>{% if r.src == 'crm' %}<span class="g m" title="Відгук з опитування пацієнтів MOLODIST після візиту">M</span>{% else %}<span class="g" title="Відгук із Google">G</span>{% endif %}</header>
         <p class="st">{{ '★' * r.rating }}</p><p class="tx">{{ r.text[:230] }}{{ '…' if r.text|length > 230 }}</p></article>{% endfor %}
       {% else %}{% for i in range(6) %}<article class="h-rcard ph"><header><span class="av">M</span><span><b>Імʼя пацієнта</b><small>дата відгуку</small></span><span class="g">G</span></header>
         <p class="st">★★★★★</p><p class="tx">Тут зʼявиться відгук із профілю MOLODIST у Google. Відгуки підтягуються автоматично — на сервері блок наповнюється сам.</p></article>{% endfor %}{% endif %}

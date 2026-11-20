@@ -579,3 +579,12 @@ h2.lbl{font-weight:600}
 .h-modal .h-form{gap:12px}.h-modal .h-form .fine{margin-top:4px}
 @media (max-height:760px){.h-mbp img{display:none}.h-modal .h-topics label,.h-modal .h-topics button{padding-top:7px;padding-bottom:7px}}
 @media (max-width:560px){.l-cgrid{grid-template-columns:1fr}.h-mlp img{width:56px;height:56px}.h-mlp .h-mh{font-size:16px}}
+
+/* «Увесь каталог» — суцільна кнопка */
+.h-pshd .btn.sm,.h-pshd .btn.sm:hover{background:var(--act);color:#fff;border-color:var(--act)}.h-pshd .btn.sm:hover{background:var(--plum);border-color:var(--plum)}
+/* кейси акне — по три в ряд, менші */
+.l-cgrid{display:flex;flex-wrap:wrap;justify-content:center;gap:18px}.l-cgrid .l-case{flex:0 0 calc((100% - 36px)/3)}
+.l-case figcaption{padding:12px 16px 16px}.l-case b{font-size:14px}.l-case small{font-size:13px}
+@media (max-width:860px){.l-cgrid .l-case{flex-basis:calc((100% - 18px)/2)}}
+@media (max-width:560px){.l-cgrid{gap:12px}.l-cgrid .l-case{flex-basis:100%}}
+.h-rcard .g.m{background:var(--plum);color:#fff;border-color:var(--plum)}

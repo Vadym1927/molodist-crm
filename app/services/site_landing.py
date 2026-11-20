@@ -166,6 +166,21 @@ def data(db: Session, lp: dict, home: dict, base: str) -> dict:
         rel = [r for r in rev["reviews"] if re.search(lp["reviews_kw"], r.get("text") or "", re.I)]
         rel = rel or [r for r in rev["reviews"] if re.search(lp["reviews_doc"], r.get("text") or "", re.I)]
         rev = {**rev, "reviews": rel or rev["reviews"]}
+    # + відгуки пацієнтів з опитування після візиту (архів CRM): до Софії Сирової або про акне — анонімно
+    try:
+        from sqlalchemy import select, or_
+        from ..models import ReviewArchive
+        q = (select(ReviewArchive).where(ReviewArchive.text.is_not(None), ReviewArchive.avg >= 5, ReviewArchive.hidden.is_not(True),
+                                         or_(ReviewArchive.doctor_name.ilike("%сиров%"), ReviewArchive.text.ilike("%софі%"),
+                                             ReviewArchive.text.ilike("%акне%"), ReviewArchive.text.ilike("%прищ%"), ReviewArchive.text.ilike("%висип%")))
+             .order_by(ReviewArchive.at.desc().nullslast(), ReviewArchive.id.desc()).limit(12))
+        own = [{"author": "Відгук після візиту", "when": x.at.strftime("%m.%Y") if x.at else "", "rating": 5, "src": "crm",
+                "text": " ".join((x.text or "").split())} for x in db.scalars(q) if len((x.text or "").strip()) >= 40]
+    except Exception:  # noqa: BLE001
+        own = []
+    if own:
+        g = (rev or {}).get("reviews") or []
+        rev = {**(rev or {"rating": 5.0, "count": 0, "url": ""}), "reviews": (g + own)[:9]}
     # товари: засоби для проблемної шкіри; якщо мало — добираємо хітами
     products = home.get("products") or []
     try:
