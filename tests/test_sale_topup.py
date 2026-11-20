@@ -35,3 +35,9 @@ def test_balance_topup_sale():
         sl.refund(db, s2, "тест"); db.refresh(p)
         sl.refund(db, s, "тест"); db.refresh(p)
         assert p.cb_balance == 0
+
+
+def test_sale_payload_keeps_topup_kind():
+    from app.main import _sale_payload
+    d = _sale_payload({"patient_id": "1", "items": [{"kind": "topup", "name": "x", "qty": 1, "price": 3500}], "payments": []})
+    assert d["items"][0]["kind"] == "topup"

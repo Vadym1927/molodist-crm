@@ -2352,7 +2352,7 @@ def _sale_payload(f: dict) -> dict:
     items = []
     for it in f.get("items") or []:
         try:
-            items.append({"kind": it.get("kind") if it.get("kind") in ("service", "product", "certificate", "subscription", "other") else "other",
+            items.append({"kind": it.get("kind") if it.get("kind") in ("service", "product", "certificate", "subscription", "topup", "other") else "other",
                           "ref_id": int(it["ref_id"]) if str(it.get("ref_id") or "").isdigit() else None,
                           "name": str(it.get("name") or "")[:300], "category": str(it.get("category") or ""),
                           "qty": max(0.001, float(it.get("qty") or 1)), "price": max(0.0, float(it.get("price") or 0)),
