@@ -53,3 +53,13 @@ def test_ig_assets_refresh_picks_reel_and_cases(tmp_path, monkeypatch):
         assert r["reel"]["file"] == "akne-reel-1.mp4" and len(r["cases"]) == 2
         a = sia.assets(db, "akne", "")
         assert a["reel"]["src"] == "/ig/akne-reel-1.mp4" and len(a["ig_cases"]) == 2
+
+
+def test_ig_asset_served(tmp_path, monkeypatch):
+    from app.config import settings
+    from app.services import site_ig_assets as sia
+    monkeypatch.setattr(settings, "files_dir", str(tmp_path))
+    (sia.folder() / "akne-ig-1-1.jpg").write_bytes(b"\xff\xd8jpg")
+    with TestClient(app) as cl:
+        r = cl.get("/_site/ig/akne-ig-1-1.jpg")
+        assert r.status_code == 200 and r.headers["content-type"] == "image/jpeg"

@@ -9164,6 +9164,16 @@ def site_og(slug: str):
     return FileResponse(f, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
 
 
+@app.get("/_site/ig/{name}")
+def site_ig_asset(name: str):
+    """Рілс і фото з Instagram для сторінок болей (зберігаються на сервері)."""
+    from .services import site_ig_assets as sia
+    f = sia.folder() / name
+    if not sia.NAME_RE.match(name) or not f.is_file():
+        raise HTTPException(404)
+    return FileResponse(f, media_type="video/mp4" if name.endswith(".mp4") else "image/jpeg", headers={"Cache-Control": "public, max-age=604800"})
+
+
 @app.get("/_site/insta/{name}")
 def site_insta(name: str):
     """Фото зі стрічки Instagram для головної сайту (ті самі файли, що й у магазині)."""
@@ -9221,16 +9231,6 @@ def site_tilda_asset(folder: str, path: str):
             return Response(ts.localize(txt), media_type="text/css" if f.suffix == ".css" else "application/javascript",
                             headers={"Cache-Control": "public, max-age=604800"})
     return FileResponse(f, headers={"Cache-Control": "public, max-age=604800"})
-
-
-@app.get("/_site/ig/{name}")
-def site_ig_asset(name: str):
-    """Рілс і фото з Instagram для сторінок болей (зберігаються на сервері)."""
-    from .services import site_ig_assets as sia
-    f = sia.folder() / name
-    if not sia.NAME_RE.match(name) or not f.is_file():
-        raise HTTPException(404)
-    return FileResponse(f, media_type="video/mp4" if name.endswith(".mp4") else "image/jpeg", headers={"Cache-Control": "public, max-age=604800"})
 
 
 @app.post("/settings/site/ig-assets")
