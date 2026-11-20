@@ -41,3 +41,17 @@ def test_sale_payload_keeps_topup_kind():
     from app.main import _sale_payload
     d = _sale_payload({"patient_id": "1", "items": [{"kind": "topup", "name": "x", "qty": 1, "price": 3500}], "payments": []})
     assert d["items"][0]["kind"] == "topup"
+
+
+def test_convert_other_to_topup():
+    with SessionLocal() as db:
+        p = Patient(full_name="Авансенко Ольга", phone="+380501110078", cb_balance=3500)
+        db.add(p); db.commit()
+        s = sl.create(db, {"patient_id": p.id, "items": [{"kind": "other", "name": "Поповнення балансу", "qty": 1, "price": 3500}],
+                           "payments": [{"method": "Готівка", "amount": 3500}]})
+        assert any(c.id == f"Ч-{s.id}" for c in fo.crm_checks(db, date.today(), date.today(), revenue=True))
+        sl.to_topup(db, s, credit=False); db.refresh(p)
+        assert p.cb_balance == 3500 and s.items[0].kind == "topup" and not s.bonus_accrued
+        assert not any(c.id == f"Ч-{s.id}" for c in fo.crm_checks(db, date.today(), date.today(), revenue=True))
+        with pytest.raises(sl.SaleError):
+            sl.to_topup(db, s, credit=True)

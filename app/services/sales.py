@@ -277,6 +277,33 @@ def create(db: Session, data: dict, user_id: int | None = None) -> Sale:
     return sale
 
 
+def to_topup(db: Session, sale: Sale, credit: bool, user_id: int | None = None) -> float:
+    """Виправлення: чек, проведений як «інше», насправді був поповненням балансу → аванс, не виручка.
+    credit=False — гроші на рахунок пацієнта вже внесено вручну (не подвоювати). Нараховані за чек бонуси знімаються."""
+    from .gift_types import FISCAL_DEFAULT as _fd
+    if sale.status != "paid" or not sale.patient:
+        raise SaleError("Перевести в аванс можна лише оплачений чек із пацієнтом")
+    if any(i.kind not in ("other", "topup") for i in sale.items) or (sale.fiscal or {}).get("topup_done"):
+        raise SaleError("Чек містить послуги / товари або вже є поповненням")
+    if any(p.method in NON_MONEY for p in sale.payments):
+        raise SaleError("Чек оплачено не грошима")
+    for i in sale.items:
+        i.kind, i.name, i.category = "topup", _fd, "Поповнення балансу"
+    amt = topup_sum(sale)
+    if credit:
+        sale.patient.cb_balance = round((sale.patient.cb_balance or 0) + amt, 2)
+    if (sale.bonus_accrued or 0) > 0:
+        try:
+            ly.add(db, sale.patient.id, -sale.bonus_accrued, "manual", f"чек №{sale.id} — поповнення балансу, бонуси не нараховуються",
+                   f"sale:{sale.id}:fix", user_id)
+        except ValueError:
+            pass
+        sale.bonus_accrued = 0
+    sale.fiscal = {**(sale.fiscal or {}), "topup_done": True}
+    db.commit()
+    return amt
+
+
 def topup_sum(sale: Sale) -> float:
     return round(sum(float(i.total or 0) for i in sale.items if i.kind == "topup"), 2)
 

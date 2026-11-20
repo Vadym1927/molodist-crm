@@ -2726,6 +2726,20 @@ def _safe_back(back: str, default: str) -> str:
     return back if back.startswith("/") and not back.startswith("//") else default
 
 
+@app.post("/sales/{sid:int}/to-topup")
+def sale_to_topup(sid: int, credit: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Виправлення: чек «інше» → «Поповнення балансу» (аванс). credit=1 — зарахувати суму на рахунок пацієнта."""
+    from .services import sales as sl
+    from .models import Sale
+    s_ = db.get(Sale, sid) or (_ for _ in ()).throw(HTTPException(404))
+    try:
+        amt = sl.to_topup(db, s_, credit == "1", user.id)
+    except sl.SaleError as e:
+        return RedirectResponse(_with_msg(f"/sales/{sid}", str(e), True), 303)
+    audit(db, "sale.to_topup", "sale", sid, user=user, total=amt, credit=credit == "1")
+    return RedirectResponse(_with_msg(f"/sales/{sid}", f"Чек Ч-{sid} переведено в «Поповнення балансу» (аванс)"), 303)
+
+
 @app.post("/sales/{sid:int}/cancel")
 def sale_cancel(sid: int, reason: str = Form(""), back: str = Form(""), user: User = Depends(require("sales")),
                       db: Session = Depends(db_dep)):
