@@ -152,7 +152,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
   <section class="h-hero a l-hero"><div class="wrap h-hero-in">
     <div class="tx"><p class="eyebrow">{{ lp.hero.eyebrow }}</p><h1>{{ lp.hero.h1 }}</h1><h2 class="h-tag">{{ lp.hero.h2 }}</h2><p class="lead-tx">{{ lp.hero.lead }}</p>
       <p class="h-btns"><a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp">{{ lp.hero.cta }}</a><a class="h-ghost" href="{{ lp.hero.cta2_href or '#yak-likuiemo' }}">{{ lp.hero.cta2 }} {{ arrow() }}</a></p>
-      {% if main_price %}<p class="muted small">{{ lp.hero.price_label or 'Консультація BEAUTY PLAN Anti Acne' }} — {{ money(main_price) }}</p>{% endif %}</div>
+      {% if main_price and not lp.hero.no_price %}<p class="muted small">{{ lp.hero.price_label or 'Консультація BEAUTY PLAN Anti Acne' }} — {{ money(main_price) }}</p>{% endif %}</div>
     <div class="im"><img src="{{ hero_img or st(lp.hero.img) }}" alt="{{ lp.hero.img_alt }}" fetchpriority="high" width="600" height="750" class="l-himg">
       {% if rev %}<a class="h-rate" href="#vidhuky"><b>{{ '%.1f'|format(rev.rating) }}</b><span>★★★★★<small>{{ rev.count }} відгуків у Google</small></span></a>{% endif %}</div>
   </div><p class="h-word" aria-hidden="true">MOLODIST</p></section>
@@ -353,8 +353,8 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
     <div><p class="eyebrow">BEAUTY PLAN</p><p class="h-mh">Консультація лікаря й письмовий план</p>
     <p class="sm">Діагностика шкіри на OBSERV 520x, план процедур за пріоритетами з цінами й схема домашнього догляду. До 2 годин{% if plan_price %} · <b>{{ money(plan_price) }}</b>{% endif %}.</p></div></div>
   {% if lp %}<div class="h-mlp" data-mode="lp" hidden>{% for d in lp_doc[:1] %}{% if d.photo and lp_doc|length == 1 %}<img src="{{ d.photo }}" alt="{{ d.name }}" width="72" height="72">{% endif %}{% endfor %}
-    <div><p class="eyebrow">{{ lp.consult.eyebrow }} · {{ (lp_doc[0].name if lp_doc and lp_doc|length == 1 else 'лікар MOLODIST') }}</p><p class="h-mh">{{ lp.consult.title }}</p>
-    <p class="sm">{{ lp.consult.modal or 'Огляд лікаря, діагностика шкіри на OBSERV 520x і письмовий план лікування' }}{% if main_price %} · <b>{{ money(main_price) }}</b>{% endif %}</p></div></div>{% endif %}
+    {% if lp.modal %}<div><p class="eyebrow">{{ lp.modal.eyebrow }}</p><p class="h-mh">{{ lp.modal.title }}</p><p class="sm">{{ lp.modal.text }}</p>{% else %}<div><p class="eyebrow">{{ lp.consult.eyebrow }} · {{ (lp_doc[0].name if lp_doc and lp_doc|length == 1 else 'лікар MOLODIST') }}</p><p class="h-mh">{{ lp.consult.title }}</p>
+    <p class="sm">{{ lp.consult.modal or 'Огляд лікаря, діагностика шкіри на OBSERV 520x і письмовий план лікування' }}{% if main_price %} · <b>{{ money(main_price) }}</b>{% endif %}</p>{% endif %}</div></div>{% endif %}
   <div class="h-mstd" data-mode="std"><p class="h-mh">Залиште заявку — підберемо лікаря й час</p><p class="sm">Адміністратор звʼяжеться з вами тим способом, який ви оберете. {{ c.hours }}.</p></div>
   {{ form('modal', 'Надіслати заявку') }}
 </div></div>
