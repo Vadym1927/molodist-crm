@@ -75,6 +75,12 @@ def quote(db: Session, items: list[dict], patient: Patient | None, rule_ids: lis
         lines = [round(l + md * (x["price"] * x["qty"] - l) / base, 2) for l, x in zip(lines, li)]
     disc = round(sum(lines), 2)
     total = round(sub - disc, 2)
+    rounded = False
+    kop = round(total - int(total + 1e-9), 2)
+    if 0 < kop < 1 and total >= 1 and li and disc > 0:   # копійки від знижки — заокруглюємо до гривні на користь пацієнта (у знижку найбільшого рядка)
+        i = max(range(len(li)), key=lambda k: li[k]["price"] * li[k]["qty"] - lines[k])
+        lines[i] = round(lines[i] + kop, 2)
+        disc, total, rounded = round(sum(lines), 2), round(sub - round(sum(lines), 2), 2), True
     max_b = ly.max_bonus_pay(db, total, patient.id) if patient else 0.0
     bp = round(min(max(bonus_pay or 0, 0), max_b), 2)
     nets = [{"type": x["type"], "price": x["price"], "qty": x["qty"], "net": round(x["price"] * x["qty"] - l, 2)} for x, l in zip(li, lines)]
@@ -82,7 +88,7 @@ def quote(db: Session, items: list[dict], patient: Patient | None, rule_ids: lis
     s = ly.settings(db)
     if patient and s.get("enabled") and total + TOL >= float(s.get("min_check") or 0) and not any(x["type"] == "topup" for x in li):
         accr = ly.bonus_accrual(db, nets, bp)
-    return {"applicable": d.get("applicable", {}), "lines": lines, "subtotal": sub, "discount": disc, "total": total, "rules": d["rules"] + (["Ручна знижка"] if md > 0 else []),
+    return {"applicable": d.get("applicable", {}), "lines": lines, "subtotal": sub, "discount": disc, "total": total, "rules": d["rules"] + (["Ручна знижка"] if md > 0 else []) + (["Заокруглення до гривні"] if rounded else []),
             "bonus_max": max_b, "bonus_pay": bp, "bonus_accrual": accr, "to_pay": round(total - bp, 2),
             "bonus_balance": ly.balance(db, patient.id) if patient else 0.0}
 
