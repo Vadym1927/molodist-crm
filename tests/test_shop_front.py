@@ -528,7 +528,8 @@ def test_shop_reviews_carts_analytics(monkeypatch):
         assert "Чудовий крем" in prod and "Дякуємо!" in prod and "aggregateRating" in prod
         # done page — подія purchase лише для свіжого замовлення
         d = c.get(f"/_shop/checkout/done/?n={num}").text
-        assert "'purchase'" in d and "Review Cream" in d
+        assert "'purchase'" in d and "Review Cream" in d and "sessionStorage.getItem" not in d
+        assert "mshopTrack('purchase'" not in c.get(f"/_shop/checkout/done/?n={num}").text      # повторне відкриття — без другої покупки
         # покинутий кошик
         with SessionLocal() as db:
             pt = Patient(full_name="Кошик Тест", phone="380501117766"); db.add(pt); db.flush()

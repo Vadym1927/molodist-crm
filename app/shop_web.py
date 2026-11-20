@@ -639,7 +639,13 @@ def register(app, templates, version: str):
         cx.update(title="Дякуємо за замовлення — MOLODIST", desc="", noindex_page=True, number=re.sub(r"[^\w-]", "", n)[:20])
         cx.update(parts=bool(request.query_params.get("parts")))
         o = db.scalar(select(SiteOrder).where(SiteOrder.number == cx["number"], SiteOrder.source == "crm")) if cx["number"] else None
-        if o and o.created_at and (datetime.now() - o.created_at).total_seconds() < 86400:
+        if o and o.created_at and (datetime.now() - o.created_at).total_seconds() < 86400 and not (o.raw or {}).get("ga_done"):
+            # подія purchase (GA4 / Google Ads / Meta) — один раз на замовлення: позначка на сервері, а не в sessionStorage вкладки
+            # (після оплати в застосунку monobank покупець часто повертається в нову вкладку — тоді подія губилась)
+            _raw = dict(o.raw or {})
+            _raw["ga_done"] = datetime.now().isoformat(timespec="seconds")
+            o.raw = _raw
+            db.commit()
             cx["ga_purchase"] = {"transaction_id": o.number, "currency": "UAH", "value": float(o.total or 0), "shipping": float(o.delivery_price or 0),
                                  "items": [{"item_id": str(i.get("product_id") or i.get("sku") or ""), "item_name": i.get("name") or "",
                                             "price": float(i.get("price") or 0), "quantity": int(i.get("qty") or 1)} for i in o.items or []]}

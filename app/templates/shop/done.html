@@ -5,5 +5,5 @@
   <p>Ми вже отримали його. Адміністратор звʼяжеться з вами, щоб підтвердити деталі й відправку. Якщо ви обрали онлайн-оплату й не завершили її — напишіть нам, надішлемо посилання ще раз.</p>
   <p><a class="btn" href="{{ base }}/shop/">Повернутися до каталогу</a></p></div></section>{% endblock %}
 {% block scripts %}<script>try{localStorage.removeItem('mshop_cart')}catch(e){}</script>
-{% if ga_purchase %}<script>(function(){var p={{ ga_purchase|tojson }};try{var k='mshop_ga_'+p.transaction_id;if(localStorage.getItem(k))return;if(sessionStorage.getItem('mshop_pur')!==p.transaction_id)return;localStorage.setItem(k,'1');sessionStorage.removeItem('mshop_pur')}catch(e){return}
+{% if ga_purchase %}<script>(function(){var p={{ ga_purchase|tojson }};try{var k='mshop_ga_'+p.transaction_id;if(localStorage.getItem(k))return;localStorage.setItem(k,'1');sessionStorage.removeItem('mshop_pur')}catch(e){}
 mshopTrack('purchase',p);})();</script>{% endif %}{% endblock %}
