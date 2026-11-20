@@ -577,18 +577,21 @@ def admin_rows(db: Session, q: str = "", cat: str = "", flt: str = "") -> list[d
     files = defaultdict(list)
     for f in db.scalars(select(ProductFile).where(ProductFile.kind == "photo", ProductFile.site.is_(True)).order_by(ProductFile.sort, ProductFile.id)):
         files[f.product_id].append(f.id)
+    live_cat = catalog(db)["by_slug"]                   # наявність як на сайті й у фідах (залишок вітрини), а не старий прапорець імпорту
     for p in db.scalars(select(Product).where(Product.site_info.is_not(None)).order_by(Product.brand, Product.name)):
         si = p.site_info or {}
         if not si.get("slug"):
             continue
         sale = si.get("sale") or {}
+        ci = live_cat.get(si["slug"])
         live = bool(sale.get("pct")) and (not sale.get("until") or str(sale["until"]) >= today)
         base = _price(p)
         r = {"p": p, "slug": si["slug"], "name": si.get("title") or p.name, "brand": si.get("brand_name") or p.brand or "", "base": base,
              "price": round(base * (1 - float(sale["pct"]) / 100)) if live else base, "sale": sale if sale.get("pct") else None, "live": live,
              "on": p.site_on is not False and p.active is not False, "cats": in_cats.get(si["slug"], []), "img": (files.get(p.id) or [None])[0],
              "sticker": si.get("sticker") or "",
-             "stock": str(si.get("presence", 1)).lower() not in ("0", "false", "not_available")}
+             "stock": ci["stock"] if ci else str(si.get("presence", 1)).lower() not in ("0", "false", "not_available"),
+             "left": next((v["left"] for v in ci["variants"] if v["id"] == p.id), None) if ci else None, "wait": bool(ci and ci.get("wait"))}
         if q and q.lower() not in f"{r['name']} {r['brand']} {p.sku or ''}".lower():
             continue
         if cat and not any(c["path"] == cat for c in r["cats"]):

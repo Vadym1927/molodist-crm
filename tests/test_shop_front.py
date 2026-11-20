@@ -606,6 +606,9 @@ def test_shop_promo_feeds_kpi_integrations(monkeypatch):
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-pf"})
         assert "WELCOME10" in c.get("/shop-promos").text
         assert "Канали" in c.get("/shop-kpi").text
+        for _p in ("today", "yesterday", "7", "90"):
+            assert c.get(f"/shop-kpi?per={_p}").status_code == 200
+        assert "Сьогодні" in c.get("/shop-kpi?per=today").text
         r = c.post("/settings/shop/integrations", data={"gtm_id": "GTM-ABC123", "ga4_id": "bad", "fb_pixel": "123456789012", "hotline_id": "12345",
                                                          "feed_google": "1", "feed_hotline": "1", "llms_on": "1", "cookie_on": "1", "tg_order": "1"}, follow_redirects=False)
         assert r.status_code == 303

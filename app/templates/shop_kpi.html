@@ -9,7 +9,7 @@
 .ads li{margin:6px 0}.code{font-family:monospace;background:#F7F4F0;padding:2px 6px;border-radius:6px;word-break:break-all}</style>
 <h1 style="margin:0 0 4px">Центр керування магазином</h1><div class="muted small" style="margin-bottom:12px">KPI, джерела продажів і запуск реклами на товари</div>
 {% include "_shop_tabs.html" %}
-<form class="sc-f">{% for k2, n2 in (('7','7 днів'),('30','30 днів'),('90','90 днів'),('month','Цей місяць'),('year','Цей рік')) %}<a class="chip {{ 'on' if per == k2 }}" href="?per={{ k2 }}">{{ n2 }}</a>{% endfor %}
+<form class="sc-f">{% for k2, n2 in (('today','Сьогодні'),('yesterday','Вчора'),('7','7 днів'),('30','30 днів'),('90','90 днів'),('month','Цей місяць'),('year','Цей рік')) %}<a class="chip {{ 'on' if per == k2 }}" href="?per={{ k2 }}">{{ n2 }}</a>{% endfor %}
   <input type="date" name="d1" value="{{ d1 }}"><span class="muted">—</span><input type="date" name="d2" value="{{ d2 }}"><button class="btn ghost">Показати</button></form>
 {% set k = r.k %}
 <div class="sc-k"><div><span>Виручка</span><b>{{ k.revenue|uah }}</b>{% if k.prev_revenue %}<small>{{ '%+d'|format(((k.revenue - k.prev_revenue) / k.prev_revenue * 100)|round|int) }}% до попереднього періоду</small>{% endif %}</div>

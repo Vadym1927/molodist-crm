@@ -27,5 +27,5 @@
     <td style="text-align:right">{{ r.base|uah }}</td>
     <td class="small">{% if r.sale %}−{{ '%g'|format(r.sale.pct) }}%{% if r.sale.until %} до {{ r.sale.until[8:10] }}.{{ r.sale.until[5:7] }}{% endif %}{% if not r.live %} <span class="muted">(завершилась)</span>{% endif %}{% endif %}</td>
     <td style="text-align:right"><b>{{ r.price|uah }}</b></td>
-    <td class="small">{% if r.on %}<span class="pill ok">на сайті</span>{% else %}<span class="pill warn">приховано</span>{% endif %}{% if not r.stock %} <span class="muted">немає в наявності</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div></form>
+    <td class="small">{% if r.on %}<span class="pill ok">на сайті</span>{% else %}<span class="pill warn">приховано</span>{% endif %}{% if not r.stock %} <span class="muted">немає в наявності</span>{% elif r.wait %} <span class="muted">під замовлення</span>{% elif r.left is not none %} <span class="muted">{{ r.left }} шт</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div></form>
 {% endblock %}

@@ -10772,10 +10772,10 @@ def shop_kpi_page(request: Request, per: str = "30", d1: str = "", d2: str = "",
         a, b = _day(d1) or today, _day(d2) or today
         per = ""
     else:
-        per = per if per in ("7", "30", "90", "month", "year") else "30"
-        a = {"7": today - timedelta(days=6), "30": today - timedelta(days=29), "90": today - timedelta(days=89), "month": today.replace(day=1),
-             "year": today.replace(month=1, day=1)}[per]
-        b = today
+        per = per if per in ("today", "yesterday", "7", "30", "90", "month", "year") else "30"
+        a = {"today": today, "yesterday": today - timedelta(days=1), "7": today - timedelta(days=6), "30": today - timedelta(days=29),
+             "90": today - timedelta(days=89), "month": today.replace(day=1), "year": today.replace(month=1, day=1)}[per]
+        b = today - timedelta(days=1) if per == "yesterday" else today
     c_ = sf.cfg(db)
     root = c_["canonical"].rstrip("/")
     return render(request, "shop_kpi.html", nav="shop", shop_tab="kpi", shop_cnt=_shop_cnt(db), r=sk.report(db, a, b, sf.catalog(db)), per=per,
