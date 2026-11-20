@@ -13,15 +13,16 @@ from sqlalchemy.orm import Session
 from ..models import Appeal, AppealNote, Patient, SyncState
 
 KEY = "appeal_dirs"
-STATUS_TYPES = {"new": "Новий", "work": "В роботі", "success": "Успіх (записаний)", "fail": "Відмова",
+STATUS_TYPES = {"new": "Новий", "work": "В роботі", "success": "Успіх (записаний / продаж)", "fail": "Відмова",
                 "other": "Не цільове (не пацієнт)"}
 IGNORE_KEY = "appeal_ignore_phones"          # {phone_key: {reason, at, by, name}} — дзвінки з цих номерів не створюють звернень
 OTHER_DEFAULT = {"name": "Не цільове", "type": "other", "color": "#8a8496"}
+SALE_DEFAULT = {"name": "Продаж", "type": "success", "color": "#2E9E6B"}     # успіх без запису: сертифікат, косметика, абонемент
 DEFAULT = {
     "sources": ["Instagram", "Facebook", "Google", "Сайт", "Telegram-бот", "Viber", "Дзвінок", "Рекомендація", "Повторний пацієнт", "Інше"],
     "marks": ["Гаряча", "Тепла", "Холодна", "VIP", "Акція", "Повтор"],
     "statuses": [{"name": "Новий", "type": "new", "color": "#3B82C4"}, {"name": "В роботі", "type": "work", "color": "#E9A93A"},
-                 {"name": "Передзвонити", "type": "work", "color": "#8e7cc3"}, {"name": "Записаний", "type": "success", "color": "#4CAF50"},
+                 {"name": "Передзвонити", "type": "work", "color": "#8e7cc3"}, {"name": "Записаний", "type": "success", "color": "#4CAF50"}, dict(SALE_DEFAULT),
                  {"name": "Відмова", "type": "fail", "color": "#D9534F"}, dict(OTHER_DEFAULT)],
     "deny_reasons": ["Дорого", "Неактуально", "Не додзвонились", "Обрали іншу клініку", "Далеко", "Немає зручного часу", "Інше"],
     "causes": ["Консультація", "Запис на процедуру", "Ціна", "Акція", "Сертифікат", "Повторний візит", "Скарга", "Інше"],
@@ -42,6 +43,9 @@ def dirs(db: Session) -> dict:
             pass
     if not any(s.get("type") == "other" for s in d["statuses"]):     # старі налаштування — додаємо «Не цільове»
         d["statuses"].append(dict(OTHER_DEFAULT))
+    if sum(1 for x in d["statuses"] if x.get("type") == "success") < 2:  # старі налаштування — додаємо «Продаж» (успіх без запису)
+        i = max((k for k, x in enumerate(d["statuses"]) if x.get("type") == "success"), default=len(d["statuses"]) - 1)
+        d["statuses"].insert(i + 1, dict(SALE_DEFAULT))
     d.setdefault("other_reasons", list(DEFAULT["other_reasons"]))
     return d
 
