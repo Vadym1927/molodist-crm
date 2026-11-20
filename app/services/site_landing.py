@@ -173,7 +173,7 @@ def data(db: Session, lp: dict, home: dict, base: str) -> dict:
     if rev and rev.get("reviews"):
         kw = re.compile(lp["reviews_kw"] + "|" + lp["reviews_doc"], re.I)
         rel = [r for r in rev["reviews"] if kw.search(r.get("text") or "")]
-        rev = {**rev, "reviews": (rel + [r for r in rev["reviews"] if r not in rel])[:8]}
+        rev = {**rev, "reviews": (rel + [r for r in rev["reviews"] if r not in rel])[:8], "n_rel": len(rel)}
     # + відгуки пацієнтів з опитування після візиту (архів CRM): до Софії Сирової або про акне — анонімно
     try:
         from sqlalchemy import select, or_
@@ -194,9 +194,11 @@ def data(db: Session, lp: dict, home: dict, base: str) -> dict:
                  "text": " ".join((x.text or "").split())} for x in db.scalars(q2) if len((x.text or "").strip()) >= 40]
     except Exception:  # noqa: BLE001
         own = []
+    own = [x for x in own if not re.search(r"[ыэъё]", x["text"], re.I)]      # лише українською
     if own:
         g = (rev or {}).get("reviews") or []
-        rev = {**(rev or {"rating": 5.0, "count": 0, "url": ""}), "reviews": (g[:8] + own)[:9]}
+        k = (rev or {}).get("n_rel", 0)
+        rev = {**(rev or {"rating": 5.0, "count": 0, "url": ""}), "reviews": (g[:k] + own[:4] + g[k:])[:9]}
     # товари: засоби для проблемної шкіри; якщо мало — добираємо хітами
     products = home.get("products") or []
     try:
