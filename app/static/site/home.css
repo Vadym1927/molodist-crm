@@ -527,3 +527,43 @@ h2.lbl{font-weight:600}
   .h-dcard .h-ph{border-radius:16px}}
 @media (max-width:860px){[data-swipe]{scroll-padding-left:16px}}
 @media (max-width:560px){.h-dcard .h-ghost{white-space:nowrap;letter-spacing:.03em;font-size:10px}}
+
+/* ===== сторінки болей (акне) ===== */
+.l-res{position:absolute;right:-24px;top:36px;display:flex;align-items:center;gap:12px;background:#fff;border-radius:18px;padding:10px 16px 10px 10px;text-decoration:none;color:var(--ink);box-shadow:0 18px 40px -22px rgba(42,36,48,.5)}
+.l-res .ims{display:grid;grid-template-columns:1fr 1fr;gap:2px;width:96px;height:92px;border-radius:12px;overflow:hidden;position:relative}
+.l-res .ims img{width:100%;height:100%;object-fit:cover}
+.l-res .ims em{display:none}
+.l-res .t b{display:block;font:600 13px/1.2 var(--hf);text-transform:uppercase;letter-spacing:.04em}.l-res .t small{color:var(--mut);font-size:13px}
+.l-pain-in{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:start}
+.l-plist{list-style:none;padding:0;margin:22px 0 0;display:grid;gap:12px}
+.l-plist li{display:flex;gap:14px;align-items:flex-start;background:var(--w);border-radius:16px;padding:16px 18px;font-size:16px;line-height:1.45}
+.l-plist svg{flex:none;width:22px;height:22px;color:var(--act);margin-top:1px}
+.l-why{background:var(--plum);color:#fff;border-radius:28px;padding:36px 34px}
+.l-why h3{font-size:22px;text-transform:uppercase;letter-spacing:.03em;margin:0 0 14px;color:#fff}.l-why p{color:#E4DEEF;font-size:16px;line-height:1.6;margin:0 0 24px}
+.l-why .btn{background:#fff;color:var(--plum)}.l-why .btn:hover{background:var(--lav)}
+.l-cases{background:var(--w)}
+.l-cgrid{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.l-case{margin:0;background:var(--cream);border-radius:24px;overflow:hidden}
+.l-case .h-ba{aspect-ratio:1/1}.l-case .h-ba img{object-position:center 40%}
+.l-case figcaption{padding:16px 20px 20px;display:grid;gap:4px}.l-case b{font:600 16px/1.25 var(--hf);text-transform:uppercase;letter-spacing:.03em}.l-case small{color:var(--mut);font-size:14px}
+.l-flow{grid-template-columns:repeat(5,1fr)}.l-flow:before{right:10%}
+.l-cons{background:var(--w)}
+.l-fmt{background:var(--cream);border-radius:28px;padding:30px 30px 24px}
+.l-fmt .lbl{font:600 12px/1 var(--hf);letter-spacing:.16em;text-transform:uppercase;color:var(--act);margin:0 0 10px}
+.l-fmt .row{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;padding:16px 0;border-bottom:1px solid var(--greige)}
+.l-fmt .row:first-of-type .pr{color:var(--plum)}
+.l-fmt .row b{display:block;font-size:15.5px}.l-fmt .row small{color:var(--mut);font-size:13.5px;line-height:1.4;display:block;margin-top:3px}
+.l-fmt .pr{font:600 20px/1.2 var(--hf);white-space:nowrap}.l-fmt .note{margin:14px 0 0;font-size:13px;color:var(--mut)}
+.l-pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.l-pcol{background:var(--w);border-radius:24px;padding:24px 24px 20px}
+.l-pcol h3{font-size:17px;text-transform:uppercase;letter-spacing:.04em;margin:0 0 6px}.l-pcol>p.muted{font-size:14px;margin:0 0 12px}
+.l-pcol ul{list-style:none;padding:0;margin:0}.l-pcol li{display:flex;justify-content:space-between;gap:14px;padding:10px 0;border-top:1px solid var(--greige);font-size:14.5px}
+.l-pcol li b{white-space:nowrap;font-weight:600}
+.l-doc-in{display:grid;grid-template-columns:minmax(260px,380px) 1fr;gap:56px;align-items:center}
+.l-doc .role{color:var(--act);font-weight:600;margin:0 0 14px}.l-doc h2{margin:6px 0 8px}
+.h-mbp img.tall{aspect-ratio:16/9;object-position:center 30%}
+@media (max-width:980px){.l-flow{grid-template-columns:1fr 1fr;gap:30px 0}.l-flow:before{display:none}.l-pgrid{grid-template-columns:1fr}}
+@media (max-width:860px){.l-pain-in,.l-doc-in{grid-template-columns:1fr;gap:28px}.l-res{right:10px;top:10px;padding:8px 12px 8px 8px}.l-res .ims{width:70px;height:66px}}
+@media (max-width:560px){.l-cgrid{grid-template-columns:1fr}.l-why{padding:26px 22px}.l-plist li{font-size:15px;padding:13px 14px}.l-flow{grid-template-columns:1fr}
+  .l-doc .h-dcard{max-width:300px}.l-fmt{padding:22px 18px 18px}.l-fmt .pr{font-size:17px}}
+.l-res{top:auto;bottom:36px;right:-24px}@media (max-width:860px){.l-res{top:auto;bottom:12px;right:12px}}

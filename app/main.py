@@ -8783,6 +8783,28 @@ def site_home(request: Request, db: Session = Depends(db_dep)):
     return _site_resp("site/home.html", ctx)
 
 
+def _landing_resp(request: Request, db: Session, lp: dict):
+    """Сторінка болю (напр. акне): шаблон нової головної зі своїми секціями й даними."""
+    from pathlib import Path
+    from .services import site_home as sh, site_landing as sl
+    ctx = _site_ctx(request, db, lp["slug"])
+    _home_new_ctx(ctx, db, "a")
+    ctx.update(sl.data(db, lp, ctx, ctx["base"]))
+    ctx.update(lp=lp, vk=lp["key"], proto=False, menu=lp["menu"], facts=lp["facts"], shop={**sh.SHOP, **lp["shop"]},
+               v={**sh.VARIANTS["a"], "order": ["lhero", "facts", "pain", "cases", "process", "consult", "procs", "ldoctor", "reviews",
+                                                 "booking", "shop", "insta", "faq", "contacts"]},
+               title=lp["seo"]["title"], desc=lp["seo"]["desc"], faq_ld="")
+    abs_base = ctx["c"]["canonical"].rstrip("/") if not ctx["noindex"] else str(request.base_url).rstrip("/").replace("http://", "https://") + "/_site"
+    src = Path(__file__).resolve().parent / "static" / "site" / "home" / lp["hero"]["img"]
+    ctx.update(og_title=lp["seo"]["og_title"], og_desc=lp["seo"]["og_desc"],
+               og_img=f"{abs_base}/og/{lp['slug']}.jpg" if sp_og(lp["slug"], src) else "")
+    ctx["org_ld"] = sl.jsonld(lp, ctx["c"], ctx["canonical"], ctx["faq"], ctx["formats"])
+    r = _site_resp("site/proto_home.html", ctx)
+    if ctx["noindex"]:
+        r.headers["Cache-Control"] = "no-store"
+    return r
+
+
 def sp_og(slug: str, src=None):
     from .services import site_pages as sp
     return sp.og_image(slug, src)
@@ -8810,6 +8832,8 @@ def site_sitemap(request: Request, db: Session = Depends(db_dep)):
     from .services import online_booking as _ob
     from .services import tilda_site as _ts
     home = f"<url><loc>{b}/</loc><lastmod>{date.today().isoformat()}</lastmod><priority>1.0</priority></url>" if _ts.cfg(db).get("home") == "new" else ""
+    from .services import site_landing as _sl
+    home += "".join(f"<url><loc>{b}/{s_}</loc><lastmod>{date.today().isoformat()}</lastmod><priority>0.9</priority></url>" for s_ in _sl.LANDINGS)
     urls = home + "".join(f"<url><loc>{b}/{s_}</loc><lastmod>{date.today().isoformat()}</lastmod></url>"
                    for s_ in sp.ORDER + ([_ob.SLUG] if _ob.cfg(db).get("on") else []))
     return Response(f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>',
@@ -9095,9 +9119,13 @@ async def site_media_ext(request: Request, files: list[UploadFile] = File(...), 
 @app.get("/_site/og/{slug}.jpg")
 def site_og(slug: str):
     from .services import site_pages as sp, online_booking as _ob
+    from .services import site_landing as _sl
     if slug == "home":
         from .services import site_home as _sh
         f = sp.og_image(slug, _sh.og_src())
+    elif slug in _sl.LANDINGS:
+        from pathlib import Path as _P
+        f = sp.og_image(slug, _P(__file__).resolve().parent / "static" / "site" / "home" / _sl.LANDINGS[slug]["hero"]["img"])
     elif slug == _ob.SLUG:
         with SessionLocal() as _db:
             f = sp.og_image(slug, _ob.og_src(_ob.cfg(_db)))
@@ -9196,7 +9224,9 @@ async def settings_site_tilda(request: Request, user: User = Depends(require("us
 
 @app.get("/_site/{slug}", response_class=HTMLResponse)
 def site_page(request: Request, slug: str, db: Session = Depends(db_dep)):
-    from .services import site_pages as sp
+    from .services import site_pages as sp, site_landing as sl
+    if slug.strip("/").lower() in sl.LANDINGS:                # сторінки болей на дизайні нової головної
+        return _landing_resp(request, db, sl.LANDINGS[slug.strip("/").lower()])
     p = sp.PAGES.get(slug.strip("/").lower())
     if not p:
         from .services import tilda_site as ts

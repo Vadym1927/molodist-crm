@@ -50,6 +50,7 @@
     });
   });
   syncInterest();
+  if (d.body && d.body.getAttribute('data-topic')) setPick('topic', d.body.getAttribute('data-topic'));   // сторінка болю — тема вже обрана
   d.addEventListener('click', function (e) {                             // кнопки й картки з data-interest → тема у формі
     var a = e.target.closest ? e.target.closest('[data-interest]') : null; if (!a) return;
     var v = a.getAttribute('data-interest'), known = false;
@@ -101,7 +102,7 @@
     var a = e.target.closest ? e.target.closest('a[href="#zapys"]') : null;
     if (!a || !modal || modal.contains(a)) return;
     e.preventDefault(); setFab(false); setMenu(false); if (pop) pop.hidden = true;
-    setModal(true, a.getAttribute('data-interest') === 'Beauty Plan' ? 'bp' : 'std');
+    setModal(true, a.getAttribute('data-modal') || (a.getAttribute('data-interest') === 'Beauty Plan' ? 'bp' : 'std'));
   });
   if (modal) {
     modal.addEventListener('click', function (e) { if (e.target === modal || (e.target.closest && e.target.closest('[data-modal-close]'))) setModal(false); });
