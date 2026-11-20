@@ -8809,6 +8809,8 @@ def _landing_resp(request: Request, db: Session, lp: dict):
     ctx.update(sl.data(db, lp, ctx, ctx["base"]))
     from .services import site_ig_assets as _sia
     ctx.update(_sia.assets(db, lp["key"], ctx["base"]))
+    if not ctx.get("reel") and lp.get("reel"):                # рілс у файлах сайту, якщо з Instagram ще не забрали
+        ctx["reel"] = {"src": ctx["st"](lp["reel"]["file"]), "poster_src": ctx["st"](lp["reel"]["poster"]), "url": lp["reel"]["url"]}
     ctx.update(lp=lp, vk=lp["key"], proto=False, menu=lp["menu"], facts=lp["facts"], shop={**sh.SHOP, **lp["shop"]},
                v={**sh.VARIANTS["a"], "order": ["lhero", "facts", "pain", "reel", "cases", "process", "consult", "procs", "ldoctor", "reviews",
                                                  "booking", "shop", "insta", "faq", "contacts"]},
