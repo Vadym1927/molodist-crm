@@ -89,7 +89,7 @@ def register(app, templates, version: str):
 
     def _cert_url(db, site) -> str:
         from .services import online_booking as ob
-        return ((site.get("canonical") or "").rstrip("/") if ob.cfg(db).get("on") else "/_site") + f"/{ob.SLUG}/#sertyfikaty"
+        return ((site.get("canonical") or "").rstrip("/") if ob.cfg(db).get("on") else "/_site") + f"/{ob.SLUG}#sertyfikaty"
 
     def ctx(request: Request, db: Session, path: str = "/") -> dict:
         c = sf.cfg(db)

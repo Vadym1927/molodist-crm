@@ -8914,6 +8914,13 @@ def _ob_json(data: dict, status: int = 200) -> JSONResponse:
     return JSONResponse(data, status_code=status, headers={"Cache-Control": "no-store"})
 
 
+@app.get("/_site/zapys/", include_in_schema=False)
+def site_booking_slash(request: Request):
+    # старі посилання зі слешем (магазин «Сертифікати» тощо) → /zapys; відносний шлях працює і на домені, і в /_site
+    q = request.url.query
+    return RedirectResponse("../zapys" + (f"?{q}" if q else ""), 301)
+
+
 @app.get("/_site/zapys", response_class=HTMLResponse)
 def site_booking(request: Request, v: str = "", service: int = 0, doctor: int = 0, db: Session = Depends(db_dep)):
     from .services import online_booking as ob, site_pages as sp

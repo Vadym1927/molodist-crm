@@ -800,3 +800,15 @@ def test_subcategory_filter_panel():
         assert 'class="flt"' in h and "Підкатегорії" in h and 'class="on" aria-current="page">Усі' in h and "Флт креми" in h
         h2 = c.get("/_shop/shop/flt/kremy/").text                      # у підкатегорії — сусідні + активна поточна
         assert "Флт тоніки" in h2 and 'class="on" aria-current="page">Флт креми' in h2 and 'shop/flt/">Усі' in h2
+
+
+def test_cert_link_and_zapys_slash():
+    from app.services import shop_front as sf
+    with TestClient(app) as c:
+        with SessionLocal() as db:
+            k = sf.preview_key(db)
+        c.cookies.set("shop_prev", k)
+        h = c.get("/_shop/").text
+        assert "zapys#sertyfikaty" in h and "zapys/#sertyfikaty" not in h
+        r = c.get("/_site/zapys/?g=x", follow_redirects=False)
+        assert r.status_code == 301 and r.headers["location"] == "../zapys?g=x"
