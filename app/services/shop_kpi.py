@@ -39,6 +39,12 @@ def channel(src: str, med: str) -> str:
 
 
 SHOP_WORDS = ("store", "pmax", "shopping", "товар", "магазин")      # кампанії Google Ads, що рекламують магазин
+NOT_SHOP_WORDS = ("відвід", "карт", "visit", "maps", "клінік")      # кампанії клініки (напр. «PMax відвідування (карта)») — не магазин
+
+
+def is_shop_campaign(name: str) -> bool:
+    n = (name or "").lower()
+    return any(w in n for w in SHOP_WORDS) and not any(w in n for w in NOT_SHOP_WORDS)
 DEF_MARGIN = 35.0                                                   # % валової маржі, якщо в товару немає ціни закупівлі
 
 
@@ -56,7 +62,7 @@ def ads(db: Session, d1: date, d2: date, ok: list[SiteOrder]) -> dict:
     camps: dict = defaultdict(lambda: {"cost": 0.0, "clicks": 0.0, "impr": 0.0, "conv": 0.0, "value": 0.0})
     for st in db.scalars(select(AdsStat).where(AdsStat.source == "google", AdsStat.level == "campaign", AdsStat.day >= d1, AdsStat.day <= d2)):
         nm = st.name or st.key
-        if any(w in nm.lower() for w in SHOP_WORDS):
+        if is_shop_campaign(nm):
             c = camps[nm]
             c["cost"] += st.cost or 0
             c["clicks"] += st.clicks or 0
