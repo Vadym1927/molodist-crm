@@ -566,4 +566,4 @@ h2.lbl{font-weight:600}
 @media (max-width:860px){.l-pain-in,.l-doc-in{grid-template-columns:1fr;gap:28px}.l-res{right:10px;top:10px;padding:8px 12px 8px 8px}.l-res .ims{width:70px;height:66px}}
 @media (max-width:560px){.l-cgrid{grid-template-columns:1fr}.l-why{padding:26px 22px}.l-plist li{font-size:15px;padding:13px 14px}.l-flow{grid-template-columns:1fr}
   .l-doc .h-dcard{max-width:300px}.l-fmt{padding:22px 18px 18px}.l-fmt .pr{font-size:17px}}
-.l-res{top:auto;bottom:36px;right:-24px}@media (max-width:860px){.l-res{top:auto;bottom:12px;right:12px}}
+.l-res{top:36px;bottom:auto;right:-24px}@media (max-width:860px){.l-res{top:12px;bottom:auto;right:12px}}
