@@ -256,6 +256,15 @@ def apply_purchases(db: Session, rows: dict) -> None:
             r.cost_avg = round(a["sum"] / a["q"] * k, 2) if a["q"] else None
             last = a["last"]
             r.cost_last = round(last.unit_cost * k, 2) if last.unit_cost else None
+            ucs = [b.unit_cost for b in a["batches"] if b.unit_cost and b.unit_cost > 0]
+            if k > 1 and len(ucs) > 1 and max(ucs) / min(ucs) > 3:    # старі приходи бувають і за упаковку, і за одиницю обліку — вирівнюємо до ціни за упаковку
+                from .price_monitor import _norm
+                nm = _norm([b for b in a["batches"] if b.unit_cost and b.unit_cost > 0], k)
+                if nm:
+                    qs = sum((b.qty or 0) / (k if abs(v - b.unit_cost) < 0.005 else 1) for b, v in nm)   # к-сть упаковок
+                    r.cost_avg = round(sum(v * (b.qty or 0) / (k if abs(v - b.unit_cost) < 0.005 else 1) for b, v in nm) / qs, 2) if qs else r.cost_avg
+                    lv = [v for b, v in nm if b.id == last.id]
+                    r.cost_last = lv[0] if lv else nm[-1][1]
             r.last_bought, r.last_supplier = last.bought_on, last.supplier
             # FIFO: на складі лежать найсвіжіші партії — термін беремо лише з них
             if r.stock is None:
