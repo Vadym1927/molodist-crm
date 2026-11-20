@@ -21,6 +21,7 @@
       if (!box.textContent.trim()) box.textContent = 'Дякуємо! Ми зателефонуємо вам найближчим часом.';
       var ib = f.querySelector('.t-form__inputsbox'); if (ib) ib.style.display = 'none';
     } else { alert('Дякуємо! Ми зателефонуємо вам найближчим часом.'); }
+    try { if (window.MLDS_ev) window.MLDS_ev('lead', 'tilda'); } catch (e) {}
     window.dataLayer = window.dataLayer || []; window.dataLayer.push({ event: 'generate_lead', form: f.getAttribute('name') || f.id || 'tilda' });
   }
   function send(f) {

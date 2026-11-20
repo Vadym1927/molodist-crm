@@ -35,6 +35,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
   <a class="btn sm" href="{{ (base ~ '/zapys') if ob_on and slug != 'zapys' else '#zapys' }}">{{ 'Онлайн-запис' if ob_on and slug != 'zapys' else 'Записатися' }}</a>
 </div></header>
 <main>{% block main %}{% endblock %}</main>
+{% include "site/_selfcare.html" %}
 <footer class="ft" id="kontakty"><div class="wrap ft-in">
   <div><div class="logo light"><img class="wm" src="/static/site/brand/wordmark-white.svg" alt="MOLODIST" width="150" height="18"></div>
     <p class="muted">Медичний простір естетики та профілактики.<br>{{ c.license }}</p></div>
@@ -48,6 +49,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
 </nav>
 <script>window.MLDS={base:'{{ base }}',slug:'{{ slug }}',interest:'{{ interest }}'};</script>
 <script src="/static/site/site.js?v={{ ver }}" defer></script>
+<script src="/static/site/track.js?v={{ ver }}" defer></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

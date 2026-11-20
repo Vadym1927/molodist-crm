@@ -81,3 +81,28 @@ def test_site_events_report():
         p = next(x for x in rep["pages"] if x["page"] == "/likuvannya-akne")
         assert p["paid"] >= 1 and p["forms"] >= 1 and ("Результати", 1) in [(k, v) for k, v in p["exits"]] or p["exits"]
         assert "Сайт за" in ss.text(rep)
+
+
+def test_pigment_landing_redirects_and_gone():
+    """Сторінка «Пігментація й судини», 301 зі старих сторінок IPL, 410 для сторінок лікарів, які вже не працюють."""
+    with TestClient(app) as client:
+        r = client.get("/_site/likuvannya-pigmentatsii")
+        assert r.status_code == 200
+        assert "Лікування пігментації та судин у Києві" in r.text and "IPL-терапія: одна технологія" in r.text
+        assert "клінік" not in r.text.lower().split("<main")[1].split("</main>")[0]
+        assert "track.js" in r.text
+        for old in ("ipl-therapy", "fotoomolodzhennya-ipl", "lazerne-vydalennya-sudyn", "likuvannya-sudin"):
+            x = client.get(f"/_site/{old}", follow_redirects=False)
+            assert x.status_code == 301 and x.headers["location"].endswith("/likuvannya-pigmentatsii")
+        assert client.get("/_site/tatianabondarenko").status_code == 410
+        assert client.get("/_site/crop/nope.webp").status_code == 404
+        assert "likuvannya-pigmentatsii" in client.get("/_site/sitemap.xml").text
+
+
+def test_tilda_strip_gone_staff():
+    from app.services import tilda_site as ts
+    h = ('<ul><li class="t-menu__list_item"><a class="t-menu__link-item" href="/tatianabondarenko">ТЕТЯНА БОНДАРЕНКО</a></li>'
+         '<li><a href="/daryakolgan">ДАРʼЯ КОЛГАН</a></li><li><a href="https://molodist.com.ua/dmytrolevenchuk">ДМИТРО ЛЕВЕНЧУК</a></li></ul>'
+         '<a href="#x">Анастасія Лозинська</a>')
+    out = ts.strip_gone(h)
+    assert "БОНДАРЕНКО" not in out and "ЛЕВЕНЧУК" not in out and "Лозинська" not in out and "КОЛГАН" in out

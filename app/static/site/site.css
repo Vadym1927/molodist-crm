@@ -116,3 +116,8 @@ p{margin:0 0 1em}.muted{color:var(--mut)}.small{font-size:13px}.big{font-size:18
 .ico:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(0,0,0,.18)}.ico svg{width:46px;height:46px}
 .bar{grid-template-columns:1fr 1fr 1fr 2fr}.bar a{display:grid;place-items:center;padding:9px 4px}.bar a svg{width:30px;height:30px}
 .bar a.go{font-size:13px}
+
+/* попередження «Самолікування…» перед підвалом — на всю ширину сторінки */
+.slf{background:#fff;padding:36px 0 22px}.slf svg{display:block;width:100%}.slf .slf-pc{height:clamp(84px,9.5vw,150px)}.slf .slf-m{display:none;height:54vw}
+.slf text{font:500 120px Montserrat,Arial,sans-serif;fill:#2A2430;fill-opacity:.38}.slf-m text{font-size:185px}
+@media(max-width:760px){.slf{padding:26px 0 14px}.slf .slf-pc{display:none}.slf .slf-m{display:block}}

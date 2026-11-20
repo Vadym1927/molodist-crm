@@ -18,7 +18,8 @@ SECTIONS = {"lhero": "Перший екран", "hero": "Перший екран
             "yak-likuiemo": "Як лікуємо", "konsultatsiia": "Консультація", "tsiny": "Ціни", "likar": "Лікар", "likari": "Лікарі",
             "vidhuky": "Відгуки", "zapys": "Форма заявки", "shop": "Магазин", "insta": "Instagram", "zapytannia": "Запитання",
             "kontakty": "Контакти", "poslugy": "Послуги", "beauty-plan": "BEAUTY PLAN", "prostir": "Простір"}
-PAGES = {"/": "Головна", "/likuvannya-akne": "Акне"}
+PAGES = {"/": "Головна", "/likuvannya-akne": "Акне", "/likuvannya-pigmentatsii": "Пігментація й судини", "/zapys": "Онлайн-запис",
+         "/beautyplan": "BEAUTY PLAN", "/laserepilation": "Лазерна епіляція", "/price": "Прайс"}
 
 
 def _clean(s, n=120) -> str:
@@ -103,7 +104,7 @@ def text(r: dict) -> str:
     L = [f"📊 <b>Сайт за {r['day']}</b>", f"Відвідувань: <b>{r['sessions']}</b> · з реклами: <b>{r['paid']}</b>",
          "Джерела: " + ", ".join(f"{k} {v}" for k, v in r["sources"]),
          "Пристрої: " + ", ".join(f"{ {'phone': 'телефон', 'pc': 'ПК', 'tablet': 'планшет'}.get(k, k)} {v}" for k, v in r["devices"])]
-    for p in r["pages"][:4]:
+    for p in r["pages"][:8]:
         L += ["", f"<b>{p['name']}</b> ({p['page']}) — {p['sessions']} відв., реклама {p['paid']}",
               f"Час (медіана): {p['median_sec'] or 0} с · пішли до 10 с: {p['bounce_10s']} · прокрутка: {p['scroll'] or 0}%",
               f"Відкрили форму: {p['forms']} · банер: {p['pops']} · заявок: <b>{p['leads']}</b> ({p['conv']}%)"]

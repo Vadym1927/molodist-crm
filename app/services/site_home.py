@@ -78,7 +78,8 @@ CONCERNS = [
      "how": "BEAUTY PLAN Anti Acne: лікування, догляд, процедури", "ba": ["ba-acne-1.webp", "ba-acne-2.webp"], "interest": "Акне й постакне",
      "page": "likuvannya-akne"},
     {"t": "Пігментація й судини", "d": "Плями, почервоніння, нерівний тон", "slug": "",
-     "how": "IPL-терапія, пілінги, домашній догляд", "ba": ["ba-pigment-1.webp", "ba-pigment-2.webp"], "ba_v": True, "interest": "Пігментація й судини"},
+     "how": "IPL-терапія, пілінги, домашній догляд", "ba": ["ba-pigment-1.webp", "ba-pigment-2.webp"], "ba_v": True, "interest": "Пігментація й судини",
+     "crop": "pg2", "page": "likuvannya-pigmentatsii"},
     {"t": "Тьмяна, зневоднена шкіра", "d": "Сухість, втома, розширені пори", "slug": "",
      "how": "Очищення, доглядові процедури, біоревіталізація", "img": "c-skin.webp", "interest": "Якість шкіри"},
     {"t": "Небажане волосся", "d": "Подразнення й вросле волосся після гоління", "slug": "laserepilation",
@@ -155,7 +156,7 @@ FAQ = [
      "MOLODIST працює за ліцензією МОЗ України."),
     ("Які процедури ви робите?", "Ботулінотерапію, контурну пластику, біоревіталізацію й мезотерапію, лазерну епіляцію для жінок і чоловіків, IPL-терапію судин і пігментації, "
      "видалення родимок, папілом і бородавок, чистки, пілінги, доглядові процедури та масаж обличчя й тіла."),
-    ("Скільки коштують процедури?", "Ціни на сайті актуальні: вони оновлюються автоматично з прайсу MOLODIST. Вартість курсу лікар порахує на консультації, "
+    ("Скільки коштують процедури?", "Ціни на сайті актуальні. Вартість курсу лікар порахує на консультації, "
      "щоб ви бачили повну суму до початку."),
     ("Чи запропонують мені зайві процедури?", "Ні. Завдання лікаря — розставити пріоритети під ваш запит і бюджет. У плані окремо зазначено, без чого можна обійтися."),
     ("Чи боляче робити інʼєкційні процедури?", "Більшість процедур проходить комфортно: лікар використовує аплікаційну анестезію й тонкі голки. "
@@ -256,7 +257,12 @@ def data(db: Session, base: str, ver: str) -> dict:
     for d_ in team:                                 # квадратні портрети в картці 4:5 — обличчя на одній висоті
         low = (d_.get("name") or "").lower()
         d_["fx"] = "ch" if "чугунова" in low else ("sy" if "сирова" in low else "")
-    lps = [{"slug": "likuvannya-akne", "nav": "Лікування акне"}]          # сторінки болей (site_landing)
+    from . import site_crops as sc
+    for x in concerns:                              # фото «до / після» з картки архіву Tilda (якщо оригінал є на сервері)
+        if x.get("crop"):
+            src = [sc.url(f"{x['crop']}-{i}.webp", base) for i in (1, 2)]
+            x["ba_src"] = src if all(src) else None
+    lps = [{"slug": "likuvannya-akne", "nav": "Лікування акне"}, {"slug": "likuvannya-pigmentatsii", "nav": "Пігментація й судини"}]          # сторінки болей (site_landing)
     return {"lps": lps, "cats": cats, "team": team, "rev": rev, "dirs": pages, "plan_price": plan_price, "ob": c, "directions": directions, "concerns": concerns,
             "insta": insta, "insta_p": insta_p, "products": products, "shop_base": shop_base, "st": st,
             "legal": {"name": LEGAL_NAME, "code": (sp.cfg(db).get("legal_code") or sp.DEFAULT["legal_code"]).strip()},

@@ -8825,8 +8825,8 @@ def _landing_resp(request: Request, db: Session, lp: dict):
     if not ctx.get("reel") and lp.get("reel"):                # рілс у файлах сайту, якщо з Instagram ще не забрали
         ctx["reel"] = {"src": ctx["st"](lp["reel"]["file"]), "poster_src": ctx["st"](lp["reel"]["poster"]), "url": lp["reel"]["url"]}
     ctx.update(lp=lp, vk=lp["key"], proto=False, menu=lp["menu"], facts=lp["facts"], shop={**sh.SHOP, **lp["shop"]},
-               v={**sh.VARIANTS["a"], "order": ["lhero", "facts", "pain", "reel", "cases", "process", "consult", "procs", "ldoctor", "reviews",
-                                                 "booking", "shop", "insta", "faq", "contacts"]},
+               v={**sh.VARIANTS["a"], "order": lp.get("order") or ["lhero", "facts", "pain", "about", "reel", "cases", "process", "consult", "procs",
+                                                                    "ldoctor", "reviews", "booking", "shop", "insta", "faq", "contacts"]},
                title=lp["seo"]["title"], desc=lp["seo"]["desc"], faq_ld="")
     abs_base = ctx["c"]["canonical"].rstrip("/") if not ctx["noindex"] else str(request.base_url).rstrip("/").replace("http://", "https://") + "/_site"
     src = Path(__file__).resolve().parent / "static" / "site" / "home" / lp["hero"]["og"]
@@ -9238,6 +9238,16 @@ def _tilda_resp(request: Request, db: Session, path, status: int = 200):
     return r
 
 
+@app.get("/_site/crop/{name}", include_in_schema=False)
+def site_crop(name: str):
+    """Фото «до / після», вирізане з картки архіву Tilda (кеш на диску)."""
+    from .services import site_crops as sc
+    f = sc.path(name)
+    if not f:
+        raise HTTPException(404)
+    return FileResponse(f, media_type="image/webp", headers={"Cache-Control": "public, max-age=2592000"})
+
+
 @app.get("/_site/{folder}/{path:path}", include_in_schema=False)
 def site_tilda_asset(folder: str, path: str):
     from .services import tilda_site as ts
@@ -9310,7 +9320,15 @@ async def settings_site_tilda(request: Request, user: User = Depends(require("us
 
 @app.get("/_site/{slug}", response_class=HTMLResponse)
 def site_page(request: Request, slug: str, db: Session = Depends(db_dep)):
-    from .services import site_pages as sp, site_landing as sl
+    from .services import site_pages as sp, site_landing as sl, tilda_site as _tsg
+    key = slug.strip("/").lower()
+    if key in sl.REDIRECTS:                                   # старі сторінки Tilda, зібрані в одну нову: 301 зберігає позиції в Google
+        on_site = (request.headers.get("host") or "").split(":")[0].lower() in sp.hosts()
+        return RedirectResponse(("" if on_site else "/_site") + "/" + sl.REDIRECTS[key], status_code=301)
+    if key in _tsg.GONE:                                      # сторінки лікарів, які вже не працюють: 410 — Google прибирає з індексу
+        return HTMLResponse("<!doctype html><meta charset=utf-8><meta name=robots content=noindex><title>Сторінку видалено — MOLODIST</title>"
+                            "<p style='font:16px sans-serif;padding:40px'>Цю сторінку видалено. <a href='/'>На головну MOLODIST</a></p>",
+                            status_code=410, headers={"X-Robots-Tag": "noindex, nofollow"})
     if slug.strip("/").lower() in sl.LANDINGS:                # сторінки болей на дизайні нової головної
         return _landing_resp(request, db, sl.LANDINGS[slug.strip("/").lower()])
     p = sp.PAGES.get(slug.strip("/").lower())

@@ -55,7 +55,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
   </div>
   <div class="h-tabp" id="{{ uid }}-c" role="tabpanel">
     {% if rich %}<div class="h-cgrid rich">{% for x in concerns %}<a class="h-ccard pic" {% if x.page %}href="{{ base }}/{{ x.page }}"{% else %}href="#zapys" data-interest="{{ x.interest }}"{% endif %}>
-      {% if x.ba %}<span class="h-ba {{ 'v' if x.ba_v }}"><span><img src="{{ st(x.ba[0]) }}" alt="{{ x.t }} — фото до лікування в MOLODIST" loading="lazy" width="{{ 800 if x.ba_v else 420 }}" height="{{ 400 if x.ba_v else 805 }}"><em>До</em></span><span><img src="{{ st(x.ba[1]) }}" alt="{{ x.t }} — результат після лікування в MOLODIST" loading="lazy" width="{{ 800 if x.ba_v else 420 }}" height="{{ 400 if x.ba_v else 805 }}"><em>Після</em></span></span>
+      {% if x.ba %}<span class="h-ba {{ 'v' if x.ba_v and not x.ba_src }}"><span><img src="{{ x.ba_src[0] if x.ba_src else st(x.ba[0]) }}" alt="{{ x.t }} — фото до лікування в MOLODIST" loading="lazy" width="{{ 800 if x.ba_v else 420 }}" height="{{ 400 if x.ba_v else 805 }}"><em>До</em></span><span><img src="{{ x.ba_src[1] if x.ba_src else st(x.ba[1]) }}" alt="{{ x.t }} — результат після лікування в MOLODIST" loading="lazy" width="{{ 800 if x.ba_v else 420 }}" height="{{ 400 if x.ba_v else 805 }}"><em>Після</em></span></span>
       {% elif x.img_url %}<span class="h-cimg"><img src="{{ x.img_url }}" alt="{{ x.t }} — MOLODIST, Київ" loading="lazy" width="720" height="720"></span>
       {% else %}<span class="h-cimg none"><b>0{{ loop.index }}</b><small>{{ x.t }}</small></span>{% endif %}
       <span class="h-cb"><h3 class="h-ctt">{{ x.t }}</h3><small>{{ x.d }}</small><span class="how">{{ x.how }}</span></span><i>{{ arrow() }}</i></a>{% endfor %}</div>
@@ -66,7 +66,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
   </div>
   <div class="h-tabp" id="{{ uid }}-p" role="tabpanel" hidden>
     <ul class="h-plist">{% for d in directions %}<li><a href="{{ (base ~ '/' ~ d.slug) if d.slug else '#zapys' }}" {% if not d.slug %}data-interest="{{ d.t }}"{% endif %}><span>{{ d.t }}<small>{{ d.d }}</small></span>{% if d.lo %}<em>від {{ money(d.lo) }}</em>{% endif %}{{ arrow() }}</a></li>{% endfor %}</ul>
-    <p class="h-note">Ціни оновлюються автоматично з прайсу MOLODIST. Не знайшли процедуру? <a href="#zapys">Запитайте адміністратора →</a></p>
+    <p class="h-note">Не знайшли процедуру? <a href="#zapys">Запитайте адміністратора →</a></p>
   </div>
 </div>
 {% endmacro %}
@@ -151,8 +151,8 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
 {% elif sec == 'lhero' %}
   <section class="h-hero a l-hero"><div class="wrap h-hero-in">
     <div class="tx"><p class="eyebrow">{{ lp.hero.eyebrow }}</p><h1>{{ lp.hero.h1 }}</h1><h2 class="h-tag">{{ lp.hero.h2 }}</h2><p class="lead-tx">{{ lp.hero.lead }}</p>
-      <p class="h-btns"><a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp">{{ lp.hero.cta }}</a><a class="h-ghost" href="#yak-likuiemo">{{ lp.hero.cta2 }} {{ arrow() }}</a></p>
-      {% if main_price %}<p class="muted small">Консультація BEAUTY PLAN Anti Acne — {{ money(main_price) }}</p>{% endif %}</div>
+      <p class="h-btns"><a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp">{{ lp.hero.cta }}</a><a class="h-ghost" href="{{ lp.hero.cta2_href or '#yak-likuiemo' }}">{{ lp.hero.cta2 }} {{ arrow() }}</a></p>
+      {% if main_price %}<p class="muted small">{{ lp.hero.price_label or 'Консультація BEAUTY PLAN Anti Acne' }} — {{ money(main_price) }}</p>{% endif %}</div>
     <div class="im"><img src="{{ hero_img or st(lp.hero.img) }}" alt="{{ lp.hero.img_alt }}" fetchpriority="high" width="600" height="750" class="l-himg">
       {% if rev %}<a class="h-rate" href="#vidhuky"><b>{{ '%.1f'|format(rev.rating) }}</b><span>★★★★★<small>{{ rev.count }} відгуків у Google</small></span></a>{% endif %}</div>
   </div><p class="h-word" aria-hidden="true">MOLODIST</p></section>
@@ -161,8 +161,15 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
   <section class="sec h-sec l-pain"><div class="wrap l-pain-in">
     <div><h2>{{ lp.pain.title }}</h2><ul class="l-plist">{% for t in lp.pain['items'] %}<li>{{ ic('check') }}<span>{{ t }}</span></li>{% endfor %}</ul></div>
     <div class="l-why"><h3>{{ lp.pain.why_t }}</h3><p>{{ lp.pain.why }}</p>
-      <a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp">Знайти причину з лікарем</a></div>
+      <a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp">{{ lp.pain.btn or 'Знайти причину з лікарем' }}</a></div>
   </div></section>
+
+{% elif sec == 'about' %}{% if lp.about %}
+  <section class="sec h-sec l-about" id="{{ lp.about.id }}"><div class="wrap">
+    <p class="eyebrow">{{ lp.about.eyebrow }}</p><div class="h-shd"><h2>{{ lp.about.title }}</h2><p>{{ lp.about.text }}</p></div>
+    <div class="l-agrid">{% for t, d in lp.about['items'] %}<div class="l-acard"><span class="n">{{ '%02d'|format(loop.index) }}</span><h3>{{ t }}</h3><p>{{ d }}</p></div>{% endfor %}</div>
+    <p class="h-btns ctr"><a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp">Записатися на консультацію</a></p>
+  </div></section>{% endif %}
 
 {% elif sec == 'reel' %}{% if reel %}
   <section class="sec l-reel"><div class="wrap l-reel-in">
@@ -176,7 +183,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
 {% elif sec == 'cases' %}
   <section class="sec l-cases" id="rezultaty"><div class="wrap">
     <div class="h-shd"><h2>{{ lp.cases.title }}</h2><p>{{ lp.cases.text }}</p></div>
-    <div class="l-cgrid">{% for x in lp.cases['items'] %}<figure class="l-case"><span class="h-ba"><span><img src="{{ st(x.ba[0]) }}" alt="{{ x.t }} — до лікування акне в MOLODIST" loading="lazy" width="512" height="640"><em>До</em></span><span><img src="{{ st(x.ba[1]) }}" alt="{{ x.t }} — після лікування акне в MOLODIST" loading="lazy" width="512" height="640"><em>Після</em></span></span>
+    <div class="l-cgrid">{% for x in cases %}<figure class="l-case"><span class="h-ba"><span><img src="{{ x.src[0] }}" alt="{{ x.t }} — до {{ lp.cases.alt or 'лікування акне' }} в MOLODIST" loading="lazy" width="512" height="640"><em>До</em></span><span><img src="{{ x.src[1] }}" alt="{{ x.t }} — після {{ lp.cases.alt or 'лікування акне' }} в MOLODIST" loading="lazy" width="512" height="640"><em>Після</em></span></span>
       <figcaption><b>{{ x.t }}</b><small>{{ x.d }}</small></figcaption></figure>{% endfor %}
       {% for x in ig_cases %}<figure class="l-case ig"><a href="{{ x.url }}" target="_blank" rel="noopener"><img src="{{ x.src }}" alt="Результат лікування акне в MOLODIST — публікація в Instagram" loading="lazy" width="1080" height="1080"></a>
       <figcaption><b>Кейс із публікації</b><small>Відкрити в Instagram →</small></figcaption></figure>{% endfor %}</div>
@@ -194,8 +201,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
     <div class="tx"><p class="eyebrow">{{ lp.consult.eyebrow }}</p><h2>{{ lp.consult.title }}</h2><p class="big">{{ lp.consult.text }}</p>
       <ul class="h-gets dk">{% for g in lp.consult.gets %}<li>{{ g }}</li>{% endfor %}</ul>
       <p class="h-btns"><a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp">Записатися на консультацію</a></p></div>
-    <div class="l-fmt"><p class="lbl">Формати й ціни</p>{% for f in formats %}<div class="row"><div><b>{{ f.t }}</b><small>{{ f.d }}</small></div><span class="pr">{% if f.price %}{{ money(f.price) }}{% else %}—{% endif %}</span></div>{% endfor %}
-      <p class="note">Ціни оновлюються автоматично з прайсу MOLODIST.</p></div>
+    <div class="l-fmt"><p class="lbl">Формати й ціни</p>{% for f in formats %}<div class="row"><div><b>{{ f.t }}</b><small>{{ f.d }}</small></div><span class="pr">{% if f.price %}{{ money(f.price) }}{% else %}—{% endif %}</span></div>{% endfor %}</div>
   </div></section>
 
 {% elif sec == 'procs' %}{% if procs|selectattr('items')|list %}
@@ -207,9 +213,9 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
   </div></section>{% endif %}
 
 {% elif sec == 'ldoctor' %}
-  {% for d in lp_doc[:1] %}<section class="sec l-doc" id="likar"><div class="wrap l-doc-in">
+  {% for d in lp_doc %}<section class="sec l-doc"{% if loop.first %} id="likar"{% endif %}><div class="wrap l-doc-in">
     <div class="h-dcard {{ ('fx-' ~ d.fx) if d.fx }}">{{ ph(d) }}</div>
-    <div><p class="eyebrow">{{ lp.doctor.title }}</p><h2>{{ d.name }}</h2><p class="role">{{ d.role }}</p><p class="big">{{ lp.doctor.lead }}</p>{% if d.bio %}<p>{{ d.bio }}</p>{% endif %}
+    <div><p class="eyebrow">{{ lp.doctor.title }}</p><h2>{{ d.name }}</h2><p class="role">{{ d.role }}</p>{% if loop.first %}<p class="big">{{ lp.doctor.lead }}</p>{% endif %}{% if d.bio %}<p>{{ d.bio }}</p>{% endif %}
       <p class="h-btns"><a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp" data-doc="{{ d.name }}">Записатися до лікаря</a>{% if ob_on and d.id %}<a class="h-ghost" href="{{ base }}/zapys?doctor={{ d.id }}">Обрати час онлайн {{ arrow() }}</a>{% endif %}</p></div>
   </div></section>{% endfor %}
 
@@ -227,7 +233,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
     <div class="tx"><p class="eyebrow">Авторська методика</p><h2>{{ plan.title }}</h2><p class="big">{{ plan.text }}</p>
       {% if vk != 'c' %}<ul class="h-gets dk">{% for g in plan.gets %}<li>{{ g }}</li>{% endfor %}</ul>{% endif %}
       <p class="h-btns"><a class="btn" href="#zapys" data-interest="Beauty Plan">Записатися на BEAUTY PLAN</a><a class="h-ghost" href="{{ base }}/{{ plan.slug }}">Докладніше {{ arrow() }}</a></p>
-      {% if plan_price and vk != 'c' %}<p class="muted small">Консультація — {{ money(plan_price) }}. Ціна оновлюється автоматично з прайсу.</p>{% endif %}</div>
+      {% if plan_price and vk != 'c' %}<p class="muted small">Консультація — {{ money(plan_price) }}.</p>{% endif %}</div>
     {% if rich %}<div class="h-pvid"><video autoplay muted loop playsinline preload="metadata" poster="{{ st('bp-poster.webp') }}" aria-label="Лікар MOLODIST пояснює пацієнтці BEAUTY PLAN"><source src="{{ st('bp.mp4') }}" type="video/mp4"></video>
       <span class="cap">Консультація BEAUTY PLAN у MOLODIST</span></div>{% else %}
     <ol class="h-steps">{% for t, d in plan.steps %}<li><span>0{{ loop.index }}</span><div><h3>{{ t }}</h3><p>{{ d }}</p></div></li>{% endfor %}</ol>{% endif %}
@@ -324,6 +330,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
 {% endfor %}
 </main>
 
+{% include "site/_selfcare.html" %}
 <footer class="ft h-ft"><div class="wrap ft-in">
   <div><div class="logo light"><img class="wm" src="/static/site/brand/wordmark-white.svg" alt="MOLODIST" width="150" height="18"></div>
     <p class="muted">Медичний простір естетики та профілактики.</p>
@@ -345,9 +352,9 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
   <div class="h-mbp" data-mode="bp" hidden><img src="{{ st('bp-poster.webp') }}" alt="Консультація BEAUTY PLAN у MOLODIST" width="1280" height="720" loading="lazy">
     <div><p class="eyebrow">BEAUTY PLAN</p><p class="h-mh">Консультація лікаря й письмовий план</p>
     <p class="sm">Діагностика шкіри на OBSERV 520x, план процедур за пріоритетами з цінами й схема домашнього догляду. До 2 годин{% if plan_price %} · <b>{{ money(plan_price) }}</b>{% endif %}.</p></div></div>
-  {% if lp %}<div class="h-mlp" data-mode="lp" hidden>{% for d in lp_doc[:1] %}{% if d.photo %}<img src="{{ d.photo }}" alt="{{ d.name }}" width="72" height="72">{% endif %}{% endfor %}
-    <div><p class="eyebrow">{{ lp.consult.eyebrow }} · {{ (lp_doc[0].name if lp_doc else 'лікар-дерматовенеролог') }}</p><p class="h-mh">{{ lp.consult.title }}</p>
-    <p class="sm">Огляд лікаря, діагностика шкіри на OBSERV 520x і письмовий план лікування{% if main_price %} · <b>{{ money(main_price) }}</b>{% endif %}</p></div></div>{% endif %}
+  {% if lp %}<div class="h-mlp" data-mode="lp" hidden>{% for d in lp_doc[:1] %}{% if d.photo and lp_doc|length == 1 %}<img src="{{ d.photo }}" alt="{{ d.name }}" width="72" height="72">{% endif %}{% endfor %}
+    <div><p class="eyebrow">{{ lp.consult.eyebrow }} · {{ (lp_doc[0].name if lp_doc and lp_doc|length == 1 else 'лікар MOLODIST') }}</p><p class="h-mh">{{ lp.consult.title }}</p>
+    <p class="sm">{{ lp.consult.modal or 'Огляд лікаря, діагностика шкіри на OBSERV 520x і письмовий план лікування' }}{% if main_price %} · <b>{{ money(main_price) }}</b>{% endif %}</p></div></div>{% endif %}
   <div class="h-mstd" data-mode="std"><p class="h-mh">Залиште заявку — підберемо лікаря й час</p><p class="sm">Адміністратор звʼяжеться з вами тим способом, який ви оберете. {{ c.hours }}.</p></div>
   {{ form('modal', 'Надіслати заявку') }}
 </div></div>
@@ -364,5 +371,6 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
 <script>window.MLDS={base:'{{ base }}',slug:'home',interest:''};</script>
 <script src="/static/site/site.js?v={{ ver }}" defer></script>
 <script src="/static/site/home.js?v={{ ver }}" defer></script>
+<script src="/static/site/track.js?v={{ ver }}" defer></script>
 </body>
 </html>

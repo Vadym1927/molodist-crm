@@ -1,0 +1,63 @@
+"""Фото «до / після» з карток у архіві Tilda: вирізаємо окремо «до» й «після» (без фіолетової рамки картки) і ставимо
+легкий водяний знак MOLODIST. Оригінали лежать у архіві сайту на сервері; готові файли кешуються в files/site_crops."""
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+from ..config import settings
+
+# рамка фото в картці 1024×1280 (частки ширини / висоти): ліва половина — «до», права — «після»; верх обрізано нижче кола з апаратом
+B1, B2 = (0.145, 0.45, 0.495, 0.84), (0.505, 0.45, 0.855, 0.84)
+_T = "images/tild{}__photo_2025-04-04_150.jpeg"
+CARDS = {"pg1": _T.format("3738-3038-4733-a339-653439343832"),     # пігментація
+         "pg2": _T.format("3133-3063-4637-b039-633235373963"),     # пігментація
+         "pg3": _T.format("3231-3538-4561-a661-383731373739"),     # пігментація
+         "sd1": _T.format("6333-3264-4339-b537-363539633161"),     # судини
+         "ak8": _T.format("3839-3763-4135-a437-666532316461"),     # акне, IPL
+         "ak9": _T.format("3238-3432-4361-b932-363061613261")}     # акне, IPL
+CROPS = {f"{k}-{n}.webp": (f, b) for k, f in CARDS.items() for n, b in ((1, B1), (2, B2))}
+CROPS["ipl-hero.webp"] = ("images/tild6161-3430-4038-a233-396134326666__photo_2024-02-15_110.jpeg", (0.0, 0.02, 1.0, 0.98))
+NAME_RE = re.compile(r"^[a-z0-9-]{2,40}\.webp$")
+VER = "1"
+
+
+def folder() -> Path:
+    d = Path(settings.files_dir) / "site_crops"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def path(name: str) -> Path | None:
+    """Готовий файл (створюється при першому запиті). None — якщо немає оригіналу в архіві."""
+    if not NAME_RE.match(name or "") or name not in CROPS:
+        return None
+    out = folder() / f"v{VER}-{name}"
+    if out.is_file():
+        return out
+    from . import tilda_site as ts
+    rel, box = CROPS[name]
+    src = ts.root() / rel
+    if not src.is_file():
+        return None
+    from PIL import Image
+    im = Image.open(src).convert("RGB")
+    w, h = im.size
+    im = im.crop((int(box[0] * w), int(box[1] * h), int(box[2] * w), int(box[3] * h)))
+    if name != "ipl-hero.webp":
+        wm_p = Path(__file__).resolve().parent.parent / "static" / "site" / "brand" / "wordmark-white-600.png"
+        if wm_p.is_file():                                   # легкий водяний знак унизу праворуч
+            wm = Image.open(wm_p).convert("RGBA")
+            ww = int(im.width * 0.34)
+            wm = wm.resize((ww, max(1, int(wm.height * ww / wm.width))))
+            wm.putalpha(wm.getchannel("A").point(lambda a: int(a * 0.45)))
+            im = im.convert("RGBA")
+            im.alpha_composite(wm, (im.width - ww - int(im.width * 0.04), im.height - wm.height - int(im.height * 0.03)))
+            im = im.convert("RGB")
+    im.thumbnail((900, 1200))
+    im.save(out, "WEBP", quality=82)
+    return out
+
+
+def url(name: str, base: str) -> str:
+    return f"{base}/crop/{name}" if path(name) else ""

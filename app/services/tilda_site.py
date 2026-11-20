@@ -149,6 +149,22 @@ def asset(folder: str, path: str) -> Path | None:
     return p if base in p.parents and p.is_file() else None
 
 
+# Сторінки лікарів, які більше не працюють у MOLODIST: адреси віддають 410 (Google прибирає з індексу), посилання з меню зникають.
+GONE = ("tatianabondarenko", "anastasialozynska", "dmytrolevenchuk", "darynabandura", "annakelner")
+GONE_NAMES = r"(?:бондаренко|лозинськ\w*|левенчук|бандур\w*|кельнер)"
+_GONE_HREF = r'href="(?:https?://(?:www\.)?molodist\.com\.ua)?/?(?:%s)/?"' % "|".join(GONE)
+_GONE_LI = re.compile(r"<li\b[^>]*>\s*(?:<div\b[^>]*>\s*)?<a\b[^>]*%s[^>]*>.*?</a>\s*(?:</div>\s*)?</li>" % _GONE_HREF, re.I | re.S)
+_GONE_A = re.compile(r"<a\b[^>]*%s[^>]*>.*?</a>" % _GONE_HREF, re.I | re.S)
+_GONE_NAME_A = re.compile(r"<a\b[^>]*>(?:(?!</a>).){0,200}?%s(?:(?!</a>).){0,200}?</a>" % GONE_NAMES, re.I | re.S)
+
+
+def strip_gone(html: str) -> str:
+    """Прибрати з меню й тексту сторінок Tilda посилання на лікарів, які вже не працюють."""
+    html = _GONE_LI.sub("", html)
+    html = _GONE_A.sub("", html)
+    return _GONE_NAME_A.sub("", html)
+
+
 CDN_RE = re.compile(r"https://(neo\.tildacdn\.com|static\.tildacdn\.(?:one|com))/((?:js|lib|css)/[\w./-]+?\.(?:js|css|png|svg|woff2?))")
 CDN_LOCAL = "/_site/_tcdn"
 
@@ -188,7 +204,9 @@ def render(db: Session, p: Path, base: str = "") -> str:
     email = site_pages.cfg(db).get("email") or "info@molodist.com.ua"
     html = html.replace("info.molodostua@gmail.com", email)
     html = localize(html)
+    html = strip_gone(html)
     html = re.sub(r"<html\b", "<html data-mlds-forms", html, count=1, flags=re.I)   # тег GTM не дублює заявки з форм
     inj = (f'<script>window.MLDS_TILDA={{"base":{json.dumps(base)}}};</script>'
-           f'<script src="/static/site/tilda-bridge.js?v=4" defer></script>')
+           f'<script src="/static/site/tilda-bridge.js?v=5" defer></script>'
+           f'<script src="/static/site/track.js?v=1" defer></script>')
     return html.replace("</body>", inj + "</body>", 1) if "</body>" in html else html + inj
