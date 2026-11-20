@@ -84,3 +84,10 @@ def test_feed_clean_google_triggers():
     out = clean_desc(d)
     assert "зволожує" in out and "акне" not in out and "канабіс" not in out and "Cannabis" not in out and "Glycerin" not in out
     assert clean_title("Гель AG SKIN 3 Step Acid System For Acne 150 мл") == "Гель AG SKIN 3 Step Acid System 150 мл"
+
+
+def test_tilda_doctor_block_inserted():
+    from app.services import tilda_site as ts
+    h = ts.add_blocks('<div id="allrecords"><div id="rec680643180" class="r t-rec">ВІДГУКИ</div></div>')
+    assert h.index("Софія Сирова") < h.index("ВІДГУКИ") and "клінік" not in h.lower()
+    assert ts.add_blocks("<div>інша сторінка</div>") == "<div>інша сторінка</div>"

@@ -158,6 +158,38 @@ _GONE_A = re.compile(r"<a\b[^>]*%s[^>]*>.*?</a>" % _GONE_HREF, re.I | re.S)
 _GONE_NAME_A = re.compile(r"<a\b[^>]*>(?:(?!</a>).){0,200}?%s(?:(?!</a>).){0,200}?</a>" % GONE_NAMES, re.I | re.S)
 
 
+# Власні блоки в сторінках архіву: вставляються перед блоком з указаним id (якщо він є на сторінці).
+# Дерматологія: картка лікаря Софії Сирової (попередній лікар більше не працює).
+_DOC_SYROVA = (
+    '<div id="mlds-doc" style="background:#fff;padding:30px 20px 60px;font-family:inherit">'
+    '<div style="max-width:960px;margin:0 auto">'
+    '<div class="t-title t-title_xs" style="color:#5c4b82;text-align:center;margin-bottom:36px">НАШ ЛІКАР-ДЕРМАТОВЕНЕРОЛОГ</div>'
+    '<div style="display:flex;flex-wrap:wrap;gap:28px 40px;align-items:center;justify-content:center">'
+    '<img src="images/tild6137-3533-4262-a433-633336313665__noroot.png" alt="Софія Сирова, лікар-дерматовенеролог MOLODIST" loading="lazy" '
+    'style="width:280px;max-width:100%;aspect-ratio:4/5;object-fit:cover;border-radius:12px">'
+    '<div style="flex:1 1 320px;max-width:520px">'
+    '<div class="t-name t-name_md" style="font-size:22px;margin-bottom:8px"><a href="/sofiasirova" style="color:inherit;text-decoration:none">Софія Сирова</a></div>'
+    '<div class="t-descr t-descr_xs" style="line-height:1.55">'
+    '<p style="color:#5c4b82;font-weight:600;margin:0 0 12px">Лікар-дерматовенеролог, косметолог</p>'
+    '<p style="margin:0 0 8px">Консультує з приводу акне, розацеа, дерматитів та інших захворювань шкіри.</p>'
+    '<p style="margin:0 0 8px">Проводить дерматоскопію й видалення доброякісних новоутворень.</p>'
+    '<p style="margin:0 0 8px">Підбирає лікування й домашній догляд під ваш стан шкіри.</p>'
+    '<p style="margin:0 0 18px">Веде прийом у MOLODIST з 2022 року.</p></div>'
+    '<a href="#rec680643182" style="display:inline-block;background:#5c4b82;color:#fff;text-decoration:none;border-radius:5px;'
+    'padding:13px 26px;font-weight:600;font-size:14px;letter-spacing:.04em;margin:0 10px 10px 0">ЗАПИСАТИСЯ ДО ЛІКАРЯ</a>'
+    '<a href="/sofiasirova" style="display:inline-block;border:1px solid #5c4b82;color:#5c4b82;text-decoration:none;border-radius:5px;'
+    'padding:12px 26px;font-weight:600;font-size:14px;letter-spacing:.04em">ДЕТАЛЬНІШЕ</a>'
+    '</div></div></div></div>')
+INSERTS = {'<div id="rec680643180"': _DOC_SYROVA}
+
+
+def add_blocks(html: str) -> str:
+    for marker, block in INSERTS.items():
+        if marker in html and 'id="mlds-doc"' not in html:
+            html = html.replace(marker, block + marker, 1)
+    return html
+
+
 def strip_gone(html: str) -> str:
     """Прибрати з меню й тексту сторінок Tilda посилання на лікарів, які вже не працюють."""
     html = _GONE_LI.sub("", html)
@@ -205,6 +237,7 @@ def render(db: Session, p: Path, base: str = "") -> str:
     html = html.replace("info.molodostua@gmail.com", email)
     html = localize(html)
     html = strip_gone(html)
+    html = add_blocks(html)
     html = re.sub(r"<html\b", "<html data-mlds-forms", html, count=1, flags=re.I)   # тег GTM не дублює заявки з форм
     inj = (f'<script>window.MLDS_TILDA={{"base":{json.dumps(base)}}};</script>'
            f'<script src="/static/site/tilda-bridge.js?v=5" defer></script>'
