@@ -22,8 +22,9 @@ for _k, _f in (("rz1", "3463-6364-4235-a631-306462386366__img_0546"), ("rz2", "6
                ("dk1", "3034-3731-4534-a332-393637663635__img_0547")):
     CROPS[f"{_k}-1.webp"] = (_S.format(_f), (0.0, 0.162, 1.0, 0.438))
     CROPS[f"{_k}-2.webp"] = (_S.format(_f), (0.0, 0.446, 1.0, 0.722))
-NO_WM = {"ipl-hero.webp", "ipl-hero2.webp", "rz1-1.webp", "rz1-2.webp", "rz2-1.webp", "rz2-2.webp", "dk1-1.webp", "dk1-2.webp"}   # на цих уже є знак або він не потрібен
+NO_WM = {"ipl-hero.webp", "ipl-hero2.webp", "rz1-1.webp", "rz1-2.webp", "rz2-1.webp", "rz2-2.webp", "dk1-1.webp", "dk1-2.webp", "laser-cab.webp"}   # на цих уже є знак або він не потрібен
 CROPS["ipl-hero2.webp"] = ("images/tild6439-6134-4335-b739-626562646263__photo_2024-02-15_110.jpeg", (0.0, 0.0, 1.0, 1.0))
+CROPS["laser-cab.webp"] = ("media:laser-2.webp", (0.0, 0.47, 0.355, 0.87))      # кабінет: апарат і столик, без людей
 CROPS["ipl-hero.webp"] = ("images/tild6161-3430-4038-a233-396134326666__photo_2024-02-15_110.jpeg", (0.0, 0.02, 1.0, 0.98))
 NAME_RE = re.compile(r"^[a-z0-9-]{2,40}\.webp$")
 VER = "2"
@@ -44,7 +45,11 @@ def path(name: str) -> Path | None:
         return out
     from . import tilda_site as ts
     rel, box = CROPS[name]
-    src = ts.root() / rel
+    if rel.startswith("media:"):                     # джерело — медіатека сайту
+        from . import site_pages as _sp
+        src = _sp.media_dir() / rel[6:]
+    else:
+        src = ts.root() / rel
     if not src.is_file():
         return None
     from PIL import Image
