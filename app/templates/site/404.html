@@ -1,0 +1,11 @@
+{% extends "site/base.html" %}
+{% block main %}
+<section class="hero e404"><div class="wrap">
+  <p class="eyebrow">Помилка 404</p>
+  <h1>Такої сторінки немає</h1>
+  <p class="lead-tx">Можливо, її перенесли або адресу введено з помилкою. Оберіть, що вас цікавить, — або залиште заявку, і адміністратор допоможе.</p>
+  <p class="e404-b"><a class="btn" href="{{ base }}/">На головну</a><a class="link" href="{{ base }}/#zapys">Записатися на консультацію →</a></p>
+  <div class="rel-g">{% for s, t, d in links %}<a class="rel-i" href="{{ base }}/{{ s }}"><span>{{ t }}</span><small>{{ d }}</small></a>{% endfor %}</div>
+  <p class="muted" style="margin-top:28px">Телефон: <a href="tel:{{ c.phone }}">{{ c.phone_text }}</a> · {{ c.hours }}</p>
+</div></section>
+{% endblock %}

@@ -39,7 +39,7 @@ def test_tilda_import_and_serve(tmp_path, monkeypatch):
         assert cl.get("/_site/css/a.css").text == "body{}"
         assert cl.get("/_site/css/../htaccess").status_code == 404
         r = cl.get("/_site/nope-page")
-        assert r.status_code == 404 and "NOT FOUND" in r.text
+        assert r.status_code == 404 and "Такої сторінки немає" in r.text      # своя 404, не з архіву Tilda
         assert "TILDA LASER" not in cl.get("/_site/laserepilation").text     # сторінка CRM має пріоритет
         assert "HOME" in cl.get("/_site/").text
 

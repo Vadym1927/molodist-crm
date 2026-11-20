@@ -9346,12 +9346,17 @@ def site_page(request: Request, slug: str, db: Session = Depends(db_dep)):
         tp = ts.page_file(db, slug)
         if tp:
             return _tilda_resp(request, db, tp)
-        nf = ts.not_found(db)
-        if nf:
-            return _tilda_resp(request, db, nf, 404)
-        ctx = _site_ctx(request, db)
-        ctx.update(title="Сторінку не знайдено — MOLODIST", desc="", jsonld="", noindex=True)
-        return _site_resp("site/home.html", ctx, 404)
+        ctx = _site_ctx(request, db)                           # своя сторінка 404 у дизайні сайту (не з архіву Tilda)
+        ctx.update(title="Сторінку не знайдено — MOLODIST", desc="", jsonld="", noindex=True,
+                   links=[("likuvannya-akne", "Акне й постакне", "Лікування під контролем дерматовенеролога"),
+                          ("likuvannya-pigmentatsii", "Пігментація й судини", "IPL-терапія, фотоомолодження"),
+                          ("beautyplan", "BEAUTY PLAN", "Консультація лікаря й письмовий план"),
+                          ("laserepilation", "Лазерна епіляція", "Ціни й запис"),
+                          ("inyekczijna-kosmetologiya", "Інʼєкційна косметологія", "Ботулінотерапія, контурна пластика"),
+                          ("price", "Прайс", "Усі послуги й ціни")])
+        r = _site_resp("site/404.html", ctx, 404)
+        r.headers["X-Robots-Tag"] = "noindex, nofollow"
+        return r
     ctx = _site_ctx(request, db, slug)
     groups = sp.prices(db, p)
     hp = next(({"label": p["hero_price"][1], **r} for g in groups for r in g["rows"] if p.get("hero_price") and r["id"] == p["hero_price"][0]), None)

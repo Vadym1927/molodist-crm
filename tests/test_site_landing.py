@@ -106,3 +106,9 @@ def test_tilda_strip_gone_staff():
          '<a href="#x">Анастасія Лозинська</a>')
     out = ts.strip_gone(h)
     assert "БОНДАРЕНКО" not in out and "ЛЕВЕНЧУК" not in out and "Лозинська" not in out and "КОЛГАН" in out
+
+
+def test_own_404_page():
+    with TestClient(app) as cl:
+        r = cl.get("/_site/nema-takoi-storinky")
+        assert r.status_code == 404 and "Такої сторінки немає" in r.text and "Tilda" not in r.text
