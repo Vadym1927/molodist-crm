@@ -10,16 +10,20 @@
 .ss-bar{display:flex;align-items:center;gap:8px;font-size:13.5px;margin:4px 0}.ss-bar span:first-child{width:130px;flex:none}.ss-bar i{display:block;height:8px;background:#5C4B82;border-radius:4px}
 .ss-p table{width:100%;font-size:13.5px}.ss-p td{padding:3px 0}.ss-p td:last-child{text-align:right}
 </style>
-<div class="ss-h"><div><h1>Поведінка на сайті</h1><p class="mini">Що дивились, що клікали й де закривали вкладку — без персональних даних. Щодня о 09:05 цей звіт за вчора приходить у Telegram.</p></div>
-  <p><a class="btn sm ghost" href="?day={{ prev }}">‹ {{ prev.strftime('%d.%m') }}</a> <b>{{ d.strftime('%d.%m.%Y') }}</b> {% if nxt <= today %}<a class="btn sm ghost" href="?day={{ nxt }}">{{ nxt.strftime('%d.%m') }} ›</a>{% endif %}</p></div>
+<p class="row" style="gap:6px;margin:0 0 8px"><a class="btn sm {{ '' if site != 'store' else 'ghost' }}" href="?day={{ d }}">Сайт клініки</a><a class="btn sm {{ '' if site == 'store' else 'ghost' }}" href="?day={{ d }}&site=store">Магазин molodist.store</a></p>
+<div class="ss-h"><div><h1>Поведінка {{ 'в магазині' if site == 'store' else 'на сайті' }}</h1><p class="mini">Що дивились, що клікали й де закривали вкладку — без персональних даних. Щодня о 09:05 цей звіт за вчора приходить у Telegram.</p></div>
+  <p><a class="btn sm ghost" href="?day={{ prev }}{{ '&site=store' if site == 'store' else '' }}">‹ {{ prev.strftime('%d.%m') }}</a> <b>{{ d.strftime('%d.%m.%Y') }}</b> {% if nxt <= today %}<a class="btn sm ghost" href="?day={{ nxt }}{{ '&site=store' if site == 'store' else '' }}">{{ nxt.strftime('%d.%m') }} ›</a>{% endif %}</p></div>
 <div class="ss-k"><div><b>{{ r.sessions }}</b><small>відвідувань</small></div><div><b>{{ r.paid }}</b><small>з реклами</small></div>
-  <div><b>{{ r.pages|sum(attribute='leads') }}</b><small>заявок з форм</small></div>
+  {% if site == 'store' %}{% set f = r.funnel or {} %}<div><b>{{ r.ad_lands }}</b><small>переходів з реклами Google (рахує сервер)</small></div>
+  <div><b>{{ f.sessions or 0 }} → {{ f.product or 0 }} → {{ f.cart or 0 }} → {{ f.checkout or 0 }} → {{ f.orders or 0 }}</b><small>відвідали → товар → у кошик → оформлення → замовлення</small></div>
+  <div><b>{{ f.quick or 0 }}</b><small>пішли за 10 с, нічого не зробивши</small></div>
+  {% else %}<div><b>{{ r.pages|sum(attribute='leads') }}</b><small>заявок з форм</small></div>{% endif %}
   <div><small>Джерела</small><br>{% for k, v in r.sources %}{{ k }} — {{ v }}<br>{% endfor %}</div>
   <div><small>Пристрої</small><br>{% for k, v in r.devices %}{{ {'phone': 'телефон', 'pc': 'компʼютер', 'tablet': 'планшет'}.get(k, k) }} — {{ v }}<br>{% endfor %}</div></div>
 {% for p in r.pages %}<div class="ss-p"><h2>{{ p.name }} <small class="mini">{{ p.page }}</small></h2>
   <div class="ss-k"><div><b>{{ p.sessions }}</b><small>відвідувань (реклама {{ p.paid }})</small></div><div><b>{{ p.median_sec or 0 }} с</b><small>час на сторінці (медіана)</small></div>
     <div><b>{{ p.bounce_10s }}</b><small>пішли до 10 секунд</small></div><div><b>{{ p.scroll or 0 }}%</b><small>середня прокрутка</small></div>
-    <div><b>{{ p.forms }}</b><small>відкрили форму</small></div><div><b>{{ p.leads }} · {{ p.conv }}%</b><small>заявки · конверсія</small></div></div>
+    <div><b>{{ p.forms }}</b><small>{{ 'почали оформлення' if site == 'store' else 'відкрили форму' }}</small></div><div><b>{{ p.leads }} · {{ p.conv }}%</b><small>{{ 'замовлення · конверсія' if site == 'store' else 'заявки · конверсія' }}</small></div></div>
   <div class="ss-g"><div><h3>До якого блоку дійшли</h3>{% for k, v, pc in p.sections %}<div class="ss-bar"><span>{{ k }}</span><i style="width:{{ pc }}%"></i><small>{{ pc }}%</small></div>{% endfor %}</div>
     <div><h3>Що клікали</h3><table>{% for k, v in p.clicks %}<tr><td>{{ k }}</td><td>{{ v }}</td></tr>{% else %}<tr><td class="mini">—</td></tr>{% endfor %}</table>
       <h3>На якому блоці закрили вкладку</h3><table>{% for k, v in p.exits %}<tr><td>{{ k }}</td><td>{{ v }}</td></tr>{% else %}<tr><td class="mini">—</td></tr>{% endfor %}</table></div></div>

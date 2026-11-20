@@ -26,11 +26,24 @@ def _clean(s, n=120) -> str:
     return re.sub(r"\s+", " ", str(s or "")).strip()[:n]
 
 
-def ingest(db: Session, d: dict, ua: str = "") -> int:
+STORE = "store:"                                   # префікс сторінок магазину molodist.store у журналі (сайт клініки — без префікса)
+STAFF_HOSTS = ("crm.molodist.com.ua", "cbox.mobi", "shop-express")   # переходи співробітників (з CRM / CleverBox) — не покупці
+
+
+def is_staff(d: dict) -> bool:
+    ref = str(d.get("ref") or "").lower()
+    return any(h in ref for h in STAFF_HOSTS)
+
+
+def ingest(db: Session, d: dict, ua: str = "", site: str = "") -> int:
     from . import site_leads as sl
     sid = re.sub(r"[^a-zA-Z0-9]", "", str(d.get("sid") or ""))[:32]
     page = _clean(d.get("page"), 120).split("?")[0].split("#")[0] or "/"
-    page = re.sub(r"^/_site", "", page) or "/"
+    page = re.sub(r"^/_(site|shop)", "", page) or "/"
+    if site == "store":
+        if is_staff(d) and not d.get("utm_source") and not d.get("gclid"):
+            return 0                                   # співробітник перейшов з CRM — у звіт не пишемо
+        page = (STORE + page)[:120]
     evs = d.get("ev") if isinstance(d.get("ev"), list) else []
     if not sid or not evs:
         return 0
@@ -51,14 +64,50 @@ def ingest(db: Session, d: dict, ua: str = "") -> int:
     return n
 
 
-def report(db: Session, day: date) -> dict:
-    """Звіт за день: сесії (усього / з реклами), по сторінках — блоки, кліки, форми, заявки, де закривали."""
+def land(db: Session, page: str, campaign: str = "", ua: str = "") -> None:
+    """Сервер побачив перехід з реклами Google (є gclid / gbraid / wbraid) — рахуємо без JavaScript, щоб порівняти з кліками в кабінеті."""
+    from . import site_leads as sl
+    if re.search(r"bot|crawl|spider|preview|adsbot|mediapartners", ua or "", re.I):
+        return
+    dev = sl.device(ua).split(" ")[0]
+    dev = {"телефон": "phone", "компʼютер": "pc", "планшет": "tablet"}.get(dev, dev[:12] or None)
+    db.add(SiteEvent(at=datetime.now(), sid="", page=(STORE + (page or "/"))[:120], kind="land", device=dev, src="Google Ads", paid=True,
+                     campaign=_clean(campaign, 160) or None))
+    db.commit()
+
+
+STORE_SECTIONS = {"gal": "Фото", "info": "Ціна й кнопка «В кошик»", "tip": "Порада лікаря", "desc": "Опис", "reviews": "Відгуки", "rel": "З цим купують",
+                  "lst": "Список товарів", "flt": "Підкатегорії", "hero": "Перший екран", "cart": "Кошик", "co": "Оформлення", "cab": "Кабінет / вхід"}
+
+
+def store_page_name(p: str, names: dict | None = None) -> str:
+    q = p[len(STORE):] if p.startswith(STORE) else p
+    if q == "/":
+        return "Головна"
+    if q.startswith("/checkout/done"):
+        return "Дякуємо (замовлення)"
+    if q.startswith("/checkout"):
+        return "Оформлення"
+    if q.startswith("/cabinet") or q.startswith("/login"):
+        return "Кабінет / вхід"
+    if names and q in names:
+        return names[q]
+    return q
+
+
+def report(db: Session, day: date, site: str = "clinic", names: dict | None = None) -> dict:
+    """Звіт за день: сесії (усього / з реклами), по сторінках — блоки, кліки, форми, заявки, де закривали.
+    site="store" — магазин molodist.store (форма = почали оформлення, заявка = замовлення, land = перехід з реклами за даними сервера)."""
     a, b = datetime.combine(day, datetime.min.time()), datetime.combine(day + timedelta(days=1), datetime.min.time())
-    rows = db.scalars(select(SiteEvent).where(SiteEvent.at >= a, SiteEvent.at < b)).all()
+    q = select(SiteEvent).where(SiteEvent.at >= a, SiteEvent.at < b)
+    q = q.where(SiteEvent.page.like(STORE + "%")) if site == "store" else q.where(~SiteEvent.page.like(STORE + "%"))
+    allrows = db.scalars(q).all()
+    lands = [r for r in allrows if r.kind == "land"]
+    rows = [r for r in allrows if r.kind != "land"]
     ses = defaultdict(list)
     for r in rows:
         ses[(r.page, r.sid)].append(r)
-    out = {"day": day.isoformat(), "sessions": len({s for _, s in ses}), "pages": []}
+    out = {"day": day.isoformat(), "site": site, "sessions": len({s for _, s in ses}), "pages": [], "ad_lands": len(lands)}
     by_page = defaultdict(list)
     for (p, s), evs in ses.items():
         by_page[p].append(evs)
@@ -89,25 +138,49 @@ def report(db: Session, day: date) -> dict:
             if sc:
                 scrolls.append(max(sc))
         med = sorted(times)[len(times) // 2] if times else None
-        out["pages"].append({"page": p, "name": PAGES.get(p, p), "sessions": n, "paid": sum(1 for evs in sl if any(e.paid for e in evs)),
+        sec_names = STORE_SECTIONS if site == "store" else SECTIONS
+        out["pages"].append({"page": p[len(STORE):] if p.startswith(STORE) else p, "name": store_page_name(p, names) if site == "store" else PAGES.get(p, p), "sessions": n, "paid": sum(1 for evs in sl if any(e.paid for e in evs)),
                              "median_sec": med, "bounce_10s": sum(1 for t in times if t < 10), "scroll": round(sum(scrolls) / len(scrolls)) if scrolls else None,
                              "forms": forms, "pops": pops, "leads": leads, "conv": round(100 * leads / n, 1) if n else 0,
-                             "sections": [(SECTIONS.get(k, k), v, round(100 * v / n)) for k, v in secs.most_common()],
-                             "clicks": clicks.most_common(8), "exits": [(SECTIONS.get(k, k), v) for k, v in exits.most_common(5)]})
+                             "sections": [(sec_names.get(k, k), v, round(100 * v / n)) for k, v in secs.most_common()],
+                             "clicks": clicks.most_common(8), "exits": [(sec_names.get(k, k), v) for k, v in exits.most_common(5)]})
+    if site == "store":                                # воронка магазину по сесіях вкладки
+        sids = defaultdict(list)
+        for r in rows:
+            sids[r.sid].append(r)
+        def has(evs, pred):
+            return any(pred(e) for e in evs)
+        out["funnel"] = {
+            "sessions": len(sids),
+            "product": sum(1 for evs in sids.values() if has(evs, lambda e: e.kind == "view" and e.target == "product")),
+            "cart": sum(1 for evs in sids.values() if has(evs, lambda e: e.kind == "click" and (e.target or "").startswith("🛒"))),
+            "checkout": sum(1 for evs in sids.values() if has(evs, lambda e: e.kind == "form")),
+            "orders": sum(1 for evs in sids.values() if has(evs, lambda e: e.kind == "lead")),
+            "paid_sessions": sum(1 for evs in sids.values() if has(evs, lambda e: e.paid)),
+            "quick": sum(1 for evs in sids.values() if has(evs, lambda e: e.kind == "exit" and e.value is not None and e.value < 10)
+                         and not has(evs, lambda e: e.kind in ("click", "form", "lead"))),
+        }
     return out
 
 
 def text(r: dict) -> str:
     """Короткий звіт для Telegram."""
-    if not r["sessions"]:
-        return f"📊 Сайт за {r['day']}: відвідувань не було."
-    L = [f"📊 <b>Сайт за {r['day']}</b>", f"Відвідувань: <b>{r['sessions']}</b> · з реклами: <b>{r['paid']}</b>",
+    store = r.get("site") == "store"
+    title = "Магазин molodist.store" if store else "Сайт"
+    if not r["sessions"] and not r.get("ad_lands"):
+        return f"📊 {title} за {r['day']}: відвідувань не було."
+    L = [f"📊 <b>{title} за {r['day']}</b>", f"Відвідувань: <b>{r['sessions']}</b> · з реклами: <b>{r['paid']}</b>",
          "Джерела: " + ", ".join(f"{k} {v}" for k, v in r["sources"]),
          "Пристрої: " + ", ".join(f"{ {'phone': 'телефон', 'pc': 'ПК', 'tablet': 'планшет'}.get(k, k)} {v}" for k, v in r["devices"])]
+    if store:
+        f = r.get("funnel") or {}
+        L += [f"Переходів з реклами Google (сервер): <b>{r.get('ad_lands', 0)}</b> · з них відкрили сторінку повністю: <b>{f.get('paid_sessions', 0)}</b>",
+              f"Воронка: відвідали {f.get('sessions', 0)} → товар {f.get('product', 0)} → у кошик {f.get('cart', 0)} → оформлення {f.get('checkout', 0)} → замовлення <b>{f.get('orders', 0)}</b>",
+              f"Пішли за 10 с нічого не зробивши: {f.get('quick', 0)}"]
     for p in r["pages"][:8]:
         L += ["", f"<b>{p['name']}</b> ({p['page']}) — {p['sessions']} відв., реклама {p['paid']}",
               f"Час (медіана): {p['median_sec'] or 0} с · пішли до 10 с: {p['bounce_10s']} · прокрутка: {p['scroll'] or 0}%",
-              f"Відкрили форму: {p['forms']} · банер: {p['pops']} · заявок: <b>{p['leads']}</b> ({p['conv']}%)"]
+              (f"Почали оформлення: {p['forms']} · замовлень: <b>{p['leads']}</b>" if store else f"Відкрили форму: {p['forms']} · банер: {p['pops']} · заявок: <b>{p['leads']}</b> ({p['conv']}%)")]
         if p["sections"]:
             L.append("Дійшли до: " + ", ".join(f"{k} {pc}%" for k, _, pc in p["sections"][:7]))
         if p["clicks"]:

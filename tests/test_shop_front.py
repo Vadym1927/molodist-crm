@@ -882,3 +882,33 @@ def test_short_product_link_and_back_sms():
         assert c.get("/_shop/p/999999/", follow_redirects=False).headers["location"].endswith("/shop/")
         t = sc.back_sms("https://molodist.store", pid)
         assert len(t) <= 70 and t.startswith("Знову в наявності") and f"molodist.store/p/{pid}/" in t
+
+
+def test_store_behavior_tracking(monkeypatch):
+    from datetime import date as _d
+    from app.services import site_stats as ss, shop_front as sf
+    monkeypatch.setattr(sf, "hosts", lambda: {"molodist.store"})
+    with TestClient(app) as c:
+        h = {"host": "molodist.store"}
+        body = {"sid": "s1", "page": "/shop/krem-x/", "ref": "https://www.google.com/", "ev": [{"k": "view", "t": "product"}, {"k": "sec", "t": "info", "v": 40},
+                {"k": "click", "t": "🛒 Крем X"}, {"k": "form", "t": "checkout"}, {"k": "lead", "t": "order", "v": 1500}, {"k": "exit", "t": "info", "v": 35}]}
+        assert c.post("/_shop/api/ev", content=json.dumps(body), headers={**h, "content-type": "text/plain"}).json()["n"] == 6
+        staff = {"sid": "s2", "page": "/", "ref": "https://crm.molodist.com.ua/settings/shop/products", "ev": [{"k": "view", "t": "home"}]}
+        assert c.post("/_shop/api/ev", content=json.dumps(staff), headers={**h, "content-type": "text/plain"}).json()["n"] == 0   # співробітник
+        assert c.post("/_shop/api/ev", content=json.dumps(body), headers={"host": "testserver", "content-type": "text/plain"}).json()["ok"] is False
+        with SessionLocal() as db:
+            ss.land(db, "/shop/krem-x/", "pmax", "Mozilla/5.0 (iPhone)")
+            ss.land(db, "/shop/krem-x/", "pmax", "AdsBot-Google")          # бот — не рахуємо
+            r = ss.report(db, _d.today(), site="store", names={"/shop/krem-x/": "Крем X"})
+            assert r["ad_lands"] == 1 and r["funnel"]["product"] >= 1 and r["funnel"]["cart"] >= 1 and r["funnel"]["orders"] >= 1
+            assert r["pages"][0]["name"] == "Крем X" and "Магазин molodist.store" in ss.text(r) and "Воронка" in ss.text(r)
+            assert all(not p["page"].startswith("store:") for p in ss.report(db, _d.today())["pages"])   # сайт клініки — без магазину
+
+
+def test_report_site_store_page():
+    settings.admin_password = "owner-pass-rs"
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-rs"})
+        assert c.get("/reports/site").status_code == 200
+        r = c.get("/reports/site?site=store")
+        assert r.status_code == 200 and "Поведінка в магазині" in r.text and "переходів з реклами Google" in r.text

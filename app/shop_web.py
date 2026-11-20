@@ -102,6 +102,13 @@ def register(app, templates, version: str):
         from .services import mono_parts as _mp
         pp = _mp.public(db)
         got = sc.me(db, request.cookies.get(sc.COOKIE))
+        qp = request.query_params
+        if on_site and request.method == "GET" and (qp.get("gclid") or qp.get("gbraid") or qp.get("wbraid")):
+            try:                                          # перехід з реклами Google — рахуємо на сервері (без JavaScript)
+                from .services import site_stats as _ss
+                _ss.land(db, request.url.path, qp.get("utm_campaign") or "", request.headers.get("user-agent", ""))
+            except Exception:  # noqa: BLE001
+                db.rollback()
         return {"me": got[0] if got else None, "me_p": got[1] if got else None, "ref_in": (request.query_params.get("ref") or "")[:20],
                 "pch": float(pp["min_sum"] or 0) if pp["ready"] else None, "pch_legal": sf.PARTS_LEGAL, "pch_show": bool(pp["ready"] or pp.get("on")), "request": request, "s": c, "c": site, "d": data, "base": "" if on_site else "/_shop", "noindex": not on_site,
                 "canonical": c["canonical"].rstrip("/") + path, "ver": str(version)[:8], "year": date.today().year, "money": sp.money,
@@ -529,6 +536,17 @@ def register(app, templates, version: str):
         except Exception:  # noqa: BLE001
             pass
         return JSONResponse({"ok": bool(r.get("ok"))}, headers={"Cache-Control": "no-store"})
+
+    @app.post("/_shop/api/ev", include_in_schema=False)
+    async def shop_api_ev(request: Request, db: Session = Depends(db_dep)):
+        """Поведінка відвідувачів магазину (sendBeacon) — для щоденного звіту. Без персональних даних."""
+        from .services import site_leads as _sl, site_stats as _ss
+        raw = await request.body()
+        host = (request.headers.get("host") or "").split(":")[0].lower()
+        if len(raw) > 16_000 or host not in sf.hosts() or not _rate(request, "shopev", 400):
+            return JSONResponse({"ok": False})
+        n = _ss.ingest(db, _sl.parse_body(raw, request.headers.get("content-type", "")), request.headers.get("user-agent", ""), site="store")
+        return JSONResponse({"ok": True, "n": n})
 
     @app.get("/_shop/p/{pid}/", include_in_schema=False)
     @app.get("/_shop/p/{pid}", include_in_schema=False)

@@ -604,9 +604,19 @@ async def job_site_stats():
     def run():
         with SessionLocal() as db:
             r = ss.report(db, date.today() - timedelta(days=1))
+            try:                                       # магазин molodist.store — окремий звіт
+                from .services import shop_front as _sf
+                _cat = _sf.catalog(db)
+                _names = {f"/shop/{it_['slug']}/": it_["name"][:50] for it_ in _cat["items"] if it_.get("slug")}
+                _names.update({c_["path"]: c_["name"] for c_ in _cat["cats"]})
+                rs = ss.report(db, date.today() - timedelta(days=1), site="store", names=_names)
+            except Exception:  # noqa: BLE001
+                rs = None
             ss.cleanup(db)
         if r["sessions"]:
             alerts.send(ss.text(r))
+        if rs and (rs["sessions"] or rs.get("ad_lands")):
+            alerts.send(ss.text(rs))
     await asyncio.to_thread(run)
 
 
@@ -13455,14 +13465,22 @@ def _kpi_month(m: str) -> tuple[date, date, str]:
 
 
 @app.get("/reports/site", response_class=HTMLResponse)
-def report_site(request: Request, day: str = "", user: User = Depends(require("users")), db: Session = Depends(db_dep)):
-    """Поведінка на сайті за день (за замовчуванням — вчора): джерела, блоки, кліки, форми, заявки, де закривали."""
+def report_site(request: Request, day: str = "", site: str = "", user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    """Поведінка на сайті за день (за замовчуванням — вчора): джерела, блоки, кліки, форми, заявки, де закривали. site=store — магазин."""
     from .services import site_stats as ss
     try:
         d = date.fromisoformat(day) if day else date.today() - timedelta(days=1)
     except ValueError:
         d = date.today() - timedelta(days=1)
-    return render(request, "report_site.html", nav="reports", r=ss.report(db, d), d=d, prev=d - timedelta(days=1), nxt=d + timedelta(days=1), today=date.today())
+    site = "store" if site == "store" else "clinic"
+    names = None
+    if site == "store":
+        from .services import shop_front as _sf
+        cat_ = _sf.catalog(db)
+        names = {f"/shop/{i['slug']}/": i["name"][:50] for i in cat_["items"] if i.get("slug")}
+        names.update({c_["path"]: c_["name"] for c_ in cat_["cats"]})
+    return render(request, "report_site.html", nav="reports", r=ss.report(db, d, site=site, names=names), d=d, prev=d - timedelta(days=1),
+                  nxt=d + timedelta(days=1), today=date.today(), site=site)
 
 
 @app.get("/reports/rebook-day", response_class=HTMLResponse)
