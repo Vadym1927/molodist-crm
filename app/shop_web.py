@@ -741,8 +741,11 @@ def register(app, templates, version: str):
                 crumbs.append(d["by_path"][p])
         cx.update(canonical=cx["s"]["canonical"].rstrip("/") + path + (f"page-{page}/" if page > 1 else ""),
                   title=(cat.get("title") or cat["name"]) + (f" — сторінка {page}" if page > 1 else ""), desc=cat.get("desc") or "")
+        subs, sub_all = sf.children(cat, d), cat
+        if not subs and crumbs and crumbs[-1]["path"] != "/shop/brendi/":   # підкатегорія — показуємо сусідні, поточна активна
+            subs, sub_all = sf.children(crumbs[-1], d), crumbs[-1]
         return render_list(request, cx, [d["by_slug"][s] for s in cat["slugs"]], page, order, brand, h1=cat["name"], cat=cat,
-                           subs=sf.children(cat, d), crumbs=crumbs, page_base=path)
+                           subs=subs, sub_all=sub_all if subs else None, crumbs=crumbs, page_base=path)
 
     def _resolve_links(html: str, d: dict, base: str, *db_req) -> str:
         from .services import shop_content as _sc

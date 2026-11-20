@@ -5,7 +5,9 @@
   <h1>{{ h1 }}</h1>
   {% if cat and cat.notice %}<div class="cat-note"><div><b>{{ cat.notice.split('\n')[0] }}</b>{% for line in cat.notice.split('\n')[1:] if line.strip() %}<p>{{ line }}</p>{% endfor %}</div>
     <a class="btn" href="{{ c.telegram }}" target="_blank" rel="noopener">Звернутися до адміністратора</a></div>{% endif %}
-  {% if subs %}<div class="chips">{% for x in subs %}<a href="{{ base }}{{ x.path }}">{{ x.name }} <small>{{ x.n }}</small></a>{% endfor %}</div>{% endif %}
+  {% if subs %}<div class="flt"><div class="flt-h">{{ 'Оберіть розділ' if not cat else 'Підкатегорії' }}</div>
+    <nav class="flt-c" aria-label="Підкатегорії">{% if sub_all %}<a href="{{ base }}{{ sub_all.path }}"{% if cat and cat.path == sub_all.path %} class="on" aria-current="page"{% endif %}>Усі <small>{{ sub_all.n }}</small></a>{% endif %}
+    {% for x in subs %}<a href="{{ base }}{{ x.path }}"{% if cat and cat.path == x.path %} class="on" aria-current="page"{% endif %}>{{ x.name }} <small>{{ x.n }}</small></a>{% endfor %}</nav></div>{% endif %}
   <form class="tools" method="get" action="{{ base }}{{ page_base }}">{% if q %}<input type="hidden" name="q" value="{{ q }}">{% endif %}
     <span class="mut">{{ total }} товарів</span>
     {% if brands|length > 1 %}<select name="brand" onchange="this.form.submit()"><option value="">Усі бренди</option>{% for b in brands %}<option {{ 'selected' if b == brand }}>{{ b }}</option>{% endfor %}</select>{% endif %}

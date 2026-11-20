@@ -779,3 +779,24 @@ def test_google_details():
     assert "суха" in d["Тип шкіри"] and "чутлива" in d["Тип шкіри"]
     assert "зволоження" in d["Призначення"] and "гіалуронова кислота" in d["Активні компоненти"]
     assert d["Категорія"] == "Тоніки" and any("гідратації" in h for h in hl)
+
+
+def test_subcategory_filter_panel():
+    from app.services import shop_front as sf
+    with TestClient(app) as c:
+        with SessionLocal() as db:
+            k = sf.preview_key(db)
+            a = Product(name="Флт крем", name_norm="флт крем", price=500, site_on=True, site_info={"slug": "flt-krem", "title": "Флт крем", "presence": 1, "quantity": 3})
+            b = Product(name="Флт тонік", name_norm="флт тонік", price=400, site_on=True, site_info={"slug": "flt-tonik", "title": "Флт тонік", "presence": 1, "quantity": 3})
+            db.add_all([a, b]); db.commit()
+            st = sf.site(db)
+            st["cats"] = [x for x in st["cats"] if not x["path"].startswith("/shop/flt/")] + [
+                {"path": "/shop/flt/", "name": "Флт розділ", "title": "", "desc": "", "slugs": ["flt-krem", "flt-tonik"], "in_menu": True, "img": ""},
+                {"path": "/shop/flt/kremy/", "name": "Флт креми", "title": "", "desc": "", "slugs": ["flt-krem"], "in_menu": True, "img": ""},
+                {"path": "/shop/flt/toniky/", "name": "Флт тоніки", "title": "", "desc": "", "slugs": ["flt-tonik"], "in_menu": True, "img": ""}]
+            sf.save_site(db, st)
+        c.cookies.set("shop_prev", k)
+        h = c.get("/_shop/shop/flt/").text
+        assert 'class="flt"' in h and "Підкатегорії" in h and 'class="on" aria-current="page">Усі' in h and "Флт креми" in h
+        h2 = c.get("/_shop/shop/flt/kremy/").text                      # у підкатегорії — сусідні + активна поточна
+        assert "Флт тоніки" in h2 and 'class="on" aria-current="page">Флт креми' in h2 and 'shop/flt/">Усі' in h2
