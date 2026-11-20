@@ -5630,7 +5630,8 @@ def consign_page(request: Request, s: str = "", df: str = "", dt_: str = "", use
         rep = db.get(ConsignReport, int(request.query_params.get("r") or 0))
     products = cs.candidate_products(db, sel) if sel else []
     from .services import cashboxes as _cbx
-    return render(request, "stock_consign.html", nav="stock", sups=sups, sel=sel, v=v, draft=draft, rep=rep, products=products,
+    expiry = cs.expiry_due(db, sel) if sel else []
+    return render(request, "stock_consign.html", nav="stock", sups=sups, sel=sel, v=v, draft=draft, rep=rep, products=products, expiry=expiry,
                   boxes=[x["name"] for x in _cbx.items(db) if x.get("active") and not x.get("deleted")],
                   articles=[a for a in _fa().names(db, "expense") if "закуп" in a.lower()] or _fa().names(db, "expense"))
 
@@ -5741,6 +5742,20 @@ def consign_lot_cost(lid: int, cost: str = Form(...), user: User = Depends(requi
         return RedirectResponse(_with_msg(f"/stock/consign?s={quote(l.supplier)}", str(e), err=True), 303)
     audit(db, "consign.lot_cost", "consign_lot", lid, user=user, old=old, new=l.cost)
     return RedirectResponse(_with_msg(f"/stock/consign?s={quote(l.supplier)}", "Ціну банки змінено"), 303)
+
+
+@app.post("/stock/consign/lot/{lid:int}/sell")
+def consign_lot_sell(lid: int, qty: str = Form("1"), day: str = Form(""), note: str = Form(""),
+                     user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .models import ConsignLot
+    from .services import consign as cs
+    l = db.get(ConsignLot, lid) or (_ for _ in ()).throw(HTTPException(404))
+    try:
+        rep = cs.sell_lot(db, l, _num(qty) or 1, _day(day) or date.today(), note, user.id)
+    except ValueError as e:
+        return RedirectResponse(_with_msg(f"/stock/consign?s={quote(l.supplier)}", str(e), err=True), 303)
+    audit(db, "consign.lot_sell", "consign_report", rep.id, user=user, lot=lid, total=rep.total)
+    return RedirectResponse(_with_msg(f"/stock/consign?s={quote(l.supplier)}", f"Банку продано поза касою: {rep.total:,.2f} ₴ до оплати".replace(",", " ")), 303)
 
 
 @app.post("/stock/consign/lot/{lid:int}/map")

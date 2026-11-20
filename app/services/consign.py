@@ -158,9 +158,14 @@ def is_debt(rep: ConsignReport) -> bool:
     return bool(rep.lines) and all(not ln.get("pid") for ln in rep.lines)
 
 
+def is_manual(rep: ConsignReport) -> bool:
+    """Продаж банки поза касою — теж не зсуває період продажів."""
+    return bool(rep.lines) and all(ln.get("manual") for ln in rep.lines)
+
+
 def last_report_end(db: Session, supplier: str) -> date | None:
     reps = db.scalars(select(ConsignReport).where(ConsignReport.supplier == supplier, ConsignReport.status == "fixed")).all()
-    ds = [r.d_to for r in reps if not is_debt(r)]
+    ds = [r.d_to for r in reps if not is_debt(r) and not is_manual(r)]
     return max(ds) if ds else None
 
 
@@ -372,3 +377,61 @@ def to_xlsx(r: dict, title: str) -> bytes:
     bio = io.BytesIO()
     wb.save(bio)
     return bio.getvalue()
+
+
+RETURN_MONTHS = 12          # непродане повертаємо постачальнику не пізніше ніж за 12 міс. до кінця терміну придатності
+
+
+def _minus_months(d: date, m: int) -> date:
+    y, mo = d.year, d.month - m
+    while mo <= 0:
+        mo += 12
+        y -= 1
+    import calendar
+    return date(y, mo, min(d.day, calendar.monthrange(y, mo)[1]))
+
+
+def expiry_due(db: Session, supplier: str | None = None, today: date | None = None, ahead: int = 30) -> list[dict]:
+    """Товар під реалізацію на вітрині, який пора повернути: настала дата «термін придатності − 12 міс.»
+    (або настане за `ahead` днів). Термін — з картки товару або найближчої партії складу."""
+    today = today or date.today()
+    sups = [supplier] if supplier else suppliers(db)
+    out = []
+    for sup in sups:
+        left: dict = defaultdict(float)
+        for l in lots(db, sup):
+            if l.product_id and l.qty - l.sold > 1e-9:
+                left[l.product_id] += l.qty - l.sold
+        if not left:
+            continue
+        prods = {p.id: p for p in db.scalars(select(Product).where(Product.id.in_(list(left))))}
+        batch = dict(db.execute(select(StockMove.product_id, func.min(StockMove.expiry_date))
+                                .where(StockMove.product_id.in_(list(left)), StockMove.expiry_date.is_not(None), StockMove.qty > 0)
+                                .group_by(StockMove.product_id)).all())
+        for pid, q in left.items():
+            p = prods.get(pid)
+            exp = (p.expiry_date if p else None) or batch.get(pid)
+            if not exp:
+                continue
+            ret = _minus_months(exp, RETURN_MONTHS)
+            if ret <= today + timedelta(days=ahead):
+                out.append({"supplier": sup, "pid": pid, "name": p.name if p else f"товар #{pid}", "sku": p.sku if p else None,
+                            "qty": round(q, 3), "expiry": exp, "return_by": ret, "overdue": ret <= today, "days": (ret - today).days})
+    return sorted(out, key=lambda x: (x["return_by"], x["name"]))
+
+
+def sell_lot(db: Session, lot: ConsignLot, qty: float, day: date, note: str, user_id: int | None = None) -> ConsignReport:
+    """Продаж банки поза касою (забрав співробітник, подарунок тощо) — окремий зафіксований звіт за ціною поставки."""
+    qty = round(float(qty), 3)
+    if qty <= 0 or qty > lot.qty - lot.sold + 1e-9:
+        raise ValueError(f"У поставці лишилось {lot.qty - lot.sold:g} шт.")
+    lot.sold = round((lot.sold or 0) + qty, 3)
+    s_ = round(qty * lot.cost, 2)
+    note = (note or "Продаж поза касою").strip()[:300]
+    ln = {"pid": lot.product_id, "name": lot.name, "qty": qty, "sum": s_, "short": 0, "manual": True,
+          "alloc": [{"lot": lot.id, "invoice": lot.invoice, "date": lot.inv_date.isoformat(), "qty": qty, "cost": lot.cost, "sum": s_}]}
+    rep = ConsignReport(supplier=lot.supplier, d_from=day, d_to=day, status="fixed", lines=[ln], total=s_, paid=0.0,
+                        note=note, created_by=user_id)
+    db.add(rep)
+    db.commit()
+    return rep

@@ -42,6 +42,8 @@ TYPES = [
      {"admin": (True, "20:00"), "doctor": (True, "20:00"), "chief": (True, "20:30"), "owner": (True, "20:30")}),
     ("week", "Підсумок тижня", "Виручка, візити, нові пацієнти, скасування за тиждень — порівняно з попереднім", "weekly",
      {"chief": (True, "09:30"), "owner": (True, "09:30"), "doctor": (False, "09:30")}),
+    ("consign_expiry", "Реалізація: повернути за терміном", "Товар під реалізацію, який треба повернути постачальнику (за 12 міс. до кінця терміну) — щодня, поки не продано чи не повернуто; за 30 днів — попередження", "daily",
+     {"owner": (True, "09:00"), "admin": (False, "09:00"), "chief": (False, "09:00")}),
     ("month", "Підсумок місяця", "1-го числа: виручка, візити, нові пацієнти за місяць, по лікарях", "monthly",
      {"owner": (True, "10:00"), "chief": (False, "10:00")}),
 ]
@@ -469,7 +471,21 @@ def text_month(db: Session, u: User, role: str, d: date | None = None) -> str | 
     return "\n".join(lines)
 
 
-BUILDERS = {"next_day": text_next_day, "today": text_today, "tomorrow": text_tomorrow, "plans": text_plans, "plan_control": text_plan_control, "birthdays": text_birthdays,
+def text_consign_expiry(db: Session, u: User, role: str, d: date | None = None) -> str | None:
+    from . import consign as cs
+    xs = cs.expiry_due(db, today=d or date.today())
+    if not xs:
+        return None
+    lines = ["⏳ <b>Реалізація: повернути постачальнику</b>", "Непродане — не пізніше ніж за 12 міс. до кінця терміну придатності"]
+    for x in xs[:30]:
+        mark = "🔴 пора повертати" if x["overdue"] else f"через {x['days']} дн."
+        lines.append(f"• {escape(x['supplier'])}: {escape(x['name'])}" + (f" ({escape(x['sku'])})" if x["sku"] else "")
+                     + f" — {x['qty']:g} шт. · термін {x['expiry']:%d.%m.%Y} · повернути до {x['return_by']:%d.%m.%Y} · {mark}")
+    lines.append(f'\n<a href="{_B}/stock/consign">Реалізація</a>')
+    return "\n".join(lines)
+
+
+BUILDERS = {"consign_expiry": text_consign_expiry, "next_day": text_next_day, "today": text_today, "tomorrow": text_tomorrow, "plans": text_plans, "plan_control": text_plan_control, "birthdays": text_birthdays,
             "no_rebook": text_no_rebook, "tasks": text_tasks, "day_close": text_day_close, "week": text_week, "month": text_month}
 
 
