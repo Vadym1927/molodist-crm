@@ -10876,6 +10876,16 @@ async def settings_shop_save(request: Request, user: User = Depends(require("use
         from .services import insta_feed as _if
         st = _if.refresh(db)
         return RedirectResponse(_with_msg("/settings/shop", ("Instagram: " + st["error"]) if st.get("error") else f"Instagram: показуємо {len(st.get('items') or [])} публікацій", bool(st.get("error"))) + "#insta", 303)
+    if f.get("action") == "rvsms":
+        c = sf.cfg(db)
+        ph = str(f.get("review_test_phone") or c.get("review_test_phone") or "").strip()
+        from .services import shop_reviews as _rv
+        try:
+            out = _rv.send_sms_samples(db, ph, _shop_root(db), sf.catalog(db))
+        except Exception as e:  # noqa: BLE001
+            return RedirectResponse(_with_msg("/settings/shop", f"Тест SMS: {e}", True) + "#reviews", 303)
+        audit(db, "shop.sms_test", "shop", 0, user=user, n=len(out))
+        return RedirectResponse(_with_msg("/settings/shop", "Тест SMS: " + " | ".join(out)) + "#reviews", 303)
     if f.get("action") in ("rvcart", "rvtest"):
         c = sf.cfg(db)
         c["review_on"] = bool(f.get("review_on"))

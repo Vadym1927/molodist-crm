@@ -834,3 +834,16 @@ def test_review_request_no_paid_sms(monkeypatch):
             o.raw = {"review_due": "2020-01-01T00:00"}; db.commit()
             rv.send_due(db, {**c, "review_sms": True}, "https://molodist.store", {"by_slug": {}, "items": []})
             assert sent and len(sent[-1]) <= 70 and "https://" not in sent[-1] and "/review/" in sent[-1]
+
+
+def test_shop_sms_samples(monkeypatch):
+    from app.services import shop_reviews as rv
+    from app.integrations import messaging as m
+    sent = []
+    monkeypatch.setattr(m, "send_turbosms", lambda phone, text, ch, **k: (sent.append(text), m.SendResult(True, "sms"))[1])
+    with TestClient(app):
+        with SessionLocal() as db:
+            db.add(SiteOrder(number="R-SMP-1", ext_id="R-SMP-1", source="crm", status="Отримано", phone="+380731112233", name="Вадим Тест",
+                             items=[{"id": 1, "name": "Крем", "qty": 1}], raw={})); db.commit()
+            out = rv.send_sms_samples(db, "+380731112233", "https://molodist.store", {"by_slug": {}, "items": [{"slug": "piling-dlya-shkiri-golovi-100-ml", "variants": []}]})
+            assert len(sent) == 3 and all(len(t) <= 70 for t in sent) and all(o.startswith("✓") for o in out)

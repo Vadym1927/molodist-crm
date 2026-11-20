@@ -137,6 +137,13 @@ def reorder_due(db: Session, data: dict, now: datetime | None = None, lead_days:
     return out
 
 
+def reorder_sms(o: SiteOrder, root: str, name: str = "") -> str:
+    """SMS нагадування про повтор — 1 сегмент кирилиці (≤70)."""
+    url = f"{root}/reorder/{reorder_token(o)}/".split("://", 1)[-1]
+    opts = ([f"{name}, час поповнити догляд MOLODIST: {url}"] if name else []) + [f"Поповніть догляд MOLODIST: {url}", f"Поповніть догляд: {url}"]
+    return next((t for t in opts if len(t) <= 70), url)
+
+
 def reorder_token(o: SiteOrder) -> str:
     from . import shop_reviews as rv
     return rv.token(o)
@@ -164,9 +171,7 @@ def send_reorders(db: Session, c: dict, data: dict, root: str) -> dict:
         text = ((c.get("reorder_text") or "").strip() or REORDER_TEXT).replace("{name}", name).replace("{product}", prod) \
             .replace("{link}", f"{root}/reorder/{reorder_token(o)}/")[:480]
         try:
-            url = f"{root}/reorder/{reorder_token(o)}/".split("://", 1)[-1]
-            opts = ([f"{name}, час поповнити догляд MOLODIST: {url}"] if name else []) + [f"Поповніть догляд MOLODIST: {url}", f"Поповніть догляд: {url}"]
-            short = next((t for t in opts if len(t) <= 70), url)
+            short = reorder_sms(o, root, name)
             ch = sc._deliver(db, sc._phone(o.phone), text, "🔁 ", sms=short)   # SMS — 1 сегмент, повний текст лише в Telegram
         except Exception:  # noqa: BLE001
             continue

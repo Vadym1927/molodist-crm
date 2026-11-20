@@ -51,6 +51,12 @@ def sms_text(c: dict, code: str) -> str:
     return (t if "{code}" in t else t + " {code}").replace("{code}", code)[:300]
 
 
+def back_sms(site_root: str, slug: str) -> str:
+    """SMS «знову в наявності» — 1 сегмент (≤70)."""
+    url = f"{site_root}/shop/{slug}/".split("://", 1)[-1]
+    return f"Знову в наявності: {url}" if len(url) <= 51 else url
+
+
 def _deliver(db: Session, phone: str, text: str, icon: str = "🔐 ", sms: str = "", sms_ok: bool = True) -> str:
     """Код: спершу в Telegram (якщо пацієнт підключив бот турботи), інакше SMS. Повертає канал або кидає CabError."""
     from ..integrations import messaging as m
@@ -308,9 +314,7 @@ def notify_send(db: Session, c: dict, data: dict, site_root: str) -> dict:
         it = by_id[r.product_id][0]
         text = tpl.replace("{name}", it["name"][:60]).replace("{url}", f"{site_root}/shop/{it['slug']}/")[:300]
         try:
-            url = f"{site_root}/shop/{it['slug']}/".split("://", 1)[-1]
-            short = f"Знову в наявності: {url}" if len(url) <= 51 else url        # SMS — 1 сегмент
-            ch = _deliver(db, r.phone, text, "🔔 ", sms=short)
+            ch = _deliver(db, r.phone, text, "🔔 ", sms=back_sms(site_root, it["slug"]))
         except CabError:
             rep["failed"] += 1
             continue

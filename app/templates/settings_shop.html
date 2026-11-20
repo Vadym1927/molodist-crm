@@ -99,7 +99,7 @@
   <label>Через скільки днів після отримання<input type="number" name="review_days" min="0" max="30" value="{{ c.review_days }}" style="width:90px"></label>
   <label>Текст<textarea name="review_text" rows="3" maxlength="400" placeholder="{{ rv_default }}">{{ c.review_text }}</textarea><span class="small muted">{name} — імʼя покупця, {product} — головний товар, {n} — номер замовлення, {link} — посилання на форму. Порожньо — текст за замовчуванням (у підказці).</span></label>
   <div class="row" style="gap:8px;align-items:flex-end;margin-top:6px"><label style="flex:1">Тестове повідомлення на номер<input name="review_test_phone" value="{{ c.review_test_phone }}" placeholder="+380…"></label>
-    <button class="btn ghost" name="action" value="rvtest">Надіслати тест</button></div>
+    <button class="btn ghost" name="action" value="rvtest">Надіслати тест</button><button class="btn ghost" name="action" value="rvsms" title="Відгук, повтор, знову в наявності — короткі SMS напряму, без Telegram">Тест коротких SMS</button></div>
   <button class="btn" name="action" value="rvcart" style="margin-top:8px">Зберегти</button>
   <hr style="margin:16px 0;border:0;border-top:1px solid var(--line)">
   <b id="carts">Покинуті кошики</b>

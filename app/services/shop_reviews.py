@@ -216,3 +216,22 @@ def admin_list(db: Session, status: str = "") -> list[ShopReview]:
 
 def count_new(db: Session) -> int:
     return db.scalar(select(func.count()).select_from(ShopReview).where(ShopReview.status == "new")) or 0
+
+
+def send_sms_samples(db: Session, phone: str, root: str, data: dict) -> list[str]:
+    """Тест: усі короткі SMS магазину (відгук, повтор, знову в наявності) напряму SMS на номер — без Telegram."""
+    from . import shop_cabinet as sc, shop_extra as se
+    from ..integrations import messaging as m
+    ph = sc._phone(phone)
+    o = db.scalar(select(SiteOrder).where(SiteOrder.source == "crm", SiteOrder.phone == ph).order_by(SiteOrder.id.desc()).limit(1)) \
+        or db.scalar(select(SiteOrder).where(SiteOrder.source == "crm", SiteOrder.items.is_not(None)).order_by(SiteOrder.id.desc()).limit(1))
+    if not o:
+        raise ValueError("Ще немає жодного замовлення з сайту.")
+    items = order_items(db, o, data)
+    slug = next((x.get("slug") for x in items if x.get("slug")), None) or next((i["slug"] for i in data.get("items") or [] if i.get("slug")), "")
+    texts = [short_sms(o, root, db), se.reorder_sms(o, root, first_name(o, db))] + ([sc.back_sms(root, slug)] if slug else [])
+    out = []
+    for t in texts:
+        r = m.send_turbosms(ph, t, ["sms"], internal=True)
+        out.append(f"{'✓' if r.ok else '✗'} {len(t)} симв.: {t}" + ("" if r.ok else f" ({r.error})"))
+    return out
