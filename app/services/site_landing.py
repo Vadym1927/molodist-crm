@@ -160,12 +160,12 @@ def data(db: Session, lp: dict, home: dict, base: str) -> dict:
         procs.append({**g, "items": items[:8], "more": max(0, len(items) - 8), "lo": min((i["price"] for i in items), default=None)})
     # лікар
     doc = [d for d in home.get("team") or [] if lp["doctor"]["match"] in (d.get("name") or "").lower()]
-    # відгуки: про акне; якщо таких немає — де згадують лікаря; якщо й таких немає — усі
+    # відгуки: 8 з Google (5★), спершу про акне або де згадують лікаря, далі найсвіжіші
     rev = home.get("rev")
     if rev and rev.get("reviews"):
-        rel = [r for r in rev["reviews"] if re.search(lp["reviews_kw"], r.get("text") or "", re.I)]
-        rel = rel or [r for r in rev["reviews"] if re.search(lp["reviews_doc"], r.get("text") or "", re.I)]
-        rev = {**rev, "reviews": rel or rev["reviews"]}
+        kw = re.compile(lp["reviews_kw"] + "|" + lp["reviews_doc"], re.I)
+        rel = [r for r in rev["reviews"] if kw.search(r.get("text") or "")]
+        rev = {**rev, "reviews": (rel + [r for r in rev["reviews"] if r not in rel])[:8]}
     # + відгуки пацієнтів з опитування після візиту (архів CRM): до Софії Сирової або про акне — анонімно
     try:
         from sqlalchemy import select, or_
@@ -188,7 +188,7 @@ def data(db: Session, lp: dict, home: dict, base: str) -> dict:
         own = []
     if own:
         g = (rev or {}).get("reviews") or []
-        rev = {**(rev or {"rating": 5.0, "count": 0, "url": ""}), "reviews": (g + own)[:9]}
+        rev = {**(rev or {"rating": 5.0, "count": 0, "url": ""}), "reviews": (g[:8] + own)[:9]}
     # товари: засоби для проблемної шкіри; якщо мало — добираємо хітами
     products = home.get("products") or []
     try:

@@ -31,6 +31,17 @@
       <td class="r">{% if r.old %}<s class="mini">{{ money(r.old) }}</s> {% endif %}{{ money(r.price) }}</td></tr>{% endfor %}{% endfor %}
   </tbody></table></details>{% endfor %}
 
+<div class="gs" id="ig"><h2>Сторінка акне — рілс і фото з Instagram</h2>
+  <p class="mini">Беремо з власного Instagram (опубліковане — зі згодою пацієнтів): рілс з «чотири фактори» в підписі та фото з публікацій про акне з «до/після», «результат», «кейс».
+  {% if ig.checked_at %}Перевірено {{ ig.checked_at }} UTC.{% endif %} {% if ig.error %}<b>{{ ig.error }}</b>{% endif %}</p>
+  <form method="post" action="/settings/site/ig-assets"><input type="hidden" name="topic" value="akne"><button class="btn">Забрати з Instagram</button></form>
+  {% if ig.reel %}<p>Рілс: <a href="/_site/ig/{{ ig.reel.file }}" target="_blank">{{ ig.reel.file }}</a> · <a href="{{ ig.reel.url }}" target="_blank" rel="noopener">в Instagram</a></p>{% endif %}
+  {% if ig.cases %}<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px">{% for x in ig.cases %}
+    <form method="post" action="/settings/site/ig-assets" style="width:150px;text-align:center"><input type="hidden" name="topic" value="akne"><input type="hidden" name="toggle" value="{{ x.file }}">
+      <img src="/_site/ig/{{ x.file }}" style="width:150px;height:150px;object-fit:cover;border-radius:10px;{{ 'opacity:.3' if x.file in (ig.hide or []) }}" alt="">
+      <button class="btn sm ghost" style="margin-top:4px">{{ 'Показати' if x.file in (ig.hide or []) else 'Сховати' }}</button></form>{% endfor %}</div>{% endif %}
+</div>
+
 <div class="gs" id="tilda"><h2>Сторінки з Tilda (перехід)</h2>
   {% if qmsg %}<div class="alert ok">{{ qmsg }}</div>{% endif %}{% if qerr %}<div class="alert">{{ qerr }}</div>{% endif %}
   <p class="small muted">Архів експорту Tilda (Tilda → Налаштування сайту → Експорт → ZIP). CRM віддає ці сторінки за тими самими адресами на домені сайту; сторінки, переписані в CRM (вище), мають пріоритет. Форми Tilda надсилають заявки в «Звернення» CRM з мітками реклами.</p>

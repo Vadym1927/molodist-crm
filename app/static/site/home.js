@@ -161,6 +161,14 @@
     });
   }
 
+  d.querySelectorAll('[data-reel-sound]').forEach(function (b) {          // рілс: грає без звуку, кнопка вмикає звук з початку
+    var v = b.parentNode.querySelector('video'); if (!v) return;
+    b.addEventListener('click', function () {
+      if (v.muted) { v.muted = false; v.currentTime = 0; v.loop = false; v.controls = true; v.play(); b.hidden = true;
+        (window.dataLayer = window.dataLayer || []).push({ event: 'reel_sound_on' }); }
+    });
+  });
+
   var up = d.querySelector('.h-up'), hd = d.querySelector('.h-hd');
   if (up) up.addEventListener('click', function (e) {                   // плавно вгору; якщо браузер не прокрутив — одразу
     e.preventDefault(); var y0 = window.scrollY;

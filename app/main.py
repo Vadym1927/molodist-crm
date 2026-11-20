@@ -8792,8 +8792,10 @@ def _landing_resp(request: Request, db: Session, lp: dict):
     ctx = _site_ctx(request, db, lp["slug"])
     _home_new_ctx(ctx, db, "a")
     ctx.update(sl.data(db, lp, ctx, ctx["base"]))
+    from .services import site_ig_assets as _sia
+    ctx.update(_sia.assets(db, lp["key"], ctx["base"]))
     ctx.update(lp=lp, vk=lp["key"], proto=False, menu=lp["menu"], facts=lp["facts"], shop={**sh.SHOP, **lp["shop"]},
-               v={**sh.VARIANTS["a"], "order": ["lhero", "facts", "pain", "cases", "process", "consult", "procs", "ldoctor", "reviews",
+               v={**sh.VARIANTS["a"], "order": ["lhero", "facts", "pain", "reel", "cases", "process", "consult", "procs", "ldoctor", "reviews",
                                                  "booking", "shop", "insta", "faq", "contacts"]},
                title=lp["seo"]["title"], desc=lp["seo"]["desc"], faq_ld="")
     abs_base = ctx["c"]["canonical"].rstrip("/") if not ctx["noindex"] else str(request.base_url).rstrip("/").replace("http://", "https://") + "/_site"
@@ -9204,6 +9206,40 @@ def site_tilda_asset(folder: str, path: str):
     return FileResponse(f, headers={"Cache-Control": "public, max-age=604800"})
 
 
+@app.get("/_site/ig/{name}")
+def site_ig_asset(name: str):
+    """Рілс і фото з Instagram для сторінок болей (зберігаються на сервері)."""
+    from .services import site_ig_assets as sia
+    f = sia.folder() / name
+    if not sia.NAME_RE.match(name) or not f.is_file():
+        raise HTTPException(404)
+    return FileResponse(f, media_type="video/mp4" if name.endswith(".mp4") else "image/jpeg", headers={"Cache-Control": "public, max-age=604800"})
+
+
+@app.post("/settings/site/ig-assets")
+async def settings_site_ig_assets(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    """Забрати з Instagram рілс і фото «до / після» для сторінки акне; або сховати / показати окреме фото."""
+    from .services import site_ig_assets as sia
+    f = await request.form()
+    topic = str(f.get("topic") or "akne")
+    if topic not in sia.TOPICS:
+        raise HTTPException(400)
+    if f.get("toggle"):
+        st = sia.state(db)
+        cur = st.get(topic) or {}
+        hide = set(cur.get("hide") or [])
+        name = str(f.get("toggle"))
+        hide.symmetric_difference_update({name})
+        cur["hide"] = sorted(hide)
+        st[topic] = cur
+        sia._save(db, st)
+        return RedirectResponse(_with_msg("/settings/site#ig", "Збережено"), 303)
+    r = await asyncio.to_thread(sia.refresh, db, topic)
+    audit(db, "site.ig_assets", user=user, topic=topic, reel=bool(r.get("reel")), cases=len(r.get("cases") or []))
+    msg = f"Instagram: рілс {'є' if r.get('reel') else 'не знайдено'}, фото до/після — {len(r.get('cases') or [])}" + (f" · {r['error']}" if r.get("error") else "")
+    return RedirectResponse(_with_msg("/settings/site#ig", msg), 303)
+
+
 @app.post("/settings/site/tilda")
 async def settings_site_tilda(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     """Архів Tilda: файл ZIP або посилання export.tildacdn.com; також головна (Tilda / CRM) і вимкнення."""
@@ -9273,7 +9309,9 @@ def settings_site(request: Request, user: User = Depends(require("users")), db: 
     from .services import tilda_site as ts
     tc = ts.cfg(db)
     tpages = sorted((k, v) for k, v in tc.get("map", {}).items() if k not in sp.PAGES)
+    from .services import site_ig_assets as _sia
     return render(request, "site_settings.html", nav="settings", c=sp.cfg(db), pages=pages, svc=svc, money=sp.money, media=sp.media_list(),
+                  ig=(_sia.state(db).get("akne") or {}),
                   tc=tc, tpages=tpages, qmsg=request.query_params.get("msg", ""), qerr=request.query_params.get("err", ""),
                   slots=sorted({n for p_ in sp.PAGES.values() for n in [(p_.get("img") or {}).get("hero")] + (p_.get("img") or {}).get("gallery", []) if n}
                                | {f"doc-{k}.webp" for k in sp.DOCTORS}))
