@@ -51,10 +51,15 @@ def sms_text(c: dict, code: str) -> str:
     return (t if "{code}" in t else t + " {code}").replace("{code}", code)[:300]
 
 
-def back_sms(site_root: str, slug: str) -> str:
-    """SMS «знову в наявності» — 1 сегмент (≤70)."""
-    url = f"{site_root}/shop/{slug}/".split("://", 1)[-1]
-    return f"Знову в наявності: {url}" if len(url) <= 51 else url
+def short_url(site_root: str, pid: int) -> str:
+    """Коротке посилання на товар для SMS: molodist.store/p/123/ → 301 на сторінку товару."""
+    return f"{site_root}/p/{pid}/".split("://", 1)[-1]
+
+
+def back_sms(site_root: str, pid: int) -> str:
+    """SMS «знову в наявності» — 1 сегмент (≤70) з коротким посиланням."""
+    url = short_url(site_root, pid)
+    return next((t for t in (f"Знову в наявності в MOLODIST: {url}", f"Знову в наявності: {url}") if len(t) <= 70), url)
 
 
 def _deliver(db: Session, phone: str, text: str, icon: str = "🔐 ", sms: str = "", sms_ok: bool = True) -> str:
@@ -314,7 +319,7 @@ def notify_send(db: Session, c: dict, data: dict, site_root: str) -> dict:
         it = by_id[r.product_id][0]
         text = tpl.replace("{name}", it["name"][:60]).replace("{url}", f"{site_root}/shop/{it['slug']}/")[:300]
         try:
-            ch = _deliver(db, r.phone, text, "🔔 ", sms=back_sms(site_root, it["slug"]))
+            ch = _deliver(db, r.phone, text, "🔔 ", sms=back_sms(site_root, r.product_id))
         except CabError:
             rep["failed"] += 1
             continue

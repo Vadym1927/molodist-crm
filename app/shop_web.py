@@ -530,6 +530,16 @@ def register(app, templates, version: str):
             pass
         return JSONResponse({"ok": bool(r.get("ok"))}, headers={"Cache-Control": "no-store"})
 
+    @app.get("/_shop/p/{pid}/", include_in_schema=False)
+    @app.get("/_shop/p/{pid}", include_in_schema=False)
+    def shop_short_link(pid: int, request: Request, db: Session = Depends(db_dep)):
+        """Коротке посилання на товар (для SMS) → 301 на сторінку товару; невідомий товар — на каталог."""
+        cx = ctx(request, db, "/shop/")
+        d = cx["d"]
+        it = next((x for x in list(d["items"]) + list((d.get("archive") or {}).values()) if any(v["id"] == pid for v in x["variants"])), None)
+        q = request.url.query
+        return RedirectResponse(cx["base"] + (f"/shop/{it['slug']}/" if it else "/shop/") + (f"?{q}" if q else ""), 301)
+
     @app.get("/_shop/review/{tok}/", response_class=HTMLResponse)
     def shop_review_page(tok: str, request: Request, db: Session = Depends(db_dep)):
         from .services import shop_reviews as rv

@@ -228,8 +228,8 @@ def send_sms_samples(db: Session, phone: str, root: str, data: dict) -> list[str
     if not o:
         raise ValueError("Ще немає жодного замовлення з сайту.")
     items = order_items(db, o, data)
-    slug = next((x.get("slug") for x in items if x.get("slug")), None) or next((i["slug"] for i in data.get("items") or [] if i.get("slug")), "")
-    texts = [short_sms(o, root, db), se.reorder_sms(o, root, first_name(o, db))] + ([sc.back_sms(root, slug)] if slug else [])
+    pid = next((x["id"] for x in items if x.get("slug")), None) or next((i["id"] for i in data.get("items") or [] if i.get("id")), None)
+    texts = [short_sms(o, root, db), se.reorder_sms(o, root, first_name(o, db))] + ([sc.back_sms(root, pid)] if pid else [])
     out = []
     for t in texts:
         r = m.send_turbosms(ph, t, ["sms"], internal=True)

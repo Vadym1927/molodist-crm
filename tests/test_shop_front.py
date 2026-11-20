@@ -848,7 +848,7 @@ def test_shop_sms_samples(monkeypatch):
         with SessionLocal() as db:
             db.add(SiteOrder(number="R-SMP-1", ext_id="R-SMP-1", source="crm", status="Отримано", phone="+380731112233", name="Вадим Тест",
                              items=[{"id": 1, "name": "Крем", "qty": 1}], raw={})); db.commit()
-            out = rv.send_sms_samples(db, "+380731112233", "https://molodist.store", {"by_slug": {}, "items": [{"slug": "piling-dlya-shkiri-golovi-100-ml", "variants": []}]})
+            out = rv.send_sms_samples(db, "+380731112233", "https://molodist.store", {"by_slug": {}, "items": [{"id": 7, "slug": "piling-dlya-shkiri-golovi-100-ml", "variants": []}]})
             assert len(sent) == 3 and all(len(t) <= 70 for t in sent) and all(o.startswith("✓") for o in out)
 
 
@@ -866,3 +866,18 @@ def test_bf_mediceuticals_once():
             assert "250 мл" in a.name and a.site_info["slug"] == "cellagen-125-ml" and "250 мл" in a.site_info["short_description"] and "250 мл" in a.site_info["seo_title"]
             assert a.site_info["sale"]["pct"] == 22 and b.site_info["sale"]["pct"] == 22
             assert round(3050 * 0.78) == 2379 and round(4600 * 0.78) == 3588
+
+
+def test_short_product_link_and_back_sms():
+    from app.services import shop_front as sf, shop_cabinet as sc
+    with TestClient(app) as c:
+        with SessionLocal() as db:
+            k = sf.preview_key(db)
+            p = Product(name="Короткий лінк", name_norm="короткий лінк", price=500, site_on=True, site_info={"slug": "korotkyi-link-dovha-nazva-tovaru-150-ml", "title": "Короткий лінк", "presence": 1})
+            db.add(p); db.commit(); pid = p.id
+        c.cookies.set("shop_prev", k)
+        r = c.get(f"/_shop/p/{pid}/", follow_redirects=False)
+        assert r.status_code == 301 and r.headers["location"].endswith("/shop/korotkyi-link-dovha-nazva-tovaru-150-ml/")
+        assert c.get("/_shop/p/999999/", follow_redirects=False).headers["location"].endswith("/shop/")
+        t = sc.back_sms("https://molodist.store", pid)
+        assert len(t) <= 70 and t.startswith("Знову в наявності") and f"molodist.store/p/{pid}/" in t
