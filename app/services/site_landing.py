@@ -29,8 +29,8 @@ ACNE = {
              "lead": "Акне — це захворювання шкіри, а не «перехідний вік» і не брак догляду. Лікар-дерматовенеролог знаходить "
                      "причину висипань, складає план лікування й веде вас до результату — без випадкових засобів і зайвих процедур.",
              "cta": "Записатися на консультацію", "cta2": "Як проходить лікування",
-             "img": "acne-hero.webp", "img_alt": "Софія Сирова, лікар-дерматовенеролог MOLODIST — лікування акне в Києві",
-             "result": {"label": "Результат пацієнтки", "period": "3,5 місяці лікування", "imgs": ["ak-side-1.webp", "ak-side-2.webp"]}},
+             "media": ["akne-hero.webp", "doc-syrova.webp"], "img": "acne-hero.webp", "og": "og-akne.webp",
+             "img_alt": "Софія Сирова, лікар-дерматовенеролог MOLODIST — лікування акне в Києві"},
     "facts": [("Лікар-дерматовенеролог", "Лікування веде лікар, а не косметолог-продавець процедур", "ak-doc.webp"),
               ("Діагностика OBSERV 520x", "Видно запалення, пори й сліди, яких не помітно в дзеркалі", "f-diag.webp"),
               ("План лікування письмово", "Що робимо, у якій послідовності й скільки це коштує", "f-plan.webp"),
@@ -48,11 +48,11 @@ ACNE = {
                     "Тому лікування починається з огляду лікаря."},
     "cases": {"title": "Результати пацієнтів",
               "text": "Фото зроблені на апараті OBSERV 520x до лікування й під час контрольного візиту — в однаковому світлі й ракурсі.",
-              "items": [{"t": "Запалення й почервоніння", "d": "Режим «почервоніння» OBSERV · 09.05 → 21.08.2026",
-                         "ba": ["ak-side-1.webp", "ak-side-2.webp"]},
-                        {"t": "Висипання на лобі", "d": "Денне світло OBSERV · 09.05 → 21.08.2026",
-                         "ba": ["ak-front-1.webp", "ak-front-2.webp"]}],
-              "note": "Фото опубліковано за згодою пацієнтки. Результат індивідуальний і залежить від форми акне, стану шкіри "
+              "items": [{"t": "Запалення й почервоніння", "d": "OBSERV, режим «почервоніння» · травень → серпень 2026", "ba": ["akc1-1.webp", "akc1-2.webp"]},
+                        {"t": "Висипання на лобі", "d": "OBSERV, денне світло · травень → серпень 2026", "ba": ["akc2-1.webp", "akc2-2.webp"]},
+                        {"t": "Запальне акне", "d": "Фото пацієнтки до лікування й на контролі", "ba": ["akc3-1.webp", "akc3-2.webp"]},
+                        {"t": "Акне на щоках і лобі", "d": "Фото пацієнтки до лікування й на контролі", "ba": ["akc4-1.webp", "akc4-2.webp"]}],
+              "note": "Фото опубліковано за згодою пацієнток. Результат індивідуальний і залежить від форми акне, стану шкіри "
                       "та виконання рекомендацій лікаря."},
     "process": {"title": "Як проходить лікування акне",
                 "text": "Лікування — це не одна процедура, а послідовність кроків. Лікар веде вас від першого огляду до стабільного результату.",
@@ -85,8 +85,10 @@ ACNE = {
     "doctor": {"match": "сирова", "title": "Ваш лікар",
                "lead": "Софія Сирова — лікар-дерматовенеролог MOLODIST. Консультує з приводу акне, розацеа й дерматитів, "
                        "підбирає домашній догляд і веде пацієнтів до результату."},
-    "reviews_kw": r"акне|прищ|висип|запален|постакне|розацеа|дерматолог|сиров|софі",
-    "products_kw": r"acne|акне|проблемн|blemish|azelo|азелаїн|салицил|саліцил|bha|niacinamide|ніацинамід|себо|sebo|жирн|пор[иау]|clear|purif",
+    "reviews_kw": r"акне|прищ|висип|запален|постакне|розацеа",
+    "reviews_doc": r"софі|сиров",
+    "products_kw": r"acne|акне|постакне|проблемн|blemish|azelo|азелаїн|саліцил|салицил|bha|комедон|себорегул|sebo",
+    "products_no": r"spf|сонцезахис|sun|\bтон|кушон|тональ",
     "shop": {"title": "Домашній догляд при акне",
              "text": "Засоби, які лікарі MOLODIST призначають при акне й постакне. Підбір — на консультації: без нього навіть "
                      "хороший засіб може не підійти вашій шкірі.",
@@ -158,12 +160,12 @@ def data(db: Session, lp: dict, home: dict, base: str) -> dict:
         procs.append({**g, "items": items[:8], "more": max(0, len(items) - 8), "lo": min((i["price"] for i in items), default=None)})
     # лікар
     doc = [d for d in home.get("team") or [] if lp["doctor"]["match"] in (d.get("name") or "").lower()]
-    # відгуки: спершу ті, де пишуть про акне / шкіру, далі решта
+    # відгуки: про акне; якщо таких немає — де згадують лікаря; якщо й таких немає — усі
     rev = home.get("rev")
     if rev and rev.get("reviews"):
-        kw = re.compile(lp["reviews_kw"], re.I)
-        rel = [r for r in rev["reviews"] if kw.search(r.get("text") or "")]
-        rev = {**rev, "reviews": rel + [r for r in rev["reviews"] if r not in rel]}
+        rel = [r for r in rev["reviews"] if re.search(lp["reviews_kw"], r.get("text") or "", re.I)]
+        rel = rel or [r for r in rev["reviews"] if re.search(lp["reviews_doc"], r.get("text") or "", re.I)]
+        rev = {**rev, "reviews": rel or rev["reviews"]}
     # товари: засоби для проблемної шкіри; якщо мало — добираємо хітами
     products = home.get("products") or []
     try:
@@ -171,14 +173,17 @@ def data(db: Session, lp: dict, home: dict, base: str) -> dict:
         kw = re.compile(lp["products_kw"], re.I)
         pool = sorted((i for i in sf.catalog(db)["items"] if i.get("stock") and i.get("imgs")),
                       key=lambda i: (-(i.get("sold") or 0), -i["new"]))
-        hit = [i for i in pool if kw.search(" ".join(str(i.get(k) or "") for k in ("name", "brand", "desc", "seo_desc", "sections")))]
-        products = (hit + [i for i in products if i not in hit])[:8] if hit else products
+        no = re.compile(lp["products_no"], re.I)
+        hit = [i for i in pool if kw.search(" ".join(str(i.get(k) or "") for k in ("name", "desc", "seo_desc", "sections")))
+               and not no.search(str(i.get("name") or ""))]
+        products = hit[:8]                            # лише засоби для лікування й догляду при акне; немає — блок товарів сховано
     except Exception:  # noqa: BLE001
         pass
     money = sp.money
     faq = [(q, a.format(price=money(main_price) if main_price else "за прайсом",
                         price_online=money(prices.get(568)) if prices.get(568) else "за прайсом")) for q, a in lp["faq"]]
-    return {"formats": formats, "main_price": main_price, "procs": procs, "lp_doc": doc, "rev": rev, "products": products, "faq": faq}
+    hero = next((u for u in (sp.media_url(n, base) for n in lp["hero"]["media"]) if u), "")
+    return {"hero_img": hero, "formats": formats, "main_price": main_price, "procs": procs, "lp_doc": doc, "rev": rev, "products": products, "faq": faq}
 
 
 def jsonld(lp: dict, c: dict, url: str, faq: list, formats: list) -> str:

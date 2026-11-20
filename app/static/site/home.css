@@ -567,3 +567,15 @@ h2.lbl{font-weight:600}
 @media (max-width:560px){.l-cgrid{grid-template-columns:1fr}.l-why{padding:26px 22px}.l-plist li{font-size:15px;padding:13px 14px}.l-flow{grid-template-columns:1fr}
   .l-doc .h-dcard{max-width:300px}.l-fmt{padding:22px 18px 18px}.l-fmt .pr{font-size:17px}}
 .l-res{top:36px;bottom:auto;right:-24px}@media (max-width:860px){.l-res{top:12px;bottom:auto;right:12px}}
+
+/* сторінка акне: фото лікаря на першому екрані, компактна форма без прокрутки */
+.l-hero .im img.l-himg{aspect-ratio:4/5;object-position:center 20%}
+.l-cgrid{grid-template-columns:repeat(2,1fr)}.l-case .h-ba{aspect-ratio:8/5}
+.h-mlp{display:flex;gap:14px;align-items:center;margin:0 44px 14px 0}
+.h-mlp img{flex:none;width:72px;height:72px;border-radius:50%;object-fit:cover;object-position:center 20%}
+.h-mlp .eyebrow{margin:0 0 4px;font-size:11px}.h-mlp .h-mh{margin:0 0 4px;font-size:18px}.h-mlp .sm{margin:0;font-size:13.5px}
+.h-modal.m-lp .h-topics{display:none}
+.h-modal.m-lp .h-modal-box{padding:24px 26px 20px}
+.h-modal .h-form{gap:12px}.h-modal .h-form .fine{margin-top:4px}
+@media (max-height:760px){.h-mbp img{display:none}.h-modal .h-topics label,.h-modal .h-topics button{padding-top:7px;padding-bottom:7px}}
+@media (max-width:560px){.l-cgrid{grid-template-columns:1fr}.h-mlp img{width:56px;height:56px}.h-mlp .h-mh{font-size:16px}}

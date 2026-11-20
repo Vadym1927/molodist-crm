@@ -90,7 +90,9 @@
   function setModal(on, mode) {
     if (!modal) return;
     if (on) {
+      if (!modal.querySelector('[data-mode="' + mode + '"]')) mode = 'std';
       modal.querySelectorAll('[data-mode]').forEach(function (x) { x.hidden = x.getAttribute('data-mode') !== mode; });
+      modal.className = 'h-modal m-' + mode;
       lastFocus = d.activeElement; modal.hidden = false; d.documentElement.classList.add('h-lock');
       setTimeout(function () { var n = modal.querySelector('[name=name]'); if (n && window.innerWidth > 860) n.focus(); }, 60);
       (window.dataLayer = window.dataLayer || []).push({ event: 'booking_popup_open', popup_mode: mode });
@@ -102,7 +104,9 @@
     var a = e.target.closest ? e.target.closest('a[href="#zapys"]') : null;
     if (!a || !modal || modal.contains(a)) return;
     e.preventDefault(); setFab(false); setMenu(false); if (pop) pop.hidden = true;
-    setModal(true, a.getAttribute('data-modal') || (a.getAttribute('data-interest') === 'Beauty Plan' ? 'bp' : 'std'));
+    var pageTopic = d.body.getAttribute('data-topic');
+    if (pageTopic && !a.getAttribute('data-interest')) setPick('topic', pageTopic);   // на сторінці болю — тема сторінки
+    setModal(true, a.getAttribute('data-modal') || (a.getAttribute('data-interest') === 'Beauty Plan' ? 'bp' : (pageTopic ? 'lp' : 'std')));
   });
   if (modal) {
     modal.addEventListener('click', function (e) { if (e.target === modal || (e.target.closest && e.target.closest('[data-modal-close]'))) setModal(false); });
