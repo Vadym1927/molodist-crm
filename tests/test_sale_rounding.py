@@ -17,3 +17,9 @@ def test_pay_whole_hryvnias_for_kopeck_price():
         s = sl.create(db, {"items": [{"kind": "other", "name": "A", "qty": 1, "price": 5000}, {"kind": "other", "name": "B", "qty": 1, "price": 0.01}],
                            "payments": [{"method": "Готівка", "amount": 5000}]})
         assert s.status == "paid" and s.total == 5000 and s.discount == 0.01
+
+
+def test_kopeck_item_rounded_in_quote():
+    with SessionLocal() as db:
+        q = sl.quote(db, [{"kind": "service", "name": "A", "qty": 1, "price": 5000}, {"kind": "service", "name": "B", "qty": 1, "price": 0.01}], None)
+        assert q["total"] == 5000 and q["to_pay"] == 5000 and "Заокруглення до гривні" in q["rules"]

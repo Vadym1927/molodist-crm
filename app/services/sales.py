@@ -77,7 +77,7 @@ def quote(db: Session, items: list[dict], patient: Patient | None, rule_ids: lis
     total = round(sub - disc, 2)
     rounded = False
     kop = round(total - int(total + 1e-9), 2)
-    if 0 < kop < 1 and total >= 1 and li and (disc > 0 or round_total):   # копійки від знижки — заокруглюємо до гривні на користь пацієнта (у знижку найбільшого рядка)
+    if 0 < kop < 1 and total >= 1 and li and (disc > 0 or round_total or any(0 < x["price"] * x["qty"] < 1 for x in li)):   # знижка або «копійчана» позиція (0,01 ₴)   # копійки від знижки — заокруглюємо до гривні на користь пацієнта (у знижку найбільшого рядка)
         i = max(range(len(li)), key=lambda k: li[k]["price"] * li[k]["qty"] - lines[k])
         lines[i] = round(lines[i] + kop, 2)
         disc, total, rounded = round(sum(lines), 2), round(sub - round(sum(lines), 2), 2), True
