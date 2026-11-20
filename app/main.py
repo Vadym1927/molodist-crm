@@ -358,6 +358,8 @@ async def job_care_bot():
     from .services import care_bot as cb
     def run():
         with SessionLocal() as db:
+            cb.send_2h(db)
+            cb.send_birthdays(db)
             return cb.send_reminders(db)
     try:
         await asyncio.to_thread(run)
@@ -719,7 +721,7 @@ async def lifespan(app: FastAPI):
         sched.add_job(job_reviews, "cron", minute="*/5")
         sched.add_job(job_online_fiscal, "cron", minute="7,22,37,52")
         sched.add_job(job_mono_parts, "cron", minute="*/5")
-        sched.add_job(job_care_bot, "cron", minute=3)
+        sched.add_job(job_care_bot, "cron", minute="*/5")
         sched.add_job(job_payreq, "cron", minute=35)
         sched.add_job(job_tg_notify, "cron", minute="*/5")
         sched.add_job(job_rematch, "date", run_date=datetime.now() + timedelta(seconds=40))   # після оновлення — одразу

@@ -29,10 +29,15 @@ FEATURES = {
     "certs": "Купити подарунковий сертифікат або абонемент у боті (посилання на оплату)",
     "reminders": "Нагадування про візит напередодні з кнопками «Підтвердити / Перенести / Скасувати»",
     "login": "Код для входу в кабінет на сайті — у бот, потім SMS (готується разом із кабінетом)",
+    "remind_2h": "Нагадування за 2 години до візиту (Telegram акаунта клініки → бот, без SMS)",
+    "birthday": "Привітання з днем народження о годині нагадувань (Telegram акаунта клініки → бот, без SMS)",
 }
 DEFAULT = {"features": {k: False for k in FEATURES}, "remind_hour": 10, "remind_days": 1, "test_only": True, "testers": "",
            "remind_text": "Нагадуємо про ваш візит у MOLODIST: {when}\n{service}{doctor}\n\nАдреса: вул. Князя Романа Мстиславича, 28А (ЖК «Автограф»), "
-                          "домофон 15#.\nБудь ласка, підтвердьте візит кнопкою нижче."}
+                          "домофон 15#.\nБудь ласка, підтвердьте візит кнопкою нижче.",
+           "remind2h_text": "{name}, чекаємо вас сьогодні о {time} у MOLODIST{doctor_short}.\nвул. Князя Романа Мстиславича, 28А (ЖК «Автограф»), домофон 15#. "
+                            "Якщо запізнюєтесь — напишіть нам, будь ласка.",
+           "bday_text": "{name}, вітаємо з днем народження! Бажаємо здоров'я, енергії та радості щодня. З любов'ю, команда MOLODIST."}
 ACTIONS = {"confirm": "Підтвердити", "reschedule": "Перенести", "cancel": "Скасувати"}
 CB_PREFIX = "mcrm"
 WD = ["понеділок", "вівторок", "середа", "четвер", "пʼятниця", "субота", "неділя"]
@@ -74,6 +79,8 @@ def save_form(db: Session, f) -> dict:
     except ValueError:
         pass
     c["remind_text"] = str(f.get("remind_text") or DEFAULT["remind_text"]).strip()[:1000]
+    c["remind2h_text"] = str(f.get("remind2h_text") or DEFAULT["remind2h_text"]).strip()[:1000]
+    c["bday_text"] = str(f.get("bday_text") or DEFAULT["bday_text"]).strip()[:1000]
     c["test_only"] = bool(f.get("test_only"))
     c["testers"] = str(f.get("testers") or "").strip()[:500]
     save_cfg(db, c)
@@ -281,6 +288,67 @@ def due_reminders(db: Session, now: datetime | None = None) -> list[Appointment]
         if p and p.telegram_chat_id and not (a.bot_remind_at if hasattr(a, "bot_remind_at") else None) and (not c.get("test_only") or p.id in testers):
             out.append(a)
     return out
+
+
+def _first(p: Patient) -> str:
+    parts = (p.full_name or "").split()
+    return parts[1] if len(parts) > 1 else (parts[0] if parts else "")
+
+
+def _send_service(p: Patient, text: str):
+    """Службове повідомлення: Telegram акаунта клініки (якщо вікно відкрите) → бот турботи. SMS — ніколи автоматично."""
+    from ..integrations import messaging
+    return messaging.send_to_patient(p, text, prefer=["telegram"], biz=True)
+
+
+def due_2h(db: Session, now: datetime | None = None) -> list[Appointment]:
+    c = cfg(db)
+    now = now or datetime.now()
+    testers = tester_ids(db, c) if c.get("test_only") else None
+    rows = db.scalars(select(Appointment).where(Appointment.start > now + timedelta(minutes=60), Appointment.start <= now + timedelta(minutes=125),
+                                                Appointment.status.in_(("booked", "confirmed")), Appointment.bot_2h_at.is_(None))).all()
+    return [a for a in rows if a.patient and (testers is None or a.patient.id in testers)]
+
+
+def send_2h(db: Session, now: datetime | None = None) -> dict:
+    """Кожні 5 хв: записи, що починаються приблизно за 2 години, — одне нагадування на візит."""
+    c = cfg(db)
+    if not c["features"].get("remind_2h"):
+        return {"skipped": True}
+    sent = failed = 0
+    for a in due_2h(db, now):
+        doc = _doc_name(db, a.doctor_id) if getattr(a, "doctor_id", None) else ""
+        text = (c.get("remind2h_text") or DEFAULT["remind2h_text"]).replace("{name}", _first(a.patient)).replace(
+            "{time}", a.start.strftime("%H:%M")).replace("{doctor_short}", f" (лікар {doc})" if doc else "")
+        res = _send_service(a.patient, text)
+        a.bot_2h_at = datetime.utcnow()                 # одна спроба на візит — без повторів
+        sent += bool(res.ok)
+        failed += not res.ok
+        db.commit()
+    return {"sent": sent, "failed": failed}
+
+
+def send_birthdays(db: Session, now: datetime | None = None) -> dict:
+    """Раз на день о годині нагадувань: привітання іменинникам (один раз на рік на пацієнта)."""
+    c = cfg(db)
+    now = now or datetime.now()
+    if not c["features"].get("birthday") or now.hour != int(c.get("remind_hour") or 10):
+        return {"skipped": True}
+    key = f"care_bday:{now.year}"
+    st = db.get(SyncState, key)
+    done = set(json.loads(st.value)) if st and st.value else set()
+    testers = tester_ids(db, c) if c.get("test_only") else None
+    sent = failed = 0
+    for p in db.scalars(select(Patient).where(Patient.birthday.is_not(None))):
+        if p.birthday.month != now.month or p.birthday.day != now.day or p.id in done or (testers is not None and p.id not in testers):
+            continue
+        res = _send_service(p, (c.get("bday_text") or DEFAULT["bday_text"]).replace("{name}", _first(p)))
+        done.add(p.id)
+        sent += bool(res.ok)
+        failed += not res.ok
+    db.merge(SyncState(key=key, value=json.dumps(sorted(done)), updated_at=datetime.utcnow()))
+    db.commit()
+    return {"sent": sent, "failed": failed}
 
 
 def send_reminders(db: Session, now: datetime | None = None, force: bool = False) -> dict:

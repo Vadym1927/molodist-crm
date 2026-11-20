@@ -24,6 +24,8 @@
     <label>Нагадування надсилати о<select name="remind_hour">{% for h in range(8, 21) %}<option value="{{ h }}" {{ 'selected' if c.remind_hour == h }}>{{ h }}:00</option>{% endfor %}</select><span class="small muted">напередодні візиту</span></label>
   </div>
   <label>Текст нагадування<textarea name="remind_text" rows="5">{{ c.remind_text }}</textarea><span class="small muted">{when} — день і час, {service} — послуга, {doctor} — рядок з лікарем. Під текстом — кнопки «Підтвердити», «Перенести», «Скасувати».</span></label>
+  <label>Текст нагадування за 2 години<textarea name="remind2h_text" rows="3">{{ c.remind2h_text or '' }}</textarea><span class="small muted">{name} — імʼя, {time} — час візиту, {doctor_short} — « (лікар …)». Канал: Telegram акаунта клініки, якщо вікно відкрите, інакше бот. SMS не надсилається.</span></label>
+  <label>Привітання з днем народження<textarea name="bday_text" rows="3">{{ c.bday_text or '' }}</textarea><span class="small muted">{name} — імʼя. Надсилається о годині нагадувань, раз на рік. Перед увімкненням вимкніть привітання в CleverBox, щоб не було дублів.</span></label>
   <div><button class="btn">Зберегти</button></div>
 </form>
 <div class="card" style="max-width:820px;margin-top:14px">

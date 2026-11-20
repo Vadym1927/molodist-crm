@@ -306,6 +306,7 @@ class Appointment(Base):
     cb_status: Mapped[str | None] = mapped_column(String(80))
     online_token: Mapped[str | None] = mapped_column(String(40), index=True)   # онлайн-запис із сайту: посилання «Мій запис»
     bot_remind_at: Mapped[datetime | None] = mapped_column(DateTime)            # нагадування з кнопками надіслано в Бот турботи
+    bot_2h_at: Mapped[datetime | None] = mapped_column(DateTime)                # нагадування за 2 години (одна спроба)
 
     patient: Mapped[Patient] = relationship()
 
