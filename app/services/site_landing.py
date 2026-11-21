@@ -451,7 +451,7 @@ SKIN = {
               "groups": [{"t": "Гігієна обличчя", "d": "Очищення пор і оновлення шкіри", "cat": ["чистк", "очищення", "гігієн"]},
                          {"t": "Пілінги", "d": "Вирівнювання тону й текстури", "cat": ["пілінг"]},
                          {"t": "Доглядові процедури", "d": "Зволоження й відновлення барʼєру", "cat": ["догляд", "casmara"]},
-                         {"t": "Біоревіталізація", "d": "Глибоке зволоження шкіри", "cat": ["біоревітал"]}]},
+                         {"t": "Біоревіталізація", "d": "Глибоке зволоження шкіри", "cat": ["біоревітал"], "by_item": True}]},
     "doctor": {"match": "колган|сирова", "n": 2, "title": "Процедури проводять лікарі",
                "lead": "Лікар обирає методику під стан вашої шкіри й стежить за результатом."},
     "reviews_kw": r"чистк|гігієн|пілінг|біоревітал|зволож|сяй|догляд",
@@ -535,7 +535,7 @@ def data(db: Session, lp: dict, home: dict, base: str) -> dict:
         pl = []
     procs = []
     for g in (lp.get("procs") or {}).get("groups", []):
-        items = [i for cat in pl if any(k in cat["name"].lower() for k in g["cat"]) for i in cat["items"]]
+        items = [] if g.get("by_item") else [i for cat in pl if any(k in cat["name"].lower() for k in g["cat"]) for i in cat["items"]]
         if not items:
             items = [i for cat in pl for i in cat["items"] if any(k in i["name"].lower() for k in g["cat"])]
         top, n = g.get("top") or [], g.get("n", 8)
