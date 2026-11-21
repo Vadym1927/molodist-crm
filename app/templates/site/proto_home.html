@@ -169,7 +169,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
 {% elif sec == 'about' %}{% if lp.about %}
   <section class="sec h-sec l-about" id="{{ lp.about.id }}"><div class="wrap">
     <p class="eyebrow">{{ lp.about.eyebrow }}</p><div class="h-shd"><h2>{{ lp.about.title }}</h2><p>{{ lp.about.text }}</p></div>
-    <div class="l-agrid">{% for x in about_items %}{% set t, d = x.t, x.d %}<div class="l-acard {{ 'pic' if x.img }}">{% if x.img %}<img src="{{ x.img }}" alt="{{ t }} — фото пацієнта MOLODIST" loading="lazy" width="400" height="400">{% endif %}<span class="n">{{ '%02d'|format(loop.index) }}</span><h3>{{ t }}</h3><p>{{ d }}</p></div>{% endfor %}</div>
+    <div class="l-agrid">{% for x in about_items %}{% set t, d = x.t, x.d %}<div class="l-acard {{ 'pic' if x.img }}">{% if x.img %}<img src="{{ x.img }}" alt="{{ t }} — {{ lp.about.alt or 'фото пацієнта MOLODIST' }}" loading="lazy" width="400" height="400">{% endif %}<span class="n">{{ '%02d'|format(loop.index) }}</span><h3>{{ t }}</h3><p>{{ d }}</p></div>{% endfor %}</div>
     <p class="h-btns ctr"><a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp">{{ lp.about.btn or 'Записатися на процедуру' }}</a></p>
   </div></section>{% endif %}
 
