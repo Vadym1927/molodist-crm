@@ -31,8 +31,8 @@
 {% for x in r.rows %}<tr>
   <td>{% if x.patient %}<a href="/patients/{{ x.patient.id }}">{{ x.name }}</a>{% else %}{{ x.name }}{% endif %}{% if x.acc.email %}<div class="muted small">{{ x.acc.email }}</div>{% endif %}</td>
   <td>{% if x.phone %}<a href="tel:{{ x.phone }}">{{ x.phone }}</a>{% endif %}</td>
-  <td>{{ x.acc.created_at|local if x.acc.created_at else '—' }}</td>
-  <td>{{ x.acc.last_login|local if x.acc.last_login else '—' }}</td>
+  <td>{% if x.guest %}<span class="muted small">без кабінету</span>{% else %}{{ (x.acc.created_at|local)|dt('%d.%m.%Y %H:%M') if x.acc.created_at else '—' }}{% endif %}</td>
+  <td>{{ (x.acc.last_login|local)|dt('%d.%m.%Y %H:%M') if x.acc.last_login else '—' }}</td>
   <td class="n">{{ x.paid }}{% if x.orders > x.paid %} <span class="muted">(+{{ x.orders - x.paid }})</span>{% endif %}</td>
   <td class="n">{{ x.sum|uah if x.sum else '—' }}</td><td class="n">{{ x.avg|uah if x.avg else '—' }}</td>
   <td>{{ x.last_order.strftime('%d.%m.%Y') if x.last_order else '—' }}</td>
