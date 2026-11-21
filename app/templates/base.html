@@ -167,7 +167,16 @@ body.drw-on .drw{transform:none}body.drw-on .drw-bg{opacity:1;pointer-events:aut
 .drw .badge{margin-left:auto;min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:var(--bad);color:#fff;font:800 12px/22px var(--sans);text-align:center}
 @media (max-width:900px){.rail{display:none}body.app{padding-bottom:0}.burger{display:grid}.top .brand{font-size:19px}}
 @media (min-width:901px){.drw,.drw-bg{display:none}.top .brand,.top .sub{display:none}}
-@media (max-width:720px){.tile b{font-size:21px}.tile{padding:12px 14px}.g2{grid-template-columns:1fr}header{padding:12px 16px;gap:12px}main{padding:18px 16px 30px}.hide-m{display:none}table{font-size:14px}th,td{padding:8px 6px}h1{font-size:26px}}
+@media (max-width:720px){.top{height:auto;min-height:56px;flex-wrap:wrap;padding:6px 10px;gap:2px 4px}.top .sub,.top .wm-badge{display:none}
+.top .brand{font-size:15px;letter-spacing:.1em;margin-right:auto}.top .bell{width:33px;height:36px}.top .ti{width:21px;height:21px}.top{column-gap:1px}.burger{width:38px}
+.top .search{order:20;flex:0 0 100%;max-width:none;margin:0 0 4px}.top .search input{height:40px}.top .search svg{top:10px}
+.burger{flex:none}.nt{position:fixed;left:8px;right:8px;top:60px;width:auto}
+main{max-width:100vw;min-width:0}main>*{min-width:0;max-width:100%}
+main table{display:block;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+main input,main select,main textarea,main img,main video,main iframe{max-width:100%}
+main form,main .row,main .frm,main .grid{flex-wrap:wrap}main .card{min-width:0;max-width:100%}
+main h1,main h2,main p,main .muted{overflow-wrap:anywhere}main code,main pre{white-space:pre-wrap;overflow-wrap:anywhere}html{overflow-x:clip}
+.tile b{font-size:21px}.tile{padding:12px 14px}.g2{grid-template-columns:1fr}header{padding:12px 16px;gap:12px}main{padding:18px 16px 30px}.hide-m{display:none}table{font-size:14px}th,td{padding:8px 6px}h1{font-size:26px}}
 </style>
 <script>if(window.self!==window.top){document.documentElement.classList.add('in-frame')}</script>
 <style>.in-frame .rail,.in-frame .top,.in-frame .drw,.in-frame .drw-bg,.in-frame .fin-tabs{display:none!important}
@@ -243,7 +252,7 @@ body.drw-on .drw{transform:none}body.drw-on .drw-bg{opacity:1;pointer-events:aut
 </nav>
 <div class="top">
   <button type="button" class="burger" onclick="document.body.classList.add('drw-on')" aria-label="Меню"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
-  <a class="brand" href="/calendar">MOLODIST</a><span class="sub">Медичний простір</span>{% if user %}{% set _wm = work_mode() %}{% if _wm.test or _wm.autonomous %}<a href="/data#mode" title="Режим роботи" style="margin-left:10px;text-decoration:none;font:700 10.5px var(--sans);letter-spacing:.12em;text-transform:uppercase;padding:5px 10px;border-radius:999px;background:{{ '#FFF1D6' if _wm.test else '#E4DEEF' }};color:{{ '#9A6A00' if _wm.test else '#3B3050' }};white-space:nowrap">{{ 'Тестовий режим' if _wm.test else 'Автономно' }}</a>{% endif %}{% endif %}
+  <a class="brand" href="/calendar">MOLODIST</a><span class="sub">Медичний простір</span>{% if user %}{% set _wm = work_mode() %}{% if _wm.test or _wm.autonomous %}<a href="/data#mode" class="wm-badge" title="Режим роботи" style="margin-left:10px;text-decoration:none;font:700 10.5px var(--sans);letter-spacing:.12em;text-transform:uppercase;padding:5px 10px;border-radius:999px;background:{{ '#FFF1D6' if _wm.test else '#E4DEEF' }};color:{{ '#9A6A00' if _wm.test else '#3B3050' }};white-space:nowrap">{{ 'Тестовий режим' if _wm.test else 'Автономно' }}</a>{% endif %}{% endif %}
   <form class="search" action="/clients" method="get"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input name="q" placeholder="Знайти пацієнта за імʼям або телефоном" value="{{ request.query_params.get('q','') if nav=='clients' else '' }}"></form>
   {% if can(user,'sales') %}<a class="bell" href="/sales/new" title="Новий продаж (каса)"><span class="ti" style="--ti:url(/static/icons/cart.png)"></span></a>{% endif %}
   {% if can(user,'sales') %}<a class="bell" href="/shop-orders" title="Центр керування інтернет-магазином{{ (': нових замовлень ' ~ task_counts.shop) if task_counts and task_counts.shop }}"><span class="ti" style="--ti:url(/static/icons/shop.png)"></span>{% if task_counts and task_counts.shop %}<b class="pbadge">{{ task_counts.shop }}</b>{% endif %}</a>{% endif %}
@@ -511,5 +520,18 @@ input[type=date]:not([data-native]){background-image:url("data:image/svg+xml,%3C
   window.crmDatePicker={open:open,close:close};
 })();
 </script>
+<script>/* Телефон: що не вмістилось у ширину екрана — переносимо в стовпчик або даємо гортати вбік усередині блока, а не всю сторінку. */
+(function(){function fit(){if(window.innerWidth>720)return;var m=document.querySelector('main');if(!m)return;var vw=document.documentElement.clientWidth;
+for(var pass=0;pass<4;pass++){var done=0,els=m.querySelectorAll('*');for(var i=0;i<els.length;i++){var e=els[i];if(e.dataset.mfit||!e.offsetParent)continue;var r=e.getBoundingClientRect();if(r.width<1||r.right<=vw+2)continue;
+var p=e.parentElement;if(!p)continue;var pr=p.getBoundingClientRect(),ps=getComputedStyle(p);if(p!==m&&pr.right>vw+2&&!/(auto|scroll)/.test(ps.overflowX))continue;var an=p,insc=false;while(an&&an!==m){if(/(auto|scroll)/.test(getComputedStyle(an).overflowX)){insc=true;break}an=an.parentElement}if(insc)continue;
+var cs=getComputedStyle(e);if(cs.position==='fixed'||cs.position==='absolute')continue;e.dataset.mfit='1';done++;
+if(/grid/.test(ps.display)&&p!==m){p.style.gridTemplateColumns='minmax(0,1fr)';p.dataset.mfit='1'}
+else if(/flex/.test(ps.display)&&ps.flexWrap==='nowrap'&&ps.flexDirection.indexOf('row')===0&&p!==m){p.style.flexWrap='wrap';e.style.minWidth='0';e.style.maxWidth='100%'}
+else{e.style.maxWidth='100%';if(/grid/.test(cs.display))e.style.gridTemplateColumns='minmax(0,1fr)';else if(/flex/.test(cs.display)&&cs.flexDirection.indexOf('row')===0)e.style.flexWrap='wrap';else if(!/inline/.test(cs.display)||e.tagName==='TABLE')e.style.overflowX='auto';if(/^(INPUT|SELECT|TEXTAREA|BUTTON|A)$/.test(e.tagName)){e.style.minWidth='0';e.style.whiteSpace='normal'}}}
+if(!done)break}
+/* що лишилось (графіки, код, абсолютні елементи) — гортається всередині свого розділу */
+var all=m.querySelectorAll('*');for(var j=0;j<all.length;j++){var x=all[j];if(!x.offsetParent)continue;var q=x.getBoundingClientRect();if(q.width<1||q.right<=vw+2)continue;var a=x,sc=false;while(a&&a!==m){if(/(auto|scroll)/.test(getComputedStyle(a).overflowX)){sc=true;break}a=a.parentElement}if(sc)continue;
+a=x;while(a.parentElement&&a.parentElement!==m)a=a.parentElement;if(a.parentElement===m&&getComputedStyle(a).position!=='fixed'){a.style.maxWidth='100%';a.style.overflowX='auto'}}}
+if(document.readyState!=='loading')fit();else document.addEventListener('DOMContentLoaded',fit);window.addEventListener('load',function(){fit();setTimeout(fit,800)});window.mfit=fit})();</script>
 </body>
 </html>
