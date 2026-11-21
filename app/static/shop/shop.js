@@ -234,6 +234,7 @@
         delivery: ($('[name=delivery]:checked', form) || {}).value, pay: ($('[name=pay]:checked', form) || {}).value, gift: ($('[name=gift]:checked', form) || {}).value || '', coins: form.use_coins && form.use_coins.checked && last && last.coins ? last.coins.use : 0, parts: form.parts ? form.parts.value : '',
         promo: form.promo && form.promo.getAttribute('data-ok') ? form.promo.value.trim() : '' };
       try { var m = JSON.parse(localStorage.getItem('mlds_utm') || 'null'); if (m && m.m) for (var k in m.m) d[k] = m.m[k]; } catch (x) {}
+      try { d.sid = sessionStorage.getItem('mshop_sid') || ''; } catch (x) {}
       if (!d.items.length) { er.textContent = 'Кошик порожній.'; er.hidden = false; return; }
       bt.disabled = true; bt.textContent = 'Оформлюємо…';
       api('/api/order', d, function (j) {

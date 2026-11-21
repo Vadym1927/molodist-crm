@@ -45,6 +45,8 @@ def ingest(db: Session, d: dict, ua: str = "", site: str = "") -> int:
             return 0                                   # співробітник перейшов з CRM — у звіт не пишемо
         page = (STORE + page)[:120]
     evs = d.get("ev") if isinstance(d.get("ev"), list) else []
+    if site == "store":
+        evs = [e for e in evs if not (isinstance(e, dict) and e.get("k") == "lead")]   # замовлення пише сервер (order_lead), без дублів
     if not sid or not evs:
         return 0
     paid, src = sl.traffic({k: d.get(k) for k in ("utm_source", "utm_medium", "utm_campaign", "gclid", "ref")})
@@ -220,3 +222,60 @@ def lead_sessions(db: Session, day: date) -> list[dict]:
                     "sec_to_lead": int((lead.at - evs[0].at).total_seconds()), "device": evs[0].device, "src": evs[0].src, "paid": bool(evs[0].paid),
                     "pages": list(dict.fromkeys(e.page for e in evs)), "rows": rows})
     return sorted(out, key=lambda x: x["lead_at"])
+
+
+KINDS_UA = {"view": "Відкрив сторінку", "sec": "Дійшов до блоку", "click": "Клік", "form": "Почав оформлення", "pop": "Побачив банер",
+            "lead": "ЗАМОВЛЕННЯ", "exit": "Закрив / згорнув вкладку"}
+STORE_SEC = {"gal": "Фото", "info": "Ціна й кнопка «В кошик»", "tip": "Порада лікаря", "desc": "Опис", "reviews": "Відгуки", "rel": "З цим купують",
+             "flt": "Підкатегорії", "lst": "Список товарів", "hero": "Перший екран", "co": "Оформлення", "cab": "Кабінет / вхід", "top": "верх сторінки"}
+
+
+def order_lead(db: Session, sid: str, number: str, total: float, utm: dict | None = None, ua: str = "") -> None:
+    """Замовлення в магазині → подія «замовлення» в журналі поведінки одразу на сервері.
+    Не залежить від того, чи покупець повернувся з monobank на сторінку «Дякуємо»."""
+    from . import site_leads as sl
+    sid = re.sub(r"[^a-zA-Z0-9]", "", str(sid or ""))[:32]
+    if not sid:
+        return
+    paid, src = sl.traffic({k: (utm or {}).get(k) for k in ("utm_source", "utm_medium", "utm_campaign", "gclid", "ref")})
+    dev = sl.device(ua).split(" ")[0]
+    dev = {"телефон": "phone", "компʼютер": "pc", "планшет": "tablet"}.get(dev, dev[:12] or None)
+    db.add(SiteEvent(at=datetime.now(), sid=sid, page=STORE + "/checkout/", kind="lead", target=_clean(number, 120), value=int(total or 0) if 0 <= (total or 0) < 100000 else None,
+                     device=dev, src=src[:80], paid=paid, campaign=_clean((utm or {}).get("utm_campaign"), 160) or None))
+
+
+def order_path(db: Session, o, names: dict | None = None) -> dict | None:
+    """Шлях покупця на сайті для картки замовлення: сесія з id вкладки, збереженим у замовленні.
+    Для старих замовлень (без id) — сесія того дня, де на оформленні клікали відділення / місто цього замовлення."""
+    raw = o.raw or {}
+    sid = str(raw.get("sid") or "")
+    at = o.created_at or datetime.now()
+    guess = False
+    if not sid:
+        a = datetime.combine(at.date(), datetime.min.time())
+        keys = [k for k in (str(o.address or "")[:24], str(o.city or "")[:20]) if len(k) >= 4]
+        for k in keys:
+            row = db.execute(select(SiteEvent.sid).where(SiteEvent.at >= a, SiteEvent.at <= at + timedelta(minutes=10), SiteEvent.page.like(STORE + "/checkout%"),
+                                                         SiteEvent.kind == "click", SiteEvent.target.like(f"%{k}%")).order_by(SiteEvent.at.desc())).first()
+            if row:
+                sid, guess = row[0], True
+                break
+    if not sid:
+        return None
+    evs = list(db.scalars(select(SiteEvent).where(SiteEvent.sid == sid, SiteEvent.at >= at - timedelta(days=2), SiteEvent.at <= at + timedelta(hours=2))
+                          .order_by(SiteEvent.at, SiteEvent.id)))
+    if not evs:
+        return None
+    rows = []
+    for e in evs:
+        t = e.target or ""
+        if e.kind in ("sec", "exit"):
+            t = STORE_SEC.get(t, t)
+        elif e.kind == "lead":
+            t = f"№{t}"
+        extra = f" · прокрутка {e.value}%" if e.kind == "sec" and e.value else (f" · на сторінці {e.value} с" if e.kind == "exit" and e.value else "")
+        rows.append({"at": e.at.strftime("%d.%m %H:%M:%S"), "page": store_page_name(e.page, names), "what": KINDS_UA.get(e.kind, e.kind), "t": t + extra, "kind": e.kind})
+    pages = list(dict.fromkeys(r["page"] for r in rows))
+    return {"guess": guess, "first": evs[0].at.strftime("%d.%m %H:%M"), "mins": int((at - evs[0].at).total_seconds() // 60) if at >= evs[0].at else 0,
+            "device": {"phone": "телефон", "pc": "компʼютер", "tablet": "планшет"}.get(evs[0].device or "", evs[0].device or "—"), "src": evs[0].src or "—",
+            "paid": bool(evs[0].paid), "pages": pages, "rows": rows}

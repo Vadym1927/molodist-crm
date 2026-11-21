@@ -893,11 +893,12 @@ def test_store_behavior_tracking(monkeypatch):
         h = {"host": "molodist.store"}
         body = {"sid": "s1", "page": "/shop/krem-x/", "ref": "https://www.google.com/", "ev": [{"k": "view", "t": "product"}, {"k": "sec", "t": "info", "v": 40},
                 {"k": "click", "t": "🛒 Крем X"}, {"k": "form", "t": "checkout"}, {"k": "lead", "t": "order", "v": 1500}, {"k": "exit", "t": "info", "v": 35}]}
-        assert c.post("/_shop/api/ev", content=json.dumps(body), headers={**h, "content-type": "text/plain"}).json()["n"] == 6
+        assert c.post("/_shop/api/ev", content=json.dumps(body), headers={**h, "content-type": "text/plain"}).json()["n"] == 5   # «lead» з браузера не пишемо — замовлення пише сервер
         staff = {"sid": "s2", "page": "/", "ref": "https://crm.molodist.com.ua/settings/shop/products", "ev": [{"k": "view", "t": "home"}]}
         assert c.post("/_shop/api/ev", content=json.dumps(staff), headers={**h, "content-type": "text/plain"}).json()["n"] == 0   # співробітник
         assert c.post("/_shop/api/ev", content=json.dumps(body), headers={"host": "testserver", "content-type": "text/plain"}).json()["ok"] is False
         with SessionLocal() as db:
+            ss.order_lead(db, "s1", "M1-1", 1500, {"gclid": "abc"}, "Mozilla/5.0 (iPhone)"); db.commit()
             ss.land(db, "/shop/krem-x/", "pmax", "Mozilla/5.0 (iPhone)")
             ss.land(db, "/shop/krem-x/", "pmax", "AdsBot-Google")          # бот — не рахуємо
             r = ss.report(db, _d.today(), site="store", names={"/shop/krem-x/": "Крем X"})
@@ -947,3 +948,31 @@ def test_feed_title_no_supplement_triggers():
         == "Medicare Professional Сироватка для проблемної шкіри з ніацинамідом 30 мл"
     assert clean_title("Jalupro Drink Proglyme Біологічно активна добавка 30 STICK") == "Jalupro Drink Proglyme 30 STICK"
     assert clean_title("Rejuran відновлюючий гель для шкіри навколо очей 15 мл") == "Rejuran відновлюючий гель для шкіри навколо очей 15 мл"
+
+
+def test_order_card_shows_buyer_path(monkeypatch):
+    from app.services import shop_front as sf
+    from app.models import SiteOrder
+    monkeypatch.setattr("app.services.tg_notify.send_text", lambda *a, **k: True)
+    monkeypatch.setattr(sf, "hosts", lambda: {"molodist.store"})
+    settings.admin_password = "owner-pass-op"
+    with TestClient(app) as c:
+        with SessionLocal() as db:
+            k = sf.preview_key(db)
+            p = Product(name="Шлях крем", name_norm="шлях крем", price=900, site_on=True, site_info={"slug": "shliakh-krem", "title": "Шлях крем", "presence": 1, "quantity": 5})
+            db.add(p); db.commit(); pid = p.id
+            cfg = sf.cfg(db); cfg["order_login"] = False; sf.save_cfg(db, cfg); db.commit()
+        ev = {"sid": "pathsid1", "page": "/shop/shliakh-krem/", "ev": [{"k": "view", "t": "product"}, {"k": "sec", "t": "info", "v": 50}, {"k": "click", "t": "🛒 Шлях крем"}]}
+        c.post("/_shop/api/ev", content=json.dumps(ev), headers={"host": "molodist.store", "content-type": "text/plain"})
+        c.cookies.set("shop_prev", k)
+        o = c.post("/_shop/api/order", json={"items": [{"id": pid, "qty": 1}], "name": "Юрій Шлях", "phone": "+380507776611", "delivery": "np", "city": "Львів",
+                                             "warehouse": "Відділення №72", "pay": "cod", "sid": "pathsid1", "gclid": "g-1", "utm_campaign": "shop"}).json()
+        assert o["ok"]
+        with SessionLocal() as db:
+            so_ = db.scalar(select(SiteOrder).where(SiteOrder.number == o["number"]))
+            assert so_.raw["sid"] == "pathsid1"
+            oid = so_.id
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-op"})
+        r = c.get(f"/shop-orders/{oid}")
+        assert r.status_code == 200 and "Шлях покупця на сайті" in r.text and "Google Ads" in r.text
+        assert "Шлях крем" in r.text and "ЗАМОВЛЕННЯ" in r.text and "Ціна й кнопка" in r.text

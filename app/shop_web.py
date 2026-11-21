@@ -320,6 +320,13 @@ def register(app, templates, version: str):
             r = sf.create_order(db, body, settings.public_url)
         except sf.ShopError as e:
             return JSONResponse({"ok": False, "msg": str(e)}, status_code=400)
+        try:                                                  # замовлення → журнал поведінки (воронка магазину), навіть якщо з monobank не повернеться
+            from .services import site_stats as _ss
+            _ss.order_lead(db, body.get("sid"), r.get("number") or "", float(r.get("total") or 0),
+                           {k: body.get(k) for k in ("utm_source", "utm_medium", "utm_campaign", "gclid")}, request.headers.get("user-agent", ""))
+            db.commit()
+        except Exception:  # noqa: BLE001
+            db.rollback()
         try:                                                  # оформив — кошик (кабінету або гостя з телефоном) закривається
             from .services import shop_carts as _ct
             _o = db.scalar(select(SiteOrder).where(SiteOrder.number == r.get("number"))) if r.get("number") else None

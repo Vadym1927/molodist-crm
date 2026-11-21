@@ -37,5 +37,10 @@
   {% for a in o.extra or [] if a.on %}<tr><td colspan="4" class="small">+ {{ a.name }}</td><td style="text-align:right">{{ (a.price or 0)|uah }}</td></tr>{% endfor %}
   <tr><td colspan="4" style="text-align:right"><b>Разом</b>{% if o.total_full and o.total_full != o.total %} <span class="small muted">(без знижки {{ o.total_full|uah }})</span>{% endif %}</td><td style="text-align:right"><b>{{ (o.total or 0)|uah }}</b></td></tr></tbody></table></div>
 
+{% if path or utm %}<div class="card" style="margin-top:12px"><h3 style="margin-top:0">Шлях покупця на сайті</h3>
+  {% if utm %}<div class="small">Джерело: {% if utm.gclid or utm.gbraid or utm.wbraid %}<b>Google Ads</b>{% if utm.utm_campaign %} · кампанія {{ utm.utm_campaign }}{% endif %}{% else %}{{ utm.utm_source or '—' }}{% if utm.utm_medium %} / {{ utm.utm_medium }}{% endif %}{% endif %}{% if utm.landing %} · перша сторінка {{ utm.landing }}{% endif %}</div>{% endif %}
+  {% if path %}<div class="small muted" style="margin:4px 0 8px">Зайшов {{ path.first }} · {% if path.mins %}до замовлення {{ path.mins }} хв · {% endif %}{{ path.device }} · {{ path.src }}{% if path.guess %} · сесію знайдено за відділенням доставки{% endif %}</div>
+  <div style="overflow:auto"><table class="tbl" style="width:100%;font-size:13px">{% for r in path.rows %}<tr{% if r.kind == 'lead' %} style="background:#E4DEEF"{% endif %}><td class="muted" style="white-space:nowrap">{{ r.at }}</td><td>{{ r.page }}</td><td>{% if r.kind == 'lead' %}<b>{{ r.what }}</b>{% else %}{{ r.what }}{% endif %}</td><td class="small">{{ r.t }}</td></tr>{% endfor %}</table></div>
+  {% elif o.source == 'crm' %}<div class="small muted">Поведінку на сайті для цього замовлення не знайдено.</div>{% endif %}</div>{% endif %}
 {% if v.log %}<div class="card" style="margin-top:12px"><h3 style="margin-top:0">Історія</h3>{% for l in v.log %}<div class="small" style="padding:4px 0;border-top:1px solid var(--line)"><span class="muted">{{ l.at[8:10] }}.{{ l.at[5:7] }} {{ l.at[11:16] }}</span> · {{ l.text }}{% if l.by %} <span class="muted">— {{ l.by }}</span>{% endif %}</div>{% endfor %}</div>{% endif %}
 {% endblock %}

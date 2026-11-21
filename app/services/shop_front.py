@@ -828,7 +828,7 @@ def create_order(db: Session, data: dict, base_url: str) -> dict:
                           **({k: i[k] for k in ("short", "short_price", "short_exp", "full")} if i.get("short") else {})} for i in cart["items"]],
                   extra=[{"name": f"Подарунок: {gift}", "price": 0, "on": True}] if gift else None,
                   raw={"utm": {k: str(v)[:150] for k, v in data.items() if k.startswith("utm_") or k in ("gclid", "fbclid", "gbraid", "wbraid", "landing")},
-                       "free_delivery": cart["free_delivery"]},
+                       "free_delivery": cart["free_delivery"], "sid": re.sub(r"[^a-zA-Z0-9]", "", str(data.get("sid") or ""))[:32] or None},
                   synced_at=datetime.now())
     db.add(o)
     pat = so._patient(db, name, phone, o.email, {})

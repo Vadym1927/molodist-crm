@@ -10949,7 +10949,15 @@ def shop_order_page(request: Request, oid: int, user: User = Depends(require("sa
     if o.source == "crm" and o.items:
         from .services import shop_reviews as _rv
         _rvu = _rv.link(o, _shop_root(db))
-    return render(request, "shop_order.html", nav="shop", review_url=_rvu, o=o, pat=db.get(Patient, o.patient_id) if o.patient_id else None, v=sf.order_view(db, o),
+    from .services import site_stats as _ss
+    try:
+        _cat = sf.catalog(db)
+        _nm = {f"/shop/{i['slug']}/": i["name"][:60] for i in _cat["items"] if i.get("slug")}
+        _nm.update({c_["path"]: c_["name"] for c_ in _cat["cats"]})
+    except Exception:  # noqa: BLE001
+        _nm = None
+    _path = _ss.order_path(db, o, _nm) if o.source == "crm" else None
+    return render(request, "shop_order.html", nav="shop", review_url=_rvu, o=o, path=_path, utm=(o.raw or {}).get("utm") or {}, pat=db.get(Patient, o.patient_id) if o.patient_id else None, v=sf.order_view(db, o),
                   STATUSES=sf.STATUSES, staff=[u_ for u_ in db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)) if can(u_, "sales")])
 
 
