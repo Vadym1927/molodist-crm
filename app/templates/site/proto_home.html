@@ -203,15 +203,15 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
 {% elif sec == 'process' %}
   <section class="sec h-plan l-proc" id="yak-likuiemo"><div class="wrap">
     <div class="h-shd"><h2>{{ lp.process.title }}</h2><p>{{ lp.process.text }}</p></div>
-    <ol class="h-flow l-flow">{% for t, d in lp.process.steps %}<li><span class="ic">{{ ic(lp.process.icons[loop.index0]) }}</span><span class="n">Крок {{ loop.index }}</span><h3>{{ t }}</h3><p>{{ d }}</p></li>{% endfor %}</ol>
+    <ol class="h-flow l-flow {{ 'pics' if proc_pics }}">{% for t, d in lp.process.steps %}<li>{% if proc_pics and proc_pics[loop.index0] %}<span class="ic pic"><img src="{{ proc_pics[loop.index0] }}" alt="{{ t }} — MOLODIST" loading="lazy" width="96" height="96"></span>{% else %}<span class="ic">{{ ic(lp.process.icons[loop.index0]) }}</span>{% endif %}<span class="n">Крок {{ loop.index }}</span><h3>{{ t }}</h3><p>{{ d }}</p></li>{% endfor %}</ol>
   </div></section>
 
 {% elif sec == 'consult' %}
-  <section class="sec h-plan l-cons" id="konsultatsiia"><div class="wrap h-plan-in">
+  <section class="sec h-plan l-cons {{ 'has-img' if cons_img }}" id="konsultatsiia"><div class="wrap h-plan-in">
     <div class="tx"><p class="eyebrow">{{ lp.consult.eyebrow }}</p><h2>{{ lp.consult.title }}</h2><p class="big">{{ lp.consult.text }}</p>
       <ul class="h-gets dk">{% for g in lp.consult.gets %}<li>{{ g }}</li>{% endfor %}</ul>
       <p class="h-btns"><a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp">Записатися на консультацію</a></p></div>
-    <div class="l-fmt"><p class="lbl">Формати й ціни</p>{% for f in formats %}<div class="row"><div><b>{{ f.t }}</b><small>{{ f.d }}</small></div><span class="pr">{% if f.price %}{{ money(f.price) }}{% else %}—{% endif %}</span></div>{% endfor %}{% if lp.consult.note %}<p class="note">{{ lp.consult.note }}</p>{% endif %}</div>
+    <div class="l-cside">{% if cons_img %}<img class="l-cimg" src="{{ cons_img }}" alt="{{ lp.consult.title }} — діагностика шкіри в MOLODIST" loading="lazy" width="640" height="480">{% endif %}<div class="l-fmt"><p class="lbl">Формати й ціни</p>{% for f in formats %}<div class="row"><div><b>{{ f.t }}</b><small>{{ f.d }}</small></div><span class="pr">{% if f.price %}{{ money(f.price) }}{% else %}—{% endif %}</span></div>{% endfor %}{% if lp.consult.note %}<p class="note">{{ lp.consult.note }}</p>{% endif %}</div></div>
   </div></section>
 
 {% elif sec == 'procs' %}{% if procs|selectattr('items')|list %}
@@ -378,6 +378,8 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
   <div class="h-mbp" data-mode="bp" hidden><img src="{{ st('bp-poster.webp') }}" alt="Консультація BEAUTY PLAN у MOLODIST" width="1280" height="720" loading="lazy">
     <div><p class="eyebrow">BEAUTY PLAN</p><p class="h-mh">Консультація лікаря й письмовий план</p>
     <p class="sm">Діагностика шкіри на OBSERV 520x, план процедур за пріоритетами з цінами й схема домашнього догляду. До 2 годин{% if plan_price %} · <b>{{ money(plan_price) }}</b>{% endif %}.</p></div></div>
+  {% if lp and side_img %}<aside class="h-mside" data-mode="lp" hidden><img src="{{ side_img }}" alt="{{ lp.hero.img_alt }}" width="600" height="800" loading="lazy">
+    <ul>{% for f in facts_r[:3] %}<li>{{ ic('check') }}<span>{{ f[0] }}</span></li>{% endfor %}</ul></aside>{% endif %}
   {% if lp %}<div class="h-mlp" data-mode="lp" hidden>{% if lp_doc|length > 1 and hero_img %}<img src="{{ hero_img }}" alt="{{ lp.hero.img_alt }}" width="72" height="72">{% endif %}{% for d in lp_doc[:1] %}{% if d.photo and lp_doc|length == 1 %}<img src="{{ d.photo }}" alt="{{ d.name }}" width="72" height="72">{% endif %}{% endfor %}
     {% if lp.modal %}<div><p class="eyebrow">{{ lp.modal.eyebrow }}</p><p class="h-mh">{{ lp.modal.title }}</p>{% if lp.modal.promo and lp_promo %}<p class="l-mpromo"><b>−{{ lp_promo.pct }}%</b> на перший візит</p>{% endif %}<p class="sm">{{ lp.modal.text }}</p>{% else %}<div><p class="eyebrow">{{ lp.consult.eyebrow }} · {{ (lp_doc[0].name if lp_doc and lp_doc|length == 1 else 'лікар MOLODIST') }}</p><p class="h-mh">{{ lp.consult.title }}</p>
     <p class="sm">{{ lp.consult.modal or 'Огляд лікаря, діагностика шкіри на OBSERV 520x і письмовий план лікування' }}{% if main_price %} · <b>{{ money(main_price) }}</b>{% endif %}</p>{% endif %}</div></div>{% endif %}

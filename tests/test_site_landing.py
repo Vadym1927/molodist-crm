@@ -165,3 +165,10 @@ def test_skin_landing_photos():
         t = cl.get("/_site/tmyana-znevodnena-shkira").text
         assert 'id="rezultaty"' not in t and "#rezultaty" not in t
         assert t.count('class="l-acard pic') == 5 and "sk-home.webp" in t and "f-cosm.webp" in t
+
+
+def test_skin_landing_reel_process_pics_modal():
+    with TestClient(app) as cl:
+        t = cl.get("/_site/tmyana-znevodnena-shkira").text
+        assert "skin-reel.mp4" in t and "Ефект сяючої шкіри за 2 місяці" in t
+        assert 'class="ic pic"' in t and 'class="l-cimg"' in t and 'class="h-mside"' in t

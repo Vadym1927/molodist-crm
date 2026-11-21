@@ -378,7 +378,7 @@ SKIN = {
     "slug": "tmyana-znevodnena-shkira",
     "key": "skin",
     "topic": "Тьмяна, зневоднена шкіра",
-    "order": ["lhero", "facts", "pain", "about", "process", "procs", "consult", "ldoctor", "reviews", "booking", "shop", "insta", "faq", "contacts"],
+    "order": ["lhero", "facts", "pain", "about", "reel", "process", "procs", "consult", "ldoctor", "reviews", "booking", "shop", "insta", "faq", "contacts"],
     "seo": {"title": "Тьмяна, зневоднена шкіра: відновлення сяйва й зволоження в Києві | MOLODIST",
             "desc": "Сухість, тьмяний тон, розширені пори: чистка обличчя, пілінги, доглядові процедури й біоревіталізація в Києві під "
                     "контролем лікаря. Діагностика шкіри, ціни.",
@@ -412,7 +412,7 @@ SKIN = {
     "about": {"id": "shcho-dopomahaie", "alt": "MOLODIST", "eyebrow": "Методи", "title": "Що повертає шкірі свіжість",
               "text": "Одна процедура рідко розвʼязує все. Лікар поєднує методи залежно від того, чого бракує саме вашій шкірі.",
               "btn": "Записатися на прийом",
-              "items": [("Гігієна обличчя", "Глибоке очищення пор і зняття шару відмерлих клітин — шкіра знову «дихає».", "crop:sk-gig.webp|c-skin.webp"),
+              "items": [("Гігієна обличчя", "Глибоке очищення пор і зняття шару відмерлих клітин — шкіра знову «дихає».", "crop:sk2-2.webp|c-skin.webp"),
                         ("Пілінги", "Оновлюють верхній шар шкіри, вирівнюють тон і текстуру.", "crop:sk-pil.webp|c-skin.webp"),
                         ("Доглядові процедури", "Професійні маски й сироватки для зволоження та відновлення барʼєру.", "crop:sk-care.webp|c-skin.webp"),
                         ("Біоревіталізація", "Інʼєкції гіалуронової кислоти: глибоке зволоження й пружність.", "media:inject-1.webp|c-skin.webp"),
@@ -433,7 +433,8 @@ SKIN = {
                           ("Очищення й оновлення", "Гігієна обличчя або пілінг: шкіра готова приймати вологу й активні речовини."),
                           ("Зволоження", "Доглядові процедури або біоревіталізація — залежно від глибини зневоднення."),
                           ("Підтримка", "Домашній догляд і підтримувальні процедури, щоб результат тримався.")],
-                "icons": ["scan", "plan", "care", "flash", "loop"]},
+                "icons": ["scan", "plan", "care", "flash", "loop"],
+                "pics": ["f-diag.webp", "f-plan.webp", "crop:sk2-2.webp|c-skin.webp", "crop:sk-care.webp|c-skin.webp", "sk-home.webp"]},
     "pop": {"title": "Шкіра суха й тьмяна?", "badge": "",
             "text": "Залиште номер — адміністратор запише вас до лікаря. Підберемо очищення, пілінг або зволоження під вашу шкіру.",
             "btn": "Записатися", "img": "c-skin.webp"},
@@ -448,8 +449,11 @@ SKIN = {
                          "Схема домашнього догляду під ваш тип шкіри"],
                 "modal": "Огляд лікаря, діагностика шкіри на OBSERV 520x і план догляду",
                 "note": "Консультація не обовʼязкова: можна одразу записатися на гігієну обличчя, пілінг чи доглядову процедуру.",
-                "main_id": 387,
+                "main_id": 387, "img": "media:bp-1.webp|f-diag.webp",
                 "formats": [(387, "BEAUTY PLAN", "Консультація лікаря: діагностика шкіри й письмовий план")]},
+    "reel": {"file": "skin-reel.mp4", "poster": "skin-reel-poster.webp", "url": ""},
+    "reel_tx": {"eyebrow": "Відео від лікаря", "title": "Ефект сяючої шкіри за 2 місяці",
+                "text": "Без косметологічних процедур — лише правильно підібраний домашній догляд: що прибрати з полиці й чим відновити захисний барʼєр шкіри."},
     "procs": {"title": "Процедури й ціни",
               "text": "Що саме потрібно вашій шкірі, лікар скаже на огляді.",
               "groups": [{"t": "Гігієна обличчя", "d": "Очищення пор і оновлення шкіри", "cat": ["чистк", "очищення", "гігієн"]},
@@ -462,7 +466,7 @@ SKIN = {
     "reviews_doc": r"колган|дар.я|софі|сиров",
     "reviews_ilike": ["%чистк%", "%гігієн%", "%пілінг%", "%біоревітал%", "%зволож%"],
     "products_kw": r"зволож|hydra|hyalur|гіалурон|moistur|сяйв|glow|вітамін\s*c|vitamin\s*c|церамід|ceramid|барʼєр|barrier|ензим|enzym",
-    "products_no": r"кушон|тональ|помад|туш|шампун|волосс",
+    "products_no": r"кушон|тональ|помад|туш|шампун|волосс|голов|hair|scalp|acne|акне|проблемн",
     "shop": {"title": "Домашній догляд для зневодненої шкіри",
              "text": "Щоденний догляд утримує результат процедур. Засоби підбирає лікар — під ваш тип шкіри.",
              "points": ["Зволоження й відновлення захисного барʼєру", "Підбір під ваш тип шкіри",
@@ -615,6 +619,9 @@ def data(db: Session, lp: dict, home: dict, base: str) -> dict:
             return sc.url(m, base) or (st_(alt) if alt else "")
         return st_(i)
     facts_r = [(f[0], f[1], _pic(f[2]), f[3] if len(f) > 3 else "") for f in lp["facts"]]   # 4-й елемент — кадрування фото
+    proc_pics = [_pic(i) for i in (lp.get("process") or {}).get("pics") or []]
+    cons_img = _pic((lp.get("consult") or {}).get("img") or "") if (lp.get("consult") or {}).get("img") else ""
+    side_img = _pic((lp.get("modal") or {}).get("img") or "") if (lp.get("modal") or {}).get("img") else ""
     about = [{"t": t, "d": d, "img": _pic(i) if i else ""}
              for t, d, *rest in (lp.get("about") or {}).get("items", []) for i in [rest[0] if rest else ""]]
     money = sp.money
@@ -623,7 +630,7 @@ def data(db: Session, lp: dict, home: dict, base: str) -> dict:
     hero = next((u for u in (sp.media_url(n, base) for n in lp["hero"]["media"]) if u), "")
     if not hero and lp["hero"].get("crop"):
         hero = sc.url(lp["hero"]["crop"], base)
-    return {"hero_img": hero, "cases": cases, "about_items": about, "facts_r": facts_r, "pgroups": pgroups, "lp_promo": promo, "formats": formats, "main_price": main_price, "procs": procs, "lp_doc": doc, "rev": rev, "products": products, "faq": faq}
+    return {"proc_pics": proc_pics, "cons_img": cons_img, "side_img": side_img or hero or (st_(lp["hero"]["img"]) if lp["hero"].get("img") else ""), "hero_img": hero, "cases": cases, "about_items": about, "facts_r": facts_r, "pgroups": pgroups, "lp_promo": promo, "formats": formats, "main_price": main_price, "procs": procs, "lp_doc": doc, "rev": rev, "products": products, "faq": faq}
 
 
 def jsonld(lp: dict, c: dict, url: str, faq: list, formats: list) -> str:
