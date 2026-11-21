@@ -328,13 +328,19 @@ document.addEventListener('click',function(e){if(!box.hidden&&!e.target.closest(
 function payPop(t){var w=document.getElementById('paypop');if(!w){w=document.createElement('div');w.id='paypop';w.className='pay-pop';document.body.appendChild(w)}
   var c=document.createElement('div');c.className='pp-c';c.innerHTML='<button class="x" title="Закрити">×</button><div class="ok"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div><div class="t">Оплачено</div><div class="a"></div><div class="w"></div><div class="s"></div><a class="go">Відкрити чек</a>';
   c.querySelector('.a').textContent=t.amount||'';c.querySelector('.w').textContent=t.who||'';c.querySelector('.s').textContent=(t.what||'')+' · онлайн-оплата';
-  var g=c.querySelector('.go');g.href=t.url;if(!/\/sales\//.test(t.url))g.textContent='Відкрити';c.querySelector('.x').onclick=function(){c.remove()};w.appendChild(c);setTimeout(function(){c.remove()},120000)}
+  var g=c.querySelector('.go');g.href=t.url;if(!/\/sales\//.test(t.url))g.textContent='Відкрити';c.querySelector('.x').onclick=function(){c.remove()};w.appendChild(c);moneyRain(c);setTimeout(function(){c.remove()},120000)}
+function moneyRain(c){try{if(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)return;var r=c.getBoundingClientRect(),L=document.createElement('div');L.className='mny';document.body.appendChild(L);
+  for(var i=0;i<34;i++){var b=document.createElement('i');b.textContent=i%5===4?'🪙':'💵';var x=r.left+Math.random()*r.width,dx=(Math.random()*2-1)*140,d=1.6+Math.random()*1.2,dl=Math.random()*1.1;
+    b.style.cssText='left:'+x+'px;top:'+(r.bottom-24)+'px;font-size:'+(20+Math.random()*16)+'px;--dx:'+dx+'px;--rt:'+((Math.random()*2-1)*540)+'deg;animation-duration:'+d+'s;animation-delay:'+dl+'s';L.appendChild(b)}
+  setTimeout(function(){L.remove()},3100)}catch(e){}}
 function toast(t){if(t.kind==='paid'){payPop(t);return}var w=document.querySelector('.nt-toast');if(!w){w=document.createElement('div');w.className='nt-toast';document.body.appendChild(w)}
   var a=document.createElement('a');a.href=t.url;a.innerHTML='<b></b><span></span>';a.querySelector('b').textContent=t.title;a.querySelector('span').textContent=t.text;w.appendChild(a);setTimeout(function(){a.remove()},15000)}
 function poll(){if(document.hidden)return;fetch('/notifications/poll'+(since?'?since='+encodeURIComponent(since):''),{credentials:'same-origin'}).then(function(r){return r.ok?r.json():null}).then(function(j){if(!j)return;
   if(since)(j.toasts||[]).forEach(toast);since=j.now;bd.textContent=j.unseen;bd.hidden=!j.unseen}).catch(function(){})}
 poll();setInterval(poll,20000)})();</script>
 <style>.pay-pop{position:fixed;left:50%;top:22px;transform:translateX(-50%);z-index:125;display:grid;gap:10px}
+.mny{position:fixed;inset:0;pointer-events:none;z-index:9999;overflow:hidden}.mny i{position:fixed;font-style:normal;opacity:0;animation:mnyFall linear forwards;will-change:transform}
+@keyframes mnyFall{0%{opacity:0;transform:translate(0,0) rotate(0)}8%{opacity:1}85%{opacity:1}100%{opacity:0;transform:translate(var(--dx),75vh) rotate(var(--rt))}}
 .pay-pop .pp-c{position:relative;width:340px;background:#fff;border:2px solid #4CAF50;border-radius:22px;padding:22px 20px 18px;text-align:center;box-shadow:0 24px 60px -12px rgba(42,36,48,.45);animation:cpIn .25s ease-out}
 .pay-pop .ok{width:64px;height:64px;margin:0 auto 8px;border-radius:50%;background:#4CAF50;display:grid;place-items:center;box-shadow:0 0 0 10px rgba(76,175,80,.15)}.pay-pop .ok svg{width:34px;height:34px}
 .pay-pop .t{font:700 13px var(--sans);letter-spacing:.14em;text-transform:uppercase;color:#2F7A4C}.pay-pop .a{font:700 30px var(--sans);color:#2A2430;margin:4px 0 2px}
