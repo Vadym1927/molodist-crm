@@ -143,3 +143,11 @@ def test_lead_session_path():
                                                              {"k": "click", "t": "Записатися · likari"}, {"k": "lead", "t": "modal"}]}, "Mozilla/5.0 (Windows NT 10.0)")
         r = [x for x in ss.lead_sessions(db, date.today()) if x["sid"] == "leadpath"]
         assert r and [e["kind"] for e in r[0]["rows"]] == ["view", "sec", "click", "lead"] and r[0]["rows"][1]["t"].startswith("Лікарі")
+
+
+def test_skin_landing():
+    with TestClient(app) as cl:
+        r = cl.get("/_site/tmyana-znevodnena-shkira")
+        assert r.status_code == 200 and "Тьмяна, зневоднена шкіра: відновлення в Києві" in r.text and "Що повертає шкірі свіжість" in r.text
+        assert "клінік" not in r.text.lower().split("<main")[1].split("</main>")[0]
+        assert "/tmyana-znevodnena-shkira" in cl.get("/_site/proto/a").text
