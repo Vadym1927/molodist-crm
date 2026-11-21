@@ -673,3 +673,6 @@ div.l-promo .btn{flex:none;background:#fff;color:#3B3050}
 .h-modal .h-form input:focus,.h-modal .h-ask textarea:focus{outline:0;border-color:#5C4B82;box-shadow:0 0 0 4px rgba(201,191,230,.45)}
 .h-modal .h-seg button{background:#fff;border-color:var(--lav2,#C9BFE6)}.h-modal .h-seg button[aria-pressed=true]{background:#E4DEEF;border-color:#5C4B82;color:var(--plum)}
 .h-modal .h-form>.btn{padding-top:17px;padding-bottom:17px;box-shadow:0 12px 26px -14px rgba(59,48,80,.8)}
+
+.h-bpreel{max-width:360px;justify-self:center;width:100%}
+@media (max-width:860px){.h-bpreel{max-width:340px;margin:0 auto}}

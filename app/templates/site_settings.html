@@ -56,6 +56,15 @@
       <button class="btn sm ghost" style="margin-top:4px">{{ 'Показати' if x.file in (ig_pg.hide or []) else 'Сховати' }}</button></form>{% endfor %}</div>{% endif %}
 </div>
 
+<div class="gs" id="ig-bp"><h2>Головна, блок BEAUTY PLAN — рілс з Instagram</h2>
+  <p class="mini">Шукаємо рілс про консультацію BEAUTY PLAN. Знайдений рілс спершу прихований — натисніть «Показати на сторінці».
+  {% if ig_bp.checked_at %}Перевірено {{ ig_bp.checked_at }} UTC.{% endif %} {% if ig_bp.error and not ig_bp.reel %}<b>{{ ig_bp.error }}</b>{% endif %}</p>
+  <form method="post" action="/settings/site/ig-assets"><input type="hidden" name="topic" value="bp"><button class="btn">Знайти в Instagram</button></form>
+  {% if ig_bp.reel %}<form method="post" action="/settings/site/ig-assets" style="margin-top:10px"><input type="hidden" name="topic" value="bp"><input type="hidden" name="act" value="reel"><input type="hidden" name="reel_on" value="{{ '0' if ig_bp.reel_on else '1' }}">
+    Рілс: <a href="/_site/ig/{{ ig_bp.reel.file }}" target="_blank">{{ ig_bp.reel.file }}</a> · <a href="{{ ig_bp.reel.url }}" target="_blank" rel="noopener">в Instagram</a> — <span class="mini">{{ ig_bp.reel.caption[:160] }}</span>
+    <button class="btn sm ghost">{{ 'Прибрати зі сторінки' if ig_bp.reel_on else 'Показати на сторінці' }}</button></form>{% endif %}
+</div>
+
 <div class="gs" id="tilda"><h2>Сторінки з Tilda (перехід)</h2>
   {% if qmsg %}<div class="alert ok">{{ qmsg }}</div>{% endif %}{% if qerr %}<div class="alert">{{ qerr }}</div>{% endif %}
   <p class="small muted">Архів експорту Tilda (Tilda → Налаштування сайту → Експорт → ZIP). CRM віддає ці сторінки за тими самими адресами на домені сайту; сторінки, переписані в CRM (вище), мають пріоритет. Форми Tilda надсилають заявки в «Звернення» CRM з мітками реклами.</p>

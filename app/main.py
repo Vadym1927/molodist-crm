@@ -8910,6 +8910,11 @@ def _home_new_ctx(ctx: dict, db: Session, vk: str) -> None:
     ctx.update(vk=vk, v=sh.VARIANTS[vk], menu=sh.MENU, facts=sh.FACTS, plan=sh.PLAN, space=sh.SPACE, shop=sh.SHOP, proto=False,
                insta_t=sh.INSTA, faq=sh.faq(ctx["c"]), faq_ld=sh.faq_jsonld(ctx["c"]), title=sh.SEO["title"], desc=sh.SEO["desc"])
     ctx.update(sh.data(db, ctx["base"], ctx["ver"]))
+    try:
+        from .services import site_ig_assets as _sia
+        ctx["bp_reel"] = _sia.assets(db, "bp", ctx["base"])["reel"]     # рілс BEAUTY PLAN з Instagram (вмикає власник)
+    except Exception:  # noqa: BLE001
+        ctx["bp_reel"] = None
 
 
 @app.get("/_site/robots.txt")
@@ -9490,7 +9495,7 @@ def settings_site(request: Request, user: User = Depends(require("users")), db: 
     tpages = sorted((k, v) for k, v in tc.get("map", {}).items() if k not in sp.PAGES)
     from .services import site_ig_assets as _sia
     return render(request, "site_settings.html", nav="settings", c=sp.cfg(db), pages=pages, svc=svc, money=sp.money, media=sp.media_list(),
-                  ig=(_sia.state(db).get("akne") or {}), ig_pg=(_sia.state(db).get("pigment") or {}),
+                  ig=(_sia.state(db).get("akne") or {}), ig_pg=(_sia.state(db).get("pigment") or {}), ig_bp=(_sia.state(db).get("bp") or {}),
                   tc=tc, tpages=tpages, qmsg=request.query_params.get("msg", ""), qerr=request.query_params.get("err", ""),
                   slots=sorted({n for p_ in sp.PAGES.values() for n in [(p_.get("img") or {}).get("hero")] + (p_.get("img") or {}).get("gallery", []) if n}
                                | {f"doc-{k}.webp" for k in sp.DOCTORS}))

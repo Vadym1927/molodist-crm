@@ -183,3 +183,20 @@ def test_skin_landing_seo_video_og():
         v = [g for d in ld for g in d.get("@graph", []) if g.get("@type") == "VideoObject"]
         assert v and v[0]["uploadDate"] == "2026-11-16" and "skin-reel.mp4" in v[0]["contentUrl"]
         assert cl.get("/_site/og/tmyana-znevodnena-shkira.jpg").status_code == 200
+
+
+def test_home_bp_reel_from_instagram(tmp_path, monkeypatch):
+    from app.config import settings
+    from app.models import SessionLocal
+    from app.services import site_ig_assets as sia
+    monkeypatch.setattr(settings, "files_dir", str(tmp_path))
+    data = [{"id": "7", "media_type": "VIDEO", "media_url": "v", "permalink": "https://www.instagram.com/reel/a/", "caption": "Консультація Beauty Plan Anti Acne"},
+            {"id": "8", "media_type": "VIDEO", "media_url": "v", "permalink": "https://www.instagram.com/reel/b/", "caption": "Що таке BEAUTY PLAN у MOLODIST"}]
+    monkeypatch.setattr(sia, "_list", lambda db, http, limit=60: data)
+    monkeypatch.setattr(sia, "_video", lambda http, url, p: p.write_bytes(b"x" * 20000) or True)
+    with SessionLocal() as db:
+        r = sia.refresh(db, "bp", http=object())
+        assert r["reel"]["file"] == "bp-reel-8.mp4"
+        assert sia.assets(db, "bp", "")["reel"] is None          # спершу приховано
+        st = sia.state(db); st["bp"]["reel_on"] = True; sia._save(db, st)
+        assert sia.assets(db, "bp", "")["reel"]["src"] == "/ig/bp-reel-8.mp4"
