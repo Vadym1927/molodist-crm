@@ -8903,7 +8903,51 @@ def _home_new_ctx(ctx: dict, db: Session, vk: str) -> None:
 def site_robots(request: Request, db: Session = Depends(db_dep)):
     from .services import site_pages as sp
     c = sp.cfg(db)
-    return Response(f"User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: {c['canonical'].rstrip('/')}/sitemap.xml\n", media_type="text/plain")
+    # роботи ШІ-асистентів і ШІ-пошуку названі явно: сайт відкритий для цитування у відповідях ChatGPT, Claude, Gemini, Perplexity
+    ai = ("GPTBot", "OAI-SearchBot", "ChatGPT-User", "ClaudeBot", "Claude-User", "Claude-SearchBot", "PerplexityBot", "Perplexity-User",
+          "Google-Extended", "Applebot-Extended", "bingbot", "CCBot", "meta-externalagent")
+    b = c["canonical"].rstrip("/")
+    txt = "User-agent: *\nAllow: /\nDisallow: /api/\n\n" + "".join(f"User-agent: {a}\nAllow: /\nDisallow: /api/\n\n" for a in ai)
+    return Response(txt + f"Sitemap: {b}/sitemap.xml\n# Опис сайту для ШІ-асистентів: {b}/llms.txt\n", media_type="text/plain")
+
+
+@app.get("/_site/llms.txt")
+def site_llms(request: Request, db: Session = Depends(db_dep)):
+    """llms.txt — короткий опис MOLODIST і головних сторінок для ШІ-асистентів (ChatGPT, Claude, Gemini, Perplexity)."""
+    from .services import site_pages as sp, site_landing as sl, site_home as sh
+    c = sp.cfg(db)
+    b = c["canonical"].rstrip("/")
+    L = ["# MOLODIST", "",
+         "> MOLODIST — медичний простір естетики та профілактики в Києві (лівий берег, Дарницький район): дерматологія, косметологія, "
+         "лікування акне, IPL-терапія пігментації та судин, лазерна епіляція, інʼєкційна косметологія, видалення новоутворень. "
+         "Прийом ведуть лікарі-дерматологи; працює за ліцензією МОЗ України.", "",
+         f"- Адреса: {c.get('address') or 'м. Київ, вул. Князя Романа Мстиславича, 28А'}",
+         f"- Телефон: {c.get('phone_text') or c.get('phone')}", f"- Графік: {c.get('hours')}", f"- Сайт: {b}/",
+         f"- Instagram: {c.get('instagram')}", "- Мова сайту: українська", "",
+         "## Напрямки й сторінки", ""]
+    for lp in sl.LANDINGS.values():
+        L.append(f"- [{lp['hero']['h1']}]({b}/{lp['slug']}): {lp['seo']['desc']}")
+    for s_ in sp.ORDER:
+        if s_ not in sl.LANDINGS:
+            pg = sp.PAGES[s_]
+            L.append(f"- [{pg['nav']}]({b}/{s_}): {pg.get('lead') or pg['title']}")
+    L += [f"- [Онлайн-запис]({b}/zapys): вибір послуги, лікаря й часу", "", "## Лікарі", ""]
+    try:
+        for d in sh.data(db, "", "")["team"]:
+            L.append(f"- {d['name']} — {d.get('role') or 'лікар'}")
+    except Exception:  # noqa: BLE001
+        pass
+    L += ["", "## Як MOLODIST працює з пацієнтом", "",
+          "- Перший крок — консультація BEAUTY PLAN: огляд лікаря, діагностика шкіри на апараті OBSERV 520x і письмовий план процедур "
+          "та домашнього догляду з цінами.",
+          "- Процедури проводять лікарі, а не майстри після курсів; лікування акне, розацеа й пігментації веде лікар-дерматовенеролог.",
+          "- Ціни на сайті актуальні й збігаються з прайсом у медичному просторі.", "",
+          "## Часті запитання", ""]
+    for lp in sl.LANDINGS.values():
+        for q, a in lp["faq"][:4]:
+            if "{" not in a:
+                L += [f"### {q}", a, ""]
+    return Response("\n".join(L) + "\n", media_type="text/plain; charset=utf-8", headers={"Cache-Control": "public, max-age=3600"})
 
 
 @app.get("/_site/sitemap.xml")

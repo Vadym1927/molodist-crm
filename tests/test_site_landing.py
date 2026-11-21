@@ -123,3 +123,12 @@ def test_laser_landing():
         x = cl.get("/_site/consultation-lazerna-epilyatsiya", follow_redirects=False)
         assert x.status_code == 301 and x.headers["location"].endswith("/laserepilation")
         assert cl.get("/_site/sitemap.xml").text.count("/laserepilation<") == 1
+
+
+def test_robots_ai_bots_and_llms_txt():
+    with TestClient(app) as cl:
+        r = cl.get("/_site/robots.txt").text
+        assert "GPTBot" in r and "ClaudeBot" in r and "PerplexityBot" in r and "llms.txt" in r and "Disallow: /\n" not in r
+        t = cl.get("/_site/llms.txt")
+        assert t.status_code == 200 and t.text.startswith("# MOLODIST") and "/likuvannya-akne" in t.text and "/laserepilation" in t.text
+        assert "клінік" not in t.text.lower()
