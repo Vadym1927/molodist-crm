@@ -938,3 +938,11 @@ def test_guest_cart_lead_and_close(monkeypatch):
         assert o["ok"]
         with SessionLocal() as db:
             assert db.get(ShopCart, cid).status == "ordered"
+
+
+def test_feed_title_no_supplement_triggers():
+    from app.services.shop_feeds import clean_title
+    assert clean_title("Medicare Professional Сироватка для проблемної шкіри з ніацинамідом, саліциловою та азелаїновою кислотами для зменшення висипань та почервоніння 30 мл") \
+        == "Medicare Professional Сироватка для проблемної шкіри з ніацинамідом 30 мл"
+    assert clean_title("Jalupro Drink Proglyme Біологічно активна добавка 30 STICK") == "Jalupro Drink Proglyme 30 STICK"
+    assert clean_title("Rejuran відновлюючий гель для шкіри навколо очей 15 мл") == "Rejuran відновлюючий гель для шкіри навколо очей 15 мл"
