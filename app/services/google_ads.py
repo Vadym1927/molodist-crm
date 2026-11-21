@@ -26,7 +26,8 @@ DEFAULT = {"hook": "", "account": {}, "last_push": None, "vat_pct": 20.0, "margi
            "topup_amount": 10000.0, "cashbox": "", "article": "Маркетинг", "balance_base": None,      # {"day": iso, "amount": float}
            "lines": [], "appeal_sources": ["Google Ads"], "real_balance": None, "bank_words": ["google"],
            "daily_topup": 0.0, "daily_days": [1, 2, 3, 4],      # щоденне поповнення з ПДВ; дні тижня (0 — пн); пт — за пт і сб
-           "offline_on": False, "offline_name": "CRM — оплачений візит", "offline_sent": []}
+           "offline_on": False, "offline_name": "CRM — оплачений візит", "offline_sent": [],
+           "shop_offline_on": False, "shop_offline_name": "Покупка molodist.store (CRM)"}
 LEVELS = ("account", "campaign", "adgroup", "keyword", "term", "device", "hour", "conv", "tconv")   # conv/tconv — конверсії по діях
 
 
@@ -484,10 +485,11 @@ def offline_rows(db: Session, today: date | None = None) -> list[dict]:
     """Ліди з gclid, які прийшли й заплатили → конверсія «CRM — оплачений візит» з цінністю = оплати за 30 днів від звернення
     (надсилаємо, коли минув день візиту; один раз на gclid). Google навчається на реальних грошах, а не на кліках."""
     c = cfg(db)
-    if not c.get("offline_on"):
-        return []
     today = today or date.today()
     sent = set(c.get("offline_sent") or [])
+    shop = shop_offline_rows(db, c, sent, today)
+    if not c.get("offline_on"):
+        return shop[:500]
     ls = funnel(db, leads(db, today - timedelta(days=88), today, c), today)
     out = []
     for r in ls:
@@ -499,7 +501,28 @@ def offline_rows(db: Session, today: date | None = None) -> list[dict]:
             continue
         out.append({"key": g, "gclid": g, "name": c.get("offline_name") or DEFAULT["offline_name"], "time": _tz(max(came, r["at"] + timedelta(minutes=1))),
                     "value": round(r["revenue30"], 2), "currency": (c.get("account") or {}).get("currency") or "UAH"})
-    return out[:500]
+    return (shop + out)[:500]
+
+
+SHOP_BAD = {"Скасовано", "Повернення", "Фейкове"}
+
+
+def shop_offline_rows(db: Session, c: dict, sent: set, today: date) -> list[dict]:
+    """Оплачені замовлення інтернет-магазину з gclid → конверсія «Покупка molodist.store (CRM)» з цінністю замовлення.
+    Не залежить від того, чи покупець повернувся з monobank на «Дякуємо». Один раз на замовлення (ключ shop:<номер>), за 88 днів."""
+    if not c.get("shop_offline_on"):
+        return []
+    from ..models import SiteOrder
+    a = datetime.combine(today - timedelta(days=88), datetime.min.time())
+    out = []
+    for o in db.scalars(select(SiteOrder).where(SiteOrder.source == "crm", SiteOrder.created_at >= a, SiteOrder.paid.is_(True))):
+        g = str(((o.raw or {}).get("utm") or {}).get("gclid") or "").strip()
+        key = f"shop:{o.number}"
+        if not g or key in sent or o.status in SHOP_BAD:
+            continue
+        out.append({"key": key, "gclid": g, "name": c.get("shop_offline_name") or DEFAULT["shop_offline_name"],
+                    "time": _tz(o.created_at + timedelta(minutes=1)), "value": round(float(o.total or 0), 2), "currency": "UAH", "order": o.number})
+    return out
 
 
 def offline_ack(db: Session, keys: list) -> int:
@@ -630,10 +653,10 @@ function uploadOffline() {
   if (res.getResponseCode() >= 300) return;
   var rows = (JSON.parse(res.getContentText()).rows) || [];
   if (!rows.length) return;
-  var cols = ['Google Click ID', 'Conversion Name', 'Conversion Time', 'Conversion Value', 'Conversion Currency'];
+  var cols = ['Google Click ID', 'Conversion Name', 'Conversion Time', 'Conversion Value', 'Conversion Currency', 'Order ID'];
   var up = AdsApp.bulkUploads().newCsvUpload(cols, { moneyInMicros: false });
   rows.forEach(function (r) { up.append({ 'Google Click ID': r.gclid, 'Conversion Name': r.name, 'Conversion Time': r.time,
-                                          'Conversion Value': r.value, 'Conversion Currency': r.currency }); });
+                                          'Conversion Value': r.value, 'Conversion Currency': r.currency, 'Order ID': r.order || '' }); });
   up.forOfflineConversions();
   up.setFileName('MOLODIST CRM ' + Utilities.formatDate(new Date(), 'Europe/Kyiv', 'yyyy-MM-dd HH:mm'));
   up.apply();

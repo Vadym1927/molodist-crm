@@ -9635,11 +9635,14 @@ async def google_ads_offline_ack(request: Request, hook: str, db: Session = Depe
 
 
 @app.post("/settings/google-ads/offline")
-def google_ads_offline_save(on: str = Form(""), name: str = Form(""), user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+def google_ads_offline_save(on: str = Form(""), name: str = Form(""), shop_on: str = Form(""), shop_name: str = Form(""), user: User = Depends(require("users")),
+                            db: Session = Depends(db_dep)):
     from .services import google_ads as ga
     c = ga.cfg(db)
     c["offline_on"] = bool(on)
     c["offline_name"] = name.strip()[:100] or ga.DEFAULT["offline_name"]
+    c["shop_offline_on"] = bool(shop_on)
+    c["shop_offline_name"] = shop_name.strip()[:100] or ga.DEFAULT["shop_offline_name"]
     ga.save_cfg(db, c)
     audit(db, "google_ads.offline", user=user, on=bool(on))
     db.commit()

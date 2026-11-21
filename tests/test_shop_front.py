@@ -976,3 +976,20 @@ def test_order_card_shows_buyer_path(monkeypatch):
         r = c.get(f"/shop-orders/{oid}")
         assert r.status_code == 200 and "Шлях покупця на сайті" in r.text and "Google Ads" in r.text
         assert "Шлях крем" in r.text and "ЗАМОВЛЕННЯ" in r.text and "Ціна й кнопка" in r.text
+
+
+def test_shop_paid_orders_to_google_ads_offline():
+    from app.services import google_ads as ga
+    from app.models import SiteOrder
+    with SessionLocal() as db:
+        now = datetime.now()
+        for no, paid, st, g in (("MT-1", True, "Оплачено", "GCL-SHOP-1"), ("MT-2", False, "Очікує оплати", "GCL-SHOP-2"),
+                                ("MT-3", True, "Фейкове", "GCL-SHOP-3"), ("MT-4", True, "Оплачено", "")):
+            db.add(SiteOrder(source="crm", ext_id=no, number=no, created_at=now, status=st, paid=paid, total=3588, raw={"utm": {"gclid": g} if g else {}}))
+        c = ga.cfg(db); c["shop_offline_on"] = True; ga.save_cfg(db, c); db.commit()
+        rows = [r for r in ga.offline_rows(db) if r["key"].startswith("shop:MT-")]
+        assert [r["gclid"] for r in rows] == ["GCL-SHOP-1"] and rows[0]["value"] == 3588 and rows[0]["name"] == "Покупка molodist.store (CRM)" and rows[0]["order"] == "MT-1"
+        ga.offline_ack(db, [rows[0]["key"]]); db.commit()
+        assert not [r for r in ga.offline_rows(db) if r["key"].startswith("shop:MT-")]
+        c = ga.cfg(db); c["shop_offline_on"] = False; ga.save_cfg(db, c); db.commit()
+    assert "'Order ID'" in ga.script("https://x")
