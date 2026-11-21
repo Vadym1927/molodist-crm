@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Шлях до заявки{% endblock %}
+{% block body %}
+<style>.sl-c{background:#fff;border:1px solid #E9E5DF;border-radius:14px;padding:16px 18px;margin-bottom:14px}.sl-c h2{margin:0 0 4px;font-size:18px}
+.sl-c table{width:100%;font-size:13.5px;margin-top:10px}.sl-c td{padding:3px 8px 3px 0;vertical-align:top}.sl-c tr.lead td{font-weight:700;color:#3B3050;background:#E4DEEF}</style>
+<h1>Шлях до заявки</h1>
+<p class="mini">Що робив на сайті кожен, хто залишив заявку: сторінки, блоки, кліки. Без персональних даних — заявку шукайте за часом у «Зверненнях».</p>
+<p><a class="btn sm ghost" href="?day={{ prev }}">‹ {{ prev.strftime('%d.%m') }}</a> <b>{{ d.strftime('%d.%m.%Y') }}</b> {% if nxt <= today %}<a class="btn sm ghost" href="?day={{ nxt }}">{{ nxt.strftime('%d.%m') }} ›</a>{% endif %}
+  <a class="btn sm ghost" href="/reports/site?day={{ d }}">Загальний звіт</a></p>
+{% for x in rows %}<div class="sl-c"><h2>Заявка о {{ x.lead_at }}</h2>
+  <p class="mini">Зайшов о {{ x.first }} · до заявки {{ x.sec_to_lead // 60 }} хв {{ x.sec_to_lead % 60 }} с · {{ {'phone': 'телефон', 'pc': 'компʼютер', 'tablet': 'планшет'}.get(x.device, x.device) }} · {{ 'РЕКЛАМА · ' if x.paid }}{{ x.src }} · сторінки: {{ x.pages|join(' → ') }}</p>
+  <table>{% for e in x.rows %}<tr class="{{ 'lead' if e.kind == 'lead' }}"><td>{{ e.at }}</td><td>{{ e.page }}</td><td>{{ e.what }}</td><td>{{ e.t }}</td></tr>{% endfor %}</table></div>
+{% else %}<p class="mini">За цей день заявок із відстеженням немає.</p>{% endfor %}
+{% endblock %}

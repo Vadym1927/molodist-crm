@@ -132,3 +132,14 @@ def test_robots_ai_bots_and_llms_txt():
         t = cl.get("/_site/llms.txt")
         assert t.status_code == 200 and t.text.startswith("# MOLODIST") and "/likuvannya-akne" in t.text and "/laserepilation" in t.text
         assert "клінік" not in t.text.lower()
+
+
+def test_lead_session_path():
+    from datetime import date
+    from app.models import SessionLocal
+    from app.services import site_stats as ss
+    with SessionLocal() as db:
+        ss.ingest(db, {"sid": "leadpath1", "page": "/", "ev": [{"k": "view", "t": "x"}, {"k": "sec", "t": "likari", "v": 40},
+                                                             {"k": "click", "t": "Записатися · likari"}, {"k": "lead", "t": "modal"}]}, "Mozilla/5.0 (Windows NT 10.0)")
+        r = [x for x in ss.lead_sessions(db, date.today()) if x["sid"] == "leadpath"]
+        assert r and [e["kind"] for e in r[0]["rows"]] == ["view", "sec", "click", "lead"] and r[0]["rows"][1]["t"].startswith("Лікарі")

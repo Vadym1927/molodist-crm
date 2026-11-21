@@ -13519,6 +13519,18 @@ def _kpi_month(m: str) -> tuple[date, date, str]:
     return a, b, mk
 
 
+@app.get("/reports/site/leads", response_class=HTMLResponse)
+def report_site_leads(request: Request, day: str = "", user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    """Шлях на сайті кожного, хто залишив заявку за день (за замовчуванням — сьогодні)."""
+    from .services import site_stats as ss
+    try:
+        d = date.fromisoformat(day) if day else date.today()
+    except ValueError:
+        d = date.today()
+    return render(request, "report_site_leads.html", nav="reports", rows=ss.lead_sessions(db, d), d=d, prev=d - timedelta(days=1), nxt=d + timedelta(days=1),
+                  today=date.today())
+
+
 @app.get("/reports/site", response_class=HTMLResponse)
 def report_site(request: Request, day: str = "", site: str = "", user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     """Поведінка на сайті за день (за замовчуванням — вчора): джерела, блоки, кліки, форми, заявки, де закривали. site=store — магазин."""

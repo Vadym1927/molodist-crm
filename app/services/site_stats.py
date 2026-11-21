@@ -193,3 +193,30 @@ def text(r: dict) -> str:
 def cleanup(db: Session, days: int = 120) -> None:
     db.execute(delete(SiteEvent).where(SiteEvent.at < datetime.now() - timedelta(days=days)))
     db.commit()
+
+
+def lead_sessions(db: Session, day: date) -> list[dict]:
+    """Шлях кожного відвідувача, який залишив заявку за день: усі події його сесії по порядку (без персональних даних)."""
+    a = datetime.combine(day, datetime.min.time())
+    b = a + timedelta(days=1)
+    sids = [r for r in db.scalars(select(SiteEvent.sid).where(SiteEvent.at >= a, SiteEvent.at < b, SiteEvent.kind == "lead").distinct())]
+    out = []
+    kinds = {"view": "Відкрив сторінку", "sec": "Дійшов до блоку", "click": "Клік", "form": "Відкрив форму", "pop": "Побачив банер",
+             "lead": "ЗАЯВКА", "exit": "Закрив / згорнув вкладку"}
+    for sid in sids:
+        evs = list(db.scalars(select(SiteEvent).where(SiteEvent.sid == sid, SiteEvent.at >= a - timedelta(hours=6), SiteEvent.at < b)
+                              .order_by(SiteEvent.at, SiteEvent.id)))
+        if not evs:
+            continue
+        lead = next(e for e in evs if e.kind == "lead")
+        rows = []
+        for e in evs:
+            t = e.target or ""
+            if e.kind in ("sec", "exit"):
+                t = SECTIONS.get(t, t)
+            extra = f" · прокрутка {e.value}%" if e.kind == "sec" and e.value else (f" · на сторінці {e.value} с" if e.kind == "exit" and e.value else "")
+            rows.append({"at": e.at.strftime("%H:%M:%S"), "page": e.page, "what": kinds.get(e.kind, e.kind), "t": t + extra, "kind": e.kind})
+        out.append({"sid": sid[:8], "lead_at": lead.at.strftime("%H:%M"), "first": evs[0].at.strftime("%H:%M:%S"),
+                    "sec_to_lead": int((lead.at - evs[0].at).total_seconds()), "device": evs[0].device, "src": evs[0].src, "paid": bool(evs[0].paid),
+                    "pages": list(dict.fromkeys(e.page for e in evs)), "rows": rows})
+    return sorted(out, key=lambda x: x["lead_at"])
