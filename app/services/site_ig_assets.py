@@ -120,7 +120,7 @@ def refresh(db: Session, topic: str = "akne", http=None) -> dict:
                 if ok and m.get("thumbnail_url") and not p.is_file():
                     _img(http, m["thumbnail_url"], p)
                 if ok:
-                    reel = {"file": v.name, "poster": p.name if p.is_file() else "", "url": m.get("permalink"), "caption": cap[:300]}
+                    reel = {"file": v.name, "poster": p.name if p.is_file() else "", "url": m.get("permalink"), "caption": cap[:300], "date": str(m.get("timestamp") or "")[:10]}
             except Exception:  # noqa: BLE001
                 v.unlink(missing_ok=True)
         if reel2 is None and t.get("reel2") and m.get("media_type") == "VIDEO" and re.search(t["reel2"], cap, re.I) and m.get("media_url"):
@@ -130,7 +130,7 @@ def refresh(db: Session, topic: str = "akne", http=None) -> dict:
                 if ok and m.get("thumbnail_url") and not p.is_file():
                     _img(http, m["thumbnail_url"], p)
                 if ok:
-                    reel2 = {"file": v.name, "poster": p.name if p.is_file() else "", "url": m.get("permalink"), "caption": cap[:300]}
+                    reel2 = {"file": v.name, "poster": p.name if p.is_file() else "", "url": m.get("permalink"), "caption": cap[:300], "date": str(m.get("timestamp") or "")[:10]}
             except Exception:  # noqa: BLE001
                 v.unlink(missing_ok=True)
         if m.get("media_type") in ("IMAGE", "CAROUSEL_ALBUM") and re.search(t["posts"], cap, re.I) and re.search(t["ba"], cap, re.I):

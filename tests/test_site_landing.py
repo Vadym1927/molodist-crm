@@ -172,3 +172,14 @@ def test_skin_landing_reel_process_pics_modal():
         t = cl.get("/_site/tmyana-znevodnena-shkira").text
         assert "skin-reel.mp4" in t and "Ефект сяючої шкіри за 2 місяці" in t
         assert 'class="ic pic"' in t and 'class="l-cimg"' in t and 'class="h-mside"' in t
+
+
+def test_skin_landing_seo_video_og():
+    import json, re
+    with TestClient(app) as cl:
+        t = cl.get("/_site/tmyana-znevodnena-shkira").text
+        assert "sk-modal.webp" in t and "og-skin" not in t
+        ld = [json.loads(m) for m in re.findall(r'<script type="application/ld\+json">(.*?)</script>', t, re.S)]
+        v = [g for d in ld for g in d.get("@graph", []) if g.get("@type") == "VideoObject"]
+        assert v and v[0]["uploadDate"] == "2026-11-16" and "skin-reel.mp4" in v[0]["contentUrl"]
+        assert cl.get("/_site/og/tmyana-znevodnena-shkira.jpg").status_code == 200

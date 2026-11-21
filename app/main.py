@@ -8879,7 +8879,20 @@ def _landing_resp(request: Request, db: Session, lp: dict):
         src = _sc.path(lp["hero"]["crop"]) or src
     ctx.update(og_title=lp["seo"]["og_title"], og_desc=lp["seo"]["og_desc"],
                og_img=f"{abs_base}/og/{lp['slug']}.jpg" if sp_og(lp["slug"], src) else "")
-    ctx["org_ld"] = sl.jsonld(lp, ctx["c"], ctx["canonical"], ctx["faq"], ctx["formats"])
+    _vids = []
+    for _k, _tx in (("reel", "reel_tx"), ("reel2", "reel2_tx")):
+        _r = ctx.get(_k)
+        if not _r:
+            continue
+        _t = lp.get(_tx) or ({"title": "Чотири фактори, через які зʼявляється акне",
+                              "text": "Лікар-дерматовенеролог пояснює, що насправді запускає висипання."} if _k == "reel" else None)
+        if not _t:
+            continue
+        _abs = lambda u: u if (u or "").startswith("http") else (str(request.base_url).rstrip("/") + u if u else "")
+        _date = _r.get("date") or (lp.get(_k) or {}).get("date") or ""
+        _vids.append({"name": _t["title"], "desc": _t["text"], "src": _abs(_r.get("src")), "thumb": _abs(_r.get("poster_src")), "date": _date,
+                      "url": _r.get("url") or ""})
+    ctx["org_ld"] = sl.jsonld(lp, ctx["c"], ctx["canonical"], ctx["faq"], ctx["formats"], _vids)
     r = _site_resp("site/proto_home.html", ctx)
     if ctx["noindex"]:
         r.headers["Cache-Control"] = "no-store"

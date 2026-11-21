@@ -130,8 +130,10 @@
       try { localStorage.setItem('mlds_pop', String(Date.now())); } catch (x) {}
       (window.dataLayer = window.dataLayer || []).push({ event: 'promo_popup_show', popup_reason: why });
     };
-    setTimeout(function () { show('timer'); }, force ? 1200 : (+pop.getAttribute('data-delay') || 25) * 1000);
-    d.addEventListener('mouseout', function (e) { if (!e.relatedTarget && e.clientY <= 0 && Date.now() - T0 > 6000) show('exit'); });
+    var DL = force ? 1200 : Math.max(20, +pop.getAttribute('data-delay') || 20) * 1000;      // і на ПК, і на телефоні — не раніше 20 с
+    var tick = function () { if (modal && !modal.hidden) { setTimeout(tick, 5000); return; } show('timer'); };   // форма відкрита — почекати
+    setTimeout(tick, DL);
+    d.addEventListener('mouseout', function (e) { if (!e.relatedTarget && e.clientY <= 0 && Date.now() - T0 > DL) show('exit'); });
     pop.addEventListener('click', function (e) {
       if (e.target.closest && e.target.closest('[data-pop-close]')) { pop.hidden = true; pop.classList.remove('on'); }
     });

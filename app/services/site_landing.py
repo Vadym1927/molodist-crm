@@ -30,9 +30,9 @@ ACNE = {
              "lead": "Акне — це захворювання шкіри, а не «перехідний вік» і не брак догляду. Лікар-дерматовенеролог знаходить "
                      "причину висипань, складає план лікування й веде вас до результату — без випадкових засобів і зайвих процедур.",
              "cta": "Записатися на консультацію", "cta2": "Як проходить лікування",
-             "media": ["akne-hero.webp", "doc-syrova.webp"], "img": "acne-hero.webp", "og": "og-akne.webp",
-             "img_alt": "Софія Сирова, лікар-дерматовенеролог MOLODIST — лікування акне в Києві"},
-    "facts": [("Лікар-дерматовенеролог", "Лікування веде лікар, а не косметолог-продавець процедур", "ak-doc.webp"),
+             "media": [], "img": "acne-hero-ba.webp", "og": "og-akne.webp",
+             "img_alt": "Лікування акне в MOLODIST, Київ: фото пацієнток до і після"},
+    "facts": [("Лікар-дерматовенеролог", "Лікування веде лікар, а не косметолог-продавець процедур", "c-acne.webp"),
               ("Діагностика OBSERV 520x", "Видно запалення, пори й сліди, яких не помітно в дзеркалі", "f-diag.webp"),
               ("План лікування письмово", "Що робимо, у якій послідовності й скільки це коштує", "f-plan.webp"),
               ("Контроль результату", "Фото на OBSERV на кожному етапі — динаміку видно", "ak-ctrl.webp")],
@@ -392,7 +392,7 @@ SKIN = {
              "lead": "Сухість, стягнутість, сірий тон і розширені пори — це сигнали, що шкірі бракує вологи, оновлення або правильного "
                      "догляду. Лікар зʼясовує причину на діагностиці й підбирає саме те, що потрібно вашій шкірі.",
              "cta": "Записатися на прийом", "cta2": "Що допомагає", "cta2_href": "#shcho-dopomahaie",
-             "media": [], "img": "c-skin.webp", "og": "c-skin.webp", "no_price": True,
+             "media": [], "img": "c-skin.webp", "og": "og-skin.webp", "no_price": True,
              "img_alt": "Догляд за тьмяною, зневодненою шкірою в MOLODIST, Київ"},
     "facts": [("Процедури проводить лікар", "Обирає методику під стан вашої шкіри, а не «за прайсом»", "media:doc-kolgan.webp|f-doctors.webp", "center 12%"),
               ("Діагностика OBSERV 520x", "Видно зневоднення, пори й тон, яких не помітно в дзеркалі", "f-diag.webp"),
@@ -439,7 +439,7 @@ SKIN = {
             "text": "Залиште номер — адміністратор запише вас до лікаря. Підберемо очищення, пілінг або зволоження під вашу шкіру.",
             "btn": "Записатися", "img": "c-skin.webp"},
     "ask": True, "ask_ph": "Наприклад: сухість і лущення, сірий тон, розширені пори",
-    "modal": {"eyebrow": "MOLODIST · якість шкіри", "title": "Запишіться — підберемо процедуру й час",
+    "modal": {"img": "sk-modal.webp", "eyebrow": "MOLODIST · якість шкіри", "title": "Запишіться — підберемо процедуру й час",
               "text": "Залиште номер — адміністратор передзвонить і запише вас на зручний день. Можна одразу на процедуру: "
                       "гігієну обличчя, пілінг чи біоревіталізацію."},
     "consult": {"eyebrow": "Якщо не знаєте, з чого почати",
@@ -449,9 +449,9 @@ SKIN = {
                          "Схема домашнього догляду під ваш тип шкіри"],
                 "modal": "Огляд лікаря, діагностика шкіри на OBSERV 520x і план догляду",
                 "note": "Консультація не обовʼязкова: можна одразу записатися на гігієну обличчя, пілінг чи доглядову процедуру.",
-                "main_id": 387, "img": "media:bp-1.webp|f-diag.webp",
+                "main_id": 387, "img": "f-diag.webp",
                 "formats": [(387, "BEAUTY PLAN", "Консультація лікаря: діагностика шкіри й письмовий план")]},
-    "reel": {"file": "skin-reel.mp4", "poster": "skin-reel-poster.webp", "url": ""},
+    "reel": {"file": "skin-reel.mp4", "poster": "skin-reel-poster.webp", "url": "", "date": "2026-11-16"},
     "reel_tx": {"eyebrow": "Відео від лікаря", "title": "Ефект сяючої шкіри за 2 місяці",
                 "text": "Без косметологічних процедур — лише правильно підібраний домашній догляд: що прибрати з полиці й чим відновити захисний барʼєр шкіри."},
     "procs": {"title": "Процедури й ціни",
@@ -633,7 +633,7 @@ def data(db: Session, lp: dict, home: dict, base: str) -> dict:
     return {"proc_pics": proc_pics, "cons_img": cons_img, "side_img": side_img or hero or (st_(lp["hero"]["img"]) if lp["hero"].get("img") else ""), "hero_img": hero, "cases": cases, "about_items": about, "facts_r": facts_r, "pgroups": pgroups, "lp_promo": promo, "formats": formats, "main_price": main_price, "procs": procs, "lp_doc": doc, "rev": rev, "products": products, "faq": faq}
 
 
-def jsonld(lp: dict, c: dict, url: str, faq: list, formats: list) -> str:
+def jsonld(lp: dict, c: dict, url: str, faq: list, formats: list, videos: list | None = None) -> str:
     """schema.org: медична сторінка про акне, заклад, хлібні крихти, FAQ і ціни консультацій."""
     root = c["canonical"].rstrip("/") + "/"
     org = {"@type": "MedicalClinic", "@id": root + "#org", "name": "MOLODIST", "url": root, "telephone": c["phone"],
@@ -650,4 +650,7 @@ def jsonld(lp: dict, c: dict, url: str, faq: list, formats: list) -> str:
         {"@type": "ListItem", "position": 1, "name": "MOLODIST", "item": root},
         {"@type": "ListItem", "position": 2, "name": lp["hero"]["h1"], "item": url}]}
     fq = {"@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": a}} for q, a in faq]}
-    return json.dumps({"@context": "https://schema.org", "@graph": [org, page, crumbs, fq]}, ensure_ascii=False)
+    vids = [{"@type": "VideoObject", "name": v["name"], "description": v["desc"], "thumbnailUrl": [v["thumb"]], "contentUrl": v["src"],
+             "uploadDate": v["date"], "inLanguage": "uk", "publisher": {"@id": org["@id"]}, **({"embedUrl": v["url"]} if v.get("url") else {})}
+            for v in videos or [] if v.get("src") and v.get("thumb") and v.get("date")]   # Google: відео в пошуку — потрібні прев'ю й дата
+    return json.dumps({"@context": "https://schema.org", "@graph": [org, page, crumbs, fq, *vids]}, ensure_ascii=False)
