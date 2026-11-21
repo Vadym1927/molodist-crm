@@ -182,6 +182,14 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
       <button type="button" class="l-snd" data-reel-sound><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.500-4H4z" fill="currentColor"/><path d="M15.500 9a4 4 0 0 1 0 6M18 6.500a7.500 7.500 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span>Увімкнути звук</span></button></div>
   </div></section>{% endif %}
 
+{% elif sec == 'reel2' %}{% if reel2 and lp.reel2_tx %}
+  <section class="sec l-reel" id="video-rezultat"><div class="wrap l-reel-in">
+    <div class="tx"><p class="eyebrow">{{ lp.reel2_tx.eyebrow }}</p><h2>{{ lp.reel2_tx.title }}</h2>
+      <p class="big">{{ lp.reel2_tx.text }}</p>
+      <p class="h-btns"><a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp">{{ lp.reel2_tx.btn or 'Записатися' }}</a>{% if reel2.url %}<a class="h-ghost" href="{{ reel2.url }}" target="_blank" rel="noopener">Дивитися в Instagram {{ arrow() }}</a>{% endif %}</p></div>
+    <div class="l-vid"><video data-reel playsinline muted autoplay loop preload="metadata" {% if reel2.poster_src %}poster="{{ reel2.poster_src }}"{% endif %} aria-label="{{ lp.reel2_tx.title }}"><source src="{{ reel2.src }}" type="video/mp4"></video>
+      <button type="button" class="l-snd" data-reel-sound><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.500-4H4z" fill="currentColor"/><path d="M15.500 9a4 4 0 0 1 0 6M18 6.500a7.500 7.500 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span>Увімкнути звук</span></button></div>
+  </div></section>{% endif %}
 {% elif sec == 'cases' %}
   <section class="sec l-cases" id="rezultaty"><div class="wrap">
     <div class="h-shd"><h2>{{ lp.cases.title }}</h2><p>{{ lp.cases.text }}</p></div>

@@ -44,7 +44,9 @@ def test_ig_assets_refresh_picks_reel_and_cases(tmp_path, monkeypatch):
              "caption": "На появу акне впливають одразу чотири фактори"},
             {"id": "2", "media_type": "CAROUSEL_ALBUM", "permalink": "https://www.instagram.com/p/y/", "caption": "Акне: результат до і після",
              "children": {"data": [{"media_type": "IMAGE", "media_url": "a"}, {"media_type": "IMAGE", "media_url": "b"}]}},
-            {"id": "3", "media_type": "IMAGE", "media_url": "c", "permalink": "https://www.instagram.com/p/z/", "caption": "RF-ліфтинг"}]
+            {"id": "3", "media_type": "IMAGE", "media_url": "c", "permalink": "https://www.instagram.com/p/z/", "caption": "RF-ліфтинг"},
+            {"id": "4", "media_type": "VIDEO", "media_url": "v2", "permalink": "https://www.instagram.com/reel/w/",
+             "caption": "Давно лікуєте акне, але воно постійно повертається?"}]
     monkeypatch.setattr(sia, "_list", lambda db, http, limit=60: data)
     monkeypatch.setattr(sia, "_video", lambda http, url, p: p.write_bytes(b"x" * 20000) or True)
     monkeypatch.setattr(sia, "_img", lambda http, url, p, max_side=1080: p.write_bytes(b"jpg") or True)
@@ -53,6 +55,10 @@ def test_ig_assets_refresh_picks_reel_and_cases(tmp_path, monkeypatch):
         assert r["reel"]["file"] == "akne-reel-1.mp4" and len(r["cases"]) == 2
         a = sia.assets(db, "akne", "")
         assert a["reel"]["src"] == "/ig/akne-reel-1.mp4" and len(a["ig_cases"]) == 2
+        assert r["reel2"]["file"] == "akne-reel-4.mp4" and a["reel2"]["src"] == "/ig/akne-reel-4.mp4"
+    with TestClient(app) as cl:
+        t = cl.get("/_site/likuvannya-akne").text
+        assert 'id="video-rezultat"' in t and "/ig/akne-reel-4.mp4" in t and "результат за 3 місяці" in t
 
 
 def test_ig_asset_served(tmp_path, monkeypatch):

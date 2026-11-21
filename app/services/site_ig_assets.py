@@ -21,7 +21,7 @@ from ..models import SyncState
 KEY = "site_ig_assets"
 FIELDS = "id,media_type,media_url,thumbnail_url,permalink,caption,timestamp,children{media_type,media_url,thumbnail_url}"
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{2,60}\.(mp4|jpg)$")
-TOPICS = {"akne": {"reel": r"чотири фактор|4 фактор", "posts": r"акне|постакне|висипан",
+TOPICS = {"akne": {"reel": r"чотири фактор|4 фактор", "reel2": r"постійно повертається|3 місяці спільної", "posts": r"акне|постакне|висипан",
                    "ba": r"до\s*/?\s*(і\s*)?після|результат|кейс|динамік"},
           # сторінка «Пігментація й судини»: знайдене спершу приховане — власник вмикає рілс і фото сам (opt_in)
           "pigment": {"reel": r"\bipl\b|фотоомолодж|пігмент|судин|купероз|розаце", "posts": r"\bipl\b|пігмент|судин|купероз|розаце|фотоомолодж",
@@ -106,6 +106,7 @@ def refresh(db: Session, topic: str = "akne", http=None) -> dict:
         return cur
     d = folder()
     reel = None
+    reel2 = None
     cases: list[dict] = []
     for m in data:
         cap = " ".join(str(m.get("caption") or "").split())
@@ -122,6 +123,16 @@ def refresh(db: Session, topic: str = "akne", http=None) -> dict:
                     reel = {"file": v.name, "poster": p.name if p.is_file() else "", "url": m.get("permalink"), "caption": cap[:300]}
             except Exception:  # noqa: BLE001
                 v.unlink(missing_ok=True)
+        if reel2 is None and t.get("reel2") and m.get("media_type") == "VIDEO" and re.search(t["reel2"], cap, re.I) and m.get("media_url"):
+            v, p = d / f"{topic}-reel-{mid}.mp4", d / f"{topic}-reel-{mid}.jpg"
+            try:
+                ok = v.is_file() or _video(http, m["media_url"], v)
+                if ok and m.get("thumbnail_url") and not p.is_file():
+                    _img(http, m["thumbnail_url"], p)
+                if ok:
+                    reel2 = {"file": v.name, "poster": p.name if p.is_file() else "", "url": m.get("permalink"), "caption": cap[:300]}
+            except Exception:  # noqa: BLE001
+                v.unlink(missing_ok=True)
         if m.get("media_type") in ("IMAGE", "CAROUSEL_ALBUM") and re.search(t["posts"], cap, re.I) and re.search(t["ba"], cap, re.I):
             kids = ((m.get("children") or {}).get("data") or []) if m.get("media_type") == "CAROUSEL_ALBUM" else [m]
             for i, k in enumerate(kids):
@@ -136,7 +147,7 @@ def refresh(db: Session, topic: str = "akne", http=None) -> dict:
     hide0 = set(cur.get("hide") or [])
     if t.get("opt_in"):                             # нові фото — приховані, доки власник не ввімкне
         hide0 |= {c["file"] for c in cases} - {c["file"] for c in cur.get("cases") or []}
-    cur = {"reel_on": bool(cur.get("reel_on")), "reel": reel or cur.get("reel"), "cases": cases or cur.get("cases") or [], "checked_at": datetime.utcnow().isoformat(timespec="seconds"),
+    cur = {"reel_on": bool(cur.get("reel_on")), "reel": reel or cur.get("reel"), "reel2": reel2 or cur.get("reel2"), "cases": cases or cur.get("cases") or [], "checked_at": datetime.utcnow().isoformat(timespec="seconds"),
            "error": "" if (reel or cases) else "у останніх публікаціях не знайдено рілс / фото за ключовими словами", "hide": sorted(hide0)}
     st[topic] = cur
     _save(db, st)
@@ -152,6 +163,9 @@ def assets(db: Session, topic: str, base: str) -> dict:
         reel = None
     if reel:
         reel = {**reel, "src": f"{base}/ig/{reel['file']}", "poster_src": f"{base}/ig/{reel['poster']}" if reel.get("poster") else ""}
+    reel2 = cur.get("reel2") if cur.get("reel2") and (d / cur["reel2"]["file"]).is_file() else None
+    if reel2:
+        reel2 = {**reel2, "src": f"{base}/ig/{reel2['file']}", "poster_src": f"{base}/ig/{reel2['poster']}" if reel2.get("poster") else ""}
     hide = set(cur.get("hide") or [])
     cases = [{**c, "src": f"{base}/ig/{c['file']}"} for c in cur.get("cases") or [] if c["file"] not in hide and (d / c["file"]).is_file()]
-    return {"reel": reel, "ig_cases": cases}
+    return {"reel": reel, "reel2": reel2, "ig_cases": cases}

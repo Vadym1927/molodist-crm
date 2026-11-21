@@ -8869,7 +8869,7 @@ def _landing_resp(request: Request, db: Session, lp: dict):
     if not ctx.get("reel") and lp.get("reel"):                # рілс у файлах сайту, якщо з Instagram ще не забрали
         ctx["reel"] = {"src": ctx["st"](lp["reel"]["file"]), "poster_src": ctx["st"](lp["reel"]["poster"]), "url": lp["reel"]["url"]}
     ctx.update(lp=lp, vk=lp["key"], proto=False, menu=lp["menu"], facts=ctx.get("facts_r") or lp["facts"], shop={**sh.SHOP, **lp["shop"]},
-               v={**sh.VARIANTS["a"], "order": lp.get("order") or ["lhero", "facts", "pain", "about", "reel", "cases", "process", "consult", "procs",
+               v={**sh.VARIANTS["a"], "order": lp.get("order") or ["lhero", "facts", "pain", "about", "reel", "cases", "reel2", "process", "consult", "procs",
                                                                     "ldoctor", "reviews", "booking", "shop", "insta", "faq", "contacts"]},
                title=lp["seo"]["title"], desc=lp["seo"]["desc"], faq_ld="")
     abs_base = ctx["c"]["canonical"].rstrip("/") if not ctx["noindex"] else str(request.base_url).rstrip("/").replace("http://", "https://") + "/_site"
