@@ -10,15 +10,18 @@
 .pm button.on{border-color:#5C4B82;background:#F1EDF8;color:#3B3050}.pm button.on svg{color:#5C4B82}
 .pm button.soon{opacity:.55}
 .br{background:#fff;border:1px solid var(--line);border-radius:18px;padding:14px;min-height:520px}
-.br .bk{display:inline-flex;align-items:center;gap:6px;border:0;background:none;color:#2f65a0;font-weight:700;cursor:pointer;padding:2px 0;margin-bottom:10px}
+.br .bkr{display:flex;align-items:center;gap:12px;margin:12px 0 12px;flex-wrap:wrap}
+.br .bk{display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 16px 0 12px;border:1.5px solid #C9BFE6;background:#F1EDF8;color:#3B3050;border-radius:99px;font:700 13.5px var(--sans);cursor:pointer;flex:none}
+.br .bk:hover{background:#E4DEEF;border-color:#5C4B82}.br .bk svg{width:16px;height:16px}
+.br .bkt{font:700 17px/1.2 var(--sans);color:#2A2430;min-width:0}
 .br .tabs{display:inline-flex;border:1.5px solid var(--line);border-radius:12px;padding:3px;margin:10px 0 12px}
 .br .tabs button{border:0;background:none;padding:7px 14px;border-radius:9px;font:700 12px var(--sans);text-transform:uppercase;letter-spacing:.04em;color:var(--muted);cursor:pointer}
 .br .tabs button.on{background:#3B3050;color:#fff}
 .tl{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
-.tl .t{border:1px solid #ECE7E1;border-left:4px solid var(--tc,#C9BFE6);border-radius:12px;padding:12px;cursor:pointer;background:#fff;text-align:left;font:inherit;color:#2A2430;display:flex;flex-direction:column;gap:8px;min-height:92px}
-.tl .t:hover{box-shadow:0 6px 18px -10px rgba(42,36,48,.35);border-color:#d8d0e6}
+.tl .t{border:1px solid #ECE7E1;border-left:4px solid var(--tc,#C9BFE6);border-radius:14px;padding:12px 12px 12px 14px;transition:box-shadow .15s,border-color .15s,transform .15s;cursor:pointer;background:#fff;text-align:left;font:inherit;color:#2A2430;display:flex;flex-direction:column;gap:8px;min-height:92px}
+.tl .t:hover{box-shadow:0 8px 20px -10px rgba(42,36,48,.4);border-color:#C9BFE6;transform:translateY(-1px)}
 .tl .t b{font:600 13.5px/1.3 var(--sans)}.tl .t .pr{margin-top:auto;font:700 15px var(--sans)}.tl .t small{color:var(--muted);font-size:12px}
-.tl .g{border-left-color:#5C4B82}.tl .g b{color:#2f65a0;font-size:15px}.tl .g .pr{font-weight:600;color:var(--muted);font-size:13px}
+.tl .g{border-left-color:#5C4B82}.tl .g b{color:#3B3050;font-size:15px}.tl .g .pr{font-weight:600;color:var(--muted);font-size:13px}
 .vl .v{display:flex;gap:12px;align-items:flex-start;border:1px solid #ECE7E1;border-radius:12px;padding:12px;margin-bottom:8px;cursor:pointer;background:#fff;width:100%;text-align:left;font:inherit;color:inherit}
 .vl .v:hover{border-color:#C9BFE6;background:#FBFAFD}.vl .v.paid{opacity:.55;cursor:default}
 .vl .v .tm{font:700 15px var(--sans);min-width:52px}.vl .v b{display:block;font-size:14.5px}.vl .v small{color:var(--muted)}
@@ -443,7 +446,7 @@ function brLoad(keepFocus){var br=document.getElementById('br');
   var isS=B.s==='services',url=(isS?'/pos/services':'/pos/products')+'?group='+B.group+(B.key!==null?'&key='+encodeURIComponent(B.key):'')+(B.q?'&q='+encodeURIComponent(B.q):'');
   fetch(url).then(function(r){return r.json()}).then(function(js){
     var h=brSearch(isS?'Назва послуги':'Назва, артикул або штрихкод товару');
-    if(B.key!==null&&!B.q)h+='<button type="button" class="bk">← Назад · '+esc(B.key)+'</button>';else if(!B.q)h+=brTabs(isS?SG:PG);else h+='<div style="height:10px"></div>';
+    if(B.key!==null&&!B.q)h+='<div class="bkr"><button type="button" class="bk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>Назад</button><b class="bkt">'+esc(B.key)+'</b></div>';else if(!B.q)h+=brTabs(isS?SG:PG);else h+='<div style="height:10px"></div>';
     if(js.groups){h+='<div class="tl">'+js.groups.map(function(g){return '<button type="button" class="t g" style="--tc:'+col(g.key)+'" data-k="'+esc(g.key)+'"><b>'+esc(g.key)+'</b><span class="pr">'+g.n+'</span></button>'}).join('')+'</div>'}
     else{h+='<div class="tl '+(isS?'':'prod')+'">'+(js.items.map(function(x,i){return '<button type="button" class="t '+(!isS&&x.stock!=null&&(+x.stock)<=0?'out':'')+'" style="--tc:'+col(isS?(x.category||''):(x.brand||x.category||''))+'" data-i="'+i+'">'+
         (isS?'':'<span class="ph">'+(x.photo?'<img loading="lazy" src="'+esc(x.photo)+'" alt="" onerror="this.remove()">':'<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6v3H9zM8 6h8l1 3v11a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V9z"/><path d="M7 12h10"/></svg>')+'</span>')+'<b>'+esc(x.name)+'</b>'+
