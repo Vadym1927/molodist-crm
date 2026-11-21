@@ -72,6 +72,7 @@ def test_shop_front_crawl_catalog_order(monkeypatch, tmp_path):
         assert "SEO опис категорії" in r.text and "<h1>Догляд за обличчям</h1>" in r.text and "Немає в наявності" in r.text
         p = c.get("/_shop/shop/krem-test-sf/")
         assert p.status_code == 200 and "Крем SEO title" in p.text and "Опис крему" in p.text and '"@type": "Product"' in p.text
+        assert "Оригінальна продукція" in p.text and "Відправка в день замовлення до 18:00" in p.text and 'class="trust"' in p.text
         assert c.get("/_shop/shop/krem-test-sf/900001/", follow_redirects=False).status_code == 301
         assert c.get("/_shop/shop/nema-takoho/").status_code == 404
         assert "Оплата і доставка" in c.get("/_shop/for-customers/dostavka-i-oplata/").text
