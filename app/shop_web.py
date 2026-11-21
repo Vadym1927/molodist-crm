@@ -320,13 +320,14 @@ def register(app, templates, version: str):
             r = sf.create_order(db, body, settings.public_url)
         except sf.ShopError as e:
             return JSONResponse({"ok": False, "msg": str(e)}, status_code=400)
-        if got:
-            try:
-                from .services import shop_carts as _ct
-                _ct.ordered(db, got[1].id)
-                db.commit()
-            except Exception:  # noqa: BLE001
-                db.rollback()
+        try:                                                  # оформив — кошик (кабінету або гостя з телефоном) закривається
+            from .services import shop_carts as _ct
+            _o = db.scalar(select(SiteOrder).where(SiteOrder.number == r.get("number"))) if r.get("number") else None
+            for _pid in {got[1].id if got else None, _o.patient_id if _o else None} - {None}:
+                _ct.ordered(db, _pid)
+            db.commit()
+        except Exception:  # noqa: BLE001
+            db.rollback()
         base = "" if host in sf.hosts() else "/_shop"
         r["done_url"] = f"{base}/checkout/done/?n={r['number']}"
         if r.get("parts"):
@@ -536,6 +537,27 @@ def register(app, templates, version: str):
         except Exception:  # noqa: BLE001
             pass
         return JSONResponse({"ok": bool(r.get("ok"))}, headers={"Cache-Control": "no-store"})
+
+    @app.post("/_shop/api/cart/lead", include_in_schema=False)
+    async def shop_cart_lead(request: Request, db: Session = Depends(db_dep)):
+        """Кошик гостя з телефоном зі сторінки оформлення → «Покинуті кошики» (якщо не оформить)."""
+        try:
+            body = json.loads(await request.body() or b"{}")
+        except ValueError:
+            body = {}
+        if body.get("website") or not _rate(request, "cartlead", 20):
+            return JSONResponse({"ok": False})
+        if sc.me(db, request.cookies.get(sc.COOKIE)):
+            return JSONResponse({"ok": True, "me": True})             # покупець у кабінеті — кошик і так зберігається
+        from .services import shop_carts as _ct
+        try:
+            cart = _ct.lead(db, str(body.get("phone") or ""), str(body.get("name") or ""), str(body.get("email") or ""),
+                            body.get("items") or [], cx_data(db))
+            db.commit()
+        except Exception:  # noqa: BLE001
+            db.rollback()
+            cart = None
+        return JSONResponse({"ok": bool(cart)}, headers={"Cache-Control": "no-store"})
 
     @app.post("/_shop/api/ev", include_in_schema=False)
     async def shop_api_ev(request: Request, db: Session = Depends(db_dep)):

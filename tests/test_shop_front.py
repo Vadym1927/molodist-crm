@@ -912,3 +912,29 @@ def test_report_site_store_page():
         assert c.get("/reports/site").status_code == 200
         r = c.get("/reports/site?site=store")
         assert r.status_code == 200 and "Поведінка в магазині" in r.text and "переходів з реклами Google" in r.text
+
+
+def test_guest_cart_lead_and_close(monkeypatch):
+    from app.services import shop_front as sf, shop_carts as ct
+    from app.models import ShopCart
+    monkeypatch.setattr("app.services.tg_notify.send_text", lambda *a, **k: True)
+    with TestClient(app) as c:
+        with SessionLocal() as db:
+            k = sf.preview_key(db)
+            p = Product(name="Гість крем", name_norm="гість крем", price=1200, site_on=True, site_info={"slug": "gist-krem", "title": "Гість крем", "presence": 1, "quantity": 5})
+            db.add(p); db.commit(); pid = p.id
+            cfg = sf.cfg(db); cfg["order_login"] = False; sf.save_cfg(db, cfg); db.commit()
+        c.cookies.set("shop_prev", k)
+        assert c.post("/_shop/api/cart/lead", json={"phone": "+38050", "items": [{"id": pid, "qty": 1}]}).json()["ok"] is False   # неповний номер
+        assert c.post("/_shop/api/cart/lead", json={"phone": "+380507776655", "name": "Олена Гість", "items": [{"id": pid, "qty": 2}]}).json()["ok"]
+        with SessionLocal() as db:
+            cart = db.scalars(select(ShopCart).order_by(ShopCart.id.desc())).first()
+            assert cart.status == "open" and cart.total == 2400 and "Гість" in (cart.note or "")
+            cart.updated_at = datetime.utcnow() - timedelta(hours=3); db.commit()
+            assert ct.job(db, sf.cfg(db), sf.catalog(db), "https://shop.test")["tasks"] >= 1
+            cid = cart.id
+        o = c.post("/_shop/api/order", json={"items": [{"id": pid, "qty": 2}], "name": "Олена Гість", "phone": "+380507776655", "delivery": "np",
+                                             "city": "Київ", "warehouse": "Відділення №1", "pay": "cod"}).json()
+        assert o["ok"]
+        with SessionLocal() as db:
+            assert db.get(ShopCart, cid).status == "ordered"

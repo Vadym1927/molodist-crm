@@ -191,6 +191,17 @@
       var v = ($('[name=delivery]:checked', form) || {}).value; $('#co-np').hidden = v === 'pickup';
       $('[data-courier]', form).hidden = v !== 'np_courier'; $('[data-wh]', form).hidden = v === 'np_courier'; renderCo(); }); });
     form.phone.addEventListener('focus', function () { if (!form.phone.value) form.phone.value = '+380'; });
+    // гість ввів телефон — зберігаємо кошик, щоб адміністратор міг допомогти, якщо замовлення не буде оформлене
+    var leadSig = '';
+    function cartLead() {
+      if (co.dataset.me) return;
+      var ph = (form.phone.value || '').replace(/\D/g, ''); if (ph.length < 12) return;
+      var items = load(); if (!items.length) return;
+      var sig = ph + '|' + JSON.stringify(items); if (sig === leadSig) return; leadSig = sig;
+      api('/api/cart/lead', { phone: form.phone.value, name: form.name.value, email: form.email ? form.email.value : '', items: items }, function () {});
+    }
+    form.phone.addEventListener('change', cartLead); form.phone.addEventListener('blur', cartLead);
+    form.name.addEventListener('blur', function () { leadSig = ''; cartLead(); });
     try { var me = JSON.parse(localStorage.getItem('mlds_me') || 'null'); if (me) { form.name.value = me.name || ''; form.phone.value = me.phone || ''; } } catch (e) {}
     if (co.dataset.me) { try { var cm = JSON.parse(co.dataset.me); ['name', 'phone', 'email', 'city', 'warehouse'].forEach(function (k) { if (cm[k] && cm[k] !== '+') form[k].value = cm[k]; }); cityRef = cm.city_ref || ''; } catch (e) {} }
     if (co.dataset.np) {

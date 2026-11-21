@@ -47,6 +47,24 @@ def save(db: Session, pid: int, items: list, data: dict) -> ShopCart:
     return cart
 
 
+def lead(db: Session, phone: str, name: str, email: str, items: list, data: dict) -> ShopCart | None:
+    """Гість на сторінці оформлення ввів телефон, але ще не замовив: знаходимо / створюємо картку за номером
+    (як при замовленні) і зберігаємо кошик — далі працюють «Покинуті кошики»: задача адмінам і нагадування."""
+    from . import shop_orders as so
+    from ..integrations.messaging import normalize_phone
+    ph = normalize_phone(phone or "")
+    if not ph or len(ph.lstrip("+")) < 12 or not items:
+        return None
+    p = so._patient(db, (name or "").strip()[:200], ph, (email or "").strip()[:200] or None, {})
+    if not p:
+        return None
+    cart = save(db, p.id, items, data)
+    if cart.status == "open" and not cart.note:
+        cart.note = "Гість: ввів телефон на сторінці оформлення, замовлення не завершив"
+    db.flush()
+    return cart
+
+
 def ordered(db: Session, pid: int | None) -> None:
     if not pid:
         return
