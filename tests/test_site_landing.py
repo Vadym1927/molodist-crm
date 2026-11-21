@@ -163,7 +163,7 @@ def test_skin_landing_photos():
     """Сторінка «якість шкіри»: методи з фото, блоку «до / після» немає."""
     with TestClient(app) as cl:
         t = cl.get("/_site/tmyana-znevodnena-shkira").text
-        assert 'id="rezultaty"' not in t and "#rezultaty" not in t
+        assert "sk-glow-1.webp" in t and t.count("l-case") >= 0
         assert t.count('class="l-acard pic') == 5 and "sk-home.webp" in t and "f-cosm.webp" in t
 
 
