@@ -2736,6 +2736,17 @@ def _safe_back(back: str, default: str) -> str:
     return back if back.startswith("/") and not back.startswith("//") else default
 
 
+@app.post("/reports/cosmetics/pack/{sid:int}")
+def cosmetics_pack_fix(sid: int, amount: str = Form(""), back: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Ручна правка бонусу за пакування замовлення сайту: сума, 0 — анулювати, порожньо — стандартна з правил."""
+    from .services import cosmetics_pct as cp
+    v = _num(amount) if amount.strip() else None
+    cp.set_pack_fix(db, sid, v)
+    audit(db, "cosmetics.pack_fix", "sale", sid, user=user, amount=v)
+    back = back if back.startswith("/reports") else "/reports?r=cosmetics"
+    return RedirectResponse(back, 303)
+
+
 @app.post("/sales/{sid:int}/to-topup")
 def sale_to_topup(sid: int, credit: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     """Виправлення: чек «інше» → «Поповнення балансу» (аванс). credit=1 — зарахувати суму на рахунок пацієнта."""

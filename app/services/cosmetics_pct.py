@@ -128,3 +128,31 @@ class Rules:
         if n:
             s += f" Винятків для лікарів, брендів і товарів: {n}."
         return s + " Змінюється в «Налаштування → Співробітники → Бонус за продаж косметики»."
+
+
+PACK_KEY = "web_pack_fix"          # ручна правка бонусу за пакування: {sale_id: сума} (0 — анульовано)
+
+
+def pack_fixes(db) -> dict:
+    import json
+    from ..models import SyncState
+    st = db.get(SyncState, PACK_KEY)
+    try:
+        return {int(k): float(v) for k, v in (json.loads(st.value) if st and st.value else {}).items()}
+    except (ValueError, TypeError):
+        return {}
+
+
+def set_pack_fix(db, sale_id: int, amount: float | None) -> None:
+    """amount=None — повернути стандартну суму з правил."""
+    import json
+    from datetime import datetime
+    from ..models import SyncState
+    x = pack_fixes(db)
+    if amount is None:
+        x.pop(int(sale_id), None)
+    else:
+        x[int(sale_id)] = round(max(float(amount), 0.0), 2)
+    db.merge(SyncState(key=PACK_KEY, value=json.dumps({str(k): v for k, v in x.items()}), updated_at=datetime.utcnow()))
+    db.commit()
+

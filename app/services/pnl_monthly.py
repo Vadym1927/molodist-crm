@@ -130,13 +130,15 @@ def _collect(db: Session, year: int) -> dict:
     rules = Rules(db)
     from . import daybook as _dbk
     web_pack = float(rules.c.get("web_pack") or 0)
+    from .cosmetics_pct import pack_fixes as _pf
+    pack_fix = _pf(db)
     for c in rp._checks(db, d_from, d_to):
         mk = _m(c.date)
         if mk not in rev_s:
             continue
         web_ = bool(getattr(c, "crm", False) and _dbk.is_web(c.sale))
         if web_ and any(k == "product" for k, *_ in rp._items(c)):
-            cosm_pct[mk] += web_pack                        # замовлення сайту: фікс за пакування, не % від товарів
+            cosm_pct[mk] += pack_fix.get(c.sale.id, web_pack)   # замовлення сайту: фікс за пакування (або ручна правка), не % від товарів
         for kind, name, q, amt, staff in rp._items(c):
             if kind == "service":
                 rev_s[mk] += amt

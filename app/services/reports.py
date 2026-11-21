@@ -664,6 +664,8 @@ def cosmetics(db: Session, d_from: date, d_to: date, staff: str = "") -> Report:
     from . import daybook as _dbk
     from .cosmetics_pct import cfg as _cpc
     web_pack = float(_cpc(db).get("web_pack") or 0)
+    from .cosmetics_pct import pack_fixes as _pf
+    fixes = _pf(db)
     for sl in db.scalars(select(Sale).where(Sale.status == "paid", Sale.at >= a, Sale.at <= b)):
         web = _dbk.is_web(sl)
         if web:                                                 # сайт: відповідальному за замовлення — фіксовано за пакування
@@ -673,7 +675,8 @@ def cosmetics(db: Session, d_from: date, d_to: date, staff: str = "") -> Report:
                 rows.append({"at": sl.at, "staff": _dbk.web_seller(db, sl), "name": f"Пакування замовлення №{(o.number if o else '') or sl.id}",
                              "qty": 1, "price": round(sum(float(it.total or 0) for it in prods), 2),
                              "paid": round(sum(float(it.total or 0) for it in prods), 2), "product_id": None, "disc_pct": 0,
-                             "ref": f"чек CRM Ч-{sl.id} · сайт", "_fixed": web_pack})
+                             "ref": f"чек CRM Ч-{sl.id} · сайт", "_fixed": fixes.get(sl.id, web_pack),
+                             "pack_sale": sl.id, "pack_manual": sl.id in fixes})
             continue
         seller = None
         for it in sl.items:
@@ -697,7 +700,7 @@ def cosmetics(db: Session, d_from: date, d_to: date, staff: str = "") -> Report:
     rules = Rules(db)
     for x in rows:
         if "_fixed" in x:
-            x["rule"], x["pct"], x["sum"] = "пакування замовлення сайту (фікс)", 0, round(x["_fixed"], 2)
+            x["rule"], x["pct"], x["sum"] = ("пакування замовлення сайту (" + ("змінено вручну" if x.get("pack_manual") else "фікс") + ")"), 0, round(x["_fixed"], 2)
         else:
             rules.apply(x)
     r = Report("cosmetics", "Бонус за продаж косметики",
