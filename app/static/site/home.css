@@ -676,3 +676,4 @@ div.l-promo .btn{flex:none;background:#fff;color:#3B3050}
 
 .h-bpreel{max-width:360px;justify-self:center;width:100%}
 @media (max-width:860px){.h-bpreel{max-width:340px;margin:0 auto}}
+@media (min-width:1001px){.l-agrid:has(> .l-acard:nth-child(4):last-child){grid-template-columns:repeat(4,minmax(0,1fr))}}

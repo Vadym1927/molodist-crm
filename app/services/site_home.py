@@ -73,7 +73,8 @@ FACTS = [("Лише лікарі", "Процедури проводять фах
 # ba — пара «до / після» (файли в static/site/home), img — одне фото; interest — що підставити у форму запису
 CONCERNS = [
     {"t": "Зморшки й вікові зміни", "d": "Мімічні зморшки, втрата обʼєму й чіткості овалу", "slug": "inyekczijna-kosmetologiya",
-     "how": "Ботулінотерапія, контурна пластика, біоревіталізація", "ba": ["ba-wrinkles-1.webp", "ba-wrinkles-2.webp"], "ba_v": True, "interest": "Зморшки й вікові зміни"},
+     "how": "Ботулінотерапія, контурна пластика, біоревіталізація", "ba": ["ba-wrinkles-1.webp", "ba-wrinkles-2.webp"], "ba_v": True, "interest": "Зморшки й вікові зміни",
+     "page": "zmorshky-ta-vikovi-zminy"},
     {"t": "Акне й постакне", "d": "Висипання, сліди й рубці після них", "slug": "beautyplan",
      "how": "BEAUTY PLAN Anti Acne: лікування, догляд, процедури", "ba": ["ba-acne-1.webp", "ba-acne-2.webp"], "interest": "Акне й постакне",
      "page": "likuvannya-akne"},
@@ -270,7 +271,7 @@ def data(db: Session, base: str, ver: str) -> dict:
             src = [sc.url(f"{x['crop']}-{i}.webp", base) for i in (1, 2)]
             x["ba_src"] = src if all(src) else None
     lps = [{"slug": "likuvannya-akne", "nav": "Лікування акне"}, {"slug": "likuvannya-pigmentatsii", "nav": "Пігментація й судини"},
-           {"slug": "tmyana-znevodnena-shkira", "nav": "Тьмяна, зневоднена шкіра"}]          # сторінки болей (site_landing)
+           {"slug": "tmyana-znevodnena-shkira", "nav": "Тьмяна, зневоднена шкіра"}, {"slug": "zmorshky-ta-vikovi-zminy", "nav": "Зморшки й вікові зміни"}]          # сторінки болей (site_landing)
     return {"lps": lps, "cats": cats, "team": team, "rev": rev, "dirs": pages, "plan_price": plan_price, "ob": c, "directions": directions, "concerns": concerns,
             "insta": insta, "insta_p": insta_p, "products": products, "shop_base": shop_base, "st": st,
             "legal": {"name": LEGAL_NAME, "code": (sp.cfg(db).get("legal_code") or sp.DEFAULT["legal_code"]).strip()},

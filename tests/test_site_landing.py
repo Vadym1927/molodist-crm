@@ -200,3 +200,13 @@ def test_home_bp_reel_from_instagram(tmp_path, monkeypatch):
         assert sia.assets(db, "bp", "")["reel"] is None          # спершу приховано
         st = sia.state(db); st["bp"]["reel_on"] = True; sia._save(db, st)
         assert sia.assets(db, "bp", "")["reel"]["src"] == "/ig/bp-reel-8.mp4"
+
+
+def test_wrinkles_landing():
+    with TestClient(app) as cl:
+        r = cl.get("/_site/zmorshky-ta-vikovi-zminy")
+        assert r.status_code == 200 and "Зморшки й вікові зміни: корекція в Києві" in r.text and "Що допомагає" in r.text
+        main = r.text.lower().split("<main")[1].split("</main>")[0] if "<main" in r.text else r.text.lower()
+        assert "клінік" not in main and "botox" not in main and "ботокс" not in main and "xeomin" not in main and "dysport" not in main
+        assert "/zmorshky-ta-vikovi-zminy" in cl.get("/_site/proto/a").text
+        assert cl.get("/_site/og/zmorshky-ta-vikovi-zminy.jpg").status_code == 200
