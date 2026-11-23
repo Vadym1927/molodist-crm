@@ -1074,3 +1074,94 @@ def apply_care_bot_20261116(db: Session) -> dict:
     db.merge(SyncState(key=flag, value="1", updated_at=datetime.utcnow()))
     db.commit()
     return {"ok": True}
+
+
+# ---------------- незавершений онлайн-запис → звернення адміну ----------------
+DRAFT_KEY = "ob_drafts"
+DRAFT_WAIT_MIN = 20          # стільки чекаємо, чи людина сама завершить запис
+
+
+def _drafts(db: Session) -> dict:
+    st = db.get(SyncState, DRAFT_KEY)
+    try:
+        return json.loads(st.value) if st and st.value else {}
+    except ValueError:
+        return {}
+
+
+def _save_drafts(db: Session, d: dict) -> None:
+    st = db.get(SyncState, DRAFT_KEY) or SyncState(key=DRAFT_KEY)
+    st.value = json.dumps(d, ensure_ascii=False)
+    db.add(st)
+    db.commit()
+
+
+def save_draft(db: Session, data: dict) -> bool:
+    """Людина на кроці «Ваші дані» ввела коректний телефон, але ще не натиснула «Записатися» → чернетка (одна на номер)."""
+    from . import appeals as ap
+    k = ap.phone_key(str(data.get("phone") or ""))
+    if len(k) != 9:
+        return False
+    svs = []
+    for i in service_ids(data.get("services") or "")[:5]:
+        sv = db.get(CbService, i)
+        if sv:
+            svs.append(sv.name)
+    doc = db.get(Doctor, int(data.get("doctor") or 0)) if str(data.get("doctor") or "0").isdigit() and int(data.get("doctor") or 0) else None
+    keep = {x: str(data.get(x) or "")[:200] for x in data if x.startswith("utm_") or x in ("gclid", "cid", "page")}
+    ds = _drafts(db)
+    old = datetime.utcnow() - timedelta(days=2)
+    ds = {kk: v for kk, v in ds.items() if datetime.fromisoformat(v["at"]) > old}
+    ds[k] = {"at": datetime.utcnow().isoformat(timespec="seconds"), "phone": "+380" + k, "name": str(data.get("name") or "").strip()[:100],
+             "services": ", ".join(svs)[:300], "doctor": doc.name if doc else "", "day": str(data.get("day") or "")[:10],
+             "time": str(data.get("time") or "")[:5], "marks": keep}
+    if len(ds) > 300:
+        ds = dict(sorted(ds.items(), key=lambda kv: kv[1]["at"])[-300:])
+    _save_drafts(db, ds)
+    return True
+
+
+def drop_draft(db: Session, phone: str | None) -> None:
+    from . import appeals as ap
+    k = ap.phone_key(phone)
+    ds = _drafts(db)
+    if k in ds:
+        ds.pop(k)
+        _save_drafts(db, ds)
+
+
+def process_drafts(db: Session, base: str = "", now: datetime | None = None) -> int:
+    """Чернетки, старші за DRAFT_WAIT_MIN хв, по яких не було запису чи звернення з цього номера → звернення «незавершений онлайн-запис»
+    (з мітками реклами) + повідомлення в чат заявок. Повертає кількість створених звернень."""
+    from . import appeals as ap, site_leads as sl
+    from ..models import Appeal
+    now = now or datetime.utcnow()
+    ds = _drafts(db)
+    if not ds:
+        return 0
+    n, left = 0, {}
+    for k, v in ds.items():
+        at = datetime.fromisoformat(v["at"])
+        if now - at < timedelta(minutes=DRAFT_WAIT_MIN):
+            left[k] = v
+            continue
+        done = any(ap.phone_key(a.phone) == k for a in db.scalars(select(Appeal).where(
+            Appeal.created_at >= at - timedelta(minutes=5), Appeal.deleted_at.is_(None), Appeal.phone.is_not(None))))
+        if not done:
+            p = ap.find_patient(db, v["phone"])
+            done = bool(p and db.scalar(select(Appointment.id).where(Appointment.patient_id == p.id, Appointment.created_at >= at - timedelta(minutes=5)).limit(1)))
+        if done:
+            continue
+        want = " · ".join(x for x in (v.get("services"), v.get("doctor"),
+                                       (f"{v['day']} {v.get('time') or ''}".strip() if v.get("day") else "")) if x)
+        d = {**(v.get("marks") or {}), "name": v.get("name") or "", "phone": v["phone"], "interest": (v.get("services") or "")[:200],
+             "formname": f"{SLUG}:draft", "comment": "Почав онлайн-запис, але не завершив — передзвоніть, будь ласка." + (f"\nОбрав: {want}" if want else "")}
+        r = sl.ingest(db, d)
+        if r.get("appeal_id") and not r.get("duplicate"):
+            n += 1
+            try:
+                sl.notify(db, d, r, base)
+            except Exception:  # noqa: BLE001
+                pass
+    _save_drafts(db, left)
+    return n

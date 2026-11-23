@@ -141,6 +141,17 @@
   var elList = $('#ob-list'), elCats = $('#ob-cats'), elQ = $('#ob-q'), elDocs = $('#ob-docs'), elDays = $('#ob-days'), elSlots = $('#ob-slots'), form = $('#ob-form'),
     elNext = $('#ob-next');
   telMask(form.phone);
+  var draftSent = '';
+  function draft() {                                     // телефон уведено, а «Записатися» ще ні → адмін передзвонить, якщо не завершить
+    if (!telOk(form.phone.value) || !st.svcs.length) return;
+    var key = form.phone.value.replace(/\D/g, '') + '|' + ids() + '|' + (st.day || '') + (st.time || '');
+    if (key === draftSent) return; draftSent = key;
+    var d = marks(); d.services = ids(); d.doctor = st.doc ? st.doc.id : 0; d.day = st.day; d.time = st.time;
+    d.name = (form.name.value || '').trim(); d.phone = form.phone.value; d.website = form.website.value;
+    api('/api/booking/draft', d, function () {});
+  }
+  form.phone.addEventListener('input', function () { if (telOk(form.phone.value)) setTimeout(draft, 1500); });
+  form.phone.addEventListener('blur', draft);
   (function () {                                            // повторний візит: імʼя й телефон — з попереднього запису на цьому пристрої
     var me = null; try { me = JSON.parse(localStorage.getItem('mlds_me') || 'null'); } catch (x) {}
     if (me && me.name && !form.name.value) form.name.value = me.name;

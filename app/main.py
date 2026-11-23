@@ -575,6 +575,14 @@ async def job_tg_notify():
         await asyncio.to_thread(run)
     except Exception as e:  # noqa: BLE001
         log.warning("tg_notify: %s", e)
+    def drafts():
+        from .services import online_booking as ob
+        with SessionLocal() as db:
+            return ob.process_drafts(db, settings.public_url)
+    try:
+        await asyncio.to_thread(drafts)              # незавершені онлайн-записи → звернення адміну
+    except Exception as e:  # noqa: BLE001
+        log.warning("ob drafts: %s", e)
 
 
 async def job_checkbox():
@@ -9266,6 +9274,10 @@ async def site_booking_save(request: Request, db: Session = Depends(db_dep)):
     def run():
         a = ob.book(db, d, c)
         try:
+            ob.drop_draft(db, d.get("phone"))
+        except Exception:  # noqa: BLE001
+            db.rollback()
+        try:
             ob.link_appeal(db, a, d)
         except Exception as e:  # noqa: BLE001
             db.rollback()
@@ -9281,6 +9293,23 @@ async def site_booking_save(request: Request, db: Session = Depends(db_dep)):
     except ob.BookingError as e:
         return _ob_json({"ok": False, "error": e.code, "msg": str(e)}, 400)
     return _ob_json({"ok": True, **v})
+
+
+@app.post("/_site/api/booking/draft")
+async def site_booking_draft(request: Request, db: Session = Depends(db_dep)):
+    """Крок «Ваші дані»: телефон уведено, але запис ще не підтверджено → чернетка; не завершить за 20 хв — звернення адміну."""
+    from .services import online_booking as ob, site_leads as sl
+    raw = await request.body()
+    if len(raw) > 8_000:
+        raise HTTPException(413)
+    c = ob.cfg(db)
+    if not _ob_open(request, db, c):
+        raise HTTPException(404)
+    d = sl.parse_body(raw, request.headers.get("content-type", ""))
+    if str(d.get("website", "") or "").strip() or not _ob_rate(request, "obd", 20):
+        return _ob_json({"ok": False})
+    ok = await asyncio.to_thread(ob.save_draft, db, d)
+    return _ob_json({"ok": ok})
 
 
 @app.post("/_site/api/booking/cancel")
