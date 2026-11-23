@@ -120,8 +120,35 @@ def bank_topups(db: Session, c: dict | None = None) -> int:
         if not any(w in text for w in words) or f"bank:{t.id}" in have:
             continue
         amt = abs(float(t.amount))
+        if any(abs(x.amount - amt) < 1 for x in db.scalars(select(AdsTopup).where(
+                AdsTopup.source == SRC, AdsTopup.origin == "finop", AdsTopup.day >= t.at.date() - timedelta(days=3), AdsTopup.day <= t.at.date() + timedelta(days=3)))):
+            continue                                          # уже враховано з фінансів (оплата карткою)
         db.add(AdsTopup(source=SRC, day=t.at.date(), amount=amt, credited=round(amt / (1 + _f(c["vat_pct"]) / 100), 2), origin="bank",
                         ref=f"bank:{t.id}", note=(t.counter_name or t.description or "")[:300]))
+        n += 1
+    db.commit()
+    return n
+
+
+def finops_topups(db: Session, c: dict | None = None) -> int:
+    """Витрати «Google Ads» у фінансах (оплата карткою з терміналу, вручну, з платіжного календаря) → поповнення кабінету.
+    Той самий платіж, що вже прийшов з банку чи календаря (±3 дні, та сама сума), вдруге не рахується."""
+    from ..models import FinOp
+    c = c or cfg(db)
+    since = date.today() - timedelta(days=120)
+    have = {t.ref for t in db.scalars(select(AdsTopup).where(AdsTopup.source == SRC, AdsTopup.ref.like("finop:%")))}
+    storned = set(db.scalars(select(FinOp.storno_of).where(FinOp.storno_of.is_not(None), FinOp.deleted_at.is_(None))))
+    n = 0
+    for op in db.scalars(select(FinOp).where(FinOp.kind == "expense", FinOp.day >= since, FinOp.deleted_at.is_(None), FinOp.storno_of.is_(None))):
+        text = f"{op.category or ''} {op.comment or ''}".lower()
+        if "google ads" not in text or op.id in storned or f"finop:{op.id}" in have:
+            continue
+        amt = float(op.amount or 0)
+        near = db.scalars(select(AdsTopup).where(AdsTopup.source == SRC, AdsTopup.day >= op.day - timedelta(days=3), AdsTopup.day <= op.day + timedelta(days=3))).all()
+        if not amt or any(abs(t.amount - amt) < 1 and not (t.ref or "").startswith("finop:") for t in near):
+            continue
+        db.add(AdsTopup(source=SRC, day=op.day, amount=round(amt, 2), credited=round(amt / (1 + _f(c["vat_pct"]) / 100), 2), origin="finop",
+                        ref=f"finop:{op.id}", note=(op.comment or op.category or "")[:300]))
         n += 1
     db.commit()
     return n
@@ -153,6 +180,10 @@ def balance(db: Session, c: dict | None = None, today: date | None = None) -> di
     if real and real.get("amount") is not None and not (base and base.get("day")):
         out.update(known=True, amount=round(_f(real["amount"]), 2), source="google", at=real.get("at"))
     elif base and base.get("day"):
+        try:
+            finops_topups(db, c)
+        except Exception:      # noqa: BLE001 — баланс показуємо й без цього
+            db.rollback()
         b0 = date.fromisoformat(base["day"])
         tops = db.scalars(select(AdsTopup).where(AdsTopup.source == SRC, AdsTopup.day >= b0).order_by(AdsTopup.day.desc())).all()
         spent = round(sum(daily_cost(db, b0, today).values()), 2)
@@ -169,6 +200,7 @@ def refresh(db: Session, today: date | None = None) -> dict:
     c = cfg(db)
     today = today or date.today()
     bank_topups(db, c)
+    finops_topups(db, c)
     for it in db.scalars(select(PayItem).where(PayItem.ref.like("gads:topup%"), PayItem.status == "paid")):   # оплатили з календаря → поповнення
         ref = f"payitem:{it.id}"
         amt = float(it.amount_fact or it.amount or 0)
