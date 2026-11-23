@@ -109,3 +109,9 @@ def test_qr_redirect_counts():
         r = c.get("/_shop/q/cbox", follow_redirects=False)
         assert r.status_code == 302 and "cbox.mobi" in r.headers["location"]
         assert c.get("/_site/q/nope", follow_redirects=False).status_code == 404
+
+
+def test_dk_post_to_page_redirects():
+    with TestClient(app) as c:
+        r = c.post("/_site/dr-kolgan/guides/full-checkup/", follow_redirects=False)
+        assert r.status_code == 303 and r.headers["location"] == "/dr-kolgan/guides/full-checkup/"

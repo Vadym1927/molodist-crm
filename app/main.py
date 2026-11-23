@@ -9740,6 +9740,14 @@ def dk_noslash(request: Request):
     return RedirectResponse("dr-kolgan/" + (f"?{q}" if q else ""), 301)
 
 
+@app.post("/_site/dr-kolgan/{path:path}", include_in_schema=False)
+def dk_static_post(path: str):
+    """Кнопка «Купити» відправляє форму POST; якщо гайд уже куплено, адреса — сама сторінка гайду → відкриваємо її (GET)."""
+    if path.startswith("api/"):
+        raise HTTPException(404)
+    return RedirectResponse(f"/dr-kolgan/{path}", 303)
+
+
 @app.get("/_site/dr-kolgan/{path:path}")
 def dk_static(request: Request, path: str, db: Session = Depends(db_dep)):
     from .services import dr_kolgan as dk
