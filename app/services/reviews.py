@@ -166,6 +166,25 @@ def by_cleverbox(db: Session, cid: int, days: int = 14) -> Review:
     return survey_for(db, p, days)
 
 
+def by_visit(db: Session, num: str, days: int = 14) -> Review:
+    """Персональне посилання з шаблону CleverBox: /r/v/{номер візиту} (змінна «visit number»).
+    Номер візиту CleverBox → візит (Visit cb_visit «{id}-{послуга}» або запис CRM з cb_record_id) за останні `days` днів → опитування."""
+    from ..models import Visit
+    n = re.sub(r"\D", "", str(num or ""))[:12]
+    if not n:
+        raise ValueError("none")
+    since = datetime.now() - timedelta(days=days)
+    pid = db.scalar(select(Visit.patient_id).where(Visit.source == "cb_visit", Visit.external_id.like(f"{n}-%"),
+                                                   Visit.starts_at >= since, Visit.status != "cancelled"))
+    if not pid:
+        pid = db.scalar(select(Appointment.patient_id).where(Appointment.cb_record_id == int(n), Appointment.start >= since,
+                                                             Appointment.status.not_in(("cancelled", "no_show"))))
+    p = db.get(Patient, pid) if pid else None
+    if not p:
+        raise ValueError("none")
+    return survey_for(db, p, days)
+
+
 def survey_for(db: Session, p: Patient, days: int = 14) -> Review:
     """Опитування за останнім візитом пацієнта за `days` днів. Невідповідене — те саме, повторно не створюємо."""
     since = datetime.now() - timedelta(days=days)

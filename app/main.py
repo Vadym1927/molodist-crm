@@ -7790,6 +7790,17 @@ async def review_general_go(request: Request, db: Session = Depends(db_dep)):
     return RedirectResponse(f"/r/{r.token}", 303)
 
 
+@app.get("/r/v/{num}", response_class=HTMLResponse)
+def review_by_visit(request: Request, num: str, db: Session = Depends(db_dep)):
+    """Персональне посилання для шаблону CleverBox «Відгук про візит» (змінна visit number) — без введення телефону."""
+    from .services import reviews as rv
+    try:
+        r = rv.by_visit(db, num)
+    except ValueError:
+        return RedirectResponse("/r/new", 303)
+    return RedirectResponse(f"/r/{r.token}", 303)
+
+
 @app.get("/r/c/{cid}", response_class=HTMLResponse)
 def review_by_cleverbox(request: Request, cid: int, db: Session = Depends(db_dep)):
     """Персональне посилання для шаблону повідомлення CleverBox (змінна «ID клієнта») — без введення телефону."""

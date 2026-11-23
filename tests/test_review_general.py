@@ -57,3 +57,20 @@ def test_old_papilloma_page_redirects():
         x = c.get("/_site/udalenie-papilom", follow_redirects=False)
         assert x.status_code == 301 and x.headers["location"].endswith("/vydalennia-rodymok")
         assert c.get("/_site/vydalennia-rodymok").status_code == 200
+
+
+def test_review_by_cleverbox_visit_number():
+    from app.models import Visit
+    with SessionLocal() as db:
+        p = Patient(full_name="Візитна Віра", phone="+380731247413")
+        db.add(p); db.flush()
+        st = datetime.now() - timedelta(hours=2)
+        db.add(Visit(source="cb_visit", external_id="7700551-12", patient_id=p.id, starts_at=st, status="done"))
+        db.add(Visit(source="cb_visit", external_id="7700552-12", patient_id=p.id, starts_at=st - timedelta(days=40), status="done"))
+        db.commit()
+        assert rv.by_visit(db, "7700551").patient_id == p.id
+    with TestClient(app) as c:
+        x = c.get("/r/v/7700551", follow_redirects=False)
+        assert x.status_code == 303 and x.headers["location"] != "/r/new"
+        assert c.get("/r/v/7700552", follow_redirects=False).headers["location"] == "/r/new"   # старий візит — ні
+        assert c.get("/r/v/abc", follow_redirects=False).headers["location"] == "/r/new"
