@@ -167,7 +167,7 @@
   <div class="ob-dgrid">{% for d in team %}<article class="ob-dcard">
     {{ ph(d, 'lg') }}
     <div><h3>{{ d.name }}</h3><p class="role">{{ d.role }}</p>{% if d.bio %}<p class="bio">{{ d.bio }}</p>{% endif %}
-    {% if d.id in cat.doctor_ids %}<a class="link" href="#zapys" data-ob-doc="{{ d.id }}">Записатися до лікаря →</a>{% else %}<a class="link" href="tel:{{ c.phone }}">Запис через адміністратора →</a>{% endif %}</div>
+    {% if d.id in cat.doctor_ids %}<a class="link" href="#zapys" data-ob-doc="{{ d.id }}">Записатися до лікаря →</a>{% else %}<a class="link" href="tel:{{ c.phone }}">Запис через адміністратора →</a>{% endif %}{% if d.page %}<a class="link" href="{{ d.page }}">Про лікаря →</a>{% endif %}</div>
   </article>{% endfor %}</div>
 </div>{% endcall %}
 

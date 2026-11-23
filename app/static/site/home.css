@@ -732,3 +732,4 @@ div.l-promo .btn{flex:none;background:#fff;color:#3B3050}
 .l-edu-y summary::-webkit-details-marker{display:none}.l-edu-y summary b{font:600 20px/1 var(--hf);color:#2A2430}.l-edu-y summary small{color:var(--mut)}
 .l-edu-y ul{margin:0 0 16px;padding-left:18px;columns:2;column-gap:28px}.l-edu-y li{margin:0 0 8px;font-size:14.5px;break-inside:avoid}
 @media (max-width:900px){.l-edu-in{grid-template-columns:1fr}.l-edu-y ul{columns:1}}
+.h-dcard .h-dpage{margin:10px 0 4px;justify-self:start}

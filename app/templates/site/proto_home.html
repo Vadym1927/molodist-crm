@@ -266,12 +266,12 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
     <div class="h-shd"><h2>{{ lp.doctor.title }}</h2><p>{{ lp.doctor.lead }}</p></div>
     <div class="l-dgrid">{% for d in lp_doc %}<div class="l-dcard"><div class="h-dcard {{ ('fx-' ~ d.fx) if d.fx }}">{{ ph(d) }}</div>
       <div><h3>{{ d.name }}</h3><p class="role">{{ d.role }}</p>{% if d.bio %}<p class="bio">{{ d.bio }}</p>{% endif %}
-        <p class="h-btns"><a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp" data-doc="{{ d.name }}">Записатися до лікаря</a></p></div></div>{% endfor %}</div>
+        <p class="h-btns"><a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp" data-doc="{{ d.name }}">Записатися до лікаря</a>{% if d.page and d.page.rstrip('/').split('/')[-1] != lp.slug %}<a class="h-ghost" href="{{ d.page }}">Про лікаря {{ arrow() }}</a>{% endif %}</p></div></div>{% endfor %}</div>
   </div></section>{% endif %}
   {% for d in (lp_doc if lp_doc|length == 1 else []) %}<section class="sec l-doc"{% if loop.first %} id="likar"{% endif %}><div class="wrap l-doc-in">
     <div class="h-dcard {{ ('fx-' ~ d.fx) if d.fx }}">{{ ph(d) }}</div>
     <div><p class="eyebrow">{{ lp.doctor.title }}</p><h2>{{ d.name }}</h2><p class="role">{{ d.role }}</p>{% if loop.first %}<p class="big">{{ lp.doctor.lead }}</p>{% endif %}{% if d.bio %}<p>{{ d.bio }}</p>{% endif %}
-      <p class="h-btns"><a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp" data-doc="{{ d.name }}">Записатися до лікаря</a>{% if ob_on and d.id %}<a class="h-ghost" href="{{ base }}/zapys?doctor={{ d.id }}">Обрати час онлайн {{ arrow() }}</a>{% endif %}</p></div>
+      <p class="h-btns"><a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp" data-doc="{{ d.name }}">Записатися до лікаря</a>{% if d.page and d.page.rstrip('/').split('/')[-1] != lp.slug %}<a class="h-ghost" href="{{ d.page }}">Про лікаря {{ arrow() }}</a>{% elif ob_on and d.id %}<a class="h-ghost" href="{{ base }}/onlain-zapys?doctor={{ d.id }}">Обрати час онлайн {{ arrow() }}</a>{% endif %}</p></div>
   </div></section>{% endfor %}
 
 {% elif sec == 'facts' %}
@@ -305,6 +305,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
     <div class="h-shd"><h2>Лікарі MOLODIST</h2><p>Ви знаєте, хто саме вас прийматиме, ще до візиту — і записуєтеся до конкретного лікаря.</p></div>
     <div class="h-dgrid" data-swipe>{% for d in team %}<article class="h-dcard {{ ('fx-' ~ d.fx) if d.fx }}">{{ ph(d) }}
       <h3>{{ d.name }}</h3><p class="role">{{ d.role }}</p>{% if d.bio %}<p class="bio">{{ d.bio }}</p>{% endif %}
+      {% if d.page %}<a class="btn sm h-dpage" href="{{ d.page }}">Про лікаря</a>{% endif %}
       <a class="h-ghost" href="{{ (base ~ '/onlain-zapys?doctor=' ~ d.id) if (ob_on and d.id) else '#zapys' }}" data-doc="{{ d.name }}">{{ 'Обрати час онлайн' if (ob_on and d.id) else 'Записатися до лікаря' }} {{ arrow() }}</a></article>{% endfor %}</div>
   </div></section>
 
@@ -321,7 +322,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
     <aside class="h-rsum"><h2 class="lbl">{{ rev.title if rev and rev.title else "Відгуки пацієнтів MOLODIST" }}</h2>
       <p class="sc">{{ ('%.1f'|format(rev.rating)).replace('.', ',') if rev else '5,0' }}</p><p class="st" aria-hidden="true">★★★★★</p>
       {% if rev and rev.src == 'crm' %}<p class="cnt">{{ rev.label }}</p>
-      <p class="tx">{{ rev.tx }}</p>{% else %}<p class="cnt">{% if rev %}{{ rev.count }} відгуків у Google{% else %}рейтинг у Google{% endif %}</p>
+      {% if rev.tx %}<p class="tx">{{ rev.tx }}</p>{% endif %}{% else %}<p class="cnt">{% if rev %}{{ rev.count }} відгуків у Google{% else %}рейтинг у Google{% endif %}</p>
       <p class="tx">Справжні відгуки з профілю MOLODIST у Google — без редагування й відбору «найкращих».</p>
       <p class="acts"><a class="btn light" href="{{ (rev.url if rev else '') or c.maps }}" target="_blank" rel="noopener">Усі відгуки в Google</a><a class="h-ghost lt" href="{{ (rev.url if rev else '') or c.maps }}" target="_blank" rel="noopener">Залишити відгук {{ arrow() }}</a></p>{% endif %}</aside>
     <div class="h-rwrap"><div class="h-rtrack grid" data-slider data-swipe>

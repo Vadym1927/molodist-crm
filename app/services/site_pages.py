@@ -54,10 +54,10 @@ DEFAULT = {
 
 # ---------- лікарі: картка з CRM (Doctor: посада, фото, біо), тут — запасний текст ----------
 DOCTORS = {
-    "kolgan": {"match": "колган", "name": "Дарʼя Колган", "role": "Лікар-дерматолог, косметолог, лікар УЗД. Головна лікарка й засновниця MOLODIST",
+    "kolgan": {"match": "колган", "page": "daryakolgan", "name": "Дарʼя Колган", "role": "Лікар-дерматолог, косметолог, лікар УЗД. Головна лікарка й засновниця MOLODIST",
                "bio": "8 років практики. Лікар-дерматолог. Інʼєкційна, апаратна й класична косметологія, ботулінотерапія, домашній догляд. "
                       "Автор методики BEAUTY PLAN: спершу діагностика й план, потім процедури."},
-    "syrova": {"match": "сирова", "name": "Софія Сирова", "role": "Лікар-дерматовенеролог, косметолог",
+    "syrova": {"match": "сирова", "page": "sofiasirova", "name": "Софія Сирова", "role": "Лікар-дерматовенеролог, дерматохірург, косметолог",
                "bio": "Дерматоскопія й видалення доброякісних новоутворень, лікування акне, розацеа й дерматитів, підбір домашнього догляду. "
                       "Лазерні, апаратні та інʼєкційні методики. У MOLODIST з 2022 року."},
     "chuhunova": {"match": "чугунова", "name": "Анна Чугунова", "role": "Лікар, спеціаліст з естетичної медицини",
@@ -465,7 +465,7 @@ def doctors(db: Session, keys: list[str], base: str = "/_site") -> list[dict]:
         d = DOCTORS[k]
         m = next((x for x in rows if d["match"] in (x.name or "").lower()), None)
         photo = media_url(f"doc-{k}.webp", base) or (m.photo_url if m and (m.photo_url or "").startswith(("https://", "/")) else "")
-        out.append({"name": d["name"], "role": d["role"], "bio": d["bio"], "photo": photo,
+        out.append({"name": d["name"], "role": d["role"], "bio": d["bio"], "photo": photo, "page": f"{base}/{d['page']}" if d.get("page") else "",
                     "initials": "".join(w[0] for w in d["name"].split()[:2]).upper()})
     return out
 

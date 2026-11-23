@@ -782,7 +782,7 @@ SYROVA = {
             "btn": "Записатися", "img": "syrova-hero.webp"},
     "doctor": {"match": "сирова", "n": 1, "title": "Ваш лікар", "lead": ""},
     "rev_crm": {"ilike": ["%софі%", "%сиров%"], "title": "Відгуки пацієнтів про Софію",
-                "tx": "Відгуки з опитування пацієнтів після візиту, де згадують Софію. Лише оцінки 5★, без редагування."},
+                "tx": ""},
     "reviews_kw": r"софі|сиров|акне|висип|прищ",
     "reviews_doc": r"сиров",
     "reviews_ilike": ["%софі%", "%сиров%", "%акне%"],
@@ -1041,5 +1041,4 @@ def crm_reviews(db: Session, cfg: dict) -> dict | None:
         return None
     n = len(out)
     return {"rating": 5.0, "count": n, "reviews": out[:9], "url": "", "src": "crm", "title": cfg.get("title") or "Відгуки пацієнтів",
-            "label": f"{n} {_plural(n, 'відгук', 'відгуки', 'відгуків')} з оцінкою 5★",
-            "tx": cfg.get("tx") or "Відгуки з опитування пацієнтів після візиту в MOLODIST — без редагування."}
+            "label": f"{n} {_plural(n, 'відгук', 'відгуки', 'відгуків')}", "tx": cfg.get("tx", "")}

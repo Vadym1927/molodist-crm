@@ -455,7 +455,8 @@ def doctor_cards(db: Session, ids: list[int] | None = None, base: str = "/_site"
         key, sd = next(((k, v) for k, v in sp.DOCTORS.items() if v["match"] in low), (None, None))
         photo = (sp.media_url(f"doc-{key}.webp", base) if key else "") or (d.photo_url if (d.photo_url or "").startswith(("https://", "/")) else "")
         name = sd["name"] if sd else " ".join(d.name.split()[:2][::-1]) if len(d.name.split()) >= 2 else d.name
-        out.append({"id": d.id, "name": name, "role": (sd["role"] if sd else (d.position or "Спеціаліст")),
+        out.append({"id": d.id, "name": name, "page": f"{base}/{sd['page']}" if sd and sd.get("page") else "",
+                    "role": (sd["role"] if sd else (d.position or "Спеціаліст")),
                     "bio": (sd["bio"] if sd else (d.bio or "")).strip()[:500], "photo": photo,
                     "initials": "".join(w[0] for w in name.split()[:2]).upper()})
     return out
