@@ -210,3 +210,4 @@ def test_wrinkles_landing():
         assert "клінік" not in main and "botox" not in main and "ботокс" not in main and "xeomin" not in main and "dysport" not in main
         assert "/zmorshky-ta-vikovi-zminy" in cl.get("/_site/proto/a").text
         assert cl.get("/_site/og/zmorshky-ta-vikovi-zminy.jpg").status_code == 200
+        assert "zm-kolgan.mp4" in r.text and "Молодить чи старить?" in r.text and 'id="video-rezultat"' in r.text

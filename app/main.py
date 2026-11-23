@@ -8921,6 +8921,8 @@ def _landing_resp(request: Request, db: Session, lp: dict):
     ctx.update(_sia.assets(db, lp["key"], ctx["base"]))
     if not ctx.get("reel") and lp.get("reel"):                # рілс у файлах сайту, якщо з Instagram ще не забрали
         ctx["reel"] = {"src": ctx["st"](lp["reel"]["file"]), "poster_src": ctx["st"](lp["reel"]["poster"]), "url": lp["reel"]["url"]}
+    if not ctx.get("reel2") and lp.get("reel2"):              # друге відео сторінки з файлів сайту
+        ctx["reel2"] = {"src": ctx["st"](lp["reel2"]["file"]), "poster_src": ctx["st"](lp["reel2"]["poster"]), "url": lp["reel2"].get("url", "")}
     ctx.update(lp=lp, vk=lp["key"], proto=False, menu=lp["menu"], facts=ctx.get("facts_r") or lp["facts"], shop={**sh.SHOP, **lp["shop"]},
                v={**sh.VARIANTS["a"], "order": lp.get("order") or ["lhero", "facts", "pain", "about", "reel", "cases", "reel2", "process", "consult", "procs",
                                                                     "ldoctor", "reviews", "booking", "shop", "insta", "faq", "contacts"]},
