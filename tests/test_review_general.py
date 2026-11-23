@@ -50,3 +50,10 @@ def test_review_by_cleverbox_id_and_phone_forms():
 def test_removed_service_page_is_gone():
     with TestClient(app) as c:
         assert c.get("/_site/trihologiya").status_code == 410
+
+
+def test_old_papilloma_page_redirects():
+    with TestClient(app) as c:
+        x = c.get("/_site/udalenie-papilom", follow_redirects=False)
+        assert x.status_code == 301 and x.headers["location"].endswith("/vydalennia-rodymok")
+        assert c.get("/_site/vydalennia-rodymok").status_code == 200
