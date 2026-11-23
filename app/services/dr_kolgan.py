@@ -22,6 +22,7 @@ COOKIE = "dk_s"
 STATIC = Path(__file__).resolve().parents[1] / "static" / "dk"
 SECURE = Path(__file__).resolve().parents[1] / "private" / "dk_guides"     # сторінки платних гайдів — лише через перевірку доступу
 SALARY_ARTICLE = "Гайди (сайт)"
+PAY_NAME = "Послуги краси"              # назва в оплаті monobank для гайдів
 
 MATERIALS = {
     "full-checkup": {"id": "full-checkup", "title": "Щорічний чек-ап", "description": "Розширений гайд з аналізів і їх інтерпретації.",
@@ -267,13 +268,16 @@ def create_payment(db: Session, p: Patient, mid: str, base_url: str, site_root: 
     db.flush()
     back = f"{site_root.rstrip('/')}/dr-kolgan/guides/{m.get('folder') or mid}/payment/?orderReference={o.id}"
     try:
-        link = pl.create(db, o.amount, f"Гайд «{m['title']}» — Дарʼя Колган", base_url, patient_id=p.id,
+        # у monobank (сторінка оплати, кошик, фіскальний чек) — «Послуги краси»; який саме гайд — у замовленні CRM (DkOrder)
+        link = pl.create(db, o.amount, PAY_NAME, base_url, patient_id=p.id,
                          account_id=int(sf.cfg(db).get("pay_account") or 0) or None, redirect_url=back,
-                         basket=[{"name": f"Гайд «{m['title']}»", "qty": 1, "total": o.amount, "code": f"DK-{mid}"}])
+                         basket=[{"name": PAY_NAME, "qty": 1, "total": o.amount, "code": f"DK-{mid}"}])
+        link.info = {**(link.info or {}), "dk_title": m["title"]}
     except pl.PayError as e:
         db.rollback()
         raise DkError(str(e)) from None
     link.info = {**(link.info or {}), "dk_order": o.id}
+    link.purpose = f"{PAY_NAME} (гайд «{m['title']}», сайт Дарʼї)"[:300]          # у CRM видно, за що
     o.paylink_id = link.id
     db.commit()
     # сторінки сайту відправляють форму POST на checkoutUrl з полями → наш редірект на сторінку оплати monobank
