@@ -1083,7 +1083,7 @@ def mix_reviews(db: Session, g: dict | None) -> dict | None:
             "g_rating": (g or {}).get("rating"), "g_count": (g or {}).get("count"), "url": (g or {}).get("url") or ""}
 
 
-_RU = re.compile(r"[ыэъё]|\b(очень|спасибо|клиник\w*|понравил\w*|все|отлично|хочется|еще|доктор\w*|девочк\w*)\b", re.I)
+_RU = re.compile(r"[ыэъё]|\b(очень|спасибо|клиник\w*|понравил\w*|отлично|хочется|еще|доктор\w*|девочк\w*)\b", re.I)
 
 
 def _ua(t: str) -> bool:
