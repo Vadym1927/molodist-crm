@@ -147,3 +147,11 @@ a.hb-t em{background:transparent;border:1px solid var(--lav2);font-size:13px}
 @media (min-width:821px){.hb-sh:not(.wide) .hb-sh-in{height:auto}}
 .hb-sh .sec,.hb-sh [class^="ob-"],.hb-sh .faq{background:transparent}
 .hb-sh .ob-promo-grid li{background:var(--cream)}
+
+/* іконки плиток (набір MOLODIST booking icons) */
+.hb-t>span{flex:1}
+.hb-ti{flex:none;width:42px;height:42px;border-radius:13px;background:var(--lav);color:var(--act);display:grid;place-items:center}
+.hb-ti svg{width:24px;height:24px}
+.hb-go i svg{stroke-width:1.5}
+@media (max-width:420px){.hb-t{gap:8px}.hb-ti{width:34px;height:34px;border-radius:11px}.hb-ti svg{width:20px;height:20px}}
+@media (max-width:420px){.hb-t em{display:none}}
