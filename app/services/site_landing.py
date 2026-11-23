@@ -717,7 +717,7 @@ SYROVA = {
              "lead": "Лікує акне, розацеа й дерматити, проводить дерматоскопію та підбирає домашній догляд, який справді працює. "
                      "Поєднує дерматологію з лазерними, апаратними й інʼєкційними методиками. У MOLODIST — з 2022 року.",
              "cta": "Записатися до Софії", "cta2": "Обрати час онлайн", "cta2_doc": True, "cta2_href": "#zapys",
-             "media": ["doc-syrova.webp"], "img": "syrova-hero.webp", "og": "og-syrova.webp", "crop": "syrova-og.webp", "no_price": True,
+             "media": ["doc-syrova.webp"], "img": "syrova-hero.webp", "og": "og-syrova.webp", "crop": "syrova-og2.webp", "no_price": True,
              "img_alt": "Софія Сирова, лікар-дерматовенеролог MOLODIST"},
     "facts": [("Лікар-дерматовенеролог", "Медична освіта й спеціалізація з дерматовенерології — не косметолог після курсів",
                "syrova-hero.webp", "center 25%"),
@@ -809,7 +809,7 @@ LANDINGS = {ACNE["slug"]: ACNE, PIGMENT["slug"]: PIGMENT, LASER["slug"]: LASER, 
 REDIRECTS = {"ipl-therapy": PIGMENT["slug"], "fotoomolodzhennya-ipl": PIGMENT["slug"], "lazerne-vydalennya-sudyn": PIGMENT["slug"],
              "likuvannya-sudin": PIGMENT["slug"], "likuvannya-rozatsea": PIGMENT["slug"], "likuvannya-akne-ipl": PIGMENT["slug"],
              "consultation-lazerna-epilyatsiya": LASER["slug"], "udalenie-papilom": "vydalennia-rodymok",
-             "kosmetologiya": SKIN["slug"]}
+             "kosmetologiya": SKIN["slug"], "daryakolgan": "dr-kolgan/"}
 
 
 def _rows(db: Session) -> dict[int, float]:

@@ -44,8 +44,8 @@ for _k, _f in (("sy-clean", "3938-3766-4366-b338-346166396165__img_1688_1.jpg"),
                ("sy-rf", "3134-3234-4630-a562-393865353138__img_2769_1.png")):
     CROPS[f"{_k}.webp"] = ("images/tild" + _f, (0.0, 0.0, 1.0, 1.0))
     NO_WM.add(f"{_k}.webp")
-CROPS["syrova-og.webp"] = ("media:doc-syrova.webp", (0.0, 0.12, 1.0, 0.565))     # картка для Telegram: портрет лікаря, смуга з обличчям
-NO_WM.add("syrova-og.webp")
+CROPS["syrova-og2.webp"] = ("media:doc-syrova.webp", (0.0, 0.28, 1.0, 0.725))     # картка для Telegram: портрет лікаря, смуга з обличчям
+NO_WM.add("syrova-og2.webp")
 CROPS["ipl-hero.webp"] = ("images/tild6161-3430-4038-a233-396134326666__photo_2024-02-15_110.jpeg", (0.0, 0.02, 1.0, 0.98))
 NAME_RE = re.compile(r"^[a-z0-9-]{2,40}\.webp$")
 VER = "2"
