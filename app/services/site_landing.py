@@ -553,8 +553,7 @@ ZMORSHKY = {
               "alt": "ботулінотерапії",
               "items": [{"t": "Зморшки на лобі", "d": "Ботулінотерапія · результат через 2 тижні", "ba": ["ba-wrinkles-1.webp", "ba-wrinkles-2.webp"], "v": True},
                         {"t": "Лоб і міжбрівʼя", "d": "Ботулінотерапія · погляд відкритіший, брови вище", "crop": "bt15", "v": True},
-                        {"t": "Зморшки між бровами", "d": "Ботулінотерапія · обличчя без «сердитого» виразу", "crop": "bt11"},
-                        {"t": "Яснева посмішка", "d": "Ботулінотерапія · ясна менше видно під час усмішки", "crop": "bt17"}],
+                        {"t": "Зморшки між бровами", "d": "Ботулінотерапія · обличчя без «сердитого» виразу", "crop": "bt11"}],
               "note": "Фото опубліковано за згодою пацієнтів. Результат індивідуальний і залежить від анатомії, віку й стану шкіри."},
     "process": {"title": "Як проходить корекція",
                 "text": "Від консультації до контрольного огляду.",
@@ -583,6 +582,7 @@ ZMORSHKY = {
     "procs": {"title": "Процедури й ціни",
               "text": "Обсяг препарату й зони лікар визначає на огляді.",
               "groups": [{"t": "Ботулінотерапія", "d": "Ціна однакова для всіх препаратів; препарат обирає лікар разом з вами", "cat": ["ботулін"], "n": 10,
+                          "clean": r"\b(ботулінотерапія|botox|ботокс|xeomin|ксеомін|dysport|диспорт|neuronox|нейронокс|relatox|релатокс|botulax|ботулакс|nabota|набота|azzalure|bocouture)\b",
                           "top": ["міжбрів", "навколо очей", "лоб", "full face", "ніс", "кутик", "кисет", "підборід", "шия"]},
                          {"t": "Контурна пластика", "d": "Губи, носослізна борозна, контур обличчя", "cat": ["контурн"], "n": 8,
                           "top": ["губ", "носослізн", "вилиц", "контур"]},
@@ -672,6 +672,21 @@ def data(db: Session, lp: dict, home: dict, base: str) -> dict:
             low = x["name"].lower()
             return (next((k for k, w in enumerate(top) if w in low), len(top)), x["price"], x["name"])
         items = sorted({i["id"]: i for i in items}.values(), key=_rank)
+        if g.get("clean"):                          # назви без брендів препаратів (брендбук), однакові позиції — один раз
+            by_: dict = {}
+            for i in items:
+                nm = re.sub(g["clean"], " ", i["name"], flags=re.I)
+                men = bool(re.search(r"чолов", nm, re.I))
+                nm = re.sub(r"\bчоловік\w*\b", " ", nm, flags=re.I)
+                nm = re.sub(r"\s*[·,+/-]?\s*$", "", re.sub(r"\s{2,}", " ", nm)).strip(" ·-") or i["name"]
+                nm = nm[:1].upper() + nm[1:] + (" · для чоловіків" if men else "")
+                k_ = nm.lower()
+                if k_ in by_:                       # та сама зона різними препаратами — показуємо «від» найменшої ціни
+                    by_[k_]["from"] = by_[k_]["from"] or by_[k_]["price"] != i["price"]
+                    by_[k_]["price"] = min(by_[k_]["price"], i["price"])
+                else:
+                    by_[k_] = {**i, "name": nm, "from": False}
+            items = sorted(by_.values(), key=_rank)
         procs.append({**g, "items": items[:n], "more": max(0, len(items) - n), "lo": min((i["price"] for i in items), default=None)})
     # лікар
     alts = lp["doctor"]["match"].split("|")           # порядок лікарів — як у переліку "match"
