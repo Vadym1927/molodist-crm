@@ -575,3 +575,18 @@ def revoke(db: Session, pid: int, mid: str) -> int:
         n += 1
     db.commit()
     return n
+
+
+def refund(db: Session, oid: int) -> bool:
+    """Оплату гайду повернуто: замовлення «refunded» (не рахується в продажах), нарахування Дарʼї прибирається. Доступ не чіпаємо."""
+    o = db.get(DkOrder, oid)
+    if not o or o.status != "paid":
+        return False
+    o.status = "refunded"
+    if o.salary_adj_id:
+        adj = db.get(SalaryAdj, o.salary_adj_id)
+        if adj:
+            db.delete(adj)
+        o.salary_adj_id = None
+    db.commit()
+    return True

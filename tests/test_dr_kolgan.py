@@ -123,3 +123,19 @@ def test_dk_revoke():
         db.add(p); db.flush()
         dk.grant(db, p.id, "mole-control")
         assert dk.revoke(db, p.id, "mole-control") == 1 and not dk.has_material(db, p.id, "mole-control")
+
+
+def test_dk_refund_removes_salary():
+    with SessionLocal() as db:
+        d = db.query(Doctor).filter(Doctor.name.like("%Колган%")).first() or Doctor(name="Колган Дарʼя")
+        db.add(d)
+        p = Patient(full_name="Повернення Гайду", phone="+380671119966")
+        db.add(p); db.flush()
+        o = DkOrder(patient_id=p.id, product="full-checkup", amount=390)
+        db.add(o); db.flush()
+        pl = PayLink(provider="mono", amount=390, purpose="Гайд", patient_id=p.id, status="paid", paid_amount=390, info={"dk_order": o.id})
+        db.add(pl); db.flush()
+        dk.paid(db, pl); db.commit()
+        aid = o.salary_adj_id
+        assert dk.refund(db, o.id) and o.status == "refunded" and db.get(SalaryAdj, aid) is None
+        assert not dk.refund(db, o.id)

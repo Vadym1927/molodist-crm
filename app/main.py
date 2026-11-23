@@ -14174,6 +14174,15 @@ def m360_report_page(request: Request, df: str = "", dt_: str = "", user: User =
     return render(request, "m360_report.html", nav="reports", r=dk.m360_report(db, d_from, d_to), d_from=d_from, d_to=d_to, presets=presets)
 
 
+@app.post("/reports/dr-kolgan/refund")
+async def dr_kolgan_refund(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import dr_kolgan as dk
+    oid = int((await request.form()).get("order") or 0)
+    ok = dk.refund(db, oid)
+    audit(db, "dk.refund", "dk_order", oid, user=user, ok=ok)
+    return RedirectResponse(_with_msg("/reports/dr-kolgan", f"Замовлення №{oid}: оплату повернуто, нарахування Дарʼї прибрано" if ok else "Оплачене замовлення не знайдено"), 303)
+
+
 @app.post("/reports/dr-kolgan/revoke")
 async def dr_kolgan_revoke(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     from .services import dr_kolgan as dk

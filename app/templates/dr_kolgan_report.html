@@ -50,7 +50,8 @@
 {% for w in r.weeks %}<tr><td>{{ w.week }}</td><td>{{ w.people }}</td><td>{{ w.m360 }}</td><td>{{ w.bought }}</td><td>{{ w.came }}</td></tr>{% endfor %}</table></div>{% endif %}
 
 {% if r.orders %}<div class="dkr-c"><h3>Продажі гайдів</h3><table class="dkr-t"><tr><th>Коли</th><th>Хто</th><th>Гайд</th><th>Сума</th><th>Дарʼї</th></tr>
-{% for o in r.orders %}<tr><td>{{ o.paid_at.strftime('%d.%m.%Y %H:%M') }}</td><td><a href="/patients/{{ o.patient_id }}">картка</a></td><td>{{ (MAT.get(o.product) or {}).get('title', o.product) }}</td><td>{{ u(o.amount) }} ₴</td><td>{{ '✓ нараховано' if o.salary_adj_id else '—' }}</td></tr>{% endfor %}</table></div>{% endif %}
+{% for o in r.orders %}<tr><td>{{ o.paid_at.strftime('%d.%m.%Y %H:%M') }}</td><td><a href="/patients/{{ o.patient_id }}">картка</a></td><td>{{ (MAT.get(o.product) or {}).get('title', o.product) }}</td><td>{{ u(o.amount) }} ₴</td><td>{{ '✓ нараховано' if o.salary_adj_id else '—' }}</td>
+<td><form method="post" action="/reports/dr-kolgan/refund" style="margin:0" onsubmit="return confirm('Оплату повернули покупцю? Продаж прибереться зі звіту, нарахування Дарʼї буде видалено.')"><input type="hidden" name="order" value="{{ o.id }}"><button class="btn sm" style="padding:2px 10px;font-size:12px">Повернення</button></form></td></tr>{% endfor %}</table></div>{% endif %}
 
 {% if r.qr %}<div class="dkr-c"><h3>QR-коди</h3>{% for slug, n in r.qr %}<span class="tag">/q/{{ slug }} — {{ n }}</span> {% endfor %}</div>{% endif %}
 
