@@ -117,3 +117,5 @@ body{background:var(--cream)}
 .hb-t{min-width:0}.hb-t b,.hb-t small{min-width:0;overflow-wrap:anywhere}
 @media (max-width:420px){.hb-t{grid-template-columns:36px minmax(0,1fr);column-gap:10px;padding:11px 10px}.hb-t i{width:36px;height:36px}.hb-t b{font-size:12.5px;letter-spacing:.02em}.hb-t small{font-size:12px}}
 @media (min-width:821px){.hb-tiles{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:420px){.hb-t{grid-template-columns:32px minmax(0,1fr);column-gap:9px;padding:11px 9px}.hb-t i{width:32px;height:32px;border-radius:10px}.hb-t i svg{width:19px;height:19px}
+  .hb-t b{font-size:12px;letter-spacing:0;overflow-wrap:normal;hyphens:none}}
