@@ -640,7 +640,8 @@ LANDINGS = {ACNE["slug"]: ACNE, PIGMENT["slug"]: PIGMENT, LASER["slug"]: LASER, 
 # Старі сторінки Tilda, які зібрано в одну нову: постійне перенаправлення (301) — Google переносить накопичену вагу на нову адресу.
 REDIRECTS = {"ipl-therapy": PIGMENT["slug"], "fotoomolodzhennya-ipl": PIGMENT["slug"], "lazerne-vydalennya-sudyn": PIGMENT["slug"],
              "likuvannya-sudin": PIGMENT["slug"], "likuvannya-rozatsea": PIGMENT["slug"], "likuvannya-akne-ipl": PIGMENT["slug"],
-             "consultation-lazerna-epilyatsiya": LASER["slug"], "udalenie-papilom": "vydalennia-rodymok"}
+             "consultation-lazerna-epilyatsiya": LASER["slug"], "udalenie-papilom": "vydalennia-rodymok",
+             "kosmetologiya": SKIN["slug"]}
 
 
 def _rows(db: Session) -> dict[int, float]:

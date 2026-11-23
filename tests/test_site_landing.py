@@ -212,3 +212,9 @@ def test_wrinkles_landing():
         assert cl.get("/_site/og/zmorshky-ta-vikovi-zminy.jpg").status_code == 200
         assert "zm-hero-ba.webp" in r.text and 'aria-label="Зморшки стали помітнішими?"' in r.text and "zm-lips-face.webp" in r.text
         assert "zm-kolgan.mp4" in r.text and "Молодить чи старить?" in r.text and 'id="video-rezultat"' in r.text
+
+
+def test_kosmetologiya_redirect():
+    with TestClient(app) as cl:
+        r = cl.get("/_site/kosmetologiya", follow_redirects=False)
+        assert r.status_code == 301 and r.headers["location"].endswith("/tmyana-znevodnena-shkira")
