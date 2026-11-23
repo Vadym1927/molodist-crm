@@ -14,7 +14,7 @@
       {% if it.stock and it.price > 0 %}<ul class="trust" aria-label="Чому варто замовити тут">
         <li>✓ Оригінальна продукція</li>
         <li>✓ {{ 'Відправка за 1–3 дні' if it.wait else 'Відправка в день замовлення до 18:00' }}</li>
-        {% if s.free_from and it.price >= s.free_from %}<li>✓ Безкоштовна доставка</li>{% endif %}
+        {% if it.free_ship or (s.free_from and it.price >= s.free_from) %}<li>✓ Безкоштовна доставка</li>{% endif %}
         {% if pch is not none and it.price >= pch %}<li>✓ Покупка Частинами</li>{% endif %}</ul>{% endif %}
       {% if it.stock %}<p class="ok">В наявності{% if it.wait %} · відправимо за 1–3 дні{% endif %}</p>
       <div class="buy"><div class="qty"><button type="button" data-q="-1">−</button><input id="p-qty" value="1" inputmode="numeric" aria-label="Кількість"><button type="button" data-q="1">+</button></div>
@@ -25,7 +25,7 @@
       {% set ce = coin_earn(it.price, it.old) %}{% if ce and it.stock %}<p class="coin-line"><img src="/static/shop/coins/coin-purple.webp" alt="" width="26" height="26"><span><b>+{{ ce }} MOLODIST Coins</b> за цю покупку{{ '' if me else ' — у кабінеті' }}</span></p>{% endif %}
       <button type="button" class="fav-b" data-fav="{{ it.variants[0].id }}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 20s-7-4.400-7-9.600A4 4 0 0 1 12 8a4 4 0 0 1 7 2.400C19 15.600 12 20 12 20z"/></svg><span class="a">Додати у вішліст</span><span class="b">У вішлісті</span></button>
       {% if pch is not none and it.stock and it.price >= pch %}<p class="pch-line">{% if s.parts_paw_file %}<img src="{{ base }}/brand/{{ s.parts_paw_file }}" alt="">{% endif %}<span><b>Покупка Частинами monobank</b> — безкоштовна розстрочка без комісій. Оберіть при оформленні замовлення.</span></p>{% endif %}
-      <ul class="perks"><li>{{ ('Безкоштовна доставка від ' ~ money(s.free_from)) if s.free_from else 'Доставка Новою поштою' }}</li><li>Оригінальна продукція · підбір догляду лікарем</li></ul>
+      <ul class="perks"><li>{{ 'Безкоштовна доставка Новою поштою по Україні' if it.free_ship else (('Безкоштовна доставка від ' ~ money(s.free_from)) if s.free_from else 'Доставка Новою поштою') }}</li><li>Оригінальна продукція · підбір догляду лікарем</li></ul>
     </div>
   </div>
   {% if it.tip %}<div class="tip"><div class="tip-h">{% if tip_doc and tip_doc.photo_url %}<img src="{{ tip_doc.photo_url }}" alt="{{ tip_doc.name }}" width="56" height="56" loading="lazy">{% else %}<span class="tip-m">M</span>{% endif %}

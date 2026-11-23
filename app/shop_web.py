@@ -740,6 +740,8 @@ def register(app, templates, version: str):
         if segs[-1].startswith("page-") and segs[-1][5:].isdigit():
             page, segs = int(segs[-1][5:]), segs[:-1]
         it = d["by_slug"].get(segs[0]) or (d.get("archive") or {}).get(segs[0])
+        if not it and len(segs) <= 2 and segs[0] in (d.get("moved") or {}) and "/shop/" + "/".join(segs) + "/" not in d["by_path"]:
+            return RedirectResponse(f"{cx['base']}/shop/{d['moved'][segs[0]]}/", 301)     # товар змінив адресу
         if not it and len(segs) <= 2 and "/shop/" + "/".join(segs) + "/" not in d["by_path"]:
             gone = sf.hidden_target(db, d, segs[0])          # старе посилання на прихований товар → сторінка бренду, а не 404
             if gone:
@@ -775,7 +777,7 @@ def register(app, templates, version: str):
                                                     "itemCondition": "https://schema.org/NewCondition",
                                                     "priceValidUntil": f"{date.today().year + 1}-12-31",
                                                     "seller": {"@type": "Organization", "name": "MOLODIST"},
-                                                    **({} if it["price"] < float(cx["s"].get("free_from") or 10 ** 9) else {"shippingDetails": {"@type": "OfferShippingDetails",
+                                                    **({} if it["price"] < float(cx["s"].get("free_from") or 10 ** 9) and not it.get("free_ship") else {"shippingDetails": {"@type": "OfferShippingDetails",
                                                                         "shippingRate": {"@type": "MonetaryAmount", "value": 0, "currency": "UAH"},
                                                                         "shippingDestination": {"@type": "DefinedRegion", "addressCountry": "UA"},
                                                                         "deliveryTime": {"@type": "ShippingDeliveryTime",

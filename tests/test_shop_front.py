@@ -1016,3 +1016,29 @@ def test_feed_desc_supplement_neutral():
     out = clean_desc(d, "Jalupro Tablets 120 шт")
     assert out.startswith("Jalupro - таблетки для розжовування") and "фібробласт" not in out and "колаген" not in out and "старін" not in out
     assert "фібробласт" in clean_desc("Крем стимулює фібробласти. Легка текстура.", "Крем для обличчя 50 мл")   # косметику не чіпаємо
+
+
+def test_change_slug_redirect_and_free_ship():
+    from app.services import shop_front as sf
+    settings.admin_password = "owner-pass-cs"
+    with TestClient(app) as c:
+        with SessionLocal() as db:
+            k = sf.preview_key(db)
+            p = Product(name="Cg Serum", name_norm="cg serum", price=2379, site_on=True, active=True,
+                        site_info={"slug": "cg-serum-125-ml", "title": "Cg Serum 250 мл", "presence": 1, "backorder": True})
+            db.add(p)
+            db.commit()
+            assert sf.change_slug(db, p, "Bad Slug!") and sf.change_slug(db, p, "cg-serum-250-ml") is None
+            assert p.site_info["slug"] == "cg-serum-250-ml" and "cg-serum-125-ml" in p.site_info["old_slugs"]
+            si = dict(p.site_info); si["free_ship"] = True; p.site_info = si; db.commit()
+            d = sf.catalog(db, fresh=True)
+            assert d["moved"]["cg-serum-125-ml"] == "cg-serum-250-ml"
+            it = d["by_slug"]["cg-serum-250-ml"]
+            assert it["free_ship"]
+            cart = sf.price_cart(db, [{"id": p.id, "qty": 1}], {"free_from": 3000})
+            assert cart["free_delivery"] and cart["to_free"] == 0
+        c.cookies.set("shop_prev", k)
+        r = c.get("/_shop/shop/cg-serum-125-ml/", follow_redirects=False)
+        assert r.status_code == 301 and r.headers["location"].endswith("/shop/cg-serum-250-ml/")
+        pg = c.get("/_shop/shop/cg-serum-250-ml/")
+        assert pg.status_code == 200 and "Безкоштовна доставка Новою поштою по Україні" in pg.text

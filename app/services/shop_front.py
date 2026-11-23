@@ -361,11 +361,14 @@ def catalog(db: Session, fresh: bool = False) -> dict:
                     onhand[pid_] += q_
     except Exception:  # noqa: BLE001
         onhand = None
+    moved: dict[str, str] = {}
     for p in db.scalars(select(Product).where(Product.site_info.is_not(None)).order_by(Product.id)):
         si = p.site_info or {}
         slug = si.get("slug")
         if not slug:
             continue
+        for o_ in si.get("old_slugs") or []:                     # стара адреса товару → 301 на нову
+            moved.setdefault(o_, slug)
         hidden = p.site_on is False or p.active is False         # прихований товар: сторінка лишається (архів), без каталогу й кошика
         target = arch if hidden else by_slug
         price = _price(p)
@@ -403,6 +406,7 @@ def catalog(db: Session, fresh: bool = False) -> dict:
                 it["imgs"] = files[p.id]
             it["stock"] = it["stock"] or stock
             it["wait"] = it["wait"] and (wait_ or not stock)
+            it["free_ship"] = it["free_ship"] or bool(si.get("free_ship"))
             continue
         brand = si.get("brand_name") or p.brand or ""
         target[slug] = {"slug": slug, "id": p.id, "name": si.get("title") or p.name, "brand": brand, "price": price, "old": v["old"],
@@ -411,6 +415,7 @@ def catalog(db: Session, fresh: bool = False) -> dict:
                          "seo_title": si.get("seo_title") or "", "seo_desc": si.get("seo_description") or "", "sold": sold.get(p.id, 0),
                          "new": p.id, "variants": [v], "sku": v["sku"], "sticker": si.get("sticker") or "",
                          "tip": si.get("tip") if (si.get("tip") or {}).get("text") else None,
+                         "free_ship": bool(si.get("free_ship")),
                          "short": v.get("short"), "short_exp": v.get("short_exp")}
     for it in by_slug.values():
         it["archived"] = False
@@ -428,7 +433,7 @@ def catalog(db: Session, fresh: bool = False) -> dict:
             sl = [k for k, it in sorted(by_slug.items(), key=lambda kv: -kv[1]["pct"]) if it["old"] and it["stock"]]
         cats.append({**c, "slugs": sl, "n": len(sl), "depth": c["path"].strip("/").count("/"), "parent": "/".join(c["path"].rstrip("/").split("/")[:-1]) + "/"})
     brands_root = "/shop/brendi/"
-    data = {"items": list(by_slug.values()), "by_slug": by_slug, "archive": {k: v for k, v in arch.items() if k not in by_slug}, "cats": cats, "by_path": {c["path"]: c for c in cats},
+    data = {"moved": {k: v for k, v in moved.items() if k not in by_slug and k not in arch}, "items": list(by_slug.values()), "by_slug": by_slug, "archive": {k: v for k, v in arch.items() if k not in by_slug}, "cats": cats, "by_path": {c["path"]: c for c in cats},
             "menu": sorted((c for c in cats if c["depth"] == 1 and c["path"] != brands_root and c["n"] and c.get("in_menu", True) is not False),
                            key=lambda c: (c.get("sort") or 100)),
             "brands": sorted((c for c in cats if c["path"].startswith(brands_root) and c["path"] != brands_root and (c["n"] or c.get("notice"))), key=lambda c: c["name"].lower()),
@@ -764,13 +769,14 @@ def price_cart(db: Session, rows: list[dict], c: dict | None = None) -> dict:
             line = round(v["price"] * qty, 2)
         total += line
         out.append({"id": pid, "slug": it["slug"], "name": v["name"], "brand": it["brand"], "qty": qty, "price": round(line / qty, 2), "total": line,
-                    "sale": bool(v.get("old")),
+                    "sale": bool(v.get("old")), "free_ship": bool(it.get("free_ship")),
                     "img": it["imgs"][0] if it["imgs"] else None, "sku": v["sku"],
                     **({"short": sq, "short_price": v["price"], "short_exp": v["short_exp"], "full": v["full"]} if sq else {})})
     free_from = float(c.get("free_from") or 0)
     gifts = [g[0] for g in lines(c.get("gifts"))] if c.get("gift_from") and total >= float(c["gift_from"]) else []
-    return {"items": out, "total": round(total, 2), "free_delivery": bool(free_from and total >= free_from),
-            "to_free": max(0, round(free_from - total, 2)) if free_from else 0, "gifts": gifts}
+    fs = any(x.get("free_ship") for x in out)            # товар із безкоштовною доставкою — безкоштовно все замовлення
+    return {"items": out, "total": round(total, 2), "free_delivery": bool(fs or (free_from and total >= free_from)),
+            "to_free": 0 if fs else (max(0, round(free_from - total, 2)) if free_from else 0), "gifts": gifts}
 
 
 def create_order(db: Session, data: dict, base_url: str) -> dict:
@@ -816,7 +822,7 @@ def create_order(db: Session, data: dict, base_url: str) -> dict:
     if use or pamt:
         cart = {**cart, "total": round(full - use - pamt, 2)}
     fr = float(c.get("free_from") or 0)
-    cart["free_delivery"] = bool(fr and cart["total"] >= fr)          # безкоштовна доставка — від кінцевої суми після знижок і Coins
+    cart["free_delivery"] = bool(any(x.get("free_ship") for x in cart["items"]) or (fr and cart["total"] >= fr))          # безкоштовна доставка — від кінцевої суми після знижок і Coins
     no = f"M{datetime.now():%y%m%d}-{secrets.randbelow(9000) + 1000}"
     o = SiteOrder(source="crm", ext_id=no, number=no, created_at=datetime.now(), status="Очікує оплати" if pay != "cod" else "Нове", paid=False,
                   total=cart["total"], total_full=full, delivery_price=0,
@@ -1208,6 +1214,38 @@ def brands_sync(db: Session) -> dict:
     if rep["new"] or rep["added"]:
         save_site(db, st)
     return rep
+
+
+def change_slug(db: Session, p: Product, new: str) -> str | None:
+    """Нова адреса товару /shop/<new>/: для всіх варіантів зі старим slug; стара адреса веде 301 на нову, категорії оновлюються.
+    Повертає помилку або None."""
+    si = dict(p.site_info or {})
+    old = si.get("slug") or ""
+    new = (new or "").strip().strip("/").lower()
+    if new == old:
+        return None
+    if not re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", new) or not 3 <= len(new) <= 200:
+        return "Адреса: лише латиниця, цифри й дефіс (3–200 символів)"
+    rows = [x for x in db.scalars(select(Product).where(Product.site_info.is_not(None)))]
+    if any((x.site_info or {}).get("slug") == new for x in rows) or any(new in ((x.site_info or {}).get("old_slugs") or []) and (x.site_info or {}).get("slug") != old for x in rows):
+        return "Така адреса вже зайнята іншим товаром"
+    for x in rows:
+        xi = dict(x.site_info or {})
+        if old and xi.get("slug") == old or x.id == p.id:
+            xi["old_slugs"] = [o for o in dict.fromkeys((xi.get("old_slugs") or []) + ([old] if old else [])) if o != new][-10:]
+            xi["slug"] = new
+            x.site_info = xi
+    st = site(db)
+    ch = False
+    for c in st["cats"]:
+        if old and old in c["slugs"]:
+            c["slugs"] = [new if x == old else x for x in c["slugs"]]
+            ch = True
+    if ch:
+        save_site(db, st)
+    db.commit()
+    _cache["cat_at"] = 0.0
+    return None
 
 
 def hidden_target(db: Session, data: dict, slug: str) -> str | None:

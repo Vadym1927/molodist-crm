@@ -5335,6 +5335,37 @@ async def product_files_upload(pid: int, files: list[UploadFile] = File(...), us
     return RedirectResponse(_with_msg(f"/products/{pid}#pfiles", f"Додано файлів: {n}"), 303)
 
 
+@app.post("/products/{pid:int}/files/url")
+def product_files_url(pid: int, urls: str = Form(""), user: User = Depends(require("products")), db: Session = Depends(db_dep)):
+    """Фото товару за посиланням (сайт бренду, постачальника): сервер сам завантажує картинку."""
+    from .services import product_files as pfs
+    p = db.get(Product, pid) or (_ for _ in ()).throw(HTTPException(404))
+    n, bad = 0, 0
+    with httpx.Client(timeout=30, follow_redirects=True, headers={"User-Agent": "Mozilla/5.0 (MOLODIST-CRM product photo)"}) as http:
+        for u in [x for x in re.split(r"\s+", urls or "") if x.startswith(("http://", "https://"))][:10]:
+            try:
+                r = http.get(u)
+                ct = (r.headers.get("content-type") or "").split(";")[0].strip().lower()
+                if r.status_code != 200 or not ct.startswith("image/") or not 1000 < len(r.content) < 15 * 1024 * 1024:
+                    bad += 1
+                    continue
+            except httpx.HTTPError:
+                bad += 1
+                continue
+            nm = (u.split("?")[0].rsplit("/", 1)[-1] or "photo")[-120:]
+            if not pfs.IMG.search(nm):
+                nm += "." + (ct.split("/")[1].split("+")[0] or "jpg")
+            f = ProductFile(product_id=pid, path=ingest.store(r.content, f"product_{nm}"), name=nm, kind="photo", mime=ct[:100], uploaded_by=user.id, site=True)
+            db.add(f)
+            db.flush()
+            if not p.photo_url:
+                p.photo_url = pfs.photo_link(f)
+            n += 1
+    db.commit()
+    audit(db, "product.files_url", "product", pid, user=user, n=n, bad=bad)
+    return RedirectResponse(_with_msg(f"/products/{pid}#pfiles", f"Додано фото: {n}" + (f", не вдалося: {bad} (сайт не віддає картинку — збережіть файл і додайте вручну)" if bad else "")), 303)
+
+
 @app.post("/products/files/{fid:int}/site")
 def product_file_site(fid: int, user: User = Depends(require("products")), db: Session = Depends(db_dep)):
     f = db.get(ProductFile, fid) or (_ for _ in ()).throw(HTTPException(404))
@@ -5372,6 +5403,10 @@ async def product_site_save(pid: int, request: Request, user: User = Depends(req
             si["no_feed"] = True
         else:
             si.pop("no_feed", None)
+        if f.get("free_ship"):
+            si["free_ship"] = True
+        else:
+            si.pop("free_ship", None)
     if f.get("tip_form"):
         tt = str(f.get("tip_text") or "").strip()[:600]
         if tt:
@@ -5380,6 +5415,12 @@ async def product_site_save(pid: int, request: Request, user: User = Depends(req
             si.pop("tip", None)
     p.site_info = si
     db.commit()
+    if si.get("slug") and f.get("slug") is not None and str(f.get("slug")).strip() != si["slug"]:
+        from .services import shop_front as _sf
+        err = _sf.change_slug(db, p, str(f.get("slug")))
+        if err:
+            return RedirectResponse(_with_msg(f"/products/{pid}#psite", err), 303)
+        si = dict(p.site_info or {})
     if si.get("slug") and f.get("cats_form"):
         from .services import shop_front as _sf
         _sf.set_product_cats(db, si["slug"], {str(x) for x in f.getlist("cat")})
