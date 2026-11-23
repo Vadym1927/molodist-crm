@@ -14,10 +14,6 @@
   <label>Google Ads ID<input name="ads_id" value="{{ c.ads_id }}" placeholder="AW-1234567890"></label>
   <label>Мітка конверсії «Покупка»<input name="ads_label" value="{{ c.ads_label }}" placeholder="AbCdEf123"></label>
   <label class="ck"><input type="checkbox" name="remarketing_on" value="1" {{ 'checked' if c.remarketing_on }}> Динамічний ремаркетинг (id товарів = id у фіді)</label>
-  <div style="border-top:1px solid var(--line);padding-top:8px"><b class="small">Покупки з CRM у Google Ads (офлайн-конверсії)</b>
-   <p class="small muted">Оплачені замовлення з кліку по рекламі (gclid) — навіть якщо покупець після оплати не повернувся на «Дякуємо». Google Ads → Цілі → Конверсії → Завантаження → Розклади → HTTPS → це посилання, щодня. Назва нижче має збігатися з назвою дії-конверсії («Імпорт → Конверсії з кліків»).</p>
-   <label>Назва дії-конверсії<input name="ads_offline_name" value="{{ c.ads_offline_name }}"></label>
-   <div class="small">Посилання (не публікувати): <span class="code">{{ root }}/ads/conversions-{{ c.ads_offline_token }}.csv</span></div></div>
   <p class="small muted">Події: view_item, add_to_cart, begin_checkout, purchase — з товарами, сумою й номером замовлення; без імен і телефонів. Якщо GA4 / Ads уже налаштовані всередині GTM — тут їх не вказуйте, інакше покупки порахуються двічі.</p></div>
  <div class="card"><b>Meta: Facebook / Instagram</b>
   <label>Meta Pixel ID<input name="fb_pixel" value="{{ c.fb_pixel }}" placeholder="123456789012345"></label>

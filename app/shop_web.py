@@ -182,19 +182,6 @@ def register(app, templates, version: str):
             body = fd.google(d, _feed_root(db, c), "MOLODIST", nb)
         return Response(body, media_type="application/xml", headers={"Cache-Control": "public, max-age=1800"})
 
-    @app.get("/_shop/ads/conversions-{token}.csv", include_in_schema=False)
-    def shop_ads_offline(token: str, db: Session = Depends(db_dep)):
-        """Оплачені замовлення з gclid для запланованого завантаження конверсій у Google Ads (посилання з секретом)."""
-        import hmac
-        from .services import shop_feeds as fd
-        c = sf.cfg(db)
-        tok = str(c.get("ads_offline_token") or "")
-        if len(tok) < 16 or not hmac.compare_digest(tok, token):
-            raise HTTPException(404)
-        orders = db.scalars(select(SiteOrder).where(SiteOrder.source == "crm")).all()
-        body = fd.ads_offline_csv(fd.ads_offline_rows(orders), str(c.get("ads_offline_name") or "Покупка molodist.store (CRM)"))
-        return Response(body, media_type="text/csv; charset=utf-8", headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"})
-
     @app.get("/_shop/llms.txt", include_in_schema=False)
     @app.get("/_shop/llms-full.txt", include_in_schema=False)
     def shop_llms(request: Request, db: Session = Depends(db_dep)):
