@@ -10025,7 +10025,9 @@ def google_ads_page(request: Request, df: str = "", dt_: str = "", user: User = 
     presets = [("Сьогодні", t_, t_), ("Вчора", t_ - timedelta(days=1), t_ - timedelta(days=1)), ("7 днів", t_ - timedelta(days=6), t_),
                ("14 днів", t_ - timedelta(days=13), t_), ("30 днів", t_ - timedelta(days=29), t_), ("Цей місяць", t_.replace(day=1), t_),
                ("Минулий місяць", (t_.replace(day=1) - timedelta(days=1)).replace(day=1), t_.replace(day=1) - timedelta(days=1))]
-    return render(request, "google_ads.html", nav="reports", v=ga.dashboard(db, d_from, d_to), today=date.today(), can_set=can(user, "users"), presets=presets,
+    from .services import site_stats as _sst
+    return render(request, "google_ads.html", nav="reports", v=ga.dashboard(db, d_from, d_to),
+                  ob_fun=_sst.booking_funnel(db, d_from, d_to, paid=True), ob_fun_all=_sst.booking_funnel(db, d_from, d_to), today=date.today(), can_set=can(user, "users"), presets=presets,
                   chs=chs, AC=ac, ac_cfg=ac.cfg(db), is_owner=user.role == "owner")
 
 

@@ -149,6 +149,7 @@
     var d = marks(); d.services = ids(); d.doctor = st.doc ? st.doc.id : 0; d.day = st.day; d.time = st.time;
     d.name = (form.name.value || '').trim(); d.phone = form.phone.value; d.website = form.website.value;
     api('/api/booking/draft', d, function () {});
+    if (window.MLDS_ev && !stepSeen.tel) { stepSeen.tel = 1; window.MLDS_ev('sec', 'krok-tel'); }
   }
   form.phone.addEventListener('input', function () { if (telOk(form.phone.value)) setTimeout(draft, 1500); });
   form.phone.addEventListener('blur', draft);
@@ -180,11 +181,13 @@
   function ids() { return st.svcs.map(function (s) { return s.id; }).join(','); }
   function names() { return st.svcs.map(function (s) { return s.name; }).join(', '); }
 
+  var stepSeen = {};
   function go(n) {
     if (n > 1 && !st.svcs.length) n = 1;
     if (n > 2 && !(st.doc || st.anyDoc)) n = 2;
     if (n > 3 && !st.time) n = 3;
     root.dataset.step = n;
+    if (window.MLDS_ev && !stepSeen[n]) { stepSeen[n] = 1; window.MLDS_ev('sec', 'krok-' + n); }   // воронка кроків запису (без персональних даних)
     $$('.ob-pane', root).forEach(function (p) { p.hidden = +p.dataset.pane !== n; });
     $$('.ob-steps li', root).forEach(function (li) { var k = +li.dataset.go; li.classList.toggle('on', k === n); li.classList.toggle('done', k < n && n < 5); });
     if (n === 5) $$('.ob-steps li', root).forEach(function (li) { li.classList.add('done'); li.classList.remove('on'); });

@@ -44,6 +44,9 @@
   <div><small>ROAS / ROI</small><b class="{{ 'pos' if t.roas and t.roas >= 1 else ('neg' if t.roas is not none else '') }}">{% if t.roas is none %}—{% else %}{{ '%.2f' % t.roas }}×{% endif %}</b><span>ROI {{ pc(t.roi) }} · за маржею {{ '%g' % v.cfg.margin_pct }}%: {{ pc(t.roi_margin) }}</span></div>
 </div>
 
+{% if ob_fun and ob_fun[0].n or ob_fun_all and ob_fun_all[0].n %}<div class="ga-c"><h3>Онлайн-запис: де йдуть</h3>
+  <p class="muted" style="margin:0 0 8px;font-size:12px">Сесії на сторінці онлайн-запису за період: з реклами / усі. Хто ввів телефон і не записався — за 20 хв зʼявляється зверненням «не завершив запис».</p>
+  <div class="fn" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">{% for x in ob_fun %}<div><b>{{ x.n }}{% if x.pct is not none and not loop.first %} <small style="display:inline">· {{ x.pct }}%</small>{% endif %}</b><small>{{ x.label }} · усі {{ ob_fun_all[loop.index0].n }}</small></div>{% endfor %}</div></div>{% endif %}
 {% if v.ga4.on and t.ga_events %}<div class="ga-c"><h3>Дії на сайті з реклами (GA4)</h3>
   <div class="fn" style="grid-template-columns:repeat(auto-fill,minmax(170px,1fr))">{% for k, n in t.ga_events|dictsort(by='value', reverse=true) %}<div><b>{{ n }}</b><small>{{ k }}</small></div>{% endfor %}
     <div style="background:#3B3050"><b style="color:#fff">{{ u(t.ga_cpa) }} ₴</b><small style="color:#fff">вартість однієї дії</small></div></div>

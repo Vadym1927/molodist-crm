@@ -17,7 +17,8 @@ KINDS = {"view", "sec", "click", "form", "pop", "lead", "exit"}
 SECTIONS = {"osvita": "Освіта", "pro-likaria": "Про лікаря", "lhero": "Перший екран", "hero": "Перший екран", "facts": "Факти", "pain": "Знайомо?", "reel": "Рілс", "video-rezultat": "Відео: результат", "rezultaty": "Результати",
             "yak-likuiemo": "Як лікуємо", "konsultatsiia": "Консультація", "tsiny": "Ціни", "likar": "Лікар", "likari": "Лікарі",
             "vidhuky": "Відгуки", "zapys": "Форма заявки", "shop": "Магазин", "insta": "Instagram", "zapytannia": "Запитання",
-            "kontakty": "Контакти", "shcho-dopomahaie": "Що допомагає", "rezultat": "Результат", "ipl": "IPL-терапія", "shop2": "Магазин", "poslugy": "Послуги", "beauty-plan": "BEAUTY PLAN", "prostir": "Простір"}
+            "kontakty": "Контакти", "shcho-dopomahaie": "Що допомагає", "rezultat": "Результат", "ipl": "IPL-терапія", "shop2": "Магазин", "poslugy": "Послуги", "beauty-plan": "BEAUTY PLAN", "prostir": "Простір",
+            "krok-1": "Запис · послуга", "krok-2": "Запис · спеціаліст", "krok-3": "Запис · час", "krok-4": "Запис · дані", "krok-tel": "Запис · ввели телефон", "krok-5": "Запис · записались"}
 PAGES = {"/sofiasirova": "Софія Сирова", "/": "Головна", "/likuvannya-akne": "Акне", "/likuvannya-pigmentatsii": "Пігментація й судини", "/zapys": "Онлайн-запис", "/onlain-zapys": "Онлайн-запис", "/tmyana-znevodnena-shkira": "Тьмяна шкіра", "/zmorshky-ta-vikovi-zminy": "Зморшки", "/dermatology": "Дерматологія",
          "/beautyplan": "BEAUTY PLAN", "/laserepilation": "Лазерна епіляція", "/price": "Прайс"}
 
@@ -279,3 +280,32 @@ def order_path(db: Session, o, names: dict | None = None) -> dict | None:
     return {"guess": guess, "first": evs[0].at.strftime("%d.%m %H:%M"), "mins": int((at - evs[0].at).total_seconds() // 60) if at >= evs[0].at else 0,
             "device": {"phone": "телефон", "pc": "компʼютер", "tablet": "планшет"}.get(evs[0].device or "", evs[0].device or "—"), "src": evs[0].src or "—",
             "paid": bool(evs[0].paid), "pages": pages, "rows": rows}
+
+
+BOOKING_STEPS = [("open", "Відкрили запис"), ("krok-2", "Обрали послугу"), ("krok-3", "Обрали спеціаліста"), ("krok-4", "Обрали час"),
+                 ("krok-tel", "Ввели телефон"), ("krok-5", "Записались")]
+
+
+def booking_funnel(db: Session, d_from: date, d_to: date, paid: bool | None = None) -> list[dict]:
+    """Воронка онлайн-запису за сесіями: скільки дійшло до кожного кроку (paid=True — лише з реклами)."""
+    a, b = datetime.combine(d_from, datetime.min.time()), datetime.combine(d_to, datetime.max.time())
+    q = select(SiteEvent.sid, SiteEvent.kind, SiteEvent.target).where(SiteEvent.at >= a, SiteEvent.at <= b, SiteEvent.sid != "",
+                                                                       SiteEvent.page.in_(("/onlain-zapys", "/zapys")))
+    if paid is not None:
+        q = q.where(SiteEvent.paid.is_(paid))
+    got: dict[str, set] = defaultdict(set)
+    for sid, kind, tg in db.execute(q):
+        if kind == "view":
+            got[sid].add("open")
+        elif kind == "sec" and tg and tg.startswith("krok-"):
+            got[sid].add(tg)
+    order = [k for k, _ in BOOKING_STEPS]
+    for s_ in got.values():                       # дійшов далі — пройшов і попередні кроки
+        idx = max((order.index(k) for k in s_ if k in order), default=-1)
+        s_.update(order[:idx + 1])
+    top = sum(1 for s_ in got.values() if "open" in s_)
+    out = []
+    for k, label in BOOKING_STEPS:
+        n = sum(1 for s_ in got.values() if k in s_)
+        out.append({"key": k, "label": label, "n": n, "pct": round(100 * n / top) if top else None})
+    return out
