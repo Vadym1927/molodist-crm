@@ -22,7 +22,7 @@ from ..models import Appeal, Call, SiteClick, SyncState
 from . import appeals as ap
 
 KEY = "site_leads"
-DEFAULT = {"hook": "", "source": "Сайт · форма", "log": [], "call_window": 5, "msg_window": 180}
+DEFAULT = {"hook": "", "source": "Сайт · форма", "log": [], "call_window": 5, "msg_window": 60}
 KINDS = {"phone": "клік по номеру", "telegram": "Telegram", "viber": "Viber", "whatsapp": "WhatsApp", "booking": "запис онлайн",
          "instagram": "Instagram", "form": "форма"}
 CHANNEL_SRC = {"telegram": ("telegram", "телеграм", "tg"), "viber": ("viber", "вайбер"), "whatsapp": ("whatsapp", "ватсап"),
@@ -324,6 +324,8 @@ def match_clicks(db: Session, d_from, d_to) -> dict:
         if "attr=click" in u and "click%3F" not in u and "attr=click?" not in u:
             continue                                          # уже точно привʼязане
         at, src = a.created_at + shift, (a.source or "").lower()
+        if _known_contact(db, a):
+            continue                                          # постійний контакт (постачальник, пацієнт, що вже писав) — не з реклами
         cand = [x for x in free if x.kind in CHANNEL_SRC and any(w in src for w in CHANNEL_SRC[x.kind])
                 and x.at - timedelta(minutes=1) <= at <= x.at + mw]
         if not cand:
@@ -336,6 +338,18 @@ def match_clicks(db: Session, d_from, d_to) -> dict:
         rep["appeals"] += 1
     db.commit()
     return rep
+
+
+def _known_contact(db: Session, a: Appeal) -> bool:
+    """Чи писав / дзвонив цей контакт раніше (понад добу до звернення): той самий телефон або те саме імʼя в тому самому каналі."""
+    from . import appeals as ap
+    before = a.created_at - timedelta(days=1)
+    k = ap.phone_key(a.phone)
+    if len(k) == 9 and db.scalar(select(Appeal.id).where(Appeal.created_at < before, Appeal.phone.like(f"%{k[-7:]}")).limit(1)):
+        return True
+    if a.name and a.source and db.scalar(select(Appeal.id).where(Appeal.created_at < before, Appeal.name == a.name, Appeal.source == a.source).limit(1)):
+        return True
+    return False
 
 
 def gtm_tag(hook_url: str) -> str:

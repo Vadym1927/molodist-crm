@@ -240,7 +240,10 @@ def leads(db: Session, d_from: date, d_to: date, c: dict | None = None) -> list[
         if _is_google(cl.utm_source, cl.utm_medium, cl.gclid) or (lines and ap.phone_key(cl.line) in lines):
             raw.append({"at": cl.at, "phone": cl.phone, "kind": "call", "campaign": cl.utm_campaign, "term": cl.utm_term, "status": cl.status, "attr": cl.attr, "gclid": cl.gclid,
                         "patient_id": cl.patient_id, "call_id": cl.id, "appeal_id": cl.appeal_id, "duration": cl.duration, "landing": cl.landing})
+    _ad = ap.dirs(db)
     for x in db.scalars(select(Appeal).where(Appeal.created_at >= a, Appeal.created_at <= b, Appeal.deleted_at.is_(None)).order_by(Appeal.created_at)):
+        if ap.status_type(_ad, x.status) == "other":          # «Не цільове», «Технічне звернення» — не ліди (тести, постачальники, спам)
+            continue
         u = (x.utm or "").lower()
         if (x.source or "").strip().lower() in srcs or ("google" in u and ("cpc" in u or "gclid" in u or "ppc" in u)) or "gclid=" in u:
             camp = next((p.split("=", 1)[1] for p in (x.utm or "").replace("?", "&").split("&") if p.lower().startswith("utm_campaign=")), None)
