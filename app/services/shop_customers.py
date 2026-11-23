@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..models import CoinTxn, Patient, ShopAccount, ShopCart, SiteOrder
+from ..models import CoinTxn, DkProfile, Patient, ShopAccount, ShopCart, SiteOrder
 
 LOST = ("Скасовано", "Повернення", "Фейкове")
 SORTS = {"new": "Нові реєстрації", "login": "Останній вхід", "sum": "Сума покупок", "orders": "Кількість замовлень"}
@@ -32,9 +32,14 @@ def rows(db: Session, q: str = "", sort: str = "new", flt: str = "", since: date
     for a in accs:
         if a.referred_by:
             refs[a.referred_by] += 1
+    # вхід на сайті Дарʼї Колган (dr-kolgan) теж створює акаунт — у покупцях магазину лише ті, хто має щось у магазині
+    dk_only = {pid for pid in db.scalars(select(DkProfile.patient_id).where(DkProfile.patient_id.in_(pids)))
+               if not orders.get(pid) and not carts.get(pid) and not coins.get(pid)}
     out = []
     ql = (q or "").strip().lower()
     for a in accs:
+        if a.patient_id in dk_only:
+            continue
         p = pats.get(a.patient_id)
         name = " ".join(x for x in (a.first_name, a.last_name) if x) or (p.full_name if p else "") or "Покупець"
         phone = (p.phone if p else "") or ""

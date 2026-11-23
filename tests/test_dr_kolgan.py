@@ -139,3 +139,15 @@ def test_dk_refund_removes_salary():
         aid = o.salary_adj_id
         assert dk.refund(db, o.id) and o.status == "refunded" and db.get(SalaryAdj, aid) is None
         assert not dk.refund(db, o.id)
+
+
+def test_dk_login_not_in_shop_customers():
+    from app.models import ShopAccount
+    from app.services import shop_customers as sc
+    with SessionLocal() as db:
+        p = Patient(full_name="Лише Дарʼя", phone="+380671119977")
+        db.add(p); db.flush()
+        db.add(ShopAccount(patient_id=p.id, created_at=datetime.utcnow()))
+        db.add(DkProfile(patient_id=p.id, first_name="Лише"))
+        db.commit()
+        assert not any(x["patient"] and x["patient"].id == p.id for x in sc.rows(db)["rows"])
