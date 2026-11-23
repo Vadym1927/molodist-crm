@@ -845,6 +845,12 @@ def register(app, templates, version: str):
     @app.get("/_shop/{rest:path}", response_class=HTMLResponse)
     def shop_page(request: Request, rest: str, db: Session = Depends(db_dep)):
         path = "/" + "/".join(x for x in rest.split("/") if x) + "/"
+        if path.startswith("/q/") and path.count("/") == 3:         # QR-коди, надруковані як molodist.shop/q/… (→ molodist.store/q/…)
+            from .services import dr_kolgan as _dk
+            url = _dk.qr(db, path.split("/")[2], dict(request.query_params), request.headers.get("user-agent", ""),
+                         request.headers.get("accept-language", ""), request.headers.get("referer", ""))
+            if url:
+                return RedirectResponse(url, 302)
         from .services import shop_content as _scn
         if path in _scn.GONE:
             return Response("Сторінку видалено", status_code=410, media_type="text/plain; charset=utf-8")

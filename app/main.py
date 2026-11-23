@@ -9505,6 +9505,262 @@ def site_crop(name: str):
     return FileResponse(f, media_type="image/webp", headers={"Cache-Control": "public, max-age=2592000"})
 
 
+# ---------------- Сайт Дарʼї Колган (molodist.com.ua/dr-kolgan) — перенесено зі старих сервісів :8095 / :8116 ----------------
+_DK_STATIC = Path(__file__).parent / "static" / "dk"
+
+
+def _dk_json(d, status=200, cookie: tuple | None = None):
+    r = JSONResponse(d, status_code=status, headers={"Cache-Control": "no-store"})
+    if cookie is not None:
+        tok, days = cookie
+        if tok:
+            r.set_cookie(_dk_cookie_name(), tok, max_age=days * 86400, httponly=True, samesite="lax", path="/", secure=True)
+        else:
+            r.delete_cookie(_dk_cookie_name(), path="/")
+    return r
+
+
+def _dk_cookie_name():
+    from .services import dr_kolgan as dk
+    return dk.COOKIE
+
+
+def _dk_sess(request: Request, db: Session):
+    from .services import dr_kolgan as dk
+    return dk.session(db, request.cookies.get(dk.COOKIE))
+
+
+async def _dk_body(request: Request) -> dict:
+    try:
+        d = await request.json()
+        return d if isinstance(d, dict) else {}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _dk_root(request: Request) -> str:
+    from .services import site_pages as sp
+    host = (request.headers.get("host") or "").split(":")[0].lower()
+    return f"https://{host}" if host in sp.hosts() else str(request.base_url).rstrip("/").replace("http://", "https://") + "/_site"
+
+
+@app.post("/_site/dr-kolgan/api/auth/send")
+async def dk_send(request: Request, db: Session = Depends(db_dep)):
+    from .services import dr_kolgan as dk
+    d = await _dk_body(request)
+    ip = request.headers.get("x-real-ip") or (request.client.host if request.client else "")
+    try:
+        r = await asyncio.to_thread(dk.send_code, db, str(d.get("phone") or ""), ip)
+    except dk.DkError as e:
+        return _dk_json({"error": str(e)}, 400)
+    return _dk_json({"ok": True, "to": r.get("to")})
+
+
+@app.post("/_site/dr-kolgan/api/auth/verify")
+async def dk_verify(request: Request, db: Session = Depends(db_dep)):
+    from .services import dr_kolgan as dk
+    d = await _dk_body(request)
+    try:
+        tok, days, p = dk.verify(db, str(d.get("phone") or ""), str(d.get("code") or ""), request.headers.get("user-agent", ""),
+                                 utm=str(request.cookies.get("mlds_utm") or "")[:300])
+    except dk.DkError as e:
+        return _dk_json({"error": str(e)}, 400)
+    return _dk_json({"ok": True}, cookie=(tok, days))
+
+
+@app.get("/_site/dr-kolgan/api/auth/me")
+def dk_me(request: Request, db: Session = Depends(db_dep)):
+    from .services import dr_kolgan as dk
+    s = _dk_sess(request, db)
+    if not s:
+        return _dk_json({"error": "Потрібен вхід."}, 401)
+    return _dk_json({"ok": True, "profile": dk.profile_json(*s)})
+
+
+@app.post("/_site/dr-kolgan/api/auth/logout")
+def dk_logout(request: Request, db: Session = Depends(db_dep)):
+    from .services import dr_kolgan as dk
+    dk.logout(db, request.cookies.get(dk.COOKIE))
+    return _dk_json({"ok": True}, cookie=("", 0))
+
+
+@app.post("/_site/dr-kolgan/api/auth/profile")
+async def dk_profile(request: Request, db: Session = Depends(db_dep)):
+    from .services import dr_kolgan as dk
+    s = _dk_sess(request, db)
+    if not s:
+        return _dk_json({"error": "Потрібен вхід."}, 401)
+    try:
+        prof = dk.save_profile(db, s[0], s[1], await _dk_body(request))
+    except dk.DkError as e:
+        return _dk_json({"error": str(e)}, 400)
+    return _dk_json({"ok": True, "profile": prof})
+
+
+@app.get("/_site/dr-kolgan/api/auth/materials")
+def dk_materials(request: Request, db: Session = Depends(db_dep)):
+    from .services import dr_kolgan as dk
+    s = _dk_sess(request, db)
+    if not s:
+        return _dk_json({"error": "Потрібен вхід."}, 401)
+    return _dk_json({"ok": True, "materials": dk.materials(db, s[0].id)})
+
+
+@app.post("/_site/dr-kolgan/api/auth/materials")
+async def dk_material_add(request: Request, db: Session = Depends(db_dep)):
+    from .services import dr_kolgan as dk
+    s = _dk_sess(request, db)
+    if not s:
+        return _dk_json({"error": "Увійдіть, щоб додати матеріал у кабінет."}, 401)
+    try:
+        m = dk.grant(db, s[0].id, str((await _dk_body(request)).get("id") or ""))
+    except dk.DkError as e:
+        return _dk_json({"error": str(e)}, 400)
+    return _dk_json({"ok": True, "material": m})
+
+
+@app.get("/_site/dr-kolgan/api/auth/tests/{kind}")
+def dk_tests(request: Request, kind: str, db: Session = Depends(db_dep)):
+    from .services import dr_kolgan as dk
+    if kind not in ("bmi", "hads", "molodist360"):
+        raise HTTPException(404)
+    s = _dk_sess(request, db)
+    if not s:
+        return _dk_json({"error": "Потрібен вхід."}, 401)
+    return _dk_json({"ok": True, "results": dk.results(db, s[0].id, kind)})
+
+
+@app.post("/_site/dr-kolgan/api/auth/tests/{kind}")
+async def dk_test_save(request: Request, kind: str, db: Session = Depends(db_dep)):
+    from .services import dr_kolgan as dk
+    if kind not in ("bmi", "hads", "molodist360"):
+        raise HTTPException(404)
+    s = _dk_sess(request, db)
+    if not s:
+        return _dk_json({"error": "Увійдіть, щоб зберегти результат у кабінеті."}, 401)
+    d = await _dk_body(request)
+    if kind == "molodist360":                     # тест 360 уже в CRM (привʼязаний за телефоном) — нічого не дублюємо
+        res = dk.results(db, s[0].id, "molodist360")
+        return _dk_json({"ok": True, "result": res[0] if res else {}})
+    try:
+        r = dk.bmi(db, s[0].id, d) if kind == "bmi" else dk.hads(db, s[0].id, d)
+    except dk.DkError as e:
+        return _dk_json({"error": str(e)}, 400)
+    return _dk_json({"ok": True, "result": r})
+
+
+@app.post("/_site/dr-kolgan/api/auth/payments/monobank/create")
+async def dk_pay_create(request: Request, db: Session = Depends(db_dep)):
+    from .services import dr_kolgan as dk
+    s = _dk_sess(request, db)
+    if not s:
+        return _dk_json({"error": "Потрібен вхід."}, 401)
+    d = await _dk_body(request)
+    try:
+        r = await asyncio.to_thread(dk.create_payment, db, s[0], str(d.get("productId") or "full-checkup"), settings.public_url, _dk_root(request))
+    except dk.DkError as e:
+        return _dk_json({"error": str(e)}, 400)
+    return _dk_json(r)
+
+
+@app.post("/_site/dr-kolgan/api/auth/payments/monobank/redirect")
+async def dk_pay_redirect(request: Request, db: Session = Depends(db_dep)):
+    from .services import dr_kolgan as dk
+    s = _dk_sess(request, db)
+    f = await request.form()
+    url = dk.pay_url(db, s[0].id, str(f.get("orderReference") or "")) if s else None
+    return RedirectResponse(url or "/dr-kolgan/", 303)
+
+
+@app.get("/_site/dr-kolgan/api/auth/payments/monobank/status")
+def dk_pay_status(request: Request, orderReference: str = "", db: Session = Depends(db_dep)):
+    from .services import dr_kolgan as dk
+    s = _dk_sess(request, db)
+    if not s:
+        return _dk_json({"error": "Потрібен вхід."}, 401)
+    try:
+        return _dk_json(dk.order_status(db, s[0].id, orderReference))
+    except dk.DkError as e:
+        return _dk_json({"error": str(e)}, 404)
+
+
+@app.get("/_site/dr-kolgan/api/auth/protected/{mid}/access")
+def dk_guide_access(request: Request, mid: str, db: Session = Depends(db_dep)):
+    from .services import dr_kolgan as dk
+    s = _dk_sess(request, db)
+    if not s:
+        return _dk_json({"error": "Потрібен вхід."}, 401)
+    return _dk_json({"ok": True, "granted": dk.has_material(db, s[0].id, mid)})
+
+
+@app.get("/_site/dr-kolgan/api/auth/protected/{mid}/page/{page}")
+def dk_guide_page(request: Request, mid: str, page: str, db: Session = Depends(db_dep)):
+    from .services import dr_kolgan as dk
+    s = _dk_sess(request, db)
+    n = re.sub(r"\.jpg$", "", page)
+    f = dk.guide_page(db, s[0].id, mid, int(n)) if s and n.isdigit() else None
+    if not f:
+        return _dk_json({"error": "Потрібен придбаний доступ до гайду."}, 403)
+    return FileResponse(f, media_type="image/jpeg", headers={"Cache-Control": "private, no-store, max-age=0", "X-Content-Type-Options": "nosniff"})
+
+
+@app.post("/_site/dr-kolgan/api/auth/leads/consultation")
+async def dk_consult(request: Request, db: Session = Depends(db_dep)):
+    from .services import site_leads as sl
+    d = await _dk_body(request)
+    if str(d.get("website") or "").strip() or not _ob_rate(request, "dkl", 6):
+        return _dk_json({"ok": True})
+    lead = {"name": str(d.get("name") or "")[:100], "phone": str(d.get("phone") or "")[:30], "comment": str(d.get("concern") or "")[:1500],
+            "interest": "Консультація Дарʼї Колган" + (f" · {', '.join(map(str, d.get('formats') or []))[:80]}" if d.get("formats") else ""),
+            "formname": "dr-kolgan:consultation", "page": _dk_root(request) + "/dr-kolgan/", "doctor": "Дарʼя Колган"}
+    r = await asyncio.to_thread(sl.ingest, db, lead)
+    if not r.get("ok"):
+        return _dk_json({"error": "Не вдалося надіслати заявку. Зателефонуйте нам, будь ласка."}, 400)
+    try:
+        await asyncio.to_thread(sl.notify, db, lead, r, settings.public_url)
+    except Exception as e:  # noqa: BLE001
+        log.warning("dk lead notify: %s", e)
+    return _dk_json({"ok": True})
+
+
+@app.get("/_site/dr-kolgan/api/auth/q/{slug}")
+@app.get("/_site/q/{slug}")
+def dk_qr(request: Request, slug: str, db: Session = Depends(db_dep)):
+    from .services import dr_kolgan as dk
+    url = dk.qr(db, slug, dict(request.query_params), request.headers.get("user-agent", ""), request.headers.get("accept-language", ""),
+                request.headers.get("referer", ""))
+    if not url:
+        raise HTTPException(404)
+    return RedirectResponse(url, 302)
+
+
+@app.get("/_site/dr-kolgan", include_in_schema=False)
+def dk_noslash(request: Request):
+    q = request.url.query
+    return RedirectResponse("dr-kolgan/" + (f"?{q}" if q else ""), 301)
+
+
+@app.get("/_site/dr-kolgan/{path:path}")
+def dk_static(request: Request, path: str, db: Session = Depends(db_dep)):
+    from .services import dr_kolgan as dk
+    if path.startswith("api/"):
+        raise HTTPException(404)
+    if path.rstrip("/") in ("cabinet", "cabinet/index.html") and not dk.cabinet_ok(db, request.cookies.get(dk.COOKIE)):
+        return RedirectResponse("/dr-kolgan/?login=1&next=/dr-kolgan/cabinet/", 302)
+    f = (_DK_STATIC / path).resolve()
+    if not str(f).startswith(str(_DK_STATIC.resolve())):
+        raise HTTPException(404)
+    if f.is_dir():
+        if not path.endswith("/") and path:
+            return RedirectResponse(f"/dr-kolgan/{path}/", 301)
+        f = f / "index.html"
+    if not f.is_file():
+        raise HTTPException(404)
+    if f.suffix == ".html":
+        return FileResponse(f, media_type="text/html; charset=utf-8", headers={"Cache-Control": "no-cache"})
+    return FileResponse(f, headers={"Cache-Control": "public, max-age=604800"})
+
+
 # ---------------- «Молодість 360» (тест на сайті, перенесено з окремого сервісу :8094) ----------------
 _M360_STATIC = Path(__file__).parent / "static" / "m360"
 
@@ -13886,6 +14142,49 @@ def not_rebooked_xlsx(y: str = "", m: str = "", doc: str = "", user: User = Depe
     v = rebook.build(db, year, int(m) if m.isdigit() and 1 <= int(m) <= 12 else None, int(doc) if doc.isdigit() else None)
     return Response(rebook.to_xlsx(v), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     headers={"Content-Disposition": f'attachment; filename="not_rebooked_{year}{("_" + m) if m else ""}.xlsx"'})
+
+
+@app.get("/reports/dr-kolgan", response_class=HTMLResponse)
+def dr_kolgan_report(request: Request, df: str = "", dt_: str = "", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import dr_kolgan as dk
+    d_from, d_to = _period(df, dt_, 29)
+    t_ = date.today()
+    presets = [("7 днів", t_ - timedelta(days=6), t_), ("30 днів", t_ - timedelta(days=29), t_), ("Цей місяць", t_.replace(day=1), t_),
+               ("Минулий місяць", (t_.replace(day=1) - timedelta(days=1)).replace(day=1), t_.replace(day=1) - timedelta(days=1)),
+               ("Рік", t_ - timedelta(days=364), t_)]
+    return render(request, "dr_kolgan_report.html", nav="reports", r=dk.report(db, d_from, d_to), d_from=d_from, d_to=d_to, presets=presets,
+                  MAT=dk.MATERIALS, import_ready=dk.import_path().is_file() and can(user, "users"))
+
+
+@app.get("/reports/molodist-360", response_class=HTMLResponse)
+def m360_report_page(request: Request, df: str = "", dt_: str = "", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    from .services import dr_kolgan as dk
+    d_from, d_to = _period(df, dt_, 364)
+    t_ = date.today()
+    presets = [("30 днів", t_ - timedelta(days=29), t_), ("Цей місяць", t_.replace(day=1), t_), ("Рік", t_ - timedelta(days=364), t_),
+               ("Усі", date(2025, 1, 1), t_)]
+    return render(request, "m360_report.html", nav="reports", r=dk.m360_report(db, d_from, d_to), d_from=d_from, d_to=d_to, presets=presets)
+
+
+@app.post("/reports/dr-kolgan/import")
+def dr_kolgan_import(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    """Одноразовий перенос зі старих сервісів: файл data/import/dk_export.json (кладе агент на сервері) → CRM, потім файл видаляється."""
+    from .services import dr_kolgan as dk
+    f = dk.import_path()
+    if not f.is_file():
+        return RedirectResponse(_with_msg("/reports/dr-kolgan", "Файл експорту не знайдено на сервері"), 303)
+    try:
+        data = json.loads(f.read_text("utf-8"))
+        n = dk.import_old(db, data)
+    except Exception as e:  # noqa: BLE001
+        db.rollback()
+        log.warning("dk import: %s", e)
+        return RedirectResponse(_with_msg("/reports/dr-kolgan", f"Помилка імпорту: {str(e)[:200]}"), 303)
+    f.unlink(missing_ok=True)
+    audit(db, "dk.import", user=user, **n)
+    msg = (f"Перенесено: тестів 360 — {n['m360']}, кабінетів — {n['profiles']}, гайдів і тестів — {n['records']}, оплат — {n['orders']}; "
+           f"нових карток — {n['patients_new']}" + (f"; без телефону — {n['no_phone']}" if n["no_phone"] else ""))
+    return RedirectResponse(_with_msg("/reports/dr-kolgan", msg), 303)
 
 
 @app.get("/reports/doctors-kpi", response_class=HTMLResponse)

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="uk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Вплив способу життя на шкіру — Дарʼя Колган</title><link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet"><style>
+:root{--ink:#1e1b22;--paper:#f7f3ee;--line:#e5dee9;--muted:#5e5468}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 Manrope,Arial,sans-serif}.nav{display:flex;justify-content:space-between;gap:20px;align-items:center;padding:16px max(24px,calc((100vw - 1120px)/2));background:#ffffffdf;border-bottom:1px solid var(--line)}.brand img{display:block;width:122px}.nav-actions{display:flex;gap:10px}.pill{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:0 18px;border-radius:999px;text-decoration:none;font:600 13px Manrope,Arial}.back{background:var(--ink);color:#fff}.cabinet{border:1px solid var(--ink);color:var(--ink)}.wrap{max-width:1120px;margin:auto;padding:68px 32px 82px}.eyebrow{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}h1{max-width:800px;margin:12px 0 14px;font:300 clamp(42px,5.5vw,68px)/.98 Jost,sans-serif;letter-spacing:-.06em}.lead{max-width:680px;margin:0;color:#4a4252;font-size:17px}.viewer,.blocked{margin-top:30px;border:1px solid var(--line);border-radius:20px;background:#fff;overflow:hidden;box-shadow:0 10px 30px #1e1b220f}.viewer-head{position:sticky;top:0;z-index:2;padding:14px 18px;background:var(--ink);color:#fff;display:flex;justify-content:space-between;gap:12px;font-size:13px}.pages{padding:22px;display:grid;gap:20px}.page{position:relative;margin:auto;max-width:900px;background:#eee;box-shadow:0 4px 20px #1e1b2225;user-select:none;scroll-margin-top:72px}.page img{display:block;width:100%;height:auto;pointer-events:none}.guide-link{position:absolute;z-index:1;display:block;border-radius:4px;background:transparent;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:rgba(119,91,170,.22)}.guide-link:hover{background:rgba(119,91,170,.14);outline:1px solid rgba(119,91,170,.55)}.guide-link:focus-visible{background:rgba(119,91,170,.18);outline:3px solid #775baa;outline-offset:1px}.blocked{padding:34px}.btn{display:inline-flex;margin-top:14px;min-height:48px;padding:0 24px;align-items:center;justify-content:center;border:0;border-radius:999px;background:var(--ink);color:#fff;text-decoration:none;font:600 15px Manrope,Arial}@media(max-width:720px){.nav{padding:14px 20px}.brand img{width:108px}.nav-actions{gap:7px}.pill{min-height:40px;padding:0 12px;font-size:11px}.wrap{padding:44px 20px 60px}h1{font-size:44px}.pages{padding:10px;gap:12px}.viewer,.blocked{border-radius:16px}}
+</style></head><body><nav class="nav"><div class="nav-actions" style="margin-left:auto"><a class="pill cabinet" href="/dr-kolgan/cabinet/">Кабінет</a><a class="pill back" id="return-link" href="/dr-kolgan/#services">← Назад</a></div></nav><main class="wrap"><div class="eyebrow">Придбаний гайд · лише для особистого використання</div><h1>Вплив способу життя на шкіру</h1><p class="lead">Як сон, харчування, рух, стрес і звички впливають на старіння шкіри — і на що можна вплинути вже сьогодні.</p><div id="app" class="blocked">Перевіряємо доступ…</div></main><script>
+const app=document.querySelector('#app'),login='/dr-kolgan/?login=1&returnTo=%2Fdr-kolgan%2Fguides%2Flifestyle%2F';
+Promise.all([
+  fetch('/dr-kolgan/api/auth/protected/lifestyle-guide/access',{credentials:'same-origin'}).then(async r=>({ok:r.ok,status:r.status,data:await r.json().catch(()=>({}))})),
+  fetch('./links.json?v=20261022',{cache:'no-store'}).then(r=>r.ok?r.json():{})
+]).then(([access,linkMap])=>{
+  const{ok,status,data}=access;
+  if(!ok&&status===401){app.innerHTML=`<p>Увійдіть за номером телефону, щоб відкрити придбаний гайд.</p><a class="btn" href="${login}">Увійти</a>`;return}
+  if(!ok||!data.granted){app.innerHTML='<p>Доступ до цього гайду з’явиться в кабінеті після успішної оплати.</p><a class="btn" href="/dr-kolgan/#services">До матеріалів</a>';return}
+  const viewer=document.createElement('section');viewer.className='viewer';viewer.innerHTML='<div class="viewer-head"><span>Захищений перегляд</span><span>Посилання в гайді активні · завантаження та друк недоступні</span></div><div class="pages"></div>';
+  const pages=viewer.querySelector('.pages');
+  const safeTapArea=(link,map)=>{
+    const values=['left','top','width','height'].map(key=>Number(link[key]));
+    if(values.some(value=>!Number.isFinite(value)))return null;
+    let [left,top,width,height]=values;
+    const padX=8,padY=7;
+    left=Math.max(0,Math.min(map.width-1,left-padX));
+    top=Math.max(0,Math.min(map.height-1,top-padY));
+    width=Math.max(36,width+padX*2);
+    height=Math.max(30,height+padY*2);
+    width=Math.max(1,Math.min(width,map.width-left));
+    height=Math.max(1,Math.min(height,map.height-top));
+    return {left,top,width,height};
+  };
+  for(let i=1;i<=42;i++){
+    const page=document.createElement('div');page.className='page';page.id=`page-${i}`;
+    const img=document.createElement('img');img.alt=`Сторінка ${i}`;img.src=`/dr-kolgan/api/auth/protected/lifestyle-guide/page/${i}.jpg?v=20261022`;img.loading=i<3?'eager':'lazy';page.append(img);
+    const map=linkMap[i];
+    if(map){for(const link of map.links){const href=link.href;if(!(/^#page-\d+$/.test(href)||/^(https?:|tel:)/.test(href)))continue;const area=safeTapArea(link,map);if(!area)continue;const a=document.createElement('a');a.className='guide-link';a.href=href;a.setAttribute('aria-label',href.startsWith('#')?'Перейти до сторінки гайду':`Відкрити посилання: ${href}`);a.style.cssText=`left:${area.left/map.width*100}%;top:${area.top/map.height*100}%;width:${area.width/map.width*100}%;height:${area.height/map.height*100}%`;if(/^https?:/.test(href)){a.target='_blank';a.rel='noopener noreferrer'}else if(href.startsWith('#')){a.addEventListener('click',event=>{event.preventDefault();const target=document.querySelector(href);if(!target)return;target.scrollIntoView({behavior:'smooth',block:'start'});history.replaceState(null,'',href)})}page.append(a)}}
+    pages.append(page)
+  }
+  app.replaceWith(viewer)
+}).catch(()=>{app.textContent='Не вдалося перевірити доступ. Оновіть сторінку.'});
+document.addEventListener('contextmenu',e=>e.preventDefault());document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&['p','s'].includes(e.key.toLowerCase()))e.preventDefault()});document.getElementById('return-link').addEventListener('click',event=>{try{if(new URL(document.referrer).origin===location.origin&&history.length>1){event.preventDefault();history.back()}}catch(_){}});
+</script></body></html>

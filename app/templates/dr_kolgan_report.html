@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Сайт Дарʼї Колган · Звіти{% endblock %}
+{% block body %}
+{% set k = r.kpi %}
+{% macro u(x) %}{% if x is none %}—{% else %}{{ ('{:,.0f}'.format(x)).replace(',', ' ') }}{% endif %}{% endmacro %}
+{% macro pc(x) %}{% if x is none %}—{% else %}{{ x }}%{% endif %}{% endmacro %}
+<style>
+.dkr-h{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px}.dkr-h h1{margin:0}
+.dkr-k{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.dkr-k>div{background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:12px 16px}.dkr-k small{display:block;font:700 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496}
+.dkr-k b{display:block;font:800 22px var(--sans);margin-top:4px}.dkr-k span{font-size:12px;color:#6b6575}
+.dkr-c{background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:14px 16px;margin-bottom:14px}.dkr-c h3{margin:0 0 10px;font:700 14px var(--sans);text-transform:uppercase;letter-spacing:.05em}
+.dkr-fn{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}.dkr-fn>div{background:#F7F4F0;border-radius:12px;padding:10px 12px}.dkr-fn b{display:block;font:800 20px var(--sans)}.dkr-fn small{color:#6b6575}
+.dkr-t{width:100%;border-collapse:collapse;font-size:13px}.dkr-t th{text-align:left;font-weight:700;color:#8a8496;font-size:11px;text-transform:uppercase;letter-spacing:.05em;padding:6px 8px;border-bottom:1px solid #ECE7E1}
+.dkr-t td{padding:7px 8px;border-bottom:1px solid #F3EFEA;vertical-align:top}.tag{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11.5px;background:#F1EDE8;margin:1px}.tag.ok{background:#E4F2EA;color:#2f7a55}
+@media(max-width:900px){.dkr-k{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+<div class="dkr-h"><div><div class="eyebrow"><a href="/reports" style="color:inherit;text-decoration:none">← Усі звіти</a> · Маркетинг</div>
+  <h1>Сайт Дарʼї Колган</h1><a class="small" href="/reports/molodist-360">Звіт «Молодість 360» →</a><p class="small muted" style="margin:4px 0 0">molodist.com.ua/dr-kolgan і тест «Молодість 360» · {{ d_from.strftime('%d.%m.%Y') }} — {{ d_to.strftime('%d.%m.%Y') }}</p></div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap">{% for lbl, a, b in presets %}{% set on = a == d_from and b == d_to %}
+  <a href="?df={{ a }}&dt_={{ b }}" style="padding:6px 12px;border-radius:999px;font-size:13px;text-decoration:none;border:1px solid {{ '#3B3050' if on else '#E9E5DF' }};background:{{ '#3B3050' if on else '#fff' }};color:{{ '#fff' if on else '#2A2430' }}">{{ lbl }}</a>{% endfor %}</div></div>
+
+{% if import_ready %}<div class="dkr-c" style="border-color:#C9BFE6;background:#F7F4F0"><h3>Перенос зі старого сервісу</h3>
+  <p class="small" style="margin:0 0 8px">На сервері лежить файл експорту зі старих сервісів (тести «Молодість 360», кабінети, гайди, ІМТ / HADS, оплати). Імпорт рознесе все по картках пацієнтів, дасть мітку «Тест 360», повторний запуск нічого не дублює. Файл після імпорту видаляється.</p>
+  <form method="post" action="/reports/dr-kolgan/import" onsubmit="return confirm('Перенести дані зі старого сервісу в CRM?')"><button class="btn">Перенести в CRM</button></form></div>{% endif %}
+<div class="dkr-k">
+  <div><small>Нові люди</small><b>{{ k.people }}</b><span>зареєструвались або пройшли тест</span></div>
+  <div><small>Повний профіль</small><b>{{ k.profile }}</b><span>{{ pc(k.pct.profile) }} · дата народження й стать</span></div>
+  <div><small>Продано гайдів</small><b>{{ k.sold }}</b><span>{{ u(k.revenue) }} ₴ · купили {{ k.buyers }} ({{ pc(k.conv_buy) }} зареєстр.)</span></div>
+  <div><small>Нараховано Дарʼї</small><b>{{ u(r.salary) }} ₴</b><span>{{ r.doctor.name if r.doctor else 'лікаря не знайдено — Налаштування' }} · 100% продажів</span></div>
+  <div><small>Записались у клініку</small><b>{{ k.booked }}</b><span>{{ pc(k.pct.booked) }} · прийшли {{ k.came }} ({{ pc(k.pct.came) }})</span></div>
+  <div><small>Виручка клініки з них</small><b>{{ u(k.clinic_revenue) }} ₴</b><span>чеки після реєстрації</span></div>
+</div>
+
+<div class="dkr-c"><h3>Воронка</h3><div class="dkr-fn">
+  <div><b>{{ k.people }}</b><small>нові люди</small></div>
+  <div><b>{{ k.registered }}</b><small>кабінет (SMS)</small></div>
+  <div><b>{{ k.profile }}</b><small>заповнили профіль</small></div>
+  <div><b>{{ k.m360 }}</b><small>пройшли «Молодість 360»</small></div>
+  <div><b>{{ k.bmi }}</b><small>рахували ІМТ</small></div>
+  <div><b>{{ k.hads }}</b><small>пройшли HADS</small></div>
+  <div><b>{{ k.free }}</b><small>взяли безкоштовний гайд</small></div>
+  <div><b>{{ k.buyers }}</b><small>купили гайд</small></div>
+  <div><b>{{ k.booked }}</b><small>записались</small></div>
+  <div><b>{{ k.came }}</b><small>прийшли</small></div>
+  <div><b>{{ k.qr }}</b><small>сканувань QR</small></div>
+</div></div>
+
+{% if r.weeks %}<div class="dkr-c"><h3>По тижнях</h3><table class="dkr-t"><tr><th>Тиждень з</th><th>Нові</th><th>Тест 360</th><th>Купили гайд</th><th>Прийшли в клініку</th></tr>
+{% for w in r.weeks %}<tr><td>{{ w.week }}</td><td>{{ w.people }}</td><td>{{ w.m360 }}</td><td>{{ w.bought }}</td><td>{{ w.came }}</td></tr>{% endfor %}</table></div>{% endif %}
+
+{% if r.orders %}<div class="dkr-c"><h3>Продажі гайдів</h3><table class="dkr-t"><tr><th>Коли</th><th>Хто</th><th>Гайд</th><th>Сума</th><th>Дарʼї</th></tr>
+{% for o in r.orders %}<tr><td>{{ o.paid_at.strftime('%d.%m.%Y %H:%M') }}</td><td><a href="/patients/{{ o.patient_id }}">картка</a></td><td>{{ (MAT.get(o.product) or {}).get('title', o.product) }}</td><td>{{ u(o.amount) }} ₴</td><td>{{ '✓ нараховано' if o.salary_adj_id else '—' }}</td></tr>{% endfor %}</table></div>{% endif %}
+
+{% if r.qr %}<div class="dkr-c"><h3>QR-коди</h3>{% for slug, n in r.qr %}<span class="tag">/q/{{ slug }} — {{ n }}</span> {% endfor %}</div>{% endif %}
+
+<div class="dkr-c"><h3>Люди ({{ r.rows|length }})</h3>
+<div style="overflow-x:auto"><table class="dkr-t"><tr><th>Коли</th><th>Пацієнт</th><th>Кабінет</th><th>Тести</th><th>Гайди</th><th>Купив</th><th>Клініка</th><th>Звідки</th></tr>
+{% for x in r.rows %}<tr>
+  <td style="white-space:nowrap">{{ (x.at|local).strftime('%d.%m.%Y') if x.at else '—' }}</td>
+  <td><a href="/patients/{{ x.pid }}">{{ x.name }}</a><div class="small muted">{{ x.phone }}</div></td>
+  <td>{% if x.profile %}<span class="tag ok">профіль</span>{% elif x.registered %}<span class="tag">лише SMS</span>{% else %}—{% endif %}</td>
+  <td>{% if x.m360 %}<span class="tag">360{% if x.m360_score is not none %}: {{ '%g' % x.m360_score }}{% endif %}</span>{% endif %}{% if x.bmi %}<span class="tag">ІМТ</span>{% endif %}{% if x.hads %}<span class="tag">HADS</span>{% endif %}{% if not (x.m360 or x.bmi or x.hads) %}—{% endif %}</td>
+  <td>{% for m in x.free %}<span class="tag">{{ (MAT.get(m) or {}).get('title', m) }}</span>{% else %}—{% endfor %}</td>
+  <td>{{ (u(x.bought) ~ ' ₴') if x.bought else '—' }}</td>
+  <td>{% if x.came %}<span class="tag ok">прийшов{% if x.revenue %} · {{ u(x.revenue) }} ₴{% endif %}</span>{% elif x.booked %}<span class="tag">записаний</span>{% else %}—{% endif %}</td>
+  <td class="small muted">{{ x.utm[:60] if x.utm else '' }}</td></tr>
+{% else %}<tr><td colspan="8" class="muted">За період нікого.</td></tr>{% endfor %}</table></div>
+<p class="small muted" style="margin-top:8px">Результати тестів (ІМТ, HADS) тут не показуються — лише факт проходження; самі результати бачить пацієнт у своєму кабінеті. Старі реєстрації зі старого сервісу зʼявляться після переносу даних.</p></div>
+{% endblock %}

@@ -321,6 +321,12 @@ def _book(db: Session, pl: PayLink) -> None:
             _ob.fulfil(db, pl)
         except Exception as e:  # noqa: BLE001 — гроші вже прийшли: фіноперація нижче + адміністратор доробить вручну
             pl.info = {**(pl.info or {}), "order_error": str(e)[:300]}
+    if (pl.info or {}).get("dk_order"):                        # гайд на сайті Дарʼї Колган → доступ + нарахування Дарʼї
+        try:
+            from . import dr_kolgan as _dk
+            _dk.paid(db, pl)
+        except Exception as e:  # noqa: BLE001 — гроші вже прийшли: фіноперація нижче, доступ видасть адміністратор
+            pl.info = {**(pl.info or {}), "dk_error": str(e)[:300]}
     if pl.sale_id:
         s = db.get(Sale, pl.sale_id)
         if s and s.status == "awaiting" and not (s.fiscal or {}).get("term_wait"):

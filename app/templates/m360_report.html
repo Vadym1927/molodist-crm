@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Молодість 360 · Звіти{% endblock %}
+{% block body %}
+<style>
+.mr-k{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0}
+.mr-k>div,.mr-c{background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:12px 16px}.mr-k small{display:block;font:700 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#8a8496}
+.mr-k b{display:block;font:800 22px var(--sans);margin-top:4px}.mr-c{margin-bottom:14px}.mr-c h3{margin:0 0 10px;font:700 14px var(--sans);text-transform:uppercase;letter-spacing:.05em}
+.mr-g{display:grid;grid-template-columns:1fr 1fr;gap:14px}.bar{display:flex;align-items:center;gap:10px;margin:6px 0;font-size:13px}.bar i{display:block;height:8px;border-radius:99px;background:#5C4B82}
+.bar span{width:170px;flex:none}.bar em{font-style:normal;color:#6b6575;width:44px;text-align:right}
+.mr-t{width:100%;border-collapse:collapse;font-size:13px}.mr-t th{text-align:left;color:#8a8496;font-size:11px;text-transform:uppercase;padding:6px 8px;border-bottom:1px solid #ECE7E1}.mr-t td{padding:7px 8px;border-bottom:1px solid #F3EFEA}
+.tag{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11.5px;background:#F1EDE8}.tag.ok{background:#E4F2EA;color:#2f7a55}.tag.bad{background:#F9E5E2;color:#B23A32}
+@media(max-width:900px){.mr-k{grid-template-columns:repeat(2,minmax(0,1fr))}.mr-g{grid-template-columns:1fr}.bar span{width:120px}}
+</style>
+<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap">
+  <div><div class="eyebrow"><a href="/reports" style="color:inherit;text-decoration:none">← Усі звіти</a> · <a href="/reports/dr-kolgan" style="color:inherit">Сайт Дарʼї Колган</a></div>
+  <h1 style="margin:0">Молодість 360</h1><p class="small muted" style="margin:4px 0 0">{{ d_from.strftime('%d.%m.%Y') }} — {{ d_to.strftime('%d.%m.%Y') }} · пацієнти з тестом мають мітку «Тест 360»</p></div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap">{% for lbl, a, b in presets %}{% set on = a == d_from and b == d_to %}
+  <a href="?df={{ a }}&dt_={{ b }}" style="padding:6px 12px;border-radius:999px;font-size:13px;text-decoration:none;border:1px solid {{ '#3B3050' if on else '#E9E5DF' }};background:{{ '#3B3050' if on else '#fff' }};color:{{ '#fff' if on else '#2A2430' }}">{{ lbl }}</a>{% endfor %}</div></div>
+<div class="mr-k">
+  <div><small>Почали тест</small><b>{{ r.started }}</b></div>
+  <div><small>Завершили</small><b>{{ r.done }}</b><span class="small muted">{{ (100 * r.done // r.started) ~ '%' if r.started else '—' }}</span></div>
+  <div><small>Середній бал</small><b>{{ r.avg if r.avg is not none else '—' }}</b></div>
+  <div><small>Прийшли в клініку</small><b>{{ r.came_n }}</b><span class="small muted">після тесту</span></div>
+</div>
+<div class="mr-g">
+  <div class="mr-c"><h3>Середні бали за модулями</h3>{% for name, v in r.mods %}<div class="bar"><span>{{ name }}</span><i style="width:{{ (v * 18)|int }}px"></i><em>{{ v }}/10</em></div>{% else %}<p class="muted small">Ще немає завершених тестів.</p>{% endfor %}
+    <h3 style="margin-top:14px">Розподіл балів</h3>{% set mx = (r.bands|map(attribute=1)|max) or 1 %}{% for lbl, n in r.bands %}<div class="bar"><span>{{ lbl }}</span><i style="width:{{ (180 * n / mx)|int }}px"></i><em>{{ n }}</em></div>{% endfor %}</div>
+  <div class="mr-c"><h3>Найчастіші пріоритети</h3>{% set mr = (r.risks|map(attribute=1)|max) if r.risks else 1 %}{% for name, n in r.risks %}<div class="bar"><span>{{ name }}</span><i style="width:{{ (180 * n / mr)|int }}px"></i><em>{{ n }}</em></div>{% else %}<p class="muted small">—</p>{% endfor %}
+    <p class="small muted" style="margin-top:10px">Пріоритети — три найслабші фактори в кожній анкеті. Підказка для контенту Дарʼї й консультацій.</p></div>
+</div>
+<div class="mr-c"><h3>Анкети ({{ r.rows|length }})</h3><div style="overflow-x:auto"><table class="mr-t"><tr><th>Коли</th><th>Пацієнт</th><th>Бал</th><th>Модулі</th><th>Клініка</th><th></th></tr>
+{% for a in r.rows %}{% set p = r.pats.get(a.patient_id) %}<tr>
+  <td style="white-space:nowrap">{{ ((a.submitted_at or a.created_at)|local).strftime('%d.%m.%Y') }}</td>
+  <td>{% if p %}<a href="/patients/{{ p.id }}#t-m360">{{ p.full_name }}</a>{% else %}{{ a.first_name }} {{ a.last_name }}{% endif %}<div class="small muted">{{ a.phone }}</div></td>
+  <td>{% if a.status == 'completed' and a.overall_score is not none %}<span class="tag {{ 'ok' if a.overall_score >= 75 else ('bad' if a.overall_score < 60 else '') }}">{{ '%g' % a.overall_score }}</span>{% else %}<span class="tag">не завершив</span>{% endif %}</td>
+  <td class="small">{% for m in (a.result or {}).get('modules') or [] %}{{ m.module_name }} {{ m.module_score }}{{ ' · ' if not loop.last }}{% endfor %}</td>
+  <td>{% if r.came.get(a.patient_id) %}<span class="tag ok">прийшов</span>{% else %}—{% endif %}</td>
+  <td class="small">{% if a.status == 'completed' %}<a href="/_site/molodist-360/assets/pdfs/{{ a.token }}.pdf" target="_blank">PDF</a>{% endif %}</td></tr>
+{% else %}<tr><td colspan="6" class="muted">За період анкет немає.</td></tr>{% endfor %}</table></div></div>
+{% endblock %}

@@ -15,3 +15,4 @@ app/VERSION
 *.bak
 .venv-call-ai/
 /models/
+app/private/

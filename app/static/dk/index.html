@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Дарʼя Колган — послуги та гайди</title>
+<!-- GA4: behaviour analytics. No names, phones, e-mails or form values are sent. -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SX9D23L6TB"></script>
+<script>
+window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}
+gtag('js',new Date());
+gtag('config','G-SX9D23L6TB',{allow_google_signals:false,allow_ad_personalization_signals:false});
+window.__daryaTrack=(name,params)=>{if(typeof gtag==='function')gtag('event',name,Object.assign({site_section:'dr_kolgan'},params||{}));};
+window.__daryaTrack('drk_landing_view');
+window.addEventListener('scroll',()=>{const max=document.documentElement.scrollHeight-innerHeight,depth=max>0?Math.round(scrollY/max*100):100;[25,50,75,90].forEach(mark=>{const key='drk_scroll_'+mark;if(depth>=mark&&!sessionStorage.getItem(key)){sessionStorage.setItem(key,'1');window.__daryaTrack('drk_scroll_depth',{percent:mark});}});},{passive:true});
+document.addEventListener('click',event=>{const target=event.target.closest('a,button');if(!target)return;if(target.matches('[data-register]'))window.__daryaTrack('drk_register_open');if(target.matches('[data-consult]'))window.__daryaTrack('drk_consult_open');if(target.matches('[data-checkout],[data-buy-lifestyle]'))window.__daryaTrack('drk_checkout_open');});
+</script>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500&amp;family=Manrope:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F7F3EE}
+a{color:#4B3F5C}a:hover{color:#1E1B22}
+.wrap{max-width:1120px;margin:0 auto;padding:0 32px;box-sizing:border-box}
+.tag{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:#5E5468}
+.h2{font-family:Jost,sans-serif;font-weight:300;font-size:44px;line-height:1.1;margin:0;color:#1E1B22}
+.ph{background:repeating-linear-gradient(135deg,#DCD3E6 0 12px,#E4DCEC 12px 24px);display:flex;align-items:center;justify-content:center;color:#4B3F5C;font-size:14px;text-align:center}
+.card{background:#FFFFFF;border:1px solid #E5DEE9;border-radius:20px;box-sizing:border-box;overflow:hidden}
+.consult-mode{display:inline-flex;align-items:center;align-self:flex-start;gap:8px;padding:8px 12px;border-radius:999px;font-size:12px;line-height:1;letter-spacing:.11em;font-weight:700;white-space:nowrap}
+.consult-mode::before{content:'';width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:0 0 0 4px currentColor;opacity:.18}
+.consult-mode--online{background:#4B3F5C;color:#FFFFFF}
+.consult-mode--offline{background:#E8D5A6;color:#1E1B22}
+.promo-card{cursor:pointer;transition:transform .18s ease,box-shadow .18s ease}.promo-card img{cursor:pointer}.promo-card:hover,.promo-card:focus-visible{transform:translateY(-3px);box-shadow:0 14px 30px rgba(30,27,34,.12);outline:none}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 24px;border-radius:999px;text-decoration:none;font-weight:600;font-size:15px;box-sizing:border-box}
+.btn-dark{background:#1E1B22;color:#FFFFFF}.btn-dark:hover{background:#3A3342;color:#FFFFFF}
+.btn-line{border:1px solid #1E1B22;color:#1E1B22}
+.navlinks{display:flex;gap:24px;flex-wrap:wrap}
+.burger{display:none}
+.brand{display:none}
+.brand img{display:block;width:108px;height:auto}
+.hero-content{display:flex;flex-direction:column;align-items:center;gap:32px;text-align:center}
+.hero-text{display:flex;flex-direction:column;gap:10px;max-width:760px}
+.hero-mobile-placeholder{display:none}
+.hero-photo{display:block;width:100%;max-width:880px;height:min(112vw,460px);border-radius:22px;object-fit:cover;object-position:center top}
+.qa{border-top:1px solid #E5DEE9;padding:22px 0}
+.qa summary{cursor:pointer;font-weight:600;font-size:17px;list-style:none;display:flex;justify-content:space-between;gap:16px}
+.qa summary::-webkit-details-marker{display:none}
+@media (max-width:820px){.wrap{padding:0 16px}.h2{font-size:32px}.hero-name{font-size:44px !important}.hero-photo{height:min(112vw,460px)}.navlinks{display:none}.burger{display:inline-flex}.navlinks.nav-open{position:absolute;z-index:10;top:calc(100% + 1px);left:0;right:0;display:flex;flex-direction:column;gap:0;padding:10px 16px 16px;background:#F7F3EE;border-bottom:1px solid #E5DEE9;box-shadow:0 10px 24px rgba(30,27,34,.09)}.navlinks.nav-open a{padding:12px 0;font-size:16px;border-bottom:1px solid #E5DEE9}.navlinks.nav-open a:last-child{border-bottom:0}header .wrap{position:relative;min-height:62px!important}.card{border-radius:16px}.btn{min-height:46px}.consult-card-antiage{order:1}.consult-card-online{order:2}.system-modal{align-items:center;overflow-y:auto;overscroll-behavior:contain;padding:12px}.system-modal__box{box-sizing:border-box;width:100%;max-height:calc(100dvh - 24px);margin:auto;padding:24px 18px;overflow-y:auto;-webkit-overflow-scrolling:touch}.system-modal__actions{flex-direction:column}.system-modal__actions .btn{width:100%}}
+@media (min-width:821px){.brand{display:inline-flex;align-items:center;flex:0 0 auto}.hero-content{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,460px);align-items:center;gap:72px;text-align:left;min-height:540px}.hero-mobile-placeholder{display:none}.hero-text{order:1;max-width:540px}.hero-photo{display:block;order:2;width:100%;max-width:none;height:540px;border-radius:28px}.hero-name{font-size:68px!important}.brand img{width:122px}}
+</style>
+</helmet>
+<div style="font-family: Manrope, sans-serif; color: #1E1B22; background: #F7F3EE; font-size: 16px; line-height: 1.55">
+
+<header style="position: sticky; top: 0; z-index: 5; background: #F7F3EE; border-bottom: 1px solid #E5DEE9">
+<div class="wrap" style="display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 68px">
+<div style="display: flex; align-items: center; gap: 24px">
+<button type="button" class="burger btn btn-line" aria-label="Меню" style="min-height: 44px; width: 44px; padding: 0; background: transparent; font: inherit; cursor: pointer">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
+</button>
+<nav class="navlinks" aria-label="Навігація" style="font-size: 14px; font-weight: 500">
+<a href="#services" style="text-decoration: none">Гайди</a>
+<a href="#consults" style="text-decoration: none">Консультації</a>
+<a href="#free" style="text-decoration: none">Безкоштовно</a>
+<a href="#topics" style="text-decoration: none">З чим працюю</a>
+<a href="#faq" style="text-decoration: none">Питання</a>
+<a href="#media" style="text-decoration: none">Відео</a>
+<a href="#contacts" style="text-decoration: none">Контакти</a>
+</nav>
+</div>
+<a id="cabinet-link" href="/dr-kolgan/?login=1&amp;next=/dr-kolgan/cabinet/" class="btn btn-line" style="min-height: 44px; padding: 0 18px; font-size: 14px; gap: 8px">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"></path></svg>
+Вхід в кабінет</a>
+</div>
+</header>
+
+<section id="top" style="padding: 48px 0 72px">
+<div class="wrap hero-content">
+<div class="ph hero-mobile-placeholder">Ваше фото</div>
+<div class="hero-text">
+<h1 class="hero-name" style="font-family: Jost, sans-serif; font-weight: 300; font-size: 64px; line-height: 1; margin: 0; letter-spacing: -.01em">Дарʼя Колган</h1>
+<p style="margin: 6px 0 0; font-size: 20px; font-weight: 500">Лікар естетичної та профілактичної медицини</p>
+<p style="margin: 0; font-size: 18px; color: #4A4252">Дерматолог, дерматохірург</p>
+<p style="margin: 0; font-size: 16px; color: #4A4252">Засновниця і головний лікар клініки естетичної та профілактичної медицини MOLODIST</p>
+</div>
+<img class="hero-photo" src="./assets/darya-kolgan.jpg" alt="Дарʼя Колган — лікар естетичної та профілактичної медицини">
+</div>
+</section>
+
+<section id="services" style="padding: 72px 0; background: #E9E4F0">
+<div class="wrap" style="display: flex; flex-direction: column; gap: 36px">
+<div style="display: flex; flex-direction: column; gap: 12px"><div class="tag">[ онлайн-гайди ]</div><h2 class="h2">Ви можете скористатись послугами</h2></div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px">
+
+<article class="card promo-card" id="lifestyle-guide" data-promo-checkout="lifestyle-guide" tabindex="0" role="button" aria-label="Придбати гайд «Вплив способу життя на шкіру»" style="display: flex; flex-direction: column">
+<div style="background: #F1ECF5; padding: 16px; display: flex; flex-direction: column; gap: 10px"><div style="font-size: 12px; font-weight: 600; color: #4B3F5C">Фрагмент гайда · 42 сторінок, А5 · гортайте →</div><div style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px"><img src="./assets/c9752695f28f4f44ec33900b83afaf5f.jpg" alt="Сторінка 1 — обкладинка гайда «Вплив способу життя на шкіру і молодість»" style="flex: 0 0 auto; height: 200px; width: 141px; object-fit: cover; border-radius: 8px; box-shadow: 0 2px 10px rgba(30,27,34,.12)"><img src="./assets/2c37e3bba3bade38e53d99a414f0ec33.jpg" alt="Сторінка 3 — зміст гайда" style="flex: 0 0 auto; height: 200px; width: 141px; object-fit: cover; border-radius: 8px; box-shadow: 0 2px 10px rgba(30,27,34,.12)"><img src="./assets/f2b6019a73ab04dd0a8ac1e74c1f49e5.jpg" alt="Сторінка 2 — вступ від авторки" style="flex: 0 0 auto; height: 200px; width: 141px; object-fit: cover; border-radius: 8px; box-shadow: 0 2px 10px rgba(30,27,34,.12)"><img src="./assets/lifestyle-preview-07.jpg" alt="Сторінка 7 гайда" style="flex: 0 0 auto; height: 200px; width: 141px; object-fit: cover; border-radius: 8px; box-shadow: 0 2px 10px rgba(30,27,34,.12)"></div></div>
+<div style="padding: 22px; display: flex; flex-direction: column; gap: 10px; flex: 1">
+<span style="font-size: 11px; letter-spacing: .14em; font-weight: 700; color: #4B3F5C">ГАЙД</span>
+<h3 style="margin: 0; font-family: Jost, sans-serif; font-weight: 400; font-size: 22px; line-height: 1.2">Вплив способу життя на шкіру</h3>
+<p style="margin: 0; font-size: 15px; color: #4A4252">Як сон, харчування, рух, стрес і звички впливають на старіння шкіри — і на що можна вплинути вже сьогодні. Системний підхід на основі наукових даних і клінічних рекомендацій.</p>
+<ul style="margin: 0; padding-left: 18px; font-size: 14px; color: #4A4252; display: flex; flex-direction: column; gap: 3px"><li>як старіє шкіра</li><li>відновлення: сон, стрес, емоційний стан</li><li>харчування, водний баланс, фізична активність</li><li>дефіцити, гормони, шкідливі звички, сонцезахист і домашній догляд</li><li>тест, чекліст і трекер для практики</li></ul>
+<div style="margin-top: auto; display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; align-items: baseline; gap: 10px"><s data-promo-old-price style="font-size: 15px; font-weight: 500; color: #766E7C">1 500 грн</s><span data-promo-price style="font-size: 26px; font-weight: 700; color: #8A3B52">390 грн</span></div>
+<span data-promo-label style="font-size: 13px; font-weight: 600; color: #8A3B52">Акційна ціна до 30.11.2026 · доступ назавжди</span>
+</div>
+<div style="font-size: 13px; color: #4A4252; border-top: 1px solid #E5DEE9; padding-top: 10px">Після оплати гайд одразу зʼявиться у вашому особистому кабінеті — доступ назавжди</div>
+<button type="button" data-buy-lifestyle class="btn btn-dark" style="margin-top: 4px">Придбати</button>
+</div>
+</article>
+
+<article class="card promo-card" data-promo-checkout="full-checkup" tabindex="0" role="button" aria-label="Придбати гайд «Щорічний чек-ап»" style="display: flex; flex-direction: column">
+<div style="background: #F1ECF5; padding: 16px; display: flex; flex-direction: column; gap: 10px"><div style="font-size: 12px; font-weight: 600; color: #4B3F5C">Фрагмент гайда · 47 сторінок, А5 · гортайте →</div><div style="display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px"><img src="./assets/checkup-preview-01.jpg" alt="Сторінка 1 гайда «Щорічний чек-ап»" style="flex: 0 0 auto; height: 200px; width: 141px; object-fit: cover; border-radius: 8px; box-shadow: 0 2px 10px rgba(30,27,34,.12)"><img src="./assets/checkup-preview-04.jpg" alt="Сторінка 4 гайда «Щорічний чек-ап»" style="flex: 0 0 auto; height: 200px; width: 141px; object-fit: cover; border-radius: 8px; box-shadow: 0 2px 10px rgba(30,27,34,.12)"><img src="./assets/checkup-preview-05.jpg" alt="Сторінка 5 гайда «Щорічний чек-ап»" style="flex: 0 0 auto; height: 200px; width: 141px; object-fit: cover; border-radius: 8px; box-shadow: 0 2px 10px rgba(30,27,34,.12)"><img src="./assets/checkup-preview-11.jpg" alt="Сторінка 11 гайда «Щорічний чек-ап»" style="flex: 0 0 auto; height: 200px; width: 141px; object-fit: cover; border-radius: 8px; box-shadow: 0 2px 10px rgba(30,27,34,.12)"></div></div>
+<div style="padding: 22px; display: flex; flex-direction: column; gap: 10px; flex: 1">
+<span style="font-size: 11px; letter-spacing: .14em; font-weight: 700; color: #4B3F5C">ГАЙД</span>
+<h3 style="margin: 0; font-family: Jost, sans-serif; font-weight: 400; font-size: 22px; line-height: 1.2">Щорічний чек-ап</h3>
+<p style="margin: 0; font-size: 15px; color: #4A4252">Практичний путівник з профілактики: які обстеження проходити щороку, навіщо кожне і як підготуватися — без «здавати все підряд».</p>
+<ul style="margin: 0; padding-left: 18px; font-size: 14px; color: #4A4252; display: flex; flex-direction: column; gap: 3px"><li>оцінка ваших ризиків</li><li>аналізи та обстеження: що, навіщо, як часто</li><li>окремо для жінок і чоловіків</li><li>самоконтроль удома: тиск, пульс, щоденник здоровʼя</li><li>сторінки для ваших результатів і плану дій</li></ul>
+<div style="margin-top: auto; display: grid; gap: 10px; border-top: 1px solid #E5DEE9; padding-top: 12px">
+                    <div style="display:grid;gap:4px"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px"><span style="font-size:14px;font-weight:600">Гайд «Щорічний чек-ап»</span><span style="display:flex;align-items:baseline;gap:8px;white-space:nowrap"><s data-promo-old-price style="font-size:14px;color:#766e7c;font-weight:500">1 500 грн</s><span data-promo-price style="font-size:22px;font-weight:700;color:#8A3B52">390 грн</span></span></div><span data-promo-label style="font-size:13px;font-weight:600;color:#8A3B52">Акційна ціна до 30.11.2026</span></div>
+                    <div style="font-size:13px;color:#4A4252">Після оплати гайд зʼявиться у вашому особистому кабінеті — доступ назавжди, з усіма оновленнями.</div>
+                    <a href="#services" data-checkout="full-checkup" class="btn btn-dark">Придбати гайд · 390 грн</a>
+<div style="display:grid;gap:5px;padding-top:10px;border-top:1px solid #E5DEE9"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px"><span style="font-size:14px;font-weight:600">Гайд + особиста розшифровка аналізів</span><span style="font-size:22px;font-weight:700;white-space:nowrap">2 500 грн</span></div><div style="font-size:13px;color:#4A4252">Онлайн-консультація з Дарʼєю Колган: я подивлюся ваші результати, поясню, що вони означають, і що робити далі.<br><br>Після оплати гайд зʼявиться у вашому кабінеті. Надішліть результати обстежень і узгодьте зручний час з адміністратором.</div></div>
+</div>
+<div style="margin-top:4px"><a href="#services" data-checkout="checkup-consult" class="btn btn-dark" style="width:100%">Гайд + особиста розшифровка · 2 500 грн</a></div>
+</div>
+</article>
+
+</div>
+</div>
+</section>
+
+<section id="consults" style="padding: 72px 0; background: #FFFFFF">
+<div class="wrap" style="display: flex; flex-direction: column; gap: 36px">
+<div style="display: flex; flex-direction: column; gap: 12px"><div class="tag">[ консультації ]</div><h2 class="h2">Персональний Beauty Plan</h2></div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; align-items: start">
+
+<article class="card consult-card-online" style="padding: 30px; display: flex; flex-direction: column; gap: 16px; background: #F7F3EE">
+<span class="consult-mode consult-mode--online">ОНЛАЙН · ДО ПРИЇЗДУ</span>
+<h3 style="margin: 0; font-family: Jost, sans-serif; font-weight: 400; font-size: 30px; line-height: 1.1">Beauty Plan Anti-Age Intensive</h3>
+<p style="margin: 0; color: #4A4252">Для тих, хто хоче приїхати в MOLODIST уже з готовим персональним планом. Підходить, якщо ви живете за кордоном, в іншому місті або маєте щільний графік.</p>
+<div style="font-weight: 700">Під час онлайн-консультації ми:</div>
+<ul style="margin: 0; padding-left: 20px; color: #4A4252; display: flex; flex-direction: column; gap: 4px">
+<li>аналізуємо ваш запит і бажаний результат</li>
+<li>розбираємо попередній досвід догляду та процедур</li>
+<li>оцінюємо стан шкіри за фото та відео</li>
+<li>визначаємо пріоритетні задачі</li>
+<li>формуємо стратегію процедур і домашнього догляду</li>
+</ul>
+<div style="border-top: 1px solid #E5DEE9; padding-top: 14px">
+<div style="font-weight: 600">Що ви отримаєте до приїзду</div>
+<ul style="margin: 12px 0 0; padding-left: 20px; color: #4A4252; display: flex; flex-direction: column; gap: 4px">
+<li>які процедури варто пройти і в якій послідовності</li>
+<li>що можна поєднати в один візит</li>
+<li>які процедури потребують інтервалів</li>
+<li>що підготувати до приїзду</li>
+<li>як працювати зі шкірою між візитами</li>
+</ul>
+<p style="margin: 12px 0 0; color: #4A4252">В клініці ми проводимо апаратну діагностику на експертному аналізаторі й за потреби коригуємо план.</p>
+</div>
+<div style="background: #FFFFFF; border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 12px; font-size: 15px"><div style="font-weight: 700">Додатково ви отримуєте</div><ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px"><li style="display: flex; gap: 10px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4B3F5C" stroke-width="1.6" aria-hidden="true" style="flex: 0 0 auto; margin-top: 2px"><path d="M5 12l5 5 9-10"></path></svg><span>Доступ до Боту турботи MOLODIST</span></li><li style="display: flex; gap: 10px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4B3F5C" stroke-width="1.6" aria-hidden="true" style="flex: 0 0 auto; margin-top: 2px"><path d="M5 12l5 5 9-10"></path></svg><span>Спеціальні пропозиції від партнерів MOLODIST</span></li><li style="display: flex; gap: 10px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4B3F5C" stroke-width="1.6" aria-hidden="true" style="flex: 0 0 auto; margin-top: 2px"><path d="M5 12l5 5 9-10"></path></svg><span>−10% на перше замовлення косметики в MOLODIST SHOP</span></li><li style="display: flex; gap: 10px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4B3F5C" stroke-width="1.6" aria-hidden="true" style="flex: 0 0 auto; margin-top: 2px"><path d="M5 12l5 5 9-10"></path></svg><span>Супровід лікаря</span></li></ul><details style="border-top: 1px solid #E5DEE9; padding-top: 12px"><summary style="cursor: pointer; font-weight: 600">Що входить у супровід</summary><ul style="margin: 10px 0 0; padding-left: 20px; color: #4A4252; display: flex; flex-direction: column; gap: 4px"><li>відповіді на ваші питання щодо плану, догляду та процедур</li><li>дистанційна корекція рекомендацій у процесі лікування</li><li>якщо для рішення потрібен очний огляд — лікар повідомить про це та запропонує повторну консультацію</li></ul></details></div>
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-top: 4px"><span style="font-size: 26px; font-weight: 700">3500 грн</span><a href="#consults" data-consult="Beauty Plan Anti-Age Intensive" class="btn btn-dark">Записатися онлайн</a></div>
+</article>
+
+<article class="card consult-card-antiage" style="padding: 30px; display: flex; flex-direction: column; gap: 16px; background: #1E1B22; color: #FFFFFF; border-color: #1E1B22">
+<span class="consult-mode consult-mode--offline">ОЧНО · MOLODIST</span>
+<h3 id="anti-age" style="margin: 0; font-family: Jost, sans-serif; font-weight: 400; font-size: 30px; line-height: 1.1; scroll-margin-top: 120px">Beauty Plan Anti-Age</h3>
+<p style="margin: 0; color: #D8D2DE">Консультація, після якої зникає хаос beauty-порад, міфів і маркетингу. Персональна стратегія збереження молодості з баченням на 10 років уперед — без зайвих процедур і експериментів.</p>
+<div style="font-weight: 700">Під час консультації ми оцінюємо:</div>
+<ul style="margin: 0; padding-left: 20px; color: #D8D2DE; display: flex; flex-direction: column; gap: 4px">
+<li>стан шкіри, досвід догляду та процедур, спосіб життя</li>
+<li>тип шкіри, тип старіння, рівень мімічної активності</li>
+<li>апаратна діагностика обличчя, шиї, декольте та кистей рук</li>
+</ul>
+<div style="border-top: 1px solid #3A3342; padding-top: 14px">
+<div style="font-weight: 600">Що ви отримаєте</div>
+<ul style="margin: 12px 0 0; padding-left: 20px; color: #D8D2DE; display: flex; flex-direction: column; gap: 4px">
+<li>план процедур: що, коли, скільки і з якими інтервалами</li>
+<li>план домашнього догляду</li>
+<li>рекомендації щодо способу життя</li>
+<li>розуміння, що робити зараз і що стане актуальним у майбутньому</li>
+<li>які методики дадуть найбільший результат саме вам</li>
+<li>на що не варто витрачати час і кошти</li>
+</ul>
+</div>
+<div style="background: #2B2631; border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 12px; font-size: 15px"><div style="font-weight: 700">Додатково ви отримуєте</div><ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px"><li style="display: flex; gap: 10px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C9C0D3" stroke-width="1.6" aria-hidden="true" style="flex: 0 0 auto; margin-top: 2px"><path d="M5 12l5 5 9-10"></path></svg><span>Доступ до Боту турботи MOLODIST</span></li><li style="display: flex; gap: 10px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C9C0D3" stroke-width="1.6" aria-hidden="true" style="flex: 0 0 auto; margin-top: 2px"><path d="M5 12l5 5 9-10"></path></svg><span>Спеціальні пропозиції від партнерів MOLODIST</span></li><li style="display: flex; gap: 10px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C9C0D3" stroke-width="1.6" aria-hidden="true" style="flex: 0 0 auto; margin-top: 2px"><path d="M5 12l5 5 9-10"></path></svg><span>−10% на перше замовлення косметики в MOLODIST SHOP</span></li><li style="display: flex; gap: 10px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C9C0D3" stroke-width="1.6" aria-hidden="true" style="flex: 0 0 auto; margin-top: 2px"><path d="M5 12l5 5 9-10"></path></svg><span>Супровід лікаря</span></li></ul><details style="border-top: 1px solid #3A3342; padding-top: 12px"><summary style="cursor: pointer; font-weight: 600">Що входить у супровід</summary><ul style="margin: 10px 0 0; padding-left: 20px; color: #D8D2DE; display: flex; flex-direction: column; gap: 4px"><li>відповіді на ваші питання щодо плану, догляду та процедур</li><li>дистанційна корекція рекомендацій у процесі лікування</li><li>якщо для рішення потрібен очний огляд — лікар повідомить про це та запропонує повторну консультацію</li></ul></details></div>
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-top: 4px"><span style="font-size: 26px; font-weight: 700">3500 грн</span><a href="#consults" data-consult="Beauty Plan Anti-Age" class="btn" style="background: #FFFFFF; color: #1E1B22">Залишити заявку</a></div>
+</article>
+
+</div>
+</div>
+</section>
+
+<section id="free" style="padding: 72px 0">
+<div class="wrap" style="display: flex; flex-direction: column; gap: 36px">
+<div style="display: flex; flex-direction: column; gap: 12px"><div class="tag">[ безкоштовно ]</div><h2 class="h2">Безкоштовні продукти</h2></div>
+
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div style="font-weight: 700; font-size: 18px">Тести</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px">
+<a href="#free" class="card" style="text-decoration: none; color: #1E1B22; padding: 22px; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 88px"><span style="font-weight: 600; font-size: 17px">Тест «Молодість 360»</span><span style="font-size: 14px; color: #4B3F5C; white-space: nowrap">Пройти →</span></a>
+<a href="#free" class="card" style="text-decoration: none; color: #1E1B22; padding: 22px; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 88px"><span style="font-weight: 600; font-size: 17px">Тест на тривогу та депресію</span><span style="font-size: 14px; color: #4B3F5C; white-space: nowrap">Пройти →</span></a>
+<a href="#free" class="card" style="text-decoration: none; color: #1E1B22; padding: 22px; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 88px"><span style="font-weight: 600; font-size: 17px">Індекс маси тіла</span><span style="font-size: 14px; color: #4B3F5C; white-space: nowrap">Розрахувати →</span></a>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 14px">
+<div style="font-weight: 700; font-size: 18px">Міні-гайди</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px">
+<a href="#free" class="card" style="text-decoration: none; color: #1E1B22; padding: 16px; display: flex; gap: 16px; align-items: center"><img src="./assets/e3d26b3c68bd3db01e5359c404851f85.jpg" alt="" style="width: 76px; height: 108px; object-fit: cover; border-radius: 6px; border: 1px solid #E5DEE9; flex: 0 0 auto"><span style="display: flex; flex-direction: column; gap: 8px"><span style="font-weight: 600; font-size: 16px; line-height: 1.3">Порівняйте свою їжу з «Тарілкою здорового харчування»</span><span style="font-size: 14px; color: #4B3F5C">Отримати безкоштовно →</span></span></a>
+<a href="#free" class="card" style="text-decoration: none; color: #1E1B22; padding: 16px; display: flex; gap: 16px; align-items: center"><img src="./assets/30e7cbcf20d84c87bb62d979e373af18.jpg" alt="" style="width: 76px; height: 108px; object-fit: cover; border-radius: 6px; border: 1px solid #E5DEE9; flex: 0 0 auto"><span style="display: flex; flex-direction: column; gap: 8px"><span style="font-weight: 600; font-size: 16px; line-height: 1.3">Як зрозуміти, що родимку потрібно перевірити: правило ABCDE</span><span style="font-size: 14px; color: #4B3F5C">Отримати безкоштовно →</span></span></a>
+<a href="#free" class="card" style="text-decoration: none; color: #1E1B22; padding: 16px; display: flex; gap: 16px; align-items: center"><img src="./assets/c805d3ec29a13ce36a7519dd88f2fddd.jpg" alt="" style="width: 76px; height: 108px; object-fit: cover; border-radius: 6px; border: 1px solid #E5DEE9; flex: 0 0 auto"><span style="display: flex; flex-direction: column; gap: 8px"><span style="font-weight: 600; font-size: 16px; line-height: 1.3">Покрокова самодіагностика: як і коли оглядати груди</span><span style="font-size: 14px; color: #4B3F5C">Отримати безкоштовно →</span></span></a>
+</div>
+</div>
+</div>
+</section>
+
+<section id="topics" style="padding: 72px 0; background: #FFFFFF">
+<div class="wrap" style="display: flex; flex-direction: column; gap: 32px">
+<h2 class="h2">З якими питаннями я працюю</h2>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px"><div style="background: #F7F3EE; border-radius: 20px; padding: 26px; display: flex; flex-direction: column; gap: 12px"><span style="font-family: Jost, sans-serif; font-size: 32px; font-weight: 300; color: #5E5468">01</span><span style="font-weight: 600; font-size: 19px">Профілактика старіння шкіри</span><span style="font-size: 15px; color: #4A4252">Персональна стратегія збереження молодості на роки вперед — без зайвих процедур і експериментів.</span><a href="#anti-age" style="margin-top: auto; font-size: 14px; font-weight: 600">Записатися на Beauty Plan Anti-Age →</a></div><div style="background: #F7F3EE; border-radius: 20px; padding: 26px; display: flex; flex-direction: column; gap: 12px"><span style="font-family: Jost, sans-serif; font-size: 32px; font-weight: 300; color: #5E5468">02</span><span style="font-weight: 600; font-size: 19px">Пігментація та судини</span><span style="font-size: 15px; color: #4A4252">Робота з пігментними плямами, почервонінням і судинними проявами на обличчі.</span><a href="#anti-age" style="margin-top: auto; font-size: 14px; font-weight: 600">Записатися на Beauty Plan Anti-Age →</a></div><div style="background: #F7F3EE; border-radius: 20px; padding: 26px; display: flex; flex-direction: column; gap: 12px"><span style="font-family: Jost, sans-serif; font-size: 32px; font-weight: 300; color: #5E5468">03</span><span style="font-weight: 600; font-size: 19px">Естетичні корекції</span><span style="font-size: 15px; color: #4A4252">Процедури за персональним планом — у правильній послідовності та з потрібними інтервалами.</span><div style="display: flex; flex-wrap: wrap; gap: 6px"><span style="background: #FFFFFF; border: 1px solid #E5DEE9; border-radius: 999px; padding: 4px 12px; font-size: 13px">ботулінотерапія</span><span style="background: #FFFFFF; border: 1px solid #E5DEE9; border-radius: 999px; padding: 4px 12px; font-size: 13px">контурна пластика губ</span><span style="background: #FFFFFF; border: 1px solid #E5DEE9; border-radius: 999px; padding: 4px 12px; font-size: 13px">верхня та нижня третина обличчя</span><span style="background: #FFFFFF; border: 1px solid #E5DEE9; border-radius: 999px; padding: 4px 12px; font-size: 13px">біоревіталізація</span><span style="background: #FFFFFF; border: 1px solid #E5DEE9; border-radius: 999px; padding: 4px 12px; font-size: 13px">мезотерапія</span><span style="background: #FFFFFF; border: 1px solid #E5DEE9; border-radius: 999px; padding: 4px 12px; font-size: 13px">IPL</span><span style="background: #FFFFFF; border: 1px solid #E5DEE9; border-radius: 999px; padding: 4px 12px; font-size: 13px">RF-ліфтинг</span></div><a href="#anti-age" style="margin-top: auto; font-size: 14px; font-weight: 600">Записатися на Beauty Plan Anti-Age →</a></div><div style="background: #F7F3EE; border-radius: 20px; padding: 26px; display: flex; flex-direction: column; gap: 12px"><span style="font-family: Jost, sans-serif; font-size: 32px; font-weight: 300; color: #5E5468">04</span><span style="font-weight: 600; font-size: 19px">Профілактичні чек-апи</span><span style="font-size: 15px; color: #4A4252">Які обстеження проходити щороку, навіщо і як розшифрувати результати.</span><a href="#checkup-consult" style="margin-top: auto; font-size: 14px; font-weight: 600">Гайд «Щорічний чек-ап» + консультація →</a></div></div>
+</div>
+</section>
+
+<section id="faq" style="padding: 72px 0">
+<div class="wrap" style="display: flex; flex-direction: column; gap: 32px; max-width: 880px">
+<h2 class="h2">Питання — відповідь</h2>
+<div style="display: flex; flex-direction: column"><div class="tag" style="padding-bottom: 8px">Гайди</div><div style="border-bottom: 1px solid #E5DEE9"><details class="qa"><summary>Як отримати гайд після оплати? <span aria-hidden="true">+</span></summary><p style="margin: 12px 0 0; color: #4A4252">Гайд одразу зʼявиться у вашому особистому кабінеті на сайті.</p></details><details class="qa"><summary>Чи можна завантажити гайд? <span aria-hidden="true">+</span></summary><p style="margin: 12px 0 0; color: #4A4252">Гайд залишається у вашому особистому кабінеті назавжди — ви можете повертатися до нього будь-коли. Завантажити файл не можна.</p></details><details class="qa"><summary>Чи замінює гайд консультацію лікаря? <span aria-hidden="true">+</span></summary><p style="margin: 12px 0 0; color: #4A4252">Ні. Гайд допомагає зорієнтуватися і підготуватися, а індивідуальні рішення лікар приймає на консультації.</p></details></div></div><div style="display: flex; flex-direction: column"><div class="tag" style="padding-bottom: 8px">Консультації</div><div style="border-bottom: 1px solid #E5DEE9"><details class="qa"><summary>Чим Beauty Plan Intensive відрізняється від Anti-Age? <span aria-hidden="true">+</span></summary><p style="margin: 12px 0 0; color: #4A4252">Intensive — онлайн-консультація: ми знайомимося дистанційно й формуємо план до вашого приїзду. У клініці проводимо апаратну діагностику і за потреби коригуємо план. Anti-Age — очна консультація в MOLODIST з апаратною діагностикою одразу.</p></details><details class="qa"><summary>Як записатися? <span aria-hidden="true">+</span></summary><p style="margin: 12px 0 0; color: #4A4252">На консультацію Beauty Plan залиште заявку — адміністратор звʼяжеться з вами й підбере час. На розшифровку аналізів: придбайте гайд «Щорічний чек-ап + розшифровка», надішліть обстеження та узгодьте час з адміністратором.</p></details><details class="qa"><summary>Як підготуватися до консультації? <span aria-hidden="true">+</span></summary><p style="margin: 12px 0 0; color: #4A4252">Перед консультацією — онлайн чи очною — ви заповнюєте анкету та додаєте фото. Посилання на анкету надсилає адміністратор після запису.</p></details><details class="qa"><summary>Я живу в іншому місті або за кордоном. Що обрати? <span aria-hidden="true">+</span></summary><p style="margin: 12px 0 0; color: #4A4252">Beauty Plan Intensive: знайомимося онлайн, а в клініку ви приїжджаєте вже з готовим планом.</p></details></div></div>
+</div>
+</section>
+
+<section id="media" style="padding: 72px 0; background: #E9E4F0">
+<div class="wrap" style="display: flex; flex-direction: column; gap: 32px">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 20px">
+<h2 class="h2">Відео та соцмережі</h2>
+<div style="display: flex; gap: 10px; flex-wrap: wrap">
+<a href="https://www.instagram.com/dr.darya_kolgan/" class="btn btn-line" target="_blank" rel="noopener" style="gap: 8px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"></rect><circle cx="12" cy="12" r="4"></circle><circle cx="17.5" cy="6.5" r=".8" fill="currentColor" stroke="none"></circle></svg>Instagram</a>
+<a href="https://t.me/molodist_ua" class="btn btn-line" target="_blank" rel="noopener" style="gap: 8px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="m21 4-3.2 15.2-5.7-4.1-3.2 2.9.5-4.5 8.1-7.4-10 6.1L3 10.5 21 4Z"></path></svg>Telegram</a>
+<a href="https://www.youtube.com/@Molodist_TV" class="btn btn-dark" target="_blank" rel="noopener" style="gap: 8px"><svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.6 7.2a2.9 2.9 0 0 0-2-2C17.8 4.7 12 4.7 12 4.7s-5.8 0-7.6.5a2.9 2.9 0 0 0-2 2A30 30 0 0 0 2 12a30 30 0 0 0 .4 4.8 2.9 2.9 0 0 0 2 2c1.8.5 7.6.5 7.6.5s5.8 0 7.6-.5a2.9 2.9 0 0 0 2-2A30 30 0 0 0 22 12a30 30 0 0 0-.4-4.8ZM10 15.3V8.7l5.5 3.3-5.5 3.3Z"></path></svg>YouTube</a>
+</div>
+</div>
+<div style="display: grid; grid-template-columns: minmax(0, 760px); gap: 20px">
+<article style="display: flex; flex-direction: column; gap: 12px"><div style="overflow: hidden; border-radius: 18px; background: #1E1B22; aspect-ratio: 16 / 9"><iframe title="Подкаст про молодість і старіння — Molodist.Talks" src="https://www.youtube-nocookie.com/embed/lWg7yROoy78" style="display: block; width: 100%; height: 100%; border: 0" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></div><span style="font-weight: 600">Подкаст про молодість і старіння · Molodist.Talks</span></article>
+</div>
+</div>
+</section>
+
+<footer id="contacts" style="background: #1E1B22; color: #D8D2DE; padding: 56px 0 36px; font-size: 14px">
+<div class="wrap" style="display: flex; flex-direction: column; gap: 32px">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 32px">
+<div style="flex: 1 1 220px; display: flex; flex-direction: column; gap: 10px"><div style="font-family: Jost, sans-serif; font-size: 22px; color: #FFFFFF">Дарʼя Колган</div><div>Засновниця клініки MOLODIST</div></div>
+<div style="flex: 1 1 220px; display: flex; flex-direction: column; gap: 6px"><div style="color: #FFFFFF; font-weight: 600">Реквізити</div><div>ФОП Колган Дарʼя Олександрівна</div><div>ЄДРПОУ 3474905024</div></div>
+<div style="flex: 1 1 250px; display: flex; flex-direction: column; gap: 6px"><div style="color: #FFFFFF; font-weight: 600">Ліцензія</div><div>Ліцензія МОЗ України на провадження господарської діяльності з медичної практики</div><div>Наказ №249 від 08.02.2023</div></div>
+<div style="flex: 1 1 240px; display: flex; flex-direction: column; gap: 6px"><div style="color: #FFFFFF; font-weight: 600">Контакти</div><div>Київ, ЖК «Автограф», вул. Князя Романа Мстиславича, 28А</div><a href="tel:+380933756437" style="color: #D8D2DE">+38 (093) 375 64 37</a><a href="mailto:info.molodostua@gmail.com" style="color: #D8D2DE">info.molodostua@gmail.com</a></div>
+</div>
+<iframe title="Карта — клініка MOLODIST" src="https://www.google.com/maps?q=%D0%9A%D0%B8%D1%97%D0%B2%2C%20%D0%B2%D1%83%D0%BB.%20%D0%9A%D0%BD%D1%8F%D0%B7%D1%8F%20%D0%A0%D0%BE%D0%BC%D0%B0%D0%BD%D0%B0%20%D0%9C%D1%81%D1%82%D0%B8%D1%81%D0%BB%D0%B0%D0%B2%D0%B8%D1%87%D0%B0%2C%2028%D0%90&amp;z=16&amp;output=embed" width="100%" height="260" style="display:block;border:0;border-radius:16px" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; border-top: 1px solid #3A3342; padding-top: 22px; color: #A99FB3"><span>© 2026 · ФОП Колган Дарʼя Олександрівна</span><a href="/dr-kolgan/privacy/" style="color: #A99FB3">Політика конфіденційності</a><a href="https://t.me/VBond88" target="_blank" rel="noopener noreferrer" style="color: #A99FB3">Розроблено @VBond88</a></div>
+</div>
+</footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":6600}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+const promoEndsAt = Date.parse('2026-11-30T23:59:59+02:00');
+if (Date.now() > promoEndsAt) {
+  document.querySelectorAll('[data-promo-price]').forEach((node) => {
+    node.textContent = '1 500 грн';
+    node.style.color = '';
+  });
+  document.querySelectorAll('[data-promo-old-price], [data-promo-label]').forEach((node) => node.remove());
+}
+</script>
+<style>
+.system-modal{position:fixed;inset:0;z-index:100;display:none;place-items:center;padding:18px;background:rgba(30,27,34,.7);backdrop-filter:blur(4px)}.system-modal[data-open="true"]{display:grid}.system-modal__box{box-sizing:border-box;width:min(100%,430px);padding:28px;border-radius:20px;background:#fff;box-shadow:0 24px 72px rgba(30,27,34,.3)}.system-modal__box h2{margin:0 36px 18px 0;font:400 28px/1.1 Jost,sans-serif}.system-modal__close{float:right;border:0;background:transparent;font-size:28px;cursor:pointer}.system-modal label{display:grid;gap:6px;margin:12px 0;font-size:13px;color:#4a4252}.system-modal input,.system-modal textarea{box-sizing:border-box;width:100%;border:1px solid #1e1b22;border-radius:12px;padding:12px;font:16px Manrope,sans-serif}.system-modal textarea{min-height:94px;resize:vertical}.system-modal__note{margin:12px 0 0;color:#5e5468;font-size:13px}.system-modal__error{color:#a1334c}.system-modal__actions{display:flex;gap:10px;margin-top:18px}.system-modal__actions .btn{border:0}.system-modal__actions .btn-line{border:1px solid #1e1b22;background:#fff}.is-hidden{display:none!important}
+</style>
+<style>.phone-field{display:flex;align-items:center;gap:8px;border:1px solid #1e1b22;border-radius:12px;padding:0 12px;background:#fff}.phone-prefix{font:600 16px Manrope,sans-serif;white-space:nowrap}.system-modal .phone-field input{width:100%;min-width:0;border:0;border-radius:0;padding:12px 0;outline:0}.consult-format{margin:14px 0;padding:0;border:0}.consult-format legend{margin-bottom:8px;font-size:13px;color:#4a4252}.consult-format__choices{display:flex;flex-wrap:wrap;gap:8px}.system-modal .consult-format label{display:flex;align-items:center;gap:6px;margin:0;padding:9px 10px;border:1px solid #1e1b22;border-radius:999px;font-size:13px;color:#1e1b22}.system-modal .consult-format input{width:16px;height:16px;margin:0;padding:0}</style>
+<style>.system-modal{background:rgba(26,22,29,.62);backdrop-filter:blur(9px)}.system-modal__box{border:1px solid rgba(255,255,255,.78);border-radius:24px;padding:30px;background:#fffdfc;box-shadow:0 28px 80px rgba(20,15,24,.3)}.system-modal__box h2{font-size:30px;letter-spacing:-.025em}.system-modal__close{color:#6e5d78;line-height:1}.system-modal label{margin:14px 0 0;font-size:13px;color:#5e5364}.system-modal input,.system-modal textarea{border-color:#d9d1dc;background:#fff;transition:border-color .2s,box-shadow .2s}.system-modal input:focus,.system-modal textarea:focus{border-color:#8c7a98;box-shadow:0 0 0 3px rgba(140,122,152,.14);outline:0}.phone-field{border-color:#d9d1dc;background:#fff;gap:10px}.phone-prefix{color:#5d4a68;letter-spacing:.02em}.consult-format{margin:18px 0 0}.consult-format legend{font-weight:500;color:#5e5364}.consult-format__choices{gap:9px}.system-modal .consult-format label{padding:10px 13px;border-color:#d9d1dc;background:#fff;color:#4e4353;transition:background .2s,border-color .2s,color .2s}.system-modal .consult-format input{appearance:none;width:15px;height:15px;border:1.5px solid #a79bab;border-radius:50%;background:#fff}.system-modal .consult-format input:checked{border-color:#685272;box-shadow:inset 0 0 0 3px #fff;background:#685272}.system-modal .consult-format label:has(input:checked){border-color:#685272;background:#f2edf4;color:#34293a}.system-modal input[type="checkbox"]{accent-color:#685272}.system-modal__actions{margin-top:22px}.system-modal__actions .btn{min-height:56px;border-radius:999px;box-shadow:none}.system-modal__note{line-height:1.45}@media(max-width:600px){.system-modal{padding:12px}.system-modal__box{width:min(100%,470px);max-height:calc(100dvh - 24px);overflow-y:auto;padding:26px 22px 24px}.system-modal__box h2{font-size:29px;line-height:1.05;margin-bottom:22px}.system-modal__close{font-size:30px}.system-modal textarea{min-height:100px}}</style>
+<div class="system-modal" id="login-modal" role="dialog" aria-modal="true" aria-labelledby="login-title"><div class="system-modal__box"><button class="system-modal__close" type="button" aria-label="Закрити">×</button><h2 id="login-title">Вхід у кабінет</h2><form id="login-phone-form"><label>Телефон<input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+380 XX XXX XX XX" required></label><div class="system-modal__actions"><button class="btn btn-dark" type="submit">Надіслати SMS-код</button></div></form><form id="login-code-form" class="is-hidden"><p class="system-modal__note" id="login-phone-value"></p><label>Код із SMS<input name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required></label><div class="system-modal__actions"><button class="btn btn-dark" type="submit">Підтвердити</button><button class="btn btn-line" type="button" data-login-back>Змінити номер</button></div></form><form id="profile-form" class="is-hidden"><label>Імʼя<input name="firstName" autocomplete="given-name" required></label><label>Прізвище<input name="lastName" autocomplete="family-name" required></label><label>Email<input name="email" type="email" autocomplete="email" required></label><label>Дата народження<input name="birthDate" type="date" required></label><label>Стать<select name="gender" required><option value="">Оберіть</option><option value="Жінка">Жінка</option><option value="Чоловік">Чоловік</option><option value="Інше">Інше</option></select></label><div class="system-modal__actions"><button class="btn btn-dark" type="submit">Створити кабінет</button></div></form><p id="login-message" class="system-modal__note" aria-live="polite"></p></div></div>
+<style>.system-modal__box{width:min(calc(100% - 36px),520px);padding:36px}.system-modal__box h2{font-size:34px;line-height:1.08;margin-bottom:26px}.system-modal label{gap:8px;margin-top:16px;font-size:14px}.system-modal input,.system-modal textarea{border-radius:14px;padding:14px 15px;font-size:16px}.system-modal textarea{min-height:112px}.phone-field{border-radius:14px;padding:0 15px}.system-modal .phone-field input{padding:14px 0}.consult-format{margin-top:22px}.consult-format legend{font-size:14px;margin-bottom:10px}.consult-format__choices{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.system-modal .consult-format label{justify-content:center;padding:12px 9px;font-size:14px}.system-modal label:has(input[type="checkbox"]){display:block;margin-top:22px}.system-modal label:has(input[type="checkbox"]) > span{display:flex;align-items:center;gap:11px;color:#4e4353;line-height:1.35}.system-modal input[type="checkbox"]{appearance:none;width:21px;height:21px;min-width:21px;padding:0;margin:0;border:1.5px solid #b7aebe;border-radius:6px;background:#fff;cursor:pointer}.system-modal input[type="checkbox"]:checked{border-color:#685272;background:#685272;box-shadow:inset 0 0 0 4px #685272}.system-modal input[type="checkbox"]:checked::after{content:"✓";display:block;color:#fff;font-size:15px;font-weight:700;line-height:18px;text-align:center}.system-modal__actions{margin-top:26px}.system-modal__actions .btn{width:100%;min-height:58px;font-size:15px}.system-modal__note{margin-top:14px}@media(max-width:600px){.system-modal__box{width:min(calc(100% - 24px),520px);padding:26px 22px 24px}.system-modal__box h2{font-size:30px}.consult-format__choices{grid-template-columns:1fr}.system-modal .consult-format label{justify-content:flex-start;padding:12px 14px}}</style>
+<div class="system-modal" id="consult-modal" role="dialog" aria-modal="true" aria-labelledby="consult-title"><div class="system-modal__box"><button class="system-modal__close" type="button" aria-label="Закрити">×</button><h2 id="consult-title">Запис на консультацію</h2><form id="consult-form"><input name="website" class="is-hidden" tabindex="-1" autocomplete="off"><label>Імʼя<input name="name" autocomplete="name" required></label><label>Телефон<span class="phone-field"><span class="phone-prefix">+38</span><input name="phone" type="tel" inputmode="numeric" autocomplete="tel-national" maxlength="10" placeholder="0XX XXX XX XX" required></span></label><label>Ваш запит<textarea name="concern" required></textarea></label><fieldset class="consult-format"><legend>Формат консультації</legend><div class="consult-format__choices"><label><input name="format" type="radio" value="Онлайн" required>Онлайн</label><label><input name="format" type="radio" value="Очно">Очно</label><label><input name="format" type="radio" value="Супровід">Супровід</label></div></fieldset><label><span><input name="privacyConsent" type="checkbox" required> Погоджуюсь на обробку персональних даних</span></label><div class="system-modal__actions"><button class="btn btn-dark" type="submit">Надіслати заявку</button></div></form><p id="consult-message" class="system-modal__note" aria-live="polite"></p></div></div>
+<script>
+(() => {
+  const api = '/dr-kolgan/api/auth/';
+  let phone = '', pending = null, consultationOpenedAt = 0;
+  const $ = (s) => document.querySelector(s);
+  const modal = (id, show) => $(id).dataset.open = show ? 'true' : 'false';
+  const message = (id, text, error = false) => { const el = $(id); el.textContent = text; el.classList.toggle('system-modal__error', error); };
+  const normalPhone = (value) => { const digits = String(value || '').replace(/\D/g, '').replace(/^380/, ''); return digits.length === 9 ? '+380' + digits : ''; };
+  const call = async (path, body) => { const r = await fetch(api + path, {method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); const data = await r.json().catch(() => ({})); if (!r.ok) throw new Error(data.error || 'Спробуйте ще раз.'); return data; };
+  const checkout = async (productId = 'full-checkup') => { const me = await fetch(api + 'me',{credentials:'same-origin'}); if (!me.ok) { pending = `checkout:${productId}`; modal('#login-modal',true); return; } const payment = await call('payments/monobank/create',{productId}); window.__daryaTrack?.('drk_invoice_created',{product_id:productId}); const form = document.createElement('form'); form.method='POST'; form.action=payment.checkoutUrl; Object.entries(payment.fields || {}).forEach(([name,value]) => { const input=document.createElement('input'); input.type='hidden'; input.name=name; input.value=String(value); form.append(input); }); document.body.append(form); form.submit(); };
+  const bind = () => {
+    document.querySelectorAll('[data-coming-soon]').forEach(a => a.addEventListener('click', e => {e.preventDefault(); window.alert('Гайд готується до запуску. Доступ стане доступним після додавання захищеного матеріалу.');}));
+    document.querySelectorAll('[data-checkout]').forEach(a => a.addEventListener('click', async e => {e.preventDefault(); try { await checkout(a.dataset.checkout); } catch(err) { window.alert(err.message); }}));
+    const openPromoCard = async (card) => {
+      const productId = card.dataset.promoCheckout;
+      if (productId === 'lifestyle-guide') return card.querySelector('[data-buy-lifestyle]')?.click();
+      try { await checkout(productId); } catch (err) { window.alert(err.message); }
+    };
+    document.querySelectorAll('[data-promo-checkout]').forEach(card => {
+      card.addEventListener('click', event => { if (event.target.closest('a,button,input,textarea,select,[style*="overflow-x"]')) return; openPromoCard(card); });
+      card.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openPromoCard(card); } });
+      card.querySelectorAll('img').forEach(image => image.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); openPromoCard(card); }));
+    });
+    document.querySelectorAll('[data-consult]').forEach(a => a.addEventListener('click', e => {e.preventDefault(); consultationOpenedAt=Date.now(); const format=a.dataset.consult.includes('Intensive')?'Онлайн':'Очно'; [...$('#consult-form').elements.format].find(input=>input.value===format).checked=true; $('#consult-title').textContent='Запис: '+a.dataset.consult; modal('#consult-modal',true);}));
+    const links = [...document.querySelectorAll('a.card')]; const target = { 'Тест «Молодість 360»':'/molodist-360/?from=dr-kolgan#assessment', 'Тест на тривогу та депресію':'/dr-kolgan/?tool=hads#products', 'Індекс маси тіла':'/dr-kolgan/?tool=bmi#products', 'Порівняйте свою їжу з «Тарілкою здорового харчування»':'/dr-kolgan/guides/healthy-plate/', 'Як зрозуміти, що родимку потрібно перевірити: правило ABCDE':'/dr-kolgan/guides/mole-control/', 'Покрокова самодіагностика: як і коли оглядати груди':'/dr-kolgan/guides/breast-self-check/' }; links.forEach(a => { const key = Object.keys(target).find(text => a.textContent.includes(text)); if(key) a.href=target[key]; });
+    const cabinet = $('#cabinet-link'); cabinet.addEventListener('click', async e => { e.preventDefault(); await call('logout',{}).catch(()=>{}); pending='cabinet'; modal('#login-modal',true); });
+  };
+  document.addEventListener('click', e => { if(e.target.closest('.system-modal__close')) modal('#'+e.target.closest('.system-modal').id,false); if(e.target === e.currentTarget) e.target.dataset.open='false'; });
+  $('#login-phone-form').addEventListener('submit', async e => { e.preventDefault(); phone=normalPhone(e.currentTarget.elements.phone.value); if(!phone) return message('#login-message','Введіть номер у форматі +380 XX XXX XX XX.',true); try { await call('send',{phone}); window.__daryaTrack?.('drk_sms_sent'); $('#login-phone-form').classList.add('is-hidden'); $('#login-code-form').classList.remove('is-hidden'); $('#login-phone-value').textContent=phone; message('#login-message','Код надіслано.'); } catch(err) {message('#login-message',err.message,true);} });
+  $('[data-login-back]').addEventListener('click',()=>{$('#login-code-form').classList.add('is-hidden');$('#login-phone-form').classList.remove('is-hidden');message('#login-message','');});
+  $('#login-code-form').addEventListener('submit', async e => { e.preventDefault(); const code=String(e.currentTarget.elements.code.value).replace(/\D/g,''); if(!/^\d{6}$/.test(code)) return message('#login-message','Введіть 6 цифр із SMS.',true); try { await call('verify',{phone,code}); window.__daryaTrack?.('drk_sms_verified'); const me=await fetch(api+'me',{credentials:'same-origin'}); const data=await me.json().catch(()=>({})); if(data.profile?.firstName){ if(pending?.startsWith('checkout:')) return checkout(pending.slice('checkout:'.length)); window.location.assign('/dr-kolgan/cabinet/'); } $('#login-code-form').classList.add('is-hidden');$('#profile-form').classList.remove('is-hidden');message('#login-message','Заповніть профіль для створення кабінету.'); } catch(err) {message('#login-message',err.message,true);} });
+  $('#profile-form').addEventListener('submit', async e => { e.preventDefault(); const f=e.currentTarget.elements; try { await call('profile',{firstName:f.firstName.value.trim(),lastName:f.lastName.value.trim(),email:f.email.value.trim(),birthDate:f.birthDate.value,gender:f.gender.value,instagram:'',tiktok:'',marketingConsent:false,source:'dr-kolgan'}); window.__daryaTrack?.('sign_up'); if(pending?.startsWith('checkout:')) return checkout(pending.slice('checkout:'.length)); window.location.assign('/dr-kolgan/cabinet/'); } catch(err) {message('#login-message',err.message,true);} });
+  const consultPhone=$('#consult-form').elements.phone; consultPhone.addEventListener('input',()=>{consultPhone.value=consultPhone.value.replace(/\D/g,'').replace(/^38/,'').slice(0,10);});
+  $('#consult-form').addEventListener('submit', async e => { e.preventDefault(); const form=e.currentTarget, f=form.elements, phoneValue=normalPhone('+38'+f.phone.value); if(!phoneValue) return message('#consult-message','Введіть номер у форматі +380 XX XXX XX XX.',true); try { await call('leads/consultation',{name:f.name.value.trim(),phone:phoneValue,concern:f.concern.value.trim(),formats:[f.format.value],privacyConsent:true,website:f.website.value,openedAt:consultationOpenedAt}); window.__daryaTrack?.('generate_lead'); form.reset(); consultationOpenedAt=0; message('#consult-message','Заявку надіслано. Адміністратор звʼяжеться з вами.'); window.setTimeout(()=>{ modal('#consult-modal',false); message('#consult-message',''); },1200); } catch(err) {message('#consult-message',err.message,true);} });
+  window.addEventListener('load',()=>setTimeout(() => {
+    bind();
+    const authParams = new URLSearchParams(window.location.search);
+    if (authParams.get('login') === '1') {
+      pending = authParams.get('next') === '/dr-kolgan/cabinet/' ? 'cabinet' : null;
+      modal('#login-modal', true);
+      window.history.replaceState({}, '', '/dr-kolgan/');
+    }
+    const burger = document.querySelector('.burger');
+    const nav = document.querySelector('.navlinks');
+    if (burger && nav) {
+      burger.setAttribute('aria-expanded', 'false');
+      burger.addEventListener('click', () => {
+        const open = nav.classList.toggle('nav-open');
+        burger.setAttribute('aria-expanded', String(open));
+      });
+      nav.querySelectorAll('a').forEach(link => link.addEventListener('click', () => {
+        nav.classList.remove('nav-open');
+        burger.setAttribute('aria-expanded', 'false');
+      }));
+    }
+  },150));
+})();
+</script>
+<style>.login-register{display:block;width:100%;margin:16px 0 0;padding:0;border:0;background:transparent;color:#6e5d78;font:14px Manrope,sans-serif;text-align:center;cursor:pointer}.login-register span{color:#34293a;font-weight:700;text-decoration:underline;text-underline-offset:3px}</style>
+<script>window.addEventListener('load',()=>setTimeout(()=>{const form=document.querySelector('#login-phone-form');if(!form||form.querySelector('[data-register]'))return;const button=document.createElement('button');button.type='button';button.className='login-register';button.dataset.register='';button.innerHTML='Ще немає кабінету? <span>Зареєструватися</span>';button.addEventListener('click',()=>{document.querySelector('#login-title').textContent='Реєстрація';form.elements.phone.focus();});form.append(button);},180));</script>
+<style>.system-modal__box{max-height:calc(100dvh - 32px);overflow-y:auto}.phone-field{display:flex;align-items:center;gap:4px}.phone-prefix{white-space:nowrap}</style>
+<script>
+window.addEventListener('load',()=>{
+  const modal=document.querySelector('#login-modal');
+  const notice=document.querySelector('#login-message');
+  const title=document.querySelector('#login-title');
+  const phoneForm=document.querySelector('#login-phone-form');
+  const codeForm=document.querySelector('#login-code-form');
+  const profileForm=document.querySelector('#profile-form');
+  if(!modal||!notice||!title||!phoneForm||!codeForm||!profileForm)return;
+  const api='/dr-kolgan/api/auth/';
+  let phone='';
+  let verified=false;
+  let busy=false;
+  const clone=form=>{const fresh=form.cloneNode(true);form.replaceWith(fresh);return fresh;};
+  const login=clone(phoneForm), code=clone(codeForm), profile=clone(profileForm);
+  const phoneInput=login.elements.phone;
+  phoneInput.placeholder='0XX XXX XX XX'; phoneInput.maxLength=10; phoneInput.inputMode='numeric';
+  const field=document.createElement('span'), prefix=document.createElement('span');
+  field.className='phone-field'; prefix.className='phone-prefix'; prefix.textContent='+38';
+  phoneInput.parentNode.replaceChild(field,phoneInput); field.append(prefix,phoneInput);
+  phoneInput.addEventListener('input',()=>phoneInput.value=phoneInput.value.replace(/\D/g,'').slice(0,10));
+  const show=(form,heading,text='')=>{[login,code,profile].forEach(x=>x.classList.toggle('is-hidden',x!==form));title.textContent=heading;notice.textContent=text;};
+  const request=async(path,body)=>{const r=await fetch(api+path,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'Сталася помилка.');return d;};
+  login.addEventListener('submit',async e=>{e.preventDefault();if(busy)return;const digits=phoneInput.value;if(!/^0\d{9}$/.test(digits)){notice.textContent='Введіть номер у форматі +38 0XX XXX XX XX.';return;}busy=true;try{phone='+38'+digits;verified=false;await request('send',{phone});window.__daryaTrack?.('drk_sms_sent');show(code,'Підтвердження номера','Код надіслано.');code.elements.code.focus();}catch(err){notice.textContent=err.message;}finally{busy=false;}});
+  code.addEventListener('submit',async e=>{e.preventDefault();if(busy)return;const pass=String(code.elements.code.value).replace(/\D/g,'');if(!/^\d{6}$/.test(pass)){notice.textContent='Введіть 6 цифр із SMS.';return;}busy=true;try{await request('verify',{phone,code:pass});window.__daryaTrack?.('drk_sms_verified');verified=true;const r=await fetch(api+'me',{credentials:'same-origin'});const me=await r.json().catch(()=>({}));if(me.profile?.firstName){location.assign('/dr-kolgan/cabinet/');return;}show(profile,'Створення кабінету','Заповніть профіль — номер уже підтверджено.');profile.elements.firstName.focus();}catch(err){notice.textContent=err.message;}finally{busy=false;}});
+  profile.addEventListener('submit',async e=>{e.preventDefault();if(busy||!verified)return;const f=profile.elements;busy=true;try{await request('profile',{firstName:f.firstName.value.trim(),lastName:f.lastName.value.trim(),email:f.email.value.trim(),birthDate:f.birthDate.value,gender:f.gender.value,instagram:'',tiktok:'',marketingConsent:false,source:'dr-kolgan'});window.__daryaTrack?.('sign_up');location.assign('/dr-kolgan/cabinet/');}catch(err){notice.textContent=err.message;}finally{busy=false;}});
+  modal.querySelector('[data-login-back]')?.addEventListener('click',()=>{code.elements.code.value='';show(login,'Вхід у кабінет');});
+  document.addEventListener('click',e=>{const register=e.target.closest('[data-register]');if(!register)return;e.preventDefault();show(login,'Реєстрація','Введіть номер — після SMS відкриється анкета профілю.');phoneInput.focus();});
+});
+</script>
+<script>window.addEventListener('load',()=>setTimeout(async()=>{const link=document.querySelector('#cabinet-link');if(!link)return;try{const response=await fetch('/dr-kolgan/api/auth/me',{credentials:'same-origin',cache:'no-store'});if(!response.ok)return;const data=await response.json();const profile=data.profile;if(!profile?.firstName)return;const name=[profile.firstName,profile.lastName].filter(Boolean).join(' ');const icon=link.querySelector('svg');link.replaceChildren(...(icon?[icon.cloneNode(true)]:[]),document.createTextNode(' '+name));link.href='/dr-kolgan/cabinet/';link.setAttribute('aria-label','Відкрити кабінет');link.classList.add('is-authenticated');link.addEventListener('click',event=>event.stopImmediatePropagation(),true);}catch{}},500));</script>
+<style>#cabinet-link.is-authenticated{background:#1e1b22;border-color:#1e1b22;color:#fff}</style>
+<style>.health-tool .system-modal__box{max-width:560px}.health-tool__intro,.health-tool__result{line-height:1.5;color:#4e4353}.health-tool__question{font-size:20px;font-weight:600;line-height:1.3;margin:14px 0}.health-tool__option{display:block;width:100%;margin:9px 0;padding:14px 16px;border:1px solid #d9d1dc;border-radius:14px;background:#fff;color:#1e1b22;text-align:left;font:15px Manrope,sans-serif;cursor:pointer}.health-tool__option:hover{border-color:#705b86;background:#f6f1f7}.health-tool__progress{font-size:13px;color:#6e5d78}.health-tool__score{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0}.health-tool__score div{padding:14px;border-radius:14px;background:#f1ebf3}.health-tool__score b{display:block;font-size:24px;margin:4px 0}.health-tool__notice{font-size:13px;line-height:1.45;color:#5e5364}</style>
+<script>
+window.addEventListener('load', () => setTimeout(() => {
+  const api = '/dr-kolgan/api/auth/';
+  const freeGuides = {
+    'Порівняйте свою їжу з «Тарілкою здорового харчування»': { id: 'healthy-plate', url: '/dr-kolgan/guides/healthy-plate/' },
+    'Як зрозуміти, що родимку потрібно перевірити: правило ABCDE': { id: 'mole-control', url: '/dr-kolgan/guides/mole-control/' },
+    'Покрокова самодіагностика: як і коли оглядати груди': { id: 'breast-self-check', url: '/dr-kolgan/guides/breast-self-check/' }
+  };
+  const grantAndOpen = async (guide) => {
+    const response = await fetch(api + 'materials', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: guide.id }) });
+    if (response.status === 401) {
+      sessionStorage.setItem('molodist_pending_free_guide', JSON.stringify(guide));
+      document.querySelector('#login-modal').dataset.open = 'true';
+      return;
+    }
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return window.alert(data.error || 'Не вдалося додати матеріал. Спробуйте ще раз.');
+    window.__daryaTrack?.('drk_free_guide_open',{guide_id:guide.id});
+    sessionStorage.removeItem('molodist_pending_free_guide');
+    window.location.assign(guide.url);
+  };
+  document.querySelectorAll('a.card').forEach((card) => {
+    const label = Object.keys(freeGuides).find((text) => card.textContent.includes(text));
+    if (!label) return;
+    card.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      grantAndOpen(freeGuides[label]);
+    }, true);
+  });
+}, 800));
+</script>
+<script>
+window.addEventListener('load', () => setTimeout(() => {
+  const test360Url = '/molodist-360/?from=dr-kolgan#assessment';
+  const card = [...document.querySelectorAll('a.card')].find((item) => item.textContent.includes('Тест «Молодість 360»'));
+  if (!card) return;
+  card.addEventListener('click', async (event) => {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const response = await fetch('/dr-kolgan/api/auth/me', { credentials: 'same-origin', cache: 'no-store' }).catch(() => null);
+    if (response?.ok) return window.location.assign(test360Url);
+    sessionStorage.setItem('molodist_pending_test360', test360Url);
+    document.querySelector('#login-modal').dataset.open = 'true';
+  }, true);
+}, 850));
+</script>
+<script>
+window.addEventListener('load', () => setTimeout(() => {
+  const lifestyle = document.querySelector('#lifestyle-guide [data-buy-lifestyle]');
+  if (!lifestyle) return;
+  lifestyle.addEventListener('click', async (event) => {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const response = await fetch('/dr-kolgan/api/auth/me', { credentials: 'same-origin', cache: 'no-store' }).catch(() => null);
+    if (response?.ok) {
+      lifestyle.disabled = true;
+      lifestyle.textContent = 'Створюємо рахунок…';
+      const checkout = await fetch('/dr-kolgan/api/auth/payments/monobank/create', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: 'lifestyle-guide' }) }).then(async r => ({ ok: r.ok, data: await r.json().catch(() => ({})) })).catch(() => ({ ok: false, data: {} }));
+      lifestyle.disabled = false;
+      lifestyle.textContent = 'Придбати';
+      if (!checkout.ok || !checkout.data.checkoutUrl) return window.alert(checkout.data.error || 'Не вдалося створити рахунок. Спробуйте ще раз.');
+      window.__daryaTrack?.('drk_invoice_created',{product_id:'lifestyle-guide'});
+      const form = document.createElement('form'); form.method = 'POST'; form.action = checkout.data.checkoutUrl;
+      Object.entries(checkout.data.fields || {}).forEach(([name, value]) => { const input = document.createElement('input'); input.type = 'hidden'; input.name = name; input.value = value; form.append(input); });
+      document.body.append(form); form.submit(); return;
+    }
+    sessionStorage.setItem('molodist_pending_lifestyle_guide', '/dr-kolgan/#lifestyle-guide');
+    document.querySelector('#login-modal').dataset.open = 'true';
+  }, true);
+}, 900));
+</script>
+</body>
+<script>
+window.addEventListener('load', () => {
+  const api = '/dr-kolgan/api/auth/';
+  const findCard = (text) => [...document.querySelectorAll('a.card')].find((card) => card.textContent.includes(text));
+  const createTool = (id, title) => {
+    const node = document.createElement('div');
+    node.id = id; node.className = 'system-modal health-tool';
+    node.innerHTML = `<div class="system-modal__box"><button class="system-modal__close" type="button" aria-label="Закрити">×</button><h2>${title}</h2><div class="tool-body"></div></div>`;
+    node.querySelector('.system-modal__close').onclick = () => { node.dataset.open = 'false'; };
+    node.addEventListener('click', (event) => { if (event.target === node) node.dataset.open = 'false'; });
+    document.body.append(node); return node;
+  };
+  const bmiModal = createTool('bmi-tool-live', 'Оцінка ІМТ');
+  const hadsModal = createTool('hads-tool-live', 'Тест HADS');
+  const post = async (path, payload) => {
+    const response = await fetch(api + path, { method: 'POST', credentials: 'same-origin', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw Error(data.error || 'Спробуйте ще раз.');
+    return data;
+  };
+  const authenticated = async (modal) => {
+    const me = await fetch(api + 'me', {credentials:'same-origin', cache:'no-store'}).catch(() => null);
+    if (me?.ok) return true;
+    modal.dataset.open = 'false';
+    document.querySelector('#login-modal').dataset.open = 'true';
+    return false;
+  };
+  const openBmi = async () => {
+    bmiModal.dataset.open = 'true'; if (!await authenticated(bmiModal)) return;
+    const body = bmiModal.querySelector('.tool-body');
+    body.innerHTML = `<p class="system-modal__note">Вкажіть зріст і вагу — результат збережеться у кабінеті.</p><form><label>Зріст, см<input name="heightCm" type="number" min="80" max="250" step="0.1" inputmode="decimal" required></label><label>Вага, кг<input name="weightKg" type="number" min="20" max="400" step="0.1" inputmode="decimal" required></label><div class="system-modal__actions"><button class="btn btn-dark" type="submit">Розрахувати</button></div></form><p class="system-modal__note">ІМТ — орієнтовний показник, не медична консультація.</p>`;
+    body.querySelector('form').onsubmit = async (event) => {
+      event.preventDefault();
+      try {
+        const form = event.currentTarget;
+        const data = await post('tests/bmi', {heightCm: form.heightCm.value, weightKg: form.weightKg.value});
+        body.innerHTML = `<div class="card-label">Ваш індекс маси тіла</div><div style="font-size:48px;margin:6px 0">${data.result.bmi}</div><p><b>${data.result.category}</b></p><p class="system-modal__note">Результат збережено у вашому кабінеті.</p>`;
+      } catch (error) { window.alert(error.message); }
+    };
+  };
+  const questions = [
+    ['Я відчуваю напруженість, мені не по собі',['Увесь час','Часто','Час від часу, іноді','Зовсім не відчуваю']],
+    ['Те, що приносило мені задоволення, і зараз викликає таке ж відчуття',['Це так','Напевно, це так','В дуже малій мірі це так','Це зовсім не так']],
+    ['Я відчуваю страх, здається, що ось-ось щось жахливе може статись',['Так, і страх дуже сильний','Так, але страх не дуже сильний','Іноді, але це мене не турбує','Зовсім не відчуваю']],
+    ['Я здатний розсміятися та угледіти у події смішне',['Це так','Напевно, це так','В дуже малій мірі це так','Це зовсім не так']],
+    ['Метушливі думки крутяться у мене в голові',['Постійно','Більшу частину часу','Час від часу','Тільки іноді']],
+    ['Я відчуваю бадьорість',['Зовсім не відчуваю','Дуже рідко','Іноді','Практично весь час']],
+    ['Я можу легко сісти та розслабитись',['Це так','Напевно, це так','Зрідка це так','Зовсім не можу']],
+    ['Мені здається, що я став робити все дуже повільно',['Практично весь час','Часто','Іноді','Зовсім ні']],
+    ['Я відчуваю внутрішню напругу чи тремтіння',['Зовсім не відчуваю','Іноді','Часто','Дуже часто']],
+    ['Я не слідкую за своєю зовнішністю',['Це так','Не приділяю стільки часу, скільки потрібно','Менше приділяю цьому уваги','Слідкую за собою так, як і раніше']],
+    ['Я відчуваю непосидючість, мені постійно треба рухатись',['Це так','Напевно, це так','В деякій мірі це так','Зовсім не відчуваю']],
+    ['Мої справи можуть принести мені відчуття задоволення',['Точно так, як і звичайно','Так, але не так, як раніше','Значно менше, ніж звичайно','Зовсім так не вважаю']],
+    ['У мене буває раптове відчуття паніки',['Дуже часто','Досить часто','Не так часто','Зовсім не буває']],
+    ['Я можу отримати задоволення від цікавої книги, радіо чи телепрограми',['Часто','Іноді','Зрідка','Дуже рідко']]
+  ];
+  const openHads = async () => {
+    hadsModal.dataset.open = 'true'; if (!await authenticated(hadsModal)) return;
+    const body = hadsModal.querySelector('.tool-body'); let index = 0, answers = [];
+    const render = () => {
+      const [question, options] = questions[index];
+      body.innerHTML = `<p class="system-modal__note">Питання ${index + 1} з 14</p><p style="font-size:20px;line-height:1.35">${question}</p>${options.map((option, position) => `<button class="btn btn-line" style="display:block;width:100%;margin:9px 0;text-align:left" data-answer="${position}">${option}</button>`).join('')}`;
+      body.querySelectorAll('[data-answer]').forEach((button) => button.onclick = async () => {
+        answers.push(Number(button.dataset.answer)); index += 1;
+        if (index < questions.length) return render();
+        try {
+          const data = await post('tests/hads', {answers}); const result = data.result;
+          body.innerHTML = `<div class="card-label">Ваш результат HADS</div><p style="font-size:21px">Тривога: <b>${result.anxiety}/21</b><br><small>${result.anxietyLevel}</small></p><p style="font-size:21px">Депресія: <b>${result.depression}/21</b><br><small>${result.depressionLevel}</small></p><p class="system-modal__note">Це скринінг, не медичний діагноз. Якщо показник 8 або більше, обговоріть стан із лікарем або фахівцем з психічного здоров’я.</p>`;
+        } catch (error) { body.innerHTML = `<p class="system-modal__note">${error.message}</p>`; }
+      });
+    };
+    render();
+  };
+  findCard('Індекс маси тіла')?.addEventListener('click', (event) => { event.preventDefault(); openBmi(); });
+  findCard('Тест на тривогу та депресію')?.addEventListener('click', (event) => { event.preventDefault(); openHads(); });
+});
+</script>
+<script>window.addEventListener('load',()=>{if(new URLSearchParams(location.search).get('to')!=='consults')return;setTimeout(()=>document.querySelector('#consults')?.scrollIntoView({block:'start'}),700);});</script>
+<style>
+  .guide-preview { cursor: zoom-in; }
+  .guide-preview img { transition: transform .2s ease; }
+  .guide-preview img:hover { transform: translateY(-2px); }
+  .guide-lightbox { position: fixed; inset: 0; z-index: 300; display: none; background: rgba(18, 15, 21, .96); color: #fff; }
+  .guide-lightbox[data-open="true"] { display: grid; grid-template-rows: auto 1fr auto; }
+  .guide-lightbox__top { display:flex; align-items:center; justify-content:space-between; gap:16px; padding: max(18px, env(safe-area-inset-top)) 20px 12px; }
+  .guide-lightbox__title { margin:0; font:500 16px/1.25 Manrope, sans-serif; }
+  .guide-lightbox__actions { display:flex; align-items:center; gap:10px; }
+  .guide-lightbox__zoom,.guide-lightbox__close { min-width:44px; min-height:44px; border:1px solid rgba(255,255,255,.35); border-radius:50%; background:rgba(255,255,255,.1); color:#fff; font-size:30px; line-height:1; cursor:pointer; }
+  .guide-lightbox__zoom { font:600 14px/1 Manrope,sans-serif; }
+  .guide-lightbox__viewport { position:relative; display:grid; place-items:center; min-height:0; overflow:hidden; padding:8px 60px; touch-action:pan-y; }
+  .guide-lightbox__image { display:block; max-width:100%; max-height:calc(100dvh - 156px); width:auto; height:auto; object-fit:contain; border-radius:5px; box-shadow:0 16px 50px rgba(0,0,0,.42); user-select:none; -webkit-user-drag:none; transform-origin:center; transition:transform .18s ease; }
+  .guide-lightbox__image.is-zoomed { cursor:grab; touch-action:none; }
+  .guide-lightbox__nav { position:absolute; top:50%; transform:translateY(-50%); min-width:48px; min-height:56px; border:0; border-radius:14px; background:rgba(255,255,255,.15); color:#fff; font-size:35px; cursor:pointer; }
+  .guide-lightbox__nav--prev { left:14px; }.guide-lightbox__nav--next { right:14px; }
+  .guide-lightbox__bottom { padding:10px 20px max(18px, env(safe-area-inset-bottom)); text-align:center; color:rgba(255,255,255,.75); font:13px/1.4 Manrope,sans-serif; }
+  @media (max-width:600px) { .guide-lightbox__viewport { padding:8px 16px; }.guide-lightbox__nav { display:none; }.guide-lightbox__image { max-height:calc(100dvh - 132px); }.guide-lightbox__top { padding-left:16px;padding-right:16px; }.guide-lightbox__zoom { font-size:13px; } }
+</style>
+<script>
+(() => {
+  const init = () => {
+  if (document.querySelector('.guide-lightbox')) return;
+  const rows = [...document.querySelectorAll('article.promo-card div[style*="overflow-x"]')]
+    .filter((row) => row.querySelectorAll('img').length > 1);
+  if (!rows.length) return;
+
+  const lightbox = document.createElement('section');
+  lightbox.className = 'guide-lightbox';
+  lightbox.setAttribute('role', 'dialog');
+  lightbox.setAttribute('aria-modal', 'true');
+  lightbox.setAttribute('aria-label', 'Перегляд фрагмента гайду');
+  lightbox.innerHTML = '<div class="guide-lightbox__top"><p class="guide-lightbox__title"></p><div class="guide-lightbox__actions"><button type="button" class="guide-lightbox__zoom" aria-label="Збільшити сторінку">×2</button><button type="button" class="guide-lightbox__close" aria-label="Закрити перегляд">×</button></div></div><div class="guide-lightbox__viewport"><button type="button" class="guide-lightbox__nav guide-lightbox__nav--prev" aria-label="Попередня сторінка">‹</button><img class="guide-lightbox__image" alt=""><button type="button" class="guide-lightbox__nav guide-lightbox__nav--next" aria-label="Наступна сторінка">›</button></div><div class="guide-lightbox__bottom"><span class="guide-lightbox__count"></span> · Свайпайте ліворуч або праворуч · двічі натисніть для масштабу</div>';
+  document.body.append(lightbox);
+  const image = lightbox.querySelector('.guide-lightbox__image');
+  const title = lightbox.querySelector('.guide-lightbox__title');
+  const count = lightbox.querySelector('.guide-lightbox__count');
+  let pages = [], current = 0, opener = null, touchX = null, zoom = 1, panX = 0, panY = 0, drag = null, lastTap = 0, wakeLock = null;
+  // Keep the display awake while a guide is being read. Unsupported browsers
+  // simply ignore this; iOS/Android may still release it when the tab is hidden.
+  const requestWakeLock = async () => {
+    if (!('wakeLock' in navigator) || document.visibilityState !== 'visible') return;
+    try { wakeLock = await navigator.wakeLock.request('screen'); }
+    catch (_) { wakeLock = null; }
+  };
+  const releaseWakeLock = async () => {
+    if (!wakeLock) return;
+    try { await wakeLock.release(); } catch (_) {}
+    wakeLock = null;
+  };
+  const renderZoom = () => { image.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`; image.classList.toggle('is-zoomed', zoom > 1); lightbox.querySelector('.guide-lightbox__zoom').textContent = zoom > 1 ? '1×' : '×2'; };
+  const resetZoom = () => { zoom = 1; panX = 0; panY = 0; renderZoom(); };
+  const toggleZoom = () => { if (zoom > 1) return resetZoom(); zoom = 2.4; renderZoom(); };
+  const render = () => { const page = pages[current]; resetZoom(); image.src = page.src; image.alt = page.alt; count.textContent = `${current + 1} / ${pages.length}`; };
+  const open = (row, start) => { pages = [...row.querySelectorAll('img')].map(({src, alt}) => ({src, alt})); current = start; opener = document.activeElement; title.textContent = row.closest('article')?.querySelector('h3')?.textContent || 'Фрагмент гайду'; render(); lightbox.dataset.open = 'true'; document.body.style.overflow = 'hidden'; requestWakeLock(); lightbox.querySelector('.guide-lightbox__close').focus(); };
+  const close = () => { lightbox.dataset.open = 'false'; document.body.style.overflow = ''; releaseWakeLock(); opener?.focus?.(); };
+  const move = (delta) => { current = (current + delta + pages.length) % pages.length; render(); };
+  rows.forEach((row) => {
+    row.classList.add('guide-preview'); row.setAttribute('role', 'group'); row.setAttribute('aria-label', 'Натисніть на сторінку для повноекранного перегляду');
+    row.querySelectorAll('img').forEach((page) => { const url = new URL(page.src); url.searchParams.set('v', 'checkup-01-04-05-11-20261019'); page.src = url.href; });
+    [...row.querySelectorAll('img')].forEach((page, index) => { page.tabIndex = 0; page.addEventListener('click', (event) => { event.preventDefault(); event.stopImmediatePropagation(); open(row, index); }, true); page.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(row, index); } }); });
+    row.addEventListener('click', (event) => { if (event.target === row) { event.preventDefault(); event.stopImmediatePropagation(); open(row, 0); } }, true);
+  });
+  lightbox.querySelector('.guide-lightbox__close').onclick = close;
+  lightbox.querySelector('.guide-lightbox__zoom').onclick = toggleZoom;
+  lightbox.querySelector('.guide-lightbox__nav--prev').onclick = () => move(-1);
+  lightbox.querySelector('.guide-lightbox__nav--next').onclick = () => move(1);
+  lightbox.addEventListener('click', (event) => { if (event.target === lightbox) close(); });
+  lightbox.addEventListener('touchstart', (event) => { if (zoom === 1) touchX = event.changedTouches[0].clientX; }, {passive:true});
+  lightbox.addEventListener('touchend', (event) => { if (zoom > 1 || touchX === null) return; const delta = event.changedTouches[0].clientX - touchX; touchX = null; if (Math.abs(delta) > 45) move(delta < 0 ? 1 : -1); }, {passive:true});
+  image.addEventListener('touchstart', (event) => { const now = Date.now(); if (now - lastTap < 280) { event.preventDefault(); toggleZoom(); lastTap = 0; return; } lastTap = now; if (zoom > 1) { const point = event.touches[0]; drag = {x:point.clientX, y:point.clientY, panX, panY}; } }, {passive:false});
+  image.addEventListener('touchmove', (event) => { if (!drag) return; event.preventDefault(); const point = event.touches[0]; panX = drag.panX + point.clientX - drag.x; panY = drag.panY + point.clientY - drag.y; renderZoom(); }, {passive:false});
+  image.addEventListener('touchend', () => { drag = null; }, {passive:true});
+  image.addEventListener('dblclick', toggleZoom);
+  document.addEventListener('visibilitychange', () => { if (lightbox.dataset.open === 'true' && document.visibilityState === 'visible') requestWakeLock(); });
+  document.addEventListener('keydown', (event) => { if (lightbox.dataset.open !== 'true') return; if (event.key === 'Escape') close(); if (event.key === 'ArrowRight') move(1); if (event.key === 'ArrowLeft') move(-1); });
+  };
+  window.setTimeout(init, 350);
+  window.addEventListener('load', () => window.setTimeout(init, 50), {once:true});
+})();
+</script>
+</html>

@@ -17,6 +17,13 @@ from .questionnaire import QUESTION_LOOKUP, QUESTIONNAIRE
 from .scoring import evaluate
 
 SOURCE = "Сайт / Молодість 360"
+GROUP = "Тест 360"                       # мітка (група) пацієнта
+
+
+def tag(p: Patient) -> None:
+    gl = list(p.client_groups or [])
+    if not any((g.get("name") if isinstance(g, dict) else g) == GROUP for g in gl):
+        p.client_groups = gl + [GROUP]
 
 
 class M360Error(ValueError):
@@ -58,6 +65,7 @@ def register(db: Session, d: dict, source: str = "") -> M360Assessment:
                     notes="Картку створено з тесту «Молодість 360» на сайті")
         db.add(p)
         db.flush()
+    tag(p)
     email = str(d.get("email") or "").strip()[:200] or None
     if email and not p.email:
         p.email = email

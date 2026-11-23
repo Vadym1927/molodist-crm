@@ -1605,6 +1605,63 @@ class Check(Base):
     deleted: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
+class DkProfile(Base):
+    """Зареєстрований на сайті Дарʼї Колган (molodist.com.ua/dr-kolgan): профіль кабінету. Вхід — за SMS-кодом (сесії ShopSession)."""
+    __tablename__ = "dk_profiles"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), unique=True, index=True)
+    first_name: Mapped[str | None] = mapped_column(String(100))
+    last_name: Mapped[str | None] = mapped_column(String(100))
+    email: Mapped[str | None] = mapped_column(String(200))
+    birth_date: Mapped[date | None] = mapped_column(Date)
+    gender: Mapped[str | None] = mapped_column(String(20))
+    marketing: Mapped[bool | None] = mapped_column(Boolean)
+    utm: Mapped[str | None] = mapped_column(String(300))               # звідки прийшов при реєстрації
+    registered_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime)
+    imported: Mapped[bool | None] = mapped_column(Boolean)              # перенесено зі старого сервісу
+
+
+class DkRecord(Base):
+    """Події кабінету dr-kolgan: material (гайд у кабінеті), bmi, hads. data — результат (лише в кабінеті пацієнта)."""
+    __tablename__ = "dk_records"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(20), index=True)
+    ref: Mapped[str | None] = mapped_column(String(60), index=True)
+    data: Mapped[dict | None] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
+class DkOrder(Base):
+    """Покупка платного гайду dr-kolgan (оплата — посилання monobank магазину). 100% суми — Дарʼї в зарплату (SalaryAdj)."""
+    __tablename__ = "dk_orders"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), index=True)
+    product: Mapped[str] = mapped_column(String(60))
+    amount: Mapped[float] = mapped_column(Float)
+    paylink_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    status: Mapped[str] = mapped_column(String(20), default="created", index=True)     # created | paid | failed
+    salary_adj_id: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class QrHit(Base):
+    """Сканування QR-коду (/q/{slug}) — без персональних даних."""
+    __tablename__ = "qr_hits"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    slug: Mapped[str] = mapped_column(String(40), index=True)
+    at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, index=True)
+    utm_source: Mapped[str | None] = mapped_column(String(80))
+    utm_medium: Mapped[str | None] = mapped_column(String(80))
+    utm_campaign: Mapped[str | None] = mapped_column(String(80))
+    utm_content: Mapped[str | None] = mapped_column(String(80))
+    device: Mapped[str | None] = mapped_column(String(30))
+    lang: Mapped[str | None] = mapped_column(String(24))
+    referrer: Mapped[str | None] = mapped_column(String(120))
+
+
 class M360Assessment(Base):
     """Тест «Молодість 360» з сайту (molodist.com.ua/molodist-360): анкета, відповіді, результат. token — публічний id у посиланнях."""
     __tablename__ = "m360_assessments"

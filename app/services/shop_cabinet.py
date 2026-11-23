@@ -84,7 +84,7 @@ def _deliver(db: Session, phone: str, text: str, icon: str = "🔐 ", sms: str =
     return "sms"
 
 
-def start(db: Session, c: dict, raw_phone: str, ip: str = "") -> dict:
+def start(db: Session, c: dict, raw_phone: str, ip: str = "", digits: int = 5) -> dict:
     """Надіслати код входу. Обмеження: 1 код на хвилину й 4 на годину на номер, 8 на годину з однієї адреси, денний ліміт SMS."""
     if not c.get("cab_on", True):
         raise CabError("Вхід у кабінет тимчасово вимкнено.")
@@ -100,7 +100,7 @@ def start(db: Session, c: dict, raw_phone: str, ip: str = "") -> dict:
     day = db.scalar(select(func.count(ShopCode.id)).where(ShopCode.channel == "sms", ShopCode.created_at >= now - timedelta(days=1))) or 0
     if day >= int(c.get("cab_sms_day") or 150):
         raise CabError("Вхід за кодом тимчасово недоступний. Зателефонуйте нам, будь ласка.")
-    code = f"{secrets.randbelow(100000):05d}"
+    code = str(secrets.randbelow(10 ** digits)).zfill(digits)
     ch = _deliver(db, phone, sms_text(c, code))
     db.add(ShopCode(phone=phone, code_hash=_h("code", phone, code), created_at=now, expires_at=now + timedelta(seconds=CODE_TTL), tries=0, used=False,
                     ip=ip[:64] or None, channel=ch))
@@ -127,7 +127,8 @@ def coin(db: Session, pid: int, amount: int, kind: str, ref: str = "", days: int
     cn.add(db, pid, int(amount or 0), "welcome" if kind == "signup" else kind, f"cab:{ref or kind}", days=days, live=live)
 
 
-def verify(db: Session, c: dict, raw_phone: str, code: str, name: str = "", remember: bool = True, ref: str = "", ua: str = "") -> tuple[str, int, ShopAccount]:
+def verify(db: Session, c: dict, raw_phone: str, code: str, name: str = "", remember: bool = True, ref: str = "", ua: str = "",
+           origin: str = "") -> tuple[str, int, ShopAccount]:
     """Перевірити код → (токен сесії, строк у днях, кабінет). Нового покупця реєструє: картка пацієнта + коїни."""
     phone = _phone(raw_phone)
     now = datetime.utcnow()
@@ -145,9 +146,12 @@ def verify(db: Session, c: dict, raw_phone: str, code: str, name: str = "", reme
     p = ap.find_patient(db, phone)
     name = " ".join(str(name or "").split())[:120]
     if not p:
-        p = Patient(full_name=name or phone, phone=phone, source="Інтернет-магазин", notes="Картку створено при реєстрації в кабінеті інтернет-магазину")
-        from .shop_orders import mark_shop
-        mark_shop(p)
+        if origin == "dk":                                   # сайт Дарʼї Колган (dr-kolgan) — не покупець магазину
+            p = Patient(full_name=name or phone, phone=phone, source="Сайт Дарʼї Колган", notes="Картку створено при реєстрації на сайті Дарʼї Колган")
+        else:
+            p = Patient(full_name=name or phone, phone=phone, source="Інтернет-магазин", notes="Картку створено при реєстрації в кабінеті інтернет-магазину")
+            from .shop_orders import mark_shop
+            mark_shop(p)
         db.add(p)
         db.flush()
     acc = db.scalars(select(ShopAccount).where(ShopAccount.patient_id == p.id)).first()
@@ -158,7 +162,8 @@ def verify(db: Session, c: dict, raw_phone: str, code: str, name: str = "", reme
                           last_name=(parts[0] if len(parts) > 1 else "")[:100] or None, email=getattr(p, "email", None))
         db.add(acc)
         db.flush()
-        coin(db, p.id, int(c.get("cab_coin_signup") or 0), "signup", days=int(c.get("coin_days") or 180), live=bool(c.get("coin_spend_on")))
+        if origin != "dk":
+            coin(db, p.id, int(c.get("cab_coin_signup") or 0), "signup", days=int(c.get("coin_days") or 180), live=bool(c.get("coin_spend_on")))
         inv = db.scalars(select(ShopAccount).where(ShopAccount.ref_code == str(ref or "").strip().upper()[:20])).first() if ref else None
         if inv and inv.patient_id != p.id:
             acc.referred_by = inv.patient_id
