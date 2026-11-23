@@ -237,6 +237,7 @@
   <a href="#t-files" data-t="files">Фото й документи <em>{{ p.files|length }}</em></a>
   <a href="#t-sales" data-t="sales">Продажі{% if p.sales %} <em>{{ p.sales|length }}</em>{% endif %}</a>
   <a href="#t-reviews" data-t="reviews">Відгуки{% if previews or parch %} <em>{{ (previews|length) + (parch|length) }}</em>{% endif %}</a>
+  {% if m360 %}<a href="#t-m360" data-t="m360">Молодість 360 <em>{{ m360|length }}</em></a>{% endif %}
   <a href="#t-hist" data-t="hist">Історія</a>
 </nav>
 
@@ -608,6 +609,19 @@
     <div class="rv-q">{% for q, v in (x.scores or []) %}<span>{{ q[:60] }}: <b style="color:{{ '#B23A32' if v < 5 else '#2A2430' }}">{{ v }}</b></span>{% endfor %}</div></div>{% endfor %}
   {% if previews %}<p class="small muted">«Анонімно» розмиває імʼя на екрані — можна зробити скріншот для соцмереж. «Перейшов у Google» означає, що пацієнт натиснув кнопку й відкрив форму відгуку Google; чи опублікував він відгук, CRM не знає.</p>{% endif %}
 </div></section>
+{% if m360 %}<section class="pt-p" data-t="m360"><div class="pcd" id="m360">
+  <h2 style="margin-top:0">Тест «Молодість 360»</h2>
+  <p class="small muted" style="margin-top:-4px">Самооцінка пацієнта на сайті (molodist.com.ua/molodist-360). Це не діагноз — привід для розмови на консультації.</p>
+  {% for a in m360 %}<div class="rv">
+    <div class="rv-h"><b>{{ (a.submitted_at or a.created_at)|local|dt('%d.%m.%Y %H:%M') }}</b>
+      {% if a.status == 'completed' %}<span class="rv-tag {{ 'ok' if (a.overall_score or 0) >= 75 else ('bad' if (a.overall_score or 0) < 60 else '') }}">Бал {{ '%g' % a.overall_score }} · {{ a.overall_status }}</span>{% else %}<span class="rv-tag">не завершено</span>{% endif %}</div>
+    {% if a.status == 'completed' and a.result %}
+      <div class="rv-q" style="margin-top:8px">{% for m in a.result.modules %}<span>{{ m.module_name }}: <b>{{ m.module_score }}/10</b></span>{% endfor %}</div>
+      {% if a.result.top_risks %}<p class="small" style="margin:8px 0 4px"><b>Пріоритети:</b> {{ a.result.top_risks[:3]|join(', ') }}</p>{% endif %}
+      <p class="small" style="margin:6px 0 0"><a href="/_site/molodist-360/assets/pdfs/{{ a.token }}.pdf" target="_blank">PDF-звіт</a> · <a href="/_site/molodist-360/assets/answers/{{ a.token }}.html" target="_blank">Відповіді</a> · <a href="/_site/molodist-360/result/{{ a.token }}" target="_blank">Сторінка результату</a></p>
+    {% endif %}
+  </div>{% endfor %}
+</div></section>{% endif %}
 
 <section class="pt-p" data-t="hist"><div class="pcd" id="history"><div class="pcd-h"><h3>Візити, продажі та історія з CleverBox · {{ phist|length }}</h3>
   <div class="ph-ch" data-ph="hi"><span class="ph-sum" data-ph="hi"></span><button type="button" class="on" data-f="all">Усе</button><button type="button" data-f="visit">Візити</button><button type="button" data-f="sale">Покупки</button></div></div>

@@ -1605,6 +1605,30 @@ class Check(Base):
     deleted: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
+class M360Assessment(Base):
+    """Тест «Молодість 360» з сайту (molodist.com.ua/molodist-360): анкета, відповіді, результат. token — публічний id у посиланнях."""
+    __tablename__ = "m360_assessments"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    token: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    patient_id: Mapped[int | None] = mapped_column(ForeignKey("patients.id"), index=True)
+    first_name: Mapped[str | None] = mapped_column(String(100))
+    last_name: Mapped[str | None] = mapped_column(String(100))
+    phone: Mapped[str | None] = mapped_column(String(64), index=True)
+    email: Mapped[str | None] = mapped_column(String(200))
+    birth_date: Mapped[date | None] = mapped_column(Date)
+    gender: Mapped[str | None] = mapped_column(String(20))
+    city: Mapped[str | None] = mapped_column(String(100))
+    consent_results: Mapped[bool | None] = mapped_column(Boolean)
+    answers: Mapped[dict | None] = mapped_column(JSON)             # question_key → {module_key, factor_key, answer_value, answer_label, answer_score}
+    result: Mapped[dict | None] = mapped_column(JSON)              # evaluate(): overall, modules, factors, top_risks
+    overall_score: Mapped[float | None] = mapped_column(Float)
+    overall_status: Mapped[str | None] = mapped_column(String(40))
+    status: Mapped[str] = mapped_column(String(20), default="draft")      # draft | completed
+    source: Mapped[str | None] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
 class Review(Base):
     """Відгук пацієнта після візиту: запит (посилання з токеном) → оцінки → за потреби рекламація."""
     __tablename__ = "reviews"

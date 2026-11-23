@@ -1364,7 +1364,8 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
     from .services import reviews as _rvw
     _rv_cfg = _rvw.cfg(db)
     from .services import shop_orders as _sho
-    return render(request, "patient.html", shop_orders=_sho.for_patient(db, p.id), previews=_rvw.for_patient(db, p.id), parch=_rvw.archive_for_patient(db, p.id), rv_q={q["key"]: q["title"] for q in _rv_cfg["questions"]}, p=p, statuses=statuses, pe_services=pe_services, pe_products=pe_products, ptasks=ptasks, msgs=msgs, dupes=dupes, paylinks=paylinks, pcalls=pcalls, pchats=pchats,
+    from .services.m360 import core as _m360
+    return render(request, "patient.html", m360=_m360.for_patient(db, p.id), shop_orders=_sho.for_patient(db, p.id), previews=_rvw.for_patient(db, p.id), parch=_rvw.archive_for_patient(db, p.id), rv_q={q["key"]: q["title"] for q in _rv_cfg["questions"]}, p=p, statuses=statuses, pe_services=pe_services, pe_products=pe_products, ptasks=ptasks, msgs=msgs, dupes=dupes, paylinks=paylinks, pcalls=pcalls, pchats=pchats,
                   call_thr=float(__import__("app.services.telephony", fromlist=["x"]).public(db).get("ai_alert_below") or 0),
                   certs=_cert.for_patient(db, p.id), CERT_STATES=_cert.STATES, today=date.today(),
                   subs=_cert.subs_for_patient(db, p.id), SUB_STATES=_cert.SUB_STATES, packages=_cert.package_items(db),
@@ -9502,6 +9503,137 @@ def site_crop(name: str):
     if not f:
         raise HTTPException(404)
     return FileResponse(f, media_type="image/webp", headers={"Cache-Control": "public, max-age=2592000"})
+
+
+# ---------------- «Молодість 360» (тест на сайті, перенесено з окремого сервісу :8094) ----------------
+_M360_STATIC = Path(__file__).parent / "static" / "m360"
+
+
+def _m360_json(d, status=200):
+    return JSONResponse(d, status_code=status, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/_site/molodist-360", include_in_schema=False)
+def m360_noslash(request: Request):
+    q = request.url.query
+    return RedirectResponse("molodist-360/" + (f"?{q}" if q else ""), 301)
+
+
+@app.get("/_site/molodist-360/", response_class=HTMLResponse)
+def m360_landing(request: Request):
+    from .services.m360 import core as m3
+    return templates.TemplateResponse(request, "m360/landing.html", {"questionnaire": json.dumps(m3.QUESTIONNAIRE, ensure_ascii=False), "title": "MOLODIST 360"})
+
+
+@app.get("/_site/molodist-360/privacy-policy", response_class=HTMLResponse)
+def m360_privacy(request: Request):
+    return templates.TemplateResponse(request, "m360/legal.html", {"title": "Політика конфіденційності — MOLODIST 360", "page": "privacy"})
+
+
+@app.get("/_site/molodist-360/terms", response_class=HTMLResponse)
+def m360_terms(request: Request):
+    return templates.TemplateResponse(request, "m360/legal.html", {"title": "Умови користування — MOLODIST 360", "page": "terms"})
+
+
+@app.get("/_site/molodist-360/static/{path:path}")
+def m360_static(path: str):
+    f = (_M360_STATIC / path).resolve()
+    if not str(f).startswith(str(_M360_STATIC.resolve())) or not f.is_file():
+        raise HTTPException(404)
+    return FileResponse(f, headers={"Cache-Control": "public, max-age=604800"})
+
+
+@app.get("/_site/molodist-360/result/{tok}", response_class=HTMLResponse)
+def m360_result_page(request: Request, tok: str):
+    r = templates.TemplateResponse(request, "m360/result.html", {"assessment_id": tok})
+    r.headers["X-Robots-Tag"] = "noindex"
+    return r
+
+
+@app.post("/_site/molodist-360/api/register")
+async def m360_register(request: Request, db: Session = Depends(db_dep)):
+    from .services.m360 import core as m3
+    if not _ob_rate(request, "m360r", 8):
+        return _m360_json({"detail": "Забагато спроб. Спробуйте пізніше."}, 429)
+    ct = request.headers.get("content-type", "")
+    if "form" in ct:
+        f = await request.form()
+        d = {k: (v if isinstance(v, str) else "") for k, v in f.items()}      # фото не зберігаємо
+    else:
+        d = await request.json()
+    try:
+        a = await asyncio.to_thread(m3.register, db, d, request.headers.get("referer", ""))
+    except m3.M360Error as e:
+        return _m360_json({"detail": str(e)}, 400)
+    try:
+        await asyncio.to_thread(m3.notify, db, a, "started", settings.public_url)
+    except Exception as e:  # noqa: BLE001
+        log.warning("m360 notify: %s", e)
+    return _m360_json({"patient_id": a.patient_id, "assessment_id": a.token, "photo_path": None})
+
+
+@app.post("/_site/molodist-360/api/assessments/{tok}/answers")
+async def m360_answer(request: Request, tok: str, db: Session = Depends(db_dep)):
+    from .services.m360 import core as m3
+    a = m3.by_token(db, tok) or (_ for _ in ()).throw(HTTPException(404))
+    try:
+        m3.save_answer(db, a, await request.json())
+    except m3.M360Error as e:
+        return _m360_json({"detail": str(e)}, 400)
+    return _m360_json({"ok": True})
+
+
+@app.get("/_site/molodist-360/api/assessments/{tok}")
+def m360_get(tok: str, db: Session = Depends(db_dep)):
+    from .services.m360 import core as m3
+    a = m3.by_token(db, tok) or (_ for _ in ()).throw(HTTPException(404))
+    return _m360_json({"assessment_id": a.token, "status": a.status, "answers": a.answers or {}})
+
+
+@app.post("/_site/molodist-360/api/assessments/{tok}/submit")
+async def m360_submit(tok: str, db: Session = Depends(db_dep)):
+    from .services.m360 import core as m3
+    a = m3.by_token(db, tok) or (_ for _ in ()).throw(HTTPException(404))
+    was = a.status
+    try:
+        res = m3.submit(db, a)
+    except m3.M360Error as e:
+        return _m360_json({"detail": str(e)}, 400)
+    if was != "completed":
+        try:
+            await asyncio.to_thread(m3.notify, db, a, "completed", settings.public_url)
+        except Exception as e:  # noqa: BLE001
+            log.warning("m360 notify: %s", e)
+    return _m360_json(res)
+
+
+@app.get("/_site/molodist-360/api/results/{tok}")
+def m360_get_result(tok: str, db: Session = Depends(db_dep)):
+    from .services.m360 import core as m3
+    a = m3.by_token(db, tok)
+    if not a or a.status != "completed":
+        raise HTTPException(404)
+    return _m360_json(m3.serialize(a))
+
+
+@app.get("/_site/molodist-360/assets/pdfs/{tok}.pdf")
+def m360_pdf(tok: str, db: Session = Depends(db_dep)):
+    from .services.m360 import core as m3
+    a = m3.by_token(db, tok)
+    if not a or a.status != "completed":
+        raise HTTPException(404)
+    return Response(m3.pdf(a), media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="molodist-360-{a.submitted_at:%Y%m%d}.pdf"', "Cache-Control": "private, no-store",
+                             "X-Robots-Tag": "noindex"})
+
+
+@app.get("/_site/molodist-360/assets/answers/{tok}.html", response_class=HTMLResponse)
+def m360_answers(tok: str, db: Session = Depends(db_dep)):
+    from .services.m360 import core as m3
+    a = m3.by_token(db, tok)
+    if not a or a.status != "completed":
+        raise HTTPException(404)
+    return HTMLResponse(m3.answers_html(a), headers={"Cache-Control": "private, no-store", "X-Robots-Tag": "noindex"})
 
 
 @app.get("/_site/{folder}/{path:path}", include_in_schema=False)
