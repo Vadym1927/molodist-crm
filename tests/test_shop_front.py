@@ -838,7 +838,10 @@ def test_review_request_no_paid_sms(monkeypatch):
             assert not sent and rep["skipped"] >= 1 and o.raw.get("review_skip"), (rep, o.raw)       # SMS вимкнено за замовчуванням
             o.raw = {"review_due": "2020-01-01T00:00"}; db.commit()
             rv.send_due(db, {**c, "review_sms": True}, "https://molodist.store", {"by_slug": {}, "items": []})
-            assert sent and len(sent[-1]) <= 70 and "https://" not in sent[-1] and "/review/" in sent[-1]
+            assert sent and len(sent[-1]) <= 134 and "https://" not in sent[-1] and "/review/" in sent[-1] and "25 бонусних MOLODIST Coins" in sent[-1]
+            from types import SimpleNamespace as _N
+            t = rv.short_sms(o, "https://molodist.store", db, 25, spend=True)
+            assert len(t) <= 134 and "=25 грн" in t and "/review/" in t
             # пропущений без SMS запит — коли SMS увімкнули, надсилається ще раз (один раз)
             o.raw = {"review_due": "2020-01-01T00:00"}; db.commit()
             rv.send_due(db, c, "https://molodist.store", {"by_slug": {}, "items": []})
@@ -861,7 +864,7 @@ def test_shop_sms_samples(monkeypatch):
             db.add(SiteOrder(number="R-SMP-1", ext_id="R-SMP-1", source="crm", status="Отримано", phone="+380731112233", name="Вадим Тест",
                              items=[{"id": 1, "name": "Крем", "qty": 1}], raw={})); db.commit()
             out = rv.send_sms_samples(db, "+380731112233", "https://molodist.store", {"by_slug": {}, "items": [{"id": 7, "slug": "piling-dlya-shkiri-golovi-100-ml", "variants": []}]})
-            assert len(sent) == 3 and all(len(t) <= 70 for t in sent) and all(o.startswith("✓") for o in out)
+            assert len(sent) == 3 and len(sent[0]) <= 134 and all(len(t) <= 70 for t in sent[1:]) and all(o.startswith("✓") for o in out)
 
 
 def test_bf_mediceuticals_once():

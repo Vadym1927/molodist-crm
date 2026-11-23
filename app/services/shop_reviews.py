@@ -147,19 +147,34 @@ def message(db: Session, c: dict, o: SiteOrder, root: str, data: dict) -> str:
     return tpl.replace("{coins}", str(bonus)).replace("{name}", first_name(o, db)).replace("{product}", prod).replace("{n}", o.number or "").replace("{link}", link(o, root))[:480]
 
 
-def short_sms(o: SiteOrder, root: str, db: Session | None = None) -> str:
-    """Коротка SMS в 1 сегмент кирилиці (≤70 символів): без https:// і зайвих слів."""
+SMS_MAX = 134                                         # 2 сегменти кирилиці (UCS-2: 67 символів у кожному)
+
+
+def short_sms(o: SiteOrder, root: str, db: Session | None = None, coins: int = 0, limit: int = SMS_MAX, spend: bool = True) -> str:
+    """SMS із запитом відгуку — до 2 сегментів кирилиці: подяка, бонус MOLODIST Coins за відгук і посилання (без https://)."""
     url = link(o, root).split("://", 1)[-1]
     nm = first_name(o, db) if db is not None else ""
-    for t in ((f"{nm}, оцініть покупку в MOLODIST: {url}" if nm else ""), f"Оцініть покупку в MOLODIST: {url}", f"Оцініть покупку: {url}", url):
-        if t and len(t) <= 70:
+    hi = f"{nm}, д" if nm else "Д"
+    k = int(coins or 0)
+    if k and not spend:                                  # Coins ще не можна витратити — не обіцяємо «знижку в гривнях»
+        opts = [f"{hi}якуємо за покупку в MOLODIST! Залиште відгук — нарахуємо {k} бонусних MOLODIST Coins на ваш рахунок: {url}",
+                f"{hi}якуємо за покупку в MOLODIST! За відгук — {k} бонусних MOLODIST Coins: {url}"]
+        t = next((t for t in opts if len(t) <= limit), "")
+        if t:
             return t
-    return url
+    opts = ([f"{hi}якуємо за покупку в MOLODIST! Залиште відгук — отримаєте {k} MOLODIST Coins (={k} грн на наступну покупку): {url}",
+             f"{hi}якуємо за покупку в MOLODIST! За відгук — {k} MOLODIST Coins (={k} грн знижки): {url}",
+             f"{hi}якуємо за покупку! Відгук = {k} грн бонусом MOLODIST Coins: {url}"] if k else []) + \
+        [f"{hi}якуємо за покупку в MOLODIST! Оцініть товар, нам важливо: {url}",
+         f"{nm}, оцініть покупку в MOLODIST: {url}" if nm else "", f"Оцініть покупку в MOLODIST: {url}", f"Оцініть покупку: {url}"]
+    return next((t for t in opts if t and len(t) <= limit), url)
 
 
 def _send(db: Session, c: dict, o: SiteOrder, text: str, root: str, phone: str | None = None) -> str:
     from . import shop_cabinet as sc
-    return sc._deliver(db, sc._phone(phone or o.phone), text, "⭐ ", sms=short_sms(o, root, db), sms_ok=bool(c.get("review_sms")))
+    k = int(float(c.get("coin_review") or 0)) if c.get("coin_on", True) else 0
+    return sc._deliver(db, sc._phone(phone or o.phone), text, "⭐ ", sms=short_sms(o, root, db, k, spend=bool(c.get("coin_spend_on"))),
+                       sms_ok=bool(c.get("review_sms")))
 
 
 def send_due(db: Session, c: dict, root: str, data: dict) -> dict:
@@ -235,7 +250,10 @@ def send_sms_samples(db: Session, phone: str, root: str, data: dict) -> list[str
         raise ValueError("Ще немає жодного замовлення з сайту.")
     items = order_items(db, o, data)
     pid = next((x["id"] for x in items if x.get("slug")), None) or next((i["id"] for i in data.get("items") or [] if i.get("id")), None)
-    texts = [short_sms(o, root, db), se.reorder_sms(o, root, first_name(o, db))] + ([sc.back_sms(root, pid)] if pid else [])
+    from . import shop_front as _sf
+    _c = _sf.cfg(db)
+    _k = int(float(_c.get("coin_review") or 0)) if _c.get("coin_on", True) else 0
+    texts = [short_sms(o, root, db, _k, spend=bool(_c.get("coin_spend_on"))), se.reorder_sms(o, root, first_name(o, db))] + ([sc.back_sms(root, pid)] if pid else [])
     out = []
     for t in texts:
         r = m.send_turbosms(ph, t, ["sms"], internal=True)
