@@ -719,7 +719,7 @@ SYROVA = {
              "media": ["doc-syrova.webp"], "img": "syrova-hero.webp", "og": "og-syrova.webp", "no_price": True,
              "img_alt": "Софія Сирова, лікар-дерматовенеролог MOLODIST"},
     "facts": [("Лікар-дерматовенеролог", "Медична освіта й спеціалізація з дерматовенерології — не косметолог після курсів",
-               "media:doc-syrova.webp|syrova-hero.webp", "center 20%"),
+               "syrova-hero.webp", "center 25%"),
               ("Діагностика OBSERV 520x", "Лікування починається з діагностики шкіри, а не з продажу процедури", "f-diag.webp"),
               ("Акне й розацеа", "Основний профіль: висипання, почервоніння, постакне й чутлива шкіра", "crop:sy-clean.webp|c-acne.webp"),
               ("Апарати й інʼєкції", "IPL, RF-ліфтинг, пілінги, біоревіталізація й контурна пластика", "crop:sy-rf.webp|f-cosm.webp")],
