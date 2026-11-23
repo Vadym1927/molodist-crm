@@ -10860,7 +10860,7 @@ def settings_shop_integrations(request: Request, user: User = Depends(require("u
             dns.append((h, ""))
     srv = dns[-1][1] if dns else ""
     return render(request, "settings_shop_integr.html", nav="shop", shop_tab="integr", shop_cnt=_shop_cnt(db), c=c_, root=c_["canonical"].rstrip("/"),
-                  dns=dns[:-1], srv=srv, has_secret=bool(str(c_.get("ts_secret") or "").strip()),
+                  dns=dns[:-1], srv=srv, has_secret=bool(str(c_.get("ts_secret") or "").strip()), has_mp=bool(str(c_.get("ga4_mp_secret") or "").strip()),
                   has_gkey=bool(str(c_.get("gplaces_key") or "").strip()),
                   svc_redirects=list(__import__("app.services.shop_content", fromlist=["x"]).SERVICE_REDIRECTS.items()),
                   main_url=(__import__("app.services.site_pages", fromlist=["x"]).cfg(db).get("main_url") or "https://molodist.com.ua").rstrip("/"), gr=__import__("app.services.google_reviews", fromlist=["x"]).state(db))
@@ -10884,6 +10884,11 @@ async def settings_shop_integrations_save(request: Request, user: User = Depends
     gp = str(f.get("gplace_id") or "").strip()
     c["gplace_id"] = gp if _re.fullmatch(r"[A-Za-z0-9_-]{10,200}", gp) else ""
     c["greviews_on"] = bool(f.get("greviews_on"))
+    _mps = str(f.get("ga4_mp_secret") or "").strip()
+    if _mps:
+        c["ga4_mp_secret"] = _mps[:100]
+    if f.get("ga4_mp_clear"):
+        c["ga4_mp_secret"] = ""
     sec = str(f.get("ts_secret") or "").strip()
     if sec:
         c["ts_secret"] = sec[:200]

@@ -235,6 +235,10 @@
         promo: form.promo && form.promo.getAttribute('data-ok') ? form.promo.value.trim() : '' };
       try { var m = JSON.parse(localStorage.getItem('mlds_utm') || 'null'); if (m && m.m) for (var k in m.m) d[k] = m.m[k]; } catch (x) {}
       try { d.sid = sessionStorage.getItem('mshop_sid') || ''; } catch (x) {}
+      try {   /* id відвідувача й сеансу GA4 — щоб CRM після оплати надіслала покупку в GA4 з сервера (iPhone, без повернення на «Дякуємо») */
+        var gc = document.cookie.match(/(?:^|; )_ga=([^;]*)/); if (gc) { var gp = decodeURIComponent(gc[1]).split('.'); if (gp.length >= 4) d.ga_cid = gp.slice(-2).join('.'); }
+        var gs = document.cookie.match(/(?:^|; )_ga_[A-Z0-9]+=([^;]*)/); if (gs) { var sv = decodeURIComponent(gs[1]), sm = sv.match(/\$?s(\d{9,12})/) || sv.match(/^GS1\.\d+\.(\d{9,12})/); if (sm) d.ga_sid = sm[1]; }
+      } catch (x) {}
       if (!d.items.length) { er.textContent = 'Кошик порожній.'; er.hidden = false; return; }
       bt.disabled = true; bt.textContent = 'Оформлюємо…';
       api('/api/order', d, function (j) {

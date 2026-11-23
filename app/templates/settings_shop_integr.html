@@ -11,6 +11,9 @@
  <div class="card"><b>Google: Tag Manager · GA4 · Ads</b>
   <label>Google Tag Manager ID<input name="gtm_id" value="{{ c.gtm_id }}" placeholder="GTM-XXXXXXX (порожньо: контейнер сайту клініки, якщо не задано GA4 / Ads)"></label>
   <label>GA4 Measurement ID<input name="ga4_id" value="{{ c.ga4_id }}" placeholder="G-XXXXXXXXXX"></label>
+  <label>Секретний ключ Measurement Protocol (GA4)<input name="ga4_mp_secret" type="password" autocomplete="off" placeholder="{{ 'збережено — залиште порожнім' if has_mp else 'GA4 → Потоки даних → molodist.store → Секретні токени API' }}"></label>
+  {% if has_mp %}<label class="ck"><input type="checkbox" name="ga4_mp_clear" value="1"> Видалити ключ</label>{% endif %}
+  <p class="small muted" style="margin:0">Після оплати CRM сама надсилає покупку в GA4 (той самий відвідувач і сеанс) — навіть з iPhone і коли покупець не повернувся на «Дякуємо». GA4 передає її в Google Ads.</p>
   <label>Google Ads ID<input name="ads_id" value="{{ c.ads_id }}" placeholder="AW-1234567890"></label>
   <label>Мітка конверсії «Покупка»<input name="ads_label" value="{{ c.ads_label }}" placeholder="AbCdEf123"></label>
   <label class="ck"><input type="checkbox" name="remarketing_on" value="1" {{ 'checked' if c.remarketing_on }}> Динамічний ремаркетинг (id товарів = id у фіді)</label>

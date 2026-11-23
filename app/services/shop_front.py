@@ -36,7 +36,7 @@ DEFAULT = {
     "coin_on": True, "coin_spend_on": False, "coin_start": "", "order_login": True, "coin_earn_pct": 3.0, "coin_max_pct": 10.0, "coin_days": 180, "coin_wait_days": 3, "coin_review": 25,   # MOLODIST Coins у магазині
     "seller_req": "ФОП Бондар Вадим Миколайович\nАдреса: м. Київ, вул. Князя Романа Мстиславича, 28А\nТелефон: +38 (093) 375 64 37\nE-mail: info@molodist.com.ua",
     "ticker": "Безкоштовна доставка від 3 000 ₴ по всій Україні\nВідправляємо в день замовлення до 18:00\nZO Skin Health і ClearChoice — після консультації лікаря, звертайтеся до адміністратора\nMOLODIST Coins за реєстрацію та кожну покупку",
-    "gtm_id": "", "ga4_id": "", "ads_id": "", "ads_label": "", "remarketing_on": True, "fb_pixel": "",
+    "gtm_id": "", "ga4_id": "", "ads_id": "", "ads_label": "", "remarketing_on": True, "fb_pixel": "", "ga4_mp_secret": "",
     "feed_google": True, "feed_facebook": True, "feed_hotline": True, "hotline_id": "", "llms_on": True, "ai_about": "",
     "cookie_on": True, "ts_site": "", "ts_secret": "", "tg_order": True, "tg_pay": True, "tg_review": True, "tg_cart": False,
     "redirects": "", "gsc_verify": "",
@@ -828,7 +828,9 @@ def create_order(db: Session, data: dict, base_url: str) -> dict:
                           **({k: i[k] for k in ("short", "short_price", "short_exp", "full")} if i.get("short") else {})} for i in cart["items"]],
                   extra=[{"name": f"Подарунок: {gift}", "price": 0, "on": True}] if gift else None,
                   raw={"utm": {k: str(v)[:150] for k, v in data.items() if k.startswith("utm_") or k in ("gclid", "fbclid", "gbraid", "wbraid", "landing")},
-                       "free_delivery": cart["free_delivery"], "sid": re.sub(r"[^a-zA-Z0-9]", "", str(data.get("sid") or ""))[:32] or None},
+                       "free_delivery": cart["free_delivery"], "sid": re.sub(r"[^a-zA-Z0-9]", "", str(data.get("sid") or ""))[:32] or None,
+                       "ga": {k: v for k, v in (("cid", re.sub(r"[^0-9.]", "", str(data.get("ga_cid") or ""))[:40]),
+                                                ("sid", re.sub(r"[^0-9]", "", str(data.get("ga_sid") or ""))[:12])) if v} or None},
                   synced_at=datetime.now())
     db.add(o)
     pat = so._patient(db, name, phone, o.email, {})
@@ -926,6 +928,43 @@ def paid(db: Session, pl) -> None:
             db.flush()
         notify(db, o, paid_now=True)
         _cust(db, o, "paid")
+        try:
+            ga_purchase(db, o)
+        except Exception:  # noqa: BLE001 — аналітика не має ламати оплату
+            pass
+
+
+def ga_payload(o: SiteOrder) -> dict | None:
+    """Подія purchase для GA4 Measurement Protocol: той самий відвідувач і сеанс, що оформив замовлення на сайті."""
+    ga = (o.raw or {}).get("ga") or {}
+    if not ga.get("cid"):
+        return None
+    p = {"transaction_id": o.number, "currency": "UAH", "value": round(float(o.total or 0), 2), "shipping": round(float(o.delivery_price or 0), 2),
+         "engagement_time_msec": 100,
+         "items": [{"item_id": str(i.get("product_id") or i.get("sku") or ""), "item_name": (i.get("name") or "")[:100],
+                    "price": round(float(i.get("price") or 0), 2), "quantity": int(i.get("qty") or 1)} for i in (o.items or [])]}
+    if ga.get("sid"):
+        p["session_id"] = ga["sid"]
+    return {"client_id": ga["cid"], "events": [{"name": "purchase", "params": p}]}
+
+
+def ga_purchase(db: Session, o: SiteOrder) -> bool:
+    """Оплачене замовлення → purchase у GA4 з сервера (GA4 передає її в Google Ads, зокрема з iPhone, де немає gclid).
+    Раз на замовлення; якщо покупець уже повернувся на «Дякуємо» і подія пішла з браузера — не дублюємо."""
+    c = cfg(db)
+    mid, sec = str(c.get("ga4_id") or "").strip(), str(c.get("ga4_mp_secret") or "").strip()
+    raw = dict(o.raw or {})
+    body = ga_payload(o)
+    if not (mid and sec and body) or raw.get("ga_done") or raw.get("ga_mp"):
+        return False
+    r = httpx.post("https://www.google-analytics.com/mp/collect", params={"measurement_id": mid, "api_secret": sec}, json=body, timeout=15)
+    if r.status_code >= 300:
+        return False
+    raw["ga_mp"] = raw["ga_done"] = datetime.now().isoformat(timespec="seconds")
+    o.raw = raw
+    log(o, "Покупку передано в Google Analytics (з сервера)")
+    db.commit()
+    return True
 
 
 def _cust(db: Session, o: SiteOrder, event: str) -> None:
