@@ -246,7 +246,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
   </div></section>{% endfor %}
 
 {% elif sec == 'facts' %}
-  <section class="h-facts {{ 'pics' if rich }}"><div class="wrap h-facts-in">{% for f in facts %}<div>{% if rich %}<img src="{{ f[2] if '/' in f[2] else st(f[2]) }}" alt="{{ f[0] }} — MOLODIST" loading="lazy" width="640" height="480"{% if f[3] == 'contain' %} style="object-fit:contain;background:#F7F4F0"{% elif f[3] %} style="object-position:{{ f[3] }}"{% endif %}>{% endif %}<span class="n">0{{ loop.index }}</span><h3>{{ f[0] }}</h3><p>{{ f[1] }}</p></div>{% endfor %}</div></section>
+  <section class="h-facts {{ 'pics' if rich }}"><div class="wrap h-facts-in">{% for f in facts %}<div>{% if rich and not f[2] %}<span class="h-fph">{{ f[3] }}</span>{% elif rich %}<img src="{{ f[2] if '/' in f[2] else st(f[2]) }}" alt="{{ f[0] }} — MOLODIST" loading="lazy" width="640" height="480"{% if f[3] == 'contain' %} style="object-fit:contain;background:#F7F4F0"{% elif f[3] %} style="object-position:{{ f[3] }}"{% endif %}>{% endif %}<span class="n">0{{ loop.index }}</span><h3>{{ f[0] }}</h3><p>{{ f[1] }}</p></div>{% endfor %}</div></section>
 
 {% elif sec == 'entry' %}
   <section class="sec h-sec" id="poslugy"><div class="wrap">
@@ -388,7 +388,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
   <div class="h-mstd" data-mode="std"><p class="h-mh">Залиште заявку — підберемо лікаря й час</p><p class="sm">Адміністратор звʼяжеться з вами тим способом, який ви оберете. {{ c.hours }}.</p></div>
   {{ form('modal', 'Надіслати заявку', ask=(lp and lp.ask)) }}
 </div></div>
-{% if c.exit_on %}{% set pp = lp.pop if lp and lp.pop else {'title': c.exit_title, 'text': c.exit_text, 'badge': c.exit_badge, 'btn': c.exit_btn, 'img': 'pop.webp'} %}<div class="h-pop" id="h-pop" hidden data-delay="{{ c.exit_delay or 12 }}" role="dialog" aria-label="{{ pp.title }}">
+{% if c.exit_on %}{% set pp = lp['pop'] if lp and lp['pop'] is defined and lp['pop'] else {'title': c.exit_title, 'text': c.exit_text, 'badge': c.exit_badge, 'btn': c.exit_btn, 'img': 'pop.webp'} %}<div class="h-pop" id="h-pop" hidden data-delay="{{ c.exit_delay or 12 }}" role="dialog" aria-label="{{ pp.title }}">
   <button type="button" class="h-x" data-pop-close aria-label="Закрити"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
   <img src="{{ st(pp.img) }}" alt="MOLODIST" width="480" height="480" loading="lazy">
   <div>{% if pp.badge %}<span class="h-pbadge">{{ pp.badge }}</span>{% endif %}<p class="h-mh">{{ pp.title }}</p><p class="sm">{{ pp.text }}</p>

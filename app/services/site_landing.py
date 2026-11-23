@@ -520,12 +520,12 @@ ZMORSHKY = {
              "lead": "Мімічні зморшки, втрата обʼєму, нечіткий овал і втомлений вигляд. Лікар оцінює обличчя цілком і підбирає "
                      "мінімально достатнє втручання: ботулінотерапію, контурну пластику чи біоревіталізацію.",
              "cta": "Записатися на консультацію", "cta2": "Що допомагає", "cta2_href": "#shcho-dopomahaie",
-             "media": [], "img": "zm-hero.webp", "og": "og-wrinkles.webp", "no_price": True,
+             "media": [], "img": "zm-hero-ba.webp", "og": "og-wrinkles.webp", "no_price": True,
              "img_alt": "Пацієнтка MOLODIST після контурної пластики губ — природний результат, Київ"},
     "facts": [("Процедури проводить лікар", "Лікар-дерматолог з досвідом в естетичній медицині, а не майстер після курсів",
                "media:doc-kolgan.webp|f-doctors.webp", "center 12%"),
               ("Діагностика OBSERV 520x", "Видно якість шкіри, глибину зморшок і пігментацію ще до процедури", "f-diag.webp"),
-              ("Природний результат", "Мінімально достатні дози й обʼєми — без перекорекції", "zm-c1-2.webp", "center 30%"),
+              ("Природний результат", "Мінімально достатні дози й обʼєми — без перекорекції", "", "Без перекорекції"),
               ("Сертифіковані препарати", "Офіційне постачання, оригінальні упаковки, відкриваємо при вас", "media:inject-hero.webp|f-med.webp")],
     "pain": {"title": "Знайомо?",
              "items": ["Зморшки на лобі й між бровами — обличчя здається втомленим або сердитим",
@@ -570,9 +570,9 @@ ZMORSHKY = {
                 "pics": ["f-diag.webp", "f-plan.webp", "media:inject-hero.webp|f-doctors.webp", "f-doctors.webp", "sk-home.webp"]},
     "pop": {"title": "Зморшки стали помітнішими?", "badge": "",
             "text": "Залиште номер — адміністратор запише вас до лікаря. Підберемо корекцію, яка виглядатиме природно.",
-            "btn": "Записатися", "img": "zm-pop.webp"},
+            "btn": "Записатися", "img": "zm-pop-c1.webp"},
     "ask": True, "ask_label": "Що саме вас турбує", "ask_ph": "Наприклад: зморшки на лобі, обʼєм губ, овал обличчя",
-    "modal": {"img": "zm-pop.webp", "eyebrow": "MOLODIST · естетична медицина", "title": "Запишіться — підберемо процедуру й час",
+    "modal": {"img": "zm-pop-side.webp", "eyebrow": "MOLODIST · естетична медицина", "title": "Запишіться — підберемо процедуру й час",
               "text": "Залиште номер — адміністратор передзвонить і запише вас до лікаря на зручний день."},
     "consult": {"eyebrow": "Якщо не знаєте, з чого почати",
                 "title": "Консультація BEAUTY PLAN",
@@ -765,7 +765,7 @@ def data(db: Session, lp: dict, home: dict, base: str) -> dict:
         if i.startswith("crop:"):
             m, _, alt = i[5:].partition("|")
             return sc.url(m, base) or (st_(alt) if alt else "")
-        return st_(i)
+        return st_(i) if i else ""
     facts_r = [(f[0], f[1], _pic(f[2]), f[3] if len(f) > 3 else "") for f in lp["facts"]]   # 4-й елемент — кадрування фото
     proc_pics = [_pic(i) for i in (lp.get("process") or {}).get("pics") or []]
     cons_img = _pic((lp.get("consult") or {}).get("img") or "") if (lp.get("consult") or {}).get("img") else ""
