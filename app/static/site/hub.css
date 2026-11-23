@@ -142,3 +142,4 @@ a.hb-t em{background:transparent;border:1px solid var(--lav2);font-size:13px}
 .hb-gr{white-space:nowrap}
 @media (min-width:821px){.hb-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.hb-in.has-img{grid-template-columns:minmax(0,1fr) 380px}}
 @media (min-width:1180px){.hb-tiles{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.hb-t b,.hb-t small{align-self:auto!important;text-align:left;margin-top:0}
