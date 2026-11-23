@@ -60,6 +60,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
       {% elif x.img_url %}<span class="h-cimg"><img src="{{ x.img_url }}" alt="{{ x.t }} — MOLODIST, Київ" loading="lazy" width="720" height="720"></span>
       {% else %}<span class="h-cimg none"><b>0{{ loop.index }}</b><small>{{ x.t }}</small></span>{% endif %}
       <span class="h-cb"><h3 class="h-ctt">{{ x.t }}</h3><small>{{ x.d }}</small><span class="how">{{ x.how }}</span></span><i>{{ arrow() }}</i></a>{% endfor %}</div>
+    <p class="h-btns ctr"><a class="h-ghost" href="{{ base }}/price">Дивитися всі ціни {{ arrow() }}</a></p>
     <p class="h-note">Фото «до / після» опубліковано за згодою пацієнтів. Результат індивідуальний і залежить від стану шкіри.</p>
     {% else %}<div class="h-cgrid">{% for x in concerns[:6] %}<a class="h-ccard" href="{{ (base ~ '/' ~ x.slug) if x.slug else zap }}">
       <b>{{ x.t }}</b><small>{{ x.d }}</small><span class="how">{{ x.how }}</span><i>{{ arrow() }}</i></a>{% endfor %}</div>
@@ -67,7 +68,8 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
   </div>
   <div class="h-tabp" id="{{ uid }}-p" role="tabpanel" hidden>
     <ul class="h-plist">{% for d in directions %}<li><a href="{{ (base ~ '/' ~ d.slug) if d.slug else '#zapys' }}" {% if not d.slug %}data-interest="{{ d.t }}"{% endif %}><span>{{ d.t }}<small>{{ d.d }}</small></span>{% if d.lo %}<em>від {{ money(d.lo) }}</em>{% endif %}{{ arrow() }}</a></li>{% endfor %}</ul>
-    <p class="h-note">Не знайшли процедуру? <a href="#zapys">Запитайте адміністратора →</a></p>
+    <p class="h-btns ctr"><a class="btn" href="{{ base }}/price">Весь прайс і ціни</a></p>
+    <p class="h-note">Не знайшли процедуру? <a href="{{ base }}/price">Пошук у прайсі</a> або <a href="#zapys">запитайте адміністратора →</a></p>
   </div>
 </div>
 {% endmacro %}

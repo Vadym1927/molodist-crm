@@ -60,7 +60,7 @@ VARIANTS: dict[str, dict] = {
 DEFAULT_VARIANT = "a"
 
 # ---------- меню (шапка й бургер) ----------
-MENU = [("Послуги", "#poslugy"), ("BEAUTY PLAN", "#beauty-plan"), ("Лікарі", "#likari"), ("Простір", "#prostir"),
+MENU = [("Послуги", "#poslugy"), ("Ціни", "/price"), ("BEAUTY PLAN", "#beauty-plan"), ("Лікарі", "#likari"), ("Простір", "#prostir"),
         ("Відгуки", "#vidhuky"), ("Запитання", "#zapytannia"), ("Контакти", "#kontakty")]
 
 # ---------- принципи (смуга фактів) ----------
