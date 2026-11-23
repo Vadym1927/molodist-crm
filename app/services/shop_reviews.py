@@ -174,7 +174,10 @@ def send_due(db: Session, c: dict, root: str, data: dict) -> dict:
     rows = db.scalars(select(SiteOrder).where(SiteOrder.source == "crm", SiteOrder.status.in_(DONE)).order_by(SiteOrder.id.desc()).limit(300)).all()
     for o in rows:
         raw = o.raw or {}
-        if not raw.get("review_due") or raw.get("review_sent") or raw.get("review_got") or raw["review_due"] > now or not o.phone:
+        retry = bool(raw.get("review_skip") and c.get("review_sms") and not raw.get("review_retry"))   # пропустили без SMS — SMS увімкнули: ще раз
+        if retry and raw.get("review_sent", "") < (datetime.now() - timedelta(days=30)).isoformat(timespec="minutes"):
+            retry = False                                    # старіше місяця — вже не просимо
+        if not raw.get("review_due") or (raw.get("review_sent") and not retry) or raw.get("review_got") or raw["review_due"] > now or not o.phone:
             continue
         try:
             ch = _send(db, c, o, message(db, c, o, root, data), root)
@@ -183,6 +186,9 @@ def send_due(db: Session, c: dict, root: str, data: dict) -> dict:
             continue
         raw = dict(raw)
         raw["review_sent"] = now
+        if retry:
+            raw["review_retry"] = now
+            raw.pop("review_skip", None)
         if ch == "none":                                 # немає Telegram, SMS вимкнено — не надсилаємо й більше не пробуємо
             raw["review_skip"] = True
             raw["log"] = (raw.get("log") or []) + [{"at": now, "by": "", "text": "Запит відгуку не надіслано: у покупця немає Telegram, SMS вимкнено"}]

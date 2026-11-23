@@ -839,6 +839,16 @@ def test_review_request_no_paid_sms(monkeypatch):
             o.raw = {"review_due": "2020-01-01T00:00"}; db.commit()
             rv.send_due(db, {**c, "review_sms": True}, "https://molodist.store", {"by_slug": {}, "items": []})
             assert sent and len(sent[-1]) <= 70 and "https://" not in sent[-1] and "/review/" in sent[-1]
+            # пропущений без SMS запит — коли SMS увімкнули, надсилається ще раз (один раз)
+            o.raw = {"review_due": "2020-01-01T00:00"}; db.commit()
+            rv.send_due(db, c, "https://molodist.store", {"by_slug": {}, "items": []})
+            db.refresh(o); n = len(sent)
+            assert o.raw.get("review_skip")
+            rv.send_due(db, {**c, "review_sms": True}, "https://molodist.store", {"by_slug": {}, "items": []})
+            db.refresh(o)
+            assert len(sent) == n + 1 and o.raw.get("review_retry") and not o.raw.get("review_skip")
+            rv.send_due(db, {**c, "review_sms": True}, "https://molodist.store", {"by_slug": {}, "items": []})
+            assert len(sent) == n + 1
 
 
 def test_shop_sms_samples(monkeypatch):
