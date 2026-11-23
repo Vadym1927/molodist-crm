@@ -9009,6 +9009,8 @@ def _home_new_ctx(ctx: dict, db: Session, vk: str) -> None:
     try:
         from .services import site_ig_assets as _sia
         ctx["bp_reel"] = _sia.assets(db, "bp", ctx["base"])["reel"]     # рілс BEAUTY PLAN з Instagram (вмикає власник)
+        if "st" in ctx:                                   # відео «Консультація BEAUTY PLAN» із Софією Сировою (з Dropbox, рішення власника 23.11)
+            ctx["bp_reel"] = {"src": ctx["st"]("syrova-bp.mp4"), "poster_src": ctx["st"]("syrova-bp-poster.webp"), "url": ""}
     except Exception:  # noqa: BLE001
         ctx["bp_reel"] = None
 

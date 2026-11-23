@@ -126,7 +126,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
     <div class="tx"><p class="eyebrow">{{ v.eyebrow }}</p><h1>{{ v.h1 }}</h1>{% if v.tagline %}<h2 class="h-tag">{{ v.tagline }}</h2>{% endif %}<p class="lead-tx">{{ v.lead }}</p>
       <p class="h-btns"><a class="btn" href="{{ zap }}">{{ v.cta }}</a><a class="h-ghost" href="#beauty-plan">{{ v.cta2 }} {{ arrow() }}</a></p></div>
     <div class="im"><img src="{{ img.hero }}" alt="Лікарі медичного простору MOLODIST у Києві" fetchpriority="high" width="1100" height="1375">
-      {% if rev %}<a class="h-rate" href="#vidhuky"><b>{{ '%.1f'|format(rev.rating) }}</b><span>★★★★★<small>{{ rev.count }} відгуків у Google</small></span></a>{% endif %}</div>
+      {% if rev %}<a class="h-rate" href="#vidhuky"><b>{{ '%.1f'|format(rev.rating) }}</b><span>★★★★★<small>{{ rev.label or (rev.count ~ " відгуків у Google") }}</small></span></a>{% endif %}</div>
   </div><p class="h-word" aria-hidden="true">MOLODIST</p></section>
   {% elif vk == 'b' %}
   <section class="h-hero b"><div class="wrap">
@@ -147,7 +147,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
     <div class="im">{% if img.founder %}<img src="{{ img.founder }}" alt="Дарʼя Колган, лікар-дерматолог, засновниця MOLODIST" fetchpriority="high">{% else %}<div class="h-fph"><b>ДК</b><small>портрет Дарʼї Колган</small></div>{% endif %}</div>
     <div class="tx"><p class="eyebrow">{{ v.eyebrow }}</p><h1>{{ v.h1 }}</h1><blockquote>{{ v.lead }}</blockquote>
       <p class="h-btns"><a class="btn" href="{{ zap }}">{{ v.cta }}</a><a class="h-ghost" href="#likari">{{ v.cta2 }} {{ arrow() }}</a></p>
-      {% if rev %}<a class="h-rate inl" href="#vidhuky"><b>{{ '%.1f'|format(rev.rating) }}</b><span>★★★★★<small>{{ rev.count }} відгуків у Google</small></span></a>{% endif %}</div>
+      {% if rev %}<a class="h-rate inl" href="#vidhuky"><b>{{ '%.1f'|format(rev.rating) }}</b><span>★★★★★<small>{{ rev.label or (rev.count ~ " відгуків у Google") }}</small></span></a>{% endif %}</div>
   </div></section>
   {% endif %}
 
@@ -158,7 +158,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
       <p class="h-btns"><a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp">{{ lp.hero.cta }}</a>{% if lp.hero.cta2_doc and ob_on and lp_doc and lp_doc[0].id %}<a class="h-ghost" href="{{ base }}/onlain-zapys?doctor={{ lp_doc[0].id }}">{{ lp.hero.cta2 }} {{ arrow() }}</a>{% elif not lp.hero.cta2_doc %}<a class="h-ghost" href="{{ lp.hero.cta2_href or '#yak-likuiemo' }}">{{ lp.hero.cta2 }} {{ arrow() }}</a>{% endif %}</p>
       {% if main_price and not lp.hero.no_price %}<p class="muted small">{{ lp.hero.price_label or 'Консультація BEAUTY PLAN Anti Acne' }} — {{ money(main_price) }}{% if lp_promo %} на першому візиті{% endif %}</p>{% endif %}</div>
     <div class="im"><img src="{{ hero_img or st(lp.hero.img) }}" alt="{{ lp.hero.img_alt }}" fetchpriority="high" width="600" height="750" class="l-himg">
-      {% if rev %}<a class="h-rate" href="#vidhuky"><b>{{ '%.1f'|format(rev.rating) }}</b><span>★★★★★<small>{{ rev.count }} відгуків у Google</small></span></a>{% endif %}</div>
+      {% if rev %}<a class="h-rate" href="#vidhuky"><b>{{ '%.1f'|format(rev.rating) }}</b><span>★★★★★<small>{{ rev.label or (rev.count ~ " відгуків у Google") }}</small></span></a>{% endif %}</div>
   </div><p class="h-word" aria-hidden="true">MOLODIST</p></section>
 
 {% elif sec == 'pain' %}
@@ -318,11 +318,12 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
 
 {% elif sec == 'reviews' %}
   <section class="sec h-rev2" id="vidhuky"><div class="wrap h-rev2-in">
-    <aside class="h-rsum"><h2 class="lbl">Відгуки пацієнтів MOLODIST</h2>
+    <aside class="h-rsum"><h2 class="lbl">{{ rev.title if rev and rev.title else "Відгуки пацієнтів MOLODIST" }}</h2>
       <p class="sc">{{ ('%.1f'|format(rev.rating)).replace('.', ',') if rev else '5,0' }}</p><p class="st" aria-hidden="true">★★★★★</p>
-      <p class="cnt">{% if rev %}{{ rev.count }} відгуків у Google{% else %}рейтинг у Google{% endif %}</p>
+      {% if rev and rev.src == 'crm' %}<p class="cnt">{{ rev.label }}</p>
+      <p class="tx">{{ rev.tx }}</p>{% else %}<p class="cnt">{% if rev %}{{ rev.count }} відгуків у Google{% else %}рейтинг у Google{% endif %}</p>
       <p class="tx">Справжні відгуки з профілю MOLODIST у Google — без редагування й відбору «найкращих».</p>
-      <p class="acts"><a class="btn light" href="{{ (rev.url if rev else '') or c.maps }}" target="_blank" rel="noopener">Усі відгуки в Google</a><a class="h-ghost lt" href="{{ (rev.url if rev else '') or c.maps }}" target="_blank" rel="noopener">Залишити відгук {{ arrow() }}</a></p></aside>
+      <p class="acts"><a class="btn light" href="{{ (rev.url if rev else '') or c.maps }}" target="_blank" rel="noopener">Усі відгуки в Google</a><a class="h-ghost lt" href="{{ (rev.url if rev else '') or c.maps }}" target="_blank" rel="noopener">Залишити відгук {{ arrow() }}</a></p>{% endif %}</aside>
     <div class="h-rwrap"><div class="h-rtrack grid" data-slider data-swipe>
       {% if rev and rev.reviews %}{% for r in rev.reviews[:(9 if lp else 6)] %}<article class="h-rcard"><header><span class="av">{{ r.author[:1]|upper }}</span><span><b>{{ r.author }}</b><small>{{ r.when }}</small></span>{% if r.src == 'crm' %}<span class="g m" title="Відгук з опитування пацієнтів MOLODIST після візиту">M</span>{% else %}<span class="g" title="Відгук із Google">G</span>{% endif %}</header>
         <p class="st">{{ '★' * r.rating }}</p><p class="tx">{{ r.text[:230] }}{{ '…' if r.text|length > 230 }}</p></article>{% endfor %}

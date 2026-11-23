@@ -712,7 +712,7 @@ SYROVA = {
              ("Консультація", "#konsultatsiia"), ("Відгуки", "#vidhuky"), ("Запитання", "#zapytannia"), ("Контакти", "#kontakty")],
     "hero": {"eyebrow": "Лікар MOLODIST",
              "h1": "Софія Сирова",
-             "h2": "Лікар-дерматовенеролог, косметолог",
+             "h2": "Лікар-дерматовенеролог, дерматохірург, косметолог",
              "lead": "Лікує акне, розацеа й дерматити, проводить дерматоскопію та підбирає домашній догляд, який справді працює. "
                      "Поєднує дерматологію з лазерними, апаратними й інʼєкційними методиками. У MOLODIST — з 2022 року.",
              "cta": "Записатися до Софії", "cta2": "Обрати час онлайн", "cta2_doc": True, "cta2_href": "#zapys",
@@ -721,12 +721,12 @@ SYROVA = {
     "facts": [("Лікар-дерматовенеролог", "Медична освіта й спеціалізація з дерматовенерології — не косметолог після курсів",
                "syrova-hero.webp", "center 25%"),
               ("Діагностика OBSERV 520x", "Лікування починається з діагностики шкіри, а не з продажу процедури", "f-diag.webp"),
-              ("Акне й розацеа", "Основний профіль: висипання, почервоніння, постакне й чутлива шкіра", "crop:sy-clean.webp|c-acne.webp"),
+              ("Акне й розацеа", "Основний профіль: висипання, почервоніння, постакне й чутлива шкіра", "akc6-1.webp", "center 30%"),
               ("Апарати й інʼєкції", "IPL, RF-ліфтинг, пілінги, біоревіталізація й контурна пластика", "crop:sy-rf.webp|f-cosm.webp")],
     "about": {"id": "pro-likaria", "eyebrow": "Напрямки роботи", "title": "З чим можна прийти до Софії",
               "text": "Консультує з дерматологічних запитів і веде лікування від першого огляду до стабільного результату.",
               "btn": "Записатися до Софії",
-              "items": [("Акне й постакне", "Лікування висипань, слідів і рубців: процедури, домашній догляд, за потреби — системна терапія.", "akc5-2.webp"),
+              "items": [("Акне й постакне", "Лікування висипань, слідів і рубців: процедури, домашній догляд, за потреби — системна терапія.", "akc5-1.webp"),
                         ("Розацеа й почервоніння", "Заспокоєння шкіри, IPL-терапія судин і догляд для чутливої шкіри.", "crop:rz1-2.webp|c-skin.webp"),
                         ("Дерматоскопія й новоутворення", "Огляд родимок і видалення доброякісних новоутворень.", "media:derma-1.webp|f-doctors.webp"),
                         ("Домашній догляд", "Підбір засобів під ваш тип шкіри — і корекція того, чим ви вже користуєтеся.", "sk-home.webp")]},
@@ -751,7 +751,8 @@ SYROVA = {
             "text": "Постійно навчається: конгреси, семінари, закордонні навчання й практичні курси.",
             "base": [("2015–2021", "Харківський національний університет імені В. Н. Каразіна, медичний факультет, лікувальна справа"),
                      ("2021–2023", "Інститут післядипломної освіти Харківського національного медичного університету, спеціалізація — лікар-дерматовенеролог")],
-            "years": [("2025", ["Контурна пластика складних зон, advanced-рівень"]),
+            "years": [("2026", ["Спеціалізація з дерматохірургії"]),
+                      ("2025", ["Контурна пластика складних зон, advanced-рівень"]),
                       ("2024", ["Acne Update", "20-ті Київські дерматологічні дні", "Future Faces Congress", "May Aesthetics Meeting",
                                 "Advanced class, Мілан", "Інвазивний і неінвазивний RF-ліфтинг Endymed", "Курс з IPL-терапії",
                                 "Колагеностимуляція полімолочною кислотою: практика й протоколи", "Майстер-клас «Контурна пластика вилиць»",
@@ -780,6 +781,8 @@ SYROVA = {
             "text": "Залиште номер — адміністратор підбере зручний час і відповість на запитання про прийом.",
             "btn": "Записатися", "img": "syrova-hero.webp"},
     "doctor": {"match": "сирова", "n": 1, "title": "Ваш лікар", "lead": ""},
+    "rev_crm": {"ilike": ["%софі%", "%сиров%"], "title": "Відгуки пацієнтів про Софію",
+                "tx": "Відгуки з опитування пацієнтів після візиту, де згадують Софію. Лише оцінки 5★, без редагування."},
     "reviews_kw": r"софі|сиров|акне|висип|прищ",
     "reviews_doc": r"сиров",
     "reviews_ilike": ["%софі%", "%сиров%", "%акне%"],
@@ -911,6 +914,8 @@ def data(db: Session, lp: dict, home: dict, base: str) -> dict:
         g = (rev or {}).get("reviews") or []
         k = (rev or {}).get("n_rel", 0)
         rev = {**(rev or {"rating": 5.0, "count": 0, "url": ""}), "reviews": (g[:k] + own[:4] + g[k:])[:9]}
+    if lp.get("rev_crm"):                               # сторінка лікаря: лише відгуки з опитувань CRM (5★), де згадують лікаря
+        rev = crm_reviews(db, lp["rev_crm"]) or rev
     # товари: засоби для проблемної шкіри; якщо мало — добираємо хітами
     products = home.get("products") or []
     try:
@@ -999,3 +1004,42 @@ _TR = dict(zip("абвгґдеєжзиіїйклмнопрстуфхцчшщью
 
 def _translit(t: str) -> str:
     return "".join(_TR.get(ch, ch) for ch in (t or "").lower())
+
+
+def _plural(n: int, one: str, few: str, many: str) -> str:
+    return one if n % 10 == 1 and n % 100 != 11 else few if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14 else many
+
+
+def crm_reviews(db: Session, cfg: dict) -> dict | None:
+    """Відгуки з опитувань після візиту (архів CleverBox + опитування CRM): лише 5★ і з текстом, де згадано лікаря."""
+    from sqlalchemy import select, or_
+    from ..models import ReviewArchive, Review
+    pat = cfg.get("ilike") or []
+    try:
+        a = db.scalars(select(ReviewArchive).where(ReviewArchive.text.is_not(None), ReviewArchive.avg >= 5, ReviewArchive.hidden.is_not(True),
+                                                   or_(*[ReviewArchive.text.ilike(k) for k in pat]))
+                       .order_by(ReviewArchive.at.desc().nullslast(), ReviewArchive.id.desc())).all()
+        b = db.scalars(select(Review).where(Review.text.is_not(None), Review.avg >= 5, or_(*[Review.text.ilike(k) for k in pat]))
+                       .order_by(Review.answered_at.desc().nullslast())).all()
+    except Exception:  # noqa: BLE001
+        return None
+    items, seen = [], set()
+    for x in b:
+        items.append({"author": "Відгук після візиту", "when": x.answered_at.strftime("%m.%Y") if x.answered_at else "", "rating": 5, "src": "crm",
+                      "text": " ".join((x.text or "").split())})
+    for x in a:
+        items.append({"author": "Відгук після візиту", "when": x.at.strftime("%m.%Y") if x.at else "", "rating": 5, "src": "crm",
+                      "text": " ".join((x.text or "").split())})
+    out = []
+    for r in items:
+        k = re.sub(r"\W+", "", r["text"].lower())[:120]
+        if len(r["text"]) < 30 or k in seen or re.search(r"[ыэъё]", r["text"], re.I):
+            continue
+        seen.add(k)
+        out.append(r)
+    if not out:
+        return None
+    n = len(out)
+    return {"rating": 5.0, "count": n, "reviews": out[:9], "url": "", "src": "crm", "title": cfg.get("title") or "Відгуки пацієнтів",
+            "label": f"{n} {_plural(n, 'відгук', 'відгуки', 'відгуків')} з оцінкою 5★",
+            "tx": cfg.get("tx") or "Відгуки з опитування пацієнтів після візиту в MOLODIST — без редагування."}

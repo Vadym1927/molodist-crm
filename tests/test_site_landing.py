@@ -241,3 +241,13 @@ def test_doctor_page_syrova():
         assert r.status_code == 200 and "Софія Сирова" in r.text and 'id="osvita"' in r.text and "akne-reel.mp4" in r.text
         assert "syrova-bp.mp4" in r.text and 'id="rezultaty"' in r.text and '"Physician"' in r.text
         assert cl.get("/_site/og/sofiasirova.jpg").status_code == 200
+
+
+def test_home_bp_video_syrova_and_crm_reviews_label():
+    from app.services.site_landing import _plural
+    assert _plural(1, "відгук", "відгуки", "відгуків") == "відгук" and _plural(23, "відгук", "відгуки", "відгуків") == "відгуки"
+    assert _plural(11, "відгук", "відгуки", "відгуків") == "відгуків"
+    with TestClient(app) as cl:
+        assert "syrova-bp.mp4" in cl.get("/_site/proto/a").text
+        r = cl.get("/_site/sofiasirova")
+        assert "дерматохірург" in r.text and "Спеціалізація з дерматохірургії" in r.text
