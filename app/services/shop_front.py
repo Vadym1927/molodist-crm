@@ -37,6 +37,7 @@ DEFAULT = {
     "seller_req": "ФОП Бондар Вадим Миколайович\nАдреса: м. Київ, вул. Князя Романа Мстиславича, 28А\nТелефон: +38 (093) 375 64 37\nE-mail: info@molodist.com.ua",
     "ticker": "Безкоштовна доставка від 3 000 ₴ по всій Україні\nВідправляємо в день замовлення до 18:00\nZO Skin Health і ClearChoice — після консультації лікаря, звертайтеся до адміністратора\nMOLODIST Coins за реєстрацію та кожну покупку",
     "gtm_id": "", "ga4_id": "", "ads_id": "", "ads_label": "", "remarketing_on": True, "fb_pixel": "",
+    "ads_offline_token": "", "ads_offline_name": "Покупка molodist.store (CRM)",
     "feed_google": True, "feed_facebook": True, "feed_hotline": True, "hotline_id": "", "llms_on": True, "ai_about": "",
     "cookie_on": True, "ts_site": "", "ts_secret": "", "tg_order": True, "tg_pay": True, "tg_review": True, "tg_cart": False,
     "redirects": "", "gsc_verify": "",

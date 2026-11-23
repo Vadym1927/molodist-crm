@@ -10841,6 +10841,11 @@ def settings_shop_integrations(request: Request, user: User = Depends(require("u
     from .services import shop_front as sf
     import socket
     c_ = sf.cfg(db)
+    if len(str(c_.get("ads_offline_token") or "")) < 16:          # секрет для посилання офлайн-конверсій Google Ads
+        import secrets as _sec
+        c_["ads_offline_token"] = _sec.token_urlsafe(24)
+        sf.save_cfg(db, c_)
+        c_ = sf.cfg(db)
     dns = []
     for h in [x for x in (c_.get("hosts") or []) if x.strip()][:4] + [settings.public_url.split("//")[-1].split("/")[0]]:
         try:
@@ -10873,6 +10878,9 @@ async def settings_shop_integrations_save(request: Request, user: User = Depends
     gp = str(f.get("gplace_id") or "").strip()
     c["gplace_id"] = gp if _re.fullmatch(r"[A-Za-z0-9_-]{10,200}", gp) else ""
     c["greviews_on"] = bool(f.get("greviews_on"))
+    _an = str(f.get("ads_offline_name") or "").strip()[:100]
+    if _an:
+        c["ads_offline_name"] = _an
     sec = str(f.get("ts_secret") or "").strip()
     if sec:
         c["ts_secret"] = sec[:200]
