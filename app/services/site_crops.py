@@ -63,6 +63,9 @@ def path(name: str) -> Path | None:
     if rel.startswith("media:"):                     # джерело — медіатека сайту
         from . import site_pages as _sp
         src = _sp.media_dir() / rel[6:]
+    elif rel.startswith("ig:"):                       # джерело — фото, забрані з Instagram (files/site_ig)
+        from . import site_ig_assets as _ia
+        src = _ia.folder() / rel[3:]
     else:
         src = ts.root() / rel
     if not src.is_file():

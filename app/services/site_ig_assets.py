@@ -27,6 +27,8 @@ TOPICS = {"akne": {"reel": r"чотири фактор|4 фактор", "reel2":
           "pigment": {"reel": r"\bipl\b|фотоомолодж|пігмент|судин|купероз|розаце", "posts": r"\bipl\b|пігмент|судин|купероз|розаце|фотоомолодж",
                       "ba": r"до\s*/?\s*(і\s*)?після|результат|кейс|динамік", "opt_in": True},
           # головна, блок BEAUTY PLAN: рілс про консультацію (не «Anti Acne»); фото не беремо; вмикає власник
+          # сторінка «Зморшки й вікові зміни»: конкретні публікації (кейси контурної пластики) — за кодом з посилання
+          "zmorshky": {"reel": r"(?!x)x", "posts": r"(?!x)x", "ba": r"(?!x)x", "codes": ["Dbpt1PsiFuY", "DTyZqaBDEbQ"], "opt_in": True},
           "bp": {"reel": r"beauty\s*plan(?!\s*anti)|бюті[\s-]?план", "posts": r"(?!x)x", "ba": r"(?!x)x", "opt_in": True}}
 
 
@@ -68,6 +70,26 @@ def _list(db: Session, http, limit: int = 60) -> list[dict]:
     raise RuntimeError("немає доступу до Instagram (Канали → Instagram та Facebook)")
 
 
+def _find(db: Session, http, codes: list[str], pages: int = 8) -> list[dict]:
+    """Публікації за кодами з посилань (instagram.com/p/<код>/): гортаємо стрічку сторінками по 100."""
+    from . import meta_inbox as mi
+    tok = mi._ig_token(db)
+    want, got = set(codes), []
+    if not tok:
+        return [m for m in _list(db, http, 100) if any(c in (m.get("permalink") or "") for c in want)]
+    url, params = f"{mi.IGRAPH}/me/media", {"access_token": tok, "fields": FIELDS, "limit": 100}
+    for _ in range(pages):
+        js = http.get(url, params=params).json()
+        for m in js.get("data") or []:
+            if any(c in (m.get("permalink") or "") for c in want):
+                got.append(m)
+        nxt = (js.get("paging") or {}).get("next")
+        if not nxt or len(got) >= len(want):
+            break
+        url, params = nxt, None
+    return got
+
+
 def _img(http, url: str, path: Path, max_side: int = 1080) -> bool:
     from PIL import Image
     r = http.get(url)
@@ -100,7 +122,7 @@ def refresh(db: Session, topic: str = "akne", http=None) -> dict:
     st = state(db)
     cur = st.get(topic) or {}
     try:
-        data = _list(db, http)
+        data = _list(db, http) if not t.get("codes") else _find(db, http, t["codes"])
     except Exception as e:  # noqa: BLE001
         cur["error"] = re.sub(r"access_token=[^&\s]+", "access_token=…", str(e))[:300]
         st[topic] = cur
@@ -135,7 +157,7 @@ def refresh(db: Session, topic: str = "akne", http=None) -> dict:
                     reel2 = {"file": v.name, "poster": p.name if p.is_file() else "", "url": m.get("permalink"), "caption": cap[:300], "date": str(m.get("timestamp") or "")[:10]}
             except Exception:  # noqa: BLE001
                 v.unlink(missing_ok=True)
-        if m.get("media_type") in ("IMAGE", "CAROUSEL_ALBUM") and re.search(t["posts"], cap, re.I) and re.search(t["ba"], cap, re.I):
+        if m.get("media_type") in ("IMAGE", "CAROUSEL_ALBUM") and (t.get("codes") or (re.search(t["posts"], cap, re.I) and re.search(t["ba"], cap, re.I))):
             kids = ((m.get("children") or {}).get("data") or []) if m.get("media_type") == "CAROUSEL_ALBUM" else [m]
             for i, k in enumerate(kids):
                 if k.get("media_type") != "IMAGE" or not k.get("media_url"):
