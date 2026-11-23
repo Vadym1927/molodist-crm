@@ -179,7 +179,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
       <p class="big">{{ lp.reel_tx.text if lp.reel_tx else 'Софія Сирова пояснює, що насправді запускає висипання — і чому догляд «від прищів» без лікаря часто не працює.' }}</p>
       <p class="h-btns"><a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp">{{ 'Записатися' if lp.reel_tx else 'Записатися на консультацію' }}</a>{% if reel.url %}<a class="h-ghost" href="{{ reel.url }}" target="_blank" rel="noopener">Дивитися в Instagram {{ arrow() }}</a>{% endif %}</p></div>
     <div class="l-vid"><video data-reel playsinline muted autoplay loop preload="metadata" {% if reel.poster_src %}poster="{{ reel.poster_src }}"{% endif %} aria-label="{{ lp.reel_tx.title if lp.reel_tx else 'Софія Сирова: чотири фактори акне' }}"><source src="{{ reel.src }}" type="video/mp4"></video>
-      <button type="button" class="l-snd" data-reel-sound><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.500-4H4z" fill="currentColor"/><path d="M15.500 9a4 4 0 0 1 0 6M18 6.500a7.500 7.500 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span>Увімкнути звук</span></button></div>
+      {% if not (lp.reel_tx and lp.reel_tx.nosound) %}<button type="button" class="l-snd" data-reel-sound><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.500-4H4z" fill="currentColor"/><path d="M15.500 9a4 4 0 0 1 0 6M18 6.500a7.500 7.500 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span>Увімкнути звук</span></button>{% endif %}</div>
   </div></section>{% endif %}
 
 {% elif sec == 'reel2' %}{% if reel2 and lp.reel2_tx %}
