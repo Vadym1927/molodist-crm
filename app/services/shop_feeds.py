@@ -178,10 +178,18 @@ def clean_title(t: str) -> str:
     return out or t
 
 
-def clean_desc(text: str) -> str:
-    """Опис для Google Merchant: без медичних тверджень (через них косметику блокують як ліки). На сайті опис не змінюється."""
+_SUPP_T = re.compile(r"tablet|таблет|stick|стік|капсул|caps|drink|порош|саше|sachet", re.I)
+_SUPP = re.compile(r"фібробласт|синтез|колаген|старін|старінн|клітин|імун|організм|дієт|куріння|харчов|метабол|гормон|вироблят|виробля|"
+                   r"дефіцит|засвоюв|вітамін|амінокисл|антиоксид|здоров|самопочут|результат|ефект", re.I)
+
+
+def clean_desc(text: str, title: str = "") -> str:
+    """Опис для Google Merchant: без медичних тверджень (через них косметику блокують як ліки). На сайті опис не змінюється.
+    Для засобів, що приймаються всередину (таблетки, стіки, напої), — лише нейтральні речення, без тверджень про дію на організм:
+    інакше Google блокує їх як «несхвалені харчові добавки»."""
     parts = re.split(r"(?<=[.!?…])\s+", re.sub(r"\s+", " ", text or "").strip())
-    keep = [p for p in parts if p and not _MED.search(p) and not _inci(p)]
+    supp = bool(_SUPP_T.search(title or ""))
+    keep = [p for p in parts if p and not _MED.search(p) and not _inci(p) and not (supp and _SUPP.search(p))]
     return " ".join(keep)[:4900]
 
 
@@ -193,7 +201,7 @@ def google(data: dict, root: str, title: str = "MOLODIST", notice_brands: set[st
             continue                                                         # власник прибрав товар з реклами (БАДи, засоби з лікарськими складниками)
         if not i["imgs"]:
             continue                                                         # без фото Merchant Center товар відхиляє
-        parts = [f"<g:id>{x(i['id'])}</g:id>", f"<title>{x(clean_title(i['title']))}</title>", f"<description>{x(clean_desc(i['desc']) or clean_title(i['title']))}</description>",
+        parts = [f"<g:id>{x(i['id'])}</g:id>", f"<title>{x(clean_title(i['title']))}</title>", f"<description>{x(clean_desc(i['desc'], i['title']) or clean_title(i['title']))}</description>",
                  f"<link>{x(i['link'])}</link>", f"<g:image_link>{x(i['imgs'][0])}</g:image_link>"]
         parts += [f"<g:additional_image_link>{x(u)}</g:additional_image_link>" for u in i["imgs"][1:10]]
         parts += [f"<g:availability>{'in_stock' if i['stock'] else 'out_of_stock'}</g:availability>",

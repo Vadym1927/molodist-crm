@@ -1006,3 +1006,13 @@ def test_shop_paid_orders_to_google_ads_offline():
         assert not [r for r in ga.offline_rows(db) if r["key"].startswith("shop:MT-")]
         c = ga.cfg(db); c["shop_offline_on"] = False; ga.save_cfg(db, c); db.commit()
     assert "'Order ID'" in ga.script("https://x")
+
+
+def test_feed_desc_supplement_neutral():
+    from app.services.shop_feeds import clean_desc
+    d = ("Jalupro - таблетки для розжовування з легким цитрусовим ароматом. Відмінність від питної форми-вітамін С, тому і у формі таблеток. "
+         "У складі унікальний коктейль з амінокислот, який дає необхідний стимул для фібробластів шкіри для синтезу нового колагену. "
+         "З часом активність фібробластів знижується. Цей процес пов'язаний не тільки зі старінням. Приймати по 1 таблетці на день.")
+    out = clean_desc(d, "Jalupro Tablets 120 шт")
+    assert out.startswith("Jalupro - таблетки для розжовування") and "фібробласт" not in out and "колаген" not in out and "старін" not in out
+    assert "фібробласт" in clean_desc("Крем стимулює фібробласти. Легка текстура.", "Крем для обличчя 50 мл")   # косметику не чіпаємо
