@@ -910,7 +910,7 @@ def data(db: Session, lp: dict, home: dict, base: str) -> dict:
                  "text": " ".join((x.text or "").split())} for x in db.scalars(q2) if len((x.text or "").strip()) >= 40]
     except Exception:  # noqa: BLE001
         own = []
-    own = [x for x in own if not re.search(r"[ыэъё]", x["text"], re.I)]      # лише українською
+    own = [x for x in own if _ua(x["text"])]      # лише українською
     if own:
         g = (rev or {}).get("reviews") or []
         k = (rev or {}).get("n_rel", 0)
@@ -1034,7 +1034,7 @@ def crm_reviews(db: Session, cfg: dict) -> dict | None:
     out = []
     for r in items:
         k = re.sub(r"\W+", "", r["text"].lower())[:120]
-        if len(r["text"]) < 30 or k in seen or re.search(r"[ыэъё]", r["text"], re.I):
+        if len(r["text"]) < 30 or k in seen or not _ua(r["text"]):
             continue
         seen.add(k)
         out.append(r)
@@ -1072,7 +1072,7 @@ def mix_reviews(db: Session, g: dict | None) -> dict | None:
                         .order_by(ReviewArchive.at.desc().nullslast(), ReviewArchive.id.desc()).limit(20)):
         own.append({"author": "Відгук після візиту", "when": x.at.strftime("%m.%Y") if x.at else "", "rating": 5, "src": "crm",
                     "text": " ".join((x.text or "").split())})
-    own = [x for x in own if len(x["text"]) >= 40 and not re.search(r"[ыэъё]", x["text"], re.I)][:6]
+    own = [x for x in own if len(x["text"]) >= 40 and _ua(x["text"])][:6]
     gr_ = (g or {}).get("reviews") or []
     mixed = []
     for i in range(max(len(gr_), len(own))):          # Google і опитування по черзі
@@ -1081,3 +1081,14 @@ def mix_reviews(db: Session, g: dict | None) -> dict | None:
     return {**(g or {}), "rating": float(rt["avg"]), "count": n, "src": "mix", "reviews": mixed,
             "label": f"{n} {_plural(n, 'відгук', 'відгуки', 'відгуків')} пацієнтів",
             "g_rating": (g or {}).get("rating"), "g_count": (g or {}).get("count"), "url": (g or {}).get("url") or ""}
+
+
+_RU = re.compile(r"[ыэъё]|\b(очень|спасибо|клиник\w*|понравил\w*|все|отлично|хочется|еще|доктор\w*|девочк\w*)\b", re.I)
+
+
+def _ua(t: str) -> bool:
+    """Відгук українською: без російських літер і характерних слів; довгий текст без жодної з літер і/ї/є — теж не беремо."""
+    t = t or ""
+    if _RU.search(t):
+        return False
+    return len(t) < 60 or bool(re.search(r"[іїєґ]", t, re.I))
