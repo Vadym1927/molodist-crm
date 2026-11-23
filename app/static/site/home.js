@@ -117,6 +117,27 @@
     setTimeout(function () { var ok = f.querySelector('.ok'); if (ok && !ok.hidden) { try { localStorage.setItem('mlds_lead', String(Date.now())); } catch (x) {} } }, 2500);
   });
 
+  /* прайс: пошук по послугах і навігація розділами */
+  var psq = d.querySelector('[data-psearch]');
+  if (psq) {
+    var groups = [].slice.call(d.querySelectorAll('.p-g')), empty = d.querySelector('[data-pempty]'), was = null;
+    psq.addEventListener('input', function () {
+      var q = psq.value.trim().toLowerCase(), any = false;
+      if (q && was === null) was = groups.map(function (g) { return g.open; });
+      groups.forEach(function (g, k) {
+        var hit = 0;
+        g.querySelectorAll('li[data-pn]').forEach(function (li) { var ok = !q || li.getAttribute('data-pn').indexOf(q) >= 0; li.hidden = !ok; if (ok) hit++; });
+        g.hidden = !!q && !hit; if (q) g.open = hit > 0; else if (was) g.open = was[k];
+        if (hit) any = true;
+      });
+      if (!q) was = null;
+      if (empty) empty.hidden = !q || any;
+    });
+    d.querySelectorAll('[data-pnav]').forEach(function (a) {
+      a.addEventListener('click', function () { var g = d.querySelector(a.getAttribute('href')); if (g) g.open = true; });
+    });
+  }
+
   /* банер: через N секунд або коли курсор іде закривати вкладку (ПК); раз на 3 дні, не після заявки */
   if (pop) {
     var force = /[?&]pop(=|&|$)/.test(location.search), T0 = Date.now(), shown = false;

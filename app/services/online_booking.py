@@ -376,8 +376,54 @@ def pricelist(db: Session, online_ids: set[int] | None = None) -> list[dict]:
         cats.setdefault(site_group(sv), []).append({"id": sv.id, "name": disp_name(sv), "price": float(sv.price), "min": _mins(sv),
                                                     "online": bool(online_ids and sv.id in online_ids)})
     order = {n: i for i, n in enumerate(GROUP_ORDER)}
-    return [{"name": k, "items": sorted(v, key=lambda x: (x["price"], x["name"])), "lo": min(x["price"] for x in v), "sex": group_sex(k)}
-            for k, v in sorted(cats.items(), key=lambda kv: (order.get(kv[0], 100), kv[0]))]
+    out = []
+    for k, v in sorted(cats.items(), key=lambda kv: (order.get(kv[0], 100), kv[0])):
+        v = _dedupe(k, v)
+        out.append({"name": GROUP_FIX.get(k, k), "items": sorted(v, key=lambda x: (x["price"], x["name"])), "lo": min(x["price"] for x in v),
+                    "sex": group_sex(k)})
+    return out
+
+
+# Брендбук: назви препаратів ботулотоксину на сайті не пишемо — у прайсі лише зона; та сама зона різними препаратами — один рядок «від»
+BOTOX_BRANDS = (r"\b(botox|ботокс|xeomin|ксеомін|dysport|диспорт|neuronox|нейронокс|relatox|релатокс|botulax|ботулакс|nabota|набота|"
+                r"azzalure|bocouture)\b")
+GROUP_FIX = {"Лабараторія CSD": "Лабораторія CSD"}
+
+
+def clean_name(name: str, group: str = "") -> str:
+    """Назва послуги для прайсу на сайті: без брендів ботулотоксину; у розділі ботулінотерапії — лише зона."""
+    n = name or ""
+    bot = (group or "").lower().startswith("ботулінотерапія")
+    if bot:
+        n = re.sub(r"лікування\s+підвищеної\s+пітливості", "Зменшення пітливості", n, flags=re.I)
+        n = re.sub(BOTOX_BRANDS + r"|ботулінотерапі[яюїє]", " ", n, flags=re.I)
+        n = re.sub(r"\bчолов\w*", " ", n, flags=re.I)
+    else:
+        n = re.sub(BOTOX_BRANDS, "ботулінотерапія", n, flags=re.I)
+    n = re.sub(r"\(\s*\)", " ", n)
+    n = re.sub(r"(\S)\(", r"\1 (", n)
+    n = re.sub(r"\s*\+\s*", " + ", n)
+    n = re.sub(r"\s{2,}", " ", n).strip(" ·-,+")
+    if bot:                                           # «Лоб + Міжбрів'я + Очі» → «Лоб + міжбрів'я + очі» (абревіатури й латиницю не чіпаємо)
+        w = n.split(" ")
+        n = " ".join([w[0]] + [x.lower() if x.lower() not in ("ніфертітті", "нефертіті") and re.fullmatch(r"\(?[А-ЯІЇЄҐ][а-яіїєґʼ'’]+\)?", x) else x for x in w[1:]]) if w else n
+    return (n[:1].upper() + n[1:]) if n else (name or "")
+
+
+def _dedupe(group: str, items: list[dict]) -> list[dict]:
+    by: dict = {}
+    for i in items:
+        nm = clean_name(i["name"], group)
+        k = re.sub(r"[ʼ'’`\s]", "", nm.lower())
+        if k in by:
+            b = by[k]
+            b["from"] = b["from"] or b["price"] != i["price"]
+            if i["price"] < b["price"]:
+                b.update(id=i["id"], price=i["price"], min=i["min"])
+            b["online"] = b["online"] or i["online"]
+        else:
+            by[k] = {**i, "name": nm, "from": False}
+    return list(by.values())
 
 
 def team_cards(db: Session, base: str = "/_site", c: dict | None = None) -> list[dict]:

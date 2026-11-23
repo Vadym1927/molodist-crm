@@ -635,7 +635,70 @@ ZMORSHKY = {
     ],
 }
 
-LANDINGS = {ACNE["slug"]: ACNE, PIGMENT["slug"]: PIGMENT, LASER["slug"]: LASER, SKIN["slug"]: SKIN, ZMORSHKY["slug"]: ZMORSHKY}
+PRICE = {
+    "slug": "price",                                  # та сама адреса, що й на Tilda — позиції в Google зберігаються
+    "key": "price",
+    "topic": "Прайс",
+    "full_price": True,                               # повний прайс з CRM (усі активні послуги) — секція "pricelist"
+    "order": ["pricelist", "consult", "ldoctor", "reviews", "booking", "faq", "contacts"],
+    "seo": {"title": "Ціни на косметологію й дерматологію в Києві — прайс | MOLODIST",
+            "desc": "Актуальний прайс MOLODIST: консультації BEAUTY PLAN, ботулінотерапія, контурна пластика, біоревіталізація, IPL, "
+                    "RF-ліфтинг, чистки, пілінги, лазерна епіляція й видалення новоутворень. Ціни оновлюються автоматично.",
+            "og_title": "Прайс MOLODIST — актуальні ціни на всі послуги",
+            "og_desc": "Консультації лікаря, інʼєкційна й апаратна косметологія, лазерна епіляція, видалення новоутворень. "
+                       "Ціни збігаються з прайсом у медичному просторі. Київ."},
+    "menu": [("Головна", "/"), ("Ціни", "#tsiny"), ("Консультація", "#konsultatsiia"), ("Лікарі", "#likar"),
+             ("Відгуки", "#vidhuky"), ("Запитання", "#zapytannia"), ("Контакти", "#kontakty")],
+    "hero": {"eyebrow": "MOLODIST · прайс", "h1": "Ціни на послуги MOLODIST",
+             "h2": "", "lead": "Актуальний прайс медичного простору: ціни оновлюються автоматично й збігаються з тими, що на рецепції. "
+                               "Остаточну вартість лікар підтверджує після огляду.",
+             "cta": "Записатися", "media": [], "img": "s-1.webp", "og": "s-1.webp", "no_price": True,
+             "img_alt": "Медичний простір MOLODIST у Києві"},
+    "facts": [],
+    "consult": {"eyebrow": "Не знаєте, що обрати",
+                "title": "Почніть з консультації BEAUTY PLAN",
+                "text": "Лікар оглядає шкіру, робить діагностику на OBSERV 520x і складає письмовий план: які процедури потрібні, "
+                        "в якому порядку і скільки це коштуватиме. Без зайвих процедур.",
+                "gets": ["Огляд лікаря й діагностика шкіри на OBSERV 520x", "План процедур за пріоритетами з цінами",
+                         "Схема домашнього догляду під ваш тип шкіри"],
+                "modal": "Огляд лікаря, діагностика шкіри на OBSERV 520x і письмовий план процедур",
+                "note": "Консультація не обовʼязкова: на процедуру можна записатися одразу — лікар огляне шкіру перед початком.",
+                "main_id": 387, "img": "f-diag.webp",
+                "formats": [(387, "BEAUTY PLAN", "Консультація лікаря: діагностика шкіри й письмовий план"),
+                            (540, "BEAUTY PLAN Anti Acne", "Для акне: діагностика й план лікування")]},
+    "ask": True, "ask_label": "Яка послуга вас цікавить", "ask_ph": "Наприклад: чистка обличчя, ботулінотерапія лоба, лазерна епіляція пахв",
+    "modal": {"img": "f-diag.webp", "eyebrow": "MOLODIST · запис", "title": "Запишіться — підберемо лікаря й час",
+              "text": "Залиште номер — адміністратор передзвонить, відповість на запитання щодо цін і запише на зручний день."},
+    "pop": {"title": "Не знаєте, яку процедуру обрати?", "badge": "",
+            "text": "Залиште номер — адміністратор підкаже, з чого почати, і запише до лікаря на зручний день.",
+            "btn": "Отримати консультацію", "img": "f-diag.webp"},
+    "doctor": {"match": "колган|сирова|чугунова", "n": 3, "title": "Лікарі MOLODIST",
+               "lead": "Процедури проводять лікарі з медичною освітою. Ви знаєте, до кого записуєтеся, ще до візиту."},
+    "reviews_kw": r"ціна|вартіст|цін|чесн|без зайв",
+    "reviews_doc": r"колган|сиров|чугунов",
+    "reviews_ilike": ["%ціна%", "%вартіст%", "%чесн%"],
+    "products_kw": r"^$", "products_no": r"^$",
+    "shop": {},
+    "about_ld": {"type": "MedicalProcedure", "name": "Косметологічні й дерматологічні послуги", "alt": ["Прайс MOLODIST"]},
+    "faq": [
+        ("Чи збігаються ціни на сайті з цінами в медичному просторі?",
+         "Так. Прайс на сайті береться автоматично з нашої системи запису — це ті самі ціни, що й на рецепції."),
+        ("Чому біля деяких послуг написано «від»?",
+         "Вартість залежить від препарату, обʼєму або площі зони. Точну суму лікар назве після огляду — до початку процедури."),
+        ("Чи потрібна консультація перед процедурою?",
+         "Не обовʼязково. На більшість процедур можна записатися одразу: лікар огляне шкіру й перевірить протипоказання перед початком. "
+         "Якщо не знаєте, що обрати, — почніть з консультації BEAUTY PLAN ({price})."),
+        ("Чи є знижки?",
+         "На лазерну епіляцію діє знижка на перший візит, також є абонементи й подарункові сертифікати. "
+         "Актуальні пропозиції підкаже адміністратор."),
+        ("Як можна оплатити?",
+         "Готівкою або карткою в медичному просторі. Подарунковим сертифікатом можна оплатити будь-яку послугу."),
+        ("Як записатися?",
+         "Онлайн — оберіть послугу, лікаря й час на сторінці онлайн-запису, або залиште заявку: адміністратор передзвонить."),
+    ],
+}
+
+LANDINGS = {ACNE["slug"]: ACNE, PIGMENT["slug"]: PIGMENT, LASER["slug"]: LASER, SKIN["slug"]: SKIN, ZMORSHKY["slug"]: ZMORSHKY, PRICE["slug"]: PRICE}
 
 # Старі сторінки Tilda, які зібрано в одну нову: постійне перенаправлення (301) — Google переносить накопичену вагу на нову адресу.
 REDIRECTS = {"ipl-therapy": PIGMENT["slug"], "fotoomolodzhennya-ipl": PIGMENT["slug"], "lazerne-vydalennya-sudyn": PIGMENT["slug"],
@@ -780,7 +843,8 @@ def data(db: Session, lp: dict, home: dict, base: str) -> dict:
     hero = next((u for u in (sp.media_url(n, base) for n in lp["hero"]["media"]) if u), "")
     if not hero and lp["hero"].get("crop"):
         hero = sc.url(lp["hero"]["crop"], base)
-    return {"proc_pics": proc_pics, "cons_img": cons_img, "side_img": side_img or hero or (st_(lp["hero"]["img"]) if lp["hero"].get("img") else ""), "hero_img": hero, "cases": cases, "about_items": about, "facts_r": facts_r, "pgroups": pgroups, "lp_promo": promo, "formats": formats, "main_price": main_price, "procs": procs, "lp_doc": doc, "rev": rev, "products": products, "faq": faq}
+    plist = full_price(db, base) if lp.get("full_price") else None
+    return {"plist": plist, "proc_pics": proc_pics, "cons_img": cons_img, "side_img": side_img or hero or (st_(lp["hero"]["img"]) if lp["hero"].get("img") else ""), "hero_img": hero, "cases": cases, "about_items": about, "facts_r": facts_r, "pgroups": pgroups, "lp_promo": promo, "formats": formats, "main_price": main_price, "procs": procs, "lp_doc": doc, "rev": rev, "products": products, "faq": faq}
 
 
 def jsonld(lp: dict, c: dict, url: str, faq: list, formats: list, videos: list | None = None) -> str:
@@ -804,3 +868,33 @@ def jsonld(lp: dict, c: dict, url: str, faq: list, formats: list, videos: list |
              "uploadDate": v["date"], "inLanguage": "uk", "publisher": {"@id": org["@id"]}, **({"embedUrl": v["url"]} if v.get("url") else {})}
             for v in videos or [] if v.get("src") and v.get("thumb") and v.get("date")]   # Google: відео в пошуку — потрібні прев'ю й дата
     return json.dumps({"@context": "https://schema.org", "@graph": [org, page, crumbs, fq, *vids]}, ensure_ascii=False)
+
+
+def full_price(db: Session, base: str = "") -> dict:
+    """Повний прайс для сторінки /price: розділи з CRM (назви без брендів ботулотоксину), швидкий вибір за запитом і акція епіляції."""
+    from . import online_booking as ob, site_home as sh
+    try:
+        online = {s_["id"] for cat in ob.catalog(db)["cats"] for s_ in cat["items"]}
+    except Exception:  # noqa: BLE001
+        online = set()
+    try:
+        groups = ob.pricelist(db, online)
+    except Exception:  # noqa: BLE001
+        groups = []
+    slug = lambda t: re.sub(r"[^a-z0-9]+", "-", _translit(t).lower()).strip("-")
+    pg = sp.PAGES.get("laserepilation") or {}
+    promo = pg.get("promo") if sp._promo_on(pg.get("promo")) else None
+    for g in groups:
+        g["id"] = "p-" + slug(g["name"])
+        g["promo"] = promo if promo and "лазерна епіляція" in g["name"].lower() else None
+    concerns = [{"t": x["t"], "href": f"{base}/{x.get('page') or x.get('slug')}"} for x in sh.CONCERNS if x.get("page") or x.get("slug")]
+    from datetime import date as _d
+    return {"groups": groups, "concerns": concerns, "n": sum(len(g["items"]) for g in groups), "date": _d.today().strftime("%d.%m.%Y")}
+
+
+_TR = dict(zip("абвгґдеєжзиіїйклмнопрстуфхцчшщьюя", ["a", "b", "v", "h", "g", "d", "e", "ie", "zh", "z", "y", "i", "i", "i", "k", "l", "m", "n", "o",
+                                                      "p", "r", "s", "t", "u", "f", "kh", "ts", "ch", "sh", "shch", "", "iu", "ia"]))
+
+
+def _translit(t: str) -> str:
+    return "".join(_TR.get(ch, ch) for ch in (t or "").lower())

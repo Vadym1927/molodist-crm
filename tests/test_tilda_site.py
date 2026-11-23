@@ -35,7 +35,7 @@ def test_tilda_import_and_serve(tmp_path, monkeypatch):
         assert "tilda-bridge.js" in html and "PRICE" in html
         assert "info@molodist.com.ua" in ts.render(db, ts.page_file(db, ""))
     with TestClient(app) as cl:
-        assert "PRICE" in cl.get("/_site/price").text
+        assert "PRICE" not in cl.get("/_site/price").text      # прайс — своя сторінка CRM, не архів Tilda
         assert cl.get("/_site/css/a.css").text == "body{}"
         assert cl.get("/_site/css/../htaccess").status_code == 404
         r = cl.get("/_site/nope-page")

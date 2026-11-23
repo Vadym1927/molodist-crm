@@ -218,3 +218,18 @@ def test_kosmetologiya_redirect():
     with TestClient(app) as cl:
         r = cl.get("/_site/kosmetologiya", follow_redirects=False)
         assert r.status_code == 301 and r.headers["location"].endswith("/tmyana-znevodnena-shkira")
+
+
+def test_price_page_and_clean_names():
+    from app.services.online_booking import clean_name, _dedupe
+    assert clean_name("Ботулінотерапія Міжбрів'я Xeomin", "Ботулінотерапія") == "Міжбрів'я"
+    assert clean_name("БотулінотерапіяКисетні Зморшки(Навколо губ) Botox", "Ботулінотерапія") == "Кисетні зморшки (навколо губ)"
+    assert clean_name("Лікування підвищеної пітливості ботулінотерапія Пахви Диспорт", "Ботулінотерапія") == "Зменшення пітливості пахви"
+    d = _dedupe("Ботулінотерапія", [{"id": 1, "name": "Ботокс Міжбрів'я Нейронокс", "price": 3500, "min": 30, "online": False},
+                                    {"id": 2, "name": "Ботулінотерапія Міжбрів'я Botox", "price": 4200, "min": 30, "online": True}])
+    assert len(d) == 1 and d[0]["price"] == 3500 and d[0]["from"] and d[0]["online"] and d[0]["id"] == 1
+    with TestClient(app) as cl:
+        r = cl.get("/_site/price")
+        assert r.status_code == 200 and "Ціни на послуги MOLODIST" in r.text and 'id="tsiny"' in r.text and "data-psearch" in r.text
+        low = r.text.lower()
+        assert "botox" not in low and "xeomin" not in low and "ботокс" not in low and "клінік" not in low

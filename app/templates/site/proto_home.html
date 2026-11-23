@@ -232,6 +232,25 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
     <p class="h-btns ctr"><a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp">Записатися й порахувати мої зони</a></p>
   </div></section>{% endif %}
 
+{% elif sec == 'pricelist' %}{% if plist %}
+  <section class="p-top"><div class="wrap">
+    <p class="eyebrow">{{ lp.hero.eyebrow }}</p><h1>{{ lp.hero.h1 }}</h1><p class="big">{{ lp.hero.lead }}</p>
+    <div class="p-tools"><label class="p-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input type="search" placeholder="Знайти послугу: чистка, губи, пахви…" data-psearch aria-label="Пошук послуги в прайсі" autocomplete="off"></label>
+      <a class="btn" href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp">Записатися</a>{% if ob_on %}<a class="h-ghost" href="{{ base }}/onlain-zapys">Обрати час онлайн {{ arrow() }}</a>{% endif %}</div>
+    <div class="p-conc"><span>Що вас турбує:</span>{% for x in plist.concerns %}<a href="{{ x.href }}">{{ x.t }}</a>{% endfor %}</div>
+  </div></section>
+  <section class="sec p-list" id="tsiny"><div class="wrap p-grid">
+    <nav class="p-nav" aria-label="Розділи прайсу">{% for g in plist.groups %}<a href="#{{ g.id }}" data-pnav>{{ g.name }}<small>{{ g['items']|length }}</small></a>{% endfor %}</nav>
+    <div class="p-groups">
+      {% for g in plist.groups %}<details class="p-g" id="{{ g.id }}"{{ ' open' if loop.first }}><summary><span><b>{{ g.name }}</b><small>{{ g['items']|length }} · від {{ money(g.lo) }}</small></span><i aria-hidden="true"></i></summary>
+        {% if g.promo %}<p class="p-promo"><b>−{{ g.promo.pct }}%</b><span>{{ g.promo.text.replace('−' ~ g.promo.pct ~ '% ', '') }}</span></p>{% endif %}
+        <ul>{% for x in g['items'] %}<li data-pn="{{ (x.name ~ ' ' ~ g.name)|lower }}"><span class="n">{{ x.name }}{% if x.min %}<small>{{ x.min }} хв</small>{% endif %}</span><b>{{ 'від ' if x['from'] }}{{ money(x.price) }}</b>{% if x.online and ob_on %}<a class="p-go" href="{{ base }}/onlain-zapys?service={{ x.id }}">Записатися</a>{% else %}<a class="p-go" href="#zapys" data-interest="{{ g.name }}: {{ x.name }}" data-modal="lp">Записатися</a>{% endif %}</li>{% endfor %}</ul>
+      </details>{% endfor %}
+      <p class="p-empty" hidden data-pempty>Такої послуги в прайсі не знайшли. <a href="#zapys" data-interest="{{ lp.topic }}" data-modal="lp">Залиште заявку</a> — адміністратор підкаже.</p>
+      <p class="p-note">Ціни актуальні на {{ plist.date }} і оновлюються автоматично з нашої системи запису. «Від» — вартість залежить від препарату, обʼєму чи площі зони; точну суму лікар назве до початку процедури.</p>
+    </div>
+  </div></section>{% endif %}
+
 {% elif sec == 'ldoctor' %}
   {% if lp_doc|length > 1 %}<section class="sec l-doc l-docs" id="likar"><div class="wrap">
     <div class="h-shd"><h2>{{ lp.doctor.title }}</h2><p>{{ lp.doctor.lead }}</p></div>
