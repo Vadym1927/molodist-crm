@@ -41,6 +41,8 @@ def test_dk_cabinet_flow(monkeypatch):
     with SessionLocal() as db:
         p = db.query(Patient).filter(Patient.phone.like("%671119911")).one()
         assert p.source == "Сайт Дарʼї Колган" and db.query(DkProfile).filter_by(patient_id=p.id).one().gender == "Жінка"
+        from app.models import ShopAccount, ShopSession
+        assert not db.query(ShopAccount).filter_by(patient_id=p.id).count() and not db.query(ShopSession).filter_by(patient_id=p.id).count()
 
 
 def test_dk_paid_guide_grants_access_and_salary():
@@ -95,7 +97,7 @@ def test_dk_import_and_reports(tmp_path):
     with TestClient(app) as c:
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
         r1 = c.get("/reports/dr-kolgan?df=2025-01-01&dt_=2026-12-31")
-        assert r1.status_code == 200 and "Сайт Дарʼї Колган" in r1.text and "Старий" in r1.text
+        assert r1.status_code == 200 and "Сайт Дарʼї Колган" in r1.text and "Старий" in r1.text and "Анкета" not in r1.text   # 360 — окремо
         r2 = c.get("/reports/molodist-360?df=2025-01-01&dt_=2026-12-31")
         assert r2.status_code == 200 and "Анкета" in r2.text
         pr = c.get(f"/patients/{a.patient_id}")
@@ -151,3 +153,16 @@ def test_dk_login_not_in_shop_customers():
         db.add(DkProfile(patient_id=p.id, first_name="Лише"))
         db.commit()
         assert not any(x["patient"] and x["patient"].id == p.id for x in sc.rows(db)["rows"])
+
+
+def test_dk_detach_shop():
+    from app.models import ShopAccount, ShopSession
+    with SessionLocal() as db:
+        p = Patient(full_name="Відʼєднати", phone="+380671119988")
+        db.add(p); db.flush()
+        db.add(ShopAccount(patient_id=p.id, created_at=datetime.utcnow()))
+        db.add(ShopSession(token_hash="x" * 64, patient_id=p.id, created_at=datetime.utcnow(), expires_at=datetime.utcnow()))
+        db.add(DkProfile(patient_id=p.id))
+        db.commit()
+        assert dk.detach_shop(db) >= 1
+        assert not db.query(ShopAccount).filter_by(patient_id=p.id).count() and not db.query(ShopSession).filter_by(patient_id=p.id).count()

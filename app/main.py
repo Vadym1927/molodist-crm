@@ -736,6 +736,11 @@ async def lifespan(app: FastAPI):
             _aut.save(db, autonomous=True, since="2026-11-01", test=True)
             db.merge(SyncState(key="work_mode_init_20261101", value="1"))
             db.commit()
+        if not db.get(SyncState, "dk_detach_shop_v1"):        # 23.11.2026: сайт Дарʼї Колган окремо від магазину (рішення власника)
+            from .services import dr_kolgan as _dkd
+            _dkd.detach_shop(db)
+            db.merge(SyncState(key="dk_detach_shop_v1", value="1"))
+            db.commit()
         if not db.get(SyncState, "revert_unrecorded_v1"):        # відкат: оплати без поставки НЕ списуємо — спишуться з поставкою
             from .services import payments as _pay1
             _pay1.revert_booked_without_supply(db)

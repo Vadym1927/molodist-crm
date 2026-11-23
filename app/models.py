@@ -1622,6 +1622,31 @@ class DkProfile(Base):
     imported: Mapped[bool | None] = mapped_column(Boolean)              # перенесено зі старого сервісу
 
 
+class DkCode(Base):
+    """SMS-код входу на сайт Дарʼї Колган (окремо від кабінету магазину)."""
+    __tablename__ = "dk_codes"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    phone: Mapped[str] = mapped_column(String(20), index=True)
+    code_hash: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    tries: Mapped[int] = mapped_column(Integer, default=0)
+    used: Mapped[bool] = mapped_column(Boolean, default=False)
+    ip: Mapped[str | None] = mapped_column(String(64), index=True)
+    channel: Mapped[str | None] = mapped_column(String(20))
+
+
+class DkSession(Base):
+    """Сесія кабінету сайту Дарʼї Колган (cookie dk_s), окремо від магазину."""
+    __tablename__ = "dk_sessions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    ua: Mapped[str | None] = mapped_column(String(200))
+
+
 class DkRecord(Base):
     """Події кабінету dr-kolgan: material (гайд у кабінеті), bmi, hads. data — результат (лише в кабінеті пацієнта)."""
     __tablename__ = "dk_records"

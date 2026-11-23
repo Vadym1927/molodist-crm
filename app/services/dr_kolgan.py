@@ -69,51 +69,123 @@ def doctor(db: Session) -> Doctor | None:
     return next((d for d in db.scalars(select(Doctor)) if "колган" in (d.name or "").lower()), None)
 
 
-# ---------------- вхід і профіль ----------------
-def _shop_c(db: Session) -> dict:
-    from . import shop_front as sf
-    return {**sf.cfg(db), "cab_sms": "{code} — код входу в кабінет MOLODIST", "cab_on": True}
+# ---------------- вхід і профіль (окремо від магазину: свої коди й сесії, без акаунта магазину) ----------------
+CODE_TTL, DAYS = 5 * 60, 180
+
+
+def _h(*parts: str) -> str:
+    import hashlib
+    import hmac
+    from ..config import settings
+    return hmac.new(settings.secret_key.encode(), ("dk|" + "|".join(parts)).encode(), hashlib.sha256).hexdigest()
+
+
+def _ph(raw: str) -> str:
+    from .m360.core import _phone
+    p = _phone(raw)
+    if not p:
+        raise DkError("Введіть номер у форматі +380 XX XXX XX XX.")
+    return p
 
 
 def send_code(db: Session, phone: str, ip: str = "") -> dict:
-    from . import shop_cabinet as sc
+    """Код входу: 1 на хвилину й 4 на годину на номер, 8 на годину з однієї адреси, 100 SMS на добу."""
+    import secrets
+    from .shop_cabinet import _deliver, mask, CabError
+    from ..models import DkCode
+    ph = _ph(phone)
+    now = datetime.utcnow()
+    last = db.scalars(select(DkCode).where(DkCode.phone == ph).order_by(DkCode.id.desc()).limit(1)).first()
+    if last and (now - last.created_at).total_seconds() < 60:
+        raise DkError("Код уже надіслано. Новий можна отримати за хвилину.")
+    hour = now - timedelta(hours=1)
+    if (db.scalar(select(func.count(DkCode.id)).where(DkCode.phone == ph, DkCode.created_at >= hour)) or 0) >= 4 or \
+            (ip and (db.scalar(select(func.count(DkCode.id)).where(DkCode.ip == ip, DkCode.created_at >= hour)) or 0) >= 8):
+        raise DkError("Забагато спроб. Спробуйте за годину або зателефонуйте нам.")
+    if (db.scalar(select(func.count(DkCode.id)).where(DkCode.channel == "sms", DkCode.created_at >= now - timedelta(days=1))) or 0) >= 100:
+        raise DkError("Вхід за кодом тимчасово недоступний. Зателефонуйте нам, будь ласка.")
+    code = str(secrets.randbelow(10 ** 6)).zfill(6)
     try:
-        return sc.start(db, _shop_c(db), phone, ip, digits=6)
-    except sc.CabError as e:
+        ch = _deliver(db, ph, f"{code} — код входу в кабінет MOLODIST")
+    except CabError as e:
         raise DkError(str(e)) from None
+    db.add(DkCode(phone=ph, code_hash=_h("code", ph, code), created_at=now, expires_at=now + timedelta(seconds=CODE_TTL), tries=0,
+                  used=False, ip=(ip or "")[:64] or None, channel=ch))
+    db.commit()
+    return {"ok": True, "to": mask(ph), "channel": ch}
 
 
 def verify(db: Session, phone: str, code: str, ua: str = "", utm: str = "") -> tuple[str, int, Patient]:
-    from . import shop_cabinet as sc
-    try:
-        token, days, acc = sc.verify(db, _shop_c(db), phone, code, ua=ua, origin="dk")
-    except sc.CabError as e:
-        raise DkError(str(e)) from None
-    p = db.get(Patient, acc.patient_id)
-    if not db.scalar(select(DkProfile).where(DkProfile.patient_id == p.id)):
-        db.add(DkProfile(patient_id=p.id, first_name=acc.first_name, last_name=acc.last_name, email=acc.email,
-                         registered_at=datetime.utcnow(), utm=(utm or "")[:300] or None))
+    import hmac
+    import secrets
+    from .appeals import find_patient
+    from ..models import DkCode, DkSession
+    ph = _ph(phone)
+    now = datetime.utcnow()
+    row = db.scalars(select(DkCode).where(DkCode.phone == ph, DkCode.used.is_(False)).order_by(DkCode.id.desc()).limit(1)).first()
+    if not row or row.expires_at < now:
+        raise DkError("Код застарів. Отримайте новий.")
+    if (row.tries or 0) >= 5:
+        raise DkError("Забагато невдалих спроб. Отримайте новий код.")
+    if not hmac.compare_digest(row.code_hash, _h("code", ph, re.sub(r"\D", "", str(code or "")))):
+        row.tries = (row.tries or 0) + 1
         db.commit()
-    return token, days, p
+        raise DkError("Невірний код.")
+    row.used = True
+    p = find_patient(db, ph)
+    if not p:
+        p = Patient(full_name=ph, phone=ph, source="Сайт Дарʼї Колган", notes="Картку створено при реєстрації на сайті Дарʼї Колган")
+        db.add(p)
+        db.flush()
+    if not db.scalar(select(DkProfile).where(DkProfile.patient_id == p.id)):
+        db.add(DkProfile(patient_id=p.id, registered_at=now, utm=(utm or "")[:300] or None))
+    token = secrets.token_urlsafe(32)
+    db.add(DkSession(token_hash=_h("sess", token), patient_id=p.id, created_at=now, expires_at=now + timedelta(days=DAYS), ua=(ua or "")[:200]))
+    db.commit()
+    return token, DAYS, p
 
 
 def session(db: Session, token: str | None) -> tuple[Patient, DkProfile] | None:
-    from . import shop_cabinet as sc
-    r = sc.me(db, token)
-    if not r:
+    from ..models import DkSession
+    if not token:
         return None
-    acc, p = r
-    prof = db.scalar(select(DkProfile).where(DkProfile.patient_id == p.id))
-    if not prof:                                     # покупець магазину вперше на сайті Дарʼї
-        prof = DkProfile(patient_id=p.id, first_name=acc.first_name, last_name=acc.last_name, email=acc.email, registered_at=datetime.utcnow())
+    s = db.scalar(select(DkSession).where(DkSession.token_hash == _h("sess", token)))
+    if not s or s.expires_at < datetime.utcnow():
+        return None
+    p = db.get(Patient, s.patient_id)
+    prof = db.scalar(select(DkProfile).where(DkProfile.patient_id == s.patient_id))
+    if p and not prof:
+        prof = DkProfile(patient_id=p.id, registered_at=datetime.utcnow())
         db.add(prof)
         db.commit()
-    return p, prof
+    return (p, prof) if p else None
 
 
 def logout(db: Session, token: str | None) -> None:
-    from . import shop_cabinet as sc
-    sc.logout(db, token)
+    from ..models import DkSession
+    if token:
+        s = db.scalar(select(DkSession).where(DkSession.token_hash == _h("sess", token)))
+        if s:
+            db.delete(s)
+            db.commit()
+
+
+def detach_shop(db: Session) -> int:
+    """Одноразово: прибрати акаунти й сесії магазину, створені входом на сайт Дарʼї (до розділення), де в магазині нічого немає."""
+    from ..models import CoinTxn, ShopCart, ShopSession, SiteOrder
+    n = 0
+    for acc in db.scalars(select(ShopAccount).where(ShopAccount.patient_id.in_(select(DkProfile.patient_id)))):
+        pid = acc.patient_id
+        if db.scalar(select(SiteOrder.id).where(SiteOrder.patient_id == pid).limit(1)) or \
+                db.scalar(select(ShopCart.id).where(ShopCart.patient_id == pid).limit(1)) or \
+                db.scalar(select(CoinTxn.id).where(CoinTxn.patient_id == pid).limit(1)) or acc.wishlist or acc.addresses or acc.referred_by:
+            continue
+        for s_ in db.scalars(select(ShopSession).where(ShopSession.patient_id == pid)):
+            db.delete(s_)
+        db.delete(acc)
+        n += 1
+    db.commit()
+    return n
 
 
 def profile_json(p: Patient, prof: DkProfile) -> dict:
@@ -148,9 +220,6 @@ def save_profile(db: Session, p: Patient, prof: DkProfile, d: dict) -> dict:
         p.birthday = bdd
     if email and not p.email:
         p.email = email
-    acc = db.scalar(select(ShopAccount).where(ShopAccount.patient_id == p.id))
-    if acc and not acc.first_name:
-        acc.first_name, acc.last_name = fn, ln or None
     db.commit()
     return profile_json(p, prof)
 
@@ -350,18 +419,11 @@ def qr(db: Session, slug: str, q: dict, ua: str, lang: str, ref: str) -> str | N
 def report(db: Session, d_from: date, d_to: date) -> dict:
     a, b = datetime.combine(d_from, datetime.min.time()), datetime.combine(d_to, datetime.max.time())
     profs = list(db.scalars(select(DkProfile).order_by(DkProfile.registered_at.desc())))
-    m360 = list(db.scalars(select(M360Assessment)))
-    pids = {p.patient_id for p in profs} | {x.patient_id for x in m360 if x.patient_id}
+    pids = {p.patient_id for p in profs}                     # лише сайт Дарʼї; «Молодість 360» — окрема аналітика
     recs = list(db.scalars(select(DkRecord).where(DkRecord.patient_id.in_(pids or [0]))))
     orders = list(db.scalars(select(DkOrder).where(DkOrder.patient_id.in_(pids or [0]))))
     pats = {p.id: p for p in db.scalars(select(Patient).where(Patient.id.in_(pids or [0])))}
-    # перехід у пацієнти: запис / візит / оплата в клініці після реєстрації
-    first: dict[int, datetime] = {}
-    for p in profs:
-        first[p.patient_id] = p.registered_at
-    for x in m360:
-        if x.patient_id and (x.patient_id not in first or x.created_at < first[x.patient_id]):
-            first[x.patient_id] = x.created_at
+    first: dict[int, datetime] = {p.patient_id: p.registered_at for p in profs}
     clinic = {}
     for pid in pids:
         t0 = first.get(pid) or datetime.min
@@ -377,23 +439,20 @@ def report(db: Session, d_from: date, d_to: date) -> dict:
         p, prof = pats.get(pid), next((x for x in profs if x.patient_id == pid), None)
         rr = [r for r in recs if r.patient_id == pid]
         oo = [o for o in orders if o.patient_id == pid and o.status == "paid"]
-        mm = [x for x in m360 if x.patient_id == pid and x.status == "completed"]
         rows.append({"pid": pid, "name": (p.full_name if p else "") or "—", "phone": p.phone if p else "", "at": first.get(pid),
                      "registered": bool(prof), "profile": bool(prof and prof.birth_date), "utm": (prof.utm if prof else "") or "",
                      "free": sorted({r.ref for r in rr if r.kind == "material" and (r.data or {}).get("via") != "paid"}),
-                     "bmi": sum(1 for r in rr if r.kind == "bmi"), "hads": sum(1 for r in rr if r.kind == "hads"), "m360": len(mm),
-                     "m360_score": mm[-1].overall_score if mm else None,
-                     "bought": sum(o.amount for o in oo), "n_bought": len(oo), **clinic.get(pid, {})})
+                     "bmi": sum(1 for r in rr if r.kind == "bmi"), "hads": sum(1 for r in rr if r.kind == "hads"),                      "bought": sum(o.amount for o in oo), "n_bought": len(oo), **clinic.get(pid, {})})
     inp = [r for r in rows if r["at"] and a <= r["at"] <= b]
     paid_p = [o for o in orders if o.status == "paid" and o.paid_at and a <= o.paid_at <= b]
     n = len(inp)
     kpi = {"people": n, "registered": sum(1 for r in inp if r["registered"]), "profile": sum(1 for r in inp if r["profile"]),
-           "m360": sum(1 for r in inp if r["m360"]), "bmi": sum(1 for r in inp if r["bmi"]), "hads": sum(1 for r in inp if r["hads"]),
+           "bmi": sum(1 for r in inp if r["bmi"]), "hads": sum(1 for r in inp if r["hads"]),
            "free": sum(1 for r in inp if r["free"]), "buyers": len({o.patient_id for o in paid_p}), "sold": len(paid_p),
            "revenue": round(sum(o.amount for o in paid_p), 2), "booked": sum(1 for r in inp if r.get("booked")),
            "came": sum(1 for r in inp if r.get("came")), "clinic_revenue": round(sum(r.get("revenue") or 0 for r in inp), 2),
            "qr": db.scalar(select(func.count(QrHit.id)).where(QrHit.at >= a, QrHit.at <= b)) or 0}
-    kpi["pct"] = {k: (round(100 * kpi[k] / n) if n else None) for k in ("profile", "m360", "free", "booked", "came")}
+    kpi["pct"] = {k: (round(100 * kpi[k] / n) if n else None) for k in ("profile", "free", "booked", "came")}
     kpi["conv_buy"] = round(100 * kpi["buyers"] / kpi["registered"]) if kpi["registered"] else None
     d = doctor(db)
     salary = sum(float(x.amount or 0) for x in db.scalars(select(SalaryAdj).where(SalaryAdj.article == SALARY_ARTICLE,
@@ -402,9 +461,8 @@ def report(db: Session, d_from: date, d_to: date) -> dict:
     weeks: dict[str, dict] = {}
     for r in inp:
         k = (r["at"].date() - timedelta(days=r["at"].weekday())).strftime("%d.%m")
-        w = weeks.setdefault(k, {"week": k, "people": 0, "m360": 0, "bought": 0, "came": 0})
+        w = weeks.setdefault(k, {"week": k, "people": 0, "bought": 0, "came": 0})
         w["people"] += 1
-        w["m360"] += 1 if r["m360"] else 0
         w["bought"] += 1 if r["n_bought"] else 0
         w["came"] += 1 if r.get("came") else 0
     return {"kpi": kpi, "rows": inp, "all_rows": rows, "weeks": sorted(weeks.values(), key=lambda x: datetime.strptime(x["week"], "%d.%m")),

@@ -12,7 +12,7 @@
 @media(max-width:900px){.mr-k{grid-template-columns:repeat(2,minmax(0,1fr))}.mr-g{grid-template-columns:1fr}.bar span{width:120px}}
 </style>
 <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap">
-  <div><div class="eyebrow"><a href="/reports" style="color:inherit;text-decoration:none">← Усі звіти</a> · <a href="/reports/dr-kolgan" style="color:inherit">Сайт Дарʼї Колган</a></div>
+  <div><div class="eyebrow"><a href="/reports" style="color:inherit;text-decoration:none">← Усі звіти</a> · Маркетинг</div>
   <h1 style="margin:0">Молодість 360</h1><p class="small muted" style="margin:4px 0 0">{{ d_from.strftime('%d.%m.%Y') }} — {{ d_to.strftime('%d.%m.%Y') }} · пацієнти з тестом мають мітку «Тест 360»</p></div>
   <div style="display:flex;gap:6px;flex-wrap:wrap">{% for lbl, a, b in presets %}{% set on = a == d_from and b == d_to %}
   <a href="?df={{ a }}&dt_={{ b }}" style="padding:6px 12px;border-radius:999px;font-size:13px;text-decoration:none;border:1px solid {{ '#3B3050' if on else '#E9E5DF' }};background:{{ '#3B3050' if on else '#fff' }};color:{{ '#fff' if on else '#2A2430' }}">{{ lbl }}</a>{% endfor %}</div></div>
