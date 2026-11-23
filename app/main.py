@@ -14174,6 +14174,16 @@ def m360_report_page(request: Request, df: str = "", dt_: str = "", user: User =
     return render(request, "m360_report.html", nav="reports", r=dk.m360_report(db, d_from, d_to), d_from=d_from, d_to=d_to, presets=presets)
 
 
+@app.post("/reports/dr-kolgan/revoke")
+async def dr_kolgan_revoke(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    from .services import dr_kolgan as dk
+    f = await request.form()
+    pid, mid = int(f.get("pid") or 0), str(f.get("material") or "")
+    n = dk.revoke(db, pid, mid)
+    audit(db, "dk.revoke", "patient", pid, user=user, material=mid, n=n)
+    return RedirectResponse(_with_msg(f"/patients/{pid}#t-dk", f"Доступ до гайду забрано ({n})" if n else "Доступу не було"), 303)
+
+
 @app.post("/reports/dr-kolgan/import")
 def dr_kolgan_import(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     """Одноразовий перенос зі старих сервісів: файл data/import/dk_export.json (кладе агент на сервері) → CRM, потім файл видаляється."""

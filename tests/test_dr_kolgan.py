@@ -115,3 +115,11 @@ def test_dk_post_to_page_redirects():
     with TestClient(app) as c:
         r = c.post("/_site/dr-kolgan/guides/full-checkup/", follow_redirects=False)
         assert r.status_code == 303 and r.headers["location"] == "/dr-kolgan/guides/full-checkup/"
+
+
+def test_dk_revoke():
+    with SessionLocal() as db:
+        p = Patient(full_name="Забрати Доступ", phone="+380671119955")
+        db.add(p); db.flush()
+        dk.grant(db, p.id, "mole-control")
+        assert dk.revoke(db, p.id, "mole-control") == 1 and not dk.has_material(db, p.id, "mole-control")

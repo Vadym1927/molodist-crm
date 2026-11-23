@@ -561,3 +561,13 @@ def m360_report(db: Session, d_from: date, d_to: date) -> dict:
             "risks": sorted(risks.items(), key=lambda t: -t[1])[:8],
             "bands": [(lbl, sum(1 for x in done if lo <= x.overall_score < hi)) for lbl, lo, hi in bands],
             "came_n": sum(1 for v in came.values() if v)}
+
+
+def revoke(db: Session, pid: int, mid: str) -> int:
+    """Забрати доступ до гайду в кабінеті пацієнта (запис доступу видаляється; оплата й нарахування лишаються)."""
+    n = 0
+    for r in db.scalars(select(DkRecord).where(DkRecord.patient_id == pid, DkRecord.kind == "material", DkRecord.ref == mid)):
+        db.delete(r)
+        n += 1
+    db.commit()
+    return n
