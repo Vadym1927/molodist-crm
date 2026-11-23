@@ -167,6 +167,23 @@ def _book_txn(db: Session, txn: BankTxn, amount: float, g) -> None:
     if not box:
         return
     nums = ", ".join(d.number for d in g.docs if getattr(d, "number", None))[:200]
+    # цей самий платіж уже записано витратою з платіжного календаря (той самий рахунок, сума, ±3 дні) — другу витрату не створюємо
+    from datetime import timedelta as _td
+    mark = f"[bank:{txn.id}]"
+    day = txn.at.date()
+    stornoed = {x for (x,) in db.execute(select(FinOp.storno_of).where(FinOp.storno_of.is_not(None), FinOp.deleted_at.is_(None)))}
+    for x in db.scalars(select(FinOp).where(FinOp.kind == "expense", FinOp.cashbox == box, FinOp.deleted_at.is_(None), FinOp.storno_of.is_(None),
+                                            FinOp.ref.like("paycal:%"), FinOp.day >= day - _td(days=3), FinOp.day <= day + _td(days=3))
+                        .order_by(FinOp.id)):
+        if abs((x.amount or 0) - amount) > 0.005 or x.id in stornoed:
+            continue
+        c = x.comment or ""
+        if "[bank:" in c and mark not in c:
+            continue                                  # ця витрата вже привʼязана до іншого списання (два замовлення на однакову суму)
+        if mark not in c:
+            x.comment = (c + f" · поставка {nums} {mark}")[:500]
+        db.flush()
+        return
     db.add(FinOp(day=txn.at.date(), kind="expense", category="Закупка товара", amount=round(amount, 2), cashbox=box,
                  counterparty=(g.docs[0].supplier if g.docs else None) or txn.counter_name, ref=f"banktxn:{txn.id}",
                  comment=f"Оплата поставки {nums} · monobank ФОП {txn.fop or ''}"[:500]))
