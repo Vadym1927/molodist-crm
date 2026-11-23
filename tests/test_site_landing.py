@@ -233,3 +233,11 @@ def test_price_page_and_clean_names():
         assert r.status_code == 200 and "Ціни на послуги MOLODIST" in r.text and 'id="tsiny"' in r.text and "data-psearch" in r.text
         low = r.text.lower()
         assert "botox" not in low and "xeomin" not in low and "ботокс" not in low and "клінік" not in low
+
+
+def test_doctor_page_syrova():
+    with TestClient(app) as cl:
+        r = cl.get("/_site/sofiasirova")
+        assert r.status_code == 200 and "Софія Сирова" in r.text and 'id="osvita"' in r.text and "akne-reel.mp4" in r.text
+        assert "syrova-bp.mp4" in r.text and 'id="rezultaty"' in r.text and '"Physician"' in r.text
+        assert cl.get("/_site/og/sofiasirova.jpg").status_code == 200

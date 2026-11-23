@@ -723,3 +723,12 @@ div.l-promo .btn{flex:none;background:#fff;color:#3B3050}
   .p-nav a{flex:none;border:1px solid var(--greige);border-radius:999px;padding:8px 14px;font-size:13.5px}
   .p-top{padding:28px 0 12px}.p-g summary{padding:16px}.p-g ul{padding:0 16px 8px}.p-promo{margin:0 16px 10px}
   .p-g li{grid-template-columns:1fr auto}.p-g li .p-go{grid-column:1/-1;justify-self:start;padding:7px 11px}}
+
+/* сторінка лікаря: освіта */
+.l-edu-in{display:grid;grid-template-columns:1fr 1.3fr;gap:28px;align-items:start}
+.l-edu-base{display:grid;gap:14px}.l-edu-base>div{background:var(--cream);border-radius:18px;padding:22px 24px}
+.l-edu-base b{font:600 13px/1 var(--hf);letter-spacing:.12em;color:#3B3050}.l-edu-base p{margin:8px 0 0;font-size:15.5px}
+.l-edu-y details{border-bottom:1px solid var(--greige)}.l-edu-y summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:16px 0}
+.l-edu-y summary::-webkit-details-marker{display:none}.l-edu-y summary b{font:600 20px/1 var(--hf);color:#2A2430}.l-edu-y summary small{color:var(--mut)}
+.l-edu-y ul{margin:0 0 16px;padding-left:18px;columns:2;column-gap:28px}.l-edu-y li{margin:0 0 8px;font-size:14.5px;break-inside:avoid}
+@media (max-width:900px){.l-edu-in{grid-template-columns:1fr}.l-edu-y ul{columns:1}}

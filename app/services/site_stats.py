@@ -14,11 +14,11 @@ from sqlalchemy.orm import Session
 from ..models import SiteEvent
 
 KINDS = {"view", "sec", "click", "form", "pop", "lead", "exit"}
-SECTIONS = {"lhero": "Перший екран", "hero": "Перший екран", "facts": "Факти", "pain": "Знайомо?", "reel": "Рілс", "video-rezultat": "Відео: результат", "rezultaty": "Результати",
+SECTIONS = {"osvita": "Освіта", "pro-likaria": "Про лікаря", "lhero": "Перший екран", "hero": "Перший екран", "facts": "Факти", "pain": "Знайомо?", "reel": "Рілс", "video-rezultat": "Відео: результат", "rezultaty": "Результати",
             "yak-likuiemo": "Як лікуємо", "konsultatsiia": "Консультація", "tsiny": "Ціни", "likar": "Лікар", "likari": "Лікарі",
             "vidhuky": "Відгуки", "zapys": "Форма заявки", "shop": "Магазин", "insta": "Instagram", "zapytannia": "Запитання",
             "kontakty": "Контакти", "shcho-dopomahaie": "Що допомагає", "rezultat": "Результат", "ipl": "IPL-терапія", "shop2": "Магазин", "poslugy": "Послуги", "beauty-plan": "BEAUTY PLAN", "prostir": "Простір"}
-PAGES = {"/": "Головна", "/likuvannya-akne": "Акне", "/likuvannya-pigmentatsii": "Пігментація й судини", "/zapys": "Онлайн-запис", "/onlain-zapys": "Онлайн-запис", "/tmyana-znevodnena-shkira": "Тьмяна шкіра", "/zmorshky-ta-vikovi-zminy": "Зморшки", "/dermatology": "Дерматологія",
+PAGES = {"/sofiasirova": "Софія Сирова", "/": "Головна", "/likuvannya-akne": "Акне", "/likuvannya-pigmentatsii": "Пігментація й судини", "/zapys": "Онлайн-запис", "/onlain-zapys": "Онлайн-запис", "/tmyana-znevodnena-shkira": "Тьмяна шкіра", "/zmorshky-ta-vikovi-zminy": "Зморшки", "/dermatology": "Дерматологія",
          "/beautyplan": "BEAUTY PLAN", "/laserepilation": "Лазерна епіляція", "/price": "Прайс"}
 
 
