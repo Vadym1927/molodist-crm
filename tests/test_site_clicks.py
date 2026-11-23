@@ -49,3 +49,10 @@ def test_click_to_call_appeal_and_offline():
 def test_gclid_from_cookie():
     m = sl.marks({"cookies": "TILDAUTM=utm_source%3Dgoogle; _gcl_aw=GCL.1731234567.Cj0KCQabc_DEF"})
     assert m["gclid"] == "Cj0KCQabc_DEF"
+
+
+def test_offline_time_format_no_colon():
+    from datetime import datetime
+    from app.services import google_ads as ga
+    s = ga._tz(datetime(2026, 11, 18, 12, 52, 11))
+    assert s.startswith("2026-11-18 12:52:11") and ":" not in s[19:] and len(s) == 24

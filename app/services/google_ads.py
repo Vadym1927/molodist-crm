@@ -41,6 +41,9 @@ def cfg(db: Session) -> dict:
     if not out["hook"]:
         out["hook"] = _secrets.token_urlsafe(24)
         save_cfg(db, out)
+    if not out.get("offline_fmt2"):                        # до 23.11.2026 Google відхиляв усі рядки (формат часу) — надіслати заново
+        out["offline_sent"], out["offline_fmt2"] = [], True
+        save_cfg(db, out)
     return out
 
 
@@ -478,7 +481,8 @@ def dashboard(db: Session, d_from: date, d_to: date, today: date | None = None) 
 def _tz(dt: datetime) -> str:
     off = datetime.now() - datetime.utcnow()
     mins = round(off.total_seconds() / 60)
-    return dt.strftime("%Y-%m-%d %H:%M:%S") + ("+" if mins >= 0 else "-") + f"{abs(mins) // 60:02d}:{abs(mins) % 60:02d}"
+    # файли / скрипт Google Ads приймають зсув БЕЗ двокрапки («2026-11-18 12:52:11+0200»); «+02:00» — лише для API (відхиляло всі рядки)
+    return dt.strftime("%Y-%m-%d %H:%M:%S") + ("+" if mins >= 0 else "-") + f"{abs(mins) // 60:02d}{abs(mins) % 60:02d}"
 
 
 def offline_rows(db: Session, today: date | None = None) -> list[dict]:
