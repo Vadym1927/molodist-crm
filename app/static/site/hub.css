@@ -145,7 +145,7 @@ a.hb-t em{background:transparent;border:1px solid var(--lav2);font-size:13px}
 .hb-t b,.hb-t small{align-self:auto!important;text-align:left;margin-top:0}
 @media (max-width:820px){.hb-sh:not(.wide) .hb-sh-in{height:auto}.hb-sh:not(.wide){top:auto;bottom:0}}
 @media (min-width:821px){.hb-sh:not(.wide) .hb-sh-in{height:auto}}
-.hb-sh .sec,.hb-sh [class^="ob-"],.hb-sh .faq{background:transparent}
+.hb-sh .ob-akc,.hb-sh .ob-gift,.hb-sh .ob-guides,.hb-sh .ob-contact,.hb-sh .ob-docsec,.hb-sh .ob-price,.hb-sh .faq{background:transparent}   /* лише обгортки розділів — не чіпати картки запису */
 .hb-sh .ob-promo-grid li{background:var(--cream)}
 
 /* іконки плиток (набір MOLODIST booking icons) */
