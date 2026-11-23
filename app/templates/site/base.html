@@ -28,14 +28,14 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
 <body>
 {% if c.gtm_id and not noindex %}<noscript><iframe src="https://www.googletagmanager.com/ns.html?id={{ c.gtm_id }}" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>{% endif %}
 {% if noindex %}<div class="prev">Попередній перегляд у CRM · сторінка не індексується. Заявки з форми створюють справжні звернення.</div>{% endif %}
-<header class="hd"><div class="wrap hd-in">
+{% block header %}<header class="hd"><div class="wrap hd-in">
   <a class="logo" href="{{ c.main_url }}" aria-label="MOLODIST — головна"><img class="wm" src="/static/site/brand/wordmark-graphite.svg" alt="MOLODIST" width="150" height="18"></a>
   <nav class="nav" aria-label="Напрямки">{% for s in order %}<a href="{{ base }}/{{ s }}" {{ 'aria-current=page' if s == slug }}>{{ pages[s].nav }}</a>{% endfor %}</nav>
   <a class="hd-tel" href="tel:{{ c.phone }}">{{ c.phone_text }}</a>
-  <a class="btn sm" href="{{ (base ~ '/zapys') if ob_on and slug != 'zapys' else '#zapys' }}">{{ 'Онлайн-запис' if ob_on and slug != 'zapys' else 'Записатися' }}</a>
-</div></header>
+  <a class="btn sm" href="{{ (base ~ '/onlain-zapys') if ob_on and slug != 'onlain-zapys' else '#zapys' }}">{{ 'Онлайн-запис' if ob_on and slug != 'onlain-zapys' else 'Записатися' }}</a>
+</div></header>{% endblock %}
 <main>{% block main %}{% endblock %}</main>
-{% include "site/_selfcare.html" %}
+{% block footer %}{% include "site/_selfcare.html" %}
 <footer class="ft" id="kontakty"><div class="wrap ft-in">
   <div><div class="logo light"><img class="wm" src="/static/site/brand/wordmark-white.svg" alt="MOLODIST" width="150" height="18"></div>
     <p class="muted">Медичний простір естетики та профілактики.<br>{{ c.license }}</p></div>
@@ -45,8 +45,8 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
     <p class="muted small"><a href="{{ privacy }}">Політика конфіденційності</a></p></div>
 </div><div class="wrap ft-bot muted small">© {{ year }} MOLODIST. Є протипоказання, потрібна консультація лікаря.</div></footer>
 <nav class="bar" aria-label="Швидкий звʼязок">
-  <a href="tel:{{ c.phone }}" aria-label="Подзвонити">{{ icon('phone') }}</a><a href="{{ c.telegram }}" target="_blank" rel="noopener" aria-label="Telegram">{{ icon('telegram') }}</a><a href="{{ viber }}" aria-label="Viber">{{ icon('viber') }}</a><a class="go" href="{{ (base ~ '/zapys') if ob_on and slug != 'zapys' else '#zapys' }}">Записатися</a>
-</nav>
+  <a href="tel:{{ c.phone }}" aria-label="Подзвонити">{{ icon('phone') }}</a><a href="{{ c.telegram }}" target="_blank" rel="noopener" aria-label="Telegram">{{ icon('telegram') }}</a><a href="{{ viber }}" aria-label="Viber">{{ icon('viber') }}</a><a class="go" href="{{ (base ~ '/onlain-zapys') if ob_on and slug != 'onlain-zapys' else '#zapys' }}">Записатися</a>
+</nav>{% endblock %}
 <script>window.MLDS={base:'{{ base }}',slug:'{{ slug }}',interest:'{{ interest }}'};</script>
 <script src="/static/site/site.js?v={{ ver }}" defer></script>
 <script src="/static/site/track.js?v={{ ver }}" defer></script>

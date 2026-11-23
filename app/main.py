@@ -874,6 +874,16 @@ class _SiteHost:
                     break
             from .services import site_pages as _sp
             if host and host in _sp.hosts() and not scope["path"].startswith(("/static/", "/_site")):
+                canon = _sp.canonical_host()
+                if (canon and host != canon and canon in _sp.hosts() and scope.get("method") in ("GET", "HEAD")
+                        and not scope["path"].startswith(("/api/", "/ig/", "/og/", "/crop/", "/media/"))):
+                    # другий домен сайту (new.molodist.com.ua) → основний: одна адреса для Google і для пацієнтів
+                    qs = scope.get("query_string") or b""
+                    loc = f"https://{canon}{scope['path']}" + (("?" + qs.decode("latin-1")) if qs else "")
+                    await send({"type": "http.response.start", "status": 301,
+                                "headers": [(b"location", loc.encode("latin-1")), (b"cache-control", b"public, max-age=3600"), (b"content-length", b"0")]})
+                    await send({"type": "http.response.body", "body": b""})
+                    return
                 p = "/_site" + (scope["path"] if scope["path"] != "/" else "/")
                 scope = dict(scope, path=p, raw_path=p.encode())
             else:
@@ -8949,7 +8959,7 @@ def site_llms(request: Request, db: Session = Depends(db_dep)):
         if s_ not in sl.LANDINGS:
             pg = sp.PAGES[s_]
             L.append(f"- [{pg['nav']}]({b}/{s_}): {pg.get('lead') or pg['title']}")
-    L += [f"- [Онлайн-запис]({b}/zapys): вибір послуги, лікаря й часу", "", "## Лікарі", ""]
+    L += [f"- [Онлайн-запис]({b}/onlain-zapys): вибір послуги, лікаря й часу", "", "## Лікарі", ""]
     try:
         for d in sh.data(db, "", "")["team"]:
             L.append(f"- {d['name']} — {d.get('role') or 'лікар'}")
@@ -9069,13 +9079,21 @@ def _ob_json(data: dict, status: int = 200) -> JSONResponse:
 
 
 @app.get("/_site/zapys/", include_in_schema=False)
+@app.get("/_site/onlain-zapys/", include_in_schema=False)
 def site_booking_slash(request: Request):
-    # старі посилання зі слешем (магазин «Сертифікати» тощо) → /zapys; відносний шлях працює і на домені, і в /_site
+    # старі посилання зі слешем (магазин «Сертифікати» тощо); відносний шлях працює і на домені, і в /_site
     q = request.url.query
-    return RedirectResponse("../zapys" + (f"?{q}" if q else ""), 301)
+    return RedirectResponse("../onlain-zapys" + (f"?{q}" if q else ""), 301)
 
 
-@app.get("/_site/zapys", response_class=HTMLResponse)
+@app.get("/_site/zapys", include_in_schema=False)
+def site_booking_old(request: Request):
+    # стара адреса онлайн-запису (посилання в SMS, Instagram, Google) → /onlain-zapys; «Мій запис» (?v=…) зберігається
+    q = request.url.query
+    return RedirectResponse("onlain-zapys" + (f"?{q}" if q else ""), 301)
+
+
+@app.get("/_site/onlain-zapys", response_class=HTMLResponse)
 def site_booking(request: Request, v: str = "", service: int = 0, doctor: int = 0, db: Session = Depends(db_dep)):
     from .services import online_booking as ob, site_pages as sp
     c = ob.cfg(db)
@@ -9093,6 +9111,14 @@ def site_booking(request: Request, v: str = "", service: int = 0, doctor: int = 
                pre={"service": service, "doctor": doctor}, preview=not c.get("on"),
                n_services=sum(len(x["items"]) for x in cat["cats"]),
                prices=ob.pricelist(db, {i["id"] for x in cat["cats"] for i in x["items"]}))
+    from .services import site_home as _sh
+    ctx["products"], ctx["shop_base"] = _sh.shop_hits(db, 8)
+    ctx["ICONS"] = ob.HUB_ICONS
+    try:
+        from .services import google_reviews as _gr
+        ctx["rev"] = _gr.public(db, ctx["c"])
+    except Exception:  # noqa: BLE001
+        ctx["rev"] = None
     if not appt:
         ctx["jsonld"] = ob.jsonld(ctx["c"], c, ctx.get("canonical") or "", ctx["prices"])
     abs_base = ctx["c"]["canonical"].rstrip("/") if not ctx["noindex"] else str(request.base_url).rstrip("/").replace("http://", "https://") + "/_site"
@@ -9291,7 +9317,7 @@ def site_og(slug: str):
             from .services import site_crops as _sc
             _src = _sc.path(_sl.LANDINGS[slug]["hero"]["crop"]) or _src
         f = sp.og_image(slug, _src)
-    elif slug == _ob.SLUG:
+    elif slug in (_ob.SLUG, "zapys"):
         with SessionLocal() as _db:
             f = sp.og_image(slug, _ob.og_src(_ob.cfg(_db)))
     else:

@@ -18,7 +18,7 @@ SECTIONS = {"lhero": "Перший екран", "hero": "Перший екран
             "yak-likuiemo": "Як лікуємо", "konsultatsiia": "Консультація", "tsiny": "Ціни", "likar": "Лікар", "likari": "Лікарі",
             "vidhuky": "Відгуки", "zapys": "Форма заявки", "shop": "Магазин", "insta": "Instagram", "zapytannia": "Запитання",
             "kontakty": "Контакти", "shcho-dopomahaie": "Що допомагає", "rezultat": "Результат", "ipl": "IPL-терапія", "shop2": "Магазин", "poslugy": "Послуги", "beauty-plan": "BEAUTY PLAN", "prostir": "Простір"}
-PAGES = {"/": "Головна", "/likuvannya-akne": "Акне", "/likuvannya-pigmentatsii": "Пігментація й судини", "/zapys": "Онлайн-запис", "/tmyana-znevodnena-shkira": "Тьмяна шкіра", "/dermatology": "Дерматологія",
+PAGES = {"/": "Головна", "/likuvannya-akne": "Акне", "/likuvannya-pigmentatsii": "Пігментація й судини", "/zapys": "Онлайн-запис", "/onlain-zapys": "Онлайн-запис", "/tmyana-znevodnena-shkira": "Тьмяна шкіра", "/dermatology": "Дерматологія",
          "/beautyplan": "BEAUTY PLAN", "/laserepilation": "Лазерна епіляція", "/price": "Прайс"}
 
 

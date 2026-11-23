@@ -201,6 +201,30 @@ def _first_media(names: list[str], base: str) -> str:
     return next((u for u in (sp.media_url(n, base) for n in names) if u), "")
 
 
+def shop_hits(db: Session, n: int = 8) -> tuple[list, str]:
+    """Хіти магазину: n товарів у наявності з фото, по одному від бренду (як вітрина) + адреса магазину."""
+    products, shop_base = [], ""
+    try:
+        from . import shop_front as sf
+        shop_base = (sf.cfg(db).get("canonical") or "").rstrip("/")
+        if shop_base:
+            seen: set = set()
+            pool = sorted((i for i in sf.catalog(db)["items"] if i.get("stock") and i.get("imgs")), key=lambda i: (-(i.get("sold") or 0), -i["new"]))
+            for i in pool:
+                b = (i.get("brand") or "").strip().lower()
+                if b and b in seen:
+                    continue
+                seen.add(b)
+                products.append(i)
+                if len(products) == n:
+                    break
+            if len(products) < n:                       # брендів менше — добираємо хітами
+                products += [i for i in pool if i not in products][:n - len(products)]
+    except Exception:  # noqa: BLE001
+        products = []
+    return products, shop_base
+
+
 def data(db: Session, base: str, ver: str) -> dict:
     """Живі дані для головної: розділи послуг з цінами «від», лікарі, відгуки Google, фото."""
     from . import online_booking as ob
@@ -235,25 +259,7 @@ def data(db: Session, base: str, ver: str) -> dict:
         insta, insta_p = insta_feed.items(db)[:8], insta_feed.state(db).get("profile") or {}
     except Exception:  # noqa: BLE001
         insta, insta_p = [], {}
-    products, shop_base = [], ""
-    try:
-        from . import shop_front as sf
-        shop_base = (sf.cfg(db).get("canonical") or "").rstrip("/")
-        if shop_base:
-            seen: set = set()                           # вісім хітів продажу, по одному від бренду — як вітрина магазину
-            pool = sorted((i for i in sf.catalog(db)["items"] if i.get("stock") and i.get("imgs")), key=lambda i: (-(i.get("sold") or 0), -i["new"]))
-            for i in pool:
-                b = (i.get("brand") or "").strip().lower()
-                if b and b in seen:
-                    continue
-                seen.add(b)
-                products.append(i)
-                if len(products) == 8:
-                    break
-            if len(products) < 8:                       # брендів менше восьми — добираємо хітами
-                products += [i for i in pool if i not in products][:8 - len(products)]
-    except Exception:  # noqa: BLE001
-        products = []
+    products, shop_base = shop_hits(db)
     concerns = [{**x, "img_url": (_first_media(x["media"], base) if x.get("media") else "") or (st(x["img"]) if x.get("img") else "")} for x in CONCERNS]
     for d_ in team:                                 # квадратні портрети в картці 4:5 — обличчя на одній висоті
         low = (d_.get("name") or "").lower()

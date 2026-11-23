@@ -816,7 +816,7 @@ def test_cert_link_and_zapys_slash():
         h = c.get("/_shop/").text
         assert "zapys#sertyfikaty" in h and "zapys/#sertyfikaty" not in h
         r = c.get("/_site/zapys/?g=x", follow_redirects=False)
-        assert r.status_code == 301 and r.headers["location"] == "../zapys?g=x"
+        assert r.status_code == 301 and r.headers["location"] == "../onlain-zapys?g=x"
 
 
 def test_review_request_no_paid_sms(monkeypatch):

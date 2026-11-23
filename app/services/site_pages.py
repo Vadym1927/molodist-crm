@@ -331,11 +331,19 @@ def hosts() -> set[str]:
         try:
             from ..models import SessionLocal
             with SessionLocal() as db:
-                _cache["hosts"] = {h.strip().lower() for h in cfg(db)["hosts"] if h.strip()}
+                _c = cfg(db)
+                _cache["hosts"] = {h.strip().lower() for h in _c["hosts"] if h.strip()}
+                _cache["canon"] = re.sub(r"^https?://", "", (_c.get("canonical") or "")).strip("/").lower()
         except Exception:  # noqa: BLE001
             pass
         _cache["at"] = time.time()
     return _cache["hosts"]
+
+
+def canonical_host() -> str:
+    """Основний домен сайту (з canonical), напр. molodist.com.ua — сюди 301 з інших доменів сайту (new.…)."""
+    hosts()
+    return _cache.get("canon") or ""
 
 
 def viber_link(db: Session, c: dict) -> str:

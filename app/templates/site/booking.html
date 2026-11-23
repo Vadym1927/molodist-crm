@@ -1,21 +1,23 @@
 {% extends "site/base.html" %}
 {% from "site/_icons.html" import icon %}
-{% block head %}<link rel="stylesheet" href="/static/site/booking.css?v={{ ver }}">{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/site/booking.css?v={{ ver }}"><link rel="stylesheet" href="/static/site/hub.css?v={{ ver }}">{% endblock %}
 {% macro ph(d, cls='') %}<span class="ob-ph {{ cls }}">{% if d.photo %}<img src="{{ d.photo }}" alt="{{ d.name }}" loading="lazy">{% else %}<i>{{ d.initials }}</i>{% endif %}</span>{% endmacro %}
+{% macro i(n) %}<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{{ ICONS[n]|safe }}</svg>{% endmacro %}
+{% macro tile(id, n, t, s) %}<button type="button" class="hb-t" data-sheet="{{ id }}" aria-haspopup="dialog"><i>{{ i(n) }}</i><b>{{ t }}</b><small>{{ s }}</small></button>{% endmacro %}
+{% macro sheet(id, t, wide=False) %}<dialog class="hb-sh {{ 'wide' if wide }}" id="sh-{{ id }}" aria-label="{{ t }}"><div class="hb-sh-in">
+  <div class="hb-sh-hd"><b>{{ t }}</b><button type="button" class="hb-x" data-sheet-close aria-label="Закрити"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></div>
+  <div class="hb-sh-bd">{{ caller() }}</div></div></dialog>{% endmacro %}
+{% block header %}<header class="hb-top"><div class="hb-top-in">
+  <img class="wm" src="/static/site/brand/wordmark-graphite.svg" alt="MOLODIST" width="150" height="18">
+  <a class="hb-tel" href="tel:{{ c.phone }}" aria-label="Подзвонити {{ c.phone_text }}">{{ i('tel') }}<span>{{ c.phone_text }}</span></a>
+</div></header>{% endblock %}
 {% block main %}
 {% if preview %}<div class="prev">Онлайн-запис ще не опубліковано: сторінку бачать лише співробітники, увійшовши в CRM. Увімкнути — «Налаштування → Онлайн-запис».</div>{% endif %}
 
-<section class="ob-hero"><div class="wrap ob-hero-in {{ 'has-img' if hero_img }}">
-  <div>
-    <p class="eyebrow">Онлайн-запис · Київ</p>
-    <h1>Запишіться у зручний для вас час</h1>
-    <p class="lead-tx">Оберіть послугу, спеціаліста й вільне вікно — без дзвінків і очікування. {{ ob.note }}</p>
-  </div>
-  {% if hero_img %}<img class="ob-hero-ph" src="{{ hero_img }}" alt="Медичний простір MOLODIST" fetchpriority="high">{% endif %}
-</div></section>
-
+<section class="hb"><div class="hb-in {{ 'has-img' if hero_img }}">
+  <div class="hb-l">
 {% if my %}
-<section class="ob-my" id="mii-zapys"><div class="wrap"><div class="ob-mycard {{ 'off' if my.status == 'cancelled' }}" data-token="{{ my.token }}">
+<div class="ob-my" id="mii-zapys"><div class="ob-mycard {{ 'off' if my.status == 'cancelled' }}" data-token="{{ my.token }}">
   <div>
     <p class="eyebrow">{% if my.status == 'cancelled' %}Запис скасовано{% elif my.past %}Ваш візит{% else %}Ваш запис{% endif %}</p>
     <h2>{{ my.when }}</h2>
@@ -31,12 +33,33 @@
   </div>
 </div></div></section>
 {% elif bad_token %}
-<section class="ob-my"><div class="wrap"><div class="ob-mycard off"><div><p class="eyebrow">Мій запис</p><h2>Запис не знайдено</h2>
+<div class="ob-my"><div class="ob-mycard off"><div><p class="eyebrow">Мій запис</p><h2>Запис не знайдено</h2>
   <p class="muted">Посилання застаріло або містить помилку. Зателефонуйте нам — адміністратор підкаже: <a href="tel:{{ c.phone }}">{{ c.phone_text }}</a></p></div></div></div></section>
 {% endif %}
 
-<section class="sec ob-sec" id="zapys"><div class="wrap">
-  <h2>Онлайн-запис</h2>
+    <p class="eyebrow">MOLODIST · Київ</p>
+    <h1>Онлайн-запис</h1>
+    <p class="lead-tx">Оберіть послугу, лікаря й вільний час — за хвилину, без дзвінків. {{ ob.note }}</p>
+    <button type="button" class="hb-go" data-sheet="zapys" aria-haspopup="dialog"><i>{{ i('cal') }}</i><span><b>Записатися онлайн</b><small>Послуга · лікар · час</small></span><em aria-hidden="true">→</em></button>
+    <div class="hb-tiles">
+      {% if prices %}{{ tile('prais', 'prais', 'Прайс', 'усі ціни') }}{% endif %}
+      {% if offers.certs %}{{ tile('sertyfikaty', 'sert', 'Сертифікати', 'подарунок') }}{% endif %}
+      {% if offers.subs %}{{ tile('abonementy', 'abon', 'Абонементи', 'курси вигідніше') }}{% endif %}
+      {% if offers.loyalty.promos %}{{ tile('aktsii', 'akc', 'Акції', 'знижки й бонуси') }}{% endif %}
+      {{ tile('likari', 'likari', 'Лікарі', 'хто вас прийме') }}
+      {% if products or ob.shop_url %}{{ tile('magazyn', 'shop', 'Магазин', 'косметика') }}{% endif %}
+      {% if rev and rev.reviews %}{{ tile('vidhuky', 'star', 'Відгуки', (('%.1f'|format(rev.rating)) ~ ' ★ у Google') if rev.rating else 'пацієнтів') }}{% endif %}
+      {% if guides %}{{ tile('gaidy', 'gaid', 'Гайди', 'памʼятки PDF') }}{% endif %}
+      {% if ob.faq %}{{ tile('pytannia', 'faq', 'Питання', 'про запис') }}{% endif %}
+      {{ tile('zviazok', 'chat', 'Звʼязок', 'чат і телефон') }}
+      {{ tile('adresa', 'pin', 'Як дістатися', 'адреса й мапа') }}
+    </div>
+    <p class="hb-foot">{{ c.address }} · {{ c.hours }}</p>
+  </div>
+  {% if hero_img %}<img class="hb-ph" src="{{ hero_img }}" alt="Медичний простір MOLODIST" fetchpriority="high">{% endif %}
+</div></section>
+
+{% call sheet('zapys', 'Онлайн-запис', True) %}<div id="zapys">
   {% if not n_services %}
   <div class="ob-empty"><p class="big">Онлайн-запис скоро запрацює. А поки — напишіть або зателефонуйте нам, і адміністратор підбере час.</p>
     <p class="ico-row"><a class="ico" href="tel:{{ c.phone }}" aria-label="Подзвонити">{{ icon('phone') }}</a><a class="ico" href="{{ c.telegram }}" target="_blank" rel="noopener" aria-label="Telegram">{{ icon('telegram') }}</a><a class="ico" href="{{ viber }}" aria-label="Viber">{{ icon('viber') }}</a><a class="ico" href="{{ c.instagram }}" target="_blank" rel="noopener" aria-label="Instagram">{{ icon('instagram') }}</a></p></div>
@@ -105,71 +128,96 @@
     </aside>
   </div>
   {% endif %}
-</div></section>
+</div>{% endcall %}
 
-<section class="ob-navsec"><div class="wrap">
-  {% macro jico(d) %}<i><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{{ d|safe }}</svg></i>{% endmacro %}
-  <nav class="ob-jump" aria-label="Розділи сторінки">
-    {% if prices %}<a href="#prais">{{ jico('<path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/>') }}<b>Прайс</b><small>усі ціни</small></a>{% endif %}
-    <a href="#likari">{{ jico('<path d="M5 3v5a5 5 0 0 0 10 0V3"/><path d="M5 3h2M13 3h2"/><path d="M10 13v2a5 5 0 0 0 10 0v-1"/><circle cx="20" cy="12" r="2"/>') }}<b>Лікарі</b><small>хто вас прийме</small></a>
-    {% if offers.certs or offers.subs %}<a href="#sertyfikaty">{{ jico('<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M5 12v8h14v-8M12 8v12"/><path d="M12 8c-2.500 0-4-1.200-4-2.800S9.500 3 12 8zM12 8c2.500 0 4-1.200 4-2.800S14.500 3 12 8z"/>') }}<b>Сертифікати</b><small>і абонементи</small></a>{% endif %}
-    {% if offers.loyalty.promos %}<a href="#aktsii">{{ jico('<path d="M20.600 13.400l-7.200 7.200a2 2 0 0 1-2.800 0L3 13V3h10l7.600 7.600a2 2 0 0 1 0 2.800z"/><circle cx="7.500" cy="7.500" r="1.500"/>') }}<b>Акції</b><small>знижки й програми</small></a>{% endif %}
-    {% if guides %}<a href="#gaidy">{{ jico('<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21a2 2 0 0 1 2-2h13v2H6"/><path d="M9 8h6M9 12h4"/>') }}<b>Гайди</b><small>памʼятки PDF</small></a>{% endif %}
-    {% if ob.shop_url %}<a href="#magazyn">{{ jico('<path d="M6 8h12l1.200 12H4.800z"/><path d="M9 8V6.500a3 3 0 0 1 6 0V8"/>') }}<b>Магазин</b><small>косметика</small></a>{% endif %}
-    <a href="#zviazok">{{ jico('<path d="M21 12a8 8 0 0 1-11.800 7L4 20l1.100-4.600A8 8 0 1 1 21 12z"/><path d="M9 11h6M9 14h4"/>') }}<b>Звʼязок</b><small>чат і телефон</small></a>
-  </nav>
-</div></section>
-
-{% if prices %}
-<section class="sec prices ob-price" id="prais" data-col><div class="wrap">
-  <h2>Прайс</h2>
-  <p class="big ob-lead">Актуальні ціни на всі послуги MOLODIST. Остаточну вартість лікар підтверджує після огляду.</p>
+{% if prices %}{% call sheet('prais', 'Прайс') %}<div class="prices ob-price" id="prais"><p class="hb-lead">Актуальні ціни на всі послуги MOLODIST. Остаточну вартість лікар підтверджує після огляду.</p>
   {% for g in prices %}<details class="pg"><summary>{% if g.sex %}<i class="sx sx-{{ g.sex }}" aria-label="{{ 'для чоловіків' if g.sex == 'm' else 'для жінок' }}">{% if g.sex == 'm' %}<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.700" stroke-linecap="round"><circle cx="10" cy="14" r="6"/><path d="M14.500 9.500L20 4M15 4h5v5"/></svg>{% else %}<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.700" stroke-linecap="round"><circle cx="12" cy="9" r="6"/><path d="M12 15v7M9 19h6"/></svg>{% endif %}</i>{% endif %}{{ g.name }}<small>{{ g['items']|length }} · від {{ money(g.lo) }}</small></summary>
     <ul class="plist">{% for x in g['items'] %}<li><span class="pn">{{ x.name }}<small>{{ x.min }} хв{% if x.online %} · <a href="#zapys" data-ob-svc="{{ x.id }}">записатися онлайн</a>{% endif %}</small></span><span class="pp"><b>{{ money(x.price) }}</b></span></li>{% endfor %}</ul>
   </details>{% endfor %}
-</div></section>
-{% endif %}
+</div>{% endcall %}{% endif %}
 
-<section class="sec ob-docsec" id="likari" data-col><div class="wrap">
-  <h2>Наші лікарі</h2>
-  <div class="ob-dgrid">{% for d in team %}<article class="ob-dcard">
-    {{ ph(d, 'lg') }}
-    <div><h3>{{ d.name }}</h3><p class="role">{{ d.role }}</p>{% if d.bio %}<p class="bio">{{ d.bio }}</p>{% endif %}
-    {% if d.id in cat.doctor_ids %}<a class="link" href="#zapys" data-ob-doc="{{ d.id }}">Записатися до лікаря →</a>{% else %}<a class="link" href="tel:{{ c.phone }}">Запис через адміністратора →</a>{% endif %}</div>
-  </article>{% endfor %}</div>
-</div></section>
-
-{% set LP = offers.loyalty %}
-{% if LP.promos %}
-<section class="sec ob-akc" id="aktsii" data-col><div class="wrap">
-  <h2>Постійні акції</h2>
-  <ul class="ob-promo-grid">{% for r in LP.promos %}<li>{{ r }}</li>{% endfor %}</ul>
-  {% if LP.loyalty_note %}<p class="ob-lnote">{{ LP.loyalty_note|join(' ') }}</p>{% endif %}
-</div></section>
-{% endif %}
-
-{% if offers.certs or offers.subs %}
-<section class="sec ob-gift" id="sertyfikaty" data-col><div class="wrap">
-  <h2>Сертифікати й абонементи</h2>
-  <p class="big ob-lead">Подарунок, який точно знадобиться: сертифікат на будь-які послуги або абонемент на курс процедур.</p>
-  {% set L = offers.loyalty %}
+{% set L = offers.loyalty %}{% set LP = offers.loyalty %}
+{% if offers.certs %}{% call sheet('sertyfikaty', 'Подарункові сертифікати') %}<div class="ob-gift" id="sertyfikaty"><p class="hb-lead">Подарунок, який точно знадобиться: сертифікат на будь-які послуги MOLODIST.</p>
   <div class="ob-ggrid">
     {% for x in offers.certs %}<article class="ob-gcard cert"><p class="tag">Подарунковий сертифікат</p><h3>{{ money(x.nominal or x.price) }}</h3>
       <p class="muted">{{ x.desc or 'На будь-які послуги MOLODIST' }}{% if x.days %} · діє {{ x.days }} днів{% endif %}</p>
       <button class="btn sm" type="button" data-ob-buy="cert" data-id="{{ x.id }}" data-name="{{ x.name }}" data-price="{{ money(x.price) }}">Купити</button></article>{% endfor %}
   </div>
   {% if offers.certs and L.cert_rules %}<ul class="ob-rules">{% for r in L.cert_rules %}<li>{{ r }}</li>{% endfor %}</ul>{% endif %}
-  {% if offers.subs %}<details class="ob-subs">
-    <summary><span><b>Абонементи</b><small>Курси процедур за вигіднішою ціною · {{ offers.subs|length }}</small></span><i aria-hidden="true"></i></summary>
-    <div class="ob-subs-in">{% if L.sub_rules %}<p class="ob-subnote">{{ L.sub_rules|join(' ') }}</p>{% endif %}{% for g in offers.sub_groups %}<details class="ob-subg">
+</div>{% endcall %}{% endif %}
+
+{% if offers.subs %}{% call sheet('abonementy', 'Абонементи') %}<div class="ob-gift" id="abonementy"><p class="hb-lead">Курс процедур за вигіднішою ціною.</p>
+<div class="ob-subs-in hb-subs">{% if L.sub_rules %}<p class="ob-subnote">{{ L.sub_rules|join(' ') }}</p>{% endif %}{% for g in offers.sub_groups %}<details class="ob-subg">
       <summary><b>{{ g.name }}</b><small>{{ g['items']|length }}</small></summary>
       <ul>{% for x in g['items'] %}<li><span><b>{{ x.title }}</b><small>{% if x.per %}{{ money(x.per) }} за процедуру{% if x.one %} замість {{ money(x.one) }}{% endif %}{% endif %}{% if x.days %}{{ ' · ' if x.per }}діє {{ x.days }} днів{% endif %}</small>
         {% if x.save %}<em class="ob-save">Вигода {{ money(x.save) }} · −{{ x.pct }}%</em>{% endif %}</span>
         <span class="pr">{{ money(x.price) }}</span>
         <button class="btn sm" type="button" data-ob-buy="sub" data-id="{{ x.id }}" data-name="{{ x.title }}" data-price="{{ money(x.price) }}">Купити</button></li>{% endfor %}</ul>
     </details>{% endfor %}</div>
-  </details>{% endif %}
-</div></section>
+</div>{% endcall %}{% endif %}
+
+{% if LP.promos %}{% call sheet('aktsii', 'Постійні акції') %}<div class="ob-akc" id="aktsii">
+  <ul class="ob-promo-grid">{% for r in LP.promos %}<li>{{ r }}</li>{% endfor %}</ul>
+  {% if LP.loyalty_note %}<p class="ob-lnote">{{ LP.loyalty_note|join(' ') }}</p>{% endif %}
+</div>{% endcall %}{% endif %}
+
+{% call sheet('likari', 'Наші лікарі') %}<div class="ob-docsec" id="likari">
+  <div class="ob-dgrid">{% for d in team %}<article class="ob-dcard">
+    {{ ph(d, 'lg') }}
+    <div><h3>{{ d.name }}</h3><p class="role">{{ d.role }}</p>{% if d.bio %}<p class="bio">{{ d.bio }}</p>{% endif %}
+    {% if d.id in cat.doctor_ids %}<a class="link" href="#zapys" data-ob-doc="{{ d.id }}">Записатися до лікаря →</a>{% else %}<a class="link" href="tel:{{ c.phone }}">Запис через адміністратора →</a>{% endif %}</div>
+  </article>{% endfor %}</div>
+</div>{% endcall %}
+
+{% if products or ob.shop_url %}{% call sheet('magazyn', 'Магазин косметики') %}<div class="hb-shop" id="magazyn"><p class="hb-lead">Засоби, які лікарі MOLODIST призначають на консультаціях. Залиште заявку — адміністратор підтвердить наявність і доставку.</p>
+  {% if not products %}<p class="big">{{ ob.shop_text }}</p><p><a class="btn" href="{{ ob.shop_url }}" target="_blank" rel="noopener">Відкрити магазин</a></p>{% endif %}
+  <div class="hb-prods">{% for p in products %}<article class="hb-pc">
+    <img src="{{ shop_base }}/img/{{ p.imgs[0] }}?w=400" alt="{{ p.name }}" loading="lazy" width="400" height="400">
+    <div>{% if p.brand %}<span class="br">{{ p.brand }}</span>{% endif %}<b>{{ p.name }}</b>
+      <span class="pr">{{ money(p.price) }}{% if p.old %} <s>{{ money(p.old) }}</s>{% endif %}</span>
+      <button class="btn sm" type="button" data-ob-buy="shop" data-id="{{ p.id }}" data-name="{{ p.name }}" data-price="{{ money(p.price) }}">Замовити</button></div>
+  </article>{% endfor %}</div>
+  {% if ob.shop_url %}<p class="muted small hb-more">Увесь каталог — <a href="{{ ob.shop_url }}" target="_blank" rel="noopener">molodist.store</a></p>{% endif %}
+</div>{% endcall %}{% endif %}
+
+{% if rev and rev.reviews %}{% call sheet('vidhuky', 'Відгуки пацієнтів') %}<div class="hb-rev" id="vidhuky">
+  {% if rev.rating %}<p class="hb-rate"><b>{{ '%.1f'|format(rev.rating) }}</b><span>★★★★★<small>{{ rev.count }} відгуків у Google</small></span></p>{% endif %}
+  {% for r in rev.reviews[:8] %}<blockquote><p>{{ r.text }}</p><cite>{{ r.author }}{% if r.when %} · {{ r.when }}{% endif %}</cite></blockquote>{% endfor %}
+</div>{% endcall %}{% endif %}
+
+{% if guides %}{% call sheet('gaidy', 'Гайди') %}<div class="ob-guides" id="gaidy"><p class="hb-lead">Корисні памʼятки від лікарів MOLODIST — завантажте й тримайте під рукою.</p>
+  <div class="ob-ggrid g">{% for g in guides %}{% if g.url and g.url.lower().endswith('.pdf') %}<article class="ob-gpdf">
+    {% if g.img %}<a class="cov" href="{{ g.url }}" target="_blank" rel="noopener"><img src="{{ g.img }}" alt="Гайд «{{ g.title }}»" loading="lazy" width="480" height="679"></a>{% endif %}
+    <div>{% if g.tag %}<span class="tag">{{ g.tag }}</span>{% endif %}<h3>{{ g.title }}</h3>
+    {% for ln in g.text.splitlines() if ln.strip() %}<p>{{ ln.strip() }}</p>{% endfor %}
+    <p class="act"><a class="btn sm" href="{{ g.url }}" download>Завантажити PDF</a><a class="link" href="{{ g.url }}" target="_blank" rel="noopener">Переглянути</a></p></div>
+  </article>{% else %}<details class="ob-guide">
+    <summary>{% if g.tag %}<span class="tag">{{ g.tag }}</span>{% endif %}<b>{{ g.title }}</b><i>Читати</i></summary>
+    <ul>{% for ln in g.text.splitlines() if ln.strip() %}<li>{{ ln.strip() }}</li>{% endfor %}</ul>
+    {% if g.url %}<p><a class="link" href="{{ g.url }}" target="_blank" rel="noopener">Відкрити повний гайд →</a></p>{% endif %}
+  </details>{% endif %}{% endfor %}</div>
+  <p class="muted small">Памʼятки мають загальний характер і не замінюють консультацію. Індивідуальні рекомендації лікаря мають пріоритет.</p>
+</div>{% endcall %}{% endif %}
+
+{% if ob.faq %}{% call sheet('pytannia', 'Питання про запис') %}<div class="faq" id="pytannia"><div>{% for q, a in ob.faq %}<details class="qa"><summary>{{ q }}</summary><p>{{ a }}</p></details>{% endfor %}</div></div>{% endcall %}{% endif %}
+
+{% call sheet('zviazok', 'Звʼязок') %}<div class="ob-contact" id="zviazok"><p class="hb-lead">Зручніше поговорити? Напишіть або зателефонуйте — адміністратор відповість у робочий час.</p>
+    <div class="ob-ch">
+      <a href="tel:{{ c.phone }}"><span class="ico">{{ icon('phone') }}</span><b>Зателефонувати</b><small>{{ c.phone_text }}</small></a>
+      <a href="{{ c.telegram }}" target="_blank" rel="noopener"><span class="ico">{{ icon('telegram') }}</span><b>Telegram</b><small>написати в чат</small></a>
+      <a href="{{ viber }}"><span class="ico">{{ icon('viber') }}</span><b>Viber</b><small>написати в чат</small></a>
+      <a href="{{ c.instagram }}" target="_blank" rel="noopener"><span class="ico">{{ icon('instagram') }}</span><b>Instagram</b><small>Direct і новини</small></a>
+      {% if ob.care_bot %}<a href="{{ ob.care_bot }}" target="_blank" rel="noopener"><span class="ico">{{ icon('telegram') }}</span><b>Бот турботи</b><small>нагадування й підтримка після процедур</small></a>{% endif %}
+    </div>
+</div>{% endcall %}
+
+{% call sheet('adresa', 'Як дістатися') %}<div class="ob-contact" id="adresa">
+  <div class="ob-addr"><h4>Адреса</h4><p>{{ c.address }}</p><h4>Графік</h4><p>{{ c.hours }}</p>
+    <a class="btn sm" href="{{ c.maps }}" target="_blank" rel="noopener">Як дістатися</a></div>
+  <div class="ob-map"><iframe title="MOLODIST на карті" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen
+  src="https://maps.google.com/maps?q={{ 'MOLODIST, вул. Князя Романа Мстиславича 28А, Київ'|urlencode }}&hl=uk&z=16&output=embed"></iframe></div>
+</div>{% endcall %}
+
 <dialog class="ob-dlg" id="ob-buy"><form class="lead" id="ob-buy-form" novalidate>
   <button type="button" class="ob-dx" data-ob-close aria-label="Закрити">×</button>
   <p class="eyebrow" id="ob-buy-kind">Сертифікат</p><h3 id="ob-buy-name"></h3><p class="big" id="ob-buy-price"></p>
@@ -184,57 +232,8 @@
   <p class="err" hidden></p>
   <p class="fine">Після оформлення ми звʼяжемося з вами. Якщо доступна онлайн-оплата — відкриється сторінка оплати.</p>
 </form></dialog>
-{% endif %}
-
-{% if guides %}
-<section class="sec ob-guides" id="gaidy" data-col><div class="wrap">
-  <h2>Гайди</h2>
-  <p class="big ob-lead">Корисні памʼятки від лікарів MOLODIST про здоровʼя й профілактику — завантажте, роздрукуйте й тримайте під рукою.</p>
-  <div class="ob-ggrid g">{% for g in guides %}{% if g.url and g.url.lower().endswith('.pdf') %}<article class="ob-gpdf">
-    {% if g.img %}<a class="cov" href="{{ g.url }}" target="_blank" rel="noopener"><img src="{{ g.img }}" alt="Гайд «{{ g.title }}»" loading="lazy" width="480" height="679"></a>{% endif %}
-    <div>{% if g.tag %}<span class="tag">{{ g.tag }}</span>{% endif %}<h3>{{ g.title }}</h3>
-    {% for ln in g.text.splitlines() if ln.strip() %}<p>{{ ln.strip() }}</p>{% endfor %}
-    <p class="act"><a class="btn sm" href="{{ g.url }}" download>Завантажити PDF</a><a class="link" href="{{ g.url }}" target="_blank" rel="noopener">Переглянути</a></p></div>
-  </article>{% else %}<details class="ob-guide">
-    <summary>{% if g.tag %}<span class="tag">{{ g.tag }}</span>{% endif %}<b>{{ g.title }}</b><i>Читати</i></summary>
-    <ul>{% for ln in g.text.splitlines() if ln.strip() %}<li>{{ ln.strip() }}</li>{% endfor %}</ul>
-    {% if g.url %}<p><a class="link" href="{{ g.url }}" target="_blank" rel="noopener">Відкрити повний гайд →</a></p>{% endif %}
-  </details>{% endif %}{% endfor %}</div>
-  <p class="muted small">Памʼятки мають загальний характер і не замінюють консультацію. Індивідуальні рекомендації лікаря мають пріоритет.</p>
-</div></section>
-{% endif %}
-
-{% if ob.shop_url %}
-<section class="sec ob-shop" id="magazyn" data-col><div class="wrap ob-shop-in">
-  <div><p class="eyebrow">molodist.store</p><h2>Магазин косметики</h2><p class="big">{{ ob.shop_text }}</p></div>
-  <a class="btn" href="{{ ob.shop_url }}" target="_blank" rel="noopener">Перейти в магазин</a>
-</div></section>
-{% endif %}
-
-{% if ob.faq %}
-<section class="sec faq"><div class="wrap faq-in">
-  <h2>Питання про запис</h2>
-  <div>{% for q, a in ob.faq %}<details class="qa"><summary>{{ q }}</summary><p>{{ a }}</p></details>{% endfor %}</div>
-</div></section>
-{% endif %}
-
-<section class="sec ob-contact" id="zviazok"><div class="wrap ob-contact-in">
-  <div><h2>Звʼязок</h2>
-    <p class="big">Зручніше поговорити? Напишіть або зателефонуйте — адміністратор відповість у робочий час.</p>
-    <div class="ob-ch">
-      <a href="tel:{{ c.phone }}"><span class="ico">{{ icon('phone') }}</span><b>Зателефонувати</b><small>{{ c.phone_text }}</small></a>
-      <a href="{{ c.telegram }}" target="_blank" rel="noopener"><span class="ico">{{ icon('telegram') }}</span><b>Telegram</b><small>написати в чат</small></a>
-      <a href="{{ viber }}"><span class="ico">{{ icon('viber') }}</span><b>Viber</b><small>написати в чат</small></a>
-      <a href="{{ c.instagram }}" target="_blank" rel="noopener"><span class="ico">{{ icon('instagram') }}</span><b>Instagram</b><small>Direct і новини</small></a>
-      {% if ob.care_bot %}<a href="{{ ob.care_bot }}" target="_blank" rel="noopener"><span class="ico">{{ icon('telegram') }}</span><b>Бот турботи</b><small>нагадування й підтримка після процедур</small></a>{% endif %}
-    </div></div>
-  <div class="ob-addr"><h4>Адреса</h4><p>{{ c.address }}</p><h4>Графік</h4><p>{{ c.hours }}</p>
-    <a class="btn sm" href="{{ c.maps }}" target="_blank" rel="noopener">Як дістатися</a></div>
-</div>
-<div class="wrap"><div class="ob-map"><iframe title="MOLODIST на карті" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen
-  src="https://maps.google.com/maps?q={{ 'MOLODIST, вул. Князя Романа Мстиславича 28А, Київ'|urlencode }}&hl=uk&z=16&output=embed"></iframe></div></div>
-</section>
 
 <script type="application/json" id="ob-data">{{ {'cats': cat.cats, 'docs': docs, 'pre': pre}|tojson }}</script>
 {% endblock %}
-{% block scripts %}<script src="/static/site/booking.js?v={{ ver }}" defer></script>{% endblock %}
+{% block footer %}{% endblock %}
+{% block scripts %}<script src="/static/site/hub.js?v={{ ver }}" defer></script><script src="/static/site/booking.js?v={{ ver }}" defer></script>{% endblock %}

@@ -165,7 +165,7 @@ def test_site_page_api_and_publication(monkeypatch):
         with SessionLocal() as db:
             c = sp.cfg(db); c["hosts"] = ["new.molodist.test"]; sp.save_cfg(db, c)
         h = {"host": "new.molodist.test"}
-        assert "/zapys" in cl.get("/sitemap.xml", headers=h).text and cl.get("/zapys", headers=h).status_code == 200
+        assert "/onlain-zapys" in cl.get("/sitemap.xml", headers=h).text and cl.get("/zapys", headers=h).status_code == 200
         with SessionLocal() as db:
             c = sp.cfg(db); c["hosts"] = ["new.molodist.com.ua"]; sp.save_cfg(db, c)
 
@@ -182,7 +182,7 @@ def test_sub_groups():
         assert [g["name"] for g in of["sub_groups"]] == ["Масаж", "RF-ліфтинг"] and len(of["subs"]) == 2
     with TestClient(app) as cl:
         h = cl.get("/_site/zapys").text
-        assert 'class="ob-subs"' in h and "RF-ліфтинг" in h and h.count('data-ob-buy="sub"') == 2
+        assert 'id="sh-abonementy"' in h and "RF-ліфтинг" in h and h.count('data-ob-buy="sub"') == 2
 
 
 def test_settings_online():
@@ -316,3 +316,37 @@ def test_care_bot_link():
         c = ob.cfg(db); c["care_bot"] = ""; ob.save_cfg(db, c)
         assert ob.apply_care_bot_20261116(db)["ok"] and ob.cfg(db)["care_bot"] == "https://t.me/molodist_assistant_bot"
         assert ob.apply_care_bot_20261116(db)["skipped"]
+
+
+def test_booking_hub_page_and_old_address():
+    """Онлайн-запис на /onlain-zapys: перший екран з кнопкою запису й плитками, розділи — у вікнах; стара /zapys → 301."""
+    from app.models import SessionLocal
+    from app.services import online_booking as ob
+    with SessionLocal() as db:
+        c = ob.cfg(db); c["on"] = True; ob.save_cfg(db, c); db.commit()
+    with TestClient(app) as cl:
+        r = cl.get("/_site/zapys?v=abc&service=1", follow_redirects=False)
+        assert r.status_code == 301 and r.headers["location"] == "onlain-zapys?v=abc&service=1"
+        t = cl.get("/_site/onlain-zapys").text
+        assert 'class="hb-go"' in t and 'data-sheet="zapys"' in t and 'id="sh-zapys"' in t and 'id="sh-likari"' in t and 'id="sh-adresa"' in t
+        assert '<footer class="ft"' not in t and 'class="nav"' not in t        # без меню сайту: людина лишається на сторінці
+        assert "hub.js" in t and cl.get("/_site/og/zapys.jpg").status_code in (200, 404)
+
+
+def test_second_site_domain_redirects_to_main():
+    """new.molodist.com.ua → molodist.com.ua (301, зі шляхом і параметрами); API на другому домені не чіпаємо."""
+    from app.services import site_pages as sp
+    with SessionLocal() as db:
+        c = sp.cfg(db); old = dict(c)
+        c["hosts"] = ["main.molodist.test", "new.molodist.test"]; c["canonical"] = "https://main.molodist.test"; sp.save_cfg(db, c)
+    sp._cache["at"] = 0
+    try:
+        with TestClient(app) as cl:
+            r = cl.get("/zapys?v=x", headers={"host": "new.molodist.test"}, follow_redirects=False)
+            assert r.status_code == 301 and r.headers["location"] == "https://main.molodist.test/zapys?v=x"
+            assert cl.get("/", headers={"host": "main.molodist.test"}, follow_redirects=False).status_code != 301
+            assert cl.post("/api/lead", json={}, headers={"host": "new.molodist.test"}).status_code != 301
+    finally:
+        with SessionLocal() as db:
+            sp.save_cfg(db, old)
+        sp._cache["at"] = 0

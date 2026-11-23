@@ -276,7 +276,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
     <div class="h-shd"><h2>Лікарі MOLODIST</h2><p>Ви знаєте, хто саме вас прийматиме, ще до візиту — і записуєтеся до конкретного лікаря.</p></div>
     <div class="h-dgrid" data-swipe>{% for d in team %}<article class="h-dcard {{ ('fx-' ~ d.fx) if d.fx }}">{{ ph(d) }}
       <h3>{{ d.name }}</h3><p class="role">{{ d.role }}</p>{% if d.bio %}<p class="bio">{{ d.bio }}</p>{% endif %}
-      <a class="h-ghost" href="{{ (base ~ '/zapys?doctor=' ~ d.id) if (ob_on and d.id) else '#zapys' }}" data-doc="{{ d.name }}">{{ 'Обрати час онлайн' if (ob_on and d.id) else 'Записатися до лікаря' }} {{ arrow() }}</a></article>{% endfor %}</div>
+      <a class="h-ghost" href="{{ (base ~ '/onlain-zapys?doctor=' ~ d.id) if (ob_on and d.id) else '#zapys' }}" data-doc="{{ d.name }}">{{ 'Обрати час онлайн' if (ob_on and d.id) else 'Записатися до лікаря' }} {{ arrow() }}</a></article>{% endfor %}</div>
   </div></section>
 
 {% elif sec == 'space' %}

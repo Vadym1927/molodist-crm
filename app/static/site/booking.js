@@ -83,11 +83,14 @@
     $$('[data-ob-buy]').forEach(function (b) {
       b.addEventListener('click', function () {
         cur = { kind: b.dataset.obBuy, id: b.dataset.id };
-        $('#ob-buy-kind').textContent = cur.kind === 'sub' ? 'Абонемент' : 'Подарунковий сертифікат';
+        $('#ob-buy-kind').textContent = cur.kind === 'sub' ? 'Абонемент' : (cur.kind === 'shop' ? 'Магазин косметики' : 'Подарунковий сертифікат');
+        cur.name = b.dataset.name;
         $('#ob-buy-name').textContent = b.dataset.name; $('#ob-buy-price').textContent = b.dataset.price;
         $('.ok', bf).hidden = true; $('.err', bf).hidden = true;
         $$('label,button.btn', bf).forEach(function (x) { x.style.display = ''; });
-        var tw = $('#ob-to'); if (tw) tw.style.display = cur.kind === 'sub' ? 'none' : '';
+        var tw = $('#ob-to'); if (tw) tw.style.display = cur.kind === 'cert' ? '' : 'none';
+        var ok = $('.ok', bf); ok.textContent = cur.kind === 'shop' ? 'Дякуємо! Адміністратор звʼяжеться з вами, щоб підтвердити наявність, оплату й доставку.' : 'Дякуємо! Адміністратор звʼяжеться з вами, щоб узгодити оплату й отримання.';
+        $('button.btn', bf).textContent = cur.kind === 'shop' ? 'Замовити' : 'Оформити';
         if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
         window.dataLayer.push({ event: 'select_item', item_category: cur.kind, item_name: b.dataset.name });
       });
@@ -99,13 +102,24 @@
       var er = $('.err', bf), bt = $('button.btn', bf); er.hidden = true;
       if ((bf.name.value || '').trim().length < 2) { er.textContent = 'Вкажіть, будь ласка, імʼя.'; er.hidden = false; bf.name.focus(); return; }
       if (!telOk(bf.phone.value)) { er.textContent = 'Перевірте номер телефону: +380 і 9 цифр.'; er.hidden = false; bf.phone.focus(); return; }
-      if (cur.kind !== 'sub') {
+      if (cur.kind === 'cert') {
         if ((bf.to.value || '').trim().length < 2) { er.textContent = 'Вкажіть імʼя отримувача сертифіката.'; er.hidden = false; bf.to.focus(); return; }
         if (!telOk(bf.to_phone.value)) { er.textContent = 'Перевірте телефон отримувача: +380 і 9 цифр.'; er.hidden = false; bf.to_phone.focus(); return; }
       }
       var d = marks(); d.kind = cur.kind; d.id = cur.id; d.name = bf.name.value.trim(); d.phone = bf.phone.value; d.website = bf.website.value;
-      if (cur.kind !== 'sub') { d.to = bf.to.value.trim(); d.to_phone = bf.to_phone.value; }
+      if (cur.kind === 'cert') { d.to = bf.to.value.trim(); d.to_phone = bf.to_phone.value; }
       bt.disabled = true;
+      if (cur.kind === 'shop') {                              // товар з магазину: звичайна заявка адміністратору, без переходу на сайт магазину
+        var L2 = { name: d.name, phone: '+' + String(d.phone).replace(/\D/g, ''), interest: 'Магазин: ' + cur.name, formname: 'onlain-zapys:shop', page: d.page, website: d.website, t: d.t };
+        Object.keys(d).forEach(function (k) { if (!(k in L2) && ['kind', 'id', 'to', 'to_phone'].indexOf(k) < 0) L2[k] = d[k]; });
+        api('/api/lead', L2, function (j) {
+          bt.disabled = false;
+          if (j && j.ok) { window.dataLayer.push({ event: 'generate_lead', form_id: 'zapys:shop', lead_interest: L2.interest }); if (window.mldsConv) window.mldsConv('lead');
+            $('.ok', bf).hidden = false; $$('label,button.btn,#ob-to', bf).forEach(function (x) { x.style.display = 'none'; }); }
+          else { er.textContent = 'Не вдалося надіслати. Перевірте номер або зателефонуйте нам.'; er.hidden = false; }
+        });
+        return;
+      }
       api('/api/order', d, function (j) {
         bt.disabled = false;
         if (j && j.ok) {
@@ -132,7 +146,7 @@
     if (me && me.phone && !form.phone.value) form.phone.value = me.phone;
     var bk = null; try { bk = JSON.parse(localStorage.getItem('mlds_booking') || 'null'); } catch (x) {}
     if (bk && bk.v && !$('.ob-mycard') && Date.now() - bk.at < 60 * 864e5) {
-      var hero = $('.ob-hero .lead-tx'); if (hero) { var a = document.createElement('a'); a.className = 'ob-mybar'; a.href = B + '/zapys?v=' + encodeURIComponent(bk.v);
+      var hero = $('.ob-hero .lead-tx') || $('.hb .lead-tx'); if (hero) { var a = document.createElement('a'); a.className = 'ob-mybar'; a.href = B + '/onlain-zapys?v=' + encodeURIComponent(bk.v);
         a.innerHTML = '<b>Мій запис</b><small>переглянути, додати в календар чи скасувати</small>'; hero.parentNode.insertBefore(a, hero.nextSibling); }
     }
   })();
@@ -343,7 +357,7 @@
         $('#ob-ics').href = B + '/zapys.ics?v=' + encodeURIComponent(j.token);
         if (j.gcal) $('#ob-gcal').href = j.gcal;
         try { history.replaceState(null, '', location.pathname + '?' + (location.search.replace(/^\?/, '').split('&').filter(function (x) { return x && x.indexOf('v=') !== 0; }).concat('v=' + encodeURIComponent(j.token)).join('&'))); } catch (x) {}
-        $('#ob-mylink').href = B + '/zapys?v=' + encodeURIComponent(j.token);
+        $('#ob-mylink').href = B + '/onlain-zapys?v=' + encodeURIComponent(j.token);
         $('#s-doc').textContent = j.doctor || $('#s-doc').textContent;
         try { localStorage.setItem('mlds_booking', JSON.stringify({ v: j.token, at: Date.now() })); } catch (x) {}
         window.dataLayer.push({ event: 'booking_complete', form_id: 'zapys:booking', lead_interest: j.service, value: j.price || 0, currency: 'UAH', transaction_id: 'zapys-' + String(j.token || '').slice(0, 16) });
