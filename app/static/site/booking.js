@@ -91,6 +91,7 @@
         var tw = $('#ob-to'); if (tw) tw.style.display = cur.kind === 'cert' ? '' : 'none';
         var ok = $('.ok', bf); ok.textContent = cur.kind === 'shop' ? 'Дякуємо! Адміністратор звʼяжеться з вами, щоб підтвердити наявність, оплату й доставку.' : 'Дякуємо! Адміністратор звʼяжеться з вами, щоб узгодити оплату й отримання.';
         $('button.btn', bf).textContent = cur.kind === 'shop' ? 'Замовити' : 'Оформити';
+        var fn = $('.fine', bf); if (fn) { fn.dataset.t = fn.dataset.t || fn.textContent; fn.textContent = cur.kind === 'shop' ? 'Адміністратор передзвонить, підтвердить наявність і домовиться про оплату й доставку або самовивіз.' : fn.dataset.t; }
         if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
         window.dataLayer.push({ event: 'select_item', item_category: cur.kind, item_name: b.dataset.name });
       });
