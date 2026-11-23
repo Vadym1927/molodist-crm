@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+import re
 import secrets
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -143,12 +144,30 @@ def by_token(db: Session, token: str) -> Review | None:
 
 
 def general(db: Session, phone: str, days: int = 14) -> Review:
-    """Загальне посилання на опитування (одне для всіх, напр. у повідомленні CleverBox після візиту): пацієнт вводить телефон →
-    знаходимо картку й останній візит за `days` днів → індивідуальне опитування. Невідповідене — те саме, повторно не створюємо."""
+    """Загальне посилання на опитування (одне для всіх): пацієнт вводить телефон → картка → опитування за останнім візитом."""
     from .appeals import find_patient
-    p = find_patient(db, phone)
+    d = re.sub(r"\D", "", phone or "")
+    p = find_patient(db, d) if len(d) >= 9 else None
     if not p:
         raise ValueError("Не знайшли цей номер серед пацієнтів. Перевірте номер або напишіть нам — ми допоможемо.")
+    return survey_for(db, p, days)
+
+
+def by_cleverbox(db: Session, cid: int, days: int = 14) -> Review:
+    """Персональне посилання без введення телефону: /r/c/{ID клієнта CleverBox} (змінна шаблону повідомлення CleverBox).
+    Працює лише якщо в пацієнта був візит за останні `days` днів — інакше номер у посиланні нічого не відкриває."""
+    p = db.scalar(select(Patient).where(Patient.cleverbox_id == cid))
+    if not p:
+        raise ValueError("none")
+    since = datetime.now() - timedelta(days=days)
+    if not any(a.status not in ("cancelled", "no_show") for a in db.scalars(select(Appointment).where(
+            Appointment.patient_id == p.id, Appointment.start >= since, Appointment.start <= datetime.now()))):
+        raise ValueError("none")
+    return survey_for(db, p, days)
+
+
+def survey_for(db: Session, p: Patient, days: int = 14) -> Review:
+    """Опитування за останнім візитом пацієнта за `days` днів. Невідповідене — те саме, повторно не створюємо."""
     since = datetime.now() - timedelta(days=days)
     ap = next((a for a in db.scalars(select(Appointment).where(Appointment.patient_id == p.id, Appointment.start >= since,
                                                                 Appointment.start <= datetime.now()).order_by(Appointment.start.desc()))

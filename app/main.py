@@ -7790,6 +7790,19 @@ async def review_general_go(request: Request, db: Session = Depends(db_dep)):
     return RedirectResponse(f"/r/{r.token}", 303)
 
 
+@app.get("/r/c/{cid}", response_class=HTMLResponse)
+def review_by_cleverbox(request: Request, cid: int, db: Session = Depends(db_dep)):
+    """Персональне посилання для шаблону повідомлення CleverBox (змінна «ID клієнта») — без введення телефону."""
+    from .services import reviews as rv
+    try:
+        r = rv.by_cleverbox(db, cid)
+    except ValueError as e:
+        if str(e) == "none":
+            return RedirectResponse("/r/new", 303)
+        return templates.TemplateResponse(request, "review_form.html", {"state": "phone", "rating": rv.rating(db), "err": str(e), "phone": ""})
+    return RedirectResponse(f"/r/{r.token}", 303)
+
+
 @app.get("/r/{token}", response_class=HTMLResponse)
 def review_form(request: Request, token: str, done: str = "", db: Session = Depends(db_dep)):
     """Публічна сторінка опитування після візиту (за посиланням із повідомлення)."""
@@ -9490,7 +9503,7 @@ def site_page(request: Request, slug: str, db: Session = Depends(db_dep)):
     if key in sl.REDIRECTS:                                   # старі сторінки Tilda, зібрані в одну нову: 301 зберігає позиції в Google
         on_site = (request.headers.get("host") or "").split(":")[0].lower() in sp.hosts()
         return RedirectResponse(("" if on_site else "/_site") + "/" + sl.REDIRECTS[key], status_code=301)
-    if key in _tsg.GONE:                                      # сторінки лікарів, які вже не працюють: 410 — Google прибирає з індексу
+    if key in _tsg.GONE or key in _tsg.GONE_PAGES:                                      # сторінки лікарів, які вже не працюють: 410 — Google прибирає з індексу
         return HTMLResponse("<!doctype html><meta charset=utf-8><meta name=robots content=noindex><title>Сторінку видалено — MOLODIST</title>"
                             "<p style='font:16px sans-serif;padding:40px'>Цю сторінку видалено. <a href='/'>На головну MOLODIST</a></p>",
                             status_code=410, headers={"X-Robots-Tag": "noindex, nofollow"})

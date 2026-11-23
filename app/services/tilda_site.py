@@ -151,6 +151,7 @@ def asset(folder: str, path: str) -> Path | None:
 
 # Сторінки лікарів, які більше не працюють у MOLODIST: адреси віддають 410 (Google прибирає з індексу), посилання з меню зникають.
 GONE = ("tatianabondarenko", "anastasialozynska", "dmytrolevenchuk", "darynabandura", "annakelner")
+GONE_PAGES = ("trihologiya",)          # послуги, яких більше немає: 410, щоб Google прибрав сторінку з індексу
 GONE_NAMES = r"(?:бондаренко|лозинськ\w*|левенчук|бандур\w*|кельнер)"
 _GONE_HREF = r'href="(?:https?://(?:www\.)?molodist\.com\.ua)?/?(?:%s)/?"' % "|".join(GONE)
 _GONE_LI = re.compile(r"<li\b[^>]*>\s*(?:<div\b[^>]*>\s*)?<a\b[^>]*%s[^>]*>.*?</a>\s*(?:</div>\s*)?</li>" % _GONE_HREF, re.I | re.S)
