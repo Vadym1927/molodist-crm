@@ -73,7 +73,7 @@ FACTS = [("Лише лікарі", "Процедури проводять фах
 # ba — пара «до / після» (файли в static/site/home), img — одне фото; interest — що підставити у форму запису
 CONCERNS = [
     {"t": "Зморшки й вікові зміни", "d": "Мімічні зморшки, втрата обʼєму й чіткості овалу", "slug": "inyekczijna-kosmetologiya",
-     "how": "Ботулінотерапія, контурна пластика, біоревіталізація", "ba": ["ba-wrinkles-1.webp", "ba-wrinkles-2.webp"], "ba_v": True, "interest": "Зморшки й вікові зміни",
+     "how": "Ботулінотерапія, контурна пластика, біоревіталізація", "ba": ["zm-c1-1.webp", "zm-c1-2.webp"], "interest": "Зморшки й вікові зміни",
      "page": "zmorshky-ta-vikovi-zminy"},
     {"t": "Акне й постакне", "d": "Висипання, сліди й рубці після них", "slug": "beautyplan",
      "how": "BEAUTY PLAN Anti Acne: лікування, догляд, процедури", "ba": ["ba-acne-1.webp", "ba-acne-2.webp"], "interest": "Акне й постакне",
