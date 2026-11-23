@@ -12,7 +12,7 @@ def test_unfinished_booking_becomes_appeal_after_wait():
         assert ob.process_drafts(db) == 0                                  # ще не минуло 20 хв
         assert ob.process_drafts(db, now=datetime.utcnow() + timedelta(minutes=25)) == 1
         a = db.query(Appeal).filter(Appeal.phone.like("%5551234")).order_by(Appeal.id.desc()).first()
-        assert a and "не завершив" in a.comment and "gclid=gx1" in (a.utm or "")
+        assert a and "НЕЗАВЕРШЕНИЙ ОНЛАЙН-ЗАПИС" in a.comment and "gclid=gx1" in (a.utm or "")
         assert ob.process_drafts(db, now=datetime.utcnow() + timedelta(minutes=50)) == 0   # чернетку прибрано
 
 
@@ -36,3 +36,10 @@ def test_booking_funnel_counts_steps():
         db.commit()
         f = {x["key"]: x["n"] for x in ss.booking_funnel(db, date.today(), date.today(), paid=True)}
         assert f["open"] >= 3 and f["krok-3"] >= 2 and f["krok-5"] >= 1 and f["krok-tel"] >= 1
+
+
+def test_draft_alert_says_not_a_lead():
+    from app.services import site_leads as sl
+    t = sl.alert_text({"formname": "onlain-zapys:draft", "name": "Тест", "phone": "+380671112233", "interest": "Консультація",
+                       "want": "Консультація · 25.11 12:00"}, 5, "https://x")
+    assert "Незавершений онлайн-запис" in t and "Нова заявка" not in t and "25.11 12:00" in t

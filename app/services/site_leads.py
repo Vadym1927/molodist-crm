@@ -34,7 +34,7 @@ NAME_KEYS = ("name", "імя", "імʼя", "ім'я", "имя", "fio", "піб",
 PHONE_KEYS = ("phone", "tel", "телефон", "mobile", "your-phone", "phone_number")
 MSG_KEYS = ("textarea", "message", "comment", "comments", "коментар", "повідомлення", "питання", "question", "text", "your-message")
 INTEREST_KEYS = ("service", "послуга", "procedure", "процедура", "interest", "direction", "напрямок")
-SKIP = {"device", "ref", "ua", "cid", "formid", "formname", "tranid", "cookies", "test", "page", "referer", "referrer", "url", "ga_client_id", "client_id", "form", "hook"}
+SKIP = {"want", "device", "ref", "ua", "cid", "formid", "formname", "tranid", "cookies", "test", "page", "referer", "referrer", "url", "ga_client_id", "client_id", "form", "hook"}
 
 
 def cfg(db: Session) -> dict:
@@ -125,7 +125,9 @@ def ingest(db: Session, d: dict, origin: str = "") -> dict:
     utm = "&".join(f"{k}={v}" for k, v in mk.items())
     extra = {k: v for k, v in d.items() if k.lower() not in SKIP and k.lower() not in ("code", "otp", "password", "pass", "pin") and k.lower() not in UTM and str(v).strip()
              and str(v).strip() not in (name, phone, msg, interest) and not k.lower().startswith("utm")}
-    lines = [f"Заявка з сайту{(' · ' + form) if form else ''}"]
+    draft = form.endswith(":draft")
+    lines = ["⏳ НЕЗАВЕРШЕНИЙ ОНЛАЙН-ЗАПИС — не заявка: людина обрала послугу й час, ввела телефон, але не натиснула «Записатися». "
+             "Запису в календарі немає — передзвоніть і допоможіть завершити запис."] if draft else [f"Заявка з сайту{(' · ' + form) if form else ''}"]
     if msg:
         lines.append(msg[:1500])
     for k, v in list(extra.items())[:12]:
@@ -212,12 +214,17 @@ def alert_text(d: dict, appeal_id, base: str) -> str:
     paid, src = traffic(d)
     dev = str(d.get("device") or "").strip()[:60]
     b = (base or "").rstrip("/")
-    L = ["📝 <b>Нова заявка з сайту</b>", "",
+    draft = str(d.get("formname") or "").endswith(":draft")
+    head = (["⏳ <b>Незавершений онлайн-запис</b>", "Це не заявка: людина почала онлайн-запис, ввела телефон, але не натиснула «Записатися». "
+             "Запису в календарі немає — передзвоніть і допоможіть записатися.", ""] if draft else ["📝 <b>Нова заявка з сайту</b>", ""])
+    L = [*head,
          f"👤 <b>{_e(name) or 'без імені'}</b>",
          f"📞 {_e(_fmt_phone(phone)) or '—'}",
          f"💬 Звʼязатися: <b>{_e(channel) if channel else 'дзвінок (не вказано)'}</b>", ""]
     if topic:
-        L.append(f"🎯 Запит: <b>{_e(topic)}</b>")
+        L.append(f"🎯 {'Обрав послугу' if draft else 'Запит'}: <b>{_e(topic)}</b>")
+    if draft and d.get("want"):
+        L.append(f"🕒 Обрав: {_e(str(d['want'])[:200])}")
     if doctor:
         L.append(f"👩‍⚕️ Лікар: {_e(doctor)}")
     L.append(("💰 <b>РЕКЛАМА</b> · " if paid else "🌱 Не реклама · ") + _e(src))

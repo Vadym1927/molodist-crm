@@ -1156,7 +1156,7 @@ def process_drafts(db: Session, base: str = "", now: datetime | None = None) -> 
         want = " · ".join(x for x in (v.get("services"), v.get("doctor"),
                                        (f"{v['day']} {v.get('time') or ''}".strip() if v.get("day") else "")) if x)
         d = {**(v.get("marks") or {}), "name": v.get("name") or "", "phone": v["phone"], "interest": (v.get("services") or "")[:200],
-             "formname": f"{SLUG}:draft", "comment": "Почав онлайн-запис, але не завершив — передзвоніть, будь ласка." + (f"\nОбрав: {want}" if want else "")}
+             "formname": f"{SLUG}:draft", "want": want, "comment": (f"Обрав: {want}" if want else "")}
         r = sl.ingest(db, d)
         if r.get("appeal_id") and not r.get("duplicate"):
             n += 1
