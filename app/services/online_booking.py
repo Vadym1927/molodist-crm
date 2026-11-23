@@ -398,6 +398,8 @@ def clean_name(name: str, group: str = "") -> str:
         n = re.sub(r"лікування\s+підвищеної\s+пітливості", "Зменшення пітливості", n, flags=re.I)
         n = re.sub(BOTOX_BRANDS + r"|ботулінотерапі[яюїє]", " ", n, flags=re.I)
         n = re.sub(r"\bчолов\w*", " ", n, flags=re.I)
+        n = re.sub(r"ясневої\s+посмішки", "Яснева посмішка", n, flags=re.I)
+        n = re.sub(r"жувального\s+м[ʼ'’]яза", "Жувальні мʼязи", n, flags=re.I)
     else:
         n = re.sub(BOTOX_BRANDS, "ботулінотерапія", n, flags=re.I)
     n = re.sub(r"\(\s*\)", " ", n)
