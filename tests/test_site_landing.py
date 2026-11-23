@@ -251,3 +251,12 @@ def test_home_bp_video_syrova_and_crm_reviews_label():
         assert "syrova-bp.mp4" in cl.get("/_site/proto/a").text
         r = cl.get("/_site/sofiasirova")
         assert "дерматохірург" in r.text and "Спеціалізація з дерматохірургії" in r.text
+
+
+def test_mix_reviews_uses_survey_rating(monkeypatch):
+    from app.services import site_landing as sl, reviews as rv
+    from app.models import SessionLocal
+    monkeypatch.setattr(rv, "rating", lambda db: {"count": 615, "avg": 5.0})
+    with SessionLocal() as db:
+        r = sl.mix_reviews(db, {"rating": 4.8, "count": 79, "reviews": [{"author": "A", "text": "x", "rating": 5}], "url": "u"})
+    assert r["rating"] == 5.0 and r["count"] == 615 and r["g_rating"] == 4.8 and r["src"] == "mix" and "615 відгуків" in r["label"]

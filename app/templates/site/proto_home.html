@@ -322,7 +322,9 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
     <aside class="h-rsum"><h2 class="lbl">{{ rev.title if rev and rev.title else "Відгуки пацієнтів MOLODIST" }}</h2>
       <p class="sc">{{ ('%.1f'|format(rev.rating)).replace('.', ',') if rev else '5,0' }}</p><p class="st" aria-hidden="true">★★★★★</p>
       {% if rev and rev.src == 'crm' %}<p class="cnt">{{ rev.label }}</p>
-      {% if rev.tx %}<p class="tx">{{ rev.tx }}</p>{% endif %}{% else %}<p class="cnt">{% if rev %}{{ rev.count }} відгуків у Google{% else %}рейтинг у Google{% endif %}</p>
+      {% if rev.tx %}<p class="tx">{{ rev.tx }}</p>{% endif %}{% elif rev and rev.src == 'mix' %}<p class="cnt">{{ rev.label }}</p>
+      <p class="tx">Середня оцінка пацієнтів в опитуванні після візиту в MOLODIST.{% if rev.g_rating %} У Google — {{ ('%.1f'|format(rev.g_rating)).replace('.', ',') }} ★ ({{ rev.g_count }} відгуків).{% endif %}</p>
+      <p class="acts"><a class="btn light" href="{{ rev.url or c.maps }}" target="_blank" rel="noopener">Відгуки в Google</a><a class="h-ghost lt" href="{{ rev.url or c.maps }}" target="_blank" rel="noopener">Залишити відгук {{ arrow() }}</a></p>{% else %}<p class="cnt">{% if rev %}{{ rev.count }} відгуків у Google{% else %}рейтинг у Google{% endif %}</p>
       <p class="tx">Справжні відгуки з профілю MOLODIST у Google — без редагування й відбору «найкращих».</p>
       <p class="acts"><a class="btn light" href="{{ (rev.url if rev else '') or c.maps }}" target="_blank" rel="noopener">Усі відгуки в Google</a><a class="h-ghost lt" href="{{ (rev.url if rev else '') or c.maps }}" target="_blank" rel="noopener">Залишити відгук {{ arrow() }}</a></p>{% endif %}</aside>
     <div class="h-rwrap"><div class="h-rtrack grid" data-slider data-swipe>

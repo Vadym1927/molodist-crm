@@ -1040,6 +1040,44 @@ def crm_reviews(db: Session, cfg: dict) -> dict | None:
         out.append(r)
     if not out:
         return None
-    n = len(out)
-    return {"rating": 5.0, "count": n, "reviews": out[:9], "url": "", "src": "crm", "title": cfg.get("title") or "Відгуки пацієнтів",
+    try:                                              # рейтинг — середня ВСІХ оцінок у відгуках, де згадано лікаря (не лише «5»)
+        from sqlalchemy import func
+        n1, s1 = db.execute(select(func.count(ReviewArchive.id), func.sum(ReviewArchive.avg)).where(
+            ReviewArchive.avg.is_not(None), or_(*[ReviewArchive.text.ilike(k) for k in pat]))).one()
+        n2, s2 = db.execute(select(func.count(Review.id), func.sum(Review.avg)).where(
+            Review.avg.is_not(None), or_(*[Review.text.ilike(k) for k in pat]))).one()
+        n = int(n1 or 0) + int(n2 or 0)
+        avg = round((float(s1 or 0) + float(s2 or 0)) / n, 1) if n else 5.0
+    except Exception:  # noqa: BLE001
+        n, avg = len(out), 5.0
+    n = max(n, len(out))
+    return {"rating": avg, "count": n, "reviews": out[:9], "url": "", "src": "crm", "title": cfg.get("title") or "Відгуки пацієнтів",
             "label": f"{n} {_plural(n, 'відгук', 'відгуки', 'відгуків')}", "tx": cfg.get("tx", "")}
+
+
+def mix_reviews(db: Session, g: dict | None) -> dict | None:
+    """Блок відгуків сайту: рейтинг — середня оцінка пацієнтів з опитувань після візиту (усі оцінки, не лише «5»);
+    картки — Google упереміш із відгуками з опитувань (5★, з текстом). Рейтинг Google показується окремо, як є."""
+    from . import reviews as rv
+    from sqlalchemy import select
+    from ..models import ReviewArchive, Review
+    rt = rv.rating(db)
+    if not rt or not rt.get("count") or rt.get("avg") is None:
+        return g
+    own = []
+    for x in db.scalars(select(Review).where(Review.text.is_not(None), Review.avg >= 5).order_by(Review.answered_at.desc().nullslast()).limit(20)):
+        own.append({"author": "Відгук після візиту", "when": x.answered_at.strftime("%m.%Y") if x.answered_at else "", "rating": 5, "src": "crm",
+                    "text": " ".join((x.text or "").split())})
+    for x in db.scalars(select(ReviewArchive).where(ReviewArchive.text.is_not(None), ReviewArchive.avg >= 5, ReviewArchive.hidden.is_not(True))
+                        .order_by(ReviewArchive.at.desc().nullslast(), ReviewArchive.id.desc()).limit(20)):
+        own.append({"author": "Відгук після візиту", "when": x.at.strftime("%m.%Y") if x.at else "", "rating": 5, "src": "crm",
+                    "text": " ".join((x.text or "").split())})
+    own = [x for x in own if len(x["text"]) >= 40 and not re.search(r"[ыэъё]", x["text"], re.I)][:6]
+    gr_ = (g or {}).get("reviews") or []
+    mixed = []
+    for i in range(max(len(gr_), len(own))):          # Google і опитування по черзі
+        mixed += gr_[i:i + 1] + own[i:i + 1]
+    n = int(rt["count"])
+    return {**(g or {}), "rating": float(rt["avg"]), "count": n, "src": "mix", "reviews": mixed,
+            "label": f"{n} {_plural(n, 'відгук', 'відгуки', 'відгуків')} пацієнтів",
+            "g_rating": (g or {}).get("rating"), "g_count": (g or {}).get("count"), "url": (g or {}).get("url") or ""}

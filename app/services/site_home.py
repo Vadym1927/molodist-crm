@@ -245,6 +245,11 @@ def data(db: Session, base: str, ver: str) -> dict:
         rev = gr.public(db, c)
     except Exception:  # noqa: BLE001
         rev = None
+    try:                                            # оцінка пацієнтів з опитувань після візиту (CRM + архів CleverBox) + їхні відгуки поруч із Google
+        from . import site_landing as _sl
+        rev = _sl.mix_reviews(db, rev)
+    except Exception:  # noqa: BLE001
+        pass
     pages = [{"slug": s, "nav": sp.PAGES[s]["nav"], "lead": sp.PAGES[s]["lead"], "lo": sp.min_price(sp.prices(db, sp.PAGES[s]))} for s in sp.ORDER]
     plan_price = next((r["price"] for g in sp.prices(db, sp.PAGES["beautyplan"]) for r in g["rows"] if r["id"] == PLAN["service_id"]), None)
     static_hero = f"/static/site/img/zapys-hero.webp?v={ver}"
