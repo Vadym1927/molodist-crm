@@ -7771,6 +7771,25 @@ def _review_ctx(db, r):
             "rating": rv.rating(db), "wall": rv.archive_public(db) if c.get("show_wall", True) else None}
 
 
+@app.get("/r/new", response_class=HTMLResponse)
+def review_general(request: Request, db: Session = Depends(db_dep)):
+    """Загальне посилання на опитування (для повідомлення після візиту з будь-якої системи): пацієнт вводить свій телефон."""
+    from .services import reviews as rv
+    return templates.TemplateResponse(request, "review_form.html", {"state": "phone", "rating": rv.rating(db), "err": "", "phone": ""})
+
+
+@app.post("/r/new", response_class=HTMLResponse)
+async def review_general_go(request: Request, db: Session = Depends(db_dep)):
+    from .services import reviews as rv
+    f = await request.form()
+    phone = str(f.get("phone") or "").strip()[:30]
+    try:
+        r = rv.general(db, phone)
+    except ValueError as e:
+        return templates.TemplateResponse(request, "review_form.html", {"state": "phone", "rating": rv.rating(db), "err": str(e), "phone": phone})
+    return RedirectResponse(f"/r/{r.token}", 303)
+
+
 @app.get("/r/{token}", response_class=HTMLResponse)
 def review_form(request: Request, token: str, done: str = "", db: Session = Depends(db_dep)):
     """Публічна сторінка опитування після візиту (за посиланням із повідомлення)."""

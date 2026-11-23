@@ -22,6 +22,11 @@ textarea{width:100%;min-height:110px;border:1px solid #E9E5DF;border-radius:12px
 {% if rating and rating.count %}<div class="rt"><span class="rs">★★★★★</span><b>{{ '%.1f'|format(rating.avg) }}</b><span>·</span><span>{{ '{:,}'.format(rating.count).replace(',', ' ') }} відгуків пацієнтів</span></div>{% endif %}
 {% if state == 'none' %}<div class="c"><h1>Посилання не діє</h1><p>Схоже, посилання застаріле. Якщо хочете поділитися враженням — напишіть нам, будь ласка.</p></div>
 {% elif state == 'expired' %}<div class="c"><h1>Термін посилання минув</h1><p>Посилання на опитування діє добу після візиту. Якщо хочете поділитися враженням — напишіть нам, будь ласка, ми будемо раді.</p></div>
+{% elif state == 'phone' %}
+<form method="post" class="c">{% if err %}<div class="err">{{ err }}</div>{% endif %}
+  <h1>Як минув ваш візит?</h1><p>Вкажіть номер телефону, на який ви записувались, — і ми відкриємо коротке опитування (до хвилини).</p>
+  <input name="phone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="+380…" value="{{ phone }}" style="width:100%;height:48px;border:1px solid #C9BFE6;border-radius:12px;padding:0 14px;font-size:17px;margin:6px 0 12px;box-sizing:border-box">
+  <button class="btn">Продовжити</button></form>
 {% elif state == 'form' %}
 <form method="post" class="c">{% if err %}<div class="err">{{ err }}</div>{% endif %}
   <h1>Як минув ваш візит?</h1><p>{{ name }}, оцініть, будь ласка, від 1 до 5 — це займе хвилину.{% if doctor %} Ви були в лікаря {{ doctor }}.{% endif %}</p>

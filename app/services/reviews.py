@@ -142,6 +142,29 @@ def by_token(db: Session, token: str) -> Review | None:
     return db.scalar(select(Review).where(Review.token == token)) if token else None
 
 
+def general(db: Session, phone: str, days: int = 14) -> Review:
+    """Загальне посилання на опитування (одне для всіх, напр. у повідомленні CleverBox після візиту): пацієнт вводить телефон →
+    знаходимо картку й останній візит за `days` днів → індивідуальне опитування. Невідповідене — те саме, повторно не створюємо."""
+    from .appeals import find_patient
+    p = find_patient(db, phone)
+    if not p:
+        raise ValueError("Не знайшли цей номер серед пацієнтів. Перевірте номер або напишіть нам — ми допоможемо.")
+    since = datetime.now() - timedelta(days=days)
+    ap = next((a for a in db.scalars(select(Appointment).where(Appointment.patient_id == p.id, Appointment.start >= since,
+                                                                Appointment.start <= datetime.now()).order_by(Appointment.start.desc()))
+               if a.status not in ("cancelled", "no_show")), None)
+    q = select(Review).where(Review.patient_id == p.id, Review.answered_at.is_(None), Review.created_at >= datetime.utcnow() - timedelta(days=days))
+    r = next((x for x in db.scalars(q.order_by(Review.id.desc())) if not ap or x.appointment_id in (None, ap.id)), None)
+    if not r:
+        if ap and db.scalar(select(Review.id).where(Review.appointment_id == ap.id, Review.answered_at.is_not(None))):
+            raise ValueError("Дякуємо, відгук про цей візит ви вже залишили.")
+        r = Review(token=secrets.token_urlsafe(12), patient_id=p.id, appointment_id=ap.id if ap else None, doctor_id=ap.doctor_id if ap else None)
+        db.add(r)
+    r.sent_at, r.channel, r.send_error = datetime.utcnow(), "link", None       # строк дії посилання — від цього моменту
+    db.commit()
+    return r
+
+
 def expired(db: Session, r: Review, now: datetime | None = None) -> bool:
     """Посилання індивідуальне й діє обмежений час (за замовчуванням 24 години від надсилання)."""
     ttl = float(cfg(db).get("ttl_hours") or 0)
