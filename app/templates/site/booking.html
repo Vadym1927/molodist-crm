@@ -3,7 +3,7 @@
 {% block head %}<link rel="stylesheet" href="/static/site/booking.css?v={{ ver }}"><link rel="stylesheet" href="/static/site/hub.css?v={{ ver }}">{% endblock %}
 {% macro ph(d, cls='') %}<span class="ob-ph {{ cls }}">{% if d.photo %}<img src="{{ d.photo }}" alt="{{ d.name }}" loading="lazy">{% else %}<i>{{ d.initials }}</i>{% endif %}</span>{% endmacro %}
 {% macro i(n) %}<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{{ ICONS[n]|safe }}</svg>{% endmacro %}
-{% macro tile(id, n, t, s) %}<button type="button" class="hb-t" data-sheet="{{ id }}" aria-haspopup="dialog"><i>{{ i(n) }}</i><b>{{ t }}</b><small>{{ s }}</small></button>{% endmacro %}
+{% macro tile(id, t, s, href='') %}{% if href %}<a class="hb-t" href="{{ href }}" target="_blank" rel="noopener"{% else %}<button type="button" class="hb-t" data-sheet="{{ id }}" aria-haspopup="dialog"{% endif %}><span><b>{{ t }}</b><small>{{ s }}</small></span><em aria-hidden="true">{{ '↗' if href else '›' }}</em>{% if href %}</a>{% else %}</button>{% endif %}{% endmacro %}
 {% macro sheet(id, t, wide=False) %}<dialog class="hb-sh {{ 'wide' if wide }}" id="sh-{{ id }}" aria-label="{{ t }}"><div class="hb-sh-in">
   <div class="hb-sh-hd"><b>{{ t }}</b><button type="button" class="hb-x" data-sheet-close aria-label="Закрити"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></div>
   <div class="hb-sh-bd">{{ caller() }}</div></div></dialog>{% endmacro %}
@@ -42,17 +42,19 @@
     <p class="lead-tx">Оберіть послугу, лікаря й вільний час — за хвилину, без дзвінків. {{ ob.note }}</p>
     <button type="button" class="hb-go" data-sheet="zapys" aria-haspopup="dialog"><i>{{ i('cal') }}</i><span><b>Записатися онлайн</b><small>Послуга · лікар · час</small></span><em aria-hidden="true">→</em></button>
     <div class="hb-tiles">
-      {% if prices %}{{ tile('prais', 'prais', 'Прайс', 'усі ціни') }}{% endif %}
-      {% if offers.certs %}{{ tile('sertyfikaty', 'sert', 'Сертифікати', 'подарунок') }}{% endif %}
-      {% if offers.subs %}{{ tile('abonementy', 'abon', 'Абонементи', 'курси вигідніше') }}{% endif %}
-      {% if offers.loyalty.promos %}{{ tile('aktsii', 'akc', 'Акції', 'знижки й бонуси') }}{% endif %}
-      {{ tile('likari', 'likari', 'Лікарі', 'хто вас прийме') }}
-      {% if products or ob.shop_url %}{{ tile('magazyn', 'shop', 'Магазин', 'косметика') }}{% endif %}
-      {% if rev and rev.reviews %}{{ tile('vidhuky', 'star', 'Відгуки', (('%.1f'|format(rev.rating)) ~ ' ★ у Google') if rev.rating else 'пацієнтів') }}{% endif %}
-      {% if guides %}{{ tile('gaidy', 'gaid', 'Гайди', 'памʼятки PDF') }}{% endif %}
-      {% if ob.faq %}{{ tile('pytannia', 'faq', 'Питання', 'про запис') }}{% endif %}
-      {{ tile('zviazok', 'chat', 'Звʼязок', 'чат і телефон') }}
-      {{ tile('adresa', 'pin', 'Як дістатися', 'адреса й мапа') }}
+      {% if prices %}{{ tile('prais', 'Прайс', 'усі послуги й ціни') }}{% endif %}
+      {{ tile('', 'Сайт', 'molodist.com.ua', c.main_url or base ~ '/') }}
+      {% if ob.shop_url %}{{ tile('', 'Магазин', 'косметика від лікарів', ob.shop_url) }}{% endif %}
+      {% if offers.certs %}{{ tile('sertyfikaty', 'Сертифікати', 'подарунок на будь-які послуги') }}{% endif %}
+      {% if offers.subs %}{{ tile('abonementy', 'Абонементи', 'курси процедур вигідніше') }}{% endif %}
+      {% if offers.loyalty.promos %}{{ tile('aktsii', 'Акції', 'знижки й бонуси') }}{% endif %}
+      {% if rev and rev.reviews %}<button type="button" class="hb-t hb-g" data-sheet="vidhuky" aria-haspopup="dialog"><span><b>Відгуки</b>
+        <small class="hb-gr"><svg viewBox="0 0 48 48" width="16" height="16" aria-hidden="true"><path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h11.8c-.5 2.8-2.1 5.1-4.4 6.7v5.5h7.1c4.2-3.8 6.6-9.5 6.6-16.2z"/><path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.3l-7.1-5.5c-2 1.3-4.5 2.1-7.4 2.1-5.7 0-10.5-3.8-12.2-9H4.5v5.7C8.1 41.1 15.5 46 24 46z"/><path fill="#FBBC05" d="M11.8 28.3c-.4-1.3-.7-2.8-.7-4.3s.3-2.9.7-4.3V14H4.5C3 17 2.2 20.4 2.2 24s.8 7 2.3 10l7.3-5.7z"/><path fill="#EA4335" d="M24 10.7c3.2 0 6.1 1.1 8.4 3.3l6.3-6.3C34.9 4.2 29.9 2 24 2 15.5 2 8.1 6.9 4.5 14l7.3 5.7c1.7-5.2 6.5-9 12.2-9z"/></svg>{% if rev.rating %}<strong>{{ ('%.1f'|format(rev.rating)).replace('.', ',') }}</strong><i>★★★★★</i>{% else %}Google{% endif %}</small></span><em aria-hidden="true">›</em></button>{% endif %}
+      {{ tile('likari', 'Лікарі', 'хто вас прийме') }}
+      {% if guides %}{{ tile('gaidy', 'Безкоштовні гайди', 'памʼятки від лікарів, PDF') }}{% endif %}
+      {% if ob.faq %}{{ tile('pytannia', 'Часті питання', 'про запис і візит') }}{% endif %}
+      {{ tile('zviazok', 'Звʼязок з нами', 'чат і телефон') }}
+      {{ tile('adresa', 'Як до нас дістатися', 'адреса й мапа') }}
     </div>
     <p class="hb-foot">{{ c.address }} · {{ c.hours }}</p>
   </div>
@@ -185,7 +187,7 @@
   {% for r in rev.reviews[:8] %}<blockquote><p>{{ r.text }}</p><cite>{{ r.author }}{% if r.when %} · {{ r.when }}{% endif %}</cite></blockquote>{% endfor %}
 </div>{% endcall %}{% endif %}
 
-{% if guides %}{% call sheet('gaidy', 'Гайди') %}<div class="ob-guides" id="gaidy"><p class="hb-lead">Корисні памʼятки від лікарів MOLODIST — завантажте й тримайте під рукою.</p>
+{% if guides %}{% call sheet('gaidy', 'Безкоштовні гайди') %}<div class="ob-guides" id="gaidy"><p class="hb-lead">Безкоштовні памʼятки від лікарів MOLODIST — завантажте й тримайте під рукою.</p>
   <div class="ob-ggrid g">{% for g in guides %}{% if g.url and g.url.lower().endswith('.pdf') %}<article class="ob-gpdf">
     {% if g.img %}<a class="cov" href="{{ g.url }}" target="_blank" rel="noopener"><img src="{{ g.img }}" alt="Гайд «{{ g.title }}»" loading="lazy" width="480" height="679"></a>{% endif %}
     <div>{% if g.tag %}<span class="tag">{{ g.tag }}</span>{% endif %}<h3>{{ g.title }}</h3>
@@ -199,9 +201,9 @@
   <p class="muted small">Памʼятки мають загальний характер і не замінюють консультацію. Індивідуальні рекомендації лікаря мають пріоритет.</p>
 </div>{% endcall %}{% endif %}
 
-{% if ob.faq %}{% call sheet('pytannia', 'Питання про запис') %}<div class="faq" id="pytannia"><div>{% for q, a in ob.faq %}<details class="qa"><summary>{{ q }}</summary><p>{{ a }}</p></details>{% endfor %}</div></div>{% endcall %}{% endif %}
+{% if ob.faq %}{% call sheet('pytannia', 'Часті питання') %}<div class="faq" id="pytannia"><div>{% for q, a in ob.faq %}<details class="qa"><summary>{{ q }}</summary><p>{{ a }}</p></details>{% endfor %}</div></div>{% endcall %}{% endif %}
 
-{% call sheet('zviazok', 'Звʼязок') %}<div class="ob-contact" id="zviazok"><p class="hb-lead">Зручніше поговорити? Напишіть або зателефонуйте — адміністратор відповість у робочий час.</p>
+{% call sheet('zviazok', 'Звʼязок з нами') %}<div class="ob-contact" id="zviazok"><p class="hb-lead">Зручніше поговорити? Напишіть або зателефонуйте — адміністратор відповість у робочий час.</p>
     <div class="ob-ch">
       <a href="tel:{{ c.phone }}"><span class="ico">{{ icon('phone') }}</span><b>Зателефонувати</b><small>{{ c.phone_text }}</small></a>
       <a href="{{ c.telegram }}" target="_blank" rel="noopener"><span class="ico">{{ icon('telegram') }}</span><b>Telegram</b><small>написати в чат</small></a>
@@ -211,7 +213,7 @@
     </div>
 </div>{% endcall %}
 
-{% call sheet('adresa', 'Як дістатися') %}<div class="ob-contact" id="adresa">
+{% call sheet('adresa', 'Як до нас дістатися') %}<div class="ob-contact" id="adresa">
   <div class="ob-addr"><h4>Адреса</h4><p>{{ c.address }}</p><h4>Графік</h4><p>{{ c.hours }}</p>
     <a class="btn sm" href="{{ c.maps }}" target="_blank" rel="noopener">Як дістатися</a></div>
   <div class="ob-map"><iframe title="MOLODIST на карті" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen

@@ -130,7 +130,7 @@ def test_site_page_api_and_publication(monkeypatch):
         with SessionLocal() as db:
             c = ob.cfg(db); c["on"] = True; ob.save_cfg(db, c)
         r = cl.get("/_site/zapys")
-        assert r.status_code == 200 and '"id": 9701' in r.text and "Наші лікарі" in r.text and "Сертифікат" in r.text and "Гайди" in r.text
+        assert r.status_code == 200 and '"id": 9701' in r.text and "Наші лікарі" in r.text and "Сертифікат" in r.text and "Безкоштовні гайди" in r.text
         assert 'id="prais"' in r.text and "Не онлайн" in r.text and 'data-ob-svc="9701"' in r.text and 'data-ob-svc="9703"' not in r.text     # прайс: усі активні послуги
         assert "molodist.store" in r.text and "booking.js" in r.text and "клінік" not in r.text.lower().split("<main>")[1].split("</main>")[0]
         js = cl.get("/_site/api/booking/days?service=9701&doctor=0").json()
@@ -328,7 +328,7 @@ def test_booking_hub_page_and_old_address():
         r = cl.get("/_site/zapys?v=abc&service=1", follow_redirects=False)
         assert r.status_code == 301 and r.headers["location"] == "onlain-zapys?v=abc&service=1"
         t = cl.get("/_site/onlain-zapys").text
-        assert 'class="hb-go"' in t and 'data-sheet="zapys"' in t and 'id="sh-zapys"' in t and 'id="sh-likari"' in t and 'id="sh-adresa"' in t
+        assert 'class="hb-go"' in t and 'id="sh-zapys"' in t and 'id="sh-likari"' in t and "Як до нас дістатися" in t
         assert '<footer class="ft"' not in t and 'class="nav"' not in t        # без меню сайту: людина лишається на сторінці
         assert "hub.js" in t and cl.get("/_site/og/zapys.jpg").status_code in (200, 404)
 
