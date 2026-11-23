@@ -3,7 +3,7 @@
 <section class="sec prod"><div class="wrap">
   <nav class="crumbs"><a href="{{ base }}/">Головна</a><a href="{{ base }}/shop/">Магазин</a>{% if cat %}<a href="{{ base }}{{ cat.path }}">{{ cat.name }}</a>{% endif %}<span>{{ it.name }}</span></nav>
   <div class="prod-in">
-    <div class="gal">{% if it.imgs %}<img id="gal-main" src="{{ base }}/img/{{ it.imgs[0] }}?w=1200" alt="{{ it.name }}" width="900" height="900" fetchpriority="high">
+    <div class="gal">{% if it.imgs %}<img id="gal-main" src="{{ base }}/img/{{ it.imgs[0] }}?w=1200" alt="{{ it.name }}" width="900" height="900" fetchpriority="high">{% if it.stock and (it.free_ship or (s.free_from and it.price >= s.free_from)) %}<em class="bdg ship">Безкоштовна доставка</em>{% endif %}
       {% if it.imgs|length > 1 %}<div class="thumbs">{% for f in it.imgs %}<button type="button" data-img="{{ base }}/img/{{ f }}?w=1200" class="{{ 'on' if loop.first }}"><img src="{{ base }}/img/{{ f }}?w=300" alt="" loading="lazy"></button>{% endfor %}</div>{% endif %}
       {% else %}<span class="noimg big"><img src="/static/site/brand/wordmark-graphite.svg" alt="MOLODIST" width="260" height="48"></span>{% endif %}</div>
     <div class="info">{% if it.brand %}<p class="pc-br">{% if brand_path %}<a href="{{ base }}{{ brand_path }}" style="color:inherit">{{ it.brand }}</a>{% else %}{{ it.brand }}{% endif %}</p>{% endif %}<h1>{{ it.name }}</h1>{% if rvs and rvs.n %}<a class="rv-mini" href="#reviews"><span class="stars" style="--r:{{ rvs.avg }}"></span> {{ '%.1f'|format(rvs.avg) }} · {{ rvs.n }} відгук{{ 'и' if rvs.n % 10 in [2,3,4] and rvs.n % 100 not in [12,13,14] else ('' if rvs.n % 10 == 1 and rvs.n % 100 != 11 else 'ів') }}</a>{% endif %}
@@ -28,9 +28,9 @@
       <ul class="perks"><li>{{ 'Безкоштовна доставка Новою поштою по Україні' if it.free_ship else (('Безкоштовна доставка від ' ~ money(s.free_from)) if s.free_from else 'Доставка Новою поштою') }}</li><li>Оригінальна продукція · підбір догляду лікарем</li></ul>
     </div>
   </div>
-  {% if it.tip %}<div class="tip"><div class="tip-h">{% if tip_doc and tip_doc.photo_url %}<img src="{{ tip_doc.photo_url }}" alt="{{ tip_doc.name }}" width="56" height="56" loading="lazy">{% else %}<span class="tip-m">M</span>{% endif %}
-    <div><b>Рекомендує лікар{% if tip_doc %} · {{ tip_doc.name }}{% endif %}</b>{% if tip_doc and tip_doc.position %}<small>{{ tip_doc.position }}</small>{% else %}<small>медичний простір MOLODIST</small>{% endif %}</div></div>
-    <p>{{ it.tip.text }}</p><a class="small" href="{{ book_url }}" target="_blank" rel="noopener">Записатися на консультацію лікаря →</a></div>{% endif %}
+  {% if it.tip %}<div class="tip"><div class="tip-h">{% if tip_doc and tip_doc.photo_url %}<img src="{{ tip_doc.photo_url }}" alt="{{ tip_doc.name }}" width="56" height="56" loading="lazy">{% else %}<img class="tip-logo" src="/static/site/brand/wordmark-graphite.svg" alt="MOLODIST" width="130" height="24">{% endif %}
+    <div><b>Рекомендує лікар{% if tip_doc %} · {{ tip_doc.name }}{% endif %}</b>{% if tip_doc and tip_doc.position %}<small>{{ tip_doc.position }}</small>{% else %}<small>медичний простір</small>{% endif %}</div></div>
+    <p>{{ it.tip.text }}</p></div>{% endif %}
   {% if it.sections %}<div class="desc">{% for x in it.sections %}<details class="acc" {{ 'open' if loop.first }}><summary><h2>{{ x.title }}</h2></summary><div class="rte">{{ x.html|safe }}</div></details>{% endfor %}</div>{% endif %}
   <div class="rvs" id="reviews"><h2>Відгуки{% if rvs.n %} <span class="rv-avg">{{ '%.1f'|format(rvs.avg) }} <span class="stars" style="--r:{{ rvs.avg }}"></span> · {{ rvs.n }}</span>{% endif %}</h2>
     {% for r in rvs.rows %}<div class="rv"><div class="rv-h"><b>{{ r.name or 'Покупець' }}</b><span class="stars" style="--r:{{ r.rating }}" aria-label="Оцінка {{ r.rating }} з 5"></span><small>{{ r.created_at.strftime('%d.%m.%Y') if r.created_at }}</small><em class="rv-buy">купив(ла) у MOLODIST</em></div>
