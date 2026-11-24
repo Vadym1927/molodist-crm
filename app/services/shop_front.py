@@ -396,7 +396,7 @@ def catalog(db: Session, fresh: bool = False) -> dict:
         wait_ = False
         if si.get("backorder") and not stock and not hidden:   # позначка власника сильніша за стару «presence» з імпорту
             stock, left_, wait_ = True, None, True          # «під замовлення»: продаємо без залишку на вітрині, відправка за 1–3 дні
-        v = {"id": p.id, "left": left_, "name": si.get("title") or p.name, "price": price, "old": old if old > price else 0, "stock": stock, "wait": wait_, "nofeed": bool(si.get("no_feed")),
+        v = {"id": p.id, "left": left_, "name": si.get("title") or p.name, "price": price, "old": old if old > price else 0, "stock": stock, "wait": wait_, "nofeed": bool(si.get("no_feed")), "push": bool(si.get("push")),
              "sku": p.sku or si.get("sku") or "", "label": p.volume or "", "gtin": gtin(p.barcode or si.get("barcode") or "")}
         if sx_:
             v.update(short=sx_["qty"], short_exp=sx_["expiry"].isoformat(), full=rest_)
@@ -433,7 +433,8 @@ def catalog(db: Session, fresh: bool = False) -> dict:
             continue
         sl = [s for s in c["slugs"] if s in by_slug]
         if c["path"] == "/shop/sale/":                  # SALE — лише товари, що зараз справді зі знижкою (ручною чи «короткий термін»)
-            sl = [k for k, it in sorted(by_slug.items(), key=lambda kv: -kv[1]["pct"]) if it["old"] and it["stock"]]
+            sl = [k for k, it in sorted(by_slug.items(), key=lambda kv: (not any(v.get("push") for v in kv[1]["variants"]), -kv[1]["pct"]))
+                  if it["old"] and it["stock"]]                   # спершу «Розпродаж» (неліквід), далі — за розміром знижки
         cats.append({**c, "slugs": sl, "n": len(sl), "depth": c["path"].strip("/").count("/"), "parent": "/".join(c["path"].rstrip("/").split("/")[:-1]) + "/"})
     brands_root = "/shop/brendi/"
     data = {"moved": {k: v for k, v in moved.items() if k not in by_slug and k not in arch}, "items": list(by_slug.values()), "by_slug": by_slug, "archive": {k: v for k, v in arch.items() if k not in by_slug}, "cats": cats, "by_path": {c["path"]: c for c in cats},
@@ -597,7 +598,7 @@ def admin_rows(db: Session, q: str = "", cat: str = "", flt: str = "") -> list[d
         r = {"p": p, "slug": si["slug"], "name": si.get("title") or p.name, "brand": si.get("brand_name") or p.brand or "", "base": base,
              "price": round(base * (1 - float(sale["pct"]) / 100)) if live else base, "sale": sale if sale.get("pct") else None, "live": live,
              "on": p.site_on is not False and p.active is not False, "cats": in_cats.get(si["slug"], []), "img": (files.get(p.id) or [None])[0],
-             "sticker": si.get("sticker") or "",
+             "sticker": si.get("sticker") or "", "push": bool(si.get("push")),
              "stock": ci["stock"] if ci else str(si.get("presence", 1)).lower() not in ("0", "false", "not_available"),
              "left": next((v["left"] for v in ci["variants"] if v["id"] == p.id), None) if ci else None, "wait": bool(ci and ci.get("wait"))}
         if q and q.lower() not in f"{r['name']} {r['brand']} {p.sku or ''}".lower():
@@ -605,7 +606,7 @@ def admin_rows(db: Session, q: str = "", cat: str = "", flt: str = "") -> list[d
         if cat and not any(c["path"] == cat for c in r["cats"]):
             continue
         if (flt == "on" and not r["on"]) or (flt == "off" and r["on"]) or (flt == "sale" and not r["sale"]) or (flt == "nocat" and r["cats"]) \
-                or (flt == "nophoto" and r["img"]) or (flt == "sticker" and not r["sticker"]):
+                or (flt == "nophoto" and r["img"]) or (flt == "sticker" and not r["sticker"]) or (flt == "push" and not r["push"]):
             continue
         rows.append(r)
     return rows
@@ -649,6 +650,10 @@ def bulk(db: Session, ids: list[int], action: str, data: dict) -> int:
             si["sticker"] = t
         elif action == "sticker_off":
             si.pop("sticker", None)
+        elif action == "push":
+            si["push"] = True                         # «Розпродаж»: окрема група в Google Shopping з вищою ставкою, перші в SALE
+        elif action == "push_off":
+            si.pop("push", None)
         elif action == "show":
             p.site_on = True
         elif action == "hide":

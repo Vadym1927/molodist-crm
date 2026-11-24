@@ -1065,3 +1065,40 @@ def test_google_vascular_and_override():
             sf.catalog(db, fresh=True)
         x = c.get("/_shop/feeds/google.xml").text
         assert "<title>Vasc сироватка для чутливої шкіри</title>" in x and "<description>Косметична сироватка.</description>" in x
+
+
+def test_rozprodazh_low_stock_and_countdown(monkeypatch):
+    from app.services import shop_front as sf, shop_feeds as sfd
+    with TestClient(app) as c:
+        with SessionLocal() as db:
+            k = sf.preview_key(db)
+            a = Product(name="Неліквід сироватка", name_norm="неліквід сироватка", price=5950, site_on=True,
+                        site_info={"slug": "nelikvid-syrovatka", "title": "Неліквід сироватка", "presence": 1, "quantity": 1, "sale": {"pct": 30, "until": ""}})
+            b = Product(name="Звичайний крем зі знижкою", name_norm="звичайний крем зі знижкою", price=1000, site_on=True,
+                        site_info={"slug": "zvychainyi-krem-zn", "title": "Звичайний крем зі знижкою", "presence": 1, "quantity": 9, "sale": {"pct": 50, "until": "2099-12-31"}})
+            db.add_all([a, b]); db.commit(); aid, bid = a.id, b.id
+            assert sf.bulk(db, [aid], "push", {}) == 1
+            assert [r["push"] for r in sf.admin_rows(db, flt="push") if r["p"].id == aid] == [True]
+            d = sf.catalog(db, fresh=True)
+            its = {i["id"]: i for i in sfd.items(d, "https://molodist.store")}
+            assert its[str(aid)]["push"] and not its[str(bid)]["push"]
+            monkeypatch.setattr(sfd, "items", lambda *a, **k: [{**its[str(aid)], "imgs": ["1"]}, {**its[str(bid)], "imgs": ["2"]}])
+            xml = sfd.google(d, "https://molodist.store")
+            seg = xml[xml.index(f"<g:id>{aid}</g:id>"):]; seg = seg[:seg.index("</item>")]
+            assert "<g:custom_label_2>rozprodazh</g:custom_label_2>" in seg
+            seg = xml[xml.index(f"<g:id>{bid}</g:id>"):]; seg = seg[:seg.index("</item>")]
+            assert "<g:custom_label_2>regular</g:custom_label_2>" in seg
+            sale = d["by_path"].get("/shop/sale/")
+            if sale:
+                assert sale["slugs"].index("nelikvid-syrovatka") < sale["slugs"].index("zvychainyi-krem-zn")
+        c.cookies.set("shop_prev", k)
+        r = c.get("/_shop/shop/zvychainyi-krem-zn/")
+        assert r.status_code == 200 and 'class="sale-cd big"' in r.text and 'data-u="s"' in r.text and "⏳" not in r.text
+        with SessionLocal() as db:
+            onh = sf.catalog(db, fresh=True)["by_slug"]["nelikvid-syrovatka"]["variants"][0]["left"]
+        r = c.get("/_shop/shop/nelikvid-syrovatka/")
+        if onh is not None and onh <= 2:
+            assert "Залишилось" in r.text
+        with SessionLocal() as db:
+            sf.bulk(db, [aid], "push_off", {})
+            assert not db.get(Product, aid).site_info.get("push")

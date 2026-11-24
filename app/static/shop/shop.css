@@ -260,3 +260,22 @@ img{max-width:100%;height:auto}a{color:var(--act)}h1,h2,h3,h4{font-family:var(--
 .gal{position:relative}.gal>.bdg.ship{left:16px;top:16px;font-size:12px;padding:8px 12px}
 .tip-h img.tip-logo{width:130px;height:auto;border-radius:0;object-fit:contain;padding-right:4px;border-right:1px solid #E9E5DF}
 @media (max-width:560px){.bdg.ship{font-size:10px;padding:5px 7px;line-height:1.15;max-width:calc(100% - 62px)}.gal>.bdg.ship{max-width:none}.bdg.sale+.bdg.ship{top:36px}.tip-h img.tip-logo{width:100px}}
+
+/* лічильник акції й «залишилось N шт» */
+.sale-cd.big{display:flex;align-items:center;justify-content:space-between;gap:12px 16px;flex-wrap:wrap;margin:12px 0 6px;padding:12px 14px 12px 16px;border-radius:16px;
+  background:linear-gradient(120deg,#2A2430 0%,#3B3050 55%,#5C4B82 100%);color:#fff;box-shadow:0 8px 22px rgba(59,48,80,.22)}
+.cd-l{display:flex;align-items:center;gap:9px;font:600 11.5px/1.25 var(--hf);text-transform:uppercase;letter-spacing:.14em}
+.cd-dot{flex:none;width:8px;height:8px;border-radius:50%;background:#C9BFE6;box-shadow:0 0 0 0 rgba(201,191,230,.7);animation:cdp 1.8s ease-out infinite}
+.sale-cd.urgent .cd-dot{background:#FF7A99;box-shadow:0 0 0 0 rgba(255,122,153,.7);animation-duration:1s}
+@keyframes cdp{70%{box-shadow:0 0 0 9px rgba(201,191,230,0)}100%{box-shadow:0 0 0 0 rgba(201,191,230,0)}}
+.cd-t{display:flex;gap:6px}
+.cd-u{display:grid;justify-items:center;min-width:46px;padding:7px 6px 5px;border-radius:11px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.14)}
+.cd-u b{font:600 21px/1 var(--hf);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.cd-u em{font:500 9.5px/1 var(--hf);font-style:normal;text-transform:uppercase;letter-spacing:.1em;opacity:.75;margin-top:4px}
+.sale-cd:not(.big){display:inline-flex;align-self:flex-start;width:max-content;max-width:100%;align-items:center;gap:6px;margin-top:6px;padding:4px 10px 4px 8px;border-radius:999px;background:#3B3050;color:#fff;
+  font:600 11.5px/1.3 var(--hf);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.sale-cd:not(.big) .cd-dot{width:6px;height:6px}
+.low-stk{display:flex;align-items:center;gap:8px;margin:8px 0 2px;color:#3B3050;font:600 13px/1.3 var(--hf)}
+.low-stk i{flex:none;width:34px;height:6px;border-radius:99px;background:linear-gradient(90deg,#3B3050 0 22%,#E4DEEF 22%)}
+.low-stk.sm{margin:5px 0 0;font-size:11.5px;gap:6px}.low-stk.sm i{width:22px;height:5px}
+@media (max-width:560px){.sale-cd.big{padding:11px 12px}.cd-u{min-width:40px;padding:6px 4px 4px}.cd-u b{font-size:18px}.cd-l{font-size:10.5px;letter-spacing:.1em}}

@@ -127,9 +127,12 @@ document.addEventListener('click',function(e){if(e.target.closest&&e.target.clos
 {% block ga %}{% endblock %}{% block scripts %}{% endblock %}
 <script>(function(){var els=document.querySelectorAll('.sale-cd[data-until]');if(!els.length)return;
 function end(d){return new Date(d+'T23:59:59+02:00').getTime()}            /* акція діє до кінця дня (Київ) */
-function tick(){var now=Date.now();els.forEach(function(e){var ms=end(e.dataset.until)-now,s=e.querySelector('span');if(ms<=0){e.style.display='none';return}
-var d=Math.floor(ms/864e5),h=Math.floor(ms%864e5/36e5),m=Math.floor(ms%36e5/6e4),x=Math.floor(ms%6e4/1e3),p=function(n){return(n<10?'0':'')+n};
-s.textContent=(e.classList.contains('big')?'До кінця акції: ':'')+(d?d+' дн ':'')+p(h)+':'+p(m)+':'+p(x)})}
+function p(n){return(n<10?'0':'')+n}
+function tick(){var now=Date.now();els.forEach(function(e){var ms=end(e.dataset.until)-now;if(ms<=0){e.style.display='none';return}
+var d=Math.floor(ms/864e5),h=Math.floor(ms%864e5/36e5),m=Math.floor(ms%36e5/6e4),x=Math.floor(ms%6e4/1e3);e.classList.toggle('urgent',ms<864e5);
+if(e.classList.contains('big')){var q=function(u){return e.querySelector('[data-u="'+u+'"]')};q('d').textContent=d;q('h').textContent=p(h);q('m').textContent=p(m);q('s').textContent=p(x);
+e.querySelector('.cd-d').style.display=d?'':'none';e.querySelector('.cd-lt').textContent=ms<864e5?'Останній день акції':'До кінця акції';}
+else e.querySelector('span').textContent='акція ще '+(d?d+' дн ':'')+p(h)+':'+p(m)+':'+p(x)})}
 tick();setInterval(tick,1000)})();</script>
 </body>
 </html>

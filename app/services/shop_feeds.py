@@ -152,7 +152,8 @@ def items(data: dict, root: str, notice_brands: set[str] | None = None) -> list[
                         "g_own": bool(it.get("g_title") or it.get("g_desc")),
                         "link": f"{root}/shop/{it['slug']}/", "imgs": imgs, "brand": it["brand"] or "MOLODIST", "sku": v.get("sku") or "", "gtin": v.get("gtin") or "",
                         "price": float(v["old"] or v["price"]), "sale": float(v["price"]) if v.get("old") else 0.0, "stock": bool(v["stock"]),
-                        "ptype": ptype, "det": g_details(it["name"], desc, ptype), "cat": cats.get(it["slug"], [None])[0], "consult": bool(notice_brands and it["brand"] in notice_brands), "nofeed": bool(v.get("nofeed"))})
+                        "ptype": ptype, "det": g_details(it["name"], desc, ptype), "cat": cats.get(it["slug"], [None])[0], "consult": bool(notice_brands and it["brand"] in notice_brands), "nofeed": bool(v.get("nofeed")),
+                        "push": bool(v.get("push"))})
     return out
 
 
@@ -234,6 +235,7 @@ def google(data: dict, root: str, title: str = "MOLODIST", notice_brands: set[st
             parts.append("<g:custom_label_0>consultation</g:custom_label_0>")
         if i["sale"]:
             parts.append("<g:custom_label_1>sale</g:custom_label_1>")
+        parts.append(f"<g:custom_label_2>{'rozprodazh' if i.get('push') else 'regular'}</g:custom_label_2>")   # група «Розпродаж» у Shopping
         rows.append("<item>" + "".join(p for p in parts if p) + "</item>")
     return ('<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0"><channel>'
             f"<title>{x(title)}</title><link>{x(root)}/</link><description>Професійна косметика MOLODIST</description>"
