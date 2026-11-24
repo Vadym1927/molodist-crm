@@ -34,8 +34,12 @@
    ```
 
 ## Типи завдань
-- **kind=check** — лише команди, що нічого не змінюють: `df`, `du`, `ls`, `find` (без `-delete`), `cat`/`tail` логів, `git status/diff/log`,
-  `docker ps/df/logs`, `systemctl status`, `journalctl`. Якщо виявиться, що треба щось змінити, — не роби, поверни `error`.
+- **kind=check** — лише команди, що нічого не змінюють. Критерій — «чи змінює команда щось», а не «чи є вона в прикладах».
+  Дозволено: `date`, `uptime`, `df`, `du`, `free`, `ls`, `stat`, `find` (без `-delete`/`-exec`), `cat`/`head`/`tail` логів і конфігів,
+  `grep`/`sort`/`uniq`/`wc`/`awk` у конвеєрах, `crontab -l`, `ps`, `ss`, `systemctl status/list-units/list-timers`, `journalctl`, `nginx -T`,
+  `git status/diff/log/show`, `docker ps/df/logs/inspect`, `curl` GET на localhost.
+  Заборонено: `rm`, `mv`, `chmod`, перезапуски сервісів, `docker up/down/restart`, `git pull/reset`, `crontab -e/-r`, запис у файли (`>`, `tee`).
+  Якщо одна команда недозволена — виконай решту, про неї напиши в output.
 - **kind=change** — до тебе приходить лише після того, як власник натиснув «Погодити» в Telegram. Виконуй **рівно** написане, нічого понад це.
 
 ## Правила

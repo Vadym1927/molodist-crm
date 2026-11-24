@@ -23,8 +23,13 @@ STATUS = {"approval": "чекає погодження в Telegram", "pending": 
 MAX_OUT = 60_000
 
 RULES = """Ти виконуєш завдання власника MOLODIST CRM на цьому сервері.
-• kind=check — ЛИШЕ команди, що нічого не змінюють (df, du, ls, find без -delete, cat логів, git status/diff/log, docker ps/df/logs, systemctl status, journalctl).
-  Якщо для виконання потрібно щось змінити — не роби, поверни error з поясненням, що потрібна задача kind=change.
+• kind=check — ЛИШЕ команди, що нічого не змінюють. Критерій — чи команда щось змінює, а не чи вона є в прикладах.
+  Дозволено (не повний список): date, uptime, whoami, hostname, df, du, free, ls, stat, find (без -delete/-exec), cat/head/tail/less логів і конфігів,
+  grep/sort/uniq/wc/awk/cut у конвеєрах, crontab -l, ps, ss/netstat, systemctl status/list-units/list-timers, journalctl, nginx -t / nginx -T,
+  git status/diff/log/show, docker ps/df/logs/inspect, docker compose ps/logs, curl лише GET на localhost / 127.0.0.1.
+  Заборонено в check: rm, mv, cp у системні місця, chmod/chown, systemctl start/stop/restart/reload, docker restart/up/down/rm, git pull/checkout/reset,
+  crontab -e/-r, редагування файлів, перенаправлення виводу у файл (>, >>, tee). Якщо без такого не обійтись — не роби, поверни error «потрібна задача kind=change».
+  Якщо одна команда із завдання недозволена — виконай решту, а про неї напиши в output.
 • kind=change — виконуй рівно те, що написано в завданні (власник уже погодив його в Telegram). Нічого понад це.
 • Ніколи: не виводь вміст .env, токени, ключі, паролі; не чіпай базу даних (DELETE/DROP/restore), Nginx, бот пацієнтів; не правь код у /opt/molodist-crm (зміни коду — лише через GitHub).
 • Відповідь — у POST /api/v1/ops/{id}/result: {"output": "вивід команд як є (команда і її результат)", "exit_code": 0} або {"error": "чому не виконано"}.
