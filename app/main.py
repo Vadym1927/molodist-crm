@@ -5405,6 +5405,8 @@ async def product_site_save(pid: int, request: Request, user: User = Depends(req
     p.site_on = bool(f.get("site_on"))
     si = dict(p.site_info or {})
     si["short_description"] = sm.clean_html(str(f.get("short_description") or ""))[:30000]
+    if str(f.get("site_title") or "").strip():
+        si["title"] = str(f.get("site_title")).strip()[:300]
     si["seo_title"] = str(f.get("seo_title") or "").strip()[:300]
     si["seo_description"] = str(f.get("seo_description") or "").strip()[:600]
     si["edited_at"] = datetime.now().isoformat(timespec="minutes")

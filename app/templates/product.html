@@ -201,6 +201,7 @@
     <input type="hidden" name="tip_form" value="1"><div class="grid" style="grid-template-columns:2fr 1fr;gap:8px">
       <label class="small"><b>Рекомендує лікар</b> — коротка порада на сторінці товару (як і кому підходить)<textarea name="tip_text" rows="3" maxlength="600" placeholder="Наприклад: «Підходить для жирної шкіри з висипаннями. Наносьте ввечері 2–3 рази на тиждень, вранці — обовʼязково SPF.»">{{ (si.tip or {}).text or '' }}</textarea></label>
       <label class="small">Лікар<select name="tip_doctor"><option value="">—</option>{% for d in shop_doctors or [] %}<option value="{{ d.id }}" {{ 'selected' if (si.tip or {}).doctor_id == d.id }}>{{ d.name }}</option>{% endfor %}</select></label></div>
+    {% if si.slug %}<label class="small">Назва на сайті (заголовок сторінки товару)<input name="site_title" maxlength="300" value="{{ si.title or p.name }}"></label>{% endif %}
     <label class="small">Опис (HTML)<textarea name="short_description" rows="6">{{ si.short_description or '' }}</textarea></label>
     <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px"><label class="small">SEO title<input name="seo_title" value="{{ si.seo_title or '' }}"></label>
       <label class="small">SEO description<input name="seo_description" value="{{ si.seo_description or '' }}"></label></div>
