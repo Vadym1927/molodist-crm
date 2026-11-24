@@ -733,3 +733,22 @@ div.l-promo .btn{flex:none;background:#fff;color:#3B3050}
 .l-edu-y ul{margin:0 0 16px;padding-left:18px;columns:2;column-gap:28px}.l-edu-y li{margin:0 0 8px;font-size:14.5px;break-inside:avoid}
 @media (max-width:900px){.l-edu-in{grid-template-columns:1fr}.l-edu-y ul{columns:1}}
 .h-dcard .h-dpage{margin:10px 0 4px;justify-self:start}
+
+/* «Безкоштовно»: тест «Молодість 360», тести й гайди */
+.h-free-in{display:grid;grid-template-columns:1.05fr 1fr;gap:18px;align-items:stretch}
+.h-free-main{display:grid;grid-template-columns:42% 1fr;gap:0;background:linear-gradient(150deg,#E4DEEF 0%,#F7F4F0 70%);border-radius:24px;overflow:hidden;color:#2A2430;text-decoration:none}
+.h-free-main img{width:100%;height:100%;object-fit:cover;mix-blend-mode:multiply}
+.h-free-main .b{display:flex;flex-direction:column;gap:10px;padding:28px 28px 26px 8px}
+.h-free-main h3{font-size:22px;text-transform:uppercase;letter-spacing:.03em;margin:0}.h-free-main p{margin:0;font-size:15px;color:#4a4352}
+.h-free-main ul{margin:2px 0 6px;padding-left:18px;font-size:14px;color:#4a4352}.h-free-main li{margin-bottom:4px}
+.h-free-main .btn{align-self:flex-start;margin-top:auto}
+.h-free .tag{font:600 11px/1 var(--hf);letter-spacing:.14em;text-transform:uppercase;color:#5C4B82}
+.h-free-grid{display:grid;gap:10px}
+.h-free-card{display:grid;grid-template-columns:74px 1fr;gap:14px;align-items:center;padding:12px 16px 12px 12px;background:#fff;border:1px solid var(--greige);border-radius:18px;color:#2A2430;text-decoration:none;transition:border-color .2s,background .2s}
+.h-free-card:hover{border-color:#C9BFE6;background:#FBFAFD}
+.h-free-card img{width:74px;height:74px;border-radius:14px;object-fit:cover;background:#F7F4F0}
+.h-free-card span{display:grid;gap:3px}.h-free-card b{font:600 15px/1.25 var(--hf);text-transform:uppercase;letter-spacing:.02em}
+.h-free-card small{color:var(--mut);font-size:13.5px}.h-free-card i{font-style:normal;font:600 11.5px/1 var(--hf);letter-spacing:.1em;text-transform:uppercase;color:#5C4B82;margin-top:3px;display:inline-flex;gap:6px;align-items:center}
+.h-free-card i svg{width:14px;height:14px}
+@media (max-width:1000px){.h-free-in{grid-template-columns:1fr}}
+@media (max-width:560px){.h-free-main{grid-template-columns:1fr}.h-free-main img{height:220px;object-fit:contain}.h-free-main .b{padding:4px 20px 22px}}

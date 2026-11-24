@@ -300,6 +300,17 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
         <a class="btn light" href="#zapys" data-interest="Beauty Plan">Записатися на BEAUTY PLAN</a></div>
       <p class="note">{{ plan.offer.note }}</p></div></div>{% endif %}</section>
 
+{% elif sec == 'free' %}{% if free %}{% set m = free.main %}
+  <section class="sec h-sec h-free" id="bezkoshtovno"><div class="wrap">
+    <div class="h-shd"><h2>{{ free.title }}</h2><p>{{ free.text }}</p></div>
+    <div class="h-free-in">
+      <a class="h-free-main" href="{{ base }}{{ m.href }}"><img src="{{ st(m.img) }}" alt="{{ m.t }} — MOLODIST" loading="lazy" width="480" height="480">
+        <span class="b"><span class="tag">{{ m.tag }}</span><h3>{{ m.t }}</h3><p>{{ m.d }}</p><ul>{% for x in m.pts %}<li>{{ x }}</li>{% endfor %}</ul><span class="btn">{{ m.btn }}</span></span></a>
+      <div class="h-free-grid">{% for x in free['items'] %}<a class="h-free-card" href="{{ (base ~ x.href) if not x.href.startswith('/static/') else x.href }}"{% if x.pdf %} target="_blank" rel="noopener"{% endif %}>
+        <img src="{{ st(x.img) }}" alt="{{ x.t }}" loading="lazy" width="120" height="120"><span><span class="tag">{{ x.tag }}</span><b>{{ x.t }}</b><small>{{ x.d }}</small><i>{{ x.btn }} {{ arrow() }}</i></span></a>{% endfor %}</div>
+    </div>
+  </div></section>{% endif %}
+
 {% elif sec == 'doctors' %}
   <section class="sec h-sec h-docs" id="likari"><div class="wrap">
     <div class="h-shd"><h2>Лікарі MOLODIST</h2><p>Ви знаєте, хто саме вас прийматиме, ще до візиту — і записуєтеся до конкретного лікаря.</p></div>

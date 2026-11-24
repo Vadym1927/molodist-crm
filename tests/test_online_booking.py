@@ -130,7 +130,7 @@ def test_site_page_api_and_publication(monkeypatch):
         with SessionLocal() as db:
             c = ob.cfg(db); c["on"] = True; ob.save_cfg(db, c)
         r = cl.get("/_site/zapys")
-        assert r.status_code == 200 and '"id": 9701' in r.text and "Наші лікарі" in r.text and "Сертифікат" in r.text and "Безкоштовні гайди" in r.text
+        assert r.status_code == 200 and '"id": 9701' in r.text and "Наші лікарі" in r.text and "Сертифікат" in r.text and "Безкоштовно" in r.text and "/molodist-360/" in r.text
         assert 'id="prais"' in r.text and "Не онлайн" in r.text and 'data-ob-svc="9701"' in r.text and 'data-ob-svc="9703"' not in r.text     # прайс: усі активні послуги
         assert "molodist.store" in r.text and "booking.js" in r.text and "клінік" not in r.text.lower().split("<main>")[1].split("</main>")[0]
         js = cl.get("/_site/api/booking/days?service=9701&doctor=0").json()

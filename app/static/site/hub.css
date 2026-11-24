@@ -155,3 +155,14 @@ a.hb-t em{background:transparent;border:1px solid var(--lav2);font-size:13px}
 .hb-go i svg{stroke-width:1.5}
 @media (max-width:420px){.hb-t{gap:8px}.hb-ti{width:34px;height:34px;border-radius:11px}.hb-ti svg{width:20px;height:20px}}
 @media (max-width:420px){.hb-t em{display:none}}
+
+/* «Безкоштовно»: тест 360 і тести */
+.hb-free-main{display:grid;grid-template-columns:96px 1fr;gap:16px;align-items:center;padding:14px 18px 14px 14px;border-radius:18px;background:linear-gradient(150deg,#E4DEEF,#F7F4F0);color:#2A2430;text-decoration:none;margin:4px 0 10px}
+.hb-free-main img{width:96px;height:96px;border-radius:14px;object-fit:cover;mix-blend-mode:multiply}
+.hb-free-main span{display:grid;gap:4px}.hb-free-main b{font:600 16px/1.25 var(--hf,Montserrat,sans-serif);text-transform:uppercase}
+.hb-free-main small{font-size:13.5px;color:#4a4352}.hb-free-main i{font-style:normal;font:600 12px/1 var(--hf,Montserrat,sans-serif);letter-spacing:.08em;text-transform:uppercase;color:#5C4B82}
+.hb-free-main .tag,.hb-free-sm .tag{font:600 10.5px/1 var(--hf,Montserrat,sans-serif);letter-spacing:.14em;text-transform:uppercase;color:#5C4B82}
+.hb-free-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+.hb-free-sm{display:grid;grid-template-columns:56px 1fr;gap:10px;align-items:center;padding:8px 12px 8px 8px;border:1px solid #E9E5DF;border-radius:14px;background:#fff;color:#2A2430;text-decoration:none}
+.hb-free-sm img{width:56px;height:56px;border-radius:10px;object-fit:cover}.hb-free-sm span{display:grid;gap:2px}.hb-free-sm b{font-size:13.5px;line-height:1.25}.hb-free-sm small{color:#5C4B82;font-size:12px}
+@media (max-width:420px){.hb-free-row{grid-template-columns:1fr}}

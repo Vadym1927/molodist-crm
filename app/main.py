@@ -9033,7 +9033,7 @@ def sp_og(slug: str, src=None):
 def _home_new_ctx(ctx: dict, db: Session, vk: str) -> None:
     """Контекст нової головної (site/proto_home.html): тексти, дані з CRM, SEO."""
     from .services import site_home as sh
-    ctx.update(vk=vk, v=sh.VARIANTS[vk], menu=sh.MENU, facts=sh.FACTS, plan=sh.PLAN, space=sh.SPACE, shop=sh.SHOP, proto=False,
+    ctx.update(vk=vk, v=sh.VARIANTS[vk], menu=sh.MENU, facts=sh.FACTS, plan=sh.PLAN, space=sh.SPACE, shop=sh.SHOP, proto=False, free=sh.FREE,
                insta_t=sh.INSTA, faq=sh.faq(ctx["c"]), faq_ld=sh.faq_jsonld(ctx["c"]), title=sh.SEO["title"], desc=sh.SEO["desc"])
     ctx.update(sh.data(db, ctx["base"], ctx["ver"]))
     try:
@@ -9232,6 +9232,8 @@ def site_booking(request: Request, v: str = "", service: int = 0, doctor: int = 
     from .services import site_home as _sh
     ctx["products"], ctx["shop_base"] = _sh.shop_hits(db, 8)
     ctx["ICONS"] = ob.HUB_ICONS
+    from .services import site_home as _shf
+    ctx["free"] = _shf.FREE                                  # тест «Молодість 360» і тести в аркуші «Безкоштовно»
     try:
         from .services import google_reviews as _gr
         ctx["rev"] = _gr.public(db, ctx["c"])

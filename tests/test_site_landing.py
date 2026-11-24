@@ -260,3 +260,9 @@ def test_mix_reviews_uses_survey_rating(monkeypatch):
     with SessionLocal() as db:
         r = sl.mix_reviews(db, {"rating": 4.8, "count": 79, "reviews": [{"author": "A", "text": "x", "rating": 5}], "url": "u"})
     assert r["rating"] == 5.0 and r["count"] == 615 and r["g_rating"] == 4.8 and r["src"] == "mix" and "615 відгуків" in r["label"]
+
+
+def test_free_section_home_and_hub():
+    with TestClient(app) as cl:
+        t = cl.get("/_site/proto/a").text
+        assert 'id="bezkoshtovno"' in t and "/molodist-360/" in t and "Тест «Молодість 360»" in t

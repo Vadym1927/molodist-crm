@@ -51,7 +51,7 @@
       {% if rev and rev.reviews %}<button type="button" class="hb-t hb-g" data-sheet="vidhuky" aria-haspopup="dialog"><i class="hb-ti">{{ i('star') }}</i><span><b>Відгуки</b>
         <small class="hb-gr"><svg viewBox="0 0 48 48" width="16" height="16" aria-hidden="true"><path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h11.8c-.5 2.8-2.1 5.1-4.4 6.7v5.5h7.1c4.2-3.8 6.6-9.5 6.6-16.2z"/><path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.3l-7.1-5.5c-2 1.3-4.5 2.1-7.4 2.1-5.7 0-10.5-3.8-12.2-9H4.5v5.7C8.1 41.1 15.5 46 24 46z"/><path fill="#FBBC05" d="M11.8 28.3c-.4-1.3-.7-2.8-.7-4.3s.3-2.9.7-4.3V14H4.5C3 17 2.2 20.4 2.2 24s.8 7 2.3 10l7.3-5.7z"/><path fill="#EA4335" d="M24 10.7c3.2 0 6.1 1.1 8.4 3.3l6.3-6.3C34.9 4.2 29.9 2 24 2 15.5 2 8.1 6.9 4.5 14l7.3 5.7c1.7-5.2 6.5-9 12.2-9z"/></svg>{% if rev.rating %}<strong>{{ ('%.1f'|format(rev.rating)).replace('.', ',') }}</strong><i>★★★★★</i>{% else %}Google{% endif %}</small></span><em aria-hidden="true">›</em></button>{% endif %}
       {{ tile('likari', 'likari', 'Лікарі', 'хто вас прийме') }}
-      {% if guides %}{{ tile('gaidy', 'gaid', 'Безкоштовні гайди', 'памʼятки від лікарів, PDF') }}{% endif %}
+      {{ tile('gaidy', 'gaid', 'Безкоштовно', 'тест «Молодість 360», гайди') }}
       {% if ob.faq %}{{ tile('pytannia', 'faq', 'Часті питання', 'про запис і візит') }}{% endif %}
       {{ tile('zviazok', 'chat', 'Звʼязок з нами', 'чат і телефон') }}
       {{ tile('adresa', 'pin', 'Як до нас дістатися', 'адреса й мапа') }}
@@ -187,7 +187,9 @@
   {% for r in rev.reviews[:8] %}<blockquote><p>{{ r.text }}</p><cite>{{ r.author }}{% if r.when %} · {{ r.when }}{% endif %}</cite></blockquote>{% endfor %}
 </div>{% endcall %}{% endif %}
 
-{% if guides %}{% call sheet('gaidy', 'Безкоштовні гайди') %}<div class="ob-guides" id="gaidy"><p class="hb-lead">Безкоштовні памʼятки від лікарів MOLODIST — завантажте й тримайте під рукою.</p>
+{% call sheet('gaidy', 'Безкоштовно') %}<div class="ob-guides" id="gaidy"><p class="hb-lead">Тести й памʼятки від лікарів MOLODIST — без запису й оплати.</p>
+  {% if free %}{% set m = free.main %}<a class="hb-free-main" href="{{ m.href }}"><img src="/static/site/home/{{ m.img }}" alt="{{ m.t }}" width="120" height="120" loading="lazy"><span><span class="tag">{{ m.tag }}</span><b>{{ m.t }}</b><small>{{ m.d }}</small><i>{{ m.btn }} →</i></span></a>
+  <div class="hb-free-row">{% for x in free['items'] if not x.pdf %}<a class="hb-free-sm" href="{{ x.href }}"><img src="/static/site/home/{{ x.img }}" alt="" width="56" height="56" loading="lazy"><span><b>{{ x.t }}</b><small>{{ x.btn }} →</small></span></a>{% endfor %}</div>{% endif %}
   <div class="ob-ggrid g">{% for g in guides %}{% if g.url and g.url.lower().endswith('.pdf') %}<article class="ob-gpdf">
     {% if g.img %}<a class="cov" href="{{ g.url }}" target="_blank" rel="noopener"><img src="{{ g.img }}" alt="Гайд «{{ g.title }}»" loading="lazy" width="480" height="679"></a>{% endif %}
     <div>{% if g.tag %}<span class="tag">{{ g.tag }}</span>{% endif %}<h3>{{ g.title }}</h3>
@@ -199,7 +201,7 @@
     {% if g.url %}<p><a class="link" href="{{ g.url }}" target="_blank" rel="noopener">Відкрити повний гайд →</a></p>{% endif %}
   </details>{% endif %}{% endfor %}</div>
   <p class="muted small">Памʼятки мають загальний характер і не замінюють консультацію. Індивідуальні рекомендації лікаря мають пріоритет.</p>
-</div>{% endcall %}{% endif %}
+</div>{% endcall %}
 
 {% if ob.faq %}{% call sheet('pytannia', 'Часті питання') %}<div class="faq" id="pytannia"><div>{% for q, a in ob.faq %}<details class="qa"><summary>{{ q }}</summary><p>{{ a }}</p></details>{% endfor %}</div></div>{% endcall %}{% endif %}
 
