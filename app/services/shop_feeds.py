@@ -302,7 +302,7 @@ def llms(data: dict, root: str, c: dict, site: dict, full: bool = False) -> str:
     return "\n".join(L) + "\n"
 
 
-# ---------- barb.ua: формат Google Merchant, у g:google_product_category — ID категорії каталогу Barb (barb.ua/market/category_classify.txt) ----------
+# ---------- barb.ua: формат Google Merchant, у g:product_category — ID категорії каталогу Barb (barb.ua/market/category_classify.txt) ----------
 BARB_CATS = [   # (ключові слова в назві / типі товару, ID Barb) — перше збігання перемагає
     (("патч",), 22), (("навколо очей", "для повік", "eye", "очей"), 21), (("spf", "сонцезахис", "sunscreen", "sun "), 18),
     (("бальзам для губ", "lip"), 23), (("міцеляр",), 14), (("пінка", "foam"), 12),
@@ -333,7 +333,8 @@ def barb(data: dict, root: str, notice_brands: set[str] | None = None) -> str:
         parts += [f"<g:additional_image_link>{x(u)}</g:additional_image_link>" for u in i["imgs"][1:10]]
         parts += [f"<g:availability>{'in_stock' if i['stock'] else 'out_of_stock'}</g:availability>",
                   f"<g:price>{i['price']:.2f} UAH</g:price>", "<g:condition>new</g:condition>", f"<g:brand>{x(i['brand'])}</g:brand>",
-                  f"<g:google_product_category>{barb_cat(i['title'], i.get('ptype') or '')}</g:google_product_category>"]
+                  "<g:google_product_category>567</g:google_product_category>",
+                  f"<g:product_category>{barb_cat(i['title'], i.get('ptype') or '')}</g:product_category>"]   # категорія Barb (barb.ua/info/xml-spec)
         if i["sale"]:
             parts.append(f"<g:sale_price>{i['sale']:.2f} UAH</g:sale_price>")
         if i["gtin"]:
