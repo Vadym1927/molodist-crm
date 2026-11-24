@@ -76,7 +76,7 @@
         <div class="ob-cats" id="ob-cats" role="tablist"></div>
         <p class="ob-multi">Можна обрати кілька послуг на один візит — вони пройдуть одна за одною в одного спеціаліста.</p>
         <div class="ob-list" id="ob-list"></div>
-        <div class="ob-next" id="ob-next" hidden><span></span><button type="button" class="btn sm">Далі</button></div>
+        <div class="ob-next" id="ob-next" hidden><button type="button" class="ob-clr" data-ob-clear aria-label="Прибрати обрані послуги">×</button><span></span><button type="button" class="btn sm" data-ob-nextbtn>Далі</button></div>
       </div>
 
       <div class="ob-pane" data-pane="2" hidden>
@@ -112,7 +112,7 @@
         <p id="ob-done-what"></p>
         <p class="muted">{{ ob.note }} Адреса: {{ c.address }}.</p>
         <p class="ob-cal"><span>Додати в календар:</span><a class="btn sm" id="ob-gcal" href="#" target="_blank" rel="noopener">Google</a><a class="btn sm" id="ob-ics" href="#">Apple / iPhone</a></p>
-        <p class="ob-donea"><a class="btn sm ghost" id="ob-mylink" href="#">Мій запис: переглянути чи скасувати</a></p>
+        <p class="ob-donea"><button type="button" class="btn sm" data-ob-again>+ Записатися ще на одну послугу</button><a class="btn sm ghost" id="ob-mylink" href="#">Мій запис: переглянути чи скасувати</a></p>
         <p class="muted small">Збережіть посилання «Мій запис» — за ним можна скасувати візит онлайн.</p>
       </div>
     </div>

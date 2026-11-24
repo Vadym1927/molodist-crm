@@ -333,7 +333,19 @@
     st.doc = null; st.anyDoc = false; resetTime();
     renderList(); summary();
   });
-  if (elNext) $('button', elNext).addEventListener('click', next);
+  if (elNext) {
+    $('[data-ob-nextbtn]', elNext).addEventListener('click', next);
+    $('[data-ob-clear]', elNext).addEventListener('click', function () {   // × — прибрати всі обрані послуги
+      st.svcs = []; st.doc = null; st.anyDoc = false; resetTime(); renderList(); summary();
+    });
+  }
+  var again = $('[data-ob-again]');                          // після запису — ще один запис (імʼя й телефон лишаються у формі)
+  if (again) again.addEventListener('click', function () {
+    st.svcs = []; st.doc = null; st.anyDoc = false; st.cat = ''; resetTime(); if (elQ) elQ.value = '';
+    go(1); renderCats(); renderList(); summary();
+    window.dataLayer.push({ event: 'booking_again' });
+    root.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
   elDocs.addEventListener('click', function (e) {
     var b = e.target.closest('[data-doc]'); if (!b) return;
     var id = +b.dataset.doc; st.doc = id ? DOC[id] : null; st.anyDoc = !id; resetTime();
