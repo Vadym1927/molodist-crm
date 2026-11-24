@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   {% include "m360/_head.html" %}
   <link rel="stylesheet" href="./static/app.css?v=20261124b">
-  <link rel="stylesheet" href="./static/brand.css?v=20261124c">
+  <link rel="stylesheet" href="./static/brand.css?v=20261124d">
 </head>
 <body>
   <div class="sticky-header">
@@ -167,33 +167,7 @@
     </div>
   </section>
 
-  <footer class="site-footer">
-    <div class="container">
-      <div class="footer-grid">
-        <section class="footer-brand" aria-label="Власник">
-          <a class="footer-logo m-lock" href="./" aria-label="MOLODIST 360 Score"><span class="wm">MOLODIST</span><span class="sc"><b>360</b>Score</span></a>
-          <p>ФОП Колган Дар’я Олександрівна</p>
-          <p class="footer-disclaimer">Результат MOLODIST 360 має інформаційний характер і не є медичним діагнозом. Для медичних рішень зверніться до лікаря.</p>
-        </section>
-        <section>
-          <h2>Ліцензія</h2>
-          <p>Ліцензія МОЗ України на провадження господарської діяльності з медичної практики.</p>
-          <p>Наказ № 249 від 08.02.2023 року.</p>
-        </section>
-        <section>
-          <h2>Контактна інформація</h2>
-          <address>м. Київ, вул. Князя Романа Мстиславича, 28а<br>ЖК «Автограф»</address>
-          <a href="tel:+380933756437">+38 (093) 375 64 37</a>
-          <a href="mailto:info@molodist.com.ua">info@molodist.com.ua</a>
-          <p class="m-soc"><a href="{{ c.instagram }}" target="_blank" rel="noopener" aria-label="Instagram">Instagram</a> · <a href="{{ c.telegram }}" target="_blank" rel="noopener" aria-label="Telegram">Telegram</a> · <a href="{{ viber }}" aria-label="Viber">Viber</a></p>
-        </section>
-      </div>
-      <div class="footer-bottom">
-        <p>© {{ year }} MOLODIST. Усі права захищені. Копіювання, поширення, публікація або комерційне використання матеріалів сайту дозволяються лише за попередньою письмовою згодою правовласника, крім випадків, передбачених законодавством України.</p>
-        <nav aria-label="Правова інформація"><a href="./privacy-policy">Політика конфіденційності</a><a href="./terms">Умови користування</a></nav>
-      </div>
-    </div>
-  </footer>
+  {% include "m360/_footer_main.html" %}
 
   <script>
     window.__QUESTIONNAIRE__ = {{ questionnaire|safe }};

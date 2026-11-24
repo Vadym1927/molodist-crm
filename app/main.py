@@ -9814,7 +9814,8 @@ def _m360_ctx(request: Request) -> dict:
         c = sp.cfg(db)
         viber = sp.viber_link(db, c)
     host = (request.headers.get("host") or "").split(":")[0].lower()
-    return {"c": c, "viber": viber, "year": date.today().year, "noindex": host not in ("molodist.com.ua", "www.molodist.com.ua"),
+    from .services import site_home as _shm
+    return {"c": c, "viber": viber, "year": date.today().year, "noindex": host not in ("molodist.com.ua", "www.molodist.com.ua"), "mf": _shm.main_footer(),
             "canonical": "https://molodist.com.ua/molodist-360/", "og_img": "https://molodist.com.ua/molodist-360/static/og-360.jpg"}
 
 
@@ -9827,12 +9828,12 @@ def m360_landing(request: Request):
 
 @app.get("/_site/molodist-360/privacy-policy", response_class=HTMLResponse)
 def m360_privacy(request: Request):
-    return templates.TemplateResponse(request, "m360/legal.html", {"title": "Політика конфіденційності — MOLODIST 360", "page": "privacy"})
+    return templates.TemplateResponse(request, "m360/legal.html", {"title": "Політика конфіденційності — MOLODIST 360", "page": "privacy", **_m360_ctx(request)})
 
 
 @app.get("/_site/molodist-360/terms", response_class=HTMLResponse)
 def m360_terms(request: Request):
-    return templates.TemplateResponse(request, "m360/legal.html", {"title": "Умови користування — MOLODIST 360", "page": "terms"})
+    return templates.TemplateResponse(request, "m360/legal.html", {"title": "Умови користування — MOLODIST 360", "page": "terms", **_m360_ctx(request)})
 
 
 @app.get("/_site/molodist-360/static/{path:path}")

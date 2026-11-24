@@ -343,3 +343,13 @@ def org_jsonld(c: dict, url: str, og_img: str = "", team: list | None = None) ->
     page = {"@type": "WebPage", "url": url, "name": SEO["title"], "description": SEO["desc"], "inLanguage": "uk",
             "isPartOf": {"@id": site["@id"]}, "about": {"@id": org["@id"]}}
     return json.dumps({"@context": "https://schema.org", "@graph": [org, site, page]}, ensure_ascii=False)
+
+
+def main_footer() -> dict:
+    """Підвал основного сайту для окремих сторінок на домені (тест «Молодість 360»): посилання — абсолютні шляхи сайту."""
+    from . import site_pages as sp
+    menu = [(t, "/" + h if h.startswith("#") else h) for t, h in MENU]
+    dirs = [{"slug": s_, "nav": sp.PAGES[s_]["nav"]} for s_ in sp.ORDER]
+    lps = [{"slug": "likuvannya-akne", "nav": "Лікування акне"}, {"slug": "likuvannya-pigmentatsii", "nav": "Пігментація й судини"},
+           {"slug": "tmyana-znevodnena-shkira", "nav": "Тьмяна, зневоднена шкіра"}, {"slug": "zmorshky-ta-vikovi-zminy", "nav": "Зморшки й вікові зміни"}]
+    return {"menu": menu, "dirs": dirs + lps, "shop": SHOP["url"]}

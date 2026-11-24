@@ -71,3 +71,14 @@ html body a.btn-primary,html body button.btn-primary,html body .btn.btn-primary{
 html body a.btn-primary:hover,html body button.btn-primary:hover{background:#3B3050!important}
 .site-footer .m-soc{margin-top:10px}.site-footer .m-soc a{display:inline;color:#fff}
 @media (max-width:1100px){.header-nav a:nth-child(n+3),.contact-stack{display:none!important}}
+/* підвал основного сайту + «Самолікування…» (як на molodist.com.ua) */
+.msf-wrap{width:min(1200px,calc(100% - 40px));margin:0 auto}
+.msf-slf{background:#fff;padding:36px 0 22px}.msf-slf svg{display:block;width:100%}.msf-slf .pc{height:clamp(84px,9.5vw,150px)}.msf-slf .mb{display:none;height:54vw}
+.msf-slf text{font:500 120px Montserrat,Arial,sans-serif;fill:#2A2430;fill-opacity:.38}.msf-slf .mb text{font-size:185px}
+.msf{background:#2A2430;color:#fff;padding:56px 0 24px;font-family:"Open Sans",sans-serif;font-size:15px;line-height:1.6}
+.msf a{color:#fff;text-decoration:none;line-height:1.9}.msf a:hover{text-decoration:underline}.msf .mu{color:#9C94A6}.msf .sm{font-size:13px;line-height:1.5}
+.msf-in{display:grid;grid-template-columns:1.3fr 1fr 1.2fr 1fr;gap:28px}.msf .wm{height:20px;width:auto;margin-bottom:14px;display:block}
+.msf h4{font:600 12px/1 Montserrat,sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#C9BFE6;margin:4px 0 14px}.msf p{margin:0 0 12px}
+.msf-bot{border-top:1px solid #403847;margin-top:28px;padding-top:18px}
+@media(max-width:860px){.msf-in{grid-template-columns:1fr 1fr;gap:24px 16px}.msf-in>div:first-child,.msf-in>div:last-child{grid-column:1/3}}
+@media(max-width:760px){.msf-slf{padding:26px 0 14px}.msf-slf .pc{display:none}.msf-slf .mb{display:block}}

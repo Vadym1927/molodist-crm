@@ -64,3 +64,12 @@ def test_m360_seo_and_social():
         assert "instagram.com/_molodist" in t and "t.me/molodist_ua" in t
         assert c.get("/_site/molodist-360/static/og-360.jpg").status_code == 200
         assert "noindex" in c.get("/_site/molodist-360/result/abcdefgh123").text
+
+
+def test_m360_main_footer_and_selfcare():
+    from fastapi.testclient import TestClient
+    from app.main import app
+    with TestClient(app) as cl:
+        for u in ("/_site/molodist-360/", "/_site/molodist-360/terms"):
+            t = cl.get(u).text
+            assert "САМОЛІКУВАННЯ МОЖЕ БУТИ ШКІДЛИВИМ" in t and 'class="msf"' in t and "/likuvannya-akne" in t
