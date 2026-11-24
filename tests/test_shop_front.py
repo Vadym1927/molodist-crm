@@ -242,7 +242,7 @@ def test_shop_cabinet_flow(monkeypatch):
 
     def fake(db, phone, text, *a):
         codes[phone] = "".join(ch for ch in text if ch.isdigit())[:5]
-        assert "магазин MOLODIST" in text
+        assert "MOLODIST SHOP" in text
         return "sms"
     monkeypatch.setattr(sc, "_deliver", fake)
     monkeypatch.setattr("app.shop_web._rate", lambda *a, **k: True)
