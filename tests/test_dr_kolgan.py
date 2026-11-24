@@ -192,3 +192,17 @@ def test_cleanup_and_bot_tests_and_names():
         with pytest.raises(dk.DkError):
             dk.check_name("Irina", "Імʼя")
         assert dk.check_name("ірина", "Імʼя") == "Ірина"
+
+
+def test_import_qr_history():
+    """Історія QR зі старого сервісу: UTC → київський час, повтор не дублює, сміття пропускається."""
+    from app.services import dr_kolgan as dk
+    from app.models import QrHit
+    lines = ['{"id":"a","at":"2026-11-10T08:00:00.000Z","slug":"home","utmSource":"qr","utmMedium":"offline","utmCampaign":"home","device":"mobile","language":"uk-UA","referrer":""}',
+             '{"at":"bad","slug":"home"}', 'not json']
+    with SessionLocal() as db:
+        n = dk.import_qr(db, lines)
+        assert n == {"added": 1, "skipped": 2}
+        assert dk.import_qr(db, lines[:1]) == {"added": 0, "skipped": 1}
+        h = db.query(QrHit).filter_by(slug="home", utm_campaign="home").order_by(QrHit.id.desc()).first()
+        assert h.at.hour == 10 and h.device == "mobile"

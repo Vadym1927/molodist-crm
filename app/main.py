@@ -14227,7 +14227,7 @@ def dr_kolgan_report(request: Request, df: str = "", dt_: str = "", user: User =
                ("Минулий місяць", (t_.replace(day=1) - timedelta(days=1)).replace(day=1), t_.replace(day=1) - timedelta(days=1)),
                ("Рік", t_ - timedelta(days=364), t_)]
     return render(request, "dr_kolgan_report.html", nav="reports", r=dk.report(db, d_from, d_to), d_from=d_from, d_to=d_to, presets=presets,
-                  MAT=dk.MATERIALS, import_ready=dk.import_path().is_file() and can(user, "users"))
+                  MAT=dk.MATERIALS, import_ready=(dk.import_path().is_file() or dk.qr_import_path().is_file()) and can(user, "users"))
 
 
 @app.get("/reports/molodist-360", response_class=HTMLResponse)
@@ -14276,8 +14276,20 @@ def dr_kolgan_import(request: Request, user: User = Depends(require("users")), d
     """Одноразовий перенос зі старих сервісів: файл data/import/dk_export.json (кладе агент на сервері) → CRM, потім файл видаляється."""
     from .services import dr_kolgan as dk
     f = dk.import_path()
+    q = dk.qr_import_path()
+    qmsg = ""
+    if q.is_file():                                          # історія QR-сканувань (агент кладе qr_hits.jsonl)
+        try:
+            qn = dk.import_qr(db, q.read_text("utf-8").splitlines())
+            q.unlink(missing_ok=True)
+            audit(db, "dk.import_qr", user=user, **qn)
+            qmsg = f"QR-сканувань перенесено: {qn['added']}" + (f" (пропущено {qn['skipped']})" if qn["skipped"] else "")
+        except Exception as e:  # noqa: BLE001
+            db.rollback()
+            log.warning("qr import: %s", e)
+            qmsg = f"Помилка імпорту QR: {str(e)[:150]}"
     if not f.is_file():
-        return RedirectResponse(_with_msg("/reports/dr-kolgan", "Файл експорту не знайдено на сервері"), 303)
+        return RedirectResponse(_with_msg("/reports/dr-kolgan", qmsg or "Файл експорту не знайдено на сервері"), 303)
     try:
         data = json.loads(f.read_text("utf-8"))
         n = dk.import_old(db, data)

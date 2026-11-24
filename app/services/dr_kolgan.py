@@ -503,6 +503,44 @@ def import_path() -> Path:
     return Path(settings.files_dir).resolve().parent / "import" / "dk_export.json"
 
 
+def qr_import_path() -> Path:
+    return import_path().parent / "qr_hits.jsonl"
+
+
+def import_qr(db: Session, lines: list[str]) -> dict:
+    """Історія сканувань QR зі старого сервісу (jsonl: at ISO UTC, slug, utm*, device, language, referrer) → QrHit (київський час).
+    Повторний імпорт не дублює: пропускаємо, якщо такий slug і час уже є."""
+    from zoneinfo import ZoneInfo
+    kyiv = ZoneInfo("Europe/Kyiv")
+    n = {"added": 0, "skipped": 0}
+    for ln in lines:
+        try:
+            e = json.loads(ln)
+        except ValueError:
+            n["skipped"] += 1
+            continue
+        slug = re.sub(r"[^a-z0-9_-]", "", str(e.get("slug") or "").lower())[:40]
+        try:
+            at = datetime.fromisoformat(str(e.get("at") or "").replace("Z", "+00:00"))
+        except ValueError:
+            at = None
+        if not slug or not at:
+            n["skipped"] += 1
+            continue
+        at = (at.astimezone(kyiv) if at.tzinfo else at).replace(tzinfo=None)
+        if db.scalar(select(QrHit.id).where(QrHit.slug == slug, QrHit.at == at).limit(1)):
+            n["skipped"] += 1
+            continue
+        g = lambda *ks: next((str(e[k])[:80] for k in ks if e.get(k)), None)  # noqa: E731
+        db.add(QrHit(slug=slug, at=at, utm_source=g("utmSource", "utm_source"), utm_medium=g("utmMedium", "utm_medium"),
+                     utm_campaign=g("utmCampaign", "utm_campaign"), utm_content=g("utmContent", "utm_content"),
+                     device=(g("device") or "")[:30] or None, lang=(g("language", "lang") or "")[:24] or None,
+                     referrer=(g("referrer") or "")[:120] or None))
+        n["added"] += 1
+    db.commit()
+    return n
+
+
 def _dt(v) -> datetime | None:
     if not v:
         return None
