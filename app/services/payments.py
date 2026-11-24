@@ -91,7 +91,14 @@ class Group:
 
 
 def group_key(doc: StockDoc) -> str:
-    return doc.pay_group or f"doc:{doc.id}"
+    """Одна накладна = одна група: спільний pay_group, або той самий постачальник + № накладної + дата
+    (поставку, внесену окремими документами на різні склади, оплачують одним платежем)."""
+    if doc.pay_group:
+        return doc.pay_group
+    no = re.sub(r"[\s№#]+", "", (doc.ext_no or "")).lower()
+    if no and doc.supplier and doc.doc_date:
+        return f"inv:{doc.supplier.strip().lower()}|{no}|{doc.doc_date:%Y-%m-%d}"
+    return f"doc:{doc.id}"
 
 
 def groups(db: Session, supplier: str | None = None, only_open: bool = False) -> list[Group]:

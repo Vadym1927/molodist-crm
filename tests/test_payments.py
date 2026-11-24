@@ -285,3 +285,24 @@ def test_two_mono_fops_paylinks():
         _login(c)
         page = c.get("/settings/payments").text
         assert "Підключити ще ФОП" in page and "monobank ФОП Колган" in page and "monobank ФОП Бондар" in page
+
+
+def test_separate_docs_same_invoice_form_one_group():
+    """Одна накладна, внесена двома окремими документами на різні склади → одна група оплати (Medicare №7848)."""
+    from datetime import date
+    from app.services import stock as st
+    from app.models import StockDocLine
+    with SessionLocal() as db:
+        p = Product(name="Групний крем", name_norm="групний крем"); db.add(p); db.flush()
+        ds = []
+        for wh, q, c in (("classic", 2, 780.30), ("single", 1, 1122)):
+            d = st.new_doc(db, "supply", wh_to=wh, supplier="ГрупаТест", ext_no="№ 7848", doc_date=date(2026, 11, 21))
+            d.lines.append(StockDocLine(product_id=p.id, qty=q, unit_cost=c)); ds.append(d)
+        db.commit()
+        k = pay.group_key(ds[0])
+        assert k == pay.group_key(ds[1]) and k.startswith("inv:")
+        g = pay.find_group(db, k)
+        assert len(g.docs) == 2 and g.total == 2682.6
+        pay.allocate(db, g, 2682.6, fop="Бондар")
+        db.commit()
+        assert pay.find_group(db, k).state == "paid"
