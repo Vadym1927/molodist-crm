@@ -91,14 +91,21 @@ def import_clients(db: Session, rows: list[list], header: list) -> dict:
         if not p and phone and len(_digits(phone)) == 9:
             p = by_phone.get(_digits(phone))
             if p and p.cleverbox_id and p.cleverbox_id != cid:
-                p = None                                  # той самий номер у іншого клієнта CleverBox (родина)
+                # той самий номер уже в іншій картці (родина / дубль у CleverBox) — нову картку з цим номером не створюємо
+                rep["skipped"] += 1
+                rep["same_phone"] = rep.get("same_phone", 0) + 1
+                continue
             if p:
                 p.cleverbox_id = cid
                 rep["linked_by_phone"] += 1
+        if not p and (not phone or len(_digits(phone)) != 9):
+            rep["skipped"] += 1                           # без номера картку не створюємо
+            continue
         if not p:
             p = Patient(full_name=name, phone=phone, cleverbox_id=cid)
             db.add(p)
             rep["patients_created"] += 1
+            by_phone.setdefault(_digits(phone), p)
         else:
             rep["updated"] += 1
         by_cb[cid] = p
@@ -142,17 +149,19 @@ def import_clients(db: Session, rows: list[list], header: list) -> dict:
         grp = [x.strip() for x in (_s(g(row, "Групи")) or "").split(",") if x.strip()]
         if grp:
             p.client_groups = list(dict.fromkeys((p.client_groups or []) + grp))[:30]
-        p.cb_note = _s(g(row, "Замітка"))
-        p.cb_anamnesis = _s(g(row, "Медичний анамнез"))
-        p.instagram = (_s(g(row, "Інстаграм")) or "")[:100] or None
-        p.viber = (_s(g(row, "Телефон вайбер")) or "")[:64] or None
-        p.telegram_contact = (_s(g(row, "Телефон телеграм")) or "")[:100] or None
-        p.preferred_doctor = (_s(g(row, "Надає перевагу спеціалісту")) or "")[:200] or None
-        p.drink = (_s(g(row, "Напій якому надає перевагу")) or "")[:200] or None
-        p.delivery = (_s(g(row, "Дані для відправки НП")) or "")[:300] or None
-        p.no_repeat_call = bool(_s(g(row, "Не дзвонити при повторному візиті"))) or None
+        # порожнє у файлі не затирає те, що вже є в CRM (картки правлять у CRM після відʼєднання від CleverBox)
+        for attr, c, n in (("cb_note", "Замітка", 10000), ("cb_anamnesis", "Медичний анамнез", 10000), ("instagram", "Інстаграм", 100),
+                           ("viber", "Телефон вайбер", 64), ("telegram_contact", "Телефон телеграм", 100),
+                           ("preferred_doctor", "Надає перевагу спеціалісту", 200), ("drink", "Напій якому надає перевагу", 200),
+                           ("delivery", "Дані для відправки НП", 300)):
+            v = _s(g(row, c))
+            if v:
+                setattr(p, attr, v[:n])
+        if _s(g(row, "Не дзвонити при повторному візиті")):
+            p.no_repeat_call = True
         dirs = [c for c in DIRECTION_COLS if (_s(g(row, c)) or "").lower() in ("так", "1", "yes", "+")]
-        p.directions = dirs or None
+        if dirs:
+            p.directions = list(dict.fromkeys((p.directions or []) + dirs))
         fam = _s(g(row, "Сімейний стан/ діти"))
         extra = dict(p.cb_extra or {})
         if fam:

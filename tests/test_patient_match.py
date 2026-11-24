@@ -90,3 +90,15 @@ def test_import_cleverbox_clients_export():
         assert p.cb_status == "ФАНАТ" and p.client_groups == ["Медкарта", "ЗГОДА2026"] and p.directions == ["ЛЕ"]
         assert p.communication_channel == "Viber" and p.gender == "жіноча" and p.cb_total == 57809 and p.cb_visits == 22
         assert p.drink == "кава з молоком" and p.cb_anamnesis == "акне" and p.email is None   # пошта клініки — не пацієнтки
+
+
+def test_cb_clients_import_same_phone_no_duplicate():
+    """Інший клієнт CleverBox з номером, який уже є в картці CRM, не створює другу картку з тим самим номером."""
+    from app.services import cb_clients_import as cbc
+    head = ["id", "Ім'я клієнта", "Телефон", "Завершених візитів"]
+    with SessionLocal() as db:
+        rep = cbc.import_clients(db, [[8800901, "Мамина Олена", "+380671112299", 3]], head)
+        assert rep["patients_created"] == 1
+        rep = cbc.import_clients(db, [[8800902, "Донька Олена", "+380671112299", 1], [8800903, "Без Номера", "", 0]], head)
+        assert rep["patients_created"] == 0 and rep["same_phone"] == 1 and rep["skipped"] == 2
+        assert db.query(Patient).filter(Patient.phone == "+380671112299").count() == 1
