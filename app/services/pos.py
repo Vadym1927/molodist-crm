@@ -97,9 +97,13 @@ def _p_key(p: Product, group: str) -> str:
     return (getattr(p, group, None) or NONE).strip() or NONE
 
 
+NO_SALE_WH = ("inject",)          # ін'єкційний склад — препарати для процедур, у касі не продаються (рішення власника 24.11)
+
+
 def products(db: Session, group: str = "warehouse", key: str | None = None, q: str = "", in_stock: bool = False) -> dict:
     group = group if group in GROUPS_P else "warehouse"
-    ps = [p for p in db.scalars(select(Product).order_by(Product.name)) if p.active is not False and p.for_sale is not False]
+    ps = [p for p in db.scalars(select(Product).order_by(Product.name)) if p.active is not False and p.for_sale is not False
+          and (p.warehouse or "vitrina") not in NO_SALE_WH]
     stock = _stock(db, ps)
     if in_stock and stock:
         ps = [p for p in ps if stock.get(p.id, 0) > 1e-6]

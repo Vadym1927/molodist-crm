@@ -2287,6 +2287,8 @@ def lookup_sale_products(q: str = "", user: User = Depends(require("sales")), db
             continue
         exact = _m <= 1
         wh = p_.warehouse or "vitrina"
+        if wh == "inject":                                   # ін'єкційний склад у касі не продається
+            continue
         lots = []
         if led:
             lots = [{"expiry": e.isoformat(), "qty": round(qq, 3), "short": _sxc["pct"] if wh in _sxc["whs"] and _sx.is_short(_sxc, e) else 0}
