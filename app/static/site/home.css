@@ -752,3 +752,14 @@ div.l-promo .btn{flex:none;background:#fff;color:#3B3050}
 .h-free-card i svg{width:14px;height:14px}
 @media (max-width:1000px){.h-free-in{grid-template-columns:1fr}}
 @media (max-width:560px){.h-free-main{grid-template-columns:1fr}.h-free-main img{height:220px;object-fit:contain}.h-free-main .b{padding:4px 20px 22px}}
+/* прайс: підкладка й читабельність */
+.p-list{background:var(--cream,#F7F4F0);padding-bottom:56px}
+.p-g{background:#fff;border-color:#E9E5DF;box-shadow:0 6px 18px -12px rgba(42,36,48,.25)}
+.p-g[open]{border-color:#C9BFE6}
+.p-g li .n{line-height:1.4}.p-g li b{font-size:16px}
+.p-nav{background:var(--cream,#F7F4F0)}
+@media (max-width:900px){
+  .p-nav{margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);padding:10px 16px;background:rgba(255,255,255,.97);
+    border-bottom:1px solid #E9E5DF;box-shadow:0 8px 18px -14px rgba(42,36,48,.35);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+  .p-nav a{background:#fff}.p-nav a.on{background:#3B3050;color:#fff;border-color:#3B3050}.p-nav a.on small{color:#C9BFE6}
+  .p-g{margin-bottom:10px}.p-g summary b{font-size:15px}.p-g li{padding:14px 0}.p-g li .n{font-size:15.5px}}

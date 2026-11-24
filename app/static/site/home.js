@@ -133,6 +133,19 @@
       if (!q) was = null;
       if (empty) empty.hidden = !q || any;
     });
+    var navs = [].slice.call(d.querySelectorAll('[data-pnav]'));          // активний розділ підсвічується в стрічці
+    if ('IntersectionObserver' in window && navs.length) {
+      var io = new IntersectionObserver(function (es) {
+        es.forEach(function (en) {
+          if (!en.isIntersecting) return;
+          navs.forEach(function (a) {
+            var on = a.getAttribute('href') === '#' + en.target.id; a.classList.toggle('on', on);
+            if (on && a.parentNode.scrollTo) a.parentNode.scrollTo({ left: a.offsetLeft - 16, behavior: 'smooth' });
+          });
+        });
+      }, { rootMargin: '-140px 0px -60% 0px' });
+      groups.forEach(function (g) { io.observe(g); });
+    }
     d.querySelectorAll('[data-pnav]').forEach(function (a) {
       a.addEventListener('click', function () { var g = d.querySelector(a.getAttribute('href')); if (g) g.open = true; });
     });
