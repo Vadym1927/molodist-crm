@@ -49,7 +49,7 @@ def test_shop_front_crawl_catalog_order(monkeypatch, tmp_path):
                         site_info={"slug": "krem-test-sf", "title": "Крем тест SF 50 мл", "price_old": 2300, "presence": 1, "quantity": 5,
                                    "short_description": "<p>Опис крему</p>", "seo_title": "Крем SEO title"})
             b = Product(name="Сироватка тест SF", name_norm="сироватка тест sf", price=900, site_on=True,
-                        site_info={"slug": "serum-test-sf", "title": "Сироватка тест SF", "presence": 0})
+                        site_info={"slug": "serum-test-sf", "title": "Сироватка тест SF", "presence": 0, "sale": {"pct": 10, "until": "2099-01-01"}})
             db.add_all([a, b]); db.flush()
             img = tmp_path / "a.png"
             from PIL import Image
@@ -63,12 +63,14 @@ def test_shop_front_crawl_catalog_order(monkeypatch, tmp_path):
             cat = d["by_path"]["/shop/oblichchya/"]
             assert cat["slugs"] == ["krem-test-sf", "serum-test-sf"] and cat["title"] == "Купити косметику для обличчя"
             assert d["by_slug"]["krem-test-sf"]["pct"] == 15 and not d["by_slug"]["serum-test-sf"]["stock"]
+            assert d["by_slug"]["serum-test-sf"]["sale_until"] == "2099-01-01" and d["by_slug"]["krem-test-sf"]["sale_until"] is None
             assert "<script" not in d["pages"]["/for-customers/dostavka-i-oplata/"]["html"]
         assert c.get("/_shop/").status_code == 404                                    # не опубліковано й не співробітник
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-sf"})
         h = c.get("/_shop/")
         assert h.status_code == 200 and "Крем тест SF" in h.text and "noindex" in h.text
         r = c.get("/_shop/shop/oblichchya/")
+        assert 'data-until="2099-01-01"' in r.text                                    # лічильник акції на картці
         assert "SEO опис категорії" in r.text and "<h1>Догляд за обличчям</h1>" in r.text and "Немає в наявності" in r.text
         p = c.get("/_shop/shop/krem-test-sf/")
         assert p.status_code == 200 and "Крем SEO title" in p.text and "Опис крему" in p.text and '"@type": "Product"' in p.text

@@ -376,8 +376,10 @@ def catalog(db: Session, fresh: bool = False) -> dict:
             continue
         old = float(si.get("price_old") or 0)
         sale = si.get("sale") or {}
+        sale_until = None
         if sale.get("pct") and (not sale.get("until") or str(sale["until"]) >= today):       # знижка на сайті, задана в CRM
             old, price = price, float(round(price * (1 - float(sale["pct"]) / 100)))
+            sale_until = str(sale.get("until") or "")[:10] or None                          # акція до дати → лічильник на сайті
         full_ = old if old > price else price
         sx_ = short.get(p.id) if not hidden else None
         if sx_ and _sx.price(sxc, full_) >= price:           # інша знижка вже більша — коротку не застосовуємо
@@ -416,7 +418,7 @@ def catalog(db: Session, fresh: bool = False) -> dict:
                          "new": p.id, "variants": [v], "sku": v["sku"], "sticker": si.get("sticker") or "",
                          "tip": si.get("tip") if (si.get("tip") or {}).get("text") else None,
                          "free_ship": bool(si.get("free_ship")),
-                         "short": v.get("short"), "short_exp": v.get("short_exp")}
+                         "short": v.get("short"), "short_exp": v.get("short_exp"), "sale_until": sale_until}
     for it in by_slug.values():
         it["archived"] = False
     for it in arch.values():

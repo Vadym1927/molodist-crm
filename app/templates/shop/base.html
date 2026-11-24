@@ -125,5 +125,11 @@ document.addEventListener('click',function(e){if(e.target.closest&&e.target.clos
 {% if s.ts_site %}<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>{% endif %}
 <script src="/static/shop/shop.js?v={{ ver }}" defer></script>
 {% block ga %}{% endblock %}{% block scripts %}{% endblock %}
+<script>(function(){var els=document.querySelectorAll('.sale-cd[data-until]');if(!els.length)return;
+function end(d){return new Date(d+'T23:59:59+02:00').getTime()}            /* акція діє до кінця дня (Київ) */
+function tick(){var now=Date.now();els.forEach(function(e){var ms=end(e.dataset.until)-now,s=e.querySelector('span');if(ms<=0){e.style.display='none';return}
+var d=Math.floor(ms/864e5),h=Math.floor(ms%864e5/36e5),m=Math.floor(ms%36e5/6e4),x=Math.floor(ms%6e4/1e3),p=function(n){return(n<10?'0':'')+n};
+s.textContent=(e.classList.contains('big')?'До кінця акції: ':'')+(d?d+' дн ':'')+p(h)+':'+p(m)+':'+p(x)})}
+tick();setInterval(tick,1000)})();</script>
 </body>
 </html>
