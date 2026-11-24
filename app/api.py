@@ -488,6 +488,28 @@ async def bot_file_add(chat_id: str, file: UploadFile = File(...), caption: str 
     return r
 
 
+class BotTest(BaseModel):
+    kind: str = Field(..., description="bmi | hads")
+    id: str | None = Field(None, description="id результату в боті — повтор не дублюється")
+    at: str | None = Field(None, description="коли пройдено (ISO), за замовчуванням зараз")
+    heightCm: float | None = None
+    weightKg: float | None = None
+    anxiety: int | None = Field(None, description="HADS: тривога 0–21")
+    depression: int | None = Field(None, description="HADS: депресія 0–21")
+
+
+@router.post("/bot/patient/{chat_id}/tests", summary="Результат тесту з бота (ІМТ / HADS) → картка пацієнта (блок «Сайт Дарʼї та тести»)")
+def bot_test(chat_id: str, body: BotTest, key: ApiKey = Depends(BOT), db: Session = Depends(db_dep)):
+    from .services import dr_kolgan as dk
+    p = _cb(db, chat_id)
+    try:
+        r = dk.add_bot_test(db, p.id, body.kind, body.model_dump())
+    except dk.DkError as e:
+        raise HTTPException(400, str(e))
+    audit(db, "bot.test", "patient", p.id, key=key, kind=body.kind)
+    return {"ok": True, "id": r.id, "result": r.data}
+
+
 class BotMessage(BaseModel):
     to: str = Field("admin", description="admin | chief (головний лікар)")
     text: str

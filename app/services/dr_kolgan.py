@@ -71,6 +71,16 @@ def doctor(db: Session) -> Doctor | None:
 
 # ---------------- вхід і профіль (окремо від магазину: свої коди й сесії, без акаунта магазину) ----------------
 CODE_TTL, DAYS = 5 * 60, 180
+SMS_SIGN = {"dk": "{code} — код входу. MOLODIST · лікар Дарʼя Колган", "m360": "{code} — код підтвердження. MOLODIST 360"}
+_NAME = re.compile(r"[А-ЩЬЮЯЄІЇҐа-щьюяєіїґʼ'’ -]{3,80}")
+
+
+def check_name(v: str, what: str) -> str:
+    """Імʼя / прізвище: лише кирилиця, не менше 3 літер."""
+    v = " ".join(str(v or "").split())
+    if not _NAME.fullmatch(v) or len(re.sub(r"[^А-ЩЬЮЯЄІЇҐа-щьюяєіїґ]", "", v)) < 3:
+        raise DkError(f"{what}: лише українськими літерами, не менше 3 літер.")
+    return v[:1].upper() + v[1:]
 
 
 def _h(*parts: str) -> str:
@@ -88,7 +98,7 @@ def _ph(raw: str) -> str:
     return p
 
 
-def send_code(db: Session, phone: str, ip: str = "") -> dict:
+def send_code(db: Session, phone: str, ip: str = "", src: str = "dk") -> dict:
     """Код входу: 1 на хвилину й 4 на годину на номер, 8 на годину з однієї адреси, 100 SMS на добу."""
     import secrets
     from .shop_cabinet import _deliver, mask, CabError
@@ -106,7 +116,7 @@ def send_code(db: Session, phone: str, ip: str = "") -> dict:
         raise DkError("Вхід за кодом тимчасово недоступний. Зателефонуйте нам, будь ласка.")
     code = str(secrets.randbelow(10 ** 6)).zfill(6)
     try:
-        ch = _deliver(db, ph, f"{code} — код входу в кабінет MOLODIST")
+        ch = _deliver(db, ph, SMS_SIGN.get(src, SMS_SIGN["dk"]).replace("{code}", code))
     except CabError as e:
         raise DkError(str(e)) from None
     db.add(DkCode(phone=ph, code_hash=_h("code", ph, code), created_at=now, expires_at=now + timedelta(seconds=CODE_TTL), tries=0,
@@ -115,7 +125,7 @@ def send_code(db: Session, phone: str, ip: str = "") -> dict:
     return {"ok": True, "to": mask(ph), "channel": ch}
 
 
-def verify(db: Session, phone: str, code: str, ua: str = "", utm: str = "") -> tuple[str, int, Patient]:
+def verify(db: Session, phone: str, code: str, ua: str = "", utm: str = "", origin: str = "dk") -> tuple[str, int, Patient]:
     import hmac
     import secrets
     from .appeals import find_patient
@@ -134,11 +144,12 @@ def verify(db: Session, phone: str, code: str, ua: str = "", utm: str = "") -> t
     row.used = True
     p = find_patient(db, ph)
     if not p:
-        p = Patient(full_name=ph, phone=ph, source="Сайт Дарʼї Колган", notes="Картку створено при реєстрації на сайті Дарʼї Колган")
+        p = Patient(full_name=ph, phone=ph, source="Сайт / Молодість 360" if origin == "m360" else "Сайт Дарʼї Колган",
+                    notes="Картку створено при вході на " + ("тест «Молодість 360»" if origin == "m360" else "сайт Дарʼї Колган"))
         db.add(p)
         db.flush()
     if not db.scalar(select(DkProfile).where(DkProfile.patient_id == p.id)):
-        db.add(DkProfile(patient_id=p.id, registered_at=now, utm=(utm or "")[:300] or None))
+        db.add(DkProfile(patient_id=p.id, registered_at=now, utm=(utm or "")[:300] or None, origin=origin))
     token = secrets.token_urlsafe(32)
     db.add(DkSession(token_hash=_h("sess", token), patient_id=p.id, created_at=now, expires_at=now + timedelta(days=DAYS), ua=(ua or "")[:200]))
     db.commit()
@@ -196,9 +207,7 @@ def profile_json(p: Patient, prof: DkProfile) -> dict:
 
 
 def save_profile(db: Session, p: Patient, prof: DkProfile, d: dict) -> dict:
-    fn, ln = " ".join(str(d.get("firstName") or "").split())[:80], " ".join(str(d.get("lastName") or "").split())[:80]
-    if len(fn) < 2:
-        raise DkError("Вкажіть імʼя.")
+    fn, ln = check_name(d.get("firstName"), "Імʼя"), check_name(d.get("lastName"), "Прізвище")
     bd = str(d.get("birthDate") or "")
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", bd):
         raise DkError("Вкажіть коректну дату народження.")
@@ -419,6 +428,8 @@ def qr(db: Session, slug: str, q: dict, ua: str, lang: str, ref: str) -> str | N
 def report(db: Session, d_from: date, d_to: date) -> dict:
     a, b = datetime.combine(d_from, datetime.min.time()), datetime.combine(d_to, datetime.max.time())
     profs = list(db.scalars(select(DkProfile).order_by(DkProfile.registered_at.desc())))
+    act = set(db.scalars(select(DkRecord.patient_id))) | set(db.scalars(select(DkOrder.patient_id)))
+    profs = [p for p in profs if p.origin != "m360" or p.patient_id in act]   # вхід лише заради тесту 360 — не сайт Дарʼї
     pids = {p.patient_id for p in profs}                     # лише сайт Дарʼї; «Молодість 360» — окрема аналітика
     recs = list(db.scalars(select(DkRecord).where(DkRecord.patient_id.in_(pids or [0]))))
     orders = list(db.scalars(select(DkOrder).where(DkOrder.patient_id.in_(pids or [0]))))
@@ -648,3 +659,77 @@ def refund(db: Session, oid: int) -> bool:
         o.salary_adj_id = None
     db.commit()
     return True
+
+
+def card(db: Session, pid: int) -> dict | None:
+    """Блок «Сайт Дарʼї» в картці пацієнта: профіль, гайди (куплені / безкоштовні), ІМТ і HADS (з сайту й бота), оплати."""
+    prof = db.scalar(select(DkProfile).where(DkProfile.patient_id == pid))
+    recs = list(db.scalars(select(DkRecord).where(DkRecord.patient_id == pid).order_by(DkRecord.created_at.desc())))
+    orders = list(db.scalars(select(DkOrder).where(DkOrder.patient_id == pid).order_by(DkOrder.id.desc())))
+    if not (prof or recs or orders):
+        return None
+    mats = [{"title": (MATERIALS.get(r.ref) or {}).get("title", r.ref), "paid": bool((MATERIALS.get(r.ref) or {}).get("protected")), "at": r.created_at}
+            for r in recs if r.kind == "material"]
+    return {"profile": prof, "materials": mats, "bmi": [r for r in recs if r.kind == "bmi"], "hads": [r for r in recs if r.kind == "hads"],
+            "orders": orders}
+
+
+def add_bot_test(db: Session, pid: int, kind: str, d: dict) -> DkRecord:
+    """Результат тесту з бота турботи (ІМТ / HADS) → картка пацієнта (той самий формат, що з сайту)."""
+    if kind == "bmi":
+        try:
+            h, w = float(d.get("heightCm")), float(d.get("weightKg"))
+        except (TypeError, ValueError):
+            raise DkError("heightCm і weightKg — числа") from None
+        v = round(w / (h / 100) ** 2, 1)
+        cat = "Недостатня маса тіла" if v < 18.5 else "Нормальна маса тіла" if v < 25 else "Надмірна маса тіла" if v < 30 else "Ожиріння"
+        data = {"heightCm": h, "weightKg": w, "bmi": v, "category": cat}
+    elif kind == "hads":
+        try:
+            a, dep = int(d.get("anxiety")), int(d.get("depression"))
+        except (TypeError, ValueError):
+            raise DkError("anxiety і depression — цілі числа 0–21") from None
+        if not (0 <= a <= 21 and 0 <= dep <= 21):
+            raise DkError("anxiety і depression — 0–21")
+        data = {"anxiety": a, "depression": dep, "anxietyLevel": _hads_level(a, "Т"), "depressionLevel": _hads_level(dep, "Д")}
+    else:
+        raise DkError("kind: bmi | hads")
+    at = _dt(d.get("at")) or datetime.utcnow()
+    ext = str(d.get("id") or "")[:60] or None
+    if ext:
+        old = db.scalar(select(DkRecord).where(DkRecord.patient_id == pid, DkRecord.kind == kind, DkRecord.ref == f"bot:{ext}"))
+        if old:
+            return old
+    r = DkRecord(patient_id=pid, kind=kind, ref=f"bot:{ext}" if ext else "bot", created_at=at, data={**data, "source": "bot"})
+    db.add(r)
+    db.commit()
+    return r
+
+
+def cleanup(db: Session, full: list[int], tests_only: list[int]) -> dict:
+    """Прибрати тестові анкети «Молодість 360» і тестові картки. Картку видаляємо лише якщо її створив сайт / перенос і в ній немає
+    записів, візитів, продажів, чеків, звернень, оплат. Інакше — лише анкети й дані сайту."""
+    from ..models import Appeal, DkSession
+    out = {"assessments": 0, "patients": 0, "kept": []}
+    for pid in set(full) | set(tests_only):
+        for a in db.scalars(select(M360Assessment).where(M360Assessment.patient_id == pid)):
+            db.delete(a)
+            out["assessments"] += 1
+        p = db.get(Patient, pid)
+        if p:
+            p.client_groups = [g for g in (p.client_groups or []) if (g.get("name") if isinstance(g, dict) else g) != "Тест 360"] or None
+        if pid not in full or not p:
+            continue
+        site = (p.source or "") in ("Сайт / Молодість 360", "Сайт Дарʼї Колган") or "старого сервісу" in (p.notes or "")
+        busy = any(db.scalar(select(m.id).where(m.patient_id == pid).limit(1)) for m in (Appointment, Visit, Sale, Check, Appeal, PayLink))
+        if not site or busy:
+            out["kept"].append(pid)
+            continue
+        for m in (DkRecord, DkOrder, DkProfile, DkSession):
+            for x in db.scalars(select(m).where(m.patient_id == pid)):
+                db.delete(x)
+        db.flush()
+        db.delete(p)
+        out["patients"] += 1
+    db.commit()
+    return out

@@ -134,14 +134,14 @@
           <p class="lead">Ці дані потрібні, щоб прив’язати результати до пацієнта, згенерувати PDF та зберегти історію проходження.</p>
           <p class="muted" style="margin:-8px 0 18px;"><strong>* Обов’язкові поля:</strong> ім’я, прізвище, номер телефону, дата народження та стать.</p>
           <form id="registration-form" class="form-grid" enctype="multipart/form-data">
-            <div class="field"><label>Ім’я *</label><input name="first_name" required></div>
-            <div class="field"><label>Прізвище *</label><input name="last_name" required></div>
+            <div class="field"><label>Ім’я *</label><input name="first_name" required minlength="3" pattern="[А-ЩЬЮЯЄІЇҐа-щьюяєіїґʼ'’ -]{3,}" title="Українськими літерами, не менше 3"></div>
+            <div class="field"><label>Прізвище *</label><input name="last_name" required minlength="3" pattern="[А-ЩЬЮЯЄІЇҐа-щьюяєіїґʼ'’ -]{3,}" title="Українськими літерами, не менше 3"></div>
             <div class="field"><label>Номер телефону *</label><div class="phone-input"><span class="phone-prefix" aria-hidden="true">+380</span><input id="phone" name="phone" inputmode="tel" autocomplete="tel-national" placeholder="93 375 64 37" maxlength="12" required></div></div>
+            <div class="field" id="sms-code-field" hidden><label>Код з SMS *</label><input name="sms_code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 цифр"></div>
             <div class="field"><label>Email</label><input name="email" type="email" autocomplete="email"></div>
             <div class="field"><label>Дата народження *</label><input name="birth_date" type="date" required></div>
             <div class="field"><label>Стать *</label><select name="gender" required><option value="">Оберіть</option><option>Жінка</option><option>Чоловік</option><option>Інше</option></select></div>
             <div class="field full"><label>Місто</label><input name="city"></div>
-            <div class="field full"><label>Фото пацієнта (необов’язково)</label><input name="photo" type="file" accept="image/png,image/jpeg,image/webp"></div>
             <label class="checkbox-line full"><input type="checkbox" name="consent_personal_data" required> <span>Погоджуюсь на обробку персональних даних для проходження оцінки MOLODIST 360 відповідно до <a href="./privacy-policy" target="_blank" rel="noopener">Політики конфіденційності</a>.</span></label>
             <label class="checkbox-line full"><input type="checkbox" name="consent_results"> <span>Погоджуюсь отримати результати та рекомендації після проходження оцінки.</span></label>
             <div class="full controls"><span id="registration-error" class="tag-critical" role="alert" aria-live="polite"></span><button id="registration-submit" class="btn btn-primary" type="submit">Перейти до оцінки</button></div>
@@ -266,11 +266,6 @@
 
     async function openAssessment() {
       if (!cabinetProfile) await loadCabinetProfile();
-      if (!cabinetProfile) {
-        const returnTo = encodeURIComponent(`/molodist-360/${fromDrKolgan ? '?from=dr-kolgan' : ''}#assessment`);
-        window.location.assign(`/dr-kolgan/?login=1&returnTo=${returnTo}`);
-        return;
-      }
       assessmentSection.classList.remove('hidden');
       registrationScreen.classList.remove('hidden');
       questionnaireScreen.classList.add('hidden');
@@ -335,6 +330,26 @@
         return;
       }
       fd.set('phone', `+380${phoneDigits}`);
+      // номер підтверджуємо кодом з SMS (підпис «MOLODIST 360») — без цього анкету не створити
+      if (!cabinetProfile) {
+        const codeField = document.getElementById('sms-code-field');
+        const code = String(fd.get('sms_code') || '').replace(/\D/g, '');
+        if (codeField.hidden) {
+          const r = await fetch('./api/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: `+380${phoneDigits}` }) });
+          const j = await r.json().catch(() => ({}));
+          if (!r.ok) { regError.textContent = j.detail || 'Не вдалося надіслати код. Спробуйте ще раз.'; return; }
+          codeField.hidden = false; phoneInput.readOnly = true;
+          regError.textContent = 'Ми надіслали код на ваш номер — введіть його та натисніть ще раз.';
+          if (registrationSubmit) registrationSubmit.textContent = 'Підтвердити й перейти до оцінки';
+          codeField.querySelector('input').focus();
+          return;
+        }
+        if (code.length !== 6) { regError.textContent = 'Введіть 6 цифр коду з SMS.'; return; }
+        const v = await fetch('./api/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: `+380${phoneDigits}`, code }) });
+        const vj = await v.json().catch(() => ({}));
+        if (!v.ok) { regError.textContent = vj.detail || 'Невірний код.'; return; }
+        await loadCabinetProfile();
+      }
       fd.set('consent_personal_data', registrationForm.consent_personal_data.checked ? 'true' : 'false');
       fd.set('consent_results', registrationForm.consent_results.checked ? 'true' : 'false');
       const photo = registrationForm.elements.photo?.files?.[0];

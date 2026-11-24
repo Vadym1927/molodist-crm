@@ -45,13 +45,17 @@ def by_token(db: Session, token: str) -> M360Assessment | None:
     return db.scalar(select(M360Assessment).where(M360Assessment.token == token))
 
 
-def register(db: Session, d: dict, source: str = "") -> M360Assessment:
+def register(db: Session, d: dict, source: str = "", verified_phone: str = "") -> M360Assessment:
     if str(d.get("consent_personal_data") or "").lower() not in ("1", "true", "on", "yes"):
         raise M360Error("Потрібна згода на обробку персональних даних")
-    first, last = str(d.get("first_name") or "").strip()[:100], str(d.get("last_name") or "").strip()[:100]
-    phone = _phone(str(d.get("phone") or ""))
-    if not first or not phone:
-        raise M360Error("Вкажіть імʼя та номер телефону у форматі +380…")
+    from ..dr_kolgan import DkError, check_name
+    try:
+        first, last = check_name(d.get("first_name"), "Імʼя"), check_name(d.get("last_name"), "Прізвище")
+    except DkError as e:
+        raise M360Error(str(e)) from None
+    phone = _phone(str(verified_phone or ""))                 # лише номер, підтверджений SMS-кодом
+    if not phone:
+        raise M360Error("Підтвердіть номер телефону кодом з SMS.")
     bd = None
     if d.get("birth_date"):
         try:

@@ -46,7 +46,7 @@ DEFAULT = {
     "cart_task_hours": 2, "cart_auto_on": False, "cart_auto_hours": 3, "cart_text": "",
     "order_msg_on": False,       # повідомлення покупцю: оплачено / відправлено (з ТТН) / скасовано
     "notify_on": False, "notify_text": "{name} знову в наявності в магазині MOLODIST: {url}",
-    "cab_on": True, "cab_sms": "{code} — код входу в магазин MOLODIST", "cab_sms_day": 150, "cab_coin_signup": 100, "cab_coin_ref": 200,
+    "cab_on": True, "cab_sms": "{code} — код входу. MOLODIST SHOP", "cab_sms_day": 150, "cab_coin_signup": 100, "cab_coin_ref": 200,
     "parts_file": "",            # локальна копія шильдика для низу сайту (files/shop_brand/…)
     "parts_paw": "", "parts_paw_file": "",   # офіційна лапка (з цифрою) — у куті фото товару
     "parts_icon": "",            # офіційний значок «Покупка Частинами» (лапка) — файл із матеріалів monobank

@@ -47,7 +47,7 @@ def _phone(raw: str) -> str:
 
 
 def sms_text(c: dict, code: str) -> str:
-    t = (c.get("cab_sms") or "").strip() or "{code} — код входу в магазин MOLODIST"
+    t = (c.get("cab_sms") or "").strip() or "{code} — код входу. MOLODIST SHOP"
     return (t if "{code}" in t else t + " {code}").replace("{code}", code)[:300]
 
 

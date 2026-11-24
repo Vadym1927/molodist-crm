@@ -166,3 +166,29 @@ def test_dk_detach_shop():
         db.commit()
         assert dk.detach_shop(db) >= 1
         assert not db.query(ShopAccount).filter_by(patient_id=p.id).count() and not db.query(ShopSession).filter_by(patient_id=p.id).count()
+
+
+def test_cleanup_and_bot_tests_and_names():
+    from app.models import Appointment
+    with SessionLocal() as db:
+        junk = Patient(full_name="Test Test", phone="+380671110001", source="Сайт / Молодість 360", client_groups=["Тест 360"])
+        real = Patient(full_name="Справжня Пацієнтка", phone="+380671110002", source="Сайт / Молодість 360")
+        clinic = Patient(full_name="Клінічна Пацієнтка", phone="+380671110003")
+        db.add_all([junk, real, clinic]); db.flush()
+        for p in (junk, real, clinic):
+            db.add(M360Assessment(token=f"tok{p.id}xxxxxxx", patient_id=p.id, status="completed", overall_score=50))
+        st = datetime.now()
+        db.add(Appointment(patient_id=real.id, start=st, end=st, status="done"))
+        db.commit()
+        r = dk.cleanup(db, [junk.id, real.id], [clinic.id])
+        assert r["patients"] == 1 and r["kept"] == [real.id] and r["assessments"] == 3
+        assert db.get(Patient, junk.id) is None and db.get(Patient, clinic.id) is not None
+        rec = dk.add_bot_test(db, clinic.id, "hads", {"anxiety": 9, "depression": 3, "id": "b1"})
+        assert dk.add_bot_test(db, clinic.id, "hads", {"anxiety": 9, "depression": 3, "id": "b1"}).id == rec.id
+        assert dk.card(db, clinic.id)["hads"][0].data["source"] == "bot"
+        import pytest
+        with pytest.raises(dk.DkError):
+            dk.check_name("Ір", "Імʼя")
+        with pytest.raises(dk.DkError):
+            dk.check_name("Irina", "Імʼя")
+        assert dk.check_name("ірина", "Імʼя") == "Ірина"

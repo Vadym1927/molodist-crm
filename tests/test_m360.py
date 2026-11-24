@@ -16,12 +16,24 @@ def _all_answers():
     return out
 
 
-def test_m360_full_flow_links_patient_and_builds_pdf():
-    with TestClient(app) as c:
+def test_m360_full_flow_links_patient_and_builds_pdf(monkeypatch):
+    import re
+    import app.services.shop_cabinet as scab
+    sent = {}
+    monkeypatch.setattr(scab, "_deliver", lambda db, ph, text, *a, **k: sent.update(t=text) or "sms")
+    with TestClient(app, base_url="https://testserver") as c:
         assert "MOLODIST 360" in c.get("/_site/molodist-360/").text
         assert c.get("/_site/molodist-360/static/app.css").status_code == 200
         assert c.get("/_site/molodist-360/static/../../main.py").status_code == 404
-        assert c.post("/_site/molodist-360/api/register", data={"first_name": "Тест", "phone": "0671112299"}).status_code == 400   # без згоди
+        assert c.post("/_site/molodist-360/api/register", data={"first_name": "Тест", "phone": "0671112299"}).status_code == 401   # без SMS
+        assert c.post("/_site/molodist-360/api/send", json={"phone": "067 111 22 99"}).status_code == 200
+        assert "MOLODIST 360" in sent["t"]
+        code = re.search(r"\d{6}", sent["t"]).group(0)
+        v = c.post("/_site/molodist-360/api/verify", json={"phone": "+380671112299", "code": code})
+        assert v.status_code == 200
+        c.cookies.set("dk_s", v.cookies["dk_s"])
+        assert c.post("/_site/molodist-360/api/register", data={"first_name": "Олена", "last_name": "Тестова", "phone": "0671112299"}).status_code == 400   # без згоди
+        assert c.post("/_site/molodist-360/api/register", data={"first_name": "Te", "last_name": "Test", "consent_personal_data": "true"}).status_code == 400  # латиниця
         r = c.post("/_site/molodist-360/api/register", data={"first_name": "Олена", "last_name": "Тестова", "phone": "067 111 22 99",
                                                               "email": "o@example.com", "consent_personal_data": "true"})
         assert r.status_code == 200

@@ -736,6 +736,14 @@ async def lifespan(app: FastAPI):
             _aut.save(db, autonomous=True, since="2026-11-01", test=True)
             db.merge(SyncState(key="work_mode_init_20261101", value="1"))
             db.commit()
+        if not db.get(SyncState, "sms_sign_shop_v1"):           # 24.11.2026: підпис SMS-коду магазину — «MOLODIST SHOP»
+            from .services import shop_front as _sfm
+            _c = _sfm.cfg(db)
+            if (_c.get("cab_sms") or "").strip() in ("", "{code} — код входу в магазин MOLODIST"):
+                _c["cab_sms"] = "{code} — код входу. MOLODIST SHOP"
+                _sfm.save_cfg(db, _c)
+            db.merge(SyncState(key="sms_sign_shop_v1", value="1"))
+            db.commit()
         if not db.get(SyncState, "dk_detach_shop_v1"):        # 23.11.2026: сайт Дарʼї Колган окремо від магазину (рішення власника)
             from .services import dr_kolgan as _dkd
             _dkd.detach_shop(db)
@@ -1370,7 +1378,8 @@ def patient_card(request: Request, pid: int, user: User = Depends(current_user),
     _rv_cfg = _rvw.cfg(db)
     from .services import shop_orders as _sho
     from .services.m360 import core as _m360
-    return render(request, "patient.html", m360=_m360.for_patient(db, p.id), shop_orders=_sho.for_patient(db, p.id), previews=_rvw.for_patient(db, p.id), parch=_rvw.archive_for_patient(db, p.id), rv_q={q["key"]: q["title"] for q in _rv_cfg["questions"]}, p=p, statuses=statuses, pe_services=pe_services, pe_products=pe_products, ptasks=ptasks, msgs=msgs, dupes=dupes, paylinks=paylinks, pcalls=pcalls, pchats=pchats,
+    from .services import dr_kolgan as _dkc
+    return render(request, "patient.html", m360=_m360.for_patient(db, p.id), dkc=_dkc.card(db, p.id), DKM=_dkc.MATERIALS, shop_orders=_sho.for_patient(db, p.id), previews=_rvw.for_patient(db, p.id), parch=_rvw.archive_for_patient(db, p.id), rv_q={q["key"]: q["title"] for q in _rv_cfg["questions"]}, p=p, statuses=statuses, pe_services=pe_services, pe_products=pe_products, ptasks=ptasks, msgs=msgs, dupes=dupes, paylinks=paylinks, pcalls=pcalls, pchats=pchats,
                   call_thr=float(__import__("app.services.telephony", fromlist=["x"]).public(db).get("ai_alert_below") or 0),
                   certs=_cert.for_patient(db, p.id), CERT_STATES=_cert.STATES, today=date.today(),
                   subs=_cert.subs_for_patient(db, p.id), SUB_STATES=_cert.SUB_STATES, packages=_cert.package_items(db),
@@ -9819,6 +9828,32 @@ def m360_result_page(request: Request, tok: str):
     return r
 
 
+@app.post("/_site/molodist-360/api/send")
+async def m360_send(request: Request, db: Session = Depends(db_dep)):
+    """Тест «Молодість 360»: код підтвердження номера (SMS з підписом MOLODIST 360)."""
+    from .services import dr_kolgan as dk
+    d = await _dk_body(request)
+    ip = request.headers.get("x-real-ip") or (request.client.host if request.client else "")
+    try:
+        r = await asyncio.to_thread(dk.send_code, db, str(d.get("phone") or ""), ip, "m360")
+    except dk.DkError as e:
+        return _m360_json({"detail": str(e)}, 400)
+    return _m360_json({"ok": True, "to": r.get("to")})
+
+
+@app.post("/_site/molodist-360/api/verify")
+async def m360_verify(request: Request, db: Session = Depends(db_dep)):
+    from .services import dr_kolgan as dk
+    d = await _dk_body(request)
+    try:
+        tok, days, p = dk.verify(db, str(d.get("phone") or ""), str(d.get("code") or ""), request.headers.get("user-agent", ""), origin="m360")
+    except dk.DkError as e:
+        return _m360_json({"detail": str(e)}, 400)
+    r = _m360_json({"ok": True})
+    r.set_cookie(dk.COOKIE, tok, max_age=days * 86400, httponly=True, samesite="lax", path="/", secure=True)
+    return r
+
+
 @app.post("/_site/molodist-360/api/register")
 async def m360_register(request: Request, db: Session = Depends(db_dep)):
     from .services.m360 import core as m3
@@ -9830,8 +9865,11 @@ async def m360_register(request: Request, db: Session = Depends(db_dep)):
         d = {k: (v if isinstance(v, str) else "") for k, v in f.items()}      # фото не зберігаємо
     else:
         d = await request.json()
+    sess = _dk_sess(request, db)
+    if not sess:
+        return _m360_json({"detail": "Підтвердіть номер телефону кодом з SMS."}, 401)
     try:
-        a = await asyncio.to_thread(m3.register, db, d, request.headers.get("referer", ""))
+        a = await asyncio.to_thread(m3.register, db, d, request.headers.get("referer", ""), sess[0].phone)
     except m3.M360Error as e:
         return _m360_json({"detail": str(e)}, 400)
     try:
@@ -14196,6 +14234,18 @@ async def dr_kolgan_revoke(request: Request, user: User = Depends(require("users
     n = dk.revoke(db, pid, mid)
     audit(db, "dk.revoke", "patient", pid, user=user, material=mid, n=n)
     return RedirectResponse(_with_msg(f"/patients/{pid}#t-dk", f"Доступ до гайду забрано ({n})" if n else "Доступу не було"), 303)
+
+
+@app.post("/reports/molodist-360/cleanup")
+async def m360_cleanup(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    """Прибрати тестові анкети й картки (за рішенням власника). full — картки повністю (якщо створені сайтом і порожні), tests — лише анкети."""
+    from .services import dr_kolgan as dk
+    f = await request.form()
+    ids = lambda k: [int(x) for x in str(f.get(k) or "").replace(" ", "").split(",") if x.isdigit()]      # noqa: E731
+    r = dk.cleanup(db, ids("full"), ids("tests"))
+    audit(db, "m360.cleanup", user=user, **r)
+    return RedirectResponse(_with_msg("/reports/molodist-360", f"Прибрано анкет: {r['assessments']}, карток: {r['patients']}"
+                                      + (f"; картки з історією в клініці лишено: {', '.join(map(str, r['kept']))}" if r["kept"] else "")), 303)
 
 
 @app.post("/reports/dr-kolgan/import")

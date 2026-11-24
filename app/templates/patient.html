@@ -238,6 +238,7 @@
   <a href="#t-sales" data-t="sales">Продажі{% if p.sales %} <em>{{ p.sales|length }}</em>{% endif %}</a>
   <a href="#t-reviews" data-t="reviews">Відгуки{% if previews or parch %} <em>{{ (previews|length) + (parch|length) }}</em>{% endif %}</a>
   {% if m360 %}<a href="#t-m360" data-t="m360">Молодість 360 <em>{{ m360|length }}</em></a>{% endif %}
+  {% if dkc %}<a href="#t-dk" data-t="dk">Сайт Дарʼї{% if dkc.materials %} <em>{{ dkc.materials|length }}</em>{% endif %}</a>{% endif %}
   <a href="#t-hist" data-t="hist">Історія</a>
 </nav>
 
@@ -609,6 +610,21 @@
     <div class="rv-q">{% for q, v in (x.scores or []) %}<span>{{ q[:60] }}: <b style="color:{{ '#B23A32' if v < 5 else '#2A2430' }}">{{ v }}</b></span>{% endfor %}</div></div>{% endfor %}
   {% if previews %}<p class="small muted">«Анонімно» розмиває імʼя на екрані — можна зробити скріншот для соцмереж. «Перейшов у Google» означає, що пацієнт натиснув кнопку й відкрив форму відгуку Google; чи опублікував він відгук, CRM не знає.</p>{% endif %}
 </div></section>
+{% if dkc %}<section class="pt-p" data-t="dk"><div class="pcd" id="dk">
+  <h2 style="margin-top:0">Сайт Дарʼї Колган і тести</h2>
+  {% set pr = dkc.profile %}
+  {% if pr %}<p class="small muted" style="margin-top:-4px">Кабінет з {{ (pr.registered_at|local).strftime('%d.%m.%Y') }}{% if pr.origin == 'm360' %} (увійшов на тест «Молодість 360»){% endif %}{% if pr.imported %} · перенесено зі старого сайту{% endif %}{% if pr.birth_date %} · народж. {{ pr.birth_date.strftime('%d.%m.%Y') }}{% endif %}{% if pr.gender %} · {{ pr.gender }}{% endif %}{% if pr.email %} · {{ pr.email }}{% endif %}</p>{% endif %}
+  <h3 style="margin:10px 0 6px;font-size:14px">Гайди</h3>
+  {% for m in dkc.materials %}<span class="rv-tag {{ 'ok' if m.paid }}" style="margin:2px">{{ '💳 ' if m.paid }}{{ m.title }} · {{ (m.at|local).strftime('%d.%m.%Y') }}</span>{% else %}<p class="small muted">Немає.</p>{% endfor %}
+  {% if dkc.orders %}<p class="small" style="margin:8px 0 0">Оплати: {% for o in dkc.orders %}{{ (DKM.get(o.product) or {}).get('title', o.product) }} — {{ '%g' % o.amount }} ₴ ({{ {'paid': 'оплачено', 'refunded': 'повернуто', 'created': 'не оплачено'}.get(o.status, o.status) }}){{ '; ' if not loop.last }}{% endfor %}</p>{% endif %}
+  {% if can(user, 'medical') %}
+  <h3 style="margin:14px 0 6px;font-size:14px">ІМТ</h3>
+  {% for r in dkc.bmi %}<div class="small">{{ (r.created_at|local).strftime('%d.%m.%Y') }} — <b>{{ r.data.bmi }}</b> ({{ r.data.category }}), {{ '%g' % r.data.heightCm }} см / {{ '%g' % r.data.weightKg }} кг{{ ' · з бота' if r.data.source == 'bot' }}</div>{% else %}<p class="small muted">Немає.</p>{% endfor %}
+  <h3 style="margin:14px 0 6px;font-size:14px">HADS (тривога / депресія)</h3>
+  {% for r in dkc.hads %}<div class="small">{{ (r.created_at|local).strftime('%d.%m.%Y') }} — тривога <b>{{ r.data.anxiety }}</b>/21 ({{ r.data.anxietyLevel }}), депресія <b>{{ r.data.depression }}</b>/21 ({{ r.data.depressionLevel }}){{ ' · з бота' if r.data.source == 'bot' }}</div>{% else %}<p class="small muted">Немає.</p>{% endfor %}
+  <p class="small muted" style="margin-top:8px">Скринінг, не діагноз.</p>
+  {% else %}<p class="small muted" style="margin-top:12px">Результати ІМТ / HADS бачать лікарі (доступ «медичні дані»): ІМТ {{ dkc.bmi|length }}, HADS {{ dkc.hads|length }}.</p>{% endif %}
+</div></section>{% endif %}
 {% if m360 %}<section class="pt-p" data-t="m360"><div class="pcd" id="m360">
   <h2 style="margin-top:0">Тест «Молодість 360»</h2>
   <p class="small muted" style="margin-top:-4px">Самооцінка пацієнта на сайті (molodist.com.ua/molodist-360). Це не діагноз — привід для розмови на консультації.</p>

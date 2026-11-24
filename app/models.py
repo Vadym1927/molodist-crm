@@ -1620,6 +1620,7 @@ class DkProfile(Base):
     registered_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime)
     imported: Mapped[bool | None] = mapped_column(Boolean)              # перенесено зі старого сервісу
+    origin: Mapped[str | None] = mapped_column(String(10))              # де вперше увійшов: dk (сайт Дарʼї) | m360 (тест)
 
 
 class DkCode(Base):
