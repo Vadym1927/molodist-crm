@@ -186,3 +186,20 @@ def test_delete_manual_lot_only_unsold():
         c.post(f"/stock/consign/lot/{bid}/delete")
     with SessionLocal() as db:
         assert db.get(ConsignLot, aid) is None and db.get(ConsignLot, bid) is not None
+
+
+def test_lot_writeoff_reduces_qty():
+    from fastapi.testclient import TestClient
+    from app.config import settings
+    from app.main import app
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        l = ConsignLot(supplier="СПИС ТЕСТ", invoice="S1", inv_date=date(2026, 9, 3), name="Гель тест", qty=2, cost=793, sold=1, source="seed")
+        db.add(l); db.commit(); lid = l.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        c.post(f"/stock/consign/lot/{lid}/writeoff", data={"qty": "1", "note": "вирівнювання"})
+        c.post(f"/stock/consign/lot/{lid}/writeoff", data={"qty": "1"})          # більше немає непроданих
+    with SessionLocal() as db:
+        l = db.get(ConsignLot, lid)
+        assert l.qty == 1 and l.sold == 1 and "списано 1 шт" in l.note

@@ -5913,6 +5913,22 @@ def consign_lot_delete(lid: int, user: User = Depends(require("finance")), db: S
     return RedirectResponse(_with_msg(f"/stock/consign?s={quote(sup)}", "Позицію поставки видалено"), 303)
 
 
+@app.post("/stock/consign/lot/{lid:int}/writeoff")
+def consign_lot_writeoff(lid: int, qty: str = Form("1"), note: str = Form(""), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Вирівняти з постачальником: зменшити к-сть у поставці без оплати (банки немає в обліку постачальника)."""
+    from .models import ConsignLot
+    l = db.get(ConsignLot, lid) or (_ for _ in ()).throw(HTTPException(404))
+    q = _num(qty) or 0
+    if q <= 0 or q > round(l.qty - (l.sold or 0), 4):
+        return RedirectResponse(_with_msg(f"/stock/consign?s={quote(l.supplier)}", "Немає стільки непроданих банок у цій поставці", err=True), 303)
+    old = l.qty
+    l.qty = round(l.qty - q, 4)
+    l.note = ((f"{l.note} · " if l.note else "") + f"списано {q:g} шт ({note.strip() or 'вирівнювання з постачальником'})")[:300]
+    db.commit()
+    audit(db, "consign.lot_writeoff", "consign_lot", lid, user=user, old=old, new=l.qty, note=note)
+    return RedirectResponse(_with_msg(f"/stock/consign?s={quote(l.supplier)}", f"Списано {q:g} шт з поставки — без оплати постачальнику"), 303)
+
+
 @app.post("/stock/consign/lot/{lid:int}/map")
 def consign_lot_map(lid: int, product_id: int = Form(...), user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
     from .models import ConsignLot
