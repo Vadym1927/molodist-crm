@@ -5430,6 +5430,11 @@ async def product_site_save(pid: int, request: Request, user: User = Depends(req
             si["free_ship"] = True
         else:
             si.pop("free_ship", None)
+        gt, gd = str(f.get("g_title") or "").strip()[:150], str(f.get("g_desc") or "").strip()[:4900]
+        if gt or gd:
+            si["google"] = {"title": gt, "desc": gd}
+        else:
+            si.pop("google", None)
     if f.get("tip_form"):
         tt = str(f.get("tip_text") or "").strip()[:600]
         if tt:

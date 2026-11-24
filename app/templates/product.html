@@ -191,6 +191,9 @@
       <label class="small">Діє до (необовʼязково)<input type="date" name="sale_until" value="{{ si.sale.until if si.sale else '' }}"></label></div>
     <input type="hidden" name="bo_form" value="1"><label class="row" style="gap:8px;align-items:center"><input type="checkbox" name="backorder" value="1" style="width:auto" {{ 'checked' if si.backorder }}> Під замовлення: показувати «в наявності» без залишку на вітрині (відправка за 1–3 дні)</label>
     <label class="row" style="gap:8px;align-items:center"><input type="checkbox" name="no_feed" value="1" style="width:auto" {{ 'checked' if si.no_feed }}> Не передавати в рекламні фіди (Google, Facebook) — на сайті товар лишається</label>
+    <details {{ 'open' if si.google }}><summary class="small" style="cursor:pointer"><b>Для Google Merchant</b> — власна назва й опис у рекламному фіді (коли Google відхиляє товар як «ліки»: без лікувальних тверджень). На сайті не змінюється.</summary>
+      <label class="small">Назва для Google<input name="g_title" maxlength="150" value="{{ (si.google or {}).title or '' }}" placeholder="порожньо — автоматично з назви товару"></label>
+      <label class="small">Опис для Google<textarea name="g_desc" rows="4" maxlength="4900" placeholder="порожньо — автоматично з опису, без медичних слів">{{ (si.google or {}).desc or '' }}</textarea></label></details>
     <label class="row" style="gap:8px;align-items:center"><input type="checkbox" name="free_ship" value="1" style="width:auto" {{ 'checked' if si.free_ship }}> Безкоштовна доставка цього товару (незалежно від суми замовлення)</label>
     {% if si.slug %}<label class="small">Адреса на сайті: molodist.store/shop/<b>…</b>/ — стара адреса автоматично веде на нову (301)<input name="slug" value="{{ si.slug }}" pattern="[a-z0-9]+(-[a-z0-9]+)*" maxlength="200"></label>{% endif %}
     {% if si.slug and shop_cats %}<input type="hidden" name="cats_form" value="1"><div class="small"><b>Категорії на сайті</b>

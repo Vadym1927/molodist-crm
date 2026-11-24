@@ -146,7 +146,10 @@ def items(data: dict, root: str, notice_brands: set[str] | None = None) -> list[
         for v in it["variants"]:
             title = v["name"] if len(it["variants"]) == 1 or not v.get("label") else f"{it['name']} {v['label']}"
             title = g_title(title, it["brand"], v.get("label") or "")
-            out.append({"id": str(v["id"]), "group": str(it["id"]) if len(it["variants"]) > 1 else "", "title": title[:150], "desc": desc,
+            if it.get("g_title"):
+                title = it["g_title"] if len(it["variants"]) == 1 or not v.get("label") else f"{it['g_title']} {v['label']}"
+            out.append({"id": str(v["id"]), "group": str(it["id"]) if len(it["variants"]) > 1 else "", "title": title[:150], "desc": it.get("g_desc") or desc,
+                        "g_own": bool(it.get("g_title") or it.get("g_desc")),
                         "link": f"{root}/shop/{it['slug']}/", "imgs": imgs, "brand": it["brand"] or "MOLODIST", "sku": v.get("sku") or "", "gtin": v.get("gtin") or "",
                         "price": float(v["old"] or v["price"]), "sale": float(v["price"]) if v.get("old") else 0.0, "stock": bool(v["stock"]),
                         "ptype": ptype, "det": g_details(it["name"], desc, ptype), "cat": cats.get(it["slug"], [None])[0], "consult": bool(notice_brands and it["brand"] in notice_brands), "nofeed": bool(v.get("nofeed"))})
@@ -155,7 +158,8 @@ def items(data: dict, root: str, notice_brands: set[str] | None = None) -> list[
 
 _MED = re.compile(r"лікуван|лікує|лікува|лікувальн|\bFDA\b|розацеа|купероз|дерматит|екзем|псоріаз|захворюван|хвороб|діагноз|рецепт|препарат|"
                   r"медикамент|терапі|клінічн|протокол|запален|запальн|інфекц|антибакт|антибіот|протизапальн|себоре|алопец|облисін|\bлікар|"
-                  r"акне|acne|бактері|канаб|cannabis|метронідазол|азела|транексам|глутатіон|опік|харчов\w* добавк|біологічно активн", re.I)
+                  r"акне|acne|бактері|канаб|cannabis|метронідазол|азела|транексам|глутатіон|опік|харчов\w* добавк|біологічно активн|"
+                  r"капіляр|судин|кровообіг|кровотік|мікроциркул|троксерутин|кінськ\w* каштан|ескцин|протинабряк|набряк|біодоступн|проникніст", re.I)
 _T_MED = re.compile(r"\s*(?:for acne|від акне|проти акне|anti\s*-\s*inflammatory(?:\s*\+\s*keratolytic)?|\bacne\b|\bcannabis\b|,?\s*схильн\w+ до акне)", re.I)
 
 
@@ -165,6 +169,7 @@ def _inci(part: str) -> bool:
     return part.count(",") >= 8 and lat > 0.6 * max(1, len(re.findall(r"[A-Za-zА-Яа-яІіЇїЄєҐґ]", part)))
 
 
+_T_VASC = re.compile(r"\s*,?\s*(?:судинозміцнююч\w*|капіляропротекторн\w*|протинабряков\w*)", re.I)
 _T_MED2 = re.compile(r"\s*(?:для\s+)?(?:зменшення|усунення|лікування|боротьби\s+з)\s+(?:висипань|запалень|почервоніння|акне|вугрів|розацеа|купероз\w*)(?:\s+(?:та|і|й)\s+\w+)?"
                      r"|\s*(?:біологічно\s+активна|харчова|дієтична)\s+добавк\w*"
                      r"|(?:,\s*|\s+(?:та|і|й)\s+)(?:саліцилов|азелаїнов|транексамов|гліколев|молочн)\w*(?:\s+кислот\w*)?", re.I)
@@ -173,7 +178,7 @@ _T_MED2 = re.compile(r"\s*(?:для\s+)?(?:зменшення|усунення|�
 def clean_title(t: str) -> str:
     """Назва для Google Merchant без лікувальних тверджень, назв кислот і «харчова/біологічно активна добавка» —
     через них автоперевірка Google блокує косметику як «несхвалені добавки». На сайті назва не змінюється."""
-    out = _T_MED2.sub("", _T_MED.sub("", t or ""))
+    out = _T_VASC.sub("", _T_MED2.sub("", _T_MED.sub("", t or "")))
     out = re.sub(r"\s+,", ",", re.sub(r"\s{2,}", " ", out)).strip(" ,")
     return out or t
 
@@ -201,7 +206,8 @@ def google(data: dict, root: str, title: str = "MOLODIST", notice_brands: set[st
             continue                                                         # власник прибрав товар з реклами (БАДи, засоби з лікарськими складниками)
         if not i["imgs"]:
             continue                                                         # без фото Merchant Center товар відхиляє
-        parts = [f"<g:id>{x(i['id'])}</g:id>", f"<title>{x(clean_title(i['title']))}</title>", f"<description>{x(clean_desc(i['desc'], i['title']) or clean_title(i['title']))}</description>",
+        parts = [f"<g:id>{x(i['id'])}</g:id>", f"<title>{x(i['title'] if i.get('g_own') else clean_title(i['title']))}</title>",
+                 f"<description>{x(i['desc'][:4900] if i.get('g_own') else (clean_desc(i['desc'], i['title']) or clean_title(i['title'])))}</description>",
                  f"<link>{x(i['link'])}</link>", f"<g:image_link>{x(i['imgs'][0])}</g:image_link>"]
         parts += [f"<g:additional_image_link>{x(u)}</g:additional_image_link>" for u in i["imgs"][1:10]]
         parts += [f"<g:availability>{'in_stock' if i['stock'] else 'out_of_stock'}</g:availability>",

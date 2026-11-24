@@ -1044,3 +1044,24 @@ def test_change_slug_redirect_and_free_ship():
         assert r.status_code == 301 and r.headers["location"].endswith("/shop/cg-serum-250-ml/")
         pg = c.get("/_shop/shop/cg-serum-250-ml/")
         assert pg.status_code == 200 and "Безкоштовна доставка Новою поштою по Україні" in pg.text
+
+
+def test_google_vascular_and_override():
+    from app.services.shop_feeds import clean_title, clean_desc
+    assert clean_title("Ag Skin Azelorosa Судинозміцнююча сироватка") == "Ag Skin Azelorosa сироватка"
+    d = clean_desc("Заспокоює чутливу шкіру. Троксерутин зміцнює стінки капілярів. Покращує кровообіг і зменшує набряки. Ранкова рутина догляду.")
+    assert d == "Заспокоює чутливу шкіру. Ранкова рутина догляду."
+    from app.services import shop_front as sf
+    settings.admin_password = "owner-pass-gm"
+    with TestClient(app) as c:
+        with SessionLocal() as db:
+            db.add(Product(name="Vasc", name_norm="vasc", price=900, site_on=True, active=True,
+                           site_info={"slug": "vasc-x", "title": "Vasc Судинозміцнююча", "presence": 1, "backorder": True,
+                                      "google": {"title": "Vasc сироватка для чутливої шкіри", "desc": "Косметична сироватка."}}))
+            db.commit()
+            p = db.scalars(select(Product).where(Product.name == "Vasc")).first()
+            db.add(ProductFile(product_id=p.id, path="/tmp/none.jpg", name="a.jpg", kind="photo", site=True))
+            db.commit()
+            sf.catalog(db, fresh=True)
+        x = c.get("/_shop/feeds/google.xml").text
+        assert "<title>Vasc сироватка для чутливої шкіри</title>" in x and "<description>Косметична сироватка.</description>" in x

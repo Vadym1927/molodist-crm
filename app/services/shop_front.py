@@ -418,6 +418,7 @@ def catalog(db: Session, fresh: bool = False) -> dict:
                          "new": p.id, "variants": [v], "sku": v["sku"], "sticker": si.get("sticker") or "",
                          "tip": si.get("tip") if (si.get("tip") or {}).get("text") else None,
                          "free_ship": bool(si.get("free_ship")),
+                         "g_title": (si.get("google") or {}).get("title") or "", "g_desc": (si.get("google") or {}).get("desc") or "",
                          "short": v.get("short"), "short_exp": v.get("short_exp"), "sale_until": sale_until}
     for it in by_slug.values():
         it["archived"] = False
