@@ -352,4 +352,7 @@ def main_footer() -> dict:
     dirs = [{"slug": s_, "nav": sp.PAGES[s_]["nav"]} for s_ in sp.ORDER]
     lps = [{"slug": "likuvannya-akne", "nav": "Лікування акне"}, {"slug": "likuvannya-pigmentatsii", "nav": "Пігментація й судини"},
            {"slug": "tmyana-znevodnena-shkira", "nav": "Тьмяна, зневоднена шкіра"}, {"slug": "zmorshky-ta-vikovi-zminy", "nav": "Зморшки й вікові зміни"}]
-    return {"menu": menu, "dirs": dirs + lps, "shop": SHOP["url"]}
+    from ..models import SessionLocal
+    with SessionLocal() as db:
+        code = (sp.cfg(db).get("legal_code") or sp.DEFAULT["legal_code"]).strip()
+    return {"menu": menu, "dirs": dirs + lps, "shop": SHOP["url"], "legal": {"name": LEGAL_NAME, "code": code}}

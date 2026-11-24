@@ -73,3 +73,4 @@ def test_m360_main_footer_and_selfcare():
         for u in ("/_site/molodist-360/", "/_site/molodist-360/terms"):
             t = cl.get(u).text
             assert "САМОЛІКУВАННЯ МОЖЕ БУТИ ШКІДЛИВИМ" in t and 'class="msf"' in t and "/likuvannya-akne" in t
+            assert "ФОП Бондар" in t.split('class="msf"')[1]

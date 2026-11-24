@@ -6,7 +6,7 @@
 <footer class="msf"><div class="msf-wrap msf-in">
   <div><a href="/" aria-label="MOLODIST — головна"><img class="wm" src="/static/site/brand/wordmark-white.svg" alt="MOLODIST" width="150" height="18"></a>
     <p class="mu">Медичний простір естетики та профілактики.</p>
-    <p class="mu sm">Тест MOLODIST 360: ФОП Колган Дарʼя Олександрівна<br>Ліцензія МОЗ України, наказ №249 від 08.02.2023</p>
+    <p class="mu sm">{{ mf.legal.name }}{% if mf.legal.code %} · ЄДРПОУ {{ mf.legal.code }}{% endif %}<br>{{ c.license }}</p>
     <p class="mu sm">Результат MOLODIST 360 має інформаційний характер і не є медичним діагнозом.</p></div>
   <div><h4>Розділи</h4><p>{% for t, h in mf.menu %}<a href="{{ h }}">{{ t }}</a><br>{% endfor %}<a href="/molodist-360/">Тест «Молодість 360»</a></p></div>
   <div><h4>Напрямки</h4><p>{% for d in mf.dirs %}<a href="/{{ d.slug }}">{{ d.nav }}</a><br>{% endfor %}<a href="{{ mf.shop }}" target="_blank" rel="noopener">Магазин косметики</a></p></div>
