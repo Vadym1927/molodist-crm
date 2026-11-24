@@ -266,3 +266,4 @@ def test_free_section_home_and_hub():
     with TestClient(app) as cl:
         t = cl.get("/_site/proto/a").text
         assert 'id="bezkoshtovno"' in t and "/molodist-360/" in t and "Тест «Молодість 360»" in t
+        assert 'data-tool="hads"' in t and 'data-tool="bmi"' in t and "tools.js" in t

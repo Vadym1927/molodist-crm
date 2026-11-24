@@ -189,7 +189,7 @@
 
 {% call sheet('gaidy', 'Безкоштовно') %}<div class="ob-guides" id="gaidy"><p class="hb-lead">Тести й памʼятки від лікарів MOLODIST — без запису й оплати.</p>
   {% if free %}{% set m = free.main %}<a class="hb-free-main" href="{{ m.href }}"><img src="/static/site/home/{{ m.img }}" alt="{{ m.t }}" width="120" height="120" loading="lazy"><span><span class="tag">{{ m.tag }}</span><b>{{ m.t }}</b><small>{{ m.d }}</small><i>{{ m.btn }} →</i></span></a>
-  <div class="hb-free-row">{% for x in free['items'] if not x.pdf %}<a class="hb-free-sm" href="{{ x.href }}"><img src="/static/site/home/{{ x.img }}" alt="" width="56" height="56" loading="lazy"><span><b>{{ x.t }}</b><small>{{ x.btn }} →</small></span></a>{% endfor %}</div>{% endif %}
+  <div class="hb-free-row">{% for x in free['items'] if not x.pdf %}<a class="hb-free-sm" href="{{ x.href }}"{% if x.tool %} data-tool="{{ x.tool }}"{% endif %}><img src="/static/site/home/{{ x.img }}" alt="" width="56" height="56" loading="lazy"><span><b>{{ x.t }}</b><small>{{ x.btn }} →</small></span></a>{% endfor %}</div>{% endif %}
   <div class="ob-ggrid g">{% for g in guides %}{% if g.url and g.url.lower().endswith('.pdf') %}<article class="ob-gpdf">
     {% if g.img %}<a class="cov" href="{{ g.url }}" target="_blank" rel="noopener"><img src="{{ g.img }}" alt="Гайд «{{ g.title }}»" loading="lazy" width="480" height="679"></a>{% endif %}
     <div>{% if g.tag %}<span class="tag">{{ g.tag }}</span>{% endif %}<h3>{{ g.title }}</h3>
@@ -240,4 +240,4 @@
 <script type="application/json" id="ob-data">{{ {'cats': cat.cats, 'docs': docs, 'pre': pre}|tojson }}</script>
 {% endblock %}
 {% block footer %}{% endblock %}
-{% block scripts %}<script src="/static/site/hub.js?v={{ ver }}" defer></script><script src="/static/site/booking.js?v={{ ver }}" defer></script>{% endblock %}
+{% block scripts %}<script src="/static/site/hub.js?v={{ ver }}" defer></script><script src="/static/site/booking.js?v={{ ver }}" defer></script><script src="/static/site/tools.js?v={{ ver }}" defer></script>{% endblock %}

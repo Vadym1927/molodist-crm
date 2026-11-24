@@ -306,7 +306,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
     <div class="h-free-in">
       <a class="h-free-main" href="{{ base }}{{ m.href }}"><img src="{{ st(m.img) }}" alt="{{ m.t }} — MOLODIST" loading="lazy" width="480" height="480">
         <span class="b"><span class="tag">{{ m.tag }}</span><h3>{{ m.t }}</h3><p>{{ m.d }}</p><ul>{% for x in m.pts %}<li>{{ x }}</li>{% endfor %}</ul><span class="btn">{{ m.btn }}</span></span></a>
-      <div class="h-free-grid">{% for x in free['items'] %}<a class="h-free-card" href="{{ (base ~ x.href) if not x.href.startswith('/static/') else x.href }}"{% if x.pdf %} target="_blank" rel="noopener"{% endif %}>
+      <div class="h-free-grid">{% for x in free['items'] %}<a class="h-free-card" href="{{ (base ~ x.href) if not x.href.startswith('/static/') else x.href }}"{% if x.tool %} data-tool="{{ x.tool }}"{% endif %}{% if x.pdf %} target="_blank" rel="noopener"{% endif %}>
         <img src="{{ st(x.img) }}" alt="{{ x.t }}" loading="lazy" width="120" height="120"><span><span class="tag">{{ x.tag }}</span><b>{{ x.t }}</b><small>{{ x.d }}</small><i>{{ x.btn }} {{ arrow() }}</i></span></a>{% endfor %}</div>
     </div>
   </div></section>{% endif %}
@@ -444,7 +444,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
 </nav>
 <script>window.MLDS={base:'{{ base }}',slug:'home',interest:''};</script>
 <script src="/static/site/site.js?v={{ ver }}" defer></script>
-<script src="/static/site/home.js?v={{ ver }}" defer></script>
+<script src="/static/site/home.js?v={{ ver }}" defer></script>{% if free %}<script src="/static/site/tools.js?v={{ ver }}" defer></script>{% endif %}
 <script src="/static/site/track.js?v={{ ver }}" defer></script>
 </body>
 </html>
