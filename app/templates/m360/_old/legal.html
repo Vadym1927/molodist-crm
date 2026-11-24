@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }}</title>
+  <link rel="stylesheet" href="../static/app.css">
+</head>
+<body>
+  <header class="sticky-header"><div class="container header-inner"><a class="brand-box brand-box-score-lockup" href="./"><span class="brand-score-line"><span class="brand-score-top">MOLODIST</span><span class="brand-score-inline">360</span></span><span class="brand-score-bottom">SCORE</span></a></div></header>
+  <main class="section"><article class="container card legal-page">
+  {% if page == "privacy" %}
+    <div class="kicker">Правова інформація</div><h1>Політика конфіденційності</h1>
+    <p class="lead">MOLODIST 360 дбайливо ставиться до персональних даних, які ви надаєте для проходження оцінки.</p>
+    <h2>Які дані ми обробляємо</h2><p>Ім’я, прізвище, номер телефону, email, дату народження, стать, місто, відповіді на запитання оцінки та, якщо ви додасте його добровільно, фото.</p>
+    <h2>Для чого це потрібно</h2><p>Для створення вашого профілю, формування та збереження результату MOLODIST 360, підготовки персональних рекомендацій і зв’язку щодо результатів або консультації.</p>
+    <h2>Ваші права</h2><p>Ви можете звернутися для уточнення, оновлення або видалення своїх персональних даних, написавши на <a href="mailto:info.molodostua@gmail.com">info.molodostua@gmail.com</a>.</p>
+    <h2>Володілець даних</h2><p>ФОП Колган Дар’я Олександрівна, м. Київ, вул. Князя Романа Мстиславича, 28а, ЖК «Автограф».</p>
+  {% else %}
+    <div class="kicker">Правова інформація</div><h1>Умови користування</h1>
+    <p class="lead">MOLODIST 360 — інформаційна комплексна оцінка п’яти сфер, що впливають на самопочуття, спосіб життя та зовнішність.</p>
+    <h2>Інформаційний характер</h2><p>Результат оцінки не є медичним діагнозом, медичною консультацією або призначенням лікування. За медичними рішеннями звертайтеся до лікаря.</p>
+    <h2>Відповіді</h2><p>Будь ласка, надавайте достовірні відповіді. Від цього залежить коректність персонального розбору та рекомендацій.</p>
+    <h2>Авторські права</h2><p>Усі матеріали курсу захищені. Їх копіювання, поширення, публікація або комерційне використання дозволяються лише за попередньою письмовою згодою правовласника, крім випадків, передбачених законодавством України.</p>
+  {% endif %}
+  <a class="btn btn-secondary legal-back" href="./">← Повернутися до MOLODIST 360</a>
+  </article></main>
+</body>
+</html>

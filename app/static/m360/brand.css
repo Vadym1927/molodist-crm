@@ -1,0 +1,67 @@
+/* «Молодість 360» за брендбуком MOLODIST 2026 — шар поверх app.css (стара версія: app_old.css, templates/m360/_old/).
+   Кольори: білий #FFFFFF, крем #F7F4F0, грейдж #E9E5DF, графіт #2A2430, глибокий фіолетовий #3B3050, лаванда #E4DEEF / #C9BFE6;
+   класичний #5C4B82 — лише кнопки й посилання. Шрифти: Belleza — лише слово MOLODIST; Montserrat — заголовки великими; Open Sans — текст. */
+@import url("/static/fonts/fonts.css");
+:root{--bg:#F7F4F0;--bg-soft:#FFFFFF;--text:#2A2430;--muted:#6B6472;--accent:#5C4B82;--accent-2:#5C4B82;--line:#E9E5DF}
+body{font-family:"Open Sans",system-ui,sans-serif!important;color:#2A2430;background:#FFFFFF!important}
+
+/* заголовки — Montserrat великими */
+h1,h2,h3,.landing-hero-copy h1,.problem-text h2,#methodology .section-heading h2,.benefits-heading h2,.final-cta-copy h2,
+.test-shell h2,.methodology-card h3,.result-title-row h1,.legal-page h1,.legal-page h2,.site-footer h2{
+  font-family:Montserrat,system-ui,sans-serif!important;text-transform:uppercase;letter-spacing:.01em!important;font-weight:600!important;color:#2A2430}
+.landing-hero-copy h1{font-size:clamp(34px,4.2vw,56px)!important;line-height:1.05!important}
+.problem-text h2,#methodology .section-heading h2,.test-shell h2{font-size:clamp(28px,3.2vw,42px)!important;line-height:1.08!important}
+.benefits-heading h2,.final-cta-copy h2{font-size:clamp(26px,3vw,38px)!important;line-height:1.1!important}
+.methodology-card h3{font-size:15px!important;letter-spacing:.03em!important}
+.result-title-row h1{font-size:clamp(24px,3.4vw,40px)!important;white-space:normal}
+.hero-accent{color:#3B3050!important}
+.kicker{color:#5C4B82!important;font-family:Montserrat,sans-serif;font-weight:600!important;letter-spacing:.16em!important}
+.kicker::before,.kicker::after{background:#C9BFE6!important}
+.score,.big-score-number,.brand-score-inline,.factor-icon{font-family:Montserrat,sans-serif!important;color:#3B3050!important}
+
+/* кнопки — класичний фіолетовий, без яскравих градієнтів */
+.btn{font-family:Montserrat,sans-serif!important;font-weight:600!important;text-transform:uppercase;letter-spacing:.08em;font-size:13px!important;border-radius:999px!important}
+.btn-primary,.final-cta-card .btn-primary{background:#5C4B82!important;color:#fff!important;box-shadow:0 12px 28px rgba(59,48,80,.22)!important}
+.btn-primary:hover{background:#3B3050!important}
+.btn-secondary{background:#fff!important;color:#3B3050!important;border:1px solid #C9BFE6!important;box-shadow:none!important}
+a{color:inherit}
+
+/* шапка: словесний знак MOLODIST + «360 Score» */
+.sticky-header{background:rgba(255,255,255,.96)!important;border-bottom:1px solid #E9E5DF!important;backdrop-filter:blur(8px)}
+.m-lock{display:inline-flex;align-items:baseline;gap:10px;text-decoration:none;color:#2A2430;white-space:nowrap}
+.m-lock .wm{font-family:Belleza,serif;font-size:24px;letter-spacing:.16em;line-height:1;color:#2A2430}
+.m-lock .sc{font-family:Montserrat,sans-serif;font-weight:600;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#5C4B82}
+.m-lock .sc b{font-size:15px;color:#3B3050;margin-right:4px}
+.header-nav a{font-family:Montserrat,sans-serif;font-weight:600;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#2A2430!important}
+.phone{font-family:Montserrat,sans-serif;font-weight:600;color:#2A2430!important}
+.social-link{color:#3B3050!important}.social-link svg{width:20px;height:20px}
+
+/* темна смуга «Що ви отримаєте» — графіт */
+.result-preview-section{background:#2A2430!important}
+.result-preview-section::after{background:linear-gradient(90deg,rgba(42,36,48,.97) 0%,rgba(42,36,48,.9) 45%,rgba(42,36,48,.25) 100%)!important}
+.result-preview-section h2,.result-preview-section h3{color:#fff!important}
+
+/* картки й фони */
+.card,.methodology-card{border-color:#E9E5DF!important}
+.methodology-card{background:#fff!important;box-shadow:0 10px 26px rgba(42,36,48,.06)!important}
+.hero,.problem-section,#methodology{background:transparent!important}
+.final-cta-card{background:#F7F4F0!important}
+
+/* підвал — графіт, знак MOLODIST білим */
+.site-footer{background:#2A2430!important;color:rgba(255,255,255,.82)!important}
+.site-footer .m-lock .wm{color:#fff}.site-footer .m-lock .sc{color:#C9BFE6}.site-footer .m-lock .sc b{color:#fff}
+.footer-logo img{display:none}
+.site-footer a{color:#fff}
+
+/* сторінка результату й анкета */
+.progress-bar span,.progress span,.progress-fill{background:#5C4B82!important}
+input:focus,select:focus,textarea:focus{border-color:#5C4B82!important;box-shadow:0 0 0 3px #E4DEEF!important;outline:0}
+
+/* правки після перегляду */
+.header-nav{gap:20px!important}.header-nav a{white-space:nowrap;letter-spacing:.06em!important;font-size:11.5px!important}
+.sticky-header .btn-primary{white-space:nowrap;padding:0 18px!important;min-height:42px}
+.footer-logo{background:transparent!important;width:auto!important;overflow:visible!important;line-height:1!important}
+.result-list-item strong,.result-list-item b,.result-list-item h3,.landing-hero-overlay strong,.hero-spheres-count{font-family:Montserrat,sans-serif!important;font-weight:600!important}
+.result-list-item > div{border-left-color:rgba(201,191,230,.5)!important}
+html,body{overflow-x:clip}
+@media (max-width:560px){.m-lock .wm{font-size:19px;letter-spacing:.14em}.m-lock{gap:7px}}

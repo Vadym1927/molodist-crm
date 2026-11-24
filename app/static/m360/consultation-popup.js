@@ -12,7 +12,7 @@
     <section class="consultation-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="consultation-title">
       <button class="consultation-modal__close" type="button" aria-label="Закрити" data-consultation-close>×</button>
       <p class="consultation-modal__eyebrow">MOLODIST 360</p>
-      <h2 id="consultation-title">Записатись на консультацію</h2>
+      <h2 id="consultation-title">Записатися на консультацію</h2>
       <p class="consultation-modal__intro">Залиште контакти — очікуйте повідомлення від адміністратора MOLODIST для погодження часу.<br><span class="consultation-modal__hours">Графік роботи адміністратора: Вт–Сб, 10:00–20:00.</span></p>
       <form class="consultation-form" novalidate>
         <label>Ім’я<input name="name" autocomplete="name" required maxlength="120"></label>
