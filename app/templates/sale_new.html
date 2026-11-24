@@ -317,6 +317,10 @@ var DOCS={{ doctors|map(attribute='id')|list|tojson }},DN={{ doctors|map(attribu
 var METHODS={{ methods|tojson }},CERTS={{ certs|tojson }};
 function f2(v){return (+v||0).toLocaleString('uk-UA',{minimumFractionDigits:2,maximumFractionDigits:2})+' ₴'}
 function esc(s){return String(s||'').replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+/* Послуги лабораторії CSD: спеціаліст — «Лабораторія CSD»; ініціатора (лікаря) обирають лише для ексцизійної гістології */
+var CSD_LAB=(function(){var i=DN.findIndex(function(n){return /CSD/i.test(n)});return i<0?null:DOCS[i]})();
+function csdDoc(it){if(it._csd||it.kind!=='service'||!CSD_LAB||!/CSD/i.test((it.category||'')+' '+(it.name||'')))return;it._csd=1;
+  if(/ексцизійн/i.test(it.name||'')){if(it.doctor_id===CSD_LAB)it.doctor_id=null}else it.doctor_id=CSD_LAB}
 function docSel(v){return '<select class="d"><option value="">Спеціаліст / продавець</option>'+DOCS.map(function(id,i){return '<option value="'+id+'"'+(id==v?' selected':'')+'>'+esc(DN[i])+'</option>'}).join('')+'</select>'}
 function _x(){}
 var KL={service:'Послуга',product:'Товар',other:'Інше',certificate:'Сертифікат',subscription:'Абонемент',topup:'Поповнення балансу'},GIFTS={{ gift_types|tojson }},PKGS={{ packages|tojson }};
@@ -336,7 +340,7 @@ function dzRefresh(){var rs=document.getElementById('rsel');if(rs)[].forEach.cal
     nw.onchange=function(){it.rule_id=this.value?+this.value:null;this.classList.toggle('on',!!it.rule_id);quote(1)}})}
 function render(){var tb=document.getElementById('rows');tb.innerHTML='';document.getElementById('empty').style.display=S.items.length?'none':'flex';
   document.getElementById('ck-n').textContent=S.items.length?S.items.length+' поз.':'';
-  S.items.forEach(function(it,i){applyCat(it);var d=document.createElement('div'),lots='';d.className='cr';
+  S.items.forEach(function(it,i){csdDoc(it);applyCat(it);var d=document.createElement('div'),lots='';d.className='cr';
     if(it.kind==='product'&&it.lots&&it.lots.length){var dd=function(x){return x.split('-').reverse().join('.')};
       if(it.lots.length===1){it.expiry=it.lots[0].expiry;lots='<label class="ini exp"><i>Термін дії</i><span class="ex1">до '+dd(it.expiry)+(it.lots[0].short?' · −'+it.lots[0].short+'%':'')+'</span></label>'}
       else{if(it.expiry&&!it.lots.some(function(l){return l.expiry==it.expiry}))it.expiry=null;

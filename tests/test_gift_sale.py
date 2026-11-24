@@ -23,6 +23,7 @@ def test_gift_templates_sale_and_pay():
     with TestClient(app) as c:
         c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
         page = c.get("/sales/new").text
+        assert "function csdDoc" in page and "ексцизійн" in page      # CSD: спеціаліст — лабораторія, ініціатор лише для ексцизійної гістології
         assert "GIFTS=[" in page and "\\u0421\\u0435\\u0440\\u0442\\u0438\\u0444\\u0456\\u043a\\u0430\\u0442 2000" in page
         # продаж сертифіката готівкою → виписано в картку
         j = c.post("/sales", json={"patient_id": pid, "items": [{"kind": "certificate", "ref_id": tid, "name": "Сертифікат 2000", "qty": 1, "price": 2000, "doctor_id": did}],
