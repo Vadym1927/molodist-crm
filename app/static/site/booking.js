@@ -316,8 +316,9 @@
   function next() {                                          // від послуг — до спеціаліста або одразу до часу
     if (!st.svcs.length) return;
     var c = common(); resetTime();
-    if (c.length === 1) { st.doc = DOC[c[0]]; st.anyDoc = false; go(3); loadDays(); }
-    else { if (st.doc && c.indexOf(st.doc.id) < 0) st.doc = null; renderDocs(); go(2); }
+    if (st.doc && c.indexOf(st.doc.id) < 0) st.doc = null;          // спеціаліста обирають завжди — навіть якщо він один
+    if (!st.doc && st.onlyDoc && c.indexOf(st.onlyDoc) >= 0) st.doc = DOC[st.onlyDoc];
+    renderDocs(); go(2);
     root.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
@@ -348,7 +349,7 @@
     var b = e.target.closest('[data-go]'); if (!b || root.dataset.step === '5') return;
     var n = +b.dataset.go;
     if (b.tagName === 'LI' && n > +root.dataset.step) return;
-    if (n === 2 && st.svcs.length) { if (common().length < 2) n = 1; else renderDocs(); }
+    if (n === 2 && st.svcs.length) { if (!common().length) n = 1; else renderDocs(); }
     if (n === 3 && st.svcs.length && (st.doc || st.anyDoc) && !st.days.length) loadDays();
     go(n);
   });
