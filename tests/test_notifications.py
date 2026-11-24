@@ -25,6 +25,8 @@ def test_notifications_and_pages():
         assert "Телефонію не підключено" in c.get("/telephony").text and "WhatsApp" in c.get("/chats").text
         page = c.get("/calendar").text
         assert 'href="/telephony"' in page and 'href="/chats"' in page and 'id="nt-bell"' in page
+        ch = c.get("/chats").text
+        assert 'id="cx-snd"' in ch and "cxSetMute" in ch and "cx_mute" in ch   # вимкнути/увімкнути звук нових повідомлень
         assert "＋ Бюті-план" in c.get("/plans").text
 
 

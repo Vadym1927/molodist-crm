@@ -61,7 +61,11 @@ dialog.cx-dl{border:0;border-radius:18px;padding:22px;width:min(420px,92vw);box-
 @media(max-width:720px){.cx{grid-template-columns:1fr;height:auto}.cx>div{border-right:0;border-bottom:1px solid #F1EDE8;min-height:260px}}
 </style>
 <div class="cx-h"><div><div class="eyebrow">Комунікації</div><h1>Центр спілкування</h1><p>Instagram, Facebook, Viber і Telegram — читайте й відповідайте з CRM.</p></div>
-  {% if can(user,'users') %}<a class="btn ghost" href="/settings/channels?open={{ '' }}">⚙ Канали</a>{% endif %}</div>
+  <div style="display:flex;gap:8px;align-items:center"><button type="button" class="btn ghost" id="cx-snd" onclick="cxSndT()" title="Звук нового повідомлення в цьому браузері">🔔 Звук увімкнено</button>
+  {% if can(user,'users') %}<a class="btn ghost" href="/settings/channels?open={{ '' }}">⚙ Канали</a>{% endif %}</div></div>
+<script>(function(){var b=document.getElementById('cx-snd');function m(){return window.cxMuted?window.cxMuted():false}
+function paint(){var x=m();b.textContent=x?'🔕 Звук вимкнено':'🔔 Звук увімкнено';b.setAttribute('aria-pressed',x?'true':'false')}
+window.cxSndT=function(){if(window.cxSetMute)window.cxSetMute(!m());paint()};paint()})();</script>
 {% if qp.get('msg') %}<div class="alert" style="{{ '' if qp.get('err') else 'background:var(--ok-bg);color:var(--ok)' }}">{{ qp.get('msg') }}</div>{% endif %}
 {% if not connected %}<div class="cx-warn"><b>Канал не підключено.</b> Налаштування → Канали → «Instagram та Facebook»: токен сторінки й вебхук.</div>
 {% elif not replies_on %}<div class="cx-warn">Відповіді з CRM вимкнено — повідомлення лише читаються (Налаштування → Канали).</div>{% endif %}
