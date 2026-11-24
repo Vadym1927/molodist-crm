@@ -65,3 +65,7 @@ input:focus,select:focus,textarea:focus{border-color:#5C4B82!important;box-shado
 .result-list-item > div{border-left-color:rgba(201,191,230,.5)!important}
 html,body{overflow-x:clip}
 @media (max-width:560px){.m-lock .wm{font-size:19px;letter-spacing:.14em}.m-lock{gap:7px}}
+.btn-primary,.hero-controls .btn-primary,.final-cta-card .btn-primary,.landing-hero-copy .btn-primary{background-image:none!important;background-color:#5C4B82!important}
+.btn-primary:hover{background-color:#3B3050!important}
+html body a.btn-primary,html body button.btn-primary,html body .btn.btn-primary{background:#5C4B82!important;background-image:none!important;box-shadow:0 12px 28px rgba(59,48,80,.22)!important}
+html body a.btn-primary:hover,html body button.btn-primary:hover{background:#3B3050!important}
