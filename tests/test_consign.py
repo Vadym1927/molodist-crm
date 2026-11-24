@@ -166,3 +166,23 @@ def test_pay_with_supplier_discount_and_lot_cost():
         db.add(l); db.commit()
         cs.set_cost(db, l, 1000)
         assert l.cost == 1000 and "850.00 → 1000.00" in l.note
+
+
+def test_delete_manual_lot_only_unsold():
+    from fastapi.testclient import TestClient
+    from app.config import settings
+    from app.main import app
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        db.add(Supplier(name="ВИДАЛ ТЕСТ", consignment=True)); p = Product(name="Крем видал тест", name_norm="крем видал тест", supplier="ВИДАЛ ТЕСТ"); db.add(p); db.flush()
+        a = cs.add_lot(db, "ВИДАЛ ТЕСТ", "X1", date(2026, 11, 24), p.id, 2, 800)
+        b = ConsignLot(supplier="ВИДАЛ ТЕСТ", invoice="X0", inv_date=date(2026, 1, 1), product_id=p.id, name=p.name, qty=3, cost=700, sold=1, source="manual")
+        db.add(b); db.commit()
+        aid, bid = a.id, b.id
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        assert f"/stock/consign/lot/{aid}/delete" in c.get("/stock/consign", params={"s": "ВИДАЛ ТЕСТ"}).text
+        c.post(f"/stock/consign/lot/{aid}/delete")
+        c.post(f"/stock/consign/lot/{bid}/delete")
+    with SessionLocal() as db:
+        assert db.get(ConsignLot, aid) is None and db.get(ConsignLot, bid) is not None

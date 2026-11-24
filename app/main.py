@@ -5896,6 +5896,21 @@ def consign_lot_sell(lid: int, qty: str = Form("1"), day: str = Form(""), note: 
     return RedirectResponse(_with_msg(f"/stock/consign?s={quote(l.supplier)}", f"Банку продано поза касою: {rep.total:,.2f} ₴ до оплати".replace(",", " ")), 303)
 
 
+@app.post("/stock/consign/lot/{lid:int}/delete")
+def consign_lot_delete(lid: int, user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Видалити помилково додану вручну позицію поставки, поки з неї нічого не продано (у звіти не потрапила)."""
+    from .models import ConsignLot
+    l = db.get(ConsignLot, lid) or (_ for _ in ()).throw(HTTPException(404))
+    sup = l.supplier
+    if l.source != "manual" or (l.sold or 0) > 0:
+        return RedirectResponse(_with_msg(f"/stock/consign?s={quote(sup)}", "Видалити можна лише додану вручну позицію, з якої ще нічого не продано", err=True), 303)
+    info = dict(supplier=sup, invoice=l.invoice, name=l.name, qty=l.qty, cost=l.cost)
+    db.delete(l)
+    db.commit()
+    audit(db, "consign.lot_delete", "consign_lot", lid, user=user, **info)
+    return RedirectResponse(_with_msg(f"/stock/consign?s={quote(sup)}", "Позицію поставки видалено"), 303)
+
+
 @app.post("/stock/consign/lot/{lid:int}/map")
 def consign_lot_map(lid: int, product_id: int = Form(...), user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
     from .models import ConsignLot
