@@ -9395,7 +9395,8 @@ def site_media(name: str):
     f = sp.media_dir() / n if n else None
     if not f or not f.is_file():
         raise HTTPException(404)
-    return FileResponse(f, headers={"Cache-Control": "public, max-age=2592000"})
+    # публічні фото сайту: дозволяємо брати їх з інших сайтів (каталоги, де ми ведемо профіль MOLODIST)
+    return FileResponse(f, headers={"Cache-Control": "public, max-age=2592000", "Access-Control-Allow-Origin": "*"})
 
 
 @app.post("/settings/site/media")
