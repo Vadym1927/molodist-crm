@@ -1,0 +1,4 @@
+<meta name="theme-color" content="#2A2430">
+  <link rel="icon" href="/static/site/brand/mono-violet.svg" type="image/svg+xml"><link rel="icon" href="/static/site/brand/mono-violet-64.png" type="image/png" sizes="64x64"><link rel="apple-touch-icon" href="/static/site/brand/mono-violet-180.png">
+  {% if c and c.ga4_id and not noindex %}<script async src="https://www.googletagmanager.com/gtag/js?id={{ c.ga4_id }}"></script>
+  <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','{{ c.ga4_id }}');{% if c.ads_id %}gtag('config','{{ c.ads_id }}');{% endif %}</script>{% endif %}

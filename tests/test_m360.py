@@ -52,3 +52,15 @@ def test_m360_full_flow_links_patient_and_builds_pdf(monkeypatch):
         a = db.query(M360Assessment).filter_by(token=tok).one()
         p = db.get(Patient, a.patient_id)
         assert p and p.phone.endswith("671112299") and a.status == "completed"
+
+
+def test_m360_seo_and_social():
+    """Сторінка 360: SEO/OG (canonical, картинка для соцмереж, schema.org), соцмережі з налаштувань сайту; результат — noindex."""
+    from fastapi.testclient import TestClient
+    from app.main import app
+    with TestClient(app) as c:
+        t = c.get("/_site/molodist-360/").text
+        assert 'rel="canonical" href="https://molodist.com.ua/molodist-360/"' in t and 'og:image' in t and "schema.org" in t
+        assert "instagram.com/_molodist" in t and "t.me/molodist_ua" in t
+        assert c.get("/_site/molodist-360/static/og-360.jpg").status_code == 200
+        assert "noindex" in c.get("/_site/molodist-360/result/abcdefgh123").text

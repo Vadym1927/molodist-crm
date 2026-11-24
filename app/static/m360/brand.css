@@ -69,3 +69,4 @@ html,body{overflow-x:clip}
 .btn-primary:hover{background-color:#3B3050!important}
 html body a.btn-primary,html body button.btn-primary,html body .btn.btn-primary{background:#5C4B82!important;background-image:none!important;box-shadow:0 12px 28px rgba(59,48,80,.22)!important}
 html body a.btn-primary:hover,html body button.btn-primary:hover{background:#3B3050!important}
+.site-footer .m-soc{margin-top:10px}.site-footer .m-soc a{display:inline;color:#fff}

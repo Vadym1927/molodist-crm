@@ -9806,10 +9806,22 @@ def m360_noslash(request: Request):
     return RedirectResponse("molodist-360/" + (f"?{q}" if q else ""), 301)
 
 
+def _m360_ctx(request: Request) -> dict:
+    """Спільне для сторінок «Молодість 360»: контакти й аналітика сайту, SEO (canonical, OG), Viber — як на molodist.com.ua."""
+    from .services import site_pages as sp
+    with SessionLocal() as db:
+        c = sp.cfg(db)
+        viber = sp.viber_link(db, c)
+    host = (request.headers.get("host") or "").split(":")[0].lower()
+    return {"c": c, "viber": viber, "year": date.today().year, "noindex": host not in ("molodist.com.ua", "www.molodist.com.ua"),
+            "canonical": "https://molodist.com.ua/molodist-360/", "og_img": "https://molodist.com.ua/molodist-360/static/og-360.jpg"}
+
+
 @app.get("/_site/molodist-360/", response_class=HTMLResponse)
 def m360_landing(request: Request):
     from .services.m360 import core as m3
-    return templates.TemplateResponse(request, "m360/landing.html", {"questionnaire": json.dumps(m3.QUESTIONNAIRE, ensure_ascii=False), "title": "MOLODIST 360"})
+    return templates.TemplateResponse(request, "m360/landing.html", {"questionnaire": json.dumps(m3.QUESTIONNAIRE, ensure_ascii=False), "title": "MOLODIST 360",
+                                                                    **_m360_ctx(request)})
 
 
 @app.get("/_site/molodist-360/privacy-policy", response_class=HTMLResponse)
@@ -9832,7 +9844,7 @@ def m360_static(path: str):
 
 @app.get("/_site/molodist-360/result/{tok}", response_class=HTMLResponse)
 def m360_result_page(request: Request, tok: str):
-    r = templates.TemplateResponse(request, "m360/result.html", {"assessment_id": tok})
+    r = templates.TemplateResponse(request, "m360/result.html", {"assessment_id": tok, **_m360_ctx(request)})
     r.headers["X-Robots-Tag"] = "noindex"
     return r
 
