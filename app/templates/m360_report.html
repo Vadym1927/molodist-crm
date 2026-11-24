@@ -20,7 +20,7 @@
   <div><small>Почали тест</small><b>{{ r.started }}</b></div>
   <div><small>Завершили</small><b>{{ r.done }}</b><span class="small muted">{{ (100 * r.done // r.started) ~ '%' if r.started else '—' }}</span></div>
   <div><small>Середній бал</small><b>{{ r.avg if r.avg is not none else '—' }}</b></div>
-  <div><small>Прийшли в клініку</small><b>{{ r.came_n }}</b><span class="small muted">після тесту</span></div>
+  <div><small>Нові прийшли в клініку</small><b>{{ r.came_n }}</b><span class="small muted">після тесту · {{ r.old_n }} вже були пацієнтами</span></div>
 </div>
 <div class="mr-g">
   <div class="mr-c"><h3>Середні бали за модулями</h3>{% for name, v in r.mods %}<div class="bar"><span>{{ name }}</span><i style="width:{{ (v * 18)|int }}px"></i><em>{{ v }}/10</em></div>{% else %}<p class="muted small">Ще немає завершених тестів.</p>{% endfor %}
@@ -34,7 +34,7 @@
   <td>{% if p %}<a href="/patients/{{ p.id }}#t-m360">{{ p.full_name }}</a>{% else %}{{ a.first_name }} {{ a.last_name }}{% endif %}<div class="small muted">{{ a.phone }}</div></td>
   <td>{% if a.status == 'completed' and a.overall_score is not none %}<span class="tag {{ 'ok' if a.overall_score >= 75 else ('bad' if a.overall_score < 60 else '') }}">{{ '%g' % a.overall_score }}</span>{% else %}<span class="tag">не завершив</span>{% endif %}</td>
   <td class="small">{% for m in (a.result or {}).get('modules') or [] %}{{ m.module_name }} {{ m.module_score }}{{ ' · ' if not loop.last }}{% endfor %}</td>
-  <td>{% if r.came.get(a.patient_id) %}<span class="tag ok">прийшов</span>{% else %}—{% endif %}</td>
+  <td>{% set cm = r.came.get(a.patient_id) %}{% if cm == 'old' %}<span class="tag">вже пацієнт</span>{% elif cm %}<span class="tag ok">прийшов</span>{% else %}—{% endif %}</td>
   <td class="small">{% if a.status == 'completed' %}<a href="/_site/molodist-360/assets/pdfs/{{ a.token }}.pdf" target="_blank">PDF</a>{% endif %}</td></tr>
 {% else %}<tr><td colspan="6" class="muted">За період анкет немає.</td></tr>{% endfor %}</table></div></div>
 {% endblock %}

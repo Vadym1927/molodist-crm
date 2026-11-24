@@ -425,6 +425,16 @@ def qr(db: Session, slug: str, q: dict, ua: str, lang: str, ref: str) -> str | N
 
 
 # ---------------- звіт «Сайт Дарʼї» ----------------
+def was_patient(db: Session, pt: Patient | None, t0: datetime) -> bool:
+    """Картка існувала до реєстрації на сайті / тесту (CleverBox, CRM, візити чи чеки раніше) — у конверсію сайту в клініку не рахується."""
+    if not pt or not t0 or t0 <= datetime.min:
+        return False
+    return bool((pt.cb_registered_at and pt.cb_registered_at < t0 - timedelta(days=1))
+                or (pt.created_at and pt.created_at < t0 - timedelta(hours=1))
+                or db.scalar(select(Visit.id).where(Visit.patient_id == pt.id, Visit.status == "done", Visit.starts_at < t0).limit(1))
+                or db.scalar(select(Check.id).where(Check.patient_id == pt.id, Check.deleted.is_(False), Check.date < t0).limit(1)))
+
+
 def report(db: Session, d_from: date, d_to: date) -> dict:
     a, b = datetime.combine(d_from, datetime.min.time()), datetime.combine(d_to, datetime.max.time())
     profs = list(db.scalars(select(DkProfile).order_by(DkProfile.registered_at.desc())))
@@ -444,7 +454,11 @@ def report(db: Session, d_from: date, d_to: date) -> dict:
                list(db.scalars(select(Visit).where(Visit.patient_id == pid, Visit.status == "done", Visit.starts_at >= t0)))
         rev = sum(float(s.total or 0) for s in db.scalars(select(Sale).where(Sale.patient_id == pid, Sale.status == "paid", Sale.at >= t0)))
         rev += sum(float(c.amount or 0) for c in db.scalars(select(Check).where(Check.patient_id == pid, Check.deleted.is_(False), Check.date >= t0)))
-        clinic[pid] = {"booked": bool(appts or came), "came": bool(came), "revenue": round(rev, 2)}
+        # конверсію в клініку рахуємо лише для НОВИХ: картки не було до реєстрації на сайті (ні в CleverBox, ні в CRM, ні візитів/чеків раніше)
+        pt = pats.get(pid)
+        old_pt = was_patient(db, pt, t0)
+        clinic[pid] = {"existing": old_pt, "booked": bool(appts or came) and not old_pt, "came": bool(came) and not old_pt,
+                       "revenue": 0.0 if old_pt else round(rev, 2), "old_came": bool(came) and old_pt}
     rows = []
     for pid in sorted(pids, key=lambda i: first.get(i) or datetime.min, reverse=True):
         p, prof = pats.get(pid), next((x for x in profs if x.patient_id == pid), None)
@@ -461,9 +475,11 @@ def report(db: Session, d_from: date, d_to: date) -> dict:
            "bmi": sum(1 for r in inp if r["bmi"]), "hads": sum(1 for r in inp if r["hads"]),
            "free": sum(1 for r in inp if r["free"]), "buyers": len({o.patient_id for o in paid_p}), "sold": len(paid_p),
            "revenue": round(sum(o.amount for o in paid_p), 2), "booked": sum(1 for r in inp if r.get("booked")),
-           "came": sum(1 for r in inp if r.get("came")), "clinic_revenue": round(sum(r.get("revenue") or 0 for r in inp), 2),
+           "came": sum(1 for r in inp if r.get("came")), "existing": sum(1 for r in inp if r.get("existing")), "clinic_revenue": round(sum(r.get("revenue") or 0 for r in inp), 2),
            "qr": db.scalar(select(func.count(QrHit.id)).where(QrHit.at >= a, QrHit.at <= b)) or 0}
-    kpi["pct"] = {k: (round(100 * kpi[k] / n) if n else None) for k in ("profile", "free", "booked", "came")}
+    kpi["new"] = n - kpi["existing"]
+    kpi["pct"] = {k: (round(100 * kpi[k] / n) if n else None) for k in ("profile", "free")}
+    kpi["pct"].update({k: (round(100 * kpi[k] / kpi["new"]) if kpi["new"] else None) for k in ("booked", "came")})
     kpi["conv_buy"] = round(100 * kpi["buyers"] / kpi["registered"]) if kpi["registered"] else None
     d = doctor(db)
     salary = sum(float(x.amount or 0) for x in db.scalars(select(SalaryAdj).where(SalaryAdj.article == SALARY_ARTICLE,
@@ -626,6 +642,9 @@ def m360_report(db: Session, d_from: date, d_to: date) -> dict:
     came = {}
     for pid in {x.patient_id for x in rows if x.patient_id}:
         t0 = min(x.created_at for x in rows if x.patient_id == pid)
+        if was_patient(db, pats.get(pid), t0):
+            came[pid] = "old"
+            continue
         came[pid] = bool(db.scalar(select(Visit.id).where(Visit.patient_id == pid, Visit.status == "done", Visit.starts_at >= t0).limit(1))) or \
             any(ap.status in ("done", "paid", "arrived") for ap in db.scalars(select(Appointment).where(Appointment.patient_id == pid, Appointment.start >= t0)))
     return {"rows": rows, "pats": pats, "came": came, "started": len(rows), "done": len(done),
@@ -633,7 +652,7 @@ def m360_report(db: Session, d_from: date, d_to: date) -> dict:
             "mods": sorted(((k, round(sum(v) / len(v), 1)) for k, v in mods.items()), key=lambda t: t[1]),
             "risks": sorted(risks.items(), key=lambda t: -t[1])[:8],
             "bands": [(lbl, sum(1 for x in done if lo <= x.overall_score < hi)) for lbl, lo, hi in bands],
-            "came_n": sum(1 for v in came.values() if v)}
+            "came_n": sum(1 for v in came.values() if v is True), "old_n": sum(1 for v in came.values() if v == "old")}
 
 
 def revoke(db: Session, pid: int, mid: str) -> int:

@@ -13,7 +13,10 @@
 .dkr-fn{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}.dkr-fn>div{background:#F7F4F0;border-radius:12px;padding:10px 12px}.dkr-fn b{display:block;font:800 20px var(--sans)}.dkr-fn small{color:#6b6575}
 .dkr-t{width:100%;border-collapse:collapse;font-size:13px}.dkr-t th{text-align:left;font-weight:700;color:#8a8496;font-size:11px;text-transform:uppercase;letter-spacing:.05em;padding:6px 8px;border-bottom:1px solid #ECE7E1}
 .dkr-t td{padding:7px 8px;border-bottom:1px solid #F3EFEA;vertical-align:top}.tag{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11.5px;background:#F1EDE8;margin:1px}.tag.ok{background:#E4F2EA;color:#2f7a55}
-@media(max-width:900px){.dkr-k{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.fn-row{display:grid;grid-template-columns:200px 1fr 48px 48px;gap:12px;align-items:center;padding:6px 0;font-size:14px;border-bottom:1px solid #F3EFEA}.fn-row:last-of-type{border-bottom:0}
+.fn-b{height:14px;background:#F1EDE8;border-radius:99px;overflow:hidden}.fn-b i{display:block;height:100%;background:#5C4B82;border-radius:99px;min-width:2px}
+.fn-row b{font:700 16px var(--sans);text-align:right}.fn-row em{font-style:normal;color:#6b6575;text-align:right;font-size:13px}
+@media(max-width:900px){.fn-row{grid-template-columns:130px 1fr 36px 40px;font-size:13px}.dkr-k{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 <div class="dkr-h"><div><div class="eyebrow"><a href="/reports" style="color:inherit;text-decoration:none">← Усі звіти</a> · Маркетинг</div>
   <h1>Сайт Дарʼї Колган</h1><p class="small muted" style="margin:4px 0 0">molodist.com.ua/dr-kolgan · {{ d_from.strftime('%d.%m.%Y') }} — {{ d_to.strftime('%d.%m.%Y') }}</p></div>
@@ -28,21 +31,15 @@
   <div><small>Повний профіль</small><b>{{ k.profile }}</b><span>{{ pc(k.pct.profile) }} · дата народження й стать</span></div>
   <div><small>Продано гайдів</small><b>{{ k.sold }}</b><span>{{ u(k.revenue) }} ₴ · купили {{ k.buyers }} ({{ pc(k.conv_buy) }} зареєстр.)</span></div>
   <div><small>Нараховано Дарʼї</small><b>{{ u(r.salary) }} ₴</b><span>{{ r.doctor.name if r.doctor else 'лікаря не знайдено — Налаштування' }} · 100% продажів</span></div>
-  <div><small>Записались у клініку</small><b>{{ k.booked }}</b><span>{{ pc(k.pct.booked) }} · прийшли {{ k.came }} ({{ pc(k.pct.came) }})</span></div>
-  <div><small>Виручка клініки з них</small><b>{{ u(k.clinic_revenue) }} ₴</b><span>чеки після реєстрації</span></div>
+  <div><small>Нові записались</small><b>{{ k.booked }}</b><span>з {{ k.new }} нових ({{ pc(k.pct.booked) }}) · прийшли {{ k.came }} ({{ pc(k.pct.came) }})</span></div>
+  <div><small>Виручка з нових</small><b>{{ u(k.clinic_revenue) }} ₴</b><span>{{ k.existing }} вже були пацієнтами — не рахуються</span></div>
 </div>
 
-<div class="dkr-c"><h3>Воронка</h3><div class="dkr-fn">
-  <div><b>{{ k.people }}</b><small>реєстрації (SMS)</small></div>
-  <div><b>{{ k.profile }}</b><small>заповнили профіль</small></div>
-  <div><b>{{ k.bmi }}</b><small>рахували ІМТ</small></div>
-  <div><b>{{ k.hads }}</b><small>пройшли HADS</small></div>
-  <div><b>{{ k.free }}</b><small>взяли безкоштовний гайд</small></div>
-  <div><b>{{ k.buyers }}</b><small>купили гайд</small></div>
-  <div><b>{{ k.booked }}</b><small>записались</small></div>
-  <div><b>{{ k.came }}</b><small>прийшли</small></div>
-  <div><b>{{ k.qr }}</b><small>сканувань QR</small></div>
-</div></div>
+<div class="dkr-c"><h3>Воронка</h3>{% set base = k.people or 1 %}
+{% for n, lbl in [(k.people,'реєстрації (SMS)'),(k.profile,'заповнили профіль'),(k.bmi,'рахували ІМТ'),(k.hads,'пройшли HADS'),(k.free,'взяли безкоштовний гайд'),(k.buyers,'купили гайд'),(k.new,'нові — картки не було'),(k.booked,'нові записались'),(k.came,'нові прийшли')] %}
+  <div class="fn-row"><span class="fn-l">{{ lbl }}</span><span class="fn-b"><i style="width:{{ [100 * n / base, 100]|min if n else 0 }}%"></i></span><b>{{ n }}</b><em>{{ (100 * n // base) ~ '%' if k.people else '—' }}</em></div>
+{% endfor %}
+  <p class="small muted" style="margin:10px 0 0">«Записались / прийшли» — лише нові: у кого не було картки в CleverBox чи CRM і візитів до реєстрації на сайті. Сканувань QR за період: <b>{{ k.qr }}</b>.</p></div>
 
 {% if r.weeks %}<div class="dkr-c"><h3>По тижнях</h3><table class="dkr-t"><tr><th>Тиждень з</th><th>Реєстрації</th><th>Купили гайд</th><th>Прийшли в клініку</th></tr>
 {% for w in r.weeks %}<tr><td>{{ w.week }}</td><td>{{ w.people }}</td><td>{{ w.bought }}</td><td>{{ w.came }}</td></tr>{% endfor %}</table></div>{% endif %}
@@ -62,7 +59,7 @@
   <td>{% if x.bmi %}<span class="tag">ІМТ</span>{% endif %}{% if x.hads %}<span class="tag">HADS</span>{% endif %}{% if not (x.bmi or x.hads) %}—{% endif %}</td>
   <td>{% for m in x.free %}<span class="tag">{{ (MAT.get(m) or {}).get('title', m) }}</span>{% else %}—{% endfor %}</td>
   <td>{{ (u(x.bought) ~ ' ₴') if x.bought else '—' }}</td>
-  <td>{% if x.came %}<span class="tag ok">прийшов{% if x.revenue %} · {{ u(x.revenue) }} ₴{% endif %}</span>{% elif x.booked %}<span class="tag">записаний</span>{% else %}—{% endif %}</td>
+  <td>{% if x.came %}<span class="tag ok">прийшов{% if x.revenue %} · {{ u(x.revenue) }} ₴{% endif %}</span>{% elif x.booked %}<span class="tag">записаний</span>{% elif x.existing %}<span class="tag" title="Картка була до реєстрації на сайті — у конверсію сайту не входить">вже пацієнт</span>{% else %}—{% endif %}</td>
   <td class="small muted">{{ x.utm[:60] if x.utm else '' }}</td></tr>
 {% else %}<tr><td colspan="8" class="muted">За період нікого.</td></tr>{% endfor %}</table></div>
 <p class="small muted" style="margin-top:8px">Результати тестів (ІМТ, HADS) тут не показуються — лише факт проходження; самі результати бачить пацієнт у своєму кабінеті. Старі реєстрації зі старого сервісу зʼявляться після переносу даних.</p></div>
