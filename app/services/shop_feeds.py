@@ -12,7 +12,7 @@ from datetime import datetime
 from xml.sax.saxutils import escape as x
 
 
-FEED_KEYS = ("google", "facebook", "hotline")
+FEED_KEYS = ("google", "facebook", "hotline", "barb")
 
 
 def _strip(h: str, n: int = 4900) -> str:
@@ -300,3 +300,47 @@ def llms(data: dict, root: str, c: dict, site: dict, full: bool = False) -> str:
     else:
         L += ["", "## Optional", f"- [Повний перелік товарів із цінами]({root}/llms-full.txt)", f"- [Фід товарів (Google Merchant XML)]({root}/feeds/google.xml)"]
     return "\n".join(L) + "\n"
+
+
+# ---------- barb.ua: формат Google Merchant, у g:google_product_category — ID категорії каталогу Barb (barb.ua/market/category_classify.txt) ----------
+BARB_CATS = [   # (ключові слова в назві / типі товару, ID Barb) — перше збігання перемагає
+    (("патч",), 22), (("навколо очей", "для повік", "eye", "очей"), 21), (("spf", "сонцезахис", "sunscreen", "sun "), 18),
+    (("бальзам для губ", "lip"), 23), (("міцеляр",), 14), (("пінка", "foam"), 12),
+    (("гель для вмивання", "очищ", "cleanser", "cleansing", "wash"), 13), (("тонер", "toner"), 463), (("тонік", "tonic"), 11),
+    (("пілінг", "peel", "ексфол", "exfol", "polish", "скраб", "scrub"), 374), (("маск", "mask"), 3),
+    (("шампун", "shampoo"), 57), (("волос", "hair", "minoxidil", "мінокси", "шкіри голови"), 73),
+    (("для тіла", "body", "тіла"), 45), (("сироват", "serum", "концентрат", "ампул", "бустер", "booster"), 5),
+    (("олія", "oil"), 4), (("спрей", "міст", "mist", "spray"), 457), (("емульс", "emulsion", "лосьйон", "lotion"), 464),
+    (("крем", "cream"), 2),
+]
+
+
+def barb_cat(title: str, ptype: str = "") -> int:
+    t = f"{title} {ptype}".lower()
+    return next((cid for keys, cid in BARB_CATS if any(k in t for k in keys)), 24)
+
+
+def barb(data: dict, root: str, notice_brands: set[str] | None = None) -> str:
+    """Фід для barb.ua (Товари → XML Import, формат Google Merchant). Без брендів «лише після консультації» і товарів, прибраних з реклами."""
+    nb = {b.lower() for b in (notice_brands or set())}
+    rows = []
+    for i in items(data, root, notice_brands):
+        if i.get("nofeed") or not i["imgs"] or i.get("consult") or str(i.get("brand") or "").lower() in nb:
+            continue
+        parts = [f"<g:id>{x(i['id'])}</g:id>", f"<title>{x(clean_title(i['title']))}</title>",
+                 f"<description>{x(clean_desc(i['desc'], i['title']) or clean_title(i['title']))}</description>",
+                 f"<link>{x(i['link'])}</link>", f"<g:image_link>{x(i['imgs'][0])}</g:image_link>"]
+        parts += [f"<g:additional_image_link>{x(u)}</g:additional_image_link>" for u in i["imgs"][1:10]]
+        parts += [f"<g:availability>{'in_stock' if i['stock'] else 'out_of_stock'}</g:availability>",
+                  f"<g:price>{i['price']:.2f} UAH</g:price>", "<g:condition>new</g:condition>", f"<g:brand>{x(i['brand'])}</g:brand>",
+                  f"<g:google_product_category>{barb_cat(i['title'], i.get('ptype') or '')}</g:google_product_category>"]
+        if i["sale"]:
+            parts.append(f"<g:sale_price>{i['sale']:.2f} UAH</g:sale_price>")
+        if i["gtin"]:
+            parts.append(f"<g:gtin>{i['gtin']}</g:gtin>")
+        if i["ptype"]:
+            parts.append(f"<g:product_type>{x(i['ptype'])}</g:product_type>")
+        rows.append("<item>" + "".join(parts) + "</item>")
+    return ('<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0"><channel>'
+            f"<title>MOLODIST</title><link>{x(root)}/</link><description>Професійна косметика MOLODIST</description>"
+            + "".join(rows) + "</channel></rss>")

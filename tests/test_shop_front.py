@@ -1102,3 +1102,12 @@ def test_rozprodazh_low_stock_and_countdown(monkeypatch):
         with SessionLocal() as db:
             sf.bulk(db, [aid], "push_off", {})
             assert not db.get(Product, aid).site_info.get("push")
+
+
+def test_barb_category_mapping():
+    from app.services import shop_feeds as fd
+    assert fd.barb_cat("Medik8 Crystal Retinal 6 сироватка") == 5
+    assert fd.barb_cat("AG SKIN C-Boost крем для шкіри навколо очей") == 21
+    assert fd.barb_cat("Сонцезахисний крем SPF 50") == 18
+    assert fd.barb_cat("Good Hair 10% minoxidil") == 73
+    assert fd.barb_cat("Щось невідоме") == 24

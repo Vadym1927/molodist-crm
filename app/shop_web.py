@@ -178,6 +178,8 @@ def register(app, templates, version: str):
             if not str(c.get("hotline_id") or "").strip():
                 raise HTTPException(404)
             body = fd.hotline(d, _feed_root(db, c), str(c.get("hotline_id")), "MOLODIST")
+        elif name == "barb":
+            body = fd.barb(d, _feed_root(db, c), nb)
         else:
             body = fd.google(d, _feed_root(db, c), "MOLODIST", nb)
         return Response(body, media_type="application/xml", headers={"Cache-Control": "public, max-age=1800"})
