@@ -48,7 +48,14 @@
 {% for o in r.orders %}<tr><td>{{ o.paid_at.strftime('%d.%m.%Y %H:%M') }}</td><td><a href="/patients/{{ o.patient_id }}">картка</a></td><td>{{ (MAT.get(o.product) or {}).get('title', o.product) }}</td><td>{{ u(o.amount) }} ₴</td><td>{{ '✓ нараховано' if o.salary_adj_id else '—' }}</td>
 <td><form method="post" action="/reports/dr-kolgan/refund" style="margin:0" onsubmit="return confirm('Оплату повернули покупцю? Продаж прибереться зі звіту, нарахування Дарʼї буде видалено.')"><input type="hidden" name="order" value="{{ o.id }}"><button class="btn sm" style="padding:2px 10px;font-size:12px">Повернення</button></form></td></tr>{% endfor %}</table></div>{% endif %}
 
-{% if r.qr %}<div class="dkr-c"><h3>QR-коди</h3>{% for slug, n in r.qr %}<span class="tag">/q/{{ slug }} — {{ n }}</span> {% endfor %}</div>{% endif %}
+<div class="dkr-c"><h3>QR-коди</h3>{% set qdest = {'home': 'магазин molodist.store', 'cbox': 'онлайн-запис'} %}
+  <table class="dkr-t"><tr><th>Код</th><th>Куди веде</th><th>За період</th><th>Усього</th><th>Перше</th><th>Останнє</th></tr>
+  {% set per = dict(r.qr) %}{% for slug, n, f, l in r.qr_all %}<tr><td>molodist.shop/q/{{ slug }}</td><td>{{ qdest.get(slug, '—') }}</td><td><b>{{ per.get(slug, 0) }}</b></td><td>{{ n }}</td>
+  <td>{{ f.strftime('%d.%m.%Y') if f else '—' }}</td><td>{{ l.strftime('%d.%m.%Y %H:%M') if l else '—' }}</td></tr>{% else %}<tr><td colspan="6" class="muted">Сканувань ще не було.</td></tr>{% endfor %}</table>
+  {% if r.qr_dev %}<p class="small muted" style="margin:8px 0 0">Пристрої за період: {% for dv, n in r.qr_dev %}{{ dv or 'невідомо' }} — {{ n }}{{ ', ' if not loop.last }}{% endfor %}</p>{% endif %}
+  {% if r.qr_rows %}<details style="margin-top:8px"><summary class="small">Усі сканування за період ({{ r.qr_rows|length }})</summary>
+  <table class="dkr-t"><tr><th>Коли</th><th>Код</th><th>Кампанія</th><th>Пристрій</th><th>Мова</th><th>Звідки</th></tr>
+  {% for h in r.qr_rows %}<tr><td>{{ h.at.strftime('%d.%m.%Y %H:%M') }}</td><td>/q/{{ h.slug }}</td><td>{{ h.utm_campaign or '—' }}{% if h.utm_content %} · {{ h.utm_content }}{% endif %}</td><td>{{ h.device or '—' }}</td><td>{{ h.lang or '—' }}</td><td>{{ h.referrer or '—' }}</td></tr>{% endfor %}</table></details>{% endif %}</div>
 
 <div class="dkr-c"><h3>Люди ({{ r.rows|length }})</h3>
 <div style="overflow-x:auto"><table class="dkr-t"><tr><th>Коли</th><th>Пацієнт</th><th>Кабінет</th><th>Тести</th><th>Гайди</th><th>Купив</th><th>Клініка</th><th>Звідки</th></tr>

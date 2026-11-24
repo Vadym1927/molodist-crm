@@ -206,3 +206,16 @@ def test_import_qr_history():
         assert dk.import_qr(db, lines[:1]) == {"added": 0, "skipped": 1}
         h = db.query(QrHit).filter_by(slug="home", utm_campaign="home").order_by(QrHit.id.desc()).first()
         assert h.at.hour == 10 and h.device == "mobile"
+
+
+def test_dr_kolgan_report_qr_section():
+    from app.config import settings
+    from app.models import QrHit
+    settings.admin_password = "pass12345"
+    with SessionLocal() as db:
+        db.add(QrHit(slug="cbox", at=datetime.now(), device="mobile", utm_campaign="cbox"))
+        db.commit()
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "pass12345"})
+        t = c.get("/reports/dr-kolgan").text
+        assert "molodist.shop/q/cbox" in t and "онлайн-запис" in t

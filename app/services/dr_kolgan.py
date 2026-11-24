@@ -494,7 +494,10 @@ def report(db: Session, d_from: date, d_to: date) -> dict:
         w["came"] += 1 if r.get("came") else 0
     return {"kpi": kpi, "rows": inp, "all_rows": rows, "weeks": sorted(weeks.values(), key=lambda x: datetime.strptime(x["week"], "%d.%m")),
             "orders": sorted(paid_p, key=lambda o: o.paid_at, reverse=True), "salary": round(salary, 2), "doctor": d,
-            "qr": db.execute(select(QrHit.slug, func.count(QrHit.id)).where(QrHit.at >= a, QrHit.at <= b).group_by(QrHit.slug)).all()}
+            "qr": db.execute(select(QrHit.slug, func.count(QrHit.id)).where(QrHit.at >= a, QrHit.at <= b).group_by(QrHit.slug)).all(),
+            "qr_rows": list(db.scalars(select(QrHit).where(QrHit.at >= a, QrHit.at <= b).order_by(QrHit.at.desc()).limit(300))),
+            "qr_dev": db.execute(select(QrHit.device, func.count(QrHit.id)).where(QrHit.at >= a, QrHit.at <= b).group_by(QrHit.device)).all(),
+            "qr_all": db.execute(select(QrHit.slug, func.count(QrHit.id), func.min(QrHit.at), func.max(QrHit.at)).group_by(QrHit.slug)).all()}
 
 
 # ---------------- перенос зі старих сервісів (одноразово) ----------------
