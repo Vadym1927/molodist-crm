@@ -134,9 +134,14 @@ def styled_bytes(data: bytes, job=None) -> bytes:
     if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
         rgba = img.convert("RGBA")
         alpha = rgba.getchannel("A")
-        if alpha.getextrema()[0] < 250:                     # уже з прозорим фоном — модель не потрібна
+        w, h = alpha.size
+        edge = [alpha.getpixel((x, y)) for x in range(0, w, max(1, w // 40)) for y in (0, h - 1)] + \
+               [alpha.getpixel((x, y)) for y in range(0, h, max(1, h // 40)) for x in (0, w - 1)]
+        if sum(1 for v in edge if v < 30) > 0.6 * len(edge):  # справді вирізаний товар (прозорі краї) — модель не потрібна
             return compose(rgba.convert("RGB"), alpha)
-        img = rgba.convert("RGB")
+        bg = Image.new("RGB", rgba.size, (255, 255, 255))      # прозорі куточки webp — на білий і далі як звичайне фото
+        bg.paste(rgba, (0, 0), alpha)
+        img = bg
     img = trim_frame(img.convert("RGB"))
     return compose(img, mask_of(img, job))
 
