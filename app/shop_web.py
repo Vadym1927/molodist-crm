@@ -324,8 +324,9 @@ def register(app, templates, version: str):
             return JSONResponse({"ok": False, "msg": str(e)}, status_code=400)
         try:                                                  # замовлення → журнал поведінки (воронка магазину), навіть якщо з monobank не повернеться
             from .services import site_stats as _ss
-            _ss.order_lead(db, body.get("sid"), r.get("number") or "", float(r.get("total") or 0),
-                           {k: body.get(k) for k in ("utm_source", "utm_medium", "utm_campaign", "gclid")}, request.headers.get("user-agent", ""))
+            if not r.get("dup"):
+                _ss.order_lead(db, body.get("sid"), r.get("number") or "", float(r.get("total") or 0),
+                               {k: body.get(k) for k in ("utm_source", "utm_medium", "utm_campaign", "gclid")}, request.headers.get("user-agent", ""))
             db.commit()
         except Exception:  # noqa: BLE001
             db.rollback()

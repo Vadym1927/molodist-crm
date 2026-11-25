@@ -226,8 +226,10 @@
       form.warehouse.addEventListener('focus', function () { if (cityRef && !form.warehouse.value) form.warehouse.dispatchEvent(new Event('input')); });
       chips(form, function (r) { cityRef = r; });
     }
+    var busy = false;
     form.addEventListener('submit', function (e) {
       e.preventDefault();
+      if (busy) return;                                   // подвійне натискання — одне замовлення
       var er = $('.err', form), bt = $('button.btn', form); er.hidden = true;
       var d = { items: load(), name: form.name.value.trim(), phone: form.phone.value, email: form.email.value.trim(), city: form.city.value.trim(),
         warehouse: form.warehouse.value.trim(), addr: form.addr ? form.addr.value.trim() : '', comment: form.comment.value.trim(), website: form.website.value,
@@ -240,9 +242,9 @@
         var gs = document.cookie.match(/(?:^|; )_ga_[A-Z0-9]+=([^;]*)/); if (gs) { var sv = decodeURIComponent(gs[1]), sm = sv.match(/\$?s(\d{9,12})/) || sv.match(/^GS1\.\d+\.(\d{9,12})/); if (sm) d.ga_sid = sm[1]; }
       } catch (x) {}
       if (!d.items.length) { er.textContent = 'Кошик порожній.'; er.hidden = false; return; }
-      bt.disabled = true; bt.textContent = 'Оформлюємо…';
+      bt.disabled = true; bt.textContent = 'Оформлюємо…'; busy = true;
       api('/api/order', d, function (j) {
-        bt.disabled = false; bt.textContent = 'Підтвердити замовлення';
+        bt.disabled = false; bt.textContent = 'Підтвердити замовлення'; if (!(j && j.ok)) busy = false;
         if (j && j.ok) {
           try { localStorage.setItem('mlds_me', JSON.stringify({ name: d.name, phone: d.phone })); localStorage.removeItem(KEY); } catch (x) {}
           try { sessionStorage.setItem('mshop_pur', String(j.number)); } catch (x) {}

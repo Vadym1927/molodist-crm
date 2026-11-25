@@ -1,7 +1,7 @@
 import pytest
 import json
 from datetime import datetime, timedelta
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from fastapi.testclient import TestClient
 
@@ -1144,3 +1144,26 @@ def test_stock_ignores_old_presence_flag(monkeypatch):
             monkeypatch.setattr(st, "balances", lambda db: {(pid, "vitrina"): 1.0})
             it = sf.catalog(db, fresh=True)["by_slug"]["krem-presence"]
             assert it["stock"] and it["variants"][0]["left"] == 1
+
+
+def test_double_submit_returns_same_order(monkeypatch):
+    from app.services import shop_front as sf
+    from app.models import SiteOrder
+    monkeypatch.setattr("app.services.tg_notify.send_text", lambda *a, **k: True)
+    with TestClient(app) as c:
+        with SessionLocal() as db:
+            k = sf.preview_key(db)
+            p = Product(name="Дубль крем", name_norm="дубль крем", price=900, site_on=True, site_info={"slug": "dubl-krem", "title": "Дубль крем", "presence": 1, "quantity": 5})
+            db.add(p); db.commit(); pid = p.id
+            cfg = sf.cfg(db); cfg["order_login"] = False; sf.save_cfg(db, cfg); db.commit()
+        c.cookies.set("shop_prev", k)
+        body = {"items": [{"id": pid, "qty": 1}], "name": "Світлана Дубль", "phone": "+380507776622", "delivery": "np", "city": "Чернівці",
+                "warehouse": "Відділення №28", "pay": "cod", "sid": "tabdubl1"}
+        a = c.post("/_shop/api/order", json=body).json()
+        b = c.post("/_shop/api/order", json=body).json()
+        assert a["ok"] and b["ok"] and a["number"] == b["number"] and b.get("dup")
+        with SessionLocal() as db:
+            ph = db.scalar(select(SiteOrder.phone).where(SiteOrder.number == a["number"]))
+            assert db.scalar(select(func.count()).select_from(SiteOrder).where(SiteOrder.phone == ph)) == 1
+        body["items"] = [{"id": pid, "qty": 2}]
+        assert c.post("/_shop/api/order", json=body).json()["number"] != a["number"]   # інша кількість — нове замовлення

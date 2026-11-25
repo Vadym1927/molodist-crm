@@ -790,6 +790,25 @@ def price_cart(db: Session, rows: list[dict], c: dict | None = None) -> dict:
             "to_free": 0 if fs else (max(0, round(free_from - total, 2)) if free_from else 0), "gifts": gifts}
 
 
+def _recent_duplicate(db: Session, phone: str, items: list, sid: str = "") -> dict | None:
+    """Те саме замовлення з тієї ж вкладки (sid + телефон + товари й кількості) за останні 2 хвилини, ще не оплачене — повертаємо його ж."""
+    if not sid:
+        return None
+    from ..models import PayLink
+    key = sorted((int(i["id"]), float(i["qty"])) for i in items)
+    since = datetime.now() - timedelta(minutes=2)
+    for o in db.scalars(select(SiteOrder).where(SiteOrder.source == "crm", SiteOrder.phone == phone, SiteOrder.created_at >= since)
+                        .order_by(SiteOrder.id.desc())):
+        if (o.raw or {}).get("sid") != sid or o.paid or sorted((int(i.get("product_id") or 0), float(i.get("qty") or 0)) for i in o.items or []) != key:
+            continue
+        out = {"ok": True, "number": o.number, "total": float(o.total or 0), "id": o.id, "dup": True}
+        pl = next((x for x in db.scalars(select(PayLink).order_by(PayLink.id.desc()).limit(50)) if (x.info or {}).get("shop_order") == o.id), None)
+        if pl and pl.url:
+            out["pay_url"] = pl.url
+        return out
+    return None
+
+
 def create_order(db: Session, data: dict, base_url: str) -> dict:
     from ..integrations.messaging import normalize_phone
     from . import shop_orders as so
@@ -820,6 +839,9 @@ def create_order(db: Session, data: dict, base_url: str) -> dict:
     if pay == "cod" and not c.get("cod"):
         pay = "online"
     gift = str(data.get("gift") or "")[:200] if str(data.get("gift") or "") in cart["gifts"] else ""
+    dup = _recent_duplicate(db, phone, cart["items"], re.sub(r"[^a-zA-Z0-9]", "", str(data.get("sid") or ""))[:32])
+    if dup:                                                 # подвійне натискання «Підтвердити» — те саме замовлення, не нове
+        return dup
     from . import coins as cn
     acc_pid = data.get("_patient_id")                       # покупець увійшов у кабінет — можна списати MOLODIST Coins
     cq = cn.quote(db, c, cart["items"], acc_pid, int(data.get("coins") or 0)) if acc_pid and pay != "parts" else {"use": 0}
