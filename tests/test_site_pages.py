@@ -48,7 +48,7 @@ def test_site_host_routing_and_lead():
         assert cl.get("/login", headers=h).status_code == 404                # CRM на домені сайту недоступна
         assert cl.get("/patients", headers=h).status_code == 404
         assert "sitemap.xml" in cl.get("/robots.txt", headers=h).text and "/beautyplan" in cl.get("/sitemap.xml", headers=h).text
-        assert cl.get("/static/site/site.css", headers=h).status_code == 200
+        _rs = cl.get("/static/site/site.css", headers=h); assert _rs.status_code == 200 and _rs.headers.get("access-control-allow-origin") == "*"
         assert cl.post("/api/lead", headers=h, json={"phone": "+380501112233", "website": "spam", "t": 9}).json()["ok"]
         r = cl.post("/api/lead", headers=h, json={"name": "Тест Сайт", "phone": "+380501112299", "interest": "Видалення новоутворень",
                                                     "formname": "vydalennia-rodymok:hero", "gclid": "Cj0TEST", "utm_source": "google", "t": 12})

@@ -912,6 +912,13 @@ class _SiteHost:
                 if host and host in _sf.hosts() and not scope["path"].startswith(("/static/", "/_shop", "/api/public/")):
                     p = "/_shop" + (scope["path"] if scope["path"] != "/" else "/")
                     scope = dict(scope, path=p, raw_path=p.encode())
+        if scope["type"] == "http" and scope["path"].startswith("/static/site/") and scope.get("method") in ("GET", "HEAD"):
+            async def _send(msg, _s=send):                 # фото сайту можна брати в каталоги (barb тощо) з браузера
+                if msg["type"] == "http.response.start":
+                    msg = dict(msg, headers=list(msg.get("headers") or []) + [(b"access-control-allow-origin", b"*")])
+                await _s(msg)
+            await self.app(scope, receive, _send)
+            return
         await self.app(scope, receive, send)
 
 
@@ -9559,7 +9566,7 @@ def site_crop(name: str):
     f = sc.path(name)
     if not f:
         raise HTTPException(404)
-    return FileResponse(f, media_type="image/webp", headers={"Cache-Control": "public, max-age=2592000"})
+    return FileResponse(f, media_type="image/webp", headers={"Cache-Control": "public, max-age=2592000", "Access-Control-Allow-Origin": "*"})
 
 
 # ---------------- Сайт Дарʼї Колган (molodist.com.ua/dr-kolgan) — перенесено зі старих сервісів :8095 / :8116 ----------------
