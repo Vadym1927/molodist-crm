@@ -11572,6 +11572,60 @@ def shop_carts_page(request: Request, status: str = "open", user: User = Depends
                   c=sf.cfg(db), sum_open=sum(r["cart"].total or 0 for r in rows if r["cart"].status == "open"))
 
 
+@app.get("/shop-carts/{cid:int}/order", response_class=HTMLResponse)
+def shop_cart_order_form(request: Request, cid: int, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    """Покинутий кошик → замовлення вручну: товари з кошика, доставка й оплата на вибір адміністратора."""
+    from .models import ShopCart
+    from .services import shop_carts as ct, shop_front as sf
+    cart = db.get(ShopCart, cid) or (_ for _ in ()).throw(HTTPException(404))
+    row = next((r for r in ct.rows(db, sf.catalog(db), "") if r["cart"].id == cid), None) or (_ for _ in ()).throw(HTTPException(404))
+    by_id = {v["id"]: v for it in sf.catalog(db)["items"] for v in it["variants"]}
+    lines = [{"id": i["id"], "qty": i["qty"], "name": (by_id.get(i["id"]) or {}).get("name") or f"товар #{i['id']}",
+              "price": (by_id.get(i["id"]) or {}).get("price") or 0, "stock": bool((by_id.get(i["id"]) or {}).get("stock")),
+              "left": (by_id.get(i["id"]) or {}).get("left")} for i in cart.items or []]
+    return render(request, "shop_cart_order.html", nav="shop", shop_tab="carts", shop_cnt=_shop_cnt(db), cart=cart, row=row, lines=lines, c=sf.cfg(db))
+
+
+@app.post("/shop-carts/{cid:int}/order")
+async def shop_cart_order_save(request: Request, cid: int, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    from .models import ShopCart, SiteOrder
+    from .services import shop_carts as ct, shop_front as sf
+    cart = db.get(ShopCart, cid) or (_ for _ in ()).throw(HTTPException(404))
+    f = await request.form()
+    items = []
+    for i in cart.items or []:
+        try:
+            q_ = int(f.get(f"qty_{i['id']}") or 0)
+        except ValueError:
+            q_ = 0
+        if q_ > 0:
+            items.append({"id": i["id"], "qty": q_})
+    who = user.name or user.login
+    data = {"items": items, "name": str(f.get("name") or ""), "phone": str(f.get("phone") or ""), "email": str(f.get("email") or ""),
+            "delivery": str(f.get("delivery") or "np"), "city": str(f.get("city") or ""), "warehouse": str(f.get("warehouse") or ""),
+            "addr": str(f.get("addr") or ""), "pay": str(f.get("pay") or "online"), "comment": str(f.get("comment") or ""), "_admin": True}
+    try:
+        r = sf.create_order(db, data, settings.public_url)
+    except sf.ShopError as e:
+        return RedirectResponse(_with_msg(f"/shop-carts/{cid}/order", str(e), True), 303)
+    o = db.get(SiteOrder, r["id"])
+    sf.log(o, "Оформлено вручну з покинутого кошика", who)
+    o.raw = {**(o.raw or {}), "manual": {"by": who, "cart": cid}}
+    if o.patient_id is None:
+        o.patient_id = cart.patient_id
+    ct.ordered(db, cart.patient_id)
+    if cart.status == "open":                          # кошик іншого телефону — все одно закриваємо: замовлення оформили
+        ct.mark_done(db, cid, f"оформлено замовлення {o.number}", who)
+    else:
+        cart.note = ((cart.note or "") + f"\n{datetime.now():%d.%m %H:%M} оформлено замовлення {o.number} — {who}").strip()[-2000:]
+    audit(db, "shop.cart.order", "shop_cart", cid, user=user, order=o.number)
+    db.commit()
+    msg = f"Замовлення {o.number} створено"
+    if r.get("pay_url"):
+        msg += f". Посилання на оплату для покупця: {r['pay_url']}"
+    return RedirectResponse(_with_msg(f"/shop-orders/{o.id}", msg), 303)
+
+
 @app.post("/shop-carts/{cid}")
 async def shop_carts_action(cid: int, request: Request, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
     from .services import shop_carts as ct, shop_front as sf
@@ -11605,18 +11659,39 @@ def shop_orders_page(request: Request, d1: str = "", d2: str = "", status: str =
         a, b = _day(d1), _day(d2)
     every = so.listing(db, a, b, "", q)
     arch = [o for o in every if o.source != "crm"]                       # історія Shop-Express: лише перегляд, у воронці не беруть участі
-    allr = arch if src == "arch" else [o for o in every if o.source == "crm"]
+    hid = [o for o in every if o.source == "crm" and (o.raw or {}).get("hidden")]   # приховані хрестиком (фейкові, дублі) — не видаляються
+    every = [o for o in every if not (o.source == "crm" and (o.raw or {}).get("hidden"))]
+    allr = arch if src == "arch" else (hid if src == "hidden" else [o for o in every if o.source == "crm"])
     legacy = {v: k for k, v in sf.LEGACY_STATUS.items()}
-    rows = [o for o in allr if src == "arch" or not status or o.status == status or o.status == legacy.get(status)]
+    rows = [o for o in allr if src in ("arch", "hidden") or not status or o.status == status or o.status == legacy.get(status)]
     pids = {i.get("product_id") for o in rows[:500] for i in (o.items or [])[:3] if i.get("product_id")}
     photos = {p_.id: p_.photo_url for p_ in db.scalars(select(Product).where(Product.id.in_(pids or {0})))}
     pats = {p_.id: p_ for p_ in db.scalars(select(Patient).where(Patient.id.in_({o.patient_id for o in rows[:500] if o.patient_id} or {0})))}
     staff = {u_.id: (u_.name or u_.login) for u_ in db.scalars(select(User))}
     c_ = sf.cfg(db)
     return render(request, "shop_orders.html", nav="shop", shop_tab="orders", shop_cnt=_shop_cnt(db), rows=rows[:500], n=len(rows), k=so.kpi(rows), arch_n=len(arch), src=src, per=per,
-                  funnel=sf.funnel([o for o in every if o.source == "crm"]), photos=photos, pats=pats, staff=staff, PAY_FAIL=sf.PAY_FAIL,
+                  funnel=sf.funnel([o for o in every if o.source == "crm"]), photos=photos, hid_n=len(hid), pats=pats, staff=staff, PAY_FAIL=sf.PAY_FAIL,
                   shop_url=(c_["canonical"].rstrip("/") + "/") if c_.get("on") else f"/_shop/?p={sf.preview_key(db)}", shop_on=bool(c_.get("on")),
                   f={"d1": d1, "d2": d2, "status": status, "q": q})
+
+
+@app.post("/shop-orders/{oid:int}/hide")
+def shop_order_hide(oid: int, request: Request, show: str = Form(""), back: str = Form(""), user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    """Хрестик у списку замовлень: сховати (фейкове, дубль, неоплачене) зі списку й підсумків. Не видаляє — видно в «Приховані»."""
+    from .models import SiteOrder
+    from .services import shop_front as sf
+    o = db.get(SiteOrder, oid) or (_ for _ in ()).throw(HTTPException(404))
+    raw = dict(o.raw or {})
+    if show:
+        raw.pop("hidden", None)
+    else:
+        raw["hidden"] = datetime.now().isoformat(timespec="minutes")
+    o.raw = raw
+    sf.log(o, "Показано в списку" if show else "Приховано зі списку", user.name or user.login)
+    audit(db, "shop.order.hide", "site_order", oid, user=user, show=bool(show))
+    db.commit()
+    back = back if back.startswith("/shop-orders") else "/shop-orders"
+    return RedirectResponse(_with_msg(back, f"Замовлення {o.number} " + ("знову в списку" if show else "приховано (видно в «Приховані»)")), 303)
 
 
 @app.get("/shop-orders/{oid:int}", response_class=HTMLResponse)

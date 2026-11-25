@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Оформити замовлення з кошика{% endblock %}
+{% block body %}
+<style>.co-g{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}.co-g label{display:grid;gap:5px;font-size:12.5px;color:var(--muted,#7B7484)}
+.co-g input,.co-g select,.co-g textarea{width:100%;margin:0}.co-it{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line)}
+.co-it input{width:70px}.rad{display:flex;gap:14px;flex-wrap:wrap}.rad label{display:flex;gap:6px;align-items:center;font-size:14px;color:var(--ink)}.rad input{width:auto;height:auto}</style>
+<p><a href="/shop-carts">‹ Покинуті кошики</a></p>
+<h1 style="margin:0 0 4px">Оформити замовлення вручну</h1>
+<div class="muted small" style="margin-bottom:12px">З покинутого кошика{% if row.name %} · {{ row.name }}{% endif %}{% if row.phone %} · {{ row.phone }}{% endif %}. Замовлення зʼявиться в «Замовленнях» як звичайне, покупцю прийдуть ті самі повідомлення.</div>
+{% include "_shop_msg.html" %}
+<form method="post" class="card" style="display:grid;gap:16px">
+  <div><h3 style="margin:0 0 6px">Товари</h3>
+    {% for i in lines %}<div class="co-it"><span>{{ i.name }} <span class="muted small">· {{ i.price|uah }}{% if not i.stock %} · немає в наявності{% elif i.left is not none %} · на вітрині {{ i.left }} шт{% endif %}</span></span>
+      <label class="small">к-сть <input name="qty_{{ i.id }}" type="number" min="0" max="50" value="{{ i.qty if i.stock else 0 }}"></label></div>
+    {% else %}<p class="muted">Кошик порожній.</p>{% endfor %}
+    <div class="muted small">0 — прибрати позицію.</div></div>
+  <div class="co-g">
+    <label>Імʼя та прізвище<input name="name" value="{{ row.name or '' }}" required></label>
+    <label>Телефон<input name="phone" value="{{ row.phone or '' }}" required></label>
+    <label>Email (необовʼязково)<input name="email" type="email"></label>
+  </div>
+  <div><h3 style="margin:0 0 6px">Доставка</h3>
+    <div class="rad"><label><input type="radio" name="delivery" value="np" checked> Нова пошта — відділення / поштомат</label>
+      <label><input type="radio" name="delivery" value="np_courier"> Нова пошта — курʼєр</label>
+      {% if c.pickup %}<label><input type="radio" name="delivery" value="pickup"> Самовивіз з MOLODIST</label>{% endif %}</div>
+    <div class="co-g" style="margin-top:10px">
+      <label>Місто<input name="city" placeholder="Київ"></label>
+      <label>Відділення / поштомат<input name="warehouse" placeholder="Відділення №12"></label>
+      <label>Адреса для курʼєра<input name="addr" placeholder="вулиця, будинок, квартира"></label></div></div>
+  <div><h3 style="margin:0 0 6px">Оплата</h3>
+    <div class="rad"><label><input type="radio" name="pay" value="online" checked> Онлайн карткою — створимо посилання monobank для покупця</label>
+      <label><input type="radio" name="pay" value="cod"> Накладений платіж (при отриманні)</label></div></div>
+  <label style="display:grid;gap:5px;font-size:12.5px;color:var(--muted,#7B7484)">Коментар<textarea name="comment" rows="2" placeholder="Домовились по телефону…"></textarea></label>
+  <div><button class="btn">Створити замовлення</button></div>
+</form>
+{% endblock %}

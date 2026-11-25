@@ -17,7 +17,8 @@
   {% if r.task %}<div class="small">Задача: <a href="/tasks?open={{ r.task.id }}">{{ r.task.title }}</a> · {{ 'відкрита' if r.task.status == 'open' else 'виконана' }}</div>{% endif %}
   {% if ct.note %}<div class="small muted" style="white-space:pre-line">{{ ct.note }}</div>{% endif %}
   {% if ct.status == 'open' %}<form method="post" action="/shop-carts/{{ ct.id }}">
-    <button class="btn" name="action" value="remind" {{ 'disabled' if not r.phone }}>{{ 'Нагадати ще раз' if ct.reminded_at else 'Надіслати нагадування' }}</button>
+    <a class="btn" href="/shop-carts/{{ ct.id }}/order">Оформити замовлення</a>
+    <button class="btn ghost" name="action" value="remind" {{ 'disabled' if not r.phone }}>{{ 'Нагадати ще раз' if ct.reminded_at else 'Надіслати нагадування' }}</button>
     {% if r.phone %}<a class="btn ghost" href="tel:{{ r.phone }}">Подзвонити</a>{% endif %}
     <input name="note" placeholder="Результат: передзвонив, подумає / оформив по телефону / не цікаво"><button class="btn ghost" name="action" value="done">Опрацьовано</button></form>{% endif %}
 </div>{% else %}<p class="muted">Покинутих кошиків немає.</p>{% endfor %}

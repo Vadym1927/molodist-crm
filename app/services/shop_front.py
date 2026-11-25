@@ -836,7 +836,7 @@ def create_order(db: Session, data: dict, base_url: str) -> dict:
         _pp = _mp.public(db)
         if not _pp["ready"] or cart["total"] < float(_pp["min_sum"] or 0):
             pay = "online"
-    if pay == "cod" and not c.get("cod"):
+    if pay == "cod" and not c.get("cod") and not data.get("_admin"):   # адміністратор може оформити й накладений платіж
         pay = "online"
     gift = str(data.get("gift") or "")[:200] if str(data.get("gift") or "") in cart["gifts"] else ""
     dup = _recent_duplicate(db, phone, cart["items"], re.sub(r"[^a-zA-Z0-9]", "", str(data.get("sid") or ""))[:32])

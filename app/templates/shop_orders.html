@@ -2,6 +2,7 @@
 {% block title %}Центр керування магазином{% endblock %}
 {% block body %}
 <style>.sc-h{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px}.sc-f{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.ohide{width:28px;height:28px;border-radius:50%;border:1px solid var(--line);background:#fff;color:#8C8496;font-size:18px;line-height:1;cursor:pointer;padding:0}.ohide:hover{background:#F7F0F3;color:#8C2F39;border-color:#E9C9D2}
 .chip{padding:7px 13px;border-radius:999px;border:1px solid var(--line);text-decoration:none;color:var(--ink);font-size:13px;background:#fff;white-space:nowrap}.chip.on{background:#3B3050;border-color:#3B3050;color:#fff}.chip b{margin-left:5px}
 .sc-k{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:14px}.sc-k div{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px}.sc-k span{display:block;font-size:12px;color:var(--muted,#7B7484);text-transform:uppercase;letter-spacing:.06em}.sc-k b{font:600 22px var(--head)}
 .sot{display:flex;gap:4px}.sot img{width:40px;height:40px;border-radius:8px;border:1px solid var(--line);object-fit:contain;background:#fff}
@@ -22,6 +23,7 @@ tr.old td{opacity:.6}</style>
 {% set pq = ('per=' ~ per) if per else ('d1=' ~ f.d1 ~ '&d2=' ~ f.d2) %}{% set base_q = pq ~ '&q=' ~ (f.q|urlencode) %}
 <div class="sc-f" style="margin-bottom:12px"><a href="?{{ base_q }}" class="chip {{ 'on' if not f.status and src != 'arch' }}">Усі</a>
   {% for x in funnel %}<a href="?{{ base_q }}&status={{ x.name|urlencode }}" class="chip {{ 'on' if f.status == x.name and src != 'arch' }}">{{ x.name }}<b>{{ x.n }}</b></a>{% endfor %}
+  {% if hid_n %}<a href="?{{ base_q }}&src=hidden" class="chip {{ 'on' if src == 'hidden' }}" title="Сховані хрестиком: фейкові, дублі, неоплачені — не видалені">Приховані<b>{{ hid_n }}</b></a>{% endif %}
   {% if arch_n %}<a href="?{{ base_q }}&src=arch" class="chip {{ 'on' if src == 'arch' }}" style="margin-left:auto" title="Старі замовлення з Shop-Express — лише перегляд">Архів Shop-Express<b>{{ arch_n }}</b></a>{% endif %}</div>
 <div class="card" style="padding:0;overflow:auto"><table class="tbl" style="width:100%">
   <thead><tr><th>№</th><th>Дата</th><th>Покупець</th><th>Товари</th><th>Доставка</th><th>Оплата</th><th>Статус</th><th>Відповідальний</th><th style="text-align:right">Сума</th></tr></thead>
@@ -34,7 +36,8 @@ tr.old td{opacity:.6}</style>
     <td class="small">{{ o.delivery or '' }}<div class="muted">{{ o.city or '' }}</div>{% if raw.get('ttn') %}<div>ТТН {{ raw.ttn }}</div>{% endif %}</td>
     <td class="small">{{ (o.payment or '')|truncate(34) }}<div style="margin-top:3px">{% if o.paid %}<span class="stp ok">оплачено</span>{% elif raw.get('pay_state') in PAY_FAIL %}<span class="stp bad">не оплачено</span>{% elif o.source == 'crm' %}<span class="stp wait">не оплачено</span>{% endif %}</div></td>
     <td><span class="stp {{ 'new' if o.status == 'Нове' else ('ok' if o.status in ('Отримано','Закрито') else ('bad' if o.status in ('Скасовано','Повернення','Фейкове') else '')) }}">{{ o.status or '—' }}</span></td>
-    <td class="small">{{ staff.get(raw.get('resp')) or '—' }}</td><td style="text-align:right;white-space:nowrap"><b>{{ (o.total or 0)|uah }}</b></td></tr>
+    <td class="small">{{ staff.get(raw.get('resp')) or '—' }}</td><td style="text-align:right;white-space:nowrap"><b>{{ (o.total or 0)|uah }}</b>{% if o.source == 'crm' %}<form method="post" action="/shop-orders/{{ o.id }}/hide" onclick="event.stopPropagation()" style="margin:6px 0 0;display:flex;justify-content:flex-end"><input type="hidden" name="back" value="{{ request.url.path }}{{ '?' ~ request.url.query if request.url.query }}">
+      {% if raw.get('hidden') %}<button class="btn ghost sm" name="show" value="1" title="Повернути в список">Показати</button>{% else %}<button class="ohide" title="Сховати зі списку (не видаляє)" aria-label="Сховати зі списку">×</button>{% endif %}</form>{% endif %}</td></tr>
   {% else %}<tr><td colspan="9" class="muted" style="padding:22px">Замовлень за цими умовами немає.</td></tr>{% endfor %}</tbody></table></div>
 {% if n > rows|length %}<p class="small muted">Показано {{ rows|length }} з {{ n }} — звузьте період або пошук.</p>{% endif %}
 {% endblock %}

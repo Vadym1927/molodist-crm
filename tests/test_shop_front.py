@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from app.config import settings
 from app.main import app
-from app.models import SessionLocal, Product, ProductFile, SiteOrder, SyncState, PayLink
+from app.models import SessionLocal, Product, ProductFile, SiteOrder, SyncState, PayLink, Patient
 
 HOME = '<html><head><title>Косметика | MOLODIST</title><meta name="description" content="Опис головної"></head><body><a href="/shop/oblichchya/">x</a><a href="/shop/krem-test-sf/">p</a></body></html>'
 CAT = ('<html><head><title>Купити косметику для обличчя</title><meta name="description" content="SEO опис категорії"></head><body><main><h1>Догляд за обличчям</h1>'
@@ -1167,3 +1167,44 @@ def test_double_submit_returns_same_order(monkeypatch):
             assert db.scalar(select(func.count()).select_from(SiteOrder).where(SiteOrder.phone == ph)) == 1
         body["items"] = [{"id": pid, "qty": 2}]
         assert c.post("/_shop/api/order", json=body).json()["number"] != a["number"]   # інша кількість — нове замовлення
+
+
+def test_abandoned_cart_manual_order(monkeypatch):
+    from app.services import shop_front as sf
+    from app.models import ShopCart, SiteOrder
+    monkeypatch.setattr("app.services.tg_notify.send_text", lambda *a, **k: True)
+    settings.admin_password = "owner-pass-co"
+    with TestClient(app) as c:
+        with SessionLocal() as db:
+            p = Product(name="Кошик крем", name_norm="кошик крем", price=1200, site_on=True, site_info={"slug": "koshyk-krem", "title": "Кошик крем", "presence": 1, "quantity": 5})
+            pt = Patient(full_name="Олена Кошик", phone="+380507770011")
+            db.add_all([p, pt]); db.commit()
+            cart = ShopCart(patient_id=pt.id, items=[{"id": p.id, "qty": 2}], total=2400, status="open", updated_at=datetime.utcnow() - timedelta(hours=5))
+            db.add(cart); db.commit(); cid, pid = cart.id, p.id
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-co"})
+        assert "Оформити замовлення" in c.get("/shop-carts").text
+        page = c.get(f"/shop-carts/{cid}/order")
+        assert page.status_code == 200 and "Кошик крем" in page.text and "Накладений платіж" in page.text
+        r = c.post(f"/shop-carts/{cid}/order", data={f"qty_{pid}": "1", "name": "Олена Кошик", "phone": "+380507770011", "delivery": "np",
+                                                    "city": "Київ", "warehouse": "Відділення №5", "pay": "cod"}, follow_redirects=False)
+        assert r.status_code == 303 and "/shop-orders/" in r.headers["location"]
+        with SessionLocal() as db:
+            o = db.scalars(select(SiteOrder).order_by(SiteOrder.id.desc())).first()
+            assert o.payment == "При отриманні" and o.items[0]["qty"] == 1 and o.raw["manual"]["cart"] == cid
+            assert db.get(ShopCart, cid).status in ("ordered", "done")
+
+
+def test_hide_order_from_list():
+    from app.models import SiteOrder
+    settings.admin_password = "owner-pass-hd"
+    with TestClient(app) as c:
+        with SessionLocal() as db:
+            o = SiteOrder(source="crm", ext_id="HD-1", number="HD-1", created_at=datetime.now(), status="Фейкове", paid=False, total=100, name="Фейк Тест")
+            db.add(o); db.commit(); oid = o.id
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-hd"})
+        assert "HD-1" in c.get("/shop-orders").text
+        r = c.post(f"/shop-orders/{oid}/hide", data={"back": "/shop-orders"}, follow_redirects=False)
+        assert r.status_code == 303
+        assert "HD-1" not in c.get("/shop-orders").text and "HD-1" in c.get("/shop-orders?src=hidden").text
+        c.post(f"/shop-orders/{oid}/hide", data={"show": "1"})
+        assert "HD-1" in c.get("/shop-orders").text
