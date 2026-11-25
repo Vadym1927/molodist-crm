@@ -89,7 +89,33 @@ def save(db: Session, data: dict, user_id: int | None = None, appt: Appointment 
 
 SRC_KEY = "booking_sources"
 BOOKING_SOURCES = ["Дзвінок", "Instagram", "Telegram", "Viber", "WhatsApp", "Сайт / онлайн-запис", "Прийшов особисто",
-                   "Повторний запис", "Рекомендація", "Бюті-план", "Інше"]
+                   "Повторний запис", "Рекомендація", "Бюті-план", "barb.ua", "Інше"]
+BARB = "barb.ua"
+
+
+def add_barb_source(db: Session) -> bool:
+    """25.11.2026: джерело «barb.ua» у джерела запису й звернень — один раз (якщо власник потім видалить, не повертаємо)."""
+    import json
+    from ..models import SyncState
+    from . import appeals
+    if db.get(SyncState, "barb_source_v1"):
+        return False
+    rows = sources_all(db)
+    if not any(r["name"].lower() == BARB for r in rows):
+        i = next((k for k, r in enumerate(rows) if r["name"] == "Інше"), len(rows))
+        rows.insert(i, {"name": BARB, "on": True})
+        db.merge(SyncState(key=SRC_KEY, value=json.dumps(rows, ensure_ascii=False)))
+    d = appeals.dirs(db)
+    if not any(x.lower() == BARB for x in d["sources"]):
+        i = d["sources"].index("Інше") if "Інше" in d["sources"] else len(d["sources"])
+        d["sources"].insert(i, BARB)
+        st = db.get(SyncState, appeals.KEY)
+        saved = json.loads(st.value) if st and st.value else {}
+        saved["sources"] = d["sources"]
+        db.merge(SyncState(key=appeals.KEY, value=json.dumps(saved, ensure_ascii=False)))
+    db.merge(SyncState(key="barb_source_v1", value="1"))
+    db.commit()
+    return True
 
 
 def sources_all(db: Session) -> list[dict]:

@@ -19,7 +19,7 @@ IGNORE_KEY = "appeal_ignore_phones"          # {phone_key: {reason, at, by, name
 OTHER_DEFAULT = {"name": "Не цільове", "type": "other", "color": "#8a8496"}
 SALE_DEFAULT = {"name": "Продаж", "type": "success", "color": "#2E9E6B"}     # успіх без запису: сертифікат, косметика, абонемент
 DEFAULT = {
-    "sources": ["Instagram", "Facebook", "Google", "Сайт", "Telegram-бот", "Viber", "Дзвінок", "Рекомендація", "Повторний пацієнт", "Інше"],
+    "sources": ["Instagram", "Facebook", "Google", "Сайт", "Telegram-бот", "Viber", "Дзвінок", "Рекомендація", "Повторний пацієнт", "barb.ua", "Інше"],
     "marks": ["Гаряча", "Тепла", "Холодна", "VIP", "Акція", "Повтор"],
     "statuses": [{"name": "Новий", "type": "new", "color": "#3B82C4"}, {"name": "В роботі", "type": "work", "color": "#E9A93A"},
                  {"name": "Передзвонити", "type": "work", "color": "#8e7cc3"}, {"name": "Записаний", "type": "success", "color": "#4CAF50"}, dict(SALE_DEFAULT),

@@ -661,6 +661,12 @@ async def lifespan(app: FastAPI):
         _channels.apply(db)
         from .services import cashboxes as _cbx
         _cbx.apply_seed(db)
+        try:                                                         # 25.11.2026: джерело «barb.ua» (один раз)
+            from .services.appointments import add_barb_source as _abs
+            _abs(db)
+        except Exception as _e:  # noqa: BLE001
+            log.warning("add_barb_source: %s", _e)
+            db.rollback()
         if not db.get(SyncState, "supply_finops_backfill_v1"):     # уже рознесені оплати поставок → журнал фіноперацій (один раз)
             from .services import payments as _pay0
             _n0 = _pay0.backfill_finops(db)
