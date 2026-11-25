@@ -586,7 +586,8 @@ def admin_rows(db: Session, q: str = "", cat: str = "", flt: str = "") -> list[d
     files = defaultdict(list)
     for f in db.scalars(select(ProductFile).where(ProductFile.kind == "photo", ProductFile.site.is_(True)).order_by(ProductFile.sort, ProductFile.id)):
         files[f.product_id].append(f.id)
-    live_cat = catalog(db)["by_slug"]                   # наявність як на сайті й у фідах (залишок вітрини), а не старий прапорець імпорту
+    _cat = catalog(db)
+    live_cat = {**_cat["archive"], **_cat["by_slug"]}  # наявність як на сайті й у фідах (залишок вітрини); приховані — з архіву
     for p in db.scalars(select(Product).where(Product.site_info.is_not(None)).order_by(Product.brand, Product.name)):
         si = p.site_info or {}
         if not si.get("slug"):
@@ -600,13 +601,15 @@ def admin_rows(db: Session, q: str = "", cat: str = "", flt: str = "") -> list[d
              "on": p.site_on is not False and p.active is not False, "cats": in_cats.get(si["slug"], []), "img": (files.get(p.id) or [None])[0],
              "sticker": si.get("sticker") or "", "push": bool(si.get("push")),
              "stock": ci["stock"] if ci else str(si.get("presence", 1)).lower() not in ("0", "false", "not_available"),
+             "hidden_left": next((v["left"] for v in ci["variants"] if v["id"] == p.id), None) if ci and ci.get("archived") else None,
              "left": next((v["left"] for v in ci["variants"] if v["id"] == p.id), None) if ci else None, "wait": bool(ci and ci.get("wait"))}
         if q and q.lower() not in f"{r['name']} {r['brand']} {p.sku or ''}".lower():
             continue
         if cat and not any(c["path"] == cat for c in r["cats"]):
             continue
         if (flt == "on" and not r["on"]) or (flt == "off" and r["on"]) or (flt == "sale" and not r["sale"]) or (flt == "nocat" and r["cats"]) \
-                or (flt == "nophoto" and r["img"]) or (flt == "sticker" and not r["sticker"]) or (flt == "push" and not r["push"]):
+                or (flt == "nophoto" and r["img"]) or (flt == "sticker" and not r["sticker"]) or (flt == "push" and not r["push"]) \
+                or (flt == "hidden_stock" and not (not r["on"] and (r["hidden_left"] or 0) >= 1)):
             continue
         rows.append(r)
     return rows

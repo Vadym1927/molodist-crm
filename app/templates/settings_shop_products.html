@@ -6,7 +6,7 @@
 <form class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:10px"><input name="q" value="{{ q }}" placeholder="Назва, бренд, артикул" style="width:240px">
   <select name="cat"><option value="">Усі категорії</option>{% for c2 in cats %}<option value="{{ c2.path }}" {{ 'selected' if cat == c2.path }}>{{ c2.name }} · {{ c2.path }}</option>{% endfor %}</select>
   <select name="f"><option value="">Усі</option><option value="on" {{ 'selected' if f == 'on' }}>На сайті</option><option value="off" {{ 'selected' if f == 'off' }}>Приховані</option>
-    <option value="sale" {{ 'selected' if f == 'sale' }}>Зі знижкою</option><option value="nocat" {{ 'selected' if f == 'nocat' }}>Без категорії</option><option value="nophoto" {{ 'selected' if f == 'nophoto' }}>Без фото</option><option value="sticker" {{ 'selected' if f == 'sticker' }}>Зі стікером</option><option value="push" {{ 'selected' if f == 'push' }}>Розпродаж (неліквід)</option></select>
+    <option value="sale" {{ 'selected' if f == 'sale' }}>Зі знижкою</option><option value="nocat" {{ 'selected' if f == 'nocat' }}>Без категорії</option><option value="nophoto" {{ 'selected' if f == 'nophoto' }}>Без фото</option><option value="sticker" {{ 'selected' if f == 'sticker' }}>Зі стікером</option><option value="push" {{ 'selected' if f == 'push' }}>Розпродаж (неліквід)</option><option value="hidden_stock" {{ 'selected' if f == 'hidden_stock' }}>Приховані, але є на вітрині</option></select>
   <button class="btn ghost">Показати</button><span class="muted small" style="align-self:center">{{ rows|length }} товарів</span></form>
 <form method="post"><input type="hidden" name="back" value="{{ request.url.path }}{{ '?' ~ request.url.query if request.url.query }}">
 <div class="card" style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;position:sticky;top:0;z-index:5">
@@ -28,5 +28,5 @@
     <td style="text-align:right">{{ r.base|uah }}</td>
     <td class="small">{% if r.sale %}−{{ '%g'|format(r.sale.pct) }}%{% if r.sale.until %} до {{ r.sale.until[8:10] }}.{{ r.sale.until[5:7] }}{% endif %}{% if not r.live %} <span class="muted">(завершилась)</span>{% endif %}{% endif %}</td>
     <td style="text-align:right"><b>{{ r.price|uah }}</b></td>
-    <td class="small">{% if r.on %}<span class="pill ok">на сайті</span>{% else %}<span class="pill warn">приховано</span>{% endif %}{% if not r.stock %} <span class="muted">немає в наявності</span>{% elif r.wait %} <span class="muted">під замовлення</span>{% elif r.left is not none %} <span class="muted">{{ r.left }} шт</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div></form>
+    <td class="small">{% if r.on %}<span class="pill ok">на сайті</span>{% else %}<span class="pill warn">приховано</span>{% if r.hidden_left %} <b style="color:#B4235A">але на вітрині {{ r.hidden_left }} шт</b>{% endif %}{% endif %}{% if not r.stock %} <span class="muted">немає в наявності</span>{% elif r.wait %} <span class="muted">під замовлення</span>{% elif r.left is not none %} <span class="muted">{{ r.left }} шт</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div></form>
 {% endblock %}

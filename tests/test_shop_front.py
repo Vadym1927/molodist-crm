@@ -1112,3 +1112,22 @@ def test_barb_category_mapping():
     assert fd.barb_cat("Сонцезахисний крем SPF 50") == 18
     assert fd.barb_cat("Good Hair 10% minoxidil") == 73
     assert fd.barb_cat("Щось невідоме") == 24
+
+
+def test_admin_hidden_but_in_stock_filter(monkeypatch):
+    from app.services import shop_front as sf
+    with TestClient(app):
+        with SessionLocal() as db:
+            p = Product(name="Прихований крем", name_norm="прихований крем", price=3375, site_on=False,
+                        site_info={"slug": "pryhovanyi-krem", "title": "Прихований крем", "presence": 1})
+            db.add(p); db.commit(); pid = p.id
+            orig = sf.catalog
+            def fake(db_, fresh=False):
+                d = orig(db_, fresh=True)
+                it = d["archive"].get("pryhovanyi-krem")
+                if it:
+                    it["variants"][0]["left"] = 1
+                return d
+            monkeypatch.setattr(sf, "catalog", fake)
+            rows = [r for r in sf.admin_rows(db, flt="hidden_stock") if r["p"].id == pid]
+            assert rows and rows[0]["hidden_left"] == 1
