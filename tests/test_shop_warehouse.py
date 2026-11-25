@@ -54,3 +54,23 @@ def test_warehouses_settings_page():
         assert r.status_code == 303
         assert "Тест-склад" not in c.get("/settings/warehouses").text
         assert "/settings/warehouses" in c.get("/settings").text
+
+
+def test_new_product_gets_site_slug():
+    from fastapi.testclient import TestClient
+    from app.config import settings
+    from app.main import app
+    from app.models import SessionLocal, Product
+    settings.admin_password = "owner-pass-1"
+    with TestClient(app) as c:
+        assert c.post("/login", data={"login": "vadim", "password": "owner-pass-1"}, follow_redirects=False).status_code == 303
+        c.post("/products/new", data={"name": "Шампунь Тест Detox, 300 мл", "warehouse": "shop", "for_sale": "1", "price": "1750", "cost": "1000"})
+        with SessionLocal() as db:
+            p = db.query(Product).filter(Product.name == "Шампунь Тест Detox, 300 мл").one()
+            assert p.warehouse == "shop"
+            pid = p.id
+        r = c.post(f"/products/{pid}/site", data={"site_on": "1", "short_description": "<p>Опис</p>", "seo_title": "", "seo_description": ""}, follow_redirects=False)
+        assert r.status_code == 303
+        with SessionLocal() as db:
+            si = db.get(Product, pid).site_info
+            assert si["slug"] == "shampun-test-detox-300-ml" and si["title"]

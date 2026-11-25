@@ -195,6 +195,7 @@
       <label class="small">Назва для Google<input name="g_title" maxlength="150" value="{{ (si.google or {}).title or '' }}" placeholder="порожньо — автоматично з назви товару"></label>
       <label class="small">Опис для Google<textarea name="g_desc" rows="4" maxlength="4900" placeholder="порожньо — автоматично з опису, без медичних слів">{{ (si.google or {}).desc or '' }}</textarea></label></details>
     <label class="row" style="gap:8px;align-items:center"><input type="checkbox" name="free_ship" value="1" style="width:auto" {{ 'checked' if si.free_ship }}> Безкоштовна доставка цього товару (незалежно від суми замовлення)</label>
+    {% if not si.slug %}<div class="small muted">Адреса на сайті й категорії зʼявляться після першого «Зберегти» (з назви товару).</div>{% endif %}
     {% if si.slug %}<label class="small">Адреса на сайті: molodist.store/shop/<b>…</b>/ — стара адреса автоматично веде на нову (301)<input name="slug" value="{{ si.slug }}" pattern="[a-z0-9]+(-[a-z0-9]+)*" maxlength="200"></label>{% endif %}
     {% if si.slug and shop_cats %}<input type="hidden" name="cats_form" value="1"><div class="small"><b>Категорії на сайті</b>
       <div style="columns:2;margin-top:4px">{% for c2 in shop_cats %}<label class="row" style="gap:6px;align-items:center;display:flex"><input type="checkbox" name="cat" value="{{ c2.path }}" style="width:auto" {{ 'checked' if si.slug in c2.slugs }}> {{ c2.name }} <span class="muted">{{ c2.path }}</span></label>{% endfor %}</div></div>{% endif %}

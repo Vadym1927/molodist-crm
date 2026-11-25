@@ -5431,6 +5431,10 @@ async def product_site_save(pid: int, request: Request, user: User = Depends(req
     si["seo_title"] = str(f.get("seo_title") or "").strip()[:300]
     si["seo_description"] = str(f.get("seo_description") or "").strip()[:600]
     si["edited_at"] = datetime.now().isoformat(timespec="minutes")
+    if not si.get("slug"):                                   # товар заведено в CRM (не з Shop-Express) — адреса на сайті з назви
+        from .services import shop_front as _sf0
+        si["slug"] = _sf0.new_product_slug(db, p, si.get("title") or p.name)
+        si.setdefault("title", p.name)
     try:
         pct = float(str(f.get("sale_pct") or 0).replace(",", "."))
     except ValueError:

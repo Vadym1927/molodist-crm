@@ -1249,6 +1249,20 @@ def brands_sync(db: Session) -> dict:
     return rep
 
 
+def new_product_slug(db: Session, p: Product, title: str = "") -> str:
+    """Адреса для товару, створеного в CRM (не з Shop-Express): транслітерація назви, унікальна серед slug і старих адрес."""
+    base = re.sub(r"[^a-z0-9]+", "-", "".join(_TR.get(ch, ch) for ch in str(title or p.name or "").lower())).strip("-")[:120].strip("-") or f"tovar-{p.id}"
+    taken = set()
+    for x in db.scalars(select(Product).where(Product.site_info.is_not(None), Product.id != p.id)):
+        xi = x.site_info or {}
+        taken.add(xi.get("slug") or "")
+        taken.update(xi.get("old_slugs") or [])
+    slug, n = base, 2
+    while slug in taken:
+        slug, n = f"{base}-{n}", n + 1
+    return slug
+
+
 def change_slug(db: Session, p: Product, new: str) -> str | None:
     """Нова адреса товару /shop/<new>/: для всіх варіантів зі старим slug; стара адреса веде 301 на нову, категорії оновлюються.
     Повертає помилку або None."""
