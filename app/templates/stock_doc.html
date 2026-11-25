@@ -70,10 +70,10 @@
       {% if d.kind=='supply' %}<td>{% if editable %}<input name="exp_{{ ln.id }}" value="{{ ln.expiry_date|dt('%d.%m.%Y') if ln.expiry_date else '' }}" placeholder="дд.мм.рррр" inputmode="numeric" style="width:130px;text-align:center" title="Напр. 31.12.2027, 12.2027 або 12/27">{% else %}{{ ln.expiry_date|dt('%d.%m.%Y') if ln.expiry_date else '—' }}{% endif %}</td>{% endif %}
       {% if d.kind in ('transfer','writeoff') or (d.kind=='return' and d.reason!='patient') %}<td>{% set opts = lot_opts.get(p.id, []) %}{% if editable %}
         <select name="exp_{{ ln.id }}" style="height:36px;min-width:190px">
-          <option value="">авто — найближчий термін</option>
+          <option value="">авто — спершу без терміну, далі найближчий</option>
           {% for e, q in opts %}<option value="{{ e }}" {{ 'selected' if ln.expiry_date == e }}>до {{ e|dt('%d.%m.%Y') }} · {{ '%g'|format(q) }} {{ p.unit or 'шт' }}{{ ' · прострочено' if e < today else '' }}</option>{% endfor %}
           {% if ln.expiry_date and ln.expiry_date not in opts|map('first')|list %}<option value="{{ ln.expiry_date }}" selected>до {{ ln.expiry_date|dt('%d.%m.%Y') }} (немає залишку)</option>{% endif %}
-        </select>{% else %}{{ ('до ' ~ ln.expiry_date|dt('%d.%m.%Y')) if ln.expiry_date else 'найближчий термін' }}{% endif %}</td>{% endif %}
+        </select>{% else %}{{ ('до ' ~ ln.expiry_date|dt('%d.%m.%Y')) if ln.expiry_date else 'авто: без терміну → найближчий' }}{% endif %}</td>{% endif %}
       {% if editable %}<td><label class="small" title="Прибрати рядок" style="cursor:pointer;color:var(--bad)"><input type="checkbox" name="del_{{ ln.id }}" value="1" onchange="this.form.submit()" style="display:none">✕</label></td>{% endif %}
     </tr>
   {% else %}<tr><td colspan="8" class="muted">Товарів ще немає — додайте нижче.</td></tr>{% endfor %}
