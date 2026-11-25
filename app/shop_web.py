@@ -741,6 +741,10 @@ def register(app, templates, version: str):
             return RedirectResponse(cx["base"] + "/shop/brendi/", 301)
         if segs[-1].startswith("page-") and segs[-1][5:].isdigit():
             page, segs = int(segs[-1][5:]), segs[:-1]
+        if not segs:                                              # /shop/page-N/ — сторінка загального каталогу (була 500)
+            cx.update(title=f"Магазин професійної косметики — сторінка {page} | MOLODIST",
+                      desc="Каталог професійної косметики MOLODIST: догляд за обличчям, тілом і волоссям. Доставка по Україні.")
+            return render_list(request, cx, d["items"], page, order, brand, h1="Магазин", cat=None, subs=d["menu"], crumbs=[], page_base="/shop/")
         it = d["by_slug"].get(segs[0]) or (d.get("archive") or {}).get(segs[0])
         if not it and len(segs) <= 2 and segs[0] in (d.get("moved") or {}) and "/shop/" + "/".join(segs) + "/" not in d["by_path"]:
             return RedirectResponse(f"{cx['base']}/shop/{d['moved'][segs[0]]}/", 301)     # товар змінив адресу
