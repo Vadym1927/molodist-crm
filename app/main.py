@@ -659,6 +659,12 @@ async def lifespan(app: FastAPI):
         _roles.apply(db)                                    # свої ролі й права з «Права доступу»
         from .services import channels as _channels
         _channels.apply(db)
+        try:                                                         # склади з «Налаштування → Склади» (свої назви, свої склади)
+            from .services import warehouses as _whs
+            _whs.apply(db)
+        except Exception as _e:  # noqa: BLE001
+            log.warning("warehouses.apply: %s", _e)
+            db.rollback()
         from .services import cashboxes as _cbx
         _cbx.apply_seed(db)
         try:                                                         # 25.11.2026: джерело «barb.ua» (один раз)
@@ -7823,7 +7829,8 @@ SETTINGS_BLOCKS = [
         ('Фото пацієнтів', 'Усі фото й файли пацієнтів: згоди, обличчя, тіло, документи — перегляд, перенесення між розділами, видалення', '/settings/patient-photos', 'upload', None),
         ('Персональні знижки', 'Знижка конкретному пацієнту: окремо % на товари і % на послуги; автозастосування й сумування з іншими знижками', '/settings/personal-discounts', 'loyalty_patient', None),
     ]),
-    ('Склад і товари', 'box', 'Списання, терміни, накладні, сайт', [
+    ('Склад і товари', 'box', 'Склади, списання, терміни, накладні, сайт', [
+        ('Склади', 'Свої склади й назви: додати склад (напр. під реалізацію чи для сайту), перейменувати; з яких складів продає інтернет-магазин', '/settings/warehouses', 'stock', None),
         ('Норми списання', 'Що списується зі складу після процедури', '/stock?tab=norms', 'stock', None),
         ('Спільні розхідники візиту', 'Рукавички, маски, простирадла… — один комплект на візит, навіть якщо в ньому кілька послуг', '/settings/shared-materials', 'stock', None),
         ('Сповіщення про терміни', 'Кому й коли надсилати попередження про терміни придатності', '/reports?r=expiry#notify', 'finance', None),
@@ -8236,6 +8243,34 @@ def settings_page(request: Request, user: User = Depends(current_user), db: Sess
         if rows:
             blocks.append({"title": title, "icon": icon, "about": about, "rows": rows, "ext": all(not r["url"] for r in rows)})
     return render(request, "settings.html", blocks=blocks)
+
+
+# ---------------- Налаштування → Склади ----------------
+@app.get("/settings/warehouses", response_class=HTMLResponse)
+def settings_warehouses(request: Request, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .services import warehouses as whs
+    return render(request, "warehouses.html", nav="settings", items=whs.items(db), use=whs.usage(db))
+
+
+@app.post("/settings/warehouses")
+def settings_warehouses_save(key: str = Form(""), name: str = Form(""), shop: str = Form(""), user: User = Depends(require("stock")),
+                             db: Session = Depends(db_dep)):
+    from .services import warehouses as whs
+    err = whs.save(db, key.strip() or None, name, shop == "1")
+    if not err:
+        audit(db, "warehouses.save", "warehouse", None, user=user, wh=key or "new", name=name, shop=shop == "1")
+        db.commit()
+    return RedirectResponse(_with_msg("/settings/warehouses", err or "Збережено", bool(err)), 303)
+
+
+@app.post("/settings/warehouses/{key}/delete")
+def settings_warehouses_delete(key: str, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    from .services import warehouses as whs
+    err = whs.delete(db, key)
+    if not err:
+        audit(db, "warehouses.delete", "warehouse", None, user=user, wh=key)
+        db.commit()
+    return RedirectResponse(_with_msg("/settings/warehouses", err or "Склад видалено", bool(err)), 303)
 
 
 # ---------------- Налаштування → Посади співробітників ----------------

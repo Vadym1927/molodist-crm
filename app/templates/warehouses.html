@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Склади · MOLODIST CRM{% endblock %}
+{% block body %}
+{% include "_cs_style.html" %}
+<style>.wh-l{display:grid;gap:8px;max-width:860px}
+.wh-r{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #ECE7E1;border-radius:14px;padding:10px 12px}
+.wh-r:hover{border-color:#C9BFE6;box-shadow:0 8px 22px -16px rgba(59,48,80,.45)}
+.wh-n{flex:1;min-width:0;font:600 15px var(--sans);color:#3B3050;background:none;border:0;text-align:left;cursor:pointer;padding:6px 4px}
+.wh-c{font:600 11.5px var(--sans);color:#8a8496;background:#F7F4F0;border-radius:99px;padding:3px 10px;white-space:nowrap}
+.wh-c.shop{color:#5C4B82;background:#E4DEEF}
+.wh-b{width:36px;height:36px;border-radius:10px;border:1px solid #ECE7E1;background:#fff;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:#5C4B82}
+.wh-b:hover{color:#B23B2E;border-color:#F0C9C3;background:#FDF3F1}.wh-r form{margin:0}
+.wh-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;max-width:860px;margin:0 0 14px}
+.wh-top p{margin:4px 0 0;color:var(--muted);max-width:620px}
+.chk{display:flex;gap:10px;align-items:center;font-size:14px}.chk input{width:18px;height:18px}
+@media (max-width:600px){.wh-r{flex-wrap:wrap}.wh-n{flex-basis:100%}}</style>
+<div class="wh-top"><div><a href="/settings" class="muted small" style="text-decoration:none">← Налаштування</a>
+  <h1 style="margin:6px 0 0">Склади</h1>
+  <p>Свої склади й назви. Вбудовані склади можна перейменувати, свої — додати й видалити (лише порожній). Позначка «сайт» — з цього складу molodist.store бере наявність.</p></div>
+  <button class="btn" type="button" onclick="whEd(null)">＋ Додати склад</button></div>
+<div class="wh-l">
+{% for x in items %}{% set u = use.get(x.key, {}) %}<div class="wh-r">
+  <button class="wh-n" type="button" onclick='whEd({{ x|tojson }})'>{{ x.name }}</button>
+  {% if x.shop %}<span class="wh-c shop">сайт</span>{% endif %}
+  <span class="wh-c">{{ u.get('products', 0) }} тов.</span>
+  {% if x.builtin %}<span class="wh-c">вбудований</span>{% else %}
+  <form method="post" action="/settings/warehouses/{{ x.key }}/delete" onsubmit="return confirm('Видалити склад «{{ x.name }}»?')"><button class="wh-b" title="Видалити"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></form>{% endif %}
+</div>{% endfor %}
+</div>
+<dialog class="cs-d" id="wh-d" style="width:min(480px,96vw)"><div class="cs-dh"><h3 id="wh-t">Склад</h3><button class="cs-x" type="button" onclick="this.closest('dialog').close()">×</button></div>
+  <form method="post" action="/settings/warehouses" class="cs-db"><input type="hidden" name="key">
+    <div class="cs-f"><label>Назва складу</label><input name="name" required maxlength="60" placeholder="Під реалізацію"></div>
+    <label class="chk"><input type="checkbox" name="shop" value="1"> Продає інтернет-магазин (наявність на сайті з цього складу)</label>
+    <button class="btn">Зберегти</button></form></dialog>
+<script>
+function whEd(x){var d=document.getElementById('wh-d'),f=d.querySelector('form');f.reset();
+  document.getElementById('wh-t').textContent=x?'Склад':'Новий склад';f.key.value=x?x.key:'';
+  if(x){f.name.value=x.name;f.shop.checked=!!x.shop}d.showModal();f.name.focus()}
+</script>
+{% endblock %}
