@@ -39,19 +39,36 @@
 .pm-set label i{display:block;height:6px;border-radius:3px}.pm-set input{height:42px;text-align:right;font-weight:700}
 .pm-al{display:grid;gap:8px}.pm-al .a{display:flex;gap:12px;align-items:center;background:#fff;border:1px solid #ECE7E1;border-left:5px solid var(--zc);border-radius:14px;padding:10px 14px}
 .pm-al .a.new{box-shadow:0 0 0 2px #E4DEEF}.pm-al .a div{flex:1}.pm-al b{font:600 14px var(--sans)}.pm-al small{color:#8a8496;display:block;font-size:12px}
+.pm-rl{font-size:11.5px;color:#8a8496;margin-top:4px;white-space:nowrap}.pm-rl.own{color:#5C4B82;font-weight:700}.pm-rl.off{color:#B23B2E;font-weight:700}
+.pm-rf{display:grid;gap:8px;min-width:280px;background:#FBFAF8;border:1px solid #ECE7E1;border-radius:14px;padding:12px;margin-top:8px;text-align:left}
+.pm-rf .zz{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}.pm-rf input[type=text],.pm-rf input[inputmode]{height:36px;width:100%;min-width:0;text-align:right;font-weight:700;padding:0 6px}
+.pm-rf select{height:36px}.pm-rf .row2{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.pm-rf label.ck{display:flex;gap:6px;align-items:center;font-size:12.5px}
+.pm-rf label.ck input{width:auto;height:auto}.pm-rf small{color:#8a8496;font-size:11px}
+details.pm-d>summary{list-style:none;cursor:pointer}details.pm-d>summary::-webkit-details-marker{display:none}
+.pm-b{display:grid;gap:10px}.pm-b .bx{display:grid;grid-template-columns:minmax(180px,1.2fr) minmax(220px,1.4fr) minmax(300px,2fr);gap:14px;align-items:start;background:#fff;border:1px solid #ECE7E1;border-radius:18px;padding:14px 16px}
+.pm-b .bx h3{margin:0;font:600 15px var(--sans);color:#2A2430}.pm-b .bx h3 a{color:inherit;text-decoration:none}.pm-b .bx h3 a:hover{color:#5C4B82}
+.pm-b .zb{display:flex;gap:4px;flex-wrap:wrap}.pm-b .zb span{border-radius:8px;padding:3px 8px;font:700 12px var(--sans)}
+.pm-b .rf{margin:0}.pm-b .rf .pm-rf{margin:0}
+@media(max-width:860px){.pm-b .bx{grid-template-columns:1fr}}
 .pm-leg{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;font-size:12px;color:#6b6575}.pm-leg i{display:inline-block;width:14px;height:14px;border-radius:4px;margin-right:6px;vertical-align:-3px}
 </style>
+{% macro rform(kind, key, rule, inherit, back) %}<form method="post" action="/prices/rule" class="pm-rf"><input type="hidden" name="kind" value="{{ kind }}"><input type="hidden" name="key" value="{{ key }}"><input type="hidden" name="back" value="{{ back }}">
+  <div class="row2"><select name="unit"><option value="pct" {{ 'selected' if (rule.unit if rule else 'pct') == 'pct' }}>у відсотках, %</option><option value="uah" {{ 'selected' if rule and rule.unit == 'uah' }}>у гривнях, ₴</option></select>
+    <label class="ck"><input type="checkbox" name="off" value="1" {{ 'checked' if rule and rule.off }}> не моніторити</label></div>
+  <div class="zz">{% set zs = rule.zones if rule else [3, 5, 10, 15] %}{% for i in range(4) %}<label style="display:grid;gap:2px;font:700 10px var(--sans);color:#8a8496;text-transform:uppercase"><i style="display:block;height:5px;border-radius:3px;background:{{ pm.ZONE_INK[i+1] }}"></i>Зона {{ i+1 }}<input name="z{{ i+1 }}" value="{{ '%g'|format(zs[i]) }}" inputmode="decimal"></label>{% endfor %}</div>
+  <div class="row2"><button class="btn" style="height:36px;padding:0 14px">Зберегти</button>{% if rule %}<button class="btn ghost" name="action" value="reset" style="height:36px;padding:0 12px">Прибрати правило</button>{% endif %}<small>{{ inherit }}</small></div></form>{% endmacro %}
 <div class="pm-hero"><div class="pm-top">
   <div><div class="pm-eb">Склад · фінанси</div><h1>Центр моніторингу цін</h1>
     <p>Стартова ціна кожної позиції складу й кожен новий прихід; собівартість послуг прайсу за техкартами. Подорожчання розкладається на 4 зони — перехід у вищу зону дає сповіщення в CRM і в Telegram-бот.</p></div>
   <div class="pm-zs">{% set st = st_s if tab == 'services' else st_p %}{% for z in range(4, 0, -1) %}<a href="?tab={{ 'services' if tab == 'services' else 'products' }}&zone={{ z }}"><b>{{ st[z] }}</b><span><i style="background:{{ pm.ZONE_INK[z] }}"></i>{{ pm.ZONE_NAMES[z] }}</span></a>{% endfor %}</div></div>
-  <nav class="pm-tabs"><a href="?tab=products" class="{{ 'on' if tab == 'products' }}">Товари складу · {{ n_p }}</a><a href="?tab=services" class="{{ 'on' if tab == 'services' }}">Собівартість послуг · {{ n_s }}</a>
+  <nav class="pm-tabs"><a href="?tab=products" class="{{ 'on' if tab == 'products' }}">Товари складу · {{ n_p }}</a><a href="?tab=brands" class="{{ 'on' if tab == 'brands' }}">Бренди · {{ brand_list|length }}</a><a href="?tab=services" class="{{ 'on' if tab == 'services' }}">Собівартість послуг · {{ n_s }}</a>
     <a href="?tab=alerts" class="{{ 'on' if tab == 'alerts' }}">Сповіщення{% if unseen %}<em>{{ unseen }}</em>{% endif %}</a><a href="?tab=settings" class="{{ 'on' if tab == 'settings' }}">Зони подорожчання</a></nav></div>
 {% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
 
 {% if tab in ('products', 'services') %}
 <form class="pm-bar"><input type="hidden" name="tab" value="{{ tab }}"><input name="q" value="{{ q }}" placeholder="{{ 'Товар, бренд…' if tab == 'products' else 'Послуга, категорія…' }}">
-  {% if tab == 'products' %}<select name="wh" onchange="this.form.submit()"><option value="">Усі склади</option>{% for k, v in pm.WAREHOUSES.items() %}<option value="{{ k }}" {{ 'selected' if wh == k }}>{{ v }}</option>{% endfor %}</select>{% endif %}
+  {% if tab == 'products' %}<select name="wh" onchange="this.form.submit()"><option value="">Усі склади</option>{% for k, v in pm.WAREHOUSES.items() %}<option value="{{ k }}" {{ 'selected' if wh == k }}>{{ v }}</option>{% endfor %}</select>
+  <select name="brand" onchange="this.form.submit()"><option value="">Усі бренди</option>{% for b in brand_list %}<option value="{{ b.key or '-' }}" {{ 'selected' if brand == (b.key or '-') }}>{{ b.name }} · {{ b.n }}</option>{% endfor %}</select>{% endif %}
   <select name="zone" onchange="this.form.submit()"><option value="">Усі зони</option><option value="9" {{ 'selected' if zone == '9' }}>Лише подорожчання</option>{% for z in range(5) %}<option value="{{ z }}" {{ 'selected' if zone == z|string }}>{{ pm.ZONE_NAMES[z] }}</option>{% endfor %}</select>
   <button class="btn ghost" style="height:44px">Знайти</button></form>
 <div class="pm-card"><table class="pm-tb"><thead><tr>
@@ -63,7 +80,8 @@
   <td class="r">{{ r.base|uah }}{% if r.base_at %}<div class="muted small">{{ r.base_at[8:10] }}.{{ r.base_at[5:7] }}.{{ r.base_at[:4] }}</div>{% endif %}</td>
   <td class="r">{{ r.cur|uah }}{% if r.last_at %}<div class="muted small">{{ r.last_at|dt('%d.%m.%Y') }}</div>{% endif %}</td>
   <td class="r"><span class="pm-up {{ 'pos' if r.diff > 0 else ('neg' if r.diff < 0) }}">{{ '+' if r.diff > 0 }}{{ r.diff|uah }}</span>{% if r.pct is not none and r.diff %}<div class="muted small">{{ '+' if r.pct > 0 }}{{ r.pct }}%</div>{% endif %}</td>
-  <td><span class="pm-z" style="background:{{ pm.ZONE_COLORS[r.zone] }};color:{{ pm.ZONE_INK[r.zone] }}">{{ pm.ZONE_NAMES[r.zone] }}</span></td>
+  <td><span class="pm-z" style="background:{{ pm.ZONE_COLORS[r.zone] }};color:{{ pm.ZONE_INK[r.zone] }}">{{ 'Не моніториться' if r.rule.off else pm.ZONE_NAMES[r.zone] }}</span>
+    <div class="pm-rl {{ 'off' if r.rule.off else ('own' if r.rule.src != 'wh') }}">{{ r.rule.label }}{% if not r.rule.off %} · {% for z in r.rule.zones %}{{ '%g'|format(z) }}{{ ' / ' if not loop.last }}{% endfor %} {{ '%' if r.rule.unit == 'pct' else '₴' }}{% endif %}</div></td>
   <td><div class="pm-h">{% for h in r.hist %}<span class="{{ 'st' if loop.first and r.n == r.hist|length }}" title="{{ h.supplier or '' }}{{ (' · ' ~ h.doc) if h.doc }}">{{ h.at|dt('%d.%m.%y') }} · {{ '%.0f'|format(h.cost) }} ₴</span>{% else %}<span>ціна з CleverBox</span>{% endfor %}</div></td>
   {% else %}
   <td class="nm"><b>{{ r.name }}</b><small>{{ r.category or '' }}{{ (' · техкартка ' ~ r.techcard) if r.techcard }}</small>
@@ -73,12 +91,23 @@
   <td><span class="pm-z" style="background:{{ pm.ZONE_COLORS[r.zone] }};color:{{ pm.ZONE_INK[r.zone] }}">{{ pm.ZONE_NAMES[r.zone] }}</span></td>
   <td class="r">{{ (r.margin ~ '%') if r.margin is not none else '—' }}</td>
   {% endif %}
-  <td class="r">{% if r.diff %}<form method="post" action="/prices/accept" style="margin:0" onsubmit="return confirm('Прийняти поточну ціну як стартову? Зона скинеться.')"><input type="hidden" name="kind" value="{{ 'service' if tab == 'services' else 'product' }}"><input type="hidden" name="item_id" value="{{ r.id }}"><input type="hidden" name="back" value="{{ back }}"><button class="pm-acc" title="Нова ціна стає стартовою">Прийняти ціну</button></form>{% endif %}</td></tr>
+  <td class="r">{% if tab == 'products' %}<details class="pm-d"><summary class="pm-acc" style="display:inline-flex;align-items:center;margin-bottom:6px">⚙ Правило</summary>
+    {{ rform('item', r.id, d.item_rules.get(r.id|string), 'Без свого правила діє: ' ~ (('бренд ' ~ r.brand) if r.brand and d.brand_rules.get(pm.bkey(r.brand)) else 'зони складу'), back) }}</details>{% endif %}
+    {% if r.diff %}<form method="post" action="/prices/accept" style="margin:0" onsubmit="return confirm('Прийняти поточну ціну як стартову? Зона скинеться.')"><input type="hidden" name="kind" value="{{ 'service' if tab == 'services' else 'product' }}"><input type="hidden" name="item_id" value="{{ r.id }}"><input type="hidden" name="back" value="{{ back }}"><button class="pm-acc" title="Нова ціна стає стартовою">Прийняти ціну</button></form>{% endif %}</td></tr>
 {% else %}<tr><td colspan="8" class="muted" style="padding:16px">{% if tab == 'services' %}Немає послуг з техкартою — заповніть «Склад → Норми списання».{% else %}Немає товарів з ціною закупівлі на складах косметики, ін'єкцій, класики й одноразки.{% endif %}</td></tr>{% endfor %}
 </tbody></table></div>
 {% set zl = d.svc_zones if tab == 'services' else (d.zones[wh] if wh in d.zones else none) %}
 <div class="pm-leg">{% for z in range(5) %}<span><i style="background:{{ pm.ZONE_COLORS[z] }};box-shadow:inset 0 0 0 2px {{ pm.ZONE_INK[z] }}"></i>{{ pm.ZONE_NAMES[z] }}{% if z and zl %} — від +{{ '%g'|format(zl[z-1]) }} ₴{% endif %}</span>{% endfor %}
   {% if not zl %}<span class="muted">межі зон свої для кожного складу — <a href="?tab=settings">Зони подорожчання</a></span>{% endif %}</div>
+
+{% elif tab == 'brands' %}
+<p class="muted small" style="margin-top:0">Правило бренду діє на всі його позиції, крім тих, де задано своє правило (⚙ у рядку товару). Без правила бренду — зони складу в гривнях. Нові межі застосовуються тихо: сповіщення прийде лише при наступному переході у вищу зону.</p>
+<div class="pm-b">{% for b in brand_list %}<div class="bx">
+  <div><h3><a href="?tab=products&brand={{ (b.key or '-')|urlencode }}">{{ b.name }} →</a></h3><div class="muted small" style="margin-top:4px">{{ b.n }} позицій · подорожчали {{ b.up }}{% if b.max_pct %} · макс. +{{ b.max_pct }}%{% endif %}{% if b.own %} · своє правило в {{ b.own }}{% endif %}</div></div>
+  <div class="zb">{% for z in range(4, -1, -1) %}{% if b.zones[z] %}<span style="background:{{ pm.ZONE_COLORS[z] }};color:{{ pm.ZONE_INK[z] }}">{{ pm.ZONE_NAMES[z] }}: {{ b.zones[z] }}</span>{% endif %}{% endfor %}
+    <div class="pm-rl {{ 'off' if b.rule and b.rule.off else ('own' if b.rule) }}" style="width:100%">{% if b.rule %}{{ 'не моніториться' if b.rule.off else ('правило бренду: ' ~ (b.rule.zones|map('string')|join(' / ')) ~ (' %' if b.rule.unit == 'pct' else ' ₴')) }}{% else %}діють зони складів (₴){% endif %}</div></div>
+  <div class="rf">{% if b.key %}{{ rform('brand', b.key, b.rule, 'Без правила бренду — зони складу', back) }}{% else %}<span class="muted small">Позиції без бренду — правила лише по кожній (⚙ у рядку).</span>{% endif %}</div>
+</div>{% else %}<div class="muted">Немає товарів у моніторингу.</div>{% endfor %}</div>
 
 {% elif tab == 'alerts' %}
 <div class="row between" style="margin-bottom:10px"><b>Сповіщення про подорожчання</b>{% if unseen %}<form method="post" action="/prices/alerts/seen" style="margin:0"><button class="btn ghost">Позначити всі прочитаними</button></form>{% endif %}</div>

@@ -69,3 +69,34 @@ def test_price_monitor_units_and_window():
         assert rj["cur"] == 2201 and rj["base"] == 1956 and rj["zone"] == 2          # без ×30 і з вікном у рік
         assert all(h["cost"] < 3000 for h in rj["hist"])
         assert re_["skipped"] == 1 and re_["base"] == 2600 and re_["cur"] == 2775
+
+
+def test_price_monitor_brand_and_item_rules(monkeypatch):
+    from app.services import alerts
+    monkeypatch.setattr(alerts, "send", lambda t: 1)
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        a = Product(name="Правило А", name_norm="правило а", warehouse="inject", cost=1.0, brand="ПравБренд")
+        b = Product(name="Правило Б", name_norm="правило б", warehouse="inject", cost=1.0, brand="ПравБренд")
+        db.add_all([a, b]); db.flush()
+        for p in (a, b):
+            db.add(ProductPurchase(product_id=p.id, bought_on=date.today().replace(day=1), qty=1, unit_cost=5000))
+            db.add(ProductPurchase(product_id=p.id, bought_on=date.today(), qty=1, unit_cost=5300))      # +300 ₴ = +6%
+        db.commit()
+        ids = (a.id, b.id)
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        c.post("/prices/rule", data={"kind": "brand", "key": "ПравБренд", "unit": "pct", "z1": "3", "z2": "5", "z3": "10", "z4": "15"})
+        c.post("/prices/rule", data={"kind": "item", "key": str(ids[1]), "unit": "uah", "z1": "1000", "z2": "2000", "z3": "3000", "z4": "4000", "off": "1"})
+        with SessionLocal() as db:
+            rows = {r["id"]: r for r in pm.products(db) if r["id"] in ids}
+            assert rows[ids[0]]["rule"]["src"] == "brand" and rows[ids[0]]["zone"] == 2          # 6% ≥ 5%
+            assert rows[ids[1]]["rule"]["off"] and rows[ids[1]]["zone"] == 0
+            assert pm.scan(db) == 0                                                         # нові межі — без сповіщень
+        t = c.get("/prices?tab=brands").text
+        assert "ПравБренд" in t and "правило бренду" in t
+        t = c.get("/prices?brand=ПравБренд").text
+        assert "Правило А" in t and "Не моніториться" in t
+        c.post("/prices/rule", data={"kind": "brand", "key": "ПравБренд", "action": "reset"})
+        with SessionLocal() as db:
+            assert "правбренд" not in pm.cfg(db)["brand_rules"]

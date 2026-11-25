@@ -41,7 +41,66 @@ def cfg(db: Session) -> dict:
     d.setdefault("svc_base", {})        # sid → {cost, at}
     d.setdefault("notified", {})        # "p:12" / "s:5" → остання повідомлена зона
     d.setdefault("tg", True)
+    d.setdefault("brand_rules", {})     # бренд (lower) → {name, unit: uah|pct, zones: [4], off: bool}
+    d.setdefault("item_rules", {})      # pid → {unit, zones, off}
     return d
+
+
+def bkey(brand: str | None) -> str:
+    return (brand or "").strip().lower()
+
+
+def rule_for(d: dict, pid: int, brand: str | None, wh: str) -> dict:
+    """Правило зон для товару: власне правило позиції → правило бренду → зони складу (₴)."""
+    r = d["item_rules"].get(str(pid))
+    if r:
+        return {"src": "item", "label": "своє правило позиції", "unit": r.get("unit") or "uah",
+                "zones": r.get("zones") or list(DEFAULT_ZONES), "off": bool(r.get("off"))}
+    b = d["brand_rules"].get(bkey(brand)) if brand else None
+    if b:
+        return {"src": "brand", "label": f"правило бренду {b.get('name') or brand}", "unit": b.get("unit") or "uah",
+                "zones": b.get("zones") or list(DEFAULT_ZONES), "off": bool(b.get("off"))}
+    return {"src": "wh", "label": f"зони складу «{WAREHOUSES.get(wh, wh)}»", "unit": "uah",
+            "zones": d["zones"].get(wh, DEFAULT_ZONES), "off": False}
+
+
+def zone_rule(diff: float, pct: float | None, rule: dict) -> int:
+    if rule["off"]:
+        return 0
+    if rule["unit"] == "pct":
+        return zone_of(pct or 0.0, rule["zones"]) if pct is not None else 0
+    return zone_of(diff, rule["zones"])
+
+
+def set_rule(d: dict, kind: str, key: str, unit: str, zones: list[float], off: bool, name: str = "") -> None:
+    rule = {"unit": "pct" if unit == "pct" else "uah", "zones": sorted(round(float(z or 0), 2) for z in zones), "off": bool(off)}
+    if kind == "brand":
+        rule["name"] = name or key
+        d["brand_rules"][bkey(key)] = rule
+    else:
+        d["item_rules"][str(key)] = rule
+
+
+def drop_rule(d: dict, kind: str, key: str) -> None:
+    (d["brand_rules"] if kind == "brand" else d["item_rules"]).pop(bkey(key) if kind == "brand" else str(key), None)
+
+
+def brands(rows: list[dict], d: dict) -> list[dict]:
+    """Бренди серед товарів моніторингу: скільки позицій, у яких зонах, правило бренду."""
+    by: dict[str, dict] = {}
+    for r in rows:
+        name = (r.get("brand") or "").strip() or "Без бренду"
+        x = by.setdefault(bkey(name) if r.get("brand") else "", {"name": name, "key": r.get("brand") or "", "n": 0, "up": 0, "zones": [0] * 5,
+                                                              "own": 0, "max_pct": None})
+        x["n"] += 1
+        x["zones"][r["zone"]] += 1
+        x["up"] += 1 if (r["diff"] or 0) > 0 else 0
+        x["own"] += 1 if r["rule"]["src"] == "item" else 0
+        if r["pct"] is not None and (x["max_pct"] is None or r["pct"] > x["max_pct"]):
+            x["max_pct"] = r["pct"]
+    for k, x in by.items():
+        x["rule"] = d["brand_rules"].get(k) if k else None
+    return sorted(by.values(), key=lambda x: (-sum(x["zones"][1:]), -x["up"], x["name"].lower()))
 
 
 def save_cfg(db: Session, d: dict) -> None:
@@ -109,9 +168,11 @@ def products(db: Session, d: dict | None = None) -> list[dict]:
             base, base_at = round(float(p.cost) * k, 2), None
         cur = arr[-1]["cost"] if arr else round(float(p.cost or 0) * k, 2)
         diff = round(cur - base, 2)
-        z = zone_of(diff, d["zones"].get(p.warehouse, DEFAULT_ZONES))
+        pct = round(100 * diff / base, 1) if base else None
+        rule = rule_for(d, p.id, p.brand, p.warehouse)
+        z = zone_rule(diff, pct, rule)
         out.append({"id": p.id, "name": p.name, "wh": p.warehouse, "brand": p.brand, "supplier": p.supplier, "base": base,
-                    "base_at": base_at, "cur": cur, "diff": diff, "pct": round(100 * diff / base, 1) if base else None,
+                    "base_at": base_at, "cur": cur, "diff": diff, "pct": pct, "rule": rule,
                     "zone": z, "hist": arr[-12:], "n": len(arr), "skipped": len(raw) - len(arr), "last_at": arr[-1]["at"] if arr else None})
     return out
 
@@ -181,7 +242,7 @@ def _scan(db: Session, notify: bool = True) -> int:
         for r in rows:
             key = f"{kind[0]}:{r['id']}"
             was = int(d["notified"].get(key, 0))
-            if r["zone"] > was:
+            if r["zone"] > was and not (r.get("rule") or {}).get("off"):
                 new.append(PriceAlert(kind=kind, item_id=r["id"], name=r["name"][:300], zone=r["zone"], base=r["base"],
                                       current=r["cur"], note=(WAREHOUSES.get(r.get("wh")) if kind == "product" else "собівартість послуги")))
             if r["zone"] != was:
@@ -197,7 +258,8 @@ def _scan(db: Session, notify: bool = True) -> int:
         try:
             from . import alerts
             lines = [f"{'📦' if a.kind == 'product' else '💉'} {a.name}: {a.base:.2f} → {a.current:.2f} ₴ "
-                     f"(+{a.current - a.base:.2f} ₴, {ZONE_NAMES[a.zone]})" for a in new[:20]]
+                     f"(+{a.current - a.base:.2f} ₴{f', +{100 * (a.current - a.base) / a.base:.1f}%' if a.base else ''}, {ZONE_NAMES[a.zone]})"
+                     for a in new[:20]]
             alerts.send("📈 <b>Подорожчання — центр моніторингу цін</b>\n" + "\n".join(lines) +
                         (f"\n…і ще {len(new) - 20}" if len(new) > 20 else ""))
         except Exception:  # noqa: BLE001

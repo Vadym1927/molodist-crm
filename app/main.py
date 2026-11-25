@@ -12371,7 +12371,7 @@ def stock_norm_add(service_id: int = Form(...), product: str = Form(...), qty: s
 
 # ---------------- Центр моніторингу цін ----------------
 @app.get("/prices", response_class=HTMLResponse)
-def prices_page(request: Request, tab: str = "products", wh: str = "", zone: str = "", q: str = "",
+def prices_page(request: Request, tab: str = "products", wh: str = "", zone: str = "", q: str = "", brand: str = "",
                 user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
     from .services import price_monitor as pm
     from .models import PriceAlert
@@ -12382,6 +12382,8 @@ def prices_page(request: Request, tab: str = "products", wh: str = "", zone: str
     rows = prods if tab == "products" else svcs
     if tab == "products" and wh in pm.WAREHOUSES:
         rows = [r for r in rows if r["wh"] == wh]
+    if tab == "products" and brand:
+        rows = [r for r in rows if pm.bkey(r["brand"]) == pm.bkey(brand)] if brand != "-" else [r for r in rows if not (r["brand"] or "").strip()]
     if zone.isdigit():
         rows = [r for r in rows if r["zone"] == int(zone)] if zone != "9" else [r for r in rows if r["zone"] > 0]
     if ql:
@@ -12389,7 +12391,9 @@ def prices_page(request: Request, tab: str = "products", wh: str = "", zone: str
     rows = sorted(rows, key=lambda r: (-r["zone"], -(r["diff"] or 0), r["name"]))
     alerts_ = db.scalars(select(PriceAlert).order_by(PriceAlert.created_at.desc()).limit(300)).all()
     stat = lambda xs: [sum(1 for r in xs if r["zone"] == z) for z in range(5)]  # noqa: E731
+    brand_list = pm.brands(prods, d)
     return render(request, "prices.html", nav="stock", tab=tab, rows=rows, d=d, pm=pm, wh=wh, zone=zone, q=q, alerts=alerts_,
+                  brand=brand, brand_list=brand_list,
                   st_p=stat(prods), st_s=stat(svcs), n_p=len(prods), n_s=len(svcs), unseen=pm.unseen(db))
 
 
@@ -12408,6 +12412,33 @@ async def prices_settings(request: Request, user: User = Depends(require("stock"
     pm.save_cfg(db, d)
     audit(db, "prices.settings", user=user, zones=d["zones"], svc_zones=d["svc_zones"])
     return RedirectResponse(_with_msg("/prices?tab=settings", "Зони збережено"), 303)
+
+
+@app.post("/prices/rule")
+async def prices_rule(request: Request, user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    """Правило зон на бренд або на позицію: ₴ чи %, 4 межі, «не моніторити»; action=reset — повернути успадковане."""
+    from .services import price_monitor as pm
+    f = await request.form()
+    kind = "brand" if f.get("kind") == "brand" else "item"
+    key = str(f.get("key") or "").strip()
+    back = str(f.get("back") or "/prices")
+    back = back if back.startswith("/prices") else "/prices"
+    if not key:
+        return RedirectResponse(back, 303)
+    d = pm.cfg(db)
+    if f.get("action") == "reset":
+        pm.drop_rule(d, kind, key)
+        msg = "Правило прибрано — діють зони " + ("складу" if kind == "brand" else "бренду / складу")
+    else:
+        zones = [_num(str(f.get(f"z{i}") or "").replace(",", ".")) or 0 for i in range(1, 5)]
+        pm.set_rule(d, kind, key, str(f.get("unit") or "uah"), zones, bool(f.get("off")), name=key)
+        msg = "Правило збережено"
+    for r in pm.products(db, d):                  # нові межі — тихо: зона фіксується без сповіщення, видно в таблиці
+        if (kind == "item" and str(r["id"]) == key) or (kind == "brand" and pm.bkey(r["brand"]) == pm.bkey(key)):
+            d["notified"][f"p:{r['id']}"] = r["zone"]
+    pm.save_cfg(db, d)
+    audit(db, "prices.rule", user=user, kind=kind, item=key, op=f.get("action") or "save")
+    return RedirectResponse(_with_msg(back, msg), 303)
 
 
 @app.post("/prices/accept")
