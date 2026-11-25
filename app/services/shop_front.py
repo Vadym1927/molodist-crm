@@ -687,7 +687,15 @@ def make_sale(db: Session, o: SiteOrder, pl) -> int | None:
             if i["qty"] - sq > 0:
                 items.append({"kind": "product", "ref_id": i["product_id"], "name": i["name"], "qty": i["qty"] - sq, "price": float(i["full"])})
         else:
-            items.append({"kind": "product", "ref_id": i["product_id"], "name": i["name"], "qty": i["qty"], "price": i["price"]})
+            full = float(i.get("old") or 0)
+            if not full and i.get("sale"):                   # старі замовлення без «old» — повна ціна з картки товару
+                p_ = db.get(Product, i["product_id"])
+                full = float(_price(p_)) if p_ else 0.0
+            if full > float(i["price"]) + 0.005:           # знижка на сайті — видно в чеку: повна ціна і знижка рядка
+                items.append({"kind": "product", "ref_id": i["product_id"], "name": i["name"], "qty": i["qty"], "price": full,
+                              "line_discount": round((full - float(i["price"])) * float(i["qty"]), 2)})
+            else:
+                items.append({"kind": "product", "ref_id": i["product_id"], "name": i["name"], "qty": i["qty"], "price": i["price"]})
     if not items:
         return None
     used = float(((o.raw or {}).get("coins") or {}).get("used") or 0)
@@ -695,7 +703,7 @@ def make_sale(db: Session, o: SiteOrder, pl) -> int | None:
     pamt = float(promo.get("amount") or 0)
     label = " + ".join(x for x in (("MOLODIST Coins" if used else ""), (f"промокод {promo.get('code')}" if pamt else "")) if x) or "MOLODIST Coins"
     used += pamt
-    paid_sum = round(sum(i["qty"] * i["price"] for i in items) - used, 2)
+    paid_sum = round(sum(i["qty"] * i["price"] - float(i.get("line_discount") or 0) for i in items) - used, 2)
     sale = sl.create(db, {"patient_id": o.patient_id, "no_discounts": True, "no_accrual": True, "manual_discount": used, "discount_label": label, "items": items,
                           "payments": [{"method": sl.paylink_method(acc.get("name") or "monobank"), "amount": paid_sum}],
                           "comment": f"Інтернет-магазин, замовлення {o.number}"})
@@ -780,7 +788,7 @@ def price_cart(db: Session, rows: list[dict], c: dict | None = None) -> dict:
             line = round(v["price"] * qty, 2)
         total += line
         out.append({"id": pid, "slug": it["slug"], "name": v["name"], "brand": it["brand"], "qty": qty, "price": round(line / qty, 2), "total": line,
-                    "sale": bool(v.get("old")), "free_ship": bool(it.get("free_ship")),
+                    "sale": bool(v.get("old")), "free_ship": bool(it.get("free_ship")), "old": float(v.get("old") or 0) if not sq else 0.0,
                     "img": it["imgs"][0] if it["imgs"] else None, "sku": v["sku"],
                     **({"short": sq, "short_price": v["price"], "short_exp": v["short_exp"], "full": v["full"]} if sq else {})})
     free_from = float(c.get("free_from") or 0)
@@ -864,6 +872,7 @@ def create_order(db: Session, data: dict, base_url: str) -> dict:
                   name=name, phone=phone, email=str(data.get("email") or "").strip()[:200] or None, city=city or None, address=wh or None,
                   comment=(str(data.get("comment") or "").strip()[:1000] + (f"\nПодарунок: {gift}" if gift else "")).strip() or None,
                   items=[{"product_id": i["id"], "name": i["name"], "sku": i["sku"], "qty": i["qty"], "price": i["price"], "total": i["total"], "sale": i.get("sale", False),
+                          **({"old": i["old"]} if i.get("old") else {}),
                           **({k: i[k] for k in ("short", "short_price", "short_exp", "full")} if i.get("short") else {})} for i in cart["items"]],
                   extra=[{"name": f"Подарунок: {gift}", "price": 0, "on": True}] if gift else None,
                   raw={"utm": {k: str(v)[:150] for k, v in data.items() if k.startswith("utm_") or k in ("gclid", "fbclid", "gbraid", "wbraid", "landing")},

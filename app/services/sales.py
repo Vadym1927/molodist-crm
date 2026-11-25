@@ -62,6 +62,9 @@ def quote(db: Session, items: list[dict], patient: Patient | None, rule_ids: lis
     d = ly.discount_for(db, li, patient, rule_ids=rule_ids, at=_kyiv_now()) if items and not no_discounts else \
         {"lines": [0.0] * len(li), "total": 0.0, "rules": [], "subtotal": 0.0}
     lines = list(d["lines"])
+    if any(it.get("line_discount") for it in items):   # задана знижка рядка (інтернет-магазин: ціна зі знижкою на сайті)
+        lines = [max(l, min(float(it.get("line_discount") or 0), float(it["price"]) * float(it.get("qty") or 1))) for l, it in zip(lines, items)]
+        d = {**d, "rules": list(d["rules"]) + ["Знижка на сайті"]}
     if items and not no_discounts:                  # короткий термін придатності: знижка на рядок з короткою партією (найвигідніша з двох)
         from . import short_expiry as sx
         se = sx.pos_lines(db, items)

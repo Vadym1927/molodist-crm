@@ -1208,3 +1208,27 @@ def test_hide_order_from_list():
         assert "HD-1" not in c.get("/shop-orders").text and "HD-1" in c.get("/shop-orders?src=hidden").text
         c.post(f"/shop-orders/{oid}/hide", data={"show": "1"})
         assert "HD-1" in c.get("/shop-orders").text
+
+
+def test_shop_sale_shows_site_discount(monkeypatch):
+    from types import SimpleNamespace as N
+    from app.services import shop_front as sf, paylinks as pls
+    from app.models import Sale
+    monkeypatch.setattr(pls, "_acc_of", lambda raw, pl: {"name": "monobank ФОП Бондар"})
+    monkeypatch.setattr(pls, "_raw", lambda db: {})
+    with TestClient(app):
+        with SessionLocal() as db:
+            p = Product(name="Jalupro знижка", name_norm="jalupro знижка", price=5200, site_on=True, site_info={"slug": "jal-zn", "title": "Jalupro знижка", "presence": 1})
+            pt = Patient(full_name="Світлана Знижка", phone="+380979030499")
+            db.add_all([p, pt]); db.commit()
+            o = SiteOrder(source="crm", ext_id="DS-1", number="DS-1", created_at=datetime.now(), status="Оплачено", paid=True, total=3640, patient_id=pt.id,
+                          items=[{"product_id": p.id, "name": "Jalupro знижка", "qty": 1, "price": 3640, "total": 3640, "sale": True, "old": 5200}])
+            db.add(o); db.commit()
+            sid = sf.make_sale(db, o, N(sale_id=None, info={}))
+            s = db.get(Sale, sid)
+            assert s.subtotal == 5200 and s.discount == 1560 and s.total == 3640
+            o2 = SiteOrder(source="crm", ext_id="DS-2", number="DS-2", created_at=datetime.now(), status="Оплачено", paid=True, total=3640, patient_id=pt.id,
+                           items=[{"product_id": p.id, "name": "Jalupro знижка", "qty": 1, "price": 3640, "total": 3640, "sale": True}])   # старе — без «old»
+            db.add(o2); db.commit()
+            s2 = db.get(Sale, sf.make_sale(db, o2, N(sale_id=None, info={})))
+            assert s2.subtotal == 5200 and s2.total == 3640
