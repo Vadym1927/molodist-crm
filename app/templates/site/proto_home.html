@@ -33,7 +33,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
   <div class="h-frow"><label><span>Імʼя <i>*</i></span><input name="name" autocomplete="given-name" placeholder="Як до вас звертатися" required></label>
     <label><span>Телефон <i>*</i></span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+380" required></label></div>
   <fieldset class="h-topics" data-pick="topic"><legend>Що вас цікавить</legend>
-    {% for t in ['Beauty Plan', 'Зморшки й вікові зміни', 'Акне й постакне', 'Пігментація й судини', 'Тьмяна, зневоднена шкіра', 'Лазерна епіляція', 'Видалення новоутворень', 'Масаж', 'Інше'] %}<button type="button" aria-pressed="false"><i>{{ ic('check') }}</i><span>{{ t }}</span></button>{% endfor %}</fieldset>
+    {% for t in ['Beauty Plan', 'Зморшки й вікові зміни', 'Акне й постакне', 'Пігментація й судини', 'Тьмяна, зневоднена шкіра', 'Лазерна епіляція', 'Видалення новоутворень', 'Апаратний масаж', 'Інше'] %}<button type="button" aria-pressed="false"><i>{{ ic('check') }}</i><span>{{ t }}</span></button>{% endfor %}</fieldset>
   {% if ask %}<label class="h-ask"><span>{{ lp.ask_label or 'Що саме вас турбує' }}</span><textarea name="comment" rows="2" maxlength="400" placeholder="{{ lp.ask_ph or 'Наприклад: пігментні плями на щоках, судинні зірочки на носі' }}"></textarea></label>{% endif %}
   <fieldset class="h-seg" data-pick="channel"><legend>Як зручніше звʼязатися</legend>
     {% for t, n in [('Дзвінок', 'phone'), ('Telegram', 'telegram'), ('Viber', 'viber')] %}<button type="button" aria-pressed="{{ 'true' if loop.first else 'false' }}" data-val="{{ t }}"><i class="bi">{{ icon(n) }}</i><span>{{ t }}</span></button>{% endfor %}</fieldset>
