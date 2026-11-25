@@ -52,7 +52,7 @@
 .exp{font-weight:700;font-size:13px;white-space:nowrap}.exp.bad{color:var(--bad)}.exp.warn{color:var(--warn)}
 .stk{font-weight:700}.stk.zero{color:var(--bad)}.stk.low{color:var(--warn)}
 .mg{font-weight:700}.mg.low{color:var(--warn)}
-.whs{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:0 0 16px}
+.whs{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;margin:0 0 16px}
 .whs a{background:var(--card);border:1.5px solid var(--line);border-radius:14px;padding:12px 14px;text-decoration:none;display:flex;flex-direction:column;gap:2px}
 .whs a:hover{border-color:var(--classic)}.whs a.on{background:var(--deep);border-color:var(--deep);color:#fff}
 .whs b{font:600 15px var(--head);text-transform:uppercase;letter-spacing:.04em}.whs em{font-style:normal;font-size:12.5px;color:var(--muted)}.whs a.on em{color:var(--lavender-2)}
@@ -92,7 +92,7 @@
   <a href="/mapping" class="{{ 'on' if nav=='mapping' }}">{{ pic('swap') }} Зіставлення з CleverBox</a></div>
 
 {% if tab=='care' %}
-{% set WI = {'vitrina':'shop','inject':'syr','classic':'flask','single':'db','equip':'mon'} %}
+{% set WI = {'vitrina':'shop','inject':'syr','classic':'flask','single':'db','equip':'mon','shop':'truck'} %}
 <div class="whs">
   <a href="?tab=care&wh=all" class="{{ 'on' if wh=='all' }}">{{ pic('cubes', 30) }}<span><b>Усі склади</b><em>{{ total_all }}</em></span></a>
   {% for k, v in WAREHOUSES.items() %}<a href="?tab=care&wh={{ k }}" class="{{ 'on' if wh==k }}">{{ pic(WI.get(k, 'box'), 30) }}<span><b>{{ v }}</b><em>{{ wh_counts.get(k, 0) }}</em></span></a>{% endfor %}

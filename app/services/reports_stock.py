@@ -220,7 +220,7 @@ def dead(db: Session, d_from: date, d_to: date, view: str = "") -> Report:
         idle = (end - lt).days if lt else None
         if idle is not None and idle < days:
             continue
-        if idle is None and p.warehouse != "vitrina" and ledger_days < days:
+        if idle is None and p.warehouse not in ("vitrina", "shop") and ledger_days < days:
             continue                                          # витратні: списання до початку обліку складу невідомі — не вгадуємо
         val = q * uc.get(pid, 0.0)
         for w in whs[pid]:

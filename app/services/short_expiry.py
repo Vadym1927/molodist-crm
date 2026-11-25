@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from ..models import Product, SyncState
 
 KEY = "short_expiry"
-DEFAULTS = {"on": True, "months": 12, "pct": 25, "whs": ["vitrina"]}
+DEFAULTS = {"on": True, "months": 12, "pct": 25, "whs": ["vitrina", "shop"]}
 LABEL = "Короткий термін придатності"
 
 

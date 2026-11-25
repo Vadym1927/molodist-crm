@@ -16,7 +16,8 @@ from .kpi import name_match, all_statuses, PlanStatus
 
 
 # Склади (розділи) товарів. Ключі стабільні, назви — для інтерфейсу.
-WAREHOUSES = {"vitrina": "Вітрина", "inject": "Ін'єкційна", "classic": "Класична", "single": "Одноразка", "equip": "Обладнання"}
+WAREHOUSES = {"vitrina": "Вітрина", "inject": "Ін'єкційна", "classic": "Класична", "single": "Одноразка", "equip": "Обладнання",
+              "shop": "Онлайн-магазин"}   # лише для molodist.store (у клініці фізично немає; під реалізацію / під замовлення)
 
 
 def warehouse_of(category: str | None) -> str | None:

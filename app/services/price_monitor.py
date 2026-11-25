@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from ..models import CbService, PriceAlert, ProcedureNorm, Product, ProductPurchase, SyncState
 
 KEY = "price_monitor"
-WAREHOUSES = {"vitrina": "Косметика", "inject": "Ін'єкції", "classic": "Класична", "single": "Одноразка"}
+WAREHOUSES = {"vitrina": "Косметика", "inject": "Ін'єкції", "classic": "Класична", "single": "Одноразка", "shop": "Онлайн-магазин"}
 DEFAULT_ZONES = [100.0, 200.0, 300.0, 400.0]
 ZONE_COLORS = ["#EEF7EE", "#FFF4C2", "#FFE0B2", "#FFCDD2", "#E57373"]          # 0 — без подорожчання
 ZONE_INK = ["#2E7D32", "#8A6D00", "#B25E00", "#B23B2E", "#7A1010"]
