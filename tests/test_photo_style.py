@@ -57,3 +57,13 @@ def test_photo_style_route(monkeypatch):
             assert p.photo_url == f"/products/files/{new.id}" and new.site and not db.get(ProductFile, old).site
         t = c.get(f"/products/{pid}?psjob=t1").text
         assert "Фото в стилі MOLODIST" in t and "Готово" in t
+
+
+def test_trim_frame():
+    im = Image.new("RGB", (500, 500), (240, 236, 230))
+    ImageDraw.Draw(im).rectangle((40, 40, 460, 460), fill=(200, 60, 60))
+    t = ps.trim_frame(im)
+    assert t.size[0] < 430 and t.size[1] < 430
+    plain = Image.new("RGB", (500, 500), "white")
+    ImageDraw.Draw(plain).rectangle((200, 100, 300, 450), fill=(10, 10, 10))
+    assert ps.trim_frame(plain).size == (500, 500)            # товар на білому — не обрізаємо (сцени немає)

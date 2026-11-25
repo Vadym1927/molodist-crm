@@ -137,7 +137,24 @@ def styled_bytes(data: bytes, job=None) -> bytes:
         if alpha.getextrema()[0] < 250:                     # уже з прозорим фоном — модель не потрібна
             return compose(rgba.convert("RGB"), alpha)
         img = rgba.convert("RGB")
-    return compose(img.convert("RGB"), mask_of(img, job))
+    img = trim_frame(img.convert("RGB"))
+    return compose(img, mask_of(img, job))
+
+
+def trim_frame(img):
+    """Фото постачальника часто — сцена в однотонній рамці (кремовий/білий кант довкола): модель тоді бачить усю сцену
+    як «товар». Обрізаємо рамку кольору кута, якщо вона є з усіх боків."""
+    from PIL import Image, ImageChops
+    w, h = img.size
+    corner = img.getpixel((2, 2))
+    diff = ImageChops.difference(img, Image.new("RGB", img.size, corner)).convert("L").point(lambda v: 255 if v > 28 else 0)
+    bb = diff.getbbox()
+    if not bb:
+        return img
+    l, t, r, b = bb
+    if min(l, t, w - r, h - b) >= 0.02 * min(w, h) and (r - l) * (b - t) > 0.35 * w * h:
+        return img.crop(bb)                                   # рамка з усіх боків, а всередині — велика сцена
+    return img
 
 
 def source_file(db, p):
