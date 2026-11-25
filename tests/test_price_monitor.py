@@ -100,3 +100,23 @@ def test_price_monitor_brand_and_item_rules(monkeypatch):
         c.post("/prices/rule", data={"kind": "brand", "key": "ПравБренд", "action": "reset"})
         with SessionLocal() as db:
             assert "правбренд" not in pm.cfg(db)["brand_rules"]
+
+
+def test_price_monitor_uses_planned_supplier_price():
+    from datetime import datetime, timedelta
+    from app.models import PriceSnapshot
+    from app.services import pricing
+    with SessionLocal() as db:
+        pricing.save_rates(db, 40.0, 45.0, 10)
+        p = Product(name="Планова сироватка", name_norm="планова сироватка", warehouse="vitrina", cost=1.0, brand="ПланБренд")
+        db.add(p); db.flush()
+        db.add(ProductPurchase(product_id=p.id, bought_on=date.today() - timedelta(days=30), qty=1, unit_cost=2000))
+        p.cost_currency, p.cost_fx = "EUR", 50.0                     # прайс: 50 € × 45 = 2250 ₴
+        db.add(PriceSnapshot(kind="price", created_at=datetime.now(), items=[{"pid": p.id, "before": {"cost_fx": None, "cost_currency": None},
+                                                                             "after": {"cost_fx": 50.0, "cost_currency": "EUR"}}]))
+        db.commit()
+        r = next(x for x in pm.products(db) if x["id"] == p.id)
+        assert r["src"] == "plan" and r["cur"] == 2250 and r["diff"] == 250
+        db.add(ProductPurchase(product_id=p.id, bought_on=date.today() + timedelta(days=1), qty=1, unit_cost=2100)); db.commit()
+        r = next(x for x in pm.products(db) if x["id"] == p.id)
+        assert r["src"] == "supply" and r["cur"] == 2100             # прихід новіший за прайс

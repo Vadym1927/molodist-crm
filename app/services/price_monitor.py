@@ -145,8 +145,32 @@ def _norm(rows: list, k: float) -> list[tuple]:
     return out
 
 
+def planned_costs(db: Session) -> dict[int, dict]:
+    """Закупівля з «Планування ціни реалізації» (прайс постачальника): pid → {cost ₴ за од. приходу, at, cur, fx}.
+    Курс — постачальника (картка), інакше загальний. Дата — коли закупівлю у валюті востаннє змінено (історія планування)."""
+    from ..models import PriceSnapshot, Supplier
+    from .pricing import rates
+    rt = rates(db)
+    sfx = {s.name.strip().lower(): s for s in db.scalars(select(Supplier)) if s.name}
+    when: dict[int, datetime] = {}
+    for sn in db.scalars(select(PriceSnapshot).where(PriceSnapshot.kind != "version").order_by(PriceSnapshot.created_at)):
+        for it in sn.items or []:
+            b, a = it.get("before") or {}, it.get("after") or {}
+            if it.get("pid") and (b.get("cost_fx"), b.get("cost_currency")) != (a.get("cost_fx"), a.get("cost_currency")):
+                when[int(it["pid"])] = sn.created_at
+    out = {}
+    for p in db.scalars(select(Product).where(Product.cost_fx.is_not(None), Product.cost_fx > 0)):
+        cur = p.cost_currency or "UAH"
+        s = sfx.get((p.supplier or "").strip().lower())
+        own = {"USD": getattr(s, "fx_usd", None), "EUR": getattr(s, "fx_eur", None)}.get(cur) if s else None
+        fx = 1.0 if cur == "UAH" else float(own or rt.get(cur, 1.0))
+        out[p.id] = {"cost": round(float(p.cost_fx) * fx, 2), "at": when.get(p.id), "cur": cur, "fx_cost": float(p.cost_fx), "fx": fx}
+    return out
+
+
 def products(db: Session, d: dict | None = None) -> list[dict]:
     d = d or cfg(db)
+    plan = planned_costs(db)
     hist: dict[int, list] = defaultdict(list)
     for pp in db.scalars(select(ProductPurchase).where(ProductPurchase.unit_cost > 0).order_by(ProductPurchase.bought_on, ProductPurchase.id)):
         hist[pp.product_id].append(pp)
@@ -155,7 +179,8 @@ def products(db: Session, d: dict | None = None) -> list[dict]:
         k = _k(p)
         raw = hist.get(p.id, [])
         arr = [{"at": pp.bought_on, "cost": v, "supplier": pp.supplier, "qty": pp.qty, "doc": pp.doc_no} for pp, v in _norm(raw, k)]
-        if not arr and not p.cost:
+        pl = plan.get(p.id)
+        if not arr and not p.cost and not pl:
             continue
         b = d["base"].get(str(p.id))
         since = date.fromordinal(date.today().toordinal() - WINDOW_DAYS)
@@ -167,13 +192,21 @@ def products(db: Session, d: dict | None = None) -> list[dict]:
         else:
             base, base_at = round(float(p.cost) * k, 2), None
         cur = arr[-1]["cost"] if arr else round(float(p.cost or 0) * k, 2)
+        last_at = arr[-1]["at"] if arr else None
+        src = "supply" if arr else "card"
+        # ціна з прайсу в «Плануванні ціни» новіша за останній прихід (або дати зміни немає) — вона і є поточною
+        if pl and (not last_at or not pl["at"] or pl["at"].date() >= last_at):
+            cur, src = pl["cost"], "plan"
+            last_at = pl["at"].date() if pl["at"] else last_at
+            if not arr and not d["base"].get(str(p.id)) and not p.cost:
+                base, base_at = cur, None
         diff = round(cur - base, 2)
         pct = round(100 * diff / base, 1) if base else None
         rule = rule_for(d, p.id, p.brand, p.warehouse)
         z = zone_rule(diff, pct, rule)
         out.append({"id": p.id, "name": p.name, "wh": p.warehouse, "brand": p.brand, "supplier": p.supplier, "base": base,
-                    "base_at": base_at, "cur": cur, "diff": diff, "pct": pct, "rule": rule,
-                    "zone": z, "hist": arr[-12:], "n": len(arr), "skipped": len(raw) - len(arr), "last_at": arr[-1]["at"] if arr else None})
+                    "base_at": base_at, "cur": cur, "diff": diff, "pct": pct, "rule": rule, "src": src, "plan": pl,
+                    "zone": z, "hist": arr[-12:], "n": len(arr), "skipped": len(raw) - len(arr), "last_at": last_at})
     return out
 
 

@@ -72,13 +72,13 @@ details.pm-d>summary{list-style:none;cursor:pointer}details.pm-d>summary::-webki
   <select name="zone" onchange="this.form.submit()"><option value="">Усі зони</option><option value="9" {{ 'selected' if zone == '9' }}>Лише подорожчання</option>{% for z in range(5) %}<option value="{{ z }}" {{ 'selected' if zone == z|string }}>{{ pm.ZONE_NAMES[z] }}</option>{% endfor %}</select>
   <button class="btn ghost" style="height:44px">Знайти</button></form>
 <div class="pm-card"><table class="pm-tb"><thead><tr>
-  {% if tab == 'products' %}<th>Товар</th><th>Склад</th><th class="r">Стартова</th><th class="r">Остання</th><th class="r">Подорожчання</th><th>Зона</th><th>Приходи (ціна за од. приходу)</th><th></th>
+  {% if tab == 'products' %}<th>Товар</th><th>Склад</th><th class="r">Стартова</th><th class="r">Остання (прихід / прайс)</th><th class="r">Подорожчання</th><th>Зона</th><th>Приходи (ціна за од. приходу)</th><th></th>
   {% else %}<th>Послуга</th><th class="r">Ціна прайсу</th><th class="r">Стартова собів.</th><th class="r">Зараз</th><th class="r">Подорожчання</th><th>Зона</th><th class="r">Маржа</th><th></th>{% endif %}</tr></thead><tbody>
 {% for r in rows %}<tr class="{{ 'z' if r.zone }}" style="--zc:{{ pm.ZONE_INK[r.zone] }};--zb:{{ pm.ZONE_COLORS[r.zone] }}">
   {% if tab == 'products' %}
   <td class="nm"><b>{{ r.name }}</b><small>{{ r.brand or '' }}{{ (' · ' ~ r.supplier) if r.supplier }}</small></td><td>{{ pm.WAREHOUSES.get(r.wh) }}</td>
   <td class="r">{{ r.base|uah }}{% if r.base_at %}<div class="muted small">{{ r.base_at[8:10] }}.{{ r.base_at[5:7] }}.{{ r.base_at[:4] }}</div>{% endif %}</td>
-  <td class="r">{{ r.cur|uah }}{% if r.last_at %}<div class="muted small">{{ r.last_at|dt('%d.%m.%Y') }}</div>{% endif %}</td>
+  <td class="r">{{ r.cur|uah }}<div class="muted small">{% if r.src == 'plan' %}<span style="color:#5C4B82;font-weight:700" title="Закупівля з «Планування ціни реалізації»: {{ '%g'|format(r.plan.fx_cost) }} {{ r.plan.cur }}{% if r.plan.cur != 'UAH' %} × {{ '%g'|format(r.plan.fx) }}{% endif %}">прайс</span>{{ (' · ' ~ (r.last_at|dt('%d.%m.%Y'))) if r.last_at }}{% elif r.last_at %}{{ r.last_at|dt('%d.%m.%Y') }}{% endif %}</div></td>
   <td class="r"><span class="pm-up {{ 'pos' if r.diff > 0 else ('neg' if r.diff < 0) }}">{{ '+' if r.diff > 0 }}{{ r.diff|uah }}</span>{% if r.pct is not none and r.diff %}<div class="muted small">{{ '+' if r.pct > 0 }}{{ r.pct }}%</div>{% endif %}</td>
   <td><span class="pm-z" style="background:{{ pm.ZONE_COLORS[r.zone] }};color:{{ pm.ZONE_INK[r.zone] }}">{{ 'Не моніториться' if r.rule.off else pm.ZONE_NAMES[r.zone] }}</span>
     <div class="pm-rl {{ 'off' if r.rule.off else ('own' if r.rule.src != 'wh') }}">{{ r.rule.label }}{% if not r.rule.off %} · {% for z in r.rule.zones %}{{ '%g'|format(z) }}{{ ' / ' if not loop.last }}{% endfor %} {{ '%' if r.rule.unit == 'pct' else '₴' }}{% endif %}</div></td>
