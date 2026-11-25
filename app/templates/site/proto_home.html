@@ -364,7 +364,7 @@ window.mldsEv=function(n,p){ {% if c.ga4_id %}try{p=p||{};p.send_to='{{ c.ga4_id
     <div class="h-scol">{% for n in shop.imgs %}<img src="{{ st(n) }}" alt="Професійна косметика в MOLODIST" loading="lazy" width="700" height="875">{% endfor %}</div>
   </div>{% if products %}<div class="wrap"><div class="h-shd row h-pshd"><div><h3>Хіти магазину</h3></div><a class="btn sm" href="{{ shop.url }}" target="_blank" rel="noopener">Увесь каталог</a></div>
     <div class="h-prods" data-swipe>{% for i in products %}<article class="h-pc">
-    <a class="pc-img" href="{{ shop_base }}/shop/{{ i.slug }}/" target="_blank" rel="noopener"><img src="{{ shop_base }}/img/{{ i.imgs[0] }}?w=600" alt="{{ i.name }}" loading="lazy" width="600" height="600">{% if i.pct %}<em class="bdg sale">−{{ i.pct }}%</em>{% elif i.tip %}<em class="bdg">Рекомендує лікар</em>{% endif %}</a>
+    <a class="pc-img" href="{{ shop_base }}/shop/{{ i.slug }}/" target="_blank" rel="noopener"><img src="{{ shop_base }}/img/{{ i.imgs[0] }}?w=600" alt="{{ i.name }}" loading="lazy" width="600" height="600">{% if i.pct %}<em class="bdg sale">−{{ i.pct }}%</em>{% elif i.tip and i.tip.badge %}<em class="bdg">Рекомендує лікар</em>{% endif %}</a>
     <div class="pc-b">{% if i.brand %}<span class="pc-br">{{ i.brand }}</span>{% endif %}<a class="pc-n" href="{{ shop_base }}/shop/{{ i.slug }}/" target="_blank" rel="noopener">{{ i.name }}</a>
       <div class="pc-p"><b>{{ money(i.price) }}</b>{% if i.old %}<s>{{ money(i.old) }}</s>{% endif %}</div>
       <a class="btn sm ghost" href="{{ shop_base }}/shop/{{ i.slug }}/" target="_blank" rel="noopener">Докладніше</a></div></article>{% endfor %}</div></div>{% endif %}</section>

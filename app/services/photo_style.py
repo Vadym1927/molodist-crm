@@ -83,6 +83,9 @@ def fill_holes(m):
     import numpy as np
     from PIL import Image, ImageDraw, ImageFilter
     solid = m.point(lambda v: 255 if v > 90 else 0).filter(ImageFilter.MaxFilter(5))
+    bb = solid.getbbox()
+    if not bb or ((bb[2] - bb[0]) > 0.9 * m.width and (bb[3] - bb[1]) > 0.9 * m.height):
+        return m                                                # контур — рамка всього кадру (сцена з фоном): не заливаємо
     out = Image.new("L", (solid.width + 2, solid.height + 2), 0)
     out.paste(solid, (1, 1))
     ImageDraw.floodfill(out, (0, 0), 128)                       # фон, досяжний від краю

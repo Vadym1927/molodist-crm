@@ -5467,7 +5467,7 @@ async def product_site_save(pid: int, request: Request, user: User = Depends(req
     if f.get("tip_form"):
         tt = str(f.get("tip_text") or "").strip()[:600]
         if tt:
-            si["tip"] = {"text": tt, "doctor_id": int(f.get("tip_doctor") or 0) or None}
+            si["tip"] = {"text": tt, "doctor_id": int(f.get("tip_doctor") or 0) or None, "badge": bool(f.get("tip_badge"))}
         else:
             si.pop("tip", None)
     p.site_info = si

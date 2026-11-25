@@ -74,3 +74,23 @@ def test_new_product_gets_site_slug():
         with SessionLocal() as db:
             si = db.get(Product, pid).site_info
             assert si["slug"] == "shampun-test-detox-300-ml" and si["title"]
+
+
+def test_tip_badge_opt_in():
+    from fastapi.testclient import TestClient
+    from app.config import settings
+    from app.main import app
+    from app.models import SessionLocal, Product
+    settings.admin_password = "owner-pass-1"
+    with TestClient(app) as c:
+        assert c.post("/login", data={"login": "vadim", "password": "owner-pass-1"}, follow_redirects=False).status_code == 303
+        c.post("/products/new", data={"name": "Бейдж тест 100 мл", "warehouse": "shop", "for_sale": "1", "price": "500"})
+        with SessionLocal() as db:
+            pid = db.query(Product).filter(Product.name == "Бейдж тест 100 мл").one().id
+        base = {"site_on": "1", "tip_form": "1", "tip_text": "Порада", "short_description": "", "seo_title": "", "seo_description": ""}
+        c.post(f"/products/{pid}/site", data=base)
+        with SessionLocal() as db:
+            assert db.get(Product, pid).site_info["tip"]["badge"] is False
+        c.post(f"/products/{pid}/site", data={**base, "tip_badge": "1"})
+        with SessionLocal() as db:
+            assert db.get(Product, pid).site_info["tip"]["badge"] is True
