@@ -164,7 +164,9 @@
     </tbody></table></div>{% endif %}
 </div>
 
-<div class="card" id="pfiles"><h2>Фото й документи</h2>
+<div class="card" id="pfiles"><div class="row between" style="gap:10px;flex-wrap:wrap"><h2 style="margin:0">Фото й документи</h2>
+  {% if can(user,'products') and pfiles|selectattr('kind','equalto','photo')|list %}<form method="post" action="/products/{{ p.id }}/photo-style" style="margin:0" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='Обробляю…'"><button class="btn" title="Сервер прибирає фон з головного фото й кладе товар на кремовий фон MOLODIST; старі фото лишаються в CRM, але ховаються з сайту">✨ Фото в стилі MOLODIST</button></form>{% endif %}</div>
+  {% if request.query_params.get('psjob') %}{% set _j = ps_job %}<div class="alert" style="background:var(--lavender);color:var(--classic);margin:10px 0">{% if not _j or _j.status == 'running' %}Обробляю фото… {{ (_j.progress[-1:]|join('')) if _j }} <a href="?psjob={{ request.query_params.get('psjob') }}#pfiles">оновити</a>{% elif _j.status == 'done' %}Готово: нове фото — головне й на сайті.{% else %}Не вдалося: {{ _j.error }}{% endif %}</div>{% endif %}
   {% set _ph = pfiles|selectattr('kind','equalto','photo')|list %}{% set _dc = pfiles|rejectattr('kind','equalto','photo')|list %}
   {% if _ph %}<div class="pfg">{% for f in _ph %}<div class="pfi {{ 'main' if p.photo_url == '/products/files/' ~ f.id }}"><a href="/products/files/{{ f.id }}" target="_blank"><img src="/products/files/{{ f.id }}" loading="lazy" alt=""></a>{% if f.site %}<span class="pfsite" title="Показується на сайті">сайт</span>{% endif %}
     {% if can(user,'products') %}<div class="pfa">{% if p.photo_url != '/products/files/' ~ f.id %}<form method="post" action="/products/files/{{ f.id }}/main"><button title="Зробити головним">★</button></form>{% else %}<span title="Головне фото">★</span>{% endif %}

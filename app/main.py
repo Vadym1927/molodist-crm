@@ -5335,7 +5335,9 @@ def product_card(pid: int, request: Request, user: User = Depends(require("produ
         if m.expiry_date not in batch_opts.setdefault(m.warehouse, []):
             batch_opts[m.warehouse].append(m.expiry_date)
     shop_doctors = list(db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)))
-    return render(request, "product.html", shop_doctors=shop_doctors, dirs=catalog.product_dirs(db), wh=prod.warehouse,
+    from .services import jobs as _jobs_ps
+    ps_job = _jobs_ps.JOBS.get(str(request.query_params.get("psjob") or ""))
+    return render(request, "product.html", shop_doctors=shop_doctors, dirs=catalog.product_dirs(db), wh=prod.warehouse, ps_job=ps_job,
                   WAREHOUSES=catalog.WAREHOUSES, p=prod, r=row, purchases=purchases, buys=buys, buy_stats=buy_stats,
                   batches=batches, out_moves=out_moves, batch_opts=batch_opts, wh_tot=wh_tot, ledger_on=ledger_on, sales=sales, plans=plans, months=months,
                   m_max=max([m[1] for m in months] + [1]), stock_rows=stock_rows, today=today,
@@ -5481,6 +5483,39 @@ async def product_site_save(pid: int, request: Request, user: User = Depends(req
         _sf.set_product_cats(db, si["slug"], {str(x) for x in f.getlist("cat")})
     audit(db, "product.site", "product", pid, user=user, on=p.site_on)
     return RedirectResponse(_with_msg(f"/products/{pid}#psite", "Збережено"), 303)
+
+
+@app.post("/products/{pid:int}/photo-style")
+def product_photo_style(pid: int, user: User = Depends(require("products")), db: Session = Depends(db_dep)):
+    """«Фото в стилі MOLODIST»: фон прибирається на сервері, товар — на кремовому фоні (фонова задача)."""
+    from .services import jobs, photo_style
+    db.get(Product, pid) or (_ for _ in ()).throw(HTTPException(404))
+    job = jobs.start(f"Фото в стилі MOLODIST #{pid}", photo_style.run, [pid], user.id)
+    audit(db, "product.photo_style", "product", pid, user=user)
+    return RedirectResponse(f"/products/{pid}?psjob={job.id}#pfiles", 303)
+
+
+@app.post("/products/photo-style")
+async def products_photo_style_bulk(request: Request, user: User = Depends(require("products")), db: Session = Depends(db_dep)):
+    """Кілька товарів одразу (ids через кому або список pid) — для бренду чи складу."""
+    from .services import jobs, photo_style
+    f = await request.form()
+    ids = [int(x) for x in re.split(r"[,\s]+", str(f.get("ids") or "")) if x.isdigit()] + [int(x) for x in f.getlist("pid") if str(x).isdigit()]
+    ids = list(dict.fromkeys(ids))[:200]
+    if not ids:
+        return JSONResponse({"error": "Немає товарів"}, status_code=400)
+    job = jobs.start("Фото в стилі MOLODIST (кілька)", photo_style.run, ids, user.id)
+    audit(db, "product.photo_style", "product", None, user=user, n=len(ids))
+    return JSONResponse({"ok": True, "job": job.id, "n": len(ids)})
+
+
+@app.get("/products/photo-style/{job_id}")
+def products_photo_style_status(job_id: str, user: User = Depends(require("products"))):
+    from .services import jobs
+    j = jobs.JOBS.get(job_id)
+    if not j:
+        return JSONResponse({"status": "unknown"})
+    return JSONResponse({"status": j.status, "progress": j.progress[-30:], "result": j.result, "error": j.error})
 
 
 @app.post("/products/files/{fid:int}/main")
