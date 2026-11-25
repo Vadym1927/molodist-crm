@@ -1131,3 +1131,16 @@ def test_admin_hidden_but_in_stock_filter(monkeypatch):
             monkeypatch.setattr(sf, "catalog", fake)
             rows = [r for r in sf.admin_rows(db, flt="hidden_stock") if r["p"].id == pid]
             assert rows and rows[0]["hidden_left"] == 1
+
+
+def test_stock_ignores_old_presence_flag(monkeypatch):
+    from app.services import shop_front as sf, stock as st
+    monkeypatch.setattr(st, "ledger_active", lambda db: True)
+    with TestClient(app):
+        with SessionLocal() as db:
+            p = Product(name="Крем presence", name_norm="крем presence", price=3375, site_on=True,
+                        site_info={"slug": "krem-presence", "title": "Крем presence", "presence": "not_available"})
+            db.add(p); db.commit(); pid = p.id
+            monkeypatch.setattr(st, "balances", lambda db: {(pid, "vitrina"): 1.0})
+            it = sf.catalog(db, fresh=True)["by_slug"]["krem-presence"]
+            assert it["stock"] and it["variants"][0]["left"] == 1

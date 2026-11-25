@@ -389,7 +389,7 @@ def catalog(db: Session, fresh: bool = False) -> dict:
             old, price = full_, _sx.price(sxc, full_)
         if onhand is not None:
             left_ = int(max(0.0, onhand.get(p.id, 0.0)) + 1e-6)
-            stock = not hidden and str(si.get("presence", 1)).lower() not in ("0", "false", "not_available") and left_ >= 1
+            stock = not hidden and left_ >= 1               # правда — залишок вітрини; старий прапорець «presence» з імпорту Shop-Express не враховуємо
         else:
             left_ = None
             stock = not hidden and str(si.get("presence", 1)).lower() not in ("0", "false", "not_available") and (si.get("quantity") is None or float(si.get("quantity") or 0) > 0)
