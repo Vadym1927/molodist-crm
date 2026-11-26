@@ -44,6 +44,8 @@ TYPES = [
      {"chief": (True, "09:30"), "owner": (True, "09:30"), "doctor": (False, "09:30")}),
     ("consign_expiry", "Реалізація: повернути за терміном", "Товар під реалізацію, який треба повернути постачальнику (за 12 міс. до кінця терміну) — щодня, поки не продано чи не повернуто; за 30 днів — попередження", "daily",
      {"owner": (True, "09:00"), "admin": (False, "09:00"), "chief": (False, "09:00")}),
+    ("price_tags", "Змінилась ціна — передрукувати цінники", "Товари вітрини, у яких змінилась ціна продажу: передрукувати цінник; посилання на друк цінників одразу для них", "daily",
+     {"admin": (True, "09:30"), "owner": (False, "09:30"), "chief": (False, "09:30")}),
     ("month", "Підсумок місяця", "1-го числа: виручка, візити, нові пацієнти за місяць, по лікарях", "monthly",
      {"owner": (True, "10:00"), "chief": (False, "10:00")}),
 ]
@@ -485,7 +487,57 @@ def text_consign_expiry(db: Session, u: User, role: str, d: date | None = None) 
     return "\n".join(lines)
 
 
-BUILDERS = {"consign_expiry": text_consign_expiry, "next_day": text_next_day, "today": text_today, "tomorrow": text_tomorrow, "plans": text_plans, "plan_control": text_plan_control, "birthdays": text_birthdays,
+PT_KEY = "price_tags_seen"           # {"base": {pid: ціна}, "day": "YYYY-MM-DD", "items": [{pid, name, old, new}]}
+PT_WH = ("vitrina",)
+
+
+def _pt_prices(db: Session) -> dict[str, float]:
+    from ..models import Product
+    out = {}
+    for p in db.scalars(select(Product).where(Product.warehouse.in_(PT_WH), Product.active.is_not(False))):
+        v = p.price or p.price_manual
+        if v:
+            out[str(p.id)] = round(float(v), 2)
+    return out
+
+
+def price_tag_changes(db: Session, d: date | None = None) -> list[dict]:
+    """Товари вітрини, у яких ціна продажу змінилась з минулого сповіщення. Перший виклик дня фіксує список і нову базу
+    (усі ролі того дня отримують той самий список); найперший запуск лише запамʼятовує ціни."""
+    day = (d or date.today()).isoformat()
+    st = _get(db, PT_KEY, {}) or {}
+    cur = _pt_prices(db)
+    if not st.get("base"):
+        _put(db, PT_KEY, {"base": cur, "day": day, "items": []})
+        return []
+    if st.get("day") == day:
+        return st.get("items") or []
+    from ..models import Product
+    base = st["base"]
+    ch = [(int(k), base[k], v) for k, v in cur.items() if k in base and abs(base[k] - v) >= 0.01]
+    names = {p.id: p for p in db.scalars(select(Product).where(Product.id.in_([c[0] for c in ch] or [0])))}
+    items = [{"pid": pid, "name": (names[pid].short_name or names[pid].name) if pid in names else f"#{pid}", "old": o, "new": n}
+             for pid, o, n in ch]
+    _put(db, PT_KEY, {"base": {**base, **cur}, "day": day, "items": items})
+    return items
+
+
+def text_price_tags(db: Session, u: User, role: str, d: date | None = None) -> str | None:
+    xs = price_tag_changes(db, d)
+    if not xs:
+        return None
+    lines = [f"🏷 <b>Змінилась ціна — передрукуйте цінники ({len(xs)})</b>"]
+    for x in xs[:40]:
+        arrow = "⬆️" if x["new"] > x["old"] else "⬇️"
+        lines.append(f"• {escape(x['name'])}: {x['old']:.0f} → <b>{x['new']:.0f} ₴</b> {arrow}")
+    if len(xs) > 40:
+        lines.append(f"…і ще {len(xs) - 40}")
+    ids = "&".join(f"ids={x['pid']}" for x in xs[:150])
+    lines.append(f'\n<a href="{_B}/products/labels?{ids}">Надрукувати цінники</a>')
+    return "\n".join(lines)
+
+
+BUILDERS = {"price_tags": text_price_tags, "consign_expiry": text_consign_expiry, "next_day": text_next_day, "today": text_today, "tomorrow": text_tomorrow, "plans": text_plans, "plan_control": text_plan_control, "birthdays": text_birthdays,
             "no_rebook": text_no_rebook, "tasks": text_tasks, "day_close": text_day_close, "week": text_week, "month": text_month}
 
 
@@ -525,6 +577,8 @@ def run(db: Session, now: datetime | None = None) -> int:
     """Надіслати все, що настало за часом і ще не надсилалось сьогодні. Повертає кількість повідомлень."""
     now = now or datetime.now()
     c = cfg(db)
+    if not (_get(db, PT_KEY, {}) or {}).get("base"):            # база цін для «передрукувати цінники» — з першого запуску
+        price_tag_changes(db, now.date())
     log = _get(db, LOG, {}) or {}
     today = now.date().isoformat()
     n = 0
