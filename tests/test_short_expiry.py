@@ -144,3 +144,13 @@ def test_product_sale_dups_listing():
         db.commit()
         d = dc.product_sale_dups(db)
         assert len(d) == 1 and d[0]["n"] == 2 and d[0]["patient"] == "Дубль Тест"
+
+
+def test_short_expiry_eight_months_inclusive():
+    from datetime import date
+    c = {**sx.DEFAULTS, "on": True}
+    assert c["months"] == 8
+    t = date(2026, 11, 26)
+    assert sx.is_short(c, date(2027, 7, 26), t)          # рівно 8 місяців — уже знижка
+    assert not sx.is_short(c, date(2027, 7, 27), t)
+    assert sx.is_short(c, date(2027, 3, 1), t) and not sx.is_short(c, date(2026, 11, 25), t)

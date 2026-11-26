@@ -1,4 +1,4 @@
-"""Автознижка на товари з коротким терміном придатності (за замовчуванням: вітрина, термін < 12 міс → −25%).
+"""Автознижка на товари з коротким терміном придатності (за замовчуванням: вітрина, до кінця терміну ≤ 8 міс → −25%).
 
 Знижка діє лише на одиниці з короткої партії:
 • каса CRM — коли в рядку обрано термін (партію), що спливає раніше ніж за N місяців; знижка на к-сть цієї партії;
@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from ..models import Product, SyncState
 
 KEY = "short_expiry"
-DEFAULTS = {"on": True, "months": 12, "pct": 25, "whs": ["vitrina", "shop"]}
+DEFAULTS = {"on": True, "months": 8, "pct": 25, "whs": ["vitrina", "shop"]}
 LABEL = "Короткий термін придатності"
 
 
@@ -36,7 +36,7 @@ def save(db: Session, d: dict) -> dict:
         except ValueError:
             return dv
     whs = [w for w in (d.get("whs") or []) if w] or ["vitrina"]
-    c = {"on": bool(d.get("on")), "months": int(num("months", 1, 36, 12)), "pct": num("pct", 1, 90, 25), "whs": whs}
+    c = {"on": bool(d.get("on")), "months": int(num("months", 1, 36, 8)), "pct": num("pct", 1, 90, 25), "whs": whs}
     db.merge(SyncState(key=KEY, value=json.dumps(c, ensure_ascii=False), updated_at=datetime.utcnow()))
     db.commit()
     return c
@@ -44,7 +44,7 @@ def save(db: Session, d: dict) -> dict:
 
 def edge(c: dict, today: date | None = None) -> date:
     t = today or date.today()
-    m = t.month - 1 + int(c.get("months") or 12)
+    m = t.month - 1 + int(c.get("months") or 8)
     y, m = t.year + m // 12, m % 12 + 1
     import calendar
     return date(y, m, min(t.day, calendar.monthrange(y, m)[1]))
@@ -52,7 +52,7 @@ def edge(c: dict, today: date | None = None) -> date:
 
 def is_short(c: dict, expiry: date | None, today: date | None = None) -> bool:
     t = today or date.today()
-    return bool(c.get("on") and expiry and t <= expiry < edge(c, t))
+    return bool(c.get("on") and expiry and t <= expiry <= edge(c, t))      # «N місяців і менше»
 
 
 def label(c: dict) -> str:
