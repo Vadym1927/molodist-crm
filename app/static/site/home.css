@@ -767,3 +767,7 @@ div.l-promo .btn{flex:none;background:#fff;color:#3B3050}
 /* телефон: коротка форма в модалці — імʼя, телефон, спосіб звʼязку (тема відома зі сторінки або картки) */
 @media (max-width:640px){.h-modal .h-ask,.h-modal.has-topic .h-topics,.h-modal .h-mlp .sm,.h-modal .h-mstd .sm{display:none}
   .h-modal .h-mlp{margin-bottom:10px}.h-modal .h-mlp .h-mh{margin:0}.h-modal .h-frow{gap:10px}}
+
+/* ціни однією групою на всю ширину — список у 2 колонки (сторінка родимок) */
+.l-pcol.c2{grid-column:1/-1}.l-pcol.c2 ul{columns:2;column-gap:48px}.l-pcol.c2 li{break-inside:avoid}
+@media (max-width:760px){.l-pcol.c2 ul{columns:1}}
