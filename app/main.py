@@ -12522,6 +12522,19 @@ def stock_norm_add(service_id: int = Form(...), product: str = Form(...), qty: s
 @app.get("/prices", response_class=HTMLResponse)
 def prices_page(request: Request, tab: str = "products", wh: str = "", zone: str = "", q: str = "", brand: str = "",
                 user: User = Depends(require("stock")), db: Session = Depends(db_dep)):
+    try:
+        return _prices_page(request, tab, wh, zone, q, brand, user, db)
+    except Exception:  # noqa: BLE001 — власнику показуємо причину, щоб не гадати
+        import traceback
+        log.exception("prices_page")
+        if user.role != "owner":
+            raise
+        db.rollback()
+        from html import escape as _esc
+        return HTMLResponse("<pre style='white-space:pre-wrap'>" + _esc(traceback.format_exc()[-4000:]) + "</pre>", status_code=500)
+
+
+def _prices_page(request, tab, wh, zone, q, brand, user, db):
     from .services import price_monitor as pm
     from .models import PriceAlert
     pm.scan(db, notify=True)
