@@ -36,13 +36,13 @@ def test_prices_live_from_crm_and_promo():
 
 def test_site_host_routing_and_lead():
     with SessionLocal() as db:
-        _svc(db, 208, "Видалення невусу 1 шт", 1500); db.commit()
+        _svc(db, 27, "Ботулінотерапія міжбрівʼя", 1500); db.commit()
         c = sp.cfg(db); c["hosts"] = ["new.molodist.test"]; sp.save_cfg(db, c)
     with TestClient(app) as cl:
-        r = cl.get("/_site/vydalennia-rodymok")                               # перегляд у CRM — noindex
+        r = cl.get("/_site/inyekczijna-kosmetologiya")                               # перегляд у CRM — noindex
         assert r.status_code == 200 and "1 500 ₴" in r.text and r.headers.get("x-robots-tag")
         h = {"host": "new.molodist.test"}
-        r = cl.get("/vydalennia-rodymok", headers=h)
+        r = cl.get("/inyekczijna-kosmetologiya", headers=h)
         assert r.status_code == 200 and "noindex" not in r.text and "application/ld+json" in r.text and 'href="/laserepilation"' in r.text
         assert cl.get("/", headers=h).status_code == 200
         assert cl.get("/login", headers=h).status_code == 404                # CRM на домені сайту недоступна
