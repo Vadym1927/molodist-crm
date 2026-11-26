@@ -74,6 +74,7 @@ class PriceRow:
     cost_uah_crm: float | None          # закупівля з CRM (сер. ціна, грн) — якщо валютної не задано
     rate: float
     sup_fx: dict | None = None          # курс постачальника {USD, EUR, name}, якщо задано в картці постачальника
+    stock: float | None = None          # фактичний залишок (журнал складу CRM)
 
     @property
     def cur(self):

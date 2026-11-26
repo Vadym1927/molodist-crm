@@ -89,7 +89,7 @@ table.pt{border-collapse:separate;border-spacing:0;font-size:13px;min-width:1900
 <form method="post" action="/finance/pricing" id="pf">
 <input type="hidden" name="back" value="{{ request.url.path }}?{{ request.url.query }}">
 <div class="pwrap"><table class="pt"><thead><tr>
-  <th class="nm">Товар</th><th>Валюта</th><th>Закупівля у валюті</th><th>Закупівля, грн</th><th title="Собівартість товару в CRM зараз (середня ціна закупівлі)">Закупівля в програмі зараз</th><th>РРЦ постачальника (вал.)</th>
+  <th class="nm">Товар</th><th class="r" title="Фактичний залишок за журналом складу CRM" style="min-width:64px">Залишок</th><th>Валюта</th><th>Закупівля у валюті</th><th>Закупівля, грн</th><th title="Собівартість товару в CRM зараз (середня ціна закупівлі)">Закупівля в програмі зараз</th><th>РРЦ постачальника (вал.)</th>
   <th>Ціна в програмі зараз</th><th>Валовий прибуток, грн</th><th title="(ціна в програмі − закупівля) / ціна в програмі">Маржа, % (від ціни в програмі)</th>
   <th class="g" title="РРЦ постачальника × курс">Ціна продажу при курсі (РРЦ)</th><th class="g" title="(РРЦ × курс − закупівля) / (РРЦ × курс)">Маржа при РРЦ</th>
   {% for m in MARGINS %}<th>Ціна при маржі {{ m }}%</th>{% endfor %}
@@ -98,6 +98,7 @@ table.pt{border-collapse:separate;border-spacing:0;font-size:13px;min-width:1900
   <tr data-crm="{{ x.cost_uah_crm or '' }}" data-now="{{ x.price_now or '' }}"{% if x.sup_fx %} data-fx-usd="{{ x.sup_fx.USD or '' }}" data-fx-eur="{{ x.sup_fx.EUR or '' }}"{% endif %}>
     <td class="nm"><input type="hidden" name="pid" value="{{ p.id }}"><a href="/products/{{ p.id }}" style="font-weight:600;text-decoration:none">{{ p.name }}</a>
       <div class="meta">{{ p.brand or '—' }}{{ (' · арт. ' ~ p.sku) if p.sku }}</div></td>
+    <td class="r" style="white-space:nowrap;font-variant-numeric:tabular-nums;{{ 'color:var(--muted)' if not x.stock }}">{{ ('%g'|format(x.stock)) if x.stock is not none else '—' }}{% if x.stock %} <span class="meta">{{ p.unit or 'шт' }}</span>{% endif %}</td>
     <td><select name="cur_{{ p.id }}" class="cur">{% for c in CURRENCIES %}<option {{ 'selected' if (p.cost_currency or 'UAH')==c }}>{{ c }}</option>{% endfor %}</select></td>
     {% set pl = last_pl.get(p.id) %}
     <td class="r"><input name="cfx_{{ p.id }}" class="cfx" value="{{ '%g'|format(p.cost_fx) if p.cost_fx else '' }}" inputmode="decimal" placeholder="—">
@@ -115,7 +116,7 @@ table.pt{border-collapse:separate;border-spacing:0;font-size:13px;min-width:1900
     <td class="r c-diff"></td><td class="r c-mu"></td><td class="r c-mp"></td>
     <td class="r"><button type="button" class="btn ghost c-go" style="padding:4px 10px;font-size:12.5px;white-space:nowrap" onclick="goSale(this, {{ p.id }})" style="display:none"></button></td>
   </tr>
-{% else %}<tr><td class="nm muted" colspan="20">Немає товарів за цими фільтрами.</td></tr>{% endfor %}
+{% else %}<tr><td class="nm muted" colspan="21">Немає товарів за цими фільтрами.</td></tr>{% endfor %}
 </tbody></table></div>
 <div class="savebar"><span id="dirtyn">Змін немає</span><button class="btn">Зберегти зміни</button></div>
 </form>

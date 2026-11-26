@@ -13725,6 +13725,7 @@ def _pricing_rows(db: Session, wh: str, brand: str, q: str, only: str):
         own = {"USD": s_.fx_usd, "EUR": s_.fx_eur}.get(cur) if s_ else None
         pr = pr_svc.PriceRow(p_, r.cost, own or rt.get(cur, 1.0))   # курс постачальника, інакше загальний
         pr.sup_fx = {"USD": s_.fx_usd, "EUR": s_.fx_eur, "name": s_.name} if s_ else None
+        pr.stock = getattr(r, "stock", None)                         # фактичний залишок (журнал складу CRM)
         out.append(pr)
     if only == "nofx":
         out = [x for x in out if not x.product.cost_fx]
