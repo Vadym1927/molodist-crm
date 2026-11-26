@@ -10,7 +10,7 @@
 .stp{display:inline-block;padding:4px 10px;border-radius:999px;font:600 11.5px var(--sans);background:#F1EEF6;color:#3B3050;white-space:nowrap}.stp.new{background:#3B3050;color:#fff}.stp.ok{background:#E3F1E6;color:#256B37}.stp.bad{background:#F3E3E3;color:#8C2F39}.stp.wait{background:#FBF1D9;color:#7A5A12}
 tr.old td{opacity:.6}</style>
 <div class="sc-h"><div><h1 style="margin:0">Центр керування магазином</h1><div class="muted small">Замовлення інтернет-магазину MOLODIST · {{ n }} у списку</div></div>
-  <a class="btn" href="{{ shop_url }}" target="_blank" rel="noopener">{{ 'Відкрити магазин' if shop_on else 'Перегляд магазину' }} ↗</a></div>
+  <span style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn" href="/shop-orders/new">+ Нове замовлення</a><a class="btn ghost" href="{{ shop_url }}" target="_blank" rel="noopener">{{ 'Відкрити магазин' if shop_on else 'Перегляд магазину' }} ↗</a></span></div>
 {% include "_shop_tabs.html" %}
 {% set sq = ('&status=' ~ (f.status|urlencode)) if f.status else '' %}{% set aq = '&src=arch' if src == 'arch' else '' %}
 <form class="sc-f" style="margin-bottom:12px"><a class="chip {{ 'on' if not per and not f.d1 and not f.d2 }}" href="?{{ sq[1:] }}{{ aq }}">Увесь час</a>

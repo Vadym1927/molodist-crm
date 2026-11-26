@@ -11646,6 +11646,53 @@ def shop_carts_page(request: Request, status: str = "open", user: User = Depends
                   c=sf.cfg(db), sum_open=sum(r["cart"].total or 0 for r in rows if r["cart"].status == "open"))
 
 
+@app.get("/shop-orders/new", response_class=HTMLResponse)
+def shop_order_new_form(request: Request, phone: str = "", user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    """Нове замовлення вручну (дзвінок, Instagram, месенджер): товари з каталогу сайту, доставка й оплата на вибір."""
+    from .services import shop_front as sf
+    lines = sorted(({"id": v["id"], "qty": 0, "name": v.get("name") or it["name"], "price": v.get("price") or 0, "stock": True, "left": v.get("left"), "brand": it.get("brand") or ""}
+                    for it in sf.catalog(db)["items"] for v in it["variants"] if v.get("stock")), key=lambda x: x["name"].lower())
+    pre = {"name": "", "phone": phone}
+    if phone:
+        p_ = db.scalar(select(Patient).where(Patient.phone == re.sub(r"\D", "", phone)))
+        if p_:
+            pre["name"] = p_.full_name
+    return render(request, "shop_cart_order.html", nav="shop", shop_tab="orders", shop_cnt=_shop_cnt(db), cart=None, row=pre, lines=lines, c=sf.cfg(db), new=True)
+
+
+@app.post("/shop-orders/new")
+async def shop_order_new_save(request: Request, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    from .models import SiteOrder
+    from .services import shop_front as sf
+    f = await request.form()
+    items = []
+    for k, v in f.items():
+        if k.startswith("qty_") and k[4:].isdigit():
+            try:
+                q_ = int(v or 0)
+            except ValueError:
+                q_ = 0
+            if q_ > 0:
+                items.append({"id": int(k[4:]), "qty": q_})
+    if not items:
+        return RedirectResponse(_with_msg("/shop-orders/new", "Додайте хоча б один товар", True), 303)
+    who = user.name or user.login
+    data = {"items": items, "name": str(f.get("name") or ""), "phone": str(f.get("phone") or ""), "email": str(f.get("email") or ""),
+            "delivery": str(f.get("delivery") or "np"), "city": str(f.get("city") or ""), "warehouse": str(f.get("warehouse") or ""),
+            "addr": str(f.get("addr") or ""), "pay": str(f.get("pay") or "online"), "comment": str(f.get("comment") or ""), "_admin": True}
+    try:
+        r = sf.create_order(db, data, settings.public_url)
+    except sf.ShopError as e:
+        return RedirectResponse(_with_msg("/shop-orders/new", str(e), True), 303)
+    o = db.get(SiteOrder, r["id"])
+    sf.log(o, "Оформлено вручну", who)
+    o.raw = {**(o.raw or {}), "manual": {"by": who}, **({"pay_url": r["pay_url"]} if r.get("pay_url") else {})}
+    audit(db, "shop.order_new", "site_order", o.id, user=user, order=o.number)
+    db.commit()
+    msg = f"Замовлення {o.number} створено" + (". Посилання на оплату нижче — надішліть покупцю" if r.get("pay_url") else "")
+    return RedirectResponse(_with_msg(f"/shop-orders/{o.id}", msg), 303)
+
+
 @app.get("/shop-carts/{cid:int}/order", response_class=HTMLResponse)
 def shop_cart_order_form(request: Request, cid: int, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
     """Покинутий кошик → замовлення вручну: товари з кошика, доставка й оплата на вибір адміністратора."""
@@ -11684,7 +11731,7 @@ async def shop_cart_order_save(request: Request, cid: int, user: User = Depends(
         return RedirectResponse(_with_msg(f"/shop-carts/{cid}/order", str(e), True), 303)
     o = db.get(SiteOrder, r["id"])
     sf.log(o, "Оформлено вручну з покинутого кошика", who)
-    o.raw = {**(o.raw or {}), "manual": {"by": who, "cart": cid}}
+    o.raw = {**(o.raw or {}), "manual": {"by": who, "cart": cid}, **({"pay_url": r["pay_url"]} if r.get("pay_url") else {})}
     if o.patient_id is None:
         o.patient_id = cart.patient_id
     ct.ordered(db, cart.patient_id)
@@ -11785,7 +11832,10 @@ def shop_order_page(request: Request, oid: int, user: User = Depends(require("sa
     except Exception:  # noqa: BLE001
         _nm = None
     _path = _ss.order_path(db, o, _nm) if o.source == "crm" else None
-    return render(request, "shop_order.html", nav="shop", review_url=_rvu, o=o, path=_path, utm=(o.raw or {}).get("utm") or {}, pat=db.get(Patient, o.patient_id) if o.patient_id else None, v=sf.order_view(db, o),
+    from .services import sales as _sl
+    _meth = _sl.methods(db) if o.source == "crm" and o.paid and not (o.raw or {}).get("sale_id") else []
+    _def = next((m_ for m_ in _meth if "частин" in m_.lower()), "") if "Частинами" in (o.payment or "") else (next((m_ for m_ in _meth if m_.startswith(_sl.PAYLINK)), "") if "Онлайн" in (o.payment or "") else "")
+    return render(request, "shop_order.html", nav="shop", review_url=_rvu, o=o, path=_path, sale_methods=_meth, sale_def=_def, utm=(o.raw or {}).get("utm") or {}, pat=db.get(Patient, o.patient_id) if o.patient_id else None, v=sf.order_view(db, o),
                   STATUSES=sf.STATUSES, staff=[u_ for u_ in db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)) if can(u_, "sales")])
 
 
@@ -11980,6 +12030,59 @@ async def settings_shop_cats_save(request: Request, user: User = Depends(require
         return RedirectResponse(_with_msg("/settings/shop/cats", str(e), True), 303)
     audit(db, "shop.cat", user=user, path=str(f.get("path"))[:100])
     return RedirectResponse(_with_msg("/settings/shop/cats", "Збережено"), 303)
+
+
+@app.post("/shop-orders/{oid:int}/paylink")
+def shop_order_paylink(oid: int, action: str = Form("create"), user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    """Посилання на оплату із замовлення: створити / надіслати покупцю."""
+    from .models import SiteOrder
+    from .services import shop_front as sf
+    o = db.get(SiteOrder, oid) or (_ for _ in ()).throw(HTTPException(404))
+    if o.source != "crm":
+        raise HTTPException(400)
+    who = user.name or user.login
+    try:
+        if action == "send":
+            ch = sf.send_paylink(db, o)
+            sf.log(o, f"Посилання на оплату надіслано ({ch})", who)
+            msg = "Посилання надіслано покупцю (" + {"telegram": "Telegram", "viber": "Viber", "sms": "SMS"}.get(ch, ch) + ")"
+        else:
+            url = sf.order_paylink(db, o, settings.public_url, user.id)
+            sf.log(o, "Створено посилання на оплату", who)
+            msg = f"Посилання на оплату створено: {url}"
+    except sf.ShopError as e:
+        db.rollback()
+        return RedirectResponse(_with_msg(f"/shop-orders/{oid}", str(e), True), 303)
+    db.commit()
+    audit(db, "shop.order_paylink", "site_order", oid, user=user, action_=action)
+    return RedirectResponse(_with_msg(f"/shop-orders/{oid}", msg), 303)
+
+
+@app.post("/shop-orders/{oid:int}/sale")
+def shop_order_sale(oid: int, method: str = Form(""), user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    """Провести продаж оплаченого замовлення в CRM (чек, списання зі складу) — для Покупки Частинами, накладеного платежу тощо."""
+    from .models import SiteOrder
+    from .services import shop_front as sf, sales as _sl
+    o = db.get(SiteOrder, oid) or (_ for _ in ()).throw(HTTPException(404))
+    if o.source != "crm" or not o.paid:
+        return RedirectResponse(_with_msg(f"/shop-orders/{oid}", "Продаж проводиться для оплаченого замовлення", True), 303)
+    if (o.raw or {}).get("sale_id"):
+        return RedirectResponse(f"/sales/{o.raw['sale_id']}", 303)
+    if method not in _sl.methods(db):
+        return RedirectResponse(_with_msg(f"/shop-orders/{oid}", "Оберіть спосіб оплати", True), 303)
+    if not o.patient_id:
+        return RedirectResponse(_with_msg(f"/shop-orders/{oid}", "У замовлення немає картки пацієнта", True), 303)
+    try:
+        sid = sf.make_sale(db, o, None, method)
+    except Exception as e:  # noqa: BLE001
+        db.rollback()
+        return RedirectResponse(_with_msg(f"/shop-orders/{oid}", f"Продаж не проведено: {str(e)[:200]}", True), 303)
+    if not sid:
+        return RedirectResponse(_with_msg(f"/shop-orders/{oid}", "У замовленні немає товарів з каталогу CRM", True), 303)
+    sf.log(o, f"Проведено продаж у CRM ({method})", user.name or user.login)
+    db.commit()
+    audit(db, "shop.order_sale", "site_order", oid, user=user, sale=sid)
+    return RedirectResponse(_with_msg(f"/sales/{sid}", f"Продаж за замовленням {o.number} проведено"), 303)
 
 
 @app.post("/shop-orders/{oid:int}/parts")

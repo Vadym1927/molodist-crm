@@ -1242,3 +1242,45 @@ def test_mono_parts_phone_and_sums():
     assert round(sum(r["count"] * r["sum"] for r in rows), 2) == 3000 and all(r["count"] == 1 for r in rows)
     o2 = SiteOrder(number="M3", total=3060, items=[{"name": "C", "qty": 1, "price": 3060}])
     assert mp.products(o2) == [{"name": "C", "count": 1, "sum": 3060.0}]
+
+
+def test_manual_order_paylink_and_sale(monkeypatch):
+    from app.services import shop_front as sf, paylinks as pls
+    monkeypatch.setattr("app.services.tg_notify.send_text", lambda *a, **k: True)
+    settings.admin_password = "owner-pass-mo"
+
+    class L:
+        id, url, info = 77, "https://pay.mbnk.biz/abc", {}
+    monkeypatch.setattr(pls, "create", lambda *a, **k: L())
+    with TestClient(app) as c:
+        with SessionLocal() as db:
+            p = Product(name="Manual A", name_norm="manual a", price=1200, site_on=True, site_info={"slug": "manual-a", "title": "Manual A", "presence": 5})
+            db.add(p); db.commit(); pid = p.id
+        monkeypatch.setattr(sf, "_left", lambda *a, **k: 5, raising=False)
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-mo"})
+        r = c.get("/shop-orders/new")
+        assert r.status_code == 200 and "Нове замовлення вручну" in r.text
+        with SessionLocal() as db:
+            o = SiteOrder(source="crm", ext_id="MM1", number="MM1", status="Нове", total=1200, phone="380671112299", name="Тест", payment="Накладений платіж",
+                          created_at=__import__("datetime").datetime.now(), items=[{"product_id": pid, "name": "Manual A", "qty": 1, "price": 1200, "total": 1200}])
+            db.add(o); db.commit(); oid = o.id
+        r = c.post(f"/shop-orders/{oid}/paylink", data={"action": "create"}, follow_redirects=False)
+        assert r.status_code == 303
+        with SessionLocal() as db:
+            o = db.get(SiteOrder, oid)
+            assert o.raw["pay_url"] == "https://pay.mbnk.biz/abc" and o.status == "Очікує оплати"
+        assert "Надіслати покупцю" in c.get(f"/shop-orders/{oid}").text
+        with SessionLocal() as db:
+            o = db.get(SiteOrder, oid); o.paid = True; db.commit()
+        assert "Провести продаж" in c.get(f"/shop-orders/{oid}").text
+        bad = c.post(f"/shop-orders/{oid}/sale", data={"method": "нема такого"}, follow_redirects=False)
+        assert "err" in bad.headers["location"] or "msg" in bad.headers["location"]
+        from app.services import sales as _sl
+        with SessionLocal() as db:
+            pt = Patient(full_name="Тест Ручний", phone="380671112299"); db.add(pt); db.commit()
+            o = db.get(SiteOrder, oid); o.patient_id = pt.id; db.commit()
+            m = _sl.methods(db)[0]
+        r = c.post(f"/shop-orders/{oid}/sale", data={"method": m}, follow_redirects=False)
+        assert r.headers["location"].startswith("/sales/")
+        with SessionLocal() as db:
+            assert db.get(SiteOrder, oid).raw.get("sale_id")

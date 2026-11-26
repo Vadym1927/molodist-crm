@@ -261,13 +261,19 @@
       .then(function (r) { return r.json().catch(function () { return { ok: false, msg: 'Помилка. Спробуйте ще раз.' }; }); }).then(cb).catch(function () { cb({ ok: false, msg: 'Немає звʼязку. Спробуйте ще раз.' }); });
   }
   function chips(form, setRef) {
+    function sync() {                                            /* підсвічено лише місто, яке реально вибране в полі */
+      var v = (form.city.value || '').toLowerCase();
+      $$('[data-city]', form).forEach(function (b) { var n = 'м. ' + b.getAttribute('data-city').toLowerCase(); b.classList.toggle('on', !!v && (v === n.slice(3) || v.indexOf(n + ',') === 0 || v === n)); });
+    }
+    form.city.addEventListener('input', sync); form.city.addEventListener('change', sync); setTimeout(sync, 300);
+    form.city.closest('form').addEventListener('click', function () { setTimeout(sync, 400); });
     $$('[data-city]', form).forEach(function (b) {
       b.addEventListener('click', function () {
         var name = b.getAttribute('data-city');
         fetch(B + '/api/np/cities?q=' + encodeURIComponent(name)).then(function (r) { return r.json(); }).then(function (j) {
           var rows = j.rows || [], hit = rows.filter(function (x) { return x.name.indexOf('м. ' + name) === 0; })[0] || rows[0];
           form.city.value = hit ? hit.name : name; setRef(hit ? hit.ref : ''); if (form.city_ref) form.city_ref.value = hit ? hit.ref : '';
-          form.warehouse.value = ''; form.warehouse.focus();
+          form.warehouse.value = ''; form.warehouse.focus(); sync();
         });
       });
     });

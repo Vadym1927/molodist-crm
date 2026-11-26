@@ -3,7 +3,8 @@
 {% block body %}
 <style>.stp{display:inline-block;padding:6px 14px;border-radius:999px;font:600 13px var(--sans);background:#F1EEF6;color:#3B3050}.stp.new{background:#3B3050;color:#fff}.stp.ok{background:#E3F1E6;color:#256B37}.stp.bad{background:#F3E3E3;color:#8C2F39}.stp.wait{background:#FBF1D9;color:#7A5A12}
 .so-h{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;align-items:center;background:#fff;border:1px solid var(--line);border-radius:18px;padding:18px 22px;margin-bottom:12px}.so-h h1{margin:0;font-size:26px}.so-h .sum{font:600 28px var(--head);white-space:nowrap}
-.so-m{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}.so-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;align-items:end}.so-form label{display:grid;gap:5px;font-size:12.5px;color:var(--muted,#7B7484)}.so-form select,.so-form input{width:100%;margin:0}</style>
+.so-m{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}.so-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;align-items:end}.so-form label{display:grid;gap:5px;font-size:12.5px;color:var(--muted,#7B7484)}.so-form select,.so-form input{width:100%;margin:0}
+.so-pay,.so-sale{margin:10px 0;padding:12px;border:1px solid var(--line);border-radius:14px;background:#F7F4F0;display:grid;gap:6px}.so-sale select{margin:0;min-width:220px}</style>
 <div class="eyebrow"><a href="/shop-orders">‹ Центр керування магазином</a></div>
 <div class="so-h"><div><h1>Замовлення №{{ o.number or o.ext_id }}</h1>
   <div class="so-m"><span class="stp {{ 'new' if o.status == 'Нове' else ('ok' if o.status in ('Отримано','Закрито') else ('bad' if o.status in ('Скасовано','Повернення','Фейкове') else '')) }}">{{ o.status or '—' }}</span>
@@ -28,6 +29,16 @@
     {% if v.ttn %}<div class="small">ТТН Нової пошти: <b>{{ v.ttn }}</b></div>{% endif %}{% if v.sale_id %}<div class="small"><a href="/sales/{{ v.sale_id }}">Чек продажу в CRM №{{ v.sale_id }}</a></div>{% endif %}
     {% if o.source == 'crm' and not o.paid and 'Частинами' in (o.payment or '') and not ((o.raw or {}).get('parts') or {}).get('order_id') %}
     <form method="post" action="/shop-orders/{{ o.id }}/parts" style="margin:6px 0"><button class="btn sm">Надіслати заявку «Покупка Частинами» повторно</button> <span class="small muted">покупцю прийде push у monobank</span></form>{% endif %}
+    {% if o.source == 'crm' and not o.paid %}<div class="so-pay">
+      {% if (o.raw or {}).get('pay_url') %}<div class="small">Посилання на оплату: <input readonly value="{{ o.raw.pay_url }}" onclick="this.select()" style="width:100%;margin:4px 0"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn sm ghost" onclick="navigator.clipboard.writeText('{{ o.raw.pay_url }}');this.textContent='Скопійовано ✓'">Копіювати</button>
+          <form method="post" action="/shop-orders/{{ o.id }}/paylink"><input type="hidden" name="action" value="send"><button class="btn sm">Надіслати покупцю</button></form>
+          <form method="post" action="/shop-orders/{{ o.id }}/paylink"><button class="btn sm ghost">Нове посилання</button></form></div>
+        {% if o.raw.pay_sent %}<div class="small muted">надіслано {{ o.raw.pay_sent[8:10] }}.{{ o.raw.pay_sent[5:7] }} {{ o.raw.pay_sent[11:16] }}</div>{% endif %}
+      {% else %}<form method="post" action="/shop-orders/{{ o.id }}/paylink"><button class="btn sm">Створити посилання на оплату</button> <span class="small muted">monobank, на {{ (o.total or 0)|uah }}</span></form>{% endif %}</div>{% endif %}
+    {% if sale_methods %}<form method="post" action="/shop-orders/{{ o.id }}/sale" class="so-sale"><b class="small">Провести продаж у CRM</b>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><select name="method" required><option value="">спосіб оплати…</option>{% for m_ in sale_methods %}<option {{ 'selected' if m_ == sale_def }}>{{ m_ }}</option>{% endfor %}</select>
+        <button class="btn sm">Провести продаж</button></div><span class="small muted">чек у CRM і списання товарів зі складу</span></form>{% endif %}
     {% if review_url %}<div class="small">Посилання на відгук для покупця: <a href="{{ review_url }}" target="_blank" rel="noopener">{{ review_url }}</a></div>{% endif %}
     {% if o.comment %}<div class="small muted" style="margin-top:6px">Коментар: {{ o.comment }}</div>{% endif %}</div>
 </div>

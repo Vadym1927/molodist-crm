@@ -1,19 +1,28 @@
 {% extends "base.html" %}
-{% block title %}Оформити замовлення з кошика{% endblock %}
+{% block title %}{{ 'Нове замовлення' if new else 'Оформити замовлення з кошика' }}{% if new %}<script>(function(){var q=document.getElementById('co-q'),rows=[].slice.call(document.querySelectorAll('#co-list .co-it')),cnt=document.getElementById('co-cnt');
+function upd(){var t=(q.value||'').toLowerCase().trim(),n=0;rows.forEach(function(r){var inp=r.querySelector('input'),on=+inp.value>0;r.style.display=(!t||r.dataset.n.indexOf(t)>=0||on)?'':'none';r.style.background=on?'#F4F1F9':'';if(on)n++;});cnt.textContent=n?('· обрано '+n):'';}
+q.addEventListener('input',upd);rows.forEach(function(r){r.querySelector('input').addEventListener('input',upd);});upd();})();</script>{% endif %}
+{% endblock %}
 {% block body %}
 <style>.co-g{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}.co-g label{display:grid;gap:5px;font-size:12.5px;color:var(--muted,#7B7484)}
 .co-g input,.co-g select,.co-g textarea{width:100%;margin:0}.co-it{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line)}
 .co-it input{width:70px}.rad{display:flex;gap:14px;flex-wrap:wrap}.rad label{display:flex;gap:6px;align-items:center;font-size:14px;color:var(--ink)}.rad input{width:auto;height:auto}</style>
-<p><a href="/shop-carts">‹ Покинуті кошики</a></p>
+{% if new %}<p><a href="/shop-orders">‹ Замовлення сайту</a></p>
+<h1 style="margin:0 0 4px">Нове замовлення вручну</h1>
+<div class="muted small" style="margin-bottom:12px">Для замовлень з дзвінка, Instagram чи месенджера. Замовлення зʼявиться в «Замовленнях» як звичайне, покупцю прийдуть ті самі повідомлення; за онлайн-оплати — посилання monobank, яке можна надіслати з картки замовлення.</div>
+{% else %}<p><a href="/shop-carts">‹ Покинуті кошики</a></p>
 <h1 style="margin:0 0 4px">Оформити замовлення вручну</h1>
-<div class="muted small" style="margin-bottom:12px">З покинутого кошика{% if row.name %} · {{ row.name }}{% endif %}{% if row.phone %} · {{ row.phone }}{% endif %}. Замовлення зʼявиться в «Замовленнях» як звичайне, покупцю прийдуть ті самі повідомлення.</div>
+<div class="muted small" style="margin-bottom:12px">З покинутого кошика{% if row.name %} · {{ row.name }}{% endif %}{% if row.phone %} · {{ row.phone }}{% endif %}. Замовлення зʼявиться в «Замовленнях» як звичайне, покупцю прийдуть ті самі повідомлення.</div>{% endif %}
 {% include "_shop_msg.html" %}
 <form method="post" class="card" style="display:grid;gap:16px">
-  <div><h3 style="margin:0 0 6px">Товари</h3>
-    {% for i in lines %}<div class="co-it"><span>{{ i.name }} <span class="muted small">· {{ i.price|uah }}{% if not i.stock %} · немає в наявності{% elif i.left is not none %} · на вітрині {{ i.left }} шт{% endif %}</span></span>
+  <div><h3 style="margin:0 0 6px">Товари{% if new %} <span class="muted small" id="co-cnt"></span>{% endif %}</h3>
+    {% if new %}<input id="co-q" placeholder="Пошук товару: назва або бренд" autocomplete="off" style="width:100%;margin:0 0 6px">
+    <div id="co-list" style="max-height:420px;overflow:auto">{% endif %}
+    {% for i in lines %}<div class="co-it" data-n="{{ (i.name ~ ' ' ~ (i.brand or ''))|lower }}"><span>{{ i.name }} <span class="muted small">· {{ i.price|uah }}{% if not i.stock %} · немає в наявності{% elif i.left is not none %} · на вітрині {{ i.left }} шт{% endif %}</span></span>
       <label class="small">к-сть <input name="qty_{{ i.id }}" type="number" min="0" max="50" value="{{ i.qty if i.stock else 0 }}"></label></div>
-    {% else %}<p class="muted">Кошик порожній.</p>{% endfor %}
-    <div class="muted small">0 — прибрати позицію.</div></div>
+    {% else %}<p class="muted">{{ 'Немає товарів у наявності.' if new else 'Кошик порожній.' }}</p>{% endfor %}
+    {% if new %}</div>{% endif %}
+    <div class="muted small">{{ 'Вкажіть кількість у потрібних товарах (у наявності на вітрині).' if new else '0 — прибрати позицію.' }}</div></div>
   <div class="co-g">
     <label>Імʼя та прізвище<input name="name" value="{{ row.name or '' }}" required></label>
     <label>Телефон<input name="phone" value="{{ row.phone or '' }}" required></label>
@@ -33,4 +42,7 @@
   <label style="display:grid;gap:5px;font-size:12.5px;color:var(--muted,#7B7484)">Коментар<textarea name="comment" rows="2" placeholder="Домовились по телефону…"></textarea></label>
   <div><button class="btn">Створити замовлення</button></div>
 </form>
+{% if new %}<script>(function(){var q=document.getElementById('co-q'),rows=[].slice.call(document.querySelectorAll('#co-list .co-it')),cnt=document.getElementById('co-cnt');
+function upd(){var t=(q.value||'').toLowerCase().trim(),n=0;rows.forEach(function(r){var inp=r.querySelector('input'),on=+inp.value>0;r.style.display=(!t||r.dataset.n.indexOf(t)>=0||on)?'':'none';r.style.background=on?'#F4F1F9':'';if(on)n++;});cnt.textContent=n?('· обрано '+n):'';}
+q.addEventListener('input',upd);rows.forEach(function(r){r.querySelector('input').addEventListener('input',upd);});upd();})();</script>{% endif %}
 {% endblock %}

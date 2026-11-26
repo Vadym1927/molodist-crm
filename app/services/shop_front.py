@@ -670,12 +670,13 @@ def bulk(db: Session, ids: list[int], action: str, data: dict) -> int:
     return n
 
 
-def make_sale(db: Session, o: SiteOrder, pl) -> int | None:
-    """Оплачене онлайн замовлення → чек у CRM (продаж товарів, списання зі складу); фіскальний чек — від monobank."""
+def make_sale(db: Session, o: SiteOrder, pl=None, method: str | None = None) -> int | None:
+    """Оплачене замовлення → чек у CRM (продаж товарів, списання зі складу). Онлайн — фіскальний чек від monobank;
+    вручну (method — спосіб оплати каси: Покупка Частинами, накладений платіж, готівка…) — адміністратор кнопкою в замовленні."""
     from . import sales as sl, paylinks as pls
     if (o.raw or {}).get("sale_id") or not o.patient_id:
         return (o.raw or {}).get("sale_id")
-    acc = pls._acc_of(pls._raw(db), pl) or {}
+    acc = (pls._acc_of(pls._raw(db), pl) or {}) if pl is not None else {}
     items = []
     for i in o.items or []:
         if not i.get("product_id"):
@@ -705,9 +706,10 @@ def make_sale(db: Session, o: SiteOrder, pl) -> int | None:
     used += pamt
     paid_sum = round(sum(i["qty"] * i["price"] - float(i.get("line_discount") or 0) for i in items) - used, 2)
     sale = sl.create(db, {"patient_id": o.patient_id, "no_discounts": True, "no_accrual": True, "manual_discount": used, "discount_label": label, "items": items,
-                          "payments": [{"method": sl.paylink_method(acc.get("name") or "monobank"), "amount": paid_sum}],
+                          "payments": [{"method": method or sl.paylink_method(acc.get("name") or "monobank"), "amount": paid_sum}],
                           "comment": f"Інтернет-магазин, замовлення {o.number}"})
-    pl.sale_id = sale.id
+    if pl is not None:
+        pl.sale_id = sale.id
     o.raw = {**(o.raw or {}), "sale_id": sale.id}
     db.flush()
     return sale.id
@@ -1364,3 +1366,48 @@ def bf_mediceuticals_20261120(db: Session) -> dict:
     db.commit()
     _cache["cat_at"] = 0.0
     return out
+
+
+def order_paylink(db: Session, o: SiteOrder, base_url: str, user_id: int | None = None) -> str:
+    """Посилання monobank на оплату замовлення (створене вручну або коли покупець не оплатив одразу)."""
+    from . import paylinks as pl
+    if o.paid:
+        raise ShopError("Замовлення вже оплачене")
+    total = round(float(o.total or 0), 2)
+    if total <= 0:
+        raise ShopError("Сума замовлення 0 ₴")
+    basket = [{"name": str(i.get("name") or "")[:128], "qty": i.get("qty") or 1, "total": round(float(i.get("total") or float(i.get("price") or 0) * float(i.get("qty") or 1)), 2),
+               "code": str(i.get("sku") or i.get("product_id") or "")} for i in o.items or []]
+    if not basket or abs(sum(b["total"] for b in basket) - total) > 0.01:       # знижки/доставка — одним рядком на всю суму
+        basket = [{"name": f"Замовлення {o.number}", "qty": 1, "total": total, "code": o.number}]
+    c = cfg(db)
+    try:
+        link = pl.create(db, total, f"Замовлення {o.number}", base_url, patient_id=o.patient_id, user_id=user_id,
+                         account_id=int(c.get("pay_account") or 0) or None, basket=basket)
+    except Exception as e:  # noqa: BLE001
+        raise ShopError(f"Посилання не створилось: {str(e)[:150]}") from e
+    link.info = {**(link.info or {}), "shop_order": o.id}
+    o.raw = {**(o.raw or {}), "pay_url": link.url, "pay_link_id": link.id}
+    if o.status in ("Нове", "Опрацьовується"):
+        o.status = "Очікує оплати"
+    db.commit()
+    return link.url
+
+
+def send_paylink(db: Session, o: SiteOrder) -> str:
+    """Надіслати покупцю посилання на оплату (Telegram → Viber → SMS). Повертає канал."""
+    from ..integrations import messaging as mg
+    from ..models import Patient
+    url = (o.raw or {}).get("pay_url")
+    if not url:
+        raise ShopError("Спершу створіть посилання на оплату")
+    p = db.get(Patient, o.patient_id) if o.patient_id else None
+    if not p:
+        raise ShopError("У замовлення немає картки пацієнта з телефоном")
+    t = f"MOLODIST: замовлення {o.number} на {float(o.total or 0):,.0f} грн".replace(",", " ") + f". Оплата карткою: {url}"
+    r = mg.send_to_patient(p, t)
+    if not r.ok:
+        raise ShopError(f"Не надіслано: {r.error or 'немає каналу'}")
+    o.raw = {**(o.raw or {}), "pay_sent": datetime.now().isoformat(timespec="minutes")}
+    db.commit()
+    return r.channel
