@@ -13865,7 +13865,7 @@ async def finance_ops_import(file: UploadFile = File(...), back: str = Form("/fi
 @app.post("/finance/ops")
 def finance_op_add(day: str = Form(""), kind: str = Form("expense"), category: str = Form(""), amount: str = Form(...),
                    cashbox: str = Form(""), cashbox_to: str = Form(""), counterparty: str = Form(""), doctor_id: str = Form(""),
-                   salary_month: str = Form(""), comment: str = Form(""),
+                   salary_month: str = Form(""), comment: str = Form(""), no_fee: str = Form(""),
                    back: str = Form("/finance/ops"), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     from .models import FinOp
     amt = _num(amount)
@@ -13883,7 +13883,8 @@ def finance_op_add(day: str = Form(""), kind: str = Form("expense"), category: s
               amount=round(amt, 2), cashbox=cashbox.strip()[:100] or None, cashbox_to=(cashbox_to.strip()[:100] or None) if kind == "transfer" else None,
               counterparty=counterparty.strip()[:200] or None, comment=comment.strip()[:500] or None,
               doctor_id=int(doctor_id) if doctor_id.isdigit() else None,
-              salary_month=_month(salary_month) if salary_month else None, created_by=user.id)
+              salary_month=_month(salary_month) if salary_month else None, created_by=user.id,
+              no_fee=True if (no_fee and kind == "income") else None)
     if x.category in _fa().salary_names(db):
         if x.doctor_id and not x.salary_month:
             x.salary_month = fo_month_key(x.day)
@@ -13893,6 +13894,25 @@ def finance_op_add(day: str = Form(""), kind: str = Form("expense"), category: s
     db.commit()
     audit(db, "fin.op_add", "fin_op", x.id, user=user, kind=x.kind, category=x.category, amount=x.amount, cashbox=x.cashbox)
     return RedirectResponse(_with_msg(back, f"Записано CRM-{x.id}: {x.category} {x.amount:,.2f} ₴".replace(",", " ")), 303)
+
+
+@app.post("/finance/ops/{oid:int}/no-fee")
+def finance_op_no_fee(oid: int, back: str = Form("/finance/ops"), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+    """Надходження без комісії банку (повернення на картку, переказ, кешбек) — авто-комісія еквайрингу знімається; ще раз — повертається."""
+    from .models import FinOp
+    from .services import cashboxes as cbx
+    x = db.get(FinOp, oid)
+    back = back if back.startswith("/finance") else "/finance/ops"
+    if not x or x.kind != "income" or x.deleted_at:
+        return RedirectResponse(back, 303)
+    x.no_fee = None if x.no_fee else True
+    if not x.no_fee:                        # повертаємо комісію: прибираємо стару архівну, щоб sync створив нову
+        for op in db.scalars(select(FinOp).where(FinOp.ref == f"fee:op:{x.id}")):
+            op.ref = f"{op.ref}:old{op.id}"
+    db.commit()
+    cbx.sync_fees(db)
+    audit(db, "fin.op_no_fee", "fin_op", x.id, user=user, no_fee=bool(x.no_fee))
+    return RedirectResponse(_with_msg(back, f"CRM-{x.id}: " + ("без комісії банку — комісію знято" if x.no_fee else "комісію банку повернено")), 303)
 
 
 @app.post("/finance/ops/storno")

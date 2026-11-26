@@ -130,3 +130,16 @@ def test_bank_fee_on_payments():
                                      "cashbox": "Термінал ФОП Колган"}, follow_redirects=False)
         with SessionLocal() as db:                                    # після операції — комісія одразу в журналі
             assert db.query(FinOp).filter(FinOp.ref.like("fee:op:%"), FinOp.amount == 2.6).count() == 1
+        c.post("/finance/ops", data={"kind": "income", "category": "Інші оплати", "amount": "271.56", "no_fee": "1",
+                                     "cashbox": "Термінал ФОП Колган", "comment": "повернення підписки"}, follow_redirects=False)
+        with SessionLocal() as db:                                    # без комісії банку — комісії немає
+            x = db.query(FinOp).filter(FinOp.amount == 271.56).one()
+            assert x.no_fee and db.query(FinOp).filter(FinOp.ref == f"fee:op:{x.id}").count() == 0
+            y = db.query(FinOp).filter(FinOp.amount == 200, FinOp.kind == "income").one()
+        c.post(f"/finance/ops/{y.id}/no-fee")                         # позначити існуюче — авто-комісію знято
+        with SessionLocal() as db:
+            assert db.query(FinOp).filter(FinOp.ref == f"fee:op:{y.id}", FinOp.deleted_at.is_(None)).count() == 0
+        c.post(f"/finance/ops/{y.id}/no-fee")                         # зняти позначку — комісія повертається
+        with SessionLocal() as db:
+            assert db.query(FinOp).filter(FinOp.ref == f"fee:op:{y.id}", FinOp.deleted_at.is_(None)).count() == 1
+        assert "без комісії" in c.get("/finance/ops").text

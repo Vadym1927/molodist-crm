@@ -92,6 +92,7 @@ class J:
     sale_id: int | None = None       # чек каси CRM (Ч-…)
     can_refund: bool = False         # чек можна відмінити (повернення) — «×» у журналі
     test: bool = False               # тестовий чек (тестовий режим)
+    no_fee: bool = False             # надходження без комісії банку
 
     @property
     def sign(self) -> int:
@@ -150,7 +151,7 @@ def journal(db: Session, d_from: date, d_to: date, users: dict | None = None, ar
         out.append(J("crm", f"CRM-{x.id}", at, x.kind, x.amount, who=who, basis=basis, article=x.category,
                      account=x.cashbox or "", vid=x.cashbox_to or "", author=users.get(x.created_by, ""), comment=x.comment or "",
                      money=x.kind != "transfer", id=x.id, storned=x.id in storned, deleted=bool(x.deleted_at),
-                     is_storno=bool(x.storno_of)))
+                     is_storno=bool(x.storno_of), no_fee=bool(getattr(x, "no_fee", False))))
     out.sort(key=lambda r: r.at, reverse=True)
     return out
 

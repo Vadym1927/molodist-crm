@@ -1181,6 +1181,7 @@ class FinOp(Base):
     created_by: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime)
+    no_fee: Mapped[bool | None] = mapped_column(Boolean)               # без комісії банку (повернення на картку, переказ, кешбек)
 
 
 class CbFinOp(Base):

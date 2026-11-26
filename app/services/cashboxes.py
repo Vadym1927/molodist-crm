@@ -343,7 +343,7 @@ def sync_fees(db: Session) -> int:
         storned = {i for (i,) in db.execute(select(FinOp.storno_of).where(FinOp.storno_of.is_not(None), FinOp.deleted_at.is_(None)))}
         for op in db.scalars(select(FinOp).where(FinOp.kind == "income", FinOp.cashbox == x["name"], FinOp.deleted_at.is_(None),
                                                  FinOp.storno_of.is_(None), FinOp.day >= since)):
-            if op.id in storned or (op.ref or "").startswith("fee:"):
+            if op.id in storned or (op.ref or "").startswith("fee:") or op.no_fee:
                 continue
             want[f"fee:op:{op.id}"] = {"day": op.day, "at": op.created_at, "amount": _fee_amount(op.amount, pct), "box": x["name"], "art": art,
                                        "comment": f"Комісія {pct:g}% · CRM-{op.id} {op.category} {op.amount:.2f} ₴"}
@@ -376,5 +376,5 @@ def _fee_source_alive(db: Session, ref: str) -> bool:
         return bool(s_ and s_.status == "paid")
     if kind == "op":
         op = db.get(FinOp, int(sid))
-        return bool(op and not op.deleted_at and not db.scalar(select(FinOp.id).where(FinOp.storno_of == op.id, FinOp.deleted_at.is_(None))))
+        return bool(op and not op.deleted_at and not op.no_fee and not db.scalar(select(FinOp.id).where(FinOp.storno_of == op.id, FinOp.deleted_at.is_(None))))
     return False
