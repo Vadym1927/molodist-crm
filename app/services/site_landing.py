@@ -912,7 +912,7 @@ REDIRECTS = {"ipl-therapy": PIGMENT["slug"], "fotoomolodzhennya-ipl": PIGMENT["s
 def _rows(db: Session) -> dict[int, float]:
     """Ціни консультацій з прайсу (той самий розрахунок, що на сторінці BEAUTY PLAN)."""
     try:
-        return {r["id"]: r["price"] for g in sp.prices(db, sp.PAGES["beautyplan"]) for r in g["rows"]}
+        return {r["id"]: r["price"] for k in ("beautyplan", "vydalennia-rodymok") for g in sp.prices(db, sp.PAGES[k]) for r in g["rows"]}
     except Exception:  # noqa: BLE001
         return {}
 
