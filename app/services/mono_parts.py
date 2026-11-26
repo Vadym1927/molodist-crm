@@ -83,8 +83,35 @@ def _call(db: Session, path: str, payload: dict, http: httpx.Client | None = Non
     except ValueError:
         j = {}
     if r.status_code >= 400:
-        raise PartsError(str(j.get("message") or j.get("error") or r.status_code)[:200])
+        det = j.get("errors") or j.get("details") or j.get("fields") or ""
+        msg = str(j.get("message") or j.get("error") or r.status_code)
+        raise PartsError((msg + (f" ({json.dumps(det, ensure_ascii=False)[:150]})" if det else ""))[:300])
     return j
+
+
+def phone(v: str | None) -> str:
+    """Телефон для monobank — міжнародний формат +380XXXXXXXXX (у замовленнях він зберігається як 380…)."""
+    d = "".join(ch for ch in str(v or "") if ch.isdigit())
+    if len(d) == 10 and d.startswith("0"):
+        d = "38" + d
+    elif len(d) == 9:
+        d = "380" + d
+    return "+" + d if d else ""
+
+
+def products(o: SiteOrder) -> list[dict]:
+    """Позиції заявки; сума позицій має дорівнювати total_sum (знижки Coins/промокоду розкладаються на позиції)."""
+    rows = [{"name": str(i["name"])[:500], "count": int(i.get("qty") or 1), "sum": round(float(i.get("price") or 0), 2)} for i in o.items or []]
+    total = round(float(o.total or 0), 2)
+    if not rows or abs(sum(r["count"] * r["sum"] for r in rows) - total) < 0.005:
+        return rows
+    lines = [{"name": r["name"], "count": 1, "sum": round(r["count"] * r["sum"], 2)} for r in rows]
+    base = sum(x["sum"] for x in lines) or 1
+    for x in lines:
+        x["sum"] = round(x["sum"] * total / base, 2)
+    big = max(lines, key=lambda x: x["sum"])
+    big["sum"] = round(big["sum"] + total - sum(x["sum"] for x in lines), 2)
+    return [x for x in lines if x["sum"] > 0]
 
 
 def test(db: Session, http: httpx.Client | None = None) -> tuple[bool, str]:
@@ -104,10 +131,10 @@ def create(db: Session, o: SiteOrder, parts: int, callback_url: str, http: httpx
     if parts not in p["parts"]:
         parts = p["parts"][0]
     j = _call(db, "/api/order/create", {
-        "store_order_id": o.number, "client_phone": o.phone, "total_sum": round(float(o.total or 0), 2),
+        "store_order_id": o.number, "client_phone": phone(o.phone), "total_sum": round(float(o.total or 0), 2),
         "invoice": {"date": (o.created_at or datetime.now()).strftime("%Y-%m-%d"), "number": o.number, "source": "INTERNET"},
         "available_programs": [{"available_parts_count": [parts], "type": "payment_installments"}],
-        "products": [{"name": str(i["name"])[:500], "count": int(i.get("qty") or 1), "sum": round(float(i.get("price") or 0), 2)} for i in o.items or []],
+        "products": products(o),
         "result_callback": callback_url}, http)
     oid = str(j.get("order_id") or "")
     if not oid:

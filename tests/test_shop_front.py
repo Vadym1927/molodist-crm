@@ -1232,3 +1232,13 @@ def test_shop_sale_shows_site_discount(monkeypatch):
             db.add(o2); db.commit()
             s2 = db.get(Sale, sf.make_sale(db, o2, N(sale_id=None, info={})))
             assert s2.subtotal == 5200 and s2.total == 3640
+
+
+def test_mono_parts_phone_and_sums():
+    from app.services import mono_parts as mp
+    assert mp.phone("380981337249") == "+380981337249" and mp.phone("098 133 72 49") == "+380981337249" and mp.phone("+380671112233") == "+380671112233"
+    o = SiteOrder(number="M2", total=3000, items=[{"name": "A", "qty": 2, "price": 1000}, {"name": "B", "qty": 1, "price": 1500}])
+    rows = mp.products(o)
+    assert round(sum(r["count"] * r["sum"] for r in rows), 2) == 3000 and all(r["count"] == 1 for r in rows)
+    o2 = SiteOrder(number="M3", total=3060, items=[{"name": "C", "qty": 1, "price": 3060}])
+    assert mp.products(o2) == [{"name": "C", "count": 1, "sum": 3060.0}]

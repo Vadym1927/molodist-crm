@@ -11982,6 +11982,26 @@ async def settings_shop_cats_save(request: Request, user: User = Depends(require
     return RedirectResponse(_with_msg("/settings/shop/cats", "Збережено"), 303)
 
 
+@app.post("/shop-orders/{oid:int}/parts")
+def shop_order_parts(oid: int, user: User = Depends(require("sales")), db: Session = Depends(db_dep)):
+    """Повторно надіслати заявку «Покупка Частинами» (якщо при оформленні вона не створилась)."""
+    from .models import SiteOrder
+    from .services import mono_parts as _mp
+    from .config import settings as _st
+    o = db.get(SiteOrder, oid) or (_ for _ in ()).throw(HTTPException(404))
+    if o.source != "crm" or o.paid or ((o.raw or {}).get("parts") or {}).get("order_id"):
+        return RedirectResponse(_with_msg(f"/shop-orders/{oid}", "Заявку вже створено або замовлення оплачене", True), 303)
+    try:
+        _mp.create(db, o, int(_mp.public(db)["parts"][0]), _st.public_url.rstrip("/") + "/api/public/monoparts")
+    except _mp.PartsError as e:
+        db.rollback()
+        return RedirectResponse(_with_msg(f"/shop-orders/{oid}", f"monobank: {e}", True), 303)
+    o.status = "Очікує оплати"
+    db.commit()
+    audit(db, "shop.order_parts", "site_order", oid, user=user)
+    return RedirectResponse(_with_msg(f"/shop-orders/{oid}", "Заявку надіслано — покупцю прийде push у застосунку monobank"), 303)
+
+
 @app.post("/shop-orders/{oid:int}/status")
 def shop_order_status(oid: int, status: str = Form(""), ttn: str = Form(""), paid: str = Form(""), resp: str = Form(""), user: User = Depends(require("sales")),
                       db: Session = Depends(db_dep)):
