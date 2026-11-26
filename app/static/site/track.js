@@ -38,9 +38,11 @@
       }, { threshold: 0.25 });
       secs.forEach(function (s) { io.observe(s); });
     }
+    // підпис кнопки беремо з оригіналу сторінки: автоперекладач браузера (напр. на російську) не має змінювати назви кліків у звіті
+    d.querySelectorAll('a,button').forEach(function (a) { if (!a.hasAttribute('data-tx')) a.setAttribute('data-tx', (a.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 60)); });
     d.addEventListener('click', function (e) {
       var a = e.target.closest ? e.target.closest('a,button') : null; if (!a || a.closest('#h-modal form')) return;
-      var t = a.getAttribute('data-interest') || a.getAttribute('aria-label') || (a.textContent || '').replace(/\s+/g, ' ').trim();
+      var t = a.getAttribute('data-interest') || a.getAttribute('aria-label') || a.getAttribute('data-tx') || (a.textContent || '').replace(/\s+/g, ' ').trim();
       ev('click', (t || a.getAttribute('href') || '?').slice(0, 60) + ' · ' + last);
     }, true);
     var mo = d.getElementById('h-modal');

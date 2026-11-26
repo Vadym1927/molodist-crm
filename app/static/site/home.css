@@ -763,3 +763,7 @@ div.l-promo .btn{flex:none;background:#fff;color:#3B3050}
     border-bottom:1px solid #E9E5DF;box-shadow:0 8px 18px -14px rgba(42,36,48,.35);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
   .p-nav a{background:#fff}.p-nav a.on{background:#3B3050;color:#fff;border-color:#3B3050}.p-nav a.on small{color:#C9BFE6}
   .p-g{margin-bottom:10px}.p-g summary b{font-size:15px}.p-g li{padding:14px 0}.p-g li .n{font-size:15.5px}}
+
+/* телефон: коротка форма в модалці — імʼя, телефон, спосіб звʼязку (тема відома зі сторінки або картки) */
+@media (max-width:640px){.h-modal .h-ask,.h-modal.has-topic .h-topics,.h-modal .h-mlp .sm,.h-modal .h-mstd .sm{display:none}
+  .h-modal .h-mlp{margin-bottom:10px}.h-modal .h-mlp .h-mh{margin:0}.h-modal .h-frow{gap:10px}}

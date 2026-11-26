@@ -92,7 +92,7 @@
     if (on) {
       if (!modal.querySelector('[data-mode="' + mode + '"]')) mode = 'std';
       modal.querySelectorAll('[data-mode]').forEach(function (x) { x.hidden = x.getAttribute('data-mode') !== mode; });
-      modal.className = 'h-modal m-' + mode;
+      modal.className = 'h-modal m-' + mode + (pick.topic ? ' has-topic' : '');
       lastFocus = d.activeElement; modal.hidden = false; d.documentElement.classList.add('h-lock');
       setTimeout(function () { var n = modal.querySelector('[name=name]'); if (n && window.innerWidth > 860) n.focus(); }, 60);
       (window.dataLayer = window.dataLayer || []).push({ event: 'booking_popup_open', popup_mode: mode });
