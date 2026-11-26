@@ -120,3 +120,15 @@ def test_price_monitor_uses_planned_supplier_price():
         db.add(ProductPurchase(product_id=p.id, bought_on=date.today() + timedelta(days=1), qty=1, unit_cost=2100)); db.commit()
         r = next(x for x in pm.products(db) if x["id"] == p.id)
         assert r["src"] == "supply" and r["cur"] == 2100             # прихід новіший за прайс
+
+
+def test_price_monitor_plan_price_without_supply_or_cost():
+    from app.services import pricing
+    with SessionLocal() as db:
+        pricing.save_rates(db, 40.0, 45.0, 10)
+        p = Product(name="Без поставок план", name_norm="без поставок план", warehouse="vitrina", cost=None,
+                    cost_currency="UAH", cost_fx=500.0)
+        db.add(p); db.commit()
+        r = next(x for x in pm.products(db) if x["id"] == p.id)
+        assert r["cur"] == 500 and r["base"] == 500 and r["zone"] == 0 and r["src"] == "plan"
+        pm.scan(db, notify=False)

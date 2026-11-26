@@ -189,8 +189,10 @@ def products(db: Session, d: dict | None = None) -> list[dict]:
         elif arr:
             f = next((x for x in arr if x["at"] and x["at"] >= since), arr[-1])
             base, base_at = f["cost"], f["at"].isoformat()
-        else:
+        elif p.cost:
             base, base_at = round(float(p.cost) * k, 2), None
+        else:                                       # ні поставок, ні собівартості — стартова = ціна з прайсу
+            base, base_at = (pl or {}).get("cost") or 0.0, None
         cur = arr[-1]["cost"] if arr else round(float(p.cost or 0) * k, 2)
         last_at = arr[-1]["at"] if arr else None
         src = "supply" if arr else "card"
