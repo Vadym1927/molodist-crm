@@ -288,3 +288,12 @@ img{max-width:100%;height:auto}a{color:var(--act)}h1,h2,h3,h4{font-family:var(--
 .opts label:has(input:focus-visible){box-shadow:0 0 0 3px rgba(92,75,130,.22)}
 .chips button{transition:all .15s}.chips button:focus{outline:none}.chips button:focus-visible{box-shadow:0 0 0 3px rgba(92,75,130,.22)}
 .chips button.on{background:#3B3050;border-color:#3B3050;color:#fff}
+/* оформлення: різкіший, контрастніший текст */
+.co{-webkit-font-smoothing:auto;-moz-osx-font-smoothing:auto;color:#221D27}
+.co label>span{color:#3F3847;font-weight:600;font-size:13.5px}
+.co input:not([type=radio]):not([type=checkbox]),.co textarea,.co select{border-color:#CFC8BF;color:#1E1A22;font-weight:500}
+.co input::placeholder,.co textarea::placeholder{color:#8A8392;font-weight:400}
+.opts label{border-color:#D8D2CA}.opts b{font-size:15px;color:#1E1A22}.opts small{color:#4F4857;font-size:13px}
+.co .mut,.co .small,.co-s .mut{color:#4F4857}
+.co-s{color:#1E1A22}.co-s .row span{color:#3F3847}.co-s .ci{color:#1E1A22}
+.chips button{border-color:#CFC8BF;color:#2A2430;font-weight:500}
