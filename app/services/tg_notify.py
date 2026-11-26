@@ -44,7 +44,7 @@ TYPES = [
      {"chief": (True, "09:30"), "owner": (True, "09:30"), "doctor": (False, "09:30")}),
     ("consign_expiry", "Реалізація: повернути за терміном", "Товар під реалізацію, який треба повернути постачальнику (за 12 міс. до кінця терміну) — щодня, поки не продано чи не повернуто; за 30 днів — попередження", "daily",
      {"owner": (True, "09:00"), "admin": (False, "09:00"), "chief": (False, "09:00")}),
-    ("price_tags", "Змінилась ціна — передрукувати цінники", "Товари вітрини, у яких змінилась ціна продажу: передрукувати цінник; посилання на друк цінників одразу для них", "daily",
+    ("price_tags", "Змінилась ціна — передрукувати цінники", "Одразу після зміни ціни продажу товару вітрини, що є в наявності: передрукувати цінник; посилання на друк цінників саме для них", "instant",
      {"admin": (True, "09:30"), "owner": (False, "09:30"), "chief": (False, "09:30")}),
     ("month", "Підсумок місяця", "1-го числа: виручка, візити, нові пацієнти за місяць, по лікарях", "monthly",
      {"owner": (True, "10:00"), "chief": (False, "10:00")}),
@@ -487,43 +487,48 @@ def text_consign_expiry(db: Session, u: User, role: str, d: date | None = None) 
     return "\n".join(lines)
 
 
-PT_KEY = "price_tags_seen"           # {"base": {pid: ціна}, "day": "YYYY-MM-DD", "items": [{pid, name, old, new}]}
+PT_KEY = "price_tags_seen"           # {"base": {pid: ціна}, "last": [{pid, name, old, new}], "at": час останнього сповіщення}
 PT_WH = ("vitrina",)
 
 
-def _pt_prices(db: Session) -> dict[str, float]:
+def _pt_prices(db: Session) -> tuple[dict[str, float], set[int]]:
+    """Ціни всіх товарів вітрини і ті, що зараз є в наявності (залишок > 0 за журналом складу)."""
     from ..models import Product
+    from .stock import balances
     out = {}
     for p in db.scalars(select(Product).where(Product.warehouse.in_(PT_WH), Product.active.is_not(False))):
         v = p.price or p.price_manual
         if v:
             out[str(p.id)] = round(float(v), 2)
-    return out
+    have = {pid for (pid, wh), q in balances(db).items() if q > 1e-6}
+    return out, have
 
 
-def price_tag_changes(db: Session, d: date | None = None) -> list[dict]:
-    """Товари вітрини, у яких ціна продажу змінилась з минулого сповіщення. Перший виклик дня фіксує список і нову базу
-    (усі ролі того дня отримують той самий список); найперший запуск лише запамʼятовує ціни."""
-    day = (d or date.today()).isoformat()
+def price_tag_changes(db: Session) -> list[dict]:
+    """Нові зміни ціни продажу з минулої перевірки — лише товари в наявності. База оновлюється завжди (і для товарів
+    без залишку: коли прийдуть, цінник друкується з поставкою). Найперший запуск лише запамʼятовує ціни."""
     st = _get(db, PT_KEY, {}) or {}
-    cur = _pt_prices(db)
-    if not st.get("base"):
-        _put(db, PT_KEY, {"base": cur, "day": day, "items": []})
+    cur, have = _pt_prices(db)
+    base = st.get("base")
+    if not base:
+        _put(db, PT_KEY, {**st, "base": cur})
         return []
-    if st.get("day") == day:
-        return st.get("items") or []
+    ch = [(int(k), base[k], v) for k, v in cur.items() if k in base and abs(base[k] - v) >= 0.01 and int(k) in have]
+    new_base = {**base, **cur}
+    if not ch:
+        if new_base != base:
+            _put(db, PT_KEY, {**st, "base": new_base})
+        return []
     from ..models import Product
-    base = st["base"]
-    ch = [(int(k), base[k], v) for k, v in cur.items() if k in base and abs(base[k] - v) >= 0.01]
-    names = {p.id: p for p in db.scalars(select(Product).where(Product.id.in_([c[0] for c in ch] or [0])))}
+    names = {p.id: p for p in db.scalars(select(Product).where(Product.id.in_([c[0] for c in ch])))}
     items = [{"pid": pid, "name": (names[pid].short_name or names[pid].name) if pid in names else f"#{pid}", "old": o, "new": n}
              for pid, o, n in ch]
-    _put(db, PT_KEY, {"base": {**base, **cur}, "day": day, "items": items})
+    st.update(base={**base, **cur}, last=items, at=datetime.now().isoformat(timespec="minutes"))
+    _put(db, PT_KEY, st)
     return items
 
 
-def text_price_tags(db: Session, u: User, role: str, d: date | None = None) -> str | None:
-    xs = price_tag_changes(db, d)
+def price_tags_text(xs: list[dict]) -> str | None:
     if not xs:
         return None
     lines = [f"🏷 <b>Змінилась ціна — передрукуйте цінники ({len(xs)})</b>"]
@@ -535,6 +540,27 @@ def text_price_tags(db: Session, u: User, role: str, d: date | None = None) -> s
     ids = "&".join(f"ids={x['pid']}" for x in xs[:150])
     lines.append(f'\n<a href="{_B}/products/labels?{ids}">Надрукувати цінники</a>')
     return "\n".join(lines)
+
+
+def text_price_tags(db: Session, u: User, role: str, d: date | None = None) -> str | None:
+    """Для «тест → мені»: останнє надіслане сповіщення про цінники."""
+    return price_tags_text((_get(db, PT_KEY, {}) or {}).get("last") or [])
+
+
+def run_price_tags(db: Session, c: dict | None = None) -> int:
+    """Одразу після зміни ціни (перевірка кожні 5 хв): тим ролям, у кого увімкнено «передрукувати цінники»."""
+    c = c or cfg(db)
+    xs = price_tag_changes(db)
+    text = price_tags_text(xs)
+    if not text:
+        return 0
+    n = 0
+    for role, items in c["roles"].items():
+        if (items.get("price_tags") or {}).get("on"):
+            for u in recipients(db, role):
+                send_text(u.telegram_chat_id, text)
+                n += 1
+    return n
 
 
 BUILDERS = {"price_tags": text_price_tags, "consign_expiry": text_consign_expiry, "next_day": text_next_day, "today": text_today, "tomorrow": text_tomorrow, "plans": text_plans, "plan_control": text_plan_control, "birthdays": text_birthdays,
@@ -577,15 +603,19 @@ def run(db: Session, now: datetime | None = None) -> int:
     """Надіслати все, що настало за часом і ще не надсилалось сьогодні. Повертає кількість повідомлень."""
     now = now or datetime.now()
     c = cfg(db)
-    if not (_get(db, PT_KEY, {}) or {}).get("base"):            # база цін для «передрукувати цінники» — з першого запуску
-        price_tag_changes(db, now.date())
+    try:                                                       # цінники — одразу після зміни ціни, не за розкладом
+        n0 = run_price_tags(db, c)
+    except Exception:  # noqa: BLE001
+        import logging
+        logging.getLogger("tg_notify").exception("price_tags")
+        n0 = 0
     log = _get(db, LOG, {}) or {}
     today = now.date().isoformat()
     n = 0
     for role, items in c["roles"].items():
         users = None
         for key, v in items.items():
-            if not v["on"] or not _due(v, now, v["per"]):
+            if not v["on"] or v["per"] == "instant" or not _due(v, now, v["per"]):
                 continue
             if users is None:
                 users = recipients(db, role)
@@ -613,4 +643,4 @@ def run(db: Session, now: datetime | None = None) -> int:
                 n += 1
     if n:
         _put(db, LOG, {k: v for k, v in log.items() if v == today})
-    return n
+    return n + n0

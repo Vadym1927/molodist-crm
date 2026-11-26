@@ -36,8 +36,8 @@
   <tr class="{{ '' if v.on else 'off' }}">
     <td><label class="tn-sw"><input type="checkbox" name="{{ role }}_{{ key }}_on" value="1" {{ 'checked' if v.on }} onchange="this.closest('tr').classList.toggle('off',!this.checked)"><i></i></label></td>
     <td><b>{{ title }}</b><div class="d">{{ desc }}</div></td>
-    <td><input type="time" name="{{ role }}_{{ key }}_time" value="{{ v.time }}"></td>
-    <td>{% if per == 'weekly' %}<select name="{{ role }}_{{ key }}_dow">{% for k, l in DOW.items() %}<option value="{{ k }}" {{ 'selected' if v.dow == k }}>{{ l }}</option>{% endfor %}</select>{% elif per == 'monthly' %}<span class="d">1-го числа</span>{% else %}<span class="d">щодня</span>{% endif %}</td>
+    <td>{% if per == 'instant' %}<span class="d">—</span>{% else %}<input type="time" name="{{ role }}_{{ key }}_time" value="{{ v.time }}">{% endif %}</td>
+    <td>{% if per == 'instant' %}<span class="d">одразу</span>{% elif per == 'weekly' %}<select name="{{ role }}_{{ key }}_dow">{% for k, l in DOW.items() %}<option value="{{ k }}" {{ 'selected' if v.dow == k }}>{{ l }}</option>{% endfor %}</select>{% elif per == 'monthly' %}<span class="d">1-го числа</span>{% else %}<span class="d">щодня</span>{% endif %}</td>
     <td><button class="btn ghost tn-test" name="action" value="test" formaction="/settings/tg-notify" onclick="this.form.key.value='{{ key }}';this.form.role.value='{{ role }}'" title="Надіслати приклад мені в Telegram">тест → мені</button></td>
   </tr>{% endfor %}</tbody></table>
 </div>
