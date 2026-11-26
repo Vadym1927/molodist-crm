@@ -800,7 +800,7 @@ def price_cart(db: Session, rows: list[dict], c: dict | None = None) -> dict:
             "to_free": 0 if fs else (max(0, round(free_from - total, 2)) if free_from else 0), "gifts": gifts}
 
 
-def _recent_duplicate(db: Session, phone: str, items: list, sid: str = "") -> dict | None:
+def _recent_duplicate(db: Session, phone: str, items: list, sid: str = "", pay: str = "") -> dict | None:
     """Те саме замовлення з тієї ж вкладки (sid + телефон + товари й кількості) за останні 2 хвилини, ще не оплачене — повертаємо його ж."""
     if not sid:
         return None
@@ -809,12 +809,16 @@ def _recent_duplicate(db: Session, phone: str, items: list, sid: str = "") -> di
     since = datetime.now() - timedelta(minutes=2)
     for o in db.scalars(select(SiteOrder).where(SiteOrder.source == "crm", SiteOrder.phone == phone, SiteOrder.created_at >= since)
                         .order_by(SiteOrder.id.desc())):
+        if pay and (o.raw or {}).get("pay") not in (None, pay):   # покупець змінив спосіб оплати (картка → Частинами) — це нова спроба, не дубль
+            continue
         if (o.raw or {}).get("sid") != sid or o.paid or sorted((int(i.get("product_id") or 0), float(i.get("qty") or 0)) for i in o.items or []) != key:
             continue
         out = {"ok": True, "number": o.number, "total": float(o.total or 0), "id": o.id, "dup": True}
         pl = next((x for x in db.scalars(select(PayLink).order_by(PayLink.id.desc()).limit(50)) if (x.info or {}).get("shop_order") == o.id), None)
         if pl and pl.url:
             out["pay_url"] = pl.url
+        if ((o.raw or {}).get("parts") or {}).get("order_id"):
+            out["parts"] = True
         return out
     return None
 
@@ -849,7 +853,7 @@ def create_order(db: Session, data: dict, base_url: str) -> dict:
     if pay == "cod" and not c.get("cod") and not data.get("_admin"):   # адміністратор може оформити й накладений платіж
         pay = "online"
     gift = str(data.get("gift") or "")[:200] if str(data.get("gift") or "") in cart["gifts"] else ""
-    dup = _recent_duplicate(db, phone, cart["items"], re.sub(r"[^a-zA-Z0-9]", "", str(data.get("sid") or ""))[:32])
+    dup = _recent_duplicate(db, phone, cart["items"], re.sub(r"[^a-zA-Z0-9]", "", str(data.get("sid") or ""))[:32], pay)
     if dup:                                                 # подвійне натискання «Підтвердити» — те саме замовлення, не нове
         return dup
     from . import coins as cn
@@ -878,7 +882,7 @@ def create_order(db: Session, data: dict, base_url: str) -> dict:
                           **({k: i[k] for k in ("short", "short_price", "short_exp", "full")} if i.get("short") else {})} for i in cart["items"]],
                   extra=[{"name": f"Подарунок: {gift}", "price": 0, "on": True}] if gift else None,
                   raw={"utm": {k: str(v)[:150] for k, v in data.items() if k.startswith("utm_") or k in ("gclid", "fbclid", "gbraid", "wbraid", "landing")},
-                       "free_delivery": cart["free_delivery"], "sid": re.sub(r"[^a-zA-Z0-9]", "", str(data.get("sid") or ""))[:32] or None,
+                       "free_delivery": cart["free_delivery"], "sid": re.sub(r"[^a-zA-Z0-9]", "", str(data.get("sid") or ""))[:32] or None, "pay": pay,
                        "ga": {k: v for k, v in (("cid", re.sub(r"[^0-9.]", "", str(data.get("ga_cid") or ""))[:40]),
                                                 ("sid", re.sub(r"[^0-9]", "", str(data.get("ga_sid") or ""))[:12])) if v} or None},
                   synced_at=datetime.now())

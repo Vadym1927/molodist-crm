@@ -1284,3 +1284,13 @@ def test_manual_order_paylink_and_sale(monkeypatch):
         assert r.headers["location"].startswith("/sales/")
         with SessionLocal() as db:
             assert db.get(SiteOrder, oid).raw.get("sale_id")
+
+
+def test_duplicate_guard_respects_pay_method():
+    from app.services import shop_front as sf
+    with SessionLocal() as db:
+        o = SiteOrder(source="crm", ext_id="DP1", number="DP1", status="Нове", total=100, phone="380671110000", created_at=__import__("datetime").datetime.now(),
+                      items=[{"product_id": 5, "qty": 1}], raw={"sid": "abc", "pay": "online"})
+        db.add(o); db.commit()
+        assert sf._recent_duplicate(db, "380671110000", [{"id": 5, "qty": 1}], "abc", "online")["number"] == "DP1"
+        assert sf._recent_duplicate(db, "380671110000", [{"id": 5, "qty": 1}], "abc", "parts") is None
