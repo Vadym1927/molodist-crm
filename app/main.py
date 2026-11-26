@@ -14731,8 +14731,13 @@ def settings_amort_setup(what: str = Form(""), user: User = Depends(require("fin
 def finance_pricing(request: Request, wh: str = "vitrina", brand: str = "", q: str = "", only: str = "",
                     user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     from .services import pricing as pr_svc
+    bq = select(Product.brand).where(Product.brand.is_not(None), Product.brand != "", Product.active.is_not(False))
+    if wh in catalog.WAREHOUSES:                      # бренди лише обраного складу (вітрина ≠ онлайн-магазин ≠ ін'єкційна)
+        bq = bq.where(func.coalesce(Product.warehouse, "vitrina") == wh)
+    brands = sorted({x for (x,) in db.execute(bq.distinct())}, key=str.lower)
+    if brand and brand != "—" and brand not in brands:   # змінили склад — бренд з іншого складу скидаємо
+        brand = ""
     rows, rt = _pricing_rows(db, wh, brand, q, only)
-    brands = sorted({x for (x,) in db.execute(select(Product.brand).where(Product.brand.is_not(None)).distinct())}, key=str.lower)
     from .models import Supplier
     from .services import supplier_prices as spx
     last_prices = spx.latest_by_brand(db)

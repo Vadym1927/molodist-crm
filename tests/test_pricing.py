@@ -39,3 +39,21 @@ def test_pricing_flow(monkeypatch):
         row = [cell.value for cell in ws[3]]
         assert row[1] == "Medik8 C-Tetra 30 мл" and row[6] == round(25 * 47.9, 2) and row[11] == 2870  # 60×47.9 → до 10
         assert "Планування ціни реалізації" in c.get("/finance").text
+
+
+def test_pricing_brands_by_warehouse():
+    from fastapi.testclient import TestClient
+    from app.config import settings
+    from app.main import app
+    from app.models import SessionLocal, Product
+    with SessionLocal() as db:
+        db.add_all([Product(name="Вітринний WH", name_norm="вітринний wh", warehouse="vitrina", brand="ВітринаБренд"),
+                    Product(name="Онлайн WH", name_norm="онлайн wh", warehouse="shop", brand="ОнлайнБренд")])
+        db.commit()
+    settings.admin_password = "owner-pass-1"
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        t = c.get("/finance/pricing?wh=vitrina").text
+        assert ">ВітринаБренд<" in t and ">ОнлайнБренд<" not in t
+        t = c.get("/finance/pricing?wh=shop&brand=ВітринаБренд").text      # бренд іншого складу скидається
+        assert ">ОнлайнБренд<" in t and ">ВітринаБренд<" not in t and "Онлайн WH" in t
