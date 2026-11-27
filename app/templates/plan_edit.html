@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Бюті-план · {{ pl.patient.full_name if pl.patient else '' }} · MOLODIST CRM{% endblock %}
+{% block body %}
+{% set qp = request.query_params %}
+<style>
+.bp-h{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.bp-h h1{margin:6px 0 0;font:500 26px/1.15 var(--head);letter-spacing:.05em;text-transform:uppercase;color:#2A2430}
+.bp-h .eb{font:600 10.5px var(--sans);letter-spacing:.2em;text-transform:uppercase;color:#8a8496}
+.bp-c{background:#fff;border:1px solid #ECE7E1;border-radius:20px;padding:18px 20px;margin-bottom:14px;box-shadow:0 14px 34px -28px rgba(42,36,48,.4)}
+.bp-c h2{margin:0 0 12px;font:600 12px var(--head);letter-spacing:.14em;text-transform:uppercase;color:#3B3050}
+.bp-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.bp-g label,.bp-f label{display:grid;gap:5px;font:600 11px var(--sans);letter-spacing:.04em;text-transform:uppercase;color:#8a8496}
+.bp-g input,.bp-g select,.bp-f textarea{font:400 14px var(--sans);text-transform:none;letter-spacing:0;color:#2A2430}
+.bp-f{display:grid;gap:12px;margin-top:12px}.bp-f textarea{min-height:74px;resize:vertical}
+.bp-med{background:#FBF7F7;border:1px dashed #E2C9C9;border-radius:14px;padding:12px}
+.bp-med .n{font:600 11px var(--sans);color:#B23B2E;margin-bottom:6px;text-transform:none;letter-spacing:0}
+.bp-t{width:100%;border-collapse:collapse}.bp-t th{font:700 10.5px var(--sans);letter-spacing:.07em;text-transform:uppercase;color:#8a8496;text-align:left;padding:8px 6px;background:#FBFAF8;white-space:nowrap}
+.bp-t td{padding:7px 6px;border-top:1px solid #F3EFEA;vertical-align:middle}.bp-t input{height:36px;padding:0 8px}
+.bp-t .n{width:62px;text-align:right}.bp-t .d{width:140px}.bp-t .nm{min-width:240px;width:100%}
+.bp-mv{display:flex;flex-direction:column;gap:2px}.bp-mv button{border:1px solid #E6E0D8;background:#fff;border-radius:8px;width:28px;height:20px;line-height:16px;cursor:pointer;color:#3B3050;font-size:11px;padding:0}
+.bp-mv button:hover{background:#F6F3FB}
+.bp-x{border:0;background:none;color:#B23B2E;font-size:18px;cursor:pointer}
+.bp-k{font-size:16px}.bp-add{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+.bp-nr{display:grid;grid-template-columns:30px minmax(220px,1fr) 110px 70px 90px 30px;gap:6px;align-items:center;margin-top:6px}
+.bp-bar{position:sticky;bottom:10px;z-index:5;display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;align-items:center;background:#2A2430;color:#fff;border-radius:16px;padding:10px 14px;box-shadow:0 18px 40px -20px rgba(42,36,48,.8)}
+.bp-bar .btn.ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.3)}
+.bp-tot{font:600 14px var(--sans)}.bp-tot b{font-size:17px}
+@media(max-width:700px){.bp-nr{grid-template-columns:24px 1fr 90px 54px;}.bp-nr .iv,.bp-nr .x{display:none}}
+</style>
+
+<div class="bp-h"><div><a class="btn ghost" href="/patients/{{ pl.patient_id }}#plan{{ pl.id }}">← До картки</a>
+  <div class="eb" style="margin-top:12px">Бюті-план · {{ 'складено в CRM' if pl.built_in_crm else 'з PDF OBSERV' }}</div>
+  <h1>{{ pl.patient.full_name if pl.patient else '—' }}</h1>
+  <div class="muted small">{{ pl.patient.phone if pl.patient and pl.patient.phone else 'телефон не вказано' }} · PDF: «{{ pdfname }}»</div></div>
+  <div class="row" style="gap:6px"><a class="btn ghost" href="/plans/{{ pl.id }}/pdf?v=short" target="_blank">🖨 Короткий (друк)</a><a class="btn ghost" href="/plans/{{ pl.id }}/pdf?v=full" target="_blank">📄 Повний PDF</a>
+    <a class="btn ghost" href="/plans/{{ pl.id }}/pdf?v=full&dl=1">⤓ Завантажити</a></div></div>
+{% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok)">{{ qp.get('msg') }}</div>{% endif %}
+
+<form method="post" action="/plans/{{ pl.id }}/edit" id="bpf"><button name="action" value="save" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px"></button>
+<div class="bp-c"><h2>Консультація</h2>
+  <div class="bp-g">
+    <label>Дата консультації<input type="date" name="session_at" value="{{ pl.session_at.strftime('%Y-%m-%d') if pl.session_at else '' }}"></label>
+    <label>Хто проводить{% if user.role == 'doctor' %}<input value="{{ pl.doctor.name if pl.doctor else '' }}" disabled>{% else %}<select name="doctor_id"><option value="">—</option>{% for d in doctors %}<option value="{{ d.id }}" {{ 'selected' if pl.doctor_id == d.id }}>{{ d.name }}</option>{% endfor %}</select>{% endif %}</label>
+    <label>Місце<input name="place" value="{{ pl.place or '' }}"></label>
+    <label>Тип мімічної активності<select name="mimic_type"><option value="">—</option>{% for m in MIMIC %}<option {{ 'selected' if pl.mimic_type == m }}>{{ m }}</option>{% endfor %}{% if pl.mimic_type and pl.mimic_type not in MIMIC %}<option selected>{{ pl.mimic_type }}</option>{% endif %}</select></label>
+  </div>
+  <div class="bp-f">
+    <label>Скарги й побажання пацієнта<textarea name="complaints">{{ pl.complaints or '' }}</textarea></label>
+    {% if medical %}<div class="bp-med"><div class="n">🔒 Медичні дані — бачать лише лікарі й власник; не надсилаються в Telegram/SMS</div>
+      <div class="bp-f" style="margin:0"><label>Анамнез<textarea name="anamnesis">{{ pl.anamnesis or '' }}</textarea></label>
+      <label>Діагноз<textarea name="diagnosis">{{ pl.diagnosis or '' }}</textarea></label></div></div>{% endif %}
+    <label>Заключення лікаря<textarea name="conclusion">{{ pl.conclusion or '' }}</textarea></label>
+  </div>
+</div>
+
+<div class="bp-c" id="items"><h2>Процедури й догляд</h2>
+  <div style="overflow:auto"><table class="bp-t"><thead><tr><th></th><th></th><th>Позиція</th><th>Дата</th><th class="r">Інтервал / вистачає, дн.</th><th class="r">К-сть</th><th class="r">Ціна, ₴</th><th class="r">Сума</th><th></th></tr></thead><tbody>
+  {% for it in items %}<tr>
+    <td><div class="bp-mv"><button name="action" value="up_{{ it.id }}" title="Вище" {{ 'disabled' if loop.first }}>▲</button><button name="action" value="down_{{ it.id }}" title="Нижче" {{ 'disabled' if loop.last }}>▼</button></div></td>
+    <td class="bp-k" title="{{ 'Процедура' if it.kind == 'procedure' else 'Домашній догляд' }}">{{ '💉' if it.kind == 'procedure' else '🧴' }}</td>
+    <td><input class="nm" name="name_{{ it.id }}" value="{{ it.name }}"><input class="nm" name="note_{{ it.id }}" value="{{ it.note or '' }}" placeholder="Коментар: зона, препарат, схема" style="margin-top:4px;height:30px;font-size:12.5px"></td>
+    <td>{% if it.kind == 'procedure' %}<input class="d" type="date" name="date_{{ it.id }}" value="{{ it.plan_date.isoformat() if it.plan_date else '' }}">{% else %}<span class="muted small">—</span>{% endif %}</td>
+    <td class="r">{% if it.kind == 'procedure' %}<input class="n" name="interval_days_{{ it.id }}" value="{{ it.interval_days or '' }}" inputmode="numeric">{% else %}<input class="n" name="supply_days_{{ it.id }}" value="{{ it.supply_days or '' }}" inputmode="numeric">{% endif %}</td>
+    <td class="r"><input class="n" name="qty_{{ it.id }}" value="{{ it.qty }}" inputmode="numeric"></td>
+    <td class="r"><input class="n" style="width:90px" name="unit_price_{{ it.id }}" value="{{ '%g'|format(it.unit_price or 0) }}" inputmode="decimal"></td>
+    <td class="r" style="white-space:nowrap">{{ ((it.qty or 1) * (it.unit_price or 0))|uah }}</td>
+    <td><label class="bp-x" title="Видалити позицію"><input type="checkbox" name="del_{{ it.id }}" value="1" style="display:none" onchange="this.closest('tr').style.opacity=this.checked?.35:1">×</label></td>
+  </tr>{% else %}<tr><td colspan="9" class="muted" style="padding:14px">Позицій ще немає — додайте процедури й засоби догляду нижче.</td></tr>{% endfor %}
+  </tbody></table></div>
+  <div id="bp-new"></div>
+  <div class="bp-add"><button type="button" class="btn ghost" onclick="bpAdd('procedure')">＋ Процедура</button><button type="button" class="btn ghost" onclick="bpAdd('product')">＋ Засіб догляду</button>
+    <button class="btn ghost" name="action" value="dates" title="Перша процедура — дата консультації, далі кожна наступна = попередня + к-сть × інтервал">📅 Розрахувати дати за інтервалами</button>
+    <span class="small muted">Назва — з прайсу / каталогу, ціна підставиться сама. ▲▼ — переставити позиції місцями.</span></div>
+  <div class="bp-f"><label>Коментар до домашнього догляду<textarea name="routine_comment" style="min-height:54px">{{ pl.routine_comment or '' }}</textarea></label></div>
+</div>
+
+<div class="bp-bar"><div class="bp-tot">Разом за планом: <b>{{ pl.total_planned|uah }}</b></div>
+  <div class="row" style="gap:6px"><select name="status" style="height:38px">{% for s,l in [('active','активний'),('completed','завершений'),('cancelled','скасований')] %}<option value="{{ s }}" {{ 'selected' if pl.status==s }}>{{ l }}</option>{% endfor %}</select>
+    <button class="btn ghost" name="action" value="short">Зберегти й друк</button><button class="btn ghost" name="action" value="full">Зберегти й PDF</button>
+    <button class="btn ghost" name="action" value="close">Зберегти й закрити</button><button class="btn" name="action" value="save">Зберегти</button></div></div>
+</form>
+<datalist id="bp-svc">{% for n, pr in svcs %}<option value="{{ n }}" data-p="{{ '%g'|format(pr) if pr else '' }}">{% endfor %}</datalist>
+<datalist id="bp-prod">{% for n, pr in prods %}<option value="{{ n }}" data-p="{{ '%g'|format(pr) if pr else '' }}">{% endfor %}</datalist>
+<script>
+function bpAdd(k){var r=document.createElement('div');r.className='bp-nr';
+  r.innerHTML='<span class="bp-k">'+(k==='product'?'🧴':'💉')+'</span><input type="hidden" name="new_kind" value="'+k+'"><input name="new_name" list="'+(k==='product'?'bp-prod':'bp-svc')+'" placeholder="'+(k==='product'?'Засіб догляду':'Процедура')+'"><input name="new_price" inputmode="decimal" placeholder="Ціна, ₴"><input name="new_qty" value="1" inputmode="numeric" title="К-сть"><input class="iv" name="new_interval" inputmode="numeric" placeholder="'+(k==='product'?'вистачає, дн.':'інтервал, дн.')+'"><button type="button" class="bp-x x" onclick="this.parentNode.remove()">×</button>';
+  document.getElementById('bp-new').appendChild(r);var n=r.querySelector('[name=new_name]');n.focus();
+  n.addEventListener('change',function(){var o=[].find.call(document.getElementById(n.getAttribute('list')).options,function(o){return o.value===n.value});var pr=r.querySelector('[name=new_price]');if(o&&o.dataset.p&&!pr.value)pr.value=o.dataset.p})}
+</script>
+{% endblock %}

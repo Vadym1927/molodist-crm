@@ -1609,6 +1609,67 @@ async def plan_items_update(request: Request, plan_id: int, user: User = Depends
     return RedirectResponse(f"/patients/{plan.patient_id}#plan{plan.id}", 303)
 
 
+# ---------------- бюті-план у CRM (редактор + PDF) ----------------
+@app.post("/patients/{pid:int}/plans/new")
+def plan_new(pid: int, user: User = Depends(require("plan_edit")), db: Session = Depends(db_dep)):
+    from .services import plan_builder as pb
+    p = _patient_or_403(db, user, pid)
+    pl = pb.create(db, p, user.doctor_id if user.doctor_id else p.doctor_id)
+    audit(db, "plan.create", "plan", pl.id, user=user, patient=pid)
+    return RedirectResponse(f"/plans/{pl.id}/edit", 303)
+
+
+def _plan_or_403(db: Session, user: User, plan_id: int) -> BeautyPlan:
+    pl = db.get(BeautyPlan, plan_id)
+    if not pl or not plan_visible(user, pl):
+        raise HTTPException(403, "Немає доступу до цього плану")
+    return pl
+
+
+@app.get("/plans/{plan_id:int}/edit", response_class=HTMLResponse)
+def plan_edit_page(request: Request, plan_id: int, user: User = Depends(require("plan_edit")), db: Session = Depends(db_dep)):
+    from .services import plan_builder as pb
+    from .models import CbService as _CbS
+    pl = _plan_or_403(db, user, plan_id)
+    svcs = sorted({(n_, pr_) for n_, pr_ in db.execute(select(_CbS.name, _CbS.price).where(_CbS.active.is_not(False))) if n_}, key=lambda x: x[0])
+    prods = sorted({(n_, pr_ or pm_) for n_, pr_, pm_ in db.execute(select(Product.name, Product.price, Product.price_manual)
+                                                                      .where(Product.active.is_not(False), func.coalesce(Product.warehouse, "vitrina").in_(["vitrina", "shop"]))) if n_},
+                   key=lambda x: x[0])
+    docs = db.scalars(select(Doctor).where(Doctor.active.is_(True)).order_by(Doctor.name)).all()
+    return render(request, "plan_edit.html", nav="plans", pl=pl, items=pb.ordered(pl), svcs=svcs, prods=prods, doctors=docs,
+                  MIMIC=pb.MIMIC_TYPES, medical=can(user, "medical"), pdfname=pb.filename(pl))
+
+
+@app.post("/plans/{plan_id:int}/edit")
+async def plan_edit_save(request: Request, plan_id: int, user: User = Depends(require("plan_edit")), db: Session = Depends(db_dep)):
+    from .services import plan_builder as pb
+    pl = _plan_or_403(db, user, plan_id)
+    form = await request.form()
+    ch = pb.save(db, pl, form, can(user, "medical"), user.role == "doctor")
+    if ch:
+        audit(db, "plan.update", "plan", pl.id, user=user, changes={k: v for k, v in ch.items() if k not in ("diagnosis", "anamnesis")},
+              medical_changed=bool({"diagnosis", "anamnesis"} & set(ch)))
+    act = str(form.get("action") or "")
+    if act in ("short", "full"):
+        return RedirectResponse(f"/plans/{pl.id}/pdf?v={act}", 303)
+    if act == "close":
+        return RedirectResponse(f"/patients/{pl.patient_id}#plan{pl.id}", 303)
+    anchor = "#items" if act.startswith(("up_", "down_")) or act in ("dates", "add") else ""
+    return RedirectResponse(_with_msg(f"/plans/{pl.id}/edit", "Збережено") + anchor, 303)
+
+
+@app.get("/plans/{plan_id:int}/pdf")
+def plan_pdf(plan_id: int, v: str = "short", dl: int = 0, user: User = Depends(current_user), db: Session = Depends(db_dep)):
+    from urllib.parse import quote
+    from .services import plan_builder as pb
+    pl = _plan_or_403(db, user, plan_id)
+    data = pb.pdf(pl, "full" if v == "full" else "short", show_medical=can(user, "medical"))
+    fn = pb.filename(pl)
+    audit(db, "plan.pdf", "plan", pl.id, user=user, variant=v)
+    return Response(data, media_type="application/pdf",
+                    headers={"Content-Disposition": f"{'attachment' if dl else 'inline'}; filename*=UTF-8''{quote(fn)}"})
+
+
 @app.post("/plans/{plan_id}/delete")
 def plan_delete(plan_id: int, del_password: str = Form(""), user: User = Depends(require("plan_delete")),
                 db: Session = Depends(db_dep)):

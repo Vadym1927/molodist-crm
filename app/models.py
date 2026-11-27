@@ -113,6 +113,13 @@ class BeautyPlan(Base):
     status: Mapped[str] = mapped_column(String(20), default="active")  # active|completed|cancelled
     source_file: Mapped[str | None] = mapped_column(String(500))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    # бюті-план, складений у CRM (без PDF OBSERV)
+    diagnosis: Mapped[str | None] = mapped_column(Text)          # діагноз (медичне — лише з правом «медичні дані»)
+    anamnesis: Mapped[str | None] = mapped_column(Text)          # анамнез (медичне)
+    conclusion: Mapped[str | None] = mapped_column(Text)         # заключення лікаря
+    mimic_type: Mapped[str | None] = mapped_column(String(60))   # тип мімічної активності
+    place: Mapped[str | None] = mapped_column(String(200))       # місце консультації
+    built_in_crm: Mapped[bool | None] = mapped_column(Boolean)
 
     patient: Mapped[Patient] = relationship(back_populates="plans")
     doctor: Mapped[Doctor | None] = relationship()
@@ -137,6 +144,9 @@ class PlanItem(Base):
     # ручне ведення (якщо CleverBox не зіставив): к-сть виконано/куплено
     manual_done: Mapped[int] = mapped_column(Integer, default=0)
     product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id"))   # каталог (для засобів)
+    pos: Mapped[int | None] = mapped_column(Integer)              # порядок у плані (можна переставляти)
+    plan_date: Mapped[date | None] = mapped_column(Date)          # запланована дата процедури
+    note: Mapped[str | None] = mapped_column(String(300))         # коментар до позиції (зона, препарат, схема)
 
     plan: Mapped[BeautyPlan] = relationship(back_populates="items")
 

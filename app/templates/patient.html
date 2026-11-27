@@ -352,13 +352,15 @@
 
 {# ================= БʼЮТІ-ПЛАН ================= #}
 <section class="pt-p" data-t="plan">
+{% if can(user,'plan_edit') %}<form method="post" action="/patients/{{ p.id }}/plans/new" class="row" style="justify-content:flex-end;margin-bottom:10px"><button class="btn">＋ Новий бюті-план</button></form>{% endif %}
 <div id="plans">
 {% for ps in statuses %}{% set pl = ps.plan %}{% set f = FLAG[ps.flag] %}
 <div class="card" id="plan{{ pl.id }}">
   <div class="row between">
     <div><h2 style="margin:0">{{ pl.title or 'Бюті-план' }} · {{ pl.session_at|dt }}</h2>
       <div class="muted small">{{ pl.complaints or '' }}</div></div>
-    <div class="row">{% if can(user,'plan_edit') %}<button type="button" class="btn ghost pe-tg" style="padding:4px 12px" onclick="peToggle({{ pl.id }})">✏️ Редагувати план</button>{% endif %}<span class="pill {{ f[1] }}">{{ f[0] }}</span>
+    <div class="row">{% if can(user,'plan_edit') %}<a class="btn ghost" style="padding:4px 12px" href="/plans/{{ pl.id }}/edit">📝 Редактор плану</a><button type="button" class="btn ghost pe-tg" style="padding:4px 12px" onclick="peToggle({{ pl.id }})">✏️ Швидко</button>{% endif %}
+      <a class="btn ghost" style="padding:4px 12px" href="/plans/{{ pl.id }}/pdf?v=short" target="_blank" title="Короткий план на друк">🖨</a><a class="btn ghost" style="padding:4px 12px" href="/plans/{{ pl.id }}/pdf?v=full" target="_blank" title="Повний PDF">📄 PDF</a><span class="pill {{ f[1] }}">{{ f[0] }}</span>
       {% if ps.is_booked %}<span class="pill ok">запис {{ ps.next_booking|dt('%d.%m %H:%M') }}</span>
       {% elif ps.due_date %}<span class="muted small">наступна процедура до {{ ps.due_date|dt }}</span>{% endif %}</div>
   </div>
@@ -408,7 +410,7 @@
   </div>
 </div>
 {% else %}
-<div class="card muted">Бюті-плану ще немає. Завантажте PDF з Observ кнопкою вгорі або надішліть боту.</div>
+<div class="card muted">Бюті-плану ще немає. Створіть його кнопкою «＋ Новий бюті-план», завантажте PDF з Observ кнопкою вгорі або надішліть боту.</div>
 {% endfor %}
 </div>
 </section>
