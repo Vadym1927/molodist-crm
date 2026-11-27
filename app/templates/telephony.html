@@ -256,7 +256,7 @@ a.pl{font-weight:600;color:#3B3050;text-decoration:underline;text-underline-offs
   <div class="tp-g">
   <label class="tsw"><input type="checkbox" name="ai_on" value="1" {{ 'checked' if t.ai_on }}> Увімкнути AI-оцінку</label>
   <div class="tpv2" style="grid-template-columns:1fr 1fr;margin:0">
-    <label><input type="radio" name="ai_engine" value="crm" {{ 'checked' if (t.ai_engine or 'crm') == 'crm' }}><span class="pv"><b>CRM</b><small>Gladia розпізнає запис, Claude оцінює{% if not has_ai_key %} · <span style="color:#B23B2E;font-weight:700">ключ Claude не задано</span>{% endif %}</small></span></label>
+    <label><input type="radio" name="ai_engine" value="crm" {{ 'checked' if (t.ai_engine or 'crm') == 'crm' }}><span class="pv"><b>CRM</b><small>Gladia розпізнає запис, Claude оцінює{% if not has_ai_key %} · <a href="/settings/keys?sec=ai#ai" style="color:#B23B2E;font-weight:700">ключ Claude не задано — внести</a>{% endif %}</small></span></label>
     <label><input type="radio" name="ai_engine" value="agent" {{ 'checked' if t.ai_engine == 'agent' }}><span class="pv"><b>Агент на VPS</b><small>OpenClaw сам слухає запис, робить текст і оцінку</small></span></label></div>
   {% set _gk = t.stt and t.stt.gladia_key %}
   <div class="tp-f" style="margin-top:8px"><label>Ключ Gladia (розпізнавання записів для режиму «CRM») {% if _gk %}<span class="pill ok">задано</span>{% else %}<span class="pill warn">не задано</span>{% endif %}</label>
