@@ -920,10 +920,12 @@ def create_order(db: Session, data: dict, base_url: str) -> dict:
         except mp.PartsError as e:
             db.rollback()
             o = db.get(SiteOrder, out["id"])
-            o.status = "Нове"
-            o.comment = ((o.comment or "") + f"\nПокупка Частинами не оформилась: {str(e)[:150]}").strip()
+            o.payment = "Онлайн карткою (monobank)"
+            o.raw = {**(o.raw or {}), "pay": "online", "parts_failed": str(e)[:300]}
+            o.comment = ((o.comment or "") + f"\nПокупка Частинами не оформилась: {str(e)[:150]} — покупцю відкрито оплату карткою").strip()
             db.commit()
-            out["parts_error"] = "Не вдалося оформити Покупку Частинами: " + str(e)[:120] + ". Замовлення збережено — адміністратор запропонує іншу оплату."
+            out["parts_error"] = "Не вдалося оформити Покупку Частинами: " + str(e)[:120] + ". Замовлення збережено — зараз відкриється оплата карткою monobank."
+            pay = "online"                                  # заявка не пройшла — не губимо покупця: одразу посилання на оплату карткою
     if pay == "online":
         try:
             from . import paylinks as pl

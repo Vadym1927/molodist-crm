@@ -1325,3 +1325,21 @@ def test_show_only_by_warehouse():
             assert not sf.catalog(db, fresh=True)["by_slug"]["wh-a"]["stock"]
         finally:
             c = sf.cfg(db); c["show_whs"] = []; sf.save_cfg(db, c)
+
+
+def test_parts_fail_falls_back_to_card(monkeypatch):
+    """Покупка Частинами не створилась → покупцю одразу посилання на оплату карткою, а не «Дякуємо» без оплати."""
+    from app.services import shop_front as sf, mono_parts as mp, paylinks as pls
+    monkeypatch.setattr(sf, "notify", lambda *a, **k: 0)
+    monkeypatch.setattr(mp, "public", lambda db: {"ready": True, "has_keys": True, "on": True, "mode": "test", "parts": [3], "min_sum": 500})
+    monkeypatch.setattr(mp, "create", lambda *a, **k: (_ for _ in ()).throw(mp.PartsError("Помилка валідації запиту")))
+    monkeypatch.setattr(pls, "create", lambda db, *a, **k: type("L", (), {"url": "https://pay.mbnk.biz/x", "info": {}})())
+    with SessionLocal() as db:
+        p = Product(name="Parts Fallback", name_norm="parts fallback", price=3060, site_on=True, site_info={"slug": "parts-fallback", "title": "PF", "presence": 1})
+        db.add(p); db.commit(); pid = p.id
+        sf.catalog(db, fresh=True)
+        r = sf.create_order(db, {"items": [{"id": pid, "qty": 1}], "name": "Частини Тест", "phone": "+380501117766", "city": "Київ", "warehouse": "№1",
+                                 "delivery": "np", "pay": "parts"}, "http://x")
+        o = db.get(SiteOrder, r["id"])
+        assert r["pay_url"] == "https://pay.mbnk.biz/x" and "parts_error" in r and not r.get("parts")
+        assert o.payment == "Онлайн карткою (monobank)" and o.raw["pay"] == "online" and o.status == "Очікує оплати" and "Помилка валідації" in o.comment
