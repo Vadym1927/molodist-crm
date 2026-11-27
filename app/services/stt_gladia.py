@@ -125,7 +125,7 @@ def transcribe(db: Session, c: Call, http: httpx.Client | None = None, wait_s: i
             http.close()
 
 
-def pending(db: Session, limit: int = 6, days: int = 14) -> list[Call]:
+def pending(db: Session, limit: int = 6, days: int = 62) -> list[Call]:
     since = datetime.now() - timedelta(days=days)
     rows = db.scalars(select(Call).where(Call.transcript.is_(None), Call.record_url.is_not(None), Call.status == "answered",
                                          Call.at >= since).order_by(Call.at.desc()).limit(200)).all()
