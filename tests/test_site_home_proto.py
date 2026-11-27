@@ -27,7 +27,7 @@ def test_proto_variants_render_brand_rules():
             assert 'id="h-menu"' in t and 'class="h-up"' in t and "data-fab" in t and "maps.google.com/maps" in t
             assert 'data-lead="home-' in t and "Я знаю процедуру" in t
             if k == "a":                                                             # основний варіант: усе веде на форму, онлайн-запис — лише під лікарями
-                assert "/zapys" not in t.replace("/zapys?doctor=", "") and 'data-pick="topic"' in t and "Масаж" in t
+                assert "/zapys" not in t.replace("/zapys?doctor=", "") and 'data-pick="topic"' in t and "масаж" in t
                 assert "ФОП Бондар Вадим Миколайович" in t and "FAQPage" in t and "bp.mp4" in t and "zm-c1-1.webp" in t
                 assert 'class="pulse"' in t and "h-rsum" in t and "h-igrid" in t and "h-shop2" in t
                 assert "<h1>Естетична медицина й косметологія в Києві</h1>" in t and "Шкіра, якій не потрібні фільтри" in t

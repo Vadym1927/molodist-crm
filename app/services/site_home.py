@@ -111,7 +111,7 @@ CONCERNS = [
     {"t": "Родимки й новоутворення", "d": "Хочете перевірити або видалити", "slug": "vydalennia-rodymok",
      "how": "Дерматоскопія й видалення доброякісних новоутворень", "media": ["home-moles.webp", "derma-1.webp"], "interest": "Видалення новоутворень", "page": "vydalennia-rodymok"},
     {"t": "Напруга, набряки, втома", "d": "Хочеться розслабити мʼязи обличчя й тіла", "slug": "",
-     "how": "Апаратний масаж STRATOSPHERE", "img": "c-massage.webp", "interest": "Масаж"},
+     "how": "Апаратний масаж STRATOSPHERE", "img": "c-massage.webp", "interest": "Масаж", "page": "aparatnyy-masazh-stratosphere"},
     {"t": "Не знаю, з чого почати", "d": "Запитів кілька або процедури не дали результату", "slug": "beautyplan",
      "how": "BEAUTY PLAN: діагностика й письмовий план", "img": "bp-poster.webp", "interest": "Beauty Plan"},
 ]
