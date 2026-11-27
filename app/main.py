@@ -15592,7 +15592,8 @@ APP_VERSION = _VERSION_FILE.read_text().strip() if _VERSION_FILE.exists() else "
 
 @app.get("/favicon.ico", include_in_schema=False)
 def favicon():
-    return FileResponse(str(BASE / "static" / "img" / "icon-32.png"), media_type="image/png", headers={"Cache-Control": "public, max-age=604800"})
+    # монограма MOLODIST (брендбук) — Google бере favicon сайту звідси; 16/32/48 px
+    return FileResponse(str(BASE / "static" / "site" / "brand" / "favicon.ico"), media_type="image/x-icon", headers={"Cache-Control": "public, max-age=86400"})
 
 
 @app.get("/health")
