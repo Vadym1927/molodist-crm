@@ -300,7 +300,8 @@ def packages(db: Session) -> list[dict]:
 def visits_from_name(name: str) -> int:
     """«5 процедур RF», «Rejuran S 4проц», «курс масажу 7 процедур» → кількість візитів; не вказано — 1."""
     import re
-    m = re.search(r"(\d{1,2})\s*-?\s*(?:х\s*)?(?:проц|сеанс|візит|раз|занят|масаж)", name or "", re.I)
+    m = re.search(r"(\d{1,2})\s*-?\s*(?:х\s*)?(?:проц|сеанс|візит|раз|занят|масаж)", name or "", re.I) \
+        or re.search(r"(?:курс|пакет)\D{0,3}(\d{1,2})\b", name or "", re.I) or re.search(r"[x×]\s?(\d{1,2})\b", name or "", re.I)
     return int(m.group(1)) if m and 0 < int(m.group(1)) <= 50 else 1
 
 
@@ -332,7 +333,7 @@ def package_new(db: Session, data: dict) -> dict:
     """Свій шаблон абонемента (не з CleverBox): id від 900001."""
     xs = packages(db)
     x = {"id": max([int(y["id"]) for y in xs] + [900000]) + 1, "name": str(data.get("name") or "").strip()[:300] or "Абонемент", "type": "CRM",
-         "visits": max(1, min(int(float(data.get("visits") or 1)), 100)), "days": max(0, int(float(data.get("days") or 0))),
+         "visits": max(1, min(int(float(data.get("visits") or 0)) or visits_from_name(data.get("name")), 100)), "days": max(0, int(float(data.get("days") or 0))),
          "price": round(float(str(data.get("price") or 0).replace(",", ".").replace(" ", "")), 2), "branch": "", "services": str(data.get("services") or "").strip()[:500],
          "all_clients": False, "sold": 0, "active": True}
     xs.append(x)
@@ -347,11 +348,15 @@ def package_delete(db: Session, pid: int) -> None:
 
 def package_items(db: Session) -> list[dict]:
     """Активні шаблони абонементів для каси."""
-    return [{"id": x["id"], "name": x["name"], "price": x.get("price") or 0, "visits": x.get("visits") or 1, "days": x.get("days") or 0,
+    return [{"id": x["id"], "name": x["name"], "price": x.get("price") or 0, "visits": pkg_visits(x), "days": x.get("days") or 0,
              "services": x.get("services") or ""} for x in packages(db) if x.get("active", True)]
 
 
 SUB_CRM_FROM = 900000
+def pkg_visits(pkg: dict) -> int:
+    """Візитів в абонементі: з шаблону; якщо там 1 (типово), а в назві «Курс N» — беремо N."""
+    v = int(float(pkg.get("visits") or 1))
+    return visits_from_name(pkg.get("name")) if v <= 1 else v
 
 
 def issue_subscription(db: Session, pkg: dict, patient, seller, sale_id: int, paid: float, sold_at: datetime | None = None):
@@ -364,7 +369,7 @@ def issue_subscription(db: Session, pkg: dict, patient, seller, sale_id: int, pa
     s = Subscription(id=max(mx + 1, SUB_CRM_FROM), type_name=pkg["name"][:300], services=pkg.get("services") or None,
                      patient_id=patient.id if patient else None, cb_client_id=patient.cleverbox_id if patient else None,
                      client_name=patient.full_name if patient else None, seller=seller.name if seller else None, sold_at=sold_at,
-                     price=float(pkg.get("price") or paid), paid=round(paid, 2), visits_total=float(pkg.get("visits") or 1), visits_used=0,
+                     price=float(pkg.get("price") or paid), paid=round(paid, 2), visits_total=float(pkg_visits(pkg)), visits_used=0,
                      valid_to=(sold_at + timedelta(days=int(pkg["days"]))).date() if pkg.get("days") else None,
                      comment=f"Продано в касі CRM, чек Ч-{sale_id}", cb_status="Оплачено", updated_at=datetime.utcnow())
     db.add(s)
