@@ -1294,3 +1294,21 @@ def test_duplicate_guard_respects_pay_method():
         db.add(o); db.commit()
         assert sf._recent_duplicate(db, "380671110000", [{"id": 5, "qty": 1}], "abc", "online")["number"] == "DP1"
         assert sf._recent_duplicate(db, "380671110000", [{"id": 5, "qty": 1}], "abc", "parts") is None
+
+
+def test_sell_off_showcase_mode():
+    from app.services import shop_front as sf
+    with SessionLocal() as db:
+        p = Product(name="Show A", name_norm="show a", price=900, site_on=True, site_info={"slug": "show-a", "title": "Show A", "presence": 1})
+        db.add(p); db.commit(); pid = p.id
+        c = sf.cfg(db); c["sell_off"] = True; sf.save_cfg(db, c)
+        try:
+            d = sf.catalog(db, fresh=True)
+            v = d["by_slug"]["show-a"]["variants"][0]
+            assert not v["stock"] and not d["by_slug"]["show-a"]["stock"]
+            assert not sf.price_cart(db, [{"id": pid, "qty": 1}])["items"]
+            if v.get("real"):
+                assert sf.price_cart(db, [{"id": pid, "qty": 1}], admin=True)["items"]
+        finally:
+            c = sf.cfg(db); c["sell_off"] = False; sf.save_cfg(db, c)
+        assert sf.catalog(db, fresh=True)["by_slug"]["show-a"]["variants"][0]["stock"] == v.get("real")

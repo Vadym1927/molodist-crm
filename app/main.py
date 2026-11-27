@@ -11773,7 +11773,7 @@ def shop_order_new_form(request: Request, phone: str = "", user: User = Depends(
     """Нове замовлення вручну (дзвінок, Instagram, месенджер): товари з каталогу сайту, доставка й оплата на вибір."""
     from .services import shop_front as sf
     lines = sorted(({"id": v["id"], "qty": 0, "name": v.get("name") or it["name"], "price": v.get("price") or 0, "stock": True, "left": v.get("left"), "brand": it.get("brand") or ""}
-                    for it in sf.catalog(db)["items"] for v in it["variants"] if v.get("stock")), key=lambda x: x["name"].lower())
+                    for it in sf.catalog(db)["items"] for v in it["variants"] if v.get("stock") or v.get("real")), key=lambda x: x["name"].lower())
     pre = {"name": "", "phone": phone}
     if phone:
         p_ = db.scalar(select(Patient).where(Patient.phone == re.sub(r"\D", "", phone)))
@@ -11824,7 +11824,7 @@ def shop_cart_order_form(request: Request, cid: int, user: User = Depends(requir
     row = next((r for r in ct.rows(db, sf.catalog(db), "") if r["cart"].id == cid), None) or (_ for _ in ()).throw(HTTPException(404))
     by_id = {v["id"]: v for it in sf.catalog(db)["items"] for v in it["variants"]}
     lines = [{"id": i["id"], "qty": i["qty"], "name": (by_id.get(i["id"]) or {}).get("name") or f"товар #{i['id']}",
-              "price": (by_id.get(i["id"]) or {}).get("price") or 0, "stock": bool((by_id.get(i["id"]) or {}).get("stock")),
+              "price": (by_id.get(i["id"]) or {}).get("price") or 0, "stock": bool((by_id.get(i["id"]) or {}).get("stock") or (by_id.get(i["id"]) or {}).get("real")),
               "left": (by_id.get(i["id"]) or {}).get("left")} for i in cart.items or []]
     return render(request, "shop_cart_order.html", nav="shop", shop_tab="carts", shop_cnt=_shop_cnt(db), cart=cart, row=row, lines=lines, c=sf.cfg(db))
 
@@ -12006,7 +12006,7 @@ async def settings_shop_save(request: Request, user: User = Depends(require("use
         c["review_on"] = bool(f.get("review_on"))
         c["review_sms"] = bool(f.get("review_sms"))
         c["cart_auto_on"] = bool(f.get("cart_auto_on"))
-        for _b in ("reorder_on", "quiz_on", "oneclick_on"):
+        for _b in ("reorder_on", "quiz_on", "oneclick_on", "sell_off"):
             c[_b] = bool(f.get(_b))
         try:
             c["reorder_lead"] = min(30, max(0, int(f.get("reorder_lead") or 7)))

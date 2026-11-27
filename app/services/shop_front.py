@@ -41,7 +41,7 @@ DEFAULT = {
     "cookie_on": True, "ts_site": "", "ts_secret": "", "tg_order": True, "tg_pay": True, "tg_review": True, "tg_cart": False,
     "redirects": "", "gsc_verify": "",
     "gplaces_key": "", "gplace_id": "", "greviews_on": True, "greviews_min": 4,
-    "reorder_on": False, "reorder_lead": 7, "reorder_text": "", "quiz_on": True, "oneclick_on": True,
+    "reorder_on": False, "reorder_lead": 7, "reorder_text": "", "quiz_on": True, "oneclick_on": True, "sell_off": False,
     "review_on": False, "review_sms": False, "review_days": 5, "review_text": "", "review_test_phone": "",
     "cart_task_hours": 2, "cart_auto_on": False, "cart_auto_hours": 3, "cart_text": "",
     "order_msg_on": False,       # повідомлення покупцю: оплачено / відправлено (з ТТН) / скасовано
@@ -141,6 +141,7 @@ def save_cfg(db: Session, c: dict) -> None:
     db.merge(SyncState(key=KEY, value=json.dumps({k: c[k] for k in DEFAULT if k in c}, ensure_ascii=False), updated_at=datetime.utcnow()))
     db.commit()
     _cache["at"] = 0.0
+    _cache["cat_at"] = 0.0
 
 
 def hosts() -> set[str]:
@@ -342,6 +343,7 @@ def catalog(db: Session, fresh: bool = False) -> dict:
         for it in o.items or []:
             if it.get("product_id"):
                 sold[it["product_id"]] += it.get("qty") or 0
+    sell_off = bool(cfg(db).get("sell_off"))                # «лише показ»: товари видно, але купити онлайн не можна
     by_slug: dict[str, dict] = {}
     arch: dict[str, dict] = {}
     today = datetime.now().date().isoformat()
@@ -396,7 +398,10 @@ def catalog(db: Session, fresh: bool = False) -> dict:
         wait_ = False
         if si.get("backorder") and not stock and not hidden:   # позначка власника сильніша за стару «presence» з імпорту
             stock, left_, wait_ = True, None, True          # «під замовлення»: продаємо без залишку на вітрині, відправка за 1–3 дні
-        v = {"id": p.id, "left": left_, "name": si.get("title") or p.name, "price": price, "old": old if old > price else 0, "stock": stock, "wait": wait_, "nofeed": bool(si.get("no_feed")), "push": bool(si.get("push")),
+        real_ = stock
+        if sell_off:
+            stock, wait_ = False, False
+        v = {"id": p.id, "left": left_, "name": si.get("title") or p.name, "price": price, "old": old if old > price else 0, "stock": stock, "real": real_, "wait": wait_, "nofeed": bool(si.get("no_feed")), "push": bool(si.get("push")),
              "sku": p.sku or si.get("sku") or "", "label": p.volume or "", "gtin": gtin(p.barcode or si.get("barcode") or "")}
         if sx_:
             v.update(short=sx_["qty"], short_exp=sx_["expiry"].isoformat(), full=rest_)
@@ -763,7 +768,7 @@ def home_blocks(data: dict) -> dict:
 
 
 # ---------------- кошик і замовлення ----------------
-def price_cart(db: Session, rows: list[dict], c: dict | None = None) -> dict:
+def price_cart(db: Session, rows: list[dict], c: dict | None = None, admin: bool = False) -> dict:
     """rows: [{id (product id), qty}] → позиції з актуальними цінами CRM, сума, доставка, подарунок."""
     c = c or cfg(db)
     data = catalog(db)
@@ -777,7 +782,7 @@ def price_cart(db: Session, rows: list[dict], c: dict | None = None) -> dict:
         if pid not in by_id:
             continue
         it, v = by_id[pid]
-        if not v["stock"]:
+        if not (v["stock"] or (admin and v.get("real"))):     # «лише показ» — адміністратор усе одно може оформити вручну
             continue
         if v.get("left") is not None:                   # не більше, ніж є на вітрині
             qty = min(qty, int(v["left"]))
@@ -827,7 +832,7 @@ def create_order(db: Session, data: dict, base_url: str) -> dict:
     from ..integrations.messaging import normalize_phone
     from . import shop_orders as so
     c = cfg(db)
-    cart = price_cart(db, data.get("items") or [], c)
+    cart = price_cart(db, data.get("items") or [], c, admin=bool(data.get("_admin")))
     if not cart["items"]:
         raise ShopError("Кошик порожній або товари закінчились.")
     name = " ".join(str(data.get("name") or "").split())[:120]
