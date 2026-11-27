@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from ..models import SiteEvent
 
-KINDS = {"view", "sec", "click", "form", "pop", "lead", "exit"}
+KINDS = {"view", "sec", "click", "form", "fill", "pop", "lead", "exit"}
 SECTIONS = {"osvita": "Освіта", "pro-likaria": "Про лікаря", "lhero": "Перший екран", "hero": "Перший екран", "facts": "Факти", "pain": "Знайомо?", "reel": "Рілс", "video-rezultat": "Відео: результат", "rezultaty": "Результати",
             "yak-likuiemo": "Як лікуємо", "konsultatsiia": "Консультація", "tsiny": "Ціни", "likar": "Лікар", "likari": "Лікарі",
             "vidhuky": "Відгуки", "zapys": "Форма заявки", "shop": "Магазин", "insta": "Instagram", "zapytannia": "Запитання",
@@ -123,13 +123,14 @@ def report(db: Session, day: date, site: str = "clinic", names: dict | None = No
         secs = Counter()
         clicks = Counter()
         exits = Counter()
-        times, scrolls, forms, leads, pops = [], [], 0, 0, 0
+        times, scrolls, forms, leads, pops, fills = [], [], 0, 0, 0, 0
         for evs in sl:
             seen = {e.target for e in evs if e.kind == "sec" and e.target}
             secs.update(seen)
             clicks.update(e.target for e in evs if e.kind == "click" and e.target)
             forms += any(e.kind == "form" for e in evs)
             pops += any(e.kind == "pop" for e in evs)
+            fills += any(e.kind == "fill" and (e.target or "").startswith("почав") for e in evs)
             leads += any(e.kind == "lead" for e in evs)
             ex = [e for e in evs if e.kind == "exit"]
             if ex:
@@ -144,7 +145,7 @@ def report(db: Session, day: date, site: str = "clinic", names: dict | None = No
         sec_names = STORE_SECTIONS if site == "store" else SECTIONS
         out["pages"].append({"page": p[len(STORE):] if p.startswith(STORE) else p, "name": store_page_name(p, names) if site == "store" else PAGES.get(p, p), "sessions": n, "paid": sum(1 for evs in sl if any(e.paid for e in evs)),
                              "median_sec": med, "bounce_10s": sum(1 for t in times if t < 10), "scroll": round(sum(scrolls) / len(scrolls)) if scrolls else None,
-                             "forms": forms, "pops": pops, "leads": leads, "conv": round(100 * leads / n, 1) if n else 0,
+                             "forms": forms, "fills": fills, "pops": pops, "leads": leads, "conv": round(100 * leads / n, 1) if n else 0,
                              "sections": [(sec_names.get(k, k), v, round(100 * v / n)) for k, v in secs.most_common()],
                              "clicks": clicks.most_common(8), "exits": [(sec_names.get(k, k), v) for k, v in exits.most_common(5)]})
     if site == "store":                                # воронка магазину по сесіях вкладки
@@ -183,7 +184,7 @@ def text(r: dict) -> str:
     for p in r["pages"][:8]:
         L += ["", f"<b>{p['name']}</b> ({p['page']}) — {p['sessions']} відв., реклама {p['paid']}",
               f"Час (медіана): {p['median_sec'] or 0} с · пішли до 10 с: {p['bounce_10s']} · прокрутка: {p['scroll'] or 0}%",
-              (f"Почали оформлення: {p['forms']} · замовлень: <b>{p['leads']}</b>" if store else f"Відкрили форму: {p['forms']} · банер: {p['pops']} · заявок: <b>{p['leads']}</b> ({p['conv']}%)")]
+              (f"Почали оформлення: {p['forms']} · замовлень: <b>{p['leads']}</b>" if store else f"Відкрили форму: {p['forms']} · почали заповнювати: {p.get('fills', 0)} · банер: {p['pops']} · заявок: <b>{p['leads']}</b> ({p['conv']}%)")]
         if p["sections"]:
             L.append("Дійшли до: " + ", ".join(f"{k} {pc}%" for k, _, pc in p["sections"][:7]))
         if p["clicks"]:
@@ -214,7 +215,7 @@ def lead_sessions(db: Session, day: date, drop: bool = False) -> list[dict]:
     else:
         sids = [r for r in db.scalars(select(SiteEvent.sid).where(SiteEvent.at >= a, SiteEvent.at < b, SiteEvent.kind == "lead").distinct())]
     out = []
-    kinds = {"view": "Відкрив сторінку", "sec": "Дійшов до блоку", "click": "Клік", "form": "Відкрив форму", "pop": "Побачив банер",
+    kinds = {"view": "Відкрив сторінку", "sec": "Дійшов до блоку", "click": "Клік", "form": "Відкрив форму", "fill": "Форма:", "pop": "Побачив банер",
              "lead": "ЗАЯВКА", "exit": "Закрив / згорнув вкладку"}
     for sid in sids:
         evs = list(db.scalars(select(SiteEvent).where(SiteEvent.sid == sid, SiteEvent.at >= a - timedelta(hours=6), SiteEvent.at < b)

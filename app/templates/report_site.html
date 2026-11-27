@@ -23,7 +23,7 @@
 {% for p in r.pages %}<div class="ss-p"><h2>{{ p.name }} <small class="mini">{{ p.page }}</small></h2>
   <div class="ss-k"><div><b>{{ p.sessions }}</b><small>відвідувань (реклама {{ p.paid }})</small></div><div><b>{{ p.median_sec or 0 }} с</b><small>час на сторінці (медіана)</small></div>
     <div><b>{{ p.bounce_10s }}</b><small>пішли до 10 секунд</small></div><div><b>{{ p.scroll or 0 }}%</b><small>середня прокрутка</small></div>
-    <div><b>{{ p.forms }}</b><small>{{ 'почали оформлення' if site == 'store' else 'відкрили форму' }}</small></div><div><b>{{ p.leads }} · {{ p.conv }}%</b><small>{{ 'замовлення · конверсія' if site == 'store' else 'заявки · конверсія' }}</small></div></div>
+    <div><b>{{ p.forms }}</b><small>{{ 'почали оформлення' if site == 'store' else 'відкрили форму' }}</small></div>{% if site != 'store' %}<div><b>{{ p.fills or 0 }}</b><small>почали заповнювати</small></div><div><b>{{ p.pops }}</b><small>побачили банер</small></div>{% endif %}<div><b>{{ p.leads }} · {{ p.conv }}%</b><small>{{ 'замовлення · конверсія' if site == 'store' else 'заявки · конверсія' }}</small></div></div>
   <div class="ss-g"><div><h3>До якого блоку дійшли</h3>{% for k, v, pc in p.sections %}<div class="ss-bar"><span>{{ k }}</span><i style="width:{{ pc }}%"></i><small>{{ pc }}%</small></div>{% endfor %}</div>
     <div><h3>Що клікали</h3><table>{% for k, v in p.clicks %}<tr><td>{{ k }}</td><td>{{ v }}</td></tr>{% else %}<tr><td class="mini">—</td></tr>{% endfor %}</table>
       <h3>На якому блоці закрили вкладку</h3><table>{% for k, v in p.exits %}<tr><td>{{ k }}</td><td>{{ v }}</td></tr>{% else %}<tr><td class="mini">—</td></tr>{% endfor %}</table></div></div>

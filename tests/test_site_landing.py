@@ -151,6 +151,12 @@ def test_lead_session_path():
         assert r and [e["kind"] for e in r[0]["rows"]] == ["view", "sec", "click", "lead"] and r[0]["rows"][1]["t"].startswith("Лікарі")
         ss.ingest(db, {"sid": "dropform1", "page": "/likuvannya-pigmentatsii", "ev": [{"k": "view", "t": "x"}, {"k": "form", "t": "modal"},
                                                                                 {"k": "exit", "t": "tsiny", "v": 30}]}, "Mozilla/5.0 (iPhone)")
+        ss.ingest(db, {"sid": "dropfill1", "page": "/likuvannya-pigmentatsii", "ev": [{"k": "view", "t": "x"}, {"k": "form", "t": "m-lp"},
+                                                                                {"k": "fill", "t": "почав вводити телефон · modal"}, {"k": "exit", "t": "sec", "v": 9}]}, "Mozilla/5.0 (iPhone)")
+        pg = next(p for p in ss.report(db, date.today())["pages"] if p["page"] == "/likuvannya-pigmentatsii")
+        assert pg["fills"] >= 1
+        f = [x for x in ss.lead_sessions(db, date.today(), drop=True) if x["sid"] == "dropfill"]
+        assert f and any(e["kind"] == "fill" and "телефон" in e["t"] for e in f[0]["rows"])
         d = [x for x in ss.lead_sessions(db, date.today(), drop=True) if x["sid"] == "dropform"]
         assert d and d[0]["rows"][-1]["kind"] == "exit" and not [x for x in ss.lead_sessions(db, date.today(), drop=True) if x["sid"] == "leadpath"]
 

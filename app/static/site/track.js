@@ -42,13 +42,27 @@
     d.querySelectorAll('a,button').forEach(function (a) { if (!a.hasAttribute('data-tx')) a.setAttribute('data-tx', (a.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 60)); });
     d.addEventListener('click', function (e) {
       var a = e.target.closest ? e.target.closest('a,button') : null; if (!a || a.closest('#h-modal form')) return;
-      var t = a.getAttribute('data-interest') || a.getAttribute('aria-label') || a.getAttribute('data-tx') || (a.textContent || '').replace(/\s+/g, ' ').trim();
+      var t = a.hasAttribute('data-pop-close') ? 'Закрити банер' : (a.closest('#h-modal') && /закрити/i.test(a.getAttribute('aria-label') || '')) ? 'Закрити форму' :
+        (a.getAttribute('data-interest') || a.getAttribute('aria-label') || a.getAttribute('data-tx') || (a.textContent || '').replace(/\s+/g, ' ').trim());
       ev('click', (t || a.getAttribute('href') || '?').slice(0, 60) + ' · ' + last);
     }, true);
     var mo = d.getElementById('h-modal');
     if (mo && 'MutationObserver' in window) new MutationObserver(function () { if (!mo.hidden) ev('form', (mo.className || '').replace('h-modal', '').trim() || 'std'); }).observe(mo, { attributes: true, attributeFilter: ['hidden'] });
     var pp = d.getElementById('h-pop');
     if (pp && 'MutationObserver' in window) new MutationObserver(function () { if (!pp.hidden) ev('pop', 'banner'); }).observe(pp, { attributes: true, attributeFilter: ['hidden'] });
+    // заповнення форми заявки: лише назва поля (без значень) — щоб бачити, хто почав вводити й де кинув
+    var filled = {}, FN = { name: 'імʼя', phone: 'телефон', ask: 'що турбує', comment: 'коментар' };
+    d.addEventListener('input', function (e) {
+      var f = e.target && e.target.closest ? e.target.closest('form[data-lead]') : null, n = e.target && e.target.name; if (!f || !n || n === 'website') return;
+      var k = f.getAttribute('data-lead') + ':' + n;
+      if (!filled[k]) { filled[k] = 1; ev('fill', 'почав вводити ' + (FN[n] || n) + ' · ' + f.getAttribute('data-lead')); }
+      if (n === 'phone' && !filled[k + ':ok'] && (e.target.value || '').replace(/\D/g, '').length >= 12) { filled[k + ':ok'] = 1; ev('fill', 'ввів телефон повністю · ' + f.getAttribute('data-lead')); }
+    }, true);
+    d.addEventListener('submit', function (e) {
+      var f = e.target; if (!f.matches || !f.matches('form[data-lead]')) return;
+      ev('fill', 'натиснув «Надіслати» · ' + f.getAttribute('data-lead'));
+      setTimeout(function () { var ok = f.querySelector('.ok'), er = f.querySelector('.err:not([hidden]), .h-err:not([hidden])'); if (!(ok && !ok.hidden) && er) ev('fill', 'помилка: ' + (er.textContent || '').trim().slice(0, 60)); }, 2400);
+    }, true);
     d.addEventListener('submit', function (e) {
       var f = e.target; if (!f.matches || !f.matches('form[data-lead]')) return;
       setTimeout(function () { var ok = f.querySelector('.ok'); if (ok && !ok.hidden) { ev('lead', f.getAttribute('data-lead')); flush(); } }, 2500);
