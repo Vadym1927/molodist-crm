@@ -269,6 +269,18 @@ async def job_price_monitor():
         log.exception("price monitor failed")
 
 
+async def job_stt():
+    """Кожні 10 хв: нові записи дзвінків → текст (Gladia) → оцінка Claude (режим AI-оцінки «CRM»)."""
+    def _run():
+        from .services import stt_gladia as stt
+        with SessionLocal() as db:
+            return stt.run(db)
+    try:
+        await asyncio.to_thread(_run)
+    except Exception:              # noqa: BLE001
+        log.exception("stt gladia failed")
+
+
 async def job_message_statuses():
     from .services import campaigns as camp
     def _refresh():
@@ -779,6 +791,7 @@ async def lifespan(app: FastAPI):
         sched.add_job(job_campaigns, "interval", minutes=5)
         sched.add_job(job_message_statuses, "interval", minutes=30)
         sched.add_job(job_price_monitor, "cron", minute=40)
+        sched.add_job(job_stt, "interval", minutes=10, max_instances=1, coalesce=True)
         sched.add_job(job_checkbox, "cron", hour="8,14,23", minute=50)
         sched.add_job(job_mono, "cron", minute=20)
         sched.add_job(job_meta_ads, "cron", minute=50)
@@ -9086,6 +9099,9 @@ async def settings_telephony_save(request: Request, user: User = Depends(require
                        str(f.get("ai_task_to") or "") if f.get("ai_task_cfg") else None, bool(f.get("ai_task_tg")) if f.get("ai_task_cfg") else None,
                        [{"key": k_, "label": l_, "text": x_} for k_, l_, x_ in zip(f.getlist("pc_key"), f.getlist("pc_label"), f.getlist("pc_text"))]
                        if f.get("popup_cfg") else None)
+        if str(f.get("gladia_key") or "").strip() or f.get("gladia_del"):
+            from .services import stt_gladia as _stt
+            _stt.set_key(db, None if f.get("gladia_del") else str(f.get("gladia_key")).strip())
     except ValueError as e:
         return RedirectResponse(_with_msg("/settings/telephony", str(e), True), 303)
     audit(db, "telephony.save", user=user, provider=prov)
@@ -9093,6 +9109,26 @@ async def settings_telephony_save(request: Request, user: User = Depends(require
         ok, msg = await asyncio.to_thread(tel.test, db)
         return RedirectResponse(_with_msg("/settings/telephony", ("✅ " if ok else "❌ ") + msg, not ok), 303)
     return RedirectResponse(_with_msg("/settings/telephony", "Збережено"), 303)
+
+
+@app.post("/settings/telephony/stt-redo")
+def settings_telephony_stt_redo(since: str = Form(""), user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    """Перерозпізнати через Gladia й переоцінити дзвінки з дати (старі тексти від агента замінюються)."""
+    from .models import Call
+    d0 = _day(since) or (date.today() - timedelta(days=14))
+    n = 0
+    for c_ in db.scalars(select(Call).where(Call.at >= datetime.combine(d0, datetime.min.time()), Call.status == "answered",
+                                           Call.record_url.is_not(None))):
+        if (c_.ai_meta or {}).get("stt") == "gladia":
+            continue
+        meta = dict(c_.ai_meta or {})
+        meta.pop("stt_tries", None)
+        meta["stt_redo"] = date.today().isoformat()
+        c_.ai_meta, c_.transcript, c_.ai_score, c_.ai_comment, c_.ai_at = meta, None, None, None, None
+        n += 1
+    db.commit()
+    audit(db, "telephony.stt_redo", user=user, since=str(d0), n=n)
+    return RedirectResponse(_with_msg("/settings/telephony", f"У черзі на розпізнавання й переоцінку: {n} дзвінків (по 6 кожні 10 хв)"), 303)
 
 
 @app.post("/settings/telephony/staff")

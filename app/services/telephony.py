@@ -610,7 +610,7 @@ def evaluate(db: Session, c: Call, http: httpx.Client | None = None, claude=None
     from . import invoice_ai
     d = _raw(db)
     if not c.transcript:
-        raise ValueError("Немає тексту діалогу: Ringostat AI його не надіслав. Щоб AI розбирав сам запис розмови, увімкніть «Агент на VPS» у Налаштування → IP-телефонія → AI-оцінка.")
+        raise ValueError("Немає тексту діалогу. Додайте ключ Gladia (Налаштування → IP-телефонія → AI-оцінка) — CRM сама розпізнає запис, або увімкніть «Агент на VPS».")
     prompt = (d.get("ai_criteria") or DEFAULT_CRITERIA) + """
 
 Відповідай ЛИШЕ JSON: {"score": число 0-100, "comment": "2-4 речення українською: що добре, що погано, що порадити",
