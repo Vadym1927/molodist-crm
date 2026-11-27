@@ -149,6 +149,10 @@ def test_lead_session_path():
                                                              {"k": "click", "t": "Записатися · likari"}, {"k": "lead", "t": "modal"}]}, "Mozilla/5.0 (Windows NT 10.0)")
         r = [x for x in ss.lead_sessions(db, date.today()) if x["sid"] == "leadpath"]
         assert r and [e["kind"] for e in r[0]["rows"]] == ["view", "sec", "click", "lead"] and r[0]["rows"][1]["t"].startswith("Лікарі")
+        ss.ingest(db, {"sid": "dropform1", "page": "/likuvannya-pigmentatsii", "ev": [{"k": "view", "t": "x"}, {"k": "form", "t": "modal"},
+                                                                                {"k": "exit", "t": "tsiny", "v": 30}]}, "Mozilla/5.0 (iPhone)")
+        d = [x for x in ss.lead_sessions(db, date.today(), drop=True) if x["sid"] == "dropform"]
+        assert d and d[0]["rows"][-1]["kind"] == "exit" and not [x for x in ss.lead_sessions(db, date.today(), drop=True) if x["sid"] == "leadpath"]
 
 
 def test_skin_landing():

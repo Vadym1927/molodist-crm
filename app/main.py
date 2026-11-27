@@ -14687,14 +14687,14 @@ def _kpi_month(m: str) -> tuple[date, date, str]:
 
 
 @app.get("/reports/site/leads", response_class=HTMLResponse)
-def report_site_leads(request: Request, day: str = "", user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+def report_site_leads(request: Request, day: str = "", drop: int = 0, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
     """Шлях на сайті кожного, хто залишив заявку за день (за замовчуванням — сьогодні)."""
     from .services import site_stats as ss
     try:
         d = date.fromisoformat(day) if day else date.today()
     except ValueError:
         d = date.today()
-    return render(request, "report_site_leads.html", nav="reports", rows=ss.lead_sessions(db, d), d=d, prev=d - timedelta(days=1), nxt=d + timedelta(days=1),
+    return render(request, "report_site_leads.html", nav="reports", rows=ss.lead_sessions(db, d, drop=bool(drop)), drop=bool(drop), d=d, prev=d - timedelta(days=1), nxt=d + timedelta(days=1),
                   today=date.today())
 
 

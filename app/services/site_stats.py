@@ -198,11 +198,21 @@ def cleanup(db: Session, days: int = 120) -> None:
     db.commit()
 
 
-def lead_sessions(db: Session, day: date) -> list[dict]:
-    """Шлях кожного відвідувача, який залишив заявку за день: усі події його сесії по порядку (без персональних даних)."""
+BOOK_PAGES = ("/onlain-zapys", "/zapys")
+
+
+def lead_sessions(db: Session, day: date, drop: bool = False) -> list[dict]:
+    """Шлях кожного відвідувача, який залишив заявку за день: усі події його сесії по порядку (без персональних даних).
+    drop=True — ті, хто відкрив форму заявки чи сторінку онлайн-запису, але заявку не залишив (де відвалились)."""
     a = datetime.combine(day, datetime.min.time())
     b = a + timedelta(days=1)
-    sids = [r for r in db.scalars(select(SiteEvent.sid).where(SiteEvent.at >= a, SiteEvent.at < b, SiteEvent.kind == "lead").distinct())]
+    if drop:
+        tried = set(db.scalars(select(SiteEvent.sid).where(SiteEvent.at >= a, SiteEvent.at < b, SiteEvent.sid != "",
+                                                           (SiteEvent.kind == "form") | ((SiteEvent.kind == "view") & SiteEvent.page.in_(BOOK_PAGES))).distinct()))
+        done = set(db.scalars(select(SiteEvent.sid).where(SiteEvent.at >= a, SiteEvent.at < b, SiteEvent.kind == "lead").distinct()))
+        sids = sorted(tried - done)
+    else:
+        sids = [r for r in db.scalars(select(SiteEvent.sid).where(SiteEvent.at >= a, SiteEvent.at < b, SiteEvent.kind == "lead").distinct())]
     out = []
     kinds = {"view": "Відкрив сторінку", "sec": "Дійшов до блоку", "click": "Клік", "form": "Відкрив форму", "pop": "Побачив банер",
              "lead": "ЗАЯВКА", "exit": "Закрив / згорнув вкладку"}
@@ -211,7 +221,7 @@ def lead_sessions(db: Session, day: date) -> list[dict]:
                               .order_by(SiteEvent.at, SiteEvent.id)))
         if not evs:
             continue
-        lead = next(e for e in evs if e.kind == "lead")
+        lead = next((e for e in evs if e.kind == "lead"), None) or next((e for e in evs if e.kind == "form" or (e.kind == "view" and e.page in BOOK_PAGES)), evs[0])
         rows = []
         for e in evs:
             t = e.target or ""
@@ -221,6 +231,8 @@ def lead_sessions(db: Session, day: date) -> list[dict]:
             rows.append({"at": e.at.strftime("%H:%M:%S"), "page": e.page, "what": kinds.get(e.kind, e.kind), "t": t + extra, "kind": e.kind})
         out.append({"sid": sid[:8], "lead_at": lead.at.strftime("%H:%M"), "first": evs[0].at.strftime("%H:%M:%S"),
                     "sec_to_lead": int((lead.at - evs[0].at).total_seconds()), "device": evs[0].device, "src": evs[0].src, "paid": bool(evs[0].paid),
+                    "campaign": next((e.campaign for e in evs if e.campaign), None), "last": evs[-1].at.strftime("%H:%M:%S"),
+                    "stay": int((evs[-1].at - lead.at).total_seconds()),
                     "pages": list(dict.fromkeys(e.page for e in evs)), "rows": rows})
     return sorted(out, key=lambda x: x["lead_at"])
 
