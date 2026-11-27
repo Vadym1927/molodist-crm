@@ -437,7 +437,7 @@
     <div class="pch-m">{% set ns = namespace(d='') %}{% for m in c.msgs %}{% set dd = (m.at|local|dt('%d.%m.%Y')) %}{% if dd != ns.d %}<div class="pch-d">{{ dd }}</div>{% set ns.d = dd %}{% endif %}
       <div class="pch-b {{ m.direction }} {{ 'bad' if m.direction == 'out' and m.status != 'sent' }}">{{ m.text or '' }}{% for a in m.attachments or [] %}{% if a.url %}<div><a href="{{ a.url }}" target="_blank" rel="noopener">📎 {{ a.type or 'файл' }}</a></div>{% endif %}{% endfor %}<small>{{ m.at|local|dt('%H:%M') }}{% if m.direction == 'out' and m.status != 'sent' %} · не надіслано{% endif %}</small></div>{% endfor %}</div>
   </details>{% endfor %}</div>{% endif %}
-{% if pcalls is defined and (can(user,'appeals') or can(user,'book')) %}{% from "_calls.html" import call_list %}
+{% if pcalls is defined and (can(user,'appeals') or can(user,'book')) %}{% from "_calls.html" import call_list with context %}
 <div class="card" id="calls"><div class="row between"><h2 style="margin:0">Дзвінки · {{ pcalls|length }}</h2><a class="btn ghost" href="/telephony">Журнал дзвінків</a></div>
   <div style="margin-top:10px">{{ call_list(pcalls, {p.id: p}, call_thr, False, '/patients/' ~ p.id ~ '#calls') }}</div></div>{% endif %}
 <div class="card" id="contact">

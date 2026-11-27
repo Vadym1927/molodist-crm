@@ -10979,6 +10979,31 @@ async def telephony_call_patient(cid: int, request: Request, user: User = Depend
     return JSONResponse({"ok": True, "pid": p_.id, "name": p_.full_name})
 
 
+@app.post("/telephony/calls/{cid:int}/manual")
+def telephony_call_manual(cid: int, score: str = Form(""), no_kpi: str = Form(""), note: str = Form(""), back: str = Form("/telephony"),
+                          user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    """Власник виправляє оцінку дзвінка вручну або виключає дзвінок з KPI адміністраторів."""
+    from .models import Call
+    c_ = db.get(Call, cid) or (_ for _ in ()).throw(HTTPException(404))
+    meta = dict(c_.ai_meta or {})
+    v = _num(score.replace(",", ".")) if score.strip() else None
+    old = c_.ai_score
+    if v is not None:
+        c_.ai_score = max(0.0, min(100.0, float(v)))
+        meta["manual_score"] = {"by": user.name, "at": datetime.now().isoformat(timespec="minutes"), "was": old}
+    if no_kpi:
+        meta["no_kpi"] = True
+    else:
+        meta.pop("no_kpi", None)
+    if note.strip():
+        c_.ai_comment = (note.strip()[:500] + (f" (вручну, {user.name})"))
+    c_.ai_meta = meta
+    db.commit()
+    audit(db, "call.manual_score", "call", cid, user=user, score=c_.ai_score, was=old, no_kpi=bool(no_kpi))
+    back = back if back.startswith("/") and not back.startswith("//") else "/telephony"
+    return RedirectResponse(back, 303)
+
+
 @app.post("/telephony/calls/{cid:int}/evaluate")
 async def telephony_call_evaluate(cid: int, user: User = Depends(require("appeals")), db: Session = Depends(db_dep)):
     from .services import telephony as tel

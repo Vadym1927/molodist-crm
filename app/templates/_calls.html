@@ -58,6 +58,11 @@
       {% if _q %}<span class="cl-q" title="Дзвінок чекає AI-розбору">⏳ у черзі на AI-оцінку</span>
       {% elif c.transcript or c.record_url %}<button type="button" onclick="clEval({{ c.id }}, this)">🤖 {{ 'Переоцінити AI' if c.ai_score is not none else 'Відправити на AI-оцінку' }}</button>
       {% else %}<button type="button" disabled title="Телефонія не передала запис розмови">🤖 Немає запису для AI</button>{% endif %}{% endif %}
+    {% if c.status != 'missed' and can(user, 'users') %}<details style="display:inline-block"><summary class="small" style="cursor:pointer;list-style:none;border:1px solid #E6E0D8;border-radius:10px;padding:4px 10px">✎ Оцінка вручну</summary>
+      <form method="post" action="/telephony/calls/{{ c.id }}/manual" class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap"><input name="back" type="hidden" value="{{ back }}">
+        <input name="score" inputmode="decimal" placeholder="0–100" value="{{ '%g'|format(c.ai_score) if c.ai_score is not none else '' }}" style="width:80px;height:34px">
+        <label class="small" style="display:flex;gap:4px;align-items:center"><input type="checkbox" name="no_kpi" value="1" style="width:auto" {{ 'checked' if (c.ai_meta or {}).get('no_kpi') }}> не враховувати в KPI</label>
+        <input name="note" placeholder="коментар (необовʼязково)" style="height:34px;min-width:180px"><button class="btn ghost" style="height:34px">Зберегти</button></form></details>{% endif %}
     <button type="button" onclick="clTask({{ c.id }}, {{ c.patient_id or 'null' }}, '{{ ((pt.full_name if pt else c.phone) or '')|e }}', '{{ c.at|dt('%d.%m %H:%M') }}', '{{ back }}')">+ Задача</button>
     {% if pt %}<a href="/calendar?newappt=1&patient={{ pt.id }}">Записати</a>{% endif %}
   </div>

@@ -29,3 +29,22 @@ def test_typed_scoring_and_kpi(monkeypatch):
         assert c2.ai_score is None and c2.ai_meta["call_type"] == "other"
         k = next(x for x in tel.kpi(db, datetime.now().date(), datetime.now().date()) if x["name"] == "Тип Адмін")
         assert k["rated"] == 1 and k["score_srv"] == c1.ai_score and k["score_sale"] is None
+
+
+def test_manual_score_and_no_kpi():
+    from fastapi.testclient import TestClient
+    from app.config import settings
+    from app.main import app
+    settings.admin_password = "owner-pass-1"
+    with SessionLocal() as db:
+        c = Call(provider="ringostat", direction="in", status="answered", duration=60, at=datetime.now(), employee="Ручна Адмін",
+                 transcript="Адміністратор: MOLODIST", ai_score=15)
+        db.add(c); db.commit(); cid = c.id
+    with TestClient(app) as cl:
+        cl.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        assert "Оцінка вручну" in cl.get("/telephony").text
+        cl.post(f"/telephony/calls/{cid}/manual", data={"score": "85", "no_kpi": "1", "note": "нормальна розмова"})
+    with SessionLocal() as db:
+        c = db.get(Call, cid)
+        assert c.ai_score == 85 and c.ai_meta["no_kpi"] and c.ai_meta["manual_score"]["was"] == 15
+        assert not any(x["name"] == "Ручна Адмін" and x["rated"] for x in tel.kpi(db, datetime.now().date(), datetime.now().date()))

@@ -5,7 +5,7 @@
 .tl-tabs{display:flex;gap:6px;margin-bottom:12px}.tl-tabs a{padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;text-decoration:none;font-weight:600;color:#2A2430}.tl-tabs a.on{background:#3B3050;color:#fff;border-color:#3B3050}
 .tl-plan{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-bottom:18px}.tl-plan div{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px}.tl-plan b{display:block;margin-bottom:4px}.tl-plan span{color:var(--muted);font-size:13px}</style>
 <div class="eyebrow">Комунікації</div><h1>Телефонія</h1>
-{% from "_calls.html" import call_list %}
+{% from "_calls.html" import call_list with context %}
 {% set thr = (tcfg.ai_alert_below or 0)|float %}
 {% if not tcfg.provider %}<div class="dev"><b>Телефонію не підключено.</b> Підключіть Ringostat у <a href="/settings/telephony">Налаштування → IP-телефонія</a> — дзвінки зʼявляться тут і в картках пацієнтів.</div>{% endif %}
 <div class="card" style="padding:0;overflow:auto;margin-bottom:16px"><div style="padding:14px 16px 4px"><b style="font:600 14px var(--head);letter-spacing:.1em;text-transform:uppercase">KPI дзвінків · цей місяць</b></div>
