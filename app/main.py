@@ -791,7 +791,8 @@ async def lifespan(app: FastAPI):
         sched.add_job(job_campaigns, "interval", minutes=5)
         sched.add_job(job_message_statuses, "interval", minutes=30)
         sched.add_job(job_price_monitor, "cron", minute=40)
-        sched.add_job(job_stt, "interval", minutes=10, max_instances=1, coalesce=True)
+        sched.add_job(job_stt, "interval", minutes=10, max_instances=1, coalesce=True,
+                      next_run_time=datetime.now(sched.timezone) + timedelta(minutes=2))
         sched.add_job(job_checkbox, "cron", hour="8,14,23", minute=50)
         sched.add_job(job_mono, "cron", minute=20)
         sched.add_job(job_meta_ads, "cron", minute=50)
@@ -9077,7 +9078,7 @@ def settings_telephony(request: Request, user: User = Depends(require("users")),
     return render(request, "telephony.html", nav="settings", t=t_, PROV=tel.PROVIDERS, calls=calls, sources=ap_.dirs(db)["sources"], hook_log=tel.hook_log(db),
                   users_all=db.scalars(select(User).where(User.active.is_(True)).order_by(User.name)).all(), has_ai_key=bool(_ia.api_key(db)),
                   POPUP_FIELDS=tel.POPUP_FIELDS, found=tel.discovered(db), line_info=lambda n: tel.line_info(t_, n),
-                  hook_url=lambda p: f"{base}/api/public/telephony/{p}/{t_['hook']}", R_BODY=tel.RINGOSTAT_BODY, R_EVENTS=tel.RINGOSTAT_EVENTS, POPUP_EXTRA=tel.POPUP_EXTRA, pnames=pnames, crit=tel.crit_rows(t_.get("ai_criteria") or ""), crit_tail=tel.crit_tail(t_.get("ai_criteria") or ""))
+                  hook_url=lambda p: f"{base}/api/public/telephony/{p}/{t_['hook']}", R_BODY=tel.RINGOSTAT_BODY, R_EVENTS=tel.RINGOSTAT_EVENTS, POPUP_EXTRA=tel.POPUP_EXTRA, pnames=pnames, crit=tel.crit_rows(t_.get("ai_criteria") or ""), crit_tail=tel.crit_tail(t_.get("ai_criteria") or ""), stt_stats=_stt_stats(db))
 
 
 @app.post("/settings/telephony")
@@ -9109,6 +9110,24 @@ async def settings_telephony_save(request: Request, user: User = Depends(require
         ok, msg = await asyncio.to_thread(tel.test, db)
         return RedirectResponse(_with_msg("/settings/telephony", ("✅ " if ok else "❌ ") + msg, not ok), 303)
     return RedirectResponse(_with_msg("/settings/telephony", "Збережено"), 303)
+
+
+def _stt_stats(db):
+    from .services import stt_gladia as _s
+    try:
+        return _s.stats(db)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+@app.post("/settings/telephony/stt-run")
+def settings_telephony_stt_run(user: User = Depends(require("users")), db: Session = Depends(db_dep)):
+    """Розпізнати наступну партію зараз, не чекаючи планувальника."""
+    from .services import stt_gladia as _s
+    n = _s.run(db)
+    st = _s.stats(db)
+    msg = f"Розпізнано зараз: {n}. У черзі: {st['queue']}" + (f". Помилка: {st['last_error']}" if st["errors"] and not n else "")
+    return RedirectResponse(_with_msg("/settings/telephony", msg), 303)
 
 
 @app.post("/settings/telephony/stt-redo")

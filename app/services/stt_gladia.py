@@ -139,6 +139,24 @@ def pending(db: Session, limit: int = 6, days: int = 62) -> list[Call]:
     return out
 
 
+def stats(db: Session, days: int = 62) -> dict:
+    """Стан черги для сторінки налаштувань: у черзі / розпізнано / помилки (остання помилка)."""
+    since = datetime.now() - timedelta(days=days)
+    q = n = err = 0
+    last = ""
+    for c in db.scalars(select(Call).where(Call.status == "answered", Call.record_url.is_not(None), Call.at >= since)):
+        m = c.ai_meta or {}
+        if m.get("stt") == "gladia":
+            n += 1
+        elif c.transcript is None and (c.duration or 0) >= MIN_SEC:
+            if m.get("stt_error"):
+                err += 1
+                last = last or m["stt_error"]
+            if int(m.get("stt_tries") or 0) < MAX_TRIES:
+                q += 1
+    return {"queue": q, "done": n, "errors": err, "last_error": last}
+
+
 def run(db: Session, limit: int = 6) -> int:
     """Розпізнати й оцінити нові дзвінки (режим «CRM» + ключ Gladia). Повертає кількість розпізнаних."""
     from . import telephony as tel

@@ -43,3 +43,15 @@ def test_run_transcribes_and_evaluates(monkeypatch):
         assert c.id in scored and short.transcript is None
         stt.set_key(db, None)
         assert stt.key(db) == ""
+
+
+def test_stt_stats_counts_queue_and_errors():
+    from datetime import datetime
+    with SessionLocal() as db:
+        db.add(Call(provider="ringostat", direction="in", at=datetime.now(), status="answered", record_url="https://x.ringostat.com/r.mp3", duration=60,
+                    ai_meta={"stt_error": "HTTP 403", "stt_tries": 1}))
+        db.add(Call(provider="ringostat", direction="in", at=datetime.now(), status="answered", record_url="https://x.ringostat.com/r2.mp3", duration=60,
+                    transcript="Адміністратор: добрий день", ai_meta={"stt": "gladia"}))
+        db.commit()
+        st = stt.stats(db)
+    assert st["done"] >= 1 and st["queue"] >= 1 and st["errors"] >= 1 and "403" in st["last_error"]
