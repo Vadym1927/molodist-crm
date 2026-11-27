@@ -119,12 +119,58 @@ def fields(j: dict) -> dict:
             "amount": _num(j.get("total")), "vat": _num(j.get("vat")), "purpose": str(j.get("purpose") or "").strip()[:420], "raw": j}
 
 
+EXCEL_EXT = (".xls", ".xlsx", ".csv")
+
+
+def is_excel(filename: str | None) -> bool:
+    return (filename or "").lower().endswith(EXCEL_EXT)
+
+
+def excel_text(data: bytes, filename: str) -> str:
+    """Рахунок у Excel/CSV → текст таблиці (рядки через табуляцію) для Claude. Лише непорожні клітинки, до 40 000 символів."""
+    import io
+    name = (filename or "").lower()
+    rows: list[list] = []
+    if name.endswith(".csv"):
+        txt = next((data.decode(enc) for enc in ("utf-8-sig", "cp1251") if _decodes(data, enc)), data.decode("utf-8", "ignore"))
+        rows = [ln.replace(";", "\t").split("\t") for ln in txt.splitlines()]
+    elif name.endswith(".xls"):
+        import xlrd
+        bk = xlrd.open_workbook(file_contents=data, ignore_workbook_corruption=True)
+        for sh in bk.sheets()[:3]:
+            rows += [[sh.cell_value(r, c) for c in range(sh.ncols)] for r in range(sh.nrows)]
+    else:
+        from openpyxl import load_workbook
+        wb = load_workbook(io.BytesIO(data), data_only=True, read_only=True)
+        for ws in wb.worksheets[:3]:
+            rows += [list(r) for r in ws.iter_rows(values_only=True)]
+    out = []
+    for r in rows:
+        cells = [(f"{v:g}" if isinstance(v, float) else str(v)).strip() for v in r if v not in (None, "")]
+        cells = [c for c in cells if c]
+        if cells:
+            out.append("\t".join(cells))
+    return "\n".join(out)[:40000]
+
+
+def _decodes(data: bytes, enc: str) -> bool:
+    try:
+        data.decode(enc)
+        return True
+    except UnicodeDecodeError:
+        return False
+
+
 def recognize(db: Session, data: bytes, filename: str, mime: str | None = None, claude=None) -> dict:
-    """PDF / фото рахунку → поля через Claude API з ключем у CRM. claude(key, data, mime, prompt) — для тестів."""
+    """PDF / фото / Excel рахунку → поля через Claude API з ключем у CRM. claude(key, data, mime, prompt) — для тестів."""
     from . import invoice_ai
     mime = _mime(filename, mime)
-    if mime not in invoice_ai.IMAGE_TYPES | {"application/pdf"}:
-        raise ValueError("Підтримуються PDF і фото (JPG, PNG, WebP)")
+    if is_excel(filename):
+        data, mime = excel_text(data, filename).encode(), "text/plain"
+        if not data.strip():
+            raise ValueError("Таблиця Excel порожня")
+    elif mime not in invoice_ai.IMAGE_TYPES | {"application/pdf"}:
+        raise ValueError("Підтримуються PDF, фото (JPG, PNG, WebP) і Excel (XLS, XLSX, CSV)")
     key = invoice_ai.api_key(db)
     if not key and not claude:
         raise ValueError("Для розпізнавання рахунків потрібен ключ Claude API або агент на VPS («Налаштування → Розпізнавання накладних»)")
@@ -133,7 +179,9 @@ def recognize(db: Session, data: bytes, filename: str, mime: str | None = None, 
 
 def _claude(key: str, data: bytes, mime: str, prompt: str) -> dict:
     from . import invoice_ai
-    if mime == "application/pdf":
+    if mime == "text/plain":
+        block = {"type": "text", "text": "Рахунок (таблиця Excel, колонки через табуляцію):\n" + data.decode("utf-8", "ignore")}
+    elif mime == "application/pdf":
         block = {"type": "document", "source": {"type": "base64", "media_type": mime, "data": base64.b64encode(data).decode()}}
     else:
         block = {"type": "image", "source": {"type": "base64", "media_type": mime, "data": base64.b64encode(data).decode()}}
@@ -229,6 +277,31 @@ def _finish(db: Session, pr: PayRequest) -> None:
     pr.sender_iban = pr.sender_iban or sender_iban(db, pr.fop)
     if not pr.purpose:
         pr.purpose = default_purpose(pr)
+    d = duplicate_of(db, pr)
+    if d and pr.kind != "receipt":
+        pr.status = "rejected"
+        pr.error = f"Дубль рахунку #{d.id} (той самий отримувач і сума) — не оплачуйте двічі"
+
+
+def duplicate_of(db: Session, pr: PayRequest) -> PayRequest | None:
+    """Той самий рахунок, надісланий ще раз (напр. PDF і Excel): отримувач (ЄДРПОУ або IBAN) + сума, за 14 днів;
+    якщо в обох є номер рахунку — він теж має збігтися."""
+    from datetime import timedelta
+    if not pr.amount or not (pr.receiver_edrpou or pr.receiver_iban):
+        return None
+    q = select(PayRequest).where(PayRequest.kind.is_(None) | (PayRequest.kind != "receipt"),
+                                 PayRequest.status.notin_(("rejected", "error", "recognizing")),
+                                 PayRequest.created_at >= datetime.utcnow() - timedelta(days=14))
+    if pr.id:
+        q = q.where(PayRequest.id != pr.id)
+    for o in db.scalars(q.order_by(PayRequest.id)):
+        same_to = (pr.receiver_edrpou and o.receiver_edrpou == pr.receiver_edrpou) or (pr.receiver_iban and o.receiver_iban == pr.receiver_iban)
+        if not same_to or abs((o.amount or 0) - pr.amount) > 0.01:
+            continue
+        if pr.invoice_no and o.invoice_no and pr.invoice_no.strip() != o.invoice_no.strip():
+            continue
+        return o
+    return None
 
 
 def create(db: Session, data: bytes, filename: str, mime: str | None, source: str = "crm", tg_chat: str | None = None,
@@ -239,7 +312,7 @@ def create(db: Session, data: bytes, filename: str, mime: str | None, source: st
     pr = PayRequest(file_path=ingest.store(data, filename or "rahunok"), file_name=(filename or "рахунок")[:200], mime=(mime or "")[:100] or None,
                     source=source, tg_chat=tg_chat, tg_msg=tg_msg, sender_name=(sender or "")[:200] or None,
                     kind="receipt" if (receipt if receipt is not None else is_receipt(filename)) else None)
-    if not claude and invoice_ai.engine(db) == "agent":
+    if not claude and invoice_ai.engine(db) == "agent" and not (is_excel(filename) and invoice_ai.api_key(db)):
         if _mime(filename, mime) not in invoice_ai.IMAGE_TYPES | {"application/pdf"}:
             pr.status, pr.error = "error", "Не розпізнано: підтримуються PDF і фото (JPG, PNG, WebP)"
         else:

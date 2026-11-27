@@ -87,7 +87,7 @@ async def cmd_bind_pay(msg: Message):
 @pay_router.message(F.document, _is_pay_chat)
 async def pay_document(msg: Message, bot: Bot):
     d = msg.document
-    if not ((d.mime_type or "").startswith("image/") or (d.file_name or "").lower().endswith(".pdf") or d.mime_type == "application/pdf"):
+    if not ((d.mime_type or "").startswith("image/") or (d.file_name or "").lower().endswith((".pdf", ".xls", ".xlsx", ".csv")) or d.mime_type == "application/pdf"):
         return
     await _pay_file(msg, bot, d.file_id, d.file_name or "rahunok.pdf", d.mime_type)
 

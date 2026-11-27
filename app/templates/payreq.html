@@ -17,7 +17,7 @@
 {% include "_fin_tabs.html" %}
 <div class="row between" style="align-items:flex-end;gap:10px;flex-wrap:wrap"><div><div class="eyebrow">Фінанси</div>
   <h1>Рахунки на оплату</h1><div class="muted small">Рахунок у Telegram-групі → розпізнавання → ваше погодження → чернетка платежу в monobank на підпис</div></div>
-  <form method="post" action="/payreq/upload" enctype="multipart/form-data" class="row" style="gap:8px"><input type="file" name="file" accept=".pdf,image/*" required><button class="btn">＋ Додати рахунок</button></form></div>
+  <form method="post" action="/payreq/upload" enctype="multipart/form-data" class="row" style="gap:8px"><input type="file" name="file" accept=".pdf,image/*,.xls,.xlsx,.csv" required><button class="btn">＋ Додати рахунок</button></form></div>
 {% if qp.get('msg') %}<div class="alert" style="background:var(--ok-bg);color:var(--ok);margin-top:10px">{{ qp.get('msg') }}</div>{% endif %}
 {% if qp.get('err') %}<div class="alert" style="margin-top:10px">{{ qp.get('err') }}</div>{% endif %}
 <nav class="pq-st" style="margin-top:14px"><a href="/payreq" class="{{ 'on' if not st }}">Усі</a>{% for k, l in STATUS.items() %}{% if cnt.get(k) %}<a href="?st={{ k }}" class="{{ 'on' if st == k }}">{{ l }}<em>{{ cnt[k] }}</em></a>{% endif %}{% endfor %}</nav>

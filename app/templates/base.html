@@ -544,5 +544,19 @@ if(!done)break}
 var all=m.querySelectorAll('*');for(var j=0;j<all.length;j++){var x=all[j];if(!x.offsetParent)continue;var q=x.getBoundingClientRect();if(q.width<1||q.right<=vw+2)continue;var a=x,sc=false;while(a&&a!==m){if(/(auto|scroll)/.test(getComputedStyle(a).overflowX)){sc=true;break}a=a.parentElement}if(sc)continue;
 a=x;while(a.parentElement&&a.parentElement!==m)a=a.parentElement;if(a.parentElement===m&&getComputedStyle(a).position!=='fixed'){a.style.maxWidth='100%';a.style.overflowX='auto'}}}
 if(document.readyState!=='loading')fit();else document.addEventListener('DOMContentLoaded',fit);window.addEventListener('load',function(){fit();setTimeout(fit,800)});window.mfit=fit})();</script>
+<script>/* Широкі таблиці: «бігунець» гортання вліво-вправо закріплений унизу екрана, поки рідний скрол блока не видно. */
+(function(){if(window.matchMedia('(pointer:coarse)').matches&&window.innerWidth<=720)return;
+var bar=document.createElement('div'),inner=document.createElement('div');bar.id='hbar';bar.appendChild(inner);
+var st=document.createElement('style');st.textContent='#hbar{position:fixed;bottom:0;height:16px;overflow-x:auto;overflow-y:hidden;z-index:60;display:none;background:rgba(247,244,240,.92);border-top:1px solid #E9E5DF;box-shadow:0 -2px 8px rgba(42,36,48,.06)}#hbar>div{height:1px}#hbar::-webkit-scrollbar{height:12px}#hbar::-webkit-scrollbar-thumb{background:#C9BFE6;border-radius:6px}#hbar::-webkit-scrollbar-thumb:hover{background:#5C4B82}#hbar{scrollbar-color:#C9BFE6 transparent}@media print{ #hbar{display:none!important}}';
+document.head.appendChild(st);var cand=[],cur=null;
+function scan(){var m=document.querySelector('main')||document.body;cand=[];var els=m.querySelectorAll('div,section,form,table,ul');for(var i=0;i<els.length;i++){var e=els[i];if(e.scrollWidth<=e.clientWidth+4)continue;var ox=getComputedStyle(e).overflowX;if(ox==='auto'||ox==='scroll')cand.push(e)}place()}
+function place(){var vh=window.innerHeight,best=null,ba=0;for(var i=0;i<cand.length;i++){var e=cand[i];if(!e.isConnected||!e.offsetParent||e.scrollWidth<=e.clientWidth+4)continue;var r=e.getBoundingClientRect();if(r.bottom<=vh-2||r.top>=vh-40)continue;var a=Math.min(r.bottom,vh)-Math.max(r.top,0);if(a>ba){ba=a;best=e}}
+if(!best){bar.style.display='none';cur=null;return}if(!bar.parentNode)document.body.appendChild(bar);var r=best.getBoundingClientRect();bar.style.left=Math.max(r.left,0)+'px';bar.style.width=Math.min(r.width,window.innerWidth-Math.max(r.left,0))+'px';inner.style.width=best.scrollWidth+'px';bar.style.display='block';
+if(cur!==best){cur=best;bar.scrollLeft=best.scrollLeft}}
+bar.addEventListener('scroll',function(){if(cur&&Math.abs(cur.scrollLeft-bar.scrollLeft)>1)cur.scrollLeft=bar.scrollLeft});
+document.addEventListener('scroll',function(e){if(cur&&e.target===cur&&Math.abs(cur.scrollLeft-bar.scrollLeft)>1)bar.scrollLeft=cur.scrollLeft},true);
+window.addEventListener('scroll',place,{passive:true});window.addEventListener('resize',scan);
+var t;new MutationObserver(function(){clearTimeout(t);t=setTimeout(scan,400)}).observe(document.body,{childList:true,subtree:true});
+if(document.readyState!=='loading')scan();else document.addEventListener('DOMContentLoaded',scan);window.addEventListener('load',function(){setTimeout(scan,300)});})();</script>
 </body>
 </html>

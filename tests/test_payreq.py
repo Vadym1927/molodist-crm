@@ -208,3 +208,22 @@ def test_receipt_in_supplier_card(tmp_path):
             assert "Рахунки й квитанції" in card and "🧾 Квитанція" in card and "500" in card
     finally:
         settings.files_dir = old_dir
+
+
+def test_payreq_excel_and_duplicate():
+    import io
+    from openpyxl import Workbook
+    wb = Workbook(); ws = wb.active
+    ws.append(["Постачальник:", "ТОВ ЕксельТест", "ЄДРПОУ", "55554444"]); ws.append(["Рахунок №", "777"]); ws.append(["Разом", 1234.5])
+    buf = io.BytesIO(); wb.save(buf)
+    assert "ЕксельТест" in prq.excel_text(buf.getvalue(), "r.xlsx") and "1234.5" in prq.excel_text(buf.getvalue(), "r.xlsx")
+    seen = {}
+
+    def fake(key, data, mime, prompt):
+        seen["mime"], seen["txt"] = mime, data.decode()
+        return {"seller": {"name": "ТОВ ЕксельТест", "edrpou": "55554444", "iban": "UA" + "5" * 27}, "number": "777", "total": 1234.5}
+    with SessionLocal() as db:
+        a = prq.create(db, buf.getvalue(), "Рах 777.xlsx", None, claude=fake)
+        assert seen["mime"] == "text/plain" and "ЕксельТест" in seen["txt"] and a.amount == 1234.5 and a.status != "rejected"
+        b = prq.create(db, b"%PDF", "Рах 777.pdf", "application/pdf", claude=fake)
+        assert b.status == "rejected" and f"#{a.id}" in (b.error or "")
