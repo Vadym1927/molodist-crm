@@ -45,7 +45,10 @@
     <span class="sp" title="Швидкість відтворення">{% for r in ('1', '1.2', '1.5', '1.8') %}<button type="button" data-r="{{ r }}">{{ r|replace('.', ',') }}×</button>{% endfor %}</span>
     <audio preload="none" src="{{ c.record_url }}"></audio></div>{% endif %}
   {% if c.summary %}<div class="cl-sum"><b>Зміст:</b> {{ c.summary }}</div>{% endif %}
-  {% if c.ai_comment %}<div class="cl-ai"><b>AI-оцінка:</b> {{ c.ai_comment }}{% if c.ai_meta and c.ai_meta.booked is defined %} · {{ 'записано' if c.ai_meta.booked else 'не записано' }}{% endif %}</div>{% endif %}
+  {% set _m = c.ai_meta or {} %}
+  {% if c.ai_comment %}<div class="cl-ai"><b>AI-оцінка{% if _m.call_type %} · {{ {'sale':'продаж / новий запит','existing':'наявний пацієнт','outbound':'вихідний','info':'довідковий','other':'не пацієнт — не в KPI','no_talk':'немає розмови — не в KPI'}.get(_m.call_type, _m.call_type) }}{% endif %}:</b> {{ c.ai_comment }}{% if _m.booked is defined %} · {{ 'записано' if _m.booked else 'не записано' }}{% endif %}
+    {% if _m.criteria and _m.criteria is iterable and _m.criteria is not mapping %}<details style="margin-top:4px"><summary class="small" style="cursor:pointer">Бали за критеріями</summary>
+      <table class="small" style="margin-top:4px">{% for r in _m.criteria %}<tr><td style="padding:2px 8px 2px 0">{{ r.name }}</td><td style="white-space:nowrap;text-align:right;font-weight:700">{{ ('%g'|format(r.score) ~ ' / ' ~ '%g'|format(r.max)) if r.score is not none else 'не застосовно' }}</td><td class="muted" style="padding-left:8px">{{ r.note or '' }}</td></tr>{% endfor %}</table></details>{% endif %}</div>{% endif %}
   {% if c.transcript %}{% set dg = call_dialog(c.transcript, c.employee) %}<details><summary>Діалог ({{ dg.lines|length }} реплік)</summary>
     <div class="cl-dlg"><div class="cl-leg"><span class="p">Пацієнт</span><span class="a">Адміністратор{{ (' · ' ~ c.employee) if c.employee }}</span></div>
     {% if dg.guessed %}<div class="cl-gs">Ролі визначено автоматично за чергуванням реплік — транскрипція без міток спікерів.</div>{% endif %}

@@ -72,6 +72,35 @@ DEFAULT_CRITERIA = """Оціни розмову адміністратора м�
 Якщо пацієнта не записано — поясни чому і що треба було зробити інакше."""
 
 
+# Тип дзвінка → критерії (бал за кожен). «Продаж» бере критерії з налаштувань (ai_criteria), решта — тут.
+CALL_TYPES = {
+    "sale": "Новий запит / продаж",
+    "existing": "Наявний пацієнт: запис, перенесення, підтвердження",
+    "outbound": "Вихідний: нагадування, передзвін, повернення пацієнта",
+    "info": "Довідковий: адреса, графік, наявність товару",
+    "other": "Не пацієнт (постачальник, спам, особисте)",
+    "no_talk": "Немає розмови (автовідповідач, тиша, обірвався)",
+}
+NO_KPI_TYPES = ("other", "no_talk")
+SALES_TYPES = ("sale",)
+TYPE_CRITERIA = {
+    "existing": [("Привітання: назвала MOLODIST і себе, на «ви»", 15), ("Швидко знайшла запис і точно назвала дату, час, лікаря", 25),
+                 ("Якщо час не підійшов — запропонувала альтернативу", 20), ("Нагадала про підготовку / що взяти / передоплату", 15),
+                 ("Підсумувала домовленість, ввічливо попрощалась", 25)],
+    "outbound": [("Представилась і назвала MOLODIST", 15), ("Чітко пояснила мету дзвінка", 20),
+                 ("Запропонувала запис / наступний крок (для повернення пацієнта)", 30), ("Відпрацювала заперечення або «подумаю»", 15),
+                 ("Зафіксувала домовленість і попрощалась", 20)],
+    "info": [("Ввічливість і тон, на «ви»", 30), ("Точна й повна відповідь (адреса, графік, наявність, ціна)", 40),
+             ("Запропонувала щось корисне додатково (запис, консультацію, доставку)", 30)],
+}
+
+
+def _crit_for(d: dict) -> dict:
+    sale = [((r["title"] + (": " + r["desc"] if r.get("desc") else "")), r["pts"]) for r in crit_rows(d.get("ai_criteria") or DEFAULT_CRITERIA)]
+    return {"sale": sale or [("Привітання", 10), ("Потреба", 20), ("Експертність", 20), ("Пропозиція запису", 20), ("Заперечення", 15), ("Завершення", 15)],
+            **TYPE_CRITERIA}
+
+
 _CRIT_RE = re.compile(r"^\s*\d+[.)]\s*(.+?)\s*\((\d+)\)\s*$")
 
 
@@ -611,10 +640,27 @@ def evaluate(db: Session, c: Call, http: httpx.Client | None = None, claude=None
     d = _raw(db)
     if not c.transcript:
         raise ValueError("Немає тексту діалогу. Додайте ключ Gladia (Налаштування → IP-телефонія → AI-оцінка) — CRM сама розпізнає запис, або увімкніть «Агент на VPS».")
-    prompt = (d.get("ai_criteria") or DEFAULT_CRITERIA) + """
+    crit = _crit_for(d)
+    blocks = "\n".join(f"[{k}] {CALL_TYPES[k]}:\n" + "\n".join(f"  - {t} (макс {p})" for t, p in crit[k]) for k in crit)
+    tail = ""
+    m_tail = [ln for ln in (d.get("ai_criteria") or "").splitlines() if ln.strip() and not _CRIT_RE.match(ln) and not ln.lower().startswith("оціни")]
+    if m_tail:
+        tail = "\nДодатково: " + " ".join(m_tail)
+    prompt = f"""Ти оцінюєш телефонну розмову адміністратора медичного простору MOLODIST (Київ) з людиною, що зателефонувала,
+або вихідний дзвінок адміністратора. Дзвінок {'вхідний' if c.direction == 'in' else 'вихідний'}.
 
-Відповідай ЛИШЕ JSON: {"score": число 0-100, "comment": "2-4 речення українською: що добре, що погано, що порадити",
-"booked": true/false — чи записано пацієнта}. Не згадуй діагнози й медичні подробиці пацієнта.
+Крок 1. Визнач тип дзвінка — один ключ: {", ".join(f"{k} = {v}" for k, v in CALL_TYPES.items())}.
+Крок 2. Якщо тип не other і не no_talk — оціни КОЖЕН критерій цього типу балом від 0 до максимуму.
+Якщо критерій до цієї розмови не застосовний (наприклад, пацієнт не заперечував) — став null, а не 0: бали за це не знімаються.
+
+Критерії за типами:
+{blocks}{tail}
+
+Відповідай ЛИШЕ JSON:
+{{"type": "ключ", "criteria": [{{"name": "назва критерію", "max": число, "score": число або null, "note": "коротко чому"}}],
+"comment": "1–2 речення саме про ЦЮ розмову: що добре і чого бракувало, з конкретикою (без загальних фраз)",
+"booked": true/false — чи домовились про запис з конкретною датою/часом}}
+Не згадуй діагнози й медичні подробиці пацієнта.
 
 Діалог:
 """ + c.transcript[:30000]
@@ -633,19 +679,53 @@ def evaluate(db: Session, c: Call, http: httpx.Client | None = None, claude=None
         out = "".join(b.get("text", "") for b in r.json().get("content", []) if b.get("type") == "text")
         m = re.search(r"\{.*\}", out, re.S)
         j = json.loads(m.group(0)) if m else {}
-    try:
-        c.ai_score = max(0.0, min(100.0, float(j.get("score"))))
-    except (TypeError, ValueError):
-        c.ai_score = None
-    c.ai_comment = str(j.get("comment") or "")[:2000] or None
     meta = dict(c.ai_meta or {})
+    c.ai_score, c.ai_comment = score_from(j, meta)
     if "booked" in j:
         meta["booked"] = bool(j.get("booked"))
+    meta["engine"] = meta.get("engine") if meta.get("engine") == "agent" else "crm"
     c.ai_meta = meta
     c.ai_at = datetime.utcnow()
     db.commit()
     alert_low(db, c)
     return c
+
+
+def score_from(j: dict, meta: dict) -> tuple[float | None, str | None]:
+    """Тип дзвінка й бали за критеріями → оцінка 0–100 лише з застосовних критеріїв. other / no_talk — без оцінки (не в KPI)."""
+    t = str(j.get("type") or "").strip()
+    t = t if t in CALL_TYPES else ("sale" if j.get("score") is not None or j.get("criteria") else "")
+    if t:
+        meta["call_type"] = t
+    comment = str(j.get("comment") or "")[:2000] or None
+    if t in NO_KPI_TYPES:
+        meta["criteria"] = []
+        return None, comment or CALL_TYPES[t]
+    got = mx = 0.0
+    rows = []
+    for r in j.get("criteria") or []:
+        try:
+            m_ = float(r.get("max") or 0)
+        except (TypeError, ValueError):
+            continue
+        s_ = r.get("score")
+        if s_ is None or m_ <= 0:
+            rows.append({"name": str(r.get("name") or "")[:120], "max": m_, "score": None, "note": str(r.get("note") or "")[:200]})
+            continue
+        try:
+            s_ = max(0.0, min(m_, float(s_)))
+        except (TypeError, ValueError):
+            continue
+        got, mx = got + s_, mx + m_
+        rows.append({"name": str(r.get("name") or "")[:120], "max": m_, "score": s_, "note": str(r.get("note") or "")[:200]})
+    if rows:
+        meta["criteria"] = rows
+    if mx > 0:
+        return round(100 * got / mx, 1), comment
+    try:                                                     # старий формат: одна оцінка
+        return max(0.0, min(100.0, float(j.get("score")))), comment
+    except (TypeError, ValueError):
+        return None, comment
 
 
 def alert_low(db: Session, c: Call) -> None:
@@ -735,9 +815,10 @@ def kpi(db: Session, d_from, d_to) -> list[dict]:
         if c.duration:
             g["dur"] += c.duration
             g["n_dur"] += 1
-        if c.ai_score is not None:
+        if c.ai_score is not None and (c.ai_meta or {}).get("call_type") not in NO_KPI_TYPES and not (c.ai_meta or {}).get("no_kpi"):
             g["scores"].append(c.ai_score)
             g["low"] += c.ai_score < thr
+            (g.setdefault("s_sale", []) if (c.ai_meta or {}).get("call_type", "sale") in SALES_TYPES else g.setdefault("s_srv", [])).append(c.ai_score)
         if (c.ai_meta or {}).get("booked"):
             g["booked"] += 1
     out = []
@@ -745,7 +826,9 @@ def kpi(db: Session, d_from, d_to) -> list[dict]:
         out.append({"name": k, "in": g["in"], "ans": g["ans"], "miss": g["miss"], "out": g["out"],
                     "avg_dur": round(g["dur"] / g["n_dur"]) if g["n_dur"] else 0,
                     "score": round(sum(g["scores"]) / len(g["scores"]), 1) if g["scores"] else None,
-                    "rated": len(g["scores"]), "low": g["low"], "booked": g["booked"]})
+                    "rated": len(g["scores"]), "low": g["low"], "booked": g["booked"],
+                    "score_sale": round(sum(g.get("s_sale") or []) / len(g["s_sale"]), 1) if g.get("s_sale") else None,
+                    "score_srv": round(sum(g.get("s_srv") or []) / len(g["s_srv"]), 1) if g.get("s_srv") else None})
     return out
 
 
@@ -764,17 +847,23 @@ def agent_result(db: Session, c: Call, data: dict) -> Call:
         c.transcript = (_vtt_text(t) if "-->" in t else t)[:60000]
     if data.get("summary"):
         c.summary = str(data["summary"])[:4000]
-    if data.get("score") is not None:
+    meta = dict(c.ai_meta or {})
+    if data.get("type") or isinstance(data.get("criteria"), list):     # нова схема: тип + бали за критеріями
+        c.ai_score, cm = score_from(data, meta)
+        if cm:
+            c.ai_comment = cm
+    elif data.get("score") is not None:
         try:
             c.ai_score = max(0.0, min(100.0, float(data["score"])))
         except (TypeError, ValueError):
             pass
     if data.get("comment"):
         c.ai_comment = str(data["comment"])[:2000]
-    meta = dict(c.ai_meta or {})
-    for k in ("booked", "client_mood", "employee_mood", "recommendations", "criteria"):
+    for k in ("booked", "client_mood", "employee_mood", "recommendations"):
         if k in data:
-            meta[k] = data[k] if k in ("booked", "criteria") else str(data[k])[:1000]
+            meta[k] = data[k] if k == "booked" else str(data[k])[:1000]
+    if isinstance(data.get("criteria"), dict) and "criteria" not in meta:
+        meta["criteria"] = data["criteria"]
     meta["engine"] = "agent"
     failed = not data.get("transcript") and data.get("score") is None and bool(c.record_url) and not data.get("final")
     if failed:                                     # агент не зміг дістати запис — до 3 спроб, далі зупиняємось

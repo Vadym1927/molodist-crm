@@ -603,7 +603,10 @@ def calls_pending_ai(limit: int = 20, days: int = 3, key: ApiKey = Depends(CALLS
     # автоматично — прийняті за останні `days` днів; вручну відправлені («Відправити на AI-оцінку») — будь-якої давності
     rows = [c for c in cand if (c.status == "answered" and c.at >= since) or (c.ai_meta or {}).get("manual")][:max(1, min(limit, 100))]
     return {"criteria": cfg.get("ai_criteria"), "alert_below": cfg.get("ai_alert_below"),
-            "answer_format": {"score": "0-100", "comment": "2-4 речення українською", "booked": "true/false",
+            "call_types": tel.CALL_TYPES, "type_criteria": tel._crit_for(cfg),
+            "answer_format": {"type": "ключ з call_types (other/no_talk — без оцінки й не в KPI)",
+                              "criteria": "[{name, max, score (null — не застосовно, бали не знімаються), note}] — критерії саме цього типу з type_criteria; оцінку 0–100 CRM рахує сама",
+                              "comment": "1–2 речення саме про цю розмову, без шаблонів", "booked": "true/false",
                               "transcript": "кожна репліка з нового рядка І З МІТКОЮ спікера: «Адміністратор: …» / «Пацієнт: …» (CRM показує діалог чатом ліворуч/праворуч)", "summary": "короткий зміст"},
             "calls": [_call_json(c) for c in rows]}
 
