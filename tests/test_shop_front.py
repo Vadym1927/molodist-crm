@@ -1312,3 +1312,16 @@ def test_sell_off_showcase_mode():
         finally:
             c = sf.cfg(db); c["sell_off"] = False; sf.save_cfg(db, c)
         assert sf.catalog(db, fresh=True)["by_slug"]["show-a"]["variants"][0]["stock"] == v.get("real")
+
+
+def test_show_only_by_warehouse():
+    from app.services import shop_front as sf
+    with SessionLocal() as db:
+        p = Product(name="Wh A", name_norm="wh a", price=900, warehouse="shop", site_on=True, site_info={"slug": "wh-a", "title": "Wh A", "presence": 1, "backorder": True})
+        db.add(p); db.commit()
+        assert sf.catalog(db, fresh=True)["by_slug"]["wh-a"]["stock"]
+        c = sf.cfg(db); c["show_whs"] = ["shop"]; sf.save_cfg(db, c)
+        try:
+            assert not sf.catalog(db, fresh=True)["by_slug"]["wh-a"]["stock"]
+        finally:
+            c = sf.cfg(db); c["show_whs"] = []; sf.save_cfg(db, c)

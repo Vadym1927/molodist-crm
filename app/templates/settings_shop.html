@@ -120,6 +120,9 @@
   <label class="ck"><input type="checkbox" name="quiz_on" value="1" {{ 'checked' if c.quiz_on }}> «Підбір догляду» — онлайн-тест на сайті (/pidbir/)</label>
   <label class="ck"><input type="checkbox" name="oneclick_on" value="1" {{ 'checked' if c.oneclick_on }}> «Купити в 1 клік» на сторінці товару</label>
   <label class="ck"><input type="checkbox" name="sell_off" value="1" {{ 'checked' if c.sell_off }}> <b>Лише показ — онлайн-продаж призупинено</b> <span class="small muted">товари й ціни видно, кнопки «У кошик» немає («Зараз немає в продажу онлайн» + «Повідомити, коли зʼявиться»); у фіді Google — «немає в наявності». Замовлення вручну з CRM працюють.</span></label>
+  <div class="small" style="margin:4px 0 0 26px">Або лише для товарів складів:
+    {% for w_ in request.state.whs_all %}<label class="ck" style="display:inline-flex;margin-right:12px"><input type="checkbox" name="show_whs" value="{{ w_.key }}" {{ 'checked' if w_.key in (c.show_whs or []) }}> {{ w_.name }}</label>{% endfor %}
+    <span class="muted">— їхні товари (і «під замовлення») показуються без кнопки «У кошик».</span></div>
   <button class="btn" name="action" value="rvcart" style="margin-top:8px">Зберегти</button>
 </form>
 <form method="post" class="card" id="insta" style="max-width:860px;margin-top:14px"><b>Instagram на головній</b>

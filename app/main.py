@@ -11969,9 +11969,10 @@ def _shop_crawl_job(job):
 
 @app.get("/settings/shop", response_class=HTMLResponse)
 def settings_shop(request: Request, user: User = Depends(require("users")), db: Session = Depends(db_dep)):
-    from .services import shop_front as sf, paylinks as pls
+    from .services import shop_front as sf, paylinks as pls, warehouses as _whs
     c = sf.cfg(db)
     d = sf.catalog(db, fresh=True)
+    request.state.whs_all = _whs.items(db)
     j = jobs.JOBS.get(request.query_params.get("job") or "")
     from .services import mono_parts as _mp
     return render(request, "settings_shop.html", nav="settings", rv_default=__import__("app.services.shop_reviews", fromlist=["x"]).DEFAULT_TEXT, cart_default=__import__("app.services.shop_carts", fromlist=["x"]).DEFAULT_TEXT, reorder_default=__import__("app.services.shop_extra", fromlist=["x"]).REORDER_TEXT, c=c, d=d, seo=sf.seo_coverage(db), insta=__import__("app.services.insta_feed", fromlist=["x"]).state(db), waiting=__import__("app.services.shop_cabinet", fromlist=["x"]).notify_waiting(db), cab=__import__("app.services.shop_cabinet", fromlist=["x"]).stats(db), accounts=pls.public(db)["accounts"], job=j, mp=_mp.public(db), MP_MODES=_mp.MODES,
@@ -12008,6 +12009,7 @@ async def settings_shop_save(request: Request, user: User = Depends(require("use
         c["cart_auto_on"] = bool(f.get("cart_auto_on"))
         for _b in ("reorder_on", "quiz_on", "oneclick_on", "sell_off"):
             c[_b] = bool(f.get(_b))
+        c["show_whs"] = [str(x)[:20] for x in f.getlist("show_whs")][:20]
         try:
             c["reorder_lead"] = min(30, max(0, int(f.get("reorder_lead") or 7)))
         except ValueError:
