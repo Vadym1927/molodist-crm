@@ -4826,7 +4826,10 @@ async def techcard_save(request: Request, user: User = Depends(require("stock"))
             cats.append({"name": nm, "wh": wh if wh in catalog.WAREHOUSES else "single"})
     card.cats = cats or None
     lines = []
-    for cat, prod, qty in zip(f.getlist("ln_cat"), f.getlist("ln_product"), f.getlist("ln_qty")):
+    _cats_, _prods_, _qtys_ = f.getlist("ln_cat"), f.getlist("ln_product"), f.getlist("ln_qty")
+    for i_, prod in enumerate(_prods_):                     # без категорії / к-сті рядок не губиться
+        cat = _cats_[i_] if i_ < len(_cats_) else ""
+        qty = _qtys_[i_] if i_ < len(_qtys_) else "1"
         pr = _pick_product(db, str(prod))
         if pr:
             lines.append(TechCardLine(cat=str(cat)[:80] or (cats[0]["name"] if cats else "Одноразка"), product_id=pr.id,
