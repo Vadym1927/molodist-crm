@@ -271,6 +271,7 @@ def _collect(db: Session, year: int) -> dict:
             if did is None and r.who:
                 did = doc_of(r.who)
             role = role_of(dmap[did]) if did and did in dmap else "admin"
+            who_name = dmap[did].name if did and did in dmap else (r.who or "").strip()
             if role == "doctor":
                 labor_doc[dmap[did].name][mk] += amt
             elif OWNER_PAY_RE.search(r.article or "") or (r.who and _key(r.who) in owner_names):
@@ -280,7 +281,10 @@ def _collect(db: Session, year: int) -> dict:
             labor[mk] += amt
         elif block == "opex":
             opex[grp][mk] += amt
-            opex_art[grp][(r.article or "Без статті").strip()][mk] += amt
+            if grp == "salary":                            # зарплата персоналу — розкривається по співробітниках
+                opex_art[grp][who_name or (r.article or "Без співробітника").strip()][mk] += amt
+            else:
+                opex_art[grp][(r.article or "Без статті").strip()][mk] += amt
         elif block == "capex":
             capex[mk] += amt
             capex_art[(r.article or "Без статті").strip()][mk] += amt
@@ -328,6 +332,8 @@ def _collect(db: Session, year: int) -> dict:
         gross_s = rev_s[mk] - cogs_serv
         opex_m = {k: opex[k][mk] for k in opex}
         opex_m["salary"] += ptax_adm
+        if ptax_adm:
+            opex_art["salary"]["податки з ЗП (ЄСВ, ПДФО, ВЗ — пропорційно)"][mk] += ptax_adm
         ox = sum(opex_m.values())
         op = gross - ox
         net = op - capex[mk] - oneoff[mk]
