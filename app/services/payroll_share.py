@@ -28,9 +28,18 @@ def is_salary(article: str, salary_names: set[str]) -> bool:
     return bool(SALARY_RE.search(a)) and not NOT_SALARY_RE.search(a)
 
 
+ADMIN_NAME_RE = re.compile(r"financial|operations|бухгалт|фінанс|accountant|аутсорс|директор|director", re.I)
+
+
 def role_of(d) -> str:
+    """doctor — ЗП лікаря (COGS), admin — інший персонал (OPEX). Посада вирішує; без посади — назва співробітника
+    («Financial Operations», «Бухгалтерія», «Директор» — OPEX)."""
     pos = (getattr(d, "position", "") or "")
-    return "admin" if ADMIN_RE.search(pos) else "doctor"
+    if ADMIN_RE.search(pos):
+        return "admin"
+    if not pos.strip() and ADMIN_NAME_RE.search(getattr(d, "name", "") or ""):
+        return "admin"
+    return "doctor"
 
 
 ROLES = {"doctor": "Лікарі", "admin": "Адміністратори та інші співробітники", "other": "Не зіставлено зі співробітником"}
