@@ -13,6 +13,7 @@ def test_payslip_month():
     settings.admin_password = "owner-pass-1"
     mk = fo.month_key(date.today())
     with SessionLocal() as db:
+        ps.set_manual_only(db, False)                               # авто-режим (ставка + комісійні з документів)
         d = Doctor(name="Розрахунок Тест", active=True, position="Адміністратор")
         db.add(d); db.flush()
         db.add(SalaryRule(doctor_id=d.id, base=99000))             # авторозрахунок у листи не потрапляє
@@ -61,3 +62,17 @@ def test_payslip_month():
         tg_notify.send_text = lambda chat, text: sent.append((chat, text)) or True
         assert c.post("/finance/payslips/tg", data={"m": mk, "h": 0, "doctor": did}).json()["ok"] and sent[0][0] == "777"
         tg_notify.send_text = orig
+
+
+def test_payslip_manual_only():
+    from app.models import SalaryAdj
+    mk = fo.month_key(date.today())
+    with SessionLocal() as db:
+        d = Doctor(name="Ручна Тест", active=True); db.add(d); db.flush()
+        db.add(SalaryRule(doctor_id=d.id, base=50000))
+        db.add_all([SalaryAdj(doctor_id=d.id, month=mk, amount=38940.22, article="Зарплата"),
+                    SalaryAdj(doctor_id=d.id, month=mk, amount=-500, article="Податки")]); db.commit()
+        ps.set_manual_only(db, True)
+        r = next(x for x in ps.build(db, mk)["rows"] if x["doctor"].id == d.id)
+        assert r["base"] == 0 and r["comm"] == 0 and r["gross"] == 38940.22 and r["net"] == 38440.22
+        ps.set_manual_only(db, False)

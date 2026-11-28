@@ -7,6 +7,7 @@
   <div class="muted small">Нараховано (ставка + комісійні + премії) − податки − утримання = до виплати · виплачено на руки за {{ v.label }}</div></div>
   <form class="fin-f" style="display:flex;gap:8px;align-items:center"><select name="m" onchange="this.form.submit()">{% for x in months %}<option {{ 'selected' if month==x }}>{{ x }}</option>{% endfor %}</select>
     <select name="h" onchange="this.form.submit()" title="Період місяця">{% for k, l in halves.items() %}<option value="{{ k }}" {{ 'selected' if v.half==k }}>{{ l }}</option>{% endfor %}</select>
+    <input type="hidden" name="manual" value="{{ '1' if v.manual else '0' }}"><label class="small" style="display:flex;gap:6px;align-items:center" title="Без автоматичних ставки й комісійних — лише суми, внесені вручну в «Нарахуванні зарплати»"><input type="checkbox" {{ 'checked' if v.manual }} onchange="this.form.manual.value=this.checked?'1':'0';this.form.submit()"> лише ручні нарахування</label>
     <label class="small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="all" value="1" {{ 'checked' if show_all }} onchange="this.form.submit()"> усі співробітники</label>
     <a class="btn ghost" href="/finance/payslips?m={{ month }}&h={{ v.half }}&xlsx=1">⬇ Excel</a><a class="btn ghost" target="_blank" href="/finance/payslips/slip?m={{ month }}&h={{ v.half }}">🖨 Усі листи</a></form></div>
 <div class="fin-k">

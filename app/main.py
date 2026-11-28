@@ -14464,9 +14464,13 @@ def finance_accrual_delete(aid: int, del_password: str = Form(""), user: User = 
 
 
 @app.get("/finance/payslips", response_class=HTMLResponse)
-def finance_payslips(request: Request, m: str = "", h: int = 0, xlsx: str = "", all: str = "", user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
+def finance_payslips(request: Request, m: str = "", h: int = 0, xlsx: str = "", all: str = "", manual: str = "",
+                     user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     from .services import payslips as ps
     month = _month(m)
+    if manual in ("0", "1"):
+        ps.set_manual_only(db, manual == "1")
+        audit(db, "payslip.manual", user=user, on=manual == "1")
     v = ps.build(db, month, h)
     if xlsx:
         audit(db, "reports.export", user=user, report="payslips", month=month)

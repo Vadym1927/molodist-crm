@@ -29,6 +29,24 @@ def _kind(a, kinds: dict[str, str]) -> str:
 
 
 HALVES = {0: "весь місяць", 1: "1–15", 2: "16–кінець місяця"}
+MANUAL_KEY = "payslip_manual"
+
+
+def manual_only(db: Session) -> bool:
+    """Власник: у розрахункових листах лише ручні нарахування («＋ нарахування / утримання»), без автоматичних
+    ставки й комісійних за окладом. Типово — так."""
+    from ..models import SyncState
+    st = db.get(SyncState, MANUAL_KEY)
+    return (st.value if st and st.value else "1") == "1"
+
+
+def set_manual_only(db: Session, on: bool) -> None:
+    from datetime import datetime
+    from ..models import SyncState
+    st = db.get(SyncState, MANUAL_KEY) or SyncState(key=MANUAL_KEY)
+    st.value, st.updated_at = "1" if on else "0", datetime.utcnow()
+    db.merge(st)
+    db.commit()
 
 
 def build(db: Session, month: str, half: int = 0) -> dict:
@@ -76,6 +94,7 @@ def build(db: Session, month: str, half: int = 0) -> dict:
     def signed(ps):
         return round(sum(x.amount if x.kind == "expense" else -x.amount for x in ps), 2)
 
+    manual = manual_only(db)
     rows = []
     for r in rows_in:
         m = r["m"]
@@ -95,6 +114,12 @@ def build(db: Session, month: str, half: int = 0) -> dict:
                 f2 = part(m, 2)
                 vals, days = {k: f2[k] for k in keys_}, f2["days"]
                 adjs, ps = [x for x in adjs if adj_half(x) == 2], [x for x in ps if x.day > mid]
+        if manual:                                            # лише ручні нарахування: ставка й комісійні не рахуються
+            for k in ("base", "from_services", "from_products", "corr"):
+                vals[k] = 0.0
+            if half == 2:
+                net1 = sum(x.amount for x in m.get("adjs") or [] if adj_half(x) == 1)
+                opening = round(r["opening"] + net1 - signed([x for x in pays.get(did, []) if x.day <= mid]), 2)
         parts = {"bonus": [], "tax": [], "hold": []}
         for adj in adjs:
             parts[_kind(adj, kinds)].append(adj)
@@ -117,7 +142,7 @@ def build(db: Session, month: str, half: int = 0) -> dict:
     rows.sort(key=lambda x: (x["empty"], -x["gross"], x["doctor"].name))
     keys = ("base", "comm", "bonus", "gross", "tax", "hold", "net", "paid", "opening", "closing")
     d_from, d_to = (a, mid) if half == 1 else ((mid + timedelta(days=1), b) if half == 2 else (a, b))
-    return {"month": month, "half": half, "d_from": d_from, "d_to": d_to,
+    return {"month": month, "half": half, "manual": manual, "d_from": d_from, "d_to": d_to,
             "label": f"{d_from:%d.%m.%Y} – {d_to:%d.%m.%Y}", "rows": rows, "total": {k: round(sum(x[k] for x in rows), 2) for k in keys}}
 
 
