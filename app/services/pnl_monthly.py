@@ -56,6 +56,18 @@ _STAFF_RX = re.compile(OPEX_GROUPS[-1][2], re.I)
 KPI_TARGETS = {"gross_pct": 50, "cogs_pct": 50, "opex_pct": 30, "op_pct": 20, "net_pct": 20}
 
 
+_LAT = str.maketrans("aceiopxybhkmt", "асеіорхувнкмт")
+_ART_LABELS: dict[str, str] = {}
+
+
+def _art_label(a: str | None) -> str:
+    """Одна стаття — один рядок: «Реклама Barb» / «Реклама  Barb», «Cервіси» з латинською C — зводимо до першого написання."""
+    a = " ".join((a or "").split()) or "Без статті"
+    k = a.lower()
+    k = " ".join(w.translate(_LAT) if any("а" <= ch <= "я" or ch in "іїєґ" for ch in w) else w for w in k.split())
+    return _ART_LABELS.setdefault(k, a)
+
+
 def classify(article: str, is_sal: bool, role: str | None) -> tuple[str, str]:
     """(блок, група): cogs_labor — ЗП лікарів; opex — група; capex | oneoff | owner | purchase — поза OPEX."""
     a = article or ""
@@ -293,20 +305,20 @@ def _collect(db: Session, year: int) -> dict:
             if grp == "salary":                            # зарплата персоналу — розкривається по співробітниках
                 opex_art[grp][who_name or (r.article or "Без співробітника").strip()][mk] += amt
             else:
-                opex_art[grp][(r.article or "Без статті").strip()][mk] += amt
+                opex_art[grp][_art_label(r.article)][mk] += amt
         elif block == "capex":
             capex[mk] += amt
-            capex_art[(r.article or "Без статті").strip()][mk] += amt
+            capex_art[_art_label(r.article)][mk] += amt
         elif block == "oneoff":
             oneoff[mk] += amt
-            oneoff_art[(r.article or "Без статті").strip()][mk] += amt
+            oneoff_art[_art_label(r.article)][mk] += amt
         elif block == "owner":
             owner[mk] += amt
         elif block == "purchase":
             purchase[mk] += amt
         elif block == "finance":
             finance[mk] += amt
-            finance_art[(r.article or "Без статті").strip()][mk] += amt
+            finance_art[_art_label(r.article)][mk] += amt
         elif block == "payroll_tax":
             payroll_tax[mk] += amt
         elif block == "refund":
