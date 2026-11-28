@@ -14191,6 +14191,21 @@ def finance_op_add(day: str = Form(""), kind: str = Form("expense"), category: s
     return RedirectResponse(_with_msg(back, f"Записано CRM-{x.id}: {x.category} {x.amount:,.2f} ₴".replace(",", " ")), 303)
 
 
+@app.post("/finance/ops/{oid:int}/article")
+def finance_op_article(oid: int, article: str = Form(...), back: str = Form("/finance/ops"), user: User = Depends(require("finance")),
+                       db: Session = Depends(db_dep)):
+    """Змінити статтю операції CRM (напр. «Оренда» з платіжного календаря → «Оренда прим.Клініки»)."""
+    from .models import FinOp
+    op = db.get(FinOp, oid)
+    art = article.strip()[:60]
+    if op and art and op.kind in ("income", "expense") and not op.deleted_at and art != op.category:
+        old = op.category
+        op.category = art
+        db.commit()
+        audit(db, "fin.op_article", "finop", oid, user=user, old=old, new=art)
+    return RedirectResponse(back if back.startswith("/finance") else "/finance/ops", 303)
+
+
 @app.post("/finance/ops/{oid:int}/no-fee")
 def finance_op_no_fee(oid: int, back: str = Form("/finance/ops"), user: User = Depends(require("finance")), db: Session = Depends(db_dep)):
     """Надходження без комісії банку (повернення на картку, переказ, кешбек) — авто-комісія еквайрингу знімається; ще раз — повертається."""
