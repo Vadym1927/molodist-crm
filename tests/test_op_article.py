@@ -18,3 +18,15 @@ def test_change_op_article():
         assert "/finance/ops/%d/article" % oid in c.get(f"/finance/ops?df={date.today()}&dt_={date.today()}").text
     with SessionLocal() as db:
         assert db.get(FinOp, oid).category == "Оренда прим.Клініки"
+
+
+def test_finop_double_submit_no_dup():
+    from datetime import date as _d
+    settings.admin_password = "owner-pass-1"
+    with TestClient(app) as c:
+        c.post("/login", data={"login": settings.owner_login, "password": "owner-pass-1"})
+        data = {"kind": "transfer", "amount": "7600", "cashbox": "Готівка Тест", "cashbox_to": "Термінал Тест", "day": str(_d.today())}
+        c.post("/finance/ops", data=data); r = c.post("/finance/ops", data=data, follow_redirects=False)
+        assert "%D0%A3%D0%B6%D0%B5" in r.headers["location"] or "Уже" in r.headers["location"]
+    with SessionLocal() as db:
+        assert db.query(FinOp).filter_by(cashbox="Готівка Тест", amount=7600).count() == 1

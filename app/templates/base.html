@@ -558,5 +558,9 @@ document.addEventListener('scroll',function(e){if(cur&&e.target===cur&&Math.abs(
 window.addEventListener('scroll',place,{passive:true});window.addEventListener('resize',scan);
 var t;new MutationObserver(function(){clearTimeout(t);t=setTimeout(scan,400)}).observe(document.body,{childList:true,subtree:true});
 if(document.readyState!=='loading')scan();else document.addEventListener('DOMContentLoaded',scan);window.addEventListener('load',function(){setTimeout(scan,300)});})();</script>
+<script>/* Захист від подвійного натискання: форма з POST надсилається один раз; кнопка «сіріє» на 8 с. */
+document.addEventListener('submit',function(e){var f=e.target;if(e.defaultPrevented||!f||(f.method||'').toLowerCase()!=='post'||f.target==='_blank'||f.dataset.multi)return;
+if(f.dataset.busy){e.preventDefault();return}f.dataset.busy='1';var b=e.submitter||f.querySelector('[type=submit],button:not([type])');if(b){b.style.opacity='.55';b.style.pointerEvents='none'}
+setTimeout(function(){delete f.dataset.busy;if(b){b.style.opacity='';b.style.pointerEvents=''}},8000)});</script>
 </body>
 </html>

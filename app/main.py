@@ -14188,6 +14188,13 @@ def finance_op_add(day: str = Form(""), kind: str = Form("expense"), category: s
             x.salary_month = fo_month_key(x.day)
     else:
         x.salary_month = None             # «за місяць» — лише для статей зарплати (форма завжди надсилає поле)
+    from datetime import timedelta as _td
+    dup = db.scalar(select(FinOp).where(FinOp.deleted_at.is_(None), FinOp.created_by == user.id, FinOp.kind == x.kind,
+                                        FinOp.amount == x.amount, FinOp.category == x.category, FinOp.cashbox == x.cashbox,
+                                        FinOp.cashbox_to == x.cashbox_to, FinOp.day == x.day,
+                                        FinOp.created_at >= datetime.utcnow() - _td(seconds=20)).limit(1))
+    if dup:                                # подвійне натискання — та сама операція вже записана щойно
+        return RedirectResponse(_with_msg(back, f"Уже записано CRM-{dup.id} (повторне натискання — дубль не створено)"), 303)
     db.add(x)
     db.commit()
     audit(db, "fin.op_add", "fin_op", x.id, user=user, kind=x.kind, category=x.category, amount=x.amount, cashbox=x.cashbox)
