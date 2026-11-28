@@ -821,6 +821,7 @@ class Supplier(Base):
     fx_eur: Mapped[float | None] = mapped_column(Float)            # курс постачальника EUR, ₴
     fx_at: Mapped[datetime | None] = mapped_column(DateTime)
     consignment: Mapped[bool | None] = mapped_column(Boolean)      # товар під реалізацію: платимо за продане (звіти реалізації)
+    contacts: Mapped[list | None] = mapped_column(JSON)             # менеджери зі звернень: [{name, phone, thread, channel, at, appeal_id}]
 
 
 class StockPayRow(Base):

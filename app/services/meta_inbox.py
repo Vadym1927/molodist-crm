@@ -173,6 +173,8 @@ def _appeal_for(db: Session, channel: str, sid: str, pat_id: int | None, name: s
         return open_.id
     if pat_id and db.scalar(select(Task.id).where(Task.patient_id == pat_id, Task.status == "open").limit(1)):
         return None
+    if ap.thread_ignored(db, sid):                         # діалог постачальника (привʼязано зі звернення)
+        return None
     a = ap.create(db, {"name": name or f"{CH_LABEL[channel]} …{sid[-4:]}", "source": CH_LABEL[channel], "patient_id": pat_id,
                        "comment": f"Вхідне повідомлення в {CH_LABEL[channel]}: {(text or '[вкладення]')[:300]}"})
     return a.id

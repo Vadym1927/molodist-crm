@@ -1768,7 +1768,7 @@ def appeals_page(request: Request, user: User = Depends(require("appeals")), db:
 @app.get("/appeals/{aid:int}", response_class=HTMLResponse)
 def appeal_card(request: Request, aid: int, user: User = Depends(require("appeals")), db: Session = Depends(db_dep)):
     from .services import appeals as ap
-    from .models import Appeal, AppealNote
+    from .models import Appeal, AppealNote, Supplier
     a = db.get(Appeal, aid)
     if not a or a.deleted_at:
         raise HTTPException(404)
@@ -1780,7 +1780,9 @@ def appeal_card(request: Request, aid: int, user: User = Depends(require("appeal
     return templates.TemplateResponse(request, "_appeal_card.html", {"request": request, "user": user, "a": a, "notes": notes, "users": users,
                                       "d": ap.dirs(db), "ap": ap, "p": db.get(Patient, a.patient_id) if a.patient_id else None,
                                       "history": history, "match": None if a.patient_id else ap.find_patient(db, a.phone),
-                                      "ign_one": ap.is_ignored(db, a.phone)})
+                                      "ign_one": ap.is_ignored(db, a.phone),
+                                      "suppliers": db.scalars(select(Supplier).order_by(Supplier.name)).all(),
+                                      "sup_of": next((db.get(Supplier, v["supplier_id"]) for v in [ap.is_ignored(db, a.phone) or {}] if v.get("supplier_id")), None)})
 
 
 @app.post("/appeals")
@@ -1870,13 +1872,26 @@ def appeal_note(aid: int, text: str = Form(...), user: User = Depends(require("a
 
 @app.post("/appeals/{aid:int}/status")
 def appeal_status(aid: int, status: str = Form(...), deny_reason: str = Form(""), back: str = Form("/appeals"), ignore: str = Form(""),
+                  supplier_id: str = Form(""), new_supplier: str = Form(""),
                   user: User = Depends(require("appeals")), db: Session = Depends(db_dep)):
     from .services import appeals as ap
-    from .models import Appeal
+    from .models import Appeal, Supplier
     a = db.get(Appeal, aid)
     if a:
         ap.set_status(db, a, status, user.id, deny_reason or None)
-        if ap.status_type(ap.dirs(db), status) == "other" and a.phone:
+        sup = None
+        if deny_reason == "Постачальник" and (supplier_id or new_supplier.strip()):
+            if supplier_id.isdigit():
+                sup = db.get(Supplier, int(supplier_id))
+            elif new_supplier.strip():
+                nm = new_supplier.strip()[:200]
+                sup = db.scalar(select(Supplier).where(func.lower(Supplier.name) == nm.lower())) or Supplier(name=nm)
+                db.add(sup)
+                db.commit()
+        if sup:
+            ap.link_supplier(db, a, sup, user.id)
+            audit(db, "appeal.supplier", "appeal", aid, user=user, supplier=sup.name)
+        elif ap.status_type(ap.dirs(db), status) == "other" and a.phone:
             ap.set_ignored(db, a.phone, bool(ignore), deny_reason or "", a.name or "", user.id)
         if a.closed_at:
             t = db.scalar(select(Task).where(Task.source_key == f"appeal:{aid}", Task.status == "open"))

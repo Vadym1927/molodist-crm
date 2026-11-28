@@ -24,7 +24,8 @@
       {% if x.email %}<div><span>Email</span><a href="mailto:{{ x.email }}">{{ x.email }}</a></div>{% endif %}
       {% if x.terms %}<div><span>Умови</span>{{ x.terms }}</div>{% endif %}
       {% if x.note %}<div style="grid-column:1/-1"><span>Нотатка</span>{{ x.note }}</div>{% endif %}
-      {% if not (x.contact or x.phone or x.email or x.terms or x.note) %}<div class="muted small">Контактів ще немає.</div>{% endif %}
+      {% if x.contacts %}<div style="grid-column:1/-1"><span>Зі звернень</span>{% for c in x.contacts %}<div>{{ c.name or '—' }}{{ (' · ' ~ c.phone) if c.phone }}{{ (' · ' ~ {'instagram':'Instagram','facebook':'Messenger'}.get(c.channel, c.channel)) if c.channel }}{{ (' · ' ~ c.source) if c.source and not c.channel }} <span class="muted small">{{ c.at }}{% if c.appeal_id %} · <a href="/appeals?open={{ c.appeal_id }}">звернення №{{ c.appeal_id }}</a>{% endif %}</span></div>{% endfor %}</div>{% endif %}
+      {% if not (x.contact or x.phone or x.email or x.terms or x.note or x.contacts) %}<div class="muted small">Контактів ще немає.</div>{% endif %}
     </div>
     {% if can(user,'stock') %}<form method="post" action="/stock/suppliers" class="spm-f">
       <input type="hidden" name="sid" value="{{ x.id }}"><input type="hidden" name="back" class="spm-back">

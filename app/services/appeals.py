@@ -82,6 +82,58 @@ def set_ignored(db: Session, phone: str | None, on: bool, reason: str = "", name
     db.commit()
 
 
+def thread_ignored(db: Session, thread: str | None) -> dict | None:
+    """Діалог Instagram / Messenger привʼязано до постачальника → звернень з нього не створюємо."""
+    return ignored(db).get(f"t:{thread}") if thread else None
+
+
+def link_supplier(db: Session, a: Appeal, supplier, user_id: int | None = None) -> dict:
+    """Звернення від постачальника: контакт (імʼя, телефон, діалоги месенджерів) → картка постачальника,
+    номер і діалоги — у «не створювати звернень», інші відкриті звернення цього контакту закриваємо так само."""
+    from ..models import ChatMessage
+    threads = [(t, ch) for t, ch in db.execute(select(ChatMessage.thread, ChatMessage.channel).where(ChatMessage.appeal_id == a.id).distinct())]
+    c = {"name": a.name or "", "phone": a.phone or "", "thread": threads[0][0] if threads else "", "channel": threads[0][1] if threads else "",
+         "source": a.source or "", "at": datetime.now().strftime("%d.%m.%Y"), "appeal_id": a.id}
+    xs = [x for x in (supplier.contacts or []) if not ((c["phone"] and phone_key(x.get("phone")) == phone_key(c["phone"])) or
+                                                      (c["thread"] and x.get("thread") == c["thread"]))]
+    supplier.contacts = xs + [c]
+    if a.phone and not supplier.phone:
+        supplier.phone = a.phone
+    if a.name and not supplier.contact:
+        supplier.contact = a.name[:200]
+    db.commit()
+    reason = f"Постачальник: {supplier.name}"
+    if a.phone:
+        set_ignored(db, a.phone, True, reason, a.name or "", user_id)
+    if threads:
+        x = ignored(db)
+        for t, ch in threads:
+            x[f"t:{t}"] = {"reason": reason[:80], "name": (a.name or "")[:120], "at": datetime.now().strftime("%d.%m.%Y"), "by": user_id,
+                           "channel": ch, "supplier_id": supplier.id}
+        st = db.get(SyncState, IGNORE_KEY) or SyncState(key=IGNORE_KEY)
+        st.value, st.updated_at = json.dumps(x, ensure_ascii=False), datetime.utcnow()
+        db.merge(st)
+        db.commit()
+    x = ignored(db)
+    k = phone_key(a.phone)
+    if len(k) >= 9 and k in x:
+        x[k]["supplier_id"] = supplier.id
+        st = db.get(SyncState, IGNORE_KEY)
+        st.value = json.dumps(x, ensure_ascii=False)
+        db.commit()
+    # інші відкриті звернення цього ж контакту
+    d = dirs(db)
+    oth = other_status(d)
+    ids = {i for (i,) in db.execute(select(ChatMessage.appeal_id).where(ChatMessage.thread.in_([t for t, _ in threads]),
+                                                                       ChatMessage.appeal_id.is_not(None)))} if threads else set()
+    q = select(Appeal).where(Appeal.closed_at.is_(None), Appeal.deleted_at.is_(None), Appeal.id != a.id)
+    rest = [o for o in db.scalars(q) if o.id in ids or (k and len(k) >= 9 and phone_key(o.phone) == k)]
+    for o in rest:
+        set_status(db, o, oth, user_id, "Постачальник")
+    note(db, a, f"Привʼязано до постачальника «{supplier.name}»" + (f" · закрито ще звернень: {len(rest)}" if rest else ""), user_id, "system")
+    return c
+
+
 def save_dirs(db: Session, d: dict) -> None:
     st = db.get(SyncState, KEY) or SyncState(key=KEY)
     st.value, st.updated_at = json.dumps(d, ensure_ascii=False), datetime.utcnow()
