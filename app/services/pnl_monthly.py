@@ -337,6 +337,11 @@ def _collect(db: Session, year: int) -> dict:
         if mk in new_m:
             new_m[mk] += 1
     # ---------------- рядки по місяцях ----------------
+    try:
+        from .cashflow import month_net
+        cash_real = month_net(db, year)
+    except Exception:  # noqa: BLE001
+        cash_real = {}
     rows = []
     for mk in months:
         rev_s[mk] -= refund[mk]                          # повернення коштів пацієнтам зменшують дохід від послуг
@@ -378,6 +383,7 @@ def _collect(db: Session, year: int) -> dict:
                      "op": op, "op_pct": _pct(op, rev), "capex": capex[mk], "oneoff": oneoff[mk], "net": net, "net_pct": _pct(net, rev),
                      "owner_pay": owner_pay[mk], "net_before_owner": net + owner_pay[mk], "nbo_pct": _pct(net + owner_pay[mk], rev), "finance": finance[mk],
                      "cash_result": net - finance[mk] - owner[mk],
+                     "cash_real": round(cash_real.get(mk, 0.0), 2), "cash_gap": round(cash_real.get(mk, 0.0) - (net - finance[mk] - owner[mk]), 2),
                      "prepaid": rev_o[mk] + deposits_j[mk], "owner": owner[mk], "purchase": purchase[mk], "non_money": non_money[mk], "j_income": j_income[mk],
                      "k_new": n_new, "k_pat": n_p, "k_vis": n_v, "k_vpp": round(n_v / n_p, 2) if n_p else None,
                      "k_avg": round(rev_s[mk] / svc_items[mk]) if svc_items[mk] else None, "k_ltv": round(rev / n_p) if n_p else None,
@@ -440,7 +446,7 @@ def build(db: Session, year: int) -> dict:
     t: dict = {}
     for k in ("rev", "rev_s", "rev_p", "refund", "rev_o", "mat", "cogs_s", "amort", "labor", "labor_pay", "labor_tax", "adm_tax", "payroll_tax", "cogs_p", "cosm_pct",
               "cogs_serv", "cogs", "gross", "gross_s", "gross_p", "opex", "op", "capex", "oneoff", "net", "owner_pay", "net_before_owner", "finance",
-              "cash_result", "prepaid", "owner", "purchase", "non_money", "j_income", "k_new", "k_pat", "k_vis"):
+              "cash_result", "cash_real", "cash_gap", "prepaid", "owner", "purchase", "non_money", "j_income", "k_new", "k_pat", "k_vis"):
         t[k] = _sum(rows, k)
     t["opex_g"] = {k: _sum(rows, "opex_g", k) for k in rows[0]["opex_g"]} if rows else {}
     t["rev_cat"] = {c: _sum(rows, "rev_cat", c) for c in cur["cats"]}
@@ -565,7 +571,9 @@ def to_xlsx(r: dict) -> bytes:
     for a, mv, tot_ in r["finance_art"]:
         ws.append(["  " + a] + [round(mv.get(x["m"], 0.0), 2) for x in r["rows"]] + [tot_])
     line("Вилучення власника / дивіденди", "owner")
-    line("Грошовий результат (чистий − кредити − вилучення)", "cash_result", bold=True)
+    line("Результат після кредитів і дивідендів (за прибутком)", "cash_result", bold=True)
+    line("Фактичний рух каси (Cashflow)", "cash_real", bold=True)
+    line("  різниця (склад, амортизація, передоплати)", "cash_gap")
     line("Передоплати: сертифікати, абонементи, поповнення балансу", "prepaid")
     ws.append([])
     ws.append(["План"])

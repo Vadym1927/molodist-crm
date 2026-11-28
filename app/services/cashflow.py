@@ -221,6 +221,24 @@ def _balance_at(op: dict, alldays: list, d: date) -> float | None:
     return round(op["amount"] + sum(cd.net for cd in alldays if op["date"] <= cd.day <= d), 2)
 
 
+def month_net(db: Session, year: int) -> dict[str, float]:
+    """Фактичний чистий рух каси по календарних місяцях (як у звіті Cashflow, без тижневого групування)."""
+    op = opening(db)
+    y0, y1 = date(year, 1, 1), date(year, 12, 31)
+    if has_journal(db):
+        jd = {x.day: x for x in journal_days(db, min(op["date"], y0), min(y1, date.today())) if x.income or x.expense}
+        for cd in db.scalars(select(CashDay).where(CashDay.source == "cleverbox", CashDay.day <= y1)):
+            jd[cd.day] = Day(cd.day, cd.cash_in or 0, cd.card_in or 0, cd.income or 0, cd.expense or 0, "cleverbox")
+        days = jd.values()
+    else:
+        days = db.scalars(select(CashDay).where(CashDay.day <= y1)).all()
+    out: dict[str, float] = defaultdict(float)
+    for cd in days:
+        if y0 <= cd.day <= y1:
+            out[f"{year}-{cd.day.month:02d}"] += float(cd.income or 0) - float(cd.expense or 0)
+    return dict(out)
+
+
 def build(db: Session, year: int) -> dict:
     op = opening(db)
     y0, y1 = date(year, 1, 1), date(year, 12, 31)
