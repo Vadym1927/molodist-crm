@@ -51,7 +51,7 @@ OWNER_RE = re.compile(r"дивіденд|девіденд|власник|вил�
 PURCHASE_RE = re.compile(r"закуп|постач|товар|препарат|розхідн|матеріал|косметик|накладн", re.I)
 _OPEX_RX = [(k, t, re.compile(rx, re.I)) for k, t, rx in OPEX_GROUPS if rx != "__salary__"]
 _STAFF_RX = re.compile(OPEX_GROUPS[-1][2], re.I)
-KPI_TARGETS = {"gross_pct": 50, "cogs_pct": 50, "opex_pct": 30, "net_pct": 20}
+KPI_TARGETS = {"gross_pct": 50, "cogs_pct": 50, "opex_pct": 30, "op_pct": 20, "net_pct": 20}
 
 
 def classify(article: str, is_sal: bool, role: str | None) -> tuple[str, str]:

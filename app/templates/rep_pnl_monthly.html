@@ -64,7 +64,7 @@
   <div><small>Дохід</small><b>{{ u(t.rev) }} ₴</b><span class="s">{% if r.pt and r.pt.rev %}до тих самих місяців {{ r.year - 1 }}: {{ yoy(r.pt.yoy_rev) }}{% else %}послуги {{ u(t.rev_s) }} · косметика {{ u(t.rev_p) }}{% endif %}</span></div>
   <div><small>Валовий прибуток</small><b>{{ u(t.gross) }} ₴</b><span class="s">маржа {{ tgt(t.gross_pct, T.gross_pct, true) }} (ціль ≥ {{ T.gross_pct }}%) · COGS {{ tgt(t.cogs_pct, T.cogs_pct, false) }}</span></div>
   <div><small>OPEX</small><b>{{ u(t.opex) }} ₴</b><span class="s">{{ tgt(t.opex_pct, T.opex_pct, false) }} від доходу (ціль ≤ {{ T.opex_pct }}%)</span></div>
-  <div><small>Операційний прибуток</small><b>{{ s(t.op) }} ₴</b><span class="s">{{ pc(t.op_pct) }} · капвитрати {{ u(t.capex) }} · разові {{ u(t.oneoff) }}</span></div>
+  <div><small>Операційний прибуток</small><b>{{ s(t.op) }} ₴</b><span class="s">{{ tgt(t.op_pct, T.op_pct, true) }} (ціль ≥ {{ T.op_pct }}%) · капвитрати {{ u(t.capex) }} · разові {{ u(t.oneoff) }}</span></div>
   <div class="g"><small>Чистий прибуток</small><b>{{ '+' if t.net > 0 }}{{ s(t.net) }} ₴</b><span class="s">рентабельність {{ pc(t.net_pct) }} (ціль ≥ {{ T.net_pct }}%){% if r.pt and r.pt.net %} · до {{ r.year - 1 }}: {{ yoy(r.pt.yoy_net) }}{% endif %}</span></div>
   <div><small>Грошовий результат</small><b>{{ s(t.cash_result) }} ₴</b><span class="s">чистий − кредити {{ u(t.finance) }} − вилучення {{ u(t.owner) }}{% if t.owner_pay %} · до ЗП власника {{ s(t.net_before_owner) }}{% endif %}</span></div>
   <div><small>Місяці</small><b>{{ r.pos }} <span style="font-size:13px;color:#8a8496">у плюсі</span> · {{ r.neg }} <span style="font-size:13px;color:#8a8496">у мінусі</span></b><span class="s">{% if r.best %}найкращий — {{ r.best.full|lower }} ({{ s(r.best.net) }}){% endif %}{% if r.worst and r.worst != r.best %}, найгірший — {{ r.worst.full|lower }} ({{ s(r.worst.net) }}){% endif %}</span></div>
@@ -132,7 +132,7 @@
   {% endif %}{% endfor %}
 
   <tr class="res"><td>Операційний прибуток (Operating Profit)</td>{{ cells('op') }}</tr>
-  <tr class="pct"><td>операційна рентабельність</td>{{ cells('op_pct', pct=True) }}</tr>
+  <tr class="pct"><td>операційна рентабельність (ціль ≥ {{ T.op_pct }}%)</td>{{ cells('op_pct', pct=True) }}</tr>
 
   <tr class="h"><td>Амортизація та капітальні витрати (CAPEX)</td><td colspan="{{ W }}"></td></tr>
   <tr class="tot grp" {{ togg() }}><td>Капітальні витрати, ремонт, зобовʼязання</td>{{ cells('capex') }}</tr>
