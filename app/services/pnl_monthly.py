@@ -48,6 +48,8 @@ DEPOSIT_RE = re.compile(r"баланс|депозит|внесенн|перед�
 OWNER_PAY_RE = re.compile(r"керівник|власник|директор|засновник", re.I)
 ONEOFF_RE = re.compile(r"навчанн|курс|семінар|конференц|зсу|допомог|благодійн|волонтер|разов", re.I)
 OWNER_RE = re.compile(r"дивіденд|девіденд|власник|вилученн|особист", re.I)
+REFUND_RE = re.compile(r"повернен", re.I)
+ACCOUNTING_RE = re.compile(r"бухгалтер", re.I)
 PURCHASE_RE = re.compile(r"закуп|постач|товар|препарат|розхідн|матеріал|косметик|накладн", re.I)
 _OPEX_RX = [(k, t, re.compile(rx, re.I)) for k, t, rx in OPEX_GROUPS if rx != "__salary__"]
 _STAFF_RX = re.compile(OPEX_GROUPS[-1][2], re.I)
@@ -61,8 +63,14 @@ def classify(article: str, is_sal: bool, role: str | None) -> tuple[str, str]:
         return "owner", "owner"
     if PAYROLL_TAX_RE.search(a):
         return "payroll_tax", "payroll_tax"
+    if REFUND_RE.search(a):
+        return "refund", "refund"                         # повернення пацієнтам — зменшує дохід, не OPEX
+    if ONEOFF_RE.search(a):
+        return "oneoff", "oneoff"                         # навчання персоналу тощо — разові, навіть зі статтею «Персонал»
     if _STAFF_RX.search(a):
         return "opex", "staff"
+    if ACCOUNTING_RE.search(a):
+        return "opex", "salary"                           # бухгалтерія (аутсорс) — у зарплату персоналу
     if is_sal:
         return ("cogs_labor", "doctor") if role == "doctor" else ("opex", "salary")
     if ONEOFF_RE.search(a):
@@ -239,6 +247,7 @@ def _collect(db: Session, year: int) -> dict:
     opex_art: dict[str, dict[str, dict]] = defaultdict(lambda: defaultdict(z))     # група → стаття → місяці
     capex, oneoff, owner, purchase, non_money, j_income = z(), z(), z(), z(), z(), z()
     finance, payroll_tax, owner_pay, deposits_j = z(), z(), z(), z()
+    refund = z()
     capex_art: dict[str, dict] = defaultdict(z)
     oneoff_art: dict[str, dict] = defaultdict(z)
     finance_art: dict[str, dict] = defaultdict(z)
@@ -300,6 +309,8 @@ def _collect(db: Session, year: int) -> dict:
             finance_art[(r.article or "Без статті").strip()][mk] += amt
         elif block == "payroll_tax":
             payroll_tax[mk] += amt
+        elif block == "refund":
+            refund[mk] += amt
     # ---------------- нові пацієнти (перший чек в історії) ----------------
     first = {}
     for pid, d0 in db.execute(select(Check.patient_id, func.min(Check.date)).where(Check.deleted.is_(False), Check.patient_id.is_not(None))
@@ -316,6 +327,7 @@ def _collect(db: Session, year: int) -> dict:
     # ---------------- рядки по місяцях ----------------
     rows = []
     for mk in months:
+        rev_s[mk] -= refund[mk]                          # повернення коштів пацієнтам зменшують дохід від послуг
         rev = rev_s[mk] + rev_p[mk]                      # сертифікати / абонементи / поповнення — передоплата, не дохід (довідково)
         from_journal = False
         if not rev and j_income[mk]:
@@ -342,7 +354,7 @@ def _collect(db: Session, year: int) -> dict:
         gm = gross / rev if rev else 0
         rows.append({"m": mk, "label": MONTHS[int(mk[5:]) - 1], "full": MONTHS_FULL[int(mk[5:]) - 1], "current": mk == _m(today), "from_journal": from_journal,
                      "from_visits": mk in hist_months,
-                     "rev": rev, "rev_s": rev_s[mk], "rev_p": rev_p[mk], "rev_o": rev_o[mk],
+                     "rev": rev, "rev_s": rev_s[mk], "rev_p": rev_p[mk], "refund": refund[mk], "rev_o": rev_o[mk],
                      "rev_cat": {c_: v[mk] for c_, v in rev_cat.items()},
                      "mat": mat, "cogs_s": cogs_s[mk], "amort": amort[mk], "cogs_cat": {c_: v[mk] for c_, v in cogs_cat.items()},
                      "labor": labor_full, "labor_pay": labor[mk], "labor_tax": ptax_doc, "adm_tax": ptax_adm, "payroll_tax": payroll_tax[mk],
@@ -414,7 +426,7 @@ def build(db: Session, year: int) -> dict:
     rows = cur["rows"]
     done = [r for r in rows if r["rev"] or r["opex"] or r["labor"]]
     t: dict = {}
-    for k in ("rev", "rev_s", "rev_p", "rev_o", "mat", "cogs_s", "amort", "labor", "labor_pay", "labor_tax", "adm_tax", "payroll_tax", "cogs_p", "cosm_pct",
+    for k in ("rev", "rev_s", "rev_p", "refund", "rev_o", "mat", "cogs_s", "amort", "labor", "labor_pay", "labor_tax", "adm_tax", "payroll_tax", "cogs_p", "cosm_pct",
               "cogs_serv", "cogs", "gross", "gross_s", "gross_p", "opex", "op", "capex", "oneoff", "net", "owner_pay", "net_before_owner", "finance",
               "cash_result", "prepaid", "owner", "purchase", "non_money", "j_income", "k_new", "k_pat", "k_vis"):
         t[k] = _sum(rows, k)
@@ -501,6 +513,7 @@ def to_xlsx(r: dict) -> bytes:
     for c_ in r["cats"]:
         line("  " + c_, "rev_cat", c_)
     line("Косметика", "rev_p")
+    line("Повернення пацієнтам (вже відняті з доходу)", "refund")
     line("Сертифікати / абонементи / інше", "rev_o")
     line("СОБІВАРТІСТЬ", "cogs", bold=True)
     line("Собівартість послуг", "cogs_serv")

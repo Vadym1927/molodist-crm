@@ -104,6 +104,7 @@
   <tr class="sub grp" {{ togg() }}><td>Послуги загалом</td>{{ cells('rev_s') }}</tr>
   {% for c in r.cats %}<tr class="sub2 ln"><td>{{ c }}</td>{{ cells('rev_cat', c) }}</tr>{% endfor %}
   <tr class="sub"><td>Косметика</td>{{ cells('rev_p') }}</tr>
+  {% if t.refund %}<tr class="sub"><td>Повернення пацієнтам <span class="muted2">(вже відняті з доходу)</span></td>{{ cells('refund') }}</tr>{% endif %}
 
   <tr class="h"><td>Собівартість (Cost of Services)</td><td colspan="{{ W }}"></td></tr>
   <tr class="tot"><td>Собівартість разом</td>{{ cells('cogs') }}</tr>
