@@ -261,7 +261,7 @@ main [style*="flex:1;min-width:0"]{flex:1 1 220px!important}main code,main pre{w
   {% if can(user,'stock') %}<a class="bell" href="/prices?tab=alerts" title="Центр моніторингу цін{{ (': ' ~ task_counts.prices ~ ' нових') if task_counts and task_counts.prices }}"><span class="ti" style="--ti:url(/static/icons/prices.png)"></span>{% if task_counts and task_counts.prices %}<b class="pbadge">{{ task_counts.prices }}</b>{% endif %}</a>{% endif %}
   {% if can(user,'appeals') %}<a class="bell" href="/telephony" title="Телефонія: пропущені, вхідні, дзвінки по пацієнтах"><span class="ti" style="--ti:url(/static/icons/phone.png)"></span></a>
   <a class="bell" href="/chats" id="cx-bell" title="Центр спілкування з пацієнтами: Instagram, Viber, Telegram, WhatsApp"><span class="ti" style="--ti:url(/static/icons/chat.png)"></span><b class="pbadge" id="cx-badge" hidden></b></a>
-  <script>(function(){
+  <script>(function(){if(window.self!==window.top)return;/* у вбудованому вікні (фінанси тощо) сповіщення показує лише головне вікно */
     /* Непрочитані повідомлення пацієнтів: лічильник на іконці «Центру спілкування» + звук, коли приходить нове. */
     var K='cx_last', badge=document.getElementById('cx-badge'), bell=document.getElementById('cx-bell'), T0=document.title, ac=null, first=true;
     function unlock(){ try{ ac=ac||new (window.AudioContext||window.webkitAudioContext)(); if(ac.state==='suspended') ac.resume(); }catch(e){} }
@@ -321,7 +321,7 @@ main [style*="flex:1;min-width:0"]{flex:1 1 220px!important}main code,main pre{w
 })();</script>{% endif %}
 {% if user and can(user,'stock') %}{% include "_supplier_modal.html" %}{% endif %}
 {% if user %}{% include "_delpw.html" %}{% endif %}
-{% if user and nav not in ('login','print') %}<script>(function(){var since=null,box=document.getElementById('nt'),bd=document.getElementById('nt-badge');if(!box)return;
+{% if user and nav not in ('login','print') %}<script>(function(){if(window.self!==window.top)return;/* у вбудованому вікні (фінанси тощо) сповіщення показує лише головне вікно */var since=null,box=document.getElementById('nt'),bd=document.getElementById('nt-badge');if(!box)return;
 window.ntOpen=function(e){e.preventDefault();if(!box.hidden){box.hidden=true;return false}box.hidden=false;box.innerHTML='<div class="nt-e">Завантаження…</div>';
   fetch('/notifications',{credentials:'same-origin'}).then(function(r){return r.text()}).then(function(h){box.innerHTML=h;bd.hidden=true});return false};
 window.ntClose=function(){box.hidden=true};
@@ -371,7 +371,7 @@ poll();setInterval(poll,20000)})();</script>
 .cp-c .a a.f{background:#C9BFE6;border-color:#C9BFE6;color:#2A2430}.cp-c .a a.w{grid-column:1/-1}
 .cp-c .nf{display:grid;gap:6px;margin-top:10px}.cp-c .nf input{height:36px;border-radius:9px;border:0;padding:0 10px}.cp-c .nf button{height:38px;border:0;border-radius:10px;background:#C9BFE6;color:#2A2430;font:700 13px var(--sans);cursor:pointer}.cp-c .nf em{color:#FFB4A8;font-style:normal;font-size:12.5px}
 </style><div class="call-pop" id="callpop"></div><script>
-(function(){var shown={},hid={},box=document.getElementById('callpop');
+(function(){if(window.self!==window.top)return;/* у вбудованому вікні (фінанси тощо) сповіщення показує лише головне вікно */var shown={},hid={},box=document.getElementById('callpop');
 function esc(x){return String(x||'').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 function tick(){if(document.hidden)return;fetch('/telephony/live',{credentials:'same-origin'}).then(function(r){return r.ok?r.json():null}).then(function(j){if(!j)return;
   var ids={};(j.calls||[]).forEach(function(c){if(c.dir!=='in'||hid[c.id])return;ids[c.id]=1;var el=shown[c.id];
