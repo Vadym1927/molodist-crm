@@ -562,7 +562,7 @@ def register(app, templates, version: str):
         from .services import shop_carts as _ct
         try:
             cart = _ct.lead(db, str(body.get("phone") or ""), str(body.get("name") or ""), str(body.get("email") or ""),
-                            body.get("items") or [], cx_data(db))
+                            body.get("items") or [], cx_data(db), str(body.get("sid") or ""))
             db.commit()
         except Exception:  # noqa: BLE001
             db.rollback()

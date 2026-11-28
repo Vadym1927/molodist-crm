@@ -322,3 +322,25 @@ def booking_funnel(db: Session, d_from: date, d_to: date, paid: bool | None = No
         n = sum(1 for s_ in got.values() if k in s_)
         out.append({"key": k, "label": label, "n": n, "pct": round(100 * n / top) if top else None})
     return out
+
+
+def cart_path(db: Session, cart, names: dict | None = None) -> dict | None:
+    """Шлях на сайті для покинутого кошика: сесія вкладки (sid), а для старих кошиків — сесія, що була на оформленні,
+    коли гість ввів телефон (час оновлення кошика ± кілька хвилин)."""
+    from types import SimpleNamespace
+    if not cart.updated_at:
+        return None
+    at = cart.updated_at + (datetime.now() - datetime.utcnow())          # updated_at — UTC, події — місцевий час
+    sid, guess = str(getattr(cart, "sid", None) or ""), False
+    if not sid:
+        row = db.execute(select(SiteEvent.sid).where(SiteEvent.at >= at - timedelta(minutes=10), SiteEvent.at <= at + timedelta(minutes=3),
+                                                     SiteEvent.page.like(STORE + "/checkout%"), SiteEvent.sid != "")
+                         .order_by(SiteEvent.at.desc())).first()
+        if not row:
+            return None
+        sid, guess = row[0], True
+    p = order_path(db, SimpleNamespace(raw={"sid": sid}, created_at=at + timedelta(hours=2), address=None, city=None), names)
+    if p:
+        p["guess"] = guess
+        p["mins"] = 0
+    return p

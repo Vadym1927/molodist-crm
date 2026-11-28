@@ -198,7 +198,8 @@
       var ph = (form.phone.value || '').replace(/\D/g, ''); if (ph.length < 12) return;
       var items = load(); if (!items.length) return;
       var sig = ph + '|' + JSON.stringify(items); if (sig === leadSig) return; leadSig = sig;
-      api('/api/cart/lead', { phone: form.phone.value, name: form.name.value, email: form.email ? form.email.value : '', items: items }, function () {});
+      var sid_ = ''; try { sid_ = sessionStorage.getItem('mshop_sid') || ''; } catch (x) {}
+      api('/api/cart/lead', { phone: form.phone.value, name: form.name.value, email: form.email ? form.email.value : '', items: items, sid: sid_ }, function () {});
     }
     form.phone.addEventListener('change', cartLead); form.phone.addEventListener('blur', cartLead);
     form.name.addEventListener('blur', function () { leadSig = ''; cartLead(); });

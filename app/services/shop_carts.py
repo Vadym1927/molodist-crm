@@ -47,7 +47,7 @@ def save(db: Session, pid: int, items: list, data: dict) -> ShopCart:
     return cart
 
 
-def lead(db: Session, phone: str, name: str, email: str, items: list, data: dict) -> ShopCart | None:
+def lead(db: Session, phone: str, name: str, email: str, items: list, data: dict, sid: str = "") -> ShopCart | None:
     """Гість на сторінці оформлення ввів телефон, але ще не замовив: знаходимо / створюємо картку за номером
     (як при замовленні) і зберігаємо кошик — далі працюють «Покинуті кошики»: задача адмінам і нагадування."""
     from . import shop_orders as so
@@ -61,6 +61,9 @@ def lead(db: Session, phone: str, name: str, email: str, items: list, data: dict
     cart = save(db, p.id, items, data)
     if cart.status == "open" and not cart.note:
         cart.note = "Гість: ввів телефон на сторінці оформлення, замовлення не завершив"
+    sid = "".join(ch for ch in str(sid or "") if ch.isalnum())[:32]
+    if sid:
+        cart.sid = sid
     db.flush()
     return cart
 
@@ -113,7 +116,12 @@ def rows(db: Session, data: dict, status: str = "open", min_hours: float = 0) ->
         p = pts.get(c.patient_id)
         a = accs.get(c.patient_id)
         nm = " ".join(x for x in ((a.last_name if a else ""), (a.first_name if a else "")) if x) or (p.full_name if p else "")
-        out.append({"cart": c, "patient": p, "name": nm, "phone": getattr(p, "phone", "") if p else "", "lines": items, "age": age_text(c.updated_at),
+        try:
+            from . import site_stats as _ss
+            path = _ss.cart_path(db, c, {f"/shop/{it_['slug']}/": it_["name"][:60] for it_ in data["items"] if it_.get("slug")}) if c.status == "open" else None
+        except Exception:  # noqa: BLE001
+            path = None
+        out.append({"cart": c, "path": path, "patient": p, "name": nm, "phone": getattr(p, "phone", "") if p else "", "lines": items, "age": age_text(c.updated_at),
                     "task": db.get(Task, c.task_id) if c.task_id else None})
     return out
 

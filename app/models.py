@@ -2208,6 +2208,7 @@ class ShopCart(Base):
     reminded_at: Mapped[datetime | None] = mapped_column(DateTime)
     task_id: Mapped[int | None] = mapped_column(Integer)
     note: Mapped[str | None] = mapped_column(Text)
+    sid: Mapped[str | None] = mapped_column(String(32))                          # сесія вкладки на сайті — для «шляху покупця»
 
 
 class ShopPromo(Base):

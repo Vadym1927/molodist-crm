@@ -16,6 +16,8 @@
   <div class="it">{% for i in r.lines %}<span>{% if i.img %}<img src="/_shop/img/{{ i.img }}?w=100" alt="">{% endif %}{{ i.name }} × {{ i.qty }}{% if not i.stock %} <em class="muted">(немає)</em>{% endif %}</span>{% else %}<span class="muted">порожньо</span>{% endfor %}</div>
   {% if r.task %}<div class="small">Задача: <a href="/tasks?open={{ r.task.id }}">{{ r.task.title }}</a> · {{ 'відкрита' if r.task.status == 'open' else 'виконана' }}</div>{% endif %}
   {% if ct.note %}<div class="small muted" style="white-space:pre-line">{{ ct.note }}</div>{% endif %}
+  {% if r.path %}<details class="small" style="margin:6px 0"><summary style="cursor:pointer"><b>Шлях на сайті</b> · зайшов {{ r.path.first }} · {{ r.path.device }} · {{ r.path.src }}{% if r.path.guess %} · сесію знайдено за часом{% endif %}</summary>
+    <div style="overflow:auto;margin-top:6px"><table class="tbl" style="width:100%;font-size:12.5px">{% for x in r.path.rows %}<tr><td class="muted" style="white-space:nowrap">{{ x.at[6:] }}</td><td>{{ x.page }}</td><td>{{ x.what }}</td><td class="small">{{ x.t }}</td></tr>{% endfor %}</table></div></details>{% endif %}
   {% if ct.status == 'open' %}<form method="post" action="/shop-carts/{{ ct.id }}">
     <a class="btn" href="/shop-carts/{{ ct.id }}/order">Оформити замовлення</a>
     <button class="btn ghost" name="action" value="remind" {{ 'disabled' if not r.phone }}>{{ 'Нагадати ще раз' if ct.reminded_at else 'Надіслати нагадування' }}</button>

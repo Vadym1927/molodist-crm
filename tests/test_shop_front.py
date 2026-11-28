@@ -1343,3 +1343,20 @@ def test_parts_fail_falls_back_to_card(monkeypatch):
         o = db.get(SiteOrder, r["id"])
         assert r["pay_url"] == "https://pay.mbnk.biz/x" and "parts_error" in r and not r.get("parts")
         assert o.payment == "Онлайн карткою (monobank)" and o.raw["pay"] == "online" and o.status == "Очікує оплати" and "Помилка валідації" in o.comment
+
+
+def test_cart_path_guess_and_sid():
+    from datetime import datetime as _dt, timedelta as _td
+    from app.models import ShopCart, SiteEvent
+    from app.services import site_stats as ss
+    with SessionLocal() as db:
+        pt = Patient(full_name="Кошик Шлях", phone="380671119999"); db.add(pt); db.commit()
+        now = _dt.now()
+        db.add_all([SiteEvent(at=now - _td(minutes=5), sid="cartsid1", page=ss.STORE + "/shop/x/", kind="view"),
+                    SiteEvent(at=now - _td(minutes=1), sid="cartsid1", page=ss.STORE + "/checkout/", kind="form", target="checkout")])
+        c = ShopCart(patient_id=pt.id, items=[{"id": 1, "qty": 1}], status="open", updated_at=_dt.utcnow())
+        db.add(c); db.commit()
+        p = ss.cart_path(db, c)
+        assert p and p["guess"] and len(p["rows"]) == 2
+        c.sid = "cartsid1"; db.commit()
+        assert ss.cart_path(db, c)["guess"] is False
